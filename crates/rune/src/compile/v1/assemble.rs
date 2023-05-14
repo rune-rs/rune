@@ -3211,7 +3211,7 @@ fn expr_loop(
     needs: Needs,
 ) -> compile::Result<Asm> {
     let continue_label = c.asm.new_label("while_continue");
-    let then_label = c.asm.new_label("whiel_then");
+    let then_label = c.asm.new_label("while_then");
     let end_label = c.asm.new_label("while_end");
     let break_label = c.asm.new_label("while_break");
 

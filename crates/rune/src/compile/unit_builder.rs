@@ -17,6 +17,7 @@ use crate::compile::{
     self, Assembly, AssemblyInst, CompileErrorKind, Item, Location, Pool, QueryErrorKind, WithSpan,
 };
 use crate::runtime::debug::{DebugArgs, DebugSignature};
+use crate::runtime::unit::{UnitStorage, UnitStorageBuilder};
 use crate::runtime::{
     Call, ConstValue, DebugInfo, DebugInst, Inst, Protocol, Rtti, StaticString, Unit, UnitFn,
     VariantRtti,
@@ -38,10 +39,6 @@ pub enum LinkerError {
 /// Instructions from a single source file.
 #[derive(Debug, Default)]
 pub(crate) struct UnitBuilder {
-    /// The instructions contained in the source file.
-    instructions: Vec<u8>,
-    /// Labelled offsets.
-    offsets: Vec<usize>,
     /// Registered re-exports.
     reexports: HashMap<Hash, Hash>,
     /// Where functions are located in the collection of instructions.
@@ -83,7 +80,10 @@ impl UnitBuilder {
     /// Convert into a runtime unit, shedding our build metadata in the process.
     ///
     /// Returns `None` if the builder is still in use.
-    pub(crate) fn build(mut self, span: Span) -> compile::Result<Unit> {
+    pub(crate) fn build<S>(mut self, span: Span, storage: S) -> compile::Result<Unit<S>>
+    where
+        S: UnitStorage,
+    {
         if let Some(debug) = &mut self.debug {
             debug.functions_rev = self.functions_rev;
         }
@@ -120,8 +120,7 @@ impl UnitBuilder {
         }
 
         Ok(Unit::new(
-            self.instructions,
-            self.offsets,
+            storage,
             self.functions,
             self.static_strings,
             self.static_bytes,
@@ -540,8 +539,9 @@ impl UnitBuilder {
         assembly: Assembly,
         call: Call,
         debug_args: Box<[Box<str>]>,
+        unit_storage: &mut dyn UnitStorageBuilder,
     ) -> compile::Result<()> {
-        let offset = self.instructions.len();
+        let offset = unit_storage.offset();
         let hash = Hash::type_hash(item);
 
         self.functions_rev.insert(offset, hash);
@@ -564,7 +564,7 @@ impl UnitBuilder {
 
         self.debug_info_mut().functions.insert(hash, signature);
 
-        self.add_assembly(location, assembly)?;
+        self.add_assembly(location, assembly, unit_storage)?;
         Ok(())
     }
 
@@ -599,10 +599,11 @@ impl UnitBuilder {
         assembly: Assembly,
         call: Call,
         debug_args: Box<[Box<str>]>,
+        unit_storage: &mut dyn UnitStorageBuilder,
     ) -> compile::Result<()> {
         tracing::trace!("instance fn: {}", item);
 
-        let offset = self.instructions.len();
+        let offset = unit_storage.offset();
         let instance_fn = Hash::associated_function(type_hash, name);
         let hash = Hash::type_hash(item);
 
@@ -636,7 +637,7 @@ impl UnitBuilder {
             .functions
             .insert(instance_fn, signature);
         self.functions_rev.insert(offset, hash);
-        self.add_assembly(location, assembly)?;
+        self.add_assembly(location, assembly, unit_storage)?;
         Ok(())
     }
 
@@ -664,16 +665,22 @@ impl UnitBuilder {
     }
 
     /// Translate the given assembly into instructions.
-    fn add_assembly(&mut self, location: Location, assembly: Assembly) -> compile::Result<()> {
+    fn add_assembly(
+        &mut self,
+        location: Location,
+        assembly: Assembly,
+        storage: &mut dyn UnitStorageBuilder,
+    ) -> compile::Result<()> {
         self.label_count = assembly.label_count;
 
-        let base = self.offsets.len();
-        self.offsets.extend((0..assembly.labels.len()).map(|_| 0));
+        let base = storage.extend_offsets(assembly.labels.len());
         self.required_functions.extend(assembly.required_functions);
 
-        for label in assembly.labels.values().flat_map(|e| e.1.as_slice()) {
-            if let Some(jump) = label.jump() {
-                label.set_jump(base.wrapping_add(jump));
+        for (offset, (_, labels)) in &assembly.labels {
+            for label in labels {
+                if let Some(jump) = label.jump() {
+                    label.set_jump(storage.label_jump(base, *offset, jump));
+                }
             }
         }
 
@@ -689,22 +696,13 @@ impl UnitBuilder {
                 .unwrap_or_default()
             {
                 if let Some(index) = label.jump() {
-                    if let Some(o) = self.offsets.get_mut(index) {
-                        *o = self.instructions.len();
-                    }
+                    storage.mark_offset(index);
                 }
 
                 labels.push(label.to_debug_label());
             }
 
-            let at = self.instructions.len();
-
-            macro_rules! push {
-                ($inst:expr) => {
-                    musli_storage::encode(&mut self.instructions, &$inst)
-                        .with_span(location.span)?
-                };
-            }
+            let at = storage.offset();
 
             match inst {
                 AssemblyInst::Jump { label } => {
@@ -716,7 +714,9 @@ impl UnitBuilder {
                         })
                         .with_span(location.span)?;
                     comment = Some(format!("label:{}", label).into());
-                    push!(Inst::Jump { jump });
+                    storage
+                        .encode(Inst::Jump { jump })
+                        .with_span(location.span)?;
                 }
                 AssemblyInst::JumpIf { label } => {
                     let jump = label
@@ -727,7 +727,9 @@ impl UnitBuilder {
                         })
                         .with_span(location.span)?;
                     comment = Some(format!("label:{}", label).into());
-                    push!(Inst::JumpIf { jump });
+                    storage
+                        .encode(Inst::JumpIf { jump })
+                        .with_span(location.span)?;
                 }
                 AssemblyInst::JumpIfOrPop { label } => {
                     let jump = label
@@ -738,7 +740,9 @@ impl UnitBuilder {
                         })
                         .with_span(location.span)?;
                     comment = Some(format!("label:{}", label).into());
-                    push!(Inst::JumpIfOrPop { jump });
+                    storage
+                        .encode(Inst::JumpIfOrPop { jump })
+                        .with_span(location.span)?;
                 }
                 AssemblyInst::JumpIfNotOrPop { label } => {
                     let jump = label
@@ -749,7 +753,9 @@ impl UnitBuilder {
                         })
                         .with_span(location.span)?;
                     comment = Some(format!("label:{}", label).into());
-                    push!(Inst::JumpIfNotOrPop { jump });
+                    storage
+                        .encode(Inst::JumpIfNotOrPop { jump })
+                        .with_span(location.span)?;
                 }
                 AssemblyInst::JumpIfBranch { branch, label } => {
                     let jump = label
@@ -760,7 +766,9 @@ impl UnitBuilder {
                         })
                         .with_span(location.span)?;
                     comment = Some(format!("label:{}", label).into());
-                    push!(Inst::JumpIfBranch { branch, jump });
+                    storage
+                        .encode(Inst::JumpIfBranch { branch, jump })
+                        .with_span(location.span)?;
                 }
                 AssemblyInst::PopAndJumpIfNot { count, label } => {
                     let jump = label
@@ -771,7 +779,9 @@ impl UnitBuilder {
                         })
                         .with_span(location.span)?;
                     comment = Some(format!("label:{}", label).into());
-                    push!(Inst::PopAndJumpIfNot { count, jump });
+                    storage
+                        .encode(Inst::PopAndJumpIfNot { count, jump })
+                        .with_span(location.span)?;
                 }
                 AssemblyInst::IterNext { offset, label } => {
                     let jump = label
@@ -782,10 +792,12 @@ impl UnitBuilder {
                         })
                         .with_span(location.span)?;
                     comment = Some(format!("label:{}", label).into());
-                    push!(Inst::IterNext { offset, jump });
+                    storage
+                        .encode(Inst::IterNext { offset, jump })
+                        .with_span(location.span)?;
                 }
                 AssemblyInst::Raw { raw } => {
-                    push!(raw);
+                    storage.encode(raw).with_span(location.span)?;
                 }
             }
 

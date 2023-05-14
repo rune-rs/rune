@@ -129,9 +129,9 @@ pub use self::type_info::{AnyTypeInfo, TypeInfo};
 mod type_of;
 pub use self::type_of::{FullTypeOf, MaybeTypeOf, TypeOf};
 
-mod unit;
-pub use self::unit::Unit;
+pub mod unit;
 pub(crate) use self::unit::UnitFn;
+pub use self::unit::{Unit, UnitStorage};
 
 mod value;
 pub use self::value::{Rtti, Struct, TupleStruct, UnitStruct, Value, VariantRtti};

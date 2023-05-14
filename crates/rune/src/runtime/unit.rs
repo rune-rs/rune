@@ -1,12 +1,15 @@
-//! A single execution unit in the runestick virtual machine.
+//! A single execution unit in the rune virtual machine.
 //!
 //! A unit consists of a sequence of instructions, and lookaside tables for
 //! metadata like function locations.
+
+mod storage;
 
 use core::fmt;
 
 use crate::no_std::prelude::*;
 
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::collections::HashMap;
@@ -16,13 +19,20 @@ use crate::runtime::{
 };
 use crate::Hash;
 
+pub use self::storage::{
+    ArrayStorage, BadInstruction, BadJump, BytesStorage, EncodeError, UnitStorage,
+    UnitStorageBuilder,
+};
+
+/// Default storage implementation to use.
+pub type DefaultStorage = ArrayStorage;
+
 /// Instructions from a single source file.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct Unit {
-    /// The instructions contained in the source file.
-    instructions: Vec<u8>,
-    /// Known jump offsets.
-    offsets: Vec<usize>,
+#[serde(bound = "S: Serialize + DeserializeOwned")]
+pub struct Unit<S = DefaultStorage> {
+    /// Storage for the unit.
+    storage: S,
     /// Where functions are located in the collection of instructions.
     functions: HashMap<Hash, UnitFn>,
     /// A static string.
@@ -46,12 +56,14 @@ pub struct Unit {
     constants: HashMap<Hash, ConstValue>,
 }
 
-impl Unit {
+impl<S> Unit<S>
+where
+    S: UnitStorage,
+{
     /// Construct a new unit with the given content.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
-        instructions: Vec<u8>,
-        offsets: Vec<usize>,
+        storage: S,
         functions: HashMap<Hash, UnitFn>,
         static_strings: Vec<Arc<StaticString>>,
         static_bytes: Vec<Vec<u8>>,
@@ -62,8 +74,7 @@ impl Unit {
         constants: HashMap<Hash, ConstValue>,
     ) -> Self {
         Self {
-            instructions,
-            offsets,
+            storage,
             functions,
             static_strings,
             static_bytes,
@@ -76,12 +87,8 @@ impl Unit {
     }
 
     #[inline]
-    pub(crate) fn offset(&self, jump: usize) -> Option<usize> {
-        if let Some(&offset) = self.offsets.get(jump) {
-            Some(offset)
-        } else {
-            None
-        }
+    pub(crate) fn translate(&self, jump: usize) -> Result<usize, BadJump> {
+        self.storage.translate(jump)
     }
 
     /// Access debug information for the given location if it is available.
@@ -90,22 +97,17 @@ impl Unit {
         Some(&**debug)
     }
 
-    /// Get raw underying instructions.
-    pub(crate) fn instructions(&self) -> &[u8] {
-        &self.instructions
+    /// Get raw underlying instructions storage.
+    pub(crate) fn instructions(&self) -> &S {
+        &self.storage
     }
 
     /// Get the instruction at the given instruction pointer.
-    pub(crate) fn instruction_at(&self, ip: usize) -> Result<Option<(Inst, usize)>, VmErrorKind> {
-        let Some(mut bytes) = self.instructions.get(ip..) else {
-            return Ok(None);
-        };
-
-        let start = bytes.as_ptr();
-        let inst: Inst =
-            musli_storage::decode(&mut bytes).map_err(|_| VmErrorKind::BadInstruction)?;
-        let len = (bytes.as_ptr() as usize).wrapping_sub(start as usize);
-        Ok(Some((inst, len)))
+    pub(crate) fn instruction_at(
+        &self,
+        ip: usize,
+    ) -> Result<Option<(Inst, usize)>, BadInstruction> {
+        self.storage.get(ip)
     }
 
     /// Iterate over all static strings in the unit.
@@ -136,18 +138,7 @@ impl Unit {
     /// Iterate over all instructions in order.
     #[cfg(feature = "emit")]
     pub(crate) fn iter_instructions(&self) -> impl Iterator<Item = (usize, Inst)> + '_ {
-        let mut address = &self.instructions[..];
-        let len = address.len();
-
-        std::iter::from_fn(move || {
-            if address.is_empty() {
-                return None;
-            }
-
-            let o = len - address.len();
-            let inst = musli_storage::decode(&mut address).ok()?;
-            Some((o, inst))
-        })
+        self.storage.iter()
     }
 
     /// Iterate over dynamic functions.

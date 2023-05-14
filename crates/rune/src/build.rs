@@ -1,8 +1,10 @@
+use core::marker::PhantomData;
 use core::mem::take;
 
 use crate::no_std as std;
 use crate::no_std::prelude::*;
 use crate::no_std::thiserror;
+use crate::runtime::unit::{DefaultStorage, UnitStorage};
 
 use thiserror::Error;
 
@@ -20,7 +22,7 @@ use crate::{Context, Diagnostics, SourceId, Sources};
 #[non_exhaustive]
 pub struct BuildError;
 
-/// Entry point to building [Sources] of Rune.
+/// Entry point to building [Sources] of Rune using the default unit storage.
 ///
 /// Uses the [Source::name](crate::Source::name) when generating diagnostics to
 /// reference the file.
@@ -62,7 +64,15 @@ pub struct BuildError;
 /// let vm = Vm::new(runtime, unit);
 /// # Ok::<_, rune::Error>(())
 /// ```
-pub fn prepare(sources: &mut Sources) -> Build<'_> {
+pub fn prepare(sources: &mut Sources) -> Build<'_, DefaultStorage> {
+    prepare_with(sources)
+}
+
+/// Prepare with a custom unit storage.
+pub fn prepare_with<S>(sources: &mut Sources) -> Build<'_, S>
+where
+    S: UnitStorage,
+{
     Build {
         sources,
         context: None,
@@ -70,17 +80,19 @@ pub fn prepare(sources: &mut Sources) -> Build<'_> {
         options: None,
         visitors: Vec::new(),
         source_loader: None,
+        _unit_storage: PhantomData,
     }
 }
 
 /// High level helper for setting up a build of Rune sources into a [Unit].
-pub struct Build<'a> {
+pub struct Build<'a, S> {
     sources: &'a mut Sources,
     context: Option<&'a Context>,
     diagnostics: Option<&'a mut Diagnostics>,
     options: Option<&'a Options>,
     visitors: Vec<&'a mut dyn compile::CompileVisitor>,
     source_loader: Option<&'a mut dyn SourceLoader>,
+    _unit_storage: PhantomData<S>,
 }
 
 /// Wraps a collection of CompileVisitor
@@ -138,7 +150,8 @@ impl<'a> compile::CompileVisitor for CompileVisitorGroup<'a> {
         }
     }
 }
-impl<'a> Build<'a> {
+
+impl<'a, S> Build<'a, S> {
     /// Modify the current [Build] to use the given [Context] while building.
     ///
     /// If unspecified the empty context constructed with [Context::new] will be
@@ -187,7 +200,10 @@ impl<'a> Build<'a> {
     }
 
     /// Build a [Unit] with the current configuration.
-    pub fn build(mut self) -> Result<Unit, BuildError> {
+    pub fn build(mut self) -> Result<Unit<S>, BuildError>
+    where
+        S: UnitStorage,
+    {
         let default_context;
 
         let context = match self.context.take() {
@@ -251,6 +267,7 @@ impl<'a> Build<'a> {
         };
 
         let mut pool = Pool::default();
+        let mut unit_storage = S::default();
 
         let result = compile::compile(
             &mut unit,
@@ -262,6 +279,7 @@ impl<'a> Build<'a> {
             options,
             visitors,
             source_loader,
+            &mut unit_storage,
         );
 
         if let Err(()) = result {
@@ -276,7 +294,7 @@ impl<'a> Build<'a> {
             }
         }
 
-        match unit.build(Span::empty()) {
+        match unit.build(Span::empty(), unit_storage) {
             Ok(unit) => Ok(unit),
             Err(error) => {
                 diagnostics.error(SourceId::empty(), error);

@@ -9,6 +9,7 @@ use thiserror::Error;
 
 use crate::compile::ItemBuf;
 use crate::hash::Hash;
+use crate::runtime::unit::{BadInstruction, BadJump};
 use crate::runtime::{
     AccessError, BoxedPanic, CallFrame, ExecutionState, FullTypeOf, Key, MaybeTypeOf, Panic,
     StackError, TypeInfo, TypeOf, Unit, Value, Vm, VmHaltInfo,
@@ -400,10 +401,18 @@ pub(crate) enum VmErrorKind {
         #[from]
         error: StackError,
     },
+    #[error("{error}")]
+    BadInstruction {
+        #[from]
+        error: BadInstruction,
+    },
+    #[error("{error}")]
+    BadJump {
+        #[from]
+        error: BadJump,
+    },
     #[error("Panicked: {reason}")]
     Panic { reason: Panic },
-    #[error("Invalid instruction")]
-    BadInstruction,
     #[error("No running virtual machines")]
     NoRunningVm,
     #[error("Halted for unexpected reason `{halt}`")]
@@ -551,8 +560,6 @@ pub(crate) enum VmErrorKind {
     ExpectedVariant { actual: TypeInfo },
     #[error("The object field get operation is not supported on `{target}`")]
     UnsupportedObjectFieldGet { target: TypeInfo },
-    #[error("Bad jump index {jump}")]
-    BadJump { jump: usize },
 }
 
 impl VmErrorKind {

@@ -2,7 +2,7 @@ use std::io::Write;
 use std::sync::Arc;
 use std::time::Instant;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use clap::Parser;
 
 use crate::cli::{Config, ExitCode, Io, CommandBase, AssetKind, SharedFlags};
@@ -49,6 +49,10 @@ pub(super) struct Flags {
     /// Include source code references where appropriate (only available if -O debug-info=true).
     #[arg(long)]
     with_source: bool,
+    /// When tracing, limit the number of instructions to run with `limit`. This
+    /// implies `--trace`.
+    #[arg(long)]
+    trace_limit: Option<usize>,
 }
 
 impl CommandBase for Flags {
@@ -70,6 +74,10 @@ impl CommandBase for Flags {
             self.dump_types = true;
             self.dump_native_functions = true;
             self.dump_native_types = true;
+        }
+
+        if self.trace_limit.is_some() {
+            self.trace = true;
         }
     }
 }
@@ -93,6 +101,7 @@ impl Flags {
 enum TraceError {
     Io(std::io::Error),
     VmError(VmError),
+    Limited,
 }
 
 impl From<std::io::Error> for TraceError {
@@ -198,12 +207,14 @@ pub(super) async fn run(
             sources,
             args.dump_stack,
             args.with_source,
+            args.trace_limit.unwrap_or(usize::MAX),
         )
         .await
         {
             Ok(value) => VmResult::Ok(value),
             Err(TraceError::Io(io)) => return Err(io.into()),
             Err(TraceError::VmError(vm)) => VmResult::Err(vm),
+            Err(TraceError::Limited) => return Err(anyhow!("Trace limit reached")),
         }
     } else {
         execution.async_complete().await
@@ -301,13 +312,16 @@ async fn do_trace<T>(
     sources: &Sources,
     dump_stack: bool,
     with_source: bool,
+    mut limit: usize,
 ) -> Result<Value, TraceError>
 where
     T: AsMut<Vm> + AsRef<Vm>,
 {
     let mut current_frame_len = execution.vm().call_frames().len();
 
-    loop {
+    while limit > 0 {
+        limit = limit.wrapping_sub(1);
+
         {
             let vm = execution.vm();
             let mut o = io.stdout.lock();
@@ -382,7 +396,9 @@ where
         }
 
         if let Some(result) = result {
-            break Ok(result);
+            return Ok(result);
         }
     }
+
+    Err(TraceError::Limited)
 }

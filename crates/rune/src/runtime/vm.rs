@@ -9,7 +9,7 @@ use crate::no_std::sync::Arc;
 use crate::no_std::vec;
 use crate::runtime::budget;
 use crate::runtime::future::SelectFuture;
-use crate::runtime::unit::UnitFn;
+use crate::runtime::unit::{UnitFn, UnitStorageBuilder};
 use crate::runtime::{
     Args, Awaited, BorrowMut, Bytes, Call, Format, FormatSpec, FromValue, Function, Future,
     Generator, GuardedArgs, Inst, InstAddress, InstAssignOp, InstOp, InstRangeLimits, InstTarget,
@@ -1445,10 +1445,7 @@ impl Vm {
         }
 
         vm_try!(self.stack.popn(count));
-        self.ip = vm_try!(self
-            .unit
-            .offset(jump)
-            .ok_or_else(|| VmErrorKind::BadJump { jump }));
+        self.ip = vm_try!(self.unit.translate(jump));
         VmResult::Ok(())
     }
 
@@ -1507,10 +1504,7 @@ impl Vm {
     /// Perform a jump operation.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_jump(&mut self, jump: usize) -> VmResult<()> {
-        self.ip = vm_try!(self
-            .unit
-            .offset(jump)
-            .ok_or_else(|| VmErrorKind::BadJump { jump }));
+        self.ip = vm_try!(self.unit.translate(jump));
         VmResult::Ok(())
     }
 
@@ -1518,10 +1512,7 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_jump_if(&mut self, jump: usize) -> VmResult<()> {
         if vm_try!(vm_try!(self.stack.pop()).into_bool()) {
-            self.ip = vm_try!(self
-                .unit
-                .offset(jump)
-                .ok_or_else(|| VmErrorKind::BadJump { jump }));
+            self.ip = vm_try!(self.unit.translate(jump));
         }
 
         VmResult::Ok(())
@@ -1532,10 +1523,7 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_jump_if_or_pop(&mut self, jump: usize) -> VmResult<()> {
         if vm_try!(vm_try!(self.stack.last()).as_bool()) {
-            self.ip = vm_try!(self
-                .unit
-                .offset(jump)
-                .ok_or_else(|| VmErrorKind::BadJump { jump }));
+            self.ip = vm_try!(self.unit.translate(jump));
         } else {
             vm_try!(self.stack.pop());
         }
@@ -1548,10 +1536,7 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_jump_if_not_or_pop(&mut self, jump: usize) -> VmResult<()> {
         if !vm_try!(vm_try!(self.stack.last()).as_bool()) {
-            self.ip = vm_try!(self
-                .unit
-                .offset(jump)
-                .ok_or_else(|| VmErrorKind::BadJump { jump }));
+            self.ip = vm_try!(self.unit.translate(jump));
         } else {
             vm_try!(self.stack.pop());
         }
@@ -1564,10 +1549,7 @@ impl Vm {
     fn op_jump_if_branch(&mut self, branch: i64, jump: usize) -> VmResult<()> {
         if let Some(Value::Integer(current)) = self.stack.peek() {
             if *current == branch {
-                self.ip = vm_try!(self
-                    .unit
-                    .offset(jump)
-                    .ok_or_else(|| VmErrorKind::BadJump { jump }));
+                self.ip = vm_try!(self.unit.translate(jump));
                 vm_try!(self.stack.pop());
             }
         }
@@ -2828,10 +2810,7 @@ impl Vm {
                 match option {
                     Some(some) => some,
                     None => {
-                        self.ip = vm_try!(self
-                            .unit
-                            .offset(jump)
-                            .ok_or_else(|| VmErrorKind::BadJump { jump }));
+                        self.ip = vm_try!(self.unit.translate(jump));
                         return VmResult::Ok(());
                     }
                 }
@@ -2900,7 +2879,7 @@ impl Vm {
             let Some((inst, inst_len)) = vm_try!(self.unit.instruction_at(self.ip)) else {
                 return VmResult::err(VmErrorKind::IpOutOfBounds {
                     ip: self.ip,
-                    length: self.unit.instructions().len(),
+                    length: self.unit.instructions().offset(),
                 });
             };
 

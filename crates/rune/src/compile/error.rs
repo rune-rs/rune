@@ -15,6 +15,7 @@ use crate::compile::{HasSpan, IrValue, ItemBuf, Location, MetaInfo, Visibility};
 use crate::macros::{SyntheticId, SyntheticKind};
 use crate::parse::{Expectation, Id, IntoExpectation, LexerMode};
 use crate::runtime::debug::DebugSignature;
+use crate::runtime::unit::EncodeError;
 use crate::runtime::{AccessError, TypeInfo, TypeOf};
 use crate::shared::scopes::MissingLocal;
 use crate::shared::MissingLastId;
@@ -216,6 +217,8 @@ pub(crate) enum CompileErrorKind {
     AccessError(#[from] AccessError),
     #[error("{0}")]
     HirError(#[from] HirErrorKind),
+    #[error("{0}")]
+    EncodeError(#[from] EncodeError),
     #[error("{0}")]
     MissingLastId(#[from] MissingLastId),
     #[error("Failed to load `{path}`: {error}")]

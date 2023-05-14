@@ -19,7 +19,7 @@ pub(crate) struct WildcardImport {
 impl WildcardImport {
     pub(crate) fn process_global(
         &mut self,
-        query: &mut Query,
+        query: &mut Query<'_>,
         context: &Context,
     ) -> compile::Result<()> {
         if context.contains_prefix(&self.name) {
