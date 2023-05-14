@@ -68,7 +68,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        feature: [capture-io, doc, cli, workspace]
+        feature: [capture-io, doc, cli, workspace, byte-code]
     steps:
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@stable

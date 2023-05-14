@@ -3,6 +3,8 @@
 //! A unit consists of a sequence of instructions, and lookaside tables for
 //! metadata like function locations.
 
+#[cfg(feature = "byte-code")]
+mod byte_code;
 mod storage;
 
 use core::fmt;
@@ -20,12 +22,17 @@ use crate::runtime::{
 use crate::Hash;
 
 pub use self::storage::{
-    ArrayStorage, BadInstruction, BadJump, BytesStorage, EncodeError, UnitStorage,
-    UnitStorageBuilder,
+    ArrayUnit, BadInstruction, BadJump, EncodeError, UnitEncoder, UnitStorage,
 };
 
+#[cfg(feature = "byte-code")]
+pub use self::byte_code::ByteCodeUnit;
+
 /// Default storage implementation to use.
-pub type DefaultStorage = ArrayStorage;
+#[cfg(not(rune_byte_code))]
+pub type DefaultStorage = ArrayUnit;
+#[cfg(rune_byte_code)]
+pub type DefaultStorage = ByteCodeUnit;
 
 /// Instructions from a single source file.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -56,10 +63,7 @@ pub struct Unit<S = DefaultStorage> {
     constants: HashMap<Hash, ConstValue>,
 }
 
-impl<S> Unit<S>
-where
-    S: UnitStorage,
-{
+impl<S> Unit<S> {
     /// Construct a new unit with the given content.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
@@ -86,11 +90,6 @@ where
         }
     }
 
-    #[inline]
-    pub(crate) fn translate(&self, jump: usize) -> Result<usize, BadJump> {
-        self.storage.translate(jump)
-    }
-
     /// Access debug information for the given location if it is available.
     pub fn debug_info(&self) -> Option<&DebugInfo> {
         let debug = self.debug.as_ref()?;
@@ -100,14 +99,6 @@ where
     /// Get raw underlying instructions storage.
     pub(crate) fn instructions(&self) -> &S {
         &self.storage
-    }
-
-    /// Get the instruction at the given instruction pointer.
-    pub(crate) fn instruction_at(
-        &self,
-        ip: usize,
-    ) -> Result<Option<(Inst, usize)>, BadInstruction> {
-        self.storage.get(ip)
     }
 
     /// Iterate over all static strings in the unit.
@@ -133,12 +124,6 @@ where
             let (n, s) = it.next()?;
             Some((n, &s[..]))
         })
-    }
-
-    /// Iterate over all instructions in order.
-    #[cfg(feature = "emit")]
-    pub(crate) fn iter_instructions(&self) -> impl Iterator<Item = (usize, Inst)> + '_ {
-        self.storage.iter()
     }
 
     /// Iterate over dynamic functions.
@@ -187,6 +172,30 @@ where
     /// Lookup a constant from the unit.
     pub(crate) fn constant(&self, hash: Hash) -> Option<&ConstValue> {
         self.constants.get(&hash)
+    }
+}
+
+impl<S> Unit<S>
+where
+    S: UnitStorage,
+{
+    #[inline]
+    pub(crate) fn translate(&self, jump: usize) -> Result<usize, BadJump> {
+        self.storage.translate(jump)
+    }
+
+    /// Get the instruction at the given instruction pointer.
+    pub(crate) fn instruction_at(
+        &self,
+        ip: usize,
+    ) -> Result<Option<(Inst, usize)>, BadInstruction> {
+        self.storage.get(ip)
+    }
+
+    /// Iterate over all instructions in order.
+    #[cfg(feature = "emit")]
+    pub(crate) fn iter_instructions(&self) -> impl Iterator<Item = (usize, Inst)> + '_ {
+        self.storage.iter()
     }
 }
 

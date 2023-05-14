@@ -4,7 +4,7 @@ use core::mem::take;
 use crate::no_std as std;
 use crate::no_std::prelude::*;
 use crate::no_std::thiserror;
-use crate::runtime::unit::{DefaultStorage, UnitStorage};
+use crate::runtime::unit::{DefaultStorage, UnitEncoder};
 
 use thiserror::Error;
 
@@ -71,7 +71,7 @@ pub fn prepare(sources: &mut Sources) -> Build<'_, DefaultStorage> {
 /// Prepare with a custom unit storage.
 pub fn prepare_with<S>(sources: &mut Sources) -> Build<'_, S>
 where
-    S: UnitStorage,
+    S: UnitEncoder,
 {
     Build {
         sources,
@@ -199,10 +199,10 @@ impl<'a, S> Build<'a, S> {
         self
     }
 
-    /// Build a [Unit] with the current configuration.
+    /// Build a [`Unit`] with the current configuration.
     pub fn build(mut self) -> Result<Unit<S>, BuildError>
     where
-        S: UnitStorage,
+        S: Default + UnitEncoder,
     {
         let default_context;
 

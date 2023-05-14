@@ -9,7 +9,7 @@ use crate::no_std::sync::Arc;
 use crate::no_std::vec;
 use crate::runtime::budget;
 use crate::runtime::future::SelectFuture;
-use crate::runtime::unit::{UnitFn, UnitStorageBuilder};
+use crate::runtime::unit::{UnitFn, UnitStorage};
 use crate::runtime::{
     Args, Awaited, BorrowMut, Bytes, Call, Format, FormatSpec, FromValue, Function, Future,
     Generator, GuardedArgs, Inst, InstAddress, InstAssignOp, InstOp, InstRangeLimits, InstTarget,
@@ -2879,7 +2879,7 @@ impl Vm {
             let Some((inst, inst_len)) = vm_try!(self.unit.instruction_at(self.ip)) else {
                 return VmResult::err(VmErrorKind::IpOutOfBounds {
                     ip: self.ip,
-                    length: self.unit.instructions().offset(),
+                    length: self.unit.instructions().len(),
                 });
             };
 

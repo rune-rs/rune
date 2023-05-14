@@ -6,7 +6,6 @@ use crate::no_std::path::PathBuf;
 use crate::no_std::prelude::*;
 use crate::no_std::thiserror;
 
-use musli_storage::error::BufferError;
 use thiserror::Error;
 
 use crate::ast;
@@ -226,11 +225,6 @@ pub(crate) enum CompileErrorKind {
         path: PathBuf,
         #[source]
         error: io::Error,
-    },
-    #[error("{error}")]
-    BufferError {
-        #[from]
-        error: BufferError,
     },
     #[error("File not found, expected a module file like `{path}.rn`")]
     ModNotFound { path: PathBuf },

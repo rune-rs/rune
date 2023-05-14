@@ -22,7 +22,7 @@ twox-hash = { version = "1.6.3", default-features = false }
 serde = { version = "1.0.163", default-features = false, features = ["derive", "alloc"] }
 smallvec = { version = "1.10.0", default-features = false, features = ["const_new", "serde"] }
 byteorder = { version = "1.4.3", default-features = false }
-musli = { version = "0.0.41", default-features = false, optional = true }
+musli = { version = "0.0.42", default-features = false, optional = true }
 
 [dev-dependencies]
 rune = { path = "../rune" }

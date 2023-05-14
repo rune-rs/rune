@@ -84,7 +84,7 @@ use crate::hir;
 use crate::macros::Storage;
 use crate::parse::Resolve;
 use crate::query::{Build, BuildEntry, Query};
-use crate::runtime::unit::UnitStorageBuilder;
+use crate::runtime::unit::UnitEncoder;
 use crate::shared::{Consts, Gen};
 use crate::worker::{LoadFileKind, Task, Worker};
 use crate::{Diagnostics, Sources};
@@ -100,7 +100,7 @@ pub(crate) fn compile(
     options: &Options,
     visitor: &mut dyn CompileVisitor,
     source_loader: &mut dyn SourceLoader,
-    unit_storage: &mut dyn UnitStorageBuilder,
+    unit_storage: &mut dyn UnitEncoder,
 ) -> Result<(), ()> {
     // Shared id generator.
     let gen = Gen::new();
@@ -207,11 +207,7 @@ impl CompileBuildEntry<'_> {
     }
 
     #[tracing::instrument(skip_all)]
-    fn compile(
-        mut self,
-        entry: BuildEntry,
-        unit_storage: &mut dyn UnitStorageBuilder,
-    ) -> Result<()> {
+    fn compile(mut self, entry: BuildEntry, unit_storage: &mut dyn UnitEncoder) -> Result<()> {
         let BuildEntry {
             item_meta,
             build,

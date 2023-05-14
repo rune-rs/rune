@@ -17,7 +17,7 @@ use crate::compile::{
     self, Assembly, AssemblyInst, CompileErrorKind, Item, Location, Pool, QueryErrorKind, WithSpan,
 };
 use crate::runtime::debug::{DebugArgs, DebugSignature};
-use crate::runtime::unit::{UnitStorage, UnitStorageBuilder};
+use crate::runtime::unit::UnitEncoder;
 use crate::runtime::{
     Call, ConstValue, DebugInfo, DebugInst, Inst, Protocol, Rtti, StaticString, Unit, UnitFn,
     VariantRtti,
@@ -80,10 +80,7 @@ impl UnitBuilder {
     /// Convert into a runtime unit, shedding our build metadata in the process.
     ///
     /// Returns `None` if the builder is still in use.
-    pub(crate) fn build<S>(mut self, span: Span, storage: S) -> compile::Result<Unit<S>>
-    where
-        S: UnitStorage,
-    {
+    pub(crate) fn build<S>(mut self, span: Span, storage: S) -> compile::Result<Unit<S>> {
         if let Some(debug) = &mut self.debug {
             debug.functions_rev = self.functions_rev;
         }
@@ -539,9 +536,9 @@ impl UnitBuilder {
         assembly: Assembly,
         call: Call,
         debug_args: Box<[Box<str>]>,
-        unit_storage: &mut dyn UnitStorageBuilder,
+        unit_encoder: &mut dyn UnitEncoder,
     ) -> compile::Result<()> {
-        let offset = unit_storage.offset();
+        let offset = unit_encoder.offset();
         let hash = Hash::type_hash(item);
 
         self.functions_rev.insert(offset, hash);
@@ -564,7 +561,7 @@ impl UnitBuilder {
 
         self.debug_info_mut().functions.insert(hash, signature);
 
-        self.add_assembly(location, assembly, unit_storage)?;
+        self.add_assembly(location, assembly, unit_encoder)?;
         Ok(())
     }
 
@@ -599,7 +596,7 @@ impl UnitBuilder {
         assembly: Assembly,
         call: Call,
         debug_args: Box<[Box<str>]>,
-        unit_storage: &mut dyn UnitStorageBuilder,
+        unit_storage: &mut dyn UnitEncoder,
     ) -> compile::Result<()> {
         tracing::trace!("instance fn: {}", item);
 
@@ -669,7 +666,7 @@ impl UnitBuilder {
         &mut self,
         location: Location,
         assembly: Assembly,
-        storage: &mut dyn UnitStorageBuilder,
+        storage: &mut dyn UnitEncoder,
     ) -> compile::Result<()> {
         self.label_count = assembly.label_count;
 
