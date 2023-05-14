@@ -6,7 +6,7 @@ use anyhow::{anyhow, Result};
 use clap::Parser;
 
 use crate::cli::{Config, ExitCode, Io, CommandBase, AssetKind, SharedFlags};
-use crate::runtime::{VmError, VmExecution, VmResult};
+use crate::runtime::{VmError, VmExecution, VmResult, UnitStorage};
 use crate::{Context, Sources, Unit, Value, Vm};
 
 #[derive(Parser, Debug)]
@@ -145,6 +145,8 @@ pub(super) async fn run(
     }
 
     if args.dump_unit() {
+        writeln!(io.stdout, "Unit size: {} bytes", unit.instructions().bytes())?;
+
         if args.emit_instructions() {
             let mut o = io.stdout.lock();
             writeln!(o, "# instructions")?;

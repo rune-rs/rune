@@ -31,6 +31,7 @@ pub use self::byte_code::ByteCodeUnit;
 /// Default storage implementation to use.
 #[cfg(not(rune_byte_code))]
 pub type DefaultStorage = ArrayUnit;
+/// Default storage implementation to use.
 #[cfg(rune_byte_code)]
 pub type DefaultStorage = ByteCodeUnit;
 

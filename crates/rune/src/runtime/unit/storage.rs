@@ -1,5 +1,6 @@
 use core::fmt;
 use core::iter;
+use core::mem::size_of;
 use core::slice;
 
 use crate::no_std::error;
@@ -54,6 +55,9 @@ pub trait UnitStorage: self::sealed::Sealed + fmt::Debug + Default + Clone {
     /// is just beyond the last instruction.
     fn len(&self) -> usize;
 
+    /// Get the number of bytes which is used to store unit bytecode.
+    fn bytes(&self) -> usize;
+
     /// Iterate over all instructions.
     fn iter(&self) -> Self::Iter<'_>;
 
@@ -105,6 +109,11 @@ impl UnitStorage for ArrayUnit {
     }
 
     #[inline]
+    fn bytes(&self) -> usize {
+        self.instructions.len().wrapping_mul(size_of::<Inst>())
+    }
+
+    #[inline]
     fn iter(&self) -> Self::Iter<'_> {
         self.instructions.iter().copied().enumerate()
     }
@@ -143,10 +152,13 @@ impl From<BufferError> for EncodeError {
 
 impl fmt::Display for EncodeError {
     #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.kind {
+    fn fmt(
+        &self,
+        #[cfg_attr(not(feature = "byte-code"), allow(unused))] f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        match self.kind {
             #[cfg(feature = "byte-code")]
-            EncodeErrorKind::BufferError { error } => error.fmt(f),
+            EncodeErrorKind::BufferError { ref error } => error.fmt(f),
         }
     }
 }

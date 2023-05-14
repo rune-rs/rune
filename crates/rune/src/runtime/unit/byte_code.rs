@@ -1,3 +1,5 @@
+use core::mem::size_of;
+
 use crate::no_std::vec::Vec;
 
 use serde::{Deserialize, Serialize};
@@ -74,6 +76,13 @@ impl UnitStorage for ByteCodeUnit {
     #[inline]
     fn len(&self) -> usize {
         self.bytes.len()
+    }
+
+    #[inline]
+    fn bytes(&self) -> usize {
+        self.bytes
+            .len()
+            .wrapping_add(self.offsets.len().wrapping_mul(size_of::<usize>()))
     }
 
     #[inline]
