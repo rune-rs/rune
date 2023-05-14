@@ -39,7 +39,7 @@ impl Label {
         };
 
         self.jump.replace(Some(jump));
-        return true;
+        true
     }
 
     /// Convert into owned label.

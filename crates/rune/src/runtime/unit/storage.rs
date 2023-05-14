@@ -53,7 +53,7 @@ pub trait UnitStorage: self::sealed::Sealed + fmt::Debug + Default + Clone {
 
     /// Size of unit storage. This can be seen as the instruction pointer which
     /// is just beyond the last instruction.
-    fn len(&self) -> usize;
+    fn end(&self) -> usize;
 
     /// Get the number of bytes which is used to store unit bytecode.
     fn bytes(&self) -> usize;
@@ -104,7 +104,7 @@ impl UnitStorage for ArrayUnit {
     type Iter<'this> = iter::Enumerate<iter::Copied<slice::Iter<'this, Inst>>>;
 
     #[inline]
-    fn len(&self) -> usize {
+    fn end(&self) -> usize {
         self.instructions.len()
     }
 

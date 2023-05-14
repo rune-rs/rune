@@ -705,7 +705,7 @@ impl UnitBuilder {
                 AssemblyInst::Jump { label } => {
                     let jump = label
                         .jump()
-                        .ok_or_else(|| CompileErrorKind::MissingLabelLocation {
+                        .ok_or(CompileErrorKind::MissingLabelLocation {
                             name: label.name,
                             index: label.index,
                         })
@@ -718,7 +718,7 @@ impl UnitBuilder {
                 AssemblyInst::JumpIf { label } => {
                     let jump = label
                         .jump()
-                        .ok_or_else(|| CompileErrorKind::MissingLabelLocation {
+                        .ok_or(CompileErrorKind::MissingLabelLocation {
                             name: label.name,
                             index: label.index,
                         })
@@ -731,7 +731,7 @@ impl UnitBuilder {
                 AssemblyInst::JumpIfOrPop { label } => {
                     let jump = label
                         .jump()
-                        .ok_or_else(|| CompileErrorKind::MissingLabelLocation {
+                        .ok_or(CompileErrorKind::MissingLabelLocation {
                             name: label.name,
                             index: label.index,
                         })
@@ -744,7 +744,7 @@ impl UnitBuilder {
                 AssemblyInst::JumpIfNotOrPop { label } => {
                     let jump = label
                         .jump()
-                        .ok_or_else(|| CompileErrorKind::MissingLabelLocation {
+                        .ok_or(CompileErrorKind::MissingLabelLocation {
                             name: label.name,
                             index: label.index,
                         })
@@ -757,7 +757,7 @@ impl UnitBuilder {
                 AssemblyInst::JumpIfBranch { branch, label } => {
                     let jump = label
                         .jump()
-                        .ok_or_else(|| CompileErrorKind::MissingLabelLocation {
+                        .ok_or(CompileErrorKind::MissingLabelLocation {
                             name: label.name,
                             index: label.index,
                         })
@@ -770,7 +770,7 @@ impl UnitBuilder {
                 AssemblyInst::PopAndJumpIfNot { count, label } => {
                     let jump = label
                         .jump()
-                        .ok_or_else(|| CompileErrorKind::MissingLabelLocation {
+                        .ok_or(CompileErrorKind::MissingLabelLocation {
                             name: label.name,
                             index: label.index,
                         })
@@ -783,7 +783,7 @@ impl UnitBuilder {
                 AssemblyInst::IterNext { offset, label } => {
                     let jump = label
                         .jump()
-                        .ok_or_else(|| CompileErrorKind::MissingLabelLocation {
+                        .ok_or(CompileErrorKind::MissingLabelLocation {
                             name: label.name,
                             index: label.index,
                         })

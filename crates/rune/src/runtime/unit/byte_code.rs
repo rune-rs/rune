@@ -74,7 +74,7 @@ impl UnitStorage for ByteCodeUnit {
     type Iter<'this> = ByteCodeUnitIter<'this>;
 
     #[inline]
-    fn len(&self) -> usize {
+    fn end(&self) -> usize {
         self.bytes.len()
     }
 

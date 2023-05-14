@@ -2879,7 +2879,7 @@ impl Vm {
             let Some((inst, inst_len)) = vm_try!(self.unit.instruction_at(self.ip)) else {
                 return VmResult::err(VmErrorKind::IpOutOfBounds {
                     ip: self.ip,
-                    length: self.unit.instructions().len(),
+                    length: self.unit.instructions().end(),
                 });
             };
 

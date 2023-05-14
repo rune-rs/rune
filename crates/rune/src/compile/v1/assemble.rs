@@ -434,7 +434,7 @@ fn condition(
                 c.asm.jump(then_label, span);
                 c.asm.label(&false_label)?;
             } else {
-                c.asm.jump(&then_label, span);
+                c.asm.jump(then_label, span);
             };
 
             let scope = c.scopes.pop(expected, span)?;
@@ -2579,7 +2579,7 @@ fn expr_match(
     while let Some((branch, (label, scope))) = it.next() {
         let span = branch.span();
 
-        c.asm.label(&*label)?;
+        c.asm.label(label)?;
 
         let expected = c.scopes.push(scope.clone());
         expr(branch.body, c, needs)?.apply(c)?;
