@@ -9,7 +9,7 @@ use crate::no_std::sync::Arc;
 use crate::no_std::vec;
 use crate::runtime::budget;
 use crate::runtime::future::SelectFuture;
-use crate::runtime::unit::UnitFn;
+use crate::runtime::unit::{UnitFn, UnitStorage};
 use crate::runtime::{
     Args, Awaited, BorrowMut, Bytes, Call, Format, FormatSpec, FromValue, Function, Future,
     Generator, GuardedArgs, Inst, InstAddress, InstAssignOp, InstOp, InstRangeLimits, InstTarget,
@@ -175,15 +175,6 @@ impl Vm {
         self.ip = 0;
         self.stack.clear();
         self.call_frames.clear();
-    }
-
-    /// Modify the current instruction pointer.
-    pub fn modify_ip(&mut self, offset: isize) {
-        self.ip = if offset < 0 {
-            self.ip.wrapping_sub(-offset as usize)
-        } else {
-            self.ip.wrapping_add(offset as usize)
-        };
     }
 
     /// Look up a function in the virtual machine by its name.
@@ -612,11 +603,12 @@ impl Vm {
             stack_bottom: stack_top,
         });
 
-        self.ip = ip.wrapping_sub(1);
+        self.ip = ip;
         Ok(())
     }
 
     /// Pop a call frame and return it.
+    #[tracing::instrument(skip_all)]
     fn pop_call_frame(&mut self) -> Result<bool, VmErrorKind> {
         let frame = match self.call_frames.pop() {
             Some(frame) => frame,
@@ -1120,23 +1112,27 @@ impl Vm {
         offset: usize,
         call: Call,
         args: usize,
-    ) -> Result<(), VmErrorKind> {
-        match call {
+    ) -> Result<bool, VmErrorKind> {
+        let moved = match call {
             Call::Async => {
                 self.call_async_fn(offset, args)?;
+                false
             }
             Call::Immediate => {
                 self.push_call_frame(offset, args)?;
+                true
             }
             Call::Stream => {
                 self.call_stream_fn(offset, args)?;
+                false
             }
             Call::Generator => {
                 self.call_generator_fn(offset, args)?;
+                false
             }
-        }
+        };
 
-        Ok(())
+        Ok(moved)
     }
 
     fn internal_num_assign(
@@ -1443,13 +1439,13 @@ impl Vm {
 
     /// pop-and-jump-if-not instruction.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_pop_and_jump_if_not(&mut self, count: usize, offset: isize) -> VmResult<()> {
+    fn op_pop_and_jump_if_not(&mut self, count: usize, jump: usize) -> VmResult<()> {
         if vm_try!(vm_try!(self.stack.pop()).into_bool()) {
             return VmResult::Ok(());
         }
 
         vm_try!(self.stack.popn(count));
-        self.modify_ip(offset);
+        self.ip = vm_try!(self.unit.translate(jump));
         VmResult::Ok(())
     }
 
@@ -1507,16 +1503,16 @@ impl Vm {
 
     /// Perform a jump operation.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_jump(&mut self, offset: isize) -> VmResult<()> {
-        self.modify_ip(offset);
+    fn op_jump(&mut self, jump: usize) -> VmResult<()> {
+        self.ip = vm_try!(self.unit.translate(jump));
         VmResult::Ok(())
     }
 
     /// Perform a conditional jump operation.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_jump_if(&mut self, offset: isize) -> VmResult<()> {
+    fn op_jump_if(&mut self, jump: usize) -> VmResult<()> {
         if vm_try!(vm_try!(self.stack.pop()).into_bool()) {
-            self.modify_ip(offset);
+            self.ip = vm_try!(self.unit.translate(jump));
         }
 
         VmResult::Ok(())
@@ -1525,9 +1521,9 @@ impl Vm {
     /// Perform a conditional jump operation. Pops the stack if the jump is
     /// not performed.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_jump_if_or_pop(&mut self, offset: isize) -> VmResult<()> {
+    fn op_jump_if_or_pop(&mut self, jump: usize) -> VmResult<()> {
         if vm_try!(vm_try!(self.stack.last()).as_bool()) {
-            self.modify_ip(offset);
+            self.ip = vm_try!(self.unit.translate(jump));
         } else {
             vm_try!(self.stack.pop());
         }
@@ -1538,9 +1534,9 @@ impl Vm {
     /// Perform a conditional jump operation. Pops the stack if the jump is
     /// not performed.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_jump_if_not_or_pop(&mut self, offset: isize) -> VmResult<()> {
+    fn op_jump_if_not_or_pop(&mut self, jump: usize) -> VmResult<()> {
         if !vm_try!(vm_try!(self.stack.last()).as_bool()) {
-            self.modify_ip(offset);
+            self.ip = vm_try!(self.unit.translate(jump));
         } else {
             vm_try!(self.stack.pop());
         }
@@ -1550,10 +1546,10 @@ impl Vm {
 
     /// Perform a branch-conditional jump operation.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_jump_if_branch(&mut self, branch: i64, offset: isize) -> VmResult<()> {
+    fn op_jump_if_branch(&mut self, branch: i64, jump: usize) -> VmResult<()> {
         if let Some(Value::Integer(current)) = self.stack.peek() {
             if *current == branch {
-                self.modify_ip(offset);
+                self.ip = vm_try!(self.unit.translate(jump));
                 vm_try!(self.stack.pop());
             }
         }
@@ -2804,7 +2800,7 @@ impl Vm {
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_iter_next(&mut self, offset: usize, jump: isize) -> VmResult<()> {
+    fn op_iter_next(&mut self, offset: usize, jump: usize) -> VmResult<()> {
         let value = vm_try!(self.stack.at_offset_mut(offset));
 
         let some = match value {
@@ -2814,7 +2810,7 @@ impl Vm {
                 match option {
                     Some(some) => some,
                     None => {
-                        self.modify_ip(jump);
+                        self.ip = vm_try!(self.unit.translate(jump));
                         return VmResult::Ok(());
                     }
                 }
@@ -2880,14 +2876,16 @@ impl Vm {
                 return VmResult::Ok(VmHalt::Limited);
             }
 
-            let inst = *vm_try!(self.unit.instruction_at(self.ip).ok_or_else(|| {
-                VmErrorKind::IpOutOfBounds {
+            let Some((inst, inst_len)) = vm_try!(self.unit.instruction_at(self.ip)) else {
+                return VmResult::err(VmErrorKind::IpOutOfBounds {
                     ip: self.ip,
-                    length: self.unit.instructions().len(),
-                }
-            }));
+                    length: self.unit.instructions().end(),
+                });
+            };
 
-            tracing::trace!("{}: {}", self.ip, inst);
+            tracing::trace!(ip = ?self.ip, ?inst);
+
+            self.ip = self.ip.wrapping_add(inst_len);
 
             match inst {
                 Inst::Not => {
@@ -2939,13 +2937,11 @@ impl Vm {
                 }
                 Inst::Return { address, clean } => {
                     if vm_try!(self.op_return(address, clean)) {
-                        self.advance();
                         return VmResult::Ok(VmHalt::Exited);
                     }
                 }
                 Inst::ReturnUnit => {
                     if vm_try!(self.op_return_unit()) {
-                        self.advance();
                         return VmResult::Ok(VmHalt::Exited);
                     }
                 }
@@ -2972,8 +2968,8 @@ impl Vm {
                 Inst::PopN { count } => {
                     vm_try!(self.op_popn(count));
                 }
-                Inst::PopAndJumpIfNot { count, offset } => {
-                    vm_try!(self.op_pop_and_jump_if_not(count, offset));
+                Inst::PopAndJumpIfNot { count, jump } => {
+                    vm_try!(self.op_pop_and_jump_if_not(count, jump));
                 }
                 Inst::Clean { count } => {
                     vm_try!(self.op_clean(count));
@@ -2993,20 +2989,20 @@ impl Vm {
                 Inst::Replace { offset } => {
                     vm_try!(self.op_replace(offset));
                 }
-                Inst::Jump { offset } => {
-                    vm_try!(self.op_jump(offset));
+                Inst::Jump { jump } => {
+                    vm_try!(self.op_jump(jump));
                 }
-                Inst::JumpIf { offset } => {
-                    vm_try!(self.op_jump_if(offset));
+                Inst::JumpIf { jump } => {
+                    vm_try!(self.op_jump_if(jump));
                 }
-                Inst::JumpIfOrPop { offset } => {
-                    vm_try!(self.op_jump_if_or_pop(offset));
+                Inst::JumpIfOrPop { jump } => {
+                    vm_try!(self.op_jump_if_or_pop(jump));
                 }
-                Inst::JumpIfNotOrPop { offset } => {
-                    vm_try!(self.op_jump_if_not_or_pop(offset));
+                Inst::JumpIfNotOrPop { jump } => {
+                    vm_try!(self.op_jump_if_not_or_pop(jump));
                 }
-                Inst::JumpIfBranch { branch, offset } => {
-                    vm_try!(self.op_jump_if_branch(branch, offset));
+                Inst::JumpIfBranch { branch, jump } => {
+                    vm_try!(self.op_jump_if_branch(branch, jump));
                 }
                 Inst::Vec { count } => {
                     vm_try!(self.op_vec(count));
@@ -3068,7 +3064,6 @@ impl Vm {
                     preserve,
                 } => {
                     if vm_try!(self.op_try(address, clean, preserve)) {
-                        self.advance();
                         return VmResult::Ok(VmHalt::Exited);
                     }
                 }
@@ -3114,11 +3109,9 @@ impl Vm {
                     vm_try!(self.op_match_object(slot, exact));
                 }
                 Inst::Yield => {
-                    self.advance();
                     return VmResult::Ok(VmHalt::Yielded);
                 }
                 Inst::YieldUnit => {
-                    self.advance();
                     self.stack.push(Value::Unit);
                     return VmResult::Ok(VmHalt::Yielded);
                 }
@@ -3140,15 +3133,7 @@ impl Vm {
                     });
                 }
             }
-
-            self.advance();
         }
-    }
-
-    /// Advance the instruction pointer.
-    #[inline]
-    pub(crate) fn advance(&mut self) {
-        self.ip = self.ip.wrapping_add(1);
     }
 }
 

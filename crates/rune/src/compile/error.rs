@@ -14,7 +14,8 @@ use crate::compile::{HasSpan, IrValue, ItemBuf, Location, MetaInfo, Visibility};
 use crate::macros::{SyntheticId, SyntheticKind};
 use crate::parse::{Expectation, Id, IntoExpectation, LexerMode};
 use crate::runtime::debug::DebugSignature;
-use crate::runtime::{AccessError, Label, TypeInfo, TypeOf};
+use crate::runtime::unit::EncodeError;
+use crate::runtime::{AccessError, TypeInfo, TypeOf};
 use crate::shared::scopes::MissingLocal;
 use crate::shared::MissingLastId;
 use crate::{Hash, SourceId};
@@ -216,6 +217,8 @@ pub(crate) enum CompileErrorKind {
     #[error("{0}")]
     HirError(#[from] HirErrorKind),
     #[error("{0}")]
+    EncodeError(#[from] EncodeError),
+    #[error("{0}")]
     MissingLastId(#[from] MissingLastId),
     #[error("Failed to load `{path}`: {error}")]
     FileError {
@@ -360,16 +363,8 @@ pub(crate) enum CompileErrorKind {
         current: Box<[String]>,
         existing: Box<[String]>,
     },
-    #[error("Duplicate label `{label}`")]
-    DuplicateLabel { label: Label },
-    #[error("Missing label `{label}`")]
-    MissingLabel { label: Label },
     #[error("Missing loop label `{label}`")]
     MissingLoopLabel { label: Box<str> },
-    #[error("Base offset overflow")]
-    BaseOverflow,
-    #[error("Offset overflow")]
-    OffsetOverflow,
     #[error("Segment is only supported in the first position")]
     ExpectedLeadingPathSegment,
     #[error("Visibility modifier not supported")]
@@ -398,6 +393,8 @@ pub(crate) enum CompileErrorKind {
         item: ItemBuf,
         fields: Box<[Box<str>]>,
     },
+    #[error("Use of label `{name}_{index}` which has no code location")]
+    MissingLabelLocation { name: &'static str, index: usize },
 }
 
 /// Error raised during queries.

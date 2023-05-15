@@ -9,6 +9,7 @@ use thiserror::Error;
 
 use crate::compile::ItemBuf;
 use crate::hash::Hash;
+use crate::runtime::unit::{BadInstruction, BadJump};
 use crate::runtime::{
     AccessError, BoxedPanic, CallFrame, ExecutionState, FullTypeOf, Key, MaybeTypeOf, Panic,
     StackError, TypeInfo, TypeOf, Unit, Value, Vm, VmHaltInfo,
@@ -399,6 +400,16 @@ pub(crate) enum VmErrorKind {
     StackError {
         #[from]
         error: StackError,
+    },
+    #[error("{error}")]
+    BadInstruction {
+        #[from]
+        error: BadInstruction,
+    },
+    #[error("{error}")]
+    BadJump {
+        #[from]
+        error: BadJump,
     },
     #[error("Panicked: {reason}")]
     Panic { reason: Panic },

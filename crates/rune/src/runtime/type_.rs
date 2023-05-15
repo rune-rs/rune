@@ -1,3 +1,4 @@
+use musli::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 use crate::compile::Named;
@@ -6,9 +7,10 @@ use crate::runtime::{RawStr, VmResult};
 use crate::{FromValue, Hash, Value};
 
 /// A value representing a type in the virtual machine.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Decode, Encode)]
 #[repr(transparent)]
 #[serde(transparent)]
+#[musli(transparent)]
 pub struct Type(Hash);
 
 impl Type {

@@ -69,7 +69,8 @@ mod key;
 pub use self::key::Key;
 
 mod label;
-pub use self::label::{DebugLabel, Label};
+pub use self::label::DebugLabel;
+pub(crate) use self::label::Label;
 
 mod object;
 pub use self::object::Object;
@@ -128,9 +129,9 @@ pub use self::type_info::{AnyTypeInfo, TypeInfo};
 mod type_of;
 pub use self::type_of::{FullTypeOf, MaybeTypeOf, TypeOf};
 
-mod unit;
-pub use self::unit::Unit;
+pub mod unit;
 pub(crate) use self::unit::UnitFn;
+pub use self::unit::{Unit, UnitStorage};
 
 mod value;
 pub use self::value::{Rtti, Struct, TupleStruct, UnitStruct, Value, VariantRtti};

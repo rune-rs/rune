@@ -17,9 +17,10 @@ use crate::compile::{
     self, Assembly, AssemblyInst, CompileErrorKind, Item, Location, Pool, QueryErrorKind, WithSpan,
 };
 use crate::runtime::debug::{DebugArgs, DebugSignature};
+use crate::runtime::unit::UnitEncoder;
 use crate::runtime::{
-    Call, ConstValue, DebugInfo, DebugInst, Inst, Label, Protocol, Rtti, StaticString, Unit,
-    UnitFn, VariantRtti,
+    Call, ConstValue, DebugInfo, DebugInst, Inst, Protocol, Rtti, StaticString, Unit, UnitFn,
+    VariantRtti,
 };
 use crate::{Context, Diagnostics, Hash, SourceId};
 
@@ -38,8 +39,6 @@ pub enum LinkerError {
 /// Instructions from a single source file.
 #[derive(Debug, Default)]
 pub(crate) struct UnitBuilder {
-    /// The instructions contained in the source file.
-    instructions: Vec<Inst>,
     /// Registered re-exports.
     reexports: HashMap<Hash, Hash>,
     /// Where functions are located in the collection of instructions.
@@ -81,7 +80,7 @@ impl UnitBuilder {
     /// Convert into a runtime unit, shedding our build metadata in the process.
     ///
     /// Returns `None` if the builder is still in use.
-    pub(crate) fn build(mut self, span: Span) -> compile::Result<Unit> {
+    pub(crate) fn build<S>(mut self, span: Span, storage: S) -> compile::Result<Unit<S>> {
         if let Some(debug) = &mut self.debug {
             debug.functions_rev = self.functions_rev;
         }
@@ -118,7 +117,7 @@ impl UnitBuilder {
         }
 
         Ok(Unit::new(
-            self.instructions,
+            storage,
             self.functions,
             self.static_strings,
             self.static_bytes,
@@ -537,8 +536,9 @@ impl UnitBuilder {
         assembly: Assembly,
         call: Call,
         debug_args: Box<[Box<str>]>,
+        unit_encoder: &mut dyn UnitEncoder,
     ) -> compile::Result<()> {
-        let offset = self.instructions.len();
+        let offset = unit_encoder.offset();
         let hash = Hash::type_hash(item);
 
         self.functions_rev.insert(offset, hash);
@@ -561,7 +561,7 @@ impl UnitBuilder {
 
         self.debug_info_mut().functions.insert(hash, signature);
 
-        self.add_assembly(location, assembly)?;
+        self.add_assembly(location, assembly, unit_encoder)?;
         Ok(())
     }
 
@@ -596,10 +596,11 @@ impl UnitBuilder {
         assembly: Assembly,
         call: Call,
         debug_args: Box<[Box<str>]>,
+        unit_storage: &mut dyn UnitEncoder,
     ) -> compile::Result<()> {
         tracing::trace!("instance fn: {}", item);
 
-        let offset = self.instructions.len();
+        let offset = unit_storage.offset();
         let instance_fn = Hash::associated_function(type_hash, name);
         let hash = Hash::type_hash(item);
 
@@ -633,7 +634,7 @@ impl UnitBuilder {
             .functions
             .insert(instance_fn, signature);
         self.functions_rev.insert(offset, hash);
-        self.add_assembly(location, assembly)?;
+        self.add_assembly(location, assembly, unit_storage)?;
         Ok(())
     }
 
@@ -661,55 +662,139 @@ impl UnitBuilder {
     }
 
     /// Translate the given assembly into instructions.
-    fn add_assembly(&mut self, location: Location, assembly: Assembly) -> compile::Result<()> {
+    fn add_assembly(
+        &mut self,
+        location: Location,
+        assembly: Assembly,
+        storage: &mut dyn UnitEncoder,
+    ) -> compile::Result<()> {
         self.label_count = assembly.label_count;
 
+        let base = storage.extend_offsets(assembly.labels.len());
         self.required_functions.extend(assembly.required_functions);
+
+        for (offset, (_, labels)) in &assembly.labels {
+            for label in labels {
+                if let Some(jump) = label.jump() {
+                    label.set_jump(storage.label_jump(base, *offset, jump));
+                }
+            }
+        }
 
         for (pos, (inst, span)) in assembly.instructions.into_iter().enumerate() {
             let mut comment = None::<Box<str>>;
-            let label = assembly.labels_rev.get(&pos).copied();
+
+            let mut labels = Vec::new();
+
+            for label in assembly
+                .labels
+                .get(&pos)
+                .map(|e| e.1.as_slice())
+                .unwrap_or_default()
+            {
+                if let Some(index) = label.jump() {
+                    storage.mark_offset(index);
+                }
+
+                labels.push(label.to_debug_label());
+            }
+
+            let at = storage.offset();
 
             match inst {
                 AssemblyInst::Jump { label } => {
+                    let jump = label
+                        .jump()
+                        .ok_or(CompileErrorKind::MissingLabelLocation {
+                            name: label.name,
+                            index: label.index,
+                        })
+                        .with_span(location.span)?;
                     comment = Some(format!("label:{}", label).into());
-                    let offset = translate_offset(span, pos, label, &assembly.labels)?;
-                    self.instructions.push(Inst::Jump { offset });
+                    storage
+                        .encode(Inst::Jump { jump })
+                        .with_span(location.span)?;
                 }
                 AssemblyInst::JumpIf { label } => {
+                    let jump = label
+                        .jump()
+                        .ok_or(CompileErrorKind::MissingLabelLocation {
+                            name: label.name,
+                            index: label.index,
+                        })
+                        .with_span(location.span)?;
                     comment = Some(format!("label:{}", label).into());
-                    let offset = translate_offset(span, pos, label, &assembly.labels)?;
-                    self.instructions.push(Inst::JumpIf { offset });
+                    storage
+                        .encode(Inst::JumpIf { jump })
+                        .with_span(location.span)?;
                 }
                 AssemblyInst::JumpIfOrPop { label } => {
+                    let jump = label
+                        .jump()
+                        .ok_or(CompileErrorKind::MissingLabelLocation {
+                            name: label.name,
+                            index: label.index,
+                        })
+                        .with_span(location.span)?;
                     comment = Some(format!("label:{}", label).into());
-                    let offset = translate_offset(span, pos, label, &assembly.labels)?;
-                    self.instructions.push(Inst::JumpIfOrPop { offset });
+                    storage
+                        .encode(Inst::JumpIfOrPop { jump })
+                        .with_span(location.span)?;
                 }
                 AssemblyInst::JumpIfNotOrPop { label } => {
+                    let jump = label
+                        .jump()
+                        .ok_or(CompileErrorKind::MissingLabelLocation {
+                            name: label.name,
+                            index: label.index,
+                        })
+                        .with_span(location.span)?;
                     comment = Some(format!("label:{}", label).into());
-                    let offset = translate_offset(span, pos, label, &assembly.labels)?;
-                    self.instructions.push(Inst::JumpIfNotOrPop { offset });
+                    storage
+                        .encode(Inst::JumpIfNotOrPop { jump })
+                        .with_span(location.span)?;
                 }
                 AssemblyInst::JumpIfBranch { branch, label } => {
+                    let jump = label
+                        .jump()
+                        .ok_or(CompileErrorKind::MissingLabelLocation {
+                            name: label.name,
+                            index: label.index,
+                        })
+                        .with_span(location.span)?;
                     comment = Some(format!("label:{}", label).into());
-                    let offset = translate_offset(span, pos, label, &assembly.labels)?;
-                    self.instructions
-                        .push(Inst::JumpIfBranch { branch, offset });
+                    storage
+                        .encode(Inst::JumpIfBranch { branch, jump })
+                        .with_span(location.span)?;
                 }
                 AssemblyInst::PopAndJumpIfNot { count, label } => {
+                    let jump = label
+                        .jump()
+                        .ok_or(CompileErrorKind::MissingLabelLocation {
+                            name: label.name,
+                            index: label.index,
+                        })
+                        .with_span(location.span)?;
                     comment = Some(format!("label:{}", label).into());
-                    let offset = translate_offset(span, pos, label, &assembly.labels)?;
-                    self.instructions
-                        .push(Inst::PopAndJumpIfNot { count, offset });
+                    storage
+                        .encode(Inst::PopAndJumpIfNot { count, jump })
+                        .with_span(location.span)?;
                 }
                 AssemblyInst::IterNext { offset, label } => {
+                    let jump = label
+                        .jump()
+                        .ok_or(CompileErrorKind::MissingLabelLocation {
+                            name: label.name,
+                            index: label.index,
+                        })
+                        .with_span(location.span)?;
                     comment = Some(format!("label:{}", label).into());
-                    let jump = translate_offset(span, pos, label, &assembly.labels)?;
-                    self.instructions.push(Inst::IterNext { offset, jump });
+                    storage
+                        .encode(Inst::IterNext { offset, jump })
+                        .with_span(location.span)?;
                 }
                 AssemblyInst::Raw { raw } => {
-                    self.instructions.push(raw);
+                    storage.encode(raw).with_span(location.span)?;
                 }
             }
 
@@ -725,38 +810,12 @@ impl UnitBuilder {
 
             let debug = self.debug.get_or_insert_with(Default::default);
 
-            debug.instructions.push(DebugInst::new(
-                location.source_id,
-                span,
-                comment,
-                label.map(Label::into_owned),
-            ));
+            debug.instructions.insert(
+                at,
+                DebugInst::new(location.source_id, span, comment, labels),
+            );
         }
 
-        return Ok(());
-
-        fn translate_offset(
-            span: Span,
-            base: usize,
-            label: Label,
-            labels: &HashMap<Label, usize>,
-        ) -> compile::Result<isize> {
-            let offset = labels
-                .get(&label)
-                .copied()
-                .ok_or(CompileErrorKind::MissingLabel { label })
-                .with_span(span)?;
-
-            let base = isize::try_from(base)
-                .map_err(|_| CompileErrorKind::BaseOverflow)
-                .with_span(span)?;
-            let offset = isize::try_from(offset)
-                .map_err(|_| CompileErrorKind::OffsetOverflow)
-                .with_span(span)?;
-
-            let (base, _) = base.overflowing_add(1);
-            let (offset, _) = offset.overflowing_sub(base);
-            Ok(offset)
-        }
+        Ok(())
     }
 }

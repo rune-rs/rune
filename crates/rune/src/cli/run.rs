@@ -2,11 +2,11 @@ use std::io::Write;
 use std::sync::Arc;
 use std::time::Instant;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use clap::Parser;
 
 use crate::cli::{Config, ExitCode, Io, CommandBase, AssetKind, SharedFlags};
-use crate::runtime::{VmError, VmExecution, VmResult};
+use crate::runtime::{VmError, VmExecution, VmResult, UnitStorage};
 use crate::{Context, Sources, Unit, Value, Vm};
 
 #[derive(Parser, Debug)]
@@ -14,9 +14,12 @@ pub(super) struct Flags {
     /// Provide detailed tracing for each instruction executed.
     #[arg(short, long)]
     trace: bool,
-    /// Dump everything.
+    /// Perform a default dump.
     #[arg(short, long)]
     dump: bool,
+    /// Dump everything that is available, this is very verbose.
+    #[arg(long)]
+    dump_all: bool,
     /// Dump default information about unit.
     #[arg(long)]
     dump_unit: bool,
@@ -46,6 +49,10 @@ pub(super) struct Flags {
     /// Include source code references where appropriate (only available if -O debug-info=true).
     #[arg(long)]
     with_source: bool,
+    /// When tracing, limit the number of instructions to run with `limit`. This
+    /// implies `--trace`.
+    #[arg(long)]
+    trace_limit: Option<usize>,
 }
 
 impl CommandBase for Flags {
@@ -56,14 +63,21 @@ impl CommandBase for Flags {
 
     #[inline]
     fn propagate(&mut self, _: &mut Config, _: &mut SharedFlags) {
-        if self.dump {
-            self.dump_constants = true;
+        if self.dump || self.dump_all {
             self.dump_unit = true;
             self.dump_stack = true;
+        }
+
+        if self.dump_all {
+            self.dump_constants = true;
             self.dump_functions = true;
             self.dump_types = true;
             self.dump_native_functions = true;
             self.dump_native_types = true;
+        }
+
+        if self.trace_limit.is_some() {
+            self.trace = true;
         }
     }
 }
@@ -87,11 +101,20 @@ impl Flags {
 enum TraceError {
     Io(std::io::Error),
     VmError(VmError),
+    Limited,
 }
 
 impl From<std::io::Error> for TraceError {
+    #[inline]
     fn from(error: std::io::Error) -> Self {
         Self::Io(error)
+    }
+}
+
+impl From<VmError> for TraceError {
+    #[inline]
+    fn from(error: VmError) -> Self {
+        Self::VmError(error)
     }
 }
 
@@ -122,6 +145,8 @@ pub(super) async fn run(
     }
 
     if args.dump_unit() {
+        writeln!(io.stdout, "Unit size: {} bytes", unit.instructions().bytes())?;
+
         if args.emit_instructions() {
             let mut o = io.stdout.lock();
             writeln!(o, "# instructions")?;
@@ -184,12 +209,14 @@ pub(super) async fn run(
             sources,
             args.dump_stack,
             args.with_source,
+            args.trace_limit.unwrap_or(usize::MAX),
         )
         .await
         {
             Ok(value) => VmResult::Ok(value),
             Err(TraceError::Io(io)) => return Err(io.into()),
             Err(TraceError::VmError(vm)) => VmResult::Err(vm),
+            Err(TraceError::Limited) => return Err(anyhow!("Trace limit reached")),
         }
     } else {
         execution.async_complete().await
@@ -287,13 +314,16 @@ async fn do_trace<T>(
     sources: &Sources,
     dump_stack: bool,
     with_source: bool,
+    mut limit: usize,
 ) -> Result<Value, TraceError>
 where
     T: AsMut<Vm> + AsRef<Vm>,
 {
     let mut current_frame_len = execution.vm().call_frames().len();
 
-    loop {
+    while limit > 0 {
+        limit = limit.wrapping_sub(1);
+
         {
             let vm = execution.vm();
             let mut o = io.stdout.lock();
@@ -316,14 +346,14 @@ where
                 }
             }
 
-            if let Some(label) = debug.and_then(|d| d.label.as_ref()) {
+            for label in debug.map(|d| d.labels.as_slice()).unwrap_or_default() {
                 writeln!(o, "{}:", label)?;
             }
 
-            if let Some(inst) = vm.unit().instruction_at(vm.ip()) {
+            if let Some((inst, _)) = vm.unit().instruction_at(vm.ip()).map_err(VmError::from)? {
                 write!(o, "  {:04} = {}", vm.ip(), inst)?;
             } else {
-                write!(o, "  {:04} = *o of bounds*", vm.ip())?;
+                write!(o, "  {:04} = *out of bounds*", vm.ip())?;
             }
 
             if let Some(comment) = debug.and_then(|d| d.comment.as_ref()) {
@@ -368,7 +398,9 @@ where
         }
 
         if let Some(result) = result {
-            break Ok(result);
+            return Ok(result);
         }
     }
+
+    Err(TraceError::Limited)
 }

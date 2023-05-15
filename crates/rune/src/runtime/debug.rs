@@ -17,7 +17,7 @@ use crate::{Hash, SourceId};
 #[non_exhaustive]
 pub struct DebugInfo {
     /// Debug information on each instruction.
-    pub instructions: Vec<DebugInst>,
+    pub instructions: HashMap<usize, DebugInst>,
     /// Function signatures.
     pub functions: HashMap<Hash, DebugSignature>,
     /// Reverse lookup of a function.
@@ -27,7 +27,7 @@ pub struct DebugInfo {
 impl DebugInfo {
     /// Get debug instruction at the given instruction pointer.
     pub fn instruction_at(&self, ip: usize) -> Option<&DebugInst> {
-        self.instructions.get(ip)
+        self.instructions.get(&ip)
     }
 
     /// Get the function corresponding to the given instruction pointer.
@@ -49,7 +49,7 @@ pub struct DebugInst {
     /// The comment for the line.
     pub comment: Option<Box<str>>,
     /// Label associated with the location.
-    pub label: Option<DebugLabel>,
+    pub labels: Vec<DebugLabel>,
 }
 
 impl DebugInst {
@@ -58,13 +58,13 @@ impl DebugInst {
         source_id: SourceId,
         span: Span,
         comment: Option<Box<str>>,
-        label: Option<DebugLabel>,
+        labels: Vec<DebugLabel>,
     ) -> Self {
         Self {
             source_id,
             span,
             comment,
-            label,
+            labels,
         }
     }
 }

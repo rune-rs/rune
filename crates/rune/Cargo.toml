@@ -21,21 +21,21 @@ workspace = ["std", "toml", "semver", "relative-path", "serde-hashkey", "linked-
 doc = ["std", "rust-embed", "handlebars", "pulldown-cmark", "syntect", "sha2", "base64", "rune-core/doc", "relative-path"]
 cli = ["std", "emit", "doc", "bincode", "atty", "tracing-subscriber", "clap", "webbrowser", "capture-io", "disable-io", "languageserver", "fmt", "similar", "rand"]
 languageserver = ["lsp", "ropey", "percent-encoding", "url", "serde_json", "tokio", "tokio/macros", "tokio/io-std", "workspace", "doc"]
+byte-code = ["musli-storage"]
 capture-io = ["parking_lot"]
 disable-io = []
 fmt = []
-std = ["alloc", "anyhow", "thiserror", "num/std", "serde/std", "rune-core/std"]
-alloc = []
+std = ["anyhow", "thiserror", "num/std", "serde/std", "rune-core/std", "musli/std", "musli-storage/std"]
 
 [dependencies]
 rune-macros = { version = "=0.12.3", path = "../rune-macros" }
-rune-core = { version = "=0.12.3", path = "../rune-core" }
+rune-core = { version = "=0.12.3", path = "../rune-core", features = ["musli"] }
 
 futures-core = { version = "0.3.28", default-features = false }
 futures-util = { version = "0.3.28", default-features = false, features = ["alloc"] }
 itoa = "1.0.6"
 num = { version = "0.4.0", default-features = false, features = ["alloc"] }
-pin-project = "1.0.12"
+pin-project = "1.1.0"
 ryu = "1.0.13"
 serde = { version = "1.0.163", default-features = false, features = ["derive", "alloc", "rc"] }
 serde_bytes = { version = "0.11.9", default-features = false, features = ["alloc"] }
@@ -43,7 +43,9 @@ smallvec = { version = "1.10.0", default-features = false, features = ["serde", 
 thiserror-impl = { version = "1.0.40", default-features = false }
 tracing =  { version = "0.1.37", default-features = false, features = ["attributes"] }
 hashbrown = { version = "0.13.2", features = ["serde"] }
+musli = { version = "0.0.42", default-features = false, features = ["alloc"] }
 
+musli-storage = { version = "0.0.42", default-features = false, optional = true, features = ["alloc"] }
 anyhow = { version = "1.0.71", features = ["std"], optional = true }
 atty = { version = "0.2.14", optional = true }
 bincode = { version = "1.3.3", optional = true }

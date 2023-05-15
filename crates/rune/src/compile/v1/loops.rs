@@ -22,7 +22,7 @@ impl Drop for LoopGuard {
 }
 
 /// Loops we are inside.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub(crate) struct Loop {
     /// The optional label of the start of the loop.
     pub(crate) label: Option<ast::Label>,
@@ -54,7 +54,7 @@ impl Loops {
 
     /// Get the last loop context.
     pub(crate) fn last(&self) -> Option<Loop> {
-        self.loops.borrow().last().copied()
+        self.loops.borrow().last().cloned()
     }
 
     /// Push loop information.
@@ -91,7 +91,7 @@ impl Loops {
             let label = label.resolve(ctx)?;
 
             if expected == label {
-                return Ok((*l, to_drop));
+                return Ok((l.clone(), to_drop));
             }
         }
 

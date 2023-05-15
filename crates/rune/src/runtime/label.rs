@@ -1,36 +1,64 @@
 //! A simple label used to jump to a code location.
 
+use core::cell::Cell;
 use core::fmt;
+use core::num::NonZeroUsize;
 
 use crate::no_std::borrow::Cow;
+use crate::no_std::rc::Rc;
 
 use serde::{Deserialize, Serialize};
 
 /// A label that can be jumped to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Label {
-    name: &'static str,
-    id: usize,
+#[derive(Debug, Clone)]
+pub(crate) struct Label {
+    pub(crate) name: &'static str,
+    pub(crate) index: usize,
+    jump: Rc<Cell<Option<NonZeroUsize>>>,
 }
 
 impl Label {
     /// Construct a new label.
-    pub fn new(name: &'static str, id: usize) -> Self {
-        Self { name, id }
+    pub(crate) fn new(name: &'static str, index: usize) -> Self {
+        Self {
+            name,
+            index,
+            jump: Rc::new(Cell::new(None)),
+        }
+    }
+
+    /// Get jump.
+    pub(crate) fn jump(&self) -> Option<usize> {
+        Some(self.jump.get()?.get().wrapping_sub(1))
+    }
+
+    /// Set jump.
+    pub(crate) fn set_jump(&self, jump: usize) -> bool {
+        let Some(jump) = NonZeroUsize::new(jump.wrapping_add(1)) else {
+            return false;
+        };
+
+        self.jump.replace(Some(jump));
+        true
     }
 
     /// Convert into owned label.
-    pub fn into_owned(self) -> DebugLabel {
+    pub(crate) fn to_debug_label(&self) -> DebugLabel {
         DebugLabel {
             name: self.name.into(),
-            id: self.id,
+            index: self.index,
+            jump: self.jump.get(),
         }
     }
 }
 
 impl fmt::Display for Label {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}_{}", self.name, self.id)
+        if let Some(jump) = self.jump() {
+            write!(f, "{}_{} ({jump})", self.name, self.index)
+        } else {
+            write!(f, "{}_{}", self.name, self.index)
+        }
     }
 }
 
@@ -39,12 +67,27 @@ impl fmt::Display for Label {
 pub struct DebugLabel {
     /// The name of the label.
     name: Cow<'static, str>,
-    /// The id of the label.
-    id: usize,
+    /// The index of the label.
+    index: usize,
+    /// The jump index of the label.
+    jump: Option<NonZeroUsize>,
+}
+
+impl DebugLabel {
+    /// Get jump.
+    pub(crate) fn jump(&self) -> Option<usize> {
+        Some(self.jump?.get().wrapping_sub(1))
+    }
 }
 
 impl fmt::Display for DebugLabel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}_{}", self.name, self.id)
+        write!(f, "{}_{}", self.name, self.index)?;
+
+        if let Some(jump) = self.jump() {
+            write!(f, " ({jump})")?;
+        }
+
+        Ok(())
     }
 }

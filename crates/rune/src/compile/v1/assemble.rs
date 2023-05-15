@@ -231,13 +231,13 @@ fn pat_with_offset(
 
     let false_label = c.asm.new_label("let_panic");
 
-    if pat(hir, c, false_label, &load)? {
+    if pat(hir, c, &false_label, &load)? {
         c.diagnostics
             .let_pattern_might_panic(c.source_id, span, c.context());
 
         let ok_label = c.asm.new_label("let_ok");
-        c.asm.jump(ok_label, span);
-        c.asm.label(false_label)?;
+        c.asm.jump(&ok_label, span);
+        c.asm.label(&false_label)?;
         c.asm.push(
             Inst::Panic {
                 reason: PanicReason::UnmatchedPattern,
@@ -245,7 +245,7 @@ fn pat_with_offset(
             span,
         );
 
-        c.asm.label(ok_label)?;
+        c.asm.label(&ok_label)?;
     }
 
     Ok(())
@@ -261,7 +261,7 @@ fn pat_with_offset(
 fn pat(
     hir: &hir::Pat<'_>,
     c: &mut Assembler<'_>,
-    false_label: Label,
+    false_label: &Label,
     load: &dyn Fn(&mut Assembler<'_>, Needs) -> compile::Result<()>,
 ) -> compile::Result<bool> {
     let span = hir.span();
@@ -319,7 +319,7 @@ fn pat(
 fn pat_lit(
     hir: &hir::Expr<'_>,
     c: &mut Assembler<'_>,
-    false_label: Label,
+    false_label: &Label,
     load: &dyn Fn(&mut Assembler<'_>, Needs) -> compile::Result<()>,
 ) -> compile::Result<bool> {
     let span = hir.span();
@@ -406,7 +406,7 @@ fn pat_lit_inst(
 fn condition(
     condition: &hir::Condition<'_>,
     c: &mut Assembler<'_>,
-    then_label: Label,
+    then_label: &Label,
 ) -> compile::Result<Scope> {
     match condition {
         hir::Condition::Expr(e) => {
@@ -430,9 +430,9 @@ fn condition(
                 Ok(())
             };
 
-            if pat(expr_let.pat, c, false_label, &load)? {
+            if pat(expr_let.pat, c, &false_label, &load)? {
                 c.asm.jump(then_label, span);
-                c.asm.label(false_label)?;
+                c.asm.label(&false_label)?;
             } else {
                 c.asm.jump(then_label, span);
             };
@@ -449,7 +449,7 @@ fn pat_vec(
     span: Span,
     c: &mut Assembler<'_>,
     hir: &hir::PatItems<'_>,
-    false_label: Label,
+    false_label: &Label,
     load: &dyn Fn(&mut Assembler<'_>, Needs) -> compile::Result<()>,
 ) -> compile::Result<()> {
     // Assign the yet-to-be-verified tuple to an anonymous slot, so we can
@@ -571,7 +571,7 @@ fn pat_tuple(
     span: Span,
     c: &mut Assembler<'_>,
     hir: &hir::PatItems<'_>,
-    false_label: Label,
+    false_label: &Label,
     load: &dyn Fn(&mut Assembler<'_>, Needs) -> compile::Result<()>,
 ) -> compile::Result<()> {
     load(c, Needs::Value)?;
@@ -658,7 +658,7 @@ fn pat_object(
     span: Span,
     c: &mut Assembler<'_>,
     hir: &hir::PatItems<'_>,
-    false_label: Label,
+    false_label: &Label,
     load: &dyn Fn(&mut Assembler<'_>, Needs) -> compile::Result<()>,
 ) -> compile::Result<()> {
     // NB: bind the loaded variable (once) to an anonymous var.
@@ -849,7 +849,7 @@ fn pat_meta_binding(
     span: Span,
     c: &mut Assembler<'_>,
     meta: &meta::Meta,
-    false_label: Label,
+    false_label: &Label,
     load: &dyn Fn(&mut Assembler<'_>, Needs) -> compile::Result<()>,
 ) -> compile::Result<bool> {
     let inst = match tuple_match_for(span, c, meta) {
@@ -1414,10 +1414,10 @@ fn expr_binary(
 
         match bin_op {
             ast::BinOp::And(..) => {
-                c.asm.jump_if_not_or_pop(end_label, lhs.span());
+                c.asm.jump_if_not_or_pop(&end_label, lhs.span());
             }
             ast::BinOp::Or(..) => {
-                c.asm.jump_if_or_pop(end_label, lhs.span());
+                c.asm.jump_if_or_pop(&end_label, lhs.span());
             }
             op => {
                 return Err(compile::Error::new(
@@ -1429,7 +1429,7 @@ fn expr_binary(
 
         expr(rhs, c, Needs::Value)?.apply(c)?;
 
-        c.asm.label(end_label)?;
+        c.asm.label(&end_label)?;
 
         if !needs.value() {
             c.asm.push(Inst::Pop, span);
@@ -1624,7 +1624,8 @@ fn expr_break(
         match e {
             hir::ExprBreakValue::Expr(e) => {
                 expr(e, c, current_loop.needs)?.apply(c)?;
-                (current_loop, current_loop.drop.into_iter().collect(), true)
+                let to_drop = current_loop.drop.into_iter().collect();
+                (current_loop, to_drop, true)
             }
             hir::ExprBreakValue::Label(label) => {
                 let (last_loop, to_drop) =
@@ -1633,10 +1634,11 @@ fn expr_break(
             }
         }
     } else {
-        (current_loop, current_loop.drop.into_iter().collect(), false)
+        let to_drop = current_loop.drop.into_iter().collect();
+        (current_loop, to_drop, false)
     };
 
-    // Drop loop temporary. Typically an iterator.
+    // Drop loop temporaries. Typically an iterator.
     for offset in to_drop {
         c.asm.push(Inst::Drop { offset }, span);
     }
@@ -1659,7 +1661,7 @@ fn expr_break(
         c.locals_pop(vars, span);
     }
 
-    c.asm.jump(last_loop.break_label, span);
+    c.asm.jump(&last_loop.break_label, span);
     Ok(Asm::top(span))
 }
 
@@ -2102,7 +2104,7 @@ fn expr_continue(
 
     c.locals_pop(vars, span);
 
-    c.asm.jump(last_loop.continue_label, span);
+    c.asm.jump(&last_loop.continue_label, span);
     Ok(Asm::top(span))
 }
 
@@ -2280,13 +2282,13 @@ fn expr_for(
     };
 
     let continue_var_count = c.scopes.total_var_count(span)?;
-    c.asm.label(continue_label)?;
+    c.asm.label(&continue_label)?;
 
     let _guard = c.loops.push(Loop {
         label: hir.label.copied(),
-        continue_label,
+        continue_label: continue_label.clone(),
         continue_var_count,
-        break_label,
+        break_label: break_label.clone(),
         break_var_count,
         needs,
         drop: Some(iter_offset),
@@ -2345,7 +2347,7 @@ fn expr_for(
     }
 
     // Test loop condition and unwrap the option, or jump to `end_label` if the current value is `None`.
-    c.asm.iter_next(binding_offset, end_label, binding_span);
+    c.asm.iter_next(binding_offset, &end_label, binding_span);
 
     let body_span = hir.body.span();
     let guard = c.scopes.push_child(body_span)?;
@@ -2355,8 +2357,8 @@ fn expr_for(
     block(hir.body, c, Needs::None)?.apply(c)?;
     c.clean_last_scope(span, guard, Needs::None)?;
 
-    c.asm.jump(continue_label, span);
-    c.asm.label(end_label)?;
+    c.asm.jump(&continue_label, span);
+    c.asm.label(&end_label)?;
 
     // Drop the iterator.
     c.asm.push(
@@ -2374,7 +2376,7 @@ fn expr_for(
     }
 
     // NB: breaks produce their own value.
-    c.asm.label(break_label)?;
+    c.asm.label(&break_label)?;
     Ok(Asm::top(span))
 }
 
@@ -2390,11 +2392,11 @@ fn expr_if(
     let end_label = c.asm.new_label("if_end");
 
     let mut branches = Vec::new();
-    let then_scope = condition(hir.condition, c, then_label)?;
+    let then_scope = condition(hir.condition, c, &then_label)?;
 
     for branch in hir.expr_else_ifs {
         let label = c.asm.new_label("if_branch");
-        let scope = condition(branch.condition, c, label)?;
+        let scope = condition(branch.condition, c, &label)?;
         branches.push((branch, label, scope));
     }
 
@@ -2409,16 +2411,16 @@ fn expr_if(
         }
     }
 
-    c.asm.jump(end_label, span);
+    c.asm.jump(&end_label, span);
 
-    c.asm.label(then_label)?;
+    c.asm.label(&then_label)?;
 
     let expected = c.scopes.push(then_scope);
     block(hir.block, c, needs)?.apply(c)?;
     c.clean_last_scope(span, expected, needs)?;
 
     if !hir.expr_else_ifs.is_empty() {
-        c.asm.jump(end_label, span);
+        c.asm.jump(&end_label, span);
     }
 
     let mut it = branches.into_iter().peekable();
@@ -2426,18 +2428,18 @@ fn expr_if(
     while let Some((branch, label, scope)) = it.next() {
         let span = branch.span();
 
-        c.asm.label(label)?;
+        c.asm.label(&label)?;
 
         let scopes = c.scopes.push(scope);
         block(branch.block, c, needs)?.apply(c)?;
         c.clean_last_scope(span, scopes, needs)?;
 
         if it.peek().is_some() {
-            c.asm.jump(end_label, span);
+            c.asm.jump(&end_label, span);
         }
     }
 
-    c.asm.label(end_label)?;
+    c.asm.label(&end_label)?;
     Ok(Asm::top(span))
 }
 
@@ -2479,13 +2481,13 @@ fn expr_let(hir: &hir::ExprLet<'_>, c: &mut Assembler<'_>, needs: Needs) -> comp
 
     let false_label = c.asm.new_label("let_panic");
 
-    if pat(hir.pat, c, false_label, &load)? {
+    if pat(hir.pat, c, &false_label, &load)? {
         c.diagnostics
             .let_pattern_might_panic(c.source_id, span, c.context());
 
         let ok_label = c.asm.new_label("let_ok");
-        c.asm.jump(ok_label, span);
-        c.asm.label(false_label)?;
+        c.asm.jump(&ok_label, span);
+        c.asm.label(&false_label)?;
         c.asm.push(
             Inst::Panic {
                 reason: PanicReason::UnmatchedPattern,
@@ -2493,7 +2495,7 @@ fn expr_let(hir: &hir::ExprLet<'_>, c: &mut Assembler<'_>, needs: Needs) -> comp
             span,
         );
 
-        c.asm.label(ok_label)?;
+        c.asm.label(&ok_label)?;
     }
 
     // If a value is needed for a let expression, it is evaluated as a unit.
@@ -2537,7 +2539,7 @@ fn expr_match(
             Ok(())
         };
 
-        pat(branch.pat, c, match_false, &load)?;
+        pat(branch.pat, c, &match_false, &load)?;
 
         let scope = if let Some(condition) = branch.condition {
             let span = condition.span();
@@ -2550,16 +2552,16 @@ fn expr_match(
             let scope = c.scopes.pop(parent_guard, span)?;
 
             c.asm
-                .pop_and_jump_if_not(scope.local_var_count, match_false, span);
+                .pop_and_jump_if_not(scope.local_var_count, &match_false, span);
 
-            c.asm.jump(branch_label, span);
+            c.asm.jump(&branch_label, span);
             scope
         } else {
             c.scopes.pop(parent_guard, span)?
         };
 
-        c.asm.jump(branch_label, span);
-        c.asm.label(match_false)?;
+        c.asm.jump(&branch_label, span);
+        c.asm.label(&match_false)?;
 
         branches.push((branch_label, scope));
     }
@@ -2570,25 +2572,25 @@ fn expr_match(
         c.asm.push(Inst::unit(), span);
     }
 
-    c.asm.jump(end_label, span);
+    c.asm.jump(&end_label, span);
 
     let mut it = hir.branches.iter().zip(&branches).peekable();
 
     while let Some((branch, (label, scope))) = it.next() {
         let span = branch.span();
 
-        c.asm.label(*label)?;
+        c.asm.label(label)?;
 
         let expected = c.scopes.push(scope.clone());
         expr(branch.body, c, needs)?.apply(c)?;
         c.clean_last_scope(span, expected, needs)?;
 
         if it.peek().is_some() {
-            c.asm.jump(end_label, span);
+            c.asm.jump(&end_label, span);
         }
     }
 
-    c.asm.label(end_label)?;
+    c.asm.label(&end_label)?;
 
     // pop the implicit scope where we store the anonymous match variable.
     c.clean_last_scope(span, expected_scopes, needs)?;
@@ -2945,23 +2947,23 @@ fn expr_select(
     c.asm.push(Inst::Select { len }, span);
 
     for (branch, (label, _)) in branches.iter().enumerate() {
-        c.asm.jump_if_branch(branch as i64, *label, span);
+        c.asm.jump_if_branch(branch as i64, label, span);
     }
 
     if let Some((_, label)) = &default_branch {
         c.asm.push(Inst::Pop, span);
-        c.asm.jump(*label, span);
+        c.asm.jump(label, span);
     }
 
     if !needs.value() {
         c.asm.push(Inst::Pop, span);
     }
 
-    c.asm.jump(end_label, span);
+    c.asm.jump(&end_label, span);
 
     for (label, branch) in branches {
         let span = branch.span();
-        c.asm.label(label)?;
+        c.asm.label(&label)?;
 
         let expected = c.scopes.push_child(span)?;
 
@@ -2994,15 +2996,15 @@ fn expr_select(
         // Set up a new scope with the binding.
         expr(branch.body, c, needs)?.apply(c)?;
         c.clean_last_scope(span, expected, needs)?;
-        c.asm.jump(end_label, span);
+        c.asm.jump(&end_label, span);
     }
 
     if let Some((branch, label)) = default_branch {
-        c.asm.label(label)?;
+        c.asm.label(&label)?;
         expr(branch, c, needs)?.apply(c)?;
     }
 
-    c.asm.label(end_label)?;
+    c.asm.label(&end_label)?;
 
     c.contexts
         .pop()
@@ -3209,7 +3211,7 @@ fn expr_loop(
     needs: Needs,
 ) -> compile::Result<Asm> {
     let continue_label = c.asm.new_label("while_continue");
-    let then_label = c.asm.new_label("whiel_then");
+    let then_label = c.asm.new_label("while_then");
     let end_label = c.asm.new_label("while_end");
     let break_label = c.asm.new_label("while_break");
 
@@ -3217,22 +3219,22 @@ fn expr_loop(
 
     let _guard = c.loops.push(Loop {
         label: hir.label.copied(),
-        continue_label,
+        continue_label: continue_label.clone(),
         continue_var_count: var_count,
-        break_label,
+        break_label: break_label.clone(),
         break_var_count: var_count,
         needs,
         drop: None,
     });
 
-    c.asm.label(continue_label)?;
+    c.asm.label(&continue_label)?;
 
     let expected = if let Some(hir) = hir.condition {
-        let then_scope = condition(hir, c, then_label)?;
+        let then_scope = condition(hir, c, &then_label)?;
         let expected = c.scopes.push(then_scope);
 
-        c.asm.jump(end_label, span);
-        c.asm.label(then_label)?;
+        c.asm.jump(&end_label, span);
+        c.asm.label(&then_label)?;
         Some(expected)
     } else {
         None
@@ -3244,15 +3246,15 @@ fn expr_loop(
         c.clean_last_scope(span, expected, Needs::None)?;
     }
 
-    c.asm.jump(continue_label, span);
-    c.asm.label(end_label)?;
+    c.asm.jump(&continue_label, span);
+    c.asm.label(&end_label)?;
 
     if needs.value() {
         c.asm.push(Inst::unit(), span);
     }
 
     // NB: breaks produce their own value / perform their own cleanup.
-    c.asm.label(break_label)?;
+    c.asm.label(&break_label)?;
     Ok(Asm::top(span))
 }
 
@@ -3440,13 +3442,13 @@ fn local(hir: &hir::Local<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::
 
     let false_label = c.asm.new_label("let_panic");
 
-    if pat(hir.pat, c, false_label, &load)? {
+    if pat(hir.pat, c, &false_label, &load)? {
         c.diagnostics
             .let_pattern_might_panic(c.source_id, span, c.context());
 
         let ok_label = c.asm.new_label("let_ok");
-        c.asm.jump(ok_label, span);
-        c.asm.label(false_label)?;
+        c.asm.jump(&ok_label, span);
+        c.asm.label(&false_label)?;
         c.asm.push(
             Inst::Panic {
                 reason: PanicReason::UnmatchedPattern,
@@ -3454,7 +3456,7 @@ fn local(hir: &hir::Local<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::
             span,
         );
 
-        c.asm.label(ok_label)?;
+        c.asm.label(&ok_label)?;
     }
 
     // If a value is needed for a let expression, it is evaluated as a unit.

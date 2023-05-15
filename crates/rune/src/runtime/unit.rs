@@ -1,12 +1,17 @@
-//! A single execution unit in the runestick virtual machine.
+//! A single execution unit in the rune virtual machine.
 //!
 //! A unit consists of a sequence of instructions, and lookaside tables for
 //! metadata like function locations.
+
+#[cfg(feature = "byte-code")]
+mod byte_code;
+mod storage;
 
 use core::fmt;
 
 use crate::no_std::prelude::*;
 
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::collections::HashMap;
@@ -16,11 +21,26 @@ use crate::runtime::{
 };
 use crate::Hash;
 
+pub use self::storage::{
+    ArrayUnit, BadInstruction, BadJump, EncodeError, UnitEncoder, UnitStorage,
+};
+
+#[cfg(feature = "byte-code")]
+pub use self::byte_code::ByteCodeUnit;
+
+/// Default storage implementation to use.
+#[cfg(not(rune_byte_code))]
+pub type DefaultStorage = ArrayUnit;
+/// Default storage implementation to use.
+#[cfg(rune_byte_code)]
+pub type DefaultStorage = ByteCodeUnit;
+
 /// Instructions from a single source file.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct Unit {
-    /// The instructions contained in the source file.
-    instructions: Vec<Inst>,
+#[serde(bound = "S: Serialize + DeserializeOwned")]
+pub struct Unit<S = DefaultStorage> {
+    /// Storage for the unit.
+    storage: S,
     /// Where functions are located in the collection of instructions.
     functions: HashMap<Hash, UnitFn>,
     /// A static string.
@@ -44,11 +64,11 @@ pub struct Unit {
     constants: HashMap<Hash, ConstValue>,
 }
 
-impl Unit {
+impl<S> Unit<S> {
     /// Construct a new unit with the given content.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
-        instructions: Vec<Inst>,
+        storage: S,
         functions: HashMap<Hash, UnitFn>,
         static_strings: Vec<Arc<StaticString>>,
         static_bytes: Vec<Vec<u8>>,
@@ -59,7 +79,7 @@ impl Unit {
         constants: HashMap<Hash, ConstValue>,
     ) -> Self {
         Self {
-            instructions,
+            storage,
             functions,
             static_strings,
             static_bytes,
@@ -77,14 +97,9 @@ impl Unit {
         Some(&**debug)
     }
 
-    /// Get raw underying instructions.
-    pub(crate) fn instructions(&self) -> &[Inst] {
-        &self.instructions
-    }
-
-    /// Get the instruction at the given instruction pointer.
-    pub(crate) fn instruction_at(&self, ip: usize) -> Option<&Inst> {
-        self.instructions.get(ip)
+    /// Get raw underlying instructions storage.
+    pub(crate) fn instructions(&self) -> &S {
+        &self.storage
     }
 
     /// Iterate over all static strings in the unit.
@@ -110,12 +125,6 @@ impl Unit {
             let (n, s) = it.next()?;
             Some((n, &s[..]))
         })
-    }
-
-    /// Iterate over all instructions in order.
-    #[cfg(feature = "emit")]
-    pub(crate) fn iter_instructions(&self) -> impl Iterator<Item = Inst> + '_ {
-        self.instructions.iter().copied()
     }
 
     /// Iterate over dynamic functions.
@@ -164,6 +173,30 @@ impl Unit {
     /// Lookup a constant from the unit.
     pub(crate) fn constant(&self, hash: Hash) -> Option<&ConstValue> {
         self.constants.get(&hash)
+    }
+}
+
+impl<S> Unit<S>
+where
+    S: UnitStorage,
+{
+    #[inline]
+    pub(crate) fn translate(&self, jump: usize) -> Result<usize, BadJump> {
+        self.storage.translate(jump)
+    }
+
+    /// Get the instruction at the given instruction pointer.
+    pub(crate) fn instruction_at(
+        &self,
+        ip: usize,
+    ) -> Result<Option<(Inst, usize)>, BadInstruction> {
+        self.storage.get(ip)
+    }
+
+    /// Iterate over all instructions in order.
+    #[cfg(feature = "emit")]
+    pub(crate) fn iter_instructions(&self) -> impl Iterator<Item = (usize, Inst)> + '_ {
+        self.storage.iter()
     }
 }
 
