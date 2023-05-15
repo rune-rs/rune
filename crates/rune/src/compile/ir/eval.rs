@@ -1,10 +1,10 @@
 use core::fmt::Write;
 use core::ops::{Add, Mul, Shl, Shr, Sub};
 
+use crate::no_std::collections::HashMap;
 use crate::no_std::prelude::*;
 
 use crate::ast::{Span, Spanned};
-use crate::collections::HashMap;
 use crate::compile::ir;
 use crate::compile::ir::{IrInterpreter, IrValue};
 use crate::compile::{self, WithSpan};

@@ -14,12 +14,14 @@ keywords = ["language", "scripting", "scripting-language"]
 categories = ["parser-implementations"]
 
 [features]
+default = ["alloc"]
 doc = []
-std = []
+std = ["alloc"]
+alloc = ["serde/alloc"]
 
 [dependencies]
 twox-hash = { version = "1.6.3", default-features = false }
-serde = { version = "1.0.163", default-features = false, features = ["derive", "alloc"] }
+serde = { version = "1.0.163", default-features = false, features = ["derive"] }
 smallvec = { version = "1.10.0", default-features = false, features = ["const_new", "serde"] }
 byteorder = { version = "1.4.3", default-features = false }
 musli = { version = "0.0.42", default-features = false, optional = true }

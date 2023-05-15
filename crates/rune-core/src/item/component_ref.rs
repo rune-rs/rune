@@ -2,6 +2,7 @@ use core::fmt;
 
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "alloc")]
 use crate::item::Component;
 
 /// A reference to a component of an item.
@@ -38,6 +39,7 @@ impl<'a> ComponentRef<'a> {
     }
 
     /// Coerce this [ComponentRef] into an owned [Component].
+    #[cfg(feature = "alloc")]
     pub fn to_owned(&self) -> Component {
         match *self {
             ComponentRef::Crate(s) => Component::Crate(s.into()),

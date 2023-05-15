@@ -9,5 +9,5 @@ publish = false
 std = ["rune/std"]
 
 [dependencies]
-rune = { path = "../crates/rune", default-features = false }
+rune = { path = "../crates/rune", default-features = false, features = ["alloc"] }
 wee_alloc = "0.4.5"

@@ -2,11 +2,11 @@
 
 use core::cell::RefCell;
 
+use crate::no_std::collections::{HashMap, HashSet};
 use crate::no_std::prelude::*;
 use crate::no_std::rc::Rc;
 
 use crate::ast::Span;
-use crate::collections::{HashMap, HashSet};
 use crate::compile::{self, CompileErrorKind, WithSpan};
 
 /// The kind of an indexed function.

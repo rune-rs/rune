@@ -351,12 +351,12 @@ where
 }
 
 #[cfg(feature = "std")]
-impl<T> std::process::Termination for VmResult<T> {
+impl<T> ::std::process::Termination for VmResult<T> {
     #[inline]
-    fn report(self) -> std::process::ExitCode {
+    fn report(self) -> ::std::process::ExitCode {
         match self {
-            VmResult::Ok(_) => std::process::ExitCode::SUCCESS,
-            VmResult::Err(_) => std::process::ExitCode::FAILURE,
+            VmResult::Ok(_) => ::std::process::ExitCode::SUCCESS,
+            VmResult::Err(_) => ::std::process::ExitCode::FAILURE,
         }
     }
 }

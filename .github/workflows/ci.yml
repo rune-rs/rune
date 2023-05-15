@@ -21,7 +21,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@stable
-    - run: cargo run --bin rune -- fmt --experimental --recursive --verbose --workspace tools scripts
+    - run: cargo run --bin rune -- fmt --experimental --recursive --verbose --workspace --check tools scripts
 
   clippy:
     runs-on: ubuntu-latest

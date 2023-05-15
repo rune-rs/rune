@@ -4,6 +4,7 @@
 //! metadata like function locations.
 
 use crate::no_std as std;
+use crate::no_std::collections::HashMap;
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 use crate::no_std::thiserror;
@@ -11,7 +12,6 @@ use crate::no_std::thiserror;
 use thiserror::Error;
 
 use crate::ast::Span;
-use crate::collections::HashMap;
 use crate::compile::meta;
 use crate::compile::{
     self, Assembly, AssemblyInst, CompileErrorKind, Item, Location, Pool, QueryErrorKind, WithSpan,

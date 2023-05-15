@@ -1,5 +1,6 @@
 //! Our own private error trait for use in no-std environments.
 
+#[cfg(feature = "alloc")]
 use alloc::boxed::Box;
 
 pub trait Error {
@@ -9,6 +10,7 @@ pub trait Error {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<E> Error for Box<E>
 where
     E: Error,

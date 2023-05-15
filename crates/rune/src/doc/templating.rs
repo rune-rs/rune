@@ -1,6 +1,8 @@
+use std::sync::Mutex;
+
 use crate::no_std::collections::HashMap;
 use crate::no_std::prelude::*;
-use crate::no_std::sync::{Arc, Mutex};
+use crate::no_std::sync::Arc;
 use crate::no_std::borrow::Cow;
 
 use handlebars::{

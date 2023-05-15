@@ -3,6 +3,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use crate::no_std::collections::HashMap;
 use crate::no_std::prelude::*;
 
 use anyhow::{anyhow, Context as _, Result};
@@ -11,7 +12,6 @@ use ropey::Rope;
 use tokio::sync::Notify;
 
 use crate::ast::{Span, Spanned};
-use crate::collections::HashMap;
 use crate::compile::meta;
 use crate::compile::{
     self, CompileVisitor, ComponentRef, Item, ItemBuf, LinkerError, Location, MetaRef, SourceMeta,

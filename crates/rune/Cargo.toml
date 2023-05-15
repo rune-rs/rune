@@ -25,27 +25,28 @@ byte-code = ["musli-storage"]
 capture-io = ["parking_lot"]
 disable-io = []
 fmt = []
-std = ["anyhow", "thiserror", "num/std", "serde/std", "rune-core/std", "musli/std", "musli-storage/std"]
+std = ["num/std", "serde/std", "rune-core/std", "musli/std", "musli-storage/std", "alloc", "anyhow", "thiserror"]
+alloc = ["num/alloc", "serde/alloc", "serde/rc", "rune-core/alloc", "futures-util/alloc", "serde_bytes/alloc", "musli/alloc", "musli-storage?/alloc"]
 
 [dependencies]
 rune-macros = { version = "=0.12.3", path = "../rune-macros" }
 rune-core = { version = "=0.12.3", path = "../rune-core", features = ["musli"] }
 
 futures-core = { version = "0.3.28", default-features = false }
-futures-util = { version = "0.3.28", default-features = false, features = ["alloc"] }
+futures-util = { version = "0.3.28", default-features = false }
 itoa = "1.0.6"
 num = { version = "0.4.0", default-features = false, features = ["alloc"] }
 pin-project = "1.1.0"
 ryu = "1.0.13"
-serde = { version = "1.0.163", default-features = false, features = ["derive", "alloc", "rc"] }
-serde_bytes = { version = "0.11.9", default-features = false, features = ["alloc"] }
+serde = { version = "1.0.163", default-features = false, features = ["derive"] }
+serde_bytes = { version = "0.11.9", default-features = false }
 smallvec = { version = "1.10.0", default-features = false, features = ["serde", "const_new"] }
 thiserror-impl = { version = "1.0.40", default-features = false }
 tracing =  { version = "0.1.37", default-features = false, features = ["attributes"] }
 hashbrown = { version = "0.13.2", features = ["serde"] }
-musli = { version = "0.0.42", default-features = false, features = ["alloc"] }
+musli = { version = "0.0.42", default-features = false }
 
-musli-storage = { version = "0.0.42", default-features = false, optional = true, features = ["alloc"] }
+musli-storage = { version = "0.0.42", default-features = false, optional = true }
 anyhow = { version = "1.0.71", features = ["std"], optional = true }
 atty = { version = "0.2.14", optional = true }
 bincode = { version = "1.3.3", optional = true }

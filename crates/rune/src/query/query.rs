@@ -1,12 +1,12 @@
 use core::mem::take;
 
 use crate::no_std::borrow::Cow;
+use crate::no_std::collections::{hash_map, BTreeMap, HashMap, HashSet, VecDeque};
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
 use crate::ast;
 use crate::ast::{Span, Spanned};
-use crate::collections::{hash_map, BTreeMap, HashMap, HashSet, VecDeque};
 use crate::compile::ir;
 use crate::compile::meta;
 use crate::compile::{

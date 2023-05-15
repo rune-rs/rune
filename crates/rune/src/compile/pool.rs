@@ -2,7 +2,8 @@ use crate::no_std::prelude::*;
 
 use core::fmt;
 
-use crate::collections::HashMap;
+use crate::no_std::collections::HashMap;
+
 use crate::compile::{Item, ItemBuf, Location, Visibility};
 use crate::hash::Hash;
 

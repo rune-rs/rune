@@ -11,6 +11,7 @@ use std::str;
 
 use crate::no_std::prelude::*;
 use crate::no_std::borrow::Cow;
+use crate::no_std::collections::VecDeque;
 
 use anyhow::{anyhow, bail, Context as _, Error, Result};
 use relative_path::{RelativePath, RelativePathBuf};
@@ -23,7 +24,6 @@ use syntect::parsing::{SyntaxReference, SyntaxSet};
 use base64::{display::Base64Display};
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 
-use crate::collections::VecDeque;
 use crate::compile::{ComponentRef, Item, ItemBuf};
 use crate::doc::context::{Function, Kind, Signature, Meta};
 use crate::doc::templating;

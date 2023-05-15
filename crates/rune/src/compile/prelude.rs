@@ -1,6 +1,7 @@
 use crate::no_std::prelude::*;
 
-use crate::collections::HashMap;
+use crate::no_std::collections::HashMap;
+
 use crate::compile::{IntoComponent, Item, ItemBuf};
 
 /// The contents of a prelude.

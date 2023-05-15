@@ -7,7 +7,9 @@ pub use self::item::Item;
 mod iter;
 pub use self::iter::Iter;
 
+#[cfg(feature = "alloc")]
 mod component;
+#[cfg(feature = "alloc")]
 pub use self::component::Component;
 
 mod component_ref;

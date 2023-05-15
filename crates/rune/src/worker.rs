@@ -2,10 +2,11 @@
 
 use crate::no_std::prelude::*;
 
+use crate::no_std::collections::HashMap;
+use crate::no_std::collections::VecDeque;
+
 use crate::ast;
 use crate::ast::Span;
-use crate::collections::HashMap;
-use crate::collections::VecDeque;
 use crate::compile::{ModId, Options, SourceLoader};
 use crate::indexing::index;
 use crate::indexing::{IndexScopes, Indexer};

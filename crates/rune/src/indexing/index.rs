@@ -2,14 +2,13 @@ use core::num::NonZeroUsize;
 
 use core::mem::replace;
 
-use crate::no_std::collections::VecDeque;
+use crate::no_std::collections::{HashMap, VecDeque};
 use crate::no_std::path::PathBuf;
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
 use crate::ast::{self};
 use crate::ast::{OptionSpanned, Span, Spanned};
-use crate::collections::HashMap;
 use crate::compile::attrs::Attributes;
 use crate::compile::{
     self, attrs, ir, CompileErrorKind, Doc, ItemId, Location, ModId, Options, ParseErrorKind,

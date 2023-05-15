@@ -3,7 +3,7 @@ use core::fmt;
 use crate::no_std::prelude::*;
 
 use crate::ast;
-use crate::collections::HashMap;
+use crate::no_std::collections::HashMap;
 
 /// A synthetic identifier which can be used to reference something in storage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

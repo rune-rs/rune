@@ -1,11 +1,10 @@
 use core::str;
 
-use crate::no_std::collections::{BTreeMap, BTreeSet};
+use crate::no_std::collections::{BTreeMap, BTreeSet, HashMap};
 use crate::no_std::prelude::*;
 
 use crate::ast;
 use crate::ast::{Span, Spanned};
-use crate::collections::HashMap;
 use crate::compile::{self, IrValue, WithSpan};
 use crate::macros::{quote, MacroContext, Quote};
 use crate::parse::{Parse, Parser, Peek, Peeker};

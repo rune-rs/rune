@@ -1,8 +1,8 @@
+use crate::no_std::collections::BTreeSet;
 use crate::no_std::prelude::*;
 
 use crate::ast;
 use crate::ast::{LitStr, Span, Spanned};
-use crate::collections::BTreeSet;
 use crate::compile::{self, ParseErrorKind};
 use crate::parse::{Parse, Parser, Resolve, ResolveContext};
 

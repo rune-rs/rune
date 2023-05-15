@@ -9,13 +9,13 @@ mod storage;
 
 use core::fmt;
 
+use crate::no_std::collections::HashMap;
 use crate::no_std::prelude::*;
+use crate::no_std::sync::Arc;
 
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use crate::collections::HashMap;
-use crate::no_std::sync::Arc;
 use crate::runtime::{
     Call, ConstValue, DebugInfo, Inst, Rtti, StaticString, VariantRtti, VmError, VmErrorKind,
 };

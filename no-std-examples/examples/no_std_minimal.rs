@@ -33,6 +33,12 @@ use rune::{Diagnostics, Vm};
 static mut BUDGET: usize = usize::MAX;
 static mut RAW_ENV: RawEnv = RawEnv::null();
 
+/// Necessary hook to abort the current process.
+#[no_mangle]
+extern "C" fn __rune_abort() -> ! {
+    core::intrinsics::abort()
+}
+
 #[no_mangle]
 extern "C" fn __rune_budget_take() -> bool {
     // SAFETY: this is only ever executed in a singlethreaded environment.

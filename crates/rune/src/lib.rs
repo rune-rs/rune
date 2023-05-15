@@ -154,7 +154,12 @@
 #[cfg(feature = "std")]
 #[macro_use]
 extern crate std;
-#[cfg(not(feature = "std"))]
+
+// This is here for forward compatibility when we can support allocation-free
+// execution.
+#[cfg(not(feature = "alloc"))]
+compile_error!("The `alloc` feature must be set when building rune");
+
 #[macro_use]
 extern crate alloc;
 
@@ -392,17 +397,6 @@ pub mod languageserver;
 
 cfg_doc! {
     pub mod doc;
-}
-
-/// Internal collection re-export.
-mod collections {
-    #![allow(unused)]
-
-    pub(crate) use crate::no_std::collections::{btree_map, BTreeMap};
-    pub(crate) use crate::no_std::collections::{btree_set, BTreeSet};
-    pub(crate) use crate::no_std::collections::{hash_map, HashMap};
-    pub(crate) use crate::no_std::collections::{hash_set, HashSet};
-    pub(crate) use crate::no_std::collections::{vec_deque, VecDeque};
 }
 
 /// Privately exported details.

@@ -1,8 +1,8 @@
 use core::fmt;
 
+use crate::no_std::collections::HashMap;
 use crate::no_std::sync::Arc;
 
-use crate::collections::HashMap;
 use crate::compile;
 use crate::macros::{MacroContext, TokenStream};
 use crate::runtime::{ConstValue, Stack, VmResult};
