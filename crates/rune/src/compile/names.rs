@@ -1,6 +1,7 @@
 use core::mem::replace;
 
-use crate::collections::BTreeMap;
+use crate::no_std::collections::BTreeMap;
+
 use crate::compile::{Component, ComponentRef, IntoComponent};
 
 /// A tree of names.

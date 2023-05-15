@@ -6,13 +6,17 @@ use core::ops::Deref;
 use core::str::FromStr;
 
 use crate::error;
+
+#[cfg(feature = "alloc")]
 use alloc::vec::{self, Vec};
 
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
 use crate::item::internal::INLINE;
-use crate::item::{Component, ComponentRef, IntoComponent, Item, Iter};
+#[cfg(feature = "alloc")]
+use crate::item::Component;
+use crate::item::{ComponentRef, IntoComponent, Item, Iter};
 
 /// The name of an item in the Rune Language.
 ///
@@ -183,9 +187,10 @@ impl ItemBuf {
     }
 
     /// Push the given component to the current item.
+    #[cfg(feature = "alloc")]
     pub fn pop(&mut self) -> Option<Component> {
         let mut it = self.iter();
-        let c = it.next_back()?.into_component();
+        let c = it.next_back()?.to_owned();
         let new_len = it.len();
         self.content.resize(new_len, 0);
         Some(c)
@@ -208,6 +213,7 @@ impl ItemBuf {
     }
 
     /// Convert into a vector from the current item.
+    #[cfg(feature = "alloc")]
     pub fn into_vec(self) -> Vec<Component> {
         self.into_iter().collect::<Vec<_>>()
     }
@@ -259,10 +265,12 @@ impl fmt::Debug for ItemBuf {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl IntoIterator for ItemBuf {
     type IntoIter = vec::IntoIter<Component>;
     type Item = Component;
 
+    #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.as_vec().into_iter()
     }

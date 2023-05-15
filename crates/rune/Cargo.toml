@@ -20,16 +20,17 @@ bench = []
 workspace = ["std", "toml", "semver", "relative-path", "serde-hashkey", "linked-hash-map"]
 doc = ["std", "rust-embed", "handlebars", "pulldown-cmark", "syntect", "sha2", "base64", "rune-core/doc", "relative-path"]
 cli = ["std", "emit", "doc", "bincode", "atty", "tracing-subscriber", "clap", "webbrowser", "capture-io", "disable-io", "languageserver", "fmt", "similar", "rand"]
-languageserver = ["lsp", "ropey", "percent-encoding", "url", "serde_json", "tokio", "tokio/macros", "tokio/io-std", "workspace", "doc"]
-byte-code = ["musli-storage"]
-capture-io = ["parking_lot"]
-disable-io = []
-fmt = []
-std = ["anyhow", "thiserror", "num/std", "serde/std", "rune-core/std", "musli/std", "musli-storage/std"]
+languageserver = ["std", "lsp", "ropey", "percent-encoding", "url", "serde_json", "tokio", "tokio/macros", "tokio/io-std", "workspace", "doc"]
+byte-code = ["alloc", "musli-storage"]
+capture-io = ["alloc", "parking_lot"]
+disable-io = ["alloc"]
+fmt = ["alloc"]
+std = ["num/std", "serde/std", "rune-core/std", "musli/std", "musli-storage/std", "alloc", "anyhow", "thiserror"]
+alloc = []
 
 [dependencies]
 rune-macros = { version = "=0.12.3", path = "../rune-macros" }
-rune-core = { version = "=0.12.3", path = "../rune-core", features = ["musli"] }
+rune-core = { version = "=0.12.3", path = "../rune-core", features = ["musli", "alloc"] }
 
 futures-core = { version = "0.3.28", default-features = false }
 futures-util = { version = "0.3.28", default-features = false, features = ["alloc"] }
@@ -70,7 +71,7 @@ percent-encoding = { version = "2.2.0", optional = true }
 url = { version = "2.3.1", optional = true }
 serde_json = { version = "1.0.96", optional = true }
 linked-hash-map = { version = "0.5.6", optional = true }
-similar = { version = "2.2.1", optional = true, features = ["inline"] }
+similar = { version = "2.2.1", optional = true, features = ["inline", "bytes"] }
 sha2 = { version = "0.10.6", optional = true }
 base64 = { version = "0.21.0", optional = true }
 rand = { version = "0.8.5", optional = true }

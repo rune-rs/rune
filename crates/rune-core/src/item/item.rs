@@ -1,12 +1,15 @@
-use core::fmt::{self, Write};
+use core::fmt;
 
+#[cfg(feature = "alloc")]
 use alloc::borrow::ToOwned;
-use alloc::string::String;
+#[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 
 use smallvec::ToSmallVec;
 
-use crate::item::{Component, ComponentRef, IntoComponent, ItemBuf, Iter};
+#[cfg(feature = "alloc")]
+use crate::item::Component;
+use crate::item::{ComponentRef, IntoComponent, ItemBuf, Iter};
 
 /// The reference to an [ItemBuf].
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -112,6 +115,7 @@ impl Item {
     }
 
     /// Construct a new vector from the current item.
+    #[cfg(feature = "alloc")]
     pub fn as_vec(&self) -> Vec<Component> {
         self.iter()
             .map(ComponentRef::into_component)
@@ -333,6 +337,7 @@ impl Default for &Item {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl ToOwned for Item {
     type Owned = ItemBuf;
 
@@ -364,17 +369,16 @@ impl fmt::Display for Item {
         let mut it = self.iter();
 
         if let Some(last) = it.next_back() {
-            let mut buf = String::new();
-
             for p in it {
-                write!(buf, "{}::", p)?;
+                write!(f, "{}::", p)?;
             }
 
-            write!(buf, "{}", last)?;
-            f.pad(&buf)
+            write!(f, "{}", last)?;
         } else {
-            f.pad("{root}")
+            f.write_str("{root}")?;
         }
+
+        Ok(())
     }
 }
 

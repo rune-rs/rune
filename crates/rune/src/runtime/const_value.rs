@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
 
+use crate::no_std::collections::HashMap;
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 use crate::no_std::vec;
 
-use crate::collections::HashMap;
 use crate::runtime::{
     Bytes, FromValue, Object, Shared, StaticString, ToValue, Tuple, TypeInfo, Value, Vec,
     VmErrorKind, VmResult,

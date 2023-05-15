@@ -1,12 +1,12 @@
 use core::mem::{replace, take};
 use core::ops::Neg;
 
+use crate::no_std::collections::{HashMap, HashSet};
 use crate::no_std::prelude::*;
 
 use num::ToPrimitive;
 
 use crate::ast::{self, Span, Spanned};
-use crate::collections::{HashMap, HashSet};
 use crate::compile::meta;
 use crate::compile::v1::{Assembler, GenericsParameters, Loop, Needs, Scope, Var};
 use crate::compile::{self, CompileErrorKind, Item, ParseErrorKind, WithSpan};

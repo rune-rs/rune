@@ -1,9 +1,8 @@
+use crate::no_std::collections::HashMap;
 use crate::no_std::prelude::*;
 
 /// Error indicating that a local variable is missing.
 pub(crate) struct MissingLocal<'a>(pub(crate) &'a str);
-
-use crate::collections::HashMap;
 
 /// A hierarchy of constant scopes.
 pub(crate) struct Scopes<T> {

@@ -19,13 +19,11 @@ impl RawEnv {
 }
 
 macro_rules! alloc {
-    ($lead:ident$($tail:tt)*) => {
-        #[cfg(feature = "std")]
-        #[allow(unused)]
-        pub(crate) use std::$lead$($tail)*;
-        #[cfg(not(feature = "std"))]
-        #[allow(unused)]
-        pub(crate) use alloc::$lead$($tail)*;
+    ($($vis:vis use $(::$tail:ident)+;)*) => {
+        $(
+            #[allow(unused)]
+            $vis use alloc $(::$tail)+;
+        )*
     }
 }
 
@@ -41,44 +39,43 @@ pub(crate) mod anyhow;
 #[cfg(not(feature = "std"))]
 pub use self::anyhow::Error;
 
-alloc!(sync);
-alloc!(vec);
-alloc!(boxed);
-alloc!(rc);
-alloc!(borrow);
-alloc!(string);
+alloc! {
+    pub(crate) use ::sync;
+    pub(crate) use ::vec;
+    pub(crate) use ::boxed;
+    pub(crate) use ::rc;
+    pub(crate) use ::borrow;
+    pub(crate) use ::string;
+}
 
 pub(crate) use ::core::convert;
 pub(crate) use ::core::fmt;
 pub(crate) use ::core::option;
 
 pub(crate) mod prelude {
-    alloc!(string::{String, ToString});
-    alloc!(boxed::Box);
-    alloc!(vec::Vec);
-    alloc!(borrow::ToOwned);
+    alloc! {
+        pub(crate) use ::string::String;
+        pub(crate) use ::string::ToString;
+        pub(crate) use ::boxed::Box;
+        pub(crate) use ::vec::Vec;
+        pub(crate) use ::borrow::ToOwned;
+    }
 }
 
-#[cfg(feature = "std")]
-pub(crate) mod collections {
-    pub(crate) use std::collections::{btree_map, BTreeMap};
-    pub(crate) use std::collections::{btree_set, BTreeSet};
-    pub(crate) use std::collections::{hash_map, HashMap};
-    pub(crate) use std::collections::{hash_set, HashSet};
-    pub(crate) use std::collections::{vec_deque, VecDeque};
-}
-
-#[cfg(not(feature = "std"))]
+#[allow(unused)]
 pub(crate) mod collections {
     pub(crate) use alloc::collections::{btree_map, BTreeMap};
     pub(crate) use alloc::collections::{btree_set, BTreeSet};
     pub(crate) use alloc::collections::{vec_deque, VecDeque};
+    #[cfg(not(feature = "std"))]
     pub(crate) use hashbrown::{hash_map, HashMap};
+    #[cfg(not(feature = "std"))]
     pub(crate) use hashbrown::{hash_set, HashSet};
+    #[cfg(feature = "std")]
+    pub(crate) use std::collections::{hash_map, HashMap};
+    #[cfg(feature = "std")]
+    pub(crate) use std::collections::{hash_set, HashSet};
 }
-
-#[cfg(feature = "std")]
-pub(crate) use std::process;
 
 #[cfg(feature = "std")]
 pub(crate) use std::io;
@@ -96,9 +93,14 @@ pub(crate) mod path;
 pub(crate) use std::path;
 
 #[cfg(not(feature = "std"))]
+extern "C" {
+    fn __rune_abort() -> !;
+}
+
+#[cfg(not(feature = "std"))]
 pub(crate) fn abort() -> ! {
-    // TODO: introduce a hook or something.
-    loop {}
+    // SAFETY: hook is always safe to call.
+    unsafe { __rune_abort() }
 }
 
 #[cfg(feature = "std")]

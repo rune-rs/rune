@@ -17,7 +17,7 @@ use super::error::FormattingError;
 use super::whitespace::EmptyLine;
 
 pub(super) struct IndentedWriter {
-    lines: Vec<String>,
+    lines: Vec<Vec<u8>>,
     indent: usize,
     needs_indent: bool,
 }
@@ -25,13 +25,13 @@ pub(super) struct IndentedWriter {
 impl IndentedWriter {
     pub(super) fn new() -> Self {
         Self {
-            lines: vec![String::new()],
+            lines: vec![Vec::new()],
             indent: 0,
             needs_indent: true,
         }
     }
 
-    pub(super) fn into_inner(self) -> Vec<String> {
+    pub(super) fn into_inner(self) -> Vec<Vec<u8>> {
         self.lines
     }
 
@@ -46,7 +46,7 @@ impl IndentedWriter {
     fn write_indent(&mut self) -> io::Result<usize> {
         for _ in 0..self.indent {
             if let Some(line) = self.lines.last_mut() {
-                line.push(' ');
+                line.push(b' ');
             }
         }
 
@@ -58,7 +58,7 @@ impl Write for IndentedWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         if buf[0] == b'\n' {
             self.needs_indent = true;
-            self.lines.push(String::new());
+            self.lines.push(Vec::new());
             return Ok(buf.len());
         }
         let ends_with_newline = buf.last() == Some(&b'\n');
@@ -71,8 +71,6 @@ impl Write for IndentedWriter {
         };
 
         for (idx, line) in lines.enumerate().take(lines_to_write) {
-            let line = str::from_utf8(line).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-
             if self.needs_indent {
                 self.write_indent()?;
                 self.needs_indent = false;
@@ -80,12 +78,12 @@ impl Write for IndentedWriter {
 
             if !line.is_empty() {
                 if let Some(last_line) = self.lines.last_mut() {
-                    last_line.push_str(line);
+                    last_line.extend(line);
                 }
             }
 
             if idx < line_count.saturating_sub(1) || ends_with_newline {
-                self.lines.push(String::new());
+                self.lines.push(Vec::new());
                 self.needs_indent = true;
             }
         }
@@ -136,11 +134,11 @@ impl<'a> SpanInjectionWriter<'a> {
         })
     }
 
-    pub(super) fn into_inner(self) -> Vec<String> {
+    pub(super) fn into_inner(self) -> Vec<Vec<u8>> {
         self.writer.into_inner()
     }
 
-    fn extend_previous_line(&mut self, text: &str) {
+    fn extend_previous_line(&mut self, text: &[u8]) {
         let Some(idx) = self.writer.lines.len().checked_sub(2) else {
             // TODO: bubble up an internal error?
             return;
@@ -151,18 +149,19 @@ impl<'a> SpanInjectionWriter<'a> {
             return;
         };
 
-        last_line.push_str(text);
+        last_line.extend(text);
     }
 
-    fn resolve(&self, span: Span) -> Result<String, FormattingError> {
-        match self.source.get(span.range()) {
-            Some(s) => Ok(s.to_owned()),
-            None => Err(FormattingError::InvalidSpan(
+    fn resolve(&self, span: Span) -> Result<&'a str, FormattingError> {
+        let Some(s) = self.source.get(span.range()) else {
+            return Err(FormattingError::InvalidSpan(
                 span.start.into_usize(),
                 span.end.into_usize(),
                 self.source.len(),
-            )),
-        }
+            ));
+        };
+
+        Ok(s)
     }
 
     pub(super) fn write_spanned_raw(
@@ -207,8 +206,8 @@ impl<'a> SpanInjectionWriter<'a> {
                     if comment.on_new_line {
                         writeln!(self.writer, "{}", self.resolve(comment.span)?)?;
                     } else {
-                        self.extend_previous_line(" ");
-                        self.extend_previous_line(&self.resolve(comment.span)?);
+                        self.extend_previous_line(b" ");
+                        self.extend_previous_line(self.resolve(comment.span)?.as_bytes());
                     }
                 }
             }

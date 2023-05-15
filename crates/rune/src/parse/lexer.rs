@@ -1,11 +1,11 @@
 use core::fmt;
 use core::mem::take;
 
+use crate::no_std::collections::VecDeque;
 use crate::no_std::prelude::*;
 
 use crate::ast;
 use crate::ast::Span;
-use crate::collections::VecDeque;
 use crate::compile::{self, ParseErrorKind};
 use crate::SourceId;
 

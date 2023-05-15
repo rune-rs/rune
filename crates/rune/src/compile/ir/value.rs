@@ -1,7 +1,7 @@
+use crate::no_std::collections::HashMap;
 use crate::no_std::prelude::*;
 
 use crate::ast::Spanned;
-use crate::collections::HashMap;
 use crate::compile::{self, IrErrorKind, WithSpan};
 use crate::runtime as rt;
 use crate::runtime::{Bytes, ConstValue, Shared, TypeInfo};

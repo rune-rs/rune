@@ -1,12 +1,17 @@
 use core::hash::{self, Hash};
 
+#[cfg(feature = "alloc")]
 use alloc::borrow::Cow;
+#[cfg(feature = "alloc")]
 use alloc::boxed::Box;
+#[cfg(feature = "alloc")]
 use alloc::string::String;
 
 use smallvec::SmallVec;
 
-use crate::item::{internal, Component, ComponentRef};
+#[cfg(feature = "alloc")]
+use crate::item::Component;
+use crate::item::{internal, ComponentRef};
 use crate::raw_str::RawStr;
 
 /// Trait for encoding the current type into a [Component].
@@ -16,6 +21,7 @@ pub trait IntoComponent: Sized {
 
     /// Convert into component.
     #[inline]
+    #[cfg(feature = "alloc")]
     fn into_component(self) -> Component {
         into_component(self.as_component_ref())
     }
@@ -45,6 +51,7 @@ impl IntoComponent for ComponentRef<'_> {
     }
 
     #[inline]
+    #[cfg(feature = "alloc")]
     fn into_component(self) -> Component {
         into_component(self)
     }
@@ -57,11 +64,13 @@ impl IntoComponent for &ComponentRef<'_> {
     }
 
     #[inline]
+    #[cfg(feature = "alloc")]
     fn into_component(self) -> Component {
         into_component(*self)
     }
 }
 
+#[cfg(feature = "alloc")]
 impl IntoComponent for Component {
     #[inline]
     fn as_component_ref(&self) -> ComponentRef<'_> {
@@ -74,6 +83,7 @@ impl IntoComponent for Component {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl IntoComponent for &Component {
     #[inline]
     fn as_component_ref(&self) -> ComponentRef<'_> {
@@ -93,6 +103,7 @@ macro_rules! impl_into_component_for_str {
                 ComponentRef::Str(self.as_ref())
             }
 
+            #[cfg(feature = "alloc")]
             fn into_component($slf) -> Component {
                 Component::Str($into)
             }
@@ -115,13 +126,19 @@ impl_into_component_for_str!(&str, self, self.into());
 impl_into_component_for_str!(&&str, self, (*self).into());
 impl_into_component_for_str!(RawStr, self, (*self).into());
 impl_into_component_for_str!(&RawStr, self, (**self).into());
+#[cfg(feature = "alloc")]
 impl_into_component_for_str!(String, self, self.into());
+#[cfg(feature = "alloc")]
 impl_into_component_for_str!(&String, self, self.clone().into());
+#[cfg(feature = "alloc")]
 impl_into_component_for_str!(Box<str>, self, self);
+#[cfg(feature = "alloc")]
 impl_into_component_for_str!(&Box<str>, self, self.clone());
+#[cfg(feature = "alloc")]
 impl_into_component_for_str!(Cow<'_, str>, self, self.as_ref().into());
 
 /// Convert into an owned component.
+#[cfg(feature = "alloc")]
 fn into_component(component: ComponentRef<'_>) -> Component {
     match component {
         ComponentRef::Crate(s) => Component::Crate(s.into()),

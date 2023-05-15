@@ -3,7 +3,8 @@
 //! This maps the item of a global constant to its value. It's also used to
 //! detect resolution cycles during constant evaluation.
 
-use crate::collections::{HashMap, HashSet};
+use crate::no_std::collections::{HashMap, HashSet};
+
 use crate::compile::ItemId;
 use crate::runtime::ConstValue;
 

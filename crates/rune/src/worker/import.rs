@@ -1,10 +1,10 @@
 use core::mem::take;
 
+use crate::no_std::collections::VecDeque;
 use crate::no_std::prelude::*;
 
 use crate::ast;
 use crate::ast::Spanned;
-use crate::collections::VecDeque;
 use crate::compile::{self, CompileErrorKind, ItemBuf, ModId, Visibility};
 use crate::parse::Resolve;
 use crate::query::Query;

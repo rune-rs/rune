@@ -3,12 +3,12 @@
 use core::fmt;
 
 use crate::no_std::borrow::Cow;
+use crate::no_std::collections::HashSet;
 use crate::no_std::path::Path;
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
 use crate::ast::{LitStr, Span};
-use crate::collections::HashSet;
 use crate::compile::attrs::Attributes;
 use crate::compile::{self, Item, ItemId, Location, MetaInfo, ModId, Pool, Visibility};
 use crate::hash::Hash;

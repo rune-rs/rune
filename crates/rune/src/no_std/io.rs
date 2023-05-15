@@ -26,7 +26,25 @@ pub(crate) type Result<T> = ::core::result::Result<T, Error>;
 /// A trait for objects which are byte-oriented sinks.
 pub trait Write {
     /// Attempts to write an entire buffer into this writer.
-    fn write_all(&mut self, buf: &[u8]) -> Result<()>;
+    fn write(&mut self, buf: &[u8]) -> Result<usize>;
+
+    /// Flush data being written.
+    fn flush(&mut self) -> Result<()>;
+
+    /// Attempts to write an entire buffer into this writer.
+    fn write_all(&mut self, mut buf: &[u8]) -> Result<()> {
+        while !buf.is_empty() {
+            match self.write(buf) {
+                Ok(0) => {
+                    return Err(Error {});
+                }
+                Ok(n) => buf = &buf[n..],
+                Err(e) => return Err(e),
+            }
+        }
+
+        Ok(())
+    }
 
     fn write_fmt(&mut self, fmt: fmt::Arguments<'_>) -> Result<()> {
         // Create a shim which translates a Write to a fmt::Write and saves
@@ -68,6 +86,18 @@ pub trait Write {
 }
 
 impl Write for Vec<u8> {
+    #[inline]
+    fn write(&mut self, buf: &[u8]) -> Result<usize> {
+        self.extend_from_slice(buf);
+        Ok(buf.len())
+    }
+
+    #[inline]
+    fn flush(&mut self) -> Result<()> {
+        Ok(())
+    }
+
+    #[inline]
     fn write_all(&mut self, buf: &[u8]) -> Result<()> {
         self.extend_from_slice(buf);
         Ok(())

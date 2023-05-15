@@ -10,6 +10,7 @@
 #[cfg(feature = "std")]
 extern crate std;
 
+#[cfg(feature = "alloc")]
 extern crate alloc;
 
 mod hash;
@@ -18,7 +19,9 @@ pub use hash::ParametersBuilder;
 pub use hash::{Hash, IntoHash, ToTypeHash};
 
 mod item;
-pub use self::item::{Component, ComponentRef, IntoComponent, Item, ItemBuf};
+#[cfg(feature = "alloc")]
+pub use self::item::Component;
+pub use self::item::{ComponentRef, IntoComponent, Item, ItemBuf};
 
 mod raw_str;
 pub use self::raw_str::RawStr;

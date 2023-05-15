@@ -2,12 +2,12 @@
 
 use core::fmt;
 
+use crate::no_std::collections::HashMap;
 use crate::no_std::prelude::*;
 
 use serde::{Deserialize, Serialize};
 
 use crate::ast::Span;
-use crate::collections::HashMap;
 use crate::compile::ItemBuf;
 use crate::runtime::DebugLabel;
 use crate::{Hash, SourceId};

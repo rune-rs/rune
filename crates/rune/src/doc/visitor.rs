@@ -1,6 +1,6 @@
 use crate::no_std::prelude::*;
+use crate::no_std::collections::{hash_map, HashMap};
 
-use crate::collections::{hash_map, HashMap};
 use crate::compile::{
     meta, CompileVisitor, IntoComponent, Item, ItemBuf, Location, MetaRef, Names,
 };

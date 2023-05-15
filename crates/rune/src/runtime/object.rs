@@ -4,10 +4,10 @@ use core::fmt;
 use core::hash;
 use core::iter;
 
+use crate::no_std::collections::{btree_map, BTreeMap};
 use crate::no_std::prelude::*;
 
 use crate as rune;
-use crate::collections::{btree_map, BTreeMap};
 use crate::compile::{ItemBuf, Named};
 use crate::module::InstallWith;
 use crate::runtime::{

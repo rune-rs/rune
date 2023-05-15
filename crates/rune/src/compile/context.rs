@@ -1,9 +1,9 @@
 use core::fmt;
 
+use crate::no_std::collections::{BTreeSet, HashMap, HashSet};
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
-use crate::collections::{BTreeSet, HashMap, HashSet};
 use crate::compile::meta;
 #[cfg(feature = "doc")]
 use crate::compile::Docs;
