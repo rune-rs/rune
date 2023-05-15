@@ -158,7 +158,7 @@ extern crate std;
 // This is here for forward compatibility when we can support allocation-free
 // execution.
 #[cfg(not(feature = "alloc"))]
-compile_error!("The `alloc` feature must be set when building rune");
+compile_error!("The `alloc` feature is currently required to build rune, but will change for parts of rune in the future.");
 
 #[macro_use]
 extern crate alloc;

@@ -17,7 +17,10 @@ fn test_layout_string() {
 }
 "#;
 
-    assert_eq!(layout_string(input.to_owned()).unwrap(), expected);
+    assert_eq!(
+        layout_string(input.to_owned()).unwrap(),
+        expected.as_bytes()
+    );
 }
 
 #[test]
@@ -45,7 +48,10 @@ fn foo() {
 }
 "#;
 
-    assert_eq!(layout_string(input.to_owned()).unwrap(), expected);
+    assert_eq!(
+        layout_string(input.to_owned()).unwrap(),
+        expected.as_bytes()
+    );
 }
 
 #[test]
@@ -75,5 +81,8 @@ fn foo() {
 }
 "#;
 
-    assert_eq!(layout_string(input.to_owned()).unwrap(), expected);
+    assert_eq!(
+        layout_string(input.to_owned()).unwrap(),
+        expected.as_bytes()
+    );
 }

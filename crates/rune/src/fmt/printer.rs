@@ -1,7 +1,8 @@
 //! The `Printer` trait and implementations.
 
-use std::io::Write;
+use core::mem::take;
 
+use crate::no_std::io::Write;
 use crate::no_std::prelude::*;
 
 use crate::ast::{
@@ -35,20 +36,45 @@ impl<'a> Printer<'a> {
         Ok(Self { writer, source })
     }
 
-    pub(super) fn commit(self) -> String {
+    pub(super) fn commit(self) -> Vec<u8> {
         let inner = self.writer.into_inner();
-        inner.join("\n")
+
+        let mut out = Vec::new();
+
+        let mut head = true;
+        let mut lines = 0;
+
+        for line in inner {
+            if line.iter().all(|b| b.is_ascii_whitespace()) {
+                lines += 1;
+                continue;
+            }
+
+            if !take(&mut head) {
+                out.resize(out.len().saturating_add(lines), b'\n');
+            }
+
+            out.extend(line);
+            lines = 1;
+        }
+
+        if lines > 0 {
+            out.push(b'\n');
+        }
+
+        out
     }
 
-    pub(super) fn resolve(&self, span: Span) -> Result<String> {
-        match self.source.get(span.range()) {
-            Some(s) => Ok(s.to_owned()),
-            None => Err(FormattingError::InvalidSpan(
+    pub(super) fn resolve(&self, span: Span) -> Result<&'a str> {
+        let Some(s) = self.source.get(span.range()) else {
+            return Err(FormattingError::InvalidSpan(
                 span.start.into_usize(),
                 span.end.into_usize(),
                 self.source.len(),
-            )),
-        }
+            ));
+        };
+
+        Ok(s)
     }
 
     pub(super) fn visit_file(&mut self, file: &ast::File) -> Result<()> {
@@ -640,10 +666,7 @@ impl<'a> Printer<'a> {
 
         if let PathSegment::Ident(ident) = first {
             if let LitSource::BuiltIn(BuiltIn::Template) = ident.source {
-                let start = open.span.end.into_usize();
-                let end = close.span.start.into_usize();
-
-                let important_token = self.resolve(Span::new(start, end))?;
+                let important_token = self.resolve(Span::new(open.span.end, close.span.start))?;
                 write!(self.writer, "{}", important_token)?;
                 return Ok(());
             }
@@ -657,12 +680,8 @@ impl<'a> Printer<'a> {
 
         self.writer.write_spanned_raw(bang.span, false, false)?;
         self.writer.write_spanned_raw(open.span, false, false)?;
-
-        let start = open.span.end.into_usize();
-        let end = close.span.start.into_usize();
-
         self.writer
-            .write_spanned_raw(Span::new(start, end), false, false)?;
+            .write_spanned_raw(Span::new(open.span.end, close.span.start), false, false)?;
         self.writer.write_spanned_raw(close.span, false, false)?;
 
         if let Some(semi) = semi {

@@ -95,7 +95,7 @@ pub(super) fn run<'m, I>(io: &mut Io<'_>, entry: &mut Entry<'_>, c: &Config, ent
             }
         };
 
-        let same = source.as_str() == val.as_str();
+        let same = source.as_str().as_bytes() == val;
 
         if same {
             unchanged += 1;
@@ -170,8 +170,8 @@ pub(super) fn run<'m, I>(io: &mut Io<'_>, entry: &mut Entry<'_>, c: &Config, ent
     Ok(ExitCode::Success)
 }
 
-fn diff(io: &mut Io, source: &Source, val: &str, col: &Colors) -> Result<(), anyhow::Error> {
-    let diff = TextDiff::from_lines(source.as_str(), val);
+fn diff(io: &mut Io, source: &Source, val: &[u8], col: &Colors) -> Result<(), anyhow::Error> {
+    let diff = TextDiff::from_lines(source.as_str().as_bytes(), val);
 
     for (idx, group) in diff.grouped_ops(3).iter().enumerate() {
         if idx > 0 {

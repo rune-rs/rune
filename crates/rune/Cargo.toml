@@ -20,33 +20,33 @@ bench = []
 workspace = ["std", "toml", "semver", "relative-path", "serde-hashkey", "linked-hash-map"]
 doc = ["std", "rust-embed", "handlebars", "pulldown-cmark", "syntect", "sha2", "base64", "rune-core/doc", "relative-path"]
 cli = ["std", "emit", "doc", "bincode", "atty", "tracing-subscriber", "clap", "webbrowser", "capture-io", "disable-io", "languageserver", "fmt", "similar", "rand"]
-languageserver = ["lsp", "ropey", "percent-encoding", "url", "serde_json", "tokio", "tokio/macros", "tokio/io-std", "workspace", "doc"]
-byte-code = ["musli-storage"]
-capture-io = ["parking_lot"]
-disable-io = []
-fmt = []
+languageserver = ["std", "lsp", "ropey", "percent-encoding", "url", "serde_json", "tokio", "tokio/macros", "tokio/io-std", "workspace", "doc"]
+byte-code = ["alloc", "musli-storage"]
+capture-io = ["alloc", "parking_lot"]
+disable-io = ["alloc"]
+fmt = ["alloc"]
 std = ["num/std", "serde/std", "rune-core/std", "musli/std", "musli-storage/std", "alloc", "anyhow", "thiserror"]
-alloc = ["num/alloc", "serde/alloc", "serde/rc", "rune-core/alloc", "futures-util/alloc", "serde_bytes/alloc", "musli/alloc", "musli-storage?/alloc"]
+alloc = []
 
 [dependencies]
 rune-macros = { version = "=0.12.3", path = "../rune-macros" }
-rune-core = { version = "=0.12.3", path = "../rune-core", features = ["musli"] }
+rune-core = { version = "=0.12.3", path = "../rune-core", features = ["musli", "alloc"] }
 
 futures-core = { version = "0.3.28", default-features = false }
-futures-util = { version = "0.3.28", default-features = false }
+futures-util = { version = "0.3.28", default-features = false, features = ["alloc"] }
 itoa = "1.0.6"
 num = { version = "0.4.0", default-features = false, features = ["alloc"] }
 pin-project = "1.1.0"
 ryu = "1.0.13"
-serde = { version = "1.0.163", default-features = false, features = ["derive"] }
-serde_bytes = { version = "0.11.9", default-features = false }
+serde = { version = "1.0.163", default-features = false, features = ["derive", "alloc", "rc"] }
+serde_bytes = { version = "0.11.9", default-features = false, features = ["alloc"] }
 smallvec = { version = "1.10.0", default-features = false, features = ["serde", "const_new"] }
 thiserror-impl = { version = "1.0.40", default-features = false }
 tracing =  { version = "0.1.37", default-features = false, features = ["attributes"] }
 hashbrown = { version = "0.13.2", features = ["serde"] }
-musli = { version = "0.0.42", default-features = false }
+musli = { version = "0.0.42", default-features = false, features = ["alloc"] }
 
-musli-storage = { version = "0.0.42", default-features = false, optional = true }
+musli-storage = { version = "0.0.42", default-features = false, optional = true, features = ["alloc"] }
 anyhow = { version = "1.0.71", features = ["std"], optional = true }
 atty = { version = "0.2.14", optional = true }
 bincode = { version = "1.3.3", optional = true }
@@ -71,7 +71,7 @@ percent-encoding = { version = "2.2.0", optional = true }
 url = { version = "2.3.1", optional = true }
 serde_json = { version = "1.0.96", optional = true }
 linked-hash-map = { version = "0.5.6", optional = true }
-similar = { version = "2.2.1", optional = true, features = ["inline"] }
+similar = { version = "2.2.1", optional = true, features = ["inline", "bytes"] }
 sha2 = { version = "0.10.6", optional = true }
 base64 = { version = "0.21.0", optional = true }
 rand = { version = "0.8.5", optional = true }
