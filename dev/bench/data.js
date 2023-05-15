@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1684026673524,
+  "lastUpdate": 1684113056021,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -19796,6 +19796,88 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 5189961,
             "range": "± 81363",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "1d5717735225fc201cae405fb83fc1be51bcf0ab",
+          "message": "Byte code (#518)\n\n* Load instructions through musli and modify how ip is updated in the virtual machine\r\n* Make byte-code an optional feature",
+          "timestamp": "2023-05-15T00:05:18Z",
+          "url": "https://github.com/rune-rs/rune/commit/1d5717735225fc201cae405fb83fc1be51bcf0ab"
+        },
+        "date": 1684113055326,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 325385,
+            "range": "± 4309",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1081400,
+            "range": "± 877",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 440999210,
+            "range": "± 1054307",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 271059955,
+            "range": "± 919599",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 1287888,
+            "range": "± 1300",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 13702216,
+            "range": "± 44192",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 73727938,
+            "range": "± 240553",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 11661836,
+            "range": "± 33335",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 492711,
+            "range": "± 331",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 5449590,
+            "range": "± 3506",
             "unit": "ns/iter"
           }
         ]
