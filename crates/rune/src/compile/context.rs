@@ -237,7 +237,7 @@ impl Context {
     }
 
     /// Iterate over all available functions in the [Context].
-    #[cfg(feature = "cli")]
+    #[cfg(any(feature = "cli", feature = "languageserver"))]
     pub(crate) fn iter_functions(&self) -> impl Iterator<Item = (&ContextMeta, &meta::Signature)> {
         self.meta.iter().flat_map(|meta| {
             let signature = meta.kind.as_signature()?;

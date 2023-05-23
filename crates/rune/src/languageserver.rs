@@ -54,7 +54,7 @@ pub async fn run(context: Context, options: Options) -> Result<()> {
                     None => break,
                 };
 
-                let incoming: envelope::IncomingMessage<'_> = serde_json::from_slice(frame.content)?;
+                let incoming: envelope::IncomingMessage = serde_json::from_slice(frame.content)?;
                 tracing::trace!(?incoming);
 
                 // If server is not initialized, reject incoming requests.
@@ -73,7 +73,7 @@ pub async fn run(context: Context, options: Options) -> Result<()> {
 
                 macro_rules! handle {
                     ($(req($req_ty:ty, $req_handle:ident)),* $(, notif($notif_ty:ty, $notif_handle:ident))* $(,)?) => {
-                        match incoming.method {
+                        match incoming.method.as_str() {
                             $(<$req_ty>::METHOD => {
                                 let params = <$req_ty as Request>::Params::deserialize(incoming.params)?;
                                 let result = $req_handle(&mut state, params).await?;
