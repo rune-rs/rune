@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1684199410474,
+  "lastUpdate": 1684890700404,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -19960,6 +19960,88 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 6456796,
             "range": "± 5013",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Roland Fredenhagen",
+            "username": "ModProg",
+            "email": "dev@modprog.de"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "c994be960fa4dc314a3dbaeb9a7e55f947562eaa",
+          "message": "Fix languageserver for neovim by not borrowing method in IncomingMessage (#520)\n\n* Add Context::iter_functions to languageserver feature\r\n* Fix languageserver for neovim by not borrowing method in IncomingMessage cinde neovim escapes the `/` in the method for some reason.",
+          "timestamp": "2023-05-23T13:05:58Z",
+          "url": "https://github.com/rune-rs/rune/commit/c994be960fa4dc314a3dbaeb9a7e55f947562eaa"
+        },
+        "date": 1684890699742,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 290733,
+            "range": "± 2673",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 972608,
+            "range": "± 1855",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 419617765,
+            "range": "± 1750619",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 259192833,
+            "range": "± 969722",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 1251117,
+            "range": "± 1113",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 13345490,
+            "range": "± 28318",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 73296954,
+            "range": "± 268842",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 11541813,
+            "range": "± 13108",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 480196,
+            "range": "± 462",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 5330322,
+            "range": "± 2162",
             "unit": "ns/iter"
           }
         ]
