@@ -399,47 +399,73 @@ impl<'a> Indexer<'a> {
         &mut self,
         items: &mut Vec<(ast::Item, Option<T![;]>)>,
     ) -> compile::Result<()> {
-        let mut queue = items.drain(..).collect::<VecDeque<_>>();
+        let mut uses = Vec::new();
+        let mut queue = VecDeque::new();
 
-        while let Some((item, semi)) = queue.pop_front() {
+        for (item, semi) in items.drain(..) {
             match item {
                 ast::Item::Use(item_use) => {
-                    let visibility = ast_to_visibility(&item_use.visibility)?;
-
-                    let import = Import {
-                        kind: ImportKind::Global,
-                        visibility,
-                        module: self.mod_item,
-                        item: self.items.item().clone(),
-                        source_id: self.source_id,
-                        ast: Box::new(item_use),
-                    };
-
-                    let queue = &mut self.queue;
-
-                    import.process(self.context, &mut self.q, &mut |task| {
-                        queue.push_back(task);
-                    })?;
-                }
-                ast::Item::MacroCall(mut macro_call) => {
-                    let mut attributes = attrs::Attributes::new(macro_call.attributes.to_vec());
-
-                    if self.try_expand_internal_macro(&mut attributes, &mut macro_call)? {
-                        items.push((ast::Item::MacroCall(macro_call), semi));
-                    } else {
-                        let file = self.expand_macro::<ast::File>(&mut macro_call)?;
-
-                        for entry in file.items.into_iter().rev() {
-                            queue.push_front(entry);
-                        }
-                    }
-
-                    if let Some(span) = attributes.remaining() {
-                        return Err(compile::Error::msg(span, "unsupported item attribute"));
-                    }
+                    uses.push(item_use);
                 }
                 item => {
-                    items.push((item, semi));
+                    queue.push_back((item, semi));
+                }
+            }
+        }
+
+        'uses: while !uses.is_empty() && !queue.is_empty() {
+            for item_use in uses.drain(..) {
+                let visibility = ast_to_visibility(&item_use.visibility)?;
+
+                let import = Import {
+                    kind: ImportKind::Global,
+                    visibility,
+                    module: self.mod_item,
+                    item: self.items.item().clone(),
+                    source_id: self.source_id,
+                    ast: Box::new(item_use),
+                };
+
+                let queue = &mut self.queue;
+
+                import.process(self.context, &mut self.q, &mut |task| {
+                    queue.push_back(task);
+                })?;
+            }
+
+            while let Some((item, semi)) = queue.pop_front() {
+                match item {
+                    ast::Item::MacroCall(mut macro_call) => {
+                        let mut attributes = attrs::Attributes::new(macro_call.attributes.to_vec());
+
+                        if self.try_expand_internal_macro(&mut attributes, &mut macro_call)? {
+                            items.push((ast::Item::MacroCall(macro_call), semi));
+                        } else {
+                            let file = self.expand_macro::<ast::File>(&mut macro_call)?;
+
+                            for (item, semi) in file.items.into_iter().rev() {
+                                match item {
+                                    ast::Item::Use(item_use) => {
+                                        uses.push(item_use);
+                                    }
+                                    item => {
+                                        queue.push_front((item, semi));
+                                    }
+                                }
+                            }
+                        }
+
+                        if let Some(span) = attributes.remaining() {
+                            return Err(compile::Error::msg(span, "unsupported item attribute"));
+                        }
+
+                        if !uses.is_empty() {
+                            continue 'uses;
+                        }
+                    }
+                    item => {
+                        items.push((item, semi));
+                    }
                 }
             }
         }
