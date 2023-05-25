@@ -370,6 +370,35 @@ impl FormatSpec {
     }
 }
 
+impl fmt::Display for FormatSpec {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "format(fill = {fill:?}, align = {align}, flags = {flags:?}, width = {width}, precision = {precision}, format_type = {format_type})",
+            fill = self.fill,
+            align = self.align,
+            flags = self.flags,
+            width = OptionDebug(self.width.as_ref()),
+            precision = OptionDebug(self.precision.as_ref()),
+            format_type = self.format_type
+        )
+    }
+}
+
+struct OptionDebug<'a, T>(Option<&'a T>);
+
+impl<T> fmt::Display for OptionDebug<'_, T>
+where
+    T: fmt::Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            Some(value) => write!(f, "{}", value),
+            None => write!(f, "?"),
+        }
+    }
+}
+
 /// The type of formatting requested.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Decode, Encode)]
 #[non_exhaustive]
@@ -495,7 +524,7 @@ pub enum Flag {
     SignPlus,
     /// Minus sign `-`.
     SignMinus,
-    /// Atlernate specifier `#`.
+    /// Alternate specifier `#`.
     Alternate,
     /// Sign-aware zero pad `0`.
     SignAwareZeroPad,

@@ -28,6 +28,7 @@ mod any;
 mod context;
 mod from_value;
 mod function;
+mod inst_display;
 mod instrument;
 mod internals;
 mod macro_;
@@ -162,6 +163,13 @@ pub fn instrument(
         .expand()
         .unwrap_or_else(to_compile_errors)
         .into()
+}
+
+#[proc_macro_derive(InstDisplay, attributes(inst_display))]
+#[doc(hidden)]
+pub fn inst_display(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let derive = syn::parse_macro_input!(input as inst_display::Derive);
+    derive.expand().unwrap_or_else(to_compile_errors).into()
 }
 
 fn to_compile_errors(errors: Vec<syn::Error>) -> proc_macro2::TokenStream {
