@@ -1,6 +1,7 @@
 use core::fmt;
 
 use musli::{Decode, Encode};
+use rune_macros::InstDisplay;
 use serde::{Deserialize, Serialize};
 
 use crate::runtime::{FormatSpec, Type, Value};
@@ -87,7 +88,7 @@ impl fmt::Display for TypeCheck {
 }
 
 /// An operation in the stack-based virtual machine.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Decode, Encode, InstDisplay)]
 pub enum Inst {
     /// Not operator. Takes a boolean from the top of the stack  and inverts its
     /// logical value.
@@ -566,6 +567,7 @@ pub enum Inst {
     Tuple1 {
         /// First element of the tuple.
         #[musli(with = self::array::<_, 1>)]
+        #[inst_display(display_with = display_array)]
         args: [InstAddress; 1],
     },
     /// Construct a push a two-tuple value onto the stack.
@@ -579,6 +581,7 @@ pub enum Inst {
     Tuple2 {
         /// Tuple arguments.
         #[musli(with = self::array::<_, 2>)]
+        #[inst_display(display_with = display_array)]
         args: [InstAddress; 2],
     },
     /// Construct a push a three-tuple value onto the stack.
@@ -592,6 +595,7 @@ pub enum Inst {
     Tuple3 {
         /// Tuple arguments.
         #[musli(with = self::array::<_, 3>)]
+        #[inst_display(display_with = display_array)]
         args: [InstAddress; 3],
     },
     /// Construct a push a four-tuple value onto the stack.
@@ -605,6 +609,7 @@ pub enum Inst {
     Tuple4 {
         /// Tuple arguments.
         #[musli(with = self::array::<_, 4>)]
+        #[inst_display(display_with = display_array)]
         args: [InstAddress; 4],
     },
     /// Construct a push a tuple value onto the stack. The number of elements
@@ -1056,6 +1061,7 @@ pub enum Inst {
     #[musli(packed)]
     Panic {
         /// The reason for the panic.
+        #[inst_display(display_with = PanicReason::ident)]
         reason: PanicReason,
     },
 }
@@ -1100,279 +1106,6 @@ impl Inst {
     pub fn float(v: f64) -> Self {
         Self::Push {
             value: InstValue::Float(v),
-        }
-    }
-}
-
-impl fmt::Display for Inst {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Drop { offset } => {
-                write!(f, "drop offset={offset}")?;
-            }
-            Self::Not => {
-                write!(f, "not")?;
-            }
-            Self::Neg => {
-                write!(f, "neg")?;
-            }
-            Self::Call { hash, args } => {
-                write!(f, "call hash={hash}, args={args}")?;
-            }
-            Self::CallInstance { hash, args } => {
-                write!(f, "call-instance hash={hash}, args={args}")?;
-            }
-            Self::Closure { hash, count } => {
-                write!(f, "closure hash={hash}, count={count}")?;
-            }
-            Self::CallFn { args } => {
-                write!(f, "call-fn args={args}")?;
-            }
-            Self::LoadInstanceFn { hash } => {
-                write!(f, "load-instance-fn hash={hash}")?;
-            }
-            Self::IndexGet { target, index } => {
-                write!(f, "index-get target={target}, index={index}")?;
-            }
-            Self::TupleIndexGet { index } => {
-                write!(f, "tuple-index-get index={index}")?;
-            }
-            Self::TupleIndexSet { index } => {
-                write!(f, "tuple-index-set index={index}")?;
-            }
-            Self::TupleIndexGetAt { offset, index } => {
-                write!(f, "tuple-index-get-at offset={offset}, index={index}")?;
-            }
-            Self::ObjectIndexGet { slot } => {
-                write!(f, "object-index-get slot={slot}")?;
-            }
-            Self::ObjectIndexSet { slot } => {
-                write!(f, "object-index-set slot={slot}")?;
-            }
-            Self::ObjectIndexGetAt { offset, slot } => {
-                write!(f, "object-index-get-at offset={offset}, slot={slot}")?;
-            }
-            Self::IndexSet => {
-                write!(f, "index-set")?;
-            }
-            Self::Await => {
-                write!(f, "await")?;
-            }
-            Self::Select { len } => {
-                write!(f, "select len={len}")?;
-            }
-            Self::LoadFn { hash } => {
-                write!(f, "load-fn hash={hash}")?;
-            }
-            Self::Push { value } => {
-                write!(f, "push value={value}")?;
-            }
-            Self::Pop => {
-                write!(f, "pop")?;
-            }
-            Self::PopN { count } => {
-                write!(f, "pop-n count={count}")?;
-            }
-            Self::PopAndJumpIfNot { count, jump } => {
-                write!(f, "pop-and-jump-if-not count={count}, jump={jump}")?;
-            }
-            Self::Clean { count } => {
-                write!(f, "clean count={count}")?;
-            }
-            Self::Copy { offset } => {
-                write!(f, "copy offset={offset}")?;
-            }
-            Self::Move { offset } => {
-                write!(f, "move offset={offset}")?;
-            }
-            Self::Dup => {
-                write!(f, "dup")?;
-            }
-            Self::Replace { offset } => {
-                write!(f, "replace offset={offset}")?;
-            }
-            Self::Return { address, clean } => {
-                write!(f, "return address={address}, clean={clean}")?;
-            }
-            Self::ReturnUnit => {
-                write!(f, "return-unit")?;
-            }
-            Self::Jump { jump } => {
-                write!(f, "jump jump={jump}")?;
-            }
-            Self::JumpIf { jump } => {
-                write!(f, "jump-if jump={jump}")?;
-            }
-            Self::JumpIfOrPop { jump } => {
-                write!(f, "jump-if-or-pop jump={jump}")?;
-            }
-            Self::JumpIfNotOrPop { jump } => {
-                write!(f, "jump-if-not-or-pop jump={jump}")?;
-            }
-            Self::JumpIfBranch { branch, jump } => {
-                write!(f, "jump-if-branch branch={branch}, jump={jump}")?;
-            }
-            Self::Vec { count } => {
-                write!(f, "vec count={count}")?;
-            }
-            Self::Tuple1 { args: [a] } => {
-                write!(f, "tuple-1 {a}")?;
-            }
-            Self::Tuple2 { args: [a, b] } => {
-                write!(f, "tuple-2 {a}, {b}")?;
-            }
-            Self::Tuple3 { args: [a, b, c] } => {
-                write!(f, "tuple-3 {a}, {b}, {c}")?;
-            }
-            Self::Tuple4 { args: [a, b, c, d] } => {
-                write!(f, "tuple-4 {a}, {b}, {c}, {d}")?;
-            }
-            Self::Tuple { count } => {
-                write!(f, "tuple count={count}")?;
-            }
-            Self::PushTuple => {
-                write!(f, "push-tuple")?;
-            }
-            Self::UnitStruct { hash } => {
-                write!(f, "unit-struct hash={hash}")?;
-            }
-            Self::Struct { hash, slot } => {
-                write!(f, "struct hash={hash}, slot={slot}")?;
-            }
-            Self::UnitVariant { hash } => {
-                write!(f, "unit-variant hash={hash}")?;
-            }
-            Self::StructVariant { hash, slot } => {
-                write!(f, "struct-variant hash={hash}, slot={slot}")?;
-            }
-            Self::Object { slot } => {
-                write!(f, "object slot={slot}")?;
-            }
-            Self::Range { limits } => {
-                write!(f, "range limits={limits}")?;
-            }
-            Self::String { slot } => {
-                write!(f, "string slot={slot}")?;
-            }
-            Self::Bytes { slot } => {
-                write!(f, "bytes slot={slot}")?;
-            }
-            Self::StringConcat { len, size_hint } => {
-                write!(f, "string-concat len={len}, size_hint={size_hint}")?;
-            }
-            Self::Format { spec } => {
-                write!(
-                    f,
-                    "format {fill:?}, {align}, {flags:?}, {width}, {precision}, {format_type}",
-                    fill = spec.fill,
-                    align = spec.align,
-                    flags = spec.flags,
-                    width = option(&spec.width),
-                    precision = option(&spec.precision),
-                    format_type = spec.format_type
-                )?;
-            }
-            Self::IsUnit => {
-                write!(f, "is-unit")?;
-            }
-            Self::Try {
-                address,
-                clean,
-                preserve,
-            } => {
-                write!(
-                    f,
-                    "try address={address}, clean={clean}, preserve={preserve}",
-                )?;
-            }
-            Self::EqByte { byte } => {
-                write!(f, "eq-byte byte={:?}", byte)?;
-            }
-            Self::EqChar { char } => {
-                write!(f, "eq-character char={char:?}")?;
-            }
-            Self::EqInteger { integer } => {
-                write!(f, "eq-integer integer={integer}")?;
-            }
-            Self::EqBool { boolean } => {
-                write!(f, "eq-integer boolean={boolean}")?;
-            }
-            Self::EqString { slot } => {
-                write!(f, "eq-string slot={slot}")?;
-            }
-            Self::EqBytes { slot } => {
-                write!(f, "eq-bytes slot={slot}")?;
-            }
-            Self::MatchType { hash } => {
-                write!(f, "match-type hash={hash}")?;
-            }
-            Self::MatchVariant {
-                variant_hash,
-                enum_hash,
-                index,
-            } => {
-                write!(
-                    f,
-                    "match-variant variant_hash={variant_hash}, enum_hash={enum_hash}, index={index}",
-                )?;
-            }
-            Self::MatchBuiltIn { type_check } => {
-                write!(f, "match-builtin type_check={type_check}")?;
-            }
-            Self::MatchSequence {
-                type_check,
-                len,
-                exact,
-            } => {
-                write!(
-                    f,
-                    "match-sequence type_check={type_check}, len={len}, exact={exact}",
-                )?;
-            }
-            Self::MatchObject { slot, exact } => {
-                write!(f, "match-object slot={slot}, exact={exact}")?;
-            }
-            Self::Yield => {
-                write!(f, "yield")?;
-            }
-            Self::YieldUnit => {
-                write!(f, "yield-unit")?;
-            }
-            Self::Variant { variant } => {
-                write!(f, "variant variant={variant}")?;
-            }
-            Self::Op { op, a, b } => {
-                write!(f, "op op={op}, a={a}, b={b}")?;
-            }
-            Self::Assign { target, op } => {
-                write!(f, "assign target={target}, op={op}")?;
-            }
-            Self::IterNext { offset, jump } => {
-                write!(f, "iter-next offset={offset}, jump={jump}")?;
-            }
-            Self::Panic { reason } => {
-                write!(f, "panic reason={}", reason.ident())?;
-            }
-        }
-
-        return Ok(());
-
-        fn option<T>(value: &Option<T>) -> OptionDebug<'_, T> {
-            OptionDebug(value.as_ref())
-        }
-
-        struct OptionDebug<'a, T>(Option<&'a T>);
-
-        impl<'a, T> fmt::Display for OptionDebug<'a, T>
-        where
-            T: fmt::Display,
-        {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                match self.0 {
-                    Some(value) => write!(f, "{}", value),
-                    None => write!(f, "?"),
-                }
-            }
         }
     }
 }
@@ -1812,5 +1545,37 @@ mod array {
         }
 
         Ok(array)
+    }
+}
+
+fn display_array<T>(array: &[T]) -> impl fmt::Display + '_
+where
+    T: fmt::Display,
+{
+    DisplayArray(array)
+}
+
+struct DisplayArray<'a, T>(&'a [T]);
+
+impl<T> fmt::Display for DisplayArray<'_, T>
+where
+    T: fmt::Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut it = self.0.iter();
+
+        write!(f, "[")?;
+        let last = it.next_back();
+
+        for value in it {
+            write!(f, "{value}, ")?;
+        }
+
+        if let Some(last) = last {
+            last.fmt(f)?;
+        }
+
+        write!(f, "]")?;
+        Ok(())
     }
 }
