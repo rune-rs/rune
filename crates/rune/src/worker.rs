@@ -98,7 +98,6 @@ impl<'a> Worker<'a> {
                         LoadFileKind::Module { root } => root,
                     };
 
-                    tracing::trace!("load file: {}", item);
                     let items = Items::new(item, mod_item_id, self.q.gen);
 
                     let mut indexer = Indexer {
