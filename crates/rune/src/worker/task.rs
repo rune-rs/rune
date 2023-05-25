@@ -1,6 +1,7 @@
 use crate::no_std::path::PathBuf;
 
 use crate::compile::ModId;
+use crate::parse::NonZeroId;
 use crate::worker::{Import, WildcardImport};
 use crate::SourceId;
 
@@ -15,6 +16,8 @@ pub(crate) enum Task {
         source_id: SourceId,
         /// The item of the file to load.
         mod_item: ModId,
+        /// Unique item stack identifier.
+        mod_item_id: NonZeroId,
     },
     /// Expand a single import.
     ExpandImport(Import),

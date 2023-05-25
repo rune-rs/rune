@@ -67,6 +67,7 @@ impl<'a> Worker<'a> {
                     kind,
                     source_id,
                     mod_item,
+                    mod_item_id,
                 } => {
                     let item = self.q.pool.module_item(mod_item);
                     tracing::trace!("load file: {}", item);
@@ -98,7 +99,7 @@ impl<'a> Worker<'a> {
                     };
 
                     tracing::trace!("load file: {}", item);
-                    let items = Items::new(item, self.q.gen);
+                    let items = Items::new(item, mod_item_id, self.q.gen);
 
                     let mut indexer = Indexer {
                         root,
