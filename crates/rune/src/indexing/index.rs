@@ -374,11 +374,7 @@ impl<'a> Indexer<'a> {
             .q
             .insert_path(self.mod_item, self.impl_item, &self.items.item());
         ast.path.id.set(id);
-
-        let id = self
-            .items
-            .id()
-            .map_err(|e| compile::Error::msg(ast.span(), e))?;
+        let id = self.items.id().with_span(ast.span())?;
 
         let item = self.q.item_for((ast.span(), id))?;
 
@@ -558,6 +554,8 @@ impl<'a> Indexer<'a> {
 
         let visibility = ast_to_visibility(&item_mod.visibility)?;
 
+        let mod_item_id = self.items.id().with_span(span)?;
+
         let mod_item = self.q.insert_mod(
             &self.items,
             Location::new(self.source_id, item_mod.name_span()),
@@ -566,7 +564,7 @@ impl<'a> Indexer<'a> {
             docs,
         )?;
 
-        item_mod.id.set(self.items.id().with_span(span)?);
+        item_mod.id.set(mod_item_id);
 
         let source = self
             .source_loader
@@ -591,6 +589,7 @@ impl<'a> Indexer<'a> {
             },
             source_id,
             mod_item,
+            mod_item_id,
         });
 
         Ok(())

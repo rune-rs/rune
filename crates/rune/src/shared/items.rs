@@ -36,12 +36,12 @@ pub(crate) struct Items<'a> {
 
 impl<'a> Items<'a> {
     /// Construct a new items manager.
-    pub(crate) fn new(item: &Item, gen: &'a Gen) -> Self {
+    pub(crate) fn new(item: &Item, id: NonZeroId, gen: &'a Gen) -> Self {
         Self {
             inner: Rc::new(RefCell::new(Inner {
                 id: item.last().and_then(ComponentRef::id).unwrap_or_default(),
                 item: item.to_owned(),
-                ids: Vec::new(),
+                ids: vec![id],
                 gen,
             })),
         }

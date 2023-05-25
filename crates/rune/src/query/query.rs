@@ -186,18 +186,32 @@ impl<'a> Query<'a> {
     /// Insert module and associated metadata.
     pub(crate) fn insert_root_mod(
         &mut self,
+        item_id: NonZeroId,
         source_id: SourceId,
         spanned: Span,
     ) -> compile::Result<ModId> {
-        let query_mod = self.pool.alloc_module(ModMeta {
-            location: Location::new(source_id, spanned),
+        let location = Location::new(source_id, spanned);
+
+        let module = self.pool.alloc_module(ModMeta {
+            location,
             item: ItemId::default(),
             visibility: Visibility::Public,
             parent: None,
         });
 
+        self.inner.items.insert(
+            item_id,
+            ItemMeta {
+                id: Id::new(item_id),
+                location,
+                item: ItemId::default(),
+                visibility: Visibility::Public,
+                module,
+            },
+        );
+
         self.insert_name(ItemId::default());
-        Ok(query_mod)
+        Ok(module)
     }
 
     /// Inserts an item that *has* to be unique, else cause an error.

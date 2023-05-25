@@ -125,7 +125,13 @@ pub(crate) fn compile(
 
     // Queue up the initial sources to be loaded.
     for source_id in worker.q.sources.source_ids() {
-        let mod_item = match worker.q.insert_root_mod(source_id, Span::empty()) {
+        // Unique identifier for the root module in this source context.
+        let root_item_id = worker.q.gen.next();
+
+        let mod_item = match worker
+            .q
+            .insert_root_mod(root_item_id, source_id, Span::empty())
+        {
             Ok(result) => result,
             Err(error) => {
                 worker.diagnostics.error(source_id, error);
@@ -137,6 +143,7 @@ pub(crate) fn compile(
             kind: LoadFileKind::Root,
             source_id,
             mod_item,
+            mod_item_id: root_item_id,
         });
     }
 
