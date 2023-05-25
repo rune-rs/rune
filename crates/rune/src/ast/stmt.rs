@@ -27,29 +27,6 @@ pub enum Stmt {
     Semi(StmtSemi),
 }
 
-impl Stmt {
-    /// Get the sort key for the statement.
-    ///
-    /// This allows a collection of statements to be reordered into:
-    /// * Uses
-    /// * Items
-    /// * Macro expansions.
-    /// * The rest, expressions, local decl, etc...
-    ///
-    /// Note that the sort implementation must be stable, to make sure that
-    /// intermediate items are not affected.
-    pub(crate) fn sort_key(&self) -> StmtSortKey {
-        match self {
-            Stmt::Item(item, _) => match item {
-                ast::Item::Use(_) => StmtSortKey::Use,
-                ast::Item::MacroCall(_) => StmtSortKey::Other,
-                _ => StmtSortKey::Item,
-            },
-            _ => StmtSortKey::Other,
-        }
-    }
-}
-
 impl Peek for Stmt {
     fn peek(p: &mut Peeker<'_>) -> bool {
         matches!(p.nth(0), K![let]) || ItemOrExpr::peek(p)
@@ -85,12 +62,9 @@ impl Parse for Stmt {
             let expr = ast::Expr::parse_with_meta(p, &mut attributes, ast::expr::CALLABLE)?;
 
             // Parsed an expression which can be treated directly as an item.
-            match expr.into_item() {
-                Ok(item) => Self::Item(item, p.parse()?),
-                Err(expr) => match p.parse()? {
-                    Some(semi) => Self::Semi(StmtSemi::new(expr, semi)),
-                    None => Self::Expr(expr),
-                },
+            match p.parse()? {
+                Some(semi) => Self::Semi(StmtSemi::new(expr, semi)),
+                None => Self::Expr(expr),
             }
         };
 

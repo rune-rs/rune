@@ -309,14 +309,6 @@ impl Expr {
         })
     }
 
-    /// Try to coerce into item if applicable.
-    pub(crate) fn into_item(self) -> Result<ast::Item, Self> {
-        match self {
-            Self::MacroCall(e) => Ok(ast::Item::MacroCall(e)),
-            e => Err(e),
-        }
-    }
-
     /// Parse an expression without an eager brace.
     ///
     /// This is used to solve a syntax ambiguity when parsing expressions that

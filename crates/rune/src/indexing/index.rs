@@ -424,173 +424,6 @@ impl<'a> Indexer<'a> {
         Ok(expanded)
     }
 
-    /// pre-process uses and expand item macros.
-    ///
-    /// Uses are processed first in a file, and once processed any potential
-    /// macro expansions are expanded.
-    /// If these produce uses, these are processed, and so forth.
-    fn preprocess_items(
-        &mut self,
-        items: &mut Vec<(ast::Item, Option<T![;]>)>,
-    ) -> compile::Result<()> {
-        let mut uses = Vec::new();
-        let mut queue = VecDeque::new();
-
-        for (item, semi) in items.drain(..) {
-            match item {
-                ast::Item::Use(item_use) => {
-                    uses.push(item_use);
-                }
-                item => {
-                    queue.push_back((0, item, semi));
-                }
-            }
-        }
-
-        'uses: while !uses.is_empty() || !queue.is_empty() {
-            for item_use in uses.drain(..) {
-                let visibility = ast_to_visibility(&item_use.visibility)?;
-
-                let import = Import {
-                    kind: ImportKind::Global,
-                    visibility,
-                    module: self.mod_item,
-                    item: self.items.item().clone(),
-                    source_id: self.source_id,
-                    ast: Box::new(item_use),
-                };
-
-                let queue = &mut self.queue;
-
-                import.process(self.context, &mut self.q, &mut |task| {
-                    queue.push_back(task);
-                })?;
-            }
-
-            while let Some((depth, item, semi)) = queue.pop_front() {
-                match item {
-                    ast::Item::MacroCall(mut macro_call) => {
-                        if depth >= MAX_MACRO_RECURSION {
-                            return Err(compile::Error::new(
-                                macro_call.span(),
-                                CompileErrorKind::MaxMacroRecursion {
-                                    depth,
-                                    max: MAX_MACRO_RECURSION,
-                                },
-                            ));
-                        }
-
-                        let mut attributes = attrs::Attributes::new(macro_call.attributes.to_vec());
-
-                        if self.try_expand_internal_macro(&mut attributes, &mut macro_call)? {
-                            items.push((ast::Item::MacroCall(macro_call), semi));
-                        } else {
-                            let file = self.expand_macro::<ast::File>(&mut macro_call)?;
-
-                            for (item, semi) in file.items.into_iter().rev() {
-                                match item {
-                                    ast::Item::Use(item_use) => {
-                                        uses.push(item_use);
-                                    }
-                                    item => {
-                                        queue.push_front((depth.wrapping_add(1), item, semi));
-                                    }
-                                }
-                            }
-                        }
-
-                        if let Some(span) = attributes.remaining() {
-                            return Err(compile::Error::msg(span, "unsupported item attribute"));
-                        }
-
-                        if !uses.is_empty() {
-                            continue 'uses;
-                        }
-                    }
-                    item => {
-                        items.push((item, semi));
-                    }
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Preprocess uses in statements.
-    fn preprocess_stmts(&mut self, stmts: &mut Vec<ast::Stmt>) -> compile::Result<()> {
-        stmts.sort_by_key(|s| s.sort_key());
-
-        let mut queue = stmts.drain(..).collect::<VecDeque<_>>();
-
-        while let Some(stmt) = queue.pop_front() {
-            match stmt {
-                ast::Stmt::Item(ast::Item::Use(item_use), _) => {
-                    let visibility = ast_to_visibility(&item_use.visibility)?;
-
-                    let import = Import {
-                        kind: ImportKind::Global,
-                        visibility,
-                        module: self.mod_item,
-                        item: self.items.item().clone(),
-                        source_id: self.source_id,
-                        ast: Box::new(item_use),
-                    };
-
-                    let queue = &mut self.queue;
-
-                    import.process(self.context, &mut self.q, &mut |task| {
-                        queue.push_back(task);
-                    })?;
-                }
-                ast::Stmt::Item(ast::Item::MacroCall(mut macro_call), semi) => {
-                    let mut attributes = attrs::Attributes::new(macro_call.attributes.to_vec());
-
-                    if self.try_expand_internal_macro(&mut attributes, &mut macro_call)? {
-                        // Expand into an expression so that it gets compiled.
-                        let stmt = match semi {
-                            Some(semi) => ast::Stmt::Semi(ast::StmtSemi::new(
-                                ast::Expr::MacroCall(macro_call),
-                                semi,
-                            )),
-                            None => ast::Stmt::Expr(ast::Expr::MacroCall(macro_call)),
-                        };
-
-                        stmts.push(stmt);
-                    } else if let Some(out) =
-                        self.expand_macro::<Option<ast::ItemOrExpr>>(&mut macro_call)?
-                    {
-                        let stmt = match out {
-                            ast::ItemOrExpr::Item(item) => ast::Stmt::Item(item, semi),
-                            ast::ItemOrExpr::Expr(expr) => match semi {
-                                Some(semi) => ast::Stmt::Semi(
-                                    ast::StmtSemi::new(expr, semi)
-                                        .with_needs_semi(macro_call.needs_semi()),
-                                ),
-                                None => ast::Stmt::Expr(expr),
-                            },
-                        };
-
-                        queue.push_front(stmt);
-                    }
-
-                    if let Some(span) = attributes.remaining() {
-                        return Err(compile::Error::msg(span, "unsupported statement attribute"));
-                    }
-                }
-                ast::Stmt::Item(mut i, semi) => {
-                    item(&mut i, self)?;
-                    stmts.push(ast::Stmt::Item(i, semi));
-                }
-                stmt => {
-                    stmts.push(stmt);
-                }
-            }
-        }
-
-        Ok(())
-    }
-
     /// Construct the calling convention based on the parameters.
     fn call(generator: bool, kind: IndexFnKind) -> Option<Call> {
         match kind {
@@ -690,24 +523,81 @@ pub(crate) fn file(ast: &mut ast::File, idx: &mut Indexer<'_>) -> compile::Resul
         ));
     }
 
-    idx.preprocess_items(&mut ast.items)?;
+    // Items take priority.
+    let mut head = VecDeque::new();
+    // Macros are expanded as they are encountered, but after regular items have
+    // been processed.
+    let mut queue = VecDeque::new();
 
-    for (i, semi_colon) in &mut ast.items {
-        if let Some(semi_colon) = semi_colon {
-            if !i.needs_semi_colon() {
-                idx.diagnostics
-                    .uneccessary_semi_colon(idx.source_id, semi_colon.span());
+    for (item, semi) in ast.items.drain(..) {
+        match item {
+            ast::Item::MacroCall(macro_call) => {
+                queue.push_back((0, macro_call, semi));
+            }
+            i => {
+                head.push_back((i, semi));
             }
         }
+    }
 
-        item(i, idx)?;
+    'uses: while !head.is_empty() || !queue.is_empty() {
+        while let Some((i, semi)) = head.pop_front() {
+            if let Some(semi) = semi {
+                if !i.needs_semi_colon() {
+                    idx.diagnostics
+                        .uneccessary_semi_colon(idx.source_id, semi.span());
+                }
+            }
+
+            item(i, idx)?;
+        }
+
+        while let Some((depth, mut macro_call, semi)) = queue.pop_front() {
+            if depth >= MAX_MACRO_RECURSION {
+                return Err(compile::Error::new(
+                    macro_call.span(),
+                    CompileErrorKind::MaxMacroRecursion {
+                        depth,
+                        max: MAX_MACRO_RECURSION,
+                    },
+                ));
+            }
+
+            let mut attributes = attrs::Attributes::new(macro_call.attributes.to_vec());
+
+            if idx.try_expand_internal_macro(&mut attributes, &mut macro_call)? {
+                // Macro call must be added to output to make sure its instructions are assembled.
+                ast.items.push((ast::Item::MacroCall(macro_call), semi));
+            } else {
+                let file = idx.expand_macro::<ast::File>(&mut macro_call)?;
+
+                for (item, semi) in file.items.into_iter().rev() {
+                    match item {
+                        ast::Item::MacroCall(macro_call) => {
+                            queue.push_front((depth.wrapping_add(1), macro_call, semi));
+                        }
+                        i => {
+                            head.push_front((i, semi));
+                        }
+                    }
+                }
+            }
+
+            if let Some(span) = attributes.remaining() {
+                return Err(compile::Error::msg(span, "unsupported item attribute"));
+            }
+
+            if !head.is_empty() {
+                continue 'uses;
+            }
+        }
     }
 
     Ok(())
 }
 
 #[instrument]
-fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> compile::Result<()> {
+fn item_fn(mut ast: ast::ItemFn, idx: &mut Indexer<'_>) -> compile::Result<()> {
     let span = ast.span();
 
     let name = ast.name.resolve(resolve_context!(idx.q))?;
@@ -777,7 +667,7 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> compile::Result<()> 
                 ));
             }
 
-            idx.q.index_const_fn(item_meta, Box::new(ast.clone()))?;
+            idx.q.index_const_fn(item_meta, Box::new(ast))?;
             return Ok(());
         }
     };
@@ -847,7 +737,7 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> compile::Result<()> 
         idx.q.index_and_build(indexing::Entry {
             item_meta,
             indexed: Indexed::InstanceFunction(indexing::InstanceFunction {
-                ast: Box::new(ast.clone()),
+                ast: Box::new(ast),
                 call,
                 impl_item,
                 instance_span: span,
@@ -857,7 +747,7 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> compile::Result<()> 
         let entry = indexing::Entry {
             item_meta,
             indexed: Indexed::Function(indexing::Function {
-                ast: Box::new(ast.clone()),
+                ast: Box::new(ast),
                 call,
                 is_test,
                 is_bench,
@@ -967,10 +857,98 @@ fn block(ast: &mut ast::Block, idx: &mut Indexer<'_>) -> compile::Result<()> {
         &[],
     )?;
 
-    idx.preprocess_stmts(&mut ast.statements)?;
     let mut must_be_last = None;
 
-    for stmt in &mut ast.statements {
+    let mut head = VecDeque::new();
+    let mut queue = VecDeque::new();
+    let mut statements = Vec::new();
+
+    for stmt in ast.statements.drain(..) {
+        match stmt {
+            ast::Stmt::Item(ast::Item::MacroCall(macro_call), semi) => {
+                queue.push_back((0, macro_call, semi));
+            }
+            ast::Stmt::Item(i, semi) => {
+                head.push_back((i, semi));
+            }
+            stmt => {
+                statements.push(stmt);
+            }
+        }
+    }
+
+    'uses: while !queue.is_empty() || !head.is_empty() {
+        while let Some((i, semi)) = head.pop_front() {
+            if let Some(semi) = semi {
+                if !i.needs_semi_colon() {
+                    idx.diagnostics
+                        .uneccessary_semi_colon(idx.source_id, semi.span());
+                }
+            }
+
+            item(i, idx)?;
+        }
+
+        while let Some((depth, mut macro_call, semi)) = queue.pop_front() {
+            if depth >= MAX_MACRO_RECURSION {
+                return Err(compile::Error::new(
+                    macro_call.span(),
+                    CompileErrorKind::MaxMacroRecursion {
+                        depth,
+                        max: MAX_MACRO_RECURSION,
+                    },
+                ));
+            }
+
+            let mut attributes = attrs::Attributes::new(macro_call.attributes.to_vec());
+
+            if idx.try_expand_internal_macro(&mut attributes, &mut macro_call)? {
+                // Expand into an expression so that it gets compiled.
+                let stmt = match semi {
+                    Some(semi) => {
+                        ast::Stmt::Semi(ast::StmtSemi::new(ast::Expr::MacroCall(macro_call), semi))
+                    }
+                    None => ast::Stmt::Expr(ast::Expr::MacroCall(macro_call)),
+                };
+
+                statements.push(stmt);
+            } else if let Some(out) =
+                idx.expand_macro::<Option<ast::ItemOrExpr>>(&mut macro_call)?
+            {
+                let stmt = match out {
+                    ast::ItemOrExpr::Item(item) => ast::Stmt::Item(item, semi),
+                    ast::ItemOrExpr::Expr(expr) => match semi {
+                        Some(semi) => ast::Stmt::Semi(
+                            ast::StmtSemi::new(expr, semi).with_needs_semi(macro_call.needs_semi()),
+                        ),
+                        None => ast::Stmt::Expr(expr),
+                    },
+                };
+
+                match stmt {
+                    ast::Stmt::Item(ast::Item::MacroCall(macro_call), semi) => {
+                        queue.push_front((depth.wrapping_add(1), macro_call, semi));
+                    }
+                    ast::Stmt::Item(i, semi) => {
+                        head.push_front((i, semi));
+                    }
+                    stmt => {
+                        statements.push(stmt);
+                    }
+                }
+
+                if !head.is_empty() {
+                    continue 'uses;
+                }
+            }
+
+            if let Some(span) = attributes.remaining() {
+                return Err(compile::Error::msg(span, "unsupported statement attribute"));
+            }
+        }
+    }
+
+    for stmt in &mut statements {
         if let Some(span) = must_be_last {
             return Err(compile::Error::new(
                 span,
@@ -999,17 +977,13 @@ fn block(ast: &mut ast::Block, idx: &mut Indexer<'_>) -> compile::Result<()> {
 
                 expr(&mut semi.expr, idx, IS_USED)?;
             }
-            ast::Stmt::Item(item, semi) => {
-                if let Some(semi) = semi {
-                    if !item.needs_semi_colon() {
-                        idx.diagnostics
-                            .uneccessary_semi_colon(idx.source_id, semi.span());
-                    }
-                }
+            ast::Stmt::Item(i, ..) => {
+                return Err(compile::Error::msg(i, "Unexpected item in this stage"));
             }
         }
     }
 
+    ast.statements = statements;
     Ok(())
 }
 
@@ -1310,7 +1284,7 @@ fn condition(ast: &mut ast::Condition, idx: &mut Indexer<'_>) -> compile::Result
 }
 
 #[instrument]
-fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> compile::Result<()> {
+fn item_enum(ast: ast::ItemEnum, idx: &mut Indexer<'_>) -> compile::Result<()> {
     let span = ast.span();
     let mut attrs = Attributes::new(ast.attributes.to_vec());
     let docs = Doc::collect_from(resolve_context!(idx.q), &mut attrs)?;
@@ -1336,7 +1310,7 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> compile::Result<
 
     idx.q.index_enum(enum_item)?;
 
-    for (index, (variant, _)) in ast.variants.iter_mut().enumerate() {
+    for (index, (mut variant, _)) in ast.variants.into_iter().enumerate() {
         let mut attrs = Attributes::new(variant.attributes.to_vec());
         let docs = Doc::collect_from(resolve_context!(idx.q), &mut attrs)?;
 
@@ -1386,14 +1360,14 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> compile::Result<
         }
 
         idx.q
-            .index_variant(item_meta, enum_item.id, variant.clone(), index)?;
+            .index_variant(item_meta, enum_item.id, variant, index)?;
     }
 
     Ok(())
 }
 
 #[instrument]
-fn item_struct(ast: &mut ast::ItemStruct, idx: &mut Indexer<'_>) -> compile::Result<()> {
+fn item_struct(mut ast: ast::ItemStruct, idx: &mut Indexer<'_>) -> compile::Result<()> {
     let span = ast.span();
     let mut attrs = Attributes::new(ast.attributes.to_vec());
 
@@ -1449,12 +1423,12 @@ fn item_struct(ast: &mut ast::ItemStruct, idx: &mut Indexer<'_>) -> compile::Res
         }
     }
 
-    idx.q.index_struct(item_meta, Box::new(ast.clone()))?;
+    idx.q.index_struct(item_meta, Box::new(ast))?;
     Ok(())
 }
 
 #[instrument]
-fn item_impl(ast: &mut ast::ItemImpl, idx: &mut Indexer<'_>) -> compile::Result<()> {
+fn item_impl(ast: ast::ItemImpl, idx: &mut Indexer<'_>) -> compile::Result<()> {
     if let Some(first) = ast.attributes.first() {
         return Err(compile::Error::msg(
             first,
@@ -1482,7 +1456,7 @@ fn item_impl(ast: &mut ast::ItemImpl, idx: &mut Indexer<'_>) -> compile::Result<
     let new = idx.q.pool.alloc_item(&*idx.items.item());
     let old = replace(&mut idx.impl_item, Some(new));
 
-    for i in &mut ast.functions {
+    for i in ast.functions {
         item_fn(i, idx)?;
     }
 
@@ -1491,7 +1465,7 @@ fn item_impl(ast: &mut ast::ItemImpl, idx: &mut Indexer<'_>) -> compile::Result<
 }
 
 #[instrument]
-fn item_mod(ast: &mut ast::ItemMod, idx: &mut Indexer<'_>) -> compile::Result<()> {
+fn item_mod(mut ast: ast::ItemMod, idx: &mut Indexer<'_>) -> compile::Result<()> {
     let mut attrs = Attributes::new(ast.attributes.clone());
     let docs = Doc::collect_from(resolve_context!(idx.q), &mut attrs)?;
 
@@ -1506,7 +1480,7 @@ fn item_mod(ast: &mut ast::ItemMod, idx: &mut Indexer<'_>) -> compile::Result<()
 
     match &mut ast.body {
         ast::ItemModBody::EmptyBody(..) => {
-            idx.handle_file_mod(ast, &docs)?;
+            idx.handle_file_mod(&mut ast, &docs)?;
         }
         ast::ItemModBody::InlineBody(body) => {
             let name = ast.name.resolve(resolve_context!(idx.q))?;
@@ -1533,7 +1507,7 @@ fn item_mod(ast: &mut ast::ItemMod, idx: &mut Indexer<'_>) -> compile::Result<()
 }
 
 #[instrument]
-fn item_const(ast: &mut ast::ItemConst, idx: &mut Indexer<'_>) -> compile::Result<()> {
+fn item_const(mut ast: ast::ItemConst, idx: &mut Indexer<'_>) -> compile::Result<()> {
     let mut attrs = Attributes::new(ast.attributes.to_vec());
     let docs = Doc::collect_from(resolve_context!(idx.q), &mut attrs)?;
 
@@ -1574,7 +1548,7 @@ fn item_const(ast: &mut ast::ItemConst, idx: &mut Indexer<'_>) -> compile::Resul
 }
 
 #[instrument]
-fn item(ast: &mut ast::Item, idx: &mut Indexer<'_>) -> compile::Result<()> {
+fn item(ast: ast::Item, idx: &mut Indexer<'_>) -> compile::Result<()> {
     let mut attributes = attrs::Attributes::new(ast.attributes().to_vec());
 
     match ast {
@@ -1605,13 +1579,30 @@ fn item(ast: &mut ast::Item, idx: &mut Indexer<'_>) -> compile::Result<()> {
             // engine.
 
             // Assert that the built-in macro has been expanded.
-            idx.q.builtin_macro_for(&*macro_call)?;
+            idx.q.builtin_macro_for(&macro_call)?;
 
             // NB: macros are handled during pre-processing.
             attributes.drain();
         }
         // NB: imports are ignored during indexing.
-        ast::Item::Use(..) => {}
+        ast::Item::Use(item_use) => {
+            let visibility = ast_to_visibility(&item_use.visibility)?;
+
+            let import = Import {
+                kind: ImportKind::Global,
+                visibility,
+                module: idx.mod_item,
+                item: idx.items.item().clone(),
+                source_id: idx.source_id,
+                ast: Box::new(item_use),
+            };
+
+            let queue = &mut idx.queue;
+
+            import.process(idx.context, &mut idx.q, &mut |task| {
+                queue.push_back(task);
+            })?;
+        }
     }
 
     attributes.try_parse_collect::<attrs::Doc>(resolve_context!(idx.q))?;
