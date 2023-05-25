@@ -31,6 +31,9 @@ use rune_macros::instrument;
 /// `self` variable.
 const SELF: &str = "self";
 
+/// Macros are only allowed to expand recursively into other macros 64 times.
+const MAX_MACRO_RECURSION: usize = 64;
+
 /// Indicates whether the thing being indexed should be marked as used to
 /// determine whether they capture a variable from an outside scope (like a
 /// closure) or not.
@@ -77,9 +80,40 @@ pub(crate) struct Indexer<'a> {
     ///
     /// Then, `nested_item` would point to the span of `pub fn public`.
     pub(crate) nested_item: Option<Span>,
+    /// Depth of expression macro expansion that we're currently in.
+    pub(crate) macro_depth: usize,
 }
 
 impl<'a> Indexer<'a> {
+    /// Indicate that we've entered an expanded macro context, and ensure that
+    /// we don't blow past [`MAX_MACRO_RECURSION`].
+    ///
+    /// This is used when entering expressions which have been expanded from a
+    /// macro - cause those expression might in turn be macros themselves.
+    fn enter_macro<S>(&mut self, spanned: &S) -> compile::Result<()>
+    where
+        S: Spanned,
+    {
+        self.macro_depth = self.macro_depth.wrapping_add(1);
+
+        if self.macro_depth >= MAX_MACRO_RECURSION {
+            return Err(compile::Error::new(
+                spanned,
+                CompileErrorKind::MaxMacroRecursion {
+                    depth: self.macro_depth,
+                    max: MAX_MACRO_RECURSION,
+                },
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// Leave the last macro context.
+    fn leave_macro(&mut self) {
+        self.macro_depth = self.macro_depth.wrapping_sub(1);
+    }
+
     /// Try to expand an internal macro.
     fn try_expand_internal_macro(
         &mut self,
@@ -408,12 +442,12 @@ impl<'a> Indexer<'a> {
                     uses.push(item_use);
                 }
                 item => {
-                    queue.push_back((item, semi));
+                    queue.push_back((0, item, semi));
                 }
             }
         }
 
-        'uses: while !uses.is_empty() && !queue.is_empty() {
+        'uses: while !uses.is_empty() || !queue.is_empty() {
             for item_use in uses.drain(..) {
                 let visibility = ast_to_visibility(&item_use.visibility)?;
 
@@ -433,9 +467,19 @@ impl<'a> Indexer<'a> {
                 })?;
             }
 
-            while let Some((item, semi)) = queue.pop_front() {
+            while let Some((depth, item, semi)) = queue.pop_front() {
                 match item {
                     ast::Item::MacroCall(mut macro_call) => {
+                        if depth >= MAX_MACRO_RECURSION {
+                            return Err(compile::Error::new(
+                                macro_call.span(),
+                                CompileErrorKind::MaxMacroRecursion {
+                                    depth,
+                                    max: MAX_MACRO_RECURSION,
+                                },
+                            ));
+                        }
+
                         let mut attributes = attrs::Attributes::new(macro_call.attributes.to_vec());
 
                         if self.try_expand_internal_macro(&mut attributes, &mut macro_call)? {
@@ -449,7 +493,7 @@ impl<'a> Indexer<'a> {
                                         uses.push(item_use);
                                     }
                                     item => {
-                                        queue.push_front((item, semi));
+                                        queue.push_front((depth.wrapping_add(1), item, semi));
                                     }
                                 }
                             }
@@ -1180,8 +1224,10 @@ fn expr(ast: &mut ast::Expr, idx: &mut Indexer<'_>, is_used: IsUsed) -> compile:
             if !macro_call.id.is_set() {
                 if !idx.try_expand_internal_macro(&mut attributes, macro_call)? {
                     let out = idx.expand_macro::<ast::Expr>(macro_call)?;
+                    idx.enter_macro(&macro_call)?;
                     *ast = out;
                     expr(ast, idx, is_used)?;
+                    idx.leave_macro();
                 }
             } else {
                 // Assert that the built-in macro has been expanded.
