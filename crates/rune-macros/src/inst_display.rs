@@ -124,7 +124,7 @@ impl Derive {
                     var
                 };
 
-                if !fmt_call.is_empty() {
+                if fmt_call.is_empty() {
                     fmt_call.push(quote! {
                         #fmt::Formatter::write_str(f, " ")?;
                     });
