@@ -545,7 +545,7 @@ pub(crate) fn file(ast: &mut ast::File, idx: &mut Indexer<'_>) -> compile::Resul
             if let Some(semi) = semi {
                 if !i.needs_semi_colon() {
                     idx.diagnostics
-                        .uneccessary_semi_colon(idx.source_id, semi.span());
+                        .unnecessary_semi_colon(idx.source_id, semi.span());
                 }
             }
 
@@ -857,19 +857,19 @@ fn block(ast: &mut ast::Block, idx: &mut Indexer<'_>) -> compile::Result<()> {
         &[],
     )?;
 
-    let mut must_be_last = None;
-
-    let mut head = VecDeque::new();
-    let mut queue = VecDeque::new();
     let mut statements = Vec::new();
 
     for stmt in ast.statements.drain(..) {
         match stmt {
-            ast::Stmt::Item(ast::Item::MacroCall(macro_call), semi) => {
-                queue.push_back((0, macro_call, semi));
-            }
             ast::Stmt::Item(i, semi) => {
-                head.push_back((i, semi));
+                if let Some(semi) = semi {
+                    if !i.needs_semi_colon() {
+                        idx.diagnostics
+                            .unnecessary_semi_colon(idx.source_id, semi.span());
+                    }
+                }
+
+                item(i, idx)?;
             }
             stmt => {
                 statements.push(stmt);
@@ -877,76 +877,7 @@ fn block(ast: &mut ast::Block, idx: &mut Indexer<'_>) -> compile::Result<()> {
         }
     }
 
-    'uses: while !queue.is_empty() || !head.is_empty() {
-        while let Some((i, semi)) = head.pop_front() {
-            if let Some(semi) = semi {
-                if !i.needs_semi_colon() {
-                    idx.diagnostics
-                        .uneccessary_semi_colon(idx.source_id, semi.span());
-                }
-            }
-
-            item(i, idx)?;
-        }
-
-        while let Some((depth, mut macro_call, semi)) = queue.pop_front() {
-            if depth >= MAX_MACRO_RECURSION {
-                return Err(compile::Error::new(
-                    macro_call.span(),
-                    CompileErrorKind::MaxMacroRecursion {
-                        depth,
-                        max: MAX_MACRO_RECURSION,
-                    },
-                ));
-            }
-
-            let mut attributes = attrs::Attributes::new(macro_call.attributes.to_vec());
-
-            if idx.try_expand_internal_macro(&mut attributes, &mut macro_call)? {
-                // Expand into an expression so that it gets compiled.
-                let stmt = match semi {
-                    Some(semi) => {
-                        ast::Stmt::Semi(ast::StmtSemi::new(ast::Expr::MacroCall(macro_call), semi))
-                    }
-                    None => ast::Stmt::Expr(ast::Expr::MacroCall(macro_call)),
-                };
-
-                statements.push(stmt);
-            } else if let Some(out) =
-                idx.expand_macro::<Option<ast::ItemOrExpr>>(&mut macro_call)?
-            {
-                let stmt = match out {
-                    ast::ItemOrExpr::Item(item) => ast::Stmt::Item(item, semi),
-                    ast::ItemOrExpr::Expr(expr) => match semi {
-                        Some(semi) => ast::Stmt::Semi(
-                            ast::StmtSemi::new(expr, semi).with_needs_semi(macro_call.needs_semi()),
-                        ),
-                        None => ast::Stmt::Expr(expr),
-                    },
-                };
-
-                match stmt {
-                    ast::Stmt::Item(ast::Item::MacroCall(macro_call), semi) => {
-                        queue.push_front((depth.wrapping_add(1), macro_call, semi));
-                    }
-                    ast::Stmt::Item(i, semi) => {
-                        head.push_front((i, semi));
-                    }
-                    stmt => {
-                        statements.push(stmt);
-                    }
-                }
-
-                if !head.is_empty() {
-                    continue 'uses;
-                }
-            }
-
-            if let Some(span) = attributes.remaining() {
-                return Err(compile::Error::msg(span, "unsupported statement attribute"));
-            }
-        }
-    }
+    let mut must_be_last = None;
 
     for stmt in &mut statements {
         if let Some(span) = must_be_last {
@@ -972,7 +903,7 @@ fn block(ast: &mut ast::Block, idx: &mut Indexer<'_>) -> compile::Result<()> {
             ast::Stmt::Semi(semi) => {
                 if !semi.needs_semi() {
                     idx.diagnostics
-                        .uneccessary_semi_colon(idx.source_id, semi.span());
+                        .unnecessary_semi_colon(idx.source_id, semi.span());
                 }
 
                 expr(&mut semi.expr, idx, IS_USED)?;

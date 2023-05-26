@@ -154,33 +154,18 @@ pub struct StmtSemi {
     pub expr: ast::Expr,
     /// The semi-token associated with the expression.
     pub semi_token: T![;],
-    /// Indicates if the nested expression needs a semi or not.
-    #[rune(skip)]
-    pub needs_semi: Option<bool>,
 }
 
 impl StmtSemi {
     /// Construct a new [StmtSemi] which doesn't override
     /// [needs_semi][StmtSemi::needs_semi].
     pub(crate) fn new(expr: ast::Expr, semi_token: T![;]) -> Self {
-        Self {
-            expr,
-            semi_token,
-            needs_semi: None,
-        }
-    }
-
-    /// Modify semi requirement.
-    pub(crate) fn with_needs_semi(self, needs_semi: bool) -> Self {
-        Self {
-            needs_semi: Some(needs_semi),
-            ..self
-        }
+        Self { expr, semi_token }
     }
 
     /// Test if the statement requires a semi-colon or not.
     pub(crate) fn needs_semi(&self) -> bool {
-        self.needs_semi.unwrap_or_else(|| self.expr.needs_semi())
+        self.expr.needs_semi()
     }
 }
 
