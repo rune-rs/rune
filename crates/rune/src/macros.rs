@@ -1,3 +1,4 @@
+// TODO(ATTRMACRO DOCS)
 //! The macro system of Rune.
 //!
 //! Macros are registered with [Module::macro_][crate::Module::macro_] and are

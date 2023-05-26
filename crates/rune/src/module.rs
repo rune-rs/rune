@@ -15,7 +15,8 @@ use crate::no_std::sync::Arc;
 
 use crate::compile::{meta, ContextError, Docs, IntoComponent, Item, ItemBuf};
 use crate::runtime::{
-    ConstValue, FullTypeOf, FunctionHandler, MacroHandler, StaticType, TypeCheck, TypeInfo, TypeOf,
+    AttributeMacroHandler, ConstValue, FullTypeOf, FunctionHandler, MacroHandler, StaticType,
+    TypeCheck, TypeInfo, TypeOf,
 };
 use crate::Hash;
 
@@ -226,6 +227,13 @@ pub(crate) struct ModuleAssociated {
 pub(crate) struct ModuleMacro {
     pub(crate) item: ItemBuf,
     pub(crate) handler: Arc<MacroHandler>,
+    pub(crate) docs: Docs,
+}
+
+/// Handle to an attribute macro inserted into a module.
+pub(crate) struct ModuleAttributeMacro {
+    pub(crate) item: ItemBuf,
+    pub(crate) handler: Arc<AttributeMacroHandler>,
     pub(crate) docs: Docs,
 }
 

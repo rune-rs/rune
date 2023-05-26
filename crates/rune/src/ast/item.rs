@@ -2,6 +2,8 @@ use core::mem::take;
 
 use crate::ast::prelude::*;
 
+use super::Attribute;
+
 /// A declaration.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
@@ -26,7 +28,7 @@ pub enum Item {
 }
 
 impl Item {
-    /// Test if the item has any attributes
+    /// Get the item's attributes
     pub(crate) fn attributes(&self) -> &[ast::Attribute] {
         match self {
             Self::Use(item) => &item.attributes,
@@ -37,6 +39,19 @@ impl Item {
             Self::Mod(item) => &item.attributes,
             Self::Const(item) => &item.attributes,
             Self::MacroCall(item) => &item.attributes,
+        }
+    }
+    /// Get the item's attributes mutably
+    pub(crate) fn attributes_mut(&mut self) -> &mut Vec<ast::Attribute> {
+        match self {
+            Self::Use(item) => &mut item.attributes,
+            Self::Fn(item) => &mut item.attributes,
+            Self::Enum(item) => &mut item.attributes,
+            Self::Struct(item) => &mut item.attributes,
+            Self::Impl(item) => &mut item.attributes,
+            Self::Mod(item) => &mut item.attributes,
+            Self::Const(item) => &mut item.attributes,
+            Self::MacroCall(item) => &mut item.attributes,
         }
     }
 
@@ -154,6 +169,17 @@ impl Item {
         }
 
         Ok(item)
+    }
+
+    /// If the item has an attribute, it is removed and returned seperatly, otherwise the item is
+    /// returned unmodified as `Err`.
+    pub(crate) fn without_first_attr(mut self) -> Result<(Attribute, Item), Item> {
+        let attributes = self.attributes_mut();
+        if attributes.is_empty() {
+            Err(self)
+        } else {
+            Ok((attributes.remove(0), self))
+        }
     }
 }
 

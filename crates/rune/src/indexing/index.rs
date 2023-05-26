@@ -390,6 +390,35 @@ impl<'a> Indexer<'a> {
         Ok(expanded)
     }
 
+    /// Perform an attribute macro expansion.
+    fn expand_attribute_macro<T>(
+        &mut self,
+        attr: &mut ast::Attribute,
+        item: &mut ast::Item,
+    ) -> compile::Result<T>
+    where
+        T: Parse,
+    {
+        let id = self
+            .q
+            .insert_path(self.mod_item, self.impl_item, &self.items.item());
+        attr.path.id.set(id);
+        let id = self.items.id().with_span(attr.span())?;
+
+        let containing = self.q.item_for((attr.span(), id))?;
+
+        let mut compiler = MacroCompiler {
+            item_meta: containing,
+            options: self.options,
+            context: self.context,
+            query: self.q.borrow(),
+        };
+
+        let expanded = compiler.eval_attribute_macro::<T>(attr, item)?;
+        self.q.remove_path_by_id(attr.path.id);
+        Ok(expanded)
+    }
+
     /// pre-process uses and expand item macros.
     ///
     /// Uses are processed first in a file, and once processed any potential
@@ -401,6 +430,7 @@ impl<'a> Indexer<'a> {
     ) -> compile::Result<()> {
         let mut queue = items.drain(..).collect::<VecDeque<_>>();
 
+        // TODO ATTRMACRO also expand attributes here wait for https://github.com/rune-rs/rune/pull/526
         while let Some((item, semi)) = queue.pop_front() {
             match item {
                 ast::Item::Use(item_use) => {
@@ -438,9 +468,16 @@ impl<'a> Indexer<'a> {
                         return Err(compile::Error::msg(span, "unsupported item attribute"));
                     }
                 }
-                item => {
-                    items.push((item, semi));
-                }
+                item => match item.without_first_attr() {
+                    Ok((mut attr, mut item)) => {
+                        let file =
+                            self.expand_attribute_macro::<ast::File>(&mut attr, &mut item)?;
+                        for entry in file.items.into_iter().rev() {
+                            queue.push_front(entry);
+                        }
+                    }
+                    Err(item) => items.push((item, semi)),
+                },
             }
         }
 
@@ -453,6 +490,7 @@ impl<'a> Indexer<'a> {
 
         let mut queue = stmts.drain(..).collect::<VecDeque<_>>();
 
+        // TODO ATTRMACRO attribute macros should also be expanded first
         while let Some(stmt) = queue.pop_front() {
             match stmt {
                 ast::Stmt::Item(ast::Item::Use(item_use), _) => {
