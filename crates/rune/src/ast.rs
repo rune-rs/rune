@@ -217,6 +217,7 @@ pub use self::pat::{
     Pat, PatBinding, PatIgnore, PatLit, PatObject, PatPath, PatRest, PatTuple, PatVec,
 };
 pub use self::path::{Path, PathKind, PathSegment, PathSegmentExpr};
+use self::prelude::*;
 pub use self::span::{ByteIndex, Span};
 pub use self::spanned::{OptionSpanned, Spanned};
 pub use self::stmt::{ItemOrExpr, Stmt, StmtSemi, StmtSortKey};

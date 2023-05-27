@@ -3,7 +3,7 @@ use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned};
 use syn::spanned::Spanned as _;
 
-/// Derive implementation of the AST macro.
+/// Derive implementation of the Parse macro.
 pub struct Derive {
     input: syn::DeriveInput,
 }
@@ -18,7 +18,7 @@ impl syn::parse::Parse for Derive {
 
 impl Derive {
     pub(super) fn expand(self) -> Result<TokenStream, Vec<syn::Error>> {
-        let ctx = Context::with_crate();
+        let ctx = Context::new();
         let tokens = ctx.tokens_with_module(None);
 
         let mut expander = Expander { ctx, tokens };

@@ -8,6 +8,7 @@ use core::num::NonZeroUsize;
 
 use crate::no_std::prelude::*;
 
+use crate as rune;
 pub(crate) use self::query::Query;
 use crate::ast;
 use crate::ast::{Span, Spanned};
