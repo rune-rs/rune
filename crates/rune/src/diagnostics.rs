@@ -245,10 +245,10 @@ impl Diagnostics {
     }
 
     /// Add a warning about an unecessary semi-colon.
-    pub(crate) fn uneccessary_semi_colon(&mut self, source_id: SourceId, span: Span) {
+    pub(crate) fn unnecessary_semi_colon(&mut self, source_id: SourceId, span: Span) {
         self.warning(
             source_id,
-            WarningDiagnosticKind::UnecessarySemiColon { span },
+            WarningDiagnosticKind::UnnecessarySemiColon { span },
         );
     }
 

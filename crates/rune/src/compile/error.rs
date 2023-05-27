@@ -395,6 +395,8 @@ pub(crate) enum CompileErrorKind {
     },
     #[error("Use of label `{name}_{index}` which has no code location")]
     MissingLabelLocation { name: &'static str, index: usize },
+    #[error("Reached macro recursion limit at {depth}, limit is {max}")]
+    MaxMacroRecursion { depth: usize, max: usize },
 }
 
 /// Error raised during queries.

@@ -171,15 +171,15 @@ impl Item {
         Ok(item)
     }
 
-    /// If the item has an attribute, it is removed and returned seperatly, otherwise the item is
-    /// returned unmodified as `Err`.
-    pub(crate) fn without_first_attr(mut self) -> Result<(Attribute, Item), Item> {
+    /// Removes the first attribute in the item list and returns it if present.
+    pub(crate) fn remove_first_attribute(&mut self) -> Option<Attribute> {
         let attributes = self.attributes_mut();
-        if attributes.is_empty() {
-            Err(self)
-        } else {
-            Ok((attributes.remove(0), self))
+
+        if !attributes.is_empty() {
+            return Some(attributes.remove(0));
         }
+
+        None
     }
 }
 
