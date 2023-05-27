@@ -1,8 +1,11 @@
 use std::cell::RefCell;
 
 use crate::internals::*;
+use proc_macro2::Ident;
 use proc_macro2::Span;
 use proc_macro2::TokenStream;
+use proc_macro_crate::crate_name;
+use proc_macro_crate::FoundCrate;
 use quote::quote_spanned;
 use quote::{quote, ToTokens};
 use syn::parse::ParseStream;
@@ -130,9 +133,14 @@ impl Context {
             leading_colon: None,
             segments: Punctuated::default(),
         };
-        crate_module
-            .segments
-            .push(syn::PathSegment::from(<Token![crate]>::default()));
+        match crate_name("rune").unwrap_or_else(|_| FoundCrate::Name("rune".to_owned())) {
+            FoundCrate::Itself => crate_module
+                .segments
+                .push(syn::PathSegment::from(<Token![crate]>::default())),
+            FoundCrate::Name(name) => crate_module
+                .segments
+                .push(syn::PathSegment::from(Ident::new(&name, Span::call_site()))),
+        }
 
         Self {
             errors: RefCell::new(Vec::new()),

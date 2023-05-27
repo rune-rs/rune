@@ -18,6 +18,10 @@ rune-core = { version = "=0.12.3", path = "../rune-core" }
 syn = { version = "2.0.16", features = ["full"] }
 quote = "1.0.27"
 proc-macro2 = { version = "1.0.56", features = ["span-locations"] }
+proc-macro-crate = "1.3.1"
+
+[dev-dependencies]
+rune.path = "../rune/"
 
 [lib]
 proc-macro = true
