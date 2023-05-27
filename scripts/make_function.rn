@@ -1,9 +1,11 @@
 #[test]
 pub fn test_make_function() {
-    std::experiments::make_function!(inner_fn => { "Hello World Again!" });
+    make_function!(inner_fn => { "Hello World Again!" });
 
     assert_eq!(root_fn(), "Hello World!");
     assert_eq!(inner_fn(), "Hello World Again!");
 }
 
-std::experiments::make_function!(root_fn => { "Hello World!" });
+make_function!(root_fn => { "Hello World!" });
+// NB: we put the import in the bottom to test that import resolution isn't order-dependent.
+use ::std::experiments::make_function;

@@ -1799,25 +1799,11 @@ impl<'a> Printer<'a> {
                 self.writer.newline()?;
             }
             Stmt::Semi(semi) => {
-                let StmtSemi {
-                    expr,
-                    semi_token,
-                    needs_semi,
-                } = semi;
+                let StmtSemi { expr, semi_token } = semi;
+
                 self.visit_expr(expr)?;
-
-                match needs_semi {
-                    Some(true) => {
-                        self.writer
-                            .write_spanned_raw(semi_token.span, false, false)?;
-                    }
-                    Some(false) => {}
-                    None => {
-                        self.writer
-                            .write_spanned_raw(semi_token.span, false, false)?;
-                    }
-                }
-
+                self.writer
+                    .write_spanned_raw(semi_token.span, false, false)?;
                 self.writer.newline()?;
             }
         }

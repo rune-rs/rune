@@ -115,6 +115,7 @@ impl<'a> Worker<'a> {
                         impl_item: Default::default(),
                         source_loader: self.source_loader,
                         nested_item: None,
+                        macro_depth: 0,
                     };
 
                     if let Err(error) = index::file(&mut file, &mut indexer) {

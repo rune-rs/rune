@@ -44,7 +44,7 @@ impl WarningDiagnostic {
             | WarningDiagnosticKind::RemoveTupleCallParams { context, .. }
             | WarningDiagnosticKind::NotUsed { context, .. }
             | WarningDiagnosticKind::TemplateWithoutExpansions { context, .. } => *context,
-            WarningDiagnosticKind::UnecessarySemiColon { .. } => None,
+            WarningDiagnosticKind::UnnecessarySemiColon { .. } => None,
         }
     }
 }
@@ -57,7 +57,7 @@ impl Spanned for WarningDiagnostic {
             WarningDiagnosticKind::LetPatternMightPanic { span, .. } => *span,
             WarningDiagnosticKind::TemplateWithoutExpansions { span, .. } => *span,
             WarningDiagnosticKind::RemoveTupleCallParams { span, .. } => *span,
-            WarningDiagnosticKind::UnecessarySemiColon { span, .. } => *span,
+            WarningDiagnosticKind::UnnecessarySemiColon { span, .. } => *span,
         }
     }
 }
@@ -116,7 +116,7 @@ pub enum WarningDiagnosticKind {
     },
     /// An unecessary semi-colon is used.
     #[error("Unnecessary semicolon")]
-    UnecessarySemiColon {
+    UnnecessarySemiColon {
         /// Span where the semi-colon is.
         span: Span,
     },
