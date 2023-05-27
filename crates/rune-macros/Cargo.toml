@@ -21,3 +21,6 @@ proc-macro2 = { version = "1.0.56", features = ["span-locations"] }
 
 [lib]
 proc-macro = true
+
+[dev-dependencies]
+rune = { path = "../rune" }

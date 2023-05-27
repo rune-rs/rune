@@ -19,6 +19,7 @@ use core::ops::{AddAssign, MulAssign, ShlAssign, ShrAssign, SubAssign};
 
 use crate::no_std::prelude::*;
 
+use crate as rune;
 use crate::ast::{Span, Spanned};
 use crate::compile::ast;
 use crate::compile::ir;

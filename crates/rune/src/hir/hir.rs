@@ -2,6 +2,7 @@ use core::num::NonZeroUsize;
 
 use crate::no_std::borrow::Cow;
 
+use crate as rune;
 use crate::ast::{self, Span, Spanned};
 use crate::compile;
 use crate::parse::{Expectation, Id, IntoExpectation, Opaque, Resolve, ResolveContext};
