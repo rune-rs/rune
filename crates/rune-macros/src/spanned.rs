@@ -1,4 +1,7 @@
-use crate::context::{Context, Tokens};
+use crate::{
+    add_trait_bounds,
+    context::{Context, Tokens},
+};
 use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned};
 use syn::spanned::Spanned as _;
@@ -64,7 +67,11 @@ impl Expander {
         let spanned = &self.tokens.spanned;
         let span = &self.tokens.span;
 
-        let (impl_gen, type_gen, where_gen) = input.generics.split_for_impl();
+        let mut generics = input.generics.clone();
+
+        add_trait_bounds(&mut generics, spanned);
+
+        let (impl_gen, type_gen, where_gen) = generics.split_for_impl();
 
         Ok(quote! {
             #[automatically_derived]
@@ -94,7 +101,11 @@ impl Expander {
         let spanned = &self.tokens.spanned;
         let span = &self.tokens.span;
 
-        let (impl_gen, type_gen, where_gen) = input.generics.split_for_impl();
+        let mut generics = input.generics.clone();
+
+        add_trait_bounds(&mut generics, spanned);
+
+        let (impl_gen, type_gen, where_gen) = generics.split_for_impl();
 
         Ok(quote_spanned! { input.span() =>
             #[automatically_derived]
