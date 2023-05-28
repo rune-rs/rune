@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1685063383542,
+  "lastUpdate": 1685236560997,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -20124,6 +20124,88 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 6479969,
             "range": "± 341906",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "e5b7a3a1095768b26fa05ec4e2857aba78a019f7",
+          "message": "More macro work (#526)\n\n* Always process uses first when preprocessing items\r\n* Implement recursion check when expanding macros (relates #27)\r\n* Prefer expanding expressions instead of statements\r\n* Temporarily remove runefmt from basic checks",
+          "timestamp": "2023-05-27T05:11:22Z",
+          "url": "https://github.com/rune-rs/rune/commit/e5b7a3a1095768b26fa05ec4e2857aba78a019f7"
+        },
+        "date": 1685236559904,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 290586,
+            "range": "± 3029",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1029298,
+            "range": "± 13234",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 410440835,
+            "range": "± 1578372",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 251129456,
+            "range": "± 1020358",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 1242886,
+            "range": "± 2425",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 13234324,
+            "range": "± 20872",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 71255920,
+            "range": "± 327054",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 11299310,
+            "range": "± 28471",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 478806,
+            "range": "± 196",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 5316306,
+            "range": "± 2205",
             "unit": "ns/iter"
           }
         ]
