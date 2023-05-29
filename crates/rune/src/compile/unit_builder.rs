@@ -504,6 +504,7 @@ impl UnitBuilder {
                 );
             }
             meta::Kind::Macro { .. } => (),
+            meta::Kind::AttributeMacro { .. } => (),
             meta::Kind::Function { .. } => (),
             meta::Kind::AssociatedFunction { .. } => (),
             meta::Kind::Closure { .. } => (),

@@ -40,7 +40,7 @@ pub(crate) fn format(
     ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
-    let mut p = Parser::from_token_stream(stream, ctx.stream_span());
+    let mut p = Parser::from_token_stream(stream, ctx.input_span());
     let args = p.parse::<FormatArgs>()?;
     p.eof()?;
     let expanded = args.expand(ctx)?;

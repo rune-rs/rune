@@ -18,8 +18,8 @@ use crate::{Source, SourceId, Sources};
 pub struct MacroContext<'a> {
     /// Macro span of the full macro call.
     pub(crate) macro_span: Span,
-    /// Macro span of the stream.
-    pub(crate) stream_span: Span,
+    /// Macro span of the input.
+    pub(crate) input_span: Span,
     /// The item where the macro is being evaluated.
     pub(crate) item_meta: ItemMeta,
     /// Accessible query required to run the IR interpreter and has access to
@@ -65,7 +65,7 @@ impl<'a> MacroContext<'a> {
 
         let mut ctx = MacroContext {
             macro_span: Span::empty(),
-            stream_span: Span::empty(),
+            input_span: Span::empty(),
             item_meta: Default::default(),
             q: query.borrow(),
         };
@@ -90,7 +90,7 @@ impl<'a> MacroContext<'a> {
     /// MacroContext::test(|ctx| {
     ///     let stream = quote!(1 + 2).into_token_stream(ctx);
     ///
-    ///     let mut p = Parser::from_token_stream(&stream, ctx.stream_span());
+    ///     let mut p = Parser::from_token_stream(&stream, ctx.input_span());
     ///     let expr = p.parse_all::<ast::Expr>().unwrap();
     ///     let value = ctx.eval(&expr).unwrap();
     ///
@@ -238,8 +238,8 @@ impl<'a> MacroContext<'a> {
     /// The span of the macro stream (the argument).
     ///
     /// If the macro call was `stringify!(a + b)` this would refer to `a + b`.
-    pub fn stream_span(&self) -> Span {
-        self.stream_span
+    pub fn input_span(&self) -> Span {
+        self.input_span
     }
 }
 

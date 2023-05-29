@@ -30,6 +30,8 @@ enum Name {
     Item(Hash),
     /// A macro.
     Macro(Hash),
+    /// An attribute macro.
+    AttributeMacro(Hash),
 }
 
 /// A [Module] that is a collection of native functions and types.
@@ -541,7 +543,7 @@ impl Module {
     /// /// ```
     /// #[rune::macro_]
     /// fn ident_to_string(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> compile::Result<TokenStream> {
-    ///     let mut p = Parser::from_token_stream(stream, ctx.stream_span());
+    ///     let mut p = Parser::from_token_stream(stream, ctx.input_span());
     ///     let ident = p.parse_all::<ast::Ident>()?;
     ///     let ident = ctx.resolve(ident)?.to_owned();
     ///     let string = ctx.lit(&ident);
@@ -617,7 +619,7 @@ impl Module {
     /// use rune::parse::Parser;
     ///
     /// fn ident_to_string(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> compile::Result<TokenStream> {
-    ///     let mut p = Parser::from_token_stream(stream, ctx.stream_span());
+    ///     let mut p = Parser::from_token_stream(stream, ctx.input_span());
     ///     let ident = p.parse_all::<ast::Ident>()?;
     ///     let ident = ctx.resolve(ident)?.to_owned();
     ///     let string = ctx.lit(&ident);
@@ -667,15 +669,15 @@ impl Module {
     /// use rune::Module;
     /// use rune::ast;
     /// use rune::compile;
-    /// use rune::macros::{quote, MacroContext, TokenStream};
+    /// use rune::macros::{quote, MacroContext, TokenStream, ToTokens};
     /// use rune::parse::Parser;
     ///
     /// fn rename_fn(ctx: &mut MacroContext<'_>, input: &TokenStream, item: &TokenStream) -> compile::Result<TokenStream> {
-    ///     let mut input = Parser::from_token_stream(input, ctx.stream_span());
-    ///     let ident = input.parse_all::<ast::Ident>()?;
-    ///     let mut item = Parser::from_token_stream(item, ctx.stream_span());
+    ///     let mut item = Parser::from_token_stream(item, ctx.macro_span());
     ///     let mut fun = item.parse_all::<ast::ItemFn>()?;
-    ///     fun.ident = ident;
+    ///
+    ///     let mut input = Parser::from_token_stream(input, ctx.input_span());
+    ///     fun.name = input.parse_all::<ast::EqValue<_>>()?.value;
     ///     Ok(quote!(#fun).into_token_stream(ctx))
     /// }
     ///
@@ -695,7 +697,7 @@ impl Module {
         let item = ItemBuf::with_item(name);
         let hash = Hash::type_hash(&item);
 
-        if !self.names.insert(Name::Macro(hash)) {
+        if !self.names.insert(Name::AttributeMacro(hash)) {
             return Err(ContextError::ConflictingMacroName { item, hash });
         }
 

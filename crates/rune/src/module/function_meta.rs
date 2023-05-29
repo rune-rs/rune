@@ -369,6 +369,20 @@ impl MacroMetaKind {
     {
         Self::Function(FunctionMacroData::new(name, f))
     }
+
+    #[doc(hidden)]
+    #[inline]
+    pub fn attribute<F, N>(name: N, f: F) -> Self
+    where
+        F: 'static
+            + Send
+            + Sync
+            + Fn(&mut MacroContext<'_>, &TokenStream, &TokenStream) -> compile::Result<TokenStream>,
+        N: IntoIterator,
+        N::Item: IntoComponent,
+    {
+        Self::Attribute(AttributeMacroData::new(name, f))
+    }
 }
 
 /// The data of a [`MacroMeta`].

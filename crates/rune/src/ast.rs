@@ -16,7 +16,7 @@
 //!
 //! #[rune::macro_]
 //! fn ident_to_string(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> compile::Result<TokenStream> {
-//!     let mut p = Parser::from_token_stream(stream, ctx.stream_span());
+//!     let mut p = Parser::from_token_stream(stream, ctx.input_span());
 //!     let ident = p.parse_all::<ast::Ident>()?;
 //!     let ident = ctx.resolve(ident)?.to_owned();
 //!     let string = ctx.lit(&ident);
@@ -148,6 +148,7 @@ mod lit_number;
 mod lit_str;
 mod local;
 mod macro_call;
+mod macro_utils;
 mod pat;
 mod path;
 mod prelude;
@@ -213,6 +214,7 @@ pub use self::lit_number::LitNumber;
 pub use self::lit_str::LitStr;
 pub use self::local::Local;
 pub use self::macro_call::MacroCall;
+pub use self::macro_utils::{EqValue, Group};
 pub use self::pat::{
     Pat, PatBinding, PatIgnore, PatLit, PatObject, PatPath, PatRest, PatTuple, PatVec,
 };

@@ -658,7 +658,7 @@ impl<'a> Printer<'a> {
             path,
             bang,
             open,
-            stream: _,
+            input: _,
             close,
         } = macrocall;
 

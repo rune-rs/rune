@@ -60,6 +60,9 @@ impl fmt::Display for MetaInfo {
             MetaInfoKind::Macro => {
                 write!(fmt, "macro {name}")?;
             }
+            MetaInfoKind::AttributeMacro => {
+                write!(fmt, "attribute macro {name}")?;
+            }
             MetaInfoKind::Function => {
                 write!(fmt, "fn {name}")?;
             }
@@ -97,6 +100,7 @@ pub(crate) enum MetaInfoKind {
     Variant,
     Enum,
     Macro,
+    AttributeMacro,
     Function,
     Associated,
     Closure,
@@ -115,6 +119,7 @@ impl MetaInfoKind {
             meta::Kind::Variant { .. } => MetaInfoKind::Variant,
             meta::Kind::Enum { .. } => MetaInfoKind::Enum,
             meta::Kind::Macro { .. } => MetaInfoKind::Macro,
+            meta::Kind::AttributeMacro { .. } => MetaInfoKind::AttributeMacro,
             meta::Kind::Function { .. } => MetaInfoKind::Function,
             meta::Kind::AssociatedFunction { .. } => MetaInfoKind::Associated,
             meta::Kind::Closure { .. } => MetaInfoKind::Closure,

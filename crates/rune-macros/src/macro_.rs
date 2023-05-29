@@ -1,4 +1,4 @@
-use proc_macro2::{Span, TokenStream};
+use proc_macro2::{Span, TokenStream, Ident};
 use quote::{quote, ToTokens};
 use syn::parse::ParseStream;
 use syn::punctuated::Punctuated;
@@ -109,7 +109,7 @@ impl Macro {
     }
 
     /// Expand the function declaration.
-    pub(crate) fn expand(self, attrs: Config) -> Result<TokenStream, Error> {
+    pub(crate) fn expand(self, attrs: Config, macro_kind: Ident) -> Result<TokenStream, Error> {
         let real_fn_path = {
             let mut segments = Punctuated::default();
 
@@ -181,7 +181,7 @@ impl Macro {
             #[automatically_derived]
             #meta_vis fn #meta_fn() -> rune::__private::MacroMetaData {
                 rune::__private::MacroMetaData {
-                    kind: rune::__private::MacroMetaKind::function(#meta_name, #real_fn_path),
+                    kind: rune::__private::MacroMetaKind::#macro_kind(#meta_name, #real_fn_path),
                     name: #name_string,
                     docs: &#docs[..],
                 }

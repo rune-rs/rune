@@ -19,7 +19,7 @@ fn test_parse_in_macro() -> Result<()> {
     })?;
 
     m.macro_(["string_as_code_from_arg"], |ctx, stream| {
-        let mut p = Parser::from_token_stream(stream, ctx.stream_span());
+        let mut p = Parser::from_token_stream(stream, ctx.input_span());
         let s = p.parse_all::<ast::LitStr>()?;
         let s = ctx.resolve(s)?.into_owned();
         let id = ctx.insert_source("string_as_code_from_arg", &s);
@@ -48,5 +48,46 @@ fn test_parse_in_macro() -> Result<()> {
     let output: (u32, u32) = from_value(output)?;
 
     assert_eq!(output, (42, 42));
+    Ok(())
+}
+
+#[test]
+fn conflicting_attribute_function() -> Result<()> {
+    let mut m = Module::default();
+
+    m.macro_(["conflicting"], move |ctx, _| {
+        Ok(quote!(21).into_token_stream(ctx))
+    })?;
+
+    m.attribute_macro(["conflicting"], |ctx, _, _| {
+        Ok(quote!(
+            fn hello() {
+                21
+            }
+        )
+        .into_token_stream(ctx))
+    })?;
+
+    let mut context = Context::with_default_modules()?;
+    context.install(m)?;
+
+    let mut sources = sources! {
+        entry => {
+            pub fn main() {
+                hello() + conflicting!()
+            }
+
+            #[conflicting]
+            fn hi() {}
+        }
+    };
+
+    let unit = prepare(&mut sources).with_context(&context).build()?;
+
+    let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
+    let output = vm.call(["main"], ())?;
+    let output: u32 = from_value(output)?;
+
+    assert_eq!(output, 42);
     Ok(())
 }

@@ -31,7 +31,7 @@ pub(crate) fn line(
 ) -> compile::Result<TokenStream> {
     use crate as rune;
 
-    let mut parser = Parser::from_token_stream(stream, ctx.stream_span());
+    let mut parser = Parser::from_token_stream(stream, ctx.input_span());
     parser.eof()?;
 
     Ok(quote!(
@@ -55,7 +55,7 @@ pub(crate) fn file(
 ) -> compile::Result<TokenStream> {
     use crate as rune;
 
-    let mut parser = Parser::from_token_stream(stream, ctx.stream_span());
+    let mut parser = Parser::from_token_stream(stream, ctx.input_span());
     parser.eof()?;
 
     Ok(quote!(

@@ -57,12 +57,12 @@ impl MacroCompiler<'_> {
             }
         };
 
-        let input_stream = &macro_call.stream;
+        let input_stream = &macro_call.input;
 
         let token_stream = {
             let mut macro_context = MacroContext {
                 macro_span: macro_call.span(),
-                stream_span: macro_call.stream_span(),
+                input_span: macro_call.input_span(),
                 item_meta: self.item_meta,
                 q: self.query.borrow(),
             };
@@ -111,20 +111,19 @@ impl MacroCompiler<'_> {
             None => {
                 return Err(compile::Error::new(
                     span,
-                    CompileErrorKind::MissingMacro {
+                    CompileErrorKind::MissingAttributeMacro {
                         item: self.query.pool.item(named.item).to_owned(),
                     },
                 ));
             }
         };
 
-        // TODO ATTRMCRO this should maybe remove the leading `=` or surrounding delimiter
         let input_stream = &attribute.input;
 
         let token_stream = {
             let mut macro_context = MacroContext {
                 macro_span: attribute.span(),
-                stream_span: attribute.stream_span(),
+                input_span: attribute.input_span(),
                 item_meta: self.item_meta,
                 q: self.query.borrow(),
             };

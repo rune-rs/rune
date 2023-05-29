@@ -22,6 +22,7 @@
 //!
 //! This is part of the [Rune Language](https://rune-rs.github.io).
 
+use ::quote::format_ident;
 use syn::{Generics, Path};
 
 extern crate proc_macro;
@@ -79,7 +80,23 @@ pub fn macro_(
     let attrs = syn::parse_macro_input!(attrs with crate::macro_::Config::parse);
     let macro_ = syn::parse_macro_input!(item with crate::macro_::Macro::parse);
 
-    let output = match macro_.expand(attrs) {
+    let output = match macro_.expand(attrs, format_ident!("function")) {
+        Ok(output) => output,
+        Err(e) => return proc_macro::TokenStream::from(e.to_compile_error()),
+    };
+
+    output.into()
+}
+
+#[proc_macro_attribute]
+pub fn attribute_macro(
+    attrs: proc_macro::TokenStream,
+    item: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+    let attrs = syn::parse_macro_input!(attrs with crate::macro_::Config::parse);
+    let macro_ = syn::parse_macro_input!(item with crate::macro_::Macro::parse);
+
+    let output = match macro_.expand(attrs, format_ident!("attribute")) {
         Ok(output) => output,
         Err(e) => return proc_macro::TokenStream::from(e.to_compile_error()),
     };

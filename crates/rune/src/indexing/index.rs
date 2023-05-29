@@ -181,7 +181,7 @@ impl<'a> Indexer<'a> {
         ast: &mut ast::MacroCall,
         args: &attrs::BuiltInArgs,
     ) -> compile::Result<BuiltInMacro> {
-        let mut p = Parser::from_token_stream(&ast.stream, ast.span());
+        let mut p = Parser::from_token_stream(&ast.input, ast.span());
         let mut exprs = Vec::new();
 
         while !p.is_eof()? {
@@ -207,7 +207,7 @@ impl<'a> Indexer<'a> {
         ast: &mut ast::MacroCall,
         _: &attrs::BuiltInArgs,
     ) -> compile::Result<BuiltInMacro> {
-        let mut p = Parser::from_token_stream(&ast.stream, ast.span());
+        let mut p = Parser::from_token_stream(&ast.input, ast.span());
 
         let value = p.parse::<ast::Expr>()?;
 

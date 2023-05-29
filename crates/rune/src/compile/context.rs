@@ -634,7 +634,7 @@ impl Context {
         self.install_meta(ContextMeta {
             hash,
             item: Some(item),
-            kind: meta::Kind::Macro,
+            kind: meta::Kind::AttributeMacro,
             #[cfg(feature = "doc")]
             docs: m.docs.clone(),
         })?;

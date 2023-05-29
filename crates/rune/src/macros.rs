@@ -1,26 +1,28 @@
-// TODO(ATTRMACRO DOCS)
 //! The macro system of Rune.
 //!
 //! Macros are registered with [Module::macro_][crate::Module::macro_] and are
 //! function-like items that are expanded at compile time.
 //!
-//! Macros take a token stream as an argument and is responsible for translating
-//! it into another token stream that will be embedded into the source location
+//! Macros take token streams as arguments and are responsible for translating
+//! them into another token stream that will be embedded into the source location
 //! where the macro was invoked.
+//!
+//! The attribute macros [`rune::macro_`](crate::macro_) for function macros (`some_macro!( ... )`) and
+//! [`rune::attribute_macro`](crate::attribute_macro) for attribute macros (`#[some_macro ...]`).
 //!
 //! ```
 //! use rune::{T, Context, Module, Vm};
 //! use rune::ast;
 //! use rune::compile;
-//! use rune::macros::{quote, MacroContext, TokenStream};
+//! use rune::macros::{quote, MacroContext, TokenStream, ToTokens};
 //! use rune::parse::Parser;
 //! use std::sync::Arc;
 //!
 //! #[rune::macro_]
-//! fn concat_idents(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> compile::Result<TokenStream> {
+//! fn concat_idents(ctx: &mut MacroContext<'_>, input: &TokenStream) -> compile::Result<TokenStream> {
 //!     let mut output = String::new();
 //!
-//!     let mut p = Parser::from_token_stream(stream, ctx.stream_span());
+//!     let mut p = Parser::from_token_stream(input, ctx.input_span());
 //!
 //!     let ident = p.parse::<ast::Ident>()?;
 //!     output.push_str(ctx.resolve(ident)?);
@@ -40,9 +42,23 @@
 //!     Ok(quote!(#output).into_token_stream(ctx))
 //! }
 //!
+//! #[rune::attribute_macro]
+//! fn rename(ctx: &mut MacroContext<'_>, input: &TokenStream, item: &TokenStream) -> compile::Result<TokenStream> {
+//!     let mut parser = Parser::from_token_stream(item, ctx.macro_span());
+//!     let mut fun: ast::ItemFn = parser.parse_all()?;
+//!
+//!     let mut parser = Parser::from_token_stream(input, ctx.input_span());
+//!     fun.name = parser.parse_all::<ast::EqValue<_>>()?.value;
+//!
+//!     let mut tokens = TokenStream::new();
+//!     fun.to_tokens(ctx, &mut tokens);
+//!     Ok(tokens)
+//! }
+//!
 //! # fn main() -> rune::Result<()> {
 //! let mut m = Module::new();
 //! m.macro_meta(concat_idents)?;
+//! m.macro_meta(rename)?;
 //!
 //! let mut context = Context::new();
 //! context.install(m)?;
@@ -51,8 +67,13 @@
 //!
 //! let mut sources = rune::sources! {
 //!     entry => {
+//!         #[rename = foobar]
+//!         fn renamed() {
+//!             42
+//!         }
+//!
 //!         pub fn main() {
-//!             let foobar = 42;
+//!             let foobar = foobar();
 //!             concat_idents!(foo, bar)
 //!         }
 //!     }

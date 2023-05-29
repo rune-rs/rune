@@ -120,6 +120,7 @@ impl Meta {
             Kind::ConstFn { .. } => None,
             Kind::Import { .. } => None,
             Kind::Macro => None,
+            Kind::AttributeMacro => None,
             Kind::Module => None,
         }
     }
@@ -173,6 +174,8 @@ pub enum Kind {
     },
     /// A macro item.
     Macro,
+    /// An attribute macro item.
+    AttributeMacro,
     /// A function declaration.
     Function {
         /// Native signature for this function.

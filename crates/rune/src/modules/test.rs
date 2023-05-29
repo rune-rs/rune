@@ -63,7 +63,7 @@ pub(crate) fn assert(
 ) -> compile::Result<TokenStream> {
     use crate as rune;
 
-    let mut p = Parser::from_token_stream(stream, ctx.stream_span());
+    let mut p = Parser::from_token_stream(stream, ctx.input_span());
     let expr = p.parse::<ast::Expr>()?;
 
     let message = if p.parse::<Option<T![,]>>()?.is_some() {
@@ -108,7 +108,7 @@ pub(crate) fn assert_eq(
 ) -> compile::Result<TokenStream> {
     use crate as rune;
 
-    let mut p = Parser::from_token_stream(stream, ctx.stream_span());
+    let mut p = Parser::from_token_stream(stream, ctx.input_span());
     let left = p.parse::<ast::Expr>()?;
     p.parse::<T![,]>()?;
     let right = p.parse::<ast::Expr>()?;

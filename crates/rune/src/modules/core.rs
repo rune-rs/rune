@@ -103,7 +103,7 @@ pub(crate) fn panic_macro(
     ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
-    let mut p = Parser::from_token_stream(stream, ctx.stream_span());
+    let mut p = Parser::from_token_stream(stream, ctx.input_span());
     let args = p.parse_all::<FormatArgs>()?;
     let expanded = args.expand(ctx)?;
     Ok(quote!(::std::panic(#expanded)).into_token_stream(ctx))

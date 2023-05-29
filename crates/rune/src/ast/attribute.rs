@@ -61,7 +61,7 @@ pub struct Attribute {
     pub close: T![']'],
 }
 impl Attribute {
-    pub(crate) fn stream_span(&self) -> Span {
+    pub(crate) fn input_span(&self) -> Span {
         self.input
             .option_span()
             .unwrap_or_else(|| self.close.span.head())
