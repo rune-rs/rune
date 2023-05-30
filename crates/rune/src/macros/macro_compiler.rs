@@ -82,17 +82,14 @@ impl MacroCompiler<'_> {
         &mut self,
         attribute: &ast::Attribute,
         item: &ast::Item,
-    ) -> compile::Result<T>
+    ) -> compile::Result<Option<T>>
     where
         T: Parse,
     {
         let span = attribute.span();
 
         if !self.options.macros {
-            return Err(compile::Error::msg(
-                span,
-                "macros must be enabled with `-O macros=true`",
-            ));
+            return Ok(None);
         }
 
         // TODO: include information on the module the macro is being called
@@ -109,12 +106,7 @@ impl MacroCompiler<'_> {
         let handler = match self.context.lookup_attribute_macro(hash) {
             Some(handler) => handler,
             None => {
-                return Err(compile::Error::new(
-                    span,
-                    CompileErrorKind::MissingAttributeMacro {
-                        item: self.query.pool.item(named.item).to_owned(),
-                    },
-                ));
+                return Ok(None);
             }
         };
 
@@ -136,6 +128,6 @@ impl MacroCompiler<'_> {
 
         let mut parser = Parser::from_token_stream(&token_stream, span);
 
-        parser.parse_all()
+        parser.parse_all().map(Some)
     }
 }

@@ -7,8 +7,7 @@ use crate::no_std::path::PathBuf;
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
-use crate::ast::{self};
-use crate::ast::{OptionSpanned, Span, Spanned};
+use crate::ast::{self, OptionSpanned, Span, Spanned};
 use crate::compile::attrs::Attributes;
 use crate::compile::{
     self, attrs, ir, CompileErrorKind, Doc, ItemId, Location, ModId, Options, ParseErrorKind,
@@ -429,7 +428,7 @@ impl<'a> Indexer<'a> {
         &mut self,
         attr: &mut ast::Attribute,
         item: &mut ast::Item,
-    ) -> compile::Result<T>
+    ) -> compile::Result<Option<T>>
     where
         T: Parse,
     {
@@ -555,14 +554,17 @@ pub(crate) fn file(ast: &mut ast::File, idx: &mut Indexer<'_>) -> compile::Resul
     // Items take priority.
     let mut head = VecDeque::new();
 
-    // Macros are expanded as they are encountered, but after regular items have
+    // Macros and items with attributes are expanded as they are encountered, but after regular items have
     // been processed.
     let mut queue = VecDeque::new();
 
     for (item, semi) in ast.items.drain(..) {
         match item {
-            ast::Item::MacroCall(macro_call) => {
-                queue.push_back((0, macro_call, semi));
+            i @ ast::Item::MacroCall(_) => {
+                queue.push_back((0, i, Vec::new(), semi));
+            }
+            i if !i.attributes().is_empty() => {
+                queue.push_back((0, i, Vec::new(), semi));
             }
             i => {
                 head.push_back((i, semi));
@@ -571,24 +573,7 @@ pub(crate) fn file(ast: &mut ast::File, idx: &mut Indexer<'_>) -> compile::Resul
     }
 
     'uses: while !head.is_empty() || !queue.is_empty() {
-        while let Some((mut i, semi)) = head.pop_front() {
-            if let Some(mut attr) = i.remove_first_attribute() {
-                let file = idx.expand_attribute_macro::<ast::File>(&mut attr, &mut i)?;
-
-                for (item, semi) in file.items.into_iter().rev() {
-                    match item {
-                        ast::Item::MacroCall(macro_call) => {
-                            queue.push_front((0, macro_call, semi));
-                        }
-                        i => {
-                            head.push_front((i, semi));
-                        }
-                    }
-                }
-
-                continue;
-            }
-
+        while let Some((i, semi)) = head.pop_front() {
             if let Some(semi) = semi {
                 if !i.needs_semi_colon() {
                     idx.diagnostics
@@ -599,10 +584,10 @@ pub(crate) fn file(ast: &mut ast::File, idx: &mut Indexer<'_>) -> compile::Resul
             item(i, idx)?;
         }
 
-        while let Some((depth, mut macro_call, semi)) = queue.pop_front() {
+        while let Some((depth, mut item, mut skipped_attributes, semi)) = queue.pop_front() {
             if depth >= MAX_MACRO_RECURSION {
                 return Err(compile::Error::new(
-                    macro_call.span(),
+                    item.span(),
                     CompileErrorKind::MaxMacroRecursion {
                         depth,
                         max: MAX_MACRO_RECURSION,
@@ -610,7 +595,61 @@ pub(crate) fn file(ast: &mut ast::File, idx: &mut Indexer<'_>) -> compile::Resul
                 ));
             }
 
-            let mut attributes = attrs::Attributes::new(macro_call.attributes.to_vec());
+            // Before furthor processing all attributes are either expanded, or if unknown put in
+            // `skipped_attributes`, to either be reinserted for the `item` handler or to be used
+            // by the macro_call expansion below.
+            if let Some(mut attr) = item.remove_first_attribute() {
+                match idx.expand_attribute_macro::<ast::File>(&mut attr, &mut item)? {
+                    Some(file) => {
+                        for (item, semi) in file.items.into_iter().rev() {
+                            match item {
+                                item @ ast::Item::MacroCall(_) => {
+                                    queue.push_back((
+                                        depth.wrapping_add(1),
+                                        item,
+                                        Vec::new(),
+                                        semi,
+                                    ));
+                                }
+                                item if !item.attributes().is_empty() => {
+                                    queue.push_back((
+                                        depth.wrapping_add(1),
+                                        item,
+                                        Vec::new(),
+                                        semi,
+                                    ));
+                                }
+                                item => {
+                                    head.push_front((item, semi));
+                                }
+                            }
+                        }
+                    }
+                    None => {
+                        skipped_attributes.push(attr);
+                        if !matches!(item, ast::Item::MacroCall(_)) && item.attributes().is_empty()
+                        {
+                            // For all we know only non macro attributes remain, which will be
+                            // handled by the item handler.
+                            *item.attributes_mut() = skipped_attributes;
+                            head.push_front((item, semi));
+                        } else {
+                            // items with remaining attributes and macro calls will be dealt with by
+                            // reinserting in the queue.
+                            queue.push_back((depth, item, skipped_attributes, semi))
+                        }
+                    }
+                };
+                continue;
+            }
+
+            let ast::Item::MacroCall(mut macro_call) = item else {
+                unreachable!("non macro items would have had attributes")
+            };
+
+            macro_call.attributes = skipped_attributes.clone();
+
+            let mut attributes = attrs::Attributes::new(skipped_attributes);
 
             if idx.try_expand_internal_macro(&mut attributes, &mut macro_call)? {
                 // Macro call must be added to output to make sure its instructions are assembled.
@@ -620,11 +659,14 @@ pub(crate) fn file(ast: &mut ast::File, idx: &mut Indexer<'_>) -> compile::Resul
 
                 for (item, semi) in file.items.into_iter().rev() {
                     match item {
-                        ast::Item::MacroCall(macro_call) => {
-                            queue.push_front((depth.wrapping_add(1), macro_call, semi));
+                        item @ ast::Item::MacroCall(_) => {
+                            queue.push_back((depth.wrapping_add(1), item, Vec::new(), semi));
                         }
-                        i => {
-                            head.push_front((i, semi));
+                        item if !item.attributes().is_empty() => {
+                            queue.push_back((depth.wrapping_add(1), item, Vec::new(), semi));
+                        }
+                        item => {
+                            head.push_front((item, semi));
                         }
                     }
                 }

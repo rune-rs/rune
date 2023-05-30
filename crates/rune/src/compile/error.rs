@@ -237,8 +237,6 @@ pub(crate) enum CompileErrorKind {
     VariableConflict { name: String, existing_span: Span },
     #[error("Missing macro `{item}`")]
     MissingMacro { item: ItemBuf },
-    #[error("Missing attribute macro `{item}`")]
-    MissingAttributeMacro { item: ItemBuf },
     #[error("No local variable `{name}`")]
     MissingLocal { name: String },
     #[error("Missing item `{item}`")]
