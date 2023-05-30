@@ -1,9 +1,12 @@
-use crate::context::{Context, Tokens};
+use crate::{
+    add_trait_bounds,
+    context::{Context, Tokens},
+};
 use proc_macro2::TokenStream;
 use quote::quote_spanned;
 use syn::spanned::Spanned as _;
 
-/// Derive implementation of the AST macro.
+/// Derive implementation of the ToTokens macro.
 pub struct Derive {
     input: syn::DeriveInput,
 }
@@ -18,7 +21,7 @@ impl syn::parse::Parse for Derive {
 
 impl Derive {
     pub(super) fn expand(self) -> Result<TokenStream, Vec<syn::Error>> {
-        let ctx = Context::with_crate();
+        let ctx = Context::new();
         let tokens = ctx.tokens_with_module(None);
 
         let mut expander = Expander { ctx, tokens };
@@ -82,9 +85,15 @@ impl Expander {
         let macro_context = &self.tokens.macro_context;
         let token_stream = &self.tokens.token_stream;
 
+        let mut generics = input.generics.clone();
+
+        add_trait_bounds(&mut generics, to_tokens);
+
+        let (impl_generics, type_generics, where_generics) = generics.split_for_impl();
+
         Ok(quote_spanned! { input.span() =>
             #[automatically_derived]
-            impl #to_tokens for #ident {
+            impl #impl_generics #to_tokens for #ident #type_generics #where_generics {
                 fn to_tokens(&self, context: &mut #macro_context, stream: &mut #token_stream) {
                     match self {
                         #(#impl_into_tokens,)*
@@ -159,19 +168,7 @@ impl Expander {
 
         let mut generics = input.generics.clone();
 
-        for p in &mut generics.params {
-            match p {
-                syn::GenericParam::Type(ty) => {
-                    ty.bounds.push(syn::TypeParamBound::Trait(syn::TraitBound {
-                        paren_token: None,
-                        modifier: syn::TraitBoundModifier::None,
-                        lifetimes: None,
-                        path: to_tokens.clone(),
-                    }));
-                }
-                _ => continue,
-            }
-        }
+        add_trait_bounds(&mut generics, to_tokens);
 
         let (impl_generics, type_generics, where_generics) = generics.split_for_impl();
 

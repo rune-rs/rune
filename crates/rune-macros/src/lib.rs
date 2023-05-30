@@ -22,6 +22,8 @@
 //!
 //! This is part of the [Rune Language](https://rune-rs.github.io).
 
+use syn::{Generics, Path};
+
 extern crate proc_macro;
 
 mod any;
@@ -175,4 +177,21 @@ pub fn inst_display(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 fn to_compile_errors(errors: Vec<syn::Error>) -> proc_macro2::TokenStream {
     let compile_errors = errors.into_iter().map(syn::Error::into_compile_error);
     ::quote::quote!(#(#compile_errors)*)
+}
+
+/// Adds the `path` as trait bound to each generic
+fn add_trait_bounds(generics: &mut Generics, path: &Path) {
+    for p in &mut generics.params {
+        match p {
+            syn::GenericParam::Type(ty) => {
+                ty.bounds.push(syn::TypeParamBound::Trait(syn::TraitBound {
+                    paren_token: None,
+                    modifier: syn::TraitBoundModifier::None,
+                    lifetimes: None,
+                    path: path.clone(),
+                }));
+            }
+            _ => continue,
+        }
+    }
 }

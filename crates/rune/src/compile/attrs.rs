@@ -1,6 +1,7 @@
 use crate::no_std::collections::BTreeSet;
 use crate::no_std::prelude::*;
 
+use crate as rune;
 use crate::ast;
 use crate::ast::{LitStr, Span, Spanned};
 use crate::compile::{self, ParseErrorKind};

@@ -1,5 +1,6 @@
 //! Prelude for ast elements.
 
+pub(crate) use crate as rune;
 pub(crate) use crate::ast;
 pub(crate) use crate::ast::utils;
 pub(crate) use crate::ast::{OptionSpanned, Span, Spanned};

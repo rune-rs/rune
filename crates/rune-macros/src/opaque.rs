@@ -17,7 +17,7 @@ impl syn::parse::Parse for Derive {
 
 impl Derive {
     pub(super) fn expand(self) -> Result<TokenStream, Vec<syn::Error>> {
-        let ctx = Context::with_crate();
+        let ctx = Context::new();
         let tokens = ctx.tokens_with_module(None);
 
         let mut expander = Expander { ctx, tokens };
