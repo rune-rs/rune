@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1685236560997,
+  "lastUpdate": 1685495881590,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -20206,6 +20206,88 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 5316306,
             "range": "± 2205",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Roland Fredenhagen",
+            "username": "ModProg",
+            "email": "dev@modprog.de"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "7c0f6bcaefbb3476f8dc8664f75c05f289231b0b",
+          "message": "Support generics in more derive macros (#532)\n\n* use `rune` instead of `crate` for paths in derive macros\r\n* support generics in `derive(Parse, ToTokens, Spanned)`",
+          "timestamp": "2023-05-30T18:28:33Z",
+          "url": "https://github.com/rune-rs/rune/commit/7c0f6bcaefbb3476f8dc8664f75c05f289231b0b"
+        },
+        "date": 1685495880802,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 320107,
+            "range": "± 1819",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1131485,
+            "range": "± 4760",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 439010942,
+            "range": "± 1784767",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 274208328,
+            "range": "± 1376913",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 1313416,
+            "range": "± 2609",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 14050671,
+            "range": "± 30149",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 76098587,
+            "range": "± 395882",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 12087510,
+            "range": "± 21050",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 513589,
+            "range": "± 645",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 5694406,
+            "range": "± 5286",
             "unit": "ns/iter"
           }
         ]
