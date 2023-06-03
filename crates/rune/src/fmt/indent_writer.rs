@@ -136,7 +136,7 @@ impl<'a> SpanInjectionWriter<'a> {
     }
 
     pub(super) fn into_inner(mut self) -> Result<Vec<Vec<u8>>, FormattingError> {
-        while self.queued_spans.len() > 0 {
+        while !self.queued_spans.is_empty() {
             let span = self.queued_spans.remove(0);
             match span {
                 ResolvedSpan::Empty(_) => {
