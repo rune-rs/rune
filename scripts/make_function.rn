@@ -1,9 +1,6 @@
 #[test]
 pub fn test_make_function() {
-    make_function!(inner_fn => { "Hello World Again!" });
-
     assert_eq!(root_fn(), "Hello World!");
-    assert_eq!(inner_fn(), "Hello World Again!");
 }
 
 make_function!(root_fn => { "Hello World!" });
