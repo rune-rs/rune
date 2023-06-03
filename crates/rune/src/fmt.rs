@@ -31,5 +31,5 @@ pub fn layout_source(source: &Source) -> Result<Vec<u8>, FormattingError> {
     let ast = ast::File::parse(&mut parser)?;
     let mut printer: Printer = Printer::new(source)?;
     printer.visit_file(&ast)?;
-    Ok(printer.commit())
+    printer.commit()
 }
