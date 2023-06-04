@@ -36,8 +36,8 @@ impl<'a> Printer<'a> {
         Ok(Self { writer, source })
     }
 
-    pub(super) fn commit(self) -> Vec<u8> {
-        let inner = self.writer.into_inner();
+    pub(super) fn commit(self) -> Result<Vec<u8>> {
+        let inner = self.writer.into_inner()?;
 
         let mut out = Vec::new();
 
@@ -62,7 +62,7 @@ impl<'a> Printer<'a> {
             out.push(b'\n');
         }
 
-        out
+        Ok(out)
     }
 
     pub(super) fn resolve(&self, span: Span) -> Result<&'a str> {
@@ -685,7 +685,7 @@ impl<'a> Printer<'a> {
         self.writer.write_spanned_raw(close.span, false, false)?;
 
         if let Some(semi) = semi {
-            self.writer.write_spanned_raw(semi.span, false, false)?;
+            self.writer.write_spanned_raw(semi.span, true, false)?;
         }
 
         Ok(())

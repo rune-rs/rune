@@ -96,6 +96,7 @@ impl Write for IndentedWriter {
     }
 }
 
+#[derive(Debug)]
 enum ResolvedSpan {
     Empty(EmptyLine),
     Comment(Comment),
@@ -134,8 +135,25 @@ impl<'a> SpanInjectionWriter<'a> {
         })
     }
 
-    pub(super) fn into_inner(self) -> Vec<Vec<u8>> {
-        self.writer.into_inner()
+    pub(super) fn into_inner(mut self) -> Result<Vec<Vec<u8>>, FormattingError> {
+        while !self.queued_spans.is_empty() {
+            let span = self.queued_spans.remove(0);
+            match span {
+                ResolvedSpan::Empty(_) => {
+                    writeln!(self.writer)?;
+                }
+                ResolvedSpan::Comment(comment) => {
+                    if comment.on_new_line {
+                        writeln!(self.writer, "{}", self.resolve(comment.span)?)?;
+                    } else {
+                        self.extend_previous_line(b" ");
+                        self.extend_previous_line(self.resolve(comment.span)?.as_bytes());
+                    }
+                }
+            }
+        }
+
+        Ok(self.writer.into_inner())
     }
 
     fn extend_previous_line(&mut self, text: &[u8]) {
