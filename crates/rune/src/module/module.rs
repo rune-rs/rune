@@ -582,7 +582,7 @@ impl Module {
             MacroMetaKind::Attribute(data) => {
                 let hash = Hash::type_hash(&data.item);
 
-                if !self.names.insert(Name::Macro(hash)) {
+                if !self.names.insert(Name::AttributeMacro(hash)) {
                     return Err(ContextError::ConflictingMacroName {
                         item: data.item,
                         hash,
