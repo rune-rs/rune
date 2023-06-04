@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1685495881590,
+  "lastUpdate": 1685842128954,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -20288,6 +20288,88 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 5694406,
             "range": "± 5286",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Tom Solberg",
+            "username": "tgolsson",
+            "email": "me@sbg.dev"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "1fdd86ad2a0f9e106591fd97e7a5892ebabf1f51",
+          "message": "Fix and add tests for macrocall whitespace (#539)",
+          "timestamp": "2023-06-03T11:56:03Z",
+          "url": "https://github.com/rune-rs/rune/commit/1fdd86ad2a0f9e106591fd97e7a5892ebabf1f51"
+        },
+        "date": 1685842128305,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 288552,
+            "range": "± 1937",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 968083,
+            "range": "± 699",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 414360282,
+            "range": "± 2060676",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 251627414,
+            "range": "± 881518",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 1236211,
+            "range": "± 788",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 13227847,
+            "range": "± 20911",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 72257173,
+            "range": "± 263117",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 11330427,
+            "range": "± 21914",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 484520,
+            "range": "± 573",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 5345256,
+            "range": "± 1483",
             "unit": "ns/iter"
           }
         ]
