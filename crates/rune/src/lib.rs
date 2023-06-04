@@ -388,6 +388,13 @@ pub use rune_macros::function;
 #[doc(hidden)]
 pub use rune_macros::macro_;
 
+/// Macro used to annotate native functions which can be loaded as attribute macros in
+/// rune.
+///
+/// See [`Module::macro_meta`].
+#[doc(hidden)]
+pub use rune_macros::attribute_macro;
+
 cfg_cli! {
     pub mod cli;
 }

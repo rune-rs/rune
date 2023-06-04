@@ -57,7 +57,7 @@ fn module() -> Result<Module, ContextError> {
     })?;
 
     m.macro_(["string_as_code_from_arg"], |ctx, stream| {
-        let mut p = Parser::from_token_stream(stream, ctx.stream_span());
+        let mut p = Parser::from_token_stream(stream, ctx.input_span());
         let s = p.parse_all::<ast::LitStr>()?;
         let s = ctx.resolve(s)?.into_owned();
         let id = ctx.insert_source("string_as_code_from_arg", &s);

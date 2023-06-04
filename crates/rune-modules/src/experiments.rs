@@ -45,7 +45,7 @@ fn passthrough(_: &mut MacroContext<'_>, stream: &TokenStream) -> compile::Resul
 /// Implementation for the `make_function!` macro.
 #[rune::macro_]
 fn make_function(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> compile::Result<TokenStream> {
-    let mut parser = Parser::from_token_stream(stream, ctx.stream_span());
+    let mut parser = Parser::from_token_stream(stream, ctx.input_span());
 
     let ident = parser.parse::<ast::Ident>()?;
     let _ = parser.parse::<T![=>]>()?;

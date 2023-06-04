@@ -12,12 +12,13 @@ use crate::module::function_meta::{
 };
 use crate::module::{
     AssociatedKey, Async, EnumMut, Function, FunctionKind, InstallWith, InstanceFunction,
-    InternalEnum, InternalEnumMut, ItemMut, ModuleAssociated, ModuleConstant, ModuleFunction,
-    ModuleMacro, ModuleType, Plain, TypeMut, TypeSpecification, UnitType, VariantMut,
+    InternalEnum, InternalEnumMut, ItemMut, ModuleAssociated, ModuleAttributeMacro, ModuleConstant,
+    ModuleFunction, ModuleMacro, ModuleType, Plain, TypeMut, TypeSpecification, UnitType,
+    VariantMut,
 };
 use crate::runtime::{
-    ConstValue, FromValue, GeneratorState, MacroHandler, MaybeTypeOf, Protocol, Stack, ToValue,
-    TypeCheck, TypeOf, Value, VmResult,
+    AttributeMacroHandler, ConstValue, FromValue, GeneratorState, MacroHandler, MaybeTypeOf,
+    Protocol, Stack, ToValue, TypeCheck, TypeOf, Value, VmResult,
 };
 use crate::Hash;
 
@@ -29,6 +30,8 @@ enum Name {
     Item(Hash),
     /// A macro.
     Macro(Hash),
+    /// An attribute macro.
+    AttributeMacro(Hash),
 }
 
 /// A [Module] that is a collection of native functions and types.
@@ -47,6 +50,8 @@ pub struct Module {
     pub(crate) functions: Vec<ModuleFunction>,
     /// MacroHandler handlers.
     pub(crate) macros: Vec<ModuleMacro>,
+    /// AttributeMacroHandler handlers.
+    pub(crate) attribute_macros: Vec<ModuleAttributeMacro>,
     /// Constant values.
     pub(crate) constants: Vec<ModuleConstant>,
     /// Associated items.
@@ -108,6 +113,7 @@ impl Module {
             item,
             functions: Vec::new(),
             macros: Vec::new(),
+            attribute_macros: Vec::new(),
             associated: Vec::new(),
             types: Vec::new(),
             types_hash: HashMap::new(),
@@ -537,7 +543,7 @@ impl Module {
     /// /// ```
     /// #[rune::macro_]
     /// fn ident_to_string(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> compile::Result<TokenStream> {
-    ///     let mut p = Parser::from_token_stream(stream, ctx.stream_span());
+    ///     let mut p = Parser::from_token_stream(stream, ctx.input_span());
     ///     let ident = p.parse_all::<ast::Ident>()?;
     ///     let ident = ctx.resolve(ident)?.to_owned();
     ///     let string = ctx.lit(&ident);
@@ -552,7 +558,7 @@ impl Module {
     pub fn macro_meta(&mut self, meta: MacroMeta) -> Result<ItemMut<'_>, ContextError> {
         let meta = meta();
 
-        match meta.kind {
+        let docs = match meta.kind {
             MacroMetaKind::Function(data) => {
                 let hash = Hash::type_hash(&data.item);
 
@@ -571,17 +577,37 @@ impl Module {
                     handler: data.handler,
                     docs,
                 });
+                &mut self.macros.last_mut().unwrap().docs
             }
-        }
+            MacroMetaKind::Attribute(data) => {
+                let hash = Hash::type_hash(&data.item);
 
-        let m = self.macros.last_mut().unwrap();
-        Ok(ItemMut { docs: &mut m.docs })
+                if !self.names.insert(Name::AttributeMacro(hash)) {
+                    return Err(ContextError::ConflictingMacroName {
+                        item: data.item,
+                        hash,
+                    });
+                }
+
+                let mut docs = Docs::EMPTY;
+                docs.set_docs(meta.docs);
+
+                self.attribute_macros.push(ModuleAttributeMacro {
+                    item: data.item,
+                    handler: data.handler,
+                    docs,
+                });
+                &mut self.attribute_macros.last_mut().unwrap().docs
+            }
+        };
+
+        Ok(ItemMut { docs })
     }
 
     /// Register a native macro handler.
     ///
-    /// If possible, [`Module::function_meta`] should be used since it includes more
-    /// useful information about the function.
+    /// If possible, [`Module::macro_meta`] should be used since it includes more
+    /// useful information about the macro.
     ///
     /// # Examples
     ///
@@ -593,7 +619,7 @@ impl Module {
     /// use rune::parse::Parser;
     ///
     /// fn ident_to_string(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> compile::Result<TokenStream> {
-    ///     let mut p = Parser::from_token_stream(stream, ctx.stream_span());
+    ///     let mut p = Parser::from_token_stream(stream, ctx.input_span());
     ///     let ident = p.parse_all::<ast::Ident>()?;
     ///     let ident = ctx.resolve(ident)?.to_owned();
     ///     let string = ctx.lit(&ident);
@@ -629,6 +655,61 @@ impl Module {
         });
 
         let m = self.macros.last_mut().unwrap();
+        Ok(ItemMut { docs: &mut m.docs })
+    }
+
+    /// Register a native attribute macro handler.
+    ///
+    /// If possible, [`Module::macro_meta`] should be used since it includes more
+    /// useful information about the function.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::Module;
+    /// use rune::ast;
+    /// use rune::compile;
+    /// use rune::macros::{quote, MacroContext, TokenStream, ToTokens};
+    /// use rune::parse::Parser;
+    ///
+    /// fn rename_fn(ctx: &mut MacroContext<'_>, input: &TokenStream, item: &TokenStream) -> compile::Result<TokenStream> {
+    ///     let mut item = Parser::from_token_stream(item, ctx.macro_span());
+    ///     let mut fun = item.parse_all::<ast::ItemFn>()?;
+    ///
+    ///     let mut input = Parser::from_token_stream(input, ctx.input_span());
+    ///     fun.name = input.parse_all::<ast::EqValue<_>>()?.value;
+    ///     Ok(quote!(#fun).into_token_stream(ctx))
+    /// }
+    ///
+    /// let mut m = Module::new();
+    /// m.attribute_macro(["rename_fn"], rename_fn)?;
+    /// # Ok::<_, rune::Error>(())
+    /// ```
+    pub fn attribute_macro<N, M>(&mut self, name: N, f: M) -> Result<ItemMut<'_>, ContextError>
+    where
+        M: 'static
+            + Send
+            + Sync
+            + Fn(&mut MacroContext<'_>, &TokenStream, &TokenStream) -> compile::Result<TokenStream>,
+        N: IntoIterator,
+        N::Item: IntoComponent,
+    {
+        let item = ItemBuf::with_item(name);
+        let hash = Hash::type_hash(&item);
+
+        if !self.names.insert(Name::AttributeMacro(hash)) {
+            return Err(ContextError::ConflictingMacroName { item, hash });
+        }
+
+        let handler: Arc<AttributeMacroHandler> = Arc::new(f);
+
+        self.attribute_macros.push(ModuleAttributeMacro {
+            item,
+            handler,
+            docs: Docs::EMPTY,
+        });
+
+        let m = self.attribute_macros.last_mut().unwrap();
         Ok(ItemMut { docs: &mut m.docs })
     }
 

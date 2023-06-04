@@ -15,6 +15,11 @@ pub(crate) type FunctionHandler = dyn Fn(&mut Stack, usize) -> VmResult<()> + Se
 pub(crate) type MacroHandler =
     dyn Fn(&mut MacroContext, &TokenStream) -> compile::Result<TokenStream> + Send + Sync;
 
+/// A (type erased) attribute macro handler.
+pub(crate) type AttributeMacroHandler = dyn Fn(&mut MacroContext, &TokenStream, &TokenStream) -> compile::Result<TokenStream>
+    + Send
+    + Sync;
+
 /// Static run context visible to the virtual machine.
 ///
 /// This contains:

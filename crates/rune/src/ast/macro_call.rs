@@ -29,7 +29,7 @@ pub struct MacroCall {
     pub open: ast::Token,
     /// The tokens provided to the macro.
     #[rune(optional)]
-    pub stream: TokenStream,
+    pub input: TokenStream,
     /// Closing token.
     pub close: ast::Token,
 }
@@ -40,9 +40,9 @@ impl MacroCall {
         !matches!(self.close.kind, K!['}'])
     }
 
-    /// The span of the token stream.
-    pub(crate) fn stream_span(&self) -> Span {
-        if let Some(span) = self.stream.option_span() {
+    /// The span of the input token stream.
+    pub(crate) fn input_span(&self) -> Span {
+        if let Some(span) = self.input.option_span() {
             span
         } else {
             self.open.span.tail()
@@ -106,7 +106,7 @@ impl MacroCall {
             bang,
             path,
             open,
-            stream: TokenStream::from(stream),
+            input: TokenStream::from(stream),
             close,
         })
     }

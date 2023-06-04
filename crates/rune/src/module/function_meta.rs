@@ -9,7 +9,8 @@ use crate::hash::Hash;
 use crate::macros::{MacroContext, TokenStream};
 use crate::module::{AssociatedKey, Function, FunctionKind, InstanceFunction};
 use crate::runtime::{
-    FullTypeOf, FunctionHandler, MacroHandler, MaybeTypeOf, Protocol, TypeInfo, TypeOf,
+    AttributeMacroHandler, FullTypeOf, FunctionHandler, MacroHandler, MaybeTypeOf, Protocol,
+    TypeInfo, TypeOf,
 };
 
 mod sealed {
@@ -101,6 +102,31 @@ impl FunctionMacroData {
             + Send
             + Sync
             + Fn(&mut MacroContext<'_>, &TokenStream) -> compile::Result<TokenStream>,
+        N: IntoIterator,
+        N::Item: IntoComponent,
+    {
+        Self {
+            item: ItemBuf::with_item(name),
+            handler: Arc::new(f),
+        }
+    }
+}
+
+/// Runtime data for an attribute macro.
+#[derive(Clone)]
+pub struct AttributeMacroData {
+    pub(crate) item: ItemBuf,
+    pub(crate) handler: Arc<AttributeMacroHandler>,
+}
+
+impl AttributeMacroData {
+    #[inline]
+    pub(crate) fn new<F, N>(name: N, f: F) -> Self
+    where
+        F: 'static
+            + Send
+            + Sync
+            + Fn(&mut MacroContext<'_>, &TokenStream, &TokenStream) -> compile::Result<TokenStream>,
         N: IntoIterator,
         N::Item: IntoComponent,
     {
@@ -325,6 +351,8 @@ where
 pub enum MacroMetaKind {
     #[doc(hidden)]
     Function(FunctionMacroData),
+    #[doc(hidden)]
+    Attribute(AttributeMacroData),
 }
 
 impl MacroMetaKind {
@@ -340,6 +368,20 @@ impl MacroMetaKind {
         N::Item: IntoComponent,
     {
         Self::Function(FunctionMacroData::new(name, f))
+    }
+
+    #[doc(hidden)]
+    #[inline]
+    pub fn attribute<F, N>(name: N, f: F) -> Self
+    where
+        F: 'static
+            + Send
+            + Sync
+            + Fn(&mut MacroContext<'_>, &TokenStream, &TokenStream) -> compile::Result<TokenStream>,
+        N: IntoIterator,
+        N::Item: IntoComponent,
+    {
+        Self::Attribute(AttributeMacroData::new(name, f))
     }
 }
 

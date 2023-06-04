@@ -92,7 +92,7 @@ pub use rune_core::RawStr;
 
 mod runtime_context;
 pub use self::runtime_context::RuntimeContext;
-pub(crate) use self::runtime_context::{FunctionHandler, MacroHandler};
+pub(crate) use self::runtime_context::{AttributeMacroHandler, FunctionHandler, MacroHandler};
 
 mod select;
 pub(crate) use self::select::Select;

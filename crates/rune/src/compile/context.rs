@@ -9,12 +9,12 @@ use crate::compile::meta;
 use crate::compile::Docs;
 use crate::compile::{ComponentRef, ContextError, IntoComponent, Item, ItemBuf, MetaInfo, Names};
 use crate::module::{
-    Fields, Function, InternalEnum, Module, ModuleAssociated, ModuleConstant, ModuleFunction,
-    ModuleMacro, ModuleType, TypeSpecification, UnitType,
+    Fields, Function, InternalEnum, Module, ModuleAssociated, ModuleAttributeMacro, ModuleConstant,
+    ModuleFunction, ModuleMacro, ModuleType, TypeSpecification, UnitType,
 };
 use crate::runtime::{
-    ConstValue, FunctionHandler, MacroHandler, Protocol, RuntimeContext, StaticType, TypeCheck,
-    TypeInfo, TypeOf, VariantRtti,
+    AttributeMacroHandler, ConstValue, FunctionHandler, MacroHandler, Protocol, RuntimeContext,
+    StaticType, TypeCheck, TypeInfo, TypeOf, VariantRtti,
 };
 use crate::Hash;
 
@@ -92,6 +92,8 @@ pub struct Context {
     associated: HashMap<Hash, Vec<Hash>>,
     /// Registered native macro handlers.
     macros: HashMap<Hash, Arc<MacroHandler>>,
+    /// Registered native attribute macro handlers.
+    attribute_macros: HashMap<Hash, Arc<AttributeMacroHandler>>,
     /// Registered types.
     types: HashMap<Hash, ContextType>,
     /// Registered internal enums.
@@ -217,6 +219,10 @@ impl Context {
             self.install_macro(module, m)?;
         }
 
+        for m in &module.attribute_macros {
+            self.install_attribute_macro(module, m)?;
+        }
+
         for m in &module.constants {
             self.install_constant(module, m)?;
         }
@@ -329,6 +335,11 @@ impl Context {
     /// Lookup the given macro handler.
     pub(crate) fn lookup_macro(&self, hash: Hash) -> Option<&Arc<MacroHandler>> {
         self.macros.get(&hash)
+    }
+
+    /// Lookup the given attribute macro handler.
+    pub(crate) fn lookup_attribute_macro(&self, hash: Hash) -> Option<&Arc<AttributeMacroHandler>> {
+        self.attribute_macros.get(&hash)
     }
 
     /// Look up the type check implementation for the specified type hash.
@@ -593,7 +604,7 @@ impl Context {
         Ok(())
     }
 
-    /// Install a function and check for duplicates.
+    /// Install a macro and check for duplicates.
     fn install_macro(&mut self, module: &Module, m: &ModuleMacro) -> Result<(), ContextError> {
         let item = module.item.join(&m.item);
         let hash = Hash::type_hash(&item);
@@ -603,6 +614,27 @@ impl Context {
             hash,
             item: Some(item),
             kind: meta::Kind::Macro,
+            #[cfg(feature = "doc")]
+            docs: m.docs.clone(),
+        })?;
+
+        Ok(())
+    }
+
+    /// Install an attribute macro and check for duplicates.
+    fn install_attribute_macro(
+        &mut self,
+        module: &Module,
+        m: &ModuleAttributeMacro,
+    ) -> Result<(), ContextError> {
+        let item = module.item.join(&m.item);
+        let hash = Hash::type_hash(&item);
+        self.attribute_macros.insert(hash, m.handler.clone());
+
+        self.install_meta(ContextMeta {
+            hash,
+            item: Some(item),
+            kind: meta::Kind::AttributeMacro,
             #[cfg(feature = "doc")]
             docs: m.docs.clone(),
         })?;

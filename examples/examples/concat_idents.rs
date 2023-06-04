@@ -10,7 +10,7 @@ use std::sync::Arc;
 fn concat_idents(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> compile::Result<TokenStream> {
     let mut output = String::new();
 
-    let mut p = Parser::from_token_stream(stream, ctx.stream_span());
+    let mut p = Parser::from_token_stream(stream, ctx.input_span());
 
     let ident = p.parse::<ast::Ident>()?;
     output.push_str(ctx.resolve(ident)?);
