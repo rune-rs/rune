@@ -641,7 +641,6 @@ impl<'a> Query<'a> {
             })?;
 
         let mut in_self_type = false;
-        let mut local = None;
 
         let item = match (path.global, path.first) {
             (
@@ -661,10 +660,6 @@ impl<'a> Query<'a> {
             }
             (None, segment) => match segment.kind {
                 hir::PathSegmentKind::Ident(ident) => {
-                    if path.rest.is_empty() {
-                        local = Some(ident);
-                    }
-
                     self.convert_initial_path(context, qp.module, qp.item, ident)?
                 }
                 hir::PathSegmentKind::Super => self
@@ -762,17 +757,10 @@ impl<'a> Query<'a> {
         }
 
         let span = path.span();
-
-        let local = match local {
-            Some(local) => Some(local.resolve(resolve_context!(self))?.into()),
-            None => None,
-        };
-
         let item = self.pool.alloc_item(item);
 
         if let Some(new) = self.import(span, qp.module, item, Used::Used)? {
             return Ok(Named {
-                local,
                 item: new,
                 trailing,
                 parameters,
@@ -780,7 +768,6 @@ impl<'a> Query<'a> {
         }
 
         Ok(Named {
-            local,
             item,
             trailing,
             parameters,

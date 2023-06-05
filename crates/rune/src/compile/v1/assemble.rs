@@ -277,8 +277,9 @@ fn pat(
                 }
             }
 
-            if let Some(ident) = named.as_local() {
+            if let Some(ident) = path.try_as_ident() {
                 load(c, Needs::Value)?;
+                let ident = ident.resolve(resolve_context!(c.q))?;
                 c.scopes.decl_var(ident, span)?;
                 return Ok(false);
             }
@@ -554,15 +555,12 @@ fn pat_tuple(
 
         // Treat the current meta as a tuple and get the number of arguments it
         // should receive and the type check that applies to it.
-        let (args, inst) = match tuple_match_for(span, c, &meta) {
-            Some(out) => out,
-            None => {
-                return Err(compile::Error::expected_meta(
-                    span,
-                    meta.info(c.q.pool),
-                    "type that can be used in a tuple pattern",
-                ));
-            }
+        let Some((args, inst)) = tuple_match_for(span, c, &meta) else {
+            return Err(compile::Error::expected_meta(
+                span,
+                meta.info(c.q.pool),
+                "type that can be used in a tuple pattern",
+            ));
         };
 
         if !(args == hir.count || hir.count < args && hir.is_open) {
@@ -645,14 +643,11 @@ fn pat_object(
                 cow_key.as_ref()
             }
             hir::PatKind::PatPath(path) => {
-                let ident = match path.try_as_ident() {
-                    Some(ident) => ident,
-                    None => {
-                        return Err(compile::Error::new(
-                            span,
-                            CompileErrorKind::UnsupportedPatternExpr,
-                        ));
-                    }
+                let Some(ident) = path.try_as_ident() else {
+                    return Err(compile::Error::new(
+                        span,
+                        CompileErrorKind::UnsupportedPatternExpr,
+                    ));
                 };
 
                 let key = ident.resolve(resolve_context!(c.q))?;
@@ -690,15 +685,12 @@ fn pat_object(
             let parameters = generics_parameters(path.span(), c, &named)?;
             let meta = c.lookup_meta(path_span, named.item, parameters)?;
 
-            let (st, inst) = match struct_match_for(span, c, &meta) {
-                Some(out) => out,
-                None => {
-                    return Err(compile::Error::expected_meta(
-                        path_span,
-                        meta.info(c.q.pool),
-                        "type that can be used in a struct pattern",
-                    ));
-                }
+            let Some((st, inst)) = struct_match_for(span, c, &meta) else {
+                return Err(compile::Error::expected_meta(
+                    path_span,
+                    meta.info(c.q.pool),
+                    "type that can be used in a struct pattern",
+                ));
             };
 
             let mut fields = st.fields.clone();
@@ -810,9 +802,8 @@ fn pat_meta_binding(
     false_label: &Label,
     load: &dyn Fn(&mut Assembler<'_>, Needs) -> compile::Result<()>,
 ) -> compile::Result<bool> {
-    let inst = match tuple_match_for(span, c, meta) {
-        Some((args, inst)) if args == 0 => inst,
-        _ => return Ok(false),
+    let Some((0, inst)) = tuple_match_for(span, c, meta) else {
+        return Ok(false);
     };
 
     load(c, Needs::Value)?;
@@ -1442,14 +1433,11 @@ fn expr_binary(
             _ => None,
         };
 
-        let target = match supported {
-            Some(target) => target,
-            None => {
-                return Err(compile::Error::new(
-                    span,
-                    CompileErrorKind::UnsupportedBinaryExpr,
-                ));
-            }
+        let Some(target) = supported else {
+            return Err(compile::Error::new(
+                span,
+                CompileErrorKind::UnsupportedBinaryExpr,
+            ));
         };
 
         let op = match bin_op {
@@ -1556,14 +1544,11 @@ fn expr_break(
     hir: Option<&hir::ExprBreakValue<'_>>,
     _: Needs,
 ) -> compile::Result<Asm> {
-    let current_loop = match c.loops.last() {
-        Some(current_loop) => current_loop,
-        None => {
-            return Err(compile::Error::new(
-                span,
-                CompileErrorKind::BreakOutsideOfLoop,
-            ));
-        }
+    let Some(current_loop) = c.loops.last() else {
+        return Err(compile::Error::new(
+            span,
+            CompileErrorKind::BreakOutsideOfLoop,
+        ));
     };
 
     let (last_loop, to_drop, has_value) = if let Some(e) = hir {
@@ -1644,33 +1629,25 @@ fn generics_parameter(
     let mut builder = ParametersBuilder::new();
 
     for expr in generics {
-        let path = match expr.kind {
-            hir::ExprKind::Path(path) => path,
-            _ => {
-                return Err(compile::Error::new(
-                    span,
-                    CompileErrorKind::UnsupportedGenerics,
-                ));
-            }
+        let hir::ExprKind::Path(path) = expr.kind else {
+            return Err(compile::Error::new(
+                span,
+                CompileErrorKind::UnsupportedGenerics,
+            ));
         };
 
         let named = c.convert_path(path)?;
         let parameters = generics_parameters(path.span(), c, &named)?;
         let meta = c.lookup_meta(expr.span(), named.item, parameters)?;
 
-        let hash = match meta.kind {
-            meta::Kind::Type { .. } | meta::Kind::Struct { .. } | meta::Kind::Enum { .. } => {
-                meta.hash
-            }
-            _ => {
-                return Err(compile::Error::new(
-                    span,
-                    CompileErrorKind::UnsupportedGenerics,
-                ));
-            }
+        let (meta::Kind::Type { .. } | meta::Kind::Struct { .. } | meta::Kind::Enum { .. }) = meta.kind else {
+            return Err(compile::Error::new(
+                span,
+                CompileErrorKind::UnsupportedGenerics,
+            ));
         };
 
-        builder.add(hash);
+        builder.add(meta.hash);
     }
 
     Ok(builder.finish())
@@ -1711,9 +1688,9 @@ fn convert_expr_call(
 ) -> compile::Result<Call> {
     match hir.expr.kind {
         hir::ExprKind::Path(path) => {
-            let named = c.convert_path(path)?;
+            if let Some(name) = path.try_as_ident() {
+                let name = name.resolve(resolve_context!(c.q))?;
 
-            if let Some(name) = named.as_local() {
                 let local = c
                     .scopes
                     .try_get_var(c.q.visitor, name, c.source_id, path.span())?;
@@ -1726,6 +1703,7 @@ fn convert_expr_call(
                 }
             }
 
+            let named = c.convert_path(path)?;
             let parameters = generics_parameters(span, c, &named)?;
 
             let meta = c.lookup_meta(path.span(), named.item, parameters)?;
@@ -1968,17 +1946,14 @@ fn expr_closure(
         ))
     };
 
-    let (captures, do_move) = match &meta.kind {
-        meta::Kind::Closure {
-            captures, do_move, ..
-        } => (captures.as_ref(), *do_move),
-        _ => {
-            return Err(compile::Error::expected_meta(
-                span,
-                meta.info(c.q.pool),
-                "a closure",
-            ));
-        }
+    let meta::Kind::Closure {
+        ref captures, do_move, ..
+    } = meta.kind else {
+        return Err(compile::Error::expected_meta(
+            span,
+            meta.info(c.q.pool),
+            "a closure",
+        ));
     };
 
     tracing::trace!("captures: {} => {:?}", item.item, captures);
@@ -1993,7 +1968,7 @@ fn expr_closure(
         );
     } else {
         // Construct a closure environment.
-        for capture in captures {
+        for capture in captures.as_ref() {
             if do_move {
                 let var = c.scopes.take_var(c.q.visitor, capture, c.source_id, span)?;
                 var.do_move(c.asm, span, format_args!("capture `{}`", capture));
@@ -2024,14 +1999,11 @@ fn expr_continue(
     hir: Option<&ast::Label>,
     _: Needs,
 ) -> compile::Result<Asm> {
-    let current_loop = match c.loops.last() {
-        Some(current_loop) => current_loop,
-        None => {
-            return Err(compile::Error::new(
-                span,
-                CompileErrorKind::ContinueOutsideOfLoop,
-            ));
-        }
+    let Some(current_loop) = c.loops.last() else {
+        return Err(compile::Error::new(
+            span,
+            CompileErrorKind::ContinueOutsideOfLoop,
+        ));
     };
 
     let last_loop = if let Some(label) = hir {
@@ -2118,29 +2090,25 @@ fn expr_field_access(
         n: &ast::LitNumber,
         needs: Needs,
     ) -> compile::Result<bool> {
-        let ident = match path.try_as_ident() {
-            Some(ident) => ident,
-            None => return Ok(false),
+        let Some(ident) = path.try_as_ident() else {
+            return Ok(false);
+        };
+
+        let ast::Number::Integer(index) = n.resolve(resolve_context!(c.q))? else {
+            return Ok(false);
+        };
+
+        let Ok(index) = usize::try_from(index) else {
+            return Ok(false);
         };
 
         let ident = ident.resolve(resolve_context!(c.q))?;
 
-        let index = match n.resolve(resolve_context!(c.q))? {
-            ast::Number::Integer(n) => n,
-            _ => return Ok(false),
-        };
-
-        let index = match usize::try_from(index) {
-            Ok(index) => index,
-            Err(..) => return Ok(false),
-        };
-
-        let var = match c
+        let Some(var) = c
             .scopes
-            .try_get_var(c.q.visitor, ident, c.source_id, path.span())?
+            .try_get_var(c.q.visitor, ident, c.source_id, path.span())? else
         {
-            Some(var) => var,
-            None => return Ok(false),
+            return Ok(false);
         };
 
         c.asm.push(
@@ -2701,10 +2669,10 @@ fn path(hir: &hir::Path<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Re
         return Ok(Asm::top(span));
     }
 
-    let named = c.convert_path(hir)?;
-
     if let Needs::Value = needs {
-        if let Some(local) = named.as_local() {
+        if let Some(local) = hir.try_as_ident() {
+            let local = local.resolve(resolve_context!(c.q))?;
+
             if let Some(var) = c
                 .scopes
                 .try_get_var(c.q.visitor, local, c.source_id, span)?
@@ -2714,6 +2682,7 @@ fn path(hir: &hir::Path<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Re
         }
     }
 
+    let named = c.convert_path(hir)?;
     let parameters = generics_parameters(span, c, &named)?;
 
     if let Some(m) = c.try_lookup_meta(span, named.item, &parameters)? {
@@ -2721,7 +2690,9 @@ fn path(hir: &hir::Path<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Re
         return Ok(Asm::top(span));
     }
 
-    if let (Needs::Value, Some(local)) = (needs, named.as_local()) {
+    if let (Needs::Value, Some(local)) = (needs, hir.try_as_ident()) {
+        let local = local.resolve(resolve_context!(c.q))?;
+
         // light heuristics, treat it as a type error in case the first
         // character is uppercase.
         if !local.starts_with(char::is_uppercase) {
@@ -2913,22 +2884,21 @@ fn expr_select(
 
         let expected = c.scopes.push_child(span)?;
 
-        // NB: loop is actually useful.
-        #[allow(clippy::never_loop)]
-        loop {
+        'ok: {
             match branch.pat.kind {
                 hir::PatKind::PatPath(path) => {
+                    if let Some(local) = path.try_as_ident() {
+                        let local = local.resolve(resolve_context!(c.q))?;
+                        c.scopes.decl_var(local, path.span())?;
+                        break 'ok;
+                    }
+
                     let named = c.convert_path(path)?;
                     named.assert_not_generic()?;
-
-                    if let Some(local) = named.as_local() {
-                        c.scopes.decl_var(local, path.span())?;
-                        break;
-                    }
                 }
                 hir::PatKind::PatIgnore => {
                     c.asm.push(Inst::Pop, span);
-                    break;
+                    break 'ok;
                 }
                 _ => (),
             }
