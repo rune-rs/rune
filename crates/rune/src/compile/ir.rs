@@ -312,7 +312,7 @@ pub struct IrBranches {
 /// The condition for a branch.
 #[derive(Debug, Clone, Spanned)]
 pub enum IrCondition {
-    /// A simple conditiona ir expression.
+    /// A simple conditional ir expression.
     Ir(Ir),
     /// A pattern match.
     Let(IrLet),
@@ -558,12 +558,7 @@ impl IrAssignOp {
     }
 
     /// Perform the given assign operation.
-    fn assign_int<S>(
-        self,
-        spanned: S,
-        target: &mut num::BigInt,
-        operand: num::BigInt,
-    ) -> compile::Result<()>
+    fn assign_int<S>(self, spanned: S, target: &mut i64, operand: i64) -> compile::Result<()>
     where
         S: Copy + Spanned,
     {
@@ -579,7 +574,7 @@ impl IrAssignOp {
             }
             IrAssignOp::Div => {
                 *target = target
-                    .checked_div(&operand)
+                    .checked_div(operand)
                     .ok_or("division by zero")
                     .with_span(spanned)?;
             }

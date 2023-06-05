@@ -597,8 +597,6 @@ pub(crate) enum IrErrorKind {
     FnNotFound,
     #[error("Argument count mismatch, got {actual} but expected {expected}")]
     ArgumentCountMismatch { actual: usize, expected: usize },
-    #[error("Value `{value}` is outside of the supported integer range")]
-    NotInteger { value: num::BigInt },
 }
 
 /// The kind of a hir error.

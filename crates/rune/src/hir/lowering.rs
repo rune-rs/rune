@@ -1,6 +1,12 @@
+use core::cell::Cell;
+use core::ops::Neg;
+
+use num::ToPrimitive;
+
 use crate::ast::{self, Spanned};
-use crate::compile::{self, HirErrorKind};
+use crate::compile::{self, CompileErrorKind, HirErrorKind, ParseErrorKind, WithSpan};
 use crate::hir;
+use crate::parse::Resolve;
 use crate::query::{self, Query};
 
 /// Allocate a single object in the arena.
@@ -14,6 +20,28 @@ macro_rules! alloc {
                 },
             )
         })?
+    };
+}
+
+/// Allocate a string into the arena.
+macro_rules! alloc_str {
+    ($ctx:expr, $value:expr) => {
+        $ctx.arena
+            .alloc_str($value)
+            .map_err(|e| HirErrorKind::ArenaAllocError {
+                requested: e.requested,
+            })
+    };
+}
+
+/// Allocate a byte string into the arena.
+macro_rules! alloc_bytes {
+    ($ctx:expr, $value:expr) => {
+        $ctx.arena
+            .alloc_bytes($value)
+            .map_err(|e| HirErrorKind::ArenaAllocError {
+                requested: e.requested,
+            })
     };
 }
 
@@ -65,12 +93,17 @@ pub struct Ctx<'hir, 'a> {
     /// Arena used for allocations.
     arena: &'hir hir::arena::Arena,
     q: Query<'a>,
+    in_template: Cell<bool>,
 }
 
 impl<'hir, 'a> Ctx<'hir, 'a> {
-    /// Construct a new contctx.
+    /// Construct a new context.
     pub(crate) fn new(arena: &'hir hir::arena::Arena, query: Query<'a>) -> Self {
-        Self { arena, q: query }
+        Self {
+            arena,
+            q: query,
+            in_template: Cell::new(false),
+        }
     }
 }
 
@@ -191,10 +224,7 @@ pub(crate) fn expr<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Expr) -> compile::Resul
             op: ast.op,
             rhs: alloc!(ctx, ast; expr(ctx, &ast.rhs)?),
         })),
-        ast::Expr::Unary(ast) => hir::ExprKind::Unary(alloc!(ctx, ast; hir::ExprUnary {
-            op: ast.op,
-            expr: alloc!(ctx, ast; expr(ctx, &ast.expr)?),
-        })),
+        ast::Expr::Unary(ast) => expr_unary(ctx, ast)?,
         ast::Expr::Index(ast) => hir::ExprKind::Index(alloc!(ctx, ast; hir::ExprIndex {
             target: alloc!(ctx, ast; expr(ctx, &ast.target)?),
             index: alloc!(ctx, ast; expr(ctx, &ast.index)?),
@@ -232,7 +262,7 @@ pub(crate) fn expr<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Expr) -> compile::Resul
         ast::Expr::Closure(ast) => {
             hir::ExprKind::Closure(alloc!(ctx, ast; expr_closure(ctx, ast)?))
         }
-        ast::Expr::Lit(ast) => hir::ExprKind::Lit(alloc!(ctx, &ast.lit; ast.lit)),
+        ast::Expr::Lit(ast) => hir::ExprKind::Lit(lit(ast, ctx, &ast.lit)?),
         ast::Expr::Object(ast) => hir::ExprKind::Object(alloc!(ctx, ast; hir::ExprObject {
             path: object_ident(ctx, &ast.ident)?,
             assignments: iter!(ctx, ast; &ast.assignments, |(ast, _)| hir::FieldAssign {
@@ -258,11 +288,18 @@ pub(crate) fn expr<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Expr) -> compile::Resul
         ast::Expr::Group(ast) => hir::ExprKind::Group(alloc!(ctx, ast; expr(ctx, &ast.expr)?)),
         ast::Expr::MacroCall(ast) => {
             hir::ExprKind::MacroCall(alloc!(ctx, ast; match ctx.q.builtin_macro_for(ast)? {
-                query::BuiltInMacro::Template(ast) => hir::MacroCall::Template(alloc!(ctx, ast; hir::BuiltInTemplate {
-                    span: ast.span,
-                    from_literal: ast.from_literal,
-                    exprs: iter!(ctx, ast; &ast.exprs, |ast| expr(ctx, ast)?),
-                })),
+                query::BuiltInMacro::Template(ast) => {
+                    let old = ctx.in_template.replace(true);
+
+                    let result = hir::MacroCall::Template(alloc!(ctx, ast; hir::BuiltInTemplate {
+                        span: ast.span,
+                        from_literal: ast.from_literal,
+                        exprs: iter!(ctx, ast; &ast.exprs, |ast| expr(ctx, ast)?),
+                    }));
+
+                    ctx.in_template.set(old);
+                    result
+                },
                 query::BuiltInMacro::Format(ast) => hir::MacroCall::Format(alloc!(ctx, ast; hir::BuiltInFormat {
                     span: ast.span,
                     fill: ast.fill,
@@ -275,11 +312,11 @@ pub(crate) fn expr<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Expr) -> compile::Resul
                 })),
                 query::BuiltInMacro::File(ast) => hir::MacroCall::File(alloc!(ctx, ast; hir::BuiltInFile {
                     span: ast.span,
-                    value: ast.value,
+                    value: lit(ast, ctx, &ast.value)?,
                 })),
                 query::BuiltInMacro::Line(ast) => hir::MacroCall::Line(alloc!(ctx, ast; hir::BuiltInLine {
                     span: ast.span,
-                    value: ast.value,
+                    value: lit(ast, ctx, &ast.value)?,
                 })),
             }
             ))
@@ -290,6 +327,91 @@ pub(crate) fn expr<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Expr) -> compile::Resul
         span: ast.span(),
         kind,
     })
+}
+
+pub(crate) fn lit<'hir>(
+    span: &dyn Spanned,
+    ctx: &Ctx<'hir, '_>,
+    ast: &ast::Lit,
+) -> compile::Result<hir::Lit<'hir>> {
+    match ast {
+        ast::Lit::Bool(lit) => Ok(hir::Lit::Bool(lit.value)),
+        ast::Lit::Number(lit) => match lit.resolve(resolve_context!(ctx.q))? {
+            ast::Number::Float(n) => Ok(hir::Lit::Float(n)),
+            ast::Number::Integer(int) => {
+                let n = match int.to_i64() {
+                    Some(n) => n,
+                    None => {
+                        return Err(compile::Error::new(
+                            ast,
+                            ParseErrorKind::BadNumberOutOfBounds,
+                        ));
+                    }
+                };
+
+                Ok(hir::Lit::Integer(n))
+            }
+        },
+        ast::Lit::Byte(lit) => {
+            let b = lit.resolve(resolve_context!(ctx.q))?;
+            Ok(hir::Lit::Byte(b))
+        }
+        ast::Lit::Char(lit) => {
+            let ch = lit.resolve(resolve_context!(ctx.q))?;
+            Ok(hir::Lit::Char(ch))
+        }
+        ast::Lit::Str(lit) => {
+            let string = if ctx.in_template.get() {
+                lit.resolve_template_string(resolve_context!(ctx.q))?
+            } else {
+                lit.resolve_string(resolve_context!(ctx.q))?
+            };
+
+            Ok(hir::Lit::Str(
+                alloc_str!(ctx, string.as_ref()).with_span(span)?,
+            ))
+        }
+        ast::Lit::ByteStr(lit) => {
+            let bytes = lit.resolve(resolve_context!(ctx.q))?;
+            Ok(hir::Lit::ByteStr(
+                alloc_bytes!(ctx, bytes.as_ref()).with_span(span)?,
+            ))
+        }
+    }
+}
+
+pub(crate) fn expr_unary<'hir>(
+    ctx: &Ctx<'hir, '_>,
+    ast: &ast::ExprUnary,
+) -> compile::Result<hir::ExprKind<'hir>> {
+    // NB: special unary expressions.
+    if let ast::UnOp::BorrowRef { .. } = ast.op {
+        return Err(compile::Error::new(ast, CompileErrorKind::UnsupportedRef));
+    }
+
+    let (ast::UnOp::Neg(..), ast::Expr::Lit(ast::ExprLit { lit: ast::Lit::Number(n), .. })) = (ast.op, &*ast.expr) else {
+        return Ok(hir::ExprKind::Unary(alloc!(ctx, ast; hir::ExprUnary {
+            op: ast.op,
+            expr: alloc!(ctx, ast; expr(ctx, &ast.expr)?),
+        })));
+    };
+
+    match n.resolve(resolve_context!(ctx.q))? {
+        ast::Number::Float(n) => Ok(hir::ExprKind::Lit(hir::Lit::Float(-n))),
+        ast::Number::Integer(int) => {
+            let n = match int.neg().to_i64() {
+                Some(n) => n,
+                None => {
+                    return Err(compile::Error::new(
+                        ast,
+                        ParseErrorKind::BadNumberOutOfBounds,
+                    ));
+                }
+            };
+
+            Ok(hir::ExprKind::Lit(hir::Lit::Integer(n)))
+        }
+    }
 }
 
 /// Lower a block expression.

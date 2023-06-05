@@ -96,7 +96,7 @@ fn eval_ir_binary(
             }
             ir::IrBinaryOp::Div => {
                 let number = a
-                    .checked_div(&b)
+                    .checked_div(b)
                     .ok_or_else(|| compile::Error::msg(span, "division by zero"))?;
                 return Ok(IrValue::Integer(number));
             }

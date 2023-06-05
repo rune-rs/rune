@@ -2,7 +2,7 @@ use crate::no_std::collections::HashMap;
 use crate::no_std::prelude::*;
 
 use crate::ast::Spanned;
-use crate::compile::{self, IrErrorKind, WithSpan};
+use crate::compile::{self, WithSpan};
 use crate::runtime as rt;
 use crate::runtime::{Bytes, ConstValue, Shared, TypeInfo};
 
@@ -18,7 +18,7 @@ pub enum IrValue {
     /// A boolean constant value.
     Bool(bool),
     /// An integer constant.
-    Integer(num::BigInt),
+    Integer(i64),
     /// An float constant.
     Float(f64),
     /// A string constant designated by its slot.
@@ -47,7 +47,7 @@ impl IrValue {
     /// Try to coerce into an integer of the specified type.
     pub fn into_integer<T>(self) -> Option<T>
     where
-        T: TryFrom<num::BigInt>,
+        T: TryFrom<i64>,
     {
         match self {
             Self::Integer(n) => T::try_from(n).ok(),
@@ -62,7 +62,7 @@ impl IrValue {
             ConstValue::Byte(b) => Self::Byte(*b),
             ConstValue::Char(c) => Self::Char(*c),
             ConstValue::Bool(b) => Self::Bool(*b),
-            ConstValue::Integer(n) => Self::Integer((*n).into()),
+            ConstValue::Integer(n) => Self::Integer(*n),
             ConstValue::Float(n) => Self::Float(*n),
             ConstValue::String(s) => Self::String(Shared::new(s.clone())),
             ConstValue::StaticString(s) => Self::String(Shared::new((***s).to_owned())),
@@ -105,26 +105,12 @@ impl IrValue {
     where
         S: Copy + Spanned,
     {
-        use num::ToPrimitive as _;
-
         Ok(match self {
             IrValue::Unit => ConstValue::Unit,
             IrValue::Byte(b) => ConstValue::Byte(b),
             IrValue::Char(c) => ConstValue::Char(c),
             IrValue::Bool(b) => ConstValue::Bool(b),
-            IrValue::Integer(n) => {
-                let n = match n.clone().to_i64() {
-                    Some(n) => n,
-                    None => {
-                        return Err(compile::Error::new(
-                            spanned,
-                            IrErrorKind::NotInteger { value: n },
-                        ))
-                    }
-                };
-
-                ConstValue::Integer(n)
-            }
+            IrValue::Integer(n) => ConstValue::Integer(n),
             IrValue::Float(f) => ConstValue::Float(f),
             IrValue::String(s) => {
                 let s = s.take().with_span(spanned)?;

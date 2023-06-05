@@ -1,15 +1,12 @@
 use core::mem::{replace, take};
-use core::ops::Neg;
 
 use crate::no_std::collections::{HashMap, HashSet};
 use crate::no_std::prelude::*;
 
-use num::ToPrimitive;
-
 use crate::ast::{self, Span, Spanned};
 use crate::compile::meta;
 use crate::compile::v1::{Assembler, GenericsParameters, Loop, Needs, Scope, Var};
-use crate::compile::{self, CompileErrorKind, Item, ParseErrorKind, WithSpan};
+use crate::compile::{self, CompileErrorKind, Item, WithSpan};
 use crate::hash::ParametersBuilder;
 use crate::hir;
 use crate::parse::{Id, Resolve};
@@ -61,11 +58,8 @@ pub(crate) enum AsmKind {
 impl Asm {
     /// Assemble into an instruction.
     fn apply(self, c: &mut Assembler) -> compile::Result<()> {
-        match self.kind {
-            AsmKind::Top => (),
-            AsmKind::Var(var, local) => {
-                var.copy(c, self.span, format_args!("var `{}`", local));
-            }
+        if let AsmKind::Var(var, local) = self.kind {
+            var.copy(c, self.span, format_args!("var `{}`", local));
         }
 
         Ok(())
@@ -324,14 +318,11 @@ fn pat_lit(
 ) -> compile::Result<bool> {
     let span = hir.span();
 
-    let inst = match pat_lit_inst(span, c, hir)? {
-        Some(inst) => inst,
-        None => {
-            return Err(compile::Error::new(
-                hir,
-                CompileErrorKind::UnsupportedPatternExpr,
-            ));
-        }
+    let Some(inst) = pat_lit_inst(span, c, hir)? else {
+        return Err(compile::Error::new(
+            hir,
+            CompileErrorKind::UnsupportedPatternExpr,
+        ));
     };
 
     load(c, Needs::Value)?;
@@ -347,58 +338,25 @@ fn pat_lit_inst(
     c: &mut Assembler<'_>,
     hir: &hir::Expr<'_>,
 ) -> compile::Result<Option<Inst>> {
-    match hir.kind {
-        hir::ExprKind::Unary(hir::ExprUnary {
-            op: ast::UnOp::Neg(..),
-            expr:
-                hir::Expr {
-                    kind: hir::ExprKind::Lit(ast::Lit::Number(lit)),
-                    ..
-                },
-            ..
-        }) => {
-            let integer = lit
-                .resolve(resolve_context!(c.q))?
-                .as_i64(true)
-                .with_span(span)?;
+    let hir::ExprKind::Lit(lit) = hir.kind else {
+        return Ok(None);
+    };
 
-            return Ok(Some(Inst::EqInteger { integer }));
-        }
-        hir::ExprKind::Lit(lit) => match lit {
-            ast::Lit::Byte(lit) => {
-                let byte = lit.resolve(resolve_context!(c.q))?;
-                return Ok(Some(Inst::EqByte { byte }));
-            }
-            ast::Lit::Char(lit) => {
-                let char = lit.resolve(resolve_context!(c.q))?;
-                return Ok(Some(Inst::EqChar { char }));
-            }
-            ast::Lit::Str(lit) => {
-                let string = lit.resolve(resolve_context!(c.q))?;
-                let slot = c.q.unit.new_static_string(span, string.as_ref())?;
-                return Ok(Some(Inst::EqString { slot }));
-            }
-            ast::Lit::ByteStr(lit) => {
-                let bytes = lit.resolve(resolve_context!(c.q))?;
-                let slot = c.q.unit.new_static_bytes(span, bytes.as_ref())?;
-                return Ok(Some(Inst::EqBytes { slot }));
-            }
-            ast::Lit::Number(lit) => {
-                let integer = lit
-                    .resolve(resolve_context!(c.q))?
-                    .as_i64(false)
-                    .with_span(lit)?;
-
-                return Ok(Some(Inst::EqInteger { integer }));
-            }
-            ast::Lit::Bool(lit) => {
-                return Ok(Some(Inst::EqBool { boolean: lit.value }));
-            }
+    let inst = match lit {
+        hir::Lit::Byte(byte) => Inst::EqByte { byte },
+        hir::Lit::Char(char) => Inst::EqChar { char },
+        hir::Lit::Str(string) => Inst::EqString {
+            slot: c.q.unit.new_static_string(span, string)?,
         },
-        _ => (),
-    }
+        hir::Lit::ByteStr(bytes) => Inst::EqBytes {
+            slot: c.q.unit.new_static_bytes(span, bytes)?,
+        },
+        hir::Lit::Integer(integer) => Inst::EqInteger { integer },
+        hir::Lit::Bool(boolean) => Inst::EqBool { boolean },
+        _ => return Ok(None),
+    };
 
-    Ok(None)
+    Ok(Some(inst))
 }
 
 /// Assemble an [hir::Condition<'_>].
@@ -1022,11 +980,9 @@ fn builtin_template(
     let mut expansions = 0;
 
     for hir in template.exprs {
-        if let hir::ExprKind::Lit(ast::Lit::Str(s)) = hir.kind {
-            let s = s.resolve_template_string(resolve_context!(c.q))?;
+        if let hir::ExprKind::Lit(hir::Lit::Str(s)) = hir.kind {
             size_hint += s.len();
-
-            let slot = c.q.unit.new_static_string(span, &s)?;
+            let slot = c.q.unit.new_static_string(span, s)?;
             c.asm.push(Inst::String { slot }, span);
             c.scopes.decl_anon(span)?;
             continue;
@@ -1083,17 +1039,7 @@ fn const_(
             c.asm.push(Inst::char(*ch), span);
         }
         ConstValue::Integer(n) => {
-            let n = match n.to_i64() {
-                Some(n) => n,
-                None => {
-                    return Err(compile::Error::new(
-                        span,
-                        ParseErrorKind::BadNumberOutOfBounds,
-                    ));
-                }
-            };
-
-            c.asm.push(Inst::integer(n), span);
+            c.asm.push(Inst::integer(*n), span);
         }
         ConstValue::Float(n) => {
             c.asm.push(Inst::float(*n), span);
@@ -1193,7 +1139,7 @@ fn expr(hir: &hir::Expr<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Re
         hir::ExprKind::Call(hir) => expr_call(span, c, hir, needs)?,
         hir::ExprKind::FieldAccess(hir) => expr_field_access(span, c, hir, needs)?,
         hir::ExprKind::Closure(hir) => expr_closure(span, c, hir, needs)?,
-        hir::ExprKind::Lit(hir) => lit(hir, c, needs)?,
+        hir::ExprKind::Lit(hir) => lit(span, c, hir, needs)?,
         hir::ExprKind::Tuple(hir) => expr_tuple(span, c, hir, needs)?,
         hir::ExprKind::Vec(hir) => expr_vec(span, c, hir, needs)?,
         hir::ExprKind::Object(hir) => expr_object(span, c, hir, needs)?,
@@ -1201,8 +1147,8 @@ fn expr(hir: &hir::Expr<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Re
         hir::ExprKind::MacroCall(macro_call) => match macro_call {
             hir::MacroCall::Template(template) => builtin_template(template, c, needs)?,
             hir::MacroCall::Format(format) => builtin_format(format, c, needs)?,
-            hir::MacroCall::Line(line) => lit_number(&line.value, c, needs)?,
-            hir::MacroCall::File(file) => lit_str(&file.value, c, needs)?,
+            hir::MacroCall::Line(line) => lit(line.span, c, line.value, needs)?,
+            hir::MacroCall::File(file) => lit(file.span, c, file.value, needs)?,
         },
     };
 
@@ -3120,34 +3066,6 @@ fn expr_unary(
     hir: &hir::ExprUnary<'_>,
     needs: Needs,
 ) -> compile::Result<Asm> {
-    // NB: special unary expressions.
-    if let ast::UnOp::BorrowRef { .. } = hir.op {
-        return Err(compile::Error::new(span, CompileErrorKind::UnsupportedRef));
-    }
-
-    if let (ast::UnOp::Neg(..), hir::ExprKind::Lit(ast::Lit::Number(n))) = (hir.op, hir.expr.kind) {
-        match n.resolve(resolve_context!(c.q))? {
-            ast::Number::Float(n) => {
-                c.asm.push(Inst::float(-n), span);
-            }
-            ast::Number::Integer(int) => {
-                let n = match int.neg().to_i64() {
-                    Some(n) => n,
-                    None => {
-                        return Err(compile::Error::new(
-                            span,
-                            ParseErrorKind::BadNumberOutOfBounds,
-                        ));
-                    }
-                };
-
-                c.asm.push(Inst::integer(n), span);
-            }
-        }
-
-        return Ok(Asm::top(span));
-    }
-
     expr(hir.expr, c, Needs::Value)?.apply(c)?;
 
     match hir.op {
@@ -3340,9 +3258,7 @@ pub(crate) fn fn_from_item_fn(
 
 /// Assemble a literal value.
 #[instrument]
-fn lit(hir: &ast::Lit, c: &mut Assembler<'_>, needs: Needs) -> compile::Result<Asm> {
-    let span = hir.span();
-
+fn lit(span: Span, c: &mut Assembler<'_>, hir: hir::Lit<'_>, needs: Needs) -> compile::Result<Asm> {
     // Elide the entire literal if it's not needed.
     if !needs.value() {
         c.diagnostics.not_used(c.source_id, span, c.context());
@@ -3350,81 +3266,30 @@ fn lit(hir: &ast::Lit, c: &mut Assembler<'_>, needs: Needs) -> compile::Result<A
     }
 
     match hir {
-        ast::Lit::Bool(lit) => {
-            c.asm.push(Inst::bool(lit.value), span);
+        hir::Lit::Bool(boolean) => {
+            c.asm.push(Inst::bool(boolean), span);
         }
-        ast::Lit::Number(lit) => {
-            return lit_number(lit, c, needs);
+        hir::Lit::Byte(byte) => {
+            c.asm.push(Inst::byte(byte), span);
         }
-        ast::Lit::Char(lit) => {
-            let ch = lit.resolve(resolve_context!(c.q))?;
-            c.asm.push(Inst::char(ch), span);
+        hir::Lit::Char(char) => {
+            c.asm.push(Inst::char(char), span);
         }
-        ast::Lit::Str(lit) => {
-            return lit_str(lit, c, needs);
+        hir::Lit::Integer(integer) => {
+            c.asm.push(Inst::integer(integer), span);
         }
-        ast::Lit::Byte(lit) => {
-            let b = lit.resolve(resolve_context!(c.q))?;
-            c.asm.push(Inst::byte(b), span);
+        hir::Lit::Float(float) => {
+            c.asm.push(Inst::float(float), span);
         }
-        ast::Lit::ByteStr(lit) => {
-            let bytes = lit.resolve(resolve_context!(c.q))?;
-            let slot = c.q.unit.new_static_bytes(span, bytes.as_ref())?;
+        hir::Lit::Str(string) => {
+            let slot = c.q.unit.new_static_string(span, string)?;
+            c.asm.push(Inst::String { slot }, span);
+        }
+        hir::Lit::ByteStr(bytes) => {
+            let slot = c.q.unit.new_static_bytes(span, bytes)?;
             c.asm.push(Inst::Bytes { slot }, span);
         }
     };
-
-    Ok(Asm::top(span))
-}
-
-#[instrument]
-fn lit_str(hir: &ast::LitStr, c: &mut Assembler<'_>, needs: Needs) -> compile::Result<Asm> {
-    let span = hir.span();
-
-    // Elide the entire literal if it's not needed.
-    if !needs.value() {
-        c.diagnostics.not_used(c.source_id, span, c.context());
-        return Ok(Asm::top(span));
-    }
-
-    let string = hir.resolve(resolve_context!(c.q))?;
-    let slot = c.q.unit.new_static_string(span, string.as_ref())?;
-    c.asm.push(Inst::String { slot }, span);
-    Ok(Asm::top(span))
-}
-
-/// Assemble a literal number.
-#[instrument]
-fn lit_number(hir: &ast::LitNumber, c: &mut Assembler<'_>, needs: Needs) -> compile::Result<Asm> {
-    let span = hir.span();
-
-    // Elide the entire literal if it's not needed.
-    if !needs.value() {
-        c.diagnostics.not_used(c.source_id, span, c.context());
-        return Ok(Asm::top(span));
-    }
-
-    // NB: don't encode unecessary literal.
-    let number = hir.resolve(resolve_context!(c.q))?;
-
-    match number {
-        ast::Number::Float(number) => {
-            c.asm.push(Inst::float(number), span);
-        }
-        ast::Number::Integer(number) => {
-            let n = match number.to_i64() {
-                Some(n) => n,
-                None => {
-                    return Err(compile::Error::new(
-                        span,
-                        ParseErrorKind::BadNumberOutOfBounds,
-                    ));
-                }
-            };
-
-            c.asm.push(Inst::integer(n), span);
-        }
-    }
 
     Ok(Asm::top(span))
 }
