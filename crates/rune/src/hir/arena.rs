@@ -4,7 +4,9 @@ use core::marker::PhantomData;
 use core::mem;
 use core::ptr;
 use core::slice;
+use core::str;
 
+use crate::no_std::collections::HashMap;
 use crate::no_std::prelude::*;
 
 #[non_exhaustive]
@@ -52,15 +54,55 @@ pub struct Arena {
     start: Cell<*mut u8>,
     end: Cell<*mut u8>,
     chunks: RefCell<Vec<Chunk>>,
+    /// Allocated bytes. The pointers are stable into the chunks.
+    bytes: RefCell<HashMap<Box<[u8]>, ptr::NonNull<u8>>>,
 }
 
 impl Arena {
     /// Construct a new empty arena allocator.
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             start: Cell::new(ptr::null_mut()),
             end: Cell::new(ptr::null_mut()),
             chunks: RefCell::new(Vec::new()),
+            bytes: RefCell::new(HashMap::new()),
+        }
+    }
+
+    /// Allocate a string from the arena.
+    pub(crate) fn alloc_bytes(&self, bytes: &[u8]) -> Result<&[u8], ArenaAllocError> {
+        if let Some(ptr) = self.bytes.borrow().get(bytes).copied() {
+            // SAFETY: The pointer returned was previously allocated correctly
+            // in the arena.
+            unsafe {
+                return Ok(slice::from_raw_parts(ptr.as_ptr() as *const _, bytes.len()));
+            }
+        }
+
+        let layout = Layout::array::<u8>(bytes.len()).map_err(|_| ArenaAllocError {
+            requested: bytes.len(),
+        })?;
+        let ptr = self.alloc_raw(layout)?;
+
+        // SAFETY: we're ensuring the valid contents of pointer by copying a
+        // safe bytes slice into it.
+        let output = unsafe {
+            ptr::copy_nonoverlapping(bytes.as_ptr(), ptr.as_ptr(), bytes.len());
+            slice::from_raw_parts(ptr.as_ptr() as *const _, bytes.len())
+        };
+
+        self.bytes.borrow_mut().insert(bytes.into(), ptr);
+        Ok(output)
+    }
+
+    /// Allocate a string from the arena.
+    pub(crate) fn alloc_str(&self, string: &str) -> Result<&str, ArenaAllocError> {
+        let bytes = self.alloc_bytes(string.as_bytes())?;
+
+        // SAFETY: we're ensuring the valid contents of the returned string by
+        // safely accessing it above.
+        unsafe {
+            return Ok(str::from_utf8_unchecked(bytes));
         }
     }
 
@@ -68,12 +110,12 @@ impl Arena {
     pub(crate) fn alloc<T>(&self, object: T) -> Result<&mut T, ArenaAllocError> {
         assert!(!mem::needs_drop::<T>());
 
-        let mem = self.alloc_raw(Layout::for_value::<T>(&object))? as *mut T;
+        let mut ptr = self.alloc_raw(Layout::for_value::<T>(&object))?.cast();
 
         unsafe {
             // Write into uninitialized memory.
-            ptr::write(mem, object);
-            Ok(&mut *mem)
+            ptr::write(ptr.as_ptr(), object);
+            Ok(ptr.as_mut())
         }
     }
 
@@ -82,9 +124,9 @@ impl Arena {
         assert!(!mem::needs_drop::<T>(), "cannot allocate drop element");
 
         let mem = if len == 0 {
-            ptr::null_mut()
+            None
         } else {
-            self.alloc_raw(Layout::array::<T>(len).unwrap())? as *mut T
+            Some(self.alloc_raw(Layout::array::<T>(len).unwrap())?.cast())
         };
 
         Ok(AllocIter {
@@ -96,7 +138,7 @@ impl Arena {
     }
 
     #[inline]
-    fn alloc_raw_without_grow(&self, layout: Layout) -> Option<*mut u8> {
+    fn alloc_raw_without_grow(&self, layout: Layout) -> Option<ptr::NonNull<u8>> {
         let start = addr(self.start.get());
         let old_end = self.end.get();
         let end = addr(old_end);
@@ -112,12 +154,20 @@ impl Arena {
 
         let new_end = with_addr(old_end, new_end);
         self.end.set(new_end);
-        Some(new_end)
+
+        // Pointer is guaranteed to be non-null due to how it's allocated.
+        unsafe { Some(ptr::NonNull::new_unchecked(new_end)) }
     }
 
     #[inline]
-    pub(crate) fn alloc_raw(&self, layout: Layout) -> Result<*mut u8, ArenaAllocError> {
-        assert!(layout.size() != 0);
+    fn alloc_raw(&self, layout: Layout) -> Result<ptr::NonNull<u8>, ArenaAllocError> {
+        // assert!(layout.size() != 0);
+        assert!(layout.align() != 0);
+
+        if layout.size() == 0 {
+            // SAFETY: we've asserted that alignment is non-zero above.
+            return unsafe { Ok(ptr::NonNull::new_unchecked(layout.align() as *mut u8)) };
+        }
 
         loop {
             if let Some(a) = self.alloc_raw_without_grow(layout) {
@@ -160,8 +210,8 @@ pub(crate) fn with_addr(this: *mut u8, a: usize) -> *mut u8 {
 }
 
 /// An iterator writer.
-pub struct AllocIter<'hir, T> {
-    mem: *mut T,
+pub(crate) struct AllocIter<'hir, T> {
+    mem: Option<ptr::NonNull<T>>,
     index: usize,
     len: usize,
     _marker: PhantomData<&'hir ()>,
@@ -170,13 +220,17 @@ pub struct AllocIter<'hir, T> {
 impl<'hir, T> AllocIter<'hir, T> {
     /// Write the next element into the slice.
     pub(crate) fn write(&mut self, object: T) -> Result<(), ArenaWriteSliceOutOfBounds> {
+        let mem = self
+            .mem
+            .ok_or(ArenaWriteSliceOutOfBounds { index: self.index })?;
+
         // Sanity check is necessary to ensure memory safety.
         if self.index >= self.len {
             return Err(ArenaWriteSliceOutOfBounds { index: self.index });
         }
 
         unsafe {
-            ptr::write(self.mem.add(self.index), object);
+            ptr::write(mem.as_ptr().add(self.index), object);
             self.index += 1;
             Ok(())
         }
@@ -184,10 +238,12 @@ impl<'hir, T> AllocIter<'hir, T> {
 
     /// Finalize the iterator being written and return the appropriate closure.
     pub(crate) fn finish(self) -> &'hir mut [T] {
-        if self.mem.is_null() {
-            return &mut [];
+        match self.mem {
+            Some(mem) => {
+                // SAFETY: Is guaranteed to be correct due to how it's allocated and written to above.
+                unsafe { slice::from_raw_parts_mut(mem.as_ptr(), self.index) }
+            }
+            None => &mut [],
         }
-
-        unsafe { slice::from_raw_parts_mut(self.mem, self.index) }
     }
 }

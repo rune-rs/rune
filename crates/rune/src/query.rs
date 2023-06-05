@@ -131,7 +131,7 @@ pub(crate) struct BuiltInFile {
     #[rune(span)]
     pub(crate) span: Span,
     /// Path value to use
-    pub(crate) value: ast::LitStr,
+    pub(crate) value: ast::Lit,
 }
 
 /// Macro data for `line!()`
@@ -141,7 +141,7 @@ pub(crate) struct BuiltInLine {
     #[rune(span)]
     pub(crate) span: Span,
     /// The line number
-    pub(crate) value: ast::LitNumber,
+    pub(crate) value: ast::Lit,
 }
 
 /// An entry in the build queue.

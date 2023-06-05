@@ -90,7 +90,7 @@ pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut IrCompiler<'_>) -> compile::Resu
         hir::ExprKind::Call(hir) => ir::Ir::new(span, expr_call(span, c, hir)?),
         hir::ExprKind::If(hir) => ir::Ir::new(span, expr_if(span, c, hir)?),
         hir::ExprKind::Loop(hir) => ir::Ir::new(span, expr_loop(span, c, hir)?),
-        hir::ExprKind::Lit(hir) => lit(hir, c)?,
+        hir::ExprKind::Lit(hir) => lit(span, c, hir)?,
         hir::ExprKind::Block(hir) => expr_block(span, c, hir)?,
         hir::ExprKind::Path(hir) => path(hir, c)?,
         hir::ExprKind::FieldAccess(..) => ir::Ir::new(span, c.ir_target(hir)?),
@@ -100,20 +100,8 @@ pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut IrCompiler<'_>) -> compile::Resu
                 let ir_template = builtin_template(template, c)?;
                 ir::Ir::new(hir.span(), ir_template)
             }
-            hir::MacroCall::File(file) => {
-                let s = c.resolve(&file.value)?;
-                ir::Ir::new(file.span, IrValue::String(Shared::new(s.into_owned())))
-            }
-            hir::MacroCall::Line(line) => {
-                let n = c.resolve(&line.value)?;
-
-                let const_value = match n {
-                    ast::Number::Integer(n) => IrValue::Integer(n),
-                    ast::Number::Float(n) => IrValue::Float(n),
-                };
-
-                ir::Ir::new(line.span, const_value)
-            }
+            hir::MacroCall::File(file) => lit(span, c, file.value)?,
+            hir::MacroCall::Line(line) => lit(span, c, line.value)?,
             _ => {
                 return Err(compile::Error::msg(hir, "unsupported builtin macro"));
             }
@@ -227,38 +215,18 @@ fn expr_binary(
 }
 
 #[instrument]
-fn lit(hir: &ast::Lit, c: &mut IrCompiler<'_>) -> compile::Result<ir::Ir> {
-    let span = hir.span();
-
+fn lit(span: Span, c: &mut IrCompiler<'_>, hir: hir::Lit<'_>) -> compile::Result<ir::Ir> {
     Ok(match hir {
-        ast::Lit::Bool(b) => ir::Ir::new(span, IrValue::Bool(b.value)),
-        ast::Lit::Str(s) => {
-            let s = c.resolve(s)?;
-            ir::Ir::new(span, IrValue::String(Shared::new(s.into_owned())))
-        }
-        ast::Lit::Number(n) => {
-            let n = c.resolve(n)?;
-
-            let const_value = match n {
-                ast::Number::Integer(n) => IrValue::Integer(n),
-                ast::Number::Float(n) => IrValue::Float(n),
-            };
-
-            ir::Ir::new(span, const_value)
-        }
-        ast::Lit::Byte(lit) => {
-            let b = c.resolve(lit)?;
-            ir::Ir::new(span, IrValue::Byte(b))
-        }
-        ast::Lit::ByteStr(lit) => {
-            let byte_str = c.resolve(lit)?;
-            let value = IrValue::Bytes(Shared::new(Bytes::from_vec(byte_str.into_owned())));
+        hir::Lit::Bool(boolean) => ir::Ir::new(span, IrValue::Bool(boolean)),
+        hir::Lit::Str(string) => ir::Ir::new(span, IrValue::String(Shared::new(string.to_owned()))),
+        hir::Lit::Integer(n) => ir::Ir::new(span, IrValue::Integer(n)),
+        hir::Lit::Float(n) => ir::Ir::new(span, IrValue::Float(n)),
+        hir::Lit::Byte(b) => ir::Ir::new(span, IrValue::Byte(b)),
+        hir::Lit::ByteStr(byte_str) => {
+            let value = IrValue::Bytes(Shared::new(Bytes::from_vec(byte_str.to_vec())));
             ir::Ir::new(span, value)
         }
-        ast::Lit::Char(lit) => {
-            let c = c.resolve(lit)?;
-            ir::Ir::new(span, IrValue::Char(c))
-        }
+        hir::Lit::Char(c) => ir::Ir::new(span, IrValue::Char(c)),
     })
 }
 
@@ -400,13 +368,8 @@ fn builtin_template(
     let mut components = Vec::new();
 
     for e in template.exprs {
-        if let hir::ExprKind::Lit(ast::Lit::Str(s)) = e.kind {
-            let s = s.resolve_template_string(resolve_context!(c.q))?;
-
-            components.push(ir::IrTemplateComponent::String(
-                s.into_owned().into_boxed_str(),
-            ));
-
+        if let hir::ExprKind::Lit(hir::Lit::Str(s)) = e.kind {
+            components.push(ir::IrTemplateComponent::String(s.into()));
             continue;
         }
 

@@ -367,13 +367,14 @@ impl<'a> Indexer<'a> {
         })?;
         let id = self.q.storage.insert_str(name);
         let source = ast::StrSource::Synthetic(id);
-        let node = ast::LitStr {
+        let value = ast::Lit::Str(ast::LitStr {
             span: ast.span(),
             source,
-        };
+        });
+
         Ok(BuiltInMacro::File(BuiltInFile {
             span: ast.span(),
-            value: node,
+            value,
         }))
     }
 
@@ -391,10 +392,10 @@ impl<'a> Indexer<'a> {
 
         Ok(BuiltInMacro::Line(BuiltInLine {
             span: ast.span(),
-            value: ast::LitNumber {
+            value: ast::Lit::Number(ast::LitNumber {
                 span: ast.span(),
                 source,
-            },
+            }),
         }))
     }
 

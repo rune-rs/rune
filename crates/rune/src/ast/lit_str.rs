@@ -30,11 +30,16 @@ impl LitStr {
         &self,
         ctx: ResolveContext<'a>,
     ) -> Result<Cow<'a, str>> {
-        self.resolve_string(ctx, ast::utils::WithTemplate(true))
+        self.resolve_inner(ctx, ast::utils::WithTemplate(true))
+    }
+
+    /// Resolve as a regular string.
+    pub(crate) fn resolve_string<'a>(&self, ctx: ResolveContext<'a>) -> Result<Cow<'a, str>> {
+        self.resolve_inner(ctx, ast::utils::WithTemplate(false))
     }
 
     /// Resolve the given string with the specified configuration.
-    pub(crate) fn resolve_string<'a>(
+    fn resolve_inner<'a>(
         &self,
         ctx: ResolveContext<'a>,
         with_template: ast::utils::WithTemplate,
@@ -132,7 +137,7 @@ impl<'a> Resolve<'a> for LitStr {
     type Output = Cow<'a, str>;
 
     fn resolve(&self, ctx: ResolveContext<'a>) -> Result<Cow<'a, str>> {
-        self.resolve_string(ctx, ast::utils::WithTemplate(false))
+        self.resolve_string(ctx)
     }
 }
 
