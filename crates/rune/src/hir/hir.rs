@@ -510,11 +510,8 @@ impl<'a, 'hir> Resolve<'a> for ObjectKey<'hir> {
         Ok(match *self {
             Self::LitStr(lit_str) => lit_str.resolve(ctx)?,
             Self::Path(path) => {
-                let ident = match path.try_as_ident() {
-                    Some(ident) => ident,
-                    None => {
-                        return Err(compile::Error::expected(path, "object key"));
-                    }
+                let Some(ident) = path.try_as_ident() else {
+                    return Err(compile::Error::expected(path, "object key"));
                 };
 
                 Cow::Borrowed(ident.resolve(ctx)?)

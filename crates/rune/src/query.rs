@@ -43,8 +43,6 @@ impl Default for Used {
 /// The result of calling [Query::convert_path].
 #[derive(Debug)]
 pub(crate) struct Named<'hir> {
-    /// If the resolved value is local.
-    pub(crate) local: Option<Box<str>>,
     /// The path resolved to the given item.
     pub(crate) item: ItemId,
     /// Trailing parameters.
@@ -54,15 +52,6 @@ pub(crate) struct Named<'hir> {
 }
 
 impl Named<'_> {
-    /// Get the local identifier of this named.
-    pub(crate) fn as_local(&self) -> Option<&str> {
-        if self.parameters.iter().all(|v| v.is_none()) {
-            self.local.as_deref()
-        } else {
-            None
-        }
-    }
-
     /// Assert that this named type is not generic.
     pub(crate) fn assert_not_generic(&self) -> compile::Result<()> {
         if let Some((span, _)) = self.parameters.iter().flatten().next() {
