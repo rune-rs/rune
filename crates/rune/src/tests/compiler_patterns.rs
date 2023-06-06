@@ -4,7 +4,7 @@ use CompileErrorKind::*;
 
 #[test]
 fn illegal_pattern_in_match() {
-    assert_compile_error! {
+    assert_errors! {
         r#"
         struct Foo { bar, baz }
 
@@ -12,13 +12,12 @@ fn illegal_pattern_in_match() {
             match () { Foo { } => {} }
         }
         "#,
-        span, PatternMissingFields { fields, .. } => {
+        span!(81, 88), PatternMissingFields { fields, .. } => {
             assert_eq!(&fields[..], [Box::from("bar"), Box::from("baz")]);
-            assert_eq!(span, span!(81, 88));
         }
     };
 
-    assert_compile_error! {
+    assert_errors! {
         r#"
         struct Foo { bar, baz }
 
@@ -26,9 +25,8 @@ fn illegal_pattern_in_match() {
             match () { Foo { bar } => {} }
         }
         "#,
-        span, PatternMissingFields { fields, .. } => {
+        span!(81, 92), PatternMissingFields { fields, .. } => {
             assert_eq!(&fields[..], [Box::from("baz")]);
-            assert_eq!(span, span!(81, 92));
         }
     };
 }

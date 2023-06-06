@@ -14,32 +14,24 @@ fn test_number_literals() {
         r#"pub fn main() { 0b0111111111111111111111111111111111111111111111111111111111111111 }"#
     );
 
-    assert_compile_error! {
+    assert_errors! {
         r#"pub fn main() { -0aardvark }"#,
-        span, ResolveError(BadNumberLiteral { .. }) => {
-            assert_eq!(span, span!(17, 26));
-        }
+        span!(17, 26), ResolveError(BadNumberLiteral { .. })
     };
 
-    assert_compile_error! {
+    assert_errors! {
         r#"pub fn main() { -9223372036854775809 }"#,
-        span, ParseError(BadNumberOutOfBounds { .. }) => {
-            assert_eq!(span, span!(16, 36));
-        }
+        span!(16, 36), ParseError(BadNumberOutOfBounds { .. })
     };
 
     assert_parse!(r#"pub fn main() { 9223372036854775807 }"#);
-    assert_compile_error! {
+    assert_errors! {
         r#"pub fn main() { 9223372036854775808 }"#,
-        span, ParseError(BadNumberOutOfBounds { .. }) => {
-            assert_eq!(span, span!(16, 35));
-        }
+        span!(16, 35), ParseError(BadNumberOutOfBounds { .. })
     };
 
-    assert_compile_error! {
+    assert_errors! {
         r#"pub fn main() { 0b1000000000000000000000000000000000000000000000000000000000000000 }"#,
-        span, ParseError(BadNumberOutOfBounds { .. }) => {
-            assert_eq!(span, span!(16, 82));
-        }
+        span!(16, 82), ParseError(BadNumberOutOfBounds { .. })
     };
 }

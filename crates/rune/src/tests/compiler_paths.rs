@@ -57,18 +57,14 @@ fn test_super_use() {
 
 #[test]
 fn test_unsupported_leading_path() {
-    assert_compile_error! {
+    assert_errors! {
         r#"use foo::crate::bar;"#,
-        span, ExpectedLeadingPathSegment => {
-            assert_eq!(span, span!(9, 14));
-        }
+        span!(9, 14), ExpectedLeadingPathSegment
     };
 
-    assert_compile_error! {
+    assert_errors! {
         r#"use foo::{bar::crate, baz};"#,
-        span, ExpectedLeadingPathSegment => {
-            assert_eq!(span, span!(15, 20));
-        }
+        span!(15, 20), ExpectedLeadingPathSegment
     };
 }
 
@@ -76,8 +72,6 @@ fn test_unsupported_leading_path() {
 fn test_import_conflict() {
     assert_errors! {
         r#"use std::{option, option};"#,
-        span, QueryError(AmbiguousItem { .. }) => {
-            assert_eq!(span, span!(10, 16));
-        }
+        span!(10, 16), QueryError(AmbiguousItem { .. })
     };
 }

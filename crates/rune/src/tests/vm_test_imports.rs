@@ -61,14 +61,12 @@ fn test_access() {
         pub fn main() { b::test() }
     });
 
-    assert_compile_error! {
+    assert_errors! {
         r#"
         mod a { struct Test; }
         mod c { use a; fn test() { a::Test } }
         pub fn main() { c::test() }
         "#,
-        span, CompileErrorKind::QueryError(NotVisible { .. }) => {
-            assert_eq!(span, span!(103, 110));
-        }
+        span!(103, 110), CompileErrorKind::QueryError(NotVisible { .. })
     };
 }

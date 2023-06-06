@@ -5,7 +5,7 @@ use QueryErrorKind::*;
 
 #[test]
 fn test_import_cycle() {
-    assert_compile_error! {
+    assert_errors! {
         r#"
         mod a {
             pub mod c { pub use super::b::Bar as Baz; }
@@ -19,29 +19,26 @@ fn test_import_cycle() {
             Foo
         }             
         "#,
-        span, QueryError(ImportCycle { .. }) => {
-            assert_eq!(span, span!(244, 247));
-        }
+        span!(244, 247), QueryError(ImportCycle { .. })
     };
 
-    assert_compile_error! {
+    assert_errors! {
         r#"
         mod b {
             pub use super::a::Foo;
         }
-        
+
         mod a {
             pub use super::b::Foo;
         }
-        
+
         pub fn main() {
             a::Foo
         }           
         "#,
-        span, QueryError(ImportCycle { path, .. }) => {
-            assert_eq!(span, span!(177, 183));
+        span!(161, 167), QueryError(ImportCycle { path, .. }) => {
             assert_eq!(3, path.len());
-            assert_eq!(span!(107, 120), path[0].location.span);
+            assert_eq!(span!(99, 112), path[0].location.span);
             assert_eq!(span!(37, 50), path[1].location.span);
         }
     };

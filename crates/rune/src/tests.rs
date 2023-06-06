@@ -163,6 +163,18 @@ where
     }
 }
 
+/// Generate an expectation panic.
+macro_rules! expected {
+    ($name:literal, $expected:pat, $actual:expr) => {
+        panic!(
+            "Did not get expected {}\nExpected: {}\n  Actual: {:?}",
+            $name,
+            stringify!($expected),
+            $actual
+        )
+    };
+}
+
 /// Same as [rune_s!] macro, except it takes a Rust token tree. This works
 /// fairly well because Rust and Rune has very similar token trees.
 macro_rules! rune {
@@ -206,22 +218,22 @@ macro_rules! assert_vm_error {
         let mut sources = $crate::tests::sources($source);
         let e = match $crate::tests::run_helper::<_, _, $ty>(&context, &mut sources, &mut diagnostics, ["main"], ()) {
             Err(e) => e,
-            Ok(value) => {
-                panic!("Expected error but program completed with: {:?}", value);
+            actual => {
+                expected!("program error", Err(e), actual)
             }
         };
 
         let e = match e {
             $crate::tests::RunError::VmError(e) => e,
             actual => {
-                panic!("Expected vm error `{}` but was `{:?}`", stringify!($pat), actual);
+                expected!("vm error", VmError(e), actual)
             }
         };
 
         match e.into_kind() {
             $pat => $cond,
             actual => {
-                panic!("Expected error `{}` but was `{:?}`", stringify!($pat), actual);
+                expected!("error", $pat, actual)
             }
         }
     }};
@@ -237,7 +249,7 @@ macro_rules! assert_parse {
 
 /// Assert that the given rune program raises a query error.
 macro_rules! assert_errors {
-    ($source:expr, $span:ident, $($pat:pat => $cond:expr),+ $(,)?) => {{
+    ($source:expr, $span:pat, $($pat:pat $(=> $cond:expr)?),+ $(,)?) => {{
         let mut diagnostics = Default::default();
         let _ = $crate::tests::compile_helper($source, &mut diagnostics).unwrap_err();
 
@@ -246,46 +258,40 @@ macro_rules! assert_errors {
         $(
             let e = match it.next().expect("expected error") {
                 rune::diagnostics::Diagnostic::Fatal(e) => e,
-                kind => {
-                    panic!(
-                        "expected diagnostic error `{}` but was `{:?}`",
-                        stringify!($pat),
-                        kind
-                    );
+                actual => {
+                    expected!("fatal diagnostic", Fatal(e), actual)
                 }
             };
 
             let e = match e.into_kind() {
                 rune::diagnostics::FatalDiagnosticKind::CompileError(e) => (e),
-                kind => {
-                    panic!("Expected CompileError but was `{:?}`", kind);
+                actual => {
+                    expected!("compile error", CompileError(e), actual)
                 }
             };
 
-            let $span = rune::ast::Spanned::span(&e);
+            let span = rune::ast::Spanned::span(&e);
+
+            #[allow(irrefutable_let_patterns)]
+            let $span = span else {
+                expected!("span", $span, span)
+            };
 
             match e.into_kind() {
-                $pat => $cond,
+                $pat => {$($cond)*},
                 #[allow(unreachable_patterns)]
-                kind => {
-                    panic!("expected error `{}` but was `{:?}`", stringify!($pat), kind);
+                actual => {
+                    expected!("error", $pat, actual)
                 }
             }
         )+
     }};
 }
 
-/// Assert that the given rune program raises a compile error.
-macro_rules! assert_compile_error {
-    ($source:expr, $span:ident, $pat:pat => $cond:expr) => {{
-        assert_errors!($source, $span, $pat => $cond)
-    }};
-}
-
 /// Assert that the given rune program parses, but raises the specified set of
 /// warnings.
 macro_rules! assert_warnings {
-    ($source:expr $(, $pat:pat => $cond:expr)*) => {{
+    ($source:expr, $span:pat $(, $pat:pat $(=> $cond:expr)?)*) => {{
         let mut diagnostics = Default::default();
         let _ = $crate::tests::compile_helper($source, &mut diagnostics).expect("source should compile");
         assert!(diagnostics.has_warning(), "no warnings produced");
@@ -297,19 +303,22 @@ macro_rules! assert_warnings {
 
             let warning = match warning {
                 rune::diagnostics::Diagnostic::Warning(warning) => warning,
-                kind => {
-                    panic!(
-                        "expected diagnostic warning `{}` but was `{:?}`",
-                        stringify!($pat),
-                        kind
-                    );
+                actual => {
+                    expected!("warning diagnostic", $pat, actual)
                 }
             };
 
+            let span = rune::ast::Spanned::span(&warning);
+
+            #[allow(irrefutable_let_patterns)]
+            let $span = span else {
+                expected!("span", $span, span)
+            };
+
             match warning.into_kind() {
-                $pat => ($cond),
-                warning => {
-                    panic!("expected warning `{}` but was `{:?}`", stringify!($pat), warning);
+                $pat => {$($cond)*},
+                actual => {
+                    expected!("warning", $pat, actual)
                 }
             }
         )*
@@ -337,6 +346,7 @@ macro_rules! prelude {
     };
 }
 
+mod attribute;
 mod binary;
 mod bug_326;
 mod bug_344;
@@ -359,29 +369,28 @@ mod compiler_patterns;
 mod compiler_use;
 mod compiler_visibility;
 mod compiler_warnings;
+mod continue_;
 mod core_macros;
 mod custom_macros;
 mod destructuring;
 mod external_ops;
+mod float;
 mod for_loop;
 mod generics;
 mod getter_setter;
 mod instance;
+mod int;
+mod iter;
 mod iterator;
 mod match_external;
 mod moved;
+mod option;
 mod patterns;
+mod quote;
+mod range;
 mod reference_error;
+mod result;
 mod stmt_reordering;
-mod test_attribute;
-mod test_continue;
-mod test_float;
-mod test_int;
-mod test_iter;
-mod test_option;
-mod test_quote;
-mod test_range;
-mod test_result;
 mod type_name_native;
 mod type_name_rune;
 mod unit_constants;

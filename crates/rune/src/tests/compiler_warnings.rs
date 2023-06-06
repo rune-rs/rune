@@ -6,9 +6,7 @@ use diagnostics::WarningDiagnosticKind::*;
 fn test_let_pattern_might_panic() {
     assert_warnings! {
         r#"pub fn main() { let [0, 1, 3] = []; }"#,
-        LetPatternMightPanic { span, .. } => {
-            assert_eq!(span, span!(16, 35));
-        }
+        span!(16, 35), LetPatternMightPanic { context: Some(span!(14, 37)), .. }
     };
 }
 
@@ -16,9 +14,7 @@ fn test_let_pattern_might_panic() {
 fn test_template_without_variables() {
     assert_warnings! {
         r#"pub fn main() { `Hello World` }"#,
-        TemplateWithoutExpansions { span, .. } => {
-            assert_eq!(span, span!(16, 29));
-        }
+        span!(16, 29), TemplateWithoutExpansions { context: Some(span!(14, 31)), .. }
     };
 }
 
@@ -26,8 +22,6 @@ fn test_template_without_variables() {
 fn test_remove_variant_parens() {
     assert_warnings! {
         r#"pub fn main() { None() }"#,
-        RemoveTupleCallParams { span, .. } => {
-            assert_eq!(span, span!(16, 22));
-        }
+        span!(16, 22), RemoveTupleCallParams { variant: span!(16, 20), .. }
     };
 }

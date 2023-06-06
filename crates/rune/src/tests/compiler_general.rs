@@ -4,10 +4,9 @@ use CompileErrorKind::*;
 
 #[test]
 fn test_use_variant_as_type() {
-    assert_compile_error! {
+    assert_errors! {
         r#"pub fn main() { Err(0) is Err }"#,
-        span, ExpectedMeta { meta, .. } => {
-            assert_eq!(span, span!(26, 29));
+        span!(26, 29), ExpectedMeta { meta, .. } => {
             assert_eq!(meta.to_string(), "variant ::std::result::Result::Err");
         }
     };
@@ -15,21 +14,17 @@ fn test_use_variant_as_type() {
 
 #[test]
 fn break_outside_of_loop() {
-    assert_compile_error! {
+    assert_errors! {
         r#"pub fn main() { break; }"#,
-        span, BreakOutsideOfLoop => {
-            assert_eq!(span, span!(16, 21));
-        }
+        span!(16, 21), BreakOutsideOfLoop
     };
 }
 
 #[test]
 fn test_pointers() {
-    assert_compile_error! {
+    assert_errors! {
         r#"pub fn main() { let n = 0; foo(&n); } fn foo(n) {}"#,
-        span, UnsupportedRef => {
-            assert_eq!(span, span!(31, 33));
-        }
+        span!(31, 33), UnsupportedRef
     };
 }
 
@@ -41,49 +36,35 @@ fn test_template_strings() {
 
 #[test]
 fn test_wrong_arguments() {
-    assert_compile_error! {
+    assert_errors! {
         r#"pub fn main() { Some(1, 2) }"#,
-        span, UnsupportedArgumentCount { expected, actual, .. } => {
-            assert_eq!(span, span!(16, 26));
-            assert_eq!(expected, 1);
-            assert_eq!(actual, 2);
-        }
+        span!(16, 26), UnsupportedArgumentCount { expected: 1, actual: 2, .. }
     };
 
-    assert_compile_error! {
+    assert_errors! {
         r#"pub fn main() { None(1) }"#,
-        span, UnsupportedArgumentCount { expected, actual, .. } => {
-            assert_eq!(span, span!(16, 23));
-            assert_eq!(expected, 0);
-            assert_eq!(actual, 1);
-        }
+        span!(16, 23), UnsupportedArgumentCount { expected: 0, actual: 1, .. }
     };
 }
 
 #[test]
 fn test_bad_struct_declaration() {
-    assert_compile_error! {
+    assert_errors! {
         r#"struct Foo { a, b } pub fn main() { Foo { a: 12 } }"#,
-        span, LitObjectMissingField { field, .. } => {
-            assert_eq!(span, span!(36, 49));
+        span!(36, 49), LitObjectMissingField { field, .. } => {
             assert_eq!(field.as_ref(), "b");
         }
     };
 
-    assert_compile_error! {
+    assert_errors! {
         r#"struct Foo { a, b } pub fn main() { Foo { not_field: 12 } }"#,
-        span, LitObjectNotField { field, .. } => {
-            assert_eq!(span, span!(42, 51));
+        span!(42, 51), LitObjectNotField { field, .. } => {
             assert_eq!(field.as_ref(), "not_field");
         }
     };
 
-    assert_compile_error! {
+    assert_errors! {
         r#"pub fn main() { None(1) }"#,
-        span, UnsupportedArgumentCount { expected, actual, .. } => {
-            assert_eq!(span, span!(16, 23));
-            assert_eq!(expected, 0);
-            assert_eq!(actual, 1);
-        }
+        span!(16, 23), UnsupportedArgumentCount { expected: 0, actual: 1, .. }
     };
 }

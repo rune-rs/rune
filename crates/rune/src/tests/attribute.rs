@@ -25,7 +25,7 @@ fn basic_use() {
 // We prevent tests from being declared inside of nested items at compile time.
 #[test]
 fn deny_nested_use() {
-    assert_compile_error! {
+    assert_errors! {
         r#"
         fn function() {
             #[test]
@@ -40,7 +40,7 @@ fn deny_nested_use() {
         }
     }
 
-    assert_compile_error! {
+    assert_errors! {
         r#"
         const ITEM = {
             #[test]
@@ -49,17 +49,14 @@ fn deny_nested_use() {
             }
         };
         "#,
-        span, NestedTest { nested_span } => {
-            assert_eq!(span, span!(36, 68));
-            assert_eq!(nested_span, span!(9, 19));
-        }
+        span!(36, 68), NestedTest { nested_span: span!(9, 19) }
     }
 }
 
 // We prevent tests from being declared inside of nested items at compile time.
 #[test]
 fn deny_nested_bench() {
-    assert_compile_error! {
+    assert_errors! {
         r#"
         fn function() {
             #[bench]
@@ -68,13 +65,10 @@ fn deny_nested_bench() {
             }
         }
         "#,
-        span, NestedBench { nested_span } => {
-            assert_eq!(span, span!(37, 71));
-            assert_eq!(nested_span, span!(9, 22));
-        }
+        span!(37, 71), NestedBench { nested_span: span!(9, 22) }
     }
 
-    assert_compile_error! {
+    assert_errors! {
         r#"
         const ITEM = {
             #[bench]
@@ -83,9 +77,6 @@ fn deny_nested_bench() {
             }
         };
         "#,
-        span, NestedBench { nested_span } => {
-            assert_eq!(span, span!(36, 70));
-            assert_eq!(nested_span, span!(9, 19));
-        }
+        span!(36, 70), NestedBench { nested_span: span!(9, 19) }
     }
 }
