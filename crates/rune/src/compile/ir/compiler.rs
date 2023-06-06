@@ -95,17 +95,10 @@ pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut IrCompiler<'_>) -> compile::Resu
         hir::ExprKind::Path(hir) => path(hir, c)?,
         hir::ExprKind::FieldAccess(..) => ir::Ir::new(span, c.ir_target(hir)?),
         hir::ExprKind::Break(hir) => ir::Ir::new(span, ir::IrBreak::compile_ast(span, c, hir)?),
-        hir::ExprKind::MacroCall(macro_call) => match macro_call {
-            hir::MacroCall::Template(template) => {
-                let ir_template = builtin_template(template, c)?;
-                ir::Ir::new(hir.span(), ir_template)
-            }
-            hir::MacroCall::File(file) => lit(span, c, file.value)?,
-            hir::MacroCall::Line(line) => lit(span, c, line.value)?,
-            _ => {
-                return Err(compile::Error::msg(hir, "unsupported builtin macro"));
-            }
-        },
+        hir::ExprKind::Template(template) => {
+            let ir_template = builtin_template(template, c)?;
+            ir::Ir::new(hir.span(), ir_template)
+        }
         _ => return Err(compile::Error::msg(hir, "not supported yet")),
     })
 }
@@ -282,21 +275,21 @@ fn expr_object(
     let mut assignments = Vec::new();
 
     for assign in hir.assignments {
-        let key = c.resolve(assign.key)?.into_owned().into_boxed_str();
+        let (span, key) = assign.key;
 
         let ir = if let Some(e) = assign.assign {
             expr(e, c)?
         } else {
             ir::Ir::new(
-                assign,
+                span,
                 ir::IrKind::Target(ir::IrTarget {
-                    span: assign.span(),
-                    kind: ir::IrTargetKind::Name(key.clone()),
+                    span,
+                    kind: ir::IrTargetKind::Name(key.into()),
                 }),
             )
         };
 
-        assignments.push((key, ir))
+        assignments.push((key.into(), ir))
     }
 
     Ok(ir::IrObject {
