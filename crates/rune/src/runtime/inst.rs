@@ -1552,30 +1552,30 @@ fn display_array<T>(array: &[T]) -> impl fmt::Display + '_
 where
     T: fmt::Display,
 {
-    DisplayArray(array)
-}
+    struct Display<'a, T>(&'a [T]);
 
-struct DisplayArray<'a, T>(&'a [T]);
+    impl<T> fmt::Display for Display<'_, T>
+    where
+        T: fmt::Display,
+    {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            let mut it = self.0.iter();
 
-impl<T> fmt::Display for DisplayArray<'_, T>
-where
-    T: fmt::Display,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut it = self.0.iter();
+            write!(f, "[")?;
+            let last = it.next_back();
 
-        write!(f, "[")?;
-        let last = it.next_back();
+            for value in it {
+                write!(f, "{value}, ")?;
+            }
 
-        for value in it {
-            write!(f, "{value}, ")?;
+            if let Some(last) = last {
+                last.fmt(f)?;
+            }
+
+            write!(f, "]")?;
+            Ok(())
         }
-
-        if let Some(last) = last {
-            last.fmt(f)?;
-        }
-
-        write!(f, "]")?;
-        Ok(())
     }
+
+    Display(array)
 }
