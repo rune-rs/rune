@@ -108,20 +108,17 @@ fn for_continue() {
 
 #[test]
 fn test_continue_not_in_loop() {
-    assert_compile_error! {
+    assert_errors! {
         r#"pub fn main() { continue }"#,
-        span, ContinueOutsideOfLoop => {
-            assert_eq!(span, span!(16, 24));
-        }
+        span!(16, 24), ContinueOutsideOfLoop
     };
 }
 
 #[test]
 fn test_continue_missing_label() {
-    assert_compile_error! {
+    assert_errors! {
         r#"pub fn main() { 'existing: loop { loop { continue 'missing; } } }"#,
-        span, MissingLoopLabel { label } => {
-            assert_eq!(span, span!(50, 58));
+        span!(50, 58), MissingLoopLabel { label } => {
             assert_eq!(&*label, "missing");
         }
     };

@@ -4,17 +4,13 @@ use CompileErrorKind::*;
 
 #[test]
 fn test_fn_const_async() {
-    assert_compile_error! {
+    assert_errors! {
         r#"pub const async fn main() {}"#,
-        span, FnConstAsyncConflict => {
-            assert_eq!(span, span!(4, 15));
-        }
+        span!(4, 15), FnConstAsyncConflict
     };
 
-    assert_compile_error! {
+    assert_errors! {
         r#"pub const fn main() { yield true }"#,
-        span, FnConstNotGenerator => {
-            assert_eq!(span, span!(0, 34));
-        }
+        span!(0, 34), FnConstNotGenerator
     };
 }

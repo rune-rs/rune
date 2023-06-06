@@ -26,7 +26,7 @@ fn test_working_visibility() {
 
 #[test]
 fn test_access_hidden() {
-    assert_compile_error! {
+    assert_errors! {
         r#"
         mod a {
             pub struct Foo;
@@ -50,7 +50,7 @@ fn test_access_hidden() {
 
 #[test]
 fn test_hidden_reexport() {
-    assert_compile_error! {
+    assert_errors! {
         r#"
         mod a { struct Foo; }
 
