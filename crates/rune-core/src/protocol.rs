@@ -424,8 +424,8 @@ impl Protocol {
         /// it should return `Result<T, Result<(), E>>`
         pub const TRY: Protocol = Protocol {
             name: "try",
-            hash: 0xe44ad51ace6f0cd6,
-            repr: None,
+            hash: 0x5da1a80787003354,
+            repr: Some("value?"),
             doc: ["Allows the `?` operator to apply to values of this type."],
         };
     }
