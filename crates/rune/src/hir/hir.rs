@@ -1,11 +1,8 @@
 use core::num::NonZeroUsize;
 
-use crate::no_std::borrow::Cow;
-
 use crate as rune;
 use crate::ast::{self, Span, Spanned};
-use crate::compile;
-use crate::parse::{Expectation, Id, IntoExpectation, Opaque, Resolve, ResolveContext};
+use crate::parse::{Expectation, Id, IntoExpectation, Opaque};
 use crate::runtime::format;
 
 /// Visibility level restricted to some path: pub(self) or pub(super) or pub(crate) or pub(in some::module).
@@ -77,7 +74,7 @@ pub(crate) struct PatItems<'hir> {
 #[non_exhaustive]
 pub(crate) struct PatBinding<'hir> {
     /// The key of an object.
-    pub(crate) key: &'hir ObjectKey<'hir>,
+    pub(crate) key: (Span, &'hir str),
     /// What the binding is to.
     pub(crate) pat: &'hir Pat<'hir>,
 }
@@ -137,24 +134,8 @@ pub(crate) enum ExprKind<'hir> {
     Vec(&'hir ExprSeq<'hir>),
     Range(&'hir ExprRange<'hir>),
     Group(&'hir Expr<'hir>),
-    MacroCall(&'hir MacroCall<'hir>),
-}
-
-/// A deferred macro call.
-///
-/// This is used to propagate information on built-in macros to the assembly
-/// phase of the compilation.
-#[derive(Debug, Clone, Copy, PartialEq, Spanned)]
-#[non_exhaustive]
-pub(crate) enum MacroCall<'hir> {
-    /// The built-in template macro.
     Template(&'hir BuiltInTemplate<'hir>),
-    /// The built-in format macro.
     Format(&'hir BuiltInFormat<'hir>),
-    /// The built-in file! macro.
-    File(&'hir BuiltInFile<'hir>),
-    /// The built-in line! macro.
-    Line(&'hir BuiltInLine<'hir>),
 }
 
 /// An internally resolved template.
@@ -481,43 +462,13 @@ pub(crate) struct ExprObject<'hir> {
 }
 
 /// A single field assignment in an object expression.
-#[derive(Debug, Clone, Copy, PartialEq, Spanned)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[non_exhaustive]
 pub(crate) struct FieldAssign<'hir> {
-    /// Span of the field assignment.
-    #[rune(span)]
-    pub(crate) span: Span,
     /// The key of the field.
-    pub(crate) key: &'hir ObjectKey<'hir>,
+    pub(crate) key: (Span, &'hir str),
     /// The assigned expression of the field.
     pub(crate) assign: Option<&'hir Expr<'hir>>,
-}
-
-/// Possible literal object keys.
-#[derive(Debug, Clone, Copy, PartialEq, Spanned)]
-#[non_exhaustive]
-pub(crate) enum ObjectKey<'hir> {
-    /// A literal string (with escapes).
-    LitStr(&'hir ast::LitStr),
-    /// A path, usually an identifier.
-    Path(&'hir Path<'hir>),
-}
-
-impl<'a, 'hir> Resolve<'a> for ObjectKey<'hir> {
-    type Output = Cow<'a, str>;
-
-    fn resolve(&self, ctx: ResolveContext<'a>) -> compile::Result<Self::Output> {
-        Ok(match *self {
-            Self::LitStr(lit_str) => lit_str.resolve(ctx)?,
-            Self::Path(path) => {
-                let Some(ident) = path.try_as_ident() else {
-                    return Err(compile::Error::expected(path, "object key"));
-                };
-
-                Cow::Borrowed(ident.resolve(ctx)?)
-            }
-        })
-    }
 }
 
 /// A literal vector.

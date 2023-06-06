@@ -630,17 +630,12 @@ fn pat_object(
 
     for pat in hir.items.iter().take(hir.count) {
         let span = pat.span();
-        let cow_key;
 
-        let key = match pat.kind {
+        let (span, key) = match pat.kind {
             hir::PatKind::PatBinding(binding) => {
-                cow_key = binding.key.resolve(resolve_context!(c.q))?;
-                bindings.push(Binding::Binding(
-                    pat.span(),
-                    cow_key.as_ref().into(),
-                    binding.pat,
-                ));
-                cow_key.as_ref()
+                let (span, key) = binding.key;
+                bindings.push(Binding::Binding(span, key, binding.pat));
+                binding.key
             }
             hir::PatKind::PatPath(path) => {
                 let Some(ident) = path.try_as_ident() else {
@@ -652,7 +647,7 @@ fn pat_object(
 
                 let key = ident.resolve(resolve_context!(c.q))?;
                 bindings.push(Binding::Ident(pat.span(), key.into()));
-                key
+                (ident.span(), key)
             }
             _ => {
                 return Err(compile::Error::new(
@@ -770,7 +765,7 @@ fn pat_object(
     return Ok(());
 
     enum Binding<'hir> {
-        Binding(Span, Box<str>, &'hir hir::Pat<'hir>),
+        Binding(Span, &'hir str, &'hir hir::Pat<'hir>),
         Ident(Span, Box<str>),
     }
 
@@ -784,8 +779,8 @@ fn pat_object(
 
         fn key(&self) -> &str {
             match self {
-                Self::Binding(_, key, _) => key.as_ref(),
-                Self::Ident(_, key) => key.as_ref(),
+                Self::Binding(_, key, _) => key,
+                Self::Ident(_, key) => key,
             }
         }
     }
@@ -1135,12 +1130,8 @@ fn expr(hir: &hir::Expr<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Re
         hir::ExprKind::Vec(hir) => expr_vec(span, c, hir, needs)?,
         hir::ExprKind::Object(hir) => expr_object(span, c, hir, needs)?,
         hir::ExprKind::Range(hir) => expr_range(span, c, hir, needs)?,
-        hir::ExprKind::MacroCall(macro_call) => match macro_call {
-            hir::MacroCall::Template(template) => builtin_template(template, c, needs)?,
-            hir::MacroCall::Format(format) => builtin_format(format, c, needs)?,
-            hir::MacroCall::Line(line) => lit(line.span, c, line.value, needs)?,
-            hir::MacroCall::File(file) => lit(file.span, c, file.value, needs)?,
-        },
+        hir::ExprKind::Template(template) => builtin_template(template, c, needs)?,
+        hir::ExprKind::Format(format) => builtin_format(format, c, needs)?,
     };
 
     Ok(asm)
@@ -2521,17 +2512,16 @@ fn expr_object(
 ) -> compile::Result<Asm> {
     let guard = c.scopes.push_child(span)?;
 
-    let mut keys = Vec::<Box<str>>::new();
+    let mut keys = Vec::<&str>::new();
     let mut check_keys = Vec::new();
     let mut keys_dup = HashMap::new();
 
     for assign in hir.assignments {
-        let span = assign.span();
-        let key = assign.key.resolve(resolve_context!(c.q))?;
-        keys.push(key.as_ref().into());
-        check_keys.push((key.as_ref().into(), assign.key.span()));
+        let (span, key) = assign.key;
+        keys.push(key);
+        check_keys.push((key, span));
 
-        if let Some(existing) = keys_dup.insert(key.into_owned(), span) {
+        if let Some(existing) = keys_dup.insert(key, span) {
             return Err(compile::Error::new(
                 span,
                 CompileErrorKind::DuplicateObjectKey {
@@ -2543,16 +2533,12 @@ fn expr_object(
     }
 
     for assign in hir.assignments {
-        let span = assign.span();
+        let (span, key) = assign.key;
 
         if let Some(e) = assign.assign {
             expr(e, c, Needs::Value)?.apply(c)?;
         } else {
-            let key = assign.key.resolve(resolve_context!(c.q))?;
-            let var = c
-                .scopes
-                .get_var(c.q.visitor, key.as_ref(), c.source_id, span)?;
-            let key = key.clone().into_owned();
+            let var = c.scopes.get_var(c.q.visitor, key, c.source_id, span)?;
             var.copy(c, span, format_args!("name `{}`", key));
         }
 
@@ -2622,18 +2608,18 @@ fn expr_object(
 
     fn check_object_fields(
         fields: &HashSet<Box<str>>,
-        check_keys: Vec<(Box<str>, Span)>,
+        check_keys: Vec<(&str, Span)>,
         span: Span,
         item: &Item,
     ) -> compile::Result<()> {
         let mut fields = fields.clone();
 
         for (field, span) in check_keys {
-            if !fields.remove(&field) {
+            if !fields.remove(field) {
                 return Err(compile::Error::new(
                     span,
                     CompileErrorKind::LitObjectNotField {
-                        field,
+                        field: field.into(),
                         item: item.to_owned(),
                     },
                 ));
