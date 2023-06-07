@@ -9,24 +9,24 @@ use rune_macros::instrument;
 #[instrument]
 pub(crate) fn pat(ast: &mut ast::Pat, idx: &mut Indexer<'_>) -> compile::Result<()> {
     match ast {
-        ast::Pat::PatPath(p) => {
+        ast::Pat::Path(p) => {
             pat_path(p, idx)?;
         }
-        ast::Pat::PatObject(p) => {
+        ast::Pat::Object(p) => {
             pat_object(p, idx)?;
         }
-        ast::Pat::PatVec(p) => {
+        ast::Pat::Vec(p) => {
             pat_vec(p, idx)?;
         }
-        ast::Pat::PatTuple(p) => {
+        ast::Pat::Tuple(p) => {
             pat_tuple(p, idx)?;
         }
-        ast::Pat::PatBinding(p) => {
+        ast::Pat::Binding(p) => {
             pat_binding(p, idx)?;
         }
-        ast::Pat::PatIgnore(..) => (),
-        ast::Pat::PatLit(..) => (),
-        ast::Pat::PatRest(..) => (),
+        ast::Pat::Ignore(..) => (),
+        ast::Pat::Lit(..) => (),
+        ast::Pat::Rest(..) => (),
     }
 
     Ok(())

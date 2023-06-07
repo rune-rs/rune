@@ -1036,7 +1036,7 @@ fn declare(ast: &mut ast::Ident, idx: &mut Indexer<'_>) -> compile::Result<()> {
 #[instrument]
 fn pat(ast: &mut ast::Pat, idx: &mut Indexer<'_>, is_used: IsUsed) -> compile::Result<()> {
     match ast {
-        ast::Pat::PatPath(pat) => {
+        ast::Pat::Path(pat) => {
             path(&mut pat.path, idx, is_used)?;
 
             if let Some(i) = pat.path.try_as_ident_mut() {
@@ -1044,21 +1044,21 @@ fn pat(ast: &mut ast::Pat, idx: &mut Indexer<'_>, is_used: IsUsed) -> compile::R
                 declare(i, idx)?;
             }
         }
-        ast::Pat::PatObject(pat) => {
+        ast::Pat::Object(pat) => {
             pat_object(pat, idx)?;
         }
-        ast::Pat::PatVec(pat) => {
+        ast::Pat::Vec(pat) => {
             pat_vec(pat, idx)?;
         }
-        ast::Pat::PatTuple(pat) => {
+        ast::Pat::Tuple(pat) => {
             pat_tuple(pat, idx)?;
         }
-        ast::Pat::PatBinding(pat) => {
+        ast::Pat::Binding(pat) => {
             pat_binding(pat, idx)?;
         }
-        ast::Pat::PatIgnore(..) => (),
-        ast::Pat::PatLit(..) => (),
-        ast::Pat::PatRest(..) => (),
+        ast::Pat::Ignore(..) => (),
+        ast::Pat::Lit(..) => (),
+        ast::Pat::Rest(..) => (),
     }
 
     Ok(())

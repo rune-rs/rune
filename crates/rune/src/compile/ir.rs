@@ -195,7 +195,7 @@ impl IrFn {
 
         for arg in hir.args {
             if let hir::FnArg::Pat(hir::Pat {
-                kind: hir::PatKind::PatPath(&hir::PatPathKind::Ident(ident)),
+                kind: hir::PatKind::Path(&hir::PatPathKind::Ident(ident)),
                 ..
             }) = arg
             {
@@ -344,8 +344,8 @@ pub enum IrPat {
 impl IrPat {
     fn compile_ast(hir: &hir::Pat<'_>) -> compile::Result<Self> {
         match hir.kind {
-            hir::PatKind::PatIgnore => return Ok(ir::IrPat::Ignore),
-            hir::PatKind::PatPath(&hir::PatPathKind::Ident(ident)) => {
+            hir::PatKind::Ignore => return Ok(ir::IrPat::Ignore),
+            hir::PatKind::Path(&hir::PatPathKind::Ident(ident)) => {
                 return Ok(ir::IrPat::Binding(ident.into()));
             }
             _ => (),

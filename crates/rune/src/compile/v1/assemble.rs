@@ -261,13 +261,13 @@ fn pat(
     let span = hir.span();
 
     match hir.kind {
-        hir::PatKind::PatIgnore => {
+        hir::PatKind::Ignore => {
             // ignore binding, but might still have side effects, so must
             // call the load generator.
             load(c, Needs::None)?;
             Ok(false)
         }
-        hir::PatKind::PatPath(kind) => match *kind {
+        hir::PatKind::Path(kind) => match *kind {
             hir::PatPathKind::Kind(kind) => {
                 load(c, Needs::Value)?;
                 c.asm.push(to_tuple_match_instruction(*kind), span);
@@ -281,16 +281,16 @@ fn pat(
                 Ok(false)
             }
         },
-        hir::PatKind::PatLit(hir) => Ok(pat_lit(hir, c, false_label, load)?),
-        hir::PatKind::PatVec(hir) => {
+        hir::PatKind::Lit(hir) => Ok(pat_lit(hir, c, false_label, load)?),
+        hir::PatKind::Vec(hir) => {
             pat_vec(span, c, hir, false_label, &load)?;
             Ok(true)
         }
-        hir::PatKind::PatTuple(hir) => {
+        hir::PatKind::Tuple(hir) => {
             pat_tuple(span, c, hir, false_label, &load)?;
             Ok(true)
         }
-        hir::PatKind::PatObject(hir) => {
+        hir::PatKind::Object(hir) => {
             pat_object(span, c, hir, false_label, &load)?;
             Ok(true)
         }
@@ -490,7 +490,7 @@ fn pat_tuple(
 
 fn to_tuple_match_instruction(kind: hir::PatItemsKind) -> Inst {
     match kind {
-        hir::PatItemsKind::Struct { hash } => Inst::MatchType { hash },
+        hir::PatItemsKind::Type { hash } => Inst::MatchType { hash },
         hir::PatItemsKind::BuiltInVariant { type_check } => Inst::MatchBuiltIn { type_check },
         hir::PatItemsKind::Variant {
             variant_hash,
@@ -531,7 +531,7 @@ fn pat_object(
     }
 
     let inst = match hir.kind {
-        hir::PatItemsKind::Struct { hash } => Inst::MatchType { hash },
+        hir::PatItemsKind::Type { hash } => Inst::MatchType { hash },
         hir::PatItemsKind::BuiltInVariant { type_check } => Inst::MatchBuiltIn { type_check },
         hir::PatItemsKind::Variant {
             variant_hash,
@@ -2649,13 +2649,13 @@ fn expr_select(
 
         'ok: {
             match branch.pat.kind {
-                hir::PatKind::PatPath(kind) => {
+                hir::PatKind::Path(kind) => {
                     if let hir::PatPathKind::Ident(ident) = *kind {
                         c.scopes.decl_var(ident, branch.pat.span())?;
                         break 'ok;
                     };
                 }
-                hir::PatKind::PatIgnore => {
+                hir::PatKind::Ignore => {
                     c.asm.push(Inst::Pop, span);
                     break 'ok;
                 }

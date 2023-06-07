@@ -391,10 +391,10 @@ fn local(hir: &hir::Local<'_>, c: &mut IrCompiler<'_>) -> compile::Result<ir::Ir
 
     let name = 'ok: {
         match hir.pat.kind {
-            hir::PatKind::PatIgnore => {
+            hir::PatKind::Ignore => {
                 return expr(hir.expr, c);
             }
-            hir::PatKind::PatPath(&hir::PatPathKind::Ident(ident)) => {
+            hir::PatKind::Path(&hir::PatPathKind::Ident(ident)) => {
                 break 'ok ident;
             }
             _ => (),

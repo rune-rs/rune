@@ -45,26 +45,26 @@ pub(crate) enum PatPathKind<'hir> {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum PatKind<'hir> {
     /// An ignored binding.
-    PatIgnore,
+    Ignore,
     /// The rest pattern `..`.
-    PatRest,
+    Rest,
     /// A path pattern.
-    PatPath(&'hir PatPathKind<'hir>),
+    Path(&'hir PatPathKind<'hir>),
     /// A literal pattern. This is represented as an expression.
-    PatLit(&'hir Expr<'hir>),
+    Lit(&'hir Expr<'hir>),
     /// A vector pattern.
-    PatVec(&'hir PatItems<'hir>),
+    Vec(&'hir PatItems<'hir>),
     /// A tuple pattern.
-    PatTuple(&'hir PatItems<'hir>),
+    Tuple(&'hir PatItems<'hir>),
     /// An object pattern.
-    PatObject(&'hir PatItems<'hir>),
+    Object(&'hir PatItems<'hir>),
     /// A binding `a: pattern` or `"foo": pattern`.
-    PatBinding(&'hir PatBinding<'hir>),
+    Binding(&'hir PatBinding<'hir>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum PatItemsKind {
-    Struct {
+    Type {
         hash: Hash,
     },
     BuiltInVariant {

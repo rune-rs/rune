@@ -532,9 +532,9 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
     Ok(hir::Pat {
         span: ast.span(),
         kind: match ast {
-            ast::Pat::PatIgnore(..) => hir::PatKind::PatIgnore,
-            ast::Pat::PatRest(..) => hir::PatKind::PatRest,
-            ast::Pat::PatPath(ast) => {
+            ast::Pat::Ignore(..) => hir::PatKind::Ignore,
+            ast::Pat::Rest(..) => hir::PatKind::Rest,
+            ast::Pat::Path(ast) => {
                 let path = path(ctx, &ast.path)?;
                 let named = ctx.q.convert_path(&path)?;
                 let parameters = generics_parameters(ctx, &named)?;
@@ -557,14 +557,14 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
                     ));
                 };
 
-                hir::PatKind::PatPath(alloc!(kind))
+                hir::PatKind::Path(alloc!(kind))
             }
-            ast::Pat::PatLit(ast) => hir::PatKind::PatLit(alloc!(expr(ctx, &ast.expr)?)),
-            ast::Pat::PatVec(ast) => {
+            ast::Pat::Lit(ast) => hir::PatKind::Lit(alloc!(expr(ctx, &ast.expr)?)),
+            ast::Pat::Vec(ast) => {
                 let items = iter!(&ast.items, |(ast, _)| pat(ctx, ast)?);
                 let (is_open, count) = pat_items_count(items)?;
 
-                hir::PatKind::PatVec(alloc!(hir::PatItems {
+                hir::PatKind::Vec(alloc!(hir::PatItems {
                     path: None,
                     kind: hir::PatItemsKind::Anonymous { count, is_open },
                     items,
@@ -573,7 +573,7 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
                     bindings: &[],
                 }))
             }
-            ast::Pat::PatTuple(ast) => {
+            ast::Pat::Tuple(ast) => {
                 let items = iter!(&ast.items, |(ast, _)| pat(ctx, ast)?);
                 let (is_open, count) = pat_items_count(items)?;
 
@@ -610,7 +610,7 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
                     hir::PatItemsKind::Anonymous { count, is_open }
                 };
 
-                hir::PatKind::PatTuple(alloc!(hir::PatItems {
+                hir::PatKind::Tuple(alloc!(hir::PatItems {
                     path,
                     kind,
                     items,
@@ -619,7 +619,7 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
                     bindings: &[],
                 }))
             }
-            ast::Pat::PatObject(ast) => {
+            ast::Pat::Object(ast) => {
                 let items = iter!(&ast.items, |(ast, _)| pat(ctx, ast)?);
                 let (is_open, count) = pat_items_count(items)?;
 
@@ -629,7 +629,7 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
                     let span = pat.span();
 
                     let (key, binding) = match pat {
-                        ast::Pat::PatBinding(binding) => {
+                        ast::Pat::Binding(binding) => {
                             let (span, key) = object_key(ctx, &binding.key)?;
                             (
                                 key,
@@ -640,7 +640,7 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
                                 ),
                             )
                         }
-                        ast::Pat::PatPath(path) => {
+                        ast::Pat::Path(path) => {
                             let Some(ident) = path.path.try_as_ident() else {
                                 return Err(compile::Error::new(
                                     path,
@@ -725,7 +725,7 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
                     None => hir::PatItemsKind::Anonymous { count, is_open },
                 };
 
-                hir::PatKind::PatObject(alloc!(hir::PatItems {
+                hir::PatKind::Object(alloc!(hir::PatItems {
                     path,
                     kind,
                     items,
@@ -734,7 +734,7 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
                     bindings,
                 }))
             }
-            ast::Pat::PatBinding(ast) => hir::PatKind::PatBinding(alloc!(hir::PatBinding {
+            ast::Pat::Binding(ast) => hir::PatKind::Binding(alloc!(hir::PatBinding {
                 key: object_key(ctx, &ast.key)?,
                 pat: alloc!(pat(ctx, &ast.pat)?),
             })),
@@ -844,14 +844,14 @@ fn pat_items_count(items: &[hir::Pat<'_>]) -> compile::Result<(bool, usize)> {
     let mut it = items.iter();
 
     let (is_open, mut count) = match it.next_back() {
-        Some(pat) => matches!(pat.kind, hir::PatKind::PatRest)
+        Some(pat) => matches!(pat.kind, hir::PatKind::Rest)
             .then(|| (true, 0))
             .unwrap_or((false, 1)),
         None => return Ok((false, 0)),
     };
 
     for pat in it {
-        if let hir::PatKind::PatRest = pat.kind {
+        if let hir::PatKind::Rest = pat.kind {
             return Err(compile::Error::new(
                 pat.span(),
                 HirErrorKind::UnsupportedPatternRest,
@@ -872,7 +872,7 @@ fn struct_match_for<'hir, 'a>(
         meta::Kind::Struct {
             fields: meta::Fields::Named(st),
             ..
-        } => (st, hir::PatItemsKind::Struct { hash: meta.hash }),
+        } => (st, hir::PatItemsKind::Type { hash: meta.hash }),
         meta::Kind::Variant {
             enum_hash,
             index,
@@ -902,11 +902,11 @@ fn tuple_match_for(ctx: &Ctx<'_, '_>, meta: &meta::Meta) -> Option<(usize, hir::
         meta::Kind::Struct {
             fields: meta::Fields::Empty,
             ..
-        } => (0, hir::PatItemsKind::Struct { hash: meta.hash }),
+        } => (0, hir::PatItemsKind::Type { hash: meta.hash }),
         meta::Kind::Struct {
             fields: meta::Fields::Unnamed(args),
             ..
-        } => (*args, hir::PatItemsKind::Struct { hash: meta.hash }),
+        } => (*args, hir::PatItemsKind::Type { hash: meta.hash }),
         meta::Kind::Variant {
             enum_hash,
             index,
