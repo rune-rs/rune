@@ -414,5 +414,19 @@ impl Protocol {
             repr: None,
             doc: ["Test if the provided argument is a variant."],
         };
+
+        /// Function used for the question mark operation.
+        ///
+        /// Signature: `fn(self) -> Result`.
+        ///
+        /// Note that it uses the `Result` like [`std::ops::Try`] uses
+        /// [`ControlFlow`](std::ops::ControlFlow) i.e., for `Result::<T, E>`
+        /// it should return `Result<T, Result<(), E>>`
+        pub const TRY: Protocol = Protocol {
+            name: "try",
+            hash: 0x5da1a80787003354,
+            repr: Some("value?"),
+            doc: ["Allows the `?` operator to apply to values of this type."],
+        };
     }
 }

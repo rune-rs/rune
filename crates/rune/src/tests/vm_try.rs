@@ -42,3 +42,34 @@ fn test_unwrap() {
     };
     assert_eq!(out, Err(3));
 }
+
+#[test]
+fn custom_try() -> Result<()> {
+    #[derive(Any)]
+    struct CustomResult(bool);
+    let mut module = Module::new();
+    module.ty::<CustomResult>()?;
+    module.associated_function(Protocol::TRY, |r: CustomResult| {
+        r.0.then_some(42).ok_or(Err::<(), _>(0))
+    })?;
+
+    assert_eq!(
+        42,
+        rune_n! {
+            &module,
+            (CustomResult(true),),
+            i64 => pub fn main(r) { r? }
+        }
+    );
+
+    assert_eq!(
+        Err(0),
+        rune_n! {
+            &module,
+            (CustomResult(false),),
+            Result<(), i64> => pub fn main(r) { r? }
+        }
+    );
+
+    Ok(())
+}

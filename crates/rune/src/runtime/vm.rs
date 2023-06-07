@@ -2373,27 +2373,41 @@ impl Vm {
     fn op_try(&mut self, address: InstAddress, clean: usize, preserve: bool) -> VmResult<bool> {
         let return_value = vm_try!(self.stack.address(address));
 
-        let unwrapped_value = match &return_value {
-            Value::Result(result) => match &*vm_try!(result.borrow_ref()) {
-                Result::Ok(value) => Some(value.clone()),
-                Result::Err(..) => None,
-            },
-            Value::Option(option) => (*vm_try!(option.borrow_ref())).clone(),
-            other => {
-                return err(VmErrorKind::UnsupportedTryOperand {
-                    actual: vm_try!(other.type_info()),
-                });
+        let result = match &return_value {
+            Value::Result(result) => {
+                let ok = match &*vm_try!(result.borrow_ref()) {
+                    Result::Ok(value) => Some(value.clone()),
+                    Result::Err(..) => None,
+                };
+                ok.ok_or(return_value)
+            }
+            Value::Option(option) => {
+                let some = (*vm_try!(option.borrow_ref())).clone();
+                some.ok_or(return_value)
+            }
+            _ => {
+                if let CallResult::Unsupported(target) =
+                    vm_try!(self.call_instance_fn(return_value, Protocol::TRY, ()))
+                {
+                    return err(VmErrorKind::UnsupportedTryOperand {
+                        actual: vm_try!(target.type_info()),
+                    });
+                }
+                vm_try!(<Result<Value, Value>>::from_value(vm_try!(self
+                    .stack
+                    .pop())))
             }
         };
 
-        if let Some(value) = unwrapped_value {
-            if preserve {
-                self.stack.push(value);
-            }
+        match result {
+            Ok(value) => {
+                if preserve {
+                    self.stack.push(value);
+                }
 
-            VmResult::Ok(false)
-        } else {
-            VmResult::Ok(vm_try!(self.op_return_internal(return_value, clean)))
+                VmResult::Ok(false)
+            }
+            Err(err) => VmResult::Ok(vm_try!(self.op_return_internal(err, clean))),
         }
     }
 
