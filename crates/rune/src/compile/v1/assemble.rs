@@ -9,7 +9,7 @@ use crate::compile::v1::{Assembler, GenericsParameters, Loop, Needs, Scope, Var}
 use crate::compile::{self, CompileErrorKind, Item, WithSpan};
 use crate::hash::ParametersBuilder;
 use crate::hir;
-use crate::parse::{Id, Resolve};
+use crate::parse::{Id, NonZeroId, Resolve};
 use crate::query::Named;
 use crate::runtime::{
     ConstValue, Inst, InstAddress, InstAssignOp, InstOp, InstRangeLimits, InstTarget, InstValue,
@@ -875,7 +875,6 @@ fn const_(
 }
 
 /// Assemble an expression.
-#[instrument]
 fn expr(hir: &hir::Expr<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Result<Asm> {
     let span = hir.span();
 
@@ -893,7 +892,7 @@ fn expr(hir: &hir::Expr<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Re
         hir::ExprKind::Break(hir) => expr_break(span, c, hir, needs)?,
         hir::ExprKind::Continue(hir) => expr_continue(span, c, hir, needs)?,
         hir::ExprKind::Yield(hir) => expr_yield(span, c, hir, needs)?,
-        hir::ExprKind::Block(hir) => expr_block(span, c, hir, needs)?,
+        hir::ExprKind::Block(hir) => block(hir, c, needs)?,
         hir::ExprKind::Return(hir) => expr_return(span, c, hir, needs)?,
         hir::ExprKind::Match(hir) => expr_match(span, c, hir, needs)?,
         hir::ExprKind::Await(hir) => expr_await(span, c, hir, needs)?,
@@ -909,6 +908,8 @@ fn expr(hir: &hir::Expr<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Re
         hir::ExprKind::Range(hir) => expr_range(span, c, hir, needs)?,
         hir::ExprKind::Template(template) => builtin_template(template, c, needs)?,
         hir::ExprKind::Format(format) => builtin_format(format, c, needs)?,
+        hir::ExprKind::AsyncBlock(hir) => expr_async_block(span, c, hir, needs)?,
+        hir::ExprKind::Const(id) => const_item(span, c, id, needs)?,
     };
 
     Ok(asm)
@@ -1239,66 +1240,55 @@ fn expr_binary(
 
 /// Assemble a block expression.
 #[instrument]
-fn expr_block(
+fn expr_async_block(
     span: Span,
     c: &mut Assembler<'_>,
-    hir: &hir::ExprBlock<'_>,
+    hir: &hir::ExprAsyncBlock<'_>,
     needs: Needs,
 ) -> compile::Result<Asm> {
-    if let hir::ExprBlockKind::Default = hir.kind {
-        return block(hir.block, c, needs);
+    for ident in hir.captures.iter().copied() {
+        if hir.do_move {
+            let var = c.scopes.take_var(c.q.visitor, ident, c.source_id, span)?;
+            var.do_move(c.asm, span, format_args!("captures `{}`", ident));
+        } else {
+            let var = c.scopes.get_var(c.q.visitor, ident, c.source_id, span)?;
+            var.copy(c, span, format_args!("captures `{}`", ident));
+        }
     }
 
-    let item = c.q.item_for(hir.block)?;
-    let meta = c.lookup_meta(span, item.item, GenericsParameters::default())?;
+    c.asm.push_with_comment(
+        Inst::Call {
+            hash: hir.hash,
+            args: hir.captures.len(),
+        },
+        span,
+        "async block",
+    );
 
-    match (hir.kind, &meta.kind) {
-        (
-            hir::ExprBlockKind::Async,
-            meta::Kind::AsyncBlock {
-                captures, do_move, ..
-            },
-        ) => {
-            let captures = captures.as_ref();
-            let do_move = *do_move;
+    if !needs.value() {
+        c.asm
+            .push_with_comment(Inst::Pop, span, "value is not needed");
+    }
 
-            for ident in captures {
-                if do_move {
-                    let var = c.scopes.take_var(c.q.visitor, ident, c.source_id, span)?;
-                    var.do_move(c.asm, span, format_args!("captures `{}`", ident));
-                } else {
-                    let var = c.scopes.get_var(c.q.visitor, ident, c.source_id, span)?;
-                    var.copy(c, span, format_args!("captures `{}`", ident));
-                }
-            }
+    Ok(Asm::top(span))
+}
 
-            let hash = c.q.pool.item_type_hash(meta.item_meta.item);
-            c.asm.push_with_comment(
-                Inst::Call {
-                    hash,
-                    args: captures.len(),
-                },
-                span,
-                meta.info(c.q.pool).to_string(),
-            );
-
-            if !needs.value() {
-                c.asm
-                    .push_with_comment(Inst::Pop, span, "value is not needed");
-            }
-        }
-        (hir::ExprBlockKind::Const, meta::Kind::Const { const_value }) => {
-            const_(span, c, const_value, needs)?;
-        }
-        _ => {
-            return Err(compile::Error::expected_meta(
-                span,
-                meta.info(c.q.pool),
-                "async or const block",
-            ));
-        }
+/// Assemble a constant item.
+#[instrument]
+fn const_item(
+    span: Span,
+    c: &mut Assembler<'_>,
+    id: NonZeroId,
+    needs: Needs,
+) -> compile::Result<Asm> {
+    let Some(const_value) = c.q.get_const_value(id).cloned() else {
+        return Err(compile::Error::msg(
+            span,
+            format_args!("missing constant value for id {}", id),
+        ));
     };
 
+    const_(span, c, &const_value, needs)?;
     Ok(Asm::top(span))
 }
 

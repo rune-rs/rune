@@ -898,8 +898,8 @@ fn expr_block(ast: &mut ast::ExprBlock, idx: &mut Indexer<'_>) -> compile::Resul
             // TODO: avoid this arena?
             let arena = crate::hir::Arena::new();
             let mut ctx = crate::hir::lowering::Ctx::new(&arena, c.q.borrow(), c.source_id);
-            let hir = crate::hir::lowering::expr_block(&mut ctx, ast)?;
-            ir::compiler::expr_block(ast.span(), c, &hir)
+            let hir = crate::hir::lowering::block(&mut ctx, &ast.block)?;
+            Ok(ir::Ir::new(ast.block.span(), ir::compiler::block(&hir, c)?))
         })?;
 
         return Ok(());

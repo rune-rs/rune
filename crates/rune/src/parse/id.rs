@@ -8,6 +8,13 @@ use core::num::NonZeroU32;
 #[repr(transparent)]
 pub struct NonZeroId(NonZeroU32);
 
+impl fmt::Display for NonZeroId {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 impl From<NonZeroU32> for NonZeroId {
     fn from(value: NonZeroU32) -> Self {
         Self(value)
@@ -41,8 +48,8 @@ impl Id {
     }
 
     /// Get the underlying identifier.
-    pub(crate) fn as_ref(&self) -> Option<&NonZeroId> {
-        self.0.as_ref()
+    pub(crate) fn get(&self) -> Option<NonZeroId> {
+        self.0
     }
 }
 

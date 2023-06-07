@@ -21,7 +21,7 @@ use crate::indexing::{self, Indexed};
 use crate::macros::Storage;
 use crate::parse::{Id, NonZeroId, Opaque, Resolve, ResolveContext};
 use crate::query::{Build, BuildEntry, BuiltInMacro, ConstFn, Named, QueryPath, Used};
-use crate::runtime::Call;
+use crate::runtime::{Call, ConstValue};
 use crate::shared::{Consts, Gen, Items};
 use crate::{Context, Hash, SourceId, Sources};
 
@@ -45,6 +45,8 @@ pub(crate) struct QueryInner {
     indexed: BTreeMap<ItemId, Vec<indexing::Entry>>,
     /// Compiled constant functions.
     const_fns: HashMap<NonZeroId, Arc<ConstFn>>,
+    /// Indexed constant values.
+    constants: HashMap<NonZeroId, ConstValue>,
     /// Query paths.
     query_paths: HashMap<NonZeroId, QueryPath>,
     /// The result of internally resolved macros.
@@ -353,8 +355,8 @@ impl<'a> Query<'a> {
 
     /// Remove a reference to the given path by id.
     pub(crate) fn remove_path_by_id(&mut self, id: Id) {
-        if let Some(id) = id.as_ref() {
-            self.inner.query_paths.remove(id);
+        if let Some(id) = id.get() {
+            self.inner.query_paths.remove(&id);
         }
     }
 
@@ -513,7 +515,7 @@ impl<'a> Query<'a> {
     where
         T: Spanned + Opaque,
     {
-        match ast.id().as_ref().and_then(|n| self.inner.items.get(n)) {
+        match ast.id().get().and_then(|n| self.inner.items.get(&n)) {
             Some(item_meta) => Ok(*item_meta),
             None => Err(compile::Error::new(
                 ast.span(),
@@ -532,8 +534,8 @@ impl<'a> Query<'a> {
     {
         match ast
             .id()
-            .as_ref()
-            .and_then(|n| self.inner.internal_macros.get(n))
+            .get()
+            .and_then(|n| self.inner.internal_macros.get(&n))
         {
             Some(internal_macro) => Ok(internal_macro.clone()),
             None => Err(compile::Error::new(
@@ -564,7 +566,7 @@ impl<'a> Query<'a> {
     where
         T: Spanned + Opaque,
     {
-        match ast.id().as_ref().and_then(|n| self.inner.const_fns.get(n)) {
+        match ast.id().get().and_then(|n| self.inner.const_fns.get(&n)) {
             Some(const_fn) => Ok(const_fn.clone()),
             None => Err(compile::Error::new(
                 ast.span(),
@@ -835,8 +837,8 @@ impl<'a> Query<'a> {
         let id = path.id();
 
         let qp = *id
-            .as_ref()
-            .and_then(|id| self.inner.query_paths.get(id))
+            .get()
+            .and_then(|id| self.inner.query_paths.get(&id))
             .ok_or_else(|| {
                 compile::Error::new(path, QueryErrorKind::MissingId { what: "path", id })
             })?;
@@ -1596,5 +1598,15 @@ impl<'a> Query<'a> {
         }
 
         Ok(())
+    }
+
+    /// Insert a constant value for the given non-zero id.
+    pub(crate) fn insert_const_value(&mut self, id: NonZeroId, value: ConstValue) {
+        self.inner.constants.insert(id, value);
+    }
+
+    /// Get a constant value.
+    pub(crate) fn get_const_value(&self, id: NonZeroId) -> Option<&ConstValue> {
+        self.inner.constants.get(&id)
     }
 }

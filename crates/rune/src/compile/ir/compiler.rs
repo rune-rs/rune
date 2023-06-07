@@ -91,7 +91,7 @@ pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut IrCompiler<'_>) -> compile::Resu
         hir::ExprKind::If(hir) => ir::Ir::new(span, expr_if(span, c, hir)?),
         hir::ExprKind::Loop(hir) => ir::Ir::new(span, expr_loop(span, c, hir)?),
         hir::ExprKind::Lit(hir) => lit(span, c, hir)?,
-        hir::ExprKind::Block(hir) => expr_block(span, c, hir)?,
+        hir::ExprKind::Block(hir) => ir::Ir::new(span, block(hir, c)?),
         hir::ExprKind::Path(hir) => path(hir, c)?,
         hir::ExprKind::FieldAccess(..) => ir::Ir::new(span, c.ir_target(hir)?),
         hir::ExprKind::Break(hir) => ir::Ir::new(span, ir::IrBreak::compile_ast(span, c, hir)?),
@@ -296,15 +296,6 @@ fn expr_object(
         span,
         assignments: assignments.into_boxed_slice(),
     })
-}
-
-#[instrument]
-pub(crate) fn expr_block(
-    span: Span,
-    c: &mut IrCompiler<'_>,
-    hir: &hir::ExprBlock<'_>,
-) -> compile::Result<ir::Ir> {
-    Ok(ir::Ir::new(span, block(hir.block, c)?))
 }
 
 #[instrument]

@@ -165,16 +165,6 @@ pub(crate) fn item_fn<'hir>(
     Ok(hir::ItemFn {
         id: ast.id,
         span: ast.span(),
-        visibility: alloc!(match &ast.visibility {
-            ast::Visibility::Inherited => hir::Visibility::Inherited,
-            ast::Visibility::Public(_) => hir::Visibility::Public,
-            ast::Visibility::Crate(_) => hir::Visibility::Crate,
-            ast::Visibility::Super(_) => hir::Visibility::Super,
-            ast::Visibility::SelfValue(_) => hir::Visibility::SelfValue,
-            ast::Visibility::In(ast) =>
-                hir::Visibility::In(alloc!(path(ctx, &ast.restriction.path)?)),
-        }),
-        name: alloc!(ast.name),
         args: iter!(&ast.args, |(ast, _)| fn_arg(ctx, ast)?),
         body: alloc!(block(ctx, &ast.body)?),
     })
@@ -300,7 +290,7 @@ pub(crate) fn expr<'hir>(
             target: alloc!(expr(ctx, &ast.target)?),
             index: alloc!(expr(ctx, &ast.index)?),
         })),
-        ast::Expr::Block(ast) => hir::ExprKind::Block(alloc!(expr_block(ctx, ast)?)),
+        ast::Expr::Block(ast) => expr_block(ctx, ast)?,
         ast::Expr::Break(ast) => {
             hir::ExprKind::Break(option!(ast.expr.as_deref(), |ast| match ast {
                 ast::ExprBreakValue::Expr(ast) =>
@@ -479,18 +469,70 @@ pub(crate) fn expr_unary<'hir>(
 pub(crate) fn expr_block<'hir>(
     ctx: &mut Ctx<'hir, '_>,
     ast: &ast::ExprBlock,
-) -> compile::Result<hir::ExprBlock<'hir>> {
+) -> compile::Result<hir::ExprKind<'hir>> {
+    /// The kind of an [ExprBlock].
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    #[non_exhaustive]
+    pub(crate) enum ExprBlockKind {
+        Default,
+        Async,
+        Const,
+    }
+
     alloc_with!(ctx, ast);
 
-    Ok(hir::ExprBlock {
-        kind: match (&ast.async_token, &ast.const_token) {
-            (Some(..), None) => hir::ExprBlockKind::Async,
-            (None, Some(..)) => hir::ExprBlockKind::Const,
-            _ => hir::ExprBlockKind::Default,
-        },
-        block_move: ast.move_token.is_some(),
-        block: alloc!(block(ctx, &ast.block)?),
-    })
+    let kind = match (&ast.async_token, &ast.const_token) {
+        (Some(..), None) => ExprBlockKind::Async,
+        (None, Some(..)) => ExprBlockKind::Const,
+        _ => ExprBlockKind::Default,
+    };
+
+    if let ExprBlockKind::Default = kind {
+        return Ok(hir::ExprKind::Block(alloc!(block(ctx, &ast.block)?)));
+    }
+
+    let Some(id) = ast.block.id.get() else {
+        // This only happens if the ast expression has not been indexed. Which
+        // only occurs during certain kinds of constant evaluation. So we limit
+        // evaluation to only support constant blocks.
+        let ExprBlockKind::Const = kind else {
+            return Err(compile::Error::msg(
+                ast,
+                "only constant blocks are supported in this context",
+            ));
+        };
+
+        return Ok(hir::ExprKind::Block(alloc!(block(ctx, &ast.block)?)));
+    };
+
+    let item = ctx.q.item_for(&ast.block)?;
+    let meta = ctx.lookup_meta(ast.span(), item.item, GenericsParameters::default())?;
+
+    match (kind, &meta.kind) {
+        (
+            ExprBlockKind::Async,
+            meta::Kind::AsyncBlock {
+                captures, do_move, ..
+            },
+        ) => {
+            let captures = iter!(captures.as_ref(), |string| alloc_str!(string));
+
+            Ok(hir::ExprKind::AsyncBlock(alloc!(hir::ExprAsyncBlock {
+                hash: meta.hash,
+                do_move: *do_move,
+                captures,
+            })))
+        }
+        (ExprBlockKind::Const, meta::Kind::Const { const_value }) => {
+            ctx.q.insert_const_value(id, const_value.clone());
+            Ok(hir::ExprKind::Const(id))
+        }
+        _ => Err(compile::Error::expected_meta(
+            ast,
+            meta.info(ctx.q.pool),
+            "async or const block",
+        )),
+    }
 }
 
 /// Lower a function argument.
@@ -565,7 +607,6 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
                 let (is_open, count) = pat_items_count(items)?;
 
                 hir::PatKind::Vec(alloc!(hir::PatItems {
-                    path: None,
                     kind: hir::PatItemsKind::Anonymous { count, is_open },
                     items,
                     is_open,
@@ -611,7 +652,6 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
                 };
 
                 hir::PatKind::Tuple(alloc!(hir::PatItems {
-                    path,
                     kind,
                     items,
                     is_open,
@@ -726,7 +766,6 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
                 };
 
                 hir::PatKind::Object(alloc!(hir::PatItems {
-                    path,
                     kind,
                     items,
                     is_open,
@@ -734,10 +773,7 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
                     bindings,
                 }))
             }
-            ast::Pat::Binding(ast) => hir::PatKind::Binding(alloc!(hir::PatBinding {
-                key: object_key(ctx, &ast.key)?,
-                pat: alloc!(pat(ctx, &ast.pat)?),
-            })),
+            ast::Pat::Binding(..) => hir::PatKind::Binding,
         },
     })
 }
