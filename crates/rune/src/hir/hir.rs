@@ -35,6 +35,12 @@ pub(crate) struct Pat<'hir> {
     pub(crate) kind: PatKind<'hir>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum PatPathKind<'hir> {
+    Kind(&'hir PatItemsKind),
+    Ident(&'hir str),
+}
+
 /// The kind of a [Pat].
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum PatKind<'hir> {
@@ -43,7 +49,7 @@ pub(crate) enum PatKind<'hir> {
     /// The rest pattern `..`.
     PatRest,
     /// A path pattern.
-    PatPath(&'hir Path<'hir>),
+    PatPath(&'hir PatPathKind<'hir>),
     /// A literal pattern. This is represented as an expression.
     PatLit(&'hir Expr<'hir>),
     /// A vector pattern.
@@ -70,6 +76,7 @@ pub(crate) enum PatItemsKind {
         index: usize,
     },
     Anonymous {
+        count: usize,
         is_open: bool,
     },
 }

@@ -195,14 +195,12 @@ impl IrFn {
 
         for arg in hir.args {
             if let hir::FnArg::Pat(hir::Pat {
-                kind: hir::PatKind::PatPath(path),
+                kind: hir::PatKind::PatPath(&hir::PatPathKind::Ident(ident)),
                 ..
             }) = arg
             {
-                if let Some(ident) = path.try_as_ident() {
-                    args.push(c.resolve(ident)?.into());
-                    continue;
-                }
+                args.push(ident.into());
+                continue;
             }
 
             return Err(compile::Error::msg(arg, "unsupported argument in const fn"));
@@ -344,14 +342,11 @@ pub enum IrPat {
 }
 
 impl IrPat {
-    fn compile_ast(hir: &hir::Pat<'_>, c: &mut IrCompiler<'_>) -> compile::Result<Self> {
+    fn compile_ast(hir: &hir::Pat<'_>) -> compile::Result<Self> {
         match hir.kind {
             hir::PatKind::PatIgnore => return Ok(ir::IrPat::Ignore),
-            hir::PatKind::PatPath(path) => {
-                if let Some(ident) = path.try_as_ident() {
-                    let name = c.resolve(ident)?;
-                    return Ok(ir::IrPat::Binding(name.into()));
-                }
+            hir::PatKind::PatPath(&hir::PatPathKind::Ident(ident)) => {
+                return Ok(ir::IrPat::Binding(ident.into()));
             }
             _ => (),
         }

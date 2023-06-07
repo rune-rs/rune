@@ -267,28 +267,20 @@ fn pat(
             load(c, Needs::None)?;
             Ok(false)
         }
-        hir::PatKind::PatPath(path) => {
-            let named = c.convert_path(path)?;
-            let parameters = generics_parameters(path.span(), c, &named)?;
-
-            if let Some(meta) = c.try_lookup_meta(span, named.item, &parameters)? {
-                if pat_meta_binding(span, c, &meta, false_label, load)? {
-                    return Ok(true);
-                }
-            }
-
-            if let Some(ident) = path.try_as_ident() {
+        hir::PatKind::PatPath(kind) => match *kind {
+            hir::PatPathKind::Kind(kind) => {
                 load(c, Needs::Value)?;
-                let ident = ident.resolve(resolve_context!(c.q))?;
-                c.scopes.decl_var(ident, span)?;
-                return Ok(false);
+                c.asm.push(to_tuple_match_instruction(*kind), span);
+                c.asm
+                    .pop_and_jump_if_not(c.scopes.local_var_count(span)?, false_label, span);
+                Ok(true)
             }
-
-            Err(compile::Error::new(
-                span,
-                CompileErrorKind::UnsupportedBinding,
-            ))
-        }
+            hir::PatPathKind::Ident(ident) => {
+                load(c, Needs::Value)?;
+                c.scopes.decl_var(ident, span)?;
+                Ok(false)
+            }
+        },
         hir::PatKind::PatLit(hir) => Ok(pat_lit(hir, c, false_label, load)?),
         hir::PatKind::PatVec(hir) => {
             pat_vec(span, c, hir, false_label, &load)?;
@@ -448,46 +440,6 @@ fn pat_vec(
     Ok(())
 }
 
-/// Construct the appropriate match instruction for the given [meta::Meta].
-#[instrument]
-fn tuple_match_for(span: Span, c: &Assembler<'_>, meta: &meta::Meta) -> Option<(usize, Inst)> {
-    Some(match &meta.kind {
-        meta::Kind::Struct {
-            fields: meta::Fields::Empty,
-            ..
-        } => (0, Inst::MatchType { hash: meta.hash }),
-        meta::Kind::Struct {
-            fields: meta::Fields::Unnamed(args),
-            ..
-        } => (*args, Inst::MatchType { hash: meta.hash }),
-        meta::Kind::Variant {
-            enum_hash,
-            index,
-            fields,
-            ..
-        } => {
-            let args = match fields {
-                meta::Fields::Unnamed(args) => *args,
-                meta::Fields::Empty => 0,
-                _ => return None,
-            };
-
-            let inst = if let Some(type_check) = c.q.context.type_check_for(meta.hash) {
-                Inst::MatchBuiltIn { type_check }
-            } else {
-                Inst::MatchVariant {
-                    enum_hash: *enum_hash,
-                    variant_hash: meta.hash,
-                    index: *index,
-                }
-            };
-
-            (args, inst)
-        }
-        _ => return None,
-    })
-}
-
 /// Encode a vector pattern match.
 #[instrument]
 fn pat_tuple(
@@ -511,46 +463,10 @@ fn pat_tuple(
     // interact with it multiple times.
     let offset = c.scopes.decl_anon(span)?;
 
-    if let Some(path) = hir.path {
-        let named = c.convert_path(path)?;
-        let parameters = generics_parameters(path.span(), c, &named)?;
+    let inst = to_tuple_match_instruction(hir.kind);
 
-        let meta = c.lookup_meta(path.span(), named.item, parameters)?;
-
-        // Treat the current meta as a tuple and get the number of arguments it
-        // should receive and the type check that applies to it.
-        let Some((args, inst)) = tuple_match_for(span, c, &meta) else {
-            return Err(compile::Error::expected_meta(
-                span,
-                meta.info(c.q.pool),
-                "type that can be used in a tuple pattern",
-            ));
-        };
-
-        if !(args == hir.count || hir.count < args && hir.is_open) {
-            return Err(compile::Error::new(
-                span,
-                CompileErrorKind::UnsupportedArgumentCount {
-                    meta: meta.info(c.q.pool),
-                    expected: args,
-                    actual: hir.count,
-                },
-            ));
-        }
-
-        c.asm.push(Inst::Copy { offset }, span);
-        c.asm.push(inst, span);
-    } else {
-        c.asm.push(Inst::Copy { offset }, span);
-        c.asm.push(
-            Inst::MatchSequence {
-                type_check: TypeCheck::Tuple,
-                len: hir.count,
-                exact: !hir.is_open,
-            },
-            span,
-        );
-    };
+    c.asm.push(Inst::Copy { offset }, span);
+    c.asm.push(inst, span);
 
     c.asm
         .pop_and_jump_if_not(c.scopes.local_var_count(span)?, false_label, span);
@@ -570,6 +486,27 @@ fn pat_tuple(
     }
 
     Ok(())
+}
+
+fn to_tuple_match_instruction(kind: hir::PatItemsKind) -> Inst {
+    match kind {
+        hir::PatItemsKind::Struct { hash } => Inst::MatchType { hash },
+        hir::PatItemsKind::BuiltInVariant { type_check } => Inst::MatchBuiltIn { type_check },
+        hir::PatItemsKind::Variant {
+            variant_hash,
+            enum_hash,
+            index,
+        } => Inst::MatchVariant {
+            variant_hash,
+            enum_hash,
+            index,
+        },
+        hir::PatItemsKind::Anonymous { count, is_open } => Inst::MatchSequence {
+            type_check: TypeCheck::Tuple,
+            len: count,
+            exact: !is_open,
+        },
+    }
 }
 
 /// Assemble an object pattern.
@@ -605,7 +542,7 @@ fn pat_object(
             enum_hash,
             index,
         },
-        hir::PatItemsKind::Anonymous { is_open } => {
+        hir::PatItemsKind::Anonymous { is_open, .. } => {
             let keys =
                 c.q.unit
                     .new_static_object_keys_iter(span, hir.bindings.iter().map(|b| b.key()))?;
@@ -614,12 +551,6 @@ fn pat_object(
                 slot: keys,
                 exact: !is_open,
             }
-        }
-        _ => {
-            return Err(compile::Error::msg(
-                span,
-                "type that can be used in a struct pattern",
-            ));
         }
     };
 
@@ -652,28 +583,6 @@ fn pat_object(
     }
 
     Ok(())
-}
-
-/// Compile a binding name that matches a known meta type.
-///
-/// Returns `true` if the binding was used.
-#[instrument]
-fn pat_meta_binding(
-    span: Span,
-    c: &mut Assembler<'_>,
-    meta: &meta::Meta,
-    false_label: &Label,
-    load: &dyn Fn(&mut Assembler<'_>, Needs) -> compile::Result<()>,
-) -> compile::Result<bool> {
-    let Some((0, inst)) = tuple_match_for(span, c, meta) else {
-        return Ok(false);
-    };
-
-    load(c, Needs::Value)?;
-    c.asm.push(inst, span);
-    c.asm
-        .pop_and_jump_if_not(c.scopes.local_var_count(span)?, false_label, span);
-    Ok(true)
 }
 
 /// Assemble an async block.
@@ -2740,15 +2649,11 @@ fn expr_select(
 
         'ok: {
             match branch.pat.kind {
-                hir::PatKind::PatPath(path) => {
-                    if let Some(local) = path.try_as_ident() {
-                        let local = local.resolve(resolve_context!(c.q))?;
-                        c.scopes.decl_var(local, path.span())?;
+                hir::PatKind::PatPath(kind) => {
+                    if let hir::PatPathKind::Ident(ident) = *kind {
+                        c.scopes.decl_var(ident, branch.pat.span())?;
                         break 'ok;
-                    }
-
-                    let named = c.convert_path(path)?;
-                    named.assert_not_generic()?;
+                    };
                 }
                 hir::PatKind::PatIgnore => {
                     c.asm.push(Inst::Pop, span);

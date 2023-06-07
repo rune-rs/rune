@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use core::cell::RefCell;
 use core::num::NonZeroUsize;
 

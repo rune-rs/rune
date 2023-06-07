@@ -13,7 +13,7 @@ use crate as rune;
 use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::compile::ir;
-use crate::compile::{self, CompileErrorKind, ItemId, ItemMeta, ModId};
+use crate::compile::{ItemId, ItemMeta, ModId};
 use crate::hir;
 use crate::indexing;
 use crate::runtime::format;
@@ -49,20 +49,6 @@ pub(crate) struct Named<'hir> {
     pub(crate) trailing: usize,
     /// Type parameters if any.
     pub(crate) parameters: [Option<(Span, &'hir [hir::Expr<'hir>])>; 2],
-}
-
-impl Named<'_> {
-    /// Assert that this named type is not generic.
-    pub(crate) fn assert_not_generic(&self) -> compile::Result<()> {
-        if let Some((span, _)) = self.parameters.iter().flatten().next() {
-            return Err(compile::Error::new(
-                span,
-                CompileErrorKind::UnsupportedGenerics,
-            ));
-        }
-
-        Ok(())
-    }
 }
 
 impl fmt::Display for Named<'_> {

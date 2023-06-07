@@ -534,7 +534,31 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
         kind: match ast {
             ast::Pat::PatIgnore(..) => hir::PatKind::PatIgnore,
             ast::Pat::PatRest(..) => hir::PatKind::PatRest,
-            ast::Pat::PatPath(ast) => hir::PatKind::PatPath(alloc!(path(ctx, &ast.path)?)),
+            ast::Pat::PatPath(ast) => {
+                let path = path(ctx, &ast.path)?;
+                let named = ctx.q.convert_path(&path)?;
+                let parameters = generics_parameters(ctx, &named)?;
+
+                let kind = 'ok: {
+                    if let Some(meta) = ctx.try_lookup_meta(path.span, named.item, &parameters)? {
+                        if let Some((0, kind)) = tuple_match_for(ctx, &meta) {
+                            break 'ok hir::PatPathKind::Kind(alloc!(kind));
+                        }
+                    }
+
+                    if let Some(ident) = path.try_as_ident() {
+                        let ident = alloc_str!(ident.resolve(resolve_context!(ctx.q))?);
+                        break 'ok hir::PatPathKind::Ident(ident);
+                    }
+
+                    return Err(compile::Error::new(
+                        path.span,
+                        CompileErrorKind::UnsupportedBinding,
+                    ));
+                };
+
+                hir::PatKind::PatPath(alloc!(kind))
+            }
             ast::Pat::PatLit(ast) => hir::PatKind::PatLit(alloc!(expr(ctx, &ast.expr)?)),
             ast::Pat::PatVec(ast) => {
                 let items = iter!(&ast.items, |(ast, _)| pat(ctx, ast)?);
@@ -542,7 +566,7 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
 
                 hir::PatKind::PatVec(alloc!(hir::PatItems {
                     path: None,
-                    kind: hir::PatItemsKind::Anonymous { is_open },
+                    kind: hir::PatItemsKind::Anonymous { count, is_open },
                     items,
                     is_open,
                     count,
@@ -553,9 +577,42 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
                 let items = iter!(&ast.items, |(ast, _)| pat(ctx, ast)?);
                 let (is_open, count) = pat_items_count(items)?;
 
+                let path = option!(&ast.path, |ast| path(ctx, ast)?);
+
+                let kind = if let Some(path) = path {
+                    let named = ctx.q.convert_path(path)?;
+                    let parameters = generics_parameters(ctx, &named)?;
+                    let meta = ctx.lookup_meta(path.span(), named.item, parameters)?;
+
+                    // Treat the current meta as a tuple and get the number of arguments it
+                    // should receive and the type check that applies to it.
+                    let Some((args, kind)) = tuple_match_for(ctx, &meta) else {
+                        return Err(compile::Error::expected_meta(
+                            path,
+                            meta.info(ctx.q.pool),
+                            "type that can be used in a tuple pattern",
+                        ));
+                    };
+
+                    if !(args == count || count < args && is_open) {
+                        return Err(compile::Error::new(
+                            path,
+                            CompileErrorKind::UnsupportedArgumentCount {
+                                meta: meta.info(ctx.q.pool),
+                                expected: args,
+                                actual: count,
+                            },
+                        ));
+                    }
+
+                    kind
+                } else {
+                    hir::PatItemsKind::Anonymous { count, is_open }
+                };
+
                 hir::PatKind::PatTuple(alloc!(hir::PatItems {
-                    path: option!(&ast.path, |ast| path(ctx, ast)?),
-                    kind: hir::PatItemsKind::Anonymous { is_open },
+                    path,
+                    kind,
                     items,
                     is_open,
                     count,
@@ -665,7 +722,7 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
 
                         kind
                     }
-                    None => hir::PatItemsKind::Anonymous { is_open },
+                    None => hir::PatItemsKind::Anonymous { count, is_open },
                 };
 
                 hir::PatKind::PatObject(alloc!(hir::PatItems {
@@ -807,7 +864,6 @@ fn pat_items_count(items: &[hir::Pat<'_>]) -> compile::Result<(bool, usize)> {
     Ok((is_open, count))
 }
 
-/// Construct the appropriate match instruction for the given [meta::Meta].
 fn struct_match_for<'hir, 'a>(
     ctx: &Ctx<'_, '_>,
     meta: &'a meta::Meta,
@@ -838,6 +894,44 @@ fn struct_match_for<'hir, 'a>(
         _ => {
             return None;
         }
+    })
+}
+
+fn tuple_match_for(ctx: &Ctx<'_, '_>, meta: &meta::Meta) -> Option<(usize, hir::PatItemsKind)> {
+    Some(match &meta.kind {
+        meta::Kind::Struct {
+            fields: meta::Fields::Empty,
+            ..
+        } => (0, hir::PatItemsKind::Struct { hash: meta.hash }),
+        meta::Kind::Struct {
+            fields: meta::Fields::Unnamed(args),
+            ..
+        } => (*args, hir::PatItemsKind::Struct { hash: meta.hash }),
+        meta::Kind::Variant {
+            enum_hash,
+            index,
+            fields,
+            ..
+        } => {
+            let args = match fields {
+                meta::Fields::Unnamed(args) => *args,
+                meta::Fields::Empty => 0,
+                _ => return None,
+            };
+
+            let kind = if let Some(type_check) = ctx.q.context.type_check_for(meta.hash) {
+                hir::PatItemsKind::BuiltInVariant { type_check }
+            } else {
+                hir::PatItemsKind::Variant {
+                    variant_hash: meta.hash,
+                    enum_hash: *enum_hash,
+                    index: *index,
+                }
+            };
+
+            (args, kind)
+        }
+        _ => return None,
     })
 }
 

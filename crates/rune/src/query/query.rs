@@ -830,7 +830,7 @@ impl<'a> Query<'a> {
     #[tracing::instrument(skip_all)]
     pub(crate) fn convert_path<'hir>(
         &mut self,
-        path: &'hir hir::Path<'hir>,
+        path: &hir::Path<'hir>,
     ) -> compile::Result<Named<'hir>> {
         let id = path.id();
 

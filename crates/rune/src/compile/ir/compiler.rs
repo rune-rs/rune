@@ -389,15 +389,13 @@ fn path(hir: &hir::Path<'_>, c: &mut IrCompiler<'_>) -> compile::Result<ir::Ir> 
 fn local(hir: &hir::Local<'_>, c: &mut IrCompiler<'_>) -> compile::Result<ir::Ir> {
     let span = hir.span();
 
-    let name = loop {
+    let name = 'ok: {
         match hir.pat.kind {
             hir::PatKind::PatIgnore => {
                 return expr(hir.expr, c);
             }
-            hir::PatKind::PatPath(path) => {
-                if let Some(ident) = path.try_as_ident() {
-                    break ident;
-                }
+            hir::PatKind::PatPath(&hir::PatPathKind::Ident(ident)) => {
+                break 'ok ident;
             }
             _ => (),
         }
@@ -409,7 +407,7 @@ fn local(hir: &hir::Local<'_>, c: &mut IrCompiler<'_>) -> compile::Result<ir::Ir
         span,
         ir::IrDecl {
             span,
-            name: c.resolve(name)?.into(),
+            name: name.into(),
             value: Box::new(expr(hir.expr, c)?),
         },
     ))
@@ -420,7 +418,7 @@ fn condition(hir: &hir::Condition<'_>, c: &mut IrCompiler<'_>) -> compile::Resul
     match hir {
         hir::Condition::Expr(e) => Ok(ir::IrCondition::Ir(expr(e, c)?)),
         hir::Condition::ExprLet(expr_let) => {
-            let pat = ir::IrPat::compile_ast(expr_let.pat, c)?;
+            let pat = ir::IrPat::compile_ast(expr_let.pat)?;
             let ir = expr(expr_let.expr, c)?;
 
             Ok(ir::IrCondition::Let(ir::IrLet {
