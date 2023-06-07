@@ -11,7 +11,7 @@ use crate::compile::{
 use crate::hir;
 use crate::query::{ConstFn, Named, Query, Used};
 use crate::runtime::{ConstValue, Inst};
-use crate::{Context, Diagnostics, Hash, SourceId};
+use crate::{Diagnostics, Hash, SourceId};
 
 pub(crate) mod assemble;
 mod loops;
@@ -23,16 +23,16 @@ pub(crate) use self::scopes::{Scope, ScopeGuard, Scopes, Var};
 /// Generic parameters.
 #[derive(Default)]
 pub(crate) struct GenericsParameters {
-    trailing: usize,
-    parameters: [Option<Hash>; 2],
+    pub(crate) trailing: usize,
+    pub(crate) parameters: [Option<Hash>; 2],
 }
 
 impl GenericsParameters {
-    fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.parameters.iter().all(|p| p.is_none())
     }
 
-    fn as_boxed(&self) -> Box<[Option<Hash>]> {
+    pub(crate) fn as_boxed(&self) -> Box<[Option<Hash>]> {
         self.parameters.iter().copied().collect()
     }
 }
@@ -64,8 +64,6 @@ impl Needs {
 pub(crate) struct Assembler<'a> {
     /// The source id of the source.
     pub(crate) source_id: SourceId,
-    /// The context we are compiling for.
-    pub(crate) context: &'a Context,
     /// Query system to compile required items.
     pub(crate) q: Query<'a>,
     /// The assembly we are generating.
@@ -206,7 +204,7 @@ impl<'a> Assembler<'a> {
             }
         }
 
-        let Some(metas) = self.context.lookup_meta(self.q.pool.item(item)) else {
+        let Some(metas) = self.q.context.lookup_meta(self.q.pool.item(item)) else {
             return Ok(None);
         };
 
@@ -312,7 +310,7 @@ impl<'a> Assembler<'a> {
         &mut self,
         path: &'hir hir::Path<'hir>,
     ) -> compile::Result<Named<'hir>> {
-        self.q.convert_path(self.context, path)
+        self.q.convert_path(path)
     }
 
     /// Clean the last scope.

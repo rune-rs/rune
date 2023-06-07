@@ -46,7 +46,7 @@ mod unit_builder;
 pub use self::unit_builder::LinkerError;
 pub(crate) use self::unit_builder::UnitBuilder;
 
-mod v1;
+pub(crate) mod v1;
 
 mod options;
 pub use self::options::{Options, ParseOptionError};
@@ -117,11 +117,12 @@ pub(crate) fn compile(
         pool,
         visitor,
         &gen,
+        context,
         &mut inner,
     );
 
     // The worker queue.
-    let mut worker = Worker::new(context, options, diagnostics, source_loader, q);
+    let mut worker = Worker::new(options, diagnostics, source_loader, q);
 
     // Queue up the initial sources to be loaded.
     for source_id in worker.q.sources.source_ids() {
@@ -159,7 +160,6 @@ pub(crate) fn compile(
             let source_id = entry.item_meta.location.source_id;
 
             let task = CompileBuildEntry {
-                context,
                 options,
                 diagnostics: worker.diagnostics,
                 q: worker.q.borrow(),
@@ -187,7 +187,6 @@ pub(crate) fn compile(
 }
 
 struct CompileBuildEntry<'a> {
-    context: &'a Context,
     options: &'a Options,
     diagnostics: &'a mut Diagnostics,
     q: Query<'a>,
@@ -202,7 +201,6 @@ impl CompileBuildEntry<'_> {
     ) -> self::v1::Assembler<'a> {
         self::v1::Assembler {
             source_id: location.source_id,
-            context: self.context,
             q: self.q.borrow(),
             asm,
             scopes: self::v1::Scopes::new(),
@@ -213,7 +211,6 @@ impl CompileBuildEntry<'_> {
         }
     }
 
-    #[tracing::instrument(skip_all)]
     fn compile(mut self, entry: BuildEntry, unit_storage: &mut dyn UnitEncoder) -> Result<()> {
         let BuildEntry {
             item_meta,
@@ -254,7 +251,8 @@ impl CompileBuildEntry<'_> {
                 let count = f.ast.args.len();
 
                 let arena = hir::Arena::new();
-                let mut ctx = hir::lowering::Ctx::new(&arena, self.q.borrow());
+                let mut ctx =
+                    hir::lowering::Ctx::new(&arena, self.q.borrow(), item_meta.location.source_id);
                 let hir = hir::lowering::item_fn(&mut ctx, &f.ast)?;
                 let mut c = self.compiler1(location, span, &mut asm);
                 assemble::fn_from_item_fn(&hir, &mut c, false)?;
@@ -296,7 +294,8 @@ impl CompileBuildEntry<'_> {
                 })?;
 
                 let arena = hir::Arena::new();
-                let mut ctx = hir::lowering::Ctx::new(&arena, c.q.borrow());
+                let mut ctx =
+                    hir::lowering::Ctx::new(&arena, c.q.borrow(), item_meta.location.source_id);
                 let hir = hir::lowering::item_fn(&mut ctx, &f.ast)?;
                 assemble::fn_from_item_fn(&hir, &mut c, true)?;
 
@@ -331,7 +330,8 @@ impl CompileBuildEntry<'_> {
                 )?;
 
                 let arena = hir::Arena::new();
-                let mut ctx = hir::lowering::Ctx::new(&arena, self.q.borrow());
+                let mut ctx =
+                    hir::lowering::Ctx::new(&arena, self.q.borrow(), item_meta.location.source_id);
                 let hir = hir::lowering::expr_closure(&mut ctx, &closure.ast)?;
                 let mut c = self.compiler1(location, span, &mut asm);
                 assemble::closure_from_expr_closure(span, &mut c, &hir, &closure.captures)?;
@@ -360,7 +360,8 @@ impl CompileBuildEntry<'_> {
                 let span = b.ast.span();
 
                 let arena = hir::Arena::new();
-                let mut ctx = hir::lowering::Ctx::new(&arena, self.q.borrow());
+                let mut ctx =
+                    hir::lowering::Ctx::new(&arena, self.q.borrow(), item_meta.location.source_id);
                 let hir = hir::lowering::block(&mut ctx, &b.ast)?;
 
                 let mut c = self.compiler1(location, span, &mut asm);
@@ -406,7 +407,7 @@ impl CompileBuildEntry<'_> {
                     Some(item_id) => {
                         let item = self.q.pool.item(item_id);
 
-                        if self.context.contains_prefix(item) || self.q.contains_prefix(item) {
+                        if self.q.context.contains_prefix(item) || self.q.contains_prefix(item) {
                             None
                         } else {
                             Some(item_id)

@@ -23,7 +23,7 @@ use crate::runtime::format;
 use crate::runtime::Call;
 use crate::shared::Items;
 use crate::worker::{Import, ImportKind, LoadFileKind, Task};
-use crate::{Context, Diagnostics, SourceId};
+use crate::{Diagnostics, SourceId};
 
 use rune_macros::instrument;
 
@@ -51,8 +51,6 @@ pub(crate) struct Indexer<'a> {
     pub(crate) q: Query<'a>,
     /// Imports to process.
     pub(crate) queue: &'a mut VecDeque<Task>,
-    /// Native context.
-    pub(crate) context: &'a Context,
     pub(crate) options: &'a Options,
     pub(crate) source_id: SourceId,
     pub(crate) diagnostics: &'a mut Diagnostics,
@@ -415,7 +413,6 @@ impl<'a> Indexer<'a> {
         let mut compiler = MacroCompiler {
             item_meta: item,
             options: self.options,
-            context: self.context,
             query: self.q.borrow(),
         };
 
@@ -444,7 +441,6 @@ impl<'a> Indexer<'a> {
         let mut compiler = MacroCompiler {
             item_meta: containing,
             options: self.options,
-            context: self.context,
             query: self.q.borrow(),
         };
 
@@ -901,7 +897,7 @@ fn expr_block(ast: &mut ast::ExprBlock, idx: &mut Indexer<'_>) -> compile::Resul
         idx.q.index_const(item_meta, ast, |ast, c| {
             // TODO: avoid this arena?
             let arena = crate::hir::Arena::new();
-            let mut ctx = crate::hir::lowering::Ctx::new(&arena, c.q.borrow());
+            let mut ctx = crate::hir::lowering::Ctx::new(&arena, c.q.borrow(), c.source_id);
             let hir = crate::hir::lowering::expr_block(&mut ctx, ast)?;
             ir::compiler::expr_block(ast.span(), c, &hir)
         })?;
@@ -1560,7 +1556,7 @@ fn item_const(mut ast: ast::ItemConst, idx: &mut Indexer<'_>) -> compile::Result
     idx.q.index_const(item_meta, &ast.expr, |ast, c| {
         // TODO: avoid this arena?
         let arena = crate::hir::Arena::new();
-        let mut hir_ctx = crate::hir::lowering::Ctx::new(&arena, c.q.borrow());
+        let mut hir_ctx = crate::hir::lowering::Ctx::new(&arena, c.q.borrow(), c.source_id);
         let hir = crate::hir::lowering::expr(&mut hir_ctx, ast)?;
         ir::compiler::expr(&hir, c)
     })?;
@@ -1620,7 +1616,7 @@ fn item(ast: ast::Item, idx: &mut Indexer<'_>) -> compile::Result<()> {
 
             let queue = &mut idx.queue;
 
-            import.process(idx.context, &mut idx.q, &mut |task| {
+            import.process(&mut idx.q, &mut |task| {
                 queue.push_back(task);
             })?;
         }

@@ -8,14 +8,12 @@ use crate::compile::{self, CompileErrorKind, ItemMeta, Options};
 use crate::macros::{MacroContext, ToTokens};
 use crate::parse::{Parse, Parser};
 use crate::query::Query;
-use crate::Context;
 
 use super::TokenStream;
 
 pub(crate) struct MacroCompiler<'a> {
     pub(crate) item_meta: ItemMeta,
     pub(crate) options: &'a Options,
-    pub(crate) context: &'a Context,
     pub(crate) query: Query<'a>,
 }
 
@@ -39,13 +37,17 @@ impl MacroCompiler<'_> {
         //
         // TODO: Figure out how to avoid performing ad-hoc lowering here.
         let arena = crate::hir::Arena::new();
-        let mut ctx = crate::hir::lowering::Ctx::new(&arena, self.query.borrow());
+        let mut ctx = crate::hir::lowering::Ctx::new(
+            &arena,
+            self.query.borrow(),
+            self.item_meta.location.source_id,
+        );
         let path = crate::hir::lowering::path(&mut ctx, &macro_call.path)?;
-        let named = self.query.convert_path(self.context, &path)?;
+        let named = self.query.convert_path(&path)?;
 
         let hash = self.query.pool.item_type_hash(named.item);
 
-        let handler = match self.context.lookup_macro(hash) {
+        let handler = match self.query.context.lookup_macro(hash) {
             Some(handler) => handler,
             None => {
                 return Err(compile::Error::new(
@@ -97,13 +99,17 @@ impl MacroCompiler<'_> {
         //
         // TODO: Figure out how to avoid performing ad-hoc lowering here.
         let arena = crate::hir::Arena::new();
-        let mut ctx = crate::hir::lowering::Ctx::new(&arena, self.query.borrow());
+        let mut ctx = crate::hir::lowering::Ctx::new(
+            &arena,
+            self.query.borrow(),
+            self.item_meta.location.source_id,
+        );
         let path = crate::hir::lowering::path(&mut ctx, &attribute.path)?;
-        let named = self.query.convert_path(self.context, &path)?;
+        let named = self.query.convert_path(&path)?;
 
         let hash = self.query.pool.item_type_hash(named.item);
 
-        let handler = match self.context.lookup_attribute_macro(hash) {
+        let handler = match self.query.context.lookup_attribute_macro(hash) {
             Some(handler) => handler,
             None => {
                 return Ok(None);

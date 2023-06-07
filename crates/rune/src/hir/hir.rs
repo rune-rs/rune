@@ -3,7 +3,8 @@ use core::num::NonZeroUsize;
 use crate as rune;
 use crate::ast::{self, Span, Spanned};
 use crate::parse::{Expectation, Id, IntoExpectation, Opaque};
-use crate::runtime::format;
+use crate::runtime::{format, TypeCheck};
+use crate::Hash;
 
 /// Visibility level restricted to some path: pub(self) or pub(super) or pub(crate) or pub(in some::module).
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -55,18 +56,63 @@ pub(crate) enum PatKind<'hir> {
     PatBinding(&'hir PatBinding<'hir>),
 }
 
-/// A tuple pattern.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum PatItemsKind {
+    Struct {
+        hash: Hash,
+    },
+    BuiltInVariant {
+        type_check: TypeCheck,
+    },
+    Variant {
+        variant_hash: Hash,
+        enum_hash: Hash,
+        index: usize,
+    },
+    Anonymous {
+        is_open: bool,
+    },
+}
+
+/// Items pattern matching.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[non_exhaustive]
 pub(crate) struct PatItems<'hir> {
     /// The path, if the tuple is typed.
     pub(crate) path: Option<&'hir Path<'hir>>,
+    /// The kind of pattern items.
+    pub(crate) kind: PatItemsKind,
     /// The items in the tuple.
     pub(crate) items: &'hir [Pat<'hir>],
     /// If the pattern is open.
     pub(crate) is_open: bool,
     /// The number of elements in the pattern.
     pub(crate) count: usize,
+    /// Bindings associated with the pattern.
+    pub(crate) bindings: &'hir [Binding<'hir>],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
+pub(crate) enum Binding<'hir> {
+    Binding(Span, &'hir str, &'hir Pat<'hir>),
+    Ident(Span, &'hir str),
+}
+
+impl Binding<'_> {
+    pub(crate) fn span(&self) -> Span {
+        match self {
+            Self::Binding(span, _, _) => *span,
+            Self::Ident(span, _) => *span,
+        }
+    }
+
+    pub(crate) fn key(&self) -> &str {
+        match self {
+            Self::Binding(_, key, _) => key,
+            Self::Ident(_, key) => key,
+        }
+    }
 }
 
 /// An object item.

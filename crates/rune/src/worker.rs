@@ -12,7 +12,7 @@ use crate::indexing::index;
 use crate::indexing::{IndexScopes, Indexer};
 use crate::query::Query;
 use crate::shared::Items;
-use crate::{Context, Diagnostics, SourceId};
+use crate::{Diagnostics, SourceId};
 
 mod import;
 mod task;
@@ -23,7 +23,6 @@ pub(crate) use self::task::{LoadFileKind, Task};
 pub(crate) use self::wildcard_import::WildcardImport;
 
 pub(crate) struct Worker<'a> {
-    context: &'a Context,
     options: &'a Options,
     pub(crate) diagnostics: &'a mut Diagnostics,
     pub(crate) source_loader: &'a mut dyn SourceLoader,
@@ -38,14 +37,12 @@ pub(crate) struct Worker<'a> {
 impl<'a> Worker<'a> {
     /// Construct a new worker.
     pub(crate) fn new(
-        context: &'a Context,
         options: &'a Options,
         diagnostics: &'a mut Diagnostics,
         source_loader: &'a mut dyn SourceLoader,
         q: Query<'a>,
     ) -> Self {
         Self {
-            context,
             options,
             diagnostics,
             source_loader,
@@ -105,7 +102,6 @@ impl<'a> Worker<'a> {
                         loaded: &mut self.loaded,
                         q: self.q.borrow(),
                         queue: &mut self.queue,
-                        context: self.context,
                         options: self.options,
                         source_id,
                         diagnostics: self.diagnostics,
@@ -128,7 +124,7 @@ impl<'a> Worker<'a> {
                     let source_id = import.source_id;
                     let queue = &mut self.queue;
 
-                    let result = import.process(self.context, &mut self.q, &mut |task| {
+                    let result = import.process(&mut self.q, &mut |task| {
                         queue.push_back(task);
                     });
 

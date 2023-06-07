@@ -5,8 +5,8 @@ use core::fmt;
 use crate::ast;
 use crate::ast::Span;
 use crate::compile::{
-    self, IrCompiler, IrEval, IrEvalContext, IrValue, ItemMeta, NoopCompileVisitor, ParseErrorKind,
-    Pool, Prelude, UnitBuilder,
+    self, Context, IrCompiler, IrEval, IrEvalContext, IrValue, ItemMeta, NoopCompileVisitor,
+    ParseErrorKind, Pool, Prelude, UnitBuilder,
 };
 use crate::macros::{IntoLit, Storage, ToTokens, TokenStream};
 use crate::parse::{Parse, Resolve};
@@ -49,6 +49,7 @@ impl<'a> MacroContext<'a> {
         let mut sources = Sources::default();
         let mut pool = Pool::default();
         let mut visitors = NoopCompileVisitor::new();
+        let context = Context::default();
         let mut inner = Default::default();
 
         let mut query = Query::new(
@@ -60,6 +61,7 @@ impl<'a> MacroContext<'a> {
             &mut pool,
             &mut visitors,
             &gen,
+            &context,
             &mut inner,
         );
 

@@ -450,42 +450,6 @@ fn pat_vec(
 
 /// Construct the appropriate match instruction for the given [meta::Meta].
 #[instrument]
-fn struct_match_for<'a>(
-    span: Span,
-    c: &Assembler<'_>,
-    meta: &'a meta::Meta,
-) -> Option<(&'a meta::FieldsNamed, Inst)> {
-    Some(match &meta.kind {
-        meta::Kind::Struct {
-            fields: meta::Fields::Named(st),
-            ..
-        } => (st, Inst::MatchType { hash: meta.hash }),
-        meta::Kind::Variant {
-            enum_hash,
-            index,
-            fields: meta::Fields::Named(st),
-            ..
-        } => {
-            let inst = if let Some(type_check) = c.context.type_check_for(meta.hash) {
-                Inst::MatchBuiltIn { type_check }
-            } else {
-                Inst::MatchVariant {
-                    variant_hash: meta.hash,
-                    enum_hash: *enum_hash,
-                    index: *index,
-                }
-            };
-
-            (st, inst)
-        }
-        _ => {
-            return None;
-        }
-    })
-}
-
-/// Construct the appropriate match instruction for the given [meta::Meta].
-#[instrument]
 fn tuple_match_for(span: Span, c: &Assembler<'_>, meta: &meta::Meta) -> Option<(usize, Inst)> {
     Some(match &meta.kind {
         meta::Kind::Struct {
@@ -508,7 +472,7 @@ fn tuple_match_for(span: Span, c: &Assembler<'_>, meta: &meta::Meta) -> Option<(
                 _ => return None,
             };
 
-            let inst = if let Some(type_check) = c.context.type_check_for(meta.hash) {
+            let inst = if let Some(type_check) = c.q.context.type_check_for(meta.hash) {
                 Inst::MatchBuiltIn { type_check }
             } else {
                 Inst::MatchVariant {
@@ -624,127 +588,52 @@ fn pat_object(
     let offset = c.scopes.decl_anon(span)?;
 
     let mut string_slots = Vec::new();
-    let mut keys_dup = HashMap::new();
-    let mut keys = Vec::new();
-    let mut bindings = Vec::new();
 
-    for pat in hir.items.iter().take(hir.count) {
-        let span = pat.span();
+    for binding in hir.bindings {
+        string_slots.push(c.q.unit.new_static_string(span, binding.key())?);
+    }
 
-        let (span, key) = match pat.kind {
-            hir::PatKind::PatBinding(binding) => {
-                let (span, key) = binding.key;
-                bindings.push(Binding::Binding(span, key, binding.pat));
-                binding.key
+    let inst = match hir.kind {
+        hir::PatItemsKind::Struct { hash } => Inst::MatchType { hash },
+        hir::PatItemsKind::BuiltInVariant { type_check } => Inst::MatchBuiltIn { type_check },
+        hir::PatItemsKind::Variant {
+            variant_hash,
+            enum_hash,
+            index,
+        } => Inst::MatchVariant {
+            variant_hash,
+            enum_hash,
+            index,
+        },
+        hir::PatItemsKind::Anonymous { is_open } => {
+            let keys =
+                c.q.unit
+                    .new_static_object_keys_iter(span, hir.bindings.iter().map(|b| b.key()))?;
+
+            Inst::MatchObject {
+                slot: keys,
+                exact: !is_open,
             }
-            hir::PatKind::PatPath(path) => {
-                let Some(ident) = path.try_as_ident() else {
-                    return Err(compile::Error::new(
-                        span,
-                        CompileErrorKind::UnsupportedPatternExpr,
-                    ));
-                };
-
-                let key = ident.resolve(resolve_context!(c.q))?;
-                bindings.push(Binding::Ident(pat.span(), key.into()));
-                (ident.span(), key)
-            }
-            _ => {
-                return Err(compile::Error::new(
-                    span,
-                    CompileErrorKind::UnsupportedPatternExpr,
-                ));
-            }
-        };
-
-        string_slots.push(c.q.unit.new_static_string(span, key)?);
-
-        if let Some(existing) = keys_dup.insert(key.to_string(), span) {
-            return Err(compile::Error::new(
+        }
+        _ => {
+            return Err(compile::Error::msg(
                 span,
-                CompileErrorKind::DuplicateObjectKey {
-                    existing,
-                    object: span,
-                },
+                "type that can be used in a struct pattern",
             ));
         }
+    };
 
-        keys.push(key.to_string());
-    }
-
-    match hir.path {
-        Some(path) => {
-            let path_span = path.span();
-
-            let named = c.convert_path(path)?;
-            let parameters = generics_parameters(path.span(), c, &named)?;
-            let meta = c.lookup_meta(path_span, named.item, parameters)?;
-
-            let Some((st, inst)) = struct_match_for(span, c, &meta) else {
-                return Err(compile::Error::expected_meta(
-                    path_span,
-                    meta.info(c.q.pool),
-                    "type that can be used in a struct pattern",
-                ));
-            };
-
-            let mut fields = st.fields.clone();
-
-            for binding in &bindings {
-                if !fields.remove(binding.key()) {
-                    return Err(compile::Error::new(
-                        span,
-                        CompileErrorKind::LitObjectNotField {
-                            field: binding.key().into(),
-                            item: c.q.pool.item(meta.item_meta.item).to_owned(),
-                        },
-                    ));
-                }
-            }
-
-            if !hir.is_open && !fields.is_empty() {
-                let mut fields = fields
-                    .into_iter()
-                    .map(Box::<str>::from)
-                    .collect::<Box<[_]>>();
-                fields.sort();
-
-                return Err(compile::Error::new(
-                    span,
-                    CompileErrorKind::PatternMissingFields {
-                        item: c.q.pool.item(meta.item_meta.item).to_owned(),
-                        fields,
-                    },
-                ));
-            }
-
-            c.asm.push(Inst::Copy { offset }, span);
-            c.asm.push(inst, span);
-        }
-        None => {
-            let keys = c.q.unit.new_static_object_keys_iter(span, &keys[..])?;
-
-            // Copy the temporary and check that its length matches the pattern and
-            // that it is indeed a vector.
-            c.asm.push(Inst::Copy { offset }, span);
-            c.asm.push(
-                Inst::MatchObject {
-                    slot: keys,
-                    exact: !hir.is_open,
-                },
-                span,
-            );
-        }
-    }
+    // Copy the temporary and check that its length matches the pattern and
+    // that it is indeed a vector.
+    c.asm.push(Inst::Copy { offset }, span);
+    c.asm.push(inst, span);
 
     c.asm
         .pop_and_jump_if_not(c.scopes.local_var_count(span)?, false_label, span);
 
-    for (binding, slot) in bindings.iter().zip(string_slots) {
-        let span = binding.span();
-
-        match binding {
-            Binding::Binding(_, _, p) => {
+    for (binding, slot) in hir.bindings.iter().zip(string_slots) {
+        match *binding {
+            hir::Binding::Binding(span, _, p) => {
                 let load = move |c: &mut Assembler<'_>, needs: Needs| {
                     if needs.value() {
                         c.asm.push(Inst::ObjectIndexGetAt { offset, slot }, span);
@@ -755,35 +644,14 @@ fn pat_object(
 
                 pat(p, c, false_label, &load)?;
             }
-            Binding::Ident(_, key) => {
+            hir::Binding::Ident(span, key) => {
                 c.asm.push(Inst::ObjectIndexGetAt { offset, slot }, span);
                 c.scopes.decl_var(key, span)?;
             }
         }
     }
 
-    return Ok(());
-
-    enum Binding<'hir> {
-        Binding(Span, &'hir str, &'hir hir::Pat<'hir>),
-        Ident(Span, Box<str>),
-    }
-
-    impl Binding<'_> {
-        fn span(&self) -> Span {
-            match self {
-                Self::Binding(span, _, _) => *span,
-                Self::Ident(span, _) => *span,
-            }
-        }
-
-        fn key(&self) -> &str {
-            match self {
-                Self::Binding(_, key, _) => key,
-                Self::Ident(_, key) => key,
-            }
-        }
-    }
+    Ok(())
 }
 
 /// Compile a binding name that matches a known meta type.

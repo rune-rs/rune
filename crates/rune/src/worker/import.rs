@@ -9,7 +9,7 @@ use crate::compile::{self, CompileErrorKind, ItemBuf, ModId, Visibility};
 use crate::parse::Resolve;
 use crate::query::Query;
 use crate::worker::{ImportKind, Task, WildcardImport};
-use crate::{Context, SourceId};
+use crate::SourceId;
 
 /// Import to process.
 #[derive(Debug)]
@@ -24,7 +24,7 @@ pub(crate) struct Import {
 
 impl Import {
     /// Lookup a local identifier in the current context and query.
-    fn lookup_local(&self, context: &Context, query: &Query<'_>, local: &str) -> ItemBuf {
+    fn lookup_local(&self, query: &Query<'_>, local: &str) -> ItemBuf {
         let item = query.pool.module_item(self.module).extended(local);
 
         if let ImportKind::Local = self.kind {
@@ -33,7 +33,7 @@ impl Import {
             }
         }
 
-        if context.contains_crate(local) {
+        if query.context.contains_crate(local) {
             return ItemBuf::with_crate(local);
         }
 
@@ -43,7 +43,6 @@ impl Import {
     /// Process the import, populating the unit.
     pub(crate) fn process(
         mut self,
-        context: &Context,
         q: &mut Query<'_>,
         add_task: &mut impl FnMut(Task),
     ) -> compile::Result<()> {
@@ -104,7 +103,7 @@ impl Import {
                                 continue;
                             }
 
-                            name = self.lookup_local(context, q, ident);
+                            name = self.lookup_local(q, ident);
                         }
                         ast::PathSegment::SelfType(self_type) => {
                             return Err(compile::Error::new(
@@ -159,7 +158,7 @@ impl Import {
                             found: false,
                         };
 
-                        wildcard_import.process_global(q, context)?;
+                        wildcard_import.process_global(q)?;
                         add_task(Task::ExpandWildcardImport(wildcard_import));
                         break Some(star_token.span());
                     }

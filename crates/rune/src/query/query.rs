@@ -77,6 +77,8 @@ pub(crate) struct Query<'a> {
     pub(crate) visitor: &'a mut dyn CompileVisitor,
     /// Shared id generator.
     pub(crate) gen: &'a Gen,
+    /// Native context.
+    pub(crate) context: &'a Context,
     /// Inner state of the query engine.
     inner: &'a mut QueryInner,
 }
@@ -92,6 +94,7 @@ impl<'a> Query<'a> {
         pool: &'a mut Pool,
         visitor: &'a mut dyn CompileVisitor,
         gen: &'a Gen,
+        context: &'a Context,
         inner: &'a mut QueryInner,
     ) -> Self {
         Self {
@@ -103,6 +106,7 @@ impl<'a> Query<'a> {
             pool,
             visitor,
             gen,
+            context,
             inner,
         }
     }
@@ -118,6 +122,7 @@ impl<'a> Query<'a> {
             sources: self.sources,
             visitor: self.visitor,
             gen: self.gen,
+            context: self.context,
             inner: self.inner,
         }
     }
@@ -630,7 +635,6 @@ impl<'a> Query<'a> {
     #[tracing::instrument(skip_all)]
     pub(crate) fn convert_path<'hir>(
         &mut self,
-        context: &Context,
         path: &'hir hir::Path<'hir>,
     ) -> compile::Result<Named<'hir>> {
         let id = path.id();
@@ -662,7 +666,7 @@ impl<'a> Query<'a> {
             }
             (None, segment) => match segment.kind {
                 hir::PathSegmentKind::Ident(ident) => {
-                    self.convert_initial_path(context, qp.module, qp.item, ident)?
+                    self.convert_initial_path(qp.module, qp.item, ident)?
                 }
                 hir::PathSegmentKind::Super => self
                     .pool
@@ -1130,7 +1134,11 @@ impl<'a> Query<'a> {
                 let ir_fn = {
                     // TODO: avoid this arena?
                     let arena = crate::hir::Arena::new();
-                    let mut ctx = crate::hir::lowering::Ctx::new(&arena, self.borrow());
+                    let mut ctx = crate::hir::lowering::Ctx::new(
+                        &arena,
+                        self.borrow(),
+                        item_meta.location.source_id,
+                    );
                     let hir = crate::hir::lowering::item_fn(&mut ctx, &c.item_fn)?;
                     let mut c = IrCompiler {
                         source_id: c.location.source_id,
@@ -1283,7 +1291,6 @@ impl<'a> Query<'a> {
     #[tracing::instrument(skip_all, fields(module = ?self.pool.module_item(module), base = ?self.pool.item(base)))]
     fn convert_initial_path(
         &mut self,
-        context: &Context,
         module: ModId,
         base: ItemId,
         local: &ast::Ident,
@@ -1323,7 +1330,7 @@ impl<'a> Query<'a> {
             return Ok(self.pool.alloc_item(item));
         }
 
-        if context.contains_crate(&local) {
+        if self.context.contains_crate(&local) {
             return Ok(self.pool.alloc_item(ItemBuf::with_crate(&local)));
         }
 

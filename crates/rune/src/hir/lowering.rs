@@ -1,13 +1,24 @@
 use core::cell::Cell;
 use core::ops::Neg;
 
+use crate::no_std::collections::HashMap;
+use crate::no_std::prelude::*;
+
 use num::ToPrimitive;
 
 use crate::ast::{self, Span, Spanned};
-use crate::compile::{self, CompileErrorKind, HirErrorKind, ParseErrorKind};
+use crate::compile::context::ContextMeta;
+use crate::compile::meta;
+use crate::compile::v1::GenericsParameters;
+use crate::compile::{
+    self, CompileErrorKind, HirErrorKind, ItemId, ItemMeta, Location, ParseErrorKind,
+    QueryErrorKind, WithSpan,
+};
+use crate::hash::{Hash, ParametersBuilder};
 use crate::hir;
 use crate::parse::Resolve;
-use crate::query::{self, Query};
+use crate::query::{self, Named, Query};
+use crate::SourceId;
 
 /// Allocator indirection to simplify lifetime management.
 #[rustfmt::skip]
@@ -103,10 +114,17 @@ macro_rules! alloc_with {
     };
 }
 
-pub struct Ctx<'hir, 'a> {
+enum ContextMatch<'this, 'm> {
+    Context(&'m ContextMeta, Hash),
+    Meta(&'this meta::Meta),
+    None,
+}
+
+pub(crate) struct Ctx<'hir, 'a> {
     /// Arena used for allocations.
     arena: &'hir hir::arena::Arena,
     q: Query<'a>,
+    source_id: SourceId,
     in_template: Cell<bool>,
     scope: Cell<hir::Scope>,
     scopes: hir::Scopes<'hir>,
@@ -114,14 +132,214 @@ pub struct Ctx<'hir, 'a> {
 
 impl<'hir, 'a> Ctx<'hir, 'a> {
     /// Construct a new context.
-    pub(crate) fn new(arena: &'hir hir::arena::Arena, query: Query<'a>) -> Self {
+    pub(crate) fn new(arena: &'hir hir::arena::Arena, q: Query<'a>, source_id: SourceId) -> Self {
         Self {
             arena,
-            q: query,
+            q,
+            source_id,
             in_template: Cell::new(false),
             scope: Cell::new(hir::Scopes::ROOT),
             scopes: hir::Scopes::default(),
         }
+    }
+
+    /// Convert an [ast::Path] into a [Named] item.
+    pub(crate) fn convert_path(
+        &mut self,
+        path: &'hir hir::Path<'hir>,
+    ) -> compile::Result<Named<'hir>> {
+        self.q.convert_path(path)
+    }
+
+    // Pick private metadata to compile for the item.
+    fn select_context_meta<'this, 'm>(
+        &'this self,
+        item: ItemId,
+        metas: impl Iterator<Item = &'m ContextMeta> + Clone,
+        parameters: &GenericsParameters,
+    ) -> Result<ContextMatch<'this, 'm>, Box<QueryErrorKind>> {
+        #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+        enum Kind {
+            None,
+            Type,
+            Function,
+            AssociatedFunction,
+        }
+
+        /// Determine how the collection of generic parameters applies to the
+        /// returned context meta.
+        fn determine_kind<'m>(metas: impl Iterator<Item = &'m ContextMeta>) -> Option<Kind> {
+            let mut kind = Kind::None;
+
+            for meta in metas {
+                let alt = match &meta.kind {
+                    meta::Kind::Enum { .. }
+                    | meta::Kind::Struct { .. }
+                    | meta::Kind::Type { .. } => Kind::Type,
+                    meta::Kind::Function { .. } => Kind::Function,
+                    meta::Kind::AssociatedFunction { .. } => Kind::AssociatedFunction,
+                    _ => {
+                        continue;
+                    }
+                };
+
+                if matches!(kind, Kind::None) {
+                    kind = alt;
+                    continue;
+                }
+
+                if kind != alt {
+                    return None;
+                }
+            }
+
+            Some(kind)
+        }
+
+        fn build_parameters(kind: Kind, p: &GenericsParameters) -> Option<Hash> {
+            let hash = match (kind, p.trailing, p.parameters) {
+                (_, 0, _) => Hash::EMPTY,
+                (Kind::Type, 1, [Some(ty), None]) => Hash::EMPTY.with_type_parameters(ty),
+                (Kind::Function, 1, [Some(f), None]) => Hash::EMPTY.with_function_parameters(f),
+                (Kind::AssociatedFunction, 1, [Some(f), None]) => {
+                    Hash::EMPTY.with_function_parameters(f)
+                }
+                (Kind::AssociatedFunction, 2, [Some(ty), f]) => Hash::EMPTY
+                    .with_type_parameters(ty)
+                    .with_function_parameters(f.unwrap_or(Hash::EMPTY)),
+                _ => {
+                    return None;
+                }
+            };
+
+            Some(hash)
+        }
+
+        if let Some(parameters) =
+            determine_kind(metas.clone()).and_then(|kind| build_parameters(kind, parameters))
+        {
+            if let Some(meta) = self.q.get_meta(item, parameters) {
+                return Ok(ContextMatch::Meta(meta));
+            }
+
+            // If there is a single item matching the specified generic hash, pick
+            // it.
+            let mut it = metas
+                .clone()
+                .filter(|i| !matches!(i.kind, meta::Kind::Macro | meta::Kind::Module))
+                .filter(|i| i.kind.as_parameters() == parameters);
+
+            if let Some(meta) = it.next() {
+                if it.next().is_none() {
+                    return Ok(ContextMatch::Context(meta, parameters));
+                }
+            } else {
+                return Ok(ContextMatch::None);
+            }
+        }
+
+        if metas.clone().next().is_none() {
+            return Ok(ContextMatch::None);
+        }
+
+        Err(Box::new(QueryErrorKind::AmbiguousContextItem {
+            item: self.q.pool.item(item).to_owned(),
+            infos: metas.map(|i| i.info()).collect(),
+        }))
+    }
+
+    /// Access the meta for the given language item.
+    pub(crate) fn try_lookup_meta(
+        &mut self,
+        span: Span,
+        item: ItemId,
+        parameters: &GenericsParameters,
+    ) -> compile::Result<Option<meta::Meta>> {
+        tracing::trace!("lookup meta: {:?}", item);
+
+        if parameters.is_empty() {
+            if let Some(meta) = self.q.query_meta(span, item, Default::default())? {
+                tracing::trace!("found in query: {:?}", meta);
+                self.q.visitor.visit_meta(
+                    Location::new(self.source_id, span),
+                    meta.as_meta_ref(self.q.pool),
+                );
+                return Ok(Some(meta));
+            }
+        }
+
+        let Some(metas) = self.q.context.lookup_meta(self.q.pool.item(item)) else {
+            return Ok(None);
+        };
+
+        let (meta, parameters) = match self
+            .select_context_meta(item, metas, parameters)
+            .with_span(span)?
+        {
+            ContextMatch::None => return Ok(None),
+            ContextMatch::Meta(meta) => return Ok(Some(meta.clone())),
+            ContextMatch::Context(meta, parameters) => (meta, parameters),
+        };
+
+        let Some(item) = &meta.item else {
+            return Err(compile::Error::new(span,
+            QueryErrorKind::MissingItem {
+                hash: meta.hash,
+            }));
+        };
+
+        let meta = meta::Meta {
+            context: true,
+            hash: meta.hash,
+            item_meta: ItemMeta {
+                id: Default::default(),
+                location: Default::default(),
+                item: self.q.pool.alloc_item(item),
+                visibility: Default::default(),
+                module: Default::default(),
+            },
+            kind: meta.kind.clone(),
+            source: None,
+            parameters,
+        };
+
+        self.q.insert_meta(meta.clone()).with_span(span)?;
+
+        tracing::trace!("Found in context: {:?}", meta);
+
+        self.q.visitor.visit_meta(
+            Location::new(self.source_id, span),
+            meta.as_meta_ref(self.q.pool),
+        );
+
+        Ok(Some(meta))
+    }
+
+    /// Access the meta for the given language item.
+    pub(crate) fn lookup_meta(
+        &mut self,
+        span: Span,
+        item: ItemId,
+        parameters: impl AsRef<GenericsParameters>,
+    ) -> compile::Result<meta::Meta> {
+        let parameters = parameters.as_ref();
+
+        if let Some(meta) = self.try_lookup_meta(span, item, parameters)? {
+            return Ok(meta);
+        }
+
+        let kind = if !parameters.parameters.is_empty() {
+            CompileErrorKind::MissingItemParameters {
+                item: self.q.pool.item(item).to_owned(),
+                parameters: parameters.as_boxed(),
+            }
+        } else {
+            CompileErrorKind::MissingItem {
+                item: self.q.pool.item(item).to_owned(),
+            }
+        };
+
+        Err(compile::Error::new(span, kind))
     }
 }
 
@@ -512,9 +730,11 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
 
                 hir::PatKind::PatVec(alloc!(hir::PatItems {
                     path: None,
+                    kind: hir::PatItemsKind::Anonymous { is_open },
                     items,
                     is_open,
                     count,
+                    bindings: &[],
                 }))
             }
             ast::Pat::PatTuple(ast) => {
@@ -523,20 +743,126 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
 
                 hir::PatKind::PatTuple(alloc!(hir::PatItems {
                     path: option!(&ast.path, |ast| path(ctx, ast)?),
+                    kind: hir::PatItemsKind::Anonymous { is_open },
                     items,
                     is_open,
                     count,
+                    bindings: &[],
                 }))
             }
             ast::Pat::PatObject(ast) => {
                 let items = iter!(&ast.items, |(ast, _)| pat(ctx, ast)?);
                 let (is_open, count) = pat_items_count(items)?;
 
+                let mut keys_dup = HashMap::new();
+
+                let bindings = iter!(ast.items.iter().take(count), |(pat, _)| {
+                    let span = pat.span();
+
+                    let (key, binding) = match pat {
+                        ast::Pat::PatBinding(binding) => {
+                            let (span, key) = object_key(ctx, &binding.key)?;
+                            (
+                                key,
+                                hir::Binding::Binding(
+                                    span,
+                                    key,
+                                    alloc!(self::pat(ctx, &binding.pat)?),
+                                ),
+                            )
+                        }
+                        ast::Pat::PatPath(path) => {
+                            let Some(ident) = path.path.try_as_ident() else {
+                                return Err(compile::Error::new(
+                                    path,
+                                    CompileErrorKind::UnsupportedPatternExpr,
+                                ));
+                            };
+
+                            let key = alloc_str!(ident.resolve(resolve_context!(ctx.q))?);
+                            (key, hir::Binding::Ident(path.span(), key))
+                        }
+                        _ => {
+                            return Err(compile::Error::new(
+                                span,
+                                CompileErrorKind::UnsupportedPatternExpr,
+                            ));
+                        }
+                    };
+
+                    if let Some(existing) = keys_dup.insert(key, span) {
+                        return Err(compile::Error::new(
+                            span,
+                            CompileErrorKind::DuplicateObjectKey {
+                                existing,
+                                object: span,
+                            },
+                        ));
+                    }
+
+                    binding
+                });
+
+                let path = object_ident(ctx, &ast.ident)?;
+
+                let kind = match path {
+                    Some(path) => {
+                        let span = path.span();
+
+                        let named = ctx.convert_path(path)?;
+                        let parameters = generics_parameters(ctx, &named)?;
+                        let meta = ctx.lookup_meta(span, named.item, parameters)?;
+
+                        let Some((st, kind)) = struct_match_for(ctx, &meta) else {
+                            return Err(compile::Error::expected_meta(
+                                span,
+                                meta.info(ctx.q.pool),
+                                "type that can be used in a struct pattern",
+                            ));
+                        };
+
+                        let mut fields = st.fields.clone();
+
+                        for binding in bindings.iter() {
+                            if !fields.remove(binding.key()) {
+                                return Err(compile::Error::new(
+                                    ast,
+                                    CompileErrorKind::LitObjectNotField {
+                                        field: binding.key().into(),
+                                        item: ctx.q.pool.item(meta.item_meta.item).to_owned(),
+                                    },
+                                ));
+                            }
+                        }
+
+                        if !is_open && !fields.is_empty() {
+                            let mut fields = fields
+                                .into_iter()
+                                .map(Box::<str>::from)
+                                .collect::<Box<[_]>>();
+                            fields.sort();
+
+                            return Err(compile::Error::new(
+                                ast,
+                                CompileErrorKind::PatternMissingFields {
+                                    item: ctx.q.pool.item(meta.item_meta.item).to_owned(),
+                                    fields,
+                                },
+                            ));
+                        }
+
+                        kind
+                    }
+                    None => hir::PatItemsKind::Anonymous { is_open },
+                };
+
                 hir::PatKind::PatObject(alloc!(hir::PatItems {
-                    path: object_ident(ctx, &ast.ident)?,
+                    path,
+                    kind,
                     items,
                     is_open,
                     count,
+                    bindings,
                 }))
             }
             ast::Pat::PatBinding(ast) => hir::PatKind::PatBinding(alloc!(hir::PatBinding {
@@ -667,4 +993,91 @@ fn pat_items_count(items: &[hir::Pat<'_>]) -> compile::Result<(bool, usize)> {
     }
 
     Ok((is_open, count))
+}
+
+/// Construct the appropriate match instruction for the given [meta::Meta].
+fn struct_match_for<'hir, 'a>(
+    ctx: &Ctx<'_, '_>,
+    meta: &'a meta::Meta,
+) -> Option<(&'a meta::FieldsNamed, hir::PatItemsKind)> {
+    Some(match &meta.kind {
+        meta::Kind::Struct {
+            fields: meta::Fields::Named(st),
+            ..
+        } => (st, hir::PatItemsKind::Struct { hash: meta.hash }),
+        meta::Kind::Variant {
+            enum_hash,
+            index,
+            fields: meta::Fields::Named(st),
+            ..
+        } => {
+            let kind = if let Some(type_check) = ctx.q.context.type_check_for(meta.hash) {
+                hir::PatItemsKind::BuiltInVariant { type_check }
+            } else {
+                hir::PatItemsKind::Variant {
+                    variant_hash: meta.hash,
+                    enum_hash: *enum_hash,
+                    index: *index,
+                }
+            };
+
+            (st, kind)
+        }
+        _ => {
+            return None;
+        }
+    })
+}
+
+fn generics_parameters<'hir>(
+    ctx: &mut Ctx<'hir, '_>,
+    named: &Named<'hir>,
+) -> compile::Result<GenericsParameters> {
+    let mut parameters = GenericsParameters {
+        trailing: named.trailing,
+        parameters: [None, None],
+    };
+
+    for (value, o) in named
+        .parameters
+        .iter()
+        .zip(parameters.parameters.iter_mut())
+    {
+        if let &Some((_, expr)) = value {
+            *o = Some(generics_parameter(ctx, expr)?);
+        }
+    }
+
+    Ok(parameters)
+}
+
+fn generics_parameter<'hir>(
+    ctx: &mut Ctx<'hir, '_>,
+    generics: &[hir::Expr<'hir>],
+) -> compile::Result<Hash> {
+    let mut builder = ParametersBuilder::new();
+
+    for expr in generics {
+        let hir::ExprKind::Path(path) = expr.kind else {
+            return Err(compile::Error::new(
+                expr.span,
+                CompileErrorKind::UnsupportedGenerics,
+            ));
+        };
+
+        let named = ctx.convert_path(path)?;
+        let parameters = generics_parameters(ctx, &named)?;
+        let meta = ctx.lookup_meta(expr.span(), named.item, parameters)?;
+
+        let (meta::Kind::Type { .. } | meta::Kind::Struct { .. } | meta::Kind::Enum { .. }) = meta.kind else {
+            return Err(compile::Error::new(
+                expr.span,
+                CompileErrorKind::UnsupportedGenerics,
+            ));
+        };
+
+        builder.add(meta.hash);
+    }
+
+    Ok(builder.finish())
 }
