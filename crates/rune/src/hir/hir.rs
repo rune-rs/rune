@@ -100,13 +100,6 @@ pub(crate) enum Binding<'hir> {
 }
 
 impl Binding<'_> {
-    pub(crate) fn span(&self) -> Span {
-        match self {
-            Self::Binding(span, _, _) => *span,
-            Self::Ident(span, _) => *span,
-        }
-    }
-
     pub(crate) fn key(&self) -> &str {
         match self {
             Self::Binding(_, key, _) => key,

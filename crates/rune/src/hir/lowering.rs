@@ -7,13 +7,9 @@ use crate::no_std::prelude::*;
 use num::ToPrimitive;
 
 use crate::ast::{self, Span, Spanned};
-use crate::compile::context::ContextMeta;
 use crate::compile::meta;
 use crate::compile::v1::GenericsParameters;
-use crate::compile::{
-    self, CompileErrorKind, HirErrorKind, ItemId, ItemMeta, Location, ParseErrorKind,
-    QueryErrorKind, WithSpan,
-};
+use crate::compile::{self, CompileErrorKind, HirErrorKind, ItemId, Location, ParseErrorKind};
 use crate::hash::{Hash, ParametersBuilder};
 use crate::hir;
 use crate::parse::Resolve;
@@ -114,12 +110,6 @@ macro_rules! alloc_with {
     };
 }
 
-enum ContextMatch<'this, 'm> {
-    Context(&'m ContextMeta, Hash),
-    Meta(&'this meta::Meta),
-    None,
-}
-
 pub(crate) struct Ctx<'hir, 'a> {
     /// Arena used for allocations.
     arena: &'hir hir::arena::Arena,
@@ -143,203 +133,25 @@ impl<'hir, 'a> Ctx<'hir, 'a> {
         }
     }
 
-    /// Convert an [ast::Path] into a [Named] item.
-    pub(crate) fn convert_path(
-        &mut self,
-        path: &'hir hir::Path<'hir>,
-    ) -> compile::Result<Named<'hir>> {
-        self.q.convert_path(path)
-    }
-
-    // Pick private metadata to compile for the item.
-    fn select_context_meta<'this, 'm>(
-        &'this self,
-        item: ItemId,
-        metas: impl Iterator<Item = &'m ContextMeta> + Clone,
-        parameters: &GenericsParameters,
-    ) -> Result<ContextMatch<'this, 'm>, Box<QueryErrorKind>> {
-        #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-        enum Kind {
-            None,
-            Type,
-            Function,
-            AssociatedFunction,
-        }
-
-        /// Determine how the collection of generic parameters applies to the
-        /// returned context meta.
-        fn determine_kind<'m>(metas: impl Iterator<Item = &'m ContextMeta>) -> Option<Kind> {
-            let mut kind = Kind::None;
-
-            for meta in metas {
-                let alt = match &meta.kind {
-                    meta::Kind::Enum { .. }
-                    | meta::Kind::Struct { .. }
-                    | meta::Kind::Type { .. } => Kind::Type,
-                    meta::Kind::Function { .. } => Kind::Function,
-                    meta::Kind::AssociatedFunction { .. } => Kind::AssociatedFunction,
-                    _ => {
-                        continue;
-                    }
-                };
-
-                if matches!(kind, Kind::None) {
-                    kind = alt;
-                    continue;
-                }
-
-                if kind != alt {
-                    return None;
-                }
-            }
-
-            Some(kind)
-        }
-
-        fn build_parameters(kind: Kind, p: &GenericsParameters) -> Option<Hash> {
-            let hash = match (kind, p.trailing, p.parameters) {
-                (_, 0, _) => Hash::EMPTY,
-                (Kind::Type, 1, [Some(ty), None]) => Hash::EMPTY.with_type_parameters(ty),
-                (Kind::Function, 1, [Some(f), None]) => Hash::EMPTY.with_function_parameters(f),
-                (Kind::AssociatedFunction, 1, [Some(f), None]) => {
-                    Hash::EMPTY.with_function_parameters(f)
-                }
-                (Kind::AssociatedFunction, 2, [Some(ty), f]) => Hash::EMPTY
-                    .with_type_parameters(ty)
-                    .with_function_parameters(f.unwrap_or(Hash::EMPTY)),
-                _ => {
-                    return None;
-                }
-            };
-
-            Some(hash)
-        }
-
-        if let Some(parameters) =
-            determine_kind(metas.clone()).and_then(|kind| build_parameters(kind, parameters))
-        {
-            if let Some(meta) = self.q.get_meta(item, parameters) {
-                return Ok(ContextMatch::Meta(meta));
-            }
-
-            // If there is a single item matching the specified generic hash, pick
-            // it.
-            let mut it = metas
-                .clone()
-                .filter(|i| !matches!(i.kind, meta::Kind::Macro | meta::Kind::Module))
-                .filter(|i| i.kind.as_parameters() == parameters);
-
-            if let Some(meta) = it.next() {
-                if it.next().is_none() {
-                    return Ok(ContextMatch::Context(meta, parameters));
-                }
-            } else {
-                return Ok(ContextMatch::None);
-            }
-        }
-
-        if metas.clone().next().is_none() {
-            return Ok(ContextMatch::None);
-        }
-
-        Err(Box::new(QueryErrorKind::AmbiguousContextItem {
-            item: self.q.pool.item(item).to_owned(),
-            infos: metas.map(|i| i.info()).collect(),
-        }))
-    }
-
-    /// Access the meta for the given language item.
+    #[allow(unused)]
     pub(crate) fn try_lookup_meta(
         &mut self,
         span: Span,
         item: ItemId,
         parameters: &GenericsParameters,
     ) -> compile::Result<Option<meta::Meta>> {
-        tracing::trace!("lookup meta: {:?}", item);
-
-        if parameters.is_empty() {
-            if let Some(meta) = self.q.query_meta(span, item, Default::default())? {
-                tracing::trace!("found in query: {:?}", meta);
-                self.q.visitor.visit_meta(
-                    Location::new(self.source_id, span),
-                    meta.as_meta_ref(self.q.pool),
-                );
-                return Ok(Some(meta));
-            }
-        }
-
-        let Some(metas) = self.q.context.lookup_meta(self.q.pool.item(item)) else {
-            return Ok(None);
-        };
-
-        let (meta, parameters) = match self
-            .select_context_meta(item, metas, parameters)
-            .with_span(span)?
-        {
-            ContextMatch::None => return Ok(None),
-            ContextMatch::Meta(meta) => return Ok(Some(meta.clone())),
-            ContextMatch::Context(meta, parameters) => (meta, parameters),
-        };
-
-        let Some(item) = &meta.item else {
-            return Err(compile::Error::new(span,
-            QueryErrorKind::MissingItem {
-                hash: meta.hash,
-            }));
-        };
-
-        let meta = meta::Meta {
-            context: true,
-            hash: meta.hash,
-            item_meta: ItemMeta {
-                id: Default::default(),
-                location: Default::default(),
-                item: self.q.pool.alloc_item(item),
-                visibility: Default::default(),
-                module: Default::default(),
-            },
-            kind: meta.kind.clone(),
-            source: None,
-            parameters,
-        };
-
-        self.q.insert_meta(meta.clone()).with_span(span)?;
-
-        tracing::trace!("Found in context: {:?}", meta);
-
-        self.q.visitor.visit_meta(
-            Location::new(self.source_id, span),
-            meta.as_meta_ref(self.q.pool),
-        );
-
-        Ok(Some(meta))
+        self.q
+            .try_lookup_meta(Location::new(self.source_id, span), item, parameters)
     }
 
-    /// Access the meta for the given language item.
     pub(crate) fn lookup_meta(
         &mut self,
         span: Span,
         item: ItemId,
         parameters: impl AsRef<GenericsParameters>,
     ) -> compile::Result<meta::Meta> {
-        let parameters = parameters.as_ref();
-
-        if let Some(meta) = self.try_lookup_meta(span, item, parameters)? {
-            return Ok(meta);
-        }
-
-        let kind = if !parameters.parameters.is_empty() {
-            CompileErrorKind::MissingItemParameters {
-                item: self.q.pool.item(item).to_owned(),
-                parameters: parameters.as_boxed(),
-            }
-        } else {
-            CompileErrorKind::MissingItem {
-                item: self.q.pool.item(item).to_owned(),
-            }
-        };
-
-        Err(compile::Error::new(span, kind))
+        self.q
+            .lookup_meta(Location::new(self.source_id, span), item, parameters)
     }
 }
 
@@ -809,7 +621,7 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
                     Some(path) => {
                         let span = path.span();
 
-                        let named = ctx.convert_path(path)?;
+                        let named = ctx.q.convert_path(path)?;
                         let parameters = generics_parameters(ctx, &named)?;
                         let meta = ctx.lookup_meta(span, named.item, parameters)?;
 
@@ -1065,7 +877,7 @@ fn generics_parameter<'hir>(
             ));
         };
 
-        let named = ctx.convert_path(path)?;
+        let named = ctx.q.convert_path(path)?;
         let parameters = generics_parameters(ctx, &named)?;
         let meta = ctx.lookup_meta(expr.span(), named.item, parameters)?;
 
