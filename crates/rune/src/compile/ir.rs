@@ -48,8 +48,8 @@ impl IrEval for ast::Expr {
         let ir = {
             // TODO: avoid this arena?
             let arena = crate::hir::Arena::new();
-            let hir_ctx = crate::hir::lowering::Ctx::new(&arena, ctx.c.q.borrow());
-            let hir = crate::hir::lowering::expr(&hir_ctx, self)?;
+            let mut hir_ctx = crate::hir::lowering::Ctx::new(&arena, ctx.c.q.borrow());
+            let hir = crate::hir::lowering::expr(&mut hir_ctx, self)?;
             compiler::expr(&hir, &mut ctx.c)?
         };
 

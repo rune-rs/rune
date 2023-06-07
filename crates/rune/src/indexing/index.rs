@@ -901,8 +901,8 @@ fn expr_block(ast: &mut ast::ExprBlock, idx: &mut Indexer<'_>) -> compile::Resul
         idx.q.index_const(item_meta, ast, |ast, c| {
             // TODO: avoid this arena?
             let arena = crate::hir::Arena::new();
-            let ctx = crate::hir::lowering::Ctx::new(&arena, c.q.borrow());
-            let hir = crate::hir::lowering::expr_block(&ctx, ast)?;
+            let mut ctx = crate::hir::lowering::Ctx::new(&arena, c.q.borrow());
+            let hir = crate::hir::lowering::expr_block(&mut ctx, ast)?;
             ir::compiler::expr_block(ast.span(), c, &hir)
         })?;
 
@@ -1560,8 +1560,8 @@ fn item_const(mut ast: ast::ItemConst, idx: &mut Indexer<'_>) -> compile::Result
     idx.q.index_const(item_meta, &ast.expr, |ast, c| {
         // TODO: avoid this arena?
         let arena = crate::hir::Arena::new();
-        let hir_ctx = crate::hir::lowering::Ctx::new(&arena, c.q.borrow());
-        let hir = crate::hir::lowering::expr(&hir_ctx, ast)?;
+        let mut hir_ctx = crate::hir::lowering::Ctx::new(&arena, c.q.borrow());
+        let hir = crate::hir::lowering::expr(&mut hir_ctx, ast)?;
         ir::compiler::expr(&hir, c)
     })?;
 

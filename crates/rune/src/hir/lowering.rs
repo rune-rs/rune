@@ -108,6 +108,8 @@ pub struct Ctx<'hir, 'a> {
     arena: &'hir hir::arena::Arena,
     q: Query<'a>,
     in_template: Cell<bool>,
+    scope: Cell<hir::Scope>,
+    scopes: hir::Scopes<'hir>,
 }
 
 impl<'hir, 'a> Ctx<'hir, 'a> {
@@ -117,13 +119,15 @@ impl<'hir, 'a> Ctx<'hir, 'a> {
             arena,
             q: query,
             in_template: Cell::new(false),
+            scope: Cell::new(hir::Scopes::ROOT),
+            scopes: hir::Scopes::default(),
         }
     }
 }
 
 /// Lower a function item.
 pub(crate) fn item_fn<'hir>(
-    ctx: &Ctx<'hir, '_>,
+    ctx: &mut Ctx<'hir, '_>,
     ast: &ast::ItemFn,
 ) -> compile::Result<hir::ItemFn<'hir>> {
     alloc_with!(ctx, ast);
@@ -148,7 +152,7 @@ pub(crate) fn item_fn<'hir>(
 
 /// Lower a closure expression.
 pub(crate) fn expr_closure<'hir>(
-    ctx: &Ctx<'hir, '_>,
+    ctx: &mut Ctx<'hir, '_>,
     ast: &ast::ExprClosure,
 ) -> compile::Result<hir::ExprClosure<'hir>> {
     alloc_with!(ctx, ast);
@@ -167,20 +171,29 @@ pub(crate) fn expr_closure<'hir>(
 
 /// Lower the specified block.
 pub(crate) fn block<'hir>(
-    ctx: &Ctx<'hir, '_>,
+    ctx: &mut Ctx<'hir, '_>,
     ast: &ast::Block,
 ) -> compile::Result<hir::Block<'hir>> {
     alloc_with!(ctx, ast);
 
-    Ok(hir::Block {
+    let scope = ctx.scopes.push(ctx.scope.get());
+    let scope = ctx.scope.replace(scope);
+
+    let block = hir::Block {
         id: ast.id,
         span: ast.span(),
         statements: iter!(&ast.statements, |ast| stmt(ctx, ast)?),
-    })
+    };
+
+    ctx.scopes.pop(ctx.scope.replace(scope));
+    Ok(block)
 }
 
 /// Lower an expression.
-pub(crate) fn expr<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Expr) -> compile::Result<hir::Expr<'hir>> {
+pub(crate) fn expr<'hir>(
+    ctx: &mut Ctx<'hir, '_>,
+    ast: &ast::Expr,
+) -> compile::Result<hir::Expr<'hir>> {
     alloc_with!(ctx, ast);
 
     let kind = match ast {
@@ -313,7 +326,7 @@ pub(crate) fn expr<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Expr) -> compile::Resul
             to: option!(&ast.to, |ast| expr(ctx, ast)?),
         })),
         ast::Expr::Group(ast) => hir::ExprKind::Group(alloc!(expr(ctx, &ast.expr)?)),
-        ast::Expr::MacroCall(ast) => match ctx.q.builtin_macro_for(ast)? {
+        ast::Expr::MacroCall(ast) => match ctx.q.builtin_macro_for(ast)?.as_ref() {
             query::BuiltInMacro::Template(ast) => {
                 let old = ctx.in_template.replace(true);
 
@@ -349,7 +362,7 @@ pub(crate) fn expr<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Expr) -> compile::Resul
 
 pub(crate) fn lit<'hir>(
     span: &dyn Spanned,
-    ctx: &Ctx<'hir, '_>,
+    ctx: &mut Ctx<'hir, '_>,
     ast: &ast::Lit,
 ) -> compile::Result<hir::Lit<'hir>> {
     alloc_with!(ctx, span);
@@ -397,7 +410,7 @@ pub(crate) fn lit<'hir>(
 }
 
 pub(crate) fn expr_unary<'hir>(
-    ctx: &Ctx<'hir, '_>,
+    ctx: &mut Ctx<'hir, '_>,
     ast: &ast::ExprUnary,
 ) -> compile::Result<hir::ExprKind<'hir>> {
     alloc_with!(ctx, ast);
@@ -434,7 +447,7 @@ pub(crate) fn expr_unary<'hir>(
 
 /// Lower a block expression.
 pub(crate) fn expr_block<'hir>(
-    ctx: &Ctx<'hir, '_>,
+    ctx: &mut Ctx<'hir, '_>,
     ast: &ast::ExprBlock,
 ) -> compile::Result<hir::ExprBlock<'hir>> {
     alloc_with!(ctx, ast);
@@ -451,7 +464,7 @@ pub(crate) fn expr_block<'hir>(
 }
 
 /// Lower a function argument.
-fn fn_arg<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::FnArg) -> compile::Result<hir::FnArg<'hir>> {
+fn fn_arg<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::FnArg) -> compile::Result<hir::FnArg<'hir>> {
     alloc_with!(ctx, ast);
 
     Ok(match ast {
@@ -461,7 +474,7 @@ fn fn_arg<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::FnArg) -> compile::Result<hir::F
 }
 
 /// Lower an assignment.
-fn local<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Local) -> compile::Result<hir::Local<'hir>> {
+fn local<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Local) -> compile::Result<hir::Local<'hir>> {
     alloc_with!(ctx, ast);
 
     Ok(hir::Local {
@@ -472,7 +485,7 @@ fn local<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Local) -> compile::Result<hir::Lo
 }
 
 /// Lower a statement
-fn stmt<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Stmt) -> compile::Result<hir::Stmt<'hir>> {
+fn stmt<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Stmt) -> compile::Result<hir::Stmt<'hir>> {
     alloc_with!(ctx, ast);
 
     Ok(match ast {
@@ -483,7 +496,7 @@ fn stmt<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Stmt) -> compile::Result<hir::Stmt
     })
 }
 
-fn pat<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pat<'hir>> {
+fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pat<'hir>> {
     alloc_with!(ctx, ast);
 
     Ok(hir::Pat {
@@ -535,7 +548,7 @@ fn pat<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pat<'h
 }
 
 fn object_key<'hir>(
-    ctx: &Ctx<'hir, '_>,
+    ctx: &mut Ctx<'hir, '_>,
     ast: &ast::ObjectKey,
 ) -> compile::Result<(Span, &'hir str)> {
     alloc_with!(ctx, ast);
@@ -558,7 +571,7 @@ fn object_key<'hir>(
 
 /// Lower an object identifier to an optional path.
 fn object_ident<'hir>(
-    ctx: &Ctx<'hir, '_>,
+    ctx: &mut Ctx<'hir, '_>,
     ast: &ast::ObjectIdent,
 ) -> compile::Result<Option<&'hir hir::Path<'hir>>> {
     alloc_with!(ctx, ast);
@@ -570,7 +583,10 @@ fn object_ident<'hir>(
 }
 
 /// Lower the given path.
-pub(crate) fn path<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Path) -> compile::Result<hir::Path<'hir>> {
+pub(crate) fn path<'hir>(
+    ctx: &mut Ctx<'hir, '_>,
+    ast: &ast::Path,
+) -> compile::Result<hir::Path<'hir>> {
     alloc_with!(ctx, ast);
 
     Ok(hir::Path {
@@ -584,7 +600,7 @@ pub(crate) fn path<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Path) -> compile::Resul
 }
 
 fn path_segment<'hir>(
-    ctx: &Ctx<'hir, '_>,
+    ctx: &mut Ctx<'hir, '_>,
     ast: &ast::PathSegment,
 ) -> compile::Result<hir::PathSegment<'hir>> {
     alloc_with!(ctx, ast);
@@ -606,7 +622,7 @@ fn path_segment<'hir>(
     })
 }
 
-fn label(_: &Ctx<'_, '_>, ast: &ast::Label) -> compile::Result<ast::Label> {
+fn label(_: &mut Ctx<'_, '_>, ast: &ast::Label) -> compile::Result<ast::Label> {
     Ok(ast::Label {
         span: ast.span,
         source: ast.source,
@@ -614,7 +630,7 @@ fn label(_: &Ctx<'_, '_>, ast: &ast::Label) -> compile::Result<ast::Label> {
 }
 
 fn condition<'hir>(
-    ctx: &Ctx<'hir, '_>,
+    ctx: &mut Ctx<'hir, '_>,
     ast: &ast::Condition,
 ) -> compile::Result<hir::Condition<'hir>> {
     alloc_with!(ctx, ast);

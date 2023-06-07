@@ -40,7 +40,7 @@ pub(crate) struct QueryInner {
     /// Query paths.
     query_paths: HashMap<NonZeroId, QueryPath>,
     /// The result of internally resolved macros.
-    internal_macros: HashMap<NonZeroId, BuiltInMacro>,
+    internal_macros: HashMap<NonZeroId, Arc<BuiltInMacro>>,
     /// Associated between `id` and `Item`. Use to look up items through
     /// `item_for` with an opaque id.
     ///
@@ -302,7 +302,9 @@ impl<'a> Query<'a> {
         internal_macro: BuiltInMacro,
     ) -> compile::Result<NonZeroId> {
         let id = self.gen.next();
-        self.inner.internal_macros.insert(id, internal_macro);
+        self.inner
+            .internal_macros
+            .insert(id, Arc::new(internal_macro));
         Ok(id)
     }
 
@@ -324,7 +326,7 @@ impl<'a> Query<'a> {
     }
 
     /// Get the built-in macro matching the given ast.
-    pub(crate) fn builtin_macro_for<T>(&self, ast: T) -> compile::Result<&BuiltInMacro>
+    pub(crate) fn builtin_macro_for<T>(&self, ast: T) -> compile::Result<Arc<BuiltInMacro>>
     where
         T: Spanned + Opaque,
     {
@@ -333,7 +335,7 @@ impl<'a> Query<'a> {
             .as_ref()
             .and_then(|n| self.inner.internal_macros.get(n))
         {
-            Some(internal_macro) => Ok(internal_macro),
+            Some(internal_macro) => Ok(internal_macro.clone()),
             None => Err(compile::Error::new(
                 ast.span(),
                 QueryErrorKind::MissingId {
@@ -1128,8 +1130,8 @@ impl<'a> Query<'a> {
                 let ir_fn = {
                     // TODO: avoid this arena?
                     let arena = crate::hir::Arena::new();
-                    let ctx = crate::hir::lowering::Ctx::new(&arena, self.borrow());
-                    let hir = crate::hir::lowering::item_fn(&ctx, &c.item_fn)?;
+                    let mut ctx = crate::hir::lowering::Ctx::new(&arena, self.borrow());
+                    let hir = crate::hir::lowering::item_fn(&mut ctx, &c.item_fn)?;
                     let mut c = IrCompiler {
                         source_id: c.location.source_id,
                         q: self.borrow(),

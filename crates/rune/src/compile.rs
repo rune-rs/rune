@@ -254,8 +254,8 @@ impl CompileBuildEntry<'_> {
                 let count = f.ast.args.len();
 
                 let arena = hir::Arena::new();
-                let ctx = hir::lowering::Ctx::new(&arena, self.q.borrow());
-                let hir = hir::lowering::item_fn(&ctx, &f.ast)?;
+                let mut ctx = hir::lowering::Ctx::new(&arena, self.q.borrow());
+                let hir = hir::lowering::item_fn(&mut ctx, &f.ast)?;
                 let mut c = self.compiler1(location, span, &mut asm);
                 assemble::fn_from_item_fn(&hir, &mut c, false)?;
 
@@ -296,8 +296,8 @@ impl CompileBuildEntry<'_> {
                 })?;
 
                 let arena = hir::Arena::new();
-                let ctx = hir::lowering::Ctx::new(&arena, c.q.borrow());
-                let hir = hir::lowering::item_fn(&ctx, &f.ast)?;
+                let mut ctx = hir::lowering::Ctx::new(&arena, c.q.borrow());
+                let hir = hir::lowering::item_fn(&mut ctx, &f.ast)?;
                 assemble::fn_from_item_fn(&hir, &mut c, true)?;
 
                 if used.is_unused() {
@@ -331,8 +331,8 @@ impl CompileBuildEntry<'_> {
                 )?;
 
                 let arena = hir::Arena::new();
-                let ctx = hir::lowering::Ctx::new(&arena, self.q.borrow());
-                let hir = hir::lowering::expr_closure(&ctx, &closure.ast)?;
+                let mut ctx = hir::lowering::Ctx::new(&arena, self.q.borrow());
+                let hir = hir::lowering::expr_closure(&mut ctx, &closure.ast)?;
                 let mut c = self.compiler1(location, span, &mut asm);
                 assemble::closure_from_expr_closure(span, &mut c, &hir, &closure.captures)?;
 
@@ -360,8 +360,8 @@ impl CompileBuildEntry<'_> {
                 let span = b.ast.span();
 
                 let arena = hir::Arena::new();
-                let ctx = hir::lowering::Ctx::new(&arena, self.q.borrow());
-                let hir = hir::lowering::block(&ctx, &b.ast)?;
+                let mut ctx = hir::lowering::Ctx::new(&arena, self.q.borrow());
+                let hir = hir::lowering::block(&mut ctx, &b.ast)?;
 
                 let mut c = self.compiler1(location, span, &mut asm);
                 assemble::closure_from_block(&hir, &mut c, &b.captures)?;
