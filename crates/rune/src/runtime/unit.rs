@@ -8,6 +8,7 @@ mod byte_code;
 mod storage;
 
 use core::fmt;
+use core::ops::{Deref, DerefMut};
 
 use crate::no_std::collections::HashMap;
 use crate::no_std::prelude::*;
@@ -35,10 +36,32 @@ pub type DefaultStorage = ArrayUnit;
 #[cfg(rune_byte_code)]
 pub type DefaultStorage = ByteCodeUnit;
 
-/// Instructions from a single source file.
+/// Instructions and debug info from a single source file.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(bound = "S: Serialize + DeserializeOwned")]
 pub struct Unit<S = DefaultStorage> {
+    /// Instructions.
+    #[serde(flatten)]
+    data: UnitData<S>,
+    /// Debug info if available for unit.
+    debug: Option<Box<DebugInfo>>,
+}
+impl<S> Deref for Unit<S> {
+    type Target = UnitData<S>;
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
+}
+impl<S> DerefMut for Unit<S> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.data
+    }
+}
+
+/// Instructions from a single source file.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename = "Unit")]
+pub struct UnitData<S = DefaultStorage> {
     /// Storage for the unit.
     storage: S,
     /// Where functions are located in the collection of instructions.
@@ -58,13 +81,19 @@ pub struct Unit<S = DefaultStorage> {
     rtti: HashMap<Hash, Arc<Rtti>>,
     /// Runtime information for variants.
     variant_rtti: HashMap<Hash, Arc<VariantRtti>>,
-    /// Debug info if available for unit.
-    debug: Option<Box<DebugInfo>>,
     /// Named constants
     constants: HashMap<Hash, ConstValue>,
 }
 
 impl<S> Unit<S> {
+    /// Constructs a new unit from a pair of data and debug info.
+    pub fn from_pair(data: UnitData<S>, debug: Option<DebugInfo>) -> Self {
+        Self {
+            data,
+            debug: debug.map(Box::new),
+        }
+    }
+
     /// Construct a new unit with the given content.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
@@ -79,15 +108,17 @@ impl<S> Unit<S> {
         constants: HashMap<Hash, ConstValue>,
     ) -> Self {
         Self {
-            storage,
-            functions,
-            static_strings,
-            static_bytes,
-            static_object_keys,
-            rtti,
-            variant_rtti,
+            data: UnitData {
+                storage,
+                functions,
+                static_strings,
+                static_bytes,
+                static_object_keys,
+                rtti,
+                variant_rtti,
+                constants,
+            },
             debug,
-            constants,
         }
     }
 
