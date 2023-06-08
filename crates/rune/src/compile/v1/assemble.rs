@@ -8,8 +8,8 @@ use crate::compile::{self, CompileErrorKind, WithSpan};
 use crate::hir;
 use crate::parse::Resolve;
 use crate::runtime::{
-    ConstValue, Inst, InstAddress, InstAssignOp, InstOp, InstRangeLimits, InstTarget, InstVariant,
-    Label, PanicReason, Protocol, TypeCheck,
+    ConstValue, Inst, InstAddress, InstAssignOp, InstOp, InstRangeLimits, InstTarget, InstValue,
+    InstVariant, Label, PanicReason, Protocol, TypeCheck,
 };
 use crate::Hash;
 
@@ -476,21 +476,17 @@ fn pat_object(
 }
 
 /// Assemble an async block.
-#[instrument]
-pub(crate) fn closure_from_block(
-    hir: &hir::Block<'_>,
-    c: &mut Assembler<'_>,
-    captures: &[String],
-) -> compile::Result<()> {
-    let span = hir.span();
+#[instrument(span = hir.block.span)]
+pub(crate) fn async_block(c: &mut Assembler<'_>, hir: &hir::AsyncBlock<'_>) -> compile::Result<()> {
+    let span = hir.block.span();
 
     let guard = c.scopes.push_child(span)?;
 
-    for capture in captures {
+    for capture in hir.captures {
         c.scopes.new_var(capture, span)?;
     }
 
-    return_(c, span, hir, block)?;
+    return_(c, span, hir.block, block)?;
     c.scopes.pop(guard, span)?;
     Ok(())
 }
@@ -782,8 +778,13 @@ fn expr(hir: &hir::Expr<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Re
             let var = c.scopes.get_var(c.q.visitor, name, c.source_id, span)?;
             Asm::var(span, var, name.into())
         }
-        hir::ExprKind::Value(value) => {
-            c.asm.push(Inst::Push { value }, span);
+        hir::ExprKind::Type(ty) => {
+            c.asm.push(
+                Inst::Push {
+                    value: InstValue::Type(ty),
+                },
+                span,
+            );
             Asm::top(span)
         }
         hir::ExprKind::Fn(hash) => {

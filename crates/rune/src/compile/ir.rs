@@ -26,7 +26,11 @@ use crate::compile::ir;
 use crate::compile::ir::eval::IrEvalBreak;
 use crate::compile::{self, ItemMeta, WithSpan};
 use crate::hir;
+use crate::indexing::index;
+use crate::indexing::{IndexScopes, Indexer};
+use crate::parse::NonZeroId;
 use crate::query::Used;
+use crate::shared::Items;
 
 /// Context used for [IrEval].
 pub struct IrEvalContext<'a> {
@@ -34,17 +38,32 @@ pub struct IrEvalContext<'a> {
     pub(crate) item: &'a ItemMeta,
 }
 
-/// The trait for a type that can be compiled into intermediate representation.
-///
-/// This is primarily used through [MacroContext::eval][crate::macros::MacroContext::eval].
-pub trait IrEval {
-    /// Evaluate the current value as a constant expression and return its value
-    /// through its intermediate representation [IrValue].
-    fn eval(&self, ctx: &mut IrEvalContext<'_>) -> compile::Result<IrValue>;
-}
+impl ast::Expr {
+    pub(crate) fn eval(&self, ctx: &mut IrEvalContext<'_>) -> compile::Result<IrValue> {
+        let Some(id) = ctx.item.id.get() else {
+            return Err(compile::Error::msg(self, "Missing id for constant eval"));
+        };
 
-impl IrEval for ast::Expr {
-    fn eval(&self, ctx: &mut IrEvalContext<'_>) -> compile::Result<IrValue> {
+        let item = ctx.c.q.pool.item(ctx.item.item);
+        let items = Items::new(item, id, ctx.c.q.gen);
+
+        let mut idx = Indexer {
+            q: ctx.c.q.borrow(),
+            source_id: ctx.c.source_id,
+            items,
+            scopes: IndexScopes::new(),
+            mod_item: ctx.item.module,
+            impl_item: Default::default(),
+            nested_item: None,
+            macro_depth: 0,
+            root: None,
+            loaded: None,
+            queue: None,
+        };
+
+        let mut expr = self.clone();
+        index::expr(&mut idx, &mut expr, index::IS_USED)?;
+
         let ir = {
             // TODO: avoid this arena?
             let arena = crate::hir::Arena::new();
@@ -53,7 +72,7 @@ impl IrEval for ast::Expr {
                 ctx.c.q.borrow(),
                 ctx.item.location.source_id,
             );
-            let hir = crate::hir::lowering::expr(&mut hir_ctx, self)?;
+            let hir = crate::hir::lowering::expr(&mut hir_ctx, &expr)?;
             compiler::expr(&hir, &mut ctx.c)?
         };
 
@@ -477,7 +496,7 @@ pub struct IrCall {
     #[rune(span)]
     pub(crate) span: Span,
     /// The target of the call.
-    pub(crate) target: Box<str>,
+    pub(crate) id: NonZeroId,
     /// Arguments to the call.
     pub(crate) args: Vec<Ir>,
 }

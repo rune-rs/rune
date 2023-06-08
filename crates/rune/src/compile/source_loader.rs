@@ -11,9 +11,21 @@ pub trait SourceLoader {
     fn load(&mut self, root: &Path, item: &Item, span: Span) -> compile::Result<Source>;
 }
 
+/// A source loader which does not support loading anything and will error.
+#[derive(Default)]
+#[non_exhaustive]
+pub struct NoopSourceLoader;
+
+impl SourceLoader for NoopSourceLoader {
+    fn load(&mut self, _: &Path, _: &Item, span: Span) -> compile::Result<Source> {
+        Err(compile::Error::msg(span, "File loading is not supported"))
+    }
+}
+
 /// A filesystem-based source loader.
 #[derive(Default)]
-pub struct FileSourceLoader {}
+#[non_exhaustive]
+pub struct FileSourceLoader;
 
 impl FileSourceLoader {
     /// Construct a new filesystem-based source loader.

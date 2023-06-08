@@ -16,7 +16,7 @@ use crate::hash::{Hash, ParametersBuilder};
 use crate::hir;
 use crate::parse::Resolve;
 use crate::query::{self, Named, Query};
-use crate::runtime::{InstValue, Type};
+use crate::runtime::Type;
 use crate::SourceId;
 
 use rune_macros::instrument;
@@ -309,7 +309,26 @@ fn expr_call_closure<'hir>(
     })))
 }
 
-/// Lower the specified block.
+#[instrument(span = ast)]
+pub(crate) fn async_block<'hir>(
+    ctx: &mut Ctx<'hir, '_>,
+    ast: &ast::Block,
+    captures: &[String],
+) -> compile::Result<hir::AsyncBlock<'hir>> {
+    alloc_with!(ctx, ast);
+
+    let captures = &*iter!(captures, |string| alloc_str!(string));
+
+    for capture in captures {
+        ctx.scopes.define(capture).with_span(ast)?;
+    }
+
+    Ok(hir::AsyncBlock {
+        block: alloc!(block(ctx, ast)?),
+        captures,
+    })
+}
+
 #[instrument(span = ast)]
 pub(crate) fn block<'hir>(
     ctx: &mut Ctx<'hir, '_>,
@@ -395,7 +414,7 @@ pub(crate) fn expr_object<'hir>(
     let kind = match path {
         Some(path) => {
             let named = ctx.q.convert_path(path)?;
-            let parameters = generics_parameters(ctx, &named)?;
+            let parameters = generics_parameters(&named)?;
             let meta = ctx.lookup_meta(path.span(), named.item, parameters)?;
             let item = ctx.q.pool.item(meta.item_meta.item);
 
@@ -838,7 +857,7 @@ pub(crate) fn expr_block<'hir>(
         let ExprBlockKind::Const = kind else {
             return Err(compile::Error::msg(
                 ast,
-                "only constant blocks are supported in this context",
+                "Only constant blocks are supported in this context",
             ));
         };
 
@@ -919,7 +938,7 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
             ast::Pat::Path(ast) => {
                 let path = path(ctx, &ast.path)?;
                 let named = ctx.q.convert_path(&path)?;
-                let parameters = generics_parameters(ctx, &named)?;
+                let parameters = generics_parameters(&named)?;
 
                 let kind = 'ok: {
                     if let Some(meta) = ctx.try_lookup_meta(path.span, named.item, &parameters)? {
@@ -963,7 +982,7 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
 
                 let kind = if let Some(path) = path {
                     let named = ctx.q.convert_path(path)?;
-                    let parameters = generics_parameters(ctx, &named)?;
+                    let parameters = generics_parameters(&named)?;
                     let meta = ctx.lookup_meta(path.span(), named.item, parameters)?;
 
                     // Treat the current meta as a tuple and get the number of arguments it
@@ -1059,7 +1078,7 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
                         let span = path.span();
 
                         let named = ctx.q.convert_path(path)?;
-                        let parameters = generics_parameters(ctx, &named)?;
+                        let parameters = generics_parameters(&named)?;
                         let meta = ctx.lookup_meta(span, named.item, parameters)?;
 
                         let Some((st, kind)) = struct_match_for(ctx, &meta) else {
@@ -1161,10 +1180,6 @@ pub(crate) fn expr_path<'hir>(
 ) -> compile::Result<hir::ExprKind<'hir>> {
     alloc_with!(ctx, ast);
 
-    if ctx.in_path.get() {
-        return Ok(hir::ExprKind::Path(alloc!(path(ctx, ast)?)));
-    }
-
     if let Some(ast::PathKind::SelfValue) = ast.as_kind() {
         return Ok(hir::ExprKind::SelfValue);
     }
@@ -1182,7 +1197,7 @@ pub(crate) fn expr_path<'hir>(
     let span = ast.span();
     let path = path(ctx, ast)?;
     let named = ctx.q.convert_path(&path)?;
-    let parameters = generics_parameters(ctx, &named)?;
+    let parameters = generics_parameters(&named)?;
 
     if let Some(meta) = ctx.try_lookup_meta(span, named.item, &parameters)? {
         return expr_path_meta(ctx, &meta, span);
@@ -1254,9 +1269,6 @@ fn expr_path_meta<'hir>(
                 fields: meta::Fields::Unnamed(..),
                 ..
             } => Ok(hir::ExprKind::Fn(meta.hash)),
-            meta::Kind::Struct { .. } => {
-                Ok(hir::ExprKind::Value(InstValue::Type(Type::new(meta.hash))))
-            }
             meta::Kind::Variant {
                 fields: meta::Fields::Unnamed(..),
                 ..
@@ -1265,20 +1277,21 @@ fn expr_path_meta<'hir>(
                 Ok(hir::ExprKind::Fn(meta.hash))
             }
             meta::Kind::Const { .. } => Ok(hir::ExprKind::Const(meta.hash)),
-            _ => {
-                return Err(compile::Error::expected_meta(
-                    span,
-                    meta.info(ctx.q.pool),
-                    "something that can be used as a value",
-                ));
+            meta::Kind::Struct { .. } | meta::Kind::Type { .. } | meta::Kind::Enum { .. } => {
+                Ok(hir::ExprKind::Type(Type::new(meta.hash)))
             }
+            _ => Err(compile::Error::expected_meta(
+                span,
+                meta.info(ctx.q.pool),
+                "something that can be used as a value",
+            )),
         }
     } else {
         let type_hash = meta.type_hash_of().ok_or_else(|| {
             compile::Error::expected_meta(span, meta.info(ctx.q.pool), "something that has a type")
         })?;
 
-        Ok(hir::ExprKind::Value(InstValue::Type(Type::new(type_hash))))
+        Ok(hir::ExprKind::Type(Type::new(type_hash)))
     }
 }
 
@@ -1300,6 +1313,7 @@ pub(crate) fn path<'hir>(
     })
 }
 
+#[instrument(span = ast)]
 fn path_segment<'hir>(
     ctx: &mut Ctx<'hir, '_>,
     ast: &ast::PathSegment,
@@ -1441,10 +1455,7 @@ fn tuple_match_for(ctx: &Ctx<'_, '_>, meta: &meta::Meta) -> Option<(usize, hir::
     })
 }
 
-fn generics_parameters<'hir>(
-    ctx: &mut Ctx<'hir, '_>,
-    named: &Named<'hir>,
-) -> compile::Result<GenericsParameters> {
+fn generics_parameters(named: &Named<'_>) -> compile::Result<GenericsParameters> {
     let mut parameters = GenericsParameters {
         trailing: named.trailing,
         parameters: [None, None],
@@ -1456,39 +1467,25 @@ fn generics_parameters<'hir>(
         .zip(parameters.parameters.iter_mut())
     {
         if let &Some((_, expr)) = value {
-            *o = Some(generics_parameter(ctx, expr)?);
+            *o = Some(generics_parameter(expr)?);
         }
     }
 
     Ok(parameters)
 }
 
-fn generics_parameter<'hir>(
-    ctx: &mut Ctx<'hir, '_>,
-    generics: &[hir::Expr<'hir>],
-) -> compile::Result<Hash> {
+fn generics_parameter(generics: &[hir::Expr<'_>]) -> compile::Result<Hash> {
     let mut builder = ParametersBuilder::new();
 
     for expr in generics {
-        let hir::ExprKind::Path(path) = expr.kind else {
+        let hir::ExprKind::Type(ty) = expr.kind else {
             return Err(compile::Error::new(
                 expr.span,
                 CompileErrorKind::UnsupportedGenerics,
             ));
         };
 
-        let named = ctx.q.convert_path(path)?;
-        let parameters = generics_parameters(ctx, &named)?;
-        let meta = ctx.lookup_meta(expr.span(), named.item, parameters)?;
-
-        let (meta::Kind::Type { .. } | meta::Kind::Struct { .. } | meta::Kind::Enum { .. }) = meta.kind else {
-            return Err(compile::Error::new(
-                expr.span,
-                CompileErrorKind::UnsupportedGenerics,
-            ));
-        };
-
-        builder.add(meta.hash);
+        builder.add(ty.into_hash());
     }
 
     Ok(builder.finish())
@@ -1516,7 +1513,7 @@ fn expr_call<'hir>(
                 }
 
                 let named = ctx.q.convert_path(path)?;
-                let parameters = generics_parameters(ctx, &named)?;
+                let parameters = generics_parameters(&named)?;
 
                 let meta = ctx.lookup_meta(path.span(), named.item, parameters)?;
                 debug_assert_eq!(meta.item_meta.item, named.item);
@@ -1593,7 +1590,7 @@ fn expr_call<'hir>(
                     let hash = Hash::instance_fn_name(ident);
 
                     let hash = if let Some((.., generic)) = generics {
-                        hash.with_function_parameters(generics_parameter(ctx, generic)?)
+                        hash.with_function_parameters(generics_parameter(generic)?)
                     } else {
                         hash
                     };

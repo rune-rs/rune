@@ -7,7 +7,7 @@ use crate::no_std::collections::VecDeque;
 
 use crate::ast;
 use crate::ast::Span;
-use crate::compile::{ModId, Options, SourceLoader};
+use crate::compile::ModId;
 use crate::indexing::index;
 use crate::indexing::{IndexScopes, Indexer};
 use crate::query::Query;
@@ -23,8 +23,6 @@ pub(crate) use self::task::{LoadFileKind, Task};
 pub(crate) use self::wildcard_import::WildcardImport;
 
 pub(crate) struct Worker<'a> {
-    options: &'a Options,
-    pub(crate) source_loader: &'a mut dyn SourceLoader,
     /// Query engine.
     pub(crate) q: Query<'a>,
     /// Files that have been loaded.
@@ -35,14 +33,8 @@ pub(crate) struct Worker<'a> {
 
 impl<'a> Worker<'a> {
     /// Construct a new worker.
-    pub(crate) fn new(
-        options: &'a Options,
-        source_loader: &'a mut dyn SourceLoader,
-        q: Query<'a>,
-    ) -> Self {
+    pub(crate) fn new(q: Query<'a>) -> Self {
         Self {
-            options,
-            source_loader,
             q,
             loaded: HashMap::new(),
             queue: VecDeque::new(),
@@ -95,24 +87,22 @@ impl<'a> Worker<'a> {
 
                     let items = Items::new(item, mod_item_id, self.q.gen);
 
-                    let mut indexer = Indexer {
-                        root,
-                        loaded: &mut self.loaded,
+                    let mut idx = Indexer {
                         q: self.q.borrow(),
-                        queue: &mut self.queue,
-                        options: self.options,
+                        root,
                         source_id,
                         items,
                         scopes: IndexScopes::new(),
                         mod_item,
                         impl_item: Default::default(),
-                        source_loader: self.source_loader,
                         nested_item: None,
                         macro_depth: 0,
+                        loaded: Some(&mut self.loaded),
+                        queue: Some(&mut self.queue),
                     };
 
-                    if let Err(error) = index::file(&mut file, &mut indexer) {
-                        indexer.q.diagnostics.error(source_id, error);
+                    if let Err(error) = index::file(&mut idx, &mut file) {
+                        idx.q.diagnostics.error(source_id, error);
                     }
                 }
                 Task::ExpandImport(import) => {

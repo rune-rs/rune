@@ -33,15 +33,11 @@ impl IrCompiler<'_> {
     /// Resolve an ir target from an expression.
     fn ir_target(&self, expr: &hir::Expr<'_>) -> compile::Result<ir::IrTarget> {
         match expr.kind {
-            hir::ExprKind::Path(path) => {
-                if let Some(ident) = path.try_as_ident() {
-                    let name = self.resolve(ident)?;
-
-                    return Ok(ir::IrTarget {
-                        span: expr.span(),
-                        kind: ir::IrTargetKind::Name(name.into()),
-                    });
-                }
+            hir::ExprKind::Variable(_, name) => {
+                return Ok(ir::IrTarget {
+                    span: expr.span(),
+                    kind: ir::IrTargetKind::Name(name.into()),
+                });
             }
             hir::ExprKind::FieldAccess(expr_field_access) => {
                 let target = self.ir_target(expr_field_access.expr)?;
@@ -72,7 +68,7 @@ impl IrCompiler<'_> {
             _ => (),
         }
 
-        Err(compile::Error::msg(expr, "not supported as a target"))
+        Err(compile::Error::msg(expr, "Not supported as a target"))
     }
 }
 
@@ -82,7 +78,7 @@ pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut IrCompiler<'_>) -> compile::Resu
 
     Ok(match hir.kind {
         hir::ExprKind::Vec(hir) => ir::Ir::new(span, expr_vec(span, c, hir)?),
-        hir::ExprKind::Tuple(hir) => expr_tuple(span, c, hir)?,
+        hir::ExprKind::Tuple(hir) => expr_tuple(c, span, hir)?,
         hir::ExprKind::Object(hir) => ir::Ir::new(span, expr_object(span, c, hir)?),
         hir::ExprKind::Group(hir) => expr(hir, c)?,
         hir::ExprKind::Binary(hir) => expr_binary(span, c, hir)?,
@@ -90,7 +86,7 @@ pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut IrCompiler<'_>) -> compile::Resu
         hir::ExprKind::Call(hir) => ir::Ir::new(span, expr_call(span, c, hir)?),
         hir::ExprKind::If(hir) => ir::Ir::new(span, expr_if(span, c, hir)?),
         hir::ExprKind::Loop(hir) => ir::Ir::new(span, expr_loop(span, c, hir)?),
-        hir::ExprKind::Lit(hir) => lit(span, c, hir)?,
+        hir::ExprKind::Lit(hir) => lit(c, span, hir)?,
         hir::ExprKind::Block(hir) => ir::Ir::new(span, block(hir, c)?),
         hir::ExprKind::Path(hir) => path(hir, c)?,
         hir::ExprKind::FieldAccess(..) => ir::Ir::new(span, c.ir_target(hir)?),
@@ -99,7 +95,22 @@ pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut IrCompiler<'_>) -> compile::Resu
             let ir_template = builtin_template(template, c)?;
             ir::Ir::new(hir.span(), ir_template)
         }
-        _ => return Err(compile::Error::msg(hir, "not supported yet")),
+        hir::ExprKind::Const(hash) => {
+            let Some(value) = c.q.get_const_value(hash) else {
+                return Err(compile::Error::msg(hir, format_args!("Missing constant for hash {hash}")));
+            };
+
+            ir::Ir::new(span, ir::IrValue::from_const(value))
+        }
+        hir::ExprKind::Variable(_, name) => {
+            return Ok(ir::Ir::new(span, <Box<str>>::from(name)));
+        }
+        _ => {
+            return Err(compile::Error::msg(
+                hir,
+                "Expression kind not supported yet in constant contexts",
+            ))
+        }
     })
 }
 
@@ -133,15 +144,14 @@ fn expr_call(
         args.push(expr(e, c)?);
     }
 
-    if let hir::Call::Var { name, .. } = hir.call {
-        return Ok(ir::IrCall {
-            span,
-            target: name.into(),
-            args,
-        });
+    if let hir::Call::ConstFn { id, .. } = hir.call {
+        return Ok(ir::IrCall { span, id, args });
     }
 
-    Err(compile::Error::msg(span, "call not supported"))
+    Err(compile::Error::msg(
+        span,
+        "Call not supported in constant contexts",
+    ))
 }
 
 #[instrument]
@@ -203,8 +213,8 @@ fn expr_binary(
     ))
 }
 
-#[instrument]
-fn lit(span: Span, c: &mut IrCompiler<'_>, hir: hir::Lit<'_>) -> compile::Result<ir::Ir> {
+#[instrument(span = span)]
+fn lit(c: &mut IrCompiler<'_>, span: Span, hir: hir::Lit<'_>) -> compile::Result<ir::Ir> {
     Ok(match hir {
         hir::Lit::Bool(boolean) => ir::Ir::new(span, IrValue::Bool(boolean)),
         hir::Lit::Str(string) => ir::Ir::new(span, IrValue::String(Shared::new(string.to_owned()))),
@@ -219,10 +229,10 @@ fn lit(span: Span, c: &mut IrCompiler<'_>, hir: hir::Lit<'_>) -> compile::Result
     })
 }
 
-#[instrument]
+#[instrument(span = span)]
 fn expr_tuple(
-    span: Span,
     c: &mut IrCompiler<'_>,
+    span: Span,
     hir: &hir::ExprSeq<'_>,
 ) -> compile::Result<ir::Ir> {
     if hir.items.is_empty() {

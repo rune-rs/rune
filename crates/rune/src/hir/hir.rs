@@ -4,7 +4,7 @@ use crate as rune;
 use crate::ast::{self, Span, Spanned};
 use crate::hir::Variable;
 use crate::parse::{Expectation, Id, IntoExpectation, NonZeroId, Opaque};
-use crate::runtime::{format, InstValue, TypeCheck};
+use crate::runtime::{format, Type, TypeCheck};
 use crate::Hash;
 
 /// A pattern.
@@ -126,7 +126,7 @@ pub(crate) enum Lit<'hir> {
 pub(crate) enum ExprKind<'hir> {
     SelfValue,
     Variable(Variable, &'hir str),
-    Value(InstValue),
+    Type(Type),
     Fn(Hash),
     Path(&'hir Path<'hir>),
     Assign(&'hir ExprAssign<'hir>),
@@ -699,6 +699,12 @@ impl Block<'_> {
     pub(crate) fn produces_nothing(&self) -> bool {
         matches!(self.statements.last(), Some(Stmt::Semi(..)) | None)
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct AsyncBlock<'hir> {
+    pub(crate) block: &'hir Block<'hir>,
+    pub(crate) captures: &'hir [&'hir str],
 }
 
 /// A statement within a block.

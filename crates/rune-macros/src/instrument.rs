@@ -5,9 +5,7 @@ use syn::Token;
 /// An internal call to the macro.
 #[derive(Default)]
 pub struct Attr {
-    skip_span: bool,
-    leaving: bool,
-    span: Option<syn::Ident>,
+    span: Option<syn::Expr>,
 }
 
 impl syn::parse::Parse for Attr {
@@ -18,11 +16,7 @@ impl syn::parse::Parse for Attr {
         while !input.is_empty() {
             let ident = input.parse::<syn::Ident>()?;
 
-            if ident == "skip_span" {
-                attr.skip_span = true;
-            } else if ident == "leaving" {
-                attr.leaving = true;
-            } else if ident == "span" {
+            if ident == "span" {
                 input.parse::<Token![=]>()?;
                 attr.span = Some(input.parse()?);
             } else {
@@ -71,30 +65,14 @@ impl Expander {
             _ => None,
         };
 
-        let second = match it.next() {
-            Some(syn::FnArg::Typed(ty)) => match &*ty.pat {
-                syn::Pat::Ident(ident) => Some(&ident.ident),
-                _ => None,
-            },
-            _ => None,
-        };
-
         let ident = &self.sig.ident;
 
-        let log = match (first, second) {
-            (Some(a), Some(b)) => {
+        let log = match first {
+            Some(a) => {
                 let ident = syn::LitStr::new(&ident.to_string(), ident.span());
 
-                let enter = match (attr.skip_span, &attr.span) {
-                    (false, None) => Some(quote! {
-                        let _instrument_span = ::tracing::span!(::tracing::Level::TRACE, #ident);
-                        let _instrument_enter = _instrument_span.enter();
-
-                        if let Some(source) = #b.q.sources.source(#b.source_id, #a.span()) {
-                            ::tracing::trace!("{:?}", source);
-                        }
-                    }),
-                    (_, Some(span)) => Some(quote! {
+                match &attr.span {
+                    Some(span) => Some(quote! {
                         let _instrument_span = ::tracing::span!(::tracing::Level::TRACE, #ident);
                         let _instrument_enter = _instrument_span.enter();
 
@@ -102,14 +80,12 @@ impl Expander {
                             ::tracing::trace!("{:?}", source);
                         }
                     }),
-                    _ => Some(quote! {
+                    None => Some(quote! {
                         let _instrument_span = ::tracing::span!(::tracing::Level::TRACE, #ident);
                         let _instrument_enter = _instrument_span.enter();
                         ::tracing::trace!("entering");
                     }),
-                };
-
-                enter
+                }
             }
             _ => None,
         };

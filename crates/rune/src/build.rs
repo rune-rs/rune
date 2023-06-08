@@ -275,10 +275,10 @@ impl<'a, S> Build<'a, S> {
             self.sources,
             &mut pool,
             context,
-            options,
             visitors,
             diagnostics,
             source_loader,
+            options,
             &mut unit_storage,
         );
 

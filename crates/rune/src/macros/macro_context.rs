@@ -5,14 +5,14 @@ use core::fmt;
 use crate::ast;
 use crate::ast::Span;
 use crate::compile::{
-    self, Context, IrCompiler, IrEval, IrEvalContext, IrValue, ItemMeta, NoopCompileVisitor,
-    ParseErrorKind, Pool, Prelude, UnitBuilder,
+    self, Context, IrCompiler, IrEvalContext, IrValue, ItemMeta, NoopCompileVisitor,
+    NoopSourceLoader, ParseErrorKind, Pool, Prelude, UnitBuilder,
 };
 use crate::macros::{IntoLit, Storage, ToTokens, TokenStream};
 use crate::parse::{Parse, Resolve};
 use crate::query::Query;
 use crate::shared::{Consts, Gen};
-use crate::{Diagnostics, Source, SourceId, Sources};
+use crate::{Diagnostics, Options, Source, SourceId, Sources};
 
 /// Context for a running macro.
 pub struct MacroContext<'a> {
@@ -50,6 +50,8 @@ impl<'a> MacroContext<'a> {
         let mut pool = Pool::default();
         let mut visitor = NoopCompileVisitor::new();
         let mut diagnostics = Diagnostics::default();
+        let mut source_loader = NoopSourceLoader::default();
+        let options = Options::default();
         let context = Context::default();
         let mut inner = Default::default();
 
@@ -62,6 +64,8 @@ impl<'a> MacroContext<'a> {
             &mut pool,
             &mut visitor,
             &mut diagnostics,
+            &mut source_loader,
+            &options,
             &gen,
             &context,
             &mut inner,
@@ -101,10 +105,7 @@ impl<'a> MacroContext<'a> {
     ///     assert_eq!(3, value.into_integer::<u32>().unwrap());
     /// });
     /// ```
-    pub fn eval<T>(&mut self, target: &T) -> compile::Result<IrValue>
-    where
-        T: IrEval,
-    {
+    pub fn eval(&mut self, target: &ast::Expr) -> compile::Result<IrValue> {
         let mut ctx = IrEvalContext {
             c: IrCompiler {
                 source_id: self.item_meta.location.source_id,

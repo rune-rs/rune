@@ -201,7 +201,7 @@ fn eval_ir_call(
         args.push(eval_ir(arg, interp, used)?);
     }
 
-    Ok(interp.call_const_fn(ir, &ir.target, args, used)?)
+    Ok(interp.call_const_fn(ir, ir.id, args, used)?)
 }
 
 fn eval_ir_condition(

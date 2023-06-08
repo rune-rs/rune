@@ -529,7 +529,7 @@ fn expand_format_spec<'a>(
 
             unused_pos.remove(count);
 
-            let value = ctx.eval(*expr)?;
+            let value = ctx.eval(expr)?;
 
             let number = match &value {
                 IrValue::Integer(n) => n.to_usize(),

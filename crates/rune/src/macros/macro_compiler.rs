@@ -4,7 +4,7 @@ use crate::no_std::prelude::*;
 
 use crate::ast;
 use crate::ast::Spanned;
-use crate::compile::{self, CompileErrorKind, ItemMeta, Options};
+use crate::compile::{self, CompileErrorKind, ItemMeta};
 use crate::macros::{MacroContext, ToTokens};
 use crate::parse::{Parse, Parser};
 use crate::query::Query;
@@ -13,7 +13,6 @@ use super::TokenStream;
 
 pub(crate) struct MacroCompiler<'a> {
     pub(crate) item_meta: ItemMeta,
-    pub(crate) options: &'a Options,
     pub(crate) query: Query<'a>,
 }
 
@@ -25,7 +24,7 @@ impl MacroCompiler<'_> {
     {
         let span = macro_call.span();
 
-        if !self.options.macros {
+        if !self.query.options.macros {
             return Err(compile::Error::msg(
                 span,
                 "macros must be enabled with `-O macros=true`",
@@ -90,7 +89,7 @@ impl MacroCompiler<'_> {
     {
         let span = attribute.span();
 
-        if !self.options.macros {
+        if !self.query.options.macros {
             return Ok(None);
         }
 

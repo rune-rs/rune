@@ -594,8 +594,6 @@ pub(crate) enum IrErrorKind {
     /// Error raised when trying to use a break outside of a loop.
     #[error("Break outside of supported loop")]
     BreakOutsideOfLoop,
-    #[error("Function not found")]
-    FnNotFound,
     #[error("Argument count mismatch, got {actual} but expected {expected}")]
     ArgumentCountMismatch { actual: usize, expected: usize },
 }

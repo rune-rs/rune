@@ -90,7 +90,6 @@ impl<'hir> Scopes<'hir> {
     }
 
     /// Pop the given scope.
-    #[must_use]
     pub(crate) fn pop(&mut self) -> Result<Layer<'hir>, PopError> {
         let Some(layer) = self.scopes.try_remove(self.scope.0) else {
             return Err(PopError::MissingScope(self.scope.0));

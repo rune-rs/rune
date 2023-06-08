@@ -5,10 +5,8 @@ use crate::no_std::collections::{hash_map, BTreeMap, HashMap, HashSet, VecDeque}
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
-use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::compile::context::ContextMeta;
-use crate::compile::ir;
 use crate::compile::meta;
 use crate::compile::v1::GenericsParameters;
 use crate::compile::{
@@ -16,6 +14,7 @@ use crate::compile::{
     IrCompiler, IrInterpreter, Item, ItemBuf, ItemId, ItemMeta, Location, ModId, ModMeta, Names,
     Pool, Prelude, QueryErrorKind, SourceMeta, UnitBuilder, Visibility, WithSpan,
 };
+use crate::compile::{ir, SourceLoader};
 use crate::hir;
 use crate::indexing::{self, Indexed};
 use crate::macros::Storage;
@@ -23,6 +22,7 @@ use crate::parse::{Id, NonZeroId, Opaque, Resolve, ResolveContext};
 use crate::query::{Build, BuildEntry, BuiltInMacro, ConstFn, Named, QueryPath, Used};
 use crate::runtime::{Call, ConstValue};
 use crate::shared::{Consts, Gen, Items};
+use crate::{ast, Options};
 use crate::{Context, Diagnostics, Hash, SourceId, Sources};
 
 enum ContextMatch<'this, 'm> {
@@ -94,6 +94,10 @@ pub(crate) struct Query<'a> {
     pub(crate) visitor: &'a mut dyn CompileVisitor,
     /// Compilation warnings.
     pub(crate) diagnostics: &'a mut Diagnostics,
+    /// Source loader.
+    pub(crate) source_loader: &'a mut dyn SourceLoader,
+    /// Build opt8ions.
+    pub(crate) options: &'a Options,
     /// Shared id generator.
     pub(crate) gen: &'a Gen,
     /// Native context.
@@ -113,6 +117,8 @@ impl<'a> Query<'a> {
         pool: &'a mut Pool,
         visitor: &'a mut dyn CompileVisitor,
         diagnostics: &'a mut Diagnostics,
+        source_loader: &'a mut dyn SourceLoader,
+        options: &'a Options,
         gen: &'a Gen,
         context: &'a Context,
         inner: &'a mut QueryInner,
@@ -126,6 +132,8 @@ impl<'a> Query<'a> {
             pool,
             visitor,
             diagnostics,
+            source_loader,
+            options,
             gen,
             context,
             inner,
@@ -143,6 +151,8 @@ impl<'a> Query<'a> {
             sources: self.sources,
             visitor: self.visitor,
             diagnostics: self.diagnostics,
+            source_loader: self.source_loader,
+            options: self.options,
             gen: self.gen,
             context: self.context,
             inner: self.inner,
@@ -1314,18 +1324,18 @@ impl<'a> Query<'a> {
             }
             Indexed::ConstExpr(c) => {
                 let ir = {
+                    let arena = crate::hir::Arena::new();
+                    let mut hir_ctx = crate::hir::lowering::Ctx::with_const(
+                        &arena,
+                        self.borrow(),
+                        item_meta.location.source_id,
+                    );
+                    let hir = crate::hir::lowering::expr(&mut hir_ctx, &c.ast)?;
+
                     let mut compiler = IrCompiler {
                         source_id: item_meta.location.source_id,
                         q: self.borrow(),
                     };
-
-                    let arena = crate::hir::Arena::new();
-                    let mut hir_ctx = crate::hir::lowering::Ctx::with_const(
-                        &arena,
-                        compiler.q.borrow(),
-                        compiler.source_id,
-                    );
-                    let hir = crate::hir::lowering::expr(&mut hir_ctx, &c.ast)?;
                     ir::compiler::expr(&hir, &mut compiler)?
                 };
 
@@ -1340,7 +1350,7 @@ impl<'a> Query<'a> {
                 let const_value = const_compiler.eval_const(&ir, used)?;
 
                 let hash = self.pool.item_type_hash(item_meta.item);
-                self.inner.constants.insert(hash, const_value.clone());
+                self.inner.constants.insert(hash, const_value);
 
                 if used.is_unused() {
                     self.inner.queue.push_back(BuildEntry {
@@ -1354,22 +1364,19 @@ impl<'a> Query<'a> {
             }
             Indexed::ConstBlock(c) => {
                 let ir = {
-                    let mut compiler = IrCompiler {
-                        source_id: item_meta.location.source_id,
-                        q: self.borrow(),
-                    };
-
                     let arena = crate::hir::Arena::new();
                     let mut hir_ctx = crate::hir::lowering::Ctx::with_const(
                         &arena,
-                        compiler.q.borrow(),
-                        compiler.source_id,
+                        self.borrow(),
+                        item_meta.location.source_id,
                     );
                     let hir = crate::hir::lowering::block(&mut hir_ctx, &c.ast)?;
-                    ir::Ir::new(
-                        item_meta.location.span,
-                        ir::compiler::block(&hir, &mut compiler)?,
-                    )
+
+                    let mut c = IrCompiler {
+                        source_id: item_meta.location.source_id,
+                        q: self.borrow(),
+                    };
+                    ir::Ir::new(item_meta.location.span, ir::compiler::block(&hir, &mut c)?)
                 };
 
                 let mut const_compiler = IrInterpreter {
@@ -1383,7 +1390,7 @@ impl<'a> Query<'a> {
                 let const_value = const_compiler.eval_const(&ir, used)?;
 
                 let hash = self.pool.item_type_hash(item_meta.item);
-                self.inner.constants.insert(hash, const_value.clone());
+                self.inner.constants.insert(hash, const_value);
 
                 if used.is_unused() {
                     self.inner.queue.push_back(BuildEntry {
@@ -1405,6 +1412,7 @@ impl<'a> Query<'a> {
                         item_meta.location.source_id,
                     );
                     let hir = crate::hir::lowering::item_fn(&mut ctx, &c.item_fn)?;
+
                     let mut c = IrCompiler {
                         source_id: item_meta.location.source_id,
                         q: self.borrow(),

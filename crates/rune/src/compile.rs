@@ -34,13 +34,13 @@ mod prelude;
 pub(crate) use self::prelude::Prelude;
 
 pub(crate) mod ir;
+pub use self::ir::IrValue;
 pub(crate) use self::ir::{IrBudget, IrCompiler, IrEvalContext, IrEvalOutcome, IrInterpreter};
-pub use self::ir::{IrEval, IrValue};
 
 pub use rune_core::{Component, ComponentRef, IntoComponent, Item, ItemBuf};
 
 mod source_loader;
-pub use self::source_loader::{FileSourceLoader, SourceLoader};
+pub use self::source_loader::{FileSourceLoader, NoopSourceLoader, SourceLoader};
 
 mod unit_builder;
 pub use self::unit_builder::LinkerError;
@@ -96,10 +96,10 @@ pub(crate) fn compile(
     sources: &mut Sources,
     pool: &mut Pool,
     context: &Context,
-    options: &Options,
     visitor: &mut dyn CompileVisitor,
     diagnostics: &mut Diagnostics,
     source_loader: &mut dyn SourceLoader,
+    options: &Options,
     unit_storage: &mut dyn UnitEncoder,
 ) -> Result<(), ()> {
     // Shared id generator.
@@ -117,13 +117,15 @@ pub(crate) fn compile(
         pool,
         visitor,
         diagnostics,
+        source_loader,
+        options,
         &gen,
         context,
         &mut inner,
     );
 
     // The worker queue.
-    let mut worker = Worker::new(options, source_loader, q);
+    let mut worker = Worker::new(q);
 
     // Queue up the initial sources to be loaded.
     for source_id in worker.q.sources.source_ids() {
@@ -376,10 +378,9 @@ impl CompileBuildEntry<'_> {
                     self.q.borrow(),
                     item_meta.location.source_id,
                 );
-                let hir = hir::lowering::block(&mut ctx, &b.ast)?;
-
+                let hir = hir::lowering::async_block(&mut ctx, &b.ast, &b.captures)?;
                 let mut c = self.compiler1(location, span, &mut asm);
-                assemble::closure_from_block(&hir, &mut c, &b.captures)?;
+                assemble::async_block(&mut c, &hir)?;
 
                 if used.is_unused() {
                     self.q
