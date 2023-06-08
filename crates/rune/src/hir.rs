@@ -7,4 +7,4 @@ pub(crate) use self::hir::*;
 pub(crate) mod lowering;
 
 pub(crate) mod scopes;
-pub(crate) use self::scopes::{Scope, Scopes, Variable};
+pub(crate) use self::scopes::{Scopes, Variable};

@@ -8,7 +8,8 @@ use core::num::NonZeroUsize;
 
 use crate::no_std::prelude::*;
 
-pub(crate) use self::query::Query;
+pub(crate) use self::query::{Query, QueryInner};
+
 use crate as rune;
 use crate::ast;
 use crate::ast::{Span, Spanned};

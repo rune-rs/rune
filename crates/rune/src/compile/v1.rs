@@ -162,7 +162,6 @@ impl<'a> Assembler<'a> {
     pub(crate) fn call_const_fn(
         &mut self,
         span: Span,
-        meta: &meta::Meta,
         from: &ItemMeta,
         query_const_fn: &ConstFn,
         args: &[hir::Expr<'_>],
@@ -171,7 +170,6 @@ impl<'a> Assembler<'a> {
             return Err(compile::Error::new(
                 span,
                 CompileErrorKind::UnsupportedArgumentCount {
-                    meta: meta.info(self.q.pool),
                     expected: query_const_fn.ir_fn.args.len(),
                     actual: args.len(),
                 },

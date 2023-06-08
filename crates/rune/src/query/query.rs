@@ -46,7 +46,7 @@ pub(crate) struct QueryInner {
     /// Compiled constant functions.
     const_fns: HashMap<NonZeroId, Arc<ConstFn>>,
     /// Indexed constant values.
-    constants: HashMap<NonZeroId, ConstValue>,
+    constants: HashMap<Hash, ConstValue>,
     /// Query paths.
     query_paths: HashMap<NonZeroId, QueryPath>,
     /// The result of internally resolved macros.
@@ -59,6 +59,13 @@ pub(crate) struct QueryInner {
     items: HashMap<NonZeroId, ItemMeta>,
     /// All available names.
     names: Names,
+}
+
+impl QueryInner {
+    /// Get a constant value but only from the dynamic query system.
+    pub(crate) fn get_const_value(&self, hash: Hash) -> Option<&ConstValue> {
+        self.constants.get(&hash)
+    }
 }
 
 /// Query system of the rune compiler.
@@ -300,7 +307,7 @@ impl<'a> Query<'a> {
 
         self.insert_meta(meta.clone()).with_span(location.span)?;
 
-        tracing::trace!("Found in context: {:?}", meta);
+        tracing::trace!(?meta, "Found in context");
 
         self.visitor
             .visit_meta(location, meta.as_meta_ref(self.pool));
@@ -553,19 +560,6 @@ impl<'a> Query<'a> {
         }
     }
 
-    /// Insert an item and return its Id.
-    #[tracing::instrument(skip_all)]
-    fn insert_const_fn(&mut self, item_meta: ItemMeta, ir_fn: ir::IrFn) -> NonZeroId {
-        let id = self.gen.next();
-        tracing::trace!(item = ?self.pool.item(item_meta.item), id = ?id);
-
-        self.inner
-            .const_fns
-            .insert(id, Arc::new(ConstFn { item_meta, ir_fn }));
-
-        id
-    }
-
     /// Get the constant function associated with the opaque.
     pub(crate) fn const_fn_for<T>(&self, ast: T) -> compile::Result<Arc<ConstFn>>
     where
@@ -611,25 +605,36 @@ impl<'a> Query<'a> {
 
     /// Index a constant expression.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn index_const<T>(
+    pub(crate) fn index_const_expr(
         &mut self,
         item_meta: ItemMeta,
-        value: &T,
-        f: fn(&T, &mut IrCompiler) -> compile::Result<ir::Ir>,
+        ast: &ast::Expr,
     ) -> compile::Result<()> {
         tracing::trace!(item = ?self.pool.item(item_meta.item));
 
-        let mut c = IrCompiler {
-            source_id: item_meta.location.source_id,
-            q: self.borrow(),
-        };
-        let ir = f(value, &mut c)?;
+        self.index(indexing::Entry {
+            item_meta,
+            indexed: Indexed::ConstExpr(indexing::ConstExpr {
+                ast: Box::new(ast.clone()),
+            }),
+        });
+
+        Ok(())
+    }
+
+    /// Index a constant expression.
+    #[tracing::instrument(skip_all)]
+    pub(crate) fn index_const_block(
+        &mut self,
+        item_meta: ItemMeta,
+        ast: &ast::Block,
+    ) -> compile::Result<()> {
+        tracing::trace!(item = ?self.pool.item(item_meta.item));
 
         self.index(indexing::Entry {
             item_meta,
-            indexed: Indexed::Const(indexing::Const {
-                module: item_meta.module,
-                ir,
+            indexed: Indexed::ConstBlock(indexing::ConstBlock {
+                ast: Box::new(ast.clone()),
             }),
         });
 
@@ -647,10 +652,7 @@ impl<'a> Query<'a> {
 
         self.index(indexing::Entry {
             item_meta,
-            indexed: Indexed::ConstFn(indexing::ConstFn {
-                location: item_meta.location,
-                item_fn,
-            }),
+            indexed: Indexed::ConstFn(indexing::ConstFn { item_fn }),
         });
 
         Ok(())
@@ -824,7 +826,7 @@ impl<'a> Query<'a> {
     ) -> compile::Result<Option<meta::Meta>> {
         if let Some(entry) = self.remove_indexed(span, item)? {
             let meta = self.build_indexed_entry(span, entry, used)?;
-            self.unit.insert_meta(span, &meta, self.pool)?;
+            self.unit.insert_meta(span, &meta, self.pool, self.inner)?;
             self.insert_meta(meta.clone()).with_span(span)?;
             tracing::trace!(item = ?item, meta = ?meta, "build");
             return Ok(Some(meta));
@@ -839,14 +841,13 @@ impl<'a> Query<'a> {
         &mut self,
         path: &hir::Path<'hir>,
     ) -> compile::Result<Named<'hir>> {
+        tracing::trace!("converting path");
+
         let id = path.id();
 
-        let qp = *id
-            .get()
-            .and_then(|id| self.inner.query_paths.get(&id))
-            .ok_or_else(|| {
-                compile::Error::new(path, QueryErrorKind::MissingId { what: "path", id })
-            })?;
+        let Some(&qp) = id.get().and_then(|id| self.inner.query_paths.get(&id)) else {
+            return Err(compile::Error::new(path, QueryErrorKind::MissingId { what: "path", id }));
+        };
 
         let mut in_self_type = false;
 
@@ -1311,16 +1312,35 @@ impl<'a> Query<'a> {
 
                 meta::Kind::AsyncBlock { captures, do_move }
             }
-            Indexed::Const(c) => {
+            Indexed::ConstExpr(c) => {
+                let ir = {
+                    let mut compiler = IrCompiler {
+                        source_id: item_meta.location.source_id,
+                        q: self.borrow(),
+                    };
+
+                    let arena = crate::hir::Arena::new();
+                    let mut hir_ctx = crate::hir::lowering::Ctx::with_const(
+                        &arena,
+                        compiler.q.borrow(),
+                        compiler.source_id,
+                    );
+                    let hir = crate::hir::lowering::expr(&mut hir_ctx, &c.ast)?;
+                    ir::compiler::expr(&hir, &mut compiler)?
+                };
+
                 let mut const_compiler = IrInterpreter {
                     budget: IrBudget::new(1_000_000),
                     scopes: Default::default(),
-                    module: c.module,
+                    module: item_meta.module,
                     item: item_meta.item,
                     q: self.borrow(),
                 };
 
-                let const_value = const_compiler.eval_const(&c.ir, used)?;
+                let const_value = const_compiler.eval_const(&ir, used)?;
+
+                let hash = self.pool.item_type_hash(item_meta.item);
+                self.inner.constants.insert(hash, const_value.clone());
 
                 if used.is_unused() {
                     self.inner.queue.push_back(BuildEntry {
@@ -1330,26 +1350,73 @@ impl<'a> Query<'a> {
                     });
                 }
 
-                meta::Kind::Const { const_value }
+                meta::Kind::Const
+            }
+            Indexed::ConstBlock(c) => {
+                let ir = {
+                    let mut compiler = IrCompiler {
+                        source_id: item_meta.location.source_id,
+                        q: self.borrow(),
+                    };
+
+                    let arena = crate::hir::Arena::new();
+                    let mut hir_ctx = crate::hir::lowering::Ctx::with_const(
+                        &arena,
+                        compiler.q.borrow(),
+                        compiler.source_id,
+                    );
+                    let hir = crate::hir::lowering::block(&mut hir_ctx, &c.ast)?;
+                    ir::Ir::new(
+                        item_meta.location.span,
+                        ir::compiler::block(&hir, &mut compiler)?,
+                    )
+                };
+
+                let mut const_compiler = IrInterpreter {
+                    budget: IrBudget::new(1_000_000),
+                    scopes: Default::default(),
+                    module: item_meta.module,
+                    item: item_meta.item,
+                    q: self.borrow(),
+                };
+
+                let const_value = const_compiler.eval_const(&ir, used)?;
+
+                let hash = self.pool.item_type_hash(item_meta.item);
+                self.inner.constants.insert(hash, const_value.clone());
+
+                if used.is_unused() {
+                    self.inner.queue.push_back(BuildEntry {
+                        item_meta,
+                        build: Build::Unused,
+                        used,
+                    });
+                }
+
+                meta::Kind::Const
             }
             Indexed::ConstFn(c) => {
                 let ir_fn = {
                     // TODO: avoid this arena?
                     let arena = crate::hir::Arena::new();
-                    let mut ctx = crate::hir::lowering::Ctx::new(
+                    let mut ctx = crate::hir::lowering::Ctx::with_const(
                         &arena,
                         self.borrow(),
                         item_meta.location.source_id,
                     );
                     let hir = crate::hir::lowering::item_fn(&mut ctx, &c.item_fn)?;
                     let mut c = IrCompiler {
-                        source_id: c.location.source_id,
+                        source_id: item_meta.location.source_id,
                         q: self.borrow(),
                     };
                     ir::IrFn::compile_ast(&hir, &mut c)?
                 };
 
-                let id = self.insert_const_fn(item_meta, ir_fn);
+                let id = self.gen.next();
+
+                self.inner
+                    .const_fns
+                    .insert(id, Arc::new(ConstFn { item_meta, ir_fn }));
 
                 if used.is_unused() {
                     self.inner.queue.push_back(BuildEntry {
@@ -1359,7 +1426,7 @@ impl<'a> Query<'a> {
                     });
                 }
 
-                meta::Kind::ConstFn { id: Id::new(id) }
+                meta::Kind::ConstFn { id }
             }
             Indexed::Import(import) => {
                 if !import.wildcard {
@@ -1413,7 +1480,7 @@ impl<'a> Query<'a> {
         let entry = indexing::Entry { item_meta, indexed };
 
         let meta = self.build_indexed_entry(span, entry, used)?;
-        self.unit.insert_meta(span, &meta, self.pool)?;
+        self.unit.insert_meta(span, &meta, self.pool, self.inner)?;
         self.insert_meta(meta).with_span(span)?;
         Ok(())
     }
@@ -1605,13 +1672,12 @@ impl<'a> Query<'a> {
         Ok(())
     }
 
-    /// Insert a constant value for the given non-zero id.
-    pub(crate) fn insert_const_value(&mut self, id: NonZeroId, value: ConstValue) {
-        self.inner.constants.insert(id, value);
-    }
-
     /// Get a constant value.
-    pub(crate) fn get_const_value(&self, id: NonZeroId) -> Option<&ConstValue> {
-        self.inner.constants.get(&id)
+    pub(crate) fn get_const_value(&self, hash: Hash) -> Option<&ConstValue> {
+        if let Some(const_value) = self.inner.constants.get(&hash) {
+            return Some(const_value);
+        }
+
+        self.context.get_const_value(hash)
     }
 }

@@ -8,7 +8,7 @@ use crate::compile::v1::{Assembler, GenericsParameters, Loop, Needs, Scope, Var}
 use crate::compile::{self, CompileErrorKind, WithSpan};
 use crate::hash::ParametersBuilder;
 use crate::hir;
-use crate::parse::{Id, NonZeroId, Resolve};
+use crate::parse::Resolve;
 use crate::query::Named;
 use crate::runtime::{
     ConstValue, Inst, InstAddress, InstAssignOp, InstOp, InstRangeLimits, InstTarget, InstValue,
@@ -153,8 +153,15 @@ fn meta(span: Span, c: &mut Assembler<'_>, meta: &meta::Meta, needs: Needs) -> c
                     meta.info(c.q.pool).to_string(),
                 );
             }
-            meta::Kind::Const { const_value, .. } => {
-                const_(span, c, const_value, Needs::Value)?;
+            meta::Kind::Const { .. } => {
+                let Some(const_value) = c.q.get_const_value(meta.hash).cloned() else {
+                    return Err(compile::Error::msg(
+                        span,
+                        format_args!("Missing constant value for hash {}", meta.hash),
+                    ));
+                };
+
+                const_(span, c, &const_value, Needs::Value)?;
             }
             _ => {
                 return Err(compile::Error::expected_meta(
@@ -1274,16 +1281,11 @@ fn expr_async_block(
 
 /// Assemble a constant item.
 #[instrument]
-fn const_item(
-    span: Span,
-    c: &mut Assembler<'_>,
-    id: NonZeroId,
-    needs: Needs,
-) -> compile::Result<Asm> {
-    let Some(const_value) = c.q.get_const_value(id).cloned() else {
+fn const_item(span: Span, c: &mut Assembler<'_>, hash: Hash, needs: Needs) -> compile::Result<Asm> {
+    let Some(const_value) = c.q.get_const_value(hash).cloned() else {
         return Err(compile::Error::msg(
             span,
-            format_args!("missing constant value for id {}", id),
+            format_args!("Missing constant value for hash {hash}"),
         ));
     };
 
@@ -1410,150 +1412,6 @@ fn generics_parameter(
     Ok(builder.finish())
 }
 
-enum Call {
-    Var {
-        /// The variable slot being called.
-        var: Var,
-        /// The name of the variable being called.
-        name: Box<str>,
-    },
-    Instance {
-        /// Hash of the fn being called.
-        hash: Hash,
-    },
-    Meta {
-        /// meta::Meta being called.
-        meta: meta::Meta,
-    },
-    /// An expression being called.
-    Expr,
-    /// A constant function call.
-    ConstFn {
-        /// meta::Meta of the constand function.
-        meta: meta::Meta,
-        /// The identifier of the constant function.
-        id: Id,
-    },
-}
-
-/// Convert into a call expression.
-#[instrument]
-fn convert_expr_call(
-    span: Span,
-    c: &mut Assembler<'_>,
-    hir: &hir::ExprCall<'_>,
-) -> compile::Result<Call> {
-    match hir.expr.kind {
-        hir::ExprKind::Path(path) => {
-            if let Some(name) = path.try_as_ident() {
-                let name = name.resolve(resolve_context!(c.q))?;
-
-                let local = c
-                    .scopes
-                    .try_get_var(c.q.visitor, name, c.source_id, path.span())?;
-
-                if let Some(var) = local {
-                    return Ok(Call::Var {
-                        var,
-                        name: name.into(),
-                    });
-                }
-            }
-
-            let named = c.convert_path(path)?;
-            let parameters = generics_parameters(span, c, &named)?;
-
-            let meta = c.lookup_meta(path.span(), named.item, parameters)?;
-            debug_assert_eq!(meta.item_meta.item, named.item);
-
-            match &meta.kind {
-                meta::Kind::Struct {
-                    fields: meta::Fields::Empty,
-                    ..
-                }
-                | meta::Kind::Variant {
-                    fields: meta::Fields::Empty,
-                    ..
-                } => {
-                    if !hir.args.is_empty() {
-                        return Err(compile::Error::new(
-                            span,
-                            CompileErrorKind::UnsupportedArgumentCount {
-                                meta: meta.info(c.q.pool),
-                                expected: 0,
-                                actual: hir.args.len(),
-                            },
-                        ));
-                    }
-                }
-                meta::Kind::Struct {
-                    fields: meta::Fields::Unnamed(args),
-                    ..
-                }
-                | meta::Kind::Variant {
-                    fields: meta::Fields::Unnamed(args),
-                    ..
-                } => {
-                    if *args != hir.args.len() {
-                        return Err(compile::Error::new(
-                            span,
-                            CompileErrorKind::UnsupportedArgumentCount {
-                                meta: meta.info(c.q.pool),
-                                expected: *args,
-                                actual: hir.args.len(),
-                            },
-                        ));
-                    }
-
-                    if *args == 0 {
-                        let tuple = path.span();
-                        c.q.diagnostics.remove_tuple_call_parens(
-                            c.source_id,
-                            span,
-                            tuple,
-                            c.context(),
-                        );
-                    }
-                }
-                meta::Kind::Function { .. } | meta::Kind::AssociatedFunction { .. } => (),
-                meta::Kind::ConstFn { id, .. } => {
-                    let id = *id;
-                    return Ok(Call::ConstFn { meta, id });
-                }
-                _ => {
-                    return Err(compile::Error::expected_meta(
-                        span,
-                        meta.info(c.q.pool),
-                        "something that can be called as a function",
-                    ));
-                }
-            };
-
-            return Ok(Call::Meta { meta });
-        }
-        hir::ExprKind::FieldAccess(hir::ExprFieldAccess {
-            expr_field: hir::ExprField::Path(path),
-            ..
-        }) => {
-            if let Some((ident, generics)) = path.try_as_ident_generics() {
-                let ident = ident.resolve(resolve_context!(c.q))?;
-                let hash = Hash::instance_fn_name(ident);
-
-                let hash = if let Some((span, generic)) = generics {
-                    hash.with_function_parameters(generics_parameter(span, c, generic)?)
-                } else {
-                    hash
-                };
-
-                return Ok(Call::Instance { hash });
-            }
-        }
-        _ => {}
-    };
-
-    Ok(Call::Expr)
-}
-
 /// Assemble a call expression.
 #[instrument]
 fn expr_call(
@@ -1562,12 +1420,12 @@ fn expr_call(
     hir: &hir::ExprCall<'_>,
     needs: Needs,
 ) -> compile::Result<Asm> {
-    let call = convert_expr_call(span, c, hir)?;
-
     let args = hir.args.len();
 
-    match call {
-        Call::Var { var, name } => {
+    match hir.call {
+        hir::Call::Var { name, .. } => {
+            let var = c.scopes.get_var(c.q.visitor, name, c.source_id, span)?;
+
             for e in hir.args {
                 expr(e, c, Needs::Value)?.apply(c)?;
                 c.scopes.decl_anon(span)?;
@@ -1580,7 +1438,7 @@ fn expr_call(
 
             c.scopes.undecl_anon(span, hir.args.len() + 1)?;
         }
-        Call::Instance { hash } => {
+        hir::Call::Instance { hash } => {
             let target = hir.target();
 
             expr(target, c, Needs::Value)?.apply(c)?;
@@ -1594,24 +1452,17 @@ fn expr_call(
             c.asm.push(Inst::CallInstance { hash, args }, span);
             c.scopes.undecl_anon(span, hir.args.len() + 1)?;
         }
-        Call::Meta { meta } => {
+        hir::Call::Meta { hash } => {
             for e in hir.args {
                 expr(e, c, Needs::Value)?.apply(c)?;
                 c.scopes.decl_anon(span)?;
             }
 
-            c.asm.push_with_comment(
-                Inst::Call {
-                    hash: meta.hash,
-                    args,
-                },
-                span,
-                meta.info(c.q.pool).to_string(),
-            );
+            c.asm.push(Inst::Call { hash, args }, span);
 
             c.scopes.undecl_anon(span, args)?;
         }
-        Call::Expr => {
+        hir::Call::Expr => {
             for e in hir.args {
                 expr(e, c, Needs::Value)?.apply(c)?;
                 c.scopes.decl_anon(span)?;
@@ -1624,10 +1475,10 @@ fn expr_call(
 
             c.scopes.undecl_anon(span, args + 1)?;
         }
-        Call::ConstFn { meta, id } => {
+        hir::Call::ConstFn { id } => {
             let from = c.q.item_for((span, hir.id))?;
             let const_fn = c.q.const_fn_for((span, id))?;
-            let value = c.call_const_fn(span, &meta, &from, &const_fn, hir.args)?;
+            let value = c.call_const_fn(span, &from, &const_fn, hir.args)?;
             const_(span, c, &value, Needs::Value)?;
         }
     }

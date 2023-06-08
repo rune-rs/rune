@@ -249,8 +249,11 @@ impl CompileBuildEntry<'_> {
                 let count = f.ast.args.len();
 
                 let arena = hir::Arena::new();
-                let mut ctx =
-                    hir::lowering::Ctx::new(&arena, self.q.borrow(), item_meta.location.source_id);
+                let mut ctx = hir::lowering::Ctx::with_query(
+                    &arena,
+                    self.q.borrow(),
+                    item_meta.location.source_id,
+                );
                 let hir = hir::lowering::item_fn(&mut ctx, &f.ast)?;
                 let mut c = self.compiler1(location, span, &mut asm);
                 assemble::fn_from_item_fn(&hir, &mut c, false)?;
@@ -292,8 +295,11 @@ impl CompileBuildEntry<'_> {
                 })?;
 
                 let arena = hir::Arena::new();
-                let mut ctx =
-                    hir::lowering::Ctx::new(&arena, c.q.borrow(), item_meta.location.source_id);
+                let mut ctx = hir::lowering::Ctx::with_query(
+                    &arena,
+                    c.q.borrow(),
+                    item_meta.location.source_id,
+                );
                 let hir = hir::lowering::item_fn(&mut ctx, &f.ast)?;
                 assemble::fn_from_item_fn(&hir, &mut c, true)?;
 
@@ -328,8 +334,11 @@ impl CompileBuildEntry<'_> {
                 )?;
 
                 let arena = hir::Arena::new();
-                let mut ctx =
-                    hir::lowering::Ctx::new(&arena, self.q.borrow(), item_meta.location.source_id);
+                let mut ctx = hir::lowering::Ctx::with_query(
+                    &arena,
+                    self.q.borrow(),
+                    item_meta.location.source_id,
+                );
                 let hir = hir::lowering::expr_closure(&mut ctx, &closure.ast)?;
                 let mut c = self.compiler1(location, span, &mut asm);
                 assemble::closure_from_expr_closure(span, &mut c, &hir, &closure.captures)?;
@@ -358,8 +367,11 @@ impl CompileBuildEntry<'_> {
                 let span = b.ast.span();
 
                 let arena = hir::Arena::new();
-                let mut ctx =
-                    hir::lowering::Ctx::new(&arena, self.q.borrow(), item_meta.location.source_id);
+                let mut ctx = hir::lowering::Ctx::with_query(
+                    &arena,
+                    self.q.borrow(),
+                    item_meta.location.source_id,
+                );
                 let hir = hir::lowering::block(&mut ctx, &b.ast)?;
 
                 let mut c = self.compiler1(location, span, &mut asm);

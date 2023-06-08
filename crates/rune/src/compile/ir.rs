@@ -48,7 +48,7 @@ impl IrEval for ast::Expr {
         let ir = {
             // TODO: avoid this arena?
             let arena = crate::hir::Arena::new();
-            let mut hir_ctx = crate::hir::lowering::Ctx::new(
+            let mut hir_ctx = crate::hir::lowering::Ctx::with_const(
                 &arena,
                 ctx.c.q.borrow(),
                 ctx.item.location.source_id,

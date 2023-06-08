@@ -1,5 +1,4 @@
 use core::cell::Cell;
-use core::mem::replace;
 use core::ops::Neg;
 
 use crate::no_std::collections::{HashMap, HashSet};
@@ -18,6 +17,8 @@ use crate::hir;
 use crate::parse::Resolve;
 use crate::query::{self, Named, Query};
 use crate::SourceId;
+
+use rune_macros::instrument;
 
 /// Allocator indirection to simplify lifetime management.
 #[rustfmt::skip]
@@ -131,24 +132,49 @@ pub(crate) struct Ctx<'hir, 'a> {
     q: Query<'a>,
     source_id: SourceId,
     in_template: Cell<bool>,
-    scope: hir::Scope,
     scopes: hir::Scopes<'hir>,
+    const_eval: bool,
 }
 
 impl<'hir, 'a> Ctx<'hir, 'a> {
-    /// Construct a new context.
-    pub(crate) fn new(arena: &'hir hir::arena::Arena, q: Query<'a>, source_id: SourceId) -> Self {
+    /// Construct a new context for used when constants are built separately
+    /// through the query system.
+    pub(crate) fn with_query(
+        arena: &'hir hir::arena::Arena,
+        q: Query<'a>,
+        source_id: SourceId,
+    ) -> Self {
+        Self::inner(arena, q, source_id, false)
+    }
+
+    /// Construct a new context used in a constant context where the resulting
+    /// expression is expected to be converted into a constant.
+    pub(crate) fn with_const(
+        arena: &'hir hir::arena::Arena,
+        q: Query<'a>,
+        source_id: SourceId,
+    ) -> Self {
+        Self::inner(arena, q, source_id, true)
+    }
+
+    fn inner(
+        arena: &'hir hir::arena::Arena,
+        q: Query<'a>,
+        source_id: SourceId,
+        const_eval: bool,
+    ) -> Self {
         Self {
             arena,
             q,
             source_id,
             in_template: Cell::new(false),
-            scope: hir::Scopes::ROOT,
             scopes: hir::Scopes::default(),
+            const_eval,
         }
     }
 
     #[allow(unused)]
+    #[instrument(span = ast)]
     pub(crate) fn try_lookup_meta(
         &mut self,
         span: Span,
@@ -159,6 +185,7 @@ impl<'hir, 'a> Ctx<'hir, 'a> {
             .try_lookup_meta(Location::new(self.source_id, span), item, parameters)
     }
 
+    #[instrument(span = ast)]
     pub(crate) fn lookup_meta(
         &mut self,
         span: Span,
@@ -171,6 +198,7 @@ impl<'hir, 'a> Ctx<'hir, 'a> {
 }
 
 /// Lower a function item.
+#[instrument(span = ast)]
 pub(crate) fn item_fn<'hir>(
     ctx: &mut Ctx<'hir, '_>,
     ast: &ast::ItemFn,
@@ -186,6 +214,7 @@ pub(crate) fn item_fn<'hir>(
 }
 
 /// Lower a closure expression.
+#[instrument(span = ast)]
 pub(crate) fn expr_closure<'hir>(
     ctx: &mut Ctx<'hir, '_>,
     ast: &ast::ExprClosure,
@@ -205,20 +234,18 @@ pub(crate) fn expr_closure<'hir>(
 }
 
 /// Lower the specified block.
+#[instrument(span = ast)]
 pub(crate) fn block<'hir>(
     ctx: &mut Ctx<'hir, '_>,
     ast: &ast::Block,
 ) -> compile::Result<hir::Block<'hir>> {
     alloc_with!(ctx, ast);
 
-    let scope = ctx.scopes.push(ctx.scope);
-    let scope = replace(&mut ctx.scope, scope);
+    ctx.scopes.push();
 
     let statements = iter!(&ast.statements, |ast| stmt(ctx, ast)?);
-    let layer = ctx
-        .scopes
-        .pop(replace(&mut ctx.scope, scope))
-        .with_span(ast)?;
+
+    let layer = ctx.scopes.pop().with_span(ast)?;
 
     let block = hir::Block {
         id: ast.id,
@@ -230,6 +257,7 @@ pub(crate) fn block<'hir>(
     Ok(block)
 }
 
+#[instrument(span = ast)]
 pub(crate) fn expr_object<'hir>(
     ctx: &mut Ctx<'hir, '_>,
     ast: &ast::ExprObject,
@@ -337,6 +365,7 @@ pub(crate) fn expr_object<'hir>(
 }
 
 /// Lower an expression.
+#[instrument(span = ast)]
 pub(crate) fn expr<'hir>(
     ctx: &mut Ctx<'hir, '_>,
     ast: &ast::Expr,
@@ -353,15 +382,12 @@ pub(crate) fn expr<'hir>(
         // representation. We only do different ones here right now since it's
         // easier when refactoring.
         ast::Expr::While(ast) => {
-            let scope = ctx.scopes.push(ctx.scope);
+            ctx.scopes.push();
 
             let condition = condition(ctx, &ast.condition)?;
             let body = block(ctx, &ast.body)?;
 
-            let layer = ctx
-                .scopes
-                .pop(replace(&mut ctx.scope, scope))
-                .with_span(ast)?;
+            let layer = ctx.scopes.pop().with_span(ast)?;
 
             hir::ExprKind::Loop(alloc!(hir::ExprLoop {
                 label: option!(&ast.label, |(ast, _)| label(ctx, ast)?),
@@ -379,15 +405,12 @@ pub(crate) fn expr<'hir>(
         ast::Expr::For(ast) => {
             let iter = expr(ctx, &ast.iter)?;
 
-            let scope = ctx.scopes.push(ctx.scope);
+            ctx.scopes.push();
 
             let binding = pat(ctx, &ast.binding)?;
             let body = block(ctx, &ast.body)?;
 
-            let layer = ctx
-                .scopes
-                .pop(replace(&mut ctx.scope, scope))
-                .with_span(ast)?;
+            let layer = ctx.scopes.pop().with_span(ast)?;
 
             hir::ExprKind::For(alloc!(hir::ExprFor {
                 label: option!(&ast.label, |(ast, _)| label(ctx, ast)?),
@@ -405,17 +428,13 @@ pub(crate) fn expr<'hir>(
         ast::Expr::Match(ast) => hir::ExprKind::Match(alloc!(hir::ExprMatch {
             expr: alloc!(expr(ctx, &ast.expr)?),
             branches: iter!(&ast.branches, |(ast, _)| {
-                let scope = ctx.scopes.push(ctx.scope);
+                ctx.scopes.push();
 
-                let scope = replace(&mut ctx.scope, scope);
                 let pat = alloc!(pat(ctx, &ast.pat)?);
                 let condition = option!(&ast.condition, |(_, ast)| expr(ctx, ast)?);
                 let body = alloc!(expr(ctx, &ast.body)?);
 
-                let layer = ctx
-                    .scopes
-                    .pop(replace(&mut ctx.scope, scope))
-                    .with_span(ast)?;
+                let layer = ctx.scopes.pop().with_span(ast)?;
 
                 hir::ExprMatchBranch {
                     span: ast.span(),
@@ -426,11 +445,7 @@ pub(crate) fn expr<'hir>(
                 }
             }),
         })),
-        ast::Expr::Call(ast) => hir::ExprKind::Call(alloc!(hir::ExprCall {
-            id: ast.id,
-            expr: alloc!(expr(ctx, &ast.expr)?),
-            args: iter!(&ast.args, |(ast, _)| expr(ctx, ast)?),
-        })),
+        ast::Expr::Call(ast) => hir::ExprKind::Call(alloc!(expr_call(ctx, ast)?)),
         ast::Expr::FieldAccess(ast) => hir::ExprKind::FieldAccess(alloc!(hir::ExprFieldAccess {
             expr: alloc!(expr(ctx, &ast.expr)?),
             expr_field: alloc!(match &ast.expr_field {
@@ -469,15 +484,12 @@ pub(crate) fn expr<'hir>(
             branches: iter!(&ast.branches, |(ast, _)| {
                 match ast {
                     ast::ExprSelectBranch::Pat(ast) => {
-                        let scope = ctx.scopes.push(ctx.scope);
+                        ctx.scopes.push();
 
                         let pat = alloc!(pat(ctx, &ast.pat)?);
                         let body = alloc!(expr(ctx, &ast.body)?);
 
-                        let layer = ctx
-                            .scopes
-                            .pop(replace(&mut ctx.scope, scope))
-                            .with_span(ast)?;
+                        let layer = ctx.scopes.pop().with_span(ast)?;
 
                         hir::ExprSelectBranch::Pat(alloc!(hir::ExprSelectPatBranch {
                             pat,
@@ -493,7 +505,7 @@ pub(crate) fn expr<'hir>(
             })
         })),
         ast::Expr::Closure(ast) => hir::ExprKind::Closure(alloc!(expr_closure(ctx, ast)?)),
-        ast::Expr::Lit(ast) => hir::ExprKind::Lit(lit(ast, ctx, &ast.lit)?),
+        ast::Expr::Lit(ast) => hir::ExprKind::Lit(lit(ctx, &ast.lit)?),
         ast::Expr::Object(ast) => expr_object(ctx, ast)?,
         ast::Expr::Tuple(ast) => hir::ExprKind::Tuple(alloc!(hir::ExprSeq {
             items: iter!(&ast.items, |(ast, _)| expr(ctx, ast)?),
@@ -533,8 +545,8 @@ pub(crate) fn expr<'hir>(
                 format_type: ast.format_type,
                 value: alloc!(expr(ctx, &ast.value)?),
             })),
-            query::BuiltInMacro::File(ast) => hir::ExprKind::Lit(lit(ast, ctx, &ast.value)?),
-            query::BuiltInMacro::Line(ast) => hir::ExprKind::Lit(lit(ast, ctx, &ast.value)?),
+            query::BuiltInMacro::File(ast) => hir::ExprKind::Lit(lit(ctx, &ast.value)?),
+            query::BuiltInMacro::Line(ast) => hir::ExprKind::Lit(lit(ctx, &ast.value)?),
         },
     };
 
@@ -544,6 +556,7 @@ pub(crate) fn expr<'hir>(
     })
 }
 
+#[instrument(span = ast)]
 pub(crate) fn expr_if<'hir>(
     ctx: &mut Ctx<'hir, '_>,
     ast: &ast::ExprIf,
@@ -574,15 +587,12 @@ pub(crate) fn expr_if<'hir>(
     let branches = iter!(branches, length, |(span, c, b)| {
         let (condition, block, drop) = match c {
             Some(c) => {
-                let scope = ctx.scopes.push(ctx.scope);
+                ctx.scopes.push();
 
                 let condition = condition(ctx, c)?;
                 let block = block(ctx, b)?;
 
-                let layer = ctx
-                    .scopes
-                    .pop(replace(&mut ctx.scope, scope))
-                    .with_span(ast)?;
+                let layer = ctx.scopes.pop().with_span(ast)?;
 
                 (
                     Some(&*alloc!(condition)),
@@ -607,12 +617,12 @@ pub(crate) fn expr_if<'hir>(
     Ok(hir::Conditional { branches })
 }
 
+#[instrument(span = ast)]
 pub(crate) fn lit<'hir>(
-    span: &dyn Spanned,
     ctx: &mut Ctx<'hir, '_>,
     ast: &ast::Lit,
 ) -> compile::Result<hir::Lit<'hir>> {
-    alloc_with!(ctx, span);
+    alloc_with!(ctx, ast);
 
     match ast {
         ast::Lit::Bool(lit) => Ok(hir::Lit::Bool(lit.value)),
@@ -656,6 +666,7 @@ pub(crate) fn lit<'hir>(
     }
 }
 
+#[instrument(span = ast)]
 pub(crate) fn expr_unary<'hir>(
     ctx: &mut Ctx<'hir, '_>,
     ast: &ast::ExprUnary,
@@ -693,6 +704,7 @@ pub(crate) fn expr_unary<'hir>(
 }
 
 /// Lower a block expression.
+#[instrument(span = ast)]
 pub(crate) fn expr_block<'hir>(
     ctx: &mut Ctx<'hir, '_>,
     ast: &ast::ExprBlock,
@@ -718,7 +730,7 @@ pub(crate) fn expr_block<'hir>(
         return Ok(hir::ExprKind::Block(alloc!(block(ctx, &ast.block)?)));
     }
 
-    let Some(id) = ast.block.id.get() else {
+    if ctx.const_eval {
         // This only happens if the ast expression has not been indexed. Which
         // only occurs during certain kinds of constant evaluation. So we limit
         // evaluation to only support constant blocks.
@@ -750,10 +762,7 @@ pub(crate) fn expr_block<'hir>(
                 captures,
             })))
         }
-        (ExprBlockKind::Const, meta::Kind::Const { const_value }) => {
-            ctx.q.insert_const_value(id, const_value.clone());
-            Ok(hir::ExprKind::Const(id))
-        }
+        (ExprBlockKind::Const, meta::Kind::Const { .. }) => Ok(hir::ExprKind::Const(meta.hash)),
         _ => Err(compile::Error::expected_meta(
             ast,
             meta.info(ctx.q.pool),
@@ -817,7 +826,7 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
 
                     if let Some(ident) = path.try_as_ident() {
                         let ident = alloc_str!(ident.resolve(resolve_context!(ctx.q))?);
-                        let variable = ctx.scopes.define(ctx.scope, ident).with_span(ast)?;
+                        let variable = ctx.scopes.define(ident).with_span(ast)?;
                         break 'ok hir::PatPathKind::Ident(ident, variable);
                     }
 
@@ -867,7 +876,6 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
                         return Err(compile::Error::new(
                             path,
                             CompileErrorKind::UnsupportedArgumentCount {
-                                meta: meta.info(ctx.q.pool),
                                 expected: args,
                                 actual: count,
                             },
@@ -1042,6 +1050,7 @@ fn object_ident<'hir>(
 }
 
 /// Lower the given path.
+#[instrument(span = ast)]
 pub(crate) fn path<'hir>(
     ctx: &mut Ctx<'hir, '_>,
     ast: &ast::Path,
@@ -1250,4 +1259,125 @@ fn generics_parameter<'hir>(
     }
 
     Ok(builder.finish())
+}
+
+/// Convert into a call expression.
+#[instrument(span = ast)]
+fn expr_call<'hir>(
+    ctx: &mut Ctx<'hir, '_>,
+    ast: &ast::ExprCall,
+) -> compile::Result<hir::ExprCall<'hir>> {
+    alloc_with!(ctx, ast);
+
+    let expr = expr(ctx, &ast.expr)?;
+
+    let call = 'ok: {
+        match expr.kind {
+            hir::ExprKind::Path(path) => {
+                if let Some(name) = path.try_as_ident() {
+                    let name = alloc_str!(name.resolve(resolve_context!(ctx.q))?);
+
+                    if let Some(variable) = ctx.scopes.get(name) {
+                        break 'ok hir::Call::Var { name, variable };
+                    }
+                }
+
+                let named = ctx.q.convert_path(path)?;
+                let parameters = generics_parameters(ctx, &named)?;
+
+                let meta = ctx.lookup_meta(path.span(), named.item, parameters)?;
+                debug_assert_eq!(meta.item_meta.item, named.item);
+
+                match &meta.kind {
+                    meta::Kind::Struct {
+                        fields: meta::Fields::Empty,
+                        ..
+                    }
+                    | meta::Kind::Variant {
+                        fields: meta::Fields::Empty,
+                        ..
+                    } => {
+                        if !ast.args.is_empty() {
+                            return Err(compile::Error::new(
+                                ast.args.span(),
+                                CompileErrorKind::UnsupportedArgumentCount {
+                                    expected: 0,
+                                    actual: ast.args.len(),
+                                },
+                            ));
+                        }
+                    }
+                    meta::Kind::Struct {
+                        fields: meta::Fields::Unnamed(args),
+                        ..
+                    }
+                    | meta::Kind::Variant {
+                        fields: meta::Fields::Unnamed(args),
+                        ..
+                    } => {
+                        if *args != ast.args.len() {
+                            return Err(compile::Error::new(
+                                ast.args.span(),
+                                CompileErrorKind::UnsupportedArgumentCount {
+                                    expected: *args,
+                                    actual: ast.args.len(),
+                                },
+                            ));
+                        }
+
+                        if *args == 0 {
+                            let tuple = path.span();
+                            ctx.q.diagnostics.remove_tuple_call_parens(
+                                ctx.source_id,
+                                ast.args.span(),
+                                tuple,
+                                None,
+                            );
+                        }
+                    }
+                    meta::Kind::Function { .. } | meta::Kind::AssociatedFunction { .. } => (),
+                    meta::Kind::ConstFn { id, .. } => {
+                        let id = *id;
+                        break 'ok hir::Call::ConstFn { id };
+                    }
+                    _ => {
+                        return Err(compile::Error::expected_meta(
+                            ast,
+                            meta.info(ctx.q.pool),
+                            "something that can be called as a function",
+                        ));
+                    }
+                };
+
+                break 'ok hir::Call::Meta { hash: meta.hash };
+            }
+            hir::ExprKind::FieldAccess(hir::ExprFieldAccess {
+                expr_field: hir::ExprField::Path(path),
+                ..
+            }) => {
+                if let Some((ident, generics)) = path.try_as_ident_generics() {
+                    let ident = ident.resolve(resolve_context!(ctx.q))?;
+                    let hash = Hash::instance_fn_name(ident);
+
+                    let hash = if let Some((.., generic)) = generics {
+                        hash.with_function_parameters(generics_parameter(ctx, generic)?)
+                    } else {
+                        hash
+                    };
+
+                    break 'ok hir::Call::Instance { hash };
+                }
+            }
+            _ => {}
+        }
+
+        break 'ok hir::Call::Expr;
+    };
+
+    Ok(hir::ExprCall {
+        id: ast.id,
+        call,
+        expr: alloc!(expr),
+        args: iter!(&ast.args, |(ast, _)| self::expr(ctx, ast)?),
+    })
 }

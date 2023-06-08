@@ -308,7 +308,10 @@ impl<'a> Context<'a> {
                     argument_types: &f.argument_types,
                 })
             }
-            meta::Kind::Const { const_value } => Kind::Const(const_value),
+            meta::Kind::Const {.. } => {
+                let const_value = self.context.get_const_value(meta.hash)?;
+                Kind::Const(const_value)
+            }
             meta::Kind::Macro => Kind::Macro,
             meta::Kind::Module { .. } => Kind::Module,
             _ => Kind::Unsupported,

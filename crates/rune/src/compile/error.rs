@@ -282,11 +282,7 @@ pub(crate) enum CompileErrorKind {
     #[error("Unsupported field access")]
     BadFieldAccess,
     #[error("Wrong number of arguments, expected `{expected}` but got `{actual}`")]
-    UnsupportedArgumentCount {
-        meta: MetaInfo,
-        expected: usize,
-        actual: usize,
-    },
+    UnsupportedArgumentCount { expected: usize, actual: usize },
     #[error("This kind of expression is not supported as a pattern")]
     UnsupportedPatternExpr,
     #[error("Not a valid binding")]

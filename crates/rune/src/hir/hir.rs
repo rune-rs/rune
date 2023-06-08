@@ -154,7 +154,7 @@ pub(crate) enum ExprKind<'hir> {
     Group(&'hir Expr<'hir>),
     Template(&'hir BuiltInTemplate<'hir>),
     Format(&'hir BuiltInFormat<'hir>),
-    Const(NonZeroId),
+    Const(Hash),
 }
 
 /// An internally resolved template.
@@ -303,6 +303,32 @@ pub(crate) struct ExprMatchBranch<'hir> {
     pub(crate) drop: &'hir [Variable],
 }
 
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum Call<'hir> {
+    Var {
+        /// The name of the variable being called.
+        name: &'hir str,
+        /// The variable that was looked up.
+        #[allow(unused)]
+        variable: Variable,
+    },
+    Instance {
+        /// Hash of the fn being called.
+        hash: Hash,
+    },
+    Meta {
+        /// Hash being called.
+        hash: Hash,
+    },
+    /// An expression being called.
+    Expr,
+    /// A constant function call.
+    ConstFn {
+        /// The identifier of the constant function.
+        id: NonZeroId,
+    },
+}
+
 /// A function call `<expr>(<args>)`.
 #[derive(Debug, Clone, Copy, Opaque)]
 #[non_exhaustive]
@@ -310,6 +336,8 @@ pub(crate) struct ExprCall<'hir> {
     /// Opaque identifier related with call.
     #[rune(id)]
     pub(crate) id: Id,
+    /// The call being performed.
+    pub(crate) call: Call<'hir>,
     /// The name of the function being called.
     pub(crate) expr: &'hir Expr<'hir>,
     /// The arguments of the function call.

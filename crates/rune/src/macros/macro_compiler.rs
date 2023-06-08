@@ -37,7 +37,7 @@ impl MacroCompiler<'_> {
         //
         // TODO: Figure out how to avoid performing ad-hoc lowering here.
         let arena = crate::hir::Arena::new();
-        let mut ctx = crate::hir::lowering::Ctx::new(
+        let mut ctx = crate::hir::lowering::Ctx::with_const(
             &arena,
             self.query.borrow(),
             self.item_meta.location.source_id,
@@ -99,7 +99,7 @@ impl MacroCompiler<'_> {
         //
         // TODO: Figure out how to avoid performing ad-hoc lowering here.
         let arena = crate::hir::Arena::new();
-        let mut ctx = crate::hir::lowering::Ctx::new(
+        let mut ctx = crate::hir::lowering::Ctx::with_const(
             &arena,
             self.query.borrow(),
             self.item_meta.location.source_id,

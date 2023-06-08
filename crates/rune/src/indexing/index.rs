@@ -10,7 +10,7 @@ use crate::no_std::sync::Arc;
 use crate::ast::{self, OptionSpanned, Span, Spanned};
 use crate::compile::attrs::Attributes;
 use crate::compile::{
-    self, attrs, ir, CompileErrorKind, Doc, ItemId, Location, ModId, Options, ParseErrorKind,
+    self, attrs, CompileErrorKind, Doc, ItemId, Location, ModId, Options, ParseErrorKind,
     SourceLoader, Visibility, WithSpan,
 };
 use crate::indexing::locals;
@@ -893,15 +893,7 @@ fn expr_block(ast: &mut ast::ExprBlock, idx: &mut Indexer<'_>) -> compile::Resul
         }
 
         block(&mut ast.block, idx)?;
-
-        idx.q.index_const(item_meta, ast, |ast, c| {
-            // TODO: avoid this arena?
-            let arena = crate::hir::Arena::new();
-            let mut ctx = crate::hir::lowering::Ctx::new(&arena, c.q.borrow(), c.source_id);
-            let hir = crate::hir::lowering::block(&mut ctx, &ast.block)?;
-            Ok(ir::Ir::new(ast.block.span(), ir::compiler::block(&hir, c)?))
-        })?;
-
+        idx.q.index_const_block(item_meta, &ast.block)?;
         return Ok(());
     }
 
@@ -1554,15 +1546,7 @@ fn item_const(mut ast: ast::ItemConst, idx: &mut Indexer<'_>) -> compile::Result
     let last = idx.nested_item.replace(ast.descriptive_span());
     expr(&mut ast.expr, idx, IS_USED)?;
     idx.nested_item = last;
-
-    idx.q.index_const(item_meta, &ast.expr, |ast, c| {
-        // TODO: avoid this arena?
-        let arena = crate::hir::Arena::new();
-        let mut hir_ctx = crate::hir::lowering::Ctx::new(&arena, c.q.borrow(), c.source_id);
-        let hir = crate::hir::lowering::expr(&mut hir_ctx, ast)?;
-        ir::compiler::expr(&hir, c)
-    })?;
-
+    idx.q.index_const_expr(item_meta, &ast.expr)?;
     Ok(())
 }
 

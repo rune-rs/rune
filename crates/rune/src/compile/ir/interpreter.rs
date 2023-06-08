@@ -108,7 +108,11 @@ impl IrInterpreter<'_> {
 
             if let Some(meta) = self.q.query_meta(spanned, item, used)? {
                 match &meta.kind {
-                    meta::Kind::Const { const_value, .. } => {
+                    meta::Kind::Const => {
+                        let Some(const_value) = self.q.get_const_value(meta.hash) else {
+                            return Err(compile::Error::msg(spanned, format_args!("Missing constant for hash {}", meta.hash)));
+                        };
+
                         return Ok(IrValue::from_const(const_value));
                     }
                     _ => {

@@ -6,9 +6,8 @@ use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
 use crate::ast::{self, Span};
-use crate::compile::ir;
 use crate::compile::meta;
-use crate::compile::{ItemId, ItemMeta, Location, ModId};
+use crate::compile::{ItemId, ItemMeta};
 use crate::parse::Id;
 use crate::runtime::Call;
 
@@ -50,8 +49,10 @@ pub(crate) enum Indexed {
     Closure(Closure),
     /// An async block.
     AsyncBlock(AsyncBlock),
-    /// A constant value.
-    Const(Const),
+    /// A constant expression.
+    ConstExpr(ConstExpr),
+    /// A constant block.
+    ConstBlock(ConstBlock),
     /// A constant function.
     ConstFn(ConstFn),
     /// An import.
@@ -135,17 +136,17 @@ pub(crate) struct AsyncBlock {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct Const {
-    /// The module item the constant is defined in.
-    pub(crate) module: ModId,
-    /// The intermediate representation of the constant expression.
-    pub(crate) ir: ir::Ir,
+pub(crate) struct ConstExpr {
+    pub(crate) ast: Box<ast::Expr>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct ConstBlock {
+    pub(crate) ast: Box<ast::Block>,
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct ConstFn {
-    /// The source of the constant function.
-    pub(crate) location: Location,
     /// The const fn ast.
     pub(crate) item_fn: Box<ast::ItemFn>,
 }

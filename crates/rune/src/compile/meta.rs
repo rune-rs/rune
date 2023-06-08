@@ -12,8 +12,8 @@ use crate::ast::{LitStr, Span};
 use crate::compile::attrs::Attributes;
 use crate::compile::{self, Item, ItemId, Location, MetaInfo, ModId, Pool, Visibility};
 use crate::hash::Hash;
-use crate::parse::{Id, ResolveContext};
-use crate::runtime::{ConstValue, Protocol};
+use crate::parse::{Id, NonZeroId, ResolveContext};
+use crate::runtime::Protocol;
 
 /// A meta reference to an item being compiled.
 #[derive(Debug, Clone, Copy)]
@@ -217,14 +217,11 @@ pub enum Kind {
         do_move: bool,
     },
     /// The constant expression.
-    Const {
-        /// The evaluated constant value.
-        const_value: ConstValue,
-    },
+    Const,
     /// A constant function.
     ConstFn {
         /// Opaque identifier for the constant function.
-        id: Id,
+        id: NonZeroId,
     },
     /// Purely an import.
     Import(Import),

@@ -655,9 +655,7 @@ impl Context {
         self.install_meta(ContextMeta {
             hash,
             item: Some(item),
-            kind: meta::Kind::Const {
-                const_value: m.value.clone(),
-            },
+            kind: meta::Kind::Const,
             #[cfg(feature = "doc")]
             docs: m.docs.clone(),
         })?;
@@ -902,6 +900,11 @@ impl Context {
 
         self.functions.insert(hash, handler.clone());
         Ok(())
+    }
+
+    /// Get a constant value.
+    pub(crate) fn get_const_value(&self, hash: Hash) -> Option<&ConstValue> {
+        self.constants.get(&hash)
     }
 }
 
