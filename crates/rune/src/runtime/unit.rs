@@ -122,6 +122,11 @@ impl<S> Unit<S> {
         }
     }
 
+    /// Access unit data.
+    pub fn unit_data(&self) -> &UnitData<S> {
+        &self.data
+    }
+
     /// Access debug information for the given location if it is available.
     pub fn debug_info(&self) -> Option<&DebugInfo> {
         let debug = self.debug.as_ref()?;
