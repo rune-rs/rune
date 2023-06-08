@@ -437,12 +437,20 @@ pub(crate) struct ExprClosure<'hir> {
     pub(crate) body: &'hir Expr<'hir>,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum ExprObjectKind {
+    UnitStruct { hash: Hash },
+    Struct { hash: Hash },
+    StructVariant { hash: Hash },
+    Anonymous,
+}
+
 /// An object expression.
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) struct ExprObject<'hir> {
-    /// An object identifier.
-    pub(crate) path: Option<&'hir Path<'hir>>,
+    /// The kind of an object being created.
+    pub(crate) kind: ExprObjectKind,
     /// Assignments in the object.
     pub(crate) assignments: &'hir [FieldAssign<'hir>],
 }

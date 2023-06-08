@@ -1,12 +1,11 @@
 use core::mem::{replace, take};
 
-use crate::no_std::collections::{HashMap, HashSet};
 use crate::no_std::prelude::*;
 
 use crate::ast::{self, Span, Spanned};
 use crate::compile::meta;
 use crate::compile::v1::{Assembler, GenericsParameters, Loop, Needs, Scope, Var};
-use crate::compile::{self, CompileErrorKind, Item, WithSpan};
+use crate::compile::{self, CompileErrorKind, WithSpan};
 use crate::hash::ParametersBuilder;
 use crate::hir;
 use crate::parse::{Id, NonZeroId, Resolve};
@@ -2279,26 +2278,6 @@ fn expr_object(
 ) -> compile::Result<Asm> {
     let guard = c.scopes.push_child(span)?;
 
-    let mut keys = Vec::<&str>::new();
-    let mut check_keys = Vec::new();
-    let mut keys_dup = HashMap::new();
-
-    for assign in hir.assignments {
-        let (span, key) = assign.key;
-        keys.push(key);
-        check_keys.push((key, span));
-
-        if let Some(existing) = keys_dup.insert(key, span) {
-            return Err(compile::Error::new(
-                span,
-                CompileErrorKind::DuplicateObjectKey {
-                    existing,
-                    object: span,
-                },
-            ));
-        }
-    }
-
     for assign in hir.assignments {
         let (span, key) = assign.key;
 
@@ -2312,54 +2291,21 @@ fn expr_object(
         c.scopes.decl_anon(span)?;
     }
 
-    let slot = c.q.unit.new_static_object_keys_iter(span, &keys)?;
+    let slot =
+        c.q.unit
+            .new_static_object_keys_iter(span, hir.assignments.iter().map(|a| a.key.1))?;
 
-    match hir.path {
-        Some(path) => {
-            let named = c.convert_path(path)?;
-            let parameters = generics_parameters(path.span(), c, &named)?;
-            let meta = c.lookup_meta(path.span(), named.item, parameters)?;
-            let item = c.q.pool.item(meta.item_meta.item);
-
-            match &meta.kind {
-                meta::Kind::Struct {
-                    fields: meta::Fields::Empty,
-                    ..
-                } => {
-                    check_object_fields(&HashSet::new(), check_keys, span, item)?;
-
-                    let hash = Hash::type_hash(item);
-                    c.asm.push(Inst::UnitStruct { hash }, span);
-                }
-                meta::Kind::Struct {
-                    fields: meta::Fields::Named(st),
-                    ..
-                } => {
-                    check_object_fields(&st.fields, check_keys, span, item)?;
-
-                    let hash = Hash::type_hash(item);
-                    c.asm.push(Inst::Struct { hash, slot }, span);
-                }
-                meta::Kind::Variant {
-                    fields: meta::Fields::Named(st),
-                    ..
-                } => {
-                    check_object_fields(&st.fields, check_keys, span, item)?;
-
-                    let hash = Hash::type_hash(item);
-                    c.asm.push(Inst::StructVariant { hash, slot }, span);
-                }
-                _ => {
-                    return Err(compile::Error::new(
-                        span,
-                        CompileErrorKind::UnsupportedLitObject {
-                            meta: meta.info(c.q.pool),
-                        },
-                    ));
-                }
-            };
+    match hir.kind {
+        hir::ExprObjectKind::UnitStruct { hash } => {
+            c.asm.push(Inst::UnitStruct { hash }, span);
         }
-        None => {
+        hir::ExprObjectKind::Struct { hash } => {
+            c.asm.push(Inst::Struct { hash, slot }, span);
+        }
+        hir::ExprObjectKind::StructVariant { hash } => {
+            c.asm.push(Inst::StructVariant { hash, slot }, span);
+        }
+        hir::ExprObjectKind::Anonymous => {
             c.asm.push(Inst::Object { slot }, span);
         }
     }
@@ -2371,40 +2317,7 @@ fn expr_object(
     }
 
     c.scopes.pop(guard, span)?;
-    return Ok(Asm::top(span));
-
-    fn check_object_fields(
-        fields: &HashSet<Box<str>>,
-        check_keys: Vec<(&str, Span)>,
-        span: Span,
-        item: &Item,
-    ) -> compile::Result<()> {
-        let mut fields = fields.clone();
-
-        for (field, span) in check_keys {
-            if !fields.remove(field) {
-                return Err(compile::Error::new(
-                    span,
-                    CompileErrorKind::LitObjectNotField {
-                        field: field.into(),
-                        item: item.to_owned(),
-                    },
-                ));
-            }
-        }
-
-        if let Some(field) = fields.into_iter().next() {
-            return Err(compile::Error::new(
-                span,
-                CompileErrorKind::LitObjectMissingField {
-                    field,
-                    item: item.to_owned(),
-                },
-            ));
-        }
-
-        Ok(())
-    }
+    Ok(Asm::top(span))
 }
 
 /// Assemble a path.

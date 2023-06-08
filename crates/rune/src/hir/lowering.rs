@@ -1,7 +1,7 @@
 use core::cell::Cell;
 use core::ops::Neg;
 
-use crate::no_std::collections::HashMap;
+use crate::no_std::collections::{HashMap, HashSet};
 use crate::no_std::prelude::*;
 
 use num::ToPrimitive;
@@ -9,7 +9,9 @@ use num::ToPrimitive;
 use crate::ast::{self, Span, Spanned};
 use crate::compile::meta;
 use crate::compile::v1::GenericsParameters;
-use crate::compile::{self, CompileErrorKind, HirErrorKind, ItemId, Location, ParseErrorKind};
+use crate::compile::{
+    self, CompileErrorKind, HirErrorKind, Item, ItemId, Location, ParseErrorKind,
+};
 use crate::hash::{Hash, ParametersBuilder};
 use crate::hir;
 use crate::parse::Resolve;
@@ -209,6 +211,111 @@ pub(crate) fn block<'hir>(
     Ok(block)
 }
 
+pub(crate) fn expr_object<'hir>(
+    ctx: &mut Ctx<'hir, '_>,
+    ast: &ast::ExprObject,
+) -> compile::Result<hir::ExprKind<'hir>> {
+    alloc_with!(ctx, ast);
+
+    let span = ast.span();
+
+    let assignments = &*iter!(&ast.assignments, |(ast, _)| {
+        let key = object_key(ctx, &ast.key)?;
+
+        if let Some(existing) = keys_dup.insert(key.1, key.0) {
+            return Err(compile::Error::new(
+                key.0,
+                CompileErrorKind::DuplicateObjectKey {
+                    existing,
+                    object: key.0,
+                },
+            ));
+        }
+
+        hir::FieldAssign {
+            key,
+            assign: option!(&ast.assign, |(_, ast)| expr(ctx, ast)?),
+        }
+    });
+
+    let check_object_fields = |fields: &HashSet<_>, item: &Item| {
+        let mut fields = fields.clone();
+
+        for assign in assignments {
+            if !fields.remove(assign.key.1) {
+                return Err(compile::Error::new(
+                    assign.key.0,
+                    CompileErrorKind::LitObjectNotField {
+                        field: assign.key.1.into(),
+                        item: item.to_owned(),
+                    },
+                ));
+            }
+        }
+
+        if let Some(field) = fields.into_iter().next() {
+            return Err(compile::Error::new(
+                span,
+                CompileErrorKind::LitObjectMissingField {
+                    field,
+                    item: item.to_owned(),
+                },
+            ));
+        }
+
+        Ok(())
+    };
+
+    let path = object_ident(ctx, &ast.ident)?;
+
+    let kind = match path {
+        Some(path) => {
+            let named = ctx.q.convert_path(path)?;
+            let parameters = generics_parameters(ctx, &named)?;
+            let meta = ctx.lookup_meta(path.span(), named.item, parameters)?;
+            let item = ctx.q.pool.item(meta.item_meta.item);
+
+            match &meta.kind {
+                meta::Kind::Struct {
+                    fields: meta::Fields::Empty,
+                    ..
+                } => {
+                    check_object_fields(&HashSet::new(), item)?;
+                    hir::ExprObjectKind::UnitStruct { hash: meta.hash }
+                }
+                meta::Kind::Struct {
+                    fields: meta::Fields::Named(st),
+                    ..
+                } => {
+                    check_object_fields(&st.fields, item)?;
+                    hir::ExprObjectKind::Struct { hash: meta.hash }
+                }
+                meta::Kind::Variant {
+                    fields: meta::Fields::Named(st),
+                    ..
+                } => {
+                    check_object_fields(&st.fields, item)?;
+                    hir::ExprObjectKind::StructVariant { hash: meta.hash }
+                }
+                _ => {
+                    return Err(compile::Error::new(
+                        span,
+                        CompileErrorKind::UnsupportedLitObject {
+                            meta: meta.info(ctx.q.pool),
+                        },
+                    ));
+                }
+            }
+        }
+        None => hir::ExprObjectKind::Anonymous,
+    };
+
+    Ok(hir::ExprKind::Object(alloc!(hir::ExprObject {
+        kind,
+        assignments,
+    })))
+}
+
 /// Lower an expression.
 pub(crate) fn expr<'hir>(
     ctx: &mut Ctx<'hir, '_>,
@@ -324,13 +431,7 @@ pub(crate) fn expr<'hir>(
         })),
         ast::Expr::Closure(ast) => hir::ExprKind::Closure(alloc!(expr_closure(ctx, ast)?)),
         ast::Expr::Lit(ast) => hir::ExprKind::Lit(lit(ast, ctx, &ast.lit)?),
-        ast::Expr::Object(ast) => hir::ExprKind::Object(alloc!(hir::ExprObject {
-            path: object_ident(ctx, &ast.ident)?,
-            assignments: iter!(&ast.assignments, |(ast, _)| hir::FieldAssign {
-                key: object_key(ctx, &ast.key)?,
-                assign: option!(&ast.assign, |(_, ast)| expr(ctx, ast)?),
-            })
-        })),
+        ast::Expr::Object(ast) => expr_object(ctx, ast)?,
         ast::Expr::Tuple(ast) => hir::ExprKind::Tuple(alloc!(hir::ExprSeq {
             items: iter!(&ast.items, |(ast, _)| expr(ctx, ast)?),
         })),
