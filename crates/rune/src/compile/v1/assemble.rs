@@ -2637,25 +2637,19 @@ fn expr_select(
 
         let expected = c.scopes.push_child(span)?;
 
-        'ok: {
-            match branch.pat.kind {
-                hir::PatKind::Path(kind) => {
-                    if let hir::PatPathKind::Ident(ident) = *kind {
-                        c.scopes.decl_var(ident, branch.pat.span())?;
-                        break 'ok;
-                    };
-                }
-                hir::PatKind::Ignore => {
-                    c.asm.push(Inst::Pop, span);
-                    break 'ok;
-                }
-                _ => (),
+        match branch.pat.kind {
+            hir::PatKind::Path(&hir::PatPathKind::Ident(ident)) => {
+                c.scopes.decl_var(ident, branch.pat.span())?;
             }
-
-            return Err(compile::Error::new(
-                branch,
-                CompileErrorKind::UnsupportedSelectPattern,
-            ));
+            hir::PatKind::Ignore => {
+                c.asm.push(Inst::Pop, span);
+            }
+            _ => {
+                return Err(compile::Error::new(
+                    branch,
+                    CompileErrorKind::UnsupportedSelectPattern,
+                ));
+            }
         }
 
         // Set up a new scope with the binding.

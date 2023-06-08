@@ -900,7 +900,7 @@ fn pat_items_count(items: &[hir::Pat<'_>]) -> compile::Result<(bool, usize)> {
     Ok((is_open, count))
 }
 
-fn struct_match_for<'hir, 'a>(
+fn struct_match_for<'a>(
     ctx: &Ctx<'_, '_>,
     meta: &'a meta::Meta,
 ) -> Option<(&'a meta::FieldsNamed, hir::PatItemsKind)> {
