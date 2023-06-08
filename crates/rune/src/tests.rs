@@ -382,6 +382,7 @@ mod instance;
 mod int;
 mod iter;
 mod iterator;
+mod macros;
 mod match_external;
 mod moved;
 mod option;

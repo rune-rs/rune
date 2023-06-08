@@ -785,10 +785,13 @@ fn fn_arg<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::FnArg) -> compile::Result<hi
 fn local<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Local) -> compile::Result<hir::Local<'hir>> {
     alloc_with!(ctx, ast);
 
+    let expr = alloc!(expr(ctx, &ast.expr)?);
+    let pat = alloc!(pat(ctx, &ast.pat)?);
+
     Ok(hir::Local {
         span: ast.span(),
-        pat: alloc!(pat(ctx, &ast.pat)?),
-        expr: alloc!(expr(ctx, &ast.expr)?),
+        pat,
+        expr,
     })
 }
 
