@@ -10,6 +10,7 @@ use thiserror::Error;
 
 use crate::ast;
 use crate::ast::{Span, Spanned};
+use crate::compile::hir::scopes::{MissingScope, PopError};
 use crate::compile::{HasSpan, IrValue, ItemBuf, Location, MetaInfo, Visibility};
 use crate::macros::{SyntheticId, SyntheticKind};
 use crate::parse::{Expectation, Id, IntoExpectation, LexerMode};
@@ -220,6 +221,10 @@ pub(crate) enum CompileErrorKind {
     EncodeError(#[from] EncodeError),
     #[error("{0}")]
     MissingLastId(#[from] MissingLastId),
+    #[error("{0}")]
+    MissingScope(#[from] MissingScope),
+    #[error("{0}")]
+    PopError(#[from] PopError),
     #[error("Failed to load `{path}`: {error}")]
     FileError {
         path: PathBuf,

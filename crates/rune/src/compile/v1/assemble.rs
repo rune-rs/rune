@@ -225,7 +225,7 @@ fn pat_with_offset(
     let false_label = c.asm.new_label("let_panic");
 
     if pat(hir, c, &false_label, &load)? {
-        c.diagnostics
+        c.q.diagnostics
             .let_pattern_might_panic(c.source_id, span, c.context());
 
         let ok_label = c.asm.new_label("let_ok");
@@ -274,7 +274,7 @@ fn pat(
                     .pop_and_jump_if_not(c.scopes.local_var_count(span)?, false_label, span);
                 Ok(true)
             }
-            hir::PatPathKind::Ident(ident) => {
+            hir::PatPathKind::Ident(ident, _) => {
                 load(c, Needs::Value)?;
                 c.scopes.decl_var(ident, span)?;
                 Ok(false)
@@ -757,7 +757,7 @@ fn builtin_template(
     }
 
     if template.from_literal && expansions == 0 {
-        c.diagnostics
+        c.q.diagnostics
             .template_without_expansions(c.source_id, span, c.context());
     }
 
@@ -786,7 +786,7 @@ fn const_(
     needs: Needs,
 ) -> compile::Result<()> {
     if !needs.value() {
-        c.diagnostics.not_used(c.source_id, span, c.context());
+        c.q.diagnostics.not_used(c.source_id, span, c.context());
         return Ok(());
     }
 
@@ -1507,7 +1507,7 @@ fn convert_expr_call(
 
                     if *args == 0 {
                         let tuple = path.span();
-                        c.diagnostics.remove_tuple_call_parens(
+                        c.q.diagnostics.remove_tuple_call_parens(
                             c.source_id,
                             span,
                             tuple,
@@ -1687,7 +1687,7 @@ fn expr_closure(
     needs: Needs,
 ) -> compile::Result<Asm> {
     if !needs.value() {
-        c.diagnostics.not_used(c.source_id, span, c.context());
+        c.q.diagnostics.not_used(c.source_id, span, c.context());
         return Ok(Asm::top(span));
     }
 
@@ -1814,7 +1814,7 @@ fn expr_field_access(
                 c.asm.push(Inst::TupleIndexGet { index }, span);
 
                 if !needs.value() {
-                    c.diagnostics.not_used(c.source_id, span, c.context());
+                    c.q.diagnostics.not_used(c.source_id, span, c.context());
                     c.asm.push(Inst::Pop, span);
                 }
 
@@ -1829,7 +1829,7 @@ fn expr_field_access(
                 c.asm.push(Inst::ObjectIndexGet { slot }, span);
 
                 if !needs.value() {
-                    c.diagnostics.not_used(c.source_id, span, c.context());
+                    c.q.diagnostics.not_used(c.source_id, span, c.context());
                     c.asm.push(Inst::Pop, span);
                 }
 
@@ -1877,7 +1877,7 @@ fn expr_field_access(
         );
 
         if !needs.value() {
-            c.diagnostics.not_used(c.source_id, span, c.context());
+            c.q.diagnostics.not_used(c.source_id, span, c.context());
             c.asm.push(Inst::Pop, span);
         }
 
@@ -2056,24 +2056,32 @@ fn expr_for(
 fn expr_if(
     span: Span,
     c: &mut Assembler<'_>,
-    hir: &hir::ExprIf<'_>,
+    hir: &hir::Conditional<'_>,
     needs: Needs,
 ) -> compile::Result<Asm> {
-    let then_label = c.asm.new_label("if_then");
     let end_label = c.asm.new_label("if_end");
 
     let mut branches = Vec::new();
-    let then_scope = condition(hir.condition, c, &then_label)?;
+    let mut fallback = None;
 
-    for branch in hir.expr_else_ifs {
+    for branch in hir.branches {
+        if fallback.is_some() {
+            continue;
+        }
+
+        let Some(cond) = branch.condition else {
+            fallback = Some(branch.block);
+            continue;
+        };
+
         let label = c.asm.new_label("if_branch");
-        let scope = condition(branch.condition, c, &label)?;
+        let scope = condition(cond, c, &label)?;
         branches.push((branch, label, scope));
     }
 
     // use fallback as fall through.
-    if let Some(fallback) = hir.expr_else {
-        block(fallback.block, c, needs)?.apply(c)?;
+    if let Some(b) = fallback {
+        block(b, c, needs)?.apply(c)?;
     } else {
         // NB: if we must produce a value and there is no fallback branch,
         // encode the result of the statement as a unit.
@@ -2083,16 +2091,6 @@ fn expr_if(
     }
 
     c.asm.jump(&end_label, span);
-
-    c.asm.label(&then_label)?;
-
-    let expected = c.scopes.push(then_scope);
-    block(hir.block, c, needs)?.apply(c)?;
-    c.clean_last_scope(span, expected, needs)?;
-
-    if !hir.expr_else_ifs.is_empty() {
-        c.asm.jump(&end_label, span);
-    }
 
     let mut it = branches.into_iter().peekable();
 
@@ -2153,7 +2151,7 @@ fn expr_let(hir: &hir::ExprLet<'_>, c: &mut Assembler<'_>, needs: Needs) -> comp
     let false_label = c.asm.new_label("let_panic");
 
     if pat(hir.pat, c, &false_label, &load)? {
-        c.diagnostics
+        c.q.diagnostics
             .let_pattern_might_panic(c.source_id, span, c.context());
 
         let ok_label = c.asm.new_label("let_ok");
@@ -2312,7 +2310,7 @@ fn expr_object(
 
     // No need to encode an object since the value is not needed.
     if !needs.value() {
-        c.diagnostics.not_used(c.source_id, span, c.context());
+        c.q.diagnostics.not_used(c.source_id, span, c.context());
         c.asm.push(Inst::Pop, span);
     }
 
@@ -2545,21 +2543,21 @@ fn expr_select(
     c.asm.jump(&end_label, span);
 
     for (label, branch) in branches {
-        let span = branch.span();
+        let span = branch.body.span;
         c.asm.label(&label)?;
 
         let expected = c.scopes.push_child(span)?;
 
         match branch.pat.kind {
-            hir::PatKind::Path(&hir::PatPathKind::Ident(ident)) => {
-                c.scopes.decl_var(ident, branch.pat.span())?;
+            hir::PatKind::Path(&hir::PatPathKind::Ident(ident, _)) => {
+                c.scopes.decl_var(ident, branch.pat.span)?;
             }
             hir::PatKind::Ignore => {
                 c.asm.push(Inst::Pop, span);
             }
             _ => {
                 return Err(compile::Error::new(
-                    branch,
+                    branch.pat.span,
                     CompileErrorKind::UnsupportedSelectPattern,
                 ));
             }
@@ -2677,7 +2675,7 @@ fn expr_tuple(
     }
 
     if !needs.value() {
-        c.diagnostics.not_used(c.source_id, span, c.context());
+        c.q.diagnostics.not_used(c.source_id, span, c.context());
         c.asm.push(Inst::Pop, span);
     }
 
@@ -2739,7 +2737,7 @@ fn expr_vec(
     // Evaluate the expressions one by one, then pop them to cause any
     // side effects (without creating an object).
     if !needs.value() {
-        c.diagnostics.not_used(c.source_id, span, c.context());
+        c.q.diagnostics.not_used(c.source_id, span, c.context());
         c.asm.push(Inst::Pop, span);
     }
 
@@ -2887,7 +2885,7 @@ pub(crate) fn fn_from_item_fn(
 fn lit(span: Span, c: &mut Assembler<'_>, hir: hir::Lit<'_>, needs: Needs) -> compile::Result<Asm> {
     // Elide the entire literal if it's not needed.
     if !needs.value() {
-        c.diagnostics.not_used(c.source_id, span, c.context());
+        c.q.diagnostics.not_used(c.source_id, span, c.context());
         return Ok(Asm::top(span));
     }
 
@@ -2934,7 +2932,7 @@ fn local(hir: &hir::Local<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::
     let false_label = c.asm.new_label("let_panic");
 
     if pat(hir.pat, c, &false_label, &load)? {
-        c.diagnostics
+        c.q.diagnostics
             .let_pattern_might_panic(c.source_id, span, c.context());
 
         let ok_label = c.asm.new_label("let_ok");

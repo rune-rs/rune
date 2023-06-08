@@ -23,7 +23,7 @@ use crate::parse::{Id, NonZeroId, Opaque, Resolve, ResolveContext};
 use crate::query::{Build, BuildEntry, BuiltInMacro, ConstFn, Named, QueryPath, Used};
 use crate::runtime::{Call, ConstValue};
 use crate::shared::{Consts, Gen, Items};
-use crate::{Context, Hash, SourceId, Sources};
+use crate::{Context, Diagnostics, Hash, SourceId, Sources};
 
 enum ContextMatch<'this, 'm> {
     Context(&'m ContextMeta, Hash),
@@ -85,6 +85,8 @@ pub(crate) struct Query<'a> {
     pub(crate) pool: &'a mut Pool,
     /// Visitor for the compiler meta.
     pub(crate) visitor: &'a mut dyn CompileVisitor,
+    /// Compilation warnings.
+    pub(crate) diagnostics: &'a mut Diagnostics,
     /// Shared id generator.
     pub(crate) gen: &'a Gen,
     /// Native context.
@@ -103,6 +105,7 @@ impl<'a> Query<'a> {
         sources: &'a mut Sources,
         pool: &'a mut Pool,
         visitor: &'a mut dyn CompileVisitor,
+        diagnostics: &'a mut Diagnostics,
         gen: &'a Gen,
         context: &'a Context,
         inner: &'a mut QueryInner,
@@ -115,6 +118,7 @@ impl<'a> Query<'a> {
             sources,
             pool,
             visitor,
+            diagnostics,
             gen,
             context,
             inner,
@@ -131,6 +135,7 @@ impl<'a> Query<'a> {
             pool: self.pool,
             sources: self.sources,
             visitor: self.visitor,
+            diagnostics: self.diagnostics,
             gen: self.gen,
             context: self.context,
             inner: self.inner,

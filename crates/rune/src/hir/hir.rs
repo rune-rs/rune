@@ -2,6 +2,7 @@ use core::num::NonZeroUsize;
 
 use crate as rune;
 use crate::ast::{self, Span, Spanned};
+use crate::hir::Variable;
 use crate::parse::{Expectation, Id, IntoExpectation, NonZeroId, Opaque};
 use crate::runtime::{format, TypeCheck};
 use crate::Hash;
@@ -20,7 +21,7 @@ pub(crate) struct Pat<'hir> {
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum PatPathKind<'hir> {
     Kind(&'hir PatItemsKind),
-    Ident(&'hir str),
+    Ident(&'hir str, Variable),
 }
 
 /// The kind of a [Pat].
@@ -128,7 +129,7 @@ pub(crate) enum ExprKind<'hir> {
     Loop(&'hir ExprLoop<'hir>),
     For(&'hir ExprFor<'hir>),
     Let(&'hir ExprLet<'hir>),
-    If(&'hir ExprIf<'hir>),
+    If(&'hir Conditional<'hir>),
     Match(&'hir ExprMatch<'hir>),
     Call(&'hir ExprCall<'hir>),
     FieldAccess(&'hir ExprFieldAccess<'hir>),
@@ -209,6 +210,9 @@ pub(crate) struct ExprLoop<'hir> {
     pub(crate) condition: Option<&'hir Condition<'hir>>,
     /// The body of the loop.
     pub(crate) body: &'hir Block<'hir>,
+    /// Variables that have been defined by the loop header.
+    #[allow(unused)]
+    pub(crate) drop: &'hir [Variable],
 }
 
 /// A `for` loop over an iterator: `for i in [1, 2, 3] {}`.
@@ -224,6 +228,9 @@ pub(crate) struct ExprFor<'hir> {
     pub(crate) iter: &'hir Expr<'hir>,
     /// The body of the loop.
     pub(crate) body: &'hir Block<'hir>,
+    /// Variables that have been defined by the loop header.
+    #[allow(unused)]
+    pub(crate) drop: &'hir [Variable],
 }
 
 /// A let expression `let <name> = <expr>`
@@ -236,42 +243,35 @@ pub(crate) struct ExprLet<'hir> {
     pub(crate) expr: &'hir Expr<'hir>,
 }
 
-/// An if statement: `if cond { true } else { false }`.
+/// A sequence of conditional branches.
+///
+/// This is lower from if statements, such as:
+///
+/// ```text
+/// if cond { true } else { false }
+/// ```
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
-pub(crate) struct ExprIf<'hir> {
-    /// The condition to the if statement.
-    pub(crate) condition: &'hir Condition<'hir>,
-    /// The body of the if statement.
-    pub(crate) block: &'hir Block<'hir>,
+pub(crate) struct Conditional<'hir> {
     /// Else if branches.
-    pub(crate) expr_else_ifs: &'hir [ExprElseIf<'hir>],
-    /// The else part of the if expression.
-    pub(crate) expr_else: Option<&'hir ExprElse<'hir>>,
+    pub(crate) branches: &'hir [ConditionalBranch<'hir>],
 }
 
 /// An else branch of an if expression.
 #[derive(Debug, Clone, Copy, Spanned)]
 #[non_exhaustive]
-pub(crate) struct ExprElseIf<'hir> {
+pub(crate) struct ConditionalBranch<'hir> {
     /// Span of the expression.
     #[rune(span)]
     pub(crate) span: Span,
-    /// The condition for the branch.
-    pub(crate) condition: &'hir Condition<'hir>,
+    /// The condition for the branch. Empty condition means that this is the
+    /// fallback branch.
+    pub(crate) condition: Option<&'hir Condition<'hir>>,
     /// The body of the else statement.
     pub(crate) block: &'hir Block<'hir>,
-}
-
-/// An else branch of an if expression.
-#[derive(Debug, Clone, Copy, Spanned)]
-#[non_exhaustive]
-pub(crate) struct ExprElse<'hir> {
-    /// Span of the expression.
-    #[rune(span)]
-    pub(crate) span: Span,
-    /// The body of the else statement.
-    pub(crate) block: &'hir Block<'hir>,
+    /// Variables that have been defined by the conditional header.
+    #[allow(unused)]
+    pub(crate) drop: &'hir [Variable],
 }
 
 /// A match expression.
@@ -297,6 +297,10 @@ pub(crate) struct ExprMatchBranch<'hir> {
     pub(crate) condition: Option<&'hir Expr<'hir>>,
     /// The body of the match.
     pub(crate) body: &'hir Expr<'hir>,
+    /// Variables that have been defined by this match branch, which needs to be
+    /// dropped.
+    #[allow(unused)]
+    pub(crate) drop: &'hir [Variable],
 }
 
 /// A function call `<expr>(<args>)`.
@@ -403,7 +407,7 @@ pub(crate) struct ExprSelect<'hir> {
 }
 
 /// A single selection branch.
-#[derive(Debug, Clone, Copy, Spanned)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) enum ExprSelectBranch<'hir> {
     /// A patterned branch.
@@ -413,7 +417,7 @@ pub(crate) enum ExprSelectBranch<'hir> {
 }
 
 /// A single selection branch.
-#[derive(Debug, Clone, Copy, Spanned)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) struct ExprSelectPatBranch<'hir> {
     /// The identifier to bind the result to.
@@ -422,6 +426,9 @@ pub(crate) struct ExprSelectPatBranch<'hir> {
     pub(crate) expr: &'hir Expr<'hir>,
     /// The body of the expression.
     pub(crate) body: &'hir Expr<'hir>,
+    /// Variables that need to be dropped by the end of this block.
+    #[allow(unused)]
+    pub(crate) drop: &'hir [Variable],
 }
 
 /// A closure expression.
@@ -662,6 +669,9 @@ pub(crate) struct Block<'hir> {
     pub(crate) span: Span,
     /// Statements in the block.
     pub(crate) statements: &'hir [Stmt<'hir>],
+    /// Variables that need to be dropped by the end of this block.
+    #[allow(unused)]
+    pub(crate) drop: &'hir [Variable],
 }
 
 impl Block<'_> {

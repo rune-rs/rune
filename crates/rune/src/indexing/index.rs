@@ -23,7 +23,7 @@ use crate::runtime::format;
 use crate::runtime::Call;
 use crate::shared::Items;
 use crate::worker::{Import, ImportKind, LoadFileKind, Task};
-use crate::{Diagnostics, SourceId};
+use crate::SourceId;
 
 use rune_macros::instrument;
 
@@ -53,7 +53,6 @@ pub(crate) struct Indexer<'a> {
     pub(crate) queue: &'a mut VecDeque<Task>,
     pub(crate) options: &'a Options,
     pub(crate) source_id: SourceId,
-    pub(crate) diagnostics: &'a mut Diagnostics,
     pub(crate) items: Items<'a>,
     pub(crate) scopes: IndexScopes,
     /// The current module being indexed.
@@ -573,7 +572,8 @@ pub(crate) fn file(ast: &mut ast::File, idx: &mut Indexer<'_>) -> compile::Resul
         while let Some((i, semi)) = head.pop_front() {
             if let Some(semi) = semi {
                 if !i.needs_semi_colon() {
-                    idx.diagnostics
+                    idx.q
+                        .diagnostics
                         .unnecessary_semi_colon(idx.source_id, semi.span());
                 }
             }
@@ -950,7 +950,8 @@ fn block(ast: &mut ast::Block, idx: &mut Indexer<'_>) -> compile::Result<()> {
             ast::Stmt::Item(i, semi) => {
                 if let Some(semi) = semi {
                     if !i.needs_semi_colon() {
-                        idx.diagnostics
+                        idx.q
+                            .diagnostics
                             .unnecessary_semi_colon(idx.source_id, semi.span());
                     }
                 }
@@ -988,7 +989,8 @@ fn block(ast: &mut ast::Block, idx: &mut Indexer<'_>) -> compile::Result<()> {
             }
             ast::Stmt::Semi(semi) => {
                 if !semi.needs_semi() {
-                    idx.diagnostics
+                    idx.q
+                        .diagnostics
                         .unnecessary_semi_colon(idx.source_id, semi.span());
                 }
 

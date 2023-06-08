@@ -380,18 +380,14 @@ fn path(hir: &hir::Path<'_>, c: &mut IrCompiler<'_>) -> compile::Result<ir::Ir> 
 fn local(hir: &hir::Local<'_>, c: &mut IrCompiler<'_>) -> compile::Result<ir::Ir> {
     let span = hir.span();
 
-    let name = 'ok: {
-        match hir.pat.kind {
-            hir::PatKind::Ignore => {
-                return expr(hir.expr, c);
-            }
-            hir::PatKind::Path(&hir::PatPathKind::Ident(ident)) => {
-                break 'ok ident;
-            }
-            _ => (),
+    let name = match hir.pat.kind {
+        hir::PatKind::Ignore => {
+            return expr(hir.expr, c);
         }
-
-        return Err(compile::Error::msg(span, "not supported yet"));
+        hir::PatKind::Path(&hir::PatPathKind::Ident(ident, _)) => ident,
+        _ => {
+            return Err(compile::Error::msg(span, "not supported yet"));
+        }
     };
 
     Ok(ir::Ir::new(
@@ -425,24 +421,21 @@ fn condition(hir: &hir::Condition<'_>, c: &mut IrCompiler<'_>) -> compile::Resul
 fn expr_if(
     span: Span,
     c: &mut IrCompiler<'_>,
-    hir: &hir::ExprIf<'_>,
+    hir: &hir::Conditional<'_>,
 ) -> compile::Result<ir::IrBranches> {
     let mut branches = Vec::new();
     let mut default_branch = None;
 
-    let cond = condition(hir.condition, c)?;
-    let ir = block(hir.block, c)?;
-    branches.push((cond, ir));
+    for hir in hir.branches {
+        let Some(cond) = hir.condition else {
+            let ir = block(hir.block, c)?;
+            default_branch = Some(ir);
+            continue
+        };
 
-    for expr_else_if in hir.expr_else_ifs {
-        let cond = condition(expr_else_if.condition, c)?;
-        let ir = block(expr_else_if.block, c)?;
+        let cond = condition(cond, c)?;
+        let ir = block(hir.block, c)?;
         branches.push((cond, ir));
-    }
-
-    if let Some(expr_else) = hir.expr_else {
-        let ir = block(expr_else.block, c)?;
-        default_branch = Some(ir);
     }
 
     Ok(ir::IrBranches {

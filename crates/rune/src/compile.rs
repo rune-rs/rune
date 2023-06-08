@@ -96,9 +96,9 @@ pub(crate) fn compile(
     sources: &mut Sources,
     pool: &mut Pool,
     context: &Context,
-    diagnostics: &mut Diagnostics,
     options: &Options,
     visitor: &mut dyn CompileVisitor,
+    diagnostics: &mut Diagnostics,
     source_loader: &mut dyn SourceLoader,
     unit_storage: &mut dyn UnitEncoder,
 ) -> Result<(), ()> {
@@ -116,13 +116,14 @@ pub(crate) fn compile(
         sources,
         pool,
         visitor,
+        diagnostics,
         &gen,
         context,
         &mut inner,
     );
 
     // The worker queue.
-    let mut worker = Worker::new(options, diagnostics, source_loader, q);
+    let mut worker = Worker::new(options, source_loader, q);
 
     // Queue up the initial sources to be loaded.
     for source_id in worker.q.sources.source_ids() {
@@ -135,7 +136,7 @@ pub(crate) fn compile(
         {
             Ok(result) => result,
             Err(error) => {
-                worker.diagnostics.error(source_id, error);
+                worker.q.diagnostics.error(source_id, error);
                 return Err(());
             }
         };
@@ -150,7 +151,7 @@ pub(crate) fn compile(
 
     worker.run();
 
-    if worker.diagnostics.has_error() {
+    if worker.q.diagnostics.has_error() {
         return Err(());
     }
 
@@ -161,12 +162,11 @@ pub(crate) fn compile(
 
             let task = CompileBuildEntry {
                 options,
-                diagnostics: worker.diagnostics,
                 q: worker.q.borrow(),
             };
 
             if let Err(error) = task.compile(entry, unit_storage) {
-                worker.diagnostics.error(source_id, error);
+                worker.q.diagnostics.error(source_id, error);
             }
         }
 
@@ -174,12 +174,12 @@ pub(crate) fn compile(
             Ok(true) => (),
             Ok(false) => break,
             Err((source_id, error)) => {
-                worker.diagnostics.error(source_id, error);
+                worker.q.diagnostics.error(source_id, error);
             }
         }
     }
 
-    if worker.diagnostics.has_error() {
+    if worker.q.diagnostics.has_error() {
         return Err(());
     }
 
@@ -188,7 +188,6 @@ pub(crate) fn compile(
 
 struct CompileBuildEntry<'a> {
     options: &'a Options,
-    diagnostics: &'a mut Diagnostics,
     q: Query<'a>,
 }
 
@@ -207,7 +206,6 @@ impl CompileBuildEntry<'_> {
             contexts: vec![span],
             loops: self::v1::Loops::new(),
             options: self.options,
-            diagnostics: self.diagnostics,
         }
     }
 
@@ -258,7 +256,7 @@ impl CompileBuildEntry<'_> {
                 assemble::fn_from_item_fn(&hir, &mut c, false)?;
 
                 if used.is_unused() {
-                    self.diagnostics.not_used(location.source_id, span, None);
+                    self.q.diagnostics.not_used(location.source_id, span, None);
                 } else {
                     self.q.unit.new_function(
                         location,
@@ -300,7 +298,7 @@ impl CompileBuildEntry<'_> {
                 assemble::fn_from_item_fn(&hir, &mut c, true)?;
 
                 if used.is_unused() {
-                    c.diagnostics.not_used(location.source_id, span, None);
+                    c.q.diagnostics.not_used(location.source_id, span, None);
                 } else {
                     let name = f.ast.name.resolve(resolve_context!(self.q))?;
 
@@ -337,7 +335,7 @@ impl CompileBuildEntry<'_> {
                 assemble::closure_from_expr_closure(span, &mut c, &hir, &closure.captures)?;
 
                 if used.is_unused() {
-                    c.diagnostics
+                    c.q.diagnostics
                         .not_used(location.source_id, location.span, None);
                 } else {
                     self.q.unit.new_function(
@@ -368,7 +366,8 @@ impl CompileBuildEntry<'_> {
                 assemble::closure_from_block(&hir, &mut c, &b.captures)?;
 
                 if used.is_unused() {
-                    self.diagnostics
+                    self.q
+                        .diagnostics
                         .not_used(location.source_id, location.span, None);
                 } else {
                     self.q.unit.new_function(
@@ -386,7 +385,8 @@ impl CompileBuildEntry<'_> {
                 tracing::trace!("unused: {}", self.q.pool.item(item_meta.item));
 
                 if !item_meta.visibility.is_public() {
-                    self.diagnostics
+                    self.q
+                        .diagnostics
                         .not_used(location.source_id, location.span, None);
                 }
             }
@@ -399,7 +399,8 @@ impl CompileBuildEntry<'_> {
                         .import(location.span, item_meta.module, item_meta.item, used)?;
 
                 if used.is_unused() {
-                    self.diagnostics
+                    self.q
+                        .diagnostics
                         .not_used(location.source_id, location.span, None);
                 }
 

@@ -275,9 +275,9 @@ impl<'a, S> Build<'a, S> {
             self.sources,
             &mut pool,
             context,
-            diagnostics,
             options,
             visitors,
+            diagnostics,
             source_loader,
             &mut unit_storage,
         );

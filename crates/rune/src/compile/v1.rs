@@ -10,7 +10,7 @@ use crate::compile::{
 use crate::hir;
 use crate::query::{ConstFn, Named, Query, Used};
 use crate::runtime::{ConstValue, Inst};
-use crate::{Diagnostics, Hash, SourceId};
+use crate::{Hash, SourceId};
 
 pub(crate) mod assemble;
 mod loops;
@@ -75,8 +75,6 @@ pub(crate) struct Assembler<'a> {
     pub(crate) loops: Loops,
     /// Enabled optimizations.
     pub(crate) options: &'a Options,
-    /// Compilation warnings.
-    pub(crate) diagnostics: &'a mut Diagnostics,
 }
 
 impl<'a> Assembler<'a> {

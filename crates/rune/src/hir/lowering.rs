@@ -1,4 +1,5 @@
 use core::cell::Cell;
+use core::mem::replace;
 use core::ops::Neg;
 
 use crate::no_std::collections::{HashMap, HashSet};
@@ -10,7 +11,7 @@ use crate::ast::{self, Span, Spanned};
 use crate::compile::meta;
 use crate::compile::v1::GenericsParameters;
 use crate::compile::{
-    self, CompileErrorKind, HirErrorKind, Item, ItemId, Location, ParseErrorKind,
+    self, CompileErrorKind, HirErrorKind, Item, ItemId, Location, ParseErrorKind, WithSpan,
 };
 use crate::hash::{Hash, ParametersBuilder};
 use crate::hir;
@@ -52,10 +53,22 @@ macro_rules! alloc_with {
 
         #[allow(unused)]
         macro_rules! iter {
-            ($iter:expr, |$pat:pat_param| $closure:expr) => {{
-                let mut it = IntoIterator::into_iter($iter);
+            ($iter:expr) => {
+                iter!($iter, |value| value)
+            };
 
-                let mut writer = match $ctx.arena.alloc_iter(ExactSizeIterator::len(&it)) {
+            ($iter:expr, |$pat:pat_param| $closure:expr) => {
+                iter!($iter, it, ExactSizeIterator::len(&it), |$pat| $closure)
+            };
+
+            ($iter:expr, $len:expr, |$pat:pat_param| $closure:expr) => {
+                iter!($iter, it, $len, |$pat| $closure)
+            };
+
+            ($iter:expr, $it:ident, $len:expr, |$pat:pat_param| $closure:expr) => {{
+                let mut $it = IntoIterator::into_iter($iter);
+
+                let mut writer = match $ctx.arena.alloc_iter($len) {
                     Ok(writer) => writer,
                     Err(e) => {
                         return Err(compile::Error::new(
@@ -67,7 +80,7 @@ macro_rules! alloc_with {
                     }
                 };
         
-                while let Some($pat) = it.next() {
+                while let Some($pat) = $it.next() {
                     if let Err(e) = writer.write($closure) {
                         return Err(compile::Error::new(
                             $span,
@@ -75,7 +88,7 @@ macro_rules! alloc_with {
                         ));
                     }
                 }
-        
+
                 writer.finish()
             }};
         }
@@ -118,7 +131,7 @@ pub(crate) struct Ctx<'hir, 'a> {
     q: Query<'a>,
     source_id: SourceId,
     in_template: Cell<bool>,
-    scope: Cell<hir::Scope>,
+    scope: hir::Scope,
     scopes: hir::Scopes<'hir>,
 }
 
@@ -130,7 +143,7 @@ impl<'hir, 'a> Ctx<'hir, 'a> {
             q,
             source_id,
             in_template: Cell::new(false),
-            scope: Cell::new(hir::Scopes::ROOT),
+            scope: hir::Scopes::ROOT,
             scopes: hir::Scopes::default(),
         }
     }
@@ -198,16 +211,22 @@ pub(crate) fn block<'hir>(
 ) -> compile::Result<hir::Block<'hir>> {
     alloc_with!(ctx, ast);
 
-    let scope = ctx.scopes.push(ctx.scope.get());
-    let scope = ctx.scope.replace(scope);
+    let scope = ctx.scopes.push(ctx.scope);
+    let scope = replace(&mut ctx.scope, scope);
+
+    let statements = iter!(&ast.statements, |ast| stmt(ctx, ast)?);
+    let layer = ctx
+        .scopes
+        .pop(replace(&mut ctx.scope, scope))
+        .with_span(ast)?;
 
     let block = hir::Block {
         id: ast.id,
         span: ast.span(),
-        statements: iter!(&ast.statements, |ast| stmt(ctx, ast)?),
+        statements,
+        drop: iter!(layer.into_drop_order()),
     };
 
-    ctx.scopes.pop(ctx.scope.replace(scope));
     Ok(block)
 }
 
@@ -218,6 +237,7 @@ pub(crate) fn expr_object<'hir>(
     alloc_with!(ctx, ast);
 
     let span = ast.span();
+    let mut keys_dup = HashMap::new();
 
     let assignments = &*iter!(&ast.assignments, |(ast, _)| {
         let key = object_key(ctx, &ast.key)?;
@@ -332,46 +352,78 @@ pub(crate) fn expr<'hir>(
         // TODO: lower all of these loop constructs to the same loop-like
         // representation. We only do different ones here right now since it's
         // easier when refactoring.
-        ast::Expr::While(ast) => hir::ExprKind::Loop(alloc!(hir::ExprLoop {
-            label: option!(&ast.label, |(ast, _)| label(ctx, ast)?),
-            condition: Some(alloc!(condition(ctx, &ast.condition)?)),
-            body: alloc!(block(ctx, &ast.body)?),
-        })),
+        ast::Expr::While(ast) => {
+            let scope = ctx.scopes.push(ctx.scope);
+
+            let condition = condition(ctx, &ast.condition)?;
+            let body = block(ctx, &ast.body)?;
+
+            let layer = ctx
+                .scopes
+                .pop(replace(&mut ctx.scope, scope))
+                .with_span(ast)?;
+
+            hir::ExprKind::Loop(alloc!(hir::ExprLoop {
+                label: option!(&ast.label, |(ast, _)| label(ctx, ast)?),
+                condition: Some(alloc!(condition)),
+                body: alloc!(body),
+                drop: iter!(layer.into_drop_order()),
+            }))
+        }
         ast::Expr::Loop(ast) => hir::ExprKind::Loop(alloc!(hir::ExprLoop {
             label: option!(&ast.label, |(ast, _)| label(ctx, ast)?),
             condition: None,
             body: alloc!(block(ctx, &ast.body)?),
+            drop: &[],
         })),
-        ast::Expr::For(ast) => hir::ExprKind::For(alloc!(hir::ExprFor {
-            label: option!(&ast.label, |(ast, _)| label(ctx, ast)?),
-            binding: alloc!(pat(ctx, &ast.binding)?),
-            iter: alloc!(expr(ctx, &ast.iter)?),
-            body: alloc!(block(ctx, &ast.body)?),
-        })),
+        ast::Expr::For(ast) => {
+            let iter = expr(ctx, &ast.iter)?;
+
+            let scope = ctx.scopes.push(ctx.scope);
+
+            let binding = pat(ctx, &ast.binding)?;
+            let body = block(ctx, &ast.body)?;
+
+            let layer = ctx
+                .scopes
+                .pop(replace(&mut ctx.scope, scope))
+                .with_span(ast)?;
+
+            hir::ExprKind::For(alloc!(hir::ExprFor {
+                label: option!(&ast.label, |(ast, _)| label(ctx, ast)?),
+                binding: alloc!(binding),
+                iter: alloc!(iter),
+                body: alloc!(body),
+                drop: iter!(layer.into_drop_order()),
+            }))
+        }
         ast::Expr::Let(ast) => hir::ExprKind::Let(alloc!(hir::ExprLet {
             pat: alloc!(pat(ctx, &ast.pat)?),
             expr: alloc!(expr(ctx, &ast.expr)?),
         })),
-        ast::Expr::If(ast) => hir::ExprKind::If(alloc!(hir::ExprIf {
-            condition: alloc!(condition(ctx, &ast.condition)?),
-            block: alloc!(block(ctx, &ast.block)?),
-            expr_else_ifs: iter!(&ast.expr_else_ifs, |ast| hir::ExprElseIf {
-                span: ast.span(),
-                condition: alloc!(condition(ctx, &ast.condition)?),
-                block: alloc!(block(ctx, &ast.block)?),
-            }),
-            expr_else: option!(&ast.expr_else, |ast| hir::ExprElse {
-                span: ast.span(),
-                block: alloc!(block(ctx, &ast.block)?)
-            }),
-        })),
+        ast::Expr::If(ast) => hir::ExprKind::If(alloc!(expr_if(ctx, ast)?)),
         ast::Expr::Match(ast) => hir::ExprKind::Match(alloc!(hir::ExprMatch {
             expr: alloc!(expr(ctx, &ast.expr)?),
-            branches: iter!(&ast.branches, |(ast, _)| hir::ExprMatchBranch {
-                span: ast.span(),
-                pat: alloc!(pat(ctx, &ast.pat)?),
-                condition: option!(&ast.condition, |(_, ast)| expr(ctx, ast)?),
-                body: alloc!(expr(ctx, &ast.body)?),
+            branches: iter!(&ast.branches, |(ast, _)| {
+                let scope = ctx.scopes.push(ctx.scope);
+
+                let scope = replace(&mut ctx.scope, scope);
+                let pat = alloc!(pat(ctx, &ast.pat)?);
+                let condition = option!(&ast.condition, |(_, ast)| expr(ctx, ast)?);
+                let body = alloc!(expr(ctx, &ast.body)?);
+
+                let layer = ctx
+                    .scopes
+                    .pop(replace(&mut ctx.scope, scope))
+                    .with_span(ast)?;
+
+                hir::ExprMatchBranch {
+                    span: ast.span(),
+                    pat,
+                    condition,
+                    body,
+                    drop: iter!(layer.into_drop_order()),
+                }
             }),
         })),
         ast::Expr::Call(ast) => hir::ExprKind::Call(alloc!(hir::ExprCall {
@@ -417,10 +469,21 @@ pub(crate) fn expr<'hir>(
             branches: iter!(&ast.branches, |(ast, _)| {
                 match ast {
                     ast::ExprSelectBranch::Pat(ast) => {
+                        let scope = ctx.scopes.push(ctx.scope);
+
+                        let pat = alloc!(pat(ctx, &ast.pat)?);
+                        let body = alloc!(expr(ctx, &ast.body)?);
+
+                        let layer = ctx
+                            .scopes
+                            .pop(replace(&mut ctx.scope, scope))
+                            .with_span(ast)?;
+
                         hir::ExprSelectBranch::Pat(alloc!(hir::ExprSelectPatBranch {
-                            pat: alloc!(pat(ctx, &ast.pat)?),
+                            pat,
                             expr: alloc!(expr(ctx, &ast.expr)?),
-                            body: alloc!(expr(ctx, &ast.body)?),
+                            body,
+                            drop: iter!(layer.into_drop_order()),
                         }))
                     }
                     ast::ExprSelectBranch::Default(ast) => {
@@ -479,6 +542,69 @@ pub(crate) fn expr<'hir>(
         span: ast.span(),
         kind,
     })
+}
+
+pub(crate) fn expr_if<'hir>(
+    ctx: &mut Ctx<'hir, '_>,
+    ast: &ast::ExprIf,
+) -> compile::Result<hir::Conditional<'hir>> {
+    alloc_with!(ctx, ast);
+
+    let length = 1 + ast.expr_else_ifs.len() + usize::from(ast.expr_else.is_some());
+
+    let then = [(
+        ast.if_.span().join(ast.block.span()),
+        Some(&ast.condition),
+        &ast.block,
+    )]
+    .into_iter();
+
+    let else_ifs = ast
+        .expr_else_ifs
+        .iter()
+        .map(|ast| (ast.span(), Some(&ast.condition), &ast.block));
+
+    let fallback = ast
+        .expr_else
+        .iter()
+        .map(|ast| (ast.span(), None, &ast.block));
+
+    let branches = then.chain(else_ifs).chain(fallback);
+
+    let branches = iter!(branches, length, |(span, c, b)| {
+        let (condition, block, drop) = match c {
+            Some(c) => {
+                let scope = ctx.scopes.push(ctx.scope);
+
+                let condition = condition(ctx, c)?;
+                let block = block(ctx, b)?;
+
+                let layer = ctx
+                    .scopes
+                    .pop(replace(&mut ctx.scope, scope))
+                    .with_span(ast)?;
+
+                (
+                    Some(&*alloc!(condition)),
+                    &*alloc!(block),
+                    &*iter!(layer.into_drop_order()),
+                )
+            }
+            None => {
+                let block = block(ctx, b)?;
+                (None, &*alloc!(block), &[][..])
+            }
+        };
+
+        hir::ConditionalBranch {
+            span,
+            condition,
+            block,
+            drop,
+        }
+    });
+
+    Ok(hir::Conditional { branches })
 }
 
 pub(crate) fn lit<'hir>(
@@ -691,7 +817,8 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
 
                     if let Some(ident) = path.try_as_ident() {
                         let ident = alloc_str!(ident.resolve(resolve_context!(ctx.q))?);
-                        break 'ok hir::PatPathKind::Ident(ident);
+                        let variable = ctx.scopes.define(ctx.scope, ident).with_span(ast)?;
+                        break 'ok hir::PatPathKind::Ident(ident, variable);
                     }
 
                     return Err(compile::Error::new(

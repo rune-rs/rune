@@ -12,7 +12,7 @@ use crate::macros::{IntoLit, Storage, ToTokens, TokenStream};
 use crate::parse::{Parse, Resolve};
 use crate::query::Query;
 use crate::shared::{Consts, Gen};
-use crate::{Source, SourceId, Sources};
+use crate::{Diagnostics, Source, SourceId, Sources};
 
 /// Context for a running macro.
 pub struct MacroContext<'a> {
@@ -48,7 +48,8 @@ impl<'a> MacroContext<'a> {
         let mut storage = Storage::default();
         let mut sources = Sources::default();
         let mut pool = Pool::default();
-        let mut visitors = NoopCompileVisitor::new();
+        let mut visitor = NoopCompileVisitor::new();
+        let mut diagnostics = Diagnostics::default();
         let context = Context::default();
         let mut inner = Default::default();
 
@@ -59,7 +60,8 @@ impl<'a> MacroContext<'a> {
             &mut storage,
             &mut sources,
             &mut pool,
-            &mut visitors,
+            &mut visitor,
+            &mut diagnostics,
             &gen,
             &context,
             &mut inner,
