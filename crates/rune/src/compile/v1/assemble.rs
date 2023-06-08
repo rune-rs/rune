@@ -3,16 +3,13 @@ use core::mem::{replace, take};
 use crate::no_std::prelude::*;
 
 use crate::ast::{self, Span, Spanned};
-use crate::compile::meta;
-use crate::compile::v1::{Assembler, GenericsParameters, Loop, Needs, Scope, Var};
+use crate::compile::v1::{Assembler, Loop, Needs, Scope, Var};
 use crate::compile::{self, CompileErrorKind, WithSpan};
-use crate::hash::ParametersBuilder;
 use crate::hir;
 use crate::parse::Resolve;
-use crate::query::Named;
 use crate::runtime::{
-    ConstValue, Inst, InstAddress, InstAssignOp, InstOp, InstRangeLimits, InstTarget, InstValue,
-    InstVariant, Label, PanicReason, Protocol, Type, TypeCheck,
+    ConstValue, Inst, InstAddress, InstAssignOp, InstOp, InstRangeLimits, InstTarget, InstVariant,
+    Label, PanicReason, Protocol, TypeCheck,
 };
 use crate::Hash;
 
@@ -76,119 +73,6 @@ impl Asm {
 
         Ok(address)
     }
-}
-
-/// Compile an item.
-#[instrument]
-fn meta(span: Span, c: &mut Assembler<'_>, meta: &meta::Meta, needs: Needs) -> compile::Result<()> {
-    if let Needs::Value = needs {
-        match &meta.kind {
-            meta::Kind::Struct {
-                fields: meta::Fields::Empty,
-                ..
-            }
-            | meta::Kind::Variant {
-                fields: meta::Fields::Empty,
-                ..
-            } => {
-                c.asm.push_with_comment(
-                    Inst::Call {
-                        hash: meta.hash,
-                        args: 0,
-                    },
-                    span,
-                    meta.info(c.q.pool).to_string(),
-                );
-            }
-            meta::Kind::Variant {
-                fields: meta::Fields::Unnamed(0),
-                ..
-            }
-            | meta::Kind::Struct {
-                fields: meta::Fields::Unnamed(0),
-                ..
-            } => {
-                c.asm.push_with_comment(
-                    Inst::Call {
-                        hash: meta.hash,
-                        args: 0,
-                    },
-                    span,
-                    meta.info(c.q.pool).to_string(),
-                );
-            }
-            meta::Kind::Struct {
-                fields: meta::Fields::Unnamed(..),
-                ..
-            } => {
-                c.asm.push_with_comment(
-                    Inst::LoadFn { hash: meta.hash },
-                    span,
-                    meta.info(c.q.pool).to_string(),
-                );
-            }
-            meta::Kind::Struct { .. } => {
-                c.asm.push_with_comment(
-                    Inst::Push {
-                        value: InstValue::Type(Type::new(meta.hash)),
-                    },
-                    span,
-                    meta.info(c.q.pool).to_string(),
-                );
-            }
-            meta::Kind::Variant {
-                fields: meta::Fields::Unnamed(..),
-                ..
-            } => {
-                c.asm.push_with_comment(
-                    Inst::LoadFn { hash: meta.hash },
-                    span,
-                    meta.info(c.q.pool).to_string(),
-                );
-            }
-            meta::Kind::Function { .. } | meta::Kind::AssociatedFunction { .. } => {
-                c.asm.push_with_comment(
-                    Inst::LoadFn { hash: meta.hash },
-                    span,
-                    meta.info(c.q.pool).to_string(),
-                );
-            }
-            meta::Kind::Const { .. } => {
-                let Some(const_value) = c.q.get_const_value(meta.hash).cloned() else {
-                    return Err(compile::Error::msg(
-                        span,
-                        format_args!("Missing constant value for hash {}", meta.hash),
-                    ));
-                };
-
-                const_(span, c, &const_value, Needs::Value)?;
-            }
-            _ => {
-                return Err(compile::Error::expected_meta(
-                    span,
-                    meta.info(c.q.pool),
-                    "something that can be used as a value",
-                ));
-            }
-        }
-    } else {
-        let type_hash = meta.type_hash_of().ok_or_else(|| {
-            compile::Error::expected_meta(span, meta.info(c.q.pool), "something that has a type")
-        })?;
-
-        c.asm.push(
-            Inst::Push {
-                value: InstValue::Type(Type::new(type_hash)),
-            },
-            span,
-        );
-    }
-
-    if !needs.value() {
-        c.asm.push(Inst::Pop, span);
-    }
-
-    Ok(())
 }
 
 /// Assemble a return statement from the given Assemble.
@@ -885,7 +769,27 @@ fn expr(hir: &hir::Expr<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Re
     let span = hir.span();
 
     let asm = match hir.kind {
-        hir::ExprKind::Path(p) => path(p, c, needs)?,
+        hir::ExprKind::SelfValue => {
+            let var = c.scopes.get_var(c.q.visitor, SELF, c.source_id, span)?;
+
+            if needs.value() {
+                var.copy(c, span, SELF);
+            }
+
+            Asm::top(span)
+        }
+        hir::ExprKind::Variable(_, name) => {
+            let var = c.scopes.get_var(c.q.visitor, name, c.source_id, span)?;
+            Asm::var(span, var, name.into())
+        }
+        hir::ExprKind::Value(value) => {
+            c.asm.push(Inst::Push { value }, span);
+            Asm::top(span)
+        }
+        hir::ExprKind::Fn(hash) => {
+            c.asm.push(Inst::LoadFn { hash }, span);
+            Asm::top(span)
+        }
         hir::ExprKind::For(hir) => expr_for(span, c, hir, needs)?,
         hir::ExprKind::Loop(hir) => expr_loop(span, c, hir, needs)?,
         hir::ExprKind::Let(hir) => expr_let(hir, c, needs)?,
@@ -906,7 +810,7 @@ fn expr(hir: &hir::Expr<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Re
         hir::ExprKind::Select(hir) => expr_select(span, c, hir, needs)?,
         hir::ExprKind::Call(hir) => expr_call(span, c, hir, needs)?,
         hir::ExprKind::FieldAccess(hir) => expr_field_access(span, c, hir, needs)?,
-        hir::ExprKind::Closure(hir) => expr_closure(span, c, hir, needs)?,
+        hir::ExprKind::CallClosure(hir) => expr_call_closure(span, c, hir, needs)?,
         hir::ExprKind::Lit(hir) => lit(span, c, hir, needs)?,
         hir::ExprKind::Tuple(hir) => expr_tuple(span, c, hir, needs)?,
         hir::ExprKind::Vec(hir) => expr_vec(span, c, hir, needs)?,
@@ -916,6 +820,12 @@ fn expr(hir: &hir::Expr<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Re
         hir::ExprKind::Format(format) => builtin_format(format, c, needs)?,
         hir::ExprKind::AsyncBlock(hir) => expr_async_block(span, c, hir, needs)?,
         hir::ExprKind::Const(id) => const_item(span, c, id, needs)?,
+        hir::ExprKind::Path(path) => {
+            return Err(compile::Error::msg(
+                path,
+                "Path expression is not supported here",
+            ))
+        }
     };
 
     Ok(asm)
@@ -931,17 +841,9 @@ fn expr_assign(
 ) -> compile::Result<Asm> {
     let supported = match hir.lhs.kind {
         // <var> = <value>
-        hir::ExprKind::Path(path) if path.rest.is_empty() => {
+        hir::ExprKind::Variable(_, name) => {
             expr(hir.rhs, c, Needs::Value)?.apply(c)?;
-
-            let segment = path
-                .first
-                .try_as_ident()
-                .ok_or("Unsupported path")
-                .with_span(path)?;
-
-            let ident = segment.resolve(resolve_context!(c.q))?;
-            let var = c.scopes.get_var(c.q.visitor, ident, c.source_id, span)?;
+            let var = c.scopes.get_var(c.q.visitor, name, c.source_id, span)?;
             c.asm.push(Inst::Replace { offset: var.offset }, span);
             true
         }
@@ -1160,17 +1062,9 @@ fn expr_binary(
     ) -> compile::Result<()> {
         let supported = match lhs.kind {
             // <var> <op> <expr>
-            hir::ExprKind::Path(path) if path.rest.is_empty() => {
+            hir::ExprKind::Variable(_, name) => {
                 expr(rhs, c, Needs::Value)?.apply(c)?;
-
-                let segment = path
-                    .first
-                    .try_as_ident()
-                    .ok_or_else(|| compile::Error::msg(path, "unsupported path segment"))?;
-
-                let ident = segment.resolve(resolve_context!(c.q))?;
-                let var = c.scopes.get_var(c.q.visitor, ident, c.source_id, span)?;
-
+                let var = c.scopes.get_var(c.q.visitor, name, c.source_id, span)?;
                 Some(InstTarget::Offset(var.offset))
             }
             // <expr>.<field> <op> <value>
@@ -1355,63 +1249,6 @@ fn expr_break(
     Ok(Asm::top(span))
 }
 
-#[instrument]
-fn generics_parameters(
-    span: Span,
-    c: &mut Assembler<'_>,
-    named: &Named<'_>,
-) -> compile::Result<GenericsParameters> {
-    let mut parameters = GenericsParameters {
-        trailing: named.trailing,
-        parameters: [None, None],
-    };
-
-    for (value, o) in named
-        .parameters
-        .iter()
-        .zip(parameters.parameters.iter_mut())
-    {
-        if let &Some((span, expr)) = value {
-            *o = Some(generics_parameter(span, c, expr)?);
-        }
-    }
-
-    Ok(parameters)
-}
-
-#[instrument]
-fn generics_parameter(
-    span: Span,
-    c: &mut Assembler<'_>,
-    generics: &[hir::Expr<'_>],
-) -> compile::Result<Hash> {
-    let mut builder = ParametersBuilder::new();
-
-    for expr in generics {
-        let hir::ExprKind::Path(path) = expr.kind else {
-            return Err(compile::Error::new(
-                span,
-                CompileErrorKind::UnsupportedGenerics,
-            ));
-        };
-
-        let named = c.convert_path(path)?;
-        let parameters = generics_parameters(path.span(), c, &named)?;
-        let meta = c.lookup_meta(expr.span(), named.item, parameters)?;
-
-        let (meta::Kind::Type { .. } | meta::Kind::Struct { .. } | meta::Kind::Enum { .. }) = meta.kind else {
-            return Err(compile::Error::new(
-                span,
-                CompileErrorKind::UnsupportedGenerics,
-            ));
-        };
-
-        builder.add(meta.hash);
-    }
-
-    Ok(builder.finish())
-}
-
 /// Assemble a call expression.
 #[instrument]
 fn expr_call(
@@ -1438,9 +1275,7 @@ fn expr_call(
 
             c.scopes.undecl_anon(span, hir.args.len() + 1)?;
         }
-        hir::Call::Instance { hash } => {
-            let target = hir.target();
-
+        hir::Call::Instance { target, hash } => {
             expr(target, c, Needs::Value)?.apply(c)?;
             c.scopes.decl_anon(target.span())?;
 
@@ -1459,25 +1294,24 @@ fn expr_call(
             }
 
             c.asm.push(Inst::Call { hash, args }, span);
-
             c.scopes.undecl_anon(span, args)?;
         }
-        hir::Call::Expr => {
+        hir::Call::Expr { expr: e } => {
             for e in hir.args {
                 expr(e, c, Needs::Value)?.apply(c)?;
                 c.scopes.decl_anon(span)?;
             }
 
-            expr(hir.expr, c, Needs::Value)?.apply(c)?;
+            expr(e, c, Needs::Value)?.apply(c)?;
             c.scopes.decl_anon(span)?;
 
             c.asm.push(Inst::CallFn { args }, span);
 
             c.scopes.undecl_anon(span, args + 1)?;
         }
-        hir::Call::ConstFn { id } => {
-            let from = c.q.item_for((span, hir.id))?;
+        hir::Call::ConstFn { id, ast_id } => {
             let const_fn = c.q.const_fn_for((span, id))?;
+            let from = c.q.item_for((span, ast_id))?;
             let value = c.call_const_fn(span, &from, &const_fn, hir.args)?;
             const_(span, c, &value, Needs::Value)?;
         }
@@ -1496,7 +1330,6 @@ pub(crate) fn closure_from_expr_closure(
     span: Span,
     c: &mut Assembler<'_>,
     hir: &hir::ExprClosure<'_>,
-    captures: &[String],
 ) -> compile::Result<()> {
     let mut patterns = Vec::new();
 
@@ -1512,10 +1345,10 @@ pub(crate) fn closure_from_expr_closure(
         }
     }
 
-    if !captures.is_empty() {
+    if !hir.captures.is_empty() {
         c.asm.push(Inst::PushTuple, span);
 
-        for capture in captures {
+        for capture in hir.captures {
             c.scopes.new_var(capture, span)?;
         }
     }
@@ -1531,10 +1364,10 @@ pub(crate) fn closure_from_expr_closure(
 
 /// Assemble a closure expression.
 #[instrument]
-fn expr_closure(
+fn expr_call_closure(
     span: Span,
     c: &mut Assembler<'_>,
-    hir: &hir::ExprClosure<'_>,
+    hir: &hir::ExprCallClosure<'_>,
     needs: Needs,
 ) -> compile::Result<Asm> {
     if !needs.value() {
@@ -1542,59 +1375,26 @@ fn expr_closure(
         return Ok(Asm::top(span));
     }
 
-    let item = c.q.item_for((span, hir.id))?;
-    let hash = c.q.pool.item_type_hash(item.item);
+    tracing::trace!(?hir.captures, "assemble call closure");
 
-    let Some(meta) = c.q.query_meta(span, item.item, Default::default())? else {
-        return Err(compile::Error::new(
-            span,
-            CompileErrorKind::MissingItem {
-                item: c.q.pool.item(item.item).to_owned(),
-            },
-        ))
-    };
-
-    let meta::Kind::Closure {
-        ref captures, do_move, ..
-    } = meta.kind else {
-        return Err(compile::Error::expected_meta(
-            span,
-            meta.info(c.q.pool),
-            "a closure",
-        ));
-    };
-
-    tracing::trace!("captures: {} => {:?}", item.item, captures);
-
-    if captures.is_empty() {
-        // NB: if closure doesn't capture the environment it acts like a regular
-        // function. No need to store and load the environment.
-        c.asm.push_with_comment(
-            Inst::LoadFn { hash },
-            span,
-            format_args!("closure `{}`", item.item),
-        );
-    } else {
-        // Construct a closure environment.
-        for capture in captures.as_ref() {
-            if do_move {
-                let var = c.scopes.take_var(c.q.visitor, capture, c.source_id, span)?;
-                var.do_move(c.asm, span, format_args!("capture `{}`", capture));
-            } else {
-                let var = c.scopes.get_var(c.q.visitor, capture, c.source_id, span)?;
-                var.copy(c, span, format_args!("capture `{}`", capture));
-            }
+    // Construct a closure environment.
+    for capture in hir.captures {
+        if hir.do_move {
+            let var = c.scopes.take_var(c.q.visitor, capture, c.source_id, span)?;
+            var.do_move(c.asm, span, format_args!("capture `{}`", capture));
+        } else {
+            let var = c.scopes.get_var(c.q.visitor, capture, c.source_id, span)?;
+            var.copy(c, span, format_args!("capture `{}`", capture));
         }
-
-        c.asm.push_with_comment(
-            Inst::Closure {
-                hash,
-                count: captures.len(),
-            },
-            span,
-            format_args!("closure `{}`", item.item),
-        );
     }
+
+    c.asm.push(
+        Inst::Closure {
+            hash: hir.hash,
+            count: hir.captures.len(),
+        },
+        span,
+    );
 
     Ok(Asm::top(span))
 }
@@ -2167,71 +1967,6 @@ fn expr_object(
 
     c.scopes.pop(guard, span)?;
     Ok(Asm::top(span))
-}
-
-/// Assemble a path.
-#[instrument]
-fn path(hir: &hir::Path<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Result<Asm> {
-    let span = hir.span();
-
-    if let Some(ast::PathKind::SelfValue) = hir.as_kind() {
-        let var = c.scopes.get_var(c.q.visitor, SELF, c.source_id, span)?;
-
-        if needs.value() {
-            var.copy(c, span, SELF);
-        }
-
-        return Ok(Asm::top(span));
-    }
-
-    if let Needs::Value = needs {
-        if let Some(local) = hir.try_as_ident() {
-            let local = local.resolve(resolve_context!(c.q))?;
-
-            if let Some(var) = c
-                .scopes
-                .try_get_var(c.q.visitor, local, c.source_id, span)?
-            {
-                return Ok(Asm::var(span, var, local.into()));
-            }
-        }
-    }
-
-    let named = c.convert_path(hir)?;
-    let parameters = generics_parameters(span, c, &named)?;
-
-    if let Some(m) = c.try_lookup_meta(span, named.item, &parameters)? {
-        meta(span, c, &m, needs)?;
-        return Ok(Asm::top(span));
-    }
-
-    if let (Needs::Value, Some(local)) = (needs, hir.try_as_ident()) {
-        let local = local.resolve(resolve_context!(c.q))?;
-
-        // light heuristics, treat it as a type error in case the first
-        // character is uppercase.
-        if !local.starts_with(char::is_uppercase) {
-            return Err(compile::Error::new(
-                span,
-                CompileErrorKind::MissingLocal {
-                    name: local.to_owned(),
-                },
-            ));
-        }
-    }
-
-    let kind = if !parameters.parameters.is_empty() {
-        CompileErrorKind::MissingItemParameters {
-            item: c.q.pool.item(named.item).to_owned(),
-            parameters: parameters.parameters.as_ref().into(),
-        }
-    } else {
-        CompileErrorKind::MissingItem {
-            item: c.q.pool.item(named.item).to_owned(),
-        }
-    };
-
-    Err(compile::Error::new(span, kind))
 }
 
 /// Assemble a range expression.

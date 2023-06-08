@@ -8,7 +8,7 @@ use crate::compile::{
     Location, Options, WithSpan,
 };
 use crate::hir;
-use crate::query::{ConstFn, Named, Query, Used};
+use crate::query::{ConstFn, Query, Used};
 use crate::runtime::{ConstValue, Inst};
 use crate::{Hash, SourceId};
 
@@ -79,17 +79,6 @@ pub(crate) struct Assembler<'a> {
 
 impl<'a> Assembler<'a> {
     /// Access the meta for the given language item.
-    pub fn try_lookup_meta(
-        &mut self,
-        span: Span,
-        item: ItemId,
-        parameters: &GenericsParameters,
-    ) -> compile::Result<Option<meta::Meta>> {
-        self.q
-            .try_lookup_meta(Location::new(self.source_id, span), item, parameters)
-    }
-
-    /// Access the meta for the given language item.
     pub fn lookup_meta(
         &mut self,
         span: Span,
@@ -125,14 +114,6 @@ impl<'a> Assembler<'a> {
                 self.asm.push(Inst::Clean { count }, span);
             }
         }
-    }
-
-    /// Convert an [ast::Path] into a [Named] item.
-    pub(crate) fn convert_path<'hir>(
-        &mut self,
-        path: &'hir hir::Path<'hir>,
-    ) -> compile::Result<Named<'hir>> {
-        self.q.convert_path(path)
     }
 
     /// Clean the last scope.

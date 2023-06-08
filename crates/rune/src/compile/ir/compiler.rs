@@ -133,16 +133,12 @@ fn expr_call(
         args.push(expr(e, c)?);
     }
 
-    if let hir::ExprKind::Path(path) = hir.expr.kind {
-        if let Some(ident) = path.try_as_ident() {
-            let target = c.resolve(ident)?;
-
-            return Ok(ir::IrCall {
-                span,
-                target: target.into(),
-                args,
-            });
-        }
+    if let hir::Call::Var { name, .. } = hir.call {
+        return Ok(ir::IrCall {
+            span,
+            target: name.into(),
+            args,
+        });
     }
 
     Err(compile::Error::msg(span, "call not supported"))

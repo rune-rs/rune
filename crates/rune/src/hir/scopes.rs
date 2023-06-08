@@ -129,7 +129,7 @@ impl<'hir> Scopes<'hir> {
 
     /// Try to lookup the given variable.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn get(&self, name: &'hir str) -> Option<Variable> {
+    pub(crate) fn get(&self, name: &str) -> Option<Variable> {
         tracing::trace!(?self.scope, ?name, "looking up");
 
         let mut scope = self.scopes.get(self.scope.0);

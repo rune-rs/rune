@@ -4,7 +4,7 @@ use crate as rune;
 use crate::ast::{self, Span, Spanned};
 use crate::hir::Variable;
 use crate::parse::{Expectation, Id, IntoExpectation, NonZeroId, Opaque};
-use crate::runtime::{format, TypeCheck};
+use crate::runtime::{format, InstValue, TypeCheck};
 use crate::Hash;
 
 /// A pattern.
@@ -124,6 +124,10 @@ pub(crate) enum Lit<'hir> {
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) enum ExprKind<'hir> {
+    SelfValue,
+    Variable(Variable, &'hir str),
+    Value(InstValue),
+    Fn(Hash),
     Path(&'hir Path<'hir>),
     Assign(&'hir ExprAssign<'hir>),
     Loop(&'hir ExprLoop<'hir>),
@@ -145,7 +149,7 @@ pub(crate) enum ExprKind<'hir> {
     Await(&'hir Expr<'hir>),
     Try(&'hir Expr<'hir>),
     Select(&'hir ExprSelect<'hir>),
-    Closure(&'hir ExprClosure<'hir>),
+    CallClosure(&'hir ExprCallClosure<'hir>),
     Lit(Lit<'hir>),
     Object(&'hir ExprObject<'hir>),
     Tuple(&'hir ExprSeq<'hir>),
@@ -313,6 +317,8 @@ pub(crate) enum Call<'hir> {
         variable: Variable,
     },
     Instance {
+        /// The target expression being called.
+        target: &'hir Expr<'hir>,
         /// Hash of the fn being called.
         hash: Hash,
     },
@@ -321,38 +327,24 @@ pub(crate) enum Call<'hir> {
         hash: Hash,
     },
     /// An expression being called.
-    Expr,
+    Expr { expr: &'hir Expr<'hir> },
     /// A constant function call.
     ConstFn {
         /// The identifier of the constant function.
         id: NonZeroId,
+        /// Ast identifier.
+        ast_id: Id,
     },
 }
 
 /// A function call `<expr>(<args>)`.
-#[derive(Debug, Clone, Copy, Opaque)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) struct ExprCall<'hir> {
-    /// Opaque identifier related with call.
-    #[rune(id)]
-    pub(crate) id: Id,
     /// The call being performed.
     pub(crate) call: Call<'hir>,
-    /// The name of the function being called.
-    pub(crate) expr: &'hir Expr<'hir>,
     /// The arguments of the function call.
     pub(crate) args: &'hir [Expr<'hir>],
-}
-
-impl<'hir> ExprCall<'hir> {
-    /// Get the target of the call expression.
-    pub(crate) fn target(&self) -> &Expr {
-        if let ExprKind::FieldAccess(access) = self.expr.kind {
-            return access.expr;
-        }
-
-        self.expr
-    }
 }
 
 /// A field access `<expr>.<field>`.
@@ -459,6 +451,15 @@ pub(crate) struct ExprSelectPatBranch<'hir> {
     pub(crate) drop: &'hir [Variable],
 }
 
+/// Calling a closure.
+#[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
+pub(crate) struct ExprCallClosure<'hir> {
+    pub(crate) do_move: bool,
+    pub(crate) hash: Hash,
+    pub(crate) captures: &'hir [&'hir str],
+}
+
 /// A closure expression.
 #[derive(Debug, Clone, Copy, Opaque)]
 #[non_exhaustive]
@@ -470,6 +471,8 @@ pub(crate) struct ExprClosure<'hir> {
     pub(crate) args: &'hir [FnArg<'hir>],
     /// The body of the closure.
     pub(crate) body: &'hir Expr<'hir>,
+    /// Captures in the closure.
+    pub(crate) captures: &'hir [&'hir str],
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -561,19 +564,6 @@ pub(crate) struct Path<'hir> {
 }
 
 impl<'hir> Path<'hir> {
-    /// Identify the kind of the path.
-    pub(crate) fn as_kind(&self) -> Option<ast::PathKind<'_>> {
-        if self.rest.is_empty() && self.trailing.is_none() && self.global.is_none() {
-            match self.first.kind {
-                PathSegmentKind::SelfValue => Some(ast::PathKind::SelfValue),
-                PathSegmentKind::Ident(ident) => Some(ast::PathKind::Ident(ident)),
-                _ => None,
-            }
-        } else {
-            None
-        }
-    }
-
     /// Borrow as an identifier used for field access calls.
     ///
     /// This is only allowed if there are no other path components

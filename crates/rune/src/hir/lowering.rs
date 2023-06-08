@@ -16,6 +16,7 @@ use crate::hash::{Hash, ParametersBuilder};
 use crate::hir;
 use crate::parse::Resolve;
 use crate::query::{self, Named, Query};
+use crate::runtime::{InstValue, Type};
 use crate::SourceId;
 
 use rune_macros::instrument;
@@ -126,17 +127,37 @@ macro_rules! alloc_with {
     };
 }
 
+#[derive(Default, Clone, Copy)]
+enum Needs {
+    #[default]
+    Value,
+    Type,
+}
+
 pub(crate) struct Ctx<'hir, 'a> {
     /// Arena used for allocations.
     arena: &'hir hir::arena::Arena,
     q: Query<'a>,
     source_id: SourceId,
     in_template: Cell<bool>,
+    in_path: Cell<bool>,
+    needs: Cell<Needs>,
     scopes: hir::Scopes<'hir>,
     const_eval: bool,
 }
 
 impl<'hir, 'a> Ctx<'hir, 'a> {
+    #[inline(always)]
+    fn in_path<F, O>(&mut self, in_path: bool, f: F) -> O
+    where
+        F: FnOnce(&mut Self) -> O,
+    {
+        let in_path = self.in_path.replace(in_path);
+        let output = f(self);
+        self.in_path.set(in_path);
+        output
+    }
+
     /// Construct a new context for used when constants are built separately
     /// through the query system.
     pub(crate) fn with_query(
@@ -168,6 +189,8 @@ impl<'hir, 'a> Ctx<'hir, 'a> {
             q,
             source_id,
             in_template: Cell::new(false),
+            in_path: Cell::new(false),
+            needs: Cell::new(Needs::default()),
             scopes: hir::Scopes::default(),
             const_eval,
         }
@@ -215,11 +238,18 @@ pub(crate) fn item_fn<'hir>(
 
 /// Lower a closure expression.
 #[instrument(span = ast)]
-pub(crate) fn expr_closure<'hir>(
+pub(crate) fn expr_closure_captures<'hir>(
     ctx: &mut Ctx<'hir, '_>,
     ast: &ast::ExprClosure,
+    captures: &[String],
 ) -> compile::Result<hir::ExprClosure<'hir>> {
     alloc_with!(ctx, ast);
+
+    let captures = &*iter!(captures, |string| alloc_str!(string));
+
+    for capture in captures {
+        ctx.scopes.define(capture).with_span(ast)?;
+    }
 
     Ok(hir::ExprClosure {
         id: ast.id,
@@ -230,7 +260,53 @@ pub(crate) fn expr_closure<'hir>(
             }
         },
         body: alloc!(expr(ctx, &ast.body)?),
+        captures,
     })
+}
+
+/// Assemble a closure expression.
+#[instrument(span = ast)]
+fn expr_call_closure<'hir>(
+    ctx: &mut Ctx<'hir, '_>,
+    ast: &ast::ExprClosure,
+) -> compile::Result<hir::ExprKind<'hir>> {
+    alloc_with!(ctx, ast);
+
+    let span = ast.span();
+    let item = ctx.q.item_for((span, ast.id))?;
+
+    let Some(meta) = ctx.q.query_meta(span, item.item, Default::default())? else {
+        return Err(compile::Error::new(
+            span,
+            CompileErrorKind::MissingItem {
+                item: ctx.q.pool.item(item.item).to_owned(),
+            },
+        ))
+    };
+
+    let meta::Kind::Closure {
+        ref captures, do_move, ..
+    } = meta.kind else {
+        return Err(compile::Error::expected_meta(
+            span,
+            meta.info(ctx.q.pool),
+            "a closure",
+        ));
+    };
+
+    tracing::trace!("captures: {} => {:?}", item.item, captures);
+
+    if captures.is_empty() {
+        return Ok(hir::ExprKind::Fn(meta.hash));
+    }
+
+    let captures = iter!(captures.as_ref(), |string| alloc_str!(string));
+
+    Ok(hir::ExprKind::CallClosure(alloc!(hir::ExprCallClosure {
+        hash: meta.hash,
+        do_move,
+        captures,
+    })))
 }
 
 /// Lower the specified block.
@@ -372,8 +448,16 @@ pub(crate) fn expr<'hir>(
 ) -> compile::Result<hir::Expr<'hir>> {
     alloc_with!(ctx, ast);
 
+    let in_path = ctx.in_path.take();
+
     let kind = match ast {
-        ast::Expr::Path(ast) => hir::ExprKind::Path(alloc!(path(ctx, ast)?)),
+        ast::Expr::Path(ast) => {
+            if in_path {
+                hir::ExprKind::Path(alloc!(path(ctx, ast)?))
+            } else {
+                expr_path(ctx, ast)?
+            }
+        }
         ast::Expr::Assign(ast) => hir::ExprKind::Assign(alloc!(hir::ExprAssign {
             lhs: alloc!(expr(ctx, &ast.lhs)?),
             rhs: alloc!(expr(ctx, &ast.rhs)?),
@@ -453,12 +537,29 @@ pub(crate) fn expr<'hir>(
                 ast::ExprField::LitNumber(ast) => hir::ExprField::LitNumber(alloc!(*ast)),
             }),
         })),
-        ast::Expr::Empty(ast) => hir::ExprKind::Group(alloc!(expr(ctx, &ast.expr)?)),
-        ast::Expr::Binary(ast) => hir::ExprKind::Binary(alloc!(hir::ExprBinary {
-            lhs: alloc!(expr(ctx, &ast.lhs)?),
-            op: ast.op,
-            rhs: alloc!(expr(ctx, &ast.rhs)?),
-        })),
+        ast::Expr::Empty(ast) => {
+            // NB: restore in_path setting.
+            ctx.in_path.set(in_path);
+            hir::ExprKind::Group(alloc!(expr(ctx, &ast.expr)?))
+        }
+        ast::Expr::Binary(ast) => {
+            let rhs_needs = match &ast.op {
+                ast::BinOp::Is(..) | ast::BinOp::IsNot(..) => Needs::Type,
+                _ => Needs::Value,
+            };
+
+            let lhs = alloc!(expr(ctx, &ast.lhs)?);
+
+            let needs = ctx.needs.replace(rhs_needs);
+            let rhs = alloc!(expr(ctx, &ast.rhs)?);
+            ctx.needs.set(needs);
+
+            hir::ExprKind::Binary(alloc!(hir::ExprBinary {
+                lhs,
+                op: ast.op,
+                rhs,
+            }))
+        }
         ast::Expr::Unary(ast) => expr_unary(ctx, ast)?,
         ast::Expr::Index(ast) => hir::ExprKind::Index(alloc!(hir::ExprIndex {
             target: alloc!(expr(ctx, &ast.target)?),
@@ -504,7 +605,7 @@ pub(crate) fn expr<'hir>(
                 }
             })
         })),
-        ast::Expr::Closure(ast) => hir::ExprKind::Closure(alloc!(expr_closure(ctx, ast)?)),
+        ast::Expr::Closure(ast) => expr_call_closure(ctx, ast)?,
         ast::Expr::Lit(ast) => hir::ExprKind::Lit(lit(ctx, &ast.lit)?),
         ast::Expr::Object(ast) => expr_object(ctx, ast)?,
         ast::Expr::Tuple(ast) => hir::ExprKind::Tuple(alloc!(hir::ExprSeq {
@@ -1054,6 +1155,135 @@ fn object_ident<'hir>(
 
 /// Lower the given path.
 #[instrument(span = ast)]
+pub(crate) fn expr_path<'hir>(
+    ctx: &mut Ctx<'hir, '_>,
+    ast: &ast::Path,
+) -> compile::Result<hir::ExprKind<'hir>> {
+    alloc_with!(ctx, ast);
+
+    if ctx.in_path.get() {
+        return Ok(hir::ExprKind::Path(alloc!(path(ctx, ast)?)));
+    }
+
+    if let Some(ast::PathKind::SelfValue) = ast.as_kind() {
+        return Ok(hir::ExprKind::SelfValue);
+    }
+
+    if let Needs::Value = ctx.needs.get() {
+        if let Some(name) = ast.try_as_ident() {
+            let name = name.resolve(resolve_context!(ctx.q))?;
+
+            if let Some(variable) = ctx.scopes.get(name) {
+                return Ok(hir::ExprKind::Variable(variable, alloc_str!(name)));
+            }
+        }
+    }
+
+    let span = ast.span();
+    let path = path(ctx, ast)?;
+    let named = ctx.q.convert_path(&path)?;
+    let parameters = generics_parameters(ctx, &named)?;
+
+    if let Some(meta) = ctx.try_lookup_meta(span, named.item, &parameters)? {
+        return expr_path_meta(ctx, &meta, span);
+    }
+
+    if let (Needs::Value, Some(local)) = (ctx.needs.get(), ast.try_as_ident()) {
+        let local = local.resolve(resolve_context!(ctx.q))?;
+
+        // light heuristics, treat it as a type error in case the first
+        // character is uppercase.
+        if !local.starts_with(char::is_uppercase) {
+            return Err(compile::Error::new(
+                span,
+                CompileErrorKind::MissingLocal {
+                    name: local.to_owned(),
+                },
+            ));
+        }
+    }
+
+    let kind = if !parameters.parameters.is_empty() {
+        CompileErrorKind::MissingItemParameters {
+            item: ctx.q.pool.item(named.item).to_owned(),
+            parameters: parameters.parameters.as_ref().into(),
+        }
+    } else {
+        CompileErrorKind::MissingItem {
+            item: ctx.q.pool.item(named.item).to_owned(),
+        }
+    };
+
+    Err(compile::Error::new(span, kind))
+}
+
+/// Compile an item.
+#[instrument(span = span)]
+fn expr_path_meta<'hir>(
+    ctx: &mut Ctx<'hir, '_>,
+    meta: &meta::Meta,
+    span: Span,
+) -> compile::Result<hir::ExprKind<'hir>> {
+    alloc_with!(ctx, span);
+
+    if let Needs::Value = ctx.needs.get() {
+        match &meta.kind {
+            meta::Kind::Struct {
+                fields: meta::Fields::Empty,
+                ..
+            }
+            | meta::Kind::Variant {
+                fields: meta::Fields::Empty,
+                ..
+            } => Ok(hir::ExprKind::Call(alloc!(hir::ExprCall {
+                call: hir::Call::Meta { hash: meta.hash },
+                args: &[],
+            }))),
+            meta::Kind::Variant {
+                fields: meta::Fields::Unnamed(0),
+                ..
+            }
+            | meta::Kind::Struct {
+                fields: meta::Fields::Unnamed(0),
+                ..
+            } => Ok(hir::ExprKind::Call(alloc!(hir::ExprCall {
+                call: hir::Call::Meta { hash: meta.hash },
+                args: &[],
+            }))),
+            meta::Kind::Struct {
+                fields: meta::Fields::Unnamed(..),
+                ..
+            } => Ok(hir::ExprKind::Fn(meta.hash)),
+            meta::Kind::Struct { .. } => {
+                Ok(hir::ExprKind::Value(InstValue::Type(Type::new(meta.hash))))
+            }
+            meta::Kind::Variant {
+                fields: meta::Fields::Unnamed(..),
+                ..
+            } => Ok(hir::ExprKind::Fn(meta.hash)),
+            meta::Kind::Function { .. } | meta::Kind::AssociatedFunction { .. } => {
+                Ok(hir::ExprKind::Fn(meta.hash))
+            }
+            meta::Kind::Const { .. } => Ok(hir::ExprKind::Const(meta.hash)),
+            _ => {
+                return Err(compile::Error::expected_meta(
+                    span,
+                    meta.info(ctx.q.pool),
+                    "something that can be used as a value",
+                ));
+            }
+        }
+    } else {
+        let type_hash = meta.type_hash_of().ok_or_else(|| {
+            compile::Error::expected_meta(span, meta.info(ctx.q.pool), "something that has a type")
+        })?;
+
+        Ok(hir::ExprKind::Value(InstValue::Type(Type::new(type_hash))))
+    }
+}
+
+/// Lower the given path.
+#[instrument(span = ast)]
 pub(crate) fn path<'hir>(
     ctx: &mut Ctx<'hir, '_>,
     ast: &ast::Path,
@@ -1272,7 +1502,7 @@ fn expr_call<'hir>(
 ) -> compile::Result<hir::ExprCall<'hir>> {
     alloc_with!(ctx, ast);
 
-    let expr = expr(ctx, &ast.expr)?;
+    let expr = ctx.in_path(true, |ctx| expr(ctx, &ast.expr))?;
 
     let call = 'ok: {
         match expr.kind {
@@ -1341,7 +1571,7 @@ fn expr_call<'hir>(
                     meta::Kind::Function { .. } | meta::Kind::AssociatedFunction { .. } => (),
                     meta::Kind::ConstFn { id, .. } => {
                         let id = *id;
-                        break 'ok hir::Call::ConstFn { id };
+                        break 'ok hir::Call::ConstFn { id, ast_id: ast.id };
                     }
                     _ => {
                         return Err(compile::Error::expected_meta(
@@ -1356,7 +1586,7 @@ fn expr_call<'hir>(
             }
             hir::ExprKind::FieldAccess(hir::ExprFieldAccess {
                 expr_field: hir::ExprField::Path(path),
-                ..
+                expr: target,
             }) => {
                 if let Some((ident, generics)) = path.try_as_ident_generics() {
                     let ident = ident.resolve(resolve_context!(ctx.q))?;
@@ -1368,19 +1598,17 @@ fn expr_call<'hir>(
                         hash
                     };
 
-                    break 'ok hir::Call::Instance { hash };
+                    break 'ok hir::Call::Instance { target, hash };
                 }
             }
             _ => {}
         }
 
-        break 'ok hir::Call::Expr;
+        break 'ok hir::Call::Expr { expr: alloc!(expr) };
     };
 
     Ok(hir::ExprCall {
-        id: ast.id,
         call,
-        expr: alloc!(expr),
         args: iter!(&ast.args, |(ast, _)| self::expr(ctx, ast)?),
     })
 }

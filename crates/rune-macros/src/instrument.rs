@@ -98,7 +98,7 @@ impl Expander {
                         let _instrument_span = ::tracing::span!(::tracing::Level::TRACE, #ident);
                         let _instrument_enter = _instrument_span.enter();
 
-                        if let Some(source) = #a.q.sources.source(#a.source_id, Spanned::span(#span)) {
+                        if let Some(source) = #a.q.sources.source(#a.source_id, Spanned::span(&#span)) {
                             ::tracing::trace!("{:?}", source);
                         }
                     }),
@@ -119,19 +119,11 @@ impl Expander {
         let sig = &self.sig;
         let remaining = &self.remaining;
 
-        let leave = if attr.leaving {
-            Some(quote!(::tracing::trace!("leaving");))
-        } else {
-            None
-        };
-
         Ok(quote! {
             #(#attrs)*
             #vis #sig {
                 #log
-                let __result = (||{ #remaining })();
-                #leave
-                __result
+                #remaining
             }
         })
     }

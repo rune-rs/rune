@@ -339,9 +339,13 @@ impl CompileBuildEntry<'_> {
                     self.q.borrow(),
                     item_meta.location.source_id,
                 );
-                let hir = hir::lowering::expr_closure(&mut ctx, &closure.ast)?;
+                let hir = hir::lowering::expr_closure_captures(
+                    &mut ctx,
+                    &closure.ast,
+                    &closure.captures,
+                )?;
                 let mut c = self.compiler1(location, span, &mut asm);
-                assemble::closure_from_expr_closure(span, &mut c, &hir, &closure.captures)?;
+                assemble::closure_from_expr_closure(span, &mut c, &hir)?;
 
                 if used.is_unused() {
                     c.q.diagnostics
