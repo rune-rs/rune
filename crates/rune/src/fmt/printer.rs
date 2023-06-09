@@ -1434,14 +1434,14 @@ impl<'a> Printer<'a> {
 
     fn visit_pattern(&mut self, pattern: &Pat) -> Result<()> {
         match pattern {
-            Pat::PatIgnore(ignore) => self.visit_pat_ignore(ignore)?,
-            Pat::PatPath(path) => self.visit_pat_path(path)?,
-            Pat::PatLit(patit) => self.visit_pat_lit(patit)?,
-            Pat::PatVec(patvec) => self.visit_pat_vec(patvec)?,
-            Pat::PatTuple(pattuple) => self.visit_pat_tuple(pattuple)?,
-            Pat::PatObject(patobject) => self.visit_pat_object(patobject)?,
-            Pat::PatBinding(binding) => self.visit_pat_binding(binding)?,
-            Pat::PatRest(rest) => self.visit_pat_rest(rest)?,
+            Pat::Ignore(ignore) => self.visit_pat_ignore(ignore)?,
+            Pat::Path(path) => self.visit_pat_path(path)?,
+            Pat::Lit(patit) => self.visit_pat_lit(patit)?,
+            Pat::Vec(patvec) => self.visit_pat_vec(patvec)?,
+            Pat::Tuple(pattuple) => self.visit_pat_tuple(pattuple)?,
+            Pat::Object(patobject) => self.visit_pat_object(patobject)?,
+            Pat::Binding(binding) => self.visit_pat_binding(binding)?,
+            Pat::Rest(rest) => self.visit_pat_rest(rest)?,
         }
 
         Ok(())

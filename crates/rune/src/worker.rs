@@ -7,12 +7,12 @@ use crate::no_std::collections::VecDeque;
 
 use crate::ast;
 use crate::ast::Span;
-use crate::compile::{ModId, Options, SourceLoader};
+use crate::compile::ModId;
 use crate::indexing::index;
-use crate::indexing::{IndexScopes, Indexer};
+use crate::indexing::{Indexer, Scopes};
 use crate::query::Query;
 use crate::shared::Items;
-use crate::{Context, Diagnostics, SourceId};
+use crate::SourceId;
 
 mod import;
 mod task;
@@ -23,10 +23,6 @@ pub(crate) use self::task::{LoadFileKind, Task};
 pub(crate) use self::wildcard_import::WildcardImport;
 
 pub(crate) struct Worker<'a> {
-    context: &'a Context,
-    options: &'a Options,
-    pub(crate) diagnostics: &'a mut Diagnostics,
-    pub(crate) source_loader: &'a mut dyn SourceLoader,
     /// Query engine.
     pub(crate) q: Query<'a>,
     /// Files that have been loaded.
@@ -37,18 +33,8 @@ pub(crate) struct Worker<'a> {
 
 impl<'a> Worker<'a> {
     /// Construct a new worker.
-    pub(crate) fn new(
-        context: &'a Context,
-        options: &'a Options,
-        diagnostics: &'a mut Diagnostics,
-        source_loader: &'a mut dyn SourceLoader,
-        q: Query<'a>,
-    ) -> Self {
+    pub(crate) fn new(q: Query<'a>) -> Self {
         Self {
-            context,
-            options,
-            diagnostics,
-            source_loader,
             q,
             loaded: HashMap::new(),
             queue: VecDeque::new(),
@@ -75,7 +61,8 @@ impl<'a> Worker<'a> {
                     let source = match self.q.sources.get(source_id) {
                         Some(source) => source,
                         None => {
-                            self.diagnostics
+                            self.q
+                                .diagnostics
                                 .internal(source_id, "missing queued source by id");
                             continue;
                         }
@@ -88,7 +75,7 @@ impl<'a> Worker<'a> {
                     ) {
                         Ok(file) => file,
                         Err(error) => {
-                            self.diagnostics.error(source_id, error);
+                            self.q.diagnostics.error(source_id, error);
                             continue;
                         }
                     };
@@ -100,26 +87,22 @@ impl<'a> Worker<'a> {
 
                     let items = Items::new(item, mod_item_id, self.q.gen);
 
-                    let mut indexer = Indexer {
-                        root,
-                        loaded: &mut self.loaded,
+                    let mut idx = Indexer {
                         q: self.q.borrow(),
-                        queue: &mut self.queue,
-                        context: self.context,
-                        options: self.options,
+                        root,
                         source_id,
-                        diagnostics: self.diagnostics,
                         items,
-                        scopes: IndexScopes::new(),
+                        scopes: Scopes::default(),
                         mod_item,
                         impl_item: Default::default(),
-                        source_loader: self.source_loader,
                         nested_item: None,
                         macro_depth: 0,
+                        loaded: Some(&mut self.loaded),
+                        queue: Some(&mut self.queue),
                     };
 
-                    if let Err(error) = index::file(&mut file, &mut indexer) {
-                        indexer.diagnostics.error(source_id, error);
+                    if let Err(error) = index::file(&mut idx, &mut file) {
+                        idx.q.diagnostics.error(source_id, error);
                     }
                 }
                 Task::ExpandImport(import) => {
@@ -128,12 +111,12 @@ impl<'a> Worker<'a> {
                     let source_id = import.source_id;
                     let queue = &mut self.queue;
 
-                    let result = import.process(self.context, &mut self.q, &mut |task| {
+                    let result = import.process(&mut self.q, &mut |task| {
                         queue.push_back(task);
                     });
 
                     if let Err(error) = result {
-                        self.diagnostics.error(source_id, error);
+                        self.q.diagnostics.error(source_id, error);
                     }
                 }
                 Task::ExpandWildcardImport(wildcard_import) => {
@@ -148,7 +131,7 @@ impl<'a> Worker<'a> {
             let source_id = wildcard_import.source_id;
 
             if let Err(error) = wildcard_import.process_local(&mut self.q) {
-                self.diagnostics.error(source_id, error);
+                self.q.diagnostics.error(source_id, error);
             }
         }
     }

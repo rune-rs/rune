@@ -32,7 +32,7 @@
 
 use crate::no_std::prelude::*;
 
-use crate::ast::Span;
+use crate::ast::{Span, Spanned};
 use crate::SourceId;
 
 mod fatal;
@@ -188,8 +188,19 @@ impl Diagnostics {
     }
 
     /// Indicate that a value is produced but never used.
-    pub(crate) fn not_used(&mut self, source_id: SourceId, span: Span, context: Option<Span>) {
-        self.warning(source_id, WarningDiagnosticKind::NotUsed { span, context });
+    pub(crate) fn not_used(
+        &mut self,
+        source_id: SourceId,
+        span: &dyn Spanned,
+        context: Option<Span>,
+    ) {
+        self.warning(
+            source_id,
+            WarningDiagnosticKind::NotUsed {
+                span: span.span(),
+                context,
+            },
+        );
     }
 
     /// Indicate that a binding pattern might panic.
@@ -198,12 +209,15 @@ impl Diagnostics {
     pub(crate) fn let_pattern_might_panic(
         &mut self,
         source_id: SourceId,
-        span: Span,
+        span: &dyn Spanned,
         context: Option<Span>,
     ) {
         self.warning(
             source_id,
-            WarningDiagnosticKind::LetPatternMightPanic { span, context },
+            WarningDiagnosticKind::LetPatternMightPanic {
+                span: span.span(),
+                context,
+            },
         );
     }
 
@@ -214,12 +228,15 @@ impl Diagnostics {
     pub(crate) fn template_without_expansions(
         &mut self,
         source_id: SourceId,
-        span: Span,
+        span: &dyn Spanned,
         context: Option<Span>,
     ) {
         self.warning(
             source_id,
-            WarningDiagnosticKind::TemplateWithoutExpansions { span, context },
+            WarningDiagnosticKind::TemplateWithoutExpansions {
+                span: span.span(),
+                context,
+            },
         );
     }
 
@@ -230,14 +247,14 @@ impl Diagnostics {
     pub(crate) fn remove_tuple_call_parens(
         &mut self,
         source_id: SourceId,
-        span: Span,
+        span: &dyn Spanned,
         variant: Span,
         context: Option<Span>,
     ) {
         self.warning(
             source_id,
             WarningDiagnosticKind::RemoveTupleCallParams {
-                span,
+                span: span.span(),
                 variant,
                 context,
             },
@@ -245,10 +262,10 @@ impl Diagnostics {
     }
 
     /// Add a warning about an unecessary semi-colon.
-    pub(crate) fn unnecessary_semi_colon(&mut self, source_id: SourceId, span: Span) {
+    pub(crate) fn unnecessary_semi_colon(&mut self, source_id: SourceId, span: &dyn Spanned) {
         self.warning(
             source_id,
-            WarningDiagnosticKind::UnnecessarySemiColon { span },
+            WarningDiagnosticKind::UnnecessarySemiColon { span: span.span() },
         );
     }
 

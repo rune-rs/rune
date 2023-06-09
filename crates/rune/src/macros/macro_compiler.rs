@@ -4,22 +4,19 @@ use crate::no_std::prelude::*;
 
 use crate::ast;
 use crate::ast::Spanned;
-use crate::compile::{self, CompileErrorKind, ItemMeta, Options};
+use crate::compile::{self, CompileErrorKind, ItemMeta};
+use crate::indexing::Indexer;
 use crate::macros::{MacroContext, ToTokens};
 use crate::parse::{Parse, Parser};
-use crate::query::Query;
-use crate::Context;
 
 use super::TokenStream;
 
-pub(crate) struct MacroCompiler<'a> {
+pub(crate) struct MacroCompiler<'a, 'b> {
     pub(crate) item_meta: ItemMeta,
-    pub(crate) options: &'a Options,
-    pub(crate) context: &'a Context,
-    pub(crate) query: Query<'a>,
+    pub(crate) idx: &'a mut Indexer<'b>,
 }
 
-impl MacroCompiler<'_> {
+impl MacroCompiler<'_, '_> {
     /// Compile the given macro into the given output type.
     pub(crate) fn eval_macro<T>(&mut self, macro_call: &ast::MacroCall) -> compile::Result<T>
     where
@@ -27,7 +24,7 @@ impl MacroCompiler<'_> {
     {
         let span = macro_call.span();
 
-        if !self.options.macros {
+        if !self.idx.q.options.macros {
             return Err(compile::Error::msg(
                 span,
                 "macros must be enabled with `-O macros=true`",
@@ -39,19 +36,23 @@ impl MacroCompiler<'_> {
         //
         // TODO: Figure out how to avoid performing ad-hoc lowering here.
         let arena = crate::hir::Arena::new();
-        let ctx = crate::hir::lowering::Ctx::new(&arena, self.query.borrow());
-        let path = crate::hir::lowering::path(&ctx, &macro_call.path)?;
-        let named = self.query.convert_path(self.context, &path)?;
+        let mut ctx = crate::hir::lowering::Ctx::with_const(
+            &arena,
+            self.idx.q.borrow(),
+            self.item_meta.location.source_id,
+        );
+        let path = crate::hir::lowering::path(&mut ctx, &macro_call.path)?;
+        let named = self.idx.q.convert_path(&path)?;
 
-        let hash = self.query.pool.item_type_hash(named.item);
+        let hash = self.idx.q.pool.item_type_hash(named.item);
 
-        let handler = match self.context.lookup_macro(hash) {
+        let handler = match self.idx.q.context.lookup_macro(hash) {
             Some(handler) => handler,
             None => {
                 return Err(compile::Error::new(
                     span,
                     CompileErrorKind::MissingMacro {
-                        item: self.query.pool.item(named.item).to_owned(),
+                        item: self.idx.q.pool.item(named.item).to_owned(),
                     },
                 ));
             }
@@ -64,7 +65,7 @@ impl MacroCompiler<'_> {
                 macro_span: macro_call.span(),
                 input_span: macro_call.input_span(),
                 item_meta: self.item_meta,
-                q: self.query.borrow(),
+                idx: self.idx,
             };
 
             handler(&mut macro_context, input_stream)?
@@ -88,7 +89,7 @@ impl MacroCompiler<'_> {
     {
         let span = attribute.span();
 
-        if !self.options.macros {
+        if !self.idx.q.options.macros {
             return Ok(None);
         }
 
@@ -97,13 +98,17 @@ impl MacroCompiler<'_> {
         //
         // TODO: Figure out how to avoid performing ad-hoc lowering here.
         let arena = crate::hir::Arena::new();
-        let ctx = crate::hir::lowering::Ctx::new(&arena, self.query.borrow());
-        let path = crate::hir::lowering::path(&ctx, &attribute.path)?;
-        let named = self.query.convert_path(self.context, &path)?;
+        let mut ctx = crate::hir::lowering::Ctx::with_const(
+            &arena,
+            self.idx.q.borrow(),
+            self.item_meta.location.source_id,
+        );
+        let path = crate::hir::lowering::path(&mut ctx, &attribute.path)?;
+        let named = self.idx.q.convert_path(&path)?;
 
-        let hash = self.query.pool.item_type_hash(named.item);
+        let hash = self.idx.q.pool.item_type_hash(named.item);
 
-        let handler = match self.context.lookup_attribute_macro(hash) {
+        let handler = match self.idx.q.context.lookup_attribute_macro(hash) {
             Some(handler) => handler,
             None => {
                 return Ok(None);
@@ -117,7 +122,7 @@ impl MacroCompiler<'_> {
                 macro_span: attribute.span(),
                 input_span: attribute.input_span(),
                 item_meta: self.item_meta,
-                q: self.query.borrow(),
+                idx: self.idx,
             };
 
             let mut item_stream = TokenStream::new();

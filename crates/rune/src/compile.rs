@@ -34,19 +34,19 @@ mod prelude;
 pub(crate) use self::prelude::Prelude;
 
 pub(crate) mod ir;
-pub(crate) use self::ir::{IrBudget, IrCompiler, IrEvalContext, IrEvalOutcome, IrInterpreter};
-pub use self::ir::{IrEval, IrValue};
+pub use self::ir::IrValue;
+pub(crate) use self::ir::{IrBudget, IrCompiler, IrEvalOutcome, IrInterpreter};
 
 pub use rune_core::{Component, ComponentRef, IntoComponent, Item, ItemBuf};
 
 mod source_loader;
-pub use self::source_loader::{FileSourceLoader, SourceLoader};
+pub use self::source_loader::{FileSourceLoader, NoopSourceLoader, SourceLoader};
 
 mod unit_builder;
 pub use self::unit_builder::LinkerError;
 pub(crate) use self::unit_builder::UnitBuilder;
 
-mod v1;
+pub(crate) mod v1;
 
 mod options;
 pub use self::options::{Options, ParseOptionError};
@@ -96,10 +96,10 @@ pub(crate) fn compile(
     sources: &mut Sources,
     pool: &mut Pool,
     context: &Context,
-    diagnostics: &mut Diagnostics,
-    options: &Options,
     visitor: &mut dyn CompileVisitor,
+    diagnostics: &mut Diagnostics,
     source_loader: &mut dyn SourceLoader,
+    options: &Options,
     unit_storage: &mut dyn UnitEncoder,
 ) -> Result<(), ()> {
     // Shared id generator.
@@ -116,12 +116,16 @@ pub(crate) fn compile(
         sources,
         pool,
         visitor,
+        diagnostics,
+        source_loader,
+        options,
         &gen,
+        context,
         &mut inner,
     );
 
     // The worker queue.
-    let mut worker = Worker::new(context, options, diagnostics, source_loader, q);
+    let mut worker = Worker::new(q);
 
     // Queue up the initial sources to be loaded.
     for source_id in worker.q.sources.source_ids() {
@@ -134,7 +138,7 @@ pub(crate) fn compile(
         {
             Ok(result) => result,
             Err(error) => {
-                worker.diagnostics.error(source_id, error);
+                worker.q.diagnostics.error(source_id, error);
                 return Err(());
             }
         };
@@ -149,24 +153,22 @@ pub(crate) fn compile(
 
     worker.run();
 
-    if worker.diagnostics.has_error() {
+    if worker.q.diagnostics.has_error() {
         return Err(());
     }
 
     loop {
         while let Some(entry) = worker.q.next_build_entry() {
-            tracing::trace!("next build entry: {}", entry.item_meta.item);
+            tracing::trace!(item = ?worker.q.pool.item(entry.item_meta.item), "next build entry");
             let source_id = entry.item_meta.location.source_id;
 
             let task = CompileBuildEntry {
-                context,
                 options,
-                diagnostics: worker.diagnostics,
                 q: worker.q.borrow(),
             };
 
             if let Err(error) = task.compile(entry, unit_storage) {
-                worker.diagnostics.error(source_id, error);
+                worker.q.diagnostics.error(source_id, error);
             }
         }
 
@@ -174,12 +176,12 @@ pub(crate) fn compile(
             Ok(true) => (),
             Ok(false) => break,
             Err((source_id, error)) => {
-                worker.diagnostics.error(source_id, error);
+                worker.q.diagnostics.error(source_id, error);
             }
         }
     }
 
-    if worker.diagnostics.has_error() {
+    if worker.q.diagnostics.has_error() {
         return Err(());
     }
 
@@ -187,9 +189,7 @@ pub(crate) fn compile(
 }
 
 struct CompileBuildEntry<'a> {
-    context: &'a Context,
     options: &'a Options,
-    diagnostics: &'a mut Diagnostics,
     q: Query<'a>,
 }
 
@@ -197,19 +197,17 @@ impl CompileBuildEntry<'_> {
     fn compiler1<'a>(
         &'a mut self,
         location: Location,
-        span: Span,
+        span: &dyn Spanned,
         asm: &'a mut Assembly,
     ) -> self::v1::Assembler<'a> {
         self::v1::Assembler {
             source_id: location.source_id,
-            context: self.context,
             q: self.q.borrow(),
             asm,
             scopes: self::v1::Scopes::new(),
-            contexts: vec![span],
+            contexts: vec![span.span()],
             loops: self::v1::Loops::new(),
             options: self.options,
-            diagnostics: self.diagnostics,
         }
     }
 
@@ -250,17 +248,21 @@ impl CompileBuildEntry<'_> {
                 let args =
                     format_fn_args(self.q.sources, location, f.ast.args.iter().map(|(a, _)| a))?;
 
-                let span = f.ast.span();
+                let span = &*f.ast;
                 let count = f.ast.args.len();
 
                 let arena = hir::Arena::new();
-                let ctx = hir::lowering::Ctx::new(&arena, self.q.borrow());
-                let hir = hir::lowering::item_fn(&ctx, &f.ast)?;
+                let mut ctx = hir::lowering::Ctx::with_query(
+                    &arena,
+                    self.q.borrow(),
+                    item_meta.location.source_id,
+                );
+                let hir = hir::lowering::item_fn(&mut ctx, &f.ast)?;
                 let mut c = self.compiler1(location, span, &mut asm);
-                assemble::fn_from_item_fn(&hir, &mut c, false)?;
+                assemble::fn_from_item_fn(&mut c, &hir, false)?;
 
                 if used.is_unused() {
-                    self.diagnostics.not_used(location.source_id, span, None);
+                    self.q.diagnostics.not_used(location.source_id, span, None);
                 } else {
                     self.q.unit.new_function(
                         location,
@@ -281,7 +283,7 @@ impl CompileBuildEntry<'_> {
                 let args =
                     format_fn_args(self.q.sources, location, f.ast.args.iter().map(|(a, _)| a))?;
 
-                let span = f.ast.span();
+                let span = &*f.ast;
                 let count = f.ast.args.len();
 
                 let mut c = self.compiler1(location, span, &mut asm);
@@ -296,12 +298,16 @@ impl CompileBuildEntry<'_> {
                 })?;
 
                 let arena = hir::Arena::new();
-                let ctx = hir::lowering::Ctx::new(&arena, c.q.borrow());
-                let hir = hir::lowering::item_fn(&ctx, &f.ast)?;
-                assemble::fn_from_item_fn(&hir, &mut c, true)?;
+                let mut ctx = hir::lowering::Ctx::with_query(
+                    &arena,
+                    c.q.borrow(),
+                    item_meta.location.source_id,
+                );
+                let hir = hir::lowering::item_fn(&mut ctx, &f.ast)?;
+                assemble::fn_from_item_fn(&mut c, &hir, true)?;
 
                 if used.is_unused() {
-                    c.diagnostics.not_used(location.source_id, span, None);
+                    c.q.diagnostics.not_used(location.source_id, span, None);
                 } else {
                     let name = f.ast.name.resolve(resolve_context!(self.q))?;
 
@@ -323,7 +329,6 @@ impl CompileBuildEntry<'_> {
 
                 use self::v1::assemble;
 
-                let span = closure.ast.span();
                 let args = format_fn_args(
                     self.q.sources,
                     location,
@@ -331,14 +336,22 @@ impl CompileBuildEntry<'_> {
                 )?;
 
                 let arena = hir::Arena::new();
-                let ctx = hir::lowering::Ctx::new(&arena, self.q.borrow());
-                let hir = hir::lowering::expr_closure(&ctx, &closure.ast)?;
-                let mut c = self.compiler1(location, span, &mut asm);
-                assemble::closure_from_expr_closure(span, &mut c, &hir, &closure.captures)?;
+                let mut ctx = hir::lowering::Ctx::with_query(
+                    &arena,
+                    self.q.borrow(),
+                    item_meta.location.source_id,
+                );
+                let hir = hir::lowering::expr_closure_secondary(
+                    &mut ctx,
+                    &closure.ast,
+                    closure.captures,
+                )?;
+                let mut c = self.compiler1(location, &closure.ast, &mut asm);
+                assemble::expr_closure_secondary(&mut c, &hir, &closure.ast)?;
 
                 if used.is_unused() {
-                    c.diagnostics
-                        .not_used(location.source_id, location.span, None);
+                    c.q.diagnostics
+                        .not_used(location.source_id, &location.span, None);
                 } else {
                     self.q.unit.new_function(
                         location,
@@ -356,20 +369,25 @@ impl CompileBuildEntry<'_> {
 
                 use self::v1::assemble;
 
-                let args = b.captures.len();
-                let span = b.ast.span();
+                let span = &b.ast;
 
                 let arena = hir::Arena::new();
-                let ctx = hir::lowering::Ctx::new(&arena, self.q.borrow());
-                let hir = hir::lowering::block(&ctx, &b.ast)?;
-
+                let mut ctx = hir::lowering::Ctx::with_query(
+                    &arena,
+                    self.q.borrow(),
+                    item_meta.location.source_id,
+                );
+                let hir = hir::lowering::async_block_secondary(&mut ctx, &b.ast, b.captures)?;
                 let mut c = self.compiler1(location, span, &mut asm);
-                assemble::closure_from_block(&hir, &mut c, &b.captures)?;
+                assemble::async_block_secondary(&mut c, &hir)?;
 
                 if used.is_unused() {
-                    self.diagnostics
-                        .not_used(location.source_id, location.span, None);
+                    self.q
+                        .diagnostics
+                        .not_used(location.source_id, &location.span, None);
                 } else {
+                    let args = hir.captures.len();
+
                     self.q.unit.new_function(
                         location,
                         self.q.pool.item(item_meta.item),
@@ -385,8 +403,9 @@ impl CompileBuildEntry<'_> {
                 tracing::trace!("unused: {}", self.q.pool.item(item_meta.item));
 
                 if !item_meta.visibility.is_public() {
-                    self.diagnostics
-                        .not_used(location.source_id, location.span, None);
+                    self.q
+                        .diagnostics
+                        .not_used(location.source_id, &location.span, None);
                 }
             }
             Build::Import(import) => {
@@ -398,15 +417,16 @@ impl CompileBuildEntry<'_> {
                         .import(location.span, item_meta.module, item_meta.item, used)?;
 
                 if used.is_unused() {
-                    self.diagnostics
-                        .not_used(location.source_id, location.span, None);
+                    self.q
+                        .diagnostics
+                        .not_used(location.source_id, &location.span, None);
                 }
 
                 let missing = match result {
                     Some(item_id) => {
                         let item = self.q.pool.item(item_id);
 
-                        if self.context.contains_prefix(item) || self.q.contains_prefix(item) {
+                        if self.q.context.contains_prefix(item) || self.q.contains_prefix(item) {
                             None
                         } else {
                             Some(item_id)

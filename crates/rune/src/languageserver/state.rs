@@ -911,7 +911,7 @@ impl CompileVisitor for Visitor {
         }
     }
 
-    fn visit_variable_use(&mut self, source_id: SourceId, var_span: Span, span: Span) {
+    fn visit_variable_use(&mut self, source_id: SourceId, var_span: Span, span: &dyn Spanned) {
         let definition = Definition {
             kind: DefinitionKind::Local,
             source: DefinitionSource::Location(Location::new(source_id, var_span)),
@@ -919,7 +919,7 @@ impl CompileVisitor for Visitor {
 
         let index = self.indexes.entry(source_id).or_default();
 
-        if let Some(d) = index.definitions.insert(span, definition) {
+        if let Some(d) = index.definitions.insert(span.span(), definition) {
             tracing::warn!("replaced definition: {:?}", d.kind)
         }
     }

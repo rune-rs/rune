@@ -5,7 +5,7 @@ use core::fmt;
 use crate::no_std::collections::{hash_map, HashMap};
 use crate::no_std::prelude::*;
 
-use crate::ast::Span;
+use crate::ast::{Span, Spanned};
 use crate::compile::{self, Location};
 use crate::runtime::{Inst, Label};
 use crate::{Hash, SourceId};
@@ -79,7 +79,7 @@ impl Assembly {
     }
 
     /// Add a jump to the given label.
-    pub(crate) fn jump(&mut self, label: &Label, span: Span) {
+    pub(crate) fn jump(&mut self, label: &Label, span: &dyn Spanned) {
         self.inner_push(
             AssemblyInst::Jump {
                 label: label.clone(),
@@ -89,7 +89,7 @@ impl Assembly {
     }
 
     /// Add a conditional jump to the given label.
-    pub(crate) fn jump_if(&mut self, label: &Label, span: Span) {
+    pub(crate) fn jump_if(&mut self, label: &Label, span: &dyn Spanned) {
         self.inner_push(
             AssemblyInst::JumpIf {
                 label: label.clone(),
@@ -100,7 +100,7 @@ impl Assembly {
 
     /// Add a conditional jump to the given label. Only pops the top of the
     /// stack if the jump is not executed.
-    pub(crate) fn jump_if_or_pop(&mut self, label: &Label, span: Span) {
+    pub(crate) fn jump_if_or_pop(&mut self, label: &Label, span: &dyn Spanned) {
         self.inner_push(
             AssemblyInst::JumpIfOrPop {
                 label: label.clone(),
@@ -111,7 +111,7 @@ impl Assembly {
 
     /// Add a conditional jump to the given label. Only pops the top of the
     /// stack if the jump is not executed.
-    pub(crate) fn jump_if_not_or_pop(&mut self, label: &Label, span: Span) {
+    pub(crate) fn jump_if_not_or_pop(&mut self, label: &Label, span: &dyn Spanned) {
         self.inner_push(
             AssemblyInst::JumpIfNotOrPop {
                 label: label.clone(),
@@ -121,7 +121,7 @@ impl Assembly {
     }
 
     /// Add a conditional jump-if-branch instruction.
-    pub(crate) fn jump_if_branch(&mut self, branch: i64, label: &Label, span: Span) {
+    pub(crate) fn jump_if_branch(&mut self, branch: i64, label: &Label, span: &dyn Spanned) {
         self.inner_push(
             AssemblyInst::JumpIfBranch {
                 branch,
@@ -132,7 +132,7 @@ impl Assembly {
     }
 
     /// Add a pop-and-jump-if-not instruction to a label.
-    pub(crate) fn pop_and_jump_if_not(&mut self, count: usize, label: &Label, span: Span) {
+    pub(crate) fn pop_and_jump_if_not(&mut self, count: usize, label: &Label, span: &dyn Spanned) {
         self.inner_push(
             AssemblyInst::PopAndJumpIfNot {
                 count,
@@ -143,7 +143,7 @@ impl Assembly {
     }
 
     /// Add an instruction that advanced an iterator.
-    pub(crate) fn iter_next(&mut self, offset: usize, label: &Label, span: Span) {
+    pub(crate) fn iter_next(&mut self, offset: usize, label: &Label, span: &dyn Spanned) {
         self.inner_push(
             AssemblyInst::IterNext {
                 offset,
@@ -154,19 +154,19 @@ impl Assembly {
     }
 
     /// Push a raw instruction.
-    pub(crate) fn push(&mut self, raw: Inst, span: Span) {
+    pub(crate) fn push(&mut self, raw: Inst, span: &dyn Spanned) {
         if let Inst::Call { hash, .. } = raw {
             self.required_functions
                 .entry(hash)
                 .or_default()
-                .push((span, self.location.source_id));
+                .push((span.span(), self.location.source_id));
         }
 
         self.inner_push(AssemblyInst::Raw { raw }, span);
     }
 
     /// Push a raw instruction.
-    pub(crate) fn push_with_comment<C>(&mut self, raw: Inst, span: Span, comment: C)
+    pub(crate) fn push_with_comment<C>(&mut self, raw: Inst, span: &dyn Spanned, comment: C)
     where
         C: fmt::Display,
     {
@@ -180,7 +180,7 @@ impl Assembly {
         self.push(raw, span);
     }
 
-    fn inner_push(&mut self, inst: AssemblyInst, span: Span) {
-        self.instructions.push((inst, span));
+    fn inner_push(&mut self, inst: AssemblyInst, span: &dyn Spanned) {
+        self.instructions.push((inst, span.span()));
     }
 }

@@ -119,7 +119,7 @@ The feature flag has also been renamed from `diagnostics` to `emit`.
 ## Changed Macro API
 
 Macros now take an explicit `ctx` argument in the form of [`&mut
-MacroContext<'_>`][MacroContext].
+MacroContext<'_, '_>`][MacroContext].
 
 This also requires the context to be "passed around" in certain places where it
 didn't use to be necessary.
@@ -162,7 +162,7 @@ Must now instead do this:
 
 ```rust
 pub(crate) fn stringy_math(
-    ctx: &mut MacroContext<'_>,
+    ctx: &mut MacroContext<'_, '_>,
     stream: &TokenStream,
 ) -> rune::Result<TokenStream> {
     let mut parser = Parser::from_token_stream(stream, ctx.stream_span());

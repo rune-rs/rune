@@ -38,13 +38,16 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
 
 /// Implementation for the `passthrough!` macro.
 #[rune::macro_]
-fn passthrough(_: &mut MacroContext<'_>, stream: &TokenStream) -> compile::Result<TokenStream> {
+fn passthrough(_: &mut MacroContext<'_, '_>, stream: &TokenStream) -> compile::Result<TokenStream> {
     Ok(stream.clone())
 }
 
 /// Implementation for the `make_function!` macro.
 #[rune::macro_]
-fn make_function(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> compile::Result<TokenStream> {
+fn make_function(
+    ctx: &mut MacroContext<'_, '_>,
+    stream: &TokenStream,
+) -> compile::Result<TokenStream> {
     let mut parser = Parser::from_token_stream(stream, ctx.input_span());
 
     let ident = parser.parse::<ast::Ident>()?;

@@ -3,6 +3,7 @@ use crate::no_std::prelude::*;
 use crate::ast::{Span, Spanned};
 use crate::compile::{self, IrErrorKind, IrEvalOutcome, IrValue, ItemId, ModId, WithSpan};
 use crate::compile::{ir, meta};
+use crate::parse::NonZeroId;
 use crate::query::{Query, Used};
 use crate::runtime::{ConstValue, Object, Tuple};
 use crate::shared::scopes::MissingLocal;
@@ -108,7 +109,11 @@ impl IrInterpreter<'_> {
 
             if let Some(meta) = self.q.query_meta(spanned, item, used)? {
                 match &meta.kind {
-                    meta::Kind::Const { const_value, .. } => {
+                    meta::Kind::Const => {
+                        let Some(const_value) = self.q.get_const_value(meta.hash) else {
+                            return Err(compile::Error::msg(spanned, format_args!("Missing constant for hash {}", meta.hash)));
+                        };
+
                         return Ok(IrValue::from_const(const_value));
                     }
                     _ => {
@@ -142,43 +147,15 @@ impl IrInterpreter<'_> {
     pub(crate) fn call_const_fn<S>(
         &mut self,
         spanned: S,
-        target: &str,
+        id: NonZeroId,
         args: Vec<IrValue>,
         used: Used,
     ) -> compile::Result<IrValue>
     where
         S: Copy + Spanned,
     {
-        let span = spanned.span();
-        let mut base = self.q.pool.item(self.item).to_owned();
-
-        let id = loop {
-            let item = self.q.pool.alloc_item(base.extended(target));
-
-            if let Some(meta) = self.q.query_meta(span, item, used)? {
-                match &meta.kind {
-                    meta::Kind::ConstFn { id, .. } => {
-                        break *id;
-                    }
-                    _ => {
-                        return Err(compile::Error::new(
-                            span,
-                            IrErrorKind::UnsupportedMeta {
-                                meta: meta.info(self.q.pool),
-                            },
-                        ));
-                    }
-                }
-            }
-
-            if base.is_empty() {
-                return Err(compile::Error::new(span, IrErrorKind::FnNotFound));
-            }
-
-            base.pop();
-        };
-
-        let const_fn = self.q.const_fn_for((span, id))?;
+        let span = Spanned::span(&spanned);
+        let const_fn = self.q.const_fn_for(id).with_span(span)?;
 
         if const_fn.ir_fn.args.len() != args.len() {
             return Err(compile::Error::new(

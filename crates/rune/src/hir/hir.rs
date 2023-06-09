@@ -2,29 +2,13 @@ use core::num::NonZeroUsize;
 
 use crate as rune;
 use crate::ast::{self, Span, Spanned};
-use crate::parse::{Expectation, Id, IntoExpectation, Opaque};
-use crate::runtime::format;
-
-/// Visibility level restricted to some path: pub(self) or pub(super) or pub(crate) or pub(in some::module).
-#[derive(Debug, Clone, Copy, PartialEq)]
-#[non_exhaustive]
-pub(crate) enum Visibility<'hir> {
-    /// An inherited visibility level, this usually means private.
-    Inherited,
-    /// An unrestricted public visibility level: `pub`.
-    Public,
-    /// Crate visibility `pub`.
-    Crate,
-    /// Super visibility `pub(super)`.
-    Super,
-    /// Self visibility `pub(self)`.
-    SelfValue,
-    /// In visibility `pub(in path)`.
-    In(&'hir Path<'hir>),
-}
+use crate::hir::{Capture, Variable};
+use crate::parse::{Expectation, Id, IntoExpectation, NonZeroId, Opaque};
+use crate::runtime::{format, Type, TypeCheck};
+use crate::Hash;
 
 /// A pattern.
-#[derive(Debug, Clone, Copy, PartialEq, Spanned)]
+#[derive(Debug, Clone, Copy, Spanned)]
 #[non_exhaustive]
 pub(crate) struct Pat<'hir> {
     /// The span of the pattern.
@@ -34,53 +18,86 @@ pub(crate) struct Pat<'hir> {
     pub(crate) kind: PatKind<'hir>,
 }
 
-/// The kind of a [Pat].
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) enum PatKind<'hir> {
-    /// An ignored binding.
-    PatIgnore,
-    /// The rest pattern `..`.
-    PatRest,
-    /// A path pattern.
-    PatPath(&'hir Path<'hir>),
-    /// A literal pattern. This is represented as an expression.
-    PatLit(&'hir Expr<'hir>),
-    /// A vector pattern.
-    PatVec(&'hir PatItems<'hir>),
-    /// A tuple pattern.
-    PatTuple(&'hir PatItems<'hir>),
-    /// An object pattern.
-    PatObject(&'hir PatItems<'hir>),
-    /// A binding `a: pattern` or `"foo": pattern`.
-    PatBinding(&'hir PatBinding<'hir>),
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum PatPathKind<'hir> {
+    Kind(&'hir PatItemsKind),
+    Ident(&'hir str, Variable),
 }
 
-/// A tuple pattern.
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// The kind of a [Pat].
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum PatKind<'hir> {
+    /// An ignored binding.
+    Ignore,
+    /// The rest pattern `..`.
+    Rest,
+    /// A path pattern.
+    Path(&'hir PatPathKind<'hir>),
+    /// A literal pattern. This is represented as an expression.
+    Lit(&'hir Expr<'hir>),
+    /// A vector pattern.
+    Vec(&'hir PatItems<'hir>),
+    /// A tuple pattern.
+    Tuple(&'hir PatItems<'hir>),
+    /// An object pattern.
+    Object(&'hir PatItems<'hir>),
+    /// A binding `a: pattern` or `"foo": pattern`.
+    Binding,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum PatItemsKind {
+    Type {
+        hash: Hash,
+    },
+    BuiltInVariant {
+        type_check: TypeCheck,
+    },
+    Variant {
+        variant_hash: Hash,
+        enum_hash: Hash,
+        index: usize,
+    },
+    Anonymous {
+        count: usize,
+        is_open: bool,
+    },
+}
+
+/// Items pattern matching.
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) struct PatItems<'hir> {
-    /// The path, if the tuple is typed.
-    pub(crate) path: Option<&'hir Path<'hir>>,
+    /// The kind of pattern items.
+    pub(crate) kind: PatItemsKind,
     /// The items in the tuple.
     pub(crate) items: &'hir [Pat<'hir>],
     /// If the pattern is open.
     pub(crate) is_open: bool,
     /// The number of elements in the pattern.
     pub(crate) count: usize,
+    /// Bindings associated with the pattern.
+    pub(crate) bindings: &'hir [Binding<'hir>],
 }
 
-/// An object item.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
-pub(crate) struct PatBinding<'hir> {
-    /// The key of an object.
-    pub(crate) key: (Span, &'hir str),
-    /// What the binding is to.
-    pub(crate) pat: &'hir Pat<'hir>,
+pub(crate) enum Binding<'hir> {
+    Binding(Span, &'hir str, &'hir Pat<'hir>),
+    Ident(Span, &'hir str),
+}
+
+impl Binding<'_> {
+    pub(crate) fn key(&self) -> &str {
+        match self {
+            Self::Binding(_, key, _) => key,
+            Self::Ident(_, key) => key,
+        }
+    }
 }
 
 /// An expression.
-#[derive(Debug, Clone, Copy, PartialEq, Spanned)]
+#[derive(Debug, Clone, Copy, Spanned)]
 #[non_exhaustive]
 pub(crate) struct Expr<'hir> {
     /// Span of the expression.
@@ -91,7 +108,7 @@ pub(crate) struct Expr<'hir> {
 }
 
 /// The kind of a number.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) enum Lit<'hir> {
     Bool(bool),
@@ -104,22 +121,27 @@ pub(crate) enum Lit<'hir> {
 }
 
 /// The kind of an [Expr].
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) enum ExprKind<'hir> {
+    SelfValue(Variable),
+    Variable(Variable, &'hir str),
+    Type(Type),
+    Fn(Hash),
     Path(&'hir Path<'hir>),
     Assign(&'hir ExprAssign<'hir>),
     Loop(&'hir ExprLoop<'hir>),
     For(&'hir ExprFor<'hir>),
     Let(&'hir ExprLet<'hir>),
-    If(&'hir ExprIf<'hir>),
+    If(&'hir Conditional<'hir>),
     Match(&'hir ExprMatch<'hir>),
     Call(&'hir ExprCall<'hir>),
     FieldAccess(&'hir ExprFieldAccess<'hir>),
     Binary(&'hir ExprBinary<'hir>),
     Unary(&'hir ExprUnary<'hir>),
     Index(&'hir ExprIndex<'hir>),
-    Block(&'hir ExprBlock<'hir>),
+    AsyncBlock(&'hir ExprAsyncBlock<'hir>),
+    Block(&'hir Block<'hir>),
     Break(Option<&'hir ExprBreakValue<'hir>>),
     Continue(Option<&'hir ast::Label>),
     Yield(Option<&'hir Expr<'hir>>),
@@ -127,7 +149,7 @@ pub(crate) enum ExprKind<'hir> {
     Await(&'hir Expr<'hir>),
     Try(&'hir Expr<'hir>),
     Select(&'hir ExprSelect<'hir>),
-    Closure(&'hir ExprClosure<'hir>),
+    CallClosure(&'hir ExprCallClosure<'hir>),
     Lit(Lit<'hir>),
     Object(&'hir ExprObject<'hir>),
     Tuple(&'hir ExprSeq<'hir>),
@@ -136,10 +158,11 @@ pub(crate) enum ExprKind<'hir> {
     Group(&'hir Expr<'hir>),
     Template(&'hir BuiltInTemplate<'hir>),
     Format(&'hir BuiltInFormat<'hir>),
+    Const(Hash),
 }
 
 /// An internally resolved template.
-#[derive(Debug, Clone, Copy, PartialEq, Spanned)]
+#[derive(Debug, Clone, Copy, Spanned)]
 pub(crate) struct BuiltInTemplate<'hir> {
     /// The span of the built-in template.
     #[rune(span)]
@@ -151,7 +174,7 @@ pub(crate) struct BuiltInTemplate<'hir> {
 }
 
 /// An internal format specification.
-#[derive(Debug, Clone, Copy, PartialEq, Spanned)]
+#[derive(Debug, Clone, Copy, Spanned)]
 pub(crate) struct BuiltInFormat<'hir> {
     #[rune(span)]
     pub(crate) span: Span,
@@ -171,28 +194,8 @@ pub(crate) struct BuiltInFormat<'hir> {
     pub(crate) value: &'hir Expr<'hir>,
 }
 
-/// Macro data for `file!()`
-#[derive(Debug, Clone, Copy, PartialEq, Spanned)]
-pub(crate) struct BuiltInFile<'hir> {
-    /// The span of the built-in-file
-    #[rune(span)]
-    pub(crate) span: Span,
-    /// Path value to use
-    pub(crate) value: Lit<'hir>,
-}
-
-/// Macro data for `line!()`
-#[derive(Debug, Clone, Copy, PartialEq, Spanned)]
-pub(crate) struct BuiltInLine<'hir> {
-    /// The span of the built-in-file
-    #[rune(span)]
-    pub(crate) span: Span,
-    /// The line number
-    pub(crate) value: Lit<'hir>,
-}
-
 /// An assign expression `a = b`.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) struct ExprAssign<'hir> {
     /// The expression being assigned to.
@@ -202,7 +205,7 @@ pub(crate) struct ExprAssign<'hir> {
 }
 
 /// A `loop` expression: `loop { ... }`.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) struct ExprLoop<'hir> {
     /// A label.
@@ -211,10 +214,13 @@ pub(crate) struct ExprLoop<'hir> {
     pub(crate) condition: Option<&'hir Condition<'hir>>,
     /// The body of the loop.
     pub(crate) body: &'hir Block<'hir>,
+    /// Variables that have been defined by the loop header.
+    #[allow(unused)]
+    pub(crate) drop: &'hir [Variable],
 }
 
 /// A `for` loop over an iterator: `for i in [1, 2, 3] {}`.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) struct ExprFor<'hir> {
     /// The label of the loop.
@@ -226,10 +232,13 @@ pub(crate) struct ExprFor<'hir> {
     pub(crate) iter: &'hir Expr<'hir>,
     /// The body of the loop.
     pub(crate) body: &'hir Block<'hir>,
+    /// Variables that have been defined by the loop header.
+    #[allow(unused)]
+    pub(crate) drop: &'hir [Variable],
 }
 
 /// A let expression `let <name> = <expr>`
-#[derive(Debug, Clone, Copy, PartialEq, Spanned)]
+#[derive(Debug, Clone, Copy, Spanned)]
 #[non_exhaustive]
 pub(crate) struct ExprLet<'hir> {
     /// The name of the binding.
@@ -238,46 +247,39 @@ pub(crate) struct ExprLet<'hir> {
     pub(crate) expr: &'hir Expr<'hir>,
 }
 
-/// An if statement: `if cond { true } else { false }`.
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// A sequence of conditional branches.
+///
+/// This is lower from if statements, such as:
+///
+/// ```text
+/// if cond { true } else { false }
+/// ```
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
-pub(crate) struct ExprIf<'hir> {
-    /// The condition to the if statement.
-    pub(crate) condition: &'hir Condition<'hir>,
-    /// The body of the if statement.
-    pub(crate) block: &'hir Block<'hir>,
+pub(crate) struct Conditional<'hir> {
     /// Else if branches.
-    pub(crate) expr_else_ifs: &'hir [ExprElseIf<'hir>],
-    /// The else part of the if expression.
-    pub(crate) expr_else: Option<&'hir ExprElse<'hir>>,
+    pub(crate) branches: &'hir [ConditionalBranch<'hir>],
 }
 
 /// An else branch of an if expression.
-#[derive(Debug, Clone, Copy, PartialEq, Spanned)]
+#[derive(Debug, Clone, Copy, Spanned)]
 #[non_exhaustive]
-pub(crate) struct ExprElseIf<'hir> {
+pub(crate) struct ConditionalBranch<'hir> {
     /// Span of the expression.
     #[rune(span)]
     pub(crate) span: Span,
-    /// The condition for the branch.
-    pub(crate) condition: &'hir Condition<'hir>,
+    /// The condition for the branch. Empty condition means that this is the
+    /// fallback branch.
+    pub(crate) condition: Option<&'hir Condition<'hir>>,
     /// The body of the else statement.
     pub(crate) block: &'hir Block<'hir>,
-}
-
-/// An else branch of an if expression.
-#[derive(Debug, Clone, Copy, PartialEq, Spanned)]
-#[non_exhaustive]
-pub(crate) struct ExprElse<'hir> {
-    /// Span of the expression.
-    #[rune(span)]
-    pub(crate) span: Span,
-    /// The body of the else statement.
-    pub(crate) block: &'hir Block<'hir>,
+    /// Variables that have been defined by the conditional header.
+    #[allow(unused)]
+    pub(crate) drop: &'hir [Variable],
 }
 
 /// A match expression.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) struct ExprMatch<'hir> {
     /// The expression who's result we match over.
@@ -287,7 +289,7 @@ pub(crate) struct ExprMatch<'hir> {
 }
 
 /// A match branch.
-#[derive(Debug, Clone, Copy, PartialEq, Spanned)]
+#[derive(Debug, Clone, Copy, Spanned)]
 #[non_exhaustive]
 pub(crate) struct ExprMatchBranch<'hir> {
     /// Span of the expression.
@@ -299,34 +301,54 @@ pub(crate) struct ExprMatchBranch<'hir> {
     pub(crate) condition: Option<&'hir Expr<'hir>>,
     /// The body of the match.
     pub(crate) body: &'hir Expr<'hir>,
+    /// Variables that have been defined by this match branch, which needs to be
+    /// dropped.
+    #[allow(unused)]
+    pub(crate) drop: &'hir [Variable],
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum Call<'hir> {
+    Var {
+        /// The name of the variable being called.
+        name: &'hir str,
+        /// The variable that was looked up.
+        #[allow(unused)]
+        variable: Variable,
+    },
+    Instance {
+        /// The target expression being called.
+        target: &'hir Expr<'hir>,
+        /// Hash of the fn being called.
+        hash: Hash,
+    },
+    Meta {
+        /// Hash being called.
+        hash: Hash,
+    },
+    /// An expression being called.
+    Expr { expr: &'hir Expr<'hir> },
+    /// A constant function call.
+    ConstFn {
+        /// The identifier of the constant function.
+        id: NonZeroId,
+        /// Ast identifier.
+        ast_id: Id,
+    },
 }
 
 /// A function call `<expr>(<args>)`.
-#[derive(Debug, Clone, Copy, PartialEq, Opaque)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) struct ExprCall<'hir> {
-    /// Opaque identifier related with call.
-    #[rune(id)]
-    pub(crate) id: Id,
-    /// The name of the function being called.
-    pub(crate) expr: &'hir Expr<'hir>,
+    /// The call being performed.
+    pub(crate) call: Call<'hir>,
     /// The arguments of the function call.
     pub(crate) args: &'hir [Expr<'hir>],
 }
 
-impl<'hir> ExprCall<'hir> {
-    /// Get the target of the call expression.
-    pub(crate) fn target(&self) -> &Expr {
-        if let ExprKind::FieldAccess(access) = self.expr.kind {
-            return access.expr;
-        }
-
-        self.expr
-    }
-}
-
 /// A field access `<expr>.<field>`.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) struct ExprFieldAccess<'hir> {
     /// The expr where the field is being accessed.
@@ -336,7 +358,7 @@ pub(crate) struct ExprFieldAccess<'hir> {
 }
 
 /// The field being accessed.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) enum ExprField<'hir> {
     /// An identifier.
@@ -346,7 +368,7 @@ pub(crate) enum ExprField<'hir> {
 }
 
 /// A binary expression.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) struct ExprBinary<'hir> {
     /// The left-hand side of a binary operation.
@@ -358,7 +380,7 @@ pub(crate) struct ExprBinary<'hir> {
 }
 
 /// A unary expression.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) struct ExprUnary<'hir> {
     /// The operation to apply.
@@ -368,7 +390,7 @@ pub(crate) struct ExprUnary<'hir> {
 }
 
 /// An index get operation `<t>[<index>]`.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) struct ExprIndex<'hir> {
     /// The target of the index set.
@@ -378,7 +400,7 @@ pub(crate) struct ExprIndex<'hir> {
 }
 
 /// Things that we can break on.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) enum ExprBreakValue<'hir> {
     /// Breaking a value out of a loop.
@@ -387,29 +409,17 @@ pub(crate) enum ExprBreakValue<'hir> {
     Label(&'hir ast::Label),
 }
 
-/// A block expression.
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// An async block being called.
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
-pub(crate) struct ExprBlock<'hir> {
-    /// The kind of the block.
-    pub(crate) kind: ExprBlockKind,
-    /// The optional move token.
-    pub(crate) block_move: bool,
-    /// The close brace.
-    pub(crate) block: &'hir Block<'hir>,
-}
-
-/// The kind of an [ExprBlock].
-#[derive(Debug, Clone, Copy, PartialEq)]
-#[non_exhaustive]
-pub(crate) enum ExprBlockKind {
-    Default,
-    Async,
-    Const,
+pub(crate) struct ExprAsyncBlock<'hir> {
+    pub(crate) hash: Hash,
+    pub(crate) do_move: bool,
+    pub(crate) captures: &'hir [(Variable, Capture<'hir>)],
 }
 
 /// A `select` expression that selects over a collection of futures.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) struct ExprSelect<'hir> {
     /// The branches of the select.
@@ -417,7 +427,7 @@ pub(crate) struct ExprSelect<'hir> {
 }
 
 /// A single selection branch.
-#[derive(Debug, Clone, Copy, PartialEq, Spanned)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) enum ExprSelectBranch<'hir> {
     /// A patterned branch.
@@ -427,7 +437,7 @@ pub(crate) enum ExprSelectBranch<'hir> {
 }
 
 /// A single selection branch.
-#[derive(Debug, Clone, Copy, PartialEq, Spanned)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) struct ExprSelectPatBranch<'hir> {
     /// The identifier to bind the result to.
@@ -436,10 +446,22 @@ pub(crate) struct ExprSelectPatBranch<'hir> {
     pub(crate) expr: &'hir Expr<'hir>,
     /// The body of the expression.
     pub(crate) body: &'hir Expr<'hir>,
+    /// Variables that need to be dropped by the end of this block.
+    #[allow(unused)]
+    pub(crate) drop: &'hir [Variable],
+}
+
+/// Calling a closure.
+#[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
+pub(crate) struct ExprCallClosure<'hir> {
+    pub(crate) do_move: bool,
+    pub(crate) hash: Hash,
+    pub(crate) captures: &'hir [(Variable, Capture<'hir>)],
 }
 
 /// A closure expression.
-#[derive(Debug, Clone, Copy, PartialEq, Opaque)]
+#[derive(Debug, Clone, Copy, Opaque)]
 #[non_exhaustive]
 pub(crate) struct ExprClosure<'hir> {
     /// Opaque identifier for the closure.
@@ -449,20 +471,30 @@ pub(crate) struct ExprClosure<'hir> {
     pub(crate) args: &'hir [FnArg<'hir>],
     /// The body of the closure.
     pub(crate) body: &'hir Expr<'hir>,
+    /// Captures in the closure.
+    pub(crate) captures: &'hir [(Variable, Capture<'hir>)],
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum ExprObjectKind {
+    UnitStruct { hash: Hash },
+    Struct { hash: Hash },
+    StructVariant { hash: Hash },
+    Anonymous,
 }
 
 /// An object expression.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) struct ExprObject<'hir> {
-    /// An object identifier.
-    pub(crate) path: Option<&'hir Path<'hir>>,
+    /// The kind of an object being created.
+    pub(crate) kind: ExprObjectKind,
     /// Assignments in the object.
     pub(crate) assignments: &'hir [FieldAssign<'hir>],
 }
 
 /// A single field assignment in an object expression.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) struct FieldAssign<'hir> {
     /// The key of the field.
@@ -472,7 +504,7 @@ pub(crate) struct FieldAssign<'hir> {
 }
 
 /// A literal vector.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) struct ExprSeq<'hir> {
     /// Items in the vector.
@@ -480,7 +512,7 @@ pub(crate) struct ExprSeq<'hir> {
 }
 
 /// A range expression `a .. b` or `a ..= b`.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) struct ExprRange<'hir> {
     /// Start of range.
@@ -492,7 +524,7 @@ pub(crate) struct ExprRange<'hir> {
 }
 
 /// The limits of the specified range.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) enum ExprRangeLimits {
     /// Half-open range expression.
@@ -502,7 +534,7 @@ pub(crate) enum ExprRangeLimits {
 }
 
 /// The condition in an if statement.
-#[derive(Debug, Clone, Copy, PartialEq, Spanned)]
+#[derive(Debug, Clone, Copy, Spanned)]
 #[non_exhaustive]
 pub(crate) enum Condition<'hir> {
     /// A regular expression.
@@ -512,7 +544,7 @@ pub(crate) enum Condition<'hir> {
 }
 
 /// A path.
-#[derive(Debug, Clone, Copy, PartialEq, Opaque, Spanned)]
+#[derive(Debug, Clone, Copy, Opaque, Spanned)]
 #[non_exhaustive]
 pub(crate) struct Path<'hir> {
     /// Opaque id associated with path.
@@ -532,19 +564,6 @@ pub(crate) struct Path<'hir> {
 }
 
 impl<'hir> Path<'hir> {
-    /// Identify the kind of the path.
-    pub(crate) fn as_kind(&self) -> Option<ast::PathKind<'_>> {
-        if self.rest.is_empty() && self.trailing.is_none() && self.global.is_none() {
-            match self.first.kind {
-                PathSegmentKind::SelfValue => Some(ast::PathKind::SelfValue),
-                PathSegmentKind::Ident(ident) => Some(ast::PathKind::Ident(ident)),
-                _ => None,
-            }
-        } else {
-            None
-        }
-    }
-
     /// Borrow as an identifier used for field access calls.
     ///
     /// This is only allowed if there are no other path components
@@ -589,7 +608,7 @@ impl IntoExpectation for &Path<'_> {
 }
 
 /// A single path segment.
-#[derive(Debug, Clone, Copy, PartialEq, Spanned)]
+#[derive(Debug, Clone, Copy, Spanned)]
 #[non_exhaustive]
 pub(crate) struct PathSegment<'hir> {
     /// The span of the path segment.
@@ -614,7 +633,7 @@ impl<'hir> PathSegment<'hir> {
 }
 
 /// A single segment in a path.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) enum PathSegmentKind<'hir> {
     /// A path segment that contains `Self`.
@@ -631,7 +650,7 @@ pub(crate) enum PathSegmentKind<'hir> {
     Generics(&'hir [Expr<'hir>]),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Opaque, Spanned)]
+#[derive(Debug, Clone, Copy, Opaque, Spanned)]
 #[non_exhaustive]
 pub(crate) struct ItemFn<'hir> {
     /// Opaque identifier for fn item.
@@ -640,10 +659,6 @@ pub(crate) struct ItemFn<'hir> {
     /// The span of the function.
     #[rune(span)]
     pub(crate) span: Span,
-    /// The visibility of the `fn` item
-    pub(crate) visibility: &'hir Visibility<'hir>,
-    /// The name of the function.
-    pub(crate) name: &'hir ast::Ident,
     /// The arguments of the function.
     pub(crate) args: &'hir [FnArg<'hir>],
     /// The body of the function.
@@ -651,7 +666,7 @@ pub(crate) struct ItemFn<'hir> {
 }
 
 /// A single argument to a function.
-#[derive(Debug, Clone, Copy, PartialEq, Spanned)]
+#[derive(Debug, Clone, Copy, Spanned)]
 #[non_exhaustive]
 pub(crate) enum FnArg<'hir> {
     /// The `self` parameter.
@@ -661,7 +676,7 @@ pub(crate) enum FnArg<'hir> {
 }
 
 /// A block of statements.
-#[derive(Debug, Clone, Copy, PartialEq, Opaque, Spanned)]
+#[derive(Debug, Clone, Copy, Opaque, Spanned)]
 #[non_exhaustive]
 pub(crate) struct Block<'hir> {
     /// The unique identifier for the block expression.
@@ -672,6 +687,9 @@ pub(crate) struct Block<'hir> {
     pub(crate) span: Span,
     /// Statements in the block.
     pub(crate) statements: &'hir [Stmt<'hir>],
+    /// Variables that need to be dropped by the end of this block.
+    #[allow(unused)]
+    pub(crate) drop: &'hir [Variable],
 }
 
 impl Block<'_> {
@@ -683,8 +701,14 @@ impl Block<'_> {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct AsyncBlock<'hir> {
+    pub(crate) block: &'hir Block<'hir>,
+    pub(crate) captures: &'hir [(Variable, Capture<'hir>)],
+}
+
 /// A statement within a block.
-#[derive(Debug, Clone, Copy, PartialEq, Spanned)]
+#[derive(Debug, Clone, Copy, Spanned)]
 #[non_exhaustive]
 pub(crate) enum Stmt<'hir> {
     /// A local declaration.
@@ -698,7 +722,7 @@ pub(crate) enum Stmt<'hir> {
 }
 
 /// A local variable declaration `let <pattern> = <expr>;`
-#[derive(Debug, Clone, Copy, PartialEq, Spanned)]
+#[derive(Debug, Clone, Copy, Spanned)]
 #[non_exhaustive]
 pub(crate) struct Local<'hir> {
     /// The span of the local declaration.
