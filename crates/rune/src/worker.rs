@@ -9,7 +9,7 @@ use crate::ast;
 use crate::ast::Span;
 use crate::compile::ModId;
 use crate::indexing::index;
-use crate::indexing::{IndexScopes, Indexer};
+use crate::indexing::{Indexer, Scopes};
 use crate::query::Query;
 use crate::shared::Items;
 use crate::SourceId;
@@ -92,7 +92,7 @@ impl<'a> Worker<'a> {
                         root,
                         source_id,
                         items,
-                        scopes: IndexScopes::new(),
+                        scopes: Scopes::default(),
                         mod_item,
                         impl_item: Default::default(),
                         nested_item: None,

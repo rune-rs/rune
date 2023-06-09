@@ -14,8 +14,10 @@ use crate::compile::{
 };
 use crate::hash::{Hash, ParametersBuilder};
 use crate::hir;
+use crate::hir::Variable;
+use crate::indexing;
 use crate::parse::Resolve;
-use crate::query::{self, Named, Query};
+use crate::query::{self, Build, BuildEntry, Named, Query, Used};
 use crate::runtime::Type;
 use crate::SourceId;
 
@@ -236,16 +238,41 @@ pub(crate) fn item_fn<'hir>(
     })
 }
 
-/// Lower a closure expression.
+/// Lower the body of an async block.
+///
+/// This happens *after* it's been lowered as part of a closure expression.
 #[instrument(span = ast)]
-pub(crate) fn expr_closure_captures<'hir>(
+pub(crate) fn async_block_secondary<'hir>(
+    ctx: &mut Ctx<'hir, '_>,
+    ast: &ast::Block,
+    captures: &[(Variable, String)],
+) -> compile::Result<hir::AsyncBlock<'hir>> {
+    alloc_with!(ctx, ast);
+
+    let captures = &*iter!(captures, |(_, string)| alloc_str!(string));
+
+    for capture in captures {
+        ctx.scopes.define(capture).with_span(ast)?;
+    }
+
+    Ok(hir::AsyncBlock {
+        block: alloc!(block(ctx, ast)?),
+        captures,
+    })
+}
+
+/// Lower the body of a closure.
+///
+/// This happens *after* it's been lowered as part of a closure expression.
+#[instrument(span = ast)]
+pub(crate) fn expr_closure_secondary<'hir>(
     ctx: &mut Ctx<'hir, '_>,
     ast: &ast::ExprClosure,
-    captures: &[String],
+    captures: &[(Variable, String)],
 ) -> compile::Result<hir::ExprClosure<'hir>> {
     alloc_with!(ctx, ast);
 
-    let captures = &*iter!(captures, |string| alloc_str!(string));
+    let captures = &*iter!(captures, |(_, string)| alloc_str!(string));
 
     for capture in captures {
         ctx.scopes.define(capture).with_span(ast)?;
@@ -285,7 +312,7 @@ fn expr_call_closure<'hir>(
     };
 
     let meta::Kind::Closure {
-        ref captures, do_move, ..
+        call, do_move, ..
     } = meta.kind else {
         return Err(compile::Error::expected_meta(
             span,
@@ -294,39 +321,56 @@ fn expr_call_closure<'hir>(
         ));
     };
 
-    tracing::trace!("captures: {} => {:?}", item.item, captures);
+    let captures = match ctx.q.get_captures(meta.hash) {
+        None => {
+            tracing::trace!("queuing closure build entry");
+
+            ctx.scopes.push_captures();
+
+            for (arg, _) in ast.args.as_slice() {
+                fn_arg(ctx, arg)?;
+            }
+
+            expr(ctx, &ast.body)?;
+            let layer = ctx.scopes.pop().with_span(&ast.body)?;
+
+            ctx.q.inner.queue.push_back(BuildEntry {
+                item_meta: meta.item_meta,
+                build: Build::Closure(indexing::Closure {
+                    ast: Box::new(ast.clone()),
+                    call,
+                    captures: layer
+                        .captures()
+                        .map(|(variable, name)| (variable, name.into_string()))
+                        .collect(),
+                }),
+                used: Used::Used,
+            });
+
+            ctx.q.insert_captures(meta.hash, layer.captures());
+            iter!(layer.captures())
+        }
+        Some(captures) => {
+            iter!(captures, |&(variable, ref capture)| {
+                let capture = match capture {
+                    hir::OwnedCapture::SelfValue => hir::Capture::SelfValue,
+                    hir::OwnedCapture::Name(name) => hir::Capture::Name(alloc_str!(name.as_str())),
+                };
+
+                (variable, capture)
+            })
+        }
+    };
 
     if captures.is_empty() {
         return Ok(hir::ExprKind::Fn(meta.hash));
     }
-
-    let captures = iter!(captures.as_ref(), |string| alloc_str!(string));
 
     Ok(hir::ExprKind::CallClosure(alloc!(hir::ExprCallClosure {
         hash: meta.hash,
         do_move,
         captures,
     })))
-}
-
-#[instrument(span = ast)]
-pub(crate) fn async_block<'hir>(
-    ctx: &mut Ctx<'hir, '_>,
-    ast: &ast::Block,
-    captures: &[String],
-) -> compile::Result<hir::AsyncBlock<'hir>> {
-    alloc_with!(ctx, ast);
-
-    let captures = &*iter!(captures, |string| alloc_str!(string));
-
-    for capture in captures {
-        ctx.scopes.define(capture).with_span(ast)?;
-    }
-
-    Ok(hir::AsyncBlock {
-        block: alloc!(block(ctx, ast)?),
-        captures,
-    })
 }
 
 #[instrument(span = ast)]
@@ -868,17 +912,48 @@ pub(crate) fn expr_block<'hir>(
     let meta = ctx.lookup_meta(ast.span(), item.item, GenericsParameters::default())?;
 
     match (kind, &meta.kind) {
-        (
-            ExprBlockKind::Async,
-            meta::Kind::AsyncBlock {
-                captures, do_move, ..
-            },
-        ) => {
-            let captures = iter!(captures.as_ref(), |string| alloc_str!(string));
+        (ExprBlockKind::Async, &meta::Kind::AsyncBlock { call, do_move, .. }) => {
+            let captures = match ctx.q.get_captures(meta.hash) {
+                None => {
+                    tracing::trace!("queuing async block build entry");
+
+                    ctx.scopes.push_captures();
+                    block(ctx, &ast.block)?;
+                    let layer = ctx.scopes.pop().with_span(&ast.block)?;
+
+                    ctx.q.inner.queue.push_back(BuildEntry {
+                        item_meta: meta.item_meta,
+                        build: Build::AsyncBlock(indexing::AsyncBlock {
+                            ast: ast.block.clone(),
+                            call,
+                            captures: layer
+                                .captures()
+                                .map(|(variable, name)| (variable, name.into_string()))
+                                .collect(),
+                        }),
+                        used: Used::Used,
+                    });
+
+                    ctx.q.insert_captures(meta.hash, layer.captures());
+                    iter!(layer.captures())
+                }
+                Some(captures) => {
+                    iter!(captures, |&(variable, ref capture)| {
+                        let capture = match capture {
+                            hir::OwnedCapture::SelfValue => hir::Capture::SelfValue,
+                            hir::OwnedCapture::Name(name) => {
+                                hir::Capture::Name(alloc_str!(name.as_str()))
+                            }
+                        };
+
+                        (variable, capture)
+                    })
+                }
+            };
 
             Ok(hir::ExprKind::AsyncBlock(alloc!(hir::ExprAsyncBlock {
                 hash: meta.hash,
-                do_move: *do_move,
+                do_move,
                 captures,
             })))
         }
@@ -896,7 +971,10 @@ fn fn_arg<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::FnArg) -> compile::Result<hi
     alloc_with!(ctx, ast);
 
     Ok(match ast {
-        ast::FnArg::SelfValue(ast) => hir::FnArg::SelfValue(ast.span()),
+        ast::FnArg::SelfValue(ast) => {
+            ctx.scopes.define_self().with_span(ast)?;
+            hir::FnArg::SelfValue(ast.span())
+        }
         ast::FnArg::Pat(ast) => hir::FnArg::Pat(alloc!(pat(ctx, ast)?)),
     })
 }
@@ -1186,7 +1264,7 @@ pub(crate) fn expr_path<'hir>(
 
     if let Needs::Value = ctx.needs.get() {
         if let Some(name) = ast.try_as_ident() {
-            let name = name.resolve(resolve_context!(ctx.q))?;
+            let name = alloc_str!(name.resolve(resolve_context!(ctx.q))?);
 
             if let Some(variable) = ctx.scopes.get(name) {
                 return Ok(hir::ExprKind::Variable(variable, alloc_str!(name)));

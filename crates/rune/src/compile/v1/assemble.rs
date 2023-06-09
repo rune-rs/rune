@@ -1147,13 +1147,18 @@ fn expr_async_block(
     hir: &hir::ExprAsyncBlock<'_>,
     needs: Needs,
 ) -> compile::Result<Asm> {
-    for ident in hir.captures.iter().copied() {
+    for (_, capture) in hir.captures.iter().copied() {
+        let name = match capture {
+            hir::Capture::SelfValue => SELF,
+            hir::Capture::Name(name) => name,
+        };
+
         if hir.do_move {
-            let var = c.scopes.take_var(c.q.visitor, ident, c.source_id, span)?;
-            var.do_move(c.asm, span, format_args!("captures `{}`", ident));
+            let var = c.scopes.take_var(c.q.visitor, name, c.source_id, span)?;
+            var.do_move(c.asm, span, format_args!("captures `{}`", name));
         } else {
-            let var = c.scopes.get_var(c.q.visitor, ident, c.source_id, span)?;
-            var.copy(c, span, format_args!("captures `{}`", ident));
+            let var = c.scopes.get_var(c.q.visitor, name, c.source_id, span)?;
+            var.copy(c, span, format_args!("captures `{}`", name));
         }
     }
 
@@ -1379,13 +1384,18 @@ fn expr_call_closure(
     tracing::trace!(?hir.captures, "assemble call closure");
 
     // Construct a closure environment.
-    for capture in hir.captures {
+    for (_, capture) in hir.captures {
+        let name = match capture {
+            hir::Capture::SelfValue => SELF,
+            hir::Capture::Name(name) => name,
+        };
+
         if hir.do_move {
-            let var = c.scopes.take_var(c.q.visitor, capture, c.source_id, span)?;
-            var.do_move(c.asm, span, format_args!("capture `{}`", capture));
+            let var = c.scopes.take_var(c.q.visitor, name, c.source_id, span)?;
+            var.do_move(c.asm, span, format_args!("capture `{}`", name));
         } else {
-            let var = c.scopes.get_var(c.q.visitor, capture, c.source_id, span)?;
-            var.copy(c, span, format_args!("capture `{}`", capture));
+            let var = c.scopes.get_var(c.q.visitor, name, c.source_id, span)?;
+            var.copy(c, span, format_args!("capture `{}`", name));
         }
     }
 

@@ -159,7 +159,7 @@ pub(crate) fn compile(
 
     loop {
         while let Some(entry) = worker.q.next_build_entry() {
-            tracing::trace!("next build entry: {}", entry.item_meta.item);
+            tracing::trace!(item = ?worker.q.pool.item(entry.item_meta.item), "next build entry");
             let source_id = entry.item_meta.location.source_id;
 
             let task = CompileBuildEntry {
@@ -211,6 +211,7 @@ impl CompileBuildEntry<'_> {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     fn compile(mut self, entry: BuildEntry, unit_storage: &mut dyn UnitEncoder) -> Result<()> {
         let BuildEntry {
             item_meta,
@@ -341,7 +342,7 @@ impl CompileBuildEntry<'_> {
                     self.q.borrow(),
                     item_meta.location.source_id,
                 );
-                let hir = hir::lowering::expr_closure_captures(
+                let hir = hir::lowering::expr_closure_secondary(
                     &mut ctx,
                     &closure.ast,
                     &closure.captures,
@@ -378,7 +379,7 @@ impl CompileBuildEntry<'_> {
                     self.q.borrow(),
                     item_meta.location.source_id,
                 );
-                let hir = hir::lowering::async_block(&mut ctx, &b.ast, &b.captures)?;
+                let hir = hir::lowering::async_block_secondary(&mut ctx, &b.ast, &b.captures)?;
                 let mut c = self.compiler1(location, span, &mut asm);
                 assemble::async_block(&mut c, &hir)?;
 

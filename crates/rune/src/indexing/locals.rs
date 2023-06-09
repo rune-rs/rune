@@ -2,7 +2,6 @@
 use crate::ast::{self, Spanned};
 use crate::compile;
 use crate::indexing::Indexer;
-use crate::parse::Resolve;
 
 use rune_macros::instrument;
 
@@ -44,19 +43,6 @@ fn path(idx: &mut Indexer<'_>, ast: &mut ast::Path) -> compile::Result<()> {
         .q
         .insert_path(idx.mod_item, idx.impl_item, &idx.items.item());
     ast.id.set(id);
-
-    if let Some(i) = ast.try_as_ident_mut() {
-        ident(idx, i)?;
-    }
-
-    Ok(())
-}
-
-#[instrument(span = ast)]
-fn ident(idx: &mut Indexer<'_>, ast: &mut ast::Ident) -> compile::Result<()> {
-    let span = ast.span();
-    let ident = ast.resolve(resolve_context!(idx.q))?;
-    idx.scopes.declare(ident.as_ref(), span)?;
     Ok(())
 }
 

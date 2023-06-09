@@ -1,18 +1,18 @@
 pub(crate) mod index;
-mod index_scopes;
 mod locals;
+mod scopes;
 
 use crate::no_std::prelude::*;
-use crate::no_std::sync::Arc;
 
 use crate::ast::{self, Span};
 use crate::compile::meta;
 use crate::compile::{ItemId, ItemMeta};
+use crate::hir::Variable;
 use crate::parse::Id;
 use crate::runtime::Call;
 
 pub(crate) use self::index::Indexer;
-pub(crate) use self::index_scopes::{IndexFnKind, IndexScopes};
+pub(crate) use self::scopes::{Layer, Scopes};
 
 #[derive(Debug, Clone)]
 pub(crate) struct Entry {
@@ -45,10 +45,6 @@ pub(crate) enum Indexed {
     Function(Function),
     /// An instance function.
     InstanceFunction(InstanceFunction),
-    /// A closure.
-    Closure(Closure),
-    /// An async block.
-    AsyncBlock(AsyncBlock),
     /// A constant expression.
     ConstExpr(ConstExpr),
     /// A constant block.
@@ -116,23 +112,19 @@ pub(crate) struct Closure {
     /// Ast for closure.
     pub(crate) ast: Box<ast::ExprClosure>,
     /// Captures.
-    pub(crate) captures: Arc<[String]>,
+    pub(crate) captures: Vec<(Variable, String)>,
     /// Calling convention used for closure.
     pub(crate) call: Call,
-    /// If the closure moves its captures.
-    pub(crate) do_move: bool,
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct AsyncBlock {
     /// Ast for block.
     pub(crate) ast: ast::Block,
-    /// Captures.
-    pub(crate) captures: Arc<[String]>,
     /// Calling convention used for async block.
     pub(crate) call: Call,
-    /// If the block moves its captures.
-    pub(crate) do_move: bool,
+    /// Captured variables.
+    pub(crate) captures: Vec<(Variable, String)>,
 }
 
 #[derive(Debug, Clone)]

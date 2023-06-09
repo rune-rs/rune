@@ -6,14 +6,13 @@ use crate::no_std::borrow::Cow;
 use crate::no_std::collections::HashSet;
 use crate::no_std::path::Path;
 use crate::no_std::prelude::*;
-use crate::no_std::sync::Arc;
 
 use crate::ast::{LitStr, Span};
 use crate::compile::attrs::Attributes;
 use crate::compile::{self, Item, ItemId, Location, MetaInfo, ModId, Pool, Visibility};
 use crate::hash::Hash;
 use crate::parse::{Id, NonZeroId, ResolveContext};
-use crate::runtime::Protocol;
+use crate::runtime::{Call, Protocol};
 
 /// A meta reference to an item being compiled.
 #[derive(Debug, Clone, Copy)]
@@ -204,15 +203,15 @@ pub enum Kind {
     },
     /// A closure.
     Closure {
-        /// Sequence of captured variables.
-        captures: Arc<[String]>,
+        /// Runtime calling convention.
+        call: Call,
         /// If the closure moves its environment.
         do_move: bool,
     },
     /// An async block.
     AsyncBlock {
-        /// Sequence of captured variables.
-        captures: Arc<[String]>,
+        /// Runtime calling convention.
+        call: Call,
         /// If the async block moves its environment.
         do_move: bool,
     },

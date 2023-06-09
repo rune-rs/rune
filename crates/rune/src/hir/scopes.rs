@@ -4,56 +4,69 @@ use core::cell::RefCell;
 use core::fmt;
 use core::num::NonZeroUsize;
 
+use crate::no_std::collections::BTreeSet;
 use crate::no_std::collections::HashMap;
+use crate::no_std::prelude::*;
 use crate::no_std::vec::Vec;
+
+use crate::compile::error::{MissingScope, PopError};
 
 use rune_macros::instrument;
 
-#[derive(Debug)]
-pub struct MissingScope(usize);
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(transparent)]
+pub(crate) struct Scope(usize);
 
-impl fmt::Display for MissingScope {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Missing scope with id {}", self.0)
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(transparent)]
+pub(crate) struct Variable(usize);
+
+/// The kind of a layer.
+#[derive(Default)]
+enum LayerKind {
+    #[default]
+    Default,
+    Captures,
 }
 
-impl crate::no_std::error::Error for MissingScope {}
-
-#[derive(Debug)]
-pub enum PopError {
-    MissingScope(usize),
-    MissingParentScope(usize),
-    MissingVariable(usize),
+/// An owned capture.
+pub(crate) enum OwnedCapture {
+    SelfValue,
+    Name(String),
 }
 
-impl fmt::Display for PopError {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+/// A captured variable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) enum Capture<'hir> {
+    /// Capture of the `self` value.
+    SelfValue,
+    /// Capture of a named variable.
+    Name(&'hir str),
+}
+
+impl<'hir> Capture<'hir> {
+    /// Get the captured string.
+    pub(crate) fn into_string(self) -> String {
         match self {
-            PopError::MissingScope(id) => write!(f, "Missing scope with id {id}"),
-            PopError::MissingParentScope(id) => write!(f, "Missing parent scope with id {id}"),
-            PopError::MissingVariable(id) => write!(f, "Missing variable with id {id}"),
+            Capture::SelfValue => String::from("self"),
+            Capture::Name(name) => name.to_owned(),
         }
     }
 }
 
-impl crate::no_std::error::Error for PopError {}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[repr(transparent)]
-pub(crate) struct Scope(usize);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[repr(transparent)]
-pub(crate) struct Variable(usize);
-
 #[derive(Default)]
 pub(crate) struct Layer<'hir> {
+    scope: Scope,
     parent: Option<NonZeroUsize>,
+    /// Indicates if `self` is defined in this layer.
+    has_self: Option<usize>,
+    /// Variables defined in this layer.
     variables: HashMap<&'hir str, usize>,
+    /// Order of variable definitions.
     order: Vec<usize>,
+    kind: LayerKind,
+    /// Captures inside of this layer.
+    captures: BTreeSet<(Variable, Capture<'hir>)>,
 }
 
 impl<'hir> Layer<'hir> {
@@ -65,6 +78,11 @@ impl<'hir> Layer<'hir> {
     #[inline(always)]
     pub(crate) fn into_drop_order(self) -> impl ExactSizeIterator<Item = Variable> {
         self.order.into_iter().rev().map(Variable)
+    }
+
+    /// Variables captured by the layer.
+    pub(crate) fn captures(&self) -> impl ExactSizeIterator<Item = (Variable, Capture<'hir>)> + '_ {
+        self.captures.iter().copied()
     }
 }
 
@@ -80,13 +98,38 @@ impl<'hir> Scopes<'hir> {
 
     /// Push a scope.
     pub(crate) fn push(&mut self) {
+        let scope = Scope(self.scopes.vacant_key());
+
         let layer = Layer {
+            scope,
             parent: Some(NonZeroUsize::new(self.scope.0.wrapping_add(1)).expect("ran out of ids")),
+            has_self: None,
             variables: HashMap::new(),
             order: Vec::new(),
+            kind: LayerKind::Default,
+            captures: BTreeSet::new(),
         };
 
-        self.scope = Scope(self.scopes.insert(layer))
+        self.scopes.insert(layer);
+        self.scope = scope;
+    }
+
+    /// Push an async block.
+    pub(crate) fn push_captures(&mut self) {
+        let scope = Scope(self.scopes.vacant_key());
+
+        let layer = Layer {
+            scope,
+            parent: Some(NonZeroUsize::new(self.scope.0.wrapping_add(1)).expect("ran out of ids")),
+            has_self: None,
+            variables: HashMap::new(),
+            order: Vec::new(),
+            kind: LayerKind::Captures,
+            captures: BTreeSet::new(),
+        };
+
+        self.scopes.insert(layer);
+        self.scope = scope;
     }
 
     /// Pop the given scope.
@@ -109,6 +152,20 @@ impl<'hir> Scopes<'hir> {
         Ok(layer)
     }
 
+    /// Define `self` value.
+    pub(crate) fn define_self(&mut self) -> Result<Variable, MissingScope> {
+        tracing::trace!(?self.scope, "define self");
+
+        let Some(layer) = self.scopes.get_mut(self.scope.0) else {
+            return Err(MissingScope(self.scope.0));
+        };
+
+        let variable = self.variables.insert(());
+        layer.has_self = Some(variable);
+        layer.order.push(variable);
+        Ok(Variable(variable))
+    }
+
     /// Define the given variable.
     #[tracing::instrument(skip_all)]
     pub(crate) fn define(&mut self, name: &'hir str) -> Result<Variable, MissingScope> {
@@ -126,23 +183,55 @@ impl<'hir> Scopes<'hir> {
         Ok(Variable(variable))
     }
 
+    /// Try to lookup the self variable.
+    #[tracing::instrument(skip_all)]
+    pub(crate) fn get_self(&mut self) -> Option<Variable> {
+        tracing::trace!(?self.scope, "get self");
+
+        self.scan(|layer| Some((Variable(layer.has_self?), Capture::SelfValue)))
+    }
+
     /// Try to lookup the given variable.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn get(&self, name: &str) -> Option<Variable> {
-        tracing::trace!(?self.scope, ?name, "looking up");
+    pub(crate) fn get(&mut self, name: &'hir str) -> Option<Variable> {
+        tracing::trace!(?self.scope, ?name, "get");
 
+        self.scan(|layer| Some((Variable(*layer.variables.get(name)?), Capture::Name(name))))
+    }
+
+    fn scan<F>(&mut self, mut f: F) -> Option<Variable>
+    where
+        F: FnMut(&Layer) -> Option<(Variable, Capture<'hir>)>,
+    {
+        let mut blocks = Vec::new();
         let mut scope = self.scopes.get(self.scope.0);
 
-        while let Some(s) = scope.take() {
-            if let Some(variable) = s.variables.get(name) {
-                return Some(Variable(*variable));
+        let (variable, capture) = 'ok: {
+            while let Some(s) = scope.take() {
+                if let Some((variable, capture)) = f(s) {
+                    break 'ok (variable, capture);
+                }
+
+                if let LayerKind::Captures { .. } = s.kind {
+                    blocks.push(s.scope);
+                }
+
+                tracing::trace!(parent = ?s.parent());
+                scope = self.scopes.get(s.parent()?);
             }
 
-            tracing::trace!(parent = ?s.parent());
-            scope = self.scopes.get(s.parent()?);
+            return None;
+        };
+
+        for s in blocks {
+            let Some(s) = self.scopes.get_mut(s.0) else {
+                continue;
+            };
+
+            s.captures.insert((variable, capture));
         }
 
-        None
+        Some(variable)
     }
 }
 

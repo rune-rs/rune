@@ -11,6 +11,6 @@ fn test_fn_const_async() {
 
     assert_errors! {
         r#"pub const fn main() { yield true }"#,
-        span!(0, 34), FnConstNotGenerator
+        span!(22, 32), YieldInConst
     };
 }

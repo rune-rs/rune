@@ -2,7 +2,7 @@ use core::num::NonZeroUsize;
 
 use crate as rune;
 use crate::ast::{self, Span, Spanned};
-use crate::hir::Variable;
+use crate::hir::{Capture, Variable};
 use crate::parse::{Expectation, Id, IntoExpectation, NonZeroId, Opaque};
 use crate::runtime::{format, Type, TypeCheck};
 use crate::Hash;
@@ -415,7 +415,7 @@ pub(crate) enum ExprBreakValue<'hir> {
 pub(crate) struct ExprAsyncBlock<'hir> {
     pub(crate) hash: Hash,
     pub(crate) do_move: bool,
-    pub(crate) captures: &'hir [&'hir str],
+    pub(crate) captures: &'hir [(Variable, Capture<'hir>)],
 }
 
 /// A `select` expression that selects over a collection of futures.
@@ -457,7 +457,7 @@ pub(crate) struct ExprSelectPatBranch<'hir> {
 pub(crate) struct ExprCallClosure<'hir> {
     pub(crate) do_move: bool,
     pub(crate) hash: Hash,
-    pub(crate) captures: &'hir [&'hir str],
+    pub(crate) captures: &'hir [(Variable, Capture<'hir>)],
 }
 
 /// A closure expression.

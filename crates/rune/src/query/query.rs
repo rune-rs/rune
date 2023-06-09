@@ -21,7 +21,7 @@ use crate::indexing::{self, Indexed};
 use crate::macros::Storage;
 use crate::parse::{Id, NonZeroId, Opaque, Resolve, ResolveContext};
 use crate::query::{Build, BuildEntry, BuiltInMacro, ConstFn, Named, QueryPath, Used};
-use crate::runtime::{Call, ConstValue};
+use crate::runtime::ConstValue;
 use crate::shared::{Consts, Gen, Items};
 use crate::{ast, Options};
 use crate::{Context, Diagnostics, Hash, SourceId, Sources};
@@ -54,7 +54,7 @@ pub(crate) struct QueryInner {
     /// Resolved meta about every single item during a compilation.
     meta: HashMap<(ItemId, Hash), meta::Meta>,
     /// Build queue.
-    queue: VecDeque<BuildEntry>,
+    pub(crate) queue: VecDeque<BuildEntry>,
     /// Indexed items that can be queried for, which will queue up for them to
     /// be compiled.
     indexed: BTreeMap<ItemId, Vec<indexing::Entry>>,
@@ -74,6 +74,8 @@ pub(crate) struct QueryInner {
     items: HashMap<NonZeroId, ItemMeta>,
     /// All available names.
     names: Names,
+    /// Recorded captures.
+    captures: HashMap<Hash, Vec<(hir::Variable, hir::OwnedCapture)>>,
 }
 
 impl QueryInner {
@@ -118,7 +120,7 @@ pub(crate) struct Query<'a> {
     /// Native context.
     pub(crate) context: &'a Context,
     /// Inner state of the query engine.
-    inner: &'a mut QueryInner,
+    pub(crate) inner: &'a mut QueryInner,
 }
 
 impl<'a> Query<'a> {
@@ -731,53 +733,35 @@ impl<'a> Query<'a> {
         Ok(())
     }
 
-    /// Add a new function that can be queried for.
+    /// Index meta immediately.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn index_closure(
+    pub(crate) fn index_meta(
         &mut self,
+        span: Span,
         item_meta: ItemMeta,
-        ast: Box<ast::ExprClosure>,
-        captures: Arc<[String]>,
-        call: Call,
-        do_move: bool,
+        kind: meta::Kind,
     ) -> compile::Result<()> {
         tracing::trace!(item = ?self.pool.item(item_meta.item));
 
-        self.index(indexing::Entry {
+        let source = SourceMeta {
+            location: item_meta.location,
+            path: self
+                .sources
+                .path(item_meta.location.source_id)
+                .map(Into::into),
+        };
+
+        let meta = meta::Meta {
+            context: false,
+            hash: self.pool.item_type_hash(item_meta.item),
             item_meta,
-            indexed: Indexed::Closure(indexing::Closure {
-                ast,
-                captures,
-                call,
-                do_move,
-            }),
-        });
+            kind,
+            source: Some(source),
+            parameters: Hash::EMPTY,
+        };
 
-        Ok(())
-    }
-
-    /// Add a new async block.
-    #[tracing::instrument(skip_all)]
-    pub(crate) fn index_async_block(
-        &mut self,
-        item_meta: ItemMeta,
-        ast: ast::Block,
-        captures: Arc<[String]>,
-        call: Call,
-        do_move: bool,
-    ) -> compile::Result<()> {
-        tracing::trace!(item = ?self.pool.item(item_meta.item));
-
-        self.index(indexing::Entry {
-            item_meta,
-            indexed: Indexed::AsyncBlock(indexing::AsyncBlock {
-                ast,
-                captures,
-                call,
-                do_move,
-            }),
-        });
-
+        self.unit.insert_meta(span, &meta, self.pool, self.inner)?;
+        self.insert_meta(meta).with_span(span)?;
         Ok(())
     }
 
@@ -838,12 +822,15 @@ impl<'a> Query<'a> {
     }
 
     /// Only try and query for meta among items which have been indexed.
+    #[tracing::instrument(skip_all, fields(item = ?self.pool.item(item)))]
     fn query_indexed_meta(
         &mut self,
         span: Span,
         item: ItemId,
         used: Used,
     ) -> compile::Result<Option<meta::Meta>> {
+        tracing::trace!("query indexed meta");
+
         if let Some(entry) = self.remove_indexed(span, item)? {
             let meta = self.build_indexed_entry(span, entry, used)?;
             self.unit.insert_meta(span, &meta, self.pool, self.inner)?;
@@ -1308,30 +1295,6 @@ impl<'a> Query<'a> {
 
                 kind
             }
-            Indexed::Closure(c) => {
-                let captures = c.captures.clone();
-                let do_move = c.do_move;
-
-                self.inner.queue.push_back(BuildEntry {
-                    item_meta,
-                    build: Build::Closure(c),
-                    used,
-                });
-
-                meta::Kind::Closure { captures, do_move }
-            }
-            Indexed::AsyncBlock(b) => {
-                let captures = b.captures.clone();
-                let do_move = b.do_move;
-
-                self.inner.queue.push_back(BuildEntry {
-                    item_meta,
-                    build: Build::AsyncBlock(b),
-                    used,
-                });
-
-                meta::Kind::AsyncBlock { captures, do_move }
-            }
             Indexed::ConstExpr(c) => {
                 let ir = {
                     let arena = crate::hir::Arena::new();
@@ -1697,5 +1660,27 @@ impl<'a> Query<'a> {
         }
 
         self.context.get_const_value(hash)
+    }
+
+    /// Insert captures.
+    pub(crate) fn insert_captures<'hir, C>(&mut self, hash: Hash, captures: C)
+    where
+        C: Iterator<Item = (hir::Variable, hir::Capture<'hir>)>,
+    {
+        let captures = captures.map(|(v, c)| {
+            let c = match c {
+                hir::Capture::SelfValue => hir::OwnedCapture::SelfValue,
+                hir::Capture::Name(name) => hir::OwnedCapture::Name(name.to_owned()),
+            };
+
+            (v, c)
+        });
+
+        self.inner.captures.insert(hash, captures.collect());
+    }
+
+    /// Get captures for the given hash.
+    pub(crate) fn get_captures(&self, hash: Hash) -> Option<&[(hir::Variable, hir::OwnedCapture)]> {
+        Some(self.inner.captures.get(&hash)?)
     }
 }

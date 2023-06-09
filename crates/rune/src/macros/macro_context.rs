@@ -8,7 +8,7 @@ use crate::compile::{
     self, Context, IrValue, Item, ItemMeta, NoopCompileVisitor, NoopSourceLoader, ParseErrorKind,
     Pool, Prelude, UnitBuilder,
 };
-use crate::indexing::{IndexScopes, Indexer};
+use crate::indexing::{Indexer, Scopes};
 use crate::macros::{IntoLit, Storage, ToTokens, TokenStream};
 use crate::parse::{Parse, Resolve};
 use crate::query::Query;
@@ -86,7 +86,7 @@ impl<'a, 'b> MacroContext<'a, 'b> {
             q: query.borrow(),
             source_id,
             items: Items::new(Item::new(), root_id, &gen),
-            scopes: IndexScopes::new(),
+            scopes: Scopes::default(),
             mod_item: root_mod_id,
             impl_item: None,
             nested_item: None,

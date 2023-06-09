@@ -10,7 +10,6 @@ use thiserror::Error;
 
 use crate::ast;
 use crate::ast::{Span, Spanned};
-use crate::compile::hir::scopes::{MissingScope, PopError};
 use crate::compile::{HasSpan, IrValue, ItemBuf, Location, MetaInfo, Visibility};
 use crate::macros::{SyntheticId, SyntheticKind};
 use crate::parse::{Expectation, IntoExpectation, LexerMode};
@@ -292,10 +291,6 @@ pub(crate) enum CompileErrorKind {
     UnsupportedBinding,
     #[error("Duplicate key in literal object")]
     DuplicateObjectKey { existing: Span, object: Span },
-    #[error("Expression `yield` must be used in function or closure")]
-    YieldOutsideFunction,
-    #[error("Expression `await` must be used inside an async function or closure")]
-    AwaitOutsideFunction,
     #[error("Instance function declared outside of `impl` block")]
     InstanceFunctionOutsideImpl,
     #[error("Unsupported tuple index `{number}`")]
@@ -312,8 +307,6 @@ pub(crate) enum CompileErrorKind {
     FnConstAsyncConflict,
     #[error("A block can't both be `async` and `const` at the same time")]
     BlockConstAsyncConflict,
-    #[error("Const functions can't be generators")]
-    FnConstNotGenerator,
     #[error("Unsupported closure kind")]
     ClosureKind,
     #[error("Keyword `Self` is only supported inside of `impl` blocks")]
@@ -401,6 +394,12 @@ pub(crate) enum CompileErrorKind {
     MissingLabelLocation { name: &'static str, index: usize },
     #[error("Reached macro recursion limit at {depth}, limit is {max}")]
     MaxMacroRecursion { depth: usize, max: usize },
+    #[error("Expression `yield` inside of constant function")]
+    YieldInConst,
+    #[error("Expression `.await` inside of constant context")]
+    AwaitInConst,
+    #[error("Expression `.await` outside of async function or block")]
+    AwaitOutsideAsync,
 }
 
 /// Error raised during queries.
@@ -635,3 +634,35 @@ pub(crate) struct MetaConflict {
     /// Parameters hash.
     pub(crate) parameters: Hash,
 }
+
+#[derive(Debug)]
+pub(crate) struct MissingScope(pub(crate) usize);
+
+impl fmt::Display for MissingScope {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Missing scope with id {}", self.0)
+    }
+}
+
+impl crate::no_std::error::Error for MissingScope {}
+
+#[derive(Debug)]
+pub(crate) enum PopError {
+    MissingScope(usize),
+    MissingParentScope(usize),
+    MissingVariable(usize),
+}
+
+impl fmt::Display for PopError {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PopError::MissingScope(id) => write!(f, "Missing scope with id {id}"),
+            PopError::MissingParentScope(id) => write!(f, "Missing parent scope with id {id}"),
+            PopError::MissingVariable(id) => write!(f, "Missing variable with id {id}"),
+        }
+    }
+}
+
+impl crate::no_std::error::Error for PopError {}

@@ -34,7 +34,7 @@ use crate::query::Used;
 impl ast::Expr {
     pub(crate) fn eval(&self, ctx: &mut MacroContext<'_, '_>) -> compile::Result<IrValue> {
         let mut expr = self.clone();
-        index::expr(ctx.idx, &mut expr, index::IS_USED)?;
+        index::expr(ctx.idx, &mut expr)?;
 
         let ir = {
             // TODO: avoid this arena?
