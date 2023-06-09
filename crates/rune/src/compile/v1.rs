@@ -18,7 +18,7 @@ mod loops;
 mod scopes;
 
 pub(crate) use self::loops::{Loop, Loops};
-pub(crate) use self::scopes::{Scope, ScopeGuard, Scopes, Var};
+pub(crate) use self::scopes::{Layer, ScopeGuard, Scopes, Var};
 
 /// Generic parameters.
 #[derive(Default)]
@@ -127,9 +127,9 @@ impl<'a> Assembler<'a> {
         let scope = self.scopes.pop(expected, span)?;
 
         if needs.value() {
-            self.locals_clean(scope.local_var_count, span);
+            self.locals_clean(scope.local, span);
         } else {
-            self.locals_pop(scope.local_var_count, span);
+            self.locals_pop(scope.local, span);
         }
 
         Ok(())

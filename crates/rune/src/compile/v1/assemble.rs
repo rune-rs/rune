@@ -3,7 +3,7 @@ use core::mem::{replace, take};
 use crate::no_std::prelude::*;
 
 use crate::ast::{self, Span, Spanned};
-use crate::compile::v1::{Assembler, Loop, Needs, Scope, Var};
+use crate::compile::v1::{Assembler, Layer, Loop, Needs, Var};
 use crate::compile::{self, CompileErrorKind, WithSpan};
 use crate::hir;
 use crate::parse::Resolve;
@@ -111,7 +111,7 @@ pub(crate) fn fn_from_item_fn(
     }
 
     if hir.body.statements.is_empty() {
-        let total_var_count = c.scopes.total_var_count(hir)?;
+        let total_var_count = c.scopes.total(hir)?;
         c.locals_pop(total_var_count, hir);
         c.asm.push(Inst::ReturnUnit, hir);
         return Ok(());
@@ -122,7 +122,7 @@ pub(crate) fn fn_from_item_fn(
     } else {
         block(c, hir.body, Needs::None)?.apply(c)?;
 
-        let total_var_count = c.scopes.total_var_count(hir)?;
+        let total_var_count = c.scopes.total(hir)?;
         c.locals_pop(total_var_count, hir);
         c.asm.push(Inst::ReturnUnit, hir);
     }
@@ -191,7 +191,7 @@ fn return_<T>(
     hir: &T,
     asm: impl FnOnce(&mut Assembler<'_>, &T, Needs) -> compile::Result<Asm>,
 ) -> compile::Result<()> {
-    let clean = c.scopes.total_var_count(span)?;
+    let clean = c.scopes.total(span)?;
 
     let address = asm(c, hir, Needs::Value)?.apply_targeted(c)?;
     c.asm.push(Inst::Return { address, clean }, span);
@@ -269,7 +269,7 @@ fn pat(
                 load(c, Needs::Value)?;
                 c.asm.push(to_tuple_match_instruction(*kind), hir);
                 c.asm
-                    .pop_and_jump_if_not(c.scopes.local_var_count(hir)?, false_label, hir);
+                    .pop_and_jump_if_not(c.scopes.local(hir)?, false_label, hir);
                 Ok(true)
             }
             hir::PatPathKind::Ident(_, variable) => {
@@ -316,7 +316,7 @@ fn pat_lit(
     load(c, Needs::Value)?;
     c.asm.push(inst, hir);
     c.asm
-        .pop_and_jump_if_not(c.scopes.local_var_count(hir)?, false_label, hir);
+        .pop_and_jump_if_not(c.scopes.local(hir)?, false_label, hir);
     Ok(true)
 }
 
@@ -349,7 +349,7 @@ fn condition(
     c: &mut Assembler<'_>,
     condition: &hir::Condition<'_>,
     then_label: &Label,
-) -> compile::Result<Scope> {
+) -> compile::Result<Layer> {
     match condition {
         hir::Condition::Expr(e) => {
             let guard = c.scopes.child(e)?;
@@ -409,7 +409,7 @@ fn pat_vec(
     );
 
     c.asm
-        .pop_and_jump_if_not(c.scopes.local_var_count(span)?, false_label, span);
+        .pop_and_jump_if_not(c.scopes.local(span)?, false_label, span);
 
     for (index, hir) in hir.items.iter().take(hir.count).enumerate() {
         let load = move |c: &mut Assembler<'_>, needs: Needs| {
@@ -441,7 +441,7 @@ fn pat_tuple(
         c.asm.push(Inst::IsUnit, span);
 
         c.asm
-            .pop_and_jump_if_not(c.scopes.local_var_count(span)?, false_label, span);
+            .pop_and_jump_if_not(c.scopes.local(span)?, false_label, span);
         return Ok(());
     }
 
@@ -455,7 +455,7 @@ fn pat_tuple(
     c.asm.push(inst, span);
 
     c.asm
-        .pop_and_jump_if_not(c.scopes.local_var_count(span)?, false_label, span);
+        .pop_and_jump_if_not(c.scopes.local(span)?, false_label, span);
 
     for (index, p) in hir.items.iter().take(hir.count).enumerate() {
         let load = move |c: &mut Assembler<'_>, needs: Needs| {
@@ -544,7 +544,7 @@ fn pat_object(
     c.asm.push(inst, span);
 
     c.asm
-        .pop_and_jump_if_not(c.scopes.local_var_count(span)?, false_label, span);
+        .pop_and_jump_if_not(c.scopes.local(span)?, false_label, span);
 
     for (binding, slot) in hir.bindings.iter().zip(string_slots) {
         match *binding {
@@ -615,13 +615,13 @@ fn block(c: &mut Assembler<'_>, hir: &hir::Block<'_>, needs: Needs) -> compile::
 
     if needs.value() {
         if produced {
-            c.locals_clean(scope.local_var_count, hir);
+            c.locals_clean(scope.local, hir);
         } else {
-            c.locals_pop(scope.local_var_count, hir);
+            c.locals_pop(scope.local, hir);
             c.asm.push(Inst::unit(), hir);
         }
     } else {
-        c.locals_pop(scope.local_var_count, hir);
+        c.locals_pop(scope.local, hir);
     }
 
     c.contexts
@@ -1314,7 +1314,7 @@ fn expr_break(
 
     let vars = c
         .scopes
-        .total_var_count(span)?
+        .total(span)?
         .checked_sub(last_loop.break_var_count)
         .ok_or("Var count should be larger")
         .with_span(span)?;
@@ -1475,7 +1475,7 @@ fn expr_continue(
 
     let vars = c
         .scopes
-        .total_var_count(span)?
+        .total(span)?
         .checked_sub(last_loop.continue_var_count)
         .ok_or("Var count should be larger")
         .with_span(span)?;
@@ -1589,7 +1589,7 @@ fn expr_for(
     let end_label = c.asm.new_label("for_end");
     let break_label = c.asm.new_label("for_break");
 
-    let break_var_count = c.scopes.total_var_count(span)?;
+    let break_var_count = c.scopes.total(span)?;
 
     let (iter_offset, loop_scope_expected) = {
         let loop_scope_expected = c.scopes.child(span)?;
@@ -1640,7 +1640,7 @@ fn expr_for(
         None
     };
 
-    let continue_var_count = c.scopes.total_var_count(span)?;
+    let continue_var_count = c.scopes.total(span)?;
     c.asm.label(&continue_label)?;
 
     let _guard = c.loops.push(Loop {
@@ -1901,8 +1901,7 @@ fn expr_match(
             c.clean_last_scope(span, guard, Needs::Value)?;
             let scope = c.scopes.pop(parent_guard, span)?;
 
-            c.asm
-                .pop_and_jump_if_not(scope.local_var_count, &match_false, span);
+            c.asm.pop_and_jump_if_not(scope.local, &match_false, span);
 
             c.asm.jump(&branch_label, span);
             scope
@@ -2085,7 +2084,7 @@ fn expr_return(
     } else {
         // NB: we actually want total_var_count here since we need to clean up
         // _every_ variable declared until we reached the current return.
-        let clean = c.scopes.total_var_count(span)?;
+        let clean = c.scopes.total(span)?;
         c.locals_pop(clean, span);
         c.asm.push(Inst::ReturnUnit, span);
     }
@@ -2200,7 +2199,7 @@ fn expr_try(
     span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm> {
-    let clean = c.scopes.total_var_count(span)?;
+    let clean = c.scopes.total(span)?;
     let address = expr(c, hir, Needs::Value)?.apply_targeted(c)?;
 
     c.asm.push(
@@ -2365,7 +2364,7 @@ fn expr_loop(
     let end_label = c.asm.new_label("while_end");
     let break_label = c.asm.new_label("while_break");
 
-    let var_count = c.scopes.total_var_count(span)?;
+    let var_count = c.scopes.total(span)?;
 
     let _guard = c.loops.push(Loop {
         label: hir.label.copied(),
