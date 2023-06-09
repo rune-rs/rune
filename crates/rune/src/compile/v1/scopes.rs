@@ -82,7 +82,7 @@ impl Scope {
     }
 
     /// Insert a new local, and return the old one if there's a conflict.
-    fn new_var(&mut self, name: hir::Variable, span: &dyn Spanned) -> compile::Result<usize> {
+    fn define(&mut self, name: hir::Variable, span: &dyn Spanned) -> compile::Result<usize> {
         let offset = self.total_var_count;
         tracing::trace!(?name, ?offset, "new var");
 
@@ -95,35 +95,8 @@ impl Scope {
         self.total_var_count += 1;
         self.local_var_count += 1;
 
-        if let Some(old) = self.locals.insert(name, local) {
-            return Err(compile::Error::new(
-                span,
-                CompileErrorKind::VariableConflict {
-                    existing_span: old.span,
-                },
-            ));
-        }
-
+        self.locals.insert(name, local);
         Ok(offset)
-    }
-
-    /// Insert a new local, and return the old one if there's a conflict.
-    fn decl_var(&mut self, name: hir::Variable, span: &dyn Spanned) -> usize {
-        let offset = self.total_var_count;
-        tracing::trace!(?name, ?offset, "declare var");
-
-        self.locals.insert(
-            name,
-            Var {
-                offset,
-                span: span.span(),
-                moved_at: None,
-            },
-        );
-
-        self.total_var_count += 1;
-        self.local_var_count += 1;
-        offset
     }
 
     /// Declare an anonymous variable.
@@ -137,7 +110,7 @@ impl Scope {
     }
 
     /// Undeclare the last anonymous variable.
-    pub(crate) fn undecl_anon(&mut self, span: &dyn Spanned, n: usize) -> compile::Result<()> {
+    fn undecl_anon(&mut self, span: &dyn Spanned, n: usize) -> compile::Result<()> {
         self.total_var_count = self
             .total_var_count
             .checked_sub(n)
@@ -187,13 +160,6 @@ impl Scope {
     }
 }
 
-/// A guard returned from [push][Scopes::push].
-///
-/// This should be provided to a subsequent [pop][Scopes::pop] to allow it to be
-/// sanity checked.
-#[must_use]
-pub(crate) struct ScopeGuard(usize);
-
 pub(crate) struct Scopes {
     scopes: Vec<Scope>,
 }
@@ -206,156 +172,92 @@ impl Scopes {
         }
     }
 
-    /// Try to get the local with the given name. Returns `None` if it's
-    /// missing.
-    pub(crate) fn try_get_var(
-        &self,
-        visitor: &mut dyn CompileVisitor,
-        name: hir::Variable,
-        source_id: SourceId,
-        span: &dyn Spanned,
-    ) -> compile::Result<Option<Var>> {
-        tracing::trace!(?name, "try get var");
-
-        for scope in self.scopes.iter().rev() {
-            if let Some(var) = scope.get(name, span)? {
-                tracing::trace!("found var: {} => {:?}", name, var);
-                visitor.visit_variable_use(source_id, var.span, span);
-                return Ok(Some(var));
-            }
-        }
-
-        Ok(None)
-    }
-
-    /// Try to take the local with the given name. Returns `None` if it's
-    /// missing.
-    pub(crate) fn try_take_var(
-        &mut self,
-        visitor: &mut dyn CompileVisitor,
-        name: hir::Variable,
-        source_id: SourceId,
-        span: &dyn Spanned,
-    ) -> compile::Result<Option<&Var>> {
-        tracing::trace!(?name, "try take var");
-
-        for scope in self.scopes.iter_mut().rev() {
-            if let Some(var) = scope.take(name, span)? {
-                tracing::trace!("found var: {} => {:?}", name, var);
-                visitor.visit_variable_use(source_id, var.span, span);
-                return Ok(Some(var));
-            }
-        }
-
-        Ok(None)
-    }
-
     /// Get the local with the given name.
-    pub(crate) fn get_var(
+    pub(crate) fn get(
         &self,
         visitor: &mut dyn CompileVisitor,
         name: hir::Variable,
         source_id: SourceId,
         span: &dyn Spanned,
     ) -> compile::Result<Var> {
-        let Some(var) = self.try_get_var(visitor, name, source_id, span)? else {
-            return Err(compile::Error::msg(
-                span,
-                format_args!("Missing variable {name}"),
-            ));
-        };
+        tracing::trace!(?name, "get var");
 
-        Ok(var)
+        for scope in self.scopes.iter().rev() {
+            if let Some(var) = scope.get(name, span)? {
+                tracing::trace!(?name, ?var, "found var");
+                visitor.visit_variable_use(source_id, var.span, span);
+                return Ok(var);
+            }
+        }
+
+        Err(compile::Error::msg(
+            span,
+            format_args!("Missing variable {name}"),
+        ))
     }
 
     /// Take the local with the given name.
-    pub(crate) fn take_var(
+    pub(crate) fn take(
         &mut self,
         visitor: &mut dyn CompileVisitor,
         name: hir::Variable,
         source_id: SourceId,
         span: &dyn Spanned,
     ) -> compile::Result<&Var> {
-        match self.try_take_var(visitor, name, source_id, span)? {
-            Some(var) => Ok(var),
-            None => Err(compile::Error::msg(
-                span,
-                format_args!("Missing variable {name} to take"),
-            )),
+        tracing::trace!(?name, "try take var");
+
+        for scope in self.scopes.iter_mut().rev() {
+            if let Some(var) = scope.take(name, span)? {
+                tracing::trace!(?name, ?var, "found var");
+                visitor.visit_variable_use(source_id, var.span, span);
+                return Ok(var);
+            }
         }
+
+        Err(compile::Error::msg(
+            span,
+            format_args!("Missing variable {name} to take"),
+        ))
     }
 
-    /// Construct a new variable.
-    pub(crate) fn new_var(
+    /// Define stack space for a variable.
+    pub(crate) fn define(
         &mut self,
         name: hir::Variable,
         span: &dyn Spanned,
     ) -> compile::Result<usize> {
-        self.last_mut(span)?.new_var(name, span)
-    }
-
-    /// Declare the given variable.
-    pub(crate) fn decl_var(
-        &mut self,
-        name: hir::Variable,
-        span: &dyn Spanned,
-    ) -> compile::Result<usize> {
-        Ok(self.last_mut(span)?.decl_var(name, span))
+        self.last_mut(span)?.define(name, span)
     }
 
     /// Declare an anonymous variable.
-    pub(crate) fn decl_anon(&mut self, span: &dyn Spanned) -> compile::Result<usize> {
+    pub(crate) fn alloc(&mut self, span: &dyn Spanned) -> compile::Result<usize> {
         Ok(self.last_mut(span)?.decl_anon(span))
     }
 
     /// Declare an anonymous variable.
-    pub(crate) fn undecl_anon(&mut self, span: &dyn Spanned, n: usize) -> compile::Result<()> {
+    pub(crate) fn free(&mut self, span: &dyn Spanned, n: usize) -> compile::Result<()> {
         self.last_mut(span)?.undecl_anon(span, n)
     }
 
     /// Push a scope and return an index.
-    pub(crate) fn push(&mut self, scope: Scope) -> ScopeGuard {
+    pub(crate) fn push(&mut self, scope: Scope) {
         self.scopes.push(scope);
-        ScopeGuard(self.scopes.len())
     }
 
     /// Pop the last scope and compare with the expected length.
-    pub(crate) fn pop(
-        &mut self,
-        expected: ScopeGuard,
-        span: &dyn Spanned,
-    ) -> compile::Result<Scope> {
-        let ScopeGuard(expected) = expected;
-
-        if self.scopes.len() != expected {
-            return Err(compile::Error::msg(
-                span,
-                "the number of scopes do not match",
-            ));
-        }
-
-        self.pop_unchecked(span)
-    }
-
-    /// Pop the last of the scope.
-    pub(crate) fn pop_last(&mut self, span: &dyn Spanned) -> compile::Result<Scope> {
-        self.pop(ScopeGuard(1), span)
-    }
-
-    /// Pop the last scope and compare with the expected length.
-    pub(crate) fn pop_unchecked(&mut self, span: &dyn Spanned) -> compile::Result<Scope> {
-        let scope = self
-            .scopes
-            .pop()
-            .ok_or_else(|| compile::Error::msg(span, "missing parent scope"))?;
+    pub(crate) fn pop(&mut self, span: &dyn Spanned) -> compile::Result<Scope> {
+        let Some(scope) = self.scopes.pop() else {
+            return Err(compile::Error::msg(span, "missing parent scope"));
+        };
 
         Ok(scope)
     }
 
     /// Construct a new child scope and return its guard.
-    pub(crate) fn push_child(&mut self, span: &dyn Spanned) -> compile::Result<ScopeGuard> {
+    pub(crate) fn push_child(&mut self, span: &dyn Spanned) -> compile::Result<()> {
         let scope = self.last(span)?.child();
-        Ok(self.push(scope))
+        self.push(scope);
+        Ok(())
     }
 
     /// Construct a new child scope.
