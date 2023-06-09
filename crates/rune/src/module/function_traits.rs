@@ -1,5 +1,7 @@
 use core::future::Future;
 
+use futures_util::never::Never;
+
 use crate::runtime::{self, Stack, ToValue, TypeOf, UnsafeFromValue, VmErrorKind, VmResult};
 
 macro_rules! check_args {
@@ -10,17 +12,6 @@ macro_rules! check_args {
                 expected: $expected,
             });
         }
-    };
-}
-
-// Expand to function variable bindings.
-macro_rules! unsafe_vars {
-    ($count:expr, $($ty:ty, $var:ident, $num:expr,)*) => {
-        $(
-            let $var = vm_try!(<$ty>::from_value($var).with_error(|| VmErrorKind::BadArgument {
-                arg: $num,
-            }));
-        )*
     };
 }
 
@@ -74,6 +65,10 @@ pub trait FunctionPrefix<Marker>: 'static + Send + Sync {
 
     /// A tuple representing the argument type.
     #[doc(hidden)]
+    type FirstArg;
+
+    /// A tuple representing the argument type.
+    #[doc(hidden)]
     type Arguments;
 
     /// The raw return type of the function.
@@ -114,48 +109,14 @@ pub trait Function<Marker, K>: FunctionPrefix<Marker> {
     fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()>;
 }
 
-pub trait InstanceFunctionPrefix<Marker>: 'static + Send + Sync {
-    /// An object guarding the lifetime of the arguments.
-    type Guard;
-
-    /// The type of the instance.
-    #[doc(hidden)]
-    type Instance: TypeOf;
-
-    /// A tuple representing the argument type.
-    #[doc(hidden)]
-    type Arguments;
-
-    /// The raw return type of the function.
-    #[doc(hidden)]
-    type RawReturn;
-
-    /// Get the number of arguments.
-    #[doc(hidden)]
-    fn args() -> usize;
-
-    /// Safety: We hold a reference to the stack, so we can
-    /// guarantee that it won't be modified.
-    ///
-    /// The scope is also necessary, since we mutably access `stack`
-    /// when we return below.
-    #[must_use]
-    #[doc(hidden)]
-    unsafe fn fn_call_raw(
-        &self,
-        stack: &mut Stack,
-        args: usize,
-    ) -> VmResult<(Self::RawReturn, Self::Guard)>;
-
-    /// This can be cleaned up once the arguments are no longer in use.
-    #[doc(hidden)]
-    unsafe fn drop_guard(guard: Self::Guard);
-}
-
 /// Trait used to provide the [`associated_function`] function.
 ///
 /// [`associated_function`]: crate::module::Module::associated_function
-pub trait InstanceFunction<Marker, K>: InstanceFunctionPrefix<Marker> {
+pub trait InstanceFunction<Marker, K>: FunctionPrefix<Marker> {
+    /// The return type of the function.
+    #[doc(hidden)]
+    type Instance: TypeOf;
+
     /// The return type of the function.
     #[doc(hidden)]
     type Return;
@@ -165,40 +126,35 @@ pub trait InstanceFunction<Marker, K>: InstanceFunctionPrefix<Marker> {
     fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()>;
 }
 
+impl<U, T> FunctionPrefix<fn() -> U> for T
+where
+    T: 'static + Send + Sync + Fn() -> U,
+{
+    type FirstArg = Never;
+    type Arguments = ();
+    type RawReturn = U;
+    type Guard = ();
+    fn args() -> usize {
+        0
+    }
+    unsafe fn fn_call_raw(&self, stack: &mut Stack, args: usize) -> VmResult<(U, Self::Guard)> {
+        check_args!(0, args);
+        let [] = vm_try!(stack.drain_vec(0));
+        let that = self();
+        VmResult::Ok((that, ()))
+    }
+    unsafe fn drop_guard(_guard: Self::Guard) {}
+}
+
 macro_rules! impl_register {
     ($count:expr $(, $ty:ident $var:ident $num:expr)*) => {
-        impl<U, T, $($ty),*> FunctionPrefix<fn($($ty,)*) -> U> for T
-        where
-            T: 'static + Send + Sync + Fn($($ty,)*) -> U,
-            $($ty: UnsafeFromValue,)*
-        {
-            type Arguments = ($($ty,)*);
-            type RawReturn = U;
-            type Guard = ($($ty::Guard,)*);
-            fn args() -> usize {
-                $count
-            }
-            unsafe fn fn_call_raw(&self, stack: &mut Stack, args: usize) -> VmResult<(U, Self::Guard)> {
-                check_args!($count, args);
-                let [$($var,)*] = vm_try!(stack.drain_vec($count));
-
-                unsafe_vars!($count, $($ty, $var, $num,)*);
-                let that = self($(<$ty>::unsafe_coerce($var.0),)*);
-                VmResult::Ok((that, ($($var.1,)*)))
-            }
-            unsafe fn drop_guard(guard: Self::Guard) {
-                let ($($var,)*) = guard;
-                $(drop(($var));)*
-            }
-        }
-
-        impl<U, T, Instance, $($ty),*> InstanceFunctionPrefix<fn(Instance, $($ty,)*) -> U> for T
+        impl<U, T, Instance, $($ty),*> FunctionPrefix<fn(Instance, $($ty,)*) -> U> for T
         where
             T: 'static + Send + Sync + Fn(Instance, $($ty,)*) -> U,
-            Instance: UnsafeFromValue + TypeOf,
+            Instance: UnsafeFromValue,
             $($ty: UnsafeFromValue,)*
         {
-            type Instance = Instance;
+            type FirstArg = Instance;
             type Arguments = (Instance, $($ty,)*);
             type RawReturn = U;
             type Guard = (Instance::Guard, $($ty::Guard,)*);
@@ -278,18 +234,19 @@ where
 
 impl<'a, T, Marker> InstanceFunction<Marker, Plain> for T
 where
-    T: InstanceFunctionPrefix<Marker>,
-    <T as InstanceFunctionPrefix<Marker>>::RawReturn: ToValue,
+    T: FunctionPrefix<Marker>,
+    <T as FunctionPrefix<Marker>>::FirstArg: TypeOf,
+    <T as FunctionPrefix<Marker>>::RawReturn: ToValue,
 {
-    type Return = <T as InstanceFunctionPrefix<Marker>>::RawReturn;
+    type Instance = <T as FunctionPrefix<Marker>>::FirstArg;
+    type Return = <T as FunctionPrefix<Marker>>::RawReturn;
 
     fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
-        let (ret, guard) = vm_try!(unsafe {
-            <T as InstanceFunctionPrefix<Marker>>::fn_call_raw(self, stack, args)
-        });
+        let (ret, guard) =
+            vm_try!(unsafe { <T as FunctionPrefix<Marker>>::fn_call_raw(self, stack, args) });
 
         unsafe {
-            <T as InstanceFunctionPrefix<Marker>>::drop_guard(guard);
+            <T as FunctionPrefix<Marker>>::drop_guard(guard);
         }
 
         let ret = vm_try!(ret.to_value());
@@ -300,17 +257,18 @@ where
 
 impl<'a, T, Marker> InstanceFunction<Marker, Async> for T
 where
-    T: InstanceFunctionPrefix<Marker>,
-    <T as InstanceFunctionPrefix<Marker>>::Guard: 'static,
-    <T as InstanceFunctionPrefix<Marker>>::RawReturn: 'static + Future,
-    <<T as InstanceFunctionPrefix<Marker>>::RawReturn as Future>::Output: ToValue,
+    T: FunctionPrefix<Marker>,
+    <T as FunctionPrefix<Marker>>::FirstArg: TypeOf,
+    <T as FunctionPrefix<Marker>>::Guard: 'static,
+    <T as FunctionPrefix<Marker>>::RawReturn: 'static + Future,
+    <<T as FunctionPrefix<Marker>>::RawReturn as Future>::Output: ToValue,
 {
-    type Return = <<T as InstanceFunctionPrefix<Marker>>::RawReturn as Future>::Output;
+    type Instance = <T as FunctionPrefix<Marker>>::FirstArg;
+    type Return = <<T as FunctionPrefix<Marker>>::RawReturn as Future>::Output;
 
     fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
-        let (fut, guard) = vm_try!(unsafe {
-            <T as InstanceFunctionPrefix<Marker>>::fn_call_raw(self, stack, args)
-        });
+        let (fut, guard) =
+            vm_try!(unsafe { <T as FunctionPrefix<Marker>>::fn_call_raw(self, stack, args) });
 
         // Safety: Future is owned and will only be called within the
         // context of the virtual machine, which will provide
@@ -320,7 +278,7 @@ where
         let ret = unsafe {
             runtime::Future::new(async move {
                 let ret = fut.await;
-                <T as InstanceFunctionPrefix<Marker>>::drop_guard(guard);
+                <T as FunctionPrefix<Marker>>::drop_guard(guard);
                 let ret = vm_try!(ret.to_value());
                 VmResult::Ok(ret)
             })
