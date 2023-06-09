@@ -1,6 +1,6 @@
 [package]
 name = "rune-modules"
-version = "0.12.3"
+version = "0.12.4"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
 rust-version = "1.63"
@@ -41,7 +41,7 @@ toml = { version = "0.5.8", optional = true }
 nanorand = { version = "0.6.1", optional = true, features = ["getrandom"] }
 parking_lot = { version = "0.11.2", optional = true }
 
-rune = { version = "0.12.3", path = "../rune" }
+rune = { version = "0.12.4", path = "../rune" }
 
 [package.metadata.docs.rs]
 all-features = true

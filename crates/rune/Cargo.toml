@@ -1,6 +1,6 @@
 [package]
 name = "rune"
-version = "0.12.3"
+version = "0.12.4"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
 rust-version = "1.63"
@@ -45,7 +45,7 @@ relative-path = { version = "1.6.0", optional = true, features = ["serde"] }
 serde-hashkey = { version = "0.4.0", optional = true }
 linked-hash-map = "0.5.6"
 
-rune-macros = { version = "=0.12.3", path = "../rune-macros" }
+rune-macros = { version = "=0.12.4", path = "../rune-macros" }
 
 [dev-dependencies]
 tokio = { version = "1.14.0", features = ["macros"] }
