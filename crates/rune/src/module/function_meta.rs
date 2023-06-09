@@ -63,13 +63,13 @@ pub struct FunctionData {
 
 impl FunctionData {
     #[inline]
-    pub(crate) fn new<F, A, N, K>(name: N, f: F) -> Self
+    pub(crate) fn new<F, M, N, K>(name: N, f: F) -> Self
     where
-        F: Function<A, K>,
+        F: Function<M, K>,
         F::Return: MaybeTypeOf,
         N: IntoIterator,
         N::Item: IntoComponent,
-        A: FunctionArgs,
+        F::Arguments: FunctionArgs,
         K: FunctionKind,
     {
         Self {
@@ -82,7 +82,7 @@ impl FunctionData {
             #[cfg(feature = "doc")]
             return_type: F::Return::maybe_type_of(),
             #[cfg(feature = "doc")]
-            argument_types: A::into_box(),
+            argument_types: F::Arguments::into_box(),
         }
     }
 }
@@ -217,11 +217,11 @@ pub struct AssociatedFunctionData {
 
 impl AssociatedFunctionData {
     #[inline]
-    pub(crate) fn new<F, A, K>(name: AssociatedFunctionName, f: F) -> Self
+    pub(crate) fn new<F, M, K>(name: AssociatedFunctionName, f: F) -> Self
     where
-        F: InstanceFunction<A, K>,
+        F: InstanceFunction<M, K>,
         F::Return: MaybeTypeOf,
-        A: FunctionArgs,
+        F::Arguments: FunctionArgs,
         K: FunctionKind,
     {
         Self {
@@ -236,7 +236,7 @@ impl AssociatedFunctionData {
             #[cfg(feature = "doc")]
             return_type: F::Return::maybe_type_of(),
             #[cfg(feature = "doc")]
-            argument_types: A::into_box(),
+            argument_types: F::Arguments::into_box(),
         }
     }
 
@@ -266,11 +266,11 @@ pub enum FunctionMetaKind {
 impl FunctionMetaKind {
     #[doc(hidden)]
     #[inline]
-    pub fn function<N, F, A, K>(name: N, f: F) -> FunctionBuilder<N, F, A, K>
+    pub fn function<N, F, M, K>(name: N, f: F) -> FunctionBuilder<N, F, M, K>
     where
-        F: Function<A, K>,
+        F: Function<M, K>,
         F::Return: MaybeTypeOf,
-        A: FunctionArgs,
+        F::Arguments: FunctionArgs,
         K: FunctionKind,
     {
         FunctionBuilder {
@@ -282,12 +282,12 @@ impl FunctionMetaKind {
 
     #[doc(hidden)]
     #[inline]
-    pub fn instance<N, F, A, K>(name: N, f: F) -> Self
+    pub fn instance<N, F, M, K>(name: N, f: F) -> Self
     where
         N: ToInstance,
-        F: InstanceFunction<A, K>,
+        F: InstanceFunction<M, K>,
         F::Return: MaybeTypeOf,
-        A: FunctionArgs,
+        F::Arguments: FunctionArgs,
         K: FunctionKind,
     {
         Self::AssociatedFunction(AssociatedFunctionData::new(name.to_instance(), f))
@@ -295,17 +295,17 @@ impl FunctionMetaKind {
 }
 
 #[doc(hidden)]
-pub struct FunctionBuilder<N, F, A, K> {
+pub struct FunctionBuilder<N, F, M, K> {
     name: N,
     f: F,
-    _marker: PhantomData<(A, K)>,
+    _marker: PhantomData<(M, K)>,
 }
 
-impl<N, F, A, K> FunctionBuilder<N, F, A, K>
+impl<N, F, M, K> FunctionBuilder<N, F, M, K>
 where
-    F: Function<A, K>,
+    F: Function<M, K>,
     F::Return: MaybeTypeOf,
-    A: FunctionArgs,
+    F::Arguments: FunctionArgs,
     K: FunctionKind,
 {
     #[doc(hidden)]
@@ -337,7 +337,7 @@ where
             #[cfg(feature = "doc")]
             return_type: F::Return::maybe_type_of(),
             #[cfg(feature = "doc")]
-            argument_types: A::into_box(),
+            argument_types: F::Arguments::into_box(),
         })
     }
 }

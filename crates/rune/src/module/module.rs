@@ -302,13 +302,13 @@ impl Module {
 
     /// Register a variant constructor for type `T`.
     #[deprecated = "Use variant_meta() instead"]
-    pub fn variant_constructor<F, A>(
+    pub fn variant_constructor<F, M>(
         &mut self,
         index: usize,
         constructor: F,
     ) -> Result<(), ContextError>
     where
-        F: Function<A, Plain>,
+        F: Function<M, Plain>,
         F::Return: Named + TypeOf,
     {
         self.variant_meta::<F::Return>(index)?
@@ -843,13 +843,13 @@ impl Module {
     ///     .docs(["Download a random quote from the internet."]);
     /// # Ok::<_, rune::Error>(())
     /// ```
-    pub fn function<F, A, N, K>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
+    pub fn function<F, M, N, K>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
     where
-        F: Function<A, K>,
+        F: Function<M, K>,
         F::Return: MaybeTypeOf,
         N: IntoIterator,
         N::Item: IntoComponent,
-        A: FunctionArgs,
+        F::Arguments: FunctionArgs,
         K: FunctionKind,
     {
         self.function_inner(FunctionData::new(name, f), Docs::EMPTY)
@@ -857,13 +857,13 @@ impl Module {
 
     /// See [`Module::function`].
     #[deprecated = "Use Module::function() instead"]
-    pub fn async_function<F, A, N>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
+    pub fn async_function<F, M, N>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
     where
-        F: Function<A, Async>,
+        F: Function<M, Async>,
         F::Return: MaybeTypeOf,
         N: IntoIterator,
         N::Item: IntoComponent,
-        A: FunctionArgs,
+        F::Arguments: FunctionArgs,
     {
         self.function_inner(FunctionData::new(name, f), Docs::EMPTY)
     }
@@ -942,16 +942,16 @@ impl Module {
     ///     .docs(["Download a thing."]);
     /// # Ok::<_, rune::Error>(())
     /// ```
-    pub fn associated_function<N, F, A, K>(
+    pub fn associated_function<N, F, M, K>(
         &mut self,
         name: N,
         f: F,
     ) -> Result<ItemMut<'_>, ContextError>
     where
         N: ToInstance,
-        F: InstanceFunction<A, K>,
+        F: InstanceFunction<M, K>,
         F::Return: MaybeTypeOf,
-        A: FunctionArgs,
+        F::Arguments: FunctionArgs,
         K: FunctionKind,
     {
         self.assoc_fn(
@@ -963,12 +963,12 @@ impl Module {
     /// See [`Module::associated_function`].
     #[deprecated = "Use Module::associated_function() instead"]
     #[inline]
-    pub fn inst_fn<N, F, A, K>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
+    pub fn inst_fn<N, F, M, K>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
     where
         N: ToInstance,
-        F: InstanceFunction<A, K>,
+        F: InstanceFunction<M, K>,
         F::Return: MaybeTypeOf,
-        A: FunctionArgs,
+        F::Arguments: FunctionArgs,
         K: FunctionKind,
     {
         self.associated_function(name, f)
@@ -976,12 +976,12 @@ impl Module {
 
     /// See [`Module::associated_function`].
     #[deprecated = "Use Module::associated_function() instead"]
-    pub fn async_inst_fn<N, F, A>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
+    pub fn async_inst_fn<N, F, M>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
     where
         N: ToInstance,
-        F: InstanceFunction<A, Async>,
+        F: InstanceFunction<M, Async>,
         F::Return: MaybeTypeOf,
-        A: FunctionArgs,
+        F::Arguments: FunctionArgs,
     {
         self.associated_function(name, f)
     }
@@ -990,7 +990,7 @@ impl Module {
     ///
     /// This returns a [`ItemMut`], which is a handle that can be used to
     /// associate more metadata with the inserted item.
-    pub fn field_function<N, F, A>(
+    pub fn field_function<N, F, M>(
         &mut self,
         protocol: Protocol,
         name: N,
@@ -998,9 +998,9 @@ impl Module {
     ) -> Result<ItemMut<'_>, ContextError>
     where
         N: ToFieldFunction,
-        F: InstanceFunction<A, Plain>,
+        F: InstanceFunction<M, Plain>,
         F::Return: MaybeTypeOf,
-        A: FunctionArgs,
+        F::Arguments: FunctionArgs,
     {
         self.assoc_fn(
             AssociatedFunctionData::new(name.to_field_function(protocol), f),
@@ -1011,7 +1011,7 @@ impl Module {
     /// See [`Module::field_function`].
     #[deprecated = "Use Module::field_function() instead"]
     #[inline]
-    pub fn field_fn<N, F, A>(
+    pub fn field_fn<N, F, M>(
         &mut self,
         protocol: Protocol,
         name: N,
@@ -1019,9 +1019,9 @@ impl Module {
     ) -> Result<ItemMut<'_>, ContextError>
     where
         N: ToFieldFunction,
-        F: InstanceFunction<A, Plain>,
+        F: InstanceFunction<M, Plain>,
         F::Return: MaybeTypeOf,
-        A: FunctionArgs,
+        F::Arguments: FunctionArgs,
     {
         self.field_function(protocol, name, f)
     }
@@ -1030,16 +1030,16 @@ impl Module {
     ///
     /// An index can either be a field inside a tuple, or a variant inside of an
     /// enum as configured with [Module::enum_meta].
-    pub fn index_function<F, A>(
+    pub fn index_function<F, M>(
         &mut self,
         protocol: Protocol,
         index: usize,
         f: F,
     ) -> Result<ItemMut<'_>, ContextError>
     where
-        F: InstanceFunction<A, Plain>,
+        F: InstanceFunction<M, Plain>,
         F::Return: MaybeTypeOf,
-        A: FunctionArgs,
+        F::Arguments: FunctionArgs,
     {
         let name = AssociatedFunctionName::index(protocol, index);
         self.assoc_fn(AssociatedFunctionData::new(name, f), Docs::EMPTY)
@@ -1048,16 +1048,16 @@ impl Module {
     /// See [`Module::index_function`].
     #[deprecated = "Use Module::index_function() instead"]
     #[inline]
-    pub fn index_fn<F, A>(
+    pub fn index_fn<F, M>(
         &mut self,
         protocol: Protocol,
         index: usize,
         f: F,
     ) -> Result<ItemMut<'_>, ContextError>
     where
-        F: InstanceFunction<A, Plain>,
+        F: InstanceFunction<M, Plain>,
         F::Return: MaybeTypeOf,
-        A: FunctionArgs,
+        F::Arguments: FunctionArgs,
     {
         self.index_function(protocol, index, f)
     }

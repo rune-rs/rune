@@ -77,14 +77,14 @@ impl InternalEnum {
     }
 
     /// Register a new variant.
-    fn variant<C, A>(
+    fn variant<C, M>(
         &mut self,
         name: &'static str,
         type_check: TypeCheck,
         constructor: C,
     ) -> ItemMut<'_>
     where
-        C: Function<A, Plain>,
+        C: Function<M, Plain>,
     {
         let constructor: Arc<FunctionHandler> =
             Arc::new(move |stack, args| constructor.fn_call(stack, args));
@@ -335,9 +335,9 @@ where
     }
 
     /// Register a constructor method for the current variant.
-    pub fn constructor<F, A>(self, constructor: F) -> Result<Self, ContextError>
+    pub fn constructor<F, M>(self, constructor: F) -> Result<Self, ContextError>
     where
-        F: Function<A, Plain, Return = T>,
+        F: Function<M, Plain, Return = T>,
     {
         if self.constructor.is_some() {
             return Err(ContextError::VariantConstructorConflict {

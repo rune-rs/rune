@@ -24,13 +24,6 @@ macro_rules! unsafe_vars {
     };
 }
 
-// Helper variation to drop all stack guards associated with the specified variables.
-macro_rules! drop_stack_guards {
-    ($($var:ident),* $(,)?) => {{
-        $(drop(($var.1));)*
-    }};
-}
-
 // Expand to instance variable bindings.
 macro_rules! unsafe_inst_vars {
     ($inst:ident, $count:expr, $($ty:ty, $var:ident, $num:expr,)*) => {
@@ -75,37 +68,97 @@ impl FunctionKind for Async {
     }
 }
 
-/// Trait used to provide the [function][crate::module::Module::function]
-/// function.
-pub trait Function<A, K>: 'static + Send + Sync {
-    /// The return type of the function.
+pub trait FunctionPrefix<Marker>: 'static + Send + Sync {
+    /// An object guarding the lifetime of the arguments.
+    type Guard;
+
+    /// A tuple representing the argument type.
     #[doc(hidden)]
-    type Return;
+    type Arguments;
+
+    /// The raw return type of the function.
+    #[doc(hidden)]
+    type RawReturn;
 
     /// Get the number of arguments.
     #[doc(hidden)]
     fn args() -> usize;
+
+    /// Safety: We hold a reference to the stack, so we can
+    /// guarantee that it won't be modified.
+    ///
+    /// The scope is also necessary, since we mutably access `stack`
+    /// when we return below.
+    #[must_use]
+    #[doc(hidden)]
+    unsafe fn fn_call_raw(
+        &self,
+        stack: &mut Stack,
+        args: usize,
+    ) -> VmResult<(Self::RawReturn, Self::Guard)>;
+
+    /// This can be cleaned up once the arguments are no longer in use.
+    #[doc(hidden)]
+    unsafe fn drop_guard(guard: Self::Guard);
+}
+
+/// Trait used to provide the [function][crate::module::Module::function]
+/// function.
+pub trait Function<Marker, K>: FunctionPrefix<Marker> {
+    /// The return type of the function.
+    #[doc(hidden)]
+    type Return;
 
     /// Perform the vm call.
     #[doc(hidden)]
     fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()>;
 }
 
-/// Trait used to provide the [`associated_function`] function.
-///
-/// [`associated_function`]: crate::module::Module::associated_function
-pub trait InstanceFunction<A, K>: 'static + Send + Sync {
+pub trait InstanceFunctionPrefix<Marker>: 'static + Send + Sync {
+    /// An object guarding the lifetime of the arguments.
+    type Guard;
+
     /// The type of the instance.
     #[doc(hidden)]
     type Instance: TypeOf;
 
-    /// The return type of the function.
+    /// A tuple representing the argument type.
     #[doc(hidden)]
-    type Return;
+    type Arguments;
+
+    /// The raw return type of the function.
+    #[doc(hidden)]
+    type RawReturn;
 
     /// Get the number of arguments.
     #[doc(hidden)]
     fn args() -> usize;
+
+    /// Safety: We hold a reference to the stack, so we can
+    /// guarantee that it won't be modified.
+    ///
+    /// The scope is also necessary, since we mutably access `stack`
+    /// when we return below.
+    #[must_use]
+    #[doc(hidden)]
+    unsafe fn fn_call_raw(
+        &self,
+        stack: &mut Stack,
+        args: usize,
+    ) -> VmResult<(Self::RawReturn, Self::Guard)>;
+
+    /// This can be cleaned up once the arguments are no longer in use.
+    #[doc(hidden)]
+    unsafe fn drop_guard(guard: Self::Guard);
+}
+
+/// Trait used to provide the [`associated_function`] function.
+///
+/// [`associated_function`]: crate::module::Module::associated_function
+pub trait InstanceFunction<Marker, K>: InstanceFunctionPrefix<Marker> {
+    /// The return type of the function.
+    #[doc(hidden)]
+    type Return;
 
     /// Perform the vm call.
     #[doc(hidden)]
@@ -114,162 +167,169 @@ pub trait InstanceFunction<A, K>: 'static + Send + Sync {
 
 macro_rules! impl_register {
     ($count:expr $(, $ty:ident $var:ident $num:expr)*) => {
-        impl<T, U, $($ty,)*> Function<($($ty,)*), Plain> for T
+        impl<U, T, $($ty),*> FunctionPrefix<fn($($ty,)*) -> U> for T
         where
             T: 'static + Send + Sync + Fn($($ty,)*) -> U,
-            U: ToValue,
             $($ty: UnsafeFromValue,)*
         {
-            type Return = U;
-
+            type Arguments = ($($ty,)*);
+            type RawReturn = U;
+            type Guard = ($($ty::Guard,)*);
             fn args() -> usize {
                 $count
             }
-
-            fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
+            unsafe fn fn_call_raw(&self, stack: &mut Stack, args: usize) -> VmResult<(U, Self::Guard)> {
                 check_args!($count, args);
                 let [$($var,)*] = vm_try!(stack.drain_vec($count));
 
-                // Safety: We hold a reference to the stack, so we can
-                // guarantee that it won't be modified.
-                //
-                // The scope is also necessary, since we mutably access `stack`
-                // when we return below.
-                #[allow(unused)]
-                let ret = unsafe {
-                    unsafe_vars!($count, $($ty, $var, $num,)*);
-                    let ret = self($(<$ty>::unsafe_coerce($var.0),)*);
-                    drop_stack_guards!($($var),*);
-                    ret
-                };
-
-                let ret = vm_try!(ret.to_value());
-                stack.push(ret);
-                VmResult::Ok(())
+                unsafe_vars!($count, $($ty, $var, $num,)*);
+                let that = self($(<$ty>::unsafe_coerce($var.0),)*);
+                VmResult::Ok((that, ($($var.1,)*)))
+            }
+            unsafe fn drop_guard(guard: Self::Guard) {
+                let ($($var,)*) = guard;
+                $(drop(($var));)*
             }
         }
 
-        impl<T, U, $($ty,)*> Function<($($ty,)*), Async> for T
+        impl<U, T, Instance, $($ty),*> InstanceFunctionPrefix<fn(Instance, $($ty,)*) -> U> for T
         where
-            T: 'static + Send + Sync + Fn($($ty,)*) -> U,
-            U: 'static + Future,
-            U::Output: ToValue,
-            $($ty: 'static + UnsafeFromValue,)*
-        {
-            type Return = U::Output;
-
-            fn args() -> usize {
-                $count
-            }
-
-            fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
-                check_args!($count, args);
-                let [$($var,)*] = vm_try!(stack.drain_vec($count));
-
-                // Safety: Future is owned and will only be called within the
-                // context of the virtual machine, which will provide
-                // exclusive thread-local access to itself while the future is
-                // being polled.
-                #[allow(unused_unsafe)]
-                let ret = unsafe {
-                    unsafe_vars!($count, $($ty, $var, $num,)*);
-                    let fut = self($(<$ty>::unsafe_coerce($var.0),)*);
-
-                    runtime::Future::new(async move {
-                        let output = fut.await;
-                        drop_stack_guards!($($var),*);
-                        let value = vm_try!(output.to_value());
-                        VmResult::Ok(value)
-                    })
-                };
-
-                let ret = vm_try!(ret.to_value());
-                stack.push(ret);
-                VmResult::Ok(())
-            }
-        }
-
-        impl<T, U, Instance, $($ty,)*> InstanceFunction<(Instance, $($ty,)*), Plain> for T
-        where
-            T: 'static + Send + Sync + Fn(Instance $(, $ty)*) -> U,
-            U: ToValue,
+            T: 'static + Send + Sync + Fn(Instance, $($ty,)*) -> U,
             Instance: UnsafeFromValue + TypeOf,
             $($ty: UnsafeFromValue,)*
         {
             type Instance = Instance;
-            type Return = U;
-
-            #[inline]
+            type Arguments = (Instance, $($ty,)*);
+            type RawReturn = U;
+            type Guard = (Instance::Guard, $($ty::Guard,)*);
             fn args() -> usize {
                 $count + 1
             }
+            unsafe fn fn_call_raw(&self, stack: &mut Stack, args: usize) -> VmResult<(U, Self::Guard)> {
+                check_args!($count+1, args);
+                let [inst $(, $var)*] = vm_try!(stack.drain_vec($count+1));
 
-            fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
-                check_args!(($count + 1), args);
-                let [inst $(, $var)*] = vm_try!(stack.drain_vec($count + 1));
-
-                // Safety: We hold a reference to the stack, so we can
-                // guarantee that it won't be modified.
-                //
-                // The scope is also necessary, since we mutably access `stack`
-                // when we return below.
-                #[allow(unused)]
-                let ret = unsafe {
-                    unsafe_inst_vars!(inst, $count, $($ty, $var, $num,)*);
-                    let ret = self(Instance::unsafe_coerce(inst.0), $(<$ty>::unsafe_coerce($var.0),)*);
-                    drop_stack_guards!(inst, $($var),*);
-                    ret
-                };
-
-                let ret = vm_try!(ret.to_value());
-                stack.push(ret);
-                VmResult::Ok(())
+                unsafe_inst_vars!(inst, $count, $($ty, $var, $num,)*);
+                let that = self(Instance::unsafe_coerce(inst.0), $(<$ty>::unsafe_coerce($var.0),)*);
+                VmResult::Ok((that, (inst.1, $($var.1,)*)))
             }
-        }
-
-        impl<T, U, Instance, $($ty,)*> InstanceFunction<(Instance, $($ty,)*), Async> for T
-        where
-            T: 'static + Send + Sync + Fn(Instance $(, $ty)*) -> U,
-            U: 'static + Future,
-            U::Output: ToValue,
-            Instance: UnsafeFromValue + TypeOf,
-            $($ty: UnsafeFromValue,)*
-        {
-            type Instance = Instance;
-            type Return = U::Output;
-
-            #[inline]
-            fn args() -> usize {
-                $count + 1
-            }
-
-            fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
-                check_args!(($count + 1), args);
-                let [inst $(, $var)*] = vm_try!(stack.drain_vec($count + 1));
-
-                // Safety: Future is owned and will only be called within the
-                // context of the virtual machine, which will provide
-                // exclusive thread-local access to itself while the future is
-                // being polled.
-                #[allow(unused)]
-                let ret = unsafe {
-                    unsafe_inst_vars!(inst, $count, $($ty, $var, $num,)*);
-                    let fut = self(Instance::unsafe_coerce(inst.0), $(<$ty>::unsafe_coerce($var.0),)*);
-
-                    runtime::Future::new(async move {
-                        let output = fut.await;
-                        drop_stack_guards!(inst, $($var),*);
-                        let value = vm_try!(output.to_value());
-                        VmResult::Ok(value)
-                    })
-                };
-
-                let ret = vm_try!(ret.to_value());
-                stack.push(ret);
-                VmResult::Ok(())
+            unsafe fn drop_guard(guard: Self::Guard) {
+                let (inst, $($var,)*) = guard;
+                drop(inst);
+                $(drop(($var));)*
             }
         }
     };
+}
+
+impl<'a, T, Marker> Function<Marker, Plain> for T
+where
+    T: FunctionPrefix<Marker>,
+    <T as FunctionPrefix<Marker>>::RawReturn: ToValue,
+{
+    type Return = <T as FunctionPrefix<Marker>>::RawReturn;
+
+    fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
+        let (ret, guard) =
+            vm_try!(unsafe { <T as FunctionPrefix<Marker>>::fn_call_raw(self, stack, args) });
+
+        unsafe {
+            <T as FunctionPrefix<Marker>>::drop_guard(guard);
+        }
+
+        let ret = vm_try!(ret.to_value());
+        stack.push(ret);
+        VmResult::Ok(())
+    }
+}
+
+impl<'a, T, Marker> Function<Marker, Async> for T
+where
+    T: FunctionPrefix<Marker>,
+    <T as FunctionPrefix<Marker>>::Guard: 'static,
+    <T as FunctionPrefix<Marker>>::RawReturn: 'static + Future,
+    <<T as FunctionPrefix<Marker>>::RawReturn as Future>::Output: ToValue,
+{
+    type Return = <<T as FunctionPrefix<Marker>>::RawReturn as Future>::Output;
+
+    fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
+        let (fut, guard) =
+            vm_try!(unsafe { <T as FunctionPrefix<Marker>>::fn_call_raw(self, stack, args) });
+
+        // Safety: Future is owned and will only be called within the
+        // context of the virtual machine, which will provide
+        // exclusive thread-local access to itself while the future is
+        // being polled.
+        #[allow(unused)]
+        let ret = unsafe {
+            runtime::Future::new(async move {
+                let ret = fut.await;
+                <T as FunctionPrefix<Marker>>::drop_guard(guard);
+                let ret = vm_try!(ret.to_value());
+                VmResult::Ok(ret)
+            })
+        };
+
+        let ret = vm_try!(ret.to_value());
+        stack.push(ret);
+        VmResult::Ok(())
+    }
+}
+
+impl<'a, T, Marker> InstanceFunction<Marker, Plain> for T
+where
+    T: InstanceFunctionPrefix<Marker>,
+    <T as InstanceFunctionPrefix<Marker>>::RawReturn: ToValue,
+{
+    type Return = <T as InstanceFunctionPrefix<Marker>>::RawReturn;
+
+    fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
+        let (ret, guard) = vm_try!(unsafe {
+            <T as InstanceFunctionPrefix<Marker>>::fn_call_raw(self, stack, args)
+        });
+
+        unsafe {
+            <T as InstanceFunctionPrefix<Marker>>::drop_guard(guard);
+        }
+
+        let ret = vm_try!(ret.to_value());
+        stack.push(ret);
+        VmResult::Ok(())
+    }
+}
+
+impl<'a, T, Marker> InstanceFunction<Marker, Async> for T
+where
+    T: InstanceFunctionPrefix<Marker>,
+    <T as InstanceFunctionPrefix<Marker>>::Guard: 'static,
+    <T as InstanceFunctionPrefix<Marker>>::RawReturn: 'static + Future,
+    <<T as InstanceFunctionPrefix<Marker>>::RawReturn as Future>::Output: ToValue,
+{
+    type Return = <<T as InstanceFunctionPrefix<Marker>>::RawReturn as Future>::Output;
+
+    fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
+        let (fut, guard) = vm_try!(unsafe {
+            <T as InstanceFunctionPrefix<Marker>>::fn_call_raw(self, stack, args)
+        });
+
+        // Safety: Future is owned and will only be called within the
+        // context of the virtual machine, which will provide
+        // exclusive thread-local access to itself while the future is
+        // being polled.
+        #[allow(unused)]
+        let ret = unsafe {
+            runtime::Future::new(async move {
+                let ret = fut.await;
+                <T as InstanceFunctionPrefix<Marker>>::drop_guard(guard);
+                let ret = vm_try!(ret.to_value());
+                VmResult::Ok(ret)
+            })
+        };
+
+        let ret = vm_try!(ret.to_value());
+        stack.push(ret);
+        VmResult::Ok(())
+    }
 }
 
 repeat_macro!(impl_register);
