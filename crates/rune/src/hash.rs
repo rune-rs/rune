@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 use std::any;
 use std::fmt;
 use std::hash::{self, BuildHasher, BuildHasherDefault, Hash as _, Hasher};
-use std::mem;
 use twox_hash::XxHash64;
 
 const SEP: u64 = 0x4bc94d6bd06053ad;
@@ -62,10 +61,38 @@ impl Hash {
     }
 
     /// Construct a hash from a type id.
-    pub const fn from_type_id(type_id: any::TypeId) -> Self {
-        // Safety: a type id is exactly a 64-bit unsigned integer.
-        // And has an identical bit pattern to `Hash`.
-        unsafe { mem::transmute(type_id) }
+    pub fn from_type_id(type_id: any::TypeId) -> Self {
+        // Note: we need to stop relying on the size of TypeId:
+        // https://github.com/rust-lang/rust/pull/109953
+        struct Capture(u64);
+
+        impl Hasher for Capture {
+            #[inline(always)]
+            fn finish(&self) -> u64 {
+                self.0
+            }
+
+            #[inline]
+            fn write_u64(&mut self, value: u64) {
+                self.0 ^= value;
+            }
+
+            #[inline]
+            fn write(&mut self, bytes: &[u8]) {
+                assert!(
+                    bytes.len() % core::mem::size_of::<u64>() == 0,
+                    "TypeId does not hash 64-bit aligned values"
+                );
+
+                for chunk in bytes.chunks_exact(8) {
+                    self.0 ^= u64::from_ne_bytes(core::array::from_fn(|n| chunk[n]));
+                }
+            }
+        }
+
+        let mut hasher = Capture(0);
+        type_id.hash(&mut hasher);
+        Self(hasher.finish())
     }
 
     /// Construct a hash to an instance function, where the instance is a
