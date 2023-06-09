@@ -65,7 +65,7 @@ impl Asm {
     fn apply_targeted(self, c: &mut Assembler) -> compile::Result<InstAddress> {
         let address = match self.kind {
             AsmKind::Top => {
-                c.scopes.alloc(&self.span)?;
+                c.scopes.decl_anon(&self.span)?;
                 InstAddress::Top
             }
             AsmKind::Var(var, ..) => InstAddress::Offset(var.offset),
@@ -90,7 +90,7 @@ fn return_<T>(
     // Top address produces an anonymous variable, which is consumed by the
     // return statement.
     if let InstAddress::Top = address {
-        c.scopes.free(span, 1)?;
+        c.scopes.undecl_anon(span, 1)?;
     }
 
     Ok(())
@@ -165,7 +165,7 @@ fn pat(
             }
             hir::PatPathKind::Ident(_, variable) => {
                 load(c, Needs::Value)?;
-                c.scopes.define(variable, hir)?;
+                c.scopes.decl_var(variable, hir)?;
                 Ok(false)
             }
         },
@@ -254,7 +254,7 @@ fn condition(
             let false_label = c.asm.new_label("if_condition_false");
 
             let scope = c.scopes.child(span)?;
-            c.scopes.push(scope);
+            let expected = c.scopes.push(scope);
 
             let load = |c: &mut Assembler<'_>, needs: Needs| {
                 expr(c, expr_let.expr, needs)?.apply(c)?;
@@ -268,7 +268,7 @@ fn condition(
                 c.asm.jump(then_label, span);
             };
 
-            let scope = c.scopes.pop(span)?;
+            let scope = c.scopes.pop(expected, span)?;
             Ok(scope)
         }
     }
@@ -286,7 +286,7 @@ fn pat_vec(
     // Assign the yet-to-be-verified tuple to an anonymous slot, so we can
     // interact with it multiple times.
     load(c, Needs::Value)?;
-    let offset = c.scopes.alloc(span)?;
+    let offset = c.scopes.decl_anon(span)?;
 
     // Copy the temporary and check that its length matches the pattern and
     // that it is indeed a vector.
@@ -340,7 +340,7 @@ fn pat_tuple(
 
     // Assign the yet-to-be-verified tuple to an anonymous slot, so we can
     // interact with it multiple times.
-    let offset = c.scopes.alloc(span)?;
+    let offset = c.scopes.decl_anon(span)?;
 
     let inst = to_tuple_match_instruction(hir.kind);
 
@@ -399,7 +399,7 @@ fn pat_object(
     // We reduce the number of copy operations by having specialized
     // operations perform the load from the given offset.
     load(c, Needs::Value)?;
-    let offset = c.scopes.alloc(span)?;
+    let offset = c.scopes.decl_anon(span)?;
 
     let mut string_slots = Vec::new();
 
@@ -454,7 +454,7 @@ fn pat_object(
             }
             hir::Binding::Ident(span, _, variable) => {
                 c.asm.push(Inst::ObjectIndexGetAt { offset, slot }, &span);
-                c.scopes.define(variable, &span)?;
+                c.scopes.decl_var(variable, &span)?;
             }
         }
     }
@@ -466,7 +466,7 @@ fn pat_object(
 #[instrument(span = hir)]
 fn block(c: &mut Assembler<'_>, hir: &hir::Block<'_>, needs: Needs) -> compile::Result<Asm> {
     c.contexts.push(hir.span());
-    c.scopes.push_child(hir)?;
+    let scopes_count = c.scopes.push_child(hir)?;
 
     let mut last = None::<(&hir::Expr<'_>, bool)>;
 
@@ -504,7 +504,7 @@ fn block(c: &mut Assembler<'_>, hir: &hir::Block<'_>, needs: Needs) -> compile::
         false
     };
 
-    let scope = c.scopes.pop(hir)?;
+    let scope = c.scopes.pop(scopes_count, hir)?;
 
     if needs.value() {
         if produced {
@@ -591,7 +591,7 @@ fn builtin_template(
 ) -> compile::Result<Asm> {
     let span = template;
 
-    c.scopes.push_child(span)?;
+    let expected = c.scopes.push_child(span)?;
     let mut size_hint = 0;
     let mut expansions = 0;
 
@@ -600,14 +600,14 @@ fn builtin_template(
             size_hint += s.len();
             let slot = c.q.unit.new_static_string(span, s)?;
             c.asm.push(Inst::String { slot }, span);
-            c.scopes.alloc(span)?;
+            c.scopes.decl_anon(span)?;
             continue;
         }
 
         expansions += 1;
 
         expr(c, hir, Needs::Value)?.apply(c)?;
-        c.scopes.alloc(span)?;
+        c.scopes.decl_anon(span)?;
     }
 
     if template.from_literal && expansions == 0 {
@@ -627,7 +627,7 @@ fn builtin_template(
         c.asm.push(Inst::Pop, span);
     }
 
-    let _ = c.scopes.pop(span)?;
+    let _ = c.scopes.pop(expected, span)?;
     Ok(Asm::top(span))
 }
 
@@ -734,7 +734,7 @@ fn expr(c: &mut Assembler<'_>, hir: &hir::Expr<'_>, needs: Needs) -> compile::Re
 
     let asm = match hir.kind {
         hir::ExprKind::SelfValue(variable) => {
-            let var = c.scopes.get(c.q.visitor, variable, c.source_id, span)?;
+            let var = c.scopes.get_var(c.q.visitor, variable, c.source_id, span)?;
 
             if needs.value() {
                 var.copy(c, span, SELF);
@@ -743,7 +743,7 @@ fn expr(c: &mut Assembler<'_>, hir: &hir::Expr<'_>, needs: Needs) -> compile::Re
             Asm::top(span)
         }
         hir::ExprKind::Variable(variable, name) => {
-            let var = c.scopes.get(c.q.visitor, variable, c.source_id, span)?;
+            let var = c.scopes.get_var(c.q.visitor, variable, c.source_id, span)?;
             Asm::var(span, var, name.into())
         }
         hir::ExprKind::Type(ty) => {
@@ -812,7 +812,7 @@ fn expr_assign(
         // <var> = <value>
         hir::ExprKind::Variable(variable, _) => {
             expr(c, hir.rhs, Needs::Value)?.apply(c)?;
-            let var = c.scopes.get(c.q.visitor, variable, c.source_id, span)?;
+            let var = c.scopes.get_var(c.q.visitor, variable, c.source_id, span)?;
             c.asm.push(Inst::Replace { offset: var.offset }, span);
             true
         }
@@ -826,13 +826,13 @@ fn expr_assign(
                         let slot = c.q.unit.new_static_string(ident, slot.as_ref())?;
 
                         expr(c, hir.rhs, Needs::Value)?.apply(c)?;
-                        c.scopes.alloc(hir.rhs)?;
+                        c.scopes.decl_anon(hir.rhs)?;
 
                         expr(c, field_access.expr, Needs::Value)?.apply(c)?;
-                        c.scopes.alloc(span)?;
+                        c.scopes.decl_anon(span)?;
 
                         c.asm.push(Inst::ObjectIndexSet { slot }, span);
-                        c.scopes.free(span, 2)?;
+                        c.scopes.undecl_anon(span, 2)?;
                         true
                     } else {
                         false
@@ -848,27 +848,27 @@ fn expr_assign(
                     })?;
 
                     expr(c, hir.rhs, Needs::Value)?.apply(c)?;
-                    c.scopes.alloc(hir.rhs)?;
+                    c.scopes.decl_anon(hir.rhs)?;
 
                     expr(c, field_access.expr, Needs::Value)?.apply(c)?;
                     c.asm.push(Inst::TupleIndexSet { index }, span);
-                    c.scopes.free(span, 1)?;
+                    c.scopes.undecl_anon(span, 1)?;
                     true
                 }
             }
         }
         hir::ExprKind::Index(expr_index_get) => {
             expr(c, hir.rhs, Needs::Value)?.apply(c)?;
-            c.scopes.alloc(span)?;
+            c.scopes.decl_anon(span)?;
 
             expr(c, expr_index_get.target, Needs::Value)?.apply(c)?;
-            c.scopes.alloc(span)?;
+            c.scopes.decl_anon(span)?;
 
             expr(c, expr_index_get.index, Needs::Value)?.apply(c)?;
-            c.scopes.alloc(span)?;
+            c.scopes.decl_anon(span)?;
 
             c.asm.push(Inst::IndexSet, span);
-            c.scopes.free(span, 3)?;
+            c.scopes.undecl_anon(span, 3)?;
             true
         }
         _ => false,
@@ -925,7 +925,7 @@ fn expr_binary(
         return Ok(Asm::top(span));
     }
 
-    c.scopes.push_child(span)?;
+    let guard = c.scopes.push_child(span)?;
 
     // NB: need to declare these as anonymous local variables so that they
     // get cleaned up in case there is an early break (return, try, ...).
@@ -971,7 +971,7 @@ fn expr_binary(
         c.asm.push(Inst::Pop, span);
     }
 
-    c.scopes.pop(span)?;
+    c.scopes.pop(guard, span)?;
     return Ok(Asm::top(span));
 
     /// Get the need of the right-hand side operator from the type of the
@@ -1033,7 +1033,7 @@ fn expr_binary(
             // <var> <op> <expr>
             hir::ExprKind::Variable(variable, _) => {
                 expr(c, rhs, Needs::Value)?.apply(c)?;
-                let var = c.scopes.get(c.q.visitor, variable, c.source_id, span)?;
+                let var = c.scopes.get_var(c.q.visitor, variable, c.source_id, span)?;
                 Some(InstTarget::Offset(var.offset))
             }
             // <expr>.<field> <op> <value>
@@ -1121,10 +1121,12 @@ fn expr_async_block(
         };
 
         if hir.do_move {
-            let var = c.scopes.take(c.q.visitor, variable, c.source_id, span)?;
+            let var = c
+                .scopes
+                .take_var(c.q.visitor, variable, c.source_id, span)?;
             var.do_move(c.asm, span, format_args!("captures `{}`", name));
         } else {
-            let var = c.scopes.get(c.q.visitor, variable, c.source_id, span)?;
+            let var = c.scopes.get_var(c.q.visitor, variable, c.source_id, span)?;
             var.copy(c, span, format_args!("captures `{}`", name));
         }
     }
@@ -1239,53 +1241,53 @@ fn expr_call(
 
     match hir.call {
         hir::Call::Var { name, variable, .. } => {
-            let var = c.scopes.get(c.q.visitor, variable, c.source_id, span)?;
+            let var = c.scopes.get_var(c.q.visitor, variable, c.source_id, span)?;
 
             for e in hir.args {
                 expr(c, e, Needs::Value)?.apply(c)?;
-                c.scopes.alloc(span)?;
+                c.scopes.decl_anon(span)?;
             }
 
             var.copy(c, span, format_args!("var `{}`", name));
-            c.scopes.alloc(span)?;
+            c.scopes.decl_anon(span)?;
 
             c.asm.push(Inst::CallFn { args }, span);
 
-            c.scopes.free(span, hir.args.len() + 1)?;
+            c.scopes.undecl_anon(span, hir.args.len() + 1)?;
         }
         hir::Call::Instance { target, hash } => {
             expr(c, target, Needs::Value)?.apply(c)?;
-            c.scopes.alloc(target)?;
+            c.scopes.decl_anon(target)?;
 
             for e in hir.args {
                 expr(c, e, Needs::Value)?.apply(c)?;
-                c.scopes.alloc(span)?;
+                c.scopes.decl_anon(span)?;
             }
 
             c.asm.push(Inst::CallInstance { hash, args }, span);
-            c.scopes.free(span, hir.args.len() + 1)?;
+            c.scopes.undecl_anon(span, hir.args.len() + 1)?;
         }
         hir::Call::Meta { hash } => {
             for e in hir.args {
                 expr(c, e, Needs::Value)?.apply(c)?;
-                c.scopes.alloc(span)?;
+                c.scopes.decl_anon(span)?;
             }
 
             c.asm.push(Inst::Call { hash, args }, span);
-            c.scopes.free(span, args)?;
+            c.scopes.undecl_anon(span, args)?;
         }
         hir::Call::Expr { expr: e } => {
             for e in hir.args {
                 expr(c, e, Needs::Value)?.apply(c)?;
-                c.scopes.alloc(span)?;
+                c.scopes.decl_anon(span)?;
             }
 
             expr(c, e, Needs::Value)?.apply(c)?;
-            c.scopes.alloc(span)?;
+            c.scopes.decl_anon(span)?;
 
             c.asm.push(Inst::CallFn { args }, span);
 
-            c.scopes.free(span, args + 1)?;
+            c.scopes.undecl_anon(span, args + 1)?;
         }
         hir::Call::ConstFn { id, ast_id } => {
             let const_fn = c.q.const_fn_for(id).with_span(span)?;
@@ -1308,11 +1310,14 @@ pub(crate) fn async_block_secondary(
     c: &mut Assembler<'_>,
     hir: &hir::AsyncBlock<'_>,
 ) -> compile::Result<()> {
+    let guard = c.scopes.push_child(&hir.block)?;
+
     for (variable, _) in hir.captures.iter().copied() {
-        c.scopes.define(variable, &hir.block)?;
+        c.scopes.new_var(variable, &hir.block)?;
     }
 
     return_(c, &hir.block, hir.block, block)?;
+    c.scopes.pop(guard, &hir.block)?;
     Ok(())
 }
 
@@ -1331,7 +1336,7 @@ pub(crate) fn expr_closure_secondary(
                 return Err(compile::Error::new(arg, CompileErrorKind::UnsupportedSelf))
             }
             hir::FnArg::Pat(pat) => {
-                let offset = c.scopes.alloc(pat)?;
+                let offset = c.scopes.decl_anon(pat)?;
                 patterns.push((pat, offset));
             }
         }
@@ -1341,7 +1346,7 @@ pub(crate) fn expr_closure_secondary(
         c.asm.push(Inst::PushTuple, span);
 
         for (variable, _) in hir.captures.iter().copied() {
-            c.scopes.define(variable, span)?;
+            c.scopes.new_var(variable, span)?;
         }
     }
 
@@ -1350,6 +1355,7 @@ pub(crate) fn expr_closure_secondary(
     }
 
     return_(c, span, hir.body, expr)?;
+    c.scopes.pop_last(span)?;
     Ok(())
 }
 
@@ -1376,10 +1382,12 @@ fn expr_call_closure(
         };
 
         if hir.do_move {
-            let var = c.scopes.take(c.q.visitor, variable, c.source_id, span)?;
+            let var = c
+                .scopes
+                .take_var(c.q.visitor, variable, c.source_id, span)?;
             var.do_move(c.asm, span, format_args!("capture `{}`", name));
         } else {
-            let var = c.scopes.get(c.q.visitor, variable, c.source_id, span)?;
+            let var = c.scopes.get_var(c.q.visitor, variable, c.source_id, span)?;
             var.copy(c, span, format_args!("capture `{}`", name));
         }
     }
@@ -1502,7 +1510,7 @@ fn expr_field_access(
             return Ok(false);
         };
 
-        let var = c.scopes.get(c.q.visitor, variable, c.source_id, span)?;
+        let var = c.scopes.get_var(c.q.visitor, variable, c.source_id, span)?;
 
         c.asm.push(
             Inst::TupleIndexGetAt {
@@ -1535,12 +1543,11 @@ fn expr_for(
 
     let break_var_count = c.scopes.total_var_count(span)?;
 
-    c.scopes.push_child(span)?;
-
-    let iter_offset = {
+    let (iter_offset, loop_scope_expected) = {
+        let loop_scope_expected = c.scopes.push_child(span)?;
         expr(c, hir.iter, Needs::Value)?.apply(c)?;
 
-        let iter_offset = c.scopes.alloc(span)?;
+        let iter_offset = c.scopes.decl_anon(span)?;
         c.asm.push_with_comment(
             Inst::CallInstance {
                 hash: *Protocol::INTO_ITER,
@@ -1550,18 +1557,18 @@ fn expr_for(
             format_args!("into_iter (offset: {})", iter_offset),
         );
 
-        iter_offset
+        (iter_offset, loop_scope_expected)
     };
 
     // Declare named loop variable.
     let binding_offset = {
         c.asm.push(Inst::unit(), hir.iter);
-        c.scopes.alloc(hir.binding)?
+        c.scopes.decl_anon(hir.binding)?
     };
 
     // Declare storage for memoized `next` instance fn.
     let next_offset = if c.options.memoize_instance_fn {
-        let offset = c.scopes.alloc(hir.iter)?;
+        let offset = c.scopes.decl_anon(hir.iter)?;
 
         // Declare the named loop variable and put it in the scope.
         c.asm.push_with_comment(
@@ -1653,12 +1660,12 @@ fn expr_for(
     // Test loop condition and unwrap the option, or jump to `end_label` if the current value is `None`.
     c.asm.iter_next(binding_offset, &end_label, hir.binding);
 
-    c.scopes.push_child(hir.body)?;
+    let guard = c.scopes.push_child(hir.body)?;
 
     pat_with_offset(c, hir.binding, binding_offset)?;
 
     block(c, hir.body, Needs::None)?.apply(c)?;
-    c.clean_last_scope(span, Needs::None)?;
+    c.clean_last_scope(span, guard, Needs::None)?;
 
     c.asm.jump(&continue_label, span);
     c.asm.label(&end_label)?;
@@ -1671,7 +1678,7 @@ fn expr_for(
         span,
     );
 
-    c.clean_last_scope(span, Needs::None)?;
+    c.clean_last_scope(span, loop_scope_expected, Needs::None)?;
 
     // NB: If a value is needed from a for loop, encode it as a unit.
     if needs.value() {
@@ -1729,9 +1736,9 @@ fn expr_if(
     while let Some((branch, label, scope)) = it.next() {
         c.asm.label(&label)?;
 
-        c.scopes.push(scope);
+        let scopes = c.scopes.push(scope);
         block(c, branch.block, needs)?.apply(c)?;
-        c.clean_last_scope(branch, needs)?;
+        c.clean_last_scope(branch, scopes, needs)?;
 
         if it.peek().is_some() {
             c.asm.jump(&end_label, branch);
@@ -1750,7 +1757,7 @@ fn expr_index(
     span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm> {
-    c.scopes.push_child(span)?;
+    let guard = c.scopes.push_child(span)?;
 
     let target = expr(c, hir.target, Needs::Value)?.apply_targeted(c)?;
     let index = expr(c, hir.index, Needs::Value)?.apply_targeted(c)?;
@@ -1763,7 +1770,7 @@ fn expr_index(
         c.asm.push(Inst::Pop, span);
     }
 
-    c.scopes.pop(span)?;
+    c.scopes.pop(guard, span)?;
     Ok(Asm::top(span))
 }
 
@@ -1810,11 +1817,11 @@ fn expr_match(
     span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm> {
-    c.scopes.push_child(span)?;
+    let expected_scopes = c.scopes.push_child(span)?;
 
     expr(c, hir.expr, Needs::Value)?.apply(c)?;
     // Offset of the expression.
-    let offset = c.scopes.alloc(span)?;
+    let offset = c.scopes.decl_anon(span)?;
 
     let end_label = c.asm.new_label("match_end");
     let mut branches = Vec::new();
@@ -1826,7 +1833,7 @@ fn expr_match(
         let match_false = c.asm.new_label("match_false");
 
         let scope = c.scopes.child(span)?;
-        c.scopes.push(scope);
+        let parent_guard = c.scopes.push(scope);
 
         let load = move |this: &mut Assembler, needs: Needs| {
             if needs.value() {
@@ -1842,11 +1849,11 @@ fn expr_match(
             let span = condition;
 
             let scope = c.scopes.child(span)?;
-            c.scopes.push(scope);
-            expr(c, condition, Needs::Value)?.apply(c)?;
-            c.clean_last_scope(span, Needs::Value)?;
+            let guard = c.scopes.push(scope);
 
-            let scope = c.scopes.pop(span)?;
+            expr(c, condition, Needs::Value)?.apply(c)?;
+            c.clean_last_scope(span, guard, Needs::Value)?;
+            let scope = c.scopes.pop(parent_guard, span)?;
 
             c.asm
                 .pop_and_jump_if_not(scope.local_var_count, &match_false, span);
@@ -1854,7 +1861,7 @@ fn expr_match(
             c.asm.jump(&branch_label, span);
             scope
         } else {
-            c.scopes.pop(span)?
+            c.scopes.pop(parent_guard, span)?
         };
 
         c.asm.jump(&branch_label, span);
@@ -1878,9 +1885,9 @@ fn expr_match(
 
         c.asm.label(label)?;
 
-        c.scopes.push(scope.clone());
+        let expected = c.scopes.push(scope.clone());
         expr(c, branch.body, needs)?.apply(c)?;
-        c.clean_last_scope(span, needs)?;
+        c.clean_last_scope(span, expected, needs)?;
 
         if it.peek().is_some() {
             c.asm.jump(&end_label, span);
@@ -1890,7 +1897,7 @@ fn expr_match(
     c.asm.label(&end_label)?;
 
     // pop the implicit scope where we store the anonymous match variable.
-    c.clean_last_scope(span, needs)?;
+    c.clean_last_scope(span, expected_scopes, needs)?;
     Ok(Asm::top(span))
 }
 
@@ -1902,11 +1909,11 @@ fn expr_object(
     span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm> {
-    c.scopes.push_child(span)?;
+    let guard = c.scopes.push_child(span)?;
 
     for assign in hir.assignments {
         expr(c, assign.assign, Needs::Value)?.apply(c)?;
-        c.scopes.alloc(&span)?;
+        c.scopes.decl_anon(&span)?;
     }
 
     let slot =
@@ -1934,7 +1941,7 @@ fn expr_object(
         c.asm.push(Inst::Pop, span);
     }
 
-    c.scopes.pop(span)?;
+    c.scopes.pop(guard, span)?;
     Ok(Asm::top(span))
 }
 
@@ -1946,7 +1953,7 @@ fn expr_range(
     span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm> {
-    c.scopes.push_child(span)?;
+    let guard = c.scopes.push_child(span)?;
 
     if needs.value() {
         let from = if let Some(from) = hir.from {
@@ -1968,7 +1975,7 @@ fn expr_range(
             span
         };
 
-        c.scopes.alloc(from)?;
+        c.scopes.decl_anon(from)?;
 
         let to = if let Some(to) = hir.to {
             expr(c, to, needs)?.apply(c)?;
@@ -1989,7 +1996,7 @@ fn expr_range(
             span
         };
 
-        c.scopes.alloc(to)?;
+        c.scopes.decl_anon(to)?;
 
         let limits = match hir.limits {
             hir::ExprRangeLimits::HalfOpen => InstRangeLimits::HalfOpen,
@@ -1997,7 +2004,7 @@ fn expr_range(
         };
 
         c.asm.push(Inst::Range { limits }, span);
-        c.scopes.free(span, 2)?;
+        c.scopes.undecl_anon(span, 2)?;
     } else {
         if let Some(from) = hir.from {
             expr(c, from, needs)?.apply(c)?;
@@ -2008,7 +2015,7 @@ fn expr_range(
         }
     }
 
-    c.scopes.pop(span)?;
+    c.scopes.pop(guard, span)?;
     Ok(Asm::top(span))
 }
 
@@ -2101,11 +2108,11 @@ fn expr_select(
         let span = branch.body;
         c.asm.label(&label)?;
 
-        c.scopes.push_child(span)?;
+        let expected = c.scopes.push_child(span)?;
 
         match branch.pat.kind {
             hir::PatKind::Path(&hir::PatPathKind::Ident(_, variable)) => {
-                c.scopes.define(variable, branch.pat)?;
+                c.scopes.decl_var(variable, branch.pat)?;
             }
             hir::PatKind::Ignore => {
                 c.asm.push(Inst::Pop, span);
@@ -2120,7 +2127,7 @@ fn expr_select(
 
         // Set up a new scope with the binding.
         expr(c, branch.body, needs)?.apply(c)?;
-        c.clean_last_scope(span, needs)?;
+        c.clean_last_scope(span, expected, needs)?;
         c.asm.jump(&end_label, span);
     }
 
@@ -2160,7 +2167,7 @@ fn expr_try(
     );
 
     if let InstAddress::Top = address {
-        c.scopes.free(span, 1)?;
+        c.scopes.undecl_anon(span, 1)?;
     }
 
     // Why no needs.value() check here to declare another anonymous
@@ -2183,7 +2190,7 @@ fn expr_tuple(
 ) -> compile::Result<Asm> {
     macro_rules! tuple {
         ($variant:ident, $($var:ident),*) => {{
-            c.scopes.push_child(span)?;
+            let guard = c.scopes.push_child(span)?;
 
             let mut it = hir.items.iter();
 
@@ -2199,7 +2206,7 @@ fn expr_tuple(
                 span,
             );
 
-            c.scopes.pop(span)?;
+            c.scopes.pop(guard, span)?;
         }};
     }
 
@@ -2214,7 +2221,7 @@ fn expr_tuple(
             _ => {
                 for e in hir.items {
                     expr(c, e, Needs::Value)?.apply(c)?;
-                    c.scopes.alloc(e)?;
+                    c.scopes.decl_anon(e)?;
                 }
 
                 c.asm.push(
@@ -2224,7 +2231,7 @@ fn expr_tuple(
                     span,
                 );
 
-                c.scopes.free(span, hir.items.len())?;
+                c.scopes.undecl_anon(span, hir.items.len())?;
             }
         }
     }
@@ -2283,11 +2290,11 @@ fn expr_vec(
 
     for e in hir.items {
         expr(c, e, Needs::Value)?.apply(c)?;
-        c.scopes.alloc(e)?;
+        c.scopes.decl_anon(e)?;
     }
 
     c.asm.push(Inst::Vec { count }, span);
-    c.scopes.free(span, hir.items.len())?;
+    c.scopes.undecl_anon(span, hir.items.len())?;
 
     // Evaluate the expressions one by one, then pop them to cause any
     // side effects (without creating an object).
@@ -2326,21 +2333,21 @@ fn expr_loop(
 
     c.asm.label(&continue_label)?;
 
-    let clean_scope = if let Some(hir) = hir.condition {
+    let expected = if let Some(hir) = hir.condition {
         let then_scope = condition(c, hir, &then_label)?;
-        c.scopes.push(then_scope);
+        let expected = c.scopes.push(then_scope);
 
         c.asm.jump(&end_label, span);
         c.asm.label(&then_label)?;
-        true
+        Some(expected)
     } else {
-        true
+        None
     };
 
     block(c, hir.body, Needs::None)?.apply(c)?;
 
-    if clean_scope {
-        c.clean_last_scope(span, Needs::None)?;
+    if let Some(expected) = expected {
+        c.clean_last_scope(span, expected, Needs::None)?;
     }
 
     c.asm.jump(&continue_label, span);
@@ -2397,10 +2404,10 @@ pub(crate) fn fn_from_item_fn(
                     ));
                 }
 
-                c.scopes.define(*variable, span)?;
+                c.scopes.new_var(*variable, span)?;
             }
             hir::FnArg::Pat(pat) => {
-                let offset = c.scopes.alloc(pat)?;
+                let offset = c.scopes.decl_anon(pat)?;
                 patterns.push((pat, offset));
             }
         }
@@ -2429,6 +2436,7 @@ pub(crate) fn fn_from_item_fn(
         c.asm.push(Inst::ReturnUnit, hir);
     }
 
+    c.scopes.pop_last(hir)?;
     Ok(())
 }
 

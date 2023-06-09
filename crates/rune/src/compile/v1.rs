@@ -18,7 +18,7 @@ mod loops;
 mod scopes;
 
 pub(crate) use self::loops::{Loop, Loops};
-pub(crate) use self::scopes::{Scope, Scopes, Var};
+pub(crate) use self::scopes::{Scope, ScopeGuard, Scopes, Var};
 
 /// Generic parameters.
 #[derive(Default)]
@@ -121,9 +121,10 @@ impl<'a> Assembler<'a> {
     pub(crate) fn clean_last_scope(
         &mut self,
         span: &dyn Spanned,
+        expected: ScopeGuard,
         needs: Needs,
     ) -> compile::Result<()> {
-        let scope = self.scopes.pop(span)?;
+        let scope = self.scopes.pop(expected, span)?;
 
         if needs.value() {
             self.locals_clean(scope.local_var_count, span);
