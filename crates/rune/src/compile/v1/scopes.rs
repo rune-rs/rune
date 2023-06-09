@@ -82,9 +82,14 @@ impl Layer {
     }
 
     /// Insert a new local, and return the old one if there's a conflict.
-    fn define(&mut self, name: hir::Variable, span: &dyn Spanned) -> compile::Result<usize> {
+    fn define(
+        &mut self,
+        variable: hir::Variable,
+        name: &str,
+        span: &dyn Spanned,
+    ) -> compile::Result<usize> {
         let offset = self.total;
-        tracing::trace!(?name, ?offset, "new var");
+        tracing::trace!(?variable, ?name, ?offset, "define");
 
         let local = Var {
             offset,
@@ -95,7 +100,7 @@ impl Layer {
         self.total += 1;
         self.local += 1;
 
-        if let Some(old) = self.variables.insert(name, local) {
+        if let Some(old) = self.variables.insert(variable, local) {
             return Err(compile::Error::new(
                 span,
                 CompileErrorKind::VariableConflict {
@@ -158,15 +163,16 @@ impl Scopes {
     pub(crate) fn get(
         &self,
         visitor: &mut dyn CompileVisitor,
-        name: hir::Variable,
+        variable: hir::Variable,
+        name: &str,
         source_id: SourceId,
         span: &dyn Spanned,
     ) -> compile::Result<Var> {
-        tracing::trace!(?name, "get");
+        tracing::trace!(?variable, "get");
 
         for layer in self.layers.iter().rev() {
-            if let Some(var) = layer.variables.get(&name) {
-                tracing::trace!(?name, ?var, "getting var");
+            if let Some(var) = layer.variables.get(&variable) {
+                tracing::trace!(?variable, ?var, "getting var");
                 visitor.visit_variable_use(source_id, var.span, span);
 
                 if let Some(moved_at) = var.moved_at {
@@ -182,7 +188,7 @@ impl Scopes {
 
         Err(compile::Error::msg(
             span,
-            format_args!("Missing variable {name}"),
+            format_args!("Missing variable `{name}` ({variable})"),
         ))
     }
 
@@ -190,15 +196,16 @@ impl Scopes {
     pub(crate) fn take(
         &mut self,
         visitor: &mut dyn CompileVisitor,
-        name: hir::Variable,
+        variable: hir::Variable,
+        name: &str,
         source_id: SourceId,
         span: &dyn Spanned,
     ) -> compile::Result<&Var> {
-        tracing::trace!(?name, "take");
+        tracing::trace!(?variable, "take");
 
         for layer in self.layers.iter_mut().rev() {
-            if let Some(var) = layer.variables.get_mut(&name) {
-                tracing::trace!(?name, ?var, "taking var");
+            if let Some(var) = layer.variables.get_mut(&variable) {
+                tracing::trace!(?variable, ?var, "taking var");
                 visitor.visit_variable_use(source_id, var.span, span);
 
                 if let Some(moved_at) = var.moved_at {
@@ -215,17 +222,18 @@ impl Scopes {
 
         Err(compile::Error::msg(
             span,
-            format_args!("Missing variable {name} to take"),
+            format_args!("Missing variable `{name}` to take ({variable})"),
         ))
     }
 
     /// Construct a new variable.
     pub(crate) fn define(
         &mut self,
-        name: hir::Variable,
+        variable: hir::Variable,
+        name: &str,
         span: &dyn Spanned,
     ) -> compile::Result<usize> {
-        self.last_mut(span)?.define(name, span)
+        self.last_mut(span)?.define(variable, name, span)
     }
 
     /// Declare an anonymous variable.
