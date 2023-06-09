@@ -13,7 +13,7 @@ use crate::no_std::sync::Arc;
 fn test_concat_idents() -> rune::Result<()> {
     #[rune::macro_]
     fn concat_idents(
-        ctx: &mut MacroContext<'_>,
+        ctx: &mut MacroContext<'_, '_>,
         input: &TokenStream,
     ) -> compile::Result<TokenStream> {
         let mut output = String::new();
@@ -86,7 +86,7 @@ fn test_concat_idents() -> rune::Result<()> {
 fn test_rename() -> rune::Result<()> {
     #[rune::attribute_macro]
     fn rename(
-        ctx: &mut MacroContext<'_>,
+        ctx: &mut MacroContext<'_, '_>,
         input: &TokenStream,
         item: &TokenStream,
     ) -> compile::Result<TokenStream> {

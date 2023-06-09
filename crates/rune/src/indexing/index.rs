@@ -47,6 +47,7 @@ pub(crate) struct Indexer<'a> {
     pub(crate) q: Query<'a>,
     pub(crate) source_id: SourceId,
     pub(crate) items: Items<'a>,
+    /// Helper to calculate details about an indexed scope.
     pub(crate) scopes: IndexScopes,
     /// The current module being indexed.
     pub(crate) mod_item: ModId,
@@ -402,13 +403,12 @@ impl<'a> Indexer<'a> {
             .q
             .insert_path(self.mod_item, self.impl_item, &self.items.item());
         ast.path.id.set(id);
-        let id = self.items.id().with_span(ast.span())?;
-
-        let item = self.q.item_for((ast.span(), id))?;
+        let id = self.items.id().with_span(&ast)?;
+        let item = self.q.item_for(id).with_span(&ast)?;
 
         let mut compiler = MacroCompiler {
             item_meta: item,
-            query: self.q.borrow(),
+            idx: self,
         };
 
         let expanded = compiler.eval_macro::<T>(ast)?;
@@ -431,11 +431,11 @@ impl<'a> Indexer<'a> {
         attr.path.id.set(id);
         let id = self.items.id().with_span(attr.span())?;
 
-        let containing = self.q.item_for((attr.span(), id))?;
+        let containing = self.q.item_for(id).with_span(&attr)?;
 
         let mut compiler = MacroCompiler {
             item_meta: containing,
-            query: self.q.borrow(),
+            idx: self,
         };
 
         let expanded = compiler.eval_attribute_macro::<T>(attr, item)?;
@@ -1221,7 +1221,9 @@ pub(crate) fn expr(
                 }
             } else {
                 // Assert that the built-in macro has been expanded.
-                idx.q.builtin_macro_for(&*macro_call)?;
+                idx.q
+                    .builtin_macro_for(&*macro_call)
+                    .with_span(&*macro_call)?;
                 attributes.drain();
             }
         }
@@ -1587,7 +1589,9 @@ fn item(idx: &mut Indexer<'_>, ast: ast::Item) -> compile::Result<()> {
             // engine.
 
             // Assert that the built-in macro has been expanded.
-            idx.q.builtin_macro_for(&macro_call)?;
+            idx.q
+                .builtin_macro_for(&macro_call)
+                .with_span(&macro_call)?;
 
             // NB: macros are handled during pre-processing.
             attributes.drain();

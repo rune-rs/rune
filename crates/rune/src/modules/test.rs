@@ -58,7 +58,7 @@ pub fn module() -> Result<Module, ContextError> {
 /// ```
 #[rune::macro_]
 pub(crate) fn assert(
-    ctx: &mut MacroContext<'_>,
+    ctx: &mut MacroContext<'_, '_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
     use crate as rune;
@@ -103,7 +103,7 @@ pub(crate) fn assert(
 /// ```
 #[rune::macro_]
 pub(crate) fn assert_eq(
-    ctx: &mut MacroContext<'_>,
+    ctx: &mut MacroContext<'_, '_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
     use crate as rune;

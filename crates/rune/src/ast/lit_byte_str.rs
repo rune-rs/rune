@@ -108,7 +108,7 @@ impl<'a> Resolve<'a> for LitByteStr {
 }
 
 impl ToTokens for LitByteStr {
-    fn to_tokens(&self, _: &mut MacroContext<'_>, stream: &mut TokenStream) {
+    fn to_tokens(&self, _: &mut MacroContext<'_, '_>, stream: &mut TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::ByteStr(self.source),

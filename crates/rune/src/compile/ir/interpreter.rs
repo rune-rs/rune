@@ -155,7 +155,7 @@ impl IrInterpreter<'_> {
         S: Copy + Spanned,
     {
         let span = Spanned::span(&spanned);
-        let const_fn = self.q.const_fn_for((span, id))?;
+        let const_fn = self.q.const_fn_for(id).with_span(span)?;
 
         if const_fn.ir_fn.args.len() != args.len() {
             return Err(compile::Error::new(

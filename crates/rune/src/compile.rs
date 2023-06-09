@@ -35,7 +35,7 @@ pub(crate) use self::prelude::Prelude;
 
 pub(crate) mod ir;
 pub use self::ir::IrValue;
-pub(crate) use self::ir::{IrBudget, IrCompiler, IrEvalContext, IrEvalOutcome, IrInterpreter};
+pub(crate) use self::ir::{IrBudget, IrCompiler, IrEvalOutcome, IrInterpreter};
 
 pub use rune_core::{Component, ComponentRef, IntoComponent, Item, ItemBuf};
 

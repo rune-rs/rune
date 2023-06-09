@@ -24,64 +24,42 @@ use crate::ast::{Span, Spanned};
 use crate::compile::ast;
 use crate::compile::ir;
 use crate::compile::ir::eval::IrEvalBreak;
-use crate::compile::{self, ItemMeta, WithSpan};
+use crate::compile::{self, WithSpan};
 use crate::hir;
 use crate::indexing::index;
-use crate::indexing::{IndexScopes, Indexer};
+use crate::macros::MacroContext;
 use crate::parse::NonZeroId;
 use crate::query::Used;
-use crate::shared::Items;
-
-/// Context used for [IrEval].
-pub struct IrEvalContext<'a> {
-    pub(crate) c: IrCompiler<'a>,
-    pub(crate) item: &'a ItemMeta,
-}
 
 impl ast::Expr {
-    pub(crate) fn eval(&self, ctx: &mut IrEvalContext<'_>) -> compile::Result<IrValue> {
-        let Some(id) = ctx.item.id.get() else {
-            return Err(compile::Error::msg(self, "Missing id for constant eval"));
-        };
-
-        let item = ctx.c.q.pool.item(ctx.item.item);
-        let items = Items::new(item, id, ctx.c.q.gen);
-
-        let mut idx = Indexer {
-            q: ctx.c.q.borrow(),
-            source_id: ctx.c.source_id,
-            items,
-            scopes: IndexScopes::new(),
-            mod_item: ctx.item.module,
-            impl_item: Default::default(),
-            nested_item: None,
-            macro_depth: 0,
-            root: None,
-            loaded: None,
-            queue: None,
-        };
-
+    pub(crate) fn eval(&self, ctx: &mut MacroContext<'_, '_>) -> compile::Result<IrValue> {
         let mut expr = self.clone();
-        index::expr(&mut idx, &mut expr, index::IS_USED)?;
+        index::expr(ctx.idx, &mut expr, index::IS_USED)?;
 
         let ir = {
             // TODO: avoid this arena?
             let arena = crate::hir::Arena::new();
             let mut hir_ctx = crate::hir::lowering::Ctx::with_const(
                 &arena,
-                ctx.c.q.borrow(),
-                ctx.item.location.source_id,
+                ctx.idx.q.borrow(),
+                ctx.item_meta.location.source_id,
             );
             let hir = crate::hir::lowering::expr(&mut hir_ctx, &expr)?;
-            compiler::expr(&hir, &mut ctx.c)?
+
+            let mut c = IrCompiler {
+                source_id: ctx.item_meta.location.source_id,
+                q: ctx.idx.q.borrow(),
+            };
+
+            compiler::expr(&hir, &mut c)?
         };
 
         let mut ir_interpreter = IrInterpreter {
             budget: IrBudget::new(1_000_000),
             scopes: Default::default(),
-            module: ctx.item.module,
-            item: ctx.item.item,
-            q: ctx.c.q.borrow(),
+            module: ctx.item_meta.module,
+            item: ctx.item_meta.item,
+            q: ctx.idx.q.borrow(),
         };
 
         ir_interpreter.eval_value(&ir, Used::Used)

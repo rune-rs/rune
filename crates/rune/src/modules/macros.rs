@@ -26,7 +26,7 @@ pub fn module() -> Result<Module, ContextError> {
 /// ```
 #[rune::macro_]
 pub(crate) fn line(
-    ctx: &mut MacroContext<'_>,
+    ctx: &mut MacroContext<'_, '_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
     use crate as rune;
@@ -50,7 +50,7 @@ pub(crate) fn line(
 /// ```
 #[rune::macro_]
 pub(crate) fn file(
-    ctx: &mut MacroContext<'_>,
+    ctx: &mut MacroContext<'_, '_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
     use crate as rune;

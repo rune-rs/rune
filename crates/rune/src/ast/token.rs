@@ -37,6 +37,7 @@ impl Token {
             Kind::Byte(s) => match s {
                 CopySource::Text(source_id) => {
                     let s = ctx
+                        .idx
                         .q
                         .sources
                         .source(*source_id, self.span)
@@ -56,6 +57,7 @@ impl Token {
                     };
 
                     let s = ctx
+                        .idx
                         .q
                         .sources
                         .source(text.source_id, span)
@@ -64,7 +66,7 @@ impl Token {
                     write!(f, "b\"{}\"", s)?;
                 }
                 StrSource::Synthetic(id) => {
-                    let b = ctx.q.storage.get_byte_string(*id).ok_or(fmt::Error)?;
+                    let b = ctx.idx.q.storage.get_byte_string(*id).ok_or(fmt::Error)?;
                     write!(f, "{}", FormatBytes(b))?;
                 }
             },
@@ -77,6 +79,7 @@ impl Token {
                     };
 
                     let s = ctx
+                        .idx
                         .q
                         .sources
                         .source(text.source_id, span)
@@ -84,13 +87,14 @@ impl Token {
                     write!(f, "\"{}\"", s)?;
                 }
                 StrSource::Synthetic(id) => {
-                    let s = ctx.q.storage.get_string(*id).ok_or(fmt::Error)?;
+                    let s = ctx.idx.q.storage.get_string(*id).ok_or(fmt::Error)?;
                     write!(f, "{:?}", s)?;
                 }
             },
             Kind::Char(s) => match s {
                 CopySource::Text(source_id) => {
                     let s = ctx
+                        .idx
                         .q
                         .sources
                         .source(*source_id, self.span)
@@ -104,6 +108,7 @@ impl Token {
             Kind::Number(s) => match s {
                 NumberSource::Text(text) => {
                     let s = ctx
+                        .idx
                         .q
                         .sources
                         .source(text.source_id, self.span)
@@ -111,7 +116,7 @@ impl Token {
                     write!(f, "{}", s)?;
                 }
                 NumberSource::Synthetic(id) => {
-                    let n = ctx.q.storage.get_number(*id).ok_or(fmt::Error)?;
+                    let n = ctx.idx.q.storage.get_number(*id).ok_or(fmt::Error)?;
                     write!(f, "{}", n)?;
                 }
             },
@@ -145,7 +150,7 @@ impl Token {
 }
 
 impl ToTokens for Token {
-    fn to_tokens(&self, _: &mut MacroContext<'_>, stream: &mut TokenStream) {
+    fn to_tokens(&self, _: &mut MacroContext<'_, '_>, stream: &mut TokenStream) {
         stream.push(*self);
     }
 }

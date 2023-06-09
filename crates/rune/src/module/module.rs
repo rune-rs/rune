@@ -542,7 +542,7 @@ impl Module {
     /// /// assert_eq!(ident_to_string!(Hello), "Hello");
     /// /// ```
     /// #[rune::macro_]
-    /// fn ident_to_string(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> compile::Result<TokenStream> {
+    /// fn ident_to_string(ctx: &mut MacroContext<'_, '_>, stream: &TokenStream) -> compile::Result<TokenStream> {
     ///     let mut p = Parser::from_token_stream(stream, ctx.input_span());
     ///     let ident = p.parse_all::<ast::Ident>()?;
     ///     let ident = ctx.resolve(ident)?.to_owned();
@@ -618,7 +618,7 @@ impl Module {
     /// use rune::macros::{quote, MacroContext, TokenStream};
     /// use rune::parse::Parser;
     ///
-    /// fn ident_to_string(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> compile::Result<TokenStream> {
+    /// fn ident_to_string(ctx: &mut MacroContext<'_, '_>, stream: &TokenStream) -> compile::Result<TokenStream> {
     ///     let mut p = Parser::from_token_stream(stream, ctx.input_span());
     ///     let ident = p.parse_all::<ast::Ident>()?;
     ///     let ident = ctx.resolve(ident)?.to_owned();
@@ -635,7 +635,7 @@ impl Module {
         M: 'static
             + Send
             + Sync
-            + Fn(&mut MacroContext<'_>, &TokenStream) -> compile::Result<TokenStream>,
+            + Fn(&mut MacroContext<'_, '_>, &TokenStream) -> compile::Result<TokenStream>,
         N: IntoIterator,
         N::Item: IntoComponent,
     {
@@ -672,7 +672,7 @@ impl Module {
     /// use rune::macros::{quote, MacroContext, TokenStream, ToTokens};
     /// use rune::parse::Parser;
     ///
-    /// fn rename_fn(ctx: &mut MacroContext<'_>, input: &TokenStream, item: &TokenStream) -> compile::Result<TokenStream> {
+    /// fn rename_fn(ctx: &mut MacroContext<'_, '_>, input: &TokenStream, item: &TokenStream) -> compile::Result<TokenStream> {
     ///     let mut item = Parser::from_token_stream(item, ctx.macro_span());
     ///     let mut fun = item.parse_all::<ast::ItemFn>()?;
     ///
@@ -690,7 +690,11 @@ impl Module {
         M: 'static
             + Send
             + Sync
-            + Fn(&mut MacroContext<'_>, &TokenStream, &TokenStream) -> compile::Result<TokenStream>,
+            + Fn(
+                &mut MacroContext<'_, '_>,
+                &TokenStream,
+                &TokenStream,
+            ) -> compile::Result<TokenStream>,
         N: IntoIterator,
         N::Item: IntoComponent,
     {

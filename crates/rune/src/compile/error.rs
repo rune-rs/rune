@@ -13,7 +13,8 @@ use crate::ast::{Span, Spanned};
 use crate::compile::hir::scopes::{MissingScope, PopError};
 use crate::compile::{HasSpan, IrValue, ItemBuf, Location, MetaInfo, Visibility};
 use crate::macros::{SyntheticId, SyntheticKind};
-use crate::parse::{Expectation, Id, IntoExpectation, LexerMode};
+use crate::parse::{Expectation, IntoExpectation, LexerMode};
+use crate::query::MissingId;
 use crate::runtime::debug::DebugSignature;
 use crate::runtime::unit::EncodeError;
 use crate::runtime::{AccessError, TypeInfo, TypeOf};
@@ -225,6 +226,8 @@ pub(crate) enum CompileErrorKind {
     MissingScope(#[from] MissingScope),
     #[error("{0}")]
     PopError(#[from] PopError),
+    #[error("{0}")]
+    MissingId(#[from] MissingId),
     #[error("Failed to load `{path}`: {error}")]
     FileError {
         path: PathBuf,
@@ -405,8 +408,6 @@ pub(crate) enum CompileErrorKind {
 #[allow(missing_docs)]
 #[non_exhaustive]
 pub(crate) enum QueryErrorKind {
-    #[error("Missing {what} for id {id:?}")]
-    MissingId { what: &'static str, id: Id },
     #[error("Item `{item}` can refer to multiple things")]
     AmbiguousItem {
         item: ItemBuf,

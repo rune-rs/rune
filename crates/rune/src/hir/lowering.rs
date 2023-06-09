@@ -273,7 +273,7 @@ fn expr_call_closure<'hir>(
     alloc_with!(ctx, ast);
 
     let span = ast.span();
-    let item = ctx.q.item_for((span, ast.id))?;
+    let item = ctx.q.item_for(ast.id).with_span(ast)?;
 
     let Some(meta) = ctx.q.query_meta(span, item.item, Default::default())? else {
         return Err(compile::Error::new(
@@ -642,7 +642,7 @@ pub(crate) fn expr<'hir>(
             to: option!(&ast.to, |ast| expr(ctx, ast)?),
         })),
         ast::Expr::Group(ast) => hir::ExprKind::Group(alloc!(expr(ctx, &ast.expr)?)),
-        ast::Expr::MacroCall(ast) => match ctx.q.builtin_macro_for(ast)?.as_ref() {
+        ast::Expr::MacroCall(ast) => match ctx.q.builtin_macro_for(ast).with_span(ast)?.as_ref() {
             query::BuiltInMacro::Template(ast) => {
                 let old = ctx.in_template.replace(true);
 
@@ -864,7 +864,7 @@ pub(crate) fn expr_block<'hir>(
         return Ok(hir::ExprKind::Block(alloc!(block(ctx, &ast.block)?)));
     };
 
-    let item = ctx.q.item_for(&ast.block)?;
+    let item = ctx.q.item_for(&ast.block).with_span(&ast.block)?;
     let meta = ctx.lookup_meta(ast.span(), item.item, GenericsParameters::default())?;
 
     match (kind, &meta.kind) {

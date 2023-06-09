@@ -5,29 +5,29 @@ use core::fmt;
 use crate::ast;
 use crate::ast::Span;
 use crate::compile::{
-    self, Context, IrCompiler, IrEvalContext, IrValue, ItemMeta, NoopCompileVisitor,
-    NoopSourceLoader, ParseErrorKind, Pool, Prelude, UnitBuilder,
+    self, Context, IrValue, Item, ItemMeta, NoopCompileVisitor, NoopSourceLoader, ParseErrorKind,
+    Pool, Prelude, UnitBuilder,
 };
+use crate::indexing::{IndexScopes, Indexer};
 use crate::macros::{IntoLit, Storage, ToTokens, TokenStream};
 use crate::parse::{Parse, Resolve};
 use crate::query::Query;
-use crate::shared::{Consts, Gen};
+use crate::shared::{Consts, Gen, Items};
 use crate::{Diagnostics, Options, Source, SourceId, Sources};
 
 /// Context for a running macro.
-pub struct MacroContext<'a> {
+pub struct MacroContext<'a, 'b> {
     /// Macro span of the full macro call.
     pub(crate) macro_span: Span,
     /// Macro span of the input.
     pub(crate) input_span: Span,
     /// The item where the macro is being evaluated.
     pub(crate) item_meta: ItemMeta,
-    /// Accessible query required to run the IR interpreter and has access to
-    /// storage.
-    pub(crate) q: Query<'a>,
+    /// Indexer.
+    pub(crate) idx: &'a mut Indexer<'b>,
 }
 
-impl<'a> MacroContext<'a> {
+impl<'a, 'b> MacroContext<'a, 'b> {
     /// Construct an empty macro context which can be used for testing.
     ///
     /// # Examples
@@ -39,7 +39,7 @@ impl<'a> MacroContext<'a> {
     /// ```
     pub fn test<F, O>(f: F) -> O
     where
-        F: FnOnce(&mut MacroContext<'_>) -> O,
+        F: FnOnce(&mut MacroContext<'_, '_>) -> O,
     {
         let mut unit = UnitBuilder::default();
         let prelude = Prelude::default();
@@ -71,11 +71,36 @@ impl<'a> MacroContext<'a> {
             &mut inner,
         );
 
+        let root_id = gen.next();
+        let source_id = SourceId::empty();
+
+        let root_mod_id = query
+            .insert_root_mod(root_id, source_id, Span::empty())
+            .expect("Failed to inserted root module");
+
+        let item_meta = query
+            .item_for(root_id)
+            .expect("Just inserted item meta does not exist");
+
+        let mut idx = Indexer {
+            q: query.borrow(),
+            source_id,
+            items: Items::new(Item::new(), root_id, &gen),
+            scopes: IndexScopes::new(),
+            mod_item: root_mod_id,
+            impl_item: None,
+            nested_item: None,
+            macro_depth: 0,
+            root: None,
+            queue: None,
+            loaded: None,
+        };
+
         let mut ctx = MacroContext {
             macro_span: Span::empty(),
             input_span: Span::empty(),
-            item_meta: Default::default(),
-            q: query.borrow(),
+            item_meta,
+            idx: &mut idx,
         };
 
         f(&mut ctx)
@@ -106,15 +131,7 @@ impl<'a> MacroContext<'a> {
     /// });
     /// ```
     pub fn eval(&mut self, target: &ast::Expr) -> compile::Result<IrValue> {
-        let mut ctx = IrEvalContext {
-            c: IrCompiler {
-                source_id: self.item_meta.location.source_id,
-                q: self.q.borrow(),
-            },
-            item: &self.item_meta,
-        };
-
-        target.eval(&mut ctx)
+        target.eval(self)
     }
 
     /// Construct a new literal from within a macro context.
@@ -153,7 +170,7 @@ impl<'a> MacroContext<'a> {
     /// ```
     pub fn ident(&mut self, ident: &str) -> ast::Ident {
         let span = self.macro_span();
-        let id = self.q.storage.insert_str(ident);
+        let id = self.idx.q.storage.insert_str(ident);
         let source = ast::LitSource::Synthetic(id);
         ast::Ident { span, source }
     }
@@ -177,13 +194,13 @@ impl<'a> MacroContext<'a> {
     /// ```
     pub fn label(&mut self, label: &str) -> ast::Label {
         let span = self.macro_span();
-        let id = self.q.storage.insert_str(label);
+        let id = self.idx.q.storage.insert_str(label);
         let source = ast::LitSource::Synthetic(id);
         ast::Label { span, source }
     }
 
     /// Stringify the token stream.
-    pub fn stringify<T>(&mut self, tokens: &T) -> Stringify<'_, 'a>
+    pub fn stringify<T>(&mut self, tokens: &T) -> Stringify<'_, 'a, 'b>
     where
         T: ToTokens,
     {
@@ -197,14 +214,14 @@ impl<'a> MacroContext<'a> {
     where
         T: Resolve<'r>,
     {
-        item.resolve(resolve_context!(self.q))
+        item.resolve(resolve_context!(self.idx.q))
     }
 
     /// Access a literal source as a string.
     pub(crate) fn literal_source(&self, source: ast::LitSource, span: Span) -> Option<&str> {
         match source {
-            ast::LitSource::Text(source_id) => self.q.sources.source(source_id, span),
-            ast::LitSource::Synthetic(id) => self.q.storage.get_string(id),
+            ast::LitSource::Text(source_id) => self.idx.q.sources.source(source_id, span),
+            ast::LitSource::Synthetic(id) => self.idx.q.storage.get_string(id),
             ast::LitSource::BuiltIn(builtin) => Some(builtin.as_str()),
         }
     }
@@ -213,7 +230,7 @@ impl<'a> MacroContext<'a> {
     /// combination with parsing functions such as
     /// [parse_source][MacroContext::parse_source].
     pub fn insert_source(&mut self, name: &str, source: &str) -> SourceId {
-        self.q.sources.insert(Source::new(name, source))
+        self.idx.q.sources.insert(Source::new(name, source))
     }
 
     /// Parse the given input as the given type that implements
@@ -222,7 +239,7 @@ impl<'a> MacroContext<'a> {
     where
         T: Parse,
     {
-        let source = self.q.sources.get(id).ok_or_else(|| {
+        let source = self.idx.q.sources.get(id).ok_or_else(|| {
             compile::Error::new(
                 Span::empty(),
                 ParseErrorKind::MissingSourceId { source_id: id },
@@ -248,12 +265,12 @@ impl<'a> MacroContext<'a> {
     }
 }
 
-pub struct Stringify<'ctx, 'a> {
-    ctx: &'ctx MacroContext<'a>,
+pub struct Stringify<'ctx, 'a, 'b> {
+    ctx: &'ctx MacroContext<'a, 'b>,
     stream: TokenStream,
 }
 
-impl fmt::Display for Stringify<'_, '_> {
+impl fmt::Display for Stringify<'_, '_, '_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut it = self.stream.iter();
         let last = it.next_back();

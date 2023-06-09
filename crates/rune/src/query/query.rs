@@ -1,3 +1,4 @@
+use core::fmt;
 use core::mem::take;
 
 use crate::no_std::borrow::Cow;
@@ -24,6 +25,20 @@ use crate::runtime::{Call, ConstValue};
 use crate::shared::{Consts, Gen, Items};
 use crate::{ast, Options};
 use crate::{Context, Diagnostics, Hash, SourceId, Sources};
+
+#[derive(Debug)]
+pub struct MissingId {
+    what: &'static str,
+    id: Id,
+}
+
+impl fmt::Display for MissingId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Missing {} for id {:?}", self.what, self.id)
+    }
+}
+
+impl crate::no_std::error::Error for MissingId {}
 
 enum ContextMatch<'this, 'm> {
     Context(&'m ContextMeta, Hash),
@@ -533,26 +548,27 @@ impl<'a> Query<'a> {
     }
 
     /// Get the item for the given identifier.
-    pub(crate) fn item_for<T>(&self, ast: T) -> compile::Result<ItemMeta>
+    pub(crate) fn item_for<T>(&self, ast: T) -> compile::Result<ItemMeta, MissingId>
     where
-        T: Spanned + Opaque,
+        T: Opaque,
     {
-        match ast.id().get().and_then(|n| self.inner.items.get(&n)) {
-            Some(item_meta) => Ok(*item_meta),
-            None => Err(compile::Error::new(
-                ast.span(),
-                QueryErrorKind::MissingId {
-                    what: "item",
-                    id: ast.id(),
-                },
-            )),
-        }
+        let Some(item_meta) = ast.id().get().and_then(|n| self.inner.items.get(&n)) else {
+            return Err(MissingId {
+                what: "item",
+                id: ast.id(),
+            });
+        };
+
+        Ok(*item_meta)
     }
 
     /// Get the built-in macro matching the given ast.
-    pub(crate) fn builtin_macro_for<T>(&self, ast: T) -> compile::Result<Arc<BuiltInMacro>>
+    pub(crate) fn builtin_macro_for<T>(
+        &self,
+        ast: T,
+    ) -> compile::Result<Arc<BuiltInMacro>, MissingId>
     where
-        T: Spanned + Opaque,
+        T: Opaque,
     {
         match ast
             .id()
@@ -560,30 +576,24 @@ impl<'a> Query<'a> {
             .and_then(|n| self.inner.internal_macros.get(&n))
         {
             Some(internal_macro) => Ok(internal_macro.clone()),
-            None => Err(compile::Error::new(
-                ast.span(),
-                QueryErrorKind::MissingId {
-                    what: "builtin macro",
-                    id: ast.id(),
-                },
-            )),
+            None => Err(MissingId {
+                what: "builtin macro",
+                id: ast.id(),
+            }),
         }
     }
 
     /// Get the constant function associated with the opaque.
-    pub(crate) fn const_fn_for<T>(&self, ast: T) -> compile::Result<Arc<ConstFn>>
+    pub(crate) fn const_fn_for<T>(&self, ast: T) -> compile::Result<Arc<ConstFn>, MissingId>
     where
-        T: Spanned + Opaque,
+        T: Opaque,
     {
         match ast.id().get().and_then(|n| self.inner.const_fns.get(&n)) {
             Some(const_fn) => Ok(const_fn.clone()),
-            None => Err(compile::Error::new(
-                ast.span(),
-                QueryErrorKind::MissingId {
-                    what: "constant function",
-                    id: ast.id(),
-                },
-            )),
+            None => Err(MissingId {
+                what: "constant function",
+                id: ast.id(),
+            }),
         }
     }
 
@@ -856,7 +866,7 @@ impl<'a> Query<'a> {
         let id = path.id();
 
         let Some(&qp) = id.get().and_then(|id| self.inner.query_paths.get(&id)) else {
-            return Err(compile::Error::new(path, QueryErrorKind::MissingId { what: "path", id }));
+            return Err(compile::Error::new(path, MissingId { what: "path", id }));
         };
 
         let mut in_self_type = false;
@@ -1224,7 +1234,7 @@ impl<'a> Query<'a> {
                 parameters: Hash::EMPTY,
             },
             Indexed::Variant(variant) => {
-                let enum_ = self.item_for((span, variant.enum_id))?;
+                let enum_ = self.item_for(variant.enum_id).with_span(span)?;
 
                 // Ensure that the enum is being built and marked as used.
                 let Some(enum_meta) = self.query_meta(span, enum_.item, Default::default())? else {

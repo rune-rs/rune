@@ -1311,8 +1311,8 @@ fn expr_call(
             c.scopes.undecl_anon(span, args + 1)?;
         }
         hir::Call::ConstFn { id, ast_id } => {
-            let const_fn = c.q.const_fn_for((span, id))?;
-            let from = c.q.item_for((span, ast_id))?;
+            let const_fn = c.q.const_fn_for(id).with_span(span)?;
+            let from = c.q.item_for(ast_id).with_span(span)?;
             let value = c.call_const_fn(span, &from, &const_fn, hir.args)?;
             const_(span, c, &value, Needs::Value)?;
         }

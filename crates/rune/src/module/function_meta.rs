@@ -101,7 +101,7 @@ impl FunctionMacroData {
         F: 'static
             + Send
             + Sync
-            + Fn(&mut MacroContext<'_>, &TokenStream) -> compile::Result<TokenStream>,
+            + Fn(&mut MacroContext<'_, '_>, &TokenStream) -> compile::Result<TokenStream>,
         N: IntoIterator,
         N::Item: IntoComponent,
     {
@@ -126,7 +126,11 @@ impl AttributeMacroData {
         F: 'static
             + Send
             + Sync
-            + Fn(&mut MacroContext<'_>, &TokenStream, &TokenStream) -> compile::Result<TokenStream>,
+            + Fn(
+                &mut MacroContext<'_, '_>,
+                &TokenStream,
+                &TokenStream,
+            ) -> compile::Result<TokenStream>,
         N: IntoIterator,
         N::Item: IntoComponent,
     {
@@ -363,7 +367,7 @@ impl MacroMetaKind {
         F: 'static
             + Send
             + Sync
-            + Fn(&mut MacroContext<'_>, &TokenStream) -> compile::Result<TokenStream>,
+            + Fn(&mut MacroContext<'_, '_>, &TokenStream) -> compile::Result<TokenStream>,
         N: IntoIterator,
         N::Item: IntoComponent,
     {
@@ -377,7 +381,11 @@ impl MacroMetaKind {
         F: 'static
             + Send
             + Sync
-            + Fn(&mut MacroContext<'_>, &TokenStream, &TokenStream) -> compile::Result<TokenStream>,
+            + Fn(
+                &mut MacroContext<'_, '_>,
+                &TokenStream,
+                &TokenStream,
+            ) -> compile::Result<TokenStream>,
         N: IntoIterator,
         N::Item: IntoComponent,
     {
