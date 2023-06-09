@@ -19,7 +19,14 @@ pub(crate) struct Scope(usize);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub(crate) struct Variable(usize);
+pub(crate) struct Variable(pub(crate) usize);
+
+impl fmt::Display for Variable {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
 
 /// The kind of a layer.
 #[derive(Default)]

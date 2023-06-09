@@ -6,6 +6,7 @@ use crate::no_std::prelude::*;
 use crate::ast::{Span, Spanned};
 use crate::compile::v1::Assembler;
 use crate::compile::{self, Assembly, CompileErrorKind, CompileVisitor, WithSpan};
+use crate::hir;
 use crate::runtime::Inst;
 use crate::SourceId;
 
@@ -54,7 +55,7 @@ impl Var {
 #[derive(Debug, Clone)]
 pub(crate) struct Scope {
     /// Named variables.
-    locals: HashMap<String, Var>,
+    locals: HashMap<hir::Variable, Var>,
     /// The number of variables.
     pub(crate) total_var_count: usize,
     /// The number of variables local to this scope.
@@ -81,8 +82,9 @@ impl Scope {
     }
 
     /// Insert a new local, and return the old one if there's a conflict.
-    fn new_var(&mut self, name: &str, span: &dyn Spanned) -> compile::Result<usize> {
+    fn new_var(&mut self, name: hir::Variable, span: &dyn Spanned) -> compile::Result<usize> {
         let offset = self.total_var_count;
+        tracing::trace!(?name, ?offset, "new var");
 
         let local = Var {
             offset,
@@ -93,11 +95,10 @@ impl Scope {
         self.total_var_count += 1;
         self.local_var_count += 1;
 
-        if let Some(old) = self.locals.insert(name.to_owned(), local) {
+        if let Some(old) = self.locals.insert(name, local) {
             return Err(compile::Error::new(
                 span,
                 CompileErrorKind::VariableConflict {
-                    name: name.to_owned(),
                     existing_span: old.span,
                 },
             ));
@@ -107,13 +108,12 @@ impl Scope {
     }
 
     /// Insert a new local, and return the old one if there's a conflict.
-    fn decl_var(&mut self, name: &str, span: &dyn Spanned) -> usize {
+    fn decl_var(&mut self, name: hir::Variable, span: &dyn Spanned) -> usize {
         let offset = self.total_var_count;
-
-        tracing::trace!("decl {} => {}", name, offset);
+        tracing::trace!(?name, ?offset, "declare var");
 
         self.locals.insert(
-            name.to_owned(),
+            name,
             Var {
                 offset,
                 span: span.span(),
@@ -154,8 +154,8 @@ impl Scope {
     }
 
     /// Access the variable with the given name.
-    fn get(&self, name: &str, span: &dyn Spanned) -> compile::Result<Option<Var>> {
-        if let Some(var) = self.locals.get(name) {
+    fn get(&self, name: hir::Variable, span: &dyn Spanned) -> compile::Result<Option<Var>> {
+        if let Some(var) = self.locals.get(&name) {
             if let Some(moved_at) = var.moved_at {
                 return Err(compile::Error::new(
                     span,
@@ -170,8 +170,8 @@ impl Scope {
     }
 
     /// Access the variable with the given name.
-    fn take(&mut self, name: &str, span: &dyn Spanned) -> compile::Result<Option<&Var>> {
-        if let Some(var) = self.locals.get_mut(name) {
+    fn take(&mut self, name: hir::Variable, span: &dyn Spanned) -> compile::Result<Option<&Var>> {
+        if let Some(var) = self.locals.get_mut(&name) {
             if let Some(moved_at) = var.moved_at {
                 return Err(compile::Error::new(
                     span,
@@ -211,11 +211,11 @@ impl Scopes {
     pub(crate) fn try_get_var(
         &self,
         visitor: &mut dyn CompileVisitor,
-        name: &str,
+        name: hir::Variable,
         source_id: SourceId,
         span: &dyn Spanned,
     ) -> compile::Result<Option<Var>> {
-        tracing::trace!("get var: {}", name);
+        tracing::trace!(?name, "try get var");
 
         for scope in self.scopes.iter().rev() {
             if let Some(var) = scope.get(name, span)? {
@@ -233,11 +233,11 @@ impl Scopes {
     pub(crate) fn try_take_var(
         &mut self,
         visitor: &mut dyn CompileVisitor,
-        name: &str,
+        name: hir::Variable,
         source_id: SourceId,
         span: &dyn Spanned,
     ) -> compile::Result<Option<&Var>> {
-        tracing::trace!("get var: {}", name);
+        tracing::trace!(?name, "try take var");
 
         for scope in self.scopes.iter_mut().rev() {
             if let Some(var) = scope.take(name, span)? {
@@ -254,16 +254,14 @@ impl Scopes {
     pub(crate) fn get_var(
         &self,
         visitor: &mut dyn CompileVisitor,
-        name: &str,
+        name: hir::Variable,
         source_id: SourceId,
         span: &dyn Spanned,
     ) -> compile::Result<Var> {
         let Some(var) = self.try_get_var(visitor, name, source_id, span)? else {
-            return Err(compile::Error::new(
+            return Err(compile::Error::msg(
                 span,
-                CompileErrorKind::MissingLocal {
-                    name: name.to_owned(),
-                },
+                format_args!("Missing variable {name}"),
             ));
         };
 
@@ -274,28 +272,34 @@ impl Scopes {
     pub(crate) fn take_var(
         &mut self,
         visitor: &mut dyn CompileVisitor,
-        name: &str,
+        name: hir::Variable,
         source_id: SourceId,
         span: &dyn Spanned,
     ) -> compile::Result<&Var> {
         match self.try_take_var(visitor, name, source_id, span)? {
             Some(var) => Ok(var),
-            None => Err(compile::Error::new(
+            None => Err(compile::Error::msg(
                 span,
-                CompileErrorKind::MissingLocal {
-                    name: name.to_owned(),
-                },
+                format_args!("Missing variable {name} to take"),
             )),
         }
     }
 
     /// Construct a new variable.
-    pub(crate) fn new_var(&mut self, name: &str, span: &dyn Spanned) -> compile::Result<usize> {
+    pub(crate) fn new_var(
+        &mut self,
+        name: hir::Variable,
+        span: &dyn Spanned,
+    ) -> compile::Result<usize> {
         self.last_mut(span)?.new_var(name, span)
     }
 
     /// Declare the given variable.
-    pub(crate) fn decl_var(&mut self, name: &str, span: &dyn Spanned) -> compile::Result<usize> {
+    pub(crate) fn decl_var(
+        &mut self,
+        name: hir::Variable,
+        span: &dyn Spanned,
+    ) -> compile::Result<usize> {
         Ok(self.last_mut(span)?.decl_var(name, span))
     }
 

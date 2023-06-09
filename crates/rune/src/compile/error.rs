@@ -240,8 +240,8 @@ pub(crate) enum CompileErrorKind {
         item: ItemBuf,
         existing: (SourceId, Span),
     },
-    #[error("Variable `{name}` conflicts")]
-    VariableConflict { name: String, existing_span: Span },
+    #[error("Variable conflicts")]
+    VariableConflict { existing_span: Span },
     #[error("Missing macro `{item}`")]
     MissingMacro { item: ItemBuf },
     #[error("No `self` in current context")]

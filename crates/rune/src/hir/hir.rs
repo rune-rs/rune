@@ -84,14 +84,14 @@ pub(crate) struct PatItems<'hir> {
 #[non_exhaustive]
 pub(crate) enum Binding<'hir> {
     Binding(Span, &'hir str, &'hir Pat<'hir>),
-    Ident(Span, &'hir str),
+    Ident(Span, &'hir str, Variable),
 }
 
 impl Binding<'_> {
     pub(crate) fn key(&self) -> &str {
         match self {
             Self::Binding(_, key, _) => key,
-            Self::Ident(_, key) => key,
+            Self::Ident(_, key, _) => key,
         }
     }
 }
@@ -500,7 +500,7 @@ pub(crate) struct FieldAssign<'hir> {
     /// The key of the field.
     pub(crate) key: (Span, &'hir str),
     /// The assigned expression of the field.
-    pub(crate) assign: Option<&'hir Expr<'hir>>,
+    pub(crate) assign: &'hir Expr<'hir>,
 }
 
 /// A literal vector.
@@ -666,13 +666,22 @@ pub(crate) struct ItemFn<'hir> {
 }
 
 /// A single argument to a function.
-#[derive(Debug, Clone, Copy, Spanned)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) enum FnArg<'hir> {
     /// The `self` parameter.
-    SelfValue(Span),
+    SelfValue(Span, Variable),
     /// Function argument is a pattern binding.
     Pat(&'hir Pat<'hir>),
+}
+
+impl Spanned for FnArg<'_> {
+    fn span(&self) -> Span {
+        match self {
+            FnArg::SelfValue(span, _) => *span,
+            FnArg::Pat(pat) => pat.span(),
+        }
+    }
 }
 
 /// A block of statements.
