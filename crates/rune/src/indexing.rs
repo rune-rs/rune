@@ -7,7 +7,7 @@ use crate::no_std::prelude::*;
 use crate::ast::{self, Span};
 use crate::compile::meta;
 use crate::compile::{ItemId, ItemMeta};
-use crate::hir::Variable;
+use crate::hash::Hash;
 use crate::parse::Id;
 use crate::runtime::Call;
 
@@ -111,10 +111,10 @@ pub(crate) struct Variant {
 pub(crate) struct Closure {
     /// Ast for closure.
     pub(crate) ast: Box<ast::ExprClosure>,
-    /// Captures.
-    pub(crate) captures: Vec<(Variable, String)>,
     /// Calling convention used for closure.
     pub(crate) call: Call,
+    /// Captures.
+    pub(crate) captures: Hash,
 }
 
 #[derive(Debug, Clone)]
@@ -124,7 +124,7 @@ pub(crate) struct AsyncBlock {
     /// Calling convention used for async block.
     pub(crate) call: Call,
     /// Captured variables.
-    pub(crate) captures: Vec<(Variable, String)>,
+    pub(crate) captures: Hash,
 }
 
 #[derive(Debug, Clone)]

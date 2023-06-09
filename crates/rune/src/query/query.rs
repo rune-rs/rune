@@ -1665,9 +1665,9 @@ impl<'a> Query<'a> {
     /// Insert captures.
     pub(crate) fn insert_captures<'hir, C>(&mut self, hash: Hash, captures: C)
     where
-        C: Iterator<Item = (hir::Variable, hir::Capture<'hir>)>,
+        C: IntoIterator<Item = (hir::Variable, hir::Capture<'hir>)>,
     {
-        let captures = captures.map(|(v, c)| {
+        let captures = captures.into_iter().map(|(v, c)| {
             let c = match c {
                 hir::Capture::SelfValue => hir::OwnedCapture::SelfValue,
                 hir::Capture::Name(name) => hir::OwnedCapture::Name(name.to_owned()),

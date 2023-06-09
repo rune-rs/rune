@@ -1,3 +1,4 @@
+use crate::ast::Spanned;
 use crate::no_std::prelude::*;
 
 use crate::ast::Span;
@@ -90,7 +91,7 @@ impl<'a> Assembler<'a> {
     }
 
     /// Pop locals by simply popping them.
-    pub(crate) fn locals_pop(&mut self, total_var_count: usize, span: Span) {
+    pub(crate) fn locals_pop(&mut self, total_var_count: usize, span: &dyn Spanned) {
         match total_var_count {
             0 => (),
             1 => {
@@ -107,7 +108,7 @@ impl<'a> Assembler<'a> {
     ///
     /// The clean operation will preserve the value that is on top of the stack,
     /// and pop the values under it.
-    pub(crate) fn locals_clean(&mut self, total_var_count: usize, span: Span) {
+    pub(crate) fn locals_clean(&mut self, total_var_count: usize, span: &dyn Spanned) {
         match total_var_count {
             0 => (),
             count => {
@@ -119,7 +120,7 @@ impl<'a> Assembler<'a> {
     /// Clean the last scope.
     pub(crate) fn clean_last_scope(
         &mut self,
-        span: Span,
+        span: &dyn Spanned,
         expected: ScopeGuard,
         needs: Needs,
     ) -> compile::Result<()> {
@@ -142,7 +143,7 @@ impl<'a> Assembler<'a> {
     /// Calling a constant function by id and return the resuling value.
     pub(crate) fn call_const_fn(
         &mut self,
-        span: Span,
+        span: &dyn Spanned,
         from: &ItemMeta,
         query_const_fn: &ConstFn,
         args: &[hir::Expr<'_>],

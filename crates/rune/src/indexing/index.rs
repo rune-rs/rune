@@ -552,7 +552,7 @@ pub(crate) fn file(idx: &mut Indexer<'_>, ast: &mut ast::File) -> compile::Resul
                 if !i.needs_semi_colon() {
                     idx.q
                         .diagnostics
-                        .unnecessary_semi_colon(idx.source_id, semi.span());
+                        .unnecessary_semi_colon(idx.source_id, &semi);
                 }
             }
 
@@ -895,7 +895,7 @@ fn block(idx: &mut Indexer<'_>, ast: &mut ast::Block) -> compile::Result<()> {
                     if !i.needs_semi_colon() {
                         idx.q
                             .diagnostics
-                            .unnecessary_semi_colon(idx.source_id, semi.span());
+                            .unnecessary_semi_colon(idx.source_id, &semi);
                     }
                 }
 
@@ -934,7 +934,7 @@ fn block(idx: &mut Indexer<'_>, ast: &mut ast::Block) -> compile::Result<()> {
                 if !semi.needs_semi() {
                     idx.q
                         .diagnostics
-                        .unnecessary_semi_colon(idx.source_id, semi.span());
+                        .unnecessary_semi_colon(idx.source_id, semi);
                 }
 
                 expr(idx, &mut semi.expr)?;

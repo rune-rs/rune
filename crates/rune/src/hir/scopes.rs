@@ -30,6 +30,7 @@ enum LayerKind {
 }
 
 /// An owned capture.
+#[derive(Debug, Clone)]
 pub(crate) enum OwnedCapture {
     SelfValue,
     Name(String),
@@ -187,7 +188,6 @@ impl<'hir> Scopes<'hir> {
     #[tracing::instrument(skip_all)]
     pub(crate) fn get_self(&mut self) -> Option<Variable> {
         tracing::trace!(?self.scope, "get self");
-
         self.scan(|layer| Some((Variable(layer.has_self?), Capture::SelfValue)))
     }
 
@@ -195,7 +195,6 @@ impl<'hir> Scopes<'hir> {
     #[tracing::instrument(skip_all)]
     pub(crate) fn get(&mut self, name: &'hir str) -> Option<Variable> {
         tracing::trace!(?self.scope, ?name, "get");
-
         self.scan(|layer| Some((Variable(*layer.variables.get(name)?), Capture::Name(name))))
     }
 

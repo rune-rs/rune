@@ -14,7 +14,6 @@ use crate::compile::{
 };
 use crate::hash::{Hash, ParametersBuilder};
 use crate::hir;
-use crate::hir::Variable;
 use crate::indexing;
 use crate::parse::Resolve;
 use crate::query::{self, Build, BuildEntry, Named, Query, Used};
@@ -245,14 +244,31 @@ pub(crate) fn item_fn<'hir>(
 pub(crate) fn async_block_secondary<'hir>(
     ctx: &mut Ctx<'hir, '_>,
     ast: &ast::Block,
-    captures: &[(Variable, String)],
+    captures: Hash,
 ) -> compile::Result<hir::AsyncBlock<'hir>> {
     alloc_with!(ctx, ast);
 
-    let captures = &*iter!(captures, |(_, string)| alloc_str!(string));
+    let Some(captures) = ctx.q.get_captures(captures) else {
+        return Err(compile::Error::msg(ast, format_args!("Missing captures for hash {captures}")));
+    };
 
-    for capture in captures {
-        ctx.scopes.define(capture).with_span(ast)?;
+    let captures = &*iter!(captures, |(variable, capture)| (
+        *variable,
+        match capture {
+            hir::OwnedCapture::SelfValue => hir::Capture::SelfValue,
+            hir::OwnedCapture::Name(name) => hir::Capture::Name(alloc_str!(name.as_str())),
+        }
+    ));
+
+    for (_, capture) in captures {
+        match capture {
+            hir::Capture::SelfValue => {
+                ctx.scopes.define_self().with_span(ast)?;
+            }
+            hir::Capture::Name(name) => {
+                ctx.scopes.define(name).with_span(ast)?;
+            }
+        }
     }
 
     Ok(hir::AsyncBlock {
@@ -268,25 +284,40 @@ pub(crate) fn async_block_secondary<'hir>(
 pub(crate) fn expr_closure_secondary<'hir>(
     ctx: &mut Ctx<'hir, '_>,
     ast: &ast::ExprClosure,
-    captures: &[(Variable, String)],
+    captures: Hash,
 ) -> compile::Result<hir::ExprClosure<'hir>> {
     alloc_with!(ctx, ast);
 
-    let captures = &*iter!(captures, |(_, string)| alloc_str!(string));
+    let Some(captures) = ctx.q.get_captures(captures) else {
+        return Err(compile::Error::msg(ast, format_args!("Missing captures for hash {captures}")));
+    };
 
-    for capture in captures {
-        ctx.scopes.define(capture).with_span(ast)?;
+    let captures = &*iter!(captures, |(variable, capture)| (
+        *variable,
+        match capture {
+            hir::OwnedCapture::SelfValue => hir::Capture::SelfValue,
+            hir::OwnedCapture::Name(name) => hir::Capture::Name(alloc_str!(name.as_str())),
+        }
+    ));
+
+    for (_, capture) in captures {
+        match capture {
+            hir::Capture::SelfValue => {
+                ctx.scopes.define_self().with_span(ast)?;
+            }
+            hir::Capture::Name(name) => {
+                ctx.scopes.define(name).with_span(ast)?;
+            }
+        }
     }
+
+    let args = iter!(ast.args.as_slice(), |(ast, _)| fn_arg(ctx, ast)?);
+    let body = alloc!(expr(ctx, &ast.body)?);
 
     Ok(hir::ExprClosure {
         id: ast.id,
-        args: match &ast.args {
-            ast::ExprClosureArgs::Empty { .. } => &[],
-            ast::ExprClosureArgs::List { args, .. } => {
-                iter!(args, |(ast, _)| fn_arg(ctx, ast)?)
-            }
-        },
-        body: alloc!(expr(ctx, &ast.body)?),
+        args,
+        body,
         captures,
     })
 }
@@ -339,10 +370,7 @@ fn expr_call_closure<'hir>(
                 build: Build::Closure(indexing::Closure {
                     ast: Box::new(ast.clone()),
                     call,
-                    captures: layer
-                        .captures()
-                        .map(|(variable, name)| (variable, name.into_string()))
-                        .collect(),
+                    captures: meta.hash,
                 }),
                 used: Used::Used,
             });
@@ -921,20 +949,18 @@ pub(crate) fn expr_block<'hir>(
                     block(ctx, &ast.block)?;
                     let layer = ctx.scopes.pop().with_span(&ast.block)?;
 
+                    ctx.q.insert_captures(meta.hash, layer.captures());
+
                     ctx.q.inner.queue.push_back(BuildEntry {
                         item_meta: meta.item_meta,
                         build: Build::AsyncBlock(indexing::AsyncBlock {
                             ast: ast.block.clone(),
                             call,
-                            captures: layer
-                                .captures()
-                                .map(|(variable, name)| (variable, name.into_string()))
-                                .collect(),
+                            captures: meta.hash,
                         }),
                         used: Used::Used,
                     });
 
-                    ctx.q.insert_captures(meta.hash, layer.captures());
                     iter!(layer.captures())
                 }
                 Some(captures) => {
@@ -1259,7 +1285,14 @@ pub(crate) fn expr_path<'hir>(
     alloc_with!(ctx, ast);
 
     if let Some(ast::PathKind::SelfValue) = ast.as_kind() {
-        return Ok(hir::ExprKind::SelfValue);
+        let Some(variable) = ctx.scopes.get_self() else {
+            return Err(compile::Error::new(
+                ast,
+                CompileErrorKind::MissingSelf,
+            ));
+        };
+
+        return Ok(hir::ExprKind::SelfValue(variable));
     }
 
     if let Needs::Value = ctx.needs.get() {
@@ -1637,7 +1670,7 @@ fn expr_call<'hir>(
                             let tuple = path.span();
                             ctx.q.diagnostics.remove_tuple_call_parens(
                                 ctx.source_id,
-                                ast.args.span(),
+                                &ast.args,
                                 tuple,
                                 None,
                             );

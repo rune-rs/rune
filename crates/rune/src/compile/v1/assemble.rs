@@ -28,16 +28,16 @@ struct Asm {
 impl Asm {
     /// Construct an assembly result that leaves the value on the top of the
     /// stack.
-    fn top(span: Span) -> Self {
+    fn top(span: &dyn Spanned) -> Self {
         Self {
-            span,
+            span: span.span(),
             kind: AsmKind::Top,
         }
     }
 
-    fn var(span: Span, var: Var, local: Box<str>) -> Self {
+    fn var(span: &dyn Spanned, var: Var, local: Box<str>) -> Self {
         Self {
-            span,
+            span: span.span(),
             kind: AsmKind::Var(var, local),
         }
     }
@@ -55,7 +55,7 @@ impl Asm {
     /// Assemble into an instruction.
     fn apply(self, c: &mut Assembler) -> compile::Result<()> {
         if let AsmKind::Var(var, local) = self.kind {
-            var.copy(c, self.span, format_args!("var `{}`", local));
+            var.copy(c, &self.span, format_args!("var `{}`", local));
         }
 
         Ok(())
@@ -65,7 +65,7 @@ impl Asm {
     fn apply_targeted(self, c: &mut Assembler) -> compile::Result<InstAddress> {
         let address = match self.kind {
             AsmKind::Top => {
-                c.scopes.decl_anon(self.span)?;
+                c.scopes.decl_anon(&self.span)?;
                 InstAddress::Top
             }
             AsmKind::Var(var, ..) => InstAddress::Offset(var.offset),
@@ -78,13 +78,13 @@ impl Asm {
 /// Assemble a return statement from the given Assemble.
 fn return_<T>(
     c: &mut Assembler<'_>,
-    span: Span,
+    span: &dyn Spanned,
     hir: &T,
-    asm: impl FnOnce(&T, &mut Assembler<'_>, Needs) -> compile::Result<Asm>,
+    asm: impl FnOnce(&mut Assembler<'_>, &T, Needs) -> compile::Result<Asm>,
 ) -> compile::Result<()> {
     let clean = c.scopes.total_var_count(span)?;
 
-    let address = asm(hir, c, Needs::Value)?.apply_targeted(c)?;
+    let address = asm(c, hir, Needs::Value)?.apply_targeted(c)?;
     c.asm.push(Inst::Return { address, clean }, span);
 
     // Top address produces an anonymous variable, which is consumed by the
@@ -97,17 +97,15 @@ fn return_<T>(
 }
 
 /// Compile a pattern based on the given offset.
-#[instrument]
+#[instrument(span = hir)]
 fn pat_with_offset(
-    hir: &hir::Pat<'_>,
     c: &mut Assembler<'_>,
+    hir: &hir::Pat<'_>,
     offset: usize,
 ) -> compile::Result<()> {
-    let span = hir.span();
-
     let load = |c: &mut Assembler, needs: Needs| {
         if needs.value() {
-            c.asm.push(Inst::Copy { offset }, span);
+            c.asm.push(Inst::Copy { offset }, hir);
         }
 
         Ok(())
@@ -115,18 +113,18 @@ fn pat_with_offset(
 
     let false_label = c.asm.new_label("let_panic");
 
-    if pat(hir, c, &false_label, &load)? {
+    if pat(c, hir, &false_label, &load)? {
         c.q.diagnostics
-            .let_pattern_might_panic(c.source_id, span, c.context());
+            .let_pattern_might_panic(c.source_id, hir, c.context());
 
         let ok_label = c.asm.new_label("let_ok");
-        c.asm.jump(&ok_label, span);
+        c.asm.jump(&ok_label, hir);
         c.asm.label(&false_label)?;
         c.asm.push(
             Inst::Panic {
                 reason: PanicReason::UnmatchedPattern,
             },
-            span,
+            hir,
         );
 
         c.asm.label(&ok_label)?;
@@ -141,14 +139,14 @@ fn pat_with_offset(
 /// in case the pattern does not match.
 ///
 /// Returns a boolean indicating if the label was used.
-#[instrument]
+#[instrument(span = hir)]
 fn pat(
-    hir: &hir::Pat<'_>,
     c: &mut Assembler<'_>,
+    hir: &hir::Pat<'_>,
     false_label: &Label,
     load: &dyn Fn(&mut Assembler<'_>, Needs) -> compile::Result<()>,
 ) -> compile::Result<bool> {
-    let span = hir.span();
+    let span = hir;
 
     match hir.kind {
         hir::PatKind::Ignore => {
@@ -160,28 +158,28 @@ fn pat(
         hir::PatKind::Path(kind) => match *kind {
             hir::PatPathKind::Kind(kind) => {
                 load(c, Needs::Value)?;
-                c.asm.push(to_tuple_match_instruction(*kind), span);
+                c.asm.push(to_tuple_match_instruction(*kind), hir);
                 c.asm
-                    .pop_and_jump_if_not(c.scopes.local_var_count(span)?, false_label, span);
+                    .pop_and_jump_if_not(c.scopes.local_var_count(hir)?, false_label, hir);
                 Ok(true)
             }
             hir::PatPathKind::Ident(ident, _) => {
                 load(c, Needs::Value)?;
-                c.scopes.decl_var(ident, span)?;
+                c.scopes.decl_var(ident, hir)?;
                 Ok(false)
             }
         },
-        hir::PatKind::Lit(hir) => Ok(pat_lit(hir, c, false_label, load)?),
+        hir::PatKind::Lit(hir) => Ok(pat_lit(c, hir, false_label, load)?),
         hir::PatKind::Vec(hir) => {
-            pat_vec(span, c, hir, false_label, &load)?;
+            pat_vec(c, hir, span, false_label, &load)?;
             Ok(true)
         }
         hir::PatKind::Tuple(hir) => {
-            pat_tuple(span, c, hir, false_label, &load)?;
+            pat_tuple(c, hir, span, false_label, &load)?;
             Ok(true)
         }
         hir::PatKind::Object(hir) => {
-            pat_object(span, c, hir, false_label, &load)?;
+            pat_object(c, hir, span, false_label, &load)?;
             Ok(true)
         }
         _ => Err(compile::Error::new(
@@ -192,16 +190,14 @@ fn pat(
 }
 
 /// Assemble a pattern literal.
-#[instrument]
+#[instrument(span = hir)]
 fn pat_lit(
-    hir: &hir::Expr<'_>,
     c: &mut Assembler<'_>,
+    hir: &hir::Expr<'_>,
     false_label: &Label,
     load: &dyn Fn(&mut Assembler<'_>, Needs) -> compile::Result<()>,
 ) -> compile::Result<bool> {
-    let span = hir.span();
-
-    let Some(inst) = pat_lit_inst(span, c, hir)? else {
+    let Some(inst) = pat_lit_inst(c, hir)? else {
         return Err(compile::Error::new(
             hir,
             CompileErrorKind::UnsupportedPatternExpr,
@@ -209,18 +205,14 @@ fn pat_lit(
     };
 
     load(c, Needs::Value)?;
-    c.asm.push(inst, span);
+    c.asm.push(inst, hir);
     c.asm
-        .pop_and_jump_if_not(c.scopes.local_var_count(span)?, false_label, span);
+        .pop_and_jump_if_not(c.scopes.local_var_count(hir)?, false_label, hir);
     Ok(true)
 }
 
-#[instrument]
-fn pat_lit_inst(
-    span: Span,
-    c: &mut Assembler<'_>,
-    hir: &hir::Expr<'_>,
-) -> compile::Result<Option<Inst>> {
+#[instrument(span = hir)]
+fn pat_lit_inst(c: &mut Assembler<'_>, hir: &hir::Expr<'_>) -> compile::Result<Option<Inst>> {
     let hir::ExprKind::Lit(lit) = hir.kind else {
         return Ok(None);
     };
@@ -229,10 +221,10 @@ fn pat_lit_inst(
         hir::Lit::Byte(byte) => Inst::EqByte { byte },
         hir::Lit::Char(char) => Inst::EqChar { char },
         hir::Lit::Str(string) => Inst::EqString {
-            slot: c.q.unit.new_static_string(span, string)?,
+            slot: c.q.unit.new_static_string(hir, string)?,
         },
         hir::Lit::ByteStr(bytes) => Inst::EqBytes {
-            slot: c.q.unit.new_static_bytes(span, bytes)?,
+            slot: c.q.unit.new_static_bytes(hir, bytes)?,
         },
         hir::Lit::Integer(integer) => Inst::EqInteger { integer },
         hir::Lit::Bool(boolean) => Inst::EqBool { boolean },
@@ -243,23 +235,21 @@ fn pat_lit_inst(
 }
 
 /// Assemble an [hir::Condition<'_>].
-#[instrument]
+#[instrument(span = condition)]
 fn condition(
-    condition: &hir::Condition<'_>,
     c: &mut Assembler<'_>,
+    condition: &hir::Condition<'_>,
     then_label: &Label,
 ) -> compile::Result<Scope> {
     match condition {
         hir::Condition::Expr(e) => {
-            let span = e.span();
+            expr(c, e, Needs::Value)?.apply(c)?;
+            c.asm.jump_if(then_label, e);
 
-            expr(e, c, Needs::Value)?.apply(c)?;
-            c.asm.jump_if(then_label, span);
-
-            Ok(c.scopes.child(span)?)
+            Ok(c.scopes.child(e)?)
         }
         hir::Condition::ExprLet(expr_let) => {
-            let span = expr_let.span();
+            let span = expr_let;
 
             let false_label = c.asm.new_label("if_condition_false");
 
@@ -267,11 +257,11 @@ fn condition(
             let expected = c.scopes.push(scope);
 
             let load = |c: &mut Assembler<'_>, needs: Needs| {
-                expr(expr_let.expr, c, needs)?.apply(c)?;
+                expr(c, expr_let.expr, needs)?.apply(c)?;
                 Ok(())
             };
 
-            if pat(expr_let.pat, c, &false_label, &load)? {
+            if pat(c, expr_let.pat, &false_label, &load)? {
                 c.asm.jump(then_label, span);
                 c.asm.label(&false_label)?;
             } else {
@@ -285,11 +275,11 @@ fn condition(
 }
 
 /// Encode a vector pattern match.
-#[instrument]
+#[instrument(span = span)]
 fn pat_vec(
-    span: Span,
     c: &mut Assembler<'_>,
     hir: &hir::PatItems<'_>,
+    span: &dyn Spanned,
     false_label: &Label,
     load: &dyn Fn(&mut Assembler<'_>, Needs) -> compile::Result<()>,
 ) -> compile::Result<()> {
@@ -317,25 +307,24 @@ fn pat_vec(
     for (index, hir) in hir.items.iter().take(hir.count).enumerate() {
         let load = move |c: &mut Assembler<'_>, needs: Needs| {
             if needs.value() {
-                c.asm
-                    .push(Inst::TupleIndexGetAt { offset, index }, hir.span());
+                c.asm.push(Inst::TupleIndexGetAt { offset, index }, hir);
             }
 
             Ok(())
         };
 
-        pat(hir, c, false_label, &load)?;
+        pat(c, hir, false_label, &load)?;
     }
 
     Ok(())
 }
 
 /// Encode a vector pattern match.
-#[instrument]
+#[instrument(span = span)]
 fn pat_tuple(
-    span: Span,
     c: &mut Assembler<'_>,
     hir: &hir::PatItems<'_>,
+    span: &dyn Spanned,
     false_label: &Label,
     load: &dyn Fn(&mut Assembler<'_>, Needs) -> compile::Result<()>,
 ) -> compile::Result<()> {
@@ -362,17 +351,15 @@ fn pat_tuple(
         .pop_and_jump_if_not(c.scopes.local_var_count(span)?, false_label, span);
 
     for (index, p) in hir.items.iter().take(hir.count).enumerate() {
-        let span = p.span();
-
         let load = move |c: &mut Assembler<'_>, needs: Needs| {
             if needs.value() {
-                c.asm.push(Inst::TupleIndexGetAt { offset, index }, span);
+                c.asm.push(Inst::TupleIndexGetAt { offset, index }, p);
             }
 
             Ok(())
         };
 
-        pat(p, c, false_label, &load)?;
+        pat(c, p, false_label, &load)?;
     }
 
     Ok(())
@@ -400,11 +387,11 @@ fn to_tuple_match_instruction(kind: hir::PatItemsKind) -> Inst {
 }
 
 /// Assemble an object pattern.
-#[instrument]
+#[instrument(span = span)]
 fn pat_object(
-    span: Span,
     c: &mut Assembler<'_>,
     hir: &hir::PatItems<'_>,
+    span: &dyn Spanned,
     false_label: &Label,
     load: &dyn Fn(&mut Assembler<'_>, Needs) -> compile::Result<()>,
 ) -> compile::Result<()> {
@@ -457,17 +444,17 @@ fn pat_object(
             hir::Binding::Binding(span, _, p) => {
                 let load = move |c: &mut Assembler<'_>, needs: Needs| {
                     if needs.value() {
-                        c.asm.push(Inst::ObjectIndexGetAt { offset, slot }, span);
+                        c.asm.push(Inst::ObjectIndexGetAt { offset, slot }, &span);
                     }
 
                     Ok(())
                 };
 
-                pat(p, c, false_label, &load)?;
+                pat(c, p, false_label, &load)?;
             }
             hir::Binding::Ident(span, key) => {
-                c.asm.push(Inst::ObjectIndexGetAt { offset, slot }, span);
-                c.scopes.decl_var(key, span)?;
+                c.asm.push(Inst::ObjectIndexGetAt { offset, slot }, &span);
+                c.scopes.decl_var(key, &span)?;
             }
         }
     }
@@ -477,27 +464,31 @@ fn pat_object(
 
 /// Assemble an async block.
 #[instrument(span = hir.block.span)]
-pub(crate) fn async_block(c: &mut Assembler<'_>, hir: &hir::AsyncBlock<'_>) -> compile::Result<()> {
-    let span = hir.block.span();
+pub(crate) fn async_block_secondary(
+    c: &mut Assembler<'_>,
+    hir: &hir::AsyncBlock<'_>,
+) -> compile::Result<()> {
+    let guard = c.scopes.push_child(&hir.block)?;
 
-    let guard = c.scopes.push_child(span)?;
+    for (_, capture) in hir.captures {
+        let name = match capture {
+            hir::Capture::SelfValue => SELF,
+            hir::Capture::Name(name) => name,
+        };
 
-    for capture in hir.captures {
-        c.scopes.new_var(capture, span)?;
+        c.scopes.new_var(name, &hir.block)?;
     }
 
-    return_(c, span, hir.block, block)?;
-    c.scopes.pop(guard, span)?;
+    return_(c, &hir.block, hir.block, block)?;
+    c.scopes.pop(guard, &hir.block)?;
     Ok(())
 }
 
 /// Call a block.
-#[instrument]
-fn block(hir: &hir::Block<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Result<Asm> {
-    let span = hir.span();
-
-    c.contexts.push(span);
-    let scopes_count = c.scopes.push_child(span)?;
+#[instrument(span = hir)]
+fn block(c: &mut Assembler<'_>, hir: &hir::Block<'_>, needs: Needs) -> compile::Result<Asm> {
+    c.contexts.push(hir.span());
+    let scopes_count = c.scopes.push_child(hir)?;
 
     let mut last = None::<(&hir::Expr<'_>, bool)>;
 
@@ -506,10 +497,10 @@ fn block(hir: &hir::Block<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::
             hir::Stmt::Local(l) => {
                 if let Some((e, _)) = take(&mut last) {
                     // NB: terminated expressions do not need to produce a value.
-                    expr(e, c, Needs::None)?.apply(c)?;
+                    expr(c, e, Needs::None)?.apply(c)?;
                 }
 
-                local(l, c, Needs::None)?.apply(c)?;
+                local(c, l, Needs::None)?.apply(c)?;
                 continue;
             }
             hir::Stmt::Expr(expr) => (expr, false),
@@ -519,53 +510,51 @@ fn block(hir: &hir::Block<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::
 
         if let Some((e, _)) = replace(&mut last, Some((e, semi))) {
             // NB: terminated expressions do not need to produce a value.
-            expr(e, c, Needs::None)?.apply(c)?;
+            expr(c, e, Needs::None)?.apply(c)?;
         }
     }
 
     let produced = if let Some((e, semi)) = last {
         if semi {
-            expr(e, c, Needs::None)?.apply(c)?;
+            expr(c, e, Needs::None)?.apply(c)?;
             false
         } else {
-            expr(e, c, needs)?.apply(c)?;
+            expr(c, e, needs)?.apply(c)?;
             true
         }
     } else {
         false
     };
 
-    let scope = c.scopes.pop(scopes_count, span)?;
+    let scope = c.scopes.pop(scopes_count, hir)?;
 
     if needs.value() {
         if produced {
-            c.locals_clean(scope.local_var_count, span);
+            c.locals_clean(scope.local_var_count, hir);
         } else {
-            c.locals_pop(scope.local_var_count, span);
-            c.asm.push(Inst::unit(), span);
+            c.locals_pop(scope.local_var_count, hir);
+            c.asm.push(Inst::unit(), hir);
         }
     } else {
-        c.locals_pop(scope.local_var_count, span);
+        c.locals_pop(scope.local_var_count, hir);
     }
 
     c.contexts
         .pop()
         .ok_or("Missing parent context")
-        .with_span(span)?;
+        .with_span(hir)?;
 
-    Ok(Asm::top(span))
+    Ok(Asm::top(hir))
 }
 
 /// Assemble #[builtin] format_args!(...) macro.
-#[instrument]
+#[instrument(span = format)]
 fn builtin_format(
-    format: &hir::BuiltInFormat<'_>,
     c: &mut Assembler<'_>,
+    format: &hir::BuiltInFormat<'_>,
     needs: Needs,
 ) -> compile::Result<Asm> {
     use crate::runtime::format;
-
-    let span = format.span();
 
     let fill = if let Some((_, fill)) = &format.fill {
         *fill
@@ -605,24 +594,24 @@ fn builtin_format(
 
     let spec = format::FormatSpec::new(flags, fill, align, width, precision, format_type);
 
-    expr(format.value, c, Needs::Value)?.apply(c)?;
-    c.asm.push(Inst::Format { spec }, span);
+    expr(c, format.value, Needs::Value)?.apply(c)?;
+    c.asm.push(Inst::Format { spec }, format);
 
     if !needs.value() {
-        c.asm.push(Inst::Pop, span);
+        c.asm.push(Inst::Pop, format);
     }
 
-    Ok(Asm::top(span))
+    Ok(Asm::top(format))
 }
 
 /// Assemble #[builtin] template!(...) macro.
-#[instrument]
+#[instrument(span = template)]
 fn builtin_template(
-    template: &hir::BuiltInTemplate<'_>,
     c: &mut Assembler<'_>,
+    template: &hir::BuiltInTemplate<'_>,
     needs: Needs,
 ) -> compile::Result<Asm> {
-    let span = template.span();
+    let span = template;
 
     let expected = c.scopes.push_child(span)?;
     let mut size_hint = 0;
@@ -639,7 +628,7 @@ fn builtin_template(
 
         expansions += 1;
 
-        expr(hir, c, Needs::Value)?.apply(c)?;
+        expr(c, hir, Needs::Value)?.apply(c)?;
         c.scopes.decl_anon(span)?;
     }
 
@@ -665,11 +654,11 @@ fn builtin_template(
 }
 
 /// Assemble a constant value.
-#[instrument]
+#[instrument(span = span)]
 fn const_(
-    span: Span,
     c: &mut Assembler<'_>,
     value: &ConstValue,
+    span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<()> {
     if !needs.value() {
@@ -710,7 +699,7 @@ fn const_(
         }
         ConstValue::Option(option) => match option {
             Some(value) => {
-                const_(span, c, value, Needs::Value)?;
+                const_(c, value, span, Needs::Value)?;
                 c.asm.push(
                     Inst::Variant {
                         variant: InstVariant::Some,
@@ -729,14 +718,14 @@ fn const_(
         },
         ConstValue::Vec(vec) => {
             for value in vec.iter() {
-                const_(span, c, value, Needs::Value)?;
+                const_(c, value, span, Needs::Value)?;
             }
 
             c.asm.push(Inst::Vec { count: vec.len() }, span);
         }
         ConstValue::Tuple(tuple) => {
             for value in tuple.iter() {
-                const_(span, c, value, Needs::Value)?;
+                const_(c, value, span, Needs::Value)?;
             }
 
             c.asm.push(Inst::Tuple { count: tuple.len() }, span);
@@ -746,7 +735,7 @@ fn const_(
             entries.sort_by_key(|k| k.0);
 
             for (_, value) in entries.iter().copied() {
-                const_(span, c, value, Needs::Value)?;
+                const_(c, value, span, Needs::Value)?;
             }
 
             let slot =
@@ -761,11 +750,12 @@ fn const_(
 }
 
 /// Assemble an expression.
-fn expr(hir: &hir::Expr<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Result<Asm> {
-    let span = hir.span();
+#[instrument(span = hir)]
+fn expr(c: &mut Assembler<'_>, hir: &hir::Expr<'_>, needs: Needs) -> compile::Result<Asm> {
+    let span = hir;
 
     let asm = match hir.kind {
-        hir::ExprKind::SelfValue => {
+        hir::ExprKind::SelfValue(_) => {
             let var = c.scopes.get_var(c.q.visitor, SELF, c.source_id, span)?;
 
             if needs.value() {
@@ -791,36 +781,36 @@ fn expr(hir: &hir::Expr<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Re
             c.asm.push(Inst::LoadFn { hash }, span);
             Asm::top(span)
         }
-        hir::ExprKind::For(hir) => expr_for(span, c, hir, needs)?,
-        hir::ExprKind::Loop(hir) => expr_loop(span, c, hir, needs)?,
-        hir::ExprKind::Let(hir) => expr_let(hir, c, needs)?,
-        hir::ExprKind::Group(hir) => expr(hir, c, needs)?,
-        hir::ExprKind::Unary(hir) => expr_unary(span, c, hir, needs)?,
-        hir::ExprKind::Assign(hir) => expr_assign(span, c, hir, needs)?,
-        hir::ExprKind::Binary(hir) => expr_binary(span, c, hir, needs)?,
-        hir::ExprKind::If(hir) => expr_if(span, c, hir, needs)?,
-        hir::ExprKind::Index(hir) => expr_index(span, c, hir, needs)?,
-        hir::ExprKind::Break(hir) => expr_break(span, c, hir, needs)?,
-        hir::ExprKind::Continue(hir) => expr_continue(span, c, hir, needs)?,
-        hir::ExprKind::Yield(hir) => expr_yield(span, c, hir, needs)?,
-        hir::ExprKind::Block(hir) => block(hir, c, needs)?,
-        hir::ExprKind::Return(hir) => expr_return(span, c, hir, needs)?,
-        hir::ExprKind::Match(hir) => expr_match(span, c, hir, needs)?,
-        hir::ExprKind::Await(hir) => expr_await(span, c, hir, needs)?,
-        hir::ExprKind::Try(hir) => expr_try(span, c, hir, needs)?,
-        hir::ExprKind::Select(hir) => expr_select(span, c, hir, needs)?,
-        hir::ExprKind::Call(hir) => expr_call(span, c, hir, needs)?,
-        hir::ExprKind::FieldAccess(hir) => expr_field_access(span, c, hir, needs)?,
-        hir::ExprKind::CallClosure(hir) => expr_call_closure(span, c, hir, needs)?,
-        hir::ExprKind::Lit(hir) => lit(span, c, hir, needs)?,
-        hir::ExprKind::Tuple(hir) => expr_tuple(span, c, hir, needs)?,
-        hir::ExprKind::Vec(hir) => expr_vec(span, c, hir, needs)?,
-        hir::ExprKind::Object(hir) => expr_object(span, c, hir, needs)?,
-        hir::ExprKind::Range(hir) => expr_range(span, c, hir, needs)?,
-        hir::ExprKind::Template(template) => builtin_template(template, c, needs)?,
-        hir::ExprKind::Format(format) => builtin_format(format, c, needs)?,
-        hir::ExprKind::AsyncBlock(hir) => expr_async_block(span, c, hir, needs)?,
-        hir::ExprKind::Const(id) => const_item(span, c, id, needs)?,
+        hir::ExprKind::For(hir) => expr_for(c, hir, span, needs)?,
+        hir::ExprKind::Loop(hir) => expr_loop(c, hir, span, needs)?,
+        hir::ExprKind::Let(hir) => expr_let(c, hir, needs)?,
+        hir::ExprKind::Group(hir) => expr(c, hir, needs)?,
+        hir::ExprKind::Unary(hir) => expr_unary(c, hir, span, needs)?,
+        hir::ExprKind::Assign(hir) => expr_assign(c, hir, span, needs)?,
+        hir::ExprKind::Binary(hir) => expr_binary(c, hir, span, needs)?,
+        hir::ExprKind::If(hir) => expr_if(c, hir, span, needs)?,
+        hir::ExprKind::Index(hir) => expr_index(c, hir, span, needs)?,
+        hir::ExprKind::Break(hir) => expr_break(c, hir, span, needs)?,
+        hir::ExprKind::Continue(hir) => expr_continue(c, hir, span, needs)?,
+        hir::ExprKind::Yield(hir) => expr_yield(c, hir, span, needs)?,
+        hir::ExprKind::Block(hir) => block(c, hir, needs)?,
+        hir::ExprKind::Return(hir) => expr_return(c, hir, span, needs)?,
+        hir::ExprKind::Match(hir) => expr_match(c, hir, span, needs)?,
+        hir::ExprKind::Await(hir) => expr_await(c, hir, span, needs)?,
+        hir::ExprKind::Try(hir) => expr_try(c, hir, span, needs)?,
+        hir::ExprKind::Select(hir) => expr_select(c, hir, span, needs)?,
+        hir::ExprKind::Call(hir) => expr_call(c, hir, span, needs)?,
+        hir::ExprKind::FieldAccess(hir) => expr_field_access(c, hir, span, needs)?,
+        hir::ExprKind::CallClosure(hir) => expr_call_closure(c, hir, span, needs)?,
+        hir::ExprKind::Lit(hir) => lit(c, hir, span, needs)?,
+        hir::ExprKind::Tuple(hir) => expr_tuple(c, hir, span, needs)?,
+        hir::ExprKind::Vec(hir) => expr_vec(c, hir, span, needs)?,
+        hir::ExprKind::Object(hir) => expr_object(c, hir, span, needs)?,
+        hir::ExprKind::Range(hir) => expr_range(c, hir, span, needs)?,
+        hir::ExprKind::Template(template) => builtin_template(c, template, needs)?,
+        hir::ExprKind::Format(format) => builtin_format(c, format, needs)?,
+        hir::ExprKind::AsyncBlock(hir) => expr_async_block(c, hir, span, needs)?,
+        hir::ExprKind::Const(id) => const_item(c, id, span, needs)?,
         hir::ExprKind::Path(path) => {
             return Err(compile::Error::msg(
                 path,
@@ -833,17 +823,17 @@ fn expr(hir: &hir::Expr<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Re
 }
 
 /// Assemble an assign expression.
-#[instrument]
+#[instrument(span = span)]
 fn expr_assign(
-    span: Span,
     c: &mut Assembler<'_>,
     hir: &hir::ExprAssign<'_>,
+    span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm> {
     let supported = match hir.lhs.kind {
         // <var> = <value>
         hir::ExprKind::Variable(_, name) => {
-            expr(hir.rhs, c, Needs::Value)?.apply(c)?;
+            expr(c, hir.rhs, Needs::Value)?.apply(c)?;
             let var = c.scopes.get_var(c.q.visitor, name, c.source_id, span)?;
             c.asm.push(Inst::Replace { offset: var.offset }, span);
             true
@@ -855,12 +845,12 @@ fn expr_assign(
                 hir::ExprField::Path(path) => {
                     if let Some(ident) = path.try_as_ident() {
                         let slot = ident.resolve(resolve_context!(c.q))?;
-                        let slot = c.q.unit.new_static_string(ident.span(), slot.as_ref())?;
+                        let slot = c.q.unit.new_static_string(ident, slot.as_ref())?;
 
-                        expr(hir.rhs, c, Needs::Value)?.apply(c)?;
-                        c.scopes.decl_anon(hir.rhs.span())?;
+                        expr(c, hir.rhs, Needs::Value)?.apply(c)?;
+                        c.scopes.decl_anon(hir.rhs)?;
 
-                        expr(field_access.expr, c, Needs::Value)?.apply(c)?;
+                        expr(c, field_access.expr, Needs::Value)?.apply(c)?;
                         c.scopes.decl_anon(span)?;
 
                         c.asm.push(Inst::ObjectIndexSet { slot }, span);
@@ -879,10 +869,10 @@ fn expr_assign(
                         )
                     })?;
 
-                    expr(hir.rhs, c, Needs::Value)?.apply(c)?;
-                    c.scopes.decl_anon(hir.rhs.span())?;
+                    expr(c, hir.rhs, Needs::Value)?.apply(c)?;
+                    c.scopes.decl_anon(hir.rhs)?;
 
-                    expr(field_access.expr, c, Needs::Value)?.apply(c)?;
+                    expr(c, field_access.expr, Needs::Value)?.apply(c)?;
                     c.asm.push(Inst::TupleIndexSet { index }, span);
                     c.scopes.undecl_anon(span, 1)?;
                     true
@@ -890,13 +880,13 @@ fn expr_assign(
             }
         }
         hir::ExprKind::Index(expr_index_get) => {
-            expr(hir.rhs, c, Needs::Value)?.apply(c)?;
+            expr(c, hir.rhs, Needs::Value)?.apply(c)?;
             c.scopes.decl_anon(span)?;
 
-            expr(expr_index_get.target, c, Needs::Value)?.apply(c)?;
+            expr(c, expr_index_get.target, Needs::Value)?.apply(c)?;
             c.scopes.decl_anon(span)?;
 
-            expr(expr_index_get.index, c, Needs::Value)?.apply(c)?;
+            expr(c, expr_index_get.index, Needs::Value)?.apply(c)?;
             c.scopes.decl_anon(span)?;
 
             c.asm.push(Inst::IndexSet, span);
@@ -921,14 +911,14 @@ fn expr_assign(
 }
 
 /// Assemble an `.await` expression.
-#[instrument]
+#[instrument(span = hir)]
 fn expr_await(
-    span: Span,
     c: &mut Assembler<'_>,
     hir: &hir::Expr<'_>,
+    span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm> {
-    expr(hir, c, Needs::Value)?.apply(c)?;
+    expr(c, hir, Needs::Value)?.apply(c)?;
     c.asm.push(Inst::Await, span);
 
     if !needs.value() {
@@ -939,21 +929,21 @@ fn expr_await(
 }
 
 /// Assemble a binary expression.
-#[instrument]
+#[instrument(span = span)]
 fn expr_binary(
-    span: Span,
     c: &mut Assembler<'_>,
     hir: &hir::ExprBinary<'_>,
+    span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm> {
     // Special expressions which operates on the stack in special ways.
     if hir.op.is_assign() {
-        compile_assign_binop(span, c, hir.lhs, hir.rhs, &hir.op, needs)?;
+        compile_assign_binop(c, hir.lhs, hir.rhs, &hir.op, span, needs)?;
         return Ok(Asm::top(span));
     }
 
     if hir.op.is_conditional() {
-        compile_conditional_binop(span, c, hir.lhs, hir.rhs, &hir.op, needs)?;
+        compile_conditional_binop(c, hir.lhs, hir.rhs, &hir.op, span, needs)?;
         return Ok(Asm::top(span));
     }
 
@@ -962,8 +952,8 @@ fn expr_binary(
     // NB: need to declare these as anonymous local variables so that they
     // get cleaned up in case there is an early break (return, try, ...).
     let rhs_needs = rhs_needs_of(&hir.op);
-    let a = expr(hir.lhs, c, Needs::Value)?.apply_targeted(c)?;
-    let b = expr(hir.rhs, c, rhs_needs)?.apply_targeted(c)?;
+    let a = expr(c, hir.lhs, Needs::Value)?.apply_targeted(c)?;
+    let b = expr(c, hir.rhs, rhs_needs)?.apply_targeted(c)?;
 
     let op = match hir.op {
         ast::BinOp::Eq(..) => InstOp::Eq,
@@ -1016,23 +1006,23 @@ fn expr_binary(
     }
 
     fn compile_conditional_binop(
-        span: Span,
         c: &mut Assembler<'_>,
         lhs: &hir::Expr<'_>,
         rhs: &hir::Expr<'_>,
         bin_op: &ast::BinOp,
+        span: &dyn Spanned,
         needs: Needs,
     ) -> compile::Result<()> {
         let end_label = c.asm.new_label("conditional_end");
 
-        expr(lhs, c, Needs::Value)?.apply(c)?;
+        expr(c, lhs, Needs::Value)?.apply(c)?;
 
         match bin_op {
             ast::BinOp::And(..) => {
-                c.asm.jump_if_not_or_pop(&end_label, lhs.span());
+                c.asm.jump_if_not_or_pop(&end_label, lhs);
             }
             ast::BinOp::Or(..) => {
-                c.asm.jump_if_or_pop(&end_label, lhs.span());
+                c.asm.jump_if_or_pop(&end_label, lhs);
             }
             op => {
                 return Err(compile::Error::new(
@@ -1042,7 +1032,7 @@ fn expr_binary(
             }
         }
 
-        expr(rhs, c, Needs::Value)?.apply(c)?;
+        expr(c, rhs, Needs::Value)?.apply(c)?;
 
         c.asm.label(&end_label)?;
 
@@ -1054,31 +1044,31 @@ fn expr_binary(
     }
 
     fn compile_assign_binop(
-        span: Span,
         c: &mut Assembler<'_>,
         lhs: &hir::Expr<'_>,
         rhs: &hir::Expr<'_>,
         bin_op: &ast::BinOp,
+        span: &dyn Spanned,
         needs: Needs,
     ) -> compile::Result<()> {
         let supported = match lhs.kind {
             // <var> <op> <expr>
             hir::ExprKind::Variable(_, name) => {
-                expr(rhs, c, Needs::Value)?.apply(c)?;
+                expr(c, rhs, Needs::Value)?.apply(c)?;
                 let var = c.scopes.get_var(c.q.visitor, name, c.source_id, span)?;
                 Some(InstTarget::Offset(var.offset))
             }
             // <expr>.<field> <op> <value>
             hir::ExprKind::FieldAccess(field_access) => {
-                expr(field_access.expr, c, Needs::Value)?.apply(c)?;
-                expr(rhs, c, Needs::Value)?.apply(c)?;
+                expr(c, field_access.expr, Needs::Value)?.apply(c)?;
+                expr(c, rhs, Needs::Value)?.apply(c)?;
 
                 // field assignment
                 match field_access.expr_field {
                     hir::ExprField::Path(path) => {
                         if let Some(ident) = path.try_as_ident() {
                             let n = ident.resolve(resolve_context!(c.q))?;
-                            let n = c.q.unit.new_static_string(path.span(), n.as_ref())?;
+                            let n = c.q.unit.new_static_string(path, n.as_ref())?;
 
                             Some(InstTarget::Field(n))
                         } else {
@@ -1086,15 +1076,14 @@ fn expr_binary(
                         }
                     }
                     hir::ExprField::LitNumber(field) => {
-                        let span = field.span();
-
                         let number = field.resolve(resolve_context!(c.q))?;
-                        let index = number.as_tuple_index().ok_or_else(|| {
-                            compile::Error::new(
-                                span,
+
+                        let Some(index) = number.as_tuple_index() else {
+                            return Err(compile::Error::new(
+                                field,
                                 CompileErrorKind::UnsupportedTupleIndex { number },
-                            )
-                        })?;
+                            ));
+                        };
 
                         Some(InstTarget::TupleField(index))
                     }
@@ -1140,11 +1129,11 @@ fn expr_binary(
 }
 
 /// Assemble a block expression.
-#[instrument]
+#[instrument(span = span)]
 fn expr_async_block(
-    span: Span,
     c: &mut Assembler<'_>,
     hir: &hir::ExprAsyncBlock<'_>,
+    span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm> {
     for (_, capture) in hir.captures.iter().copied() {
@@ -1180,8 +1169,13 @@ fn expr_async_block(
 }
 
 /// Assemble a constant item.
-#[instrument]
-fn const_item(span: Span, c: &mut Assembler<'_>, hash: Hash, needs: Needs) -> compile::Result<Asm> {
+#[instrument(span = span)]
+fn const_item(
+    c: &mut Assembler<'_>,
+    hash: Hash,
+    span: &dyn Spanned,
+    needs: Needs,
+) -> compile::Result<Asm> {
     let Some(const_value) = c.q.get_const_value(hash).cloned() else {
         return Err(compile::Error::msg(
             span,
@@ -1189,18 +1183,18 @@ fn const_item(span: Span, c: &mut Assembler<'_>, hash: Hash, needs: Needs) -> co
         ));
     };
 
-    const_(span, c, &const_value, needs)?;
+    const_(c, &const_value, span, needs)?;
     Ok(Asm::top(span))
 }
 
 /// Assemble a break expression.
 ///
 /// NB: loops are expected to produce a value at the end of their expression.
-#[instrument]
+#[instrument(span = span)]
 fn expr_break(
-    span: Span,
     c: &mut Assembler<'_>,
     hir: Option<&hir::ExprBreakValue<'_>>,
+    span: &dyn Spanned,
     _: Needs,
 ) -> compile::Result<Asm> {
     let Some(current_loop) = c.loops.last() else {
@@ -1213,7 +1207,7 @@ fn expr_break(
     let (last_loop, to_drop, has_value) = if let Some(e) = hir {
         match e {
             hir::ExprBreakValue::Expr(e) => {
-                expr(e, c, current_loop.needs)?.apply(c)?;
+                expr(c, e, current_loop.needs)?.apply(c)?;
                 let to_drop = current_loop.drop.into_iter().collect();
                 (current_loop, to_drop, true)
             }
@@ -1256,11 +1250,11 @@ fn expr_break(
 }
 
 /// Assemble a call expression.
-#[instrument]
+#[instrument(span = span)]
 fn expr_call(
-    span: Span,
     c: &mut Assembler<'_>,
     hir: &hir::ExprCall<'_>,
+    span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm> {
     let args = hir.args.len();
@@ -1270,7 +1264,7 @@ fn expr_call(
             let var = c.scopes.get_var(c.q.visitor, name, c.source_id, span)?;
 
             for e in hir.args {
-                expr(e, c, Needs::Value)?.apply(c)?;
+                expr(c, e, Needs::Value)?.apply(c)?;
                 c.scopes.decl_anon(span)?;
             }
 
@@ -1282,11 +1276,11 @@ fn expr_call(
             c.scopes.undecl_anon(span, hir.args.len() + 1)?;
         }
         hir::Call::Instance { target, hash } => {
-            expr(target, c, Needs::Value)?.apply(c)?;
-            c.scopes.decl_anon(target.span())?;
+            expr(c, target, Needs::Value)?.apply(c)?;
+            c.scopes.decl_anon(target)?;
 
             for e in hir.args {
-                expr(e, c, Needs::Value)?.apply(c)?;
+                expr(c, e, Needs::Value)?.apply(c)?;
                 c.scopes.decl_anon(span)?;
             }
 
@@ -1295,7 +1289,7 @@ fn expr_call(
         }
         hir::Call::Meta { hash } => {
             for e in hir.args {
-                expr(e, c, Needs::Value)?.apply(c)?;
+                expr(c, e, Needs::Value)?.apply(c)?;
                 c.scopes.decl_anon(span)?;
             }
 
@@ -1304,11 +1298,11 @@ fn expr_call(
         }
         hir::Call::Expr { expr: e } => {
             for e in hir.args {
-                expr(e, c, Needs::Value)?.apply(c)?;
+                expr(c, e, Needs::Value)?.apply(c)?;
                 c.scopes.decl_anon(span)?;
             }
 
-            expr(e, c, Needs::Value)?.apply(c)?;
+            expr(c, e, Needs::Value)?.apply(c)?;
             c.scopes.decl_anon(span)?;
 
             c.asm.push(Inst::CallFn { args }, span);
@@ -1319,7 +1313,7 @@ fn expr_call(
             let const_fn = c.q.const_fn_for(id).with_span(span)?;
             let from = c.q.item_for(ast_id).with_span(span)?;
             let value = c.call_const_fn(span, &from, &const_fn, hir.args)?;
-            const_(span, c, &value, Needs::Value)?;
+            const_(c, &value, span, Needs::Value)?;
         }
     }
 
@@ -1331,11 +1325,11 @@ fn expr_call(
 }
 
 /// Assemble the body of a closure function.
-#[instrument]
-pub(crate) fn closure_from_expr_closure(
-    span: Span,
+#[instrument(span = span)]
+pub(crate) fn expr_closure_secondary(
     c: &mut Assembler<'_>,
     hir: &hir::ExprClosure<'_>,
+    span: &dyn Spanned,
 ) -> compile::Result<()> {
     let mut patterns = Vec::new();
 
@@ -1345,7 +1339,7 @@ pub(crate) fn closure_from_expr_closure(
                 return Err(compile::Error::new(s, CompileErrorKind::UnsupportedSelf))
             }
             hir::FnArg::Pat(pat) => {
-                let offset = c.scopes.decl_anon(pat.span())?;
+                let offset = c.scopes.decl_anon(pat)?;
                 patterns.push((pat, offset));
             }
         }
@@ -1354,13 +1348,18 @@ pub(crate) fn closure_from_expr_closure(
     if !hir.captures.is_empty() {
         c.asm.push(Inst::PushTuple, span);
 
-        for capture in hir.captures {
-            c.scopes.new_var(capture, span)?;
+        for (_, capture) in hir.captures {
+            let name = match capture {
+                hir::Capture::SelfValue => SELF,
+                hir::Capture::Name(name) => name,
+            };
+
+            c.scopes.new_var(name, span)?;
         }
     }
 
     for (pat, offset) in patterns {
-        pat_with_offset(pat, c, offset)?;
+        pat_with_offset(c, pat, offset)?;
     }
 
     return_(c, span, hir.body, expr)?;
@@ -1369,11 +1368,11 @@ pub(crate) fn closure_from_expr_closure(
 }
 
 /// Assemble a closure expression.
-#[instrument]
+#[instrument(span = span)]
 fn expr_call_closure(
-    span: Span,
     c: &mut Assembler<'_>,
     hir: &hir::ExprCallClosure<'_>,
+    span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm> {
     if !needs.value() {
@@ -1411,11 +1410,11 @@ fn expr_call_closure(
 }
 
 /// Assemble a continue expression.
-#[instrument]
+#[instrument(span = span)]
 fn expr_continue(
-    span: Span,
     c: &mut Assembler<'_>,
     hir: Option<&ast::Label>,
+    span: &dyn Spanned,
     _: Needs,
 ) -> compile::Result<Asm> {
     let Some(current_loop) = c.loops.last() else {
@@ -1446,11 +1445,11 @@ fn expr_continue(
 }
 
 /// Assemble an expr field access, like `<value>.<field>`.
-#[instrument]
+#[instrument(span = span)]
 fn expr_field_access(
-    span: Span,
     c: &mut Assembler<'_>,
     hir: &hir::ExprFieldAccess<'_>,
+    span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm> {
     // Optimizations!
@@ -1461,14 +1460,14 @@ fn expr_field_access(
     #[allow(clippy::single_match)]
     match (hir.expr.kind, hir.expr_field) {
         (hir::ExprKind::Path(path), hir::ExprField::LitNumber(n)) => {
-            if try_immediate_field_access_optimization(c, span, path, n, needs)? {
+            if try_immediate_field_access_optimization(c, path, n, span, needs)? {
                 return Ok(Asm::top(span));
             }
         }
         _ => (),
     }
 
-    expr(hir.expr, c, Needs::Value)?.apply(c)?;
+    expr(c, hir.expr, Needs::Value)?.apply(c)?;
 
     match hir.expr_field {
         hir::ExprField::LitNumber(n) => {
@@ -1504,9 +1503,9 @@ fn expr_field_access(
 
     fn try_immediate_field_access_optimization(
         c: &mut Assembler<'_>,
-        span: Span,
         path: &hir::Path<'_>,
         n: &ast::LitNumber,
+        span: &dyn Spanned,
         needs: Needs,
     ) -> compile::Result<bool> {
         let Some(ident) = path.try_as_ident() else {
@@ -1525,7 +1524,7 @@ fn expr_field_access(
 
         let Some(var) = c
             .scopes
-            .try_get_var(c.q.visitor, ident, c.source_id, path.span())? else
+            .try_get_var(c.q.visitor, ident, c.source_id, path)? else
         {
             return Ok(false);
         };
@@ -1548,11 +1547,11 @@ fn expr_field_access(
 }
 
 /// Assemble an expression for loop.
-#[instrument]
+#[instrument(span = span)]
 fn expr_for(
-    span: Span,
     c: &mut Assembler<'_>,
     hir: &hir::ExprFor<'_>,
+    span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm> {
     let continue_label = c.asm.new_label("for_continue");
@@ -1563,7 +1562,7 @@ fn expr_for(
 
     let (iter_offset, loop_scope_expected) = {
         let loop_scope_expected = c.scopes.push_child(span)?;
-        expr(hir.iter, c, Needs::Value)?.apply(c)?;
+        expr(c, hir.iter, Needs::Value)?.apply(c)?;
 
         let iter_offset = c.scopes.decl_anon(span)?;
         c.asm.push_with_comment(
@@ -1578,26 +1577,22 @@ fn expr_for(
         (iter_offset, loop_scope_expected)
     };
 
-    let binding_span = hir.binding.span();
-
     // Declare named loop variable.
     let binding_offset = {
-        c.asm.push(Inst::unit(), hir.iter.span());
-        c.scopes.decl_anon(binding_span)?
+        c.asm.push(Inst::unit(), hir.iter);
+        c.scopes.decl_anon(hir.binding)?
     };
 
     // Declare storage for memoized `next` instance fn.
     let next_offset = if c.options.memoize_instance_fn {
-        let span = hir.iter.span();
-
-        let offset = c.scopes.decl_anon(span)?;
+        let offset = c.scopes.decl_anon(hir.iter)?;
 
         // Declare the named loop variable and put it in the scope.
         c.asm.push_with_comment(
             Inst::Copy {
                 offset: iter_offset,
             },
-            span,
+            hir.iter,
             "copy iterator (memoize)",
         );
 
@@ -1605,7 +1600,7 @@ fn expr_for(
             Inst::LoadInstanceFn {
                 hash: *Protocol::NEXT,
             },
-            span,
+            hir.iter,
             "load instance fn (memoize)",
         );
 
@@ -1633,7 +1628,7 @@ fn expr_for(
             Inst::Copy {
                 offset: iter_offset,
             },
-            hir.iter.span(),
+            hir.iter,
             "copy iterator",
         );
 
@@ -1641,7 +1636,7 @@ fn expr_for(
             Inst::Copy {
                 offset: next_offset,
             },
-            hir.iter.span(),
+            hir.iter,
             "copy next",
         );
 
@@ -1651,7 +1646,7 @@ fn expr_for(
             Inst::Replace {
                 offset: binding_offset,
             },
-            binding_span,
+            hir.binding,
         );
     } else {
         // call the `next` function to get the next level of iteration, bind the
@@ -1660,7 +1655,7 @@ fn expr_for(
             Inst::Copy {
                 offset: iter_offset,
             },
-            hir.iter.span(),
+            hir.iter,
         );
 
         c.asm.push_with_comment(
@@ -1675,19 +1670,18 @@ fn expr_for(
             Inst::Replace {
                 offset: binding_offset,
             },
-            binding_span,
+            hir.binding,
         );
     }
 
     // Test loop condition and unwrap the option, or jump to `end_label` if the current value is `None`.
-    c.asm.iter_next(binding_offset, &end_label, binding_span);
+    c.asm.iter_next(binding_offset, &end_label, hir.binding);
 
-    let body_span = hir.body.span();
-    let guard = c.scopes.push_child(body_span)?;
+    let guard = c.scopes.push_child(hir.body)?;
 
-    pat_with_offset(hir.binding, c, binding_offset)?;
+    pat_with_offset(c, hir.binding, binding_offset)?;
 
-    block(hir.body, c, Needs::None)?.apply(c)?;
+    block(c, hir.body, Needs::None)?.apply(c)?;
     c.clean_last_scope(span, guard, Needs::None)?;
 
     c.asm.jump(&continue_label, span);
@@ -1714,11 +1708,11 @@ fn expr_for(
 }
 
 /// Assemble an if expression.
-#[instrument]
+#[instrument(span = span)]
 fn expr_if(
-    span: Span,
     c: &mut Assembler<'_>,
     hir: &hir::Conditional<'_>,
+    span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm> {
     let end_label = c.asm.new_label("if_end");
@@ -1737,13 +1731,13 @@ fn expr_if(
         };
 
         let label = c.asm.new_label("if_branch");
-        let scope = condition(cond, c, &label)?;
+        let scope = condition(c, cond, &label)?;
         branches.push((branch, label, scope));
     }
 
     // use fallback as fall through.
     if let Some(b) = fallback {
-        block(b, c, needs)?.apply(c)?;
+        block(c, b, needs)?.apply(c)?;
     } else {
         // NB: if we must produce a value and there is no fallback branch,
         // encode the result of the statement as a unit.
@@ -1757,16 +1751,14 @@ fn expr_if(
     let mut it = branches.into_iter().peekable();
 
     while let Some((branch, label, scope)) = it.next() {
-        let span = branch.span();
-
         c.asm.label(&label)?;
 
         let scopes = c.scopes.push(scope);
-        block(branch.block, c, needs)?.apply(c)?;
-        c.clean_last_scope(span, scopes, needs)?;
+        block(c, branch.block, needs)?.apply(c)?;
+        c.clean_last_scope(branch, scopes, needs)?;
 
         if it.peek().is_some() {
-            c.asm.jump(&end_label, span);
+            c.asm.jump(&end_label, branch);
         }
     }
 
@@ -1775,17 +1767,17 @@ fn expr_if(
 }
 
 /// Assemble an expression.
-#[instrument]
+#[instrument(span = span)]
 fn expr_index(
-    span: Span,
     c: &mut Assembler<'_>,
     hir: &hir::ExprIndex<'_>,
+    span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm> {
     let guard = c.scopes.push_child(span)?;
 
-    let target = expr(hir.target, c, Needs::Value)?.apply_targeted(c)?;
-    let index = expr(hir.index, c, Needs::Value)?.apply_targeted(c)?;
+    let target = expr(c, hir.target, Needs::Value)?.apply_targeted(c)?;
+    let index = expr(c, hir.index, Needs::Value)?.apply_targeted(c)?;
 
     c.asm.push(Inst::IndexGet { index, target }, span);
 
@@ -1800,30 +1792,28 @@ fn expr_index(
 }
 
 /// Assemble a let expression.
-#[instrument]
-fn expr_let(hir: &hir::ExprLet<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Result<Asm> {
-    let span = hir.span();
-
+#[instrument(span = hir)]
+fn expr_let(c: &mut Assembler<'_>, hir: &hir::ExprLet<'_>, needs: Needs) -> compile::Result<Asm> {
     let load = |c: &mut Assembler, needs: Needs| {
         // NB: assignments "move" the value being assigned.
-        expr(hir.expr, c, needs)?.apply(c)?;
+        expr(c, hir.expr, needs)?.apply(c)?;
         Ok(())
     };
 
     let false_label = c.asm.new_label("let_panic");
 
-    if pat(hir.pat, c, &false_label, &load)? {
+    if pat(c, hir.pat, &false_label, &load)? {
         c.q.diagnostics
-            .let_pattern_might_panic(c.source_id, span, c.context());
+            .let_pattern_might_panic(c.source_id, hir, c.context());
 
         let ok_label = c.asm.new_label("let_ok");
-        c.asm.jump(&ok_label, span);
+        c.asm.jump(&ok_label, hir);
         c.asm.label(&false_label)?;
         c.asm.push(
             Inst::Panic {
                 reason: PanicReason::UnmatchedPattern,
             },
-            span,
+            hir,
         );
 
         c.asm.label(&ok_label)?;
@@ -1831,22 +1821,22 @@ fn expr_let(hir: &hir::ExprLet<'_>, c: &mut Assembler<'_>, needs: Needs) -> comp
 
     // If a value is needed for a let expression, it is evaluated as a unit.
     if needs.value() {
-        c.asm.push(Inst::unit(), span);
+        c.asm.push(Inst::unit(), hir);
     }
 
-    Ok(Asm::top(span))
+    Ok(Asm::top(hir))
 }
 
-#[instrument]
+#[instrument(span = span)]
 fn expr_match(
-    span: Span,
     c: &mut Assembler<'_>,
     hir: &hir::ExprMatch<'_>,
+    span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm> {
     let expected_scopes = c.scopes.push_child(span)?;
 
-    expr(hir.expr, c, Needs::Value)?.apply(c)?;
+    expr(c, hir.expr, Needs::Value)?.apply(c)?;
     // Offset of the expression.
     let offset = c.scopes.decl_anon(span)?;
 
@@ -1854,7 +1844,7 @@ fn expr_match(
     let mut branches = Vec::new();
 
     for branch in hir.branches {
-        let span = branch.span();
+        let span = branch;
 
         let branch_label = c.asm.new_label("match_branch");
         let match_false = c.asm.new_label("match_false");
@@ -1870,15 +1860,15 @@ fn expr_match(
             Ok(())
         };
 
-        pat(branch.pat, c, &match_false, &load)?;
+        pat(c, branch.pat, &match_false, &load)?;
 
         let scope = if let Some(condition) = branch.condition {
-            let span = condition.span();
+            let span = condition;
 
             let scope = c.scopes.child(span)?;
             let guard = c.scopes.push(scope);
 
-            expr(condition, c, Needs::Value)?.apply(c)?;
+            expr(c, condition, Needs::Value)?.apply(c)?;
             c.clean_last_scope(span, guard, Needs::Value)?;
             let scope = c.scopes.pop(parent_guard, span)?;
 
@@ -1908,12 +1898,12 @@ fn expr_match(
     let mut it = hir.branches.iter().zip(&branches).peekable();
 
     while let Some((branch, (label, scope))) = it.next() {
-        let span = branch.span();
+        let span = branch;
 
         c.asm.label(label)?;
 
         let expected = c.scopes.push(scope.clone());
-        expr(branch.body, c, needs)?.apply(c)?;
+        expr(c, branch.body, needs)?.apply(c)?;
         c.clean_last_scope(span, expected, needs)?;
 
         if it.peek().is_some() {
@@ -1929,11 +1919,11 @@ fn expr_match(
 }
 
 /// Compile a literal object.
-#[instrument]
+#[instrument(span = span)]
 fn expr_object(
-    span: Span,
     c: &mut Assembler<'_>,
     hir: &hir::ExprObject<'_>,
+    span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm> {
     let guard = c.scopes.push_child(span)?;
@@ -1942,13 +1932,13 @@ fn expr_object(
         let (span, key) = assign.key;
 
         if let Some(e) = assign.assign {
-            expr(e, c, Needs::Value)?.apply(c)?;
+            expr(c, e, Needs::Value)?.apply(c)?;
         } else {
-            let var = c.scopes.get_var(c.q.visitor, key, c.source_id, span)?;
-            var.copy(c, span, format_args!("name `{}`", key));
+            let var = c.scopes.get_var(c.q.visitor, key, c.source_id, &span)?;
+            var.copy(c, &span, format_args!("name `{}`", key));
         }
 
-        c.scopes.decl_anon(span)?;
+        c.scopes.decl_anon(&span)?;
     }
 
     let slot =
@@ -1981,25 +1971,25 @@ fn expr_object(
 }
 
 /// Assemble a range expression.
-#[instrument]
+#[instrument(span = span)]
 fn expr_range(
-    span: Span,
     c: &mut Assembler<'_>,
     hir: &hir::ExprRange<'_>,
+    span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm> {
     let guard = c.scopes.push_child(span)?;
 
     if needs.value() {
         let from = if let Some(from) = hir.from {
-            expr(from, c, needs)?.apply(c)?;
+            expr(c, from, needs)?.apply(c)?;
             c.asm.push(
                 Inst::Variant {
                     variant: InstVariant::Some,
                 },
-                from.span(),
+                from,
             );
-            from.span()
+            from
         } else {
             c.asm.push(
                 Inst::Variant {
@@ -2013,14 +2003,14 @@ fn expr_range(
         c.scopes.decl_anon(from)?;
 
         let to = if let Some(to) = hir.to {
-            expr(to, c, needs)?.apply(c)?;
+            expr(c, to, needs)?.apply(c)?;
             c.asm.push(
                 Inst::Variant {
                     variant: InstVariant::Some,
                 },
-                to.span(),
+                to,
             );
-            to.span()
+            to
         } else {
             c.asm.push(
                 Inst::Variant {
@@ -2042,11 +2032,11 @@ fn expr_range(
         c.scopes.undecl_anon(span, 2)?;
     } else {
         if let Some(from) = hir.from {
-            expr(from, c, needs)?.apply(c)?;
+            expr(c, from, needs)?.apply(c)?;
         }
 
         if let Some(to) = hir.to {
-            expr(to, c, needs)?.apply(c)?;
+            expr(c, to, needs)?.apply(c)?;
         }
     }
 
@@ -2055,11 +2045,11 @@ fn expr_range(
 }
 
 /// Assemble a return expression.
-#[instrument]
+#[instrument(span = span)]
 fn expr_return(
-    span: Span,
     c: &mut Assembler<'_>,
     hir: Option<&hir::Expr<'_>>,
+    span: &dyn Spanned,
     _: Needs,
 ) -> compile::Result<Asm> {
     // NB: drop any loop temporaries.
@@ -2083,16 +2073,16 @@ fn expr_return(
 }
 
 /// Assemble a select expression.
-#[instrument]
+#[instrument(span = span)]
 fn expr_select(
-    span: Span,
     c: &mut Assembler<'_>,
     hir: &hir::ExprSelect<'_>,
+    span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm> {
-    let len = hir.branches.len();
-    c.contexts.push(span);
+    c.contexts.push(span.span());
 
+    let len = hir.branches.len();
     let mut default_branch = None;
     let mut branches = Vec::new();
 
@@ -2119,7 +2109,7 @@ fn expr_select(
     }
 
     for (_, branch) in &branches {
-        expr(branch.expr, c, Needs::Value)?.apply(c)?;
+        expr(c, branch.expr, Needs::Value)?.apply(c)?;
     }
 
     c.asm.push(Inst::Select { len }, span);
@@ -2140,14 +2130,14 @@ fn expr_select(
     c.asm.jump(&end_label, span);
 
     for (label, branch) in branches {
-        let span = branch.body.span;
+        let span = branch.body;
         c.asm.label(&label)?;
 
         let expected = c.scopes.push_child(span)?;
 
         match branch.pat.kind {
             hir::PatKind::Path(&hir::PatPathKind::Ident(ident, _)) => {
-                c.scopes.decl_var(ident, branch.pat.span)?;
+                c.scopes.decl_var(ident, branch.pat)?;
             }
             hir::PatKind::Ignore => {
                 c.asm.push(Inst::Pop, span);
@@ -2161,14 +2151,14 @@ fn expr_select(
         }
 
         // Set up a new scope with the binding.
-        expr(branch.body, c, needs)?.apply(c)?;
+        expr(c, branch.body, needs)?.apply(c)?;
         c.clean_last_scope(span, expected, needs)?;
         c.asm.jump(&end_label, span);
     }
 
     if let Some((branch, label)) = default_branch {
         c.asm.label(&label)?;
-        expr(branch, c, needs)?.apply(c)?;
+        expr(c, branch, needs)?.apply(c)?;
     }
 
     c.asm.label(&end_label)?;
@@ -2182,15 +2172,15 @@ fn expr_select(
 }
 
 /// Assemble a try expression.
-#[instrument]
+#[instrument(span = span)]
 fn expr_try(
-    span: Span,
     c: &mut Assembler<'_>,
     hir: &hir::Expr<'_>,
+    span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm> {
     let clean = c.scopes.total_var_count(span)?;
-    let address = expr(hir, c, Needs::Value)?.apply_targeted(c)?;
+    let address = expr(c, hir, Needs::Value)?.apply_targeted(c)?;
 
     c.asm.push(
         Inst::Try {
@@ -2216,32 +2206,32 @@ fn expr_try(
 }
 
 /// Assemble a literal tuple.
-#[instrument]
+#[instrument(span = span)]
 fn expr_tuple(
-    span: Span,
     c: &mut Assembler<'_>,
     hir: &hir::ExprSeq<'_>,
+    span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm> {
     macro_rules! tuple {
-        ($variant:ident, $c:ident, $span:expr, $($var:ident),*) => {{
-            let guard = $c.scopes.push_child($span)?;
+        ($variant:ident, $($var:ident),*) => {{
+            let guard = c.scopes.push_child(span)?;
 
             let mut it = hir.items.iter();
 
             $(
-            let $var = it.next().ok_or_else(|| compile::Error::msg($span, "items ended unexpectedly"))?;
-            let $var = expr($var, $c, Needs::Value)?.apply_targeted($c)?;
+            let $var = it.next().ok_or_else(|| compile::Error::msg(span, "items ended unexpectedly"))?;
+            let $var = expr(c, $var, Needs::Value)?.apply_targeted(c)?;
             )*
 
-            $c.asm.push(
+            c.asm.push(
                 Inst::$variant {
                     args: [$($var,)*],
                 },
-                $span,
+                span,
             );
 
-            $c.scopes.pop(guard, $span)?;
+            c.scopes.pop(guard, span)?;
         }};
     }
 
@@ -2249,14 +2239,14 @@ fn expr_tuple(
         c.asm.push(Inst::unit(), span);
     } else {
         match hir.items.len() {
-            1 => tuple!(Tuple1, c, span, e1),
-            2 => tuple!(Tuple2, c, span, e1, e2),
-            3 => tuple!(Tuple3, c, span, e1, e2, e3),
-            4 => tuple!(Tuple4, c, span, e1, e2, e3, e4),
+            1 => tuple!(Tuple1, e1),
+            2 => tuple!(Tuple2, e1, e2),
+            3 => tuple!(Tuple3, e1, e2, e3),
+            4 => tuple!(Tuple4, e1, e2, e3, e4),
             _ => {
                 for e in hir.items {
-                    expr(e, c, Needs::Value)?.apply(c)?;
-                    c.scopes.decl_anon(e.span())?;
+                    expr(c, e, Needs::Value)?.apply(c)?;
+                    c.scopes.decl_anon(e)?;
                 }
 
                 c.asm.push(
@@ -2280,14 +2270,14 @@ fn expr_tuple(
 }
 
 /// Assemble a unary expression.
-#[instrument]
+#[instrument(span = span)]
 fn expr_unary(
-    span: Span,
     c: &mut Assembler<'_>,
     hir: &hir::ExprUnary<'_>,
+    span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm> {
-    expr(hir.expr, c, Needs::Value)?.apply(c)?;
+    expr(c, hir.expr, Needs::Value)?.apply(c)?;
 
     match hir.op {
         ast::UnOp::Not(..) => {
@@ -2314,18 +2304,18 @@ fn expr_unary(
 }
 
 /// Assemble a literal vector.
-#[instrument]
+#[instrument(span = span)]
 fn expr_vec(
-    span: Span,
     c: &mut Assembler<'_>,
     hir: &hir::ExprSeq<'_>,
+    span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm> {
     let count = hir.items.len();
 
     for e in hir.items {
-        expr(e, c, Needs::Value)?.apply(c)?;
-        c.scopes.decl_anon(e.span())?;
+        expr(c, e, Needs::Value)?.apply(c)?;
+        c.scopes.decl_anon(e)?;
     }
 
     c.asm.push(Inst::Vec { count }, span);
@@ -2342,11 +2332,11 @@ fn expr_vec(
 }
 
 /// Assemble a while loop.
-#[instrument]
+#[instrument(span = span)]
 fn expr_loop(
-    span: Span,
     c: &mut Assembler<'_>,
     hir: &hir::ExprLoop<'_>,
+    span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm> {
     let continue_label = c.asm.new_label("while_continue");
@@ -2369,7 +2359,7 @@ fn expr_loop(
     c.asm.label(&continue_label)?;
 
     let expected = if let Some(hir) = hir.condition {
-        let then_scope = condition(hir, c, &then_label)?;
+        let then_scope = condition(c, hir, &then_label)?;
         let expected = c.scopes.push(then_scope);
 
         c.asm.jump(&end_label, span);
@@ -2379,7 +2369,7 @@ fn expr_loop(
         None
     };
 
-    block(hir.body, c, Needs::None)?.apply(c)?;
+    block(c, hir.body, Needs::None)?.apply(c)?;
 
     if let Some(expected) = expected {
         c.clean_last_scope(span, expected, Needs::None)?;
@@ -2398,15 +2388,15 @@ fn expr_loop(
 }
 
 /// Assemble a `yield` expression.
-#[instrument]
+#[instrument(span = span)]
 fn expr_yield(
-    span: Span,
     c: &mut Assembler<'_>,
     hir: Option<&hir::Expr<'_>>,
+    span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm> {
     if let Some(e) = hir {
-        expr(e, c, Needs::Value)?.apply(c)?;
+        expr(c, e, Needs::Value)?.apply(c)?;
         c.asm.push(Inst::Yield, span);
     } else {
         c.asm.push(Inst::YieldUnit, span);
@@ -2420,14 +2410,12 @@ fn expr_yield(
 }
 
 /// Assemble a function from an [hir::ItemFn<'_>].
-#[instrument]
+#[instrument(span = hir)]
 pub(crate) fn fn_from_item_fn(
-    hir: &hir::ItemFn<'_>,
     c: &mut Assembler<'_>,
+    hir: &hir::ItemFn<'_>,
     instance_fn: bool,
 ) -> compile::Result<()> {
-    let span = hir.span();
-
     let mut patterns = Vec::new();
     let mut first = true;
 
@@ -2441,10 +2429,10 @@ pub(crate) fn fn_from_item_fn(
                     ));
                 }
 
-                c.scopes.new_var(SELF, *span)?;
+                c.scopes.new_var(SELF, span)?;
             }
             hir::FnArg::Pat(pat) => {
-                let offset = c.scopes.decl_anon(pat.span())?;
+                let offset = c.scopes.decl_anon(pat)?;
                 patterns.push((pat, offset));
             }
         }
@@ -2453,33 +2441,38 @@ pub(crate) fn fn_from_item_fn(
     }
 
     for (pat, offset) in patterns {
-        pat_with_offset(pat, c, offset)?;
+        pat_with_offset(c, pat, offset)?;
     }
 
     if hir.body.statements.is_empty() {
-        let total_var_count = c.scopes.total_var_count(span)?;
-        c.locals_pop(total_var_count, span);
-        c.asm.push(Inst::ReturnUnit, span);
+        let total_var_count = c.scopes.total_var_count(hir)?;
+        c.locals_pop(total_var_count, hir);
+        c.asm.push(Inst::ReturnUnit, hir);
         return Ok(());
     }
 
     if !hir.body.produces_nothing() {
-        return_(c, span, hir.body, block)?;
+        return_(c, hir, hir.body, block)?;
     } else {
-        block(hir.body, c, Needs::None)?.apply(c)?;
+        block(c, hir.body, Needs::None)?.apply(c)?;
 
-        let total_var_count = c.scopes.total_var_count(span)?;
-        c.locals_pop(total_var_count, span);
-        c.asm.push(Inst::ReturnUnit, span);
+        let total_var_count = c.scopes.total_var_count(hir)?;
+        c.locals_pop(total_var_count, hir);
+        c.asm.push(Inst::ReturnUnit, hir);
     }
 
-    c.scopes.pop_last(span)?;
+    c.scopes.pop_last(hir)?;
     Ok(())
 }
 
 /// Assemble a literal value.
-#[instrument]
-fn lit(span: Span, c: &mut Assembler<'_>, hir: hir::Lit<'_>, needs: Needs) -> compile::Result<Asm> {
+#[instrument(span = span)]
+fn lit(
+    c: &mut Assembler<'_>,
+    hir: hir::Lit<'_>,
+    span: &dyn Spanned,
+    needs: Needs,
+) -> compile::Result<Asm> {
     // Elide the entire literal if it's not needed.
     if !needs.value() {
         c.q.diagnostics.not_used(c.source_id, span, c.context());
@@ -2516,30 +2509,28 @@ fn lit(span: Span, c: &mut Assembler<'_>, hir: hir::Lit<'_>, needs: Needs) -> co
 }
 
 /// Assemble a local expression.
-#[instrument]
-fn local(hir: &hir::Local<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Result<Asm> {
-    let span = hir.span();
-
+#[instrument(span = hir)]
+fn local(c: &mut Assembler<'_>, hir: &hir::Local<'_>, needs: Needs) -> compile::Result<Asm> {
     let load = |c: &mut Assembler, needs: Needs| {
         // NB: assignments "move" the value being assigned.
-        expr(hir.expr, c, needs)?.apply(c)?;
+        expr(c, hir.expr, needs)?.apply(c)?;
         Ok(())
     };
 
     let false_label = c.asm.new_label("let_panic");
 
-    if pat(hir.pat, c, &false_label, &load)? {
+    if pat(c, hir.pat, &false_label, &load)? {
         c.q.diagnostics
-            .let_pattern_might_panic(c.source_id, span, c.context());
+            .let_pattern_might_panic(c.source_id, hir, c.context());
 
         let ok_label = c.asm.new_label("let_ok");
-        c.asm.jump(&ok_label, span);
+        c.asm.jump(&ok_label, hir);
         c.asm.label(&false_label)?;
         c.asm.push(
             Inst::Panic {
                 reason: PanicReason::UnmatchedPattern,
             },
-            span,
+            hir,
         );
 
         c.asm.label(&ok_label)?;
@@ -2547,8 +2538,8 @@ fn local(hir: &hir::Local<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::
 
     // If a value is needed for a let expression, it is evaluated as a unit.
     if needs.value() {
-        c.asm.push(Inst::unit(), span);
+        c.asm.push(Inst::unit(), hir);
     }
 
-    Ok(Asm::top(span))
+    Ok(Asm::top(hir))
 }

@@ -197,7 +197,7 @@ impl CompileBuildEntry<'_> {
     fn compiler1<'a>(
         &'a mut self,
         location: Location,
-        span: Span,
+        span: &dyn Spanned,
         asm: &'a mut Assembly,
     ) -> self::v1::Assembler<'a> {
         self::v1::Assembler {
@@ -205,7 +205,7 @@ impl CompileBuildEntry<'_> {
             q: self.q.borrow(),
             asm,
             scopes: self::v1::Scopes::new(),
-            contexts: vec![span],
+            contexts: vec![span.span()],
             loops: self::v1::Loops::new(),
             options: self.options,
         }
@@ -248,7 +248,7 @@ impl CompileBuildEntry<'_> {
                 let args =
                     format_fn_args(self.q.sources, location, f.ast.args.iter().map(|(a, _)| a))?;
 
-                let span = f.ast.span();
+                let span = &*f.ast;
                 let count = f.ast.args.len();
 
                 let arena = hir::Arena::new();
@@ -259,7 +259,7 @@ impl CompileBuildEntry<'_> {
                 );
                 let hir = hir::lowering::item_fn(&mut ctx, &f.ast)?;
                 let mut c = self.compiler1(location, span, &mut asm);
-                assemble::fn_from_item_fn(&hir, &mut c, false)?;
+                assemble::fn_from_item_fn(&mut c, &hir, false)?;
 
                 if used.is_unused() {
                     self.q.diagnostics.not_used(location.source_id, span, None);
@@ -283,7 +283,7 @@ impl CompileBuildEntry<'_> {
                 let args =
                     format_fn_args(self.q.sources, location, f.ast.args.iter().map(|(a, _)| a))?;
 
-                let span = f.ast.span();
+                let span = &*f.ast;
                 let count = f.ast.args.len();
 
                 let mut c = self.compiler1(location, span, &mut asm);
@@ -304,7 +304,7 @@ impl CompileBuildEntry<'_> {
                     item_meta.location.source_id,
                 );
                 let hir = hir::lowering::item_fn(&mut ctx, &f.ast)?;
-                assemble::fn_from_item_fn(&hir, &mut c, true)?;
+                assemble::fn_from_item_fn(&mut c, &hir, true)?;
 
                 if used.is_unused() {
                     c.q.diagnostics.not_used(location.source_id, span, None);
@@ -329,7 +329,6 @@ impl CompileBuildEntry<'_> {
 
                 use self::v1::assemble;
 
-                let span = closure.ast.span();
                 let args = format_fn_args(
                     self.q.sources,
                     location,
@@ -345,14 +344,14 @@ impl CompileBuildEntry<'_> {
                 let hir = hir::lowering::expr_closure_secondary(
                     &mut ctx,
                     &closure.ast,
-                    &closure.captures,
+                    closure.captures,
                 )?;
-                let mut c = self.compiler1(location, span, &mut asm);
-                assemble::closure_from_expr_closure(span, &mut c, &hir)?;
+                let mut c = self.compiler1(location, &closure.ast, &mut asm);
+                assemble::expr_closure_secondary(&mut c, &hir, &closure.ast)?;
 
                 if used.is_unused() {
                     c.q.diagnostics
-                        .not_used(location.source_id, location.span, None);
+                        .not_used(location.source_id, &location.span, None);
                 } else {
                     self.q.unit.new_function(
                         location,
@@ -370,8 +369,7 @@ impl CompileBuildEntry<'_> {
 
                 use self::v1::assemble;
 
-                let args = b.captures.len();
-                let span = b.ast.span();
+                let span = &b.ast;
 
                 let arena = hir::Arena::new();
                 let mut ctx = hir::lowering::Ctx::with_query(
@@ -379,15 +377,17 @@ impl CompileBuildEntry<'_> {
                     self.q.borrow(),
                     item_meta.location.source_id,
                 );
-                let hir = hir::lowering::async_block_secondary(&mut ctx, &b.ast, &b.captures)?;
+                let hir = hir::lowering::async_block_secondary(&mut ctx, &b.ast, b.captures)?;
                 let mut c = self.compiler1(location, span, &mut asm);
-                assemble::async_block(&mut c, &hir)?;
+                assemble::async_block_secondary(&mut c, &hir)?;
 
                 if used.is_unused() {
                     self.q
                         .diagnostics
-                        .not_used(location.source_id, location.span, None);
+                        .not_used(location.source_id, &location.span, None);
                 } else {
+                    let args = hir.captures.len();
+
                     self.q.unit.new_function(
                         location,
                         self.q.pool.item(item_meta.item),
@@ -405,7 +405,7 @@ impl CompileBuildEntry<'_> {
                 if !item_meta.visibility.is_public() {
                     self.q
                         .diagnostics
-                        .not_used(location.source_id, location.span, None);
+                        .not_used(location.source_id, &location.span, None);
                 }
             }
             Build::Import(import) => {
@@ -419,7 +419,7 @@ impl CompileBuildEntry<'_> {
                 if used.is_unused() {
                     self.q
                         .diagnostics
-                        .not_used(location.source_id, location.span, None);
+                        .not_used(location.source_id, &location.span, None);
                 }
 
                 let missing = match result {

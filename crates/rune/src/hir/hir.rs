@@ -124,7 +124,7 @@ pub(crate) enum Lit<'hir> {
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) enum ExprKind<'hir> {
-    SelfValue,
+    SelfValue(Variable),
     Variable(Variable, &'hir str),
     Type(Type),
     Fn(Hash),
@@ -472,7 +472,7 @@ pub(crate) struct ExprClosure<'hir> {
     /// The body of the closure.
     pub(crate) body: &'hir Expr<'hir>,
     /// Captures in the closure.
-    pub(crate) captures: &'hir [&'hir str],
+    pub(crate) captures: &'hir [(Variable, Capture<'hir>)],
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -704,7 +704,7 @@ impl Block<'_> {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct AsyncBlock<'hir> {
     pub(crate) block: &'hir Block<'hir>,
-    pub(crate) captures: &'hir [&'hir str],
+    pub(crate) captures: &'hir [(Variable, Capture<'hir>)],
 }
 
 /// A statement within a block.
