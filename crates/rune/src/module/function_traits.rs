@@ -7,32 +7,6 @@ use crate::{
     Value,
 };
 
-macro_rules! check_args {
-    ($expected:expr, $actual:expr) => {
-        if $actual != $expected {
-            return VmResult::err(VmErrorKind::BadArgumentCount {
-                actual: $actual,
-                expected: $expected,
-            });
-        }
-    };
-}
-
-// Expand to instance variable bindings.
-macro_rules! unsafe_inst_vars {
-    ($inst:ident, $count:expr, $($ty:ty, $var:ident, $num:expr,)*) => {
-        let $inst = vm_try!(Instance::from_value($inst).with_error(|| VmErrorKind::BadArgument {
-            arg: 0,
-        }));
-
-        $(
-            let $var = vm_try!(<$ty>::from_value($var).with_error(|| VmErrorKind::BadArgument {
-                arg: 1 + $num,
-            }));
-        )*
-    };
-}
-
 /// Denotes the kind of a function, allowing the [`Function`] trait to be
 /// implemented separately for plain and async functions.
 pub trait FunctionKind {
@@ -65,6 +39,7 @@ where
 {
     type Return = F::RawReturn;
     fn fn_call(ret: F::RawReturn, guard: F::Guard) -> VmResult<Value> {
+        // Safety: We no longer need the stack to not be modified.
         unsafe {
             <F as RawFunction<Marker>>::drop_guard(guard);
         }
@@ -91,19 +66,14 @@ where
 {
     type Return = <F::RawReturn as Future>::Output;
     fn fn_call(fut: F::RawReturn, guard: F::Guard) -> VmResult<Value> {
-        // Safety: Future is owned and will only be called within the
-        // context of the virtual machine, which will provide
-        // exclusive thread-local access to itself while the future is
-        // being polled.
         #[allow(unused)]
-        let ret = unsafe {
-            runtime::Future::new(async move {
-                let ret = fut.await;
-                <F as RawFunction<Marker>>::drop_guard(guard);
-                let ret = vm_try!(ret.to_value());
-                VmResult::Ok(ret)
-            })
-        };
+        let ret = runtime::Future::new(async move {
+            let ret = fut.await;
+            // Safety: We no longer need the stack to not be modified at this point.
+            unsafe { <F as RawFunction<Marker>>::drop_guard(guard) };
+            let ret = vm_try!(ret.to_value());
+            VmResult::Ok(ret)
+        });
 
         ret.to_value()
     }
@@ -111,6 +81,7 @@ where
 
 pub trait RawFunction<Marker>: 'static + Send + Sync {
     /// An object guarding the lifetime of the arguments.
+    #[doc(hidden)]
     type Guard;
 
     /// A tuple representing the argument type.
@@ -188,7 +159,7 @@ where
         0
     }
     unsafe fn fn_call_raw(&self, stack: &mut Stack, args: usize) -> VmResult<(U, Self::Guard)> {
-        check_args!(0, args);
+        vm_try!(check_args(0, args));
         let [] = vm_try!(stack.drain_vec(0));
         let that = self();
         VmResult::Ok((that, ()))
@@ -198,26 +169,35 @@ where
 
 macro_rules! impl_register {
     ($count:expr $(, $ty:ident $var:ident $num:expr)*) => {
-        impl<U, T, Instance, $($ty),*> RawFunction<fn(Instance, $($ty,)*) -> U> for T
+        impl<U, T, First, $($ty),*> RawFunction<fn(First, $($ty,)*) -> U> for T
         where
-            T: 'static + Send + Sync + Fn(Instance, $($ty,)*) -> U,
-            Instance: UnsafeFromValue,
+            T: 'static + Send + Sync + Fn(First, $($ty,)*) -> U,
+            First: UnsafeFromValue,
             $($ty: UnsafeFromValue,)*
         {
-            type FirstArg = Instance;
-            type Arguments = (Instance, $($ty,)*);
+            type FirstArg = First;
+            type Arguments = (First, $($ty,)*);
             type RawReturn = U;
-            type Guard = (Instance::Guard, $($ty::Guard,)*);
+            type Guard = (First::Guard, $($ty::Guard,)*);
             fn args() -> usize {
                 $count + 1
             }
             unsafe fn fn_call_raw(&self, stack: &mut Stack, args: usize) -> VmResult<(U, Self::Guard)> {
-                check_args!($count+1, args);
-                let [inst $(, $var)*] = vm_try!(stack.drain_vec($count+1));
+                vm_try!(check_args($count+1, args));
+                let [first $(, $var)*] = vm_try!(stack.drain_vec($count+1));
 
-                unsafe_inst_vars!(inst, $count, $($ty, $var, $num,)*);
-                let that = self(Instance::unsafe_coerce(inst.0), $(<$ty>::unsafe_coerce($var.0),)*);
-                VmResult::Ok((that, (inst.1, $($var.1,)*)))
+                let first = vm_try!(First::from_value(first).with_error(|| VmErrorKind::BadArgument {
+                    arg: 0,
+                }));
+
+                $(
+                    let $var = vm_try!(<$ty>::from_value($var).with_error(|| VmErrorKind::BadArgument {
+                        arg: 1 + $num,
+                    }));
+                )*
+
+                let that = self(First::unsafe_coerce(first.0), $(<$ty>::unsafe_coerce($var.0),)*);
+                VmResult::Ok((that, (first.1, $($var.1,)*)))
             }
             unsafe fn drop_guard(guard: Self::Guard) {
                 let (inst, $($var,)*) = guard;
@@ -226,6 +206,14 @@ macro_rules! impl_register {
             }
         }
     };
+}
+
+fn check_args(expected: usize, actual: usize) -> VmResult<()> {
+    if actual == expected {
+        VmResult::Ok(())
+    } else {
+        VmResult::err(VmErrorKind::BadArgumentCount { actual, expected })
+    }
 }
 
 impl<T, Marker> Function<Marker, Plain> for T
@@ -264,40 +252,20 @@ where
     }
 }
 
-impl<'a, T, Marker> InstanceFunction<Marker, Plain> for T
+impl<'a, T, K, Marker> InstanceFunction<Marker, K> for T
 where
-    T: RawFunction<Marker>,
-    Plain: RawFunctionKind<Marker, T>,
+    K: RawFunctionKind<Marker, T>,
+    T: Function<Marker, K>,
     <T as RawFunction<Marker>>::FirstArg: TypeOf,
 {
     type Instance = <T as RawFunction<Marker>>::FirstArg;
-    type Return = <Plain as RawFunctionKind<Marker, T>>::Return;
+    type Return = <K as RawFunctionKind<Marker, T>>::Return;
 
     fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
         let (ret, guard) =
             vm_try!(unsafe { <T as RawFunction<Marker>>::fn_call_raw(self, stack, args) });
 
-        let ret = vm_try!(Plain::fn_call(ret, guard));
-
-        stack.push(ret);
-        VmResult::Ok(())
-    }
-}
-
-impl<'a, T, Marker> InstanceFunction<Marker, Async> for T
-where
-    T: RawFunction<Marker>,
-    Async: RawFunctionKind<Marker, T>,
-    <T as RawFunction<Marker>>::FirstArg: TypeOf,
-{
-    type Instance = <T as RawFunction<Marker>>::FirstArg;
-    type Return = <Async as RawFunctionKind<Marker, T>>::Return;
-
-    fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
-        let (ret, guard) =
-            vm_try!(unsafe { <T as RawFunction<Marker>>::fn_call_raw(self, stack, args) });
-
-        let ret = vm_try!(Async::fn_call(ret, guard));
+        let ret = vm_try!(K::fn_call(ret, guard));
 
         stack.push(ret);
         VmResult::Ok(())
