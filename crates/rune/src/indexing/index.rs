@@ -13,14 +13,12 @@ use crate::compile::{
     self, CompileErrorKind, Doc, ItemId, ModId, ParseErrorKind, Visibility, WithSpan,
 };
 use crate::compile::{meta, DynLocation};
-use crate::indexing::{self, Indexed};
-use crate::indexing::{Layer, Scopes};
+use crate::indexing::{self, Indexed, Items, Layer, Scopes};
 use crate::macros::MacroCompiler;
 use crate::parse::{Parse, Parser, Resolve};
 use crate::query::{BuiltInFile, BuiltInFormat, BuiltInLine, BuiltInMacro, BuiltInTemplate, Query};
 use crate::runtime::format;
 use crate::runtime::Call;
-use crate::shared::Items;
 use crate::worker::{Import, ImportKind, LoadFileKind, Task};
 use crate::SourceId;
 

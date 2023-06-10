@@ -1,4 +1,5 @@
 pub(crate) mod index;
+pub(crate) mod items;
 mod scopes;
 
 use crate::no_std::prelude::*;
@@ -11,6 +12,7 @@ use crate::parse::Id;
 use crate::runtime::Call;
 
 pub(crate) use self::index::Indexer;
+pub(crate) use self::items::Items;
 pub(crate) use self::scopes::{Layer, Scopes};
 
 #[derive(Debug, Clone)]

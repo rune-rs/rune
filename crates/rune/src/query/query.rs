@@ -18,12 +18,12 @@ use crate::compile::{
 use crate::compile::{ir, SourceLoader};
 use crate::compile::{meta, Located};
 use crate::hir;
-use crate::indexing::{self, Indexed};
+use crate::indexing::{self, Indexed, Items};
 use crate::macros::Storage;
 use crate::parse::{Id, NonZeroId, Opaque, Resolve, ResolveContext};
 use crate::query::{Build, BuildEntry, BuiltInMacro, ConstFn, Named, QueryPath, Used};
 use crate::runtime::ConstValue;
-use crate::shared::{Consts, Gen, Items};
+use crate::shared::{Consts, Gen};
 use crate::{ast, Options};
 use crate::{Context, Diagnostics, Hash, SourceId, Sources};
 

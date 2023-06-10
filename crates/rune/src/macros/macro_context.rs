@@ -8,11 +8,11 @@ use crate::compile::{
     self, Context, IrValue, Item, ItemMeta, NoopCompileVisitor, NoopSourceLoader, ParseErrorKind,
     Pool, Prelude, UnitBuilder,
 };
-use crate::indexing::{Indexer, Scopes};
+use crate::indexing::{Indexer, Items, Scopes};
 use crate::macros::{IntoLit, Storage, ToTokens, TokenStream};
 use crate::parse::{Parse, Resolve};
 use crate::query::Query;
-use crate::shared::{Consts, Gen, Items};
+use crate::shared::{Consts, Gen};
 use crate::{Diagnostics, Options, Source, SourceId, Sources};
 
 /// Context for a running macro.

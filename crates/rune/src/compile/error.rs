@@ -11,13 +11,13 @@ use thiserror::Error;
 use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::compile::{HasSpan, IrValue, ItemBuf, Location, MetaInfo, Visibility};
+use crate::indexing::items::{GuardMismatch, MissingLastId};
 use crate::macros::{SyntheticId, SyntheticKind};
 use crate::parse::{Expectation, IntoExpectation, LexerMode};
 use crate::query::MissingId;
 use crate::runtime::debug::DebugSignature;
 use crate::runtime::unit::EncodeError;
 use crate::runtime::{AccessError, TypeInfo, TypeOf};
-use crate::shared::items::{GuardMismatch, MissingLastId};
 use crate::shared::scopes::MissingLocal;
 use crate::{Hash, SourceId};
 
