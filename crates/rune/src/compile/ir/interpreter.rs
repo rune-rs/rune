@@ -183,7 +183,9 @@ impl IrScopes {
     /// Get the given target as mut.
     pub(crate) fn get_target(&mut self, ir_target: &ir::IrTarget) -> compile::Result<IrValue> {
         match &ir_target.kind {
-            ir::IrTargetKind::Name(name) => Ok(self.get_name(name).with_span(ir_target)?.clone()),
+            ir::IrTargetKind::Name(name) => {
+                Ok(self.get_name(name.as_str()).with_span(ir_target)?.clone())
+            }
             ir::IrTargetKind::Field(ir_target, field) => {
                 let value = self.get_target(ir_target)?;
 
@@ -250,7 +252,7 @@ impl IrScopes {
     ) -> compile::Result<()> {
         match &ir_target.kind {
             ir::IrTargetKind::Name(name) => {
-                *self.get_name_mut(name.as_ref()).with_span(ir_target)? = value;
+                *self.get_name_mut(name.as_str()).with_span(ir_target)? = value;
                 Ok(())
             }
             ir::IrTargetKind::Field(target, field) => {
@@ -310,7 +312,7 @@ impl IrScopes {
     ) -> compile::Result<()> {
         match &ir_target.kind {
             ir::IrTargetKind::Name(name) => {
-                let value = self.get_name_mut(name.as_ref()).with_span(ir_target)?;
+                let value = self.get_name_mut(name.as_str()).with_span(ir_target)?;
                 op(value)
             }
             ir::IrTargetKind::Field(target, field) => {

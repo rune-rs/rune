@@ -129,7 +129,6 @@ impl<'hir> Scopes<'hir> {
     pub(crate) fn get(
         &self,
         q: &mut Query<'_>,
-        variable: hir::Variable,
         name: hir::Name<'hir>,
         span: &'hir dyn Spanned,
     ) -> compile::Result<Var<'hir>> {
@@ -137,7 +136,7 @@ impl<'hir> Scopes<'hir> {
 
         for layer in self.layers.iter().rev() {
             if let Some(var) = layer.variables.get(&name) {
-                tracing::trace!(?variable, ?var, "getting var");
+                tracing::trace!(?var, "getting var");
                 q.visitor.visit_variable_use(self.source_id, var.span, span);
 
                 if let Some(moved_at) = var.moved_at {
@@ -155,7 +154,7 @@ impl<'hir> Scopes<'hir> {
 
         Err(compile::Error::msg(
             span,
-            format_args!("Missing variable `{name}` ({variable})"),
+            format_args!("Missing variable `{name}`"),
         ))
     }
 
@@ -164,7 +163,6 @@ impl<'hir> Scopes<'hir> {
     pub(crate) fn take(
         &mut self,
         q: &mut Query<'_>,
-        variable: hir::Variable,
         name: hir::Name<'hir>,
         span: &'hir dyn Spanned,
     ) -> compile::Result<&Var> {
@@ -172,7 +170,7 @@ impl<'hir> Scopes<'hir> {
 
         for layer in self.layers.iter_mut().rev() {
             if let Some(var) = layer.variables.get_mut(&name) {
-                tracing::trace!(?variable, ?var, "taking var");
+                tracing::trace!(?var, "taking var");
                 q.visitor.visit_variable_use(self.source_id, var.span, span);
 
                 if let Some(moved_at) = var.moved_at {
@@ -191,7 +189,7 @@ impl<'hir> Scopes<'hir> {
 
         Err(compile::Error::msg(
             span,
-            format_args!("Missing variable `{name}` to take ({variable})"),
+            format_args!("Missing variable `{name}` to take"),
         ))
     }
 
@@ -199,7 +197,6 @@ impl<'hir> Scopes<'hir> {
     #[tracing::instrument(skip_all, fields(variable, name))]
     pub(crate) fn define(
         &mut self,
-        #[allow(unused)] variable: hir::Variable,
         name: hir::Name<'hir>,
         span: &'hir dyn Spanned,
     ) -> compile::Result<usize> {

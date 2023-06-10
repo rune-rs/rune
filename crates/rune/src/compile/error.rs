@@ -651,7 +651,6 @@ impl crate::no_std::error::Error for MissingScope {}
 pub(crate) enum PopError {
     MissingScope(usize),
     MissingParentScope(usize),
-    MissingVariable(usize),
 }
 
 impl fmt::Display for PopError {
@@ -660,7 +659,6 @@ impl fmt::Display for PopError {
         match self {
             PopError::MissingScope(id) => write!(f, "Missing scope with id {id}"),
             PopError::MissingParentScope(id) => write!(f, "Missing parent scope with id {id}"),
-            PopError::MissingVariable(id) => write!(f, "Missing variable with id {id}"),
         }
     }
 }
