@@ -2,7 +2,10 @@ use core::future::Future;
 
 use futures_util::never::Never;
 
-use crate::runtime::{self, Stack, ToValue, TypeOf, UnsafeFromValue, VmErrorKind, VmResult};
+use crate::{
+    runtime::{self, Stack, ToValue, TypeOf, UnsafeFromValue, VmErrorKind, VmResult},
+    Value,
+};
 
 macro_rules! check_args {
     ($expected:expr, $actual:expr) => {
@@ -37,6 +40,14 @@ pub trait FunctionKind {
     fn is_async() -> bool;
 }
 
+pub trait RawFunctionKind<Marker, F>: FunctionKind
+where
+    F: RawFunction<Marker>,
+{
+    type Return;
+    fn fn_call(ret: F::RawReturn, guard: F::Guard) -> VmResult<Value>;
+}
+
 /// Marker for plain functions.
 #[non_exhaustive]
 pub struct Plain;
@@ -45,6 +56,19 @@ impl FunctionKind for Plain {
     #[inline]
     fn is_async() -> bool {
         false
+    }
+}
+impl<Marker, F> RawFunctionKind<Marker, F> for Plain
+where
+    F: RawFunction<Marker>,
+    F::RawReturn: ToValue,
+{
+    type Return = F::RawReturn;
+    fn fn_call(ret: F::RawReturn, guard: F::Guard) -> VmResult<Value> {
+        unsafe {
+            <F as RawFunction<Marker>>::drop_guard(guard);
+        }
+        ret.to_value()
     }
 }
 
@@ -58,8 +82,34 @@ impl FunctionKind for Async {
         true
     }
 }
+impl<Marker, F> RawFunctionKind<Marker, F> for Async
+where
+    F: RawFunction<Marker>,
+    F::Guard: 'static,
+    F::RawReturn: 'static + Future,
+    <F::RawReturn as Future>::Output: ToValue,
+{
+    type Return = <F::RawReturn as Future>::Output;
+    fn fn_call(fut: F::RawReturn, guard: F::Guard) -> VmResult<Value> {
+        // Safety: Future is owned and will only be called within the
+        // context of the virtual machine, which will provide
+        // exclusive thread-local access to itself while the future is
+        // being polled.
+        #[allow(unused)]
+        let ret = unsafe {
+            runtime::Future::new(async move {
+                let ret = fut.await;
+                <F as RawFunction<Marker>>::drop_guard(guard);
+                let ret = vm_try!(ret.to_value());
+                VmResult::Ok(ret)
+            })
+        };
 
-pub trait FunctionPrefix<Marker>: 'static + Send + Sync {
+        ret.to_value()
+    }
+}
+
+pub trait RawFunction<Marker>: 'static + Send + Sync {
     /// An object guarding the lifetime of the arguments.
     type Guard;
 
@@ -99,7 +149,7 @@ pub trait FunctionPrefix<Marker>: 'static + Send + Sync {
 
 /// Trait used to provide the [function][crate::module::Module::function]
 /// function.
-pub trait Function<Marker, K>: FunctionPrefix<Marker> {
+pub trait Function<Marker, K>: RawFunction<Marker> {
     /// The return type of the function.
     #[doc(hidden)]
     type Return;
@@ -112,7 +162,7 @@ pub trait Function<Marker, K>: FunctionPrefix<Marker> {
 /// Trait used to provide the [`associated_function`] function.
 ///
 /// [`associated_function`]: crate::module::Module::associated_function
-pub trait InstanceFunction<Marker, K>: FunctionPrefix<Marker> {
+pub trait InstanceFunction<Marker, K>: RawFunction<Marker> {
     /// The return type of the function.
     #[doc(hidden)]
     type Instance: TypeOf;
@@ -126,7 +176,7 @@ pub trait InstanceFunction<Marker, K>: FunctionPrefix<Marker> {
     fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()>;
 }
 
-impl<U, T> FunctionPrefix<fn() -> U> for T
+impl<U, T> RawFunction<fn() -> U> for T
 where
     T: 'static + Send + Sync + Fn() -> U,
 {
@@ -148,7 +198,7 @@ where
 
 macro_rules! impl_register {
     ($count:expr $(, $ty:ident $var:ident $num:expr)*) => {
-        impl<U, T, Instance, $($ty),*> FunctionPrefix<fn(Instance, $($ty,)*) -> U> for T
+        impl<U, T, Instance, $($ty),*> RawFunction<fn(Instance, $($ty,)*) -> U> for T
         where
             T: 'static + Send + Sync + Fn(Instance, $($ty,)*) -> U,
             Instance: UnsafeFromValue,
@@ -178,22 +228,19 @@ macro_rules! impl_register {
     };
 }
 
-impl<'a, T, Marker> Function<Marker, Plain> for T
+impl<T, Marker> Function<Marker, Plain> for T
 where
-    T: FunctionPrefix<Marker>,
-    <T as FunctionPrefix<Marker>>::RawReturn: ToValue,
+    T: RawFunction<Marker>,
+    Plain: RawFunctionKind<Marker, T>,
 {
-    type Return = <T as FunctionPrefix<Marker>>::RawReturn;
+    type Return = <Plain as RawFunctionKind<Marker, T>>::Return;
 
     fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
         let (ret, guard) =
-            vm_try!(unsafe { <T as FunctionPrefix<Marker>>::fn_call_raw(self, stack, args) });
+            vm_try!(unsafe { <T as RawFunction<Marker>>::fn_call_raw(self, stack, args) });
 
-        unsafe {
-            <T as FunctionPrefix<Marker>>::drop_guard(guard);
-        }
+        let ret = vm_try!(Plain::fn_call(ret, guard));
 
-        let ret = vm_try!(ret.to_value());
         stack.push(ret);
         VmResult::Ok(())
     }
@@ -201,32 +248,17 @@ where
 
 impl<'a, T, Marker> Function<Marker, Async> for T
 where
-    T: FunctionPrefix<Marker>,
-    <T as FunctionPrefix<Marker>>::Guard: 'static,
-    <T as FunctionPrefix<Marker>>::RawReturn: 'static + Future,
-    <<T as FunctionPrefix<Marker>>::RawReturn as Future>::Output: ToValue,
+    T: RawFunction<Marker>,
+    Async: RawFunctionKind<Marker, T>,
 {
-    type Return = <<T as FunctionPrefix<Marker>>::RawReturn as Future>::Output;
+    type Return = <Async as RawFunctionKind<Marker, T>>::Return;
 
     fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
-        let (fut, guard) =
-            vm_try!(unsafe { <T as FunctionPrefix<Marker>>::fn_call_raw(self, stack, args) });
+        let (ret, guard) =
+            vm_try!(unsafe { <T as RawFunction<Marker>>::fn_call_raw(self, stack, args) });
 
-        // Safety: Future is owned and will only be called within the
-        // context of the virtual machine, which will provide
-        // exclusive thread-local access to itself while the future is
-        // being polled.
-        #[allow(unused)]
-        let ret = unsafe {
-            runtime::Future::new(async move {
-                let ret = fut.await;
-                <T as FunctionPrefix<Marker>>::drop_guard(guard);
-                let ret = vm_try!(ret.to_value());
-                VmResult::Ok(ret)
-            })
-        };
+        let ret = vm_try!(Async::fn_call(ret, guard));
 
-        let ret = vm_try!(ret.to_value());
         stack.push(ret);
         VmResult::Ok(())
     }
@@ -234,22 +266,19 @@ where
 
 impl<'a, T, Marker> InstanceFunction<Marker, Plain> for T
 where
-    T: FunctionPrefix<Marker>,
-    <T as FunctionPrefix<Marker>>::FirstArg: TypeOf,
-    <T as FunctionPrefix<Marker>>::RawReturn: ToValue,
+    T: RawFunction<Marker>,
+    Plain: RawFunctionKind<Marker, T>,
+    <T as RawFunction<Marker>>::FirstArg: TypeOf,
 {
-    type Instance = <T as FunctionPrefix<Marker>>::FirstArg;
-    type Return = <T as FunctionPrefix<Marker>>::RawReturn;
+    type Instance = <T as RawFunction<Marker>>::FirstArg;
+    type Return = <Plain as RawFunctionKind<Marker, T>>::Return;
 
     fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
         let (ret, guard) =
-            vm_try!(unsafe { <T as FunctionPrefix<Marker>>::fn_call_raw(self, stack, args) });
+            vm_try!(unsafe { <T as RawFunction<Marker>>::fn_call_raw(self, stack, args) });
 
-        unsafe {
-            <T as FunctionPrefix<Marker>>::drop_guard(guard);
-        }
+        let ret = vm_try!(Plain::fn_call(ret, guard));
 
-        let ret = vm_try!(ret.to_value());
         stack.push(ret);
         VmResult::Ok(())
     }
@@ -257,34 +286,19 @@ where
 
 impl<'a, T, Marker> InstanceFunction<Marker, Async> for T
 where
-    T: FunctionPrefix<Marker>,
-    <T as FunctionPrefix<Marker>>::FirstArg: TypeOf,
-    <T as FunctionPrefix<Marker>>::Guard: 'static,
-    <T as FunctionPrefix<Marker>>::RawReturn: 'static + Future,
-    <<T as FunctionPrefix<Marker>>::RawReturn as Future>::Output: ToValue,
+    T: RawFunction<Marker>,
+    Async: RawFunctionKind<Marker, T>,
+    <T as RawFunction<Marker>>::FirstArg: TypeOf,
 {
-    type Instance = <T as FunctionPrefix<Marker>>::FirstArg;
-    type Return = <<T as FunctionPrefix<Marker>>::RawReturn as Future>::Output;
+    type Instance = <T as RawFunction<Marker>>::FirstArg;
+    type Return = <Async as RawFunctionKind<Marker, T>>::Return;
 
     fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
-        let (fut, guard) =
-            vm_try!(unsafe { <T as FunctionPrefix<Marker>>::fn_call_raw(self, stack, args) });
+        let (ret, guard) =
+            vm_try!(unsafe { <T as RawFunction<Marker>>::fn_call_raw(self, stack, args) });
 
-        // Safety: Future is owned and will only be called within the
-        // context of the virtual machine, which will provide
-        // exclusive thread-local access to itself while the future is
-        // being polled.
-        #[allow(unused)]
-        let ret = unsafe {
-            runtime::Future::new(async move {
-                let ret = fut.await;
-                <T as FunctionPrefix<Marker>>::drop_guard(guard);
-                let ret = vm_try!(ret.to_value());
-                VmResult::Ok(ret)
-            })
-        };
+        let ret = vm_try!(Async::fn_call(ret, guard));
 
-        let ret = vm_try!(ret.to_value());
         stack.push(ret);
         VmResult::Ok(())
     }
