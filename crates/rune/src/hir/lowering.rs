@@ -252,16 +252,12 @@ pub(crate) fn async_block_secondary<'hir>(
         return Err(compile::Error::msg(ast, format_args!("Missing captures for hash {captures}")));
     };
 
-    let captures = &*iter!(captures, |(_, capture)| {
+    let captures = &*iter!(captures, |capture| {
         match capture {
-            hir::OwnedCapture::SelfValue => {
-                let variable = ctx.scopes.define_self().with_span(ast)?;
-                (variable, hir::Name::SelfValue)
-            }
-            hir::OwnedCapture::Name(name) => {
+            hir::OwnedName::SelfValue => ctx.scopes.define(hir::Name::SelfValue).with_span(ast)?,
+            hir::OwnedName::Str(name) => {
                 let name = alloc_str!(name.as_str());
-                let variable = ctx.scopes.define(name).with_span(ast)?;
-                (variable, hir::Name::Str(name))
+                ctx.scopes.define(hir::Name::Str(name)).with_span(ast)?
             }
         }
     });
@@ -287,17 +283,15 @@ pub(crate) fn expr_closure_secondary<'hir>(
         return Err(compile::Error::msg(ast, format_args!("Missing captures for hash {captures}")));
     };
 
-    let captures = &*iter!(captures, |(_, capture)| (match capture {
-        hir::OwnedCapture::SelfValue => {
-            let variable = ctx.scopes.define_self().with_span(ast)?;
-            (variable, hir::Name::SelfValue)
+    let captures = &*iter!(captures, |capture| match capture {
+        hir::OwnedName::SelfValue => {
+            ctx.scopes.define(hir::Name::SelfValue).with_span(ast)?
         }
-        hir::OwnedCapture::Name(name) => {
-            let name = alloc_str!(name.as_str());
-            let variable = ctx.scopes.define(name).with_span(ast)?;
-            (variable, hir::Name::Str(name))
+        hir::OwnedName::Str(name) => {
+            let name = hir::Name::Str(alloc_str!(name.as_str()));
+            ctx.scopes.define(name).with_span(ast)?
         }
-    }));
+    });
 
     let args = iter!(ast.args.as_slice(), |(ast, _)| fn_arg(ctx, ast)?);
     let body = alloc!(expr(ctx, &ast.body)?);
@@ -367,13 +361,9 @@ fn expr_call_closure<'hir>(
             iter!(layer.captures())
         }
         Some(captures) => {
-            iter!(captures, |&(variable, ref capture)| {
-                let capture = match capture {
-                    hir::OwnedCapture::SelfValue => hir::Name::SelfValue,
-                    hir::OwnedCapture::Name(name) => hir::Name::Str(alloc_str!(name.as_str())),
-                };
-
-                (variable, capture)
+            iter!(captures, |capture| match capture {
+                hir::OwnedName::SelfValue => hir::Name::SelfValue,
+                hir::OwnedName::Str(name) => hir::Name::Str(alloc_str!(name.as_str())),
             })
         }
     };
@@ -438,7 +428,7 @@ pub(crate) fn expr_object<'hir>(
         let assign = match &ast.assign {
             Some((_, ast)) => alloc!(expr(ctx, ast)?),
             None => {
-                let Some(variable) = ctx.scopes.get(key.1) else {
+                let Some((name, _)) = ctx.scopes.get(hir::Name::Str(key.1)) else {
                     return Err(compile::Error::new(key.0, CompileErrorKind::MissingLocal {
                         name: key.1.to_owned(),
                     },))
@@ -446,7 +436,7 @@ pub(crate) fn expr_object<'hir>(
 
                 alloc!(hir::Expr {
                     span: ast.span(),
-                    kind: hir::ExprKind::Variable(variable, key.1)
+                    kind: hir::ExprKind::Variable(name)
                 })
             }
         };
@@ -965,15 +955,9 @@ pub(crate) fn expr_block<'hir>(
                     iter!(layer.captures())
                 }
                 Some(captures) => {
-                    iter!(captures, |&(variable, ref capture)| {
-                        let capture = match capture {
-                            hir::OwnedCapture::SelfValue => hir::Name::SelfValue,
-                            hir::OwnedCapture::Name(name) => {
-                                hir::Name::Str(alloc_str!(name.as_str()))
-                            }
-                        };
-
-                        (variable, capture)
+                    iter!(captures, |capture| match capture {
+                        hir::OwnedName::SelfValue => hir::Name::SelfValue,
+                        hir::OwnedName::Str(name) => hir::Name::Str(alloc_str!(name.as_str())),
                     })
                 }
             };
@@ -999,8 +983,8 @@ fn fn_arg<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::FnArg) -> compile::Result<hi
 
     Ok(match ast {
         ast::FnArg::SelfValue(ast) => {
-            let variable = ctx.scopes.define_self().with_span(ast)?;
-            hir::FnArg::SelfValue(ast.span(), variable)
+            ctx.scopes.define(hir::Name::SelfValue).with_span(ast)?;
+            hir::FnArg::SelfValue(ast.span())
         }
         ast::FnArg::Pat(ast) => hir::FnArg::Pat(alloc!(pat(ctx, ast)?)),
     })
@@ -1053,9 +1037,9 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
                     }
 
                     if let Some(ident) = path.try_as_ident() {
-                        let ident = alloc_str!(ident.resolve(resolve_context!(ctx.q))?);
-                        let variable = ctx.scopes.define(ident).with_span(ast)?;
-                        break 'ok hir::PatPathKind::Ident(ident, variable);
+                        let name = alloc_str!(ident.resolve(resolve_context!(ctx.q))?);
+                        ctx.scopes.define(hir::Name::Str(name)).with_span(ast)?;
+                        break 'ok hir::PatPathKind::Ident(name);
                     }
 
                     return Err(compile::Error::new(
@@ -1153,8 +1137,8 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
                             };
 
                             let key = alloc_str!(ident.resolve(resolve_context!(ctx.q))?);
-                            let variable = ctx.scopes.define(key).with_span(ident)?;
-                            (key, hir::Binding::Ident(path.span(), key, variable))
+                            ctx.scopes.define(hir::Name::Str(key)).with_span(ident)?;
+                            (key, hir::Binding::Ident(path.span(), key))
                         }
                         _ => {
                             return Err(compile::Error::new(
@@ -1287,22 +1271,22 @@ pub(crate) fn expr_path<'hir>(
     alloc_with!(ctx, ast);
 
     if let Some(ast::PathKind::SelfValue) = ast.as_kind() {
-        let Some(variable) = ctx.scopes.get_self() else {
+        let Some(..) = ctx.scopes.get(hir::Name::SelfValue) else {
             return Err(compile::Error::new(
                 ast,
                 CompileErrorKind::MissingSelf,
             ));
         };
 
-        return Ok(hir::ExprKind::SelfValue(variable));
+        return Ok(hir::ExprKind::Variable(hir::Name::SelfValue));
     }
 
     if let Needs::Value = ctx.needs.get() {
         if let Some(name) = ast.try_as_ident() {
             let name = alloc_str!(name.resolve(resolve_context!(ctx.q))?);
 
-            if let Some(variable) = ctx.scopes.get(name) {
-                return Ok(hir::ExprKind::Variable(variable, alloc_str!(name)));
+            if let Some((name, _)) = ctx.scopes.get(hir::Name::Str(name)) {
+                return Ok(hir::ExprKind::Variable(name));
             }
         }
     }
@@ -1620,8 +1604,8 @@ fn expr_call<'hir>(
                 if let Some(name) = path.try_as_ident() {
                     let name = alloc_str!(name.resolve(resolve_context!(ctx.q))?);
 
-                    if let Some(variable) = ctx.scopes.get(name) {
-                        break 'ok hir::Call::Var { name, variable };
+                    if let Some((name, _)) = ctx.scopes.get(hir::Name::Str(name)) {
+                        break 'ok hir::Call::Var { name };
                     }
                 }
 

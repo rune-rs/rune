@@ -33,10 +33,10 @@ impl IrCompiler<'_> {
     /// Resolve an ir target from an expression.
     fn ir_target(&self, expr: &hir::Expr<'_>) -> compile::Result<ir::IrTarget> {
         match expr.kind {
-            hir::ExprKind::Variable(_, name) => {
+            hir::ExprKind::Variable(name) => {
                 return Ok(ir::IrTarget {
                     span: expr.span(),
-                    kind: ir::IrTargetKind::Name(name.into()),
+                    kind: ir::IrTargetKind::Name(name.into_owned()),
                 });
             }
             hir::ExprKind::FieldAccess(expr_field_access) => {
@@ -102,8 +102,8 @@ pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut IrCompiler<'_>) -> compile::Resu
 
             ir::Ir::new(span, ir::IrValue::from_const(value))
         }
-        hir::ExprKind::Variable(_, name) => {
-            return Ok(ir::Ir::new(span, <Box<str>>::from(name)));
+        hir::ExprKind::Variable(name) => {
+            return Ok(ir::Ir::new(span, <Box<str>>::from(name.as_str())));
         }
         _ => {
             return Err(compile::Error::msg(
@@ -378,7 +378,7 @@ fn local(hir: &hir::Local<'_>, c: &mut IrCompiler<'_>) -> compile::Result<ir::Ir
         hir::PatKind::Ignore => {
             return expr(hir.expr, c);
         }
-        hir::PatKind::Path(&hir::PatPathKind::Ident(ident, _)) => ident,
+        hir::PatKind::Path(&hir::PatPathKind::Ident(name)) => name,
         _ => {
             return Err(compile::Error::msg(span, "not supported yet"));
         }

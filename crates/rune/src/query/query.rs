@@ -75,7 +75,7 @@ pub(crate) struct QueryInner {
     /// All available names.
     names: Names,
     /// Recorded captures.
-    captures: HashMap<Hash, Vec<(hir::Variable, hir::OwnedCapture)>>,
+    captures: HashMap<Hash, Vec<hir::OwnedName>>,
 }
 
 impl QueryInner {
@@ -1665,22 +1665,14 @@ impl<'a> Query<'a> {
     /// Insert captures.
     pub(crate) fn insert_captures<'hir, C>(&mut self, hash: Hash, captures: C)
     where
-        C: IntoIterator<Item = (hir::Variable, hir::Name<'hir>)>,
+        C: IntoIterator<Item = hir::Name<'hir>>,
     {
-        let captures = captures.into_iter().map(|(v, c)| {
-            let c = match c {
-                hir::Name::SelfValue => hir::OwnedCapture::SelfValue,
-                hir::Name::Str(name) => hir::OwnedCapture::Name(name.to_owned()),
-            };
-
-            (v, c)
-        });
-
+        let captures = captures.into_iter().map(hir::Name::into_owned);
         self.inner.captures.insert(hash, captures.collect());
     }
 
     /// Get captures for the given hash.
-    pub(crate) fn get_captures(&self, hash: Hash) -> Option<&[(hir::Variable, hir::OwnedCapture)]> {
+    pub(crate) fn get_captures(&self, hash: Hash) -> Option<&[hir::OwnedName]> {
         Some(self.inner.captures.get(&hash)?)
     }
 }

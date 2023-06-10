@@ -2,7 +2,7 @@ use core::num::NonZeroUsize;
 
 use crate as rune;
 use crate::ast::{self, Span, Spanned};
-use crate::hir::{Name, Variable};
+use crate::hir::Name;
 use crate::parse::{Expectation, Id, IntoExpectation, NonZeroId, Opaque};
 use crate::runtime::{format, Type, TypeCheck};
 use crate::Hash;
@@ -21,7 +21,7 @@ pub(crate) struct Pat<'hir> {
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum PatPathKind<'hir> {
     Kind(&'hir PatItemsKind),
-    Ident(&'hir str, Variable),
+    Ident(&'hir str),
 }
 
 /// The kind of a [Pat].
@@ -84,23 +84,23 @@ pub(crate) struct PatItems<'hir> {
 #[non_exhaustive]
 pub(crate) enum Binding<'hir> {
     Binding(Span, &'hir str, &'hir Pat<'hir>),
-    Ident(Span, &'hir str, Variable),
+    Ident(Span, &'hir str),
 }
 
 impl<'hir> Spanned for Binding<'hir> {
     fn span(&self) -> Span {
         match self {
             Binding::Binding(span, _, _) => *span,
-            Binding::Ident(span, _, _) => *span,
+            Binding::Ident(span, _) => *span,
         }
     }
 }
 
-impl Binding<'_> {
-    pub(crate) fn key(&self) -> &str {
-        match self {
+impl<'hir> Binding<'hir> {
+    pub(crate) fn key(&self) -> &'hir str {
+        match *self {
             Self::Binding(_, key, _) => key,
-            Self::Ident(_, key, _) => key,
+            Self::Ident(_, key) => key,
         }
     }
 }
@@ -133,8 +133,7 @@ pub(crate) enum Lit<'hir> {
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) enum ExprKind<'hir> {
-    SelfValue(Variable),
-    Variable(Variable, &'hir str),
+    Variable(Name<'hir>),
     Type(Type),
     Fn(Hash),
     Path(&'hir Path<'hir>),
@@ -225,7 +224,7 @@ pub(crate) struct ExprLoop<'hir> {
     pub(crate) body: &'hir Block<'hir>,
     /// Variables that have been defined by the loop header.
     #[allow(unused)]
-    pub(crate) drop: &'hir [Variable],
+    pub(crate) drop: &'hir [Name<'hir>],
 }
 
 /// A `for` loop over an iterator: `for i in [1, 2, 3] {}`.
@@ -243,7 +242,7 @@ pub(crate) struct ExprFor<'hir> {
     pub(crate) body: &'hir Block<'hir>,
     /// Variables that have been defined by the loop header.
     #[allow(unused)]
-    pub(crate) drop: &'hir [Variable],
+    pub(crate) drop: &'hir [Name<'hir>],
 }
 
 /// A let expression `let <name> = <expr>`
@@ -284,7 +283,7 @@ pub(crate) struct ConditionalBranch<'hir> {
     pub(crate) block: &'hir Block<'hir>,
     /// Variables that have been defined by the conditional header.
     #[allow(unused)]
-    pub(crate) drop: &'hir [Variable],
+    pub(crate) drop: &'hir [Name<'hir>],
 }
 
 /// A match expression.
@@ -313,17 +312,14 @@ pub(crate) struct ExprMatchBranch<'hir> {
     /// Variables that have been defined by this match branch, which needs to be
     /// dropped.
     #[allow(unused)]
-    pub(crate) drop: &'hir [Variable],
+    pub(crate) drop: &'hir [Name<'hir>],
 }
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum Call<'hir> {
     Var {
         /// The name of the variable being called.
-        name: &'hir str,
-        /// The variable that was looked up.
-        #[allow(unused)]
-        variable: Variable,
+        name: Name<'hir>,
     },
     Instance {
         /// The target expression being called.
@@ -424,7 +420,7 @@ pub(crate) enum ExprBreakValue<'hir> {
 pub(crate) struct ExprAsyncBlock<'hir> {
     pub(crate) hash: Hash,
     pub(crate) do_move: bool,
-    pub(crate) captures: &'hir [(Variable, Name<'hir>)],
+    pub(crate) captures: &'hir [Name<'hir>],
 }
 
 /// A `select` expression that selects over a collection of futures.
@@ -457,7 +453,7 @@ pub(crate) struct ExprSelectPatBranch<'hir> {
     pub(crate) body: &'hir Expr<'hir>,
     /// Variables that need to be dropped by the end of this block.
     #[allow(unused)]
-    pub(crate) drop: &'hir [Variable],
+    pub(crate) drop: &'hir [Name<'hir>],
 }
 
 /// Calling a closure.
@@ -466,7 +462,7 @@ pub(crate) struct ExprSelectPatBranch<'hir> {
 pub(crate) struct ExprCallClosure<'hir> {
     pub(crate) do_move: bool,
     pub(crate) hash: Hash,
-    pub(crate) captures: &'hir [(Variable, Name<'hir>)],
+    pub(crate) captures: &'hir [Name<'hir>],
 }
 
 /// A closure expression.
@@ -481,7 +477,7 @@ pub(crate) struct ExprClosure<'hir> {
     /// The body of the closure.
     pub(crate) body: &'hir Expr<'hir>,
     /// Captures in the closure.
-    pub(crate) captures: &'hir [(Variable, Name<'hir>)],
+    pub(crate) captures: &'hir [Name<'hir>],
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -675,22 +671,13 @@ pub(crate) struct ItemFn<'hir> {
 }
 
 /// A single argument to a function.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Spanned)]
 #[non_exhaustive]
 pub(crate) enum FnArg<'hir> {
     /// The `self` parameter.
-    SelfValue(Span, Variable),
+    SelfValue(Span),
     /// Function argument is a pattern binding.
     Pat(&'hir Pat<'hir>),
-}
-
-impl Spanned for FnArg<'_> {
-    fn span(&self) -> Span {
-        match self {
-            FnArg::SelfValue(span, _) => *span,
-            FnArg::Pat(pat) => pat.span(),
-        }
-    }
 }
 
 /// A block of statements.
@@ -707,7 +694,7 @@ pub(crate) struct Block<'hir> {
     pub(crate) statements: &'hir [Stmt<'hir>],
     /// Variables that need to be dropped by the end of this block.
     #[allow(unused)]
-    pub(crate) drop: &'hir [Variable],
+    pub(crate) drop: &'hir [Name<'hir>],
 }
 
 impl Block<'_> {
@@ -722,7 +709,7 @@ impl Block<'_> {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct AsyncBlock<'hir> {
     pub(crate) block: &'hir Block<'hir>,
-    pub(crate) captures: &'hir [(Variable, Name<'hir>)],
+    pub(crate) captures: &'hir [Name<'hir>],
 }
 
 /// A statement within a block.
