@@ -8,20 +8,17 @@ use crate::no_std::prelude::*;
 
 use crate::ast::spanned;
 use crate::ast::{self, OptionSpanned, Span, Spanned};
-use crate::compile::attrs::Attributes;
+use crate::compile::attrs;
 use crate::compile::{
-    self, attrs, CompileErrorKind, Doc, ItemId, ModId, ParseErrorKind, Visibility, WithSpan,
+    self, CompileErrorKind, Doc, ItemId, ModId, ParseErrorKind, Visibility, WithSpan,
 };
 use crate::compile::{meta, DynLocation};
-use crate::indexing::locals;
-use crate::indexing::{self, Indexed};
-use crate::indexing::{Layer, Scopes};
+use crate::indexing::{self, Indexed, Items, Layer, Scopes};
 use crate::macros::MacroCompiler;
 use crate::parse::{Parse, Parser, Resolve};
 use crate::query::{BuiltInFile, BuiltInFormat, BuiltInLine, BuiltInMacro, BuiltInTemplate, Query};
 use crate::runtime::format;
 use crate::runtime::Call;
-use crate::shared::Items;
 use crate::worker::{Import, ImportKind, LoadFileKind, Task};
 use crate::SourceId;
 
@@ -99,27 +96,23 @@ impl<'a> Indexer<'a> {
     /// Try to expand an internal macro.
     fn try_expand_internal_macro(
         &mut self,
-        attributes: &mut attrs::Attributes,
+        p: &mut attrs::Parser,
         ast: &mut ast::MacroCall,
     ) -> compile::Result<bool> {
-        let (_, builtin) = match attributes.try_parse::<attrs::BuiltIn>(resolve_context!(self.q))? {
-            Some(builtin) => builtin,
-            None => return Ok(false),
+        let Some((_, builtin)) = p.try_parse::<attrs::BuiltIn>(resolve_context!(self.q), &ast.attributes)? else {
+            return Ok(false);
         };
 
         let args = builtin.args(resolve_context!(self.q))?;
 
         // NB: internal macros are
-        let ident = match ast.path.try_as_ident() {
-            Some(ident) => ident,
-            None => {
-                return Err(compile::Error::new(
-                    &ast.path,
-                    CompileErrorKind::NoSuchBuiltInMacro {
-                        name: ast.path.resolve(resolve_context!(self.q))?,
-                    },
-                ))
-            }
+        let Some(ident) = ast.path.try_as_ident() else {
+            return Err(compile::Error::new(
+                &ast.path,
+                CompileErrorKind::NoSuchBuiltInMacro {
+                    name: ast.path.resolve(resolve_context!(self.q))?,
+                },
+            ))
         };
 
         let ident = ident.resolve(resolve_context!(self.q))?;
@@ -160,7 +153,7 @@ impl<'a> Indexer<'a> {
     /// Expand the template macro.
     fn expand_template_macro(
         &mut self,
-        ast: &mut ast::MacroCall,
+        ast: &ast::MacroCall,
         args: &attrs::BuiltInArgs,
     ) -> compile::Result<BuiltInMacro> {
         let mut p = Parser::from_token_stream(&ast.input, ast.span());
@@ -186,7 +179,7 @@ impl<'a> Indexer<'a> {
     /// Expand the template macro.
     fn expand_format_macro(
         &mut self,
-        ast: &mut ast::MacroCall,
+        ast: &ast::MacroCall,
         _: &attrs::BuiltInArgs,
     ) -> compile::Result<BuiltInMacro> {
         let mut p = Parser::from_token_stream(&ast.input, ast.span());
@@ -336,10 +329,10 @@ impl<'a> Indexer<'a> {
     }
 
     /// Expand a macro returning the current file
-    fn expand_file_macro(&mut self, ast: &mut ast::MacroCall) -> compile::Result<BuiltInMacro> {
+    fn expand_file_macro(&mut self, ast: &ast::MacroCall) -> compile::Result<BuiltInMacro> {
         let name = self.q.sources.name(self.source_id).ok_or_else(|| {
             compile::Error::new(
-                ast.span(),
+                ast,
                 ParseErrorKind::MissingSourceId {
                     source_id: self.source_id,
                 },
@@ -356,7 +349,7 @@ impl<'a> Indexer<'a> {
     }
 
     /// Expand a macro returning the current line for where the macro invocation begins
-    fn expand_line_macro(&mut self, ast: &mut ast::MacroCall) -> compile::Result<BuiltInMacro> {
+    fn expand_line_macro(&mut self, ast: &ast::MacroCall) -> compile::Result<BuiltInMacro> {
         let (l, _) = self
             .q
             .sources
@@ -382,8 +375,10 @@ impl<'a> Indexer<'a> {
     {
         let id = self
             .q
-            .insert_path(self.mod_item, self.impl_item, &self.items.item());
+            .insert_path(self.mod_item, self.impl_item, self.items.item());
+
         ast.path.id.set(id);
+
         let id = self.items.id().with_span(&ast)?;
         let item = self.q.item_for(id).with_span(&ast)?;
 
@@ -408,8 +403,10 @@ impl<'a> Indexer<'a> {
     {
         let id = self
             .q
-            .insert_path(self.mod_item, self.impl_item, &self.items.item());
+            .insert_path(self.mod_item, self.impl_item, self.items.item());
+
         attr.path.id.set(id);
+
         let id = self.items.id().with_span(&*attr)?;
 
         let containing = self.q.item_for(id).with_span(&*attr)?;
@@ -435,20 +432,17 @@ impl<'a> Indexer<'a> {
         };
 
         let name = item_mod.name.resolve(resolve_context!(self.q))?;
-        let _guard = self.items.push_name(name.as_ref());
 
-        let root = match &self.root {
-            Some(root) => root,
-            None => {
-                return Err(compile::Error::new(
-                    &*item_mod,
-                    CompileErrorKind::UnsupportedModuleSource,
-                ));
-            }
+        let Some(root) = &self.root else {
+            return Err(compile::Error::new(
+                &*item_mod,
+                CompileErrorKind::UnsupportedModuleSource,
+            ));
         };
 
         let visibility = ast_to_visibility(&item_mod.visibility)?;
 
+        let guard = self.items.push_name(name.as_ref());
         let mod_item_id = self.items.id().with_span(&*item_mod)?;
 
         let mod_item = self.q.insert_mod(
@@ -458,6 +452,8 @@ impl<'a> Indexer<'a> {
             visibility,
             docs,
         )?;
+
+        self.items.pop(guard).with_span(&*item_mod)?;
 
         item_mod.id.set(mod_item_id);
 
@@ -477,6 +473,7 @@ impl<'a> Indexer<'a> {
         }
 
         let source_id = self.q.sources.insert(source);
+
         self.q
             .visitor
             .visit_mod(&DynLocation::new(source_id, &*item_mod));
@@ -496,25 +493,24 @@ impl<'a> Indexer<'a> {
 
 /// Index the contents of a module known by its AST as a "file".
 pub(crate) fn file(idx: &mut Indexer<'_>, ast: &mut ast::File) -> compile::Result<()> {
-    let mut attrs = Attributes::new(ast.attributes.to_vec());
-    let docs = attrs.try_parse_collect::<attrs::Doc>(resolve_context!(idx.q))?;
-
-    let ctx = resolve_context!(idx.q);
+    let mut p = attrs::Parser::new(&ast.attributes);
 
     // This part catches comments interior to the module of the form `//!`.
-    for (span, doc) in docs {
+    for doc in p.parse_all::<attrs::Doc>(resolve_context!(idx.q), &ast.attributes) {
+        let (span, doc) = doc?;
+
         idx.q.visitor.visit_doc_comment(
             &DynLocation::new(idx.source_id, &span),
             idx.q.pool.module_item(idx.mod_item),
             idx.q.pool.module_item_hash(idx.mod_item),
-            &doc.doc_string.resolve(ctx)?,
+            &doc.doc_string.resolve(resolve_context!(idx.q))?,
         );
     }
 
-    if let Some(first) = attrs.remaining() {
+    if let Some(first) = p.remaining(&ast.attributes).next() {
         return Err(compile::Error::msg(
             first,
-            "file attributes are not supported",
+            "File attributes are not supported",
         ));
     }
 
@@ -563,66 +559,72 @@ pub(crate) fn file(idx: &mut Indexer<'_>, ast: &mut ast::File) -> compile::Resul
                 ));
             }
 
-            // Before furthor processing all attributes are either expanded, or if unknown put in
-            // `skipped_attributes`, to either be reinserted for the `item` handler or to be used
-            // by the macro_call expansion below.
+            // Before further processing all attributes are either expanded, or
+            // if unknown put in `skipped_attributes`, to either be reinserted
+            // for the `item` handler or to be used by the macro_call expansion
+            // below.
             if let Some(mut attr) = item.remove_first_attribute() {
-                match idx.expand_attribute_macro::<ast::File>(&mut attr, &mut item)? {
-                    Some(file) => {
-                        for (item, semi) in file.items.into_iter().rev() {
-                            match item {
-                                item @ ast::Item::MacroCall(_) => {
-                                    queue.push_back((
-                                        depth.wrapping_add(1),
-                                        item,
-                                        Vec::new(),
-                                        semi,
-                                    ));
-                                }
-                                item if !item.attributes().is_empty() => {
-                                    queue.push_back((
-                                        depth.wrapping_add(1),
-                                        item,
-                                        Vec::new(),
-                                        semi,
-                                    ));
-                                }
-                                item => {
-                                    head.push_front((item, semi));
-                                }
-                            }
-                        }
+                let Some(file) = idx.expand_attribute_macro::<ast::File>(&mut attr, &mut item)? else {
+                    skipped_attributes.push(attr);
+
+                    if !matches!(item, ast::Item::MacroCall(_)) && item.attributes().is_empty()
+                    {
+                        // For all we know only non macro attributes remain, which will be
+                        // handled by the item handler.
+                        *item.attributes_mut() = skipped_attributes;
+                        head.push_front((item, semi));
+                    } else {
+                        // items with remaining attributes and macro calls will be dealt with by
+                        // reinserting in the queue.
+                        queue.push_back((depth, item, skipped_attributes, semi))
                     }
-                    None => {
-                        skipped_attributes.push(attr);
-                        if !matches!(item, ast::Item::MacroCall(_)) && item.attributes().is_empty()
-                        {
-                            // For all we know only non macro attributes remain, which will be
-                            // handled by the item handler.
-                            *item.attributes_mut() = skipped_attributes;
-                            head.push_front((item, semi));
-                        } else {
-                            // items with remaining attributes and macro calls will be dealt with by
-                            // reinserting in the queue.
-                            queue.push_back((depth, item, skipped_attributes, semi))
-                        }
-                    }
+
+                    continue;
                 };
+
+                for (item, semi) in file.items.into_iter().rev() {
+                    match item {
+                        item @ ast::Item::MacroCall(_) => {
+                            queue.push_back((depth.wrapping_add(1), item, Vec::new(), semi));
+                        }
+                        item if !item.attributes().is_empty() => {
+                            queue.push_back((depth.wrapping_add(1), item, Vec::new(), semi));
+                        }
+                        item => {
+                            head.push_front((item, semi));
+                        }
+                    }
+                }
+
                 continue;
             }
 
             let ast::Item::MacroCall(mut macro_call) = item else {
-                unreachable!("non macro items would have had attributes")
+                return Err(compile::Error::msg(&item, "Expected attributes on macro call"));
             };
 
-            macro_call.attributes = skipped_attributes.clone();
+            macro_call.attributes = skipped_attributes;
 
-            let mut attributes = attrs::Attributes::new(skipped_attributes);
+            let mut p = attrs::Parser::new(&macro_call.attributes);
 
-            if idx.try_expand_internal_macro(&mut attributes, &mut macro_call)? {
+            if idx.try_expand_internal_macro(&mut p, &mut macro_call)? {
+                if let Some(attr) = p.remaining(&macro_call.attributes).next() {
+                    return Err(compile::Error::msg(
+                        attr,
+                        "Attributes on macros are not supported",
+                    ));
+                }
+
                 // Macro call must be added to output to make sure its instructions are assembled.
                 ast.items.push((ast::Item::MacroCall(macro_call), semi));
             } else {
+                if let Some(attr) = p.remaining(&macro_call.attributes).next() {
+                    return Err(compile::Error::msg(
+                        attr,
+                        "Attributes on macros are not supported",
+                    ));
+                }
+
                 let file = idx.expand_macro::<ast::File>(&mut macro_call)?;
 
                 for (item, semi) in file.items.into_iter().rev() {
@@ -640,10 +642,6 @@ pub(crate) fn file(idx: &mut Indexer<'_>, ast: &mut ast::File) -> compile::Resul
                 }
             }
 
-            if let Some(span) = attributes.remaining() {
-                return Err(compile::Error::msg(span, "unsupported item attribute"));
-            }
-
             if !head.is_empty() {
                 continue 'uses;
             }
@@ -656,11 +654,14 @@ pub(crate) fn file(idx: &mut Indexer<'_>, ast: &mut ast::File) -> compile::Resul
 #[instrument(span = ast)]
 fn item_fn(idx: &mut Indexer<'_>, mut ast: ast::ItemFn) -> compile::Result<()> {
     let name = ast.name.resolve(resolve_context!(idx.q))?;
-    let _guard = idx.items.push_name(name.as_ref());
 
     let visibility = ast_to_visibility(&ast.visibility)?;
-    let mut attributes = attrs::Attributes::new(ast.attributes.clone());
-    let docs = Doc::collect_from(resolve_context!(idx.q), &mut attributes)?;
+
+    let mut p = attrs::Parser::new(&ast.attributes);
+
+    let docs = Doc::collect_from(resolve_context!(idx.q), &mut p, &ast.attributes)?;
+
+    let guard = idx.items.push_name(name.as_ref());
 
     let item_meta = idx.q.insert_new_item(
         &idx.items,
@@ -673,11 +674,8 @@ fn item_fn(idx: &mut Indexer<'_>, mut ast: ast::ItemFn) -> compile::Result<()> {
     idx.scopes.push();
 
     for (arg, _) in &mut ast.args {
-        match arg {
-            ast::FnArg::SelfValue(..) => {}
-            ast::FnArg::Pat(p) => {
-                locals::pat(idx, p)?;
-            }
+        if let ast::FnArg::Pat(p) = arg {
+            pat(idx, p)?;
         }
     }
 
@@ -685,6 +683,8 @@ fn item_fn(idx: &mut Indexer<'_>, mut ast: ast::ItemFn) -> compile::Result<()> {
     let last = idx.nested_item.replace(ast.descriptive_span());
     block(idx, &mut ast.body)?;
     idx.nested_item = last;
+
+    idx.items.pop(guard).with_span(&ast)?;
 
     let layer = idx.scopes.pop().with_span(&ast)?;
 
@@ -706,11 +706,11 @@ fn item_fn(idx: &mut Indexer<'_>, mut ast: ast::ItemFn) -> compile::Result<()> {
     // inside of a nested item.
     let is_public = item_meta.is_public(idx.q.pool) && idx.nested_item.is_none();
 
-    let is_test = match attributes.try_parse::<attrs::Test>(resolve_context!(idx.q))? {
-        Some((span, _)) => {
+    let is_test = match p.try_parse::<attrs::Test>(resolve_context!(idx.q), &ast.attributes)? {
+        Some((attr, _)) => {
             if let Some(nested_span) = idx.nested_item {
                 return Err(compile::Error::new(
-                    span,
+                    attr,
                     CompileErrorKind::NestedTest { nested_span },
                 ));
             }
@@ -720,10 +720,10 @@ fn item_fn(idx: &mut Indexer<'_>, mut ast: ast::ItemFn) -> compile::Result<()> {
         _ => false,
     };
 
-    let is_bench = match attributes.try_parse::<attrs::Bench>(resolve_context!(idx.q))? {
-        Some((span, _)) => {
+    let is_bench = match p.try_parse::<attrs::Bench>(resolve_context!(idx.q), &ast.attributes)? {
+        Some((attr, _)) => {
             if let Some(nested_span) = idx.nested_item {
-                let span = span.join(ast.descriptive_span());
+                let span = attr.span().join(ast.descriptive_span());
 
                 return Err(compile::Error::new(
                     span,
@@ -736,10 +736,10 @@ fn item_fn(idx: &mut Indexer<'_>, mut ast: ast::ItemFn) -> compile::Result<()> {
         _ => false,
     };
 
-    if let Some(attrs) = attributes.remaining() {
+    if let Some(attrs) = p.remaining(&ast.attributes).next() {
         return Err(compile::Error::msg(
             attrs,
-            "unrecognized function attribute",
+            "Attributes on functions are not supported",
         ));
     }
 
@@ -747,14 +747,14 @@ fn item_fn(idx: &mut Indexer<'_>, mut ast: ast::ItemFn) -> compile::Result<()> {
         if is_test {
             return Err(compile::Error::msg(
                 &ast,
-                "#[test] is not supported on member functions",
+                "The #[test] attribute is not supported on member functions",
             ));
         }
 
         if is_bench {
             return Err(compile::Error::msg(
                 &ast,
-                "#[bench] is not supported on member functions",
+                "The #[bench] attribute is not supported on member functions",
             ));
         }
 
@@ -796,7 +796,7 @@ fn expr_block(idx: &mut Indexer<'_>, ast: &mut ast::ExprBlock) -> compile::Resul
     if let Some(span) = ast.attributes.option_span() {
         return Err(compile::Error::msg(
             span,
-            "block attributes are not supported yet",
+            "Attributes on blocks are not supported",
         ));
     }
 
@@ -804,14 +804,14 @@ fn expr_block(idx: &mut Indexer<'_>, ast: &mut ast::ExprBlock) -> compile::Resul
         if let Some(span) = ast.move_token.option_span() {
             return Err(compile::Error::msg(
                 span,
-                "move modifier not support on blocks",
+                "The `move` modifier on blocks is not supported",
             ));
         }
 
         return block(idx, &mut ast.block);
     }
 
-    let _guard = idx.items.push_id();
+    let guard = idx.items.push_id();
 
     let item_meta = idx.q.insert_new_item(
         &idx.items,
@@ -821,7 +821,7 @@ fn expr_block(idx: &mut Indexer<'_>, ast: &mut ast::ExprBlock) -> compile::Resul
         &[],
     )?;
 
-    ast.block.id = item_meta.id;
+    ast.block.id.set(item_meta.id);
 
     if ast.const_token.is_some() {
         if let Some(async_token) = ast.async_token {
@@ -833,34 +833,34 @@ fn expr_block(idx: &mut Indexer<'_>, ast: &mut ast::ExprBlock) -> compile::Resul
 
         block(idx, &mut ast.block)?;
         idx.q.index_const_block(item_meta, &ast.block)?;
-        return Ok(());
+    } else {
+        idx.scopes.push();
+        block(idx, &mut ast.block)?;
+        let layer = idx.scopes.pop().with_span(&ast)?;
+
+        let call = validate_call(ast.const_token.as_ref(), ast.async_token.as_ref(), &layer)?;
+
+        let Some(call) = call else {
+            return Err(compile::Error::new(&ast, CompileErrorKind::ClosureKind));
+        };
+
+        idx.q.index_meta(
+            &*ast,
+            item_meta,
+            meta::Kind::AsyncBlock {
+                call,
+                do_move: ast.move_token.is_some(),
+            },
+        )?;
     }
 
-    idx.scopes.push();
-    block(idx, &mut ast.block)?;
-    let layer = idx.scopes.pop().with_span(&ast)?;
-
-    let call = validate_call(ast.const_token.as_ref(), ast.async_token.as_ref(), &layer)?;
-
-    let Some(call) = call else {
-        return Err(compile::Error::new(&ast, CompileErrorKind::ClosureKind));
-    };
-
-    idx.q.index_meta(
-        ast,
-        item_meta,
-        meta::Kind::AsyncBlock {
-            call,
-            do_move: ast.move_token.is_some(),
-        },
-    )?;
-
+    idx.items.pop(guard).with_span(&ast)?;
     Ok(())
 }
 
 #[instrument(span = ast)]
 fn block(idx: &mut Indexer<'_>, ast: &mut ast::Block) -> compile::Result<()> {
-    let _guard = idx.items.push_id();
+    let guard = idx.items.push_id();
 
     idx.q.insert_new_item(
         &idx.items,
@@ -930,13 +930,17 @@ fn block(idx: &mut Indexer<'_>, ast: &mut ast::Block) -> compile::Result<()> {
     }
 
     ast.statements = statements;
+    idx.items.pop(guard).with_span(&ast)?;
     Ok(())
 }
 
 #[instrument(span = ast)]
 fn local(idx: &mut Indexer<'_>, ast: &mut ast::Local) -> compile::Result<()> {
     if let Some(span) = ast.attributes.option_span() {
-        return Err(compile::Error::msg(span, "attributes are not supported"));
+        return Err(compile::Error::msg(
+            span,
+            "Attributes on local declarations are not supported",
+        ));
     }
 
     // We index the rhs expression first so that it doesn't see it's own
@@ -982,7 +986,6 @@ fn pat(idx: &mut Indexer<'_>, ast: &mut ast::Pat) -> compile::Result<()> {
 #[instrument(span = ast)]
 fn pat_tuple(idx: &mut Indexer<'_>, ast: &mut ast::PatTuple) -> compile::Result<()> {
     if let Some(p) = &mut ast.path {
-        // Not a variable use - just the name of the tuple.
         path(idx, p)?;
     }
 
@@ -994,17 +997,10 @@ fn pat_tuple(idx: &mut Indexer<'_>, ast: &mut ast::PatTuple) -> compile::Result<
 }
 
 #[instrument(span = ast)]
-fn pat_binding(idx: &mut Indexer<'_>, ast: &mut ast::PatBinding) -> compile::Result<()> {
-    pat(idx, &mut ast.pat)?;
-    Ok(())
-}
-
-#[instrument(span = ast)]
 fn pat_object(idx: &mut Indexer<'_>, ast: &mut ast::PatObject) -> compile::Result<()> {
     match &mut ast.ident {
         ast::ObjectIdent::Anonymous(..) => (),
         ast::ObjectIdent::Named(p) => {
-            // Not a variable use - just a name in a pattern match.
             path(idx, p)?;
         }
     }
@@ -1026,9 +1022,19 @@ fn pat_vec(idx: &mut Indexer<'_>, ast: &mut ast::PatVec) -> compile::Result<()> 
 }
 
 #[instrument(span = ast)]
-pub(crate) fn expr(idx: &mut Indexer<'_>, ast: &mut ast::Expr) -> compile::Result<()> {
-    let mut attributes = attrs::Attributes::new(ast.attributes().to_vec());
+fn pat_path(idx: &mut Indexer<'_>, ast: &mut ast::PatPath) -> compile::Result<()> {
+    path(idx, &mut ast.path)?;
+    Ok(())
+}
 
+#[instrument(span = ast)]
+fn pat_binding(idx: &mut Indexer<'_>, ast: &mut ast::PatBinding) -> compile::Result<()> {
+    pat(idx, &mut ast.pat)?;
+    Ok(())
+}
+
+#[instrument(span = ast)]
+pub(crate) fn expr(idx: &mut Indexer<'_>, ast: &mut ast::Expr) -> compile::Result<()> {
     match ast {
         ast::Expr::Path(e) => {
             path(idx, e)?;
@@ -1103,9 +1109,7 @@ pub(crate) fn expr(idx: &mut Indexer<'_>, ast: &mut ast::Expr) -> compile::Resul
         ast::Expr::Call(e) => {
             expr_call(idx, e)?;
         }
-        ast::Expr::Lit(e) => {
-            expr_lit(idx, e)?;
-        }
+        ast::Expr::Lit(..) => {}
         ast::Expr::Tuple(e) => {
             expr_tuple(idx, e)?;
         }
@@ -1128,7 +1132,15 @@ pub(crate) fn expr(idx: &mut Indexer<'_>, ast: &mut ast::Expr) -> compile::Resul
             // engine.
 
             if !macro_call.id.is_set() {
-                if !idx.try_expand_internal_macro(&mut attributes, macro_call)? {
+                let mut p = attrs::Parser::new(&macro_call.attributes);
+
+                let expanded = idx.try_expand_internal_macro(&mut p, macro_call)?;
+
+                if let Some(span) = p.remaining(&macro_call.attributes).next() {
+                    return Err(compile::Error::msg(span, "Unsupported macro attribute"));
+                }
+
+                if !expanded {
                     let out = idx.expand_macro::<ast::Expr>(macro_call)?;
                     idx.enter_macro(&macro_call)?;
                     *ast = out;
@@ -1140,15 +1152,16 @@ pub(crate) fn expr(idx: &mut Indexer<'_>, ast: &mut ast::Expr) -> compile::Resul
                 idx.q
                     .builtin_macro_for(&*macro_call)
                     .with_span(&*macro_call)?;
-                attributes.drain();
             }
+
+            return Ok(());
         }
     }
 
-    if let Some(span) = attributes.remaining() {
+    if let [first, ..] = ast.attributes() {
         return Err(compile::Error::msg(
-            span,
-            "unsupported expression attribute",
+            first,
+            "Attributes on expressions are not supported",
         ));
     }
 
@@ -1217,19 +1230,20 @@ fn condition(idx: &mut Indexer<'_>, ast: &mut ast::Condition) -> compile::Result
 }
 
 #[instrument(span = ast)]
-fn item_enum(idx: &mut Indexer<'_>, ast: ast::ItemEnum) -> compile::Result<()> {
-    let mut attrs = Attributes::new(ast.attributes.to_vec());
-    let docs = Doc::collect_from(resolve_context!(idx.q), &mut attrs)?;
+fn item_enum(idx: &mut Indexer<'_>, mut ast: ast::ItemEnum) -> compile::Result<()> {
+    let mut p = attrs::Parser::new(&ast.attributes);
 
-    if let Some(first) = attrs.remaining() {
+    let docs = Doc::collect_from(resolve_context!(idx.q), &mut p, &ast.attributes)?;
+
+    if let Some(first) = p.remaining(&ast.attributes).next() {
         return Err(compile::Error::msg(
             first,
-            "enum attributes are not supported",
+            "Attributes on enums are not supported",
         ));
     }
 
     let name = ast.name.resolve(resolve_context!(idx.q))?;
-    let _guard = idx.items.push_name(name.as_ref());
+    let guard = idx.items.push_name(name.as_ref());
 
     let visibility = ast_to_visibility(&ast.visibility)?;
     let enum_item = idx.q.insert_new_item(
@@ -1242,19 +1256,20 @@ fn item_enum(idx: &mut Indexer<'_>, ast: ast::ItemEnum) -> compile::Result<()> {
 
     idx.q.index_enum(enum_item)?;
 
-    for (index, (mut variant, _)) in ast.variants.into_iter().enumerate() {
-        let mut attrs = Attributes::new(variant.attributes.to_vec());
-        let docs = Doc::collect_from(resolve_context!(idx.q), &mut attrs)?;
+    for (index, (mut variant, _)) in ast.variants.drain().enumerate() {
+        let mut p = attrs::Parser::new(&variant.attributes);
 
-        if let Some(first) = attrs.remaining() {
+        let docs = Doc::collect_from(resolve_context!(idx.q), &mut p, &variant.attributes)?;
+
+        if let Some(first) = p.remaining(&variant.attributes).next() {
             return Err(compile::Error::msg(
                 first,
-                "variant attributes are not supported yet",
+                "Attributes on variants are not supported",
             ));
         }
 
         let name = variant.name.resolve(resolve_context!(idx.q))?;
-        let _guard = idx.items.push_name(name.as_ref());
+        let guard = idx.items.push_name(name.as_ref());
 
         let item_meta = idx.q.insert_new_item(
             &idx.items,
@@ -1263,13 +1278,22 @@ fn item_enum(idx: &mut Indexer<'_>, ast: ast::ItemEnum) -> compile::Result<()> {
             Visibility::Public,
             &docs,
         )?;
-        variant.id = item_meta.id;
+
+        variant.id.set(item_meta.id);
 
         let ctx = resolve_context!(idx.q);
 
         for (field, _) in variant.body.fields() {
-            let mut attrs = Attributes::new(field.attributes.to_vec());
-            let docs = Doc::collect_from(ctx, &mut attrs)?;
+            let mut p = attrs::Parser::new(&field.attributes);
+            let docs = Doc::collect_from(ctx, &mut p, &field.attributes)?;
+
+            if let Some(first) = p.remaining(&field.attributes).next() {
+                return Err(compile::Error::msg(
+                    first,
+                    "Attributes on variant fields are not supported",
+                ));
+            }
+
             let name = field.name.resolve(ctx)?;
 
             for doc in docs {
@@ -1281,37 +1305,32 @@ fn item_enum(idx: &mut Indexer<'_>, ast: ast::ItemEnum) -> compile::Result<()> {
                     doc.doc_string.resolve(ctx)?.as_ref(),
                 );
             }
-
-            if let Some(first) = attrs.remaining() {
-                return Err(compile::Error::msg(
-                    first,
-                    "field attributes are not supported",
-                ));
-            }
         }
 
+        idx.items.pop(guard).with_span(&variant)?;
         idx.q
             .index_variant(item_meta, enum_item.id, variant, index)?;
     }
 
+    idx.items.pop(guard).with_span(&ast)?;
     Ok(())
 }
 
 #[instrument(span = ast)]
 fn item_struct(idx: &mut Indexer<'_>, mut ast: ast::ItemStruct) -> compile::Result<()> {
-    let mut attrs = Attributes::new(ast.attributes.to_vec());
+    let mut p = attrs::Parser::new(&ast.attributes);
 
-    let docs = Doc::collect_from(resolve_context!(idx.q), &mut attrs)?;
+    let docs = Doc::collect_from(resolve_context!(idx.q), &mut p, &ast.attributes)?;
 
-    if let Some(first) = attrs.remaining() {
+    if let Some(first) = p.remaining(&ast.attributes).next() {
         return Err(compile::Error::msg(
             first,
-            "struct attributes are not supported",
+            "Attributes on structs are not supported",
         ));
     }
 
     let ident = ast.ident.resolve(resolve_context!(idx.q))?;
-    let _guard = idx.items.push_name(ident);
+    let guard = idx.items.push_name(ident);
 
     let visibility = ast_to_visibility(&ast.visibility)?;
     let item_meta = idx.q.insert_new_item(
@@ -1321,13 +1340,21 @@ fn item_struct(idx: &mut Indexer<'_>, mut ast: ast::ItemStruct) -> compile::Resu
         visibility,
         &docs,
     )?;
-    ast.id = item_meta.id;
+    ast.id.set(item_meta.id);
 
     let ctx = resolve_context!(idx.q);
 
     for (field, _) in ast.body.fields() {
-        let mut attrs = Attributes::new(field.attributes.to_vec());
-        let docs = Doc::collect_from(ctx, &mut attrs)?;
+        let mut p = attrs::Parser::new(&field.attributes);
+        let docs = Doc::collect_from(ctx, &mut p, &field.attributes)?;
+
+        if let Some(first) = p.remaining(&field.attributes).next() {
+            return Err(compile::Error::msg(
+                first,
+                "Attributes on fields are not supported",
+            ));
+        }
+
         let name = field.name.resolve(ctx)?;
 
         for doc in docs {
@@ -1340,29 +1367,25 @@ fn item_struct(idx: &mut Indexer<'_>, mut ast: ast::ItemStruct) -> compile::Resu
             );
         }
 
-        if let Some(first) = attrs.remaining() {
-            return Err(compile::Error::msg(
-                first,
-                "field attributes are not supported",
-            ));
-        } else if !field.visibility.is_inherited() {
+        if !field.visibility.is_inherited() {
             return Err(compile::Error::msg(
                 field,
-                "field visibility levels are not supported",
+                "Field visibility is not supported",
             ));
         }
     }
 
+    idx.items.pop(guard).with_span(&ast)?;
     idx.q.index_struct(item_meta, Box::new(ast))?;
     Ok(())
 }
 
 #[instrument(span = ast)]
-fn item_impl(idx: &mut Indexer<'_>, ast: ast::ItemImpl) -> compile::Result<()> {
+fn item_impl(idx: &mut Indexer<'_>, mut ast: ast::ItemImpl) -> compile::Result<()> {
     if let Some(first) = ast.attributes.first() {
         return Err(compile::Error::msg(
             first,
-            "impl attributes are not supported",
+            "Attributes on impl blocks are not supported",
         ));
     }
 
@@ -1371,38 +1394,45 @@ fn item_impl(idx: &mut Indexer<'_>, ast: ast::ItemImpl) -> compile::Result<()> {
     if let Some(global) = &ast.path.global {
         return Err(compile::Error::msg(
             global,
-            "global scopes are not supported yet",
+            "Global path scopes on impl blocks are not supported",
         ));
     }
 
     for path_segment in ast.path.as_components() {
-        let ident_segment = path_segment
-            .try_as_ident()
-            .ok_or_else(|| compile::Error::msg(path_segment, "unsupported path segment"))?;
+        let Some(ident_segment) = path_segment.try_as_ident() else {
+            return Err(compile::Error::msg(path_segment, "Unsupported path segment"));
+        };
+
         let ident = ident_segment.resolve(resolve_context!(idx.q))?;
         guards.push(idx.items.push_name(ident));
     }
 
-    let new = idx.q.pool.alloc_item(&*idx.items.item());
+    let new = idx.q.pool.alloc_item(idx.items.item());
     let old = replace(&mut idx.impl_item, Some(new));
 
-    for i in ast.functions {
+    for i in ast.functions.drain(..) {
         item_fn(idx, i)?;
     }
 
     idx.impl_item = old;
+
+    for guard in guards.into_iter().rev() {
+        idx.items.pop(guard).with_span(&ast)?;
+    }
+
     Ok(())
 }
 
 #[instrument(span = ast)]
 fn item_mod(idx: &mut Indexer<'_>, mut ast: ast::ItemMod) -> compile::Result<()> {
-    let mut attrs = Attributes::new(ast.attributes.clone());
-    let docs = Doc::collect_from(resolve_context!(idx.q), &mut attrs)?;
+    let mut p = attrs::Parser::new(&ast.attributes);
 
-    if let Some(first) = attrs.remaining() {
+    let docs = Doc::collect_from(resolve_context!(idx.q), &mut p, &ast.attributes)?;
+
+    if let Some(first) = p.remaining(&ast.attributes).next() {
         return Err(compile::Error::msg(
             first,
-            "module attributes are not supported",
+            "Attributes on modules are not supported",
         ));
     }
 
@@ -1414,7 +1444,7 @@ fn item_mod(idx: &mut Indexer<'_>, mut ast: ast::ItemMod) -> compile::Result<()>
         }
         ast::ItemModBody::InlineBody(body) => {
             let name = ast.name.resolve(resolve_context!(idx.q))?;
-            let _guard = idx.items.push_name(name.as_ref());
+            let guard = idx.items.push_name(name.as_ref());
 
             let visibility = ast_to_visibility(&ast.visibility)?;
             let mod_item = idx.q.insert_mod(
@@ -1430,6 +1460,8 @@ fn item_mod(idx: &mut Indexer<'_>, mut ast: ast::ItemMod) -> compile::Result<()>
             let replaced = replace(&mut idx.mod_item, mod_item);
             file(idx, &mut body.file)?;
             idx.mod_item = replaced;
+
+            idx.items.pop(guard).with_span(&ast)?;
         }
     }
 
@@ -1438,18 +1470,19 @@ fn item_mod(idx: &mut Indexer<'_>, mut ast: ast::ItemMod) -> compile::Result<()>
 
 #[instrument(span = ast)]
 fn item_const(idx: &mut Indexer<'_>, mut ast: ast::ItemConst) -> compile::Result<()> {
-    let mut attrs = Attributes::new(ast.attributes.to_vec());
-    let docs = Doc::collect_from(resolve_context!(idx.q), &mut attrs)?;
+    let mut p = attrs::Parser::new(&ast.attributes);
 
-    if let Some(first) = attrs.remaining() {
+    let docs = Doc::collect_from(resolve_context!(idx.q), &mut p, &ast.attributes)?;
+
+    if let Some(first) = p.remaining(&ast.attributes).next() {
         return Err(compile::Error::msg(
             first,
-            "attributes on constants are not supported",
+            "Attributes on constants are not supported",
         ));
     }
 
     let name = ast.name.resolve(resolve_context!(idx.q))?;
-    let _guard = idx.items.push_name(name.as_ref());
+    let guard = idx.items.push_name(name.as_ref());
 
     let item_meta = idx.q.insert_new_item(
         &idx.items,
@@ -1459,19 +1492,18 @@ fn item_const(idx: &mut Indexer<'_>, mut ast: ast::ItemConst) -> compile::Result
         &docs,
     )?;
 
-    ast.id = item_meta.id;
+    ast.id.set(item_meta.id);
 
     let last = idx.nested_item.replace(ast.descriptive_span());
     expr(idx, &mut ast.expr)?;
     idx.nested_item = last;
     idx.q.index_const_expr(item_meta, &ast.expr)?;
+    idx.items.pop(guard).with_span(&ast)?;
     Ok(())
 }
 
 #[instrument(span = ast)]
 fn item(idx: &mut Indexer<'_>, ast: ast::Item) -> compile::Result<()> {
-    let mut attributes = attrs::Attributes::new(ast.attributes().to_vec());
-
     match ast {
         ast::Item::Enum(item) => {
             item_enum(idx, item)?;
@@ -1481,7 +1513,6 @@ fn item(idx: &mut Indexer<'_>, ast: ast::Item) -> compile::Result<()> {
         }
         ast::Item::Fn(item) => {
             item_fn(idx, item)?;
-            attributes.drain();
         }
         ast::Item::Impl(item) => {
             item_impl(idx, item)?;
@@ -1504,11 +1535,22 @@ fn item(idx: &mut Indexer<'_>, ast: ast::Item) -> compile::Result<()> {
                 .builtin_macro_for(&macro_call)
                 .with_span(&macro_call)?;
 
-            // NB: macros are handled during pre-processing.
-            attributes.drain();
+            if let Some(span) = macro_call.attributes.first() {
+                return Err(compile::Error::msg(
+                    span,
+                    "Attributes on macros are not supported",
+                ));
+            }
         }
         // NB: imports are ignored during indexing.
         ast::Item::Use(item_use) => {
+            if let Some(span) = item_use.attributes.first() {
+                return Err(compile::Error::msg(
+                    span,
+                    "Attributes on uses are not supported",
+                ));
+            }
+
             let Some(queue) = idx.queue.as_mut() else {
                 return Err(compile::Error::msg(&item_use, "Imports are not supported in this context"));
             };
@@ -1530,12 +1572,6 @@ fn item(idx: &mut Indexer<'_>, ast: ast::Item) -> compile::Result<()> {
         }
     }
 
-    attributes.try_parse_collect::<attrs::Doc>(resolve_context!(idx.q))?;
-
-    if let Some(span) = attributes.remaining() {
-        return Err(compile::Error::msg(span, "unsupported item attribute"));
-    }
-
     Ok(())
 }
 
@@ -1543,7 +1579,8 @@ fn item(idx: &mut Indexer<'_>, ast: ast::Item) -> compile::Result<()> {
 fn path(idx: &mut Indexer<'_>, ast: &mut ast::Path) -> compile::Result<()> {
     let id = idx
         .q
-        .insert_path(idx.mod_item, idx.impl_item, &idx.items.item());
+        .insert_path(idx.mod_item, idx.impl_item, idx.items.item());
+
     ast.id.set(id);
 
     path_segment(idx, &mut ast.first)?;
@@ -1589,7 +1626,7 @@ fn expr_for(idx: &mut Indexer<'_>, ast: &mut ast::ExprFor) -> compile::Result<()
 
 #[instrument(span = ast)]
 fn expr_closure(idx: &mut Indexer<'_>, ast: &mut ast::ExprClosure) -> compile::Result<()> {
-    let _guard = idx.items.push_id();
+    let guard = idx.items.push_id();
     idx.scopes.push();
 
     let item_meta = idx.q.insert_new_item(
@@ -1600,7 +1637,7 @@ fn expr_closure(idx: &mut Indexer<'_>, ast: &mut ast::ExprClosure) -> compile::R
         &[],
     )?;
 
-    ast.id.set(idx.items.id().with_span(&*ast)?);
+    ast.id.set(item_meta.id);
 
     for (arg, _) in ast.args.as_slice_mut() {
         match arg {
@@ -1608,7 +1645,7 @@ fn expr_closure(idx: &mut Indexer<'_>, ast: &mut ast::ExprClosure) -> compile::R
                 return Err(compile::Error::new(s, CompileErrorKind::UnsupportedSelf));
             }
             ast::FnArg::Pat(p) => {
-                locals::pat(idx, p)?;
+                pat(idx, p)?;
             }
         }
     }
@@ -1632,6 +1669,7 @@ fn expr_closure(idx: &mut Indexer<'_>, ast: &mut ast::ExprClosure) -> compile::R
         },
     )?;
 
+    idx.items.pop(guard).with_span(&ast)?;
     Ok(())
 }
 
@@ -1664,13 +1702,8 @@ fn expr_index(idx: &mut Indexer<'_>, ast: &mut ast::ExprIndex) -> compile::Resul
 
 #[instrument(span = ast)]
 fn expr_break(idx: &mut Indexer<'_>, ast: &mut ast::ExprBreak) -> compile::Result<()> {
-    if let Some(e) = ast.expr.as_deref_mut() {
-        match e {
-            ast::ExprBreakValue::Expr(e) => {
-                expr(idx, e)?;
-            }
-            ast::ExprBreakValue::Label(..) => (),
-        }
+    if let Some(ast::ExprBreakValue::Expr(e)) = ast.expr.as_deref_mut() {
+        expr(idx, e)?;
     }
 
     Ok(())
@@ -1725,24 +1758,17 @@ fn expr_select(idx: &mut Indexer<'_>, ast: &mut ast::ExprSelect) -> compile::Res
         .mark(|l| l.awaits.push(ast.span()))
         .with_span(&*ast)?;
 
-    let mut default_branch = None;
-
     for (branch, _) in &mut ast.branches {
         match branch {
             ast::ExprSelectBranch::Pat(p) => {
-                // NB: expression to evaluate future is evaled in parent scope.
                 expr(idx, &mut p.expr)?;
                 pat(idx, &mut p.pat)?;
                 expr(idx, &mut p.body)?;
             }
             ast::ExprSelectBranch::Default(def) => {
-                default_branch = Some(def);
+                expr(idx, &mut def.body)?;
             }
         }
-    }
-
-    if let Some(def) = default_branch {
-        expr(idx, &mut def.body)?;
     }
 
     Ok(())
@@ -1750,36 +1776,13 @@ fn expr_select(idx: &mut Indexer<'_>, ast: &mut ast::ExprSelect) -> compile::Res
 
 #[instrument(span = ast)]
 fn expr_call(idx: &mut Indexer<'_>, ast: &mut ast::ExprCall) -> compile::Result<()> {
-    ast.id.set(idx.items.id().with_span(ast.span())?);
+    ast.id.set(idx.items.id().with_span(&*ast)?);
 
     for (e, _) in &mut ast.args {
         expr(idx, e)?;
     }
 
     expr(idx, &mut ast.expr)?;
-    Ok(())
-}
-
-#[instrument(span = ast)]
-fn expr_lit(idx: &mut Indexer<'_>, ast: &mut ast::ExprLit) -> compile::Result<()> {
-    if let Some(first) = ast.attributes.first() {
-        return Err(compile::Error::msg(
-            first,
-            "literal attributes are not supported",
-        ));
-    }
-
-    match &mut ast.lit {
-        // NB: literals have nothing to index, they don't export language
-        // items.
-        ast::Lit::Bool(..) => (),
-        ast::Lit::Byte(..) => (),
-        ast::Lit::Char(..) => (),
-        ast::Lit::Number(..) => (),
-        ast::Lit::Str(..) => (),
-        ast::Lit::ByteStr(..) => (),
-    }
-
     Ok(())
 }
 

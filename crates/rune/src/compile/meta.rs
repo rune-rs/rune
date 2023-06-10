@@ -8,11 +8,12 @@ use crate::no_std::path::Path;
 use crate::no_std::prelude::*;
 
 use crate as rune;
-use crate::ast::{LitStr, Span, Spanned};
-use crate::compile::attrs::Attributes;
+use crate::ast;
+use crate::ast::{Span, Spanned};
+use crate::compile::attrs::Parser;
 use crate::compile::{self, Item, ItemId, Location, MetaInfo, ModId, Pool, Visibility};
 use crate::hash::Hash;
-use crate::parse::{Id, NonZeroId, ResolveContext};
+use crate::parse::{NonZeroId, ResolveContext};
 use crate::runtime::{Call, Protocol};
 
 /// A meta reference to an item being compiled.
@@ -47,22 +48,26 @@ pub(crate) struct Doc {
     #[rune(span)]
     pub(crate) span: Span,
     /// The string content of the doc comment.
-    pub(crate) doc_string: LitStr,
+    pub(crate) doc_string: ast::LitStr,
 }
 
 impl Doc {
     pub(crate) fn collect_from(
         ctx: ResolveContext<'_>,
-        attrs: &mut Attributes,
+        attrs: &mut Parser,
+        attributes: &[ast::Attribute],
     ) -> compile::Result<Vec<Doc>> {
-        Ok(attrs
-            .try_parse_collect::<crate::compile::attrs::Doc>(ctx)?
-            .into_iter()
-            .map(|(span, doc)| Doc {
-                span,
-                doc_string: doc.doc_string,
+        let docs = attrs
+            .parse_all::<crate::compile::attrs::Doc>(ctx, attributes)
+            .map(|result| {
+                result.map(|(span, doc)| Doc {
+                    span: span.span(),
+                    doc_string: doc.doc_string,
+                })
             })
-            .collect())
+            .collect::<compile::Result<_>>()?;
+
+        Ok(docs)
     }
 }
 
@@ -286,11 +291,11 @@ pub struct FieldsNamed {
 }
 
 /// Item and the module that the item belongs to.
-#[derive(Default, Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) struct ItemMeta {
     /// The id of the item.
-    pub(crate) id: Id,
+    pub(crate) id: NonZeroId,
     /// The location of the item.
     pub(crate) location: Location,
     /// The name of the item.

@@ -9,9 +9,9 @@ use crate::ast;
 use crate::ast::Span;
 use crate::compile::ModId;
 use crate::indexing::index;
+use crate::indexing::items::Items;
 use crate::indexing::{Indexer, Scopes};
 use crate::query::Query;
-use crate::shared::Items;
 use crate::SourceId;
 
 mod import;

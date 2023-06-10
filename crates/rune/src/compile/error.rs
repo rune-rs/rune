@@ -11,6 +11,7 @@ use thiserror::Error;
 use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::compile::{HasSpan, IrValue, ItemBuf, Location, MetaInfo, Visibility};
+use crate::indexing::items::{GuardMismatch, MissingLastId};
 use crate::macros::{SyntheticId, SyntheticKind};
 use crate::parse::{Expectation, IntoExpectation, LexerMode};
 use crate::query::MissingId;
@@ -18,7 +19,6 @@ use crate::runtime::debug::DebugSignature;
 use crate::runtime::unit::EncodeError;
 use crate::runtime::{AccessError, TypeInfo, TypeOf};
 use crate::shared::scopes::MissingLocal;
-use crate::shared::MissingLastId;
 use crate::{Hash, SourceId};
 
 /// An error raised by the compiler.
@@ -127,14 +127,6 @@ where
 }
 
 impl Error {
-    /// Construct a factor for unsupported super.
-    pub fn unsupported_super<S>(spanned: S) -> impl FnOnce() -> Self
-    where
-        S: Spanned,
-    {
-        || Error::new(spanned, CompileErrorKind::UnsupportedSuper)
-    }
-
     /// Error when we got mismatched meta.
     pub fn expected_meta<S>(spanned: S, meta: MetaInfo, expected: &'static str) -> Self
     where
@@ -220,6 +212,8 @@ pub(crate) enum CompileErrorKind {
     EncodeError(#[from] EncodeError),
     #[error("{0}")]
     MissingLastId(#[from] MissingLastId),
+    #[error("{0}")]
+    GuardMismatch(#[from] GuardMismatch),
     #[error("{0}")]
     MissingScope(#[from] MissingScope),
     #[error("{0}")]

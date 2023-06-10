@@ -80,6 +80,12 @@ macro_rules! grouped {
             pub fn as_mut(&mut self) -> &mut [(T, Option<S>)] {
                 &mut *self.$field
             }
+
+            /// Drain all items from the group.
+            #[allow(unused)]
+            pub(crate) fn drain(&mut self) -> impl Iterator<Item = (T, Option<S>)> + '_ {
+                self.$field.drain(..)
+            }
         }
 
         impl<'a, T, S> IntoIterator for &'a $name<T, S> {

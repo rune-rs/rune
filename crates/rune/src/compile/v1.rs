@@ -6,7 +6,7 @@ use crate::compile::ir;
 use crate::compile::meta;
 use crate::compile::{
     self, Assembly, CompileErrorKind, DynLocation, IrBudget, IrCompiler, IrInterpreter, ItemId,
-    ItemMeta, Options, WithSpan,
+    ModId, Options, WithSpan,
 };
 use crate::hir;
 use crate::query::{ConstFn, Query, Used};
@@ -144,7 +144,8 @@ impl<'a, 'hir> Assembler<'a, 'hir> {
     pub(crate) fn call_const_fn(
         &mut self,
         span: &dyn Spanned,
-        from: &ItemMeta,
+        from_module: ModId,
+        from_item: ItemId,
         query_const_fn: &ConstFn,
         args: &[hir::Expr<'_>],
     ) -> compile::Result<ConstValue> {
@@ -173,8 +174,8 @@ impl<'a, 'hir> Assembler<'a, 'hir> {
         let mut interpreter = IrInterpreter {
             budget: IrBudget::new(1_000_000),
             scopes: Default::default(),
-            module: from.module,
-            item: from.item,
+            module: from_module,
+            item: from_item,
             q: self.q.borrow(),
         };
 

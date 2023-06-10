@@ -18,12 +18,12 @@ use crate::compile::{
 use crate::compile::{ir, SourceLoader};
 use crate::compile::{meta, Located};
 use crate::hir;
-use crate::indexing::{self, Indexed};
+use crate::indexing::{self, Indexed, Items};
 use crate::macros::Storage;
 use crate::parse::{Id, NonZeroId, Opaque, Resolve, ResolveContext};
 use crate::query::{Build, BuildEntry, BuiltInMacro, ConstFn, Named, QueryPath, Used};
 use crate::runtime::ConstValue;
-use crate::shared::{Consts, Gen, Items};
+use crate::shared::{Consts, Gen};
 use crate::{ast, Options};
 use crate::{Context, Diagnostics, Hash, SourceId, Sources};
 
@@ -64,7 +64,7 @@ pub(crate) struct QueryInner {
     /// Indexed constant values.
     constants: HashMap<Hash, ConstValue>,
     /// Query paths.
-    query_paths: HashMap<NonZeroId, QueryPath>,
+    pub(crate) query_paths: HashMap<NonZeroId, QueryPath>,
     /// The result of internally resolved macros.
     internal_macros: HashMap<NonZeroId, Arc<BuiltInMacro>>,
     /// Associated between `id` and `Item`. Use to look up items through
@@ -319,7 +319,7 @@ impl<'a> Query<'a> {
             context: true,
             hash: meta.hash,
             item_meta: ItemMeta {
-                id: Default::default(),
+                id: self.gen.next(),
                 location: Default::default(),
                 item: self.pool.alloc_item(item),
                 visibility: Default::default(),
@@ -442,7 +442,7 @@ impl<'a> Query<'a> {
         self.inner.items.insert(
             item_id,
             ItemMeta {
-                id: Id::new(item_id),
+                id: item_id,
                 location,
                 item: ItemId::default(),
                 visibility: Visibility::Public,
@@ -467,7 +467,7 @@ impl<'a> Query<'a> {
         docs: &[Doc],
     ) -> compile::Result<ItemMeta> {
         let id = items.id().with_span(location.as_spanned())?;
-        let item = self.pool.alloc_item(&*items.item());
+        let item = self.pool.alloc_item(items.item());
         self.insert_new_item_with(id, item, location, module, visibility, docs)
     }
 
@@ -527,7 +527,7 @@ impl<'a> Query<'a> {
         }
 
         let item_meta = ItemMeta {
-            id: Id::new(id),
+            id,
             location,
             item,
             module,
@@ -716,7 +716,7 @@ impl<'a> Query<'a> {
     pub(crate) fn index_variant(
         &mut self,
         item_meta: ItemMeta,
-        enum_id: Id,
+        enum_id: NonZeroId,
         ast: ast::ItemVariant,
         index: usize,
     ) -> compile::Result<()> {
@@ -851,12 +851,6 @@ impl<'a> Query<'a> {
     ) -> compile::Result<Named<'hir>> {
         tracing::trace!("converting path");
 
-        let id = path.id();
-
-        let Some(&qp) = id.get().and_then(|id| self.inner.query_paths.get(&id)) else {
-            return Err(compile::Error::new(path, MissingId { what: "path", id }));
-        };
-
         let mut in_self_type = false;
 
         let item = match (path.global, path.first) {
@@ -876,22 +870,23 @@ impl<'a> Query<'a> {
                 ));
             }
             (None, segment) => match segment.kind {
-                hir::PathSegmentKind::Ident(ident) => {
-                    self.convert_initial_path(qp.module, qp.item, ident)?
+                hir::PathSegmentKind::Ident(ident) => self.convert_initial_path(path, ident)?,
+                hir::PathSegmentKind::Super => {
+                    let Some(segment) = self.pool.try_map_alloc(self.pool.module(path.module).item, Item::parent) else {
+                        return Err(compile::Error::new(segment, CompileErrorKind::UnsupportedSuper));
+                    };
+
+                    segment
                 }
-                hir::PathSegmentKind::Super => self
-                    .pool
-                    .try_map_alloc(self.pool.module(qp.module).item, Item::parent)
-                    .ok_or_else(compile::Error::unsupported_super(segment.span()))?,
                 hir::PathSegmentKind::SelfType => {
-                    let impl_item = qp.impl_item.ok_or_else(|| {
-                        compile::Error::new(segment.span(), CompileErrorKind::UnsupportedSelfType)
-                    })?;
+                    let Some(impl_item) = path.impl_item else {
+                        return Err(compile::Error::new(segment.span(), CompileErrorKind::UnsupportedSelfType));
+                    };
 
                     in_self_type = true;
                     impl_item
                 }
-                hir::PathSegmentKind::SelfValue => self.pool.module(qp.module).item,
+                hir::PathSegmentKind::SelfValue => self.pool.module(path.module).item,
                 hir::PathSegmentKind::Crate => ItemId::default(),
                 hir::PathSegmentKind::Generics(..) => {
                     return Err(compile::Error::new(
@@ -922,8 +917,12 @@ impl<'a> Query<'a> {
                         ));
                     }
 
-                    item.pop()
-                        .ok_or_else(compile::Error::unsupported_super(segment.span()))?;
+                    if item.pop().is_none() {
+                        return Err(compile::Error::new(
+                            segment,
+                            CompileErrorKind::UnsupportedSuper,
+                        ));
+                    }
                 }
                 hir::PathSegmentKind::Generics(arguments) => {
                     let Some(p) = parameters_it.next() else {
@@ -975,7 +974,7 @@ impl<'a> Query<'a> {
 
         let item = self.pool.alloc_item(item);
 
-        if let Some(new) = self.import(path, qp.module, item, Used::Used)? {
+        if let Some(new) = self.import(path, path.module, item, Used::Used)? {
             return Ok(Named {
                 item: new,
                 trailing,
@@ -1534,19 +1533,18 @@ impl<'a> Query<'a> {
     }
 
     /// Walk the names to find the first one that is contained in the unit.
-    #[tracing::instrument(skip_all, fields(module = ?self.pool.module_item(module), base = ?self.pool.item(base)))]
+    #[tracing::instrument(skip_all, fields(module = ?self.pool.module_item(path.module), base = ?self.pool.item(path.item)))]
     fn convert_initial_path(
         &mut self,
-        module: ModId,
-        base: ItemId,
+        path: &hir::Path<'_>,
         local: &ast::Ident,
     ) -> compile::Result<ItemId> {
-        let mut base = self.pool.item(base).to_owned();
-        debug_assert!(base.starts_with(self.pool.module_item(module)));
+        let mut base = self.pool.item(path.item).to_owned();
+        debug_assert!(base.starts_with(self.pool.module_item(path.module)));
 
         let local_str = local.resolve(resolve_context!(self))?.to_owned();
 
-        while base.starts_with(self.pool.module_item(module)) {
+        while base.starts_with(self.pool.module_item(path.module)) {
             base.push(&local_str);
 
             tracing::trace!(?base, "testing");
@@ -1579,7 +1577,7 @@ impl<'a> Query<'a> {
             return Ok(self.pool.alloc_item(ItemBuf::with_crate(&local_str)));
         }
 
-        let new_module = self.pool.module_item(module).extended(&local_str);
+        let new_module = self.pool.module_item(path.module).extended(&local_str);
         Ok(self.pool.alloc_item(new_module))
     }
 
