@@ -1669,7 +1669,13 @@ fn expr_call<'hir>(
                     meta::Kind::Function { .. } | meta::Kind::AssociatedFunction { .. } => (),
                     meta::Kind::ConstFn { id, .. } => {
                         let id = *id;
-                        break 'ok hir::Call::ConstFn { id, ast_id: ast.id };
+                        let from = ctx.q.item_for(ast.id).with_span(ast)?;
+
+                        break 'ok hir::Call::ConstFn {
+                            from_module: from.module,
+                            from_item: from.item,
+                            id,
+                        };
                     }
                     _ => {
                         return Err(compile::Error::expected_meta(

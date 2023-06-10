@@ -1392,10 +1392,13 @@ fn expr_call<'hir>(
 
             c.scopes.free(span, args + 1)?;
         }
-        hir::Call::ConstFn { id, ast_id } => {
+        hir::Call::ConstFn {
+            from_module,
+            from_item,
+            id,
+        } => {
             let const_fn = c.q.const_fn_for(id).with_span(span)?;
-            let from = c.q.item_for(ast_id).with_span(span)?;
-            let value = c.call_const_fn(span, &from, &const_fn, hir.args)?;
+            let value = c.call_const_fn(span, from_module, from_item, &const_fn, hir.args)?;
             const_(c, &value, span, Needs::Value)?;
         }
     }

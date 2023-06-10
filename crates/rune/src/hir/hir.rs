@@ -4,7 +4,7 @@ use crate as rune;
 use crate::ast::{self, Span, Spanned};
 use crate::compile::{ItemId, ModId};
 use crate::hir::Name;
-use crate::parse::{Expectation, Id, IntoExpectation, NonZeroId};
+use crate::parse::{Expectation, IntoExpectation, NonZeroId};
 use crate::runtime::{format, Type, TypeCheck};
 use crate::Hash;
 
@@ -336,10 +336,12 @@ pub(crate) enum Call<'hir> {
     Expr { expr: &'hir Expr<'hir> },
     /// A constant function call.
     ConstFn {
+        /// The module the constant function is being called from.
+        from_module: ModId,
+        /// The item the constant function is being called from.
+        from_item: ItemId,
         /// The identifier of the constant function.
         id: NonZeroId,
-        /// Ast identifier.
-        ast_id: Id,
     },
 }
 
