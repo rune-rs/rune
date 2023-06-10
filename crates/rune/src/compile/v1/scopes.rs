@@ -5,8 +5,9 @@ use crate::no_std::prelude::*;
 
 use crate::ast::Spanned;
 use crate::compile::v1::Assembler;
-use crate::compile::{self, Assembly, CompileErrorKind, CompileVisitor, WithSpan};
+use crate::compile::{self, Assembly, CompileErrorKind, WithSpan};
 use crate::hir;
+use crate::query::Query;
 use crate::runtime::Inst;
 use crate::SourceId;
 
@@ -14,8 +15,10 @@ use crate::SourceId;
 /// declared in its source file.
 #[derive(Clone, Copy)]
 pub struct Var<'hir> {
-    /// Slot offset from the current stack frame.
+    /// Offset from the current stack frame.
     pub(crate) offset: usize,
+    /// The name of the variable.
+    name: hir::Name<'hir>,
     /// Token assocaited with the variable.
     span: &'hir dyn Spanned,
     /// Variable has been taken at the given position.
@@ -26,9 +29,17 @@ impl<'hir> fmt::Debug for Var<'hir> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Var")
             .field("offset", &self.offset)
+            .field("name", &self.name)
             .field("span", &self.span.span())
             .field("moved_at", &self.moved_at.map(|s| s.span()))
             .finish()
+    }
+}
+
+impl<'hir> fmt::Display for Var<'hir> {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.name.fmt(f)
     }
 }
 
@@ -43,7 +54,7 @@ impl<'hir> Var<'hir> {
                 offset: self.offset,
             },
             span,
-            comment,
+            format_args!("var `{}`; {comment}", self.name),
         );
     }
 
@@ -57,7 +68,7 @@ impl<'hir> Var<'hir> {
                 offset: self.offset,
             },
             span,
-            comment,
+            format_args!("var `{}`; {comment}", self.name),
         );
     }
 }
@@ -101,13 +112,15 @@ pub(crate) struct ScopeGuard(usize);
 
 pub(crate) struct Scopes<'hir> {
     layers: Vec<Layer<'hir>>,
+    source_id: SourceId,
 }
 
 impl<'hir> Scopes<'hir> {
     /// Construct a new collection of scopes.
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(source_id: SourceId) -> Self {
         Self {
             layers: vec![Layer::new()],
+            source_id,
         }
     }
 
@@ -115,10 +128,9 @@ impl<'hir> Scopes<'hir> {
     #[tracing::instrument(skip_all, fields(variable, name, source_id))]
     pub(crate) fn get(
         &self,
-        visitor: &mut dyn CompileVisitor,
+        q: &mut Query<'_>,
         variable: hir::Variable,
         name: hir::Name<'hir>,
-        source_id: SourceId,
         span: &'hir dyn Spanned,
     ) -> compile::Result<Var<'hir>> {
         tracing::trace!("get");
@@ -126,7 +138,7 @@ impl<'hir> Scopes<'hir> {
         for layer in self.layers.iter().rev() {
             if let Some(var) = layer.variables.get(&name) {
                 tracing::trace!(?variable, ?var, "getting var");
-                visitor.visit_variable_use(source_id, var.span, span);
+                q.visitor.visit_variable_use(self.source_id, var.span, span);
 
                 if let Some(moved_at) = var.moved_at {
                     return Err(compile::Error::new(
@@ -151,10 +163,9 @@ impl<'hir> Scopes<'hir> {
     #[tracing::instrument(skip_all, fields(variable, name, source_id))]
     pub(crate) fn take(
         &mut self,
-        visitor: &mut dyn CompileVisitor,
+        q: &mut Query<'_>,
         variable: hir::Variable,
         name: hir::Name<'hir>,
-        source_id: SourceId,
         span: &'hir dyn Spanned,
     ) -> compile::Result<&Var> {
         tracing::trace!("take");
@@ -162,7 +173,7 @@ impl<'hir> Scopes<'hir> {
         for layer in self.layers.iter_mut().rev() {
             if let Some(var) = layer.variables.get_mut(&name) {
                 tracing::trace!(?variable, ?var, "taking var");
-                visitor.visit_variable_use(source_id, var.span, span);
+                q.visitor.visit_variable_use(self.source_id, var.span, span);
 
                 if let Some(moved_at) = var.moved_at {
                     return Err(compile::Error::new(
@@ -202,6 +213,7 @@ impl<'hir> Scopes<'hir> {
 
         let local = Var {
             offset,
+            name,
             span,
             moved_at: None,
         };

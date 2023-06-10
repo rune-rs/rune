@@ -73,6 +73,13 @@ impl<'hir> fmt::Display for Name<'hir> {
     }
 }
 
+impl<'hir> From<&'hir str> for Name<'hir> {
+    #[inline]
+    fn from(string: &'hir str) -> Self {
+        Name::Str(string)
+    }
+}
+
 #[derive(Default)]
 pub(crate) struct Layer<'hir> {
     scope: Scope,

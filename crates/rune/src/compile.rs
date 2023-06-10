@@ -204,7 +204,7 @@ impl CompileBuildEntry<'_> {
             source_id: location.source_id,
             q: self.q.borrow(),
             asm,
-            scopes: self::v1::Scopes::new(),
+            scopes: self::v1::Scopes::new(location.source_id),
             contexts: vec![span.span()],
             loops: self::v1::Loops::new(),
             options: self.options,
@@ -286,6 +286,7 @@ impl CompileBuildEntry<'_> {
                 let span = &*f.ast;
                 let count = f.ast.args.len();
 
+                let arena = hir::Arena::new();
                 let mut c = self.compiler1(location, span, &mut asm);
                 let meta = c.lookup_meta(
                     f.instance_span,
@@ -297,7 +298,6 @@ impl CompileBuildEntry<'_> {
                     Error::expected_meta(span, meta.info(c.q.pool), "instance function")
                 })?;
 
-                let arena = hir::Arena::new();
                 let mut ctx = hir::lowering::Ctx::with_query(
                     &arena,
                     c.q.borrow(),
