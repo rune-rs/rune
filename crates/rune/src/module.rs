@@ -4,6 +4,7 @@
 //! native Rust-based code.
 
 mod function_meta;
+mod function_raw_traits;
 mod function_traits;
 pub(crate) mod module;
 
