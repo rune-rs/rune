@@ -8,7 +8,7 @@ use crate::ast;
 use crate::compile::meta;
 use crate::compile::{ItemId, ItemMeta};
 use crate::hash::Hash;
-use crate::parse::Id;
+use crate::parse::NonZeroId;
 use crate::runtime::Call;
 
 pub(crate) use self::index::Indexer;
@@ -99,7 +99,7 @@ pub(crate) struct Struct {
 #[derive(Debug, Clone)]
 pub(crate) struct Variant {
     /// Id of of the enum type.
-    pub(crate) enum_id: Id,
+    pub(crate) enum_id: NonZeroId,
     /// Ast for declaration.
     pub(crate) ast: ast::ItemVariant,
     /// The index of the variant in its source.

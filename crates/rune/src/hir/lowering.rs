@@ -230,7 +230,6 @@ pub(crate) fn item_fn<'hir>(
     alloc_with!(ctx, ast);
 
     Ok(hir::ItemFn {
-        id: ast.id,
         span: ast.span(),
         args: iter!(&ast.args, |(ast, _)| fn_arg(ctx, ast)?),
         body: alloc!(block(ctx, &ast.body)?),
@@ -297,7 +296,6 @@ pub(crate) fn expr_closure_secondary<'hir>(
     let body = alloc!(expr(ctx, &ast.body)?);
 
     Ok(hir::ExprClosure {
-        id: ast.id,
         args,
         body,
         captures,
@@ -392,7 +390,6 @@ pub(crate) fn block<'hir>(
     let layer = ctx.scopes.pop().with_span(ast)?;
 
     let block = hir::Block {
-        id: ast.id,
         span: ast.span(),
         statements,
         drop: iter!(layer.into_drop_order()),
@@ -1397,9 +1394,19 @@ pub(crate) fn path<'hir>(
 ) -> compile::Result<hir::Path<'hir>> {
     alloc_with!(ctx, ast);
 
+    let Some(id) = ast.id.get() else {
+        return Err(compile::Error::msg(ast, "Tried to use non-indexed path"));
+    };
+
+    let Some(&query_path) = ctx.q.inner.query_paths.get(&id) else {
+        return Err(compile::Error::msg(ast, format_args!("Missing query path for id {}", id)));
+    };
+
     Ok(hir::Path {
-        id: ast.id,
         span: ast.span(),
+        module: query_path.module,
+        item: query_path.item,
+        impl_item: query_path.impl_item,
         global: ast.global.as_ref().map(Spanned::span),
         trailing: ast.trailing.as_ref().map(Spanned::span),
         first: alloc!(path_segment(ctx, &ast.first)?),

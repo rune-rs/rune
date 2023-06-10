@@ -127,14 +127,6 @@ where
 }
 
 impl Error {
-    /// Construct a factor for unsupported super.
-    pub fn unsupported_super<S>(spanned: S) -> impl FnOnce() -> Self
-    where
-        S: Spanned,
-    {
-        || Error::new(spanned, CompileErrorKind::UnsupportedSuper)
-    }
-
     /// Error when we got mismatched meta.
     pub fn expected_meta<S>(spanned: S, meta: MetaInfo, expected: &'static str) -> Self
     where

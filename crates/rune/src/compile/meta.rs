@@ -13,7 +13,7 @@ use crate::ast::{Span, Spanned};
 use crate::compile::attrs::Parser;
 use crate::compile::{self, Item, ItemId, Location, MetaInfo, ModId, Pool, Visibility};
 use crate::hash::Hash;
-use crate::parse::{Id, NonZeroId, ResolveContext};
+use crate::parse::{NonZeroId, ResolveContext};
 use crate::runtime::{Call, Protocol};
 
 /// A meta reference to an item being compiled.
@@ -291,11 +291,11 @@ pub struct FieldsNamed {
 }
 
 /// Item and the module that the item belongs to.
-#[derive(Default, Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) struct ItemMeta {
     /// The id of the item.
-    pub(crate) id: Id,
+    pub(crate) id: NonZeroId,
     /// The location of the item.
     pub(crate) location: Location,
     /// The name of the item.

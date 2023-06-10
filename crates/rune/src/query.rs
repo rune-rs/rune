@@ -143,9 +143,9 @@ pub(crate) struct BuildEntry {
 /// Query information for a path.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct QueryPath {
-    module: ModId,
-    impl_item: Option<ItemId>,
-    item: ItemId,
+    pub(crate) module: ModId,
+    pub(crate) item: ItemId,
+    pub(crate) impl_item: Option<ItemId>,
 }
 
 /// A compiled constant function.

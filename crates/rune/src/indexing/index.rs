@@ -821,7 +821,7 @@ fn expr_block(idx: &mut Indexer<'_>, ast: &mut ast::ExprBlock) -> compile::Resul
         &[],
     )?;
 
-    ast.block.id = item_meta.id;
+    ast.block.id.set(item_meta.id);
 
     if ast.const_token.is_some() {
         if let Some(async_token) = ast.async_token {
@@ -1279,7 +1279,7 @@ fn item_enum(idx: &mut Indexer<'_>, mut ast: ast::ItemEnum) -> compile::Result<(
             &docs,
         )?;
 
-        variant.id = item_meta.id;
+        variant.id.set(item_meta.id);
 
         let ctx = resolve_context!(idx.q);
 
@@ -1340,7 +1340,7 @@ fn item_struct(idx: &mut Indexer<'_>, mut ast: ast::ItemStruct) -> compile::Resu
         visibility,
         &docs,
     )?;
-    ast.id = item_meta.id;
+    ast.id.set(item_meta.id);
 
     let ctx = resolve_context!(idx.q);
 
@@ -1492,7 +1492,7 @@ fn item_const(idx: &mut Indexer<'_>, mut ast: ast::ItemConst) -> compile::Result
         &docs,
     )?;
 
-    ast.id = item_meta.id;
+    ast.id.set(item_meta.id);
 
     let last = idx.nested_item.replace(ast.descriptive_span());
     expr(idx, &mut ast.expr)?;
@@ -1637,7 +1637,7 @@ fn expr_closure(idx: &mut Indexer<'_>, ast: &mut ast::ExprClosure) -> compile::R
         &[],
     )?;
 
-    ast.id = item_meta.id;
+    ast.id.set(item_meta.id);
 
     for (arg, _) in ast.args.as_slice_mut() {
         match arg {

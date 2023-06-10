@@ -2,8 +2,9 @@ use core::num::NonZeroUsize;
 
 use crate as rune;
 use crate::ast::{self, Span, Spanned};
+use crate::compile::{ItemId, ModId};
 use crate::hir::Name;
-use crate::parse::{Expectation, Id, IntoExpectation, NonZeroId, Opaque};
+use crate::parse::{Expectation, Id, IntoExpectation, NonZeroId};
 use crate::runtime::{format, Type, TypeCheck};
 use crate::Hash;
 
@@ -466,12 +467,9 @@ pub(crate) struct ExprCallClosure<'hir> {
 }
 
 /// A closure expression.
-#[derive(Debug, Clone, Copy, Opaque)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) struct ExprClosure<'hir> {
-    /// Opaque identifier for the closure.
-    #[rune(id)]
-    pub(crate) id: Id,
     /// Arguments to the closure.
     pub(crate) args: &'hir [FnArg<'hir>],
     /// The body of the closure.
@@ -549,15 +547,18 @@ pub(crate) enum Condition<'hir> {
 }
 
 /// A path.
-#[derive(Debug, Clone, Copy, Opaque, Spanned)]
+#[derive(Debug, Clone, Copy, Spanned)]
 #[non_exhaustive]
 pub(crate) struct Path<'hir> {
-    /// Opaque id associated with path.
-    #[rune(id)]
-    pub(crate) id: Id,
     /// The span of the path.
     #[rune(span)]
     pub(crate) span: Span,
+    /// The module the path belongs to.
+    pub(crate) module: ModId,
+    /// The item the path belongs to.
+    pub(crate) item: ItemId,
+    /// The impl item the path belongs to.
+    pub(crate) impl_item: Option<ItemId>,
     /// The span of the global indicator.
     pub(crate) global: Option<Span>,
     /// The span of the trailing indicator.
@@ -655,12 +656,9 @@ pub(crate) enum PathSegmentKind<'hir> {
     Generics(&'hir [Expr<'hir>]),
 }
 
-#[derive(Debug, Clone, Copy, Opaque, Spanned)]
+#[derive(Debug, Clone, Copy, Spanned)]
 #[non_exhaustive]
 pub(crate) struct ItemFn<'hir> {
-    /// Opaque identifier for fn item.
-    #[rune(id)]
-    pub(crate) id: Id,
     /// The span of the function.
     #[rune(span)]
     pub(crate) span: Span,
@@ -681,12 +679,9 @@ pub(crate) enum FnArg<'hir> {
 }
 
 /// A block of statements.
-#[derive(Debug, Clone, Copy, Opaque, Spanned)]
+#[derive(Debug, Clone, Copy, Spanned)]
 #[non_exhaustive]
 pub(crate) struct Block<'hir> {
-    /// The unique identifier for the block expression.
-    #[rune(id)]
-    pub(crate) id: Id,
     /// The span of the block.
     #[rune(span)]
     pub(crate) span: Span,
