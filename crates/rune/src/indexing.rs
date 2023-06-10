@@ -1,5 +1,4 @@
 pub(crate) mod index;
-mod locals;
 mod scopes;
 
 use crate::no_std::prelude::*;

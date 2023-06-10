@@ -13,7 +13,6 @@ use crate::compile::{
     self, CompileErrorKind, Doc, ItemId, ModId, ParseErrorKind, Visibility, WithSpan,
 };
 use crate::compile::{meta, DynLocation};
-use crate::indexing::locals;
 use crate::indexing::{self, Indexed};
 use crate::indexing::{Layer, Scopes};
 use crate::macros::MacroCompiler;
@@ -379,7 +378,9 @@ impl<'a> Indexer<'a> {
         let id = self
             .q
             .insert_path(self.mod_item, self.impl_item, &self.items.item());
+
         ast.path.id.set(id);
+
         let id = self.items.id().with_span(&ast)?;
         let item = self.q.item_for(id).with_span(&ast)?;
 
@@ -405,7 +406,9 @@ impl<'a> Indexer<'a> {
         let id = self
             .q
             .insert_path(self.mod_item, self.impl_item, &self.items.item());
+
         attr.path.id.set(id);
+
         let id = self.items.id().with_span(&*attr)?;
 
         let containing = self.q.item_for(id).with_span(&*attr)?;
@@ -675,7 +678,7 @@ fn item_fn(idx: &mut Indexer<'_>, mut ast: ast::ItemFn) -> compile::Result<()> {
         match arg {
             ast::FnArg::SelfValue(..) => {}
             ast::FnArg::Pat(p) => {
-                locals::pat(idx, p)?;
+                pat(idx, p)?;
             }
         }
     }
@@ -984,7 +987,6 @@ fn pat(idx: &mut Indexer<'_>, ast: &mut ast::Pat) -> compile::Result<()> {
 #[instrument(span = ast)]
 fn pat_tuple(idx: &mut Indexer<'_>, ast: &mut ast::PatTuple) -> compile::Result<()> {
     if let Some(p) = &mut ast.path {
-        // Not a variable use - just the name of the tuple.
         path(idx, p)?;
     }
 
@@ -996,17 +998,10 @@ fn pat_tuple(idx: &mut Indexer<'_>, ast: &mut ast::PatTuple) -> compile::Result<
 }
 
 #[instrument(span = ast)]
-fn pat_binding(idx: &mut Indexer<'_>, ast: &mut ast::PatBinding) -> compile::Result<()> {
-    pat(idx, &mut ast.pat)?;
-    Ok(())
-}
-
-#[instrument(span = ast)]
 fn pat_object(idx: &mut Indexer<'_>, ast: &mut ast::PatObject) -> compile::Result<()> {
     match &mut ast.ident {
         ast::ObjectIdent::Anonymous(..) => (),
         ast::ObjectIdent::Named(p) => {
-            // Not a variable use - just a name in a pattern match.
             path(idx, p)?;
         }
     }
@@ -1024,6 +1019,18 @@ fn pat_vec(idx: &mut Indexer<'_>, ast: &mut ast::PatVec) -> compile::Result<()> 
         pat(idx, p)?;
     }
 
+    Ok(())
+}
+
+#[instrument(span = ast)]
+fn pat_path(idx: &mut Indexer<'_>, ast: &mut ast::PatPath) -> compile::Result<()> {
+    path(idx, &mut ast.path)?;
+    Ok(())
+}
+
+#[instrument(span = ast)]
+fn pat_binding(idx: &mut Indexer<'_>, ast: &mut ast::PatBinding) -> compile::Result<()> {
+    pat(idx, &mut ast.pat)?;
     Ok(())
 }
 
@@ -1562,6 +1569,7 @@ fn path(idx: &mut Indexer<'_>, ast: &mut ast::Path) -> compile::Result<()> {
     let id = idx
         .q
         .insert_path(idx.mod_item, idx.impl_item, &idx.items.item());
+
     ast.id.set(id);
 
     path_segment(idx, &mut ast.first)?;
@@ -1626,7 +1634,7 @@ fn expr_closure(idx: &mut Indexer<'_>, ast: &mut ast::ExprClosure) -> compile::R
                 return Err(compile::Error::new(s, CompileErrorKind::UnsupportedSelf));
             }
             ast::FnArg::Pat(p) => {
-                locals::pat(idx, p)?;
+                pat(idx, p)?;
             }
         }
     }
