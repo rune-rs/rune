@@ -127,11 +127,11 @@ impl<'a> Worker<'a> {
             }
         }
 
-        for wildcard_import in wildcard_imports {
-            let source_id = wildcard_import.source_id;
-
+        for mut wildcard_import in wildcard_imports {
             if let Err(error) = wildcard_import.process_local(&mut self.q) {
-                self.q.diagnostics.error(source_id, error);
+                self.q
+                    .diagnostics
+                    .error(wildcard_import.location.source_id, error);
             }
         }
     }

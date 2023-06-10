@@ -1,17 +1,13 @@
 use crate::no_std::prelude::*;
 
-use crate::ast::Span;
-use crate::compile::{self, CompileErrorKind, IntoComponent, ItemBuf, ModId, Visibility};
+use crate::compile::{self, CompileErrorKind, IntoComponent, ItemBuf, Location, ModId, Visibility};
 use crate::query::Query;
-use crate::SourceId;
 
-#[derive(Debug)]
 pub(crate) struct WildcardImport {
     pub(crate) visibility: Visibility,
     pub(crate) from: ItemBuf,
     pub(crate) name: ItemBuf,
-    pub(crate) source_id: SourceId,
-    pub(crate) span: Span,
+    pub(crate) location: Location,
     pub(crate) module: ModId,
     pub(crate) found: bool,
 }
@@ -23,8 +19,7 @@ impl WildcardImport {
                 let name = self.name.extended(c);
 
                 query.insert_import(
-                    self.source_id,
-                    self.span,
+                    &self.location,
                     self.module,
                     self.visibility,
                     self.from.clone(),
@@ -41,7 +36,7 @@ impl WildcardImport {
     }
 
     /// Process a local wildcard import.
-    pub(crate) fn process_local(mut self, query: &mut Query) -> compile::Result<()> {
+    pub(crate) fn process_local(&mut self, query: &mut Query) -> compile::Result<()> {
         if query.contains_prefix(&self.name) {
             let components = query
                 .iter_components(&self.name)
@@ -52,8 +47,7 @@ impl WildcardImport {
                 let name = self.name.extended(c);
 
                 query.insert_import(
-                    self.source_id,
-                    self.span,
+                    &self.location,
                     self.module,
                     self.visibility,
                     self.from.clone(),
@@ -68,8 +62,10 @@ impl WildcardImport {
 
         if !self.found {
             return Err(compile::Error::new(
-                self.span,
-                CompileErrorKind::MissingItem { item: self.name },
+                self.location,
+                CompileErrorKind::MissingItem {
+                    item: self.name.clone(),
+                },
             ));
         }
 

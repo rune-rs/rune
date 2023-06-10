@@ -6,7 +6,6 @@ use crate::worker::{Import, WildcardImport};
 use crate::SourceId;
 
 /// A single task that can be fed to the worker.
-#[derive(Debug)]
 pub(crate) enum Task {
     /// Load a file.
     LoadFile {

@@ -9,7 +9,7 @@ use thiserror::Error;
 
 use crate::ast::{Span, Spanned};
 use crate::compile;
-use crate::compile::{CompileVisitor, FileSourceLoader, Options, Pool, SourceLoader};
+use crate::compile::{CompileVisitor, FileSourceLoader, Located, Options, Pool, SourceLoader};
 use crate::runtime::unit::{DefaultStorage, UnitEncoder};
 use crate::runtime::Unit;
 use crate::{Context, Diagnostics, SourceId, Sources};
@@ -107,7 +107,7 @@ impl<'a> compile::CompileVisitor for CompileVisitorGroup<'a> {
         }
     }
 
-    fn visit_meta(&mut self, location: compile::Location, meta: compile::MetaRef<'_>) {
+    fn visit_meta(&mut self, location: &dyn Located, meta: compile::MetaRef<'_>) {
         for v in self.visitors.iter_mut() {
             v.visit_meta(location, meta)
         }
@@ -124,15 +124,15 @@ impl<'a> compile::CompileVisitor for CompileVisitorGroup<'a> {
         }
     }
 
-    fn visit_mod(&mut self, source_id: SourceId, span: Span) {
+    fn visit_mod(&mut self, location: &dyn Located) {
         for v in self.visitors.iter_mut() {
-            v.visit_mod(source_id, span)
+            v.visit_mod(location)
         }
     }
 
     fn visit_doc_comment(
         &mut self,
-        location: compile::Location,
+        location: &dyn Located,
         item: &compile::Item,
         hash: crate::Hash,
         docstr: &str,
@@ -144,7 +144,7 @@ impl<'a> compile::CompileVisitor for CompileVisitorGroup<'a> {
 
     fn visit_field_doc_comment(
         &mut self,
-        location: compile::Location,
+        location: &dyn Located,
         item: &compile::Item,
         hash: crate::Hash,
         field: &str,

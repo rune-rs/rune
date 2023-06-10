@@ -2,7 +2,7 @@ use crate::no_std::prelude::*;
 use crate::no_std::collections::{hash_map, HashMap};
 
 use crate::compile::{
-    meta, CompileVisitor, IntoComponent, Item, ItemBuf, Location, MetaRef, Names,
+    meta, CompileVisitor, IntoComponent, Item, ItemBuf, MetaRef, Names, Located,
 };
 use crate::hash::Hash;
 
@@ -100,7 +100,7 @@ impl CompileVisitor for Visitor {
         }
     }
 
-    fn visit_doc_comment(&mut self, _location: Location, item: &Item, hash: Hash, string: &str) {
+    fn visit_doc_comment(&mut self, _location: &dyn Located, item: &Item, hash: Hash, string: &str) {
         // Documentation comments are literal source lines, so they're newline
         // terminated. Since we perform our own internal newlines conversion
         // these need to be trimmed - at least between each doc item.
@@ -121,7 +121,7 @@ impl CompileVisitor for Visitor {
 
     fn visit_field_doc_comment(
         &mut self,
-        _location: Location,
+        _location: &dyn Located,
         item: &Item,
         hash: Hash,
         field: &str,

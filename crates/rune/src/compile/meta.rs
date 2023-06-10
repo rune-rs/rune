@@ -7,7 +7,8 @@ use crate::no_std::collections::HashSet;
 use crate::no_std::path::Path;
 use crate::no_std::prelude::*;
 
-use crate::ast::{LitStr, Span};
+use crate as rune;
+use crate::ast::{LitStr, Span, Spanned};
 use crate::compile::attrs::Attributes;
 use crate::compile::{self, Item, ItemId, Location, MetaInfo, ModId, Pool, Visibility};
 use crate::hash::Hash;
@@ -41,9 +42,9 @@ pub struct SourceMeta {
 }
 
 /// Doc content for a compiled item.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Spanned)]
 pub(crate) struct Doc {
-    /// The span of the whole doc comment.
+    #[rune(span)]
     pub(crate) span: Span,
     /// The string content of the doc comment.
     pub(crate) doc_string: LitStr,

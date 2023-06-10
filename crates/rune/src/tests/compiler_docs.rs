@@ -8,7 +8,7 @@ struct DocVisitor {
 }
 
 impl compile::CompileVisitor for DocVisitor {
-    fn visit_doc_comment(&mut self, _: Location, item: &Item, _: Hash, doc: &str) {
+    fn visit_doc_comment(&mut self, _: &dyn Located, item: &Item, _: Hash, doc: &str) {
         self.collected
             .entry(item.to_string())
             .or_default()
@@ -17,7 +17,7 @@ impl compile::CompileVisitor for DocVisitor {
 
     fn visit_field_doc_comment(
         &mut self,
-        _: Location,
+        _: &dyn Located,
         item: &Item,
         _: Hash,
         field: &str,

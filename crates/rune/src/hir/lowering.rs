@@ -6,11 +6,11 @@ use crate::no_std::prelude::*;
 
 use num::ToPrimitive;
 
-use crate::ast::{self, Span, Spanned};
+use crate::ast::{self, Spanned};
 use crate::compile::meta;
 use crate::compile::v1::GenericsParameters;
 use crate::compile::{
-    self, CompileErrorKind, HirErrorKind, Item, ItemId, Location, ParseErrorKind, WithSpan,
+    self, CompileErrorKind, DynLocation, HirErrorKind, Item, ItemId, ParseErrorKind, WithSpan,
 };
 use crate::hash::{Hash, ParametersBuilder};
 use crate::hir;
@@ -201,23 +201,23 @@ impl<'hir, 'a> Ctx<'hir, 'a> {
     #[instrument(span = ast)]
     pub(crate) fn try_lookup_meta(
         &mut self,
-        span: Span,
+        span: &dyn Spanned,
         item: ItemId,
         parameters: &GenericsParameters,
     ) -> compile::Result<Option<meta::Meta>> {
         self.q
-            .try_lookup_meta(Location::new(self.source_id, span), item, parameters)
+            .try_lookup_meta(&DynLocation::new(self.source_id, span), item, parameters)
     }
 
     #[instrument(span = ast)]
     pub(crate) fn lookup_meta(
         &mut self,
-        span: Span,
+        span: &dyn Spanned,
         item: ItemId,
         parameters: impl AsRef<GenericsParameters>,
     ) -> compile::Result<meta::Meta> {
         self.q
-            .lookup_meta(Location::new(self.source_id, span), item, parameters)
+            .lookup_meta(&DynLocation::new(self.source_id, span), item, parameters)
     }
 }
 
@@ -312,12 +312,11 @@ fn expr_call_closure<'hir>(
 ) -> compile::Result<hir::ExprKind<'hir>> {
     alloc_with!(ctx, ast);
 
-    let span = ast.span();
     let item = ctx.q.item_for(ast.id).with_span(ast)?;
 
-    let Some(meta) = ctx.q.query_meta(span, item.item, Default::default())? else {
+    let Some(meta) = ctx.q.query_meta(ast, item.item, Default::default())? else {
         return Err(compile::Error::new(
-            span,
+            ast,
             CompileErrorKind::MissingItem {
                 item: ctx.q.pool.item(item.item).to_owned(),
             },
@@ -328,7 +327,7 @@ fn expr_call_closure<'hir>(
         call, do_move, ..
     } = meta.kind else {
         return Err(compile::Error::expected_meta(
-            span,
+            ast,
             meta.info(ctx.q.pool),
             "a closure",
         ));
@@ -409,7 +408,7 @@ pub(crate) fn expr_object<'hir>(
 ) -> compile::Result<hir::ExprKind<'hir>> {
     alloc_with!(ctx, ast);
 
-    let span = ast.span();
+    let span = ast;
     let mut keys_dup = HashMap::new();
 
     let assignments = &*iter!(&ast.assignments, |(ast, _)| {
@@ -419,8 +418,8 @@ pub(crate) fn expr_object<'hir>(
             return Err(compile::Error::new(
                 key.0,
                 CompileErrorKind::DuplicateObjectKey {
-                    existing,
-                    object: key.0,
+                    existing: existing.span(),
+                    object: key.0.span(),
                 },
             ));
         }
@@ -441,7 +440,10 @@ pub(crate) fn expr_object<'hir>(
             }
         };
 
-        hir::FieldAssign { key, assign }
+        hir::FieldAssign {
+            key: (key.0.span(), key.1),
+            assign,
+        }
     });
 
     let check_object_fields = |fields: &HashSet<_>, item: &Item| {
@@ -478,7 +480,7 @@ pub(crate) fn expr_object<'hir>(
         Some(path) => {
             let named = ctx.q.convert_path(path)?;
             let parameters = generics_parameters(&named)?;
-            let meta = ctx.lookup_meta(path.span(), named.item, parameters)?;
+            let meta = ctx.lookup_meta(path, named.item, parameters)?;
             let item = ctx.q.pool.item(meta.item_meta.item);
 
             match &meta.kind {
@@ -928,7 +930,7 @@ pub(crate) fn expr_block<'hir>(
     };
 
     let item = ctx.q.item_for(&ast.block).with_span(&ast.block)?;
-    let meta = ctx.lookup_meta(ast.span(), item.item, GenericsParameters::default())?;
+    let meta = ctx.lookup_meta(ast, item.item, GenericsParameters::default())?;
 
     match (kind, &meta.kind) {
         (ExprBlockKind::Async, &meta::Kind::AsyncBlock { call, do_move, .. }) => {
@@ -1030,7 +1032,7 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
                 let parameters = generics_parameters(&named)?;
 
                 let kind = 'ok: {
-                    if let Some(meta) = ctx.try_lookup_meta(path.span, named.item, &parameters)? {
+                    if let Some(meta) = ctx.try_lookup_meta(&path, named.item, &parameters)? {
                         if let Some((0, kind)) = tuple_match_for(ctx, &meta) {
                             break 'ok hir::PatPathKind::Kind(alloc!(kind));
                         }
@@ -1072,7 +1074,7 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
                 let kind = if let Some(path) = path {
                     let named = ctx.q.convert_path(path)?;
                     let parameters = generics_parameters(&named)?;
-                    let meta = ctx.lookup_meta(path.span(), named.item, parameters)?;
+                    let meta = ctx.lookup_meta(path, named.item, parameters)?;
 
                     // Treat the current meta as a tuple and get the number of arguments it
                     // should receive and the type check that applies to it.
@@ -1114,15 +1116,13 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
                 let mut keys_dup = HashMap::new();
 
                 let bindings = iter!(ast.items.iter().take(count), |(pat, _)| {
-                    let span = pat.span();
-
                     let (key, binding) = match pat {
                         ast::Pat::Binding(binding) => {
                             let (span, key) = object_key(ctx, &binding.key)?;
                             (
                                 key,
                                 hir::Binding::Binding(
-                                    span,
+                                    span.span(),
                                     key,
                                     alloc!(self::pat(ctx, &binding.pat)?),
                                 ),
@@ -1142,18 +1142,18 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
                         }
                         _ => {
                             return Err(compile::Error::new(
-                                span,
+                                pat,
                                 CompileErrorKind::UnsupportedPatternExpr,
                             ));
                         }
                     };
 
-                    if let Some(existing) = keys_dup.insert(key, span) {
+                    if let Some(existing) = keys_dup.insert(key, pat) {
                         return Err(compile::Error::new(
-                            span,
+                            pat,
                             CompileErrorKind::DuplicateObjectKey {
-                                existing,
-                                object: span,
+                                existing: existing.span(),
+                                object: pat.span(),
                             },
                         ));
                     }
@@ -1165,15 +1165,13 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
 
                 let kind = match path {
                     Some(path) => {
-                        let span = path.span();
-
                         let named = ctx.q.convert_path(path)?;
                         let parameters = generics_parameters(&named)?;
-                        let meta = ctx.lookup_meta(span, named.item, parameters)?;
+                        let meta = ctx.lookup_meta(path, named.item, parameters)?;
 
                         let Some((st, kind)) = struct_match_for(ctx, &meta) else {
                             return Err(compile::Error::expected_meta(
-                                span,
+                                path,
                                 meta.info(ctx.q.pool),
                                 "type that can be used in a struct pattern",
                             ));
@@ -1227,16 +1225,16 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
     })
 }
 
-fn object_key<'hir>(
+fn object_key<'hir, 'ast>(
     ctx: &mut Ctx<'hir, '_>,
-    ast: &ast::ObjectKey,
-) -> compile::Result<(Span, &'hir str)> {
+    ast: &'ast ast::ObjectKey,
+) -> compile::Result<(&'ast dyn Spanned, &'hir str)> {
     alloc_with!(ctx, ast);
 
     Ok(match ast {
         ast::ObjectKey::LitStr(lit) => {
             let string = lit.resolve(resolve_context!(ctx.q))?;
-            (lit.span(), alloc_str!(string.as_ref()))
+            (lit, alloc_str!(string.as_ref()))
         }
         ast::ObjectKey::Path(ast) => {
             let Some(ident) = ast.try_as_ident() else {
@@ -1244,7 +1242,7 @@ fn object_key<'hir>(
             };
 
             let string = ident.resolve(resolve_context!(ctx.q))?;
-            (ident.span(), alloc_str!(string))
+            (ident, alloc_str!(string))
         }
     })
 }
@@ -1291,13 +1289,12 @@ pub(crate) fn expr_path<'hir>(
         }
     }
 
-    let span = ast.span();
     let path = path(ctx, ast)?;
     let named = ctx.q.convert_path(&path)?;
     let parameters = generics_parameters(&named)?;
 
-    if let Some(meta) = ctx.try_lookup_meta(span, named.item, &parameters)? {
-        return expr_path_meta(ctx, &meta, span);
+    if let Some(meta) = ctx.try_lookup_meta(ast, named.item, &parameters)? {
+        return expr_path_meta(ctx, &meta, ast);
     }
 
     if let (Needs::Value, Some(local)) = (ctx.needs.get(), ast.try_as_ident()) {
@@ -1307,7 +1304,7 @@ pub(crate) fn expr_path<'hir>(
         // character is uppercase.
         if !local.starts_with(char::is_uppercase) {
             return Err(compile::Error::new(
-                span,
+                ast,
                 CompileErrorKind::MissingLocal {
                     name: local.to_owned(),
                 },
@@ -1326,7 +1323,7 @@ pub(crate) fn expr_path<'hir>(
         }
     };
 
-    Err(compile::Error::new(span, kind))
+    Err(compile::Error::new(ast, kind))
 }
 
 /// Compile an item.
@@ -1334,7 +1331,7 @@ pub(crate) fn expr_path<'hir>(
 fn expr_path_meta<'hir>(
     ctx: &mut Ctx<'hir, '_>,
     meta: &meta::Meta,
-    span: Span,
+    span: &dyn Spanned,
 ) -> compile::Result<hir::ExprKind<'hir>> {
     alloc_with!(ctx, span);
 
@@ -1612,7 +1609,7 @@ fn expr_call<'hir>(
                 let named = ctx.q.convert_path(path)?;
                 let parameters = generics_parameters(&named)?;
 
-                let meta = ctx.lookup_meta(path.span(), named.item, parameters)?;
+                let meta = ctx.lookup_meta(path, named.item, parameters)?;
                 debug_assert_eq!(meta.item_meta.item, named.item);
 
                 match &meta.kind {

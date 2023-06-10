@@ -5,8 +5,8 @@ use crate::ast::Span;
 use crate::compile::ir;
 use crate::compile::meta;
 use crate::compile::{
-    self, Assembly, CompileErrorKind, IrBudget, IrCompiler, IrInterpreter, ItemId, ItemMeta,
-    Location, Options, WithSpan,
+    self, Assembly, CompileErrorKind, DynLocation, IrBudget, IrCompiler, IrInterpreter, ItemId,
+    ItemMeta, Options, WithSpan,
 };
 use crate::hir;
 use crate::query::{ConstFn, Query, Used};
@@ -82,12 +82,12 @@ impl<'a, 'hir> Assembler<'a, 'hir> {
     /// Access the meta for the given language item.
     pub fn lookup_meta(
         &mut self,
-        span: Span,
+        span: &dyn Spanned,
         item: ItemId,
         parameters: impl AsRef<GenericsParameters>,
     ) -> compile::Result<meta::Meta> {
         self.q
-            .lookup_meta(Location::new(self.source_id, span), item, parameters)
+            .lookup_meta(&DynLocation::new(self.source_id, span), item, parameters)
     }
 
     /// Pop locals by simply popping them.

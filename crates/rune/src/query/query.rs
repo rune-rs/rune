@@ -8,14 +8,15 @@ use crate::no_std::sync::Arc;
 
 use crate::ast::{Span, Spanned};
 use crate::compile::context::ContextMeta;
-use crate::compile::meta;
 use crate::compile::v1::GenericsParameters;
 use crate::compile::{
-    self, CompileErrorKind, CompileVisitor, ComponentRef, Doc, ImportStep, IntoComponent, IrBudget,
-    IrCompiler, IrInterpreter, Item, ItemBuf, ItemId, ItemMeta, Location, ModId, ModMeta, Names,
-    Pool, Prelude, QueryErrorKind, SourceMeta, UnitBuilder, Visibility, WithSpan,
+    self, CompileErrorKind, CompileVisitor, ComponentRef, Doc, DynLocation, ImportStep,
+    IntoComponent, IrBudget, IrCompiler, IrInterpreter, Item, ItemBuf, ItemId, ItemMeta, Location,
+    ModId, ModMeta, Names, Pool, Prelude, QueryErrorKind, SourceMeta, UnitBuilder, Visibility,
+    WithSpan,
 };
 use crate::compile::{ir, SourceLoader};
+use crate::compile::{meta, Located};
 use crate::hir;
 use crate::indexing::{self, Indexed};
 use crate::macros::Storage;
@@ -282,14 +283,14 @@ impl<'a> Query<'a> {
     /// Access the meta for the given language item.
     pub(crate) fn try_lookup_meta(
         &mut self,
-        location: Location,
+        location: &dyn Located,
         item: ItemId,
         parameters: &GenericsParameters,
     ) -> compile::Result<Option<meta::Meta>> {
         tracing::trace!("lookup meta: {:?}", item);
 
         if parameters.is_empty() {
-            if let Some(meta) = self.query_meta(location.span, item, Default::default())? {
+            if let Some(meta) = self.query_meta(location.as_spanned(), item, Default::default())? {
                 tracing::trace!("found in query: {:?}", meta);
                 self.visitor
                     .visit_meta(location, meta.as_meta_ref(self.pool));
@@ -303,7 +304,7 @@ impl<'a> Query<'a> {
 
         let (meta, parameters) = match self
             .select_context_meta(item, metas, parameters)
-            .with_span(location.span)?
+            .with_span(location.as_spanned())?
         {
             ContextMatch::None => return Ok(None),
             ContextMatch::Meta(meta) => return Ok(Some(meta.clone())),
@@ -311,10 +312,7 @@ impl<'a> Query<'a> {
         };
 
         let Some(item) = &meta.item else {
-            return Err(compile::Error::new(location.span,
-            QueryErrorKind::MissingItem {
-                hash: meta.hash,
-            }));
+            return Err(compile::Error::new(location.as_spanned(), QueryErrorKind::MissingItem { hash: meta.hash }));
         };
 
         let meta = meta::Meta {
@@ -332,7 +330,8 @@ impl<'a> Query<'a> {
             parameters,
         };
 
-        self.insert_meta(meta.clone()).with_span(location.span)?;
+        self.insert_meta(meta.clone())
+            .with_span(location.as_spanned())?;
 
         tracing::trace!(?meta, "Found in context");
 
@@ -345,7 +344,7 @@ impl<'a> Query<'a> {
     /// Access the meta for the given language item.
     pub(crate) fn lookup_meta(
         &mut self,
-        location: Location,
+        location: &dyn Located,
         item: ItemId,
         parameters: impl AsRef<GenericsParameters>,
     ) -> compile::Result<meta::Meta> {
@@ -366,7 +365,7 @@ impl<'a> Query<'a> {
             }
         };
 
-        Err(compile::Error::new(location.span, kind))
+        Err(compile::Error::new(location.as_spanned(), kind))
     }
 
     /// Insert path information.
@@ -403,7 +402,7 @@ impl<'a> Query<'a> {
     pub(crate) fn insert_mod(
         &mut self,
         items: &Items,
-        location: Location,
+        location: &dyn Located,
         parent: ModId,
         visibility: Visibility,
         docs: &[Doc],
@@ -411,7 +410,7 @@ impl<'a> Query<'a> {
         let item = self.insert_new_item(items, location, parent, visibility, docs)?;
 
         let query_mod = self.pool.alloc_module(ModMeta {
-            location,
+            location: location.location(),
             item: item.item,
             visibility,
             parent: Some(parent),
@@ -462,12 +461,12 @@ impl<'a> Query<'a> {
     pub(crate) fn insert_new_item(
         &mut self,
         items: &Items,
-        location: Location,
+        location: &dyn Located,
         module: ModId,
         visibility: Visibility,
         docs: &[Doc],
     ) -> compile::Result<ItemMeta> {
-        let id = items.id().with_span(location.span)?;
+        let id = items.id().with_span(location.as_spanned())?;
         let item = self.pool.alloc_item(&*items.item());
         self.insert_new_item_with(id, item, location, module, visibility, docs)
     }
@@ -506,18 +505,20 @@ impl<'a> Query<'a> {
         &mut self,
         id: NonZeroId,
         item: ItemId,
-        location: Location,
+        location: &dyn Located,
         module: ModId,
         visibility: Visibility,
         docs: &[Doc],
     ) -> compile::Result<ItemMeta> {
+        let location = location.location();
+
         // Emit documentation comments for the given item.
         if !docs.is_empty() {
             let ctx = resolve_context!(self);
 
             for doc in docs {
                 self.visitor.visit_doc_comment(
-                    Location::new(location.source_id, doc.span),
+                    &DynLocation::new(location.source_id, &doc.span),
                     self.pool.item(item),
                     self.pool.item_type_hash(item),
                     doc.doc_string.resolve(ctx)?.as_ref(),
@@ -737,7 +738,7 @@ impl<'a> Query<'a> {
     #[tracing::instrument(skip_all)]
     pub(crate) fn index_meta(
         &mut self,
-        span: Span,
+        span: &dyn Spanned,
         item_meta: ItemMeta,
         kind: meta::Kind,
     ) -> compile::Result<()> {
@@ -788,7 +789,7 @@ impl<'a> Query<'a> {
 
         for (location, item) in unused {
             let _ = self
-                .query_indexed_meta(location.span, item, Used::Unused)
+                .query_indexed_meta(&location, item, Used::Unused)
                 .map_err(|e| (location.source_id, e))?;
         }
 
@@ -805,7 +806,7 @@ impl<'a> Query<'a> {
     #[tracing::instrument(skip(self, span, item), fields(item = ?self.pool.item(item)))]
     pub(crate) fn query_meta(
         &mut self,
-        span: Span,
+        span: &dyn Spanned,
         item: ItemId,
         used: Used,
     ) -> compile::Result<Option<meta::Meta>> {
@@ -825,7 +826,7 @@ impl<'a> Query<'a> {
     #[tracing::instrument(skip_all, fields(item = ?self.pool.item(item)))]
     fn query_indexed_meta(
         &mut self,
-        span: Span,
+        span: &dyn Spanned,
         item: ItemId,
         used: Used,
     ) -> compile::Result<Option<meta::Meta>> {
@@ -972,10 +973,9 @@ impl<'a> Query<'a> {
             it.next();
         }
 
-        let span = path.span();
         let item = self.pool.alloc_item(item);
 
-        if let Some(new) = self.import(span, qp.module, item, Used::Used)? {
+        if let Some(new) = self.import(path, qp.module, item, Used::Used)? {
             return Ok(Named {
                 item: new,
                 trailing,
@@ -994,8 +994,7 @@ impl<'a> Query<'a> {
     #[tracing::instrument(skip_all)]
     pub(crate) fn insert_import(
         &mut self,
-        source_id: SourceId,
-        span: Span,
+        location: &dyn Located,
         module: ModId,
         visibility: Visibility,
         at: ItemBuf,
@@ -1010,18 +1009,15 @@ impl<'a> Query<'a> {
             None => None,
         };
 
-        let last = alias
-            .as_ref()
-            .map(IntoComponent::as_component_ref)
-            .or_else(|| target.last())
-            .ok_or_else(|| compile::Error::new(span, QueryErrorKind::LastUseComponent))?;
+        let Some(last) = alias.as_ref().map(IntoComponent::as_component_ref).or_else(|| target.last()) else {
+            return Err(compile::Error::new(location.as_spanned(), QueryErrorKind::LastUseComponent));
+        };
 
         let item = self.pool.alloc_item(at.extended(last));
         let target = self.pool.alloc_item(target);
-        let location = Location::new(source_id, span);
 
         let entry = meta::Import {
-            location,
+            location: location.location(),
             target,
             module,
         };
@@ -1067,7 +1063,7 @@ impl<'a> Query<'a> {
     #[tracing::instrument(skip(self, span, module))]
     pub(crate) fn import(
         &mut self,
-        span: Span,
+        span: &dyn Spanned,
         mut module: ModId,
         item: ItemId,
         used: Used,
@@ -1135,7 +1131,7 @@ impl<'a> Query<'a> {
     #[tracing::instrument(skip(self, span, module, path))]
     fn import_step(
         &mut self,
-        span: Span,
+        span: &dyn Spanned,
         module: ModId,
         item: ItemId,
         used: Used,
@@ -1189,7 +1185,7 @@ impl<'a> Query<'a> {
     /// Build a single, indexed entry and return its metadata.
     fn build_indexed_entry(
         &mut self,
-        span: Span,
+        span: &dyn Spanned,
         entry: indexing::Entry,
         used: Used,
     ) -> compile::Result<meta::Meta> {
@@ -1450,7 +1446,7 @@ impl<'a> Query<'a> {
     /// Handle an imported indexed entry.
     fn import_indexed(
         &mut self,
-        span: Span,
+        span: &dyn Spanned,
         item_meta: ItemMeta,
         indexed: Indexed,
         used: Used,
@@ -1469,7 +1465,7 @@ impl<'a> Query<'a> {
     /// Remove the indexed entry corresponding to the given item..
     fn remove_indexed(
         &mut self,
-        span: Span,
+        span: &dyn Spanned,
         item: ItemId,
     ) -> compile::Result<Option<indexing::Entry>> {
         // See if there's an index entry we can construct and insert.
@@ -1545,14 +1541,13 @@ impl<'a> Query<'a> {
         base: ItemId,
         local: &ast::Ident,
     ) -> compile::Result<ItemId> {
-        let span = local.span;
         let mut base = self.pool.item(base).to_owned();
         debug_assert!(base.starts_with(self.pool.module_item(module)));
 
-        let local = local.resolve(resolve_context!(self))?.to_owned();
+        let local_str = local.resolve(resolve_context!(self))?.to_owned();
 
         while base.starts_with(self.pool.module_item(module)) {
-            base.push(&local);
+            base.push(&local_str);
 
             tracing::trace!(?base, "testing");
 
@@ -1561,7 +1556,7 @@ impl<'a> Query<'a> {
 
                 // TODO: We probably should not engage the whole query meta
                 // machinery here.
-                if let Some(meta) = self.query_meta(span, item, Used::Used)? {
+                if let Some(meta) = self.query_meta(local, item, Used::Used)? {
                     if !matches!(meta.kind, meta::Kind::AssociatedFunction { .. }) {
                         return Ok(self.pool.alloc_item(base));
                     }
@@ -1576,22 +1571,22 @@ impl<'a> Query<'a> {
             }
         }
 
-        if let Some(item) = self.prelude.get(&local) {
+        if let Some(item) = self.prelude.get(&local_str) {
             return Ok(self.pool.alloc_item(item));
         }
 
-        if self.context.contains_crate(&local) {
-            return Ok(self.pool.alloc_item(ItemBuf::with_crate(&local)));
+        if self.context.contains_crate(&local_str) {
+            return Ok(self.pool.alloc_item(ItemBuf::with_crate(&local_str)));
         }
 
-        let new_module = self.pool.module_item(module).extended(&local);
+        let new_module = self.pool.module_item(module).extended(&local_str);
         Ok(self.pool.alloc_item(new_module))
     }
 
     /// Check that the given item is accessible from the given module.
     fn check_access_to(
         &mut self,
-        span: Span,
+        span: &dyn Spanned,
         from: ModId,
         item: ItemId,
         module: ModId,

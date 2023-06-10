@@ -1,6 +1,6 @@
 use crate::no_std::prelude::*;
 
-use crate::ast::{Span, Spanned};
+use crate::ast::Spanned;
 use crate::compile::{self, IrErrorKind, IrEvalOutcome, IrValue, ItemId, ModId, WithSpan};
 use crate::compile::{ir, meta};
 use crate::parse::NonZeroId;
@@ -90,7 +90,7 @@ impl IrInterpreter<'_> {
     /// their result.
     pub(crate) fn resolve_var(
         &mut self,
-        spanned: Span,
+        span: &dyn Spanned,
         name: &str,
         used: Used,
     ) -> compile::Result<IrValue> {
@@ -107,18 +107,18 @@ impl IrInterpreter<'_> {
                 return Ok(IrValue::from_const(const_value));
             }
 
-            if let Some(meta) = self.q.query_meta(spanned, item, used)? {
+            if let Some(meta) = self.q.query_meta(span, item, used)? {
                 match &meta.kind {
                     meta::Kind::Const => {
                         let Some(const_value) = self.q.get_const_value(meta.hash) else {
-                            return Err(compile::Error::msg(spanned, format_args!("Missing constant for hash {}", meta.hash)));
+                            return Err(compile::Error::msg(span, format_args!("Missing constant for hash {}", meta.hash)));
                         };
 
                         return Ok(IrValue::from_const(const_value));
                     }
                     _ => {
                         return Err(compile::Error::new(
-                            spanned,
+                            span,
                             IrErrorKind::UnsupportedMeta {
                                 meta: meta.info(self.q.pool),
                             },
@@ -135,10 +135,10 @@ impl IrInterpreter<'_> {
         }
 
         if name.starts_with(char::is_lowercase) {
-            Err(compile::Error::new(spanned, MissingLocal(name)))
+            Err(compile::Error::new(span, MissingLocal(name)))
         } else {
             Err(compile::Error::new(
-                spanned,
+                span,
                 IrErrorKind::MissingConst { name: name.into() },
             ))
         }

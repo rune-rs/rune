@@ -35,7 +35,7 @@ fn deny_nested_use() {
         }
         "#,
         span, NestedTest { nested_span } => {
-            assert_eq!(span, span!(37, 69));
+            assert_eq!(span, span!(37, 44));
             assert_eq!(nested_span, span!(9, 22));
         }
     }
@@ -49,7 +49,7 @@ fn deny_nested_use() {
             }
         };
         "#,
-        span!(36, 68), NestedTest { nested_span: span!(9, 19) }
+        span!(36, 43), NestedTest { nested_span: span!(9, 19) }
     }
 }
 

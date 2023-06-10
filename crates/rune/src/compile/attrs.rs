@@ -60,7 +60,7 @@ impl Attributes {
             }
 
             let span = a.span();
-            let mut parser = Parser::from_token_stream(&a.input, a.span());
+            let mut parser = Parser::from_token_stream(&a.input, span);
             matched.push((index, span, parser.parse::<T>()?));
             parser.eof()?;
         }
@@ -86,11 +86,12 @@ impl Attributes {
         T: Attribute + Parse,
     {
         let mut vec = self.try_parse_collect::<T>(ctx)?;
-        match vec.len() {
-            0 => Ok(None),
-            1 => Ok(Some(vec.swap_remove(0))),
-            _ => Err(compile::Error::new(
-                vec.swap_remove(1).0,
+
+        match &vec[..] {
+            [] => Ok(None),
+            [_] => Ok(Some(vec.swap_remove(0))),
+            [(first, _), ..] => Err(compile::Error::new(
+                first,
                 ParseErrorKind::MultipleMatchingAttributes { name: T::PATH },
             )),
         }
