@@ -359,7 +359,6 @@ mod capture;
 mod char;
 mod collections;
 mod comments;
-mod compiler_attributes;
 mod compiler_docs;
 mod compiler_expr_assign;
 mod compiler_fn;

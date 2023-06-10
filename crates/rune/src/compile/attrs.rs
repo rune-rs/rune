@@ -1,111 +1,146 @@
-use crate::no_std::collections::BTreeSet;
+use core::marker::PhantomData;
+
+use crate::no_std::collections::VecDeque;
 use crate::no_std::prelude::*;
 
 use crate as rune;
 use crate::ast;
-use crate::ast::{LitStr, Span, Spanned};
+use crate::ast::{LitStr, Spanned};
 use crate::compile::{self, ParseErrorKind};
-use crate::parse::{Parse, Parser, Resolve, ResolveContext};
+use crate::parse::{self, Parse, Resolve, ResolveContext};
 
 /// Helper for parsing internal attributes.
-pub(crate) struct Attributes {
+pub(crate) struct Parser {
     /// Collection of attributes that have been used.
-    unused: BTreeSet<usize>,
-    /// All raw attributes.
-    attributes: Vec<ast::Attribute>,
+    unused: VecDeque<usize>,
+    /// Attributes which were missed during the last parse.
+    missed: Vec<usize>,
 }
 
-impl Attributes {
-    /// Construct a new attriutes parser.
-    pub(crate) fn new(attributes: Vec<ast::Attribute>) -> Self {
+impl Parser {
+    /// Construct a new attributes parser.
+    pub(crate) fn new(attributes: &[ast::Attribute]) -> Self {
         Self {
             unused: attributes.iter().enumerate().map(|(i, _)| i).collect(),
-            attributes,
+            missed: Vec::new(),
         }
-    }
-
-    /// Drain all attributes under the assumption that they have been validated
-    /// elsewhere.
-    pub(crate) fn drain(&mut self) {
-        self.unused.clear();
     }
 
     /// Try to parse and collect all attributes of a given type.
     ///
     /// The returned Vec may be empty.
-    pub(crate) fn try_parse_collect<T>(
-        &mut self,
-        ctx: ResolveContext<'_>,
-    ) -> compile::Result<Vec<(Span, T)>>
+    pub(crate) fn parse_all<'this, 'a, T>(
+        &'this mut self,
+        ctx: ResolveContext<'this>,
+        attributes: &'a [ast::Attribute],
+    ) -> ParseAll<'this, 'a, T>
     where
         T: Attribute + Parse,
     {
-        let mut matched = Vec::new();
-
-        for index in self.unused.iter().copied() {
-            let a = match self.attributes.get(index) {
-                Some(a) => a,
-                None => continue,
-            };
-
-            let ident = match a.path.try_as_ident() {
-                Some(ident) => ident,
-                None => continue,
-            };
-
-            let ident = ident.resolve(ctx)?;
-
-            if ident != T::PATH {
-                continue;
-            }
-
-            let span = a.span();
-            let mut parser = Parser::from_token_stream(&a.input, span);
-            matched.push((index, span, parser.parse::<T>()?));
-            parser.eof()?;
+        for index in self.missed.drain(..) {
+            self.unused.push_back(index);
         }
 
-        Ok(matched
-            .into_iter()
-            .map(|(index, span, matched)| {
-                self.unused.remove(&index);
-                (span, matched)
-            })
-            .collect())
+        ParseAll {
+            outer: self,
+            attributes,
+            ctx,
+            _marker: PhantomData,
+        }
     }
 
     /// Try to parse a unique attribute with the given type.
     ///
     /// Returns the parsed element and the span it was parsed from if
     /// successful.
-    pub(crate) fn try_parse<T>(
+    pub(crate) fn try_parse<'a, T>(
         &mut self,
         ctx: ResolveContext<'_>,
-    ) -> compile::Result<Option<(Span, T)>>
+        attributes: &'a [ast::Attribute],
+    ) -> compile::Result<Option<(&'a ast::Attribute, T)>>
     where
         T: Attribute + Parse,
     {
-        let mut vec = self.try_parse_collect::<T>(ctx)?;
+        let mut vec = self.parse_all::<T>(ctx, attributes);
+        let first = vec.next();
+        let second = vec.next();
 
-        match &vec[..] {
-            [] => Ok(None),
-            [_] => Ok(Some(vec.swap_remove(0))),
-            [(first, _), ..] => Err(compile::Error::new(
-                first,
+        match (first, second) {
+            (None, _) => Ok(None),
+            (Some(first), None) => Ok(Some(first?)),
+            (Some(first), _) => Err(compile::Error::new(
+                first?.0,
                 ParseErrorKind::MultipleMatchingAttributes { name: T::PATH },
             )),
         }
     }
 
     /// Get the span of the first remaining attribute.
-    pub(crate) fn remaining(&self) -> Option<Span> {
-        for i in self.unused.iter().copied() {
-            if let Some(a) = self.attributes.get(i) {
-                return Some(a.span());
-            }
-        }
+    pub(crate) fn remaining<'a>(
+        &'a self,
+        attributes: &'a [ast::Attribute],
+    ) -> impl Iterator<Item = &ast::Attribute> + 'a {
+        self.unused
+            .iter()
+            .chain(self.missed.iter())
+            .flat_map(|&n| attributes.get(n))
+    }
+}
 
-        None
+pub(crate) struct ParseAll<'this, 'a, T> {
+    outer: &'this mut Parser,
+    attributes: &'a [ast::Attribute],
+    ctx: ResolveContext<'this>,
+    _marker: PhantomData<T>,
+}
+
+impl<'this, 'a, T> Iterator for ParseAll<'this, 'a, T>
+where
+    T: Attribute + Parse,
+{
+    type Item = compile::Result<(&'a ast::Attribute, T)>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let index = self.outer.unused.pop_front()?;
+
+            let Some(a) = self.attributes.get(index) else {
+                self.outer.missed.push(index);
+                continue;
+            };
+
+            let Some(ident) = a.path.try_as_ident() else {
+                self.outer.missed.push(index);
+                continue;
+            };
+
+            let ident = match ident.resolve(self.ctx) {
+                Ok(ident) => ident,
+                Err(e) => {
+                    return Some(Err(e));
+                }
+            };
+
+            if ident != T::PATH {
+                self.outer.missed.push(index);
+                continue;
+            }
+
+            let mut parser = parse::Parser::from_token_stream(&a.input, a.span());
+
+            let item = match parser.parse::<T>() {
+                Ok(item) => item,
+                Err(e) => {
+                    return Some(Err(e));
+                }
+            };
+
+            if let Err(e) = parser.eof() {
+                return Some(Err(e));
+            }
+
+            return Some(Ok((a, item)));
+        }
     }
 }
 
