@@ -334,7 +334,7 @@ impl<'a> Indexer<'a> {
     fn expand_file_macro(&mut self, ast: &ast::MacroCall) -> compile::Result<BuiltInMacro> {
         let name = self.q.sources.name(self.source_id).ok_or_else(|| {
             compile::Error::new(
-                ast.span(),
+                ast,
                 ParseErrorKind::MissingSourceId {
                     source_id: self.source_id,
                 },
@@ -377,7 +377,7 @@ impl<'a> Indexer<'a> {
     {
         let id = self
             .q
-            .insert_path(self.mod_item, self.impl_item, &self.items.item());
+            .insert_path(self.mod_item, self.impl_item, self.items.item());
 
         ast.path.id.set(id);
 
@@ -405,7 +405,7 @@ impl<'a> Indexer<'a> {
     {
         let id = self
             .q
-            .insert_path(self.mod_item, self.impl_item, &self.items.item());
+            .insert_path(self.mod_item, self.impl_item, self.items.item());
 
         attr.path.id.set(id);
 
@@ -434,20 +434,17 @@ impl<'a> Indexer<'a> {
         };
 
         let name = item_mod.name.resolve(resolve_context!(self.q))?;
-        let _guard = self.items.push_name(name.as_ref());
 
-        let root = match &self.root {
-            Some(root) => root,
-            None => {
-                return Err(compile::Error::new(
-                    &*item_mod,
-                    CompileErrorKind::UnsupportedModuleSource,
-                ));
-            }
+        let Some(root) = &self.root else {
+            return Err(compile::Error::new(
+                &*item_mod,
+                CompileErrorKind::UnsupportedModuleSource,
+            ));
         };
 
         let visibility = ast_to_visibility(&item_mod.visibility)?;
 
+        let guard = self.items.push_name(name.as_ref());
         let mod_item_id = self.items.id().with_span(&*item_mod)?;
 
         let mod_item = self.q.insert_mod(
@@ -457,6 +454,8 @@ impl<'a> Indexer<'a> {
             visibility,
             docs,
         )?;
+
+        self.items.pop(guard).with_span(&*item_mod)?;
 
         item_mod.id.set(mod_item_id);
 
@@ -476,6 +475,7 @@ impl<'a> Indexer<'a> {
         }
 
         let source_id = self.q.sources.insert(source);
+
         self.q
             .visitor
             .visit_mod(&DynLocation::new(source_id, &*item_mod));
@@ -656,13 +656,14 @@ pub(crate) fn file(idx: &mut Indexer<'_>, ast: &mut ast::File) -> compile::Resul
 #[instrument(span = ast)]
 fn item_fn(idx: &mut Indexer<'_>, mut ast: ast::ItemFn) -> compile::Result<()> {
     let name = ast.name.resolve(resolve_context!(idx.q))?;
-    let _guard = idx.items.push_name(name.as_ref());
 
     let visibility = ast_to_visibility(&ast.visibility)?;
 
     let mut p = attrs::Parser::new(&ast.attributes);
 
     let docs = Doc::collect_from(resolve_context!(idx.q), &mut p, &ast.attributes)?;
+
+    let guard = idx.items.push_name(name.as_ref());
 
     let item_meta = idx.q.insert_new_item(
         &idx.items,
@@ -675,11 +676,8 @@ fn item_fn(idx: &mut Indexer<'_>, mut ast: ast::ItemFn) -> compile::Result<()> {
     idx.scopes.push();
 
     for (arg, _) in &mut ast.args {
-        match arg {
-            ast::FnArg::SelfValue(..) => {}
-            ast::FnArg::Pat(p) => {
-                pat(idx, p)?;
-            }
+        if let ast::FnArg::Pat(p) = arg {
+            pat(idx, p)?;
         }
     }
 
@@ -687,6 +685,8 @@ fn item_fn(idx: &mut Indexer<'_>, mut ast: ast::ItemFn) -> compile::Result<()> {
     let last = idx.nested_item.replace(ast.descriptive_span());
     block(idx, &mut ast.body)?;
     idx.nested_item = last;
+
+    idx.items.pop(guard).with_span(&ast)?;
 
     let layer = idx.scopes.pop().with_span(&ast)?;
 
@@ -813,7 +813,7 @@ fn expr_block(idx: &mut Indexer<'_>, ast: &mut ast::ExprBlock) -> compile::Resul
         return block(idx, &mut ast.block);
     }
 
-    let _guard = idx.items.push_id();
+    let guard = idx.items.push_id();
 
     let item_meta = idx.q.insert_new_item(
         &idx.items,
@@ -835,34 +835,34 @@ fn expr_block(idx: &mut Indexer<'_>, ast: &mut ast::ExprBlock) -> compile::Resul
 
         block(idx, &mut ast.block)?;
         idx.q.index_const_block(item_meta, &ast.block)?;
-        return Ok(());
+    } else {
+        idx.scopes.push();
+        block(idx, &mut ast.block)?;
+        let layer = idx.scopes.pop().with_span(&ast)?;
+
+        let call = validate_call(ast.const_token.as_ref(), ast.async_token.as_ref(), &layer)?;
+
+        let Some(call) = call else {
+            return Err(compile::Error::new(&ast, CompileErrorKind::ClosureKind));
+        };
+
+        idx.q.index_meta(
+            &*ast,
+            item_meta,
+            meta::Kind::AsyncBlock {
+                call,
+                do_move: ast.move_token.is_some(),
+            },
+        )?;
     }
 
-    idx.scopes.push();
-    block(idx, &mut ast.block)?;
-    let layer = idx.scopes.pop().with_span(&ast)?;
-
-    let call = validate_call(ast.const_token.as_ref(), ast.async_token.as_ref(), &layer)?;
-
-    let Some(call) = call else {
-        return Err(compile::Error::new(&ast, CompileErrorKind::ClosureKind));
-    };
-
-    idx.q.index_meta(
-        ast,
-        item_meta,
-        meta::Kind::AsyncBlock {
-            call,
-            do_move: ast.move_token.is_some(),
-        },
-    )?;
-
+    idx.items.pop(guard).with_span(&ast)?;
     Ok(())
 }
 
 #[instrument(span = ast)]
 fn block(idx: &mut Indexer<'_>, ast: &mut ast::Block) -> compile::Result<()> {
-    let _guard = idx.items.push_id();
+    let guard = idx.items.push_id();
 
     idx.q.insert_new_item(
         &idx.items,
@@ -932,6 +932,7 @@ fn block(idx: &mut Indexer<'_>, ast: &mut ast::Block) -> compile::Result<()> {
     }
 
     ast.statements = statements;
+    idx.items.pop(guard).with_span(&ast)?;
     Ok(())
 }
 
@@ -1231,7 +1232,7 @@ fn condition(idx: &mut Indexer<'_>, ast: &mut ast::Condition) -> compile::Result
 }
 
 #[instrument(span = ast)]
-fn item_enum(idx: &mut Indexer<'_>, ast: ast::ItemEnum) -> compile::Result<()> {
+fn item_enum(idx: &mut Indexer<'_>, mut ast: ast::ItemEnum) -> compile::Result<()> {
     let mut p = attrs::Parser::new(&ast.attributes);
 
     let docs = Doc::collect_from(resolve_context!(idx.q), &mut p, &ast.attributes)?;
@@ -1244,7 +1245,7 @@ fn item_enum(idx: &mut Indexer<'_>, ast: ast::ItemEnum) -> compile::Result<()> {
     }
 
     let name = ast.name.resolve(resolve_context!(idx.q))?;
-    let _guard = idx.items.push_name(name.as_ref());
+    let guard = idx.items.push_name(name.as_ref());
 
     let visibility = ast_to_visibility(&ast.visibility)?;
     let enum_item = idx.q.insert_new_item(
@@ -1257,7 +1258,7 @@ fn item_enum(idx: &mut Indexer<'_>, ast: ast::ItemEnum) -> compile::Result<()> {
 
     idx.q.index_enum(enum_item)?;
 
-    for (index, (mut variant, _)) in ast.variants.into_iter().enumerate() {
+    for (index, (mut variant, _)) in ast.variants.drain().enumerate() {
         let mut p = attrs::Parser::new(&variant.attributes);
 
         let docs = Doc::collect_from(resolve_context!(idx.q), &mut p, &variant.attributes)?;
@@ -1270,7 +1271,7 @@ fn item_enum(idx: &mut Indexer<'_>, ast: ast::ItemEnum) -> compile::Result<()> {
         }
 
         let name = variant.name.resolve(resolve_context!(idx.q))?;
-        let _guard = idx.items.push_name(name.as_ref());
+        let guard = idx.items.push_name(name.as_ref());
 
         let item_meta = idx.q.insert_new_item(
             &idx.items,
@@ -1279,6 +1280,7 @@ fn item_enum(idx: &mut Indexer<'_>, ast: ast::ItemEnum) -> compile::Result<()> {
             Visibility::Public,
             &docs,
         )?;
+
         variant.id = item_meta.id;
 
         let ctx = resolve_context!(idx.q);
@@ -1307,10 +1309,12 @@ fn item_enum(idx: &mut Indexer<'_>, ast: ast::ItemEnum) -> compile::Result<()> {
             }
         }
 
+        idx.items.pop(guard).with_span(&variant)?;
         idx.q
             .index_variant(item_meta, enum_item.id, variant, index)?;
     }
 
+    idx.items.pop(guard).with_span(&ast)?;
     Ok(())
 }
 
@@ -1328,7 +1332,7 @@ fn item_struct(idx: &mut Indexer<'_>, mut ast: ast::ItemStruct) -> compile::Resu
     }
 
     let ident = ast.ident.resolve(resolve_context!(idx.q))?;
-    let _guard = idx.items.push_name(ident);
+    let guard = idx.items.push_name(ident);
 
     let visibility = ast_to_visibility(&ast.visibility)?;
     let item_meta = idx.q.insert_new_item(
@@ -1373,12 +1377,13 @@ fn item_struct(idx: &mut Indexer<'_>, mut ast: ast::ItemStruct) -> compile::Resu
         }
     }
 
+    idx.items.pop(guard).with_span(&ast)?;
     idx.q.index_struct(item_meta, Box::new(ast))?;
     Ok(())
 }
 
 #[instrument(span = ast)]
-fn item_impl(idx: &mut Indexer<'_>, ast: ast::ItemImpl) -> compile::Result<()> {
+fn item_impl(idx: &mut Indexer<'_>, mut ast: ast::ItemImpl) -> compile::Result<()> {
     if let Some(first) = ast.attributes.first() {
         return Err(compile::Error::msg(
             first,
@@ -1404,14 +1409,19 @@ fn item_impl(idx: &mut Indexer<'_>, ast: ast::ItemImpl) -> compile::Result<()> {
         guards.push(idx.items.push_name(ident));
     }
 
-    let new = idx.q.pool.alloc_item(&*idx.items.item());
+    let new = idx.q.pool.alloc_item(idx.items.item());
     let old = replace(&mut idx.impl_item, Some(new));
 
-    for i in ast.functions {
+    for i in ast.functions.drain(..) {
         item_fn(idx, i)?;
     }
 
     idx.impl_item = old;
+
+    for guard in guards.into_iter().rev() {
+        idx.items.pop(guard).with_span(&ast)?;
+    }
+
     Ok(())
 }
 
@@ -1436,7 +1446,7 @@ fn item_mod(idx: &mut Indexer<'_>, mut ast: ast::ItemMod) -> compile::Result<()>
         }
         ast::ItemModBody::InlineBody(body) => {
             let name = ast.name.resolve(resolve_context!(idx.q))?;
-            let _guard = idx.items.push_name(name.as_ref());
+            let guard = idx.items.push_name(name.as_ref());
 
             let visibility = ast_to_visibility(&ast.visibility)?;
             let mod_item = idx.q.insert_mod(
@@ -1452,6 +1462,8 @@ fn item_mod(idx: &mut Indexer<'_>, mut ast: ast::ItemMod) -> compile::Result<()>
             let replaced = replace(&mut idx.mod_item, mod_item);
             file(idx, &mut body.file)?;
             idx.mod_item = replaced;
+
+            idx.items.pop(guard).with_span(&ast)?;
         }
     }
 
@@ -1472,7 +1484,7 @@ fn item_const(idx: &mut Indexer<'_>, mut ast: ast::ItemConst) -> compile::Result
     }
 
     let name = ast.name.resolve(resolve_context!(idx.q))?;
-    let _guard = idx.items.push_name(name.as_ref());
+    let guard = idx.items.push_name(name.as_ref());
 
     let item_meta = idx.q.insert_new_item(
         &idx.items,
@@ -1488,6 +1500,7 @@ fn item_const(idx: &mut Indexer<'_>, mut ast: ast::ItemConst) -> compile::Result
     expr(idx, &mut ast.expr)?;
     idx.nested_item = last;
     idx.q.index_const_expr(item_meta, &ast.expr)?;
+    idx.items.pop(guard).with_span(&ast)?;
     Ok(())
 }
 
@@ -1568,7 +1581,7 @@ fn item(idx: &mut Indexer<'_>, ast: ast::Item) -> compile::Result<()> {
 fn path(idx: &mut Indexer<'_>, ast: &mut ast::Path) -> compile::Result<()> {
     let id = idx
         .q
-        .insert_path(idx.mod_item, idx.impl_item, &idx.items.item());
+        .insert_path(idx.mod_item, idx.impl_item, idx.items.item());
 
     ast.id.set(id);
 
@@ -1615,7 +1628,7 @@ fn expr_for(idx: &mut Indexer<'_>, ast: &mut ast::ExprFor) -> compile::Result<()
 
 #[instrument(span = ast)]
 fn expr_closure(idx: &mut Indexer<'_>, ast: &mut ast::ExprClosure) -> compile::Result<()> {
-    let _guard = idx.items.push_id();
+    let guard = idx.items.push_id();
     idx.scopes.push();
 
     let item_meta = idx.q.insert_new_item(
@@ -1626,7 +1639,7 @@ fn expr_closure(idx: &mut Indexer<'_>, ast: &mut ast::ExprClosure) -> compile::R
         &[],
     )?;
 
-    ast.id.set(idx.items.id().with_span(&*ast)?);
+    ast.id = item_meta.id;
 
     for (arg, _) in ast.args.as_slice_mut() {
         match arg {
@@ -1658,6 +1671,7 @@ fn expr_closure(idx: &mut Indexer<'_>, ast: &mut ast::ExprClosure) -> compile::R
         },
     )?;
 
+    idx.items.pop(guard).with_span(&ast)?;
     Ok(())
 }
 
@@ -1764,7 +1778,7 @@ fn expr_select(idx: &mut Indexer<'_>, ast: &mut ast::ExprSelect) -> compile::Res
 
 #[instrument(span = ast)]
 fn expr_call(idx: &mut Indexer<'_>, ast: &mut ast::ExprCall) -> compile::Result<()> {
-    ast.id.set(idx.items.id().with_span(ast.span())?);
+    ast.id.set(idx.items.id().with_span(&*ast)?);
 
     for (e, _) in &mut ast.args {
         expr(idx, e)?;

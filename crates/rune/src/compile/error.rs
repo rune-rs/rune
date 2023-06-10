@@ -17,8 +17,8 @@ use crate::query::MissingId;
 use crate::runtime::debug::DebugSignature;
 use crate::runtime::unit::EncodeError;
 use crate::runtime::{AccessError, TypeInfo, TypeOf};
+use crate::shared::items::{GuardMismatch, MissingLastId};
 use crate::shared::scopes::MissingLocal;
-use crate::shared::MissingLastId;
 use crate::{Hash, SourceId};
 
 /// An error raised by the compiler.
@@ -220,6 +220,8 @@ pub(crate) enum CompileErrorKind {
     EncodeError(#[from] EncodeError),
     #[error("{0}")]
     MissingLastId(#[from] MissingLastId),
+    #[error("{0}")]
+    GuardMismatch(#[from] GuardMismatch),
     #[error("{0}")]
     MissingScope(#[from] MissingScope),
     #[error("{0}")]
