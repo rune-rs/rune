@@ -62,7 +62,7 @@ impl MacroCompiler<'_, '_> {
 
         let token_stream = {
             let mut macro_context = MacroContext {
-                macro_span: macro_call.span(),
+                macro_span: span,
                 input_span: macro_call.input_span(),
                 item_meta: self.item_meta,
                 idx: self.idx,

@@ -82,14 +82,12 @@ impl<'a, 'b> MacroContext<'a, 'b> {
             .item_for(root_id)
             .expect("Just inserted item meta does not exist");
 
-        let item_id = query.insert_path(root_mod_id, None, Item::new());
-
         let mut idx = Indexer {
             q: query.borrow(),
             source_id,
             items: Items::new(Item::new(), root_id, &gen),
             scopes: Scopes::default(),
-            item: IndexItem::new(root_mod_id, item_id),
+            item: IndexItem::new(root_mod_id),
             nested_item: None,
             macro_depth: 0,
             root: None,

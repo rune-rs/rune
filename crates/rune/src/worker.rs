@@ -86,7 +86,6 @@ impl<'a> Worker<'a> {
                     };
 
                     let items = Items::new(item, mod_item_id, self.q.gen);
-                    let item_id = self.q.insert_path(mod_item, None, items.item());
 
                     let mut idx = Indexer {
                         q: self.q.borrow(),
@@ -94,7 +93,7 @@ impl<'a> Worker<'a> {
                         source_id,
                         items,
                         scopes: Scopes::default(),
-                        item: IndexItem::new(mod_item, item_id),
+                        item: IndexItem::new(mod_item),
                         nested_item: None,
                         macro_depth: 0,
                         loaded: Some(&mut self.loaded),

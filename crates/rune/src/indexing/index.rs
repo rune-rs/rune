@@ -1,6 +1,6 @@
 use core::num::NonZeroUsize;
 
-use core::mem::replace;
+use core::mem::{replace, take};
 
 use crate::no_std::collections::{HashMap, VecDeque};
 use crate::no_std::path::PathBuf;
@@ -366,47 +366,18 @@ impl<'a> Indexer<'a> {
         }))
     }
 
-    /// Restore item state.
-    fn restore_item(&mut self, item: IndexItem) {
-        self.item = item;
-    }
+    /// Get or insert an item id.
+    fn item_id(&mut self) -> NonZeroId {
+        if let Some(id) = self.item.id {
+            return id;
+        }
 
-    /// Replace item we're currently in.
-    fn replace_item(&mut self) -> IndexItem {
-        let item_id = self
+        let id = self
             .q
             .insert_path(self.item.module, self.item.impl_item, self.items.item());
 
-        IndexItem {
-            id: replace(&mut self.item.id, item_id),
-            ..self.item
-        }
-    }
-
-    /// Replace module id.
-    fn replace_mod_item(&mut self, mod_item: ModId) -> IndexItem {
-        let item_id = self
-            .q
-            .insert_path(self.item.module, self.item.impl_item, self.items.item());
-
-        IndexItem {
-            module: replace(&mut self.item.module, mod_item),
-            id: replace(&mut self.item.id, item_id),
-            impl_item: self.item.impl_item,
-        }
-    }
-
-    /// Replace module id.
-    fn replace_impl_item(&mut self, impl_item: ItemId) -> IndexItem {
-        let item_id = self
-            .q
-            .insert_path(self.item.module, Some(impl_item), self.items.item());
-
-        IndexItem {
-            module: self.item.module,
-            id: replace(&mut self.item.id, item_id),
-            impl_item: replace(&mut self.item.impl_item, Some(impl_item)),
-        }
+        self.item.id = Some(id);
+        id
     }
 
     /// Perform a macro expansion.
@@ -414,7 +385,7 @@ impl<'a> Indexer<'a> {
     where
         T: Parse,
     {
-        ast.path.id.set(self.item.id);
+        ast.path.id.set(self.item_id());
 
         let id = self.items.id().with_span(&ast)?;
         let item = self.q.item_for(id).with_span(&ast)?;
@@ -436,7 +407,7 @@ impl<'a> Indexer<'a> {
     where
         T: Parse,
     {
-        attr.path.id.set(self.item.id);
+        attr.path.id.set(self.item_id());
 
         let id = self.items.id().with_span(&*attr)?;
 
@@ -461,7 +432,7 @@ impl<'a> Indexer<'a> {
         let visibility = ast_to_visibility(&item_mod.visibility)?;
 
         let guard = self.items.push_name(name.as_ref());
-        let item_state = self.replace_item();
+        let idx_item = self.item.replace();
 
         let mod_item_id = self.items.id().with_span(&*item_mod)?;
 
@@ -473,7 +444,7 @@ impl<'a> Indexer<'a> {
             docs,
         )?;
 
-        self.restore_item(item_state);
+        self.item = idx_item;
         self.items.pop(guard).with_span(&*item_mod)?;
 
         item_mod.id.set(mod_item_id);
@@ -694,7 +665,7 @@ fn item_fn(idx: &mut Indexer<'_>, mut ast: ast::ItemFn) -> compile::Result<()> {
     let docs = Doc::collect_from(resolve_context!(idx.q), &mut p, &ast.attributes)?;
 
     let guard = idx.items.push_name(name.as_ref());
-    let item_state = idx.replace_item();
+    let idx_item = idx.item.replace();
 
     let item_meta = idx.q.insert_new_item(
         &idx.items,
@@ -717,7 +688,7 @@ fn item_fn(idx: &mut Indexer<'_>, mut ast: ast::ItemFn) -> compile::Result<()> {
     block(idx, &mut ast.body)?;
     idx.nested_item = last;
 
-    idx.restore_item(item_state);
+    idx.item = idx_item;
     idx.items.pop(guard).with_span(&ast)?;
 
     let layer = idx.scopes.pop().with_span(&ast)?;
@@ -846,7 +817,7 @@ fn expr_block(idx: &mut Indexer<'_>, ast: &mut ast::ExprBlock) -> compile::Resul
     }
 
     let guard = idx.items.push_id();
-    let item_state = idx.replace_item();
+    let idx_item = idx.item.replace();
 
     let item_meta = idx.q.insert_new_item(
         &idx.items,
@@ -889,7 +860,7 @@ fn expr_block(idx: &mut Indexer<'_>, ast: &mut ast::ExprBlock) -> compile::Resul
         )?;
     }
 
-    idx.restore_item(item_state);
+    idx.item = idx_item;
     idx.items.pop(guard).with_span(&ast)?;
     Ok(())
 }
@@ -897,7 +868,7 @@ fn expr_block(idx: &mut Indexer<'_>, ast: &mut ast::ExprBlock) -> compile::Resul
 #[instrument(span = ast)]
 fn block(idx: &mut Indexer<'_>, ast: &mut ast::Block) -> compile::Result<()> {
     let guard = idx.items.push_id();
-    let item_state = idx.replace_item();
+    let idx_item = idx.item.replace();
 
     idx.q.insert_new_item(
         &idx.items,
@@ -967,7 +938,7 @@ fn block(idx: &mut Indexer<'_>, ast: &mut ast::Block) -> compile::Result<()> {
     }
 
     ast.statements = statements;
-    idx.restore_item(item_state);
+    idx.item = idx_item;
     idx.items.pop(guard).with_span(&ast)?;
     Ok(())
 }
@@ -1282,7 +1253,7 @@ fn item_enum(idx: &mut Indexer<'_>, mut ast: ast::ItemEnum) -> compile::Result<(
 
     let name = ast.name.resolve(resolve_context!(idx.q))?;
     let guard = idx.items.push_name(name.as_ref());
-    let item_state = idx.replace_item();
+    let idx_item = idx.item.replace();
 
     let visibility = ast_to_visibility(&ast.visibility)?;
     let enum_item = idx.q.insert_new_item(
@@ -1309,7 +1280,7 @@ fn item_enum(idx: &mut Indexer<'_>, mut ast: ast::ItemEnum) -> compile::Result<(
 
         let name = variant.name.resolve(resolve_context!(idx.q))?;
         let guard = idx.items.push_name(name.as_ref());
-        let item_state = idx.replace_item();
+        let idx_item = idx.item.replace();
 
         let item_meta = idx.q.insert_new_item(
             &idx.items,
@@ -1347,13 +1318,13 @@ fn item_enum(idx: &mut Indexer<'_>, mut ast: ast::ItemEnum) -> compile::Result<(
             }
         }
 
-        idx.restore_item(item_state);
+        idx.item = idx_item;
         idx.items.pop(guard).with_span(&variant)?;
         idx.q
             .index_variant(item_meta, enum_item.id, variant, index)?;
     }
 
-    idx.restore_item(item_state);
+    idx.item = idx_item;
     idx.items.pop(guard).with_span(&ast)?;
     Ok(())
 }
@@ -1373,7 +1344,7 @@ fn item_struct(idx: &mut Indexer<'_>, mut ast: ast::ItemStruct) -> compile::Resu
 
     let ident = ast.ident.resolve(resolve_context!(idx.q))?;
     let guard = idx.items.push_name(ident);
-    let item_state = idx.replace_item();
+    let idx_item = idx.item.replace();
 
     let visibility = ast_to_visibility(&ast.visibility)?;
     let item_meta = idx.q.insert_new_item(
@@ -1418,7 +1389,7 @@ fn item_struct(idx: &mut Indexer<'_>, mut ast: ast::ItemStruct) -> compile::Resu
         }
     }
 
-    idx.restore_item(item_state);
+    idx.item = idx_item;
     idx.items.pop(guard).with_span(&ast)?;
     idx.q.index_struct(item_meta, Box::new(ast))?;
     Ok(())
@@ -1452,13 +1423,13 @@ fn item_impl(idx: &mut Indexer<'_>, mut ast: ast::ItemImpl) -> compile::Result<(
     }
 
     let new = idx.q.pool.alloc_item(idx.items.item());
-    let item_state = idx.replace_impl_item(new);
+    let idx_item = idx.item.replace_impl(new);
 
     for i in ast.functions.drain(..) {
         item_fn(idx, i)?;
     }
 
-    idx.restore_item(item_state);
+    idx.item = idx_item;
 
     for guard in guards.into_iter().rev() {
         idx.items.pop(guard).with_span(&ast)?;
@@ -1489,7 +1460,7 @@ fn item_mod(idx: &mut Indexer<'_>, mut ast: ast::ItemMod) -> compile::Result<()>
         ast::ItemModBody::InlineBody(body) => {
             let name = ast.name.resolve(resolve_context!(idx.q))?;
             let guard = idx.items.push_name(name.as_ref());
-            let item_state = idx.replace_item();
+            let idx_item = idx.item.replace();
 
             let visibility = ast_to_visibility(&ast.visibility)?;
             let mod_item = idx.q.insert_mod(
@@ -1503,13 +1474,13 @@ fn item_mod(idx: &mut Indexer<'_>, mut ast: ast::ItemMod) -> compile::Result<()>
             ast.id.set(idx.items.id().with_span(name_span)?);
 
             {
-                let item_state = idx.replace_mod_item(mod_item);
+                let idx_item = idx.item.replace_module(mod_item);
                 file(idx, &mut body.file)?;
                 idx.item.module = mod_item;
-                idx.restore_item(item_state);
+                idx.item = idx_item;
             }
 
-            idx.restore_item(item_state);
+            idx.item = idx_item;
             idx.items.pop(guard).with_span(&ast)?;
         }
     }
@@ -1532,7 +1503,7 @@ fn item_const(idx: &mut Indexer<'_>, mut ast: ast::ItemConst) -> compile::Result
 
     let name = ast.name.resolve(resolve_context!(idx.q))?;
     let guard = idx.items.push_name(name.as_ref());
-    let item_state = idx.replace_item();
+    let idx_item = idx.item.replace();
 
     let item_meta = idx.q.insert_new_item(
         &idx.items,
@@ -1549,7 +1520,7 @@ fn item_const(idx: &mut Indexer<'_>, mut ast: ast::ItemConst) -> compile::Result
     idx.nested_item = last;
     idx.q.index_const_expr(item_meta, &ast.expr)?;
 
-    idx.restore_item(item_state);
+    idx.item = idx_item;
     idx.items.pop(guard).with_span(&ast)?;
     Ok(())
 }
@@ -1629,7 +1600,7 @@ fn item(idx: &mut Indexer<'_>, ast: ast::Item) -> compile::Result<()> {
 
 #[instrument(span = ast)]
 fn path(idx: &mut Indexer<'_>, ast: &mut ast::Path) -> compile::Result<()> {
-    ast.id.set(idx.item.id);
+    ast.id.set(idx.item_id());
 
     path_segment(idx, &mut ast.first)?;
 
@@ -1675,7 +1646,7 @@ fn expr_for(idx: &mut Indexer<'_>, ast: &mut ast::ExprFor) -> compile::Result<()
 #[instrument(span = ast)]
 fn expr_closure(idx: &mut Indexer<'_>, ast: &mut ast::ExprClosure) -> compile::Result<()> {
     let guard = idx.items.push_id();
-    let item_state = idx.replace_item();
+    let idx_item = idx.item.replace();
 
     idx.scopes.push();
 
@@ -1719,7 +1690,7 @@ fn expr_closure(idx: &mut Indexer<'_>, ast: &mut ast::ExprClosure) -> compile::R
         },
     )?;
 
-    idx.restore_item(item_state);
+    idx.item = idx_item;
     idx.items.pop(guard).with_span(&ast)?;
     Ok(())
 }
@@ -1945,18 +1916,45 @@ fn validate_call(
 pub(crate) struct IndexItem {
     /// The current module being indexed.
     pub(crate) module: ModId,
-    /// Non-zero item id.
-    pub(crate) id: NonZeroId,
     /// Set if we are inside of an impl self.
     pub(crate) impl_item: Option<ItemId>,
+    /// Whether the item has been inserted or not.
+    pub(crate) id: Option<NonZeroId>,
 }
 
 impl IndexItem {
-    pub(crate) fn new(module: ModId, id: NonZeroId) -> Self {
+    pub(crate) fn new(module: ModId) -> Self {
         Self {
             module,
-            id,
             impl_item: None,
+            id: None,
+        }
+    }
+
+    /// Replace item we're currently in.
+    fn replace(&mut self) -> IndexItem {
+        IndexItem {
+            module: self.module,
+            impl_item: self.impl_item,
+            id: take(&mut self.id),
+        }
+    }
+
+    /// Replace module id.
+    fn replace_module(&mut self, module: ModId) -> IndexItem {
+        IndexItem {
+            module: replace(&mut self.module, module),
+            impl_item: self.impl_item,
+            id: take(&mut self.id),
+        }
+    }
+
+    /// Replace module id.
+    fn replace_impl(&mut self, item: ItemId) -> IndexItem {
+        IndexItem {
+            module: self.module,
+            impl_item: replace(&mut self.impl_item, Some(item)),
+            id: take(&mut self.id),
         }
     }
 }
