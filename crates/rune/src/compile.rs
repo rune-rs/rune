@@ -194,12 +194,12 @@ struct CompileBuildEntry<'a> {
 }
 
 impl CompileBuildEntry<'_> {
-    fn compiler1<'a>(
+    fn compiler1<'a, 'hir>(
         &'a mut self,
         location: Location,
         span: &dyn Spanned,
         asm: &'a mut Assembly,
-    ) -> self::v1::Assembler<'a> {
+    ) -> self::v1::Assembler<'a, 'hir> {
         self::v1::Assembler {
             source_id: location.source_id,
             q: self.q.borrow(),
