@@ -10,7 +10,7 @@ use crate::ast::Span;
 use crate::compile::ModId;
 use crate::indexing::index;
 use crate::indexing::items::Items;
-use crate::indexing::{Indexer, Scopes};
+use crate::indexing::{IndexItem, Indexer, Scopes};
 use crate::query::Query;
 use crate::SourceId;
 
@@ -86,6 +86,7 @@ impl<'a> Worker<'a> {
                     };
 
                     let items = Items::new(item, mod_item_id, self.q.gen);
+                    let item_id = self.q.insert_path(mod_item, None, items.item());
 
                     let mut idx = Indexer {
                         q: self.q.borrow(),
@@ -93,8 +94,7 @@ impl<'a> Worker<'a> {
                         source_id,
                         items,
                         scopes: Scopes::default(),
-                        mod_item,
-                        impl_item: Default::default(),
+                        item: IndexItem::new(mod_item, item_id),
                         nested_item: None,
                         macro_depth: 0,
                         loaded: Some(&mut self.loaded),

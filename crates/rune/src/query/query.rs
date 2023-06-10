@@ -391,13 +391,6 @@ impl<'a> Query<'a> {
         id
     }
 
-    /// Remove a reference to the given path by id.
-    pub(crate) fn remove_path_by_id(&mut self, id: Id) {
-        if let Some(id) = id.get() {
-            self.inner.query_paths.remove(&id);
-        }
-    }
-
     /// Insert module and associated metadata.
     pub(crate) fn insert_mod(
         &mut self,

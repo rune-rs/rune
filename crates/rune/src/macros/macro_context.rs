@@ -8,7 +8,7 @@ use crate::compile::{
     self, Context, IrValue, Item, ItemMeta, NoopCompileVisitor, NoopSourceLoader, ParseErrorKind,
     Pool, Prelude, UnitBuilder,
 };
-use crate::indexing::{Indexer, Items, Scopes};
+use crate::indexing::{IndexItem, Indexer, Items, Scopes};
 use crate::macros::{IntoLit, Storage, ToTokens, TokenStream};
 use crate::parse::{Parse, Resolve};
 use crate::query::Query;
@@ -82,13 +82,14 @@ impl<'a, 'b> MacroContext<'a, 'b> {
             .item_for(root_id)
             .expect("Just inserted item meta does not exist");
 
+        let item_id = query.insert_path(root_mod_id, None, Item::new());
+
         let mut idx = Indexer {
             q: query.borrow(),
             source_id,
             items: Items::new(Item::new(), root_id, &gen),
             scopes: Scopes::default(),
-            mod_item: root_mod_id,
-            impl_item: None,
+            item: IndexItem::new(root_mod_id, item_id),
             nested_item: None,
             macro_depth: 0,
             root: None,
