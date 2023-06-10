@@ -35,10 +35,21 @@ pub type DefaultStorage = ArrayUnit;
 #[cfg(rune_byte_code)]
 pub type DefaultStorage = ByteCodeUnit;
 
-/// Instructions from a single source file.
+/// Instructions and debug info from a single source file.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(bound = "S: Serialize + DeserializeOwned")]
 pub struct Unit<S = DefaultStorage> {
+    /// The information needed to execute the program.
+    #[serde(flatten)]
+    logic: Logic<S>,
+    /// Debug info if available for unit.
+    debug: Option<Box<DebugInfo>>,
+}
+
+/// Instructions from a single source file.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename = "Unit")]
+pub struct Logic<S = DefaultStorage> {
     /// Storage for the unit.
     storage: S,
     /// Where functions are located in the collection of instructions.
@@ -58,13 +69,19 @@ pub struct Unit<S = DefaultStorage> {
     rtti: HashMap<Hash, Arc<Rtti>>,
     /// Runtime information for variants.
     variant_rtti: HashMap<Hash, Arc<VariantRtti>>,
-    /// Debug info if available for unit.
-    debug: Option<Box<DebugInfo>>,
     /// Named constants
     constants: HashMap<Hash, ConstValue>,
 }
 
 impl<S> Unit<S> {
+    /// Constructs a new unit from a pair of data and debug info.
+    pub fn from_parts(data: Logic<S>, debug: Option<DebugInfo>) -> Self {
+        Self {
+            logic: data,
+            debug: debug.map(Box::new),
+        }
+    }
+
     /// Construct a new unit with the given content.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
@@ -79,16 +96,23 @@ impl<S> Unit<S> {
         constants: HashMap<Hash, ConstValue>,
     ) -> Self {
         Self {
-            storage,
-            functions,
-            static_strings,
-            static_bytes,
-            static_object_keys,
-            rtti,
-            variant_rtti,
+            logic: Logic {
+                storage,
+                functions,
+                static_strings,
+                static_bytes,
+                static_object_keys,
+                rtti,
+                variant_rtti,
+                constants,
+            },
             debug,
-            constants,
         }
+    }
+
+    /// Access unit data.
+    pub fn logic(&self) -> &Logic<S> {
+        &self.logic
     }
 
     /// Access debug information for the given location if it is available.
@@ -99,19 +123,19 @@ impl<S> Unit<S> {
 
     /// Get raw underlying instructions storage.
     pub(crate) fn instructions(&self) -> &S {
-        &self.storage
+        &self.logic.storage
     }
 
     /// Iterate over all static strings in the unit.
     #[cfg(feature = "cli")]
     pub(crate) fn iter_static_strings(&self) -> impl Iterator<Item = &Arc<StaticString>> + '_ {
-        self.static_strings.iter()
+        self.logic.static_strings.iter()
     }
 
     /// Iterate over all constants in the unit.
     #[cfg(feature = "cli")]
     pub(crate) fn iter_constants(&self) -> impl Iterator<Item = (&Hash, &ConstValue)> + '_ {
-        self.constants.iter()
+        self.logic.constants.iter()
     }
 
     /// Iterate over all static object keys in the unit.
@@ -119,7 +143,7 @@ impl<S> Unit<S> {
     pub(crate) fn iter_static_object_keys(&self) -> impl Iterator<Item = (usize, &[String])> + '_ {
         use core::iter;
 
-        let mut it = self.static_object_keys.iter().enumerate();
+        let mut it = self.logic.static_object_keys.iter().enumerate();
 
         iter::from_fn(move || {
             let (n, s) = it.next()?;
@@ -130,12 +154,13 @@ impl<S> Unit<S> {
     /// Iterate over dynamic functions.
     #[cfg(feature = "cli")]
     pub(crate) fn iter_functions(&self) -> impl Iterator<Item = (Hash, &UnitFn)> + '_ {
-        self.functions.iter().map(|(h, f)| (*h, f))
+        self.logic.functions.iter().map(|(h, f)| (*h, f))
     }
 
     /// Lookup the static string by slot, if it exists.
     pub(crate) fn lookup_string(&self, slot: usize) -> Result<&Arc<StaticString>, VmError> {
         Ok(self
+            .logic
             .static_strings
             .get(slot)
             .ok_or(VmErrorKind::MissingStaticString { slot })?)
@@ -144,6 +169,7 @@ impl<S> Unit<S> {
     /// Lookup the static byte string by slot, if it exists.
     pub(crate) fn lookup_bytes(&self, slot: usize) -> Result<&[u8], VmError> {
         Ok(self
+            .logic
             .static_bytes
             .get(slot)
             .ok_or(VmErrorKind::MissingStaticString { slot })?
@@ -152,27 +178,30 @@ impl<S> Unit<S> {
 
     /// Lookup the static object keys by slot, if it exists.
     pub(crate) fn lookup_object_keys(&self, slot: usize) -> Option<&[String]> {
-        self.static_object_keys.get(slot).map(|keys| &keys[..])
+        self.logic
+            .static_object_keys
+            .get(slot)
+            .map(|keys| &keys[..])
     }
 
     /// Lookup runt-time information for the given type hash.
     pub(crate) fn lookup_rtti(&self, hash: Hash) -> Option<&Arc<Rtti>> {
-        self.rtti.get(&hash)
+        self.logic.rtti.get(&hash)
     }
 
     /// Lookup variant runt-time information for the given variant hash.
     pub(crate) fn lookup_variant_rtti(&self, hash: Hash) -> Option<&Arc<VariantRtti>> {
-        self.variant_rtti.get(&hash)
+        self.logic.variant_rtti.get(&hash)
     }
 
     /// Lookup a function in the unit.
     pub(crate) fn function(&self, hash: Hash) -> Option<UnitFn> {
-        self.functions.get(&hash).copied()
+        self.logic.functions.get(&hash).copied()
     }
 
     /// Lookup a constant from the unit.
     pub(crate) fn constant(&self, hash: Hash) -> Option<&ConstValue> {
-        self.constants.get(&hash)
+        self.logic.constants.get(&hash)
     }
 }
 
@@ -182,7 +211,7 @@ where
 {
     #[inline]
     pub(crate) fn translate(&self, jump: usize) -> Result<usize, BadJump> {
-        self.storage.translate(jump)
+        self.logic.storage.translate(jump)
     }
 
     /// Get the instruction at the given instruction pointer.
@@ -190,13 +219,13 @@ where
         &self,
         ip: usize,
     ) -> Result<Option<(Inst, usize)>, BadInstruction> {
-        self.storage.get(ip)
+        self.logic.storage.get(ip)
     }
 
     /// Iterate over all instructions in order.
     #[cfg(feature = "emit")]
     pub(crate) fn iter_instructions(&self) -> impl Iterator<Item = (usize, Inst)> + '_ {
-        self.storage.iter()
+        self.logic.storage.iter()
     }
 }
 
