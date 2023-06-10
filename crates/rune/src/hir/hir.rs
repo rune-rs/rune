@@ -87,6 +87,15 @@ pub(crate) enum Binding<'hir> {
     Ident(Span, &'hir str, Variable),
 }
 
+impl<'hir> Spanned for Binding<'hir> {
+    fn span(&self) -> Span {
+        match self {
+            Binding::Binding(span, _, _) => *span,
+            Binding::Ident(span, _, _) => *span,
+        }
+    }
+}
+
 impl Binding<'_> {
     pub(crate) fn key(&self) -> &str {
         match self {

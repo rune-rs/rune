@@ -12,17 +12,26 @@ use crate::SourceId;
 
 /// A locally declared variable, its calculated stack offset and where it was
 /// declared in its source file.
-#[derive(Debug, Clone, Copy)]
-pub struct Var {
+#[derive(Clone, Copy)]
+pub struct Var<'hir> {
     /// Slot offset from the current stack frame.
     pub(crate) offset: usize,
     /// Token assocaited with the variable.
-    span: Span,
+    span: &'hir dyn Spanned,
     /// Variable has been taken at the given position.
     moved_at: Option<Span>,
 }
 
-impl Var {
+impl<'hir> fmt::Debug for Var<'hir> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Var")
+            .field("offset", &self.offset)
+            .field("moved_at", &self.moved_at)
+            .finish_non_exhaustive()
+    }
+}
+
+impl<'hir> Var<'hir> {
     /// Copy the declared variable.
     pub(crate) fn copy<C>(&self, c: &mut Assembler<'_, '_>, span: &dyn Spanned, comment: C)
     where
@@ -55,7 +64,7 @@ impl Var {
 #[derive(Debug, Clone)]
 pub(crate) struct Layer<'hir> {
     /// Named variables.
-    variables: HashMap<&'hir str, Var>,
+    variables: HashMap<&'hir str, Var<'hir>>,
     /// The number of variables.
     pub(crate) total: usize,
     /// The number of variables local to this scope.
@@ -109,8 +118,8 @@ impl<'hir> Scopes<'hir> {
         variable: hir::Variable,
         name: &'hir str,
         source_id: SourceId,
-        span: &dyn Spanned,
-    ) -> compile::Result<Var> {
+        span: &'hir dyn Spanned,
+    ) -> compile::Result<Var<'hir>> {
         tracing::trace!("get");
 
         for layer in self.layers.iter().rev() {
@@ -176,7 +185,7 @@ impl<'hir> Scopes<'hir> {
         &mut self,
         #[allow(unused)] variable: hir::Variable,
         name: &'hir str,
-        span: &dyn Spanned,
+        span: &'hir dyn Spanned,
     ) -> compile::Result<usize> {
         let Some(layer) = self.layers.last_mut() else {
             return Err(compile::Error::msg(span, "Missing head layer"));
@@ -188,7 +197,7 @@ impl<'hir> Scopes<'hir> {
 
         let local = Var {
             offset,
-            span: span.span(),
+            span,
             moved_at: None,
         };
 

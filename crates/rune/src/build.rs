@@ -113,7 +113,12 @@ impl<'a> compile::CompileVisitor for CompileVisitorGroup<'a> {
         }
     }
 
-    fn visit_variable_use(&mut self, source_id: SourceId, var_span: Span, span: &dyn Spanned) {
+    fn visit_variable_use(
+        &mut self,
+        source_id: SourceId,
+        var_span: &dyn Spanned,
+        span: &dyn Spanned,
+    ) {
         for v in self.visitors.iter_mut() {
             v.visit_variable_use(source_id, var_span, span)
         }
