@@ -6,13 +6,13 @@ use crate::no_std::collections::{HashMap, VecDeque};
 use crate::no_std::path::PathBuf;
 use crate::no_std::prelude::*;
 
+use crate::ast::spanned;
 use crate::ast::{self, OptionSpanned, Span, Spanned};
 use crate::compile::attrs::Attributes;
-use crate::compile::meta;
 use crate::compile::{
-    self, attrs, CompileErrorKind, Doc, ItemId, Location, ModId, ParseErrorKind, Visibility,
-    WithSpan,
+    self, attrs, CompileErrorKind, Doc, ItemId, ModId, ParseErrorKind, Visibility, WithSpan,
 };
+use crate::compile::{meta, DynLocation};
 use crate::indexing::locals;
 use crate::indexing::{self, Indexed};
 use crate::indexing::{Layer, Scopes};
@@ -72,7 +72,7 @@ impl<'a> Indexer<'a> {
     ///
     /// This is used when entering expressions which have been expanded from a
     /// macro - cause those expression might in turn be macros themselves.
-    fn enter_macro<S>(&mut self, spanned: &S) -> compile::Result<()>
+    fn enter_macro<S>(&mut self, span: &S) -> compile::Result<()>
     where
         S: Spanned,
     {
@@ -80,7 +80,7 @@ impl<'a> Indexer<'a> {
 
         if self.macro_depth >= MAX_MACRO_RECURSION {
             return Err(compile::Error::new(
-                spanned,
+                span,
                 CompileErrorKind::MaxMacroRecursion {
                     depth: self.macro_depth,
                     max: MAX_MACRO_RECURSION,
@@ -114,7 +114,7 @@ impl<'a> Indexer<'a> {
             Some(ident) => ident,
             None => {
                 return Err(compile::Error::new(
-                    ast.path.span(),
+                    &ast.path,
                     CompileErrorKind::NoSuchBuiltInMacro {
                         name: ast.path.resolve(resolve_context!(self.q))?,
                     },
@@ -131,7 +131,7 @@ impl<'a> Indexer<'a> {
             "line" => self.expand_line_macro(ast)?,
             _ => {
                 return Err(compile::Error::new(
-                    ast.path.span(),
+                    &ast.path,
                     CompileErrorKind::NoSuchBuiltInMacro {
                         name: ast.path.resolve(resolve_context!(self.q))?,
                     },
@@ -211,7 +211,7 @@ impl<'a> Indexer<'a> {
                 "fill" => {
                     if fill.is_some() {
                         return Err(compile::Error::unsupported(
-                            key.span(),
+                            key,
                             "multiple `format!(.., fill = ..)`",
                         ));
                     }
@@ -224,7 +224,7 @@ impl<'a> Indexer<'a> {
                 "align" => {
                     if align.is_some() {
                         return Err(compile::Error::unsupported(
-                            key.span(),
+                            key,
                             "multiple `format!(.., align = ..)`",
                         ));
                     }
@@ -236,7 +236,7 @@ impl<'a> Indexer<'a> {
                         Ok(a) => (arg, a),
                         _ => {
                             return Err(compile::Error::unsupported(
-                                key.span(),
+                                key,
                                 "`format!(.., align = ..)`",
                             ));
                         }
@@ -245,7 +245,7 @@ impl<'a> Indexer<'a> {
                 "flags" => {
                     if flags.is_some() {
                         return Err(compile::Error::unsupported(
-                            key.span(),
+                            key,
                             "multiple `format!(.., flags = ..)`",
                         ));
                     }
@@ -263,7 +263,7 @@ impl<'a> Indexer<'a> {
                 "width" => {
                     if width.is_some() {
                         return Err(compile::Error::unsupported(
-                            key.span(),
+                            key,
                             "multiple `format!(.., width = ..)`",
                         ));
                     }
@@ -280,7 +280,7 @@ impl<'a> Indexer<'a> {
                 "precision" => {
                     if precision.is_some() {
                         return Err(compile::Error::unsupported(
-                            key.span(),
+                            key,
                             "multiple `format!(.., precision = ..)`",
                         ));
                     }
@@ -297,7 +297,7 @@ impl<'a> Indexer<'a> {
                 "type" => {
                     if format_type.is_some() {
                         return Err(compile::Error::unsupported(
-                            key.span(),
+                            key,
                             "multiple `format!(.., type = ..)`",
                         ));
                     }
@@ -309,17 +309,14 @@ impl<'a> Indexer<'a> {
                         Ok(format_type) => (arg, format_type),
                         _ => {
                             return Err(compile::Error::unsupported(
-                                key.span(),
+                                key,
                                 "`format!(.., type = ..)`",
                             ));
                         }
                     });
                 }
                 _ => {
-                    return Err(compile::Error::unsupported(
-                        key.span(),
-                        "`format!(.., <key>)`",
-                    ));
+                    return Err(compile::Error::unsupported(key, "`format!(.., <key>)`"));
                 }
             }
         }
@@ -355,10 +352,7 @@ impl<'a> Indexer<'a> {
             source,
         });
 
-        Ok(BuiltInMacro::File(BuiltInFile {
-            span: ast.span(),
-            value,
-        }))
+        Ok(BuiltInMacro::File(BuiltInFile { value }))
     }
 
     /// Expand a macro returning the current line for where the macro invocation begins
@@ -374,7 +368,6 @@ impl<'a> Indexer<'a> {
         let source = ast::NumberSource::Synthetic(id);
 
         Ok(BuiltInMacro::Line(BuiltInLine {
-            span: ast.span(),
             value: ast::Lit::Number(ast::LitNumber {
                 span: ast.span(),
                 source,
@@ -417,9 +410,9 @@ impl<'a> Indexer<'a> {
             .q
             .insert_path(self.mod_item, self.impl_item, &self.items.item());
         attr.path.id.set(id);
-        let id = self.items.id().with_span(attr.span())?;
+        let id = self.items.id().with_span(&*attr)?;
 
-        let containing = self.q.item_for(id).with_span(&attr)?;
+        let containing = self.q.item_for(id).with_span(&*attr)?;
 
         let mut compiler = MacroCompiler {
             item_meta: containing,
@@ -437,10 +430,8 @@ impl<'a> Indexer<'a> {
         item_mod: &mut ast::ItemMod,
         docs: &[Doc],
     ) -> compile::Result<()> {
-        let span = item_mod.span();
-
         let (Some(loaded), Some(queue)) = (self.loaded.as_mut(), self.queue.as_mut()) else {
-            return Err(compile::Error::msg(span, "File modules are not supported"));
+            return Err(compile::Error::msg(&*item_mod, "File modules are not supported"));
         };
 
         let name = item_mod.name.resolve(resolve_context!(self.q))?;
@@ -450,7 +441,7 @@ impl<'a> Indexer<'a> {
             Some(root) => root,
             None => {
                 return Err(compile::Error::new(
-                    span,
+                    &*item_mod,
                     CompileErrorKind::UnsupportedModuleSource,
                 ));
             }
@@ -458,11 +449,11 @@ impl<'a> Indexer<'a> {
 
         let visibility = ast_to_visibility(&item_mod.visibility)?;
 
-        let mod_item_id = self.items.id().with_span(span)?;
+        let mod_item_id = self.items.id().with_span(&*item_mod)?;
 
         let mod_item = self.q.insert_mod(
             &self.items,
-            Location::new(self.source_id, item_mod.name_span()),
+            &DynLocation::new(self.source_id, spanned::from_fn(|| item_mod.name_span())),
             self.mod_item,
             visibility,
             docs,
@@ -470,14 +461,14 @@ impl<'a> Indexer<'a> {
 
         item_mod.id.set(mod_item_id);
 
-        let source = self
-            .q
-            .source_loader
-            .load(root, self.q.pool.module_item(mod_item), span)?;
+        let source =
+            self.q
+                .source_loader
+                .load(root, self.q.pool.module_item(mod_item), &*item_mod)?;
 
-        if let Some(existing) = loaded.insert(mod_item, (self.source_id, span)) {
+        if let Some(existing) = loaded.insert(mod_item, (self.source_id, item_mod.span())) {
             return Err(compile::Error::new(
-                span,
+                &*item_mod,
                 CompileErrorKind::ModAlreadyLoaded {
                     item: self.q.pool.module_item(mod_item).to_owned(),
                     existing,
@@ -486,7 +477,9 @@ impl<'a> Indexer<'a> {
         }
 
         let source_id = self.q.sources.insert(source);
-        self.q.visitor.visit_mod(source_id, span);
+        self.q
+            .visitor
+            .visit_mod(&DynLocation::new(source_id, &*item_mod));
 
         queue.push_back(Task::LoadFile {
             kind: LoadFileKind::Module {
@@ -511,7 +504,7 @@ pub(crate) fn file(idx: &mut Indexer<'_>, ast: &mut ast::File) -> compile::Resul
     // This part catches comments interior to the module of the form `//!`.
     for (span, doc) in docs {
         idx.q.visitor.visit_doc_comment(
-            Location::new(idx.source_id, span),
+            &DynLocation::new(idx.source_id, &span),
             idx.q.pool.module_item(idx.mod_item),
             idx.q.pool.module_item_hash(idx.mod_item),
             &doc.doc_string.resolve(ctx)?,
@@ -562,7 +555,7 @@ pub(crate) fn file(idx: &mut Indexer<'_>, ast: &mut ast::File) -> compile::Resul
         while let Some((depth, mut item, mut skipped_attributes, semi)) = queue.pop_front() {
             if depth >= MAX_MACRO_RECURSION {
                 return Err(compile::Error::new(
-                    item.span(),
+                    &item,
                     CompileErrorKind::MaxMacroRecursion {
                         depth,
                         max: MAX_MACRO_RECURSION,
@@ -662,8 +655,6 @@ pub(crate) fn file(idx: &mut Indexer<'_>, ast: &mut ast::File) -> compile::Resul
 
 #[instrument(span = ast)]
 fn item_fn(idx: &mut Indexer<'_>, mut ast: ast::ItemFn) -> compile::Result<()> {
-    let span = ast.span();
-
     let name = ast.name.resolve(resolve_context!(idx.q))?;
     let _guard = idx.items.push_name(name.as_ref());
 
@@ -673,7 +664,7 @@ fn item_fn(idx: &mut Indexer<'_>, mut ast: ast::ItemFn) -> compile::Result<()> {
 
     let item_meta = idx.q.insert_new_item(
         &idx.items,
-        Location::new(idx.source_id, span),
+        &DynLocation::new(idx.source_id, &ast),
         idx.mod_item,
         visibility,
         &docs,
@@ -695,7 +686,7 @@ fn item_fn(idx: &mut Indexer<'_>, mut ast: ast::ItemFn) -> compile::Result<()> {
     block(idx, &mut ast.body)?;
     idx.nested_item = last;
 
-    let layer = idx.scopes.pop().with_span(span)?;
+    let layer = idx.scopes.pop().with_span(&ast)?;
 
     if let (Some(const_token), Some(async_token)) = (ast.const_token, ast.async_token) {
         return Err(compile::Error::new(
@@ -718,8 +709,6 @@ fn item_fn(idx: &mut Indexer<'_>, mut ast: ast::ItemFn) -> compile::Result<()> {
     let is_test = match attributes.try_parse::<attrs::Test>(resolve_context!(idx.q))? {
         Some((span, _)) => {
             if let Some(nested_span) = idx.nested_item {
-                let span = span.join(ast.descriptive_span());
-
                 return Err(compile::Error::new(
                     span,
                     CompileErrorKind::NestedTest { nested_span },
@@ -757,21 +746,21 @@ fn item_fn(idx: &mut Indexer<'_>, mut ast: ast::ItemFn) -> compile::Result<()> {
     if ast.is_instance() {
         if is_test {
             return Err(compile::Error::msg(
-                span,
+                &ast,
                 "#[test] is not supported on member functions",
             ));
         }
 
         if is_bench {
             return Err(compile::Error::msg(
-                span,
+                &ast,
                 "#[bench] is not supported on member functions",
             ));
         }
 
-        let impl_item = idx.impl_item.ok_or_else(|| {
-            compile::Error::new(span, CompileErrorKind::InstanceFunctionOutsideImpl)
-        })?;
+        let Some(impl_item) = idx.impl_item else {
+            return Err(compile::Error::new(&ast, CompileErrorKind::InstanceFunctionOutsideImpl));
+        };
 
         idx.q.index_and_build(indexing::Entry {
             item_meta,
@@ -779,7 +768,6 @@ fn item_fn(idx: &mut Indexer<'_>, mut ast: ast::ItemFn) -> compile::Result<()> {
                 ast: Box::new(ast),
                 call,
                 impl_item,
-                instance_span: span,
             }),
         });
     } else {
@@ -805,8 +793,6 @@ fn item_fn(idx: &mut Indexer<'_>, mut ast: ast::ItemFn) -> compile::Result<()> {
 
 #[instrument(span = ast)]
 fn expr_block(idx: &mut Indexer<'_>, ast: &mut ast::ExprBlock) -> compile::Result<()> {
-    let span = ast.span();
-
     if let Some(span) = ast.attributes.option_span() {
         return Err(compile::Error::msg(
             span,
@@ -829,7 +815,7 @@ fn expr_block(idx: &mut Indexer<'_>, ast: &mut ast::ExprBlock) -> compile::Resul
 
     let item_meta = idx.q.insert_new_item(
         &idx.items,
-        Location::new(idx.source_id, span),
+        &DynLocation::new(idx.source_id, &ast),
         idx.mod_item,
         Visibility::default(),
         &[],
@@ -840,7 +826,7 @@ fn expr_block(idx: &mut Indexer<'_>, ast: &mut ast::ExprBlock) -> compile::Resul
     if ast.const_token.is_some() {
         if let Some(async_token) = ast.async_token {
             return Err(compile::Error::new(
-                async_token.span(),
+                async_token,
                 CompileErrorKind::BlockConstAsyncConflict,
             ));
         }
@@ -852,16 +838,16 @@ fn expr_block(idx: &mut Indexer<'_>, ast: &mut ast::ExprBlock) -> compile::Resul
 
     idx.scopes.push();
     block(idx, &mut ast.block)?;
-    let layer = idx.scopes.pop().with_span(span)?;
+    let layer = idx.scopes.pop().with_span(&ast)?;
 
     let call = validate_call(ast.const_token.as_ref(), ast.async_token.as_ref(), &layer)?;
 
     let Some(call) = call else {
-        return Err(compile::Error::new(span, CompileErrorKind::ClosureKind));
+        return Err(compile::Error::new(&ast, CompileErrorKind::ClosureKind));
     };
 
     idx.q.index_meta(
-        ast.span(),
+        ast,
         item_meta,
         meta::Kind::AsyncBlock {
             call,
@@ -874,13 +860,11 @@ fn expr_block(idx: &mut Indexer<'_>, ast: &mut ast::ExprBlock) -> compile::Resul
 
 #[instrument(span = ast)]
 fn block(idx: &mut Indexer<'_>, ast: &mut ast::Block) -> compile::Result<()> {
-    let span = ast.span();
-
     let _guard = idx.items.push_id();
 
     idx.q.insert_new_item(
         &idx.items,
-        Location::new(idx.source_id, span),
+        &DynLocation::new(idx.source_id, &ast),
         idx.mod_item,
         Visibility::Inherited,
         &[],
@@ -1234,7 +1218,6 @@ fn condition(idx: &mut Indexer<'_>, ast: &mut ast::Condition) -> compile::Result
 
 #[instrument(span = ast)]
 fn item_enum(idx: &mut Indexer<'_>, ast: ast::ItemEnum) -> compile::Result<()> {
-    let span = ast.span();
     let mut attrs = Attributes::new(ast.attributes.to_vec());
     let docs = Doc::collect_from(resolve_context!(idx.q), &mut attrs)?;
 
@@ -1251,7 +1234,7 @@ fn item_enum(idx: &mut Indexer<'_>, ast: ast::ItemEnum) -> compile::Result<()> {
     let visibility = ast_to_visibility(&ast.visibility)?;
     let enum_item = idx.q.insert_new_item(
         &idx.items,
-        Location::new(idx.source_id, span),
+        &DynLocation::new(idx.source_id, &ast),
         idx.mod_item,
         visibility,
         &docs,
@@ -1270,13 +1253,12 @@ fn item_enum(idx: &mut Indexer<'_>, ast: ast::ItemEnum) -> compile::Result<()> {
             ));
         }
 
-        let span = variant.name.span();
         let name = variant.name.resolve(resolve_context!(idx.q))?;
         let _guard = idx.items.push_name(name.as_ref());
 
         let item_meta = idx.q.insert_new_item(
             &idx.items,
-            Location::new(idx.source_id, span),
+            &DynLocation::new(idx.source_id, &variant.name),
             idx.mod_item,
             Visibility::Public,
             &docs,
@@ -1292,7 +1274,7 @@ fn item_enum(idx: &mut Indexer<'_>, ast: ast::ItemEnum) -> compile::Result<()> {
 
             for doc in docs {
                 idx.q.visitor.visit_field_doc_comment(
-                    Location::new(idx.source_id, doc.span),
+                    &DynLocation::new(idx.source_id, &doc),
                     idx.q.pool.item(item_meta.item),
                     idx.q.pool.item_type_hash(item_meta.item),
                     name,
@@ -1317,7 +1299,6 @@ fn item_enum(idx: &mut Indexer<'_>, ast: ast::ItemEnum) -> compile::Result<()> {
 
 #[instrument(span = ast)]
 fn item_struct(idx: &mut Indexer<'_>, mut ast: ast::ItemStruct) -> compile::Result<()> {
-    let span = ast.span();
     let mut attrs = Attributes::new(ast.attributes.to_vec());
 
     let docs = Doc::collect_from(resolve_context!(idx.q), &mut attrs)?;
@@ -1335,7 +1316,7 @@ fn item_struct(idx: &mut Indexer<'_>, mut ast: ast::ItemStruct) -> compile::Resu
     let visibility = ast_to_visibility(&ast.visibility)?;
     let item_meta = idx.q.insert_new_item(
         &idx.items,
-        Location::new(idx.source_id, span),
+        &DynLocation::new(idx.source_id, &ast),
         idx.mod_item,
         visibility,
         &docs,
@@ -1351,7 +1332,7 @@ fn item_struct(idx: &mut Indexer<'_>, mut ast: ast::ItemStruct) -> compile::Resu
 
         for doc in docs {
             idx.q.visitor.visit_field_doc_comment(
-                Location::new(idx.source_id, doc.span),
+                &DynLocation::new(idx.source_id, &doc),
                 idx.q.pool.item(item_meta.item),
                 idx.q.pool.item_type_hash(item_meta.item),
                 name,
@@ -1438,7 +1419,7 @@ fn item_mod(idx: &mut Indexer<'_>, mut ast: ast::ItemMod) -> compile::Result<()>
             let visibility = ast_to_visibility(&ast.visibility)?;
             let mod_item = idx.q.insert_mod(
                 &idx.items,
-                Location::new(idx.source_id, name_span),
+                &DynLocation::new(idx.source_id, name_span),
                 idx.mod_item,
                 visibility,
                 &docs,
@@ -1467,13 +1448,12 @@ fn item_const(idx: &mut Indexer<'_>, mut ast: ast::ItemConst) -> compile::Result
         ));
     }
 
-    let span = ast.span();
     let name = ast.name.resolve(resolve_context!(idx.q))?;
     let _guard = idx.items.push_name(name.as_ref());
 
     let item_meta = idx.q.insert_new_item(
         &idx.items,
-        Location::new(idx.source_id, span),
+        &DynLocation::new(idx.source_id, &ast),
         idx.mod_item,
         ast_to_visibility(&ast.visibility)?,
         &docs,
@@ -1551,6 +1531,7 @@ fn item(idx: &mut Indexer<'_>, ast: ast::Item) -> compile::Result<()> {
     }
 
     attributes.try_parse_collect::<attrs::Doc>(resolve_context!(idx.q))?;
+
     if let Some(span) = attributes.remaining() {
         return Err(compile::Error::msg(span, "unsupported item attribute"));
     }
@@ -1609,19 +1590,17 @@ fn expr_for(idx: &mut Indexer<'_>, ast: &mut ast::ExprFor) -> compile::Result<()
 #[instrument(span = ast)]
 fn expr_closure(idx: &mut Indexer<'_>, ast: &mut ast::ExprClosure) -> compile::Result<()> {
     let _guard = idx.items.push_id();
-
     idx.scopes.push();
-    let span = ast.span();
 
     let item_meta = idx.q.insert_new_item(
         &idx.items,
-        Location::new(idx.source_id, span),
+        &DynLocation::new(idx.source_id, &*ast),
         idx.mod_item,
         Visibility::Inherited,
         &[],
     )?;
 
-    ast.id.set(idx.items.id().with_span(ast.span())?);
+    ast.id.set(idx.items.id().with_span(&*ast)?);
 
     for (arg, _) in ast.args.as_slice_mut() {
         match arg {
@@ -1636,16 +1615,16 @@ fn expr_closure(idx: &mut Indexer<'_>, ast: &mut ast::ExprClosure) -> compile::R
 
     expr(idx, &mut ast.body)?;
 
-    let layer = idx.scopes.pop().with_span(span)?;
+    let layer = idx.scopes.pop().with_span(&*ast)?;
 
     let call = validate_call(None, ast.async_token.as_ref(), &layer)?;
 
     let Some(call) = call else {
-        return Err(compile::Error::new(span, CompileErrorKind::ClosureKind));
+        return Err(compile::Error::new(&*ast, CompileErrorKind::ClosureKind));
     };
 
     idx.q.index_meta(
-        ast.span(),
+        ast,
         item_meta,
         meta::Kind::Closure {
             call,

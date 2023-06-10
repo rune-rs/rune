@@ -1,5 +1,5 @@
-use crate::ast::{Span, Spanned};
-use crate::compile::{Item, Location, MetaRef};
+use crate::ast::Spanned;
+use crate::compile::{Item, Located, MetaRef};
 use crate::hash::Hash;
 use crate::SourceId;
 
@@ -9,7 +9,7 @@ pub trait CompileVisitor {
     fn register_meta(&mut self, _meta: MetaRef<'_>) {}
 
     /// Mark that we've resolved a specific compile meta at the given location.
-    fn visit_meta(&mut self, _location: Location, _meta: MetaRef<'_>) {}
+    fn visit_meta(&mut self, _location: &dyn Located, _meta: MetaRef<'_>) {}
 
     /// Visit a variable use.
     fn visit_variable_use(
@@ -21,7 +21,7 @@ pub trait CompileVisitor {
     }
 
     /// Visit something that is a module.
-    fn visit_mod(&mut self, _source_id: SourceId, _span: Span) {}
+    fn visit_mod(&mut self, _location: &dyn Located) {}
 
     /// Visit anterior `///`-style comments, and interior `//!`-style doc
     /// comments for an item.
@@ -31,7 +31,13 @@ pub trait CompileVisitor {
     ///
     /// This can be called in any order, before or after
     /// [CompileVisitor::visit_meta] for any given item.
-    fn visit_doc_comment(&mut self, _location: Location, _item: &Item, _hash: Hash, _docstr: &str) {
+    fn visit_doc_comment(
+        &mut self,
+        _location: &dyn Located,
+        _item: &Item,
+        _hash: Hash,
+        _docstr: &str,
+    ) {
     }
 
     /// Visit anterior `///`-style comments, and interior `//!`-style doc
@@ -41,7 +47,7 @@ pub trait CompileVisitor {
     /// should eventually be combined for the full doc string.
     fn visit_field_doc_comment(
         &mut self,
-        _location: Location,
+        _location: &dyn Located,
         _item: &Item,
         _hash: Hash,
         _field: &str,

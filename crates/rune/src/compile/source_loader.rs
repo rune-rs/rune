@@ -1,14 +1,14 @@
 use crate::no_std::path::Path;
 use crate::no_std::prelude::*;
 
-use crate::ast::Span;
+use crate::ast::Spanned;
 use crate::compile::{self, CompileErrorKind, ComponentRef, Item};
 use crate::Source;
 
 /// A source loader.
 pub trait SourceLoader {
     /// Load the given URL.
-    fn load(&mut self, root: &Path, item: &Item, span: Span) -> compile::Result<Source>;
+    fn load(&mut self, root: &Path, item: &Item, span: &dyn Spanned) -> compile::Result<Source>;
 }
 
 /// A source loader which does not support loading anything and will error.
@@ -17,7 +17,7 @@ pub trait SourceLoader {
 pub struct NoopSourceLoader;
 
 impl SourceLoader for NoopSourceLoader {
-    fn load(&mut self, _: &Path, _: &Item, span: Span) -> compile::Result<Source> {
+    fn load(&mut self, _: &Path, _: &Item, span: &dyn Spanned) -> compile::Result<Source> {
         Err(compile::Error::msg(span, "File loading is not supported"))
     }
 }
@@ -35,7 +35,7 @@ impl FileSourceLoader {
 }
 
 impl SourceLoader for FileSourceLoader {
-    fn load(&mut self, root: &Path, item: &Item, span: Span) -> compile::Result<Source> {
+    fn load(&mut self, root: &Path, item: &Item, span: &dyn Spanned) -> compile::Result<Source> {
         let mut base = root.to_owned();
 
         if !base.pop() {

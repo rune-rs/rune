@@ -14,7 +14,8 @@ use tokio::sync::Notify;
 use crate::ast::{Span, Spanned};
 use crate::compile::meta;
 use crate::compile::{
-    self, CompileVisitor, ComponentRef, Item, ItemBuf, LinkerError, Location, MetaRef, SourceMeta,
+    self, CompileVisitor, ComponentRef, Item, ItemBuf, LinkerError, Located, Location, MetaRef,
+    SourceMeta,
 };
 use crate::diagnostics::{Diagnostic, FatalDiagnosticKind};
 use crate::doc::VisitorData;
@@ -862,7 +863,7 @@ impl Visitor {
 }
 
 impl CompileVisitor for Visitor {
-    fn visit_meta(&mut self, location: Location, meta: MetaRef<'_>) {
+    fn visit_meta(&mut self, location: &dyn Located, meta: MetaRef<'_>) {
         let source = match meta.source {
             Some(source) => source,
             None => return,
@@ -904,6 +905,8 @@ impl CompileVisitor for Visitor {
             source: DefinitionSource::SourceMeta(source.clone()),
         };
 
+        let location = location.location();
+
         let index = self.indexes.entry(location.source_id).or_default();
 
         if let Some(d) = index.definitions.insert(location.span, definition) {
@@ -929,15 +932,17 @@ impl CompileVisitor for Visitor {
         }
     }
 
-    fn visit_mod(&mut self, source_id: SourceId, span: Span) {
+    fn visit_mod(&mut self, location: &dyn Located) {
+        let location = location.location();
+
         let definition = Definition {
             kind: DefinitionKind::Module,
-            source: DefinitionSource::Source(source_id),
+            source: DefinitionSource::Source(location.source_id),
         };
 
-        let index = self.indexes.entry(source_id).or_default();
+        let index = self.indexes.entry(location.source_id).or_default();
 
-        if let Some(d) = index.definitions.insert(span, definition) {
+        if let Some(d) = index.definitions.insert(location.span, definition) {
             tracing::warn!("replaced definition: {:?}", d.kind)
         }
     }
@@ -998,7 +1003,12 @@ impl<'a> ScriptSourceLoader<'a> {
 }
 
 impl<'a> crate::compile::SourceLoader for ScriptSourceLoader<'a> {
-    fn load(&mut self, root: &Path, item: &Item, span: Span) -> compile::Result<crate::Source> {
+    fn load(
+        &mut self,
+        root: &Path,
+        item: &Item,
+        span: &dyn Spanned,
+    ) -> compile::Result<crate::Source> {
         tracing::trace!("load {} (root: {})", item, root.display());
 
         if let Some(candidates) = Self::candidates(root, item) {

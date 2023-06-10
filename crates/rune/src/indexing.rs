@@ -4,7 +4,7 @@ mod scopes;
 
 use crate::no_std::prelude::*;
 
-use crate::ast::{self, Span};
+use crate::ast;
 use crate::compile::meta;
 use crate::compile::{ItemId, ItemMeta};
 use crate::hash::Hash;
@@ -77,8 +77,6 @@ pub(crate) struct InstanceFunction {
     pub(crate) call: Call,
     /// The item of the instance function.
     pub(crate) impl_item: ItemId,
-    /// The span of the instance function.
-    pub(crate) instance_span: Span,
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -52,6 +52,7 @@ pub use self::options::{Options, ParseOptionError};
 
 mod location;
 pub use self::location::Location;
+pub(crate) use self::location::{DynLocation, Located};
 
 pub mod meta;
 pub(crate) use self::meta::{Doc, ItemMeta};
@@ -228,7 +229,7 @@ impl CompileBuildEntry<'_> {
 
                 if self
                     .q
-                    .query_meta(item_meta.location.span, item_meta.item, used)?
+                    .query_meta(&item_meta.location, item_meta.item, used)?
                     .is_none()
                 {
                     return Err(Error::new(
@@ -282,19 +283,15 @@ impl CompileBuildEntry<'_> {
                 let args =
                     format_fn_args(self.q.sources, location, f.ast.args.iter().map(|(a, _)| a))?;
 
-                let span = &*f.ast;
                 let count = f.ast.args.len();
 
                 let arena = hir::Arena::new();
-                let mut c = self.compiler1(location, span, &mut asm);
-                let meta = c.lookup_meta(
-                    f.instance_span,
-                    f.impl_item,
-                    self::v1::GenericsParameters::default(),
-                )?;
+                let mut c = self.compiler1(location, &f.ast, &mut asm);
+                let meta =
+                    c.lookup_meta(&f.ast, f.impl_item, self::v1::GenericsParameters::default())?;
 
                 let type_hash = meta.type_hash_of().ok_or_else(|| {
-                    Error::expected_meta(span, meta.info(c.q.pool), "instance function")
+                    Error::expected_meta(&f.ast, meta.info(c.q.pool), "instance function")
                 })?;
 
                 let mut ctx = hir::lowering::Ctx::with_query(
@@ -306,7 +303,7 @@ impl CompileBuildEntry<'_> {
                 assemble::fn_from_item_fn(&mut c, &hir, true)?;
 
                 if used.is_unused() {
-                    c.q.diagnostics.not_used(location.source_id, span, None);
+                    c.q.diagnostics.not_used(location.source_id, &f.ast, None);
                 } else {
                     let name = f.ast.name.resolve(resolve_context!(self.q))?;
 
@@ -411,9 +408,9 @@ impl CompileBuildEntry<'_> {
                 tracing::trace!("import: {}", self.q.pool.item(item_meta.item));
 
                 // Issue the import to check access.
-                let result =
-                    self.q
-                        .import(location.span, item_meta.module, item_meta.item, used)?;
+                let result = self
+                    .q
+                    .import(&location, item_meta.module, item_meta.item, used)?;
 
                 if used.is_unused() {
                     self.q
@@ -436,7 +433,7 @@ impl CompileBuildEntry<'_> {
 
                 if let Some(item) = missing {
                     return Err(Error::new(
-                        location.span,
+                        location,
                         CompileErrorKind::MissingItem {
                             item: self.q.pool.item(item).to_owned(),
                         },
@@ -446,21 +443,14 @@ impl CompileBuildEntry<'_> {
             Build::ReExport => {
                 tracing::trace!("re-export: {}", self.q.pool.item(item_meta.item));
 
-                let import =
-                    match self
-                        .q
-                        .import(location.span, item_meta.module, item_meta.item, used)?
-                    {
-                        Some(item) => item,
-                        None => {
-                            return Err(Error::new(
-                                location.span,
-                                CompileErrorKind::MissingItem {
-                                    item: self.q.pool.item(item_meta.item).to_owned(),
-                                },
-                            ))
-                        }
-                    };
+                let Some(import) = self.q.import(&location, item_meta.module, item_meta.item, used)? else {
+                    return Err(Error::new(
+                        location.span,
+                        CompileErrorKind::MissingItem {
+                            item: self.q.pool.item(item_meta.item).to_owned(),
+                        },
+                    ))
+                };
 
                 self.q.unit.new_function_reexport(
                     location,

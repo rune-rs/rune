@@ -103,9 +103,6 @@ pub(crate) struct BuiltInFormat {
 /// Macro data for `file!()`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
 pub(crate) struct BuiltInFile {
-    /// The span of the built-in-file
-    #[rune(span)]
-    pub(crate) span: Span,
     /// Path value to use
     pub(crate) value: ast::Lit,
 }
@@ -113,9 +110,6 @@ pub(crate) struct BuiltInFile {
 /// Macro data for `line!()`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
 pub(crate) struct BuiltInLine {
-    /// The span of the built-in-file
-    #[rune(span)]
-    pub(crate) span: Span,
     /// The line number
     pub(crate) value: ast::Lit,
 }

@@ -153,7 +153,7 @@ mod pat;
 mod path;
 mod prelude;
 mod span;
-mod spanned;
+pub(crate) mod spanned;
 mod stmt;
 mod token;
 pub(super) mod utils;

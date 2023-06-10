@@ -5,7 +5,7 @@ use crate::no_std::prelude::*;
 
 use crate::ast;
 use crate::ast::Spanned;
-use crate::compile::{self, CompileErrorKind, ItemBuf, ModId, Visibility};
+use crate::compile::{self, CompileErrorKind, DynLocation, ItemBuf, Location, ModId, Visibility};
 use crate::parse::Resolve;
 use crate::query::Query;
 use crate::worker::{ImportKind, Task, WildcardImport};
@@ -152,8 +152,7 @@ impl Import {
                             visibility: self.visibility,
                             from: self.item.clone(),
                             name: name.clone(),
-                            span: star_token.span(),
-                            source_id: self.source_id,
+                            location: Location::new(self.source_id, star_token.span()),
                             module: self.module,
                             found: false,
                         };
@@ -202,8 +201,7 @@ impl Import {
 
             if complete.is_none() {
                 q.insert_import(
-                    self.source_id,
-                    path.span(),
+                    &DynLocation::new(self.source_id, path),
                     self.module,
                     self.visibility,
                     self.item.clone(),

@@ -6,6 +6,27 @@ use crate::no_std::vec::Vec;
 use crate::ast::Span;
 use crate::parse::{Id, NonZeroId};
 
+/// Defer building a span from a function.
+pub(crate) fn from_fn<F>(function: F) -> FromFn<F> {
+    FromFn { function }
+}
+
+/// Function used to build a [`Span`].
+#[derive(Clone, Copy)]
+pub(crate) struct FromFn<F> {
+    function: F,
+}
+
+impl<F> Spanned for FromFn<F>
+where
+    F: Fn() -> Span,
+{
+    #[inline]
+    fn span(&self) -> Span {
+        (self.function)()
+    }
+}
+
 /// Helper derive to implement [`OptionSpanned`].
 pub use rune_macros::OptionSpanned;
 

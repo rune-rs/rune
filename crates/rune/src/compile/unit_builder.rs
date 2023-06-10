@@ -277,7 +277,7 @@ impl UnitBuilder {
     /// Declare a new struct.
     pub(crate) fn insert_meta(
         &mut self,
-        span: Span,
+        span: &dyn Spanned,
         meta: &meta::Meta,
         pool: &mut Pool,
         query: &mut QueryInner,

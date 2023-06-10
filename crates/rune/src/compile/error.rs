@@ -30,26 +30,25 @@ pub struct Error {
 
 impl Error {
     /// Construct a new compile error.
-    #[allow(unused)]
-    pub(crate) fn new<S, K>(spanned: S, kind: K) -> Self
+    pub(crate) fn new<S, K>(span: S, kind: K) -> Self
     where
         S: Spanned,
         CompileErrorKind: From<K>,
     {
         Self {
-            span: spanned.span(),
+            span: span.span(),
             kind: Box::new(CompileErrorKind::from(kind)),
         }
     }
 
     /// Construct an error which is made of a single message.
-    pub fn msg<S, M>(spanned: S, message: M) -> Self
+    pub fn msg<S, M>(span: S, message: M) -> Self
     where
         S: Spanned,
         M: fmt::Display,
     {
         Self {
-            span: Spanned::span(&spanned),
+            span: span.span(),
             kind: Box::new(CompileErrorKind::Custom {
                 message: message.to_string().into(),
             }),

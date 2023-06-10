@@ -418,7 +418,7 @@ pub(crate) fn eval_ir(
         ir::IrKind::Set(ir) => eval_ir_set(ir, interp, used),
         ir::IrKind::Assign(ir) => eval_ir_assign(ir, interp, used),
         ir::IrKind::Template(ir) => eval_ir_template(ir, interp, used),
-        ir::IrKind::Name(name) => Ok(interp.resolve_var(ir.span(), name.as_ref(), used)?),
+        ir::IrKind::Name(name) => Ok(interp.resolve_var(ir, name.as_ref(), used)?),
         ir::IrKind::Target(target) => Ok(interp.scopes.get_target(target)?),
         ir::IrKind::Value(value) => Ok(value.clone()),
         ir::IrKind::Branches(ir) => eval_ir_branches(ir, interp, used),
