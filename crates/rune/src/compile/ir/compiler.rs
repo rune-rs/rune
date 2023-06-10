@@ -33,15 +33,11 @@ impl IrCompiler<'_> {
     /// Resolve an ir target from an expression.
     fn ir_target(&self, expr: &hir::Expr<'_>) -> compile::Result<ir::IrTarget> {
         match expr.kind {
-            hir::ExprKind::Path(path) => {
-                if let Some(ident) = path.try_as_ident() {
-                    let name = self.resolve(ident)?;
-
-                    return Ok(ir::IrTarget {
-                        span: expr.span(),
-                        kind: ir::IrTargetKind::Name(name.into()),
-                    });
-                }
+            hir::ExprKind::Variable(_, name) => {
+                return Ok(ir::IrTarget {
+                    span: expr.span(),
+                    kind: ir::IrTargetKind::Name(name.into()),
+                });
             }
             hir::ExprKind::FieldAccess(expr_field_access) => {
                 let target = self.ir_target(expr_field_access.expr)?;
@@ -72,7 +68,7 @@ impl IrCompiler<'_> {
             _ => (),
         }
 
-        Err(compile::Error::msg(expr, "not supported as a target"))
+        Err(compile::Error::msg(expr, "Not supported as a target"))
     }
 }
 
@@ -82,7 +78,7 @@ pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut IrCompiler<'_>) -> compile::Resu
 
     Ok(match hir.kind {
         hir::ExprKind::Vec(hir) => ir::Ir::new(span, expr_vec(span, c, hir)?),
-        hir::ExprKind::Tuple(hir) => expr_tuple(span, c, hir)?,
+        hir::ExprKind::Tuple(hir) => expr_tuple(c, span, hir)?,
         hir::ExprKind::Object(hir) => ir::Ir::new(span, expr_object(span, c, hir)?),
         hir::ExprKind::Group(hir) => expr(hir, c)?,
         hir::ExprKind::Binary(hir) => expr_binary(span, c, hir)?,
@@ -90,8 +86,8 @@ pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut IrCompiler<'_>) -> compile::Resu
         hir::ExprKind::Call(hir) => ir::Ir::new(span, expr_call(span, c, hir)?),
         hir::ExprKind::If(hir) => ir::Ir::new(span, expr_if(span, c, hir)?),
         hir::ExprKind::Loop(hir) => ir::Ir::new(span, expr_loop(span, c, hir)?),
-        hir::ExprKind::Lit(hir) => lit(span, c, hir)?,
-        hir::ExprKind::Block(hir) => expr_block(span, c, hir)?,
+        hir::ExprKind::Lit(hir) => lit(c, span, hir)?,
+        hir::ExprKind::Block(hir) => ir::Ir::new(span, block(hir, c)?),
         hir::ExprKind::Path(hir) => path(hir, c)?,
         hir::ExprKind::FieldAccess(..) => ir::Ir::new(span, c.ir_target(hir)?),
         hir::ExprKind::Break(hir) => ir::Ir::new(span, ir::IrBreak::compile_ast(span, c, hir)?),
@@ -99,7 +95,22 @@ pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut IrCompiler<'_>) -> compile::Resu
             let ir_template = builtin_template(template, c)?;
             ir::Ir::new(hir.span(), ir_template)
         }
-        _ => return Err(compile::Error::msg(hir, "not supported yet")),
+        hir::ExprKind::Const(hash) => {
+            let Some(value) = c.q.get_const_value(hash) else {
+                return Err(compile::Error::msg(hir, format_args!("Missing constant for hash {hash}")));
+            };
+
+            ir::Ir::new(span, ir::IrValue::from_const(value))
+        }
+        hir::ExprKind::Variable(_, name) => {
+            return Ok(ir::Ir::new(span, <Box<str>>::from(name)));
+        }
+        _ => {
+            return Err(compile::Error::msg(
+                hir,
+                "Expression kind not supported yet in constant contexts",
+            ))
+        }
     })
 }
 
@@ -133,19 +144,14 @@ fn expr_call(
         args.push(expr(e, c)?);
     }
 
-    if let hir::ExprKind::Path(path) = hir.expr.kind {
-        if let Some(ident) = path.try_as_ident() {
-            let target = c.resolve(ident)?;
-
-            return Ok(ir::IrCall {
-                span,
-                target: target.into(),
-                args,
-            });
-        }
+    if let hir::Call::ConstFn { id, .. } = hir.call {
+        return Ok(ir::IrCall { span, id, args });
     }
 
-    Err(compile::Error::msg(span, "call not supported"))
+    Err(compile::Error::msg(
+        span,
+        "Call not supported in constant contexts",
+    ))
 }
 
 #[instrument]
@@ -207,8 +213,8 @@ fn expr_binary(
     ))
 }
 
-#[instrument]
-fn lit(span: Span, c: &mut IrCompiler<'_>, hir: hir::Lit<'_>) -> compile::Result<ir::Ir> {
+#[instrument(span = span)]
+fn lit(c: &mut IrCompiler<'_>, span: Span, hir: hir::Lit<'_>) -> compile::Result<ir::Ir> {
     Ok(match hir {
         hir::Lit::Bool(boolean) => ir::Ir::new(span, IrValue::Bool(boolean)),
         hir::Lit::Str(string) => ir::Ir::new(span, IrValue::String(Shared::new(string.to_owned()))),
@@ -223,10 +229,10 @@ fn lit(span: Span, c: &mut IrCompiler<'_>, hir: hir::Lit<'_>) -> compile::Result
     })
 }
 
-#[instrument]
+#[instrument(span = span)]
 fn expr_tuple(
-    span: Span,
     c: &mut IrCompiler<'_>,
+    span: Span,
     hir: &hir::ExprSeq<'_>,
 ) -> compile::Result<ir::Ir> {
     if hir.items.is_empty() {
@@ -275,20 +281,8 @@ fn expr_object(
     let mut assignments = Vec::new();
 
     for assign in hir.assignments {
-        let (span, key) = assign.key;
-
-        let ir = if let Some(e) = assign.assign {
-            expr(e, c)?
-        } else {
-            ir::Ir::new(
-                span,
-                ir::IrKind::Target(ir::IrTarget {
-                    span,
-                    kind: ir::IrTargetKind::Name(key.into()),
-                }),
-            )
-        };
-
+        let (_, key) = assign.key;
+        let ir = expr(assign.assign, c)?;
         assignments.push((key.into(), ir))
     }
 
@@ -296,15 +290,6 @@ fn expr_object(
         span,
         assignments: assignments.into_boxed_slice(),
     })
-}
-
-#[instrument]
-pub(crate) fn expr_block(
-    span: Span,
-    c: &mut IrCompiler<'_>,
-    hir: &hir::ExprBlock<'_>,
-) -> compile::Result<ir::Ir> {
-    Ok(ir::Ir::new(span, block(hir.block, c)?))
 }
 
 #[instrument]
@@ -389,27 +374,21 @@ fn path(hir: &hir::Path<'_>, c: &mut IrCompiler<'_>) -> compile::Result<ir::Ir> 
 fn local(hir: &hir::Local<'_>, c: &mut IrCompiler<'_>) -> compile::Result<ir::Ir> {
     let span = hir.span();
 
-    let name = loop {
-        match hir.pat.kind {
-            hir::PatKind::PatIgnore => {
-                return expr(hir.expr, c);
-            }
-            hir::PatKind::PatPath(path) => {
-                if let Some(ident) = path.try_as_ident() {
-                    break ident;
-                }
-            }
-            _ => (),
+    let name = match hir.pat.kind {
+        hir::PatKind::Ignore => {
+            return expr(hir.expr, c);
         }
-
-        return Err(compile::Error::msg(span, "not supported yet"));
+        hir::PatKind::Path(&hir::PatPathKind::Ident(ident, _)) => ident,
+        _ => {
+            return Err(compile::Error::msg(span, "not supported yet"));
+        }
     };
 
     Ok(ir::Ir::new(
         span,
         ir::IrDecl {
             span,
-            name: c.resolve(name)?.into(),
+            name: name.into(),
             value: Box::new(expr(hir.expr, c)?),
         },
     ))
@@ -420,7 +399,7 @@ fn condition(hir: &hir::Condition<'_>, c: &mut IrCompiler<'_>) -> compile::Resul
     match hir {
         hir::Condition::Expr(e) => Ok(ir::IrCondition::Ir(expr(e, c)?)),
         hir::Condition::ExprLet(expr_let) => {
-            let pat = ir::IrPat::compile_ast(expr_let.pat, c)?;
+            let pat = ir::IrPat::compile_ast(expr_let.pat)?;
             let ir = expr(expr_let.expr, c)?;
 
             Ok(ir::IrCondition::Let(ir::IrLet {
@@ -436,24 +415,21 @@ fn condition(hir: &hir::Condition<'_>, c: &mut IrCompiler<'_>) -> compile::Resul
 fn expr_if(
     span: Span,
     c: &mut IrCompiler<'_>,
-    hir: &hir::ExprIf<'_>,
+    hir: &hir::Conditional<'_>,
 ) -> compile::Result<ir::IrBranches> {
     let mut branches = Vec::new();
     let mut default_branch = None;
 
-    let cond = condition(hir.condition, c)?;
-    let ir = block(hir.block, c)?;
-    branches.push((cond, ir));
+    for hir in hir.branches {
+        let Some(cond) = hir.condition else {
+            let ir = block(hir.block, c)?;
+            default_branch = Some(ir);
+            continue
+        };
 
-    for expr_else_if in hir.expr_else_ifs {
-        let cond = condition(expr_else_if.condition, c)?;
-        let ir = block(expr_else_if.block, c)?;
+        let cond = condition(cond, c)?;
+        let ir = block(hir.block, c)?;
         branches.push((cond, ir));
-    }
-
-    if let Some(expr_else) = hir.expr_else {
-        let ir = block(expr_else.block, c)?;
-        default_branch = Some(ir);
     }
 
     Ok(ir::IrBranches {

@@ -1,38 +1,38 @@
+use crate::ast::Spanned;
 use crate::no_std::prelude::*;
 
 use crate::ast::Span;
-use crate::compile::context::ContextMeta;
 use crate::compile::ir;
 use crate::compile::meta;
 use crate::compile::{
     self, Assembly, CompileErrorKind, IrBudget, IrCompiler, IrInterpreter, ItemId, ItemMeta,
-    Location, Options, QueryErrorKind, WithSpan,
+    Location, Options, WithSpan,
 };
 use crate::hir;
-use crate::query::{ConstFn, Named, Query, Used};
+use crate::query::{ConstFn, Query, Used};
 use crate::runtime::{ConstValue, Inst};
-use crate::{Context, Diagnostics, Hash, SourceId};
+use crate::{Hash, SourceId};
 
 pub(crate) mod assemble;
 mod loops;
 mod scopes;
 
 pub(crate) use self::loops::{Loop, Loops};
-pub(crate) use self::scopes::{Scope, ScopeGuard, Scopes, Var};
+pub(crate) use self::scopes::{Layer, ScopeGuard, Scopes, Var};
 
 /// Generic parameters.
 #[derive(Default)]
 pub(crate) struct GenericsParameters {
-    trailing: usize,
-    parameters: [Option<Hash>; 2],
+    pub(crate) trailing: usize,
+    pub(crate) parameters: [Option<Hash>; 2],
 }
 
 impl GenericsParameters {
-    fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.parameters.iter().all(|p| p.is_none())
     }
 
-    fn as_boxed(&self) -> Box<[Option<Hash>]> {
+    pub(crate) fn as_boxed(&self) -> Box<[Option<Hash>]> {
         self.parameters.iter().copied().collect()
     }
 }
@@ -61,198 +61,24 @@ impl Needs {
     }
 }
 
-pub(crate) struct Assembler<'a> {
+pub(crate) struct Assembler<'a, 'hir> {
     /// The source id of the source.
     pub(crate) source_id: SourceId,
-    /// The context we are compiling for.
-    pub(crate) context: &'a Context,
     /// Query system to compile required items.
     pub(crate) q: Query<'a>,
     /// The assembly we are generating.
     pub(crate) asm: &'a mut Assembly,
     /// Scopes defined in the compiler.
-    pub(crate) scopes: Scopes,
+    pub(crate) scopes: Scopes<'hir>,
     /// Context for which to emit warnings.
     pub(crate) contexts: Vec<Span>,
     /// The nesting of loop we are currently in.
     pub(crate) loops: Loops,
     /// Enabled optimizations.
     pub(crate) options: &'a Options,
-    /// Compilation warnings.
-    pub(crate) diagnostics: &'a mut Diagnostics,
 }
 
-enum ContextMatch<'this, 'm> {
-    Context(&'m ContextMeta, Hash),
-    Meta(&'this meta::Meta),
-    None,
-}
-
-impl<'a> Assembler<'a> {
-    // Pick private metadata to compile for the item.
-    fn select_context_meta<'this, 'm>(
-        &'this self,
-        item: ItemId,
-        metas: impl Iterator<Item = &'m ContextMeta> + Clone,
-        parameters: &GenericsParameters,
-    ) -> Result<ContextMatch<'this, 'm>, Box<QueryErrorKind>> {
-        #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-        enum Kind {
-            None,
-            Type,
-            Function,
-            AssociatedFunction,
-        }
-
-        /// Determine how the collection of generic parameters applies to the
-        /// returned context meta.
-        fn determine_kind<'m>(metas: impl Iterator<Item = &'m ContextMeta>) -> Option<Kind> {
-            let mut kind = Kind::None;
-
-            for meta in metas {
-                let alt = match &meta.kind {
-                    meta::Kind::Enum { .. }
-                    | meta::Kind::Struct { .. }
-                    | meta::Kind::Type { .. } => Kind::Type,
-                    meta::Kind::Function { .. } => Kind::Function,
-                    meta::Kind::AssociatedFunction { .. } => Kind::AssociatedFunction,
-                    _ => {
-                        continue;
-                    }
-                };
-
-                if matches!(kind, Kind::None) {
-                    kind = alt;
-                    continue;
-                }
-
-                if kind != alt {
-                    return None;
-                }
-            }
-
-            Some(kind)
-        }
-
-        fn build_parameters(kind: Kind, p: &GenericsParameters) -> Option<Hash> {
-            let hash = match (kind, p.trailing, p.parameters) {
-                (_, 0, _) => Hash::EMPTY,
-                (Kind::Type, 1, [Some(ty), None]) => Hash::EMPTY.with_type_parameters(ty),
-                (Kind::Function, 1, [Some(f), None]) => Hash::EMPTY.with_function_parameters(f),
-                (Kind::AssociatedFunction, 1, [Some(f), None]) => {
-                    Hash::EMPTY.with_function_parameters(f)
-                }
-                (Kind::AssociatedFunction, 2, [Some(ty), f]) => Hash::EMPTY
-                    .with_type_parameters(ty)
-                    .with_function_parameters(f.unwrap_or(Hash::EMPTY)),
-                _ => {
-                    return None;
-                }
-            };
-
-            Some(hash)
-        }
-
-        if let Some(parameters) =
-            determine_kind(metas.clone()).and_then(|kind| build_parameters(kind, parameters))
-        {
-            if let Some(meta) = self.q.get_meta(item, parameters) {
-                return Ok(ContextMatch::Meta(meta));
-            }
-
-            // If there is a single item matching the specified generic hash, pick
-            // it.
-            let mut it = metas
-                .clone()
-                .filter(|i| !matches!(i.kind, meta::Kind::Macro | meta::Kind::Module))
-                .filter(|i| i.kind.as_parameters() == parameters);
-
-            if let Some(meta) = it.next() {
-                if it.next().is_none() {
-                    return Ok(ContextMatch::Context(meta, parameters));
-                }
-            } else {
-                return Ok(ContextMatch::None);
-            }
-        }
-
-        if metas.clone().next().is_none() {
-            return Ok(ContextMatch::None);
-        }
-
-        Err(Box::new(QueryErrorKind::AmbiguousContextItem {
-            item: self.q.pool.item(item).to_owned(),
-            infos: metas.map(|i| i.info()).collect(),
-        }))
-    }
-
-    /// Access the meta for the given language item.
-    pub fn try_lookup_meta(
-        &mut self,
-        span: Span,
-        item: ItemId,
-        parameters: &GenericsParameters,
-    ) -> compile::Result<Option<meta::Meta>> {
-        tracing::trace!("lookup meta: {:?}", item);
-
-        if parameters.is_empty() {
-            if let Some(meta) = self.q.query_meta(span, item, Default::default())? {
-                tracing::trace!("found in query: {:?}", meta);
-                self.q.visitor.visit_meta(
-                    Location::new(self.source_id, span),
-                    meta.as_meta_ref(self.q.pool),
-                );
-                return Ok(Some(meta));
-            }
-        }
-
-        let Some(metas) = self.context.lookup_meta(self.q.pool.item(item)) else {
-            return Ok(None);
-        };
-
-        let (meta, parameters) = match self
-            .select_context_meta(item, metas, parameters)
-            .with_span(span)?
-        {
-            ContextMatch::None => return Ok(None),
-            ContextMatch::Meta(meta) => return Ok(Some(meta.clone())),
-            ContextMatch::Context(meta, parameters) => (meta, parameters),
-        };
-
-        let Some(item) = &meta.item else {
-            return Err(compile::Error::new(span,
-            QueryErrorKind::MissingItem {
-                hash: meta.hash,
-            }));
-        };
-
-        let meta = meta::Meta {
-            context: true,
-            hash: meta.hash,
-            item_meta: ItemMeta {
-                id: Default::default(),
-                location: Default::default(),
-                item: self.q.pool.alloc_item(item),
-                visibility: Default::default(),
-                module: Default::default(),
-            },
-            kind: meta.kind.clone(),
-            source: None,
-            parameters,
-        };
-
-        self.q.insert_meta(meta.clone()).with_span(span)?;
-
-        tracing::trace!("Found in context: {:?}", meta);
-
-        self.q.visitor.visit_meta(
-            Location::new(self.source_id, span),
-            meta.as_meta_ref(self.q.pool),
-        );
-
-        Ok(Some(meta))
-    }
-
+impl<'a, 'hir> Assembler<'a, 'hir> {
     /// Access the meta for the given language item.
     pub fn lookup_meta(
         &mut self,
@@ -260,28 +86,12 @@ impl<'a> Assembler<'a> {
         item: ItemId,
         parameters: impl AsRef<GenericsParameters>,
     ) -> compile::Result<meta::Meta> {
-        let parameters = parameters.as_ref();
-
-        if let Some(meta) = self.try_lookup_meta(span, item, parameters)? {
-            return Ok(meta);
-        }
-
-        let kind = if !parameters.parameters.is_empty() {
-            CompileErrorKind::MissingItemParameters {
-                item: self.q.pool.item(item).to_owned(),
-                parameters: parameters.as_boxed(),
-            }
-        } else {
-            CompileErrorKind::MissingItem {
-                item: self.q.pool.item(item).to_owned(),
-            }
-        };
-
-        Err(compile::Error::new(span, kind))
+        self.q
+            .lookup_meta(Location::new(self.source_id, span), item, parameters)
     }
 
     /// Pop locals by simply popping them.
-    pub(crate) fn locals_pop(&mut self, total_var_count: usize, span: Span) {
+    pub(crate) fn locals_pop(&mut self, total_var_count: usize, span: &dyn Spanned) {
         match total_var_count {
             0 => (),
             1 => {
@@ -298,7 +108,7 @@ impl<'a> Assembler<'a> {
     ///
     /// The clean operation will preserve the value that is on top of the stack,
     /// and pop the values under it.
-    pub(crate) fn locals_clean(&mut self, total_var_count: usize, span: Span) {
+    pub(crate) fn locals_clean(&mut self, total_var_count: usize, span: &dyn Spanned) {
         match total_var_count {
             0 => (),
             count => {
@@ -307,27 +117,19 @@ impl<'a> Assembler<'a> {
         }
     }
 
-    /// Convert an [ast::Path] into a [Named] item.
-    pub(crate) fn convert_path<'hir>(
-        &mut self,
-        path: &'hir hir::Path<'hir>,
-    ) -> compile::Result<Named<'hir>> {
-        self.q.convert_path(self.context, path)
-    }
-
     /// Clean the last scope.
     pub(crate) fn clean_last_scope(
         &mut self,
-        span: Span,
+        span: &dyn Spanned,
         expected: ScopeGuard,
         needs: Needs,
     ) -> compile::Result<()> {
         let scope = self.scopes.pop(expected, span)?;
 
         if needs.value() {
-            self.locals_clean(scope.local_var_count, span);
+            self.locals_clean(scope.local, span);
         } else {
-            self.locals_pop(scope.local_var_count, span);
+            self.locals_pop(scope.local, span);
         }
 
         Ok(())
@@ -341,8 +143,7 @@ impl<'a> Assembler<'a> {
     /// Calling a constant function by id and return the resuling value.
     pub(crate) fn call_const_fn(
         &mut self,
-        span: Span,
-        meta: &meta::Meta,
+        span: &dyn Spanned,
         from: &ItemMeta,
         query_const_fn: &ConstFn,
         args: &[hir::Expr<'_>],
@@ -351,7 +152,6 @@ impl<'a> Assembler<'a> {
             return Err(compile::Error::new(
                 span,
                 CompileErrorKind::UnsupportedArgumentCount {
-                    meta: meta.info(self.q.pool),
                     expected: query_const_fn.ir_fn.args.len(),
                     actual: args.len(),
                 },

@@ -7,7 +7,10 @@ use rune::{Context, Diagnostics, Module, Vm, T};
 use std::sync::Arc;
 
 #[rune::macro_]
-fn concat_idents(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> compile::Result<TokenStream> {
+fn concat_idents(
+    ctx: &mut MacroContext<'_, '_>,
+    stream: &TokenStream,
+) -> compile::Result<TokenStream> {
     let mut output = String::new();
 
     let mut p = Parser::from_token_stream(stream, ctx.input_span());

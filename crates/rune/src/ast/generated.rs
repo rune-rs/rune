@@ -39,7 +39,7 @@ impl parse::Peek for Abstract {
 }
 
 impl macros::ToTokens for Abstract {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Abstract,
@@ -79,7 +79,7 @@ impl parse::Peek for AlignOf {
 }
 
 impl macros::ToTokens for AlignOf {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::AlignOf,
@@ -119,7 +119,7 @@ impl parse::Peek for Amp {
 }
 
 impl macros::ToTokens for Amp {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Amp,
@@ -159,7 +159,7 @@ impl parse::Peek for AmpAmp {
 }
 
 impl macros::ToTokens for AmpAmp {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::AmpAmp,
@@ -199,7 +199,7 @@ impl parse::Peek for AmpEq {
 }
 
 impl macros::ToTokens for AmpEq {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::AmpEq,
@@ -239,7 +239,7 @@ impl parse::Peek for Arrow {
 }
 
 impl macros::ToTokens for Arrow {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Arrow,
@@ -279,7 +279,7 @@ impl parse::Peek for As {
 }
 
 impl macros::ToTokens for As {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::As,
@@ -319,7 +319,7 @@ impl parse::Peek for Async {
 }
 
 impl macros::ToTokens for Async {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Async,
@@ -359,7 +359,7 @@ impl parse::Peek for At {
 }
 
 impl macros::ToTokens for At {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::At,
@@ -399,7 +399,7 @@ impl parse::Peek for Await {
 }
 
 impl macros::ToTokens for Await {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Await,
@@ -439,7 +439,7 @@ impl parse::Peek for Bang {
 }
 
 impl macros::ToTokens for Bang {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Bang,
@@ -479,7 +479,7 @@ impl parse::Peek for BangEq {
 }
 
 impl macros::ToTokens for BangEq {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::BangEq,
@@ -519,7 +519,7 @@ impl parse::Peek for Become {
 }
 
 impl macros::ToTokens for Become {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Become,
@@ -559,7 +559,7 @@ impl parse::Peek for Break {
 }
 
 impl macros::ToTokens for Break {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Break,
@@ -599,7 +599,7 @@ impl parse::Peek for Caret {
 }
 
 impl macros::ToTokens for Caret {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Caret,
@@ -639,7 +639,7 @@ impl parse::Peek for CaretEq {
 }
 
 impl macros::ToTokens for CaretEq {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::CaretEq,
@@ -679,7 +679,7 @@ impl parse::Peek for Colon {
 }
 
 impl macros::ToTokens for Colon {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Colon,
@@ -719,7 +719,7 @@ impl parse::Peek for ColonColon {
 }
 
 impl macros::ToTokens for ColonColon {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::ColonColon,
@@ -759,7 +759,7 @@ impl parse::Peek for Comma {
 }
 
 impl macros::ToTokens for Comma {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Comma,
@@ -799,7 +799,7 @@ impl parse::Peek for Const {
 }
 
 impl macros::ToTokens for Const {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Const,
@@ -839,7 +839,7 @@ impl parse::Peek for Continue {
 }
 
 impl macros::ToTokens for Continue {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Continue,
@@ -879,7 +879,7 @@ impl parse::Peek for Crate {
 }
 
 impl macros::ToTokens for Crate {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Crate,
@@ -919,7 +919,7 @@ impl parse::Peek for Dash {
 }
 
 impl macros::ToTokens for Dash {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Dash,
@@ -959,7 +959,7 @@ impl parse::Peek for DashEq {
 }
 
 impl macros::ToTokens for DashEq {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::DashEq,
@@ -999,7 +999,7 @@ impl parse::Peek for Default {
 }
 
 impl macros::ToTokens for Default {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Default,
@@ -1039,7 +1039,7 @@ impl parse::Peek for Div {
 }
 
 impl macros::ToTokens for Div {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Div,
@@ -1079,7 +1079,7 @@ impl parse::Peek for Do {
 }
 
 impl macros::ToTokens for Do {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Do,
@@ -1119,7 +1119,7 @@ impl parse::Peek for Dollar {
 }
 
 impl macros::ToTokens for Dollar {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Dollar,
@@ -1159,7 +1159,7 @@ impl parse::Peek for Dot {
 }
 
 impl macros::ToTokens for Dot {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Dot,
@@ -1199,7 +1199,7 @@ impl parse::Peek for DotDot {
 }
 
 impl macros::ToTokens for DotDot {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::DotDot,
@@ -1239,7 +1239,7 @@ impl parse::Peek for DotDotEq {
 }
 
 impl macros::ToTokens for DotDotEq {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::DotDotEq,
@@ -1279,7 +1279,7 @@ impl parse::Peek for Else {
 }
 
 impl macros::ToTokens for Else {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Else,
@@ -1319,7 +1319,7 @@ impl parse::Peek for Enum {
 }
 
 impl macros::ToTokens for Enum {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Enum,
@@ -1359,7 +1359,7 @@ impl parse::Peek for Eq {
 }
 
 impl macros::ToTokens for Eq {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Eq,
@@ -1399,7 +1399,7 @@ impl parse::Peek for EqEq {
 }
 
 impl macros::ToTokens for EqEq {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::EqEq,
@@ -1439,7 +1439,7 @@ impl parse::Peek for Extern {
 }
 
 impl macros::ToTokens for Extern {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Extern,
@@ -1479,7 +1479,7 @@ impl parse::Peek for False {
 }
 
 impl macros::ToTokens for False {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::False,
@@ -1519,7 +1519,7 @@ impl parse::Peek for Final {
 }
 
 impl macros::ToTokens for Final {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Final,
@@ -1559,7 +1559,7 @@ impl parse::Peek for Fn {
 }
 
 impl macros::ToTokens for Fn {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Fn,
@@ -1599,7 +1599,7 @@ impl parse::Peek for For {
 }
 
 impl macros::ToTokens for For {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::For,
@@ -1639,7 +1639,7 @@ impl parse::Peek for Gt {
 }
 
 impl macros::ToTokens for Gt {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Gt,
@@ -1679,7 +1679,7 @@ impl parse::Peek for GtEq {
 }
 
 impl macros::ToTokens for GtEq {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::GtEq,
@@ -1719,7 +1719,7 @@ impl parse::Peek for GtGt {
 }
 
 impl macros::ToTokens for GtGt {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::GtGt,
@@ -1759,7 +1759,7 @@ impl parse::Peek for GtGtEq {
 }
 
 impl macros::ToTokens for GtGtEq {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::GtGtEq,
@@ -1799,7 +1799,7 @@ impl parse::Peek for If {
 }
 
 impl macros::ToTokens for If {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::If,
@@ -1839,7 +1839,7 @@ impl parse::Peek for Impl {
 }
 
 impl macros::ToTokens for Impl {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Impl,
@@ -1879,7 +1879,7 @@ impl parse::Peek for In {
 }
 
 impl macros::ToTokens for In {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::In,
@@ -1919,7 +1919,7 @@ impl parse::Peek for Is {
 }
 
 impl macros::ToTokens for Is {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Is,
@@ -1959,7 +1959,7 @@ impl parse::Peek for Let {
 }
 
 impl macros::ToTokens for Let {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Let,
@@ -1999,7 +1999,7 @@ impl parse::Peek for Loop {
 }
 
 impl macros::ToTokens for Loop {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Loop,
@@ -2039,7 +2039,7 @@ impl parse::Peek for Lt {
 }
 
 impl macros::ToTokens for Lt {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Lt,
@@ -2079,7 +2079,7 @@ impl parse::Peek for LtEq {
 }
 
 impl macros::ToTokens for LtEq {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::LtEq,
@@ -2119,7 +2119,7 @@ impl parse::Peek for LtLt {
 }
 
 impl macros::ToTokens for LtLt {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::LtLt,
@@ -2159,7 +2159,7 @@ impl parse::Peek for LtLtEq {
 }
 
 impl macros::ToTokens for LtLtEq {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::LtLtEq,
@@ -2199,7 +2199,7 @@ impl parse::Peek for Macro {
 }
 
 impl macros::ToTokens for Macro {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Macro,
@@ -2239,7 +2239,7 @@ impl parse::Peek for Match {
 }
 
 impl macros::ToTokens for Match {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Match,
@@ -2279,7 +2279,7 @@ impl parse::Peek for Mod {
 }
 
 impl macros::ToTokens for Mod {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Mod,
@@ -2319,7 +2319,7 @@ impl parse::Peek for Move {
 }
 
 impl macros::ToTokens for Move {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Move,
@@ -2359,7 +2359,7 @@ impl parse::Peek for Not {
 }
 
 impl macros::ToTokens for Not {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Not,
@@ -2399,7 +2399,7 @@ impl parse::Peek for OffsetOf {
 }
 
 impl macros::ToTokens for OffsetOf {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::OffsetOf,
@@ -2439,7 +2439,7 @@ impl parse::Peek for Override {
 }
 
 impl macros::ToTokens for Override {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Override,
@@ -2479,7 +2479,7 @@ impl parse::Peek for Perc {
 }
 
 impl macros::ToTokens for Perc {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Perc,
@@ -2519,7 +2519,7 @@ impl parse::Peek for PercEq {
 }
 
 impl macros::ToTokens for PercEq {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::PercEq,
@@ -2559,7 +2559,7 @@ impl parse::Peek for Pipe {
 }
 
 impl macros::ToTokens for Pipe {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Pipe,
@@ -2599,7 +2599,7 @@ impl parse::Peek for PipeEq {
 }
 
 impl macros::ToTokens for PipeEq {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::PipeEq,
@@ -2639,7 +2639,7 @@ impl parse::Peek for PipePipe {
 }
 
 impl macros::ToTokens for PipePipe {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::PipePipe,
@@ -2679,7 +2679,7 @@ impl parse::Peek for Plus {
 }
 
 impl macros::ToTokens for Plus {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Plus,
@@ -2719,7 +2719,7 @@ impl parse::Peek for PlusEq {
 }
 
 impl macros::ToTokens for PlusEq {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::PlusEq,
@@ -2759,7 +2759,7 @@ impl parse::Peek for Pound {
 }
 
 impl macros::ToTokens for Pound {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Pound,
@@ -2799,7 +2799,7 @@ impl parse::Peek for Priv {
 }
 
 impl macros::ToTokens for Priv {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Priv,
@@ -2839,7 +2839,7 @@ impl parse::Peek for Proc {
 }
 
 impl macros::ToTokens for Proc {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Proc,
@@ -2879,7 +2879,7 @@ impl parse::Peek for Pub {
 }
 
 impl macros::ToTokens for Pub {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Pub,
@@ -2919,7 +2919,7 @@ impl parse::Peek for Pure {
 }
 
 impl macros::ToTokens for Pure {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Pure,
@@ -2959,7 +2959,7 @@ impl parse::Peek for QuestionMark {
 }
 
 impl macros::ToTokens for QuestionMark {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::QuestionMark,
@@ -2999,7 +2999,7 @@ impl parse::Peek for Ref {
 }
 
 impl macros::ToTokens for Ref {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Ref,
@@ -3039,7 +3039,7 @@ impl parse::Peek for Return {
 }
 
 impl macros::ToTokens for Return {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Return,
@@ -3079,7 +3079,7 @@ impl parse::Peek for Rocket {
 }
 
 impl macros::ToTokens for Rocket {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Rocket,
@@ -3119,7 +3119,7 @@ impl parse::Peek for Select {
 }
 
 impl macros::ToTokens for Select {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Select,
@@ -3159,7 +3159,7 @@ impl parse::Peek for SelfType {
 }
 
 impl macros::ToTokens for SelfType {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::SelfType,
@@ -3199,7 +3199,7 @@ impl parse::Peek for SelfValue {
 }
 
 impl macros::ToTokens for SelfValue {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::SelfValue,
@@ -3239,7 +3239,7 @@ impl parse::Peek for SemiColon {
 }
 
 impl macros::ToTokens for SemiColon {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::SemiColon,
@@ -3279,7 +3279,7 @@ impl parse::Peek for SizeOf {
 }
 
 impl macros::ToTokens for SizeOf {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::SizeOf,
@@ -3319,7 +3319,7 @@ impl parse::Peek for SlashEq {
 }
 
 impl macros::ToTokens for SlashEq {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::SlashEq,
@@ -3359,7 +3359,7 @@ impl parse::Peek for Star {
 }
 
 impl macros::ToTokens for Star {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Star,
@@ -3399,7 +3399,7 @@ impl parse::Peek for StarEq {
 }
 
 impl macros::ToTokens for StarEq {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::StarEq,
@@ -3439,7 +3439,7 @@ impl parse::Peek for Static {
 }
 
 impl macros::ToTokens for Static {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Static,
@@ -3479,7 +3479,7 @@ impl parse::Peek for Struct {
 }
 
 impl macros::ToTokens for Struct {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Struct,
@@ -3519,7 +3519,7 @@ impl parse::Peek for Super {
 }
 
 impl macros::ToTokens for Super {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Super,
@@ -3559,7 +3559,7 @@ impl parse::Peek for Tilde {
 }
 
 impl macros::ToTokens for Tilde {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Tilde,
@@ -3599,7 +3599,7 @@ impl parse::Peek for True {
 }
 
 impl macros::ToTokens for True {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::True,
@@ -3639,7 +3639,7 @@ impl parse::Peek for TypeOf {
 }
 
 impl macros::ToTokens for TypeOf {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::TypeOf,
@@ -3679,7 +3679,7 @@ impl parse::Peek for Underscore {
 }
 
 impl macros::ToTokens for Underscore {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Underscore,
@@ -3719,7 +3719,7 @@ impl parse::Peek for Unsafe {
 }
 
 impl macros::ToTokens for Unsafe {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Unsafe,
@@ -3759,7 +3759,7 @@ impl parse::Peek for Use {
 }
 
 impl macros::ToTokens for Use {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Use,
@@ -3799,7 +3799,7 @@ impl parse::Peek for Virtual {
 }
 
 impl macros::ToTokens for Virtual {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Virtual,
@@ -3839,7 +3839,7 @@ impl parse::Peek for While {
 }
 
 impl macros::ToTokens for While {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::While,
@@ -3879,7 +3879,7 @@ impl parse::Peek for Yield {
 }
 
 impl macros::ToTokens for Yield {
-    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_, '_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Yield,
@@ -4736,7 +4736,11 @@ impl fmt::Display for Kind {
 }
 
 impl macros::ToTokens for Kind {
-    fn to_tokens(&self, context: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
+    fn to_tokens(
+        &self,
+        context: &mut macros::MacroContext<'_, '_>,
+        stream: &mut macros::TokenStream,
+    ) {
         stream.push(ast::Token {
             kind: *self,
             span: context.macro_span(),

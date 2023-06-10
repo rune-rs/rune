@@ -11,11 +11,12 @@ use crate::no_std::thiserror;
 
 use thiserror::Error;
 
-use crate::ast::Span;
+use crate::ast::{Span, Spanned};
 use crate::compile::meta;
 use crate::compile::{
     self, Assembly, AssemblyInst, CompileErrorKind, Item, Location, Pool, QueryErrorKind, WithSpan,
 };
+use crate::query::QueryInner;
 use crate::runtime::debug::{DebugArgs, DebugSignature};
 use crate::runtime::unit::UnitEncoder;
 use crate::runtime::{
@@ -135,7 +136,7 @@ impl UnitBuilder {
     /// Only uses up space if the static string is unique.
     pub(crate) fn new_static_string(
         &mut self,
-        span: Span,
+        span: &dyn Spanned,
         current: &str,
     ) -> compile::Result<usize> {
         let current = StaticString::new(current);
@@ -178,7 +179,7 @@ impl UnitBuilder {
     /// Only uses up space if the static byte string is unique.
     pub(crate) fn new_static_bytes(
         &mut self,
-        span: Span,
+        span: &dyn Spanned,
         current: &[u8],
     ) -> compile::Result<usize> {
         let hash = Hash::static_bytes(current);
@@ -218,7 +219,7 @@ impl UnitBuilder {
     /// existing.
     pub(crate) fn new_static_object_keys_iter<I>(
         &mut self,
-        span: Span,
+        span: &dyn Spanned,
         current: I,
     ) -> compile::Result<usize>
     where
@@ -237,7 +238,7 @@ impl UnitBuilder {
     /// existing.
     pub(crate) fn new_static_object_keys(
         &mut self,
-        span: Span,
+        span: &dyn Spanned,
         current: Box<[String]>,
     ) -> compile::Result<usize> {
         let hash = Hash::object_keys(&current[..]);
@@ -279,6 +280,7 @@ impl UnitBuilder {
         span: Span,
         meta: &meta::Meta,
         pool: &mut Pool,
+        query: &mut QueryInner,
     ) -> compile::Result<()> {
         match meta.kind {
             meta::Kind::Type { .. } => {
@@ -503,18 +505,22 @@ impl UnitBuilder {
                     ConstValue::String(pool.item(meta.item_meta.item).to_string()),
                 );
             }
+            meta::Kind::Const { .. } => {
+                let Some(const_value) = query.get_const_value(meta.hash) else {
+                    return Err(compile::Error::msg(
+                        span,
+                        format_args!("Missing constant for hash {}", meta.hash),
+                    ));
+                };
+
+                self.constants.insert(meta.hash, const_value.clone());
+            }
             meta::Kind::Macro { .. } => (),
             meta::Kind::AttributeMacro { .. } => (),
             meta::Kind::Function { .. } => (),
             meta::Kind::AssociatedFunction { .. } => (),
             meta::Kind::Closure { .. } => (),
             meta::Kind::AsyncBlock { .. } => (),
-            meta::Kind::Const { ref const_value } => {
-                self.constants.insert(
-                    pool.item_type_hash(meta.item_meta.item),
-                    const_value.clone(),
-                );
-            }
             meta::Kind::ConstFn { .. } => (),
             meta::Kind::Import { .. } => (),
             meta::Kind::Module { .. } => (),

@@ -1,3 +1,4 @@
+use core::fmt;
 use core::mem::take;
 
 use crate::no_std::borrow::Cow;
@@ -5,23 +6,45 @@ use crate::no_std::collections::{hash_map, BTreeMap, HashMap, HashSet, VecDeque}
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
-use crate::ast;
 use crate::ast::{Span, Spanned};
-use crate::compile::ir;
+use crate::compile::context::ContextMeta;
 use crate::compile::meta;
+use crate::compile::v1::GenericsParameters;
 use crate::compile::{
     self, CompileErrorKind, CompileVisitor, ComponentRef, Doc, ImportStep, IntoComponent, IrBudget,
     IrCompiler, IrInterpreter, Item, ItemBuf, ItemId, ItemMeta, Location, ModId, ModMeta, Names,
     Pool, Prelude, QueryErrorKind, SourceMeta, UnitBuilder, Visibility, WithSpan,
 };
+use crate::compile::{ir, SourceLoader};
 use crate::hir;
 use crate::indexing::{self, Indexed};
 use crate::macros::Storage;
 use crate::parse::{Id, NonZeroId, Opaque, Resolve, ResolveContext};
 use crate::query::{Build, BuildEntry, BuiltInMacro, ConstFn, Named, QueryPath, Used};
-use crate::runtime::Call;
+use crate::runtime::ConstValue;
 use crate::shared::{Consts, Gen, Items};
-use crate::{Context, Hash, SourceId, Sources};
+use crate::{ast, Options};
+use crate::{Context, Diagnostics, Hash, SourceId, Sources};
+
+#[derive(Debug)]
+pub struct MissingId {
+    what: &'static str,
+    id: Id,
+}
+
+impl fmt::Display for MissingId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Missing {} for id {:?}", self.what, self.id)
+    }
+}
+
+impl crate::no_std::error::Error for MissingId {}
+
+enum ContextMatch<'this, 'm> {
+    Context(&'m ContextMeta, Hash),
+    Meta(&'this meta::Meta),
+    None,
+}
 
 /// The permitted number of import recursions when constructing a path.
 const IMPORT_RECURSION_LIMIT: usize = 128;
@@ -31,16 +54,18 @@ pub(crate) struct QueryInner {
     /// Resolved meta about every single item during a compilation.
     meta: HashMap<(ItemId, Hash), meta::Meta>,
     /// Build queue.
-    queue: VecDeque<BuildEntry>,
+    pub(crate) queue: VecDeque<BuildEntry>,
     /// Indexed items that can be queried for, which will queue up for them to
     /// be compiled.
     indexed: BTreeMap<ItemId, Vec<indexing::Entry>>,
     /// Compiled constant functions.
     const_fns: HashMap<NonZeroId, Arc<ConstFn>>,
+    /// Indexed constant values.
+    constants: HashMap<Hash, ConstValue>,
     /// Query paths.
     query_paths: HashMap<NonZeroId, QueryPath>,
     /// The result of internally resolved macros.
-    internal_macros: HashMap<NonZeroId, BuiltInMacro>,
+    internal_macros: HashMap<NonZeroId, Arc<BuiltInMacro>>,
     /// Associated between `id` and `Item`. Use to look up items through
     /// `item_for` with an opaque id.
     ///
@@ -49,6 +74,15 @@ pub(crate) struct QueryInner {
     items: HashMap<NonZeroId, ItemMeta>,
     /// All available names.
     names: Names,
+    /// Recorded captures.
+    captures: HashMap<Hash, Vec<(hir::Variable, hir::OwnedCapture)>>,
+}
+
+impl QueryInner {
+    /// Get a constant value but only from the dynamic query system.
+    pub(crate) fn get_const_value(&self, hash: Hash) -> Option<&ConstValue> {
+        self.constants.get(&hash)
+    }
 }
 
 /// Query system of the rune compiler.
@@ -75,10 +109,18 @@ pub(crate) struct Query<'a> {
     pub(crate) pool: &'a mut Pool,
     /// Visitor for the compiler meta.
     pub(crate) visitor: &'a mut dyn CompileVisitor,
+    /// Compilation warnings.
+    pub(crate) diagnostics: &'a mut Diagnostics,
+    /// Source loader.
+    pub(crate) source_loader: &'a mut dyn SourceLoader,
+    /// Build opt8ions.
+    pub(crate) options: &'a Options,
     /// Shared id generator.
     pub(crate) gen: &'a Gen,
+    /// Native context.
+    pub(crate) context: &'a Context,
     /// Inner state of the query engine.
-    inner: &'a mut QueryInner,
+    pub(crate) inner: &'a mut QueryInner,
 }
 
 impl<'a> Query<'a> {
@@ -91,7 +133,11 @@ impl<'a> Query<'a> {
         sources: &'a mut Sources,
         pool: &'a mut Pool,
         visitor: &'a mut dyn CompileVisitor,
+        diagnostics: &'a mut Diagnostics,
+        source_loader: &'a mut dyn SourceLoader,
+        options: &'a Options,
         gen: &'a Gen,
+        context: &'a Context,
         inner: &'a mut QueryInner,
     ) -> Self {
         Self {
@@ -102,7 +148,11 @@ impl<'a> Query<'a> {
             sources,
             pool,
             visitor,
+            diagnostics,
+            source_loader,
+            options,
             gen,
+            context,
             inner,
         }
     }
@@ -117,7 +167,11 @@ impl<'a> Query<'a> {
             pool: self.pool,
             sources: self.sources,
             visitor: self.visitor,
+            diagnostics: self.diagnostics,
+            source_loader: self.source_loader,
+            options: self.options,
             gen: self.gen,
+            context: self.context,
             inner: self.inner,
         }
     }
@@ -126,6 +180,193 @@ impl<'a> Query<'a> {
     /// engine.
     pub(crate) fn next_build_entry(&mut self) -> Option<BuildEntry> {
         self.inner.queue.pop_front()
+    }
+
+    // Pick private metadata to compile for the item.
+    fn select_context_meta<'this, 'm>(
+        &'this self,
+        item: ItemId,
+        metas: impl Iterator<Item = &'m ContextMeta> + Clone,
+        parameters: &GenericsParameters,
+    ) -> Result<ContextMatch<'this, 'm>, Box<QueryErrorKind>> {
+        #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+        enum Kind {
+            None,
+            Type,
+            Function,
+            AssociatedFunction,
+        }
+
+        /// Determine how the collection of generic parameters applies to the
+        /// returned context meta.
+        fn determine_kind<'m>(metas: impl Iterator<Item = &'m ContextMeta>) -> Option<Kind> {
+            let mut kind = Kind::None;
+
+            for meta in metas {
+                let alt = match &meta.kind {
+                    meta::Kind::Enum { .. }
+                    | meta::Kind::Struct { .. }
+                    | meta::Kind::Type { .. } => Kind::Type,
+                    meta::Kind::Function { .. } => Kind::Function,
+                    meta::Kind::AssociatedFunction { .. } => Kind::AssociatedFunction,
+                    _ => {
+                        continue;
+                    }
+                };
+
+                if matches!(kind, Kind::None) {
+                    kind = alt;
+                    continue;
+                }
+
+                if kind != alt {
+                    return None;
+                }
+            }
+
+            Some(kind)
+        }
+
+        fn build_parameters(kind: Kind, p: &GenericsParameters) -> Option<Hash> {
+            let hash = match (kind, p.trailing, p.parameters) {
+                (_, 0, _) => Hash::EMPTY,
+                (Kind::Type, 1, [Some(ty), None]) => Hash::EMPTY.with_type_parameters(ty),
+                (Kind::Function, 1, [Some(f), None]) => Hash::EMPTY.with_function_parameters(f),
+                (Kind::AssociatedFunction, 1, [Some(f), None]) => {
+                    Hash::EMPTY.with_function_parameters(f)
+                }
+                (Kind::AssociatedFunction, 2, [Some(ty), f]) => Hash::EMPTY
+                    .with_type_parameters(ty)
+                    .with_function_parameters(f.unwrap_or(Hash::EMPTY)),
+                _ => {
+                    return None;
+                }
+            };
+
+            Some(hash)
+        }
+
+        if let Some(parameters) =
+            determine_kind(metas.clone()).and_then(|kind| build_parameters(kind, parameters))
+        {
+            if let Some(meta) = self.get_meta(item, parameters) {
+                return Ok(ContextMatch::Meta(meta));
+            }
+
+            // If there is a single item matching the specified generic hash, pick
+            // it.
+            let mut it = metas
+                .clone()
+                .filter(|i| !matches!(i.kind, meta::Kind::Macro | meta::Kind::Module))
+                .filter(|i| i.kind.as_parameters() == parameters);
+
+            if let Some(meta) = it.next() {
+                if it.next().is_none() {
+                    return Ok(ContextMatch::Context(meta, parameters));
+                }
+            } else {
+                return Ok(ContextMatch::None);
+            }
+        }
+
+        if metas.clone().next().is_none() {
+            return Ok(ContextMatch::None);
+        }
+
+        Err(Box::new(QueryErrorKind::AmbiguousContextItem {
+            item: self.pool.item(item).to_owned(),
+            infos: metas.map(|i| i.info()).collect(),
+        }))
+    }
+
+    /// Access the meta for the given language item.
+    pub(crate) fn try_lookup_meta(
+        &mut self,
+        location: Location,
+        item: ItemId,
+        parameters: &GenericsParameters,
+    ) -> compile::Result<Option<meta::Meta>> {
+        tracing::trace!("lookup meta: {:?}", item);
+
+        if parameters.is_empty() {
+            if let Some(meta) = self.query_meta(location.span, item, Default::default())? {
+                tracing::trace!("found in query: {:?}", meta);
+                self.visitor
+                    .visit_meta(location, meta.as_meta_ref(self.pool));
+                return Ok(Some(meta));
+            }
+        }
+
+        let Some(metas) = self.context.lookup_meta(self.pool.item(item)) else {
+            return Ok(None);
+        };
+
+        let (meta, parameters) = match self
+            .select_context_meta(item, metas, parameters)
+            .with_span(location.span)?
+        {
+            ContextMatch::None => return Ok(None),
+            ContextMatch::Meta(meta) => return Ok(Some(meta.clone())),
+            ContextMatch::Context(meta, parameters) => (meta, parameters),
+        };
+
+        let Some(item) = &meta.item else {
+            return Err(compile::Error::new(location.span,
+            QueryErrorKind::MissingItem {
+                hash: meta.hash,
+            }));
+        };
+
+        let meta = meta::Meta {
+            context: true,
+            hash: meta.hash,
+            item_meta: ItemMeta {
+                id: Default::default(),
+                location: Default::default(),
+                item: self.pool.alloc_item(item),
+                visibility: Default::default(),
+                module: Default::default(),
+            },
+            kind: meta.kind.clone(),
+            source: None,
+            parameters,
+        };
+
+        self.insert_meta(meta.clone()).with_span(location.span)?;
+
+        tracing::trace!(?meta, "Found in context");
+
+        self.visitor
+            .visit_meta(location, meta.as_meta_ref(self.pool));
+
+        Ok(Some(meta))
+    }
+
+    /// Access the meta for the given language item.
+    pub(crate) fn lookup_meta(
+        &mut self,
+        location: Location,
+        item: ItemId,
+        parameters: impl AsRef<GenericsParameters>,
+    ) -> compile::Result<meta::Meta> {
+        let parameters = parameters.as_ref();
+
+        if let Some(meta) = self.try_lookup_meta(location, item, parameters)? {
+            return Ok(meta);
+        }
+
+        let kind = if !parameters.parameters.is_empty() {
+            CompileErrorKind::MissingItemParameters {
+                item: self.pool.item(item).to_owned(),
+                parameters: parameters.as_boxed(),
+            }
+        } else {
+            CompileErrorKind::MissingItem {
+                item: self.pool.item(item).to_owned(),
+            }
+        };
+
+        Err(compile::Error::new(location.span, kind))
     }
 
     /// Insert path information.
@@ -153,8 +394,8 @@ impl<'a> Query<'a> {
 
     /// Remove a reference to the given path by id.
     pub(crate) fn remove_path_by_id(&mut self, id: Id) {
-        if let Some(id) = id.as_ref() {
-            self.inner.query_paths.remove(id);
+        if let Some(id) = id.get() {
+            self.inner.query_paths.remove(&id);
         }
     }
 
@@ -302,75 +543,59 @@ impl<'a> Query<'a> {
         internal_macro: BuiltInMacro,
     ) -> compile::Result<NonZeroId> {
         let id = self.gen.next();
-        self.inner.internal_macros.insert(id, internal_macro);
+        self.inner
+            .internal_macros
+            .insert(id, Arc::new(internal_macro));
         Ok(id)
     }
 
     /// Get the item for the given identifier.
-    pub(crate) fn item_for<T>(&self, ast: T) -> compile::Result<ItemMeta>
+    pub(crate) fn item_for<T>(&self, ast: T) -> compile::Result<ItemMeta, MissingId>
     where
-        T: Spanned + Opaque,
+        T: Opaque,
     {
-        match ast.id().as_ref().and_then(|n| self.inner.items.get(n)) {
-            Some(item_meta) => Ok(*item_meta),
-            None => Err(compile::Error::new(
-                ast.span(),
-                QueryErrorKind::MissingId {
-                    what: "item",
-                    id: ast.id(),
-                },
-            )),
-        }
+        let Some(item_meta) = ast.id().get().and_then(|n| self.inner.items.get(&n)) else {
+            return Err(MissingId {
+                what: "item",
+                id: ast.id(),
+            });
+        };
+
+        Ok(*item_meta)
     }
 
     /// Get the built-in macro matching the given ast.
-    pub(crate) fn builtin_macro_for<T>(&self, ast: T) -> compile::Result<&BuiltInMacro>
+    pub(crate) fn builtin_macro_for<T>(
+        &self,
+        ast: T,
+    ) -> compile::Result<Arc<BuiltInMacro>, MissingId>
     where
-        T: Spanned + Opaque,
+        T: Opaque,
     {
         match ast
             .id()
-            .as_ref()
-            .and_then(|n| self.inner.internal_macros.get(n))
+            .get()
+            .and_then(|n| self.inner.internal_macros.get(&n))
         {
-            Some(internal_macro) => Ok(internal_macro),
-            None => Err(compile::Error::new(
-                ast.span(),
-                QueryErrorKind::MissingId {
-                    what: "builtin macro",
-                    id: ast.id(),
-                },
-            )),
+            Some(internal_macro) => Ok(internal_macro.clone()),
+            None => Err(MissingId {
+                what: "builtin macro",
+                id: ast.id(),
+            }),
         }
     }
 
-    /// Insert an item and return its Id.
-    #[tracing::instrument(skip_all)]
-    fn insert_const_fn(&mut self, item_meta: ItemMeta, ir_fn: ir::IrFn) -> NonZeroId {
-        let id = self.gen.next();
-        tracing::trace!(item = ?self.pool.item(item_meta.item), id = ?id);
-
-        self.inner
-            .const_fns
-            .insert(id, Arc::new(ConstFn { item_meta, ir_fn }));
-
-        id
-    }
-
     /// Get the constant function associated with the opaque.
-    pub(crate) fn const_fn_for<T>(&self, ast: T) -> compile::Result<Arc<ConstFn>>
+    pub(crate) fn const_fn_for<T>(&self, ast: T) -> compile::Result<Arc<ConstFn>, MissingId>
     where
-        T: Spanned + Opaque,
+        T: Opaque,
     {
-        match ast.id().as_ref().and_then(|n| self.inner.const_fns.get(n)) {
+        match ast.id().get().and_then(|n| self.inner.const_fns.get(&n)) {
             Some(const_fn) => Ok(const_fn.clone()),
-            None => Err(compile::Error::new(
-                ast.span(),
-                QueryErrorKind::MissingId {
-                    what: "constant function",
-                    id: ast.id(),
-                },
-            )),
+            None => Err(MissingId {
+                what: "constant function",
+                id: ast.id(),
+            }),
         }
     }
 
@@ -402,25 +627,36 @@ impl<'a> Query<'a> {
 
     /// Index a constant expression.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn index_const<T>(
+    pub(crate) fn index_const_expr(
         &mut self,
         item_meta: ItemMeta,
-        value: &T,
-        f: fn(&T, &mut IrCompiler) -> compile::Result<ir::Ir>,
+        ast: &ast::Expr,
     ) -> compile::Result<()> {
         tracing::trace!(item = ?self.pool.item(item_meta.item));
 
-        let mut c = IrCompiler {
-            source_id: item_meta.location.source_id,
-            q: self.borrow(),
-        };
-        let ir = f(value, &mut c)?;
+        self.index(indexing::Entry {
+            item_meta,
+            indexed: Indexed::ConstExpr(indexing::ConstExpr {
+                ast: Box::new(ast.clone()),
+            }),
+        });
+
+        Ok(())
+    }
+
+    /// Index a constant expression.
+    #[tracing::instrument(skip_all)]
+    pub(crate) fn index_const_block(
+        &mut self,
+        item_meta: ItemMeta,
+        ast: &ast::Block,
+    ) -> compile::Result<()> {
+        tracing::trace!(item = ?self.pool.item(item_meta.item));
 
         self.index(indexing::Entry {
             item_meta,
-            indexed: Indexed::Const(indexing::Const {
-                module: item_meta.module,
-                ir,
+            indexed: Indexed::ConstBlock(indexing::ConstBlock {
+                ast: Box::new(ast.clone()),
             }),
         });
 
@@ -438,10 +674,7 @@ impl<'a> Query<'a> {
 
         self.index(indexing::Entry {
             item_meta,
-            indexed: Indexed::ConstFn(indexing::ConstFn {
-                location: item_meta.location,
-                item_fn,
-            }),
+            indexed: Indexed::ConstFn(indexing::ConstFn { item_fn }),
         });
 
         Ok(())
@@ -500,53 +733,35 @@ impl<'a> Query<'a> {
         Ok(())
     }
 
-    /// Add a new function that can be queried for.
+    /// Index meta immediately.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn index_closure(
+    pub(crate) fn index_meta(
         &mut self,
+        span: Span,
         item_meta: ItemMeta,
-        ast: Box<ast::ExprClosure>,
-        captures: Arc<[String]>,
-        call: Call,
-        do_move: bool,
+        kind: meta::Kind,
     ) -> compile::Result<()> {
         tracing::trace!(item = ?self.pool.item(item_meta.item));
 
-        self.index(indexing::Entry {
+        let source = SourceMeta {
+            location: item_meta.location,
+            path: self
+                .sources
+                .path(item_meta.location.source_id)
+                .map(Into::into),
+        };
+
+        let meta = meta::Meta {
+            context: false,
+            hash: self.pool.item_type_hash(item_meta.item),
             item_meta,
-            indexed: Indexed::Closure(indexing::Closure {
-                ast,
-                captures,
-                call,
-                do_move,
-            }),
-        });
+            kind,
+            source: Some(source),
+            parameters: Hash::EMPTY,
+        };
 
-        Ok(())
-    }
-
-    /// Add a new async block.
-    #[tracing::instrument(skip_all)]
-    pub(crate) fn index_async_block(
-        &mut self,
-        item_meta: ItemMeta,
-        ast: ast::Block,
-        captures: Arc<[String]>,
-        call: Call,
-        do_move: bool,
-    ) -> compile::Result<()> {
-        tracing::trace!(item = ?self.pool.item(item_meta.item));
-
-        self.index(indexing::Entry {
-            item_meta,
-            indexed: Indexed::AsyncBlock(indexing::AsyncBlock {
-                ast,
-                captures,
-                call,
-                do_move,
-            }),
-        });
-
+        self.unit.insert_meta(span, &meta, self.pool, self.inner)?;
+        self.insert_meta(meta).with_span(span)?;
         Ok(())
     }
 
@@ -607,15 +822,18 @@ impl<'a> Query<'a> {
     }
 
     /// Only try and query for meta among items which have been indexed.
+    #[tracing::instrument(skip_all, fields(item = ?self.pool.item(item)))]
     fn query_indexed_meta(
         &mut self,
         span: Span,
         item: ItemId,
         used: Used,
     ) -> compile::Result<Option<meta::Meta>> {
+        tracing::trace!("query indexed meta");
+
         if let Some(entry) = self.remove_indexed(span, item)? {
             let meta = self.build_indexed_entry(span, entry, used)?;
-            self.unit.insert_meta(span, &meta, self.pool)?;
+            self.unit.insert_meta(span, &meta, self.pool, self.inner)?;
             self.insert_meta(meta.clone()).with_span(span)?;
             tracing::trace!(item = ?item, meta = ?meta, "build");
             return Ok(Some(meta));
@@ -628,17 +846,15 @@ impl<'a> Query<'a> {
     #[tracing::instrument(skip_all)]
     pub(crate) fn convert_path<'hir>(
         &mut self,
-        context: &Context,
-        path: &'hir hir::Path<'hir>,
+        path: &hir::Path<'hir>,
     ) -> compile::Result<Named<'hir>> {
+        tracing::trace!("converting path");
+
         let id = path.id();
 
-        let qp = *id
-            .as_ref()
-            .and_then(|id| self.inner.query_paths.get(id))
-            .ok_or_else(|| {
-                compile::Error::new(path, QueryErrorKind::MissingId { what: "path", id })
-            })?;
+        let Some(&qp) = id.get().and_then(|id| self.inner.query_paths.get(&id)) else {
+            return Err(compile::Error::new(path, MissingId { what: "path", id }));
+        };
 
         let mut in_self_type = false;
 
@@ -660,7 +876,7 @@ impl<'a> Query<'a> {
             }
             (None, segment) => match segment.kind {
                 hir::PathSegmentKind::Ident(ident) => {
-                    self.convert_initial_path(context, qp.module, qp.item, ident)?
+                    self.convert_initial_path(qp.module, qp.item, ident)?
                 }
                 hir::PathSegmentKind::Super => self
                     .pool
@@ -1005,7 +1221,7 @@ impl<'a> Query<'a> {
                 parameters: Hash::EMPTY,
             },
             Indexed::Variant(variant) => {
-                let enum_ = self.item_for((span, variant.enum_id))?;
+                let enum_ = self.item_for(variant.enum_id).with_span(span)?;
 
                 // Ensure that the enum is being built and marked as used.
                 let Some(enum_meta) = self.query_meta(span, enum_.item, Default::default())? else {
@@ -1079,40 +1295,35 @@ impl<'a> Query<'a> {
 
                 kind
             }
-            Indexed::Closure(c) => {
-                let captures = c.captures.clone();
-                let do_move = c.do_move;
+            Indexed::ConstExpr(c) => {
+                let ir = {
+                    let arena = crate::hir::Arena::new();
+                    let mut hir_ctx = crate::hir::lowering::Ctx::with_const(
+                        &arena,
+                        self.borrow(),
+                        item_meta.location.source_id,
+                    );
+                    let hir = crate::hir::lowering::expr(&mut hir_ctx, &c.ast)?;
 
-                self.inner.queue.push_back(BuildEntry {
-                    item_meta,
-                    build: Build::Closure(c),
-                    used,
-                });
+                    let mut compiler = IrCompiler {
+                        source_id: item_meta.location.source_id,
+                        q: self.borrow(),
+                    };
+                    ir::compiler::expr(&hir, &mut compiler)?
+                };
 
-                meta::Kind::Closure { captures, do_move }
-            }
-            Indexed::AsyncBlock(b) => {
-                let captures = b.captures.clone();
-                let do_move = b.do_move;
-
-                self.inner.queue.push_back(BuildEntry {
-                    item_meta,
-                    build: Build::AsyncBlock(b),
-                    used,
-                });
-
-                meta::Kind::AsyncBlock { captures, do_move }
-            }
-            Indexed::Const(c) => {
                 let mut const_compiler = IrInterpreter {
                     budget: IrBudget::new(1_000_000),
                     scopes: Default::default(),
-                    module: c.module,
+                    module: item_meta.module,
                     item: item_meta.item,
                     q: self.borrow(),
                 };
 
-                let const_value = const_compiler.eval_const(&c.ir, used)?;
+                let const_value = const_compiler.eval_const(&ir, used)?;
+
+                let hash = self.pool.item_type_hash(item_meta.item);
+                self.inner.constants.insert(hash, const_value);
 
                 if used.is_unused() {
                     self.inner.queue.push_back(BuildEntry {
@@ -1122,22 +1333,71 @@ impl<'a> Query<'a> {
                     });
                 }
 
-                meta::Kind::Const { const_value }
+                meta::Kind::Const
+            }
+            Indexed::ConstBlock(c) => {
+                let ir = {
+                    let arena = crate::hir::Arena::new();
+                    let mut hir_ctx = crate::hir::lowering::Ctx::with_const(
+                        &arena,
+                        self.borrow(),
+                        item_meta.location.source_id,
+                    );
+                    let hir = crate::hir::lowering::block(&mut hir_ctx, &c.ast)?;
+
+                    let mut c = IrCompiler {
+                        source_id: item_meta.location.source_id,
+                        q: self.borrow(),
+                    };
+                    ir::Ir::new(item_meta.location.span, ir::compiler::block(&hir, &mut c)?)
+                };
+
+                let mut const_compiler = IrInterpreter {
+                    budget: IrBudget::new(1_000_000),
+                    scopes: Default::default(),
+                    module: item_meta.module,
+                    item: item_meta.item,
+                    q: self.borrow(),
+                };
+
+                let const_value = const_compiler.eval_const(&ir, used)?;
+
+                let hash = self.pool.item_type_hash(item_meta.item);
+                self.inner.constants.insert(hash, const_value);
+
+                if used.is_unused() {
+                    self.inner.queue.push_back(BuildEntry {
+                        item_meta,
+                        build: Build::Unused,
+                        used,
+                    });
+                }
+
+                meta::Kind::Const
             }
             Indexed::ConstFn(c) => {
                 let ir_fn = {
                     // TODO: avoid this arena?
                     let arena = crate::hir::Arena::new();
-                    let ctx = crate::hir::lowering::Ctx::new(&arena, self.borrow());
-                    let hir = crate::hir::lowering::item_fn(&ctx, &c.item_fn)?;
+                    let mut ctx = crate::hir::lowering::Ctx::with_const(
+                        &arena,
+                        self.borrow(),
+                        item_meta.location.source_id,
+                    );
+                    let hir = crate::hir::lowering::item_fn(&mut ctx, &c.item_fn)?;
+
                     let mut c = IrCompiler {
-                        source_id: c.location.source_id,
+                        source_id: item_meta.location.source_id,
                         q: self.borrow(),
                     };
                     ir::IrFn::compile_ast(&hir, &mut c)?
                 };
 
-                let id = self.insert_const_fn(item_meta, ir_fn);
+                let id = self.gen.next();
+
+                self.inner
+                    .const_fns
+                    .insert(id, Arc::new(ConstFn { item_meta, ir_fn }));
 
                 if used.is_unused() {
                     self.inner.queue.push_back(BuildEntry {
@@ -1147,7 +1407,7 @@ impl<'a> Query<'a> {
                     });
                 }
 
-                meta::Kind::ConstFn { id: Id::new(id) }
+                meta::Kind::ConstFn { id }
             }
             Indexed::Import(import) => {
                 if !import.wildcard {
@@ -1201,7 +1461,7 @@ impl<'a> Query<'a> {
         let entry = indexing::Entry { item_meta, indexed };
 
         let meta = self.build_indexed_entry(span, entry, used)?;
-        self.unit.insert_meta(span, &meta, self.pool)?;
+        self.unit.insert_meta(span, &meta, self.pool, self.inner)?;
         self.insert_meta(meta).with_span(span)?;
         Ok(())
     }
@@ -1281,7 +1541,6 @@ impl<'a> Query<'a> {
     #[tracing::instrument(skip_all, fields(module = ?self.pool.module_item(module), base = ?self.pool.item(base)))]
     fn convert_initial_path(
         &mut self,
-        context: &Context,
         module: ModId,
         base: ItemId,
         local: &ast::Ident,
@@ -1321,7 +1580,7 @@ impl<'a> Query<'a> {
             return Ok(self.pool.alloc_item(item));
         }
 
-        if context.contains_crate(&local) {
+        if self.context.contains_crate(&local) {
             return Ok(self.pool.alloc_item(ItemBuf::with_crate(&local)));
         }
 
@@ -1392,5 +1651,36 @@ impl<'a> Query<'a> {
         }
 
         Ok(())
+    }
+
+    /// Get a constant value.
+    pub(crate) fn get_const_value(&self, hash: Hash) -> Option<&ConstValue> {
+        if let Some(const_value) = self.inner.constants.get(&hash) {
+            return Some(const_value);
+        }
+
+        self.context.get_const_value(hash)
+    }
+
+    /// Insert captures.
+    pub(crate) fn insert_captures<'hir, C>(&mut self, hash: Hash, captures: C)
+    where
+        C: IntoIterator<Item = (hir::Variable, hir::Name<'hir>)>,
+    {
+        let captures = captures.into_iter().map(|(v, c)| {
+            let c = match c {
+                hir::Name::SelfValue => hir::OwnedCapture::SelfValue,
+                hir::Name::Str(name) => hir::OwnedCapture::Name(name.to_owned()),
+            };
+
+            (v, c)
+        });
+
+        self.inner.captures.insert(hash, captures.collect());
+    }
+
+    /// Get captures for the given hash.
+    pub(crate) fn get_captures(&self, hash: Hash) -> Option<&[(hir::Variable, hir::OwnedCapture)]> {
+        Some(self.inner.captures.get(&hash)?)
     }
 }

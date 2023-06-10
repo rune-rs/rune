@@ -24,41 +24,42 @@ use crate::ast::{Span, Spanned};
 use crate::compile::ast;
 use crate::compile::ir;
 use crate::compile::ir::eval::IrEvalBreak;
-use crate::compile::{self, ItemMeta, WithSpan};
+use crate::compile::{self, WithSpan};
 use crate::hir;
+use crate::indexing::index;
+use crate::macros::MacroContext;
+use crate::parse::NonZeroId;
 use crate::query::Used;
 
-/// Context used for [IrEval].
-pub struct IrEvalContext<'a> {
-    pub(crate) c: IrCompiler<'a>,
-    pub(crate) item: &'a ItemMeta,
-}
+impl ast::Expr {
+    pub(crate) fn eval(&self, ctx: &mut MacroContext<'_, '_>) -> compile::Result<IrValue> {
+        let mut expr = self.clone();
+        index::expr(ctx.idx, &mut expr)?;
 
-/// The trait for a type that can be compiled into intermediate representation.
-///
-/// This is primarily used through [MacroContext::eval][crate::macros::MacroContext::eval].
-pub trait IrEval {
-    /// Evaluate the current value as a constant expression and return its value
-    /// through its intermediate representation [IrValue].
-    fn eval(&self, ctx: &mut IrEvalContext<'_>) -> compile::Result<IrValue>;
-}
-
-impl IrEval for ast::Expr {
-    fn eval(&self, ctx: &mut IrEvalContext<'_>) -> compile::Result<IrValue> {
         let ir = {
             // TODO: avoid this arena?
             let arena = crate::hir::Arena::new();
-            let hir_ctx = crate::hir::lowering::Ctx::new(&arena, ctx.c.q.borrow());
-            let hir = crate::hir::lowering::expr(&hir_ctx, self)?;
-            compiler::expr(&hir, &mut ctx.c)?
+            let mut hir_ctx = crate::hir::lowering::Ctx::with_const(
+                &arena,
+                ctx.idx.q.borrow(),
+                ctx.item_meta.location.source_id,
+            );
+            let hir = crate::hir::lowering::expr(&mut hir_ctx, &expr)?;
+
+            let mut c = IrCompiler {
+                source_id: ctx.item_meta.location.source_id,
+                q: ctx.idx.q.borrow(),
+            };
+
+            compiler::expr(&hir, &mut c)?
         };
 
         let mut ir_interpreter = IrInterpreter {
             budget: IrBudget::new(1_000_000),
             scopes: Default::default(),
-            module: ctx.item.module,
-            item: ctx.item.item,
-            q: ctx.c.q.borrow(),
+            module: ctx.item_meta.module,
+            item: ctx.item_meta.item,
+            q: ctx.idx.q.borrow(),
         };
 
         ir_interpreter.eval_value(&ir, Used::Used)
@@ -191,14 +192,12 @@ impl IrFn {
 
         for arg in hir.args {
             if let hir::FnArg::Pat(hir::Pat {
-                kind: hir::PatKind::PatPath(path),
+                kind: hir::PatKind::Path(&hir::PatPathKind::Ident(ident, _)),
                 ..
             }) = arg
             {
-                if let Some(ident) = path.try_as_ident() {
-                    args.push(c.resolve(ident)?.into());
-                    continue;
-                }
+                args.push(ident.into());
+                continue;
             }
 
             return Err(compile::Error::msg(arg, "unsupported argument in const fn"));
@@ -340,14 +339,11 @@ pub enum IrPat {
 }
 
 impl IrPat {
-    fn compile_ast(hir: &hir::Pat<'_>, c: &mut IrCompiler<'_>) -> compile::Result<Self> {
+    fn compile_ast(hir: &hir::Pat<'_>) -> compile::Result<Self> {
         match hir.kind {
-            hir::PatKind::PatIgnore => return Ok(ir::IrPat::Ignore),
-            hir::PatKind::PatPath(path) => {
-                if let Some(ident) = path.try_as_ident() {
-                    let name = c.resolve(ident)?;
-                    return Ok(ir::IrPat::Binding(name.into()));
-                }
+            hir::PatKind::Ignore => return Ok(ir::IrPat::Ignore),
+            hir::PatKind::Path(&hir::PatPathKind::Ident(ident, _)) => {
+                return Ok(ir::IrPat::Binding(ident.into()));
             }
             _ => (),
         }
@@ -478,7 +474,7 @@ pub struct IrCall {
     #[rune(span)]
     pub(crate) span: Span,
     /// The target of the call.
-    pub(crate) target: Box<str>,
+    pub(crate) id: NonZeroId,
     /// Arguments to the call.
     pub(crate) args: Vec<Ir>,
 }

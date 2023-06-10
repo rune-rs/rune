@@ -4,13 +4,13 @@ use core::mem::take;
 use crate::no_std as std;
 use crate::no_std::prelude::*;
 use crate::no_std::thiserror;
-use crate::runtime::unit::{DefaultStorage, UnitEncoder};
 
 use thiserror::Error;
 
-use crate::ast::Span;
+use crate::ast::{Span, Spanned};
 use crate::compile;
 use crate::compile::{CompileVisitor, FileSourceLoader, Options, Pool, SourceLoader};
+use crate::runtime::unit::{DefaultStorage, UnitEncoder};
 use crate::runtime::Unit;
 use crate::{Context, Diagnostics, SourceId, Sources};
 
@@ -113,7 +113,12 @@ impl<'a> compile::CompileVisitor for CompileVisitorGroup<'a> {
         }
     }
 
-    fn visit_variable_use(&mut self, source_id: SourceId, var_span: Span, span: Span) {
+    fn visit_variable_use(
+        &mut self,
+        source_id: SourceId,
+        var_span: &dyn Spanned,
+        span: &dyn Spanned,
+    ) {
         for v in self.visitors.iter_mut() {
             v.visit_variable_use(source_id, var_span, span)
         }
@@ -275,10 +280,10 @@ impl<'a, S> Build<'a, S> {
             self.sources,
             &mut pool,
             context,
-            diagnostics,
-            options,
             visitors,
+            diagnostics,
             source_loader,
+            options,
             &mut unit_storage,
         );
 

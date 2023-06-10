@@ -11,15 +11,17 @@
 //! [`rune::attribute_macro`](crate::attribute_macro) for attribute macros (`#[some_macro ...]`).
 //!
 //! ```
-//! use rune::{T, Context, Module, Vm};
+//! use rune::{T, Context, Diagnostics, Module, Vm};
 //! use rune::ast;
 //! use rune::compile;
 //! use rune::macros::{quote, MacroContext, TokenStream, ToTokens};
 //! use rune::parse::Parser;
+//! use rune::termcolor::{ColorChoice, StandardStream};
+//!
 //! use std::sync::Arc;
 //!
 //! #[rune::macro_]
-//! fn concat_idents(ctx: &mut MacroContext<'_>, input: &TokenStream) -> compile::Result<TokenStream> {
+//! fn concat_idents(ctx: &mut MacroContext<'_, '_>, input: &TokenStream) -> compile::Result<TokenStream> {
 //!     let mut output = String::new();
 //!
 //!     let mut p = Parser::from_token_stream(input, ctx.input_span());
@@ -43,7 +45,7 @@
 //! }
 //!
 //! #[rune::attribute_macro]
-//! fn rename(ctx: &mut MacroContext<'_>, input: &TokenStream, item: &TokenStream) -> compile::Result<TokenStream> {
+//! fn rename(ctx: &mut MacroContext<'_, '_>, input: &TokenStream, item: &TokenStream) -> compile::Result<TokenStream> {
 //!     let mut parser = Parser::from_token_stream(item, ctx.macro_span());
 //!     let mut fun: ast::ItemFn = parser.parse_all()?;
 //!
@@ -55,7 +57,6 @@
 //!     Ok(tokens)
 //! }
 //!
-//! # fn main() -> rune::Result<()> {
 //! let mut m = Module::new();
 //! m.macro_meta(concat_idents)?;
 //! m.macro_meta(rename)?;
@@ -79,10 +80,19 @@
 //!     }
 //! };
 //!
-//! let unit = rune::prepare(&mut sources)
-//!     .with_context(&context)
-//!     .build()?;
+//! let mut diagnostics = Diagnostics::new();
 //!
+//! let result = rune::prepare(&mut sources)
+//!     .with_context(&context)
+//!     .with_diagnostics(&mut diagnostics)
+//!     .build();
+//!
+//! if !diagnostics.is_empty() {
+//!     let mut writer = StandardStream::stderr(ColorChoice::Always);
+//!     diagnostics.emit(&mut writer, &sources)?;
+//! }
+//!
+//! let unit = result?;
 //! let unit = Arc::new(unit);
 //!
 //! let mut vm = Vm::new(runtime, unit);
@@ -90,8 +100,7 @@
 //! let value: u32 = rune::from_value(value)?;
 //!
 //! assert_eq!(value, 42);
-//! # Ok(())
-//! # }
+//! # Ok::<_, rune::Error>(())
 //! ```
 
 mod format_args;

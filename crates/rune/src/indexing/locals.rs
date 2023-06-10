@@ -2,104 +2,90 @@
 use crate::ast::{self, Spanned};
 use crate::compile;
 use crate::indexing::Indexer;
-use crate::parse::Resolve;
 
 use rune_macros::instrument;
 
-#[instrument]
-pub(crate) fn pat(ast: &mut ast::Pat, idx: &mut Indexer<'_>) -> compile::Result<()> {
+#[instrument(span = ast)]
+pub(crate) fn pat(idx: &mut Indexer<'_>, ast: &mut ast::Pat) -> compile::Result<()> {
     match ast {
-        ast::Pat::PatPath(p) => {
-            pat_path(p, idx)?;
+        ast::Pat::Path(p) => {
+            pat_path(idx, p)?;
         }
-        ast::Pat::PatObject(p) => {
-            pat_object(p, idx)?;
+        ast::Pat::Object(p) => {
+            pat_object(idx, p)?;
         }
-        ast::Pat::PatVec(p) => {
-            pat_vec(p, idx)?;
+        ast::Pat::Vec(p) => {
+            pat_vec(idx, p)?;
         }
-        ast::Pat::PatTuple(p) => {
-            pat_tuple(p, idx)?;
+        ast::Pat::Tuple(p) => {
+            pat_tuple(idx, p)?;
         }
-        ast::Pat::PatBinding(p) => {
-            pat_binding(p, idx)?;
+        ast::Pat::Binding(p) => {
+            pat_binding(idx, p)?;
         }
-        ast::Pat::PatIgnore(..) => (),
-        ast::Pat::PatLit(..) => (),
-        ast::Pat::PatRest(..) => (),
+        ast::Pat::Ignore(..) => (),
+        ast::Pat::Lit(..) => (),
+        ast::Pat::Rest(..) => (),
     }
 
     Ok(())
 }
 
-#[instrument]
-fn pat_path(ast: &mut ast::PatPath, idx: &mut Indexer<'_>) -> compile::Result<()> {
-    path(&mut ast.path, idx)?;
+#[instrument(span = ast)]
+fn pat_path(idx: &mut Indexer<'_>, ast: &mut ast::PatPath) -> compile::Result<()> {
+    path(idx, &mut ast.path)?;
     Ok(())
 }
 
-#[instrument]
-fn path(ast: &mut ast::Path, idx: &mut Indexer<'_>) -> compile::Result<()> {
+#[instrument(span = ast)]
+fn path(idx: &mut Indexer<'_>, ast: &mut ast::Path) -> compile::Result<()> {
     let id = idx
         .q
         .insert_path(idx.mod_item, idx.impl_item, &idx.items.item());
     ast.id.set(id);
-
-    if let Some(i) = ast.try_as_ident_mut() {
-        ident(i, idx)?;
-    }
-
     Ok(())
 }
 
-#[instrument]
-fn ident(ast: &mut ast::Ident, idx: &mut Indexer<'_>) -> compile::Result<()> {
-    let span = ast.span();
-    let ident = ast.resolve(resolve_context!(idx.q))?;
-    idx.scopes.declare(ident.as_ref(), span)?;
-    Ok(())
-}
-
-#[instrument]
-fn pat_object(ast: &mut ast::PatObject, idx: &mut Indexer<'_>) -> compile::Result<()> {
+#[instrument(span = ast)]
+fn pat_object(idx: &mut Indexer<'_>, ast: &mut ast::PatObject) -> compile::Result<()> {
     match &mut ast.ident {
         ast::ObjectIdent::Anonymous(_) => {}
         ast::ObjectIdent::Named(p) => {
-            path(p, idx)?;
+            path(idx, p)?;
         }
     }
 
     for (p, _) in &mut ast.items {
-        pat(p, idx)?;
+        pat(idx, p)?;
     }
 
     Ok(())
 }
 
-#[instrument]
-fn pat_vec(ast: &mut ast::PatVec, idx: &mut Indexer<'_>) -> compile::Result<()> {
+#[instrument(span = ast)]
+fn pat_vec(idx: &mut Indexer<'_>, ast: &mut ast::PatVec) -> compile::Result<()> {
     for (p, _) in &mut ast.items {
-        pat(p, idx)?;
+        pat(idx, p)?;
     }
 
     Ok(())
 }
 
-#[instrument]
-fn pat_tuple(ast: &mut ast::PatTuple, idx: &mut Indexer<'_>) -> compile::Result<()> {
+#[instrument(span = ast)]
+fn pat_tuple(idx: &mut Indexer<'_>, ast: &mut ast::PatTuple) -> compile::Result<()> {
     if let Some(p) = &mut ast.path {
-        path(p, idx)?;
+        path(idx, p)?;
     }
 
     for (p, _) in &mut ast.items {
-        pat(p, idx)?;
+        pat(idx, p)?;
     }
 
     Ok(())
 }
 
-#[instrument]
-fn pat_binding(ast: &mut ast::PatBinding, idx: &mut Indexer<'_>) -> compile::Result<()> {
-    pat(&mut ast.pat, idx)?;
+#[instrument(span = ast)]
+fn pat_binding(idx: &mut Indexer<'_>, ast: &mut ast::PatBinding) -> compile::Result<()> {
+    pat(idx, &mut ast.pat)?;
     Ok(())
 }

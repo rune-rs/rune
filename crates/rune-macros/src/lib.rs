@@ -174,12 +174,14 @@ pub fn __internal_impl_any(input: proc_macro::TokenStream) -> proc_macro::TokenS
 #[proc_macro_attribute]
 #[doc(hidden)]
 pub fn instrument(
-    _attr: proc_macro::TokenStream,
+    attr: proc_macro::TokenStream,
     item: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
+    let attr = syn::parse_macro_input!(attr as instrument::Attr);
     let internal_call = syn::parse_macro_input!(item as instrument::Expander);
+
     internal_call
-        .expand()
+        .expand(&attr)
         .unwrap_or_else(to_compile_errors)
         .into()
 }

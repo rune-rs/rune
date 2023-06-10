@@ -22,6 +22,6 @@ fn test_template_without_variables() {
 fn test_remove_variant_parens() {
     assert_warnings! {
         r#"pub fn main() { None() }"#,
-        span!(16, 22), RemoveTupleCallParams { variant: span!(16, 20), .. }
+        span!(20, 22), RemoveTupleCallParams { variant: span!(16, 20), .. }
     };
 }

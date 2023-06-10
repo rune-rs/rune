@@ -1,4 +1,4 @@
-use crate::ast::Span;
+use crate::ast::{Span, Spanned};
 use crate::compile::{Item, Location, MetaRef};
 use crate::hash::Hash;
 use crate::SourceId;
@@ -12,7 +12,13 @@ pub trait CompileVisitor {
     fn visit_meta(&mut self, _location: Location, _meta: MetaRef<'_>) {}
 
     /// Visit a variable use.
-    fn visit_variable_use(&mut self, _source_id: SourceId, _var_span: Span, _span: Span) {}
+    fn visit_variable_use(
+        &mut self,
+        _source_id: SourceId,
+        _var_span: &dyn Spanned,
+        _span: &dyn Spanned,
+    ) {
+    }
 
     /// Visit something that is a module.
     fn visit_mod(&mut self, _source_id: SourceId, _span: Span) {}

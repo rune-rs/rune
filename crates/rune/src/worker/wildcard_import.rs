@@ -3,7 +3,7 @@ use crate::no_std::prelude::*;
 use crate::ast::Span;
 use crate::compile::{self, CompileErrorKind, IntoComponent, ItemBuf, ModId, Visibility};
 use crate::query::Query;
-use crate::{Context, SourceId};
+use crate::SourceId;
 
 #[derive(Debug)]
 pub(crate) struct WildcardImport {
@@ -17,13 +17,9 @@ pub(crate) struct WildcardImport {
 }
 
 impl WildcardImport {
-    pub(crate) fn process_global(
-        &mut self,
-        query: &mut Query<'_>,
-        context: &Context,
-    ) -> compile::Result<()> {
-        if context.contains_prefix(&self.name) {
-            for c in context.iter_components(&self.name) {
+    pub(crate) fn process_global(&mut self, query: &mut Query<'_>) -> compile::Result<()> {
+        if query.context.contains_prefix(&self.name) {
+            for c in query.context.iter_components(&self.name) {
                 let name = self.name.extended(c);
 
                 query.insert_import(

@@ -38,12 +38,12 @@ fn test_template_strings() {
 fn test_wrong_arguments() {
     assert_errors! {
         r#"pub fn main() { Some(1, 2) }"#,
-        span!(16, 26), UnsupportedArgumentCount { expected: 1, actual: 2, .. }
+        span!(20, 26), UnsupportedArgumentCount { expected: 1, actual: 2, .. }
     };
 
     assert_errors! {
         r#"pub fn main() { None(1) }"#,
-        span!(16, 23), UnsupportedArgumentCount { expected: 0, actual: 1, .. }
+        span!(20, 23), UnsupportedArgumentCount { expected: 0, actual: 1, .. }
     };
 }
 
@@ -65,6 +65,6 @@ fn test_bad_struct_declaration() {
 
     assert_errors! {
         r#"pub fn main() { None(1) }"#,
-        span!(16, 23), UnsupportedArgumentCount { expected: 0, actual: 1, .. }
+        span!(20, 23), UnsupportedArgumentCount { expected: 0, actual: 1, .. }
     };
 }

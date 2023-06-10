@@ -23,21 +23,21 @@ fn ast_parse() {
 #[non_exhaustive]
 pub enum Pat {
     /// An ignored binding `_`.
-    PatIgnore(PatIgnore),
+    Ignore(PatIgnore),
     /// A variable binding `n`.
-    PatPath(PatPath),
+    Path(PatPath),
     /// A literal pattern. This is represented as an expression.
-    PatLit(PatLit),
+    Lit(PatLit),
     /// A vector pattern.
-    PatVec(PatVec),
+    Vec(PatVec),
     /// A tuple pattern.
-    PatTuple(PatTuple),
+    Tuple(PatTuple),
     /// An object pattern.
-    PatObject(PatObject),
+    Object(PatObject),
     /// A binding `a: pattern` or `"foo": pattern`.
-    PatBinding(PatBinding),
+    Binding(PatBinding),
     /// The rest pattern `..`.
-    PatRest(PatRest),
+    Rest(PatRest),
 }
 
 impl Parse for Pat {
@@ -46,51 +46,51 @@ impl Parse for Pat {
 
         match p.nth(0)? {
             K![byte] => {
-                return Ok(Self::PatLit(PatLit {
+                return Ok(Self::Lit(PatLit {
                     attributes,
                     expr: Box::new(ast::Expr::from_lit(ast::Lit::Byte(p.parse()?))),
                 }));
             }
             K![char] => {
-                return Ok(Self::PatLit(PatLit {
+                return Ok(Self::Lit(PatLit {
                     attributes,
                     expr: Box::new(ast::Expr::from_lit(ast::Lit::Char(p.parse()?))),
                 }));
             }
             K![bytestr] => {
-                return Ok(Self::PatLit(PatLit {
+                return Ok(Self::Lit(PatLit {
                     attributes,
                     expr: Box::new(ast::Expr::from_lit(ast::Lit::ByteStr(p.parse()?))),
                 }));
             }
             K![true] | K![false] => {
-                return Ok(Self::PatLit(PatLit {
+                return Ok(Self::Lit(PatLit {
                     attributes,
                     expr: Box::new(ast::Expr::from_lit(ast::Lit::Bool(p.parse()?))),
                 }));
             }
             K![str] => {
                 return Ok(match p.nth(1)? {
-                    K![:] => Self::PatBinding(PatBinding {
+                    K![:] => Self::Binding(PatBinding {
                         attributes,
                         key: ast::ObjectKey::LitStr(p.parse()?),
                         colon: p.parse()?,
                         pat: p.parse()?,
                     }),
-                    _ => Self::PatLit(PatLit {
+                    _ => Self::Lit(PatLit {
                         attributes,
                         expr: Box::new(ast::Expr::from_lit(ast::Lit::Str(p.parse()?))),
                     }),
                 });
             }
             K![number] => {
-                return Ok(Self::PatLit(PatLit {
+                return Ok(Self::Lit(PatLit {
                     attributes,
                     expr: Box::new(ast::Expr::from_lit(ast::Lit::Number(p.parse()?))),
                 }));
             }
             K![..] => {
-                return Ok(Self::PatRest(PatRest {
+                return Ok(Self::Rest(PatRest {
                     attributes,
                     dot_dot: p.parse()?,
                 }))
@@ -99,7 +99,7 @@ impl Parse for Pat {
                 return Ok({
                     let _nth = p.nth(1)?;
 
-                    Self::PatTuple(PatTuple {
+                    Self::Tuple(PatTuple {
                         attributes,
                         path: None,
                         items: p.parse()?,
@@ -107,13 +107,13 @@ impl Parse for Pat {
                 });
             }
             K!['['] => {
-                return Ok(Self::PatVec(PatVec {
+                return Ok(Self::Vec(PatVec {
                     attributes,
                     items: p.parse()?,
                 }))
             }
             K![#] => {
-                return Ok(Self::PatObject(PatObject {
+                return Ok(Self::Object(PatObject {
                     attributes,
                     ident: p.parse()?,
                     items: p.parse()?,
@@ -123,14 +123,14 @@ impl Parse for Pat {
                 let expr: ast::Expr = p.parse()?;
 
                 if expr.is_lit() {
-                    return Ok(Self::PatLit(PatLit {
+                    return Ok(Self::Lit(PatLit {
                         attributes,
                         expr: Box::new(expr),
                     }));
                 }
             }
             K![_] => {
-                return Ok(Self::PatIgnore(PatIgnore {
+                return Ok(Self::Ignore(PatIgnore {
                     attributes,
                     underscore: p.parse()?,
                 }))
@@ -139,23 +139,23 @@ impl Parse for Pat {
                 let path = p.parse::<ast::Path>()?;
 
                 return Ok(match p.nth(0)? {
-                    K!['('] => Self::PatTuple(PatTuple {
+                    K!['('] => Self::Tuple(PatTuple {
                         attributes,
                         path: Some(path),
                         items: p.parse()?,
                     }),
-                    K!['{'] => Self::PatObject(PatObject {
+                    K!['{'] => Self::Object(PatObject {
                         attributes,
                         ident: ast::ObjectIdent::Named(path),
                         items: p.parse()?,
                     }),
-                    K![:] => Self::PatBinding(PatBinding {
+                    K![:] => Self::Binding(PatBinding {
                         attributes,
                         key: ast::ObjectKey::Path(path),
                         colon: p.parse()?,
                         pat: p.parse()?,
                     }),
-                    _ => Self::PatPath(PatPath { attributes, path }),
+                    _ => Self::Path(PatPath { attributes, path }),
                 });
             }
             _ => (),

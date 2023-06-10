@@ -5,3 +5,6 @@ mod hir;
 pub(crate) use self::hir::*;
 
 pub(crate) mod lowering;
+
+pub(crate) mod scopes;
+pub(crate) use self::scopes::{Name, OwnedCapture, Scopes, Variable};

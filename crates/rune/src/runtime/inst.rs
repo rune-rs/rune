@@ -48,7 +48,7 @@ impl fmt::Display for PanicReason {
 }
 
 /// Type checks for built-in types.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Decode, Encode)]
 #[non_exhaustive]
 pub enum TypeCheck {
     /// Matches a unit type.

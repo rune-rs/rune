@@ -1,10 +1,8 @@
 mod into_hash;
 mod to_type_hash;
 
-use core::any;
 use core::fmt;
 use core::hash::{self, BuildHasher, BuildHasherDefault, Hash as _, Hasher};
-use core::mem;
 
 #[cfg(feature = "musli")]
 use musli::{Decode, Encode};
@@ -85,24 +83,6 @@ impl Hash {
         I: ToTypeHash,
     {
         path.to_type_hash()
-    }
-
-    /// Construct a hash from the given type id.
-    #[deprecated = "Type hashes are now solely based on paths instead of TypeId"]
-    #[allow(deprecated)]
-    pub fn from_any<T>() -> Self
-    where
-        T: any::Any,
-    {
-        Self::from_type_id(any::TypeId::of::<T>())
-    }
-
-    /// Construct a hash from a type id.
-    #[deprecated = "Type hashes are now solely based on paths instead of TypeId"]
-    pub const fn from_type_id(type_id: any::TypeId) -> Self {
-        // Safety: a type id is exactly a 64-bit unsigned integer.
-        // And has an identical bit pattern to `Hash`.
-        unsafe { mem::transmute(type_id) }
     }
 
     /// Construct a hash to an instance function, where the instance is a
