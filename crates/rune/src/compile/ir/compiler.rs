@@ -281,20 +281,8 @@ fn expr_object(
     let mut assignments = Vec::new();
 
     for assign in hir.assignments {
-        let (span, key) = assign.key;
-
-        let ir = if let Some(e) = assign.assign {
-            expr(e, c)?
-        } else {
-            ir::Ir::new(
-                span,
-                ir::IrKind::Target(ir::IrTarget {
-                    span,
-                    kind: ir::IrTargetKind::Name(key.into()),
-                }),
-            )
-        };
-
+        let (_, key) = assign.key;
+        let ir = expr(assign.assign, c)?;
         assignments.push((key.into(), ir))
     }
 

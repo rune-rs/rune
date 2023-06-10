@@ -18,7 +18,7 @@ mod loops;
 mod scopes;
 
 pub(crate) use self::loops::{Loop, Loops};
-pub(crate) use self::scopes::{Scope, ScopeGuard, Scopes, Var};
+pub(crate) use self::scopes::{Layer, ScopeGuard, Scopes, Var};
 
 /// Generic parameters.
 #[derive(Default)]
@@ -61,7 +61,7 @@ impl Needs {
     }
 }
 
-pub(crate) struct Assembler<'a> {
+pub(crate) struct Assembler<'a, 'hir> {
     /// The source id of the source.
     pub(crate) source_id: SourceId,
     /// Query system to compile required items.
@@ -69,7 +69,7 @@ pub(crate) struct Assembler<'a> {
     /// The assembly we are generating.
     pub(crate) asm: &'a mut Assembly,
     /// Scopes defined in the compiler.
-    pub(crate) scopes: Scopes,
+    pub(crate) scopes: Scopes<'hir>,
     /// Context for which to emit warnings.
     pub(crate) contexts: Vec<Span>,
     /// The nesting of loop we are currently in.
@@ -78,7 +78,7 @@ pub(crate) struct Assembler<'a> {
     pub(crate) options: &'a Options,
 }
 
-impl<'a> Assembler<'a> {
+impl<'a, 'hir> Assembler<'a, 'hir> {
     /// Access the meta for the given language item.
     pub fn lookup_meta(
         &mut self,
@@ -127,9 +127,9 @@ impl<'a> Assembler<'a> {
         let scope = self.scopes.pop(expected, span)?;
 
         if needs.value() {
-            self.locals_clean(scope.local_var_count, span);
+            self.locals_clean(scope.local, span);
         } else {
-            self.locals_pop(scope.local_var_count, span);
+            self.locals_pop(scope.local, span);
         }
 
         Ok(())

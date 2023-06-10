@@ -2,7 +2,7 @@ use core::num::NonZeroUsize;
 
 use crate as rune;
 use crate::ast::{self, Span, Spanned};
-use crate::hir::{Capture, Variable};
+use crate::hir::{Name, Variable};
 use crate::parse::{Expectation, Id, IntoExpectation, NonZeroId, Opaque};
 use crate::runtime::{format, Type, TypeCheck};
 use crate::Hash;
@@ -84,14 +84,23 @@ pub(crate) struct PatItems<'hir> {
 #[non_exhaustive]
 pub(crate) enum Binding<'hir> {
     Binding(Span, &'hir str, &'hir Pat<'hir>),
-    Ident(Span, &'hir str),
+    Ident(Span, &'hir str, Variable),
+}
+
+impl<'hir> Spanned for Binding<'hir> {
+    fn span(&self) -> Span {
+        match self {
+            Binding::Binding(span, _, _) => *span,
+            Binding::Ident(span, _, _) => *span,
+        }
+    }
 }
 
 impl Binding<'_> {
     pub(crate) fn key(&self) -> &str {
         match self {
             Self::Binding(_, key, _) => key,
-            Self::Ident(_, key) => key,
+            Self::Ident(_, key, _) => key,
         }
     }
 }
@@ -415,7 +424,7 @@ pub(crate) enum ExprBreakValue<'hir> {
 pub(crate) struct ExprAsyncBlock<'hir> {
     pub(crate) hash: Hash,
     pub(crate) do_move: bool,
-    pub(crate) captures: &'hir [(Variable, Capture<'hir>)],
+    pub(crate) captures: &'hir [(Variable, Name<'hir>)],
 }
 
 /// A `select` expression that selects over a collection of futures.
@@ -457,7 +466,7 @@ pub(crate) struct ExprSelectPatBranch<'hir> {
 pub(crate) struct ExprCallClosure<'hir> {
     pub(crate) do_move: bool,
     pub(crate) hash: Hash,
-    pub(crate) captures: &'hir [(Variable, Capture<'hir>)],
+    pub(crate) captures: &'hir [(Variable, Name<'hir>)],
 }
 
 /// A closure expression.
@@ -472,7 +481,7 @@ pub(crate) struct ExprClosure<'hir> {
     /// The body of the closure.
     pub(crate) body: &'hir Expr<'hir>,
     /// Captures in the closure.
-    pub(crate) captures: &'hir [(Variable, Capture<'hir>)],
+    pub(crate) captures: &'hir [(Variable, Name<'hir>)],
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -500,7 +509,7 @@ pub(crate) struct FieldAssign<'hir> {
     /// The key of the field.
     pub(crate) key: (Span, &'hir str),
     /// The assigned expression of the field.
-    pub(crate) assign: Option<&'hir Expr<'hir>>,
+    pub(crate) assign: &'hir Expr<'hir>,
 }
 
 /// A literal vector.
@@ -666,13 +675,22 @@ pub(crate) struct ItemFn<'hir> {
 }
 
 /// A single argument to a function.
-#[derive(Debug, Clone, Copy, Spanned)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) enum FnArg<'hir> {
     /// The `self` parameter.
-    SelfValue(Span),
+    SelfValue(Span, Variable),
     /// Function argument is a pattern binding.
     Pat(&'hir Pat<'hir>),
+}
+
+impl Spanned for FnArg<'_> {
+    fn span(&self) -> Span {
+        match self {
+            FnArg::SelfValue(span, _) => *span,
+            FnArg::Pat(pat) => pat.span(),
+        }
+    }
 }
 
 /// A block of statements.
@@ -704,7 +722,7 @@ impl Block<'_> {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct AsyncBlock<'hir> {
     pub(crate) block: &'hir Block<'hir>,
-    pub(crate) captures: &'hir [(Variable, Capture<'hir>)],
+    pub(crate) captures: &'hir [(Variable, Name<'hir>)],
 }
 
 /// A statement within a block.

@@ -355,6 +355,7 @@ mod bug_422;
 mod bug_428;
 mod bug_454;
 mod bugfixes;
+mod capture;
 mod char;
 mod collections;
 mod comments;

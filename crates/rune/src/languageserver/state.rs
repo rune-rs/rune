@@ -911,10 +911,15 @@ impl CompileVisitor for Visitor {
         }
     }
 
-    fn visit_variable_use(&mut self, source_id: SourceId, var_span: Span, span: &dyn Spanned) {
+    fn visit_variable_use(
+        &mut self,
+        source_id: SourceId,
+        var_span: &dyn Spanned,
+        span: &dyn Spanned,
+    ) {
         let definition = Definition {
             kind: DefinitionKind::Local,
-            source: DefinitionSource::Location(Location::new(source_id, var_span)),
+            source: DefinitionSource::Location(Location::new(source_id, var_span.span())),
         };
 
         let index = self.indexes.entry(source_id).or_default();

@@ -3,27 +3,49 @@ use core::fmt;
 use crate::no_std::collections::HashMap;
 use crate::no_std::prelude::*;
 
-use crate::ast::{Span, Spanned};
+use crate::ast::Spanned;
 use crate::compile::v1::Assembler;
-use crate::compile::{self, Assembly, CompileErrorKind, CompileVisitor, WithSpan};
+use crate::compile::{self, Assembly, CompileErrorKind, WithSpan};
+use crate::hir;
+use crate::query::Query;
 use crate::runtime::Inst;
 use crate::SourceId;
 
 /// A locally declared variable, its calculated stack offset and where it was
 /// declared in its source file.
-#[derive(Debug, Clone, Copy)]
-pub struct Var {
-    /// Slot offset from the current stack frame.
+#[derive(Clone, Copy)]
+pub struct Var<'hir> {
+    /// Offset from the current stack frame.
     pub(crate) offset: usize,
+    /// The name of the variable.
+    name: hir::Name<'hir>,
     /// Token assocaited with the variable.
-    span: Span,
+    span: &'hir dyn Spanned,
     /// Variable has been taken at the given position.
-    moved_at: Option<Span>,
+    moved_at: Option<&'hir dyn Spanned>,
 }
 
-impl Var {
+impl<'hir> fmt::Debug for Var<'hir> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Var")
+            .field("offset", &self.offset)
+            .field("name", &self.name)
+            .field("span", &self.span.span())
+            .field("moved_at", &self.moved_at.map(|s| s.span()))
+            .finish()
+    }
+}
+
+impl<'hir> fmt::Display for Var<'hir> {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.name.fmt(f)
+    }
+}
+
+impl<'hir> Var<'hir> {
     /// Copy the declared variable.
-    pub(crate) fn copy<C>(&self, c: &mut Assembler<'_>, span: &dyn Spanned, comment: C)
+    pub(crate) fn copy<C>(&self, c: &mut Assembler<'_, '_>, span: &dyn Spanned, comment: C)
     where
         C: fmt::Display,
     {
@@ -32,7 +54,7 @@ impl Var {
                 offset: self.offset,
             },
             span,
-            comment,
+            format_args!("var `{}`; {comment}", self.name),
         );
     }
 
@@ -46,144 +68,38 @@ impl Var {
                 offset: self.offset,
             },
             span,
-            comment,
+            format_args!("var `{}`; {comment}", self.name),
         );
     }
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct Scope {
+pub(crate) struct Layer<'hir> {
     /// Named variables.
-    locals: HashMap<String, Var>,
+    variables: HashMap<hir::Name<'hir>, Var<'hir>>,
     /// The number of variables.
-    pub(crate) total_var_count: usize,
+    pub(crate) total: usize,
     /// The number of variables local to this scope.
-    pub(crate) local_var_count: usize,
+    pub(crate) local: usize,
 }
 
-impl Scope {
+impl<'hir> Layer<'hir> {
     /// Construct a new locals handlers.
-    fn new() -> Scope {
+    fn new() -> Self {
         Self {
-            locals: HashMap::new(),
-            total_var_count: 0,
-            local_var_count: 0,
+            variables: HashMap::new(),
+            total: 0,
+            local: 0,
         }
     }
 
     /// Construct a new child scope.
     fn child(&self) -> Self {
         Self {
-            locals: HashMap::new(),
-            total_var_count: self.total_var_count,
-            local_var_count: 0,
+            variables: HashMap::new(),
+            total: self.total,
+            local: 0,
         }
-    }
-
-    /// Insert a new local, and return the old one if there's a conflict.
-    fn new_var(&mut self, name: &str, span: &dyn Spanned) -> compile::Result<usize> {
-        let offset = self.total_var_count;
-
-        let local = Var {
-            offset,
-            span: span.span(),
-            moved_at: None,
-        };
-
-        self.total_var_count += 1;
-        self.local_var_count += 1;
-
-        if let Some(old) = self.locals.insert(name.to_owned(), local) {
-            return Err(compile::Error::new(
-                span,
-                CompileErrorKind::VariableConflict {
-                    name: name.to_owned(),
-                    existing_span: old.span,
-                },
-            ));
-        }
-
-        Ok(offset)
-    }
-
-    /// Insert a new local, and return the old one if there's a conflict.
-    fn decl_var(&mut self, name: &str, span: &dyn Spanned) -> usize {
-        let offset = self.total_var_count;
-
-        tracing::trace!("decl {} => {}", name, offset);
-
-        self.locals.insert(
-            name.to_owned(),
-            Var {
-                offset,
-                span: span.span(),
-                moved_at: None,
-            },
-        );
-
-        self.total_var_count += 1;
-        self.local_var_count += 1;
-        offset
-    }
-
-    /// Declare an anonymous variable.
-    ///
-    /// This is used if cleanup is required in the middle of an expression.
-    fn decl_anon(&mut self, _span: &dyn Spanned) -> usize {
-        let offset = self.total_var_count;
-        self.total_var_count += 1;
-        self.local_var_count += 1;
-        offset
-    }
-
-    /// Undeclare the last anonymous variable.
-    pub(crate) fn undecl_anon(&mut self, span: &dyn Spanned, n: usize) -> compile::Result<()> {
-        self.total_var_count = self
-            .total_var_count
-            .checked_sub(n)
-            .ok_or("totals out of bounds")
-            .with_span(span)?;
-
-        self.local_var_count = self
-            .local_var_count
-            .checked_sub(n)
-            .ok_or("locals out of bounds")
-            .with_span(span)?;
-
-        Ok(())
-    }
-
-    /// Access the variable with the given name.
-    fn get(&self, name: &str, span: &dyn Spanned) -> compile::Result<Option<Var>> {
-        if let Some(var) = self.locals.get(name) {
-            if let Some(moved_at) = var.moved_at {
-                return Err(compile::Error::new(
-                    span,
-                    CompileErrorKind::VariableMoved { moved_at },
-                ));
-            }
-
-            return Ok(Some(*var));
-        }
-
-        Ok(None)
-    }
-
-    /// Access the variable with the given name.
-    fn take(&mut self, name: &str, span: &dyn Spanned) -> compile::Result<Option<&Var>> {
-        if let Some(var) = self.locals.get_mut(name) {
-            if let Some(moved_at) = var.moved_at {
-                return Err(compile::Error::new(
-                    span,
-                    CompileErrorKind::VariableMoved { moved_at },
-                ));
-            }
-
-            var.moved_at = Some(span.span());
-            return Ok(Some(var));
-        }
-
-        Ok(None)
     }
 }
 
@@ -194,196 +110,224 @@ impl Scope {
 #[must_use]
 pub(crate) struct ScopeGuard(usize);
 
-pub(crate) struct Scopes {
-    scopes: Vec<Scope>,
+pub(crate) struct Scopes<'hir> {
+    layers: Vec<Layer<'hir>>,
+    source_id: SourceId,
 }
 
-impl Scopes {
+impl<'hir> Scopes<'hir> {
     /// Construct a new collection of scopes.
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(source_id: SourceId) -> Self {
         Self {
-            scopes: vec![Scope::new()],
+            layers: vec![Layer::new()],
+            source_id,
         }
-    }
-
-    /// Try to get the local with the given name. Returns `None` if it's
-    /// missing.
-    pub(crate) fn try_get_var(
-        &self,
-        visitor: &mut dyn CompileVisitor,
-        name: &str,
-        source_id: SourceId,
-        span: &dyn Spanned,
-    ) -> compile::Result<Option<Var>> {
-        tracing::trace!("get var: {}", name);
-
-        for scope in self.scopes.iter().rev() {
-            if let Some(var) = scope.get(name, span)? {
-                tracing::trace!("found var: {} => {:?}", name, var);
-                visitor.visit_variable_use(source_id, var.span, span);
-                return Ok(Some(var));
-            }
-        }
-
-        Ok(None)
-    }
-
-    /// Try to take the local with the given name. Returns `None` if it's
-    /// missing.
-    pub(crate) fn try_take_var(
-        &mut self,
-        visitor: &mut dyn CompileVisitor,
-        name: &str,
-        source_id: SourceId,
-        span: &dyn Spanned,
-    ) -> compile::Result<Option<&Var>> {
-        tracing::trace!("get var: {}", name);
-
-        for scope in self.scopes.iter_mut().rev() {
-            if let Some(var) = scope.take(name, span)? {
-                tracing::trace!("found var: {} => {:?}", name, var);
-                visitor.visit_variable_use(source_id, var.span, span);
-                return Ok(Some(var));
-            }
-        }
-
-        Ok(None)
     }
 
     /// Get the local with the given name.
-    pub(crate) fn get_var(
+    #[tracing::instrument(skip_all, fields(variable, name, source_id))]
+    pub(crate) fn get(
         &self,
-        visitor: &mut dyn CompileVisitor,
-        name: &str,
-        source_id: SourceId,
-        span: &dyn Spanned,
-    ) -> compile::Result<Var> {
-        let Some(var) = self.try_get_var(visitor, name, source_id, span)? else {
-            return Err(compile::Error::new(
-                span,
-                CompileErrorKind::MissingLocal {
-                    name: name.to_owned(),
-                },
-            ));
-        };
+        q: &mut Query<'_>,
+        variable: hir::Variable,
+        name: hir::Name<'hir>,
+        span: &'hir dyn Spanned,
+    ) -> compile::Result<Var<'hir>> {
+        tracing::trace!("get");
 
-        Ok(var)
+        for layer in self.layers.iter().rev() {
+            if let Some(var) = layer.variables.get(&name) {
+                tracing::trace!(?variable, ?var, "getting var");
+                q.visitor.visit_variable_use(self.source_id, var.span, span);
+
+                if let Some(moved_at) = var.moved_at {
+                    return Err(compile::Error::new(
+                        span,
+                        CompileErrorKind::VariableMoved {
+                            moved_at: moved_at.span(),
+                        },
+                    ));
+                }
+
+                return Ok(*var);
+            }
+        }
+
+        Err(compile::Error::msg(
+            span,
+            format_args!("Missing variable `{name}` ({variable})"),
+        ))
     }
 
     /// Take the local with the given name.
-    pub(crate) fn take_var(
+    #[tracing::instrument(skip_all, fields(variable, name, source_id))]
+    pub(crate) fn take(
         &mut self,
-        visitor: &mut dyn CompileVisitor,
-        name: &str,
-        source_id: SourceId,
-        span: &dyn Spanned,
+        q: &mut Query<'_>,
+        variable: hir::Variable,
+        name: hir::Name<'hir>,
+        span: &'hir dyn Spanned,
     ) -> compile::Result<&Var> {
-        match self.try_take_var(visitor, name, source_id, span)? {
-            Some(var) => Ok(var),
-            None => Err(compile::Error::new(
-                span,
-                CompileErrorKind::MissingLocal {
-                    name: name.to_owned(),
-                },
-            )),
+        tracing::trace!("take");
+
+        for layer in self.layers.iter_mut().rev() {
+            if let Some(var) = layer.variables.get_mut(&name) {
+                tracing::trace!(?variable, ?var, "taking var");
+                q.visitor.visit_variable_use(self.source_id, var.span, span);
+
+                if let Some(moved_at) = var.moved_at {
+                    return Err(compile::Error::new(
+                        span,
+                        CompileErrorKind::VariableMoved {
+                            moved_at: moved_at.span(),
+                        },
+                    ));
+                }
+
+                var.moved_at = Some(span);
+                return Ok(var);
+            }
         }
+
+        Err(compile::Error::msg(
+            span,
+            format_args!("Missing variable `{name}` to take ({variable})"),
+        ))
     }
 
     /// Construct a new variable.
-    pub(crate) fn new_var(&mut self, name: &str, span: &dyn Spanned) -> compile::Result<usize> {
-        self.last_mut(span)?.new_var(name, span)
-    }
+    #[tracing::instrument(skip_all, fields(variable, name))]
+    pub(crate) fn define(
+        &mut self,
+        #[allow(unused)] variable: hir::Variable,
+        name: hir::Name<'hir>,
+        span: &'hir dyn Spanned,
+    ) -> compile::Result<usize> {
+        let Some(layer) = self.layers.last_mut() else {
+            return Err(compile::Error::msg(span, "Missing head layer"));
+        };
 
-    /// Declare the given variable.
-    pub(crate) fn decl_var(&mut self, name: &str, span: &dyn Spanned) -> compile::Result<usize> {
-        Ok(self.last_mut(span)?.decl_var(name, span))
+        tracing::trace!(?layer);
+
+        let offset = layer.total;
+
+        let local = Var {
+            offset,
+            name,
+            span,
+            moved_at: None,
+        };
+
+        layer.total += 1;
+        layer.local += 1;
+        layer.variables.insert(name, local);
+        Ok(offset)
     }
 
     /// Declare an anonymous variable.
-    pub(crate) fn decl_anon(&mut self, span: &dyn Spanned) -> compile::Result<usize> {
-        Ok(self.last_mut(span)?.decl_anon(span))
+    #[tracing::instrument(skip_all)]
+    pub(crate) fn alloc(&mut self, span: &dyn Spanned) -> compile::Result<usize> {
+        let Some(layer) = self.layers.last_mut() else {
+            return Err(compile::Error::msg(span, "Missing head layer"));
+        };
+
+        tracing::trace!(?layer);
+
+        let offset = layer.total;
+        layer.total += 1;
+        layer.local += 1;
+        Ok(offset)
     }
 
-    /// Declare an anonymous variable.
-    pub(crate) fn undecl_anon(&mut self, span: &dyn Spanned, n: usize) -> compile::Result<()> {
-        self.last_mut(span)?.undecl_anon(span, n)
-    }
+    /// Free a bunch of anonymous slots.
+    #[tracing::instrument(skip_all, fields(n))]
+    pub(crate) fn free(&mut self, span: &dyn Spanned, n: usize) -> compile::Result<()> {
+        let Some(layer) = self.layers.last_mut() else {
+            return Err(compile::Error::msg(span, "Missing head layer"));
+        };
 
-    /// Push a scope and return an index.
-    pub(crate) fn push(&mut self, scope: Scope) -> ScopeGuard {
-        self.scopes.push(scope);
-        ScopeGuard(self.scopes.len())
+        tracing::trace!(?layer);
+
+        layer.total = layer
+            .total
+            .checked_sub(n)
+            .ok_or("totals out of bounds")
+            .with_span(span)?;
+
+        layer.local = layer
+            .local
+            .checked_sub(n)
+            .ok_or("locals out of bounds")
+            .with_span(span)?;
+
+        Ok(())
     }
 
     /// Pop the last scope and compare with the expected length.
+    #[tracing::instrument(skip_all, fields(expected))]
     pub(crate) fn pop(
         &mut self,
         expected: ScopeGuard,
         span: &dyn Spanned,
-    ) -> compile::Result<Scope> {
+    ) -> compile::Result<Layer<'hir>> {
         let ScopeGuard(expected) = expected;
 
-        if self.scopes.len() != expected {
+        if self.layers.len() != expected {
             return Err(compile::Error::msg(
                 span,
-                "the number of scopes do not match",
+                format_args!(
+                    "Scope guard mismatch, {} (actual) != {} (expected)",
+                    self.layers.len(),
+                    expected
+                ),
             ));
         }
 
-        self.pop_unchecked(span)
+        let Some(layer) = self.layers.pop() else {
+            return Err(compile::Error::msg(span, "Missing parent scope"));
+        };
+
+        tracing::trace!(?layer, "pop");
+        Ok(layer)
     }
 
     /// Pop the last of the scope.
-    pub(crate) fn pop_last(&mut self, span: &dyn Spanned) -> compile::Result<Scope> {
+    pub(crate) fn pop_last(&mut self, span: &dyn Spanned) -> compile::Result<Layer<'hir>> {
         self.pop(ScopeGuard(1), span)
     }
 
-    /// Pop the last scope and compare with the expected length.
-    pub(crate) fn pop_unchecked(&mut self, span: &dyn Spanned) -> compile::Result<Scope> {
-        let scope = self
-            .scopes
-            .pop()
-            .ok_or_else(|| compile::Error::msg(span, "missing parent scope"))?;
-
-        Ok(scope)
-    }
-
     /// Construct a new child scope and return its guard.
-    pub(crate) fn push_child(&mut self, span: &dyn Spanned) -> compile::Result<ScopeGuard> {
-        let scope = self.last(span)?.child();
-        Ok(self.push(scope))
-    }
+    #[tracing::instrument(skip_all)]
+    pub(crate) fn child(&mut self, span: &dyn Spanned) -> compile::Result<ScopeGuard> {
+        let Some(layer) = self.layers.last() else {
+            return Err(compile::Error::msg(span, "Missing head layer"));
+        };
 
-    /// Construct a new child scope.
-    pub(crate) fn child(&mut self, span: &dyn Spanned) -> compile::Result<Scope> {
-        Ok(self.last(span)?.child())
-    }
-
-    /// Get the local var count of the top scope.
-    pub(crate) fn local_var_count(&self, span: &dyn Spanned) -> compile::Result<usize> {
-        Ok(self.last(span)?.local_var_count)
+        tracing::trace!(?layer);
+        Ok(self.push(layer.child()))
     }
 
     /// Get the total var count of the top scope.
-    pub(crate) fn total_var_count(&self, span: &dyn Spanned) -> compile::Result<usize> {
-        Ok(self.last(span)?.total_var_count)
-    }
-
-    /// Get the local with the given name.
-    fn last(&self, span: &dyn Spanned) -> compile::Result<&Scope> {
-        let Some(scope) = self.scopes.last() else {
-            return Err(compile::Error::msg(span, "Missing head of locals"));
+    pub(crate) fn total(&self, span: &dyn Spanned) -> compile::Result<usize> {
+        let Some(layer) = self.layers.last() else {
+            return Err(compile::Error::msg(span, "Missing head layer"));
         };
 
-        Ok(scope)
+        Ok(layer.total)
     }
 
-    /// Get the last locals scope.
-    fn last_mut(&mut self, span: &dyn Spanned) -> compile::Result<&mut Scope> {
-        let Some(scope) = self.scopes.last_mut() else {
-            return Err(compile::Error::msg(span, "Missing head of locals"));
+    /// Get the local var count of the top scope.
+    pub(crate) fn local(&self, span: &dyn Spanned) -> compile::Result<usize> {
+        let Some(layer) = self.layers.last() else {
+            return Err(compile::Error::msg(span, "Missing head layer"));
         };
 
-        Ok(scope)
+        Ok(layer.local)
+    }
+
+    /// Push a scope and return an index.
+    pub(crate) fn push(&mut self, layer: Layer<'hir>) -> ScopeGuard {
+        self.layers.push(layer);
+        ScopeGuard(self.layers.len())
     }
 }
