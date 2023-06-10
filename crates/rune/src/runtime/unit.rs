@@ -111,7 +111,7 @@ impl<S> Unit<S> {
     }
 
     /// Access unit data.
-    pub fn unit_data(&self) -> &Logic<S> {
+    pub fn logic(&self) -> &Logic<S> {
         &self.logic
     }
 
