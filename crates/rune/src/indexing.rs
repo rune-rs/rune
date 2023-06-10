@@ -11,7 +11,7 @@ use crate::hash::Hash;
 use crate::parse::NonZeroId;
 use crate::runtime::Call;
 
-pub(crate) use self::index::Indexer;
+pub(crate) use self::index::{IndexItem, Indexer};
 pub(crate) use self::items::Items;
 pub(crate) use self::scopes::{Layer, Scopes};
 

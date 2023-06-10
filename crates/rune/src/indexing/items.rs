@@ -1,4 +1,5 @@
 use core::fmt;
+use core::mem::replace;
 
 use crate::no_std::prelude::*;
 
@@ -21,8 +22,8 @@ impl crate::no_std::error::Error for MissingLastId {}
 #[derive(Debug)]
 #[non_exhaustive]
 pub(crate) struct GuardMismatch {
-    actual: usize,
-    expected: usize,
+    actual: NonZeroId,
+    expected: NonZeroId,
 }
 
 impl fmt::Display for GuardMismatch {
@@ -39,14 +40,14 @@ impl crate::no_std::error::Error for GuardMismatch {}
 
 /// Guard returned.
 #[must_use]
-pub(crate) struct Guard(usize);
+pub(crate) struct Guard(NonZeroId, NonZeroId);
 
 /// Manage item paths.
 #[derive(Debug)]
 pub(crate) struct Items<'a> {
-    id: usize,
+    block_index: usize,
     item: ItemBuf,
-    ids: Vec<NonZeroId>,
+    last_id: NonZeroId,
     gen: &'a Gen,
 }
 
@@ -54,16 +55,16 @@ impl<'a> Items<'a> {
     /// Construct a new items manager.
     pub(crate) fn new(item: &Item, id: NonZeroId, gen: &'a Gen) -> Self {
         Self {
-            id: item.last().and_then(ComponentRef::id).unwrap_or_default(),
+            block_index: item.last().and_then(ComponentRef::id).unwrap_or_default(),
             item: item.to_owned(),
-            ids: vec![id],
+            last_id: id,
             gen,
         }
     }
 
     /// Access the last added id.
     pub(crate) fn id(&self) -> Result<NonZeroId, MissingLastId> {
-        self.ids.last().copied().ok_or(MissingLastId)
+        Ok(self.last_id)
     }
 
     /// Get the item for the current state of the path.
@@ -74,50 +75,40 @@ impl<'a> Items<'a> {
     /// Push a component and return a guard to it.
     pub(crate) fn push_id(&mut self) -> Guard {
         let id = self.gen.next();
-        let next_id = self.id;
-
-        let len = self.ids.len();
-
-        self.item.push(ComponentRef::Id(next_id));
-        self.ids.push(id);
-
-        Guard(len)
+        let next_index = self.block_index;
+        self.item.push(ComponentRef::Id(next_index));
+        let last_id = replace(&mut self.last_id, id);
+        Guard(id, last_id)
     }
 
     /// Push a component and return a guard to it.
     pub(crate) fn push_name(&mut self, name: &str) -> Guard {
         let id = self.gen.next();
-
-        let len = self.ids.len();
-
-        self.id = 0;
+        self.block_index = 0;
         self.item.push(name);
-        self.ids.push(id);
-
-        Guard(len)
+        let last_id = replace(&mut self.last_id, id);
+        Guard(id, last_id)
     }
 
     /// Pop the scope associated with the given guard.
     pub(crate) fn pop(&mut self, guard: Guard) -> Result<(), GuardMismatch> {
-        let next_id = self
+        let Guard(expected_id, last_id) = guard;
+
+        if self.last_id != expected_id {
+            return Err(GuardMismatch {
+                actual: self.last_id,
+                expected: expected_id,
+            });
+        }
+
+        self.block_index = self
             .item
             .pop()
             .and_then(|c| c.id())
             .and_then(|n| n.checked_add(1))
             .unwrap_or_default();
 
-        self.ids.pop();
-        self.id = next_id;
-
-        let Guard(len) = guard;
-
-        if self.ids.len() != len {
-            return Err(GuardMismatch {
-                actual: self.ids.len(),
-                expected: len,
-            });
-        }
-
+        self.last_id = last_id;
         Ok(())
     }
 }
