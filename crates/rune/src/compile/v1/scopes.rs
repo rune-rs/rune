@@ -3,7 +3,7 @@ use core::fmt;
 use crate::no_std::collections::HashMap;
 use crate::no_std::prelude::*;
 
-use crate::ast::{Span, Spanned};
+use crate::ast::Spanned;
 use crate::compile::v1::Assembler;
 use crate::compile::{self, Assembly, CompileErrorKind, CompileVisitor, WithSpan};
 use crate::hir;
@@ -19,15 +19,16 @@ pub struct Var<'hir> {
     /// Token assocaited with the variable.
     span: &'hir dyn Spanned,
     /// Variable has been taken at the given position.
-    moved_at: Option<Span>,
+    moved_at: Option<&'hir dyn Spanned>,
 }
 
 impl<'hir> fmt::Debug for Var<'hir> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Var")
             .field("offset", &self.offset)
-            .field("moved_at", &self.moved_at)
-            .finish_non_exhaustive()
+            .field("span", &self.span.span())
+            .field("moved_at", &self.moved_at.map(|s| s.span()))
+            .finish()
     }
 }
 
@@ -64,7 +65,7 @@ impl<'hir> Var<'hir> {
 #[derive(Debug, Clone)]
 pub(crate) struct Layer<'hir> {
     /// Named variables.
-    variables: HashMap<&'hir str, Var<'hir>>,
+    variables: HashMap<hir::Name<'hir>, Var<'hir>>,
     /// The number of variables.
     pub(crate) total: usize,
     /// The number of variables local to this scope.
@@ -116,21 +117,23 @@ impl<'hir> Scopes<'hir> {
         &self,
         visitor: &mut dyn CompileVisitor,
         variable: hir::Variable,
-        name: &'hir str,
+        name: hir::Name<'hir>,
         source_id: SourceId,
         span: &'hir dyn Spanned,
     ) -> compile::Result<Var<'hir>> {
         tracing::trace!("get");
 
         for layer in self.layers.iter().rev() {
-            if let Some(var) = layer.variables.get(name) {
+            if let Some(var) = layer.variables.get(&name) {
                 tracing::trace!(?variable, ?var, "getting var");
                 visitor.visit_variable_use(source_id, var.span, span);
 
                 if let Some(moved_at) = var.moved_at {
                     return Err(compile::Error::new(
                         span,
-                        CompileErrorKind::VariableMoved { moved_at },
+                        CompileErrorKind::VariableMoved {
+                            moved_at: moved_at.span(),
+                        },
                     ));
                 }
 
@@ -150,25 +153,27 @@ impl<'hir> Scopes<'hir> {
         &mut self,
         visitor: &mut dyn CompileVisitor,
         variable: hir::Variable,
-        name: &'hir str,
+        name: hir::Name<'hir>,
         source_id: SourceId,
-        span: &dyn Spanned,
+        span: &'hir dyn Spanned,
     ) -> compile::Result<&Var> {
         tracing::trace!("take");
 
         for layer in self.layers.iter_mut().rev() {
-            if let Some(var) = layer.variables.get_mut(name) {
+            if let Some(var) = layer.variables.get_mut(&name) {
                 tracing::trace!(?variable, ?var, "taking var");
                 visitor.visit_variable_use(source_id, var.span, span);
 
                 if let Some(moved_at) = var.moved_at {
                     return Err(compile::Error::new(
                         span,
-                        CompileErrorKind::VariableMoved { moved_at },
+                        CompileErrorKind::VariableMoved {
+                            moved_at: moved_at.span(),
+                        },
                     ));
                 }
 
-                var.moved_at = Some(span.span());
+                var.moved_at = Some(span);
                 return Ok(var);
             }
         }
@@ -184,7 +189,7 @@ impl<'hir> Scopes<'hir> {
     pub(crate) fn define(
         &mut self,
         #[allow(unused)] variable: hir::Variable,
-        name: &'hir str,
+        name: hir::Name<'hir>,
         span: &'hir dyn Spanned,
     ) -> compile::Result<usize> {
         let Some(layer) = self.layers.last_mut() else {

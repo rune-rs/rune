@@ -256,12 +256,12 @@ pub(crate) fn async_block_secondary<'hir>(
         match capture {
             hir::OwnedCapture::SelfValue => {
                 let variable = ctx.scopes.define_self().with_span(ast)?;
-                (variable, hir::Capture::SelfValue)
+                (variable, hir::Name::SelfValue)
             }
             hir::OwnedCapture::Name(name) => {
                 let name = alloc_str!(name.as_str());
                 let variable = ctx.scopes.define(name).with_span(ast)?;
-                (variable, hir::Capture::Name(name))
+                (variable, hir::Name::Str(name))
             }
         }
     });
@@ -290,12 +290,12 @@ pub(crate) fn expr_closure_secondary<'hir>(
     let captures = &*iter!(captures, |(_, capture)| (match capture {
         hir::OwnedCapture::SelfValue => {
             let variable = ctx.scopes.define_self().with_span(ast)?;
-            (variable, hir::Capture::SelfValue)
+            (variable, hir::Name::SelfValue)
         }
         hir::OwnedCapture::Name(name) => {
             let name = alloc_str!(name.as_str());
             let variable = ctx.scopes.define(name).with_span(ast)?;
-            (variable, hir::Capture::Name(name))
+            (variable, hir::Name::Str(name))
         }
     }));
 
@@ -369,8 +369,8 @@ fn expr_call_closure<'hir>(
         Some(captures) => {
             iter!(captures, |&(variable, ref capture)| {
                 let capture = match capture {
-                    hir::OwnedCapture::SelfValue => hir::Capture::SelfValue,
-                    hir::OwnedCapture::Name(name) => hir::Capture::Name(alloc_str!(name.as_str())),
+                    hir::OwnedCapture::SelfValue => hir::Name::SelfValue,
+                    hir::OwnedCapture::Name(name) => hir::Name::Str(alloc_str!(name.as_str())),
                 };
 
                 (variable, capture)
@@ -967,9 +967,9 @@ pub(crate) fn expr_block<'hir>(
                 Some(captures) => {
                     iter!(captures, |&(variable, ref capture)| {
                         let capture = match capture {
-                            hir::OwnedCapture::SelfValue => hir::Capture::SelfValue,
+                            hir::OwnedCapture::SelfValue => hir::Name::SelfValue,
                             hir::OwnedCapture::Name(name) => {
-                                hir::Capture::Name(alloc_str!(name.as_str()))
+                                hir::Name::Str(alloc_str!(name.as_str()))
                             }
                         };
 

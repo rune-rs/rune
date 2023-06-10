@@ -15,9 +15,6 @@ use crate::Hash;
 
 use rune_macros::instrument;
 
-/// `self` variable.
-const SELF: &str = "self";
-
 #[derive(Debug)]
 #[must_use = "must be consumed to make sure the value is realized"]
 struct Asm<'hir> {
@@ -35,7 +32,7 @@ impl<'hir> Asm<'hir> {
         }
     }
 
-    fn var(span: &dyn Spanned, var: Var<'hir>, local: Box<str>) -> Self {
+    fn var(span: &dyn Spanned, var: Var<'hir>, local: &'hir str) -> Self {
         Self {
             span: span.span(),
             kind: AsmKind::Var(var, local),
@@ -48,7 +45,7 @@ pub(crate) enum AsmKind<'hir> {
     // Result is pushed onto the top of the stack.
     Top,
     // Result belongs to the the given stack offset.
-    Var(Var<'hir>, Box<str>),
+    Var(Var<'hir>, &'hir str),
 }
 
 impl<'hir> Asm<'hir> {
@@ -95,7 +92,7 @@ pub(crate) fn fn_from_item_fn<'hir>(
                     ));
                 }
 
-                c.scopes.define(*variable, SELF, span)?;
+                c.scopes.define(*variable, hir::Name::SelfValue, span)?;
             }
             hir::FnArg::Pat(pat) => {
                 let offset = c.scopes.alloc(pat)?;
@@ -138,12 +135,7 @@ pub(crate) fn async_block_secondary<'hir>(
     hir: &'hir hir::AsyncBlock<'hir>,
 ) -> compile::Result<()> {
     for (variable, capture) in hir.captures.iter().copied() {
-        let name = match capture {
-            hir::Capture::SelfValue => SELF,
-            hir::Capture::Name(name) => name,
-        };
-
-        c.scopes.define(variable, name, &hir.block)?;
+        c.scopes.define(variable, capture, &hir.block)?;
     }
 
     return_(c, &hir.block, hir.block, block)?;
@@ -176,12 +168,7 @@ pub(crate) fn expr_closure_secondary<'hir>(
         c.asm.push(Inst::PushTuple, span);
 
         for (variable, capture) in hir.captures.iter().copied() {
-            let name = match capture {
-                hir::Capture::SelfValue => SELF,
-                hir::Capture::Name(name) => name,
-            };
-
-            c.scopes.define(variable, name, span)?;
+            c.scopes.define(variable, capture, span)?;
         }
     }
 
@@ -284,7 +271,7 @@ fn pat<'hir>(
             }
             hir::PatPathKind::Ident(name, variable) => {
                 load(c, Needs::Value)?;
-                c.scopes.define(variable, name, hir)?;
+                c.scopes.define(variable, hir::Name::Str(name), hir)?;
                 Ok(false)
             }
         },
@@ -574,7 +561,7 @@ fn pat_object<'hir>(
             }
             hir::Binding::Ident(span, name, variable) => {
                 c.asm.push(Inst::ObjectIndexGetAt { offset, slot }, &span);
-                c.scopes.define(variable, name, binding)?;
+                c.scopes.define(variable, hir::Name::Str(name), binding)?;
             }
         }
     }
@@ -862,20 +849,28 @@ fn expr<'hir>(
 
     let asm = match hir.kind {
         hir::ExprKind::SelfValue(variable) => {
-            let var = c
-                .scopes
-                .get(c.q.visitor, variable, SELF, c.source_id, span)?;
+            let var = c.scopes.get(
+                c.q.visitor,
+                variable,
+                hir::Name::SelfValue,
+                c.source_id,
+                span,
+            )?;
 
             if needs.value() {
-                var.copy(c, span, SELF);
+                var.copy(c, span, hir::Name::SelfValue);
             }
 
             Asm::top(span)
         }
         hir::ExprKind::Variable(variable, name) => {
-            let var = c
-                .scopes
-                .get(c.q.visitor, variable, name, c.source_id, span)?;
+            let var = c.scopes.get(
+                c.q.visitor,
+                variable,
+                hir::Name::Str(name),
+                c.source_id,
+                span,
+            )?;
             Asm::var(span, var, name.into())
         }
         hir::ExprKind::Type(ty) => {
@@ -944,9 +939,13 @@ fn expr_assign<'hir>(
         // <var> = <value>
         hir::ExprKind::Variable(variable, name) => {
             expr(c, hir.rhs, Needs::Value)?.apply(c)?;
-            let var = c
-                .scopes
-                .get(c.q.visitor, variable, name, c.source_id, span)?;
+            let var = c.scopes.get(
+                c.q.visitor,
+                variable,
+                hir::Name::Str(name),
+                c.source_id,
+                span,
+            )?;
             c.asm.push(Inst::Replace { offset: var.offset }, span);
             true
         }
@@ -1167,9 +1166,13 @@ fn expr_binary<'hir>(
             // <var> <op> <expr>
             hir::ExprKind::Variable(variable, name) => {
                 expr(c, rhs, Needs::Value)?.apply(c)?;
-                let var = c
-                    .scopes
-                    .get(c.q.visitor, variable, name, c.source_id, lhs)?;
+                let var = c.scopes.get(
+                    c.q.visitor,
+                    variable,
+                    hir::Name::Str(name),
+                    c.source_id,
+                    lhs,
+                )?;
                 Some(InstTarget::Offset(var.offset))
             }
             // <expr>.<field> <op> <value>
@@ -1247,25 +1250,20 @@ fn expr_binary<'hir>(
 fn expr_async_block<'hir>(
     c: &mut Assembler<'_, 'hir>,
     hir: &hir::ExprAsyncBlock<'hir>,
-    span: &dyn Spanned,
+    span: &'hir dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm<'hir>> {
     for (variable, capture) in hir.captures.iter().copied() {
-        let name = match capture {
-            hir::Capture::SelfValue => SELF,
-            hir::Capture::Name(name) => name,
-        };
-
         if hir.do_move {
             let var = c
                 .scopes
-                .take(c.q.visitor, variable, name, c.source_id, span)?;
-            var.do_move(c.asm, span, format_args!("captures `{}`", name));
+                .take(c.q.visitor, variable, capture, c.source_id, span)?;
+            var.do_move(c.asm, span, format_args!("captures `{capture}`"));
         } else {
             let var = c
                 .scopes
-                .get(c.q.visitor, variable, name, c.source_id, span)?;
-            var.copy(c, span, format_args!("captures `{}`", name));
+                .get(c.q.visitor, variable, capture, c.source_id, span)?;
+            var.copy(c, span, format_args!("captures `{capture}`"));
         }
     }
 
@@ -1379,9 +1377,13 @@ fn expr_call<'hir>(
 
     match hir.call {
         hir::Call::Var { name, variable, .. } => {
-            let var = c
-                .scopes
-                .get(c.q.visitor, variable, name, c.source_id, span)?;
+            let var = c.scopes.get(
+                c.q.visitor,
+                variable,
+                hir::Name::Str(name),
+                c.source_id,
+                span,
+            )?;
 
             for e in hir.args {
                 expr(c, e, Needs::Value)?.apply(c)?;
@@ -1449,7 +1451,7 @@ fn expr_call<'hir>(
 fn expr_call_closure<'hir>(
     c: &mut Assembler<'_, 'hir>,
     hir: &hir::ExprCallClosure<'hir>,
-    span: &dyn Spanned,
+    span: &'hir dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm<'hir>> {
     if !needs.value() {
@@ -1461,21 +1463,16 @@ fn expr_call_closure<'hir>(
 
     // Construct a closure environment.
     for (variable, capture) in hir.captures.iter().copied() {
-        let name = match capture {
-            hir::Capture::SelfValue => SELF,
-            hir::Capture::Name(name) => name,
-        };
-
         if hir.do_move {
             let var = c
                 .scopes
-                .take(c.q.visitor, variable, name, c.source_id, span)?;
-            var.do_move(c.asm, span, format_args!("capture `{}`", name));
+                .take(c.q.visitor, variable, capture, c.source_id, span)?;
+            var.do_move(c.asm, span, format_args!("capture `{}`", capture.as_str()));
         } else {
             let var = c
                 .scopes
-                .get(c.q.visitor, variable, name, c.source_id, span)?;
-            var.copy(c, span, format_args!("capture `{}`", name));
+                .get(c.q.visitor, variable, capture, c.source_id, span)?;
+            var.copy(c, span, format_args!("capture `{}`", capture.as_str()));
         }
     }
 
@@ -1598,9 +1595,13 @@ fn expr_field_access<'hir>(
             return Ok(false);
         };
 
-        let var = c
-            .scopes
-            .get(c.q.visitor, variable, name, c.source_id, span)?;
+        let var = c.scopes.get(
+            c.q.visitor,
+            variable,
+            hir::Name::Str(name),
+            c.source_id,
+            span,
+        )?;
 
         c.asm.push(
             Inst::TupleIndexGetAt {
@@ -2203,7 +2204,8 @@ fn expr_select<'hir>(
 
         match branch.pat.kind {
             hir::PatKind::Path(&hir::PatPathKind::Ident(name, variable)) => {
-                c.scopes.define(variable, name, branch.pat)?;
+                c.scopes
+                    .define(variable, hir::Name::Str(name), branch.pat)?;
             }
             hir::PatKind::Ignore => {
                 c.asm.push(Inst::Pop, span);

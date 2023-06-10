@@ -2,7 +2,7 @@ use core::num::NonZeroUsize;
 
 use crate as rune;
 use crate::ast::{self, Span, Spanned};
-use crate::hir::{Capture, Variable};
+use crate::hir::{Name, Variable};
 use crate::parse::{Expectation, Id, IntoExpectation, NonZeroId, Opaque};
 use crate::runtime::{format, Type, TypeCheck};
 use crate::Hash;
@@ -424,7 +424,7 @@ pub(crate) enum ExprBreakValue<'hir> {
 pub(crate) struct ExprAsyncBlock<'hir> {
     pub(crate) hash: Hash,
     pub(crate) do_move: bool,
-    pub(crate) captures: &'hir [(Variable, Capture<'hir>)],
+    pub(crate) captures: &'hir [(Variable, Name<'hir>)],
 }
 
 /// A `select` expression that selects over a collection of futures.
@@ -466,7 +466,7 @@ pub(crate) struct ExprSelectPatBranch<'hir> {
 pub(crate) struct ExprCallClosure<'hir> {
     pub(crate) do_move: bool,
     pub(crate) hash: Hash,
-    pub(crate) captures: &'hir [(Variable, Capture<'hir>)],
+    pub(crate) captures: &'hir [(Variable, Name<'hir>)],
 }
 
 /// A closure expression.
@@ -481,7 +481,7 @@ pub(crate) struct ExprClosure<'hir> {
     /// The body of the closure.
     pub(crate) body: &'hir Expr<'hir>,
     /// Captures in the closure.
-    pub(crate) captures: &'hir [(Variable, Capture<'hir>)],
+    pub(crate) captures: &'hir [(Variable, Name<'hir>)],
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -722,7 +722,7 @@ impl Block<'_> {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct AsyncBlock<'hir> {
     pub(crate) block: &'hir Block<'hir>,
-    pub(crate) captures: &'hir [(Variable, Capture<'hir>)],
+    pub(crate) captures: &'hir [(Variable, Name<'hir>)],
 }
 
 /// A statement within a block.

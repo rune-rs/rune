@@ -45,20 +45,31 @@ pub(crate) enum OwnedCapture {
 
 /// A captured variable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) enum Capture<'hir> {
+pub(crate) enum Name<'hir> {
     /// Capture of the `self` value.
     SelfValue,
     /// Capture of a named variable.
-    Name(&'hir str),
+    Str(&'hir str),
 }
 
-impl<'hir> Capture<'hir> {
+impl<'hir> Name<'hir> {
+    pub(crate) fn as_str(self) -> &'hir str {
+        match self {
+            Name::SelfValue => "self",
+            Name::Str(name) => name,
+        }
+    }
+
     /// Get the captured string.
     pub(crate) fn into_string(self) -> String {
-        match self {
-            Capture::SelfValue => String::from("self"),
-            Capture::Name(name) => name.to_owned(),
-        }
+        String::from(self.as_str())
+    }
+}
+
+impl<'hir> fmt::Display for Name<'hir> {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_str().fmt(f)
     }
 }
 
@@ -74,7 +85,7 @@ pub(crate) struct Layer<'hir> {
     order: Vec<usize>,
     kind: LayerKind,
     /// Captures inside of this layer.
-    captures: BTreeSet<(Variable, Capture<'hir>)>,
+    captures: BTreeSet<(Variable, Name<'hir>)>,
 }
 
 impl<'hir> Layer<'hir> {
@@ -89,7 +100,7 @@ impl<'hir> Layer<'hir> {
     }
 
     /// Variables captured by the layer.
-    pub(crate) fn captures(&self) -> impl ExactSizeIterator<Item = (Variable, Capture<'hir>)> + '_ {
+    pub(crate) fn captures(&self) -> impl ExactSizeIterator<Item = (Variable, Name<'hir>)> + '_ {
         self.captures.iter().copied()
     }
 }
@@ -195,19 +206,19 @@ impl<'hir> Scopes<'hir> {
     #[tracing::instrument(skip_all)]
     pub(crate) fn get_self(&mut self) -> Option<Variable> {
         tracing::trace!(?self.scope, "get self");
-        self.scan(|layer| Some((Variable(layer.has_self?), Capture::SelfValue)))
+        self.scan(|layer| Some((Variable(layer.has_self?), Name::SelfValue)))
     }
 
     /// Try to lookup the given variable.
     #[tracing::instrument(skip_all)]
     pub(crate) fn get(&mut self, name: &'hir str) -> Option<Variable> {
         tracing::trace!(?self.scope, ?name, "get");
-        self.scan(|layer| Some((Variable(*layer.variables.get(name)?), Capture::Name(name))))
+        self.scan(|layer| Some((Variable(*layer.variables.get(name)?), Name::Str(name))))
     }
 
     fn scan<F>(&mut self, mut f: F) -> Option<Variable>
     where
-        F: FnMut(&Layer) -> Option<(Variable, Capture<'hir>)>,
+        F: FnMut(&Layer) -> Option<(Variable, Name<'hir>)>,
     {
         let mut blocks = Vec::new();
         let mut scope = self.scopes.get(self.scope.0);
