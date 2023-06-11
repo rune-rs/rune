@@ -86,17 +86,17 @@ pub(crate) struct BuiltInFormat {
     #[rune(span)]
     pub(crate) span: Span,
     /// The fill character to use.
-    pub(crate) fill: Option<(ast::LitChar, char)>,
+    pub(crate) fill: Option<char>,
     /// Alignment specification.
-    pub(crate) align: Option<(ast::Ident, format::Alignment)>,
+    pub(crate) align: Option<format::Alignment>,
     /// Width to fill.
-    pub(crate) width: Option<(ast::LitNumber, Option<NonZeroUsize>)>,
+    pub(crate) width: Option<NonZeroUsize>,
     /// Precision to fill.
-    pub(crate) precision: Option<(ast::LitNumber, Option<NonZeroUsize>)>,
+    pub(crate) precision: Option<NonZeroUsize>,
     /// A specification of flags.
-    pub(crate) flags: Option<(ast::LitNumber, format::Flags)>,
+    pub(crate) flags: Option<format::Flags>,
     /// The format specification type.
-    pub(crate) format_type: Option<(ast::Ident, format::Type)>,
+    pub(crate) format_type: Option<format::Type>,
     /// The value being formatted.
     pub(crate) value: ast::Expr,
 }

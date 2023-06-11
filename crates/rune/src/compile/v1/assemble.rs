@@ -75,7 +75,7 @@ impl<'hir> Asm<'hir> {
 #[instrument(span = hir)]
 pub(crate) fn fn_from_item_fn<'hir>(
     c: &mut Assembler<'_, 'hir>,
-    hir: &'hir hir::ItemFn<'hir>,
+    hir: &hir::ItemFn<'hir>,
     instance_fn: bool,
 ) -> compile::Result<()> {
     let mut patterns = Vec::new();
@@ -644,41 +644,12 @@ fn builtin_format<'hir>(
 ) -> compile::Result<Asm<'hir>> {
     use crate::runtime::format;
 
-    let fill = if let Some((_, fill)) = &format.fill {
-        *fill
-    } else {
-        ' '
-    };
-
-    let align = if let Some((_, align)) = &format.align {
-        *align
-    } else {
-        format::Alignment::default()
-    };
-
-    let flags = if let Some((_, flags)) = &format.flags {
-        *flags
-    } else {
-        format::Flags::default()
-    };
-
-    let width = if let Some((_, width)) = &format.width {
-        *width
-    } else {
-        None
-    };
-
-    let precision = if let Some((_, precision)) = &format.precision {
-        *precision
-    } else {
-        None
-    };
-
-    let format_type = if let Some((_, format_type)) = &format.format_type {
-        *format_type
-    } else {
-        format::Type::default()
-    };
+    let fill = format.fill.unwrap_or(' ');
+    let align = format.align.unwrap_or_default();
+    let flags = format.flags.unwrap_or_default();
+    let width = format.width;
+    let precision = format.precision;
+    let format_type = format.format_type.unwrap_or_default();
 
     let spec = format::FormatSpec::new(flags, fill, align, width, precision, format_type);
 
