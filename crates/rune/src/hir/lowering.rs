@@ -232,7 +232,7 @@ pub(crate) fn item_fn<'hir>(
     Ok(hir::ItemFn {
         span: ast.span(),
         args: iter!(&ast.args, |(ast, _)| fn_arg(ctx, ast)?),
-        body: alloc!(block(ctx, &ast.body)?),
+        body: block(ctx, &ast.body)?,
     })
 }
 
@@ -262,7 +262,7 @@ pub(crate) fn async_block_secondary<'hir>(
     });
 
     Ok(hir::AsyncBlock {
-        block: alloc!(block(ctx, ast)?),
+        block: block(ctx, ast)?,
         captures,
     })
 }
@@ -293,7 +293,7 @@ pub(crate) fn expr_closure_secondary<'hir>(
     });
 
     let args = iter!(ast.args.as_slice(), |(ast, _)| fn_arg(ctx, ast)?);
-    let body = alloc!(expr(ctx, &ast.body)?);
+    let body = expr(ctx, &ast.body)?;
 
     Ok(hir::ExprClosure {
         args,
@@ -422,7 +422,7 @@ pub(crate) fn expr_object<'hir>(
         }
 
         let assign = match &ast.assign {
-            Some((_, ast)) => alloc!(expr(ctx, ast)?),
+            Some((_, ast)) => expr(ctx, ast)?,
             None => {
                 let Some((name, _)) = ctx.scopes.get(hir::Name::Str(key.1)) else {
                     return Err(compile::Error::new(key.0, CompileErrorKind::MissingLocal {
@@ -430,10 +430,10 @@ pub(crate) fn expr_object<'hir>(
                     },))
                 };
 
-                alloc!(hir::Expr {
+                hir::Expr {
                     span: ast.span(),
-                    kind: hir::ExprKind::Variable(name)
-                })
+                    kind: hir::ExprKind::Variable(name),
+                }
             }
         };
 
@@ -532,8 +532,8 @@ pub(crate) fn expr<'hir>(
     let kind = match ast {
         ast::Expr::Path(ast) => expr_path(ctx, ast, in_path)?,
         ast::Expr::Assign(ast) => hir::ExprKind::Assign(alloc!(hir::ExprAssign {
-            lhs: alloc!(expr(ctx, &ast.lhs)?),
-            rhs: alloc!(expr(ctx, &ast.rhs)?),
+            lhs: expr(ctx, &ast.lhs)?,
+            rhs: expr(ctx, &ast.rhs)?,
         })),
         // TODO: lower all of these loop constructs to the same loop-like
         // representation. We only do different ones here right now since it's
@@ -549,14 +549,14 @@ pub(crate) fn expr<'hir>(
             hir::ExprKind::Loop(alloc!(hir::ExprLoop {
                 label: option!(&ast.label, |(ast, _)| label(ctx, ast)?),
                 condition: Some(alloc!(condition)),
-                body: alloc!(body),
+                body,
                 drop: iter!(layer.into_drop_order()),
             }))
         }
         ast::Expr::Loop(ast) => hir::ExprKind::Loop(alloc!(hir::ExprLoop {
             label: option!(&ast.label, |(ast, _)| label(ctx, ast)?),
             condition: None,
-            body: alloc!(block(ctx, &ast.body)?),
+            body: block(ctx, &ast.body)?,
             drop: &[],
         })),
         ast::Expr::For(ast) => {
@@ -571,25 +571,25 @@ pub(crate) fn expr<'hir>(
 
             hir::ExprKind::For(alloc!(hir::ExprFor {
                 label: option!(&ast.label, |(ast, _)| label(ctx, ast)?),
-                binding: alloc!(binding),
-                iter: alloc!(iter),
-                body: alloc!(body),
+                binding,
+                iter,
+                body,
                 drop: iter!(layer.into_drop_order()),
             }))
         }
         ast::Expr::Let(ast) => hir::ExprKind::Let(alloc!(hir::ExprLet {
-            pat: alloc!(pat(ctx, &ast.pat)?),
-            expr: alloc!(expr(ctx, &ast.expr)?),
+            pat: pat(ctx, &ast.pat)?,
+            expr: expr(ctx, &ast.expr)?,
         })),
         ast::Expr::If(ast) => hir::ExprKind::If(alloc!(expr_if(ctx, ast)?)),
         ast::Expr::Match(ast) => hir::ExprKind::Match(alloc!(hir::ExprMatch {
-            expr: alloc!(expr(ctx, &ast.expr)?),
+            expr: expr(ctx, &ast.expr)?,
             branches: iter!(&ast.branches, |(ast, _)| {
                 ctx.scopes.push();
 
-                let pat = alloc!(pat(ctx, &ast.pat)?);
+                let pat = pat(ctx, &ast.pat)?;
                 let condition = option!(&ast.condition, |(_, ast)| expr(ctx, ast)?);
-                let body = alloc!(expr(ctx, &ast.body)?);
+                let body = expr(ctx, &ast.body)?;
 
                 let layer = ctx.scopes.pop().with_span(ast)?;
 
@@ -617,10 +617,10 @@ pub(crate) fn expr<'hir>(
                 _ => Needs::Value,
             };
 
-            let lhs = alloc!(expr(ctx, &ast.lhs)?);
+            let lhs = expr(ctx, &ast.lhs)?;
 
             let needs = ctx.needs.replace(rhs_needs);
-            let rhs = alloc!(expr(ctx, &ast.rhs)?);
+            let rhs = expr(ctx, &ast.rhs)?;
             ctx.needs.set(needs);
 
             hir::ExprKind::Binary(alloc!(hir::ExprBinary {
@@ -631,8 +631,8 @@ pub(crate) fn expr<'hir>(
         }
         ast::Expr::Unary(ast) => expr_unary(ctx, ast)?,
         ast::Expr::Index(ast) => hir::ExprKind::Index(alloc!(hir::ExprIndex {
-            target: alloc!(expr(ctx, &ast.target)?),
-            index: alloc!(expr(ctx, &ast.index)?),
+            target: expr(ctx, &ast.target)?,
+            index: expr(ctx, &ast.index)?,
         })),
         ast::Expr::Block(ast) => expr_block(ctx, ast)?,
         ast::Expr::Break(ast) => {
@@ -656,14 +656,14 @@ pub(crate) fn expr<'hir>(
                     ast::ExprSelectBranch::Pat(ast) => {
                         ctx.scopes.push();
 
-                        let pat = alloc!(pat(ctx, &ast.pat)?);
-                        let body = alloc!(expr(ctx, &ast.body)?);
+                        let pat = pat(ctx, &ast.pat)?;
+                        let body = expr(ctx, &ast.body)?;
 
                         let layer = ctx.scopes.pop().with_span(ast)?;
 
                         hir::ExprSelectBranch::Pat(alloc!(hir::ExprSelectPatBranch {
                             pat,
-                            expr: alloc!(expr(ctx, &ast.expr)?),
+                            expr: expr(ctx, &ast.expr)?,
                             body,
                             drop: iter!(layer.into_drop_order()),
                         }))
@@ -713,7 +713,7 @@ pub(crate) fn expr<'hir>(
                 precision: ast.precision,
                 flags: ast.flags,
                 format_type: ast.format_type,
-                value: alloc!(expr(ctx, &ast.value)?),
+                value: expr(ctx, &ast.value)?,
             })),
             query::BuiltInMacro::File(ast) => hir::ExprKind::Lit(lit(ctx, &ast.value)?),
             query::BuiltInMacro::Line(ast) => hir::ExprKind::Lit(lit(ctx, &ast.value)?),
@@ -766,13 +766,13 @@ pub(crate) fn expr_if<'hir>(
 
                 (
                     Some(&*alloc!(condition)),
-                    &*alloc!(block),
+                    block,
                     &*iter!(layer.into_drop_order()),
                 )
             }
             None => {
                 let block = block(ctx, b)?;
-                (None, &*alloc!(block), &[][..])
+                (None, block, &[][..])
             }
         };
 
@@ -851,7 +851,7 @@ pub(crate) fn expr_unary<'hir>(
     let (ast::UnOp::Neg(..), ast::Expr::Lit(ast::ExprLit { lit: ast::Lit::Number(n), .. })) = (ast.op, &*ast.expr) else {
         return Ok(hir::ExprKind::Unary(alloc!(hir::ExprUnary {
             op: ast.op,
-            expr: alloc!(expr(ctx, &ast.expr)?),
+            expr: expr(ctx, &ast.expr)?,
         })));
     };
 
@@ -979,10 +979,10 @@ fn fn_arg<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::FnArg) -> compile::Result<hi
 
 /// Lower an assignment.
 fn local<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Local) -> compile::Result<hir::Local<'hir>> {
-    alloc_with!(ctx, ast);
-
-    let expr = alloc!(expr(ctx, &ast.expr)?);
-    let pat = alloc!(pat(ctx, &ast.pat)?);
+    // Note: expression needs to be assembled before pattern, otherwise the
+    // expression will see declarations in the pattern.
+    let expr = expr(ctx, &ast.expr)?;
+    let pat = pat(ctx, &ast.pat)?;
 
     Ok(hir::Local {
         span: ast.span(),
@@ -1380,8 +1380,8 @@ fn condition<'hir>(
     Ok(match ast {
         ast::Condition::Expr(ast) => hir::Condition::Expr(alloc!(expr(ctx, ast)?)),
         ast::Condition::ExprLet(ast) => hir::Condition::ExprLet(alloc!(hir::ExprLet {
-            pat: alloc!(pat(ctx, &ast.pat)?),
-            expr: alloc!(expr(ctx, &ast.expr)?),
+            pat: pat(ctx, &ast.pat)?,
+            expr: expr(ctx, &ast.expr)?,
         })),
     })
 }
@@ -1630,7 +1630,7 @@ fn expr_call<'hir>(
                 expr_field,
                 expr: target,
             }) => {
-                let hash = match *expr_field {
+                let hash = match expr_field {
                     hir::ExprField::Index(index) => Hash::index(index),
                     hir::ExprField::Ident(ident) => Hash::ident(ident),
                     hir::ExprField::IdentGenerics(ident, hash) => {
@@ -1638,7 +1638,10 @@ fn expr_call<'hir>(
                     }
                 };
 
-                break 'ok hir::Call::Associated { target, hash };
+                break 'ok hir::Call::Associated {
+                    target: alloc!(target),
+                    hash,
+                };
             }
             _ => {}
         }
@@ -1702,7 +1705,7 @@ fn expr_field_access<'hir>(
     };
 
     Ok(hir::ExprFieldAccess {
-        expr: alloc!(expr(ctx, &ast.expr)?),
-        expr_field: alloc!(expr_field),
+        expr: expr(ctx, &ast.expr)?,
+        expr_field,
     })
 }
