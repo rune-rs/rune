@@ -15,7 +15,6 @@ use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::compile::ir;
 use crate::compile::{ItemId, ItemMeta, ModId};
-use crate::hir;
 use crate::indexing;
 use crate::runtime::format;
 
@@ -42,14 +41,16 @@ impl Default for Used {
 }
 
 /// The result of calling [Query::convert_path].
-#[derive(Debug)]
-pub(crate) struct Named<'hir> {
+pub(crate) struct Named<'ast> {
     /// The path resolved to the given item.
     pub(crate) item: ItemId,
     /// Trailing parameters.
     pub(crate) trailing: usize,
     /// Type parameters if any.
-    pub(crate) parameters: [Option<(Span, &'hir [hir::Expr<'hir>])>; 2],
+    pub(crate) parameters: [Option<(
+        &'ast dyn Spanned,
+        &'ast ast::AngleBracketed<ast::PathSegmentExpr, T![,]>,
+    )>; 2],
 }
 
 impl fmt::Display for Named<'_> {

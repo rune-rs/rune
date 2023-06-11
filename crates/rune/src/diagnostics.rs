@@ -248,14 +248,14 @@ impl Diagnostics {
         &mut self,
         source_id: SourceId,
         span: &dyn Spanned,
-        variant: Span,
+        variant: &dyn Spanned,
         context: Option<Span>,
     ) {
         self.warning(
             source_id,
             WarningDiagnosticKind::RemoveTupleCallParams {
                 span: span.span(),
-                variant,
+                variant: variant.span(),
                 context,
             },
         );

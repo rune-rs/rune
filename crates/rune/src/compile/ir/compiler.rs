@@ -47,7 +47,6 @@ pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut IrCompiler<'_>) -> compile::Resu
         hir::ExprKind::Loop(hir) => ir::Ir::new(span, expr_loop(span, c, hir)?),
         hir::ExprKind::Lit(hir) => lit(c, span, hir)?,
         hir::ExprKind::Block(hir) => ir::Ir::new(span, block(hir, c)?),
-        hir::ExprKind::Path(hir) => path(hir, c)?,
         hir::ExprKind::FieldAccess(..) => ir::Ir::new(span, ir_target(hir)?),
         hir::ExprKind::Break(hir) => ir::Ir::new(span, ir::IrBreak::compile_ast(span, c, hir)?),
         hir::ExprKind::Template(template) => {
@@ -351,18 +350,6 @@ fn builtin_template(
     }
 
     Ok(ir::IrTemplate { span, components })
-}
-
-#[instrument]
-fn path(hir: &hir::Path<'_>, c: &mut IrCompiler<'_>) -> compile::Result<ir::Ir> {
-    let span = hir.span();
-
-    if let Some(name) = hir.try_as_ident() {
-        let name = c.resolve(name)?;
-        return Ok(ir::Ir::new(span, <Box<str>>::from(name)));
-    }
-
-    Err(compile::Error::msg(span, "not supported yet"))
 }
 
 #[instrument]

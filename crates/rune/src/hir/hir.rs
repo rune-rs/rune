@@ -4,7 +4,7 @@ use crate as rune;
 use crate::ast::{self, Span, Spanned};
 use crate::compile::{ItemId, ModId};
 use crate::hir::Name;
-use crate::parse::{Expectation, IntoExpectation, NonZeroId};
+use crate::parse::NonZeroId;
 use crate::runtime::{format, Type, TypeCheck};
 use crate::Hash;
 
@@ -137,7 +137,7 @@ pub(crate) enum ExprKind<'hir> {
     Variable(Name<'hir>),
     Type(Type),
     Fn(Hash),
-    Path(&'hir Path<'hir>),
+    Path,
     Assign(&'hir ExprAssign<'hir>),
     Loop(&'hir ExprLoop<'hir>),
     For(&'hir ExprFor<'hir>),
@@ -386,7 +386,7 @@ pub(crate) enum ExprField<'hir> {
     /// ```text
     /// field<1, string>
     /// ```
-    IdentGenerics(&'hir str, &'hir [Expr<'hir>]),
+    IdentGenerics(&'hir str, Hash),
 }
 
 /// A binary expression.
@@ -560,92 +560,6 @@ pub(crate) enum Condition<'hir> {
     Expr(&'hir Expr<'hir>),
     /// A pattern match.
     ExprLet(&'hir ExprLet<'hir>),
-}
-
-/// A path.
-#[derive(Debug, Clone, Copy, Spanned)]
-#[non_exhaustive]
-pub(crate) struct Path<'hir> {
-    /// The span of the path.
-    #[rune(span)]
-    pub(crate) span: Span,
-    /// The module the path belongs to.
-    pub(crate) module: ModId,
-    /// The item the path belongs to.
-    pub(crate) item: ItemId,
-    /// The impl item the path belongs to.
-    pub(crate) impl_item: Option<ItemId>,
-    /// The span of the global indicator.
-    pub(crate) global: Option<Span>,
-    /// The span of the trailing indicator.
-    pub(crate) trailing: Option<Span>,
-    /// The first component in the path.
-    pub(crate) first: &'hir PathSegment<'hir>,
-    /// The rest of the components in the path.
-    pub(crate) rest: &'hir [PathSegment<'hir>],
-}
-
-impl<'hir> Path<'hir> {
-    /// Borrow as an identifier used for field access calls.
-    ///
-    /// This is only allowed if there are no other path components
-    /// and the path segment is not `Crate` or `Super`.
-    pub(crate) fn try_as_ident(&self) -> Option<&'hir ast::Ident> {
-        if self.rest.is_empty() && self.trailing.is_none() && self.global.is_none() {
-            self.first.try_as_ident()
-        } else {
-            None
-        }
-    }
-}
-
-impl IntoExpectation for &Path<'_> {
-    fn into_expectation(self) -> Expectation {
-        Expectation::Description("path")
-    }
-}
-
-/// A single path segment.
-#[derive(Debug, Clone, Copy, Spanned)]
-#[non_exhaustive]
-pub(crate) struct PathSegment<'hir> {
-    /// The span of the path segment.
-    #[rune(span)]
-    pub(crate) span: Span,
-    /// The kind of the path segment.
-    pub(crate) kind: PathSegmentKind<'hir>,
-}
-
-impl<'hir> PathSegment<'hir> {
-    /// Borrow as an identifier.
-    ///
-    /// This is only allowed if the PathSegment is `Ident(_)`
-    /// and not `Crate` or `Super`.
-    pub(crate) fn try_as_ident(&self) -> Option<&ast::Ident> {
-        if let PathSegmentKind::Ident(ident) = self.kind {
-            Some(ident)
-        } else {
-            None
-        }
-    }
-}
-
-/// A single segment in a path.
-#[derive(Debug, Clone, Copy)]
-#[non_exhaustive]
-pub(crate) enum PathSegmentKind<'hir> {
-    /// A path segment that contains `Self`.
-    SelfType,
-    /// A path segment that contains `self`.
-    SelfValue,
-    /// A path segment that is an identifier.
-    Ident(&'hir ast::Ident),
-    /// The `crate` keyword used as a path segment.
-    Crate,
-    /// The `super` keyword use as a path segment.
-    Super,
-    /// A path segment that is a generic argument.
-    Generics(&'hir [Expr<'hir>]),
 }
 
 #[derive(Debug, Clone, Copy, Spanned)]

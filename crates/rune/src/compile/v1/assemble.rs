@@ -894,9 +894,9 @@ fn expr<'hir>(
         hir::ExprKind::Format(format) => builtin_format(c, format, needs)?,
         hir::ExprKind::AsyncBlock(hir) => expr_async_block(c, hir, span, needs)?,
         hir::ExprKind::Const(id) => const_item(c, id, span, needs)?,
-        hir::ExprKind::Path(path) => {
+        hir::ExprKind::Path => {
             return Err(compile::Error::msg(
-                path,
+                span,
                 "Path expression is not supported here",
             ))
         }

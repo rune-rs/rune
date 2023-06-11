@@ -838,22 +838,24 @@ impl<'a> Query<'a> {
 
     /// Perform a path lookup on the current state of the unit.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn convert_path<'hir>(
+    pub(crate) fn convert_path<'ast>(
         &mut self,
-        path: &hir::Path<'hir>,
-    ) -> compile::Result<Named<'hir>> {
+        path: &'ast ast::Path,
+    ) -> compile::Result<Named<'ast>> {
         tracing::trace!("converting path");
+
+        let Some(id) = path.id.get() else {
+            return Err(compile::Error::msg(path, "Tried to use non-indexed path"));
+        };
+
+        let Some(&QueryPath { module, item, impl_item }) = self.inner.query_paths.get(&id) else {
+            return Err(compile::Error::msg(path, format_args!("Missing query path for id {}", id)));
+        };
 
         let mut in_self_type = false;
 
-        let item = match (path.global, path.first) {
-            (
-                Some(..),
-                hir::PathSegment {
-                    kind: hir::PathSegmentKind::Ident(ident),
-                    ..
-                },
-            ) => self
+        let item = match (&path.global, &path.first) {
+            (Some(..), ast::PathSegment::Ident(ident)) => self
                 .pool
                 .alloc_item(ItemBuf::with_crate(ident.resolve(resolve_context!(self))?)),
             (Some(span), _) => {
@@ -862,26 +864,26 @@ impl<'a> Query<'a> {
                     CompileErrorKind::UnsupportedGlobal,
                 ));
             }
-            (None, segment) => match segment.kind {
-                hir::PathSegmentKind::Ident(ident) => self.convert_initial_path(path, ident)?,
-                hir::PathSegmentKind::Super => {
-                    let Some(segment) = self.pool.try_map_alloc(self.pool.module(path.module).item, Item::parent) else {
+            (None, segment) => match segment {
+                ast::PathSegment::Ident(ident) => self.convert_initial_path(module, item, ident)?,
+                ast::PathSegment::Super(..) => {
+                    let Some(segment) = self.pool.try_map_alloc(self.pool.module(module).item, Item::parent) else {
                         return Err(compile::Error::new(segment, CompileErrorKind::UnsupportedSuper));
                     };
 
                     segment
                 }
-                hir::PathSegmentKind::SelfType => {
-                    let Some(impl_item) = path.impl_item else {
+                ast::PathSegment::SelfType(..) => {
+                    let Some(impl_item) = impl_item else {
                         return Err(compile::Error::new(segment.span(), CompileErrorKind::UnsupportedSelfType));
                     };
 
                     in_self_type = true;
                     impl_item
                 }
-                hir::PathSegmentKind::SelfValue => self.pool.module(path.module).item,
-                hir::PathSegmentKind::Crate => ItemId::default(),
-                hir::PathSegmentKind::Generics(..) => {
+                ast::PathSegment::SelfValue(..) => self.pool.module(module).item,
+                ast::PathSegment::Crate(..) => ItemId::default(),
+                ast::PathSegment::Generics(..) => {
                     return Err(compile::Error::new(
                         segment.span(),
                         CompileErrorKind::UnsupportedGenerics,
@@ -892,20 +894,20 @@ impl<'a> Query<'a> {
 
         let mut item = self.pool.item(item).to_owned();
         let mut trailing = 0;
-        let mut parameters = [None, None];
+        let mut parameters: [Option<(&dyn Spanned, _)>; 2] = [None, None];
 
         let mut it = path.rest.iter();
         let mut parameters_it = parameters.iter_mut();
 
-        for segment in it.by_ref() {
-            match segment.kind {
-                hir::PathSegmentKind::Ident(ident) => {
+        for (_, segment) in it.by_ref() {
+            match segment {
+                ast::PathSegment::Ident(ident) => {
                     item.push(ident.resolve(resolve_context!(self))?);
                 }
-                hir::PathSegmentKind::Super => {
+                ast::PathSegment::Super(span) => {
                     if in_self_type {
                         return Err(compile::Error::new(
-                            segment.span(),
+                            span,
                             CompileErrorKind::UnsupportedSuperInSelfType,
                         ));
                     }
@@ -917,7 +919,7 @@ impl<'a> Query<'a> {
                         ));
                     }
                 }
-                hir::PathSegmentKind::Generics(arguments) => {
+                ast::PathSegment::Generics(arguments) => {
                     let Some(p) = parameters_it.next() else {
                         return Err(compile::Error::new(
                             segment,
@@ -926,7 +928,7 @@ impl<'a> Query<'a> {
                     };
 
                     trailing += 1;
-                    *p = Some((segment.span(), arguments));
+                    *p = Some((segment, arguments));
                     break;
                 }
                 _ => {
@@ -939,8 +941,8 @@ impl<'a> Query<'a> {
         }
 
         // Consume remaining generics, possibly interleaved with identifiers.
-        while let Some(segment) = it.next() {
-            let hir::PathSegmentKind::Ident(ident) = segment.kind else {
+        while let Some((_, segment)) = it.next() {
+            let ast::PathSegment::Ident(ident) = segment else {
                 return Err(compile::Error::new(
                     segment.span(),
                     CompileErrorKind::UnsupportedAfterGeneric,
@@ -957,17 +959,17 @@ impl<'a> Query<'a> {
                 ));
             };
 
-            let Some(hir::PathSegmentKind::Generics(arguments)) = it.clone().next().map(|p| p.kind) else {
+            let Some(ast::PathSegment::Generics(arguments)) = it.clone().next().map(|(_, p)| p) else {
                 continue;
             };
 
-            *p = Some((segment.span(), arguments));
+            *p = Some((segment, arguments));
             it.next();
         }
 
         let item = self.pool.alloc_item(item);
 
-        if let Some(new) = self.import(path, path.module, item, Used::Used)? {
+        if let Some(new) = self.import(path, module, item, Used::Used)? {
             return Ok(Named {
                 item: new,
                 trailing,
@@ -1526,18 +1528,19 @@ impl<'a> Query<'a> {
     }
 
     /// Walk the names to find the first one that is contained in the unit.
-    #[tracing::instrument(skip_all, fields(module = ?self.pool.module_item(path.module), base = ?self.pool.item(path.item)))]
+    #[tracing::instrument(skip_all, fields(module = ?self.pool.module_item(module), base = ?self.pool.item(item)))]
     fn convert_initial_path(
         &mut self,
-        path: &hir::Path<'_>,
+        module: ModId,
+        item: ItemId,
         local: &ast::Ident,
     ) -> compile::Result<ItemId> {
-        let mut base = self.pool.item(path.item).to_owned();
-        debug_assert!(base.starts_with(self.pool.module_item(path.module)));
+        let mut base = self.pool.item(item).to_owned();
+        debug_assert!(base.starts_with(self.pool.module_item(module)));
 
         let local_str = local.resolve(resolve_context!(self))?.to_owned();
 
-        while base.starts_with(self.pool.module_item(path.module)) {
+        while base.starts_with(self.pool.module_item(module)) {
             base.push(&local_str);
 
             tracing::trace!(?base, "testing");
@@ -1570,7 +1573,7 @@ impl<'a> Query<'a> {
             return Ok(self.pool.alloc_item(ItemBuf::with_crate(&local_str)));
         }
 
-        let new_module = self.pool.module_item(path.module).extended(&local_str);
+        let new_module = self.pool.module_item(module).extended(&local_str);
         Ok(self.pool.alloc_item(new_module))
     }
 
