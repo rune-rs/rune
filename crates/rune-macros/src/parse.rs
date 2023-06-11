@@ -21,10 +21,10 @@ impl syn::parse::Parse for Derive {
 
 impl Derive {
     pub(super) fn expand(self) -> Result<TokenStream, Vec<syn::Error>> {
-        let ctx = Context::new();
-        let tokens = ctx.tokens_with_module(None);
+        let cx = Context::new();
+        let tokens = cx.tokens_with_module(None);
 
-        let mut expander = Expander { ctx, tokens };
+        let mut expander = Expander { cx, tokens };
 
         match &self.input.data {
             syn::Data::Struct(st) => {
@@ -33,25 +33,25 @@ impl Derive {
                 }
             }
             syn::Data::Enum(en) => {
-                expander.ctx.error(syn::Error::new_spanned(
+                expander.cx.error(syn::Error::new_spanned(
                     en.enum_token,
                     "not supported on enums",
                 ));
             }
             syn::Data::Union(un) => {
-                expander.ctx.error(syn::Error::new_spanned(
+                expander.cx.error(syn::Error::new_spanned(
                     un.union_token,
                     "not supported on unions",
                 ));
             }
         }
 
-        Err(expander.ctx.errors.into_inner())
+        Err(expander.cx.errors.into_inner())
     }
 }
 
 struct Expander {
-    ctx: Context,
+    cx: Context,
     tokens: Tokens,
 }
 
@@ -74,14 +74,14 @@ impl Expander {
         match fields {
             syn::Fields::Named(named) => self.expand_struct_named(input, named),
             syn::Fields::Unnamed(..) => {
-                self.ctx.error(syn::Error::new_spanned(
+                self.cx.error(syn::Error::new_spanned(
                     fields,
                     "Tuple structs are not supported",
                 ));
                 Err(())
             }
             syn::Fields::Unit => {
-                self.ctx.error(syn::Error::new_spanned(
+                self.cx.error(syn::Error::new_spanned(
                     fields,
                     "Unit structs are not supported",
                 ));
@@ -103,12 +103,12 @@ impl Expander {
         let mut meta_parse = Vec::new();
         let mut meta_fields = Vec::new();
 
-        let ty_attrs = self.ctx.type_attrs(&input.attrs)?;
+        let ty_attrs = self.cx.type_attrs(&input.attrs)?;
         let mut skipped = 0;
 
         for (i, field) in named.named.iter().enumerate() {
-            let field_attrs = self.ctx.field_attrs(&field.attrs)?;
-            let ident = self.ctx.field_ident(field)?;
+            let field_attrs = self.cx.field_attrs(&field.attrs)?;
+            let ident = self.cx.field_ident(field)?;
 
             if field_attrs.id.is_some() {
                 fields.push(quote_spanned! { field.span() => #ident: Default::default() });
@@ -128,7 +128,7 @@ impl Expander {
             }
 
             if i - skipped != meta_fields.len() {
-                self.ctx.error(syn::Error::new_spanned(
+                self.cx.error(syn::Error::new_spanned(
                     field,
                     format!(
                         "The first sequence of fields may have `#[rune({})]`, \
@@ -139,7 +139,7 @@ impl Expander {
                 return Err(());
             }
 
-            let ident = self.ctx.field_ident(field)?;
+            let ident = self.cx.field_ident(field)?;
             let ty = &field.ty;
             meta_args.push(quote_spanned!(field.span() => #ident: #ty));
             meta_parse.push(quote_spanned!(field.span() => let #ident: #ty = #parse_impl));

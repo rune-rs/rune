@@ -8,15 +8,15 @@ use std::sync::Arc;
 
 #[rune::macro_]
 fn concat_idents(
-    ctx: &mut MacroContext<'_, '_>,
+    cx: &mut MacroContext<'_, '_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
     let mut output = String::new();
 
-    let mut p = Parser::from_token_stream(stream, ctx.input_span());
+    let mut p = Parser::from_token_stream(stream, cx.input_span());
 
     let ident = p.parse::<ast::Ident>()?;
-    output.push_str(ctx.resolve(ident)?);
+    output.push_str(cx.resolve(ident)?);
 
     while p.parse::<Option<T![,]>>()?.is_some() {
         if p.is_eof()? {
@@ -24,13 +24,13 @@ fn concat_idents(
         }
 
         let ident = p.parse::<ast::Ident>()?;
-        output.push_str(ctx.resolve(ident)?);
+        output.push_str(cx.resolve(ident)?);
     }
 
     p.eof()?;
 
-    let output = ctx.ident(&output);
-    Ok(quote!(#output).into_token_stream(ctx))
+    let output = cx.ident(&output);
+    Ok(quote!(#output).into_token_stream(cx))
 }
 
 fn main() -> rune::Result<()> {

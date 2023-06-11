@@ -37,12 +37,12 @@ fn format_fmt_error(error: &fmt::Error, buf: &mut String) -> fmt::Result {
 /// ```
 #[rune::macro_(path = format)]
 pub(crate) fn format(
-    ctx: &mut MacroContext<'_, '_>,
+    cx: &mut MacroContext<'_, '_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
-    let mut p = Parser::from_token_stream(stream, ctx.input_span());
+    let mut p = Parser::from_token_stream(stream, cx.input_span());
     let args = p.parse::<FormatArgs>()?;
     p.eof()?;
-    let expanded = args.expand(ctx)?;
-    Ok(expanded.into_token_stream(ctx))
+    let expanded = args.expand(cx)?;
+    Ok(expanded.into_token_stream(cx))
 }

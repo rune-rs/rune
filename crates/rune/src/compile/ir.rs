@@ -32,23 +32,23 @@ use crate::parse::NonZeroId;
 use crate::query::Used;
 
 impl ast::Expr {
-    pub(crate) fn eval(&self, ctx: &mut MacroContext<'_, '_>) -> compile::Result<IrValue> {
+    pub(crate) fn eval(&self, cx: &mut MacroContext<'_, '_>) -> compile::Result<IrValue> {
         let mut expr = self.clone();
-        index::expr(ctx.idx, &mut expr)?;
+        index::expr(cx.idx, &mut expr)?;
 
         let ir = {
             // TODO: avoid this arena?
             let arena = hir::Arena::new();
-            let mut hir_ctx = hir::lowering::Ctx::with_const(
+            let mut hir_ctx = hir::lowering::Ctxt::with_const(
                 &arena,
-                ctx.idx.q.borrow(),
-                ctx.item_meta.location.source_id,
+                cx.idx.q.borrow(),
+                cx.item_meta.location.source_id,
             );
             let hir = hir::lowering::expr(&mut hir_ctx, &expr)?;
 
             let mut c = IrCompiler {
-                source_id: ctx.item_meta.location.source_id,
-                q: ctx.idx.q.borrow(),
+                source_id: cx.item_meta.location.source_id,
+                q: cx.idx.q.borrow(),
             };
 
             compiler::expr(&hir, &mut c)?
@@ -57,9 +57,9 @@ impl ast::Expr {
         let mut ir_interpreter = IrInterpreter {
             budget: IrBudget::new(1_000_000),
             scopes: Default::default(),
-            module: ctx.item_meta.module,
-            item: ctx.item_meta.item,
-            q: ctx.idx.q.borrow(),
+            module: cx.item_meta.module,
+            item: cx.item_meta.item,
+            q: cx.idx.q.borrow(),
         };
 
         ir_interpreter.eval_value(&ir, Used::Used)

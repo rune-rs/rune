@@ -35,7 +35,7 @@ impl<'a, 'b> MacroContext<'a, 'b> {
     /// ```
     /// use rune::macros::MacroContext;
     ///
-    /// MacroContext::test(|ctx| ());
+    /// MacroContext::test(|cx| ());
     /// ```
     pub fn test<F, O>(f: F) -> O
     where
@@ -95,14 +95,14 @@ impl<'a, 'b> MacroContext<'a, 'b> {
             loaded: None,
         };
 
-        let mut ctx = MacroContext {
+        let mut cx = MacroContext {
             macro_span: Span::empty(),
             input_span: Span::empty(),
             item_meta,
             idx: &mut idx,
         };
 
-        f(&mut ctx)
+        f(&mut cx)
     }
 
     /// Evaluate the given target as a constant expression.
@@ -119,12 +119,12 @@ impl<'a, 'b> MacroContext<'a, 'b> {
     /// use rune::parse::{Parser};
     ///
     /// // Note: should only be used for testing.
-    /// MacroContext::test(|ctx| {
-    ///     let stream = quote!(1 + 2).into_token_stream(ctx);
+    /// MacroContext::test(|cx| {
+    ///     let stream = quote!(1 + 2).into_token_stream(cx);
     ///
-    ///     let mut p = Parser::from_token_stream(&stream, ctx.input_span());
+    ///     let mut p = Parser::from_token_stream(&stream, cx.input_span());
     ///     let expr = p.parse_all::<ast::Expr>().unwrap();
-    ///     let value = ctx.eval(&expr).unwrap();
+    ///     let value = cx.eval(&expr).unwrap();
     ///
     ///     assert_eq!(3, value.into_integer::<u32>().unwrap());
     /// });
@@ -141,8 +141,8 @@ impl<'a, 'b> MacroContext<'a, 'b> {
     /// use rune::ast;
     /// use rune::macros::MacroContext;
     ///
-    /// MacroContext::test(|ctx| {
-    ///     let lit = ctx.lit("hello world");
+    /// MacroContext::test(|cx| {
+    ///     let lit = cx.lit("hello world");
     ///     assert!(matches!(lit, ast::Lit::Str(..)))
     /// });
     /// ```
@@ -162,8 +162,8 @@ impl<'a, 'b> MacroContext<'a, 'b> {
     /// use rune::ast;
     /// use rune::macros::MacroContext;
     ///
-    /// MacroContext::test(|ctx| {
-    ///     let lit = ctx.ident("foo");
+    /// MacroContext::test(|cx| {
+    ///     let lit = cx.ident("foo");
     ///     assert!(matches!(lit, ast::Ident { .. }))
     /// });
     /// ```
@@ -186,8 +186,8 @@ impl<'a, 'b> MacroContext<'a, 'b> {
     /// use rune::ast;
     /// use rune::macros::MacroContext;
     ///
-    /// MacroContext::test(|ctx| {
-    ///     let lit = ctx.label("foo");
+    /// MacroContext::test(|cx| {
+    ///     let lit = cx.label("foo");
     ///     assert!(matches!(lit, ast::Label { .. }))
     /// });
     /// ```
@@ -205,7 +205,7 @@ impl<'a, 'b> MacroContext<'a, 'b> {
     {
         let mut stream = TokenStream::new();
         tokens.to_tokens(self, &mut stream);
-        Stringify { ctx: self, stream }
+        Stringify { cx: self, stream }
     }
 
     /// Resolve the value of a token.
@@ -264,8 +264,8 @@ impl<'a, 'b> MacroContext<'a, 'b> {
     }
 }
 
-pub struct Stringify<'ctx, 'a, 'b> {
-    ctx: &'ctx MacroContext<'a, 'b>,
+pub struct Stringify<'cx, 'a, 'b> {
+    cx: &'cx MacroContext<'a, 'b>,
     stream: TokenStream,
 }
 
@@ -275,12 +275,12 @@ impl fmt::Display for Stringify<'_, '_, '_> {
         let last = it.next_back();
 
         for token in it {
-            token.token_fmt(self.ctx, f)?;
+            token.token_fmt(self.cx, f)?;
             write!(f, " ")?;
         }
 
         if let Some(last) = last {
-            last.token_fmt(self.ctx, f)?;
+            last.token_fmt(self.cx, f)?;
         }
 
         Ok(())

@@ -28,20 +28,20 @@ impl LitStr {
     /// Resolve a template string.
     pub(crate) fn resolve_template_string<'a>(
         &self,
-        ctx: ResolveContext<'a>,
+        cx: ResolveContext<'a>,
     ) -> Result<Cow<'a, str>> {
-        self.resolve_inner(ctx, ast::utils::WithTemplate(true))
+        self.resolve_inner(cx, ast::utils::WithTemplate(true))
     }
 
     /// Resolve as a regular string.
-    pub(crate) fn resolve_string<'a>(&self, ctx: ResolveContext<'a>) -> Result<Cow<'a, str>> {
-        self.resolve_inner(ctx, ast::utils::WithTemplate(false))
+    pub(crate) fn resolve_string<'a>(&self, cx: ResolveContext<'a>) -> Result<Cow<'a, str>> {
+        self.resolve_inner(cx, ast::utils::WithTemplate(false))
     }
 
     /// Resolve the given string with the specified configuration.
     fn resolve_inner<'a>(
         &self,
-        ctx: ResolveContext<'a>,
+        cx: ResolveContext<'a>,
         with_template: ast::utils::WithTemplate,
     ) -> Result<Cow<'a, str>> {
         let span = self.span;
@@ -49,7 +49,7 @@ impl LitStr {
         let text = match self.source {
             ast::StrSource::Text(text) => text,
             ast::StrSource::Synthetic(id) => {
-                let bytes = ctx.storage.get_string(id).ok_or_else(|| {
+                let bytes = cx.storage.get_string(id).ok_or_else(|| {
                     compile::Error::new(
                         span,
                         ResolveErrorKind::BadSyntheticId {
@@ -69,7 +69,7 @@ impl LitStr {
             span
         };
 
-        let string = ctx
+        let string = cx
             .sources
             .source(text.source_id, span)
             .ok_or_else(|| compile::Error::new(span, ResolveErrorKind::BadSlice))?;
@@ -136,8 +136,8 @@ impl Parse for LitStr {
 impl<'a> Resolve<'a> for LitStr {
     type Output = Cow<'a, str>;
 
-    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<Cow<'a, str>> {
-        self.resolve_string(ctx)
+    fn resolve(&self, cx: ResolveContext<'a>) -> Result<Cow<'a, str>> {
+        self.resolve_string(cx)
     }
 }
 

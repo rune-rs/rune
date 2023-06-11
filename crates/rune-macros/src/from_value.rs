@@ -4,7 +4,7 @@ use quote::{quote, quote_spanned};
 use syn::spanned::Spanned as _;
 
 struct Expander {
-    ctx: Context,
+    cx: Context,
     tokens: Tokens,
 }
 
@@ -192,7 +192,7 @@ impl Expander {
         match &field.ident {
             Some(ident) => Ok(ident),
             None => {
-                self.ctx.error(syn::Error::new_spanned(
+                self.cx.error(syn::Error::new_spanned(
                     field,
                     "unnamed fields are not supported",
                 ));
@@ -213,7 +213,7 @@ impl Expander {
         } = &self.tokens;
 
         for (index, field) in unnamed.unnamed.iter().enumerate() {
-            let _ = self.ctx.field_attrs(&field.attrs)?;
+            let _ = self.cx.field_attrs(&field.attrs)?;
             let from_value = self
                 .tokens
                 .vm_try(quote!(#from_value::from_value(value.clone())));
@@ -238,7 +238,7 @@ impl Expander {
 
         for field in &named.named {
             let ident = self.field_ident(field)?;
-            let _ = self.ctx.field_attrs(&field.attrs)?;
+            let _ = self.cx.field_attrs(&field.attrs)?;
 
             let name = &syn::LitStr::new(&ident.to_string(), ident.span());
 
@@ -269,15 +269,15 @@ impl Expander {
 }
 
 pub(super) fn expand(input: &syn::DeriveInput) -> Result<TokenStream, Vec<syn::Error>> {
-    let ctx = Context::new();
+    let cx = Context::new();
 
-    let Ok(attr) = ctx.type_attrs(&input.attrs) else {
-        return Err(ctx.errors.into_inner());
+    let Ok(attr) = cx.type_attrs(&input.attrs) else {
+        return Err(cx.errors.into_inner());
     };
 
-    let tokens = ctx.tokens_with_module(attr.module.as_ref());
+    let tokens = cx.tokens_with_module(attr.module.as_ref());
 
-    let mut expander = Expander { ctx, tokens };
+    let mut expander = Expander { cx, tokens };
 
     match &input.data {
         syn::Data::Struct(st) => {
@@ -291,12 +291,12 @@ pub(super) fn expand(input: &syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
             }
         }
         syn::Data::Union(un) => {
-            expander.ctx.error(syn::Error::new_spanned(
+            expander.cx.error(syn::Error::new_spanned(
                 un.union_token,
                 "not supported on unions",
             ));
         }
     }
 
-    Err(expander.ctx.errors.into_inner())
+    Err(expander.cx.errors.into_inner())
 }

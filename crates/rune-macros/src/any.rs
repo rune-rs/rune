@@ -27,8 +27,8 @@ impl syn::parse::Parse for InternalCall {
 
 impl InternalCall {
     pub fn expand(self) -> Result<TokenStream, Vec<syn::Error>> {
-        let ctx = Context::with_crate();
-        let tokens = ctx.tokens_with_module(None);
+        let cx = Context::with_crate();
+        let tokens = cx.tokens_with_module(None);
 
         let name = match self.path.segments.last() {
             Some(last) if last.arguments.is_empty() => last.ident.clone(),
@@ -68,19 +68,19 @@ impl syn::parse::Parse for Derive {
 
 impl Derive {
     pub(super) fn expand(self) -> Result<TokenStream, Vec<syn::Error>> {
-        let ctx = Context::new();
+        let cx = Context::new();
 
-        let Ok(attr) = ctx.type_attrs(&self.input.attrs) else {
-            return Err(ctx.errors.into_inner());
+        let Ok(attr) = cx.type_attrs(&self.input.attrs) else {
+            return Err(cx.errors.into_inner());
         };
 
-        let tokens = ctx.tokens_with_module(attr.module.as_ref());
+        let tokens = cx.tokens_with_module(attr.module.as_ref());
 
         let generics = &self.input.generics;
         let mut installers = Vec::new();
 
-        let Ok(()) = expand_install_with(&ctx, &self.input, &tokens, &attr, generics, &mut installers) else {
-            return Err(ctx.errors.into_inner());
+        let Ok(()) = expand_install_with(&cx, &self.input, &tokens, &attr, generics, &mut installers) else {
+            return Err(cx.errors.into_inner());
         };
 
         let name = match &attr.name {
@@ -127,7 +127,7 @@ fn build_type_hash(item: &syn::Path) -> Hash {
 
 /// Expannd the install into impl.
 pub(crate) fn expand_install_with(
-    ctx: &Context,
+    cx: &Context,
     input: &syn::DeriveInput,
     tokens: &Tokens,
     attr: &TypeAttr,
@@ -138,13 +138,13 @@ pub(crate) fn expand_install_with(
 
     match &input.data {
         syn::Data::Struct(st) => {
-            expand_struct_install_with(ctx, installers, st, tokens, attr)?;
+            expand_struct_install_with(cx, installers, st, tokens, attr)?;
         }
         syn::Data::Enum(en) => {
-            expand_enum_install_with(ctx, installers, ident, en, tokens, attr, generics)?;
+            expand_enum_install_with(cx, installers, ident, en, tokens, attr, generics)?;
         }
         syn::Data::Union(..) => {
-            ctx.error(syn::Error::new_spanned(
+            cx.error(syn::Error::new_spanned(
                 input,
                 "#[derive(Any)]: Not supported on unions",
             ));
@@ -162,14 +162,14 @@ pub(crate) fn expand_install_with(
 }
 
 fn expand_struct_install_with(
-    ctx: &Context,
+    cx: &Context,
     installers: &mut Vec<TokenStream>,
     st: &syn::DataStruct,
     tokens: &Tokens,
     attr: &TypeAttr,
 ) -> Result<(), ()> {
     for (n, field) in st.fields.iter().enumerate() {
-        let attrs = ctx.field_attrs(&field.attrs)?;
+        let attrs = cx.field_attrs(&field.attrs)?;
         let name;
         let index;
 
@@ -244,7 +244,7 @@ fn expand_struct_install_with(
 }
 
 fn expand_enum_install_with(
-    ctx: &Context,
+    cx: &Context,
     installers: &mut Vec<TokenStream>,
     ident: &syn::Ident,
     en: &syn::DataEnum,
@@ -275,7 +275,7 @@ fn expand_enum_install_with(
     for (variant_index, variant) in en.variants.iter().enumerate() {
         let span = variant.fields.span();
 
-        let variant_attr = ctx.variant_attr(&variant.attrs)?;
+        let variant_attr = cx.variant_attr(&variant.attrs)?;
 
         let mut variant_docs = syn::ExprArray {
             attrs: Vec::new(),
@@ -297,10 +297,10 @@ fn expand_enum_install_with(
                 let mut field_names = Vec::new();
 
                 for f in &fields.named {
-                    let attrs = ctx.field_attrs(&f.attrs)?;
+                    let attrs = cx.field_attrs(&f.attrs)?;
 
                     let Some(f_ident) = &f.ident else {
-                        ctx.error(syn::Error::new_spanned(f, "Missing field name"));
+                        cx.error(syn::Error::new_spanned(f, "Missing field name"));
                         return Err(());
                     };
 
@@ -332,7 +332,7 @@ fn expand_enum_install_with(
 
                 for (n, field) in fields.unnamed.iter().enumerate() {
                     let span = field.span();
-                    let attrs = ctx.field_attrs(&field.attrs)?;
+                    let attrs = cx.field_attrs(&field.attrs)?;
 
                     if attrs.field {
                         fields_len += 1;
@@ -355,7 +355,7 @@ fn expand_enum_install_with(
 
                 let constructor = if variant_attr.constructor {
                     if fields_len != fields.unnamed.len() {
-                        ctx.error(syn::Error::new_spanned(fields, "#[rune(constructor)] can only be used if all fields are marked with #[rune(get)"));
+                        cx.error(syn::Error::new_spanned(fields, "#[rune(constructor)] can only be used if all fields are marked with #[rune(get)"));
                         return Err(());
                     }
 

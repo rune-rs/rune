@@ -69,13 +69,13 @@ impl Loops {
     /// Find the loop with the matching label.
     pub(crate) fn walk_until_label(
         &self,
-        ctx: ResolveContext<'_>,
+        cx: ResolveContext<'_>,
         expected: &ast::Label,
     ) -> compile::Result<(Loop, Vec<usize>)> {
         use crate::parse::Resolve;
 
         let span = expected.span();
-        let expected = expected.resolve(ctx)?;
+        let expected = expected.resolve(cx)?;
         let mut to_drop = Vec::new();
 
         for l in self.loops.borrow().iter().rev() {
@@ -88,7 +88,7 @@ impl Loops {
                 }
             };
 
-            let label = label.resolve(ctx)?;
+            let label = label.resolve(cx)?;
 
             if expected == label {
                 return Ok((l.clone(), to_drop));

@@ -507,14 +507,14 @@ impl<'a> Query<'a> {
 
         // Emit documentation comments for the given item.
         if !docs.is_empty() {
-            let ctx = resolve_context!(self);
+            let cx = resolve_context!(self);
 
             for doc in docs {
                 self.visitor.visit_doc_comment(
                     &DynLocation::new(location.source_id, &doc.span),
                     self.pool.item(item),
                     self.pool.item_type_hash(item),
-                    doc.doc_string.resolve(ctx)?.as_ref(),
+                    doc.doc_string.resolve(cx)?.as_ref(),
                 );
             }
         }
@@ -1185,7 +1185,7 @@ impl<'a> Query<'a> {
     ) -> compile::Result<meta::Meta> {
         /// Convert AST fields into meta fields.
         fn convert_fields(
-            ctx: ResolveContext<'_>,
+            cx: ResolveContext<'_>,
             body: ast::Fields,
         ) -> compile::Result<meta::Fields> {
             Ok(match body {
@@ -1195,7 +1195,7 @@ impl<'a> Query<'a> {
                     let mut fields = HashSet::new();
 
                     for (ast::Field { name, .. }, _) in st {
-                        let name = name.resolve(ctx)?;
+                        let name = name.resolve(cx)?;
                         fields.insert(name.into());
                     }
 
@@ -1288,7 +1288,7 @@ impl<'a> Query<'a> {
             Indexed::ConstExpr(c) => {
                 let ir = {
                     let arena = crate::hir::Arena::new();
-                    let mut hir_ctx = crate::hir::lowering::Ctx::with_const(
+                    let mut hir_ctx = crate::hir::lowering::Ctxt::with_const(
                         &arena,
                         self.borrow(),
                         item_meta.location.source_id,
@@ -1328,7 +1328,7 @@ impl<'a> Query<'a> {
             Indexed::ConstBlock(c) => {
                 let ir = {
                     let arena = crate::hir::Arena::new();
-                    let mut hir_ctx = crate::hir::lowering::Ctx::with_const(
+                    let mut hir_ctx = crate::hir::lowering::Ctxt::with_const(
                         &arena,
                         self.borrow(),
                         item_meta.location.source_id,
@@ -1369,12 +1369,12 @@ impl<'a> Query<'a> {
                 let ir_fn = {
                     // TODO: avoid this arena?
                     let arena = crate::hir::Arena::new();
-                    let mut ctx = crate::hir::lowering::Ctx::with_const(
+                    let mut cx = crate::hir::lowering::Ctxt::with_const(
                         &arena,
                         self.borrow(),
                         item_meta.location.source_id,
                     );
-                    let hir = crate::hir::lowering::item_fn(&mut ctx, &c.item_fn)?;
+                    let hir = crate::hir::lowering::item_fn(&mut cx, &c.item_fn)?;
 
                     let mut c = IrCompiler {
                         source_id: item_meta.location.source_id,

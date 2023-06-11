@@ -13,15 +13,15 @@ use crate::no_std::sync::Arc;
 fn test_concat_idents() -> rune::Result<()> {
     #[rune::macro_]
     fn concat_idents(
-        ctx: &mut MacroContext<'_, '_>,
+        cx: &mut MacroContext<'_, '_>,
         input: &TokenStream,
     ) -> compile::Result<TokenStream> {
         let mut output = String::new();
 
-        let mut p = Parser::from_token_stream(input, ctx.input_span());
+        let mut p = Parser::from_token_stream(input, cx.input_span());
 
         let ident = p.parse::<ast::Ident>()?;
-        output.push_str(ctx.resolve(ident)?);
+        output.push_str(cx.resolve(ident)?);
 
         while p.parse::<Option<T![,]>>()?.is_some() {
             if p.is_eof()? {
@@ -29,13 +29,13 @@ fn test_concat_idents() -> rune::Result<()> {
             }
 
             let ident = p.parse::<ast::Ident>()?;
-            output.push_str(ctx.resolve(ident)?);
+            output.push_str(cx.resolve(ident)?);
         }
 
         p.eof()?;
 
-        let output = ctx.ident(&output);
-        Ok(quote!(#output).into_token_stream(ctx))
+        let output = cx.ident(&output);
+        Ok(quote!(#output).into_token_stream(cx))
     }
 
     let mut m = Module::new();
@@ -86,18 +86,18 @@ fn test_concat_idents() -> rune::Result<()> {
 fn test_rename() -> rune::Result<()> {
     #[rune::attribute_macro]
     fn rename(
-        ctx: &mut MacroContext<'_, '_>,
+        cx: &mut MacroContext<'_, '_>,
         input: &TokenStream,
         item: &TokenStream,
     ) -> compile::Result<TokenStream> {
-        let mut parser = Parser::from_token_stream(item, ctx.macro_span());
+        let mut parser = Parser::from_token_stream(item, cx.macro_span());
         let mut fun: ast::ItemFn = parser.parse_all()?;
 
-        let mut parser = Parser::from_token_stream(input, ctx.input_span());
+        let mut parser = Parser::from_token_stream(input, cx.input_span());
         fun.name = parser.parse_all::<ast::EqValue<_>>()?.value;
 
         let mut tokens = TokenStream::new();
-        fun.to_tokens(ctx, &mut tokens);
+        fun.to_tokens(cx, &mut tokens);
         Ok(tokens)
     }
 

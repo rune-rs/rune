@@ -26,19 +26,19 @@ pub fn module() -> Result<Module, ContextError> {
 /// ```
 #[rune::macro_]
 pub(crate) fn line(
-    ctx: &mut MacroContext<'_, '_>,
+    cx: &mut MacroContext<'_, '_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
     use crate as rune;
 
-    let mut parser = Parser::from_token_stream(stream, ctx.input_span());
+    let mut parser = Parser::from_token_stream(stream, cx.input_span());
     parser.eof()?;
 
     Ok(quote!(
         #[builtin]
         line!()
     )
-    .into_token_stream(ctx))
+    .into_token_stream(cx))
 }
 
 /// Return the name of the current file.
@@ -50,17 +50,17 @@ pub(crate) fn line(
 /// ```
 #[rune::macro_]
 pub(crate) fn file(
-    ctx: &mut MacroContext<'_, '_>,
+    cx: &mut MacroContext<'_, '_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
     use crate as rune;
 
-    let mut parser = Parser::from_token_stream(stream, ctx.input_span());
+    let mut parser = Parser::from_token_stream(stream, cx.input_span());
     parser.eof()?;
 
     Ok(quote!(
         #[builtin]
         file!()
     )
-    .into_token_stream(ctx))
+    .into_token_stream(cx))
 }

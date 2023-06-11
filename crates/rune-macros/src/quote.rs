@@ -10,7 +10,7 @@ use self::builder::Builder;
 use self::inner::*;
 
 pub struct Quote {
-    ctx: &'static str,
+    cx: &'static str,
     stream: &'static str,
 }
 
@@ -18,7 +18,7 @@ impl Quote {
     /// Construct a new quote parser.
     pub fn new() -> Self {
         Self {
-            ctx: "__rune_macros_ctx",
+            cx: "__rune_macros_ctx",
             stream: "__rune_macros_stream",
         }
     }
@@ -27,7 +27,7 @@ impl Quote {
     /// `ToTokens` implementation.
     pub fn parse(&self, input: TokenStream) -> Result<TokenStream, Error> {
         let arg = (
-            ("move", '|', self.ctx, ',', self.stream, '|'),
+            ("move", '|', self.cx, ',', self.stream, '|'),
             braced(self.process(input)?),
         );
 
@@ -91,7 +91,7 @@ impl Quote {
                             self.encode_to_tokens(
                                 ident.span(),
                                 &mut output,
-                                NewIdent(self.ctx, &string),
+                                NewIdent(self.cx, &string),
                             );
                             continue;
                         }
@@ -119,7 +119,7 @@ impl Quote {
                     self.encode_to_tokens(punct.span(), &mut output, kind);
                 }
                 TokenTree::Literal(lit) => {
-                    self.encode_to_tokens(lit.span(), &mut output, NewLit(self.ctx, lit));
+                    self.encode_to_tokens(lit.span(), &mut output, NewLit(self.cx, lit));
                 }
             }
         }
@@ -168,7 +168,7 @@ impl Quote {
                 let body = (
                     (
                         ToTokensFn,
-                        p(('&', "value", ',', self.ctx, ',', self.stream)),
+                        p(('&', "value", ',', self.cx, ',', self.stream)),
                         ';',
                     ),
                     ("if", "it", '.', "peek", p(()), '.', "is_some", p(())),
@@ -199,7 +199,7 @@ impl Quote {
             span,
             (
                 ToTokensFn,
-                p(('&', tokens, ',', self.ctx, ',', self.stream)),
+                p(('&', tokens, ',', self.cx, ',', self.stream)),
                 ';',
             ),
         );

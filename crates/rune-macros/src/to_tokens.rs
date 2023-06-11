@@ -21,10 +21,10 @@ impl syn::parse::Parse for Derive {
 
 impl Derive {
     pub(super) fn expand(self) -> Result<TokenStream, Vec<syn::Error>> {
-        let ctx = Context::new();
-        let tokens = ctx.tokens_with_module(None);
+        let cx = Context::new();
+        let tokens = cx.tokens_with_module(None);
 
-        let mut expander = Expander { ctx, tokens };
+        let mut expander = Expander { cx, tokens };
 
         match &self.input.data {
             syn::Data::Struct(st) => {
@@ -38,19 +38,19 @@ impl Derive {
                 }
             }
             syn::Data::Union(un) => {
-                expander.ctx.error(syn::Error::new_spanned(
+                expander.cx.error(syn::Error::new_spanned(
                     un.union_token,
                     "not supported on unions",
                 ));
             }
         }
 
-        Err(expander.ctx.errors.into_inner())
+        Err(expander.cx.errors.into_inner())
     }
 }
 
 struct Expander {
-    ctx: Context,
+    cx: Context,
     tokens: Tokens,
 }
 
@@ -61,7 +61,7 @@ impl Expander {
         input: &syn::DeriveInput,
         st: &syn::DataStruct,
     ) -> Result<TokenStream, ()> {
-        let _ = self.ctx.type_attrs(&input.attrs)?;
+        let _ = self.cx.type_attrs(&input.attrs)?;
         self.expand_struct_fields(input, &st.fields)
     }
 
@@ -71,7 +71,7 @@ impl Expander {
         input: &syn::DeriveInput,
         st: &syn::DataEnum,
     ) -> Result<TokenStream, ()> {
-        let _ = self.ctx.type_attrs(&input.attrs)?;
+        let _ = self.cx.type_attrs(&input.attrs)?;
 
         let mut impl_into_tokens = Vec::new();
 
@@ -112,14 +112,14 @@ impl Expander {
         match fields {
             syn::Fields::Named(named) => self.expand_struct_named(input, named),
             syn::Fields::Unnamed(..) => {
-                self.ctx.error(syn::Error::new_spanned(
+                self.cx.error(syn::Error::new_spanned(
                     fields,
                     "tuple structs are not supported",
                 ));
                 Err(())
             }
             syn::Fields::Unit => {
-                self.ctx.error(syn::Error::new_spanned(
+                self.cx.error(syn::Error::new_spanned(
                     fields,
                     "unit structs are not supported",
                 ));
@@ -150,8 +150,8 @@ impl Expander {
         let mut fields = Vec::new();
 
         for field in &named.named {
-            let ident = self.ctx.field_ident(field)?;
-            let attrs = self.ctx.field_attrs(&field.attrs)?;
+            let ident = self.cx.field_ident(field)?;
+            let attrs = self.cx.field_attrs(&field.attrs)?;
 
             if attrs.skip() {
                 continue;
@@ -196,8 +196,8 @@ impl Expander {
         let mut idents = Vec::new();
 
         for field in &named.named {
-            let ident = self.ctx.field_ident(field)?;
-            let attrs = self.ctx.field_attrs(&field.attrs)?;
+            let ident = self.cx.field_ident(field)?;
+            let attrs = self.cx.field_attrs(&field.attrs)?;
             idents.push(ident);
 
             if attrs.skip() {
@@ -225,7 +225,7 @@ impl Expander {
 
         for (n, field) in named.unnamed.iter().enumerate() {
             let ident = syn::Ident::new(&format!("f{}", n), field.span());
-            let attrs = self.ctx.field_attrs(&field.attrs)?;
+            let attrs = self.cx.field_attrs(&field.attrs)?;
 
             idents.push(ident.clone());
 

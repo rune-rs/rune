@@ -27,8 +27,8 @@ fn ast_parse() {
 /// use rune::ast;
 /// use rune::macros::MacroContext;
 ///
-/// MacroContext::test(|ctx| {
-///     let lit = ctx.lit("hello world");
+/// MacroContext::test(|cx| {
+///     let lit = cx.lit("hello world");
 ///     assert!(matches!(lit, ast::Lit::Str(..)))
 /// });
 /// ```

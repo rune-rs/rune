@@ -24,11 +24,11 @@ impl Template {
     where
         T: Serialize,
     {
-        let ctx = Context::wraps(data)?;
+        let cx = Context::wraps(data)?;
         let mut render_context = RenderContext::new(None);
         let mut out = StringOutput::new();
         self.template
-            .render(&self.handlebars, &ctx, &mut render_context, &mut out)?;
+            .render(&self.handlebars, &cx, &mut render_context, &mut out)?;
         Ok(out.into_string()?)
     }
 }

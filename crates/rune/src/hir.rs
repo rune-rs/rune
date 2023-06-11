@@ -1,3 +1,6 @@
+#[macro_use]
+mod macros;
+
 mod arena;
 pub(crate) use self::arena::Arena;
 

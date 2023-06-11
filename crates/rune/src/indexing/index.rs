@@ -1291,11 +1291,11 @@ fn item_enum(idx: &mut Indexer<'_>, mut ast: ast::ItemEnum) -> compile::Result<(
 
         variant.id.set(item_meta.id);
 
-        let ctx = resolve_context!(idx.q);
+        let cx = resolve_context!(idx.q);
 
         for (field, _) in variant.body.fields() {
             let mut p = attrs::Parser::new(&field.attributes);
-            let docs = Doc::collect_from(ctx, &mut p, &field.attributes)?;
+            let docs = Doc::collect_from(cx, &mut p, &field.attributes)?;
 
             if let Some(first) = p.remaining(&field.attributes).next() {
                 return Err(compile::Error::msg(
@@ -1304,7 +1304,7 @@ fn item_enum(idx: &mut Indexer<'_>, mut ast: ast::ItemEnum) -> compile::Result<(
                 ));
             }
 
-            let name = field.name.resolve(ctx)?;
+            let name = field.name.resolve(cx)?;
 
             for doc in docs {
                 idx.q.visitor.visit_field_doc_comment(
@@ -1312,7 +1312,7 @@ fn item_enum(idx: &mut Indexer<'_>, mut ast: ast::ItemEnum) -> compile::Result<(
                     idx.q.pool.item(item_meta.item),
                     idx.q.pool.item_type_hash(item_meta.item),
                     name,
-                    doc.doc_string.resolve(ctx)?.as_ref(),
+                    doc.doc_string.resolve(cx)?.as_ref(),
                 );
             }
         }
@@ -1355,11 +1355,11 @@ fn item_struct(idx: &mut Indexer<'_>, mut ast: ast::ItemStruct) -> compile::Resu
     )?;
     ast.id.set(item_meta.id);
 
-    let ctx = resolve_context!(idx.q);
+    let cx = resolve_context!(idx.q);
 
     for (field, _) in ast.body.fields() {
         let mut p = attrs::Parser::new(&field.attributes);
-        let docs = Doc::collect_from(ctx, &mut p, &field.attributes)?;
+        let docs = Doc::collect_from(cx, &mut p, &field.attributes)?;
 
         if let Some(first) = p.remaining(&field.attributes).next() {
             return Err(compile::Error::msg(
@@ -1368,7 +1368,7 @@ fn item_struct(idx: &mut Indexer<'_>, mut ast: ast::ItemStruct) -> compile::Resu
             ));
         }
 
-        let name = field.name.resolve(ctx)?;
+        let name = field.name.resolve(cx)?;
 
         for doc in docs {
             idx.q.visitor.visit_field_doc_comment(
@@ -1376,7 +1376,7 @@ fn item_struct(idx: &mut Indexer<'_>, mut ast: ast::ItemStruct) -> compile::Resu
                 idx.q.pool.item(item_meta.item),
                 idx.q.pool.item_type_hash(item_meta.item),
                 name,
-                doc.doc_string.resolve(ctx)?.as_ref(),
+                doc.doc_string.resolve(cx)?.as_ref(),
             );
         }
 

@@ -6,10 +6,10 @@ use rune::parse::Parser;
 /// Implementation for the `stringy_math!` macro.
 #[rune::macro_]
 pub(crate) fn stringy_math(
-    ctx: &mut MacroContext<'_, '_>,
+    cx: &mut MacroContext<'_, '_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
-    let mut parser = Parser::from_token_stream(stream, ctx.input_span());
+    let mut parser = Parser::from_token_stream(stream, cx.input_span());
 
     let mut output = quote!(0);
 
@@ -17,7 +17,7 @@ pub(crate) fn stringy_math(
         let op = parser.parse::<ast::Ident>()?;
         let arg = parser.parse::<ast::Expr>()?;
 
-        output = match ctx.resolve(op)? {
+        output = match cx.resolve(op)? {
             "add" => quote!((#output) + #arg),
             "sub" => quote!((#output) - #arg),
             "div" => quote!((#output) / #arg),
@@ -27,5 +27,5 @@ pub(crate) fn stringy_math(
     }
 
     parser.eof()?;
-    Ok(output.into_token_stream(ctx))
+    Ok(output.into_token_stream(cx))
 }

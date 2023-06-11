@@ -23,9 +23,9 @@ impl<'a> Quote<'a> {
     /// # Panics
     ///
     /// This panics if called outside of a macro context.
-    pub fn into_token_stream(self, ctx: &mut MacroContext<'_, '_>) -> TokenStream {
+    pub fn into_token_stream(self, cx: &mut MacroContext<'_, '_>) -> TokenStream {
         let mut stream = TokenStream::new();
-        self.to_tokens(ctx, &mut stream);
+        self.to_tokens(cx, &mut stream);
         stream
     }
 }

@@ -12,21 +12,21 @@ fn test_parse_in_macro() -> Result<()> {
 
     let string = "1 + 2 + 13 * 3";
 
-    m.macro_(["string_as_code"], move |ctx, _| {
-        let id = ctx.insert_source("string_as_code", string);
-        let expr = ctx.parse_source::<ast::Expr>(id)?;
+    m.macro_(["string_as_code"], move |cx, _| {
+        let id = cx.insert_source("string_as_code", string);
+        let expr = cx.parse_source::<ast::Expr>(id)?;
 
-        Ok(quote!(#expr).into_token_stream(ctx))
+        Ok(quote!(#expr).into_token_stream(cx))
     })?;
 
-    m.macro_(["string_as_code_from_arg"], |ctx, stream| {
-        let mut p = Parser::from_token_stream(stream, ctx.input_span());
+    m.macro_(["string_as_code_from_arg"], |cx, stream| {
+        let mut p = Parser::from_token_stream(stream, cx.input_span());
         let s = p.parse_all::<ast::LitStr>()?;
-        let s = ctx.resolve(s)?.into_owned();
-        let id = ctx.insert_source("string_as_code_from_arg", &s);
-        let expr = ctx.parse_source::<ast::Expr>(id)?;
+        let s = cx.resolve(s)?.into_owned();
+        let id = cx.insert_source("string_as_code_from_arg", &s);
+        let expr = cx.parse_source::<ast::Expr>(id)?;
 
-        Ok(quote!(#expr).into_token_stream(ctx))
+        Ok(quote!(#expr).into_token_stream(cx))
     })?;
 
     let mut context = Context::with_default_modules()?;
@@ -56,17 +56,17 @@ fn test_parse_in_macro() -> Result<()> {
 fn conflicting_attribute_function() -> Result<()> {
     let mut m = Module::default();
 
-    m.macro_(["conflicting"], move |ctx, _| {
-        Ok(quote!(21).into_token_stream(ctx))
+    m.macro_(["conflicting"], move |cx, _| {
+        Ok(quote!(21).into_token_stream(cx))
     })?;
 
-    m.attribute_macro(["conflicting"], |ctx, _, _| {
+    m.attribute_macro(["conflicting"], |cx, _, _| {
         Ok(quote!(
             fn hello() {
                 21
             }
         )
-        .into_token_stream(ctx))
+        .into_token_stream(cx))
     })?;
 
     let mut context = Context::with_default_modules()?;
@@ -97,22 +97,22 @@ fn conflicting_attribute_function() -> Result<()> {
 fn attribute_imports_builtin() -> Result<()> {
     let mut m = Module::with_crate("abc");
 
-    m.attribute_macro(["before_use"], |ctx, _, _| {
+    m.attribute_macro(["before_use"], |cx, _, _| {
         Ok(quote!(
             fn before() {
                 21
             }
         )
-        .into_token_stream(ctx))
+        .into_token_stream(cx))
     })?;
 
-    m.attribute_macro(["after_use"], |ctx, _, _| {
+    m.attribute_macro(["after_use"], |cx, _, _| {
         Ok(quote!(
             fn after() {
                 21
             }
         )
-        .into_token_stream(ctx))
+        .into_token_stream(cx))
     })?;
 
     let mut context = Context::with_default_modules()?;

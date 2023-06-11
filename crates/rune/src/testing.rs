@@ -39,10 +39,10 @@ where
     let ast = expect!(parser.parse::<T>(), "first parse");
     expect!(parser.eof(), "First parse EOF");
 
-    let ast2 = MacroContext::test(|ctx| {
+    let ast2 = MacroContext::test(|cx| {
         let mut stream = TokenStream::new();
-        ast.to_tokens(ctx, &mut stream);
-        let mut parser = Parser::from_token_stream(&stream, ctx.input_span());
+        ast.to_tokens(cx, &mut stream);
+        let mut parser = Parser::from_token_stream(&stream, cx.input_span());
         let ast2 = expect!(parser.parse::<T>(), "Second parse");
         expect!(parser.eof(), "Second parse EOF");
         ast2

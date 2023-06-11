@@ -17,10 +17,10 @@ impl syn::parse::Parse for Derive {
 
 impl Derive {
     pub(super) fn expand(self) -> Result<TokenStream, Vec<syn::Error>> {
-        let ctx = Context::new();
-        let tokens = ctx.tokens_with_module(None);
+        let cx = Context::new();
+        let tokens = cx.tokens_with_module(None);
 
-        let mut expander = Expander { ctx, tokens };
+        let mut expander = Expander { cx, tokens };
 
         match &self.input.data {
             syn::Data::Struct(st) => {
@@ -29,25 +29,25 @@ impl Derive {
                 }
             }
             syn::Data::Enum(en) => {
-                expander.ctx.error(syn::Error::new_spanned(
+                expander.cx.error(syn::Error::new_spanned(
                     en.enum_token,
                     "not supported on enums",
                 ));
             }
             syn::Data::Union(un) => {
-                expander.ctx.error(syn::Error::new_spanned(
+                expander.cx.error(syn::Error::new_spanned(
                     un.union_token,
                     "not supported on unions",
                 ));
             }
         }
 
-        Err(expander.ctx.errors.into_inner())
+        Err(expander.cx.errors.into_inner())
     }
 }
 
 struct Expander {
-    ctx: Context,
+    cx: Context,
     tokens: Tokens,
 }
 
@@ -81,11 +81,11 @@ impl Expander {
         let mut field = None;
 
         for (n, f) in fields.iter().enumerate() {
-            let attrs = self.ctx.field_attrs(&f.attrs)?;
+            let attrs = self.cx.field_attrs(&f.attrs)?;
 
             if attrs.id.is_some() {
                 if field.is_some() {
-                    self.ctx.error(syn::Error::new_spanned(
+                    self.cx.error(syn::Error::new_spanned(
                         f,
                         "only one field can be marked `#[rune(id)]`",
                     ));
@@ -96,7 +96,7 @@ impl Expander {
         }
 
         let Some((n, f)) = field else {
-            self.ctx.error(syn::Error::new_spanned(
+            self.cx.error(syn::Error::new_spanned(
                 fields,
                 "Could not find a suitable identifier field",
             ));
