@@ -3,16 +3,154 @@ use core::mem::{replace, take};
 use crate::no_std::prelude::*;
 
 use crate::ast::{self, Span, Spanned};
-use crate::compile::v1::{Assembler, Layer, Loop, Needs, Var};
-use crate::compile::{self, CompileErrorKind, WithSpan};
+use crate::compile::ir;
+use crate::compile::v1::{Layer, Loop, Loops, ScopeGuard, Scopes, Var};
+use crate::compile::{self, Assembly, CompileErrorKind, ItemId, ModId, Options, WithSpan};
 use crate::hir;
+use crate::query::{ConstFn, Query, Used};
 use crate::runtime::{
     ConstValue, Inst, InstAddress, InstAssignOp, InstOp, InstRangeLimits, InstTarget, InstValue,
     InstVariant, Label, PanicReason, Protocol, TypeCheck,
 };
-use crate::Hash;
+use crate::{Hash, SourceId};
 
 use rune_macros::instrument;
+
+/// A needs hint for an expression.
+/// This is used to contextually determine what an expression is expected to
+/// produce.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum Needs {
+    Value,
+    None,
+}
+
+impl Needs {
+    /// Test if any sort of value is needed.
+    #[inline(always)]
+    pub(crate) fn value(self) -> bool {
+        matches!(self, Self::Value)
+    }
+}
+
+pub(crate) struct Assembler<'a, 'hir, 'arena> {
+    /// The source id of the source.
+    pub(crate) source_id: SourceId,
+    /// Query system to compile required items.
+    pub(crate) q: Query<'a, 'arena>,
+    /// The assembly we are generating.
+    pub(crate) asm: &'a mut Assembly,
+    /// Scopes defined in the compiler.
+    pub(crate) scopes: Scopes<'hir>,
+    /// Context for which to emit warnings.
+    pub(crate) contexts: Vec<Span>,
+    /// The nesting of loop we are currently in.
+    pub(crate) loops: Loops,
+    /// Enabled optimizations.
+    pub(crate) options: &'a Options,
+}
+
+impl<'a, 'hir, 'arena> Assembler<'a, 'hir, 'arena> {
+    /// Pop locals by simply popping them.
+    pub(crate) fn locals_pop(&mut self, total_var_count: usize, span: &dyn Spanned) {
+        match total_var_count {
+            0 => (),
+            1 => {
+                self.asm.push(Inst::Pop, span);
+            }
+            count => {
+                self.asm.push(Inst::PopN { count }, span);
+            }
+        }
+    }
+
+    /// Clean up local variables by preserving the value that is on top and
+    /// popping the rest.
+    ///
+    /// The clean operation will preserve the value that is on top of the stack,
+    /// and pop the values under it.
+    pub(crate) fn locals_clean(&mut self, total_var_count: usize, span: &dyn Spanned) {
+        match total_var_count {
+            0 => (),
+            count => {
+                self.asm.push(Inst::Clean { count }, span);
+            }
+        }
+    }
+
+    /// Clean the last scope.
+    pub(crate) fn clean_last_scope(
+        &mut self,
+        span: &dyn Spanned,
+        expected: ScopeGuard,
+        needs: Needs,
+    ) -> compile::Result<()> {
+        let scope = self.scopes.pop(expected, span)?;
+
+        if needs.value() {
+            self.locals_clean(scope.local, span);
+        } else {
+            self.locals_pop(scope.local, span);
+        }
+
+        Ok(())
+    }
+
+    /// Get the latest relevant warning context.
+    pub(crate) fn context(&self) -> Option<Span> {
+        self.contexts.last().copied()
+    }
+
+    /// Calling a constant function by id and return the resuling value.
+    pub(crate) fn call_const_fn(
+        &mut self,
+        span: &dyn Spanned,
+        from_module: ModId,
+        from_item: ItemId,
+        query_const_fn: &ConstFn,
+        args: &[hir::Expr<'_>],
+    ) -> compile::Result<ConstValue> {
+        if query_const_fn.ir_fn.args.len() != args.len() {
+            return Err(compile::Error::new(
+                span,
+                CompileErrorKind::UnsupportedArgumentCount {
+                    expected: query_const_fn.ir_fn.args.len(),
+                    actual: args.len(),
+                },
+            ));
+        }
+
+        let mut compiler = ir::Ctxt {
+            source_id: self.source_id,
+            q: self.q.borrow(),
+        };
+
+        let mut compiled = Vec::new();
+
+        // TODO: precompile these and fetch using opaque id?
+        for (hir, name) in args.iter().zip(&query_const_fn.ir_fn.args) {
+            compiled.push((ir::compiler::expr(hir, &mut compiler)?, name));
+        }
+
+        let mut interpreter = ir::Interpreter {
+            budget: ir::Budget::new(1_000_000),
+            scopes: Default::default(),
+            module: from_module,
+            item: from_item,
+            q: self.q.borrow(),
+        };
+
+        for (ir, name) in compiled {
+            let value = interpreter.eval_value(&ir, Used::Used)?;
+            interpreter.scopes.decl(name, value).with_span(span)?;
+        }
+
+        interpreter.module = query_const_fn.item_meta.module;
+        interpreter.item = query_const_fn.item_meta.item;
+        let value = interpreter.eval_value(&query_const_fn.ir_fn.ir, Used::Used)?;
+        value.into_const(span)
+    }
+}
 
 #[derive(Debug)]
 #[must_use = "must be consumed to make sure the value is realized"]
@@ -999,9 +1137,8 @@ fn expr_binary<'hir>(
 
     // NB: need to declare these as anonymous local variables so that they
     // get cleaned up in case there is an early break (return, try, ...).
-    let rhs_needs = rhs_needs_of(&hir.op);
     let a = expr(cx, &hir.lhs, Needs::Value)?.apply_targeted(cx)?;
-    let b = expr(cx, &hir.rhs, rhs_needs)?.apply_targeted(cx)?;
+    let b = expr(cx, &hir.rhs, Needs::Value)?.apply_targeted(cx)?;
 
     let op = match hir.op {
         ast::BinOp::Eq(..) => InstOp::Eq,
@@ -1043,15 +1180,6 @@ fn expr_binary<'hir>(
 
     cx.scopes.pop(guard, span)?;
     return Ok(Asm::top(span));
-
-    /// Get the need of the right-hand side operator from the type of the
-    /// operator.
-    fn rhs_needs_of(op: &ast::BinOp) -> Needs {
-        match op {
-            ast::BinOp::Is(..) | ast::BinOp::IsNot(..) => Needs::Type,
-            _ => Needs::Value,
-        }
-    }
 
     fn compile_conditional_binop<'hir>(
         cx: &mut Assembler<'_, 'hir, '_>,

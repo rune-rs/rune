@@ -288,8 +288,11 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
 
                 let arena = hir::Arena::new();
                 let mut c = self.compiler1(location, &f.ast, &mut asm);
-                let meta =
-                    c.lookup_meta(&f.ast, f.impl_item, self::v1::GenericsParameters::default())?;
+                let meta = c.q.lookup_meta(
+                    &location,
+                    f.impl_item,
+                    self::v1::GenericsParameters::default(),
+                )?;
 
                 let type_hash = meta.type_hash_of().ok_or_else(|| {
                     Error::expected_meta(&f.ast, meta.info(c.q.pool), "instance function")
