@@ -1681,19 +1681,19 @@ fn expr_call<'hir>(
                 break 'ok hir::Call::Meta { hash: meta.hash };
             }
             hir::ExprKind::FieldAccess(hir::ExprFieldAccess {
-                expr_field: hir::ExprField::Ident(ident),
+                expr_field,
                 expr: target,
             }) => {
-                let hash = Hash::instance_fn_name(ident);
-                break 'ok hir::Call::Instance { target, hash };
-            }
-            hir::ExprKind::FieldAccess(hir::ExprFieldAccess {
-                expr_field: hir::ExprField::IdentGenerics(ident, generics),
-                expr: target,
-            }) => {
-                let hash = Hash::instance_fn_name(ident);
-                let hash = hash.with_function_parameters(generics_parameter(generics)?);
-                break 'ok hir::Call::Instance { target, hash };
+                let hash = match *expr_field {
+                    hir::ExprField::Index(index) => Hash::index(*index),
+                    hir::ExprField::Ident(ident) => Hash::ident(ident),
+                    hir::ExprField::IdentGenerics(ident, generics) => {
+                        let hash = Hash::ident(ident);
+                        hash.with_function_parameters(generics_parameter(generics)?)
+                    }
+                };
+
+                break 'ok hir::Call::Associated { target, hash };
             }
             _ => {}
         }

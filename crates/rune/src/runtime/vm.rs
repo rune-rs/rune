@@ -2764,7 +2764,7 @@ impl Vm {
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_call_instance(&mut self, hash: Hash, args: usize) -> VmResult<()> {
+    fn op_call_associated(&mut self, hash: Hash, args: usize) -> VmResult<()> {
         // NB: +1 to include the instance itself.
         let args = args + 1;
         let instance = vm_try!(self.stack.at_offset_from_top(args));
@@ -2914,8 +2914,8 @@ impl Vm {
                 Inst::Call { hash, args } => {
                     vm_try!(self.op_call(hash, args));
                 }
-                Inst::CallInstance { hash, args } => {
-                    vm_try!(self.op_call_instance(hash, args));
+                Inst::CallAssociated { hash, args } => {
+                    vm_try!(self.op_call_associated(hash, args));
                 }
                 Inst::CallFn { args } => {
                     if let Some(reason) = vm_try!(self.op_call_fn(args)) {

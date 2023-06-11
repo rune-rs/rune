@@ -1333,7 +1333,7 @@ fn expr_call<'hir>(
 
             c.scopes.free(span, hir.args.len() + 1)?;
         }
-        hir::Call::Instance { target, hash } => {
+        hir::Call::Associated { target, hash } => {
             expr(c, target, Needs::Value)?.apply(c)?;
             c.scopes.alloc(target)?;
 
@@ -1342,7 +1342,7 @@ fn expr_call<'hir>(
                 c.scopes.alloc(span)?;
             }
 
-            c.asm.push(Inst::CallInstance { hash, args }, span);
+            c.asm.push(Inst::CallAssociated { hash, args }, span);
             c.scopes.free(span, hir.args.len() + 1)?;
         }
         hir::Call::Meta { hash } => {
@@ -1541,7 +1541,7 @@ fn expr_for<'hir>(
 
         let iter_offset = c.scopes.alloc(span)?;
         c.asm.push_with_comment(
-            Inst::CallInstance {
+            Inst::CallAssociated {
                 hash: *Protocol::INTO_ITER,
                 args: 0,
             },
@@ -1634,7 +1634,7 @@ fn expr_for<'hir>(
         );
 
         c.asm.push_with_comment(
-            Inst::CallInstance {
+            Inst::CallAssociated {
                 hash: *Protocol::NEXT,
                 args: 0,
             },

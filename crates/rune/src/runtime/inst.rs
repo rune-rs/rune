@@ -141,7 +141,7 @@ pub enum Inst {
     /// The instance being called on should be on top of the stack, followed by
     /// `args` number of arguments.
     #[musli(packed)]
-    CallInstance {
+    CallAssociated {
         /// The hash of the name of the function to call.
         hash: Hash,
         /// The number of arguments expected on the stack for this call.

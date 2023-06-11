@@ -17,10 +17,9 @@ pub use self::to_type_hash::ToTypeHash;
 const SEP: u64 = 0x4bc94d6bd06053ad;
 const PARAMS: u64 = 0x19893cc8f39b1371;
 const TYPE: u64 = 0x2fac10b63a6cc57c;
-const INSTANCE_FUNCTION_HASH: u64 = 0x5ea77ffbcdf5f302;
-const FIELD_FUNCTION_HASH: u64 = 0xab53b6a7a53c757e;
+const ASSOCIATED_FUNCTION_HASH: u64 = 0x5ea77ffbcdf5f302;
 const OBJECT_KEYS: u64 = 0x4473d7017aef7645;
-const INDEX_FUNCTION_HASH: u64 = 0x2579e52d1534901b;
+const IDENT: u64 = 0x1a095090689d4647;
 const INDEX: u64 = 0xe1b2378d7a937035;
 
 // Salt for type parameters.
@@ -64,17 +63,18 @@ impl Hash {
         self.0 == 0
     }
 
-    /// Construct a simple hash from something that is hashable.
-    fn of<T: hash::Hash>(thing: T) -> Self {
-        let mut hasher = Self::new_hasher();
-        thing.hash(&mut hasher);
-        Self(hasher.finish())
-    }
-
     /// Construct a hash from an index.
     #[inline]
     pub fn index(index: usize) -> Self {
         Self(INDEX ^ (index as u64))
+    }
+
+    /// Get the hash corresponding to a string identifier like `function` or
+    /// `hello_world`.
+    pub fn ident(name: &str) -> Hash {
+        let mut hasher = Self::new_hasher();
+        name.hash(&mut hasher);
+        Self(IDENT ^ hasher.finish())
     }
 
     /// Get the hash of a type.
@@ -93,7 +93,7 @@ impl Hash {
         N: IntoHash,
     {
         let name = name.into_hash();
-        Self(INSTANCE_FUNCTION_HASH ^ (type_hash.0 ^ name.0))
+        Self(ASSOCIATED_FUNCTION_HASH ^ (type_hash.0 ^ name.0))
     }
 
     /// Construct a hash corresponding to a field function.
@@ -102,23 +102,20 @@ impl Hash {
     where
         N: IntoHash,
     {
-        Self(FIELD_FUNCTION_HASH ^ ((type_hash.0 ^ protocol.hash.0) ^ name.into_hash().0))
+        Self::associated_function(Hash(type_hash.0 ^ protocol.0), name)
     }
 
     /// Construct an index function.
     #[inline]
     pub fn index_function(protocol: Protocol, type_hash: Hash, index: Hash) -> Self {
-        Self(INDEX_FUNCTION_HASH ^ ((type_hash.0 ^ protocol.hash.0) ^ index.0))
+        Self::associated_function(Hash(type_hash.0 ^ protocol.0), index)
     }
 
     /// Get the hash corresponding to a static byte array.
     pub fn static_bytes(bytes: &[u8]) -> Hash {
-        Self::of(bytes)
-    }
-
-    /// Get the hash corresponding to a instance function name.
-    pub fn instance_fn_name(name: &str) -> Hash {
-        Self::of(name)
+        let mut hasher = Self::new_hasher();
+        bytes.hash(&mut hasher);
+        Self(hasher.finish())
     }
 
     /// Hash the given iterator of object keys.

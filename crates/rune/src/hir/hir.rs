@@ -322,7 +322,7 @@ pub(crate) enum Call<'hir> {
         /// The name of the variable being called.
         name: Name<'hir>,
     },
-    Instance {
+    Associated {
         /// The target expression being called.
         target: &'hir Expr<'hir>,
         /// Hash of the fn being called.
