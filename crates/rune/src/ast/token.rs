@@ -20,23 +20,23 @@ pub struct Token {
 
 impl Token {
     /// Format the current token to a formatter.
-    pub(crate) fn token_fmt(&self, ctx: &MacroContext, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    pub(crate) fn token_fmt(&self, cx: &MacroContext, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             Kind::Eof | Kind::Error => {
                 // NB: marker tokens can't be formatted.
                 return Err(fmt::Error);
             }
             Kind::Ident(s) => {
-                let literal = ctx.literal_source(*s, self.span).ok_or(fmt::Error)?;
+                let literal = cx.literal_source(*s, self.span).ok_or(fmt::Error)?;
                 write!(f, "{}", literal)?;
             }
             Kind::Label(s) => {
-                let literal = ctx.literal_source(*s, self.span).ok_or(fmt::Error)?;
+                let literal = cx.literal_source(*s, self.span).ok_or(fmt::Error)?;
                 write!(f, "'{}", literal)?;
             }
             Kind::Byte(s) => match s {
                 CopySource::Text(source_id) => {
-                    let s = ctx
+                    let s = cx
                         .idx
                         .q
                         .sources
@@ -56,7 +56,7 @@ impl Token {
                         self.span
                     };
 
-                    let s = ctx
+                    let s = cx
                         .idx
                         .q
                         .sources
@@ -66,7 +66,7 @@ impl Token {
                     write!(f, "b\"{}\"", s)?;
                 }
                 StrSource::Synthetic(id) => {
-                    let b = ctx.idx.q.storage.get_byte_string(*id).ok_or(fmt::Error)?;
+                    let b = cx.idx.q.storage.get_byte_string(*id).ok_or(fmt::Error)?;
                     write!(f, "{}", FormatBytes(b))?;
                 }
             },
@@ -78,7 +78,7 @@ impl Token {
                         self.span
                     };
 
-                    let s = ctx
+                    let s = cx
                         .idx
                         .q
                         .sources
@@ -87,13 +87,13 @@ impl Token {
                     write!(f, "\"{}\"", s)?;
                 }
                 StrSource::Synthetic(id) => {
-                    let s = ctx.idx.q.storage.get_string(*id).ok_or(fmt::Error)?;
+                    let s = cx.idx.q.storage.get_string(*id).ok_or(fmt::Error)?;
                     write!(f, "{:?}", s)?;
                 }
             },
             Kind::Char(s) => match s {
                 CopySource::Text(source_id) => {
-                    let s = ctx
+                    let s = cx
                         .idx
                         .q
                         .sources
@@ -107,7 +107,7 @@ impl Token {
             },
             Kind::Number(s) => match s {
                 NumberSource::Text(text) => {
-                    let s = ctx
+                    let s = cx
                         .idx
                         .q
                         .sources
@@ -116,7 +116,7 @@ impl Token {
                     write!(f, "{}", s)?;
                 }
                 NumberSource::Synthetic(id) => {
-                    let n = ctx.idx.q.storage.get_number(*id).ok_or(fmt::Error)?;
+                    let n = cx.idx.q.storage.get_number(*id).ok_or(fmt::Error)?;
                     write!(f, "{}", n)?;
                 }
             },
@@ -150,7 +150,7 @@ impl Token {
 }
 
 impl ToTokens for Token {
-    fn to_tokens(&self, _: &mut MacroContext<'_, '_>, stream: &mut TokenStream) {
+    fn to_tokens(&self, _: &mut MacroContext<'_, '_, '_>, stream: &mut TokenStream) {
         stream.push(*self);
     }
 }

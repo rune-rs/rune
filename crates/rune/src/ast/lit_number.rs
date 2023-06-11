@@ -43,11 +43,11 @@ impl Parse for LitNumber {
 impl<'a> Resolve<'a> for LitNumber {
     type Output = ast::Number;
 
-    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<ast::Number> {
+    fn resolve(&self, cx: ResolveContext<'a>) -> Result<ast::Number> {
         let span = self.span;
 
         let text = match self.source {
-            ast::NumberSource::Synthetic(id) => match ctx.storage.get_number(id) {
+            ast::NumberSource::Synthetic(id) => match cx.storage.get_number(id) {
                 Some(number) => return Ok(number.clone()),
                 None => {
                     return Err(compile::Error::new(
@@ -62,7 +62,7 @@ impl<'a> Resolve<'a> for LitNumber {
             ast::NumberSource::Text(text) => text,
         };
 
-        let string = ctx
+        let string = cx
             .sources
             .source(text.source_id, span)
             .ok_or_else(|| compile::Error::new(span, ResolveErrorKind::BadSlice))?;
@@ -89,7 +89,7 @@ impl<'a> Resolve<'a> for LitNumber {
 }
 
 impl ToTokens for LitNumber {
-    fn to_tokens(&self, _: &mut MacroContext<'_, '_>, stream: &mut TokenStream) {
+    fn to_tokens(&self, _: &mut MacroContext<'_, '_, '_>, stream: &mut TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Number(self.source),

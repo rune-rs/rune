@@ -114,7 +114,7 @@ impl IntoExpectation for &Path {
 impl<'a> Resolve<'a> for Path {
     type Output = Box<str>;
 
-    fn resolve(&self, ctx: ResolveContext<'_>) -> Result<Self::Output> {
+    fn resolve(&self, cx: ResolveContext<'_>) -> Result<Self::Output> {
         let mut buf = String::new();
 
         if self.global.is_some() {
@@ -129,7 +129,7 @@ impl<'a> Resolve<'a> for Path {
                 buf.push_str("self");
             }
             PathSegment::Ident(ident) => {
-                buf.push_str(ident.resolve(ctx)?);
+                buf.push_str(ident.resolve(cx)?);
             }
             PathSegment::Crate(_) => {
                 buf.push_str("crate");
@@ -153,7 +153,7 @@ impl<'a> Resolve<'a> for Path {
                     buf.push_str("self");
                 }
                 PathSegment::Ident(ident) => {
-                    buf.push_str(ident.resolve(ctx)?);
+                    buf.push_str(ident.resolve(cx)?);
                 }
                 PathSegment::Crate(_) => {
                     buf.push_str("crate");

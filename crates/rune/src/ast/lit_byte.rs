@@ -39,7 +39,7 @@ impl Parse for LitByte {
 impl<'a> Resolve<'a> for LitByte {
     type Output = u8;
 
-    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<u8> {
+    fn resolve(&self, cx: ResolveContext<'a>) -> Result<u8> {
         let source_id = match self.source {
             ast::CopySource::Inline(b) => return Ok(b),
             ast::CopySource::Text(source_id) => source_id,
@@ -47,7 +47,7 @@ impl<'a> Resolve<'a> for LitByte {
 
         let span = self.span;
 
-        let string = ctx
+        let string = cx
             .sources
             .source(source_id, span.trim_start(2u32).trim_end(1u32))
             .ok_or_else(|| compile::Error::new(span, ResolveErrorKind::BadSlice))?;
@@ -110,7 +110,7 @@ impl<'a> Resolve<'a> for LitByte {
 }
 
 impl ToTokens for LitByte {
-    fn to_tokens(&self, _: &mut MacroContext<'_, '_>, stream: &mut TokenStream) {
+    fn to_tokens(&self, _: &mut MacroContext<'_, '_, '_>, stream: &mut TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Byte(self.source),

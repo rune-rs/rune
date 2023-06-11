@@ -104,10 +104,10 @@ fn dbg_impl(stack: &mut Stack, args: usize) -> VmResult<()> {
 /// ```
 #[rune::macro_(path = dbg)]
 pub(crate) fn dbg_macro(
-    ctx: &mut MacroContext<'_, '_>,
+    cx: &mut MacroContext<'_, '_, '_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
-    Ok(quote!(::std::io::dbg(#stream)).into_token_stream(ctx))
+    Ok(quote!(::std::io::dbg(#stream)).into_token_stream(cx))
 }
 
 /// Prints to output.
@@ -123,13 +123,13 @@ pub(crate) fn dbg_macro(
 /// ```
 #[rune::macro_(path = print)]
 pub(crate) fn print_macro(
-    ctx: &mut MacroContext<'_, '_>,
+    cx: &mut MacroContext<'_, '_, '_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
-    let mut p = Parser::from_token_stream(stream, ctx.input_span());
+    let mut p = Parser::from_token_stream(stream, cx.input_span());
     let args = p.parse_all::<FormatArgs>()?;
-    let expanded = args.expand(ctx)?;
-    Ok(quote!(::std::io::print(#expanded)).into_token_stream(ctx))
+    let expanded = args.expand(cx)?;
+    Ok(quote!(::std::io::print(#expanded)).into_token_stream(cx))
 }
 
 /// Prints to output.
@@ -170,13 +170,13 @@ fn print_impl(m: &str) -> VmResult<()> {
 /// ```
 #[rune::macro_(path = println)]
 pub(crate) fn println_macro(
-    ctx: &mut MacroContext<'_, '_>,
+    cx: &mut MacroContext<'_, '_, '_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
-    let mut p = Parser::from_token_stream(stream, ctx.input_span());
+    let mut p = Parser::from_token_stream(stream, cx.input_span());
     let args = p.parse_all::<FormatArgs>()?;
-    let expanded = args.expand(ctx)?;
-    Ok(quote!(::std::io::println(#expanded)).into_token_stream(ctx))
+    let expanded = args.expand(cx)?;
+    Ok(quote!(::std::io::println(#expanded)).into_token_stream(cx))
 }
 
 /// Prints to output, with a newline.

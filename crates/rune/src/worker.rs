@@ -22,18 +22,18 @@ pub(crate) use self::import::Import;
 pub(crate) use self::task::{LoadFileKind, Task};
 pub(crate) use self::wildcard_import::WildcardImport;
 
-pub(crate) struct Worker<'a> {
+pub(crate) struct Worker<'a, 'arena> {
     /// Query engine.
-    pub(crate) q: Query<'a>,
+    pub(crate) q: Query<'a, 'arena>,
     /// Files that have been loaded.
     pub(crate) loaded: HashMap<ModId, (SourceId, Span)>,
     /// Worker queue.
     pub(crate) queue: VecDeque<Task>,
 }
 
-impl<'a> Worker<'a> {
+impl<'a, 'arena> Worker<'a, 'arena> {
     /// Construct a new worker.
-    pub(crate) fn new(q: Query<'a>) -> Self {
+    pub(crate) fn new(q: Query<'a, 'arena>) -> Self {
         Self {
             q,
             loaded: HashMap::new(),

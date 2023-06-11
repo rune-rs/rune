@@ -39,7 +39,7 @@ impl Parse for LitChar {
 impl<'a> Resolve<'a> for LitChar {
     type Output = char;
 
-    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<char> {
+    fn resolve(&self, cx: ResolveContext<'a>) -> Result<char> {
         let source_id = match self.source {
             ast::CopySource::Inline(c) => return Ok(c),
             ast::CopySource::Text(source_id) => source_id,
@@ -47,7 +47,7 @@ impl<'a> Resolve<'a> for LitChar {
 
         let span = self.span;
 
-        let string = ctx
+        let string = cx
             .sources
             .source(source_id, span.narrow(1u32))
             .ok_or_else(|| compile::Error::new(span, ResolveErrorKind::BadSlice))?;
@@ -110,7 +110,7 @@ impl<'a> Resolve<'a> for LitChar {
 }
 
 impl ToTokens for LitChar {
-    fn to_tokens(&self, _: &mut MacroContext<'_, '_>, stream: &mut TokenStream) {
+    fn to_tokens(&self, _: &mut MacroContext<'_, '_, '_>, stream: &mut TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Char(self.source),

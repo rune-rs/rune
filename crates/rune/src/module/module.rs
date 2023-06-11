@@ -542,12 +542,12 @@ impl Module {
     /// /// assert_eq!(ident_to_string!(Hello), "Hello");
     /// /// ```
     /// #[rune::macro_]
-    /// fn ident_to_string(ctx: &mut MacroContext<'_, '_>, stream: &TokenStream) -> compile::Result<TokenStream> {
-    ///     let mut p = Parser::from_token_stream(stream, ctx.input_span());
+    /// fn ident_to_string(cx: &mut MacroContext<'_, '_, '_>, stream: &TokenStream) -> compile::Result<TokenStream> {
+    ///     let mut p = Parser::from_token_stream(stream, cx.input_span());
     ///     let ident = p.parse_all::<ast::Ident>()?;
-    ///     let ident = ctx.resolve(ident)?.to_owned();
-    ///     let string = ctx.lit(&ident);
-    ///     Ok(quote!(#string).into_token_stream(ctx))
+    ///     let ident = cx.resolve(ident)?.to_owned();
+    ///     let string = cx.lit(&ident);
+    ///     Ok(quote!(#string).into_token_stream(cx))
     /// }
     ///
     /// let mut m = Module::new();
@@ -618,12 +618,12 @@ impl Module {
     /// use rune::macros::{quote, MacroContext, TokenStream};
     /// use rune::parse::Parser;
     ///
-    /// fn ident_to_string(ctx: &mut MacroContext<'_, '_>, stream: &TokenStream) -> compile::Result<TokenStream> {
-    ///     let mut p = Parser::from_token_stream(stream, ctx.input_span());
+    /// fn ident_to_string(cx: &mut MacroContext<'_, '_, '_>, stream: &TokenStream) -> compile::Result<TokenStream> {
+    ///     let mut p = Parser::from_token_stream(stream, cx.input_span());
     ///     let ident = p.parse_all::<ast::Ident>()?;
-    ///     let ident = ctx.resolve(ident)?.to_owned();
-    ///     let string = ctx.lit(&ident);
-    ///     Ok(quote!(#string).into_token_stream(ctx))
+    ///     let ident = cx.resolve(ident)?.to_owned();
+    ///     let string = cx.lit(&ident);
+    ///     Ok(quote!(#string).into_token_stream(cx))
     /// }
     ///
     /// let mut m = Module::new();
@@ -635,7 +635,7 @@ impl Module {
         M: 'static
             + Send
             + Sync
-            + Fn(&mut MacroContext<'_, '_>, &TokenStream) -> compile::Result<TokenStream>,
+            + Fn(&mut MacroContext<'_, '_, '_>, &TokenStream) -> compile::Result<TokenStream>,
         N: IntoIterator,
         N::Item: IntoComponent,
     {
@@ -672,13 +672,13 @@ impl Module {
     /// use rune::macros::{quote, MacroContext, TokenStream, ToTokens};
     /// use rune::parse::Parser;
     ///
-    /// fn rename_fn(ctx: &mut MacroContext<'_, '_>, input: &TokenStream, item: &TokenStream) -> compile::Result<TokenStream> {
-    ///     let mut item = Parser::from_token_stream(item, ctx.macro_span());
+    /// fn rename_fn(cx: &mut MacroContext<'_, '_, '_>, input: &TokenStream, item: &TokenStream) -> compile::Result<TokenStream> {
+    ///     let mut item = Parser::from_token_stream(item, cx.macro_span());
     ///     let mut fun = item.parse_all::<ast::ItemFn>()?;
     ///
-    ///     let mut input = Parser::from_token_stream(input, ctx.input_span());
+    ///     let mut input = Parser::from_token_stream(input, cx.input_span());
     ///     fun.name = input.parse_all::<ast::EqValue<_>>()?.value;
-    ///     Ok(quote!(#fun).into_token_stream(ctx))
+    ///     Ok(quote!(#fun).into_token_stream(cx))
     /// }
     ///
     /// let mut m = Module::new();
@@ -691,7 +691,7 @@ impl Module {
             + Send
             + Sync
             + Fn(
-                &mut MacroContext<'_, '_>,
+                &mut MacroContext<'_, '_, '_>,
                 &TokenStream,
                 &TokenStream,
             ) -> compile::Result<TokenStream>,

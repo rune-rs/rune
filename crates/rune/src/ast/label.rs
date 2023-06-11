@@ -17,8 +17,8 @@ fn ast_parse() {
 /// use rune::ast;
 /// use rune::macros::MacroContext;
 ///
-/// MacroContext::test(|ctx| {
-///     let lit = ctx.label("foo");
+/// MacroContext::test(|cx| {
+///     let lit = cx.label("foo");
 ///     assert!(matches!(lit, ast::Label { .. }))
 /// });
 /// ```
@@ -55,12 +55,12 @@ impl Peek for Label {
 impl<'a> Resolve<'a> for Label {
     type Output = &'a str;
 
-    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<&'a str> {
+    fn resolve(&self, cx: ResolveContext<'a>) -> Result<&'a str> {
         let span = self.span;
 
         match self.source {
             ast::LitSource::Text(source_id) => {
-                let ident = ctx
+                let ident = cx
                     .sources
                     .source(source_id, span.trim_start(1u32))
                     .ok_or_else(|| compile::Error::new(span, ResolveErrorKind::BadSlice))?;
@@ -68,7 +68,7 @@ impl<'a> Resolve<'a> for Label {
                 Ok(ident)
             }
             ast::LitSource::Synthetic(id) => {
-                let ident = ctx.storage.get_string(id).ok_or_else(|| {
+                let ident = cx.storage.get_string(id).ok_or_else(|| {
                     compile::Error::new(
                         span,
                         ResolveErrorKind::BadSyntheticId {
@@ -86,7 +86,7 @@ impl<'a> Resolve<'a> for Label {
 }
 
 impl ToTokens for Label {
-    fn to_tokens(&self, _: &mut MacroContext<'_, '_>, stream: &mut TokenStream) {
+    fn to_tokens(&self, _: &mut MacroContext<'_, '_, '_>, stream: &mut TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Label(self.source),

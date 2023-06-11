@@ -53,12 +53,12 @@ pub(crate) struct Doc {
 
 impl Doc {
     pub(crate) fn collect_from(
-        ctx: ResolveContext<'_>,
+        cx: ResolveContext<'_>,
         attrs: &mut Parser,
         attributes: &[ast::Attribute],
     ) -> compile::Result<Vec<Doc>> {
         let docs = attrs
-            .parse_all::<crate::compile::attrs::Doc>(ctx, attributes)
+            .parse_all::<crate::compile::attrs::Doc>(cx, attributes)
             .map(|result| {
                 result.map(|(span, doc)| Doc {
                     span: span.span(),

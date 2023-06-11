@@ -31,7 +31,7 @@ impl Parser {
     /// The returned Vec may be empty.
     pub(crate) fn parse_all<'this, 'a, T>(
         &'this mut self,
-        ctx: ResolveContext<'this>,
+        cx: ResolveContext<'this>,
         attributes: &'a [ast::Attribute],
     ) -> ParseAll<'this, 'a, T>
     where
@@ -44,7 +44,7 @@ impl Parser {
         ParseAll {
             outer: self,
             attributes,
-            ctx,
+            cx,
             _marker: PhantomData,
         }
     }
@@ -55,13 +55,13 @@ impl Parser {
     /// successful.
     pub(crate) fn try_parse<'a, T>(
         &mut self,
-        ctx: ResolveContext<'_>,
+        cx: ResolveContext<'_>,
         attributes: &'a [ast::Attribute],
     ) -> compile::Result<Option<(&'a ast::Attribute, T)>>
     where
         T: Attribute + Parse,
     {
-        let mut vec = self.parse_all::<T>(ctx, attributes);
+        let mut vec = self.parse_all::<T>(cx, attributes);
         let first = vec.next();
         let second = vec.next();
 
@@ -90,7 +90,7 @@ impl Parser {
 pub(crate) struct ParseAll<'this, 'a, T> {
     outer: &'this mut Parser,
     attributes: &'a [ast::Attribute],
-    ctx: ResolveContext<'this>,
+    cx: ResolveContext<'this>,
     _marker: PhantomData<T>,
 }
 
@@ -114,7 +114,7 @@ where
                 continue;
             };
 
-            let ident = match ident.resolve(self.ctx) {
+            let ident = match ident.resolve(self.cx) {
                 Ok(ident) => ident,
                 Err(e) => {
                     return Some(Err(e));
@@ -161,12 +161,12 @@ pub(crate) struct BuiltIn {
 
 impl BuiltIn {
     /// Parse built-in arguments.
-    pub(crate) fn args(&self, ctx: ResolveContext<'_>) -> compile::Result<BuiltInArgs> {
+    pub(crate) fn args(&self, cx: ResolveContext<'_>) -> compile::Result<BuiltInArgs> {
         let mut out = BuiltInArgs::default();
 
         if let Some(args) = &self.args {
             for (ident, _) in args {
-                match ident.resolve(ctx)? {
+                match ident.resolve(cx)? {
                     "literal" => {
                         out.literal = true;
                     }

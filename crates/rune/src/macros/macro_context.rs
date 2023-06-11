@@ -4,10 +4,12 @@ use core::fmt;
 
 use crate::ast;
 use crate::ast::Span;
+use crate::compile::ir;
 use crate::compile::{
-    self, Context, IrValue, Item, ItemMeta, NoopCompileVisitor, NoopSourceLoader, ParseErrorKind,
-    Pool, Prelude, UnitBuilder,
+    self, Context, Item, ItemMeta, NoopCompileVisitor, NoopSourceLoader, ParseErrorKind, Pool,
+    Prelude, UnitBuilder,
 };
+use crate::hir;
 use crate::indexing::{IndexItem, Indexer, Items, Scopes};
 use crate::macros::{IntoLit, Storage, ToTokens, TokenStream};
 use crate::parse::{Parse, Resolve};
@@ -16,7 +18,7 @@ use crate::shared::{Consts, Gen};
 use crate::{Diagnostics, Options, Source, SourceId, Sources};
 
 /// Context for a running macro.
-pub struct MacroContext<'a, 'b> {
+pub struct MacroContext<'a, 'b, 'arena> {
     /// Macro span of the full macro call.
     pub(crate) macro_span: Span,
     /// Macro span of the input.
@@ -24,10 +26,10 @@ pub struct MacroContext<'a, 'b> {
     /// The item where the macro is being evaluated.
     pub(crate) item_meta: ItemMeta,
     /// Indexer.
-    pub(crate) idx: &'a mut Indexer<'b>,
+    pub(crate) idx: &'a mut Indexer<'b, 'arena>,
 }
 
-impl<'a, 'b> MacroContext<'a, 'b> {
+impl<'a, 'b, 'arena> MacroContext<'a, 'b, 'arena> {
     /// Construct an empty macro context which can be used for testing.
     ///
     /// # Examples
@@ -35,15 +37,16 @@ impl<'a, 'b> MacroContext<'a, 'b> {
     /// ```
     /// use rune::macros::MacroContext;
     ///
-    /// MacroContext::test(|ctx| ());
+    /// MacroContext::test(|cx| ());
     /// ```
     pub fn test<F, O>(f: F) -> O
     where
-        F: FnOnce(&mut MacroContext<'_, '_>) -> O,
+        F: FnOnce(&mut MacroContext<'_, '_, '_>) -> O,
     {
         let mut unit = UnitBuilder::default();
         let prelude = Prelude::default();
         let gen = Gen::default();
+        let const_arena = hir::Arena::new();
         let mut consts = Consts::default();
         let mut storage = Storage::default();
         let mut sources = Sources::default();
@@ -58,6 +61,7 @@ impl<'a, 'b> MacroContext<'a, 'b> {
         let mut query = Query::new(
             &mut unit,
             &prelude,
+            &const_arena,
             &mut consts,
             &mut storage,
             &mut sources,
@@ -95,14 +99,14 @@ impl<'a, 'b> MacroContext<'a, 'b> {
             loaded: None,
         };
 
-        let mut ctx = MacroContext {
+        let mut cx = MacroContext {
             macro_span: Span::empty(),
             input_span: Span::empty(),
             item_meta,
             idx: &mut idx,
         };
 
-        f(&mut ctx)
+        f(&mut cx)
     }
 
     /// Evaluate the given target as a constant expression.
@@ -119,17 +123,17 @@ impl<'a, 'b> MacroContext<'a, 'b> {
     /// use rune::parse::{Parser};
     ///
     /// // Note: should only be used for testing.
-    /// MacroContext::test(|ctx| {
-    ///     let stream = quote!(1 + 2).into_token_stream(ctx);
+    /// MacroContext::test(|cx| {
+    ///     let stream = quote!(1 + 2).into_token_stream(cx);
     ///
-    ///     let mut p = Parser::from_token_stream(&stream, ctx.input_span());
+    ///     let mut p = Parser::from_token_stream(&stream, cx.input_span());
     ///     let expr = p.parse_all::<ast::Expr>().unwrap();
-    ///     let value = ctx.eval(&expr).unwrap();
+    ///     let value = cx.eval(&expr).unwrap();
     ///
     ///     assert_eq!(3, value.into_integer::<u32>().unwrap());
     /// });
     /// ```
-    pub fn eval(&mut self, target: &ast::Expr) -> compile::Result<IrValue> {
+    pub fn eval(&mut self, target: &ast::Expr) -> compile::Result<ir::Value> {
         target.eval(self)
     }
 
@@ -141,8 +145,8 @@ impl<'a, 'b> MacroContext<'a, 'b> {
     /// use rune::ast;
     /// use rune::macros::MacroContext;
     ///
-    /// MacroContext::test(|ctx| {
-    ///     let lit = ctx.lit("hello world");
+    /// MacroContext::test(|cx| {
+    ///     let lit = cx.lit("hello world");
     ///     assert!(matches!(lit, ast::Lit::Str(..)))
     /// });
     /// ```
@@ -162,8 +166,8 @@ impl<'a, 'b> MacroContext<'a, 'b> {
     /// use rune::ast;
     /// use rune::macros::MacroContext;
     ///
-    /// MacroContext::test(|ctx| {
-    ///     let lit = ctx.ident("foo");
+    /// MacroContext::test(|cx| {
+    ///     let lit = cx.ident("foo");
     ///     assert!(matches!(lit, ast::Ident { .. }))
     /// });
     /// ```
@@ -186,8 +190,8 @@ impl<'a, 'b> MacroContext<'a, 'b> {
     /// use rune::ast;
     /// use rune::macros::MacroContext;
     ///
-    /// MacroContext::test(|ctx| {
-    ///     let lit = ctx.label("foo");
+    /// MacroContext::test(|cx| {
+    ///     let lit = cx.label("foo");
     ///     assert!(matches!(lit, ast::Label { .. }))
     /// });
     /// ```
@@ -199,13 +203,13 @@ impl<'a, 'b> MacroContext<'a, 'b> {
     }
 
     /// Stringify the token stream.
-    pub fn stringify<T>(&mut self, tokens: &T) -> Stringify<'_, 'a, 'b>
+    pub fn stringify<T>(&mut self, tokens: &T) -> Stringify<'_, 'a, 'b, 'arena>
     where
         T: ToTokens,
     {
         let mut stream = TokenStream::new();
         tokens.to_tokens(self, &mut stream);
-        Stringify { ctx: self, stream }
+        Stringify { cx: self, stream }
     }
 
     /// Resolve the value of a token.
@@ -264,23 +268,23 @@ impl<'a, 'b> MacroContext<'a, 'b> {
     }
 }
 
-pub struct Stringify<'ctx, 'a, 'b> {
-    ctx: &'ctx MacroContext<'a, 'b>,
+pub struct Stringify<'cx, 'a, 'b, 'arena> {
+    cx: &'cx MacroContext<'a, 'b, 'arena>,
     stream: TokenStream,
 }
 
-impl fmt::Display for Stringify<'_, '_, '_> {
+impl fmt::Display for Stringify<'_, '_, '_, '_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut it = self.stream.iter();
         let last = it.next_back();
 
         for token in it {
-            token.token_fmt(self.ctx, f)?;
+            token.token_fmt(self.cx, f)?;
             write!(f, " ")?;
         }
 
         if let Some(last) = last {
-            last.token_fmt(self.ctx, f)?;
+            last.token_fmt(self.cx, f)?;
         }
 
         Ok(())

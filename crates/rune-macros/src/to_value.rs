@@ -4,7 +4,7 @@ use quote::{quote, quote_spanned};
 use syn::spanned::Spanned as _;
 
 struct Expander {
-    ctx: Context,
+    cx: Context,
     tokens: Tokens,
 }
 
@@ -42,7 +42,7 @@ impl Expander {
             syn::Fields::Unnamed(named) => self.expand_unnamed(named),
             syn::Fields::Named(named) => self.expand_named(named),
             syn::Fields::Unit => {
-                self.ctx.error(syn::Error::new_spanned(
+                self.cx.error(syn::Error::new_spanned(
                     fields,
                     "unit structs are not supported",
                 ));
@@ -64,7 +64,7 @@ impl Expander {
         } = &self.tokens;
 
         for (index, f) in unnamed.unnamed.iter().enumerate() {
-            let _ = self.ctx.field_attrs(&f.attrs)?;
+            let _ = self.cx.field_attrs(&f.attrs)?;
             let index = syn::Index::from(index);
             let to_value = self.tokens.vm_try(quote!(#to_value::to_value(self.#index)));
             to_values.push(quote_spanned!(f.span() => tuple.push(#to_value)));
@@ -93,8 +93,8 @@ impl Expander {
         let mut to_values = Vec::new();
 
         for f in &named.named {
-            let ident = self.ctx.field_ident(f)?;
-            let _ = self.ctx.field_attrs(&f.attrs)?;
+            let ident = self.cx.field_ident(f)?;
+            let _ = self.cx.field_attrs(&f.attrs)?;
 
             let name = &syn::LitStr::new(&ident.to_string(), ident.span());
             let to_value = self.tokens.vm_try(quote!(#to_value::to_value(self.#ident)));
@@ -112,16 +112,16 @@ impl Expander {
 }
 
 pub(super) fn expand(input: &syn::DeriveInput) -> Result<TokenStream, Vec<syn::Error>> {
-    let ctx = Context::new();
+    let cx = Context::new();
 
-    let Ok(attr) = ctx.type_attrs(&input.attrs) else {
-        return Err(ctx.errors.into_inner());
+    let Ok(attr) = cx.type_attrs(&input.attrs) else {
+        return Err(cx.errors.into_inner());
     };
 
-    let tokens = ctx.tokens_with_module(attr.module.as_ref());
+    let tokens = cx.tokens_with_module(attr.module.as_ref());
 
     let mut expander = Expander {
-        ctx: Context::new(),
+        cx: Context::new(),
         tokens,
     };
 
@@ -132,18 +132,18 @@ pub(super) fn expand(input: &syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
             }
         }
         syn::Data::Enum(en) => {
-            expander.ctx.error(syn::Error::new_spanned(
+            expander.cx.error(syn::Error::new_spanned(
                 en.enum_token,
                 "not supported on enums",
             ));
         }
         syn::Data::Union(un) => {
-            expander.ctx.error(syn::Error::new_spanned(
+            expander.cx.error(syn::Error::new_spanned(
                 un.union_token,
                 "not supported on unions",
             ));
         }
     }
 
-    Err(expander.ctx.errors.into_inner())
+    Err(expander.cx.errors.into_inner())
 }

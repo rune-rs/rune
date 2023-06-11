@@ -34,7 +34,6 @@ mod prelude;
 pub(crate) use self::prelude::Prelude;
 
 pub(crate) mod ir;
-pub(crate) use self::ir::{IrBudget, IrCompiler, IrEvalOutcome, IrInterpreter, IrValue};
 
 pub use rune_core::{Component, ComponentRef, IntoComponent, Item, ItemBuf};
 
@@ -104,6 +103,7 @@ pub(crate) fn compile(
 ) -> Result<(), ()> {
     // Shared id generator.
     let gen = Gen::new();
+    let const_arena = hir::Arena::new();
     let mut consts = Consts::default();
     let mut storage = Storage::default();
     let mut inner = Default::default();
@@ -111,6 +111,7 @@ pub(crate) fn compile(
     let q = Query::new(
         unit,
         prelude,
+        &const_arena,
         &mut consts,
         &mut storage,
         sources,
@@ -188,18 +189,18 @@ pub(crate) fn compile(
     Ok(())
 }
 
-struct CompileBuildEntry<'a> {
+struct CompileBuildEntry<'a, 'arena> {
     options: &'a Options,
-    q: Query<'a>,
+    q: Query<'a, 'arena>,
 }
 
-impl CompileBuildEntry<'_> {
+impl<'arena> CompileBuildEntry<'_, 'arena> {
     fn compiler1<'a, 'hir>(
         &'a mut self,
         location: Location,
         span: &dyn Spanned,
         asm: &'a mut Assembly,
-    ) -> self::v1::Assembler<'a, 'hir> {
+    ) -> self::v1::Assembler<'a, 'hir, 'arena> {
         self::v1::Assembler {
             source_id: location.source_id,
             q: self.q.borrow(),
@@ -252,12 +253,12 @@ impl CompileBuildEntry<'_> {
                 let count = f.ast.args.len();
 
                 let arena = hir::Arena::new();
-                let mut ctx = hir::lowering::Ctx::with_query(
+                let mut cx = hir::lowering::Ctxt::with_query(
                     &arena,
                     self.q.borrow(),
                     item_meta.location.source_id,
                 );
-                let hir = hir::lowering::item_fn(&mut ctx, &f.ast)?;
+                let hir = hir::lowering::item_fn(&mut cx, &f.ast)?;
                 let mut c = self.compiler1(location, span, &mut asm);
                 assemble::fn_from_item_fn(&mut c, &hir, false)?;
 
@@ -294,12 +295,12 @@ impl CompileBuildEntry<'_> {
                     Error::expected_meta(&f.ast, meta.info(c.q.pool), "instance function")
                 })?;
 
-                let mut ctx = hir::lowering::Ctx::with_query(
+                let mut cx = hir::lowering::Ctxt::with_query(
                     &arena,
                     c.q.borrow(),
                     item_meta.location.source_id,
                 );
-                let hir = hir::lowering::item_fn(&mut ctx, &f.ast)?;
+                let hir = hir::lowering::item_fn(&mut cx, &f.ast)?;
                 assemble::fn_from_item_fn(&mut c, &hir, true)?;
 
                 if used.is_unused() {
@@ -332,16 +333,13 @@ impl CompileBuildEntry<'_> {
                 )?;
 
                 let arena = hir::Arena::new();
-                let mut ctx = hir::lowering::Ctx::with_query(
+                let mut cx = hir::lowering::Ctxt::with_query(
                     &arena,
                     self.q.borrow(),
                     item_meta.location.source_id,
                 );
-                let hir = hir::lowering::expr_closure_secondary(
-                    &mut ctx,
-                    &closure.ast,
-                    closure.captures,
-                )?;
+                let hir =
+                    hir::lowering::expr_closure_secondary(&mut cx, &closure.ast, closure.captures)?;
                 let mut c = self.compiler1(location, &closure.ast, &mut asm);
                 assemble::expr_closure_secondary(&mut c, &hir, &closure.ast)?;
 
@@ -368,12 +366,12 @@ impl CompileBuildEntry<'_> {
                 let span = &b.ast;
 
                 let arena = hir::Arena::new();
-                let mut ctx = hir::lowering::Ctx::with_query(
+                let mut cx = hir::lowering::Ctxt::with_query(
                     &arena,
                     self.q.borrow(),
                     item_meta.location.source_id,
                 );
-                let hir = hir::lowering::async_block_secondary(&mut ctx, &b.ast, b.captures)?;
+                let hir = hir::lowering::async_block_secondary(&mut cx, &b.ast, b.captures)?;
                 let mut c = self.compiler1(location, span, &mut asm);
                 assemble::async_block_secondary(&mut c, &hir)?;
 

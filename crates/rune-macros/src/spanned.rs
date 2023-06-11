@@ -21,10 +21,10 @@ impl syn::parse::Parse for Derive {
 
 impl Derive {
     pub(super) fn expand(self) -> Result<TokenStream, Vec<syn::Error>> {
-        let ctx = Context::new();
-        let tokens = ctx.tokens_with_module(None);
+        let cx = Context::new();
+        let tokens = cx.tokens_with_module(None);
 
-        let mut expander = Expander { ctx, tokens };
+        let mut expander = Expander { cx, tokens };
 
         match &self.input.data {
             syn::Data::Struct(st) => {
@@ -38,19 +38,19 @@ impl Derive {
                 }
             }
             syn::Data::Union(un) => {
-                expander.ctx.error(syn::Error::new_spanned(
+                expander.cx.error(syn::Error::new_spanned(
                     un.union_token,
                     "not supported on unions",
                 ));
             }
         }
 
-        Err(expander.ctx.errors.into_inner())
+        Err(expander.cx.errors.into_inner())
     }
 }
 
 struct Expander {
-    ctx: Context,
+    cx: Context,
     tokens: Tokens,
 }
 
@@ -89,7 +89,7 @@ impl Expander {
         input: &syn::DeriveInput,
         st: &syn::DataEnum,
     ) -> Result<TokenStream, ()> {
-        let _ = self.ctx.type_attrs(&input.attrs)?;
+        let _ = self.cx.type_attrs(&input.attrs)?;
 
         let mut impl_spanned = Vec::new();
 
@@ -124,14 +124,14 @@ impl Expander {
         match fields {
             syn::Fields::Named(named) => self.expand_struct_named(named),
             syn::Fields::Unnamed(..) => {
-                self.ctx.error(syn::Error::new_spanned(
+                self.cx.error(syn::Error::new_spanned(
                     fields,
                     "Tuple structs are not supported",
                 ));
                 Err(())
             }
             syn::Fields::Unit => {
-                self.ctx.error(syn::Error::new_spanned(
+                self.cx.error(syn::Error::new_spanned(
                     fields,
                     "Unit structs are not supported",
                 ));
@@ -142,7 +142,7 @@ impl Expander {
 
     /// Expand named fields.
     fn expand_struct_named(&mut self, named: &syn::FieldsNamed) -> Result<TokenStream, ()> {
-        if let Some(span_impl) = self.ctx.explicit_span(named)? {
+        if let Some(span_impl) = self.cx.explicit_span(named)? {
             return Ok(span_impl);
         }
 
@@ -150,7 +150,7 @@ impl Expander {
             .named
             .iter()
             .map(|f| {
-                let var = self.ctx.field_ident(f).map(|n| quote!(&self.#n));
+                let var = self.cx.field_ident(f).map(|n| quote!(&self.#n));
                 (var, f)
             })
             .collect::<Vec<_>>();
@@ -164,13 +164,13 @@ impl Expander {
         values: Vec<(Result<TokenStream, ()>, &syn::Field)>,
     ) -> Result<TokenStream, ()> {
         let (optional, begin) =
-            self.ctx
+            self.cx
                 .build_spanned_iter(&self.tokens, false, values.clone().into_iter())?;
 
         let begin = match (optional, begin) {
             (false, Some(begin)) => begin,
             _ => {
-                self.ctx.error(syn::Error::new_spanned(
+                self.cx.error(syn::Error::new_spanned(
                     tokens,
                     "ran out of fields to calculate exact span",
                 ));
@@ -179,7 +179,7 @@ impl Expander {
         };
 
         let (end_optional, end) =
-            self.ctx
+            self.cx
                 .build_spanned_iter(&self.tokens, true, values.into_iter().rev())?;
 
         Ok(if end_optional {
@@ -208,7 +208,7 @@ impl Expander {
     ) -> Result<TokenStream, ()> {
         match fields {
             syn::Fields::Named(..) => {
-                self.ctx.error(syn::Error::new_spanned(
+                self.cx.error(syn::Error::new_spanned(
                     fields,
                     "Named enum variants are not supported",
                 ));
@@ -216,7 +216,7 @@ impl Expander {
             }
             syn::Fields::Unnamed(unnamed) => self.expand_variant_unnamed(variant, unnamed),
             syn::Fields::Unit => {
-                self.ctx.error(syn::Error::new_spanned(
+                self.cx.error(syn::Error::new_spanned(
                     fields,
                     "Unit variants are not supported",
                 ));

@@ -168,7 +168,7 @@ impl Spanned for Shebang {
 }
 
 impl ToTokens for Shebang {
-    fn to_tokens(&self, _: &mut MacroContext<'_, '_>, stream: &mut TokenStream) {
+    fn to_tokens(&self, _: &mut MacroContext<'_, '_, '_>, stream: &mut TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Shebang(self.source),

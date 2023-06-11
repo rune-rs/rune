@@ -85,12 +85,12 @@ fn is_writable(value: Value) -> bool {
 /// string.
 #[rune::macro_(path = stringify)]
 pub(crate) fn stringify_macro(
-    ctx: &mut MacroContext<'_, '_>,
+    cx: &mut MacroContext<'_, '_, '_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
-    let lit = ctx.stringify(stream).to_string();
-    let lit = ctx.lit(lit);
-    Ok(quote!(#lit).into_token_stream(ctx))
+    let lit = cx.stringify(stream).to_string();
+    let lit = cx.lit(lit);
+    Ok(quote!(#lit).into_token_stream(cx))
 }
 
 /// Cause a vm panic with a formatted message.
@@ -100,11 +100,11 @@ pub(crate) fn stringify_macro(
 /// through a `VmError`.
 #[rune::macro_(path = panic)]
 pub(crate) fn panic_macro(
-    ctx: &mut MacroContext<'_, '_>,
+    cx: &mut MacroContext<'_, '_, '_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
-    let mut p = Parser::from_token_stream(stream, ctx.input_span());
+    let mut p = Parser::from_token_stream(stream, cx.input_span());
     let args = p.parse_all::<FormatArgs>()?;
-    let expanded = args.expand(ctx)?;
-    Ok(quote!(::std::panic(#expanded)).into_token_stream(ctx))
+    let expanded = args.expand(cx)?;
+    Ok(quote!(::std::panic(#expanded)).into_token_stream(cx))
 }

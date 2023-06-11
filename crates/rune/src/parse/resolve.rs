@@ -17,5 +17,5 @@ pub trait Resolve<'a> {
     type Output: 'a;
 
     /// Resolve the value from parsed AST.
-    fn resolve(&self, ctx: ResolveContext<'a>) -> compile::Result<Self::Output>;
+    fn resolve(&self, cx: ResolveContext<'a>) -> compile::Result<Self::Output>;
 }

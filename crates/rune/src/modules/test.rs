@@ -58,12 +58,12 @@ pub fn module() -> Result<Module, ContextError> {
 /// ```
 #[rune::macro_]
 pub(crate) fn assert(
-    ctx: &mut MacroContext<'_, '_>,
+    cx: &mut MacroContext<'_, '_, '_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
     use crate as rune;
 
-    let mut p = Parser::from_token_stream(stream, ctx.input_span());
+    let mut p = Parser::from_token_stream(stream, cx.input_span());
     let expr = p.parse::<ast::Expr>()?;
 
     let message = if p.parse::<Option<T![,]>>()?.is_some() {
@@ -73,21 +73,21 @@ pub(crate) fn assert(
     };
 
     let output = if let Some(message) = &message {
-        let expanded = message.expand(ctx)?;
+        let expanded = message.expand(cx)?;
 
         quote!(if !(#expr) {
             panic("assertion failed: " + (#expanded));
         })
     } else {
-        let message = format!("assertion failed: {}", ctx.stringify(&expr));
-        let message = ctx.lit(&message);
+        let message = format!("assertion failed: {}", cx.stringify(&expr));
+        let message = cx.lit(&message);
 
         quote!(if !(#expr) {
             panic(#message);
         })
     };
 
-    Ok(output.into_token_stream(ctx))
+    Ok(output.into_token_stream(cx))
 }
 
 /// Assert that the two arguments provided are equal, or cause a vm panic.
@@ -103,12 +103,12 @@ pub(crate) fn assert(
 /// ```
 #[rune::macro_]
 pub(crate) fn assert_eq(
-    ctx: &mut MacroContext<'_, '_>,
+    cx: &mut MacroContext<'_, '_, '_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
     use crate as rune;
 
-    let mut p = Parser::from_token_stream(stream, ctx.input_span());
+    let mut p = Parser::from_token_stream(stream, cx.input_span());
     let left = p.parse::<ast::Expr>()?;
     p.parse::<T![,]>()?;
     let right = p.parse::<ast::Expr>()?;
@@ -120,7 +120,7 @@ pub(crate) fn assert_eq(
     };
 
     let output = if let Some(message) = &message {
-        let message = message.expand(ctx)?;
+        let message = message.expand(cx)?;
 
         quote! {{
             let left = #left;
@@ -134,7 +134,7 @@ pub(crate) fn assert_eq(
             }
         }}
     } else {
-        let message = ctx.lit("assertion failed (left == right):");
+        let message = cx.lit("assertion failed (left == right):");
 
         quote! {{
             let left = #left;
@@ -149,5 +149,5 @@ pub(crate) fn assert_eq(
         }}
     };
 
-    Ok(output.into_token_stream(ctx))
+    Ok(output.into_token_stream(cx))
 }

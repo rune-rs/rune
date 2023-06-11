@@ -10,7 +10,8 @@ use thiserror::Error;
 
 use crate::ast;
 use crate::ast::{Span, Spanned};
-use crate::compile::{HasSpan, IrValue, ItemBuf, Location, MetaInfo, Visibility};
+use crate::compile::ir;
+use crate::compile::{HasSpan, ItemBuf, Location, MetaInfo, Visibility};
 use crate::indexing::items::{GuardMismatch, MissingLastId};
 use crate::macros::{SyntheticId, SyntheticKind};
 use crate::parse::{Expectation, IntoExpectation, LexerMode};
@@ -18,7 +19,6 @@ use crate::query::MissingId;
 use crate::runtime::debug::DebugSignature;
 use crate::runtime::unit::EncodeError;
 use crate::runtime::{AccessError, TypeInfo, TypeOf};
-use crate::shared::scopes::MissingLocal;
 use crate::{Hash, SourceId};
 
 /// An error raised by the compiler.
@@ -99,10 +99,12 @@ where
     }
 }
 
-impl From<MissingLocal<'_>> for CompileErrorKind {
+impl From<ir::scopes::MissingLocal> for CompileErrorKind {
     #[inline]
-    fn from(MissingLocal(name): MissingLocal<'_>) -> Self {
-        CompileErrorKind::MissingLocal { name: name.into() }
+    fn from(error: ir::scopes::MissingLocal) -> Self {
+        CompileErrorKind::MissingLocal {
+            name: error.0.to_string(),
+        }
     }
 }
 
@@ -165,7 +167,7 @@ impl Error {
     }
 
     /// An error raised when we expect a certain constant value but get another.
-    pub(crate) fn expected_type<S, E>(spanned: S, actual: &IrValue) -> Self
+    pub(crate) fn expected_type<S, E>(spanned: S, actual: &ir::Value) -> Self
     where
         S: Spanned,
         E: TypeOf,

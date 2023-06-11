@@ -27,9 +27,9 @@ use rune_macros::instrument;
 /// Macros are only allowed to expand recursively into other macros 64 times.
 const MAX_MACRO_RECURSION: usize = 64;
 
-pub(crate) struct Indexer<'a> {
+pub(crate) struct Indexer<'a, 'arena> {
     /// Query engine.
-    pub(crate) q: Query<'a>,
+    pub(crate) q: Query<'a, 'arena>,
     pub(crate) source_id: SourceId,
     pub(crate) items: Items<'a>,
     /// Helper to calculate details about an indexed scope.
@@ -61,7 +61,7 @@ pub(crate) struct Indexer<'a> {
     pub(crate) loaded: Option<&'a mut HashMap<ModId, (SourceId, Span)>>,
 }
 
-impl<'a> Indexer<'a> {
+impl<'a, 'arena> Indexer<'a, 'arena> {
     /// Indicate that we've entered an expanded macro context, and ensure that
     /// we don't blow past [`MAX_MACRO_RECURSION`].
     ///
@@ -494,7 +494,7 @@ impl<'a> Indexer<'a> {
 }
 
 /// Index the contents of a module known by its AST as a "file".
-pub(crate) fn file(idx: &mut Indexer<'_>, ast: &mut ast::File) -> compile::Result<()> {
+pub(crate) fn file(idx: &mut Indexer<'_, '_>, ast: &mut ast::File) -> compile::Result<()> {
     let mut p = attrs::Parser::new(&ast.attributes);
 
     // This part catches comments interior to the module of the form `//!`.
@@ -654,7 +654,7 @@ pub(crate) fn file(idx: &mut Indexer<'_>, ast: &mut ast::File) -> compile::Resul
 }
 
 #[instrument(span = ast)]
-fn item_fn(idx: &mut Indexer<'_>, mut ast: ast::ItemFn) -> compile::Result<()> {
+fn item_fn(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemFn) -> compile::Result<()> {
     let name = ast.name.resolve(resolve_context!(idx.q))?;
 
     let visibility = ast_to_visibility(&ast.visibility)?;
@@ -796,7 +796,7 @@ fn item_fn(idx: &mut Indexer<'_>, mut ast: ast::ItemFn) -> compile::Result<()> {
 }
 
 #[instrument(span = ast)]
-fn expr_block(idx: &mut Indexer<'_>, ast: &mut ast::ExprBlock) -> compile::Result<()> {
+fn expr_block(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprBlock) -> compile::Result<()> {
     if let Some(span) = ast.attributes.option_span() {
         return Err(compile::Error::msg(
             span,
@@ -865,7 +865,7 @@ fn expr_block(idx: &mut Indexer<'_>, ast: &mut ast::ExprBlock) -> compile::Resul
 }
 
 #[instrument(span = ast)]
-fn block(idx: &mut Indexer<'_>, ast: &mut ast::Block) -> compile::Result<()> {
+fn block(idx: &mut Indexer<'_, '_>, ast: &mut ast::Block) -> compile::Result<()> {
     let guard = idx.items.push_id();
     let idx_item = idx.item.replace();
 
@@ -943,7 +943,7 @@ fn block(idx: &mut Indexer<'_>, ast: &mut ast::Block) -> compile::Result<()> {
 }
 
 #[instrument(span = ast)]
-fn local(idx: &mut Indexer<'_>, ast: &mut ast::Local) -> compile::Result<()> {
+fn local(idx: &mut Indexer<'_, '_>, ast: &mut ast::Local) -> compile::Result<()> {
     if let Some(span) = ast.attributes.option_span() {
         return Err(compile::Error::msg(
             span,
@@ -959,14 +959,14 @@ fn local(idx: &mut Indexer<'_>, ast: &mut ast::Local) -> compile::Result<()> {
 }
 
 #[instrument(span = ast)]
-fn expr_let(idx: &mut Indexer<'_>, ast: &mut ast::ExprLet) -> compile::Result<()> {
+fn expr_let(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprLet) -> compile::Result<()> {
     pat(idx, &mut ast.pat)?;
     expr(idx, &mut ast.expr)?;
     Ok(())
 }
 
 #[instrument(span = ast)]
-fn pat(idx: &mut Indexer<'_>, ast: &mut ast::Pat) -> compile::Result<()> {
+fn pat(idx: &mut Indexer<'_, '_>, ast: &mut ast::Pat) -> compile::Result<()> {
     match ast {
         ast::Pat::Path(pat) => {
             path(idx, &mut pat.path)?;
@@ -992,7 +992,7 @@ fn pat(idx: &mut Indexer<'_>, ast: &mut ast::Pat) -> compile::Result<()> {
 }
 
 #[instrument(span = ast)]
-fn pat_tuple(idx: &mut Indexer<'_>, ast: &mut ast::PatTuple) -> compile::Result<()> {
+fn pat_tuple(idx: &mut Indexer<'_, '_>, ast: &mut ast::PatTuple) -> compile::Result<()> {
     if let Some(p) = &mut ast.path {
         path(idx, p)?;
     }
@@ -1005,7 +1005,7 @@ fn pat_tuple(idx: &mut Indexer<'_>, ast: &mut ast::PatTuple) -> compile::Result<
 }
 
 #[instrument(span = ast)]
-fn pat_object(idx: &mut Indexer<'_>, ast: &mut ast::PatObject) -> compile::Result<()> {
+fn pat_object(idx: &mut Indexer<'_, '_>, ast: &mut ast::PatObject) -> compile::Result<()> {
     match &mut ast.ident {
         ast::ObjectIdent::Anonymous(..) => (),
         ast::ObjectIdent::Named(p) => {
@@ -1021,7 +1021,7 @@ fn pat_object(idx: &mut Indexer<'_>, ast: &mut ast::PatObject) -> compile::Resul
 }
 
 #[instrument(span = ast)]
-fn pat_vec(idx: &mut Indexer<'_>, ast: &mut ast::PatVec) -> compile::Result<()> {
+fn pat_vec(idx: &mut Indexer<'_, '_>, ast: &mut ast::PatVec) -> compile::Result<()> {
     for (p, _) in &mut ast.items {
         pat(idx, p)?;
     }
@@ -1030,19 +1030,19 @@ fn pat_vec(idx: &mut Indexer<'_>, ast: &mut ast::PatVec) -> compile::Result<()> 
 }
 
 #[instrument(span = ast)]
-fn pat_path(idx: &mut Indexer<'_>, ast: &mut ast::PatPath) -> compile::Result<()> {
+fn pat_path(idx: &mut Indexer<'_, '_>, ast: &mut ast::PatPath) -> compile::Result<()> {
     path(idx, &mut ast.path)?;
     Ok(())
 }
 
 #[instrument(span = ast)]
-fn pat_binding(idx: &mut Indexer<'_>, ast: &mut ast::PatBinding) -> compile::Result<()> {
+fn pat_binding(idx: &mut Indexer<'_, '_>, ast: &mut ast::PatBinding) -> compile::Result<()> {
     pat(idx, &mut ast.pat)?;
     Ok(())
 }
 
 #[instrument(span = ast)]
-pub(crate) fn expr(idx: &mut Indexer<'_>, ast: &mut ast::Expr) -> compile::Result<()> {
+pub(crate) fn expr(idx: &mut Indexer<'_, '_>, ast: &mut ast::Expr) -> compile::Result<()> {
     match ast {
         ast::Expr::Path(e) => {
             path(idx, e)?;
@@ -1177,7 +1177,7 @@ pub(crate) fn expr(idx: &mut Indexer<'_>, ast: &mut ast::Expr) -> compile::Resul
 }
 
 #[instrument(span = ast)]
-fn expr_if(idx: &mut Indexer<'_>, ast: &mut ast::ExprIf) -> compile::Result<()> {
+fn expr_if(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprIf) -> compile::Result<()> {
     condition(idx, &mut ast.condition)?;
     block(idx, &mut ast.block)?;
 
@@ -1194,21 +1194,21 @@ fn expr_if(idx: &mut Indexer<'_>, ast: &mut ast::ExprIf) -> compile::Result<()> 
 }
 
 #[instrument(span = ast)]
-fn expr_assign(idx: &mut Indexer<'_>, ast: &mut ast::ExprAssign) -> compile::Result<()> {
+fn expr_assign(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprAssign) -> compile::Result<()> {
     expr(idx, &mut ast.lhs)?;
     expr(idx, &mut ast.rhs)?;
     Ok(())
 }
 
 #[instrument(span = ast)]
-fn expr_binary(idx: &mut Indexer<'_>, ast: &mut ast::ExprBinary) -> compile::Result<()> {
+fn expr_binary(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprBinary) -> compile::Result<()> {
     expr(idx, &mut ast.lhs)?;
     expr(idx, &mut ast.rhs)?;
     Ok(())
 }
 
 #[instrument(span = ast)]
-fn expr_match(idx: &mut Indexer<'_>, ast: &mut ast::ExprMatch) -> compile::Result<()> {
+fn expr_match(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprMatch) -> compile::Result<()> {
     expr(idx, &mut ast.expr)?;
 
     for (branch, _) in &mut ast.branches {
@@ -1224,7 +1224,7 @@ fn expr_match(idx: &mut Indexer<'_>, ast: &mut ast::ExprMatch) -> compile::Resul
 }
 
 #[instrument(span = ast)]
-fn condition(idx: &mut Indexer<'_>, ast: &mut ast::Condition) -> compile::Result<()> {
+fn condition(idx: &mut Indexer<'_, '_>, ast: &mut ast::Condition) -> compile::Result<()> {
     match ast {
         ast::Condition::Expr(e) => {
             expr(idx, e)?;
@@ -1238,7 +1238,7 @@ fn condition(idx: &mut Indexer<'_>, ast: &mut ast::Condition) -> compile::Result
 }
 
 #[instrument(span = ast)]
-fn item_enum(idx: &mut Indexer<'_>, mut ast: ast::ItemEnum) -> compile::Result<()> {
+fn item_enum(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemEnum) -> compile::Result<()> {
     let mut p = attrs::Parser::new(&ast.attributes);
 
     let docs = Doc::collect_from(resolve_context!(idx.q), &mut p, &ast.attributes)?;
@@ -1291,11 +1291,11 @@ fn item_enum(idx: &mut Indexer<'_>, mut ast: ast::ItemEnum) -> compile::Result<(
 
         variant.id.set(item_meta.id);
 
-        let ctx = resolve_context!(idx.q);
+        let cx = resolve_context!(idx.q);
 
         for (field, _) in variant.body.fields() {
             let mut p = attrs::Parser::new(&field.attributes);
-            let docs = Doc::collect_from(ctx, &mut p, &field.attributes)?;
+            let docs = Doc::collect_from(cx, &mut p, &field.attributes)?;
 
             if let Some(first) = p.remaining(&field.attributes).next() {
                 return Err(compile::Error::msg(
@@ -1304,7 +1304,7 @@ fn item_enum(idx: &mut Indexer<'_>, mut ast: ast::ItemEnum) -> compile::Result<(
                 ));
             }
 
-            let name = field.name.resolve(ctx)?;
+            let name = field.name.resolve(cx)?;
 
             for doc in docs {
                 idx.q.visitor.visit_field_doc_comment(
@@ -1312,7 +1312,7 @@ fn item_enum(idx: &mut Indexer<'_>, mut ast: ast::ItemEnum) -> compile::Result<(
                     idx.q.pool.item(item_meta.item),
                     idx.q.pool.item_type_hash(item_meta.item),
                     name,
-                    doc.doc_string.resolve(ctx)?.as_ref(),
+                    doc.doc_string.resolve(cx)?.as_ref(),
                 );
             }
         }
@@ -1329,7 +1329,7 @@ fn item_enum(idx: &mut Indexer<'_>, mut ast: ast::ItemEnum) -> compile::Result<(
 }
 
 #[instrument(span = ast)]
-fn item_struct(idx: &mut Indexer<'_>, mut ast: ast::ItemStruct) -> compile::Result<()> {
+fn item_struct(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemStruct) -> compile::Result<()> {
     let mut p = attrs::Parser::new(&ast.attributes);
 
     let docs = Doc::collect_from(resolve_context!(idx.q), &mut p, &ast.attributes)?;
@@ -1355,11 +1355,11 @@ fn item_struct(idx: &mut Indexer<'_>, mut ast: ast::ItemStruct) -> compile::Resu
     )?;
     ast.id.set(item_meta.id);
 
-    let ctx = resolve_context!(idx.q);
+    let cx = resolve_context!(idx.q);
 
     for (field, _) in ast.body.fields() {
         let mut p = attrs::Parser::new(&field.attributes);
-        let docs = Doc::collect_from(ctx, &mut p, &field.attributes)?;
+        let docs = Doc::collect_from(cx, &mut p, &field.attributes)?;
 
         if let Some(first) = p.remaining(&field.attributes).next() {
             return Err(compile::Error::msg(
@@ -1368,7 +1368,7 @@ fn item_struct(idx: &mut Indexer<'_>, mut ast: ast::ItemStruct) -> compile::Resu
             ));
         }
 
-        let name = field.name.resolve(ctx)?;
+        let name = field.name.resolve(cx)?;
 
         for doc in docs {
             idx.q.visitor.visit_field_doc_comment(
@@ -1376,7 +1376,7 @@ fn item_struct(idx: &mut Indexer<'_>, mut ast: ast::ItemStruct) -> compile::Resu
                 idx.q.pool.item(item_meta.item),
                 idx.q.pool.item_type_hash(item_meta.item),
                 name,
-                doc.doc_string.resolve(ctx)?.as_ref(),
+                doc.doc_string.resolve(cx)?.as_ref(),
             );
         }
 
@@ -1395,7 +1395,7 @@ fn item_struct(idx: &mut Indexer<'_>, mut ast: ast::ItemStruct) -> compile::Resu
 }
 
 #[instrument(span = ast)]
-fn item_impl(idx: &mut Indexer<'_>, mut ast: ast::ItemImpl) -> compile::Result<()> {
+fn item_impl(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemImpl) -> compile::Result<()> {
     if let Some(first) = ast.attributes.first() {
         return Err(compile::Error::msg(
             first,
@@ -1438,7 +1438,7 @@ fn item_impl(idx: &mut Indexer<'_>, mut ast: ast::ItemImpl) -> compile::Result<(
 }
 
 #[instrument(span = ast)]
-fn item_mod(idx: &mut Indexer<'_>, mut ast: ast::ItemMod) -> compile::Result<()> {
+fn item_mod(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemMod) -> compile::Result<()> {
     let mut p = attrs::Parser::new(&ast.attributes);
 
     let docs = Doc::collect_from(resolve_context!(idx.q), &mut p, &ast.attributes)?;
@@ -1488,7 +1488,7 @@ fn item_mod(idx: &mut Indexer<'_>, mut ast: ast::ItemMod) -> compile::Result<()>
 }
 
 #[instrument(span = ast)]
-fn item_const(idx: &mut Indexer<'_>, mut ast: ast::ItemConst) -> compile::Result<()> {
+fn item_const(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemConst) -> compile::Result<()> {
     let mut p = attrs::Parser::new(&ast.attributes);
 
     let docs = Doc::collect_from(resolve_context!(idx.q), &mut p, &ast.attributes)?;
@@ -1525,7 +1525,7 @@ fn item_const(idx: &mut Indexer<'_>, mut ast: ast::ItemConst) -> compile::Result
 }
 
 #[instrument(span = ast)]
-fn item(idx: &mut Indexer<'_>, ast: ast::Item) -> compile::Result<()> {
+fn item(idx: &mut Indexer<'_, '_>, ast: ast::Item) -> compile::Result<()> {
     match ast {
         ast::Item::Enum(item) => {
             item_enum(idx, item)?;
@@ -1598,7 +1598,7 @@ fn item(idx: &mut Indexer<'_>, ast: ast::Item) -> compile::Result<()> {
 }
 
 #[instrument(span = ast)]
-fn path(idx: &mut Indexer<'_>, ast: &mut ast::Path) -> compile::Result<()> {
+fn path(idx: &mut Indexer<'_, '_>, ast: &mut ast::Path) -> compile::Result<()> {
     ast.id.set(idx.item_id());
 
     path_segment(idx, &mut ast.first)?;
@@ -1611,7 +1611,7 @@ fn path(idx: &mut Indexer<'_>, ast: &mut ast::Path) -> compile::Result<()> {
 }
 
 #[instrument(span = ast)]
-fn path_segment(idx: &mut Indexer<'_>, ast: &mut ast::PathSegment) -> compile::Result<()> {
+fn path_segment(idx: &mut Indexer<'_, '_>, ast: &mut ast::PathSegment) -> compile::Result<()> {
     if let ast::PathSegment::Generics(generics) = ast {
         for (param, _) in generics {
             expr(idx, &mut param.expr)?;
@@ -1622,20 +1622,20 @@ fn path_segment(idx: &mut Indexer<'_>, ast: &mut ast::PathSegment) -> compile::R
 }
 
 #[instrument(span = ast)]
-fn expr_while(idx: &mut Indexer<'_>, ast: &mut ast::ExprWhile) -> compile::Result<()> {
+fn expr_while(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprWhile) -> compile::Result<()> {
     condition(idx, &mut ast.condition)?;
     block(idx, &mut ast.body)?;
     Ok(())
 }
 
 #[instrument(span = ast)]
-fn expr_loop(idx: &mut Indexer<'_>, ast: &mut ast::ExprLoop) -> compile::Result<()> {
+fn expr_loop(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprLoop) -> compile::Result<()> {
     block(idx, &mut ast.body)?;
     Ok(())
 }
 
 #[instrument(span = ast)]
-fn expr_for(idx: &mut Indexer<'_>, ast: &mut ast::ExprFor) -> compile::Result<()> {
+fn expr_for(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprFor) -> compile::Result<()> {
     expr(idx, &mut ast.iter)?;
     pat(idx, &mut ast.binding)?;
     block(idx, &mut ast.body)?;
@@ -1643,7 +1643,7 @@ fn expr_for(idx: &mut Indexer<'_>, ast: &mut ast::ExprFor) -> compile::Result<()
 }
 
 #[instrument(span = ast)]
-fn expr_closure(idx: &mut Indexer<'_>, ast: &mut ast::ExprClosure) -> compile::Result<()> {
+fn expr_closure(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprClosure) -> compile::Result<()> {
     let guard = idx.items.push_id();
     let idx_item = idx.item.replace();
 
@@ -1695,7 +1695,10 @@ fn expr_closure(idx: &mut Indexer<'_>, ast: &mut ast::ExprClosure) -> compile::R
 }
 
 #[instrument(span = ast)]
-fn expr_field_access(idx: &mut Indexer<'_>, ast: &mut ast::ExprFieldAccess) -> compile::Result<()> {
+fn expr_field_access(
+    idx: &mut Indexer<'_, '_>,
+    ast: &mut ast::ExprFieldAccess,
+) -> compile::Result<()> {
     expr(idx, &mut ast.expr)?;
 
     match &mut ast.expr_field {
@@ -1709,20 +1712,20 @@ fn expr_field_access(idx: &mut Indexer<'_>, ast: &mut ast::ExprFieldAccess) -> c
 }
 
 #[instrument(span = ast)]
-fn expr_unary(idx: &mut Indexer<'_>, ast: &mut ast::ExprUnary) -> compile::Result<()> {
+fn expr_unary(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprUnary) -> compile::Result<()> {
     expr(idx, &mut ast.expr)?;
     Ok(())
 }
 
 #[instrument(span = ast)]
-fn expr_index(idx: &mut Indexer<'_>, ast: &mut ast::ExprIndex) -> compile::Result<()> {
+fn expr_index(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprIndex) -> compile::Result<()> {
     expr(idx, &mut ast.index)?;
     expr(idx, &mut ast.target)?;
     Ok(())
 }
 
 #[instrument(span = ast)]
-fn expr_break(idx: &mut Indexer<'_>, ast: &mut ast::ExprBreak) -> compile::Result<()> {
+fn expr_break(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprBreak) -> compile::Result<()> {
     if let Some(ast::ExprBreakValue::Expr(e)) = ast.expr.as_deref_mut() {
         expr(idx, e)?;
     }
@@ -1731,12 +1734,12 @@ fn expr_break(idx: &mut Indexer<'_>, ast: &mut ast::ExprBreak) -> compile::Resul
 }
 
 #[instrument(span = ast)]
-fn expr_continue(idx: &mut Indexer<'_>, ast: &mut ast::ExprContinue) -> compile::Result<()> {
+fn expr_continue(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprContinue) -> compile::Result<()> {
     Ok(())
 }
 
 #[instrument(span = ast)]
-fn expr_yield(idx: &mut Indexer<'_>, ast: &mut ast::ExprYield) -> compile::Result<()> {
+fn expr_yield(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprYield) -> compile::Result<()> {
     idx.scopes
         .mark(|l| l.yields.push(ast.span()))
         .with_span(&*ast)?;
@@ -1749,7 +1752,7 @@ fn expr_yield(idx: &mut Indexer<'_>, ast: &mut ast::ExprYield) -> compile::Resul
 }
 
 #[instrument(span = ast)]
-fn expr_return(idx: &mut Indexer<'_>, ast: &mut ast::ExprReturn) -> compile::Result<()> {
+fn expr_return(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprReturn) -> compile::Result<()> {
     if let Some(e) = &mut ast.expr {
         expr(idx, e)?;
     }
@@ -1758,7 +1761,7 @@ fn expr_return(idx: &mut Indexer<'_>, ast: &mut ast::ExprReturn) -> compile::Res
 }
 
 #[instrument(span = ast)]
-fn expr_await(idx: &mut Indexer<'_>, ast: &mut ast::ExprAwait) -> compile::Result<()> {
+fn expr_await(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprAwait) -> compile::Result<()> {
     idx.scopes
         .mark(|l| l.awaits.push(ast.span()))
         .with_span(&*ast)?;
@@ -1768,13 +1771,13 @@ fn expr_await(idx: &mut Indexer<'_>, ast: &mut ast::ExprAwait) -> compile::Resul
 }
 
 #[instrument(span = ast)]
-fn expr_try(idx: &mut Indexer<'_>, ast: &mut ast::ExprTry) -> compile::Result<()> {
+fn expr_try(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprTry) -> compile::Result<()> {
     expr(idx, &mut ast.expr)?;
     Ok(())
 }
 
 #[instrument(span = ast)]
-fn expr_select(idx: &mut Indexer<'_>, ast: &mut ast::ExprSelect) -> compile::Result<()> {
+fn expr_select(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprSelect) -> compile::Result<()> {
     idx.scopes
         .mark(|l| l.awaits.push(ast.span()))
         .with_span(&*ast)?;
@@ -1796,7 +1799,7 @@ fn expr_select(idx: &mut Indexer<'_>, ast: &mut ast::ExprSelect) -> compile::Res
 }
 
 #[instrument(span = ast)]
-fn expr_call(idx: &mut Indexer<'_>, ast: &mut ast::ExprCall) -> compile::Result<()> {
+fn expr_call(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprCall) -> compile::Result<()> {
     ast.id.set(idx.items.id().with_span(&*ast)?);
 
     for (e, _) in &mut ast.args {
@@ -1808,7 +1811,7 @@ fn expr_call(idx: &mut Indexer<'_>, ast: &mut ast::ExprCall) -> compile::Result<
 }
 
 #[instrument(span = ast)]
-fn expr_tuple(idx: &mut Indexer<'_>, ast: &mut ast::ExprTuple) -> compile::Result<()> {
+fn expr_tuple(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprTuple) -> compile::Result<()> {
     for (e, _) in &mut ast.items {
         expr(idx, e)?;
     }
@@ -1817,7 +1820,7 @@ fn expr_tuple(idx: &mut Indexer<'_>, ast: &mut ast::ExprTuple) -> compile::Resul
 }
 
 #[instrument(span = ast)]
-fn expr_vec(idx: &mut Indexer<'_>, ast: &mut ast::ExprVec) -> compile::Result<()> {
+fn expr_vec(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprVec) -> compile::Result<()> {
     for (e, _) in &mut ast.items {
         expr(idx, e)?;
     }
@@ -1826,7 +1829,7 @@ fn expr_vec(idx: &mut Indexer<'_>, ast: &mut ast::ExprVec) -> compile::Result<()
 }
 
 #[instrument(span = ast)]
-fn expr_object(idx: &mut Indexer<'_>, ast: &mut ast::ExprObject) -> compile::Result<()> {
+fn expr_object(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprObject) -> compile::Result<()> {
     match &mut ast.ident {
         ast::ObjectIdent::Named(p) => {
             // Not a variable use: Name of the object.
@@ -1845,7 +1848,7 @@ fn expr_object(idx: &mut Indexer<'_>, ast: &mut ast::ExprObject) -> compile::Res
 }
 
 #[instrument(span = ast)]
-fn expr_range(idx: &mut Indexer<'_>, ast: &mut ast::ExprRange) -> compile::Result<()> {
+fn expr_range(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprRange) -> compile::Result<()> {
     if let Some(from) = &mut ast.from {
         expr(idx, from)?;
     }

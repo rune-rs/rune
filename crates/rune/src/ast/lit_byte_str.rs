@@ -73,13 +73,13 @@ impl Parse for LitByteStr {
 impl<'a> Resolve<'a> for LitByteStr {
     type Output = Cow<'a, [u8]>;
 
-    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<Cow<'a, [u8]>> {
+    fn resolve(&self, cx: ResolveContext<'a>) -> Result<Cow<'a, [u8]>> {
         let span = self.span;
 
         let text = match self.source {
             ast::StrSource::Text(text) => text,
             ast::StrSource::Synthetic(id) => {
-                let bytes = ctx.storage.get_byte_string(id).ok_or_else(|| {
+                let bytes = cx.storage.get_byte_string(id).ok_or_else(|| {
                     compile::Error::new(
                         span,
                         ResolveErrorKind::BadSyntheticId {
@@ -94,7 +94,7 @@ impl<'a> Resolve<'a> for LitByteStr {
         };
 
         let span = span.trim_start(2u32).trim_end(1u32);
-        let string = ctx
+        let string = cx
             .sources
             .source(text.source_id, span)
             .ok_or_else(|| compile::Error::new(span, ResolveErrorKind::BadSlice))?;
@@ -108,7 +108,7 @@ impl<'a> Resolve<'a> for LitByteStr {
 }
 
 impl ToTokens for LitByteStr {
-    fn to_tokens(&self, _: &mut MacroContext<'_, '_>, stream: &mut TokenStream) {
+    fn to_tokens(&self, _: &mut MacroContext<'_, '_, '_>, stream: &mut TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::ByteStr(self.source),

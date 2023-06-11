@@ -49,21 +49,21 @@ fn module() -> Result<Module, ContextError> {
 
     let string = "1 + 2 + 13 * 3";
 
-    m.macro_(["string_as_code"], move |ctx, _| {
-        let id = ctx.insert_source("string_as_code", string);
-        let expr = ctx.parse_source::<ast::Expr>(id)?;
+    m.macro_(["string_as_code"], move |cx, _| {
+        let id = cx.insert_source("string_as_code", string);
+        let expr = cx.parse_source::<ast::Expr>(id)?;
 
-        Ok(quote!(#expr).into_token_stream(ctx))
+        Ok(quote!(#expr).into_token_stream(cx))
     })?;
 
-    m.macro_(["string_as_code_from_arg"], |ctx, stream| {
-        let mut p = Parser::from_token_stream(stream, ctx.input_span());
+    m.macro_(["string_as_code_from_arg"], |cx, stream| {
+        let mut p = Parser::from_token_stream(stream, cx.input_span());
         let s = p.parse_all::<ast::LitStr>()?;
-        let s = ctx.resolve(s)?.into_owned();
-        let id = ctx.insert_source("string_as_code_from_arg", &s);
-        let expr = ctx.parse_source::<ast::Expr>(id)?;
+        let s = cx.resolve(s)?.into_owned();
+        let id = cx.insert_source("string_as_code_from_arg", &s);
+        let expr = cx.parse_source::<ast::Expr>(id)?;
 
-        Ok(quote!(#expr).into_token_stream(ctx))
+        Ok(quote!(#expr).into_token_stream(cx))
     })?;
 
     Ok(m)

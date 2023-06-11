@@ -1,15 +1,18 @@
 use crate::no_std::collections::HashMap;
 use crate::no_std::prelude::*;
 
+use crate::compile::ir;
+use crate::hir;
+
 /// Error indicating that a local variable is missing.
-pub(crate) struct MissingLocal<'a>(pub(crate) &'a str);
+pub(crate) struct MissingLocal(pub(crate) hir::OwnedName);
 
 /// A hierarchy of constant scopes.
-pub(crate) struct Scopes<T> {
-    scopes: Vec<Scope<T>>,
+pub(crate) struct Scopes {
+    scopes: Vec<Scope>,
 }
 
-impl<T> Scopes<T> {
+impl Scopes {
     /// Clear the current scope.
     pub(crate) fn clear_current(&mut self) -> Result<(), &'static str> {
         let last = self
@@ -22,14 +25,18 @@ impl<T> Scopes<T> {
     }
 
     /// Declare a value in the scope.
-    pub(crate) fn decl(&mut self, name: &str, value: T) -> Result<(), &'static str> {
+    pub(crate) fn decl(
+        &mut self,
+        name: &hir::OwnedName,
+        value: ir::Value,
+    ) -> Result<(), &'static str> {
         let last = self.last_mut().ok_or("expected at least one scope")?;
-        last.locals.insert(name.to_owned(), value);
+        last.locals.insert(name.clone(), value);
         Ok(())
     }
 
     /// Try to get the value out from the scopes.
-    pub(crate) fn try_get<'a>(&'a self, name: &str) -> Option<&'a T> {
+    pub(crate) fn try_get(&self, name: &hir::OwnedName) -> Option<&ir::Value> {
         for scope in self.scopes.iter().rev() {
             if let Some(current) = scope.locals.get(name) {
                 return Some(current);
@@ -45,7 +52,7 @@ impl<T> Scopes<T> {
     }
 
     /// Get the given variable.
-    pub(crate) fn get_name<'a, 'n>(&'a self, name: &'n str) -> Result<&'a T, MissingLocal<'n>> {
+    pub(crate) fn get_name(&self, name: &hir::OwnedName) -> Result<&ir::Value, MissingLocal> {
         for scope in self.scopes.iter().rev() {
             if let Some(current) = scope.locals.get(name) {
                 return Ok(current);
@@ -57,14 +64,14 @@ impl<T> Scopes<T> {
             }
         }
 
-        Err(MissingLocal(name))
+        Err(MissingLocal(name.clone()))
     }
 
     /// Get the given variable as mutable.
-    pub(crate) fn get_name_mut<'a, 'n>(
-        &'a mut self,
-        name: &'n str,
-    ) -> Result<&'a mut T, MissingLocal<'n>> {
+    pub(crate) fn get_name_mut(
+        &mut self,
+        name: &hir::OwnedName,
+    ) -> Result<&mut ir::Value, MissingLocal> {
         for scope in self.scopes.iter_mut().rev() {
             if let Some(current) = scope.locals.get_mut(name) {
                 return Ok(current);
@@ -76,7 +83,7 @@ impl<T> Scopes<T> {
             }
         }
 
-        Err(MissingLocal(name))
+        Err(MissingLocal(name.clone()))
     }
 
     /// Push a scope and return the guard associated with the scope.
@@ -89,7 +96,7 @@ impl<T> Scopes<T> {
     /// Push an isolate scope and return the guard associated with the scope.
     pub(crate) fn isolate(&mut self) -> ScopeGuard {
         let length = self.scopes.len();
-        let scope = Scope::<T> {
+        let scope = Scope {
             kind: ScopeKind::Isolate,
             ..Default::default()
         };
@@ -110,12 +117,12 @@ impl<T> Scopes<T> {
     }
 
     /// Get the last scope mutably.
-    pub(crate) fn last_mut(&mut self) -> Option<&mut Scope<T>> {
+    pub(crate) fn last_mut(&mut self) -> Option<&mut Scope> {
         self.scopes.last_mut()
     }
 }
 
-impl<T> Default for Scopes<T> {
+impl Default for Scopes {
     fn default() -> Self {
         Self {
             scopes: vec![Scope::default()],
@@ -134,13 +141,13 @@ enum ScopeKind {
     Isolate,
 }
 
-pub(crate) struct Scope<T> {
+pub(crate) struct Scope {
     kind: ScopeKind,
     /// Locals in the current scope.
-    locals: HashMap<String, T>,
+    locals: HashMap<hir::OwnedName, ir::Value>,
 }
 
-impl<T> Default for Scope<T> {
+impl Default for Scope {
     fn default() -> Self {
         Self {
             kind: ScopeKind::None,
