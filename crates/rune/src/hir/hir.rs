@@ -369,10 +369,24 @@ pub(crate) struct ExprFieldAccess<'hir> {
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) enum ExprField<'hir> {
-    /// An identifier.
-    Path(&'hir Path<'hir>),
-    /// A literal number.
-    LitNumber(&'hir ast::LitNumber),
+    /// A tuple index.
+    ///
+    /// ```text
+    /// 1
+    /// ```
+    Index(usize),
+    /// A field identifier.
+    ///
+    /// ```text
+    /// field
+    /// ```
+    Ident(&'hir str),
+    /// A field identifier immediately followed by generic expressions.
+    ///
+    /// ```text
+    /// field<1, string>
+    /// ```
+    IdentGenerics(&'hir str, &'hir [Expr<'hir>]),
 }
 
 /// A binary expression.
@@ -582,30 +596,6 @@ impl<'hir> Path<'hir> {
         } else {
             None
         }
-    }
-
-    /// Borrow ident and generics at the same time.
-    pub(crate) fn try_as_ident_generics(
-        &self,
-    ) -> Option<(&ast::Ident, Option<(Span, &'hir [Expr<'hir>])>)> {
-        if self.trailing.is_none() && self.global.is_none() {
-            if let Some(ident) = self.first.try_as_ident() {
-                let generics = if let [PathSegment {
-                    span,
-                    kind: PathSegmentKind::Generics(generics),
-                    ..
-                }] = *self.rest
-                {
-                    Some((span, generics))
-                } else {
-                    None
-                };
-
-                return Some((ident, generics));
-            }
-        }
-
-        None
     }
 }
 

@@ -605,13 +605,9 @@ pub(crate) fn expr<'hir>(
             }),
         })),
         ast::Expr::Call(ast) => hir::ExprKind::Call(alloc!(expr_call(ctx, ast)?)),
-        ast::Expr::FieldAccess(ast) => hir::ExprKind::FieldAccess(alloc!(hir::ExprFieldAccess {
-            expr: alloc!(expr(ctx, &ast.expr)?),
-            expr_field: alloc!(match &ast.expr_field {
-                ast::ExprField::Path(ast) => hir::ExprField::Path(alloc!(path(ctx, ast)?)),
-                ast::ExprField::LitNumber(ast) => hir::ExprField::LitNumber(alloc!(*ast)),
-            }),
-        })),
+        ast::Expr::FieldAccess(ast) => {
+            hir::ExprKind::FieldAccess(alloc!(expr_field_access(ctx, ast)?))
+        }
         ast::Expr::Empty(ast) => {
             // NB: restore in_path setting.
             ctx.in_path.set(in_path);
@@ -1685,21 +1681,19 @@ fn expr_call<'hir>(
                 break 'ok hir::Call::Meta { hash: meta.hash };
             }
             hir::ExprKind::FieldAccess(hir::ExprFieldAccess {
-                expr_field: hir::ExprField::Path(path),
+                expr_field: hir::ExprField::Ident(ident),
                 expr: target,
             }) => {
-                if let Some((ident, generics)) = path.try_as_ident_generics() {
-                    let ident = ident.resolve(resolve_context!(ctx.q))?;
-                    let hash = Hash::instance_fn_name(ident);
-
-                    let hash = if let Some((.., generic)) = generics {
-                        hash.with_function_parameters(generics_parameter(generic)?)
-                    } else {
-                        hash
-                    };
-
-                    break 'ok hir::Call::Instance { target, hash };
-                }
+                let hash = Hash::instance_fn_name(ident);
+                break 'ok hir::Call::Instance { target, hash };
+            }
+            hir::ExprKind::FieldAccess(hir::ExprFieldAccess {
+                expr_field: hir::ExprField::IdentGenerics(ident, generics),
+                expr: target,
+            }) => {
+                let hash = Hash::instance_fn_name(ident);
+                let hash = hash.with_function_parameters(generics_parameter(generics)?);
+                break 'ok hir::Call::Instance { target, hash };
             }
             _ => {}
         }
@@ -1710,5 +1704,48 @@ fn expr_call<'hir>(
     Ok(hir::ExprCall {
         call,
         args: iter!(&ast.args, |(ast, _)| self::expr(ctx, ast)?),
+    })
+}
+
+#[instrument(span = ast)]
+fn expr_field_access<'hir>(
+    ctx: &mut Ctx<'hir, '_>,
+    ast: &ast::ExprFieldAccess,
+) -> compile::Result<hir::ExprFieldAccess<'hir>> {
+    alloc_with!(ctx, ast);
+
+    let expr_field = match &ast.expr_field {
+        ast::ExprField::LitNumber(ast) => {
+            let number = ast.resolve(resolve_context!(ctx.q))?;
+
+            let Some(index) = number.as_tuple_index() else {
+                return Err(compile::Error::new(
+                    ast,
+                    CompileErrorKind::UnsupportedTupleIndex { number },
+                ));
+            };
+
+            hir::ExprField::Index(index)
+        }
+        ast::ExprField::Path(ast) => {
+            let Some((ident, generics)) = ast.try_as_ident_generics() else {
+                return Err(compile::Error::new(ast, CompileErrorKind::BadFieldAccess));
+            };
+
+            let ident = alloc_str!(ident.resolve(resolve_context!(ctx.q))?);
+
+            match generics {
+                Some(generics) => {
+                    let generics = iter!(generics, |(segment, _)| expr(ctx, &segment.expr)?);
+                    hir::ExprField::IdentGenerics(ident, generics)
+                }
+                None => hir::ExprField::Ident(ident),
+            }
+        }
+    };
+
+    Ok(hir::ExprFieldAccess {
+        expr: alloc!(expr(ctx, &ast.expr)?),
+        expr_field: alloc!(expr_field),
     })
 }

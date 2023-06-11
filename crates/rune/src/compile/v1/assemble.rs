@@ -6,7 +6,6 @@ use crate::ast::{self, Span, Spanned};
 use crate::compile::v1::{Assembler, Layer, Loop, Needs, Var};
 use crate::compile::{self, CompileErrorKind, WithSpan};
 use crate::hir;
-use crate::parse::Resolve;
 use crate::runtime::{
     ConstValue, Inst, InstAddress, InstAssignOp, InstOp, InstRangeLimits, InstTarget, InstValue,
     InstVariant, Label, PanicReason, Protocol, TypeCheck,
@@ -929,34 +928,21 @@ fn expr_assign<'hir>(
         // <expr>.<field> = <value>
         hir::ExprKind::FieldAccess(field_access) => {
             // field assignment
-            match field_access.expr_field {
-                hir::ExprField::Path(path) => {
-                    if let Some(ident) = path.try_as_ident() {
-                        let slot = ident.resolve(resolve_context!(c.q))?;
-                        let slot = c.q.unit.new_static_string(ident, slot.as_ref())?;
+            match *field_access.expr_field {
+                hir::ExprField::Ident(ident) => {
+                    let slot = c.q.unit.new_static_string(span, ident)?;
 
-                        expr(c, hir.rhs, Needs::Value)?.apply(c)?;
-                        c.scopes.alloc(hir.rhs)?;
+                    expr(c, hir.rhs, Needs::Value)?.apply(c)?;
+                    c.scopes.alloc(hir.rhs)?;
 
-                        expr(c, field_access.expr, Needs::Value)?.apply(c)?;
-                        c.scopes.alloc(span)?;
+                    expr(c, field_access.expr, Needs::Value)?.apply(c)?;
+                    c.scopes.alloc(span)?;
 
-                        c.asm.push(Inst::ObjectIndexSet { slot }, span);
-                        c.scopes.free(span, 2)?;
-                        true
-                    } else {
-                        false
-                    }
+                    c.asm.push(Inst::ObjectIndexSet { slot }, span);
+                    c.scopes.free(span, 2)?;
+                    true
                 }
-                hir::ExprField::LitNumber(field) => {
-                    let number = field.resolve(resolve_context!(c.q))?;
-                    let index = number.as_tuple_index().ok_or_else(|| {
-                        compile::Error::new(
-                            span,
-                            CompileErrorKind::UnsupportedTupleIndex { number },
-                        )
-                    })?;
-
+                hir::ExprField::Index(index) => {
                     expr(c, hir.rhs, Needs::Value)?.apply(c)?;
                     c.scopes.alloc(hir.rhs)?;
 
@@ -964,6 +950,9 @@ fn expr_assign<'hir>(
                     c.asm.push(Inst::TupleIndexSet { index }, span);
                     c.scopes.free(span, 1)?;
                     true
+                }
+                _ => {
+                    return Err(compile::Error::new(span, CompileErrorKind::BadFieldAccess));
                 }
             }
         }
@@ -1152,28 +1141,14 @@ fn expr_binary<'hir>(
                 expr(c, rhs, Needs::Value)?.apply(c)?;
 
                 // field assignment
-                match field_access.expr_field {
-                    hir::ExprField::Path(path) => {
-                        if let Some(ident) = path.try_as_ident() {
-                            let n = ident.resolve(resolve_context!(c.q))?;
-                            let n = c.q.unit.new_static_string(path, n.as_ref())?;
-
-                            Some(InstTarget::Field(n))
-                        } else {
-                            None
-                        }
+                match *field_access.expr_field {
+                    hir::ExprField::Index(index) => Some(InstTarget::TupleField(index)),
+                    hir::ExprField::Ident(ident) => {
+                        let n = c.q.unit.new_static_string(field_access.expr, ident)?;
+                        Some(InstTarget::Field(n))
                     }
-                    hir::ExprField::LitNumber(field) => {
-                        let number = field.resolve(resolve_context!(c.q))?;
-
-                        let Some(index) = number.as_tuple_index() else {
-                            return Err(compile::Error::new(
-                                field,
-                                CompileErrorKind::UnsupportedTupleIndex { number },
-                            ));
-                        };
-
-                        Some(InstTarget::TupleField(index))
+                    _ => {
+                        return Err(compile::Error::new(span, CompileErrorKind::BadFieldAccess));
                     }
                 }
             }
@@ -1495,65 +1470,9 @@ fn expr_field_access<'hir>(
     // TODO: perform deferred compilation for expressions instead, so we can
     // e.g. inspect if it compiles down to a local access instead of
     // climbing the hir like we do here.
-    #[allow(clippy::single_match)]
-    match (hir.expr.kind, hir.expr_field) {
-        (hir::ExprKind::Variable(name), hir::ExprField::LitNumber(n)) => {
-            if try_immediate_field_access_optimization(c, name, n, span, needs)? {
-                return Ok(Asm::top(span));
-            }
-        }
-        _ => (),
-    }
-
-    expr(c, hir.expr, Needs::Value)?.apply(c)?;
-
-    match hir.expr_field {
-        hir::ExprField::LitNumber(n) => {
-            if let Some(index) = n.resolve(resolve_context!(c.q))?.as_tuple_index() {
-                c.asm.push(Inst::TupleIndexGet { index }, span);
-
-                if !needs.value() {
-                    c.q.diagnostics.not_used(c.source_id, span, c.context());
-                    c.asm.push(Inst::Pop, span);
-                }
-
-                return Ok(Asm::top(span));
-            }
-        }
-        hir::ExprField::Path(path) => {
-            if let Some(ident) = path.try_as_ident() {
-                let field = ident.resolve(resolve_context!(c.q))?;
-                let slot = c.q.unit.new_static_string(span, field.as_ref())?;
-
-                c.asm.push(Inst::ObjectIndexGet { slot }, span);
-
-                if !needs.value() {
-                    c.q.diagnostics.not_used(c.source_id, span, c.context());
-                    c.asm.push(Inst::Pop, span);
-                }
-
-                return Ok(Asm::top(span));
-            }
-        }
-    }
-
-    return Err(compile::Error::new(span, CompileErrorKind::BadFieldAccess));
-
-    fn try_immediate_field_access_optimization<'hir>(
-        c: &mut Assembler<'_, 'hir>,
-        name: hir::Name<'hir>,
-        n: &ast::LitNumber,
-        span: &dyn Spanned,
-        needs: Needs,
-    ) -> compile::Result<bool> {
-        let ast::Number::Integer(index) = n.resolve(resolve_context!(c.q))? else {
-            return Ok(false);
-        };
-
-        let Ok(index) = usize::try_from(index) else {
-            return Ok(false);
-        };
-
+    if let (hir::ExprKind::Variable(name), hir::ExprField::Index(index)) =
+        (hir.expr.kind, *hir.expr_field)
+    {
         let var = c.scopes.get(&mut c.q, name, span)?;
 
         c.asm.push_with_comment(
@@ -1570,7 +1489,35 @@ fn expr_field_access<'hir>(
             c.asm.push(Inst::Pop, span);
         }
 
-        Ok(true)
+        return Ok(Asm::top(span));
+    }
+
+    expr(c, hir.expr, Needs::Value)?.apply(c)?;
+
+    match *hir.expr_field {
+        hir::ExprField::Index(index) => {
+            c.asm.push(Inst::TupleIndexGet { index }, span);
+
+            if !needs.value() {
+                c.q.diagnostics.not_used(c.source_id, span, c.context());
+                c.asm.push(Inst::Pop, span);
+            }
+
+            Ok(Asm::top(span))
+        }
+        hir::ExprField::Ident(field) => {
+            let slot = c.q.unit.new_static_string(span, field)?;
+
+            c.asm.push(Inst::ObjectIndexGet { slot }, span);
+
+            if !needs.value() {
+                c.q.diagnostics.not_used(c.source_id, span, c.context());
+                c.asm.push(Inst::Pop, span);
+            }
+
+            Ok(Asm::top(span))
+        }
+        _ => Err(compile::Error::new(span, CompileErrorKind::BadFieldAccess)),
     }
 }
 
