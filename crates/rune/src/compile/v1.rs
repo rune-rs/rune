@@ -5,8 +5,7 @@ use crate::ast::Span;
 use crate::compile::ir;
 use crate::compile::meta;
 use crate::compile::{
-    self, Assembly, CompileErrorKind, DynLocation, IrBudget, IrCompiler, IrInterpreter, ItemId,
-    ModId, Options, WithSpan,
+    self, Assembly, CompileErrorKind, DynLocation, ItemId, ModId, Options, WithSpan,
 };
 use crate::hir;
 use crate::query::{ConstFn, Query, Used};
@@ -159,7 +158,7 @@ impl<'a, 'hir> Assembler<'a, 'hir> {
             ));
         }
 
-        let mut compiler = IrCompiler {
+        let mut compiler = ir::Ctxt {
             source_id: self.source_id,
             q: self.q.borrow(),
         };
@@ -171,8 +170,8 @@ impl<'a, 'hir> Assembler<'a, 'hir> {
             compiled.push((ir::compiler::expr(hir, &mut compiler)?, name));
         }
 
-        let mut interpreter = IrInterpreter {
-            budget: IrBudget::new(1_000_000),
+        let mut interpreter = ir::Interpreter {
+            budget: ir::Budget::new(1_000_000),
             scopes: Default::default(),
             module: from_module,
             item: from_item,

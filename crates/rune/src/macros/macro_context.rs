@@ -4,9 +4,10 @@ use core::fmt;
 
 use crate::ast;
 use crate::ast::Span;
+use crate::compile::ir;
 use crate::compile::{
-    self, Context, IrValue, Item, ItemMeta, NoopCompileVisitor, NoopSourceLoader, ParseErrorKind,
-    Pool, Prelude, UnitBuilder,
+    self, Context, Item, ItemMeta, NoopCompileVisitor, NoopSourceLoader, ParseErrorKind, Pool,
+    Prelude, UnitBuilder,
 };
 use crate::indexing::{IndexItem, Indexer, Items, Scopes};
 use crate::macros::{IntoLit, Storage, ToTokens, TokenStream};
@@ -129,7 +130,7 @@ impl<'a, 'b> MacroContext<'a, 'b> {
     ///     assert_eq!(3, value.into_integer::<u32>().unwrap());
     /// });
     /// ```
-    pub fn eval(&mut self, target: &ast::Expr) -> compile::Result<IrValue> {
+    pub fn eval(&mut self, target: &ast::Expr) -> compile::Result<ir::Value> {
         target.eval(self)
     }
 

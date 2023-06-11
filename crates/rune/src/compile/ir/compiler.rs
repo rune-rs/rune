@@ -3,7 +3,7 @@ use core::mem::{replace, take};
 use crate::no_std::prelude::*;
 
 use crate::ast::{self, Span, Spanned};
-use crate::compile::ir::{self, IrValue};
+use crate::compile::ir;
 use crate::compile::{self, CompileErrorKind};
 use crate::hir;
 use crate::parse::Resolve;
@@ -14,14 +14,14 @@ use crate::SourceId;
 use rune_macros::instrument;
 
 /// A c that compiles AST into Rune IR.
-pub(crate) struct IrCompiler<'a> {
+pub(crate) struct Ctxt<'a> {
     /// The source id of the source.
     pub(crate) source_id: SourceId,
     /// Query associated with the compiler.
     pub(crate) q: Query<'a>,
 }
 
-impl IrCompiler<'_> {
+impl Ctxt<'_> {
     /// Resolve the given resolvable value.
     pub(crate) fn resolve<'s, T>(&'s self, value: &T) -> compile::Result<T::Output>
     where
@@ -32,7 +32,7 @@ impl IrCompiler<'_> {
 }
 
 #[instrument]
-pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut IrCompiler<'_>) -> compile::Result<ir::Ir> {
+pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut Ctxt<'_>) -> compile::Result<ir::Ir> {
     let span = hir.span();
 
     Ok(match hir.kind {
@@ -58,7 +58,7 @@ pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut IrCompiler<'_>) -> compile::Resu
                 return Err(compile::Error::msg(hir, format_args!("Missing constant for hash {hash}")));
             };
 
-            ir::Ir::new(span, ir::IrValue::from_const(value))
+            ir::Ir::new(span, ir::Value::from_const(value))
         }
         hir::ExprKind::Variable(name) => {
             return Ok(ir::Ir::new(span, <Box<str>>::from(name.as_str())));
@@ -109,11 +109,7 @@ fn ir_target(expr: &hir::Expr<'_>) -> compile::Result<ir::IrTarget> {
 }
 
 #[instrument]
-fn expr_assign(
-    span: Span,
-    c: &mut IrCompiler<'_>,
-    hir: &hir::ExprAssign<'_>,
-) -> compile::Result<ir::Ir> {
+fn expr_assign(span: Span, c: &mut Ctxt<'_>, hir: &hir::ExprAssign<'_>) -> compile::Result<ir::Ir> {
     let target = ir_target(&hir.lhs)?;
 
     Ok(ir::Ir::new(
@@ -127,11 +123,7 @@ fn expr_assign(
 }
 
 #[instrument]
-fn expr_call(
-    span: Span,
-    c: &mut IrCompiler<'_>,
-    hir: &hir::ExprCall<'_>,
-) -> compile::Result<ir::IrCall> {
+fn expr_call(span: Span, c: &mut Ctxt<'_>, hir: &hir::ExprCall<'_>) -> compile::Result<ir::IrCall> {
     let mut args = Vec::with_capacity(hir.args.len());
 
     for e in hir.args {
@@ -149,11 +141,7 @@ fn expr_call(
 }
 
 #[instrument]
-fn expr_binary(
-    span: Span,
-    c: &mut IrCompiler<'_>,
-    hir: &hir::ExprBinary<'_>,
-) -> compile::Result<ir::Ir> {
+fn expr_binary(span: Span, c: &mut Ctxt<'_>, hir: &hir::ExprBinary<'_>) -> compile::Result<ir::Ir> {
     if hir.op.is_assign() {
         let op = match hir.op {
             ast::BinOp::AddAssign(..) => ir::IrAssignOp::Add,
@@ -208,29 +196,27 @@ fn expr_binary(
 }
 
 #[instrument(span = span)]
-fn lit(c: &mut IrCompiler<'_>, span: Span, hir: hir::Lit<'_>) -> compile::Result<ir::Ir> {
+fn lit(c: &mut Ctxt<'_>, span: Span, hir: hir::Lit<'_>) -> compile::Result<ir::Ir> {
     Ok(match hir {
-        hir::Lit::Bool(boolean) => ir::Ir::new(span, IrValue::Bool(boolean)),
-        hir::Lit::Str(string) => ir::Ir::new(span, IrValue::String(Shared::new(string.to_owned()))),
-        hir::Lit::Integer(n) => ir::Ir::new(span, IrValue::Integer(n)),
-        hir::Lit::Float(n) => ir::Ir::new(span, IrValue::Float(n)),
-        hir::Lit::Byte(b) => ir::Ir::new(span, IrValue::Byte(b)),
+        hir::Lit::Bool(boolean) => ir::Ir::new(span, ir::Value::Bool(boolean)),
+        hir::Lit::Str(string) => {
+            ir::Ir::new(span, ir::Value::String(Shared::new(string.to_owned())))
+        }
+        hir::Lit::Integer(n) => ir::Ir::new(span, ir::Value::Integer(n)),
+        hir::Lit::Float(n) => ir::Ir::new(span, ir::Value::Float(n)),
+        hir::Lit::Byte(b) => ir::Ir::new(span, ir::Value::Byte(b)),
         hir::Lit::ByteStr(byte_str) => {
-            let value = IrValue::Bytes(Shared::new(Bytes::from_vec(byte_str.to_vec())));
+            let value = ir::Value::Bytes(Shared::new(Bytes::from_vec(byte_str.to_vec())));
             ir::Ir::new(span, value)
         }
-        hir::Lit::Char(c) => ir::Ir::new(span, IrValue::Char(c)),
+        hir::Lit::Char(c) => ir::Ir::new(span, ir::Value::Char(c)),
     })
 }
 
 #[instrument(span = span)]
-fn expr_tuple(
-    c: &mut IrCompiler<'_>,
-    span: Span,
-    hir: &hir::ExprSeq<'_>,
-) -> compile::Result<ir::Ir> {
+fn expr_tuple(c: &mut Ctxt<'_>, span: Span, hir: &hir::ExprSeq<'_>) -> compile::Result<ir::Ir> {
     if hir.items.is_empty() {
-        return Ok(ir::Ir::new(span, IrValue::Unit));
+        return Ok(ir::Ir::new(span, ir::Value::Unit));
     }
 
     let mut items = Vec::new();
@@ -241,7 +227,7 @@ fn expr_tuple(
 
     Ok(ir::Ir::new(
         span,
-        ir::IrTuple {
+        ir::Tuple {
             span,
             items: items.into_boxed_slice(),
         },
@@ -249,11 +235,7 @@ fn expr_tuple(
 }
 
 #[instrument]
-fn expr_vec(
-    span: Span,
-    c: &mut IrCompiler<'_>,
-    hir: &hir::ExprSeq<'_>,
-) -> compile::Result<ir::IrVec> {
+fn expr_vec(span: Span, c: &mut Ctxt<'_>, hir: &hir::ExprSeq<'_>) -> compile::Result<ir::IrVec> {
     let mut items = Vec::new();
 
     for e in hir.items {
@@ -269,7 +251,7 @@ fn expr_vec(
 #[instrument]
 fn expr_object(
     span: Span,
-    c: &mut IrCompiler<'_>,
+    c: &mut Ctxt<'_>,
     hir: &hir::ExprObject<'_>,
 ) -> compile::Result<ir::IrObject> {
     let mut assignments = Vec::new();
@@ -287,7 +269,7 @@ fn expr_object(
 }
 
 #[instrument]
-pub(crate) fn block(hir: &hir::Block<'_>, c: &mut IrCompiler<'_>) -> compile::Result<ir::IrScope> {
+pub(crate) fn block(hir: &hir::Block<'_>, c: &mut Ctxt<'_>) -> compile::Result<ir::IrScope> {
     let span = hir.span();
 
     let mut last = None::<(&hir::Expr<'_>, bool)>;
@@ -334,7 +316,7 @@ pub(crate) fn block(hir: &hir::Block<'_>, c: &mut IrCompiler<'_>) -> compile::Re
 #[instrument]
 fn builtin_template(
     template: &hir::BuiltInTemplate,
-    c: &mut IrCompiler<'_>,
+    c: &mut Ctxt<'_>,
 ) -> compile::Result<ir::IrTemplate> {
     let span = template.span;
     let mut components = Vec::new();
@@ -353,7 +335,7 @@ fn builtin_template(
 }
 
 #[instrument]
-fn local(hir: &hir::Local<'_>, c: &mut IrCompiler<'_>) -> compile::Result<ir::Ir> {
+fn local(hir: &hir::Local<'_>, c: &mut Ctxt<'_>) -> compile::Result<ir::Ir> {
     let span = hir.span();
 
     let name = match hir.pat.kind {
@@ -377,7 +359,7 @@ fn local(hir: &hir::Local<'_>, c: &mut IrCompiler<'_>) -> compile::Result<ir::Ir
 }
 
 #[instrument]
-fn condition(hir: &hir::Condition<'_>, c: &mut IrCompiler<'_>) -> compile::Result<ir::IrCondition> {
+fn condition(hir: &hir::Condition<'_>, c: &mut Ctxt<'_>) -> compile::Result<ir::IrCondition> {
     match hir {
         hir::Condition::Expr(e) => Ok(ir::IrCondition::Ir(expr(e, c)?)),
         hir::Condition::ExprLet(hir) => {
@@ -396,7 +378,7 @@ fn condition(hir: &hir::Condition<'_>, c: &mut IrCompiler<'_>) -> compile::Resul
 #[instrument]
 fn expr_if(
     span: Span,
-    c: &mut IrCompiler<'_>,
+    c: &mut Ctxt<'_>,
     hir: &hir::Conditional<'_>,
 ) -> compile::Result<ir::IrBranches> {
     let mut branches = Vec::new();
@@ -422,11 +404,7 @@ fn expr_if(
 }
 
 #[instrument]
-fn expr_loop(
-    span: Span,
-    c: &mut IrCompiler<'_>,
-    hir: &hir::ExprLoop<'_>,
-) -> compile::Result<ir::IrLoop> {
+fn expr_loop(span: Span, c: &mut Ctxt<'_>, hir: &hir::ExprLoop<'_>) -> compile::Result<ir::IrLoop> {
     Ok(ir::IrLoop {
         span,
         label: match hir.label {

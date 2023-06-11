@@ -8,15 +8,14 @@ use crate::no_std::sync::Arc;
 
 use crate::ast::{Span, Spanned};
 use crate::compile::context::ContextMeta;
+use crate::compile::ir;
+use crate::compile::meta;
 use crate::compile::v1::GenericsParameters;
 use crate::compile::{
     self, CompileErrorKind, CompileVisitor, ComponentRef, Doc, DynLocation, ImportStep,
-    IntoComponent, IrBudget, IrCompiler, IrInterpreter, Item, ItemBuf, ItemId, ItemMeta, Location,
-    ModId, ModMeta, Names, Pool, Prelude, QueryErrorKind, SourceMeta, UnitBuilder, Visibility,
-    WithSpan,
+    IntoComponent, Item, ItemBuf, ItemId, ItemMeta, Located, Location, ModId, ModMeta, Names, Pool,
+    Prelude, QueryErrorKind, SourceLoader, SourceMeta, UnitBuilder, Visibility, WithSpan,
 };
-use crate::compile::{ir, SourceLoader};
-use crate::compile::{meta, Located};
 use crate::hir;
 use crate::indexing::{self, Indexed, Items};
 use crate::macros::Storage;
@@ -1295,15 +1294,15 @@ impl<'a> Query<'a> {
                     );
                     let hir = crate::hir::lowering::expr(&mut hir_ctx, &c.ast)?;
 
-                    let mut compiler = IrCompiler {
+                    let mut cx = ir::Ctxt {
                         source_id: item_meta.location.source_id,
                         q: self.borrow(),
                     };
-                    ir::compiler::expr(&hir, &mut compiler)?
+                    ir::compiler::expr(&hir, &mut cx)?
                 };
 
-                let mut const_compiler = IrInterpreter {
-                    budget: IrBudget::new(1_000_000),
+                let mut const_compiler = ir::Interpreter {
+                    budget: ir::Budget::new(1_000_000),
                     scopes: Default::default(),
                     module: item_meta.module,
                     item: item_meta.item,
@@ -1335,15 +1334,15 @@ impl<'a> Query<'a> {
                     );
                     let hir = crate::hir::lowering::block(&mut hir_ctx, &c.ast)?;
 
-                    let mut c = IrCompiler {
+                    let mut cx = ir::Ctxt {
                         source_id: item_meta.location.source_id,
                         q: self.borrow(),
                     };
-                    ir::Ir::new(item_meta.location.span, ir::compiler::block(&hir, &mut c)?)
+                    ir::Ir::new(item_meta.location.span, ir::compiler::block(&hir, &mut cx)?)
                 };
 
-                let mut const_compiler = IrInterpreter {
-                    budget: IrBudget::new(1_000_000),
+                let mut const_compiler = ir::Interpreter {
+                    budget: ir::Budget::new(1_000_000),
                     scopes: Default::default(),
                     module: item_meta.module,
                     item: item_meta.item,
@@ -1376,11 +1375,11 @@ impl<'a> Query<'a> {
                     );
                     let hir = crate::hir::lowering::item_fn(&mut cx, &c.item_fn)?;
 
-                    let mut c = IrCompiler {
+                    let mut cx = ir::Ctxt {
                         source_id: item_meta.location.source_id,
                         q: self.borrow(),
                     };
-                    ir::IrFn::compile_ast(&hir, &mut c)?
+                    ir::IrFn::compile_ast(&hir, &mut cx)?
                 };
 
                 let id = self.gen.next();

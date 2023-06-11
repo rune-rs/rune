@@ -5,7 +5,8 @@ use crate::no_std::prelude::*;
 
 use crate::ast;
 use crate::ast::{Span, Spanned};
-use crate::compile::{self, IrValue, WithSpan};
+use crate::compile::ir;
+use crate::compile::{self, WithSpan};
 use crate::macros::{quote, MacroContext, Quote};
 use crate::parse::{Parse, Parser, Peek, Peeker};
 use crate::runtime::format;
@@ -53,7 +54,7 @@ impl FormatArgs {
         }
 
         let format = match format {
-            IrValue::String(string) => string.take().with_span(&self.format)?,
+            ir::Value::String(string) => string.take().with_span(&self.format)?,
             _ => {
                 return Err(compile::Error::msg(
                     &self.format,
@@ -532,7 +533,7 @@ fn expand_format_spec<'a>(
             let value = cx.eval(expr)?;
 
             let number = match &value {
-                IrValue::Integer(n) => n.to_usize(),
+                ir::Value::Integer(n) => n.to_usize(),
                 _ => None,
             };
 

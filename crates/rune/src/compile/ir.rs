@@ -4,16 +4,16 @@
 //! This is part of the [Rune Language](https://rune-rs.github.io).
 
 pub(crate) mod compiler;
-pub(crate) use self::compiler::IrCompiler;
+pub(crate) use self::compiler::Ctxt;
 
 mod eval;
-pub(crate) use self::eval::{eval_ir, IrEvalOutcome};
+pub(crate) use self::eval::{eval_ir, EvalOutcome};
 
 mod interpreter;
-pub(crate) use self::interpreter::{IrBudget, IrInterpreter};
+pub(crate) use self::interpreter::{Budget, Interpreter};
 
 mod value;
-pub(crate) use self::value::IrValue;
+pub(crate) use self::value::Value;
 
 use core::ops::{AddAssign, MulAssign, ShlAssign, ShrAssign, SubAssign};
 
@@ -32,7 +32,7 @@ use crate::parse::NonZeroId;
 use crate::query::Used;
 
 impl ast::Expr {
-    pub(crate) fn eval(&self, cx: &mut MacroContext<'_, '_>) -> compile::Result<IrValue> {
+    pub(crate) fn eval(&self, cx: &mut MacroContext<'_, '_>) -> compile::Result<Value> {
         let mut expr = self.clone();
         index::expr(cx.idx, &mut expr)?;
 
@@ -46,16 +46,16 @@ impl ast::Expr {
             );
             let hir = hir::lowering::expr(&mut hir_ctx, &expr)?;
 
-            let mut c = IrCompiler {
+            let mut cx = Ctxt {
                 source_id: cx.item_meta.location.source_id,
                 q: cx.idx.q.borrow(),
             };
 
-            compiler::expr(&hir, &mut c)?
+            compiler::expr(&hir, &mut cx)?
         };
 
-        let mut ir_interpreter = IrInterpreter {
-            budget: IrBudget::new(1_000_000),
+        let mut ir_interpreter = Interpreter {
+            budget: Budget::new(1_000_000),
             scopes: Default::default(),
             module: cx.item_meta.module,
             item: cx.item_meta.item,
@@ -153,7 +153,7 @@ decl_kind! {
         /// something else, like another const declaration.
         Target(IrTarget),
         /// A constant value.
-        Value(IrValue),
+        Value(Value),
         /// A sequence of conditional branches.
         Branches(IrBranches),
         /// A loop.
@@ -163,7 +163,7 @@ decl_kind! {
         /// Constructing a vector.
         Vec(IrVec),
         /// Constructing a tuple.
-        Tuple(IrTuple),
+        Tuple(Tuple),
         /// Constructing an object.
         Object(IrObject),
         /// A call.
@@ -184,10 +184,7 @@ pub(crate) struct IrFn {
 }
 
 impl IrFn {
-    pub(crate) fn compile_ast(
-        hir: &hir::ItemFn<'_>,
-        c: &mut IrCompiler<'_>,
-    ) -> compile::Result<Self> {
+    pub(crate) fn compile_ast(hir: &hir::ItemFn<'_>, cx: &mut Ctxt<'_>) -> compile::Result<Self> {
         let mut args = Vec::new();
 
         for arg in hir.args {
@@ -203,7 +200,7 @@ impl IrFn {
             return Err(compile::Error::msg(arg, "Unsupported argument in const fn"));
         }
 
-        let ir_scope = compiler::block(&hir.body, c)?;
+        let ir_scope = compiler::block(&hir.body, cx)?;
 
         Ok(ir::IrFn {
             span: hir.span(),
@@ -353,10 +350,10 @@ impl IrPat {
 
     fn matches<S>(
         &self,
-        interp: &mut IrInterpreter<'_>,
-        value: IrValue,
+        interp: &mut Interpreter<'_>,
+        value: Value,
         spanned: S,
-    ) -> Result<bool, IrEvalOutcome>
+    ) -> Result<bool, ir::EvalOutcome>
     where
         S: Spanned,
     {
@@ -391,32 +388,30 @@ pub(crate) struct IrBreak {
     #[rune(span)]
     pub(crate) span: Span,
     /// The kind of the break.
-    pub(crate) kind: IrBreakKind,
+    pub(crate) kind: BreakKind,
 }
 
 impl IrBreak {
     fn compile_ast(
         span: Span,
-        c: &mut IrCompiler<'_>,
+        cx: &mut Ctxt<'_>,
         hir: Option<&hir::ExprBreakValue>,
     ) -> compile::Result<Self> {
         let kind = match hir {
             Some(expr) => match *expr {
-                hir::ExprBreakValue::Expr(e) => {
-                    ir::IrBreakKind::Ir(Box::new(compiler::expr(e, c)?))
-                }
+                hir::ExprBreakValue::Expr(e) => ir::BreakKind::Ir(Box::new(compiler::expr(e, cx)?)),
                 hir::ExprBreakValue::Label(label) => {
-                    ir::IrBreakKind::Label(c.resolve(label)?.into())
+                    ir::BreakKind::Label(cx.resolve(label)?.into())
                 }
             },
-            None => ir::IrBreakKind::Inherent,
+            None => ir::BreakKind::Inherent,
         };
 
         Ok(ir::IrBreak { span, kind })
     }
 
-    /// Evaluate the break into an [IrEvalOutcome].
-    fn as_outcome(&self, interp: &mut IrInterpreter<'_>, used: Used) -> IrEvalOutcome {
+    /// Evaluate the break into an [ir::EvalOutcome].
+    fn as_outcome(&self, interp: &mut Interpreter<'_>, used: Used) -> ir::EvalOutcome {
         let span = self.span();
 
         if let Err(e) = interp.budget.take(span) {
@@ -424,21 +419,21 @@ impl IrBreak {
         }
 
         match &self.kind {
-            IrBreakKind::Ir(ir) => match ir::eval_ir(ir, interp, used) {
-                Ok(value) => IrEvalOutcome::Break(span, IrEvalBreak::Value(value)),
+            BreakKind::Ir(ir) => match ir::eval_ir(ir, interp, used) {
+                Ok(value) => ir::EvalOutcome::Break(span, IrEvalBreak::Value(value)),
                 Err(err) => err,
             },
-            IrBreakKind::Label(label) => {
-                IrEvalOutcome::Break(span, IrEvalBreak::Label(label.clone()))
+            BreakKind::Label(label) => {
+                ir::EvalOutcome::Break(span, IrEvalBreak::Label(label.clone()))
             }
-            IrBreakKind::Inherent => IrEvalOutcome::Break(span, IrEvalBreak::Inherent),
+            BreakKind::Inherent => ir::EvalOutcome::Break(span, IrEvalBreak::Inherent),
         }
     }
 }
 
 /// The kind of a break expression.
 #[derive(Debug, Clone)]
-pub(crate) enum IrBreakKind {
+pub(crate) enum BreakKind {
     /// Break to the next loop.
     Inherent,
     /// Break to the given label.
@@ -449,7 +444,7 @@ pub(crate) enum IrBreakKind {
 
 /// Tuple expression.
 #[derive(Debug, Clone, Spanned)]
-pub(crate) struct IrTuple {
+pub(crate) struct Tuple {
     /// Span of the tuple.
     #[rune(span)]
     pub(crate) span: Span,
@@ -538,14 +533,14 @@ impl IrAssignOp {
     pub(crate) fn assign<S>(
         self,
         spanned: S,
-        target: &mut IrValue,
-        operand: IrValue,
+        target: &mut Value,
+        operand: Value,
     ) -> compile::Result<()>
     where
         S: Copy + Spanned,
     {
-        if let IrValue::Integer(target) = target {
-            if let IrValue::Integer(operand) = operand {
+        if let Value::Integer(target) = target {
+            if let Value::Integer(operand) = operand {
                 return self.assign_int(spanned, target, operand);
             }
         }

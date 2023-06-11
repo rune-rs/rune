@@ -8,7 +8,7 @@ use crate::runtime::{Bytes, ConstValue, Shared, TypeInfo};
 
 /// A constant value.
 #[derive(Debug, Clone)]
-pub enum IrValue {
+pub enum Value {
     /// A constant unit.
     Unit,
     /// A byte.
@@ -24,18 +24,18 @@ pub enum IrValue {
     /// A string constant designated by its slot.
     String(Shared<String>),
     /// An optional value.
-    Option(Shared<Option<IrValue>>),
+    Option(Shared<Option<Value>>),
     /// A byte string.
     Bytes(Shared<Bytes>),
     /// A vector of values.
-    Vec(Shared<Vec<IrValue>>),
+    Vec(Shared<Vec<Value>>),
     /// An anonymous tuple.
-    Tuple(Shared<Box<[IrValue]>>),
+    Tuple(Shared<Box<[Value]>>),
     /// An anonymous object.
-    Object(Shared<HashMap<String, IrValue>>),
+    Object(Shared<HashMap<String, Value>>),
 }
 
-impl IrValue {
+impl Value {
     /// Try to coerce into boolean.
     pub fn into_bool(self) -> Result<bool, Self> {
         match self {
@@ -106,17 +106,17 @@ impl IrValue {
         S: Copy + Spanned,
     {
         Ok(match self {
-            IrValue::Unit => ConstValue::Unit,
-            IrValue::Byte(b) => ConstValue::Byte(b),
-            IrValue::Char(c) => ConstValue::Char(c),
-            IrValue::Bool(b) => ConstValue::Bool(b),
-            IrValue::Integer(n) => ConstValue::Integer(n),
-            IrValue::Float(f) => ConstValue::Float(f),
-            IrValue::String(s) => {
+            Value::Unit => ConstValue::Unit,
+            Value::Byte(b) => ConstValue::Byte(b),
+            Value::Char(c) => ConstValue::Char(c),
+            Value::Bool(b) => ConstValue::Bool(b),
+            Value::Integer(n) => ConstValue::Integer(n),
+            Value::Float(f) => ConstValue::Float(f),
+            Value::String(s) => {
                 let s = s.take().with_span(spanned)?;
                 ConstValue::String(s)
             }
-            IrValue::Bytes(b) => {
+            Value::Bytes(b) => {
                 let b = b.take().with_span(spanned)?;
                 ConstValue::Bytes(b)
             }
@@ -124,7 +124,7 @@ impl IrValue {
                 Some(value) => Some(Box::new(value.into_const(spanned)?)),
                 None => None,
             }),
-            IrValue::Vec(vec) => {
+            Value::Vec(vec) => {
                 let vec = vec.take().with_span(spanned)?;
                 let mut const_vec = Vec::with_capacity(vec.len());
 
@@ -134,7 +134,7 @@ impl IrValue {
 
                 ConstValue::Vec(const_vec)
             }
-            IrValue::Tuple(tuple) => {
+            Value::Tuple(tuple) => {
                 let tuple = tuple.take().with_span(spanned)?;
                 let mut const_tuple = Vec::with_capacity(tuple.len());
 
@@ -144,7 +144,7 @@ impl IrValue {
 
                 ConstValue::Tuple(const_tuple.into_boxed_slice())
             }
-            IrValue::Object(object) => {
+            Value::Object(object) => {
                 let object = object.take().with_span(spanned)?;
                 let mut const_object = HashMap::with_capacity(object.len());
 

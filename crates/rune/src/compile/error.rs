@@ -10,7 +10,8 @@ use thiserror::Error;
 
 use crate::ast;
 use crate::ast::{Span, Spanned};
-use crate::compile::{HasSpan, IrValue, ItemBuf, Location, MetaInfo, Visibility};
+use crate::compile::ir;
+use crate::compile::{HasSpan, ItemBuf, Location, MetaInfo, Visibility};
 use crate::indexing::items::{GuardMismatch, MissingLastId};
 use crate::macros::{SyntheticId, SyntheticKind};
 use crate::parse::{Expectation, IntoExpectation, LexerMode};
@@ -165,7 +166,7 @@ impl Error {
     }
 
     /// An error raised when we expect a certain constant value but get another.
-    pub(crate) fn expected_type<S, E>(spanned: S, actual: &IrValue) -> Self
+    pub(crate) fn expected_type<S, E>(spanned: S, actual: &ir::Value) -> Self
     where
         S: Spanned,
         E: TypeOf,
