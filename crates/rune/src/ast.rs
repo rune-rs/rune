@@ -15,7 +15,7 @@
 //! use std::sync::Arc;
 //!
 //! #[rune::macro_]
-//! fn ident_to_string(cx: &mut MacroContext<'_, '_>, stream: &TokenStream) -> compile::Result<TokenStream> {
+//! fn ident_to_string(cx: &mut MacroContext<'_, '_, '_>, stream: &TokenStream) -> compile::Result<TokenStream> {
 //!     let mut p = Parser::from_token_stream(stream, cx.input_span());
 //!     let ident = p.parse_all::<ast::Ident>()?;
 //!     let ident = cx.resolve(ident)?.to_owned();
@@ -263,7 +263,7 @@ macro_rules! decl_tokens {
             }
 
             impl ToTokens for $parser {
-                fn to_tokens(&self, _: &mut MacroContext<'_, '_>, stream: &mut TokenStream) {
+                fn to_tokens(&self, _: &mut MacroContext<'_, '_, '_>, stream: &mut TokenStream) {
                     stream.push(Token { span: self.span, kind: $($kind)* });
                 }
             }

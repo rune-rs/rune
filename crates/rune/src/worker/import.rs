@@ -24,7 +24,7 @@ pub(crate) struct Import {
 
 impl Import {
     /// Lookup a local identifier in the current context and query.
-    fn lookup_local(&self, query: &Query<'_>, local: &str) -> ItemBuf {
+    fn lookup_local(&self, query: &Query<'_, '_>, local: &str) -> ItemBuf {
         let item = query.pool.module_item(self.module).extended(local);
 
         if let ImportKind::Local = self.kind {
@@ -43,7 +43,7 @@ impl Import {
     /// Process the import, populating the unit.
     pub(crate) fn process(
         mut self,
-        q: &mut Query<'_>,
+        q: &mut Query<'_, '_>,
         add_task: &mut impl FnMut(Task),
     ) -> compile::Result<()> {
         let (name, first, initial) = match self.kind {

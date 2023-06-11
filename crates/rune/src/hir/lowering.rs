@@ -29,10 +29,10 @@ enum Needs {
     Type,
 }
 
-pub(crate) struct Ctxt<'hir, 'a> {
+pub(crate) struct Ctxt<'hir, 'a, 'arena> {
     /// Arena used for allocations.
     arena: &'hir hir::arena::Arena,
-    q: Query<'a>,
+    q: Query<'a, 'arena>,
     source_id: SourceId,
     in_template: Cell<bool>,
     in_path: Cell<bool>,
@@ -41,7 +41,7 @@ pub(crate) struct Ctxt<'hir, 'a> {
     const_eval: bool,
 }
 
-impl<'hir, 'a> Ctxt<'hir, 'a> {
+impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
     #[inline(always)]
     fn in_path<F, O>(&mut self, in_path: bool, f: F) -> O
     where
@@ -57,7 +57,7 @@ impl<'hir, 'a> Ctxt<'hir, 'a> {
     /// through the query system.
     pub(crate) fn with_query(
         arena: &'hir hir::arena::Arena,
-        q: Query<'a>,
+        q: Query<'a, 'arena>,
         source_id: SourceId,
     ) -> Self {
         Self::inner(arena, q, source_id, false)
@@ -67,7 +67,7 @@ impl<'hir, 'a> Ctxt<'hir, 'a> {
     /// expression is expected to be converted into a constant.
     pub(crate) fn with_const(
         arena: &'hir hir::arena::Arena,
-        q: Query<'a>,
+        q: Query<'a, 'arena>,
         source_id: SourceId,
     ) -> Self {
         Self::inner(arena, q, source_id, true)
@@ -75,7 +75,7 @@ impl<'hir, 'a> Ctxt<'hir, 'a> {
 
     fn inner(
         arena: &'hir hir::arena::Arena,
-        q: Query<'a>,
+        q: Query<'a, 'arena>,
         source_id: SourceId,
         const_eval: bool,
     ) -> Self {
@@ -118,7 +118,7 @@ impl<'hir, 'a> Ctxt<'hir, 'a> {
 /// Lower a function item.
 #[instrument(span = ast)]
 pub(crate) fn item_fn<'hir>(
-    cx: &mut Ctxt<'hir, '_>,
+    cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::ItemFn,
 ) -> compile::Result<hir::ItemFn<'hir>> {
     alloc_with!(cx, ast);
@@ -135,7 +135,7 @@ pub(crate) fn item_fn<'hir>(
 /// This happens *after* it's been lowered as part of a closure expression.
 #[instrument(span = ast)]
 pub(crate) fn async_block_secondary<'hir>(
-    cx: &mut Ctxt<'hir, '_>,
+    cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::Block,
     captures: Hash,
 ) -> compile::Result<hir::AsyncBlock<'hir>> {
@@ -166,7 +166,7 @@ pub(crate) fn async_block_secondary<'hir>(
 /// This happens *after* it's been lowered as part of a closure expression.
 #[instrument(span = ast)]
 pub(crate) fn expr_closure_secondary<'hir>(
-    cx: &mut Ctxt<'hir, '_>,
+    cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::ExprClosure,
     captures: Hash,
 ) -> compile::Result<hir::ExprClosure<'hir>> {
@@ -199,7 +199,7 @@ pub(crate) fn expr_closure_secondary<'hir>(
 /// Assemble a closure expression.
 #[instrument(span = ast)]
 fn expr_call_closure<'hir>(
-    cx: &mut Ctxt<'hir, '_>,
+    cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::ExprClosure,
 ) -> compile::Result<hir::ExprKind<'hir>> {
     alloc_with!(cx, ast);
@@ -272,7 +272,7 @@ fn expr_call_closure<'hir>(
 
 #[instrument(span = ast)]
 pub(crate) fn block<'hir>(
-    cx: &mut Ctxt<'hir, '_>,
+    cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::Block,
 ) -> compile::Result<hir::Block<'hir>> {
     alloc_with!(cx, ast);
@@ -294,7 +294,7 @@ pub(crate) fn block<'hir>(
 
 #[instrument(span = ast)]
 pub(crate) fn expr_object<'hir>(
-    cx: &mut Ctxt<'hir, '_>,
+    cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::ExprObject,
 ) -> compile::Result<hir::ExprKind<'hir>> {
     alloc_with!(cx, ast);
@@ -416,7 +416,7 @@ pub(crate) fn expr_object<'hir>(
 /// Lower an expression.
 #[instrument(span = ast)]
 pub(crate) fn expr<'hir>(
-    cx: &mut Ctxt<'hir, '_>,
+    cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::Expr,
 ) -> compile::Result<hir::Expr<'hir>> {
     alloc_with!(cx, ast);
@@ -621,7 +621,7 @@ pub(crate) fn expr<'hir>(
 
 #[instrument(span = ast)]
 pub(crate) fn expr_if<'hir>(
-    cx: &mut Ctxt<'hir, '_>,
+    cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::ExprIf,
 ) -> compile::Result<hir::Conditional<'hir>> {
     alloc_with!(cx, ast);
@@ -682,7 +682,7 @@ pub(crate) fn expr_if<'hir>(
 
 #[instrument(span = ast)]
 pub(crate) fn lit<'hir>(
-    cx: &mut Ctxt<'hir, '_>,
+    cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::Lit,
 ) -> compile::Result<hir::Lit<'hir>> {
     alloc_with!(cx, ast);
@@ -731,7 +731,7 @@ pub(crate) fn lit<'hir>(
 
 #[instrument(span = ast)]
 pub(crate) fn expr_unary<'hir>(
-    cx: &mut Ctxt<'hir, '_>,
+    cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::ExprUnary,
 ) -> compile::Result<hir::ExprKind<'hir>> {
     alloc_with!(cx, ast);
@@ -769,7 +769,7 @@ pub(crate) fn expr_unary<'hir>(
 /// Lower a block expression.
 #[instrument(span = ast)]
 pub(crate) fn expr_block<'hir>(
-    cx: &mut Ctxt<'hir, '_>,
+    cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::ExprBlock,
 ) -> compile::Result<hir::ExprKind<'hir>> {
     /// The kind of an [ExprBlock].
@@ -858,7 +858,10 @@ pub(crate) fn expr_block<'hir>(
 }
 
 /// Lower a function argument.
-fn fn_arg<'hir>(cx: &mut Ctxt<'hir, '_>, ast: &ast::FnArg) -> compile::Result<hir::FnArg<'hir>> {
+fn fn_arg<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    ast: &ast::FnArg,
+) -> compile::Result<hir::FnArg<'hir>> {
     alloc_with!(cx, ast);
 
     Ok(match ast {
@@ -871,7 +874,7 @@ fn fn_arg<'hir>(cx: &mut Ctxt<'hir, '_>, ast: &ast::FnArg) -> compile::Result<hi
 }
 
 /// Lower an assignment.
-fn local<'hir>(cx: &mut Ctxt<'hir, '_>, ast: &ast::Local) -> compile::Result<hir::Local<'hir>> {
+fn local<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Local) -> compile::Result<hir::Local<'hir>> {
     // Note: expression needs to be assembled before pattern, otherwise the
     // expression will see declarations in the pattern.
     let expr = expr(cx, &ast.expr)?;
@@ -885,7 +888,7 @@ fn local<'hir>(cx: &mut Ctxt<'hir, '_>, ast: &ast::Local) -> compile::Result<hir
 }
 
 /// Lower a statement
-fn stmt<'hir>(cx: &mut Ctxt<'hir, '_>, ast: &ast::Stmt) -> compile::Result<hir::Stmt<'hir>> {
+fn stmt<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Stmt) -> compile::Result<hir::Stmt<'hir>> {
     alloc_with!(cx, ast);
 
     Ok(match ast {
@@ -896,7 +899,7 @@ fn stmt<'hir>(cx: &mut Ctxt<'hir, '_>, ast: &ast::Stmt) -> compile::Result<hir::
     })
 }
 
-fn pat<'hir>(cx: &mut Ctxt<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pat<'hir>> {
+fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir::Pat<'hir>> {
     alloc_with!(cx, ast);
 
     Ok(hir::Pat {
@@ -1101,7 +1104,7 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
 }
 
 fn object_key<'hir, 'ast>(
-    cx: &mut Ctxt<'hir, '_>,
+    cx: &mut Ctxt<'hir, '_, '_>,
     ast: &'ast ast::ObjectKey,
 ) -> compile::Result<(&'ast dyn Spanned, &'hir str)> {
     alloc_with!(cx, ast);
@@ -1125,7 +1128,7 @@ fn object_key<'hir, 'ast>(
 /// Lower the given path.
 #[instrument(span = ast)]
 pub(crate) fn expr_path<'hir>(
-    cx: &mut Ctxt<'hir, '_>,
+    cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::Path,
     in_path: bool,
 ) -> compile::Result<hir::ExprKind<'hir>> {
@@ -1197,7 +1200,7 @@ pub(crate) fn expr_path<'hir>(
 /// Compile an item.
 #[instrument(span = span)]
 fn expr_path_meta<'hir>(
-    cx: &mut Ctxt<'hir, '_>,
+    cx: &mut Ctxt<'hir, '_, '_>,
     meta: &meta::Meta,
     span: &dyn Spanned,
 ) -> compile::Result<hir::ExprKind<'hir>> {
@@ -1257,7 +1260,7 @@ fn expr_path_meta<'hir>(
     }
 }
 
-fn label(_: &mut Ctxt<'_, '_>, ast: &ast::Label) -> compile::Result<ast::Label> {
+fn label(_: &mut Ctxt<'_, '_, '_>, ast: &ast::Label) -> compile::Result<ast::Label> {
     Ok(ast::Label {
         span: ast.span,
         source: ast.source,
@@ -1265,7 +1268,7 @@ fn label(_: &mut Ctxt<'_, '_>, ast: &ast::Label) -> compile::Result<ast::Label> 
 }
 
 fn condition<'hir>(
-    cx: &mut Ctxt<'hir, '_>,
+    cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::Condition,
 ) -> compile::Result<hir::Condition<'hir>> {
     alloc_with!(cx, ast);
@@ -1305,7 +1308,7 @@ fn pat_items_count(items: &[hir::Pat<'_>]) -> compile::Result<(bool, usize)> {
 }
 
 fn struct_match_for<'a>(
-    cx: &Ctxt<'_, '_>,
+    cx: &Ctxt<'_, '_, '_>,
     meta: &'a meta::Meta,
 ) -> Option<(&'a meta::FieldsNamed, hir::PatItemsKind)> {
     Some(match &meta.kind {
@@ -1337,7 +1340,7 @@ fn struct_match_for<'a>(
     })
 }
 
-fn tuple_match_for(cx: &Ctxt<'_, '_>, meta: &meta::Meta) -> Option<(usize, hir::PatItemsKind)> {
+fn tuple_match_for(cx: &Ctxt<'_, '_, '_>, meta: &meta::Meta) -> Option<(usize, hir::PatItemsKind)> {
     Some(match &meta.kind {
         meta::Kind::Struct {
             fields: meta::Fields::Empty,
@@ -1376,7 +1379,7 @@ fn tuple_match_for(cx: &Ctxt<'_, '_>, meta: &meta::Meta) -> Option<(usize, hir::
 }
 
 fn generics_parameters(
-    cx: &mut Ctxt<'_, '_>,
+    cx: &mut Ctxt<'_, '_, '_>,
     named: &Named<'_>,
 ) -> compile::Result<GenericsParameters> {
     let mut parameters = GenericsParameters {
@@ -1413,7 +1416,7 @@ fn generics_parameters(
 /// Convert into a call expression.
 #[instrument(span = ast)]
 fn expr_call<'hir>(
-    cx: &mut Ctxt<'hir, '_>,
+    cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::ExprCall,
 ) -> compile::Result<hir::ExprCall<'hir>> {
     pub(crate) fn find_path(ast: &ast::Expr) -> Option<&ast::Path> {
@@ -1550,7 +1553,7 @@ fn expr_call<'hir>(
 
 #[instrument(span = ast)]
 fn expr_field_access<'hir>(
-    cx: &mut Ctxt<'hir, '_>,
+    cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::ExprFieldAccess,
 ) -> compile::Result<hir::ExprFieldAccess<'hir>> {
     alloc_with!(cx, ast);

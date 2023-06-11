@@ -6,7 +6,7 @@ use rune::parse::Parser;
 /// Implementation for the `stringy_math!` macro.
 #[rune::macro_]
 pub(crate) fn stringy_math(
-    cx: &mut MacroContext<'_, '_>,
+    cx: &mut MacroContext<'_, '_, '_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
     let mut parser = Parser::from_token_stream(stream, cx.input_span());

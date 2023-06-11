@@ -13,7 +13,7 @@ pub(crate) struct WildcardImport {
 }
 
 impl WildcardImport {
-    pub(crate) fn process_global(&mut self, query: &mut Query<'_>) -> compile::Result<()> {
+    pub(crate) fn process_global(&mut self, query: &mut Query<'_, '_>) -> compile::Result<()> {
         if query.context.contains_prefix(&self.name) {
             for c in query.context.iter_components(&self.name) {
                 let name = self.name.extended(c);

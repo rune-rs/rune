@@ -45,11 +45,11 @@ impl<'hir> fmt::Display for Var<'hir> {
 
 impl<'hir> Var<'hir> {
     /// Copy the declared variable.
-    pub(crate) fn copy<C>(&self, c: &mut Assembler<'_, '_>, span: &dyn Spanned, comment: C)
+    pub(crate) fn copy<C>(&self, cx: &mut Assembler<'_, '_, '_>, span: &dyn Spanned, comment: C)
     where
         C: fmt::Display,
     {
-        c.asm.push_with_comment(
+        cx.asm.push_with_comment(
             Inst::Copy {
                 offset: self.offset,
             },
@@ -128,7 +128,7 @@ impl<'hir> Scopes<'hir> {
     #[tracing::instrument(skip_all, fields(variable, name, source_id))]
     pub(crate) fn get(
         &self,
-        q: &mut Query<'_>,
+        q: &mut Query<'_, '_>,
         name: hir::Name<'hir>,
         span: &'hir dyn Spanned,
     ) -> compile::Result<Var<'hir>> {
@@ -162,7 +162,7 @@ impl<'hir> Scopes<'hir> {
     #[tracing::instrument(skip_all, fields(variable, name, source_id))]
     pub(crate) fn take(
         &mut self,
-        q: &mut Query<'_>,
+        q: &mut Query<'_, '_>,
         name: hir::Name<'hir>,
         span: &'hir dyn Spanned,
     ) -> compile::Result<&Var> {

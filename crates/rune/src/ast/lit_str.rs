@@ -142,7 +142,7 @@ impl<'a> Resolve<'a> for LitStr {
 }
 
 impl ToTokens for LitStr {
-    fn to_tokens(&self, _: &mut MacroContext<'_, '_>, stream: &mut TokenStream) {
+    fn to_tokens(&self, _: &mut MacroContext<'_, '_, '_>, stream: &mut TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Str(self.source),

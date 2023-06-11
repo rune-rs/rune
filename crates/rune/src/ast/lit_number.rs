@@ -89,7 +89,7 @@ impl<'a> Resolve<'a> for LitNumber {
 }
 
 impl ToTokens for LitNumber {
-    fn to_tokens(&self, _: &mut MacroContext<'_, '_>, stream: &mut TokenStream) {
+    fn to_tokens(&self, _: &mut MacroContext<'_, '_, '_>, stream: &mut TokenStream) {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Number(self.source),

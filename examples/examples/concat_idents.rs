@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 #[rune::macro_]
 fn concat_idents(
-    cx: &mut MacroContext<'_, '_>,
+    cx: &mut MacroContext<'_, '_, '_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
     let mut output = String::new();

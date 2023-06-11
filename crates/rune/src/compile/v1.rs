@@ -60,11 +60,11 @@ impl Needs {
     }
 }
 
-pub(crate) struct Assembler<'a, 'hir> {
+pub(crate) struct Assembler<'a, 'hir, 'arena> {
     /// The source id of the source.
     pub(crate) source_id: SourceId,
     /// Query system to compile required items.
-    pub(crate) q: Query<'a>,
+    pub(crate) q: Query<'a, 'arena>,
     /// The assembly we are generating.
     pub(crate) asm: &'a mut Assembly,
     /// Scopes defined in the compiler.
@@ -77,7 +77,7 @@ pub(crate) struct Assembler<'a, 'hir> {
     pub(crate) options: &'a Options,
 }
 
-impl<'a, 'hir> Assembler<'a, 'hir> {
+impl<'a, 'hir, 'arena> Assembler<'a, 'hir, 'arena> {
     /// Access the meta for the given language item.
     pub fn lookup_meta(
         &mut self,

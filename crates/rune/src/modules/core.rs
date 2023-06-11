@@ -85,7 +85,7 @@ fn is_writable(value: Value) -> bool {
 /// string.
 #[rune::macro_(path = stringify)]
 pub(crate) fn stringify_macro(
-    cx: &mut MacroContext<'_, '_>,
+    cx: &mut MacroContext<'_, '_, '_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
     let lit = cx.stringify(stream).to_string();
@@ -100,7 +100,7 @@ pub(crate) fn stringify_macro(
 /// through a `VmError`.
 #[rune::macro_(path = panic)]
 pub(crate) fn panic_macro(
-    cx: &mut MacroContext<'_, '_>,
+    cx: &mut MacroContext<'_, '_, '_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
     let mut p = Parser::from_token_stream(stream, cx.input_span());

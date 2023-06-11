@@ -32,7 +32,7 @@ use crate::parse::NonZeroId;
 use crate::query::Used;
 
 impl ast::Expr {
-    pub(crate) fn eval(&self, cx: &mut MacroContext<'_, '_>) -> compile::Result<Value> {
+    pub(crate) fn eval(&self, cx: &mut MacroContext<'_, '_, '_>) -> compile::Result<Value> {
         let mut expr = self.clone();
         index::expr(cx.idx, &mut expr)?;
 
@@ -184,7 +184,10 @@ pub(crate) struct IrFn {
 }
 
 impl IrFn {
-    pub(crate) fn compile_ast(hir: &hir::ItemFn<'_>, cx: &mut Ctxt<'_>) -> compile::Result<Self> {
+    pub(crate) fn compile_ast(
+        hir: &hir::ItemFn<'_>,
+        cx: &mut Ctxt<'_, '_>,
+    ) -> compile::Result<Self> {
         let mut args = Vec::new();
 
         for arg in hir.args {
@@ -350,7 +353,7 @@ impl IrPat {
 
     fn matches<S>(
         &self,
-        interp: &mut Interpreter<'_>,
+        interp: &mut Interpreter<'_, '_>,
         value: Value,
         spanned: S,
     ) -> Result<bool, ir::EvalOutcome>
@@ -394,7 +397,7 @@ pub(crate) struct IrBreak {
 impl IrBreak {
     fn compile_ast(
         span: Span,
-        cx: &mut Ctxt<'_>,
+        cx: &mut Ctxt<'_, '_>,
         hir: Option<&hir::ExprBreakValue>,
     ) -> compile::Result<Self> {
         let kind = match hir {
@@ -411,7 +414,7 @@ impl IrBreak {
     }
 
     /// Evaluate the break into an [ir::EvalOutcome].
-    fn as_outcome(&self, interp: &mut Interpreter<'_>, used: Used) -> ir::EvalOutcome {
+    fn as_outcome(&self, interp: &mut Interpreter<'_, '_>, used: Used) -> ir::EvalOutcome {
         let span = self.span();
 
         if let Err(e) = interp.budget.take(span) {

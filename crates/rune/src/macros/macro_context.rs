@@ -9,6 +9,7 @@ use crate::compile::{
     self, Context, Item, ItemMeta, NoopCompileVisitor, NoopSourceLoader, ParseErrorKind, Pool,
     Prelude, UnitBuilder,
 };
+use crate::hir;
 use crate::indexing::{IndexItem, Indexer, Items, Scopes};
 use crate::macros::{IntoLit, Storage, ToTokens, TokenStream};
 use crate::parse::{Parse, Resolve};
@@ -17,7 +18,7 @@ use crate::shared::{Consts, Gen};
 use crate::{Diagnostics, Options, Source, SourceId, Sources};
 
 /// Context for a running macro.
-pub struct MacroContext<'a, 'b> {
+pub struct MacroContext<'a, 'b, 'arena> {
     /// Macro span of the full macro call.
     pub(crate) macro_span: Span,
     /// Macro span of the input.
@@ -25,10 +26,10 @@ pub struct MacroContext<'a, 'b> {
     /// The item where the macro is being evaluated.
     pub(crate) item_meta: ItemMeta,
     /// Indexer.
-    pub(crate) idx: &'a mut Indexer<'b>,
+    pub(crate) idx: &'a mut Indexer<'b, 'arena>,
 }
 
-impl<'a, 'b> MacroContext<'a, 'b> {
+impl<'a, 'b, 'arena> MacroContext<'a, 'b, 'arena> {
     /// Construct an empty macro context which can be used for testing.
     ///
     /// # Examples
@@ -40,11 +41,12 @@ impl<'a, 'b> MacroContext<'a, 'b> {
     /// ```
     pub fn test<F, O>(f: F) -> O
     where
-        F: FnOnce(&mut MacroContext<'_, '_>) -> O,
+        F: FnOnce(&mut MacroContext<'_, '_, '_>) -> O,
     {
         let mut unit = UnitBuilder::default();
         let prelude = Prelude::default();
         let gen = Gen::default();
+        let const_arena = hir::Arena::new();
         let mut consts = Consts::default();
         let mut storage = Storage::default();
         let mut sources = Sources::default();
@@ -59,6 +61,7 @@ impl<'a, 'b> MacroContext<'a, 'b> {
         let mut query = Query::new(
             &mut unit,
             &prelude,
+            &const_arena,
             &mut consts,
             &mut storage,
             &mut sources,
@@ -200,7 +203,7 @@ impl<'a, 'b> MacroContext<'a, 'b> {
     }
 
     /// Stringify the token stream.
-    pub fn stringify<T>(&mut self, tokens: &T) -> Stringify<'_, 'a, 'b>
+    pub fn stringify<T>(&mut self, tokens: &T) -> Stringify<'_, 'a, 'b, 'arena>
     where
         T: ToTokens,
     {
@@ -265,12 +268,12 @@ impl<'a, 'b> MacroContext<'a, 'b> {
     }
 }
 
-pub struct Stringify<'cx, 'a, 'b> {
-    cx: &'cx MacroContext<'a, 'b>,
+pub struct Stringify<'cx, 'a, 'b, 'arena> {
+    cx: &'cx MacroContext<'a, 'b, 'arena>,
     stream: TokenStream,
 }
 
-impl fmt::Display for Stringify<'_, '_, '_> {
+impl fmt::Display for Stringify<'_, '_, '_, '_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut it = self.stream.iter();
         let last = it.next_back();

@@ -21,7 +21,7 @@
 //! use std::sync::Arc;
 //!
 //! #[rune::macro_]
-//! fn concat_idents(cx: &mut MacroContext<'_, '_>, input: &TokenStream) -> compile::Result<TokenStream> {
+//! fn concat_idents(cx: &mut MacroContext<'_, '_, '_>, input: &TokenStream) -> compile::Result<TokenStream> {
 //!     let mut output = String::new();
 //!
 //!     let mut p = Parser::from_token_stream(input, cx.input_span());
@@ -45,7 +45,7 @@
 //! }
 //!
 //! #[rune::attribute_macro]
-//! fn rename(cx: &mut MacroContext<'_, '_>, input: &TokenStream, item: &TokenStream) -> compile::Result<TokenStream> {
+//! fn rename(cx: &mut MacroContext<'_, '_, '_>, input: &TokenStream, item: &TokenStream) -> compile::Result<TokenStream> {
 //!     let mut parser = Parser::from_token_stream(item, cx.macro_span());
 //!     let mut fun: ast::ItemFn = parser.parse_all()?;
 //!

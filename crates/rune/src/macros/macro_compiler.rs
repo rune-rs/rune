@@ -11,12 +11,12 @@ use crate::parse::{Parse, Parser};
 
 use super::TokenStream;
 
-pub(crate) struct MacroCompiler<'a, 'b> {
+pub(crate) struct MacroCompiler<'a, 'b, 'arena> {
     pub(crate) item_meta: ItemMeta,
-    pub(crate) idx: &'a mut Indexer<'b>,
+    pub(crate) idx: &'a mut Indexer<'b, 'arena>,
 }
 
-impl MacroCompiler<'_, '_> {
+impl MacroCompiler<'_, '_, '_> {
     /// Compile the given macro into the given output type.
     pub(crate) fn eval_macro<T>(&mut self, macro_call: &ast::MacroCall) -> compile::Result<T>
     where

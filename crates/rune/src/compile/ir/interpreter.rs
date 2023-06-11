@@ -13,7 +13,7 @@ use crate::shared::scopes::MissingLocal;
 pub(crate) type IrScopes = crate::shared::scopes::Scopes<ir::Value>;
 
 /// The interpreter that executed [Ir][crate::ir::Ir].
-pub struct Interpreter<'a> {
+pub struct Interpreter<'a, 'arena> {
     /// A budget associated with the compiler, for how many expressions it's
     /// allowed to evaluate.
     pub(crate) budget: Budget,
@@ -24,10 +24,10 @@ pub struct Interpreter<'a> {
     /// Constant scopes.
     pub(crate) scopes: IrScopes,
     /// Query engine to look for constant expressions.
-    pub(crate) q: Query<'a>,
+    pub(crate) q: Query<'a, 'arena>,
 }
 
-impl Interpreter<'_> {
+impl Interpreter<'_, '_> {
     /// Outer evaluation for an expression which performs caching into `consts`.
     pub(crate) fn eval_const(&mut self, ir: &ir::Ir, used: Used) -> compile::Result<ConstValue> {
         tracing::trace!("processing constant: {}", self.q.pool.item(self.item));

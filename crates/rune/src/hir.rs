@@ -11,3 +11,5 @@ pub(crate) mod lowering;
 
 pub(crate) mod scopes;
 pub(crate) use self::scopes::{Name, OwnedName, Scopes};
+
+pub(crate) mod interpreter;

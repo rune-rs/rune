@@ -28,7 +28,7 @@ pub struct FormatArgs {
 
 impl FormatArgs {
     /// Expand the format specification.
-    pub fn expand(&self, cx: &mut MacroContext<'_, '_>) -> compile::Result<Quote<'_>> {
+    pub fn expand(&self, cx: &mut MacroContext<'_, '_, '_>) -> compile::Result<Quote<'_>> {
         let format = cx.eval(&self.format)?;
 
         let mut pos = Vec::new();
@@ -165,7 +165,7 @@ impl Parse for FormatArg {
 }
 
 fn expand_format_spec<'a>(
-    cx: &mut MacroContext<'_, '_>,
+    cx: &mut MacroContext<'_, '_, '_>,
     span: Span,
     input: &str,
     pos: &[&'a ast::Expr],
@@ -336,7 +336,7 @@ fn expand_format_spec<'a>(
 
     /// Parse a single expansion group.
     fn parse_group<'a>(
-        cx: &mut MacroContext<'_, '_>,
+        cx: &mut MacroContext<'_, '_, '_>,
         span: Span,
         iter: &mut Iter<'_>,
         count: &mut usize,

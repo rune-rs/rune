@@ -58,7 +58,7 @@ pub enum IrEvalBreak {
 
 fn eval_ir_assign(
     ir: &ir::IrAssign,
-    interp: &mut ir::Interpreter<'_>,
+    interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
 ) -> Result<ir::Value, EvalOutcome> {
     interp.budget.take(ir)?;
@@ -73,7 +73,7 @@ fn eval_ir_assign(
 
 fn eval_ir_binary(
     ir: &ir::IrBinary,
-    interp: &mut ir::Interpreter<'_>,
+    interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
 ) -> Result<ir::Value, EvalOutcome> {
     let span = ir.span();
@@ -161,7 +161,7 @@ fn eval_ir_binary(
 
 fn eval_ir_branches(
     ir: &ir::IrBranches,
-    interp: &mut ir::Interpreter<'_>,
+    interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
 ) -> Result<ir::Value, EvalOutcome> {
     for (ir_condition, branch) in &ir.branches {
@@ -191,7 +191,7 @@ fn eval_ir_branches(
 
 fn eval_ir_call(
     ir: &ir::IrCall,
-    interp: &mut ir::Interpreter<'_>,
+    interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
 ) -> Result<ir::Value, EvalOutcome> {
     let mut args = Vec::new();
@@ -205,7 +205,7 @@ fn eval_ir_call(
 
 fn eval_ir_condition(
     ir: &ir::IrCondition,
-    interp: &mut ir::Interpreter<'_>,
+    interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
 ) -> Result<ir::Value, EvalOutcome> {
     Ok(ir::Value::Bool(match ir {
@@ -222,7 +222,7 @@ fn eval_ir_condition(
 
 fn eval_ir_decl(
     ir: &ir::IrDecl,
-    interp: &mut ir::Interpreter<'_>,
+    interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
 ) -> Result<ir::Value, EvalOutcome> {
     interp.budget.take(ir)?;
@@ -233,7 +233,7 @@ fn eval_ir_decl(
 
 fn eval_ir_loop(
     ir: &ir::IrLoop,
-    interp: &mut ir::Interpreter<'_>,
+    interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
 ) -> Result<ir::Value, EvalOutcome> {
     let span = ir.span();
@@ -286,7 +286,7 @@ fn eval_ir_loop(
 
 fn eval_ir_object(
     ir: &ir::IrObject,
-    interp: &mut ir::Interpreter<'_>,
+    interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
 ) -> Result<ir::Value, EvalOutcome> {
     let mut object = HashMap::with_capacity(ir.assignments.len());
@@ -300,7 +300,7 @@ fn eval_ir_object(
 
 fn eval_ir_scope(
     ir: &ir::IrScope,
-    interp: &mut ir::Interpreter<'_>,
+    interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
 ) -> Result<ir::Value, EvalOutcome> {
     interp.budget.take(ir)?;
@@ -322,7 +322,7 @@ fn eval_ir_scope(
 
 fn eval_ir_set(
     ir: &ir::IrSet,
-    interp: &mut ir::Interpreter<'_>,
+    interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
 ) -> Result<ir::Value, EvalOutcome> {
     interp.budget.take(ir)?;
@@ -333,7 +333,7 @@ fn eval_ir_set(
 
 fn eval_ir_template(
     ir: &ir::IrTemplate,
-    interp: &mut ir::Interpreter<'_>,
+    interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
 ) -> Result<ir::Value, EvalOutcome> {
     interp.budget.take(ir)?;
@@ -376,7 +376,7 @@ fn eval_ir_template(
 
 fn eval_ir_tuple(
     ir: &ir::Tuple,
-    interp: &mut ir::Interpreter<'_>,
+    interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
 ) -> Result<ir::Value, EvalOutcome> {
     let mut items = Vec::with_capacity(ir.items.len());
@@ -390,7 +390,7 @@ fn eval_ir_tuple(
 
 fn eval_ir_vec(
     ir: &ir::IrVec,
-    interp: &mut ir::Interpreter<'_>,
+    interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
 ) -> Result<ir::Value, EvalOutcome> {
     let mut vec = Vec::with_capacity(ir.items.len());
@@ -405,7 +405,7 @@ fn eval_ir_vec(
 /// IrEval the interior expression.
 pub(crate) fn eval_ir(
     ir: &ir::Ir,
-    interp: &mut ir::Interpreter<'_>,
+    interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
 ) -> Result<ir::Value, EvalOutcome> {
     interp.budget.take(ir)?;

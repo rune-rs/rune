@@ -103,6 +103,7 @@ pub(crate) fn compile(
 ) -> Result<(), ()> {
     // Shared id generator.
     let gen = Gen::new();
+    let const_arena = hir::Arena::new();
     let mut consts = Consts::default();
     let mut storage = Storage::default();
     let mut inner = Default::default();
@@ -110,6 +111,7 @@ pub(crate) fn compile(
     let q = Query::new(
         unit,
         prelude,
+        &const_arena,
         &mut consts,
         &mut storage,
         sources,
@@ -187,18 +189,18 @@ pub(crate) fn compile(
     Ok(())
 }
 
-struct CompileBuildEntry<'a> {
+struct CompileBuildEntry<'a, 'arena> {
     options: &'a Options,
-    q: Query<'a>,
+    q: Query<'a, 'arena>,
 }
 
-impl CompileBuildEntry<'_> {
+impl<'arena> CompileBuildEntry<'_, 'arena> {
     fn compiler1<'a, 'hir>(
         &'a mut self,
         location: Location,
         span: &dyn Spanned,
         asm: &'a mut Assembly,
-    ) -> self::v1::Assembler<'a, 'hir> {
+    ) -> self::v1::Assembler<'a, 'hir, 'arena> {
         self::v1::Assembler {
             source_id: location.source_id,
             q: self.q.borrow(),

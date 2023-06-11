@@ -15,6 +15,7 @@ use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::compile::ir;
 use crate::compile::{ItemId, ItemMeta, ModId};
+use crate::hir;
 use crate::indexing;
 use crate::runtime::format;
 
@@ -150,10 +151,12 @@ pub(crate) struct QueryPath {
 }
 
 /// A compiled constant function.
-#[derive(Debug)]
-pub(crate) struct ConstFn {
+pub(crate) struct ConstFn<'hir> {
     /// The item of the const fn.
     pub(crate) item_meta: ItemMeta,
-    /// The compiled constant function.
+    /// The soon-to-be deprecated IR function.
     pub(crate) ir_fn: ir::IrFn,
+    /// HIR function associated with this constant function.
+    #[allow(unused)]
+    pub(crate) hir: hir::ItemFn<'hir>,
 }

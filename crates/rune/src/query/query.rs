@@ -50,7 +50,7 @@ enum ContextMatch<'this, 'm> {
 const IMPORT_RECURSION_LIMIT: usize = 128;
 
 #[derive(Default)]
-pub(crate) struct QueryInner {
+pub(crate) struct QueryInner<'arena> {
     /// Resolved meta about every single item during a compilation.
     meta: HashMap<(ItemId, Hash), meta::Meta>,
     /// Build queue.
@@ -59,7 +59,7 @@ pub(crate) struct QueryInner {
     /// be compiled.
     indexed: BTreeMap<ItemId, Vec<indexing::Entry>>,
     /// Compiled constant functions.
-    const_fns: HashMap<NonZeroId, Arc<ConstFn>>,
+    const_fns: HashMap<NonZeroId, Arc<ConstFn<'arena>>>,
     /// Indexed constant values.
     constants: HashMap<Hash, ConstValue>,
     /// Query paths.
@@ -78,7 +78,7 @@ pub(crate) struct QueryInner {
     captures: HashMap<Hash, Vec<hir::OwnedName>>,
 }
 
-impl QueryInner {
+impl QueryInner<'_> {
     /// Get a constant value but only from the dynamic query system.
     pub(crate) fn get_const_value(&self, hash: Hash) -> Option<&ConstValue> {
         self.constants.get(&hash)
@@ -94,11 +94,13 @@ impl QueryInner {
 /// Note that this type has a lot of `pub(crate)` items. This is intentional.
 /// Many components need to perform complex borrowing out of this type, meaning
 /// its fields need to be visible (see the [resolve_context!] macro).
-pub(crate) struct Query<'a> {
+pub(crate) struct Query<'a, 'arena> {
     /// The current unit being built.
     pub(crate) unit: &'a mut UnitBuilder,
     /// The prelude in effect.
     prelude: &'a Prelude,
+    /// Arena used for constant contexts.
+    pub(crate) const_arena: &'arena hir::Arena,
     /// Cache of constants that have been expanded.
     pub(crate) consts: &'a mut Consts,
     /// Storage associated with the query.
@@ -120,14 +122,15 @@ pub(crate) struct Query<'a> {
     /// Native context.
     pub(crate) context: &'a Context,
     /// Inner state of the query engine.
-    pub(crate) inner: &'a mut QueryInner,
+    pub(crate) inner: &'a mut QueryInner<'arena>,
 }
 
-impl<'a> Query<'a> {
+impl<'a, 'arena> Query<'a, 'arena> {
     /// Construct a new compilation context.
     pub(crate) fn new(
         unit: &'a mut UnitBuilder,
         prelude: &'a Prelude,
+        const_arena: &'arena hir::Arena,
         consts: &'a mut Consts,
         storage: &'a mut Storage,
         sources: &'a mut Sources,
@@ -138,11 +141,12 @@ impl<'a> Query<'a> {
         options: &'a Options,
         gen: &'a Gen,
         context: &'a Context,
-        inner: &'a mut QueryInner,
+        inner: &'a mut QueryInner<'arena>,
     ) -> Self {
         Self {
             unit,
             prelude,
+            const_arena,
             consts,
             storage,
             sources,
@@ -158,10 +162,11 @@ impl<'a> Query<'a> {
     }
 
     /// Reborrow the query engine from a reference to `self`.
-    pub(crate) fn borrow(&mut self) -> Query<'_> {
+    pub(crate) fn borrow(&mut self) -> Query<'_, 'arena> {
         Query {
             unit: self.unit,
             prelude: self.prelude,
+            const_arena: self.const_arena,
             consts: self.consts,
             storage: self.storage,
             pool: self.pool,
@@ -579,7 +584,7 @@ impl<'a> Query<'a> {
     }
 
     /// Get the constant function associated with the opaque.
-    pub(crate) fn const_fn_for<T>(&self, ast: T) -> compile::Result<Arc<ConstFn>, MissingId>
+    pub(crate) fn const_fn_for<T>(&self, ast: T) -> compile::Result<Arc<ConstFn<'a>>, MissingId>
     where
         T: Opaque,
     {
@@ -1365,11 +1370,10 @@ impl<'a> Query<'a> {
                 meta::Kind::Const
             }
             Indexed::ConstFn(c) => {
-                let ir_fn = {
+                let (ir_fn, hir) = {
                     // TODO: avoid this arena?
-                    let arena = crate::hir::Arena::new();
                     let mut cx = crate::hir::lowering::Ctxt::with_const(
-                        &arena,
+                        self.const_arena,
                         self.borrow(),
                         item_meta.location.source_id,
                     );
@@ -1379,14 +1383,19 @@ impl<'a> Query<'a> {
                         source_id: item_meta.location.source_id,
                         q: self.borrow(),
                     };
-                    ir::IrFn::compile_ast(&hir, &mut cx)?
+                    (ir::IrFn::compile_ast(&hir, &mut cx)?, hir)
                 };
 
                 let id = self.gen.next();
 
-                self.inner
-                    .const_fns
-                    .insert(id, Arc::new(ConstFn { item_meta, ir_fn }));
+                self.inner.const_fns.insert(
+                    id,
+                    Arc::new(ConstFn {
+                        item_meta,
+                        ir_fn,
+                        hir,
+                    }),
+                );
 
                 if used.is_unused() {
                     self.inner.queue.push_back(BuildEntry {
