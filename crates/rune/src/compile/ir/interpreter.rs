@@ -2,15 +2,13 @@ use crate::no_std::prelude::*;
 
 use crate::ast::Spanned;
 use crate::compile::ir;
+use crate::compile::ir::scopes::MissingLocal;
 use crate::compile::meta;
 use crate::compile::{self, IrErrorKind, ItemId, ModId, WithSpan};
+use crate::hir;
 use crate::parse::NonZeroId;
 use crate::query::{Query, Used};
 use crate::runtime::{ConstValue, Object, Tuple};
-use crate::shared::scopes::MissingLocal;
-
-/// Ir Scopes.
-pub(crate) type IrScopes = crate::shared::scopes::Scopes<ir::Value>;
 
 /// The interpreter that executed [Ir][crate::ir::Ir].
 pub struct Interpreter<'a, 'arena> {
@@ -22,7 +20,7 @@ pub struct Interpreter<'a, 'arena> {
     /// The item where the constant expression is located.
     pub(crate) item: ItemId,
     /// Constant scopes.
-    pub(crate) scopes: IrScopes,
+    pub(crate) scopes: ir::Scopes,
     /// Query engine to look for constant expressions.
     pub(crate) q: Query<'a, 'arena>,
 }
@@ -92,7 +90,7 @@ impl Interpreter<'_, '_> {
     pub(crate) fn resolve_var(
         &mut self,
         span: &dyn Spanned,
-        name: &str,
+        name: &hir::OwnedName,
         used: Used,
     ) -> compile::Result<ir::Value> {
         if let Some(ir_value) = self.scopes.try_get(name) {
@@ -102,7 +100,7 @@ impl Interpreter<'_, '_> {
         let mut base = self.q.pool.item(self.item).to_owned();
 
         loop {
-            let item = self.q.pool.alloc_item(base.extended(name));
+            let item = self.q.pool.alloc_item(base.extended(name.to_string()));
 
             if let Some(const_value) = self.q.consts.get(item) {
                 return Ok(ir::Value::from_const(const_value));
@@ -135,12 +133,14 @@ impl Interpreter<'_, '_> {
             base.pop();
         }
 
-        if name.starts_with(char::is_lowercase) {
-            Err(compile::Error::new(span, MissingLocal(name)))
+        if name.as_ref().starts_with(char::is_lowercase) {
+            Err(compile::Error::new(span, MissingLocal(name.clone())))
         } else {
             Err(compile::Error::new(
                 span,
-                IrErrorKind::MissingConst { name: name.into() },
+                IrErrorKind::MissingConst {
+                    name: name.to_string().into(),
+                },
             ))
         }
     }
@@ -180,13 +180,11 @@ impl Interpreter<'_, '_> {
     }
 }
 
-impl IrScopes {
+impl ir::Scopes {
     /// Get the given target as mut.
     pub(crate) fn get_target(&mut self, ir_target: &ir::IrTarget) -> compile::Result<ir::Value> {
         match &ir_target.kind {
-            ir::IrTargetKind::Name(name) => {
-                Ok(self.get_name(name.as_str()).with_span(ir_target)?.clone())
-            }
+            ir::IrTargetKind::Name(name) => Ok(self.get_name(name).with_span(ir_target)?.clone()),
             ir::IrTargetKind::Field(ir_target, field) => {
                 let value = self.get_target(ir_target)?;
 
@@ -253,7 +251,7 @@ impl IrScopes {
     ) -> compile::Result<()> {
         match &ir_target.kind {
             ir::IrTargetKind::Name(name) => {
-                *self.get_name_mut(name.as_str()).with_span(ir_target)? = value;
+                *self.get_name_mut(name).with_span(ir_target)? = value;
                 Ok(())
             }
             ir::IrTargetKind::Field(target, field) => {
@@ -313,7 +311,7 @@ impl IrScopes {
     ) -> compile::Result<()> {
         match &ir_target.kind {
             ir::IrTargetKind::Name(name) => {
-                let value = self.get_name_mut(name.as_str()).with_span(ir_target)?;
+                let value = self.get_name_mut(name).with_span(ir_target)?;
                 op(value)
             }
             ir::IrTargetKind::Field(target, field) => {

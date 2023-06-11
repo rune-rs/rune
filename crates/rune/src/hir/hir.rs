@@ -1,12 +1,84 @@
+use core::fmt;
 use core::num::NonZeroUsize;
+
+use crate::no_std::prelude::*;
 
 use crate as rune;
 use crate::ast::{self, Span, Spanned};
 use crate::compile::{ItemId, ModId};
-use crate::hir::Name;
 use crate::parse::NonZeroId;
 use crate::runtime::{format, Type, TypeCheck};
 use crate::Hash;
+
+/// An owned name.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) enum OwnedName {
+    SelfValue,
+    Str(String),
+    Id(usize),
+}
+
+impl OwnedName {
+    /// Get name as reference.
+    pub(crate) fn as_ref(&self) -> Name<'_> {
+        match self {
+            OwnedName::SelfValue => Name::SelfValue,
+            OwnedName::Str(name) => Name::Str(name),
+            OwnedName::Id(id) => Name::Id(*id),
+        }
+    }
+}
+
+impl fmt::Display for OwnedName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            OwnedName::SelfValue => "self".fmt(f),
+            OwnedName::Str(name) => name.fmt(f),
+            OwnedName::Id(id) => id.fmt(f),
+        }
+    }
+}
+
+/// A captured variable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) enum Name<'hir> {
+    /// Capture of the `self` value.
+    SelfValue,
+    /// Capture of a named variable.
+    Str(&'hir str),
+    /// Anonymous variable.
+    Id(usize),
+}
+
+impl<'hir> Name<'hir> {
+    /// Coerce into an owned name.
+    pub(crate) fn into_owned(self) -> OwnedName {
+        match self {
+            Name::SelfValue => OwnedName::SelfValue,
+            Name::Str(name) => OwnedName::Str(name.to_owned()),
+            Name::Id(id) => OwnedName::Id(id),
+        }
+    }
+
+    /// Test if the name starts with the given test.
+    pub(crate) fn starts_with(&self, test: fn(char) -> bool) -> bool {
+        let Name::Str(name) = self else {
+            return false;
+        };
+
+        name.starts_with(test)
+    }
+}
+
+impl fmt::Display for Name<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Name::SelfValue => "self".fmt(f),
+            Name::Str(name) => name.fmt(f),
+            Name::Id(id) => id.fmt(f),
+        }
+    }
+}
 
 /// A pattern.
 #[derive(Debug, Clone, Copy, Spanned)]

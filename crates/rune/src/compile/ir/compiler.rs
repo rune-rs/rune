@@ -61,7 +61,7 @@ pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut Ctxt<'_, '_>) -> compile::Result
             ir::Ir::new(span, ir::Value::from_const(value))
         }
         hir::ExprKind::Variable(name) => {
-            return Ok(ir::Ir::new(span, <Box<str>>::from(name.as_str())));
+            return Ok(ir::Ir::new(span, name.into_owned()));
         }
         _ => {
             return Err(compile::Error::msg(
@@ -368,7 +368,7 @@ fn local(hir: &hir::Local<'_>, c: &mut Ctxt<'_, '_>) -> compile::Result<ir::Ir> 
         span,
         ir::IrDecl {
             span,
-            name: name.into(),
+            name: hir::Name::Str(name).into_owned(),
             value: Box::new(expr(&hir.expr, c)?),
         },
     ))

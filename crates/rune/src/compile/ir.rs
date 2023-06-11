@@ -4,16 +4,10 @@
 //! This is part of the [Rune Language](https://rune-rs.github.io).
 
 pub(crate) mod compiler;
-pub(crate) use self::compiler::Ctxt;
-
 mod eval;
-pub(crate) use self::eval::{eval_ir, EvalOutcome};
-
 mod interpreter;
-pub(crate) use self::interpreter::{Budget, Interpreter};
-
+pub(crate) mod scopes;
 mod value;
-pub(crate) use self::value::Value;
 
 use core::ops::{AddAssign, MulAssign, ShlAssign, ShrAssign, SubAssign};
 
@@ -30,6 +24,12 @@ use crate::indexing::index;
 use crate::macros::MacroContext;
 use crate::parse::NonZeroId;
 use crate::query::Used;
+
+pub(crate) use self::compiler::Ctxt;
+pub(crate) use self::eval::{eval_ir, EvalOutcome};
+pub(crate) use self::interpreter::{Budget, Interpreter};
+pub(crate) use self::scopes::Scopes;
+pub(crate) use self::value::Value;
 
 impl ast::Expr {
     pub(crate) fn eval(&self, cx: &mut MacroContext<'_, '_, '_>) -> compile::Result<Value> {
@@ -148,7 +148,7 @@ decl_kind! {
         /// A template.
         Template(IrTemplate),
         /// A named value.
-        Name(Box<str>),
+        Name(hir::OwnedName),
         /// A local name. Could either be a local variable or a reference to
         /// something else, like another const declaration.
         Target(IrTarget),
@@ -178,7 +178,7 @@ pub(crate) struct IrFn {
     #[rune(span)]
     pub(crate) span: Span,
     /// The number of arguments the function takes and their names.
-    pub(crate) args: Vec<Box<str>>,
+    pub(crate) args: Vec<hir::OwnedName>,
     /// The scope for the function.
     pub(crate) ir: Ir,
 }
@@ -196,7 +196,7 @@ impl IrFn {
                 ..
             }) = arg
             {
-                args.push(name.into());
+                args.push(hir::Name::Str(name).into_owned());
                 continue;
             }
 
@@ -246,7 +246,7 @@ pub(crate) struct IrDecl {
     #[rune(span)]
     pub(crate) span: Span,
     /// The name of the variable.
-    pub(crate) name: Box<str>,
+    pub(crate) name: hir::OwnedName,
     /// The value of the variable.
     pub(crate) value: Box<Ir>,
 }
@@ -335,7 +335,7 @@ pub(crate) enum IrPat {
     /// An ignore pattern `_`.
     Ignore,
     /// A named binding.
-    Binding(Box<str>),
+    Binding(hir::OwnedName),
 }
 
 impl IrPat {
@@ -343,7 +343,7 @@ impl IrPat {
         match hir.kind {
             hir::PatKind::Ignore => return Ok(ir::IrPat::Ignore),
             hir::PatKind::Path(&hir::PatPathKind::Ident(name)) => {
-                return Ok(ir::IrPat::Binding(name.into()));
+                return Ok(ir::IrPat::Binding(hir::Name::Str(name).into_owned()));
             }
             _ => (),
         }

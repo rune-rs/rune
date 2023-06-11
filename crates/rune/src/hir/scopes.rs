@@ -9,6 +9,7 @@ use crate::no_std::prelude::*;
 use crate::no_std::vec::Vec;
 
 use crate::compile::error::{MissingScope, PopError};
+use crate::hir;
 
 use rune_macros::instrument;
 
@@ -24,56 +25,6 @@ enum LayerKind {
     Captures,
 }
 
-/// An owned capture.
-#[derive(Debug, Clone)]
-pub(crate) enum OwnedName {
-    SelfValue,
-    Str(String),
-    Id(usize),
-}
-
-impl fmt::Display for OwnedName {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            OwnedName::SelfValue => "self".fmt(f),
-            OwnedName::Str(name) => name.fmt(f),
-            OwnedName::Id(id) => id.fmt(f),
-        }
-    }
-}
-
-/// A captured variable.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) enum Name<'hir> {
-    /// Capture of the `self` value.
-    SelfValue,
-    /// Capture of a named variable.
-    Str(&'hir str),
-    /// Anonymous variable.
-    Id(usize),
-}
-
-impl<'hir> Name<'hir> {
-    /// Coerce into an owned name.
-    pub(crate) fn into_owned(self) -> OwnedName {
-        match self {
-            Name::SelfValue => OwnedName::SelfValue,
-            Name::Str(name) => OwnedName::Str(name.to_owned()),
-            Name::Id(id) => OwnedName::Id(id),
-        }
-    }
-}
-
-impl fmt::Display for Name<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Name::SelfValue => "self".fmt(f),
-            Name::Str(name) => name.fmt(f),
-            Name::Id(id) => id.fmt(f),
-        }
-    }
-}
-
 #[derive(Default)]
 pub(crate) struct Layer<'hir> {
     /// Scope identifier of the layer.
@@ -83,11 +34,11 @@ pub(crate) struct Layer<'hir> {
     ///  The kind of the layer.
     kind: LayerKind,
     /// Variables defined in this layer.
-    variables: HashSet<Name<'hir>>,
+    variables: HashSet<hir::Name<'hir>>,
     /// Order of variable definitions.
-    order: Vec<Name<'hir>>,
+    order: Vec<hir::Name<'hir>>,
     /// Captures inside of this layer.
-    captures: BTreeSet<Name<'hir>>,
+    captures: BTreeSet<hir::Name<'hir>>,
 }
 
 impl<'hir> Layer<'hir> {
@@ -97,12 +48,12 @@ impl<'hir> Layer<'hir> {
 
     /// Convert layer into variable drop order.
     #[inline(always)]
-    pub(crate) fn into_drop_order(self) -> impl ExactSizeIterator<Item = Name<'hir>> {
+    pub(crate) fn into_drop_order(self) -> impl ExactSizeIterator<Item = hir::Name<'hir>> {
         self.order.into_iter().rev()
     }
 
     /// Variables captured by the layer.
-    pub(crate) fn captures(&self) -> impl ExactSizeIterator<Item = Name<'hir>> + '_ {
+    pub(crate) fn captures(&self) -> impl ExactSizeIterator<Item = hir::Name<'hir>> + '_ {
         self.captures.iter().copied()
     }
 }
@@ -170,7 +121,10 @@ impl<'hir> Scopes<'hir> {
 
     /// Define the given variable.
     #[tracing::instrument(skip_all, fields(?self.scope, ?name))]
-    pub(crate) fn define(&mut self, name: Name<'hir>) -> Result<Name<'hir>, MissingScope> {
+    pub(crate) fn define(
+        &mut self,
+        name: hir::Name<'hir>,
+    ) -> Result<hir::Name<'hir>, MissingScope> {
         tracing::trace!(?self.scope, ?name, "define");
 
         let Some(layer) = self.scopes.get_mut(self.scope.0) else {
@@ -184,7 +138,7 @@ impl<'hir> Scopes<'hir> {
 
     /// Try to lookup the given variable.
     #[tracing::instrument(skip_all, fields(?self.scope, ?name))]
-    pub(crate) fn get(&mut self, name: Name<'hir>) -> Option<(Name<'hir>, Scope)> {
+    pub(crate) fn get(&mut self, name: hir::Name<'hir>) -> Option<(hir::Name<'hir>, Scope)> {
         tracing::trace!("get");
 
         let mut blocks = Vec::new();
