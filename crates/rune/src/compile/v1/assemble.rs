@@ -6,7 +6,6 @@ use crate::ast::{self, Span, Spanned};
 use crate::compile::v1::{Assembler, Layer, Loop, Needs, Var};
 use crate::compile::{self, CompileErrorKind, WithSpan};
 use crate::hir;
-use crate::parse::Resolve;
 use crate::runtime::{
     ConstValue, Inst, InstAddress, InstAssignOp, InstOp, InstRangeLimits, InstTarget, InstValue,
     InstVariant, Label, PanicReason, Protocol, TypeCheck,
@@ -115,9 +114,9 @@ pub(crate) fn fn_from_item_fn<'hir>(
     }
 
     if !hir.body.produces_nothing() {
-        return_(c, hir, hir.body, block)?;
+        return_(c, hir, &hir.body, block)?;
     } else {
-        block(c, hir.body, Needs::None)?.apply(c)?;
+        block(c, &hir.body, Needs::None)?.apply(c)?;
 
         let total_var_count = c.scopes.total(hir)?;
         c.locals_pop(total_var_count, hir);
@@ -138,7 +137,7 @@ pub(crate) fn async_block_secondary<'hir>(
         c.scopes.define(name, &hir.block)?;
     }
 
-    return_(c, &hir.block, hir.block, block)?;
+    return_(c, &hir.block, &hir.block, block)?;
     c.scopes.pop_last(&hir.block)?;
     Ok(())
 }
@@ -147,7 +146,7 @@ pub(crate) fn async_block_secondary<'hir>(
 #[instrument(span = span)]
 pub(crate) fn expr_closure_secondary<'hir>(
     c: &mut Assembler<'_, 'hir>,
-    hir: &hir::ExprClosure<'hir>,
+    hir: &'hir hir::ExprClosure<'hir>,
     span: &'hir dyn Spanned,
 ) -> compile::Result<()> {
     let mut patterns = Vec::new();
@@ -176,7 +175,7 @@ pub(crate) fn expr_closure_secondary<'hir>(
         pat_with_offset(c, pat, offset)?;
     }
 
-    return_(c, span, hir.body, expr)?;
+    return_(c, span, &hir.body, expr)?;
     c.scopes.pop_last(span)?;
     Ok(())
 }
@@ -350,7 +349,7 @@ fn condition<'hir>(
     condition: &hir::Condition<'hir>,
     then_label: &Label,
 ) -> compile::Result<Layer<'hir>> {
-    match condition {
+    match *condition {
         hir::Condition::Expr(e) => {
             let guard = c.scopes.child(e)?;
             expr(c, e, Needs::Value)?.apply(c)?;
@@ -365,11 +364,11 @@ fn condition<'hir>(
             let expected = c.scopes.child(span)?;
 
             let load = |c: &mut Assembler<'_, 'hir>, needs: Needs| {
-                expr(c, expr_let.expr, needs)?.apply(c)?;
+                expr(c, &expr_let.expr, needs)?.apply(c)?;
                 Ok(())
             };
 
-            if pat(c, expr_let.pat, &false_label, &load)? {
+            if pat(c, &expr_let.pat, &false_label, &load)? {
                 c.asm.jump(then_label, span);
                 c.asm.label(&false_label)?;
             } else {
@@ -640,50 +639,21 @@ fn block<'hir>(
 #[instrument(span = format)]
 fn builtin_format<'hir>(
     c: &mut Assembler<'_, 'hir>,
-    format: &hir::BuiltInFormat<'hir>,
+    format: &'hir hir::BuiltInFormat<'hir>,
     needs: Needs,
 ) -> compile::Result<Asm<'hir>> {
     use crate::runtime::format;
 
-    let fill = if let Some((_, fill)) = &format.fill {
-        *fill
-    } else {
-        ' '
-    };
-
-    let align = if let Some((_, align)) = &format.align {
-        *align
-    } else {
-        format::Alignment::default()
-    };
-
-    let flags = if let Some((_, flags)) = &format.flags {
-        *flags
-    } else {
-        format::Flags::default()
-    };
-
-    let width = if let Some((_, width)) = &format.width {
-        *width
-    } else {
-        None
-    };
-
-    let precision = if let Some((_, precision)) = &format.precision {
-        *precision
-    } else {
-        None
-    };
-
-    let format_type = if let Some((_, format_type)) = &format.format_type {
-        *format_type
-    } else {
-        format::Type::default()
-    };
+    let fill = format.fill.unwrap_or(' ');
+    let align = format.align.unwrap_or_default();
+    let flags = format.flags.unwrap_or_default();
+    let width = format.width;
+    let precision = format.precision;
+    let format_type = format.format_type.unwrap_or_default();
 
     let spec = format::FormatSpec::new(flags, fill, align, width, precision, format_type);
 
-    expr(c, format.value, Needs::Value)?.apply(c)?;
+    expr(c, &format.value, Needs::Value)?.apply(c)?;
     c.asm.push(Inst::Format { spec }, format);
 
     if !needs.value() {
@@ -895,9 +865,9 @@ fn expr<'hir>(
         hir::ExprKind::Format(format) => builtin_format(c, format, needs)?,
         hir::ExprKind::AsyncBlock(hir) => expr_async_block(c, hir, span, needs)?,
         hir::ExprKind::Const(id) => const_item(c, id, span, needs)?,
-        hir::ExprKind::Path(path) => {
+        hir::ExprKind::Path => {
             return Err(compile::Error::msg(
-                path,
+                span,
                 "Path expression is not supported here",
             ))
         }
@@ -910,14 +880,14 @@ fn expr<'hir>(
 #[instrument(span = span)]
 fn expr_assign<'hir>(
     c: &mut Assembler<'_, 'hir>,
-    hir: &hir::ExprAssign<'hir>,
+    hir: &'hir hir::ExprAssign<'hir>,
     span: &'hir dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm<'hir>> {
     let supported = match hir.lhs.kind {
         // <var> = <value>
         hir::ExprKind::Variable(name) => {
-            expr(c, hir.rhs, Needs::Value)?.apply(c)?;
+            expr(c, &hir.rhs, Needs::Value)?.apply(c)?;
             let var = c.scopes.get(&mut c.q, name, span)?;
             c.asm.push_with_comment(
                 Inst::Replace { offset: var.offset },
@@ -930,51 +900,41 @@ fn expr_assign<'hir>(
         hir::ExprKind::FieldAccess(field_access) => {
             // field assignment
             match field_access.expr_field {
-                hir::ExprField::Path(path) => {
-                    if let Some(ident) = path.try_as_ident() {
-                        let slot = ident.resolve(resolve_context!(c.q))?;
-                        let slot = c.q.unit.new_static_string(ident, slot.as_ref())?;
+                hir::ExprField::Ident(ident) => {
+                    let slot = c.q.unit.new_static_string(span, ident)?;
 
-                        expr(c, hir.rhs, Needs::Value)?.apply(c)?;
-                        c.scopes.alloc(hir.rhs)?;
+                    expr(c, &hir.rhs, Needs::Value)?.apply(c)?;
+                    c.scopes.alloc(&hir.rhs)?;
 
-                        expr(c, field_access.expr, Needs::Value)?.apply(c)?;
-                        c.scopes.alloc(span)?;
+                    expr(c, &field_access.expr, Needs::Value)?.apply(c)?;
+                    c.scopes.alloc(span)?;
 
-                        c.asm.push(Inst::ObjectIndexSet { slot }, span);
-                        c.scopes.free(span, 2)?;
-                        true
-                    } else {
-                        false
-                    }
+                    c.asm.push(Inst::ObjectIndexSet { slot }, span);
+                    c.scopes.free(span, 2)?;
+                    true
                 }
-                hir::ExprField::LitNumber(field) => {
-                    let number = field.resolve(resolve_context!(c.q))?;
-                    let index = number.as_tuple_index().ok_or_else(|| {
-                        compile::Error::new(
-                            span,
-                            CompileErrorKind::UnsupportedTupleIndex { number },
-                        )
-                    })?;
+                hir::ExprField::Index(index) => {
+                    expr(c, &hir.rhs, Needs::Value)?.apply(c)?;
+                    c.scopes.alloc(&hir.rhs)?;
 
-                    expr(c, hir.rhs, Needs::Value)?.apply(c)?;
-                    c.scopes.alloc(hir.rhs)?;
-
-                    expr(c, field_access.expr, Needs::Value)?.apply(c)?;
+                    expr(c, &field_access.expr, Needs::Value)?.apply(c)?;
                     c.asm.push(Inst::TupleIndexSet { index }, span);
                     c.scopes.free(span, 1)?;
                     true
                 }
+                _ => {
+                    return Err(compile::Error::new(span, CompileErrorKind::BadFieldAccess));
+                }
             }
         }
         hir::ExprKind::Index(expr_index_get) => {
-            expr(c, hir.rhs, Needs::Value)?.apply(c)?;
+            expr(c, &hir.rhs, Needs::Value)?.apply(c)?;
             c.scopes.alloc(span)?;
 
-            expr(c, expr_index_get.target, Needs::Value)?.apply(c)?;
+            expr(c, &expr_index_get.target, Needs::Value)?.apply(c)?;
             c.scopes.alloc(span)?;
 
-            expr(c, expr_index_get.index, Needs::Value)?.apply(c)?;
+            expr(c, &expr_index_get.index, Needs::Value)?.apply(c)?;
             c.scopes.alloc(span)?;
 
             c.asm.push(Inst::IndexSet, span);
@@ -1020,18 +980,18 @@ fn expr_await<'hir>(
 #[instrument(span = span)]
 fn expr_binary<'hir>(
     c: &mut Assembler<'_, 'hir>,
-    hir: &hir::ExprBinary<'hir>,
+    hir: &'hir hir::ExprBinary<'hir>,
     span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm<'hir>> {
     // Special expressions which operates on the stack in special ways.
     if hir.op.is_assign() {
-        compile_assign_binop(c, hir.lhs, hir.rhs, &hir.op, span, needs)?;
+        compile_assign_binop(c, &hir.lhs, &hir.rhs, &hir.op, span, needs)?;
         return Ok(Asm::top(span));
     }
 
     if hir.op.is_conditional() {
-        compile_conditional_binop(c, hir.lhs, hir.rhs, &hir.op, span, needs)?;
+        compile_conditional_binop(c, &hir.lhs, &hir.rhs, &hir.op, span, needs)?;
         return Ok(Asm::top(span));
     }
 
@@ -1040,8 +1000,8 @@ fn expr_binary<'hir>(
     // NB: need to declare these as anonymous local variables so that they
     // get cleaned up in case there is an early break (return, try, ...).
     let rhs_needs = rhs_needs_of(&hir.op);
-    let a = expr(c, hir.lhs, Needs::Value)?.apply_targeted(c)?;
-    let b = expr(c, hir.rhs, rhs_needs)?.apply_targeted(c)?;
+    let a = expr(c, &hir.lhs, Needs::Value)?.apply_targeted(c)?;
+    let b = expr(c, &hir.rhs, rhs_needs)?.apply_targeted(c)?;
 
     let op = match hir.op {
         ast::BinOp::Eq(..) => InstOp::Eq,
@@ -1148,32 +1108,18 @@ fn expr_binary<'hir>(
             }
             // <expr>.<field> <op> <value>
             hir::ExprKind::FieldAccess(field_access) => {
-                expr(c, field_access.expr, Needs::Value)?.apply(c)?;
+                expr(c, &field_access.expr, Needs::Value)?.apply(c)?;
                 expr(c, rhs, Needs::Value)?.apply(c)?;
 
                 // field assignment
                 match field_access.expr_field {
-                    hir::ExprField::Path(path) => {
-                        if let Some(ident) = path.try_as_ident() {
-                            let n = ident.resolve(resolve_context!(c.q))?;
-                            let n = c.q.unit.new_static_string(path, n.as_ref())?;
-
-                            Some(InstTarget::Field(n))
-                        } else {
-                            None
-                        }
+                    hir::ExprField::Index(index) => Some(InstTarget::TupleField(index)),
+                    hir::ExprField::Ident(ident) => {
+                        let n = c.q.unit.new_static_string(&field_access.expr, ident)?;
+                        Some(InstTarget::Field(n))
                     }
-                    hir::ExprField::LitNumber(field) => {
-                        let number = field.resolve(resolve_context!(c.q))?;
-
-                        let Some(index) = number.as_tuple_index() else {
-                            return Err(compile::Error::new(
-                                field,
-                                CompileErrorKind::UnsupportedTupleIndex { number },
-                            ));
-                        };
-
-                        Some(InstTarget::TupleField(index))
+                    _ => {
+                        return Err(compile::Error::new(span, CompileErrorKind::BadFieldAccess));
                     }
                 }
             }
@@ -1358,7 +1304,7 @@ fn expr_call<'hir>(
 
             c.scopes.free(span, hir.args.len() + 1)?;
         }
-        hir::Call::Instance { target, hash } => {
+        hir::Call::Associated { target, hash } => {
             expr(c, target, Needs::Value)?.apply(c)?;
             c.scopes.alloc(target)?;
 
@@ -1367,7 +1313,7 @@ fn expr_call<'hir>(
                 c.scopes.alloc(span)?;
             }
 
-            c.asm.push(Inst::CallInstance { hash, args }, span);
+            c.asm.push(Inst::CallAssociated { hash, args }, span);
             c.scopes.free(span, hir.args.len() + 1)?;
         }
         hir::Call::Meta { hash } => {
@@ -1486,7 +1432,7 @@ fn expr_continue<'hir>(
 #[instrument(span = span)]
 fn expr_field_access<'hir>(
     c: &mut Assembler<'_, 'hir>,
-    hir: &hir::ExprFieldAccess<'hir>,
+    hir: &'hir hir::ExprFieldAccess<'hir>,
     span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm<'hir>> {
@@ -1495,65 +1441,9 @@ fn expr_field_access<'hir>(
     // TODO: perform deferred compilation for expressions instead, so we can
     // e.g. inspect if it compiles down to a local access instead of
     // climbing the hir like we do here.
-    #[allow(clippy::single_match)]
-    match (hir.expr.kind, hir.expr_field) {
-        (hir::ExprKind::Variable(name), hir::ExprField::LitNumber(n)) => {
-            if try_immediate_field_access_optimization(c, name, n, span, needs)? {
-                return Ok(Asm::top(span));
-            }
-        }
-        _ => (),
-    }
-
-    expr(c, hir.expr, Needs::Value)?.apply(c)?;
-
-    match hir.expr_field {
-        hir::ExprField::LitNumber(n) => {
-            if let Some(index) = n.resolve(resolve_context!(c.q))?.as_tuple_index() {
-                c.asm.push(Inst::TupleIndexGet { index }, span);
-
-                if !needs.value() {
-                    c.q.diagnostics.not_used(c.source_id, span, c.context());
-                    c.asm.push(Inst::Pop, span);
-                }
-
-                return Ok(Asm::top(span));
-            }
-        }
-        hir::ExprField::Path(path) => {
-            if let Some(ident) = path.try_as_ident() {
-                let field = ident.resolve(resolve_context!(c.q))?;
-                let slot = c.q.unit.new_static_string(span, field.as_ref())?;
-
-                c.asm.push(Inst::ObjectIndexGet { slot }, span);
-
-                if !needs.value() {
-                    c.q.diagnostics.not_used(c.source_id, span, c.context());
-                    c.asm.push(Inst::Pop, span);
-                }
-
-                return Ok(Asm::top(span));
-            }
-        }
-    }
-
-    return Err(compile::Error::new(span, CompileErrorKind::BadFieldAccess));
-
-    fn try_immediate_field_access_optimization<'hir>(
-        c: &mut Assembler<'_, 'hir>,
-        name: hir::Name<'hir>,
-        n: &ast::LitNumber,
-        span: &dyn Spanned,
-        needs: Needs,
-    ) -> compile::Result<bool> {
-        let ast::Number::Integer(index) = n.resolve(resolve_context!(c.q))? else {
-            return Ok(false);
-        };
-
-        let Ok(index) = usize::try_from(index) else {
-            return Ok(false);
-        };
-
+    if let (hir::ExprKind::Variable(name), hir::ExprField::Index(index)) =
+        (hir.expr.kind, hir.expr_field)
+    {
         let var = c.scopes.get(&mut c.q, name, span)?;
 
         c.asm.push_with_comment(
@@ -1570,7 +1460,35 @@ fn expr_field_access<'hir>(
             c.asm.push(Inst::Pop, span);
         }
 
-        Ok(true)
+        return Ok(Asm::top(span));
+    }
+
+    expr(c, &hir.expr, Needs::Value)?.apply(c)?;
+
+    match hir.expr_field {
+        hir::ExprField::Index(index) => {
+            c.asm.push(Inst::TupleIndexGet { index }, span);
+
+            if !needs.value() {
+                c.q.diagnostics.not_used(c.source_id, span, c.context());
+                c.asm.push(Inst::Pop, span);
+            }
+
+            Ok(Asm::top(span))
+        }
+        hir::ExprField::Ident(field) => {
+            let slot = c.q.unit.new_static_string(span, field)?;
+
+            c.asm.push(Inst::ObjectIndexGet { slot }, span);
+
+            if !needs.value() {
+                c.q.diagnostics.not_used(c.source_id, span, c.context());
+                c.asm.push(Inst::Pop, span);
+            }
+
+            Ok(Asm::top(span))
+        }
+        _ => Err(compile::Error::new(span, CompileErrorKind::BadFieldAccess)),
     }
 }
 
@@ -1578,7 +1496,7 @@ fn expr_field_access<'hir>(
 #[instrument(span = span)]
 fn expr_for<'hir>(
     c: &mut Assembler<'_, 'hir>,
-    hir: &hir::ExprFor<'hir>,
+    hir: &'hir hir::ExprFor<'hir>,
     span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm<'hir>> {
@@ -1590,11 +1508,11 @@ fn expr_for<'hir>(
 
     let (iter_offset, loop_scope_expected) = {
         let loop_scope_expected = c.scopes.child(span)?;
-        expr(c, hir.iter, Needs::Value)?.apply(c)?;
+        expr(c, &hir.iter, Needs::Value)?.apply(c)?;
 
         let iter_offset = c.scopes.alloc(span)?;
         c.asm.push_with_comment(
-            Inst::CallInstance {
+            Inst::CallAssociated {
                 hash: *Protocol::INTO_ITER,
                 args: 0,
             },
@@ -1607,20 +1525,20 @@ fn expr_for<'hir>(
 
     // Declare named loop variable.
     let binding_offset = {
-        c.asm.push(Inst::unit(), hir.iter);
-        c.scopes.alloc(hir.binding)?
+        c.asm.push(Inst::unit(), &hir.iter);
+        c.scopes.alloc(&hir.binding)?
     };
 
     // Declare storage for memoized `next` instance fn.
     let next_offset = if c.options.memoize_instance_fn {
-        let offset = c.scopes.alloc(hir.iter)?;
+        let offset = c.scopes.alloc(&hir.iter)?;
 
         // Declare the named loop variable and put it in the scope.
         c.asm.push_with_comment(
             Inst::Copy {
                 offset: iter_offset,
             },
-            hir.iter,
+            &hir.iter,
             "copy iterator (memoize)",
         );
 
@@ -1628,7 +1546,7 @@ fn expr_for<'hir>(
             Inst::LoadInstanceFn {
                 hash: *Protocol::NEXT,
             },
-            hir.iter,
+            &hir.iter,
             "load instance fn (memoize)",
         );
 
@@ -1656,7 +1574,7 @@ fn expr_for<'hir>(
             Inst::Copy {
                 offset: iter_offset,
             },
-            hir.iter,
+            &hir.iter,
             "copy iterator",
         );
 
@@ -1664,7 +1582,7 @@ fn expr_for<'hir>(
             Inst::Copy {
                 offset: next_offset,
             },
-            hir.iter,
+            &hir.iter,
             "copy next",
         );
 
@@ -1674,7 +1592,7 @@ fn expr_for<'hir>(
             Inst::Replace {
                 offset: binding_offset,
             },
-            hir.binding,
+            &hir.binding,
         );
     } else {
         // call the `next` function to get the next level of iteration, bind the
@@ -1683,11 +1601,11 @@ fn expr_for<'hir>(
             Inst::Copy {
                 offset: iter_offset,
             },
-            hir.iter,
+            &hir.iter,
         );
 
         c.asm.push_with_comment(
-            Inst::CallInstance {
+            Inst::CallAssociated {
                 hash: *Protocol::NEXT,
                 args: 0,
             },
@@ -1698,18 +1616,18 @@ fn expr_for<'hir>(
             Inst::Replace {
                 offset: binding_offset,
             },
-            hir.binding,
+            &hir.binding,
         );
     }
 
     // Test loop condition and unwrap the option, or jump to `end_label` if the current value is `None`.
-    c.asm.iter_next(binding_offset, &end_label, hir.binding);
+    c.asm.iter_next(binding_offset, &end_label, &hir.binding);
 
-    let guard = c.scopes.child(hir.body)?;
+    let guard = c.scopes.child(&hir.body)?;
 
-    pat_with_offset(c, hir.binding, binding_offset)?;
+    pat_with_offset(c, &hir.binding, binding_offset)?;
 
-    block(c, hir.body, Needs::None)?.apply(c)?;
+    block(c, &hir.body, Needs::None)?.apply(c)?;
     c.clean_last_scope(span, guard, Needs::None)?;
 
     c.asm.jump(&continue_label, span);
@@ -1754,7 +1672,7 @@ fn expr_if<'hir>(
         }
 
         let Some(cond) = branch.condition else {
-            fallback = Some(branch.block);
+            fallback = Some(&branch.block);
             continue;
         };
 
@@ -1782,7 +1700,7 @@ fn expr_if<'hir>(
         c.asm.label(&label)?;
 
         let scopes = c.scopes.push(scope);
-        block(c, branch.block, needs)?.apply(c)?;
+        block(c, &branch.block, needs)?.apply(c)?;
         c.clean_last_scope(branch, scopes, needs)?;
 
         if it.peek().is_some() {
@@ -1798,14 +1716,14 @@ fn expr_if<'hir>(
 #[instrument(span = span)]
 fn expr_index<'hir>(
     c: &mut Assembler<'_, 'hir>,
-    hir: &hir::ExprIndex<'hir>,
+    hir: &'hir hir::ExprIndex<'hir>,
     span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm<'hir>> {
     let guard = c.scopes.child(span)?;
 
-    let target = expr(c, hir.target, Needs::Value)?.apply_targeted(c)?;
-    let index = expr(c, hir.index, Needs::Value)?.apply_targeted(c)?;
+    let target = expr(c, &hir.target, Needs::Value)?.apply_targeted(c)?;
+    let index = expr(c, &hir.index, Needs::Value)?.apply_targeted(c)?;
 
     c.asm.push(Inst::IndexGet { index, target }, span);
 
@@ -1823,18 +1741,18 @@ fn expr_index<'hir>(
 #[instrument(span = hir)]
 fn expr_let<'hir>(
     c: &mut Assembler<'_, 'hir>,
-    hir: &hir::ExprLet<'hir>,
+    hir: &'hir hir::ExprLet<'hir>,
     needs: Needs,
 ) -> compile::Result<Asm<'hir>> {
     let load = |c: &mut Assembler<'_, 'hir>, needs: Needs| {
         // NB: assignments "move" the value being assigned.
-        expr(c, hir.expr, needs)?.apply(c)?;
+        expr(c, &hir.expr, needs)?.apply(c)?;
         Ok(())
     };
 
     let false_label = c.asm.new_label("let_panic");
 
-    if pat(c, hir.pat, &false_label, &load)? {
+    if pat(c, &hir.pat, &false_label, &load)? {
         c.q.diagnostics
             .let_pattern_might_panic(c.source_id, hir, c.context());
 
@@ -1862,13 +1780,13 @@ fn expr_let<'hir>(
 #[instrument(span = span)]
 fn expr_match<'hir>(
     c: &mut Assembler<'_, 'hir>,
-    hir: &hir::ExprMatch<'hir>,
+    hir: &'hir hir::ExprMatch<'hir>,
     span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm<'hir>> {
     let expected_scopes = c.scopes.child(span)?;
 
-    expr(c, hir.expr, Needs::Value)?.apply(c)?;
+    expr(c, &hir.expr, Needs::Value)?.apply(c)?;
     // Offset of the expression.
     let offset = c.scopes.alloc(span)?;
 
@@ -1891,7 +1809,7 @@ fn expr_match<'hir>(
             Ok(())
         };
 
-        pat(c, branch.pat, &match_false, &load)?;
+        pat(c, &branch.pat, &match_false, &load)?;
 
         let scope = if let Some(condition) = branch.condition {
             let span = condition;
@@ -1932,7 +1850,7 @@ fn expr_match<'hir>(
         c.asm.label(label)?;
 
         let expected = c.scopes.push(scope.clone());
-        expr(c, branch.body, needs)?.apply(c)?;
+        expr(c, &branch.body, needs)?.apply(c)?;
         c.clean_last_scope(span, expected, needs)?;
 
         if it.peek().is_some() {
@@ -1958,7 +1876,7 @@ fn expr_object<'hir>(
     let guard = c.scopes.child(span)?;
 
     for assign in hir.assignments {
-        expr(c, assign.assign, Needs::Value)?.apply(c)?;
+        expr(c, &assign.assign, Needs::Value)?.apply(c)?;
         c.scopes.alloc(&span)?;
     }
 
@@ -2130,7 +2048,7 @@ fn expr_select<'hir>(
     }
 
     for (_, branch) in &branches {
-        expr(c, branch.expr, Needs::Value)?.apply(c)?;
+        expr(c, &branch.expr, Needs::Value)?.apply(c)?;
     }
 
     c.asm.push(Inst::Select { len }, span);
@@ -2151,17 +2069,16 @@ fn expr_select<'hir>(
     c.asm.jump(&end_label, span);
 
     for (label, branch) in branches {
-        let span = branch.body;
         c.asm.label(&label)?;
 
-        let expected = c.scopes.child(span)?;
+        let expected = c.scopes.child(&branch.body)?;
 
         match branch.pat.kind {
             hir::PatKind::Path(&hir::PatPathKind::Ident(name)) => {
-                c.scopes.define(hir::Name::Str(name), branch.pat)?;
+                c.scopes.define(hir::Name::Str(name), &branch.pat)?;
             }
             hir::PatKind::Ignore => {
-                c.asm.push(Inst::Pop, span);
+                c.asm.push(Inst::Pop, &branch.body);
             }
             _ => {
                 return Err(compile::Error::new(
@@ -2172,8 +2089,8 @@ fn expr_select<'hir>(
         }
 
         // Set up a new scope with the binding.
-        expr(c, branch.body, needs)?.apply(c)?;
-        c.clean_last_scope(span, expected, needs)?;
+        expr(c, &branch.body, needs)?.apply(c)?;
+        c.clean_last_scope(&branch.body, expected, needs)?;
         c.asm.jump(&end_label, span);
     }
 
@@ -2294,11 +2211,11 @@ fn expr_tuple<'hir>(
 #[instrument(span = span)]
 fn expr_unary<'hir>(
     c: &mut Assembler<'_, 'hir>,
-    hir: &hir::ExprUnary<'hir>,
+    hir: &'hir hir::ExprUnary<'hir>,
     span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm<'hir>> {
-    expr(c, hir.expr, Needs::Value)?.apply(c)?;
+    expr(c, &hir.expr, Needs::Value)?.apply(c)?;
 
     match hir.op {
         ast::UnOp::Not(..) => {
@@ -2390,7 +2307,7 @@ fn expr_loop<'hir>(
         None
     };
 
-    block(c, hir.body, Needs::None)?.apply(c)?;
+    block(c, &hir.body, Needs::None)?.apply(c)?;
 
     if let Some(expected) = expected {
         c.clean_last_scope(span, expected, Needs::None)?;
@@ -2477,18 +2394,18 @@ fn lit<'hir>(
 #[instrument(span = hir)]
 fn local<'hir>(
     c: &mut Assembler<'_, 'hir>,
-    hir: &hir::Local<'hir>,
+    hir: &'hir hir::Local<'hir>,
     needs: Needs,
 ) -> compile::Result<Asm<'hir>> {
     let load = |c: &mut Assembler<'_, 'hir>, needs: Needs| {
         // NB: assignments "move" the value being assigned.
-        expr(c, hir.expr, needs)?.apply(c)?;
+        expr(c, &hir.expr, needs)?.apply(c)?;
         Ok(())
     };
 
     let false_label = c.asm.new_label("let_panic");
 
-    if pat(c, hir.pat, &false_label, &load)? {
+    if pat(c, &hir.pat, &false_label, &load)? {
         c.q.diagnostics
             .let_pattern_might_panic(c.source_id, hir, c.context());
 

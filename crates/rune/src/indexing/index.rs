@@ -210,7 +210,7 @@ impl<'a> Indexer<'a> {
                     let arg = p.parse::<ast::LitChar>()?;
                     let f = arg.resolve(resolve_context!(self.q))?;
 
-                    fill = Some((arg, f));
+                    fill = Some(f);
                 }
                 "align" => {
                     if align.is_some() {
@@ -223,15 +223,14 @@ impl<'a> Indexer<'a> {
                     let arg = p.parse::<ast::Ident>()?;
                     let a = arg.resolve(resolve_context!(self.q))?;
 
-                    align = Some(match str::parse::<format::Alignment>(a) {
-                        Ok(a) => (arg, a),
-                        _ => {
-                            return Err(compile::Error::unsupported(
-                                key,
-                                "`format!(.., align = ..)`",
-                            ));
-                        }
-                    });
+                    let Ok(a) = str::parse::<format::Alignment>(a) else {
+                        return Err(compile::Error::unsupported(
+                            key,
+                            "`format!(.., align = ..)`",
+                        ));
+                    };
+
+                    align = Some(a);
                 }
                 "flags" => {
                     if flags.is_some() {
@@ -249,7 +248,7 @@ impl<'a> Indexer<'a> {
                         .with_span(arg)?;
 
                     let f = format::Flags::from(f);
-                    flags = Some((arg, f));
+                    flags = Some(f);
                 }
                 "width" => {
                     if width.is_some() {
@@ -266,7 +265,7 @@ impl<'a> Indexer<'a> {
                         .as_usize(false)
                         .with_span(arg)?;
 
-                    width = Some((arg, NonZeroUsize::new(f)));
+                    width = NonZeroUsize::new(f);
                 }
                 "precision" => {
                     if precision.is_some() {
@@ -283,7 +282,7 @@ impl<'a> Indexer<'a> {
                         .as_usize(false)
                         .with_span(arg)?;
 
-                    precision = Some((arg, NonZeroUsize::new(f)));
+                    precision = NonZeroUsize::new(f);
                 }
                 "type" => {
                     if format_type.is_some() {
@@ -297,7 +296,7 @@ impl<'a> Indexer<'a> {
                     let a = arg.resolve(resolve_context!(self.q))?;
 
                     format_type = Some(match str::parse::<format::Type>(a) {
-                        Ok(format_type) => (arg, format_type),
+                        Ok(format_type) => format_type,
                         _ => {
                             return Err(compile::Error::unsupported(
                                 key,

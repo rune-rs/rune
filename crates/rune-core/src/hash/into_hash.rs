@@ -29,6 +29,6 @@ impl IntoHash for Hash {
 impl IntoHash for &str {
     #[inline]
     fn into_hash(self) -> Hash {
-        Hash::of(self)
+        Hash::ident(self)
     }
 }

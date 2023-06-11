@@ -232,7 +232,7 @@ pub(crate) fn item_fn<'hir>(
     Ok(hir::ItemFn {
         span: ast.span(),
         args: iter!(&ast.args, |(ast, _)| fn_arg(ctx, ast)?),
-        body: alloc!(block(ctx, &ast.body)?),
+        body: block(ctx, &ast.body)?,
     })
 }
 
@@ -262,7 +262,7 @@ pub(crate) fn async_block_secondary<'hir>(
     });
 
     Ok(hir::AsyncBlock {
-        block: alloc!(block(ctx, ast)?),
+        block: block(ctx, ast)?,
         captures,
     })
 }
@@ -293,7 +293,7 @@ pub(crate) fn expr_closure_secondary<'hir>(
     });
 
     let args = iter!(ast.args.as_slice(), |(ast, _)| fn_arg(ctx, ast)?);
-    let body = alloc!(expr(ctx, &ast.body)?);
+    let body = expr(ctx, &ast.body)?;
 
     Ok(hir::ExprClosure {
         args,
@@ -422,7 +422,7 @@ pub(crate) fn expr_object<'hir>(
         }
 
         let assign = match &ast.assign {
-            Some((_, ast)) => alloc!(expr(ctx, ast)?),
+            Some((_, ast)) => expr(ctx, ast)?,
             None => {
                 let Some((name, _)) = ctx.scopes.get(hir::Name::Str(key.1)) else {
                     return Err(compile::Error::new(key.0, CompileErrorKind::MissingLocal {
@@ -430,10 +430,10 @@ pub(crate) fn expr_object<'hir>(
                     },))
                 };
 
-                alloc!(hir::Expr {
+                hir::Expr {
                     span: ast.span(),
-                    kind: hir::ExprKind::Variable(name)
-                })
+                    kind: hir::ExprKind::Variable(name),
+                }
             }
         };
 
@@ -471,12 +471,10 @@ pub(crate) fn expr_object<'hir>(
         Ok(())
     };
 
-    let path = object_ident(ctx, &ast.ident)?;
-
-    let kind = match path {
-        Some(path) => {
+    let kind = match &ast.ident {
+        ast::ObjectIdent::Named(path) => {
             let named = ctx.q.convert_path(path)?;
-            let parameters = generics_parameters(&named)?;
+            let parameters = generics_parameters(ctx, &named)?;
             let meta = ctx.lookup_meta(path, named.item, parameters)?;
             let item = ctx.q.pool.item(meta.item_meta.item);
 
@@ -512,7 +510,7 @@ pub(crate) fn expr_object<'hir>(
                 }
             }
         }
-        None => hir::ExprObjectKind::Anonymous,
+        ast::ObjectIdent::Anonymous(..) => hir::ExprObjectKind::Anonymous,
     };
 
     Ok(hir::ExprKind::Object(alloc!(hir::ExprObject {
@@ -532,16 +530,10 @@ pub(crate) fn expr<'hir>(
     let in_path = ctx.in_path.take();
 
     let kind = match ast {
-        ast::Expr::Path(ast) => {
-            if in_path {
-                hir::ExprKind::Path(alloc!(path(ctx, ast)?))
-            } else {
-                expr_path(ctx, ast)?
-            }
-        }
+        ast::Expr::Path(ast) => expr_path(ctx, ast, in_path)?,
         ast::Expr::Assign(ast) => hir::ExprKind::Assign(alloc!(hir::ExprAssign {
-            lhs: alloc!(expr(ctx, &ast.lhs)?),
-            rhs: alloc!(expr(ctx, &ast.rhs)?),
+            lhs: expr(ctx, &ast.lhs)?,
+            rhs: expr(ctx, &ast.rhs)?,
         })),
         // TODO: lower all of these loop constructs to the same loop-like
         // representation. We only do different ones here right now since it's
@@ -557,14 +549,14 @@ pub(crate) fn expr<'hir>(
             hir::ExprKind::Loop(alloc!(hir::ExprLoop {
                 label: option!(&ast.label, |(ast, _)| label(ctx, ast)?),
                 condition: Some(alloc!(condition)),
-                body: alloc!(body),
+                body,
                 drop: iter!(layer.into_drop_order()),
             }))
         }
         ast::Expr::Loop(ast) => hir::ExprKind::Loop(alloc!(hir::ExprLoop {
             label: option!(&ast.label, |(ast, _)| label(ctx, ast)?),
             condition: None,
-            body: alloc!(block(ctx, &ast.body)?),
+            body: block(ctx, &ast.body)?,
             drop: &[],
         })),
         ast::Expr::For(ast) => {
@@ -579,25 +571,25 @@ pub(crate) fn expr<'hir>(
 
             hir::ExprKind::For(alloc!(hir::ExprFor {
                 label: option!(&ast.label, |(ast, _)| label(ctx, ast)?),
-                binding: alloc!(binding),
-                iter: alloc!(iter),
-                body: alloc!(body),
+                binding,
+                iter,
+                body,
                 drop: iter!(layer.into_drop_order()),
             }))
         }
         ast::Expr::Let(ast) => hir::ExprKind::Let(alloc!(hir::ExprLet {
-            pat: alloc!(pat(ctx, &ast.pat)?),
-            expr: alloc!(expr(ctx, &ast.expr)?),
+            pat: pat(ctx, &ast.pat)?,
+            expr: expr(ctx, &ast.expr)?,
         })),
         ast::Expr::If(ast) => hir::ExprKind::If(alloc!(expr_if(ctx, ast)?)),
         ast::Expr::Match(ast) => hir::ExprKind::Match(alloc!(hir::ExprMatch {
-            expr: alloc!(expr(ctx, &ast.expr)?),
+            expr: expr(ctx, &ast.expr)?,
             branches: iter!(&ast.branches, |(ast, _)| {
                 ctx.scopes.push();
 
-                let pat = alloc!(pat(ctx, &ast.pat)?);
+                let pat = pat(ctx, &ast.pat)?;
                 let condition = option!(&ast.condition, |(_, ast)| expr(ctx, ast)?);
-                let body = alloc!(expr(ctx, &ast.body)?);
+                let body = expr(ctx, &ast.body)?;
 
                 let layer = ctx.scopes.pop().with_span(ast)?;
 
@@ -611,13 +603,9 @@ pub(crate) fn expr<'hir>(
             }),
         })),
         ast::Expr::Call(ast) => hir::ExprKind::Call(alloc!(expr_call(ctx, ast)?)),
-        ast::Expr::FieldAccess(ast) => hir::ExprKind::FieldAccess(alloc!(hir::ExprFieldAccess {
-            expr: alloc!(expr(ctx, &ast.expr)?),
-            expr_field: alloc!(match &ast.expr_field {
-                ast::ExprField::Path(ast) => hir::ExprField::Path(alloc!(path(ctx, ast)?)),
-                ast::ExprField::LitNumber(ast) => hir::ExprField::LitNumber(alloc!(*ast)),
-            }),
-        })),
+        ast::Expr::FieldAccess(ast) => {
+            hir::ExprKind::FieldAccess(alloc!(expr_field_access(ctx, ast)?))
+        }
         ast::Expr::Empty(ast) => {
             // NB: restore in_path setting.
             ctx.in_path.set(in_path);
@@ -629,10 +617,10 @@ pub(crate) fn expr<'hir>(
                 _ => Needs::Value,
             };
 
-            let lhs = alloc!(expr(ctx, &ast.lhs)?);
+            let lhs = expr(ctx, &ast.lhs)?;
 
             let needs = ctx.needs.replace(rhs_needs);
-            let rhs = alloc!(expr(ctx, &ast.rhs)?);
+            let rhs = expr(ctx, &ast.rhs)?;
             ctx.needs.set(needs);
 
             hir::ExprKind::Binary(alloc!(hir::ExprBinary {
@@ -643,8 +631,8 @@ pub(crate) fn expr<'hir>(
         }
         ast::Expr::Unary(ast) => expr_unary(ctx, ast)?,
         ast::Expr::Index(ast) => hir::ExprKind::Index(alloc!(hir::ExprIndex {
-            target: alloc!(expr(ctx, &ast.target)?),
-            index: alloc!(expr(ctx, &ast.index)?),
+            target: expr(ctx, &ast.target)?,
+            index: expr(ctx, &ast.index)?,
         })),
         ast::Expr::Block(ast) => expr_block(ctx, ast)?,
         ast::Expr::Break(ast) => {
@@ -668,14 +656,14 @@ pub(crate) fn expr<'hir>(
                     ast::ExprSelectBranch::Pat(ast) => {
                         ctx.scopes.push();
 
-                        let pat = alloc!(pat(ctx, &ast.pat)?);
-                        let body = alloc!(expr(ctx, &ast.body)?);
+                        let pat = pat(ctx, &ast.pat)?;
+                        let body = expr(ctx, &ast.body)?;
 
                         let layer = ctx.scopes.pop().with_span(ast)?;
 
                         hir::ExprSelectBranch::Pat(alloc!(hir::ExprSelectPatBranch {
                             pat,
-                            expr: alloc!(expr(ctx, &ast.expr)?),
+                            expr: expr(ctx, &ast.expr)?,
                             body,
                             drop: iter!(layer.into_drop_order()),
                         }))
@@ -725,7 +713,7 @@ pub(crate) fn expr<'hir>(
                 precision: ast.precision,
                 flags: ast.flags,
                 format_type: ast.format_type,
-                value: alloc!(expr(ctx, &ast.value)?),
+                value: expr(ctx, &ast.value)?,
             })),
             query::BuiltInMacro::File(ast) => hir::ExprKind::Lit(lit(ctx, &ast.value)?),
             query::BuiltInMacro::Line(ast) => hir::ExprKind::Lit(lit(ctx, &ast.value)?),
@@ -778,13 +766,13 @@ pub(crate) fn expr_if<'hir>(
 
                 (
                     Some(&*alloc!(condition)),
-                    &*alloc!(block),
+                    block,
                     &*iter!(layer.into_drop_order()),
                 )
             }
             None => {
                 let block = block(ctx, b)?;
-                (None, &*alloc!(block), &[][..])
+                (None, block, &[][..])
             }
         };
 
@@ -863,7 +851,7 @@ pub(crate) fn expr_unary<'hir>(
     let (ast::UnOp::Neg(..), ast::Expr::Lit(ast::ExprLit { lit: ast::Lit::Number(n), .. })) = (ast.op, &*ast.expr) else {
         return Ok(hir::ExprKind::Unary(alloc!(hir::ExprUnary {
             op: ast.op,
-            expr: alloc!(expr(ctx, &ast.expr)?),
+            expr: expr(ctx, &ast.expr)?,
         })));
     };
 
@@ -991,10 +979,10 @@ fn fn_arg<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::FnArg) -> compile::Result<hi
 
 /// Lower an assignment.
 fn local<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Local) -> compile::Result<hir::Local<'hir>> {
-    alloc_with!(ctx, ast);
-
-    let expr = alloc!(expr(ctx, &ast.expr)?);
-    let pat = alloc!(pat(ctx, &ast.pat)?);
+    // Note: expression needs to be assembled before pattern, otherwise the
+    // expression will see declarations in the pattern.
+    let expr = expr(ctx, &ast.expr)?;
+    let pat = pat(ctx, &ast.pat)?;
 
     Ok(hir::Local {
         span: ast.span(),
@@ -1024,25 +1012,24 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
             ast::Pat::Ignore(..) => hir::PatKind::Ignore,
             ast::Pat::Rest(..) => hir::PatKind::Rest,
             ast::Pat::Path(ast) => {
-                let path = path(ctx, &ast.path)?;
-                let named = ctx.q.convert_path(&path)?;
-                let parameters = generics_parameters(&named)?;
+                let named = ctx.q.convert_path(&ast.path)?;
+                let parameters = generics_parameters(ctx, &named)?;
 
                 let kind = 'ok: {
-                    if let Some(meta) = ctx.try_lookup_meta(&path, named.item, &parameters)? {
+                    if let Some(meta) = ctx.try_lookup_meta(&ast, named.item, &parameters)? {
                         if let Some((0, kind)) = tuple_match_for(ctx, &meta) {
                             break 'ok hir::PatPathKind::Kind(alloc!(kind));
                         }
                     }
 
-                    if let Some(ident) = path.try_as_ident() {
+                    if let Some(ident) = ast.path.try_as_ident() {
                         let name = alloc_str!(ident.resolve(resolve_context!(ctx.q))?);
                         ctx.scopes.define(hir::Name::Str(name)).with_span(ast)?;
                         break 'ok hir::PatPathKind::Ident(name);
                     }
 
                     return Err(compile::Error::new(
-                        path.span,
+                        ast,
                         CompileErrorKind::UnsupportedBinding,
                     ));
                 };
@@ -1066,11 +1053,9 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
                 let items = iter!(&ast.items, |(ast, _)| pat(ctx, ast)?);
                 let (is_open, count) = pat_items_count(items)?;
 
-                let path = option!(&ast.path, |ast| path(ctx, ast)?);
-
-                let kind = if let Some(path) = path {
+                let kind = if let Some(path) = &ast.path {
                     let named = ctx.q.convert_path(path)?;
-                    let parameters = generics_parameters(&named)?;
+                    let parameters = generics_parameters(ctx, &named)?;
                     let meta = ctx.lookup_meta(path, named.item, parameters)?;
 
                     // Treat the current meta as a tuple and get the number of arguments it
@@ -1158,12 +1143,10 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
                     binding
                 });
 
-                let path = object_ident(ctx, &ast.ident)?;
-
-                let kind = match path {
-                    Some(path) => {
+                let kind = match &ast.ident {
+                    ast::ObjectIdent::Named(path) => {
                         let named = ctx.q.convert_path(path)?;
-                        let parameters = generics_parameters(&named)?;
+                        let parameters = generics_parameters(ctx, &named)?;
                         let meta = ctx.lookup_meta(path, named.item, parameters)?;
 
                         let Some((st, kind)) = struct_match_for(ctx, &meta) else {
@@ -1206,7 +1189,9 @@ fn pat<'hir>(ctx: &mut Ctx<'hir, '_>, ast: &ast::Pat) -> compile::Result<hir::Pa
 
                         kind
                     }
-                    None => hir::PatItemsKind::Anonymous { count, is_open },
+                    ast::ObjectIdent::Anonymous(..) => {
+                        hir::PatItemsKind::Anonymous { count, is_open }
+                    }
                 };
 
                 hir::PatKind::Object(alloc!(hir::PatItems {
@@ -1244,24 +1229,12 @@ fn object_key<'hir, 'ast>(
     })
 }
 
-/// Lower an object identifier to an optional path.
-fn object_ident<'hir>(
-    ctx: &mut Ctx<'hir, '_>,
-    ast: &ast::ObjectIdent,
-) -> compile::Result<Option<&'hir hir::Path<'hir>>> {
-    alloc_with!(ctx, ast);
-
-    Ok(match ast {
-        ast::ObjectIdent::Anonymous(_) => None,
-        ast::ObjectIdent::Named(ast) => Some(alloc!(path(ctx, ast)?)),
-    })
-}
-
 /// Lower the given path.
 #[instrument(span = ast)]
 pub(crate) fn expr_path<'hir>(
     ctx: &mut Ctx<'hir, '_>,
     ast: &ast::Path,
+    in_path: bool,
 ) -> compile::Result<hir::ExprKind<'hir>> {
     alloc_with!(ctx, ast);
 
@@ -1286,9 +1259,14 @@ pub(crate) fn expr_path<'hir>(
         }
     }
 
-    let path = path(ctx, ast)?;
-    let named = ctx.q.convert_path(&path)?;
-    let parameters = generics_parameters(&named)?;
+    // Caller has indicated that if they can't have a variable, they do indeed
+    // want a path.
+    if in_path {
+        return Ok(hir::ExprKind::Path);
+    }
+
+    let named = ctx.q.convert_path(ast)?;
+    let parameters = generics_parameters(ctx, &named)?;
 
     if let Some(meta) = ctx.try_lookup_meta(ast, named.item, &parameters)? {
         return expr_path_meta(ctx, &meta, ast);
@@ -1386,58 +1364,6 @@ fn expr_path_meta<'hir>(
     }
 }
 
-/// Lower the given path.
-#[instrument(span = ast)]
-pub(crate) fn path<'hir>(
-    ctx: &mut Ctx<'hir, '_>,
-    ast: &ast::Path,
-) -> compile::Result<hir::Path<'hir>> {
-    alloc_with!(ctx, ast);
-
-    let Some(id) = ast.id.get() else {
-        return Err(compile::Error::msg(ast, "Tried to use non-indexed path"));
-    };
-
-    let Some(&query_path) = ctx.q.inner.query_paths.get(&id) else {
-        return Err(compile::Error::msg(ast, format_args!("Missing query path for id {}", id)));
-    };
-
-    Ok(hir::Path {
-        span: ast.span(),
-        module: query_path.module,
-        item: query_path.item,
-        impl_item: query_path.impl_item,
-        global: ast.global.as_ref().map(Spanned::span),
-        trailing: ast.trailing.as_ref().map(Spanned::span),
-        first: alloc!(path_segment(ctx, &ast.first)?),
-        rest: iter!(&ast.rest, |(_, s)| path_segment(ctx, s)?),
-    })
-}
-
-#[instrument(span = ast)]
-fn path_segment<'hir>(
-    ctx: &mut Ctx<'hir, '_>,
-    ast: &ast::PathSegment,
-) -> compile::Result<hir::PathSegment<'hir>> {
-    alloc_with!(ctx, ast);
-
-    let kind = match ast {
-        ast::PathSegment::SelfType(..) => hir::PathSegmentKind::SelfType,
-        ast::PathSegment::SelfValue(..) => hir::PathSegmentKind::SelfValue,
-        ast::PathSegment::Ident(ast) => hir::PathSegmentKind::Ident(alloc!(*ast)),
-        ast::PathSegment::Crate(..) => hir::PathSegmentKind::Crate,
-        ast::PathSegment::Super(..) => hir::PathSegmentKind::Super,
-        ast::PathSegment::Generics(ast) => {
-            hir::PathSegmentKind::Generics(iter!(ast, |(e, _)| expr(ctx, &e.expr)?))
-        }
-    };
-
-    Ok(hir::PathSegment {
-        span: ast.span(),
-        kind,
-    })
-}
-
 fn label(_: &mut Ctx<'_, '_>, ast: &ast::Label) -> compile::Result<ast::Label> {
     Ok(ast::Label {
         span: ast.span,
@@ -1454,8 +1380,8 @@ fn condition<'hir>(
     Ok(match ast {
         ast::Condition::Expr(ast) => hir::Condition::Expr(alloc!(expr(ctx, ast)?)),
         ast::Condition::ExprLet(ast) => hir::Condition::ExprLet(alloc!(hir::ExprLet {
-            pat: alloc!(pat(ctx, &ast.pat)?),
-            expr: alloc!(expr(ctx, &ast.expr)?),
+            pat: pat(ctx, &ast.pat)?,
+            expr: expr(ctx, &ast.expr)?,
         })),
     })
 }
@@ -1474,7 +1400,7 @@ fn pat_items_count(items: &[hir::Pat<'_>]) -> compile::Result<(bool, usize)> {
     for pat in it {
         if let hir::PatKind::Rest = pat.kind {
             return Err(compile::Error::new(
-                pat.span(),
+                pat,
                 HirErrorKind::UnsupportedPatternRest,
             ));
         }
@@ -1556,7 +1482,10 @@ fn tuple_match_for(ctx: &Ctx<'_, '_>, meta: &meta::Meta) -> Option<(usize, hir::
     })
 }
 
-fn generics_parameters(named: &Named<'_>) -> compile::Result<GenericsParameters> {
+fn generics_parameters(
+    ctx: &mut Ctx<'_, '_>,
+    named: &Named<'_>,
+) -> compile::Result<GenericsParameters> {
     let mut parameters = GenericsParameters {
         trailing: named.trailing,
         parameters: [None, None],
@@ -1567,29 +1496,25 @@ fn generics_parameters(named: &Named<'_>) -> compile::Result<GenericsParameters>
         .iter()
         .zip(parameters.parameters.iter_mut())
     {
-        if let &Some((_, expr)) = value {
-            *o = Some(generics_parameter(expr)?);
+        if let &Some((_, generics)) = value {
+            let mut builder = ParametersBuilder::new();
+
+            for (s, _) in generics {
+                let hir::ExprKind::Type(ty) = expr(ctx, &s.expr)?.kind else {
+                    return Err(compile::Error::new(
+                        s,
+                        CompileErrorKind::UnsupportedGenerics,
+                    ));
+                };
+
+                builder.add(ty.into_hash());
+            }
+
+            *o = Some(builder.finish());
         }
     }
 
     Ok(parameters)
-}
-
-fn generics_parameter(generics: &[hir::Expr<'_>]) -> compile::Result<Hash> {
-    let mut builder = ParametersBuilder::new();
-
-    for expr in generics {
-        let hir::ExprKind::Type(ty) = expr.kind else {
-            return Err(compile::Error::new(
-                expr.span,
-                CompileErrorKind::UnsupportedGenerics,
-            ));
-        };
-
-        builder.add(ty.into_hash());
-    }
-
-    Ok(builder.finish())
 }
 
 /// Convert into a call expression.
@@ -1598,23 +1523,37 @@ fn expr_call<'hir>(
     ctx: &mut Ctx<'hir, '_>,
     ast: &ast::ExprCall,
 ) -> compile::Result<hir::ExprCall<'hir>> {
+    pub(crate) fn find_path(ast: &ast::Expr) -> Option<&ast::Path> {
+        let mut current = ast;
+
+        loop {
+            match current {
+                ast::Expr::Path(path) => return Some(path),
+                ast::Expr::Empty(ast) => {
+                    current = &*ast.expr;
+                    continue;
+                }
+                _ => return None,
+            }
+        }
+    }
+
     alloc_with!(ctx, ast);
 
     let expr = ctx.in_path(true, |ctx| expr(ctx, &ast.expr))?;
 
     let call = 'ok: {
         match expr.kind {
-            hir::ExprKind::Path(path) => {
-                if let Some(name) = path.try_as_ident() {
-                    let name = alloc_str!(name.resolve(resolve_context!(ctx.q))?);
-
-                    if let Some((name, _)) = ctx.scopes.get(hir::Name::Str(name)) {
-                        break 'ok hir::Call::Var { name };
-                    }
-                }
+            hir::ExprKind::Variable(name) => {
+                break 'ok hir::Call::Var { name };
+            }
+            hir::ExprKind::Path => {
+                let Some(path) = find_path(&ast.expr) else {
+                    return Err(compile::Error::msg(&ast.expr, "Expected path"));
+                };
 
                 let named = ctx.q.convert_path(path)?;
-                let parameters = generics_parameters(&named)?;
+                let parameters = generics_parameters(ctx, &named)?;
 
                 let meta = ctx.lookup_meta(path, named.item, parameters)?;
                 debug_assert_eq!(meta.item_meta.item, named.item);
@@ -1630,7 +1569,7 @@ fn expr_call<'hir>(
                     } => {
                         if !ast.args.is_empty() {
                             return Err(compile::Error::new(
-                                ast.args.span(),
+                                &ast.args,
                                 CompileErrorKind::UnsupportedArgumentCount {
                                     expected: 0,
                                     actual: ast.args.len(),
@@ -1648,7 +1587,7 @@ fn expr_call<'hir>(
                     } => {
                         if *args != ast.args.len() {
                             return Err(compile::Error::new(
-                                ast.args.span(),
+                                &ast.args,
                                 CompileErrorKind::UnsupportedArgumentCount {
                                     expected: *args,
                                     actual: ast.args.len(),
@@ -1657,11 +1596,10 @@ fn expr_call<'hir>(
                         }
 
                         if *args == 0 {
-                            let tuple = path.span();
                             ctx.q.diagnostics.remove_tuple_call_parens(
                                 ctx.source_id,
                                 &ast.args,
-                                tuple,
+                                path,
                                 None,
                             );
                         }
@@ -1688,22 +1626,22 @@ fn expr_call<'hir>(
 
                 break 'ok hir::Call::Meta { hash: meta.hash };
             }
-            hir::ExprKind::FieldAccess(hir::ExprFieldAccess {
-                expr_field: hir::ExprField::Path(path),
+            hir::ExprKind::FieldAccess(&hir::ExprFieldAccess {
+                expr_field,
                 expr: target,
             }) => {
-                if let Some((ident, generics)) = path.try_as_ident_generics() {
-                    let ident = ident.resolve(resolve_context!(ctx.q))?;
-                    let hash = Hash::instance_fn_name(ident);
+                let hash = match expr_field {
+                    hir::ExprField::Index(index) => Hash::index(index),
+                    hir::ExprField::Ident(ident) => Hash::ident(ident),
+                    hir::ExprField::IdentGenerics(ident, hash) => {
+                        Hash::ident(ident).with_function_parameters(hash)
+                    }
+                };
 
-                    let hash = if let Some((.., generic)) = generics {
-                        hash.with_function_parameters(generics_parameter(generic)?)
-                    } else {
-                        hash
-                    };
-
-                    break 'ok hir::Call::Instance { target, hash };
-                }
+                break 'ok hir::Call::Associated {
+                    target: alloc!(target),
+                    hash,
+                };
             }
             _ => {}
         }
@@ -1714,5 +1652,60 @@ fn expr_call<'hir>(
     Ok(hir::ExprCall {
         call,
         args: iter!(&ast.args, |(ast, _)| self::expr(ctx, ast)?),
+    })
+}
+
+#[instrument(span = ast)]
+fn expr_field_access<'hir>(
+    ctx: &mut Ctx<'hir, '_>,
+    ast: &ast::ExprFieldAccess,
+) -> compile::Result<hir::ExprFieldAccess<'hir>> {
+    alloc_with!(ctx, ast);
+
+    let expr_field = match &ast.expr_field {
+        ast::ExprField::LitNumber(ast) => {
+            let number = ast.resolve(resolve_context!(ctx.q))?;
+
+            let Some(index) = number.as_tuple_index() else {
+                return Err(compile::Error::new(
+                    ast,
+                    CompileErrorKind::UnsupportedTupleIndex { number },
+                ));
+            };
+
+            hir::ExprField::Index(index)
+        }
+        ast::ExprField::Path(ast) => {
+            let Some((ident, generics)) = ast.try_as_ident_generics() else {
+                return Err(compile::Error::new(ast, CompileErrorKind::BadFieldAccess));
+            };
+
+            let ident = alloc_str!(ident.resolve(resolve_context!(ctx.q))?);
+
+            match generics {
+                Some(generics) => {
+                    let mut builder = ParametersBuilder::new();
+
+                    for (s, _) in generics {
+                        let hir::ExprKind::Type(ty) = expr(ctx, &s.expr)?.kind else {
+                            return Err(compile::Error::new(
+                                s,
+                                CompileErrorKind::UnsupportedGenerics,
+                            ));
+                        };
+
+                        builder.add(ty.into_hash());
+                    }
+
+                    hir::ExprField::IdentGenerics(ident, builder.finish())
+                }
+                None => hir::ExprField::Ident(ident),
+            }
+        }
+    };
+
+    Ok(hir::ExprFieldAccess {
+        expr: expr(ctx, &ast.expr)?,
+        expr_field,
     })
 }

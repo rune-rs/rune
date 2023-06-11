@@ -3,8 +3,8 @@ use core::mem::{replace, take};
 use crate::no_std::prelude::*;
 
 use crate::ast::{self, Span, Spanned};
-use crate::compile;
 use crate::compile::ir::{self, IrValue};
+use crate::compile::{self, CompileErrorKind};
 use crate::hir;
 use crate::parse::Resolve;
 use crate::query::Query;
@@ -29,47 +29,6 @@ impl IrCompiler<'_> {
     {
         value.resolve(resolve_context!(self.q))
     }
-
-    /// Resolve an ir target from an expression.
-    fn ir_target(&self, expr: &hir::Expr<'_>) -> compile::Result<ir::IrTarget> {
-        match expr.kind {
-            hir::ExprKind::Variable(name) => {
-                return Ok(ir::IrTarget {
-                    span: expr.span(),
-                    kind: ir::IrTargetKind::Name(name.into_owned()),
-                });
-            }
-            hir::ExprKind::FieldAccess(expr_field_access) => {
-                let target = self.ir_target(expr_field_access.expr)?;
-
-                match *expr_field_access.expr_field {
-                    hir::ExprField::Path(field) => {
-                        if let Some(ident) = field.try_as_ident() {
-                            let name = self.resolve(ident)?;
-
-                            return Ok(ir::IrTarget {
-                                span: expr.span(),
-                                kind: ir::IrTargetKind::Field(Box::new(target), name.into()),
-                            });
-                        }
-                    }
-                    hir::ExprField::LitNumber(number) => {
-                        let number = self.resolve(number)?;
-
-                        if let Some(index) = number.as_tuple_index() {
-                            return Ok(ir::IrTarget {
-                                span: expr.span(),
-                                kind: ir::IrTargetKind::Index(Box::new(target), index),
-                            });
-                        }
-                    }
-                }
-            }
-            _ => (),
-        }
-
-        Err(compile::Error::msg(expr, "Not supported as a target"))
-    }
 }
 
 #[instrument]
@@ -88,8 +47,7 @@ pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut IrCompiler<'_>) -> compile::Resu
         hir::ExprKind::Loop(hir) => ir::Ir::new(span, expr_loop(span, c, hir)?),
         hir::ExprKind::Lit(hir) => lit(c, span, hir)?,
         hir::ExprKind::Block(hir) => ir::Ir::new(span, block(hir, c)?),
-        hir::ExprKind::Path(hir) => path(hir, c)?,
-        hir::ExprKind::FieldAccess(..) => ir::Ir::new(span, c.ir_target(hir)?),
+        hir::ExprKind::FieldAccess(..) => ir::Ir::new(span, ir_target(hir)?),
         hir::ExprKind::Break(hir) => ir::Ir::new(span, ir::IrBreak::compile_ast(span, c, hir)?),
         hir::ExprKind::Template(template) => {
             let ir_template = builtin_template(template, c)?;
@@ -114,20 +72,56 @@ pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut IrCompiler<'_>) -> compile::Resu
     })
 }
 
+/// Resolve an ir target from an expression.
+fn ir_target(expr: &hir::Expr<'_>) -> compile::Result<ir::IrTarget> {
+    match expr.kind {
+        hir::ExprKind::Variable(name) => {
+            return Ok(ir::IrTarget {
+                span: expr.span(),
+                kind: ir::IrTargetKind::Name(name.into_owned()),
+            });
+        }
+        hir::ExprKind::FieldAccess(expr_field_access) => {
+            let target = ir_target(&expr_field_access.expr)?;
+
+            match expr_field_access.expr_field {
+                hir::ExprField::Ident(name) => {
+                    return Ok(ir::IrTarget {
+                        span: expr.span(),
+                        kind: ir::IrTargetKind::Field(Box::new(target), name.into()),
+                    });
+                }
+                hir::ExprField::Index(index) => {
+                    return Ok(ir::IrTarget {
+                        span: expr.span(),
+                        kind: ir::IrTargetKind::Index(Box::new(target), index),
+                    });
+                }
+                _ => {
+                    return Err(compile::Error::new(expr, CompileErrorKind::BadFieldAccess));
+                }
+            }
+        }
+        _ => (),
+    }
+
+    Err(compile::Error::msg(expr, "Not supported as a target"))
+}
+
 #[instrument]
 fn expr_assign(
     span: Span,
     c: &mut IrCompiler<'_>,
     hir: &hir::ExprAssign<'_>,
 ) -> compile::Result<ir::Ir> {
-    let target = c.ir_target(hir.lhs)?;
+    let target = ir_target(&hir.lhs)?;
 
     Ok(ir::Ir::new(
         span,
         ir::IrSet {
             span,
             target,
-            value: Box::new(expr(hir.rhs, c)?),
+            value: Box::new(expr(&hir.rhs, c)?),
         },
     ))
 }
@@ -171,21 +165,21 @@ fn expr_binary(
             _ => return Err(compile::Error::msg(hir.op, "op not supported yet")),
         };
 
-        let target = c.ir_target(hir.lhs)?;
+        let target = ir_target(&hir.lhs)?;
 
         return Ok(ir::Ir::new(
             span,
             ir::IrAssign {
                 span,
                 target,
-                value: Box::new(expr(hir.rhs, c)?),
+                value: Box::new(expr(&hir.rhs, c)?),
                 op,
             },
         ));
     }
 
-    let lhs = expr(hir.lhs, c)?;
-    let rhs = expr(hir.rhs, c)?;
+    let lhs = expr(&hir.lhs, c)?;
+    let rhs = expr(&hir.rhs, c)?;
 
     let op = match hir.op {
         ast::BinOp::Add(..) => ir::IrBinaryOp::Add,
@@ -282,7 +276,7 @@ fn expr_object(
 
     for assign in hir.assignments {
         let (_, key) = assign.key;
-        let ir = expr(assign.assign, c)?;
+        let ir = expr(&assign.assign, c)?;
         assignments.push((key.into(), ir))
     }
 
@@ -359,24 +353,12 @@ fn builtin_template(
 }
 
 #[instrument]
-fn path(hir: &hir::Path<'_>, c: &mut IrCompiler<'_>) -> compile::Result<ir::Ir> {
-    let span = hir.span();
-
-    if let Some(name) = hir.try_as_ident() {
-        let name = c.resolve(name)?;
-        return Ok(ir::Ir::new(span, <Box<str>>::from(name)));
-    }
-
-    Err(compile::Error::msg(span, "not supported yet"))
-}
-
-#[instrument]
 fn local(hir: &hir::Local<'_>, c: &mut IrCompiler<'_>) -> compile::Result<ir::Ir> {
     let span = hir.span();
 
     let name = match hir.pat.kind {
         hir::PatKind::Ignore => {
-            return expr(hir.expr, c);
+            return expr(&hir.expr, c);
         }
         hir::PatKind::Path(&hir::PatPathKind::Ident(name)) => name,
         _ => {
@@ -389,7 +371,7 @@ fn local(hir: &hir::Local<'_>, c: &mut IrCompiler<'_>) -> compile::Result<ir::Ir
         ir::IrDecl {
             span,
             name: name.into(),
-            value: Box::new(expr(hir.expr, c)?),
+            value: Box::new(expr(&hir.expr, c)?),
         },
     ))
 }
@@ -398,12 +380,12 @@ fn local(hir: &hir::Local<'_>, c: &mut IrCompiler<'_>) -> compile::Result<ir::Ir
 fn condition(hir: &hir::Condition<'_>, c: &mut IrCompiler<'_>) -> compile::Result<ir::IrCondition> {
     match hir {
         hir::Condition::Expr(e) => Ok(ir::IrCondition::Ir(expr(e, c)?)),
-        hir::Condition::ExprLet(expr_let) => {
-            let pat = ir::IrPat::compile_ast(expr_let.pat)?;
-            let ir = expr(expr_let.expr, c)?;
+        hir::Condition::ExprLet(hir) => {
+            let pat = ir::IrPat::compile_ast(&hir.pat)?;
+            let ir = expr(&hir.expr, c)?;
 
             Ok(ir::IrCondition::Let(ir::IrLet {
-                span: expr_let.span(),
+                span: hir.span(),
                 pat,
                 ir,
             }))
@@ -422,13 +404,13 @@ fn expr_if(
 
     for hir in hir.branches {
         let Some(cond) = hir.condition else {
-            let ir = block(hir.block, c)?;
+            let ir = block(&hir.block, c)?;
             default_branch = Some(ir);
             continue
         };
 
         let cond = condition(cond, c)?;
-        let ir = block(hir.block, c)?;
+        let ir = block(&hir.block, c)?;
         branches.push((cond, ir));
     }
 
@@ -455,6 +437,6 @@ fn expr_loop(
             Some(hir) => Some(Box::new(condition(hir, c)?)),
             None => None,
         },
-        body: block(hir.body, c)?,
+        body: block(&hir.body, c)?,
     })
 }

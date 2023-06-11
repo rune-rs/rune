@@ -203,7 +203,7 @@ impl IrFn {
             return Err(compile::Error::msg(arg, "Unsupported argument in const fn"));
         }
 
-        let ir_scope = compiler::block(hir.body, c)?;
+        let ir_scope = compiler::block(&hir.body, c)?;
 
         Ok(ir::IrFn {
             span: hir.span(),

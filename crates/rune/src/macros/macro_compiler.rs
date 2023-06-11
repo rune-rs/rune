@@ -31,18 +31,7 @@ impl MacroCompiler<'_, '_> {
             ));
         }
 
-        // TODO: include information on the module the macro is being called
-        // from.
-        //
-        // TODO: Figure out how to avoid performing ad-hoc lowering here.
-        let arena = crate::hir::Arena::new();
-        let mut ctx = crate::hir::lowering::Ctx::with_const(
-            &arena,
-            self.idx.q.borrow(),
-            self.item_meta.location.source_id,
-        );
-        let path = crate::hir::lowering::path(&mut ctx, &macro_call.path)?;
-        let named = self.idx.q.convert_path(&path)?;
+        let named = self.idx.q.convert_path(&macro_call.path)?;
 
         let hash = self.idx.q.pool.item_type_hash(named.item);
 
@@ -93,18 +82,7 @@ impl MacroCompiler<'_, '_> {
             return Ok(None);
         }
 
-        // TODO: include information on the module the macro is being called
-        // from.
-        //
-        // TODO: Figure out how to avoid performing ad-hoc lowering here.
-        let arena = crate::hir::Arena::new();
-        let mut ctx = crate::hir::lowering::Ctx::with_const(
-            &arena,
-            self.idx.q.borrow(),
-            self.item_meta.location.source_id,
-        );
-        let path = crate::hir::lowering::path(&mut ctx, &attribute.path)?;
-        let named = self.idx.q.convert_path(&path)?;
+        let named = self.idx.q.convert_path(&attribute.path)?;
 
         let hash = self.idx.q.pool.item_type_hash(named.item);
 
