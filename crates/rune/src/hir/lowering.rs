@@ -532,13 +532,7 @@ pub(crate) fn expr<'hir>(
     let in_path = ctx.in_path.take();
 
     let kind = match ast {
-        ast::Expr::Path(ast) => {
-            if in_path {
-                hir::ExprKind::Path(alloc!(path(ctx, ast)?))
-            } else {
-                expr_path(ctx, ast)?
-            }
-        }
+        ast::Expr::Path(ast) => expr_path(ctx, ast, in_path)?,
         ast::Expr::Assign(ast) => hir::ExprKind::Assign(alloc!(hir::ExprAssign {
             lhs: alloc!(expr(ctx, &ast.lhs)?),
             rhs: alloc!(expr(ctx, &ast.rhs)?),
@@ -1262,6 +1256,7 @@ fn object_ident<'hir>(
 pub(crate) fn expr_path<'hir>(
     ctx: &mut Ctx<'hir, '_>,
     ast: &ast::Path,
+    in_path: bool,
 ) -> compile::Result<hir::ExprKind<'hir>> {
     alloc_with!(ctx, ast);
 
@@ -1284,6 +1279,12 @@ pub(crate) fn expr_path<'hir>(
                 return Ok(hir::ExprKind::Variable(name));
             }
         }
+    }
+
+    // Caller has indicated that if they can't have a variable, they do indeed
+    // want a path.
+    if in_path {
+        return Ok(hir::ExprKind::Path(alloc!(path(ctx, ast)?)));
     }
 
     let path = path(ctx, ast)?;
@@ -1604,15 +1605,10 @@ fn expr_call<'hir>(
 
     let call = 'ok: {
         match expr.kind {
+            hir::ExprKind::Variable(name) => {
+                break 'ok hir::Call::Var { name };
+            }
             hir::ExprKind::Path(path) => {
-                if let Some(name) = path.try_as_ident() {
-                    let name = alloc_str!(name.resolve(resolve_context!(ctx.q))?);
-
-                    if let Some((name, _)) = ctx.scopes.get(hir::Name::Str(name)) {
-                        break 'ok hir::Call::Var { name };
-                    }
-                }
-
                 let named = ctx.q.convert_path(path)?;
                 let parameters = generics_parameters(&named)?;
 
