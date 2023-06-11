@@ -6,7 +6,7 @@ mod scopes;
 
 use crate::Hash;
 
-pub(crate) use self::assemble::{Assembler, Needs};
+pub(crate) use self::assemble::{Ctxt, Needs};
 pub(crate) use self::loops::{Loop, Loops};
 pub(crate) use self::scopes::{Layer, ScopeGuard, Scopes, Var};
 

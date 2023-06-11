@@ -33,7 +33,8 @@ impl Needs {
     }
 }
 
-pub(crate) struct Assembler<'a, 'hir, 'arena> {
+/// Assemble context.
+pub(crate) struct Ctxt<'a, 'hir, 'arena> {
     /// The source id of the source.
     pub(crate) source_id: SourceId,
     /// Query system to compile required items.
@@ -50,7 +51,7 @@ pub(crate) struct Assembler<'a, 'hir, 'arena> {
     pub(crate) options: &'a Options,
 }
 
-impl<'a, 'hir, 'arena> Assembler<'a, 'hir, 'arena> {
+impl<'a, 'hir, 'arena> Ctxt<'a, 'hir, 'arena> {
     /// Pop locals by simply popping them.
     pub(crate) fn locals_pop(&mut self, total_var_count: usize, span: &dyn Spanned) {
         match total_var_count {
@@ -187,7 +188,7 @@ pub(crate) enum AsmKind<'hir> {
 
 impl<'hir> Asm<'hir> {
     /// Assemble into an instruction.
-    fn apply(self, cx: &mut Assembler) -> compile::Result<()> {
+    fn apply(self, cx: &mut Ctxt) -> compile::Result<()> {
         if let AsmKind::Var(var) = self.kind {
             var.copy(cx, &self.span, format_args!("var `{}`", var));
         }
@@ -196,7 +197,7 @@ impl<'hir> Asm<'hir> {
     }
 
     /// Assemble into an instruction declaring an anonymous variable if appropriate.
-    fn apply_targeted(self, cx: &mut Assembler) -> compile::Result<InstAddress> {
+    fn apply_targeted(self, cx: &mut Ctxt) -> compile::Result<InstAddress> {
         let address = match self.kind {
             AsmKind::Top => {
                 cx.scopes.alloc(&self.span)?;
@@ -212,7 +213,7 @@ impl<'hir> Asm<'hir> {
 /// Assemble a function from an [hir::ItemFn<'_>].
 #[instrument(span = hir)]
 pub(crate) fn fn_from_item_fn<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::ItemFn<'hir>,
     instance_fn: bool,
 ) -> compile::Result<()> {
@@ -268,7 +269,7 @@ pub(crate) fn fn_from_item_fn<'hir>(
 /// Assemble an async block.
 #[instrument(span = hir.block.span)]
 pub(crate) fn async_block_secondary<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::AsyncBlock<'hir>,
 ) -> compile::Result<()> {
     for name in hir.captures.iter().copied() {
@@ -283,7 +284,7 @@ pub(crate) fn async_block_secondary<'hir>(
 /// Assemble the body of a closure function.
 #[instrument(span = span)]
 pub(crate) fn expr_closure_secondary<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::ExprClosure<'hir>,
     span: &'hir dyn Spanned,
 ) -> compile::Result<()> {
@@ -320,10 +321,10 @@ pub(crate) fn expr_closure_secondary<'hir>(
 
 /// Assemble a return statement from the given Assemble.
 fn return_<'hir, T>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     span: &dyn Spanned,
     hir: T,
-    asm: impl FnOnce(&mut Assembler<'_, 'hir, '_>, T, Needs) -> compile::Result<Asm<'hir>>,
+    asm: impl FnOnce(&mut Ctxt<'_, 'hir, '_>, T, Needs) -> compile::Result<Asm<'hir>>,
 ) -> compile::Result<()> {
     let clean = cx.scopes.total(span)?;
 
@@ -342,11 +343,11 @@ fn return_<'hir, T>(
 /// Compile a pattern based on the given offset.
 #[instrument(span = hir)]
 fn pat_with_offset<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::Pat<'hir>,
     offset: usize,
 ) -> compile::Result<()> {
-    let load = |cx: &mut Assembler<'_, 'hir, '_>, needs: Needs| {
+    let load = |cx: &mut Ctxt<'_, 'hir, '_>, needs: Needs| {
         if needs.value() {
             cx.asm.push(Inst::Copy { offset }, hir);
         }
@@ -384,10 +385,10 @@ fn pat_with_offset<'hir>(
 /// Returns a boolean indicating if the label was used.
 #[instrument(span = hir)]
 fn pat<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::Pat<'hir>,
     false_label: &Label,
-    load: &dyn Fn(&mut Assembler<'_, 'hir, '_>, Needs) -> compile::Result<()>,
+    load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, Needs) -> compile::Result<()>,
 ) -> compile::Result<bool> {
     let span = hir;
 
@@ -435,10 +436,10 @@ fn pat<'hir>(
 /// Assemble a pattern literal.
 #[instrument(span = hir)]
 fn pat_lit<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::Expr<'_>,
     false_label: &Label,
-    load: &dyn Fn(&mut Assembler<'_, 'hir, '_>, Needs) -> compile::Result<()>,
+    load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, Needs) -> compile::Result<()>,
 ) -> compile::Result<bool> {
     let Some(inst) = pat_lit_inst(cx, hir)? else {
         return Err(compile::Error::new(
@@ -456,7 +457,7 @@ fn pat_lit<'hir>(
 
 #[instrument(span = hir)]
 fn pat_lit_inst<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::Expr<'_>,
 ) -> compile::Result<Option<Inst>> {
     let hir::ExprKind::Lit(lit) = hir.kind else {
@@ -483,7 +484,7 @@ fn pat_lit_inst<'hir>(
 /// Assemble an [hir::Condition<'_>].
 #[instrument(span = condition)]
 fn condition<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     condition: &hir::Condition<'hir>,
     then_label: &Label,
 ) -> compile::Result<Layer<'hir>> {
@@ -501,7 +502,7 @@ fn condition<'hir>(
 
             let expected = cx.scopes.child(span)?;
 
-            let load = |cx: &mut Assembler<'_, 'hir, '_>, needs: Needs| {
+            let load = |cx: &mut Ctxt<'_, 'hir, '_>, needs: Needs| {
                 expr(cx, &expr_let.expr, needs)?.apply(cx)?;
                 Ok(())
             };
@@ -521,11 +522,11 @@ fn condition<'hir>(
 /// Encode a vector pattern match.
 #[instrument(span = span)]
 fn pat_vec<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::PatItems<'hir>,
     span: &dyn Spanned,
     false_label: &Label,
-    load: &dyn Fn(&mut Assembler<'_, 'hir, '_>, Needs) -> compile::Result<()>,
+    load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, Needs) -> compile::Result<()>,
 ) -> compile::Result<()> {
     // Assign the yet-to-be-verified tuple to an anonymous slot, so we can
     // interact with it multiple times.
@@ -549,7 +550,7 @@ fn pat_vec<'hir>(
         .pop_and_jump_if_not(cx.scopes.local(span)?, false_label, span);
 
     for (index, hir) in hir.items.iter().take(hir.count).enumerate() {
-        let load = move |cx: &mut Assembler<'_, 'hir, '_>, needs: Needs| {
+        let load = move |cx: &mut Ctxt<'_, 'hir, '_>, needs: Needs| {
             if needs.value() {
                 cx.asm.push(Inst::TupleIndexGetAt { offset, index }, hir);
             }
@@ -566,11 +567,11 @@ fn pat_vec<'hir>(
 /// Encode a vector pattern match.
 #[instrument(span = span)]
 fn pat_tuple<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::PatItems<'hir>,
     span: &dyn Spanned,
     false_label: &Label,
-    load: &dyn Fn(&mut Assembler<'_, 'hir, '_>, Needs) -> compile::Result<()>,
+    load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, Needs) -> compile::Result<()>,
 ) -> compile::Result<()> {
     load(cx, Needs::Value)?;
 
@@ -595,7 +596,7 @@ fn pat_tuple<'hir>(
         .pop_and_jump_if_not(cx.scopes.local(span)?, false_label, span);
 
     for (index, p) in hir.items.iter().take(hir.count).enumerate() {
-        let load = move |cx: &mut Assembler<'_, 'hir, '_>, needs: Needs| {
+        let load = move |cx: &mut Ctxt<'_, 'hir, '_>, needs: Needs| {
             if needs.value() {
                 cx.asm.push(Inst::TupleIndexGetAt { offset, index }, p);
             }
@@ -633,11 +634,11 @@ fn to_tuple_match_instruction(kind: hir::PatItemsKind) -> Inst {
 /// Assemble an object pattern.
 #[instrument(span = span)]
 fn pat_object<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::PatItems<'hir>,
     span: &dyn Spanned,
     false_label: &Label,
-    load: &dyn Fn(&mut Assembler<'_, 'hir, '_>, Needs) -> compile::Result<()>,
+    load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, Needs) -> compile::Result<()>,
 ) -> compile::Result<()> {
     // NB: bind the loaded variable (once) to an anonymous var.
     // We reduce the number of copy operations by having specialized
@@ -686,7 +687,7 @@ fn pat_object<'hir>(
     for (binding, slot) in hir.bindings.iter().zip(string_slots) {
         match *binding {
             hir::Binding::Binding(span, _, p) => {
-                let load = move |cx: &mut Assembler<'_, 'hir, '_>, needs: Needs| {
+                let load = move |cx: &mut Ctxt<'_, 'hir, '_>, needs: Needs| {
                     if needs.value() {
                         cx.asm.push(Inst::ObjectIndexGetAt { offset, slot }, &span);
                     }
@@ -709,7 +710,7 @@ fn pat_object<'hir>(
 /// Call a block.
 #[instrument(span = hir)]
 fn block<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::Block<'hir>,
     needs: Needs,
 ) -> compile::Result<Asm<'hir>> {
@@ -776,7 +777,7 @@ fn block<'hir>(
 /// Assemble #[builtin] format_args!(...) macro.
 #[instrument(span = format)]
 fn builtin_format<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     format: &'hir hir::BuiltInFormat<'hir>,
     needs: Needs,
 ) -> compile::Result<Asm<'hir>> {
@@ -804,7 +805,7 @@ fn builtin_format<'hir>(
 /// Assemble #[builtin] template!(...) macro.
 #[instrument(span = template)]
 fn builtin_template<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     template: &hir::BuiltInTemplate<'hir>,
     needs: Needs,
 ) -> compile::Result<Asm<'hir>> {
@@ -853,7 +854,7 @@ fn builtin_template<'hir>(
 /// Assemble a constant value.
 #[instrument(span = span)]
 fn const_<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     value: &ConstValue,
     span: &dyn Spanned,
     needs: Needs,
@@ -949,7 +950,7 @@ fn const_<'hir>(
 /// Assemble an expression.
 #[instrument(span = hir)]
 fn expr<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::Expr<'hir>,
     needs: Needs,
 ) -> compile::Result<Asm<'hir>> {
@@ -1017,7 +1018,7 @@ fn expr<'hir>(
 /// Assemble an assign expression.
 #[instrument(span = span)]
 fn expr_assign<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::ExprAssign<'hir>,
     span: &'hir dyn Spanned,
     needs: Needs,
@@ -1099,7 +1100,7 @@ fn expr_assign<'hir>(
 /// Assemble an `.await` expression.
 #[instrument(span = hir)]
 fn expr_await<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::Expr<'hir>,
     span: &dyn Spanned,
     needs: Needs,
@@ -1117,7 +1118,7 @@ fn expr_await<'hir>(
 /// Assemble a binary expression.
 #[instrument(span = span)]
 fn expr_binary<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::ExprBinary<'hir>,
     span: &dyn Spanned,
     needs: Needs,
@@ -1182,7 +1183,7 @@ fn expr_binary<'hir>(
     return Ok(Asm::top(span));
 
     fn compile_conditional_binop<'hir>(
-        cx: &mut Assembler<'_, 'hir, '_>,
+        cx: &mut Ctxt<'_, 'hir, '_>,
         lhs: &'hir hir::Expr<'hir>,
         rhs: &'hir hir::Expr<'hir>,
         bin_op: &ast::BinOp,
@@ -1220,7 +1221,7 @@ fn expr_binary<'hir>(
     }
 
     fn compile_assign_binop<'hir>(
-        cx: &mut Assembler<'_, 'hir, '_>,
+        cx: &mut Ctxt<'_, 'hir, '_>,
         lhs: &'hir hir::Expr<'hir>,
         rhs: &'hir hir::Expr<'hir>,
         bin_op: &ast::BinOp,
@@ -1293,7 +1294,7 @@ fn expr_binary<'hir>(
 /// Assemble a block expression.
 #[instrument(span = span)]
 fn expr_async_block<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::ExprAsyncBlock<'hir>,
     span: &'hir dyn Spanned,
     needs: Needs,
@@ -1328,7 +1329,7 @@ fn expr_async_block<'hir>(
 /// Assemble a constant item.
 #[instrument(span = span)]
 fn const_item<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hash: Hash,
     span: &dyn Spanned,
     needs: Needs,
@@ -1349,7 +1350,7 @@ fn const_item<'hir>(
 /// NB: loops are expected to produce a value at the end of their expression.
 #[instrument(span = span)]
 fn expr_break<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: Option<&hir::ExprBreakValue<'hir>>,
     span: &dyn Spanned,
     _: Needs,
@@ -1409,7 +1410,7 @@ fn expr_break<'hir>(
 /// Assemble a call expression.
 #[instrument(span = span)]
 fn expr_call<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::ExprCall<'hir>,
     span: &dyn Spanned,
     needs: Needs,
@@ -1487,7 +1488,7 @@ fn expr_call<'hir>(
 /// Assemble a closure expression.
 #[instrument(span = span)]
 fn expr_call_closure<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::ExprCallClosure<'hir>,
     span: &'hir dyn Spanned,
     needs: Needs,
@@ -1524,7 +1525,7 @@ fn expr_call_closure<'hir>(
 /// Assemble a continue expression.
 #[instrument(span = span)]
 fn expr_continue<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: Option<&ast::Label>,
     span: &dyn Spanned,
     _: Needs,
@@ -1559,7 +1560,7 @@ fn expr_continue<'hir>(
 /// Assemble an expr field access, like `<value>.<field>`.
 #[instrument(span = span)]
 fn expr_field_access<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::ExprFieldAccess<'hir>,
     span: &dyn Spanned,
     needs: Needs,
@@ -1623,7 +1624,7 @@ fn expr_field_access<'hir>(
 /// Assemble an expression for loop.
 #[instrument(span = span)]
 fn expr_for<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::ExprFor<'hir>,
     span: &dyn Spanned,
     needs: Needs,
@@ -1784,7 +1785,7 @@ fn expr_for<'hir>(
 /// Assemble an if expression.
 #[instrument(span = span)]
 fn expr_if<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::Conditional<'hir>,
     span: &dyn Spanned,
     needs: Needs,
@@ -1843,7 +1844,7 @@ fn expr_if<'hir>(
 /// Assemble an expression.
 #[instrument(span = span)]
 fn expr_index<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::ExprIndex<'hir>,
     span: &dyn Spanned,
     needs: Needs,
@@ -1868,11 +1869,11 @@ fn expr_index<'hir>(
 /// Assemble a let expression.
 #[instrument(span = hir)]
 fn expr_let<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::ExprLet<'hir>,
     needs: Needs,
 ) -> compile::Result<Asm<'hir>> {
-    let load = |cx: &mut Assembler<'_, 'hir, '_>, needs: Needs| {
+    let load = |cx: &mut Ctxt<'_, 'hir, '_>, needs: Needs| {
         // NB: assignments "move" the value being assigned.
         expr(cx, &hir.expr, needs)?.apply(cx)?;
         Ok(())
@@ -1907,7 +1908,7 @@ fn expr_let<'hir>(
 
 #[instrument(span = span)]
 fn expr_match<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::ExprMatch<'hir>,
     span: &dyn Spanned,
     needs: Needs,
@@ -1929,7 +1930,7 @@ fn expr_match<'hir>(
 
         let parent_guard = cx.scopes.child(span)?;
 
-        let load = move |this: &mut Assembler, needs: Needs| {
+        let load = move |this: &mut Ctxt, needs: Needs| {
             if needs.value() {
                 this.asm.push(Inst::Copy { offset }, span);
             }
@@ -1996,7 +1997,7 @@ fn expr_match<'hir>(
 /// Compile a literal object.
 #[instrument(span = span)]
 fn expr_object<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::ExprObject<'hir>,
     span: &dyn Spanned,
     needs: Needs,
@@ -2040,7 +2041,7 @@ fn expr_object<'hir>(
 /// Assemble a range expression.
 #[instrument(span = span)]
 fn expr_range<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::ExprRange<'hir>,
     span: &dyn Spanned,
     needs: Needs,
@@ -2114,7 +2115,7 @@ fn expr_range<'hir>(
 /// Assemble a return expression.
 #[instrument(span = span)]
 fn expr_return<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: Option<&'hir hir::Expr<'hir>>,
     span: &dyn Spanned,
     _: Needs,
@@ -2142,7 +2143,7 @@ fn expr_return<'hir>(
 /// Assemble a select expression.
 #[instrument(span = span)]
 fn expr_select<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::ExprSelect<'hir>,
     span: &dyn Spanned,
     needs: Needs,
@@ -2240,7 +2241,7 @@ fn expr_select<'hir>(
 /// Assemble a try expression.
 #[instrument(span = span)]
 fn expr_try<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::Expr<'hir>,
     span: &dyn Spanned,
     needs: Needs,
@@ -2274,7 +2275,7 @@ fn expr_try<'hir>(
 /// Assemble a literal tuple.
 #[instrument(span = span)]
 fn expr_tuple<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::ExprSeq<'hir>,
     span: &dyn Spanned,
     needs: Needs,
@@ -2338,7 +2339,7 @@ fn expr_tuple<'hir>(
 /// Assemble a unary expression.
 #[instrument(span = span)]
 fn expr_unary<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::ExprUnary<'hir>,
     span: &dyn Spanned,
     needs: Needs,
@@ -2372,7 +2373,7 @@ fn expr_unary<'hir>(
 /// Assemble a literal vector.
 #[instrument(span = span)]
 fn expr_vec<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::ExprSeq<'hir>,
     span: &dyn Spanned,
     needs: Needs,
@@ -2400,7 +2401,7 @@ fn expr_vec<'hir>(
 /// Assemble a while loop.
 #[instrument(span = span)]
 fn expr_loop<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::ExprLoop<'hir>,
     span: &dyn Spanned,
     needs: Needs,
@@ -2456,7 +2457,7 @@ fn expr_loop<'hir>(
 /// Assemble a `yield` expression.
 #[instrument(span = span)]
 fn expr_yield<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: Option<&'hir hir::Expr<'hir>>,
     span: &dyn Spanned,
     needs: Needs,
@@ -2478,7 +2479,7 @@ fn expr_yield<'hir>(
 /// Assemble a literal value.
 #[instrument(span = span)]
 fn lit<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: hir::Lit<'_>,
     span: &dyn Spanned,
     needs: Needs,
@@ -2521,11 +2522,11 @@ fn lit<'hir>(
 /// Assemble a local expression.
 #[instrument(span = hir)]
 fn local<'hir>(
-    cx: &mut Assembler<'_, 'hir, '_>,
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::Local<'hir>,
     needs: Needs,
 ) -> compile::Result<Asm<'hir>> {
-    let load = |cx: &mut Assembler<'_, 'hir, '_>, needs: Needs| {
+    let load = |cx: &mut Ctxt<'_, 'hir, '_>, needs: Needs| {
         // NB: assignments "move" the value being assigned.
         expr(cx, &hir.expr, needs)?.apply(cx)?;
         Ok(())

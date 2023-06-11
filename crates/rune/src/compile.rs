@@ -200,8 +200,8 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
         location: Location,
         span: &dyn Spanned,
         asm: &'a mut Assembly,
-    ) -> self::v1::Assembler<'a, 'hir, 'arena> {
-        self::v1::Assembler {
+    ) -> self::v1::Ctxt<'a, 'hir, 'arena> {
+        self::v1::Ctxt {
             source_id: location.source_id,
             q: self.q.borrow(),
             asm,

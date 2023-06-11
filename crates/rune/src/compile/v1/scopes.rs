@@ -4,7 +4,7 @@ use crate::no_std::collections::HashMap;
 use crate::no_std::prelude::*;
 
 use crate::ast::Spanned;
-use crate::compile::v1::Assembler;
+use crate::compile::v1::Ctxt;
 use crate::compile::{self, Assembly, CompileErrorKind, WithSpan};
 use crate::hir;
 use crate::query::Query;
@@ -45,7 +45,7 @@ impl<'hir> fmt::Display for Var<'hir> {
 
 impl<'hir> Var<'hir> {
     /// Copy the declared variable.
-    pub(crate) fn copy<C>(&self, cx: &mut Assembler<'_, '_, '_>, span: &dyn Spanned, comment: C)
+    pub(crate) fn copy<C>(&self, cx: &mut Ctxt<'_, '_, '_>, span: &dyn Spanned, comment: C)
     where
         C: fmt::Display,
     {
