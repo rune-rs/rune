@@ -152,6 +152,7 @@ pub(crate) fn async_block_secondary<'hir>(
                 let name = alloc_str!(name.as_str());
                 cx.scopes.define(hir::Name::Str(name)).with_span(ast)?
             }
+            hir::OwnedName::Id(id) => cx.scopes.define(hir::Name::Id(*id)).with_span(ast)?,
         }
     });
 
@@ -183,6 +184,9 @@ pub(crate) fn expr_closure_secondary<'hir>(
         hir::OwnedName::Str(name) => {
             let name = hir::Name::Str(alloc_str!(name.as_str()));
             cx.scopes.define(name).with_span(ast)?
+        }
+        hir::OwnedName::Id(id) => {
+            cx.scopes.define(hir::Name::Id(*id)).with_span(ast)?
         }
     });
 
@@ -255,6 +259,7 @@ fn expr_call_closure<'hir>(
             iter!(captures, |capture| match capture {
                 hir::OwnedName::SelfValue => hir::Name::SelfValue,
                 hir::OwnedName::Str(name) => hir::Name::Str(alloc_str!(name.as_str())),
+                hir::OwnedName::Id(id) => hir::Name::Id(*id),
             })
         }
     };
@@ -838,6 +843,7 @@ pub(crate) fn expr_block<'hir>(
                     iter!(captures, |capture| match capture {
                         hir::OwnedName::SelfValue => hir::Name::SelfValue,
                         hir::OwnedName::Str(name) => hir::Name::Str(alloc_str!(name.as_str())),
+                        hir::OwnedName::Id(id) => hir::Name::Id(*id),
                     })
                 }
             };

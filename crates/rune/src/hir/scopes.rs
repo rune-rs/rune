@@ -29,13 +29,15 @@ enum LayerKind {
 pub(crate) enum OwnedName {
     SelfValue,
     Str(String),
+    Id(usize),
 }
 
-impl OwnedName {
-    pub(crate) fn as_str(&self) -> &str {
+impl fmt::Display for OwnedName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            OwnedName::SelfValue => "self",
-            OwnedName::Str(name) => name,
+            OwnedName::SelfValue => "self".fmt(f),
+            OwnedName::Str(name) => name.fmt(f),
+            OwnedName::Id(id) => id.fmt(f),
         }
     }
 }
@@ -47,34 +49,28 @@ pub(crate) enum Name<'hir> {
     SelfValue,
     /// Capture of a named variable.
     Str(&'hir str),
+    /// Anonymous variable.
+    Id(usize),
 }
 
 impl<'hir> Name<'hir> {
-    pub(crate) fn as_str(self) -> &'hir str {
-        match self {
-            Name::SelfValue => "self",
-            Name::Str(name) => name,
-        }
-    }
-
-    /// Get the captured string.
-    pub(crate) fn into_string(self) -> String {
-        String::from(self.as_str())
-    }
-
     /// Coerce into an owned name.
     pub(crate) fn into_owned(self) -> OwnedName {
         match self {
             Name::SelfValue => OwnedName::SelfValue,
             Name::Str(name) => OwnedName::Str(name.to_owned()),
+            Name::Id(id) => OwnedName::Id(id),
         }
     }
 }
 
-impl<'hir> fmt::Display for Name<'hir> {
-    #[inline]
+impl fmt::Display for Name<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.as_str().fmt(f)
+        match self {
+            Name::SelfValue => "self".fmt(f),
+            Name::Str(name) => name.fmt(f),
+            Name::Id(id) => id.fmt(f),
+        }
     }
 }
 
@@ -114,6 +110,7 @@ impl<'hir> Layer<'hir> {
 pub(crate) struct Scopes<'hir> {
     scope: Scope,
     scopes: slab::Slab<Layer<'hir>>,
+    ids: usize,
 }
 
 impl<'hir> Scopes<'hir> {
@@ -231,6 +228,7 @@ impl<'hir> Default for Scopes<'hir> {
         Self {
             scope: Scopes::ROOT,
             scopes,
+            ids: 0,
         }
     }
 }
