@@ -14,8 +14,7 @@ use core::ops::{AddAssign, MulAssign, ShlAssign, ShrAssign, SubAssign};
 use crate::no_std::prelude::*;
 
 use crate as rune;
-use crate::ast::{Span, Spanned};
-use crate::compile::ast;
+use crate::ast::{self, Span, Spanned};
 use crate::compile::ir;
 use crate::compile::ir::eval::IrEvalBreak;
 use crate::compile::{self, WithSpan};

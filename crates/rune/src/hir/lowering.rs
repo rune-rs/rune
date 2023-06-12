@@ -8,7 +8,6 @@ use num::ToPrimitive;
 
 use crate::ast::{self, Spanned};
 use crate::compile::meta;
-use crate::compile::v1::GenericsParameters;
 use crate::compile::{
     self, CompileErrorKind, DynLocation, HirErrorKind, Item, ItemId, ParseErrorKind, WithSpan,
 };
@@ -16,7 +15,7 @@ use crate::hash::{Hash, ParametersBuilder};
 use crate::hir;
 use crate::indexing;
 use crate::parse::Resolve;
-use crate::query::{self, Build, BuildEntry, Named, Query, Used};
+use crate::query::{self, Build, BuildEntry, GenericsParameters, Named, Query, Used};
 use crate::runtime::Type;
 use crate::SourceId;
 

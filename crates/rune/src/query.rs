@@ -15,6 +15,7 @@ use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::compile::ir;
 use crate::compile::{ItemId, ItemMeta, ModId};
+use crate::hash::Hash;
 use crate::hir;
 use crate::indexing;
 use crate::runtime::format;
@@ -159,4 +160,28 @@ pub(crate) struct ConstFn<'hir> {
     /// HIR function associated with this constant function.
     #[allow(unused)]
     pub(crate) hir: hir::ItemFn<'hir>,
+}
+
+/// Generic parameters.
+#[derive(Default)]
+pub(crate) struct GenericsParameters {
+    pub(crate) trailing: usize,
+    pub(crate) parameters: [Option<Hash>; 2],
+}
+
+impl GenericsParameters {
+    pub(crate) fn is_empty(&self) -> bool {
+        self.parameters.iter().all(|p| p.is_none())
+    }
+
+    pub(crate) fn as_boxed(&self) -> Box<[Option<Hash>]> {
+        self.parameters.iter().copied().collect()
+    }
+}
+
+impl AsRef<GenericsParameters> for GenericsParameters {
+    #[inline]
+    fn as_ref(&self) -> &GenericsParameters {
+        self
+    }
 }

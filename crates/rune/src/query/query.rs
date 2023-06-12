@@ -10,7 +10,6 @@ use crate::ast::{Span, Spanned};
 use crate::compile::context::ContextMeta;
 use crate::compile::ir;
 use crate::compile::meta;
-use crate::compile::v1::GenericsParameters;
 use crate::compile::{
     self, CompileErrorKind, CompileVisitor, ComponentRef, Doc, DynLocation, ImportStep,
     IntoComponent, Item, ItemBuf, ItemId, ItemMeta, Located, Location, ModId, ModMeta, Names, Pool,
@@ -20,7 +19,9 @@ use crate::hir;
 use crate::indexing::{self, Indexed, Items};
 use crate::macros::Storage;
 use crate::parse::{Id, NonZeroId, Opaque, Resolve, ResolveContext};
-use crate::query::{Build, BuildEntry, BuiltInMacro, ConstFn, Named, QueryPath, Used};
+use crate::query::{
+    Build, BuildEntry, BuiltInMacro, ConstFn, GenericsParameters, Named, QueryPath, Used,
+};
 use crate::runtime::ConstValue;
 use crate::shared::{Consts, Gen};
 use crate::{ast, Options};
