@@ -201,7 +201,7 @@ macro_rules! impl_tuple {
             $($ty: FromValue,)*
         {
             fn from_value(value: Value) -> VmResult<Self> {
-                let tuple = vm_try!(vm_try!(value.into_tuple()).take());
+                let tuple = vm_try!(vm_try!(value.into_tuple()).borrow_mut()).clone();
 
                 if tuple.len() != $count {
                     return VmResult::err(VmErrorKind::ExpectedTupleLength {
