@@ -523,8 +523,6 @@ pub(crate) enum VmErrorKind {
     },
     #[error("Expected a tuple of length `{expected}`, but found one with length `{actual}`")]
     ExpectedTupleLength { actual: usize, expected: usize },
-    #[error("Unexpectedly ran out of items to iterate over")]
-    IterationError,
     #[error("Type `{actual}` can't be converted to a constant value")]
     ConstNotSupported { actual: TypeInfo },
     #[error("Type `{actual}` can't be converted to a hash key")]

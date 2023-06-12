@@ -392,6 +392,7 @@ mod range;
 mod reference_error;
 mod result;
 mod stmt_reordering;
+mod tuple;
 mod type_name_native;
 mod type_name_rune;
 mod unit_constants;

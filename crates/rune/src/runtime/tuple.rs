@@ -201,28 +201,16 @@ macro_rules! impl_tuple {
             $($ty: FromValue,)*
         {
             fn from_value(value: Value) -> VmResult<Self> {
-                let tuple = vm_try!(vm_try!(value.into_tuple()).borrow_mut()).clone();
+                let tuple = vm_try!(vm_try!(value.into_tuple()).into_ref());
 
-                if tuple.len() != $count {
+                let [$($var,)*] = &tuple.inner[..] else {
                     return VmResult::err(VmErrorKind::ExpectedTupleLength {
                         actual: tuple.len(),
                         expected: $count,
                     });
-                }
+                };
 
-                #[allow(unused_mut, unused_variables)]
-                let mut it = Vec::from(tuple.into_inner()).into_iter();
-
-                $(
-                    let $var = match it.next() {
-                        Some(value) => vm_try!(<$ty>::from_value(value)),
-                        None => {
-                            return VmResult::err(VmErrorKind::IterationError);
-                        },
-                    };
-                )*
-
-                VmResult::Ok(($($var,)*))
+                VmResult::Ok(($(vm_try!(<$ty>::from_value($var.clone())),)*))
             }
         }
 
