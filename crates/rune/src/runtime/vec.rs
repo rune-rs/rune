@@ -183,6 +183,11 @@ impl Vec {
 
         VmResult::Ok(true)
     }
+
+    /// Access the inner values as a slice.
+    pub(crate) fn as_slice(&self) -> &[Value] {
+        &self.inner
+    }
 }
 
 impl Named for Vec {

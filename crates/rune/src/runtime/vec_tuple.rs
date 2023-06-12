@@ -20,35 +20,22 @@ where
 }
 
 macro_rules! impl_from_value_tuple_vec {
-    ($count:expr $(, $ty:ident $value:ident $_:expr)*) => {
+    ($count:expr $(, $ty:ident $var:ident $_:expr)*) => {
         impl<$($ty,)*> FromValue for VecTuple<($($ty,)*)>
         where
             $($ty: FromValue,)*
         {
             fn from_value(value: Value) -> VmResult<Self> {
-                let vec = vm_try!(value.into_vec());
-                let vec = vm_try!(vec.take());
+                let vec = vm_try!(vm_try!(value.into_vec()).into_ref());
 
-                if vec.len() != $count {
+                let [$($var,)*] = vec.as_slice() else {
                     return VmResult::err(VmErrorKind::ExpectedTupleLength {
                         actual: vec.len(),
                         expected: $count,
                     });
-                }
+                };
 
-                #[allow(unused_mut, unused_variables)]
-                let mut it = vec.into_iter();
-
-                $(
-                    let $value: $ty = match it.next() {
-                        Some(value) => vm_try!(<$ty>::from_value(value)),
-                        None => {
-                            return VmResult::err(VmErrorKind::IterationError);
-                        },
-                    };
-                )*
-
-                VmResult::Ok(VecTuple(($($value,)*)))
+                VmResult::Ok(VecTuple(($(vm_try!(<$ty>::from_value($var.clone())),)*)))
             }
         }
 
@@ -57,8 +44,8 @@ macro_rules! impl_from_value_tuple_vec {
             $($ty: ToValue,)*
         {
             fn to_value(self) -> VmResult<Value> {
-                let ($($value,)*) = self.0;
-                let vec = vec![$(vm_try!($value.to_value()),)*];
+                let ($($var,)*) = self.0;
+                let vec = vec![$(vm_try!($var.to_value()),)*];
                 VmResult::Ok(Value::vec(vec))
             }
         }
