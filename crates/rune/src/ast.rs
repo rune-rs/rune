@@ -156,7 +156,8 @@ mod span;
 pub(crate) mod spanned;
 mod stmt;
 mod token;
-pub(super) mod utils;
+pub(super) mod unescape;
+mod utils;
 mod vis;
 
 pub use self::attribute::{AttrStyle, Attribute};

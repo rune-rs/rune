@@ -6,7 +6,7 @@ use crate::no_std::prelude::*;
 
 use crate::ast;
 use crate::ast::Span;
-use crate::compile::{self, ParseErrorKind};
+use crate::compile::{self, ErrorKind};
 use crate::SourceId;
 
 /// Lexer for the rune language.
@@ -240,7 +240,7 @@ impl<'a> Lexer<'a> {
                     if self.iter.next().is_none() {
                         return Err(compile::Error::new(
                             self.iter.span_to_pos(s),
-                            ParseErrorKind::ExpectedEscape,
+                            ErrorKind::ExpectedEscape,
                         ));
                     }
 
@@ -259,10 +259,7 @@ impl<'a> Lexer<'a> {
                 }
                 c if c.is_control() => {
                     let span = self.iter.span_to_pos(start);
-                    return Err(compile::Error::new(
-                        span,
-                        ParseErrorKind::UnterminatedCharLit,
-                    ));
+                    return Err(compile::Error::new(span, ErrorKind::UnterminatedCharLit));
                 }
                 _ if is_label && count > 0 => {
                     break;
@@ -279,13 +276,10 @@ impl<'a> Lexer<'a> {
             let span = self.iter.span_to_len(start);
 
             if !is_label {
-                return Err(compile::Error::new(span, ParseErrorKind::ExpectedCharClose));
+                return Err(compile::Error::new(span, ErrorKind::ExpectedCharClose));
             }
 
-            return Err(compile::Error::new(
-                span,
-                ParseErrorKind::ExpectedCharOrLabel,
-            ));
+            return Err(compile::Error::new(span, ErrorKind::ExpectedCharOrLabel));
         }
 
         if is_label {
@@ -309,7 +303,7 @@ impl<'a> Lexer<'a> {
                 None => {
                     return Err(compile::Error::new(
                         self.iter.span_to_pos(start),
-                        ParseErrorKind::ExpectedByteClose,
+                        ErrorKind::ExpectedByteClose,
                     ));
                 }
             };
@@ -319,7 +313,7 @@ impl<'a> Lexer<'a> {
                     if self.iter.next().is_none() {
                         return Err(compile::Error::new(
                             self.iter.span_to_pos(s),
-                            ParseErrorKind::ExpectedEscape,
+                            ErrorKind::ExpectedEscape,
                         ));
                     }
                 }
@@ -328,10 +322,7 @@ impl<'a> Lexer<'a> {
                 }
                 c if c.is_control() => {
                     let span = self.iter.span_to_pos(start);
-                    return Err(compile::Error::new(
-                        span,
-                        ParseErrorKind::UnterminatedByteLit,
-                    ));
+                    return Err(compile::Error::new(span, ErrorKind::UnterminatedByteLit));
                 }
                 _ => (),
             }
@@ -347,7 +338,7 @@ impl<'a> Lexer<'a> {
     fn next_str(
         &mut self,
         start: usize,
-        error_kind: impl FnOnce() -> ParseErrorKind + Copy,
+        error_kind: impl FnOnce() -> ErrorKind + Copy,
         kind: impl FnOnce(ast::StrSource) -> ast::Kind,
     ) -> compile::Result<Option<ast::Token>> {
         let mut escaped = false;
@@ -369,7 +360,7 @@ impl<'a> Lexer<'a> {
                     if self.iter.next().is_none() {
                         return Err(compile::Error::new(
                             self.iter.span_to_pos(s),
-                            ParseErrorKind::ExpectedEscape,
+                            ErrorKind::ExpectedEscape,
                         ));
                     }
 
@@ -442,14 +433,11 @@ impl<'a> Lexer<'a> {
                         Some((_, '{')) => (),
                         Some((start, c)) => {
                             let span = self.iter.span_to_pos(start);
-                            return Err(compile::Error::new(
-                                span,
-                                ParseErrorKind::UnexpectedChar { c },
-                            ));
+                            return Err(compile::Error::new(span, ErrorKind::UnexpectedChar { c }));
                         }
                         None => {
                             let span = self.iter.span_to_len(start);
-                            return Err(compile::Error::new(span, ParseErrorKind::UnexpectedEof));
+                            return Err(compile::Error::new(span, ErrorKind::UnexpectedEof));
                         }
                     }
 
@@ -489,7 +477,7 @@ impl<'a> Lexer<'a> {
                     if self.iter.next().is_none() {
                         return Err(compile::Error::new(
                             self.iter.span_to_pos(s),
-                            ParseErrorKind::ExpectedEscape,
+                            ErrorKind::ExpectedEscape,
                         ));
                     }
 
@@ -547,7 +535,7 @@ impl<'a> Lexer<'a> {
 
         Err(compile::Error::new(
             self.iter.point_span(),
-            ParseErrorKind::UnexpectedEof,
+            ErrorKind::UnexpectedEof,
         ))
     }
 
@@ -749,7 +737,7 @@ impl<'a> Lexer<'a> {
                             self.iter.next();
                             return self.next_str(
                                 start,
-                                || ParseErrorKind::UnterminatedByteStrLit,
+                                || ErrorKind::UnterminatedByteStrLit,
                                 ast::Kind::ByteStr,
                             );
                         }
@@ -814,7 +802,7 @@ impl<'a> Lexer<'a> {
                     '"' => {
                         return self.next_str(
                             start,
-                            || ParseErrorKind::UnterminatedStrLit,
+                            || ErrorKind::UnterminatedStrLit,
                             ast::Kind::Str,
                         );
                     }
@@ -848,10 +836,7 @@ impl<'a> Lexer<'a> {
                     }
                     _ => {
                         let span = self.iter.span_to_pos(start);
-                        return Err(compile::Error::new(
-                            span,
-                            ParseErrorKind::UnexpectedChar { c },
-                        ));
+                        return Err(compile::Error::new(span, ErrorKind::UnexpectedChar { c }));
                     }
                 };
             };
@@ -974,7 +959,7 @@ impl LexerModes {
         if actual != expected {
             return Err(compile::Error::new(
                 iter.point_span(),
-                ParseErrorKind::BadLexerMode { actual, expected },
+                ErrorKind::BadLexerMode { actual, expected },
             ));
         }
 
@@ -993,7 +978,7 @@ impl LexerModes {
                 let span = iter.span_to_pos(start);
                 Err(compile::Error::new(
                     span,
-                    ParseErrorKind::BadLexerMode {
+                    ErrorKind::BadLexerMode {
                         actual: LexerMode::default(),
                         expected: LexerMode::Template(0),
                     },

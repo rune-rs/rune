@@ -52,7 +52,7 @@ impl<'a> Resolve<'a> for LitNumber {
                 None => {
                     return Err(compile::Error::new(
                         span,
-                        ResolveErrorKind::BadSyntheticId {
+                        ErrorKind::BadSyntheticId {
                             kind: SyntheticKind::Number,
                             id,
                         },
@@ -65,7 +65,7 @@ impl<'a> Resolve<'a> for LitNumber {
         let string = cx
             .sources
             .source(text.source_id, span)
-            .ok_or_else(|| compile::Error::new(span, ResolveErrorKind::BadSlice))?;
+            .ok_or_else(|| compile::Error::new(span, ErrorKind::BadSlice))?;
 
         if text.is_fractional {
             let number: f64 = string.parse().map_err(err_span(span))?;
@@ -83,7 +83,7 @@ impl<'a> Resolve<'a> for LitNumber {
         return Ok(ast::Number::Integer(number));
 
         fn err_span<E>(span: Span) -> impl Fn(E) -> compile::Error {
-            move |_| compile::Error::new(span, ResolveErrorKind::BadNumberLiteral)
+            move |_| compile::Error::new(span, ErrorKind::BadNumberLiteral)
         }
     }
 }

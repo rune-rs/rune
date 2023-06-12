@@ -1,6 +1,6 @@
 prelude!();
 
-use CompileErrorKind::*;
+use ErrorKind::*;
 
 #[test]
 fn test_fn_const_async() {

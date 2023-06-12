@@ -4,7 +4,7 @@ use core::ops;
 use crate::no_std::collections::VecDeque;
 
 use crate::ast::{Kind, OptionSpanned, Span, Token};
-use crate::compile::{self, ParseErrorKind};
+use crate::compile::{self, ErrorKind};
 use crate::macros::{TokenStream, TokenStreamIter};
 use crate::parse::{Lexer, Parse, Peek};
 use crate::SourceId;
@@ -92,7 +92,7 @@ impl<'a> Parser<'a> {
         if let Some(token) = self.peeker.at(0)? {
             return Err(compile::Error::new(
                 token,
-                ParseErrorKind::ExpectedEof { actual: token.kind },
+                ErrorKind::ExpectedEof { actual: token.kind },
             ));
         }
 
@@ -175,7 +175,7 @@ impl<'a> Parser<'a> {
             Some(t) => Ok(t),
             None => Err(compile::Error::new(
                 self.last_span().tail(),
-                ParseErrorKind::UnexpectedEof,
+                ErrorKind::UnexpectedEof,
             )),
         }
     }
@@ -302,7 +302,7 @@ impl<'a> Peeker<'a> {
                     if !term {
                         return Err(compile::Error::new(
                             token.span,
-                            ParseErrorKind::ExpectedMultilineCommentTerm,
+                            ErrorKind::ExpectedMultilineCommentTerm,
                         ));
                     }
 

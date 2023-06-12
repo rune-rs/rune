@@ -51,7 +51,7 @@ impl Parse for Group {
                         if actual != delim {
                             return Err(compile::Error::new(
                                 open,
-                                ParseErrorKind::ExpectedMacroCloseDelimiter {
+                                ErrorKind::ExpectedMacroCloseDelimiter {
                                     actual: token.kind,
                                     expected: ast::Kind::Close(delim),
                                 },

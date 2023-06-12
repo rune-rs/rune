@@ -9,10 +9,8 @@ pub(crate) use self::assembly::{Assembly, AssemblyInst};
 pub(crate) mod attrs;
 
 pub(crate) mod error;
-pub(crate) use self::error::{
-    CompileErrorKind, HirErrorKind, IrErrorKind, ParseErrorKind, QueryErrorKind, ResolveErrorKind,
-};
 pub use self::error::{Error, ImportStep};
+pub(crate) use self::error::{ErrorKind, IrErrorKind};
 
 mod compile_visitor;
 pub use self::compile_visitor::CompileVisitor;

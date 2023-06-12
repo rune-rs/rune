@@ -1,6 +1,6 @@
 prelude!();
 
-use CompileErrorKind::*;
+use ErrorKind::*;
 
 #[test]
 fn test_use_variant_as_type() {

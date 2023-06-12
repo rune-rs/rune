@@ -1,6 +1,6 @@
 prelude!();
 
-use CompileErrorKind::*;
+use ErrorKind::*;
 
 #[test]
 fn illegal_pattern_in_match() {

@@ -4,7 +4,7 @@ use crate::no_std::prelude::*;
 
 use crate::ast;
 use crate::ast::Spanned;
-use crate::compile::{self, CompileErrorKind, ItemMeta};
+use crate::compile::{self, ErrorKind, ItemMeta};
 use crate::indexing::Indexer;
 use crate::macros::{MacroContext, ToTokens};
 use crate::parse::{Parse, Parser};
@@ -40,7 +40,7 @@ impl MacroCompiler<'_, '_, '_> {
             None => {
                 return Err(compile::Error::new(
                     span,
-                    CompileErrorKind::MissingMacro {
+                    ErrorKind::MissingMacro {
                         item: self.idx.q.pool.item(named.item).to_owned(),
                     },
                 ));

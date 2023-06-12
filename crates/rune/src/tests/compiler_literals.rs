@@ -1,8 +1,6 @@
 prelude!();
 
-use CompileErrorKind::{ParseError, ResolveError};
-use ParseErrorKind::*;
-use ResolveErrorKind::*;
+use ErrorKind::*;
 
 #[test]
 fn test_number_literals() {
@@ -16,22 +14,22 @@ fn test_number_literals() {
 
     assert_errors! {
         r#"pub fn main() { -0aardvark }"#,
-        span!(17, 26), ResolveError(BadNumberLiteral { .. })
+        span!(17, 26), BadNumberLiteral { .. }
     };
 
     assert_errors! {
         r#"pub fn main() { -9223372036854775809 }"#,
-        span!(16, 36), ParseError(BadNumberOutOfBounds { .. })
+        span!(16, 36), BadNumberOutOfBounds { .. }
     };
 
     assert_parse!(r#"pub fn main() { 9223372036854775807 }"#);
     assert_errors! {
         r#"pub fn main() { 9223372036854775808 }"#,
-        span!(16, 35), ParseError(BadNumberOutOfBounds { .. })
+        span!(16, 35), BadNumberOutOfBounds { .. }
     };
 
     assert_errors! {
         r#"pub fn main() { 0b1000000000000000000000000000000000000000000000000000000000000000 }"#,
-        span!(16, 82), ParseError(BadNumberOutOfBounds { .. })
+        span!(16, 82), BadNumberOutOfBounds { .. }
     };
 }

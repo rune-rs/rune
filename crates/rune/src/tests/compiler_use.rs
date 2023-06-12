@@ -1,7 +1,6 @@
 prelude!();
 
-use CompileErrorKind::*;
-use QueryErrorKind::*;
+use ErrorKind::*;
 
 #[test]
 fn test_import_cycle() {
@@ -19,7 +18,7 @@ fn test_import_cycle() {
             Foo
         }             
         "#,
-        span!(244, 247), QueryError(ImportCycle { .. })
+        span!(244, 247), ImportCycle { .. }
     };
 
     assert_errors! {
@@ -36,7 +35,7 @@ fn test_import_cycle() {
             a::Foo
         }           
         "#,
-        span!(161, 167), QueryError(ImportCycle { path, .. }) => {
+        span!(161, 167), ImportCycle { path, .. } => {
             assert_eq!(3, path.len());
             assert_eq!(span!(99, 112), path[0].location.span);
             assert_eq!(span!(37, 50), path[1].location.span);

@@ -5,7 +5,7 @@ use crate::no_std::prelude::*;
 
 use crate::ast::Spanned;
 use crate::compile::v1::Ctxt;
-use crate::compile::{self, Assembly, CompileErrorKind, WithSpan};
+use crate::compile::{self, Assembly, ErrorKind, WithSpan};
 use crate::hir;
 use crate::query::Query;
 use crate::runtime::Inst;
@@ -142,7 +142,7 @@ impl<'hir> Scopes<'hir> {
                 if let Some(moved_at) = var.moved_at {
                     return Err(compile::Error::new(
                         span,
-                        CompileErrorKind::VariableMoved {
+                        ErrorKind::VariableMoved {
                             moved_at: moved_at.span(),
                         },
                     ));
@@ -176,7 +176,7 @@ impl<'hir> Scopes<'hir> {
                 if let Some(moved_at) = var.moved_at {
                     return Err(compile::Error::new(
                         span,
-                        CompileErrorKind::VariableMoved {
+                        ErrorKind::VariableMoved {
                             moved_at: moved_at.span(),
                         },
                     ));

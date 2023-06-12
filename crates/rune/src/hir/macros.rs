@@ -8,7 +8,7 @@ macro_rules! alloc_with {
                 $cx.arena.alloc($value).map_err(|e| {
                     compile::Error::new(
                         $span,
-                        HirErrorKind::ArenaAllocError {
+                        ErrorKind::ArenaAllocError {
                             requested: e.requested,
                         },
                     )
@@ -52,7 +52,7 @@ macro_rules! alloc_with {
                     Err(e) => {
                         return Err(compile::Error::new(
                             $span,
-                            HirErrorKind::ArenaAllocError {
+                            ErrorKind::ArenaAllocError {
                                 requested: e.requested,
                             },
                         ));
@@ -63,7 +63,7 @@ macro_rules! alloc_with {
                     if let Err(e) = writer.write($closure) {
                         return Err(compile::Error::new(
                             $span,
-                            HirErrorKind::ArenaWriteSliceOutOfBounds { index: e.index },
+                            ErrorKind::ArenaWriteSliceOutOfBounds { index: e.index },
                         ));
                     }
                 }
@@ -79,7 +79,7 @@ macro_rules! alloc_with {
                     Ok(string) => string,
                     Err(e) => return Err(compile::Error::new(
                         $span,
-                        HirErrorKind::ArenaAllocError {
+                        ErrorKind::ArenaAllocError {
                             requested: e.requested,
                         },
                     )),
@@ -94,7 +94,7 @@ macro_rules! alloc_with {
                     Ok(bytes) => bytes,
                     Err(e) => return Err(compile::Error::new(
                         $span,
-                        HirErrorKind::ArenaAllocError {
+                        ErrorKind::ArenaAllocError {
                             requested: e.requested,
                         },
                     )),

@@ -4,7 +4,7 @@ use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::compile::v1;
 use crate::compile::{
-    self, Assembly, CompileErrorKind, CompileVisitor, Context, Location, Options, Pool, Prelude,
+    self, Assembly, CompileVisitor, Context, ErrorKind, Location, Options, Pool, Prelude,
     SourceLoader, UnitBuilder,
 };
 use crate::hir;
@@ -167,7 +167,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                 {
                     return Err(compile::Error::new(
                         item_meta.location.span,
-                        CompileErrorKind::MissingItem {
+                        ErrorKind::MissingItem {
                             item: self.q.pool.item(item_meta.item).to_owned(),
                         },
                     ));
@@ -364,7 +364,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                 if let Some(item) = missing {
                     return Err(compile::Error::new(
                         location,
-                        CompileErrorKind::MissingItem {
+                        ErrorKind::MissingItem {
                             item: self.q.pool.item(item).to_owned(),
                         },
                     ));
@@ -376,7 +376,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                 let Some(import) = self.q.import(&location, item_meta.module, item_meta.item, used)? else {
                     return Err(compile::Error::new(
                         location.span,
-                        CompileErrorKind::MissingItem {
+                        ErrorKind::MissingItem {
                             item: self.q.pool.item(item_meta.item).to_owned(),
                         },
                     ))

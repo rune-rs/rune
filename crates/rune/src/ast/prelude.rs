@@ -2,9 +2,8 @@
 
 pub(crate) use crate as rune;
 pub(crate) use crate::ast;
-pub(crate) use crate::ast::utils;
 pub(crate) use crate::ast::{OptionSpanned, Span, Spanned};
-pub(crate) use crate::compile::{self, ParseErrorKind, ResolveErrorKind};
+pub(crate) use crate::compile::{self, ErrorKind};
 pub(crate) use crate::macros::{MacroContext, SyntheticKind, ToTokens, TokenStream};
 pub(crate) use crate::no_std::prelude::*;
 pub(crate) use crate::parse::Opaque;

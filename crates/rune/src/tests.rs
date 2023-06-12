@@ -6,10 +6,7 @@
 pub(crate) mod prelude {
     pub(crate) use crate as rune;
     pub(crate) use crate::ast;
-    pub(crate) use crate::compile::{
-        self, CompileErrorKind, Item, Located, Named, ParseErrorKind, QueryErrorKind,
-        ResolveErrorKind,
-    };
+    pub(crate) use crate::compile::{self, ErrorKind, Item, Located, Named};
     pub(crate) use crate::diagnostics;
     pub(crate) use crate::macros;
     pub(crate) use crate::module::InstallWith;

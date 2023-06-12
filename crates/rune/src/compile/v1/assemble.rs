@@ -5,7 +5,7 @@ use crate::no_std::prelude::*;
 use crate::ast::{self, Span, Spanned};
 use crate::compile::ir;
 use crate::compile::v1::{Layer, Loop, Loops, ScopeGuard, Scopes, Var};
-use crate::compile::{self, Assembly, CompileErrorKind, ItemId, ModId, Options, WithSpan};
+use crate::compile::{self, Assembly, ErrorKind, ItemId, ModId, Options, WithSpan};
 use crate::hir;
 use crate::query::{ConstFn, Query, Used};
 use crate::runtime::{
@@ -114,7 +114,7 @@ impl<'a, 'hir, 'arena> Ctxt<'a, 'hir, 'arena> {
         if query_const_fn.ir_fn.args.len() != args.len() {
             return Err(compile::Error::new(
                 span,
-                CompileErrorKind::UnsupportedArgumentCount {
+                ErrorKind::UnsupportedArgumentCount {
                     expected: query_const_fn.ir_fn.args.len(),
                     actual: args.len(),
                 },
@@ -224,10 +224,7 @@ pub(crate) fn fn_from_item_fn<'hir>(
         match arg {
             hir::FnArg::SelfValue(span) => {
                 if !instance_fn || !first {
-                    return Err(compile::Error::new(
-                        *span,
-                        CompileErrorKind::UnsupportedSelf,
-                    ));
+                    return Err(compile::Error::new(*span, ErrorKind::UnsupportedSelf));
                 }
 
                 cx.scopes.define(hir::Name::SelfValue, span)?;
@@ -293,7 +290,7 @@ pub(crate) fn expr_closure_secondary<'hir>(
     for arg in hir.args {
         match arg {
             hir::FnArg::SelfValue(..) => {
-                return Err(compile::Error::new(arg, CompileErrorKind::UnsupportedSelf))
+                return Err(compile::Error::new(arg, ErrorKind::UnsupportedSelf))
             }
             hir::FnArg::Pat(pat) => {
                 let offset = cx.scopes.alloc(pat)?;
@@ -426,10 +423,7 @@ fn pat<'hir>(
             pat_object(cx, hir, span, false_label, &load)?;
             Ok(true)
         }
-        _ => Err(compile::Error::new(
-            hir,
-            CompileErrorKind::UnsupportedPatternExpr,
-        )),
+        _ => Err(compile::Error::new(hir, ErrorKind::UnsupportedPatternExpr)),
     }
 }
 
@@ -444,7 +438,7 @@ fn pat_lit<'hir>(
     let Some(inst) = pat_lit_inst(cx, hir)? else {
         return Err(compile::Error::new(
             hir,
-            CompileErrorKind::UnsupportedPatternExpr,
+            ErrorKind::UnsupportedPatternExpr,
         ));
     };
 
@@ -1062,7 +1056,7 @@ fn expr_assign<'hir>(
                     true
                 }
                 _ => {
-                    return Err(compile::Error::new(span, CompileErrorKind::BadFieldAccess));
+                    return Err(compile::Error::new(span, ErrorKind::BadFieldAccess));
                 }
             }
         }
@@ -1084,10 +1078,7 @@ fn expr_assign<'hir>(
     };
 
     if !supported {
-        return Err(compile::Error::new(
-            span,
-            CompileErrorKind::UnsupportedAssignExpr,
-        ));
+        return Err(compile::Error::new(span, ErrorKind::UnsupportedAssignExpr));
     }
 
     if needs.value() {
@@ -1166,7 +1157,7 @@ fn expr_binary<'hir>(
         op => {
             return Err(compile::Error::new(
                 span,
-                CompileErrorKind::UnsupportedBinaryOp { op },
+                ErrorKind::UnsupportedBinaryOp { op },
             ));
         }
     };
@@ -1204,7 +1195,7 @@ fn expr_binary<'hir>(
             op => {
                 return Err(compile::Error::new(
                     span,
-                    CompileErrorKind::UnsupportedBinaryOp { op: *op },
+                    ErrorKind::UnsupportedBinaryOp { op: *op },
                 ));
             }
         }
@@ -1248,7 +1239,7 @@ fn expr_binary<'hir>(
                         Some(InstTarget::Field(n))
                     }
                     _ => {
-                        return Err(compile::Error::new(span, CompileErrorKind::BadFieldAccess));
+                        return Err(compile::Error::new(span, ErrorKind::BadFieldAccess));
                     }
                 }
             }
@@ -1258,7 +1249,7 @@ fn expr_binary<'hir>(
         let Some(target) = supported else {
             return Err(compile::Error::new(
                 span,
-                CompileErrorKind::UnsupportedBinaryExpr,
+                ErrorKind::UnsupportedBinaryExpr,
             ));
         };
 
@@ -1274,10 +1265,7 @@ fn expr_binary<'hir>(
             ast::BinOp::ShlAssign(..) => InstAssignOp::Shl,
             ast::BinOp::ShrAssign(..) => InstAssignOp::Shr,
             _ => {
-                return Err(compile::Error::new(
-                    span,
-                    CompileErrorKind::UnsupportedBinaryExpr,
-                ));
+                return Err(compile::Error::new(span, ErrorKind::UnsupportedBinaryExpr));
             }
         };
 
@@ -1358,7 +1346,7 @@ fn expr_break<'hir>(
     let Some(current_loop) = cx.loops.last() else {
         return Err(compile::Error::new(
             span,
-            CompileErrorKind::BreakOutsideOfLoop,
+            ErrorKind::BreakOutsideOfLoop,
         ));
     };
 
@@ -1533,7 +1521,7 @@ fn expr_continue<'hir>(
     let Some(current_loop) = cx.loops.last() else {
         return Err(compile::Error::new(
             span,
-            CompileErrorKind::ContinueOutsideOfLoop,
+            ErrorKind::ContinueOutsideOfLoop,
         ));
     };
 
@@ -1617,7 +1605,7 @@ fn expr_field_access<'hir>(
 
             Ok(Asm::top(span))
         }
-        _ => Err(compile::Error::new(span, CompileErrorKind::BadFieldAccess)),
+        _ => Err(compile::Error::new(span, ErrorKind::BadFieldAccess)),
     }
 }
 
@@ -2164,10 +2152,7 @@ fn expr_select<'hir>(
             }
             hir::ExprSelectBranch::Default(def) => {
                 if default_branch.is_some() {
-                    return Err(compile::Error::new(
-                        span,
-                        CompileErrorKind::SelectMultipleDefaults,
-                    ));
+                    return Err(compile::Error::new(span, ErrorKind::SelectMultipleDefaults));
                 }
 
                 let label = cx.asm.new_label("select_default");
@@ -2212,7 +2197,7 @@ fn expr_select<'hir>(
             _ => {
                 return Err(compile::Error::new(
                     branch.pat.span,
-                    CompileErrorKind::UnsupportedSelectPattern,
+                    ErrorKind::UnsupportedSelectPattern,
                 ));
             }
         }
@@ -2356,7 +2341,7 @@ fn expr_unary<'hir>(
         op => {
             return Err(compile::Error::new(
                 span,
-                CompileErrorKind::UnsupportedUnaryOp { op },
+                ErrorKind::UnsupportedUnaryOp { op },
             ));
         }
     }

@@ -1,6 +1,6 @@
 use crate::no_std::prelude::*;
 
-use crate::compile::{self, CompileErrorKind, IntoComponent, ItemBuf, Location, ModId, Visibility};
+use crate::compile::{self, ErrorKind, IntoComponent, ItemBuf, Location, ModId, Visibility};
 use crate::query::Query;
 
 pub(crate) struct WildcardImport {
@@ -63,7 +63,7 @@ impl WildcardImport {
         if !self.found {
             return Err(compile::Error::new(
                 self.location,
-                CompileErrorKind::MissingItem {
+                ErrorKind::MissingItem {
                     item: self.name.clone(),
                 },
             ));

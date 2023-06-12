@@ -2,7 +2,7 @@ use crate::no_std::path::Path;
 use crate::no_std::prelude::*;
 
 use crate::ast::Spanned;
-use crate::compile::{self, CompileErrorKind, ComponentRef, Item};
+use crate::compile::{self, ComponentRef, ErrorKind, Item};
 use crate::Source;
 
 /// A source loader.
@@ -41,7 +41,7 @@ impl SourceLoader for FileSourceLoader {
         if !base.pop() {
             return Err(compile::Error::new(
                 span,
-                CompileErrorKind::UnsupportedModuleRoot {
+                ErrorKind::UnsupportedModuleRoot {
                     root: root.to_owned(),
                 },
             ));
@@ -53,7 +53,7 @@ impl SourceLoader for FileSourceLoader {
             } else {
                 return Err(compile::Error::new(
                     span,
-                    CompileErrorKind::UnsupportedModuleItem {
+                    ErrorKind::UnsupportedModuleItem {
                         item: item.to_owned(),
                     },
                 ));
@@ -76,7 +76,7 @@ impl SourceLoader for FileSourceLoader {
             None => {
                 return Err(compile::Error::new(
                     span,
-                    CompileErrorKind::ModNotFound { path: base },
+                    ErrorKind::ModNotFound { path: base },
                 ));
             }
         };
@@ -85,7 +85,7 @@ impl SourceLoader for FileSourceLoader {
             Ok(source) => Ok(source),
             Err(error) => Err(compile::Error::new(
                 span,
-                CompileErrorKind::FileError {
+                ErrorKind::FileError {
                     path: path.to_owned(),
                     error,
                 },

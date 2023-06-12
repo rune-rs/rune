@@ -1,6 +1,6 @@
 prelude!();
 
-use QueryErrorKind::*;
+use ErrorKind::*;
 
 #[test]
 fn test_grouped_imports() {
@@ -67,6 +67,6 @@ fn test_access() {
         mod c { use a; fn test() { a::Test } }
         pub fn main() { c::test() }
         "#,
-        span!(103, 110), CompileErrorKind::QueryError(NotVisible { .. })
+        span!(103, 110), NotVisible { .. }
     };
 }

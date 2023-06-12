@@ -3,7 +3,6 @@ use core::fmt;
 use core::ops::Neg;
 
 use crate::ast::{Kind, Span, Spanned};
-use crate::compile::ParseErrorKind;
 use crate::macros::{MacroContext, SyntheticId, ToTokens, TokenStream};
 use crate::parse::{Expectation, IntoExpectation};
 use crate::SourceId;
@@ -179,12 +178,12 @@ pub enum Number {
 
 impl Number {
     /// Convert into a 32-bit unsigned number.
-    pub(crate) fn as_u32(&self, neg: bool) -> Result<u32, ParseErrorKind> {
+    pub(crate) fn as_u32(&self, neg: bool) -> Option<u32> {
         self.as_primitive(neg, num::ToPrimitive::to_u32)
     }
 
     /// Convert into usize.
-    pub(crate) fn as_usize(&self, neg: bool) -> Result<usize, ParseErrorKind> {
+    pub(crate) fn as_usize(&self, neg: bool) -> Option<usize> {
         self.as_primitive(neg, num::ToPrimitive::to_usize)
     }
 
@@ -198,26 +197,20 @@ impl Number {
         }
     }
 
-    fn as_primitive<T>(
-        &self,
-        neg: bool,
-        to: impl FnOnce(&num::BigInt) -> Option<T>,
-    ) -> Result<T, ParseErrorKind> {
-        let number = match self {
-            Number::Float(_) => return Err(ParseErrorKind::BadNumber),
-            Number::Integer(n) => {
-                if neg {
-                    to(&n.clone().neg())
-                } else {
-                    to(n)
-                }
-            }
+    fn as_primitive<T>(&self, neg: bool, to: impl FnOnce(&num::BigInt) -> Option<T>) -> Option<T> {
+        let Number::Integer(number) = self else {
+            return None;
         };
 
-        match number {
-            Some(n) => Ok(n),
-            None => Err(ParseErrorKind::BadNumberOutOfBounds),
+        let mut number = number;
+        let negated;
+
+        if neg {
+            negated = number.clone().neg();
+            number = &negated;
         }
+
+        to(number)
     }
 }
 
