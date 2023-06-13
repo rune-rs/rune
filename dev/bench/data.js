@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1686532882427,
+  "lastUpdate": 1686619073887,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -20944,6 +20944,88 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 5382496,
             "range": "± 26490",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Dark",
+            "username": "DarkRTA",
+            "email": "dark@dark.ski"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "ce59c1378388e9b8fb1a07603981a9552432809b",
+          "message": "Tuple and VecTuple incorrectly takes their values (#562)\n\nCo-authored-by: John-John Tedro <udoprog@tedro.se>",
+          "timestamp": "2023-06-12T08:56:17Z",
+          "url": "https://github.com/rune-rs/rune/commit/ce59c1378388e9b8fb1a07603981a9552432809b"
+        },
+        "date": 1686619072656,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 343600,
+            "range": "± 674",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1172163,
+            "range": "± 6086",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 511059070,
+            "range": "± 1451549",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 309079375,
+            "range": "± 1421848",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 1519253,
+            "range": "± 2635",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 16206564,
+            "range": "± 44423",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 87026247,
+            "range": "± 250064",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 13830075,
+            "range": "± 53833",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 573086,
+            "range": "± 446",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 6351834,
+            "range": "± 5470",
             "unit": "ns/iter"
           }
         ]
