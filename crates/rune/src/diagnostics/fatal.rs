@@ -1,10 +1,6 @@
 use core::fmt;
 
-use crate::no_std as std;
 use crate::no_std::prelude::*;
-use crate::no_std::thiserror;
-
-use thiserror::Error;
 
 #[cfg(feature = "emit")]
 use crate::ast::{Span, Spanned};
@@ -57,28 +53,46 @@ impl fmt::Display for FatalDiagnostic {
 impl crate::no_std::error::Error for FatalDiagnostic {
     #[inline]
     fn source(&self) -> Option<&(dyn crate::no_std::error::Error + 'static)> {
-        self.kind.source()
+        match &*self.kind {
+            FatalDiagnosticKind::CompileError(error) => Some(error),
+            FatalDiagnosticKind::LinkError(error) => Some(error),
+            _ => None,
+        }
     }
 }
 
 /// The kind of a [FatalDiagnostic].
-#[derive(Debug, Error)]
+#[derive(Debug)]
 #[allow(missing_docs)]
 #[non_exhaustive]
 pub enum FatalDiagnosticKind {
-    #[error("Compile error")]
-    CompileError(
-        #[from]
-        #[source]
-        compile::Error,
-    ),
-    #[error("Linker error")]
-    LinkError(
-        #[from]
-        #[source]
-        LinkerError,
-    ),
+    CompileError(compile::Error),
+    LinkError(LinkerError),
     /// An internal error.
-    #[error("Internal error: {0}")]
     Internal(&'static str),
+}
+
+impl fmt::Display for FatalDiagnosticKind {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            FatalDiagnosticKind::CompileError(error) => error.fmt(f),
+            FatalDiagnosticKind::LinkError(error) => error.fmt(f),
+            FatalDiagnosticKind::Internal(message) => message.fmt(f),
+        }
+    }
+}
+
+impl From<compile::Error> for FatalDiagnosticKind {
+    #[inline]
+    fn from(error: compile::Error) -> Self {
+        FatalDiagnosticKind::CompileError(error)
+    }
+}
+
+impl From<LinkerError> for FatalDiagnosticKind {
+    #[inline]
+    fn from(error: LinkerError) -> Self {
+        FatalDiagnosticKind::LinkError(error)
+    }
 }

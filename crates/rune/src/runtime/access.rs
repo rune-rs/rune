@@ -6,11 +6,6 @@ use core::ops;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
-use crate::no_std as std;
-use crate::no_std::thiserror;
-
-use thiserror::Error;
-
 use crate::runtime::{AnyObjError, RawStr};
 
 /// Bitflag which if set indicates that the accessed value is an external
@@ -23,37 +18,115 @@ const TAKEN: isize = (isize::max_value() ^ IS_REF_MASK) >> 1;
 const MAX_USES: isize = 0b11isize.rotate_right(2);
 
 /// An error raised while downcasting.
-#[derive(Debug, Error)]
+#[derive(Debug)]
 #[allow(missing_docs)]
 #[non_exhaustive]
 pub enum AccessError {
-    #[error("Expected data of type `{expected}`, but found `{actual}`")]
     UnexpectedType { expected: RawStr, actual: RawStr },
-    #[error("{error}")]
-    NotAccessibleRef {
-        #[source]
-        #[from]
-        error: NotAccessibleRef,
-    },
-    #[error("{error}")]
-    NotAccessibleMut {
-        #[source]
-        #[from]
-        error: NotAccessibleMut,
-    },
-    #[error("{error}")]
-    NotAccessibleTake {
-        #[source]
-        #[from]
-        error: NotAccessibleTake,
-    },
-    #[error("{error}")]
-    AnyObjError {
-        #[source]
-        #[from]
-        error: AnyObjError,
-    },
+    NotAccessibleRef { error: NotAccessibleRef },
+    NotAccessibleMut { error: NotAccessibleMut },
+    NotAccessibleTake { error: NotAccessibleTake },
+    AnyObjError { error: AnyObjError },
 }
+
+impl crate::no_std::error::Error for AccessError {
+    fn source(&self) -> Option<&(dyn crate::no_std::error::Error + 'static)> {
+        match self {
+            AccessError::NotAccessibleRef { error, .. } => Some(error),
+            AccessError::NotAccessibleMut { error, .. } => Some(error),
+            AccessError::NotAccessibleTake { error, .. } => Some(error),
+            AccessError::AnyObjError { error, .. } => Some(error),
+            _ => None,
+        }
+    }
+}
+
+impl fmt::Display for AccessError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            AccessError::UnexpectedType { expected, actual } => write!(
+                f,
+                "Expected data of type `{expected}`, but found `{actual}`",
+            ),
+            AccessError::NotAccessibleRef { error } => error.fmt(f),
+            AccessError::NotAccessibleMut { error } => error.fmt(f),
+            AccessError::NotAccessibleTake { error } => error.fmt(f),
+            AccessError::AnyObjError { error } => error.fmt(f),
+        }
+    }
+}
+
+impl From<NotAccessibleRef> for AccessError {
+    #[inline]
+    fn from(error: NotAccessibleRef) -> Self {
+        AccessError::NotAccessibleRef { error }
+    }
+}
+
+impl From<NotAccessibleMut> for AccessError {
+    #[inline]
+    fn from(error: NotAccessibleMut) -> Self {
+        AccessError::NotAccessibleMut { error }
+    }
+}
+
+impl From<NotAccessibleTake> for AccessError {
+    #[inline]
+    fn from(error: NotAccessibleTake) -> Self {
+        AccessError::NotAccessibleTake { error }
+    }
+}
+
+impl From<AnyObjError> for AccessError {
+    #[inline]
+    fn from(source: AnyObjError) -> Self {
+        AccessError::AnyObjError { error: source }
+    }
+}
+
+/// Error raised when tried to access for shared access but it was not
+/// accessible.
+#[derive(Debug)]
+pub struct NotAccessibleRef(Snapshot);
+
+impl fmt::Display for NotAccessibleRef {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Cannot read, value is {}", self.0)
+    }
+}
+
+impl crate::no_std::error::Error for NotAccessibleRef {}
+
+/// Error raised when tried to access for exclusive access but it was not
+/// accessible.
+#[derive(Debug)]
+pub struct NotAccessibleMut(Snapshot);
+
+impl fmt::Display for NotAccessibleMut {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Cannot write, value is {}", self.0)
+    }
+}
+
+impl crate::no_std::error::Error for NotAccessibleMut {}
+
+/// Error raised when tried to access the guarded data for taking.
+///
+/// This requires exclusive access, but it's a scenario we structure separately
+/// for diagnostics purposes.
+#[derive(Debug)]
+pub struct NotAccessibleTake(Snapshot);
+
+impl fmt::Display for NotAccessibleTake {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Cannot take, value is {}", self.0)
+    }
+}
+
+impl crate::no_std::error::Error for NotAccessibleTake {}
 
 /// The kind of access to perform.
 #[derive(Debug, Clone, Copy)]
@@ -63,26 +136,6 @@ pub(crate) enum AccessKind {
     /// Access something owned.
     Owned,
 }
-
-/// Error raised when tried to access for shared access but it was not
-/// accessible.
-#[derive(Debug, Error)]
-#[error("cannot read, value is {0}")]
-pub struct NotAccessibleRef(Snapshot);
-
-/// Error raised when tried to access for exclusive access but it was not
-/// accessible.
-#[derive(Debug, Error)]
-#[error("cannot write, value is {0}")]
-pub struct NotAccessibleMut(Snapshot);
-
-/// Error raised when tried to access the guarded data for taking.
-///
-/// This requires exclusive access, but it's a scenario we structure separately
-/// for diagnostics purposes.
-#[derive(Debug, Error)]
-#[error("cannot take, value is {0}")]
-pub struct NotAccessibleTake(Snapshot);
 
 /// Snapshot that can be used to indicate how the value was being accessed at
 /// the time of an error.

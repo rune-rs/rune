@@ -5,30 +5,43 @@ use core::fmt;
 use core::mem::ManuallyDrop;
 use core::ops::{Deref, DerefMut};
 
-use crate::no_std as std;
 use crate::no_std::prelude::*;
-use crate::no_std::thiserror;
-
-use thiserror::Error;
 
 use crate::any::Any;
 use crate::hash::Hash;
 use crate::runtime::{AnyTypeInfo, FullTypeOf, MaybeTypeOf, RawStr, TypeInfo};
 
 /// Errors raised during casting operations.
-#[derive(Debug, Error)]
+#[derive(Debug)]
 #[allow(missing_docs)]
 #[non_exhaustive]
 pub enum AnyObjError {
-    #[error("Cannot borrow a shared reference `&{name}` mutably as `&mut {name}`")]
     RefAsMut { name: RawStr },
-    #[error("Cannot take ownership of a shared reference `&{name}`")]
     RefAsOwned { name: RawStr },
-    #[error("Cannot take ownership of a mutable reference `&mut {name}`")]
     MutAsOwned { name: RawStr },
-    #[error("Cast failed")]
     Cast,
 }
+
+impl fmt::Display for AnyObjError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            AnyObjError::RefAsMut { name } => write!(
+                f,
+                "Cannot borrow a shared reference `&{name}` mutably as `&mut {name}`",
+            ),
+            AnyObjError::RefAsOwned { name } => {
+                write!(f, "Cannot take ownership of a shared reference `&{name}`",)
+            }
+            AnyObjError::MutAsOwned { name } => write!(
+                f,
+                "Cannot take ownership of a mutable reference `&mut {name}`",
+            ),
+            AnyObjError::Cast {} => write!(f, "Cast failed"),
+        }
+    }
+}
+
+impl crate::no_std::error::Error for AnyObjError {}
 
 /// Our own private dynamic Any implementation.
 ///

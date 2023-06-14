@@ -1,85 +1,105 @@
-use crate::no_std as std;
-use crate::no_std::prelude::*;
-use crate::no_std::thiserror;
+use core::fmt;
 
-use thiserror::Error;
+use crate::no_std::prelude::*;
 
 use crate::compile::ItemBuf;
 use crate::runtime::{TypeInfo, VmError};
 use crate::Hash;
 
 /// An error raised when building the context.
-#[derive(Debug, Error)]
+#[derive(Debug)]
 #[allow(missing_docs)]
 #[non_exhaustive]
 pub enum ContextError {
-    #[error("Unit `()` type is already present")]
     UnitAlreadyPresent,
-    #[error("Type for name `{name}` is already present")]
-    InternalAlreadyPresent { name: &'static str },
-    #[error("Function with hash `{hash}` already exists")]
-    ConflictingFunction { hash: Hash },
-    #[error("Function `{item}` already exists with hash `{hash}`")]
-    ConflictingFunctionName { item: ItemBuf, hash: Hash },
-    #[error("Macro `{item}` already exists with hash `{hash}`")]
-    ConflictingMacroName { item: ItemBuf, hash: Hash },
-    #[error("Constant `{item}` already exists with hash `{hash}`")]
-    ConflictingConstantName { item: ItemBuf, hash: Hash },
-    #[error("Instance function `{name}` for type `{type_info}` already exists")]
-    ConflictingInstanceFunction { type_info: TypeInfo, name: Box<str> },
-    #[error("Protocol function `{name}` for type `{type_info}` already exists")]
-    ConflictingProtocolFunction { type_info: TypeInfo, name: Box<str> },
-    #[error("Field function `{name}` for field `{field}` and type `{type_info}` already exists")]
+    InternalAlreadyPresent {
+        name: &'static str,
+    },
+    ConflictingFunction {
+        hash: Hash,
+    },
+    ConflictingFunctionName {
+        item: ItemBuf,
+        hash: Hash,
+    },
+    ConflictingMacroName {
+        item: ItemBuf,
+        hash: Hash,
+    },
+    ConflictingConstantName {
+        item: ItemBuf,
+        hash: Hash,
+    },
+    ConflictingInstanceFunction {
+        type_info: TypeInfo,
+        name: Box<str>,
+    },
+    ConflictingProtocolFunction {
+        type_info: TypeInfo,
+        name: Box<str>,
+    },
     ConflictingFieldFunction {
         type_info: TypeInfo,
         name: Box<str>,
         field: Box<str>,
     },
-    #[error("Index function `{name}` for index `{index}` and type `{type_info}` already exists")]
     ConflictingIndexFunction {
         type_info: TypeInfo,
         name: Box<str>,
         index: usize,
     },
-    #[error("Module `{item}` with hash `{hash}` already exists")]
-    ConflictingModule { item: ItemBuf, hash: Hash },
-    #[error("Type `{item}` already exists `{type_info}` with hash `{hash}`")]
+    ConflictingModule {
+        item: ItemBuf,
+        hash: Hash,
+    },
     ConflictingType {
         item: ItemBuf,
         type_info: TypeInfo,
         hash: Hash,
     },
-    #[error("Type `{item}` at `{type_info}` already has a specification")]
-    ConflictingTypeMeta { item: ItemBuf, type_info: TypeInfo },
-    #[error("Variant `{index}` for `{type_info}` already has a specification")]
-    ConflictingVariantMeta { index: usize, type_info: TypeInfo },
-    #[error(
-        "Conflicting meta hash `{hash}` for existing `{existing}` when inserting item `{item}`"
-    )]
+    ConflictingTypeMeta {
+        item: ItemBuf,
+        type_info: TypeInfo,
+    },
+    ConflictingVariantMeta {
+        index: usize,
+        type_info: TypeInfo,
+    },
     ConflictingMetaHash {
         item: ItemBuf,
         hash: Hash,
         existing: Hash,
     },
-    #[error("Tried to insert conflicting hash `{hash}` for `{existing}`")]
-    ConflictingTypeHash { hash: Hash, existing: Hash },
-    #[error("Variant with `{item}` already exists")]
-    ConflictingVariant { item: ItemBuf },
-    #[error("Error when converting to constant value: {error}")]
-    ValueError { error: VmError },
-    #[error("Constructor for variant {index} in `{type_info}` has already been registered")]
-    VariantConstructorConflict { type_info: TypeInfo, index: usize },
-    #[error("Type `{item}` with info `{type_info}` isn't registered")]
-    MissingType { item: ItemBuf, type_info: TypeInfo },
-    #[error("Type `{item}` with info `{type_info}` is registered but is not an enum")]
-    MissingEnum { item: ItemBuf, type_info: TypeInfo },
-    #[error("Container `{container}` is not registered")]
-    MissingContainer { container: TypeInfo },
-    #[error("Missing variant {index} for `{type_info}`")]
-    MissingVariant { index: usize, type_info: TypeInfo },
-    #[error("Expected associated function")]
+    ConflictingTypeHash {
+        hash: Hash,
+        existing: Hash,
+    },
+    ConflictingVariant {
+        item: ItemBuf,
+    },
+    ValueError {
+        error: VmError,
+    },
+    VariantConstructorConflict {
+        type_info: TypeInfo,
+        index: usize,
+    },
+    MissingType {
+        item: ItemBuf,
+        type_info: TypeInfo,
+    },
+    MissingEnum {
+        item: ItemBuf,
+        type_info: TypeInfo,
+    },
+    MissingContainer {
+        container: TypeInfo,
+    },
+    MissingVariant {
+        index: usize,
+        type_info: TypeInfo,
+    },
     ExpectedAssociated,
-    #[error("Type hash mismatch for `{type_info}`, from module is `{hash}` while from item `{item}` is `{item_hash}`. A possibility is that it has the wrong #[rune(item = ..)] setting.")]
     TypeHashMismatch {
         type_info: TypeInfo,
         item: ItemBuf,
@@ -87,3 +107,134 @@ pub enum ContextError {
         item_hash: Hash,
     },
 }
+
+impl fmt::Display for ContextError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ContextError::UnitAlreadyPresent {} => {
+                write!(f, "Unit `()` type is already present")?;
+            }
+            ContextError::InternalAlreadyPresent { name } => {
+                write!(f, "Type for name `{name}` is already present")?;
+            }
+            ContextError::ConflictingFunction { hash } => {
+                write!(f, "Function with hash `{hash}` already exists")?;
+            }
+            ContextError::ConflictingFunctionName { item, hash } => {
+                write!(f, "Function `{item}` already exists with hash `{hash}`")?;
+            }
+            ContextError::ConflictingMacroName { item, hash } => {
+                write!(f, "Macro `{item}` already exists with hash `{hash}`")?;
+            }
+            ContextError::ConflictingConstantName { item, hash } => {
+                write!(f, "Constant `{item}` already exists with hash `{hash}`")?;
+            }
+            ContextError::ConflictingInstanceFunction { type_info, name } => {
+                write!(
+                    f,
+                    "Instance function `{name}` for type `{type_info}` already exists"
+                )?;
+            }
+            ContextError::ConflictingProtocolFunction { type_info, name } => {
+                write!(
+                    f,
+                    "Protocol function `{name}` for type `{type_info}` already exists"
+                )?;
+            }
+            ContextError::ConflictingFieldFunction {
+                type_info,
+                name,
+                field,
+            } => {
+                write!(f,"Field function `{name}` for field `{field}` and type `{type_info}` already exists")?;
+            }
+            ContextError::ConflictingIndexFunction {
+                type_info,
+                name,
+                index,
+            } => {
+                write!(f,"Index function `{name}` for index `{index}` and type `{type_info}` already exists")?;
+            }
+            ContextError::ConflictingModule { item, hash } => {
+                write!(f, "Module `{item}` with hash `{hash}` already exists")?;
+            }
+            ContextError::ConflictingType {
+                item,
+                type_info,
+                hash,
+            } => {
+                write!(
+                    f,
+                    "Type `{item}` already exists `{type_info}` with hash `{hash}`"
+                )?;
+            }
+            ContextError::ConflictingTypeMeta { item, type_info } => {
+                write!(
+                    f,
+                    "Type `{item}` at `{type_info}` already has a specification"
+                )?;
+            }
+            ContextError::ConflictingVariantMeta { index, type_info } => {
+                write!(
+                    f,
+                    "Variant `{index}` for `{type_info}` already has a specification"
+                )?;
+            }
+            ContextError::ConflictingMetaHash {
+                item,
+                hash,
+                existing,
+            } => {
+                write!(f,"Conflicting meta hash `{hash}` for existing `{existing}` when inserting item `{item}`")?;
+            }
+            ContextError::ConflictingTypeHash { hash, existing } => {
+                write!(
+                    f,
+                    "Tried to insert conflicting hash `{hash}` for `{existing}`"
+                )?;
+            }
+            ContextError::ConflictingVariant { item } => {
+                write!(f, "Variant with `{item}` already exists")?;
+            }
+            ContextError::ValueError { error } => {
+                write!(f, "Error when converting to constant value: {error}")?;
+            }
+            ContextError::VariantConstructorConflict { type_info, index } => {
+                write!(
+                    f,
+                    "Constructor for variant {index} in `{type_info}` has already been registered"
+                )?;
+            }
+            ContextError::MissingType { item, type_info } => {
+                write!(f, "Type `{item}` with info `{type_info}` isn't registered")?;
+            }
+            ContextError::MissingEnum { item, type_info } => {
+                write!(
+                    f,
+                    "Type `{item}` with info `{type_info}` is registered but is not an enum"
+                )?;
+            }
+            ContextError::MissingContainer { container } => {
+                write!(f, "Container `{container}` is not registered")?;
+            }
+            ContextError::MissingVariant { index, type_info } => {
+                write!(f, "Missing variant {index} for `{type_info}`")?;
+            }
+            ContextError::ExpectedAssociated {} => {
+                write!(f, "Expected associated function")?;
+            }
+            ContextError::TypeHashMismatch {
+                type_info,
+                item,
+                hash,
+                item_hash,
+            } => {
+                write!(f,"Type hash mismatch for `{type_info}`, from module is `{hash}` while from item `{item}` is `{item_hash}`. A possibility is that it has the wrong #[rune(item = ..)] setting.")?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl crate::no_std::error::Error for ContextError {}

@@ -1,11 +1,8 @@
+use core::fmt;
 use core::marker::PhantomData;
 use core::mem::take;
 
-use crate::no_std as std;
 use crate::no_std::prelude::*;
-use crate::no_std::thiserror;
-
-use thiserror::Error;
 
 use crate::ast::{Span, Spanned};
 use crate::compile;
@@ -17,10 +14,20 @@ use crate::{Context, Diagnostics, SourceId, Sources};
 /// Error raised when we failed to load sources.
 ///
 /// Look at the passed in [Diagnostics] instance for details.
-#[derive(Debug, Error)]
-#[error("Failed to build rune sources (see diagnostics for details)")]
+#[derive(Debug)]
 #[non_exhaustive]
 pub struct BuildError;
+
+impl fmt::Display for BuildError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Failed to build rune sources (see diagnostics for details)"
+        )
+    }
+}
+
+impl crate::no_std::error::Error for BuildError {}
 
 /// Entry point to building [Sources] of Rune using the default unit storage.
 ///

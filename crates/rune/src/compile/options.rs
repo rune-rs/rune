@@ -1,15 +1,20 @@
-use crate::no_std as std;
-use crate::no_std::prelude::*;
-use crate::no_std::thiserror;
+use core::fmt;
 
-use thiserror::Error;
+use crate::no_std::prelude::*;
 
 /// Error raised when trying to parse an invalid option.
-#[derive(Debug, Clone, Error)]
-#[error("unsupported compile option `{option}`")]
+#[derive(Debug, Clone)]
 pub struct ParseOptionError {
     option: Box<str>,
 }
+
+impl fmt::Display for ParseOptionError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Unsupported compile option `{}`", self.option)
+    }
+}
+
+impl crate::no_std::error::Error for ParseOptionError {}
 
 /// Options that can be provided to the compiler.
 ///

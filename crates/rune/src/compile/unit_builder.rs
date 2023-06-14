@@ -3,13 +3,11 @@
 //! A unit consists of a sequence of instructions, and lookaside tables for
 //! metadata like function locations.
 
-use crate::no_std as std;
+use core::fmt;
+
 use crate::no_std::collections::HashMap;
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
-use crate::no_std::thiserror;
-
-use thiserror::Error;
 
 use crate::ast::{Span, Spanned};
 use crate::compile::meta;
@@ -24,16 +22,27 @@ use crate::runtime::{
 use crate::{Context, Diagnostics, Hash, SourceId};
 
 /// Errors that can be raised when linking units.
-#[derive(Debug, Error)]
+#[derive(Debug)]
 #[allow(missing_docs)]
 #[non_exhaustive]
 pub enum LinkerError {
-    #[error("missing function with hash {hash}")]
     MissingFunction {
         hash: Hash,
         spans: Vec<(Span, SourceId)>,
     },
 }
+
+impl fmt::Display for LinkerError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            LinkerError::MissingFunction { hash, .. } => {
+                write!(f, "Missing function with hash {hash}",)
+            }
+        }
+    }
+}
+
+impl crate::no_std::error::Error for LinkerError {}
 
 /// Instructions from a single source file.
 #[derive(Debug, Default)]

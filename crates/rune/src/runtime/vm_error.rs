@@ -1,11 +1,7 @@
 use core::fmt;
 
-use crate::no_std as std;
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
-use crate::no_std::thiserror;
-
-use thiserror::Error;
 
 use crate::compile::ItemBuf;
 use crate::hash::Hash;
@@ -387,177 +383,402 @@ impl From<Panic> for VmErrorKind {
 }
 
 /// The kind of error encountered.
-#[derive(Debug, Error)]
+#[derive(Debug)]
 #[non_exhaustive]
 #[doc(hidden)]
 pub(crate) enum VmErrorKind {
-    #[error("{error}")]
     AccessError {
-        #[from]
         error: AccessError,
     },
-    #[error("Stack error: {error}")]
     StackError {
-        #[from]
         error: StackError,
     },
-    #[error("{error}")]
     BadInstruction {
-        #[from]
         error: BadInstruction,
     },
-    #[error("{error}")]
     BadJump {
-        #[from]
         error: BadJump,
     },
-    #[error("Panicked: {reason}")]
-    Panic { reason: Panic },
-    #[error("No running virtual machines")]
+    Panic {
+        reason: Panic,
+    },
     NoRunningVm,
-    #[error("Halted for unexpected reason `{halt}`")]
-    Halted { halt: VmHaltInfo },
-    #[error("Failed to format argument")]
+    Halted {
+        halt: VmHaltInfo,
+    },
     FormatError,
-    #[error("Numerical overflow")]
     Overflow,
-    #[error("Numerical underflow")]
     Underflow,
-    #[error("Division by zero")]
     DivideByZero,
-    #[error("Missing entry `{item}` with hash `{hash}`")]
-    MissingEntry { item: ItemBuf, hash: Hash },
-    #[error("Missing entry with hash `{hash}`")]
-    MissingEntryHash { hash: Hash },
-    #[error("Missing function with hash `{hash}`")]
-    MissingFunction { hash: Hash },
-    #[error("Missing context function with hash `{hash}`")]
-    MissingContextFunction { hash: Hash },
-    #[error("Missing instance function `{hash}` for `{instance}`")]
-    MissingInstanceFunction { hash: Hash, instance: TypeInfo },
-    #[error("Instruction pointer `{ip}` is out-of-bounds `0-{length}`")]
-    IpOutOfBounds { ip: usize, length: usize },
-    #[error("Unsupported operation `{lhs} {op} {rhs}`")]
+    MissingEntry {
+        item: ItemBuf,
+        hash: Hash,
+    },
+    MissingEntryHash {
+        hash: Hash,
+    },
+    MissingFunction {
+        hash: Hash,
+    },
+    MissingContextFunction {
+        hash: Hash,
+    },
+    MissingInstanceFunction {
+        hash: Hash,
+        instance: TypeInfo,
+    },
+    IpOutOfBounds {
+        ip: usize,
+        length: usize,
+    },
     UnsupportedBinaryOperation {
         op: &'static str,
         lhs: TypeInfo,
         rhs: TypeInfo,
     },
-    #[error("Unsupported operation `{op}{operand}`")]
-    UnsupportedUnaryOperation { op: &'static str, operand: TypeInfo },
-    #[error("Static string slot `{slot}` does not exist")]
-    MissingStaticString { slot: usize },
-    #[error("Static object keys slot `{slot}` does not exist")]
-    MissingStaticObjectKeys { slot: usize },
-    #[error("Missing runtime information for variant with hash `{hash}`")]
-    MissingVariantRtti { hash: Hash },
-    #[error("Missing runtime information for type with hash `{hash}`")]
-    MissingRtti { hash: Hash },
-    #[error("Wrong number of arguments `{actual}`, expected `{expected}`")]
-    BadArgumentCount { actual: usize, expected: usize },
-    #[error("Bad argument #{arg}, expected `{expected}` but got `{actual}`")]
+    UnsupportedUnaryOperation {
+        op: &'static str,
+        operand: TypeInfo,
+    },
+    MissingStaticString {
+        slot: usize,
+    },
+    MissingStaticObjectKeys {
+        slot: usize,
+    },
+    MissingVariantRtti {
+        hash: Hash,
+    },
+    MissingRtti {
+        hash: Hash,
+    },
+    BadArgumentCount {
+        actual: usize,
+        expected: usize,
+    },
     BadArgumentAt {
         arg: usize,
         expected: TypeInfo,
         actual: TypeInfo,
     },
-    #[error("Bad argument at #{arg}")]
-    BadArgument { arg: usize },
-    #[error("The index set operation `{target}[{index}] = {value}` is not supported")]
+    BadArgument {
+        arg: usize,
+    },
     UnsupportedIndexSet {
         target: TypeInfo,
         index: TypeInfo,
         value: TypeInfo,
     },
-    #[error("The index get operation `{target}[{index}]` is not supported")]
-    UnsupportedIndexGet { target: TypeInfo, index: TypeInfo },
-    #[error("The tuple index get operation is not supported on `{target}`")]
-    UnsupportedTupleIndexGet { target: TypeInfo },
-    #[error("The tuple index set operation is not supported on `{target}`")]
-    UnsupportedTupleIndexSet { target: TypeInfo },
-    #[error("Field not available on `{target}`")]
-    UnsupportedObjectSlotIndexGet { target: TypeInfo },
-    #[error("Field not available on `{target}`")]
-    UnsupportedObjectSlotIndexSet { target: TypeInfo },
-    #[error("Operation `{value} is {test_type}` is not supported")]
+    UnsupportedIndexGet {
+        target: TypeInfo,
+        index: TypeInfo,
+    },
+    UnsupportedTupleIndexGet {
+        target: TypeInfo,
+    },
+    UnsupportedTupleIndexSet {
+        target: TypeInfo,
+    },
+    UnsupportedObjectSlotIndexGet {
+        target: TypeInfo,
+    },
+    UnsupportedObjectSlotIndexSet {
+        target: TypeInfo,
+    },
     UnsupportedIs {
         value: TypeInfo,
         test_type: TypeInfo,
     },
-    #[error("Type `{actual}` cannot be called since it's not a function")]
-    UnsupportedCallFn { actual: TypeInfo },
-    #[error("Missing index by static string slot `{slot}`")]
-    ObjectIndexMissing { slot: usize },
-    #[error("Type `{target}` missing index `{index}`")]
+    UnsupportedCallFn {
+        actual: TypeInfo,
+    },
+    ObjectIndexMissing {
+        slot: usize,
+    },
     MissingIndex {
         target: TypeInfo,
         index: VmIntegerRepr,
     },
-    #[error("Type `{target}` missing index `{index:?}`")]
-    MissingIndexKey { target: TypeInfo, index: Key },
-    #[error("Index out of bounds, the length is `{length}` but the index is `{index}`")]
+    MissingIndexKey {
+        target: TypeInfo,
+        index: Key,
+    },
     OutOfRange {
         index: VmIntegerRepr,
         length: VmIntegerRepr,
     },
-    #[error("Type `{actual}` is not supported as try operand")]
-    UnsupportedTryOperand { actual: TypeInfo },
-    #[error("Type `{actual}` is not supported as iter-next operand")]
-    UnsupportedIterNextOperand { actual: TypeInfo },
-    #[error("Expected type `{expected}`, but found `{actual}`")]
+    UnsupportedTryOperand {
+        actual: TypeInfo,
+    },
+    UnsupportedIterNextOperand {
+        actual: TypeInfo,
+    },
     Expected {
         expected: TypeInfo,
         actual: TypeInfo,
     },
-    #[error("Expected `Any` type, but found `{actual}`")]
-    ExpectedAny { actual: TypeInfo },
-    #[error("Failed to convert value `{from}` to integer `{to}`")]
+    ExpectedAny {
+        actual: TypeInfo,
+    },
     ValueToIntegerCoercionError {
         from: VmIntegerRepr,
         to: &'static str,
     },
-    #[error("Failed to convert integer `{from}` to value `{to}`")]
     IntegerToValueCoercionError {
         from: VmIntegerRepr,
         to: &'static str,
     },
-    #[error("Expected a tuple of length `{expected}`, but found one with length `{actual}`")]
-    ExpectedTupleLength { actual: usize, expected: usize },
-    #[error("Type `{actual}` can't be converted to a constant value")]
-    ConstNotSupported { actual: TypeInfo },
-    #[error("Type `{actual}` can't be converted to a hash key")]
-    KeyNotSupported { actual: TypeInfo },
-    #[error("Missing interface environment")]
+    ExpectedTupleLength {
+        actual: usize,
+        expected: usize,
+    },
+    ConstNotSupported {
+        actual: TypeInfo,
+    },
+    KeyNotSupported {
+        actual: TypeInfo,
+    },
     MissingInterfaceEnvironment,
-    #[error("Unsupported range")]
     UnsupportedRange,
-    #[error("Expected execution to be {expected}, but was {actual}")]
     ExpectedExecutionState {
         expected: ExecutionState,
         actual: ExecutionState,
     },
-    #[error("Cannot resume a generator that has completed")]
     GeneratorComplete,
-    #[error("Future already completed")]
     FutureCompleted,
     // Used in rune-macros.
-    #[error("No variant matching `{name}`")]
-    MissingVariant { name: String },
-    #[error("Missing field `{field}` on `{target}`")]
-    MissingField { target: TypeInfo, field: String },
-    #[error("missing variant name in runtime information")]
+    MissingVariant {
+        name: String,
+    },
+    MissingField {
+        target: TypeInfo,
+        field: String,
+    },
     MissingVariantName,
-    #[error("missing dynamic field for struct field `{target}::{name}`")]
     MissingStructField {
         target: &'static str,
         name: &'static str,
     },
-    #[error("missing dynamic index #{index} in tuple struct `{target}`")]
-    MissingTupleIndex { target: &'static str, index: usize },
-    #[error("Expected an enum variant, but got `{actual}`")]
-    ExpectedVariant { actual: TypeInfo },
-    #[error("The object field get operation is not supported on `{target}`")]
-    UnsupportedObjectFieldGet { target: TypeInfo },
+    MissingTupleIndex {
+        target: &'static str,
+        index: usize,
+    },
+    ExpectedVariant {
+        actual: TypeInfo,
+    },
+    UnsupportedObjectFieldGet {
+        target: TypeInfo,
+    },
+}
+
+impl fmt::Display for VmErrorKind {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            VmErrorKind::AccessError { error } => {
+                write!(f, "{error}")
+            }
+            VmErrorKind::StackError { error } => write!(f, "Stack error: {error}",),
+            VmErrorKind::BadInstruction { error } => {
+                write!(f, "{error}")
+            }
+            VmErrorKind::BadJump { error } => {
+                write!(f, "{error}")
+            }
+            VmErrorKind::Panic { reason } => write!(f, "Panicked: {reason}",),
+            VmErrorKind::NoRunningVm {} => write!(f, "No running virtual machines"),
+            VmErrorKind::Halted { halt } => write!(f, "Halted for unexpected reason `{halt}`",),
+            VmErrorKind::FormatError {} => write!(f, "Failed to format argument"),
+            VmErrorKind::Overflow {} => write!(f, "Numerical overflow"),
+            VmErrorKind::Underflow {} => write!(f, "Numerical underflow"),
+            VmErrorKind::DivideByZero {} => write!(f, "Division by zero"),
+            VmErrorKind::MissingEntry { item, hash } => {
+                write!(f, "Missing entry `{item}` with hash `{hash}`",)
+            }
+            VmErrorKind::MissingEntryHash { hash } => {
+                write!(f, "Missing entry with hash `{hash}`",)
+            }
+            VmErrorKind::MissingFunction { hash } => {
+                write!(f, "Missing function with hash `{hash}`",)
+            }
+            VmErrorKind::MissingContextFunction { hash } => {
+                write!(f, "Missing context function with hash `{hash}`",)
+            }
+            VmErrorKind::MissingInstanceFunction { hash, instance } => {
+                write!(f, "Missing instance function `{hash}` for `{instance}`",)
+            }
+            VmErrorKind::IpOutOfBounds { ip, length } => write!(
+                f,
+                "Instruction pointer `{ip}` is out-of-bounds `0-{length}`",
+            ),
+            VmErrorKind::UnsupportedBinaryOperation { op, lhs, rhs } => {
+                write!(f, "Unsupported operation `{lhs} {op} {rhs}`",)
+            }
+            VmErrorKind::UnsupportedUnaryOperation { op, operand } => {
+                write!(f, "Unsupported operation `{op}{operand}`",)
+            }
+            VmErrorKind::MissingStaticString { slot } => {
+                write!(f, "Static string slot `{slot}` does not exist",)
+            }
+            VmErrorKind::MissingStaticObjectKeys { slot } => {
+                write!(f, "Static object keys slot `{slot}` does not exist",)
+            }
+            VmErrorKind::MissingVariantRtti { hash } => write!(
+                f,
+                "Missing runtime information for variant with hash `{hash}`",
+            ),
+            VmErrorKind::MissingRtti { hash } => {
+                write!(f, "Missing runtime information for type with hash `{hash}`",)
+            }
+            VmErrorKind::BadArgumentCount { actual, expected } => write!(
+                f,
+                "Wrong number of arguments `{actual}`, expected `{expected}`",
+            ),
+            VmErrorKind::BadArgumentAt {
+                arg,
+                expected,
+                actual,
+            } => write!(
+                f,
+                "Bad argument #{arg}, expected `{expected}` but got `{actual}`",
+            ),
+            VmErrorKind::BadArgument { arg } => write!(f, "Bad argument at #{arg}",),
+            VmErrorKind::UnsupportedIndexSet {
+                target,
+                index,
+                value,
+            } => write!(
+                f,
+                "The index set operation `{target}[{index}] = {value}` is not supported",
+            ),
+            VmErrorKind::UnsupportedIndexGet { target, index } => write!(
+                f,
+                "The index get operation `{target}[{index}]` is not supported",
+            ),
+            VmErrorKind::UnsupportedTupleIndexGet { target } => write!(
+                f,
+                "The tuple index get operation is not supported on `{target}`",
+            ),
+            VmErrorKind::UnsupportedTupleIndexSet { target } => write!(
+                f,
+                "The tuple index set operation is not supported on `{target}`",
+            ),
+            VmErrorKind::UnsupportedObjectSlotIndexGet { target } => {
+                write!(f, "Field not available on `{target}`",)
+            }
+            VmErrorKind::UnsupportedObjectSlotIndexSet { target } => {
+                write!(f, "Field not available on `{target}`",)
+            }
+            VmErrorKind::UnsupportedIs { value, test_type } => {
+                write!(f, "Operation `{value} is {test_type}` is not supported",)
+            }
+            VmErrorKind::UnsupportedCallFn { actual } => write!(
+                f,
+                "Type `{actual}` cannot be called since it's not a function",
+            ),
+            VmErrorKind::ObjectIndexMissing { slot } => {
+                write!(f, "Missing index by static string slot `{slot}`",)
+            }
+            VmErrorKind::MissingIndex { target, index } => {
+                write!(f, "Type `{target}` missing index `{index}`",)
+            }
+            VmErrorKind::MissingIndexKey { target, index } => {
+                write!(f, "Type `{target}` missing index `{index:?}`",)
+            }
+            VmErrorKind::OutOfRange { index, length } => write!(
+                f,
+                "Index out of bounds, the length is `{length}` but the index is `{index}`",
+            ),
+            VmErrorKind::UnsupportedTryOperand { actual } => {
+                write!(f, "Type `{actual}` is not supported as try operand",)
+            }
+            VmErrorKind::UnsupportedIterNextOperand { actual } => {
+                write!(f, "Type `{actual}` is not supported as iter-next operand",)
+            }
+            VmErrorKind::Expected { expected, actual } => {
+                write!(f, "Expected type `{expected}`, but found `{actual}`",)
+            }
+            VmErrorKind::ExpectedAny { actual } => {
+                write!(f, "Expected `Any` type, but found `{actual}`",)
+            }
+            VmErrorKind::ValueToIntegerCoercionError { from, to } => {
+                write!(f, "Failed to convert value `{from}` to integer `{to}`",)
+            }
+            VmErrorKind::IntegerToValueCoercionError { from, to } => {
+                write!(f, "Failed to convert integer `{from}` to value `{to}`",)
+            }
+            VmErrorKind::ExpectedTupleLength { actual, expected } => write!(
+                f,
+                "Expected a tuple of length `{expected}`, but found one with length `{actual}`",
+            ),
+            VmErrorKind::ConstNotSupported { actual } => {
+                write!(f, "Type `{actual}` can't be converted to a constant value",)
+            }
+            VmErrorKind::KeyNotSupported { actual } => {
+                write!(f, "Type `{actual}` can't be converted to a hash key",)
+            }
+            VmErrorKind::MissingInterfaceEnvironment {} => {
+                write!(f, "Missing interface environment")
+            }
+            VmErrorKind::UnsupportedRange {} => write!(f, "Unsupported range"),
+            VmErrorKind::ExpectedExecutionState { expected, actual } => {
+                write!(f, "Expected execution to be {expected}, but was {actual}",)
+            }
+            VmErrorKind::GeneratorComplete {} => {
+                write!(f, "Cannot resume a generator that has completed")
+            }
+            VmErrorKind::FutureCompleted {} => write!(f, "Future already completed"),
+            VmErrorKind::MissingVariant { name } => write!(f, "No variant matching `{name}`",),
+            VmErrorKind::MissingField { target, field } => {
+                write!(f, "Missing field `{field}` on `{target}`",)
+            }
+            VmErrorKind::MissingVariantName {} => {
+                write!(f, "missing variant name in runtime information")
+            }
+            VmErrorKind::MissingStructField { target, name } => write!(
+                f,
+                "missing dynamic field for struct field `{target}::{name}`",
+            ),
+            VmErrorKind::MissingTupleIndex { target, index } => write!(
+                f,
+                "missing dynamic index #{index} in tuple struct `{target}`",
+            ),
+            VmErrorKind::ExpectedVariant { actual } => {
+                write!(f, "Expected an enum variant, but got `{actual}`",)
+            }
+            VmErrorKind::UnsupportedObjectFieldGet { target } => write!(
+                f,
+                "The object field get operation is not supported on `{target}`",
+            ),
+        }
+    }
+}
+
+impl From<AccessError> for VmErrorKind {
+    #[allow(deprecated)]
+    fn from(error: AccessError) -> Self {
+        VmErrorKind::AccessError { error }
+    }
+}
+
+impl From<StackError> for VmErrorKind {
+    #[allow(deprecated)]
+    fn from(error: StackError) -> Self {
+        VmErrorKind::StackError { error }
+    }
+}
+
+impl From<BadInstruction> for VmErrorKind {
+    #[allow(deprecated)]
+    fn from(error: BadInstruction) -> Self {
+        VmErrorKind::BadInstruction { error }
+    }
+}
+
+impl From<BadJump> for VmErrorKind {
+    #[allow(deprecated)]
+    fn from(error: BadJump) -> Self {
+        VmErrorKind::BadJump { error }
+    }
 }
 
 impl VmErrorKind {
