@@ -1,14 +1,11 @@
 use core::fmt;
 
-use crate::no_std as std;
 use crate::no_std::io;
 use crate::no_std::path::PathBuf;
 use crate::no_std::prelude::*;
-use crate::no_std::thiserror;
-
-use thiserror::Error;
 
 use crate::ast;
+use crate::ast::unescape;
 use crate::ast::{Span, Spanned};
 use crate::compile::ir;
 use crate::compile::{HasSpan, ItemBuf, Location, MetaInfo, Visibility};
@@ -25,7 +22,7 @@ use crate::{Hash, SourceId};
 #[derive(Debug)]
 pub struct Error {
     span: Span,
-    kind: Box<CompileErrorKind>,
+    kind: Box<ErrorKind>,
 }
 
 impl Error {
@@ -33,11 +30,11 @@ impl Error {
     pub(crate) fn new<S, K>(span: S, kind: K) -> Self
     where
         S: Spanned,
-        CompileErrorKind: From<K>,
+        ErrorKind: From<K>,
     {
         Self {
             span: span.span(),
-            kind: Box::new(CompileErrorKind::from(kind)),
+            kind: Box::new(ErrorKind::from(kind)),
         }
     }
 
@@ -49,7 +46,7 @@ impl Error {
     {
         Self {
             span: span.span(),
-            kind: Box::new(CompileErrorKind::Custom {
+            kind: Box::new(ErrorKind::Custom {
                 message: message.to_string().into(),
             }),
         }
@@ -57,13 +54,13 @@ impl Error {
 
     /// Get the kind of the error.
     #[cfg(feature = "emit")]
-    pub(crate) fn kind(&self) -> &CompileErrorKind {
+    pub(crate) fn kind(&self) -> &ErrorKind {
         &self.kind
     }
 
     /// Convert into the kind of the error.
     #[cfg(test)]
-    pub(crate) fn into_kind(self) -> CompileErrorKind {
+    pub(crate) fn into_kind(self) -> ErrorKind {
         *self.kind
     }
 }
@@ -89,42 +86,42 @@ impl fmt::Display for Error {
 
 impl<E> From<HasSpan<E>> for Error
 where
-    CompileErrorKind: From<E>,
+    ErrorKind: From<E>,
 {
     fn from(spanned: HasSpan<E>) -> Self {
         Error {
             span: spanned.span,
-            kind: Box::new(CompileErrorKind::from(spanned.error)),
+            kind: Box::new(ErrorKind::from(spanned.error)),
         }
     }
 }
 
-impl From<ir::scopes::MissingLocal> for CompileErrorKind {
+impl From<ir::scopes::MissingLocal> for ErrorKind {
     #[inline]
     fn from(error: ir::scopes::MissingLocal) -> Self {
-        CompileErrorKind::MissingLocal {
+        ErrorKind::MissingLocal {
             name: error.0.to_string(),
         }
     }
 }
 
-impl From<&'static str> for CompileErrorKind {
+impl From<&'static str> for ErrorKind {
     #[inline]
     fn from(value: &'static str) -> Self {
-        CompileErrorKind::Custom {
+        ErrorKind::Custom {
             message: Box::from(value),
         }
     }
 }
 
 // NB: Sometimes errors are boxed because they're so big.
-impl<T> From<Box<T>> for CompileErrorKind
+impl<T> From<Box<T>> for ErrorKind
 where
-    CompileErrorKind: From<T>,
+    ErrorKind: From<T>,
 {
     #[inline]
     fn from(kind: Box<T>) -> Self {
-        CompileErrorKind::from(*kind)
+        ErrorKind::from(*kind)
     }
 }
 
@@ -134,7 +131,7 @@ impl Error {
     where
         S: Spanned,
     {
-        Self::new(spanned, CompileErrorKind::ExpectedMeta { meta, expected })
+        Self::new(spanned, ErrorKind::ExpectedMeta { meta, expected })
     }
 
     /// Construct an resolve expected error.
@@ -145,7 +142,7 @@ impl Error {
     {
         Self::new(
             actual.span(),
-            CompileErrorKind::Expected {
+            ErrorKind::Expected {
                 actual: actual.into_expectation(),
                 expected: expected.into_expectation(),
             },
@@ -160,7 +157,7 @@ impl Error {
     {
         Self::new(
             actual.span(),
-            CompileErrorKind::Unsupported {
+            ErrorKind::Unsupported {
                 what: what.into_expectation(),
             },
         )
@@ -183,238 +180,244 @@ impl Error {
 }
 
 /// Compiler error.
-#[derive(Debug, Error)]
-#[allow(missing_docs)]
+#[derive(Debug)]
 #[non_exhaustive]
-pub(crate) enum CompileErrorKind {
-    #[error("{message}")]
-    Custom { message: Box<str> },
-    #[error("Expected `{expected}`, but got `{actual}`")]
+pub(crate) enum ErrorKind {
+    Custom {
+        message: Box<str>,
+    },
     Expected {
         actual: Expectation,
         expected: Expectation,
     },
-    #[error("Unsupported `{what}`")]
-    Unsupported { what: Expectation },
-    #[error("{0}")]
-    IrError(#[from] IrErrorKind),
-    #[error("{0}")]
-    QueryError(#[from] QueryErrorKind),
-    #[error("{0}")]
-    MetaConflict(#[from] MetaConflict),
-    #[error("{0}")]
-    ResolveError(#[from] ResolveErrorKind),
-    #[error("{0}")]
-    ParseError(#[from] ParseErrorKind),
-    #[error("{0}")]
-    AccessError(#[from] AccessError),
-    #[error("{0}")]
-    HirError(#[from] HirErrorKind),
-    #[error("{0}")]
-    EncodeError(#[from] EncodeError),
-    #[error("{0}")]
-    MissingLastId(#[from] MissingLastId),
-    #[error("{0}")]
-    GuardMismatch(#[from] GuardMismatch),
-    #[error("{0}")]
-    MissingScope(#[from] MissingScope),
-    #[error("{0}")]
-    PopError(#[from] PopError),
-    #[error("{0}")]
-    MissingId(#[from] MissingId),
-    #[error("Failed to load `{path}`: {error}")]
+    Unsupported {
+        what: Expectation,
+    },
+    IrError(IrErrorKind),
+    MetaConflict(MetaConflict),
+    AccessError(AccessError),
+    EncodeError(EncodeError),
+    MissingLastId(MissingLastId),
+    GuardMismatch(GuardMismatch),
+    MissingScope(MissingScope),
+    PopError(PopError),
+    MissingId(MissingId),
+    UnescapeError(unescape::ErrorKind),
     FileError {
         path: PathBuf,
-        #[source]
         error: io::Error,
     },
-    #[error("File not found, expected a module file like `{path}.rn`")]
-    ModNotFound { path: PathBuf },
-    #[error("Module `{item}` has already been loaded")]
+    ModNotFound {
+        path: PathBuf,
+    },
     ModAlreadyLoaded {
         item: ItemBuf,
         existing: (SourceId, Span),
     },
-    #[error("Missing macro `{item}`")]
-    MissingMacro { item: ItemBuf },
-    #[error("No `self` in current context")]
+    MissingMacro {
+        item: ItemBuf,
+    },
     MissingSelf,
-    #[error("No local variable `{name}`")]
-    MissingLocal { name: String },
-    #[error("Missing item `{item}`")]
-    MissingItem { item: ItemBuf },
-    #[error("Missing item `{item} {parameters:?}`")]
+    MissingLocal {
+        name: String,
+    },
+    MissingItem {
+        item: ItemBuf,
+    },
+    MissingItemHash {
+        hash: Hash,
+    },
     MissingItemParameters {
         item: ItemBuf,
         parameters: Box<[Option<Hash>]>,
     },
-    #[error("Unsupported crate prefix `::`")]
     UnsupportedGlobal,
-    #[error("Cannot load modules using a source without an associated URL")]
     UnsupportedModuleSource,
-    #[error("Cannot load modules relative to `{root}`")]
-    UnsupportedModuleRoot { root: PathBuf },
-    #[error("Cannot load module for `{item}`")]
-    UnsupportedModuleItem { item: ItemBuf },
-    #[error("Keyword `self` not supported here")]
+    UnsupportedModuleRoot {
+        root: PathBuf,
+    },
+    UnsupportedModuleItem {
+        item: ItemBuf,
+    },
     UnsupportedSelf,
-    #[error("Unsupported unary operator `{op}`")]
-    UnsupportedUnaryOp { op: ast::UnOp },
-    #[error("Unsupported binary operator `{op}`")]
-    UnsupportedBinaryOp { op: ast::BinOp },
-    #[error("Item `{meta}` is not an object")]
-    UnsupportedLitObject { meta: MetaInfo },
-    #[error("Missing field `{field}` in declaration of `{item}`")]
-    LitObjectMissingField { field: Box<str>, item: ItemBuf },
-    #[error("Field `{field}` is not a field in `{item}`")]
-    LitObjectNotField { field: Box<str>, item: ItemBuf },
-    #[error("Cannot assign to expression")]
+    UnsupportedUnaryOp {
+        op: ast::UnOp,
+    },
+    UnsupportedBinaryOp {
+        op: ast::BinOp,
+    },
+    UnsupportedLitObject {
+        meta: MetaInfo,
+    },
+    LitObjectMissingField {
+        field: Box<str>,
+        item: ItemBuf,
+    },
+    LitObjectNotField {
+        field: Box<str>,
+        item: ItemBuf,
+    },
     UnsupportedAssignExpr,
-    #[error("Unsupported binary expression")]
     UnsupportedBinaryExpr,
-    #[error("Cannot take reference of expression")]
     UnsupportedRef,
-    #[error("Unsupported select pattern")]
     UnsupportedSelectPattern,
-    #[error("Unsupported field access")]
-    BadFieldAccess,
-    #[error("Wrong number of arguments, expected `{expected}` but got `{actual}`")]
-    UnsupportedArgumentCount { expected: usize, actual: usize },
-    #[error("This kind of expression is not supported as a pattern")]
+    UnsupportedArgumentCount {
+        expected: usize,
+        actual: usize,
+    },
     UnsupportedPatternExpr,
-    #[error("Not a valid binding")]
     UnsupportedBinding,
-    #[error("Duplicate key in literal object")]
-    DuplicateObjectKey { existing: Span, object: Span },
-    #[error("Instance function declared outside of `impl` block")]
+    DuplicateObjectKey {
+        existing: Span,
+        object: Span,
+    },
     InstanceFunctionOutsideImpl,
-    #[error("Unsupported tuple index `{number}`")]
-    UnsupportedTupleIndex { number: ast::Number },
-    #[error("Break outside of loop")]
+    UnsupportedTupleIndex {
+        number: ast::Number,
+    },
     BreakOutsideOfLoop,
-    #[error("Continue outside of loop")]
     ContinueOutsideOfLoop,
-    #[error("Multiple `default` branches in select")]
     SelectMultipleDefaults,
-    #[error("Expected expression to be terminated by a semicolon `;`")]
-    ExpectedBlockSemiColon { followed_span: Span },
-    #[error("An `fn` can't both be `async` and `const` at the same time")]
+    ExpectedBlockSemiColon {
+        followed_span: Span,
+    },
     FnConstAsyncConflict,
-    #[error("A block can't both be `async` and `const` at the same time")]
     BlockConstAsyncConflict,
-    #[error("Unsupported closure kind")]
     ClosureKind,
-    #[error("Keyword `Self` is only supported inside of `impl` blocks")]
     UnsupportedSelfType,
-    #[error("Keyword `super` is not supported at the root module level")]
     UnsupportedSuper,
-    #[error("Keyword `super` can't be used in paths starting with `Self`")]
     UnsupportedSuperInSelfType,
-    #[error("This kind of path component cannot follow a generic argument")]
     UnsupportedAfterGeneric,
-    #[error("Another segment can't follow wildcard `*` or group imports")]
     IllegalUseSegment,
-    #[error("Use aliasing is not supported for wildcard `*` or group imports")]
     UseAliasNotSupported,
-    #[error("Conflicting function signature already exists `{existing}`")]
-    FunctionConflict { existing: DebugSignature },
-    #[error("Conflicting function hash already exists `{hash}`")]
-    FunctionReExportConflict { hash: Hash },
-    #[error("Conflicting constant for hash `{hash}`")]
-    ConstantConflict { hash: Hash },
-    #[error("Missing static string for hash `{hash}` and slot `{slot}`")]
-    StaticStringMissing { hash: Hash, slot: usize },
-    #[error("Missing static byte string for hash `{hash}` and slot `{slot}`")]
-    StaticBytesMissing { hash: Hash, slot: usize },
-    #[error(
-        "Conflicting static string for hash `{hash}`
-        between `{existing:?}` and `{current:?}`"
-    )]
+    FunctionConflict {
+        existing: DebugSignature,
+    },
+    FunctionReExportConflict {
+        hash: Hash,
+    },
+    ConstantConflict {
+        hash: Hash,
+    },
+    StaticStringMissing {
+        hash: Hash,
+        slot: usize,
+    },
+    StaticBytesMissing {
+        hash: Hash,
+        slot: usize,
+    },
     StaticStringHashConflict {
         hash: Hash,
         current: String,
         existing: String,
     },
-    #[error(
-        "Conflicting static string for hash `{hash}`
-        between `{existing:?}` and `{current:?}`"
-    )]
     StaticBytesHashConflict {
         hash: Hash,
         current: Vec<u8>,
         existing: Vec<u8>,
     },
-    #[error("Missing static object keys for hash `{hash}` and slot `{slot}`")]
-    StaticObjectKeysMissing { hash: Hash, slot: usize },
-    #[error(
-        "Conflicting static object keys for hash `{hash}`
-        between `{existing:?}` and `{current:?}`"
-    )]
+    StaticObjectKeysMissing {
+        hash: Hash,
+        slot: usize,
+    },
     StaticObjectKeysHashConflict {
         hash: Hash,
         current: Box<[String]>,
         existing: Box<[String]>,
     },
-    #[error("Missing loop label `{label}`")]
-    MissingLoopLabel { label: Box<str> },
-    #[error("Segment is only supported in the first position")]
+    MissingLoopLabel {
+        label: Box<str>,
+    },
     ExpectedLeadingPathSegment,
-    #[error("Visibility modifier not supported")]
     UnsupportedVisibility,
-    #[error("Expected {expected} but got `{meta}`")]
     ExpectedMeta {
         expected: &'static str,
         meta: MetaInfo,
     },
-    #[error("No such built-in macro `{name}`")]
-    NoSuchBuiltInMacro { name: Box<str> },
-    #[error("Variable moved")]
-    VariableMoved { moved_at: Span },
-    #[error("Unsupported generic argument")]
+    NoSuchBuiltInMacro {
+        name: Box<str>,
+    },
+    VariableMoved {
+        moved_at: Span,
+    },
     UnsupportedGenerics,
-    #[error("Attribute `#[test]` is not supported on nested items")]
-    NestedTest { nested_span: Span },
-    #[error("Attribute `#[bench]` is not supported on nested items")]
-    NestedBench { nested_span: Span },
-    #[error("Missing function with hash `{hash}`")]
-    MissingFunctionHash { hash: Hash },
-    #[error("Conflicting function already exists `{hash}`")]
-    FunctionConflictHash { hash: Hash },
-    #[error("Non-exhaustive pattern for `{item}`")]
+    NestedTest {
+        nested_span: Span,
+    },
+    NestedBench {
+        nested_span: Span,
+    },
+    MissingFunctionHash {
+        hash: Hash,
+    },
+    FunctionConflictHash {
+        hash: Hash,
+    },
     PatternMissingFields {
         item: ItemBuf,
         fields: Box<[Box<str>]>,
     },
-    #[error("Use of label `{name}_{index}` which has no code location")]
-    MissingLabelLocation { name: &'static str, index: usize },
-    #[error("Reached macro recursion limit at {depth}, limit is {max}")]
-    MaxMacroRecursion { depth: usize, max: usize },
-    #[error("Expression `yield` inside of constant function")]
+    MissingLabelLocation {
+        name: &'static str,
+        index: usize,
+    },
+    MaxMacroRecursion {
+        depth: usize,
+        max: usize,
+    },
     YieldInConst,
-    #[error("Expression `.await` inside of constant context")]
     AwaitInConst,
-    #[error("Expression `.await` outside of async function or block")]
     AwaitOutsideAsync,
-}
-
-/// Error raised during queries.
-#[derive(Debug, Error)]
-#[allow(missing_docs)]
-#[non_exhaustive]
-pub(crate) enum QueryErrorKind {
-    #[error("Item `{item}` can refer to multiple things")]
+    ExpectedEof {
+        actual: ast::Kind,
+    },
+    UnexpectedEof,
+    BadLexerMode {
+        actual: LexerMode,
+        expected: LexerMode,
+    },
+    ExpectedEscape,
+    UnterminatedStrLit,
+    UnterminatedByteStrLit,
+    UnterminatedCharLit,
+    UnterminatedByteLit,
+    ExpectedCharClose,
+    ExpectedCharOrLabel,
+    ExpectedByteClose,
+    UnexpectedChar {
+        c: char,
+    },
+    PrecedenceGroupRequired,
+    BadNumberOutOfBounds,
+    BadFieldAccess,
+    ExpectedMacroCloseDelimiter {
+        expected: ast::Kind,
+        actual: ast::Kind,
+    },
+    MultipleMatchingAttributes {
+        name: &'static str,
+    },
+    MissingSourceId {
+        source_id: SourceId,
+    },
+    ExpectedMultilineCommentTerm,
+    BadSlice,
+    BadSyntheticId {
+        kind: SyntheticKind,
+        id: SyntheticId,
+    },
+    BadCharLiteral,
+    BadByteLiteral,
+    BadNumberLiteral,
     AmbiguousItem {
         item: ItemBuf,
         locations: Vec<(Location, ItemBuf)>,
     },
-    #[error("Item `{item}` can refer to multiple things from the context")]
     AmbiguousContextItem {
         item: ItemBuf,
         infos: Box<[MetaInfo]>,
     },
-    #[error(
-        "Item `{item}` with visibility `{visibility}`, is not accessible from module `{from}`"
-    )]
     NotVisible {
         chain: Vec<Location>,
         location: Location,
@@ -422,9 +425,6 @@ pub(crate) enum QueryErrorKind {
         item: ItemBuf,
         from: ItemBuf,
     },
-    #[error(
-        "Module `{item}` with {visibility} visibility, is not accessible from module `{from}`"
-    )]
     NotVisibleMod {
         chain: Vec<Location>,
         location: Location,
@@ -432,133 +432,619 @@ pub(crate) enum QueryErrorKind {
         item: ItemBuf,
         from: ItemBuf,
     },
-    #[error("Tried to insert meta with hash `{hash}` which does not have an item")]
-    MissingItem { hash: Hash },
-    #[error("Missing query meta for module {item}")]
-    MissingMod { item: ItemBuf },
-    #[error("Cycle in import")]
-    ImportCycle { path: Vec<ImportStep> },
-    #[error("Import recursion limit reached ({count})")]
-    ImportRecursionLimit { count: usize, path: Vec<ImportStep> },
-    #[error("Missing last use component")]
+    MissingMod {
+        item: ItemBuf,
+    },
+    ImportCycle {
+        path: Vec<ImportStep>,
+    },
+    ImportRecursionLimit {
+        count: usize,
+        #[allow(unused)]
+        path: Vec<ImportStep>,
+    },
     LastUseComponent,
-    #[error("Tried to insert variant runtime type information, but conflicted with hash `{hash}`")]
-    VariantRttiConflict { hash: Hash },
-    #[error("Tried to insert runtime type information, but conflicted with hash `{hash}`")]
-    TypeRttiConflict { hash: Hash },
-    #[error("Conflicting function signature already exists `{existing}`")]
-    FunctionConflict { existing: DebugSignature },
+    VariantRttiConflict {
+        hash: Hash,
+    },
+    TypeRttiConflict {
+        hash: Hash,
+    },
+    ArenaWriteSliceOutOfBounds {
+        index: usize,
+    },
+    ArenaAllocError {
+        requested: usize,
+    },
+    UnsupportedPatternRest,
 }
 
-/// The kind of a resolve error.
-#[derive(Debug, Clone, Error)]
-#[allow(missing_docs)]
-#[non_exhaustive]
-pub(crate) enum ResolveErrorKind {
-    #[error("Tried to read bad slice from source")]
-    BadSlice,
-    #[error("Tried to get bad synthetic identifier `{id}` for `{kind}`")]
-    BadSyntheticId {
-        kind: SyntheticKind,
-        id: SyntheticId,
-    },
-    #[error("Bad escape sequence")]
-    BadEscapeSequence,
-    #[error("Bad unicode escape")]
-    BadUnicodeEscape,
-    #[error(
-        "This form of character escape may only be used with characters in the range [\\x00-\\x7f]"
-    )]
-    BadHexEscapeChar,
-    #[error(
-        "This form of byte escape may only be used with characters in the range [\\x00-\\xff]"
-    )]
-    BadHexEscapeByte,
-    #[error("Bad byte escape")]
-    BadByteEscape,
-    #[error("Bad character literal")]
-    BadCharLiteral,
-    #[error("Bad byte literal")]
-    BadByteLiteral,
-    #[error("Unicode escapes are not supported as a byte or byte string")]
-    BadUnicodeEscapeInByteString,
-    #[error("Number literal not valid")]
-    BadNumberLiteral,
+impl crate::no_std::error::Error for ErrorKind {
+    fn source(&self) -> Option<&(dyn crate::no_std::error::Error + 'static)> {
+        match self {
+            ErrorKind::IrError(source) => Some(source),
+            ErrorKind::MetaConflict(source) => Some(source),
+            ErrorKind::AccessError(source) => Some(source),
+            ErrorKind::EncodeError(source) => Some(source),
+            ErrorKind::MissingLastId(source) => Some(source),
+            ErrorKind::GuardMismatch(source) => Some(source),
+            ErrorKind::MissingScope(source) => Some(source),
+            ErrorKind::PopError(source) => Some(source),
+            ErrorKind::MissingId(source) => Some(source),
+            ErrorKind::UnescapeError(source) => Some(source),
+            ErrorKind::FileError { error, .. } => Some(error),
+            _ => None,
+        }
+    }
 }
 
-/// Error when parsing.
-#[derive(Debug, Error)]
-#[allow(missing_docs)]
-#[non_exhaustive]
-pub(crate) enum ParseErrorKind {
-    #[error("Expected end of file, but got `{actual}`")]
-    ExpectedEof { actual: ast::Kind },
-    #[error("Unexpected end of file")]
-    UnexpectedEof,
-    #[error("Bad lexer mode `{actual}`, expected `{expected}`")]
-    BadLexerMode {
-        actual: LexerMode,
-        expected: LexerMode,
-    },
-    #[error("Expected escape sequence")]
-    ExpectedEscape,
-    #[error("Unterminated string literal")]
-    UnterminatedStrLit,
-    #[error("Unterminated byte string literal")]
-    UnterminatedByteStrLit,
-    #[error("Unterminated character literal")]
-    UnterminatedCharLit,
-    #[error("Unterminated byte literal")]
-    UnterminatedByteLit,
-    #[error("Expected character literal to be closed")]
-    ExpectedCharClose,
-    #[error("Expected label or character")]
-    ExpectedCharOrLabel,
-    #[error("Expected byte literal to be closed")]
-    ExpectedByteClose,
-    #[error("Unexpected character `{c}`")]
-    UnexpectedChar { c: char },
-    #[error("Group required in expression to determine precedence")]
-    PrecedenceGroupRequired,
-    #[error("Number literal out of bounds `-9223372036854775808` to `9223372036854775807`")]
-    BadNumberOutOfBounds,
-    #[error("Unsupported field access")]
-    BadFieldAccess,
-    #[error("Expected close delimiter `{expected}`, but got `{actual}`")]
-    ExpectedMacroCloseDelimiter {
-        expected: ast::Kind,
-        actual: ast::Kind,
-    },
-    #[error("Bad number literal")]
-    BadNumber,
-    #[error("Can only specify one attribute named `{name}`")]
-    MultipleMatchingAttributes { name: &'static str },
-    #[error("Missing source id `{source_id}`")]
-    MissingSourceId { source_id: SourceId },
-    #[error("Expected multiline comment to be terminated with a `*/`")]
-    ExpectedMultilineCommentTerm,
+impl fmt::Display for ErrorKind {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ErrorKind::Custom { message } => {
+                write!(f, "{message}", message = message)?;
+            }
+            ErrorKind::Expected { actual, expected } => {
+                write!(
+                    f,
+                    "Expected `{expected}`, but got `{actual}`",
+                    expected = expected,
+                    actual = actual
+                )?;
+            }
+            ErrorKind::Unsupported { what } => {
+                write!(f, "Unsupported `{what}`", what = what)?;
+            }
+            ErrorKind::IrError(error) => {
+                error.fmt(f)?;
+            }
+            ErrorKind::MetaConflict(error) => {
+                error.fmt(f)?;
+            }
+            ErrorKind::AccessError(error) => {
+                error.fmt(f)?;
+            }
+            ErrorKind::EncodeError(error) => {
+                error.fmt(f)?;
+            }
+            ErrorKind::MissingLastId(error) => {
+                error.fmt(f)?;
+            }
+            ErrorKind::GuardMismatch(error) => {
+                error.fmt(f)?;
+            }
+            ErrorKind::MissingScope(error) => {
+                error.fmt(f)?;
+            }
+            ErrorKind::PopError(error) => {
+                error.fmt(f)?;
+            }
+            ErrorKind::MissingId(error) => {
+                error.fmt(f)?;
+            }
+            ErrorKind::UnescapeError(error) => {
+                error.fmt(f)?;
+            }
+            ErrorKind::FileError { path, error } => {
+                write!(
+                    f,
+                    "Failed to load `{path}`: {error}",
+                    path = path.display(),
+                    error = error
+                )?;
+            }
+            ErrorKind::ModNotFound { path } => {
+                write!(
+                    f,
+                    "File not found, expected a module file like `{path}.rn`",
+                    path = path.display()
+                )?;
+            }
+            ErrorKind::ModAlreadyLoaded { item, .. } => {
+                write!(f, "Module `{item}` has already been loaded")?;
+            }
+            ErrorKind::MissingMacro { item } => {
+                write!(f, "Missing macro `{item}`")?;
+            }
+            ErrorKind::MissingSelf => write!(f, "No `self` in current context")?,
+            ErrorKind::MissingLocal { name } => {
+                write!(f, "No local variable `{name}`")?;
+            }
+            ErrorKind::MissingItem { item } => {
+                write!(f, "Missing item `{item}`")?;
+            }
+            ErrorKind::MissingItemHash { hash } => {
+                write!(
+                    f,
+                    "Tried to insert meta with hash `{hash}` which does not have an item",
+                )?;
+            }
+            ErrorKind::MissingItemParameters { item, parameters } => {
+                write!(f, "Missing item `{item} {parameters:?}`",)?;
+            }
+            ErrorKind::UnsupportedGlobal => {
+                write!(f, "Unsupported crate prefix `::`")?;
+            }
+            ErrorKind::UnsupportedModuleSource => {
+                write!(
+                    f,
+                    "Cannot load modules using a source without an associated URL"
+                )?;
+            }
+            ErrorKind::UnsupportedModuleRoot { root } => {
+                write!(
+                    f,
+                    "Cannot load modules relative to `{root}`",
+                    root = root.display()
+                )?;
+            }
+            ErrorKind::UnsupportedModuleItem { item } => {
+                write!(f, "Cannot load module for `{item}`")?;
+            }
+            ErrorKind::UnsupportedSelf => {
+                write!(f, "Keyword `self` not supported here")?;
+            }
+            ErrorKind::UnsupportedUnaryOp { op } => {
+                write!(f, "Unsupported unary operator `{op}`")?;
+            }
+            ErrorKind::UnsupportedBinaryOp { op } => {
+                write!(f, "Unsupported binary operator `{op}`")?;
+            }
+            ErrorKind::UnsupportedLitObject { meta } => {
+                write!(f, "Item `{meta}` is not an object", meta = meta)?;
+            }
+            ErrorKind::LitObjectMissingField { field, item } => {
+                write!(f, "Missing field `{field}` in declaration of `{item}`",)?;
+            }
+            ErrorKind::LitObjectNotField { field, item } => {
+                write!(f, "Field `{field}` is not a field in `{item}`",)?;
+            }
+            ErrorKind::UnsupportedAssignExpr => {
+                write!(f, "Cannot assign to expression")?;
+            }
+            ErrorKind::UnsupportedBinaryExpr => {
+                write!(f, "Unsupported binary expression")?;
+            }
+            ErrorKind::UnsupportedRef => {
+                write!(f, "Cannot take reference of expression")?;
+            }
+            ErrorKind::UnsupportedSelectPattern => {
+                write!(f, "Unsupported select pattern")?;
+            }
+            ErrorKind::UnsupportedArgumentCount { expected, actual } => {
+                write!(
+                    f,
+                    "Wrong number of arguments, expected `{expected}` but got `{actual}`",
+                )?;
+            }
+            ErrorKind::UnsupportedPatternExpr => {
+                write!(f, "This kind of expression is not supported as a pattern")?;
+            }
+            ErrorKind::UnsupportedBinding => {
+                write!(f, "Not a valid binding")?;
+            }
+            ErrorKind::DuplicateObjectKey { .. } => {
+                write!(f, "Duplicate key in literal object")?;
+            }
+            ErrorKind::InstanceFunctionOutsideImpl => {
+                write!(f, "Instance function declared outside of `impl` block")?;
+            }
+            ErrorKind::UnsupportedTupleIndex { number } => {
+                write!(f, "Unsupported tuple index `{number}`")?;
+            }
+            ErrorKind::BreakOutsideOfLoop => {
+                write!(f, "Break outside of loop")?;
+            }
+            ErrorKind::ContinueOutsideOfLoop => {
+                write!(f, "Continue outside of loop")?;
+            }
+            ErrorKind::SelectMultipleDefaults => {
+                write!(f, "Multiple `default` branches in select")?;
+            }
+            ErrorKind::ExpectedBlockSemiColon { .. } => {
+                write!(f, "Expected expression to be terminated by a semicolon `;`")?;
+            }
+            ErrorKind::FnConstAsyncConflict => {
+                write!(
+                    f,
+                    "An `fn` can't both be `async` and `const` at the same time"
+                )?;
+            }
+            ErrorKind::BlockConstAsyncConflict => {
+                write!(
+                    f,
+                    "A block can't both be `async` and `const` at the same time"
+                )?;
+            }
+            ErrorKind::ClosureKind => {
+                write!(f, "Unsupported closure kind")?;
+            }
+            ErrorKind::UnsupportedSelfType => {
+                write!(
+                    f,
+                    "Keyword `Self` is only supported inside of `impl` blocks"
+                )?;
+            }
+            ErrorKind::UnsupportedSuper => {
+                write!(
+                    f,
+                    "Keyword `super` is not supported at the root module level"
+                )?;
+            }
+            ErrorKind::UnsupportedSuperInSelfType => {
+                write!(
+                    f,
+                    "Keyword `super` can't be used in paths starting with `Self`"
+                )?;
+            }
+            ErrorKind::UnsupportedAfterGeneric => {
+                write!(
+                    f,
+                    "This kind of path component cannot follow a generic argument"
+                )?;
+            }
+            ErrorKind::IllegalUseSegment => {
+                write!(
+                    f,
+                    "Another segment can't follow wildcard `*` or group imports"
+                )?;
+            }
+            ErrorKind::UseAliasNotSupported => {
+                write!(
+                    f,
+                    "Use aliasing is not supported for wildcard `*` or group imports"
+                )?;
+            }
+            ErrorKind::FunctionConflict { existing } => {
+                write!(
+                    f,
+                    "Conflicting function signature already exists `{existing}`",
+                )?;
+            }
+            ErrorKind::FunctionReExportConflict { hash } => {
+                write!(f, "Conflicting function hash already exists `{hash}`",)?;
+            }
+            ErrorKind::ConstantConflict { hash } => {
+                write!(f, "Conflicting constant for hash `{hash}`", hash = hash)?;
+            }
+            ErrorKind::StaticStringMissing { hash, slot } => {
+                write!(
+                    f,
+                    "Missing static string for hash `{hash}` and slot `{slot}`",
+                )?;
+            }
+            ErrorKind::StaticBytesMissing { hash, slot } => {
+                write!(
+                    f,
+                    "Missing static byte string for hash `{hash}` and slot `{slot}`",
+                )?;
+            }
+            ErrorKind::StaticStringHashConflict {
+                hash,
+                current,
+                existing,
+            } => {
+                write!(f,"Conflicting static string for hash `{hash}`\n        between `{existing:?}` and `{current:?}`")?;
+            }
+            ErrorKind::StaticBytesHashConflict {
+                hash,
+                current,
+                existing,
+            } => {
+                write!(f,"Conflicting static string for hash `{hash}`\n        between `{existing:?}` and `{current:?}`")?;
+            }
+            ErrorKind::StaticObjectKeysMissing { hash, slot } => {
+                write!(
+                    f,
+                    "Missing static object keys for hash `{hash}` and slot `{slot}`",
+                    hash = hash,
+                    slot = slot
+                )?;
+            }
+            ErrorKind::StaticObjectKeysHashConflict {
+                hash,
+                current,
+                existing,
+            } => {
+                write!(f,"Conflicting static object keys for hash `{hash}`\n        between `{existing:?}` and `{current:?}`")?;
+            }
+            ErrorKind::MissingLoopLabel { label } => {
+                write!(f, "Missing loop label `{label}`", label = label)?;
+            }
+            ErrorKind::ExpectedLeadingPathSegment => {
+                write!(f, "Segment is only supported in the first position")?;
+            }
+            ErrorKind::UnsupportedVisibility => {
+                write!(f, "Visibility modifier not supported")?;
+            }
+            ErrorKind::ExpectedMeta { expected, meta } => {
+                write!(f, "Expected {expected} but got `{meta}`",)?;
+            }
+            ErrorKind::NoSuchBuiltInMacro { name } => {
+                write!(f, "No such built-in macro `{name}`")?;
+            }
+            ErrorKind::VariableMoved { .. } => {
+                write!(f, "Variable moved")?;
+            }
+            ErrorKind::UnsupportedGenerics => {
+                write!(f, "Unsupported generic argument")?;
+            }
+            ErrorKind::NestedTest { .. } => {
+                write!(f, "Attribute `#[test]` is not supported on nested items")?;
+            }
+            ErrorKind::NestedBench { .. } => {
+                write!(f, "Attribute `#[bench]` is not supported on nested items")?;
+            }
+            ErrorKind::MissingFunctionHash { hash } => {
+                write!(f, "Missing function with hash `{hash}`", hash = hash)?;
+            }
+            ErrorKind::FunctionConflictHash { hash } => {
+                write!(
+                    f,
+                    "Conflicting function already exists `{hash}`",
+                    hash = hash
+                )?;
+            }
+            ErrorKind::PatternMissingFields { item, .. } => {
+                write!(f, "Non-exhaustive pattern for `{item}`")?;
+            }
+            ErrorKind::MissingLabelLocation { name, index } => {
+                write!(
+                    f,
+                    "Use of label `{name}_{index}` which has no code location",
+                )?;
+            }
+            ErrorKind::MaxMacroRecursion { depth, max } => {
+                write!(
+                    f,
+                    "Reached macro recursion limit at {depth}, limit is {max}",
+                )?;
+            }
+            ErrorKind::YieldInConst => {
+                write!(f, "Expression `yield` inside of constant function")?;
+            }
+            ErrorKind::AwaitInConst => {
+                write!(f, "Expression `.await` inside of constant context")?;
+            }
+            ErrorKind::AwaitOutsideAsync => {
+                write!(f, "Expression `.await` outside of async function or block")?;
+            }
+            ErrorKind::ExpectedEof { actual } => {
+                write!(f, "Expected end of file, but got `{actual}`",)?;
+            }
+            ErrorKind::UnexpectedEof => {
+                write!(f, "Unexpected end of file")?;
+            }
+            ErrorKind::BadLexerMode { actual, expected } => {
+                write!(f, "Bad lexer mode `{actual}`, expected `{expected}`",)?;
+            }
+            ErrorKind::ExpectedEscape => {
+                write!(f, "Expected escape sequence")?;
+            }
+            ErrorKind::UnterminatedStrLit => {
+                write!(f, "Unterminated string literal")?;
+            }
+            ErrorKind::UnterminatedByteStrLit => {
+                write!(f, "Unterminated byte string literal")?;
+            }
+            ErrorKind::UnterminatedCharLit => {
+                write!(f, "Unterminated character literal")?;
+            }
+            ErrorKind::UnterminatedByteLit => {
+                write!(f, "Unterminated byte literal")?;
+            }
+            ErrorKind::ExpectedCharClose => {
+                write!(f, "Expected character literal to be closed")?;
+            }
+            ErrorKind::ExpectedCharOrLabel => {
+                write!(f, "Expected label or character")?;
+            }
+            ErrorKind::ExpectedByteClose => {
+                write!(f, "Expected byte literal to be closed")?;
+            }
+            ErrorKind::UnexpectedChar { c } => {
+                write!(f, "Unexpected character `{c}`", c = c)?;
+            }
+            ErrorKind::PrecedenceGroupRequired => {
+                write!(f, "Group required in expression to determine precedence")?;
+            }
+            ErrorKind::BadNumberOutOfBounds => {
+                write!(
+                    f,
+                    "Number literal out of bounds `-9223372036854775808` to `9223372036854775807`"
+                )?;
+            }
+            ErrorKind::BadFieldAccess => {
+                write!(f, "Unsupported field access")?;
+            }
+            ErrorKind::ExpectedMacroCloseDelimiter { expected, actual } => {
+                write!(
+                    f,
+                    "Expected close delimiter `{expected}`, but got `{actual}`",
+                )?;
+            }
+            ErrorKind::MultipleMatchingAttributes { name } => {
+                write!(f, "Can only specify one attribute named `{name}`",)?;
+            }
+            ErrorKind::MissingSourceId { source_id } => {
+                write!(f, "Missing source id `{source_id}`", source_id = source_id)?;
+            }
+            ErrorKind::ExpectedMultilineCommentTerm => {
+                write!(f, "Expected multiline comment to be terminated with a `*/`")?;
+            }
+            ErrorKind::BadSlice => {
+                write!(f, "Tried to read bad slice from source")?;
+            }
+            ErrorKind::BadSyntheticId { kind, id } => {
+                write!(
+                    f,
+                    "Tried to get bad synthetic identifier `{id}` for `{kind}`",
+                )?;
+            }
+            ErrorKind::BadCharLiteral => {
+                write!(f, "Bad character literal")?;
+            }
+            ErrorKind::BadByteLiteral => {
+                write!(f, "Bad byte literal")?;
+            }
+            ErrorKind::BadNumberLiteral => {
+                write!(f, "Number literal not valid")?;
+            }
+            ErrorKind::AmbiguousItem { item, .. } => {
+                write!(f, "Item `{item}` can refer to multiple things")?;
+            }
+            ErrorKind::AmbiguousContextItem { item, .. } => {
+                write!(
+                    f,
+                    "Item `{item}` can refer to multiple things from the context"
+                )?;
+            }
+            ErrorKind::NotVisible {
+                visibility,
+                item,
+                from,
+                ..
+            } => {
+                write!(f,"Item `{item}` with visibility `{visibility}`, is not accessible from module `{from}`")?;
+            }
+            ErrorKind::NotVisibleMod {
+                visibility,
+                item,
+                from,
+                ..
+            } => {
+                write!(f,"Module `{item}` with {visibility} visibility, is not accessible from module `{from}`")?;
+            }
+            ErrorKind::MissingMod { item } => {
+                write!(f, "Missing query meta for module {item}")?;
+            }
+            ErrorKind::ImportCycle { .. } => {
+                write!(f, "Cycle in import")?;
+            }
+            ErrorKind::ImportRecursionLimit { count, .. } => {
+                write!(f, "Import recursion limit reached ({count})", count = count)?;
+            }
+            ErrorKind::LastUseComponent => {
+                write!(f, "Missing last use component")?;
+            }
+            ErrorKind::VariantRttiConflict { hash } => {
+                write!(f,"Tried to insert variant runtime type information, but conflicted with hash `{hash}`")?;
+            }
+            ErrorKind::TypeRttiConflict { hash } => {
+                write!(
+                    f,
+                    "Tried to insert runtime type information, but conflicted with hash `{hash}`",
+                    hash = hash
+                )?;
+            }
+            ErrorKind::ArenaWriteSliceOutOfBounds { index } => {
+                write!(
+                    f,
+                    "Writing arena slice out of bounds for index {index}",
+                    index = index
+                )?;
+            }
+            ErrorKind::ArenaAllocError { requested } => {
+                write!(
+                    f,
+                    "Allocation error for {requested} bytes",
+                    requested = requested
+                )?;
+            }
+            ErrorKind::UnsupportedPatternRest => {
+                write!(f, "Pattern `..` is not supported in this location")?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl From<IrErrorKind> for ErrorKind {
+    #[inline]
+    fn from(source: IrErrorKind) -> Self {
+        ErrorKind::IrError(source)
+    }
+}
+
+impl From<MetaConflict> for ErrorKind {
+    #[inline]
+    fn from(source: MetaConflict) -> Self {
+        ErrorKind::MetaConflict(source)
+    }
+}
+
+impl From<AccessError> for ErrorKind {
+    #[inline]
+    fn from(source: AccessError) -> Self {
+        ErrorKind::AccessError(source)
+    }
+}
+
+impl From<EncodeError> for ErrorKind {
+    #[inline]
+    fn from(source: EncodeError) -> Self {
+        ErrorKind::EncodeError(source)
+    }
+}
+
+impl From<MissingLastId> for ErrorKind {
+    #[inline]
+    fn from(source: MissingLastId) -> Self {
+        ErrorKind::MissingLastId(source)
+    }
+}
+
+impl From<GuardMismatch> for ErrorKind {
+    #[inline]
+    fn from(source: GuardMismatch) -> Self {
+        ErrorKind::GuardMismatch(source)
+    }
+}
+
+impl From<MissingScope> for ErrorKind {
+    #[inline]
+    fn from(source: MissingScope) -> Self {
+        ErrorKind::MissingScope(source)
+    }
+}
+
+impl From<PopError> for ErrorKind {
+    #[inline]
+    fn from(source: PopError) -> Self {
+        ErrorKind::PopError(source)
+    }
+}
+
+impl From<MissingId> for ErrorKind {
+    #[inline]
+    fn from(source: MissingId) -> Self {
+        ErrorKind::MissingId(source)
+    }
+}
+
+impl From<unescape::ErrorKind> for ErrorKind {
+    #[inline]
+    fn from(source: unescape::ErrorKind) -> Self {
+        ErrorKind::UnescapeError(source)
+    }
 }
 
 /// Error when encoding AST.
-#[derive(Debug, Error)]
-#[allow(missing_docs)]
+#[derive(Debug)]
 #[non_exhaustive]
 pub(crate) enum IrErrorKind {
     /// Encountered an expression that is not supported as a constant
     /// expression.
-    #[error("Expected a constant expression")]
     NotConst,
     /// Trying to process a cycle of constants.
-    #[error("Constant cycle detected")]
     ConstCycle,
     /// Encountered a compile meta used in an inappropriate position.
-    #[error("Item `{meta}` is not supported here")]
     UnsupportedMeta {
         /// Unsupported compile meta.
         meta: MetaInfo,
     },
     /// A constant evaluation errored.
-    #[error("Expected a value of type {expected} but got {actual}")]
     Expected {
         /// The expected value.
         expected: TypeInfo,
@@ -566,44 +1052,72 @@ pub(crate) enum IrErrorKind {
         actual: TypeInfo,
     },
     /// Exceeded evaluation budget.
-    #[error("Evaluation budget exceeded")]
     BudgetExceeded,
     /// Missing a tuple index.
-    #[error("Missing index {index}")]
     MissingIndex {
         /// The index that was missing.
         index: usize,
     },
     /// Missing an object field.
-    #[error("Missing field `{field}`")]
     MissingField {
         /// The field that was missing.
         field: Box<str>,
     },
     /// Missing const or local with the given name.
-    #[error("No constant or local matching `{name}`")]
     MissingConst {
         /// Name of the missing thing.
         name: Box<str>,
     },
     /// Error raised when trying to use a break outside of a loop.
-    #[error("Break outside of supported loop")]
     BreakOutsideOfLoop,
-    #[error("Argument count mismatch, got {actual} but expected {expected}")]
-    ArgumentCountMismatch { actual: usize, expected: usize },
+    ArgumentCountMismatch {
+        actual: usize,
+        expected: usize,
+    },
 }
 
-/// The kind of a hir error.
-#[derive(Debug, Error)]
-#[allow(missing_docs)]
-#[non_exhaustive]
-pub(crate) enum HirErrorKind {
-    #[error("Writing arena slice out of bounds for index {index}")]
-    ArenaWriteSliceOutOfBounds { index: usize },
-    #[error("Allocation error for {requested} bytes")]
-    ArenaAllocError { requested: usize },
-    #[error("Pattern `..` is not supported in this location")]
-    UnsupportedPatternRest,
+impl crate::no_std::error::Error for IrErrorKind {}
+
+impl fmt::Display for IrErrorKind {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            IrErrorKind::NotConst => {
+                write!(f, "Expected a constant expression")?;
+            }
+            IrErrorKind::ConstCycle => {
+                write!(f, "Constant cycle detected")?;
+            }
+            IrErrorKind::UnsupportedMeta { meta } => {
+                write!(f, "Item `{meta}` is not supported here",)?
+            }
+            IrErrorKind::Expected { expected, actual } => {
+                write!(f, "Expected a value of type {expected} but got {actual}",)?
+            }
+            IrErrorKind::BudgetExceeded => {
+                write!(f, "Evaluation budget exceeded")?;
+            }
+            IrErrorKind::MissingIndex { index } => {
+                write!(f, "Missing index {index}",)?;
+            }
+            IrErrorKind::MissingField { field } => {
+                write!(f, "Missing field `{field}`",)?;
+            }
+            IrErrorKind::MissingConst { name } => {
+                write!(f, "No constant or local matching `{name}`",)?;
+            }
+            IrErrorKind::BreakOutsideOfLoop => {
+                write!(f, "Break outside of supported loop")?;
+            }
+            IrErrorKind::ArgumentCountMismatch { actual, expected } => {
+                write!(
+                    f,
+                    "Argument count mismatch, got {actual} but expected {expected}",
+                )?;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 /// A single step in an import.
@@ -618,9 +1132,8 @@ pub struct ImportStep {
     pub item: ItemBuf,
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug)]
 /// Tried to add an item that already exists.
-#[error("Can't insert item `{current}` ({parameters}) because conflicting meta `{existing}` already exists")]
 pub(crate) struct MetaConflict {
     /// The meta we tried to insert.
     pub(crate) current: MetaInfo,
@@ -629,6 +1142,19 @@ pub(crate) struct MetaConflict {
     /// Parameters hash.
     pub(crate) parameters: Hash,
 }
+
+impl fmt::Display for MetaConflict {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let MetaConflict {
+            current,
+            existing,
+            parameters,
+        } = self;
+        write!(f, "Can't insert item `{current}` ({parameters}) because conflicting meta `{existing}` already exists")
+    }
+}
+
+impl crate::no_std::error::Error for MetaConflict {}
 
 #[derive(Debug)]
 pub(crate) struct MissingScope(pub(crate) usize);

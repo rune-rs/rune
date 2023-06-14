@@ -1,20 +1,16 @@
 //! Runtime helpers for loading code and emitting diagnostics.
 
-use std::error::Error;
-use std::fmt;
-use std::fmt::Write;
-use std::io;
+use core::fmt::{self, Write};
 
-use crate::no_std::thiserror;
+use crate::no_std::io;
 use crate::no_std::prelude::*;
 
-use thiserror::Error;
 use codespan_reporting::diagnostic as d;
 use codespan_reporting::term;
 use codespan_reporting::term::termcolor::WriteColor;
 pub use codespan_reporting::term::termcolor;
 
-use crate::compile::{CompileErrorKind, Location, LinkerError, QueryErrorKind};
+use crate::compile::{ErrorKind, Location, LinkerError};
 use crate::diagnostics::{
     Diagnostic, FatalDiagnostic, FatalDiagnosticKind, WarningDiagnostic, WarningDiagnosticKind,
 };
@@ -28,17 +24,47 @@ struct StackFrame {
 }
 
 /// Errors that can be raised when formatting diagnostics.
-#[derive(Debug, Error)]
+#[derive(Debug)]
+#[non_exhaustive]
 pub enum EmitError {
     /// Source Error.
-    #[error("I/O error")]
-    Io(#[from] io::Error),
+    Io(io::Error),
     /// Source Error.
-    #[error("formatting error")]
-    Fmt(#[from] fmt::Error),
+    Fmt(fmt::Error),
     /// Codespan reporting error.
-    #[error("codespan reporting error")]
-    CodespanReporting(#[from] codespan_reporting::files::Error),
+    CodespanReporting(codespan_reporting::files::Error),
+}
+
+impl fmt::Display for EmitError {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            EmitError::Io(error) => error.fmt(f),
+            EmitError::Fmt(error) => error.fmt(f),
+            EmitError::CodespanReporting(error) => error.fmt(f),
+        }
+    }
+}
+
+impl From<io::Error> for EmitError {
+    fn from(source: io::Error) -> Self {
+        EmitError::Io(source)
+    }
+}
+
+impl From<fmt::Error> for EmitError {
+    fn from(source: fmt::Error) -> Self {
+        EmitError::Fmt(source)
+    }
+}
+
+impl From<codespan_reporting::files::Error> for EmitError {
+    fn from(source: codespan_reporting::files::Error) -> Self {
+        EmitError::CodespanReporting(source)
+    }
+}
+
+impl crate::no_std::error::Error for EmitError {
 }
 
 impl Diagnostics {
@@ -411,8 +437,8 @@ where
     let mut labels = Vec::new();
     let mut notes = Vec::new();
 
-    if let (Some(span), Some(e)) = (this.span(), this.kind().source()) {
-        labels.push(d::Label::primary(this.source_id(), span.range()).with_message(e.to_string()));
+    if let Some(span) = this.span() {
+        labels.push(d::Label::primary(this.source_id(), span.range()).with_message(this.kind().to_string()));
     }
 
     match this.kind() {
@@ -469,95 +495,12 @@ where
         this: &FatalDiagnostic,
         sources: &Sources,
         span: Span,
-        kind: &CompileErrorKind,
+        kind: &ErrorKind,
         labels: &mut Vec<d::Label<SourceId>>,
         notes: &mut Vec<String>,
     ) -> fmt::Result {
         match kind {
-            CompileErrorKind::QueryError(kind) => {
-                format_query_error(this, span, kind, labels)?;
-            }
-            CompileErrorKind::DuplicateObjectKey { existing, object } => {
-                labels.push(
-                    d::Label::secondary(this.source_id(), existing.range())
-                        .with_message("Previously defined here"),
-                );
-
-                labels.push(
-                    d::Label::secondary(this.source_id(), object.range())
-                        .with_message("Object being defined here"),
-                );
-            }
-            CompileErrorKind::ModAlreadyLoaded { existing, .. } => {
-                let (existing_source_id, existing_span) = *existing;
-
-                labels.push(
-                    d::Label::secondary(existing_source_id, existing_span.range())
-                        .with_message("Previously loaded here"),
-                );
-            }
-            CompileErrorKind::ExpectedBlockSemiColon { followed_span } => {
-                labels.push(
-                    d::Label::secondary(this.source_id(), followed_span.range())
-                        .with_message("Because this immediately follows"),
-                );
-
-                let binding = sources.source(this.source_id(), span);
-
-                if let Some(binding) = binding {
-                    let mut note = String::new();
-                    writeln!(note, "Hint: Rewrite to `{};`", binding)?;
-                    notes.push(note);
-                }
-            }
-            CompileErrorKind::VariableMoved { moved_at, .. } => {
-                labels.push(
-                    d::Label::secondary(this.source_id(), moved_at.range())
-                        .with_message("Moved here"),
-                );
-            }
-            CompileErrorKind::NestedTest { nested_span } => {
-                labels.push(
-                    d::Label::secondary(this.source_id(), nested_span.range())
-                        .with_message("Nested in here"),
-                );
-            }
-            CompileErrorKind::NestedBench { nested_span } => {
-                labels.push(
-                    d::Label::secondary(this.source_id(), nested_span.range())
-                        .with_message("Nested in here"),
-                );
-            }
-            CompileErrorKind::PatternMissingFields { fields, .. } => {
-                let pl = if fields.len() == 1 {
-                    "field"
-                } else {
-                    "fields"
-                };
-
-                let fields = fields.join(", ");
-
-                labels.push(
-                    d::Label::secondary(this.source_id(), span.range())
-                        .with_message(format!("Missing {}: {}", pl, fields)),
-                );
-
-                notes.push("You can also make the pattern non-exhaustive by adding `..`".to_string());
-            }
-            _ => (),
-        }
-
-        Ok(())
-    }
-
-    fn format_query_error(
-        this: &FatalDiagnostic,
-        span: Span,
-        kind: &QueryErrorKind,
-        labels: &mut Vec<d::Label<SourceId>>,
-    ) -> fmt::Result {
-        match kind {
-            QueryErrorKind::ImportCycle { path } => {
+            ErrorKind::ImportCycle { path } => {
                 let mut it = path.iter();
                 let last = it.next_back();
 
@@ -575,7 +518,7 @@ where
                     );
                 }
             }
-            QueryErrorKind::NotVisible {
+            ErrorKind::NotVisible {
                 chain,
                 location: Location { source_id, span },
                 ..
@@ -591,7 +534,7 @@ where
                     d::Label::secondary(*source_id, span.range()).with_message("defined here"),
                 );
             }
-            QueryErrorKind::NotVisibleMod {
+            ErrorKind::NotVisibleMod {
                 chain,
                 location: Location { source_id, span },
                 ..
@@ -608,7 +551,7 @@ where
                         .with_message("Module defined here"),
                 );
             }
-            QueryErrorKind::AmbiguousItem { locations, .. } => {
+            ErrorKind::AmbiguousItem { locations, .. } => {
                 for (Location { source_id, span }, item) in locations {
                     labels.push(
                         d::Label::secondary(*source_id, span.range())
@@ -616,13 +559,80 @@ where
                     );
                 }
             }
-            QueryErrorKind::AmbiguousContextItem { infos, .. } => {
+            ErrorKind::AmbiguousContextItem { infos, .. } => {
                 for info in infos.as_ref() {
                     labels.push(
                         d::Label::secondary(this.source_id, span.range())
                             .with_message(format!("Could be `{info}`")),
                     );
                 }
+            }
+            ErrorKind::DuplicateObjectKey { existing, object } => {
+                labels.push(
+                    d::Label::secondary(this.source_id(), existing.range())
+                        .with_message("Previously defined here"),
+                );
+
+                labels.push(
+                    d::Label::secondary(this.source_id(), object.range())
+                        .with_message("Object being defined here"),
+                );
+            }
+            ErrorKind::ModAlreadyLoaded { existing, .. } => {
+                let (existing_source_id, existing_span) = *existing;
+
+                labels.push(
+                    d::Label::secondary(existing_source_id, existing_span.range())
+                        .with_message("Previously loaded here"),
+                );
+            }
+            ErrorKind::ExpectedBlockSemiColon { followed_span } => {
+                labels.push(
+                    d::Label::secondary(this.source_id(), followed_span.range())
+                        .with_message("Because this immediately follows"),
+                );
+
+                let binding = sources.source(this.source_id(), span);
+
+                if let Some(binding) = binding {
+                    let mut note = String::new();
+                    writeln!(note, "Hint: Rewrite to `{};`", binding)?;
+                    notes.push(note);
+                }
+            }
+            ErrorKind::VariableMoved { moved_at, .. } => {
+                labels.push(
+                    d::Label::secondary(this.source_id(), moved_at.range())
+                        .with_message("Moved here"),
+                );
+            }
+            ErrorKind::NestedTest { nested_span } => {
+                labels.push(
+                    d::Label::secondary(this.source_id(), nested_span.range())
+                        .with_message("Nested in here"),
+                );
+            }
+            ErrorKind::NestedBench { nested_span } => {
+                labels.push(
+                    d::Label::secondary(this.source_id(), nested_span.range())
+                        .with_message("Nested in here"),
+                );
+            }
+            ErrorKind::PatternMissingFields { fields, .. } => {
+                let pl = if fields.len() == 1 {
+                    "field"
+                } else {
+                    "fields"
+                };
+
+                let fields = fields.join(", ");
+
+                labels.push(
+                    d::Label::secondary(this.source_id(), span.range())
+                        .with_message(format!("Missing {}: {}", pl, fields)),
+                );
+
+                notes.push("You can also make the pattern non-exhaustive by adding `..`".to_string());
             }
             _ => (),
         }

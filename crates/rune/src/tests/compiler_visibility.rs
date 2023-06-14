@@ -1,7 +1,6 @@
 prelude!();
 
-use CompileErrorKind::QueryError;
-use QueryErrorKind::*;
+use ErrorKind::*;
 
 #[test]
 fn test_working_visibility() {
@@ -42,7 +41,7 @@ fn test_access_hidden() {
             a::b::hidden()
         }        
         "#,
-        span, QueryError(NotVisibleMod { .. }) => {
+        span, NotVisibleMod { .. } => {
             assert_eq!(span, span!(219, 231));
         }
     };
@@ -61,7 +60,7 @@ fn test_hidden_reexport() {
 
         pub fn main() { b::test() }
         "#,
-        span, QueryError(NotVisible { .. }) => {
+        span, NotVisible { .. } => {
             assert_eq!(span, span!(107, 110));
         }
     }

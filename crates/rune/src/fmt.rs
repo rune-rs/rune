@@ -18,14 +18,8 @@ use crate::{Source, SourceId};
 use self::error::FormattingError;
 use self::printer::Printer;
 
-/// Format the given contents.
-pub fn layout_string(contents: String) -> Result<Vec<u8>, FormattingError> {
-    let s = Source::memory(contents);
-    layout_source(&s)
-}
-
 /// Format the given source.
-pub fn layout_source(source: &Source) -> Result<Vec<u8>, FormattingError> {
+pub(crate) fn layout_source(source: &Source) -> Result<Vec<u8>, FormattingError> {
     let mut parser = Parser::new(source.as_str(), SourceId::new(0), true);
 
     let ast = ast::File::parse(&mut parser)?;

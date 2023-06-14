@@ -1,7 +1,6 @@
 prelude!();
 
-use CompileErrorKind::*;
-use QueryErrorKind::*;
+use ErrorKind::*;
 
 /// This tests that all items can be successfully queried for when unused (but
 /// be ambiguous as is the case with `Foo::Variant`) and that a module with the
@@ -14,7 +13,7 @@ fn ensure_unambigious_items() {
         _ => {
             assert_eq!(span, span!(21, 28));
         },
-        QueryError(AmbiguousItem { .. }) => {
+        AmbiguousItem { .. } => {
             assert_eq!(span, span!(11, 18));
         },
     };

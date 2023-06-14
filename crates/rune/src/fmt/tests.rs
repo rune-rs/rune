@@ -1,6 +1,12 @@
 use crate::no_std::prelude::*;
 
-use super::layout_string;
+use crate::fmt::FormattingError;
+use crate::Source;
+
+pub(crate) fn layout_string(contents: String) -> Result<Vec<u8>, FormattingError> {
+    let s = Source::memory(contents);
+    super::layout_source(&s)
+}
 
 #[test]
 fn test_layout_string() {

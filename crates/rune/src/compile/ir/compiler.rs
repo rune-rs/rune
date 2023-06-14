@@ -4,7 +4,7 @@ use crate::no_std::prelude::*;
 
 use crate::ast::{self, Span, Spanned};
 use crate::compile::ir;
-use crate::compile::{self, CompileErrorKind};
+use crate::compile::{self, ErrorKind};
 use crate::hir;
 use crate::parse::Resolve;
 use crate::query::Query;
@@ -98,7 +98,7 @@ fn ir_target(expr: &hir::Expr<'_>) -> compile::Result<ir::IrTarget> {
                     });
                 }
                 _ => {
-                    return Err(compile::Error::new(expr, CompileErrorKind::BadFieldAccess));
+                    return Err(compile::Error::new(expr, ErrorKind::BadFieldAccess));
                 }
             }
         }

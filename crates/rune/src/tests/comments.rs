@@ -1,13 +1,12 @@
 prelude!();
 
-use CompileErrorKind::*;
-use ParseErrorKind::*;
+use ErrorKind::*;
 
 #[test]
 fn test_non_terminated_multiline_comments() {
     assert_errors! {
         r#"/* foo"#,
-        span, ParseError(ExpectedMultilineCommentTerm) => {
+        span, ExpectedMultilineCommentTerm => {
             assert_eq!(span, span!(0, 6));
         }
     };
@@ -16,7 +15,7 @@ fn test_non_terminated_multiline_comments() {
         r#"/*
         foo
         bar"#,
-        span, ParseError(ExpectedMultilineCommentTerm) => {
+        span, ExpectedMultilineCommentTerm => {
             assert_eq!(span, span!(0, 26));
         }
     };
@@ -27,7 +26,7 @@ fn test_non_terminated_multiline_comments() {
         /*
         foo
         bar"#,
-        span, ParseError(ExpectedMultilineCommentTerm) => {
+        span, ExpectedMultilineCommentTerm => {
             assert_eq!(span, span!(21, 47));
         }
     };

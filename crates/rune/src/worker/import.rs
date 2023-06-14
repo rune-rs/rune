@@ -5,7 +5,7 @@ use crate::no_std::prelude::*;
 
 use crate::ast;
 use crate::ast::Spanned;
-use crate::compile::{self, CompileErrorKind, DynLocation, ItemBuf, Location, ModId, Visibility};
+use crate::compile::{self, DynLocation, ErrorKind, ItemBuf, Location, ModId, Visibility};
 use crate::parse::Resolve;
 use crate::query::Query;
 use crate::worker::{ImportKind, Task, WildcardImport};
@@ -57,7 +57,7 @@ impl Import {
                         _ => {
                             return Err(compile::Error::new(
                                 global.span(),
-                                CompileErrorKind::UnsupportedGlobal,
+                                ErrorKind::UnsupportedGlobal,
                             ));
                         }
                     },
@@ -108,14 +108,14 @@ impl Import {
                         ast::PathSegment::SelfType(self_type) => {
                             return Err(compile::Error::new(
                                 self_type.span(),
-                                CompileErrorKind::ExpectedLeadingPathSegment,
+                                ErrorKind::ExpectedLeadingPathSegment,
                             ));
                         }
                         ast::PathSegment::SelfValue(self_value) => {
                             if !initial {
                                 return Err(compile::Error::new(
                                     self_value.span(),
-                                    CompileErrorKind::ExpectedLeadingPathSegment,
+                                    ErrorKind::ExpectedLeadingPathSegment,
                                 ));
                             }
 
@@ -125,7 +125,7 @@ impl Import {
                             if !initial {
                                 return Err(compile::Error::new(
                                     crate_token,
-                                    CompileErrorKind::ExpectedLeadingPathSegment,
+                                    ErrorKind::ExpectedLeadingPathSegment,
                                 ));
                             }
 
@@ -137,13 +137,13 @@ impl Import {
                             }
 
                             name.pop().ok_or_else(|| {
-                                compile::Error::new(super_token, CompileErrorKind::UnsupportedSuper)
+                                compile::Error::new(super_token, ErrorKind::UnsupportedSuper)
                             })?;
                         }
                         ast::PathSegment::Generics(arguments) => {
                             return Err(compile::Error::new(
                                 arguments,
-                                CompileErrorKind::UnsupportedGenerics,
+                                ErrorKind::UnsupportedGenerics,
                             ));
                         }
                     },
@@ -166,7 +166,7 @@ impl Import {
                             if let Some(global) = &path.global {
                                 return Err(compile::Error::new(
                                     global.span(),
-                                    CompileErrorKind::UnsupportedGlobal,
+                                    ErrorKind::UnsupportedGlobal,
                                 ));
                             }
 
@@ -179,10 +179,7 @@ impl Import {
             };
 
             if let Some(segment) = it.next() {
-                return Err(compile::Error::new(
-                    segment,
-                    CompileErrorKind::IllegalUseSegment,
-                ));
+                return Err(compile::Error::new(segment, ErrorKind::IllegalUseSegment));
             }
 
             let alias = match &path.alias {
@@ -190,7 +187,7 @@ impl Import {
                     if let Some(span) = complete {
                         return Err(compile::Error::new(
                             span.join(ident.span()),
-                            CompileErrorKind::UseAliasNotSupported,
+                            ErrorKind::UseAliasNotSupported,
                         ));
                     }
 

@@ -6,8 +6,8 @@ use crate::ast;
 use crate::ast::Span;
 use crate::compile::ir;
 use crate::compile::{
-    self, Context, Item, ItemMeta, NoopCompileVisitor, NoopSourceLoader, ParseErrorKind, Pool,
-    Prelude, UnitBuilder,
+    self, Context, ErrorKind, Item, ItemMeta, NoopCompileVisitor, NoopSourceLoader, Pool, Prelude,
+    UnitBuilder,
 };
 use crate::hir;
 use crate::indexing::{IndexItem, Indexer, Items, Scopes};
@@ -243,10 +243,7 @@ impl<'a, 'b, 'arena> MacroContext<'a, 'b, 'arena> {
         T: Parse,
     {
         let source = self.idx.q.sources.get(id).ok_or_else(|| {
-            compile::Error::new(
-                Span::empty(),
-                ParseErrorKind::MissingSourceId { source_id: id },
-            )
+            compile::Error::new(Span::empty(), ErrorKind::MissingSourceId { source_id: id })
         })?;
 
         crate::parse::parse_all(source.as_str(), id, false)

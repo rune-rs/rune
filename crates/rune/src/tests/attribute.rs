@@ -1,6 +1,6 @@
 prelude!();
 
-use CompileErrorKind::*;
+use ErrorKind::*;
 
 #[test]
 fn basic_use() {

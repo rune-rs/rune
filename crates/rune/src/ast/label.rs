@@ -63,7 +63,7 @@ impl<'a> Resolve<'a> for Label {
                 let ident = cx
                     .sources
                     .source(source_id, span.trim_start(1u32))
-                    .ok_or_else(|| compile::Error::new(span, ResolveErrorKind::BadSlice))?;
+                    .ok_or_else(|| compile::Error::new(span, ErrorKind::BadSlice))?;
 
                 Ok(ident)
             }
@@ -71,7 +71,7 @@ impl<'a> Resolve<'a> for Label {
                 let ident = cx.storage.get_string(id).ok_or_else(|| {
                     compile::Error::new(
                         span,
-                        ResolveErrorKind::BadSyntheticId {
+                        ErrorKind::BadSyntheticId {
                             kind: SyntheticKind::Ident,
                             id,
                         },

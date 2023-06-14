@@ -9,9 +9,7 @@ use crate::no_std::prelude::*;
 use crate::ast::spanned;
 use crate::ast::{self, OptionSpanned, Span, Spanned};
 use crate::compile::attrs;
-use crate::compile::{
-    self, CompileErrorKind, Doc, ItemId, ModId, ParseErrorKind, Visibility, WithSpan,
-};
+use crate::compile::{self, Doc, ErrorKind, ItemId, ModId, Visibility, WithSpan};
 use crate::compile::{meta, DynLocation};
 use crate::indexing::{self, Indexed, Items, Layer, Scopes};
 use crate::macros::MacroCompiler;
@@ -76,7 +74,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
         if self.macro_depth >= MAX_MACRO_RECURSION {
             return Err(compile::Error::new(
                 span,
-                CompileErrorKind::MaxMacroRecursion {
+                ErrorKind::MaxMacroRecursion {
                     depth: self.macro_depth,
                     max: MAX_MACRO_RECURSION,
                 },
@@ -107,7 +105,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
         let Some(ident) = ast.path.try_as_ident() else {
             return Err(compile::Error::new(
                 &ast.path,
-                CompileErrorKind::NoSuchBuiltInMacro {
+                ErrorKind::NoSuchBuiltInMacro {
                     name: ast.path.resolve(resolve_context!(self.q))?,
                 },
             ))
@@ -123,7 +121,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
             _ => {
                 return Err(compile::Error::new(
                     &ast.path,
-                    CompileErrorKind::NoSuchBuiltInMacro {
+                    ErrorKind::NoSuchBuiltInMacro {
                         name: ast.path.resolve(resolve_context!(self.q))?,
                     },
                 ))
@@ -203,7 +201,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
                     if fill.is_some() {
                         return Err(compile::Error::unsupported(
                             key,
-                            "multiple `format!(.., fill = ..)`",
+                            "Multiple `format!(.., fill = ..)`",
                         ));
                     }
 
@@ -216,7 +214,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
                     if align.is_some() {
                         return Err(compile::Error::unsupported(
                             key,
-                            "multiple `format!(.., align = ..)`",
+                            "Multiple `format!(.., align = ..)`",
                         ));
                     }
 
@@ -236,16 +234,15 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
                     if flags.is_some() {
                         return Err(compile::Error::unsupported(
                             key,
-                            "multiple `format!(.., flags = ..)`",
+                            "Multiple `format!(.., flags = ..)`",
                         ));
                     }
 
                     let arg = p.parse::<ast::LitNumber>()?;
 
-                    let f = arg
-                        .resolve(resolve_context!(self.q))?
-                        .as_u32(false)
-                        .with_span(arg)?;
+                    let Some(f) = arg.resolve(resolve_context!(self.q))?.as_u32(false) else {
+                        return Err(compile::Error::msg(arg, "Argument out-of-bounds"));
+                    };
 
                     let f = format::Flags::from(f);
                     flags = Some(f);
@@ -254,16 +251,15 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
                     if width.is_some() {
                         return Err(compile::Error::unsupported(
                             key,
-                            "multiple `format!(.., width = ..)`",
+                            "Multiple `format!(.., width = ..)`",
                         ));
                     }
 
                     let arg = p.parse::<ast::LitNumber>()?;
 
-                    let f = arg
-                        .resolve(resolve_context!(self.q))?
-                        .as_usize(false)
-                        .with_span(arg)?;
+                    let Some(f) = arg.resolve(resolve_context!(self.q))?.as_usize(false) else {
+                        return Err(compile::Error::msg(arg, "Argument out-of-bounds"));
+                    };
 
                     width = NonZeroUsize::new(f);
                 }
@@ -271,16 +267,15 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
                     if precision.is_some() {
                         return Err(compile::Error::unsupported(
                             key,
-                            "multiple `format!(.., precision = ..)`",
+                            "Multiple `format!(.., precision = ..)`",
                         ));
                     }
 
                     let arg = p.parse::<ast::LitNumber>()?;
 
-                    let f = arg
-                        .resolve(resolve_context!(self.q))?
-                        .as_usize(false)
-                        .with_span(arg)?;
+                    let Some(f) = arg.resolve(resolve_context!(self.q))?.as_usize(false) else {
+                        return Err(compile::Error::msg(arg, "Argument out-of-bounds"));
+                    };
 
                     precision = NonZeroUsize::new(f);
                 }
@@ -288,7 +283,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
                     if format_type.is_some() {
                         return Err(compile::Error::unsupported(
                             key,
-                            "multiple `format!(.., type = ..)`",
+                            "Multiple `format!(.., type = ..)`",
                         ));
                     }
 
@@ -330,7 +325,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
         let name = self.q.sources.name(self.source_id).ok_or_else(|| {
             compile::Error::new(
                 ast,
-                ParseErrorKind::MissingSourceId {
+                ErrorKind::MissingSourceId {
                     source_id: self.source_id,
                 },
             )
@@ -451,7 +446,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
         let Some(root) = &self.root else {
             return Err(compile::Error::new(
                 &*item_mod,
-                CompileErrorKind::UnsupportedModuleSource,
+                ErrorKind::UnsupportedModuleSource,
             ));
         };
 
@@ -464,7 +459,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
             if let Some(existing) = loaded.insert(mod_item, (self.source_id, item_mod.span())) {
                 return Err(compile::Error::new(
                     &*item_mod,
-                    CompileErrorKind::ModAlreadyLoaded {
+                    ErrorKind::ModAlreadyLoaded {
                         item: self.q.pool.module_item(mod_item).to_owned(),
                         existing,
                     },
@@ -554,7 +549,7 @@ pub(crate) fn file(idx: &mut Indexer<'_, '_>, ast: &mut ast::File) -> compile::R
             if depth >= MAX_MACRO_RECURSION {
                 return Err(compile::Error::new(
                     &item,
-                    CompileErrorKind::MaxMacroRecursion {
+                    ErrorKind::MaxMacroRecursion {
                         depth,
                         max: MAX_MACRO_RECURSION,
                     },
@@ -695,7 +690,7 @@ fn item_fn(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemFn) -> compile::Result<(
     if let (Some(const_token), Some(async_token)) = (ast.const_token, ast.async_token) {
         return Err(compile::Error::new(
             const_token.span().join(async_token.span()),
-            CompileErrorKind::FnConstAsyncConflict,
+            ErrorKind::FnConstAsyncConflict,
         ));
     };
 
@@ -715,7 +710,7 @@ fn item_fn(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemFn) -> compile::Result<(
             if let Some(nested_span) = idx.nested_item {
                 return Err(compile::Error::new(
                     attr,
-                    CompileErrorKind::NestedTest { nested_span },
+                    ErrorKind::NestedTest { nested_span },
                 ));
             }
 
@@ -731,7 +726,7 @@ fn item_fn(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemFn) -> compile::Result<(
 
                 return Err(compile::Error::new(
                     span,
-                    CompileErrorKind::NestedBench { nested_span },
+                    ErrorKind::NestedBench { nested_span },
                 ));
             }
 
@@ -763,7 +758,7 @@ fn item_fn(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemFn) -> compile::Result<(
         }
 
         let Some(impl_item) = idx.item.impl_item else {
-            return Err(compile::Error::new(&ast, CompileErrorKind::InstanceFunctionOutsideImpl));
+            return Err(compile::Error::new(&ast, ErrorKind::InstanceFunctionOutsideImpl));
         };
 
         idx.q.index_and_build(indexing::Entry {
@@ -832,7 +827,7 @@ fn expr_block(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprBlock) -> compile::R
         if let Some(async_token) = ast.async_token {
             return Err(compile::Error::new(
                 async_token,
-                CompileErrorKind::BlockConstAsyncConflict,
+                ErrorKind::BlockConstAsyncConflict,
             ));
         }
 
@@ -846,7 +841,7 @@ fn expr_block(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprBlock) -> compile::R
         let call = validate_call(ast.const_token.as_ref(), ast.async_token.as_ref(), &layer)?;
 
         let Some(call) = call else {
-            return Err(compile::Error::new(&ast, CompileErrorKind::ClosureKind));
+            return Err(compile::Error::new(&ast, ErrorKind::ClosureKind));
         };
 
         idx.q.index_meta(
@@ -904,7 +899,7 @@ fn block(idx: &mut Indexer<'_, '_>, ast: &mut ast::Block) -> compile::Result<()>
         if let Some(span) = must_be_last {
             return Err(compile::Error::new(
                 span,
-                CompileErrorKind::ExpectedBlockSemiColon {
+                ErrorKind::ExpectedBlockSemiColon {
                     followed_span: stmt.span(),
                 },
             ));
@@ -1662,7 +1657,7 @@ fn expr_closure(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprClosure) -> compil
     for (arg, _) in ast.args.as_slice_mut() {
         match arg {
             ast::FnArg::SelfValue(s) => {
-                return Err(compile::Error::new(s, CompileErrorKind::UnsupportedSelf));
+                return Err(compile::Error::new(s, ErrorKind::UnsupportedSelf));
             }
             ast::FnArg::Pat(p) => {
                 pat(idx, p)?;
@@ -1677,7 +1672,7 @@ fn expr_closure(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprClosure) -> compil
     let call = validate_call(None, ast.async_token.as_ref(), &layer)?;
 
     let Some(call) = call else {
-        return Err(compile::Error::new(&*ast, CompileErrorKind::ClosureKind));
+        return Err(compile::Error::new(&*ast, ErrorKind::ClosureKind));
     };
 
     idx.q.index_meta(
@@ -1871,10 +1866,7 @@ fn ast_to_visibility(vis: &ast::Visibility) -> compile::Result<Visibility> {
         ast::Visibility::In(restrict) => restrict.span(),
     };
 
-    Err(compile::Error::new(
-        span,
-        CompileErrorKind::UnsupportedVisibility,
-    ))
+    Err(compile::Error::new(span, ErrorKind::UnsupportedVisibility))
 }
 
 /// Construct the calling convention based on the parameters.
@@ -1885,20 +1877,17 @@ fn validate_call(
 ) -> compile::Result<Option<Call>> {
     for span in &layer.awaits {
         if const_token.is_some() {
-            return Err(compile::Error::new(span, CompileErrorKind::AwaitInConst));
+            return Err(compile::Error::new(span, ErrorKind::AwaitInConst));
         }
 
         if async_token.is_none() {
-            return Err(compile::Error::new(
-                span,
-                CompileErrorKind::AwaitOutsideAsync,
-            ));
+            return Err(compile::Error::new(span, ErrorKind::AwaitOutsideAsync));
         }
     }
 
     for span in &layer.yields {
         if const_token.is_some() {
-            return Err(compile::Error::new(span, CompileErrorKind::YieldInConst));
+            return Err(compile::Error::new(span, ErrorKind::YieldInConst));
         }
     }
 

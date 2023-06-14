@@ -8,15 +8,12 @@ use num::ToPrimitive;
 
 use crate::ast::{self, Spanned};
 use crate::compile::meta;
-use crate::compile::v1::GenericsParameters;
-use crate::compile::{
-    self, CompileErrorKind, DynLocation, HirErrorKind, Item, ItemId, ParseErrorKind, WithSpan,
-};
+use crate::compile::{self, DynLocation, ErrorKind, Item, ItemId, WithSpan};
 use crate::hash::{Hash, ParametersBuilder};
 use crate::hir;
 use crate::indexing;
 use crate::parse::Resolve;
-use crate::query::{self, Build, BuildEntry, Named, Query, Used};
+use crate::query::{self, Build, BuildEntry, GenericsParameters, Named, Query, Used};
 use crate::runtime::Type;
 use crate::SourceId;
 
@@ -213,7 +210,7 @@ fn expr_call_closure<'hir>(
     let Some(meta) = cx.q.query_meta(ast, item.item, Default::default())? else {
         return Err(compile::Error::new(
             ast,
-            CompileErrorKind::MissingItem {
+            ErrorKind::MissingItem {
                 item: cx.q.pool.item(item.item).to_owned(),
             },
         ))
@@ -313,7 +310,7 @@ pub(crate) fn expr_object<'hir>(
         if let Some(existing) = keys_dup.insert(key.1, key.0) {
             return Err(compile::Error::new(
                 key.0,
-                CompileErrorKind::DuplicateObjectKey {
+                ErrorKind::DuplicateObjectKey {
                     existing: existing.span(),
                     object: key.0.span(),
                 },
@@ -324,7 +321,7 @@ pub(crate) fn expr_object<'hir>(
             Some((_, ast)) => expr(cx, ast)?,
             None => {
                 let Some((name, _)) = cx.scopes.get(hir::Name::Str(key.1)) else {
-                    return Err(compile::Error::new(key.0, CompileErrorKind::MissingLocal {
+                    return Err(compile::Error::new(key.0, ErrorKind::MissingLocal {
                         name: key.1.to_owned(),
                     },))
                 };
@@ -349,7 +346,7 @@ pub(crate) fn expr_object<'hir>(
             if !fields.remove(assign.key.1) {
                 return Err(compile::Error::new(
                     assign.key.0,
-                    CompileErrorKind::LitObjectNotField {
+                    ErrorKind::LitObjectNotField {
                         field: assign.key.1.into(),
                         item: item.to_owned(),
                     },
@@ -360,7 +357,7 @@ pub(crate) fn expr_object<'hir>(
         if let Some(field) = fields.into_iter().next() {
             return Err(compile::Error::new(
                 span,
-                CompileErrorKind::LitObjectMissingField {
+                ErrorKind::LitObjectMissingField {
                     field,
                     item: item.to_owned(),
                 },
@@ -402,7 +399,7 @@ pub(crate) fn expr_object<'hir>(
                 _ => {
                     return Err(compile::Error::new(
                         span,
-                        CompileErrorKind::UnsupportedLitObject {
+                        ErrorKind::UnsupportedLitObject {
                             meta: meta.info(cx.q.pool),
                         },
                     ));
@@ -697,14 +694,8 @@ pub(crate) fn lit<'hir>(
         ast::Lit::Number(lit) => match lit.resolve(resolve_context!(cx.q))? {
             ast::Number::Float(n) => Ok(hir::Lit::Float(n)),
             ast::Number::Integer(int) => {
-                let n = match int.to_i64() {
-                    Some(n) => n,
-                    None => {
-                        return Err(compile::Error::new(
-                            ast,
-                            ParseErrorKind::BadNumberOutOfBounds,
-                        ));
-                    }
+                let Some(n) = int.to_i64() else {
+                    return Err(compile::Error::new(ast, ErrorKind::BadNumberOutOfBounds));
                 };
 
                 Ok(hir::Lit::Integer(n))
@@ -743,7 +734,7 @@ pub(crate) fn expr_unary<'hir>(
 
     // NB: special unary expressions.
     if let ast::UnOp::BorrowRef { .. } = ast.op {
-        return Err(compile::Error::new(ast, CompileErrorKind::UnsupportedRef));
+        return Err(compile::Error::new(ast, ErrorKind::UnsupportedRef));
     }
 
     let (ast::UnOp::Neg(..), ast::Expr::Lit(ast::ExprLit { lit: ast::Lit::Number(n), .. })) = (ast.op, &*ast.expr) else {
@@ -756,14 +747,8 @@ pub(crate) fn expr_unary<'hir>(
     match n.resolve(resolve_context!(cx.q))? {
         ast::Number::Float(n) => Ok(hir::ExprKind::Lit(hir::Lit::Float(-n))),
         ast::Number::Integer(int) => {
-            let n = match int.neg().to_i64() {
-                Some(n) => n,
-                None => {
-                    return Err(compile::Error::new(
-                        ast,
-                        ParseErrorKind::BadNumberOutOfBounds,
-                    ));
-                }
+            let Some(n) = int.neg().to_i64() else {
+                return Err(compile::Error::new(ast, ErrorKind::BadNumberOutOfBounds));
             };
 
             Ok(hir::ExprKind::Lit(hir::Lit::Integer(n)))
@@ -930,10 +915,7 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                         break 'ok hir::PatPathKind::Ident(name);
                     }
 
-                    return Err(compile::Error::new(
-                        ast,
-                        CompileErrorKind::UnsupportedBinding,
-                    ));
+                    return Err(compile::Error::new(ast, ErrorKind::UnsupportedBinding));
                 };
 
                 hir::PatKind::Path(alloc!(kind))
@@ -973,7 +955,7 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                     if !(args == count || count < args && is_open) {
                         return Err(compile::Error::new(
                             path,
-                            CompileErrorKind::UnsupportedArgumentCount {
+                            ErrorKind::UnsupportedArgumentCount {
                                 expected: args,
                                 actual: count,
                             },
@@ -1016,7 +998,7 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                             let Some(ident) = path.path.try_as_ident() else {
                                 return Err(compile::Error::new(
                                     path,
-                                    CompileErrorKind::UnsupportedPatternExpr,
+                                    ErrorKind::UnsupportedPatternExpr,
                                 ));
                             };
 
@@ -1027,7 +1009,7 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                         _ => {
                             return Err(compile::Error::new(
                                 pat,
-                                CompileErrorKind::UnsupportedPatternExpr,
+                                ErrorKind::UnsupportedPatternExpr,
                             ));
                         }
                     };
@@ -1035,7 +1017,7 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                     if let Some(existing) = keys_dup.insert(key, pat) {
                         return Err(compile::Error::new(
                             pat,
-                            CompileErrorKind::DuplicateObjectKey {
+                            ErrorKind::DuplicateObjectKey {
                                 existing: existing.span(),
                                 object: pat.span(),
                             },
@@ -1065,7 +1047,7 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                             if !fields.remove(binding.key()) {
                                 return Err(compile::Error::new(
                                     ast,
-                                    CompileErrorKind::LitObjectNotField {
+                                    ErrorKind::LitObjectNotField {
                                         field: binding.key().into(),
                                         item: cx.q.pool.item(meta.item_meta.item).to_owned(),
                                     },
@@ -1082,7 +1064,7 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
 
                             return Err(compile::Error::new(
                                 ast,
-                                CompileErrorKind::PatternMissingFields {
+                                ErrorKind::PatternMissingFields {
                                     item: cx.q.pool.item(meta.item_meta.item).to_owned(),
                                     fields,
                                 },
@@ -1144,7 +1126,7 @@ pub(crate) fn expr_path<'hir>(
         let Some(..) = cx.scopes.get(hir::Name::SelfValue) else {
             return Err(compile::Error::new(
                 ast,
-                CompileErrorKind::MissingSelf,
+                ErrorKind::MissingSelf,
             ));
         };
 
@@ -1182,7 +1164,7 @@ pub(crate) fn expr_path<'hir>(
         if !local.starts_with(char::is_uppercase) {
             return Err(compile::Error::new(
                 ast,
-                CompileErrorKind::MissingLocal {
+                ErrorKind::MissingLocal {
                     name: local.to_owned(),
                 },
             ));
@@ -1190,12 +1172,12 @@ pub(crate) fn expr_path<'hir>(
     }
 
     let kind = if !parameters.parameters.is_empty() {
-        CompileErrorKind::MissingItemParameters {
+        ErrorKind::MissingItemParameters {
             item: cx.q.pool.item(named.item).to_owned(),
             parameters: parameters.parameters.as_ref().into(),
         }
     } else {
-        CompileErrorKind::MissingItem {
+        ErrorKind::MissingItem {
             item: cx.q.pool.item(named.item).to_owned(),
         }
     };
@@ -1301,10 +1283,7 @@ fn pat_items_count(items: &[hir::Pat<'_>]) -> compile::Result<(bool, usize)> {
 
     for pat in it {
         if let hir::PatKind::Rest = pat.kind {
-            return Err(compile::Error::new(
-                pat,
-                HirErrorKind::UnsupportedPatternRest,
-            ));
+            return Err(compile::Error::new(pat, ErrorKind::UnsupportedPatternRest));
         }
 
         count += 1;
@@ -1405,7 +1384,7 @@ fn generics_parameters(
                 let hir::ExprKind::Type(ty) = expr(cx, &s.expr)?.kind else {
                     return Err(compile::Error::new(
                         s,
-                        CompileErrorKind::UnsupportedGenerics,
+                        ErrorKind::UnsupportedGenerics,
                     ));
                 };
 
@@ -1472,7 +1451,7 @@ fn expr_call<'hir>(
                         if !ast.args.is_empty() {
                             return Err(compile::Error::new(
                                 &ast.args,
-                                CompileErrorKind::UnsupportedArgumentCount {
+                                ErrorKind::UnsupportedArgumentCount {
                                     expected: 0,
                                     actual: ast.args.len(),
                                 },
@@ -1490,7 +1469,7 @@ fn expr_call<'hir>(
                         if *args != ast.args.len() {
                             return Err(compile::Error::new(
                                 &ast.args,
-                                CompileErrorKind::UnsupportedArgumentCount {
+                                ErrorKind::UnsupportedArgumentCount {
                                     expected: *args,
                                     actual: ast.args.len(),
                                 },
@@ -1571,7 +1550,7 @@ fn expr_field_access<'hir>(
             let Some(index) = number.as_tuple_index() else {
                 return Err(compile::Error::new(
                     ast,
-                    CompileErrorKind::UnsupportedTupleIndex { number },
+                    ErrorKind::UnsupportedTupleIndex { number },
                 ));
             };
 
@@ -1579,7 +1558,7 @@ fn expr_field_access<'hir>(
         }
         ast::ExprField::Path(ast) => {
             let Some((ident, generics)) = ast.try_as_ident_generics() else {
-                return Err(compile::Error::new(ast, CompileErrorKind::BadFieldAccess));
+                return Err(compile::Error::new(ast, ErrorKind::BadFieldAccess));
             };
 
             let ident = alloc_str!(ident.resolve(resolve_context!(cx.q))?);
@@ -1592,7 +1571,7 @@ fn expr_field_access<'hir>(
                         let hir::ExprKind::Type(ty) = expr(cx, &s.expr)?.kind else {
                             return Err(compile::Error::new(
                                 s,
-                                CompileErrorKind::UnsupportedGenerics,
+                                ErrorKind::UnsupportedGenerics,
                             ));
                         };
 

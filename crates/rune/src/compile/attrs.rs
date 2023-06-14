@@ -6,7 +6,7 @@ use crate::no_std::prelude::*;
 use crate as rune;
 use crate::ast;
 use crate::ast::{LitStr, Spanned};
-use crate::compile::{self, ParseErrorKind};
+use crate::compile::{self, ErrorKind};
 use crate::parse::{self, Parse, Resolve, ResolveContext};
 
 /// Helper for parsing internal attributes.
@@ -70,7 +70,7 @@ impl Parser {
             (Some(first), None) => Ok(Some(first?)),
             (Some(first), _) => Err(compile::Error::new(
                 first?.0,
-                ParseErrorKind::MultipleMatchingAttributes { name: T::PATH },
+                ErrorKind::MultipleMatchingAttributes { name: T::PATH },
             )),
         }
     }

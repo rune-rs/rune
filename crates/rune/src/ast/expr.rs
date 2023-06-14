@@ -623,10 +623,7 @@ fn chain(p: &mut Parser<'_>, mut expr: Expr, callable: Callable) -> Result<Expr>
                         });
                     }
                     _ => {
-                        return Err(compile::Error::new(
-                            p.span(0..1),
-                            ParseErrorKind::BadFieldAccess,
-                        ));
+                        return Err(compile::Error::new(p.span(0..1), ErrorKind::BadFieldAccess));
                     }
                 }
             }
@@ -695,7 +692,7 @@ fn binary(
                     if !next.is_assoc() {
                         return Err(compile::Error::new(
                             lhs.span().join(rhs.span()),
-                            ParseErrorKind::PrecedenceGroupRequired,
+                            ErrorKind::PrecedenceGroupRequired,
                         ));
                     }
                 }

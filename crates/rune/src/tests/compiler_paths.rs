@@ -1,7 +1,6 @@
 prelude!();
 
-use CompileErrorKind::*;
-use QueryErrorKind::*;
+use ErrorKind::*;
 
 #[test]
 fn test_super_self_crate_mod() {
@@ -72,6 +71,6 @@ fn test_unsupported_leading_path() {
 fn test_import_conflict() {
     assert_errors! {
         r#"use std::{option, option};"#,
-        span!(10, 16), QueryError(AmbiguousItem { .. })
+        span!(10, 16), AmbiguousItem { .. }
     };
 }

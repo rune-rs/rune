@@ -50,7 +50,7 @@ impl<'a> Resolve<'a> for LitByte {
         let string = cx
             .sources
             .source(source_id, span.trim_start(2u32).trim_end(1u32))
-            .ok_or_else(|| compile::Error::new(span, ResolveErrorKind::BadSlice))?;
+            .ok_or_else(|| compile::Error::new(span, ErrorKind::BadSlice))?;
 
         let start = span.start.into_usize();
 
@@ -62,23 +62,25 @@ impl<'a> Resolve<'a> for LitByte {
         let (start, c) = match it.next() {
             Some(c) => c,
             None => {
-                return Err(compile::Error::new(span, ResolveErrorKind::BadByteLiteral));
+                return Err(compile::Error::new(span, ErrorKind::BadByteLiteral));
             }
         };
 
         let c = match c {
             '\\' => {
-                let c =
-                    match ast::utils::parse_byte_escape(&mut it, ast::utils::WithLineCont(false)) {
-                        Ok(c) => c,
-                        Err(kind) => {
-                            let end = it
-                                .next()
-                                .map(|n| n.0)
-                                .unwrap_or_else(|| span.end.into_usize());
-                            return Err(compile::Error::new(Span::new(start, end), kind));
-                        }
-                    };
+                let c = match ast::unescape::parse_byte_escape(
+                    &mut it,
+                    ast::unescape::WithLineCont(false),
+                ) {
+                    Ok(c) => c,
+                    Err(kind) => {
+                        let end = it
+                            .next()
+                            .map(|n| n.0)
+                            .unwrap_or_else(|| span.end.into_usize());
+                        return Err(compile::Error::new(Span::new(start, end), kind));
+                    }
+                };
 
                 match c {
                     Some(c) => c,
@@ -89,20 +91,20 @@ impl<'a> Resolve<'a> for LitByte {
                             .unwrap_or_else(|| span.end.into_usize());
                         return Err(compile::Error::new(
                             Span::new(start, end),
-                            ResolveErrorKind::BadByteLiteral,
+                            ErrorKind::BadByteLiteral,
                         ));
                     }
                 }
             }
             c if c.is_ascii() && !c.is_control() => c as u8,
             _ => {
-                return Err(compile::Error::new(span, ResolveErrorKind::BadByteLiteral));
+                return Err(compile::Error::new(span, ErrorKind::BadByteLiteral));
             }
         };
 
         // Too many characters in literal.
         if it.next().is_some() {
-            return Err(compile::Error::new(span, ResolveErrorKind::BadByteLiteral));
+            return Err(compile::Error::new(span, ErrorKind::BadByteLiteral));
         }
 
         Ok(c)

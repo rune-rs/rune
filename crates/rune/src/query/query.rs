@@ -10,17 +10,18 @@ use crate::ast::{Span, Spanned};
 use crate::compile::context::ContextMeta;
 use crate::compile::ir;
 use crate::compile::meta;
-use crate::compile::v1::GenericsParameters;
 use crate::compile::{
-    self, CompileErrorKind, CompileVisitor, ComponentRef, Doc, DynLocation, ImportStep,
-    IntoComponent, Item, ItemBuf, ItemId, ItemMeta, Located, Location, ModId, ModMeta, Names, Pool,
-    Prelude, QueryErrorKind, SourceLoader, SourceMeta, UnitBuilder, Visibility, WithSpan,
+    self, CompileVisitor, ComponentRef, Doc, DynLocation, ErrorKind, ImportStep, IntoComponent,
+    Item, ItemBuf, ItemId, ItemMeta, Located, Location, ModId, ModMeta, Names, Pool, Prelude,
+    SourceLoader, SourceMeta, UnitBuilder, Visibility, WithSpan,
 };
 use crate::hir;
 use crate::indexing::{self, Indexed, Items};
 use crate::macros::Storage;
 use crate::parse::{Id, NonZeroId, Opaque, Resolve, ResolveContext};
-use crate::query::{Build, BuildEntry, BuiltInMacro, ConstFn, Named, QueryPath, Used};
+use crate::query::{
+    Build, BuildEntry, BuiltInMacro, ConstFn, GenericsParameters, Named, QueryPath, Used,
+};
 use crate::runtime::ConstValue;
 use crate::shared::{Consts, Gen};
 use crate::{ast, Options};
@@ -193,7 +194,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         item: ItemId,
         metas: impl Iterator<Item = &'m ContextMeta> + Clone,
         parameters: &GenericsParameters,
-    ) -> Result<ContextMatch<'this, 'm>, Box<QueryErrorKind>> {
+    ) -> Result<ContextMatch<'this, 'm>, Box<ErrorKind>> {
         #[derive(Debug, PartialEq, Eq, Clone, Copy)]
         enum Kind {
             None,
@@ -278,7 +279,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
             return Ok(ContextMatch::None);
         }
 
-        Err(Box::new(QueryErrorKind::AmbiguousContextItem {
+        Err(Box::new(ErrorKind::AmbiguousContextItem {
             item: self.pool.item(item).to_owned(),
             infos: metas.map(|i| i.info()).collect(),
         }))
@@ -316,7 +317,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         };
 
         let Some(item) = &meta.item else {
-            return Err(compile::Error::new(location.as_spanned(), QueryErrorKind::MissingItem { hash: meta.hash }));
+            return Err(compile::Error::new(location.as_spanned(), ErrorKind::MissingItemHash { hash: meta.hash }));
         };
 
         let meta = meta::Meta {
@@ -359,12 +360,12 @@ impl<'a, 'arena> Query<'a, 'arena> {
         }
 
         let kind = if !parameters.parameters.is_empty() {
-            CompileErrorKind::MissingItemParameters {
+            ErrorKind::MissingItemParameters {
                 item: self.pool.item(item).to_owned(),
                 parameters: parameters.as_boxed(),
             }
         } else {
-            CompileErrorKind::MissingItem {
+            ErrorKind::MissingItem {
                 item: self.pool.item(item).to_owned(),
             }
         };
@@ -863,23 +864,20 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 .pool
                 .alloc_item(ItemBuf::with_crate(ident.resolve(resolve_context!(self))?)),
             (Some(span), _) => {
-                return Err(compile::Error::new(
-                    span,
-                    CompileErrorKind::UnsupportedGlobal,
-                ));
+                return Err(compile::Error::new(span, ErrorKind::UnsupportedGlobal));
             }
             (None, segment) => match segment {
                 ast::PathSegment::Ident(ident) => self.convert_initial_path(module, item, ident)?,
                 ast::PathSegment::Super(..) => {
                     let Some(segment) = self.pool.try_map_alloc(self.pool.module(module).item, Item::parent) else {
-                        return Err(compile::Error::new(segment, CompileErrorKind::UnsupportedSuper));
+                        return Err(compile::Error::new(segment, ErrorKind::UnsupportedSuper));
                     };
 
                     segment
                 }
                 ast::PathSegment::SelfType(..) => {
                     let Some(impl_item) = impl_item else {
-                        return Err(compile::Error::new(segment.span(), CompileErrorKind::UnsupportedSelfType));
+                        return Err(compile::Error::new(segment.span(), ErrorKind::UnsupportedSelfType));
                     };
 
                     in_self_type = true;
@@ -890,7 +888,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 ast::PathSegment::Generics(..) => {
                     return Err(compile::Error::new(
                         segment.span(),
-                        CompileErrorKind::UnsupportedGenerics,
+                        ErrorKind::UnsupportedGenerics,
                     ));
                 }
             },
@@ -912,22 +910,19 @@ impl<'a, 'arena> Query<'a, 'arena> {
                     if in_self_type {
                         return Err(compile::Error::new(
                             span,
-                            CompileErrorKind::UnsupportedSuperInSelfType,
+                            ErrorKind::UnsupportedSuperInSelfType,
                         ));
                     }
 
                     if item.pop().is_none() {
-                        return Err(compile::Error::new(
-                            segment,
-                            CompileErrorKind::UnsupportedSuper,
-                        ));
+                        return Err(compile::Error::new(segment, ErrorKind::UnsupportedSuper));
                     }
                 }
                 ast::PathSegment::Generics(arguments) => {
                     let Some(p) = parameters_it.next() else {
                         return Err(compile::Error::new(
                             segment,
-                            CompileErrorKind::UnsupportedGenerics,
+                            ErrorKind::UnsupportedGenerics,
                         ));
                     };
 
@@ -938,7 +933,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 _ => {
                     return Err(compile::Error::new(
                         segment.span(),
-                        CompileErrorKind::ExpectedLeadingPathSegment,
+                        ErrorKind::ExpectedLeadingPathSegment,
                     ));
                 }
             }
@@ -949,7 +944,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
             let ast::PathSegment::Ident(ident) = segment else {
                 return Err(compile::Error::new(
                     segment.span(),
-                    CompileErrorKind::UnsupportedAfterGeneric,
+                    ErrorKind::UnsupportedAfterGeneric,
                 ));
             };
 
@@ -959,7 +954,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
             let Some(p) = parameters_it.next() else {
                 return Err(compile::Error::new(
                     segment,
-                    CompileErrorKind::UnsupportedGenerics,
+                    ErrorKind::UnsupportedGenerics,
                 ));
             };
 
@@ -1008,7 +1003,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         };
 
         let Some(last) = alias.as_ref().map(IntoComponent::as_component_ref).or_else(|| target.last()) else {
-            return Err(compile::Error::new(location.as_spanned(), QueryErrorKind::LastUseComponent));
+            return Err(compile::Error::new(location.as_spanned(), ErrorKind::LastUseComponent));
         };
 
         let item = self.pool.alloc_item(at.extended(last));
@@ -1077,7 +1072,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
             if count > IMPORT_RECURSION_LIMIT {
                 return Err(compile::Error::new(
                     span,
-                    QueryErrorKind::ImportRecursionLimit { count, path },
+                    ErrorKind::ImportRecursionLimit { count, path },
                 ));
             }
 
@@ -1103,10 +1098,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 });
 
                 if !visited.insert(self.pool.alloc_item(&item)) {
-                    return Err(compile::Error::new(
-                        span,
-                        QueryErrorKind::ImportCycle { path },
-                    ));
+                    return Err(compile::Error::new(span, ErrorKind::ImportCycle { path }));
                 }
 
                 module = update.module;
@@ -1509,7 +1501,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
 
             return Err(compile::Error::new(
                 span,
-                QueryErrorKind::AmbiguousItem {
+                ErrorKind::AmbiguousItem {
                     item: self.pool.item(cur.item_meta.item).to_owned(),
                     locations: locations
                         .into_iter()
@@ -1522,7 +1514,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         if let Indexed::Import(indexing::Import { wildcard: true, .. }) = &cur.indexed {
             return Err(compile::Error::new(
                 span,
-                QueryErrorKind::AmbiguousItem {
+                ErrorKind::AmbiguousItem {
                     item: self.pool.item(cur.item_meta.item).to_owned(),
                     locations: locations
                         .into_iter()
@@ -1614,7 +1606,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
             let m = self.pool.module_by_item(current_module_id).ok_or_else(|| {
                 compile::Error::new(
                     span,
-                    QueryErrorKind::MissingMod {
+                    ErrorKind::MissingMod {
                         item: current_module.clone(),
                     },
                 )
@@ -1623,7 +1615,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
             if !m.visibility.is_visible(&common, &current_module) {
                 return Err(compile::Error::new(
                     span,
-                    QueryErrorKind::NotVisibleMod {
+                    ErrorKind::NotVisibleMod {
                         chain: into_chain(take(chain)),
                         location: m.location,
                         visibility: m.visibility,
@@ -1637,7 +1629,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         if !visibility.is_visible_inside(&common, self.pool.module_item(module)) {
             return Err(compile::Error::new(
                 span,
-                QueryErrorKind::NotVisible {
+                ErrorKind::NotVisible {
                     chain: into_chain(take(chain)),
                     location,
                     visibility,

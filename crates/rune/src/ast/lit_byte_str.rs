@@ -37,7 +37,10 @@ impl LitByteStr {
         while let Some((start, c)) = it.next() {
             buffer.extend(match c {
                 '\\' => {
-                    match ast::utils::parse_byte_escape(&mut it, ast::utils::WithLineCont(true)) {
+                    match ast::unescape::parse_byte_escape(
+                        &mut it,
+                        ast::unescape::WithLineCont(true),
+                    ) {
                         Ok(c) => c,
                         Err(kind) => {
                             let end = it
@@ -82,7 +85,7 @@ impl<'a> Resolve<'a> for LitByteStr {
                 let bytes = cx.storage.get_byte_string(id).ok_or_else(|| {
                     compile::Error::new(
                         span,
-                        ResolveErrorKind::BadSyntheticId {
+                        ErrorKind::BadSyntheticId {
                             kind: SyntheticKind::ByteString,
                             id,
                         },
@@ -97,7 +100,7 @@ impl<'a> Resolve<'a> for LitByteStr {
         let string = cx
             .sources
             .source(text.source_id, span)
-            .ok_or_else(|| compile::Error::new(span, ResolveErrorKind::BadSlice))?;
+            .ok_or_else(|| compile::Error::new(span, ErrorKind::BadSlice))?;
 
         Ok(if text.escaped {
             Cow::Owned(self.parse_escaped(span, string)?)

@@ -30,19 +30,19 @@ impl LitStr {
         &self,
         cx: ResolveContext<'a>,
     ) -> Result<Cow<'a, str>> {
-        self.resolve_inner(cx, ast::utils::WithTemplate(true))
+        self.resolve_inner(cx, ast::unescape::WithTemplate(true))
     }
 
     /// Resolve as a regular string.
     pub(crate) fn resolve_string<'a>(&self, cx: ResolveContext<'a>) -> Result<Cow<'a, str>> {
-        self.resolve_inner(cx, ast::utils::WithTemplate(false))
+        self.resolve_inner(cx, ast::unescape::WithTemplate(false))
     }
 
     /// Resolve the given string with the specified configuration.
     fn resolve_inner<'a>(
         &self,
         cx: ResolveContext<'a>,
-        with_template: ast::utils::WithTemplate,
+        with_template: ast::unescape::WithTemplate,
     ) -> Result<Cow<'a, str>> {
         let span = self.span;
 
@@ -52,7 +52,7 @@ impl LitStr {
                 let bytes = cx.storage.get_string(id).ok_or_else(|| {
                     compile::Error::new(
                         span,
-                        ResolveErrorKind::BadSyntheticId {
+                        ErrorKind::BadSyntheticId {
                             kind: SyntheticKind::String,
                             id,
                         },
@@ -72,7 +72,7 @@ impl LitStr {
         let string = cx
             .sources
             .source(text.source_id, span)
-            .ok_or_else(|| compile::Error::new(span, ResolveErrorKind::BadSlice))?;
+            .ok_or_else(|| compile::Error::new(span, ErrorKind::BadSlice))?;
 
         Ok(if text.escaped {
             Cow::Owned(Self::parse_escaped(span, string, with_template)?)
@@ -84,7 +84,7 @@ impl LitStr {
     fn parse_escaped(
         span: Span,
         source: &str,
-        with_template: ast::utils::WithTemplate,
+        with_template: ast::unescape::WithTemplate,
     ) -> Result<String> {
         let mut buffer = String::with_capacity(source.len());
 
@@ -97,10 +97,10 @@ impl LitStr {
 
         while let Some((start, c)) = it.next() {
             buffer.extend(match c {
-                '\\' => match ast::utils::parse_char_escape(
+                '\\' => match ast::unescape::parse_char_escape(
                     &mut it,
                     with_template,
-                    ast::utils::WithLineCont(true),
+                    ast::unescape::WithLineCont(true),
                 ) {
                     Ok(c) => c,
                     Err(kind) => {

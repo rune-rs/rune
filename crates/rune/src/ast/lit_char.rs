@@ -50,7 +50,7 @@ impl<'a> Resolve<'a> for LitChar {
         let string = cx
             .sources
             .source(source_id, span.narrow(1u32))
-            .ok_or_else(|| compile::Error::new(span, ResolveErrorKind::BadSlice))?;
+            .ok_or_else(|| compile::Error::new(span, ErrorKind::BadSlice))?;
 
         let start = span.start.into_usize();
 
@@ -62,16 +62,16 @@ impl<'a> Resolve<'a> for LitChar {
         let (start, c) = match it.next() {
             Some(c) => c,
             None => {
-                return Err(compile::Error::new(span, ResolveErrorKind::BadCharLiteral));
+                return Err(compile::Error::new(span, ErrorKind::BadCharLiteral));
             }
         };
 
         let c = match c {
             '\\' => {
-                let c = match ast::utils::parse_char_escape(
+                let c = match ast::unescape::parse_char_escape(
                     &mut it,
-                    ast::utils::WithTemplate(false),
-                    ast::utils::WithLineCont(false),
+                    ast::unescape::WithTemplate(false),
+                    ast::unescape::WithLineCont(false),
                 ) {
                     Ok(c) => c,
                     Err(kind) => {
@@ -92,7 +92,7 @@ impl<'a> Resolve<'a> for LitChar {
                             .unwrap_or_else(|| span.end.into_usize());
                         return Err(compile::Error::new(
                             Span::new(start, end),
-                            ResolveErrorKind::BadCharLiteral,
+                            ErrorKind::BadCharLiteral,
                         ));
                     }
                 }
@@ -102,7 +102,7 @@ impl<'a> Resolve<'a> for LitChar {
 
         // Too many characters in literal.
         if it.next().is_some() {
-            return Err(compile::Error::new(span, ResolveErrorKind::BadCharLiteral));
+            return Err(compile::Error::new(span, ErrorKind::BadCharLiteral));
         }
 
         Ok(c)

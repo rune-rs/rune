@@ -63,7 +63,7 @@ impl ExprSelect {
         while !p.peek::<T!['}']>()? {
             let branch = ExprSelectBranch::parse(p)?;
             let comma = p.parse::<Option<T![,]>>()?;
-            let is_end = utils::is_block_end(branch.expr(), comma.as_ref());
+            let is_end = ast::utils::is_block_end(branch.expr(), comma.as_ref());
             branches.push((branch, comma));
 
             if is_end {

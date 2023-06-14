@@ -28,11 +28,6 @@ macro_rules! alloc {
 }
 
 #[cfg(feature = "std")]
-pub(crate) use thiserror;
-#[cfg(not(feature = "std"))]
-pub(crate) mod thiserror;
-
-#[cfg(feature = "std")]
 pub use ::anyhow::Error;
 #[cfg(not(feature = "std"))]
 pub(crate) mod anyhow;
@@ -48,9 +43,7 @@ alloc! {
     pub(crate) use ::string;
 }
 
-pub(crate) use ::core::convert;
 pub(crate) use ::core::fmt;
-pub(crate) use ::core::option;
 
 pub(crate) mod prelude {
     alloc! {

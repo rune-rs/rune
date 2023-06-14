@@ -1,26 +1,51 @@
-/*!
-Error types for the formatting functionality.
- */
+use core::fmt;
 
-use crate::no_std as std;
 use crate::no_std::io;
-use crate::no_std::thiserror;
 
 use crate::compile;
 
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum FormattingError {
-    #[error("I/O error")]
-    IOError(#[from] io::Error),
-
-    #[error("Invalid span: {0}..{1} but max is {2}")]
+#[derive(Debug)]
+#[non_exhaustive]
+pub(crate) enum FormattingError {
+    Io(io::Error),
     InvalidSpan(usize, usize, usize),
-
-    #[error("Error while parsing source")]
-    CompileError(#[from] compile::Error),
-
-    #[error("Unexpected end of input")]
+    CompileError(compile::Error),
     Eof,
+}
+
+impl fmt::Display for FormattingError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            FormattingError::Io(error) => error.fmt(f),
+            FormattingError::InvalidSpan(from, to, max) => {
+                write!(f, "Invalid span {from}..{to} but max is {max}",)
+            }
+            FormattingError::CompileError(error) => error.fmt(f),
+            FormattingError::Eof {} => write!(f, "Unexpected end of input"),
+        }
+    }
+}
+
+impl From<io::Error> for FormattingError {
+    #[inline]
+    fn from(error: io::Error) -> Self {
+        FormattingError::Io(error)
+    }
+}
+
+impl From<compile::Error> for FormattingError {
+    #[inline]
+    fn from(error: compile::Error) -> Self {
+        FormattingError::CompileError(error)
+    }
+}
+
+impl crate::no_std::error::Error for FormattingError {
+    fn source(&self) -> Option<&(dyn crate::no_std::error::Error + 'static)> {
+        match self {
+            FormattingError::Io(error) => Some(error),
+            FormattingError::CompileError(error) => Some(error),
+            _ => None,
+        }
+    }
 }

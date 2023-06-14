@@ -1,13 +1,22 @@
-use thiserror::Error;
+use core::fmt;
 
 use crate::Sources;
 use crate::workspace::{SourceLoader, Diagnostics, FileSourceLoader};
 use crate::workspace::manifest::{Loader, Manifest};
 
 /// Failed to build workspace.
-#[derive(Debug, Error)]
-#[error("Failed to load workspace (see diagnostics for details)")]
+#[derive(Debug)]
 pub struct BuildError;
+
+impl fmt::Display for BuildError {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Failed to load workspace (see diagnostics for details)")
+    }
+}
+
+impl crate::no_std::error::Error for BuildError {
+}
 
 /// Prepare a workspace build.
 pub fn prepare(sources: &mut Sources) -> Build<'_> {

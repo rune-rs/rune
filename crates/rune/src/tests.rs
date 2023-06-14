@@ -6,10 +6,7 @@
 pub(crate) mod prelude {
     pub(crate) use crate as rune;
     pub(crate) use crate::ast;
-    pub(crate) use crate::compile::{
-        self, CompileErrorKind, Item, Located, Named, ParseErrorKind, QueryErrorKind,
-        ResolveErrorKind,
-    };
+    pub(crate) use crate::compile::{self, ErrorKind, Item, Located, Named};
     pub(crate) use crate::diagnostics;
     pub(crate) use crate::macros;
     pub(crate) use crate::module::InstallWith;
@@ -27,25 +24,33 @@ pub(crate) mod prelude {
     pub(crate) use futures_executor::block_on;
 }
 
+use core::fmt;
+
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
 use anyhow::{Context as _, Error, Result};
-use thiserror::Error;
 
 use crate::compile::{IntoComponent, ItemBuf};
 use crate::runtime::{Args, VmError, VmResult};
 use crate::{termcolor, BuildError, Context, Diagnostics, FromValue, Source, Sources, Unit, Vm};
 
 /// An error that can be raised during testing.
-#[derive(Debug, Error)]
+#[derive(Debug)]
 pub enum RunError {
     /// A load error was raised during testing.
-    #[error("Build error: {0}")]
     BuildError(String),
     /// A virtual machine error was raised during testing.
-    #[error("Vm error: {0}")]
     VmError(VmError),
+}
+
+impl fmt::Display for RunError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RunError::BuildError(error) => write!(f, "Build error: {error}"),
+            RunError::VmError(error) => write!(f, "Vm error: {error}"),
+        }
+    }
 }
 
 /// Compile the given source into a unit and collection of warnings.

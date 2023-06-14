@@ -1,13 +1,12 @@
 prelude!();
 
-use CompileErrorKind::*;
-use ParseErrorKind::*;
+use ErrorKind::*;
 
 #[test]
 fn test_binary_exprs() {
     assert_errors! {
         r#"pub fn main() { 0 < 10 >= 10 }"#,
-        span, ParseError(PrecedenceGroupRequired) => {
+        span, PrecedenceGroupRequired => {
             assert_eq!(span, span!(16, 22));
         }
     };

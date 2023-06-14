@@ -1,10 +1,5 @@
 use core::fmt;
 
-use crate::no_std as std;
-use crate::no_std::thiserror;
-
-use thiserror::Error;
-
 use crate::ast::Span;
 use crate::ast::Spanned;
 use crate::SourceId;
@@ -63,24 +58,25 @@ impl Spanned for WarningDiagnostic {
 }
 
 impl fmt::Display for WarningDiagnostic {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.kind, f)
     }
 }
 
 impl crate::no_std::error::Error for WarningDiagnostic {
+    #[inline]
     fn source(&self) -> Option<&(dyn crate::no_std::error::Error + 'static)> {
-        self.kind.source()
+        None
     }
 }
 
 /// The kind of a [WarningDiagnostic].
-#[derive(Debug, Clone, Copy, Error)]
+#[derive(Debug, Clone, Copy)]
 #[allow(missing_docs)]
 #[non_exhaustive]
 pub enum WarningDiagnosticKind {
     /// Item identified by the span is not used.
-    #[error("Not used")]
     NotUsed {
         /// The span that is not used.
         span: Span,
@@ -89,7 +85,6 @@ pub enum WarningDiagnosticKind {
     },
     /// Warning that an unconditional let pattern will panic if it doesn't
     /// match.
-    #[error("Pattern might panic")]
     LetPatternMightPanic {
         /// The span of the pattern.
         span: Span,
@@ -97,7 +92,6 @@ pub enum WarningDiagnosticKind {
         context: Option<Span>,
     },
     /// Encountered a template string without an expansion.
-    #[error("Using a template string without expansions, like `Hello World`")]
     TemplateWithoutExpansions {
         /// Span that caused the error.
         span: Span,
@@ -105,7 +99,6 @@ pub enum WarningDiagnosticKind {
         context: Option<Span>,
     },
     /// Suggestion that call parameters could be removed.
-    #[error("Call paramters are not needed here")]
     RemoveTupleCallParams {
         /// The span of the call.
         span: Span,
@@ -115,9 +108,29 @@ pub enum WarningDiagnosticKind {
         context: Option<Span>,
     },
     /// An unecessary semi-colon is used.
-    #[error("Unnecessary semicolon")]
     UnnecessarySemiColon {
         /// Span where the semi-colon is.
         span: Span,
     },
+}
+
+impl fmt::Display for WarningDiagnosticKind {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            WarningDiagnosticKind::NotUsed { .. } => write!(f, "Not used"),
+            WarningDiagnosticKind::LetPatternMightPanic { .. } => {
+                write!(f, "Pattern might panic")
+            }
+            WarningDiagnosticKind::TemplateWithoutExpansions { .. } => write!(
+                f,
+                "Using a template string without expansions, like `Hello World`"
+            ),
+            WarningDiagnosticKind::RemoveTupleCallParams { .. } => {
+                write!(f, "Call paramters are not needed here")
+            }
+            WarningDiagnosticKind::UnnecessarySemiColon { .. } => {
+                write!(f, "Unnecessary semicolon")
+            }
+        }
+    }
 }
