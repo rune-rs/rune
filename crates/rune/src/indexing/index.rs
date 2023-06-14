@@ -1721,7 +1721,7 @@ fn expr_index(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprIndex) -> compile::R
 
 #[instrument(span = ast)]
 fn expr_break(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprBreak) -> compile::Result<()> {
-    if let Some(ast::ExprBreakValue::Expr(e)) = ast.expr.as_deref_mut() {
+    if let Some(e) = ast.expr.as_deref_mut() {
         expr(idx, e)?;
     }
 

@@ -47,7 +47,7 @@ impl Interpreter<'_, '_> {
                 ir::EvalOutcome::NotConst(span) => {
                     return Err(compile::Error::new(span, IrErrorKind::NotConst))
                 }
-                ir::EvalOutcome::Break(span, _) => {
+                ir::EvalOutcome::Break(span, _, _) => {
                     return Err(compile::Error::new(span, IrErrorKind::BreakOutsideOfLoop))
                 }
             },
@@ -76,7 +76,7 @@ impl Interpreter<'_, '_> {
                 ir::EvalOutcome::NotConst(span) => {
                     Err(compile::Error::new(span, IrErrorKind::NotConst))
                 }
-                ir::EvalOutcome::Break(span, _) => {
+                ir::EvalOutcome::Break(span, _, _) => {
                     Err(compile::Error::new(span, IrErrorKind::BreakOutsideOfLoop))
                 }
             },

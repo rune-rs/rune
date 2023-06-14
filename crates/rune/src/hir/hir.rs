@@ -219,8 +219,8 @@ pub(crate) enum ExprKind<'hir> {
     Index(&'hir ExprIndex<'hir>),
     AsyncBlock(&'hir ExprAsyncBlock<'hir>),
     Block(&'hir Block<'hir>),
-    Break(Option<&'hir ExprBreakValue<'hir>>),
-    Continue(Option<&'hir ast::Label>),
+    Break(&'hir ExprBreak<'hir>),
+    Continue(&'hir ExprContinue<'hir>),
     Yield(Option<&'hir Expr<'hir>>),
     Return(Option<&'hir Expr<'hir>>),
     Await(&'hir Expr<'hir>),
@@ -286,7 +286,7 @@ pub(crate) struct ExprAssign<'hir> {
 #[non_exhaustive]
 pub(crate) struct ExprLoop<'hir> {
     /// A label.
-    pub(crate) label: Option<&'hir ast::Label>,
+    pub(crate) label: Option<&'hir str>,
     /// A condition to execute the loop, if a condition is necessary.
     pub(crate) condition: Option<&'hir Condition<'hir>>,
     /// The body of the loop.
@@ -301,7 +301,7 @@ pub(crate) struct ExprLoop<'hir> {
 #[non_exhaustive]
 pub(crate) struct ExprFor<'hir> {
     /// The label of the loop.
-    pub(crate) label: Option<&'hir ast::Label>,
+    pub(crate) label: Option<&'hir str>,
     /// The pattern binding to use.
     /// Non-trivial pattern bindings will panic if the value doesn't match.
     pub(crate) binding: Pat<'hir>,
@@ -489,16 +489,6 @@ pub(crate) struct ExprIndex<'hir> {
     pub(crate) index: Expr<'hir>,
 }
 
-/// Things that we can break on.
-#[derive(Debug, Clone, Copy)]
-#[non_exhaustive]
-pub(crate) enum ExprBreakValue<'hir> {
-    /// Breaking a value out of a loop.
-    Expr(&'hir Expr<'hir>),
-    /// Break and jump to the given label.
-    Label(&'hir ast::Label),
-}
-
 /// An async block being called.
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
@@ -506,6 +496,26 @@ pub(crate) struct ExprAsyncBlock<'hir> {
     pub(crate) hash: Hash,
     pub(crate) do_move: bool,
     pub(crate) captures: &'hir [Name<'hir>],
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct ExprBreak<'hir> {
+    /// Label being continued.
+    pub(crate) label: Option<&'hir str>,
+    /// Value being broken with.
+    pub(crate) expr: Option<&'hir Expr<'hir>>,
+    /// Variables that goes out of scope.
+    #[allow(unused)]
+    pub(crate) drop: &'hir [Name<'hir>],
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct ExprContinue<'hir> {
+    /// Label being continued.
+    pub(crate) label: Option<&'hir str>,
+    /// Variables that goes out of scope.
+    #[allow(unused)]
+    pub(crate) drop: &'hir [Name<'hir>],
 }
 
 /// A `select` expression that selects over a collection of futures.

@@ -434,30 +434,51 @@ pub(crate) fn expr<'hir>(
         // representation. We only do different ones here right now since it's
         // easier when refactoring.
         ast::Expr::While(ast) => {
-            cx.scopes.push();
+            let label = match &ast.label {
+                Some((label, _)) => Some(alloc_str!(label.resolve(resolve_context!(cx.q))?)),
+                None => None,
+            };
 
+            cx.scopes.push_loop(label);
             let condition = condition(cx, &ast.condition)?;
             let body = block(cx, &ast.body)?;
-
             let layer = cx.scopes.pop().with_span(ast)?;
 
             hir::ExprKind::Loop(alloc!(hir::ExprLoop {
-                label: option!(&ast.label, |(ast, _)| label(cx, ast)?),
+                label,
                 condition: Some(alloc!(condition)),
                 body,
                 drop: iter!(layer.into_drop_order()),
             }))
         }
-        ast::Expr::Loop(ast) => hir::ExprKind::Loop(alloc!(hir::ExprLoop {
-            label: option!(&ast.label, |(ast, _)| label(cx, ast)?),
-            condition: None,
-            body: block(cx, &ast.body)?,
-            drop: &[],
-        })),
+        ast::Expr::Loop(ast) => {
+            let label = match &ast.label {
+                Some((label, _)) => Some(alloc_str!(label.resolve(resolve_context!(cx.q))?)),
+                None => None,
+            };
+
+            cx.scopes.push_loop(label);
+            let body = block(cx, &ast.body)?;
+            let layer = cx.scopes.pop().with_span(ast)?;
+
+            let kind = hir::ExprKind::Loop(alloc!(hir::ExprLoop {
+                label,
+                condition: None,
+                body,
+                drop: iter!(layer.into_drop_order()),
+            }));
+
+            kind
+        }
         ast::Expr::For(ast) => {
             let iter = expr(cx, &ast.iter)?;
 
-            cx.scopes.push();
+            let label = match &ast.label {
+                Some((label, _)) => Some(alloc_str!(label.resolve(resolve_context!(cx.q))?)),
+                None => None,
+            };
+
+            cx.scopes.push_loop(label);
 
             let binding = pat(cx, &ast.binding)?;
             let body = block(cx, &ast.body)?;
@@ -465,7 +486,7 @@ pub(crate) fn expr<'hir>(
             let layer = cx.scopes.pop().with_span(ast)?;
 
             hir::ExprKind::For(alloc!(hir::ExprFor {
-                label: option!(&ast.label, |(ast, _)| label(cx, ast)?),
+                label,
                 binding,
                 iter,
                 body,
@@ -530,16 +551,8 @@ pub(crate) fn expr<'hir>(
             index: expr(cx, &ast.index)?,
         })),
         ast::Expr::Block(ast) => expr_block(cx, ast)?,
-        ast::Expr::Break(ast) => {
-            hir::ExprKind::Break(option!(ast.expr.as_deref(), |ast| match ast {
-                ast::ExprBreakValue::Expr(ast) => hir::ExprBreakValue::Expr(alloc!(expr(cx, ast)?)),
-                ast::ExprBreakValue::Label(ast) =>
-                    hir::ExprBreakValue::Label(alloc!(label(cx, ast)?)),
-            }))
-        }
-        ast::Expr::Continue(ast) => {
-            hir::ExprKind::Continue(option!(&ast.label, |ast| label(cx, ast)?))
-        }
+        ast::Expr::Break(ast) => hir::ExprKind::Break(alloc!(expr_break(cx, ast)?)),
+        ast::Expr::Continue(ast) => hir::ExprKind::Continue(alloc!(expr_continue(cx, ast)?)),
         ast::Expr::Yield(ast) => hir::ExprKind::Yield(option!(&ast.expr, |ast| expr(cx, ast)?)),
         ast::Expr::Return(ast) => hir::ExprKind::Return(option!(&ast.expr, |ast| expr(cx, ast)?)),
         ast::Expr::Await(ast) => hir::ExprKind::Await(alloc!(expr(cx, &ast.expr)?)),
@@ -844,6 +857,70 @@ pub(crate) fn expr_block<'hir>(
             "async or const block",
         )),
     }
+}
+
+/// Unroll a break expression, capturing all variables which are in scope at
+/// the time of it.
+fn expr_break<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    ast: &ast::ExprBreak,
+) -> compile::Result<hir::ExprBreak<'hir>> {
+    alloc_with!(cx, ast);
+
+    let label = match &ast.label {
+        Some(label) => Some(label.resolve(resolve_context!(cx.q))?),
+        None => None,
+    };
+
+    let Some(drop) = cx.scopes.loop_drop(label) else {
+        if let Some(label) = label {
+            return Err(compile::Error::new(ast, ErrorKind::MissingLoopLabel { label: label.into() }));
+        } else {
+            return Err(compile::Error::new(ast, ErrorKind::BreakOutsideOfLoop));
+        }
+    };
+
+    Ok(hir::ExprBreak {
+        label: match label {
+            Some(label) => Some(alloc_str!(label)),
+            None => None,
+        },
+        expr: match &ast.expr {
+            Some(ast) => Some(alloc!(expr(cx, ast)?)),
+            None => None,
+        },
+        drop: iter!(drop),
+    })
+}
+
+/// Unroll a continue expression, capturing all variables which are in scope at
+/// the time of it.
+fn expr_continue<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    ast: &ast::ExprContinue,
+) -> compile::Result<hir::ExprContinue<'hir>> {
+    alloc_with!(cx, ast);
+
+    let label = match &ast.label {
+        Some(label) => Some(label.resolve(resolve_context!(cx.q))?),
+        None => None,
+    };
+
+    let Some(drop) = cx.scopes.loop_drop(label) else {
+        if let Some(label) = label {
+            return Err(compile::Error::new(ast, ErrorKind::MissingLoopLabel { label: label.into() }));
+        } else {
+            return Err(compile::Error::new(ast, ErrorKind::ContinueOutsideOfLoop));
+        }
+    };
+
+    Ok(hir::ExprContinue {
+        label: match label {
+            Some(label) => Some(alloc_str!(label)),
+            None => None,
+        },
+        drop: iter!(drop),
+    })
 }
 
 /// Lower a function argument.
@@ -1262,13 +1339,6 @@ fn expr_path_meta<'hir>(
 
         Ok(hir::ExprKind::Type(Type::new(type_hash)))
     }
-}
-
-fn label(_: &mut Ctxt<'_, '_, '_>, ast: &ast::Label) -> compile::Result<ast::Label> {
-    Ok(ast::Label {
-        span: ast.span,
-        source: ast.source,
-    })
 }
 
 fn condition<'hir>(

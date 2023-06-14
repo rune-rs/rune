@@ -21,38 +21,12 @@ pub struct ExprBreak {
     pub attributes: Vec<ast::Attribute>,
     /// The return token.
     pub break_token: T![break],
-    /// An optional expression to break with.
+    /// A label to break to.
     #[rune(iter)]
-    pub expr: Option<Box<ExprBreakValue>>,
+    pub label: Option<ast::Label>,
+    /// An expression to break with.
+    #[rune(iter)]
+    pub expr: Option<Box<ast::Expr>>,
 }
 
 expr_parse!(Break, ExprBreak, "break expression");
-
-/// Things that we can break on.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
-#[non_exhaustive]
-#[allow(clippy::large_enum_variant)]
-pub enum ExprBreakValue {
-    /// Breaking a value out of a loop.
-    Expr(ast::Expr),
-    /// Break and jump to the given label.
-    Label(ast::Label),
-}
-
-impl Parse for ExprBreakValue {
-    fn parse(p: &mut Parser<'_>) -> Result<Self> {
-        Ok(match p.nth(0)? {
-            K!['label] => Self::Label(p.parse()?),
-            _ => Self::Expr(p.parse()?),
-        })
-    }
-}
-
-impl Peek for ExprBreakValue {
-    fn peek(p: &mut Peeker<'_>) -> bool {
-        match p.nth(0) {
-            K!['label] => true,
-            _ => ast::Expr::peek(p),
-        }
-    }
-}

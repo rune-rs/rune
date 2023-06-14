@@ -46,7 +46,7 @@ pub(crate) struct Ctxt<'a, 'hir, 'arena> {
     /// Context for which to emit warnings.
     pub(crate) contexts: Vec<Span>,
     /// The nesting of loop we are currently in.
-    pub(crate) loops: Loops,
+    pub(crate) loops: Loops<'hir>,
     /// Enabled optimizations.
     pub(crate) options: &'a Options,
 }
@@ -1338,7 +1338,7 @@ fn const_item<'hir>(
 #[instrument(span = span)]
 fn expr_break<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
-    hir: Option<&hir::ExprBreakValue<'hir>>,
+    hir: &hir::ExprBreak<'hir>,
     span: &dyn Spanned,
     _: Needs,
 ) -> compile::Result<Asm<'hir>> {
@@ -1349,22 +1349,25 @@ fn expr_break<'hir>(
         ));
     };
 
-    let (last_loop, to_drop, has_value) = if let Some(e) = hir {
-        match e {
-            hir::ExprBreakValue::Expr(e) => {
-                expr(cx, e, current_loop.needs)?.apply(cx)?;
-                let to_drop = current_loop.drop.into_iter().collect();
-                (current_loop, to_drop, true)
-            }
-            hir::ExprBreakValue::Label(label) => {
-                let (last_loop, to_drop) =
-                    cx.loops.walk_until_label(resolve_context!(cx.q), label)?;
-                (last_loop, to_drop, false)
-            }
+    let (last_loop, to_drop, has_value) = match (hir.label, hir.expr) {
+        (None, Some(e)) => {
+            expr(cx, e, current_loop.needs)?.apply(cx)?;
+            let to_drop = current_loop.drop.into_iter().collect();
+            (current_loop, to_drop, true)
         }
-    } else {
-        let to_drop = current_loop.drop.into_iter().collect();
-        (current_loop, to_drop, false)
+        (Some(label), None) => {
+            let (last_loop, to_drop) = cx.loops.walk_until_label(label, span)?;
+            (last_loop, to_drop, false)
+        }
+        (Some(label), Some(e)) => {
+            expr(cx, e, current_loop.needs)?.apply(cx)?;
+            let (last_loop, to_drop) = cx.loops.walk_until_label(label, span)?;
+            (last_loop, to_drop, true)
+        }
+        (None, None) => {
+            let to_drop = current_loop.drop.into_iter().collect();
+            (current_loop, to_drop, false)
+        }
     };
 
     // Drop loop temporaries. Typically an iterator.
@@ -1513,7 +1516,7 @@ fn expr_call_closure<'hir>(
 #[instrument(span = span)]
 fn expr_continue<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
-    hir: Option<&ast::Label>,
+    hir: &hir::ExprContinue<'hir>,
     span: &dyn Spanned,
     _: Needs,
 ) -> compile::Result<Asm<'hir>> {
@@ -1524,8 +1527,8 @@ fn expr_continue<'hir>(
         ));
     };
 
-    let last_loop = if let Some(label) = hir {
-        let (last_loop, _) = cx.loops.walk_until_label(resolve_context!(cx.q), label)?;
+    let last_loop = if let Some(label) = hir.label {
+        let (last_loop, _) = cx.loops.walk_until_label(label, span)?;
         last_loop
     } else {
         current_loop
@@ -1675,7 +1678,7 @@ fn expr_for<'hir>(
     cx.asm.label(&continue_label)?;
 
     let _guard = cx.loops.push(Loop {
-        label: hir.label.copied(),
+        label: hir.label,
         continue_label: continue_label.clone(),
         continue_var_count,
         break_label: break_label.clone(),
@@ -2398,7 +2401,7 @@ fn expr_loop<'hir>(
     let var_count = cx.scopes.total(span)?;
 
     let _guard = cx.loops.push(Loop {
-        label: hir.label.copied(),
+        label: hir.label,
         continue_label: continue_label.clone(),
         continue_var_count: var_count,
         break_label: break_label.clone(),
