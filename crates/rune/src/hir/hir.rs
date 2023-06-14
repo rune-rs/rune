@@ -102,8 +102,6 @@ pub(crate) enum PatPathKind<'hir> {
 pub(crate) enum PatKind<'hir> {
     /// An ignored binding.
     Ignore,
-    /// The rest pattern `..`.
-    Rest,
     /// A path pattern.
     Path(&'hir PatPathKind<'hir>),
     /// A literal pattern. This is represented as an expression.
@@ -114,8 +112,6 @@ pub(crate) enum PatKind<'hir> {
     Tuple(&'hir PatItems<'hir>),
     /// An object pattern.
     Object(&'hir PatItems<'hir>),
-    /// A binding `a: pattern` or `"foo": pattern`.
-    Binding,
 }
 
 #[derive(Debug, Clone, Copy)]

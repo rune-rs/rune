@@ -423,7 +423,6 @@ fn pat<'hir>(
             pat_object(cx, hir, span, false_label, &load)?;
             Ok(true)
         }
-        _ => Err(compile::Error::new(hir, ErrorKind::UnsupportedPatternExpr)),
     }
 }
 

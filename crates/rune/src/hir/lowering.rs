@@ -244,7 +244,6 @@ fn expr_call_closure<'hir>(
                 build: Build::Closure(indexing::Closure {
                     ast: Box::new(ast.clone()),
                     call,
-                    captures: meta.hash,
                 }),
                 used: Used::Used,
             });
@@ -817,7 +816,6 @@ pub(crate) fn expr_block<'hir>(
                         build: Build::AsyncBlock(indexing::AsyncBlock {
                             ast: ast.block.clone(),
                             call,
-                            captures: meta.hash,
                         }),
                         used: Used::Used,
                     });
@@ -891,203 +889,221 @@ fn stmt<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Stmt) -> compile::Result<h
 }
 
 fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir::Pat<'hir>> {
+    fn filter((ast, _): &(ast::Pat, Option<ast::Comma>)) -> Option<&ast::Pat> {
+        if matches!(ast, ast::Pat::Binding(..) | ast::Pat::Rest(..)) {
+            return None;
+        }
+
+        Some(ast)
+    }
+
     alloc_with!(cx, ast);
 
-    Ok(hir::Pat {
-        span: ast.span(),
-        kind: match ast {
-            ast::Pat::Ignore(..) => hir::PatKind::Ignore,
-            ast::Pat::Rest(..) => hir::PatKind::Rest,
-            ast::Pat::Path(ast) => {
-                let named = cx.q.convert_path(&ast.path)?;
+    let kind = match ast {
+        ast::Pat::Ignore(..) => hir::PatKind::Ignore,
+        ast::Pat::Path(ast) => {
+            let named = cx.q.convert_path(&ast.path)?;
+            let parameters = generics_parameters(cx, &named)?;
+
+            let kind = 'ok: {
+                if let Some(meta) = cx.try_lookup_meta(&ast, named.item, &parameters)? {
+                    if let Some((0, kind)) = tuple_match_for(cx, &meta) {
+                        break 'ok hir::PatPathKind::Kind(alloc!(kind));
+                    }
+                }
+
+                if let Some(ident) = ast.path.try_as_ident() {
+                    let name = alloc_str!(ident.resolve(resolve_context!(cx.q))?);
+                    cx.scopes.define(hir::Name::Str(name)).with_span(ast)?;
+                    break 'ok hir::PatPathKind::Ident(name);
+                }
+
+                return Err(compile::Error::new(ast, ErrorKind::UnsupportedBinding));
+            };
+
+            hir::PatKind::Path(alloc!(kind))
+        }
+        ast::Pat::Lit(ast) => hir::PatKind::Lit(alloc!(expr(cx, &ast.expr)?)),
+        ast::Pat::Vec(ast) => {
+            let (is_open, count) = pat_items_count(ast.items.as_slice())?;
+            let items = iter!(
+                ast.items.iter().filter_map(filter),
+                ast.items.len(),
+                |ast| pat(cx, ast)?
+            );
+
+            hir::PatKind::Vec(alloc!(hir::PatItems {
+                kind: hir::PatItemsKind::Anonymous { count, is_open },
+                items,
+                is_open,
+                count,
+                bindings: &[],
+            }))
+        }
+        ast::Pat::Tuple(ast) => {
+            let (is_open, count) = pat_items_count(ast.items.as_slice())?;
+            let items = iter!(
+                ast.items.iter().filter_map(filter),
+                ast.items.len(),
+                |ast| pat(cx, ast)?
+            );
+
+            let kind = if let Some(path) = &ast.path {
+                let named = cx.q.convert_path(path)?;
                 let parameters = generics_parameters(cx, &named)?;
+                let meta = cx.lookup_meta(path, named.item, parameters)?;
 
-                let kind = 'ok: {
-                    if let Some(meta) = cx.try_lookup_meta(&ast, named.item, &parameters)? {
-                        if let Some((0, kind)) = tuple_match_for(cx, &meta) {
-                            break 'ok hir::PatPathKind::Kind(alloc!(kind));
-                        }
-                    }
-
-                    if let Some(ident) = ast.path.try_as_ident() {
-                        let name = alloc_str!(ident.resolve(resolve_context!(cx.q))?);
-                        cx.scopes.define(hir::Name::Str(name)).with_span(ast)?;
-                        break 'ok hir::PatPathKind::Ident(name);
-                    }
-
-                    return Err(compile::Error::new(ast, ErrorKind::UnsupportedBinding));
+                // Treat the current meta as a tuple and get the number of arguments it
+                // should receive and the type check that applies to it.
+                let Some((args, kind)) = tuple_match_for(cx, &meta) else {
+                    return Err(compile::Error::expected_meta(
+                        path,
+                        meta.info(cx.q.pool),
+                        "type that can be used in a tuple pattern",
+                    ));
                 };
 
-                hir::PatKind::Path(alloc!(kind))
-            }
-            ast::Pat::Lit(ast) => hir::PatKind::Lit(alloc!(expr(cx, &ast.expr)?)),
-            ast::Pat::Vec(ast) => {
-                let items = iter!(&ast.items, |(ast, _)| pat(cx, ast)?);
-                let (is_open, count) = pat_items_count(items)?;
+                if !(args == count || count < args && is_open) {
+                    return Err(compile::Error::new(
+                        path,
+                        ErrorKind::UnsupportedArgumentCount {
+                            expected: args,
+                            actual: count,
+                        },
+                    ));
+                }
 
-                hir::PatKind::Vec(alloc!(hir::PatItems {
-                    kind: hir::PatItemsKind::Anonymous { count, is_open },
-                    items,
-                    is_open,
-                    count,
-                    bindings: &[],
-                }))
-            }
-            ast::Pat::Tuple(ast) => {
-                let items = iter!(&ast.items, |(ast, _)| pat(cx, ast)?);
-                let (is_open, count) = pat_items_count(items)?;
+                kind
+            } else {
+                hir::PatItemsKind::Anonymous { count, is_open }
+            };
 
-                let kind = if let Some(path) = &ast.path {
+            hir::PatKind::Tuple(alloc!(hir::PatItems {
+                kind,
+                items,
+                is_open,
+                count,
+                bindings: &[],
+            }))
+        }
+        ast::Pat::Object(ast) => {
+            let items = iter!(
+                ast.items.iter().filter_map(filter),
+                ast.items.len(),
+                |ast| pat(cx, ast)?
+            );
+            let (is_open, count) = pat_items_count(ast.items.as_slice())?;
+
+            let mut keys_dup = HashMap::new();
+
+            let bindings = iter!(ast.items.iter().take(count), |(pat, _)| {
+                let (key, binding) = match pat {
+                    ast::Pat::Binding(binding) => {
+                        let (span, key) = object_key(cx, &binding.key)?;
+                        (
+                            key,
+                            hir::Binding::Binding(
+                                span.span(),
+                                key,
+                                alloc!(self::pat(cx, &binding.pat)?),
+                            ),
+                        )
+                    }
+                    ast::Pat::Path(path) => {
+                        let Some(ident) = path.path.try_as_ident() else {
+                            return Err(compile::Error::new(
+                                path,
+                                ErrorKind::UnsupportedPatternExpr,
+                            ));
+                        };
+
+                        let key = alloc_str!(ident.resolve(resolve_context!(cx.q))?);
+                        cx.scopes.define(hir::Name::Str(key)).with_span(ident)?;
+                        (key, hir::Binding::Ident(path.span(), key))
+                    }
+                    _ => {
+                        return Err(compile::Error::new(pat, ErrorKind::UnsupportedPatternExpr));
+                    }
+                };
+
+                if let Some(existing) = keys_dup.insert(key, pat) {
+                    return Err(compile::Error::new(
+                        pat,
+                        ErrorKind::DuplicateObjectKey {
+                            existing: existing.span(),
+                            object: pat.span(),
+                        },
+                    ));
+                }
+
+                binding
+            });
+
+            let kind = match &ast.ident {
+                ast::ObjectIdent::Named(path) => {
                     let named = cx.q.convert_path(path)?;
                     let parameters = generics_parameters(cx, &named)?;
                     let meta = cx.lookup_meta(path, named.item, parameters)?;
 
-                    // Treat the current meta as a tuple and get the number of arguments it
-                    // should receive and the type check that applies to it.
-                    let Some((args, kind)) = tuple_match_for(cx, &meta) else {
+                    let Some((st, kind)) = struct_match_for(cx, &meta) else {
                         return Err(compile::Error::expected_meta(
                             path,
                             meta.info(cx.q.pool),
-                            "type that can be used in a tuple pattern",
+                            "type that can be used in a struct pattern",
                         ));
                     };
 
-                    if !(args == count || count < args && is_open) {
+                    let mut fields = st.fields.clone();
+
+                    for binding in bindings.iter() {
+                        if !fields.remove(binding.key()) {
+                            return Err(compile::Error::new(
+                                ast,
+                                ErrorKind::LitObjectNotField {
+                                    field: binding.key().into(),
+                                    item: cx.q.pool.item(meta.item_meta.item).to_owned(),
+                                },
+                            ));
+                        }
+                    }
+
+                    if !is_open && !fields.is_empty() {
+                        let mut fields = fields
+                            .into_iter()
+                            .map(Box::<str>::from)
+                            .collect::<Box<[_]>>();
+                        fields.sort();
+
                         return Err(compile::Error::new(
-                            path,
-                            ErrorKind::UnsupportedArgumentCount {
-                                expected: args,
-                                actual: count,
+                            ast,
+                            ErrorKind::PatternMissingFields {
+                                item: cx.q.pool.item(meta.item_meta.item).to_owned(),
+                                fields,
                             },
                         ));
                     }
 
                     kind
-                } else {
-                    hir::PatItemsKind::Anonymous { count, is_open }
-                };
+                }
+                ast::ObjectIdent::Anonymous(..) => hir::PatItemsKind::Anonymous { count, is_open },
+            };
 
-                hir::PatKind::Tuple(alloc!(hir::PatItems {
-                    kind,
-                    items,
-                    is_open,
-                    count,
-                    bindings: &[],
-                }))
-            }
-            ast::Pat::Object(ast) => {
-                let items = iter!(&ast.items, |(ast, _)| pat(cx, ast)?);
-                let (is_open, count) = pat_items_count(items)?;
+            hir::PatKind::Object(alloc!(hir::PatItems {
+                kind,
+                items,
+                is_open,
+                count,
+                bindings,
+            }))
+        }
+        _ => {
+            return Err(compile::Error::new(ast, ErrorKind::UnsupportedPatternExpr));
+        }
+    };
 
-                let mut keys_dup = HashMap::new();
-
-                let bindings = iter!(ast.items.iter().take(count), |(pat, _)| {
-                    let (key, binding) = match pat {
-                        ast::Pat::Binding(binding) => {
-                            let (span, key) = object_key(cx, &binding.key)?;
-                            (
-                                key,
-                                hir::Binding::Binding(
-                                    span.span(),
-                                    key,
-                                    alloc!(self::pat(cx, &binding.pat)?),
-                                ),
-                            )
-                        }
-                        ast::Pat::Path(path) => {
-                            let Some(ident) = path.path.try_as_ident() else {
-                                return Err(compile::Error::new(
-                                    path,
-                                    ErrorKind::UnsupportedPatternExpr,
-                                ));
-                            };
-
-                            let key = alloc_str!(ident.resolve(resolve_context!(cx.q))?);
-                            cx.scopes.define(hir::Name::Str(key)).with_span(ident)?;
-                            (key, hir::Binding::Ident(path.span(), key))
-                        }
-                        _ => {
-                            return Err(compile::Error::new(
-                                pat,
-                                ErrorKind::UnsupportedPatternExpr,
-                            ));
-                        }
-                    };
-
-                    if let Some(existing) = keys_dup.insert(key, pat) {
-                        return Err(compile::Error::new(
-                            pat,
-                            ErrorKind::DuplicateObjectKey {
-                                existing: existing.span(),
-                                object: pat.span(),
-                            },
-                        ));
-                    }
-
-                    binding
-                });
-
-                let kind = match &ast.ident {
-                    ast::ObjectIdent::Named(path) => {
-                        let named = cx.q.convert_path(path)?;
-                        let parameters = generics_parameters(cx, &named)?;
-                        let meta = cx.lookup_meta(path, named.item, parameters)?;
-
-                        let Some((st, kind)) = struct_match_for(cx, &meta) else {
-                            return Err(compile::Error::expected_meta(
-                                path,
-                                meta.info(cx.q.pool),
-                                "type that can be used in a struct pattern",
-                            ));
-                        };
-
-                        let mut fields = st.fields.clone();
-
-                        for binding in bindings.iter() {
-                            if !fields.remove(binding.key()) {
-                                return Err(compile::Error::new(
-                                    ast,
-                                    ErrorKind::LitObjectNotField {
-                                        field: binding.key().into(),
-                                        item: cx.q.pool.item(meta.item_meta.item).to_owned(),
-                                    },
-                                ));
-                            }
-                        }
-
-                        if !is_open && !fields.is_empty() {
-                            let mut fields = fields
-                                .into_iter()
-                                .map(Box::<str>::from)
-                                .collect::<Box<[_]>>();
-                            fields.sort();
-
-                            return Err(compile::Error::new(
-                                ast,
-                                ErrorKind::PatternMissingFields {
-                                    item: cx.q.pool.item(meta.item_meta.item).to_owned(),
-                                    fields,
-                                },
-                            ));
-                        }
-
-                        kind
-                    }
-                    ast::ObjectIdent::Anonymous(..) => {
-                        hir::PatItemsKind::Anonymous { count, is_open }
-                    }
-                };
-
-                hir::PatKind::Object(alloc!(hir::PatItems {
-                    kind,
-                    items,
-                    is_open,
-                    count,
-                    bindings,
-                }))
-            }
-            ast::Pat::Binding(..) => hir::PatKind::Binding,
-        },
+    Ok(hir::Pat {
+        span: ast.span(),
+        kind,
     })
 }
 
@@ -1271,18 +1287,18 @@ fn condition<'hir>(
 }
 
 /// Test if the given pattern is open or not.
-fn pat_items_count(items: &[hir::Pat<'_>]) -> compile::Result<(bool, usize)> {
+fn pat_items_count(items: &[(ast::Pat, Option<ast::Comma>)]) -> compile::Result<(bool, usize)> {
     let mut it = items.iter();
 
     let (is_open, mut count) = match it.next_back() {
-        Some(pat) => matches!(pat.kind, hir::PatKind::Rest)
+        Some((pat, _)) => matches!(pat, ast::Pat::Rest { .. })
             .then(|| (true, 0))
             .unwrap_or((false, 1)),
         None => return Ok((false, 0)),
     };
 
-    for pat in it {
-        if let hir::PatKind::Rest = pat.kind {
+    for (pat, _) in it {
+        if let ast::Pat::Rest { .. } = pat {
             return Err(compile::Error::new(pat, ErrorKind::UnsupportedPatternRest));
         }
 

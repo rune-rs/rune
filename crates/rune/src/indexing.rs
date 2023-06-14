@@ -7,7 +7,6 @@ use crate::no_std::prelude::*;
 use crate::ast;
 use crate::compile::meta;
 use crate::compile::{ItemId, ItemMeta};
-use crate::hash::Hash;
 use crate::parse::NonZeroId;
 use crate::runtime::Call;
 
@@ -112,8 +111,6 @@ pub(crate) struct Closure {
     pub(crate) ast: Box<ast::ExprClosure>,
     /// Calling convention used for closure.
     pub(crate) call: Call,
-    /// Captures.
-    pub(crate) captures: Hash,
 }
 
 #[derive(Debug, Clone)]
@@ -122,8 +119,6 @@ pub(crate) struct AsyncBlock {
     pub(crate) ast: ast::Block,
     /// Calling convention used for async block.
     pub(crate) call: Call,
-    /// Captured variables.
-    pub(crate) captures: Hash,
 }
 
 #[derive(Debug, Clone)]
