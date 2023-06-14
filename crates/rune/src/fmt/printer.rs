@@ -1187,6 +1187,7 @@ impl<'a> Printer<'a> {
         let ast::ExprBreak {
             attributes,
             break_token,
+            label,
             expr,
         } = ast;
 
@@ -1197,20 +1198,14 @@ impl<'a> Printer<'a> {
         self.writer
             .write_spanned_raw(break_token.span, false, false)?;
 
-        if let Some(expr) = expr {
+        if let Some(label) = label {
             self.writer.write_unspanned(" ")?;
-            self.visit_expr_break_value(expr)?;
+            self.writer.write_spanned_raw(label.span, false, false)?;
         }
 
-        Ok(())
-    }
-
-    fn visit_expr_break_value(&mut self, ast: &ast::ExprBreakValue) -> Result<()> {
-        match ast {
-            ast::ExprBreakValue::Expr(expr) => self.visit_expr(expr)?,
-            ast::ExprBreakValue::Label(label) => {
-                self.writer.write_spanned_raw(label.span, false, false)?
-            }
+        if let Some(expr) = expr {
+            self.writer.write_unspanned(" ")?;
+            self.visit_expr(expr)?;
         }
 
         Ok(())

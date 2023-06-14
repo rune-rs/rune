@@ -3,18 +3,16 @@ use core::cell::RefCell;
 use crate::no_std::prelude::*;
 use crate::no_std::rc::Rc;
 
-use crate::ast;
 use crate::ast::Spanned;
 use crate::compile::v1::Needs;
 use crate::compile::{self, ErrorKind};
-use crate::parse::ResolveContext;
 use crate::runtime::Label;
 
-pub(crate) struct LoopGuard {
-    loops: Rc<RefCell<Vec<Loop>>>,
+pub(crate) struct LoopGuard<'hir> {
+    loops: Rc<RefCell<Vec<Loop<'hir>>>>,
 }
 
-impl Drop for LoopGuard {
+impl<'hir> Drop for LoopGuard<'hir> {
     fn drop(&mut self) {
         let empty = self.loops.borrow_mut().pop().is_some();
         debug_assert!(empty);
@@ -23,9 +21,9 @@ impl Drop for LoopGuard {
 
 /// Loops we are inside.
 #[derive(Clone)]
-pub(crate) struct Loop {
+pub(crate) struct Loop<'hir> {
     /// The optional label of the start of the loop.
-    pub(crate) label: Option<ast::Label>,
+    pub(crate) label: Option<&'hir str>,
     /// The start label of the loop, used for `continue`.
     pub(crate) continue_label: Label,
     /// The number of local variables inside the loop.
@@ -40,11 +38,11 @@ pub(crate) struct Loop {
     pub(crate) drop: Option<usize>,
 }
 
-pub(crate) struct Loops {
-    loops: Rc<RefCell<Vec<Loop>>>,
+pub(crate) struct Loops<'hir> {
+    loops: Rc<RefCell<Vec<Loop<'hir>>>>,
 }
 
-impl Loops {
+impl<'hir> Loops<'hir> {
     /// Construct a new collection of loops.
     pub(crate) fn new() -> Self {
         Self {
@@ -53,12 +51,12 @@ impl Loops {
     }
 
     /// Get the last loop context.
-    pub(crate) fn last(&self) -> Option<Loop> {
+    pub(crate) fn last(&self) -> Option<Loop<'hir>> {
         self.loops.borrow().last().cloned()
     }
 
     /// Push loop information.
-    pub(crate) fn push(&mut self, l: Loop) -> LoopGuard {
+    pub(crate) fn push(&mut self, l: Loop<'hir>) -> LoopGuard<'hir> {
         self.loops.borrow_mut().push(l);
 
         LoopGuard {
@@ -69,26 +67,17 @@ impl Loops {
     /// Find the loop with the matching label.
     pub(crate) fn walk_until_label(
         &self,
-        cx: ResolveContext<'_>,
-        expected: &ast::Label,
-    ) -> compile::Result<(Loop, Vec<usize>)> {
-        use crate::parse::Resolve;
-
-        let span = expected.span();
-        let expected = expected.resolve(cx)?;
+        expected: &str,
+        span: &dyn Spanned,
+    ) -> compile::Result<(Loop<'hir>, Vec<usize>)> {
         let mut to_drop = Vec::new();
 
         for l in self.loops.borrow().iter().rev() {
             to_drop.extend(l.drop);
 
-            let label = match l.label {
-                Some(label) => label,
-                None => {
-                    continue;
-                }
+            let Some(label) = l.label else {
+                continue;
             };
-
-            let label = label.resolve(cx)?;
 
             if expected == label {
                 return Ok((l.clone(), to_drop));

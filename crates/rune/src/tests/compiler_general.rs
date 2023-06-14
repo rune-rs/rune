@@ -21,6 +21,14 @@ fn break_outside_of_loop() {
 }
 
 #[test]
+fn continue_outside_of_loop() {
+    assert_errors! {
+        r#"pub fn main() { continue; }"#,
+        span!(16, 24), ContinueOutsideOfLoop
+    };
+}
+
+#[test]
 fn test_pointers() {
     assert_errors! {
         r#"pub fn main() { let n = 0; foo(&n); } fn foo(n) {}"#,

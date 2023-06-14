@@ -118,7 +118,7 @@ fn test_continue_not_in_loop() {
 fn test_continue_missing_label() {
     assert_errors! {
         r#"pub fn main() { 'existing: loop { loop { continue 'missing; } } }"#,
-        span!(50, 58), MissingLoopLabel { label } => {
+        span!(41, 58), MissingLoopLabel { label } => {
             assert_eq!(&*label, "missing");
         }
     };

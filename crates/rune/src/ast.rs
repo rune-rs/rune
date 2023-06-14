@@ -168,7 +168,7 @@ pub use self::expr_assign::ExprAssign;
 pub use self::expr_await::ExprAwait;
 pub use self::expr_binary::{BinOp, ExprBinary};
 pub use self::expr_block::ExprBlock;
-pub use self::expr_break::{ExprBreak, ExprBreakValue};
+pub use self::expr_break::ExprBreak;
 pub use self::expr_call::ExprCall;
 pub use self::expr_closure::{ExprClosure, ExprClosureArgs};
 pub use self::expr_continue::ExprContinue;

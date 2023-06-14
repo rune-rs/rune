@@ -22,6 +22,7 @@ pub(crate) struct Scope(usize);
 enum LayerKind {
     #[default]
     Default,
+    Loop,
     Captures,
 }
 
@@ -39,6 +40,8 @@ pub(crate) struct Layer<'hir> {
     order: Vec<hir::Name<'hir>>,
     /// Captures inside of this layer.
     captures: BTreeSet<hir::Name<'hir>>,
+    /// An optional layer label.
+    label: Option<&'hir str>,
 }
 
 impl<'hir> Layer<'hir> {
@@ -70,23 +73,20 @@ impl<'hir> Scopes<'hir> {
 
     /// Push a scope.
     pub(crate) fn push(&mut self) {
-        let scope = Scope(self.scopes.vacant_key());
-
-        let layer = Layer {
-            scope,
-            parent: Some(NonZeroUsize::new(self.scope.0.wrapping_add(1)).expect("ran out of ids")),
-            variables: HashSet::new(),
-            order: Vec::new(),
-            kind: LayerKind::Default,
-            captures: BTreeSet::new(),
-        };
-
-        self.scopes.insert(layer);
-        self.scope = scope;
+        self.push_kind(LayerKind::Default, None)
     }
 
     /// Push an async block.
     pub(crate) fn push_captures(&mut self) {
+        self.push_kind(LayerKind::Captures, None)
+    }
+
+    /// Push a loop.
+    pub(crate) fn push_loop(&mut self, label: Option<&'hir str>) {
+        self.push_kind(LayerKind::Loop, label)
+    }
+
+    fn push_kind(&mut self, kind: LayerKind, label: Option<&'hir str>) {
         let scope = Scope(self.scopes.vacant_key());
 
         let layer = Layer {
@@ -94,8 +94,9 @@ impl<'hir> Scopes<'hir> {
             parent: Some(NonZeroUsize::new(self.scope.0.wrapping_add(1)).expect("ran out of ids")),
             variables: HashSet::new(),
             order: Vec::new(),
-            kind: LayerKind::Captures,
+            kind,
             captures: BTreeSet::new(),
+            label,
         };
 
         self.scopes.insert(layer);
@@ -170,6 +171,29 @@ impl<'hir> Scopes<'hir> {
         }
 
         Some((name, scope))
+    }
+
+    /// Walk the loop and construct captures for it.
+    #[tracing::instrument(skip_all, fields(?self.scope, ?label))]
+    pub(crate) fn loop_drop(&self, label: Option<&str>) -> Option<Vec<hir::Name<'hir>>> {
+        let mut captures = Vec::new();
+        let mut scope = self.scopes.get(self.scope.0);
+
+        while let Some(layer) = scope.take() {
+            if let Some(label) = label {
+                if layer.label == Some(label) {
+                    return Some(captures);
+                }
+            } else if matches!(layer.kind, LayerKind::Loop) {
+                return Some(captures);
+            }
+
+            captures.extend(layer.order.iter().rev().copied());
+            tracing::trace!(parent = ?layer.parent());
+            scope = self.scopes.get(layer.parent()?);
+        }
+
+        None
     }
 }
 

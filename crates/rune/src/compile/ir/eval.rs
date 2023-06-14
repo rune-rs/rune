@@ -24,7 +24,7 @@ pub enum EvalOutcome {
     /// A compile error.
     Error(compile::Error),
     /// Break until the next loop, or the optional label.
-    Break(Span, IrEvalBreak),
+    Break(Span, Option<Box<str>>, Option<ir::Value>),
 }
 
 impl EvalOutcome {
@@ -44,16 +44,6 @@ where
     fn from(error: T) -> Self {
         Self::Error(compile::Error::from(error))
     }
-}
-
-/// The value of a break.
-pub enum IrEvalBreak {
-    /// Break the next nested loop.
-    Inherent,
-    /// The break had a value.
-    Value(ir::Value),
-    /// The break had a label.
-    Label(Box<str>),
 }
 
 fn eval_ir_assign(
@@ -241,47 +231,46 @@ fn eval_ir_loop(
 
     let guard = interp.scopes.push();
 
-    loop {
+    let value = loop {
         if let Some(condition) = &ir.condition {
             interp.scopes.clear_current().with_span(condition)?;
 
             let value = eval_ir_condition(condition, interp, used)?;
 
             if !as_bool(condition.span(), value)? {
-                break;
+                break None;
             }
         }
 
         match eval_ir_scope(&ir.body, interp, used) {
             Ok(..) => (),
             Err(outcome) => match outcome {
-                EvalOutcome::Break(span, b) => match b {
-                    IrEvalBreak::Inherent => break,
-                    IrEvalBreak::Label(l) => {
-                        if ir.label.as_ref() == Some(&l) {
-                            break;
-                        }
-
-                        return Err(EvalOutcome::Break(span, IrEvalBreak::Label(l)));
+                EvalOutcome::Break(span, label, expr) => {
+                    if label.as_deref() == ir.label.as_deref() {
+                        break expr;
+                    } else {
+                        return Err(EvalOutcome::Break(span, label, expr));
                     }
-                    IrEvalBreak::Value(value) => {
-                        if ir.condition.is_none() {
-                            return Ok(value);
-                        }
-
-                        return Err(EvalOutcome::from(compile::Error::msg(
-                            span,
-                            "break with value is not supported for unconditional loops",
-                        )));
-                    }
-                },
+                }
                 outcome => return Err(outcome),
             },
         };
-    }
+    };
 
     interp.scopes.pop(guard).with_span(ir)?;
-    Ok(ir::Value::Unit)
+
+    if let Some(value) = value {
+        if ir.condition.is_some() {
+            return Err(EvalOutcome::from(compile::Error::msg(
+                span,
+                "break with value is not supported for unconditional loops",
+            )));
+        }
+
+        Ok(value)
+    } else {
+        Ok(ir::Value::Unit)
+    }
 }
 
 fn eval_ir_object(

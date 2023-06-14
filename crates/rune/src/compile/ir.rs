@@ -16,7 +16,6 @@ use crate::no_std::prelude::*;
 use crate as rune;
 use crate::ast::{self, Span, Spanned};
 use crate::compile::ir;
-use crate::compile::ir::eval::IrEvalBreak;
 use crate::compile::{self, WithSpan};
 use crate::hir;
 use crate::indexing::index;
@@ -389,27 +388,26 @@ pub(crate) struct IrBreak {
     /// The span of the break.
     #[rune(span)]
     pub(crate) span: Span,
-    /// The kind of the break.
-    pub(crate) kind: BreakKind,
+    /// The label of the break.
+    pub(crate) label: Option<Box<str>>,
+    /// The value of the break.
+    pub(crate) expr: Option<Box<Ir>>,
 }
 
 impl IrBreak {
     fn compile_ast(
         span: Span,
         cx: &mut Ctxt<'_, '_>,
-        hir: Option<&hir::ExprBreakValue>,
+        hir: &hir::ExprBreak,
     ) -> compile::Result<Self> {
-        let kind = match hir {
-            Some(expr) => match *expr {
-                hir::ExprBreakValue::Expr(e) => ir::BreakKind::Ir(Box::new(compiler::expr(e, cx)?)),
-                hir::ExprBreakValue::Label(label) => {
-                    ir::BreakKind::Label(cx.resolve(label)?.into())
-                }
-            },
-            None => ir::BreakKind::Inherent,
+        let label = hir.label.map(Into::into);
+
+        let expr = match hir.expr {
+            Some(e) => Some(Box::new(compiler::expr(e, cx)?)),
+            None => None,
         };
 
-        Ok(ir::IrBreak { span, kind })
+        Ok(ir::IrBreak { span, label, expr })
     }
 
     /// Evaluate the break into an [ir::EvalOutcome].
@@ -420,28 +418,16 @@ impl IrBreak {
             return e.into();
         }
 
-        match &self.kind {
-            BreakKind::Ir(ir) => match ir::eval_ir(ir, interp, used) {
-                Ok(value) => ir::EvalOutcome::Break(span, IrEvalBreak::Value(value)),
-                Err(err) => err,
+        let expr = match &self.expr {
+            Some(ir) => match ir::eval_ir(ir, interp, used) {
+                Ok(value) => Some(value),
+                Err(err) => return err,
             },
-            BreakKind::Label(label) => {
-                ir::EvalOutcome::Break(span, IrEvalBreak::Label(label.clone()))
-            }
-            BreakKind::Inherent => ir::EvalOutcome::Break(span, IrEvalBreak::Inherent),
-        }
-    }
-}
+            None => None,
+        };
 
-/// The kind of a break expression.
-#[derive(Debug, Clone)]
-pub(crate) enum BreakKind {
-    /// Break to the next loop.
-    Inherent,
-    /// Break to the given label.
-    Label(Box<str>),
-    /// Break with the value acquired from evaluating the ir.
-    Ir(Box<Ir>),
+        ir::EvalOutcome::Break(span, self.label.clone(), expr)
+    }
 }
 
 /// Tuple expression.

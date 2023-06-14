@@ -6,7 +6,6 @@ use crate::ast::{self, Span, Spanned};
 use crate::compile::ir;
 use crate::compile::{self, ErrorKind};
 use crate::hir;
-use crate::parse::Resolve;
 use crate::query::Query;
 use crate::runtime::{Bytes, Shared};
 use crate::SourceId;
@@ -19,16 +18,6 @@ pub(crate) struct Ctxt<'a, 'arena> {
     pub(crate) source_id: SourceId,
     /// Query associated with the compiler.
     pub(crate) q: Query<'a, 'arena>,
-}
-
-impl Ctxt<'_, '_> {
-    /// Resolve the given resolvable value.
-    pub(crate) fn resolve<'s, T>(&'s self, value: &T) -> compile::Result<T::Output>
-    where
-        T: Resolve<'s>,
-    {
-        value.resolve(resolve_context!(self.q))
-    }
 }
 
 #[instrument]
@@ -427,10 +416,7 @@ fn expr_loop(
 ) -> compile::Result<ir::IrLoop> {
     Ok(ir::IrLoop {
         span,
-        label: match hir.label {
-            Some(label) => Some(c.resolve(label)?.into()),
-            None => None,
-        },
+        label: hir.label.map(|l| l.into()),
         condition: match hir.condition {
             Some(hir) => Some(Box::new(condition(hir, c)?)),
             None => None,

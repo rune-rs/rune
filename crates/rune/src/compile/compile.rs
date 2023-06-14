@@ -264,14 +264,15 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                     closure.ast.args.as_slice().iter().map(|(a, _)| a),
                 )?;
 
+                let captures = self.q.pool.item_type_hash(item_meta.item);
+
                 let arena = hir::Arena::new();
                 let mut cx = hir::lowering::Ctxt::with_query(
                     &arena,
                     self.q.borrow(),
                     item_meta.location.source_id,
                 );
-                let hir =
-                    hir::lowering::expr_closure_secondary(&mut cx, &closure.ast, closure.captures)?;
+                let hir = hir::lowering::expr_closure_secondary(&mut cx, &closure.ast, captures)?;
                 let mut c = self.compiler1(location, &closure.ast, &mut asm);
                 assemble::expr_closure_secondary(&mut c, &hir, &closure.ast)?;
 
@@ -295,7 +296,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
 
                 use self::v1::assemble;
 
-                let span = &b.ast;
+                let captures = self.q.pool.item_type_hash(item_meta.item);
 
                 let arena = hir::Arena::new();
                 let mut cx = hir::lowering::Ctxt::with_query(
@@ -303,8 +304,8 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                     self.q.borrow(),
                     item_meta.location.source_id,
                 );
-                let hir = hir::lowering::async_block_secondary(&mut cx, &b.ast, b.captures)?;
-                let mut c = self.compiler1(location, span, &mut asm);
+                let hir = hir::lowering::async_block_secondary(&mut cx, &b.ast, captures)?;
+                let mut c = self.compiler1(location, &b.ast, &mut asm);
                 assemble::async_block_secondary(&mut c, &hir)?;
 
                 if used.is_unused() {
