@@ -5,18 +5,7 @@ use core::mem::take;
 use crate::no_std::io::Write;
 use crate::no_std::prelude::*;
 
-use crate::ast::{
-    self, AngleBracketed, AttrStyle, Block, Braced, BuiltIn, Comma, Condition, Expr, ExprAssign,
-    ExprAwait, ExprBinary, ExprBlock, ExprBreak, ExprBreakValue, ExprCall, ExprClosure,
-    ExprClosureArgs, ExprContinue, ExprElse, ExprElseIf, ExprEmpty, ExprField, ExprFieldAccess,
-    ExprFor, ExprGroup, ExprIf, ExprIndex, ExprLet, ExprLit, ExprLoop, ExprMatch, ExprMatchBranch,
-    ExprObject, ExprRange, ExprReturn, ExprSelect, ExprSelectBranch, ExprSelectPatBranch, ExprTry,
-    ExprTuple, ExprUnary, ExprVec, ExprWhile, ExprYield, Field, FieldAssign, Fields, FnArg, Item,
-    ItemConst, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemModBody, ItemStruct, ItemVariant,
-    LitSource, Local, MacroCall, ObjectKey, Pat, PatBinding, PatIgnore, PatLit, PatObject, PatPath,
-    PatRest, PatTuple, PatVec, Path, PathSegment, PathSegmentExpr, SelfType, SelfValue, SemiColon,
-    Span, Spanned, Stmt, StmtSemi,
-};
+use crate::ast::{self, Span, Spanned};
 use crate::Source;
 
 use super::error::FormattingError;
@@ -105,8 +94,8 @@ impl<'a> Printer<'a> {
         } = attribute;
 
         let first = &path.first;
-        if let PathSegment::Ident(ident) = first {
-            if let LitSource::BuiltIn(BuiltIn::Doc) = ident.source {
+        if let ast::PathSegment::Ident(ident) = first {
+            if let ast::LitSource::BuiltIn(ast::BuiltIn::Doc) = ident.source {
                 self.writer.write_spanned_raw(ident.span, false, false)?;
                 return Ok(true);
             }
@@ -115,8 +104,10 @@ impl<'a> Printer<'a> {
         self.writer.write_spanned_raw(hash.span, false, false)?;
 
         match style {
-            AttrStyle::Outer(bang) => self.writer.write_spanned_raw(bang.span, false, false)?,
-            AttrStyle::Inner => {}
+            ast::AttrStyle::Outer(bang) => {
+                self.writer.write_spanned_raw(bang.span, false, false)?
+            }
+            ast::AttrStyle::Inner => {}
         }
 
         self.writer.write_spanned_raw(open.span, false, false)?;
@@ -129,7 +120,11 @@ impl<'a> Printer<'a> {
         Ok(false)
     }
 
-    pub(super) fn visit_item(&mut self, item: &ast::Item, semi: Option<SemiColon>) -> Result<()> {
+    pub(super) fn visit_item(
+        &mut self,
+        item: &ast::Item,
+        semi: Option<ast::SemiColon>,
+    ) -> Result<()> {
         match item {
             ast::Item::Use(usage) => self.visit_use(usage, semi)?,
             ast::Item::Fn(item) => self.visit_fn(item, semi)?,
@@ -148,8 +143,8 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_const(&mut self, item: &ItemConst, semi: Option<SemiColon>) -> Result<()> {
-        let ItemConst {
+    fn visit_const(&mut self, ast: &ast::ItemConst, semi: Option<ast::SemiColon>) -> Result<()> {
+        let ast::ItemConst {
             id: _,
             attributes,
             visibility,
@@ -157,7 +152,7 @@ impl<'a> Printer<'a> {
             name,
             eq,
             expr,
-        } = item;
+        } = ast;
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
@@ -179,8 +174,8 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_mod(&mut self, item: &ItemMod, semi: Option<SemiColon>) -> Result<()> {
-        let ItemMod {
+    fn visit_mod(&mut self, item: &ast::ItemMod, semi: Option<ast::SemiColon>) -> Result<()> {
+        let ast::ItemMod {
             id: _,
             attributes,
             visibility,
@@ -200,10 +195,10 @@ impl<'a> Printer<'a> {
         self.writer.write_spanned_raw(name.span, false, false)?;
 
         match body {
-            ItemModBody::EmptyBody(semi) => {
+            ast::ItemModBody::EmptyBody(semi) => {
                 self.writer.write_spanned_raw(semi.span, false, false)?;
             }
-            ItemModBody::InlineBody(body) => {
+            ast::ItemModBody::InlineBody(body) => {
                 self.writer.write_unspanned(" ")?;
                 self.writer.write_spanned_raw(body.open.span, true, false)?;
                 self.writer.indent();
@@ -223,8 +218,8 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_impl(&mut self, item: &ItemImpl, semi: Option<SemiColon>) -> Result<()> {
-        let ItemImpl {
+    fn visit_impl(&mut self, item: &ast::ItemImpl, semi: Option<ast::SemiColon>) -> Result<()> {
+        let ast::ItemImpl {
             attributes,
             impl_,
             path,
@@ -261,8 +256,8 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_struct(&mut self, item: &ItemStruct, semi: Option<SemiColon>) -> Result<()> {
-        let ItemStruct {
+    fn visit_struct(&mut self, item: &ast::ItemStruct, semi: Option<ast::SemiColon>) -> Result<()> {
+        let ast::ItemStruct {
             id: _,
             attributes,
             visibility,
@@ -291,10 +286,10 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_struct_body(&mut self, body: &Fields) -> Result<()> {
-        match body {
-            Fields::Empty => {}
-            Fields::Unnamed(tuple) => {
+    fn visit_struct_body(&mut self, ast: &ast::Fields) -> Result<()> {
+        match ast {
+            ast::Fields::Empty => {}
+            ast::Fields::Unnamed(tuple) => {
                 self.writer
                     .write_spanned_raw(tuple.open.span, false, false)?;
                 for (field, comma) in tuple {
@@ -306,7 +301,7 @@ impl<'a> Printer<'a> {
                 self.writer
                     .write_spanned_raw(tuple.close.span, false, false)?;
             }
-            Fields::Named(body) => {
+            ast::Fields::Named(body) => {
                 self.writer.write_unspanned(" ")?;
                 self.writer.write_spanned_raw(body.open.span, true, false)?;
 
@@ -328,8 +323,8 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_enum(&mut self, item: &ItemEnum, semi: Option<SemiColon>) -> Result<()> {
-        let ItemEnum {
+    fn visit_enum(&mut self, item: &ast::ItemEnum, semi: Option<ast::SemiColon>) -> Result<()> {
+        let ast::ItemEnum {
             attributes,
             visibility,
             enum_token,
@@ -370,13 +365,13 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_variant(&mut self, variant: &ItemVariant) -> Result<()> {
-        let ItemVariant {
+    fn visit_variant(&mut self, ast: &ast::ItemVariant) -> Result<()> {
+        let ast::ItemVariant {
             id: _,
             attributes,
             name,
             body,
-        } = variant;
+        } = ast;
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
@@ -390,10 +385,10 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_variant_body(&mut self, body: &Fields) -> Result<()> {
-        match body {
-            Fields::Empty => {}
-            Fields::Unnamed(body) => {
+    fn visit_variant_body(&mut self, ast: &ast::Fields) -> Result<()> {
+        match ast {
+            ast::Fields::Empty => {}
+            ast::Fields::Unnamed(body) => {
                 self.writer
                     .write_spanned_raw(body.open.span, false, false)?;
 
@@ -412,7 +407,7 @@ impl<'a> Printer<'a> {
                 self.writer
                     .write_spanned_raw(body.close.span, false, false)?;
             }
-            Fields::Named(sbody) => {
+            ast::Fields::Named(sbody) => {
                 self.writer.write_unspanned(" ")?;
                 self.writer
                     .write_spanned_raw(sbody.open.span, true, false)?;
@@ -435,12 +430,12 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_field(&mut self, field: &Field) -> Result<()> {
-        let Field {
+    fn visit_field(&mut self, ast: &ast::Field) -> Result<()> {
+        let ast::Field {
             attributes,
             visibility,
             name,
-        } = field;
+        } = ast;
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
@@ -453,8 +448,8 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_fn(&mut self, item: &ItemFn, semi: Option<SemiColon>) -> Result<()> {
-        let ItemFn {
+    fn visit_fn(&mut self, item: &ast::ItemFn, semi: Option<ast::SemiColon>) -> Result<()> {
+        let ast::ItemFn {
             id: _,
             attributes,
             visibility,
@@ -495,20 +490,24 @@ impl<'a> Printer<'a> {
         } else {
             false
         };
+
         for (arg, comma) in args {
             match arg {
-                FnArg::SelfValue(selfvalue) => self.visit_self_value(selfvalue)?,
-                FnArg::Pat(pattern) => self.visit_pattern(pattern)?,
+                ast::FnArg::SelfValue(selfvalue) => self.visit_self_value(selfvalue)?,
+                ast::FnArg::Pat(pattern) => self.visit_pattern(pattern)?,
             }
+
             if let Some(comma) = comma {
                 self.writer
                     .write_spanned_raw(comma.span, multiline, !multiline)?;
             }
         }
+
         if args.len() > 5 {
             self.writer.dedent();
             self.writer.newline()?;
         }
+
         self.writer
             .write_spanned_raw(args.close.span, false, true)?;
         self.visit_block(body)?;
@@ -520,7 +519,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_use(&mut self, usage: &ast::ItemUse, semi: Option<SemiColon>) -> Result<()> {
+    fn visit_use(&mut self, usage: &ast::ItemUse, semi: Option<ast::SemiColon>) -> Result<()> {
         let ast::ItemUse {
             attributes,
             visibility,
@@ -543,7 +542,11 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_item_use_path(&mut self, path: &ast::ItemUsePath, comma: Option<Comma>) -> Result<()> {
+    fn visit_item_use_path(
+        &mut self,
+        path: &ast::ItemUsePath,
+        comma: Option<ast::Comma>,
+    ) -> Result<()> {
         let ast::ItemUsePath {
             global,
             first,
@@ -576,28 +579,33 @@ impl<'a> Printer<'a> {
 
     fn visit_path_segment(&mut self, segment: &ast::PathSegment) -> Result<()> {
         match segment {
-            PathSegment::SelfType(selftype) => self.visit_self_type(selftype)?,
-            PathSegment::SelfValue(selfvalue) => self.visit_self_value(selfvalue)?,
-            PathSegment::Ident(ident) => self.writer.write_spanned_raw(ident.span, false, false)?,
-            PathSegment::Crate(c) => self.writer.write_spanned_raw(c.span, false, false)?,
-            PathSegment::Super(s) => self.writer.write_spanned_raw(s.span, false, false)?,
-            PathSegment::Generics(g) => self.visit_generics(g)?,
+            ast::PathSegment::SelfType(selftype) => self.visit_self_type(selftype)?,
+            ast::PathSegment::SelfValue(selfvalue) => self.visit_self_value(selfvalue)?,
+            ast::PathSegment::Ident(ident) => {
+                self.writer.write_spanned_raw(ident.span, false, false)?
+            }
+            ast::PathSegment::Crate(c) => self.writer.write_spanned_raw(c.span, false, false)?,
+            ast::PathSegment::Super(s) => self.writer.write_spanned_raw(s.span, false, false)?,
+            ast::PathSegment::Generics(g) => self.visit_generics(g)?,
         }
         Ok(())
     }
 
-    fn visit_self_type(&mut self, selftype: &SelfType) -> Result<()> {
+    fn visit_self_type(&mut self, selftype: &ast::SelfType) -> Result<()> {
         self.writer.write_spanned_raw(selftype.span, false, false)?;
         Ok(())
     }
 
-    fn visit_self_value(&mut self, selfvalue: &SelfValue) -> Result<()> {
+    fn visit_self_value(&mut self, selfvalue: &ast::SelfValue) -> Result<()> {
         self.writer
             .write_spanned_raw(selfvalue.span, false, false)?;
         Ok(())
     }
 
-    fn visit_generics(&mut self, generics: &AngleBracketed<PathSegmentExpr, Comma>) -> Result<()> {
+    fn visit_generics(
+        &mut self,
+        generics: &ast::AngleBracketed<ast::PathSegmentExpr, ast::Comma>,
+    ) -> Result<()> {
         self.writer
             .write_spanned_raw(generics.open.span, false, false)?;
 
@@ -615,44 +623,48 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_expr(&mut self, expr: &Expr) -> Result<()> {
+    fn visit_expr(&mut self, expr: &ast::Expr) -> Result<()> {
         match expr {
-            Expr::Path(path) => self.visit_path(path),
-            Expr::Lit(lit) => self.visit_lit(lit),
-            Expr::Binary(binary) => self.visit_binary(binary),
-            Expr::Unary(unary) => self.visit_unary(unary),
-            Expr::Group(group) => self.visit_group(group),
-            Expr::Block(block) => self.visit_expr_block(block),
-            Expr::If(ifexpr) => self.visit_if(ifexpr),
-            Expr::While(whileexpr) => self.visit_while(whileexpr),
-            Expr::For(forexpr) => self.visit_for(forexpr),
-            Expr::Loop(loopexpr) => self.visit_loop(loopexpr),
-            Expr::Match(matchexpr) => self.visit_match(matchexpr),
-            Expr::Closure(closure) => self.visit_closure(closure),
-            Expr::Return(returnexpr) => self.visit_return(returnexpr),
-            Expr::Break(breakexpr) => self.visit_break(breakexpr),
-            Expr::Continue(continueexpr) => self.visit_continue(continueexpr),
-            Expr::Index(index) => self.visit_index(index),
-            Expr::Call(call) => self.visit_call(call),
-            Expr::FieldAccess(fieldaccess) => self.visit_field_access(fieldaccess),
-            Expr::Tuple(tuple) => self.visit_tuple(tuple),
-            Expr::Range(range) => self.visit_range(range),
-            Expr::Yield(yieldexpr) => self.visit_yield(yieldexpr),
-            Expr::Try(tri) => self.visit_try(tri),
-            Expr::Await(awaitexpr) => self.visit_await(awaitexpr),
-            Expr::Assign(assign) => self.visit_assign(assign),
-            Expr::Let(let_) => self.visit_let(let_),
-            Expr::Select(sel) => self.visit_select(sel),
-            Expr::Object(object) => self.visit_object(object),
-            Expr::Vec(vec) => self.visit_vec(vec),
-            Expr::Empty(empty) => self.visit_empty(empty),
-            Expr::MacroCall(macrocall) => self.visit_macro_call(macrocall, None),
+            ast::Expr::Path(path) => self.visit_path(path),
+            ast::Expr::Lit(lit) => self.visit_lit(lit),
+            ast::Expr::Binary(binary) => self.visit_binary(binary),
+            ast::Expr::Unary(unary) => self.visit_unary(unary),
+            ast::Expr::Group(group) => self.visit_group(group),
+            ast::Expr::Block(block) => self.visit_expr_block(block),
+            ast::Expr::If(ifexpr) => self.visit_if(ifexpr),
+            ast::Expr::While(whileexpr) => self.visit_while(whileexpr),
+            ast::Expr::For(forexpr) => self.visit_for(forexpr),
+            ast::Expr::Loop(loopexpr) => self.visit_loop(loopexpr),
+            ast::Expr::Match(matchexpr) => self.visit_match(matchexpr),
+            ast::Expr::Closure(closure) => self.visit_closure(closure),
+            ast::Expr::Return(returnexpr) => self.visit_return(returnexpr),
+            ast::Expr::Break(breakexpr) => self.visit_break(breakexpr),
+            ast::Expr::Continue(continueexpr) => self.visit_continue(continueexpr),
+            ast::Expr::Index(index) => self.visit_index(index),
+            ast::Expr::Call(call) => self.visit_call(call),
+            ast::Expr::FieldAccess(fieldaccess) => self.visit_field_access(fieldaccess),
+            ast::Expr::Tuple(tuple) => self.visit_tuple(tuple),
+            ast::Expr::Range(range) => self.visit_range(range),
+            ast::Expr::Yield(yieldexpr) => self.visit_yield(yieldexpr),
+            ast::Expr::Try(tri) => self.visit_try(tri),
+            ast::Expr::Await(awaitexpr) => self.visit_await(awaitexpr),
+            ast::Expr::Assign(assign) => self.visit_assign(assign),
+            ast::Expr::Let(let_) => self.visit_let(let_),
+            ast::Expr::Select(sel) => self.visit_select(sel),
+            ast::Expr::Object(object) => self.visit_object(object),
+            ast::Expr::Vec(vec) => self.visit_vec(vec),
+            ast::Expr::Empty(empty) => self.visit_empty(empty),
+            ast::Expr::MacroCall(macrocall) => self.visit_macro_call(macrocall, None),
         }
     }
 
-    fn visit_macro_call(&mut self, macrocall: &MacroCall, semi: Option<SemiColon>) -> Result<()> {
+    fn visit_macro_call(
+        &mut self,
+        macrocall: &ast::MacroCall,
+        semi: Option<ast::SemiColon>,
+    ) -> Result<()> {
         // Note: We don't visit the stream, as emitting it truthfully is quite hard and we can't format it. Instead we just resolve everything between the open/close.
-        let MacroCall {
+        let ast::MacroCall {
             id: _,
             attributes,
             path,
@@ -664,8 +676,8 @@ impl<'a> Printer<'a> {
 
         let first = &path.first;
 
-        if let PathSegment::Ident(ident) = first {
-            if let LitSource::BuiltIn(BuiltIn::Template) = ident.source {
+        if let ast::PathSegment::Ident(ident) = first {
+            if let ast::LitSource::BuiltIn(ast::BuiltIn::Template) = ident.source {
                 let important_token = self.resolve(Span::new(open.span.end, close.span.start))?;
                 write!(self.writer, "{}", important_token)?;
                 return Ok(());
@@ -691,13 +703,13 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_empty(&mut self, empty: &ExprEmpty) -> Result<()> {
-        let ExprEmpty {
+    fn visit_empty(&mut self, ast: &ast::ExprEmpty) -> Result<()> {
+        let ast::ExprEmpty {
             attributes,
             open,
             expr,
             close,
-        } = empty;
+        } = ast;
 
         for attr in attributes {
             self.visit_attribute(attr)?;
@@ -710,8 +722,8 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_vec(&mut self, vec: &ExprVec) -> Result<()> {
-        let ExprVec { attributes, items } = vec;
+    fn visit_vec(&mut self, ast: &ast::ExprVec) -> Result<()> {
+        let ast::ExprVec { attributes, items } = ast;
 
         for attr in attributes {
             self.visit_attribute(attr)?;
@@ -757,12 +769,12 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_object(&mut self, object: &ExprObject) -> Result<()> {
-        let ExprObject {
+    fn visit_object(&mut self, ast: &ast::ExprObject) -> Result<()> {
+        let ast::ExprObject {
             attributes,
             ident,
             assignments,
-        } = object;
+        } = ast;
 
         for attr in attributes {
             self.visit_attribute(attr)?;
@@ -828,14 +840,14 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_object_assignment(&mut self, assignment: &FieldAssign) -> Result<()> {
-        let FieldAssign { key, assign } = assignment;
+    fn visit_object_assignment(&mut self, ast: &ast::FieldAssign) -> Result<()> {
+        let ast::FieldAssign { key, assign } = ast;
 
         match key {
-            ObjectKey::LitStr(key) => {
+            ast::ObjectKey::LitStr(key) => {
                 self.writer.write_spanned_raw(key.span, false, false)?;
             }
-            ObjectKey::Path(path) => self.visit_path(path)?,
+            ast::ObjectKey::Path(path) => self.visit_path(path)?,
         }
 
         if let Some((colon, assign)) = assign {
@@ -846,14 +858,14 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_select(&mut self, sel: &ExprSelect) -> Result<()> {
-        let ExprSelect {
+    fn visit_select(&mut self, ast: &ast::ExprSelect) -> Result<()> {
+        let ast::ExprSelect {
             attributes,
             select,
             open,
             branches,
             close,
-        } = sel;
+        } = ast;
 
         for attr in attributes {
             self.visit_attribute(attr)?;
@@ -877,23 +889,23 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_select_branch(&mut self, branch: &ExprSelectBranch) -> Result<()> {
-        match branch {
-            ExprSelectBranch::Pat(pat) => self.visit_select_pattern(pat)?,
-            ExprSelectBranch::Default(_default) => write!(self.writer, "default")?,
+    fn visit_select_branch(&mut self, ast: &ast::ExprSelectBranch) -> Result<()> {
+        match ast {
+            ast::ExprSelectBranch::Pat(pat) => self.visit_select_pattern(pat)?,
+            ast::ExprSelectBranch::Default(_default) => write!(self.writer, "default")?,
         }
 
         Ok(())
     }
 
-    fn visit_select_pattern(&mut self, pat: &ExprSelectPatBranch) -> Result<()> {
-        let ExprSelectPatBranch {
+    fn visit_select_pattern(&mut self, ast: &ast::ExprSelectPatBranch) -> Result<()> {
+        let ast::ExprSelectPatBranch {
             pat,
             eq,
             expr,
             rocket,
             body,
-        } = pat;
+        } = ast;
 
         self.visit_pattern(pat)?;
         self.writer.write_unspanned(" ")?;
@@ -906,13 +918,13 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_assign(&mut self, assign: &ExprAssign) -> Result<()> {
-        let ExprAssign {
+    fn visit_assign(&mut self, ast: &ast::ExprAssign) -> Result<()> {
+        let ast::ExprAssign {
             attributes,
             lhs,
             eq,
             rhs,
-        } = assign;
+        } = ast;
 
         for attr in attributes {
             self.visit_attribute(attr)?;
@@ -926,13 +938,13 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_await(&mut self, awaitexpr: &ExprAwait) -> Result<()> {
-        let ExprAwait {
+    fn visit_await(&mut self, ast: &ast::ExprAwait) -> Result<()> {
+        let ast::ExprAwait {
             attributes,
             expr,
             dot,
             await_token,
-        } = awaitexpr;
+        } = ast;
 
         for attr in attributes {
             self.visit_attribute(attr)?;
@@ -946,12 +958,12 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_try(&mut self, tri: &ExprTry) -> Result<()> {
-        let ExprTry {
+    fn visit_try(&mut self, ast: &ast::ExprTry) -> Result<()> {
+        let ast::ExprTry {
             attributes,
             expr,
             try_token,
-        } = tri;
+        } = ast;
 
         for attr in attributes {
             self.visit_attribute(attr)?;
@@ -964,12 +976,12 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_yield(&mut self, yieldexpr: &ExprYield) -> Result<()> {
-        let ExprYield {
+    fn visit_yield(&mut self, ast: &ast::ExprYield) -> Result<()> {
+        let ast::ExprYield {
             attributes,
             expr,
             yield_token,
-        } = yieldexpr;
+        } = ast;
 
         for attr in attributes {
             self.visit_attribute(attr)?;
@@ -986,13 +998,13 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_range(&mut self, range: &ExprRange) -> Result<()> {
-        let ExprRange {
+    fn visit_range(&mut self, ast: &ast::ExprRange) -> Result<()> {
+        let ast::ExprRange {
             attributes,
             from,
             limits,
             to,
-        } = range;
+        } = ast;
 
         for attr in attributes {
             self.visit_attribute(attr)?;
@@ -1014,8 +1026,8 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_tuple(&mut self, tuple: &ExprTuple) -> Result<()> {
-        let ExprTuple { attributes, items } = tuple;
+    fn visit_tuple(&mut self, ast: &ast::ExprTuple) -> Result<()> {
+        let ast::ExprTuple { attributes, items } = ast;
 
         for attr in attributes {
             self.visit_attribute(attr)?;
@@ -1064,13 +1076,13 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_field_access(&mut self, fieldaccess: &ExprFieldAccess) -> Result<()> {
-        let ExprFieldAccess {
+    fn visit_field_access(&mut self, ast: &ast::ExprFieldAccess) -> Result<()> {
+        let ast::ExprFieldAccess {
             attributes,
             expr,
             dot,
             expr_field,
-        } = fieldaccess;
+        } = ast;
 
         for attr in attributes {
             self.visit_attribute(attr)?;
@@ -1083,22 +1095,24 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_expr_field(&mut self, expr_field: &ExprField) -> Result<()> {
-        match expr_field {
-            ExprField::Path(path) => self.visit_path(path)?,
-            ExprField::LitNumber(num) => self.writer.write_spanned_raw(num.span, false, false)?,
+    fn visit_expr_field(&mut self, ast: &ast::ExprField) -> Result<()> {
+        match ast {
+            ast::ExprField::Path(path) => self.visit_path(path)?,
+            ast::ExprField::LitNumber(num) => {
+                self.writer.write_spanned_raw(num.span, false, false)?
+            }
         }
 
         Ok(())
     }
 
-    fn visit_call(&mut self, call: &ExprCall) -> Result<()> {
-        let ExprCall {
+    fn visit_call(&mut self, ast: &ast::ExprCall) -> Result<()> {
+        let ast::ExprCall {
             id: _,
             attributes,
             expr,
             args,
-        } = call;
+        } = ast;
 
         for attr in attributes {
             self.visit_attribute(attr)?;
@@ -1126,14 +1140,14 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_index(&mut self, index: &ExprIndex) -> Result<()> {
-        let ExprIndex {
+    fn visit_index(&mut self, ast: &ast::ExprIndex) -> Result<()> {
+        let ast::ExprIndex {
             attributes,
             target,
             open,
             index,
             close,
-        } = index;
+        } = ast;
 
         for attr in attributes {
             self.visit_attribute(attr)?;
@@ -1147,12 +1161,12 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_continue(&mut self, continueexpr: &ExprContinue) -> Result<()> {
-        let ExprContinue {
+    fn visit_continue(&mut self, ast: &ast::ExprContinue) -> Result<()> {
+        let ast::ExprContinue {
             attributes,
             continue_token,
             label,
-        } = continueexpr;
+        } = ast;
 
         for attr in attributes {
             self.visit_attribute(attr)?;
@@ -1169,12 +1183,12 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_break(&mut self, breakexpr: &ExprBreak) -> Result<()> {
-        let ExprBreak {
+    fn visit_break(&mut self, ast: &ast::ExprBreak) -> Result<()> {
+        let ast::ExprBreak {
             attributes,
             break_token,
             expr,
-        } = breakexpr;
+        } = ast;
 
         for attr in attributes {
             self.visit_attribute(attr)?;
@@ -1191,10 +1205,10 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_expr_break_value(&mut self, breakvalue: &ExprBreakValue) -> Result<()> {
-        match breakvalue {
-            ExprBreakValue::Expr(expr) => self.visit_expr(expr)?,
-            ExprBreakValue::Label(label) => {
+    fn visit_expr_break_value(&mut self, ast: &ast::ExprBreakValue) -> Result<()> {
+        match ast {
+            ast::ExprBreakValue::Expr(expr) => self.visit_expr(expr)?,
+            ast::ExprBreakValue::Label(label) => {
                 self.writer.write_spanned_raw(label.span, false, false)?
             }
         }
@@ -1202,12 +1216,12 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_return(&mut self, returnexpr: &ExprReturn) -> Result<()> {
-        let ExprReturn {
+    fn visit_return(&mut self, ast: &ast::ExprReturn) -> Result<()> {
+        let ast::ExprReturn {
             attributes,
             return_token,
             expr,
-        } = returnexpr;
+        } = ast;
 
         for attr in attributes {
             self.visit_attribute(attr)?;
@@ -1224,15 +1238,15 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_closure(&mut self, closure: &ExprClosure) -> Result<()> {
-        let ExprClosure {
+    fn visit_closure(&mut self, ast: &ast::ExprClosure) -> Result<()> {
+        let ast::ExprClosure {
             id: _,
             attributes,
             async_token,
             move_token,
             args,
             body,
-        } = closure;
+        } = ast;
 
         for attr in attributes {
             self.visit_attribute(attr)?;
@@ -1249,10 +1263,10 @@ impl<'a> Printer<'a> {
         }
 
         match args {
-            ExprClosureArgs::Empty { token } => {
+            ast::ExprClosureArgs::Empty { token } => {
                 self.writer.write_spanned_raw(token.span, false, true)?
             }
-            ExprClosureArgs::List { args, open, close } => {
+            ast::ExprClosureArgs::List { args, open, close } => {
                 self.writer.write_spanned_raw(open.span, false, false)?;
                 for (arg, comma) in args {
                     match arg {
@@ -1273,15 +1287,15 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_match(&mut self, matchexpr: &ExprMatch) -> Result<()> {
-        let ExprMatch {
+    fn visit_match(&mut self, ast: &ast::ExprMatch) -> Result<()> {
+        let ast::ExprMatch {
             attributes,
             match_,
             expr,
             open,
             branches,
             close,
-        } = matchexpr;
+        } = ast;
 
         for attr in attributes {
             self.visit_attribute(attr)?;
@@ -1314,13 +1328,13 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_match_branch(&mut self, branch: &ExprMatchBranch) -> Result<bool> {
-        let ExprMatchBranch {
+    fn visit_match_branch(&mut self, ast: &ast::ExprMatchBranch) -> Result<bool> {
+        let ast::ExprMatchBranch {
             pat,
             condition,
             rocket,
             body,
-        } = branch;
+        } = ast;
 
         self.visit_pattern(pat)?;
 
@@ -1333,18 +1347,18 @@ impl<'a> Printer<'a> {
         self.writer.write_spanned_raw(rocket.span, false, true)?;
         self.visit_expr(body)?;
 
-        let should_have_comma = !matches!(body, Expr::Block(_));
+        let should_have_comma = !matches!(body, ast::Expr::Block(_));
 
         Ok(should_have_comma)
     }
 
-    fn visit_loop(&mut self, loopexpr: &ExprLoop) -> Result<()> {
-        let ExprLoop {
+    fn visit_loop(&mut self, ast: &ast::ExprLoop) -> Result<()> {
+        let ast::ExprLoop {
             attributes,
             label,
             loop_token,
             body,
-        } = loopexpr;
+        } = ast;
 
         for attr in attributes {
             self.visit_attribute(attr)?;
@@ -1363,8 +1377,8 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_for(&mut self, forexpr: &ExprFor) -> Result<()> {
-        let ExprFor {
+    fn visit_for(&mut self, ast: &ast::ExprFor) -> Result<()> {
+        let ast::ExprFor {
             attributes,
             label,
             binding,
@@ -1372,7 +1386,7 @@ impl<'a> Printer<'a> {
             iter,
             body,
             for_token,
-        } = forexpr;
+        } = ast;
 
         for attr in attributes {
             self.visit_attribute(attr)?;
@@ -1398,14 +1412,14 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_while(&mut self, whileexpr: &ExprWhile) -> Result<()> {
-        let ExprWhile {
+    fn visit_while(&mut self, ast: &ast::ExprWhile) -> Result<()> {
+        let ast::ExprWhile {
             attributes,
             label,
             while_token,
             condition,
             body,
-        } = whileexpr;
+        } = ast;
 
         for attr in attributes {
             self.visit_attribute(attr)?;
@@ -1425,33 +1439,33 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_condition(&mut self, condition: &Condition) -> Result<()> {
-        match condition {
-            Condition::Expr(expr) => self.visit_expr(expr),
-            Condition::ExprLet(let_) => self.visit_let(let_),
+    fn visit_condition(&mut self, ast: &ast::Condition) -> Result<()> {
+        match ast {
+            ast::Condition::Expr(expr) => self.visit_expr(expr),
+            ast::Condition::ExprLet(let_) => self.visit_let(let_),
         }
     }
 
-    fn visit_pattern(&mut self, pattern: &Pat) -> Result<()> {
-        match pattern {
-            Pat::Ignore(ignore) => self.visit_pat_ignore(ignore)?,
-            Pat::Path(path) => self.visit_pat_path(path)?,
-            Pat::Lit(patit) => self.visit_pat_lit(patit)?,
-            Pat::Vec(patvec) => self.visit_pat_vec(patvec)?,
-            Pat::Tuple(pattuple) => self.visit_pat_tuple(pattuple)?,
-            Pat::Object(patobject) => self.visit_pat_object(patobject)?,
-            Pat::Binding(binding) => self.visit_pat_binding(binding)?,
-            Pat::Rest(rest) => self.visit_pat_rest(rest)?,
+    fn visit_pattern(&mut self, ast: &ast::Pat) -> Result<()> {
+        match ast {
+            ast::Pat::Ignore(ignore) => self.visit_pat_ignore(ignore)?,
+            ast::Pat::Path(path) => self.visit_pat_path(path)?,
+            ast::Pat::Lit(patit) => self.visit_pat_lit(patit)?,
+            ast::Pat::Vec(patvec) => self.visit_pat_vec(patvec)?,
+            ast::Pat::Tuple(pattuple) => self.visit_pat_tuple(pattuple)?,
+            ast::Pat::Object(ast) => self.visit_pat_object(ast)?,
+            ast::Pat::Binding(binding) => self.visit_pat_binding(binding)?,
+            ast::Pat::Rest(rest) => self.visit_pat_rest(rest)?,
         }
 
         Ok(())
     }
 
-    fn visit_pat_rest(&mut self, rest: &PatRest) -> Result<()> {
-        let PatRest {
+    fn visit_pat_rest(&mut self, ast: &ast::PatRest) -> Result<()> {
+        let ast::PatRest {
             attributes,
             dot_dot,
-        } = rest;
+        } = ast;
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
@@ -1462,13 +1476,13 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_pat_binding(&mut self, binding: &PatBinding) -> Result<()> {
-        let PatBinding {
+    fn visit_pat_binding(&mut self, ast: &ast::PatBinding) -> Result<()> {
+        let ast::PatBinding {
             attributes,
             key,
             colon,
             pat,
-        } = binding;
+        } = ast;
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
@@ -1488,12 +1502,12 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_pat_object(&mut self, patobject: &PatObject) -> Result<()> {
-        let PatObject {
+    fn visit_pat_object(&mut self, ast: &ast::PatObject) -> Result<()> {
+        let ast::PatObject {
             attributes,
             ident,
             items,
-        } = patobject;
+        } = ast;
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
@@ -1509,7 +1523,7 @@ impl<'a> Printer<'a> {
             }
         }
 
-        let Braced {
+        let ast::Braced {
             open,
             braced,
             close,
@@ -1554,12 +1568,12 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_pat_tuple(&mut self, pattuple: &PatTuple) -> Result<()> {
-        let PatTuple {
+    fn visit_pat_tuple(&mut self, ast: &ast::PatTuple) -> Result<()> {
+        let ast::PatTuple {
             attributes,
             items,
             path,
-        } = pattuple;
+        } = ast;
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
@@ -1585,8 +1599,8 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_pat_vec(&mut self, patvec: &PatVec) -> Result<()> {
-        let PatVec { attributes, items } = patvec;
+    fn visit_pat_vec(&mut self, ast: &ast::PatVec) -> Result<()> {
+        let ast::PatVec { attributes, items } = ast;
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
@@ -1613,8 +1627,8 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_pat_lit(&mut self, patit: &PatLit) -> Result<()> {
-        let PatLit { attributes, expr } = patit;
+    fn visit_pat_lit(&mut self, ast: &ast::PatLit) -> Result<()> {
+        let ast::PatLit { attributes, expr } = ast;
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
@@ -1625,11 +1639,11 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_pat_ignore(&mut self, ignore: &PatIgnore) -> Result<()> {
-        let PatIgnore {
+    fn visit_pat_ignore(&mut self, ast: &ast::PatIgnore) -> Result<()> {
+        let ast::PatIgnore {
             attributes,
             underscore,
-        } = ignore;
+        } = ast;
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
@@ -1641,24 +1655,25 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_pat_path(&mut self, path: &PatPath) -> Result<()> {
-        let PatPath { attributes, path } = path;
+    fn visit_pat_path(&mut self, ast: &ast::PatPath) -> Result<()> {
+        let ast::PatPath { attributes, path } = ast;
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
         }
-        self.visit_path(path)?;
 
+        self.visit_path(path)?;
         Ok(())
     }
-    fn visit_let(&mut self, let_: &ExprLet) -> Result<()> {
-        let ExprLet {
+
+    fn visit_let(&mut self, ast: &ast::ExprLet) -> Result<()> {
+        let ast::ExprLet {
             attributes,
             let_token,
             pat,
             eq,
             expr,
-        } = let_;
+        } = ast;
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
@@ -1671,15 +1686,16 @@ impl<'a> Printer<'a> {
         self.visit_expr(expr)?;
         Ok(())
     }
-    fn visit_if(&mut self, ifexpr: &ExprIf) -> Result<()> {
-        let ExprIf {
+
+    fn visit_if(&mut self, ast: &ast::ExprIf) -> Result<()> {
+        let ast::ExprIf {
             attributes,
             if_,
             condition,
             block,
             expr_else_ifs,
             expr_else,
-        } = ifexpr;
+        } = ast;
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
@@ -1701,13 +1717,13 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_expr_else_if(&mut self, expr_else_if: &ExprElseIf) -> Result<()> {
-        let ExprElseIf {
+    fn visit_expr_else_if(&mut self, ast: &ast::ExprElseIf) -> Result<()> {
+        let ast::ExprElseIf {
             else_,
             if_,
             condition,
             block,
-        } = expr_else_if;
+        } = ast;
 
         self.writer.write_unspanned(" ")?;
         self.writer.write_spanned_raw(else_.span, false, true)?;
@@ -1720,8 +1736,8 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_expr_else(&mut self, expr_else: &ExprElse) -> Result<()> {
-        let ExprElse { else_, block } = expr_else;
+    fn visit_expr_else(&mut self, ast: &ast::ExprElse) -> Result<()> {
+        let ast::ExprElse { else_, block } = ast;
 
         self.writer.write_unspanned(" ")?;
         self.writer.write_spanned_raw(else_.span, false, true)?;
@@ -1730,14 +1746,14 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_expr_block(&mut self, block: &ExprBlock) -> Result<()> {
-        let ExprBlock {
+    fn visit_expr_block(&mut self, ast: &ast::ExprBlock) -> Result<()> {
+        let ast::ExprBlock {
             attributes,
             async_token,
             const_token,
             move_token,
             block,
-        } = block;
+        } = ast;
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
@@ -1761,13 +1777,13 @@ impl<'a> Printer<'a> {
         self.visit_block(block)
     }
 
-    fn visit_block(&mut self, block: &Block) -> Result<()> {
-        let Block {
+    fn visit_block(&mut self, ast: &ast::Block) -> Result<()> {
+        let ast::Block {
             id: _,
             open,
             statements,
             close,
-        } = block;
+        } = ast;
 
         self.writer.write_spanned_raw(open.span, true, false)?;
 
@@ -1782,24 +1798,24 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_statement(&mut self, statement: &Stmt) -> Result<()> {
-        match statement {
-            Stmt::Local(local) => {
+    fn visit_statement(&mut self, ast: &ast::Stmt) -> Result<()> {
+        match ast {
+            ast::Stmt::Local(local) => {
                 self.visit_local(local)?;
                 self.writer.newline()?;
             }
-            Stmt::Item(item, semi) => {
+            ast::Stmt::Item(item, semi) => {
                 self.visit_item(item, *semi)?;
-                if !matches!(item, Item::Fn(_)) {
+                if !matches!(item, ast::Item::Fn(_)) {
                     self.writer.newline()?;
                 }
             }
-            Stmt::Expr(expr) => {
+            ast::Stmt::Expr(expr) => {
                 self.visit_expr(expr)?;
                 self.writer.newline()?;
             }
-            Stmt::Semi(semi) => {
-                let StmtSemi { expr, semi_token } = semi;
+            ast::Stmt::Semi(semi) => {
+                let ast::StmtSemi { expr, semi_token } = semi;
 
                 self.visit_expr(expr)?;
                 self.writer
@@ -1811,15 +1827,15 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_local(&mut self, local: &Local) -> Result<()> {
-        let Local {
+    fn visit_local(&mut self, ast: &ast::Local) -> Result<()> {
+        let ast::Local {
             attributes,
             let_token,
             pat,
             eq,
             expr,
             semi,
-        } = local;
+        } = ast;
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
@@ -1835,12 +1851,12 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_unary(&mut self, unary: &ExprUnary) -> Result<()> {
-        let ExprUnary {
+    fn visit_unary(&mut self, ast: &ast::ExprUnary) -> Result<()> {
+        let ast::ExprUnary {
             op,
             expr,
             attributes,
-        } = unary;
+        } = ast;
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
@@ -1851,13 +1867,13 @@ impl<'a> Printer<'a> {
         self.visit_expr(expr)
     }
 
-    fn visit_group(&mut self, group: &ExprGroup) -> Result<()> {
-        let ExprGroup {
+    fn visit_group(&mut self, ast: &ast::ExprGroup) -> Result<()> {
+        let ast::ExprGroup {
             attributes,
             open,
             expr,
             close,
-        } = group;
+        } = ast;
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
@@ -1870,8 +1886,8 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_path(&mut self, path: &Path) -> Result<()> {
-        let Path {
+    fn visit_path(&mut self, path: &ast::Path) -> Result<()> {
+        let ast::Path {
             id: _,
             global,
             first,
@@ -1896,8 +1912,8 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_lit(&mut self, lit: &ExprLit) -> Result<()> {
-        let ExprLit { attributes, lit } = lit;
+    fn visit_lit(&mut self, lit: &ast::ExprLit) -> Result<()> {
+        let ast::ExprLit { attributes, lit } = lit;
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
@@ -1926,13 +1942,13 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_binary(&mut self, binary: &ExprBinary) -> Result<()> {
-        let ExprBinary {
+    fn visit_binary(&mut self, ast: &ast::ExprBinary) -> Result<()> {
+        let ast::ExprBinary {
             attributes,
             op,
             lhs,
             rhs,
-        } = binary;
+        } = ast;
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
@@ -1945,8 +1961,8 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_path_segment_expr(&mut self, expr: &PathSegmentExpr) -> Result<()> {
-        let PathSegmentExpr { expr } = expr;
+    fn visit_path_segment_expr(&mut self, expr: &ast::PathSegmentExpr) -> Result<()> {
+        let ast::PathSegmentExpr { expr } = expr;
         self.visit_expr(expr)
     }
 
@@ -1959,12 +1975,14 @@ impl<'a> Printer<'a> {
                 self.writer.write_spanned_raw(star.span, false, false)?;
             }
             ast::ItemUseSegment::Group(braced_group) => {
-                let Braced {
+                let ast::Braced {
                     open,
                     braced,
                     close,
                 } = braced_group;
+
                 self.writer.write_spanned_raw(open.span, false, false)?;
+
                 for (item, comma) in braced {
                     self.visit_item_use_path(item, *comma)?;
                     if let Some(comma) = comma {
