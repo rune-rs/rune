@@ -399,7 +399,7 @@ fn pat<'hir>(
         hir::PatKind::Path(kind) => match *kind {
             hir::PatPathKind::Kind(kind) => {
                 load(cx, Needs::Value)?;
-                cx.asm.push(to_tuple_match_instruction(*kind), hir);
+                cx.asm.push(pat_sequence_kind_to_inst(*kind), hir);
                 cx.asm
                     .pop_and_jump_if_not(cx.scopes.local(hir)?, false_label, hir);
                 Ok(true)
@@ -411,12 +411,8 @@ fn pat<'hir>(
             }
         },
         hir::PatKind::Lit(hir) => Ok(pat_lit(cx, hir, false_label, load)?),
-        hir::PatKind::Vec(hir) => {
-            pat_vec(cx, hir, span, false_label, &load)?;
-            Ok(true)
-        }
-        hir::PatKind::Tuple(hir) => {
-            pat_tuple(cx, hir, span, false_label, &load)?;
+        hir::PatKind::Sequence(hir) => {
+            pat_sequence(cx, hir, span, false_label, &load)?;
             Ok(true)
         }
         hir::PatKind::Object(hir) => {
@@ -514,63 +510,24 @@ fn condition<'hir>(
 
 /// Encode a vector pattern match.
 #[instrument(span = span)]
-fn pat_vec<'hir>(
+fn pat_sequence<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
-    hir: &hir::PatItems<'hir>,
-    span: &dyn Spanned,
-    false_label: &Label,
-    load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, Needs) -> compile::Result<()>,
-) -> compile::Result<()> {
-    // Assign the yet-to-be-verified tuple to an anonymous slot, so we can
-    // interact with it multiple times.
-    load(cx, Needs::Value)?;
-    let offset = cx.scopes.alloc(span)?;
-
-    // Copy the temporary and check that its length matches the pattern and
-    // that it is indeed a vector.
-    cx.asm.push(Inst::Copy { offset }, span);
-
-    cx.asm.push(
-        Inst::MatchSequence {
-            type_check: TypeCheck::Vec,
-            len: hir.count,
-            exact: !hir.is_open,
-        },
-        span,
-    );
-
-    cx.asm
-        .pop_and_jump_if_not(cx.scopes.local(span)?, false_label, span);
-
-    for (index, hir) in hir.items.iter().take(hir.count).enumerate() {
-        let load = move |cx: &mut Ctxt<'_, 'hir, '_>, needs: Needs| {
-            if needs.value() {
-                cx.asm.push(Inst::TupleIndexGetAt { offset, index }, hir);
-            }
-
-            Ok(())
-        };
-
-        pat(cx, hir, false_label, &load)?;
-    }
-
-    Ok(())
-}
-
-/// Encode a vector pattern match.
-#[instrument(span = span)]
-fn pat_tuple<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
-    hir: &hir::PatItems<'hir>,
+    hir: &hir::PatSequence<'hir>,
     span: &dyn Spanned,
     false_label: &Label,
     load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, Needs) -> compile::Result<()>,
 ) -> compile::Result<()> {
     load(cx, Needs::Value)?;
 
-    if hir.items.is_empty() {
+    if matches!(
+        hir.kind,
+        hir::PatSequenceKind::Anonymous {
+            type_check: TypeCheck::Tuple,
+            count: 0,
+            is_open: false
+        }
+    ) {
         cx.asm.push(Inst::IsUnit, span);
-
         cx.asm
             .pop_and_jump_if_not(cx.scopes.local(span)?, false_label, span);
         return Ok(());
@@ -580,7 +537,7 @@ fn pat_tuple<'hir>(
     // interact with it multiple times.
     let offset = cx.scopes.alloc(span)?;
 
-    let inst = to_tuple_match_instruction(hir.kind);
+    let inst = pat_sequence_kind_to_inst(hir.kind);
 
     cx.asm.push(Inst::Copy { offset }, span);
     cx.asm.push(inst, span);
@@ -588,7 +545,7 @@ fn pat_tuple<'hir>(
     cx.asm
         .pop_and_jump_if_not(cx.scopes.local(span)?, false_label, span);
 
-    for (index, p) in hir.items.iter().take(hir.count).enumerate() {
+    for (index, p) in hir.items.iter().enumerate() {
         let load = move |cx: &mut Ctxt<'_, 'hir, '_>, needs: Needs| {
             if needs.value() {
                 cx.asm.push(Inst::TupleIndexGetAt { offset, index }, p);
@@ -603,11 +560,11 @@ fn pat_tuple<'hir>(
     Ok(())
 }
 
-fn to_tuple_match_instruction(kind: hir::PatItemsKind) -> Inst {
+fn pat_sequence_kind_to_inst(kind: hir::PatSequenceKind) -> Inst {
     match kind {
-        hir::PatItemsKind::Type { hash } => Inst::MatchType { hash },
-        hir::PatItemsKind::BuiltInVariant { type_check } => Inst::MatchBuiltIn { type_check },
-        hir::PatItemsKind::Variant {
+        hir::PatSequenceKind::Type { hash } => Inst::MatchType { hash },
+        hir::PatSequenceKind::BuiltInVariant { type_check } => Inst::MatchBuiltIn { type_check },
+        hir::PatSequenceKind::Variant {
             variant_hash,
             enum_hash,
             index,
@@ -616,8 +573,12 @@ fn to_tuple_match_instruction(kind: hir::PatItemsKind) -> Inst {
             enum_hash,
             index,
         },
-        hir::PatItemsKind::Anonymous { count, is_open } => Inst::MatchSequence {
-            type_check: TypeCheck::Tuple,
+        hir::PatSequenceKind::Anonymous {
+            type_check,
+            count,
+            is_open,
+        } => Inst::MatchSequence {
+            type_check,
             len: count,
             exact: !is_open,
         },
@@ -628,7 +589,7 @@ fn to_tuple_match_instruction(kind: hir::PatItemsKind) -> Inst {
 #[instrument(span = span)]
 fn pat_object<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
-    hir: &hir::PatItems<'hir>,
+    hir: &hir::PatObject<'hir>,
     span: &dyn Spanned,
     false_label: &Label,
     load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, Needs) -> compile::Result<()>,
@@ -646,9 +607,9 @@ fn pat_object<'hir>(
     }
 
     let inst = match hir.kind {
-        hir::PatItemsKind::Type { hash } => Inst::MatchType { hash },
-        hir::PatItemsKind::BuiltInVariant { type_check } => Inst::MatchBuiltIn { type_check },
-        hir::PatItemsKind::Variant {
+        hir::PatSequenceKind::Type { hash } => Inst::MatchType { hash },
+        hir::PatSequenceKind::BuiltInVariant { type_check } => Inst::MatchBuiltIn { type_check },
+        hir::PatSequenceKind::Variant {
             variant_hash,
             enum_hash,
             index,
@@ -657,7 +618,7 @@ fn pat_object<'hir>(
             enum_hash,
             index,
         },
-        hir::PatItemsKind::Anonymous { is_open, .. } => {
+        hir::PatSequenceKind::Anonymous { is_open, .. } => {
             let keys =
                 cx.q.unit
                     .new_static_object_keys_iter(span, hir.bindings.iter().map(|b| b.key()))?;

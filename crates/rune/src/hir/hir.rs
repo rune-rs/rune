@@ -93,7 +93,7 @@ pub(crate) struct Pat<'hir> {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum PatPathKind<'hir> {
-    Kind(&'hir PatItemsKind),
+    Kind(&'hir PatSequenceKind),
     Ident(&'hir str),
 }
 
@@ -106,16 +106,14 @@ pub(crate) enum PatKind<'hir> {
     Path(&'hir PatPathKind<'hir>),
     /// A literal pattern. This is represented as an expression.
     Lit(&'hir Expr<'hir>),
-    /// A vector pattern.
-    Vec(&'hir PatItems<'hir>),
     /// A tuple pattern.
-    Tuple(&'hir PatItems<'hir>),
+    Sequence(&'hir PatSequence<'hir>),
     /// An object pattern.
-    Object(&'hir PatItems<'hir>),
+    Object(&'hir PatObject<'hir>),
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum PatItemsKind {
+pub(crate) enum PatSequenceKind {
     Type {
         hash: Hash,
     },
@@ -128,6 +126,7 @@ pub(crate) enum PatItemsKind {
         index: usize,
     },
     Anonymous {
+        type_check: TypeCheck,
         count: usize,
         is_open: bool,
     },
@@ -136,15 +135,19 @@ pub(crate) enum PatItemsKind {
 /// Items pattern matching.
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
-pub(crate) struct PatItems<'hir> {
+pub(crate) struct PatSequence<'hir> {
     /// The kind of pattern items.
-    pub(crate) kind: PatItemsKind,
+    pub(crate) kind: PatSequenceKind,
     /// The items in the tuple.
     pub(crate) items: &'hir [Pat<'hir>],
-    /// If the pattern is open.
-    pub(crate) is_open: bool,
-    /// The number of elements in the pattern.
-    pub(crate) count: usize,
+}
+
+/// Object pattern matching.
+#[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
+pub(crate) struct PatObject<'hir> {
+    /// The kind of pattern items.
+    pub(crate) kind: PatSequenceKind,
     /// Bindings associated with the pattern.
     pub(crate) bindings: &'hir [Binding<'hir>],
 }
