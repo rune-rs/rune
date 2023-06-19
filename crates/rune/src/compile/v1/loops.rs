@@ -1,23 +1,9 @@
-use core::cell::RefCell;
-
 use crate::no_std::prelude::*;
-use crate::no_std::rc::Rc;
 
 use crate::ast::Spanned;
 use crate::compile::v1::Needs;
 use crate::compile::{self, ErrorKind};
 use crate::runtime::Label;
-
-pub(crate) struct LoopGuard<'hir> {
-    loops: Rc<RefCell<Vec<Loop<'hir>>>>,
-}
-
-impl<'hir> Drop for LoopGuard<'hir> {
-    fn drop(&mut self) {
-        let empty = self.loops.borrow_mut().pop().is_some();
-        debug_assert!(empty);
-    }
-}
 
 /// Loops we are inside.
 #[derive(Clone)]
@@ -39,29 +25,28 @@ pub(crate) struct Loop<'hir> {
 }
 
 pub(crate) struct Loops<'hir> {
-    loops: Rc<RefCell<Vec<Loop<'hir>>>>,
+    loops: Vec<Loop<'hir>>,
 }
 
 impl<'hir> Loops<'hir> {
     /// Construct a new collection of loops.
     pub(crate) fn new() -> Self {
-        Self {
-            loops: Rc::new(RefCell::new(vec![])),
-        }
+        Self { loops: vec![] }
     }
 
     /// Get the last loop context.
-    pub(crate) fn last(&self) -> Option<Loop<'hir>> {
-        self.loops.borrow().last().cloned()
+    pub(crate) fn last(&self) -> Option<&Loop<'hir>> {
+        self.loops.last()
     }
 
     /// Push loop information.
-    pub(crate) fn push(&mut self, l: Loop<'hir>) -> LoopGuard<'hir> {
-        self.loops.borrow_mut().push(l);
+    pub(crate) fn push(&mut self, l: Loop<'hir>) {
+        self.loops.push(l);
+    }
 
-        LoopGuard {
-            loops: self.loops.clone(),
-        }
+    pub(crate) fn pop(&mut self) {
+        let empty = self.loops.pop().is_some();
+        debug_assert!(empty);
     }
 
     /// Find the loop with the matching label.
@@ -69,10 +54,10 @@ impl<'hir> Loops<'hir> {
         &self,
         expected: &str,
         span: &dyn Spanned,
-    ) -> compile::Result<(Loop<'hir>, Vec<usize>)> {
+    ) -> compile::Result<(&Loop<'hir>, Vec<usize>)> {
         let mut to_drop = Vec::new();
 
-        for l in self.loops.borrow().iter().rev() {
+        for l in self.loops.iter().rev() {
             to_drop.extend(l.drop);
 
             let Some(label) = l.label else {
@@ -80,7 +65,7 @@ impl<'hir> Loops<'hir> {
             };
 
             if expected == label {
-                return Ok((l.clone(), to_drop));
+                return Ok((l, to_drop));
             }
         }
 
@@ -93,8 +78,7 @@ impl<'hir> Loops<'hir> {
     }
 
     /// Construct an iterator over all available scopes.
-    pub(crate) fn iter(&self) -> impl Iterator<Item = Loop> {
-        let loops = self.loops.borrow().clone();
-        loops.into_iter()
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &Loop<'hir>> {
+        self.loops.iter()
     }
 }

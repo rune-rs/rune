@@ -1303,7 +1303,7 @@ fn expr_break<'hir>(
     span: &dyn Spanned,
     _: Needs,
 ) -> compile::Result<Asm<'hir>> {
-    let Some(current_loop) = cx.loops.last() else {
+    let Some(current_loop) = cx.loops.last().cloned() else {
         return Err(compile::Error::new(
             span,
             ErrorKind::BreakOutsideOfLoop,
@@ -1318,12 +1318,12 @@ fn expr_break<'hir>(
         }
         (Some(label), None) => {
             let (last_loop, to_drop) = cx.loops.walk_until_label(label, span)?;
-            (last_loop, to_drop, false)
+            (last_loop.clone(), to_drop, false)
         }
         (Some(label), Some(e)) => {
             expr(cx, e, current_loop.needs)?.apply(cx)?;
             let (last_loop, to_drop) = cx.loops.walk_until_label(label, span)?;
-            (last_loop, to_drop, true)
+            (last_loop.clone(), to_drop, true)
         }
         (None, None) => {
             let to_drop = current_loop.drop.into_iter().collect();
@@ -1481,7 +1481,7 @@ fn expr_continue<'hir>(
     span: &dyn Spanned,
     _: Needs,
 ) -> compile::Result<Asm<'hir>> {
-    let Some(current_loop) = cx.loops.last() else {
+    let Some(current_loop) = cx.loops.last().cloned() else {
         return Err(compile::Error::new(
             span,
             ErrorKind::ContinueOutsideOfLoop,
@@ -1490,7 +1490,7 @@ fn expr_continue<'hir>(
 
     let last_loop = if let Some(label) = hir.label {
         let (last_loop, _) = cx.loops.walk_until_label(label, span)?;
-        last_loop
+        last_loop.clone()
     } else {
         current_loop
     };
@@ -1638,7 +1638,7 @@ fn expr_for<'hir>(
     let continue_var_count = cx.scopes.total(span)?;
     cx.asm.label(&continue_label)?;
 
-    let _guard = cx.loops.push(Loop {
+    cx.loops.push(Loop {
         label: hir.label,
         continue_label: continue_label.clone(),
         continue_var_count,
@@ -1730,6 +1730,7 @@ fn expr_for<'hir>(
 
     // NB: breaks produce their own value.
     cx.asm.label(&break_label)?;
+    cx.loops.pop();
     Ok(Asm::top(span))
 }
 
@@ -2361,7 +2362,7 @@ fn expr_loop<'hir>(
 
     let var_count = cx.scopes.total(span)?;
 
-    let _guard = cx.loops.push(Loop {
+    cx.loops.push(Loop {
         label: hir.label,
         continue_label: continue_label.clone(),
         continue_var_count: var_count,
@@ -2399,6 +2400,7 @@ fn expr_loop<'hir>(
 
     // NB: breaks produce their own value / perform their own cleanup.
     cx.asm.label(&break_label)?;
+    cx.loops.pop();
     Ok(Asm::top(span))
 }
 
