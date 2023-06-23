@@ -6,6 +6,7 @@ use core::ops;
 use crate::no_std::prelude::*;
 use crate::no_std::vec;
 
+use crate as rune;
 use crate::compile::Named;
 use crate::module::InstallWith;
 use crate::runtime::{
@@ -138,7 +139,29 @@ impl Iterator {
         self.iter.next_back()
     }
 
-    /// Enumerate the iterator.
+    /// Creates an iterator which gives the current iteration count as well as
+    /// the next value.
+    ///
+    /// The iterator returned yields pairs `(i, val)`, where `i` is the current
+    /// index of iteration and `val` is the value returned by the iterator.
+    ///
+    /// `enumerate()` keeps its count as a usize. If you want to count by a
+    /// different sized integer, the zip function provides similar
+    /// functionality.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// let a = ['a', 'b', 'c'];
+    ///
+    /// let mut iter = a.iter().enumerate();
+    ///
+    /// assert_eq!(iter.next(), Some((0, 'a')));
+    /// assert_eq!(iter.next(), Some((1, 'b')));
+    /// assert_eq!(iter.next(), Some((2, 'c')));
+    /// assert_eq!(iter.next(), None);
+    /// ```
+    #[rune::function(keep)]
     pub fn enumerate(self) -> Self {
         Self {
             iter: IterRepr::Enumerate(Box::new(Enumerate {
@@ -148,7 +171,51 @@ impl Iterator {
         }
     }
 
-    /// Map the iterator using the given function.
+    /// Takes a closure and creates an iterator which calls that closure on each
+    /// element.
+    ///
+    /// `map()` transforms one iterator into another. It produces a new iterator
+    /// which calls this closure on each element of the original iterator.
+    ///
+    /// If you are good at thinking in types, you can think of `map()` like
+    /// this: If you have an iterator that gives you elements of some type `A`,
+    /// and you want an iterator of some other type `B`, you can use `map()`,
+    /// passing a closure that takes an `A` and returns a `B`.
+    ///
+    /// `map()` is conceptually similar to a `for` loop. However, as `map()` is
+    /// lazy, it is best used when you're already working with other iterators.
+    /// If you're doing some sort of looping for a side effect, it's considered
+    /// more idiomatic to use `for` than `map()`.
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```rune
+    /// let a = [1, 2, 3];
+    ///
+    /// let mut iter = a.iter().map(|x| 2 * x);
+    ///
+    /// assert_eq!(iter.next(), Some(2));
+    /// assert_eq!(iter.next(), Some(4));
+    /// assert_eq!(iter.next(), Some(6));
+    /// assert_eq!(iter.next(), None);
+    /// ```
+    ///
+    /// If you're doing some sort of side effect, prefer `for` to `map()`:
+    ///
+    /// ```rune
+    /// // don't do this:
+    /// (0..5).map(|x| println!("{x}"));
+    ///
+    /// // it won't even execute, as it is lazy. Rust will warn you about this.
+    ///
+    /// // Instead, use for:
+    /// for x in 0..5 {
+    ///     println!("{x}");
+    /// }
+    /// ```
+    #[rune::function(keep)]
     pub fn map(self, map: Function) -> Self {
         Self {
             iter: IterRepr::Map(Box::new(Map {
@@ -158,7 +225,35 @@ impl Iterator {
         }
     }
 
-    /// Map and flatten the iterator using the given function.
+    /// Creates an iterator that works like map, but flattens nested structure.
+    ///
+    /// The [`map`] adapter is very useful, but only when the closure argument
+    /// produces values. If it produces an iterator instead, there's an extra
+    /// layer of indirection. `flat_map()` will remove this extra layer on its
+    /// own.
+    ///
+    /// You can think of `flat_map(f)` as the semantic equivalent of
+    /// [`map`]ping, and then [`flatten`]ing as in `map(f).flatten()`.
+    ///
+    /// Another way of thinking about `flat_map()`: [`map`]'s closure returns
+    /// one item for each element, and `flat_map()`'s closure returns an
+    /// iterator for each element.
+    ///
+    /// [`map`]: Iterator::map
+    /// [`flatten`]: Iterator::flatten
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```rune
+    /// let words = ["alpha", "beta", "gamma"];
+    ///
+    /// // chars() returns an iterator
+    /// let merged = words.iter().flat_map(|s| s.chars()).collect::<String>();
+    /// assert_eq!(merged, "alphabetagamma");
+    /// ```
+    #[rune::function(keep)]
     pub fn flat_map(self, map: Function) -> Self {
         Self {
             iter: IterRepr::FlatMap(Box::new(FlatMap {
@@ -172,7 +267,23 @@ impl Iterator {
         }
     }
 
-    /// Filter the iterator using the given function.
+    /// Creates an iterator which uses a closure to determine if an element
+    /// should be yielded.
+    ///
+    /// Given an element the closure must return `true` or `false`. The returned
+    /// iterator will yield only the elements for which the closure returns
+    /// `true`.
+    ///
+    /// ```rune
+    /// let a = [0, 1, 2];
+    ///
+    /// let mut iter = a.iter().filter(|x| x.is_positive());
+    ///
+    /// assert_eq!(iter.next(), Some(1));
+    /// assert_eq!(iter.next(), Some(2));
+    /// assert_eq!(iter.next(), None);
+    /// ```
+    #[rune::function(keep)]
     pub fn filter(self, filter: Function) -> Self {
         Self {
             iter: IterRepr::Filter(Box::new(Filter {
@@ -182,7 +293,48 @@ impl Iterator {
         }
     }
 
-    /// Find the first matching value in the iterator using the given function.
+    /// Searches for an element of an iterator that satisfies a predicate.
+    ///
+    /// `find()` takes a closure that returns `true` or `false`. It applies this
+    /// closure to each element of the iterator, and if any of them return
+    /// `true`, then `find()` returns [`Some(element)`]. If they all return
+    /// `false`, it returns [`None`].
+    ///
+    /// `find()` is short-circuiting; in other words, it will stop processing as
+    /// soon as the closure returns `true`.
+    ///
+    /// If you need the index of the element, see [`position()`].
+    ///
+    /// [`Some(element)`]: Some
+    /// [`position()`]: Iterator::position
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```rune
+    /// let a = [1, 2, 3];
+    ///
+    /// assert_eq!(a.iter().find(|x| x == 2), Some(2));
+    ///
+    /// assert_eq!(a.iter().find(|x| x == 5), None);
+    /// ```
+    ///
+    /// Stopping at the first `true`:
+    ///
+    /// ```rune
+    /// let a = [1, 2, 3];
+    ///
+    /// let mut iter = a.iter();
+    ///
+    /// assert_eq!(iter.find(|x| x == 2), Some(2));
+    ///
+    /// // we can still use `iter`, as there are more elements.
+    /// assert_eq!(iter.next(), Some(3));
+    /// ```
+    ///
+    /// Note that `iter.find(f)` is equivalent to `iter.filter(f).next()`.
+    #[rune::function(keep)]
     pub fn find(mut self, find: Function) -> VmResult<Option<Value>> {
         while let Some(value) = vm_try!(self.next()) {
             if vm_try!(find.call::<_, bool>((value.clone(),))) {
@@ -217,7 +369,56 @@ impl Iterator {
         VmResult::Ok(false)
     }
 
-    /// Chain this iterator with another.
+    /// Takes two iterators and creates a new iterator over both in sequence.
+    ///
+    /// `chain()` will return a new iterator which will first iterate over
+    /// values from the first iterator and then over values from the second
+    /// iterator.
+    ///
+    /// In other words, it links two iterators together, in a chain. 🔗
+    ///
+    /// [`once`] is commonly used to adapt a single value into a chain of other
+    /// kinds of iteration.
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```rune
+    /// let a1 = [1, 2, 3];
+    /// let a2 = [4, 5, 6];
+    ///
+    /// let mut iter = a1.iter().chain(a2.iter());
+    ///
+    /// assert_eq!(iter.next(), Some(1));
+    /// assert_eq!(iter.next(), Some(2));
+    /// assert_eq!(iter.next(), Some(3));
+    /// assert_eq!(iter.next(), Some(4));
+    /// assert_eq!(iter.next(), Some(5));
+    /// assert_eq!(iter.next(), Some(6));
+    /// assert_eq!(iter.next(), None);
+    /// ```
+    ///
+    /// Since the argument to `chain()` uses [`IntoIterator`], we can pass
+    /// anything that can be converted into an [`Iterator`], not just an
+    /// [`Iterator`] itself. For example, slices (`&[T]`) implement
+    /// [`IntoIterator`], and so can be passed to `chain()` directly:
+    ///
+    /// ```rune
+    /// let s1 = [1, 2, 3];
+    /// let s2 = [4, 5, 6];
+    ///
+    /// let mut iter = s1.iter().chain(s2);
+    ///
+    /// assert_eq!(iter.next(), Some(1));
+    /// assert_eq!(iter.next(), Some(2));
+    /// assert_eq!(iter.next(), Some(3));
+    /// assert_eq!(iter.next(), Some(4));
+    /// assert_eq!(iter.next(), Some(5));
+    /// assert_eq!(iter.next(), Some(6));
+    /// assert_eq!(iter.next(), None);
+    /// ```
+    #[rune::function(keep)]
     pub fn chain(self, other: Value) -> VmResult<Self> {
         let other = vm_try!(other.into_iter());
 

@@ -12,15 +12,12 @@ pub fn module() -> Result<Module, ContextError> {
     module.ty::<Iterator>()?;
 
     // Sorted for ease of finding
-    module.associated_function("chain", Iterator::chain)?;
-    module.function_meta(collect_object)?;
-    module.function_meta(collect_vec)?;
-    module.function_meta(collect_tuple)?;
-    module.associated_function("enumerate", Iterator::enumerate)?;
-    module.associated_function("filter", Iterator::filter)?;
-    module.associated_function("find", Iterator::find)?;
-    module.associated_function("flat_map", Iterator::flat_map)?;
-    module.associated_function("map", Iterator::map)?;
+    module.function_meta(Iterator::__chain__meta)?;
+    module.function_meta(Iterator::__enumerate__meta)?;
+    module.function_meta(Iterator::__filter__meta)?;
+    module.function_meta(Iterator::__find__meta)?;
+    module.function_meta(Iterator::__map__meta)?;
+    module.function_meta(Iterator::__flat_map__meta)?;
     module.associated_function("next", Iterator::next)?;
     module.associated_function("next_back", Iterator::next_back)?;
     module.associated_function("peek", Iterator::peek)?;
@@ -40,6 +37,11 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(range)?;
     module.function_meta(empty)?;
     module.function_meta(once)?;
+
+    module.function_meta(collect_vec)?;
+    module.function_meta(collect_tuple)?;
+    module.function_meta(collect_object)?;
+    module.function_meta(collect_string)?;
     Ok(module)
 }
 
@@ -135,4 +137,23 @@ fn collect_object(mut it: Iterator) -> VmResult<Object> {
     }
 
     VmResult::Ok(object)
+}
+
+/// Collect the iterator as a [`String`].
+///
+/// # Examples
+///
+/// ```rune
+/// assert_eq!(["first", "second"].iter().collect::<String>(), "firstsecond");
+/// ```
+#[rune::function(instance, path = collect::<String>)]
+fn collect_string(mut it: Iterator) -> VmResult<String> {
+    let mut string = String::new();
+
+    while let Some(value) = vm_try!(it.next()) {
+        let s = vm_try!(String::from_value(value));
+        string.push_str(s.as_str());
+    }
+
+    VmResult::Ok(string)
 }
