@@ -1,7 +1,9 @@
 //! The `std::int` module.
 
+use core::cmp::Ordering;
 use core::num::ParseIntError;
 
+use crate as rune;
 use crate::{ContextError, Module};
 
 /// Construct the `std::int` module.
@@ -11,7 +13,8 @@ pub fn module() -> Result<Module, ContextError> {
     module.ty::<ParseIntError>()?;
 
     module.function(["parse"], parse)?;
-    module.associated_function("to_float", to_float)?;
+    module.function_meta(cmp)?;
+    module.function_meta(to_float)?;
 
     module.associated_function("max", i64::max)?;
     module.associated_function("min", i64::min)?;
@@ -44,7 +47,27 @@ fn parse(s: &str) -> Result<i64, ParseIntError> {
     str::parse::<i64>(s)
 }
 
+/// This method returns an Ordering between self and other.
+///
+/// By convention, self.cmp(&other) returns the ordering matching the expression self <operator> other if true.
+/// Examples
+///
+/// ```rune
+/// use std::cmp::Ordering;
+///
+/// assert_eq!(5.cmp(10), Ordering::Less);
+/// assert_eq!(10.cmp(5), Ordering::Greater);
+/// assert_eq!(5.cmp(5), Ordering::Equal);
+/// ```
+#[rune::function(instance)]
+#[inline]
+fn cmp(lhs: i64, rhs: i64) -> Ordering {
+    lhs.cmp(&rhs)
+}
+
 /// Convert a whole number to float.
+#[rune::function(instance)]
+#[inline]
 fn to_float(value: i64) -> f64 {
     value as f64
 }
