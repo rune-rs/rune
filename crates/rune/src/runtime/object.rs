@@ -194,8 +194,8 @@ impl Object {
         self.inner.contains_key(k)
     }
 
-    /// Removes a key from the object, returning the value at the key if the key
-    /// was previously in the object.
+    /// Removes a key from the map, returning the value at the key if the key
+    /// was previously in the map.
     #[inline]
     pub fn remove<Q: ?Sized>(&mut self, k: &Q) -> Option<Value>
     where
@@ -216,8 +216,23 @@ impl Object {
         VmResult::Ok(())
     }
 
-    /// Inserts a key-value pair into the dynamic object.
+    /// Inserts a key-value pair into the map.
+    ///
+    /// If the map did not have this key present, `None` is returned.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// let mut map = #{};
+    /// assert_eq!(map.insert("a", 1), None);
+    /// assert_eq!(map.is_empty(), false);
+    ///
+    /// map.insert("b", 2);
+    /// assert_eq!(map.insert("b", 3), Some(2));
+    /// assert_eq!(map["b"], 3);
+    /// ```
     #[inline]
+    #[rune::function(keep)]
     pub fn insert(&mut self, k: String, v: Value) -> Option<Value> {
         self.inner.insert(k, v)
     }
@@ -225,6 +240,7 @@ impl Object {
     /// Clears the object, removing all key-value pairs. Keeps the allocated
     /// memory for reuse.
     #[inline]
+    #[rune::function(keep)]
     pub fn clear(&mut self) {
         self.inner.clear();
     }
@@ -254,9 +270,30 @@ impl Object {
 
     /// An iterator visiting all key-value pairs in arbitrary order,
     /// with mutable references to the values.
+    ///
     /// The iterator element type is `(&'a String, &'a mut Value)`.
     pub fn iter_mut(&mut self) -> IterMut<'_> {
         self.inner.iter_mut()
+    }
+
+    /// An iterator visiting all keys and values in arbitrary order.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// let object = #{a: 1, b: 2, c: 3};
+    /// let vec = [];
+    ///
+    /// for key in object.into_iter() {
+    ///     vec.push(key);
+    /// }
+    ///
+    /// vec.sort();
+    /// assert_eq!(vec, [("a", 1), ("b", 2), ("c", 3)]);
+    /// ```
+    #[rune::function(keep, path = Self::into_iter)]
+    pub fn into_rune_iter(&self) -> Iterator {
+        Iterator::from("std::object::Iter", self.clone().into_iter())
     }
 
     /// Value pointer equals implementation for an Object.
@@ -268,11 +305,6 @@ impl Object {
     /// corresponds to identifiers.
     pub(crate) fn debug_struct<'a>(&'a self, item: &'a ItemBuf) -> DebugStruct<'a> {
         DebugStruct { item, st: self }
-    }
-
-    /// Convert into a rune iterator.
-    pub fn into_iterator(&self) -> Iterator {
-        Iterator::from("std::object::Iter", self.clone().into_iter())
     }
 }
 

@@ -504,7 +504,7 @@ impl Value {
             Value::Iterator(iterator) => return VmResult::Ok(vm_try!(iterator.take())),
             Value::Vec(vec) => return VmResult::Ok(vm_try!(vec.borrow_ref()).into_iterator()),
             Value::Object(object) => {
-                return VmResult::Ok(vm_try!(object.borrow_ref()).into_iterator())
+                return VmResult::Ok(vm_try!(object.borrow_ref()).into_rune_iter())
             }
             target => target,
         };
