@@ -24,7 +24,7 @@ struct Params<'a> {
 
 /// Build an enumeration.
 #[tracing::instrument(skip_all)]
-pub(crate) fn build<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<(Builder<'m>, Vec<IndexEntry<'m>>)> {
+pub(crate) fn build<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<(Builder<'m>, Vec<IndexEntry<'m>>)> {
     let module = cx.module_path_html(meta, false)?;
 
     let (protocols, methods, variants, index) = build::type_::build_assoc_fns(cx, meta)?;

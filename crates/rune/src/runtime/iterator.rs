@@ -1,6 +1,3 @@
-// TODO: how do we remove this?
-#![allow(rustdoc::broken_intra_doc_links)]
-
 use core::cmp;
 use core::fmt;
 use core::iter;
@@ -9,7 +6,6 @@ use core::ops;
 use crate::no_std::prelude::*;
 use crate::no_std::vec;
 
-use crate as rune;
 use crate::compile::Named;
 use crate::module::InstallWith;
 use crate::runtime::{
@@ -113,59 +109,37 @@ impl Iterator {
         }
     }
 
-    /// Creates an iterator that yields nothing.
-    pub fn empty() -> Self {
+    #[inline]
+    pub(crate) fn empty() -> Self {
         Self {
             iter: IterRepr::Empty,
         }
     }
 
-    /// Creates an iterator that yields an element exactly once.
-    pub fn once(value: Value) -> Self {
+    #[inline]
+    pub(crate) fn once(value: Value) -> Self {
         Self {
             iter: IterRepr::Once(Some(value)),
         }
     }
 
-    /// Get the size hint for the iterator.
-    pub fn size_hint(&self) -> (usize, Option<usize>) {
+    #[inline]
+    pub(crate) fn size_hint(&self) -> (usize, Option<usize>) {
         self.iter.size_hint()
     }
 
-    /// Get the next value out of the iterator.
-    pub fn next(&mut self) -> VmResult<Option<Value>> {
+    #[inline]
+    pub(crate) fn next(&mut self) -> VmResult<Option<Value>> {
         self.iter.next()
     }
 
-    /// Get the next back value out of the iterator.
-    pub fn next_back(&mut self) -> VmResult<Option<Value>> {
+    #[inline]
+    pub(crate) fn next_back(&mut self) -> VmResult<Option<Value>> {
         self.iter.next_back()
     }
 
-    /// Creates an iterator which gives the current iteration count as well as
-    /// the next value.
-    ///
-    /// The iterator returned yields pairs `(i, val)`, where `i` is the current
-    /// index of iteration and `val` is the value returned by the iterator.
-    ///
-    /// `enumerate()` keeps its count as a usize. If you want to count by a
-    /// different sized integer, the zip function provides similar
-    /// functionality.
-    ///
-    /// # Examples
-    ///
-    /// ```rune
-    /// let a = ['a', 'b', 'c'];
-    ///
-    /// let iter = a.iter().enumerate();
-    ///
-    /// assert_eq!(iter.next(), Some((0, 'a')));
-    /// assert_eq!(iter.next(), Some((1, 'b')));
-    /// assert_eq!(iter.next(), Some((2, 'c')));
-    /// assert_eq!(iter.next(), None);
-    /// ```
-    #[rune::function(keep)]
-    pub fn enumerate(self) -> Self {
+    #[inline]
+    pub(crate) fn enumerate(self) -> Self {
         Self {
             iter: IterRepr::Enumerate(Box::new(Enumerate {
                 iter: self.iter,
@@ -174,52 +148,18 @@ impl Iterator {
         }
     }
 
-    /// Takes a closure and creates an iterator which calls that closure on each
-    /// element.
-    ///
-    /// `map()` transforms one iterator into another. It produces a new iterator
-    /// which calls this closure on each element of the original iterator.
-    ///
-    /// If you are good at thinking in types, you can think of `map()` like
-    /// this: If you have an iterator that gives you elements of some type `A`,
-    /// and you want an iterator of some other type `B`, you can use `map()`,
-    /// passing a closure that takes an `A` and returns a `B`.
-    ///
-    /// `map()` is conceptually similar to a `for` loop. However, as `map()` is
-    /// lazy, it is best used when you're already working with other iterators.
-    /// If you're doing some sort of looping for a side effect, it's considered
-    /// more idiomatic to use `for` than `map()`.
-    ///
-    /// # Examples
-    ///
-    /// Basic usage:
-    ///
-    /// ```rune
-    /// let a = [1, 2, 3];
-    ///
-    /// let iter = a.iter().map(|x| 2 * x);
-    ///
-    /// assert_eq!(iter.next(), Some(2));
-    /// assert_eq!(iter.next(), Some(4));
-    /// assert_eq!(iter.next(), Some(6));
-    /// assert_eq!(iter.next(), None);
-    /// ```
-    ///
-    /// If you're doing some sort of side effect, prefer `for` to `map()`:
-    ///
-    /// ```rune
-    /// // don't do this:
-    /// (0..5).map(|x| println!("{x}"));
-    ///
-    /// // it won't even execute, as it is lazy. Rust will warn you about this.
-    ///
-    /// // Instead, use for:
-    /// for x in 0..5 {
-    ///     println!("{x}");
-    /// }
-    /// ```
-    #[rune::function(keep)]
-    pub fn map(self, map: Function) -> Self {
+    #[inline]
+    pub(crate) fn filter(self, filter: Function) -> Self {
+        Self {
+            iter: IterRepr::Filter(Box::new(Filter {
+                iter: self.iter,
+                filter,
+            })),
+        }
+    }
+
+    #[inline]
+    pub(crate) fn map(self, map: Function) -> Self {
         Self {
             iter: IterRepr::Map(Box::new(Map {
                 iter: self.iter,
@@ -228,36 +168,8 @@ impl Iterator {
         }
     }
 
-    /// Creates an iterator that works like map, but flattens nested structure.
-    ///
-    /// The [`map`] adapter is very useful, but only when the closure argument
-    /// produces values. If it produces an iterator instead, there's an extra
-    /// layer of indirection. `flat_map()` will remove this extra layer on its
-    /// own.
-    ///
-    /// You can think of `flat_map(f)` as the semantic equivalent of
-    /// [`map`]ping, and then [`flatten`]ing as in `map(f).flatten()`.
-    ///
-    /// Another way of thinking about `flat_map()`: [`map`]'s closure returns
-    /// one item for each element, and `flat_map()`'s closure returns an
-    /// iterator for each element.
-    ///
-    /// [`map`]: Iterator::map
-    /// [`flatten`]: Iterator::flatten
-    ///
-    /// # Examples
-    ///
-    /// Basic usage:
-    ///
-    /// ```rune
-    /// let words = ["alpha", "beta", "gamma"];
-    ///
-    /// // chars() returns an iterator
-    /// let merged = words.iter().flat_map(|s| s.chars()).collect::<String>();
-    /// assert_eq!(merged, "alphabetagamma");
-    /// ```
-    #[rune::function(keep)]
-    pub fn flat_map(self, map: Function) -> Self {
+    #[inline]
+    pub(crate) fn flat_map(self, map: Function) -> Self {
         Self {
             iter: IterRepr::FlatMap(Box::new(FlatMap {
                 map: Fuse::new(Map {
@@ -270,75 +182,8 @@ impl Iterator {
         }
     }
 
-    /// Creates an iterator which uses a closure to determine if an element
-    /// should be yielded.
-    ///
-    /// Given an element the closure must return `true` or `false`. The returned
-    /// iterator will yield only the elements for which the closure returns
-    /// `true`.
-    ///
-    /// ```rune
-    /// let a = [0, 1, 2];
-    ///
-    /// let iter = a.iter().filter(|x| x.is_positive());
-    ///
-    /// assert_eq!(iter.next(), Some(1));
-    /// assert_eq!(iter.next(), Some(2));
-    /// assert_eq!(iter.next(), None);
-    /// ```
-    #[rune::function(keep)]
-    pub fn filter(self, filter: Function) -> Self {
-        Self {
-            iter: IterRepr::Filter(Box::new(Filter {
-                iter: self.iter,
-                filter,
-            })),
-        }
-    }
-
-    /// Searches for an element of an iterator that satisfies a predicate.
-    ///
-    /// `find()` takes a closure that returns `true` or `false`. It applies this
-    /// closure to each element of the iterator, and if any of them return
-    /// `true`, then `find()` returns [`Some(element)`]. If they all return
-    /// `false`, it returns [`None`].
-    ///
-    /// `find()` is short-circuiting; in other words, it will stop processing as
-    /// soon as the closure returns `true`.
-    ///
-    /// If you need the index of the element, see [`position()`].
-    ///
-    /// [`Some(element)`]: Some
-    /// [`position()`]: Iterator::position
-    ///
-    /// # Examples
-    ///
-    /// Basic usage:
-    ///
-    /// ```rune
-    /// let a = [1, 2, 3];
-    ///
-    /// assert_eq!(a.iter().find(|x| x == 2), Some(2));
-    ///
-    /// assert_eq!(a.iter().find(|x| x == 5), None);
-    /// ```
-    ///
-    /// Stopping at the first `true`:
-    ///
-    /// ```rune
-    /// let a = [1, 2, 3];
-    ///
-    /// let iter = a.iter();
-    ///
-    /// assert_eq!(iter.find(|x| x == 2), Some(2));
-    ///
-    /// // we can still use `iter`, as there are more elements.
-    /// assert_eq!(iter.next(), Some(3));
-    /// ```
-    ///
-    /// Note that `iter.find(f)` is equivalent to `iter.filter(f).next()`.
-    #[rune::function(keep)]
-    pub fn find(mut self, find: Function) -> VmResult<Option<Value>> {
+    #[inline]
+    pub(crate) fn find(mut self, find: Function) -> VmResult<Option<Value>> {
         while let Some(value) = vm_try!(self.next()) {
             if vm_try!(find.call::<_, bool>((value.clone(),))) {
                 return VmResult::Ok(Some(value));
@@ -348,8 +193,8 @@ impl Iterator {
         VmResult::Ok(None)
     }
 
-    /// Test if all entries in the iterator matches the given predicate.
-    pub fn all(mut self, find: Function) -> VmResult<bool> {
+    #[inline]
+    pub(crate) fn all(mut self, find: Function) -> VmResult<bool> {
         while let Some(value) = vm_try!(self.next()) {
             let result = vm_try!(find.call::<_, bool>((value.clone(),)));
 
@@ -361,8 +206,8 @@ impl Iterator {
         VmResult::Ok(true)
     }
 
-    /// Test if any entry in the iterator matches the given predicate.
-    pub fn any(mut self, find: Function) -> VmResult<bool> {
+    #[inline]
+    pub(crate) fn any(mut self, find: Function) -> VmResult<bool> {
         while let Some(value) = vm_try!(self.next()) {
             if vm_try!(find.call::<_, bool>((value.clone(),))) {
                 return VmResult::Ok(true);
@@ -372,57 +217,8 @@ impl Iterator {
         VmResult::Ok(false)
     }
 
-    /// Takes two iterators and creates a new iterator over both in sequence.
-    ///
-    /// `chain()` will return a new iterator which will first iterate over
-    /// values from the first iterator and then over values from the second
-    /// iterator.
-    ///
-    /// In other words, it links two iterators together, in a chain. 🔗
-    ///
-    /// [`once`] is commonly used to adapt a single value into a chain of other
-    /// kinds of iteration.
-    ///
-    /// # Examples
-    ///
-    /// Basic usage:
-    ///
-    /// ```rune
-    /// let a1 = [1, 2, 3];
-    /// let a2 = [4, 5, 6];
-    ///
-    /// let iter = a1.iter().chain(a2.iter());
-    ///
-    /// assert_eq!(iter.next(), Some(1));
-    /// assert_eq!(iter.next(), Some(2));
-    /// assert_eq!(iter.next(), Some(3));
-    /// assert_eq!(iter.next(), Some(4));
-    /// assert_eq!(iter.next(), Some(5));
-    /// assert_eq!(iter.next(), Some(6));
-    /// assert_eq!(iter.next(), None);
-    /// ```
-    ///
-    /// Since the argument to `chain()` uses [`IntoIterator`], we can pass
-    /// anything that can be converted into an [`Iterator`], not just an
-    /// [`Iterator`] itself. For example, slices (`&[T]`) implement
-    /// [`IntoIterator`], and so can be passed to `chain()` directly:
-    ///
-    /// ```rune
-    /// let s1 = [1, 2, 3];
-    /// let s2 = [4, 5, 6];
-    ///
-    /// let iter = s1.iter().chain(s2);
-    ///
-    /// assert_eq!(iter.next(), Some(1));
-    /// assert_eq!(iter.next(), Some(2));
-    /// assert_eq!(iter.next(), Some(3));
-    /// assert_eq!(iter.next(), Some(4));
-    /// assert_eq!(iter.next(), Some(5));
-    /// assert_eq!(iter.next(), Some(6));
-    /// assert_eq!(iter.next(), None);
-    /// ```
-    #[rune::function(keep)]
-    pub fn chain(self, other: Value) -> VmResult<Self> {
+    #[inline]
+    pub(crate) fn chain(self, other: Value) -> VmResult<Self> {
         let other = vm_try!(other.into_iter());
 
         VmResult::Ok(Self {
@@ -433,8 +229,8 @@ impl Iterator {
         })
     }
 
-    /// Chain this iterator with another.
-    pub fn chain_raw(self, other: Self) -> VmResult<Self> {
+    #[inline]
+    pub(crate) fn chain_raw(self, other: Self) -> VmResult<Self> {
         VmResult::Ok(Self {
             iter: IterRepr::Chain(Box::new(Chain {
                 a: Some(self.iter),
@@ -443,8 +239,8 @@ impl Iterator {
         })
     }
 
-    /// Map the iterator using the given function.
-    pub fn rev(self) -> VmResult<Self> {
+    #[inline]
+    pub(crate) fn rev(self) -> VmResult<Self> {
         if !self.iter.is_double_ended() {
             return VmResult::err(Panic::custom(format!(
                 "`{:?}` is not a double-ended iterator",
@@ -462,22 +258,22 @@ impl Iterator {
         })
     }
 
-    /// Skip over the given number of elements from the iterator.
-    pub fn skip(self, n: usize) -> Self {
+    #[inline]
+    pub(crate) fn skip(self, n: usize) -> Self {
         Self {
             iter: IterRepr::Skip(Box::new(Skip { iter: self.iter, n })),
         }
     }
 
-    /// Take the given number of elements from the iterator.
-    pub fn take(self, n: usize) -> Self {
+    #[inline]
+    pub(crate) fn take(self, n: usize) -> Self {
         Self {
             iter: IterRepr::Take(Box::new(Take { iter: self.iter, n })),
         }
     }
 
-    /// Count the number of elements remaining in the iterator.
-    pub fn count(&mut self) -> VmResult<usize> {
+    #[inline]
+    pub(crate) fn count(&mut self) -> VmResult<usize> {
         let mut c = 0;
 
         while vm_try!(self.iter.next()).is_some() {
@@ -487,8 +283,8 @@ impl Iterator {
         VmResult::Ok(c)
     }
 
-    /// Create a peekable iterator.
-    pub fn peekable(self) -> Self {
+    #[inline]
+    pub(crate) fn peekable(self) -> Self {
         Self {
             iter: match self.iter {
                 IterRepr::Peekable(peekable) => IterRepr::Peekable(peekable),
@@ -497,8 +293,8 @@ impl Iterator {
         }
     }
 
-    /// Peek the next element if supported.
-    pub fn peek(&mut self) -> VmResult<Option<Value>> {
+    #[inline]
+    pub(crate) fn peek(&mut self) -> VmResult<Option<Value>> {
         match &mut self.iter {
             IterRepr::Peekable(peekable) => peekable.peek(),
             _ => VmResult::err(Panic::msg(format_args!(
@@ -508,8 +304,8 @@ impl Iterator {
         }
     }
 
-    /// Collect results from the iterator.
-    pub fn collect<T>(mut self) -> VmResult<vec::Vec<T>>
+    #[inline]
+    pub(crate) fn collect<T>(mut self) -> VmResult<vec::Vec<T>>
     where
         T: FromValue,
     {
@@ -523,9 +319,8 @@ impl Iterator {
         VmResult::Ok(vec)
     }
 
-    /// Integrate over the iterator, using accumulator as the initial value and
-    /// then forwarding the result of each stage.
-    pub fn fold(mut self, mut accumulator: Value, f: Function) -> VmResult<Value> {
+    #[inline]
+    pub(crate) fn fold(mut self, mut accumulator: Value, f: Function) -> VmResult<Value> {
         while let Some(value) = vm_try!(self.next()) {
             accumulator = vm_try!(f.call::<_, Value>((accumulator, value.clone())));
         }
@@ -533,14 +328,14 @@ impl Iterator {
         VmResult::Ok(accumulator)
     }
 
-    /// Compute the product under the assumption of a homogeonous iterator of type T.
-    pub fn product(self) -> VmResult<Value> {
+    #[inline]
+    pub(crate) fn product(self) -> VmResult<Value> {
         let product = Product { iter: self.iter };
         product.resolve()
     }
 
-    /// Compute the sum under the assumption of a homogeonous iterator of type T.
-    pub fn sum(self) -> VmResult<Value> {
+    #[inline]
+    pub(crate) fn sum(self) -> VmResult<Value> {
         let sum = Sum { iter: self.iter };
         sum.resolve()
     }
@@ -1340,12 +1135,16 @@ where
 
     fn resolve_internal_simple<T>(&mut self, first: T) -> VmResult<T>
     where
-        T: FromValue + ops::Mul<Output = T>,
+        T: FromValue + CheckedMul,
     {
         let mut product = first;
 
         while let Some(v) = vm_try!(self.next()) {
-            product = product * v;
+            let Some(out) = product.checked_mul(v) else {
+                return VmResult::err(VmErrorKind::Overflow);
+            };
+
+            product = out;
         }
 
         VmResult::Ok(product)
@@ -1430,5 +1229,30 @@ where
             },
             None => VmResult::err(Panic::custom("cannot take the sum of an empty iterator")),
         }
+    }
+}
+
+trait CheckedMul: Sized {
+    fn checked_mul(self, value: Self) -> Option<Self>;
+}
+
+impl CheckedMul for u8 {
+    #[inline]
+    fn checked_mul(self, value: Self) -> Option<Self> {
+        u8::checked_mul(self, value)
+    }
+}
+
+impl CheckedMul for i64 {
+    #[inline]
+    fn checked_mul(self, value: Self) -> Option<Self> {
+        i64::checked_mul(self, value)
+    }
+}
+
+impl CheckedMul for f64 {
+    #[inline]
+    fn checked_mul(self, value: Self) -> Option<Self> {
+        Some(self * value)
     }
 }

@@ -35,7 +35,7 @@ pub(super) struct Variant<'a> {
 }
 
 pub(super) fn build_assoc_fns<'m>(
-    cx: &Ctxt<'_, 'm>,
+    cx: &mut Ctxt<'_, 'm>,
     meta: Meta<'m>,
 ) -> Result<(Vec<Protocol<'m>>, Vec<Method<'m>>, Vec<Variant<'m>>, Vec<IndexEntry<'m>>)> {
     let mut protocols = Vec::new();
@@ -71,7 +71,10 @@ pub(super) fn build_assoc_fns<'m>(
                     }
                     AssocFnKind::Method(name, args, sig) => {
                         let line_doc = cx.render_line_docs(meta, assoc.docs.get(..1).unwrap_or_default())?;
+
+                        cx.state.item.push(name);
                         let doc = cx.render_docs(meta, assoc.docs, true)?;
+                        cx.state.item.pop();
 
                         let mut list = Vec::new();
         
@@ -177,7 +180,7 @@ struct Params<'a> {
 
 /// Build an unknown type.
 #[tracing::instrument(skip_all)]
-pub(crate) fn build<'m>(cx: &Ctxt<'_, 'm>, what: &'static str, what_class: &'static str, meta: Meta<'m>) -> Result<(Builder<'m>, Vec<IndexEntry<'m>>)> {
+pub(crate) fn build<'m>(cx: &mut Ctxt<'_, 'm>, what: &'static str, what_class: &'static str, meta: Meta<'m>) -> Result<(Builder<'m>, Vec<IndexEntry<'m>>)> {
     let module = cx.module_path_html(meta, false)?;
 
     let (protocols, methods, _, index) = build_assoc_fns(cx, meta)?;

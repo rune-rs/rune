@@ -487,7 +487,7 @@ fn saturating_pow(this: i64, rhs: u32) -> i64 {
 ///
 /// Basic usage:
 ///
-/// ```
+/// ```rune
 /// assert_eq!(10.signum(), 1);
 /// assert_eq!(0.signum(), 0);
 /// assert_eq!((-10).signum(), -1);
@@ -505,7 +505,7 @@ fn signum(this: i64) -> i64 {
 ///
 /// Basic usage:
 ///
-/// ```
+/// ```rune
 /// assert!(10.is_positive());
 /// assert!(!(-10).is_positive());
 /// ```
@@ -522,7 +522,7 @@ fn is_positive(this: i64) -> bool {
 ///
 /// Basic usage:
 ///
-/// ```
+/// ```rune
 /// assert!((-10).is_negative());
 /// assert!(!10.is_negative());
 /// ```

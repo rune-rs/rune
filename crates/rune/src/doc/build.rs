@@ -89,14 +89,14 @@ pub(crate) fn build(
         };
 
         let file = Assets::get(file.as_ref()).context("missing asset")?;
-        let builder_path = artifacts.asset(path, move || Ok(file.data))?;
+        let builder_path = artifacts.asset(true, path, move || Ok(file.data))?;
         paths.insert(path.as_str(), builder_path.as_str());
         out.push(builder_path);
     }
 
     let theme = theme_set.themes.get(THEME).context("missing theme")?;
 
-    let syntax_css = artifacts.asset("syntax.css", || {
+    let syntax_css = artifacts.asset(true, "syntax.css", || {
         let content = html::css_for_theme_with_class_style(theme, html::ClassStyle::Spaced)?;
         Ok(content.into_bytes().into())
     })?;
@@ -104,7 +104,7 @@ pub(crate) fn build(
     paths.insert("syntax.css", syntax_css.as_str());
     css.push(syntax_css);
 
-    let runedoc_css = artifacts.asset(RUNEDOC_CSS, || {
+    let runedoc_css = artifacts.asset(true, RUNEDOC_CSS, || {
         let runedoc = compile(&templating, "runedoc.css.hbs")?;
         let string = runedoc.render(&())?;
         Ok(string.into_bytes().into())
@@ -151,40 +151,40 @@ pub(crate) fn build(
         match build {
             Build::Type(meta) => {
                 cx.set_path(meta)?;
-                let (builder, items) = self::type_::build(&cx, "Type", "type", meta)?;
+                let (builder, items) = self::type_::build(&mut cx, "Type", "type", meta)?;
                 builders.push(builder);
                 cx.index.extend(items);
             }
             Build::Struct(meta) => {
                 cx.set_path(meta)?;
-                let (builder, index) = self::type_::build(&cx, "Struct", "struct", meta)?;
+                let (builder, index) = self::type_::build(&mut cx, "Struct", "struct", meta)?;
                 builders.push(builder);
                 cx.index.extend(index);
             }
             Build::Enum(meta) => {
                 cx.set_path(meta)?;
-                let (builder, index) = self::enum_::build(&cx, meta)?;
+                let (builder, index) = self::enum_::build(&mut cx, meta)?;
                 builders.push(builder);
                 cx.index.extend(index);
             }
             Build::Macro(meta) => {
                 cx.set_path(meta)?;
-                builders.push(build_macro(&cx, meta)?);
+                builders.push(build_macro(&mut cx, meta)?);
             }
             Build::Function(meta) => {
                 cx.set_path(meta)?;
-                builders.push(build_function(&cx, meta)?);
+                builders.push(build_function(&mut cx, meta)?);
             }
             Build::Module(meta) => {
                 cx.set_path(meta)?;
-                builders.push(module(&cx, meta, &mut queue)?);
+                builders.push(module(&mut cx, meta, &mut queue)?);
                 let item = meta.item.context("Missing item")?;
                 modules.push((item, cx.state.path.clone()));
             }
         }
     }
 
-    let search_index_path = artifacts.asset("index.js", || {
+    let search_index_path = artifacts.asset(true, "index.js", || {
         let content = build_search_index(&cx)?;
         Ok(content.into_bytes().into())
     })?;
@@ -196,7 +196,7 @@ pub(crate) fn build(
 
     for builder in builders {
         cx.state = builder.state;
-        artifacts.asset(&cx.state.path, || Ok((builder.builder)(&cx)?.into_bytes().into()))?;
+        artifacts.asset(false, &cx.state.path, || Ok((builder.builder)(&cx)?.into_bytes().into()))?;
     }
 
     artifacts.set_tests(cx.tests.into_inner());

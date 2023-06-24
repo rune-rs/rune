@@ -78,6 +78,7 @@ impl Artifacts {
     /// Define an asset artifact.
     pub(crate) fn asset<P, F>(
         &mut self,
+        hash: bool,
         path: &P,
         content: F,
     ) -> Result<RelativePathBuf> where P: ?Sized + AsRef<RelativePath>, F: FnOnce() -> Result<Cow<'static, [u8]>> {
@@ -87,15 +88,19 @@ impl Artifacts {
 
         let content = content().context("Building asset content")?;
 
-        let mut hasher = Sha256::new();
-        hasher.update(content.as_ref());
-        let result = hasher.finalize();
-        let hash = Base64Display::new(&result[..], &URL_SAFE_NO_PAD);
+        let path = if hash {
+            let mut hasher = Sha256::new();
+            hasher.update(content.as_ref());
+            let result = hasher.finalize();
+            let hash = Base64Display::new(&result[..], &URL_SAFE_NO_PAD);
 
-        let path = path.as_ref();
-        let stem = path.file_stem().context("Missing file stem")?;
-        let ext = path.extension().context("Missing file extension")?;
-        let path = path.with_file_name(format!("{stem}-{hash}.{ext}"));
+            let path = path.as_ref();
+            let stem = path.file_stem().context("Missing file stem")?;
+            let ext = path.extension().context("Missing file extension")?;
+            path.with_file_name(format!("{stem}-{hash}.{ext}"))
+        } else {
+            path.as_ref().to_owned()
+        };
 
         self.assets.push(Asset {
             path: path.clone(),

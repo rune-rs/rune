@@ -457,6 +457,7 @@ pub(crate) enum ErrorKind {
         requested: usize,
     },
     UnsupportedPatternRest,
+    UnsupportedMut,
 }
 
 impl crate::no_std::error::Error for ErrorKind {
@@ -953,6 +954,12 @@ impl fmt::Display for ErrorKind {
             }
             ErrorKind::UnsupportedPatternRest => {
                 write!(f, "Pattern `..` is not supported in this location")?;
+            }
+            ErrorKind::UnsupportedMut => {
+                write!(
+                    f,
+                    "The `mut` modifier is not supported in Rune, everything is mutable by default"
+                )?;
             }
         }
 

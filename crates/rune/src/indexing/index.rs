@@ -995,6 +995,10 @@ fn local(idx: &mut Indexer<'_, '_>, ast: &mut ast::Local) -> compile::Result<()>
         ));
     }
 
+    if let Some(mut_token) = ast.mut_token {
+        return Err(compile::Error::new(mut_token, ErrorKind::UnsupportedMut));
+    }
+
     // We index the rhs expression first so that it doesn't see it's own
     // declaration and use that instead of capturing from the outside.
     expr(idx, &mut ast.expr)?;
@@ -1004,6 +1008,10 @@ fn local(idx: &mut Indexer<'_, '_>, ast: &mut ast::Local) -> compile::Result<()>
 
 #[instrument(span = ast)]
 fn expr_let(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprLet) -> compile::Result<()> {
+    if let Some(mut_token) = ast.mut_token {
+        return Err(compile::Error::new(mut_token, ErrorKind::UnsupportedMut));
+    }
+
     pat(idx, &mut ast.pat)?;
     expr(idx, &mut ast.expr)?;
     Ok(())

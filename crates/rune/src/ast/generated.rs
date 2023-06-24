@@ -2559,6 +2559,50 @@ impl macros::ToTokens for Move {
     }
 }
 
+/// The `mut` keyword.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub struct Mut {
+    /// Associated span.
+    pub span: ast::Span,
+}
+
+impl ast::Spanned for Mut {
+    fn span(&self) -> ast::Span {
+        self.span
+    }
+}
+
+impl parse::Parse for Mut {
+    fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
+        let token = p.next()?;
+
+        match token.kind {
+            ast::Kind::Mut => Ok(Self { span: token.span }),
+            _ => Err(compile::Error::expected(token, ast::Kind::Mut)),
+        }
+    }
+}
+
+impl parse::Peek for Mut {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
+        matches!(peeker.nth(0), ast::Kind::Mut)
+    }
+}
+
+impl macros::ToTokens for Mut {
+    fn to_tokens(
+        &self,
+        _: &mut macros::MacroContext<'_, '_, '_>,
+        stream: &mut macros::TokenStream,
+    ) {
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Mut,
+        });
+    }
+}
+
 /// The `not` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
@@ -4386,6 +4430,9 @@ macro_rules! T {
     (move) => {
         $crate::ast::Move
     };
+    (mut) => {
+        $crate::ast::Mut
+    };
     (not) => {
         $crate::ast::Not
     };
@@ -4645,6 +4692,7 @@ macro_rules! K {
     (match) => { $crate::ast::Kind::Match };
     (mod) => { $crate::ast::Kind::Mod };
     (move) => { $crate::ast::Kind::Move };
+    (mut) => { $crate::ast::Kind::Mut };
     (not) => { $crate::ast::Kind::Not };
     (offsetof) => { $crate::ast::Kind::OffsetOf };
     (override) => { $crate::ast::Kind::Override };
@@ -4862,6 +4910,8 @@ pub enum Kind {
     Mod,
     /// The `move` keyword.
     Move,
+    /// The `mut` keyword.
+    Mut,
     /// The `not` keyword.
     Not,
     /// The `offsetof` keyword.
@@ -4983,6 +5033,7 @@ impl Kind {
             "match" => Some(Self::Match),
             "mod" => Some(Self::Mod),
             "move" => Some(Self::Move),
+            "mut" => Some(Self::Mut),
             "not" => Some(Self::Not),
             "offsetof" => Some(Self::OffsetOf),
             "override" => Some(Self::Override),
@@ -5044,6 +5095,7 @@ impl Kind {
             Self::Match => Some("match"),
             Self::Mod => Some("mod"),
             Self::Move => Some("move"),
+            Self::Mut => Some("mut"),
             Self::Not => Some("not"),
             Self::OffsetOf => Some("offsetof"),
             Self::Override => Some("override"),
@@ -5181,6 +5233,7 @@ impl parse::IntoExpectation for Kind {
             Self::Match => parse::Expectation::Keyword("match"),
             Self::Mod => parse::Expectation::Keyword("mod"),
             Self::Move => parse::Expectation::Keyword("move"),
+            Self::Mut => parse::Expectation::Keyword("mut"),
             Self::Not => parse::Expectation::Keyword("not"),
             Self::OffsetOf => parse::Expectation::Keyword("offsetof"),
             Self::Override => parse::Expectation::Keyword("override"),

@@ -176,7 +176,7 @@ fn main() -> Result<()> {
                 }
 
                 impl $to_tokens for $(t.variant()) {
-                    fn to_tokens(&self, _: &mut $macro_context<'_>, stream: &mut $token_stream) {
+                    fn to_tokens(&self, _: &mut $macro_context<'_, '_, '_>, stream: &mut $token_stream) {
                         stream.push($token {
                             span: self.span,
                             kind: $kind::$(t.variant()),
@@ -324,7 +324,7 @@ fn main() -> Result<()> {
             }
 
             impl $to_tokens for Kind {
-                fn to_tokens(&self, context: &mut $macro_context<'_>, stream: &mut $token_stream) {
+                fn to_tokens(&self, context: &mut $macro_context<'_, '_, '_>, stream: &mut $token_stream) {
                     stream.push($token {
                         kind: *self,
                         span: context.macro_span(),

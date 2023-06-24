@@ -1665,6 +1665,7 @@ impl<'a> Printer<'a> {
         let ast::ExprLet {
             attributes,
             let_token,
+            mut_token,
             pat,
             eq,
             expr,
@@ -1675,6 +1676,11 @@ impl<'a> Printer<'a> {
         }
 
         self.writer.write_spanned_raw(let_token.span, false, true)?;
+
+        if let Some(mut_token) = mut_token {
+            self.writer.write_spanned_raw(mut_token.span, false, true)?;
+        }
+
         self.visit_pattern(pat)?;
         self.writer.write_unspanned(" ")?;
         self.writer.write_spanned_raw(eq.span, false, true)?;
@@ -1826,6 +1832,7 @@ impl<'a> Printer<'a> {
         let ast::Local {
             attributes,
             let_token,
+            mut_token,
             pat,
             eq,
             expr,
@@ -1837,6 +1844,11 @@ impl<'a> Printer<'a> {
         }
 
         self.writer.write_spanned_raw(let_token.span, false, true)?;
+
+        if let Some(mut_token) = mut_token {
+            self.writer.write_spanned_raw(mut_token.span, false, true)?;
+        }
+
         self.visit_pattern(pat)?;
         self.writer.write_unspanned(" ")?;
         self.writer.write_spanned_raw(eq.span, false, true)?;

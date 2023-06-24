@@ -10,7 +10,6 @@ use crate::no_std::prelude::*;
 
 use serde::{Deserialize, Serialize};
 
-use crate as rune;
 use crate::compile::Named;
 use crate::module::InstallWith;
 use crate::runtime::{
@@ -26,21 +25,33 @@ pub struct Bytes {
 }
 
 impl Bytes {
-    /// Construct a new bytes container.
+    /// Construct a new byte array.
     ///
     /// # Examples
     ///
-    /// ```rune
+    /// ```
+    /// use rune::runtime::Bytes;
+    ///
     /// let bytes = Bytes::new();
     /// assert_eq!(bytes, b"");
     /// ```
-    #[rune::function(keep, path = Self::new)]
     #[inline]
     pub const fn new() -> Self {
         Bytes { bytes: Vec::new() }
     }
 
-    /// Construct a new bytes container with the specified capacity.
+    /// Construct a byte array with the given preallocated capacity.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::runtime::Bytes;
+    ///
+    /// let mut bytes = Bytes::with_capacity(32);
+    /// assert_eq!(bytes, b"");
+    /// bytes.extend(b"abcd");
+    /// assert_eq!(bytes, b"abcd");
+    /// ```
     #[inline]
     pub fn with_capacity(cap: usize) -> Self {
         Bytes {
@@ -48,28 +59,54 @@ impl Bytes {
         }
     }
 
-    /// Convert the bytes container into a vector of bytes.
+    /// Convert the byte array into a vector of bytes.
     ///
     /// # Examples
     ///
-    /// ```rune
-    /// let bytes = b"abcd";
+    /// ```
+    /// use rune::runtime::Bytes;
+    ///
+    /// let bytes = Bytes::from_vec(vec![b'a', b'b', b'c', b'd']);
     /// assert_eq!(bytes.into_vec(), [b'a', b'b', b'c', b'd']);
     /// ```
-    #[rune::function(keep)]
+    #[inline]
     pub fn into_vec(self) -> Vec<u8> {
         self.bytes
+    }
+
+    /// Convert a slice into bytes.
+    ///
+    /// Calling this function allocates bytes internally.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::runtime::Bytes;
+    ///
+    /// let bytes = Bytes::from_slice(vec![b'a', b'b', b'c', b'd']);
+    /// assert_eq!(bytes, b"abcd");
+    /// ```
+    #[inline]
+    pub fn from_slice<B>(bytes: B) -> Self
+    where
+        B: AsRef<[u8]>,
+    {
+        Self {
+            bytes: bytes.as_ref().to_vec(),
+        }
     }
 
     /// Convert a byte array into bytes.
     ///
     /// # Examples
     ///
-    /// ```rune
-    /// let bytes = Bytes::from_vec([b'a', b'b', b'c', b'd']);
+    /// ```
+    /// use rune::runtime::Bytes;
+    ///
+    /// let bytes = Bytes::from_vec(vec![b'a', b'b', b'c', b'd']);
     /// assert_eq!(bytes, b"abcd");
     /// ```
-    #[rune::function(keep, path = Self::from_vec)]
+    #[inline]
     pub fn from_vec(bytes: Vec<u8>) -> Self {
         Self { bytes }
     }
@@ -78,36 +115,46 @@ impl Bytes {
     ///
     /// # Examples
     ///
-    /// ```rune
-    /// let bytes = b"abcd";
+    /// ```
+    /// use rune::runtime::Bytes;
+    ///
+    /// let mut bytes = Bytes::from_vec(vec![b'a', b'b', b'c', b'd']);
     /// bytes.extend(b"efgh");
     /// assert_eq!(bytes, b"abcdefgh");
     /// ```
-    #[rune::function(keep)]
-    pub fn extend(&mut self, other: &Self) {
-        self.bytes.extend(other.bytes.iter().copied());
-    }
-
-    /// Extend this bytes collection with a string.
-    ///
-    /// # Examples
-    ///
-    /// ```rune
-    /// let bytes = b"abcd";
-    /// bytes.extend_str("efgh");
-    /// assert_eq!(bytes, b"abcdefgh");
-    /// ```
-    #[rune::function(keep)]
-    pub fn extend_str(&mut self, s: &str) {
-        self.bytes.extend(s.as_bytes());
+    pub fn extend<O>(&mut self, other: O)
+    where
+        O: AsRef<[u8]>,
+    {
+        self.bytes.extend_from_slice(other.as_ref());
     }
 
     /// Test if the collection is empty.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::runtime::Bytes;
+    ///
+    /// let mut bytes = Bytes::new();
+    /// assert!(bytes.is_empty());
+    /// ```
     pub fn is_empty(&self) -> bool {
         self.bytes.is_empty()
     }
 
     /// Get the length of the bytes collection.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::runtime::Bytes;
+    ///
+    /// let mut bytes = Bytes::new();
+    /// assert_eq!(bytes.len(), 0);
+    /// bytes.extend(b"abcd");
+    /// assert_eq!(bytes.len(), 4);
+    /// ```
     pub fn len(&self) -> usize {
         self.bytes.len()
     }
@@ -143,26 +190,41 @@ impl Bytes {
     ///
     /// # Examples
     ///
-    /// ```rune
-    /// let bytes = b"abcd";
+    /// ```
+    /// use rune::runtime::Bytes;
+    ///
+    /// let mut bytes = Bytes::from_slice(b"abcd");
     /// assert_eq!(bytes.pop(), Some(b'd'));
     /// assert_eq!(bytes, b"abc");
     /// ```
-    #[rune::function(keep)]
     pub fn pop(&mut self) -> Option<u8> {
         self.bytes.pop()
+    }
+
+    /// Get the first byte.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::runtime::Bytes;
+    ///
+    /// let bytes = Bytes::from_slice(b"abcd");
+    /// assert_eq!(bytes.first(), Some(b'a'));
+    /// ```
+    pub fn first(&self) -> Option<u8> {
+        self.bytes.first().copied()
     }
 
     /// Get the last byte.
     ///
     /// # Examples
     ///
-    /// ```rune
-    /// let bytes = b"abcd";
-    /// assert_eq!(bytes.last(), Some(b'd'));
-    /// assert_eq!(bytes, b"abcd");
     /// ```
-    #[rune::function(keep)]
+    /// use rune::runtime::Bytes;
+    ///
+    /// let bytes = Bytes::from_slice(b"abcd");
+    /// assert_eq!(bytes.last(), Some(b'd'));
+    /// ```
     pub fn last(&self) -> Option<u8> {
         self.bytes.last().copied()
     }
@@ -175,6 +237,7 @@ impl From<Vec<u8>> for Bytes {
 }
 
 impl fmt::Debug for Bytes {
+    #[inline]
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_list().entries(&self.bytes).finish()
     }
@@ -183,14 +246,23 @@ impl fmt::Debug for Bytes {
 impl ops::Deref for Bytes {
     type Target = [u8];
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.bytes
     }
 }
 
 impl ops::DerefMut for Bytes {
+    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.bytes
+    }
+}
+
+impl AsRef<[u8]> for Bytes {
+    #[inline]
+    fn as_ref(&self) -> &[u8] {
+        &self.bytes
     }
 }
 
@@ -256,13 +328,43 @@ impl Named for Bytes {
 
 impl InstallWith for Bytes {}
 
+impl<const N: usize> cmp::PartialEq<[u8; N]> for Bytes {
+    #[inline]
+    fn eq(&self, other: &[u8; N]) -> bool {
+        self.bytes == other[..]
+    }
+}
+
+impl<const N: usize> cmp::PartialEq<&[u8; N]> for Bytes {
+    #[inline]
+    fn eq(&self, other: &&[u8; N]) -> bool {
+        self.bytes == other[..]
+    }
+}
+
+impl<const N: usize> cmp::PartialEq<Bytes> for [u8; N] {
+    #[inline]
+    fn eq(&self, other: &Bytes) -> bool {
+        self[..] == other.bytes
+    }
+}
+
+impl<const N: usize> cmp::PartialEq<Bytes> for &[u8; N] {
+    #[inline]
+    fn eq(&self, other: &Bytes) -> bool {
+        self[..] == other.bytes
+    }
+}
+
 impl cmp::PartialEq<[u8]> for Bytes {
+    #[inline]
     fn eq(&self, other: &[u8]) -> bool {
         self.bytes == other
     }
 }
 
 impl cmp::PartialEq<Bytes> for [u8] {
+    #[inline]
     fn eq(&self, other: &Bytes) -> bool {
         self == other.bytes
     }
