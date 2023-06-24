@@ -12,12 +12,12 @@ pub fn module() -> Result<Module, ContextError> {
     module.ty::<Iterator>()?;
 
     // Sorted for ease of finding
-    module.function_meta(Iterator::__chain__meta)?;
-    module.function_meta(Iterator::__enumerate__meta)?;
-    module.function_meta(Iterator::__filter__meta)?;
-    module.function_meta(Iterator::__find__meta)?;
-    module.function_meta(Iterator::__map__meta)?;
-    module.function_meta(Iterator::__flat_map__meta)?;
+    module.function_meta(Iterator::chain__meta)?;
+    module.function_meta(Iterator::enumerate__meta)?;
+    module.function_meta(Iterator::filter__meta)?;
+    module.function_meta(Iterator::find__meta)?;
+    module.function_meta(Iterator::map__meta)?;
+    module.function_meta(Iterator::flat_map__meta)?;
     module.associated_function("next", Iterator::next)?;
     module.associated_function("next_back", Iterator::next_back)?;
     module.associated_function("peek", Iterator::peek)?;

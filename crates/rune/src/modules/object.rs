@@ -12,18 +12,18 @@ pub fn module() -> Result<Module, ContextError> {
 
     module.ty::<Object>()?;
 
-    module.function_meta(Object::__new__meta)?;
-    module.function_meta(Object::__with_capacity__meta)?;
-    module.function_meta(Object::__len__meta)?;
-    module.function_meta(Object::__is_empty__meta)?;
-    module.function_meta(Object::__insert__meta)?;
+    module.function_meta(Object::new__meta)?;
+    module.function_meta(Object::with_capacity__meta)?;
+    module.function_meta(Object::len__meta)?;
+    module.function_meta(Object::is_empty__meta)?;
+    module.function_meta(Object::insert__meta)?;
     module.function_meta(remove)?;
-    module.function_meta(Object::__clear__meta)?;
+    module.function_meta(Object::clear__meta)?;
     module.function_meta(contains_key)?;
     module.function_meta(get)?;
 
-    module.function_meta(Object::__into_rune_iter__meta)?;
-    module.associated_function(Protocol::INTO_ITER, Object::into_rune_iter)?;
+    module.function_meta(Object::rune_iter__meta)?;
+    module.associated_function(Protocol::INTO_ITER, Object::rune_iter)?;
     module.function_meta(keys)?;
     module.function_meta(values)?;
     Ok(module)

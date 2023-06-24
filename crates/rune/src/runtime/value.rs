@@ -503,9 +503,7 @@ impl Value {
         let target = match self {
             Value::Iterator(iterator) => return VmResult::Ok(vm_try!(iterator.take())),
             Value::Vec(vec) => return VmResult::Ok(vm_try!(vec.borrow_ref()).into_iterator()),
-            Value::Object(object) => {
-                return VmResult::Ok(vm_try!(object.borrow_ref()).into_rune_iter())
-            }
+            Value::Object(object) => return VmResult::Ok(vm_try!(object.borrow_ref()).rune_iter()),
             target => target,
         };
 

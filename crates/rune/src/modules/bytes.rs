@@ -8,15 +8,15 @@ pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", ["bytes"]);
 
     module.ty::<Bytes>()?;
-    module.function_meta(Bytes::__new__meta)?;
+    module.function_meta(Bytes::new__meta)?;
     module.function(["Bytes", "with_capacity"], Bytes::with_capacity)?;
-    module.function_meta(Bytes::__from_vec__meta)?;
+    module.function_meta(Bytes::from_vec__meta)?;
 
-    module.function_meta(Bytes::__into_vec__meta)?;
-    module.function_meta(Bytes::__extend__meta)?;
-    module.function_meta(Bytes::__extend_str__meta)?;
-    module.function_meta(Bytes::__pop__meta)?;
-    module.function_meta(Bytes::__last__meta)?;
+    module.function_meta(Bytes::into_vec__meta)?;
+    module.function_meta(Bytes::extend__meta)?;
+    module.function_meta(Bytes::extend_str__meta)?;
+    module.function_meta(Bytes::pop__meta)?;
+    module.function_meta(Bytes::last__meta)?;
 
     module.associated_function("len", Bytes::len)?;
     module.associated_function("capacity", Bytes::capacity)?;

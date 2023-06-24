@@ -9,7 +9,7 @@ use crate::{Any, ContextError, Module};
 
 pub(super) fn setup(module: &mut Module) -> Result<(), ContextError> {
     module.ty::<HashMap>()?;
-    module.function_meta(HashMap::__new__meta)?;
+    module.function_meta(HashMap::new__meta)?;
     module.function_meta(hashmap_from)?;
     module.associated_function("clear", HashMap::clear)?;
     module.associated_function("clone", HashMap::clone)?;

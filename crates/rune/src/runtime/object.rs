@@ -284,15 +284,15 @@ impl Object {
     /// let object = #{a: 1, b: 2, c: 3};
     /// let vec = [];
     ///
-    /// for key in object.into_iter() {
+    /// for key in object.iter() {
     ///     vec.push(key);
     /// }
     ///
     /// vec.sort();
     /// assert_eq!(vec, [("a", 1), ("b", 2), ("c", 3)]);
     /// ```
-    #[rune::function(keep, path = Self::into_iter)]
-    pub fn into_rune_iter(&self) -> Iterator {
+    #[rune::function(keep, path = Self::iter)]
+    pub fn rune_iter(&self) -> Iterator {
         Iterator::from("std::object::Iter", self.clone().into_iter())
     }
 

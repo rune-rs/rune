@@ -160,10 +160,8 @@ impl Function {
     /// Expand the function declaration.
     pub(crate) fn expand(mut self, attrs: FunctionAttrs) -> Result<TokenStream, Error> {
         let (meta_fn, real_fn, sig, real_fn_mangled) = if attrs.keep {
-            let meta_fn = syn::Ident::new(
-                &format!("__{}__meta", self.sig.ident),
-                self.sig.ident.span(),
-            );
+            let meta_fn =
+                syn::Ident::new(&format!("{}__meta", self.sig.ident), self.sig.ident.span());
             let real_fn = self.sig.ident.clone();
             (meta_fn, real_fn, self.sig.clone(), false)
         } else {
@@ -349,15 +347,14 @@ impl Function {
             Some(quote!(.build()))
         };
 
-        let meta_vis = &self.vis;
-
         let attr = (!real_fn_mangled).then(|| quote!(#[allow(non_snake_case)] #[doc(hidden)]));
 
         stream.extend(quote! {
             /// Get function metadata.
             #[automatically_derived]
             #attr
-            #meta_vis fn #meta_fn() -> rune::__private::FunctionMetaData {
+            #[doc(hidden)]
+            pub(crate) fn #meta_fn() -> rune::__private::FunctionMetaData {
                 rune::__private::FunctionMetaData {
                     kind: rune::__private::FunctionMetaKind::#meta_kind(#name, #real_fn_path)#build_with,
                     name: #name_string,
