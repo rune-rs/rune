@@ -294,6 +294,7 @@ impl Function {
 
         if real_fn_mangled {
             stream.extend(quote!(#[allow(non_snake_case)]));
+            stream.extend(quote!(#[doc(hidden)]));
         }
 
         stream.extend(self.vis.to_token_stream());
