@@ -22,7 +22,7 @@ use crate::parse::{Id, NonZeroId, Opaque, Resolve, ResolveContext};
 use crate::query::{
     Build, BuildEntry, BuiltInMacro, ConstFn, GenericsParameters, Named, QueryPath, Used,
 };
-use crate::runtime::ConstValue;
+use crate::runtime::{Call, ConstValue};
 use crate::shared::{Consts, Gen};
 use crate::{ast, Options};
 use crate::{Context, Diagnostics, Hash, SourceId, Sources};
@@ -1226,13 +1226,38 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 constructor: None,
                 parameters: Hash::EMPTY,
             },
+            Indexed::EmptyFunction(f) => {
+                let kind = meta::Kind::Function {
+                    is_test: false,
+                    is_bench: false,
+                    signature: meta::Signature {
+                        #[cfg(feature = "doc")]
+                        is_async: matches!(f.call, Call::Async | Call::Stream),
+                        #[cfg(feature = "doc")]
+                        args: Some(0),
+                        #[cfg(feature = "doc")]
+                        return_type: None,
+                        #[cfg(feature = "doc")]
+                        argument_types: Box::from([]),
+                    },
+                    parameters: Hash::EMPTY,
+                };
+
+                self.inner.queue.push_back(BuildEntry {
+                    item_meta,
+                    build: Build::EmptyFunction(f),
+                    used,
+                });
+
+                kind
+            }
             Indexed::Function(f) => {
                 let kind = meta::Kind::Function {
                     is_test: f.is_test,
                     is_bench: f.is_bench,
                     signature: meta::Signature {
                         #[cfg(feature = "doc")]
-                        is_async: f.ast.async_token.is_some(),
+                        is_async: matches!(f.call, Call::Async | Call::Stream),
                         #[cfg(feature = "doc")]
                         args: Some(f.ast.args.len()),
                         #[cfg(feature = "doc")]

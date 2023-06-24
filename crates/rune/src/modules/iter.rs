@@ -151,8 +151,21 @@ fn collect_string(mut it: Iterator) -> VmResult<String> {
     let mut string = String::new();
 
     while let Some(value) = vm_try!(it.next()) {
-        let s = vm_try!(String::from_value(value));
-        string.push_str(s.as_str());
+        match value {
+            Value::Char(c) => {
+                string.push(c);
+            }
+            Value::String(s) => {
+                let s = vm_try!(s.into_ref());
+                string.push_str(s.as_str());
+            }
+            Value::StaticString(s) => {
+                string.push_str(s.as_str());
+            }
+            value => {
+                return VmResult::expected::<String>(vm_try!(value.type_info()));
+            }
+        }
     }
 
     VmResult::Ok(string)

@@ -112,6 +112,33 @@ impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
     }
 }
 
+/// Lower an empty function.
+#[instrument(span = span)]
+pub(crate) fn empty_fn<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    ast: &ast::EmptyBlock,
+    span: &dyn Spanned,
+) -> compile::Result<hir::ItemFn<'hir>> {
+    alloc_with!(cx, span);
+
+    cx.scopes.push();
+
+    let statements = iter!(&ast.statements, |ast| stmt(cx, ast)?);
+
+    let layer = cx.scopes.pop().with_span(span)?;
+
+    let body = hir::Block {
+        span: span.span(),
+        statements,
+        drop: iter!(layer.into_drop_order()),
+    };
+
+    Ok(hir::ItemFn {
+        span: span.span(),
+        args: &[],
+        body,
+    })
+}
 /// Lower a function item.
 #[instrument(span = ast)]
 pub(crate) fn item_fn<'hir>(

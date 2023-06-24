@@ -173,6 +173,37 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                     ));
                 }
             }
+            Build::EmptyFunction(f) => {
+                tracing::trace!("empty function: {}", self.q.pool.item(item_meta.item));
+
+                use self::v1::assemble;
+
+                let span = &f.span;
+
+                let arena = hir::Arena::new();
+                let mut cx = hir::lowering::Ctxt::with_query(
+                    &arena,
+                    self.q.borrow(),
+                    item_meta.location.source_id,
+                );
+                let hir = hir::lowering::empty_fn(&mut cx, &f.ast, &f.span)?;
+                let mut c = self.compiler1(location, span, &mut asm);
+                assemble::fn_from_item_fn(&mut c, &hir, false)?;
+
+                if used.is_unused() {
+                    self.q.diagnostics.not_used(location.source_id, span, None);
+                } else {
+                    self.q.unit.new_function(
+                        location,
+                        self.q.pool.item(item_meta.item),
+                        0,
+                        asm,
+                        f.call,
+                        Box::default(),
+                        unit_storage,
+                    )?;
+                }
+            }
             Build::Function(f) => {
                 tracing::trace!("function: {}", self.q.pool.item(item_meta.item));
 

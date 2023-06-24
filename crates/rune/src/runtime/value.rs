@@ -1063,6 +1063,11 @@ impl Value {
             (Self::Char(a), Self::Char(b)) => return VmResult::Ok(a == b),
             (Self::Integer(a), Self::Integer(b)) => return VmResult::Ok(a == b),
             (Self::Float(a), Self::Float(b)) => return VmResult::Ok(a == b),
+            (Self::Bytes(a), Self::Bytes(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+                return VmResult::Ok(*a == *b);
+            }
             (Self::Vec(a), Self::Vec(b)) => {
                 let a = vm_try!(a.borrow_ref());
                 let b = vm_try!(b.borrow_ref());

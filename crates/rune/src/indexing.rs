@@ -4,7 +4,7 @@ mod scopes;
 
 use crate::no_std::prelude::*;
 
-use crate::ast;
+use crate::ast::{self, Span};
 use crate::compile::meta;
 use crate::compile::{ItemId, ItemMeta};
 use crate::parse::NonZeroId;
@@ -41,6 +41,8 @@ pub(crate) enum Indexed {
     Struct(Struct),
     /// A variant.
     Variant(Variant),
+    /// An empty function.
+    EmptyFunction(EmptyFunction),
     /// A function.
     Function(Function),
     /// An instance function.
@@ -67,6 +69,16 @@ pub(crate) struct Function {
     pub(crate) is_test: bool,
     /// If this is a bench function.
     pub(crate) is_bench: bool,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct EmptyFunction {
+    /// The span of the empty function.
+    pub(crate) span: Span,
+    /// Ast for declaration.
+    pub(crate) ast: Box<ast::EmptyBlock>,
+    /// The calling convention of the function.
+    pub(crate) call: Call,
 }
 
 #[derive(Debug, Clone)]

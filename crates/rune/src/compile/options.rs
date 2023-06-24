@@ -30,12 +30,13 @@ pub struct Options {
     /// Support (experimental) macros.
     pub(crate) macros: bool,
     /// Support (experimental) bytecode caching.
-    pub bytecode: bool,
-
+    pub(crate) bytecode: bool,
     /// Compile for and enable test features
-    pub cfg_test: bool,
+    pub(crate) cfg_test: bool,
     /// Use the second version of the compiler in parallel.
-    pub v2: bool,
+    pub(crate) v2: bool,
+    /// Build sources as function bodies.
+    pub(crate) function_body: bool,
 }
 
 impl Options {
@@ -50,25 +51,28 @@ impl Options {
 
         match it.next() {
             Some("memoize-instance-fn") => {
-                self.memoize_instance_fn = it.next() != Some("false");
+                self.memoize_instance_fn = it.next() == Some("true");
             }
             Some("debug-info") => {
-                self.debug_info = it.next() != Some("false");
+                self.debug_info = it.next() == Some("true");
             }
             Some("link-checks") => {
-                self.link_checks = it.next() != Some("false");
+                self.link_checks = it.next() == Some("true");
             }
             Some("macros") => {
-                self.macros = it.next() != Some("false");
+                self.macros = it.next() == Some("true");
             }
             Some("bytecode") => {
-                self.bytecode = it.next() != Some("false");
+                self.bytecode = it.next() == Some("true");
             }
             Some("test") => {
-                self.cfg_test = it.next() != Some("false");
+                self.cfg_test = it.next() == Some("true");
             }
             Some("v2") => {
-                self.v2 = it.next() != Some("false");
+                self.v2 = it.next() == Some("true");
+            }
+            Some("function-body") => {
+                self.function_body = it.next() == Some("true");
             }
             _ => {
                 return Err(ParseOptionError {
@@ -123,6 +127,7 @@ impl Default for Options {
             bytecode: false,
             cfg_test: false,
             v2: false,
+            function_body: false,
         }
     }
 }

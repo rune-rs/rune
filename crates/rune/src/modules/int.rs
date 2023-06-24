@@ -40,6 +40,10 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(saturating_abs)?;
     module.function_meta(saturating_pow)?;
 
+    module.function_meta(signum)?;
+    module.function_meta(is_positive)?;
+    module.function_meta(is_negative)?;
+
     module.constant(["MIN"], i64::MIN)?.docs([
         "The smallest value that can be represented by this integer type",
         "(&minus;2<sup>63</sup>).",
@@ -471,6 +475,61 @@ fn saturating_abs(this: i64) -> i64 {
 #[inline]
 fn saturating_pow(this: i64, rhs: u32) -> i64 {
     i64::saturating_pow(this, rhs)
+}
+
+/// Returns a number representing sign of `self`.
+///
+/// - `0` if the number is zero
+/// - `1` if the number is positive
+/// - `-1` if the number is negative
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```
+/// assert_eq!(10.signum(), 1);
+/// assert_eq!(0.signum(), 0);
+/// assert_eq!((-10).signum(), -1);
+/// ```
+#[rune::function(instance)]
+#[inline]
+fn signum(this: i64) -> i64 {
+    i64::signum(this)
+}
+
+/// Returns `true` if `self` is positive and `false` if the number is zero or
+/// negative.
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```
+/// assert!(10.is_positive());
+/// assert!(!(-10).is_positive());
+/// ```
+#[rune::function(instance)]
+#[inline]
+fn is_positive(this: i64) -> bool {
+    i64::is_positive(this)
+}
+
+/// Returns `true` if `self` is negative and `false` if the number is zero or
+/// positive.
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```
+/// assert!((-10).is_negative());
+/// assert!(!10.is_negative());
+/// ```
+#[rune::function(instance)]
+#[inline]
+fn is_negative(this: i64) -> bool {
+    i64::is_negative(this)
 }
 
 crate::__internal_impl_any!(::std::int, ParseIntError);

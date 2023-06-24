@@ -58,26 +58,11 @@ impl<'a, 'arena> Worker<'a, 'arena> {
                     let item = self.q.pool.module_item(mod_item);
                     tracing::trace!("load file: {}", item);
 
-                    let source = match self.q.sources.get(source_id) {
-                        Some(source) => source,
-                        None => {
-                            self.q
-                                .diagnostics
-                                .internal(source_id, "missing queued source by id");
-                            continue;
-                        }
-                    };
-
-                    let mut file = match crate::parse::parse_all::<ast::File>(
-                        source.as_str(),
-                        source_id,
-                        true,
-                    ) {
-                        Ok(file) => file,
-                        Err(error) => {
-                            self.q.diagnostics.error(source_id, error);
-                            continue;
-                        }
+                    let Some(source) = self.q.sources.get(source_id) else {
+                        self.q
+                            .diagnostics
+                            .internal(source_id, "Missing queued source by id");
+                        continue;
                     };
 
                     let root = match kind {
@@ -87,21 +72,60 @@ impl<'a, 'arena> Worker<'a, 'arena> {
 
                     let items = Items::new(item, mod_item_id, self.q.gen);
 
-                    let mut idx = Indexer {
-                        q: self.q.borrow(),
-                        root,
-                        source_id,
-                        items,
-                        scopes: Scopes::default(),
-                        item: IndexItem::new(mod_item),
-                        nested_item: None,
-                        macro_depth: 0,
-                        loaded: Some(&mut self.loaded),
-                        queue: Some(&mut self.queue),
-                    };
+                    macro_rules! indexer {
+                        () => {
+                            Indexer {
+                                q: self.q.borrow(),
+                                root,
+                                source_id,
+                                items,
+                                scopes: Scopes::default(),
+                                item: IndexItem::new(mod_item),
+                                nested_item: None,
+                                macro_depth: 0,
+                                loaded: Some(&mut self.loaded),
+                                queue: Some(&mut self.queue),
+                            }
+                        };
+                    }
 
-                    if let Err(error) = index::file(&mut idx, &mut file) {
-                        idx.q.diagnostics.error(source_id, error);
+                    if self.q.options.function_body {
+                        let ast = match crate::parse::parse_all::<ast::EmptyBlock>(
+                            source.as_str(),
+                            source_id,
+                            true,
+                        ) {
+                            Ok(ast) => ast,
+                            Err(error) => {
+                                self.q.diagnostics.error(source_id, error);
+                                continue;
+                            }
+                        };
+
+                        let span = Span::new(0, source.len());
+                        let mut idx = indexer!();
+
+                        if let Err(error) = index::empty_block_fn(&mut idx, ast, &span) {
+                            idx.q.diagnostics.error(source_id, error);
+                        }
+                    } else {
+                        let mut ast = match crate::parse::parse_all::<ast::File>(
+                            source.as_str(),
+                            source_id,
+                            true,
+                        ) {
+                            Ok(ast) => ast,
+                            Err(error) => {
+                                self.q.diagnostics.error(source_id, error);
+                                continue;
+                            }
+                        };
+
+                        let mut idx = indexer!();
+
+                        if let Err(error) = index::file(&mut idx, &mut ast) {
+                            idx.q.diagnostics.error(source_id, error);
+                        }
                     }
                 }
                 Task::ExpandImport(import) => {

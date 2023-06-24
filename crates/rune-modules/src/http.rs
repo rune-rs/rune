@@ -176,7 +176,7 @@ impl RequestBuilder {
 
     /// Set the request body from bytes.
     ///
-    /// ```rune
+    /// ```rune,no_run
     /// let client = http::Client::new();
     ///
     /// let response = client.get("http://example.com")
@@ -215,7 +215,7 @@ impl Client {
     ///
     /// # Examples
     ///
-    /// ```rune
+    /// ```rune,no_run
     /// let client = http::Client::new();
     ///
     /// let response = client.get("http://example.com")
@@ -233,7 +233,7 @@ impl Client {
     ///
     /// # Examples
     ///
-    /// ```rune
+    /// ```rune,no_run
     /// let client = http::Client::new();
     ///
     /// let response = client.post("https://postman-echo.com/post")
@@ -254,7 +254,7 @@ impl Client {
 ///
 /// # Examples
 ///
-/// ```rune
+/// ```rune,no_run
 /// let response = http::get("http://worldtimeapi.org/api/ip").await?;
 /// let json = response.json().await?;
 /// 

@@ -161,7 +161,7 @@ mod utils;
 mod vis;
 
 pub use self::attribute::{AttrStyle, Attribute};
-pub use self::block::Block;
+pub use self::block::{Block, EmptyBlock};
 pub use self::condition::Condition;
 pub use self::expr::Expr;
 pub use self::expr_assign::ExprAssign;

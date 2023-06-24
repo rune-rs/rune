@@ -27,6 +27,13 @@ pub struct Bytes {
 
 impl Bytes {
     /// Construct a new bytes container.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// let bytes = Bytes::new();
+    /// assert_eq!(bytes, b"");
+    /// ```
     #[rune::function(keep, path = Self::new)]
     #[inline]
     pub const fn new() -> Self {

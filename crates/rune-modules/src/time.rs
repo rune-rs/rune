@@ -68,12 +68,12 @@ impl Duration {
 /// 
 /// # Examples
 /// 
-/// ```rune
+/// ```rune,no_run
 /// use time::Duration;
 ///
 /// let d = Duration::from_secs(10);
 /// time::sleep(d).await;
-/// println!("Suprise!");
+/// println!("Surprise!");
 /// ```
 #[rune::function]
 async fn sleep(duration: Duration) {

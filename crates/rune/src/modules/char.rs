@@ -124,7 +124,7 @@ fn is_alphanumeric(c: char) -> bool {
 ///
 /// ```rune
 /// // U+009C, STRING TERMINATOR
-/// assert!(''.is_control());
+/// assert!('\u{009c}'.is_control());
 /// assert!(!'q'.is_control());
 /// ```
 #[rune::function(instance)]

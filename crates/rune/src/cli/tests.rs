@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use crate::no_std::prelude::*;
 
-use anyhow::{Result, Context};
+use anyhow::{bail, Result, Context};
 use clap::Parser;
 
 use crate::cli::{ExitCode, Io, CommandBase, AssetKind, Config, SharedFlags, EntryPoint, Entry, Options};
@@ -12,7 +12,7 @@ use crate::cli::visitor;
 use crate::cli::naming::Naming;
 use crate::compile::{ItemBuf, FileSourceLoader};
 use crate::modules::capture_io::CaptureIo;
-use crate::runtime::{Value, Vm, VmError, VmResult};
+use crate::runtime::{Value, Vm, VmError, VmResult, UnitFn};
 use crate::{Hash, Sources, Unit, Diagnostics, Source};
 
 #[derive(Parser, Debug, Clone)]
@@ -23,9 +23,9 @@ pub(super) struct Flags {
     /// Display one character per test instead of one line
     #[arg(long, short = 'q')]
     quiet: bool,
-    /// Run all tests regardless of failure
+    /// Break on the first test failed.
     #[arg(long)]
-    no_fail_fast: bool,
+    fail_fast: bool,
 }
 
 impl CommandBase for Flags {
@@ -129,9 +129,8 @@ where
 
     for test in artifacts.tests() {
         let mut sources = Sources::new();
-        // TODO: allow compiling plain function content directly.
-        let content = format!("pub async fn test_case() {{\n{}\n}}", test.content);
-        let source = Source::new(test.item.to_string(), &content);
+
+        let source = Source::new(test.item.to_string(), &test.content);
         sources.insert(source);
 
         let mut diagnostics = if shared.warnings || flags.warnings_are_errors {
@@ -142,10 +141,13 @@ where
 
         let mut source_loader = FileSourceLoader::new();
 
+        let mut options = options.clone();
+        options.function_body = true;
+
         let unit = crate::prepare(&mut sources)
             .with_context(&context)
             .with_diagnostics(&mut diagnostics)
-            .with_options(options)
+            .with_options(&options)
             .with_source_loader(&mut source_loader)
             .build();
 
@@ -159,12 +161,13 @@ where
         if !test.params.no_run {
             let unit = Arc::new(unit?);
             let sources = Arc::new(sources);
-            cases.push(TestCase::new(Hash::type_hash(["test_case"]), test.item.clone(), unit.clone(), sources.clone()));
-        }
-    }
 
-    if build_error {
-        return Ok(ExitCode::Failure);
+            let Some((hash, _)) = unit.iter_functions().find(|(_, f)| matches!(f, UnitFn::Offset { args: 0, offset: 0, .. })) else {
+                bail!("Compiling source did not result in a function at offset 0");
+            };
+
+            cases.push(TestCase::new(hash, test.item.clone(), unit.clone(), sources.clone()));
+        }
     }
 
     let runtime = Arc::new(context.runtime());
@@ -179,7 +182,7 @@ where
         if !success {
             failures = failures.wrapping_add(1);
 
-            if !flags.no_fail_fast {
+            if flags.fail_fast {
                 break;
             }
         }
@@ -204,7 +207,7 @@ where
         elapsed.as_secs_f64()
     )?;
 
-    if failures == 0 {
+    if !build_error && failures == 0 {
         Ok(ExitCode::Success)
     } else {
         Ok(ExitCode::Failure)
