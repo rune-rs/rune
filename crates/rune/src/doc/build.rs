@@ -5,7 +5,6 @@ mod js;
 
 use core::fmt::{self, Write};
 use core::str;
-use core::cell::RefCell;
 
 use crate::no_std::prelude::*;
 use crate::no_std::borrow::Cow;
@@ -139,7 +138,7 @@ pub(crate) fn build(
         function_template: compile(&templating, "function.html.hbs")?,
         enum_template: compile(&templating, "enum.html.hbs")?,
         syntax_set,
-        tests: RefCell::new(Vec::new()),
+        tests: Vec::new(),
     };
 
     let mut queue = initial.into_iter().collect::<VecDeque<_>>();
@@ -199,7 +198,7 @@ pub(crate) fn build(
         artifacts.asset(false, &cx.state.path, || Ok((builder.builder)(&cx)?.into_bytes().into()))?;
     }
 
-    artifacts.set_tests(cx.tests.into_inner());
+    artifacts.set_tests(cx.tests);
     Ok(())
 }
 
@@ -306,7 +305,7 @@ pub(crate) struct Ctxt<'a, 'm> {
     function_template: templating::Template,
     enum_template: templating::Template,
     syntax_set: SyntaxSet,
-    tests: RefCell<Vec<Test>>,
+    tests: Vec<Test>,
 }
 
 impl<'m> Ctxt<'_, 'm> {
@@ -374,7 +373,7 @@ impl<'m> Ctxt<'_, 'm> {
     }
 
     /// Render line docs.
-    fn render_line_docs<S>(&self, meta: Meta<'_>, docs: &[S]) -> Result<Option<String>>
+    fn render_line_docs<S>(&mut self, meta: Meta<'_>, docs: &[S]) -> Result<Option<String>>
     where
         S: AsRef<str>,
     {
@@ -382,7 +381,7 @@ impl<'m> Ctxt<'_, 'm> {
     }
 
     /// Render documentation.
-    fn render_docs<S>(&self, meta: Meta<'_>, docs: &[S], capture_tests: bool) -> Result<Option<String>>
+    fn render_docs<S>(&mut self, meta: Meta<'_>, docs: &[S], capture_tests: bool) -> Result<Option<String>>
     where
         S: AsRef<str>,
     {
@@ -419,10 +418,8 @@ impl<'m> Ctxt<'_, 'm> {
         markdown::push_html(&self.syntax_set, &mut o, iter, capture_tests.then_some(&mut tests))?;
 
         if capture_tests && !tests.is_empty() {
-            let mut o = self.tests.borrow_mut();
-
             for (content, params) in tests {
-                o.push(Test {
+                self.tests.push(Test {
                     item: self.state.item.clone(),
                     content,
                     params,
@@ -755,7 +752,7 @@ fn build_index<'m>(cx: &Ctxt<'_, 'm>, mods: Vec<(&'m Item, RelativePathBuf)>) ->
 
 /// Build a single module.
 #[tracing::instrument(skip_all)]
-fn module<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<'m>>) -> Result<Builder<'m>> {
+fn module<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<'m>>) -> Result<Builder<'m>> {
     #[derive(Serialize)]
     struct Params<'a> {
         #[serde(flatten)]
@@ -945,7 +942,7 @@ fn module<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<'m>>
 
 /// Build a macro.
 #[tracing::instrument(skip_all)]
-fn build_macro<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'m>> {
+fn build_macro<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'m>> {
     #[derive(Serialize)]
     struct Params<'a> {
         #[serde(flatten)]
@@ -975,7 +972,7 @@ fn build_macro<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'m>> {
 
 /// Build a function.
 #[tracing::instrument(skip_all)]
-fn build_function<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'m>> {
+fn build_function<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'m>> {
     #[derive(Serialize)]
     struct Params<'a> {
         #[serde(flatten)]
