@@ -16,7 +16,7 @@ impl Prelude {
     pub(crate) fn with_default_prelude() -> Self {
         let mut this = Self::default();
 
-        this.add_prelude("any", ["Type"]);
+        this.add_prelude("Type", ["any", "Type"]);
         this.add_prelude("assert_eq", ["test", "assert_eq"]);
         this.add_prelude("assert", ["test", "assert"]);
         this.add_prelude("bool", ["bool"]);
@@ -46,6 +46,7 @@ impl Prelude {
         this.add_prelude("stringify", ["stringify"]);
         this.add_prelude("unit", ["unit"]);
         this.add_prelude("Vec", ["vec", "Vec"]);
+        this.add_prelude("Bytes", ["bytes", "Bytes"]);
 
         this
     }
