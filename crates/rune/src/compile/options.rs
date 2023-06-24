@@ -19,7 +19,7 @@ impl crate::no_std::error::Error for ParseOptionError {}
 /// Options that can be provided to the compiler.
 ///
 /// See [Build::with_options][crate::Build::with_options].
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Options {
     /// Perform link-time checks.
     pub(crate) link_checks: bool,

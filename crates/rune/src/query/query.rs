@@ -22,7 +22,9 @@ use crate::parse::{Id, NonZeroId, Opaque, Resolve, ResolveContext};
 use crate::query::{
     Build, BuildEntry, BuiltInMacro, ConstFn, GenericsParameters, Named, QueryPath, Used,
 };
-use crate::runtime::{Call, ConstValue};
+#[cfg(feature = "doc")]
+use crate::runtime::Call;
+use crate::runtime::ConstValue;
 use crate::shared::{Consts, Gen};
 use crate::{ast, Options};
 use crate::{Context, Diagnostics, Hash, SourceId, Sources};
