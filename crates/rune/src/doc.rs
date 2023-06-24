@@ -1,13 +1,15 @@
 //! Helper to generate documentation from a context.
 
 mod context;
-pub(crate) use self::context::Context;
+pub(self) use self::context::Context;
+
+mod artifacts;
+pub(crate) use self::artifacts::Artifacts;
 
 mod templating;
 
-mod html;
-pub use self::html::write_html;
+mod build;
+pub(crate) use self::build::build;
 
 mod visitor;
-pub use self::visitor::Visitor;
-pub(crate) use self::visitor::VisitorData;
+pub(crate) use self::visitor::{Visitor, VisitorData};

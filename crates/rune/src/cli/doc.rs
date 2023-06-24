@@ -3,6 +3,7 @@ use std::ffi::OsStr;
 use std::io::Write;
 use std::path::PathBuf;
 
+use crate::doc::Artifacts;
 use crate::no_std::prelude::*;
 
 use anyhow::{Context, Result};
@@ -44,7 +45,7 @@ pub(super) fn run<'p, I>(
     flags: &Flags,
     shared: &SharedFlags,
     options: &Options,
-    entrys: I,
+    entries: I,
 ) -> Result<ExitCode>
 where
     I: IntoIterator<Item = EntryPoint<'p>>,
@@ -77,7 +78,7 @@ where
 
     let mut names = HashSet::new();
 
-    for (index, e) in entrys.into_iter().enumerate() {
+    for (index, e) in entries.into_iter().enumerate() {
         let name = match &e {
             EntryPoint::Path(path) => {
                 match path.file_stem().and_then(OsStr::to_str) {
@@ -139,7 +140,13 @@ where
         visitors.push(visitor);
     }
 
-    crate::doc::write_html("root", &root, &context, &visitors)?;
+    let mut artifacts = Artifacts::new();
+
+    crate::doc::build("root", &mut artifacts, &context, &visitors)?;
+
+    for asset in artifacts.assets() {
+        asset.build(&root)?;
+    }
 
     if flags.open {
         let path = root.join("index.html");

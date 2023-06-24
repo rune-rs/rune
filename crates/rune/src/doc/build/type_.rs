@@ -6,7 +6,7 @@ use serde::Serialize;
 
 use crate::compile::{ComponentRef, Item};
 use crate::doc::context::{Assoc, AssocFnKind, Meta};
-use crate::doc::html::{Ctxt, IndexEntry, IndexKind, Builder};
+use crate::doc::build::{Ctxt, IndexEntry, IndexKind, Builder};
 
 #[derive(Serialize)]
 pub(super) struct Protocol<'a> {
@@ -177,7 +177,7 @@ struct Params<'a> {
 
 /// Build an unknown type.
 #[tracing::instrument(skip_all)]
-pub(super) fn build<'m>(cx: &Ctxt<'_, 'm>, what: &'static str, what_class: &'static str, meta: Meta<'m>) -> Result<(Builder<'m>, Vec<IndexEntry<'m>>)> {
+pub(crate) fn build<'m>(cx: &Ctxt<'_, 'm>, what: &'static str, what_class: &'static str, meta: Meta<'m>) -> Result<(Builder<'m>, Vec<IndexEntry<'m>>)> {
     let module = cx.module_path_html(meta, false)?;
 
     let (protocols, methods, _, index) = build_assoc_fns(cx, meta)?;

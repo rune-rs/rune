@@ -7,11 +7,13 @@ use crate::no_std::prelude::*;
 use anyhow::Result;
 use clap::Parser;
 
-use crate::cli::{ExitCode, Io, CommandBase, AssetKind, Config, SharedFlags};
+use crate::cli::{ExitCode, Io, CommandBase, AssetKind, Config, SharedFlags, EntryPoint, Entry, Options};
+use crate::cli::loader;
+use crate::cli::visitor;
 use crate::compile::ItemBuf;
 use crate::modules::capture_io::CaptureIo;
-use crate::runtime::{Unit, Value, Vm, VmError, VmResult};
-use crate::{Context, Hash, Sources};
+use crate::runtime::{Value, Vm, VmError, VmResult};
+use crate::{Hash, Sources};
 
 #[derive(Parser, Debug, Clone)]
 pub(super) struct Flags {
@@ -79,7 +81,7 @@ impl<'a> TestCase<'a> {
         capture_io: Option<&CaptureIo>,
     ) -> Result<bool> {
         if !quiet {
-            write!(io.stdout, "Test {:30} ", self.item)?;
+            write!(io.stdout, "{} ", self.item)?;
         }
 
         let result = match vm.execute(self.hash, ()) {
@@ -169,69 +171,90 @@ impl<'a> TestCase<'a> {
     }
 }
 
-pub(super) async fn run(
+/// Run all tests that can be found.
+pub(super) async fn run<'p, I>(
     io: &mut Io<'_>,
+    c: &Config,
     flags: &Flags,
-    context: &Context,
-    capture_io: Option<&CaptureIo>,
-    unit: Arc<Unit>,
-    sources: &Sources,
-    fns: &[(Hash, ItemBuf)],
-) -> anyhow::Result<ExitCode> {
-    let runtime = Arc::new(context.runtime());
-
-    let mut cases = fns
-        .iter()
-        .map(|v| TestCase::from_parts(v.0, &v.1))
-        .collect::<Vec<_>>();
-
-    if cases.is_empty() {
-        return Ok(ExitCode::Success);
-    }
-
-    writeln!(io.stdout, "Found {} tests...", cases.len())?;
-
+    shared: &SharedFlags,
+    options: &Options,
+    entry: &mut Entry<'_>,
+    entries: I,
+) -> anyhow::Result<ExitCode>
+where
+    I: IntoIterator<Item = EntryPoint<'p>>,
+{
     let start = Instant::now();
-    let mut failure_count = 0;
-    let mut executed_count = 0;
 
-    let mut vm = Vm::new(runtime.clone(), unit.clone());
+    let mut total = 0usize;
+    let mut failures = 0usize;
+    let mut executed = 0usize;
 
-    for test in &mut cases {
-        executed_count += 1;
+    let capture = crate::modules::capture_io::CaptureIo::new();
+    let context = shared.context(entry, c, Some(&capture))?;
 
-        let success = test.execute(io, &mut vm, flags.quiet, capture_io).await?;
+    for e in entries {
+        let load = loader::load(
+            io,
+            &context,
+            shared,
+            options,
+            e.path(),
+            visitor::Attribute::Test,
+        )?;
 
-        if !success {
-            failure_count += 1;
+        let runtime = Arc::new(context.runtime());
 
-            if !flags.no_fail_fast {
-                break;
+        let mut cases = load.functions
+            .iter()
+            .map(|v| TestCase::from_parts(v.0, &v.1))
+            .collect::<Vec<_>>();
+
+        if cases.is_empty() {
+            continue;
+        }
+
+        total = total.wrapping_add(cases.len());
+    
+        let mut vm = Vm::new(runtime.clone(), load.unit.clone());
+    
+        for test in &mut cases {
+            executed = executed.wrapping_add(1);
+    
+            let success = test.execute(io, &mut vm, flags.quiet, Some(&capture)).await?;
+    
+            if !success {
+                failures = failures.wrapping_add(1);
+    
+                if !flags.no_fail_fast {
+                    break;
+                }
             }
+        }
+    
+        if flags.quiet {
+            writeln!(io.stdout)?;
+        }
+    
+        for case in &cases {
+            case.emit(io, &load.sources)?;
         }
     }
 
-    if flags.quiet {
-        writeln!(io.stdout)?;
-    }
-
     let elapsed = start.elapsed();
-
-    for case in &cases {
-        case.emit(io, sources)?;
-    }
-
+    
     writeln!(io.stdout, "====")?;
+
     writeln!(
         io.stdout,
         "Executed {} tests with {} failures ({} skipped) in {:.3} seconds",
-        executed_count,
-        failure_count,
-        cases.len() - executed_count,
+        executed,
+        failures,
+        total - executed,
         elapsed.as_secs_f64()
     )?;
 
-    if failure_count == 0 {
+    if failures == 0 {
         Ok(ExitCode::Success)
     } else {
         Ok(ExitCode::Failure)

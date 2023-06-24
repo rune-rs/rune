@@ -4,30 +4,24 @@ mod markdown;
 mod js;
 
 use std::fmt::{self, Write};
-use std::fs;
-use std::io;
-use std::path::Path;
 use std::str;
 
 use crate::no_std::prelude::*;
 use crate::no_std::borrow::Cow;
 use crate::no_std::collections::VecDeque;
 
-use anyhow::{anyhow, bail, Context as _, Error, Result};
+use anyhow::{anyhow, bail, Context as _, Result};
 use relative_path::{RelativePath, RelativePathBuf};
 use rust_embed::RustEmbed;
 use serde::{Serialize, Serializer};
-use sha2::{Sha256, Digest};
 use syntect::highlighting::ThemeSet;
 use syntect::html::{self, ClassStyle, ClassedHTMLGenerator};
 use syntect::parsing::{SyntaxReference, SyntaxSet};
-use base64::{display::Base64Display};
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 
 use crate::compile::{ComponentRef, Item, ItemBuf};
 use crate::doc::context::{Function, Kind, Signature, Meta};
 use crate::doc::templating;
-use crate::doc::{Context, Visitor};
+use crate::doc::{Context, Visitor, Artifacts};
 use crate::Hash;
 
 // InspiredGitHub
@@ -39,43 +33,6 @@ use crate::Hash;
 // base16-ocean.light
 const THEME: &str = "base16-eighties.dark";
 const RUNEDOC_CSS: &str = "runedoc.css";
-
-/// Asset builder.
-pub(crate) struct AssetWriter {
-    path: RelativePathBuf,
-    content: Cow<'static, [u8]>,
-}
-
-impl AssetWriter {
-    /// Copy a file with a hashed extension, and return the copied path.
-    fn new<P>(
-        path: &P,
-        content: Cow<'static, [u8]>,
-    ) -> Result<AssetWriter> where P: ?Sized + AsRef<RelativePath> {
-        let mut hasher = Sha256::new();
-        hasher.update(content.as_ref());
-        let result = hasher.finalize();
-        let hash = Base64Display::new(&result[..], &URL_SAFE_NO_PAD);
-
-        let path = path.as_ref();
-        let stem = path.file_stem().context("Missing file stem")?;
-        let ext = path.extension().context("Missing file extension")?;
-        let path = path.with_file_name(format!("{stem}-{hash}.{ext}"));
-
-        Ok(AssetWriter {
-            path,
-            content,
-        })
-    }
-
-    fn build(self, cx: &Ctxt<'_, '_>) -> Result<()> {
-        let p = self.path.to_path(cx.root);
-        tracing::info!("Writing: {}", p.display());
-        ensure_parent_dir(&p)?;
-        fs::write(&p, self.content).with_context(|| p.display().to_string())?;
-        Ok(())
-    }
-}
 
 pub(crate) struct Builder<'m> {
     state: State,
@@ -95,10 +52,10 @@ impl<'m> Builder<'m> {
 #[folder = "src/doc/static"]
 struct Assets;
 
-/// Write html documentation to the given path.
-pub fn write_html(
+/// Build documentation based on the given context and visitors.
+pub(crate) fn build(
     name: &str,
-    root: &Path,
+    artifacts: &mut Artifacts,
     context: &crate::Context,
     visitors: &[Visitor],
 ) -> Result<()> {
@@ -119,8 +76,6 @@ pub fn write_html(
     let mut css = Vec::new();
     let mut js = Vec::new();
 
-    let mut assets = Vec::new();
-
     for file in Assets::iter() {
         let path = RelativePath::new(file.as_ref());
 
@@ -132,25 +87,29 @@ pub fn write_html(
         };
 
         let file = Assets::get(file.as_ref()).context("missing asset")?;
-        let builder = AssetWriter::new(path, file.data)?;
-        paths.insert(path.as_str(), builder.path.as_str());
-        out.push(builder.path.clone());
-        assets.push(builder);
+        let builder_path = artifacts.asset(path, move || Ok(file.data))?;
+        paths.insert(path.as_str(), builder_path.as_str());
+        out.push(builder_path);
     }
 
     let theme = theme_set.themes.get(THEME).context("missing theme")?;
-    let syntax_css_content = html::css_for_theme_with_class_style(theme, html::ClassStyle::Spaced)?;
-    let syntax_css = AssetWriter::new("syntax.css", syntax_css_content.into_bytes().into())?;
-    paths.insert("syntax.css", syntax_css.path.as_str());
-    css.push(syntax_css.path.clone());
-    assets.push(syntax_css);
 
-    let runedoc = compile(&templating, "runedoc.css.hbs")?;
-    let runedoc_string = runedoc.render(&())?;
-    let runedoc_css = AssetWriter::new(RUNEDOC_CSS, runedoc_string.into_bytes().into())?;
-    paths.insert(RUNEDOC_CSS, runedoc_css.path.as_str());
-    css.push(runedoc_css.path.clone());
-    assets.push(runedoc_css);
+    let syntax_css = artifacts.asset("syntax.css", || {
+        let content = html::css_for_theme_with_class_style(theme, html::ClassStyle::Spaced)?;
+        Ok(content.into_bytes().into())
+    })?;
+
+    paths.insert("syntax.css", syntax_css.as_str());
+    css.push(syntax_css);
+
+    let runedoc_css = artifacts.asset(RUNEDOC_CSS, || {
+        let runedoc = compile(&templating, "runedoc.css.hbs")?;
+        let string = runedoc.render(&())?;
+        Ok(string.into_bytes().into())
+    })?;
+
+    paths.insert(RUNEDOC_CSS, runedoc_css.as_str());
+    css.push(runedoc_css);
 
     // Collect an ordered set of modules, so we have a baseline of what to render when.
     let mut initial = VecDeque::new();
@@ -163,7 +122,6 @@ pub fn write_html(
     let search_index = RelativePath::new("index.js");
 
     let mut cx = Ctxt {
-        root,
         state: State::default(),
         index: Vec::new(),
         name,
@@ -223,10 +181,10 @@ pub fn write_html(
         }
     }
 
-    let index_content = build_search_index(&cx)?;
-    let search_index = AssetWriter::new("index.js", index_content.into_bytes().into())?;
-    let search_index_path = search_index.path.clone();
-    assets.push(search_index);
+    let search_index_path = artifacts.asset("index.js", || {
+        let content = build_search_index(&cx)?;
+        Ok(content.into_bytes().into())
+    })?;
 
     cx.search_index = Some(&search_index_path);
 
@@ -235,15 +193,7 @@ pub fn write_html(
 
     for builder in builders {
         cx.state = builder.state;
-
-        assets.push(AssetWriter {
-            path: cx.state.path.clone(),
-            content: (builder.builder)(&cx)?.into_bytes().into(),
-        });
-    }
-
-    for asset in assets {
-        asset.build(&cx)?;
+        artifacts.asset(&cx.state.path, || Ok((builder.builder)(&cx)?.into_bytes().into()))?;
     }
 
     Ok(())
@@ -335,7 +285,6 @@ pub(crate) struct State {
 }
 
 pub(crate) struct Ctxt<'a, 'm> {
-    root: &'a Path,
     state: State,
     /// A collection of all items visited.
     index: Vec<IndexEntry<'m>>,
@@ -1055,25 +1004,6 @@ where
     S: Serializer,
 {
     serializer.collect_str(&c)
-}
-
-/// Ensure parent dir exists.
-fn ensure_parent_dir(path: &Path) -> Result<()> {
-    if let Some(p) = path.parent() {
-        if p.is_dir() {
-            return Ok(());
-        }
-
-        tracing::info!("create dir: {}", p.display());
-
-        match fs::create_dir_all(p) {
-            Ok(()) => {}
-            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {}
-            Err(e) => return Err(Error::from(e)).context(p.display().to_string()),
-        }
-    }
-
-    Ok(())
 }
 
 /// Helper for building an item path.

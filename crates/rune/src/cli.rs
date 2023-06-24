@@ -772,7 +772,7 @@ async fn run_path<'p, I>(
     c: &Config,
     cmd: &Command,
     entry: &mut Entry<'_>,
-    entrys: I,
+    entries: I,
 ) -> Result<ExitCode>
 where
     I: IntoIterator<Item = EntryPoint<'p>>,
@@ -781,7 +781,7 @@ where
         Command::Check(f) => {
             let options = f.options()?;
 
-            for e in entrys {
+            for e in entries {
                 match check::run(io, entry, c, &f.command, &f.shared, &options, e.path())? {
                     ExitCode::Success => (),
                     other => return Ok(other),
@@ -790,48 +790,34 @@ where
         }
         Command::Doc(f) => {
             let options = f.options()?;
-            return doc::run(io, entry, c, &f.command, &f.shared, &options, entrys);
+            return doc::run(io, entry, c, &f.command, &f.shared, &options, entries);
         }
         Command::Fmt(f) => {
             let options = f.options()?;
-            return format::run(io, entry, c, entrys, &f.command, &f.shared, &options);
+            return format::run(io, entry, c, entries, &f.command, &f.shared, &options);
         }
         Command::Test(f) => {
             let options = f.options()?;
 
-            for e in entrys {
-                let capture = crate::modules::capture_io::CaptureIo::new();
-                let context = f.shared.context(entry, c, Some(&capture))?;
-
-                let load = loader::load(
-                    io,
-                    &context,
-                    &f.shared,
-                    &options,
-                    e.path(),
-                    visitor::Attribute::Test,
-                )?;
-
-                match tests::run(
-                    io,
-                    &f.command,
-                    &context,
-                    Some(&capture),
-                    load.unit,
-                    &load.sources,
-                    &load.functions,
-                )
-                .await?
-                {
-                    ExitCode::Success => (),
-                    other => return Ok(other),
-                }
+            match tests::run(
+                io,
+                c,
+                &f.command,
+                &f.shared,
+                &options,
+                entry,
+                entries,
+            )
+            .await?
+            {
+                ExitCode::Success => (),
+                other => return Ok(other),
             }
         }
         Command::Bench(f) => {
             let options = f.options()?;
 
-            for e in entrys {
+            for e in entries {
                 let capture_io = crate::modules::capture_io::CaptureIo::new();
                 let context = f.shared.context(entry, c, Some(&capture_io))?;
 
@@ -864,7 +850,7 @@ where
             let options = f.options()?;
             let context = f.shared.context(entry, c, None)?;
 
-            for e in entrys {
+            for e in entries {
                 let load = loader::load(
                     io,
                     &context,
