@@ -3,8 +3,9 @@ mod type_;
 mod markdown;
 mod js;
 
-use std::fmt::{self, Write};
-use std::str;
+use core::fmt::{self, Write};
+use core::str;
+use core::cell::RefCell;
 
 use crate::no_std::prelude::*;
 use crate::no_std::borrow::Cow;
@@ -21,6 +22,7 @@ use syntect::parsing::{SyntaxReference, SyntaxSet};
 use crate::compile::{ComponentRef, Item, ItemBuf};
 use crate::doc::context::{Function, Kind, Signature, Meta};
 use crate::doc::templating;
+use crate::doc::artifacts::Test;
 use crate::doc::{Context, Visitor, Artifacts};
 use crate::Hash;
 
@@ -137,6 +139,7 @@ pub(crate) fn build(
         function_template: compile(&templating, "function.html.hbs")?,
         enum_template: compile(&templating, "enum.html.hbs")?,
         syntax_set,
+        tests: RefCell::new(Vec::new()),
     };
 
     let mut queue = initial.into_iter().collect::<VecDeque<_>>();
@@ -196,6 +199,7 @@ pub(crate) fn build(
         artifacts.asset(&cx.state.path, || Ok((builder.builder)(&cx)?.into_bytes().into()))?;
     }
 
+    artifacts.set_tests(cx.tests.into_inner());
     Ok(())
 }
 
@@ -282,6 +286,7 @@ pub(crate) struct IndexEntry<'m> {
 #[derive(Default, Clone)]
 pub(crate) struct State {
     path: RelativePathBuf,
+    item: ItemBuf,
 }
 
 pub(crate) struct Ctxt<'a, 'm> {
@@ -301,6 +306,7 @@ pub(crate) struct Ctxt<'a, 'm> {
     function_template: templating::Template,
     enum_template: templating::Template,
     syntax_set: SyntaxSet,
+    tests: RefCell<Vec<Test>>,
 }
 
 impl<'m> Ctxt<'_, 'm> {
@@ -318,9 +324,11 @@ impl<'m> Ctxt<'_, 'm> {
         let item = meta.item.context("Missing meta item")?;
 
         self.state.path = RelativePathBuf::new();
+        self.state.item = item.to_owned();
+
         build_item_path(self.name, item, item_kind, &mut self.state.path)?;
 
-        let doc = self.render_docs(meta, meta.docs.get(..1).unwrap_or_default())?;
+        let doc = self.render_line_docs(meta, meta.docs.get(..1).unwrap_or_default())?;
 
         self.index.push(IndexEntry {
             path: self.state.path.clone(),
@@ -361,12 +369,20 @@ impl<'m> Ctxt<'_, 'm> {
 
         Ok(format!(
             "<pre><code class=\"language-rune\">{}</code></pre>",
-            render_code_by_syntax(&self.syntax_set, lines, syntax)?
+            render_code_by_syntax(&self.syntax_set, lines, syntax, None)?
         ))
     }
 
+    /// Render line docs.
+    fn render_line_docs<S>(&self, meta: Meta<'_>, docs: &[S]) -> Result<Option<String>>
+    where
+        S: AsRef<str>,
+    {
+        self.render_docs(meta, docs, false)
+    }
+
     /// Render documentation.
-    fn render_docs<S>(&self, meta: Meta<'_>, docs: &[S]) -> Result<Option<String>>
+    fn render_docs<S>(&self, meta: Meta<'_>, docs: &[S], capture_tests: bool) -> Result<Option<String>>
     where
         S: AsRef<str>,
     {
@@ -398,7 +414,22 @@ impl<'m> Ctxt<'_, 'm> {
 
         let iter = Parser::new_with_broken_link_callback(&input, options, Some(&mut callback));
 
-        markdown::push_html(&self.syntax_set, &mut o, iter)?;
+        let mut tests = Vec::new();
+
+        markdown::push_html(&self.syntax_set, &mut o, iter, capture_tests.then_some(&mut tests))?;
+
+        if capture_tests && !tests.is_empty() {
+            let mut o = self.tests.borrow_mut();
+
+            for (content, params) in tests {
+                o.push(Test {
+                    item: self.state.item.clone(),
+                    content,
+                    params,
+                });
+            }
+        }
+
         write!(o, "</div>")?;
         Ok(Some(o))
     }
@@ -855,7 +886,7 @@ fn module<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<'m>>
                         path: cx.item_path(item, ItemKind::Macro)?,
                         item,
                         name,
-                        doc: cx.render_docs(m, m.docs.get(..1).unwrap_or_default())?,
+                        doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
                     });
                 }
                 Kind::Function(f) => {
@@ -871,7 +902,7 @@ fn module<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<'m>>
                         item: item.clone(),
                         name,
                         args: cx.args_to_string(f.arg_names, f.args, f.signature, f.argument_types)?,
-                        doc: cx.render_docs(m, m.docs.get(..1).unwrap_or_default())?,
+                        doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
                     });
                 }
                 Kind::Module => {
@@ -894,12 +925,14 @@ fn module<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<'m>>
         }
     }
 
+    let doc = cx.render_docs(meta, meta.docs, true)?;
+
     Ok(Builder::new(cx, move |cx| {
         cx.module_template.render(&Params {
             shared: cx.shared(),
             item: meta_item,
             module: cx.module_path_html(meta, true)?,
-            doc: cx.render_docs(meta, meta.docs)?,
+            doc,
             types,
             structs,
             enums,
@@ -925,7 +958,7 @@ fn build_macro<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'m>> {
         doc: Option<String>,
     }
 
-    let doc = cx.render_docs(meta, meta.docs)?;
+    let doc = cx.render_docs(meta, meta.docs, true)?;
     let item = meta.item.context("Missing item")?;
     let name = item.last().context("Missing macro name")?;
 
@@ -966,7 +999,7 @@ fn build_function<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'m>> 
         _ => bail!("found meta, but not a function"),
     };
 
-    let doc = cx.render_docs(meta, meta.docs)?;
+    let doc = cx.render_docs(meta, meta.docs, true)?;
 
     let return_type = match f.return_type {
         Some(hash) => cx.link(hash, None)?,
@@ -1035,7 +1068,7 @@ fn build_item_path(name: &str, item: &Item, kind: ItemKind, path: &mut RelativeP
 }
 
 /// Render documentation.
-fn render_code_by_syntax<I>(syntax_set: &SyntaxSet, lines: I, syntax: &SyntaxReference) -> Result<String>
+fn render_code_by_syntax<I>(syntax_set: &SyntaxSet, lines: I, syntax: &SyntaxReference, mut out: Option<&mut String>) -> Result<String>
 where
     I: IntoIterator,
     I::Item: AsRef<str>,
@@ -1053,7 +1086,17 @@ where
         let line = line.strip_prefix(' ').unwrap_or(line);
 
         if line.starts_with('#') {
+            if let Some(o) = out.as_mut() {
+                o.push_str(line.trim_start_matches('#'));
+                o.push('\n');
+            }
+
             continue;
+        }
+
+        if let Some(o) = out.as_mut() {
+            o.push_str(line);
+            o.push('\n');
         }
 
         buf.clear();

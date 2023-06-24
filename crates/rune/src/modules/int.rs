@@ -230,9 +230,9 @@ fn checked_sub(this: i64, rhs: i64) -> Option<i64> {
 /// Basic usage:
 ///
 /// ```rune
-/// assert_eq!((int::MIN + 1).checked_div(-1), Some(int::MAX));")]
-/// assert_eq!(int::MIN.checked_div(-1), None);")]
-/// assert_eq!((1).checked_div(0), None);")]
+/// assert_eq!((int::MIN + 1).checked_div(-1), Some(int::MAX));
+/// assert_eq!(int::MIN.checked_div(-1), None);
+/// assert_eq!((1).checked_div(0), None);
 /// ```
 #[rune::function(instance)]
 #[inline]

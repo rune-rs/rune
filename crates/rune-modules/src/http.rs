@@ -180,7 +180,7 @@ impl RequestBuilder {
     /// let client = http::Client::new();
     ///
     /// let response = client.get("http://example.com")
-    ///     .body_bytes(body)
+    ///     .body_bytes(b"Hello World")
     ///     .send()
     ///     .await?;
     ///

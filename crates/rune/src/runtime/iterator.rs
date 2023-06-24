@@ -154,7 +154,7 @@ impl Iterator {
     /// ```rune
     /// let a = ['a', 'b', 'c'];
     ///
-    /// let mut iter = a.iter().enumerate();
+    /// let iter = a.iter().enumerate();
     ///
     /// assert_eq!(iter.next(), Some((0, 'a')));
     /// assert_eq!(iter.next(), Some((1, 'b')));
@@ -194,7 +194,7 @@ impl Iterator {
     /// ```rune
     /// let a = [1, 2, 3];
     ///
-    /// let mut iter = a.iter().map(|x| 2 * x);
+    /// let iter = a.iter().map(|x| 2 * x);
     ///
     /// assert_eq!(iter.next(), Some(2));
     /// assert_eq!(iter.next(), Some(4));
@@ -277,7 +277,7 @@ impl Iterator {
     /// ```rune
     /// let a = [0, 1, 2];
     ///
-    /// let mut iter = a.iter().filter(|x| x.is_positive());
+    /// let iter = a.iter().filter(|x| x.is_positive());
     ///
     /// assert_eq!(iter.next(), Some(1));
     /// assert_eq!(iter.next(), Some(2));
@@ -325,7 +325,7 @@ impl Iterator {
     /// ```rune
     /// let a = [1, 2, 3];
     ///
-    /// let mut iter = a.iter();
+    /// let iter = a.iter();
     ///
     /// assert_eq!(iter.find(|x| x == 2), Some(2));
     ///
@@ -388,7 +388,7 @@ impl Iterator {
     /// let a1 = [1, 2, 3];
     /// let a2 = [4, 5, 6];
     ///
-    /// let mut iter = a1.iter().chain(a2.iter());
+    /// let iter = a1.iter().chain(a2.iter());
     ///
     /// assert_eq!(iter.next(), Some(1));
     /// assert_eq!(iter.next(), Some(2));
@@ -408,7 +408,7 @@ impl Iterator {
     /// let s1 = [1, 2, 3];
     /// let s2 = [4, 5, 6];
     ///
-    /// let mut iter = s1.iter().chain(s2);
+    /// let iter = s1.iter().chain(s2);
     ///
     /// assert_eq!(iter.next(), Some(1));
     /// assert_eq!(iter.next(), Some(2));

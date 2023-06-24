@@ -223,7 +223,7 @@ impl Object {
     /// # Examples
     ///
     /// ```rune
-    /// let mut map = #{};
+    /// let map = #{};
     /// assert_eq!(map.insert("a", 1), None);
     /// assert_eq!(map.is_empty(), false);
     ///

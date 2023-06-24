@@ -4,23 +4,25 @@ use std::time::Instant;
 
 use crate::no_std::prelude::*;
 
-use anyhow::Result;
+use anyhow::{Result, Context};
 use clap::Parser;
 
 use crate::cli::{ExitCode, Io, CommandBase, AssetKind, Config, SharedFlags, EntryPoint, Entry, Options};
-use crate::cli::loader;
 use crate::cli::visitor;
-use crate::compile::ItemBuf;
+use crate::cli::naming::Naming;
+use crate::compile::{ItemBuf, FileSourceLoader};
 use crate::modules::capture_io::CaptureIo;
 use crate::runtime::{Value, Vm, VmError, VmResult};
-use crate::{Hash, Sources};
+use crate::{Hash, Sources, Unit, Diagnostics, Source};
 
 #[derive(Parser, Debug, Clone)]
 pub(super) struct Flags {
+    /// Exit with a non-zero exit-code even for warnings
+    #[arg(long)]
+    warnings_are_errors: bool,
     /// Display one character per test instead of one line
     #[arg(long, short = 'q')]
     quiet: bool,
-
     /// Run all tests regardless of failure
     #[arg(long)]
     no_fail_fast: bool,
@@ -48,6 +50,167 @@ impl CommandBase for Flags {
     }
 }
 
+/// Run all tests that can be found.
+pub(super) async fn run<'p, I>(
+    io: &mut Io<'_>,
+    c: &Config,
+    flags: &Flags,
+    shared: &SharedFlags,
+    options: &Options,
+    entry: &mut Entry<'_>,
+    entries: I,
+) -> anyhow::Result<ExitCode>
+where
+    I: IntoIterator<Item = EntryPoint<'p>>,
+{
+    let start = Instant::now();
+
+    let mut failures = 0usize;
+    let mut executed = 0usize;
+
+    let capture = crate::modules::capture_io::CaptureIo::new();
+    let context = shared.context(entry, c, Some(&capture))?;
+
+    let mut doc_visitors = Vec::new();
+    let mut cases = Vec::new();
+    let mut naming = Naming::default();
+
+    let mut build_error = false;
+
+    for e in entries {
+        let name = naming.name(&e);
+        let item = ItemBuf::with_crate(&name);
+
+        let mut sources = Sources::new();
+
+        let source = Source::from_path(e.path())
+            .with_context(|| e.path().display().to_string())?;
+
+        sources.insert(source);
+
+        let mut diagnostics = if shared.warnings || flags.warnings_are_errors {
+            Diagnostics::new()
+        } else {
+            Diagnostics::without_warnings()
+        };
+
+        let mut doc_visitor = crate::doc::Visitor::new(item);
+        let mut functions = visitor::FunctionVisitor::new(visitor::Attribute::Test);
+        let mut source_loader = FileSourceLoader::new();
+
+        let unit = crate::prepare(&mut sources)
+            .with_context(&context)
+            .with_diagnostics(&mut diagnostics)
+            .with_options(options)
+            .with_visitor(&mut doc_visitor)
+            .with_visitor(&mut functions)
+            .with_source_loader(&mut source_loader)
+            .build();
+
+        diagnostics.emit(&mut io.stdout.lock(), &sources)?;
+
+        if diagnostics.has_error() || flags.warnings_are_errors && diagnostics.has_warning() {
+            build_error = true;
+            continue;
+        }
+
+        let unit = Arc::new(unit?);
+        let sources = Arc::new(sources);
+
+        doc_visitors.push(doc_visitor);
+
+        for (hash, item) in functions.into_functions() {
+            cases.push(TestCase::new(hash, item, unit.clone(), sources.clone()));
+        }
+    }
+
+    let mut artifacts = crate::doc::Artifacts::without_assets();
+    crate::doc::build("root", &mut artifacts, &context, &doc_visitors)?;
+
+    for test in artifacts.tests() {
+        let mut sources = Sources::new();
+        // TODO: allow compiling plain function content directly.
+        let content = format!("pub async fn test_case() {{\n{}\n}}", test.content);
+        let source = Source::new(test.item.to_string(), &content);
+        sources.insert(source);
+
+        let mut diagnostics = if shared.warnings || flags.warnings_are_errors {
+            Diagnostics::new()
+        } else {
+            Diagnostics::without_warnings()
+        };
+
+        let mut source_loader = FileSourceLoader::new();
+
+        let unit = crate::prepare(&mut sources)
+            .with_context(&context)
+            .with_diagnostics(&mut diagnostics)
+            .with_options(options)
+            .with_source_loader(&mut source_loader)
+            .build();
+
+        diagnostics.emit(&mut io.stdout.lock(), &sources)?;
+
+        if diagnostics.has_error() || flags.warnings_are_errors && diagnostics.has_warning() {
+            build_error = true;
+            continue;
+        }
+
+        if !test.params.no_run {
+            let unit = Arc::new(unit?);
+            let sources = Arc::new(sources);
+            cases.push(TestCase::new(Hash::type_hash(["test_case"]), test.item.clone(), unit.clone(), sources.clone()));
+        }
+    }
+
+    if build_error {
+        return Ok(ExitCode::Failure);
+    }
+
+    let runtime = Arc::new(context.runtime());
+
+    for case in &mut cases {
+        let mut vm = Vm::new(runtime.clone(), case.unit.clone());
+    
+        executed = executed.wrapping_add(1);
+
+        let success = case.execute(io, &mut vm, flags.quiet, Some(&capture)).await?;
+
+        if !success {
+            failures = failures.wrapping_add(1);
+
+            if !flags.no_fail_fast {
+                break;
+            }
+        }
+    }
+
+    if flags.quiet {
+        writeln!(io.stdout)?;
+    }
+
+    for case in &cases {
+        case.emit(io)?;
+    }
+
+    let elapsed = start.elapsed();
+
+    writeln!(
+        io.stdout,
+        "Executed {} tests with {} failures ({} skipped) in {:.3} seconds",
+        executed,
+        failures,
+        cases.len() - executed,
+        elapsed.as_secs_f64()
+    )?;
+
+    if failures == 0 {
+        Ok(ExitCode::Success)
+    } else {
+        Ok(ExitCode::Failure)
+    }
+}
+
 #[derive(Debug)]
 enum FailureReason {
     Crash(VmError),
@@ -55,19 +218,22 @@ enum FailureReason {
     ReturnedErr { output: Box<[u8]>, error: Value },
 }
 
-#[derive(Debug)]
-struct TestCase<'a> {
+struct TestCase {
     hash: Hash,
-    item: &'a ItemBuf,
+    item: ItemBuf,
+    unit: Arc<Unit>,
+    sources: Arc<Sources>,
     outcome: Option<FailureReason>,
     buf: Vec<u8>,
 }
 
-impl<'a> TestCase<'a> {
-    fn from_parts(hash: Hash, item: &'a ItemBuf) -> Self {
+impl TestCase {
+    fn new(hash: Hash, item: ItemBuf, unit: Arc<Unit>, sources: Arc<Sources>) -> Self {
         Self {
             hash,
             item,
+            unit,
+            sources,
             outcome: None,
             buf: Vec::new(),
         }
@@ -113,8 +279,8 @@ impl<'a> TestCase<'a> {
 
         if quiet {
             match &self.outcome {
-                Some(FailureReason::Crash { .. }) => {
-                    write!(io.stdout, "F")?;
+                Some(FailureReason::Crash(..)) => {
+                    writeln!(io.stdout, "F")?;
                 }
                 Some(FailureReason::ReturnedErr { .. }) => {
                     write!(io.stdout, "f")?;
@@ -128,7 +294,7 @@ impl<'a> TestCase<'a> {
             }
         } else {
             match &self.outcome {
-                Some(FailureReason::Crash { .. }) => {
+                Some(FailureReason::Crash(..)) => {
                     writeln!(io.stdout, "failed")?;
                 }
                 Some(FailureReason::ReturnedErr { .. }) => {
@@ -147,13 +313,13 @@ impl<'a> TestCase<'a> {
         Ok(self.outcome.is_none())
     }
 
-    fn emit(&self, io: &mut Io<'_>, sources: &Sources) -> Result<()> {
+    fn emit(&self, io: &mut Io<'_>) -> Result<()> {
         if let Some(outcome) = &self.outcome {
             match outcome {
                 FailureReason::Crash(err) => {
                     writeln!(io.stdout, "----------------------------------------")?;
                     writeln!(io.stdout, "Test: {}\n", self.item)?;
-                    err.emit(io.stdout, sources)?;
+                    err.emit(io.stdout, &self.sources)?;
                 }
                 FailureReason::ReturnedNone { .. } => {}
                 FailureReason::ReturnedErr { output, error, .. } => {
@@ -168,95 +334,5 @@ impl<'a> TestCase<'a> {
         }
 
         Ok(())
-    }
-}
-
-/// Run all tests that can be found.
-pub(super) async fn run<'p, I>(
-    io: &mut Io<'_>,
-    c: &Config,
-    flags: &Flags,
-    shared: &SharedFlags,
-    options: &Options,
-    entry: &mut Entry<'_>,
-    entries: I,
-) -> anyhow::Result<ExitCode>
-where
-    I: IntoIterator<Item = EntryPoint<'p>>,
-{
-    let start = Instant::now();
-
-    let mut total = 0usize;
-    let mut failures = 0usize;
-    let mut executed = 0usize;
-
-    let capture = crate::modules::capture_io::CaptureIo::new();
-    let context = shared.context(entry, c, Some(&capture))?;
-
-    for e in entries {
-        let load = loader::load(
-            io,
-            &context,
-            shared,
-            options,
-            e.path(),
-            visitor::Attribute::Test,
-        )?;
-
-        let runtime = Arc::new(context.runtime());
-
-        let mut cases = load.functions
-            .iter()
-            .map(|v| TestCase::from_parts(v.0, &v.1))
-            .collect::<Vec<_>>();
-
-        if cases.is_empty() {
-            continue;
-        }
-
-        total = total.wrapping_add(cases.len());
-    
-        let mut vm = Vm::new(runtime.clone(), load.unit.clone());
-    
-        for test in &mut cases {
-            executed = executed.wrapping_add(1);
-    
-            let success = test.execute(io, &mut vm, flags.quiet, Some(&capture)).await?;
-    
-            if !success {
-                failures = failures.wrapping_add(1);
-    
-                if !flags.no_fail_fast {
-                    break;
-                }
-            }
-        }
-    
-        if flags.quiet {
-            writeln!(io.stdout)?;
-        }
-    
-        for case in &cases {
-            case.emit(io, &load.sources)?;
-        }
-    }
-
-    let elapsed = start.elapsed();
-    
-    writeln!(io.stdout, "====")?;
-
-    writeln!(
-        io.stdout,
-        "Executed {} tests with {} failures ({} skipped) in {:.3} seconds",
-        executed,
-        failures,
-        total - executed,
-        elapsed.as_secs_f64()
-    )?;
-
-    if failures == 0 {
-        Ok(ExitCode::Success)
-    } else {
-        Ok(ExitCode::Failure)
     }
 }

@@ -15,6 +15,7 @@ mod loader;
 mod run;
 mod tests;
 mod visitor;
+mod naming;
 
 use std::fmt;
 use std::io::{self, Write};
@@ -211,8 +212,11 @@ impl<'a> Entry<'a> {
     }
 }
 
-enum EntryPoint<'a> {
+/// A single entrypoint that can be built or processed.
+pub(crate) enum EntryPoint<'a> {
+    /// A plain path entrypoint.
     Path(PathBuf),
+    /// A package entrypoint.
     Package(workspace::FoundPackage<'a>),
 }
 

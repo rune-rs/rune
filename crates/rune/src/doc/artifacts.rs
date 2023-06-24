@@ -3,11 +3,30 @@ use crate::no_std::borrow::Cow;
 use crate::no_std::io;
 use crate::no_std::prelude::*;
 
+use crate::compile::ItemBuf;
+
 use base64::display::Base64Display;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use relative_path::{RelativePath, RelativePathBuf};
 use sha2::{Sha256, Digest};
 use anyhow::{Context as _, Error, Result};
+
+/// Test parameters.
+#[derive(Default, Clone, Copy)]
+pub(crate) struct TestParams {
+    /// If the test should not run.
+    pub(crate) no_run: bool,
+}
+
+/// A discovered test.
+pub(crate) struct Test {
+    /// Item of the test.
+    pub(crate) item: ItemBuf,
+    /// Lines that make up the tests.
+    pub(crate) content: String,
+    /// Test parameters.
+    pub(crate) params: TestParams,
+}
 
 /// A collection of artifacts produced by a documentation build.
 ///
@@ -16,6 +35,7 @@ use anyhow::{Context as _, Error, Result};
 pub(crate) struct Artifacts {
     enabled: bool,
     assets: Vec<Asset>,
+    tests: Vec<Test>,
 }
 
 impl Artifacts {
@@ -24,6 +44,7 @@ impl Artifacts {
         Self {
             enabled: true,
             assets: Vec::new(),
+            tests: Vec::new(),
         }
     }
 
@@ -32,7 +53,13 @@ impl Artifacts {
         Self {
             enabled: false,
             assets: Vec::new(),
+            tests: Vec::new(),
         }
+    }
+
+    /// Set captures tests.
+    pub(crate) fn set_tests(&mut self, tests: Vec<Test>) {
+        self.tests = tests;
     }
 
     /// Iterate over assets produced by this documentation build.
@@ -41,6 +68,11 @@ impl Artifacts {
     /// was used.
     pub(crate) fn assets(&self) -> impl Iterator<Item = &Asset> {
         self.assets.iter()
+    }
+
+    /// Iterate over tests produced by this documentation build.
+    pub(crate) fn tests(&self) -> impl Iterator<Item = &Test> {
+        self.tests.iter()
     }
 
     /// Define an asset artifact.

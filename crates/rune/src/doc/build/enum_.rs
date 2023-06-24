@@ -31,6 +31,8 @@ pub(crate) fn build<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<(Builder<'m
     let item = meta.item.context("Missing enum item")?;
     let name = item.last().context("Missing enum name")?;
 
+    let doc = cx.render_docs(meta, meta.docs, true)?;
+
     let builder = Builder::new(cx, move |cx| {
         cx.enum_template.render(&Params {
             shared: cx.shared(),
@@ -40,7 +42,7 @@ pub(crate) fn build<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<(Builder<'m
             variants,
             methods,
             protocols,
-            doc: cx.render_docs(meta, meta.docs)?,
+            doc,
         })
     });
 

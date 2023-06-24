@@ -22,6 +22,7 @@ impl Prelude {
         this.add_prelude("bool", ["bool"]);
         this.add_prelude("byte", ["byte"]);
         this.add_prelude("char", ["char"]);
+        this.add_prelude("Tuple", ["Tuple"]);
         this.add_prelude("dbg", ["io", "dbg"]);
         this.add_prelude("drop", ["mem", "drop"]);
         this.add_prelude("Err", ["result", "Result", "Err"]);
