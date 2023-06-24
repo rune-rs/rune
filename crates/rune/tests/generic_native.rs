@@ -63,14 +63,14 @@ fn compile(mut sources: Sources) -> Result<Vm> {
 #[test]
 fn test_generic() -> Result<()> {
     macro_rules! test {
-        ($($ty:ty, $function:ident, $function_ty:ident, $rune:ident, $value:expr, $set:expr),+ $(,)?) => {
+        ($($ty:ty, $function:ident, $function_ty:ident, $value:expr, $set:expr),+ $(,)?) => {
             let mut vm = compile(rune::sources! {
                 entry => {
                     pub fn get_value(v) { v.get_value() }
                     pub fn get_data(v) { v.data }
                     pub fn set_data(v, value) { v.data = value; }
-                    $(pub fn $function(v) { ::native_crate::Generic::<$rune>::get_value(v) })*
-                    $(pub fn $function_ty() { ::native_crate::Generic::<$rune> })*
+                    $(pub fn $function(v) { ::native_crate::Generic::<$ty>::get_value(v) })*
+                    $(pub fn $function_ty() { ::native_crate::Generic::<$ty> })*
                 }
             })?;
 
@@ -110,8 +110,8 @@ fn test_generic() -> Result<()> {
     }
 
     test! {
-        i64, test_int, test_int_ty, int, 3, 30,
-        f64, test_float, test_float_ty, float, 2.0, 20.0,
+        i64, test_int, test_int_ty, 3, 30,
+        f64, test_float, test_float_ty, 2.0, 20.0,
     };
 
     Ok(())

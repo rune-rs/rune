@@ -49,7 +49,7 @@ fn format_type(ty: Type, buf: &mut String) -> fmt::Result {
 /// use std::any;
 ///
 /// let value = 42;
-/// assert_eq!(any::type_name_of_val(value), "::std::int");
+/// assert_eq!(any::type_name_of_val(value), "::std::i64");
 ///
 /// let value = [];
 /// assert_eq!(any::type_name_of_val(value), "::std::vec::Vec");

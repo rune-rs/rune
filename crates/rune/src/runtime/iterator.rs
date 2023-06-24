@@ -1,7 +1,6 @@
 use core::cmp;
 use core::fmt;
 use core::iter;
-use core::ops;
 
 use crate::no_std::prelude::*;
 use crate::no_std::vec;
@@ -41,10 +40,7 @@ trait RuneIterator: fmt::Debug {
         let (lower, upper) = self.size_hint();
 
         if !matches!(upper, Some(upper) if lower == upper) {
-            return VmResult::err(Panic::custom(format!(
-                "`{:?}` is not an exact-sized iterator",
-                self
-            )));
+            return VmResult::panic(format!("`{:?}` is not an exact-sized iterator", self));
         }
 
         VmResult::Ok(lower)
@@ -242,10 +238,7 @@ impl Iterator {
     #[inline]
     pub(crate) fn rev(self) -> VmResult<Self> {
         if !self.iter.is_double_ended() {
-            return VmResult::err(Panic::custom(format!(
-                "`{:?}` is not a double-ended iterator",
-                self
-            )));
+            return VmResult::panic(format!("`{:?}` is not a double-ended iterator", self));
         }
 
         VmResult::Ok(Self {
@@ -329,15 +322,62 @@ impl Iterator {
     }
 
     #[inline]
-    pub(crate) fn product(self) -> VmResult<Value> {
-        let product = Product { iter: self.iter };
-        product.resolve()
+    pub(crate) fn reduce(mut self, f: Function) -> VmResult<Option<Value>> {
+        let Some(mut accumulator) = vm_try!(self.next()) else {
+            return VmResult::Ok(None);
+        };
+
+        while let Some(value) = vm_try!(self.next()) {
+            accumulator = vm_try!(f.call::<_, Value>((accumulator, value.clone())));
+        }
+
+        VmResult::Ok(Some(accumulator))
     }
 
     #[inline]
-    pub(crate) fn sum(self) -> VmResult<Value> {
-        let sum = Sum { iter: self.iter };
-        sum.resolve()
+    pub(crate) fn product<T>(mut self) -> VmResult<T>
+    where
+        T: FromValue + CheckedOps,
+    {
+        let mut product = match vm_try!(self.iter.next()) {
+            Some(init) => vm_try!(T::from_value(init)),
+            None => T::ONE,
+        };
+
+        while let Some(v) = vm_try!(self.iter.next()) {
+            let v = vm_try!(T::from_value(v));
+
+            let Some(out) = product.checked_mul(v) else {
+                return VmResult::err(VmErrorKind::Overflow);
+            };
+
+            product = out;
+        }
+
+        VmResult::Ok(product)
+    }
+
+    #[inline]
+    pub(crate) fn sum<T>(mut self) -> VmResult<T>
+    where
+        T: FromValue + CheckedOps,
+    {
+        let mut sum = match vm_try!(self.iter.next()) {
+            Some(init) => vm_try!(T::from_value(init)),
+            None => T::ZERO,
+        };
+
+        while let Some(v) = vm_try!(self.next()) {
+            let v = vm_try!(T::from_value(v));
+
+            let Some(out) = sum.checked_add(v) else {
+                return VmResult::err(VmErrorKind::Overflow);
+            };
+
+            sum = out;
+        }
+
+        VmResult::Ok(sum)
     }
 }
 
@@ -1112,145 +1152,53 @@ where
     }
 }
 
-struct Product<I>
-where
-    I: RuneIterator,
-{
-    iter: I,
-}
+pub(crate) trait CheckedOps: Sized {
+    const ONE: Self;
+    const ZERO: Self;
 
-impl<I> Product<I>
-where
-    I: RuneIterator,
-{
-    fn next<T>(&mut self) -> VmResult<Option<T>>
-    where
-        T: FromValue,
-    {
-        VmResult::Ok(match vm_try!(self.iter.next()) {
-            Some(value) => Some(vm_try!(T::from_value(value))),
-            None => None,
-        })
-    }
-
-    fn resolve_internal_simple<T>(&mut self, first: T) -> VmResult<T>
-    where
-        T: FromValue + CheckedMul,
-    {
-        let mut product = first;
-
-        while let Some(v) = vm_try!(self.next()) {
-            let Some(out) = product.checked_mul(v) else {
-                return VmResult::err(VmErrorKind::Overflow);
-            };
-
-            product = out;
-        }
-
-        VmResult::Ok(product)
-    }
-
-    fn resolve(mut self) -> VmResult<Value> {
-        match vm_try!(self.iter.next()) {
-            Some(v) => match v {
-                Value::Byte(v) => {
-                    VmResult::Ok(Value::Byte(vm_try!(self.resolve_internal_simple(v))))
-                }
-                Value::Integer(v) => {
-                    VmResult::Ok(Value::Integer(vm_try!(self.resolve_internal_simple(v))))
-                }
-                Value::Float(v) => {
-                    VmResult::Ok(Value::Float(vm_try!(self.resolve_internal_simple(v))))
-                }
-                _ => VmResult::err(VmErrorKind::UnsupportedBinaryOperation {
-                    op: "*",
-                    lhs: vm_try!(v.type_info()),
-                    rhs: vm_try!(v.type_info()),
-                }),
-            },
-            None => VmResult::err(Panic::custom(
-                "cannot take the product of an empty iterator",
-            )),
-        }
-    }
-}
-
-struct Sum<I>
-where
-    I: RuneIterator,
-{
-    iter: I,
-}
-
-impl<I> Sum<I>
-where
-    I: RuneIterator,
-{
-    fn next<T>(&mut self) -> VmResult<Option<T>>
-    where
-        T: FromValue,
-    {
-        VmResult::Ok(match vm_try!(self.iter.next()) {
-            Some(value) => Some(vm_try!(T::from_value(value))),
-            None => None,
-        })
-    }
-
-    fn resolve_internal_simple<T>(&mut self, first: T) -> VmResult<T>
-    where
-        T: FromValue + ops::Add<Output = T>,
-    {
-        let mut sum = first;
-
-        while let Some(v) = vm_try!(self.next()) {
-            sum = sum + v;
-        }
-
-        VmResult::Ok(sum)
-    }
-
-    fn resolve(mut self) -> VmResult<Value> {
-        match vm_try!(self.iter.next()) {
-            Some(v) => match v {
-                Value::Byte(v) => {
-                    VmResult::Ok(Value::Byte(vm_try!(self.resolve_internal_simple(v))))
-                }
-                Value::Integer(v) => {
-                    VmResult::Ok(Value::Integer(vm_try!(self.resolve_internal_simple(v))))
-                }
-                Value::Float(v) => {
-                    VmResult::Ok(Value::Float(vm_try!(self.resolve_internal_simple(v))))
-                }
-                _ => VmResult::err(VmErrorKind::UnsupportedBinaryOperation {
-                    op: "+",
-                    lhs: vm_try!(v.type_info()),
-                    rhs: vm_try!(v.type_info()),
-                }),
-            },
-            None => VmResult::err(Panic::custom("cannot take the sum of an empty iterator")),
-        }
-    }
-}
-
-trait CheckedMul: Sized {
+    fn checked_add(self, value: Self) -> Option<Self>;
     fn checked_mul(self, value: Self) -> Option<Self>;
 }
 
-impl CheckedMul for u8 {
+impl CheckedOps for u8 {
+    const ONE: Self = 1;
+    const ZERO: Self = 0;
+
+    #[inline]
+    fn checked_add(self, value: Self) -> Option<Self> {
+        u8::checked_add(self, value)
+    }
+
     #[inline]
     fn checked_mul(self, value: Self) -> Option<Self> {
         u8::checked_mul(self, value)
     }
 }
 
-impl CheckedMul for i64 {
+impl CheckedOps for i64 {
+    const ONE: Self = 1;
+    const ZERO: Self = 0;
+
+    #[inline]
+    fn checked_add(self, value: Self) -> Option<Self> {
+        i64::checked_add(self, value)
+    }
+
     #[inline]
     fn checked_mul(self, value: Self) -> Option<Self> {
         i64::checked_mul(self, value)
     }
 }
 
-impl CheckedMul for f64 {
+impl CheckedOps for f64 {
+    const ONE: Self = 1.0;
+    const ZERO: Self = 0.0;
+
+    #[inline]
+    fn checked_add(self, value: Self) -> Option<Self> {
+        Some(self + value)
+    }
+
     #[inline]
     fn checked_mul(self, value: Self) -> Option<Self> {
         Some(self * value)

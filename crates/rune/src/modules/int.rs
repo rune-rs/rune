@@ -1,4 +1,4 @@
-//! The `std::int` module.
+//! The `std::i64` module.
 
 use core::cmp::Ordering;
 use core::num::ParseIntError;
@@ -7,15 +7,15 @@ use crate as rune;
 use crate::runtime::{VmErrorKind, VmResult};
 use crate::{ContextError, Module};
 
-/// Construct the `std::int` module.
+/// Construct the `std::i64` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["int"]);
+    let mut module = Module::with_crate_item("std", ["i64"]);
 
     module.ty::<ParseIntError>()?;
 
     module.function(["parse"], parse)?;
     module.function_meta(cmp)?;
-    module.function_meta(to_float)?;
+    module.function_meta(to_f64)?;
 
     module.function_meta(max)?;
     module.function_meta(min)?;
@@ -109,11 +109,11 @@ fn cmp(this: i64, rhs: i64) -> Ordering {
 /// # Examples
 ///
 /// ```rune
-/// assert!(10.to_float() is float);
+/// assert!(10.to_f64() is f64);
 /// ```
 #[rune::function(instance)]
 #[inline]
-fn to_float(value: i64) -> f64 {
+fn to_f64(value: i64) -> f64 {
     value as f64
 }
 
@@ -532,4 +532,4 @@ fn is_negative(this: i64) -> bool {
     i64::is_negative(this)
 }
 
-crate::__internal_impl_any!(::std::int, ParseIntError);
+crate::__internal_impl_any!(::std::i64, ParseIntError);

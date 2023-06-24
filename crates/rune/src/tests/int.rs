@@ -11,7 +11,7 @@ fn test_int_fns() {
 
     let n: i64 = rune! {
         pub fn main() {
-            std::int::min(1, 2)
+            std::i64::min(1, 2)
         }
     };
     assert_eq!(n, 1);
@@ -25,7 +25,7 @@ fn test_int_fns() {
 
     let n: i64 = rune! {
         pub fn main() {
-            std::int::max(1, 2)
+            std::i64::max(1, 2)
         }
     };
     assert_eq!(n, 2);
@@ -39,7 +39,7 @@ fn test_int_fns() {
 
     let n: i64 = rune! {
         pub fn main() {
-            std::int::abs(-10)
+            std::i64::abs(-10)
         }
     };
     assert_eq!(n, 10);
@@ -53,7 +53,7 @@ fn test_int_fns() {
 
     let n: i64 = rune! {
         pub fn main() {
-            std::int::pow(12, 3)
+            std::i64::pow(12, 3)
         }
     };
     assert_eq!(n, 1728);

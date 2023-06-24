@@ -225,8 +225,8 @@ pub use self::span::{ByteIndex, Span};
 pub use self::spanned::{OptionSpanned, Spanned};
 pub use self::stmt::{ItemOrExpr, Stmt, StmtSemi, StmtSortKey};
 pub use self::token::{
-    BuiltIn, CopySource, Delimiter, LitSource, Number, NumberBase, NumberSource, NumberText,
-    StrSource, StrText, Token,
+    BuiltIn, CopySource, Delimiter, LitSource, Number, NumberBase, NumberSource, NumberSuffix,
+    NumberText, NumberValue, StrSource, StrText, Token,
 };
 pub use self::vis::Visibility;
 

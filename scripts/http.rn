@@ -15,9 +15,9 @@ pub async fn main() {
 
     let response = response.json().await?;
 
-    let content_length = std::int::parse(response["headers"]["content-length"])?;
+    let content_length = std::i64::parse(response["headers"]["content-length"])?;
 
-    if content_length is int {
+    if content_length is i64 {
         dbg("it is indeed an integer");
     }
 

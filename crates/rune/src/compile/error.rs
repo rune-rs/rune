@@ -458,6 +458,7 @@ pub(crate) enum ErrorKind {
     },
     UnsupportedPatternRest,
     UnsupportedMut,
+    UnsupportedSuffix,
 }
 
 impl crate::no_std::error::Error for ErrorKind {
@@ -959,6 +960,12 @@ impl fmt::Display for ErrorKind {
                 write!(
                     f,
                     "The `mut` modifier is not supported in Rune, everything is mutable by default"
+                )?;
+            }
+            ErrorKind::UnsupportedSuffix => {
+                write!(
+                    f,
+                    "Unsupported suffix, expected one of `u8`, `i64`, or `f64`"
                 )?;
             }
         }

@@ -21,8 +21,8 @@ fn test_trivial_types() {
         out,
         [
             "::std::bool".to_owned(),
-            "::std::int".to_owned(),
-            "::std::float".to_owned(),
+            "::std::i64".to_owned(),
+            "::std::f64".to_owned(),
             "::std::char".to_owned(),
             "::std::string::String".to_owned(),
             "::std::option::Option".to_owned()

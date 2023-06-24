@@ -215,7 +215,7 @@ impl Vm {
     ///
     /// // Building an item buffer to lookup an `::std` item.
     /// let mut item = ItemBuf::with_crate("std");
-    /// item.push("int");
+    /// item.push("i64");
     /// item.push("max");
     ///
     /// let max = vm.lookup_function(&item)?;

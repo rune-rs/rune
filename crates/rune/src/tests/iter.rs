@@ -6,7 +6,7 @@ prelude!();
 fn test_sum() {
     let out: u32 = rune!(
         pub fn main() {
-            [1, 2, 3].iter().sum()
+            [1, 2, 3].iter().sum::<i64>()
         }
     );
     assert_eq!(out, 6)
@@ -16,7 +16,7 @@ fn test_sum() {
 fn test_sum_negative() {
     let out: i32 = rune!(
         pub fn main() {
-            [1, -2, 3].iter().sum()
+            [1, -2, 3].iter().sum::<i64>()
         }
     );
     assert_eq!(out, 2)
@@ -26,7 +26,7 @@ fn test_sum_negative() {
 fn test_prod() {
     let out: u32 = rune!(
         pub fn main() {
-            [1, 2, 3, 6].iter().product()
+            [1, 2, 3, 6].iter().product::<i64>()
         }
     );
     assert_eq!(out, 36)
@@ -36,7 +36,7 @@ fn test_prod() {
 fn test_prod_negative() {
     let out: i32 = rune!(
         pub fn main() {
-            [-1, 2, 3, 6].iter().product()
+            [-1, 2, 3, 6].iter().product::<i64>()
         }
     );
     assert_eq!(out, -36)
@@ -46,7 +46,7 @@ fn test_prod_negative() {
 fn test_prod_float() {
     let out: f32 = rune!(
         pub fn main() {
-            [1.0, 0.5, 2.0, 3.0].iter().product()
+            [1.0, 0.5, 2.0, 3.0].iter().product::<f64>()
         }
     );
     assert_eq!(out, 3.0)
@@ -56,7 +56,7 @@ fn test_prod_float() {
 fn test_prod_float_negative() {
     let out: f32 = rune!(
         pub fn main() {
-            [1.0, 0.5, 2.0, 0.0 - 3.0].iter().product()
+            [1.0, 0.5, 2.0, 0.0 - 3.0].iter().product::<f64>()
         }
     );
     assert_eq!(out, -3.0)

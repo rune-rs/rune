@@ -341,7 +341,7 @@ fn main() -> Result<()> {
                         Self::Shebang { .. } => $expectation::Description("shebang"),
                         Self::Ident(..) => $expectation::Description("ident"),
                         Self::Label(..) => $expectation::Description("label"),
-                        Self::Byte { .. } => $expectation::Description("byte"),
+                        Self::Byte { .. } => $expectation::Description("byte literal"),
                         Self::ByteStr { .. } => $expectation::Description("byte string"),
                         Self::Char { .. } => $expectation::Description("char"),
                         Self::Number { .. } => $expectation::Description("number"),

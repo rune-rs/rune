@@ -1,4 +1,4 @@
-//! The `std::float` module.
+//! The `std::f64` module.
 
 use core::num::ParseFloatError;
 
@@ -14,11 +14,11 @@ fn to_integer(value: f64) -> i64 {
     value as i64
 }
 
-crate::__internal_impl_any!(::std::float, ParseFloatError);
+crate::__internal_impl_any!(::std::f64, ParseFloatError);
 
 /// Install the core package into the given functions namespace.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["float"]);
+    let mut module = Module::with_crate_item("std", ["f64"]);
 
     module.ty::<ParseFloatError>()?;
     module.function(["parse"], parse)?;

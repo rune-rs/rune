@@ -1,7 +1,7 @@
 # Rune types
 
 Types in Rune are identified uniquely by their *item*. An item path is a
-scope-separated identifier, like `std::float`. This particular item identifies
+scope-separated identifier, like `std::f64`. This particular item identifies
 a type.
 
 These items can be used to perform basic type checking using the `is` and `is

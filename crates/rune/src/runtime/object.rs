@@ -288,7 +288,7 @@ impl Object {
     ///     vec.push(key);
     /// }
     ///
-    /// vec.sort::<int>();
+    /// vec.sort::<i64>();
     /// assert_eq!(vec, [("a", 1), ("b", 2), ("c", 3)]);
     /// ```
     #[rune::function(keep, path = Self::iter)]

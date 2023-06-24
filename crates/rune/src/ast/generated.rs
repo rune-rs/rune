@@ -5197,7 +5197,7 @@ impl parse::IntoExpectation for Kind {
             Self::Shebang { .. } => parse::Expectation::Description("shebang"),
             Self::Ident(..) => parse::Expectation::Description("ident"),
             Self::Label(..) => parse::Expectation::Description("label"),
-            Self::Byte { .. } => parse::Expectation::Description("byte"),
+            Self::Byte { .. } => parse::Expectation::Description("byte literal"),
             Self::ByteStr { .. } => parse::Expectation::Description("byte string"),
             Self::Char { .. } => parse::Expectation::Description("char"),
             Self::Number { .. } => parse::Expectation::Description("number"),

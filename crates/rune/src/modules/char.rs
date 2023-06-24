@@ -12,8 +12,8 @@ pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", ["char"]);
     module.ty::<ParseCharError>()?;
 
-    module.function_meta(from_int)?;
-    module.function_meta(to_int)?;
+    module.function_meta(from_i64)?;
+    module.function_meta(to_i64)?;
     module.function_meta(is_alphabetic)?;
     module.function_meta(is_alphanumeric)?;
     module.function_meta(is_control)?;
@@ -25,29 +25,16 @@ pub fn module() -> Result<Module, ContextError> {
     Ok(module)
 }
 
-/// Convert a character into an integer.
-///
-/// # Examples
-///
-/// ```rune
-/// let c = char::from_int(80)?;
-/// assert_eq!(c.to_int(), 80);
-/// ```
-#[rune::function(instance)]
-fn to_int(value: char) -> Value {
-    (value as i64).into()
-}
-
 /// Try to convert a number into a character.
 ///
 /// # Examples
 ///
 /// ```rune
-/// let c = char::from_int(80);
+/// let c = char::from_i64(80);
 /// assert!(c.is_some());
 /// ```
 #[rune::function]
-fn from_int(value: i64) -> VmResult<Option<Value>> {
+fn from_i64(value: i64) -> VmResult<Option<Value>> {
     if value < 0 {
         VmResult::err(VmErrorKind::Underflow)
     } else if value > u32::MAX as i64 {
@@ -55,6 +42,19 @@ fn from_int(value: i64) -> VmResult<Option<Value>> {
     } else {
         VmResult::Ok(core::char::from_u32(value as u32).map(|v| v.into()))
     }
+}
+
+/// Convert a character into an integer.
+///
+/// # Examples
+///
+/// ```rune
+/// let c = char::from_i64(80)?;
+/// assert_eq!(c.to_i64(), 80);
+/// ```
+#[rune::function(instance)]
+fn to_i64(value: char) -> Value {
+    (value as i64).into()
 }
 
 /// Returns `true` if this `char` has the `Alphabetic` property.

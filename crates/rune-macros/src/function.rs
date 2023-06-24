@@ -202,6 +202,44 @@ impl Function {
 
         let name_string = syn::LitStr::new(&self.sig.ident.to_string(), self.sig.ident.span());
 
+        let self_type;
+        let mut name;
+
+        if instance {
+            self_type = None;
+
+            name = syn::Expr::Lit(syn::ExprLit {
+                attrs: Vec::new(),
+                lit: syn::Lit::Str(match &attrs.path {
+                    Path::None => name_string.clone(),
+                    Path::Rename(last) | Path::Instance(_, last) => {
+                        syn::LitStr::new(&last.ident.to_string(), last.ident.span())
+                    }
+                }),
+            });
+        } else {
+            self_type = match &attrs.path {
+                Path::Instance(self_type, _) => Some(self_type.clone()),
+                _ => None,
+            };
+
+            name = match &attrs.path {
+                Path::None => expr_lit(&self.sig.ident),
+                Path::Rename(last) | Path::Instance(_, last) => expr_lit(&last.ident),
+            };
+
+            if !matches!(attrs.path, Path::Instance(..)) {
+                let mut out = syn::ExprArray {
+                    attrs: Vec::new(),
+                    bracket_token: syn::token::Bracket::default(),
+                    elems: Punctuated::default(),
+                };
+
+                out.elems.push(name);
+                name = syn::Expr::Array(out);
+            }
+        };
+
         let arguments = match &attrs.path {
             Path::None => Punctuated::default(),
             Path::Rename(last) | Path::Instance(_, last) => match &last.arguments {
@@ -214,41 +252,6 @@ impl Function {
                     ));
                 }
             },
-        };
-
-        let self_type = match &attrs.path {
-            Path::Instance(self_type, _) if !instance => Some(self_type.clone()),
-            _ => None,
-        };
-
-        let name = if instance {
-            syn::Expr::Lit(syn::ExprLit {
-                attrs: Vec::new(),
-                lit: syn::Lit::Str(match &attrs.path {
-                    Path::None => name_string.clone(),
-                    Path::Rename(last) | Path::Instance(_, last) => {
-                        syn::LitStr::new(&last.ident.to_string(), last.ident.span())
-                    }
-                }),
-            })
-        } else {
-            let mut name = match &attrs.path {
-                Path::None => expr_lit(&self.sig.ident),
-                Path::Rename(last) | Path::Instance(_, last) => expr_lit(&last.ident),
-            };
-
-            if self_type.is_none() {
-                let mut out = syn::ExprArray {
-                    attrs: Vec::new(),
-                    bracket_token: syn::token::Bracket::default(),
-                    elems: Punctuated::default(),
-                };
-
-                out.elems.push(name);
-                name = syn::Expr::Array(out);
-            }
-
-            name
         };
 
         let name = if !arguments.is_empty() {

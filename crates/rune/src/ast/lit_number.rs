@@ -44,6 +44,10 @@ impl<'a> Resolve<'a> for LitNumber {
     type Output = ast::Number;
 
     fn resolve(&self, cx: ResolveContext<'a>) -> Result<ast::Number> {
+        fn err_span<E>(span: Span) -> impl Fn(E) -> compile::Error {
+            move |_| compile::Error::new(span, ErrorKind::BadNumberLiteral)
+        }
+
         let span = self.span;
 
         let text = match self.source {
@@ -64,27 +68,52 @@ impl<'a> Resolve<'a> for LitNumber {
 
         let string = cx
             .sources
-            .source(text.source_id, span)
+            .source(text.source_id, text.number)
             .ok_or_else(|| compile::Error::new(span, ErrorKind::BadSlice))?;
 
-        if text.is_fractional {
-            let number: f64 = string.parse().map_err(err_span(span))?;
-            return Ok(ast::Number::Float(number));
-        }
+        let suffix = cx
+            .sources
+            .source(text.source_id, text.suffix)
+            .ok_or_else(|| compile::Error::new(span, ErrorKind::BadSlice))?;
 
-        let (s, radix) = match text.base {
-            ast::NumberBase::Binary => (2, 2),
-            ast::NumberBase::Octal => (2, 8),
-            ast::NumberBase::Hex => (2, 16),
-            ast::NumberBase::Decimal => (0, 10),
+        let suffix = match suffix {
+            "i64" => Some(ast::NumberSuffix::Int(text.suffix)),
+            "f64" => Some(ast::NumberSuffix::Float(text.suffix)),
+            "u8" => Some(ast::NumberSuffix::Byte(text.suffix)),
+            "" => None,
+            _ => {
+                return Err(compile::Error::new(
+                    text.suffix,
+                    ErrorKind::UnsupportedSuffix,
+                ))
+            }
         };
 
-        let number = num::BigInt::from_str_radix(&string[s..], radix).map_err(err_span(span))?;
-        return Ok(ast::Number::Integer(number));
+        if matches!(
+            (suffix, text.is_fractional),
+            (Some(ast::NumberSuffix::Float(..)), _) | (None, true)
+        ) {
+            let number: f64 = string.parse().map_err(err_span(span))?;
 
-        fn err_span<E>(span: Span) -> impl Fn(E) -> compile::Error {
-            move |_| compile::Error::new(span, ErrorKind::BadNumberLiteral)
+            return Ok(ast::Number {
+                value: ast::NumberValue::Float(number),
+                suffix,
+            });
         }
+
+        let radix = match text.base {
+            ast::NumberBase::Binary => 2,
+            ast::NumberBase::Octal => 8,
+            ast::NumberBase::Hex => 16,
+            ast::NumberBase::Decimal => 10,
+        };
+
+        let number = num::BigInt::from_str_radix(string, radix).map_err(err_span(span))?;
+
+        Ok(ast::Number {
+            value: ast::NumberValue::Integer(number),
+            suffix,
+        })
     }
 }
 

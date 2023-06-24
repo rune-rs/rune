@@ -25,14 +25,19 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(enumerate)?;
     module.function_meta(peek)?;
     module.function_meta(peekable)?;
-    module.function_meta(product)?;
-    module.associated_function("fold", Iterator::fold)?;
-    module.associated_function("rev", Iterator::rev)?;
-    module.associated_function("size_hint", Iterator::size_hint)?;
-    module.associated_function("sum", Iterator::sum)?;
-    module.associated_function("skip", Iterator::skip)?;
-    module.associated_function("take", Iterator::take)?;
-    module.associated_function("count", Iterator::count)?;
+    module.function_meta(sum_int)?;
+    module.function_meta(sum_float)?;
+    module.function_meta(sum_byte)?;
+    module.function_meta(product_int)?;
+    module.function_meta(product_float)?;
+    module.function_meta(product_byte)?;
+    module.function_meta(fold)?;
+    module.function_meta(reduce)?;
+    module.function_meta(rev)?;
+    module.function_meta(size_hint)?;
+    module.function_meta(skip)?;
+    module.function_meta(take)?;
+    module.function_meta(count)?;
     module.associated_function(Protocol::NEXT, Iterator::next)?;
     module.associated_function(Protocol::INTO_ITER, <Iterator as From<Iterator>>::from)?;
 
@@ -262,7 +267,7 @@ pub fn any(this: Iterator, find: Function) -> VmResult<bool> {
 ///
 /// Basic usage:
 ///
-/// ```
+/// ```rune
 /// let a = [1, 2, 3];
 ///
 /// assert!(a.iter().all(|x| x > 0));
@@ -272,7 +277,7 @@ pub fn any(this: Iterator, find: Function) -> VmResult<bool> {
 ///
 /// Stopping at the first `false`:
 ///
-/// ```
+/// ```rune
 /// let a = [1, 2, 3];
 ///
 /// let iter = a.iter();
@@ -564,10 +569,247 @@ fn peekable(this: Iterator) -> Iterator {
     this.peekable()
 }
 
+macro_rules! sum_ops {
+    ($name:ident, $ty:ty) => {
+        /// Sums the elements of an iterator.
+        ///
+        /// Takes each element, adds them together, and returns the result.
+        ///
+        /// An empty iterator returns the zero value of the type.
+        ///
+        /// `sum()` can be used to sum numerical built-in types, such as `int`, `float`
+        /// and `u8`. The first element returned by the iterator determines the type
+        /// being summed.
+        ///
+        /// # Panics
+        ///
+        /// When calling `sum()` and a primitive integer type is being returned, this
+        /// method will panic if the computation overflows.
+        ///
+        /// # Examples
+        ///
+        /// Basic usage:
+        ///
+        /// ```rune
+        #[doc = concat!(" let a = [1", stringify!($ty), ", 2", stringify!($ty), ", 3", stringify!($ty), "];")]
+        #[doc = concat!(" let sum = a.iter().sum::<", stringify!($ty), ">();")]
+        ///
+        #[doc = concat!(" assert_eq!(sum, 6", stringify!($ty), ");")]
+        /// ```
+        #[rune::function(instance, path = sum::<$ty>)]
+        #[inline]
+        fn $name(this: Iterator) -> VmResult<$ty> {
+            this.sum()
+        }
+    };
+}
+
+sum_ops!(sum_int, i64);
+sum_ops!(sum_float, f64);
+sum_ops!(sum_byte, u8);
+
+macro_rules! product_ops {
+    ($name:ident, $ty:ty) => {
+        /// Iterates over the entire iterator, multiplying all the elements
+        ///
+        /// An empty iterator returns the one value of the type.
+        ///
+        /// `sum()` can be used to sum numerical built-in types, such as `int`, `float`
+        /// and `u8`. The first element returned by the iterator determines the type
+        /// being multiplied.
+        ///
+        /// # Panics
+        ///
+        /// When calling `product()` and a primitive integer type is being returned,
+        /// method will panic if the computation overflows.
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// fn factorial(n) {
+        #[doc = concat!("     (1", stringify!($ty), "..=n).iter().product::<", stringify!($ty), ">()")]
+        /// }
+        ///
+        #[doc = concat!(" assert_eq!(factorial(0", stringify!($ty), "), 1", stringify!($ty), ");")]
+        #[doc = concat!(" assert_eq!(factorial(1", stringify!($ty), "), 1", stringify!($ty), ");")]
+        #[doc = concat!(" assert_eq!(factorial(5", stringify!($ty), "), 120", stringify!($ty), ");")]
+        /// ```
+        #[rune::function(instance, path = product::<$ty>)]
+        #[inline]
+        fn $name(this: Iterator) -> VmResult<$ty> {
+            this.product::<$ty>()
+        }
+    };
+}
+
+product_ops!(product_int, i64);
+product_ops!(product_float, f64);
+product_ops!(product_byte, u8);
+
+/// Folds every element into an accumulator by applying an operation, returning
+/// the final result.
+///
+/// `fold()` takes two arguments: an initial value, and a closure with two
+/// arguments: an 'accumulator', and an element. The closure returns the value
+/// that the accumulator should have for the next iteration.
+///
+/// The initial value is the value the accumulator will have on the first call.
+///
+/// After applying this closure to every element of the iterator, `fold()`
+/// returns the accumulator.
+///
+/// This operation is sometimes called 'reduce' or 'inject'.
+///
+/// Folding is useful whenever you have a collection of something, and want to
+/// produce a single value from it.
+///
+/// Note: `fold()`, and similar methods that traverse the entire iterator, might
+/// not terminate for infinite iterators, even on traits for which a result is
+/// determinable in finite time.
+///
+/// Note: [`reduce()`] can be used to use the first element as the initial
+/// value, if the accumulator type and item type is the same.
+///
+/// Note: `fold()` combines elements in a *left-associative* fashion. For
+/// associative operators like `+`, the order the elements are combined in is
+/// not important, but for non-associative operators like `-` the order will
+/// affect the final result. For a *right-associative* version of `fold()`, see
+/// [`DoubleEndedIterator::rfold()`].
+///
+/// # Note to Implementors
+///
+/// Several of the other (forward) methods have default implementations in
+/// terms of this one, so try to implement this explicitly if it can
+/// do something better than the default `for` loop implementation.
+///
+/// In particular, try to have this call `fold()` on the internal parts
+/// from which this iterator is composed.
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```
+/// let a = [1, 2, 3];
+///
+/// // the sum of all of the elements of the array
+/// let sum = a.iter().fold(0, |acc, x| acc + x);
+///
+/// assert_eq!(sum, 6);
+/// ```
+///
+/// Let's walk through each step of the iteration here:
+///
+/// | element | acc | x | result |
+/// |---------|-----|---|--------|
+/// |         | 0   |   |        |
+/// | 1       | 0   | 1 | 1      |
+/// | 2       | 1   | 2 | 3      |
+/// | 3       | 3   | 3 | 6      |
+///
+/// And so, our final result, `6`.
+///
+/// This example demonstrates the left-associative nature of `fold()`:
+/// it builds a string, starting with an initial value
+/// and continuing with each element from the front until the back:
+///
+/// ```rune
+/// let numbers = [1, 2, 3, 4, 5];
+///
+/// let zero = "0".to_string();
+///
+/// let result = numbers.iter().fold(zero, |acc, x| {
+///     format!("({acc} + {x})")
+/// });
+///
+/// assert_eq!(result, "(((((0 + 1) + 2) + 3) + 4) + 5)");
+/// ```
+///
+/// It's common for people who haven't used iterators a lot to
+/// use a `for` loop with a list of things to build up a result. Those
+/// can be turned into `fold()`s:
+///
+/// ```rune
+/// let numbers = [1, 2, 3, 4, 5];
+///
+/// let mut result = 0;
+///
+/// // for loop:
+/// for i in &numbers {
+///     result = result + i;
+/// }
+///
+/// // fold:
+/// let result2 = numbers.iter().fold(0, |acc, &x| acc + x);
+///
+/// // they're the same
+/// assert_eq!(result, result2);
+/// ```
+///
+/// [`reduce()`]: Iterator::reduce
 #[rune::function(instance)]
 #[inline]
-fn product(this: Iterator) -> VmResult<Value> {
-    this.product()
+fn fold(this: Iterator, accumulator: Value, f: Function) -> VmResult<Value> {
+    this.fold(accumulator, f)
+}
+
+/// Reduces the elements to a single one, by repeatedly applying a reducing
+/// operation.
+///
+/// If the iterator is empty, returns [`None`]; otherwise, returns the result of
+/// the reduction.
+///
+/// The reducing function is a closure with two arguments: an 'accumulator', and
+/// an element. For iterators with at least one element, this is the same as
+/// [`fold()`] with the first element of the iterator as the initial accumulator
+/// value, folding every subsequent element into it.
+///
+/// [`fold()`]: Iterator::fold
+///
+/// # Example
+///
+/// ```rune
+/// let reduced = (1..10).iter().reduce(|acc, e| acc + e).unwrap();
+/// assert_eq!(reduced, 45);
+///
+/// // Which is equivalent to doing it with `fold`:
+/// let folded = (1..10).iter().fold(0, |acc, e| acc + e);
+/// assert_eq!(reduced, folded);
+/// ```
+#[rune::function(instance)]
+#[inline]
+fn reduce(this: Iterator, f: Function) -> VmResult<Option<Value>> {
+    this.reduce(f)
+}
+
+#[rune::function(instance)]
+#[inline]
+fn rev(this: Iterator) -> VmResult<Iterator> {
+    this.rev()
+}
+
+#[rune::function(instance)]
+#[inline]
+fn size_hint(this: Iterator) -> (usize, Option<usize>) {
+    this.size_hint()
+}
+
+#[rune::function(instance)]
+#[inline]
+fn skip(this: Iterator, n: usize) -> Iterator {
+    this.skip(n)
+}
+
+#[rune::function(instance)]
+#[inline]
+fn take(this: Iterator, n: usize) -> Iterator {
+    this.take(n)
+}
+
+#[rune::function(instance)]
+#[inline]
+fn count(this: &mut Iterator) -> VmResult<usize> {
+    this.count()
 }
 
 /// Collect the iterator as a [`Vec`].

@@ -88,17 +88,25 @@ fn make_vm() -> Result<(Vm, CaptureIo)> {
             fn new() {
                 Tape { pos: 0, tape: [0] }
             }
-            fn get(self) { self.tape[self.pos] }
-            fn getc(self)  { std::char::from_int(self.get()).expect("a valid char")  }
+
+            fn get(self) {
+                self.tape[self.pos]
+            }
+
             fn inc(self, x) {
                 self.tape[self.pos] = (self.tape[self.pos] + x) % 256;
+
                 if self.tape[self.pos] < 0 {
                     self.tape[self.pos] = self.tape[self.pos] + 256;
                 }
             }
+
             fn mov(self, x) {
-                self.pos = (self.pos + x);
-                while self.pos >= self.tape.len() { self.tape.push(0); }
+                self.pos += x;
+
+                while self.pos >= self.tape.len() {
+                    self.tape.push(0);
+                }
             }
 
             fn set(self, v) {
@@ -115,8 +123,8 @@ fn make_vm() -> Result<(Vm, CaptureIo)> {
                         run(program, tape, inputs);
                     },
                     Op::Print => {
-                        let c = tape.getc();
-                        print(format!("{}", c));
+                        let c = char::from_i64(tape.get()).expect("A valid char");
+                        print!("{}", c);
                     }
                     Op::Input => {
                         tape.set(0)
@@ -129,18 +137,21 @@ fn make_vm() -> Result<(Vm, CaptureIo)> {
             let buf = Vec::new();
 
             while let Some(c) = it.next() {
-                match c {
-                    '+' => buf.push(Op::Inc(1)),
-                    '-' => buf.push(Op::Inc(-1)),
-                    '>' => buf.push(Op::Move(1)),
-                    '<' => buf.push(Op::Move(-1)),
-                    '.' => buf.push(Op::Print),
-                    '[' => buf.push(Op::Loop(parse(it))),
-                    ',' => buf.push(Op::Input),
+                let op = match c {
+                    '+' => Op::Inc(1),
+                    '-' => Op::Inc(-1),
+                    '>' => Op::Move(1),
+                    '<' => Op::Move(-1),
+                    '.' => Op::Print,
+                    '[' => Op::Loop(parse(it)),
+                    ',' => Op::Input,
                     ']' => break,
                     _ => continue,
                 };
+
+                buf.push(op);
             }
+
             buf
         }
 
@@ -150,7 +161,10 @@ fn make_vm() -> Result<(Vm, CaptureIo)> {
         }
 
         impl Program {
-            fn new(code, inputs) { Program { ops: parse(code), inputs } }
+            fn new(code, inputs) {
+                Program { ops: parse(code), inputs }
+            }
+
             fn run(self) {
                 let tape = Tape::new();
                 run(self.ops, tape, self.inputs);
