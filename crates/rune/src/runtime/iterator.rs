@@ -1,3 +1,6 @@
+// TODO: how do we remove this?
+#![allow(rustdoc::broken_intra_doc_links)]
+
 use core::cmp;
 use core::fmt;
 use core::iter;
