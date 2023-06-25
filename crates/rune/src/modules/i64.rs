@@ -53,7 +53,7 @@ pub fn module() -> Result<Module, ContextError> {
         "Basic usage:",
         "",
         "```rune",
-        "assert_eq!(int::MIN, -9223372036854775808);",
+        "assert_eq!(i64::MIN, -9223372036854775808);",
         "```",
     ]);
 
@@ -66,7 +66,7 @@ pub fn module() -> Result<Module, ContextError> {
         "Basic usage:",
         "",
         "```rune",
-        "assert_eq!(int::MAX, 9223372036854775807);",
+        "assert_eq!(i64::MAX, 9223372036854775807);",
         "```",
     ]);
 
@@ -78,7 +78,7 @@ pub fn module() -> Result<Module, ContextError> {
 /// # Examples
 ///
 /// ```rune
-/// assert_eq!(int::parse("10")?, 10);
+/// assert_eq!(i64::parse("10")?, 10);
 /// ```
 fn parse(s: &str) -> Result<i64, ParseIntError> {
     str::parse::<i64>(s)
@@ -153,9 +153,9 @@ fn min(this: i64, other: i64) -> i64 {
 ///
 /// # Overflow behavior
 ///
-/// The absolute value of `int::MIN` cannot be represented as an `int`, and
+/// The absolute value of `i64::MIN` cannot be represented as an `int`, and
 /// attempting to calculate it will cause an overflow. This means that such code
-/// will wrap to `int::MIN` without a panic.
+/// will wrap to `i64::MIN` without a panic.
 ///
 /// # Examples
 ///
@@ -200,8 +200,8 @@ fn pow(this: i64, pow: u32) -> i64 {
 /// Basic usage:
 ///
 /// ```rune
-/// assert_eq!((int::MAX - 2).checked_add(1), Some(int::MAX - 1));
-/// assert_eq!((int::MAX - 2).checked_add(3), None);
+/// assert_eq!((i64::MAX - 2).checked_add(1), Some(i64::MAX - 1));
+/// assert_eq!((i64::MAX - 2).checked_add(3), None);
 /// ```
 #[rune::function(instance)]
 #[inline]
@@ -217,8 +217,8 @@ fn checked_add(this: i64, rhs: i64) -> Option<i64> {
 /// Basic usage:
 ///
 /// ```rune
-/// assert_eq!((int::MIN + 2).checked_sub(1), Some(int::MIN + 1));
-/// assert_eq!((int::MIN + 2).checked_sub(3), None);
+/// assert_eq!((i64::MIN + 2).checked_sub(1), Some(i64::MIN + 1));
+/// assert_eq!((i64::MIN + 2).checked_sub(3), None);
 /// ```
 #[rune::function(instance)]
 #[inline]
@@ -234,8 +234,8 @@ fn checked_sub(this: i64, rhs: i64) -> Option<i64> {
 /// Basic usage:
 ///
 /// ```rune
-/// assert_eq!((int::MIN + 1).checked_div(-1), Some(int::MAX));
-/// assert_eq!(int::MIN.checked_div(-1), None);
+/// assert_eq!((i64::MIN + 1).checked_div(-1), Some(i64::MAX));
+/// assert_eq!(i64::MIN.checked_div(-1), None);
 /// assert_eq!((1).checked_div(0), None);
 /// ```
 #[rune::function(instance)]
@@ -252,8 +252,8 @@ fn checked_div(this: i64, rhs: i64) -> Option<i64> {
 /// Basic usage:
 ///
 /// ```rune
-/// assert_eq!(int::MAX.checked_mul(1), Some(int::MAX));
-/// assert_eq!(int::MAX.checked_mul(2), None);
+/// assert_eq!(i64::MAX.checked_mul(1), Some(i64::MAX));
+/// assert_eq!(i64::MAX.checked_mul(2), None);
 /// ```
 #[rune::function(instance)]
 #[inline]
@@ -271,7 +271,7 @@ fn checked_mul(this: i64, rhs: i64) -> Option<i64> {
 /// ```rune
 /// assert_eq!(5.checked_rem(2), Some(1));
 /// assert_eq!(5.checked_rem(0), None);
-/// assert_eq!(int::MIN.checked_rem(-1), None);
+/// assert_eq!(i64::MIN.checked_rem(-1), None);
 /// ```
 #[rune::function(instance)]
 #[inline]
@@ -288,7 +288,7 @@ fn checked_rem(this: i64, rhs: i64) -> Option<i64> {
 ///
 /// ```rune
 /// assert_eq!(100.wrapping_add(27), 127);
-/// assert_eq!(int::MAX.wrapping_add(2), int::MIN + 1);
+/// assert_eq!(i64::MAX.wrapping_add(2), i64::MIN + 1);
 /// ```
 #[rune::function(instance)]
 #[inline]
@@ -305,7 +305,7 @@ fn wrapping_add(this: i64, rhs: i64) -> i64 {
 ///
 /// ```rune
 // assert_eq!(0.wrapping_sub(127), -127);
-// assert_eq!((-2).wrapping_sub(int::MAX), int::MAX);
+// assert_eq!((-2).wrapping_sub(i64::MAX), i64::MAX);
 /// ```
 #[rune::function(instance)]
 #[inline]
@@ -395,8 +395,8 @@ fn wrapping_rem(this: i64, rhs: i64) -> VmResult<i64> {
 ///
 /// ```rune
 /// assert_eq!(100.saturating_add(1), 101);
-/// assert_eq!(int::MAX.saturating_add(100), int::MAX);
-/// assert_eq!(int::MIN.saturating_add(-1), int::MIN);
+/// assert_eq!(i64::MAX.saturating_add(100), i64::MAX);
+/// assert_eq!(i64::MIN.saturating_add(-1), i64::MIN);
 /// ```
 #[rune::function(instance)]
 #[inline]
@@ -413,8 +413,8 @@ fn saturating_add(this: i64, rhs: i64) -> i64 {
 ///
 /// ```rune
 /// assert_eq!(100.saturating_sub(127), -27);
-/// assert_eq!(int::MIN.saturating_sub(100), int::MIN);
-/// assert_eq!(int::MAX.saturating_sub(-1), int::MAX);
+/// assert_eq!(i64::MIN.saturating_sub(100), i64::MIN);
+/// assert_eq!(i64::MAX.saturating_sub(-1), i64::MAX);
 /// ```
 #[rune::function(instance)]
 #[inline]
@@ -431,8 +431,8 @@ fn saturating_sub(this: i64, rhs: i64) -> i64 {
 ///
 /// ```rune
 /// assert_eq!(10.saturating_mul(12), 120);
-/// assert_eq!(int::MAX.saturating_mul(10), int::MAX);
-/// assert_eq!(int::MIN.saturating_mul(10), int::MIN);
+/// assert_eq!(i64::MAX.saturating_mul(10), i64::MAX);
+/// assert_eq!(i64::MIN.saturating_mul(10), i64::MIN);
 /// ```
 #[rune::function(instance)]
 #[inline]
@@ -450,8 +450,8 @@ fn saturating_mul(this: i64, rhs: i64) -> i64 {
 /// ```rune
 /// assert_eq!(100.saturating_abs(), 100);
 /// assert_eq!((-100).saturating_abs(), 100);
-/// assert_eq!(int::MIN.saturating_abs(), int::MAX);
-/// assert_eq!((int::MIN + 1).saturating_abs(), int::MAX);
+/// assert_eq!(i64::MIN.saturating_abs(), i64::MAX);
+/// assert_eq!((i64::MIN + 1).saturating_abs(), i64::MAX);
 /// ```
 #[rune::function(instance)]
 #[inline]
@@ -468,8 +468,8 @@ fn saturating_abs(this: i64) -> i64 {
 ///
 /// ```rune
 /// assert_eq!((-4).saturating_pow(3), -64);
-/// assert_eq!(int::MIN.saturating_pow(2), int::MAX);
-/// assert_eq!(int::MIN.saturating_pow(3), int::MIN);
+/// assert_eq!(i64::MIN.saturating_pow(2), i64::MAX);
+/// assert_eq!(i64::MIN.saturating_pow(3), i64::MIN);
 /// ```
 #[rune::function(instance)]
 #[inline]

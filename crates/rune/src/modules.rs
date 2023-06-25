@@ -14,11 +14,11 @@ pub mod collections;
 pub mod core;
 #[cfg(feature = "disable-io")]
 pub mod disable_io;
-pub mod float;
+pub mod f64;
 pub mod fmt;
 pub mod future;
 pub mod generator;
-pub mod int;
+pub mod i64;
 #[cfg(feature = "std")]
 pub mod io;
 pub mod iter;

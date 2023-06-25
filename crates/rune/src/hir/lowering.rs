@@ -556,7 +556,7 @@ pub(crate) fn expr<'hir>(
         }
         ast::Expr::Binary(ast) => {
             let rhs_needs = match &ast.op {
-                ast::BinOp::Is(..) | ast::BinOp::IsNot(..) => Needs::Type,
+                ast::BinOp::As(..) | ast::BinOp::Is(..) | ast::BinOp::IsNot(..) => Needs::Type,
                 _ => Needs::Value,
             };
 

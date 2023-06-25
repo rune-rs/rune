@@ -489,6 +489,10 @@ pub(crate) enum VmErrorKind {
         value: TypeInfo,
         test_type: TypeInfo,
     },
+    UnsupportedAs {
+        value: TypeInfo,
+        type_hash: Hash,
+    },
     UnsupportedCallFn {
         actual: TypeInfo,
     },
@@ -670,6 +674,9 @@ impl fmt::Display for VmErrorKind {
             }
             VmErrorKind::UnsupportedIs { value, test_type } => {
                 write!(f, "Operation `{value} is {test_type}` is not supported",)
+            }
+            VmErrorKind::UnsupportedAs { value, type_hash } => {
+                write!(f, "Operation `{value} as {type_hash}` is not supported",)
             }
             VmErrorKind::UnsupportedCallFn { actual } => write!(
                 f,

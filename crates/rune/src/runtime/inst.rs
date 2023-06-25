@@ -1293,6 +1293,16 @@ pub enum InstOp {
     /// => <bool>
     /// ```
     Neq,
+    /// Coerce a value into the given type.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <type>
+    /// <value>
+    /// => <boolean>
+    /// ```
+    As,
     /// Test if the top of the stack is an instance of the second item on the
     /// stack.
     ///
@@ -1388,6 +1398,9 @@ impl fmt::Display for InstOp {
             }
             Self::Neq => {
                 write!(f, "!=")?;
+            }
+            Self::As => {
+                write!(f, "as")?;
             }
             Self::Is => {
                 write!(f, "is")?;

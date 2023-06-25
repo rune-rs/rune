@@ -50,11 +50,13 @@ pub static UNIT_TYPE: &StaticType = &StaticType {
 impl_static_type!(() => UNIT_TYPE);
 impl_static_type!(rt::UnitStruct => UNIT_TYPE);
 
+/// Hash for `::std::u8`.
+pub const BYTE_TYPE_HASH: Hash = Hash::new(0xe6cb97d2df702ff4);
+
 /// The specialized type information for a byte type.
 pub static BYTE_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("u8"),
-    // hash for ::std::u8
-    hash: Hash::new(0xe6cb97d2df702ff4),
+    hash: BYTE_TYPE_HASH,
 };
 
 impl_static_type!(u8 => BYTE_TYPE);
@@ -77,11 +79,13 @@ pub static CHAR_TYPE: &StaticType = &StaticType {
 
 impl_static_type!(char => CHAR_TYPE);
 
+/// Hash for `::std::i64`.
+pub const INTEGER_TYPE_HASH: Hash = Hash::new(0x1cad9186c9641c4f);
+
 /// The specialized type information for a integer type.
 pub static INTEGER_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("i64"),
-    // hash for ::std::i64
-    hash: Hash::new(0x1cad9186c9641c4f),
+    hash: INTEGER_TYPE_HASH,
 };
 
 impl_static_type!(i8 => INTEGER_TYPE);
@@ -97,11 +101,13 @@ impl_static_type!(i128 => INTEGER_TYPE);
 impl_static_type!(usize => INTEGER_TYPE);
 impl_static_type!(isize => INTEGER_TYPE);
 
+/// Hash for `::std::f64`.
+pub const FLOAT_TYPE_HASH: Hash = Hash::new(0xb9b22c3893248f31);
+
 /// The specialized type information for a float type.
 pub static FLOAT_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("f64"),
-    // hash for ::std::f64
-    hash: Hash::new(0xb9b22c3893248f31),
+    hash: FLOAT_TYPE_HASH,
 };
 
 impl_static_type!(f32 => FLOAT_TYPE);

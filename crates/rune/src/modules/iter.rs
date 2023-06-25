@@ -26,11 +26,11 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(peek)?;
     module.function_meta(peekable)?;
     module.function_meta(sum_int)?;
-    module.function_meta(sum_float)?;
     module.function_meta(sum_byte)?;
+    module.function_meta(sum_float)?;
     module.function_meta(product_int)?;
-    module.function_meta(product_float)?;
     module.function_meta(product_byte)?;
+    module.function_meta(product_float)?;
     module.function_meta(fold)?;
     module.function_meta(reduce)?;
     module.function_meta(rev)?;
@@ -608,7 +608,7 @@ sum_ops!(sum_int, i64);
 sum_ops!(sum_float, f64);
 sum_ops!(sum_byte, u8);
 
-macro_rules! product_ops {
+macro_rules! integer_product_ops {
     ($name:ident, $ty:ty) => {
         /// Iterates over the entire iterator, multiplying all the elements
         ///
@@ -642,9 +642,43 @@ macro_rules! product_ops {
     };
 }
 
-product_ops!(product_int, i64);
-product_ops!(product_float, f64);
-product_ops!(product_byte, u8);
+macro_rules! float_product_ops {
+    ($name:ident, $ty:ty) => {
+        /// Iterates over the entire iterator, multiplying all the elements
+        ///
+        /// An empty iterator returns the one value of the type.
+        ///
+        /// `sum()` can be used to sum numerical built-in types, such as `int`, `float`
+        /// and `u8`. The first element returned by the iterator determines the type
+        /// being multiplied.
+        ///
+        /// # Panics
+        ///
+        /// When calling `product()` and a primitive integer type is being returned,
+        /// method will panic if the computation overflows.
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// fn factorial(n) {
+        #[doc = concat!("     (1..=n).iter().map(|n| n as ", stringify!($ty), ").product::<", stringify!($ty), ">()")]
+        /// }
+        ///
+        #[doc = concat!(" assert_eq!(factorial(0), 1", stringify!($ty), ");")]
+        #[doc = concat!(" assert_eq!(factorial(1), 1", stringify!($ty), ");")]
+        #[doc = concat!(" assert_eq!(factorial(5), 120", stringify!($ty), ");")]
+        /// ```
+        #[rune::function(instance, path = product::<$ty>)]
+        #[inline]
+        fn $name(this: Iterator) -> VmResult<$ty> {
+            this.product::<$ty>()
+        }
+    };
+}
+
+integer_product_ops!(product_int, i64);
+integer_product_ops!(product_byte, u8);
+float_product_ops!(product_float, f64);
 
 /// Folds every element into an accumulator by applying an operation, returning
 /// the final result.
@@ -732,7 +766,7 @@ product_ops!(product_byte, u8);
 /// ```rune
 /// let numbers = [1, 2, 3, 4, 5];
 ///
-/// let mut result = 0;
+/// let result = 0;
 ///
 /// // for loop:
 /// for i in &numbers {
@@ -782,30 +816,217 @@ fn reduce(this: Iterator, f: Function) -> VmResult<Option<Value>> {
     this.reduce(f)
 }
 
+/// Reverses an iterator's direction.
+///
+/// Usually, iterators iterate from left to right. After using `rev()`, an
+/// iterator will instead iterate from right to left.
+///
+/// This is only possible if the iterator has an end, so `rev()` only works on
+/// double-ended iterators.
+///
+/// # Examples
+///
+/// ```rune
+/// let a = [1, 2, 3];
+///
+/// let iter = a.iter().rev();
+///
+/// assert_eq!(iter.next(), Some(3));
+/// assert_eq!(iter.next(), Some(2));
+/// assert_eq!(iter.next(), Some(1));
+///
+/// assert_eq!(iter.next(), None);
+/// ```
 #[rune::function(instance)]
 #[inline]
 fn rev(this: Iterator) -> VmResult<Iterator> {
     this.rev()
 }
 
+/// Returns the bounds on the remaining length of the iterator.
+///
+/// Specifically, `size_hint()` returns a tuple where the first element
+/// is the lower bound, and the second element is the upper bound.
+///
+/// The second half of the tuple that is returned is an
+/// <code>[Option]<[i64]></code>. A [`None`] here means that either there is no
+/// known upper bound, or the upper bound is larger than [`i64`].
+///
+/// # Implementation notes
+///
+/// It is not enforced that an iterator implementation yields the declared
+/// number of elements. A buggy iterator may yield less than the lower bound or
+/// more than the upper bound of elements.
+///
+/// `size_hint()` is primarily intended to be used for optimizations such as
+/// reserving space for the elements of the iterator, but must not be trusted to
+/// e.g., omit bounds checks in unsafe code. An incorrect implementation of
+/// `size_hint()` should not lead to memory safety violations.
+///
+/// That said, the implementation should provide a correct estimation, because
+/// otherwise it would be a violation of the trait's protocol.
+///
+/// The default implementation returns <code>(0, [None])</code> which is correct
+/// for any iterator.
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```rune
+/// let a = [1, 2, 3];
+/// let iter = a.iter();
+///
+/// assert_eq!((3, Some(3)), iter.size_hint());
+/// let _ = iter.next();
+/// assert_eq!((2, Some(2)), iter.size_hint());
+/// ```
+///
+/// A more complex example:
+///
+/// ```rune
+/// // The even numbers in the range of zero to nine.
+/// let iter = (0..10).filter(|x| x % 2 == 0);
+///
+/// // We might iterate from zero to ten times. Knowing that it's five
+/// // exactly wouldn't be possible without executing filter().
+/// assert_eq!((0, Some(10)), iter.size_hint());
+///
+/// // Let's add five more numbers with chain()
+/// let iter = (0..10).filter(|x| x % 2 == 0).chain(15..20);
+///
+/// // now both bounds are increased by five
+/// assert_eq!((5, Some(15)), iter.size_hint());
+/// ```
+///
+/// Returning `None` for an upper bound:
+///
+/// ```rune
+/// // an infinite iterator has no upper bound
+/// // and the maximum possible lower bound
+/// let iter = 0..;
+///
+/// assert_eq!((i64::MAX, None), iter.size_hint());
+/// ```
 #[rune::function(instance)]
 #[inline]
-fn size_hint(this: Iterator) -> (usize, Option<usize>) {
-    this.size_hint()
+fn size_hint(this: &Iterator) -> (i64, Option<i64>) {
+    let (lower, upper) = this.size_hint();
+
+    let lower = i64::try_from(lower).unwrap_or(i64::MAX);
+
+    let upper = match upper {
+        Some(upper) => Some(i64::try_from(upper).unwrap_or(i64::MAX)),
+        None => None,
+    };
+
+    (lower, upper)
 }
 
+/// Creates an iterator that skips the first `n` elements.
+///
+/// `skip(n)` skips elements until `n` elements are skipped or the end of the
+/// iterator is reached (whichever happens first). After that, all the remaining
+/// elements are yielded. In particular, if the original iterator is too short,
+/// then the returned iterator is empty.
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```rune
+/// let a = [1, 2, 3];
+///
+/// let iter = a.iter().skip(2);
+///
+/// assert_eq!(iter.next(), Some(3));
+/// assert_eq!(iter.next(), None);
+/// ```
 #[rune::function(instance)]
 #[inline]
 fn skip(this: Iterator, n: usize) -> Iterator {
     this.skip(n)
 }
 
+/// Creates an iterator that yields the first `n` elements, or fewer if the
+/// underlying iterator ends sooner.
+///
+/// `take(n)` yields elements until `n` elements are yielded or the end of the
+/// iterator is reached (whichever happens first). The returned iterator is a
+/// prefix of length `n` if the original iterator contains at least `n`
+/// elements, otherwise it contains all of the (fewer than `n`) elements of the
+/// original iterator.
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```rune
+/// let a = [1, 2, 3];
+///
+/// let iter = a.iter().take(2);
+///
+/// assert_eq!(iter.next(), Some(1));
+/// assert_eq!(iter.next(), Some(2));
+/// assert_eq!(iter.next(), None);
+/// ```
+///
+/// `take()` is often used with an infinite iterator, to make it finite:
+///
+/// ```rune
+/// let iter = (0..).take(3);
+///
+/// assert_eq!(iter.next(), Some(0));
+/// assert_eq!(iter.next(), Some(1));
+/// assert_eq!(iter.next(), Some(2));
+/// assert_eq!(iter.next(), None);
+/// ```
+///
+/// If less than `n` elements are available, `take` will limit itself to the
+/// size of the underlying iterator:
+///
+/// ```rune
+/// let v = [1, 2];
+/// let iter = v.into_iter().take(5);
+/// assert_eq!(iter.next(), Some(1));
+/// assert_eq!(iter.next(), Some(2));
+/// assert_eq!(iter.next(), None);
+/// ```
 #[rune::function(instance)]
 #[inline]
 fn take(this: Iterator, n: usize) -> Iterator {
     this.take(n)
 }
 
+/// Consumes the iterator, counting the number of iterations and returning it.
+///
+/// This method will call [`next`] repeatedly until [`None`] is encountered,
+/// returning the number of times it saw [`Some`]. Note that [`next`] has to be
+/// called at least once even if the iterator does not have any elements.
+///
+/// [`next`]: Iterator::next
+///
+/// # Overflow Behavior
+///
+/// The method does no guarding against overflows, so counting elements of an
+/// iterator with more than [`i64::MAX`] elements panics.
+///
+/// # Panics
+///
+/// This function might panic if the iterator has more than [`i64::MAX`]
+/// elements.
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```rune
+/// let a = [1, 2, 3];
+/// assert_eq!(a.iter().count(), 3);
+///
+/// let a = [1, 2, 3, 4, 5];
+/// assert_eq!(a.iter().count(), 5);
+/// ```
 #[rune::function(instance)]
 #[inline]
 fn count(this: &mut Iterator) -> VmResult<usize> {
