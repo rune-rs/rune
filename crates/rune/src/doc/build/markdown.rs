@@ -267,6 +267,10 @@ where
                         params.no_run = true;
                         continue;
                     }
+                    "should_panic" => {
+                        params.should_panic = true;
+                        continue;
+                    }
                     RUNE_TOKEN => {
                         (RUNE_TOKEN, RUST_TOKEN, true)
                     }

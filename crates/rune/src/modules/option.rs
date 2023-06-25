@@ -21,6 +21,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.associated_function("transpose", transpose_impl)?;
     module.associated_function("unwrap", unwrap_impl)?;
     module.associated_function("unwrap_or", Option::<Value>::unwrap_or)?;
+    module.associated_function("ok_or", Option::<Value>::ok_or::<Value>)?;
     module.function_meta(unwrap_or_else)?;
     module.associated_function(Protocol::INTO_ITER, option_iter)?;
     Ok(module)

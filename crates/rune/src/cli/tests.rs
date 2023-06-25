@@ -13,7 +13,9 @@ use crate::cli::naming::Naming;
 use crate::compile::{ItemBuf, FileSourceLoader};
 use crate::modules::capture_io::CaptureIo;
 use crate::runtime::{Value, Vm, VmError, VmResult, UnitFn};
+use crate::doc::TestParams;
 use crate::{Hash, Sources, Unit, Diagnostics, Source};
+use crate::termcolor::{WriteColor, ColorSpec, Color};
 
 #[derive(Parser, Debug, Clone)]
 pub(super) struct Flags {
@@ -66,9 +68,11 @@ pub(super) async fn run<'p, I>(
 where
     I: IntoIterator<Item = EntryPoint<'p>>,
 {
+    let colors = Colors::new();
+
     let start = Instant::now();
 
-    let mut failures = 0usize;
+    let mut build_errors = 0usize;
     let mut executed = 0usize;
 
     let capture = crate::modules::capture_io::CaptureIo::new();
@@ -77,8 +81,6 @@ where
     let mut doc_visitors = Vec::new();
     let mut cases = Vec::new();
     let mut naming = Naming::default();
-
-    let mut build_error = false;
 
     let mut include_std = false;
 
@@ -126,7 +128,7 @@ where
         diagnostics.emit(&mut io.stdout.lock(), &sources)?;
 
         if diagnostics.has_error() || flags.warnings_are_errors && diagnostics.has_warning() {
-            build_error = true;
+            build_errors = build_errors.wrapping_add(1);
             continue;
         }
 
@@ -136,7 +138,7 @@ where
         doc_visitors.push(doc_visitor);
 
         for (hash, item) in functions.into_functions() {
-            cases.push(TestCase::new(hash, item, unit.clone(), sources.clone()));
+            cases.push(TestCase::new(hash, item, unit.clone(), sources.clone(), TestParams::default()));
         }
     }
 
@@ -174,7 +176,7 @@ where
         diagnostics.emit(&mut io.stdout.lock(), &sources)?;
 
         if diagnostics.has_error() || flags.warnings_are_errors && diagnostics.has_warning() {
-            build_error = true;
+            build_errors = build_errors.wrapping_add(1);
             continue;
         }
 
@@ -186,25 +188,39 @@ where
                 bail!("Compiling source did not result in a function at offset 0");
             };
 
-            cases.push(TestCase::new(hash, test.item.clone(), unit.clone(), sources.clone()));
+            cases.push(TestCase::new(hash, test.item.clone(), unit.clone(), sources.clone(), test.params));
         }
     }
 
     let runtime = Arc::new(context.runtime());
+    let mut failed = Vec::new();
 
-    for case in &mut cases {
-        let mut vm = Vm::new(runtime.clone(), case.unit.clone());
-    
+    let total = cases.len();
+
+    for mut case in cases {
         executed = executed.wrapping_add(1);
 
-        let success = case.execute(io, &mut vm, flags.quiet, Some(&capture)).await?;
+        let mut vm = Vm::new(runtime.clone(), case.unit.clone());
+        case.execute(&mut vm, &capture).await?;
 
-        if !success {
-            failures = failures.wrapping_add(1);
-
-            if flags.fail_fast {
-                break;
+        if case.outcome.is_ok() {
+            if flags.quiet {
+                write!(io.stdout, ".")?;
+            } else {
+                case.emit(io, &colors)?;
             }
+
+            continue;
+        }
+
+        if flags.quiet {
+            write!(io.stdout, "f")?;
+        }
+
+        failed.push(case);
+
+        if flags.fail_fast {
+            break;
         }
     }
 
@@ -212,22 +228,25 @@ where
         writeln!(io.stdout)?;
     }
 
-    for case in &cases {
-        case.emit(io)?;
+    let failures = failed.len();
+
+    for case in failed {
+        case.emit(io, &colors)?;
     }
 
     let elapsed = start.elapsed();
 
     writeln!(
         io.stdout,
-        "Executed {} tests with {} failures ({} skipped) in {:.3} seconds",
+        "Executed {} tests with {} failures ({} skipped, {} build errors) in {:.3} seconds",
         executed,
         failures,
-        cases.len() - executed,
+        total - executed,
+        build_errors,
         elapsed.as_secs_f64()
     )?;
 
-    if !build_error && failures == 0 {
+    if build_errors == 0 && failures == 0 {
         Ok(ExitCode::Success)
     } else {
         Ok(ExitCode::Failure)
@@ -235,10 +254,18 @@ where
 }
 
 #[derive(Debug)]
-enum FailureReason {
-    Crash(VmError),
-    ReturnedNone,
-    ReturnedErr { output: Box<[u8]>, error: Value },
+enum Outcome {
+    Ok,
+    Panic(VmError),
+    ExpectedPanic,
+    None,
+    Err(Value),
+}
+
+impl Outcome {
+    fn is_ok(&self) -> bool {
+        matches!(self, Outcome::Ok)
+    }
 }
 
 struct TestCase {
@@ -246,116 +273,122 @@ struct TestCase {
     item: ItemBuf,
     unit: Arc<Unit>,
     sources: Arc<Sources>,
-    outcome: Option<FailureReason>,
-    buf: Vec<u8>,
+    params: TestParams,
+    outcome: Outcome,
+    output: Vec<u8>,
 }
 
 impl TestCase {
-    fn new(hash: Hash, item: ItemBuf, unit: Arc<Unit>, sources: Arc<Sources>) -> Self {
+    fn new(hash: Hash, item: ItemBuf, unit: Arc<Unit>, sources: Arc<Sources>, params: TestParams) -> Self {
         Self {
             hash,
             item,
             unit,
             sources,
-            outcome: None,
-            buf: Vec::new(),
+            params,
+            outcome: Outcome::Ok,
+            output: Vec::new(),
         }
     }
 
     async fn execute(
         &mut self,
-        io: &mut Io<'_>,
         vm: &mut Vm,
-        quiet: bool,
-        capture_io: Option<&CaptureIo>,
-    ) -> Result<bool> {
-        if !quiet {
-            write!(io.stdout, "{} ", self.item)?;
-        }
-
+        capture_io: &CaptureIo,
+    ) -> Result<()> {
         let result = match vm.execute(self.hash, ()) {
             Ok(mut execution) => execution.async_complete().await,
             Err(err) => VmResult::Err(err),
         };
 
-        if let Some(capture_io) = capture_io {
-            let _ = capture_io.drain_into(&mut self.buf);
-        }
+        capture_io.drain_into(&mut self.output)?;
 
         self.outcome = match result {
             VmResult::Ok(v) => match v {
                 Value::Result(result) => match result.take()? {
-                    Ok(..) => None,
-                    Err(error) => Some(FailureReason::ReturnedErr {
-                        output: self.buf.as_slice().into(),
-                        error,
-                    }),
+                    Ok(..) => Outcome::Ok,
+                    Err(error) => Outcome::Err(error),
                 },
                 Value::Option(option) => match *option.borrow_ref()? {
-                    Some(..) => None,
-                    None => Some(FailureReason::ReturnedNone),
+                    Some(..) => Outcome::Ok,
+                    None => Outcome::None,
                 },
-                _ => None,
+                _ => Outcome::Ok,
             },
-            VmResult::Err(e) => Some(FailureReason::Crash(e)),
+            VmResult::Err(e) => {
+                Outcome::Panic(e)
+            }
         };
 
-        if quiet {
-            match &self.outcome {
-                Some(FailureReason::Crash(..)) => {
-                    writeln!(io.stdout, "F")?;
-                }
-                Some(FailureReason::ReturnedErr { .. }) => {
-                    write!(io.stdout, "f")?;
-                }
-                Some(FailureReason::ReturnedNone { .. }) => {
-                    write!(io.stdout, "n")?;
-                }
-                None => {
-                    write!(io.stdout, ".")?;
-                }
-            }
-        } else {
-            match &self.outcome {
-                Some(FailureReason::Crash(..)) => {
-                    writeln!(io.stdout, "failed")?;
-                }
-                Some(FailureReason::ReturnedErr { .. }) => {
-                    writeln!(io.stdout, "returned error")?;
-                }
-                Some(FailureReason::ReturnedNone { .. }) => {
-                    writeln!(io.stdout, "returned none")?;
-                }
-                None => {
-                    writeln!(io.stdout, "passed")?;
-                }
-            }
-        }
-
-        self.buf.clear();
-        Ok(self.outcome.is_none())
-    }
-
-    fn emit(&self, io: &mut Io<'_>) -> Result<()> {
-        if let Some(outcome) = &self.outcome {
-            match outcome {
-                FailureReason::Crash(err) => {
-                    writeln!(io.stdout, "----------------------------------------")?;
-                    writeln!(io.stdout, "Test: {}\n", self.item)?;
-                    err.emit(io.stdout, &self.sources)?;
-                }
-                FailureReason::ReturnedNone { .. } => {}
-                FailureReason::ReturnedErr { output, error, .. } => {
-                    writeln!(io.stdout, "----------------------------------------")?;
-                    writeln!(io.stdout, "Test: {}\n", self.item)?;
-                    writeln!(io.stdout, "Error: {:?}\n", error)?;
-                    writeln!(io.stdout, "-- output --")?;
-                    io.stdout.write_all(output)?;
-                    writeln!(io.stdout, "-- end of output --")?;
-                }
+        if self.params.should_panic {
+            if matches!(self.outcome, Outcome::Panic(..)) {
+                self.outcome = Outcome::Ok;
+            } else {
+                self.outcome = Outcome::ExpectedPanic;
             }
         }
 
         Ok(())
+    }
+
+    fn emit(self, io: &mut Io<'_>, colors: &Colors) -> Result<()> {
+        write!(io.stdout, "Test: {}: ", self.item)?;
+
+        match &self.outcome {
+            Outcome::Panic(error) => {
+                io.stdout.set_color(&colors.error)?;
+                writeln!(io.stdout, "Panicked")?;
+                io.stdout.reset()?;
+
+                error.emit(io.stdout, &self.sources)?;
+            }
+            Outcome::ExpectedPanic => {
+                io.stdout.set_color(&colors.error)?;
+                writeln!(io.stdout, "Expected panic because of `should_panic`, but ran without issue")?;
+                io.stdout.reset()?;
+            }
+            Outcome::Err(error) => {
+                io.stdout.set_color(&colors.error)?;
+                write!(io.stdout, "Returned Err: ")?;
+                io.stdout.reset()?;
+                writeln!(io.stdout, "{:?}", error)?;
+            }
+            Outcome::None => {
+                io.stdout.set_color(&colors.error)?;
+                writeln!(io.stdout, "Returned None")?;
+                io.stdout.reset()?;
+            }
+            Outcome::Ok => {
+                io.stdout.set_color(&colors.passed)?;
+                writeln!(io.stdout, "Ok")?;
+                io.stdout.reset()?;
+            }
+        }
+
+        if !self.outcome.is_ok() && !self.output.is_empty() {
+            writeln!(io.stdout, "-- output --")?;
+            io.stdout.write_all(&self.output)?;
+            writeln!(io.stdout, "-- end of output --")?;
+        }
+
+        Ok(())
+    }
+}
+
+struct Colors {
+    error: ColorSpec,
+    passed: ColorSpec,
+}
+
+impl Colors {
+    fn new() -> Self {
+        let mut this = Self {
+            error: ColorSpec::new(),
+            passed: ColorSpec::new(),
+        };
+
+        this.error.set_fg(Some(Color::Red));
+        this.passed.set_fg(Some(Color::Green));
+        this
     }
 }
