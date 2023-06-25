@@ -34,6 +34,7 @@ pub(crate) fn kind_from_ident(ident: &str) -> Option<quote::Kind> {
         "match" => Some(quote::Kind("Match")),
         "mod" => Some(quote::Kind("Mod")),
         "move" => Some(quote::Kind("Move")),
+        "mut" => Some(quote::Kind("Mut")),
         "not" => Some(quote::Kind("Not")),
         "offsetof" => Some(quote::Kind("OffsetOf")),
         "override" => Some(quote::Kind("Override")),

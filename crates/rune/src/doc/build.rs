@@ -3,31 +3,26 @@ mod type_;
 mod markdown;
 mod js;
 
-use std::fmt::{self, Write};
-use std::fs;
-use std::io;
-use std::path::Path;
-use std::str;
+use core::fmt::{self, Write};
+use core::str;
 
 use crate::no_std::prelude::*;
 use crate::no_std::borrow::Cow;
 use crate::no_std::collections::VecDeque;
 
-use anyhow::{anyhow, bail, Context as _, Error, Result};
+use anyhow::{anyhow, bail, Context as _, Result};
 use relative_path::{RelativePath, RelativePathBuf};
 use rust_embed::RustEmbed;
 use serde::{Serialize, Serializer};
-use sha2::{Sha256, Digest};
 use syntect::highlighting::ThemeSet;
 use syntect::html::{self, ClassStyle, ClassedHTMLGenerator};
 use syntect::parsing::{SyntaxReference, SyntaxSet};
-use base64::{display::Base64Display};
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 
 use crate::compile::{ComponentRef, Item, ItemBuf};
 use crate::doc::context::{Function, Kind, Signature, Meta};
 use crate::doc::templating;
-use crate::doc::{Context, Visitor};
+use crate::doc::artifacts::Test;
+use crate::doc::{Context, Visitor, Artifacts};
 use crate::Hash;
 
 // InspiredGitHub
@@ -39,43 +34,6 @@ use crate::Hash;
 // base16-ocean.light
 const THEME: &str = "base16-eighties.dark";
 const RUNEDOC_CSS: &str = "runedoc.css";
-
-/// Asset builder.
-pub(crate) struct AssetWriter {
-    path: RelativePathBuf,
-    content: Cow<'static, [u8]>,
-}
-
-impl AssetWriter {
-    /// Copy a file with a hashed extension, and return the copied path.
-    fn new<P>(
-        path: &P,
-        content: Cow<'static, [u8]>,
-    ) -> Result<AssetWriter> where P: ?Sized + AsRef<RelativePath> {
-        let mut hasher = Sha256::new();
-        hasher.update(content.as_ref());
-        let result = hasher.finalize();
-        let hash = Base64Display::new(&result[..], &URL_SAFE_NO_PAD);
-
-        let path = path.as_ref();
-        let stem = path.file_stem().context("Missing file stem")?;
-        let ext = path.extension().context("Missing file extension")?;
-        let path = path.with_file_name(format!("{stem}-{hash}.{ext}"));
-
-        Ok(AssetWriter {
-            path,
-            content,
-        })
-    }
-
-    fn build(self, cx: &Ctxt<'_, '_>) -> Result<()> {
-        let p = self.path.to_path(cx.root);
-        tracing::info!("Writing: {}", p.display());
-        ensure_parent_dir(&p)?;
-        fs::write(&p, self.content).with_context(|| p.display().to_string())?;
-        Ok(())
-    }
-}
 
 pub(crate) struct Builder<'m> {
     state: State,
@@ -95,10 +53,10 @@ impl<'m> Builder<'m> {
 #[folder = "src/doc/static"]
 struct Assets;
 
-/// Write html documentation to the given path.
-pub fn write_html(
+/// Build documentation based on the given context and visitors.
+pub(crate) fn build(
     name: &str,
-    root: &Path,
+    artifacts: &mut Artifacts,
     context: &crate::Context,
     visitors: &[Visitor],
 ) -> Result<()> {
@@ -119,8 +77,6 @@ pub fn write_html(
     let mut css = Vec::new();
     let mut js = Vec::new();
 
-    let mut assets = Vec::new();
-
     for file in Assets::iter() {
         let path = RelativePath::new(file.as_ref());
 
@@ -132,25 +88,29 @@ pub fn write_html(
         };
 
         let file = Assets::get(file.as_ref()).context("missing asset")?;
-        let builder = AssetWriter::new(path, file.data)?;
-        paths.insert(path.as_str(), builder.path.as_str());
-        out.push(builder.path.clone());
-        assets.push(builder);
+        let builder_path = artifacts.asset(true, path, move || Ok(file.data))?;
+        paths.insert(path.as_str(), builder_path.as_str());
+        out.push(builder_path);
     }
 
     let theme = theme_set.themes.get(THEME).context("missing theme")?;
-    let syntax_css_content = html::css_for_theme_with_class_style(theme, html::ClassStyle::Spaced)?;
-    let syntax_css = AssetWriter::new("syntax.css", syntax_css_content.into_bytes().into())?;
-    paths.insert("syntax.css", syntax_css.path.as_str());
-    css.push(syntax_css.path.clone());
-    assets.push(syntax_css);
 
-    let runedoc = compile(&templating, "runedoc.css.hbs")?;
-    let runedoc_string = runedoc.render(&())?;
-    let runedoc_css = AssetWriter::new(RUNEDOC_CSS, runedoc_string.into_bytes().into())?;
-    paths.insert(RUNEDOC_CSS, runedoc_css.path.as_str());
-    css.push(runedoc_css.path.clone());
-    assets.push(runedoc_css);
+    let syntax_css = artifacts.asset(true, "syntax.css", || {
+        let content = html::css_for_theme_with_class_style(theme, html::ClassStyle::Spaced)?;
+        Ok(content.into_bytes().into())
+    })?;
+
+    paths.insert("syntax.css", syntax_css.as_str());
+    css.push(syntax_css);
+
+    let runedoc_css = artifacts.asset(true, RUNEDOC_CSS, || {
+        let runedoc = compile(&templating, "runedoc.css.hbs")?;
+        let string = runedoc.render(&())?;
+        Ok(string.into_bytes().into())
+    })?;
+
+    paths.insert(RUNEDOC_CSS, runedoc_css.as_str());
+    css.push(runedoc_css);
 
     // Collect an ordered set of modules, so we have a baseline of what to render when.
     let mut initial = VecDeque::new();
@@ -163,7 +123,6 @@ pub fn write_html(
     let search_index = RelativePath::new("index.js");
 
     let mut cx = Ctxt {
-        root,
         state: State::default(),
         index: Vec::new(),
         name,
@@ -179,6 +138,7 @@ pub fn write_html(
         function_template: compile(&templating, "function.html.hbs")?,
         enum_template: compile(&templating, "enum.html.hbs")?,
         syntax_set,
+        tests: Vec::new(),
     };
 
     let mut queue = initial.into_iter().collect::<VecDeque<_>>();
@@ -190,43 +150,43 @@ pub fn write_html(
         match build {
             Build::Type(meta) => {
                 cx.set_path(meta)?;
-                let (builder, items) = self::type_::build(&cx, "Type", "type", meta)?;
+                let (builder, items) = self::type_::build(&mut cx, "Type", "type", meta)?;
                 builders.push(builder);
                 cx.index.extend(items);
             }
             Build::Struct(meta) => {
                 cx.set_path(meta)?;
-                let (builder, index) = self::type_::build(&cx, "Struct", "struct", meta)?;
+                let (builder, index) = self::type_::build(&mut cx, "Struct", "struct", meta)?;
                 builders.push(builder);
                 cx.index.extend(index);
             }
             Build::Enum(meta) => {
                 cx.set_path(meta)?;
-                let (builder, index) = self::enum_::build(&cx, meta)?;
+                let (builder, index) = self::enum_::build(&mut cx, meta)?;
                 builders.push(builder);
                 cx.index.extend(index);
             }
             Build::Macro(meta) => {
                 cx.set_path(meta)?;
-                builders.push(build_macro(&cx, meta)?);
+                builders.push(build_macro(&mut cx, meta)?);
             }
             Build::Function(meta) => {
                 cx.set_path(meta)?;
-                builders.push(build_function(&cx, meta)?);
+                builders.push(build_function(&mut cx, meta)?);
             }
             Build::Module(meta) => {
                 cx.set_path(meta)?;
-                builders.push(module(&cx, meta, &mut queue)?);
+                builders.push(module(&mut cx, meta, &mut queue)?);
                 let item = meta.item.context("Missing item")?;
                 modules.push((item, cx.state.path.clone()));
             }
         }
     }
 
-    let index_content = build_search_index(&cx)?;
-    let search_index = AssetWriter::new("index.js", index_content.into_bytes().into())?;
-    let search_index_path = search_index.path.clone();
-    assets.push(search_index);
+    let search_index_path = artifacts.asset(true, "index.js", || {
+        let content = build_search_index(&cx)?;
+        Ok(content.into_bytes().into())
+    })?;
 
     cx.search_index = Some(&search_index_path);
 
@@ -235,17 +195,10 @@ pub fn write_html(
 
     for builder in builders {
         cx.state = builder.state;
-
-        assets.push(AssetWriter {
-            path: cx.state.path.clone(),
-            content: (builder.builder)(&cx)?.into_bytes().into(),
-        });
+        artifacts.asset(false, &cx.state.path, || Ok((builder.builder)(&cx)?.into_bytes().into()))?;
     }
 
-    for asset in assets {
-        asset.build(&cx)?;
-    }
-
+    artifacts.set_tests(cx.tests);
     Ok(())
 }
 
@@ -332,10 +285,10 @@ pub(crate) struct IndexEntry<'m> {
 #[derive(Default, Clone)]
 pub(crate) struct State {
     path: RelativePathBuf,
+    item: ItemBuf,
 }
 
 pub(crate) struct Ctxt<'a, 'm> {
-    root: &'a Path,
     state: State,
     /// A collection of all items visited.
     index: Vec<IndexEntry<'m>>,
@@ -352,6 +305,7 @@ pub(crate) struct Ctxt<'a, 'm> {
     function_template: templating::Template,
     enum_template: templating::Template,
     syntax_set: SyntaxSet,
+    tests: Vec<Test>,
 }
 
 impl<'m> Ctxt<'_, 'm> {
@@ -369,9 +323,11 @@ impl<'m> Ctxt<'_, 'm> {
         let item = meta.item.context("Missing meta item")?;
 
         self.state.path = RelativePathBuf::new();
+        self.state.item = item.to_owned();
+
         build_item_path(self.name, item, item_kind, &mut self.state.path)?;
 
-        let doc = self.render_docs(meta, meta.docs.get(..1).unwrap_or_default())?;
+        let doc = self.render_line_docs(meta, meta.docs.get(..1).unwrap_or_default())?;
 
         self.index.push(IndexEntry {
             path: self.state.path.clone(),
@@ -412,12 +368,20 @@ impl<'m> Ctxt<'_, 'm> {
 
         Ok(format!(
             "<pre><code class=\"language-rune\">{}</code></pre>",
-            render_code_by_syntax(&self.syntax_set, lines, syntax)?
+            render_code_by_syntax(&self.syntax_set, lines, syntax, None)?
         ))
     }
 
+    /// Render line docs.
+    fn render_line_docs<S>(&mut self, meta: Meta<'_>, docs: &[S]) -> Result<Option<String>>
+    where
+        S: AsRef<str>,
+    {
+        self.render_docs(meta, docs, false)
+    }
+
     /// Render documentation.
-    fn render_docs<S>(&self, meta: Meta<'_>, docs: &[S]) -> Result<Option<String>>
+    fn render_docs<S>(&mut self, meta: Meta<'_>, docs: &[S], capture_tests: bool) -> Result<Option<String>>
     where
         S: AsRef<str>,
     {
@@ -449,7 +413,20 @@ impl<'m> Ctxt<'_, 'm> {
 
         let iter = Parser::new_with_broken_link_callback(&input, options, Some(&mut callback));
 
-        markdown::push_html(&self.syntax_set, &mut o, iter)?;
+        let mut tests = Vec::new();
+
+        markdown::push_html(&self.syntax_set, &mut o, iter, capture_tests.then_some(&mut tests))?;
+
+        if capture_tests && !tests.is_empty() {
+            for (content, params) in tests {
+                self.tests.push(Test {
+                    item: self.state.item.clone(),
+                    content,
+                    params,
+                });
+            }
+        }
+
         write!(o, "</div>")?;
         Ok(Some(o))
     }
@@ -775,7 +752,7 @@ fn build_index<'m>(cx: &Ctxt<'_, 'm>, mods: Vec<(&'m Item, RelativePathBuf)>) ->
 
 /// Build a single module.
 #[tracing::instrument(skip_all)]
-fn module<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<'m>>) -> Result<Builder<'m>> {
+fn module<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<'m>>) -> Result<Builder<'m>> {
     #[derive(Serialize)]
     struct Params<'a> {
         #[serde(flatten)]
@@ -906,7 +883,7 @@ fn module<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<'m>>
                         path: cx.item_path(item, ItemKind::Macro)?,
                         item,
                         name,
-                        doc: cx.render_docs(m, m.docs.get(..1).unwrap_or_default())?,
+                        doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
                     });
                 }
                 Kind::Function(f) => {
@@ -922,7 +899,7 @@ fn module<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<'m>>
                         item: item.clone(),
                         name,
                         args: cx.args_to_string(f.arg_names, f.args, f.signature, f.argument_types)?,
-                        doc: cx.render_docs(m, m.docs.get(..1).unwrap_or_default())?,
+                        doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
                     });
                 }
                 Kind::Module => {
@@ -945,12 +922,14 @@ fn module<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<'m>>
         }
     }
 
+    let doc = cx.render_docs(meta, meta.docs, true)?;
+
     Ok(Builder::new(cx, move |cx| {
         cx.module_template.render(&Params {
             shared: cx.shared(),
             item: meta_item,
             module: cx.module_path_html(meta, true)?,
-            doc: cx.render_docs(meta, meta.docs)?,
+            doc,
             types,
             structs,
             enums,
@@ -963,7 +942,7 @@ fn module<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<'m>>
 
 /// Build a macro.
 #[tracing::instrument(skip_all)]
-fn build_macro<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'m>> {
+fn build_macro<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'m>> {
     #[derive(Serialize)]
     struct Params<'a> {
         #[serde(flatten)]
@@ -976,7 +955,7 @@ fn build_macro<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'m>> {
         doc: Option<String>,
     }
 
-    let doc = cx.render_docs(meta, meta.docs)?;
+    let doc = cx.render_docs(meta, meta.docs, true)?;
     let item = meta.item.context("Missing item")?;
     let name = item.last().context("Missing macro name")?;
 
@@ -993,7 +972,7 @@ fn build_macro<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'m>> {
 
 /// Build a function.
 #[tracing::instrument(skip_all)]
-fn build_function<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'m>> {
+fn build_function<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'m>> {
     #[derive(Serialize)]
     struct Params<'a> {
         #[serde(flatten)]
@@ -1017,7 +996,7 @@ fn build_function<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'m>> 
         _ => bail!("found meta, but not a function"),
     };
 
-    let doc = cx.render_docs(meta, meta.docs)?;
+    let doc = cx.render_docs(meta, meta.docs, true)?;
 
     let return_type = match f.return_type {
         Some(hash) => cx.link(hash, None)?,
@@ -1057,25 +1036,6 @@ where
     serializer.collect_str(&c)
 }
 
-/// Ensure parent dir exists.
-fn ensure_parent_dir(path: &Path) -> Result<()> {
-    if let Some(p) = path.parent() {
-        if p.is_dir() {
-            return Ok(());
-        }
-
-        tracing::info!("create dir: {}", p.display());
-
-        match fs::create_dir_all(p) {
-            Ok(()) => {}
-            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {}
-            Err(e) => return Err(Error::from(e)).context(p.display().to_string()),
-        }
-    }
-
-    Ok(())
-}
-
 /// Helper for building an item path.
 fn build_item_path(name: &str, item: &Item, kind: ItemKind, path: &mut RelativePathBuf) -> Result<()> {
     if item.is_empty() {
@@ -1105,7 +1065,7 @@ fn build_item_path(name: &str, item: &Item, kind: ItemKind, path: &mut RelativeP
 }
 
 /// Render documentation.
-fn render_code_by_syntax<I>(syntax_set: &SyntaxSet, lines: I, syntax: &SyntaxReference) -> Result<String>
+fn render_code_by_syntax<I>(syntax_set: &SyntaxSet, lines: I, syntax: &SyntaxReference, mut out: Option<&mut String>) -> Result<String>
 where
     I: IntoIterator,
     I::Item: AsRef<str>,
@@ -1123,7 +1083,17 @@ where
         let line = line.strip_prefix(' ').unwrap_or(line);
 
         if line.starts_with('#') {
+            if let Some(o) = out.as_mut() {
+                o.push_str(line.trim_start_matches('#'));
+                o.push('\n');
+            }
+
             continue;
+        }
+
+        if let Some(o) = out.as_mut() {
+            o.push_str(line);
+            o.push('\n');
         }
 
         buf.clear();

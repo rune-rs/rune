@@ -30,7 +30,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.field_function(Protocol::SET, "end", range_set_end)?;
     module.associated_function(Protocol::INTO_ITER, Range::into_iterator)?;
 
-    module.function_meta(Range::__contains_int__meta)?;
+    module.function_meta(Range::contains_int__meta)?;
 
     module
         .associated_function("iter", Range::into_iterator)?

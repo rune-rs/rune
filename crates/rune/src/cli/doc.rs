@@ -1,16 +1,16 @@
-use std::collections::HashSet;
-use std::ffi::OsStr;
 use std::io::Write;
 use std::path::PathBuf;
 
+use crate::doc::Artifacts;
 use crate::no_std::prelude::*;
 
 use anyhow::{Context, Result};
 use clap::Parser;
 
 use crate::cli::{Config, Entry, EntryPoint, ExitCode, Io, SharedFlags, CommandBase, AssetKind};
+use crate::cli::naming::Naming;
 use crate::compile::{FileSourceLoader, ItemBuf};
-use crate::{Diagnostics, Options, Source, Sources, workspace};
+use crate::{Diagnostics, Options, Source, Sources};
 
 #[derive(Parser, Debug)]
 pub(super) struct Flags {
@@ -44,7 +44,7 @@ pub(super) fn run<'p, I>(
     flags: &Flags,
     shared: &SharedFlags,
     options: &Options,
-    entrys: I,
+    entries: I,
 ) -> Result<ExitCode>
 where
     I: IntoIterator<Item = EntryPoint<'p>>,
@@ -75,37 +75,10 @@ where
 
     let mut visitors = Vec::new();
 
-    let mut names = HashSet::new();
+    let mut naming = Naming::default();
 
-    for (index, e) in entrys.into_iter().enumerate() {
-        let name = match &e {
-            EntryPoint::Path(path) => {
-                match path.file_stem().and_then(OsStr::to_str) {
-                    Some(name) => String::from(name),
-                    None => String::from("entry"),
-                }
-            }
-            EntryPoint::Package(p) => {
-                let name = p.found.name.as_str();
-
-                let ext = match &p.found.kind {
-                    workspace::FoundKind::Binary => "bin",
-                    workspace::FoundKind::Test => "test",
-                    workspace::FoundKind::Example => "example",
-                    workspace::FoundKind::Bench => "bench",
-                };
-
-                format!("{}-{name}-{ext}", p.package.name)
-            },
-        };
-
-        // TODO: make it so that we can communicate different entrypoints in the
-        // visitors context instead of this hackery.
-        let name = if !names.insert(name.clone()) {
-            format!("{name}{index}")
-        } else {
-            name
-        };
+    for e in entries {
+        let name = naming.name(&e);
 
         let item = ItemBuf::with_crate(&name);
         let mut visitor = crate::doc::Visitor::new(item);
@@ -139,7 +112,13 @@ where
         visitors.push(visitor);
     }
 
-    crate::doc::write_html("root", &root, &context, &visitors)?;
+    let mut artifacts = Artifacts::new();
+
+    crate::doc::build("root", &mut artifacts, &context, &visitors)?;
+
+    for asset in artifacts.assets() {
+        asset.build(&root)?;
+    }
 
     if flags.open {
         let path = root.join("index.html");

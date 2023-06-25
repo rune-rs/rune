@@ -161,7 +161,7 @@ mod utils;
 mod vis;
 
 pub use self::attribute::{AttrStyle, Attribute};
-pub use self::block::Block;
+pub use self::block::{Block, EmptyBlock};
 pub use self::condition::Condition;
 pub use self::expr::Expr;
 pub use self::expr_assign::ExprAssign;
@@ -225,8 +225,8 @@ pub use self::span::{ByteIndex, Span};
 pub use self::spanned::{OptionSpanned, Spanned};
 pub use self::stmt::{ItemOrExpr, Stmt, StmtSemi, StmtSortKey};
 pub use self::token::{
-    BuiltIn, CopySource, Delimiter, LitSource, Number, NumberBase, NumberSource, NumberText,
-    StrSource, StrText, Token,
+    BuiltIn, CopySource, Delimiter, LitSource, Number, NumberBase, NumberSource, NumberSuffix,
+    NumberText, NumberValue, StrSource, StrText, Token,
 };
 pub use self::vis::Visibility;
 

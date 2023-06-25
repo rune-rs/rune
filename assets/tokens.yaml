@@ -231,6 +231,10 @@
   doc: "The `move` keyword."
   keyword: "move"
 - kind: keyword
+  variant: Mut
+  doc: "The `mut` keyword."
+  keyword: "mut"
+- kind: keyword
   variant: Not
   doc: "The `not` keyword."
   keyword: "not"

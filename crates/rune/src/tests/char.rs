@@ -6,8 +6,8 @@ fn test_int_conversion() {
         use std::char;
         pub fn main() {
             let a = 'A';
-            let ai = char::to_int(a);
-            char::from_int(ai).unwrap()
+            let ai = char::to_i64(a);
+            char::from_i64(ai).unwrap()
         }
     };
 
@@ -16,7 +16,7 @@ fn test_int_conversion() {
     let result: char = rune! {
         pub fn main() {
             let ai = 0x41;
-            char::from_int(ai).unwrap()
+            char::from_i64(ai).unwrap()
         }
     };
 

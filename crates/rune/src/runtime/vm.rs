@@ -11,11 +11,11 @@ use crate::runtime::budget;
 use crate::runtime::future::SelectFuture;
 use crate::runtime::unit::{UnitFn, UnitStorage};
 use crate::runtime::{
-    Args, Awaited, BorrowMut, Bytes, Call, Format, FormatSpec, FromValue, Function, Future,
+    self, Args, Awaited, BorrowMut, Bytes, Call, Format, FormatSpec, FromValue, Function, Future,
     Generator, GuardedArgs, Inst, InstAddress, InstAssignOp, InstOp, InstRangeLimits, InstTarget,
     InstValue, InstVariant, Object, Panic, Protocol, Range, RangeLimits, RuntimeContext, Select,
-    Shared, Stack, Stream, Struct, Tuple, Type, TypeCheck, Unit, UnitStruct, Value, Variant,
-    VariantData, Vec, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmResult,
+    Shared, Stack, Stream, Struct, Tuple, Type, TypeCheck, TypeOf, Unit, UnitStruct, Value,
+    Variant, VariantData, Vec, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmResult,
     VmSendExecution,
 };
 
@@ -215,7 +215,7 @@ impl Vm {
     ///
     /// // Building an item buffer to lookup an `::std` item.
     /// let mut item = ItemBuf::with_crate("std");
-    /// item.push("int");
+    /// item.push("i64");
     /// item.push("max");
     ///
     /// let max = vm.lookup_function(&item)?;
@@ -1035,6 +1035,50 @@ impl Vm {
     }
 
     /// Internal implementation of the instance check.
+    fn as_op(&mut self, lhs: InstAddress, rhs: InstAddress) -> VmResult<Value> {
+        let b = vm_try!(self.stack.address(rhs));
+        let a = vm_try!(self.stack.address(lhs));
+
+        let ty = match b {
+            Value::Type(ty) => ty,
+            _ => {
+                return err(VmErrorKind::UnsupportedIs {
+                    value: vm_try!(a.type_info()),
+                    test_type: vm_try!(b.type_info()),
+                });
+            }
+        };
+
+        macro_rules! convert {
+            ($from:ty, $value:ident, $ty:expr) => {
+                match $ty.into_hash() {
+                    runtime::FLOAT_TYPE_HASH => Value::Float($value as f64),
+                    runtime::BYTE_TYPE_HASH => Value::Byte($value as u8),
+                    runtime::INTEGER_TYPE_HASH => Value::Integer($value as i64),
+                    ty => {
+                        return err(VmErrorKind::UnsupportedAs {
+                            value: <$from as TypeOf>::type_info(),
+                            type_hash: ty,
+                        });
+                    }
+                }
+            };
+        }
+
+        VmResult::Ok(match a {
+            Value::Integer(a) => convert!(i64, a, ty),
+            Value::Float(a) => convert!(f64, a, ty),
+            Value::Byte(a) => convert!(u8, a, ty),
+            value => {
+                return err(VmErrorKind::UnsupportedAs {
+                    value: vm_try!(value.type_info()),
+                    type_hash: ty.into_hash(),
+                });
+            }
+        })
+    }
+
+    /// Internal implementation of the instance check.
     fn test_is_instance(&mut self, lhs: InstAddress, rhs: InstAddress) -> VmResult<bool> {
         let b = vm_try!(self.stack.address(rhs));
         let a = vm_try!(self.stack.address(lhs));
@@ -1753,6 +1797,10 @@ impl Vm {
             }
             InstOp::Or => {
                 vm_try!(self.internal_boolean_op(|a, b| a || b, "||", lhs, rhs));
+            }
+            InstOp::As => {
+                let value = vm_try!(self.as_op(lhs, rhs));
+                self.stack.push(value);
             }
             InstOp::Is => {
                 let is_instance = vm_try!(self.test_is_instance(lhs, rhs));

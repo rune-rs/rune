@@ -35,7 +35,7 @@ use rune::{Any, ContextError, Module};
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     let mut module = Module::with_crate("time");
     module.ty::<Duration>()?;
-    module.function_meta(Duration::__from_secs__meta)?;
+    module.function_meta(Duration::from_secs__meta)?;
     module.function_meta(sleep)?;
     Ok(module)
 }
@@ -68,12 +68,12 @@ impl Duration {
 /// 
 /// # Examples
 /// 
-/// ```rune
+/// ```rune,no_run
 /// use time::Duration;
 ///
 /// let d = Duration::from_secs(10);
 /// time::sleep(d).await;
-/// println!("Suprise!");
+/// println!("Surprise!");
 /// ```
 #[rune::function]
 async fn sleep(duration: Duration) {

@@ -1099,6 +1099,7 @@ fn expr_binary<'hir>(
         ast::BinOp::Gt(..) => InstOp::Gt,
         ast::BinOp::Lte(..) => InstOp::Lte,
         ast::BinOp::Gte(..) => InstOp::Gte,
+        ast::BinOp::As(..) => InstOp::As,
         ast::BinOp::Is(..) => InstOp::Is,
         ast::BinOp::IsNot(..) => InstOp::IsNot,
         ast::BinOp::And(..) => InstOp::And,

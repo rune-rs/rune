@@ -16,19 +16,20 @@ impl Prelude {
     pub(crate) fn with_default_prelude() -> Self {
         let mut this = Self::default();
 
-        this.add_prelude("any", ["Type"]);
+        this.add_prelude("Type", ["any", "Type"]);
         this.add_prelude("assert_eq", ["test", "assert_eq"]);
         this.add_prelude("assert", ["test", "assert"]);
         this.add_prelude("bool", ["bool"]);
-        this.add_prelude("byte", ["byte"]);
+        this.add_prelude("u8", ["u8"]);
+        this.add_prelude("f64", ["f64"]);
+        this.add_prelude("i64", ["i64"]);
         this.add_prelude("char", ["char"]);
+        this.add_prelude("Tuple", ["Tuple"]);
         this.add_prelude("dbg", ["io", "dbg"]);
         this.add_prelude("drop", ["mem", "drop"]);
         this.add_prelude("Err", ["result", "Result", "Err"]);
         this.add_prelude("file", ["macros", "builtin", "file"]);
-        this.add_prelude("float", ["float"]);
         this.add_prelude("format", ["fmt", "format"]);
-        this.add_prelude("int", ["int"]);
         this.add_prelude("is_readable", ["is_readable"]);
         this.add_prelude("is_writable", ["is_writable"]);
         this.add_prelude("line", ["macros", "builtin", "line"]);
@@ -45,6 +46,7 @@ impl Prelude {
         this.add_prelude("stringify", ["stringify"]);
         this.add_prelude("unit", ["unit"]);
         this.add_prelude("Vec", ["vec", "Vec"]);
+        this.add_prelude("Bytes", ["bytes", "Bytes"]);
 
         this
     }

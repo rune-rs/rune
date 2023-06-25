@@ -17,11 +17,14 @@ pub struct ExprLet {
     /// The attributes for the let expression
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
-    /// The `let` keyword.
+    /// The `let` token.
     pub let_token: T![let],
+    /// The `mut` token.
+    #[rune(iter)]
+    pub mut_token: Option<T![mut]>,
     /// The name of the binding.
     pub pat: ast::Pat,
-    /// The equality keyword.
+    /// The equality token.
     pub eq: T![=],
     /// The expression the binding is assigned to.
     pub expr: Box<ast::Expr>,
@@ -36,6 +39,7 @@ impl ExprLet {
         Ok(Self {
             attributes,
             let_token: parser.parse()?,
+            mut_token: parser.parse()?,
             pat: parser.parse()?,
             eq: parser.parse()?,
             expr: Box::new(ast::Expr::parse_without_eager_brace(parser)?),
@@ -47,6 +51,7 @@ impl ExprLet {
         Ok(Self {
             attributes: vec![],
             let_token: parser.parse()?,
+            mut_token: parser.parse()?,
             pat: parser.parse()?,
             eq: parser.parse()?,
             expr: Box::new(ast::Expr::parse_without_eager_brace(parser)?),

@@ -20,6 +20,9 @@ pub struct Local {
     pub attributes: Vec<ast::Attribute>,
     /// The `let` keyword.
     pub let_token: T![let],
+    /// The `mut` token.
+    #[rune(iter)]
+    pub mut_token: Option<T![mut]>,
     /// The name of the binding.
     pub pat: ast::Pat,
     /// The equality keyword.

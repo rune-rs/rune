@@ -1,7 +1,7 @@
 fn match_input(n) {
     match n {
         1 => println!("The number one."),
-        n if n is int => println!("Another number: {}.", n),
+        n if n is i64 => println!("Another number: {}.", n),
         [1, 2, n, ..] => println!("A vector starting with one and two, followed by {}.", n),
         "one" => println!("One, but this time as a string."),
         _ => println!("Something else. Can I go eat now?"),

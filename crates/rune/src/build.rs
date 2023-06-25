@@ -142,10 +142,10 @@ impl<'a> compile::CompileVisitor for CompileVisitorGroup<'a> {
         location: &dyn Located,
         item: &compile::Item,
         hash: crate::Hash,
-        docstr: &str,
+        doc: &str,
     ) {
         for v in self.visitors.iter_mut() {
-            v.visit_doc_comment(location, item, hash, docstr)
+            v.visit_doc_comment(location, item, hash, doc)
         }
     }
 
@@ -155,10 +155,10 @@ impl<'a> compile::CompileVisitor for CompileVisitorGroup<'a> {
         item: &compile::Item,
         hash: crate::Hash,
         field: &str,
-        docstr: &str,
+        doc: &str,
     ) {
         for v in self.visitors.iter_mut() {
-            v.visit_field_doc_comment(location, item, hash, field, docstr);
+            v.visit_field_doc_comment(location, item, hash, field, doc);
         }
     }
 }

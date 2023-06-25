@@ -4,6 +4,8 @@ use crate::no_std::collections::HashMap;
 use crate::no_std::prelude::*;
 use crate::no_std::Error;
 
+use crate::doc::artifacts::TestParams;
+
 use syntect::parsing::{SyntaxReference, SyntaxSet};
 use pulldown_cmark::escape::{escape_href, escape_html};
 use pulldown_cmark::{CowStr, Alignment, CodeBlockKind, LinkType, Tag, Event};
@@ -24,7 +26,8 @@ struct Writer<'a, 'o, I> {
     syntax_set: &'a SyntaxSet,
     iter: I,
     out: &'o mut String,
-    codeblock: Option<&'a SyntaxReference>,
+    tests: Option<&'o mut Vec<(String, TestParams)>>,
+    codeblock: Option<(&'a SyntaxReference, Option<TestParams>)>,
     table_state: TableState,
     table_alignments: Vec<Alignment>,
     table_cell_index: usize,
@@ -35,19 +38,6 @@ impl<'a, 'o, I> Writer<'a, 'o, I>
 where
     I: Iterator<Item = Event<'a>>,
 {
-    fn new(syntax_set: &'a SyntaxSet, iter: I, out: &'o mut String) -> Self {
-        Self {
-            syntax_set,
-            iter,
-            out,
-            codeblock: None,
-            table_state: TableState::Head,
-            table_alignments: vec![],
-            table_cell_index: 0,
-            numbers: HashMap::new(),
-        }
-    }
-
     #[inline]
     fn write(&mut self, s: &str) -> Result<()> {
         self.out.write_str(s)?;
@@ -64,8 +54,18 @@ where
                     self.end_tag(tag)?;
                 }
                 Text(text) => {
-                    if let Some(syntax) = self.codeblock {
-                        let html = super::render_code_by_syntax(self.syntax_set, text.lines(), syntax)?;
+                    if let Some((syntax, params)) = self.codeblock {
+                        let mut string = String::new();
+
+                        let s = (self.tests.is_some() && params.is_some()).then_some(&mut string);
+                        let html = super::render_code_by_syntax(self.syntax_set, text.lines(), syntax, s)?;
+
+                        if let Some(params) = params {
+                            if let Some(tests) = self.tests.as_mut() {
+                                tests.push((string, params));
+                            }
+                        }
+
                         self.write(&html)?;
                         return Ok(());
                     } else {
@@ -183,8 +183,8 @@ where
             }
             Tag::CodeBlock(kind) => {
                 self.write("<pre><code class=\"language-")?;
-                let (lang, syntax) = self.find_syntax(&kind);
-                self.codeblock = Some(syntax);
+                let (lang, syntax, params) = self.find_syntax(&kind);
+                self.codeblock = Some((syntax, params));
                 escape_href(&mut self.out, lang)?;
                 self.write("\">")?;
             }
@@ -256,26 +256,41 @@ where
         Ok(())
     }
 
-    fn find_syntax<'input>(&mut self, kind: &'input CodeBlockKind<'input>) -> (&'input str, &'a SyntaxReference) {
+    fn find_syntax<'input>(&mut self, kind: &'input CodeBlockKind<'input>) -> (&'input str, &'a SyntaxReference, Option<TestParams>) {
+        let mut syntax = None;
+        let mut params = TestParams::default();
+
         if let CodeBlockKind::Fenced(fences) = &kind {
             for token in fences.split(',') {
-                let (token, lookup) = match token.trim() {
-                    RUNE_TOKEN => (RUNE_TOKEN, RUST_TOKEN),
-                    token => (token, token),
+                let (token, lookup, is_rune) = match token.trim() {
+                    "no_run" => {
+                        params.no_run = true;
+                        continue;
+                    }
+                    RUNE_TOKEN => {
+                        (RUNE_TOKEN, RUST_TOKEN, true)
+                    }
+                    token => (token, token, false),
                 };
 
-                if let Some(syntax) = self.syntax_set.find_syntax_by_token(lookup)
-                {
-                    return (token, syntax);
+                if syntax.is_none() {
+                    if let Some(s) = self.syntax_set.find_syntax_by_token(lookup)
+                    {
+                        syntax = Some((token, s, is_rune));
+                    }
                 }
             }
         }
 
+        if let Some((token, syntax, is_rune)) = syntax {
+            return (token, syntax, is_rune.then_some(params));
+        }
+
         let Some(syntax) = self.syntax_set.find_syntax_by_token(RUST_TOKEN) else {
-            return ("text", self.syntax_set.find_syntax_plain_text());
+            return ("text", self.syntax_set.find_syntax_plain_text(), Some(params));
         };
 
-        (RUNE_TOKEN, syntax)
+        (RUNE_TOKEN, syntax, Some(params))
     }
 
     fn end_tag(&mut self, tag: Tag) -> Result<()> {
@@ -376,9 +391,23 @@ where
     }
 }
 
-pub(super) fn push_html<'a, I>(syntax_set: &'a SyntaxSet, s: &'a mut String, iter: I) -> Result<()>
+/// Process markdown html and captures tests.
+pub(super) fn push_html<'a, I>(syntax_set: &'a SyntaxSet, out: &'a mut String, iter: I, tests: Option<&'a mut Vec<(String, TestParams)>>) -> Result<()>
 where
     I: Iterator<Item = Event<'a>>,
 {
-    Writer::new(syntax_set, iter, s).run()
+    let writer = Writer {
+        syntax_set,
+        iter,
+        out,
+        tests,
+        codeblock: None,
+        table_state: TableState::Head,
+        table_alignments: vec![],
+        table_cell_index: 0,
+        numbers: HashMap::new(),
+    };
+
+    writer.run()?;
+    Ok(())
 }

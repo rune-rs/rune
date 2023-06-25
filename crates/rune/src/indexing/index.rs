@@ -648,6 +648,50 @@ pub(crate) fn file(idx: &mut Indexer<'_, '_>, ast: &mut ast::File) -> compile::R
     Ok(())
 }
 
+#[instrument(span = span)]
+pub(crate) fn empty_block_fn(
+    idx: &mut Indexer<'_, '_>,
+    mut ast: ast::EmptyBlock,
+    span: &dyn Spanned,
+) -> compile::Result<()> {
+    let guard = idx.items.push_id();
+    let idx_item = idx.item.replace();
+
+    let item_meta = idx.q.insert_new_item(
+        &idx.items,
+        &DynLocation::new(idx.source_id, span),
+        idx.item.module,
+        Visibility::Public,
+        &[],
+    )?;
+
+    idx.scopes.push();
+
+    statements(idx, &mut ast.statements)?;
+
+    idx.item = idx_item;
+    idx.items.pop(guard).with_span(span)?;
+    let layer = idx.scopes.pop().with_span(span)?;
+
+    let call = match (layer.awaits.is_empty(), layer.yields.is_empty()) {
+        (true, true) => Call::Immediate,
+        (false, true) => Call::Async,
+        (true, false) => Call::Generator,
+        (false, false) => Call::Stream,
+    };
+
+    idx.q.index_and_build(indexing::Entry {
+        item_meta,
+        indexed: Indexed::EmptyFunction(indexing::EmptyFunction {
+            span: span.span(),
+            ast: Box::new(ast),
+            call,
+        }),
+    });
+
+    Ok(())
+}
+
 #[instrument(span = ast)]
 fn item_fn(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemFn) -> compile::Result<()> {
     let name = ast.name.resolve(resolve_context!(idx.q))?;
@@ -859,22 +903,10 @@ fn expr_block(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprBlock) -> compile::R
     Ok(())
 }
 
-#[instrument(span = ast)]
-fn block(idx: &mut Indexer<'_, '_>, ast: &mut ast::Block) -> compile::Result<()> {
-    let guard = idx.items.push_id();
-    let idx_item = idx.item.replace();
-
-    idx.q.insert_new_item(
-        &idx.items,
-        &DynLocation::new(idx.source_id, &ast),
-        idx.item.module,
-        Visibility::Inherited,
-        &[],
-    )?;
-
+fn statements(idx: &mut Indexer<'_, '_>, ast: &mut Vec<ast::Stmt>) -> compile::Result<()> {
     let mut statements = Vec::new();
 
-    for stmt in ast.statements.drain(..) {
+    for stmt in ast.drain(..) {
         match stmt {
             ast::Stmt::Item(i, semi) => {
                 if let Some(semi) = semi {
@@ -931,7 +963,24 @@ fn block(idx: &mut Indexer<'_, '_>, ast: &mut ast::Block) -> compile::Result<()>
         }
     }
 
-    ast.statements = statements;
+    *ast = statements;
+    Ok(())
+}
+
+#[instrument(span = ast)]
+fn block(idx: &mut Indexer<'_, '_>, ast: &mut ast::Block) -> compile::Result<()> {
+    let guard = idx.items.push_id();
+    let idx_item = idx.item.replace();
+
+    idx.q.insert_new_item(
+        &idx.items,
+        &DynLocation::new(idx.source_id, &ast),
+        idx.item.module,
+        Visibility::Inherited,
+        &[],
+    )?;
+
+    statements(idx, &mut ast.statements)?;
     idx.item = idx_item;
     idx.items.pop(guard).with_span(&ast)?;
     Ok(())
@@ -946,6 +995,10 @@ fn local(idx: &mut Indexer<'_, '_>, ast: &mut ast::Local) -> compile::Result<()>
         ));
     }
 
+    if let Some(mut_token) = ast.mut_token {
+        return Err(compile::Error::new(mut_token, ErrorKind::UnsupportedMut));
+    }
+
     // We index the rhs expression first so that it doesn't see it's own
     // declaration and use that instead of capturing from the outside.
     expr(idx, &mut ast.expr)?;
@@ -955,6 +1008,10 @@ fn local(idx: &mut Indexer<'_, '_>, ast: &mut ast::Local) -> compile::Result<()>
 
 #[instrument(span = ast)]
 fn expr_let(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprLet) -> compile::Result<()> {
+    if let Some(mut_token) = ast.mut_token {
+        return Err(compile::Error::new(mut_token, ErrorKind::UnsupportedMut));
+    }
+
     pat(idx, &mut ast.pat)?;
     expr(idx, &mut ast.expr)?;
     Ok(())

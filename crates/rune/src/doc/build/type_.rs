@@ -6,7 +6,7 @@ use serde::Serialize;
 
 use crate::compile::{ComponentRef, Item};
 use crate::doc::context::{Assoc, AssocFnKind, Meta};
-use crate::doc::html::{Ctxt, IndexEntry, IndexKind, Builder};
+use crate::doc::build::{Ctxt, IndexEntry, IndexKind, Builder};
 
 #[derive(Serialize)]
 pub(super) struct Protocol<'a> {
@@ -35,7 +35,7 @@ pub(super) struct Variant<'a> {
 }
 
 pub(super) fn build_assoc_fns<'m>(
-    cx: &Ctxt<'_, 'm>,
+    cx: &mut Ctxt<'_, 'm>,
     meta: Meta<'m>,
 ) -> Result<(Vec<Protocol<'m>>, Vec<Method<'m>>, Vec<Variant<'m>>, Vec<IndexEntry<'m>>)> {
     let mut protocols = Vec::new();
@@ -47,8 +47,8 @@ pub(super) fn build_assoc_fns<'m>(
     for assoc in cx.context.associated(meta.hash) {
         match assoc {
             Assoc::Variant(variant) => {
-                let line_doc = cx.render_docs(meta, variant.docs.get(..1).unwrap_or_default())?;
-                let doc = cx.render_docs(meta, variant.docs)?;
+                let line_doc = cx.render_line_docs(meta, variant.docs.get(..1).unwrap_or_default())?;
+                let doc = cx.render_docs(meta, variant.docs, true)?;
 
                 variants.push(Variant {
                     name: variant.name,
@@ -70,9 +70,12 @@ pub(super) fn build_assoc_fns<'m>(
                         (protocol, value.as_str())
                     }
                     AssocFnKind::Method(name, args, sig) => {
-                        let line_doc = cx.render_docs(meta, assoc.docs.get(..1).unwrap_or_default())?;
-                        let doc = cx.render_docs(meta, assoc.docs)?;
-        
+                        let line_doc = cx.render_line_docs(meta, assoc.docs.get(..1).unwrap_or_default())?;
+
+                        cx.state.item.push(name);
+                        let doc = cx.render_docs(meta, assoc.docs, true)?;
+                        cx.state.item.pop();
+
                         let mut list = Vec::new();
         
                         for &hash in assoc.parameter_types {
@@ -106,13 +109,13 @@ pub(super) fn build_assoc_fns<'m>(
                         continue;
                     }
                 };
-        
+
                 let doc = if assoc.docs.is_empty() {
-                    cx.render_docs(meta, protocol.doc)?
+                    cx.render_docs(meta, protocol.doc, false)?
                 } else {
-                    cx.render_docs(meta, assoc.docs)?
+                    cx.render_docs(meta, assoc.docs, true)?
                 };
-        
+
                 let repr = if let Some(repr) = protocol.repr {
                     Some(cx.render_code([repr.replace("$value", value.as_ref())])?)
                 } else {
@@ -177,12 +180,14 @@ struct Params<'a> {
 
 /// Build an unknown type.
 #[tracing::instrument(skip_all)]
-pub(super) fn build<'m>(cx: &Ctxt<'_, 'm>, what: &'static str, what_class: &'static str, meta: Meta<'m>) -> Result<(Builder<'m>, Vec<IndexEntry<'m>>)> {
+pub(crate) fn build<'m>(cx: &mut Ctxt<'_, 'm>, what: &'static str, what_class: &'static str, meta: Meta<'m>) -> Result<(Builder<'m>, Vec<IndexEntry<'m>>)> {
     let module = cx.module_path_html(meta, false)?;
 
     let (protocols, methods, _, index) = build_assoc_fns(cx, meta)?;
     let item = meta.item.context("Missing type item")?;
     let name = item.last().context("Missing module name")?;
+
+    let doc = cx.render_docs(meta, meta.docs, true)?;
 
     let builder = Builder::new(cx, move |cx| {
         cx.type_template.render(&Params {
@@ -194,7 +199,7 @@ pub(super) fn build<'m>(cx: &Ctxt<'_, 'm>, what: &'static str, what_class: &'sta
             item,
             methods,
             protocols,
-            doc: cx.render_docs(meta, meta.docs)?,
+            doc,
         })
     });
 

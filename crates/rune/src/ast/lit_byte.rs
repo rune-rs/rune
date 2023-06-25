@@ -31,7 +31,7 @@ impl Parse for LitByte {
                 span: t.span,
                 source,
             }),
-            _ => Err(compile::Error::expected(t, "byte")),
+            _ => Err(compile::Error::expected(t, "byte literal")),
         }
     }
 }

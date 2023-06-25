@@ -32,6 +32,7 @@ pub fn module() -> Result<Module, ContextError> {
 /// assert_eq!(ty1, ty2);
 /// ```
 #[rune::function(path = Type::of_val)]
+#[inline]
 fn type_of_val(value: Value) -> VmResult<Type> {
     VmResult::Ok(Type::new(vm_try!(value.type_hash())))
 }
@@ -48,7 +49,7 @@ fn format_type(ty: Type, buf: &mut String) -> fmt::Result {
 /// use std::any;
 ///
 /// let value = 42;
-/// assert_eq!(any::type_name_of_val(value), "::std::int");
+/// assert_eq!(any::type_name_of_val(value), "::std::i64");
 ///
 /// let value = [];
 /// assert_eq!(any::type_name_of_val(value), "::std::vec::Vec");

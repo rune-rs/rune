@@ -136,11 +136,11 @@ impl Context {
         this.install(crate::modules::char::module()?)?;
         this.install(crate::modules::cmp::module()?)?;
         this.install(crate::modules::collections::module()?)?;
-        this.install(crate::modules::float::module()?)?;
+        this.install(crate::modules::f64::module()?)?;
         this.install(crate::modules::fmt::module()?)?;
         this.install(crate::modules::future::module()?)?;
         this.install(crate::modules::generator::module()?)?;
-        this.install(crate::modules::int::module()?)?;
+        this.install(crate::modules::i64::module()?)?;
         #[cfg(feature = "std")]
         this.install(crate::modules::io::module(stdio)?)?;
         this.install(crate::modules::iter::module()?)?;

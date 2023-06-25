@@ -141,7 +141,6 @@
 #![deny(rustdoc::broken_intra_doc_links)]
 #![allow(clippy::enum_variant_names)]
 #![allow(clippy::needless_doctest_main)]
-#![allow(clippy::never_loop)]
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::should_implement_trait)]
 #![allow(clippy::branches_sharing_code)]

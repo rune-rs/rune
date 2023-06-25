@@ -13,7 +13,7 @@ mod sealed {
     impl<T, const N: usize> Sealed for Params<T, N> {}
 }
 
-/// Trait for types which can be converted into a [Hash].
+/// Trait for types which can be converted into a [Hash][crate::hash::Hash].
 pub trait IntoHash: self::sealed::Sealed {
     /// Convert current type into a hash.
     fn into_hash(self) -> Hash;

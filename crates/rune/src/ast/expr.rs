@@ -33,7 +33,7 @@ fn ast_parse() {
     rt::<ast::Expr>("foo[0][1][2]");
     rt::<ast::Expr>("foo.bar()[0].baz()[1]");
 
-    rt::<ast::Expr>("42 is int::int");
+    rt::<ast::Expr>("42 is i64::i64");
     rt::<ast::Expr>("{ let x = 1; x }");
 
     let expr = rt::<ast::Expr>("#[cfg(debug_assertions)] { assert_eq(x, 32); }");
@@ -820,7 +820,7 @@ mod tests {
         rt::<ast::Expr>("foo.bar.baz()");
         rt::<ast::Expr>("foo[0][1][2]");
         rt::<ast::Expr>("foo.bar()[0].baz()[1]");
-        rt::<ast::Expr>("42 is int::int");
+        rt::<ast::Expr>("42 is i64::i64");
     }
 
     #[test]

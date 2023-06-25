@@ -323,10 +323,13 @@ fn test_is() {
     let out: bool = rune!(pub fn main() { 'a' is char });
     assert!(out);
 
-    let out: bool = rune!(pub fn main() { 42 is int });
+    let out: bool = rune!(pub fn main() { 42u8 is u8 });
     assert!(out);
 
-    let out: bool = rune!(pub fn main() { 42.1 is float });
+    let out: bool = rune!(pub fn main() { 42 is i64 });
+    assert!(out);
+
+    let out: bool = rune!(pub fn main() { 42.1 is f64 });
     assert!(out);
 
     let out: bool = rune!(pub fn main() { "hello" is String });

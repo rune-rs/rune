@@ -31,7 +31,7 @@ fn aoc_2020_1a(b: &mut Criterion) {
         struct NoSolution;
 
         fn part1(v, target) {
-            v.sort::<int>();
+            v.sort::<i64>();
 
             let a = 0;
             let b = v.len() - 1;
@@ -48,7 +48,7 @@ fn aoc_2020_1a(b: &mut Criterion) {
         }
 
         fn part2(v, target) {
-            v.sort::<int>();
+            v.sort::<i64>();
 
             let a = 0;
             let c = v.len() - 1;

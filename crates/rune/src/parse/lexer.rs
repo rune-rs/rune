@@ -155,26 +155,26 @@ impl<'a> Lexer<'a> {
         c: char,
         start: usize,
     ) -> compile::Result<Option<ast::Token>> {
-        let base = if let ('0', Some(m)) = (c, self.iter.peek()) {
-            // This loop is useful.
-            #[allow(clippy::never_loop)]
-            loop {
+        let (base, number_start) = 'ok: {
+            if let ('0', Some(m)) = (c, self.iter.peek()) {
                 let number = match m {
                     'x' => ast::NumberBase::Hex,
                     'b' => ast::NumberBase::Binary,
                     'o' => ast::NumberBase::Octal,
-                    _ => break ast::NumberBase::Decimal,
+                    _ => break 'ok (ast::NumberBase::Decimal, start),
                 };
 
                 self.iter.next();
-                break number;
+                (number, self.iter.pos())
+            } else {
+                (ast::NumberBase::Decimal, start)
             }
-        } else {
-            ast::NumberBase::Decimal
         };
 
         let mut is_fractional = false;
         let mut has_exponent = false;
+
+        let mut split = None;
 
         while let Some(c) = self.iter.peek() {
             match c {
@@ -211,17 +211,27 @@ impl<'a> Lexer<'a> {
                     self.iter.next();
                 }
                 c if c.is_alphanumeric() => {
+                    if split.is_none()
+                        && matches!((c, base), ('u' | 'i', _) | ('f', ast::NumberBase::Decimal))
+                    {
+                        split = Some(self.iter.pos());
+                    }
+
                     self.iter.next();
                 }
                 _ => break,
             }
         }
 
+        let end = split.unwrap_or(self.iter.pos());
+
         Ok(Some(ast::Token {
             kind: ast::Kind::Number(ast::NumberSource::Text(ast::NumberText {
                 source_id: self.source_id,
                 is_fractional,
                 base,
+                number: Span::new(number_start, end),
+                suffix: Span::new(end, self.iter.pos()),
             })),
             span: self.iter.span_to_pos(start),
         }))
@@ -861,6 +871,7 @@ impl<'a> SourceIter<'a> {
     }
 
     /// Get the current character position of the iterator.
+    #[inline]
     fn pos(&self) -> usize {
         self.cursor
     }
@@ -1062,6 +1073,8 @@ mod tests {
                     source_id: SourceId::EMPTY,
                     is_fractional: false,
                     base: ast::NumberBase::Decimal,
+                    number: span!(1, 3),
+                    suffix: span!(3, 3),
                 })),
             },
             ast::Token {
@@ -1079,6 +1092,8 @@ mod tests {
                     source_id: SourceId::EMPTY,
                     is_fractional: true,
                     base: ast::NumberBase::Decimal,
+                    number: span!(1, 4),
+                    suffix: span!(4, 4),
                 })),
             },
             _,
@@ -1224,6 +1239,8 @@ mod tests {
                     source_id: SourceId::EMPTY,
                     is_fractional: false,
                     base: ast::NumberBase::Decimal,
+                    number: span!(14, 16),
+                    suffix: span!(16, 16),
                 })),
             },
             ast::Token {

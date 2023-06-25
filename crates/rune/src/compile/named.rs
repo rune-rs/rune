@@ -25,19 +25,19 @@ impl Named for &str {
 impl InstallWith for String {}
 
 impl Named for i64 {
-    const BASE_NAME: RawStr = RawStr::from_str("int");
+    const BASE_NAME: RawStr = RawStr::from_str("i64");
 }
 
 impl InstallWith for i64 {}
 
 impl Named for f64 {
-    const BASE_NAME: RawStr = RawStr::from_str("float");
+    const BASE_NAME: RawStr = RawStr::from_str("f64");
 }
 
 impl InstallWith for f64 {}
 
 impl Named for u8 {
-    const BASE_NAME: RawStr = RawStr::from_str("byte");
+    const BASE_NAME: RawStr = RawStr::from_str("u8");
 }
 
 impl InstallWith for u8 {}

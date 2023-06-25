@@ -166,14 +166,36 @@ impl IntoExpectation for Token {
     }
 }
 
-/// A resolved number literal.
+/// The value of a number literal.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub enum Number {
+pub enum NumberValue {
     /// A float literal number.
     Float(f64),
     /// An integer literal number.
     Integer(num::BigInt),
+}
+
+/// The suffix of a number.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[non_exhaustive]
+pub enum NumberSuffix {
+    /// The `i64` suffix.
+    Int(Span),
+    /// The `f64` suffix.
+    Float(Span),
+    /// The `u8` suffix.
+    Byte(Span),
+}
+
+/// A resolved number literal.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct Number {
+    /// The parsed number value.
+    pub value: NumberValue,
+    /// The parsed number suffix.
+    pub suffix: Option<NumberSuffix>,
 }
 
 impl Number {
@@ -191,14 +213,14 @@ impl Number {
     pub(crate) fn as_tuple_index(&self) -> Option<usize> {
         use num::ToPrimitive;
 
-        match self {
-            Self::Integer(n) => n.to_usize(),
+        match &self.value {
+            NumberValue::Integer(n) => n.to_usize(),
             _ => None,
         }
     }
 
     fn as_primitive<T>(&self, neg: bool, to: impl FnOnce(&num::BigInt) -> Option<T>) -> Option<T> {
-        let Number::Integer(number) = self else {
+        let NumberValue::Integer(number) = &self.value else {
             return None;
         };
 
@@ -217,8 +239,12 @@ impl Number {
 macro_rules! impl_from_int {
     ($ty:ty) => {
         impl From<$ty> for Number {
+            #[inline]
             fn from(value: $ty) -> Self {
-                Self::Integer(num::BigInt::from(value))
+                Self {
+                    value: NumberValue::Integer(num::BigInt::from(value)),
+                    suffix: None,
+                }
             }
         }
     };
@@ -236,22 +262,30 @@ impl_from_int!(i128);
 impl_from_int!(u128);
 
 impl From<f32> for Number {
+    #[inline]
     fn from(value: f32) -> Self {
-        Self::Float(value as f64)
+        Self {
+            value: NumberValue::Float(value as f64),
+            suffix: None,
+        }
     }
 }
 
 impl From<f64> for Number {
+    #[inline]
     fn from(value: f64) -> Self {
-        Self::Float(value)
+        Self {
+            value: NumberValue::Float(value),
+            suffix: None,
+        }
     }
 }
 
 impl fmt::Display for Number {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Float(n) => write!(f, "{}", n),
-            Self::Integer(n) => write!(f, "{}", n),
+        match &self.value {
+            NumberValue::Float(n) => write!(f, "{}", n),
+            NumberValue::Integer(n) => write!(f, "{}", n),
         }
     }
 }
@@ -390,6 +424,10 @@ pub struct NumberText {
     pub is_fractional: bool,
     /// The number literal kind.
     pub base: NumberBase,
+    /// The number part of the parsed number.
+    pub number: Span,
+    /// The suffix.
+    pub suffix: Span,
 }
 
 /// A delimiter, `{`, `{`, or `[`.

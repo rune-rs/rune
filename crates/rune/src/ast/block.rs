@@ -31,6 +31,16 @@ fn ast_parse() {
     );
 
     assert_eq!(block.statements.len(), 3);
+
+    let block = rt::<ast::EmptyBlock>(
+        r#"
+        let foo = 42;
+        let bar = "string";
+        baz
+        "#,
+    );
+
+    assert_eq!(block.statements.len(), 3);
 }
 
 /// A block of statements.
@@ -62,11 +72,39 @@ impl Parse for Block {
 
         let close = parser.parse()?;
 
-        Ok(Block {
+        Ok(Self {
             id: Default::default(),
             open,
             statements,
             close,
+        })
+    }
+}
+
+/// A block of statements.
+///
+/// * `{ (<stmt>)* }`.
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Opaque)]
+#[non_exhaustive]
+pub struct EmptyBlock {
+    /// The unique identifier for the block expression.
+    #[rune(id)]
+    pub(crate) id: Id,
+    /// Statements in the block.
+    pub statements: Vec<ast::Stmt>,
+}
+
+impl Parse for EmptyBlock {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self> {
+        let mut statements = Vec::new();
+
+        while !parser.is_eof()? {
+            statements.push(parser.parse()?);
+        }
+
+        Ok(Self {
+            id: Default::default(),
+            statements,
         })
     }
 }

@@ -45,14 +45,14 @@ fn aoc_2020_1b(b: &mut Criterion) {
 
         fn filter_inner(items) {
             while let Some(i) = items.next() {
-                if i.iter().sum() == 2020 {
-                    return i.iter().product();
+                if i.iter().sum::<i64>() == 2020 {
+                    return i.iter().product::<i64>();
                 }
             }
         }
 
         pub fn main(lines) {
-            lines.sort::<int>();
+            lines.sort::<i64>();
             (filter_inner(iter::all_pairs(lines)), filter_inner(iter::all_triples(lines)))
         }
     };

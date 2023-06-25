@@ -112,6 +112,33 @@ impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
     }
 }
 
+/// Lower an empty function.
+#[instrument(span = span)]
+pub(crate) fn empty_fn<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    ast: &ast::EmptyBlock,
+    span: &dyn Spanned,
+) -> compile::Result<hir::ItemFn<'hir>> {
+    alloc_with!(cx, span);
+
+    cx.scopes.push();
+
+    let statements = iter!(&ast.statements, |ast| stmt(cx, ast)?);
+
+    let layer = cx.scopes.pop().with_span(span)?;
+
+    let body = hir::Block {
+        span: span.span(),
+        statements,
+        drop: iter!(layer.into_drop_order()),
+    };
+
+    Ok(hir::ItemFn {
+        span: span.span(),
+        args: &[],
+        body,
+    })
+}
 /// Lower a function item.
 #[instrument(span = ast)]
 pub(crate) fn item_fn<'hir>(
@@ -529,7 +556,7 @@ pub(crate) fn expr<'hir>(
         }
         ast::Expr::Binary(ast) => {
             let rhs_needs = match &ast.op {
-                ast::BinOp::Is(..) | ast::BinOp::IsNot(..) => Needs::Type,
+                ast::BinOp::As(..) | ast::BinOp::Is(..) | ast::BinOp::IsNot(..) => Needs::Type,
                 _ => Needs::Value,
             };
 
@@ -703,16 +730,27 @@ pub(crate) fn lit<'hir>(
 
     match ast {
         ast::Lit::Bool(lit) => Ok(hir::Lit::Bool(lit.value)),
-        ast::Lit::Number(lit) => match lit.resolve(resolve_context!(cx.q))? {
-            ast::Number::Float(n) => Ok(hir::Lit::Float(n)),
-            ast::Number::Integer(int) => {
-                let Some(n) = int.to_i64() else {
-                    return Err(compile::Error::new(ast, ErrorKind::BadNumberOutOfBounds));
-                };
+        ast::Lit::Number(lit) => {
+            let n = lit.resolve(resolve_context!(cx.q))?;
 
-                Ok(hir::Lit::Integer(n))
+            match (n.value, n.suffix) {
+                (ast::NumberValue::Float(n), _) => Ok(hir::Lit::Float(n)),
+                (ast::NumberValue::Integer(int), Some(ast::NumberSuffix::Byte(..))) => {
+                    let Some(n) = int.to_u8() else {
+                        return Err(compile::Error::new(ast, ErrorKind::BadNumberOutOfBounds));
+                    };
+
+                    Ok(hir::Lit::Byte(n))
+                }
+                (ast::NumberValue::Integer(int), _) => {
+                    let Some(n) = int.to_i64() else {
+                        return Err(compile::Error::new(ast, ErrorKind::BadNumberOutOfBounds));
+                    };
+
+                    Ok(hir::Lit::Integer(n))
+                }
             }
-        },
+        }
         ast::Lit::Byte(lit) => {
             let b = lit.resolve(resolve_context!(cx.q))?;
             Ok(hir::Lit::Byte(b))
@@ -756,15 +794,20 @@ pub(crate) fn expr_unary<'hir>(
         })));
     };
 
-    match n.resolve(resolve_context!(cx.q))? {
-        ast::Number::Float(n) => Ok(hir::ExprKind::Lit(hir::Lit::Float(-n))),
-        ast::Number::Integer(int) => {
+    let number = n.resolve(resolve_context!(cx.q))?;
+
+    match (number.value, number.suffix) {
+        (ast::NumberValue::Float(n), Some(ast::NumberSuffix::Float(..)) | None) => {
+            Ok(hir::ExprKind::Lit(hir::Lit::Float(-n)))
+        }
+        (ast::NumberValue::Integer(int), Some(ast::NumberSuffix::Int(..)) | None) => {
             let Some(n) = int.neg().to_i64() else {
                 return Err(compile::Error::new(ast, ErrorKind::BadNumberOutOfBounds));
             };
 
             Ok(hir::ExprKind::Lit(hir::Lit::Integer(n)))
         }
+        _ => Err(compile::Error::new(ast, ErrorKind::BadNumberOutOfBounds)),
     }
 }
 

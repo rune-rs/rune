@@ -55,6 +55,8 @@ pub enum BinOp {
     Gte(T![>=]),
     /// Less-than or equal check `a <= b`.
     Lte(T![<=]),
+    /// Type coercion `a as b`.
+    As(T![as]),
     /// Instance of test `a is b`.
     Is(T![is]),
     /// Negated instance of test `a is not b`.
@@ -130,7 +132,8 @@ impl BinOp {
     pub(super) fn precedence(&self) -> usize {
         // NB: Rules from: https://doc.rust-lang.org/reference/expressions.html#expression-precedence
         match self {
-            Self::Is(..) | Self::IsNot(..) => 12,
+            Self::Is(..) | Self::IsNot(..) => 13,
+            Self::As(..) => 13,
             Self::Mul(..) | Self::Div(..) | Self::Rem(..) => 11,
             Self::Add(..) | Self::Sub(..) => 10,
             Self::Shl(..) | Self::Shr(..) => 9,
@@ -186,6 +189,7 @@ impl BinOp {
             K![>] => Self::Gt(ast::Gt { span }),
             K![<=] => Self::Lte(ast::LtEq { span }),
             K![>=] => Self::Gte(ast::GtEq { span }),
+            K![as] => Self::As(ast::As { span }),
             K![is] => {
                 let is = ast::Is { span };
                 let ast::Token { kind, span } = p.tok_at(1);
@@ -253,6 +257,7 @@ impl fmt::Display for BinOp {
             Self::Lt(..) => write!(f, "<"),
             Self::Gte(..) => write!(f, ">="),
             Self::Lte(..) => write!(f, "<="),
+            Self::As(..) => write!(f, "as"),
             Self::Is(..) => write!(f, "is"),
             Self::IsNot(..) => write!(f, "is not"),
             Self::And(..) => write!(f, "&&"),

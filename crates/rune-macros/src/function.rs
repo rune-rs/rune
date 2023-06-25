@@ -1,5 +1,5 @@
 use proc_macro2::TokenStream;
-use quote::{quote, quote_spanned, ToTokens};
+use quote::{quote, ToTokens};
 use syn::parse::ParseStream;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
@@ -21,7 +21,7 @@ pub(crate) struct FunctionAttrs {
     /// Path to register in.
     path: Path,
     /// Looks like an associated type.
-    assoc: bool,
+    self_type: bool,
 }
 
 impl FunctionAttrs {
@@ -40,10 +40,10 @@ impl FunctionAttrs {
                 input.parse::<Token![=]>()?;
 
                 if input.peek(Token![Self]) {
-                    out.assoc = true;
+                    out.self_type = true;
                 }
 
-                let path: syn::Path = input.parse()?;
+                let path = input.parse::<syn::Path>()?;
 
                 if path.segments.len() > 2 {
                     return Err(syn::Error::new_spanned(
@@ -159,11 +159,11 @@ impl Function {
 
     /// Expand the function declaration.
     pub(crate) fn expand(mut self, attrs: FunctionAttrs) -> Result<TokenStream, Error> {
+        let instance = attrs.instance || self.takes_self;
+
         let (meta_fn, real_fn, sig, real_fn_mangled) = if attrs.keep {
-            let meta_fn = syn::Ident::new(
-                &format!("__{}__meta", self.sig.ident),
-                self.sig.ident.span(),
-            );
+            let meta_fn =
+                syn::Ident::new(&format!("{}__meta", self.sig.ident), self.sig.ident.span());
             let real_fn = self.sig.ident.clone();
             (meta_fn, real_fn, self.sig.clone(), false)
         } else {
@@ -177,16 +177,7 @@ impl Function {
             (meta_fn, real_fn, sig, true)
         };
 
-        let self_type = if !attrs.instance {
-            match &attrs.path {
-                Path::Instance(self_type, _) => Some(self_type.clone()),
-                _ => None,
-            }
-        } else {
-            None
-        };
-
-        let real_fn_path = if self.takes_self || attrs.assoc {
+        let real_fn_path = if self.takes_self || attrs.self_type {
             let mut path = syn::Path {
                 leading_colon: None,
                 segments: Punctuated::default(),
@@ -211,74 +202,33 @@ impl Function {
 
         let name_string = syn::LitStr::new(&self.sig.ident.to_string(), self.sig.ident.span());
 
-        let (instance, mut name, arguments) = if attrs.instance || self.takes_self {
-            let (name, arguments) = match &attrs.path {
-                Path::None => (name_string.clone(), Punctuated::default()),
-                Path::Rename(last) | Path::Instance(_, last) => {
-                    let name = syn::LitStr::new(&last.ident.to_string(), last.ident.span());
+        let self_type;
+        let mut name;
 
-                    let arguments = match &last.arguments {
-                        syn::PathArguments::AngleBracketed(arguments) => arguments.args.clone(),
-                        syn::PathArguments::None => Punctuated::default(),
-                        arguments => {
-                            return Err(syn::Error::new_spanned(
-                                arguments,
-                                "Unsupported path segments",
-                            ));
-                        }
-                    };
+        if instance {
+            self_type = None;
 
-                    (name, arguments)
-                }
-            };
-
-            let name = syn::Expr::Lit(syn::ExprLit {
+            name = syn::Expr::Lit(syn::ExprLit {
                 attrs: Vec::new(),
-                lit: syn::Lit::Str(name),
+                lit: syn::Lit::Str(match &attrs.path {
+                    Path::None => name_string.clone(),
+                    Path::Rename(last) | Path::Instance(_, last) => {
+                        syn::LitStr::new(&last.ident.to_string(), last.ident.span())
+                    }
+                }),
             });
-
-            (true, name, arguments)
         } else {
-            let (name, arguments) = match &attrs.path {
-                Path::None => {
-                    let name = syn::Expr::Lit(syn::ExprLit {
-                        attrs: Vec::new(),
-                        lit: syn::Lit::Str(syn::LitStr::new(
-                            &self.sig.ident.to_string(),
-                            self.sig.ident.span(),
-                        )),
-                    });
-
-                    (name, Punctuated::default())
-                }
-                Path::Rename(last) | Path::Instance(_, last) => {
-                    let name = syn::LitStr::new(&last.ident.to_string(), last.ident.span());
-
-                    let arguments = match &last.arguments {
-                        syn::PathArguments::AngleBracketed(arguments) => arguments.args.clone(),
-                        syn::PathArguments::None => Punctuated::default(),
-                        arguments => {
-                            return Err(syn::Error::new_spanned(
-                                arguments,
-                                "Unsupported path segments",
-                            ));
-                        }
-                    };
-
-                    let name = syn::Expr::Lit(syn::ExprLit {
-                        attrs: Vec::new(),
-                        lit: syn::Lit::Str(name),
-                    });
-
-                    (name, arguments)
-                }
+            self_type = match &attrs.path {
+                Path::Instance(self_type, _) => Some(self_type.clone()),
+                _ => None,
             };
 
-            (false, name, arguments)
-        };
+            name = match &attrs.path {
+                Path::None => expr_lit(&self.sig.ident),
+                Path::Rename(last) | Path::Instance(_, last) => expr_lit(&last.ident),
+            };
 
-        if !instance && self_type.is_none() {
-            name = {
+            if !matches!(attrs.path, Path::Instance(..)) {
                 let mut out = syn::ExprArray {
                     attrs: Vec::new(),
                     bracket_token: syn::token::Bracket::default(),
@@ -286,9 +236,23 @@ impl Function {
                 };
 
                 out.elems.push(name);
-                syn::Expr::Array(out)
-            };
-        }
+                name = syn::Expr::Array(out);
+            }
+        };
+
+        let arguments = match &attrs.path {
+            Path::None => Punctuated::default(),
+            Path::Rename(last) | Path::Instance(_, last) => match &last.arguments {
+                syn::PathArguments::AngleBracketed(arguments) => arguments.args.clone(),
+                syn::PathArguments::None => Punctuated::default(),
+                arguments => {
+                    return Err(syn::Error::new_spanned(
+                        arguments,
+                        "Unsupported path segments",
+                    ));
+                }
+            },
+        };
 
         let name = if !arguments.is_empty() {
             let mut array = syn::ExprArray {
@@ -298,8 +262,7 @@ impl Function {
             };
 
             for argument in arguments {
-                array.elems.push(syn::Expr::Verbatim(quote_spanned! {
-                    argument.span() =>
+                array.elems.push(syn::Expr::Verbatim(quote! {
                     <#argument as rune::__private::TypeOf>::type_of()
                 }));
             }
@@ -309,7 +272,7 @@ impl Function {
             quote!(#name)
         };
 
-        if instance && !self.takes_self {
+        if instance {
             // Ensure that the first argument is called `self`.
             if let Some(argument) = self.arguments.elems.first_mut() {
                 let span = argument.span();
@@ -321,9 +284,11 @@ impl Function {
             }
         }
 
-        let function = if instance { "instance" } else { "function" };
+        let meta_kind = syn::Ident::new(
+            if instance { "instance" } else { "function" },
+            self.sig.span(),
+        );
 
-        let meta_kind = syn::Ident::new(function, self.sig.span());
         let mut stream = TokenStream::new();
 
         for attr in self.attributes {
@@ -332,6 +297,7 @@ impl Function {
 
         if real_fn_mangled {
             stream.extend(quote!(#[allow(non_snake_case)]));
+            stream.extend(quote!(#[doc(hidden)]));
         }
 
         stream.extend(self.vis.to_token_stream());
@@ -349,15 +315,14 @@ impl Function {
             Some(quote!(.build()))
         };
 
-        let meta_vis = &self.vis;
-
         let attr = (!real_fn_mangled).then(|| quote!(#[allow(non_snake_case)] #[doc(hidden)]));
 
         stream.extend(quote! {
             /// Get function metadata.
             #[automatically_derived]
             #attr
-            #meta_vis fn #meta_fn() -> rune::__private::FunctionMetaData {
+            #[doc(hidden)]
+            pub(crate) fn #meta_fn() -> rune::__private::FunctionMetaData {
                 rune::__private::FunctionMetaData {
                     kind: rune::__private::FunctionMetaKind::#meta_kind(#name, #real_fn_path)#build_with,
                     name: #name_string,
@@ -387,4 +352,11 @@ fn argument_path_ident(path: &syn::Path) -> syn::LitStr {
         Some(ident) => syn::LitStr::new(&ident.to_string(), path.span()),
         None => syn::LitStr::new(&path.to_token_stream().to_string(), path.span()),
     }
+}
+
+fn expr_lit(ident: &syn::Ident) -> syn::Expr {
+    syn::Expr::Lit(syn::ExprLit {
+        attrs: Vec::new(),
+        lit: syn::Lit::Str(syn::LitStr::new(&ident.to_string(), ident.span())),
+    })
 }

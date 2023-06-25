@@ -39,17 +39,44 @@ impl Range {
     /// Coerce range into an iterator.
     pub fn into_iterator(self) -> VmResult<Iterator> {
         match (self.limits, self.start, self.end) {
-            (RangeLimits::HalfOpen, Some(Value::Integer(start)), Some(Value::Integer(end))) => {
-                return VmResult::Ok(Iterator::from_double_ended("std::ops::Range", start..end));
+            (RangeLimits::HalfOpen, Some(start), Some(end)) => {
+                const NAME: &str = "std::ops::Range";
+
+                match (start, end) {
+                    (Value::Integer(start), Value::Integer(end)) => {
+                        return VmResult::Ok(Iterator::from_double_ended(NAME, start..end));
+                    }
+                    (Value::Byte(start), Value::Byte(end)) => {
+                        return VmResult::Ok(Iterator::from_double_ended(NAME, start..end));
+                    }
+                    _ => {}
+                }
             }
-            (RangeLimits::Closed, Some(Value::Integer(start)), Some(Value::Integer(end))) => {
-                return VmResult::Ok(Iterator::from_double_ended(
-                    "std::ops::RangeToInclusive",
-                    start..=end,
-                ));
+            (RangeLimits::Closed, Some(start), Some(end)) => {
+                const NAME: &str = "std::ops::RangeToInclusive";
+
+                match (start, end) {
+                    (Value::Integer(start), Value::Integer(end)) => {
+                        return VmResult::Ok(Iterator::from_double_ended(NAME, start..=end));
+                    }
+                    (Value::Byte(start), Value::Byte(end)) => {
+                        return VmResult::Ok(Iterator::from_double_ended(NAME, start..=end));
+                    }
+                    _ => {}
+                }
             }
-            (_, Some(Value::Integer(start)), None) => {
-                return VmResult::Ok(Iterator::from("std::ops::RangeFrom", start..));
+            (_, Some(start), None) => {
+                const NAME: &str = "std::ops::RangeFrom";
+
+                match start {
+                    Value::Integer(start) => {
+                        return VmResult::Ok(Iterator::from(NAME, start..));
+                    }
+                    Value::Byte(start) => {
+                        return VmResult::Ok(Iterator::from(NAME, start..));
+                    }
+                    _ => {}
+                }
             }
             _ => (),
         }
