@@ -346,14 +346,6 @@ pub(crate) use rune_macros::__internal_impl_any;
 ///         }
 ///     }
 ///
-///     /// Construct a new string wrapper.
-///     #[rune::function(path = Self::new2)]
-///     fn new2(string: &str) -> Self {
-///         Self {
-///             inner: string.into()
-///         }
-///     }
-///
 ///     /// Uppercase the string inside of the string wrapper.
 ///     ///
 ///     /// # Examples
@@ -363,8 +355,40 @@ pub(crate) use rune_macros::__internal_impl_any;
 ///     /// assert_eq!(string.to_uppercase(), "HELLO");
 ///     /// ```
 ///     #[rune::function]
-///     fn to_uppercase(&self) -> std::string::String {
-///         self.inner.to_uppercase()
+///     fn to_uppercase(&self) -> String {
+///         String {
+///             inner: self.inner.to_uppercase()
+///         }
+///     }
+/// }
+///
+/// /// Construct a new empty string.
+/// ///
+/// /// # Examples
+/// ///
+/// /// ```rune
+/// /// let string = String::empty();
+/// /// assert_eq!(string, "hello");
+/// /// ```
+/// #[rune::function(path = String::empty)]
+/// fn empty() -> String {
+///     String {
+///         inner: std::string::String::new()
+///     }
+/// }
+///
+/// /// Lowercase the string inside of the string wrapper.
+/// ///
+/// /// # Examples
+/// ///
+/// /// ```rune
+/// /// let string = String::new("Hello");
+/// /// assert_eq!(string.to_lowercase(), "hello");
+/// /// ```
+/// #[rune::function(instance)]
+/// fn to_lowercase(this: &String) -> String {
+///     String {
+///         inner: this.inner.to_lowercase()
 ///     }
 /// }
 ///
@@ -372,8 +396,9 @@ pub(crate) use rune_macros::__internal_impl_any;
 ///     let mut m = Module::new();
 ///     m.ty::<String>()?;
 ///     m.function_meta(String::new)?;
-///     m.function_meta(String::new2)?;
+///     m.function_meta(empty)?;
 ///     m.function_meta(String::to_uppercase)?;
+///     m.function_meta(to_lowercase)?;
 ///     Ok(m)
 /// }
 /// ```
@@ -387,8 +412,8 @@ pub use rune_macros::function;
 #[doc(hidden)]
 pub use rune_macros::macro_;
 
-/// Macro used to annotate native functions which can be loaded as attribute macros in
-/// rune.
+/// Macro used to annotate native functions which can be loaded as attribute
+/// macros in rune.
 ///
 /// See [`Module::macro_meta`].
 #[doc(hidden)]
