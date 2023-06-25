@@ -106,4 +106,4 @@ jobs:
     - run: cargo test --workspace --exclude no-std-examples --all-targets
     - run: cargo test --workspace --exclude no-std-examples --doc
     - run: cargo run --bin rune -- check --recursive --experimental scripts
-    - run: cargo run --bin rune -- test --recursive --experimental scripts
+    - run: cargo run --bin rune -- test --recursive --experimental scripts --opt include-std

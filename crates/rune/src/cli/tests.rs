@@ -23,6 +23,9 @@ pub(super) struct Flags {
     /// Display one character per test instead of one line
     #[arg(long, short = 'q')]
     quiet: bool,
+    /// Also run tests for `::std`.
+    #[arg(long, long = "opt")]
+    options: Vec<String>,
     /// Break on the first test failed.
     #[arg(long)]
     fail_fast: bool,
@@ -77,6 +80,19 @@ where
 
     let mut build_error = false;
 
+    let mut include_std = false;
+
+    for opt in &flags.options {
+        match opt.as_str() {
+            "include-std" => {
+                include_std = true;
+            }
+            other => {
+                bail!("Unsupported option: {other}")
+            }
+        }
+    }
+
     for e in entries {
         let name = naming.name(&e);
         let item = ItemBuf::with_crate(&name);
@@ -128,6 +144,10 @@ where
     crate::doc::build("root", &mut artifacts, &context, &doc_visitors)?;
 
     for test in artifacts.tests() {
+        if test.item.as_crate() == Some("std") && !include_std {
+            continue;
+        }
+
         let mut sources = Sources::new();
 
         let source = Source::new(test.item.to_string(), &test.content);
