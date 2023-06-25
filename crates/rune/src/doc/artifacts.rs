@@ -16,6 +16,8 @@ use anyhow::{Context as _, Error, Result};
 pub(crate) struct TestParams {
     /// If the test should not run.
     pub(crate) no_run: bool,
+    /// If the test should panic.
+    pub(crate) should_panic: bool,
 }
 
 /// A discovered test.
