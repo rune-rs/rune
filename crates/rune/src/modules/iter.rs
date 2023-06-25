@@ -912,14 +912,8 @@ fn rev(this: Iterator) -> VmResult<Iterator> {
 #[inline]
 fn size_hint(this: &Iterator) -> (i64, Option<i64>) {
     let (lower, upper) = this.size_hint();
-
     let lower = i64::try_from(lower).unwrap_or(i64::MAX);
-
-    let upper = match upper {
-        Some(upper) => Some(i64::try_from(upper).unwrap_or(i64::MAX)),
-        None => None,
-    };
-
+    let upper = upper.map(|upper| i64::try_from(upper).unwrap_or(i64::MAX));
     (lower, upper)
 }
 
