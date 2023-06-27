@@ -1,12 +1,14 @@
 use core::fmt;
 use core::slice;
 
+use crate::compile;
 use crate::no_std::prelude::*;
 use crate::no_std::vec;
 
 use crate::ast;
 use crate::ast::{OptionSpanned, Span};
 use crate::macros::MacroContext;
+use crate::parse::{Parse, Parser};
 
 /// A token stream.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -52,6 +54,12 @@ impl TokenStream {
 impl From<Vec<ast::Token>> for TokenStream {
     fn from(stream: Vec<ast::Token>) -> Self {
         Self { stream }
+    }
+}
+
+impl Parse for TokenStream {
+    fn parse(p: &mut Parser) -> compile::Result<Self> {
+        Ok(Self { stream: p.parse()? })
     }
 }
 
