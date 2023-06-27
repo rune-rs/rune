@@ -3,8 +3,9 @@ use core::fmt;
 use core::ops::Neg;
 
 use crate::ast::{Kind, Span, Spanned};
+use crate::compile;
 use crate::macros::{MacroContext, SyntheticId, ToTokens, TokenStream};
-use crate::parse::{Expectation, IntoExpectation};
+use crate::parse::{Expectation, IntoExpectation, Parse, Parser, Peek};
 use crate::SourceId;
 
 /// A single token encountered during parsing.
@@ -145,6 +146,18 @@ impl Token {
         fn bytes_escape_default(bytes: &[u8]) -> impl Iterator<Item = u8> + '_ {
             bytes.iter().copied().flat_map(ascii::escape_default)
         }
+    }
+}
+
+impl Parse for Token {
+    fn parse(p: &mut Parser) -> compile::Result<Self> {
+        p.next()
+    }
+}
+
+impl Peek for Token {
+    fn peek(p: &mut super::prelude::Peeker<'_>) -> bool {
+        !p.is_eof()
     }
 }
 
