@@ -48,8 +48,8 @@ mod options;
 pub use self::options::{Options, ParseOptionError};
 
 mod location;
-pub use self::location::Location;
-pub(crate) use self::location::{DynLocation, Located};
+pub(crate) use self::location::DynLocation;
+pub use self::location::{Located, Location};
 
 pub mod meta;
 pub(crate) use self::meta::{Doc, ItemMeta};
