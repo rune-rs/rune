@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1687742762064,
+  "lastUpdate": 1687915643547,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -21272,6 +21272,88 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 6432034,
             "range": "± 27257",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]",
+            "email": "49699333+dependabot[bot]@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "id": "96686814ad7626f99265856b6fad9c959d98bec3",
+          "message": "Bump semver from 7.3.7 to 7.5.3 in /editors/code\n\nBumps [semver](https://github.com/npm/node-semver) from 7.3.7 to 7.5.3.\n- [Release notes](https://github.com/npm/node-semver/releases)\n- [Changelog](https://github.com/npm/node-semver/blob/main/CHANGELOG.md)\n- [Commits](https://github.com/npm/node-semver/compare/v7.3.7...v7.5.3)\n\n---\nupdated-dependencies:\n- dependency-name: semver\n  dependency-type: indirect\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>",
+          "timestamp": "2023-06-25T07:22:16Z",
+          "url": "https://github.com/rune-rs/rune/commit/96686814ad7626f99265856b6fad9c959d98bec3"
+        },
+        "date": 1687915642692,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 369500,
+            "range": "± 27082",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1255464,
+            "range": "± 60813",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 538954968,
+            "range": "± 15677451",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 330327380,
+            "range": "± 10908565",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 1579327,
+            "range": "± 153888",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 16781343,
+            "range": "± 986647",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 91144647,
+            "range": "± 3899408",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 14437530,
+            "range": "± 754785",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 625407,
+            "range": "± 32463",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 6966124,
+            "range": "± 355386",
             "unit": "ns/iter"
           }
         ]
