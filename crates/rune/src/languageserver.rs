@@ -101,6 +101,7 @@ pub async fn run(context: Context, options: Options) -> Result<()> {
                     req(lsp::request::Shutdown, shutdown),
                     req(lsp::request::GotoDefinition, goto_definition),
                     req(lsp::request::Completion, completion),
+                    req(lsp::request::Formatting, formatting),
                     notif(lsp::notification::DidOpenTextDocument, did_open_text_document),
                     notif(lsp::notification::DidChangeTextDocument, did_change_text_document),
                     notif(lsp::notification::DidCloseTextDocument, did_close_text_document),
@@ -141,6 +142,7 @@ async fn initialize(
                 label_details_support: Some(true),
             }),
         }),
+        document_formatting_provider: Some(lsp::OneOf::Left(true)),
         ..Default::default()
     };
 
@@ -215,6 +217,16 @@ async fn completion(
 
     let results = results.map(lsp::CompletionResponse::Array);
     Ok(results)
+}
+
+/// Handle formatting request.
+async fn formatting(
+    state: &mut State<'_>,
+    params: lsp::DocumentFormattingParams,
+) -> Result<Option<Vec<lsp::TextEdit>>> {
+    state
+        .format(&params.text_document.uri)
+        .map(|option| option.map(|formatted| vec![formatted]))
 }
 
 /// Handle open text document.
