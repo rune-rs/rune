@@ -250,6 +250,33 @@ impl<'a> State<'a> {
         Some(results)
     }
 
+    pub(super) fn format(&mut self, uri: &Url) -> Result<Option<lsp::TextEdit>> {
+        let sources = &mut self.workspace.sources;
+        tracing::trace!(uri = ?uri, uri_exists = sources.get(uri).is_some());
+        let Some(workspace_source) = sources.get_mut(uri) else { return Ok(None); };
+
+        let source = workspace_source.content.to_string();
+        let Ok(formatted) = crate::fmt::layout_source(&source) else { return Ok(None) };
+        let formatted = String::from_utf8(formatted).context("format produced invalid utf8")?;
+
+        // Only modify if changed
+        Ok(if source != formatted {
+            workspace_source.content = Rope::from_str(&formatted);
+            self.rebuild_interest();
+
+            Some(lsp::TextEdit::new(
+                // Range over full document
+                lsp::Range::new(
+                    lsp::Position::new(0, 0),
+                    lsp::Position::new(u32::MAX, u32::MAX),
+                ),
+                formatted,
+            ))
+        } else {
+            None
+        })
+    }
+
     /// Rebuild the project.
     pub(super) async fn rebuild(&mut self) -> Result<()> {
         // Keep track of URLs visited as part of workspace builds.

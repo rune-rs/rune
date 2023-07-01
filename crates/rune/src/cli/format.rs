@@ -79,7 +79,7 @@ pub(super) fn run<'m, I>(io: &mut Io<'_>, entry: &mut Entry<'_>, c: &Config, ent
     for path in paths {
         let source = Source::from_path(&path).with_context(|| path.display().to_string())?;
 
-        let val = match crate::fmt::layout_source(&source) {
+        let val = match crate::fmt::layout_source(source.as_str()) {
             Ok(val) => val,
             Err(err) => {
                 failed += 1;
