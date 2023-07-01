@@ -10,7 +10,6 @@ use crate::no_std::io::{self, Write};
 use crate::no_std::prelude::*;
 
 use crate::ast::Span;
-use crate::Source;
 
 use super::comments::Comment;
 use super::error::FormattingError;
@@ -115,13 +114,13 @@ impl ResolvedSpan {
 pub(super) struct SpanInjectionWriter<'a> {
     writer: IndentedWriter,
     queued_spans: Vec<ResolvedSpan>,
-    source: &'a Source,
+    source: &'a str,
 }
 
 impl<'a> SpanInjectionWriter<'a> {
-    pub(super) fn new(writer: IndentedWriter, source: &'a Source) -> Result<Self, FormattingError> {
-        let comment_spans = super::comments::parse_comments(source.as_str())?;
-        let empty_line_spans = super::whitespace::gather_empty_line_spans(source.as_str())?;
+    pub(super) fn new(writer: IndentedWriter, source: &'a str) -> Result<Self, FormattingError> {
+        let comment_spans = super::comments::parse_comments(source)?;
+        let empty_line_spans = super::whitespace::gather_empty_line_spans(source)?;
 
         let mut queued_spans = Vec::new();
         queued_spans.extend(comment_spans.into_iter().map(ResolvedSpan::Comment));

@@ -255,13 +255,12 @@ impl<'a> State<'a> {
         tracing::trace!(uri = ?uri, uri_exists = sources.get(uri).is_some());
         let Some(workspace_source) = sources.get_mut(uri) else { return Ok(None); };
 
-        // Not sure how to get source of `workspace_source`
-        let source = crate::source::Source::new(uri, workspace_source.content.to_string());
+        let source = workspace_source.content.to_string();
         let Ok(formatted) = crate::fmt::layout_source(&source) else { return Ok(None) };
         let formatted = String::from_utf8(formatted).context("format produced invalid utf8")?;
 
         // Only modify if changed
-        Ok(if source.as_str() != formatted {
+        Ok(if source != formatted {
             workspace_source.content = Rope::from_str(&formatted);
             self.rebuild_interest();
 

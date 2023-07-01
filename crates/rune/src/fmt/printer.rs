@@ -6,7 +6,6 @@ use crate::no_std::io::Write;
 use crate::no_std::prelude::*;
 
 use crate::ast::{self, Span, Spanned};
-use crate::Source;
 
 use super::error::FormattingError;
 use super::indent_writer::IndentedWriter;
@@ -16,11 +15,11 @@ type Result<T> = core::result::Result<T, FormattingError>;
 
 pub(super) struct Printer<'a> {
     writer: SpanInjectionWriter<'a>,
-    source: &'a Source,
+    source: &'a str,
 }
 
 impl<'a> Printer<'a> {
-    pub(super) fn new(source: &'a Source) -> Result<Self> {
+    pub(super) fn new(source: &'a str) -> Result<Self> {
         let writer = SpanInjectionWriter::new(IndentedWriter::new(), source)?;
         Ok(Self { writer, source })
     }
