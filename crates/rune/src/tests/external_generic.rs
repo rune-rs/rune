@@ -1,5 +1,7 @@
 //! Tests for derive(Any) on generic types
 
+prelude!();
+
 use std::sync::Arc;
 
 use anyhow::{anyhow, bail, Context as _, Result};
