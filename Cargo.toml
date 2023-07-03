@@ -3,9 +3,16 @@ resolver = "2"
 members = [
     "crates/*",
     "examples",
-    "no-std-examples",
     "benches",
     "tools/*",
+    "no-std-examples",
+]
+default-members = [
+    "crates/*",
+    "examples",
+    "benches",
+    "tools/site",
+    "tools/builder",
 ]
 
 [profile.bench]
