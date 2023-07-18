@@ -3,7 +3,7 @@ use quote::{quote, ToTokens};
 use syn::parse::ParseStream;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
-use syn::{Error, Token};
+use syn::{parse_quote_spanned, Error, Token};
 
 #[derive(Default)]
 enum Path {
@@ -11,6 +11,7 @@ enum Path {
     None,
     Instance(syn::Ident, syn::PathSegment),
     Rename(syn::PathSegment),
+    Protocol(syn::Path),
 }
 
 #[derive(Default)]
@@ -36,6 +37,14 @@ impl FunctionAttrs {
                 out.instance = true;
             } else if ident == "keep" {
                 out.keep = true;
+            } else if ident == "protocol" {
+                input.parse::<Token![=]>()?;
+                let protocol: syn::Path = input.parse()?;
+                out.path = Path::Protocol(if protocol.segments.len() == 1 {
+                    parse_quote_spanned!(protocol.span()=> rune::runtime::Protocol::#protocol)
+                } else {
+                    protocol
+                })
             } else if ident == "path" {
                 input.parse::<Token![=]>()?;
 
@@ -55,12 +64,18 @@ impl FunctionAttrs {
                 let mut it = path.segments.into_iter();
 
                 let Some(first) = it.next() else {
-                    return Err(syn::Error::new(input.span(), "Expected at least one path segment"));
+                    return Err(syn::Error::new(
+                        input.span(),
+                        "Expected at least one path segment",
+                    ));
                 };
 
                 if let Some(second) = it.next() {
                     let syn::PathArguments::None = &first.arguments else {
-                        return Err(syn::Error::new_spanned(first.arguments, "Unsupported arguments"));
+                        return Err(syn::Error::new_spanned(
+                            first.arguments,
+                            "Unsupported arguments",
+                        ));
                     };
 
                     out.path = Path::Instance(first.ident, second);
@@ -208,15 +223,24 @@ impl Function {
         if instance {
             self_type = None;
 
-            name = syn::Expr::Lit(syn::ExprLit {
-                attrs: Vec::new(),
-                lit: syn::Lit::Str(match &attrs.path {
-                    Path::None => name_string.clone(),
-                    Path::Rename(last) | Path::Instance(_, last) => {
-                        syn::LitStr::new(&last.ident.to_string(), last.ident.span())
-                    }
-                }),
-            });
+            name = if let Path::Protocol(protocol) = &attrs.path {
+                syn::Expr::Path(syn::ExprPath {
+                    attrs: Vec::new(),
+                    qself: None,
+                    path: protocol.clone(),
+                })
+            } else {
+                syn::Expr::Lit(syn::ExprLit {
+                    attrs: Vec::new(),
+                    lit: syn::Lit::Str(match &attrs.path {
+                        Path::None => name_string.clone(),
+                        Path::Rename(last) | Path::Instance(_, last) => {
+                            syn::LitStr::new(&last.ident.to_string(), last.ident.span())
+                        }
+                        Path::Protocol(_) => unreachable!(),
+                    }),
+                })
+            };
         } else {
             self_type = match &attrs.path {
                 Path::Instance(self_type, _) => Some(self_type.clone()),
@@ -226,6 +250,11 @@ impl Function {
             name = match &attrs.path {
                 Path::None => expr_lit(&self.sig.ident),
                 Path::Rename(last) | Path::Instance(_, last) => expr_lit(&last.ident),
+                Path::Protocol(protocol) => syn::Expr::Path(syn::ExprPath {
+                    attrs: Vec::new(),
+                    qself: None,
+                    path: protocol.clone(),
+                }),
             };
 
             if !matches!(attrs.path, Path::Instance(..)) {
@@ -241,7 +270,7 @@ impl Function {
         };
 
         let arguments = match &attrs.path {
-            Path::None => Punctuated::default(),
+            Path::None | Path::Protocol(_) => Punctuated::default(),
             Path::Rename(last) | Path::Instance(_, last) => match &last.arguments {
                 syn::PathArguments::AngleBracketed(arguments) => arguments.args.clone(),
                 syn::PathArguments::None => Punctuated::default(),
