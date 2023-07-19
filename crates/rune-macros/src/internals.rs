@@ -19,6 +19,7 @@ pub const NAME: Symbol = Symbol("name");
 pub const ITEM: Symbol = Symbol("item");
 pub const MODULE: Symbol = Symbol("module");
 pub const INSTALL_WITH: Symbol = Symbol("install_with");
+pub const PROTOCOLS: Symbol = Symbol("protocols");
 
 pub const CONSTRUCTOR: Symbol = Symbol("constructor");
 pub const GET: Symbol = Symbol("get");

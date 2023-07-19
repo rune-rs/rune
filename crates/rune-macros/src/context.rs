@@ -3,8 +3,8 @@ use std::cell::RefCell;
 use crate::internals::*;
 use proc_macro2::Span;
 use proc_macro2::TokenStream;
-use quote::quote_spanned;
-use quote::{quote, ToTokens};
+use quote::{quote, quote_spanned, ToTokens};
+use syn::parse::Parse;
 use syn::parse::ParseStream;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned as _;
@@ -74,6 +74,8 @@ pub(crate) struct TypeAttr {
     pub(crate) item: Option<syn::Path>,
     /// `#[rune(constructor)]`.
     pub(crate) constructor: bool,
+    /// Protocols to "derive"
+    pub(crate) protocols: Vec<TypeProtocol>,
     /// Parsed documentation.
     pub(crate) docs: Vec<syn::Expr>,
 }
@@ -111,6 +113,60 @@ pub(crate) struct Generate<'a> {
 pub(crate) struct FieldProtocol {
     pub(crate) generate: fn(Generate<'_>) -> TokenStream,
     custom: Option<syn::Path>,
+}
+
+pub(crate) struct TypeProtocol {
+    protocol: syn::Ident,
+    handler: Option<syn::Path>,
+}
+
+impl TypeProtocol {
+    pub fn expand(&self) -> TokenStream {
+        if let Some(handler) = &self.handler {
+            let protocol = &self.protocol;
+            return quote_spanned! {protocol.span()=>
+                module.associated_function(rune::runtime::Protocol::#protocol, #handler)?;
+            };
+        }
+        match self.protocol.to_string().as_str() {
+            "ADD" => quote_spanned! {self.protocol.span()=>
+                module.associated_function(rune::runtime::Protocol::ADD, |this: Self, other: Self| this + other)?;
+            },
+            "STRING_DISPLAY" => quote_spanned! {self.protocol.span()=>
+                module.associated_function(rune::runtime::Protocol::STRING_DISPLAY, |this: &Self, buf: &mut String| {
+                    use ::std::fmt::Write as _;
+                    ::std::write!(buf, "{this}")
+                })?;
+            },
+            "STRING_DEBUG" => quote_spanned! {self.protocol.span()=>
+                module.associated_function(rune::runtime::Protocol::STRING_DEBUG, |this: &Self, buf: &mut String| {
+                    use ::std::fmt::Write as _;
+                    ::std::write!(buf, "{this:?}")
+                })?;
+            },
+            _ => syn::Error::new_spanned(
+                &self.protocol,
+                format!(
+                    "`{}` is not a protocol supported for automatic generation on a type",
+                    self.protocol
+                ),
+            )
+            .to_compile_error(),
+        }
+    }
+}
+
+impl Parse for TypeProtocol {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        Ok(Self {
+            protocol: input.parse()?,
+            handler: if input.parse::<Token![=]>().is_ok() {
+                Some(input.parse()?)
+            } else {
+                None
+            },
+        })
+    }
 }
 
 #[derive(Default)]
@@ -445,6 +501,12 @@ impl Context {
                         attr.install_with = Some(parse_path_compat(meta.input)?);
                     } else if meta.path == CONSTRUCTOR {
                         attr.constructor = true;
+                    } else if meta.path == PROTOCOLS {
+                        // Parse `#[rune(protocols(<protocol>,*))]`
+                        let protocols;
+                        syn::parenthesized!(protocols in meta.input);
+                        attr.protocols
+                            .extend(protocols.parse_terminated(TypeProtocol::parse, Token![,])?);
                     } else {
                         return Err(syn::Error::new_spanned(
                             &meta.path,
