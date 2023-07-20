@@ -9,7 +9,7 @@ documentation = "https://docs.rs/rune"
 readme = "README.md"
 homepage = "https://github.com/rune-rs/rune"
 repository = "https://github.com/rune-rs/rune"
-license = "MIT/Apache-2.0"
+license = "MIT OR Apache-2.0"
 keywords = ["language", "scripting", "scripting-language"]
 categories = ["parser-implementations"]
 
