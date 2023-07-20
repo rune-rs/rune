@@ -3,7 +3,7 @@ use quote::{quote, ToTokens};
 use syn::parse::ParseStream;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
-use syn::{parse_quote_spanned, Error, Token};
+use syn::{Error, Token};
 
 #[derive(Default)]
 enum Path {
@@ -40,8 +40,16 @@ impl FunctionAttrs {
             } else if ident == "protocol" {
                 input.parse::<Token![=]>()?;
                 let protocol: syn::Path = input.parse()?;
-                out.path = Path::Protocol(if protocol.segments.len() == 1 {
-                    parse_quote_spanned!(protocol.span()=> rune::runtime::Protocol::#protocol)
+                out.path = Path::Protocol(if let Some(protocol) = protocol.get_ident() {
+                    syn::Path {
+                        leading_colon: None,
+                        segments: ["rune", "runtime", "Protocol"]
+                            .into_iter()
+                            .map(|i| syn::Ident::new(i, protocol.span()))
+                            .chain(Some(protocol.clone()))
+                            .map(syn::PathSegment::from)
+                            .collect(),
+                    }
                 } else {
                     protocol
                 })
@@ -223,21 +231,21 @@ impl Function {
         if instance {
             self_type = None;
 
-            name = if let Path::Protocol(protocol) = &attrs.path {
-                syn::Expr::Path(syn::ExprPath {
-                    attrs: Vec::new(),
-                    qself: None,
-                    path: protocol.clone(),
-                })
-            } else {
+            name = 'out: {
                 syn::Expr::Lit(syn::ExprLit {
                     attrs: Vec::new(),
                     lit: syn::Lit::Str(match &attrs.path {
+                        Path::Protocol(protocol) => {
+                            break 'out syn::Expr::Path(syn::ExprPath {
+                                attrs: Vec::new(),
+                                qself: None,
+                                path: protocol.clone(),
+                            })
+                        }
                         Path::None => name_string.clone(),
                         Path::Rename(last) | Path::Instance(_, last) => {
                             syn::LitStr::new(&last.ident.to_string(), last.ident.span())
                         }
-                        Path::Protocol(_) => unreachable!(),
                     }),
                 })
             };
