@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1688433872687,
+  "lastUpdate": 1689902080211,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -21518,6 +21518,88 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 5532032,
             "range": "± 4442",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]",
+            "email": "49699333+dependabot[bot]@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "id": "50c374cc8481f67ba91eb5b7434749aecaf41697",
+          "message": "Bump word-wrap from 1.2.3 to 1.2.4 in /editors/code\n\nBumps [word-wrap](https://github.com/jonschlinkert/word-wrap) from 1.2.3 to 1.2.4.\n- [Release notes](https://github.com/jonschlinkert/word-wrap/releases)\n- [Commits](https://github.com/jonschlinkert/word-wrap/compare/1.2.3...1.2.4)\n\n---\nupdated-dependencies:\n- dependency-name: word-wrap\n  dependency-type: indirect\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>",
+          "timestamp": "2023-07-19T20:43:07Z",
+          "url": "https://github.com/rune-rs/rune/commit/50c374cc8481f67ba91eb5b7434749aecaf41697"
+        },
+        "date": 1689902079511,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 302730,
+            "range": "± 44514",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1017626,
+            "range": "± 3644",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 431381300,
+            "range": "± 1114098",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 251809749,
+            "range": "± 692419",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 1253716,
+            "range": "± 2715",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 13363464,
+            "range": "± 40371",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 72106942,
+            "range": "± 194862",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 11532447,
+            "range": "± 32762",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 482639,
+            "range": "± 268",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 5371376,
+            "range": "± 19472",
             "unit": "ns/iter"
           }
         ]
