@@ -279,8 +279,10 @@ pub(crate) use rune_macros::__internal_impl_any;
 ///   generated Rune documentation.
 /// * The name of arguments is captured to improve documentation generation.
 /// * If an instance function is annotated this is detected (if the function
-///   receives `self`). This behavior can be forced using `#[rune(instance)]` if
+///   receives `self`). This behavior can be forced using `#[rune::function(instance)]` if
 ///   the function doesn't take `self`.
+/// * The name of the function can be set using the `#[rune::function(path = ...)]`.
+/// * Instance functions can be made a protocol function `#[rune::function(protocol = STRING_DISPLAY)]`.
 ///
 /// # Examples
 ///
@@ -327,10 +329,11 @@ pub(crate) use rune_macros::__internal_impl_any;
 /// }
 /// ```
 ///
-/// A regular instance function:
+/// Regular instance functions and protocol functions:
 ///
 /// ```
 /// use rune::{Any, Module, ContextError};
+/// use std::fmt::{self, Write};
 ///
 /// #[derive(Any)]
 /// struct String {
@@ -359,6 +362,11 @@ pub(crate) use rune_macros::__internal_impl_any;
 ///         String {
 ///             inner: self.inner.to_uppercase()
 ///         }
+///     }
+///
+///     #[rune::function(protocol = STRING_DISPLAY)]
+///     fn display(&self, buffer: &mut std::string::String) -> fmt::Result {
+///         write!(buffer, "{}", self.inner)
 ///     }
 /// }
 ///
@@ -399,10 +407,10 @@ pub(crate) use rune_macros::__internal_impl_any;
 ///     m.function_meta(empty)?;
 ///     m.function_meta(String::to_uppercase)?;
 ///     m.function_meta(to_lowercase)?;
+///     m.function_meta(String::display)?;
 ///     Ok(m)
 /// }
 /// ```
-#[doc(hidden)]
 pub use rune_macros::function;
 
 /// Macro used to annotate native functions which can be loaded as macros in
