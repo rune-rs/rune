@@ -155,6 +155,11 @@ pub(crate) fn expand_install_with(
     }
 
     installers.extend(attr.protocols.iter().map(|protocol| protocol.expand()));
+    installers.extend(attr.functions.iter().map(|function| {
+        quote_spanned! {function.span()=>
+            module.function_meta(#function)?;
+        }
+    }));
 
     if let Some(install_with) = &attr.install_with {
         installers.push(quote_spanned! { input.span() =>

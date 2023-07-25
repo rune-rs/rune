@@ -76,6 +76,8 @@ pub(crate) struct TypeAttr {
     pub(crate) constructor: bool,
     /// Protocols to "derive"
     pub(crate) protocols: Vec<TypeProtocol>,
+    /// Assosiated functions
+    pub(crate) functions: Vec<syn::Path>,
     /// Parsed documentation.
     pub(crate) docs: Vec<syn::Expr>,
 }
@@ -507,6 +509,12 @@ impl Context {
                         syn::parenthesized!(protocols in meta.input);
                         attr.protocols
                             .extend(protocols.parse_terminated(TypeProtocol::parse, Token![,])?);
+                    } else if meta.path == FUNCTIONS {
+                        // Parse `#[rune(functions(<function>,*))]`
+                        let functions;
+                        syn::parenthesized!(functions in meta.input);
+                        attr.functions
+                            .extend(functions.parse_terminated(syn::Path::parse, Token![,])?);
                     } else {
                         return Err(syn::Error::new_spanned(
                             &meta.path,
