@@ -337,6 +337,9 @@ impl<'a, 'arena> Query<'a, 'arena> {
             parameters,
         };
 
+        self.unit
+            .insert_meta(location.as_spanned(), &meta, self.pool, self.inner)?;
+
         self.insert_meta(meta.clone())
             .with_span(location.as_spanned())?;
 

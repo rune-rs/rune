@@ -72,6 +72,8 @@ pub(crate) struct TypeAttr {
     pub(crate) parse: ParseKind,
     /// `#[rune(item = <path>)]`.
     pub(crate) item: Option<syn::Path>,
+    /// `#[rune(constructible)]`.
+    pub(crate) constructor: bool,
     /// Parsed documentation.
     pub(crate) docs: Vec<syn::Expr>,
 }
@@ -441,6 +443,8 @@ impl Context {
                         // Parse `#[rune(install_with = <path>)]`
                         meta.input.parse::<Token![=]>()?;
                         attr.install_with = Some(parse_path_compat(meta.input)?);
+                    } else if meta.path == CONSTRUCTOR {
+                        attr.constructor = true;
                     } else {
                         return Err(syn::Error::new_spanned(
                             &meta.path,

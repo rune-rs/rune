@@ -116,6 +116,8 @@ pub(crate) struct ModuleType {
     pub(crate) type_info: TypeInfo,
     /// The specification for the type.
     pub(crate) spec: Option<TypeSpecification>,
+    /// Handler to use if this type can be constructed through a regular function call.
+    pub(crate) constructor: Option<Arc<FunctionHandler>>,
     /// Documentation for the type.
     pub(crate) docs: Docs,
 }
@@ -485,6 +487,7 @@ where
 {
     docs: &'a mut Docs,
     spec: &'a mut Option<TypeSpecification>,
+    constructor: &'a mut Option<Arc<FunctionHandler>>,
     item: &'a Item,
     _marker: PhantomData<&'a mut T>,
 }
@@ -553,6 +556,24 @@ where
             enum_,
             _marker: PhantomData,
         })
+    }
+
+    /// Register a constructor method for the current type.
+    pub fn constructor<F, A>(self, constructor: F) -> Result<Self, ContextError>
+    where
+        F: Function<A, Plain, Return = T>,
+    {
+        if self.constructor.is_some() {
+            return Err(ContextError::ConstructorConflict {
+                type_info: T::type_info(),
+            });
+        }
+
+        *self.constructor = Some(Arc::new(move |stack, args| {
+            constructor.fn_call(stack, args)
+        }));
+
+        Ok(self)
     }
 
     fn make_struct(self, fields: Fields) -> Result<Self, ContextError> {
