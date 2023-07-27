@@ -72,7 +72,7 @@ pub(crate) struct TypeAttr {
     pub(crate) parse: ParseKind,
     /// `#[rune(item = <path>)]`.
     pub(crate) item: Option<syn::Path>,
-    /// `#[rune(constructible)]`.
+    /// `#[rune(constructor)]`.
     pub(crate) constructor: bool,
     /// Parsed documentation.
     pub(crate) docs: Vec<syn::Expr>,

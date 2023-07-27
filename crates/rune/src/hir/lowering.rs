@@ -410,10 +410,18 @@ pub(crate) fn expr_object<'hir>(
                 }
                 meta::Kind::Struct {
                     fields: meta::Fields::Named(st),
+                    constructor,
                     ..
                 } => {
                     check_object_fields(&st.fields, item)?;
-                    hir::ExprObjectKind::Struct { hash: meta.hash }
+
+                    match constructor {
+                        Some(_) => hir::ExprObjectKind::Constructor {
+                            hash: meta.hash,
+                            args: st.fields.len(),
+                        },
+                        None => hir::ExprObjectKind::Struct { hash: meta.hash },
+                    }
                 }
                 meta::Kind::Variant {
                     fields: meta::Fields::Named(st),

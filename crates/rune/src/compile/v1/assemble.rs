@@ -1976,6 +1976,9 @@ fn expr_object<'hir>(
         hir::ExprObjectKind::StructVariant { hash } => {
             cx.asm.push(Inst::StructVariant { hash, slot }, span);
         }
+        hir::ExprObjectKind::Constructor { hash, args } => {
+            cx.asm.push(Inst::Call { hash, args }, span);
+        }
         hir::ExprObjectKind::Anonymous => {
             cx.asm.push(Inst::Object { slot }, span);
         }

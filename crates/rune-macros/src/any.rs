@@ -138,7 +138,7 @@ pub(crate) fn expand_install_with(
 
     match &input.data {
         syn::Data::Struct(st) => {
-            expand_struct_install_with(cx, installers, ident, st, tokens, attr, generics)?;
+            expand_struct_install_with(cx, installers, ident, st, tokens, attr)?;
         }
         syn::Data::Enum(en) => {
             expand_enum_install_with(cx, installers, ident, en, tokens, attr, generics)?;
@@ -168,7 +168,6 @@ fn expand_struct_install_with(
     st: &syn::DataStruct,
     tokens: &Tokens,
     attr: &TypeAttr,
-    generics: &syn::Generics,
 ) -> Result<(), ()> {
     for (n, field) in st.fields.iter().enumerate() {
         let attrs = cx.field_attrs(&field.attrs)?;
@@ -219,30 +218,29 @@ fn expand_struct_install_with(
 
     match &st.fields {
         syn::Fields::Named(fields) => {
-            let constructor = if attr.constructor {
-                let args = fields.named.iter().map(|f| {
-                    let ident = f.ident.as_ref().expect("ident");
-                    let typ = &f.ty;
-                    quote!(#ident: #typ)
-                });
+            let constructor = attr
+                .constructor
+                .then(|| {
+                    let args = fields.named.iter().map(|f| {
+                        let ident = f.ident.as_ref().expect("named fields must have an Ident");
+                        let typ = &f.ty;
+                        quote!(#ident: #typ)
+                    });
 
-                let fields = fields.named.iter().map(|f| f.ident.as_ref());
+                    let field_names = fields.named.iter().map(|f| f.ident.as_ref());
 
-                Some(quote!(|#(#args),*| {
-                    #ident {
-                        #(#fields),*
-                    }
-                }))
-            } else {
-                None
-            };
+                    quote!(|#(#args),*| {
+                        #ident {
+                            #(#field_names),*
+                        }
+                    })
+                })
+                .map(|c| quote!(.constructor(#c)?));
 
             let fields = fields.named.iter().flat_map(|f| {
                 let ident = f.ident.as_ref()?;
                 Some(syn::LitStr::new(&ident.to_string(), ident.span()))
             });
-
-            let constructor = constructor.as_ref().map(|c| quote!(.constructor(#c)?));
 
             installers.push(quote! {
                 module.type_meta::<Self>()?.make_named_struct(&[#(#fields,)*])?#constructor.static_docs(&#docs);

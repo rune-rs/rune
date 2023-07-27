@@ -580,6 +580,7 @@ pub(crate) enum ExprObjectKind {
     UnitStruct { hash: Hash },
     Struct { hash: Hash },
     StructVariant { hash: Hash },
+    Constructor { hash: Hash, args: usize },
     Anonymous,
 }
 

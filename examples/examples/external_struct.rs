@@ -50,7 +50,7 @@ fn main() -> rune::Result<()> {
     let mut vm = Vm::new(runtime, Arc::new(unit));
 
     let output = vm.call(["main"], ())?;
-    //let output: External = rune::from_value(output)?;
+    let output: External = rune::from_value(output)?;
     println!("{:?}", output);
 
     Ok(())
