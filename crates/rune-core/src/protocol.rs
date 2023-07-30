@@ -153,6 +153,14 @@ impl Protocol {
             doc: ["Allows an equality operation to work."],
         };
 
+        /// Perform an ordered comparison between two values.
+        pub const CMP: Protocol = Protocol {
+            name: "cmp",
+            hash: 0x240f1b75466cd1a3,
+            repr: Some("if $value < b { }"),
+            doc: ["Allows for ordering operations to work."],
+        };
+
         /// The function to implement for the addition operation.
         pub const ADD: Protocol = Protocol {
             name: "add",

@@ -667,10 +667,10 @@ impl fmt::Display for VmErrorKind {
                 "The tuple index set operation is not supported on `{target}`",
             ),
             VmErrorKind::UnsupportedObjectSlotIndexGet { target } => {
-                write!(f, "Field not available on `{target}`",)
+                write!(f, "Field not available to get on `{target}`",)
             }
             VmErrorKind::UnsupportedObjectSlotIndexSet { target } => {
-                write!(f, "Field not available on `{target}`",)
+                write!(f, "Field not available to set on `{target}`",)
             }
             VmErrorKind::UnsupportedIs { value, test_type } => {
                 write!(f, "Operation `{value} is {test_type}` is not supported",)
