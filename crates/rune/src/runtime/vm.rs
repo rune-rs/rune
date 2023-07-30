@@ -3055,8 +3055,8 @@ impl Vm {
                 Inst::Dup => {
                     vm_try!(self.op_dup());
                 }
-                Inst::Swap { a, b: to } => {
-                    vm_try!(self.op_swap(a, to));
+                Inst::Swap { a, b } => {
+                    vm_try!(self.op_swap(a, b));
                 }
                 Inst::Replace { offset } => {
                     vm_try!(self.op_replace(offset));

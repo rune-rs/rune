@@ -1957,18 +1957,63 @@ fn expr_object<'hir>(
 ) -> compile::Result<Asm<'hir>> {
     let guard = cx.scopes.child(span)?;
 
-    let mut order = Vec::with_capacity(hir.assignments.len());
-
     for assign in hir.assignments.iter() {
         expr(cx, &assign.assign, Needs::Value)?.apply(cx)?;
         cx.scopes.alloc(&span)?;
+    }
 
-        let position = assign.position.ok_or(compile::Error::msg(
-            span,
-            format!("missing position for field assignment {}", assign.key.1),
-        ))?;
+    let slot =
+        cx.q.unit
+            .new_static_object_keys_iter(span, hir.assignments.iter().map(|a| a.key.1))?;
 
-        order.push(position);
+    match hir.kind {
+        hir::ExprObjectKind::UnitStruct { hash } => {
+            cx.asm.push(Inst::UnitStruct { hash }, span);
+        }
+        hir::ExprObjectKind::Struct { hash } => {
+            cx.asm.push(Inst::Struct { hash, slot }, span);
+        }
+        hir::ExprObjectKind::StructVariant { hash } => {
+            cx.asm.push(Inst::StructVariant { hash, slot }, span);
+        }
+        hir::ExprObjectKind::Constructor { hash, args } => {
+            reorder_field_assignments(cx, hir, span)?;
+            cx.asm.push(Inst::Call { hash, args }, span);
+        }
+        hir::ExprObjectKind::Anonymous => {
+            cx.asm.push(Inst::Object { slot }, span);
+        }
+    }
+
+    // No need to encode an object since the value is not needed.
+    if !needs.value() {
+        cx.q.diagnostics.not_used(cx.source_id, span, cx.context());
+        cx.asm.push(Inst::Pop, span);
+    }
+
+    cx.scopes.pop(guard, span)?;
+    Ok(Asm::top(span))
+}
+
+/// Reorder the position of the field assignments on the stack so that they
+/// match the expected argument order when invoking the constructor function.
+fn reorder_field_assignments<'hir>(
+    cx: &mut Ctxt<'_, 'hir, '_>,
+    hir: &hir::ExprObject<'hir>,
+    span: &dyn Spanned,
+) -> compile::Result<()> {
+    let mut order = Vec::with_capacity(hir.assignments.len());
+
+    for assign in hir.assignments {
+        match assign.position {
+            Some(position) => order.push(position),
+            None => {
+                return Err(compile::Error::msg(
+                    span,
+                    format!("missing position for field {}", assign.key.1),
+                ))
+            }
+        };
     }
 
     for stack_position in 0..hir.assignments.len() {
@@ -1991,36 +2036,7 @@ fn expr_object<'hir>(
         }
     }
 
-    let slot =
-        cx.q.unit
-            .new_static_object_keys_iter(span, hir.assignments.iter().map(|a| a.key.1))?;
-
-    match hir.kind {
-        hir::ExprObjectKind::UnitStruct { hash } => {
-            cx.asm.push(Inst::UnitStruct { hash }, span);
-        }
-        hir::ExprObjectKind::Struct { hash } => {
-            cx.asm.push(Inst::Struct { hash, slot }, span);
-        }
-        hir::ExprObjectKind::StructVariant { hash } => {
-            cx.asm.push(Inst::StructVariant { hash, slot }, span);
-        }
-        hir::ExprObjectKind::Constructor { hash, args } => {
-            cx.asm.push(Inst::Call { hash, args }, span);
-        }
-        hir::ExprObjectKind::Anonymous => {
-            cx.asm.push(Inst::Object { slot }, span);
-        }
-    }
-
-    // No need to encode an object since the value is not needed.
-    if !needs.value() {
-        cx.q.diagnostics.not_used(cx.source_id, span, cx.context());
-        cx.asm.push(Inst::Pop, span);
-    }
-
-    cx.scopes.pop(guard, span)?;
-    Ok(Asm::top(span))
+    Ok(())
 }
 
 /// Assemble a range expression.
