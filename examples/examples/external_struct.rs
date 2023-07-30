@@ -5,18 +5,18 @@ use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{Any, ContextError, Diagnostics, Module};
 
 #[derive(Default, Debug, Any, PartialEq, Eq)]
+struct Request {
+    #[rune(get, set)]
+    url: String,
+}
+
+#[derive(Default, Debug, Any, PartialEq, Eq)]
 #[rune(constructor)]
-struct External {
+struct Response {
     #[rune(get, set)]
-    suite_name: String,
+    status_code: usize,
     #[rune(get, set)]
-    room_number: usize,
-    #[rune(get, set)]
-    is_reserved: bool,
-    #[rune(get, set)]
-    num_beds: usize,
-    #[rune(get, set)]
-    num_baths: usize,
+    body: String,
 }
 
 fn main() -> rune::Result<()> {
@@ -28,16 +28,19 @@ fn main() -> rune::Result<()> {
 
     let mut sources = rune::sources! {
         entry => {
-            pub fn main() {
-                let external = External {
-                    is_reserved: true,
-                    num_baths: 3,
-                    num_beds: 2,
-                    suite_name: "Fowler",
-                    room_number: 1300,
+            pub fn main(req) {
+                let rsp = match req.url {
+                    "/" => Response {
+                        status_code: 200,
+                        body: "ok",
+                    },
+                    _ => Response {
+                        status_code: 400,
+                        body: "not found",
+                    }
                 };
 
-                external
+                rsp
             }
         }
     };
@@ -58,8 +61,17 @@ fn main() -> rune::Result<()> {
 
     let mut vm = Vm::new(runtime, Arc::new(unit));
 
-    let output = vm.call(["main"], ())?;
-    let output: External = rune::from_value(output)?;
+    let output = vm.call(["main"], (Request { url: "/".into() },))?;
+    let output: Response = rune::from_value(output)?;
+    println!("{:?}", output);
+
+    let output = vm.call(
+        ["main"],
+        (Request {
+            url: "/account".into(),
+        },),
+    )?;
+    let output: Response = rune::from_value(output)?;
     println!("{:?}", output);
 
     Ok(())
@@ -67,6 +79,7 @@ fn main() -> rune::Result<()> {
 
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new();
-    module.ty::<External>()?;
+    module.ty::<Request>()?;
+    module.ty::<Response>()?;
     Ok(module)
 }

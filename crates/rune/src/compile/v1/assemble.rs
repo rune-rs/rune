@@ -2015,20 +2015,29 @@ fn reorder_field_assignments<'hir>(
         order.push(position);
     }
 
-    for stack_position in 0..hir.assignments.len() {
+    for current_position in 0..hir.assignments.len() {
         loop {
-            let desired_position = order[stack_position];
+            let desired_position = order[current_position];
 
-            if stack_position == desired_position {
+            if current_position == desired_position {
                 break;
             }
 
-            order.swap(stack_position, desired_position);
+            order.swap(current_position, desired_position);
+
+            let current_offset = hir.assignments.len() - current_position;
+
+            let Some(desired_offset) = hir.assignments.len().checked_sub(desired_position) else {
+                return Err(compile::Error::msg(
+                    span,
+                    format_args!("Wrong number of field assignments: have {} but field position is {}",  hir.assignments.len(), desired_position),
+                ));
+            };
 
             cx.asm.push(
                 Inst::Swap {
-                    a: stack_position,
-                    b: desired_position,
+                    a: current_offset,
+                    b: desired_offset,
                 },
                 span,
             );
