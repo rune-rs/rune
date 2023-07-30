@@ -452,6 +452,15 @@ pub enum Inst {
         /// Offset to swap value from.
         offset: usize,
     },
+    /// Swap two values on the stack using their offsets relative to the current
+    /// stack frame.
+    #[musli(packed)]
+    Swap {
+        /// Offset to the first value.
+        a: usize,
+        /// Offset to the second value.
+        b: usize,
+    },
     /// Pop the current stack frame and restore the instruction pointer from it.
     ///
     /// The stack frame will be cleared, and the value on the top of the stack

@@ -77,6 +77,9 @@ pub enum ContextError {
     ConflictingVariant {
         item: ItemBuf,
     },
+    ConstructorConflict {
+        type_info: TypeInfo,
+    },
     ValueError {
         error: VmError,
     },
@@ -195,6 +198,12 @@ impl fmt::Display for ContextError {
             }
             ContextError::ConflictingVariant { item } => {
                 write!(f, "Variant with `{item}` already exists")?;
+            }
+            ContextError::ConstructorConflict { type_info } => {
+                write!(
+                    f,
+                    "Constructor for type `{type_info}` has already been registered"
+                )?;
             }
             ContextError::ValueError { error } => {
                 write!(f, "Error when converting to constant value: {error}")?;

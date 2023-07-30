@@ -76,3 +76,140 @@ fn construct_enum() {
     let output: Enum = from_value(output).unwrap();
     assert_eq!(output, Enum::Output(2 * 3 * 4));
 }
+
+/// Tests constructing an external struct from within Rune, and receiving
+/// external structs as an argument.
+#[test]
+fn construct_struct() {
+    #[derive(Debug, Any, PartialEq, Eq)]
+    #[rune(constructor)]
+    struct Request {
+        #[rune(get)]
+        url: String,
+    }
+
+    #[derive(Debug, Any, PartialEq, Eq)]
+    #[rune(constructor)]
+    struct Response {
+        #[rune(get, set)]
+        status_code: u32,
+        #[rune(get, set)]
+        body: String,
+        #[rune(get, set)]
+        headers: Headers,
+    }
+
+    #[derive(Debug, Any, Clone, PartialEq, Eq)]
+    #[rune(constructor)]
+    struct Headers {
+        #[rune(get, set)]
+        content_type: String,
+        #[rune(get, set)]
+        content_length: u32,
+    }
+
+    fn make_module() -> Result<Module, ContextError> {
+        let mut module = Module::new();
+        module.ty::<Request>()?;
+        module.ty::<Response>()?;
+        module.ty::<Headers>()?;
+        Ok(module)
+    }
+
+    let m = make_module().expect("Module should be buildable");
+
+    let mut context = Context::new();
+    context.install(m).expect("Context should build");
+    let runtime = Arc::new(context.runtime());
+
+    let mut sources = sources! {
+        entry => {
+            pub fn main(req) {
+                let content_type = "text/plain";
+
+                // Field order has been purposefully scrambled here, to test
+                // that they can be given in any order and still compile
+                // correctly.
+                let rsp = match req.url {
+                    "/" => Response {
+                        status_code: 200,
+                        body: "ok",
+                        headers: Headers {
+                            content_length: 2,
+                            content_type,
+                        },
+                    },
+                    "/account" => Response {
+                        headers: Headers {
+                            content_type,
+                            content_length: 12,
+                        },
+                        body: "unauthorized",
+                        status_code: 401,
+                    },
+                    _ => Response {
+                        body: "not found",
+                        status_code: 404,
+                        headers: Headers {
+                            content_type,
+                            content_length: 9,
+                        },
+                    }
+                };
+
+                rsp
+            }
+        }
+    };
+
+    let unit = prepare(&mut sources)
+        .with_context(&context)
+        .build()
+        .expect("Unit should build");
+
+    let mut vm = Vm::new(runtime, Arc::new(unit));
+
+    for (req, rsp) in vec![
+        (
+            Request { url: "/".into() },
+            Response {
+                status_code: 200,
+                body: "ok".into(),
+                headers: Headers {
+                    content_type: "text/plain".into(),
+                    content_length: 2,
+                },
+            },
+        ),
+        (
+            Request {
+                url: "/account".into(),
+            },
+            Response {
+                status_code: 401,
+                body: "unauthorized".into(),
+                headers: Headers {
+                    content_type: "text/plain".into(),
+                    content_length: 12,
+                },
+            },
+        ),
+        (
+            Request {
+                url: "/cart".into(),
+            },
+            Response {
+                status_code: 404,
+                body: "not found".into(),
+                headers: Headers {
+                    content_type: "text/plain".into(),
+                    content_length: 9,
+                },
+            },
+        ),
+    ] {
+        let output = vm.call(["main"], (req,)).unwrap();
+        let output: Response = from_value(output).unwrap();
+        assert_eq!(output, rsp);
+    }
+}

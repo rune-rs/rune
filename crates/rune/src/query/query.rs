@@ -9,7 +9,7 @@ use crate::no_std::sync::Arc;
 use crate::ast::{Span, Spanned};
 use crate::compile::context::ContextMeta;
 use crate::compile::ir;
-use crate::compile::meta;
+use crate::compile::meta::{self, FieldMeta};
 use crate::compile::{
     self, CompileVisitor, ComponentRef, Doc, DynLocation, ErrorKind, ImportStep, IntoComponent,
     Item, ItemBuf, ItemId, ItemMeta, Located, Location, ModId, ModMeta, Names, Pool, Prelude,
@@ -1190,11 +1190,11 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 ast::Fields::Empty => meta::Fields::Empty,
                 ast::Fields::Unnamed(tuple) => meta::Fields::Unnamed(tuple.len()),
                 ast::Fields::Named(st) => {
-                    let mut fields = HashSet::new();
+                    let mut fields = HashMap::with_capacity(st.len());
 
-                    for (ast::Field { name, .. }, _) in st {
+                    for (position, (ast::Field { name, .. }, _)) in st.iter().enumerate() {
                         let name = name.resolve(cx)?;
-                        fields.insert(name.into());
+                        fields.insert(name.into(), FieldMeta { position });
                     }
 
                     meta::Fields::Named(meta::FieldsNamed { fields })

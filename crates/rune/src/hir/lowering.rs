@@ -330,7 +330,7 @@ pub(crate) fn expr_object<'hir>(
     let span = ast;
     let mut keys_dup = HashMap::new();
 
-    let assignments = &*iter!(&ast.assignments, |(ast, _)| {
+    let assignments = &mut *iter!(&ast.assignments, |(ast, _)| {
         let key = object_key(cx, &ast.key)?;
 
         if let Some(existing) = keys_dup.insert(key.1, key.0) {
@@ -362,25 +362,31 @@ pub(crate) fn expr_object<'hir>(
         hir::FieldAssign {
             key: (key.0.span(), key.1),
             assign,
+            position: None,
         }
     });
 
-    let check_object_fields = |fields: &HashSet<_>, item: &Item| {
+    let mut check_object_fields = |fields: &HashMap<_, meta::FieldMeta>, item: &Item| {
         let mut fields = fields.clone();
 
-        for assign in assignments {
-            if !fields.remove(assign.key.1) {
-                return Err(compile::Error::new(
-                    assign.key.0,
-                    ErrorKind::LitObjectNotField {
-                        field: assign.key.1.into(),
-                        item: item.to_owned(),
-                    },
-                ));
-            }
+        for assign in assignments.iter_mut() {
+            match fields.remove(assign.key.1) {
+                Some(field_meta) => {
+                    assign.position = Some(field_meta.position);
+                }
+                None => {
+                    return Err(compile::Error::new(
+                        assign.key.0,
+                        ErrorKind::LitObjectNotField {
+                            field: assign.key.1.into(),
+                            item: item.to_owned(),
+                        },
+                    ));
+                }
+            };
         }
 
-        if let Some(field) = fields.into_iter().next() {
+        if let Some(field) = fields.into_keys().next() {
             return Err(compile::Error::new(
                 span,
                 ErrorKind::LitObjectMissingField {
@@ -405,15 +411,23 @@ pub(crate) fn expr_object<'hir>(
                     fields: meta::Fields::Empty,
                     ..
                 } => {
-                    check_object_fields(&HashSet::new(), item)?;
+                    check_object_fields(&HashMap::new(), item)?;
                     hir::ExprObjectKind::UnitStruct { hash: meta.hash }
                 }
                 meta::Kind::Struct {
                     fields: meta::Fields::Named(st),
+                    constructor,
                     ..
                 } => {
                     check_object_fields(&st.fields, item)?;
-                    hir::ExprObjectKind::Struct { hash: meta.hash }
+
+                    match constructor {
+                        Some(_) => hir::ExprObjectKind::ExternalType {
+                            hash: meta.hash,
+                            args: st.fields.len(),
+                        },
+                        None => hir::ExprObjectKind::Struct { hash: meta.hash },
+                    }
                 }
                 meta::Kind::Variant {
                     fields: meta::Fields::Named(st),
@@ -1167,7 +1181,7 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                         ));
                     };
 
-                    let mut fields = st.fields.clone();
+                    let mut fields: HashSet<_> = st.fields.keys().cloned().collect();
 
                     for binding in bindings.iter() {
                         if !fields.remove(binding.key()) {

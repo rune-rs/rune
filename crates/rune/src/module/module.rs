@@ -197,6 +197,7 @@ impl Module {
             type_parameters,
             type_info,
             spec: None,
+            constructor: None,
             docs: Docs::EMPTY,
         });
 
@@ -207,6 +208,7 @@ impl Module {
         Ok(TypeMut {
             docs: &mut ty.docs,
             spec: &mut ty.spec,
+            constructor: &mut ty.constructor,
             item: &ty.item,
             _marker: PhantomData,
         })
@@ -229,6 +231,7 @@ impl Module {
         Ok(TypeMut {
             docs: &mut ty.docs,
             spec: &mut ty.spec,
+            constructor: &mut ty.constructor,
             item: &ty.item,
             _marker: PhantomData,
         })

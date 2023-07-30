@@ -323,6 +323,22 @@ impl Stack {
         Ok(self.drain(count)?.collect::<Vec<_>>())
     }
 
+    /// Swap the value at position a with the value at position b.
+    pub(crate) fn swap(&mut self, a: usize, b: usize) -> Result<(), StackError> {
+        let a = self
+            .stack_bottom
+            .checked_add(a)
+            .filter(|&n| n < self.stack.len())
+            .ok_or(StackError)?;
+        let b = self
+            .stack_bottom
+            .checked_add(b)
+            .filter(|&n| n < self.stack.len())
+            .ok_or(StackError)?;
+        self.stack.swap(a, b);
+        Ok(())
+    }
+
     /// Modify stack top by subtracting the given count from it while checking
     /// that it is in bounds of the stack.
     ///

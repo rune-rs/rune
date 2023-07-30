@@ -1957,7 +1957,9 @@ fn expr_object<'hir>(
 ) -> compile::Result<Asm<'hir>> {
     let guard = cx.scopes.child(span)?;
 
-    for assign in hir.assignments {
+    let base = cx.scopes.total(span)?;
+
+    for assign in hir.assignments.iter() {
         expr(cx, &assign.assign, Needs::Value)?.apply(cx)?;
         cx.scopes.alloc(&span)?;
     }
@@ -1976,6 +1978,10 @@ fn expr_object<'hir>(
         hir::ExprObjectKind::StructVariant { hash } => {
             cx.asm.push(Inst::StructVariant { hash, slot }, span);
         }
+        hir::ExprObjectKind::ExternalType { hash, args } => {
+            reorder_field_assignments(cx, hir, base, span)?;
+            cx.asm.push(Inst::Call { hash, args }, span);
+        }
         hir::ExprObjectKind::Anonymous => {
             cx.asm.push(Inst::Object { slot }, span);
         }
@@ -1989,6 +1995,56 @@ fn expr_object<'hir>(
 
     cx.scopes.pop(guard, span)?;
     Ok(Asm::top(span))
+}
+
+/// Reorder the position of the field assignments on the stack so that they
+/// match the expected argument order when invoking the constructor function.
+fn reorder_field_assignments<'hir>(
+    cx: &mut Ctxt<'_, 'hir, '_>,
+    hir: &hir::ExprObject<'hir>,
+    base: usize,
+    span: &dyn Spanned,
+) -> compile::Result<()> {
+    let mut order = Vec::with_capacity(hir.assignments.len());
+
+    for assign in hir.assignments {
+        let Some(position) = assign.position else {
+            return Err(compile::Error::msg(
+                span,
+                format_args!("Missing position for field assignment {}", assign.key.1),
+            ));
+        };
+
+        order.push(position);
+    }
+
+    for a in 0..hir.assignments.len() {
+        loop {
+            let Some(&b) = order.get(a) else {
+                return Err(compile::Error::msg(
+                    span,
+                    "Order out-of-bounds",
+                ));
+            };
+
+            if a == b {
+                break;
+            }
+
+            order.swap(a, b);
+
+            let (Some(a), Some(b)) = (base.checked_add(a), base.checked_add(b)) else {
+                return Err(compile::Error::msg(
+                    span,
+                    "Field repositioning out-of-bounds",
+                ));
+            };
+
+            cx.asm.push(Inst::Swap { a, b }, span);
+        }
+    }
+
+    Ok(())
 }
 
 /// Assemble a range expression.

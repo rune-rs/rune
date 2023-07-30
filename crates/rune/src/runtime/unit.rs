@@ -184,12 +184,12 @@ impl<S> Unit<S> {
             .map(|keys| &keys[..])
     }
 
-    /// Lookup runt-time information for the given type hash.
+    /// Lookup run-time information for the given type hash.
     pub(crate) fn lookup_rtti(&self, hash: Hash) -> Option<&Arc<Rtti>> {
         self.logic.rtti.get(&hash)
     }
 
-    /// Lookup variant runt-time information for the given variant hash.
+    /// Lookup variant run-time information for the given variant hash.
     pub(crate) fn lookup_variant_rtti(&self, hash: Hash) -> Option<&Arc<VariantRtti>> {
         self.logic.variant_rtti.get(&hash)
     }

@@ -580,6 +580,7 @@ pub(crate) enum ExprObjectKind {
     UnitStruct { hash: Hash },
     Struct { hash: Hash },
     StructVariant { hash: Hash },
+    ExternalType { hash: Hash, args: usize },
     Anonymous,
 }
 
@@ -601,6 +602,8 @@ pub(crate) struct FieldAssign<'hir> {
     pub(crate) key: (Span, &'hir str),
     /// The assigned expression of the field.
     pub(crate) assign: Expr<'hir>,
+    /// The position of the field in its containing type declaration.
+    pub(crate) position: Option<usize>,
 }
 
 /// A literal vector.

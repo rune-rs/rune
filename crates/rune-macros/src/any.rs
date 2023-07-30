@@ -138,7 +138,7 @@ pub(crate) fn expand_install_with(
 
     match &input.data {
         syn::Data::Struct(st) => {
-            expand_struct_install_with(cx, installers, st, tokens, attr)?;
+            expand_struct_install_with(cx, installers, ident, st, tokens, attr)?;
         }
         syn::Data::Enum(en) => {
             expand_enum_install_with(cx, installers, ident, en, tokens, attr, generics)?;
@@ -164,6 +164,7 @@ pub(crate) fn expand_install_with(
 fn expand_struct_install_with(
     cx: &Context,
     installers: &mut Vec<TokenStream>,
+    ident: &syn::Ident,
     st: &syn::DataStruct,
     tokens: &Tokens,
     attr: &TypeAttr,
@@ -217,13 +218,32 @@ fn expand_struct_install_with(
 
     match &st.fields {
         syn::Fields::Named(fields) => {
+            let constructor = attr
+                .constructor
+                .then(|| {
+                    let args = fields.named.iter().map(|f| {
+                        let ident = f.ident.as_ref().expect("named fields must have an Ident");
+                        let typ = &f.ty;
+                        quote!(#ident: #typ)
+                    });
+
+                    let field_names = fields.named.iter().map(|f| f.ident.as_ref());
+
+                    quote!(|#(#args),*| {
+                        #ident {
+                            #(#field_names),*
+                        }
+                    })
+                })
+                .map(|c| quote!(.constructor(#c)?));
+
             let fields = fields.named.iter().flat_map(|f| {
                 let ident = f.ident.as_ref()?;
                 Some(syn::LitStr::new(&ident.to_string(), ident.span()))
             });
 
             installers.push(quote! {
-                module.type_meta::<Self>()?.make_named_struct(&[#(#fields,)*])?.static_docs(&#docs);
+                module.type_meta::<Self>()?.make_named_struct(&[#(#fields,)*])?#constructor.static_docs(&#docs);
             });
         }
         syn::Fields::Unnamed(fields) => {

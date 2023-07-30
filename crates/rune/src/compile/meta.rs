@@ -3,7 +3,7 @@
 use core::fmt;
 
 use crate::no_std::borrow::Cow;
-use crate::no_std::collections::HashSet;
+use crate::no_std::collections::HashMap;
 use crate::no_std::path::Path;
 use crate::no_std::prelude::*;
 
@@ -287,7 +287,14 @@ pub struct Import {
 #[non_exhaustive]
 pub struct FieldsNamed {
     /// Fields associated with the type.
-    pub(crate) fields: HashSet<Box<str>>,
+    pub(crate) fields: HashMap<Box<str>, FieldMeta>,
+}
+
+/// Metadata for a single named field.
+#[derive(Debug, Clone)]
+pub struct FieldMeta {
+    /// Position of the field in its containing type declaration.
+    pub(crate) position: usize,
 }
 
 /// Item and the module that the item belongs to.
