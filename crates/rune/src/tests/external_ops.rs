@@ -93,7 +93,6 @@ fn assign_ops_struct() -> Result<()> {
 }
 
 #[test]
-#[ignore = "Currently does not work, but should!"]
 fn assign_ops_tuple() -> Result<()> {
     macro_rules! test_case {
         ([$($op:tt)*], $protocol:ident, $derived:tt, $initial:literal, $arg:literal, $expected:literal) => {{
@@ -153,10 +152,10 @@ fn assign_ops_tuple() -> Result<()> {
 
                 let output = vm.clone().call(["type"], (&mut foo,))?;
 
-                assert_eq!(foo.0, $expected, "{} != {} (value)", foo.0, $expected);
-                assert_eq!(foo.1, $expected, "{} != {} (field)", foo.1, $expected);
-                assert_eq!(foo.2, $expected, "{} != {} (derived)", foo.2, $expected);
-                assert_eq!(foo.3, $expected, "{} != {} (custom)", foo.3, $expected);
+                assert_eq!(foo.0, $expected, "{} != {} (value .0)", foo.0, $expected);
+                assert_eq!(foo.1, $expected, "{} != {} (field .1)", foo.1, $expected);
+                assert_eq!(foo.2, $expected, "{} != {} (derived .2)", foo.2, $expected);
+                assert_eq!(foo.3, $expected, "{} != {} (custom .3)", foo.3, $expected);
                 assert!(matches!(output, Value::Unit));
             }
         }};
@@ -176,7 +175,7 @@ fn assign_ops_tuple() -> Result<()> {
 }
 
 #[test]
-fn binary_ops_struct() -> Result<()> {
+fn ordering_struct() -> Result<()> {
     macro_rules! test_case {
         ([$($op:tt)*], $protocol:ident, $initial:literal, $arg:literal, $expected:literal) => {{
             #[derive(Debug, Default, Any)]
@@ -241,6 +240,61 @@ fn binary_ops_struct() -> Result<()> {
     test_case!([<=], CMP, 2, 3, true);
     test_case!([<=], CMP, 2, 2, true);
     test_case!([<=], CMP, 2, 1, false);
+    Ok(())
+}
+
+#[test]
+fn eq_struct() -> Result<()> {
+    macro_rules! test_case {
+        ([$($op:tt)*], $protocol:ident, $initial:literal, $arg:literal, $expected:literal) => {{
+            #[derive(Debug, Default, Any)]
+            struct External {
+                value: i64,
+            }
+
+            impl External {
+                fn value(&self, value: i64) -> bool {
+                    self.value $($op)* value
+                }
+            }
+
+            let mut module = Module::new();
+            module.ty::<External>()?;
+
+            module.associated_function(Protocol::$protocol, External::value)?;
+
+            let mut context = Context::with_default_modules()?;
+            context.install(module)?;
+
+            let mut sources = Sources::new();
+            sources.insert(Source::new(
+                "test",
+                format!(r#"
+                pub fn type(number) {{
+                    number {op} {arg}
+                }}
+                "#, op = stringify!($($op)*), arg = stringify!($arg)),
+            ));
+
+            let unit = prepare(&mut sources)
+                .with_context(&context)
+                .build()?;
+
+            let unit = Arc::new(unit);
+
+            let vm = Vm::new(Arc::new(context.runtime()), unit);
+
+            {
+                let mut foo = External::default();
+                foo.value = $initial;
+
+                let output = vm.clone().call(["type"], (&mut foo,))?;
+                let a = <bool as FromValue>::from_value(output).into_result()?;
+
+                assert_eq!(a, $expected, "{} != {} (value)", foo.value, $expected);
+            }
+        }};
+    }
 
     test_case!([==], EQ, 2, 2, true);
     test_case!([==], EQ, 2, 1, false);

@@ -331,8 +331,8 @@ impl<T> VmResult<T> {
 
     #[doc(hidden)]
     #[inline]
-    pub fn __rune_macros__unsupported_tuple_index_get(target: TypeInfo) -> Self {
-        Self::err(VmErrorKind::UnsupportedTupleIndexGet { target })
+    pub fn __rune_macros__unsupported_tuple_index_get(target: TypeInfo, index: usize) -> Self {
+        Self::err(VmErrorKind::UnsupportedTupleIndexGet { target, index })
     }
 }
 
@@ -475,6 +475,7 @@ pub(crate) enum VmErrorKind {
     },
     UnsupportedTupleIndexGet {
         target: TypeInfo,
+        index: usize,
     },
     UnsupportedTupleIndexSet {
         target: TypeInfo,
@@ -658,9 +659,9 @@ impl fmt::Display for VmErrorKind {
                 f,
                 "The index get operation `{target}[{index}]` is not supported",
             ),
-            VmErrorKind::UnsupportedTupleIndexGet { target } => write!(
+            VmErrorKind::UnsupportedTupleIndexGet { target, index } => write!(
                 f,
-                "The tuple index get operation is not supported on `{target}`",
+                "The tuple index get {index} operation is not supported on `{target}`",
             ),
             VmErrorKind::UnsupportedTupleIndexSet { target } => write!(
                 f,

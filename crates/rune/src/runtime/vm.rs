@@ -1255,9 +1255,20 @@ impl Vm {
                 vm_try!(<()>::from_value(value));
                 VmResult::Ok(())
             }
-            TargetFallback::Index(lhs, ..) => err(VmErrorKind::UnsupportedTupleIndexGet {
-                target: vm_try!(lhs.type_info()),
-            }),
+            TargetFallback::Index(lhs, index, rhs) => {
+                if let CallResult::Unsupported(lhs) =
+                    vm_try!(self.call_index_fn(protocol, lhs.clone(), index, (rhs,)))
+                {
+                    return err(VmErrorKind::UnsupportedTupleIndexGet {
+                        target: vm_try!(lhs.type_info()),
+                        index,
+                    });
+                }
+
+                let value = vm_try!(self.stack.pop());
+                vm_try!(<()>::from_value(value));
+                VmResult::Ok(())
+            }
         }
     }
 
@@ -2187,6 +2198,7 @@ impl Vm {
         {
             return err(VmErrorKind::UnsupportedTupleIndexGet {
                 target: vm_try!(value.type_info()),
+                index,
             });
         }
 
@@ -2226,6 +2238,7 @@ impl Vm {
         {
             return err(VmErrorKind::UnsupportedTupleIndexGet {
                 target: vm_try!(value.type_info()),
+                index,
             });
         }
 
