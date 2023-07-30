@@ -568,19 +568,17 @@ impl Vm {
             (Value::Integer(lhs), Value::Integer(rhs)) => int_op(lhs, rhs),
             (Value::Float(lhs), Value::Float(rhs)) => float_op(lhs, rhs),
             (lhs, rhs) => {
-                let ordering = match vm_try!(self.call_instance_fn(lhs, Protocol::CMP, (&rhs,))) {
-                    CallResult::Ok(()) => {
-                        vm_try!(<Ordering>::from_value(vm_try!(self.stack.pop())))
-                    }
-                    CallResult::Unsupported(lhs) => {
-                        return err(VmErrorKind::UnsupportedBinaryOperation {
-                            op,
-                            lhs: vm_try!(lhs.type_info()),
-                            rhs: vm_try!(rhs.type_info()),
-                        });
-                    }
-                };
+                if let CallResult::Unsupported(lhs) =
+                    vm_try!(self.call_instance_fn(lhs, Protocol::CMP, (&rhs,)))
+                {
+                    return err(VmErrorKind::UnsupportedBinaryOperation {
+                        op,
+                        lhs: vm_try!(lhs.type_info()),
+                        rhs: vm_try!(rhs.type_info()),
+                    });
+                }
 
+                let ordering = vm_try!(<Ordering>::from_value(vm_try!(self.stack.pop())));
                 match_ordering(ordering)
             }
         };
@@ -983,7 +981,7 @@ impl Vm {
 
                 match vm_try!(self.call_field_fn(Protocol::SET, target, hash, (value,))) {
                     CallResult::Ok(()) => {
-                        vm_try!(self.stack.pop());
+                        vm_try!(<()>::from_value(vm_try!(self.stack.pop())));
                         CallResult::Ok(())
                     }
                     result => result,
@@ -1205,28 +1203,28 @@ impl Vm {
             TargetValue::Fallback(fallback) => fallback,
         };
 
-        self.target_fallback(fallback, protocol)
+        self.target_fallback_assign(fallback, protocol)
     }
 
     /// Execute a fallback operation.
-    fn target_fallback(
+    fn target_fallback_assign(
         &mut self,
         fallback: TargetFallback<'_>,
         protocol: Protocol,
     ) -> VmResult<()> {
         match fallback {
             TargetFallback::Value(lhs, rhs) => {
-                match vm_try!(self.call_instance_fn(lhs, protocol, (&rhs,))) {
-                    CallResult::Ok(()) => vm_try!(<()>::from_value(vm_try!(self.stack.pop()))),
-                    CallResult::Unsupported(lhs) => {
-                        return err(VmErrorKind::UnsupportedBinaryOperation {
-                            op: protocol.name,
-                            lhs: vm_try!(lhs.type_info()),
-                            rhs: vm_try!(rhs.type_info()),
-                        });
-                    }
+                if let CallResult::Unsupported(lhs) =
+                    vm_try!(self.call_instance_fn(lhs, protocol, (&rhs,)))
+                {
+                    return err(VmErrorKind::UnsupportedBinaryOperation {
+                        op: protocol.name,
+                        lhs: vm_try!(lhs.type_info()),
+                        rhs: vm_try!(rhs.type_info()),
+                    });
                 };
 
+                vm_try!(<()>::from_value(vm_try!(self.stack.pop())));
                 VmResult::Ok(())
             }
             TargetFallback::Field(lhs, hash, rhs) => {
@@ -1287,14 +1285,14 @@ impl Vm {
 
         if let CallResult::Unsupported(lhs) = vm_try!(self.call_instance_fn(lhs, protocol, (&rhs,)))
         {
-            err(VmErrorKind::UnsupportedBinaryOperation {
+            return err(VmErrorKind::UnsupportedBinaryOperation {
                 op: protocol.name,
                 lhs: vm_try!(lhs.type_info()),
                 rhs: vm_try!(rhs.type_info()),
-            })
-        } else {
-            VmResult::Ok(())
+            });
         }
+
+        VmResult::Ok(())
     }
 
     /// Internal impl of a numeric operation.
@@ -1318,14 +1316,14 @@ impl Vm {
 
         if let CallResult::Unsupported(lhs) = vm_try!(self.call_instance_fn(lhs, protocol, (&rhs,)))
         {
-            err(VmErrorKind::UnsupportedBinaryOperation {
+            return err(VmErrorKind::UnsupportedBinaryOperation {
                 op: protocol.name,
                 lhs: vm_try!(lhs.type_info()),
                 rhs: vm_try!(rhs.type_info()),
-            })
-        } else {
-            VmResult::Ok(())
+            });
         }
+
+        VmResult::Ok(())
     }
 
     /// Internal impl of a numeric operation.
@@ -1354,14 +1352,14 @@ impl Vm {
 
         if let CallResult::Unsupported(lhs) = vm_try!(self.call_instance_fn(lhs, protocol, (&rhs,)))
         {
-            err(VmErrorKind::UnsupportedBinaryOperation {
+            return err(VmErrorKind::UnsupportedBinaryOperation {
                 op: protocol.name,
                 lhs: vm_try!(lhs.type_info()),
                 rhs: vm_try!(rhs.type_info()),
-            })
-        } else {
-            VmResult::Ok(())
+            });
         }
+
+        VmResult::Ok(())
     }
 
     fn internal_infallible_bitwise_assign(
@@ -1384,7 +1382,7 @@ impl Vm {
             TargetValue::Fallback(fallback) => fallback,
         };
 
-        self.target_fallback(fallback, protocol)
+        self.target_fallback_assign(fallback, protocol)
     }
 
     fn internal_bitwise(
@@ -1409,14 +1407,14 @@ impl Vm {
 
         if let CallResult::Unsupported(lhs) = vm_try!(self.call_instance_fn(lhs, protocol, (&rhs,)))
         {
-            err(VmErrorKind::UnsupportedBinaryOperation {
+            return err(VmErrorKind::UnsupportedBinaryOperation {
                 op: protocol.name,
                 lhs: vm_try!(lhs.type_info()),
                 rhs: vm_try!(rhs.type_info()),
-            })
-        } else {
-            VmResult::Ok(())
+            });
         }
+
+        VmResult::Ok(())
     }
 
     fn internal_bitwise_assign(
@@ -1441,7 +1439,7 @@ impl Vm {
             TargetValue::Fallback(fallback) => fallback,
         };
 
-        self.target_fallback(fallback, protocol)
+        self.target_fallback_assign(fallback, protocol)
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
@@ -2005,17 +2003,17 @@ impl Vm {
         if let CallResult::Unsupported(target) =
             vm_try!(self.call_instance_fn(target, Protocol::INDEX_SET, (&index, &value)))
         {
-            err(VmErrorKind::UnsupportedIndexSet {
+            return err(VmErrorKind::UnsupportedIndexSet {
                 target: vm_try!(target.type_info()),
                 index: vm_try!(index.type_info()),
                 value: vm_try!(value.type_info()),
-            })
-        } else {
-            // Calling index set should not produce a value on the stack, but all
-            // handler functions to produce a value. So pop it here.
-            vm_try!(<()>::from_value(vm_try!(self.stack.pop())));
-            VmResult::Ok(())
+            });
         }
+
+        // Calling index set should not produce a value on the stack, but all
+        // handler functions to produce a value. So pop it here.
+        vm_try!(<()>::from_value(vm_try!(self.stack.pop())));
+        VmResult::Ok(())
     }
 
     #[inline]
@@ -2160,13 +2158,14 @@ impl Vm {
         if let CallResult::Unsupported(target) =
             vm_try!(self.call_instance_fn(target, Protocol::INDEX_GET, (&index,)))
         {
-            err(VmErrorKind::UnsupportedIndexGet {
+            return err(VmErrorKind::UnsupportedIndexGet {
                 target: vm_try!(target.type_info()),
                 index: vm_try!(index.type_info()),
-            })
-        } else {
-            VmResult::Ok(())
+            });
         }
+
+        // NB: Should leave a value on the stack.
+        VmResult::Ok(())
     }
 
     /// Perform an index get operation specialized for tuples.
@@ -2188,7 +2187,7 @@ impl Vm {
             });
         }
 
-        // NB: should leave a value on the stack.
+        // NB: Should leave a value on the stack.
         VmResult::Ok(())
     }
 
@@ -2228,6 +2227,7 @@ impl Vm {
             });
         }
 
+        // NB: Should leave a value on the stack.
         VmResult::Ok(())
     }
 
@@ -2268,12 +2268,12 @@ impl Vm {
         if let CallResult::Unsupported(target) =
             vm_try!(self.try_object_slot_index_set(target, string_slot, value))
         {
-            err(VmErrorKind::UnsupportedObjectSlotIndexSet {
+            return err(VmErrorKind::UnsupportedObjectSlotIndexSet {
                 target: vm_try!(target.type_info()),
-            })
-        } else {
-            VmResult::Ok(())
+            });
         }
+
+        VmResult::Ok(())
     }
 
     /// Perform a specialized index get operation on an object.
@@ -2479,6 +2479,7 @@ impl Vm {
                         actual: vm_try!(target.type_info()),
                     });
                 }
+
                 vm_try!(<Result<Value, Value>>::from_value(vm_try!(self
                     .stack
                     .pop())))
