@@ -77,8 +77,8 @@ fn construct_enum() {
     assert_eq!(output, Enum::Output(2 * 3 * 4));
 }
 
-/// Tests pattern matching and constructing over an external struct from within
-/// Rune.
+/// Tests constructing an external struct from within Rune, and receiving
+/// external structs as an argument.
 #[test]
 fn construct_struct() {
     #[derive(Debug, Any, PartialEq, Eq)]
@@ -187,7 +187,6 @@ fn construct_struct() {
     ] {
         let output = vm.call(["main"], (req,)).unwrap();
         let output: Response = from_value(output).unwrap();
-        assert_eq!(output.status_code, rsp.status_code);
-        assert_eq!(output.body, rsp.body);
+        assert_eq!(output, rsp);
     }
 }
