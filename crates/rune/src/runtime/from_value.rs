@@ -256,8 +256,18 @@ impl UnsafeFromValue for &mut Option<Value> {
 impl FromValue for String {
     fn from_value(value: Value) -> VmResult<Self> {
         match value {
-            Value::String(string) => VmResult::Ok(vm_try!(string.borrow_ref()).clone()),
+            Value::String(string) => VmResult::Ok(vm_try!(string.take())),
             Value::StaticString(string) => VmResult::Ok((**string).to_owned()),
+            actual => VmResult::err(VmErrorKind::expected::<String>(vm_try!(actual.type_info()))),
+        }
+    }
+}
+
+impl FromValue for Box<str> {
+    fn from_value(value: Value) -> VmResult<Self> {
+        match value {
+            Value::String(string) => VmResult::Ok(vm_try!(string.take()).into_boxed_str()),
+            Value::StaticString(string) => VmResult::Ok(string.as_str().into()),
             actual => VmResult::err(VmErrorKind::expected::<String>(vm_try!(actual.type_info()))),
         }
     }
@@ -267,6 +277,9 @@ impl FromValue for Mut<String> {
     fn from_value(value: Value) -> VmResult<Self> {
         match value {
             Value::String(string) => VmResult::Ok(vm_try!(string.into_mut())),
+            Value::StaticString(string) => {
+                VmResult::Ok(vm_try!(Shared::new((**string).to_owned()).into_mut()))
+            }
             actual => VmResult::err(VmErrorKind::expected::<String>(vm_try!(actual.type_info()))),
         }
     }
@@ -276,16 +289,11 @@ impl FromValue for Ref<String> {
     fn from_value(value: Value) -> VmResult<Self> {
         match value {
             Value::String(string) => VmResult::Ok(vm_try!(string.into_ref())),
+            Value::StaticString(string) => {
+                VmResult::Ok(vm_try!(Shared::new((**string).to_owned()).into_ref()))
+            }
             actual => VmResult::err(VmErrorKind::expected::<String>(vm_try!(actual.type_info()))),
         }
-    }
-}
-
-impl FromValue for Box<str> {
-    fn from_value(value: Value) -> VmResult<Self> {
-        let string = vm_try!(value.into_string());
-        let string = vm_try!(string.borrow_ref()).clone();
-        VmResult::Ok(string.into_boxed_str())
     }
 }
 
