@@ -458,7 +458,14 @@ impl Context {
                     meta::Kind::Struct {
                         fields: match fields {
                             Fields::Named(fields) => meta::Fields::Named(meta::FieldsNamed {
-                                fields: fields.iter().copied().map(Box::<str>::from).collect(),
+                                fields: fields
+                                    .iter()
+                                    .copied()
+                                    .enumerate()
+                                    .map(|(position, name)| {
+                                        (Box::<str>::from(name), meta::FieldMeta { position })
+                                    })
+                                    .collect(),
                             }),
                             Fields::Unnamed(args) => meta::Fields::Unnamed(*args),
                             Fields::Empty => meta::Fields::Empty,
@@ -522,7 +529,13 @@ impl Context {
                                             fields: names
                                                 .iter()
                                                 .copied()
-                                                .map(Box::<str>::from)
+                                                .enumerate()
+                                                .map(|(position, name)| {
+                                                    (
+                                                        Box::<str>::from(name),
+                                                        meta::FieldMeta { position },
+                                                    )
+                                                })
                                                 .collect(),
                                         })
                                     }
@@ -901,7 +914,14 @@ impl Context {
                     index,
                     fields: match fields {
                         Fields::Named(fields) => meta::Fields::Named(meta::FieldsNamed {
-                            fields: fields.iter().copied().map(Box::<str>::from).collect(),
+                            fields: fields
+                                .iter()
+                                .copied()
+                                .enumerate()
+                                .map(|(position, name)| {
+                                    (Box::<str>::from(name), meta::FieldMeta { position })
+                                })
+                                .collect(),
                         }),
                         Fields::Unnamed(args) => meta::Fields::Unnamed(*args),
                         Fields::Empty => meta::Fields::Empty,

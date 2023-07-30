@@ -1957,9 +1957,38 @@ fn expr_object<'hir>(
 ) -> compile::Result<Asm<'hir>> {
     let guard = cx.scopes.child(span)?;
 
-    for assign in hir.assignments {
+    let mut order = Vec::with_capacity(hir.assignments.len());
+
+    for assign in hir.assignments.iter() {
         expr(cx, &assign.assign, Needs::Value)?.apply(cx)?;
         cx.scopes.alloc(&span)?;
+
+        let position = assign.position.ok_or(compile::Error::msg(
+            span,
+            format!("missing position for field assignment {}", assign.key.1),
+        ))?;
+
+        order.push(position);
+    }
+
+    for stack_position in 0..hir.assignments.len() {
+        loop {
+            let desired_position = order[stack_position];
+
+            if stack_position == desired_position {
+                break;
+            }
+
+            order.swap(stack_position, desired_position);
+
+            cx.asm.push(
+                Inst::Swap {
+                    a: stack_position,
+                    b: desired_position,
+                },
+                span,
+            );
+        }
     }
 
     let slot =

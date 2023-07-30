@@ -63,6 +63,7 @@ fn main() -> rune::Result<()> {
     println!("{:?}", output);
 
     let output = vm.call(["main"], (External::Second(42, 12345),))?;
+    dbg!(&output.type_info().into_result().unwrap());
     let output: External = rune::from_value(output)?;
     println!("{:?}", output);
 

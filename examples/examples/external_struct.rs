@@ -11,6 +11,12 @@ struct External {
     suite_name: String,
     #[rune(get, set)]
     room_number: usize,
+    #[rune(get, set)]
+    is_reserved: bool,
+    #[rune(get, set)]
+    num_beds: usize,
+    #[rune(get, set)]
+    num_baths: usize,
 }
 
 fn main() -> rune::Result<()> {
@@ -24,6 +30,9 @@ fn main() -> rune::Result<()> {
         entry => {
             pub fn main() {
                 let external = External {
+                    is_reserved: true,
+                    num_baths: 3,
+                    num_beds: 2,
                     suite_name: "Fowler",
                     room_number: 1300,
                 };

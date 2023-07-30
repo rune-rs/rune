@@ -1545,6 +1545,13 @@ impl Vm {
         VmResult::Ok(())
     }
 
+    /// Swap two values on the stack.
+    #[cfg_attr(feature = "bench", inline(never))]
+    fn op_swap(&mut self, a: usize, b: usize) -> VmResult<()> {
+        vm_try!(self.stack.swap(a, b));
+        VmResult::Ok(())
+    }
+
     /// Perform a jump operation.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_jump(&mut self, jump: usize) -> VmResult<()> {
@@ -3047,6 +3054,9 @@ impl Vm {
                 }
                 Inst::Dup => {
                     vm_try!(self.op_dup());
+                }
+                Inst::Swap { a, b: to } => {
+                    vm_try!(self.op_swap(a, to));
                 }
                 Inst::Replace { offset } => {
                     vm_try!(self.op_replace(offset));
