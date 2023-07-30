@@ -1976,7 +1976,7 @@ fn expr_object<'hir>(
         hir::ExprObjectKind::StructVariant { hash } => {
             cx.asm.push(Inst::StructVariant { hash, slot }, span);
         }
-        hir::ExprObjectKind::Constructor { hash, args } => {
+        hir::ExprObjectKind::ExternalType { hash, args } => {
             reorder_field_assignments(cx, hir, span)?;
             cx.asm.push(Inst::Call { hash, args }, span);
         }

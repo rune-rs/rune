@@ -422,7 +422,7 @@ pub(crate) fn expr_object<'hir>(
                     check_object_fields(&st.fields, item)?;
 
                     match constructor {
-                        Some(_) => hir::ExprObjectKind::Constructor {
+                        Some(_) => hir::ExprObjectKind::ExternalType {
                             hash: meta.hash,
                             args: st.fields.len(),
                         },
