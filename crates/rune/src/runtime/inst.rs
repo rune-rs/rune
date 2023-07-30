@@ -452,8 +452,8 @@ pub enum Inst {
         /// Offset to swap value from.
         offset: usize,
     },
-    /// Swap two values on the stack using their offsets relative to the top
-    /// of the stack.
+    /// Swap two values on the stack using their offsets relative to the current
+    /// stack frame.
     #[musli(packed)]
     Swap {
         /// Offset to the first value.

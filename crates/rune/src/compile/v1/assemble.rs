@@ -1957,6 +1957,8 @@ fn expr_object<'hir>(
 ) -> compile::Result<Asm<'hir>> {
     let guard = cx.scopes.child(span)?;
 
+    let base = cx.scopes.total(span)?;
+
     for assign in hir.assignments.iter() {
         expr(cx, &assign.assign, Needs::Value)?.apply(cx)?;
         cx.scopes.alloc(&span)?;
@@ -1977,7 +1979,7 @@ fn expr_object<'hir>(
             cx.asm.push(Inst::StructVariant { hash, slot }, span);
         }
         hir::ExprObjectKind::ExternalType { hash, args } => {
-            reorder_field_assignments(cx, hir, span)?;
+            reorder_field_assignments(cx, hir, base, span)?;
             cx.asm.push(Inst::Call { hash, args }, span);
         }
         hir::ExprObjectKind::Anonymous => {
@@ -2000,6 +2002,7 @@ fn expr_object<'hir>(
 fn reorder_field_assignments<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::ExprObject<'hir>,
+    base: usize,
     span: &dyn Spanned,
 ) -> compile::Result<()> {
     let mut order = Vec::with_capacity(hir.assignments.len());
@@ -2015,32 +2018,29 @@ fn reorder_field_assignments<'hir>(
         order.push(position);
     }
 
-    for current_position in 0..hir.assignments.len() {
+    for a in 0..hir.assignments.len() {
         loop {
-            let desired_position = order[current_position];
-
-            if current_position == desired_position {
-                break;
-            }
-
-            order.swap(current_position, desired_position);
-
-            let current_offset = hir.assignments.len() - current_position;
-
-            let Some(desired_offset) = hir.assignments.len().checked_sub(desired_position) else {
+            let Some(&b) = order.get(a) else {
                 return Err(compile::Error::msg(
                     span,
-                    format_args!("Wrong number of field assignments: have {} but field position is {}",  hir.assignments.len(), desired_position),
+                    "Order out-of-bounds",
                 ));
             };
 
-            cx.asm.push(
-                Inst::Swap {
-                    a: current_offset,
-                    b: desired_offset,
-                },
-                span,
-            );
+            if a == b {
+                break;
+            }
+
+            order.swap(a, b);
+
+            let (Some(a), Some(b)) = (base.checked_add(a), base.checked_add(b)) else {
+                return Err(compile::Error::msg(
+                    span,
+                    "Field repositioning out-of-bounds",
+                ));
+            };
+
+            cx.asm.push(Inst::Swap { a, b }, span);
         }
     }
 
