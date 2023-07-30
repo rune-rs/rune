@@ -2005,15 +2005,14 @@ fn reorder_field_assignments<'hir>(
     let mut order = Vec::with_capacity(hir.assignments.len());
 
     for assign in hir.assignments {
-        match assign.position {
-            Some(position) => order.push(position),
-            None => {
-                return Err(compile::Error::msg(
-                    span,
-                    format!("missing position for field {}", assign.key.1),
-                ))
-            }
+        let Some(position) = assign.position else {
+            return Err(compile::Error::msg(
+                span,
+                format_args!("Missing position for field assignment {}", assign.key.1),
+            ));
         };
+
+        order.push(position);
     }
 
     for stack_position in 0..hir.assignments.len() {
