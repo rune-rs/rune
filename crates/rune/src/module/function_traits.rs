@@ -247,14 +247,15 @@ macro_rules! impl_register {
                 check_args!(($count + 1), args);
                 let [inst $(, $var)*] = vm_try!(stack.drain_vec($count + 1));
 
-                // Safety: Future is owned and will only be called within the
-                // context of the virtual machine, which will provide
-                // exclusive thread-local access to itself while the future is
-                // being polled.
                 #[allow(unused)]
-                let ret = unsafe {
+                let ret = {
                     unsafe_inst_vars!(inst, $count, $($ty, $var, $num,)*);
-                    let fut = self(Instance::unsafe_coerce(inst.0), $(<$ty>::unsafe_coerce($var.0),)*);
+
+                    // Safety: Future is owned and will only be called within the
+                    // context of the virtual machine, which will provide
+                    // exclusive thread-local access to itself while the future is
+                    // being polled.
+                    let fut = unsafe { self(Instance::unsafe_coerce(inst.0), $(<$ty>::unsafe_coerce($var.0),)*) };
 
                     runtime::Future::new(async move {
                         let output = fut.await;
