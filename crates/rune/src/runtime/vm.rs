@@ -1250,8 +1250,7 @@ impl Vm {
                     });
                 }
 
-                let value = vm_try!(self.stack.pop());
-                vm_try!(<()>::from_value(value));
+                vm_try!(<()>::from_value(vm_try!(self.stack.pop())));
                 VmResult::Ok(())
             }
         }
@@ -1444,8 +1443,7 @@ impl Vm {
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_await(&mut self) -> VmResult<Shared<Future>> {
-        let value = vm_try!(self.stack.pop());
-        value.into_future()
+        vm_try!(self.stack.pop()).into_future()
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
@@ -1945,9 +1943,7 @@ impl Vm {
         let target = vm_try!(self.stack.pop());
         let value = vm_try!(self.stack.pop());
 
-        // This is a useful pattern.
-        #[allow(clippy::never_loop)]
-        loop {
+        'out: {
             // NB: local storage for string.
             let local_field;
 
@@ -1957,7 +1953,7 @@ impl Vm {
                     local_field.as_str()
                 }
                 Value::StaticString(string) => string.as_ref(),
-                _ => break,
+                _ => break 'out,
             };
 
             match &target {
@@ -1994,9 +1990,7 @@ impl Vm {
                         target: variant.type_info(),
                     });
                 }
-                _ => {
-                    break;
-                }
+                _ => {}
             }
         }
 
@@ -2010,8 +2004,6 @@ impl Vm {
             });
         }
 
-        // Calling index set should not produce a value on the stack, but all
-        // handler functions to produce a value. So pop it here.
         vm_try!(<()>::from_value(vm_try!(self.stack.pop())));
         VmResult::Ok(())
     }
@@ -3048,12 +3040,10 @@ impl Vm {
                 }
                 Inst::Await => {
                     let future = vm_try!(self.op_await());
-                    // NB: the future itself will advance the virtual machine.
                     return VmResult::Ok(VmHalt::Awaited(Awaited::Future(future)));
                 }
                 Inst::Select { len } => {
                     if let Some(select) = vm_try!(self.op_select(len)) {
-                        // NB: the future itself will advance the virtual machine.
                         return VmResult::Ok(VmHalt::Awaited(Awaited::Select(select)));
                     }
                 }
