@@ -1549,14 +1549,6 @@ impl Vm {
         VmResult::Ok(())
     }
 
-    /// Duplicate the value at the top of the stack.
-    #[cfg_attr(feature = "bench", inline(never))]
-    fn op_dup(&mut self) -> VmResult<()> {
-        let value = vm_try!(self.stack.last()).clone();
-        self.stack.push(value);
-        VmResult::Ok(())
-    }
-
     /// Copy a value from a position relative to the top of the stack, to the
     /// top of the stack.
     #[cfg_attr(feature = "bench", inline(never))]
@@ -3103,9 +3095,6 @@ impl Vm {
                 }
                 Inst::Drop { offset } => {
                     vm_try!(self.op_drop(offset));
-                }
-                Inst::Dup => {
-                    vm_try!(self.op_dup());
                 }
                 Inst::Swap { a, b } => {
                     vm_try!(self.op_swap(a, b));

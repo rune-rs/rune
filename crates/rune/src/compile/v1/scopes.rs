@@ -45,31 +45,35 @@ impl<'hir> fmt::Display for Var<'hir> {
 
 impl<'hir> Var<'hir> {
     /// Copy the declared variable.
-    pub(crate) fn copy<C>(&self, cx: &mut Ctxt<'_, '_, '_>, span: &dyn Spanned, comment: C)
-    where
-        C: fmt::Display,
-    {
+    pub(crate) fn copy(
+        &self,
+        cx: &mut Ctxt<'_, '_, '_>,
+        span: &dyn Spanned,
+        comment: &dyn fmt::Display,
+    ) -> compile::Result<()> {
         cx.asm.push_with_comment(
             Inst::Copy {
                 offset: self.offset,
             },
             span,
-            format_args!("var `{}`; {comment}", self.name),
-        );
+            &format_args!("var `{}`; {comment}", self.name),
+        )
     }
 
     /// Move the declared variable.
-    pub(crate) fn do_move<C>(&self, asm: &mut Assembly, span: &dyn Spanned, comment: C)
-    where
-        C: fmt::Display,
-    {
+    pub(crate) fn do_move(
+        &self,
+        asm: &mut Assembly,
+        span: &dyn Spanned,
+        comment: &dyn fmt::Display,
+    ) -> compile::Result<()> {
         asm.push_with_comment(
             Inst::Move {
                 offset: self.offset,
             },
             span,
-            format_args!("var `{}`; {comment}", self.name),
-        );
+            &format_args!("var `{}`; {comment}", self.name),
+        )
     }
 }
 
