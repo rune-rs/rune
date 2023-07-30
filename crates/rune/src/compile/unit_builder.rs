@@ -682,6 +682,8 @@ impl UnitBuilder {
         assembly: Assembly,
         storage: &mut dyn UnitEncoder,
     ) -> compile::Result<()> {
+        use core::fmt::Write;
+
         self.label_count = assembly.label_count;
 
         let base = storage.extend_offsets(assembly.labels.len());
@@ -696,7 +698,7 @@ impl UnitBuilder {
         }
 
         for (pos, (inst, span)) in assembly.instructions.into_iter().enumerate() {
-            let mut comment = None::<Box<str>>;
+            let mut comment = String::new();
 
             let mut labels = Vec::new();
 
@@ -724,7 +726,14 @@ impl UnitBuilder {
                             index: label.index,
                         })
                         .with_span(location.span)?;
-                    comment = Some(format!("label:{}", label).into());
+
+                    if let Err(fmt::Error) = write!(comment, "label:{}", label) {
+                        return Err(compile::Error::msg(
+                            location.span,
+                            "Failed to write comment",
+                        ));
+                    }
+
                     storage
                         .encode(Inst::Jump { jump })
                         .with_span(location.span)?;
@@ -737,7 +746,14 @@ impl UnitBuilder {
                             index: label.index,
                         })
                         .with_span(location.span)?;
-                    comment = Some(format!("label:{}", label).into());
+
+                    if let Err(fmt::Error) = write!(comment, "label:{}", label) {
+                        return Err(compile::Error::msg(
+                            location.span,
+                            "Failed to write comment",
+                        ));
+                    }
+
                     storage
                         .encode(Inst::JumpIf { jump })
                         .with_span(location.span)?;
@@ -750,7 +766,14 @@ impl UnitBuilder {
                             index: label.index,
                         })
                         .with_span(location.span)?;
-                    comment = Some(format!("label:{}", label).into());
+
+                    if let Err(fmt::Error) = write!(comment, "label:{}", label) {
+                        return Err(compile::Error::msg(
+                            location.span,
+                            "Failed to write comment",
+                        ));
+                    }
+
                     storage
                         .encode(Inst::JumpIfOrPop { jump })
                         .with_span(location.span)?;
@@ -763,7 +786,14 @@ impl UnitBuilder {
                             index: label.index,
                         })
                         .with_span(location.span)?;
-                    comment = Some(format!("label:{}", label).into());
+
+                    if let Err(fmt::Error) = write!(comment, "label:{}", label) {
+                        return Err(compile::Error::msg(
+                            location.span,
+                            "Failed to write comment",
+                        ));
+                    }
+
                     storage
                         .encode(Inst::JumpIfNotOrPop { jump })
                         .with_span(location.span)?;
@@ -776,7 +806,14 @@ impl UnitBuilder {
                             index: label.index,
                         })
                         .with_span(location.span)?;
-                    comment = Some(format!("label:{}", label).into());
+
+                    if let Err(fmt::Error) = write!(comment, "label:{}", label) {
+                        return Err(compile::Error::msg(
+                            location.span,
+                            "Failed to write comment",
+                        ));
+                    }
+
                     storage
                         .encode(Inst::JumpIfBranch { branch, jump })
                         .with_span(location.span)?;
@@ -789,7 +826,14 @@ impl UnitBuilder {
                             index: label.index,
                         })
                         .with_span(location.span)?;
-                    comment = Some(format!("label:{}", label).into());
+
+                    if let Err(fmt::Error) = write!(comment, "label:{}", label) {
+                        return Err(compile::Error::msg(
+                            location.span,
+                            "Failed to write comment",
+                        ));
+                    }
+
                     storage
                         .encode(Inst::PopAndJumpIfNot { count, jump })
                         .with_span(location.span)?;
@@ -802,7 +846,14 @@ impl UnitBuilder {
                             index: label.index,
                         })
                         .with_span(location.span)?;
-                    comment = Some(format!("label:{}", label).into());
+
+                    if let Err(fmt::Error) = write!(comment, "label:{}", label) {
+                        return Err(compile::Error::msg(
+                            location.span,
+                            "Failed to write comment",
+                        ));
+                    }
+
                     storage
                         .encode(Inst::IterNext { offset, jump })
                         .with_span(location.span)?;
@@ -812,17 +863,21 @@ impl UnitBuilder {
                 }
             }
 
-            if let Some(comments) = assembly.comments.get(&pos) {
-                let actual = comment
-                    .take()
-                    .into_iter()
-                    .chain(comments.iter().cloned())
-                    .collect::<Vec<_>>()
-                    .join("; ");
-                comment = Some(actual.into())
+            if let Some(c) = assembly.comments.get(&pos) {
+                if !comment.is_empty() {
+                    comment.push_str("; ");
+                }
+
+                comment.push_str(c);
             }
 
             let debug = self.debug.get_or_insert_with(Default::default);
+
+            let comment = if comment.is_empty() {
+                None
+            } else {
+                Some(comment.into())
+            };
 
             debug.instructions.insert(
                 at,

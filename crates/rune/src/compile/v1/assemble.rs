@@ -190,7 +190,7 @@ impl<'hir> Asm<'hir> {
     /// Assemble into an instruction.
     fn apply(self, cx: &mut Ctxt) -> compile::Result<()> {
         if let AsmKind::Var(var) = self.kind {
-            var.copy(cx, &self.span, format_args!("var `{}`", var));
+            var.copy(cx, &self.span, &format_args!("var `{}`", var))?;
         }
 
         Ok(())
@@ -985,8 +985,8 @@ fn expr_assign<'hir>(
             cx.asm.push_with_comment(
                 Inst::Replace { offset: var.offset },
                 span,
-                format_args!("var `{var}`"),
-            );
+                &format_args!("var `{var}`"),
+            )?;
             true
         }
         // <expr>.<field> = <value>
@@ -1251,10 +1251,10 @@ fn expr_async_block<'hir>(
     for capture in hir.captures.iter().copied() {
         if hir.do_move {
             let var = cx.scopes.take(&mut cx.q, capture, span)?;
-            var.do_move(cx.asm, span, "capture");
+            var.do_move(cx.asm, span, &"capture")?;
         } else {
             let var = cx.scopes.get(&mut cx.q, capture, span)?;
-            var.copy(cx, span, "capture");
+            var.copy(cx, span, &"capture")?;
         }
     }
 
@@ -1264,12 +1264,12 @@ fn expr_async_block<'hir>(
             args: hir.captures.len(),
         },
         span,
-        "async block",
-    );
+        &"async block",
+    )?;
 
     if !needs.value() {
         cx.asm
-            .push_with_comment(Inst::Pop, span, "value is not needed");
+            .push_with_comment(Inst::Pop, span, &"value is not needed")?;
     }
 
     Ok(Asm::top(span))
@@ -1378,7 +1378,7 @@ fn expr_call<'hir>(
                 cx.scopes.alloc(span)?;
             }
 
-            var.copy(cx, span, "call");
+            var.copy(cx, span, &"call")?;
             cx.scopes.alloc(span)?;
 
             cx.asm.push(Inst::CallFn { args }, span);
@@ -1456,10 +1456,10 @@ fn expr_call_closure<'hir>(
     for capture in hir.captures.iter().copied() {
         if hir.do_move {
             let var = cx.scopes.take(&mut cx.q, capture, span)?;
-            var.do_move(cx.asm, span, "capture");
+            var.do_move(cx.asm, span, &"capture")?;
         } else {
             let var = cx.scopes.get(&mut cx.q, capture, span)?;
-            var.copy(cx, span, "capture");
+            var.copy(cx, span, &"capture")?;
         }
     }
 
@@ -1533,8 +1533,8 @@ fn expr_field_access<'hir>(
                 index,
             },
             span,
-            var,
-        );
+            &var,
+        )?;
 
         if !needs.value() {
             cx.q.diagnostics.not_used(cx.source_id, span, cx.context());
@@ -1592,14 +1592,15 @@ fn expr_for<'hir>(
         expr(cx, &hir.iter, Needs::Value)?.apply(cx)?;
 
         let iter_offset = cx.scopes.alloc(span)?;
+
         cx.asm.push_with_comment(
             Inst::CallAssociated {
                 hash: *Protocol::INTO_ITER,
                 args: 0,
             },
             span,
-            format_args!("into_iter (offset: {})", iter_offset),
-        );
+            &format_args!("into_iter (offset: {})", iter_offset),
+        )?;
 
         (iter_offset, loop_scope_expected)
     };
@@ -1620,16 +1621,16 @@ fn expr_for<'hir>(
                 offset: iter_offset,
             },
             &hir.iter,
-            "copy iterator (memoize)",
-        );
+            &"copy iterator (memoize)",
+        )?;
 
         cx.asm.push_with_comment(
             Inst::LoadInstanceFn {
                 hash: *Protocol::NEXT,
             },
             &hir.iter,
-            "load instance fn (memoize)",
-        );
+            &"load instance fn (memoize)",
+        )?;
 
         Some(offset)
     } else {
@@ -1656,16 +1657,16 @@ fn expr_for<'hir>(
                 offset: iter_offset,
             },
             &hir.iter,
-            "copy iterator",
-        );
+            &"copy iterator",
+        )?;
 
         cx.asm.push_with_comment(
             Inst::Copy {
                 offset: next_offset,
             },
             &hir.iter,
-            "copy next",
-        );
+            &"copy next",
+        )?;
 
         cx.asm.push(Inst::CallFn { args: 1 }, span);
 
@@ -1691,8 +1692,9 @@ fn expr_for<'hir>(
                 args: 0,
             },
             span,
-            "next",
-        );
+            &"next",
+        )?;
+
         cx.asm.push(
             Inst::Replace {
                 offset: binding_offset,

@@ -437,14 +437,6 @@ pub enum Inst {
         /// Frame offset to drop.
         offset: usize,
     },
-    /// Duplicate the value at the top of the stack.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// => <value>
-    /// ```
-    Dup,
     /// Replace a value at the offset relative from the top of the stack, with
     /// the top of the stack.
     #[musli(packed)]

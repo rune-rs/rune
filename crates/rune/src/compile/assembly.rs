@@ -32,7 +32,7 @@ pub(crate) struct Assembly {
     /// Instructions with spans.
     pub(crate) instructions: Vec<(AssemblyInst, Span)>,
     /// Comments associated with instructions.
-    pub(crate) comments: HashMap<usize, Vec<Box<str>>>,
+    pub(crate) comments: HashMap<usize, String>,
     /// The number of labels.
     pub(crate) label_count: usize,
     /// The collection of functions required by this assembly.
@@ -166,18 +166,28 @@ impl Assembly {
     }
 
     /// Push a raw instruction.
-    pub(crate) fn push_with_comment<C>(&mut self, raw: Inst, span: &dyn Spanned, comment: C)
-    where
-        C: fmt::Display,
-    {
+    pub(crate) fn push_with_comment(
+        &mut self,
+        raw: Inst,
+        span: &dyn Spanned,
+        comment: &dyn fmt::Display,
+    ) -> compile::Result<()> {
+        use core::fmt::Write;
+
         let pos = self.instructions.len();
 
-        self.comments
-            .entry(pos)
-            .or_default()
-            .push(comment.to_string().into());
+        let c = self.comments.entry(pos).or_default();
+
+        if !c.is_empty() {
+            c.push_str("; ");
+        }
+
+        if let Err(fmt::Error) = write!(c, "{}", comment) {
+            return Err(compile::Error::msg(span, "Failed to write comment"));
+        }
 
         self.push(raw, span);
+        Ok(())
     }
 
     fn inner_push(&mut self, inst: AssemblyInst, span: &dyn Spanned) {
