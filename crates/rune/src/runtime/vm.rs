@@ -1460,7 +1460,7 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_await(&mut self) -> VmResult<Shared<Future>> {
         let value = vm_try!(self.stack.pop());
-        value.into_shared_future()
+        value.into_future()
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
@@ -1468,7 +1468,7 @@ impl Vm {
         let futures = futures_util::stream::FuturesUnordered::new();
 
         for (branch, value) in vm_try!(self.stack.drain(len)).enumerate() {
-            let future = vm_try!(vm_try!(value.into_shared_future()).into_mut());
+            let future = vm_try!(vm_try!(value.into_future()).into_mut());
 
             if !future.is_completed() {
                 futures.push(SelectFuture::new(branch, future));

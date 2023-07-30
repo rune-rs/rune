@@ -2,10 +2,7 @@ use core::fmt;
 
 use crate::compile::Named;
 use crate::module::InstallWith;
-use crate::runtime::{
-    FromValue, GeneratorState, Mut, RawMut, RawRef, RawStr, Ref, Shared, UnsafeFromValue, Value,
-    Vm, VmErrorKind, VmExecution, VmResult,
-};
+use crate::runtime::{GeneratorState, RawStr, Value, Vm, VmErrorKind, VmExecution, VmResult};
 
 /// A stream with a stored virtual machine.
 pub struct Stream<T>
@@ -91,45 +88,4 @@ where
     }
 }
 
-impl FromValue for Shared<Stream<Vm>> {
-    #[inline]
-    fn from_value(value: Value) -> VmResult<Self> {
-        value.into_stream()
-    }
-}
-
-impl FromValue for Stream<Vm> {
-    fn from_value(value: Value) -> VmResult<Self> {
-        let stream = vm_try!(value.into_stream());
-        VmResult::Ok(vm_try!(stream.take()))
-    }
-}
-
-impl UnsafeFromValue for &Stream<Vm> {
-    type Output = *const Stream<Vm>;
-    type Guard = RawRef;
-
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
-        let stream = vm_try!(value.into_stream());
-        let (stream, guard) = Ref::into_raw(vm_try!(stream.into_ref()));
-        VmResult::Ok((stream, guard))
-    }
-
-    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
-        &*output
-    }
-}
-
-impl UnsafeFromValue for &mut Stream<Vm> {
-    type Output = *mut Stream<Vm>;
-    type Guard = RawMut;
-
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
-        let stream = vm_try!(value.into_stream());
-        VmResult::Ok(Mut::into_raw(vm_try!(stream.into_mut())))
-    }
-
-    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
-        &mut *output
-    }
-}
+from_value!(Stream<Vm>, into_stream);

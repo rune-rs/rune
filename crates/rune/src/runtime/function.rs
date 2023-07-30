@@ -7,9 +7,8 @@ use crate::no_std::sync::Arc;
 use crate::compile::Named;
 use crate::module::{self, InstallWith};
 use crate::runtime::{
-    Args, Call, ConstValue, FromValue, FunctionHandler, RawRef, RawStr, Ref, Rtti, RuntimeContext,
-    Shared, Stack, Tuple, Unit, UnsafeFromValue, Value, VariantRtti, Vm, VmCall, VmErrorKind,
-    VmHalt, VmResult,
+    Args, Call, ConstValue, FromValue, FunctionHandler, RawStr, Rtti, RuntimeContext, Stack, Tuple,
+    Unit, Value, VariantRtti, Vm, VmCall, VmErrorKind, VmHalt, VmResult,
 };
 use crate::shared::AssertSend;
 use crate::Hash;
@@ -906,43 +905,7 @@ impl Named for Function {
     const BASE_NAME: RawStr = RawStr::from_str("Function");
 }
 
-impl FromValue for Function {
-    fn from_value(value: Value) -> VmResult<Self> {
-        let function = vm_try!(value.into_function());
-        let function = vm_try!(function.take());
-        VmResult::Ok(function)
-    }
-}
-
-impl FromValue for Shared<Function> {
-    #[inline]
-    fn from_value(value: Value) -> VmResult<Self> {
-        value.into_function()
-    }
-}
-
-impl FromValue for Ref<Function> {
-    fn from_value(value: Value) -> VmResult<Self> {
-        let function = vm_try!(value.into_function());
-        let function = vm_try!(function.into_ref());
-        VmResult::Ok(function)
-    }
-}
-
-impl UnsafeFromValue for &Function {
-    type Output = *const Function;
-    type Guard = RawRef;
-
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
-        let function = vm_try!(value.into_function());
-        let (function, guard) = Ref::into_raw(vm_try!(function.into_ref()));
-        VmResult::Ok((function, guard))
-    }
-
-    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
-        &*output
-    }
-}
+from_value!(Function, into_function);
 
 fn check_args(actual: usize, expected: usize) -> VmResult<()> {
     if actual != expected {

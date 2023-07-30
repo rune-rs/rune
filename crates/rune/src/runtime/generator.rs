@@ -4,8 +4,7 @@ use core::iter;
 use crate::compile::Named;
 use crate::module::InstallWith;
 use crate::runtime::{
-    FromValue, GeneratorState, Iterator, Mut, RawMut, RawRef, RawStr, Ref, Shared, UnsafeFromValue,
-    Value, Vm, VmErrorKind, VmExecution, VmResult,
+    GeneratorState, Iterator, RawStr, Value, Vm, VmErrorKind, VmExecution, VmResult,
 };
 
 /// A generator with a stored virtual machine.
@@ -127,47 +126,4 @@ where
 
 impl<T> InstallWith for Generator<T> where T: AsMut<Vm> {}
 
-impl FromValue for Shared<Generator<Vm>> {
-    #[inline]
-    fn from_value(value: Value) -> VmResult<Self> {
-        value.into_generator()
-    }
-}
-
-impl FromValue for Generator<Vm> {
-    fn from_value(value: Value) -> VmResult<Self> {
-        let generator = vm_try!(value.into_generator());
-        let generator = vm_try!(generator.take());
-        VmResult::Ok(generator)
-    }
-}
-
-impl UnsafeFromValue for &Generator<Vm> {
-    type Output = *const Generator<Vm>;
-    type Guard = RawRef;
-
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
-        let generator = vm_try!(value.into_generator());
-        let (generator, guard) = Ref::into_raw(vm_try!(generator.into_ref()));
-        VmResult::Ok((generator, guard))
-    }
-
-    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
-        &*output
-    }
-}
-
-impl UnsafeFromValue for &mut Generator<Vm> {
-    type Output = *mut Generator<Vm>;
-    type Guard = RawMut;
-
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
-        let generator = vm_try!(value.into_generator());
-        let generator = vm_try!(generator.into_mut());
-        VmResult::Ok(Mut::into_raw(generator))
-    }
-
-    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
-        &mut *output
-    }
-}
+from_value!(Generator<Vm>, into_generator);

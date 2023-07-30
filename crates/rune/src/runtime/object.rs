@@ -10,10 +10,7 @@ use crate::no_std::prelude::*;
 use crate as rune;
 use crate::compile::{ItemBuf, Named};
 use crate::module::InstallWith;
-use crate::runtime::{
-    FromValue, Iterator, Mut, RawMut, RawRef, RawStr, Ref, ToValue, UnsafeFromValue, Value, Vm,
-    VmResult,
-};
+use crate::runtime::{FromValue, Iterator, RawStr, ToValue, Value, Vm, VmResult};
 
 /// An owning iterator over the entries of a `Object`.
 ///
@@ -352,59 +349,7 @@ impl iter::FromIterator<(String, Value)> for Object {
     }
 }
 
-impl FromValue for Object {
-    fn from_value(value: Value) -> VmResult<Self> {
-        let object = vm_try!(value.into_object());
-        let object = vm_try!(object.take());
-        VmResult::Ok(object)
-    }
-}
-
-impl FromValue for Mut<Object> {
-    fn from_value(value: Value) -> VmResult<Self> {
-        let object = vm_try!(value.into_object());
-        let object = vm_try!(object.into_mut());
-        VmResult::Ok(object)
-    }
-}
-
-impl FromValue for Ref<Object> {
-    fn from_value(value: Value) -> VmResult<Self> {
-        let object = vm_try!(value.into_object());
-        let object = vm_try!(object.into_ref());
-        VmResult::Ok(object)
-    }
-}
-
-impl UnsafeFromValue for &Object {
-    type Output = *const Object;
-    type Guard = RawRef;
-
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
-        let object = vm_try!(value.into_object());
-        let object = vm_try!(object.into_ref());
-        VmResult::Ok(Ref::into_raw(object))
-    }
-
-    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
-        &*output
-    }
-}
-
-impl UnsafeFromValue for &mut Object {
-    type Output = *mut Object;
-    type Guard = RawMut;
-
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
-        let object = vm_try!(value.into_object());
-        let object = vm_try!(object.into_mut());
-        VmResult::Ok(Mut::into_raw(object))
-    }
-
-    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
-        &mut *output
-    }
-}
+from_value!(Object, into_object);
 
 impl Named for Object {
     const BASE_NAME: RawStr = RawStr::from_str("Object");

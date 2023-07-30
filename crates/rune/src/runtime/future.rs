@@ -7,10 +7,7 @@ use crate::no_std::prelude::*;
 
 use crate::compile::Named;
 use crate::module::InstallWith;
-use crate::runtime::{
-    FromValue, Mut, RawMut, RawRef, RawStr, Ref, Shared, ToValue, UnsafeFromValue, Value,
-    VmErrorKind, VmResult,
-};
+use crate::runtime::{RawStr, ToValue, Value, VmErrorKind, VmResult};
 
 use pin_project::pin_project;
 
@@ -113,49 +110,7 @@ where
     }
 }
 
-impl FromValue for Shared<Future> {
-    #[inline]
-    fn from_value(value: Value) -> VmResult<Self> {
-        value.into_shared_future()
-    }
-}
-
-impl FromValue for Future {
-    #[inline]
-    fn from_value(value: Value) -> VmResult<Self> {
-        value.into_future()
-    }
-}
-
-impl UnsafeFromValue for &Future {
-    type Output = *const Future;
-    type Guard = RawRef;
-
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
-        let future = vm_try!(value.into_shared_future());
-        let (future, guard) = Ref::into_raw(vm_try!(future.into_ref()));
-        VmResult::Ok((future, guard))
-    }
-
-    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
-        &*output
-    }
-}
-
-impl UnsafeFromValue for &mut Future {
-    type Output = *mut Future;
-    type Guard = RawMut;
-
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
-        let future = vm_try!(value.into_shared_future());
-        let future = vm_try!(future.into_mut());
-        VmResult::Ok(Mut::into_raw(future))
-    }
-
-    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
-        &mut *output
-    }
-}
+from_value!(Future, into_future);
 
 impl Named for Future {
     const BASE_NAME: RawStr = RawStr::from_str("Future");
