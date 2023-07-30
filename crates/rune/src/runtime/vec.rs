@@ -9,8 +9,8 @@ use crate::no_std::vec;
 use crate::compile::Named;
 use crate::module::InstallWith;
 use crate::runtime::{
-    FromValue, Iterator, Mut, RawMut, RawRef, RawStr, Ref, Shared, ToValue, UnsafeFromValue, Value,
-    Vm, VmErrorKind, VmResult,
+    FromValue, Iterator, RawRef, RawStr, Ref, Shared, ToValue, UnsafeFromValue, Value, Vm,
+    VmErrorKind, VmResult,
 };
 
 /// Struct representing a dynamic vector.
@@ -190,12 +190,6 @@ impl Vec {
     }
 }
 
-impl Named for Vec {
-    const BASE_NAME: RawStr = RawStr::from_str("Vec");
-}
-
-impl InstallWith for Vec {}
-
 impl fmt::Debug for Vec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list().entries(&*self.inner).finish()
@@ -222,6 +216,7 @@ impl IntoIterator for Vec {
     type Item = Value;
     type IntoIter = vec::IntoIter<Value>;
 
+    #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.inner.into_iter()
     }
@@ -231,6 +226,7 @@ impl<'a> IntoIterator for &'a Vec {
     type Item = &'a Value;
     type IntoIter = slice::Iter<'a, Value>;
 
+    #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.inner.iter()
     }
@@ -240,18 +236,21 @@ impl<'a> IntoIterator for &'a mut Vec {
     type Item = &'a mut Value;
     type IntoIter = slice::IterMut<'a, Value>;
 
+    #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.inner.iter_mut()
     }
 }
 
 impl From<vec::Vec<Value>> for Vec {
+    #[inline]
     fn from(inner: vec::Vec<Value>) -> Self {
         Self { inner }
     }
 }
 
 impl From<Box<[Value]>> for Vec {
+    #[inline]
     fn from(inner: Box<[Value]>) -> Self {
         Self {
             inner: inner.to_vec(),
@@ -259,23 +258,13 @@ impl From<Box<[Value]>> for Vec {
     }
 }
 
-impl FromValue for Mut<Vec> {
-    fn from_value(value: Value) -> VmResult<Self> {
-        VmResult::Ok(vm_try!(vm_try!(value.into_vec()).into_mut()))
-    }
+impl Named for Vec {
+    const BASE_NAME: RawStr = RawStr::from_str("Vec");
 }
 
-impl FromValue for Ref<Vec> {
-    fn from_value(value: Value) -> VmResult<Self> {
-        VmResult::Ok(vm_try!(vm_try!(value.into_vec()).into_ref()))
-    }
-}
+impl InstallWith for Vec {}
 
-impl FromValue for Vec {
-    fn from_value(value: Value) -> VmResult<Self> {
-        VmResult::Ok(vm_try!(vm_try!(value.into_vec()).take()))
-    }
-}
+from_value!(Vec, into_vec);
 
 impl<T> FromValue for vec::Vec<T>
 where
@@ -299,7 +288,7 @@ impl<'a> UnsafeFromValue for &'a [Value] {
     type Output = *const [Value];
     type Guard = RawRef;
 
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
+    fn unsafe_from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
         let vec = vm_try!(value.into_vec());
         let (vec, guard) = Ref::into_raw(vm_try!(vec.into_ref()));
         // Safety: we're holding onto the guard for the vector here, so it is
@@ -309,34 +298,6 @@ impl<'a> UnsafeFromValue for &'a [Value] {
 
     unsafe fn unsafe_coerce(output: Self::Output) -> Self {
         &*output
-    }
-}
-
-impl<'a> UnsafeFromValue for &'a Vec {
-    type Output = *const Vec;
-    type Guard = RawRef;
-
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
-        let vec = vm_try!(value.into_vec());
-        VmResult::Ok(Ref::into_raw(vm_try!(vec.into_ref())))
-    }
-
-    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
-        &*output
-    }
-}
-
-impl<'a> UnsafeFromValue for &'a mut Vec {
-    type Output = *mut Vec;
-    type Guard = RawMut;
-
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
-        let vec = vm_try!(value.into_vec());
-        VmResult::Ok(Mut::into_raw(vm_try!(vec.into_mut())))
-    }
-
-    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
-        &mut *output
     }
 }
 

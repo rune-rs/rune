@@ -17,7 +17,7 @@ macro_rules! check_args {
 macro_rules! unsafe_vars {
     ($count:expr, $($ty:ty, $var:ident, $num:expr,)*) => {
         $(
-            let $var = vm_try!(<$ty>::from_value($var).with_error(|| VmErrorKind::BadArgument {
+            let $var = vm_try!(<$ty>::unsafe_from_value($var).with_error(|| VmErrorKind::BadArgument {
                 arg: $num,
             }));
         )*
@@ -34,12 +34,12 @@ macro_rules! drop_stack_guards {
 // Expand to instance variable bindings.
 macro_rules! unsafe_inst_vars {
     ($inst:ident, $count:expr, $($ty:ty, $var:ident, $num:expr,)*) => {
-        let $inst = vm_try!(Instance::from_value($inst).with_error(|| VmErrorKind::BadArgument {
+        let $inst = vm_try!(Instance::unsafe_from_value($inst).with_error(|| VmErrorKind::BadArgument {
             arg: 0,
         }));
 
         $(
-            let $var = vm_try!(<$ty>::from_value($var).with_error(|| VmErrorKind::BadArgument {
+            let $var = vm_try!(<$ty>::unsafe_from_value($var).with_error(|| VmErrorKind::BadArgument {
                 arg: 1 + $num,
             }));
         )*

@@ -579,7 +579,7 @@ where
             type Guard = #raw_into_ref;
 
             #[inline]
-            fn from_value(value: #value) -> #vm_result<(Self::Output, Self::Guard)> {
+            fn unsafe_from_value(value: #value) -> #vm_result<(Self::Output, Self::Guard)> {
                 value.into_any_ptr()
             }
 
@@ -593,7 +593,7 @@ where
             type Output = *mut #ident  #type_generics;
             type Guard = #raw_into_mut;
 
-            fn from_value(value: #value) -> #vm_result<(Self::Output, Self::Guard)> {
+            fn unsafe_from_value(value: #value) -> #vm_result<(Self::Output, Self::Guard)> {
                 value.into_any_mut()
             }
 

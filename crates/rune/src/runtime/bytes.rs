@@ -12,9 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::compile::Named;
 use crate::module::InstallWith;
-use crate::runtime::{
-    FromValue, Mut, RawMut, RawRef, RawStr, Ref, UnsafeFromValue, Value, VmResult,
-};
+use crate::runtime::{RawRef, RawStr, Ref, UnsafeFromValue, Value, VmResult};
 
 /// A vector of bytes.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
@@ -266,49 +264,13 @@ impl AsRef<[u8]> for Bytes {
     }
 }
 
-impl FromValue for Bytes {
-    fn from_value(value: Value) -> VmResult<Self> {
-        let bytes = vm_try!(value.into_bytes());
-        let bytes = vm_try!(bytes.borrow_ref());
-        VmResult::Ok(bytes.clone())
-    }
-}
-
-impl<'a> UnsafeFromValue for &'a Bytes {
-    type Output = *const Bytes;
-    type Guard = RawRef;
-
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
-        let bytes = vm_try!(value.into_bytes());
-        let bytes = vm_try!(bytes.into_ref());
-        VmResult::Ok(Ref::into_raw(bytes))
-    }
-
-    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
-        &*output
-    }
-}
-
-impl<'a> UnsafeFromValue for &'a mut Bytes {
-    type Output = *mut Bytes;
-    type Guard = RawMut;
-
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
-        let bytes = vm_try!(value.into_bytes());
-        let bytes = vm_try!(bytes.into_mut());
-        VmResult::Ok(Mut::into_raw(bytes))
-    }
-
-    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
-        &mut *output
-    }
-}
+from_value!(Bytes, into_bytes);
 
 impl<'a> UnsafeFromValue for &'a [u8] {
     type Output = *const [u8];
     type Guard = RawRef;
 
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
+    fn unsafe_from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
         let bytes = vm_try!(value.into_bytes());
         let bytes = vm_try!(bytes.into_ref());
         let (value, guard) = Ref::into_raw(bytes);

@@ -137,7 +137,7 @@ pub trait UnsafeFromValue: Sized {
     ///
     /// You must also make sure that the returned value does not outlive the
     /// guard.
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)>;
+    fn unsafe_from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)>;
 
     /// Coerce the output of an unsafe from value into the final output type.
     ///
@@ -191,7 +191,7 @@ where
     type Output = T;
     type Guard = ();
 
-    fn from_value(value: Value) -> VmResult<(Self, Self::Guard)> {
+    fn unsafe_from_value(value: Value) -> VmResult<(Self, Self::Guard)> {
         VmResult::Ok((vm_try!(T::from_value(value)), ()))
     }
 
@@ -227,7 +227,7 @@ impl UnsafeFromValue for &Option<Value> {
     type Output = *const Option<Value>;
     type Guard = RawRef;
 
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
+    fn unsafe_from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
         let option = vm_try!(value.into_option());
         let option = vm_try!(option.into_ref());
         VmResult::Ok(Ref::into_raw(option))
@@ -242,7 +242,7 @@ impl UnsafeFromValue for &mut Option<Value> {
     type Output = *mut Option<Value>;
     type Guard = RawMut;
 
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
+    fn unsafe_from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
         let option = vm_try!(value.into_option());
         let option = vm_try!(option.into_mut());
         VmResult::Ok(Mut::into_raw(option))
@@ -303,7 +303,7 @@ impl UnsafeFromValue for &str {
     type Output = *const str;
     type Guard = StrGuard;
 
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
+    fn unsafe_from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
         VmResult::Ok(match value {
             Value::String(string) => {
                 let string = vm_try!(string.into_ref());
@@ -330,7 +330,7 @@ impl UnsafeFromValue for &mut str {
     type Output = *mut str;
     type Guard = Option<RawMut>;
 
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
+    fn unsafe_from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
         match value {
             Value::String(string) => {
                 let string = vm_try!(string.into_mut());
@@ -352,7 +352,7 @@ impl UnsafeFromValue for &String {
     type Output = *const String;
     type Guard = StrGuard;
 
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
+    fn unsafe_from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
         VmResult::Ok(match value {
             Value::String(string) => {
                 let string = vm_try!(string.into_ref());
@@ -375,7 +375,7 @@ impl UnsafeFromValue for &mut String {
     type Output = *mut String;
     type Guard = RawMut;
 
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
+    fn unsafe_from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
         VmResult::Ok(match value {
             Value::String(string) => {
                 let string = vm_try!(string.into_mut());
@@ -410,7 +410,7 @@ impl UnsafeFromValue for &Result<Value, Value> {
     type Output = *const Result<Value, Value>;
     type Guard = RawRef;
 
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
+    fn unsafe_from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
         let result = vm_try!(value.into_result());
         let result = vm_try!(result.into_ref());
         VmResult::Ok(Ref::into_raw(result))
@@ -425,7 +425,7 @@ impl UnsafeFromValue for &mut Result<Value, Value> {
     type Output = *mut Result<Value, Value>;
     type Guard = RawMut;
 
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
+    fn unsafe_from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
         let result = vm_try!(value.into_result());
         let result = vm_try!(result.into_mut());
         VmResult::Ok(Mut::into_raw(result))

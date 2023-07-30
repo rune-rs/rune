@@ -512,28 +512,7 @@ impl Value {
         Iterator::from_value(value)
     }
 
-    /// Coerce into future, or convert into a future using the
-    /// [Protocol::INTO_FUTURE] protocol.
-    ///
-    /// You must use [Vm::with] to specify which virtual machine this function
-    /// is called inside.
-    ///
-    /// # Errors
-    ///
-    /// This function errors in case the provided type cannot be converted into
-    /// a future without the use of a [`Vm`] and one is not provided through the
-    /// environment.
-    pub fn into_future(self) -> VmResult<Future> {
-        let target = match self {
-            Value::Future(fut) => return VmResult::Ok(vm_try!(fut.take())),
-            target => target,
-        };
-
-        let value = vm_try!(EnvProtocolCaller.call_protocol_fn(Protocol::INTO_FUTURE, target, ()));
-        Future::from_value(value)
-    }
-
-    /// Coerce into a shared future, or convert into a future using the
+    /// Coerce into a future, or convert into a future using the
     /// [Protocol::INTO_FUTURE] protocol.
     ///
     /// You must use [Vm::with] to specify which virtual machine this function
@@ -545,7 +524,7 @@ impl Value {
     /// a future without the use of a [`Vm`] and one is not provided through the
     /// environment.
     #[inline]
-    pub fn into_shared_future(self) -> VmResult<Shared<Future>> {
+    pub fn into_future(self) -> VmResult<Shared<Future>> {
         let target = match self {
             Value::Future(future) => return VmResult::Ok(future),
             target => target,
