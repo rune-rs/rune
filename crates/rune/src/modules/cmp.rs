@@ -1,6 +1,6 @@
 //! The `std::cmp` module.
 
-use core::cmp;
+use core::cmp::Ordering;
 
 use crate::runtime::Protocol;
 use crate::{ContextError, Module};
@@ -9,7 +9,7 @@ use crate::{ContextError, Module};
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", ["cmp"]);
 
-    let ty = module.ty::<cmp::Ordering>()?.docs([
+    let ty = module.ty::<Ordering>()?.docs([
         "An `Ordering` is the result of a comparison between two values.",
         "",
         "# Examples",
@@ -32,21 +32,19 @@ pub fn module() -> Result<Module, ContextError> {
 
     ty.variant_mut(0)?
         .make_empty()?
-        .constructor(|| cmp::Ordering::Less)?
+        .constructor(|| Ordering::Less)?
         .docs(["An ordering where a compared value is less than another."]);
 
     ty.variant_mut(1)?
         .make_empty()?
-        .constructor(|| cmp::Ordering::Equal)?
+        .constructor(|| Ordering::Equal)?
         .docs(["An ordering where a compared value is equal to another."]);
 
     ty.variant_mut(2)?
         .make_empty()?
-        .constructor(|| cmp::Ordering::Greater)?
+        .constructor(|| Ordering::Greater)?
         .docs(["An ordering where a compared value is greater than another."]);
 
-    module.associated_function(Protocol::EQ, |lhs: cmp::Ordering, rhs: cmp::Ordering| {
-        lhs == rhs
-    })?;
+    module.associated_function(Protocol::EQ, |lhs: Ordering, rhs: Ordering| lhs == rhs)?;
     Ok(module)
 }

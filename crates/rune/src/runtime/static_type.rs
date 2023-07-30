@@ -1,4 +1,4 @@
-use core::cmp;
+use core::cmp::{Eq, Ordering, PartialEq};
 use core::hash;
 
 use crate::no_std::collections::HashMap;
@@ -26,13 +26,13 @@ impl StaticType {
     }
 }
 
-impl cmp::PartialEq for &'static StaticType {
+impl PartialEq for &'static StaticType {
     fn eq(&self, other: &Self) -> bool {
         self.hash == other.hash
     }
 }
 
-impl cmp::Eq for &'static StaticType {}
+impl Eq for &'static StaticType {}
 
 impl hash::Hash for &'static StaticType {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
@@ -263,3 +263,12 @@ pub static TYPE: &StaticType = &StaticType {
 };
 
 impl_static_type!(rt::Type => TYPE);
+
+/// The specialized type information for type objects.
+pub static ORDERING: &StaticType = &StaticType {
+    name: RawStr::from_str("Ordering"),
+    // hash for ::std::cmp::Ordering
+    hash: Hash::new(0x30d24cc3fa13e4b7),
+};
+
+impl_static_type!(Ordering => ORDERING);

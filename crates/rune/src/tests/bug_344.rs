@@ -85,7 +85,7 @@ fn bug_344_async_function() -> Result<()> {
     let mut stack = Stack::new();
     stack.push(GuardCheck::new());
     function(&mut stack, 1).into_result()?;
-    let future = stack.pop()?.into_future().into_result()?;
+    let future = stack.pop()?.into_future().into_result()?.take()?;
     assert_eq!(
         block_on(future)
             .into_result()?
@@ -121,7 +121,7 @@ fn bug_344_async_inst_fn() -> Result<()> {
     stack.push(GuardCheck::new());
     function(&mut stack, 2).into_result()?;
 
-    let future = stack.pop()?.into_future().into_result()?;
+    let future = stack.pop()?.into_future().into_result()?.take()?;
     assert_eq!(
         block_on(future)
             .into_result()?
@@ -204,7 +204,7 @@ impl UnsafeFromValue for &GuardCheck {
     type Output = *const GuardCheck;
     type Guard = Guard;
 
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
+    fn unsafe_from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
         let (output, guard) = vm_try!(value.into_any_ptr::<GuardCheck>());
 
         let guard = Guard {

@@ -1,3 +1,4 @@
+use core::cmp::Ordering;
 use core::fmt;
 use core::mem;
 use core::ops;
@@ -568,6 +569,7 @@ impl Vm {
         &mut self,
         int_op: fn(i64, i64) -> bool,
         float_op: fn(f64, f64) -> bool,
+        match_ordering: fn(Ordering) -> bool,
         op: &'static str,
         lhs: InstAddress,
         rhs: InstAddress,
@@ -579,11 +581,20 @@ impl Vm {
             (Value::Integer(lhs), Value::Integer(rhs)) => int_op(lhs, rhs),
             (Value::Float(lhs), Value::Float(rhs)) => float_op(lhs, rhs),
             (lhs, rhs) => {
-                return err(VmErrorKind::UnsupportedBinaryOperation {
-                    op,
-                    lhs: vm_try!(lhs.type_info()),
-                    rhs: vm_try!(rhs.type_info()),
-                });
+                let ordering = match vm_try!(self.call_instance_fn(lhs, Protocol::CMP, (&rhs,))) {
+                    CallResult::Ok(()) => {
+                        vm_try!(<Ordering>::from_value(vm_try!(self.stack.pop())))
+                    }
+                    CallResult::Unsupported(lhs) => {
+                        return err(VmErrorKind::UnsupportedBinaryOperation {
+                            op,
+                            lhs: vm_try!(lhs.type_info()),
+                            rhs: vm_try!(rhs.type_info()),
+                        });
+                    }
+                };
+
+                match_ordering(ordering)
             }
         };
 
@@ -1244,9 +1255,20 @@ impl Vm {
                 vm_try!(<()>::from_value(value));
                 VmResult::Ok(())
             }
-            TargetFallback::Index(lhs, ..) => err(VmErrorKind::UnsupportedTupleIndexGet {
-                target: vm_try!(lhs.type_info()),
-            }),
+            TargetFallback::Index(lhs, index, rhs) => {
+                if let CallResult::Unsupported(lhs) =
+                    vm_try!(self.call_index_fn(protocol, lhs.clone(), index, (rhs,)))
+                {
+                    return err(VmErrorKind::UnsupportedTupleIndexGet {
+                        target: vm_try!(lhs.type_info()),
+                        index,
+                    });
+                }
+
+                let value = vm_try!(self.stack.pop());
+                vm_try!(<()>::from_value(value));
+                VmResult::Ok(())
+            }
         }
     }
 
@@ -1438,7 +1460,7 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_await(&mut self) -> VmResult<Shared<Future>> {
         let value = vm_try!(self.stack.pop());
-        value.into_shared_future()
+        value.into_future()
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
@@ -1446,7 +1468,7 @@ impl Vm {
         let futures = futures_util::stream::FuturesUnordered::new();
 
         for (branch, value) in vm_try!(self.stack.drain(len)).enumerate() {
-            let future = vm_try!(vm_try!(value.into_shared_future()).into_mut());
+            let future = vm_try!(vm_try!(value.into_future()).into_mut());
 
             if !future.is_completed() {
                 futures.push(SelectFuture::new(branch, future));
@@ -1776,16 +1798,44 @@ impl Vm {
                 vm_try!(self.internal_infallible_bitwise(Protocol::SHR, ops::Shr::shr, lhs, rhs));
             }
             InstOp::Gt => {
-                vm_try!(self.internal_boolean_ops(|a, b| a > b, |a, b| a > b, ">", lhs, rhs));
+                vm_try!(self.internal_boolean_ops(
+                    |a, b| a > b,
+                    |a, b| a > b,
+                    |o| matches!(o, Ordering::Greater),
+                    ">",
+                    lhs,
+                    rhs
+                ));
             }
             InstOp::Gte => {
-                vm_try!(self.internal_boolean_ops(|a, b| a >= b, |a, b| a >= b, ">=", lhs, rhs));
+                vm_try!(self.internal_boolean_ops(
+                    |a, b| a >= b,
+                    |a, b| a >= b,
+                    |o| matches!(o, Ordering::Greater | Ordering::Equal),
+                    ">=",
+                    lhs,
+                    rhs
+                ));
             }
             InstOp::Lt => {
-                vm_try!(self.internal_boolean_ops(|a, b| a < b, |a, b| a < b, "<", lhs, rhs));
+                vm_try!(self.internal_boolean_ops(
+                    |a, b| a < b,
+                    |a, b| a < b,
+                    |o| matches!(o, Ordering::Less),
+                    "<",
+                    lhs,
+                    rhs
+                ));
             }
             InstOp::Lte => {
-                vm_try!(self.internal_boolean_ops(|a, b| a <= b, |a, b| a <= b, "<=", lhs, rhs));
+                vm_try!(self.internal_boolean_ops(
+                    |a, b| a <= b,
+                    |a, b| a <= b,
+                    |o| matches!(o, Ordering::Less | Ordering::Equal),
+                    "<=",
+                    lhs,
+                    rhs
+                ));
             }
             InstOp::Eq => {
                 let rhs = vm_try!(self.stack.address(rhs));
@@ -2155,6 +2205,7 @@ impl Vm {
         {
             return err(VmErrorKind::UnsupportedTupleIndexGet {
                 target: vm_try!(value.type_info()),
+                index,
             });
         }
 
@@ -2194,6 +2245,7 @@ impl Vm {
         {
             return err(VmErrorKind::UnsupportedTupleIndexGet {
                 target: vm_try!(value.type_info()),
+                index,
             });
         }
 

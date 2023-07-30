@@ -7,10 +7,7 @@ use crate::no_std::vec;
 
 use crate::compile::Named;
 use crate::module::InstallWith;
-use crate::runtime::{
-    FromValue, Function, Mut, Panic, RawMut, RawRef, RawStr, Ref, ToValue, UnsafeFromValue, Value,
-    VmErrorKind, VmResult,
-};
+use crate::runtime::{FromValue, Function, Panic, RawStr, ToValue, Value, VmErrorKind, VmResult};
 
 // Note: A fair amount of code in this module is duplicated from the Rust
 // project under the MIT license.
@@ -393,39 +390,7 @@ impl Named for Iterator {
 
 impl InstallWith for Iterator {}
 
-impl FromValue for Iterator {
-    fn from_value(value: Value) -> VmResult<Self> {
-        VmResult::Ok(vm_try!(vm_try!(value.into_iterator()).take()))
-    }
-}
-
-impl<'a> UnsafeFromValue for &'a Iterator {
-    type Output = *const Iterator;
-    type Guard = RawRef;
-
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
-        let iterator = vm_try!(value.into_iterator());
-        VmResult::Ok(Ref::into_raw(vm_try!(iterator.into_ref())))
-    }
-
-    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
-        &*output
-    }
-}
-
-impl<'a> UnsafeFromValue for &'a mut Iterator {
-    type Output = *mut Iterator;
-    type Guard = RawMut;
-
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
-        let iterator = vm_try!(value.into_iterator());
-        VmResult::Ok(Mut::into_raw(vm_try!(iterator.into_mut())))
-    }
-
-    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
-        &mut *output
-    }
-}
+from_value!(Iterator, into_iterator);
 
 /// The inner representation of an [Iterator]. It handles all the necessary
 /// dynamic dispatch to support dynamic iterators.

@@ -1,8 +1,6 @@
 use crate::compile::Named;
 use crate::module::InstallWith;
-use crate::runtime::{
-    FromValue, Mut, RawMut, RawRef, RawStr, Ref, Shared, UnsafeFromValue, Value, VmResult,
-};
+use crate::runtime::{RawStr, Value, VmResult};
 
 /// The state of a generator.
 ///
@@ -70,50 +68,7 @@ impl GeneratorState {
     }
 }
 
-impl FromValue for Shared<GeneratorState> {
-    #[inline]
-    fn from_value(value: Value) -> VmResult<Self> {
-        value.into_generator_state()
-    }
-}
-
-impl FromValue for GeneratorState {
-    fn from_value(value: Value) -> VmResult<Self> {
-        let state = vm_try!(value.into_generator_state());
-        let state = vm_try!(state.take());
-        VmResult::Ok(state)
-    }
-}
-
-impl UnsafeFromValue for &GeneratorState {
-    type Output = *const GeneratorState;
-    type Guard = RawRef;
-
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
-        let state = vm_try!(value.into_generator_state());
-        let (state, guard) = Ref::into_raw(vm_try!(state.into_ref()));
-        VmResult::Ok((state, guard))
-    }
-
-    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
-        &*output
-    }
-}
-
-impl UnsafeFromValue for &mut GeneratorState {
-    type Output = *mut GeneratorState;
-    type Guard = RawMut;
-
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
-        let state = vm_try!(value.into_generator_state());
-        let state = vm_try!(state.into_mut());
-        VmResult::Ok(Mut::into_raw(state))
-    }
-
-    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
-        &mut *output
-    }
-}
+from_value!(GeneratorState, into_generator_state);
 
 impl Named for GeneratorState {
     const BASE_NAME: RawStr = RawStr::from_str("GeneratorState");

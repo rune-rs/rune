@@ -5,8 +5,7 @@ use crate as rune;
 use crate::compile::Named;
 use crate::module::InstallWith;
 use crate::runtime::{
-    FromValue, Iterator, Mut, Panic, RawMut, RawRef, RawStr, Ref, ToValue, UnsafeFromValue, Value,
-    Vm, VmErrorKind, VmResult,
+    FromValue, Iterator, Panic, RawStr, ToValue, Value, Vm, VmErrorKind, VmResult,
 };
 
 /// Struct representing a dynamic anonymous object.
@@ -235,57 +234,7 @@ where
     }
 }
 
-impl FromValue for Range {
-    fn from_value(value: Value) -> VmResult<Self> {
-        VmResult::Ok(vm_try!(vm_try!(value.into_range()).take()))
-    }
-}
-
-impl FromValue for Mut<Range> {
-    fn from_value(value: Value) -> VmResult<Self> {
-        let object = vm_try!(value.into_range());
-        let object = vm_try!(object.into_mut());
-        VmResult::Ok(object)
-    }
-}
-
-impl FromValue for Ref<Range> {
-    fn from_value(value: Value) -> VmResult<Self> {
-        let object = vm_try!(value.into_range());
-        let object = vm_try!(object.into_ref());
-        VmResult::Ok(object)
-    }
-}
-
-impl UnsafeFromValue for &Range {
-    type Output = *const Range;
-    type Guard = RawRef;
-
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
-        let object = vm_try!(value.into_range());
-        let object = vm_try!(object.into_ref());
-        VmResult::Ok(Ref::into_raw(object))
-    }
-
-    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
-        &*output
-    }
-}
-
-impl UnsafeFromValue for &mut Range {
-    type Output = *mut Range;
-    type Guard = RawMut;
-
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
-        let object = vm_try!(value.into_range());
-        let object = vm_try!(object.into_mut());
-        VmResult::Ok(Mut::into_raw(object))
-    }
-
-    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
-        &mut *output
-    }
-}
+from_value!(Range, into_range);
 
 impl Named for Range {
     const BASE_NAME: RawStr = RawStr::from_str("Range");

@@ -162,7 +162,7 @@ impl Context {
 
     /// Parse field attributes.
     pub(crate) fn field_attrs(&self, input: &[syn::Attribute]) -> Result<FieldAttrs, ()> {
-        macro_rules! generate_op {
+        macro_rules! generate_assign {
             ($proto:ident, $op:tt) => {
                 |g| {
                     let Generate {
@@ -325,52 +325,52 @@ impl Context {
                 } else if meta.path == ADD_ASSIGN {
                     attr.protocols.push(FieldProtocol {
                         custom: self.parse_field_custom(meta.input)?,
-                        generate: generate_op!(PROTOCOL_ADD_ASSIGN, +=),
+                        generate: generate_assign!(PROTOCOL_ADD_ASSIGN, +=),
                     });
                 } else if meta.path == SUB_ASSIGN {
                     attr.protocols.push(FieldProtocol {
                         custom: self.parse_field_custom(meta.input)?,
-                        generate: generate_op!(PROTOCOL_SUB_ASSIGN, -=),
+                        generate: generate_assign!(PROTOCOL_SUB_ASSIGN, -=),
                     });
                 } else if meta.path == DIV_ASSIGN {
                     attr.protocols.push(FieldProtocol {
                         custom: self.parse_field_custom(meta.input)?,
-                        generate: generate_op!(PROTOCOL_DIV_ASSIGN, /=),
+                        generate: generate_assign!(PROTOCOL_DIV_ASSIGN, /=),
                     });
                 } else if meta.path == MUL_ASSIGN {
                     attr.protocols.push(FieldProtocol {
                         custom: self.parse_field_custom(meta.input)?,
-                        generate: generate_op!(PROTOCOL_MUL_ASSIGN, *=),
+                        generate: generate_assign!(PROTOCOL_MUL_ASSIGN, *=),
                     });
                 } else if meta.path == BIT_AND_ASSIGN {
                     attr.protocols.push(FieldProtocol {
                         custom: self.parse_field_custom(meta.input)?,
-                        generate: generate_op!(PROTOCOL_BIT_AND_ASSIGN, &=),
+                        generate: generate_assign!(PROTOCOL_BIT_AND_ASSIGN, &=),
                     });
                 } else if meta.path == BIT_OR_ASSIGN {
                     attr.protocols.push(FieldProtocol {
                         custom: self.parse_field_custom(meta.input)?,
-                        generate: generate_op!(PROTOCOL_BIT_OR_ASSIGN, |=),
+                        generate: generate_assign!(PROTOCOL_BIT_OR_ASSIGN, |=),
                     });
                 } else if meta.path == BIT_XOR_ASSIGN {
                     attr.protocols.push(FieldProtocol {
                         custom: self.parse_field_custom(meta.input)?,
-                        generate: generate_op!(PROTOCOL_BIT_XOR_ASSIGN, ^=),
+                        generate: generate_assign!(PROTOCOL_BIT_XOR_ASSIGN, ^=),
                     });
                 } else if meta.path == SHL_ASSIGN {
                     attr.protocols.push(FieldProtocol {
                         custom: self.parse_field_custom(meta.input)?,
-                        generate: generate_op!(PROTOCOL_SHL_ASSIGN, <<=),
+                        generate: generate_assign!(PROTOCOL_SHL_ASSIGN, <<=),
                     });
                 } else if meta.path == SHR_ASSIGN {
                     attr.protocols.push(FieldProtocol {
                         custom: self.parse_field_custom(meta.input)?,
-                        generate: generate_op!(PROTOCOL_SHR_ASSIGN, >>=),
+                        generate: generate_assign!(PROTOCOL_SHR_ASSIGN, >>=),
                     });
                 } else if meta.path == REM_ASSIGN {
                     attr.protocols.push(FieldProtocol {
                         custom: self.parse_field_custom(meta.input)?,
-                        generate: generate_op!(PROTOCOL_REM_ASSIGN, %=),
+                        generate: generate_assign!(PROTOCOL_REM_ASSIGN, %=),
                     });
                 } else {
                     return Err(syn::Error::new_spanned(&meta.path, "Unsupported attribute"));

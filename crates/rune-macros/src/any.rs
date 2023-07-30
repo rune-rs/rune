@@ -429,7 +429,7 @@ fn expand_enum_install_with(
             module.index_function(#protocol::GET, #index, |this: &Self| {
                 match this {
                     #(#matches,)*
-                    _ => return #vm_result::__rune_macros__unsupported_tuple_index_get(<Self as #type_of>::type_info()),
+                    _ => return #vm_result::__rune_macros__unsupported_tuple_index_get(<Self as #type_of>::type_info(), #index),
                 }
             })?;
         });
@@ -599,7 +599,7 @@ where
             type Guard = #raw_into_ref;
 
             #[inline]
-            fn from_value(value: #value) -> #vm_result<(Self::Output, Self::Guard)> {
+            fn unsafe_from_value(value: #value) -> #vm_result<(Self::Output, Self::Guard)> {
                 value.into_any_ptr()
             }
 
@@ -613,7 +613,7 @@ where
             type Output = *mut #ident  #type_generics;
             type Guard = #raw_into_mut;
 
-            fn from_value(value: #value) -> #vm_result<(Self::Output, Self::Guard)> {
+            fn unsafe_from_value(value: #value) -> #vm_result<(Self::Output, Self::Guard)> {
                 value.into_any_mut()
             }
 

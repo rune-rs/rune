@@ -1,4 +1,5 @@
 use core::any;
+use core::cmp::Ordering;
 
 use crate::no_std::collections::HashMap;
 use crate::no_std::prelude::*;
@@ -247,6 +248,7 @@ number_value_trait!(i128);
 number_value_trait!(isize);
 
 impl ToValue for f32 {
+    #[inline]
     fn to_value(self) -> VmResult<Value> {
         VmResult::Ok(Value::Float(self as f64))
     }
@@ -274,3 +276,10 @@ macro_rules! impl_map {
 }
 
 impl_map!(HashMap<String, T>);
+
+impl ToValue for Ordering {
+    #[inline]
+    fn to_value(self) -> VmResult<Value> {
+        VmResult::Ok(Value::Ordering(self))
+    }
+}
