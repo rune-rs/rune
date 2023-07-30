@@ -1,3 +1,5 @@
+use core::cmp::Ordering;
+
 use crate::no_std::prelude::*;
 
 use crate::module::InstallWith;
@@ -53,3 +55,9 @@ impl Named for bool {
 }
 
 impl InstallWith for bool {}
+
+impl Named for Ordering {
+    const BASE_NAME: RawStr = RawStr::from_str("Ordering");
+}
+
+impl InstallWith for Ordering {}

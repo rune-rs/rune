@@ -409,7 +409,7 @@ fn expand_enum_install_with(
             module.index_function(#protocol::GET, #index, |this: &Self| {
                 match this {
                     #(#matches,)*
-                    _ => return #vm_result::__rune_macros__unsupported_tuple_index_get(<Self as #type_of>::type_info()),
+                    _ => return #vm_result::__rune_macros__unsupported_tuple_index_get(<Self as #type_of>::type_info(), #index),
                 }
             })?;
         });

@@ -1,6 +1,5 @@
 use core::borrow::Borrow;
-use core::cmp;
-use core::cmp::Ord;
+use core::cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd};
 use core::fmt;
 use core::fmt::Write;
 use core::hash;
@@ -172,13 +171,13 @@ pub struct VariantRtti {
     pub item: ItemBuf,
 }
 
-impl cmp::PartialEq for VariantRtti {
+impl PartialEq for VariantRtti {
     fn eq(&self, other: &Self) -> bool {
         self.hash == other.hash
     }
 }
 
-impl cmp::Eq for VariantRtti {}
+impl Eq for VariantRtti {}
 
 impl hash::Hash for VariantRtti {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
@@ -186,14 +185,14 @@ impl hash::Hash for VariantRtti {
     }
 }
 
-impl cmp::PartialOrd for VariantRtti {
-    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+impl PartialOrd for VariantRtti {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.hash.partial_cmp(&other.hash)
     }
 }
 
-impl cmp::Ord for VariantRtti {
-    fn cmp(&self, other: &Self) -> cmp::Ordering {
+impl Ord for VariantRtti {
+    fn cmp(&self, other: &Self) -> Ordering {
         self.hash.cmp(&other.hash)
     }
 }
@@ -208,13 +207,13 @@ pub struct Rtti {
     pub item: ItemBuf,
 }
 
-impl cmp::PartialEq for Rtti {
+impl PartialEq for Rtti {
     fn eq(&self, other: &Self) -> bool {
         self.hash == other.hash
     }
 }
 
-impl cmp::Eq for Rtti {}
+impl Eq for Rtti {}
 
 impl hash::Hash for Rtti {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
@@ -222,14 +221,14 @@ impl hash::Hash for Rtti {
     }
 }
 
-impl cmp::PartialOrd for Rtti {
-    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+impl PartialOrd for Rtti {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.hash.partial_cmp(&other.hash)
     }
 }
 
-impl cmp::Ord for Rtti {
-    fn cmp(&self, other: &Self) -> cmp::Ordering {
+impl Ord for Rtti {
+    fn cmp(&self, other: &Self) -> Ordering {
         self.hash.cmp(&other.hash)
     }
 }
@@ -251,6 +250,8 @@ pub enum Value {
     Float(f64),
     /// A type hash. Describes a type in the virtual machine.
     Type(Type),
+    /// Ordering.
+    Ordering(Ordering),
     /// A static string.
     ///
     /// While `Rc<str>` would've been enough to store an unsized `str`, either
@@ -631,6 +632,7 @@ impl Value {
             Self::Integer(value) => Self::Integer(value),
             Self::Float(value) => Self::Float(value),
             Self::Type(value) => Self::Type(value),
+            Self::Ordering(value) => Self::Ordering(value),
             Self::StaticString(value) => Self::StaticString(value),
             Self::String(value) => Self::String(Shared::new(vm_try!(value.take()))),
             Self::Bytes(value) => Self::Bytes(Shared::new(vm_try!(value.take()))),
@@ -769,6 +771,28 @@ impl Value {
         match self {
             Self::Type(ty) => VmResult::Ok(ty),
             actual => err(VmErrorKind::expected::<Type>(vm_try!(actual.type_info()))),
+        }
+    }
+
+    /// Try to coerce value into an [Ordering].
+    #[inline]
+    pub fn as_ordering(&self) -> VmResult<Ordering> {
+        match self {
+            Self::Ordering(ty) => VmResult::Ok(*ty),
+            actual => err(VmErrorKind::expected::<Ordering>(vm_try!(
+                actual.type_info()
+            ))),
+        }
+    }
+
+    /// Try to coerce value into an [Ordering].
+    #[inline]
+    pub fn into_ordering(self) -> VmResult<Ordering> {
+        match self {
+            Self::Ordering(ty) => VmResult::Ok(ty),
+            actual => err(VmErrorKind::expected::<Ordering>(vm_try!(
+                actual.type_info()
+            ))),
         }
     }
 
@@ -992,6 +1016,8 @@ impl Value {
             Self::Char(..) => crate::runtime::CHAR_TYPE.hash,
             Self::Integer(..) => crate::runtime::INTEGER_TYPE.hash,
             Self::Float(..) => crate::runtime::FLOAT_TYPE.hash,
+            Self::Type(..) => crate::runtime::TYPE.hash,
+            Self::Ordering(..) => crate::runtime::ORDERING.hash,
             Self::StaticString(..) => crate::runtime::STRING_TYPE.hash,
             Self::String(..) => crate::runtime::STRING_TYPE.hash,
             Self::Bytes(..) => crate::runtime::BYTES_TYPE.hash,
@@ -1008,7 +1034,6 @@ impl Value {
             Self::Function(..) => crate::runtime::FUNCTION_TYPE.hash,
             Self::Format(..) => crate::runtime::FORMAT_TYPE.hash,
             Self::Iterator(..) => crate::runtime::ITERATOR_TYPE.hash,
-            Self::Type(..) => crate::runtime::TYPE.hash,
             Self::UnitStruct(empty) => empty.borrow_ref()?.rtti.hash,
             Self::TupleStruct(tuple) => tuple.borrow_ref()?.rtti.hash,
             Self::Struct(object) => object.borrow_ref()?.rtti.hash,
@@ -1026,6 +1051,8 @@ impl Value {
             Self::Char(..) => TypeInfo::StaticType(crate::runtime::CHAR_TYPE),
             Self::Integer(..) => TypeInfo::StaticType(crate::runtime::INTEGER_TYPE),
             Self::Float(..) => TypeInfo::StaticType(crate::runtime::FLOAT_TYPE),
+            Self::Type(..) => TypeInfo::StaticType(crate::runtime::TYPE),
+            Self::Ordering(..) => TypeInfo::StaticType(crate::runtime::ORDERING),
             Self::StaticString(..) => TypeInfo::StaticType(crate::runtime::STRING_TYPE),
             Self::String(..) => TypeInfo::StaticType(crate::runtime::STRING_TYPE),
             Self::Bytes(..) => TypeInfo::StaticType(crate::runtime::BYTES_TYPE),
@@ -1042,7 +1069,6 @@ impl Value {
             Self::Function(..) => TypeInfo::StaticType(crate::runtime::FUNCTION_TYPE),
             Self::Format(..) => TypeInfo::StaticType(crate::runtime::FORMAT_TYPE),
             Self::Iterator(..) => TypeInfo::StaticType(crate::runtime::ITERATOR_TYPE),
-            Self::Type(..) => TypeInfo::StaticType(crate::runtime::TYPE),
             Self::UnitStruct(empty) => vm_try!(empty.borrow_ref()).type_info(),
             Self::TupleStruct(tuple) => vm_try!(tuple.borrow_ref()).type_info(),
             Self::Struct(object) => vm_try!(object.borrow_ref()).type_info(),
@@ -1400,6 +1426,8 @@ impl ser::Serialize for Value {
             Value::Byte(c) => serializer.serialize_u8(*c),
             Value::Integer(integer) => serializer.serialize_i64(*integer),
             Value::Float(float) => serializer.serialize_f64(*float),
+            Value::Type(..) => Err(ser::Error::custom("cannot serialize types")),
+            Value::Ordering(..) => Err(ser::Error::custom("cannot serialize orderings")),
             Value::StaticString(string) => serializer.serialize_str(string.as_ref()),
             Value::String(string) => {
                 let string = string.borrow_ref().map_err(ser::Error::custom)?;
@@ -1448,7 +1476,6 @@ impl ser::Serialize for Value {
             Value::Struct(..) => Err(ser::Error::custom("cannot serialize objects structs")),
             Value::Variant(..) => Err(ser::Error::custom("cannot serialize variants")),
             Value::Result(..) => Err(ser::Error::custom("cannot serialize results")),
-            Value::Type(..) => Err(ser::Error::custom("cannot serialize types")),
             Value::Future(..) => Err(ser::Error::custom("cannot serialize futures")),
             Value::Stream(..) => Err(ser::Error::custom("cannot serialize streams")),
             Value::Generator(..) => Err(ser::Error::custom("cannot serialize generators")),

@@ -1,4 +1,5 @@
 use core::any;
+use core::cmp::Ordering;
 
 use crate::no_std::collections::HashMap;
 use crate::no_std::prelude::*;
@@ -252,23 +253,6 @@ impl UnsafeFromValue for &mut Option<Value> {
     }
 }
 
-impl UnsafeFromValue for &mut Result<Value, Value> {
-    type Output = *mut Result<Value, Value>;
-    type Guard = RawMut;
-
-    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
-        let result = vm_try!(value.into_result());
-        let result = vm_try!(result.into_mut());
-        VmResult::Ok(Mut::into_raw(result))
-    }
-
-    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
-        &mut *output
-    }
-}
-
-// String impls
-
 impl FromValue for String {
     fn from_value(value: Value) -> VmResult<Self> {
         match value {
@@ -309,6 +293,7 @@ impl FromValue for Box<str> {
 ///
 /// Note that we need to hold onto an instance of the static string to prevent
 /// the reference to it from being deallocated (the `StaticString` variant).
+#[non_exhaustive]
 pub enum StrGuard {
     RawRef(RawRef),
     StaticString(Arc<StaticString>),
@@ -408,8 +393,6 @@ impl UnsafeFromValue for &mut String {
     }
 }
 
-// Result impls
-
 impl<T, E> FromValue for Result<T, E>
 where
     T: FromValue,
@@ -438,7 +421,20 @@ impl UnsafeFromValue for &Result<Value, Value> {
     }
 }
 
-// number impls
+impl UnsafeFromValue for &mut Result<Value, Value> {
+    type Output = *mut Result<Value, Value>;
+    type Guard = RawMut;
+
+    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
+        let result = vm_try!(value.into_result());
+        let result = vm_try!(result.into_mut());
+        VmResult::Ok(Mut::into_raw(result))
+    }
+
+    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
+        &mut *output
+    }
+}
 
 impl FromValue for () {
     fn from_value(value: Value) -> VmResult<Self> {
@@ -517,8 +513,6 @@ impl FromValue for f32 {
     }
 }
 
-// map impls
-
 macro_rules! impl_map {
     ($ty:ty) => {
         impl<T> FromValue for $ty
@@ -542,3 +536,10 @@ macro_rules! impl_map {
 }
 
 impl_map!(HashMap<String, T>);
+
+impl FromValue for Ordering {
+    #[inline]
+    fn from_value(value: Value) -> VmResult<Self> {
+        value.into_ordering()
+    }
+}
