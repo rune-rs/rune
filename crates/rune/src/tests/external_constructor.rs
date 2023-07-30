@@ -96,6 +96,13 @@ fn construct_struct() {
         #[rune(get, set)]
         body: String,
         #[rune(get, set)]
+        headers: Headers,
+    }
+
+    #[derive(Debug, Any, Clone, PartialEq, Eq)]
+    #[rune(constructor)]
+    struct Headers {
+        #[rune(get, set)]
         content_type: String,
         #[rune(get, set)]
         content_length: u32,
@@ -105,6 +112,7 @@ fn construct_struct() {
         let mut module = Module::new();
         module.ty::<Request>()?;
         module.ty::<Response>()?;
+        module.ty::<Headers>()?;
         Ok(module)
     }
 
@@ -119,24 +127,33 @@ fn construct_struct() {
             pub fn main(req) {
                 let content_type = "text/plain";
 
+                // Field order has been purposefully scrambled here, to test
+                // that they can be given in any order and still compile
+                // correctly.
                 let rsp = match req.url {
                     "/" => Response {
                         status_code: 200,
                         body: "ok",
-                        content_type,
-                        content_length: 2,
+                        headers: Headers {
+                            content_length: 2,
+                            content_type,
+                        },
                     },
                     "/account" => Response {
-                        content_type,
-                        content_length: 12,
+                        headers: Headers {
+                            content_type,
+                            content_length: 12,
+                        },
                         body: "unauthorized",
                         status_code: 401,
                     },
                     _ => Response {
                         body: "not found",
                         status_code: 404,
-                        content_length: 9,
-                        content_type,
+                        headers: Headers {
+                            content_type,
+                            content_length: 9,
+                        },
                     }
                 };
 
@@ -158,8 +175,10 @@ fn construct_struct() {
             Response {
                 status_code: 200,
                 body: "ok".into(),
-                content_type: "text/plain".into(),
-                content_length: 2,
+                headers: Headers {
+                    content_type: "text/plain".into(),
+                    content_length: 2,
+                },
             },
         ),
         (
@@ -169,8 +188,10 @@ fn construct_struct() {
             Response {
                 status_code: 401,
                 body: "unauthorized".into(),
-                content_type: "text/plain".into(),
-                content_length: 12,
+                headers: Headers {
+                    content_type: "text/plain".into(),
+                    content_length: 12,
+                },
             },
         ),
         (
@@ -180,8 +201,10 @@ fn construct_struct() {
             Response {
                 status_code: 404,
                 body: "not found".into(),
-                content_type: "text/plain".into(),
-                content_length: 9,
+                headers: Headers {
+                    content_type: "text/plain".into(),
+                    content_length: 9,
+                },
             },
         ),
     ] {
