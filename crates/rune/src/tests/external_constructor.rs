@@ -117,17 +117,17 @@ fn construct_struct() {
     let mut sources = sources! {
         entry => {
             pub fn main(req) {
-                let foo = 10;
+                let content_type = "text/plain";
 
                 let rsp = match req.url {
                     "/" => Response {
                         status_code: 200,
                         body: "ok",
-                        content_type: "text/plain",
+                        content_type,
                         content_length: 2,
                     },
                     "/account" => Response {
-                        content_type: "text/plain",
+                        content_type,
                         content_length: 12,
                         body: "unauthorized",
                         status_code: 401,
@@ -136,7 +136,7 @@ fn construct_struct() {
                         body: "not found",
                         status_code: 404,
                         content_length: 9,
-                        content_type: "text/plain",
+                        content_type,
                     }
                 };
 
