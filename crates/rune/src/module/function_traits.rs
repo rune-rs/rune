@@ -2,20 +2,18 @@ use core::future::Future;
 
 use crate::runtime::{self, Stack, ToValue, TypeOf, UnsafeFromValue, VmErrorKind, VmResult};
 
-macro_rules! check_args {
-    ($expected:expr, $actual:expr) => {
-        if $actual != $expected {
+// Expand to function variable bindings.
+macro_rules! drain_stack {
+    ($count:expr, $add:expr, $stack:ident, $args:ident, $($ty:ty, $var:ident, $num:expr),* $(,)?) => {
+        if $args != $count + $add {
             return VmResult::err(VmErrorKind::BadArgumentCount {
-                actual: $actual,
-                expected: $expected,
+                actual: $args,
+                expected: $count + $add,
             });
         }
-    };
-}
 
-// Expand to function variable bindings.
-macro_rules! unsafe_vars {
-    ($count:expr, $($ty:ty, $var:ident, $num:expr,)*) => {
+        let [$($var,)*] = vm_try!($stack.drain_vec($count + $add));
+
         $(
             let $var = vm_try!(<$ty>::unsafe_from_value($var).with_error(|| VmErrorKind::BadArgument {
                 arg: $num,
@@ -24,25 +22,9 @@ macro_rules! unsafe_vars {
     };
 }
 
-// Helper variation to drop all stack guards associated with the specified variables.
-macro_rules! drop_stack_guards {
-    ($($var:ident),* $(,)?) => {{
-        $(drop(($var.1));)*
-    }};
-}
-
-// Expand to instance variable bindings.
-macro_rules! unsafe_inst_vars {
-    ($inst:ident, $count:expr, $($ty:ty, $var:ident, $num:expr,)*) => {
-        let $inst = vm_try!(Instance::unsafe_from_value($inst).with_error(|| VmErrorKind::BadArgument {
-            arg: 0,
-        }));
-
-        $(
-            let $var = vm_try!(<$ty>::unsafe_from_value($var).with_error(|| VmErrorKind::BadArgument {
-                arg: 1 + $num,
-            }));
-        )*
+macro_rules! unsafe_coerce {
+    ($target:ident $(, $ty:ty, $var:expr)*) => {
+        $target($(unsafe { <$ty>::unsafe_coerce($var) },)*)
     };
 }
 
@@ -127,21 +109,12 @@ macro_rules! impl_register {
             }
 
             fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
-                check_args!($count, args);
-                let [$($var,)*] = vm_try!(stack.drain_vec($count));
+                drain_stack!($count, 0, stack, args, $($ty, $var, $num,)*);
 
-                // Safety: We hold a reference to the stack, so we can
-                // guarantee that it won't be modified.
-                //
-                // The scope is also necessary, since we mutably access `stack`
-                // when we return below.
-                #[allow(unused)]
-                let ret = unsafe {
-                    unsafe_vars!($count, $($ty, $var, $num,)*);
-                    let ret = self($(<$ty>::unsafe_coerce($var.0),)*);
-                    drop_stack_guards!($($var),*);
-                    ret
-                };
+                // Safety: We hold a reference to the stack, so we can guarantee
+                // that it won't be modified.
+                let ret = unsafe_coerce!(self $(, $ty, $var.0)*);
+                $(drop($var.1);)*
 
                 let ret = vm_try!(ret.to_value());
                 stack.push(ret);
@@ -163,27 +136,18 @@ macro_rules! impl_register {
             }
 
             fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
-                check_args!($count, args);
-                let [$($var,)*] = vm_try!(stack.drain_vec($count));
+                drain_stack!($count, 0, stack, args, $($ty, $var, $num,)*);
 
-                // Safety: Future is owned and will only be called within the
-                // context of the virtual machine, which will provide
-                // exclusive thread-local access to itself while the future is
-                // being polled.
-                #[allow(unused_unsafe)]
-                let ret = unsafe {
-                    unsafe_vars!($count, $($ty, $var, $num,)*);
-                    let fut = self($(<$ty>::unsafe_coerce($var.0),)*);
+                // Safety: The future holds onto all necessary guards to keep
+                // values borrowed from the stack alive.
+                let fut = unsafe_coerce!(self $(, $ty, $var.0)*);
 
-                    runtime::Future::new(async move {
-                        let output = fut.await;
-                        drop_stack_guards!($($var),*);
-                        let value = vm_try!(output.to_value());
-                        VmResult::Ok(value)
-                    })
-                };
+                let ret = runtime::Future::new(async move {
+                    let output = fut.await;
+                    $(drop($var.1);)*
+                    VmResult::Ok(vm_try!(output.to_value()))
+                });
 
-                let ret = vm_try!(ret.to_value());
                 stack.push(ret);
                 VmResult::Ok(())
             }
@@ -205,24 +169,16 @@ macro_rules! impl_register {
             }
 
             fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
-                check_args!(($count + 1), args);
-                let [inst $(, $var)*] = vm_try!(stack.drain_vec($count + 1));
+                drain_stack!($count, 1, stack, args, Instance, inst, 0 $(, $ty, $var, 1 + $num)*);
 
                 // Safety: We hold a reference to the stack, so we can
                 // guarantee that it won't be modified.
-                //
-                // The scope is also necessary, since we mutably access `stack`
-                // when we return below.
-                #[allow(unused)]
-                let ret = unsafe {
-                    unsafe_inst_vars!(inst, $count, $($ty, $var, $num,)*);
-                    let ret = self(Instance::unsafe_coerce(inst.0), $(<$ty>::unsafe_coerce($var.0),)*);
-                    drop_stack_guards!(inst, $($var),*);
-                    ret
-                };
+                let ret = unsafe_coerce!(self, Instance, inst.0 $(, $ty, $var.0)*);
 
-                let ret = vm_try!(ret.to_value());
-                stack.push(ret);
+                drop(inst.1);
+                $(drop($var.1);)*
+
+                stack.push(vm_try!(ret.to_value()));
                 VmResult::Ok(())
             }
         }
@@ -244,28 +200,19 @@ macro_rules! impl_register {
             }
 
             fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
-                check_args!(($count + 1), args);
-                let [inst $(, $var)*] = vm_try!(stack.drain_vec($count + 1));
+                drain_stack!($count, 1, stack, args, Instance, inst, 0 $(, $ty, $var, 1 + $num)*);
 
-                #[allow(unused)]
-                let ret = {
-                    unsafe_inst_vars!(inst, $count, $($ty, $var, $num,)*);
+                // Safety: The future holds onto all necessary guards to keep
+                // values borrowed from the stack alive.
+                let fut = unsafe_coerce!(self, Instance, inst.0 $(, $ty, $var.0)*);
 
-                    // Safety: Future is owned and will only be called within the
-                    // context of the virtual machine, which will provide
-                    // exclusive thread-local access to itself while the future is
-                    // being polled.
-                    let fut = unsafe { self(Instance::unsafe_coerce(inst.0), $(<$ty>::unsafe_coerce($var.0),)*) };
+                let ret = runtime::Future::new(async move {
+                    let output = fut.await;
+                    drop(inst.1);
+                    $(drop($var.1);)*
+                    VmResult::Ok(vm_try!(output.to_value()))
+                });
 
-                    runtime::Future::new(async move {
-                        let output = fut.await;
-                        drop_stack_guards!(inst, $($var),*);
-                        let value = vm_try!(output.to_value());
-                        VmResult::Ok(value)
-                    })
-                };
-
-                let ret = vm_try!(ret.to_value());
                 stack.push(ret);
                 VmResult::Ok(())
             }
