@@ -472,14 +472,8 @@ impl Vm {
         H: ToTypeHash,
         A: GuardedArgs,
     {
-        let count = args.count();
-        let full_count = args.count() + 1;
+        let count = args.count().wrapping_add(1);
         let type_hash = vm_try!(target.type_hash());
-        self.stack.push(target);
-
-        // Safety: We hold onto the guard for the duration of this call.
-        let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut self.stack)) };
-
         let hash = Hash::associated_function(type_hash, hash.to_type_hash());
 
         if let Some(UnitFn::Offset {
@@ -488,19 +482,22 @@ impl Vm {
             args: expected,
         }) = self.unit.function(hash)
         {
-            vm_try!(check_args(full_count, expected));
-            vm_try!(self.call_offset_fn(offset, call, full_count));
+            self.stack.push(target);
+            // Safety: We hold onto the guard for the duration of this call.
+            let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut self.stack)) };
+            vm_try!(check_args(count, expected));
+            vm_try!(self.call_offset_fn(offset, call, count));
             return VmResult::Ok(CallResult::Ok(()));
         }
 
         if let Some(handler) = self.context.function(hash) {
-            vm_try!(handler(&mut self.stack, full_count));
+            self.stack.push(target);
+            // Safety: We hold onto the guard for the duration of this call.
+            let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut self.stack)) };
+            vm_try!(handler(&mut self.stack, count));
             return VmResult::Ok(CallResult::Ok(()));
         }
 
-        // Restore the stack!
-        vm_try!(self.stack.popn(count));
-        let target = vm_try!(self.stack.pop());
         VmResult::Ok(CallResult::Unsupported(target))
     }
 
@@ -515,23 +512,18 @@ impl Vm {
     ) -> VmResult<CallResult<()>>
     where
         N: IntoHash,
-        A: Args,
+        A: GuardedArgs,
     {
-        let count = args.count();
-        let full_count = count + 1;
+        let count = args.count().wrapping_add(1);
         let hash = Hash::field_function(protocol, vm_try!(target.type_hash()), name);
 
-        self.stack.push(target);
-        vm_try!(args.into_stack(&mut self.stack));
-
         if let Some(handler) = self.context.function(hash) {
-            vm_try!(handler(&mut self.stack, full_count));
+            self.stack.push(target);
+            let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut self.stack)) };
+            vm_try!(handler(&mut self.stack, count));
             return VmResult::Ok(CallResult::Ok(()));
         }
 
-        // Restore the stack!
-        vm_try!(self.stack.popn(count));
-        let target = vm_try!(self.stack.pop());
         VmResult::Ok(CallResult::Unsupported(target))
     }
 
@@ -545,23 +537,18 @@ impl Vm {
         args: A,
     ) -> VmResult<CallResult<()>>
     where
-        A: Args,
+        A: GuardedArgs,
     {
-        let count = args.count();
-        let full_count = count + 1;
+        let count = args.count().wrapping_add(1);
         let hash = Hash::index_function(protocol, vm_try!(target.type_hash()), Hash::index(index));
 
-        self.stack.push(target);
-        vm_try!(args.into_stack(&mut self.stack));
-
         if let Some(handler) = self.context.function(hash) {
-            vm_try!(handler(&mut self.stack, full_count));
+            self.stack.push(target);
+            let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut self.stack)) };
+            vm_try!(handler(&mut self.stack, count));
             return VmResult::Ok(CallResult::Ok(()));
         }
 
-        // Restore the stack!
-        vm_try!(self.stack.popn(count));
-        let target = vm_try!(self.stack.pop());
         VmResult::Ok(CallResult::Unsupported(target))
     }
 
@@ -1257,7 +1244,7 @@ impl Vm {
             }
             TargetFallback::Index(lhs, index, rhs) => {
                 if let CallResult::Unsupported(lhs) =
-                    vm_try!(self.call_index_fn(protocol, lhs.clone(), index, (rhs,)))
+                    vm_try!(self.call_index_fn(protocol, lhs.clone(), index, (&rhs,)))
                 {
                     return err(VmErrorKind::UnsupportedTupleIndexGet {
                         target: vm_try!(lhs.type_info()),
