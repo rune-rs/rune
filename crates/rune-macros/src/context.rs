@@ -136,22 +136,19 @@ impl TypeProtocol {
             },
             "STRING_DISPLAY" => quote_spanned! {self.protocol.span()=>
                 module.associated_function(rune::runtime::Protocol::STRING_DISPLAY, |this: &Self, buf: &mut String| {
-                    use ::std::fmt::Write as _;
-                    ::std::write!(buf, "{this}")
+                    use ::core::fmt::Write as _;
+                    ::core::write!(buf, "{this}")
                 })?;
             },
             "STRING_DEBUG" => quote_spanned! {self.protocol.span()=>
                 module.associated_function(rune::runtime::Protocol::STRING_DEBUG, |this: &Self, buf: &mut String| {
-                    use ::std::fmt::Write as _;
-                    ::std::write!(buf, "{this:?}")
+                    use ::core::fmt::Write as _;
+                    ::core::write!(buf, "{this:?}")
                 })?;
             },
             _ => syn::Error::new_spanned(
                 &self.protocol,
-                format!(
-                    "`{}` is not a protocol supported for automatic generation on a type",
-                    self.protocol
-                ),
+                format!("Rune protocol `{}` cannot be derived", self.protocol),
             )
             .to_compile_error(),
         }
@@ -455,7 +452,7 @@ impl Context {
         let mut error = false;
         let mut attr = TypeAttr::default();
 
-        for a in input {
+        'attrs: for a in input {
             if a.path().is_ident("doc") {
                 if let syn::Meta::NameValue(meta) = &a.meta {
                     attr.docs.push(meta.value.clone());
@@ -464,72 +461,86 @@ impl Context {
                 continue;
             }
 
-            if a.path() == RUNE {
-                let result = a.parse_nested_meta(|meta| {
-                    if meta.path == PARSE {
-                        // Parse `#[rune(parse = "..")]`
-                        meta.input.parse::<Token![=]>()?;
-                        let s: syn::LitStr = meta.input.parse()?;
+            let err = 'error: {
+                if a.path() == RUNE {
+                    let result = a.parse_nested_meta(|meta| {
+                        if meta.path == PARSE {
+                            // Parse `#[rune(parse = "..")]`
+                            meta.input.parse::<Token![=]>()?;
+                            let s: syn::LitStr = meta.input.parse()?;
 
-                        match s.value().as_str() {
-                            "meta_only" => {
-                                attr.parse = ParseKind::MetaOnly;
+                            match s.value().as_str() {
+                                "meta_only" => {
+                                    attr.parse = ParseKind::MetaOnly;
+                                }
+                                other => {
+                                    return Err(syn::Error::new(
+                                        meta.input.span(),
+                                        format!(
+                                            "Unsupported `#[rune(parse = ..)]` argument `{}`",
+                                            other
+                                        ),
+                                    ));
+                                }
+                            };
+                        } else if meta.path == ITEM {
+                            // Parse `#[rune(item = "..")]`
+                            meta.input.parse::<Token![=]>()?;
+                            attr.item = Some(meta.input.parse()?);
+                        } else if meta.path == NAME {
+                            // Parse `#[rune(name = "..")]`
+                            meta.input.parse::<Token![=]>()?;
+                            attr.name = Some(meta.input.parse()?);
+                        } else if meta.path == MODULE {
+                            // Parse `#[rune(module = <path>)]`
+                            meta.input.parse::<Token![=]>()?;
+                            attr.module = Some(parse_path_compat(meta.input)?);
+                        } else if meta.path == INSTALL_WITH {
+                            // Parse `#[rune(install_with = <path>)]`
+                            meta.input.parse::<Token![=]>()?;
+                            attr.install_with = Some(parse_path_compat(meta.input)?);
+                        } else if meta.path == CONSTRUCTOR {
+                            attr.constructor = true;
+                        } else {
+                            return Err(syn::Error::new_spanned(
+                                &meta.path,
+                                "Unsupported type attribute",
+                            ));
+                        }
+
+                        Ok(())
+                    });
+
+                    if let Err(e) = result {
+                        break 'error e;
+                    };
+                }
+
+                if a.path() == RUNE_DERIVE {
+                    attr.protocols.extend(
+                        match a.parse_args_with(Punctuated::<_, Token![,]>::parse_terminated) {
+                            Ok(it) => it,
+                            Err(err) => {
+                                break 'error err;
                             }
-                            other => {
-                                return Err(syn::Error::new(
-                                    meta.input.span(),
-                                    format!(
-                                        "Unsupported `#[rune(parse = ..)]` argument `{}`",
-                                        other
-                                    ),
-                                ));
+                        },
+                    );
+                }
+
+                if a.path() == RUNE_FUNCTIONS {
+                    attr.functions.extend(
+                        match a.parse_args_with(Punctuated::<_, Token![,]>::parse_terminated) {
+                            Ok(it) => it,
+                            Err(err) => {
+                                break 'error err;
                             }
-                        };
-                    } else if meta.path == ITEM {
-                        // Parse `#[rune(item = "..")]`
-                        meta.input.parse::<Token![=]>()?;
-                        attr.item = Some(meta.input.parse()?);
-                    } else if meta.path == NAME {
-                        // Parse `#[rune(name = "..")]`
-                        meta.input.parse::<Token![=]>()?;
-                        attr.name = Some(meta.input.parse()?);
-                    } else if meta.path == MODULE {
-                        // Parse `#[rune(module = <path>)]`
-                        meta.input.parse::<Token![=]>()?;
-                        attr.module = Some(parse_path_compat(meta.input)?);
-                    } else if meta.path == INSTALL_WITH {
-                        // Parse `#[rune(install_with = <path>)]`
-                        meta.input.parse::<Token![=]>()?;
-                        attr.install_with = Some(parse_path_compat(meta.input)?);
-                    } else if meta.path == CONSTRUCTOR {
-                        attr.constructor = true;
-                    } else if meta.path == PROTOCOLS {
-                        // Parse `#[rune(protocols(<protocol>,*))]`
-                        let protocols;
-                        syn::parenthesized!(protocols in meta.input);
-                        attr.protocols
-                            .extend(protocols.parse_terminated(TypeProtocol::parse, Token![,])?);
-                    } else if meta.path == FUNCTIONS {
-                        // Parse `#[rune(functions(<function>,*))]`
-                        let functions;
-                        syn::parenthesized!(functions in meta.input);
-                        attr.functions
-                            .extend(functions.parse_terminated(syn::Path::parse, Token![,])?);
-                    } else {
-                        return Err(syn::Error::new_spanned(
-                            &meta.path,
-                            "Unsupported type attribute",
-                        ));
-                    }
-
-                    Ok(())
-                });
-
-                if let Err(e) = result {
-                    error = true;
-                    self.error(e);
-                };
-            }
+                        },
+                    );
+                }
+                continue 'attrs;
+            };
+            error = true;
+            self.error(err);
         }
 
         if error {

@@ -6,6 +6,8 @@ use std::fmt;
 pub struct Symbol(&'static str);
 
 pub const RUNE: Symbol = Symbol("rune");
+pub const RUNE_DERIVE: Symbol = Symbol("rune_derive");
+pub const RUNE_FUNCTIONS: Symbol = Symbol("rune_functions");
 pub const ID: Symbol = Symbol("id");
 pub const SKIP: Symbol = Symbol("skip");
 pub const ITER: Symbol = Symbol("iter");
@@ -19,8 +21,6 @@ pub const NAME: Symbol = Symbol("name");
 pub const ITEM: Symbol = Symbol("item");
 pub const MODULE: Symbol = Symbol("module");
 pub const INSTALL_WITH: Symbol = Symbol("install_with");
-pub const PROTOCOLS: Symbol = Symbol("protocols");
-pub const FUNCTIONS: Symbol = Symbol("functions");
 
 pub const CONSTRUCTOR: Symbol = Symbol("constructor");
 pub const GET: Symbol = Symbol("get");
