@@ -55,7 +55,50 @@ use crate::hash::Hash;
 /// }
 /// ```
 ///
-/// ## `#[rune_derive(PROTOCOL, PROTOCOL = handler)]` attribute
+/// ## `#[rune_derive(PROTOCOL, PROTOCOL = handler, ...)]` attribute
+///
+/// Can directly implement supported protocols via the rust Trait, i.e.,
+/// `#[rune_derive(STRING_DEBUG)]` requires the type to implement
+/// [`Debug`](core::fmt::Debug) and adds a handler for
+/// [`Protocol::STRING_DEBUG`](crate::runtime::Protocol::STRING_DEBUG).
+///
+/// For unsupported protocols, or to deviate from the trait implementation,
+/// a custom handler can be specified, this can either be a closure or a path
+/// to a function.
+///
+/// ```
+/// use rune::Any;
+///
+/// #[derive(Any, Debug)]
+/// #[rune_derive(STRING_DEBUG)]
+/// #[rune_derive(INDEX_GET = |it: Self, i: usize| it.0[i])]
+/// struct Struct(Vec<usize>);
+/// ```
+///
+/// ## `#[rune_functions(some_function, ...)]` attribute
+/// 
+/// Allows specifying functions that will be registered together with the type,
+/// these need to be annotated with [`#[rune::function]`](crate::function).
+///
+/// ```
+/// use rune::Any;
+///
+/// #[derive(Any)]
+/// #[rune_functions(Self::first, second)]
+/// struct Struct(bool, usize);
+///
+/// impl Struct {
+///     #[rune::function]
+///     fn first(self) -> bool {
+///         self.0
+///     }
+/// }
+/// 
+/// #[rune::function]
+/// fn second(it: Struct) -> usize {
+///     it.1
+/// }
+/// ```
 pub use rune_macros::Any;
 
 /// A trait which can be stored inside of an [AnyObj](crate::runtime::AnyObj).
