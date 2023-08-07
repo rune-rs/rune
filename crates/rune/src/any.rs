@@ -54,6 +54,8 @@ use crate::hash::Hash;
 ///     Ok(module)
 /// }
 /// ```
+///
+/// ## `#[rune_derive(PROTOCOL, PROTOCOL = handler)]` attribute
 pub use rune_macros::Any;
 
 /// A trait which can be stored inside of an [AnyObj](crate::runtime::AnyObj).

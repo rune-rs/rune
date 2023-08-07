@@ -119,7 +119,7 @@ pub(crate) struct FieldProtocol {
 
 pub(crate) struct TypeProtocol {
     protocol: syn::Ident,
-    handler: Option<syn::Path>,
+    handler: Option<syn::Expr>,
 }
 
 impl TypeProtocol {

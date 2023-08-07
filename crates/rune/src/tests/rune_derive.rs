@@ -6,6 +6,8 @@ use crate::no_std::prelude::*;
 
 #[derive(Any, Debug, PartialEq)]
 #[rune_derive(ADD, STRING_DEBUG, STRING_DISPLAY)]
+// To test the manual handler
+#[rune_derive(INDEX_GET = |it: Self, _: usize| it.0)]
 #[rune_functions(Self::new)]
 struct Struct(usize);
 
@@ -60,6 +62,15 @@ fn rune_derive() -> Result<()> {
             String => pub fn main() {format!("{:?}", Struct::new(1))}
         },
         "Struct(1)"
+    );
+
+    assert_eq!(
+        rune_n! {
+            &m,
+            (),
+            usize => pub fn main() {Struct::new(1)[0]}
+        },
+        1
     );
     Ok(())
 }
