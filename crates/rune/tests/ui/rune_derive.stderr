@@ -1,0 +1,57 @@
+error: Rune protocol `NON_EXISTENT` cannot be derived
+ --> tests/ui/rune_derive.rs:9:15
+  |
+9 | #[rune_derive(NON_EXISTENT)]
+  |               ^^^^^^^^^^^^
+
+error[E0369]: cannot add `UnimplementedTraits` to `UnimplementedTraits`
+ --> tests/ui/rune_derive.rs:5:15
+  |
+5 | #[rune_derive(ADD, STRING_DISPLAY, STRING_DEBUG)]
+  |               ^^^
+  |
+note: an implementation of `std::ops::Add` might be missing for `UnimplementedTraits`
+ --> tests/ui/rune_derive.rs:6:1
+  |
+6 | struct UnimplementedTraits;
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^ must implement `std::ops::Add`
+note: the trait `std::ops::Add` must be implemented
+ --> $RUST/core/src/ops/arith.rs
+  |
+  | pub trait Add<Rhs = Self> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0277]: `UnimplementedTraits` doesn't implement `std::fmt::Display`
+ --> tests/ui/rune_derive.rs:5:20
+  |
+5 | #[rune_derive(ADD, STRING_DISPLAY, STRING_DEBUG)]
+  |                    ^^^^^^^^^^^^^^ `UnimplementedTraits` cannot be formatted with the default formatter
+  |
+ ::: $RUST/core/src/macros/mod.rs
+  |
+  |         $dst.write_fmt($crate::format_args!($($arg)*))
+  |                        ------------------------------ in this macro invocation
+  |
+  = help: the trait `std::fmt::Display` is not implemented for `UnimplementedTraits`
+  = note: in format strings you may be able to use `{:?}` (or {:#?} for pretty-print) instead
+  = note: this error originates in the macro `$crate::format_args` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: `UnimplementedTraits` doesn't implement `std::fmt::Debug`
+ --> tests/ui/rune_derive.rs:5:36
+  |
+5 | #[rune_derive(ADD, STRING_DISPLAY, STRING_DEBUG)]
+  |                                    ^^^^^^^^^^^^ `UnimplementedTraits` cannot be formatted using `{:?}`
+  |
+ ::: $RUST/core/src/macros/mod.rs
+  |
+  |         $dst.write_fmt($crate::format_args!($($arg)*))
+  |                        ------------------------------ in this macro invocation
+  |
+  = help: the trait `std::fmt::Debug` is not implemented for `UnimplementedTraits`
+  = note: add `#[derive(Debug)]` to `UnimplementedTraits` or manually `impl std::fmt::Debug for UnimplementedTraits`
+  = note: this error originates in the macro `$crate::format_args` (in Nightly builds, run with -Z macro-backtrace for more info)
+help: consider annotating `UnimplementedTraits` with `#[derive(Debug)]`
+    |
+6   + #[derive(Debug)]
+7   | struct UnimplementedTraits;
+    |
