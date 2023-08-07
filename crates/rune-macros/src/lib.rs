@@ -155,7 +155,7 @@ pub fn to_value(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         .into()
 }
 
-#[proc_macro_derive(Any, attributes(rune))]
+#[proc_macro_derive(Any, attributes(rune, rune_derive, rune_functions))]
 pub fn any(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let derive = syn::parse_macro_input!(input as any::Derive);
     derive.expand().unwrap_or_else(to_compile_errors).into()

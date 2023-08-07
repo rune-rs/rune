@@ -135,36 +135,43 @@ impl TypeProtocol {
                 module.associated_function(rune::runtime::Protocol::ADD, |this: Self, other: Self| this + other)?;
             },
             "STRING_DISPLAY" => quote_spanned! {self.protocol.span()=>
-                module.associated_function(rune::runtime::Protocol::STRING_DISPLAY, |this: &Self, buf: &mut String| {
+                module.associated_function(rune::runtime::Protocol::STRING_DISPLAY, |this: &Self, buf: &mut ::std::string::String| {
                     use ::core::fmt::Write as _;
                     ::core::write!(buf, "{this}")
                 })?;
             },
             "STRING_DEBUG" => quote_spanned! {self.protocol.span()=>
-                module.associated_function(rune::runtime::Protocol::STRING_DEBUG, |this: &Self, buf: &mut String| {
+                module.associated_function(rune::runtime::Protocol::STRING_DEBUG, |this: &Self, buf: &mut ::std::string::String| {
                     use ::core::fmt::Write as _;
                     ::core::write!(buf, "{this:?}")
                 })?;
             },
-            _ => syn::Error::new_spanned(
-                &self.protocol,
-                format!("Rune protocol `{}` cannot be derived", self.protocol),
-            )
-            .to_compile_error(),
+            _ => unreachable!("`parse()` ensures only supported protocols"),
         }
     }
 }
 
 impl Parse for TypeProtocol {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        Ok(Self {
+        let it = Self {
             protocol: input.parse()?,
             handler: if input.parse::<Token![=]>().is_ok() {
                 Some(input.parse()?)
             } else {
                 None
             },
-        })
+        };
+
+        if it.handler.is_some()
+            || ["ADD", "STRING_DISPLAY", "STRING_DEBUG"].contains(&it.protocol.to_string().as_str())
+        {
+            Ok(it)
+        } else {
+            Err(syn::Error::new_spanned(
+                &it.protocol,
+                format!("Rune protocol `{}` cannot be derived", it.protocol),
+            ))
+        }
     }
 }
 
