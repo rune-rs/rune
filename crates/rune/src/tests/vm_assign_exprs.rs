@@ -10,6 +10,24 @@ fn test_basic_assign() {
 }
 
 #[test]
+fn test_assign_underscore() {
+    let out: i64 = rune! {
+        pub fn main() { let _a = 0; _a = 42; _a }
+    };
+
+    assert_eq!(out, 42);
+}
+
+#[test]
+fn test_assign_underscores() {
+    let out: i64 = rune! {
+        pub fn main() { let ___ = 0; ___ = 42; ___ }
+    };
+
+    assert_eq!(out, 42);
+}
+
+#[test]
 fn test_assign_anon_object() {
     let out: i64 = rune! {
         pub fn main() { let a = #{}; a.foo = #{}; a.foo.bar = 42; a.foo.bar }
