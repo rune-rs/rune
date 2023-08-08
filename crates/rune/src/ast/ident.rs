@@ -6,6 +6,7 @@ fn ast_parse() {
 
     rt::<ast::Ident>("foo");
     rt::<ast::Ident>("a42");
+    rt::<ast::Ident>("_ignored");
 }
 
 /// An identifier, like `foo` or `Hello`.

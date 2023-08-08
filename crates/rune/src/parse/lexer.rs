@@ -143,10 +143,17 @@ impl<'a> Lexer<'a> {
             self.iter.next();
         }
 
-        let (ident, span) = self.iter.source_from(start);
-        let kind = ast::Kind::from_keyword(ident)
-            .unwrap_or(ast::Kind::Ident(ast::LitSource::Text(self.source_id)));
-        Ok(Some(ast::Token { kind, span }))
+        match self.iter.source_from(start) {
+            ("_", span) => Ok(Some(ast::Token {
+                span,
+                kind: ast::Kind::Underscore,
+            })),
+            (ident, span) => {
+                let kind = ast::Kind::from_keyword(ident)
+                    .unwrap_or(ast::Kind::Ident(ast::LitSource::Text(self.source_id)));
+                Ok(Some(ast::Token { kind, span }))
+            }
+        }
     }
 
     /// Consume a number literal.
@@ -781,7 +788,6 @@ impl<'a> Lexer<'a> {
                     }
                     '[' => ast::Kind::Open(ast::Delimiter::Bracket),
                     ']' => ast::Kind::Close(ast::Delimiter::Bracket),
-                    '_' => ast::Kind::Underscore,
                     ',' => ast::Kind::Comma,
                     ':' => ast::Kind::Colon,
                     '#' => ast::Kind::Pound,
@@ -803,7 +809,7 @@ impl<'a> Lexer<'a> {
                     '@' => ast::Kind::At,
                     '$' => ast::Kind::Dollar,
                     '~' => ast::Kind::Tilde,
-                    'a'..='z' | 'A'..='Z' => {
+                    '_' | 'a'..='z' | 'A'..='Z' => {
                         return self.next_ident(start);
                     }
                     '0'..='9' => {
