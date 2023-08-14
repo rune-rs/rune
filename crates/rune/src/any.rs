@@ -1,5 +1,3 @@
-use core::any;
-
 use crate::compile::Named;
 use crate::hash::Hash;
 
@@ -72,7 +70,7 @@ pub use rune_macros::Any;
 ///     name: String,
 /// }
 /// ```
-pub trait Any: Named + any::Any {
+pub trait Any: Named {
     /// The type hash of the type.
     ///
     /// TODO: make const field when `TypeId::of` is const.

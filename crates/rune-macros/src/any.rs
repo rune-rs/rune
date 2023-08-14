@@ -657,7 +657,7 @@ where
                 impl #impl_generics #unsafe_to_ref for #ident #type_generics #where_clause {
                     type Guard = #raw_into_ref;
 
-                    unsafe fn unsafe_to_ref<'a>(value: #value) -> #vm_result<(&'a Self, Self::Guard)> {
+                    unsafe fn unsafe_to_ref<'__rune_g>(value: #value) -> #vm_result<(&'__rune_g Self, Self::Guard)> {
                         let (value, guard) = match value.into_any_ptr() {
                             #vm_result::Ok(value) => value,
                             #vm_result::Err(err) => return #vm_result::Err(err),
@@ -671,7 +671,7 @@ where
                 impl #impl_generics #unsafe_to_mut for #ident #type_generics #where_clause {
                     type Guard = #raw_into_mut;
 
-                    unsafe fn unsafe_to_mut<'a>(value: #value) -> #vm_result<(&'a mut Self, Self::Guard)> {
+                    unsafe fn unsafe_to_mut<'__rune_g>(value: #value) -> #vm_result<(&'__rune_g mut Self, Self::Guard)> {
                         let (mut value, guard) = match value.into_any_mut() {
                             #vm_result::Ok(value) => value,
                             #vm_result::Err(err) => return #vm_result::Err(err),
@@ -725,7 +725,7 @@ where
                     impl #unsafe_to_ref for #ty {
                         type Guard = #raw_ref;
 
-                        unsafe fn unsafe_to_ref<'a>(value: #value) -> #vm_result<(&'a Self, Self::Guard)> {
+                        unsafe fn unsafe_to_ref<'__rune_g>(value: #value) -> #vm_result<(&'__rune_g Self, Self::Guard)> {
                             let value = #vm_try!(#path(value));
                             let value = #vm_try!(#shared::into_ref(value));
                             let (value, guard) = #ref_::into_raw(value);
@@ -736,7 +736,7 @@ where
                     impl #unsafe_to_mut for #ty {
                         type Guard = #raw_mut;
 
-                        unsafe fn unsafe_to_mut<'a>(value: #value) -> #vm_result<(&'a mut Self, Self::Guard)> {
+                        unsafe fn unsafe_to_mut<'__rune_g>(value: #value) -> #vm_result<(&'__rune_g mut Self, Self::Guard)> {
                             let value = #vm_try!(#path(value));
                             let value = #vm_try!(#shared::into_mut(value));
                             let (mut value, guard) = #mut_::into_raw(value);

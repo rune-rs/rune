@@ -1,4 +1,4 @@
-use core::any::{self, TypeId};
+use core::any::{self};
 use core::cell::{Cell, UnsafeCell};
 use core::fmt;
 use core::future::Future;
@@ -484,7 +484,7 @@ impl Shared<AnyObj> {
             // exclusive access (see above).
             let any = ptr::read(inner.data.get());
 
-            let expected = TypeId::of::<T>();
+            let expected = T::type_hash();
 
             let (e, any) = match any.raw_take(expected) {
                 Ok(value) => return Ok(*Box::from_raw(value as *mut T)),
@@ -525,7 +525,7 @@ impl Shared<AnyObj> {
         unsafe {
             let inner = self.inner.as_ref();
             let guard = inner.access.shared(AccessKind::Any)?;
-            let expected = TypeId::of::<T>();
+            let expected = T::type_hash();
 
             let data = match (*inner.data.get()).raw_as_ptr(expected) {
                 Ok(data) => data,
@@ -553,7 +553,7 @@ impl Shared<AnyObj> {
         unsafe {
             let inner = self.inner.as_ref();
             let guard = inner.access.exclusive(AccessKind::Any)?;
-            let expected = TypeId::of::<T>();
+            let expected = T::type_hash();
 
             let data = match (*inner.data.get()).raw_as_mut(expected) {
                 Ok(data) => data,
@@ -596,7 +596,7 @@ impl Shared<AnyObj> {
             let (data, guard) = {
                 let inner = self.inner.as_ref();
                 let guard = inner.access.shared(kind)?;
-                let expected = TypeId::of::<T>();
+                let expected = T::type_hash();
 
                 match (*inner.data.get()).raw_as_ptr(expected) {
                     Ok(data) => (data, guard),
@@ -648,7 +648,7 @@ impl Shared<AnyObj> {
             let (data, guard) = {
                 let inner = self.inner.as_ref();
                 let guard = inner.access.exclusive(kind)?;
-                let expected = TypeId::of::<T>();
+                let expected = T::type_hash();
 
                 match (*inner.data.get()).raw_as_mut(expected) {
                     Ok(data) => (data, guard),

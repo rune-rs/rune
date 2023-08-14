@@ -8,7 +8,7 @@ use quote::{quote, ToTokens};
 use syn::parse::ParseStream;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned as _;
-use syn::Token;
+use syn::{Token, TypeReference};
 
 /// Parsed `#[rune(..)]` field attributes.
 #[derive(Default)]
@@ -272,22 +272,44 @@ impl Context {
                         custom: self.parse_field_custom(meta.input)?,
                         generate: |g| {
                             let Generate {
+                                ty,
                                 target,
+                                tokens: Tokens {
+                                    any_obj, ..
+                                },
                                 ..
                             } = g;
 
                             match target {
                                 GenerateTarget::Named { field_ident, field_name } => {
-                                    let access = if g.attrs.copy {
-                                        quote!(s.#field_ident)
-                                    } else {
-                                        quote!(Clone::clone(&s.#field_ident))
-                                    };
-
                                     let protocol = g.tokens.protocol(PROTOCOL_GET);
 
-                                    quote_spanned! { g.field.span() =>
-                                        module.field_function(#protocol, #field_name, |s: &Self| #access)?;
+                                    match ty {
+                                        syn::Type::Reference(TypeReference{ mutability: None, ..}) => {
+                                            quote_spanned! { g.field.span() =>
+                                                module.field_function(#protocol, #field_name, |s: &Self| {
+                                                    unsafe { #any_obj::from_ref(s.#field_ident) }
+                                                })?;
+                                            }
+                                        },
+                                        syn::Type::Reference(TypeReference{ mutability: Some(_), ..}) => {
+                                            quote_spanned! { g.field.span() =>
+                                                module.field_function(#protocol, #field_name, |s: &mut Self| {
+                                                    unsafe { #any_obj::from_mut(s.#field_ident) }
+                                                })?;
+                                            }
+                                        },
+                                        _ => {
+                                            let access = if g.attrs.copy {
+                                                quote!(s.#field_ident)
+                                            } else {
+                                                quote!(Clone::clone(&s.#field_ident))
+                                            };
+
+                                            quote_spanned! { g.field.span() =>
+                                                module.field_function(#protocol, #field_name, |s: &Self| #access)?;
+                                            }
+                                        }
                                     }
                                 }
                                 GenerateTarget::Numbered { field_index } => {
@@ -594,6 +616,7 @@ impl Context {
         Tokens {
             any_type_info: path(m, ["runtime", "AnyTypeInfo"]),
             any: path(m, ["Any"]),
+            any_obj: path(m, ["runtime", "AnyObj"]),
             compile_error: path(m, ["compile", "Error"]),
             context_error: path(m, ["compile", "ContextError"]),
             from_value: path(m, ["runtime", "FromValue"]),
@@ -683,6 +706,7 @@ fn path<const N: usize>(base: &syn::Path, path: [&'static str; N]) -> syn::Path 
 pub(crate) struct Tokens {
     pub(crate) any_type_info: syn::Path,
     pub(crate) any: syn::Path,
+    pub(crate) any_obj: syn::Path,
     pub(crate) compile_error: syn::Path,
     pub(crate) context_error: syn::Path,
     pub(crate) from_value: syn::Path,

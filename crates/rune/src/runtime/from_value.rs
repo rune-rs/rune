@@ -181,7 +181,7 @@ pub trait UnsafeFromValue: Sized {
 
 impl<T> FromValue for T
 where
-    T: Any,
+    T: Any + 'static,
 {
     fn from_value(value: Value) -> VmResult<Self> {
         VmResult::Ok(vm_try!(vm_try!(value.into_any()).take_downcast()))
@@ -190,7 +190,7 @@ where
 
 impl<T> FromValue for Mut<T>
 where
-    T: Any,
+    T: Any + 'static,
 {
     fn from_value(value: Value) -> VmResult<Self> {
         VmResult::Ok(vm_try!(vm_try!(value.into_any()).downcast_into_mut()))
@@ -199,7 +199,7 @@ where
 
 impl<T> FromValue for Ref<T>
 where
-    T: Any,
+    T: Any + 'static,
 {
     fn from_value(value: Value) -> VmResult<Self> {
         VmResult::Ok(vm_try!(vm_try!(value.into_any()).downcast_into_ref()))

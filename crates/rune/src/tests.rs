@@ -383,6 +383,7 @@ mod external_constructor;
 mod external_generic;
 mod external_match;
 mod external_ops;
+mod external_references;
 mod float;
 mod for_loop;
 mod generics;
