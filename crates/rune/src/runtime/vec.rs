@@ -9,8 +9,8 @@ use crate::no_std::vec;
 use crate::compile::Named;
 use crate::module::InstallWith;
 use crate::runtime::{
-    FromValue, Iterator, RawRef, RawStr, Ref, Shared, ToValue, UnsafeFromValue, Value, Vm,
-    VmErrorKind, VmResult,
+    FromValue, Iterator, RawRef, RawStr, Ref, Shared, ToValue, UnsafeFromValue, UnsafeToRef, Value,
+    Vm, VmErrorKind, VmResult,
 };
 
 /// Struct representing a dynamic vector.
@@ -298,6 +298,18 @@ impl<'a> UnsafeFromValue for &'a [Value] {
 
     unsafe fn unsafe_coerce(output: Self::Output) -> Self {
         &*output
+    }
+}
+
+impl UnsafeToRef for [Value] {
+    type Guard = RawRef;
+
+    unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
+        let vec = vm_try!(value.into_vec());
+        let (vec, guard) = Ref::into_raw(vm_try!(vec.into_ref()));
+        // Safety: we're holding onto the guard for the vector here, so it is
+        // live.
+        VmResult::Ok(((*vec).as_slice(), guard))
     }
 }
 

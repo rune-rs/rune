@@ -4,6 +4,7 @@ use core::future::Future;
 use core::mem::ManuallyDrop;
 use core::ops;
 use core::pin::Pin;
+use core::ptr;
 use core::task::{Context, Poll};
 
 use crate::runtime::{AnyObjError, RawStr};
@@ -451,7 +452,7 @@ impl AccessGuard<'_> {
     /// Since we're losing track of the lifetime, caller must ensure that the
     /// access outlives the guard.
     pub unsafe fn into_raw(self) -> RawAccessGuard {
-        RawAccessGuard(ManuallyDrop::new(self).0)
+        RawAccessGuard(ptr::NonNull::from(ManuallyDrop::new(self).0))
     }
 }
 
@@ -463,11 +464,11 @@ impl Drop for AccessGuard<'_> {
 
 /// A raw guard around some level of access.
 #[repr(transparent)]
-pub struct RawAccessGuard(*const Access);
+pub struct RawAccessGuard(ptr::NonNull<Access>);
 
 impl Drop for RawAccessGuard {
     fn drop(&mut self) {
-        unsafe { (*self.0).release() }
+        unsafe { self.0.as_ref().release() }
     }
 }
 

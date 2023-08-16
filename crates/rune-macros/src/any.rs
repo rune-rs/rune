@@ -502,6 +502,8 @@ where
         full_type_of,
         unsafe_from_value,
         unsafe_to_value,
+        unsafe_to_ref,
+        unsafe_to_mut,
         value,
         vm_result,
         install_with,
@@ -590,6 +592,34 @@ where
             #[inline]
             fn maybe_type_of() -> Option<#full_type_of> {
                 Some(<Self as #type_of>::type_of())
+            }
+        }
+
+        #[automatically_derived]
+        impl #impl_generics #unsafe_to_ref for #ident #type_generics #where_clause {
+            type Guard = #raw_into_ref;
+
+            unsafe fn unsafe_to_ref<'a>(value: #value) -> #vm_result<(&'a Self, Self::Guard)> {
+                let (value, guard) = match value.into_any_ptr() {
+                    #vm_result::Ok(value) => value,
+                    #vm_result::Err(err) => return #vm_result::Err(err),
+                };
+
+                #vm_result::Ok((&*value, guard))
+            }
+        }
+
+        #[automatically_derived]
+        impl #impl_generics #unsafe_to_mut for #ident #type_generics #where_clause {
+            type Guard = #raw_into_mut;
+
+            unsafe fn unsafe_to_mut<'a>(value: #value) -> #vm_result<(&'a mut Self, Self::Guard)> {
+                let (value, guard) = match value.into_any_mut() {
+                    #vm_result::Ok(value) => value,
+                    #vm_result::Err(err) => return #vm_result::Err(err),
+                };
+
+                #vm_result::Ok((&mut *value, guard))
             }
         }
 

@@ -110,6 +110,19 @@ macro_rules! from_value {
             }
         }
 
+        impl $crate::runtime::UnsafeToRef for $ty {
+            type Guard = $crate::runtime::RawRef;
+
+            unsafe fn unsafe_to_ref<'a>(
+                value: $crate::runtime::Value,
+            ) -> $crate::runtime::VmResult<(&'a Self, Self::Guard)> {
+                let value = vm_try!(value.$into());
+                let value = vm_try!(value.into_ref());
+                let (value, guard) = $crate::runtime::Ref::into_raw(value);
+                $crate::runtime::VmResult::Ok((&*value, guard))
+            }
+        }
+
         impl<'a> $crate::runtime::UnsafeFromValue for &'a $ty {
             type Output = *const $ty;
             type Guard = $crate::runtime::RawRef;
@@ -124,6 +137,19 @@ macro_rules! from_value {
 
             unsafe fn unsafe_coerce(output: Self::Output) -> Self {
                 &*output
+            }
+        }
+
+        impl $crate::runtime::UnsafeToMut for $ty {
+            type Guard = $crate::runtime::RawMut;
+
+            unsafe fn unsafe_to_mut<'a>(
+                value: $crate::runtime::Value,
+            ) -> $crate::runtime::VmResult<(&'a mut Self, Self::Guard)> {
+                let value = vm_try!(value.$into());
+                let value = vm_try!(value.into_mut());
+                let (value, guard) = $crate::runtime::Mut::into_raw(value);
+                $crate::runtime::VmResult::Ok((&mut *value, guard))
             }
         }
 

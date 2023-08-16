@@ -38,6 +38,6 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     Ok(module)
 }
 
-async fn read_to_string(path: &str) -> io::Result<String> {
-    fs::read_to_string(path).await
+async fn read_to_string(path: String) -> io::Result<String> {
+    fs::read_to_string(&path).await
 }

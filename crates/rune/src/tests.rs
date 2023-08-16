@@ -13,7 +13,7 @@ pub(crate) mod prelude {
     pub(crate) use crate::parse;
     pub(crate) use crate::runtime::{
         self, AnyObj, AnyTypeInfo, Bytes, FullTypeOf, Function, MaybeTypeOf, Object, Protocol,
-        RawRef, RawStr, Shared, Stack, Tuple, TypeInfo, TypeOf, UnsafeFromValue, VecTuple,
+        RawRef, RawStr, Ref, Shared, Stack, Tuple, TypeInfo, TypeOf, UnsafeToRef, VecTuple,
         VmErrorKind, VmResult,
     };
     pub(crate) use crate::tests::run;

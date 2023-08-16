@@ -7,7 +7,7 @@ use std::sync::Arc;
 use anyhow::{anyhow, bail, Context as _, Result};
 
 use rune::compile::Named;
-use rune::runtime::{MaybeTypeOf, ToValue, Type, TypeOf, UnsafeFromValue};
+use rune::runtime::{MaybeTypeOf, ToValue, Type, TypeOf};
 use rune::termcolor;
 use rune::{Any, Context, ContextError, Diagnostics, Module, Sources, Vm};
 
@@ -15,7 +15,7 @@ use rune::{Any, Context, ContextError, Diagnostics, Module, Sources, Vm};
 #[rune(item = ::native_crate)]
 struct Generic<T>
 where
-    T: 'static + Clone + Named + UnsafeFromValue + ToValue + MaybeTypeOf + TypeOf,
+    T: 'static + Clone + Named + FromValue + ToValue + MaybeTypeOf + TypeOf,
 {
     #[rune(get, set)]
     data: T,
@@ -23,7 +23,7 @@ where
 
 impl<T> Generic<T>
 where
-    T: 'static + Clone + Copy + Named + UnsafeFromValue + ToValue + MaybeTypeOf + TypeOf,
+    T: 'static + Clone + Copy + Named + FromValue + ToValue + MaybeTypeOf + TypeOf,
 {
     fn get_value(&self) -> T {
         self.data

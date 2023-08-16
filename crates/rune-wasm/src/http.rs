@@ -1,3 +1,4 @@
+use rune::runtime::Ref;
 use rune::{Any, ContextError, Module};
 use wasm_bindgen::JsCast as _;
 use wasm_bindgen_futures::JsFuture;
@@ -23,24 +24,23 @@ struct Response {
 struct Error;
 
 /// Perform a `get` request.
-async fn get(url: &str) -> Result<Response, Error> {
+async fn get(url: Ref<str>) -> Result<Response, Error> {
     let mut opts = web_sys::RequestInit::new();
     opts.method("GET");
     opts.mode(web_sys::RequestMode::Cors);
-
+    let request = web_sys::Request::new_with_str(&url);
     let window = web_sys::window().ok_or(Error)?;
-    let request = web_sys::Request::new_with_str(url).map_err(|_| Error)?;
+    let request = request.map_err(|_| Error)?;
     let inner = JsFuture::from(window.fetch_with_request(&request))
         .await
         .map_err(|_| Error)?;
     let inner: web_sys::Response = inner.dyn_into().map_err(|_| Error)?;
-
     Ok(Response { inner })
 }
 
 impl Response {
     /// Try to get the text of the respponse.
-    async fn text(&self) -> Result<String, Error> {
+    async fn text(self) -> Result<String, Error> {
         let text = self.inner.text().map_err(|_| Error)?;
         let text = JsFuture::from(text).await.map_err(|_| Error)?;
         text.as_string().ok_or(Error)

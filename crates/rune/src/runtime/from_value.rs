@@ -112,6 +112,36 @@ pub trait FromValue: 'static + Sized {
     fn from_value(value: Value) -> VmResult<Self>;
 }
 
+/// Unsafe to mut coercion.
+pub trait UnsafeToMut {
+    /// The raw guard returned.
+    ///
+    /// Must only be dropped *after* the value returned from this function is no
+    /// longer live.
+    type Guard: 'static;
+
+    /// # Safety
+    ///
+    /// Caller must ensure that the returned reference does not outlive the
+    /// guard.
+    unsafe fn unsafe_to_mut<'a>(value: Value) -> VmResult<(&'a mut Self, Self::Guard)>;
+}
+
+/// Unsafe to ref coercion.
+pub trait UnsafeToRef {
+    /// The raw guard returned.
+    ///
+    /// Must only be dropped *after* the value returned from this function is no
+    /// longer live.
+    type Guard: 'static;
+
+    /// # Safety
+    ///
+    /// Caller must ensure that the returned reference does not outlive the
+    /// guard.
+    unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)>;
+}
+
 /// A potentially unsafe conversion for value conversion.
 ///
 /// This trait is used to convert values to references, which can be safely used
@@ -224,6 +254,17 @@ where
     }
 }
 
+impl UnsafeToRef for Option<Value> {
+    type Guard = RawRef;
+
+    unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
+        let option = vm_try!(value.into_option());
+        let option = vm_try!(option.into_ref());
+        let (value, guard) = Ref::into_raw(option);
+        VmResult::Ok((&*value, guard))
+    }
+}
+
 impl UnsafeFromValue for &Option<Value> {
     type Output = *const Option<Value>;
     type Guard = RawRef;
@@ -237,6 +278,17 @@ impl UnsafeFromValue for &Option<Value> {
     #[inline]
     unsafe fn unsafe_coerce(output: Self::Output) -> Self {
         &*output
+    }
+}
+
+impl UnsafeToMut for Option<Value> {
+    type Guard = RawMut;
+
+    unsafe fn unsafe_to_mut<'a>(value: Value) -> VmResult<(&'a mut Self, Self::Guard)> {
+        let option = vm_try!(value.into_option());
+        let option = vm_try!(option.into_mut());
+        let (value, guard) = Mut::into_raw(option);
+        VmResult::Ok((&mut *value, guard))
     }
 }
 
@@ -292,8 +344,20 @@ impl FromValue for Ref<String> {
     fn from_value(value: Value) -> VmResult<Self> {
         match value {
             Value::String(string) => VmResult::Ok(vm_try!(string.into_ref())),
+            Value::StaticString(string) => VmResult::Ok(Ref::map(Ref::from(string), |s| &**s)),
+            actual => VmResult::err(VmErrorKind::expected::<String>(vm_try!(actual.type_info()))),
+        }
+    }
+}
+
+impl FromValue for Ref<str> {
+    fn from_value(value: Value) -> VmResult<Self> {
+        match value {
+            Value::String(string) => {
+                VmResult::Ok(Ref::map(vm_try!(string.into_ref()), |s| s.as_str()))
+            }
             Value::StaticString(string) => {
-                VmResult::Ok(vm_try!(Shared::new((**string).to_owned()).into_ref()))
+                VmResult::Ok(Ref::map(Ref::from(string), |s| s.as_str()))
             }
             actual => VmResult::err(VmErrorKind::expected::<String>(vm_try!(actual.type_info()))),
         }
@@ -308,6 +372,25 @@ impl FromValue for Ref<String> {
 pub enum StrGuard {
     RawRef(RawRef),
     StaticString(Arc<StaticString>),
+}
+
+impl UnsafeToRef for str {
+    type Guard = StrGuard;
+
+    unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
+        match value {
+            Value::String(string) => {
+                let string = vm_try!(string.into_ref());
+                let (string, guard) = Ref::into_raw(string);
+                VmResult::Ok((&*string, StrGuard::RawRef(guard)))
+            }
+            Value::StaticString(string) => {
+                let value = unsafe { &*((*string).as_str() as *const _) };
+                VmResult::Ok((value, StrGuard::StaticString(string)))
+            }
+            actual => VmResult::err(VmErrorKind::expected::<String>(vm_try!(actual.type_info()))),
+        }
+    }
 }
 
 impl UnsafeFromValue for &str {
@@ -334,6 +417,21 @@ impl UnsafeFromValue for &str {
     }
 }
 
+impl UnsafeToMut for str {
+    type Guard = Option<RawMut>;
+
+    unsafe fn unsafe_to_mut<'a>(value: Value) -> VmResult<(&'a mut Self, Self::Guard)> {
+        match value {
+            Value::String(string) => {
+                let string = vm_try!(string.into_mut());
+                let (string, guard) = Mut::into_raw(string);
+                VmResult::Ok(((*string).as_mut_str(), Some(guard)))
+            }
+            actual => VmResult::err(VmErrorKind::expected::<String>(vm_try!(actual.type_info()))),
+        }
+    }
+}
+
 impl UnsafeFromValue for &mut str {
     type Output = *mut String;
     type Guard = Option<RawMut>;
@@ -352,6 +450,25 @@ impl UnsafeFromValue for &mut str {
     #[inline]
     unsafe fn unsafe_coerce(output: Self::Output) -> Self {
         (*output).as_mut_str()
+    }
+}
+
+impl UnsafeToRef for String {
+    type Guard = StrGuard;
+
+    unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
+        match value {
+            Value::String(string) => {
+                let string = vm_try!(string.into_ref());
+                let (string, guard) = Ref::into_raw(string);
+                VmResult::Ok((&*string, StrGuard::RawRef(guard)))
+            }
+            Value::StaticString(string) => {
+                let value = (*string).as_ref() as *const _;
+                VmResult::Ok((&*value, StrGuard::StaticString(string)))
+            }
+            actual => VmResult::err(VmErrorKind::expected::<String>(vm_try!(actual.type_info()))),
+        }
     }
 }
 
@@ -376,6 +493,21 @@ impl UnsafeFromValue for &String {
     #[inline]
     unsafe fn unsafe_coerce(output: Self::Output) -> Self {
         &*output
+    }
+}
+
+impl UnsafeToMut for String {
+    type Guard = RawMut;
+
+    unsafe fn unsafe_to_mut<'a>(value: Value) -> VmResult<(&'a mut Self, Self::Guard)> {
+        match value {
+            Value::String(string) => {
+                let string = vm_try!(string.into_mut());
+                let (string, guard) = Mut::into_raw(string);
+                VmResult::Ok((&mut *string, guard))
+            }
+            actual => VmResult::err(VmErrorKind::expected::<String>(vm_try!(actual.type_info()))),
+        }
     }
 }
 
@@ -413,6 +545,17 @@ where
     }
 }
 
+impl UnsafeToRef for Result<Value, Value> {
+    type Guard = RawRef;
+
+    unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
+        let result = vm_try!(value.into_result());
+        let result = vm_try!(result.into_ref());
+        let (value, guard) = Ref::into_raw(result);
+        VmResult::Ok((&*value, guard))
+    }
+}
+
 impl UnsafeFromValue for &Result<Value, Value> {
     type Output = *const Result<Value, Value>;
     type Guard = RawRef;
@@ -426,6 +569,17 @@ impl UnsafeFromValue for &Result<Value, Value> {
     #[inline]
     unsafe fn unsafe_coerce(output: Self::Output) -> Self {
         &*output
+    }
+}
+
+impl UnsafeToMut for Result<Value, Value> {
+    type Guard = RawMut;
+
+    unsafe fn unsafe_to_mut<'a>(value: Value) -> VmResult<(&'a mut Self, Self::Guard)> {
+        let result = vm_try!(value.into_result());
+        let result = vm_try!(result.into_mut());
+        let (value, guard) = Mut::into_raw(result);
+        VmResult::Ok((&mut *value, guard))
     }
 }
 

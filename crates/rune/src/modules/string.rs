@@ -15,17 +15,19 @@ pub fn module() -> Result<Module, ContextError> {
 
     module.ty::<String>()?;
 
-    module.function(["String", "from_str"], <String as From<&str>>::from)?;
+    module.function(["String", "from_str"], |s: &str| {
+        <String as From<&str>>::from(s)
+    })?;
     module.function(["String", "new"], String::new)?;
     module.function(["String", "with_capacity"], String::with_capacity)?;
 
     module.associated_function("cmp", str::cmp)?;
     module.associated_function("len", String::len)?;
-    module.associated_function("starts_with", str::starts_with::<&str>)?;
-    module.associated_function("ends_with", str::ends_with::<&str>)?;
+    module.associated_function("starts_with", |a: &str, b: &str| a.starts_with(b))?;
+    module.associated_function("ends_with", |a: &str, b: &str| a.ends_with(b))?;
     module.associated_function("capacity", String::capacity)?;
     module.associated_function("clear", String::clear)?;
-    module.associated_function("contains", str::contains::<&str>)?;
+    module.associated_function("contains", |a: &str, b: &str| a.contains(b))?;
     module.associated_function("push", String::push)?;
     module.associated_function("push_str", String::push_str)?;
     module.associated_function("reserve", String::reserve)?;
@@ -37,7 +39,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.associated_function("split", string_split)?;
     module.associated_function("trim", string_trim)?;
     module.associated_function("trim_end", string_trim_end)?;
-    module.associated_function("replace", str::replace::<&str>)?;
+    module.associated_function("replace", |a: &str, b: &str, c: &str| a.replace(b, c))?;
     // TODO: deprecate this variant.
     module.associated_function("split_str", string_split)?;
     module.associated_function("is_empty", str::is_empty)?;

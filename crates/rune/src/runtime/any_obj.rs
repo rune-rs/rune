@@ -4,6 +4,7 @@ use core::any::TypeId;
 use core::fmt;
 use core::mem::ManuallyDrop;
 use core::ops::{Deref, DerefMut};
+use core::ptr;
 
 use crate::no_std::prelude::*;
 
@@ -51,7 +52,7 @@ impl crate::no_std::error::Error for AnyObjError {}
 #[repr(C)]
 pub struct AnyObj {
     vtable: &'static AnyObjVtable,
-    data: *const (),
+    data: ptr::NonNull<()>,
 }
 
 impl fmt::Debug for AnyObj {
@@ -66,7 +67,7 @@ impl AnyObj {
     where
         T: Any,
     {
-        let data = Box::into_raw(Box::new(data));
+        let data = unsafe { ptr::NonNull::new_unchecked(Box::into_raw(Box::new(data)) as *mut _) };
 
         Self {
             vtable: &AnyObjVtable {
@@ -77,7 +78,7 @@ impl AnyObj {
                 type_name: type_name_impl::<T>,
                 type_hash: type_hash_impl::<T>,
             },
-            data: data as *mut (),
+            data,
         }
     }
 
@@ -124,6 +125,8 @@ impl AnyObj {
     where
         T: Any,
     {
+        let data = ptr::NonNull::new_unchecked(data as *const _ as *mut _);
+
         Self {
             vtable: &AnyObjVtable {
                 kind: AnyObjKind::RefPtr,
@@ -133,7 +136,7 @@ impl AnyObj {
                 type_name: type_name_impl::<T>,
                 type_hash: type_hash_impl::<T>,
             },
-            data: data as *const _ as *const (),
+            data,
         }
     }
 
@@ -168,7 +171,7 @@ impl AnyObj {
         T: Deref,
         T::Target: Any,
     {
-        let boxed_guard = Box::into_raw(Box::new(data));
+        let data = ptr::NonNull::new_unchecked(Box::into_raw(Box::new(data)) as *mut ());
 
         Self {
             vtable: &AnyObjVtable {
@@ -179,7 +182,7 @@ impl AnyObj {
                 type_name: type_name_impl::<T::Target>,
                 type_hash: type_hash_impl::<T::Target>,
             },
-            data: boxed_guard as *const _ as *const (),
+            data,
         }
     }
 
@@ -232,6 +235,8 @@ impl AnyObj {
     where
         T: Any,
     {
+        let data = ptr::NonNull::new_unchecked(data as *mut _ as *mut ());
+
         Self {
             vtable: &AnyObjVtable {
                 kind: AnyObjKind::MutPtr,
@@ -241,7 +246,7 @@ impl AnyObj {
                 type_name: type_name_impl::<T>,
                 type_hash: type_hash_impl::<T>,
             },
-            data: data as *const _ as *const (),
+            data,
         }
     }
 
@@ -276,7 +281,7 @@ impl AnyObj {
         T: DerefMut,
         T::Target: Any,
     {
-        let boxed_guard = Box::into_raw(Box::new(data));
+        let data = ptr::NonNull::new_unchecked(Box::into_raw(Box::new(data)) as *mut ());
 
         Self {
             vtable: &AnyObjVtable {
@@ -287,7 +292,7 @@ impl AnyObj {
                 type_name: type_name_impl::<T::Target>,
                 type_hash: type_hash_impl::<T::Target>,
             },
-            data: boxed_guard as *const _ as *const (),
+            data,
         }
     }
 
@@ -298,7 +303,10 @@ impl AnyObj {
     /// The caller must ensure that the vtable matches up with the data pointer
     /// provided. This is primarily public for use in a C ffi.
     pub unsafe fn new_raw(vtable: &'static AnyObjVtable, data: *const ()) -> Self {
-        Self { vtable, data }
+        Self {
+            vtable,
+            data: ptr::NonNull::new_unchecked(data as *mut ()),
+        }
     }
 
     /// Returns `true` if the boxed type is the same as `T`.
@@ -352,7 +360,9 @@ impl AnyObj {
     where
         T: Any,
     {
-        unsafe { (self.vtable.as_ptr)(self.data, TypeId::of::<T>()).map(|v| &*(v as *const _)) }
+        unsafe {
+            (self.vtable.as_ptr)(self.data.as_ptr(), TypeId::of::<T>()).map(|v| &*(v as *const _))
+        }
     }
 
     /// Returns some mutable reference to the boxed value if it is of type `T`, or
@@ -376,13 +386,15 @@ impl AnyObj {
     where
         T: Any,
     {
-        unsafe { (self.vtable.as_ptr)(self.data, TypeId::of::<T>()).map(|v| &mut *(v as *mut _)) }
+        unsafe {
+            (self.vtable.as_ptr)(self.data.as_ptr(), TypeId::of::<T>()).map(|v| &mut *(v as *mut _))
+        }
     }
 
     /// Attempt to perform a conversion to a raw pointer.
     pub(crate) fn raw_as_ptr(&self, expected: TypeId) -> Result<*const (), AnyObjError> {
         // Safety: invariants are checked at construction time.
-        match unsafe { (self.vtable.as_ptr)(self.data, expected) } {
+        match unsafe { (self.vtable.as_ptr)(self.data.as_ptr(), expected) } {
             Some(ptr) => Ok(ptr),
             None => Err(AnyObjError::Cast),
         }
@@ -403,7 +415,7 @@ impl AnyObj {
         // Safety: invariants are checked at construction time.
         // We have mutable access to the inner value because we have mutable
         // access to the `Any`.
-        match unsafe { (self.vtable.as_ptr)(self.data, expected) } {
+        match unsafe { (self.vtable.as_ptr)(self.data.as_ptr(), expected) } {
             Some(ptr) => Ok(ptr as *mut ()),
             None => Err(AnyObjError::Cast),
         }
@@ -442,7 +454,7 @@ impl AnyObj {
         // We have mutable access to the inner value because we have mutable
         // access to the `Any`.
         unsafe {
-            match (this.vtable.as_ptr)(this.data, expected) {
+            match (this.vtable.as_ptr)(this.data.as_ptr(), expected) {
                 Some(data) => Ok(data as *mut ()),
                 None => {
                     let this = ManuallyDrop::into_inner(this);
@@ -484,13 +496,13 @@ impl Drop for AnyObj {
         // Safety: The safety of the called implementation is guaranteed at
         // compile time.
         unsafe {
-            (self.vtable.drop)(self.data);
+            (self.vtable.drop)(self.data.as_ptr());
         }
     }
 }
 
 /// The signature of a drop function.
-pub type DropFn = unsafe fn(*const ());
+pub type DropFn = unsafe fn(*mut ());
 
 /// The signature of a pointer coercion function.
 pub type AsPtrFn = unsafe fn(this: *const (), expected: TypeId) -> Option<*const ()>;
@@ -535,8 +547,8 @@ pub struct AnyObjVtable {
     type_hash: TypeHashFn,
 }
 
-unsafe fn drop_impl<T>(this: *const ()) {
-    drop(Box::from_raw(this as *mut () as *mut T));
+unsafe fn drop_impl<T>(this: *mut ()) {
+    drop(Box::from_raw(this as *mut T));
 }
 
 fn as_ptr_impl<T>(this: *const (), expected: TypeId) -> Option<*const ()>
@@ -574,7 +586,7 @@ where
     }
 }
 
-fn noop_drop_impl<T>(_: *const ()) {}
+fn noop_drop_impl<T>(_: *mut ()) {}
 
 fn debug_impl<T>(f: &mut fmt::Formatter<'_>) -> fmt::Result
 where

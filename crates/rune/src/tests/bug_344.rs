@@ -95,8 +95,11 @@ fn bug_344_async_function() -> Result<()> {
     );
     return Ok(());
 
-    async fn function(check: &GuardCheck) -> i64 {
-        check.ensure_not_dropped("async argument");
+    async fn function(check: Shared<AnyObj>) -> i64 {
+        check
+            .downcast_borrow_ref::<GuardCheck>()
+            .unwrap()
+            .ensure_not_dropped("async argument");
         42
     }
 }
@@ -131,10 +134,10 @@ fn bug_344_async_inst_fn() -> Result<()> {
     );
     return Ok(());
 
-    async fn function(s: &GuardCheck, check: &GuardCheck) -> i64 {
+    async fn function(s: Ref<GuardCheck>, check: Ref<GuardCheck>) -> VmResult<i64> {
         s.ensure_not_dropped("self argument");
         check.ensure_not_dropped("instance argument");
-        42
+        VmResult::Ok(42)
     }
 }
 
@@ -200,11 +203,10 @@ impl MaybeTypeOf for GuardCheck {
 
 impl InstallWith for GuardCheck {}
 
-impl UnsafeFromValue for &GuardCheck {
-    type Output = *const GuardCheck;
+impl UnsafeToRef for GuardCheck {
     type Guard = Guard;
 
-    fn unsafe_from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
+    unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
         let (output, guard) = vm_try!(value.into_any_ptr::<GuardCheck>());
 
         let guard = Guard {
@@ -215,10 +217,6 @@ impl UnsafeFromValue for &GuardCheck {
             dropped: unsafe { (*output).dropped.clone() },
         };
 
-        VmResult::Ok((output, guard))
-    }
-
-    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
-        &*output
+        VmResult::Ok((&*output, guard))
     }
 }
