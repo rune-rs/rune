@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod tests;
+
 use core::alloc::Layout;
 use core::cell::{Cell, RefCell};
 use core::marker::PhantomData;
@@ -14,6 +17,7 @@ pub struct ArenaWriteSliceOutOfBounds {
     pub index: usize,
 }
 
+#[derive(Debug)]
 #[non_exhaustive]
 pub struct ArenaAllocError {
     pub requested: usize,
