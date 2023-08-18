@@ -14,7 +14,7 @@ pub fn module() -> Result<Module, ContextError> {
 
     module.function(["parse"], parse)?;
     module.function_meta(cmp)?;
-    module.function_meta(to_f64)?;
+    module.function_meta(to_float)?;
 
     module.function_meta(max)?;
     module.function_meta(min)?;
@@ -110,11 +110,11 @@ fn cmp(this: i64, rhs: i64) -> Ordering {
 /// # Examples
 ///
 /// ```rune
-/// assert!(10.to_f64() is f64);
+/// assert!(10.to::<f64>() is f64);
 /// ```
-#[rune::function(instance)]
+#[rune::function(instance, path = to::<f64>)]
 #[inline]
-fn to_f64(value: i64) -> f64 {
+fn to_float(value: i64) -> f64 {
     value as f64
 }
 
