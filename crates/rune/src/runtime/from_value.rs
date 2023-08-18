@@ -1,4 +1,3 @@
-use core::any;
 use core::cmp::Ordering;
 
 use crate::no_std::collections::HashMap;
@@ -6,8 +5,7 @@ use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
 use crate::runtime::{
-    AnyObj, Mut, RawMut, RawRef, Ref, Shared, StaticString, Value, VmError, VmErrorKind,
-    VmIntegerRepr, VmResult,
+    AnyObj, Mut, RawMut, RawRef, Ref, Shared, StaticString, Value, VmError, VmErrorKind, VmResult,
 };
 use crate::Any;
 
@@ -466,16 +464,9 @@ impl FromValue for i64 {
 macro_rules! impl_number {
     ($ty:ty) => {
         impl FromValue for $ty {
+            #[inline]
             fn from_value(value: Value) -> VmResult<Self> {
-                let integer = vm_try!(value.into_integer());
-
-                match integer.try_into() {
-                    Ok(number) => VmResult::Ok(number),
-                    Err(..) => VmResult::err(VmErrorKind::ValueToIntegerCoercionError {
-                        from: VmIntegerRepr::from(integer),
-                        to: any::type_name::<Self>(),
-                    }),
-                }
+                value.try_into_integer()
             }
         }
     };

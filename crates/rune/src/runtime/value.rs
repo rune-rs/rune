@@ -1,3 +1,4 @@
+use core::any;
 use core::borrow::Borrow;
 use core::cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd};
 use core::fmt;
@@ -15,7 +16,7 @@ use crate::runtime::{
     AccessKind, AnyObj, Bytes, ConstValue, EnvProtocolCaller, Format, FromValue, FullTypeOf,
     Function, Future, Generator, GeneratorState, Iterator, MaybeTypeOf, Mut, Object, Protocol,
     ProtocolCaller, Range, RawMut, RawRef, Ref, Shared, StaticString, Stream, ToValue, Tuple, Type,
-    TypeInfo, Variant, Vec, Vm, VmError, VmErrorKind, VmResult,
+    TypeInfo, Variant, Vec, Vm, VmError, VmErrorKind, VmIntegerRepr, VmResult,
 };
 use crate::{Any, Hash};
 
@@ -754,6 +755,18 @@ impl Value {
         }
     }
 
+    /// Try to coerce value into a usize.
+    #[inline]
+    pub fn as_usize(&self) -> VmResult<usize> {
+        self.try_as_integer()
+    }
+
+    /// Try to coerce value into a usize.
+    #[inline]
+    pub fn into_usize(self) -> VmResult<usize> {
+        self.try_into_integer()
+    }
+
     /// Try to coerce value into an [Ordering].
     #[inline]
     pub fn as_ordering(&self) -> VmResult<Ordering> {
@@ -1183,6 +1196,38 @@ impl Value {
             lhs: vm_try!(a.type_info()),
             rhs: vm_try!(b.type_info()),
         })
+    }
+
+    pub(crate) fn try_into_integer<T>(self) -> VmResult<T>
+    where
+        T: TryFrom<i64>,
+        VmIntegerRepr: From<i64>,
+    {
+        let integer = vm_try!(self.into_integer());
+
+        match integer.try_into() {
+            Ok(number) => VmResult::Ok(number),
+            Err(..) => VmResult::err(VmErrorKind::ValueToIntegerCoercionError {
+                from: VmIntegerRepr::from(integer),
+                to: any::type_name::<T>(),
+            }),
+        }
+    }
+
+    pub(crate) fn try_as_integer<T>(&self) -> VmResult<T>
+    where
+        T: TryFrom<i64>,
+        VmIntegerRepr: From<i64>,
+    {
+        let integer = vm_try!(self.as_integer());
+
+        match integer.try_into() {
+            Ok(number) => VmResult::Ok(number),
+            Err(..) => VmResult::err(VmErrorKind::ValueToIntegerCoercionError {
+                from: VmIntegerRepr::from(integer),
+                to: any::type_name::<T>(),
+            }),
+        }
     }
 }
 
