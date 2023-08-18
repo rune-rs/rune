@@ -329,7 +329,7 @@ where
             let mut o = io.stdout.lock();
 
             if let Some((hash, signature)) =
-                vm.unit().debug_info().and_then(|d| d.function_at(vm.ip()))
+                vm.unit().debug_info().and_then(|d| d.function_at(vm.last_ip()))
             {
                 writeln!(o, "fn {} ({}):", signature, hash)?;
             }
@@ -337,7 +337,7 @@ where
             let debug = vm
                 .unit()
                 .debug_info()
-                .and_then(|d| d.instruction_at(vm.ip()));
+                .and_then(|d| d.instruction_at(vm.last_ip()));
 
             if with_source {
                 let debug_info = debug.and_then(|d| sources.get(d.source_id).map(|s| (s, d.span)));
@@ -350,10 +350,10 @@ where
                 writeln!(o, "{}:", label)?;
             }
 
-            if let Some((inst, _)) = vm.unit().instruction_at(vm.ip()).map_err(VmError::from)? {
-                write!(o, "  {:04} = {}", vm.ip(), inst)?;
+            if let Some((inst, _)) = vm.unit().instruction_at(vm.last_ip()).map_err(VmError::from)? {
+                write!(o, "  {:04} = {}", vm.last_ip(), inst)?;
             } else {
-                write!(o, "  {:04} = *out of bounds*", vm.ip())?;
+                write!(o, "  {:04} = *out of bounds*", vm.last_ip())?;
             }
 
             if let Some(comment) = debug.and_then(|d| d.comment.as_ref()) {

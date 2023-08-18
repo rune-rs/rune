@@ -318,7 +318,7 @@ async fn inner_compile(
 
             let (unit, ip) = match error.first_location() {
                 Some(loc) => (&loc.unit, loc.ip),
-                None => (vm.unit(), vm.ip()),
+                None => (vm.unit(), vm.last_ip()),
             };
 
             // NB: emit diagnostics if debug info is available.

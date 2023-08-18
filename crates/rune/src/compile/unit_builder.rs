@@ -700,6 +700,8 @@ impl UnitBuilder {
         for (pos, (inst, span)) in assembly.instructions.into_iter().enumerate() {
             let mut comment = String::new();
 
+            let at = storage.offset();
+
             let mut labels = Vec::new();
 
             for label in assembly
@@ -715,8 +717,6 @@ impl UnitBuilder {
                 labels.push(label.to_debug_label());
             }
 
-            let at = storage.offset();
-
             match inst {
                 AssemblyInst::Jump { label } => {
                     let jump = label
@@ -725,18 +725,13 @@ impl UnitBuilder {
                             name: label.name,
                             index: label.index,
                         })
-                        .with_span(location.span)?;
+                        .with_span(span)?;
 
                     if let Err(fmt::Error) = write!(comment, "label:{}", label) {
-                        return Err(compile::Error::msg(
-                            location.span,
-                            "Failed to write comment",
-                        ));
+                        return Err(compile::Error::msg(span, "Failed to write comment"));
                     }
 
-                    storage
-                        .encode(Inst::Jump { jump })
-                        .with_span(location.span)?;
+                    storage.encode(Inst::Jump { jump }).with_span(span)?;
                 }
                 AssemblyInst::JumpIf { label } => {
                     let jump = label
@@ -745,18 +740,13 @@ impl UnitBuilder {
                             name: label.name,
                             index: label.index,
                         })
-                        .with_span(location.span)?;
+                        .with_span(span)?;
 
                     if let Err(fmt::Error) = write!(comment, "label:{}", label) {
-                        return Err(compile::Error::msg(
-                            location.span,
-                            "Failed to write comment",
-                        ));
+                        return Err(compile::Error::msg(span, "Failed to write comment"));
                     }
 
-                    storage
-                        .encode(Inst::JumpIf { jump })
-                        .with_span(location.span)?;
+                    storage.encode(Inst::JumpIf { jump }).with_span(span)?;
                 }
                 AssemblyInst::JumpIfOrPop { label } => {
                     let jump = label
@@ -765,18 +755,13 @@ impl UnitBuilder {
                             name: label.name,
                             index: label.index,
                         })
-                        .with_span(location.span)?;
+                        .with_span(span)?;
 
                     if let Err(fmt::Error) = write!(comment, "label:{}", label) {
-                        return Err(compile::Error::msg(
-                            location.span,
-                            "Failed to write comment",
-                        ));
+                        return Err(compile::Error::msg(span, "Failed to write comment"));
                     }
 
-                    storage
-                        .encode(Inst::JumpIfOrPop { jump })
-                        .with_span(location.span)?;
+                    storage.encode(Inst::JumpIfOrPop { jump }).with_span(span)?;
                 }
                 AssemblyInst::JumpIfNotOrPop { label } => {
                     let jump = label
@@ -785,18 +770,15 @@ impl UnitBuilder {
                             name: label.name,
                             index: label.index,
                         })
-                        .with_span(location.span)?;
+                        .with_span(span)?;
 
                     if let Err(fmt::Error) = write!(comment, "label:{}", label) {
-                        return Err(compile::Error::msg(
-                            location.span,
-                            "Failed to write comment",
-                        ));
+                        return Err(compile::Error::msg(span, "Failed to write comment"));
                     }
 
                     storage
                         .encode(Inst::JumpIfNotOrPop { jump })
-                        .with_span(location.span)?;
+                        .with_span(span)?;
                 }
                 AssemblyInst::JumpIfBranch { branch, label } => {
                     let jump = label
@@ -805,18 +787,15 @@ impl UnitBuilder {
                             name: label.name,
                             index: label.index,
                         })
-                        .with_span(location.span)?;
+                        .with_span(span)?;
 
                     if let Err(fmt::Error) = write!(comment, "label:{}", label) {
-                        return Err(compile::Error::msg(
-                            location.span,
-                            "Failed to write comment",
-                        ));
+                        return Err(compile::Error::msg(span, "Failed to write comment"));
                     }
 
                     storage
                         .encode(Inst::JumpIfBranch { branch, jump })
-                        .with_span(location.span)?;
+                        .with_span(span)?;
                 }
                 AssemblyInst::PopAndJumpIfNot { count, label } => {
                     let jump = label
@@ -825,18 +804,15 @@ impl UnitBuilder {
                             name: label.name,
                             index: label.index,
                         })
-                        .with_span(location.span)?;
+                        .with_span(span)?;
 
                     if let Err(fmt::Error) = write!(comment, "label:{}", label) {
-                        return Err(compile::Error::msg(
-                            location.span,
-                            "Failed to write comment",
-                        ));
+                        return Err(compile::Error::msg(span, "Failed to write comment"));
                     }
 
                     storage
                         .encode(Inst::PopAndJumpIfNot { count, jump })
-                        .with_span(location.span)?;
+                        .with_span(span)?;
                 }
                 AssemblyInst::IterNext { offset, label } => {
                     let jump = label
@@ -845,21 +821,18 @@ impl UnitBuilder {
                             name: label.name,
                             index: label.index,
                         })
-                        .with_span(location.span)?;
+                        .with_span(span)?;
 
                     if let Err(fmt::Error) = write!(comment, "label:{}", label) {
-                        return Err(compile::Error::msg(
-                            location.span,
-                            "Failed to write comment",
-                        ));
+                        return Err(compile::Error::msg(span, "Failed to write comment"));
                     }
 
                     storage
                         .encode(Inst::IterNext { offset, jump })
-                        .with_span(location.span)?;
+                        .with_span(span)?;
                 }
                 AssemblyInst::Raw { raw } => {
-                    storage.encode(raw).with_span(location.span)?;
+                    storage.encode(raw).with_span(span)?;
                 }
             }
 

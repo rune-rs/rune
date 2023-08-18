@@ -239,7 +239,7 @@ impl<T> VmResult<T> {
             Self::Err(mut err) => {
                 err.inner.stacktrace.push(VmErrorLocation {
                     unit: vm.unit().clone(),
-                    ip: vm.ip(),
+                    ip: vm.last_ip(),
                     frames: vm.call_frames().to_vec(),
                 });
 

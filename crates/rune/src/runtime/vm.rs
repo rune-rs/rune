@@ -94,6 +94,8 @@ pub struct Vm {
     unit: Arc<Unit>,
     /// The current instruction pointer.
     ip: usize,
+    /// The length of the last executed instruction.
+    last_ip_len: u8,
     /// The current stack.
     stack: Stack,
     /// Frames relative to the stack.
@@ -112,6 +114,7 @@ impl Vm {
             context,
             unit,
             ip: 0,
+            last_ip_len: 0,
             stack,
             call_frames: vec::Vec::new(),
         }
@@ -169,6 +172,12 @@ impl Vm {
     #[inline]
     pub fn ip(&self) -> usize {
         self.ip
+    }
+
+    /// Access the last instruction that was executed.
+    #[inline]
+    pub fn last_ip(&self) -> usize {
+        self.ip.wrapping_sub(self.last_ip_len as usize)
     }
 
     /// Reset this virtual machine, freeing all memory used.
@@ -2979,6 +2988,7 @@ impl Vm {
             tracing::trace!(ip = ?self.ip, ?inst);
 
             self.ip = self.ip.wrapping_add(inst_len);
+            self.last_ip_len = inst_len as u8;
 
             match inst {
                 Inst::Not => {
