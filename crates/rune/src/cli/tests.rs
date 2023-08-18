@@ -146,7 +146,7 @@ where
     crate::doc::build("root", &mut artifacts, &context, &doc_visitors)?;
 
     for test in artifacts.tests() {
-        if test.item.as_crate() == Some("std") && !include_std {
+        if test.item.as_crate() == Some("std") && !include_std || test.params.ignore {
             continue;
         }
 

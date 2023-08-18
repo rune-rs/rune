@@ -12,12 +12,14 @@ use sha2::{Sha256, Digest};
 use anyhow::{Context as _, Error, Result};
 
 /// Test parameters.
-#[derive(Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy)]
 pub(crate) struct TestParams {
     /// If the test should not run.
     pub(crate) no_run: bool,
     /// If the test should panic.
     pub(crate) should_panic: bool,
+    /// Ignore the test.
+    pub(crate) ignore: bool,
 }
 
 /// A discovered test.

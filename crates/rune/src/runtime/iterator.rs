@@ -176,7 +176,7 @@ impl Iterator {
     }
 
     #[inline]
-    pub(crate) fn find(mut self, find: Function) -> VmResult<Option<Value>> {
+    pub(crate) fn find(&mut self, find: Function) -> VmResult<Option<Value>> {
         while let Some(value) = vm_try!(self.next()) {
             if vm_try!(find.call::<_, bool>((value.clone(),))) {
                 return VmResult::Ok(Some(value));
@@ -187,7 +187,7 @@ impl Iterator {
     }
 
     #[inline]
-    pub(crate) fn all(mut self, find: Function) -> VmResult<bool> {
+    pub(crate) fn all(&mut self, find: Function) -> VmResult<bool> {
         while let Some(value) = vm_try!(self.next()) {
             let result = vm_try!(find.call::<_, bool>((value.clone(),)));
 
@@ -200,7 +200,7 @@ impl Iterator {
     }
 
     #[inline]
-    pub(crate) fn any(mut self, find: Function) -> VmResult<bool> {
+    pub(crate) fn any(&mut self, find: Function) -> VmResult<bool> {
         while let Some(value) = vm_try!(self.next()) {
             if vm_try!(find.call::<_, bool>((value.clone(),))) {
                 return VmResult::Ok(true);
@@ -657,7 +657,8 @@ where
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        self.iter.size_hint()
+        let (_, upper) = self.iter.size_hint();
+        (0, upper)
     }
 
     fn next(&mut self) -> VmResult<Option<Value>> {
