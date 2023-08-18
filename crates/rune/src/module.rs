@@ -312,7 +312,7 @@ impl ItemFnMut<'_> {
     }
 
     /// Mark the given item as an async function.
-    pub fn is_async(self, is_async: bool) -> Self {
+    pub fn is_async(self, #[cfg_attr(not(feature = "doc"), allow(unused))] is_async: bool) -> Self {
         #[cfg(feature = "doc")]
         {
             *self.is_async = is_async;
@@ -322,7 +322,7 @@ impl ItemFnMut<'_> {
     }
 
     /// Indicate the number of arguments this function accepts.
-    pub fn args(self, args: usize) -> Self {
+    pub fn args(self, #[cfg_attr(not(feature = "doc"), allow(unused))] args: usize) -> Self {
         #[cfg(feature = "doc")]
         {
             *self.args = Some(args);
@@ -345,7 +345,10 @@ impl ItemFnMut<'_> {
     }
 
     /// Set argument types.
-    pub fn argument_types<const N: usize>(self, arguments: [Option<FullTypeOf>; N]) -> Self {
+    pub fn argument_types<const N: usize>(
+        self,
+        #[cfg_attr(not(feature = "doc"), allow(unused))] arguments: [Option<FullTypeOf>; N],
+    ) -> Self {
         #[cfg(feature = "doc")]
         {
             *self.argument_types = Box::from(arguments.into_iter().collect::<Vec<_>>());
