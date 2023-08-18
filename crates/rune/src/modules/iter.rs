@@ -3,6 +3,7 @@
 use crate::no_std::prelude::*;
 
 use crate as rune;
+use crate::modules::collections::VecDeque;
 use crate::runtime::{
     FromValue, Function, Iterator, Object, Protocol, Tuple, Value, Vec, VmResult,
 };
@@ -46,6 +47,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(once)?;
 
     module.function_meta(collect_vec)?;
+    module.function_meta(collect_vec_deque)?;
     module.function_meta(collect_tuple)?;
     module.function_meta(collect_object)?;
     module.function_meta(collect_string)?;
@@ -1039,6 +1041,21 @@ fn count(this: &mut Iterator) -> VmResult<usize> {
 #[rune::function(instance, path = collect::<Vec>)]
 fn collect_vec(it: Iterator) -> VmResult<Vec> {
     VmResult::Ok(Vec::from(vm_try!(it.collect::<Value>())))
+}
+
+/// Collect the iterator as a [`VecDeque`].
+///
+/// # Examples
+///
+/// ```rune
+/// use std::collections::VecDeque;
+/// use std::iter::range;
+///
+/// assert_eq!((0..3).iter().collect::<VecDeque>(), VecDeque::from([0, 1, 2]));
+/// ```
+#[rune::function(instance, path = collect::<VecDeque>)]
+fn collect_vec_deque(it: Iterator) -> VmResult<VecDeque> {
+    VmResult::Ok(VecDeque::from_vec(vm_try!(it.collect::<Value>())))
 }
 
 /// Collect the iterator as a [`Tuple`].

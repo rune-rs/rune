@@ -9,8 +9,8 @@ use crate::no_std::vec;
 use crate::compile::Named;
 use crate::module::InstallWith;
 use crate::runtime::{
-    FromValue, Iterator, RawRef, RawStr, Ref, Shared, ToValue, UnsafeToRef, Value, Vm, VmErrorKind,
-    VmResult,
+    FromValue, Iterator, ProtocolCaller, RawRef, RawStr, Ref, Shared, ToValue, UnsafeToRef, Value,
+    VmErrorKind, VmResult,
 };
 
 /// Struct representing a dynamic vector.
@@ -170,13 +170,13 @@ impl Vec {
     }
 
     /// Compare two vectors for equality.
-    pub(crate) fn value_ptr_eq(vm: &mut Vm, a: &Self, b: &Self) -> VmResult<bool> {
+    pub(crate) fn eq_with(a: &Self, b: &Self, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
         if a.len() != b.len() {
             return VmResult::Ok(false);
         }
 
         for (a, b) in a.iter().zip(b.iter()) {
-            if !vm_try!(Value::value_ptr_eq(vm, a, b)) {
+            if !vm_try!(Value::eq_with(a, b, caller)) {
                 return VmResult::Ok(false);
             }
         }

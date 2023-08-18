@@ -3,32 +3,35 @@
 use core::cmp;
 
 use crate as rune;
+use crate::modules::collections::VecDeque;
 use crate::runtime::{Function, Protocol, Value, Vec, VmResult};
 use crate::{ContextError, Module};
 
 /// Construct the `std::vec` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["vec"]);
+    let mut m = Module::with_crate_item("std", ["vec"]);
 
-    module.ty::<Vec>()?;
+    m.ty::<Vec>()?;
 
-    module.function(["Vec", "new"], Vec::new)?;
-    module.associated_function("clear", Vec::clear)?;
-    module.associated_function("clone", Vec::clone)?;
-    module.associated_function("extend", Vec::extend)?;
-    module.function_meta(get)?;
-    module.associated_function("iter", Vec::into_iterator)?;
-    module.associated_function("len", Vec::len)?;
-    module.associated_function("pop", Vec::pop)?;
-    module.associated_function("push", Vec::push)?;
-    module.associated_function("remove", Vec::remove)?;
-    module.function_meta(sort_by)?;
-    module.associated_function("insert", Vec::insert)?;
-    module.associated_function(Protocol::INTO_ITER, Vec::into_iterator)?;
-    module.associated_function(Protocol::INDEX_SET, Vec::set)?;
+    m.function(["Vec", "new"], Vec::new)?;
+    m.associated_function("clear", Vec::clear)?;
+    m.associated_function("clone", Vec::clone)?;
+    m.associated_function("extend", Vec::extend)?;
+    m.function_meta(get)?;
+    m.associated_function("iter", Vec::into_iterator)?;
+    m.associated_function("len", Vec::len)?;
+    m.associated_function("pop", Vec::pop)?;
+    m.associated_function("push", Vec::push)?;
+    m.associated_function("remove", Vec::remove)?;
+    m.function_meta(sort_by)?;
+    m.associated_function("insert", Vec::insert)?;
+    m.associated_function(Protocol::INTO_ITER, Vec::into_iterator)?;
+    m.associated_function(Protocol::INDEX_SET, Vec::set)?;
+    m.associated_function(Protocol::EQ, eq)?;
 
-    module.function_meta(sort_int)?;
-    Ok(module)
+    m.function_meta(sort_int)?;
+    m.function_meta(into_vec_deque)?;
+    Ok(m)
 }
 
 /// Sort a vector of integers.
@@ -83,4 +86,41 @@ fn sort_by(vec: &mut Vec, comparator: &Function) -> VmResult<()> {
     } else {
         VmResult::Ok(())
     }
+}
+
+/// Convert a vector into a vecdeque.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::collections::VecDeque;
+///
+/// let deque = [1, 2, 3].into::<VecDeque>();
+///
+/// assert_eq!(Some(1), deque.pop_front());
+/// assert_eq!(Some(3), deque.pop_back());
+/// ```
+#[rune::function(instance, path = into::<VecDeque>)]
+fn into_vec_deque(vec: Vec) -> VecDeque {
+    VecDeque::from_vec(vec.into_inner())
+}
+
+fn eq(this: &Vec, other: Value) -> VmResult<bool> {
+    let mut other = vm_try!(other.into_iter());
+
+    for a in this.as_slice() {
+        let Some(b) = vm_try!(other.next()) else {
+            return VmResult::Ok(false);
+        };
+
+        if !vm_try!(Value::eq(a, &b)) {
+            return VmResult::Ok(false);
+        }
+    }
+
+    if vm_try!(other.next()).is_some() {
+        return VmResult::Ok(false);
+    }
+
+    VmResult::Ok(true)
 }
