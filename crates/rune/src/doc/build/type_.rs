@@ -19,6 +19,7 @@ pub(super) struct Protocol<'a> {
 #[derive(Serialize)]
 pub(super) struct Method<'a> {
     is_async: bool,
+    deprecated: Option<&'a str>,
     name: &'a str,
     args: String,
     parameters: Option<String>,
@@ -90,6 +91,7 @@ pub(super) fn build_assoc_fns<'m>(
         
                         methods.push(Method {
                             is_async: assoc.is_async,
+                            deprecated: assoc.deprecated,
                             name,
                             args: cx.args_to_string(
                                 assoc.arg_names,

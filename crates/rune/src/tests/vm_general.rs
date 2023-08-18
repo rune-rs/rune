@@ -432,7 +432,7 @@ fn test_break_label() {
 fn test_string_concat() {
     let out: String = rune! {
         pub fn main() {
-            let foo = String::from_str("foo");
+            let foo = String::from("foo");
             foo += "/bar" + "/baz";
             foo
         }

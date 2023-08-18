@@ -67,7 +67,7 @@ fn test_unwrap() {
     "#,
         Panic { reason} => {
             assert_eq!(reason.to_string(),
-                       "called `Option::unwrap()` on a `None` value")
+                       "Called `Option::unwrap()` on a `None` value")
         }
     );
 }

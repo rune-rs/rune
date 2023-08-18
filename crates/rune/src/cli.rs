@@ -118,7 +118,7 @@ impl<'a> Entry<'a> {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
-            .expect("failed to build runtime");
+            .expect("Failed to build runtime");
 
         match runtime.block_on(self.inner()) {
             Ok(exit_code) => {

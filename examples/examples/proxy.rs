@@ -21,7 +21,7 @@ fn main() -> rune::Result<()> {
     let mut sources = rune::sources! {
         entry => {
             pub fn passthrough(my_bytes) {
-                #{field: String::from_str("hello world"), my_bytes}
+                #{field: String::from("hello world"), my_bytes}
             }
         }
     };

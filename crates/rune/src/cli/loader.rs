@@ -45,11 +45,11 @@ pub(super) fn load(
 
         match bincode::deserialize_from::<_, Unit>(f) {
             Ok(unit) => {
-                tracing::trace!("using cache: {}", bytecode_path.display());
+                tracing::trace!("Using cache: {}", bytecode_path.display());
                 Some(Arc::new(unit))
             }
             Err(e) => {
-                tracing::error!("failed to deserialize: {}: {}", bytecode_path.display(), e);
+                tracing::error!("Failed to deserialize: {}: {}", bytecode_path.display(), e);
                 None
             }
         }

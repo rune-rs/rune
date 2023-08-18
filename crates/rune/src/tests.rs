@@ -203,7 +203,7 @@ macro_rules! rune_s {
 macro_rules! rune_n {
     ($module:expr, $args:expr, $ty:ty => $($tt:tt)*) => {{
         let mut context = $crate::Context::with_default_modules().expect("Failed to build context");
-        context.install($module).expect("failed to install native module");
+        context.install($module).expect("Failed to install native module");
         $crate::tests::run::<_, _, $ty>(&context, stringify!($($tt)*), ["main"], $args).expect("Program ran unsuccessfully")
     }};
 }

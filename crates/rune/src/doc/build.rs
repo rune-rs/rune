@@ -812,6 +812,7 @@ fn module<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<
     #[derive(Serialize)]
     struct Function<'a> {
         is_async: bool,
+        deprecated: Option<&'a str>,
         path: RelativePathBuf,
         #[serde(serialize_with = "serialize_item")]
         item: ItemBuf,
@@ -895,6 +896,7 @@ fn module<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<
 
                     functions.push(Function {
                         is_async: f.is_async,
+                        deprecated: f.deprecated,
                         path: cx.item_path(&item, ItemKind::Function)?,
                         item: item.clone(),
                         name,
@@ -979,6 +981,7 @@ fn build_function<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'
         shared: Shared<'a>,
         module: String,
         is_async: bool,
+        deprecated: Option<&'a str>,
         #[serde(serialize_with = "serialize_item")]
         item: &'a Item,
         #[serde(serialize_with = "serialize_component_ref")]
@@ -1011,6 +1014,7 @@ fn build_function<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'
             shared: cx.shared(),
             module: cx.module_path_html(meta, false)?,
             is_async: f.is_async,
+            deprecated: f.deprecated,
             item,
             name,
             args: cx.args_to_string(f.arg_names, f.args, f.signature, f.argument_types)?,

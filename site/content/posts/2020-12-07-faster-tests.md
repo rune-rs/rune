@@ -169,7 +169,7 @@ fn discover_tests() -> io::Result<()> {
 }
 
 fn main() {
-    discover_tests().expect("failed to discover tests");
+    discover_tests().expect("Failed to discover tests");
 }
 ```
 

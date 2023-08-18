@@ -78,7 +78,7 @@ fn test_unwrap() {
     "#,
         Panic { reason } => {
             assert_eq!(reason.to_string(),
-                       "called `Result::unwrap()` on an `Err` value: \"Error\"")
+                       "Called `Result::unwrap()` on an `Err` value: \"Error\"")
         }
     );
 }

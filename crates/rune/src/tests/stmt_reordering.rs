@@ -5,7 +5,7 @@ fn test_stmt_reordering() {
     let len: i64 = rune! {
         pub fn main() {
             let len = 0;
-            let value = String::from_str("Hello");
+            let value = String::from("Hello");
             len = value.len();
             let value2 = drop(value);
             len

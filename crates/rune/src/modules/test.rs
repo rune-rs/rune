@@ -146,7 +146,7 @@ pub(crate) fn assert_eq(
             let right = #right;
 
             if !(left == right) {
-                let message = String::from_str(#message);
+                let message = String::from(#message);
                 message += format!("\nleft: {:?}", left);
                 message += format!("\nright: {:?}", right);
                 panic(message);
@@ -208,7 +208,7 @@ pub(crate) fn assert_ne(
             let right = #right;
 
             if !(left != right) {
-                let message = String::from_str(#message);
+                let message = String::from(#message);
                 message += format!("\nleft: {:?}", left);
                 message += format!("\nright: {:?}", right);
                 panic(message);

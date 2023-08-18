@@ -197,13 +197,13 @@ fn expect(result: Result<Value, Value>, message: Value) -> VmResult<Value> {
             let mut buf = String::new();
 
             if let Err(fmt::Error) = vm_try!(message.string_display(&mut s, &mut buf)) {
-                return VmResult::err(Panic::msg("failed to format message"));
+                return VmResult::err(Panic::msg("Failed to format message"));
             }
 
             s.push_str(": ");
 
             if let Err(fmt::Error) = vm_try!(err.string_debug(&mut s)) {
-                return VmResult::err(Panic::msg("failed to format error"));
+                return VmResult::err(Panic::msg("Failed to format error"));
             }
 
             VmResult::err(Panic::custom(s))

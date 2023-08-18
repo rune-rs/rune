@@ -23,10 +23,10 @@ pub(crate) fn sources(source: &str) -> Sources {
 
 macro_rules! rune_vm {
     ($($tt:tt)*) => {{
-        let context = rune::Context::with_default_modules().expect("failed to build context");
+        let context = rune::Context::with_default_modules().expect("Failed to build context");
         let mut diagnostics = Default::default();
         let mut sources = $crate::sources(stringify!($($tt)*));
-        $crate::vm(&context, &mut sources, &mut diagnostics).expect("program to compile successfully")
+        $crate::vm(&context, &mut sources, &mut diagnostics).expect("Program to compile successfully")
     }};
 }
 
