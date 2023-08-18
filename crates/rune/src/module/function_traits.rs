@@ -22,7 +22,7 @@ macro_rules! drain_stack {
         let [$($var,)*] = vm_try!($stack.drain_vec($count + $add));
 
         $(
-            let $var = vm_try!(unsafe { $from_fn($var) }.with_error(|| VmErrorKind::BadArgument {
+            let $var = vm_try!($from_fn($var).with_error(|| VmErrorKind::BadArgument {
                 arg: $num,
             }));
         )*
@@ -195,25 +195,32 @@ where
     }
 }
 
-fn from_value<T>(value: Value) -> VmResult<(T, ())>
+// Fake guard for owned values.
+struct Guard;
+
+fn from_value<T>(value: Value) -> VmResult<(T, Guard)>
 where
     T: FromValue,
 {
-    VmResult::Ok((vm_try!(T::from_value(value)), ()))
+    VmResult::Ok((vm_try!(T::from_value(value)), Guard))
 }
 
-unsafe fn unsafe_to_ref<'a, T: ?Sized>(value: Value) -> VmResult<(&'a T, T::Guard)>
+fn unsafe_to_ref<'a, T: ?Sized>(value: Value) -> VmResult<(&'a T, T::Guard)>
 where
     T: UnsafeToRef,
 {
-    T::unsafe_to_ref(value)
+    // SAFETY: these are only locally used in this module, and we ensure that
+    // the guard requirement is met.
+    unsafe { T::unsafe_to_ref(value) }
 }
 
-unsafe fn unsafe_to_mut<'a, T: ?Sized>(value: Value) -> VmResult<(&'a mut T, T::Guard)>
+fn unsafe_to_mut<'a, T: ?Sized>(value: Value) -> VmResult<(&'a mut T, T::Guard)>
 where
     T: UnsafeToMut,
 {
-    T::unsafe_to_mut(value)
+    // SAFETY: these are only locally used in this module, and we ensure that
+    // the guard requirement is met.
+    unsafe { T::unsafe_to_mut(value) }
 }
 
 macro_rules! impl_function_traits {
@@ -230,7 +237,7 @@ macro_rules! impl_function_traits {
                 $count
             }
 
-            #[allow(unused_unsafe, dropping_copy_types)]
+            #[allow(clippy::drop_non_drop)]
             fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
                 drain_stack!($count, 0, stack, args, $($from_fn, $var, $num,)*);
 
@@ -258,7 +265,7 @@ macro_rules! impl_function_traits {
                 $count
             }
 
-            #[allow(unused_unsafe, dropping_copy_types)]
+            #[allow(clippy::drop_non_drop)]
             fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
                 drain_stack!($count, 0, stack, args, $($from_fn, $var, $num,)*);
 
