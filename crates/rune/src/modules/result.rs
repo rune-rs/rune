@@ -1,6 +1,9 @@
 //! The `std::result` module.
 
+use core::fmt;
+
 use crate as rune;
+use crate::no_std::prelude::*;
 use crate::runtime::{Function, Panic, Value, VmResult};
 use crate::{ContextError, Module};
 
@@ -21,10 +24,11 @@ pub fn module() -> Result<Module, ContextError> {
         .static_docs(&["Contains the error value"]);
 
     module.function_meta(ok)?;
-    module.associated_function("is_ok", is_ok)?;
-    module.associated_function("is_err", is_err)?;
-    module.associated_function("unwrap", unwrap_impl)?;
-    module.associated_function("unwrap_or", Result::<Value, Value>::unwrap_or)?;
+    module.function_meta(is_ok)?;
+    module.function_meta(is_err)?;
+    module.function_meta(unwrap)?;
+    module.function_meta(unwrap_or)?;
+    module.function_meta(unwrap_or_else)?;
     module.function_meta(expect)?;
     module.function_meta(and_then)?;
     module.function_meta(map)?;
@@ -40,21 +44,118 @@ fn ok(result: &Result<Value, Value>) -> Option<Value> {
     result.as_ref().ok().cloned()
 }
 
+/// Returns `true` if the result is [`Ok`].
+///
+/// # Examples
+///
+/// ```rune
+/// let x = Ok(-3);
+/// assert_eq!(x.is_ok(), true);
+///
+/// let x = Err("Some error message");
+/// assert_eq!(x.is_ok(), false);
+/// ```
+#[rune::function(instance)]
 fn is_ok(result: &Result<Value, Value>) -> bool {
     result.is_ok()
 }
 
+/// Returns `true` if the result is [`Err`].
+///
+/// # Examples
+///
+/// ```rune
+/// let x = Ok(-3);
+/// assert_eq!(x.is_err(), false);
+///
+/// let x = Err("Some error message");
+/// assert_eq!(x.is_err(), true);
+/// ```
+#[rune::function(instance)]
 fn is_err(result: &Result<Value, Value>) -> bool {
     result.is_err()
 }
 
-fn unwrap_impl(result: Result<Value, Value>) -> VmResult<Value> {
+/// Returns the contained [`Ok`] value, consuming the `self` value.
+///
+/// Because this function may panic, its use is generally discouraged. Instead,
+/// prefer to use pattern matching and handle the [`Err`] case explicitly, or
+/// call [`unwrap_or`], [`unwrap_or_else`], or [`unwrap_or_default`].
+///
+/// [`unwrap_or`]: Result::unwrap_or
+/// [`unwrap_or_else`]: Result::unwrap_or_else
+/// [`unwrap_or_default`]: Result::unwrap_or_default
+///
+/// # Panics
+///
+/// Panics if the value is an [`Err`], with a panic message provided by the
+/// [`Err`]'s value.
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```rune
+/// let x = Ok(2);
+/// assert_eq!(x.unwrap(), 2);
+/// ```
+///
+/// ```rune,should_panic
+/// let x = Err("emergency failure");
+/// x.unwrap(); // panics with `emergency failure`
+/// ```
+#[rune::function(instance)]
+fn unwrap(result: Result<Value, Value>) -> VmResult<Value> {
     match result {
         Ok(value) => VmResult::Ok(value),
         Err(err) => VmResult::err(Panic::msg(format_args!(
-            "called `Result::unwrap()` on an `Err` value: {:?}",
+            "Called `Result::unwrap()` on an `Err` value: {:?}",
             err
         ))),
+    }
+}
+
+/// Returns the contained [`Ok`] value or a provided default.
+///
+/// Arguments passed to `unwrap_or` are eagerly evaluated; if you are passing
+/// the result of a function call, it is recommended to use [`unwrap_or_else`],
+/// which is lazily evaluated.
+///
+/// [`unwrap_or_else`]: Result::unwrap_or_else
+///
+/// # Examples
+///
+/// ```rune
+/// let default_value = 2;
+/// let x = Ok(9);
+/// assert_eq!(x.unwrap_or(default_value), 9);
+///
+/// let x = Err("error");
+/// assert_eq!(x.unwrap_or(default_value), default_value);
+/// ```
+#[rune::function(instance)]
+fn unwrap_or(this: Result<Value, Value>, default: Value) -> Value {
+    this.unwrap_or(default)
+}
+
+/// Returns the contained [`Ok`] value or computes it from a closure.
+///
+///
+/// # Examples
+///
+/// ```rune
+/// fn count(x) {
+///     x.len()
+/// }
+///
+/// assert_eq!(Ok(2).unwrap_or_else(count), 2);
+/// assert_eq!(Err("foo").unwrap_or_else(count), 3);
+/// ```
+#[rune::function(instance)]
+fn unwrap_or_else(this: Result<Value, Value>, default: Function) -> VmResult<Value> {
+    match this {
+        Ok(value) => VmResult::Ok(value),
+        Err(error) => default.call::<_, Value>((error,)),
     }
 }
 
@@ -88,10 +189,25 @@ fn unwrap_impl(result: Result<Value, Value>) -> VmResult<Value> {
 /// as in "env variable should be set by blah" or "the given binary should be
 /// available and executable by the current user".
 #[rune::function(instance)]
-fn expect(result: Result<Value, Value>, message: &str) -> VmResult<Value> {
+fn expect(result: Result<Value, Value>, message: Value) -> VmResult<Value> {
     match result {
         Ok(value) => VmResult::Ok(value),
-        Err(err) => VmResult::err(Panic::msg(format_args!("{}: {:?}", message, err))),
+        Err(err) => {
+            let mut s = String::new();
+            let mut buf = String::new();
+
+            if let Err(fmt::Error) = vm_try!(message.string_display(&mut s, &mut buf)) {
+                return VmResult::err(Panic::msg("Failed to format message"));
+            }
+
+            s.push_str(": ");
+
+            if let Err(fmt::Error) = vm_try!(err.string_debug(&mut s)) {
+                return VmResult::err(Panic::msg("Failed to format error"));
+            }
+
+            VmResult::err(Panic::custom(s))
+        }
     }
 }
 

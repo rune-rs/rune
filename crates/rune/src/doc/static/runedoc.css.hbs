@@ -18,6 +18,8 @@
     --keyword-async-color: rgb(70, 43, 241);
     --code-background-color: rgb(42, 42, 42);
     --code-block-background-color: #2a2a2a;
+    --deprecated-color: #39261c;
+    --deprecated-background-color: #da9347;
 }
 
 @font-face {
@@ -172,6 +174,21 @@ pre, .signature {
     font-size: 1em;
     background-color: var(--code-background-color);
     padding: 14px;
+}
+
+.deprecated {
+    color: var(--deprecated-color);
+    background-color: var(--deprecated-background-color);
+    border-radius: 3px;
+    padding: 0.1em 0.2em;
+    font-size: 80%;
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+}
+
+.deprecated .heading {
+    font-weight: bold;
+    margin-right: 0.5em;
 }
 
 p > code {

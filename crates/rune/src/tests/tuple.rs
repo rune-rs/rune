@@ -14,7 +14,7 @@ fn make_module() -> Result<Module, ContextError> {
 /// nor its arguments are taken over by the receiving function.
 #[test]
 fn test_tuple_ownership() {
-    let m = make_module().expect("failed to make module");
+    let m = make_module().expect("Failed to make module");
 
     rune_n! {
         &m,

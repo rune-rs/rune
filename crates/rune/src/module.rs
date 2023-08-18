@@ -200,6 +200,8 @@ pub(crate) struct ModuleFunction {
     #[cfg(feature = "doc")]
     pub(crate) is_async: bool,
     #[cfg(feature = "doc")]
+    pub(crate) deprecated: Option<Box<str>>,
+    #[cfg(feature = "doc")]
     pub(crate) args: Option<usize>,
     #[cfg(feature = "doc")]
     pub(crate) return_type: Option<FullTypeOf>,
@@ -216,6 +218,8 @@ pub(crate) struct ModuleAssociated {
     pub(crate) handler: Arc<FunctionHandler>,
     #[cfg(feature = "doc")]
     pub(crate) is_async: bool,
+    #[cfg(feature = "doc")]
+    pub(crate) deprecated: Option<Box<str>>,
     #[cfg(feature = "doc")]
     pub(crate) args: Option<usize>,
     #[cfg(feature = "doc")]
@@ -291,6 +295,8 @@ pub struct ItemFnMut<'a> {
     #[cfg(feature = "doc")]
     is_async: &'a mut bool,
     #[cfg(feature = "doc")]
+    deprecated: &'a mut Option<Box<str>>,
+    #[cfg(feature = "doc")]
     args: &'a mut Option<usize>,
     #[cfg(feature = "doc")]
     return_type: &'a mut Option<FullTypeOf>,
@@ -312,7 +318,7 @@ impl ItemFnMut<'_> {
     }
 
     /// Mark the given item as an async function.
-    pub fn is_async(self, is_async: bool) -> Self {
+    pub fn is_async(self, #[cfg_attr(not(feature = "doc"), allow(unused))] is_async: bool) -> Self {
         #[cfg(feature = "doc")]
         {
             *self.is_async = is_async;
@@ -321,8 +327,24 @@ impl ItemFnMut<'_> {
         self
     }
 
+    /// Mark the given item as deprecated.
+    pub fn deprecated<S>(
+        self,
+        #[cfg_attr(not(feature = "doc"), allow(unused))] deprecated: S,
+    ) -> Self
+    where
+        S: AsRef<str>,
+    {
+        #[cfg(feature = "doc")]
+        {
+            *self.deprecated = Some(deprecated.as_ref().into());
+        }
+
+        self
+    }
+
     /// Indicate the number of arguments this function accepts.
-    pub fn args(self, args: usize) -> Self {
+    pub fn args(self, #[cfg_attr(not(feature = "doc"), allow(unused))] args: usize) -> Self {
         #[cfg(feature = "doc")]
         {
             *self.args = Some(args);
@@ -345,7 +367,10 @@ impl ItemFnMut<'_> {
     }
 
     /// Set argument types.
-    pub fn argument_types<const N: usize>(self, arguments: [Option<FullTypeOf>; N]) -> Self {
+    pub fn argument_types<const N: usize>(
+        self,
+        #[cfg_attr(not(feature = "doc"), allow(unused))] arguments: [Option<FullTypeOf>; N],
+    ) -> Self {
         #[cfg(feature = "doc")]
         {
             *self.argument_types = Box::from(arguments.into_iter().collect::<Vec<_>>());

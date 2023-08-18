@@ -352,7 +352,8 @@ impl Value {
                 return VmResult::Ok(write!(s, "{}", bool));
             }
             Value::Byte(byte) => {
-                return VmResult::Ok(write!(s, "{:#04X}", byte));
+                let mut buffer = itoa::Buffer::new();
+                s.push_str(buffer.format(*byte));
             }
             value => {
                 let b = Shared::new(take(s));

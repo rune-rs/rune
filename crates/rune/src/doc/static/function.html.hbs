@@ -4,5 +4,6 @@
 <div class="signature">
 {{#if is_async}}<span class="keyword async">async</span> {{/if}} <span class="keyword fn">fn</span> <span class="fn">{{name}}</span>({{literal args}}){{#if this.return_type}} -&gt; {{literal this.return_type}}{{/if}}</h3>
 </div>
+{{#if deprecated}}<div class="deprecated"><span class="heading">Deprecated:</span><span class="content">{{deprecated}}</span></div>{{/if}}
 {{#if doc}}{{literal doc}}{{/if}}
 {{/layout}}

@@ -1236,6 +1236,8 @@ impl<'a, 'arena> Query<'a, 'arena> {
                         #[cfg(feature = "doc")]
                         is_async: matches!(f.call, Call::Async | Call::Stream),
                         #[cfg(feature = "doc")]
+                        deprecated: None,
+                        #[cfg(feature = "doc")]
                         args: Some(0),
                         #[cfg(feature = "doc")]
                         return_type: None,
@@ -1260,6 +1262,8 @@ impl<'a, 'arena> Query<'a, 'arena> {
                     signature: meta::Signature {
                         #[cfg(feature = "doc")]
                         is_async: matches!(f.call, Call::Async | Call::Stream),
+                        #[cfg(feature = "doc")]
+                        deprecated: None,
                         #[cfg(feature = "doc")]
                         args: Some(f.ast.args.len()),
                         #[cfg(feature = "doc")]
@@ -1286,6 +1290,8 @@ impl<'a, 'arena> Query<'a, 'arena> {
                     signature: meta::Signature {
                         #[cfg(feature = "doc")]
                         is_async: f.ast.async_token.is_some(),
+                        #[cfg(feature = "doc")]
+                        deprecated: None,
                         #[cfg(feature = "doc")]
                         args: Some(f.ast.args.len()),
                         #[cfg(feature = "doc")]

@@ -334,7 +334,7 @@ impl Module {
     /// let mut module = Module::with_crate("nonstd");
     /// module.unit("unit")?;
     /// # Ok::<_, rune::Error>(())
-    pub fn unit<N>(&mut self, name: N) -> Result<(), ContextError>
+    pub fn unit<N>(&mut self, name: N) -> Result<ItemMut<'_>, ContextError>
     where
         N: AsRef<str>,
     {
@@ -348,7 +348,11 @@ impl Module {
             docs: Docs::EMPTY,
         });
 
-        Ok(())
+        let last = self.unit_type.as_mut().unwrap();
+
+        Ok(ItemMut {
+            docs: &mut last.docs,
+        })
     }
 
     /// Construct the type information for the `GeneratorState` type.
@@ -1125,6 +1129,8 @@ impl Module {
             #[cfg(feature = "doc")]
             is_async: false,
             #[cfg(feature = "doc")]
+            deprecated: None,
+            #[cfg(feature = "doc")]
             args: None,
             #[cfg(feature = "doc")]
             return_type: None,
@@ -1139,6 +1145,8 @@ impl Module {
             docs: &mut last.docs,
             #[cfg(feature = "doc")]
             is_async: &mut last.is_async,
+            #[cfg(feature = "doc")]
+            deprecated: &mut last.deprecated,
             #[cfg(feature = "doc")]
             args: &mut last.args,
             #[cfg(feature = "doc")]
@@ -1168,6 +1176,8 @@ impl Module {
             #[cfg(feature = "doc")]
             is_async: data.is_async,
             #[cfg(feature = "doc")]
+            deprecated: data.deprecated,
+            #[cfg(feature = "doc")]
             args: data.args,
             #[cfg(feature = "doc")]
             return_type: data.return_type,
@@ -1182,6 +1192,8 @@ impl Module {
             docs: &mut last.docs,
             #[cfg(feature = "doc")]
             is_async: &mut last.is_async,
+            #[cfg(feature = "doc")]
+            deprecated: &mut last.deprecated,
             #[cfg(feature = "doc")]
             args: &mut last.args,
             #[cfg(feature = "doc")]
@@ -1234,6 +1246,8 @@ impl Module {
             #[cfg(feature = "doc")]
             is_async: data.is_async,
             #[cfg(feature = "doc")]
+            deprecated: data.deprecated,
+            #[cfg(feature = "doc")]
             args: data.args,
             #[cfg(feature = "doc")]
             return_type: data.return_type,
@@ -1248,6 +1262,8 @@ impl Module {
             docs: &mut last.docs,
             #[cfg(feature = "doc")]
             is_async: &mut last.is_async,
+            #[cfg(feature = "doc")]
+            deprecated: &mut last.deprecated,
             #[cfg(feature = "doc")]
             args: &mut last.args,
             #[cfg(feature = "doc")]

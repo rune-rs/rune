@@ -140,7 +140,7 @@ where
     let status = Command::new("cargo").args(args.as_ref()).status()?;
 
     if !status.success() {
-        bail!("failed to run cargo");
+        bail!("Failed to run cargo");
     }
 
     Ok(())

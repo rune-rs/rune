@@ -438,6 +438,8 @@ impl Context {
                                 #[cfg(feature = "doc")]
                                 is_async: false,
                                 #[cfg(feature = "doc")]
+                                deprecated: None,
+                                #[cfg(feature = "doc")]
                                 args: Some(match fields {
                                     Fields::Named(names) => names.len(),
                                     Fields::Unnamed(args) => *args,
@@ -499,6 +501,8 @@ impl Context {
                             let signature = meta::Signature {
                                 #[cfg(feature = "doc")]
                                 is_async: false,
+                                #[cfg(feature = "doc")]
+                                deprecated: None,
                                 #[cfg(feature = "doc")]
                                 args: Some(match fields {
                                     Fields::Named(names) => names.len(),
@@ -615,6 +619,8 @@ impl Context {
             #[cfg(feature = "doc")]
             is_async: f.is_async,
             #[cfg(feature = "doc")]
+            deprecated: f.deprecated.clone(),
+            #[cfg(feature = "doc")]
             args: f.args,
             #[cfg(feature = "doc")]
             return_type: f.return_type.as_ref().map(|f| f.hash),
@@ -722,6 +728,8 @@ impl Context {
             #[cfg(feature = "doc")]
             is_async: assoc.is_async,
             #[cfg(feature = "doc")]
+            deprecated: assoc.deprecated.clone(),
+            #[cfg(feature = "doc")]
             args: assoc.args,
             #[cfg(feature = "doc")]
             return_type: assoc.return_type.as_ref().map(|f| f.hash),
@@ -801,6 +809,8 @@ impl Context {
         let signature = meta::Signature {
             #[cfg(feature = "doc")]
             is_async: false,
+            #[cfg(feature = "doc")]
+            deprecated: None,
             #[cfg(feature = "doc")]
             args: Some(0),
             #[cfg(feature = "doc")]
@@ -891,6 +901,8 @@ impl Context {
                 Some(meta::Signature {
                     #[cfg(feature = "doc")]
                     is_async: false,
+                    #[cfg(feature = "doc")]
+                    deprecated: None,
                     #[cfg(feature = "doc")]
                     args: Some(match fields {
                         Fields::Named(names) => names.len(),

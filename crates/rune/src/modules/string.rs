@@ -19,7 +19,10 @@ pub fn module() -> Result<Module, ContextError> {
 
     module.ty::<String>()?;
 
-    module.function_meta(string_from_str)?;
+    module.function_meta(string_from)?;
+    module
+        .function_meta(string_from_str)?
+        .deprecated("Use String::from instead");
     module.function_meta(string_new)?;
     module.function_meta(string_with_capacity)?;
     module.function_meta(cmp)?;
@@ -40,8 +43,9 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(shrink_to_fit)?;
     module.function_meta(char_at)?;
     module.function_meta(split)?;
-    // TODO: deprecate this variant.
-    module.associated_function("split_str", __rune_fn__split)?;
+    module
+        .associated_function("split_str", __rune_fn__split)?
+        .deprecated("Use String::split instead");
     module.function_meta(trim)?;
     module.function_meta(trim_end)?;
     module.function_meta(replace)?;
@@ -138,7 +142,7 @@ fn from_utf8(bytes: &[u8]) -> Result<String, FromUtf8Error> {
 /// Basic usage:
 ///
 /// ```rune
-/// let s = String::from_str("hello");
+/// let s = String::from("hello");
 ///
 /// assert_eq!(b"hello", s.as_bytes());
 /// assert!(is_readable(s));
@@ -155,12 +159,17 @@ fn as_bytes(s: &str) -> Bytes {
 /// Basic usage:
 ///
 /// ```rune
-/// let s = String::from_str("hello");
+/// let s = String::from("hello");
 /// assert_eq!(s, "hello");
 /// ```
+#[rune::function(path = String::from)]
+fn string_from(value: &str) -> String {
+    String::from(value)
+}
+
 #[rune::function(path = String::from_str)]
-fn string_from_str(s: &str) -> String {
-    String::from(s)
+fn string_from_str(value: &str) -> String {
+    String::from(value)
 }
 
 /// Creates a new empty `String`.
@@ -332,7 +341,7 @@ fn capacity(this: &String) -> usize {
 /// Basic usage:
 ///
 /// ```rune
-/// let s = String::from_str("foo");
+/// let s = String::from("foo");
 ///
 /// s.clear();
 ///
@@ -378,7 +387,7 @@ fn contains(this: &str, other: &str) -> bool {
 /// Basic usage:
 ///
 /// ```rune
-/// let s = String::from_str("abc");
+/// let s = String::from("abc");
 ///
 /// s.push('1');
 /// s.push('2');
@@ -398,7 +407,7 @@ fn push(this: &mut String, c: char) {
 /// Basic usage:
 ///
 /// ```rune
-/// let s = String::from_str("foo");
+/// let s = String::from("foo");
 ///
 /// s.push_str("bar");
 ///
@@ -512,7 +521,7 @@ fn reserve_exact(this: &mut String, additional: usize) {
 /// Basic usage:
 ///
 /// ```rune
-/// let s = String::from_str("hello");
+/// let s = String::from("hello");
 ///
 /// assert_eq!(b"hello", s.into_bytes());
 /// assert!(!is_readable(s));
@@ -579,7 +588,7 @@ fn char_at(s: &str, index: usize) -> Option<char> {
 /// Basic usage:
 ///
 /// ```rune
-/// let a = String::from_str("h");
+/// let a = String::from("h");
 /// let b = a;
 /// b.push('i');
 ///
@@ -603,7 +612,7 @@ fn clone(s: &String) -> String {
 /// Basic usage:
 ///
 /// ```rune
-/// let s = String::from_str("foo");
+/// let s = String::from("foo");
 ///
 /// s.reserve(100);
 /// assert!(s.capacity() >= 100);

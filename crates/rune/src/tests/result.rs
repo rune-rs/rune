@@ -47,15 +47,13 @@ fn test_expect_some() {
 
 #[test]
 fn test_expect() {
-    assert_vm_error!(
-        r#"
+    assert_vm_error!(r#"
         pub fn main() {
             Err("Error").expect("Err('Error')")
        }
     "#,
-        Panic { reason} => {
-            assert_eq!(reason.to_string(),
-                       "Err('Error'): \"Error\"")
+        Panic { reason } => {
+            assert_eq!(reason.to_string(), "Err('Error'): \"Error\"")
         }
     );
 }
@@ -80,7 +78,7 @@ fn test_unwrap() {
     "#,
         Panic { reason } => {
             assert_eq!(reason.to_string(),
-                       "called `Result::unwrap()` on an `Err` value: \"Error\"")
+                       "Called `Result::unwrap()` on an `Err` value: \"Error\"")
         }
     );
 }

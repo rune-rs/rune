@@ -54,6 +54,8 @@ pub struct FunctionData {
     #[cfg(feature = "doc")]
     pub(crate) is_async: bool,
     #[cfg(feature = "doc")]
+    pub(crate) deprecated: Option<Box<str>>,
+    #[cfg(feature = "doc")]
     pub(crate) args: Option<usize>,
     #[cfg(feature = "doc")]
     pub(crate) return_type: Option<FullTypeOf>,
@@ -77,6 +79,8 @@ impl FunctionData {
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
             #[cfg(feature = "doc")]
             is_async: K::is_async(),
+            #[cfg(feature = "doc")]
+            deprecated: None,
             #[cfg(feature = "doc")]
             args: Some(F::args()),
             #[cfg(feature = "doc")]
@@ -212,6 +216,8 @@ pub struct AssociatedFunctionData {
     #[cfg(feature = "doc")]
     pub(crate) is_async: bool,
     #[cfg(feature = "doc")]
+    pub(crate) deprecated: Option<Box<str>>,
+    #[cfg(feature = "doc")]
     pub(crate) args: Option<usize>,
     #[cfg(feature = "doc")]
     pub(crate) return_type: Option<FullTypeOf>,
@@ -235,6 +241,8 @@ impl AssociatedFunctionData {
             container_type_info: F::Instance::type_info(),
             #[cfg(feature = "doc")]
             is_async: K::is_async(),
+            #[cfg(feature = "doc")]
+            deprecated: None,
             #[cfg(feature = "doc")]
             args: Some(F::args()),
             #[cfg(feature = "doc")]
@@ -336,6 +344,8 @@ where
             container_type_info: T::type_info(),
             #[cfg(feature = "doc")]
             is_async: K::is_async(),
+            #[cfg(feature = "doc")]
+            deprecated: None,
             #[cfg(feature = "doc")]
             args: Some(F::args()),
             #[cfg(feature = "doc")]

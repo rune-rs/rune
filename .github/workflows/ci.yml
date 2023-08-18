@@ -108,7 +108,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    needs: [no_default_features, build_feature, docs, msrv, wasm]
+    needs: [no_default_features, build_feature, docs, msrv, miri, wasm]
     steps:
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@stable
