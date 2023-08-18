@@ -621,7 +621,7 @@ pub(super) struct Source {
 impl Source {
     /// Find the definition at the given span.
     pub(super) fn find_definition_at(&self, span: Span) -> Option<&Definition> {
-        let (found_span, definition) = self.index.definitions.range(..=span).rev().next()?;
+        let (found_span, definition) = self.index.definitions.range(..=span).next_back()?;
 
         if span.start >= found_span.start && span.end <= found_span.end {
             tracing::trace!("found {:?}", definition);

@@ -5,8 +5,7 @@
     clippy::needless_return
 )]
 
-use rune::runtime::{Mut, Object, Ref, Shared, Tuple, Value};
-use rune::{Any, FromValue, ToValue};
+prelude!();
 
 #[derive(Any)]
 struct Custom {}
@@ -58,4 +57,4 @@ enum TestEnum {
 }
 
 #[test]
-fn test_macro() {}
+fn derive_from_to_value() {}

@@ -49,7 +49,7 @@
 //! ```
 
 use rune::{Any, Module, Value, ContextError};
-use rune::runtime::{Bytes, Protocol};
+use rune::runtime::{Bytes, Protocol, Ref};
 use std::fmt;
 use std::fmt::Write;
 
@@ -261,8 +261,8 @@ impl Client {
 /// let timezone = json["timezone"];
 /// ```
 #[rune::function]
-async fn get(url: &str) -> Result<Response, Error> {
+async fn get(url: Ref<str>) -> Result<Response, Error> {
     Ok(Response {
-        response: reqwest::get(url).await?,
+        response: reqwest::get(url.as_ref()).await?,
     })
 }

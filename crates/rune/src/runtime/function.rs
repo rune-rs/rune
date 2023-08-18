@@ -38,7 +38,7 @@ impl Function {
     /// let unit = rune::prepare(&mut sources).build()?;
     /// let mut vm = Vm::without_runtime(Arc::new(unit));
     ///
-    /// let function = Function::function(|value: u32| value + 1);
+    /// let function = Function::new(|value: u32| value + 1);
     ///
     /// assert_eq!(function.type_hash(), Hash::EMPTY);
     ///
@@ -55,7 +55,7 @@ impl Function {
     /// use rune::runtime::Function;
     /// use std::sync::Arc;
     ///
-    /// # #[tokio::main] async fn main() -> rune::Result<()> {
+    /// # futures_executor::block_on(async move {
     /// let mut sources = rune::sources! {
     ///     entry => {
     ///         pub async fn main(function) {
@@ -67,14 +67,16 @@ impl Function {
     /// let unit = rune::prepare(&mut sources).build()?;
     /// let mut vm = Vm::without_runtime(Arc::new(unit));
     ///
-    /// let function = Function::function(|value: u32| async move { value + 1 });
+    /// let function = Function::new(|value: u32| async move { value + 1 });
     ///
     /// assert_eq!(function.type_hash(), Hash::EMPTY);
     ///
     /// let value = vm.async_call(["main"], (function,)).await?;
     /// let value: u32 = rune::from_value(value)?;
     /// assert_eq!(value, 42);
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
+    /// # })?;
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn new<F, A, K>(f: F) -> Self
     where
@@ -100,7 +102,7 @@ impl Function {
     }
 
     /// See [`Function::function`].
-    #[deprecated = "Use Function::function() instead"]
+    #[deprecated = "Use Function::new() instead"]
     pub fn async_function<F, A>(f: F) -> Self
     where
         F: module::Function<A, module::Async>,
@@ -343,8 +345,7 @@ impl SyncFunction {
     /// use rune::runtime::SyncFunction;
     /// use std::sync::Arc;
     ///
-    /// # #[tokio::main]
-    /// # async fn main() -> rune::Result<()> {
+    /// # futures_executor::block_on(async move {
     /// let mut sources = rune::sources! {
     ///     entry => {
     ///         async fn add(a, b) {
@@ -362,7 +363,9 @@ impl SyncFunction {
     ///
     /// let value = add.async_send_call::<_, u32>((1, 2)).await.into_result()?;
     /// assert_eq!(value, 3);
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
+    /// # })?;
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub async fn async_send_call<A, T>(&self, args: A) -> VmResult<T>
     where

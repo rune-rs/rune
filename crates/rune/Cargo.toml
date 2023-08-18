@@ -3,7 +3,7 @@ name = "rune"
 version = "0.12.3"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
-rust-version = "1.65"
+rust-version = "1.67"
 description = "The Rune Language, an embeddable dynamic programming language for Rust."
 documentation = "https://docs.rs/rune"
 readme = "README.md"
@@ -78,7 +78,6 @@ rand = { version = "0.8.5", optional = true }
 [dev-dependencies]
 tokio = { version = "1.28.1", features = ["full"] }
 static_assertions = "1.1.0"
-checkers = "0.6.3"
 futures-executor = "0.3.28"
 trybuild = "1.0.80"
 

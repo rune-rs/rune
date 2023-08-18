@@ -1,8 +1,4 @@
-#![allow(unused)]
-
-use rune::compile::ItemBuf;
-use rune::runtime::{Mut, Object, Ref, Shared, Tuple, Value};
-use rune::{Any, Context, ContextError, FromValue, Module, ToValue};
+prelude!();
 
 #[derive(Any)]
 #[rune(name = Bar)]

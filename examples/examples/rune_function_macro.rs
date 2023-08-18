@@ -66,7 +66,7 @@ impl Test {
     }
 
     #[rune::function]
-    async fn add_async(&self, value: i64) -> i64 {
+    async fn add_async(self, value: i64) -> i64 {
         self.field + value
     }
 }

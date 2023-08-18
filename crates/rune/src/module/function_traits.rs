@@ -1,10 +1,17 @@
+#[macro_use]
+mod macros;
+
 use core::future::Future;
 
-use crate::runtime::{self, Stack, ToValue, TypeOf, UnsafeFromValue, VmErrorKind, VmResult};
+use crate::hash::Hash;
+use crate::runtime::{
+    self, FromValue, FullTypeOf, MaybeTypeOf, Stack, ToValue, TypeInfo, TypeOf, UnsafeToMut,
+    UnsafeToRef, Value, VmErrorKind, VmResult,
+};
 
 // Expand to function variable bindings.
 macro_rules! drain_stack {
-    ($count:expr, $add:expr, $stack:ident, $args:ident, $($ty:ty, $var:ident, $num:expr),* $(,)?) => {
+    ($count:expr, $add:expr, $stack:ident, $args:ident, $($from_fn:path, $var:ident, $num:expr),* $(,)?) => {
         if $args != $count + $add {
             return VmResult::err(VmErrorKind::BadArgumentCount {
                 actual: $args,
@@ -15,16 +22,10 @@ macro_rules! drain_stack {
         let [$($var,)*] = vm_try!($stack.drain_vec($count + $add));
 
         $(
-            let $var = vm_try!(<$ty>::unsafe_from_value($var).with_error(|| VmErrorKind::BadArgument {
+            let $var = vm_try!($from_fn($var).with_error(|| VmErrorKind::BadArgument {
                 arg: $num,
             }));
         )*
-    };
-}
-
-macro_rules! unsafe_coerce {
-    ($target:ident $(, $ty:ty, $var:expr)*) => {
-        $target($(unsafe { <$ty>::unsafe_coerce($var) },)*)
     };
 }
 
@@ -94,13 +95,141 @@ pub trait InstanceFunction<A, K>: 'static + Send + Sync {
     fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()>;
 }
 
-macro_rules! impl_register {
+macro_rules! impl_instance_function_traits {
     ($count:expr $(, $ty:ident $var:ident $num:expr)*) => {
-        impl<T, U, $($ty,)*> Function<($($ty,)*), Plain> for T
+        impl<T, Instance, Kind, $($ty,)*> InstanceFunction<(Instance, $($ty,)*), Kind> for T
         where
-            T: 'static + Send + Sync + Fn($($ty,)*) -> U,
+            Instance: TypeOf,
+            T: Function<(Instance, $($ty,)*), Kind>,
+        {
+            type Instance = Instance;
+            type Return = T::Return;
+
+            #[inline]
+            fn args() -> usize {
+                <T as Function<(Instance, $($ty,)*), Kind>>::args()
+            }
+
+            fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
+                Function::fn_call(self, stack, args)
+            }
+        }
+    };
+}
+
+use core::marker::PhantomData;
+
+/// Zero-sized marker struct for references.
+pub struct Ref<T: ?Sized>(PhantomData<T>);
+
+impl<T> MaybeTypeOf for Ref<T>
+where
+    T: ?Sized + MaybeTypeOf,
+{
+    #[inline]
+    fn maybe_type_of() -> Option<FullTypeOf> {
+        T::maybe_type_of()
+    }
+}
+
+impl<T> TypeOf for Ref<T>
+where
+    T: ?Sized + TypeOf,
+{
+    #[inline]
+    fn type_of() -> FullTypeOf {
+        T::type_of()
+    }
+
+    #[inline]
+    fn type_parameters() -> Hash {
+        T::type_parameters()
+    }
+
+    #[inline]
+    fn type_hash() -> Hash {
+        T::type_hash()
+    }
+
+    #[inline]
+    fn type_info() -> TypeInfo {
+        T::type_info()
+    }
+}
+
+/// Zero-sized marker struct for mutable references.
+pub struct Mut<T: ?Sized>(PhantomData<T>);
+
+impl<T> MaybeTypeOf for Mut<T>
+where
+    T: ?Sized + MaybeTypeOf,
+{
+    #[inline]
+    fn maybe_type_of() -> Option<FullTypeOf> {
+        T::maybe_type_of()
+    }
+}
+
+impl<T> TypeOf for Mut<T>
+where
+    T: ?Sized + TypeOf,
+{
+    #[inline]
+    fn type_of() -> FullTypeOf {
+        T::type_of()
+    }
+
+    #[inline]
+    fn type_parameters() -> Hash {
+        T::type_parameters()
+    }
+
+    #[inline]
+    fn type_hash() -> Hash {
+        T::type_hash()
+    }
+
+    #[inline]
+    fn type_info() -> TypeInfo {
+        T::type_info()
+    }
+}
+
+// Fake guard for owned values.
+struct Guard;
+
+fn from_value<T>(value: Value) -> VmResult<(T, Guard)>
+where
+    T: FromValue,
+{
+    VmResult::Ok((vm_try!(T::from_value(value)), Guard))
+}
+
+fn unsafe_to_ref<'a, T: ?Sized>(value: Value) -> VmResult<(&'a T, T::Guard)>
+where
+    T: UnsafeToRef,
+{
+    // SAFETY: these are only locally used in this module, and we ensure that
+    // the guard requirement is met.
+    unsafe { T::unsafe_to_ref(value) }
+}
+
+fn unsafe_to_mut<'a, T: ?Sized>(value: Value) -> VmResult<(&'a mut T, T::Guard)>
+where
+    T: UnsafeToMut,
+{
+    // SAFETY: these are only locally used in this module, and we ensure that
+    // the guard requirement is met.
+    unsafe { T::unsafe_to_mut(value) }
+}
+
+macro_rules! impl_function_traits {
+    ($count:expr $(, {$ty:ident, $var:ident, $place:ty, $num:expr, {$($mut:tt)*}, {$($trait:tt)*}, $from_fn:path})*) => {
+        impl<T, U, $($ty,)*> Function<($($place,)*), Plain> for T
+        where
+            T: 'static + Send + Sync + Fn($($($mut)* $ty),*) -> U,
             U: ToValue,
-            $($ty: UnsafeFromValue,)*
+            $($ty: $($trait)*,)*
         {
             type Return = U;
 
@@ -108,26 +237,27 @@ macro_rules! impl_register {
                 $count
             }
 
+            #[allow(clippy::drop_non_drop)]
             fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
-                drain_stack!($count, 0, stack, args, $($ty, $var, $num,)*);
+                drain_stack!($count, 0, stack, args, $($from_fn, $var, $num,)*);
 
                 // Safety: We hold a reference to the stack, so we can guarantee
                 // that it won't be modified.
-                let ret = unsafe_coerce!(self $(, $ty, $var.0)*);
+                let ret = self($($var.0),*);
                 $(drop($var.1);)*
 
-                let ret = vm_try!(ret.to_value());
+                let ret = vm_try!(ToValue::to_value(ret));
                 stack.push(ret);
                 VmResult::Ok(())
             }
         }
 
-        impl<T, U, $($ty,)*> Function<($($ty,)*), Async> for T
+        impl<T, U, $($ty,)*> Function<($($place,)*), Async> for T
         where
-            T: 'static + Send + Sync + Fn($($ty,)*) -> U,
+            T: 'static + Send + Sync + Fn($($($mut)* $ty),*) -> U,
             U: 'static + Future,
             U::Output: ToValue,
-            $($ty: 'static + UnsafeFromValue,)*
+            $($ty: $($trait)*,)*
         {
             type Return = U::Output;
 
@@ -135,81 +265,19 @@ macro_rules! impl_register {
                 $count
             }
 
+            #[allow(clippy::drop_non_drop)]
             fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
-                drain_stack!($count, 0, stack, args, $($ty, $var, $num,)*);
+                drain_stack!($count, 0, stack, args, $($from_fn, $var, $num,)*);
 
-                // Safety: The future holds onto all necessary guards to keep
-                // values borrowed from the stack alive.
-                let fut = unsafe_coerce!(self $(, $ty, $var.0)*);
-
-                let ret = runtime::Future::new(async move {
-                    let output = fut.await;
-                    $(drop($var.1);)*
-                    VmResult::Ok(vm_try!(output.to_value()))
-                });
-
-                stack.push(ret);
-                VmResult::Ok(())
-            }
-        }
-
-        impl<T, U, Instance, $($ty,)*> InstanceFunction<(Instance, $($ty,)*), Plain> for T
-        where
-            T: 'static + Send + Sync + Fn(Instance $(, $ty)*) -> U,
-            U: ToValue,
-            Instance: UnsafeFromValue + TypeOf,
-            $($ty: UnsafeFromValue,)*
-        {
-            type Instance = Instance;
-            type Return = U;
-
-            #[inline]
-            fn args() -> usize {
-                $count + 1
-            }
-
-            fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
-                drain_stack!($count, 1, stack, args, Instance, inst, 0 $(, $ty, $var, 1 + $num)*);
-
-                // Safety: We hold a reference to the stack, so we can
-                // guarantee that it won't be modified.
-                let ret = unsafe_coerce!(self, Instance, inst.0 $(, $ty, $var.0)*);
-
-                drop(inst.1);
+                let fut = self($($var.0),*);
+                // Note: we may drop any produced reference guard here since the
+                // HRTB guarantees it won't escape nor be captured by the
+                // future, so once the method returns we know they are no longer
+                // used.
                 $(drop($var.1);)*
 
-                stack.push(vm_try!(ret.to_value()));
-                VmResult::Ok(())
-            }
-        }
-
-        impl<T, U, Instance, $($ty,)*> InstanceFunction<(Instance, $($ty,)*), Async> for T
-        where
-            T: 'static + Send + Sync + Fn(Instance $(, $ty)*) -> U,
-            U: 'static + Future,
-            U::Output: ToValue,
-            Instance: UnsafeFromValue + TypeOf,
-            $($ty: UnsafeFromValue,)*
-        {
-            type Instance = Instance;
-            type Return = U::Output;
-
-            #[inline]
-            fn args() -> usize {
-                $count + 1
-            }
-
-            fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
-                drain_stack!($count, 1, stack, args, Instance, inst, 0 $(, $ty, $var, 1 + $num)*);
-
-                // Safety: The future holds onto all necessary guards to keep
-                // values borrowed from the stack alive.
-                let fut = unsafe_coerce!(self, Instance, inst.0 $(, $ty, $var.0)*);
-
                 let ret = runtime::Future::new(async move {
                     let output = fut.await;
-                    drop(inst.1);
-                    $(drop($var.1);)*
                     VmResult::Ok(vm_try!(output.to_value()))
                 });
 
@@ -220,4 +288,5 @@ macro_rules! impl_register {
     };
 }
 
-repeat_macro!(impl_register);
+permute!(impl_function_traits);
+repeat_macro!(impl_instance_function_traits);

@@ -1,19 +1,17 @@
-use rune::runtime::{AnyObj, Shared};
-use rune::Any;
-
-#[global_allocator]
-static ALLOCATOR: checkers::Allocator = checkers::Allocator::system();
+use crate as rune;
+use crate::runtime::{AnyObj, Shared};
+use crate::Any;
 
 #[derive(Any, Debug, PartialEq, Eq)]
 struct Foo(isize);
 
-#[checkers::test]
+#[test]
 fn test_take() {
     let thing = Shared::new(AnyObj::new(Foo(0)));
     let _ = thing.take().unwrap();
 }
 
-#[checkers::test]
+#[test]
 fn test_clone_take() {
     let thing = Shared::new(AnyObj::new(Foo(0)));
     let thing2 = thing.clone();
@@ -21,7 +19,7 @@ fn test_clone_take() {
     assert!(thing.take().is_err());
 }
 
-#[checkers::test]
+#[test]
 fn test_from_ref() {
     #[derive(Any)]
     struct Thing(u32);
@@ -40,7 +38,7 @@ fn test_from_ref() {
     }
 }
 
-#[checkers::test]
+#[test]
 fn test_from_mut() {
     #[derive(Any)]
     struct Thing(u32);

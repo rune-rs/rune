@@ -1,5 +1,8 @@
 //! Runtime module for Rune.
 
+#[cfg(test)]
+mod tests;
+
 mod access;
 pub(crate) use self::access::{Access, AccessKind};
 pub use self::access::{
@@ -35,7 +38,9 @@ pub mod format;
 pub use self::format::{Format, FormatSpec};
 
 mod from_value;
-pub use self::from_value::{from_value, FromValue, UnsafeFromValue};
+#[allow(deprecated)]
+pub use self::from_value::UnsafeFromValue;
+pub use self::from_value::{from_value, FromValue, UnsafeToMut, UnsafeToRef};
 
 mod function;
 pub use self::function::{Function, SyncFunction};

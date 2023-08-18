@@ -8,6 +8,11 @@ use core::pin::Pin;
 use core::ptr;
 use core::task::{Context, Poll};
 
+#[cfg(feature = "alloc")]
+use alloc::rc::Rc;
+#[cfg(feature = "alloc")]
+use alloc::sync::Arc;
+
 use crate::no_std::prelude::*;
 
 use crate::runtime::{
@@ -209,7 +214,7 @@ impl<T> Shared<T> {
 
             Ok(Ref {
                 data: ptr::NonNull::new_unchecked(this.inner.as_ref().data.get()),
-                guard,
+                guard: Some(guard),
                 inner: RawDrop::decrement_shared_box(this.inner),
             })
         }
@@ -614,7 +619,7 @@ impl Shared<AnyObj> {
 
             Ok(Ref {
                 data: ptr::NonNull::new_unchecked(data as *const T as *mut T),
-                guard,
+                guard: Some(guard),
                 inner: RawDrop::decrement_shared_box(this.inner),
             })
         }
@@ -816,20 +821,60 @@ struct RawDrop {
 }
 
 impl RawDrop {
+    /// Construct an empty raw drop function.
+    const fn empty() -> Self {
+        fn drop_fn(_: *const ()) {}
+
+        Self {
+            data: ptr::null(),
+            drop_fn,
+        }
+    }
+
+    /// Construct from an atomically reference-counted `Arc<T>`.
+    ///
+    /// The argument must have been produced using `Arc::into_raw`.
+    #[cfg(feature = "alloc")]
+    unsafe fn from_rc<T>(data: *const T) -> Self {
+        unsafe fn drop_fn<T>(data: *const ()) {
+            let _ = Rc::from_raw(data as *const T);
+        }
+
+        Self {
+            data: data as *const (),
+            drop_fn: drop_fn::<T>,
+        }
+    }
+
+    /// Construct from an atomically reference-counted `Arc<T>`.
+    ///
+    /// The argument must have been produced using `Arc::into_raw`.
+    #[cfg(feature = "alloc")]
+    unsafe fn from_arc<T>(data: *const T) -> Self {
+        unsafe fn drop_fn<T>(data: *const ()) {
+            let _ = Arc::from_raw(data as *const T);
+        }
+
+        Self {
+            data: data as *const (),
+            drop_fn: drop_fn::<T>,
+        }
+    }
+
     /// Construct a raw drop that will decrement the shared box when dropped.
     ///
     /// # Safety
     ///
     /// Should only be constructed over a pointer that is lively owned.
     fn decrement_shared_box<T>(inner: ptr::NonNull<SharedBox<T>>) -> Self {
-        return Self {
-            data: inner.as_ptr() as *const (),
-            drop_fn: drop_fn_impl::<T>,
-        };
-
         unsafe fn drop_fn_impl<T>(data: *const ()) {
             let shared = data as *mut () as *mut SharedBox<T>;
             SharedBox::dec(shared);
+        }
+
+        Self {
+            data: inner.as_ptr() as *const (),
+            drop_fn: drop_fn_impl::<T>,
         }
     }
 
@@ -840,11 +885,6 @@ impl RawDrop {
     ///
     /// Should only be constructed over a pointer that is lively owned.
     fn take_shared_box(inner: ptr::NonNull<SharedBox<AnyObj>>) -> Self {
-        return Self {
-            data: inner.as_ptr() as *const (),
-            drop_fn: drop_fn_impl,
-        };
-
         unsafe fn drop_fn_impl(data: *const ()) {
             let shared = data as *mut () as *mut SharedBox<AnyObj>;
 
@@ -861,6 +901,11 @@ impl RawDrop {
             drop(ptr::read((*shared).data.get()));
 
             SharedBox::dec(shared);
+        }
+
+        Self {
+            data: inner.as_ptr() as *const (),
+            drop_fn: drop_fn_impl,
         }
     }
 }
@@ -881,11 +926,70 @@ pub struct Ref<T: ?Sized> {
     // Safety: it is important that the guard is dropped before `RawDrop`, since
     // `RawDrop` might deallocate the `Access` instance the guard is referring
     // to. This is guaranteed by: https://github.com/rust-lang/rfcs/pull/1857
-    guard: RawAccessGuard,
+    guard: Option<RawAccessGuard>,
+    // We need to keep track of the original value so that we can deal with what
+    // it means to drop a reference to it.
     inner: RawDrop,
 }
 
+#[cfg(feature = "alloc")]
+impl<T> From<Rc<T>> for Ref<T> {
+    /// Construct from an atomically reference-counted value.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use rune::runtime::Ref;
+    ///
+    /// let value: Ref<String> = Ref::from(Rc::new(String::from("hello world")));
+    /// assert_eq!(value.as_ref(), "hello world");
+    /// ```
+    fn from(value: Rc<T>) -> Ref<T> {
+        let data = Rc::into_raw(value);
+
+        Ref {
+            data: unsafe { ptr::NonNull::new_unchecked(data as *mut _) },
+            guard: None,
+            inner: unsafe { RawDrop::from_rc(data) },
+        }
+    }
+}
+
+#[cfg(feature = "alloc")]
+impl<T> From<Arc<T>> for Ref<T> {
+    /// Construct from an atomically reference-counted value.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::sync::Arc;
+    /// use rune::runtime::Ref;
+    ///
+    /// let value: Ref<String> = Ref::from(Arc::new(String::from("hello world")));
+    /// assert_eq!(value.as_ref(), "hello world");
+    /// ```
+    fn from(value: Arc<T>) -> Ref<T> {
+        let data = Arc::into_raw(value);
+
+        Ref {
+            data: unsafe { ptr::NonNull::new_unchecked(data as *mut _) },
+            guard: None,
+            inner: unsafe { RawDrop::from_arc(data) },
+        }
+    }
+}
+
 impl<T: ?Sized> Ref<T> {
+    /// Construct a static reference.
+    pub const fn from_static(value: &'static T) -> Ref<T> {
+        Ref {
+            data: unsafe { ptr::NonNull::new_unchecked(value as *const _ as *mut _) },
+            guard: None,
+            inner: RawDrop::empty(),
+        }
+    }
+
     /// Map the interior reference of an owned mutable value.
     ///
     /// # Examples
@@ -969,9 +1073,17 @@ impl<T: ?Sized> Ref<T> {
     }
 }
 
+impl<T: ?Sized> AsRef<T> for Ref<T> {
+    #[inline]
+    fn as_ref(&self) -> &T {
+        self
+    }
+}
+
 impl<T: ?Sized> ops::Deref for Ref<T> {
     type Target = T;
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
         // Safety: An owned ref holds onto a hard pointer to the data,
         // preventing it from being dropped for the duration of the owned ref.
@@ -983,6 +1095,7 @@ impl<T: ?Sized> fmt::Debug for Ref<T>
 where
     T: fmt::Debug,
 {
+    #[inline]
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&**self, fmt)
     }
@@ -990,7 +1103,7 @@ where
 
 /// A raw guard to a [Ref].
 pub struct RawRef {
-    _guard: RawAccessGuard,
+    _guard: Option<RawAccessGuard>,
     _inner: RawDrop,
 }
 
@@ -1091,6 +1204,20 @@ impl<T: ?Sized> Mut<T> {
         };
 
         (this.data.as_ptr(), guard)
+    }
+}
+
+impl<T: ?Sized> AsRef<T> for Mut<T> {
+    #[inline]
+    fn as_ref(&self) -> &T {
+        self
+    }
+}
+
+impl<T: ?Sized> AsMut<T> for Mut<T> {
+    #[inline]
+    fn as_mut(&mut self) -> &mut T {
+        self
     }
 }
 

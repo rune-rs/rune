@@ -54,12 +54,14 @@ impl StaticString {
     }
 
     /// Get the hash of the string.
+    #[inline]
     pub fn hash(&self) -> Hash {
         self.hash
     }
 }
 
 impl AsRef<String> for StaticString {
+    #[inline]
     fn as_ref(&self) -> &String {
         &self.inner
     }

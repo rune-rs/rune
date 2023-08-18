@@ -2,7 +2,9 @@ use core::fmt;
 
 use crate::compile::Named;
 use crate::module::InstallWith;
-use crate::runtime::{GeneratorState, RawStr, Value, Vm, VmErrorKind, VmExecution, VmResult};
+use crate::runtime::{
+    GeneratorState, RawStr, Shared, Value, Vm, VmErrorKind, VmExecution, VmResult,
+};
 
 /// A stream with a stored virtual machine.
 pub struct Stream<T>
@@ -38,6 +40,10 @@ where
         })
     }
 
+    pub(crate) async fn next_shared(this: Shared<Stream<T>>) -> VmResult<Option<Value>> {
+        vm_try!(this.borrow_mut()).next().await
+    }
+
     /// Get the next value produced by this stream.
     pub async fn resume(&mut self, value: Value) -> VmResult<GeneratorState> {
         let execution = vm_try!(self
@@ -56,6 +62,13 @@ where
         }
 
         VmResult::Ok(state)
+    }
+
+    pub(crate) async fn resume_shared(
+        this: Shared<Stream<T>>,
+        value: Value,
+    ) -> VmResult<GeneratorState> {
+        vm_try!(this.borrow_mut()).resume(value).await
     }
 }
 

@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - uses: dtolnay/rust-toolchain@1.70
+    - uses: dtolnay/rust-toolchain@1.71
       with:
         components: clippy
     - uses: Swatinem/rust-cache@v2
@@ -58,9 +58,20 @@ jobs:
     needs: basics
     steps:
     - uses: actions/checkout@v3
-    - uses: dtolnay/rust-toolchain@1.65
+    - uses: dtolnay/rust-toolchain@1.67
     - uses: Swatinem/rust-cache@v2
     - run: cargo build --workspace
+
+  miri:
+    runs-on: ubuntu-latest
+    needs: basics
+    steps:
+    - uses: actions/checkout@v3
+    - uses: dtolnay/rust-toolchain@nightly
+      with:
+        components: miri
+    - uses: Swatinem/rust-cache@v2
+    - run: cargo +nightly miri test -p rune --all-features -- runtime hir::arena
 
   no_default_features:
     runs-on: ubuntu-latest
