@@ -3,7 +3,7 @@
 use core::char;
 use core::cmp::Ordering;
 use core::fmt::{self, Write};
-use core::num;
+use core::num::{ParseFloatError, ParseIntError};
 
 use alloc::string::FromUtf8Error;
 
@@ -1020,8 +1020,28 @@ fn string_index_get(s: &str, key: Value) -> VmResult<String> {
 /// assert_eq!(4, four);
 /// ```
 #[rune::function(instance, path = parse::<i64>)]
-fn parse_int(s: &str) -> Result<i64, num::ParseIntError> {
+fn parse_int(s: &str) -> Result<i64, ParseIntError> {
     str::parse::<i64>(s)
+}
+
+/// Parses this string into a float.
+///
+/// # Errors
+///
+/// Will return [`Err`] if it's not possible to parse this string slice into an
+/// float.
+///
+/// # Examples
+///
+/// Basic usage
+///
+/// ```rune
+/// let pi = "3.1415".parse::<f64>()?;
+/// assert_eq!(3.1415, pi);
+/// ```
+#[rune::function(instance, path = parse::<f64>)]
+fn parse_float(s: &str) -> Result<f64, ParseFloatError> {
+    str::parse::<f64>(s)
 }
 
 /// Parses this string into a character.

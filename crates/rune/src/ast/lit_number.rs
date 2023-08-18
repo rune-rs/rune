@@ -93,7 +93,10 @@ impl<'a> Resolve<'a> for LitNumber {
             (suffix, text.is_fractional),
             (Some(ast::NumberSuffix::Float(..)), _) | (None, true)
         ) {
-            let number: f64 = string.parse().map_err(err_span(span))?;
+            let number: f64 = string
+                .trim_matches(|c: char| c == '_')
+                .parse()
+                .map_err(err_span(span))?;
 
             return Ok(ast::Number {
                 value: ast::NumberValue::Float(number),

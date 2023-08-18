@@ -131,6 +131,7 @@ impl Context {
         // This must go first, because it includes types which are used in other modules.
         this.install(crate::modules::core::module()?)?;
 
+        this.install(crate::modules::num::module()?)?;
         this.install(crate::modules::any::module()?)?;
         this.install(crate::modules::bytes::module()?)?;
         this.install(crate::modules::char::module()?)?;

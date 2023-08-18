@@ -332,7 +332,7 @@ impl TestCase {
     }
 
     fn emit(self, io: &mut Io<'_>, colors: &Colors) -> Result<()> {
-        write!(io.stdout, "Test: {}: ", self.item)?;
+        write!(io.stdout, "test {}: ", self.item)?;
 
         match &self.outcome {
             Outcome::Panic(error) => {
@@ -349,18 +349,18 @@ impl TestCase {
             }
             Outcome::Err(error) => {
                 io.stdout.set_color(&colors.error)?;
-                write!(io.stdout, "Returned Err: ")?;
+                write!(io.stdout, "err: ")?;
                 io.stdout.reset()?;
                 writeln!(io.stdout, "{:?}", error)?;
             }
             Outcome::None => {
                 io.stdout.set_color(&colors.error)?;
-                writeln!(io.stdout, "Returned None")?;
+                writeln!(io.stdout, "returned none")?;
                 io.stdout.reset()?;
             }
             Outcome::Ok => {
                 io.stdout.set_color(&colors.passed)?;
-                writeln!(io.stdout, "Ok")?;
+                writeln!(io.stdout, "ok")?;
                 io.stdout.reset()?;
             }
         }

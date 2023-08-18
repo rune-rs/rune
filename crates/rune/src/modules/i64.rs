@@ -12,8 +12,6 @@ use crate::{ContextError, Module};
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", ["i64"]);
 
-    module.ty::<ParseIntError>()?;
-
     module.function(["parse"], parse)?;
     module.function_meta(cmp)?;
     module.function_meta(to_f64)?;
@@ -550,5 +548,3 @@ fn is_negative(this: i64) -> bool {
 fn to_string(this: i64) -> String {
     this.to_string()
 }
-
-crate::__internal_impl_any!(::std::i64, ParseIntError);
