@@ -344,7 +344,6 @@ impl Module {
 
         self.unit_type = Some(UnitType {
             name: <Box<str>>::from(name.as_ref()),
-            #[cfg(feature = "doc")]
             docs: Docs::EMPTY,
         });
 
