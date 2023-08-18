@@ -18,6 +18,7 @@ impl Prelude {
 
         this.add_prelude("Type", ["any", "Type"]);
         this.add_prelude("assert_eq", ["test", "assert_eq"]);
+        this.add_prelude("assert_ne", ["test", "assert_ne"]);
         this.add_prelude("assert", ["test", "assert"]);
         this.add_prelude("bool", ["bool"]);
         this.add_prelude("u8", ["u8"]);
