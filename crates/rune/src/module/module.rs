@@ -12,9 +12,9 @@ use crate::module::function_meta::{
 };
 use crate::module::{
     AssociatedKey, Async, EnumMut, Function, FunctionKind, InstallWith, InstanceFunction,
-    InternalEnum, InternalEnumMut, ItemMut, ModuleAssociated, ModuleAttributeMacro, ModuleConstant,
-    ModuleFunction, ModuleMacro, ModuleType, Plain, TypeMut, TypeSpecification, UnitType,
-    VariantMut,
+    InternalEnum, InternalEnumMut, ItemFnMut, ItemMut, ModuleAssociated, ModuleAttributeMacro,
+    ModuleConstant, ModuleFunction, ModuleMacro, ModuleType, Plain, TypeMut, TypeSpecification,
+    UnitType, VariantMut,
 };
 use crate::runtime::{
     AttributeMacroHandler, ConstValue, FromValue, GeneratorState, MacroHandler, MaybeTypeOf,
@@ -658,6 +658,7 @@ impl Module {
         });
 
         let m = self.macros.last_mut().unwrap();
+
         Ok(ItemMut { docs: &mut m.docs })
     }
 
@@ -717,6 +718,7 @@ impl Module {
         });
 
         let m = self.attribute_macros.last_mut().unwrap();
+
         Ok(ItemMut { docs: &mut m.docs })
     }
 
@@ -792,7 +794,7 @@ impl Module {
     /// # Ok::<_, rune::Error>(())
     /// ```
     #[inline]
-    pub fn function_meta(&mut self, meta: FunctionMeta) -> Result<ItemMut<'_>, ContextError> {
+    pub fn function_meta(&mut self, meta: FunctionMeta) -> Result<ItemFnMut<'_>, ContextError> {
         let meta = meta();
 
         match meta.kind {
@@ -852,7 +854,7 @@ impl Module {
     ///     .docs(["Download a random quote from the internet."]);
     /// # Ok::<_, rune::Error>(())
     /// ```
-    pub fn function<F, A, N, K>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
+    pub fn function<F, A, N, K>(&mut self, name: N, f: F) -> Result<ItemFnMut<'_>, ContextError>
     where
         F: Function<A, K>,
         F::Return: MaybeTypeOf,
@@ -866,7 +868,7 @@ impl Module {
 
     /// See [`Module::function`].
     #[deprecated = "Use Module::function() instead"]
-    pub fn async_function<F, A, N>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
+    pub fn async_function<F, A, N>(&mut self, name: N, f: F) -> Result<ItemFnMut<'_>, ContextError>
     where
         F: Function<A, Async>,
         F::Return: MaybeTypeOf,
@@ -956,7 +958,7 @@ impl Module {
         &mut self,
         name: N,
         f: F,
-    ) -> Result<ItemMut<'_>, ContextError>
+    ) -> Result<ItemFnMut<'_>, ContextError>
     where
         N: ToInstance,
         F: InstanceFunction<A, K>,
@@ -973,7 +975,7 @@ impl Module {
     /// See [`Module::associated_function`].
     #[deprecated = "Use Module::associated_function() instead"]
     #[inline]
-    pub fn inst_fn<N, F, A, K>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
+    pub fn inst_fn<N, F, A, K>(&mut self, name: N, f: F) -> Result<ItemFnMut<'_>, ContextError>
     where
         N: ToInstance,
         F: InstanceFunction<A, K>,
@@ -986,7 +988,7 @@ impl Module {
 
     /// See [`Module::associated_function`].
     #[deprecated = "Use Module::associated_function() instead"]
-    pub fn async_inst_fn<N, F, A>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
+    pub fn async_inst_fn<N, F, A>(&mut self, name: N, f: F) -> Result<ItemFnMut<'_>, ContextError>
     where
         N: ToInstance,
         F: InstanceFunction<A, Async>,
@@ -1005,7 +1007,7 @@ impl Module {
         protocol: Protocol,
         name: N,
         f: F,
-    ) -> Result<ItemMut<'_>, ContextError>
+    ) -> Result<ItemFnMut<'_>, ContextError>
     where
         N: ToFieldFunction,
         F: InstanceFunction<A, Plain>,
@@ -1026,7 +1028,7 @@ impl Module {
         protocol: Protocol,
         name: N,
         f: F,
-    ) -> Result<ItemMut<'_>, ContextError>
+    ) -> Result<ItemFnMut<'_>, ContextError>
     where
         N: ToFieldFunction,
         F: InstanceFunction<A, Plain>,
@@ -1045,7 +1047,7 @@ impl Module {
         protocol: Protocol,
         index: usize,
         f: F,
-    ) -> Result<ItemMut<'_>, ContextError>
+    ) -> Result<ItemFnMut<'_>, ContextError>
     where
         F: InstanceFunction<A, Plain>,
         F::Return: MaybeTypeOf,
@@ -1063,7 +1065,7 @@ impl Module {
         protocol: Protocol,
         index: usize,
         f: F,
-    ) -> Result<ItemMut<'_>, ContextError>
+    ) -> Result<ItemFnMut<'_>, ContextError>
     where
         F: InstanceFunction<A, Plain>,
         F::Return: MaybeTypeOf,
@@ -1104,7 +1106,7 @@ impl Module {
     /// ]);
     /// # Ok::<_, rune::Error>(())
     /// ```
-    pub fn raw_fn<F, N>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
+    pub fn raw_fn<F, N>(&mut self, name: N, f: F) -> Result<ItemFnMut<'_>, ContextError>
     where
         F: 'static + Fn(&mut Stack, usize) -> VmResult<()> + Send + Sync,
         N: IntoIterator,
@@ -1132,8 +1134,17 @@ impl Module {
         });
 
         let last = self.functions.last_mut().unwrap();
-        Ok(ItemMut {
+
+        Ok(ItemFnMut {
             docs: &mut last.docs,
+            #[cfg(feature = "doc")]
+            is_async: &mut last.is_async,
+            #[cfg(feature = "doc")]
+            args: &mut last.args,
+            #[cfg(feature = "doc")]
+            return_type: &mut last.return_type,
+            #[cfg(feature = "doc")]
+            argument_types: &mut last.argument_types,
         })
     }
 
@@ -1141,7 +1152,7 @@ impl Module {
         &mut self,
         data: FunctionData,
         docs: Docs,
-    ) -> Result<ItemMut<'_>, ContextError> {
+    ) -> Result<ItemFnMut<'_>, ContextError> {
         let hash = Hash::type_hash(&data.item);
 
         if !self.names.insert(Name::Item(hash)) {
@@ -1165,8 +1176,19 @@ impl Module {
             docs,
         });
 
-        let m = self.functions.last_mut().unwrap();
-        Ok(ItemMut { docs: &mut m.docs })
+        let last = self.functions.last_mut().unwrap();
+
+        Ok(ItemFnMut {
+            docs: &mut last.docs,
+            #[cfg(feature = "doc")]
+            is_async: &mut last.is_async,
+            #[cfg(feature = "doc")]
+            args: &mut last.args,
+            #[cfg(feature = "doc")]
+            return_type: &mut last.return_type,
+            #[cfg(feature = "doc")]
+            argument_types: &mut last.argument_types,
+        })
     }
 
     /// Install an associated function.
@@ -1174,7 +1196,7 @@ impl Module {
         &mut self,
         data: AssociatedFunctionData,
         docs: Docs,
-    ) -> Result<ItemMut<'_>, ContextError> {
+    ) -> Result<ItemFnMut<'_>, ContextError> {
         if !self.names.insert(Name::Associated(data.assoc_key())) {
             return Err(match data.name.kind {
                 meta::AssociatedKind::Protocol(protocol) => {
@@ -1220,8 +1242,19 @@ impl Module {
             docs,
         });
 
-        let m = self.associated.last_mut().unwrap();
-        Ok(ItemMut { docs: &mut m.docs })
+        let last = self.associated.last_mut().unwrap();
+
+        Ok(ItemFnMut {
+            docs: &mut last.docs,
+            #[cfg(feature = "doc")]
+            is_async: &mut last.is_async,
+            #[cfg(feature = "doc")]
+            args: &mut last.args,
+            #[cfg(feature = "doc")]
+            return_type: &mut last.return_type,
+            #[cfg(feature = "doc")]
+            argument_types: &mut last.argument_types,
+        })
     }
 }
 
