@@ -2,6 +2,7 @@ use core::cmp;
 use core::fmt;
 use core::ops;
 use core::slice;
+use core::slice::SliceIndex;
 
 use crate::no_std::prelude::*;
 use crate::no_std::vec;
@@ -37,7 +38,17 @@ pub struct Vec {
 }
 
 impl Vec {
-    /// Construct a new empty dynamic vector.
+    /// Constructs a new, empty dynamic `Vec`.
+    ///
+    /// The vector will not allocate until elements are pushed onto it.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::runtime::Vec;
+    ///
+    /// let mut vec = Vec::new();
+    /// ```
     pub const fn new() -> Self {
         Self {
             inner: vec::Vec::new(),
@@ -65,7 +76,19 @@ impl Vec {
         self.inner
     }
 
-    /// Returns `true` if the dynamic vector contains no elements.
+    /// Returns `true` if the vector contains no elements.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::runtime::{Value, Vec};
+    ///
+    /// let mut v = Vec::new();
+    /// assert!(v.is_empty());
+    ///
+    /// v.push(Value::Integer(1));
+    /// assert!(!v.is_empty());
+    /// ```
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }
@@ -76,17 +99,23 @@ impl Vec {
         self.inner.len()
     }
 
+    /// Returns the number of elements in the dynamic vector, also referred to
+    /// as its 'length'.
+    pub fn capacity(&self) -> usize {
+        self.inner.capacity()
+    }
+
     /// Set by index
     pub fn set(&mut self, index: usize, value: Value) -> VmResult<()> {
-        if index >= self.len() {
-            VmResult::err(VmErrorKind::OutOfRange {
+        let Some(v) = self.inner.get_mut(index) else {
+            return VmResult::err(VmErrorKind::OutOfRange {
                 index: index.into(),
                 length: self.len().into(),
-            })
-        } else {
-            self.inner[index] = value;
-            VmResult::Ok(())
-        }
+            });
+        };
+
+        *v = value;
+        VmResult::Ok(())
     }
 
     /// Appends an element to the back of a dynamic vector.
@@ -105,7 +134,10 @@ impl Vec {
     }
 
     /// Get the value at the given index.
-    pub fn get(&self, index: usize) -> Option<&Value> {
+    pub fn get<I>(&self, index: I) -> Option<&I::Output>
+    where
+        I: SliceIndex<[Value]>,
+    {
         self.inner.get(index)
     }
 

@@ -332,19 +332,19 @@ impl TestCase {
     }
 
     fn emit(self, io: &mut Io<'_>, colors: &Colors) -> Result<()> {
-        write!(io.stdout, "test {}: ", self.item)?;
+        write!(io.stdout, "Test {}: ", self.item)?;
 
         match &self.outcome {
             Outcome::Panic(error) => {
                 io.stdout.set_color(&colors.error)?;
-                writeln!(io.stdout, "Panicked")?;
+                writeln!(io.stdout, "panicked")?;
                 io.stdout.reset()?;
 
                 error.emit(io.stdout, &self.sources)?;
             }
             Outcome::ExpectedPanic => {
                 io.stdout.set_color(&colors.error)?;
-                writeln!(io.stdout, "Expected panic because of `should_panic`, but ran without issue")?;
+                writeln!(io.stdout, "expected panic because of `should_panic`, but ran without issue")?;
                 io.stdout.reset()?;
             }
             Outcome::Err(error) => {
