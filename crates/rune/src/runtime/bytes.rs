@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::compile::Named;
 use crate::module::InstallWith;
-use crate::runtime::{RawRef, RawStr, Ref, UnsafeFromValue, UnsafeToRef, Value, VmResult};
+use crate::runtime::{RawRef, RawStr, Ref, UnsafeToRef, Value, VmResult};
 
 /// A vector of bytes.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
@@ -276,24 +276,6 @@ impl UnsafeToRef for [u8] {
         // Safety: we're holding onto the guard for the slice here, so it is
         // live.
         VmResult::Ok(((*value).bytes.as_slice(), guard))
-    }
-}
-
-impl UnsafeFromValue for &[u8] {
-    type Output = *const [u8];
-    type Guard = RawRef;
-
-    fn unsafe_from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
-        let bytes = vm_try!(value.into_bytes());
-        let bytes = vm_try!(bytes.into_ref());
-        let (value, guard) = Ref::into_raw(bytes);
-        // Safety: we're holding onto the guard for the slice here, so it is
-        // live.
-        VmResult::Ok((unsafe { (*value).bytes.as_slice() }, guard))
-    }
-
-    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
-        &*output
     }
 }
 

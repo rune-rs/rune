@@ -17,7 +17,7 @@ types to support external types through a C ffi.
 [internal `Any` type]: https://docs.rs/rune/0/rune/runtime/struct.AnyObj.html
 [`AnyObjVtable`]: https://docs.rs/rune/0/rune/runtime/struct.AnyObjVtable.html
 
-## `Shared<T>` and `UnsafeFromValue`
+## `Shared<T>` and `UnsafeToRef` / `UnsafeToMut`
 
 A large chunk of the `Shared<T>` container is `unsafe`. This is a container
 which is behaviorally equivalent to `Rc<RefCell<T>>`.
@@ -25,10 +25,12 @@ which is behaviorally equivalent to `Rc<RefCell<T>>`.
 We have this because it merges `Rc` and `RefCell` and provides the ability to
 have ["owned borrows"] and the ability to unsafely decompose these into a raw
 pointer and a raw guard, which is used in many implementations of
-[`UnsafeFromValue`].
+[`UnsafeToRef`] or [`UnsafeToMut`].
 
-[`UnsafeFromValue`] is a conversion trait which is strictly used internally to
-convert values into references. Its safety is documented in the trait.
+[`UnsafeToRef`] and [`UnsafeToMut`] are conversion traits which are strictly
+used internally to convert values into references. Its safety is documented in
+the trait.
 
 ["owned borrows"]: https://docs.rs/rune/0/rune/runtime/struct.Shared.html#method.into_ref
-[`UnsafeFromValue`]: https://docs.rs/rune/0/rune/runtime/trait.UnsafeFromValue.html
+[`UnsafeToRef`]: https://docs.rs/rune/0/rune/runtime/trait.UnsafeToRef.html
+[`UnsafeToMut`]: https://docs.rs/rune/0/rune/runtime/trait.UnsafeToMut.html

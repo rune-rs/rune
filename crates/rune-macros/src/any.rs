@@ -500,7 +500,6 @@ where
         type_of,
         maybe_type_of,
         full_type_of,
-        unsafe_from_value,
         unsafe_to_value,
         unsafe_to_ref,
         unsafe_to_mut,
@@ -620,35 +619,6 @@ where
                 };
 
                 #vm_result::Ok((&mut *value, guard))
-            }
-        }
-
-        #[automatically_derived]
-        impl #impl_generics #unsafe_from_value for &#ident #type_generics #where_clause {
-            type Output = *const #ident #type_generics;
-            type Guard = #raw_into_ref;
-
-            #[inline]
-            fn unsafe_from_value(value: #value) -> #vm_result<(Self::Output, Self::Guard)> {
-                value.into_any_ptr()
-            }
-
-            unsafe fn unsafe_coerce(output: Self::Output) -> Self {
-                &*output
-            }
-        }
-
-        #[automatically_derived]
-        impl #impl_generics #unsafe_from_value for &mut #ident #type_generics #where_clause {
-            type Output = *mut #ident  #type_generics;
-            type Guard = #raw_into_mut;
-
-            fn unsafe_from_value(value: #value) -> #vm_result<(Self::Output, Self::Guard)> {
-                value.into_any_mut()
-            }
-
-            unsafe fn unsafe_coerce(output: Self::Output) -> Self {
-                &mut *output
             }
         }
 
