@@ -275,7 +275,7 @@ impl UnsafeToRef for [u8] {
         let (value, guard) = Ref::into_raw(bytes);
         // Safety: we're holding onto the guard for the slice here, so it is
         // live.
-        VmResult::Ok((&*(*value).bytes.as_slice(), guard))
+        VmResult::Ok(((*value).bytes.as_slice(), guard))
     }
 }
 
