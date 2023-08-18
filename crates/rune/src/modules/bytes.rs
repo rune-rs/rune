@@ -15,6 +15,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(with_capacity)?;
     module.function_meta(from_vec)?;
     module.function_meta(into_vec)?;
+    module.function_meta(as_vec)?;
     module.function_meta(extend)?;
     module.function_meta(extend_str)?;
     module.function_meta(pop)?;
@@ -81,12 +82,30 @@ pub fn from_vec(bytes: Vec<u8>) -> Bytes {
 ///
 /// ```rune
 /// let bytes = b"abcd";
-/// assert_eq!(bytes.into_vec(), [b'a', b'b', b'c', b'd']);
+/// assert_eq!([b'a', b'b', b'c', b'd'], bytes.into_vec());
+///
+/// assert!(!is_readable(bytes));
 /// ```
-#[rune::function(instance, path = Bytes::into_vec)]
+#[rune::function(instance)]
 #[inline]
 pub fn into_vec(bytes: Bytes) -> Vec<u8> {
     bytes.into_vec()
+}
+
+/// Convert the byte array into a vector of bytes without consuming it.
+///
+/// # Examples
+///
+/// ```rune
+/// let bytes = b"abcd";
+/// assert_eq!([b'a', b'b', b'c', b'd'], bytes.as_vec());
+///
+/// assert!(is_readable(bytes));
+/// ```
+#[rune::function(instance)]
+#[inline]
+pub fn as_vec(bytes: &Bytes) -> Vec<u8> {
+    bytes.as_slice().to_vec()
 }
 
 /// Extend these bytes with another collection of bytes.

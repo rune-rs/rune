@@ -72,6 +72,21 @@ impl Bytes {
         self.bytes
     }
 
+    /// Access bytes as a slice.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::runtime::Bytes;
+    ///
+    /// let bytes = Bytes::from_vec(vec![b'a', b'b', b'c', b'd']);
+    /// assert_eq!(bytes.as_slice(), &[b'a', b'b', b'c', b'd']);
+    /// ```
+    #[inline]
+    pub fn as_slice(&self) -> &[u8] {
+        &self.bytes
+    }
+
     /// Convert a slice into bytes.
     ///
     /// Calling this function allocates bytes internally.
@@ -275,7 +290,7 @@ impl UnsafeToRef for [u8] {
         let (value, guard) = Ref::into_raw(bytes);
         // Safety: we're holding onto the guard for the slice here, so it is
         // live.
-        VmResult::Ok(((*value).bytes.as_slice(), guard))
+        VmResult::Ok(((*value).as_slice(), guard))
     }
 }
 

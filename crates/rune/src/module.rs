@@ -15,8 +15,8 @@ use crate::no_std::sync::Arc;
 
 use crate::compile::{meta, ContextError, Docs, IntoComponent, Item, ItemBuf};
 use crate::runtime::{
-    AttributeMacroHandler, ConstValue, FullTypeOf, FunctionHandler, MacroHandler, StaticType,
-    TypeCheck, TypeInfo, TypeOf,
+    AttributeMacroHandler, ConstValue, FullTypeOf, FunctionHandler, MacroHandler, MaybeTypeOf,
+    StaticType, TypeCheck, TypeInfo, TypeOf,
 };
 use crate::Hash;
 
@@ -248,17 +248,6 @@ pub(crate) struct ModuleConstant {
 
 /// Handle to a an item inserted into a module which allows for mutation of item
 /// metadata.
-///
-/// This is returned by methods which insert meta items, such as:
-/// * [`Module::raw_fn`].
-/// * [`Module::function`].
-/// * [`Module::associated_function`].
-///
-/// While this is also returned by `*_meta` inserting functions, it is instead
-/// recommended that you make use of the appropriate macro to capture doc
-/// comments instead:
-/// * [`Module::macro_meta`].
-/// * [`Module::function_meta`].
 pub struct ItemMut<'a> {
     docs: &'a mut Docs,
 }
@@ -278,6 +267,95 @@ impl ItemMut<'_> {
 }
 
 impl fmt::Debug for ItemMut<'_> {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ItemMut").finish_non_exhaustive()
+    }
+}
+
+/// Handle to a an item inserted into a module which allows for mutation of item
+/// metadata.
+///
+/// This is returned by methods which insert meta items, such as:
+/// * [`Module::raw_fn`].
+/// * [`Module::function`].
+/// * [`Module::associated_function`].
+///
+/// While this is also returned by `*_meta` inserting functions, it is instead
+/// recommended that you make use of the appropriate macro to capture doc
+/// comments instead:
+/// * [`Module::macro_meta`].
+/// * [`Module::function_meta`].
+pub struct ItemFnMut<'a> {
+    docs: &'a mut Docs,
+    #[cfg(feature = "doc")]
+    is_async: &'a mut bool,
+    #[cfg(feature = "doc")]
+    args: &'a mut Option<usize>,
+    #[cfg(feature = "doc")]
+    return_type: &'a mut Option<FullTypeOf>,
+    #[cfg(feature = "doc")]
+    argument_types: &'a mut Box<[Option<FullTypeOf>]>,
+}
+
+impl ItemFnMut<'_> {
+    /// Set documentation for an inserted item.
+    ///
+    /// This completely replaces any existing documentation.
+    pub fn docs<I>(self, docs: I) -> Self
+    where
+        I: IntoIterator,
+        I::Item: AsRef<str>,
+    {
+        self.docs.set_docs(docs);
+        self
+    }
+
+    /// Mark the given item as an async function.
+    pub fn is_async(self, is_async: bool) -> Self {
+        #[cfg(feature = "doc")]
+        {
+            *self.is_async = is_async;
+        }
+
+        self
+    }
+
+    /// Indicate the number of arguments this function accepts.
+    pub fn args(self, args: usize) -> Self {
+        #[cfg(feature = "doc")]
+        {
+            *self.args = Some(args);
+        }
+
+        self
+    }
+
+    /// Set the kind of return type.
+    pub fn return_type<T>(self) -> Self
+    where
+        T: MaybeTypeOf,
+    {
+        #[cfg(feature = "doc")]
+        {
+            *self.return_type = T::maybe_type_of();
+        }
+
+        self
+    }
+
+    /// Set argument types.
+    pub fn argument_types<const N: usize>(self, arguments: [Option<FullTypeOf>; N]) -> Self {
+        #[cfg(feature = "doc")]
+        {
+            *self.argument_types = Box::from(arguments.into_iter().collect::<Vec<_>>());
+        }
+
+        self
+    }
+}
+
+impl fmt::Debug for ItemFnMut<'_> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ItemMut").finish_non_exhaustive()

@@ -37,7 +37,12 @@ pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", ["test"]).with_unique("std::test");
     module.macro_meta(assert)?;
     module.macro_meta(assert_eq)?;
-    module.ty::<Bencher>()?;
+    module.macro_meta(assert_ne)?;
+    module.ty::<Bencher>()?.docs([
+        "A type to perform benchmarks.",
+        "",
+        "This is the type of the argument to any function which is annotated with `#[bench]`",
+    ]);
     module.function_meta(Bencher::iter)?;
     Ok(module)
 }
@@ -141,6 +146,68 @@ pub(crate) fn assert_eq(
             let right = #right;
 
             if !(left == right) {
+                let message = String::from_str(#message);
+                message += format!("\nleft: {:?}", left);
+                message += format!("\nright: {:?}", right);
+                panic(message);
+            }
+        }}
+    };
+
+    Ok(output.into_token_stream(cx))
+}
+
+/// Assert that the two arguments provided are not equal, or cause a vm panic.
+///
+/// The third argument can optionally be used to format a panic message.
+///
+/// # Examples
+///
+/// ```rune
+/// let value = 42;
+///
+/// assert_ne!(value, 10, "Value was 10");
+/// ```
+#[rune::macro_]
+pub(crate) fn assert_ne(
+    cx: &mut MacroContext<'_, '_, '_>,
+    stream: &TokenStream,
+) -> compile::Result<TokenStream> {
+    use crate as rune;
+
+    let mut p = Parser::from_token_stream(stream, cx.input_span());
+    let left = p.parse::<ast::Expr>()?;
+    p.parse::<T![,]>()?;
+    let right = p.parse::<ast::Expr>()?;
+
+    let message = if p.parse::<Option<T![,]>>()?.is_some() {
+        p.parse_all::<Option<FormatArgs>>()?
+    } else {
+        None
+    };
+
+    let output = if let Some(message) = &message {
+        let message = message.expand(cx)?;
+
+        quote! {{
+            let left = #left;
+            let right = #right;
+
+            if !(left != right) {
+                let message = #message;
+                message += format!("\nleft: {:?}", left);
+                message += format!("\nright: {:?}", right);
+                panic("assertion failed (left != right): " + message);
+            }
+        }}
+    } else {
+        let message = cx.lit("assertion failed (left != right):");
+
+        quote! {{
+            let left = #left;
+            let right = #right;
+
+            if !(left != right) {
                 let message = String::from_str(#message);
                 message += format!("\nleft: {:?}", left);
                 message += format!("\nright: {:?}", right);

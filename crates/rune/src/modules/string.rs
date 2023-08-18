@@ -1,8 +1,11 @@
 //! The `std::string` module.
 
 use core::char;
+use core::cmp::Ordering;
 use core::fmt::{self, Write};
 use core::num;
+
+use alloc::string::FromUtf8Error;
 
 use crate::no_std::prelude::*;
 
@@ -16,41 +19,41 @@ pub fn module() -> Result<Module, ContextError> {
 
     module.ty::<String>()?;
 
-    module.function(["String", "from_str"], |s: &str| {
-        <String as From<&str>>::from(s)
-    })?;
-    module.function(["String", "new"], String::new)?;
-    module.function(["String", "with_capacity"], String::with_capacity)?;
-
-    module.associated_function("cmp", str::cmp)?;
-    module.associated_function("len", String::len)?;
-    module.associated_function("starts_with", |a: &str, b: &str| a.starts_with(b))?;
-    module.associated_function("ends_with", |a: &str, b: &str| a.ends_with(b))?;
-    module.associated_function("capacity", String::capacity)?;
-    module.associated_function("clear", String::clear)?;
-    module.associated_function("contains", |a: &str, b: &str| a.contains(b))?;
-    module.associated_function("push", String::push)?;
-    module.associated_function("push_str", String::push_str)?;
-    module.associated_function("reserve", String::reserve)?;
-    module.associated_function("reserve_exact", String::reserve_exact)?;
-    module.associated_function("into_bytes", into_bytes)?;
-    module.associated_function("clone", String::clone)?;
-    module.associated_function("shrink_to_fit", String::shrink_to_fit)?;
-    module.associated_function("char_at", char_at)?;
+    module.function_meta(string_from_str)?;
+    module.function_meta(string_new)?;
+    module.function_meta(string_with_capacity)?;
+    module.function_meta(cmp)?;
+    module.function_meta(len)?;
+    module.function_meta(starts_with)?;
+    module.function_meta(ends_with)?;
+    module.function_meta(capacity)?;
+    module.function_meta(clear)?;
+    module.function_meta(contains)?;
+    module.function_meta(push)?;
+    module.function_meta(push_str)?;
+    module.function_meta(reserve)?;
+    module.function_meta(reserve_exact)?;
+    module.function_meta(from_utf8)?;
+    module.function_meta(as_bytes)?;
+    module.function_meta(into_bytes)?;
+    module.function_meta(clone)?;
+    module.function_meta(shrink_to_fit)?;
+    module.function_meta(char_at)?;
     module.function_meta(split)?;
+    // TODO: deprecate this variant.
+    module.associated_function("split_str", __rune_fn__split)?;
     module.function_meta(trim)?;
     module.function_meta(trim_end)?;
     module.function_meta(replace)?;
-    // TODO: deprecate this variant.
-    module.associated_function("split_str", __rune_fn__split)?;
-    module.associated_function("is_empty", str::is_empty)?;
+    module.function_meta(is_empty)?;
     module.function_meta(chars)?;
-    module.associated_function(Protocol::ADD, add)?;
-    module.associated_function(Protocol::ADD_ASSIGN, String::push_str)?;
-    module.associated_function(Protocol::INDEX_GET, string_index_get)?;
     module.function_meta(get)?;
     module.function_meta(parse_int)?;
     module.function_meta(parse_char)?;
+
+    module.associated_function(Protocol::ADD, add)?;
+    module.associated_function(Protocol::ADD_ASSIGN, String::push_str)?;
+    module.associated_function(Protocol::INDEX_GET, string_index_get)?;
     Ok(module)
 }
 
@@ -69,17 +72,548 @@ impl NotCharBoundary {
     }
 }
 
-/// into_bytes shim for strings.
+/// Converts a vector of bytes to a `String`.
+///
+/// A string ([`String`]) is made of bytes ([`u8`]), and a vector of bytes
+/// ([`Vec<u8>`]) is made of bytes, so this function converts between the two.
+/// Not all byte slices are valid `String`s, however: `String` requires that it
+/// is valid UTF-8. `from_utf8()` checks to ensure that the bytes are valid
+/// UTF-8, and then does the conversion.
+///
+/// If you are sure that the byte slice is valid UTF-8, and you don't want to
+/// incur the overhead of the validity check, there is an unsafe version of this
+/// function, [`from_utf8_unchecked`], which has the same behavior but skips the
+/// check.
+///
+/// The inverse of this method is [`into_bytes`].
+///
+/// # Errors
+///
+/// Returns [`Err`] if the slice is not UTF-8 with a description as to why the
+/// provided bytes are not UTF-8. The vector you moved in is also included.
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```rune
+/// // some bytes, in a vector
+/// let sparkle_heart = Bytes::from_vec([240u8, 159u8, 146u8, 150u8]);
+///
+/// // We know these bytes are valid, so we'll use `unwrap()`.
+/// let sparkle_heart = String::from_utf8(sparkle_heart).unwrap();
+///
+/// assert_eq!("💖", sparkle_heart);
+/// ```
+///
+/// Incorrect bytes:
+///
+/// ```rune
+/// // some invalid bytes, in a vector
+/// let sparkle_heart = Bytes::from_vec([0u8, 159u8, 146u8, 150u8]);
+///
+/// assert!(String::from_utf8(sparkle_heart).is_err());
+/// ```
+///
+/// See the docs for [`FromUtf8Error`] for more details on what you can do with
+/// this error.
+///
+/// [`from_utf8_unchecked`]: String::from_utf8_unchecked
+/// [`Vec<u8>`]: crate::vec::Vec "Vec"
+/// [`&str`]: prim@str "&str"
+/// [`into_bytes`]: String::into_bytes
+#[rune::function(path = String::from_utf8)]
+fn from_utf8(bytes: &[u8]) -> Result<String, FromUtf8Error> {
+    String::from_utf8(bytes.to_vec())
+}
+
+/// Returns a byte slice of this `String`'s contents.
+///
+/// The inverse of this method is [`from_utf8`].
+///
+/// [`from_utf8`]: String::from_utf8
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```rune
+/// let s = String::from_str("hello");
+///
+/// assert_eq!(b"hello", s.as_bytes());
+/// assert!(is_readable(s));
+/// ```
+#[rune::function(instance)]
+fn as_bytes(s: &str) -> Bytes {
+    Bytes::from_vec(s.as_bytes().to_vec())
+}
+
+/// Constructs a string from another string.
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```rune
+/// let s = String::from_str("hello");
+/// assert_eq!(s, "hello");
+/// ```
+#[rune::function(path = String::from_str)]
+fn string_from_str(s: &str) -> String {
+    String::from(s)
+}
+
+/// Creates a new empty `String`.
+///
+/// Given that the `String` is empty, this will not allocate any initial buffer.
+/// While that means that this initial operation is very inexpensive, it may
+/// cause excessive allocation later when you add data. If you have an idea of
+/// how much data the `String` will hold, consider the [`with_capacity`] method
+/// to prevent excessive re-allocation.
+///
+/// [`with_capacity`]: String::with_capacity
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```
+/// let s = String::new();
+/// ```
+#[rune::function(path = String::new)]
+fn string_new() -> String {
+    String::new()
+}
+
+/// Creates a new empty `String` with at least the specified capacity.
+///
+/// `String`s have an internal buffer to hold their data. The capacity is the
+/// length of that buffer, and can be queried with the [`capacity`] method. This
+/// method creates an empty `String`, but one with an initial buffer that can
+/// hold at least `capacity` bytes. This is useful when you may be appending a
+/// bunch of data to the `String`, reducing the number of reallocations it needs
+/// to do.
+///
+/// [`capacity`]: String::capacity
+///
+/// If the given capacity is `0`, no allocation will occur, and this method is
+/// identical to the [`new`] method.
+///
+/// [`new`]: String::new
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```rune
+/// let s = String::with_capacity(10);
+///
+/// // The String contains no chars, even though it has capacity for more
+/// assert_eq!(s.len(), 0);
+///
+/// // These are all done without reallocating...
+/// let cap = s.capacity();
+///
+/// for _ in 0..10 {
+///     s.push('a');
+/// }
+///
+/// assert_eq!(s.capacity(), cap);
+///
+/// // ...but this may make the string reallocate
+/// s.push('a');
+/// ```
+#[rune::function(path = String::with_capacity)]
+fn string_with_capacity(capacity: usize) -> String {
+    String::with_capacity(capacity)
+}
+
+#[rune::function(instance)]
+fn cmp(lhs: &str, rhs: &str) -> Ordering {
+    lhs.cmp(rhs)
+}
+
+/// Returns the length of `self`.
+///
+/// This length is in bytes, not [`char`]s or graphemes. In other words, it
+/// might not be what a human considers the length of the string.
+///
+/// [`char`]: prim@char
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```rune
+/// let len = "foo".len();
+/// assert_eq!(3, len);
+///
+/// assert_eq!("ƒoo".len(), 4); // fancy f!
+/// assert_eq!("ƒoo".chars().count(), 3);
+/// ```
+#[rune::function(instance)]
+fn len(this: &str) -> usize {
+    this.len()
+}
+
+/// Returns `true` if the given pattern matches a prefix of this string slice.
+///
+/// Returns `false` if it does not.
+///
+/// The [pattern] can be a `&str`, [`char`], a slice of [`char`]s, or a function
+/// or closure that determines if a character matches.
+///
+/// [`char`]: prim@char
+/// [pattern]: self::pattern
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```rune
+/// let bananas = "bananas";
+///
+/// assert!(bananas.starts_with("bana"));
+/// assert!(!bananas.starts_with("nana"));
+/// ```
+#[rune::function(instance)]
+fn starts_with(this: &str, other: &str) -> bool {
+    this.starts_with(other)
+}
+
+/// Returns `true` if the given pattern matches a suffix of this string slice.
+///
+/// Returns `false` if it does not.
+///
+/// The [pattern] can be a `&str`, [`char`], a slice of [`char`]s, or a function
+/// or closure that determines if a character matches.
+///
+/// [`char`]: prim@char
+/// [pattern]: self::pattern
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```rune
+/// let bananas = "bananas";
+///
+/// assert!(bananas.ends_with("anas"));
+/// assert!(!bananas.ends_with("nana"));
+/// ```
+#[rune::function(instance)]
+fn ends_with(this: &str, other: &str) -> bool {
+    this.ends_with(other)
+}
+
+/// Returns this `String`'s capacity, in bytes.
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```rune
+/// let s = String::with_capacity(10);
+///
+/// assert!(s.capacity() >= 10);
+/// ```
+#[rune::function(instance)]
+fn capacity(this: &String) -> usize {
+    this.capacity()
+}
+
+/// Truncates this `String`, removing all contents.
+///
+/// While this means the `String` will have a length of zero, it does not touch
+/// its capacity.
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```rune
+/// let s = String::from_str("foo");
+///
+/// s.clear();
+///
+/// assert!(s.is_empty());
+/// assert_eq!(0, s.len());
+/// assert_eq!(3, s.capacity());
+/// ```
+#[rune::function(instance)]
+fn clear(this: &mut String) {
+    this.clear();
+}
+
+/// Returns `true` if the given pattern matches a sub-slice of this string
+/// slice.
+///
+/// Returns `false` if it does not.
+///
+/// The [pattern] can be a `String`, [`char`], or a function or closure that
+/// determines if a character matches.
+///
+/// [`char`]: prim@char
+/// [pattern]: self::pattern
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```
+/// let bananas = "bananas";
+///
+/// assert!(bananas.contains("nana"));
+/// assert!(!bananas.contains("apples"));
+/// ```
+#[rune::function(instance)]
+fn contains(this: &str, other: &str) -> bool {
+    this.contains(other)
+}
+
+/// Appends the given [`char`] to the end of this `String`.
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```rune
+/// let s = String::from_str("abc");
+///
+/// s.push('1');
+/// s.push('2');
+/// s.push('3');
+///
+/// assert_eq!("abc123", s);
+/// ```
+#[rune::function(instance)]
+fn push(this: &mut String, c: char) {
+    this.push(c);
+}
+
+/// Appends a given string slice onto the end of this `String`.
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```rune
+/// let s = String::from_str("foo");
+///
+/// s.push_str("bar");
+///
+/// assert_eq!("foobar", s);
+/// ```
+#[rune::function(instance)]
+fn push_str(this: &mut String, other: &str) {
+    this.push_str(other);
+}
+
+/// Reserves capacity for at least `additional` bytes more than the current
+/// length. The allocator may reserve more space to speculatively avoid frequent
+/// allocations. After calling `reserve`, capacity will be greater than or equal
+/// to `self.len() + additional`. Does nothing if capacity is already
+/// sufficient.
+///
+/// # Panics
+///
+/// Panics if the new capacity overflows [`usize`].
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```rune
+/// let s = String::new();
+///
+/// s.reserve(10);
+///
+/// assert!(s.capacity() >= 10);
+/// ```
+///
+/// This might not actually increase the capacity:
+///
+/// ```rune
+/// let s = String::with_capacity(10);
+/// s.push('a');
+/// s.push('b');
+///
+/// // s now has a length of 2 and a capacity of at least 10
+/// let capacity = s.capacity();
+/// assert_eq!(2, s.len());
+/// assert!(capacity >= 10);
+///
+/// // Since we already have at least an extra 8 capacity, calling this...
+/// s.reserve(8);
+///
+/// // ... doesn't actually increase.
+/// assert_eq!(capacity, s.capacity());
+/// ```
+#[rune::function(instance)]
+fn reserve(this: &mut String, additional: usize) {
+    this.reserve(additional);
+}
+
+/// Reserves the minimum capacity for at least `additional` bytes more than the
+/// current length. Unlike [`reserve`], this will not deliberately over-allocate
+/// to speculatively avoid frequent allocations. After calling `reserve_exact`,
+/// capacity will be greater than or equal to `self.len() + additional`. Does
+/// nothing if the capacity is already sufficient.
+///
+/// [`reserve`]: String::reserve
+///
+/// # Panics
+///
+/// Panics if the new capacity overflows [`usize`].
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```rune
+/// let s = String::new();
+///
+/// s.reserve_exact(10);
+///
+/// assert!(s.capacity() >= 10);
+/// ```
+///
+/// This might not actually increase the capacity:
+///
+/// ```rune
+/// let s = String::with_capacity(10);
+/// s.push('a');
+/// s.push('b');
+///
+/// // s now has a length of 2 and a capacity of at least 10
+/// let capacity = s.capacity();
+/// assert_eq!(2, s.len());
+/// assert!(capacity >= 10);
+///
+/// // Since we already have at least an extra 8 capacity, calling this...
+/// s.reserve_exact(8);
+///
+/// // ... doesn't actually increase.
+/// assert_eq!(capacity, s.capacity());
+/// ```
+#[rune::function(instance)]
+fn reserve_exact(this: &mut String, additional: usize) {
+    this.reserve_exact(additional);
+}
+
+/// Returns a byte slice of this `String`'s contents while moving the string.
+///
+/// The inverse of this method is [`from_utf8`].
+///
+/// [`from_utf8`]: String::from_utf8
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```rune
+/// let s = String::from_str("hello");
+///
+/// assert_eq!(b"hello", s.into_bytes());
+/// assert!(!is_readable(s));
+/// ```
+#[rune::function(instance)]
 fn into_bytes(s: String) -> Bytes {
     Bytes::from_vec(s.into_bytes())
 }
 
+/// Checks that `index`-th byte is the first byte in a UTF-8 code point sequence
+/// or the end of the string.
+///
+/// The start and end of the string (when `index == self.len()`) are considered
+/// to be boundaries.
+///
+/// Returns `false` if `index` is greater than `self.len()`.
+///
+/// # Examples
+///
+/// ```rune
+/// let s = "Löwe 老虎 Léopard";
+/// assert!(s.is_char_boundary(0));
+/// // start of `老`
+/// assert!(s.is_char_boundary(6));
+/// assert!(s.is_char_boundary(s.len()));
+///
+/// // second byte of `ö`
+/// assert!(!s.is_char_boundary(2));
+///
+/// // third byte of `老`
+/// assert!(!s.is_char_boundary(8));
+/// ```
+#[rune::function(instance)]
+fn is_char_boundary(s: &str, index: usize) -> bool {
+    s.is_char_boundary(index)
+}
+
+/// Access the character at the given byte index.
+///
+/// Returns `None` if the index is out of bounds or not a character boundary.
+///
+/// # Examples
+///
+/// ```rune
+/// let s = "おはよう";
+/// assert_eq!(s.char_at(0), Some('お'));
+/// assert_eq!(s.char_at(1), None);
+/// assert_eq!(s.char_at(2), None);
+/// assert_eq!(s.char_at(3), Some('は'));
+/// ```
+#[rune::function(instance)]
 fn char_at(s: &str, index: usize) -> Option<char> {
     if !s.is_char_boundary(index) {
         return None;
     }
 
     s[index..].chars().next()
+}
+
+/// Clones the string and its underlying storage.
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```rune
+/// let a = String::from_str("h");
+/// let b = a;
+/// b.push('i');
+///
+/// // `a` and `b` refer to the same underlying string.
+/// assert_eq!(a, b);
+///
+/// let c = b.clone();
+/// c.push('!');
+/// assert_ne!(a, c);
+/// ```
+#[rune::function(instance)]
+#[allow(clippy::ptr_arg)]
+fn clone(s: &String) -> String {
+    s.clone()
+}
+
+/// Shrinks the capacity of this `String` to match its length.
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```rune
+/// let s = String::from_str("foo");
+///
+/// s.reserve(100);
+/// assert!(s.capacity() >= 100);
+///
+/// s.shrink_to_fit();
+/// assert_eq!(3, s.capacity());
+/// ```
+#[rune::function(instance)]
+fn shrink_to_fit(s: &mut String) {
+    s.shrink_to_fit();
 }
 
 /// An iterator over substrings of this string slice, separated by
@@ -294,6 +828,24 @@ fn add(a: &str, b: &str) -> String {
     string
 }
 
+/// Returns `true` if `self` has a length of zero bytes.
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```rune
+/// let s = "";
+/// assert!(s.is_empty());
+///
+/// let s = "not empty";
+/// assert!(!s.is_empty());
+/// ```
+#[rune::function(instance)]
+fn is_empty(this: &str) -> bool {
+    this.is_empty()
+}
+
 /// Replaces all matches of a pattern with another string.
 ///
 /// `replace` creates a new [`String`], and copies the data from this string
@@ -482,3 +1034,5 @@ fn parse_int(s: &str) -> Result<i64, num::ParseIntError> {
 fn parse_char(s: &str) -> Result<char, char::ParseCharError> {
     str::parse::<char>(s)
 }
+
+crate::__internal_impl_any!(::std::string, FromUtf8Error);
