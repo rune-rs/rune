@@ -317,7 +317,7 @@ impl Value {
     ///
     /// This function will panic if called outside of a virtual machine.
     pub fn string_display(&self, s: &mut String, buf: &mut String) -> VmResult<fmt::Result> {
-        self.string_display_with(s, buf, EnvProtocolCaller)
+        self.string_display_with(s, buf, &mut EnvProtocolCaller)
     }
 
     /// Internal impl of string_display with a customizable caller.
@@ -325,7 +325,7 @@ impl Value {
         &self,
         s: &mut String,
         buf: &mut String,
-        caller: impl ProtocolCaller,
+        caller: &mut impl ProtocolCaller,
     ) -> VmResult<fmt::Result> {
         match self {
             Value::Format(format) => {
@@ -382,14 +382,14 @@ impl Value {
     ///
     /// This function will panic if called outside of a virtual machine.
     pub fn string_debug(&self, s: &mut String) -> VmResult<fmt::Result> {
-        self.string_debug_with(s, EnvProtocolCaller)
+        self.string_debug_with(s, &mut EnvProtocolCaller)
     }
 
     /// Internal impl of string_debug with a customizable caller.
     pub(crate) fn string_debug_with(
         &self,
         s: &mut String,
-        caller: impl ProtocolCaller,
+        caller: &mut impl ProtocolCaller,
     ) -> VmResult<fmt::Result> {
         let result = match self {
             Value::Unit => {
@@ -1061,7 +1061,19 @@ impl Value {
     /// each other.
     ///
     /// This is the basis for the eq operation (`==`).
-    pub(crate) fn value_ptr_eq(vm: &mut Vm, a: &Value, b: &Value) -> VmResult<bool> {
+    pub(crate) fn eq(a: &Value, b: &Value) -> VmResult<bool> {
+        Value::eq_with(a, b, &mut EnvProtocolCaller)
+    }
+
+    /// Optimized function to test if two value pointers are deeply equal to
+    /// each other.
+    ///
+    /// This is the basis for the eq operation (`==`).
+    pub(crate) fn eq_with(
+        a: &Value,
+        b: &Value,
+        caller: &mut impl ProtocolCaller,
+    ) -> VmResult<bool> {
         match (a, b) {
             (Self::Unit, Self::Unit) => return VmResult::Ok(true),
             (Self::Bool(a), Self::Bool(b)) => return VmResult::Ok(a == b),
@@ -1078,22 +1090,22 @@ impl Value {
             (Self::Vec(a), Self::Vec(b)) => {
                 let a = vm_try!(a.borrow_ref());
                 let b = vm_try!(b.borrow_ref());
-                return Vec::value_ptr_eq(vm, &a, &b);
+                return Vec::eq_with(&a, &b, caller);
             }
             (Self::Tuple(a), Self::Tuple(b)) => {
                 let a = vm_try!(a.borrow_ref());
                 let b = vm_try!(b.borrow_ref());
-                return Tuple::value_ptr_eq(vm, &a, &b);
+                return Tuple::eq_with(&a, &b, caller);
             }
             (Self::Object(a), Self::Object(b)) => {
                 let a = vm_try!(a.borrow_ref());
                 let b = vm_try!(b.borrow_ref());
-                return Object::value_ptr_eq(vm, &a, &b);
+                return Object::eq_with(&a, &b, caller);
             }
             (Self::Range(a), Self::Range(b)) => {
                 let a = vm_try!(a.borrow_ref());
                 let b = vm_try!(b.borrow_ref());
-                return Range::value_ptr_eq(vm, &a, &b);
+                return Range::eq_with(&a, &b, caller);
             }
             (Self::UnitStruct(a), Self::UnitStruct(b)) => {
                 if vm_try!(a.borrow_ref()).rtti.hash == vm_try!(b.borrow_ref()).rtti.hash {
@@ -1110,7 +1122,7 @@ impl Value {
                 let b = vm_try!(b.borrow_ref());
 
                 if a.rtti.hash == b.rtti.hash {
-                    return Tuple::value_ptr_eq(vm, &a.data, &b.data);
+                    return Tuple::eq_with(&a.data, &b.data, caller);
                 }
             }
             (Self::Struct(a), Self::Struct(b)) => {
@@ -1118,7 +1130,7 @@ impl Value {
                 let b = vm_try!(b.borrow_ref());
 
                 if a.rtti.hash == b.rtti.hash {
-                    return Object::value_ptr_eq(vm, &a.data, &b.data);
+                    return Object::eq_with(&a.data, &b.data, caller);
                 }
             }
             (Self::Variant(a), Self::Variant(b)) => {
@@ -1126,7 +1138,7 @@ impl Value {
                 let b = vm_try!(b.borrow_ref());
 
                 if a.rtti().enum_hash == b.rtti().enum_hash {
-                    return Variant::value_ptr_eq(vm, &a, &b);
+                    return Variant::eq_with(&a, &b, caller);
                 }
             }
             (Self::String(a), Self::String(b)) => {
@@ -1146,22 +1158,24 @@ impl Value {
             }
             (Self::Option(a), Self::Option(b)) => {
                 match (&*vm_try!(a.borrow_ref()), &*vm_try!(b.borrow_ref())) {
-                    (Some(a), Some(b)) => return Self::value_ptr_eq(vm, a, b),
+                    (Some(a), Some(b)) => return Self::eq_with(a, b, caller),
                     (None, None) => return VmResult::Ok(true),
                     _ => return VmResult::Ok(false),
                 }
             }
             (Self::Result(a), Self::Result(b)) => {
                 match (&*vm_try!(a.borrow_ref()), &*vm_try!(b.borrow_ref())) {
-                    (Ok(a), Ok(b)) => return Self::value_ptr_eq(vm, a, b),
-                    (Err(a), Err(b)) => return Self::value_ptr_eq(vm, a, b),
+                    (Ok(a), Ok(b)) => return Self::eq_with(a, b, caller),
+                    (Err(a), Err(b)) => return Self::eq_with(a, b, caller),
                     _ => return VmResult::Ok(false),
                 }
             }
-            (a, b) => match vm_try!(vm.call_instance_fn(a.clone(), Protocol::EQ, (b.clone(),))) {
-                CallResult::Ok(()) => return bool::from_value(vm_try!(vm.stack_mut().pop())),
-                CallResult::Unsupported(..) => {}
-            },
+            (a, b) => {
+                match vm_try!(caller.try_call_protocol_fn(Protocol::EQ, a.clone(), (b.clone(),))) {
+                    CallResult::Ok(value) => return bool::from_value(value),
+                    CallResult::Unsupported(..) => {}
+                }
+            }
         }
 
         err(VmErrorKind::UnsupportedBinaryOperation {

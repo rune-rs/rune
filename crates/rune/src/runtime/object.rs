@@ -10,7 +10,7 @@ use crate::no_std::prelude::*;
 use crate as rune;
 use crate::compile::{ItemBuf, Named};
 use crate::module::InstallWith;
-use crate::runtime::{FromValue, Iterator, RawStr, ToValue, Value, Vm, VmResult};
+use crate::runtime::{FromValue, Iterator, ProtocolCaller, RawStr, ToValue, Value, VmResult};
 
 /// An owning iterator over the entries of a `Object`.
 ///
@@ -294,8 +294,8 @@ impl Object {
     }
 
     /// Value pointer equals implementation for an Object.
-    pub(crate) fn value_ptr_eq(vm: &mut Vm, a: &Self, b: &Self) -> VmResult<bool> {
-        map_ptr_eq(vm, &a.inner, &b.inner)
+    pub(crate) fn eq_with(a: &Self, b: &Self, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
+        map_ptr_eq(&a.inner, &b.inner, caller)
     }
 
     /// Debug implementation for a struct. This assumes that all fields
@@ -376,9 +376,9 @@ impl fmt::Display for DebugStruct<'_> {
 
 /// Helper function two compare two hashmaps of values.
 pub(crate) fn map_ptr_eq<K>(
-    vm: &mut Vm,
     a: &BTreeMap<K, Value>,
     b: &BTreeMap<K, Value>,
+    caller: &mut impl ProtocolCaller,
 ) -> VmResult<bool>
 where
     K: cmp::Eq + cmp::Ord,
@@ -394,7 +394,7 @@ where
             None => return VmResult::Ok(false),
         };
 
-        if !vm_try!(Value::value_ptr_eq(vm, a, b)) {
+        if !vm_try!(Value::eq_with(a, b, caller)) {
             return VmResult::Ok(false);
         }
     }

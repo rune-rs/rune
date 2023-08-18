@@ -5,7 +5,7 @@ use crate as rune;
 use crate::compile::Named;
 use crate::module::InstallWith;
 use crate::runtime::{
-    FromValue, Iterator, Panic, RawStr, ToValue, Value, Vm, VmErrorKind, VmResult,
+    FromValue, Iterator, Panic, ProtocolCaller, RawStr, ToValue, Value, VmErrorKind, VmResult,
 };
 
 /// Struct representing a dynamic anonymous object.
@@ -84,20 +84,20 @@ impl Range {
     }
 
     /// Value pointer equals implementation for a range.
-    pub(crate) fn value_ptr_eq(vm: &mut Vm, a: &Self, b: &Self) -> VmResult<bool> {
+    pub(crate) fn eq_with(a: &Self, b: &Self, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
         if a.limits != b.limits {
             return VmResult::Ok(false);
         }
 
         match (&a.start, &b.start) {
             (None, None) => (),
-            (Some(a), Some(b)) if vm_try!(Value::value_ptr_eq(vm, a, b)) => (),
+            (Some(a), Some(b)) if vm_try!(Value::eq_with(a, b, caller)) => (),
             _ => return VmResult::Ok(false),
         }
 
         match (&a.end, &b.end) {
             (None, None) => (),
-            (Some(a), Some(b)) if vm_try!(Value::value_ptr_eq(vm, a, b)) => (),
+            (Some(a), Some(b)) if vm_try!(Value::eq_with(a, b, caller)) => (),
             _ => return VmResult::Ok(false),
         }
 

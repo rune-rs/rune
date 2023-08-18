@@ -5,11 +5,32 @@ use crate::runtime::{
 use crate::Hash;
 
 /// Trait used for integrating an instance function call.
-pub(crate) trait ProtocolCaller {
+pub(crate) trait ProtocolCaller: Sized {
     /// Call the given protocol function.
-    fn call_protocol_fn<A>(self, protocol: Protocol, target: Value, args: A) -> VmResult<Value>
+    fn call_protocol_fn<A>(
+        &mut self,
+        protocol: Protocol,
+        target: Value,
+        args: A,
+    ) -> VmResult<Value>
     where
         A: GuardedArgs;
+
+    /// Call the given protocol function.
+    fn try_call_protocol_fn<A>(
+        &mut self,
+        protocol: Protocol,
+        target: Value,
+        args: A,
+    ) -> VmResult<CallResult<Value>>
+    where
+        A: GuardedArgs,
+        Self: Sized,
+    {
+        VmResult::Ok(CallResult::Ok(vm_try!(
+            self.call_protocol_fn(protocol, target, args)
+        )))
+    }
 }
 
 /// Use the global environment caller.
@@ -18,7 +39,7 @@ pub(crate) trait ProtocolCaller {
 pub(crate) struct EnvProtocolCaller;
 
 impl ProtocolCaller for EnvProtocolCaller {
-    fn call_protocol_fn<A>(self, protocol: Protocol, target: Value, args: A) -> VmResult<Value>
+    fn call_protocol_fn<A>(&mut self, protocol: Protocol, target: Value, args: A) -> VmResult<Value>
     where
         A: GuardedArgs,
     {
@@ -74,8 +95,8 @@ impl ProtocolCaller for EnvProtocolCaller {
     }
 }
 
-impl ProtocolCaller for &mut Vm {
-    fn call_protocol_fn<A>(self, protocol: Protocol, target: Value, args: A) -> VmResult<Value>
+impl ProtocolCaller for Vm {
+    fn call_protocol_fn<A>(&mut self, protocol: Protocol, target: Value, args: A) -> VmResult<Value>
     where
         A: GuardedArgs,
     {

@@ -200,7 +200,7 @@ impl FormatSpec {
         value: &Value,
         out: &mut String,
         buf: &mut String,
-        caller: impl ProtocolCaller,
+        caller: &mut impl ProtocolCaller,
     ) -> VmResult<()> {
         match value {
             Value::Char(c) => {
@@ -239,7 +239,7 @@ impl FormatSpec {
         value: &Value,
         out: &mut String,
         buf: &mut String,
-        caller: impl ProtocolCaller,
+        caller: &mut impl ProtocolCaller,
     ) -> VmResult<()> {
         match value {
             Value::String(s) => {
@@ -355,7 +355,7 @@ impl FormatSpec {
         value: &Value,
         out: &mut String,
         buf: &mut String,
-        caller: impl ProtocolCaller,
+        caller: &mut impl ProtocolCaller,
     ) -> VmResult<()> {
         match self.format_type {
             Type::Display => vm_try!(self.format_display(value, out, buf, caller)),

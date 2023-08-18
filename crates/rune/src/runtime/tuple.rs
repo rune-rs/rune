@@ -7,7 +7,8 @@ use crate::no_std::prelude::*;
 use crate::compile::Named;
 use crate::module::InstallWith;
 use crate::runtime::{
-    ConstValue, FromValue, Mut, RawStr, Ref, ToValue, Value, Vm, VmErrorKind, VmResult, TUPLE_TYPE,
+    ConstValue, FromValue, Mut, ProtocolCaller, RawStr, Ref, ToValue, Value, VmErrorKind, VmResult,
+    TUPLE_TYPE,
 };
 
 /// Struct representing a dynamic anonymous object.
@@ -64,13 +65,13 @@ impl Tuple {
     }
 
     /// Value pointer equals implementation for a Tuple.
-    pub(crate) fn value_ptr_eq(vm: &mut Vm, a: &Self, b: &Self) -> VmResult<bool> {
+    pub(crate) fn eq_with(a: &Self, b: &Self, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
         if a.len() != b.len() {
             return VmResult::Ok(false);
         }
 
         for (a, b) in a.iter().zip(b.iter()) {
-            if !vm_try!(Value::value_ptr_eq(vm, a, b)) {
+            if !vm_try!(Value::eq_with(a, b, caller)) {
                 return VmResult::Ok(false);
             }
         }

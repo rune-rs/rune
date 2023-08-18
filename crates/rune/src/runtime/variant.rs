@@ -1,7 +1,7 @@
 use core::fmt;
 
 use crate::no_std::sync::Arc;
-use crate::runtime::{Object, Tuple, TypeInfo, VariantRtti, Vm, VmResult};
+use crate::runtime::{Object, ProtocolCaller, Tuple, TypeInfo, VariantRtti, VmResult};
 
 /// The variant of a type.
 pub struct Variant {
@@ -55,7 +55,7 @@ impl Variant {
     }
 
     /// Perform a deep value comparison of two variants.
-    pub(crate) fn value_ptr_eq(vm: &mut Vm, a: &Self, b: &Self) -> VmResult<bool> {
+    pub(crate) fn eq_with(a: &Self, b: &Self, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
         debug_assert_eq!(
             a.rtti.enum_hash, b.rtti.enum_hash,
             "comparison only makes sense if enum hashes match"
@@ -67,8 +67,8 @@ impl Variant {
 
         match (&a.data, &b.data) {
             (VariantData::Unit, VariantData::Unit) => VmResult::Ok(true),
-            (VariantData::Tuple(a), VariantData::Tuple(b)) => Tuple::value_ptr_eq(vm, a, b),
-            (VariantData::Struct(a), VariantData::Struct(b)) => Object::value_ptr_eq(vm, a, b),
+            (VariantData::Tuple(a), VariantData::Tuple(b)) => Tuple::eq_with(a, b, caller),
+            (VariantData::Struct(a), VariantData::Struct(b)) => Object::eq_with(a, b, caller),
             _ => VmResult::Ok(false),
         }
     }
