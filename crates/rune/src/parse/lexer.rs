@@ -191,6 +191,11 @@ impl<'a> Lexer<'a> {
                     self.iter.next();
                     has_exponent = true;
                     is_fractional = true;
+
+                    // Negative exponent.
+                    if matches!(self.iter.peek(), Some('-')) {
+                        self.iter.next();
+                    }
                 }
                 '.' if !is_fractional => {
                     if let Some(p2) = self.iter.peek2() {
