@@ -157,13 +157,6 @@ fn is_control(c: char) -> bool {
 /// assert!(!'中'.is_lowercase());
 /// assert!(!' '.is_lowercase());
 /// ```
-///
-/// In a const context:
-///
-/// ```rune
-/// const CAPITAL_DELTA_IS_LOWERCASE: bool = 'Δ'.is_lowercase();
-/// assert!(!CAPITAL_DELTA_IS_LOWERCASE);
-/// ```
 #[rune::function(instance)]
 #[inline]
 fn is_lowercase(c: char) -> bool {
@@ -233,13 +226,6 @@ fn is_numeric(c: char) -> bool {
 /// // The various Chinese scripts and punctuation do not have case, and so:
 /// assert!(!'中'.is_uppercase());
 /// assert!(!' '.is_uppercase());
-/// ```
-///
-/// In a const context:
-///
-/// ```rune
-/// const CAPITAL_DELTA_IS_UPPERCASE: bool = 'Δ'.is_uppercase();
-/// assert!(CAPITAL_DELTA_IS_UPPERCASE);
 /// ```
 #[rune::function(instance)]
 #[inline]

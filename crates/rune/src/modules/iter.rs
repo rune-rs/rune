@@ -205,7 +205,7 @@ pub(crate) fn next_back(this: &mut Iterator) -> VmResult<Option<Value>> {
 /// Note that `iter.find(f)` is equivalent to `iter.filter(f).next()`.
 #[rune::function(instance)]
 #[inline]
-pub(crate) fn find(this: Iterator, find: Function) -> VmResult<Option<Value>> {
+pub(crate) fn find(this: &mut Iterator, find: Function) -> VmResult<Option<Value>> {
     this.find(find)
 }
 
@@ -247,7 +247,7 @@ pub(crate) fn find(this: Iterator, find: Function) -> VmResult<Option<Value>> {
 /// ```
 #[rune::function(instance)]
 #[inline]
-pub fn any(this: Iterator, find: Function) -> VmResult<bool> {
+pub fn any(this: &mut Iterator, find: Function) -> VmResult<bool> {
     this.any(find)
 }
 
@@ -289,7 +289,7 @@ pub fn any(this: Iterator, find: Function) -> VmResult<bool> {
 /// ```
 #[rune::function(instance)]
 #[inline]
-pub fn all(this: Iterator, find: Function) -> VmResult<bool> {
+pub fn all(this: &mut Iterator, find: Function) -> VmResult<bool> {
     this.all(find)
 }
 
@@ -407,13 +407,13 @@ fn filter(this: Iterator, filter: Function) -> Iterator {
 ///
 /// ```rune
 /// // don't do this:
-/// (0..5).map(|x| println!("{x}"));
+/// (0..5).iter().map(|x| println!("{}", x));
 ///
 /// // it won't even execute, as it is lazy. Rust will warn you about this.
 ///
 /// // Instead, use for:
 /// for x in 0..5 {
-///     println!("{x}");
+///     println!("{}", x);
 /// }
 /// ```
 #[rune::function(instance)]
@@ -750,10 +750,10 @@ float_product_ops!(product_float, f64);
 /// ```rune
 /// let numbers = [1, 2, 3, 4, 5];
 ///
-/// let zero = "0".to_string();
+/// let zero = "0";
 ///
 /// let result = numbers.iter().fold(zero, |acc, x| {
-///     format!("({acc} + {x})")
+///     format!("({} + {})", acc, x)
 /// });
 ///
 /// assert_eq!(result, "(((((0 + 1) + 2) + 3) + 4) + 5)");
@@ -769,12 +769,12 @@ float_product_ops!(product_float, f64);
 /// let result = 0;
 ///
 /// // for loop:
-/// for i in &numbers {
+/// for i in numbers {
 ///     result = result + i;
 /// }
 ///
 /// // fold:
-/// let result2 = numbers.iter().fold(0, |acc, &x| acc + x);
+/// let result2 = numbers.iter().fold(0, |acc, x| acc + x);
 ///
 /// // they're the same
 /// assert_eq!(result, result2);
@@ -886,14 +886,14 @@ fn rev(this: Iterator) -> VmResult<Iterator> {
 ///
 /// ```rune
 /// // The even numbers in the range of zero to nine.
-/// let iter = (0..10).filter(|x| x % 2 == 0);
+/// let iter = (0..10).iter().filter(|x| x % 2 == 0);
 ///
 /// // We might iterate from zero to ten times. Knowing that it's five
 /// // exactly wouldn't be possible without executing filter().
 /// assert_eq!((0, Some(10)), iter.size_hint());
 ///
 /// // Let's add five more numbers with chain()
-/// let iter = (0..10).filter(|x| x % 2 == 0).chain(15..20);
+/// let iter = (0..10).iter().filter(|x| x % 2 == 0).chain(15..20);
 ///
 /// // now both bounds are increased by five
 /// assert_eq!((5, Some(15)), iter.size_hint());
@@ -904,7 +904,7 @@ fn rev(this: Iterator) -> VmResult<Iterator> {
 /// ```rune
 /// // an infinite iterator has no upper bound
 /// // and the maximum possible lower bound
-/// let iter = 0..;
+/// let iter = (0..).iter();
 ///
 /// assert_eq!((i64::MAX, None), iter.size_hint());
 /// ```
@@ -968,7 +968,7 @@ fn skip(this: Iterator, n: usize) -> Iterator {
 /// `take()` is often used with an infinite iterator, to make it finite:
 ///
 /// ```rune
-/// let iter = (0..).take(3);
+/// let iter = (0..).iter().take(3);
 ///
 /// assert_eq!(iter.next(), Some(0));
 /// assert_eq!(iter.next(), Some(1));
@@ -981,7 +981,7 @@ fn skip(this: Iterator, n: usize) -> Iterator {
 ///
 /// ```rune
 /// let v = [1, 2];
-/// let iter = v.into_iter().take(5);
+/// let iter = v.iter().take(5);
 /// assert_eq!(iter.next(), Some(1));
 /// assert_eq!(iter.next(), Some(2));
 /// assert_eq!(iter.next(), None);

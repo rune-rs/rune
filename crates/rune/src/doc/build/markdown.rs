@@ -67,7 +67,6 @@ where
                         }
 
                         self.write(&html)?;
-                        return Ok(());
                     } else {
                         escape_html(&mut self.out, &text)?;
                     }
@@ -271,6 +270,10 @@ where
                         params.should_panic = true;
                         continue;
                     }
+                    "ignore" => {
+                        params.ignore = true;
+                        continue;
+                    }
                     RUNE_TOKEN => {
                         (RUNE_TOKEN, RUST_TOKEN, true)
                     }
@@ -332,6 +335,7 @@ where
                 self.write("</blockquote>")?;
             }
             Tag::CodeBlock(..) => {
+                self.write("</code></pre>")?;
                 self.codeblock = None;
             }
             Tag::List(Some(_)) => {
