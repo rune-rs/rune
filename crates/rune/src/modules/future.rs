@@ -9,7 +9,38 @@ use crate::{ContextError, Module};
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", ["future"]);
     module.ty::<Future>()?;
-    module.raw_fn(["join"], raw_join)?;
+
+    module.raw_fn(["join"], raw_join)?.docs([
+        "Waits for a collection of futures to complete and joins their result.",
+        "",
+        "# Examples",
+        "",
+        "```rune",
+        "let a = async { 1 };",
+        "let b = async { 2 };",
+        "let (a, b) = std::future::join((a, b)).await;",
+        "assert_eq!(1, a);",
+        "assert_eq!(2, b);",
+        "```",
+        "",
+        "Using a vector:",
+        "",
+        "```rune",
+        "let a = async { 1 };",
+        "let b = async { 2 };",
+        "let [a, b] = std::future::join([a, b]).await;",
+        "assert_eq!(1, a);",
+        "assert_eq!(2, b);",
+        "```",
+        "",
+        "Joining an empty collection:",
+        "",
+        "```rune",
+        "let () = std::future::join(()).await;",
+        "let [] = std::future::join([]).await;",
+        "```",
+    ]);
+
     Ok(module)
 }
 
@@ -45,6 +76,7 @@ where
 
 async fn join(value: Value) -> VmResult<Value> {
     match value {
+        Value::Unit => VmResult::Ok(Value::Unit),
         Value::Tuple(tuple) => {
             let tuple = vm_try!(tuple.borrow_ref());
             VmResult::Ok(vm_try!(

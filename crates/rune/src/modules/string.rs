@@ -154,7 +154,7 @@ fn as_bytes(s: &str) -> Bytes {
 ///
 /// Basic usage:
 ///
-/// ```
+/// ```rune
 /// let s = String::from_str("hello");
 /// assert_eq!(s, "hello");
 /// ```
@@ -331,7 +331,7 @@ fn capacity(this: &String) -> usize {
 ///
 /// Basic usage:
 ///
-/// ```
+/// ```rune
 /// let s = String::from_str("foo");
 ///
 /// s.clear();
@@ -423,7 +423,7 @@ fn push_str(this: &mut String, other: &str) {
 ///
 /// Basic usage:
 ///
-/// ```
+/// ```rune
 /// let s = String::new();
 ///
 /// s.reserve(10);
@@ -511,7 +511,7 @@ fn reserve_exact(this: &mut String, additional: usize) {
 ///
 /// Basic usage:
 ///
-/// ```
+/// ```rune
 /// let s = String::from_str("hello");
 ///
 /// assert_eq!(b"hello", s.into_bytes());
