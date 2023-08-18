@@ -334,7 +334,7 @@ impl Module {
     /// let mut module = Module::with_crate("nonstd");
     /// module.unit("unit")?;
     /// # Ok::<_, rune::Error>(())
-    pub fn unit<N>(&mut self, name: N) -> Result<(), ContextError>
+    pub fn unit<N>(&mut self, name: N) -> Result<ItemMut<'_>, ContextError>
     where
         N: AsRef<str>,
     {
@@ -348,7 +348,11 @@ impl Module {
             docs: Docs::EMPTY,
         });
 
-        Ok(())
+        let last = self.unit_type.as_mut().unwrap();
+
+        Ok(ItemMut {
+            docs: &mut last.docs,
+        })
     }
 
     /// Construct the type information for the `GeneratorState` type.

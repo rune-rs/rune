@@ -13,13 +13,13 @@ use crate::{ContextError, Module};
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate("std").with_unique("std");
 
-    module.unit("unit")?;
-    module.ty::<bool>()?;
-    module.ty::<char>()?;
-    module.ty::<u8>()?;
-    module.ty::<f64>()?;
-    module.ty::<i64>()?;
-    module.ty::<Tuple>()?;
+    module.unit("unit")?.docs(["The primitive unit type."]);
+    module.ty::<bool>()?.docs(["The primitive boolean type."]);
+    module.ty::<char>()?.docs(["The primitive character type."]);
+    module.ty::<u8>()?.docs(["The primitive byte type."]);
+    module.ty::<f64>()?.docs(["The primitive float type."]);
+    module.ty::<i64>()?.docs(["The primitive integer type."]);
+    module.ty::<Tuple>()?.docs(["The tuple type."]);
 
     module.function_meta(panic)?;
     module.function_meta(is_readable)?;

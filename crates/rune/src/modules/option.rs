@@ -12,7 +12,6 @@ pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", ["option"]);
     module.option(["Option"])?;
     // Sorted for ease of finding
-    module.function_meta(and_then)?;
     module.function_meta(expect)?;
     module.function_meta(unwrap)?;
     module.function_meta(unwrap_or)?;
@@ -20,6 +19,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(is_some)?;
     module.function_meta(is_none)?;
     module.function_meta(iter)?;
+    module.function_meta(and_then)?;
     module.function_meta(map)?;
     module.function_meta(take)?;
     module.function_meta(transpose)?;
@@ -27,15 +27,6 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(ok_or_else)?;
     module.associated_function(Protocol::INTO_ITER, __rune_fn__iter)?;
     Ok(module)
-}
-
-#[rune::function(instance)]
-fn and_then(option: &Option<Value>, then: Function) -> VmResult<Option<Value>> {
-    match option {
-        // no need to clone v, passing the same reference forward
-        Some(v) => VmResult::Ok(vm_try!(then.call::<_, _>((v,)))),
-        None => VmResult::Ok(None),
-    }
 }
 
 /// Returns the contained [`Some`] value, consuming the `self` value.
@@ -144,6 +135,43 @@ fn is_none(this: &Option<Value>) -> bool {
 #[rune::function(instance)]
 fn iter(option: Option<Value>) -> Iterator {
     Iterator::from_double_ended("std::option::Iter", option.into_iter())
+}
+
+/// Returns [`None`] if the option is [`None`], otherwise calls `f` with the
+/// wrapped value and returns the result.
+///
+/// Some languages call this operation flatmap.
+///
+/// # Examples
+///
+/// ```rune
+/// fn sq_then_to_string(x) {
+///     x.checked_mul(x).map(|sq| sq.to_string())
+/// }
+///
+/// assert_eq!(Some(2).and_then(sq_then_to_string), Some(4.to_string()));
+/// assert_eq!(Some(1_000_000_000_000_000_000).and_then(sq_then_to_string), None); // overflowed!
+/// assert_eq!(None.and_then(sq_then_to_string), None);
+/// ```
+///
+/// Often used to chain fallible operations that may return [`None`].
+///
+/// ```rune
+/// let arr_2d = [["A0", "A1"], ["B0", "B1"]];
+///
+/// let item_0_1 = arr_2d.get(0).and_then(|row| row.get(1));
+/// assert_eq!(item_0_1, Some("A1"));
+///
+/// let item_2_0 = arr_2d.get(2).and_then(|row| row.get(0));
+/// assert_eq!(item_2_0, None);
+/// ```
+#[rune::function(instance)]
+fn and_then(option: Option<Value>, then: Function) -> VmResult<Option<Value>> {
+    match option {
+        // no need to clone v, passing the same reference forward
+        Some(v) => VmResult::Ok(vm_try!(then.call::<_, _>((v,)))),
+        None => VmResult::Ok(None),
+    }
 }
 
 /// Maps an `Option<T>` to `Option<U>` by applying a function to a contained

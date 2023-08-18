@@ -4,6 +4,7 @@ use core::cmp::Ordering;
 use core::num::ParseIntError;
 
 use crate as rune;
+use crate::no_std::prelude::*;
 use crate::runtime::{VmErrorKind, VmResult};
 use crate::{ContextError, Module};
 
@@ -43,6 +44,8 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(signum)?;
     module.function_meta(is_positive)?;
     module.function_meta(is_negative)?;
+
+    module.function_meta(to_string)?;
 
     module.constant(["MIN"], i64::MIN)?.docs([
         "The smallest value that can be represented by this integer type",
@@ -530,6 +533,22 @@ fn is_positive(this: i64) -> bool {
 #[inline]
 fn is_negative(this: i64) -> bool {
     i64::is_negative(this)
+}
+
+/// Returns the number as a string.
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```rune
+/// assert_eq!((-10).to_string(), "-10");
+/// assert_eq!(10.to_string(), "10");
+/// ```
+#[rune::function(instance)]
+#[inline]
+fn to_string(this: i64) -> String {
+    this.to_string()
 }
 
 crate::__internal_impl_any!(::std::i64, ParseIntError);
