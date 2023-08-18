@@ -42,7 +42,6 @@ pub(crate) struct UnitType {
     /// Item of the unit type.
     pub(crate) name: Box<str>,
     /// Documentation on the unit type.
-    #[cfg(feature = "doc")]
     pub(crate) docs: Docs,
 }
 
