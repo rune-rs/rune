@@ -733,6 +733,7 @@ impl Module {
     ///
     /// ```
     /// use rune::{Module, ContextError};
+    /// use rune::runtime::Ref;
     ///
     /// /// This is a pretty neat function.
     /// #[rune::function]
@@ -742,7 +743,7 @@ impl Module {
     ///
     /// /// This is a pretty neat download function
     /// #[rune::function]
-    /// async fn download(url: &str) -> rune::Result<String> {
+    /// async fn download(url: Ref<str>) -> rune::Result<String> {
     ///     todo!()
     /// }
     ///
@@ -758,6 +759,7 @@ impl Module {
     ///
     /// ```
     /// use rune::{Any, Module};
+    /// use rune::runtime::Ref;
     ///
     /// #[derive(Any)]
     /// struct MyBytes {
@@ -776,8 +778,8 @@ impl Module {
     ///         self.queue.len()
     ///     }
     ///
-    ///     #[rune::function]
-    ///     async fn download(&self, url: &str) -> rune::Result<()> {
+    ///     #[rune::function(instance, path = Self::download)]
+    ///     async fn download(this: Ref<Self>, url: Ref<str>) -> rune::Result<()> {
     ///         todo!()
     ///     }
     /// }
@@ -924,6 +926,7 @@ impl Module {
     /// use std::sync::Arc;
     ///
     /// use rune::{Any, Module};
+    /// use rune::runtime::Ref;
     ///
     /// #[derive(Clone, Debug, Any)]
     /// struct Client {
@@ -936,7 +939,7 @@ impl Module {
     /// }
     ///
     /// impl Client {
-    ///     async fn download(&self) -> Result<(), DownloadError> {
+    ///     async fn download(this: Ref<Self>) -> Result<(), DownloadError> {
     ///         /* .. */
     ///         # Ok(())
     ///     }

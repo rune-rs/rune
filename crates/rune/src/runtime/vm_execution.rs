@@ -125,7 +125,7 @@ where
     /// use rune::Vm;
     /// use std::sync::Arc;
     ///
-    /// # #[tokio::main] async fn main() -> rune::Result<()> {
+    /// # futures_executor::block_on(async move {
     /// let mut sources = rune::sources! {
     ///     entry => {
     ///         pub async fn main() {
@@ -147,7 +147,9 @@ where
     ///     assert_eq!(value, n);
     ///     n += 1;
     /// }
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
+    /// # })?;
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn into_stream(self) -> Stream<T> {
         Stream::from_execution(self)

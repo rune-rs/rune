@@ -40,17 +40,6 @@ impl Chunk {
             storage: Box::from(vec![0u8; len]),
         })
     }
-
-    /// Get the starting pointer of the chunk.
-    fn start(&mut self) -> *mut u8 {
-        self.storage.as_mut_ptr()
-    }
-
-    /// Get the end pointer of the chunk.
-    fn end(&mut self) -> *mut u8 {
-        let len = self.storage.len();
-        self.storage.as_mut_ptr().wrapping_add(len)
-    }
 }
 
 /// An arena allocator.
@@ -185,6 +174,7 @@ impl Arena {
     #[cold]
     fn grow(&self, additional: usize) -> Result<(), ArenaAllocError> {
         let mut chunks = self.chunks.borrow_mut();
+
         let new_cap = additional.max(
             chunks
                 .last()
@@ -192,10 +182,15 @@ impl Arena {
                 .unwrap_or(PAGE),
         );
 
-        let mut chunk = Chunk::new(new_cap)?;
-        self.start.set(chunk.start());
-        self.end.set(chunk.end());
-        chunks.push(chunk);
+        chunks.push(Chunk::new(new_cap)?);
+
+        let Some(chunk) = chunks.last_mut() else {
+            return Err(ArenaAllocError { requested: additional });
+        };
+
+        let range = chunk.storage.as_mut_ptr_range();
+        self.start.set(range.start);
+        self.end.set(range.end);
         Ok(())
     }
 }

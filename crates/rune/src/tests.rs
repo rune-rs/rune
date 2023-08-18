@@ -6,20 +6,20 @@
 pub(crate) mod prelude {
     pub(crate) use crate as rune;
     pub(crate) use crate::ast;
-    pub(crate) use crate::compile::{self, ErrorKind, Item, Located, Named};
+    pub(crate) use crate::compile::{self, ErrorKind, Item, ItemBuf, Located, Named};
     pub(crate) use crate::diagnostics;
     pub(crate) use crate::macros;
     pub(crate) use crate::module::InstallWith;
     pub(crate) use crate::parse;
     pub(crate) use crate::runtime::{
-        self, AnyObj, AnyTypeInfo, Bytes, FullTypeOf, Function, MaybeTypeOf, Object, Protocol,
+        self, AnyObj, AnyTypeInfo, Bytes, FullTypeOf, Function, MaybeTypeOf, Mut, Object, Protocol,
         RawRef, RawStr, Ref, Shared, Stack, Tuple, TypeInfo, TypeOf, UnsafeToRef, VecTuple,
         VmErrorKind, VmResult,
     };
     pub(crate) use crate::tests::run;
     pub(crate) use crate::{
         from_value, prepare, sources, span, vm_try, Any, Context, ContextError, Diagnostics,
-        FromValue, Hash, Module, Result, Source, Sources, Value, Vm,
+        FromValue, Hash, Module, Result, Source, Sources, ToValue, Value, Vm,
     };
     pub(crate) use futures_executor::block_on;
 }
@@ -377,6 +377,7 @@ mod compiler_warnings;
 mod continue_;
 mod core_macros;
 mod custom_macros;
+mod derive_from_to_value;
 mod destructuring;
 mod external_constructor;
 mod external_generic;
@@ -397,6 +398,7 @@ mod patterns;
 mod quote;
 mod range;
 mod reference_error;
+mod rename_type;
 mod result;
 mod stmt_reordering;
 mod tuple;
