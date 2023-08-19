@@ -1,3 +1,4 @@
+use core::cmp::Ordering;
 use core::fmt;
 use core::ops;
 
@@ -25,9 +26,12 @@ impl RangeFull {
         Self
     }
 
-    /// Value pointer equals implementation for a range.
     pub(crate) fn eq_with(_: &Self, _: &Self, _: &mut impl ProtocolCaller) -> VmResult<bool> {
         VmResult::Ok(true)
+    }
+
+    pub(crate) fn cmp_with(_: &Self, _: &Self, _: &mut impl ProtocolCaller) -> VmResult<Ordering> {
+        VmResult::Ok(Ordering::Equal)
     }
 
     /// Test if the range contains the given integer.

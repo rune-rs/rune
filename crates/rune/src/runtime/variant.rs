@@ -1,3 +1,4 @@
+use core::cmp::Ordering;
 use core::fmt;
 
 use crate::no_std::sync::Arc;
@@ -54,7 +55,6 @@ impl Variant {
         TypeInfo::Variant(self.rtti.clone())
     }
 
-    /// Perform a deep value comparison of two variants.
     pub(crate) fn eq_with(a: &Self, b: &Self, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
         debug_assert_eq!(
             a.rtti.enum_hash, b.rtti.enum_hash,
@@ -69,7 +69,30 @@ impl Variant {
             (VariantData::Unit, VariantData::Unit) => VmResult::Ok(true),
             (VariantData::Tuple(a), VariantData::Tuple(b)) => Tuple::eq_with(a, b, caller),
             (VariantData::Struct(a), VariantData::Struct(b)) => Object::eq_with(a, b, caller),
-            _ => VmResult::Ok(false),
+            _ => VmResult::panic("data mismatch between variants"),
+        }
+    }
+
+    pub(crate) fn cmp_with(
+        a: &Self,
+        b: &Self,
+        caller: &mut impl ProtocolCaller,
+    ) -> VmResult<Ordering> {
+        debug_assert_eq!(
+            a.rtti.enum_hash, b.rtti.enum_hash,
+            "comparison only makes sense if enum hashes match"
+        );
+
+        match a.rtti.hash.cmp(&b.rtti.hash) {
+            Ordering::Equal => {}
+            ordering => return VmResult::Ok(ordering),
+        }
+
+        match (&a.data, &b.data) {
+            (VariantData::Unit, VariantData::Unit) => VmResult::Ok(Ordering::Equal),
+            (VariantData::Tuple(a), VariantData::Tuple(b)) => Tuple::cmp_with(a, b, caller),
+            (VariantData::Struct(a), VariantData::Struct(b)) => Object::cmp_with(a, b, caller),
+            _ => VmResult::panic("data mismatch between variants"),
         }
     }
 }

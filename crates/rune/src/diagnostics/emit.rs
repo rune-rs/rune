@@ -171,7 +171,7 @@ impl VmError {
                     );
 
                     (
-                        format!("type mismatch for operation `{}`", op),
+                        format!("Type mismatch for operation `{}`", op),
                         vec![
                             format!("left hand side has type `{}`", lhs),
                             format!("right hand side has type `{}`", rhs),

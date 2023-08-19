@@ -13,7 +13,21 @@ use crate::{ContextError, Module};
 pub fn module() -> Result<Module, ContextError> {
     let mut m = Module::with_crate_item("std", ["vec"]);
 
-    m.ty::<Vec>()?;
+    m.ty::<Vec>()?.docs([
+        "A dynamic vector.",
+        "",
+        "This is the type that is constructed in rune when an array expression such as `[1, 2, 3]` is used.",
+        "",
+        "# Comparisons",
+        "",
+        "Shorter sequences are considered smaller than longer ones, and vice versa.",
+        "",
+        "```rune",
+        "assert!([1, 2, 3] < [1, 2, 3, 4]);",
+        "assert!([1, 2, 3] < [1, 2, 4]);",
+        "assert!([1, 2, 4] > [1, 2, 3]);",
+        "```",
+    ]);
 
     m.function_meta(vec_new)?;
     m.function_meta(vec_with_capacity)?;

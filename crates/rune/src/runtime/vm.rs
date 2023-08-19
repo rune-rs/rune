@@ -566,7 +566,6 @@ impl Vm {
         int_op: fn(i64, i64) -> bool,
         float_op: fn(f64, f64) -> bool,
         match_ordering: fn(Ordering) -> bool,
-        op: &'static str,
         lhs: InstAddress,
         rhs: InstAddress,
     ) -> VmResult<()> {
@@ -577,17 +576,7 @@ impl Vm {
             (Value::Integer(lhs), Value::Integer(rhs)) => int_op(lhs, rhs),
             (Value::Float(lhs), Value::Float(rhs)) => float_op(lhs, rhs),
             (lhs, rhs) => {
-                if let CallResult::Unsupported(lhs) =
-                    vm_try!(self.call_instance_fn(lhs, Protocol::CMP, (&rhs,)))
-                {
-                    return err(VmErrorKind::UnsupportedBinaryOperation {
-                        op,
-                        lhs: vm_try!(lhs.type_info()),
-                        rhs: vm_try!(rhs.type_info()),
-                    });
-                }
-
-                let ordering = vm_try!(<Ordering>::from_value(vm_try!(self.stack.pop())));
+                let ordering = vm_try!(Value::cmp_with(&lhs, &rhs, self));
                 match_ordering(ordering)
             }
         };
@@ -1786,7 +1775,6 @@ impl Vm {
                     |a, b| a > b,
                     |a, b| a > b,
                     |o| matches!(o, Ordering::Greater),
-                    ">",
                     lhs,
                     rhs
                 ));
@@ -1796,7 +1784,6 @@ impl Vm {
                     |a, b| a >= b,
                     |a, b| a >= b,
                     |o| matches!(o, Ordering::Greater | Ordering::Equal),
-                    ">=",
                     lhs,
                     rhs
                 ));
@@ -1806,7 +1793,6 @@ impl Vm {
                     |a, b| a < b,
                     |a, b| a < b,
                     |o| matches!(o, Ordering::Less),
-                    "<",
                     lhs,
                     rhs
                 ));
@@ -1816,7 +1802,6 @@ impl Vm {
                     |a, b| a <= b,
                     |a, b| a <= b,
                     |o| matches!(o, Ordering::Less | Ordering::Equal),
-                    "<=",
                     lhs,
                     rhs
                 ));

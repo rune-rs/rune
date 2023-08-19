@@ -193,7 +193,7 @@ impl HashSet {
     /// ```rune
     /// use std::collections::HashSet;
     ///
-    /// let mut v = HashSet::new();
+    /// let v = HashSet::new();
     /// v.insert(1);
     /// v.clear();
     /// assert!(v.is_empty());
@@ -214,12 +214,12 @@ impl HashSet {
     /// let a = HashSet::from([1, 2, 3]);
     /// let b = HashSet::from([4, 2, 3, 4]);
     ///
-    /// let diff = a.difference(&b).collect::<HashSet>();
+    /// let diff = a.difference(b).collect::<HashSet>();
     /// assert_eq!(diff, [1].iter().collect::<HashSet>());
     ///
     /// // Note that difference is not symmetric,
     /// // and `b - a` means something else:
-    /// let diff = b.difference(&a).collect::<HashSet>();
+    /// let diff = b.difference(a).collect::<HashSet>();
     /// assert_eq!(diff, [4].iter().collect::<HashSet>());
     /// ```
     #[rune::function(instance, path = Self::difference)]

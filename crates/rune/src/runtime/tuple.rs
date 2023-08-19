@@ -1,3 +1,4 @@
+use core::cmp::Ordering;
 use core::fmt;
 use core::ops;
 use core::slice;
@@ -63,7 +64,6 @@ impl Tuple {
         self.inner.get_mut(index)
     }
 
-    /// Value pointer equals implementation for a Tuple.
     pub(crate) fn eq_with(a: &Self, b: &Self, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
         if a.len() != b.len() {
             return VmResult::Ok(false);
@@ -76,6 +76,31 @@ impl Tuple {
         }
 
         VmResult::Ok(true)
+    }
+
+    pub(crate) fn cmp_with(
+        a: &Self,
+        b: &Self,
+        caller: &mut impl ProtocolCaller,
+    ) -> VmResult<Ordering> {
+        let mut b = b.inner.iter();
+
+        for a in a.inner.iter() {
+            let Some(b) = b.next() else {
+                return VmResult::Ok(Ordering::Greater);
+            };
+
+            match vm_try!(Value::cmp_with(a, b, caller)) {
+                Ordering::Equal => continue,
+                other => return VmResult::Ok(other),
+            }
+        }
+
+        if b.next().is_some() {
+            return VmResult::Ok(Ordering::Less);
+        }
+
+        VmResult::Ok(Ordering::Equal)
     }
 }
 
