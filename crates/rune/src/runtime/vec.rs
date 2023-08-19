@@ -166,8 +166,8 @@ impl Vec {
     }
 
     /// Removes the element at the specified index from a dynamic vector.
-    pub fn remove(&mut self, index: usize) {
-        self.inner.remove(index);
+    pub fn remove(&mut self, index: usize) -> Value {
+        self.inner.remove(index)
     }
 
     /// Clears the vector, removing all values.
