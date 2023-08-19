@@ -576,8 +576,12 @@ impl Vm {
             (Value::Integer(lhs), Value::Integer(rhs)) => int_op(lhs, rhs),
             (Value::Float(lhs), Value::Float(rhs)) => float_op(lhs, rhs),
             (lhs, rhs) => {
-                let ordering = vm_try!(Value::cmp_with(&lhs, &rhs, self));
-                match_ordering(ordering)
+                let ordering = vm_try!(Value::partial_cmp_with(&lhs, &rhs, self));
+
+                match ordering {
+                    Some(ordering) => match_ordering(ordering),
+                    None => false,
+                }
             }
         };
 

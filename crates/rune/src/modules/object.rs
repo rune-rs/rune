@@ -1,32 +1,40 @@
 //! The `std::object` module.
 
+use core::cmp::Ordering;
+
 use crate::no_std::prelude::*;
 
 use crate as rune;
-use crate::runtime::{Iterator, Object, Protocol, Value};
+use crate::runtime::{
+    EnvProtocolCaller, FromValue, Iterator, Object, Protocol, Ref, Value, VmResult,
+};
 use crate::{ContextError, Module};
 
 /// Construct the `std::object` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["object"]);
+    let mut m = Module::with_crate_item("std", ["object"]);
 
-    module.ty::<Object>()?;
+    m.ty::<Object>()?;
 
-    module.function_meta(Object::new__meta)?;
-    module.function_meta(Object::with_capacity__meta)?;
-    module.function_meta(Object::len__meta)?;
-    module.function_meta(Object::is_empty__meta)?;
-    module.function_meta(Object::insert__meta)?;
-    module.function_meta(remove)?;
-    module.function_meta(Object::clear__meta)?;
-    module.function_meta(contains_key)?;
-    module.function_meta(get)?;
+    m.function_meta(Object::new__meta)?;
+    m.function_meta(Object::with_capacity__meta)?;
+    m.function_meta(Object::len__meta)?;
+    m.function_meta(Object::is_empty__meta)?;
+    m.function_meta(Object::insert__meta)?;
+    m.function_meta(remove)?;
+    m.function_meta(Object::clear__meta)?;
+    m.function_meta(contains_key)?;
+    m.function_meta(get)?;
 
-    module.function_meta(Object::rune_iter__meta)?;
-    module.associated_function(Protocol::INTO_ITER, Object::rune_iter)?;
-    module.function_meta(keys)?;
-    module.function_meta(values)?;
-    Ok(module)
+    m.function_meta(Object::rune_iter__meta)?;
+    m.function_meta(keys)?;
+    m.function_meta(values)?;
+    m.associated_function(Protocol::INTO_ITER, Object::rune_iter)?;
+    m.associated_function(Protocol::PARTIAL_EQ, partial_eq)?;
+    m.associated_function(Protocol::EQ, eq)?;
+    m.associated_function(Protocol::PARTIAL_CMP, partial_cmp)?;
+    m.associated_function(Protocol::CMP, cmp)?;
+    Ok(m)
 }
 
 /// Returns `true` if the map contains a value for the specified key.
@@ -116,4 +124,42 @@ fn keys(object: &Object) -> Iterator {
 fn values(object: &Object) -> Iterator {
     let iter = object.values().cloned().collect::<Vec<_>>().into_iter();
     Iterator::from_double_ended("std::object::Values", iter)
+}
+
+fn partial_eq(this: &Object, other: Value) -> VmResult<bool> {
+    let mut other = vm_try!(other.into_iter());
+
+    for (k1, v1) in this.iter() {
+        let Some(value) = vm_try!(other.next()) else {
+            return VmResult::Ok(false);
+        };
+
+        let (k2, v2) = vm_try!(<(Ref<String>, Value)>::from_value(value));
+
+        if k1 != &*k2 {
+            return VmResult::Ok(false);
+        }
+
+        if !vm_try!(Value::partial_eq(v1, &v2)) {
+            return VmResult::Ok(false);
+        }
+    }
+
+    if vm_try!(other.next()).is_some() {
+        return VmResult::Ok(false);
+    }
+
+    VmResult::Ok(true)
+}
+
+fn eq(this: &Object, other: &Object) -> VmResult<bool> {
+    Object::eq_with(this, other, &mut EnvProtocolCaller)
+}
+
+fn partial_cmp(this: &Object, other: &Object) -> VmResult<Option<Ordering>> {
+    Object::partial_cmp_with(this, other, &mut EnvProtocolCaller)
+}
+
+fn cmp(this: &Object, other: &Object) -> VmResult<Ordering> {
+    Object::cmp_with(this, other, &mut EnvProtocolCaller)
 }

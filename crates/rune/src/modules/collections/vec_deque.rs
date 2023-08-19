@@ -57,6 +57,7 @@ pub(super) fn setup(m: &mut Module) -> Result<(), ContextError> {
     m.associated_function(Protocol::STRING_DEBUG, VecDeque::string_debug)?;
     m.associated_function(Protocol::PARTIAL_EQ, VecDeque::partial_eq)?;
     m.associated_function(Protocol::EQ, VecDeque::eq)?;
+    m.associated_function(Protocol::PARTIAL_CMP, VecDeque::partial_cmp)?;
     m.associated_function(Protocol::CMP, VecDeque::cmp)?;
     Ok(())
 }
@@ -548,11 +549,31 @@ impl VecDeque {
         VmResult::Ok(true)
     }
 
-    fn cmp(this: &VecDeque, other: &VecDeque) -> VmResult<Ordering> {
-        let mut a = this.inner.iter();
+    fn partial_cmp(this: &VecDeque, other: &VecDeque) -> VmResult<Option<Ordering>> {
         let mut b = other.inner.iter();
 
-        while let Some(a) = a.next() {
+        for a in this.inner.iter() {
+            let Some(b) = b.next() else {
+                return VmResult::Ok(Some(Ordering::Greater));
+            };
+
+            match vm_try!(Value::partial_cmp(a, b)) {
+                Some(Ordering::Equal) => (),
+                other => return VmResult::Ok(other),
+            }
+        }
+
+        if b.next().is_some() {
+            return VmResult::Ok(Some(Ordering::Less));
+        };
+
+        VmResult::Ok(Some(Ordering::Equal))
+    }
+
+    fn cmp(this: &VecDeque, other: &VecDeque) -> VmResult<Ordering> {
+        let mut b = other.inner.iter();
+
+        for a in this.inner.iter() {
             let Some(b) = b.next() else {
                 return VmResult::Ok(Ordering::Greater);
             };

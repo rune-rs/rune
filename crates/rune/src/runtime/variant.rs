@@ -97,6 +97,31 @@ impl Variant {
         }
     }
 
+    pub(crate) fn partial_cmp_with(
+        a: &Self,
+        b: &Self,
+        caller: &mut impl ProtocolCaller,
+    ) -> VmResult<Option<Ordering>> {
+        debug_assert_eq!(
+            a.rtti.enum_hash, b.rtti.enum_hash,
+            "comparison only makes sense if enum hashes match"
+        );
+
+        match a.rtti.hash.partial_cmp(&b.rtti.hash) {
+            Some(Ordering::Equal) => {}
+            ordering => return VmResult::Ok(ordering),
+        }
+
+        match (&a.data, &b.data) {
+            (VariantData::Unit, VariantData::Unit) => VmResult::Ok(Some(Ordering::Equal)),
+            (VariantData::Tuple(a), VariantData::Tuple(b)) => Tuple::partial_cmp_with(a, b, caller),
+            (VariantData::Struct(a), VariantData::Struct(b)) => {
+                Object::partial_cmp_with(a, b, caller)
+            }
+            _ => VmResult::panic("data mismatch between variants"),
+        }
+    }
+
     pub(crate) fn cmp_with(
         a: &Self,
         b: &Self,

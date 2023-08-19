@@ -518,16 +518,15 @@ impl Value {
         VmResult::Ok(result)
     }
 
-    /// Convert value into an iterator using the [Protocol::INTO_ITER] protocol.
+    /// Convert value into an iterator using the [`Protocol::INTO_ITER`]
+    /// protocol.
     ///
     /// You must use [Vm::with] to specify which virtual machine this function
     /// is called inside.
     ///
     /// # Errors
     ///
-    /// This function errors in case the provided type cannot be converted into
-    /// an iterator without the use of a [`Vm`] and one is not provided through
-    /// the environment.
+    /// This function will error if called outside of a virtual machine context.
     pub fn into_iter(self) -> VmResult<Iterator> {
         let target = match self {
             Value::Iterator(iterator) => return VmResult::Ok(vm_try!(iterator.take())),
@@ -1184,14 +1183,21 @@ impl Value {
 
     /// Perform a partial equality test between two values.
     ///
-    /// This is the basis for the eq operation (`==`).
-    pub(crate) fn partial_eq(a: &Value, b: &Value) -> VmResult<bool> {
+    /// This is the basis for the eq operation (`partial_eq` / '==').
+    ///
+    /// External types will use the [`Protocol::PARTIAL_EQ`] protocol when
+    /// invoked through this function.
+    ///
+    /// # Errors
+    ///
+    /// This function will error if called outside of a virtual machine context.
+    pub fn partial_eq(a: &Value, b: &Value) -> VmResult<bool> {
         Value::partial_eq_with(a, b, &mut EnvProtocolCaller)
     }
 
     /// Perform a total equality test between two values.
     ///
-    /// This is the basis for the eq operation (`==`).
+    /// This is the basis for the eq operation (`partial_eq` / '==').
     pub(crate) fn partial_eq_with(
         a: &Value,
         b: &Value,
@@ -1331,7 +1337,7 @@ impl Value {
         }
 
         err(VmErrorKind::UnsupportedBinaryOperation {
-            op: "== (partial)",
+            op: "partial_eq",
             lhs: vm_try!(a.type_info()),
             rhs: vm_try!(b.type_info()),
         })
@@ -1340,7 +1346,14 @@ impl Value {
     /// Perform a total equality test between two values.
     ///
     /// This is the basis for the eq operation (`==`).
-    pub(crate) fn eq(a: &Value, b: &Value) -> VmResult<bool> {
+    ///
+    /// External types will use the [`Protocol::EQ`] protocol when invoked
+    /// through this function.
+    ///
+    /// # Errors
+    ///
+    /// This function will error if called outside of a virtual machine context.
+    pub fn eq(a: &Value, b: &Value) -> VmResult<bool> {
         Value::eq_with(a, b, &mut EnvProtocolCaller)
     }
 
@@ -1481,7 +1494,173 @@ impl Value {
         }
 
         err(VmErrorKind::UnsupportedBinaryOperation {
-            op: "==",
+            op: "eq",
+            lhs: vm_try!(a.type_info()),
+            rhs: vm_try!(b.type_info()),
+        })
+    }
+
+    /// Perform a partial ordering comparison between two values.
+    ///
+    /// This is the basis for the comparison operation.
+    ///
+    /// External types will use the [`Protocol::PARTIAL_CMP`] protocol when
+    /// invoked through this function.
+    ///
+    /// # Errors
+    ///
+    /// This function will error if called outside of a virtual machine context.
+    pub fn partial_cmp(a: &Value, b: &Value) -> VmResult<Option<Ordering>> {
+        Value::partial_cmp_with(a, b, &mut EnvProtocolCaller)
+    }
+
+    /// Perform a partial ordering comparison between two values.
+    ///
+    /// This is the basis for the comparison operation.
+    pub(crate) fn partial_cmp_with(
+        a: &Value,
+        b: &Value,
+        caller: &mut impl ProtocolCaller,
+    ) -> VmResult<Option<Ordering>> {
+        match (a, b) {
+            (Self::Unit, Self::Unit) => return VmResult::Ok(Some(Ordering::Equal)),
+            (Self::Bool(a), Self::Bool(b)) => return VmResult::Ok(a.partial_cmp(b)),
+            (Self::Byte(a), Self::Byte(b)) => return VmResult::Ok(a.partial_cmp(b)),
+            (Self::Char(a), Self::Char(b)) => return VmResult::Ok(a.partial_cmp(b)),
+            (Self::Float(a), Self::Float(b)) => return VmResult::Ok(a.partial_cmp(b)),
+            (Self::Integer(a), Self::Integer(b)) => return VmResult::Ok(a.partial_cmp(b)),
+            (Self::Type(a), Self::Type(b)) => return VmResult::Ok(a.partial_cmp(b)),
+            (Self::Bytes(a), Self::Bytes(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+                return VmResult::Ok(a.partial_cmp(&b));
+            }
+            (Self::Vec(a), Self::Vec(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+                return Vec::partial_cmp_with(&a, &b, caller);
+            }
+            (Self::Tuple(a), Self::Tuple(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+                return Tuple::partial_cmp_with(&a, &b, caller);
+            }
+            (Self::Object(a), Self::Object(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+                return Object::partial_cmp_with(&a, &b, caller);
+            }
+            (Self::RangeFrom(a), Self::RangeFrom(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+                return RangeFrom::partial_cmp_with(&a, &b, caller);
+            }
+            (Self::RangeFull(a), Self::RangeFull(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+                return RangeFull::partial_cmp_with(&a, &b, caller);
+            }
+            (Self::RangeInclusive(a), Self::RangeInclusive(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+                return RangeInclusive::partial_cmp_with(&a, &b, caller);
+            }
+            (Self::RangeToInclusive(a), Self::RangeToInclusive(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+                return RangeToInclusive::partial_cmp_with(&a, &b, caller);
+            }
+            (Self::RangeTo(a), Self::RangeTo(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+                return RangeTo::partial_cmp_with(&a, &b, caller);
+            }
+            (Self::Range(a), Self::Range(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+                return Range::partial_cmp_with(&a, &b, caller);
+            }
+            (Self::UnitStruct(a), Self::UnitStruct(b)) => {
+                if vm_try!(a.borrow_ref()).rtti.hash == vm_try!(b.borrow_ref()).rtti.hash {
+                    // NB: don't get any future ideas, this must fall through to
+                    // the VmError below since it's otherwise a comparison
+                    // between two incompatible types.
+                    //
+                    // Other than that, all units are equal.
+                    return VmResult::Ok(Some(Ordering::Equal));
+                }
+            }
+            (Self::TupleStruct(a), Self::TupleStruct(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+
+                if a.rtti.hash == b.rtti.hash {
+                    return Tuple::partial_cmp_with(&a.data, &b.data, caller);
+                }
+            }
+            (Self::Struct(a), Self::Struct(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+
+                if a.rtti.hash == b.rtti.hash {
+                    return Object::partial_cmp_with(&a.data, &b.data, caller);
+                }
+            }
+            (Self::Variant(a), Self::Variant(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+
+                if a.rtti().enum_hash == b.rtti().enum_hash {
+                    return Variant::partial_cmp_with(&a, &b, caller);
+                }
+            }
+            (Self::String(a), Self::String(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+                return VmResult::Ok((*a).partial_cmp(&*b));
+            }
+            (Self::StaticString(a), Self::String(b)) => {
+                let b = vm_try!(b.borrow_ref());
+                return VmResult::Ok((***a).as_str().partial_cmp(&**b));
+            }
+            (Self::String(a), Self::StaticString(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                return VmResult::Ok(a.partial_cmp(&***b));
+            }
+            // fast string comparison: exact string slot.
+            (Self::StaticString(a), Self::StaticString(b)) => {
+                return VmResult::Ok(a.partial_cmp(b));
+            }
+            (Self::Option(a), Self::Option(b)) => {
+                match (&*vm_try!(a.borrow_ref()), &*vm_try!(b.borrow_ref())) {
+                    (Some(a), Some(b)) => return Self::partial_cmp_with(a, b, caller),
+                    (None, None) => return VmResult::Ok(Some(Ordering::Equal)),
+                    (Some(..), None) => return VmResult::Ok(Some(Ordering::Greater)),
+                    (None, Some(..)) => return VmResult::Ok(Some(Ordering::Less)),
+                }
+            }
+            (Self::Result(a), Self::Result(b)) => {
+                match (&*vm_try!(a.borrow_ref()), &*vm_try!(b.borrow_ref())) {
+                    (Ok(a), Ok(b)) => return Self::partial_cmp_with(a, b, caller),
+                    (Err(a), Err(b)) => return Self::partial_cmp_with(a, b, caller),
+                    (Ok(..), Err(..)) => return VmResult::Ok(Some(Ordering::Greater)),
+                    (Err(..), Ok(..)) => return VmResult::Ok(Some(Ordering::Less)),
+                }
+            }
+            (a, b) => {
+                match vm_try!(caller.try_call_protocol_fn(
+                    Protocol::PARTIAL_CMP,
+                    a.clone(),
+                    (b.clone(),)
+                )) {
+                    CallResult::Ok(value) => return <Option<Ordering>>::from_value(value),
+                    CallResult::Unsupported(..) => {}
+                }
+            }
+        }
+
+        err(VmErrorKind::UnsupportedBinaryOperation {
+            op: "partial_cmp",
             lhs: vm_try!(a.type_info()),
             rhs: vm_try!(b.type_info()),
         })
@@ -1490,7 +1669,14 @@ impl Value {
     /// Perform a total ordering comparison between two values.
     ///
     /// This is the basis for the comparison operation (`cmp`).
-    pub(crate) fn cmp(a: &Value, b: &Value) -> VmResult<Ordering> {
+    ///
+    /// External types will use the [`Protocol::CMP`] protocol when invoked
+    /// through this function.
+    ///
+    /// # Errors
+    ///
+    /// This function will error if called outside of a virtual machine context.
+    pub fn cmp(a: &Value, b: &Value) -> VmResult<Ordering> {
         Value::cmp_with(a, b, &mut EnvProtocolCaller)
     }
 

@@ -334,6 +334,36 @@ impl Object {
         VmResult::Ok(true)
     }
 
+    pub(crate) fn partial_cmp_with(
+        a: &Self,
+        b: &Self,
+        caller: &mut impl ProtocolCaller,
+    ) -> VmResult<Option<Ordering>> {
+        let mut b = b.inner.iter();
+
+        for (k1, v1) in a.inner.iter() {
+            let Some((k2, v2)) = b.next() else {
+                return VmResult::Ok(Some(Ordering::Greater));
+            };
+
+            match k1.partial_cmp(k2) {
+                Some(Ordering::Equal) => (),
+                other => return VmResult::Ok(other),
+            }
+
+            match Value::partial_cmp_with(v1, v2, caller) {
+                VmResult::Ok(Some(Ordering::Equal)) => (),
+                other => return other,
+            }
+        }
+
+        if b.next().is_some() {
+            return VmResult::Ok(Some(Ordering::Less));
+        }
+
+        VmResult::Ok(Some(Ordering::Equal))
+    }
+
     pub(crate) fn cmp_with(
         a: &Self,
         b: &Self,
