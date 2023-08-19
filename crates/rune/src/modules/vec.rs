@@ -5,7 +5,9 @@ use core::cmp;
 use crate as rune;
 use crate::modules::collections::VecDeque;
 use crate::no_std::prelude::*;
-use crate::runtime::{FromValue, Function, Iterator, Protocol, Value, Vec, VmErrorKind, VmResult};
+use crate::runtime::{
+    FromValue, Function, Iterator, Protocol, Ref, Value, Vec, VmErrorKind, VmResult,
+};
 use crate::{ContextError, Module};
 
 /// Construct the `std::vec` module.
@@ -32,7 +34,7 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(sort_int)?;
     m.function_meta(sort_string)?;
     m.function_meta(into_vec_deque)?;
-    m.associated_function(Protocol::INTO_ITER, Vec::into_iterator)?;
+    m.associated_function(Protocol::INTO_ITER, Vec::iter_ref)?;
     m.associated_function(Protocol::INDEX_SET, Vec::set)?;
     m.associated_function(Protocol::EQ, eq)?;
     Ok(m)
@@ -379,8 +381,8 @@ fn extend(this: &mut Vec, value: Value) -> VmResult<()> {
 /// assert_eq!(Some(4), it.next_back());
 /// ```
 #[rune::function(instance)]
-fn iter(this: &Vec) -> Iterator {
-    this.into_iterator()
+fn iter(this: Ref<Vec>) -> Iterator {
+    Vec::iter_ref(this)
 }
 
 /// Removes the last element from a vector and returns it, or [`None`] if it is

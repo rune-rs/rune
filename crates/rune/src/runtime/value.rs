@@ -531,7 +531,7 @@ impl Value {
     pub fn into_iter(self) -> VmResult<Iterator> {
         let target = match self {
             Value::Iterator(iterator) => return VmResult::Ok(vm_try!(iterator.take())),
-            Value::Vec(vec) => return VmResult::Ok(vm_try!(vec.borrow_ref()).into_iterator()),
+            Value::Vec(vec) => return VmResult::Ok(Vec::iter_ref(vm_try!(vec.into_ref()))),
             Value::Object(object) => return VmResult::Ok(vm_try!(object.borrow_ref()).rune_iter()),
             target => target,
         };

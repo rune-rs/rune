@@ -1,3 +1,5 @@
+mod iter;
+
 use core::cmp;
 use core::fmt;
 use core::ops;
@@ -13,6 +15,8 @@ use crate::runtime::{
     FromValue, Iterator, ProtocolCaller, RawRef, RawStr, Ref, Shared, ToValue, UnsafeToRef, Value,
     VmErrorKind, VmResult,
 };
+
+use self::iter::Iter;
 
 /// Struct representing a dynamic vector.
 ///
@@ -197,8 +201,8 @@ impl Vec {
     }
 
     /// Convert into a rune iterator.
-    pub fn into_iterator(&self) -> Iterator {
-        Iterator::from_double_ended("std::vec::Iter", self.clone().into_iter())
+    pub fn iter_ref(this: Ref<Self>) -> Iterator {
+        Iterator::from_double_ended("std::vec::Iter", Iter::new(this))
     }
 
     /// Compare two vectors for equality.
