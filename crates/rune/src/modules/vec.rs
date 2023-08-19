@@ -1,11 +1,12 @@
 //! The `std::vec` module.
 
-use core::cmp;
+use core::cmp::Ordering;
 
 use crate as rune;
 use crate::no_std::prelude::*;
 use crate::runtime::{
-    FromValue, Function, Iterator, Protocol, Ref, Value, Vec, VmErrorKind, VmResult,
+    EnvProtocolCaller, FromValue, Function, Iterator, Protocol, Ref, Value, Vec, VmErrorKind,
+    VmResult,
 };
 use crate::{ContextError, Module};
 
@@ -50,6 +51,8 @@ pub fn module() -> Result<Module, ContextError> {
     m.associated_function(Protocol::INDEX_SET, Vec::set)?;
     m.associated_function(Protocol::PARTIAL_EQ, partial_eq)?;
     m.associated_function(Protocol::EQ, eq)?;
+    m.associated_function(Protocol::PARTIAL_CMP, partial_cmp)?;
+    m.associated_function(Protocol::CMP, cmp)?;
     Ok(m)
 }
 
@@ -242,14 +245,14 @@ fn get(this: &Vec, index: Value) -> VmResult<Option<Value>> {
 fn sort_by(vec: &mut Vec, comparator: &Function) -> VmResult<()> {
     let mut error = None;
 
-    vec.sort_by(|a, b| match comparator.call::<_, cmp::Ordering>((a, b)) {
+    vec.sort_by(|a, b| match comparator.call::<_, Ordering>((a, b)) {
         VmResult::Ok(ordering) => ordering,
         VmResult::Err(e) => {
             if error.is_none() {
                 error = Some(e);
             }
 
-            cmp::Ordering::Equal
+            Ordering::Equal
         }
     });
 
@@ -544,22 +547,14 @@ fn partial_eq(this: &Vec, other: Value) -> VmResult<bool> {
     VmResult::Ok(true)
 }
 
-fn eq(this: &Vec, other: Value) -> VmResult<bool> {
-    let mut other = vm_try!(other.into_iter());
+fn eq(this: &Vec, other: &Vec) -> VmResult<bool> {
+    Vec::eq_with(this, other, &mut EnvProtocolCaller)
+}
 
-    for a in this.as_slice() {
-        let Some(b) = vm_try!(other.next()) else {
-            return VmResult::Ok(false);
-        };
+fn partial_cmp(this: &Vec, other: &Vec) -> VmResult<Option<Ordering>> {
+    Vec::partial_cmp_with(this, other, &mut EnvProtocolCaller)
+}
 
-        if !vm_try!(Value::eq(a, &b)) {
-            return VmResult::Ok(false);
-        }
-    }
-
-    if vm_try!(other.next()).is_some() {
-        return VmResult::Ok(false);
-    }
-
-    VmResult::Ok(true)
+fn cmp(this: &Vec, other: &Vec) -> VmResult<Ordering> {
+    Vec::cmp_with(this, other, &mut EnvProtocolCaller)
 }

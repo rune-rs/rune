@@ -1,6 +1,6 @@
 prelude!();
 
-use std::cmp::{Ord, Ordering};
+use std::cmp::Ordering;
 use std::sync::Arc;
 
 #[test]
@@ -184,8 +184,8 @@ fn ordering_struct() -> Result<()> {
             }
 
             impl External {
-                fn value(&self, value: i64) -> Ordering {
-                    Ord::cmp(&self.value, &value)
+                fn value(&self, value: i64) -> Option<Ordering> {
+                    PartialOrd::partial_cmp(&self.value, &value)
                 }
             }
 
@@ -227,19 +227,19 @@ fn ordering_struct() -> Result<()> {
         }};
     }
 
-    test_case!([<], CMP, 1, 2, true);
-    test_case!([<], CMP, 2, 1, false);
+    test_case!([<], PARTIAL_CMP, 1, 2, true);
+    test_case!([<], PARTIAL_CMP, 2, 1, false);
 
-    test_case!([>], CMP, 2, 1, true);
-    test_case!([>], CMP, 1, 2, false);
+    test_case!([>], PARTIAL_CMP, 2, 1, true);
+    test_case!([>], PARTIAL_CMP, 1, 2, false);
 
-    test_case!([>=], CMP, 3, 2, true);
-    test_case!([>=], CMP, 2, 2, true);
-    test_case!([>=], CMP, 1, 2, false);
+    test_case!([>=], PARTIAL_CMP, 3, 2, true);
+    test_case!([>=], PARTIAL_CMP, 2, 2, true);
+    test_case!([>=], PARTIAL_CMP, 1, 2, false);
 
-    test_case!([<=], CMP, 2, 3, true);
-    test_case!([<=], CMP, 2, 2, true);
-    test_case!([<=], CMP, 2, 1, false);
+    test_case!([<=], PARTIAL_CMP, 2, 3, true);
+    test_case!([<=], PARTIAL_CMP, 2, 2, true);
+    test_case!([<=], PARTIAL_CMP, 2, 1, false);
     Ok(())
 }
 
@@ -296,7 +296,7 @@ fn eq_struct() -> Result<()> {
         }};
     }
 
-    test_case!([==], EQ, 2, 2, true);
-    test_case!([==], EQ, 2, 1, false);
+    test_case!([==], PARTIAL_EQ, 2, 2, true);
+    test_case!([==], PARTIAL_EQ, 2, 1, false);
     Ok(())
 }

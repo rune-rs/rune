@@ -38,6 +38,14 @@ impl RangeFull {
         VmResult::Ok(true)
     }
 
+    pub(crate) fn partial_cmp_with(
+        _: &Self,
+        _: &Self,
+        _: &mut impl ProtocolCaller,
+    ) -> VmResult<Option<Ordering>> {
+        VmResult::Ok(Some(Ordering::Equal))
+    }
+
     pub(crate) fn cmp_with(_: &Self, _: &Self, _: &mut impl ProtocolCaller) -> VmResult<Ordering> {
         VmResult::Ok(Ordering::Equal)
     }

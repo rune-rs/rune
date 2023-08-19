@@ -42,6 +42,14 @@ impl RangeToInclusive {
         Value::eq_with(&a.end, &b.end, caller)
     }
 
+    pub(crate) fn partial_cmp_with(
+        a: &Self,
+        b: &Self,
+        caller: &mut impl ProtocolCaller,
+    ) -> VmResult<Option<Ordering>> {
+        Value::partial_cmp_with(&a.end, &b.end, caller)
+    }
+
     pub(crate) fn cmp_with(
         a: &Self,
         b: &Self,

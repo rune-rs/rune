@@ -96,6 +96,31 @@ impl Tuple {
         VmResult::Ok(true)
     }
 
+    pub(crate) fn partial_cmp_with(
+        a: &Self,
+        b: &Self,
+        caller: &mut impl ProtocolCaller,
+    ) -> VmResult<Option<Ordering>> {
+        let mut b = b.inner.iter();
+
+        for a in a.inner.iter() {
+            let Some(b) = b.next() else {
+                return VmResult::Ok(Some(Ordering::Greater));
+            };
+
+            match vm_try!(Value::partial_cmp_with(a, b, caller)) {
+                Some(Ordering::Equal) => continue,
+                other => return VmResult::Ok(other),
+            }
+        }
+
+        if b.next().is_some() {
+            return VmResult::Ok(Some(Ordering::Less));
+        }
+
+        VmResult::Ok(Some(Ordering::Equal))
+    }
+
     pub(crate) fn cmp_with(
         a: &Self,
         b: &Self,
