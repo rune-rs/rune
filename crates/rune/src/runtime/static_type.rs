@@ -14,9 +14,9 @@ use crate::Hash;
 #[repr(C)]
 pub struct StaticType {
     /// The name of the static type.
-    pub name: RawStr,
+    pub(crate) name: RawStr,
     /// The hash of the static type.
-    pub hash: Hash,
+    pub(crate) hash: Hash,
 }
 
 impl StaticType {
@@ -41,7 +41,7 @@ impl hash::Hash for &'static StaticType {
 }
 
 /// The specialized type information for a unit.
-pub static UNIT_TYPE: &StaticType = &StaticType {
+pub(crate) static UNIT_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("unit"),
     // hash for ::std::unit
     hash: Hash::new(0x9f40107c53277b0c),
@@ -51,10 +51,10 @@ impl_static_type!(() => UNIT_TYPE);
 impl_static_type!(rt::UnitStruct => UNIT_TYPE);
 
 /// Hash for `::std::u8`.
-pub const BYTE_TYPE_HASH: Hash = Hash::new(0xe6cb97d2df702ff4);
+pub(crate) const BYTE_TYPE_HASH: Hash = Hash::new(0xe6cb97d2df702ff4);
 
 /// The specialized type information for a byte type.
-pub static BYTE_TYPE: &StaticType = &StaticType {
+pub(crate) static BYTE_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("u8"),
     hash: BYTE_TYPE_HASH,
 };
@@ -62,7 +62,7 @@ pub static BYTE_TYPE: &StaticType = &StaticType {
 impl_static_type!(u8 => BYTE_TYPE);
 
 /// The specialized type information for a bool type.
-pub static BOOL_TYPE: &StaticType = &StaticType {
+pub(crate) static BOOL_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("bool"),
     // hash for ::std::bool
     hash: Hash::new(0x981333df5abb043f),
@@ -71,7 +71,7 @@ pub static BOOL_TYPE: &StaticType = &StaticType {
 impl_static_type!(bool => BOOL_TYPE);
 
 /// The specialized type information for a char type.
-pub static CHAR_TYPE: &StaticType = &StaticType {
+pub(crate) static CHAR_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("char"),
     // hash for ::std::char
     hash: Hash::new(0x214e0b95f9831430),
@@ -80,10 +80,10 @@ pub static CHAR_TYPE: &StaticType = &StaticType {
 impl_static_type!(char => CHAR_TYPE);
 
 /// Hash for `::std::i64`.
-pub const INTEGER_TYPE_HASH: Hash = Hash::new(0x1cad9186c9641c4f);
+pub(crate) const INTEGER_TYPE_HASH: Hash = Hash::new(0x1cad9186c9641c4f);
 
 /// The specialized type information for a integer type.
-pub static INTEGER_TYPE: &StaticType = &StaticType {
+pub(crate) static INTEGER_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("i64"),
     hash: INTEGER_TYPE_HASH,
 };
@@ -102,10 +102,9 @@ impl_static_type!(usize => INTEGER_TYPE);
 impl_static_type!(isize => INTEGER_TYPE);
 
 /// Hash for `::std::f64`.
-pub const FLOAT_TYPE_HASH: Hash = Hash::new(0xb9b22c3893248f31);
+pub(crate) const FLOAT_TYPE_HASH: Hash = Hash::new(0xb9b22c3893248f31);
 
-/// The specialized type information for a float type.
-pub static FLOAT_TYPE: &StaticType = &StaticType {
+pub(crate) static FLOAT_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("f64"),
     hash: FLOAT_TYPE_HASH,
 };
@@ -113,8 +112,7 @@ pub static FLOAT_TYPE: &StaticType = &StaticType {
 impl_static_type!(f32 => FLOAT_TYPE);
 impl_static_type!(f64 => FLOAT_TYPE);
 
-/// The specialized type information for a string type.
-pub static STRING_TYPE: &StaticType = &StaticType {
+pub(crate) static STRING_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("String"),
     // hash for ::std::string::String
     hash: Hash::new(0x2f4720d36d2b70c),
@@ -123,8 +121,7 @@ pub static STRING_TYPE: &StaticType = &StaticType {
 impl_static_type!(String => STRING_TYPE);
 impl_static_type!(str => STRING_TYPE);
 
-/// The specialized type information for a bytes type.
-pub static BYTES_TYPE: &StaticType = &StaticType {
+pub(crate) static BYTES_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Bytes"),
     // hash for ::std::bytes::Bytes
     hash: Hash::new(0x3470d9498e601529),
@@ -133,8 +130,7 @@ pub static BYTES_TYPE: &StaticType = &StaticType {
 impl_static_type!(rt::Bytes => BYTES_TYPE);
 impl_static_type!([u8] => BYTES_TYPE);
 
-/// The specialized type information for a vector type.
-pub static VEC_TYPE: &StaticType = &StaticType {
+pub(crate) static VEC_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Vec"),
     // hash for ::std::vec::Vec
     hash: Hash::new(0xc11b1e769aea94f2),
@@ -145,8 +141,7 @@ impl_static_type!(impl<T> vec::Vec<T> => VEC_TYPE);
 impl_static_type!([rt::Value] => VEC_TYPE);
 impl_static_type!(impl<T> rt::VecTuple<T> => VEC_TYPE);
 
-/// The specialized type information for an anonymous tuple type.
-pub static TUPLE_TYPE: &StaticType = &StaticType {
+pub(crate) static TUPLE_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Tuple"),
     // hash for ::std::Tuple
     hash: Hash::new(0xf94a979fcb406fde),
@@ -154,8 +149,7 @@ pub static TUPLE_TYPE: &StaticType = &StaticType {
 
 impl_static_type!(rt::Tuple => TUPLE_TYPE);
 
-/// The specialized type information for an anonymous object type.
-pub static OBJECT_TYPE: &StaticType = &StaticType {
+pub(crate) static OBJECT_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Object"),
     // hash for ::std::object::Object
     hash: Hash::new(0x2f5c2c7799148025),
@@ -164,8 +158,47 @@ pub static OBJECT_TYPE: &StaticType = &StaticType {
 impl_static_type!(rt::Object => OBJECT_TYPE);
 impl_static_type!(rt::Struct => OBJECT_TYPE);
 
-/// The specialized type information for the range type.
-pub static RANGE_TYPE: &StaticType = &StaticType {
+pub(crate) static RANGE_FROM_TYPE: &StaticType = &StaticType {
+    name: RawStr::from_str("RangeFrom"),
+    // hash for ::std::ops::RangeFrom
+    hash: Hash::new(0x5ef6dd950a769b9e),
+};
+
+impl_static_type!(rt::RangeFrom => RANGE_FROM_TYPE);
+
+pub(crate) static RANGE_FULL_TYPE: &StaticType = &StaticType {
+    name: RawStr::from_str("RangeFull"),
+    // hash for ::std::ops::RangeFull
+    hash: Hash::new(0xc16d3e8d86723c1c),
+};
+
+impl_static_type!(rt::RangeFull => RANGE_FULL_TYPE);
+
+pub(crate) static RANGE_INCLUSIVE_TYPE: &StaticType = &StaticType {
+    name: RawStr::from_str("RangeInclusive"),
+    // hash for ::std::ops::RangeInclusive
+    hash: Hash::new(0x58ec7f802ac7728),
+};
+
+impl_static_type!(rt::RangeInclusive => RANGE_INCLUSIVE_TYPE);
+
+pub(crate) static RANGE_TO_INCLUSIVE_TYPE: &StaticType = &StaticType {
+    name: RawStr::from_str("RangeToInclusive"),
+    // hash for ::std::ops::RangeToInclusive
+    hash: Hash::new(0xd46e14ce9cc3e9ae),
+};
+
+impl_static_type!(rt::RangeToInclusive => RANGE_TO_INCLUSIVE_TYPE);
+
+pub(crate) static RANGE_TO_TYPE: &StaticType = &StaticType {
+    name: RawStr::from_str("RangeTo"),
+    // hash for ::std::ops::RangeTo
+    hash: Hash::new(0xf48d2d43d015d3b7),
+};
+
+impl_static_type!(rt::RangeTo => RANGE_TO_TYPE);
+
+pub(crate) static RANGE_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Range"),
     // hash for ::std::ops::Range
     hash: Hash::new(0x700a34bcd6630cba),
@@ -173,8 +206,7 @@ pub static RANGE_TYPE: &StaticType = &StaticType {
 
 impl_static_type!(rt::Range => RANGE_TYPE);
 
-/// The specialized type information for a future type.
-pub static FUTURE_TYPE: &StaticType = &StaticType {
+pub(crate) static FUTURE_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Future"),
     // hash for ::std::future::Future
     hash: Hash::new(0x157cfe667ac47042),
@@ -182,8 +214,7 @@ pub static FUTURE_TYPE: &StaticType = &StaticType {
 
 impl_static_type!(rt::Future => FUTURE_TYPE);
 
-/// The specialized type information for a generator type.
-pub static GENERATOR_TYPE: &StaticType = &StaticType {
+pub(crate) static GENERATOR_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Generator"),
     // hash for ::std::generator::Generator
     hash: Hash::new(0x9041ff127bcec639),
@@ -191,8 +222,7 @@ pub static GENERATOR_TYPE: &StaticType = &StaticType {
 
 impl_static_type!(rt::Generator<rt::Vm> => GENERATOR_TYPE);
 
-/// The specialized type information for a generator state type.
-pub static GENERATOR_STATE_TYPE: &StaticType = &StaticType {
+pub(crate) static GENERATOR_STATE_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("GeneratorState"),
     // hash for ::std::generator::GeneratorState
     hash: Hash::new(0xae44122e30ae33ae),
@@ -200,8 +230,7 @@ pub static GENERATOR_STATE_TYPE: &StaticType = &StaticType {
 
 impl_static_type!(rt::GeneratorState => GENERATOR_STATE_TYPE);
 
-/// The specialized type information for the `Stream` type.
-pub static STREAM_TYPE: &StaticType = &StaticType {
+pub(crate) static STREAM_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Stream"),
     // hash for ::std::stream::Stream
     hash: Hash::new(0xd849ef81ff581a21),
@@ -209,8 +238,7 @@ pub static STREAM_TYPE: &StaticType = &StaticType {
 
 impl_static_type!(rt::Stream<rt::Vm> => STREAM_TYPE);
 
-/// The specialized type information for a result type.
-pub static RESULT_TYPE: &StaticType = &StaticType {
+pub(crate) static RESULT_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Result"),
     // hash for ::std::result::Result
     hash: Hash::new(0x1978eae6b50a98ef),
@@ -218,8 +246,7 @@ pub static RESULT_TYPE: &StaticType = &StaticType {
 
 impl_static_type!(impl<T, E> Result<T, E> => RESULT_TYPE);
 
-/// The specialized type information for a option type.
-pub static OPTION_TYPE: &StaticType = &StaticType {
+pub(crate) static OPTION_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Option"),
     // hash for ::std::option::Option
     hash: Hash::new(0xc0958f246e193e78),
@@ -227,8 +254,7 @@ pub static OPTION_TYPE: &StaticType = &StaticType {
 
 impl_static_type!(impl<T> Option<T> => OPTION_TYPE);
 
-/// The specialized type information for a function pointer type.
-pub static FUNCTION_TYPE: &StaticType = &StaticType {
+pub(crate) static FUNCTION_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Function"),
     // hash for ::std::ops::Function
     hash: Hash::new(0x20b8050151a2855),
@@ -237,8 +263,7 @@ pub static FUNCTION_TYPE: &StaticType = &StaticType {
 impl_static_type!(rt::Function => FUNCTION_TYPE);
 impl_static_type!(impl<T> HashMap<String, T> => OBJECT_TYPE);
 
-/// The specialized type information for a fmt spec types.
-pub static FORMAT_TYPE: &StaticType = &StaticType {
+pub(crate) static FORMAT_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Format"),
     // hash for ::std::fmt::Format
     hash: Hash::new(0xc331a83f0ad5a659),
@@ -246,8 +271,7 @@ pub static FORMAT_TYPE: &StaticType = &StaticType {
 
 impl_static_type!(rt::Format => FORMAT_TYPE);
 
-/// The specialized type information for the iterator type.
-pub static ITERATOR_TYPE: &StaticType = &StaticType {
+pub(crate) static ITERATOR_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Iterator"),
     // hash for ::std::iter::Iterator
     hash: Hash::new(0xff918cc536a3fa32),
@@ -255,8 +279,7 @@ pub static ITERATOR_TYPE: &StaticType = &StaticType {
 
 impl_static_type!(rt::Iterator => ITERATOR_TYPE);
 
-/// The specialized type information for type objects.
-pub static TYPE: &StaticType = &StaticType {
+pub(crate) static TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Type"),
     // hash for ::std::any::Type
     hash: Hash::new(0xbd7ccf79d00ee140),
@@ -264,8 +287,7 @@ pub static TYPE: &StaticType = &StaticType {
 
 impl_static_type!(rt::Type => TYPE);
 
-/// The specialized type information for type objects.
-pub static ORDERING: &StaticType = &StaticType {
+pub(crate) static ORDERING: &StaticType = &StaticType {
     name: RawStr::from_str("Ordering"),
     // hash for ::std::cmp::Ordering
     hash: Hash::new(0x30d24cc3fa13e4b7),

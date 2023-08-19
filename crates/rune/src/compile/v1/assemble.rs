@@ -9,7 +9,7 @@ use crate::compile::{self, Assembly, ErrorKind, ItemId, ModId, Options, WithSpan
 use crate::hir;
 use crate::query::{ConstFn, Query, Used};
 use crate::runtime::{
-    ConstValue, Inst, InstAddress, InstAssignOp, InstOp, InstRangeLimits, InstTarget, InstValue,
+    ConstValue, Inst, InstAddress, InstAssignOp, InstOp, InstRange, InstTarget, InstValue,
     InstVariant, Label, PanicReason, Protocol, TypeCheck,
 };
 use crate::{Hash, SourceId};
@@ -2059,66 +2059,50 @@ fn expr_range<'hir>(
 ) -> compile::Result<Asm<'hir>> {
     let guard = cx.scopes.child(span)?;
 
+    let (range, count) = match (hir.from, hir.to, hir.limits) {
+        (Some(from), None, hir::ExprRangeLimits::HalfOpen) => {
+            expr(cx, from, needs)?.apply(cx)?;
+            cx.scopes.alloc(from)?;
+            (InstRange::RangeFrom, 1)
+        }
+        (None, None, hir::ExprRangeLimits::HalfOpen) => (InstRange::RangeFull, 0),
+        (Some(from), Some(to), hir::ExprRangeLimits::Closed) => {
+            expr(cx, from, needs)?.apply(cx)?;
+            cx.scopes.alloc(from)?;
+            expr(cx, to, needs)?.apply(cx)?;
+            cx.scopes.alloc(to)?;
+            (InstRange::RangeInclusive, 2)
+        }
+        (None, Some(to), hir::ExprRangeLimits::Closed) => {
+            expr(cx, to, needs)?.apply(cx)?;
+            cx.scopes.alloc(to)?;
+            (InstRange::RangeToInclusive, 1)
+        }
+        (None, Some(to), hir::ExprRangeLimits::HalfOpen) => {
+            expr(cx, to, needs)?.apply(cx)?;
+            cx.scopes.alloc(to)?;
+            (InstRange::RangeTo, 1)
+        }
+        (Some(from), Some(to), hir::ExprRangeLimits::HalfOpen) => {
+            expr(cx, from, needs)?.apply(cx)?;
+            cx.scopes.alloc(from)?;
+            expr(cx, to, needs)?.apply(cx)?;
+            cx.scopes.alloc(to)?;
+            (InstRange::Range, 2)
+        }
+        (Some(..) | None, None, hir::ExprRangeLimits::Closed) => {
+            return Err(compile::Error::msg(
+                span,
+                "Unsupported range, you probably want `..` instead of `..=`",
+            ));
+        }
+    };
+
     if needs.value() {
-        let from = if let Some(from) = hir.from {
-            expr(cx, from, needs)?.apply(cx)?;
-            cx.asm.push(
-                Inst::Variant {
-                    variant: InstVariant::Some,
-                },
-                from,
-            );
-            from
-        } else {
-            cx.asm.push(
-                Inst::Variant {
-                    variant: InstVariant::None,
-                },
-                span,
-            );
-            span
-        };
-
-        cx.scopes.alloc(from)?;
-
-        let to = if let Some(to) = hir.to {
-            expr(cx, to, needs)?.apply(cx)?;
-            cx.asm.push(
-                Inst::Variant {
-                    variant: InstVariant::Some,
-                },
-                to,
-            );
-            to
-        } else {
-            cx.asm.push(
-                Inst::Variant {
-                    variant: InstVariant::None,
-                },
-                span,
-            );
-            span
-        };
-
-        cx.scopes.alloc(to)?;
-
-        let limits = match hir.limits {
-            hir::ExprRangeLimits::HalfOpen => InstRangeLimits::HalfOpen,
-            hir::ExprRangeLimits::Closed => InstRangeLimits::Closed,
-        };
-
-        cx.asm.push(Inst::Range { limits }, span);
-        cx.scopes.free(span, 2)?;
-    } else {
-        if let Some(from) = hir.from {
-            expr(cx, from, needs)?.apply(cx)?;
-        }
-
-        if let Some(to) = hir.to {
-            expr(cx, to, needs)?.apply(cx)?;
-        }
+        cx.asm.push(Inst::Range { range }, span);
     }
 
+    cx.scopes.free(span, count)?;
     cx.scopes.pop(guard, span)?;
     Ok(Asm::top(span))
 }

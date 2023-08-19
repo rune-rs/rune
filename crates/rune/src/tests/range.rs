@@ -1,26 +1,20 @@
 prelude!();
 
+use ErrorKind::*;
+use VmErrorKind::*;
+
 #[test]
 fn test_range() {
     let _: () = rune! {
         pub fn main() {
-            assert_eq!((1..10).start, Some(1));
-            assert_eq!((1..10).end, Some(10));
-            assert_eq!((1..).start, Some(1));
-            assert_eq!((1..).end, None);
-            assert_eq!((..10).start, None);
-            assert_eq!((..10).end, Some(10));
-            assert_eq!((..).start, None);
-            assert_eq!((..).end, None);
-
-            assert_eq!((1..=10).start, Some(1));
-            assert_eq!((1..=10).end, Some(10));
-            assert_eq!((1..=).start, Some(1));
-            assert_eq!((1..=).end, None);
-            assert_eq!((..=10).start, None);
-            assert_eq!((..=10).end, Some(10));
-            assert_eq!((..=).start, None);
-            assert_eq!((..=).end, None);
+            assert_eq!((1..10).start, 1);
+            assert_eq!((1..10).end, 10);
+            assert_eq!((1..).start, 1);
+            assert_eq!((..10).end, 10);
+            assert_eq!((1..=10).start, 1);
+            assert_eq!((1..=10).end, 10);
+            assert_eq!((1..).start, 1);
+            assert_eq!((..=10).end, 10);
         }
     };
 }
@@ -46,15 +40,14 @@ fn test_range_iter() {
 fn test_non_numeric_ranges() {
     let _: () = rune! {
         pub fn main() {
-            assert_eq!((#{}..=10).start, Some(#{}));
+            assert_eq!((#{}..=10).start, #{});
         }
     };
 
     let _: () = rune! {
         pub fn main() {
             let a = ..=(1, 2, 3);
-            assert_eq!(a.start, None);
-            assert_eq!(a.end, Some((1, 2, 3)));
+            assert_eq!(a.end, (1, 2, 3));
         }
     };
 }
@@ -108,4 +101,47 @@ fn test_range_non_eager_brace() {
 
     let expected = (0i64..10i64).sum::<i64>();
     assert_eq!(out, expected);
+}
+
+#[test]
+fn unsupported_compile_range() {
+    assert_errors! {
+        "pub fn main() { 'a'..= }",
+        span!(16, 22), Custom { message } => {
+            assert_eq!(message.as_ref(), "Unsupported range, you probably want `..` instead of `..=`")
+        }
+    };
+
+    assert_errors! {
+        "pub fn main() { ..= }",
+        span!(16, 19), Custom { message } => {
+            assert_eq!(message.as_ref(), "Unsupported range, you probably want `..` instead of `..=`")
+        }
+    };
+}
+
+#[test]
+fn unsupported_iter_range() {
+    assert_vm_error!(
+        r#"pub fn main() { (1.0..).iter() }"#,
+        UnsupportedIterRangeFrom { start } => {
+            assert_eq!(start, f64::type_info());
+        }
+    );
+
+    assert_vm_error!(
+        r#"pub fn main() { (1.0..2.0).iter() }"#,
+        UnsupportedIterRange { start, end } => {
+            assert_eq!(start, f64::type_info());
+            assert_eq!(end, f64::type_info());
+        }
+    );
+
+    assert_vm_error!(
+        r#"pub fn main() { (1.0..=2.0).iter() }"#,
+        UnsupportedIterRangeInclusive { start, end } => {
+            assert_eq!(start, f64::type_info());
+            assert_eq!(end, f64::type_info());
+        }
+    );
 }

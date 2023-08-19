@@ -4,7 +4,7 @@ use core::cmp;
 
 use crate as rune;
 use crate::modules::collections::VecDeque;
-use crate::runtime::{FromValue, Function, Protocol, RangeLimits, Value, Vec, VmResult};
+use crate::runtime::{FromValue, Function, Protocol, Value, Vec, VmResult};
 use crate::{ContextError, Module};
 
 /// Construct the `std::vec` module.
@@ -177,51 +177,34 @@ fn sort_int(vec: &mut Vec) {
 /// ```
 #[rune::function(instance, path = Vec::get)]
 fn get(this: &Vec, index: Value) -> VmResult<Option<Value>> {
-    match index {
+    let slice = match index {
+        Value::RangeFrom(range) => {
+            let range = vm_try!(range.borrow_ref());
+            let start = vm_try!(range.start.as_usize());
+            this.get(start..)
+        }
+        Value::RangeFull(..) => this.get(..),
+        Value::RangeInclusive(range) => {
+            let range = vm_try!(range.borrow_ref());
+            let start = vm_try!(range.start.as_usize());
+            let end = vm_try!(range.end.as_usize());
+            this.get(start..=end)
+        }
+        Value::RangeToInclusive(range) => {
+            let range = vm_try!(range.borrow_ref());
+            let end = vm_try!(range.end.as_usize());
+            this.get(..=end)
+        }
+        Value::RangeTo(range) => {
+            let range = vm_try!(range.borrow_ref());
+            let end = vm_try!(range.end.as_usize());
+            this.get(..end)
+        }
         Value::Range(range) => {
             let range = vm_try!(range.borrow_ref());
-
-            match (&range.start, &range.end) {
-                (None, None) => VmResult::Ok(Some(Value::vec(this.as_slice().to_vec()))),
-                (None, Some(end)) => {
-                    let end = vm_try!(end.as_usize());
-
-                    let value = match range.limits {
-                        RangeLimits::HalfOpen => this.get(..end),
-                        RangeLimits::Closed => this.get(..=end),
-                    };
-
-                    let Some(range) = value else {
-                        return VmResult::Ok(None);
-                    };
-
-                    VmResult::Ok(Some(Value::vec(range.to_vec())))
-                }
-                (Some(start), None) => {
-                    let start = vm_try!(start.as_usize());
-
-                    let Some(range) = this.get(start..) else {
-                        return VmResult::Ok(None);
-                    };
-
-                    VmResult::Ok(Some(Value::vec(range.to_vec())))
-                }
-                (Some(start), Some(end)) => {
-                    let start = vm_try!(start.as_usize());
-                    let end = vm_try!(end.as_usize());
-
-                    let value = match range.limits {
-                        RangeLimits::HalfOpen => this.get(start..end),
-                        RangeLimits::Closed => this.get(start..=end),
-                    };
-
-                    let Some(range) = value else {
-                        return VmResult::Ok(None);
-                    };
-
-                    VmResult::Ok(Some(Value::vec(range.to_vec())))
-                }
-            }
+            let start = vm_try!(range.start.as_usize());
+            let end = vm_try!(range.end.as_usize());
+            this.get(start..end)
         }
         value => {
             let index = vm_try!(usize::from_value(value));
@@ -230,9 +213,15 @@ fn get(this: &Vec, index: Value) -> VmResult<Option<Value>> {
                 return VmResult::Ok(None);
             };
 
-            VmResult::Ok(Some(value.clone()))
+            return VmResult::Ok(Some(value.clone()));
         }
-    }
+    };
+
+    let Some(values) = slice else {
+        return VmResult::Ok(None);
+    };
+
+    VmResult::Ok(Some(Value::vec(values.to_vec())))
 }
 
 /// Sort a vector by the specified comparator function.

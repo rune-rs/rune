@@ -15,8 +15,9 @@ use crate::runtime::vm::CallResult;
 use crate::runtime::{
     AccessKind, AnyObj, Bytes, ConstValue, EnvProtocolCaller, Format, FromValue, FullTypeOf,
     Function, Future, Generator, GeneratorState, Iterator, MaybeTypeOf, Mut, Object, Protocol,
-    ProtocolCaller, Range, RawMut, RawRef, Ref, Shared, StaticString, Stream, ToValue, Tuple, Type,
-    TypeInfo, Variant, Vec, Vm, VmError, VmErrorKind, VmIntegerRepr, VmResult,
+    ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive, RawMut,
+    RawRef, Ref, Shared, StaticString, Stream, ToValue, Tuple, Type, TypeInfo, Variant, Vec, Vm,
+    VmError, VmErrorKind, VmIntegerRepr, VmResult,
 };
 use crate::{Any, Hash};
 
@@ -272,7 +273,17 @@ pub enum Value {
     Tuple(Shared<Tuple>),
     /// An object.
     Object(Shared<Object>),
-    /// A range.
+    /// A range `start..`
+    RangeFrom(Shared<RangeFrom>),
+    /// A full range `..`
+    RangeFull(Shared<RangeFull>),
+    /// A full range `start..=end`
+    RangeInclusive(Shared<RangeInclusive>),
+    /// A full range `..=end`
+    RangeToInclusive(Shared<RangeToInclusive>),
+    /// A full range `..end`
+    RangeTo(Shared<RangeTo>),
+    /// A range `start..end`.
     Range(Shared<Range>),
     /// A stored future.
     Future(Shared<Future>),
@@ -430,6 +441,21 @@ impl Value {
                 write!(s, "{:?}", value)
             }
             Value::Object(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::RangeFrom(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::RangeFull(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::RangeInclusive(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::RangeToInclusive(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::RangeTo(value) => {
                 write!(s, "{:?}", value)
             }
             Value::Range(value) => {
@@ -620,6 +646,13 @@ impl Value {
             Self::Vec(value) => Self::Vec(Shared::new(vm_try!(value.take()))),
             Self::Tuple(value) => Self::Tuple(Shared::new(vm_try!(value.take()))),
             Self::Object(value) => Self::Object(Shared::new(vm_try!(value.take()))),
+            Self::RangeFrom(value) => Self::RangeFrom(Shared::new(vm_try!(value.take()))),
+            Self::RangeFull(value) => Self::RangeFull(Shared::new(vm_try!(value.take()))),
+            Self::RangeInclusive(value) => Self::RangeInclusive(Shared::new(vm_try!(value.take()))),
+            Self::RangeToInclusive(value) => {
+                Self::RangeToInclusive(Shared::new(vm_try!(value.take())))
+            }
+            Self::RangeTo(value) => Self::RangeTo(Shared::new(vm_try!(value.take()))),
             Self::Range(value) => Self::Range(Shared::new(vm_try!(value.take()))),
             Self::Future(value) => Self::Future(Shared::new(vm_try!(value.take()))),
             Self::Stream(value) => Self::Stream(Shared::new(vm_try!(value.take()))),
@@ -900,7 +933,62 @@ impl Value {
         }
     }
 
-    /// Try to coerce value into a range.
+    /// Try to coerce value into a [`RangeFrom`].
+    #[inline]
+    pub fn into_range_from(self) -> VmResult<Shared<RangeFrom>> {
+        match self {
+            Self::RangeFrom(object) => VmResult::Ok(object),
+            actual => err(VmErrorKind::expected::<RangeFrom>(vm_try!(
+                actual.type_info()
+            ))),
+        }
+    }
+
+    /// Try to coerce value into a [`RangeFull`].
+    #[inline]
+    pub fn into_range_full(self) -> VmResult<Shared<RangeFull>> {
+        match self {
+            Self::RangeFull(object) => VmResult::Ok(object),
+            actual => err(VmErrorKind::expected::<RangeFull>(vm_try!(
+                actual.type_info()
+            ))),
+        }
+    }
+
+    /// Try to coerce value into a [`RangeToInclusive`].
+    #[inline]
+    pub fn into_range_to_inclusive(self) -> VmResult<Shared<RangeToInclusive>> {
+        match self {
+            Self::RangeToInclusive(object) => VmResult::Ok(object),
+            actual => err(VmErrorKind::expected::<RangeToInclusive>(vm_try!(
+                actual.type_info()
+            ))),
+        }
+    }
+
+    /// Try to coerce value into a [`RangeInclusive`].
+    #[inline]
+    pub fn into_range_inclusive(self) -> VmResult<Shared<RangeInclusive>> {
+        match self {
+            Self::RangeInclusive(object) => VmResult::Ok(object),
+            actual => err(VmErrorKind::expected::<RangeInclusive>(vm_try!(
+                actual.type_info()
+            ))),
+        }
+    }
+
+    /// Try to coerce value into a [`RangeTo`].
+    #[inline]
+    pub fn into_range_to(self) -> VmResult<Shared<RangeTo>> {
+        match self {
+            Self::RangeTo(object) => VmResult::Ok(object),
+            actual => err(VmErrorKind::expected::<RangeTo>(
+                vm_try!(actual.type_info()),
+            )),
+        }
+    }
+
+    /// Try to coerce value into a [`Range`].
     #[inline]
     pub fn into_range(self) -> VmResult<Shared<Range>> {
         match self {
@@ -1003,30 +1091,35 @@ impl Value {
     /// *enum*, and not the type hash of the variant itself.
     pub fn type_hash(&self) -> Result<Hash, VmError> {
         Ok(match self {
-            Self::Unit => crate::runtime::UNIT_TYPE.hash,
-            Self::Bool(..) => crate::runtime::BOOL_TYPE.hash,
-            Self::Byte(..) => crate::runtime::BYTE_TYPE.hash,
-            Self::Char(..) => crate::runtime::CHAR_TYPE.hash,
-            Self::Integer(..) => crate::runtime::INTEGER_TYPE.hash,
-            Self::Float(..) => crate::runtime::FLOAT_TYPE.hash,
-            Self::Type(..) => crate::runtime::TYPE.hash,
-            Self::Ordering(..) => crate::runtime::ORDERING.hash,
-            Self::StaticString(..) => crate::runtime::STRING_TYPE.hash,
-            Self::String(..) => crate::runtime::STRING_TYPE.hash,
-            Self::Bytes(..) => crate::runtime::BYTES_TYPE.hash,
-            Self::Vec(..) => crate::runtime::VEC_TYPE.hash,
-            Self::Tuple(..) => crate::runtime::TUPLE_TYPE.hash,
-            Self::Object(..) => crate::runtime::OBJECT_TYPE.hash,
-            Self::Range(..) => crate::runtime::RANGE_TYPE.hash,
-            Self::Future(..) => crate::runtime::FUTURE_TYPE.hash,
-            Self::Stream(..) => crate::runtime::STREAM_TYPE.hash,
-            Self::Generator(..) => crate::runtime::GENERATOR_TYPE.hash,
-            Self::GeneratorState(..) => crate::runtime::GENERATOR_STATE_TYPE.hash,
-            Self::Result(..) => crate::runtime::RESULT_TYPE.hash,
-            Self::Option(..) => crate::runtime::OPTION_TYPE.hash,
-            Self::Function(..) => crate::runtime::FUNCTION_TYPE.hash,
-            Self::Format(..) => crate::runtime::FORMAT_TYPE.hash,
-            Self::Iterator(..) => crate::runtime::ITERATOR_TYPE.hash,
+            Self::Unit => crate::runtime::static_type::UNIT_TYPE.hash,
+            Self::Bool(..) => crate::runtime::static_type::BOOL_TYPE.hash,
+            Self::Byte(..) => crate::runtime::static_type::BYTE_TYPE.hash,
+            Self::Char(..) => crate::runtime::static_type::CHAR_TYPE.hash,
+            Self::Integer(..) => crate::runtime::static_type::INTEGER_TYPE.hash,
+            Self::Float(..) => crate::runtime::static_type::FLOAT_TYPE.hash,
+            Self::Type(..) => crate::runtime::static_type::TYPE.hash,
+            Self::Ordering(..) => crate::runtime::static_type::ORDERING.hash,
+            Self::StaticString(..) => crate::runtime::static_type::STRING_TYPE.hash,
+            Self::String(..) => crate::runtime::static_type::STRING_TYPE.hash,
+            Self::Bytes(..) => crate::runtime::static_type::BYTES_TYPE.hash,
+            Self::Vec(..) => crate::runtime::static_type::VEC_TYPE.hash,
+            Self::Tuple(..) => crate::runtime::static_type::TUPLE_TYPE.hash,
+            Self::Object(..) => crate::runtime::static_type::OBJECT_TYPE.hash,
+            Self::RangeFrom(..) => crate::runtime::static_type::RANGE_FROM_TYPE.hash,
+            Self::RangeFull(..) => crate::runtime::static_type::RANGE_FULL_TYPE.hash,
+            Self::RangeInclusive(..) => crate::runtime::static_type::RANGE_INCLUSIVE_TYPE.hash,
+            Self::RangeToInclusive(..) => crate::runtime::static_type::RANGE_TO_INCLUSIVE_TYPE.hash,
+            Self::RangeTo(..) => crate::runtime::static_type::RANGE_TO_TYPE.hash,
+            Self::Range(..) => crate::runtime::static_type::RANGE_TYPE.hash,
+            Self::Future(..) => crate::runtime::static_type::FUTURE_TYPE.hash,
+            Self::Stream(..) => crate::runtime::static_type::STREAM_TYPE.hash,
+            Self::Generator(..) => crate::runtime::static_type::GENERATOR_TYPE.hash,
+            Self::GeneratorState(..) => crate::runtime::static_type::GENERATOR_STATE_TYPE.hash,
+            Self::Result(..) => crate::runtime::static_type::RESULT_TYPE.hash,
+            Self::Option(..) => crate::runtime::static_type::OPTION_TYPE.hash,
+            Self::Function(..) => crate::runtime::static_type::FUNCTION_TYPE.hash,
+            Self::Format(..) => crate::runtime::static_type::FORMAT_TYPE.hash,
+            Self::Iterator(..) => crate::runtime::static_type::ITERATOR_TYPE.hash,
             Self::UnitStruct(empty) => empty.borrow_ref()?.rtti.hash,
             Self::TupleStruct(tuple) => tuple.borrow_ref()?.rtti.hash,
             Self::Struct(object) => object.borrow_ref()?.rtti.hash,
@@ -1038,30 +1131,49 @@ impl Value {
     /// Get the type information for the current value.
     pub fn type_info(&self) -> VmResult<TypeInfo> {
         VmResult::Ok(match self {
-            Self::Unit => TypeInfo::StaticType(crate::runtime::UNIT_TYPE),
-            Self::Bool(..) => TypeInfo::StaticType(crate::runtime::BOOL_TYPE),
-            Self::Byte(..) => TypeInfo::StaticType(crate::runtime::BYTE_TYPE),
-            Self::Char(..) => TypeInfo::StaticType(crate::runtime::CHAR_TYPE),
-            Self::Integer(..) => TypeInfo::StaticType(crate::runtime::INTEGER_TYPE),
-            Self::Float(..) => TypeInfo::StaticType(crate::runtime::FLOAT_TYPE),
-            Self::Type(..) => TypeInfo::StaticType(crate::runtime::TYPE),
-            Self::Ordering(..) => TypeInfo::StaticType(crate::runtime::ORDERING),
-            Self::StaticString(..) => TypeInfo::StaticType(crate::runtime::STRING_TYPE),
-            Self::String(..) => TypeInfo::StaticType(crate::runtime::STRING_TYPE),
-            Self::Bytes(..) => TypeInfo::StaticType(crate::runtime::BYTES_TYPE),
-            Self::Vec(..) => TypeInfo::StaticType(crate::runtime::VEC_TYPE),
-            Self::Tuple(..) => TypeInfo::StaticType(crate::runtime::TUPLE_TYPE),
-            Self::Object(..) => TypeInfo::StaticType(crate::runtime::OBJECT_TYPE),
-            Self::Range(..) => TypeInfo::StaticType(crate::runtime::RANGE_TYPE),
-            Self::Future(..) => TypeInfo::StaticType(crate::runtime::FUTURE_TYPE),
-            Self::Stream(..) => TypeInfo::StaticType(crate::runtime::STREAM_TYPE),
-            Self::Generator(..) => TypeInfo::StaticType(crate::runtime::GENERATOR_TYPE),
-            Self::GeneratorState(..) => TypeInfo::StaticType(crate::runtime::GENERATOR_STATE_TYPE),
-            Self::Option(..) => TypeInfo::StaticType(crate::runtime::OPTION_TYPE),
-            Self::Result(..) => TypeInfo::StaticType(crate::runtime::RESULT_TYPE),
-            Self::Function(..) => TypeInfo::StaticType(crate::runtime::FUNCTION_TYPE),
-            Self::Format(..) => TypeInfo::StaticType(crate::runtime::FORMAT_TYPE),
-            Self::Iterator(..) => TypeInfo::StaticType(crate::runtime::ITERATOR_TYPE),
+            Self::Unit => TypeInfo::StaticType(crate::runtime::static_type::UNIT_TYPE),
+            Self::Bool(..) => TypeInfo::StaticType(crate::runtime::static_type::BOOL_TYPE),
+            Self::Byte(..) => TypeInfo::StaticType(crate::runtime::static_type::BYTE_TYPE),
+            Self::Char(..) => TypeInfo::StaticType(crate::runtime::static_type::CHAR_TYPE),
+            Self::Integer(..) => TypeInfo::StaticType(crate::runtime::static_type::INTEGER_TYPE),
+            Self::Float(..) => TypeInfo::StaticType(crate::runtime::static_type::FLOAT_TYPE),
+            Self::Type(..) => TypeInfo::StaticType(crate::runtime::static_type::TYPE),
+            Self::Ordering(..) => TypeInfo::StaticType(crate::runtime::static_type::ORDERING),
+            Self::StaticString(..) => {
+                TypeInfo::StaticType(crate::runtime::static_type::STRING_TYPE)
+            }
+            Self::String(..) => TypeInfo::StaticType(crate::runtime::static_type::STRING_TYPE),
+            Self::Bytes(..) => TypeInfo::StaticType(crate::runtime::static_type::BYTES_TYPE),
+            Self::Vec(..) => TypeInfo::StaticType(crate::runtime::static_type::VEC_TYPE),
+            Self::Tuple(..) => TypeInfo::StaticType(crate::runtime::static_type::TUPLE_TYPE),
+            Self::Object(..) => TypeInfo::StaticType(crate::runtime::static_type::OBJECT_TYPE),
+            Self::RangeFrom(..) => {
+                TypeInfo::StaticType(crate::runtime::static_type::RANGE_FROM_TYPE)
+            }
+            Self::RangeFull(..) => {
+                TypeInfo::StaticType(crate::runtime::static_type::RANGE_FULL_TYPE)
+            }
+            Self::RangeInclusive(..) => {
+                TypeInfo::StaticType(crate::runtime::static_type::RANGE_INCLUSIVE_TYPE)
+            }
+            Self::RangeToInclusive(..) => {
+                TypeInfo::StaticType(crate::runtime::static_type::RANGE_TO_INCLUSIVE_TYPE)
+            }
+            Self::RangeTo(..) => TypeInfo::StaticType(crate::runtime::static_type::RANGE_TO_TYPE),
+            Self::Range(..) => TypeInfo::StaticType(crate::runtime::static_type::RANGE_TYPE),
+            Self::Future(..) => TypeInfo::StaticType(crate::runtime::static_type::FUTURE_TYPE),
+            Self::Stream(..) => TypeInfo::StaticType(crate::runtime::static_type::STREAM_TYPE),
+            Self::Generator(..) => {
+                TypeInfo::StaticType(crate::runtime::static_type::GENERATOR_TYPE)
+            }
+            Self::GeneratorState(..) => {
+                TypeInfo::StaticType(crate::runtime::static_type::GENERATOR_STATE_TYPE)
+            }
+            Self::Option(..) => TypeInfo::StaticType(crate::runtime::static_type::OPTION_TYPE),
+            Self::Result(..) => TypeInfo::StaticType(crate::runtime::static_type::RESULT_TYPE),
+            Self::Function(..) => TypeInfo::StaticType(crate::runtime::static_type::FUNCTION_TYPE),
+            Self::Format(..) => TypeInfo::StaticType(crate::runtime::static_type::FORMAT_TYPE),
+            Self::Iterator(..) => TypeInfo::StaticType(crate::runtime::static_type::ITERATOR_TYPE),
             Self::UnitStruct(empty) => vm_try!(empty.borrow_ref()).type_info(),
             Self::TupleStruct(tuple) => vm_try!(tuple.borrow_ref()).type_info(),
             Self::Struct(object) => vm_try!(object.borrow_ref()).type_info(),
@@ -1114,6 +1226,31 @@ impl Value {
                 let a = vm_try!(a.borrow_ref());
                 let b = vm_try!(b.borrow_ref());
                 return Object::eq_with(&a, &b, caller);
+            }
+            (Self::RangeFrom(a), Self::RangeFrom(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+                return RangeFrom::eq_with(&a, &b, caller);
+            }
+            (Self::RangeFull(a), Self::RangeFull(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+                return RangeFull::eq_with(&a, &b, caller);
+            }
+            (Self::RangeInclusive(a), Self::RangeInclusive(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+                return RangeInclusive::eq_with(&a, &b, caller);
+            }
+            (Self::RangeToInclusive(a), Self::RangeToInclusive(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+                return RangeToInclusive::eq_with(&a, &b, caller);
+            }
+            (Self::RangeTo(a), Self::RangeTo(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+                return RangeTo::eq_with(&a, &b, caller);
             }
             (Self::Range(a), Self::Range(b)) => {
                 let a = vm_try!(a.borrow_ref());
@@ -1273,6 +1410,21 @@ impl fmt::Debug for Value {
             Value::Object(value) => {
                 write!(f, "{:?}", value)?;
             }
+            Value::RangeFrom(value) => {
+                write!(f, "{:?}", value)?;
+            }
+            Value::RangeFull(value) => {
+                write!(f, "{:?}", value)?;
+            }
+            Value::RangeInclusive(value) => {
+                write!(f, "{:?}", value)?;
+            }
+            Value::RangeToInclusive(value) => {
+                write!(f, "{:?}", value)?;
+            }
+            Value::RangeTo(value) => {
+                write!(f, "{:?}", value)?;
+            }
             Value::Range(value) => {
                 write!(f, "{:?}", value)?;
             }
@@ -1426,6 +1578,11 @@ impl_from_wrapper! {
     Vec => Shared<Vec>,
     Tuple => Shared<Tuple>,
     Object => Shared<Object>,
+    RangeFrom => Shared<RangeFrom>,
+    RangeFull => Shared<RangeFull>,
+    RangeInclusive => Shared<RangeInclusive>,
+    RangeToInclusive => Shared<RangeToInclusive>,
+    RangeTo => Shared<RangeTo>,
     Range => Shared<Range>,
     Future => Shared<Future>,
     Stream => Shared<Stream<Vm>>,
@@ -1524,7 +1681,16 @@ impl ser::Serialize for Value {
             Value::Function(..) => Err(ser::Error::custom("cannot serialize function pointers")),
             Value::Format(..) => Err(ser::Error::custom("cannot serialize format specifications")),
             Value::Iterator(..) => Err(ser::Error::custom("cannot serialize iterators")),
-            Value::Range(..) => Err(ser::Error::custom("cannot serialize ranges")),
+            Value::RangeFrom(..) => Err(ser::Error::custom("cannot serialize `start..` ranges")),
+            Value::RangeFull(..) => Err(ser::Error::custom("cannot serialize `..` ranges")),
+            Value::RangeInclusive(..) => {
+                Err(ser::Error::custom("cannot serialize `start..=end` ranges"))
+            }
+            Value::RangeToInclusive(..) => {
+                Err(ser::Error::custom("cannot serialize `..=end` ranges"))
+            }
+            Value::RangeTo(..) => Err(ser::Error::custom("cannot serialize `..end` ranges")),
+            Value::Range(..) => Err(ser::Error::custom("cannot serialize `start..end` ranges")),
             Value::Any(..) => Err(ser::Error::custom("cannot serialize external objects")),
         }
     }

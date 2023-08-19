@@ -799,9 +799,9 @@ impl Context {
 
         self.install_type_info(ContextType {
             item: item.clone(),
-            hash: crate::runtime::UNIT_TYPE.hash,
+            hash: crate::runtime::static_type::UNIT_TYPE.hash,
             type_check: Some(TypeCheck::Unit),
-            type_info: crate::runtime::UNIT_TYPE.type_info(),
+            type_info: crate::runtime::static_type::UNIT_TYPE.type_info(),
             type_parameters: Hash::EMPTY,
         })?;
 

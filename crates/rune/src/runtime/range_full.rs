@@ -1,0 +1,80 @@
+use core::fmt;
+use core::ops;
+
+use crate as rune;
+use crate::compile::Named;
+use crate::module::InstallWith;
+use crate::runtime::{FromValue, ProtocolCaller, RawStr, ToValue, Value, VmResult};
+
+/// Struct representing an open range `start..`.
+///
+/// # Examples
+///
+/// ```
+/// use rune::runtime::RangeFull;
+///
+/// let _ = RangeFull::new();
+/// # Ok::<_, rune::Error>(())
+/// ```
+#[derive(Default, Clone)]
+pub struct RangeFull;
+
+impl RangeFull {
+    /// Construct a new range.
+    pub fn new() -> Self {
+        Self
+    }
+
+    /// Value pointer equals implementation for a range.
+    pub(crate) fn eq_with(_: &Self, _: &Self, _: &mut impl ProtocolCaller) -> VmResult<bool> {
+        VmResult::Ok(true)
+    }
+
+    /// Test if the range contains the given integer.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// let range = ..;
+    ///
+    /// assert!(range.contains::<i64>(-10));
+    /// assert!(range.contains::<i64>(5));
+    /// assert!(range.contains::<i64>(10));
+    /// assert!(range.contains::<i64>(20));
+    ///
+    /// assert!(range is std::ops::RangeFull);
+    /// ```
+    #[rune::function(path = contains::<i64>)]
+    pub(crate) fn contains(&self, _: i64) -> VmResult<bool> {
+        VmResult::Ok(true)
+    }
+}
+
+impl fmt::Debug for RangeFull {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "..")
+    }
+}
+
+impl ToValue for ops::RangeFull {
+    fn to_value(self) -> VmResult<Value> {
+        let range = RangeFull::new();
+        VmResult::Ok(Value::from(range))
+    }
+}
+
+impl FromValue for ops::RangeFull {
+    #[inline]
+    fn from_value(value: Value) -> VmResult<Self> {
+        let RangeFull = vm_try!(vm_try!(value.into_range_full()).take());
+        VmResult::Ok(ops::RangeFull)
+    }
+}
+
+from_value!(RangeFull, into_range_full);
+
+impl Named for RangeFull {
+    const BASE_NAME: RawStr = RawStr::from_str("RangeFull");
+}
+
+impl InstallWith for RangeFull {}

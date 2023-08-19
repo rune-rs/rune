@@ -52,6 +52,15 @@ impl fmt::Display for RawStr {
     }
 }
 
+impl PartialEq for RawStr {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        **self == **other
+    }
+}
+
+impl Eq for RawStr {}
+
 // Safety: `RawStr` references static data.
 unsafe impl Send for RawStr {}
 unsafe impl Sync for RawStr {}

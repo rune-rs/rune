@@ -663,14 +663,14 @@ pub enum Inst {
     /// # Operation
     ///
     /// ```text
-    /// <from>
-    /// <to>
+    /// [start]
+    /// [end]
     /// => <range>
     /// ```
     #[musli(packed)]
     Range {
-        /// The limits of the range.
-        limits: InstRangeLimits,
+        /// The kind of the range, which determines the number of arguments on the stack.
+        range: InstRange,
     },
     /// Construct a push an object of the given type onto the stack. The type is
     /// an empty struct.
@@ -1133,18 +1133,30 @@ impl fmt::Display for InstAddress {
 
 /// Range limits of a range expression.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
-pub enum InstRangeLimits {
-    /// A half-open range `a .. b`.
-    HalfOpen,
-    /// A closed range `a ..= b`.
-    Closed,
+pub enum InstRange {
+    /// `start..`.
+    RangeFrom,
+    /// `..`.
+    RangeFull,
+    /// `start..=end`.
+    RangeInclusive,
+    /// `..=end`.
+    RangeToInclusive,
+    /// `..end`.
+    RangeTo,
+    /// `start..end`.
+    Range,
 }
 
-impl fmt::Display for InstRangeLimits {
+impl fmt::Display for InstRange {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::HalfOpen => write!(f, ".."),
-            Self::Closed => write!(f, "..="),
+            InstRange::RangeFrom => write!(f, "start.."),
+            InstRange::RangeFull => write!(f, ".."),
+            InstRange::RangeInclusive => write!(f, "start..=end"),
+            InstRange::RangeToInclusive => write!(f, "..=end"),
+            InstRange::RangeTo => write!(f, "..end"),
+            InstRange::Range => write!(f, "start..end"),
         }
     }
 }

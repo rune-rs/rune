@@ -515,6 +515,17 @@ pub(crate) enum VmErrorKind {
     UnsupportedTryOperand {
         actual: TypeInfo,
     },
+    UnsupportedIterRangeInclusive {
+        start: TypeInfo,
+        end: TypeInfo,
+    },
+    UnsupportedIterRangeFrom {
+        start: TypeInfo,
+    },
+    UnsupportedIterRange {
+        start: TypeInfo,
+        end: TypeInfo,
+    },
     UnsupportedIterNextOperand {
         actual: TypeInfo,
     },
@@ -544,7 +555,6 @@ pub(crate) enum VmErrorKind {
         actual: TypeInfo,
     },
     MissingInterfaceEnvironment,
-    UnsupportedRange,
     ExpectedExecutionState {
         expected: ExecutionState,
         actual: ExecutionState,
@@ -699,6 +709,15 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::UnsupportedTryOperand { actual } => {
                 write!(f, "Type `{actual}` is not supported as try operand",)
             }
+            VmErrorKind::UnsupportedIterRangeInclusive { start, end } => {
+                write!(f, "Cannot build an iterator out of {start}..={end}")
+            }
+            VmErrorKind::UnsupportedIterRangeFrom { start } => {
+                write!(f, "Cannot build an iterator out of {start}..")
+            }
+            VmErrorKind::UnsupportedIterRange { start, end } => {
+                write!(f, "Cannot build an iterator out of {start}..{end}")
+            }
             VmErrorKind::UnsupportedIterNextOperand { actual } => {
                 write!(f, "Type `{actual}` is not supported as iter-next operand",)
             }
@@ -727,7 +746,6 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::MissingInterfaceEnvironment {} => {
                 write!(f, "Missing interface environment")
             }
-            VmErrorKind::UnsupportedRange {} => write!(f, "Unsupported range"),
             VmErrorKind::ExpectedExecutionState { expected, actual } => {
                 write!(f, "Expected execution to be {expected}, but was {actual}",)
             }
