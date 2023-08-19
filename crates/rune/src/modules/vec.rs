@@ -4,7 +4,8 @@ use core::cmp;
 
 use crate as rune;
 use crate::modules::collections::VecDeque;
-use crate::runtime::{FromValue, Function, Protocol, Value, Vec, VmResult};
+use crate::no_std::prelude::*;
+use crate::runtime::{FromValue, Function, Iterator, Protocol, Value, Vec, VmErrorKind, VmResult};
 use crate::{ContextError, Module};
 
 /// Construct the `std::vec` module.
@@ -19,21 +20,21 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(is_empty)?;
     m.function_meta(capacity)?;
     m.function_meta(get)?;
-    m.function_meta(sort_by)?;
     m.function_meta(clear)?;
-    m.associated_function("clone", Vec::clone)?;
-    m.associated_function("extend", Vec::extend)?;
-    m.associated_function("iter", Vec::into_iterator)?;
-    m.associated_function("pop", Vec::pop)?;
-    m.associated_function("push", Vec::push)?;
-    m.associated_function("remove", Vec::remove)?;
-    m.associated_function("insert", Vec::insert)?;
+    m.function_meta(extend)?;
+    m.function_meta(iter)?;
+    m.function_meta(pop)?;
+    m.function_meta(push)?;
+    m.function_meta(remove)?;
+    m.function_meta(insert)?;
+    m.function_meta(clone)?;
+    m.function_meta(sort_by)?;
+    m.function_meta(sort_int)?;
+    m.function_meta(sort_string)?;
+    m.function_meta(into_vec_deque)?;
     m.associated_function(Protocol::INTO_ITER, Vec::into_iterator)?;
     m.associated_function(Protocol::INDEX_SET, Vec::set)?;
     m.associated_function(Protocol::EQ, eq)?;
-
-    m.function_meta(sort_int)?;
-    m.function_meta(into_vec_deque)?;
     Ok(m)
 }
 
@@ -104,7 +105,7 @@ fn vec_with_capacity(capacity: usize) -> Vec {
 ///
 /// # Examples
 ///
-/// ```
+/// ```rune
 /// let a = [1, 2, 3];
 /// assert_eq!(a.len(), 3);
 /// ```
@@ -142,16 +143,6 @@ fn is_empty(vec: &Vec) -> bool {
 #[rune::function(instance)]
 fn capacity(vec: &Vec) -> usize {
     vec.capacity()
-}
-
-/// Sort a vector of integers.
-#[rune::function(instance, path = sort::<i64>)]
-fn sort_int(vec: &mut Vec) {
-    vec.sort_by(|a, b| match (a, b) {
-        (Value::Integer(a), Value::Integer(b)) => a.cmp(b),
-        // NB: fall back to sorting by address.
-        _ => (a as *const _ as usize).cmp(&(b as *const _ as usize)),
-    });
 }
 
 /// Returns a reference to an element or subslice depending on the type of
@@ -254,6 +245,96 @@ fn sort_by(vec: &mut Vec, comparator: &Function) -> VmResult<()> {
     }
 }
 
+/// Sort a vector of integers.
+///
+/// Errors if any contained type is not an integer.
+#[rune::function(instance, path = sort::<i64>)]
+fn sort_int(vec: &mut Vec) -> VmResult<()> {
+    let mut err = None;
+
+    vec.sort_by(|a, b| {
+        let result = (|| {
+            if let (Value::Integer(a), Value::Integer(b)) = (a, b) {
+                return VmResult::Ok(a.cmp(b));
+            };
+
+            let v = match (a, b) {
+                (Value::String(..), b) => b,
+                (a, _) => a,
+            };
+
+            VmResult::expected::<i64>(vm_try!(v.type_info()))
+        })();
+
+        match result {
+            VmResult::Ok(cmp) => cmp,
+            VmResult::Err(e) => {
+                if err.is_none() {
+                    err = Some(e);
+                }
+
+                // NB: fall back to sorting by address.
+                (a as *const _ as usize).cmp(&(b as *const _ as usize))
+            }
+        }
+    });
+
+    if let Some(err) = err {
+        return VmResult::Err(err);
+    }
+
+    VmResult::Ok(())
+}
+
+/// Sort a vector of strings.
+///
+/// Errors if any contained type is not an integer.
+#[rune::function(instance, path = sort::<String>)]
+fn sort_string(vec: &mut Vec) -> VmResult<()> {
+    let mut err = None;
+
+    vec.sort_by(|a, b| {
+        let result = (|| {
+            match (a, b) {
+                (Value::String(a), Value::String(b)) => {
+                    let a = vm_try!(a.borrow_ref());
+                    let b = vm_try!(b.borrow_ref());
+                    return VmResult::Ok(a.cmp(&b));
+                }
+                (Value::StaticString(a), Value::StaticString(b)) => {
+                    return VmResult::Ok(a.cmp(b));
+                }
+                _ => {}
+            }
+
+            let v = match (a, b) {
+                (Value::String(..) | Value::StaticString(..), b) => b,
+                (a, _) => a,
+            };
+
+            VmResult::expected::<String>(vm_try!(v.type_info()))
+        })();
+
+        match result {
+            VmResult::Ok(cmp) => cmp,
+            VmResult::Err(e) => {
+                if err.is_none() {
+                    err = Some(e);
+                }
+
+                // NB: fall back to sorting by address.
+                (a as *const _ as usize).cmp(&(b as *const _ as usize))
+            }
+        }
+    });
+
+    if let Some(err) = err {
+        return VmResult::Err(err);
+    }
+
+    VmResult::Ok(())
+}
+
 /// Clears the vector, removing all values.
 ///
 /// Note that this method has no effect on the allocated capacity of the vector.
@@ -272,6 +353,144 @@ fn clear(vec: &mut Vec) {
     vec.clear();
 }
 
+/// Extend these bytes with another collection.
+///
+/// # Examples
+///
+/// ```rune
+/// let vec = [1, 2, 3, 4];
+/// vec.extend([5, 6, 7, 8]);
+/// assert_eq!(vec, [1, 2, 3, 4, 5, 6, 7, 8]);
+/// ```
+#[rune::function(instance)]
+fn extend(this: &mut Vec, value: Value) -> VmResult<()> {
+    this.extend(value)
+}
+
+/// Iterate over the collection.
+///
+/// # Examples
+///
+/// ```rune
+/// let vec = [1, 2, 3, 4];
+/// let it = vec.iter();
+///
+/// assert_eq!(Some(1), it.next());
+/// assert_eq!(Some(4), it.next_back());
+/// ```
+#[rune::function(instance)]
+fn iter(this: &Vec) -> Iterator {
+    this.into_iterator()
+}
+
+/// Removes the last element from a vector and returns it, or [`None`] if it is
+/// empty.
+///
+/// If you'd like to pop the first element, consider using
+/// [`VecDeque::pop_front`] instead.
+///
+/// [`VecDeque::pop_front`]: crate::collections::VecDeque::pop_front
+///
+/// # Examples
+///
+/// ```rune
+/// let vec = [1, 2, 3];
+/// assert_eq!(vec.pop(), Some(3));
+/// assert_eq!(vec, [1, 2]);
+/// ```
+#[rune::function(instance)]
+fn pop(this: &mut Vec) -> Option<Value> {
+    this.pop()
+}
+
+/// Appends an element to the back of a collection.
+///
+/// # Panics
+///
+/// Panics if the new capacity exceeds `isize::MAX` bytes.
+///
+/// # Examples
+///
+/// ```rune
+/// let vec = [1, 2];
+/// vec.push(3);
+/// assert_eq!(vec, [1, 2, 3]);
+/// ```
+#[rune::function(instance)]
+fn push(this: &mut Vec, value: Value) {
+    this.push(value);
+}
+
+/// Removes and returns the element at position `index` within the vector,
+/// shifting all elements after it to the left.
+///
+/// Note: Because this shifts over the remaining elements, it has a worst-case
+/// performance of *O*(*n*). If you don't need the order of elements to be
+/// preserved, use [`swap_remove`] instead. If you'd like to remove elements
+/// from the beginning of the `Vec`, consider using [`VecDeque::pop_front`]
+/// instead.
+///
+/// [`swap_remove`]: Vec::swap_remove
+/// [`VecDeque::pop_front`]: crate::collections::VecDeque::pop_front
+///
+/// # Panics
+///
+/// Panics if `index` is out of bounds.
+///
+/// ```rune,should_panic
+/// let v = [1, 2, 3];
+/// v.remove(3);
+/// ```
+///
+/// # Examples
+///
+/// ```rune
+/// let v = [1, 2, 3];
+/// assert_eq!(v.remove(1), 2);
+/// assert_eq!(v, [1, 3]);
+/// ```
+#[rune::function(instance)]
+fn remove(this: &mut Vec, index: usize) -> VmResult<Value> {
+    if index >= this.len() {
+        return VmResult::err(VmErrorKind::OutOfRange {
+            index: index.into(),
+            length: this.len().into(),
+        });
+    }
+
+    let value = this.remove(index);
+    VmResult::Ok(value)
+}
+
+/// Inserts an element at position `index` within the vector, shifting all
+/// elements after it to the right.
+///
+/// # Panics
+///
+/// Panics if `index > len`.
+///
+/// # Examples
+///
+/// ```rune
+/// let vec = [1, 2, 3];
+/// vec.insert(1, 4);
+/// assert_eq!(vec, [1, 4, 2, 3]);
+/// vec.insert(4, 5);
+/// assert_eq!(vec, [1, 4, 2, 3, 5]);
+/// ```
+#[rune::function(instance)]
+fn insert(this: &mut Vec, index: usize, value: Value) -> VmResult<()> {
+    if index > this.len() {
+        return VmResult::err(VmErrorKind::OutOfRange {
+            index: index.into(),
+            length: this.len().into(),
+        });
+    }
+
+    this.insert(index, value);
+    VmResult::Ok(())
+}
+
 /// Convert a vector into a vecdeque.
 ///
 /// # Examples
@@ -287,6 +506,24 @@ fn clear(vec: &mut Vec) {
 #[rune::function(instance, path = into::<VecDeque>)]
 fn into_vec_deque(vec: Vec) -> VecDeque {
     VecDeque::from_vec(vec.into_inner())
+}
+
+/// Clone the vector.
+///
+/// # Examples
+///
+/// ```rune
+/// let a = [1, 2, 3];
+/// let b = a.clone();
+///
+/// b.push(4);
+///
+/// assert_eq!(a, [1, 2, 3]);
+/// assert_eq!(b, [1, 2, 3, 4]);
+/// ```
+#[rune::function(instance)]
+fn clone(this: &Vec) -> Vec {
+    this.clone()
 }
 
 fn eq(this: &Vec, other: Value) -> VmResult<bool> {

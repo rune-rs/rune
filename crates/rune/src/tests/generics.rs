@@ -99,6 +99,7 @@ fn test_sort() {
             vec
         }
     };
+
     assert_eq!(values, vec![1, 2, 3, 4]);
 
     let values: Vec<i64> = rune! {

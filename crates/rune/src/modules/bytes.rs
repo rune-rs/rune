@@ -22,13 +22,12 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(last)?;
     module.function_meta(len)?;
     module.function_meta(is_empty)?;
-
-    module.associated_function("capacity", Bytes::capacity)?;
-    module.associated_function("clear", Bytes::clear)?;
-    module.associated_function("reserve", Bytes::reserve)?;
-    module.associated_function("reserve_exact", Bytes::reserve_exact)?;
-    module.associated_function("clone", Bytes::clone)?;
-    module.associated_function("shrink_to_fit", Bytes::shrink_to_fit)?;
+    module.function_meta(capacity)?;
+    module.function_meta(clear)?;
+    module.function_meta(reserve)?;
+    module.function_meta(reserve_exact)?;
+    module.function_meta(clone)?;
+    module.function_meta(shrink_to_fit)?;
     Ok(module)
 }
 
@@ -208,4 +207,123 @@ pub fn len(this: &Bytes) -> usize {
 #[inline]
 pub fn is_empty(this: &Bytes) -> bool {
     this.is_empty()
+}
+
+/// Returns the total number of elements the vector can hold without
+/// reallocating.
+///
+/// # Examples
+///
+/// ```
+/// let bytes = Bytes::with_capacity(10);
+/// bytes.extend(b"abc");
+/// assert!(bytes.capacity() >= 10);
+/// ```
+#[rune::function(instance)]
+fn capacity(this: &Bytes) -> usize {
+    this.capacity()
+}
+
+/// Clears the vector, removing all values.
+///
+/// Note that this method has no effect on the allocated capacity of the vector.
+///
+/// # Examples
+///
+/// ```
+/// let bytes = b"abc";
+/// bytes.clear();
+/// assert!(bytes.is_empty());
+/// ```
+#[rune::function(instance)]
+fn clear(this: &mut Bytes) {
+    this.clear();
+}
+
+/// Reserves capacity for at least `additional` more elements to be inserted in
+/// the given `Bytes`. The collection may reserve more space to speculatively
+/// avoid frequent reallocations. After calling `reserve`, capacity will be
+/// greater than or equal to `self.len() + additional`. Does nothing if capacity
+/// is already sufficient.
+///
+/// # Panics
+///
+/// Panics if the new capacity exceeds `isize::MAX` bytes.
+///
+/// # Examples
+///
+/// ```rune
+/// let vec = b"a";
+/// vec.reserve(10);
+/// assert!(vec.capacity() >= 11);
+/// ```
+#[rune::function(instance)]
+fn reserve(this: &mut Bytes, additional: usize) {
+    this.reserve(additional);
+}
+
+/// Reserves the minimum capacity for at least `additional` more elements to be
+/// inserted in the given `Bytes`. Unlike [`reserve`], this will not
+/// deliberately over-allocate to speculatively avoid frequent allocations.
+/// After calling `reserve_exact`, capacity will be greater than or equal to
+/// `self.len() + additional`. Does nothing if the capacity is already
+/// sufficient.
+///
+/// Note that the allocator may give the collection more space than it requests.
+/// Therefore, capacity can not be relied upon to be precisely minimal. Prefer
+/// [`reserve`] if future insertions are expected.
+///
+/// [`reserve`]: Bytes::reserve
+///
+/// # Panics
+///
+/// Panics if the new capacity exceeds `isize::MAX` bytes.
+///
+/// # Examples
+///
+/// ```
+/// let vec = b"a";
+/// vec.reserve_exact(10);
+/// assert!(vec.capacity() >= 11);
+/// ```
+#[rune::function(instance)]
+fn reserve_exact(this: &mut Bytes, additional: usize) {
+    this.reserve_exact(additional)
+}
+
+/// Clone the byte array.
+///
+/// # Examples
+///
+/// ```rune
+/// let a = b"hello world";
+/// let b = a.clone();
+///
+/// a.extend(b"!");
+///
+/// assert_eq!(a, b"hello world!");
+/// assert_eq!(b, b"hello world");
+/// ```
+#[rune::function(instance)]
+fn clone(this: &Bytes) -> Bytes {
+    this.clone()
+}
+
+/// Shrinks the capacity of the byte array as much as possible.
+///
+/// It will drop down as close as possible to the length but the allocator may
+/// still inform the byte array that there is space for a few more elements.
+///
+/// # Examples
+///
+/// ```rune
+/// let bytes = Bytes::with_capacity(10);
+/// bytes.extend(b"abc");
+/// assert!(bytes.capacity() >= 10);
+/// bytes.shrink_to_fit();
+/// assert!(bytes.capacity() >= 3);
+/// ```
+#[rune::function(instance)]
+fn shrink_to_fit(this: &mut Bytes) {
+    this.shrink_to_fit();
 }
