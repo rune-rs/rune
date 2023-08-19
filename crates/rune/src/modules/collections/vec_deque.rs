@@ -55,6 +55,7 @@ pub(super) fn setup(m: &mut Module) -> Result<(), ContextError> {
     m.associated_function(Protocol::INDEX_SET, VecDeque::set)?;
     m.associated_function(Protocol::INTO_ITER, VecDeque::__rune_fn__iter)?;
     m.associated_function(Protocol::STRING_DEBUG, VecDeque::string_debug)?;
+    m.associated_function(Protocol::PARTIAL_EQ, VecDeque::partial_eq)?;
     m.associated_function(Protocol::EQ, VecDeque::eq)?;
     m.associated_function(Protocol::CMP, VecDeque::cmp)?;
     Ok(())
@@ -505,6 +506,26 @@ impl VecDeque {
     #[inline]
     fn string_debug(&self, s: &mut String) -> fmt::Result {
         write!(s, "{:?}", self.inner)
+    }
+
+    fn partial_eq(this: &VecDeque, other: Value) -> VmResult<bool> {
+        let mut other = vm_try!(other.into_iter());
+
+        for a in &this.inner {
+            let Some(b) = vm_try!(other.next()) else {
+                return VmResult::Ok(false);
+            };
+
+            if !vm_try!(Value::partial_eq(a, &b)) {
+                return VmResult::Ok(false);
+            }
+        }
+
+        if vm_try!(other.next()).is_some() {
+            return VmResult::Ok(false);
+        }
+
+        VmResult::Ok(true)
     }
 
     fn eq(this: &VecDeque, other: Value) -> VmResult<bool> {

@@ -211,7 +211,24 @@ impl Vec {
         &self.inner
     }
 
-    /// Compare two vectors for equality.
+    pub(crate) fn partial_eq_with(
+        a: &Self,
+        b: &Self,
+        caller: &mut impl ProtocolCaller,
+    ) -> VmResult<bool> {
+        if a.len() != b.len() {
+            return VmResult::Ok(false);
+        }
+
+        for (a, b) in a.iter().zip(b.iter()) {
+            if !vm_try!(Value::partial_eq_with(a, b, caller)) {
+                return VmResult::Ok(false);
+            }
+        }
+
+        VmResult::Ok(true)
+    }
+
     pub(crate) fn eq_with(a: &Self, b: &Self, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
         if a.len() != b.len() {
             return VmResult::Ok(false);

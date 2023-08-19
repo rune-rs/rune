@@ -26,6 +26,14 @@ impl RangeFull {
         Self
     }
 
+    pub(crate) fn partial_eq_with(
+        _: &Self,
+        _: &Self,
+        _: &mut impl ProtocolCaller,
+    ) -> VmResult<bool> {
+        VmResult::Ok(true)
+    }
+
     pub(crate) fn eq_with(_: &Self, _: &Self, _: &mut impl ProtocolCaller) -> VmResult<bool> {
         VmResult::Ok(true)
     }

@@ -1182,14 +1182,169 @@ impl Value {
         })
     }
 
-    /// Perform a total ordering equality test between two values.
+    /// Perform a partial equality test between two values.
+    ///
+    /// This is the basis for the eq operation (`==`).
+    pub(crate) fn partial_eq(a: &Value, b: &Value) -> VmResult<bool> {
+        Value::partial_eq_with(a, b, &mut EnvProtocolCaller)
+    }
+
+    /// Perform a total equality test between two values.
+    ///
+    /// This is the basis for the eq operation (`==`).
+    pub(crate) fn partial_eq_with(
+        a: &Value,
+        b: &Value,
+        caller: &mut impl ProtocolCaller,
+    ) -> VmResult<bool> {
+        match (a, b) {
+            (Self::Unit, Self::Unit) => return VmResult::Ok(true),
+            (Self::Bool(a), Self::Bool(b)) => return VmResult::Ok(a == b),
+            (Self::Byte(a), Self::Byte(b)) => return VmResult::Ok(a == b),
+            (Self::Char(a), Self::Char(b)) => return VmResult::Ok(a == b),
+            (Self::Integer(a), Self::Integer(b)) => return VmResult::Ok(a == b),
+            (Self::Float(a), Self::Float(b)) => return VmResult::Ok(a == b),
+            (Self::Type(a), Self::Type(b)) => return VmResult::Ok(a == b),
+            (Self::Bytes(a), Self::Bytes(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+                return VmResult::Ok(*a == *b);
+            }
+            (Self::Vec(a), Self::Vec(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+                return Vec::partial_eq_with(&a, &b, caller);
+            }
+            (Self::Tuple(a), Self::Tuple(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+                return Tuple::partial_eq_with(&a, &b, caller);
+            }
+            (Self::Object(a), Self::Object(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+                return Object::partial_eq_with(&a, &b, caller);
+            }
+            (Self::RangeFrom(a), Self::RangeFrom(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+                return RangeFrom::partial_eq_with(&a, &b, caller);
+            }
+            (Self::RangeFull(a), Self::RangeFull(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+                return RangeFull::partial_eq_with(&a, &b, caller);
+            }
+            (Self::RangeInclusive(a), Self::RangeInclusive(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+                return RangeInclusive::partial_eq_with(&a, &b, caller);
+            }
+            (Self::RangeToInclusive(a), Self::RangeToInclusive(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+                return RangeToInclusive::partial_eq_with(&a, &b, caller);
+            }
+            (Self::RangeTo(a), Self::RangeTo(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+                return RangeTo::partial_eq_with(&a, &b, caller);
+            }
+            (Self::Range(a), Self::Range(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+                return Range::partial_eq_with(&a, &b, caller);
+            }
+            (Self::UnitStruct(a), Self::UnitStruct(b)) => {
+                if vm_try!(a.borrow_ref()).rtti.hash == vm_try!(b.borrow_ref()).rtti.hash {
+                    // NB: don't get any future ideas, this must fall through to
+                    // the VmError below since it's otherwise a comparison
+                    // between two incompatible types.
+                    //
+                    // Other than that, all units are equal.
+                    return VmResult::Ok(true);
+                }
+            }
+            (Self::TupleStruct(a), Self::TupleStruct(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+
+                if a.rtti.hash == b.rtti.hash {
+                    return Tuple::partial_eq_with(&a.data, &b.data, caller);
+                }
+            }
+            (Self::Struct(a), Self::Struct(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+
+                if a.rtti.hash == b.rtti.hash {
+                    return Object::partial_eq_with(&a.data, &b.data, caller);
+                }
+            }
+            (Self::Variant(a), Self::Variant(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+
+                if a.rtti().enum_hash == b.rtti().enum_hash {
+                    return Variant::partial_eq_with(&a, &b, caller);
+                }
+            }
+            (Self::String(a), Self::String(b)) => {
+                return VmResult::Ok(*vm_try!(a.borrow_ref()) == *vm_try!(b.borrow_ref()));
+            }
+            (Self::StaticString(a), Self::String(b)) => {
+                let b = vm_try!(b.borrow_ref());
+                return VmResult::Ok(***a == *b);
+            }
+            (Self::String(a), Self::StaticString(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                return VmResult::Ok(*a == ***b);
+            }
+            // fast string comparison: exact string slot.
+            (Self::StaticString(a), Self::StaticString(b)) => {
+                return VmResult::Ok(***a == ***b);
+            }
+            (Self::Option(a), Self::Option(b)) => {
+                match (&*vm_try!(a.borrow_ref()), &*vm_try!(b.borrow_ref())) {
+                    (Some(a), Some(b)) => return Self::partial_eq_with(a, b, caller),
+                    (None, None) => return VmResult::Ok(true),
+                    _ => return VmResult::Ok(false),
+                }
+            }
+            (Self::Result(a), Self::Result(b)) => {
+                match (&*vm_try!(a.borrow_ref()), &*vm_try!(b.borrow_ref())) {
+                    (Ok(a), Ok(b)) => return Self::partial_eq_with(a, b, caller),
+                    (Err(a), Err(b)) => return Self::partial_eq_with(a, b, caller),
+                    _ => return VmResult::Ok(false),
+                }
+            }
+            (a, b) => {
+                match vm_try!(caller.try_call_protocol_fn(
+                    Protocol::PARTIAL_EQ,
+                    a.clone(),
+                    (b.clone(),)
+                )) {
+                    CallResult::Ok(value) => return bool::from_value(value),
+                    CallResult::Unsupported(..) => {}
+                }
+            }
+        }
+
+        err(VmErrorKind::UnsupportedBinaryOperation {
+            op: "== (partial)",
+            lhs: vm_try!(a.type_info()),
+            rhs: vm_try!(b.type_info()),
+        })
+    }
+
+    /// Perform a total equality test between two values.
     ///
     /// This is the basis for the eq operation (`==`).
     pub(crate) fn eq(a: &Value, b: &Value) -> VmResult<bool> {
         Value::eq_with(a, b, &mut EnvProtocolCaller)
     }
 
-    /// Perform a total ordering equality test between two values.
+    /// Perform a total equality test between two values.
     ///
     /// This is the basis for the eq operation (`==`).
     pub(crate) fn eq_with(
@@ -1203,7 +1358,6 @@ impl Value {
             (Self::Byte(a), Self::Byte(b)) => return VmResult::Ok(a == b),
             (Self::Char(a), Self::Char(b)) => return VmResult::Ok(a == b),
             (Self::Integer(a), Self::Integer(b)) => return VmResult::Ok(a == b),
-            (Self::Float(a), Self::Float(b)) => return VmResult::Ok(a == b),
             (Self::Type(a), Self::Type(b)) => return VmResult::Ok(a == b),
             (Self::Bytes(a), Self::Bytes(b)) => {
                 let a = vm_try!(a.borrow_ref());

@@ -28,6 +28,7 @@ pub(super) fn setup(module: &mut Module) -> Result<(), ContextError> {
     module.associated_function(Protocol::INDEX_SET, HashMap::index_set)?;
     module.associated_function(Protocol::INDEX_GET, HashMap::index_get)?;
     module.associated_function(Protocol::STRING_DEBUG, HashMap::string_debug)?;
+    module.associated_function(Protocol::PARTIAL_EQ, HashMap::partial_eq)?;
     module.associated_function(Protocol::EQ, HashMap::eq)?;
     Ok(())
 }
@@ -345,6 +346,24 @@ impl HashMap {
 
     fn string_debug(&self, s: &mut String) -> fmt::Result {
         write!(s, "{:?}", self.map)
+    }
+
+    fn partial_eq(&self, other: &Self) -> VmResult<bool> {
+        if self.map.len() != other.map.len() {
+            return VmResult::Ok(false);
+        }
+
+        for (k, v) in self.map.iter() {
+            let Some(v2) = other.map.get(k) else {
+                return VmResult::Ok(false);
+            };
+
+            if !vm_try!(Value::partial_eq(v, v2)) {
+                return VmResult::Ok(false);
+            }
+        }
+
+        VmResult::Ok(true)
     }
 
     fn eq(&self, other: &Self) -> VmResult<bool> {

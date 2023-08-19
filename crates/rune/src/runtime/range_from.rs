@@ -65,6 +65,14 @@ impl RangeFrom {
         }
     }
 
+    pub(crate) fn partial_eq_with(
+        a: &Self,
+        b: &Self,
+        caller: &mut impl ProtocolCaller,
+    ) -> VmResult<bool> {
+        VmResult::Ok(vm_try!(Value::partial_eq_with(&a.start, &b.start, caller)))
+    }
+
     pub(crate) fn eq_with(a: &Self, b: &Self, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
         VmResult::Ok(vm_try!(Value::eq_with(&a.start, &b.start, caller)))
     }

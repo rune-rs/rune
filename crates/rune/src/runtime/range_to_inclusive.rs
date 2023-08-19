@@ -30,6 +30,14 @@ impl RangeToInclusive {
         Self { end }
     }
 
+    pub(crate) fn partial_eq_with(
+        a: &Self,
+        b: &Self,
+        caller: &mut impl ProtocolCaller,
+    ) -> VmResult<bool> {
+        Value::partial_eq_with(&a.end, &b.end, caller)
+    }
+
     pub(crate) fn eq_with(a: &Self, b: &Self, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
         Value::eq_with(&a.end, &b.end, caller)
     }

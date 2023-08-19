@@ -55,6 +55,30 @@ impl Variant {
         TypeInfo::Variant(self.rtti.clone())
     }
 
+    pub(crate) fn partial_eq_with(
+        a: &Self,
+        b: &Self,
+        caller: &mut impl ProtocolCaller,
+    ) -> VmResult<bool> {
+        debug_assert_eq!(
+            a.rtti.enum_hash, b.rtti.enum_hash,
+            "comparison only makes sense if enum hashes match"
+        );
+
+        if a.rtti.hash != b.rtti.hash {
+            return VmResult::Ok(false);
+        }
+
+        match (&a.data, &b.data) {
+            (VariantData::Unit, VariantData::Unit) => VmResult::Ok(true),
+            (VariantData::Tuple(a), VariantData::Tuple(b)) => Tuple::partial_eq_with(a, b, caller),
+            (VariantData::Struct(a), VariantData::Struct(b)) => {
+                Object::partial_eq_with(a, b, caller)
+            }
+            _ => VmResult::panic("data mismatch between variants"),
+        }
+    }
+
     pub(crate) fn eq_with(a: &Self, b: &Self, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
         debug_assert_eq!(
             a.rtti.enum_hash, b.rtti.enum_hash,

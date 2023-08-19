@@ -28,6 +28,7 @@ pub(super) fn setup(module: &mut Module) -> Result<(), ContextError> {
     module.function_meta(from)?;
     module.associated_function(Protocol::INTO_ITER, HashSet::__rune_fn__iter)?;
     module.associated_function(Protocol::STRING_DEBUG, HashSet::string_debug)?;
+    module.associated_function(Protocol::PARTIAL_EQ, HashSet::partial_eq)?;
     module.associated_function(Protocol::EQ, HashSet::eq)?;
     Ok(())
 }
@@ -330,6 +331,10 @@ impl HashSet {
         }
 
         VmResult::Ok(HashSet { set })
+    }
+
+    fn partial_eq(&self, other: &Self) -> bool {
+        self.set == other.set
     }
 
     fn eq(&self, other: &Self) -> bool {

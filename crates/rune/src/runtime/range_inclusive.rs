@@ -75,16 +75,24 @@ impl RangeInclusive {
         }
     }
 
+    pub(crate) fn partial_eq_with(
+        a: &Self,
+        b: &Self,
+        caller: &mut impl ProtocolCaller,
+    ) -> VmResult<bool> {
+        if !vm_try!(Value::partial_eq_with(&a.start, &b.start, caller)) {
+            return VmResult::Ok(false);
+        }
+
+        Value::partial_eq_with(&a.end, &b.end, caller)
+    }
+
     pub(crate) fn eq_with(a: &Self, b: &Self, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
         if !vm_try!(Value::eq_with(&a.start, &b.start, caller)) {
             return VmResult::Ok(false);
         }
 
-        if !vm_try!(Value::eq_with(&a.end, &b.end, caller)) {
-            return VmResult::Ok(false);
-        }
-
-        VmResult::Ok(true)
+        Value::eq_with(&a.end, &b.end, caller)
     }
 
     pub(crate) fn cmp_with(
