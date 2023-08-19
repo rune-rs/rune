@@ -1000,9 +1000,9 @@ impl<'a> Printer<'a> {
     fn visit_range(&mut self, ast: &ast::ExprRange) -> Result<()> {
         let ast::ExprRange {
             attributes,
-            from,
+            start: from,
             limits,
-            to,
+            end: to,
         } = ast;
 
         for attr in attributes {

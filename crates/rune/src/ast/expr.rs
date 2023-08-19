@@ -738,9 +738,9 @@ fn range(
 
     Ok(Expr::Range(ast::ExprRange {
         attributes,
-        from,
+        start: from,
         limits,
-        to,
+        end: to,
     }))
 }
 

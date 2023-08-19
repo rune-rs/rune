@@ -4,7 +4,7 @@ use ErrorKind::*;
 use VmErrorKind::*;
 
 #[test]
-fn test_range() {
+fn range_accessors() {
     let _: () = rune! {
         pub fn main() {
             assert_eq!((1..10).start, 1);
@@ -20,7 +20,7 @@ fn test_range() {
 }
 
 #[test]
-fn test_range_iter() {
+fn range_iter() {
     let _: () = rune! {
         pub fn main() {
             assert_eq!((1..4).iter().collect::<Vec>(), [1, 2, 3]);
@@ -32,6 +32,28 @@ fn test_range_iter() {
 
             let n = 1;
             assert_eq!((n + 1..).iter().take(3).collect::<Vec>(), [2, 3, 4]);
+        }
+    };
+}
+
+#[test]
+fn range_match() {
+    let _: () = rune! {
+        pub fn main() {
+            use std::ops::{RangeFrom, RangeFull, RangeInclusive, RangeToInclusive, RangeTo, Range};
+
+            assert_eq!(match 2.. { RangeFrom { start } => start, _ => 1 }, 2);
+            assert_eq!(match 2.. { RangeFrom { .. } => 2, _ => 1 }, 2);
+            assert_eq!(match .. { RangeFull => 2, _ => 1 }, 2);
+            assert_eq!(match .. { RangeFull { .. } => 2, _ => 1 }, 2);
+            assert_eq!(match 2..=5 { RangeInclusive { start, end } => start + end, _ => 1 }, 7);
+            assert_eq!(match 2..=5 { RangeInclusive { start, .. } => start, _ => 1 }, 2);
+            assert_eq!(match ..=2 { RangeToInclusive { end } => end, _ => 1 }, 2);
+            assert_eq!(match ..=2 { RangeToInclusive { .. } => 2, _ => 1 }, 2);
+            assert_eq!(match ..2 { RangeTo { end } => end, _ => 1 }, 2);
+            assert_eq!(match ..2 { RangeTo { .. } => 2, _ => 1 }, 2);
+            assert_eq!(match 2..5 { Range { start, end } => start + end, _ => 1 }, 7);
+            assert_eq!(match 2..5 { Range { start, .. } => start, _ => 1 }, 2);
         }
     };
 }
