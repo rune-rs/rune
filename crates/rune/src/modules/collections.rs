@@ -4,8 +4,11 @@ mod hash_map;
 mod hash_set;
 mod vec_deque;
 
-pub(crate) use self::vec_deque::VecDeque;
 use crate::{ContextError, Module};
+
+pub(crate) use self::hash_map::HashMap;
+pub(crate) use self::hash_set::HashSet;
+pub(crate) use self::vec_deque::VecDeque;
 
 /// The `std::collections` module.
 pub fn module() -> Result<Module, ContextError> {

@@ -3,7 +3,6 @@
 use core::cmp;
 
 use crate as rune;
-use crate::modules::collections::VecDeque;
 use crate::no_std::prelude::*;
 use crate::runtime::{
     FromValue, Function, Iterator, Protocol, Ref, Value, Vec, VmErrorKind, VmResult,
@@ -33,7 +32,6 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(sort_by)?;
     m.function_meta(sort_int)?;
     m.function_meta(sort_string)?;
-    m.function_meta(into_vec_deque)?;
     m.associated_function(Protocol::INTO_ITER, Vec::iter_ref)?;
     m.associated_function(Protocol::INDEX_SET, Vec::set)?;
     m.associated_function(Protocol::EQ, eq)?;
@@ -491,23 +489,6 @@ fn insert(this: &mut Vec, index: usize, value: Value) -> VmResult<()> {
 
     this.insert(index, value);
     VmResult::Ok(())
-}
-
-/// Convert a vector into a vecdeque.
-///
-/// # Examples
-///
-/// ```rune
-/// use std::collections::VecDeque;
-///
-/// let deque = [1, 2, 3].into::<VecDeque>();
-///
-/// assert_eq!(Some(1), deque.pop_front());
-/// assert_eq!(Some(3), deque.pop_back());
-/// ```
-#[rune::function(instance, path = into::<VecDeque>)]
-fn into_vec_deque(vec: Vec) -> VecDeque {
-    VecDeque::from_vec(vec.into_inner())
 }
 
 /// Clone the vector.

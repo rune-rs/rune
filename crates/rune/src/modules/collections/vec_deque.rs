@@ -32,7 +32,7 @@ pub(super) fn setup(m: &mut Module) -> Result<(), ContextError> {
 
     m.function_meta(VecDeque::new)?;
     m.function_meta(VecDeque::with_capacity)?;
-    m.function_meta(vecdeque_from)?;
+    m.function_meta(from)?;
 
     m.function_meta(VecDeque::extend)?;
     m.function_meta(VecDeque::insert)?;
@@ -467,10 +467,14 @@ impl VecDeque {
         Iterator::from("std::collections::vec_deque::Iter", iter)
     }
 
-    pub(crate) fn from_vec(vec: Vec<Value>) -> VecDeque {
-        Self {
-            inner: collections::VecDeque::from(vec),
+    pub(crate) fn from_iter(mut it: Iterator) -> VmResult<Self> {
+        let mut inner = collections::VecDeque::with_capacity(it.size_hint().0);
+
+        while let Some(value) = vm_try!(it.next()) {
+            inner.push_back(value);
         }
+
+        VmResult::Ok(Self { inner })
     }
 
     fn get(&self, index: usize) -> VmResult<Value> {
@@ -512,15 +516,8 @@ impl VecDeque {
 /// let buf = VecDeque::from([1, 2, 3]);
 /// ```
 #[rune::function(path = VecDeque::from)]
-fn vecdeque_from(value: Value) -> VmResult<VecDeque> {
-    let mut container = VecDeque::__rune_fn__new();
-    let mut it = vm_try!(value.into_iter());
-
-    while let Some(value) = vm_try!(it.next()) {
-        container.inner.push_back(value);
-    }
-
-    VmResult::Ok(container)
+fn from(value: Value) -> VmResult<VecDeque> {
+    VecDeque::from_iter(vm_try!(value.into_iter()))
 }
 
 fn eq(this: &VecDeque, other: Value) -> VmResult<bool> {
