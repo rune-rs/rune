@@ -3,7 +3,7 @@
 use crate::no_std::prelude::*;
 
 use crate as rune;
-use crate::modules::collections::VecDeque;
+use crate::modules::collections::{HashMap, HashSet, VecDeque};
 use crate::runtime::{
     FromValue, Function, Iterator, Object, Protocol, Tuple, Value, Vec, VmResult,
 };
@@ -48,6 +48,8 @@ pub fn module() -> Result<Module, ContextError> {
 
     module.function_meta(collect_vec)?;
     module.function_meta(collect_vec_deque)?;
+    module.function_meta(collect_hash_set)?;
+    module.function_meta(collect_hash_map)?;
     module.function_meta(collect_tuple)?;
     module.function_meta(collect_object)?;
     module.function_meta(collect_string)?;
@@ -1036,7 +1038,7 @@ fn count(this: &mut Iterator) -> VmResult<usize> {
 /// ```rune
 /// use std::iter::range;
 ///
-/// assert_eq!(range(0, 3).collect::<Vec>(), [0, 1, 2]);
+/// assert_eq!((0..3).iter().collect::<Vec>(), [0, 1, 2]);
 /// ```
 #[rune::function(instance, path = collect::<Vec>)]
 fn collect_vec(it: Iterator) -> VmResult<Vec> {
@@ -1049,13 +1051,42 @@ fn collect_vec(it: Iterator) -> VmResult<Vec> {
 ///
 /// ```rune
 /// use std::collections::VecDeque;
-/// use std::iter::range;
 ///
 /// assert_eq!((0..3).iter().collect::<VecDeque>(), VecDeque::from([0, 1, 2]));
 /// ```
 #[rune::function(instance, path = collect::<VecDeque>)]
 fn collect_vec_deque(it: Iterator) -> VmResult<VecDeque> {
-    VmResult::Ok(VecDeque::from_vec(vm_try!(it.collect::<Value>())))
+    VecDeque::from_iter(it)
+}
+
+/// Collect the iterator as a [`HashSet`].
+///
+/// # Examples
+///
+/// ```rune
+/// use std::collections::HashSet;
+///
+/// assert_eq!((0..3).iter().collect::<HashSet>(), HashSet::from([0, 1, 2]));
+/// ```
+#[rune::function(instance, path = collect::<HashSet>)]
+fn collect_hash_set(it: Iterator) -> VmResult<HashSet> {
+    HashSet::from_iter(it)
+}
+
+/// Collect the iterator as a [`HashMap`].
+///
+/// # Examples
+///
+/// ```rune
+/// use std::collections::HashMap;
+///
+/// let actual = (0..3).iter().map(|n| (n, n.to_string())).collect::<HashMap>();
+/// let expected = HashMap::from([(0, "0"), (1, "1"), (2, "2")]);
+/// assert_eq!(actual, expected);
+/// ```
+#[rune::function(instance, path = collect::<HashMap>)]
+fn collect_hash_map(it: Iterator) -> VmResult<HashMap> {
+    HashMap::from_iter(it)
 }
 
 /// Collect the iterator as a [`Tuple`].
@@ -1063,9 +1094,7 @@ fn collect_vec_deque(it: Iterator) -> VmResult<VecDeque> {
 /// # Examples
 ///
 /// ```rune
-/// use std::iter::range;
-///
-/// assert_eq!(range(0, 3).collect::<Tuple>(), (0, 1, 2));
+/// assert_eq!((0..3).iter().collect::<Tuple>(), (0, 1, 2));
 /// ```
 #[rune::function(instance, path = collect::<Tuple>)]
 fn collect_tuple(it: Iterator) -> VmResult<Tuple> {

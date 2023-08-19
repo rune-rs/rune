@@ -214,7 +214,7 @@ pub fn is_empty(this: &Bytes) -> bool {
 ///
 /// # Examples
 ///
-/// ```
+/// ```rune
 /// let bytes = Bytes::with_capacity(10);
 /// bytes.extend(b"abc");
 /// assert!(bytes.capacity() >= 10);
@@ -230,7 +230,7 @@ fn capacity(this: &Bytes) -> usize {
 ///
 /// # Examples
 ///
-/// ```
+/// ```rune
 /// let bytes = b"abc";
 /// bytes.clear();
 /// assert!(bytes.is_empty());
@@ -281,7 +281,7 @@ fn reserve(this: &mut Bytes, additional: usize) {
 ///
 /// # Examples
 ///
-/// ```
+/// ```rune
 /// let vec = b"a";
 /// vec.reserve_exact(10);
 /// assert!(vec.capacity() >= 11);
