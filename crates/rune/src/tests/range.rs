@@ -144,4 +144,11 @@ fn unsupported_iter_range() {
             assert_eq!(end, f64::type_info());
         }
     );
+
+    assert_vm_error!(
+        r#"pub fn main() { for _ in 1.0.. {} }"#,
+        UnsupportedIterRangeFrom { start } => {
+            assert_eq!(start, f64::type_info());
+        }
+    );
 }

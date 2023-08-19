@@ -381,16 +381,8 @@ impl Expr {
 
         Ok(Self::Path(path))
     }
-}
 
-impl Parse for Expr {
-    fn parse(p: &mut Parser<'_>) -> Result<Self> {
-        Self::parse_with(p, EAGER_BRACE, EAGER_BINARY, CALLABLE)
-    }
-}
-
-impl Peek for Expr {
-    fn peek(p: &mut Peeker<'_>) -> bool {
+    pub(crate) fn peek_with_brace(p: &mut Peeker<'_>, eager_brace: EagerBrace) -> bool {
         match p.nth(0) {
             K![async] => true,
             K![self] => true,
@@ -412,9 +404,6 @@ impl Peek for Expr {
             K![false] => true,
             K![ident] => true,
             K![::] => true,
-            K!['('] => true,
-            K!['['] => true,
-            K!['{'] => true,
             K![number] => true,
             K![char] => true,
             K![byte] => true,
@@ -422,8 +411,23 @@ impl Peek for Expr {
             K![bytestr] => true,
             K!['label] => matches!(p.nth(1), K![:]),
             K![..] => true,
+            K!['('] => true,
+            K!['['] => true,
+            K!['{'] if *eager_brace => true,
             _ => false,
         }
+    }
+}
+
+impl Parse for Expr {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
+        Self::parse_with(p, EAGER_BRACE, EAGER_BINARY, CALLABLE)
+    }
+}
+
+impl Peek for Expr {
+    fn peek(p: &mut Peeker<'_>) -> bool {
+        Self::peek_with_brace(p, EAGER_BRACE)
     }
 }
 
@@ -721,7 +725,7 @@ fn range(
     limits: ast::ExprRangeLimits,
     eager_brace: EagerBrace,
 ) -> Result<Expr> {
-    let to = if Expr::peek(p.peeker()) {
+    let to = if Expr::peek_with_brace(p.peeker(), eager_brace) {
         Some(Box::new(Expr::parse_with(
             p,
             eager_brace,
