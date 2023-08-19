@@ -1,3 +1,4 @@
+use core::cmp::Ordering;
 use core::fmt;
 use core::ops;
 
@@ -74,7 +75,6 @@ impl RangeInclusive {
         }
     }
 
-    /// Value pointer equals implementation for a range.
     pub(crate) fn eq_with(a: &Self, b: &Self, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
         if !vm_try!(Value::eq_with(&a.start, &b.start, caller)) {
             return VmResult::Ok(false);
@@ -85,6 +85,19 @@ impl RangeInclusive {
         }
 
         VmResult::Ok(true)
+    }
+
+    pub(crate) fn cmp_with(
+        a: &Self,
+        b: &Self,
+        caller: &mut impl ProtocolCaller,
+    ) -> VmResult<Ordering> {
+        match vm_try!(Value::cmp_with(&a.start, &b.start, caller)) {
+            Ordering::Equal => (),
+            other => return VmResult::Ok(other),
+        }
+
+        Value::cmp_with(&a.end, &b.end, caller)
     }
 
     /// Test if the range contains the given integer.

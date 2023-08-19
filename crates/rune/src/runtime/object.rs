@@ -1,5 +1,6 @@
 use core::borrow;
 use core::cmp;
+use core::cmp::Ordering;
 use core::fmt;
 use core::hash;
 use core::iter;
@@ -293,9 +294,52 @@ impl Object {
         Iterator::from("std::object::Iter", self.clone().into_iter())
     }
 
-    /// Value pointer equals implementation for an Object.
     pub(crate) fn eq_with(a: &Self, b: &Self, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
-        map_ptr_eq(&a.inner, &b.inner, caller)
+        if a.inner.len() != b.inner.len() {
+            return VmResult::Ok(false);
+        }
+
+        for (key, a) in a.inner.iter() {
+            let Some(b) = b.inner.get(key) else {
+                return VmResult::Ok(false);
+            };
+
+            if !vm_try!(Value::eq_with(a, b, caller)) {
+                return VmResult::Ok(false);
+            }
+        }
+
+        VmResult::Ok(true)
+    }
+
+    pub(crate) fn cmp_with(
+        a: &Self,
+        b: &Self,
+        caller: &mut impl ProtocolCaller,
+    ) -> VmResult<Ordering> {
+        let mut b = b.inner.iter();
+
+        for (k1, v1) in a.inner.iter() {
+            let Some((k2, v2)) = b.next() else {
+                return VmResult::Ok(Ordering::Greater);
+            };
+
+            match k1.cmp(k2) {
+                Ordering::Equal => (),
+                other => return VmResult::Ok(other),
+            }
+
+            match Value::cmp_with(v1, v2, caller) {
+                VmResult::Ok(Ordering::Equal) => (),
+                other => return other,
+            }
+        }
+
+        if b.next().is_some() {
+            return VmResult::Ok(Ordering::Less);
+        }
+
+        VmResult::Ok(Ordering::Equal)
     }
 
     /// Debug implementation for a struct. This assumes that all fields
@@ -372,32 +416,4 @@ impl fmt::Display for DebugStruct<'_> {
 
         d.finish()
     }
-}
-
-/// Helper function two compare two hashmaps of values.
-pub(crate) fn map_ptr_eq<K>(
-    a: &BTreeMap<K, Value>,
-    b: &BTreeMap<K, Value>,
-    caller: &mut impl ProtocolCaller,
-) -> VmResult<bool>
-where
-    K: cmp::Eq + cmp::Ord,
-    K: hash::Hash,
-{
-    if a.len() != b.len() {
-        return VmResult::Ok(false);
-    }
-
-    for (key, a) in a.iter() {
-        let b = match b.get(key) {
-            Some(b) => b,
-            None => return VmResult::Ok(false),
-        };
-
-        if !vm_try!(Value::eq_with(a, b, caller)) {
-            return VmResult::Ok(false);
-        }
-    }
-
-    VmResult::Ok(true)
 }

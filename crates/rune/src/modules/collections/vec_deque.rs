@@ -1,3 +1,4 @@
+use core::cmp::Ordering;
 use core::fmt::{self, Write};
 
 use crate as rune;
@@ -54,7 +55,8 @@ pub(super) fn setup(m: &mut Module) -> Result<(), ContextError> {
     m.associated_function(Protocol::INDEX_SET, VecDeque::set)?;
     m.associated_function(Protocol::INTO_ITER, VecDeque::__rune_fn__iter)?;
     m.associated_function(Protocol::STRING_DEBUG, VecDeque::string_debug)?;
-    m.associated_function(Protocol::EQ, eq)?;
+    m.associated_function(Protocol::EQ, VecDeque::eq)?;
+    m.associated_function(Protocol::CMP, VecDeque::cmp)?;
     Ok(())
 }
 
@@ -250,7 +252,7 @@ impl VecDeque {
     /// ```rune
     /// use std::collections::VecDeque;
     ///
-    /// let buf = [1].into::<VecDeque>();
+    /// let buf = VecDeque::from([1]);
     /// buf.reserve(10);
     /// assert!(buf.capacity() >= 11);
     /// ```
@@ -504,6 +506,48 @@ impl VecDeque {
     fn string_debug(&self, s: &mut String) -> fmt::Result {
         write!(s, "{:?}", self.inner)
     }
+
+    fn eq(this: &VecDeque, other: Value) -> VmResult<bool> {
+        let mut other = vm_try!(other.into_iter());
+
+        for a in &this.inner {
+            let Some(b) = vm_try!(other.next()) else {
+                return VmResult::Ok(false);
+            };
+
+            if !vm_try!(Value::eq(a, &b)) {
+                return VmResult::Ok(false);
+            }
+        }
+
+        if vm_try!(other.next()).is_some() {
+            return VmResult::Ok(false);
+        }
+
+        VmResult::Ok(true)
+    }
+
+    fn cmp(this: &VecDeque, other: &VecDeque) -> VmResult<Ordering> {
+        let mut a = this.inner.iter();
+        let mut b = other.inner.iter();
+
+        while let Some(a) = a.next() {
+            let Some(b) = b.next() else {
+                return VmResult::Ok(Ordering::Greater);
+            };
+
+            match vm_try!(Value::cmp(a, b)) {
+                Ordering::Equal => (),
+                other => return VmResult::Ok(other),
+            }
+        }
+
+        if b.next().is_some() {
+            return VmResult::Ok(Ordering::Less);
+        };
+
+        VmResult::Ok(Ordering::Equal)
+    }
 }
 
 /// Construct a [`VecDeque`] from a value.
@@ -518,24 +562,4 @@ impl VecDeque {
 #[rune::function(path = VecDeque::from)]
 fn from(value: Value) -> VmResult<VecDeque> {
     VecDeque::from_iter(vm_try!(value.into_iter()))
-}
-
-fn eq(this: &VecDeque, other: Value) -> VmResult<bool> {
-    let mut other = vm_try!(other.into_iter());
-
-    for a in &this.inner {
-        let Some(b) = vm_try!(other.next()) else {
-            return VmResult::Ok(false);
-        };
-
-        if !vm_try!(Value::eq(a, &b)) {
-            return VmResult::Ok(false);
-        }
-    }
-
-    if vm_try!(other.next()).is_some() {
-        return VmResult::Ok(false);
-    }
-
-    VmResult::Ok(true)
 }

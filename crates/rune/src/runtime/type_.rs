@@ -7,7 +7,9 @@ use crate::runtime::{RawStr, VmResult};
 use crate::{FromValue, Hash, Value};
 
 /// A value representing a type in the virtual machine.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Decode, Encode)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Decode, Encode,
+)]
 #[repr(transparent)]
 #[serde(transparent)]
 #[musli(transparent)]
