@@ -3,7 +3,6 @@
 use core::cmp::Ordering;
 
 use crate as rune;
-use crate::no_std::prelude::*;
 use crate::runtime::{
     EnvProtocolCaller, FromValue, Function, Iterator, Protocol, Ref, Value, Vec, VmErrorKind,
     VmResult,
@@ -45,8 +44,7 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(insert)?;
     m.function_meta(clone)?;
     m.function_meta(sort_by)?;
-    m.function_meta(sort_int)?;
-    m.function_meta(sort_string)?;
+    m.function_meta(sort)?;
     m.associated_function(Protocol::INTO_ITER, Vec::iter_ref)?;
     m.associated_function(Protocol::INDEX_SET, Vec::set)?;
     m.associated_function(Protocol::PARTIAL_EQ, partial_eq)?;
@@ -263,75 +261,47 @@ fn sort_by(vec: &mut Vec, comparator: &Function) -> VmResult<()> {
     }
 }
 
-/// Sort a vector of integers.
+/// Sort the vector.
 ///
-/// Errors if any contained type is not an integer.
-#[rune::function(instance, path = sort::<i64>)]
-fn sort_int(vec: &mut Vec) -> VmResult<()> {
+/// This require all elements to be of the same type, and implement total
+/// ordering per the [`CMP`] protocol.
+///
+/// # Panics
+///
+/// If any elements present are not comparable, this method will panic.
+///
+/// This will panic because a tuple and a string is not comparable:
+///
+/// ```rune,should_panic
+/// let values = [(3, 1), "hello"];
+/// values.sort();
+/// ```
+///
+/// This too will panic because floating point values do not have a total
+/// ordering:
+///
+/// ```rune,should_panic
+/// let values = [1.0, 2.0];
+/// values.sort();
+/// ```
+///
+/// # Examples
+///
+/// ```rune
+/// let values = [3, 2, 1];
+/// values.sort();
+/// assert_eq!(values, [1, 2, 3]);
+///
+/// let values = [(3, 1), (2, 1), (1, 1)];
+/// values.sort();
+/// assert_eq!(values, [(1, 1), (2, 1), (3, 1)]);
+/// ```
+#[rune::function(instance)]
+fn sort(vec: &mut Vec) -> VmResult<()> {
     let mut err = None;
 
     vec.sort_by(|a, b| {
-        let result = (|| {
-            if let (Value::Integer(a), Value::Integer(b)) = (a, b) {
-                return VmResult::Ok(a.cmp(b));
-            };
-
-            let v = match (a, b) {
-                (Value::String(..), b) => b,
-                (a, _) => a,
-            };
-
-            VmResult::expected::<i64>(vm_try!(v.type_info()))
-        })();
-
-        match result {
-            VmResult::Ok(cmp) => cmp,
-            VmResult::Err(e) => {
-                if err.is_none() {
-                    err = Some(e);
-                }
-
-                // NB: fall back to sorting by address.
-                (a as *const _ as usize).cmp(&(b as *const _ as usize))
-            }
-        }
-    });
-
-    if let Some(err) = err {
-        return VmResult::Err(err);
-    }
-
-    VmResult::Ok(())
-}
-
-/// Sort a vector of strings.
-///
-/// Errors if any contained type is not an integer.
-#[rune::function(instance, path = sort::<String>)]
-fn sort_string(vec: &mut Vec) -> VmResult<()> {
-    let mut err = None;
-
-    vec.sort_by(|a, b| {
-        let result = (|| {
-            match (a, b) {
-                (Value::String(a), Value::String(b)) => {
-                    let a = vm_try!(a.borrow_ref());
-                    let b = vm_try!(b.borrow_ref());
-                    return VmResult::Ok(a.cmp(&b));
-                }
-                (Value::StaticString(a), Value::StaticString(b)) => {
-                    return VmResult::Ok(a.cmp(b));
-                }
-                _ => {}
-            }
-
-            let v = match (a, b) {
-                (Value::String(..) | Value::StaticString(..), b) => b,
-                (a, _) => a,
-            };
-
-            VmResult::expected::<String>(vm_try!(v.type_info()))
-        })();
+        let result: VmResult<Ordering> = Value::cmp(a, b);
 
         match result {
             VmResult::Ok(cmp) => cmp,

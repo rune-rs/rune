@@ -94,7 +94,7 @@ fn get(object: &Object, key: &str) -> Option<Value> {
 ///     vec.push(key);
 /// }
 ///
-/// vec.sort::<String>();
+/// vec.sort();
 /// assert_eq!(vec, ["a", "b", "c"]);
 /// ```
 #[rune::function(instance)]
@@ -116,7 +116,7 @@ fn keys(object: &Object) -> Iterator {
 ///     vec.push(key);
 /// }
 ///
-/// vec.sort::<i64>();
+/// vec.sort();
 /// assert_eq!(vec, [1, 2, 3]);
 /// ```
 #[rune::function(instance)]

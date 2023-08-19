@@ -95,7 +95,7 @@ fn test_sort() {
     let values: Vec<i64> = rune! {
         pub fn main() {
             let vec = [4, 3, 2, 1];
-            vec.sort::<i64>();
+            vec.sort();
             vec
         }
     };
@@ -105,7 +105,7 @@ fn test_sort() {
     let values: Vec<i64> = rune! {
         pub fn main() {
             let vec = [4, 3, 2, 1];
-            Vec::sort::<i64>(vec);
+            Vec::sort(vec);
             vec
         }
     };
@@ -114,7 +114,7 @@ fn test_sort() {
     let values: Vec<i64> = rune! {
         pub fn main() {
             let vec = [4, 3, 2, 1];
-            let f = Vec::sort::<i64>;
+            let f = Vec::sort;
             f(vec);
             vec
         }
