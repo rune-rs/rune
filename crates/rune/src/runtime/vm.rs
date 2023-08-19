@@ -1809,13 +1809,13 @@ impl Vm {
             InstOp::Eq => {
                 let rhs = vm_try!(self.stack.address(rhs));
                 let lhs = vm_try!(self.stack.address(lhs));
-                let test = vm_try!(Value::eq_with(&lhs, &rhs, self));
+                let test = vm_try!(Value::partial_eq_with(&lhs, &rhs, self));
                 self.stack.push(test);
             }
             InstOp::Neq => {
                 let rhs = vm_try!(self.stack.address(rhs));
                 let lhs = vm_try!(self.stack.address(lhs));
-                let test = vm_try!(Value::eq_with(&lhs, &rhs, self));
+                let test = vm_try!(Value::partial_eq_with(&lhs, &rhs, self));
                 self.stack.push(!test);
             }
             InstOp::And => {

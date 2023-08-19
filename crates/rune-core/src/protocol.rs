@@ -145,7 +145,15 @@ impl Protocol {
             doc: ["Allows an indexing set operation to work."],
         };
 
-        /// Check two types for equality.
+        /// Check two types for partial equality.
+        pub const PARTIAL_EQ: Protocol = Protocol {
+            name: "partial_eq",
+            hash: 0x4b6bc4701445e318,
+            repr: Some("if $value == b { }"),
+            doc: ["Allows for partial equality operations to work."],
+        };
+
+        /// Check two types for total equality.
         pub const EQ: Protocol = Protocol {
             name: "eq",
             hash: 0x418f5becbf885806,
@@ -153,12 +161,20 @@ impl Protocol {
             doc: ["Allows an equality operation to work."],
         };
 
-        /// Perform an ordered comparison between two values.
+        /// Perform an partial comparison between two values.
+        pub const PARTIAL_CMP: Protocol = Protocol {
+            name: "partial_cmp",
+            hash: 0x8d4430991253343c,
+            repr: Some("if $value < b { }"),
+            doc: ["Allows for partial ordering to work."],
+        };
+
+        /// Perform an total comparison between two values.
         pub const CMP: Protocol = Protocol {
             name: "cmp",
             hash: 0x240f1b75466cd1a3,
             repr: Some("if $value < b { }"),
-            doc: ["Allows for ordering operations to work."],
+            doc: ["Allows for total ordering to work."],
         };
 
         /// The function to implement for the addition operation.

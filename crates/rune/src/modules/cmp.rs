@@ -45,6 +45,9 @@ pub fn module() -> Result<Module, ContextError> {
         .constructor(|| Ordering::Greater)?
         .docs(["An ordering where a compared value is greater than another."]);
 
+    module.associated_function(Protocol::PARTIAL_EQ, |lhs: Ordering, rhs: Ordering| {
+        lhs == rhs
+    })?;
     module.associated_function(Protocol::EQ, |lhs: Ordering, rhs: Ordering| lhs == rhs)?;
     Ok(module)
 }

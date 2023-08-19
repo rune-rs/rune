@@ -294,6 +294,28 @@ impl Object {
         Iterator::from("std::object::Iter", self.clone().into_iter())
     }
 
+    pub(crate) fn partial_eq_with(
+        a: &Self,
+        b: &Self,
+        caller: &mut impl ProtocolCaller,
+    ) -> VmResult<bool> {
+        if a.inner.len() != b.inner.len() {
+            return VmResult::Ok(false);
+        }
+
+        for (key, a) in a.inner.iter() {
+            let Some(b) = b.inner.get(key) else {
+                return VmResult::Ok(false);
+            };
+
+            if !vm_try!(Value::partial_eq_with(a, b, caller)) {
+                return VmResult::Ok(false);
+            }
+        }
+
+        VmResult::Ok(true)
+    }
+
     pub(crate) fn eq_with(a: &Self, b: &Self, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
         if a.inner.len() != b.inner.len() {
             return VmResult::Ok(false);

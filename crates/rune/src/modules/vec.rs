@@ -48,6 +48,7 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(sort_string)?;
     m.associated_function(Protocol::INTO_ITER, Vec::iter_ref)?;
     m.associated_function(Protocol::INDEX_SET, Vec::set)?;
+    m.associated_function(Protocol::PARTIAL_EQ, partial_eq)?;
     m.associated_function(Protocol::EQ, eq)?;
     Ok(m)
 }
@@ -521,6 +522,26 @@ fn insert(this: &mut Vec, index: usize, value: Value) -> VmResult<()> {
 #[rune::function(instance)]
 fn clone(this: &Vec) -> Vec {
     this.clone()
+}
+
+fn partial_eq(this: &Vec, other: Value) -> VmResult<bool> {
+    let mut other = vm_try!(other.into_iter());
+
+    for a in this.as_slice() {
+        let Some(b) = vm_try!(other.next()) else {
+            return VmResult::Ok(false);
+        };
+
+        if !vm_try!(Value::partial_eq(a, &b)) {
+            return VmResult::Ok(false);
+        }
+    }
+
+    if vm_try!(other.next()).is_some() {
+        return VmResult::Ok(false);
+    }
+
+    VmResult::Ok(true)
 }
 
 fn eq(this: &Vec, other: Value) -> VmResult<bool> {
