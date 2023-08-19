@@ -321,6 +321,41 @@ pub(crate) fn block<'hir>(
 }
 
 #[instrument(span = ast)]
+pub(crate) fn expr_range<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    ast: &ast::ExprRange,
+) -> compile::Result<hir::ExprRange<'hir>> {
+    match (ast.start.as_deref(), ast.end.as_deref(), &ast.limits) {
+        (Some(start), None, ast::ExprRangeLimits::HalfOpen(..)) => Ok(hir::ExprRange::RangeFrom {
+            start: expr(cx, start)?,
+        }),
+        (None, None, ast::ExprRangeLimits::HalfOpen(..)) => Ok(hir::ExprRange::RangeFull),
+        (Some(start), Some(end), ast::ExprRangeLimits::Closed(..)) => {
+            Ok(hir::ExprRange::RangeInclusive {
+                start: expr(cx, start)?,
+                end: expr(cx, end)?,
+            })
+        }
+        (None, Some(end), ast::ExprRangeLimits::Closed(..)) => {
+            Ok(hir::ExprRange::RangeToInclusive {
+                end: expr(cx, end)?,
+            })
+        }
+        (None, Some(end), ast::ExprRangeLimits::HalfOpen(..)) => Ok(hir::ExprRange::RangeTo {
+            end: expr(cx, end)?,
+        }),
+        (Some(start), Some(end), ast::ExprRangeLimits::HalfOpen(..)) => Ok(hir::ExprRange::Range {
+            start: expr(cx, start)?,
+            end: expr(cx, end)?,
+        }),
+        (Some(..) | None, None, ast::ExprRangeLimits::Closed(..)) => Err(compile::Error::msg(
+            ast,
+            "Unsupported range, you probably want `..` instead of `..=`",
+        )),
+    }
+}
+
+#[instrument(span = ast)]
 pub(crate) fn expr_object<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::ExprObject,
@@ -631,14 +666,7 @@ pub(crate) fn expr<'hir>(
         ast::Expr::Vec(ast) => hir::ExprKind::Vec(alloc!(hir::ExprSeq {
             items: iter!(&ast.items, |(ast, _)| expr(cx, ast)?),
         })),
-        ast::Expr::Range(ast) => hir::ExprKind::Range(alloc!(hir::ExprRange {
-            from: option!(&ast.from, |ast| expr(cx, ast)?),
-            limits: match ast.limits {
-                ast::ExprRangeLimits::HalfOpen(_) => hir::ExprRangeLimits::HalfOpen,
-                ast::ExprRangeLimits::Closed(_) => hir::ExprRangeLimits::Closed,
-            },
-            to: option!(&ast.to, |ast| expr(cx, ast)?),
-        })),
+        ast::Expr::Range(ast) => hir::ExprKind::Range(alloc!(expr_range(cx, ast)?)),
         ast::Expr::Group(ast) => hir::ExprKind::Group(alloc!(expr(cx, &ast.expr)?)),
         ast::Expr::MacroCall(ast) => match cx.q.builtin_macro_for(ast).with_span(ast)?.as_ref() {
             query::BuiltInMacro::Template(ast) => {
@@ -1173,15 +1201,13 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                     let parameters = generics_parameters(cx, &named)?;
                     let meta = cx.lookup_meta(path, named.item, parameters)?;
 
-                    let Some((st, kind)) = struct_match_for(cx, &meta) else {
+                    let Some((mut fields, kind)) = struct_match_for(cx, &meta, is_open && count == 0) else {
                         return Err(compile::Error::expected_meta(
                             path,
                             meta.info(cx.q.pool),
                             "type that can be used in a struct pattern",
                         ));
                     };
-
-                    let mut fields: HashSet<_> = st.fields.keys().cloned().collect();
 
                     for binding in bindings.iter() {
                         if !fields.remove(binding.key()) {
@@ -1200,6 +1226,7 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                             .into_iter()
                             .map(Box::<str>::from)
                             .collect::<Box<[_]>>();
+
                         fields.sort();
 
                         return Err(compile::Error::new(
@@ -1427,19 +1454,24 @@ fn pat_items_count(items: &[(ast::Pat, Option<ast::Comma>)]) -> compile::Result<
     Ok((is_open, count))
 }
 
-fn struct_match_for<'a>(
+/// Generate a legal struct match for the given meta which indicates the type of
+/// sequence and the fields that it expects.
+///
+/// For `open` matches (i.e. `{ .. }`), `Unnamed` and `Empty` structs are also
+/// supported and they report empty fields.
+fn struct_match_for(
     cx: &Ctxt<'_, '_, '_>,
-    meta: &'a meta::Meta,
-) -> Option<(&'a meta::FieldsNamed, hir::PatSequenceKind)> {
-    Some(match &meta.kind {
-        meta::Kind::Struct {
-            fields: meta::Fields::Named(st),
-            ..
-        } => (st, hir::PatSequenceKind::Type { hash: meta.hash }),
+    meta: &meta::Meta,
+    open: bool,
+) -> Option<(HashSet<Box<str>>, hir::PatSequenceKind)> {
+    let (fields, kind) = match &meta.kind {
+        meta::Kind::Struct { fields, .. } => {
+            (fields, hir::PatSequenceKind::Type { hash: meta.hash })
+        }
         meta::Kind::Variant {
             enum_hash,
             index,
-            fields: meta::Fields::Named(st),
+            fields,
             ..
         } => {
             let kind = if let Some(type_check) = cx.q.context.type_check_for(meta.hash) {
@@ -1452,12 +1484,21 @@ fn struct_match_for<'a>(
                 }
             };
 
-            (st, kind)
+            (fields, kind)
         }
         _ => {
             return None;
         }
-    })
+    };
+
+    let fields = match fields {
+        meta::Fields::Unnamed(0) if open => HashSet::new(),
+        meta::Fields::Empty if open => HashSet::new(),
+        meta::Fields::Named(st) => st.fields.keys().cloned().collect(),
+        _ => return None,
+    };
+
+    Some((fields, kind))
 }
 
 fn tuple_match_for(

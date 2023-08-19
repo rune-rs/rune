@@ -2053,48 +2053,42 @@ fn reorder_field_assignments<'hir>(
 #[instrument(span = span)]
 fn expr_range<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
-    hir: &hir::ExprRange<'hir>,
+    hir: &'hir hir::ExprRange<'hir>,
     span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm<'hir>> {
     let guard = cx.scopes.child(span)?;
 
-    let (range, count) = match (hir.from, hir.to, hir.limits) {
-        (Some(from), None, hir::ExprRangeLimits::HalfOpen) => {
-            expr(cx, from, needs)?.apply(cx)?;
-            cx.scopes.alloc(from)?;
+    let (range, count) = match hir {
+        hir::ExprRange::RangeFrom { start } => {
+            expr(cx, start, needs)?.apply(cx)?;
+            cx.scopes.alloc(start)?;
             (InstRange::RangeFrom, 1)
         }
-        (None, None, hir::ExprRangeLimits::HalfOpen) => (InstRange::RangeFull, 0),
-        (Some(from), Some(to), hir::ExprRangeLimits::Closed) => {
-            expr(cx, from, needs)?.apply(cx)?;
-            cx.scopes.alloc(from)?;
-            expr(cx, to, needs)?.apply(cx)?;
-            cx.scopes.alloc(to)?;
+        hir::ExprRange::RangeFull => (InstRange::RangeFull, 0),
+        hir::ExprRange::RangeInclusive { start, end } => {
+            expr(cx, start, needs)?.apply(cx)?;
+            cx.scopes.alloc(start)?;
+            expr(cx, end, needs)?.apply(cx)?;
+            cx.scopes.alloc(end)?;
             (InstRange::RangeInclusive, 2)
         }
-        (None, Some(to), hir::ExprRangeLimits::Closed) => {
-            expr(cx, to, needs)?.apply(cx)?;
-            cx.scopes.alloc(to)?;
+        hir::ExprRange::RangeToInclusive { end } => {
+            expr(cx, end, needs)?.apply(cx)?;
+            cx.scopes.alloc(end)?;
             (InstRange::RangeToInclusive, 1)
         }
-        (None, Some(to), hir::ExprRangeLimits::HalfOpen) => {
-            expr(cx, to, needs)?.apply(cx)?;
-            cx.scopes.alloc(to)?;
+        hir::ExprRange::RangeTo { end } => {
+            expr(cx, end, needs)?.apply(cx)?;
+            cx.scopes.alloc(end)?;
             (InstRange::RangeTo, 1)
         }
-        (Some(from), Some(to), hir::ExprRangeLimits::HalfOpen) => {
-            expr(cx, from, needs)?.apply(cx)?;
-            cx.scopes.alloc(from)?;
-            expr(cx, to, needs)?.apply(cx)?;
-            cx.scopes.alloc(to)?;
+        hir::ExprRange::Range { start, end } => {
+            expr(cx, start, needs)?.apply(cx)?;
+            cx.scopes.alloc(start)?;
+            expr(cx, end, needs)?.apply(cx)?;
+            cx.scopes.alloc(end)?;
             (InstRange::Range, 2)
-        }
-        (Some(..) | None, None, hir::ExprRangeLimits::Closed) => {
-            return Err(compile::Error::msg(
-                span,
-                "Unsupported range, you probably want `..` instead of `..=`",
-            ));
         }
     };
 

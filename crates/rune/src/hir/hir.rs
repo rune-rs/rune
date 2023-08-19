@@ -614,26 +614,22 @@ pub(crate) struct ExprSeq<'hir> {
     pub(crate) items: &'hir [Expr<'hir>],
 }
 
-/// A range expression `a .. b` or `a ..= b`.
+/// A range expression such as `a .. b` or `a ..= b`.
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
-pub(crate) struct ExprRange<'hir> {
-    /// Start of range.
-    pub(crate) from: Option<&'hir Expr<'hir>>,
-    /// The range limits.
-    pub(crate) limits: ExprRangeLimits,
-    /// End of range.
-    pub(crate) to: Option<&'hir Expr<'hir>>,
-}
-
-/// The limits of the specified range.
-#[derive(Debug, Clone, Copy)]
-#[non_exhaustive]
-pub(crate) enum ExprRangeLimits {
-    /// Half-open range expression.
-    HalfOpen,
-    /// Closed expression.
-    Closed,
+pub(crate) enum ExprRange<'hir> {
+    /// `start..`.
+    RangeFrom { start: Expr<'hir> },
+    /// `..`.
+    RangeFull,
+    /// `start..=end`.
+    RangeInclusive { start: Expr<'hir>, end: Expr<'hir> },
+    /// `..=end`.
+    RangeToInclusive { end: Expr<'hir> },
+    /// `..end`.
+    RangeTo { end: Expr<'hir> },
+    /// `start..end`.
+    Range { start: Expr<'hir>, end: Expr<'hir> },
 }
 
 /// The condition in an if statement.

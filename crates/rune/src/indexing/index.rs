@@ -1901,11 +1901,11 @@ fn expr_object(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprObject) -> compile:
 
 #[instrument(span = ast)]
 fn expr_range(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprRange) -> compile::Result<()> {
-    if let Some(from) = &mut ast.from {
+    if let Some(from) = &mut ast.start {
         expr(idx, from)?;
     }
 
-    if let Some(to) = &mut ast.to {
+    if let Some(to) = &mut ast.end {
         expr(idx, to)?;
     }
 
