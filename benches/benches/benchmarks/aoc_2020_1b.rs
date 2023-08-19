@@ -52,7 +52,7 @@ fn aoc_2020_1b(b: &mut Criterion) {
         }
 
         pub fn main(lines) {
-            lines.sort::<i64>();
+            lines.sort();
             (filter_inner(iter::all_pairs(lines)), filter_inner(iter::all_triples(lines)))
         }
     };

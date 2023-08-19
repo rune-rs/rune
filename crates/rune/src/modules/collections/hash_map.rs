@@ -247,7 +247,7 @@ impl HashMap {
     /// ]);
     ///
     /// let keys = map.keys().collect::<Vec>();
-    /// keys.sort::<String>();
+    /// keys.sort();
     /// assert_eq!(keys, ["a", "b", "c"]);
     /// ```
     ///
@@ -275,7 +275,7 @@ impl HashMap {
     /// ]);
     ///
     /// let values = map.values().collect::<Vec>();
-    /// values.sort::<i64>();
+    /// values.sort();
     /// assert_eq!(values, [1, 2, 3]);
     /// ```
     ///
