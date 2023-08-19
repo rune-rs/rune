@@ -1598,7 +1598,7 @@ fn expr_for<'hir>(
                 hash: *Protocol::INTO_ITER,
                 args: 0,
             },
-            span,
+            &hir.iter,
             &format_args!("into_iter (offset: {})", iter_offset),
         )?;
 
