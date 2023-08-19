@@ -37,7 +37,7 @@ fn test_rev() {
         .rev()
         .collect::<Vec<i64>>();
 
-    assert_eq!(values, expected,);
+    assert_eq!(values, expected);
 }
 
 #[test]

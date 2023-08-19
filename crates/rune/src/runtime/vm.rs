@@ -13,11 +13,11 @@ use crate::runtime::future::SelectFuture;
 use crate::runtime::unit::{UnitFn, UnitStorage};
 use crate::runtime::{
     self, Args, Awaited, BorrowMut, Bytes, Call, Format, FormatSpec, FromValue, Function, Future,
-    Generator, GuardedArgs, Inst, InstAddress, InstAssignOp, InstOp, InstRangeLimits, InstTarget,
-    InstValue, InstVariant, Object, Panic, Protocol, Range, RangeLimits, RuntimeContext, Select,
-    Shared, Stack, Stream, Struct, Tuple, Type, TypeCheck, TypeOf, Unit, UnitStruct, Value,
-    Variant, VariantData, Vec, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmResult,
-    VmSendExecution,
+    Generator, GuardedArgs, Inst, InstAddress, InstAssignOp, InstOp, InstRange, InstTarget,
+    InstValue, InstVariant, Object, Panic, Protocol, Range, RangeFrom, RangeFull, RangeInclusive,
+    RangeTo, RangeToInclusive, RuntimeContext, Select, Shared, Stack, Stream, Struct, Tuple, Type,
+    TypeCheck, TypeOf, Unit, UnitStruct, Value, Variant, VariantData, Vec, VmError, VmErrorKind,
+    VmExecution, VmHalt, VmIntegerRepr, VmResult, VmSendExecution,
 };
 
 /// Small helper function to build errors.
@@ -1057,9 +1057,9 @@ impl Vm {
         macro_rules! convert {
             ($from:ty, $value:ident, $ty:expr) => {
                 match $ty.into_hash() {
-                    runtime::FLOAT_TYPE_HASH => Value::Float($value as f64),
-                    runtime::BYTE_TYPE_HASH => Value::Byte($value as u8),
-                    runtime::INTEGER_TYPE_HASH => Value::Integer($value as i64),
+                    runtime::static_type::FLOAT_TYPE_HASH => Value::Float($value as f64),
+                    runtime::static_type::BYTE_TYPE_HASH => Value::Byte($value as u8),
+                    runtime::static_type::INTEGER_TYPE_HASH => Value::Integer($value as i64),
                     ty => {
                         return err(VmErrorKind::UnsupportedAs {
                             value: <$from as TypeOf>::type_info(),
@@ -2314,17 +2314,34 @@ impl Vm {
 
     /// Operation to allocate an object.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_range(&mut self, limits: InstRangeLimits) -> VmResult<()> {
-        let end = vm_try!(Option::<Value>::from_value(vm_try!(self.stack.pop())));
-        let start = vm_try!(Option::<Value>::from_value(vm_try!(self.stack.pop())));
-
-        let limits = match limits {
-            InstRangeLimits::HalfOpen => RangeLimits::HalfOpen,
-            InstRangeLimits::Closed => RangeLimits::Closed,
+    fn op_range(&mut self, range: InstRange) -> VmResult<()> {
+        let value = match range {
+            InstRange::RangeFrom => {
+                let start = vm_try!(self.stack.pop());
+                Value::from(RangeFrom::new(start))
+            }
+            InstRange::RangeFull => Value::from(RangeFull::new()),
+            InstRange::RangeInclusive => {
+                let end = vm_try!(self.stack.pop());
+                let start = vm_try!(self.stack.pop());
+                Value::from(RangeInclusive::new(start, end))
+            }
+            InstRange::RangeToInclusive => {
+                let end = vm_try!(self.stack.pop());
+                Value::from(RangeToInclusive::new(end))
+            }
+            InstRange::RangeTo => {
+                let end = vm_try!(self.stack.pop());
+                Value::from(RangeTo::new(end))
+            }
+            InstRange::Range => {
+                let end = vm_try!(self.stack.pop());
+                let start = vm_try!(self.stack.pop());
+                Value::from(Range::new(start, end))
+            }
         };
 
-        let range = Range::new(start, end, limits);
-        self.stack.push(Shared::new(range));
+        self.stack.push(value);
         VmResult::Ok(())
     }
 
@@ -3129,8 +3146,8 @@ impl Vm {
                 Inst::Object { slot } => {
                     vm_try!(self.op_object(slot));
                 }
-                Inst::Range { limits } => {
-                    vm_try!(self.op_range(limits));
+                Inst::Range { range } => {
+                    vm_try!(self.op_range(range));
                 }
                 Inst::UnitStruct { hash } => {
                     vm_try!(self.op_empty_struct(hash));

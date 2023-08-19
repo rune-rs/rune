@@ -8,7 +8,6 @@ use crate::compile::Named;
 use crate::module::InstallWith;
 use crate::runtime::{
     ConstValue, FromValue, Mut, ProtocolCaller, RawStr, Ref, ToValue, Value, VmErrorKind, VmResult,
-    TUPLE_TYPE,
 };
 
 /// Struct representing a dynamic anonymous object.
@@ -195,7 +194,7 @@ macro_rules! impl_tuple {
     (0) => {};
 
     ($count:expr $(, $ty:ident $var:ident $ignore_count:expr)*) => {
-        impl_static_type!(impl <$($ty),*> ($($ty,)*) => TUPLE_TYPE);
+        impl_static_type!(impl <$($ty),*> ($($ty,)*) => crate::runtime::static_type::TUPLE_TYPE);
 
         impl <$($ty,)*> FromValue for ($($ty,)*)
         where

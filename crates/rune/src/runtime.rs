@@ -60,7 +60,7 @@ pub use self::guarded_args::GuardedArgs;
 
 mod inst;
 pub use self::inst::{
-    Inst, InstAddress, InstAssignOp, InstOp, InstRangeLimits, InstTarget, InstValue, InstVariant,
+    Inst, InstAddress, InstAssignOp, InstOp, InstRange, InstTarget, InstValue, InstVariant,
     PanicReason, TypeCheck,
 };
 
@@ -89,8 +89,23 @@ pub use self::protocol::Protocol;
 mod protocol_caller;
 pub(crate) use self::protocol_caller::{EnvProtocolCaller, ProtocolCaller};
 
+mod range_from;
+pub use self::range_from::RangeFrom;
+
+mod range_full;
+pub use self::range_full::RangeFull;
+
+mod range_to_inclusive;
+pub use self::range_to_inclusive::RangeToInclusive;
+
+mod range_to;
+pub use self::range_to::RangeTo;
+
+mod range_inclusive;
+pub use self::range_inclusive::RangeInclusive;
+
 mod range;
-pub use self::range::{Range, RangeLimits};
+pub use self::range::Range;
 
 #[doc(inline)]
 pub use rune_core::RawStr;
@@ -111,13 +126,8 @@ pub use self::stack::{Stack, StackError};
 mod static_string;
 pub use self::static_string::StaticString;
 
-mod static_type;
-pub use self::static_type::{
-    StaticType, BOOL_TYPE, BYTES_TYPE, BYTE_TYPE, BYTE_TYPE_HASH, CHAR_TYPE, FLOAT_TYPE,
-    FLOAT_TYPE_HASH, FORMAT_TYPE, FUNCTION_TYPE, FUTURE_TYPE, GENERATOR_STATE_TYPE, GENERATOR_TYPE,
-    INTEGER_TYPE, INTEGER_TYPE_HASH, ITERATOR_TYPE, OBJECT_TYPE, OPTION_TYPE, ORDERING, RANGE_TYPE,
-    RESULT_TYPE, STREAM_TYPE, STRING_TYPE, TUPLE_TYPE, TYPE, UNIT_TYPE, VEC_TYPE,
-};
+pub(crate) mod static_type;
+pub use self::static_type::StaticType;
 
 mod stream;
 pub use self::stream::Stream;

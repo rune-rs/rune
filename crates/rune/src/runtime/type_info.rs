@@ -5,7 +5,7 @@ use crate::runtime::{RawStr, Rtti, StaticType, VariantRtti};
 
 /// Type information about a value, that can be printed for human consumption
 /// through its [Display][fmt::Display] implementation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TypeInfo {
     /// The static type of a value.
@@ -40,7 +40,7 @@ impl fmt::Display for TypeInfo {
 }
 
 /// Type information for the [`Any`][crate::Any] type.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct AnyTypeInfo {
     /// The name of the type.

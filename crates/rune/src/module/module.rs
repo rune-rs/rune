@@ -378,8 +378,11 @@ impl Module {
         N: IntoIterator,
         N::Item: IntoComponent,
     {
-        let mut enum_ =
-            InternalEnum::new("GeneratorState", name, crate::runtime::GENERATOR_STATE_TYPE);
+        let mut enum_ = InternalEnum::new(
+            "GeneratorState",
+            name,
+            crate::runtime::static_type::GENERATOR_STATE_TYPE,
+        );
 
         // Note: these numeric variants are magic, and must simply match up with
         // what's being used in the virtual machine implementation for these
@@ -423,7 +426,7 @@ impl Module {
         N: IntoIterator,
         N::Item: IntoComponent,
     {
-        let mut enum_ = InternalEnum::new("Option", name, crate::runtime::OPTION_TYPE);
+        let mut enum_ = InternalEnum::new("Option", name, crate::runtime::static_type::OPTION_TYPE);
 
         // Note: these numeric variants are magic, and must simply match up with
         // what's being used in the virtual machine implementation for these
@@ -461,7 +464,7 @@ impl Module {
         N: IntoIterator,
         N::Item: IntoComponent,
     {
-        let mut enum_ = InternalEnum::new("Result", name, crate::runtime::RESULT_TYPE);
+        let mut enum_ = InternalEnum::new("Result", name, crate::runtime::static_type::RESULT_TYPE);
 
         // Note: these numeric variants are magic, and must simply match up with
         // what's being used in the virtual machine implementation for these

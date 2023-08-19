@@ -956,44 +956,51 @@ fn chars(s: &str) -> Iterator {
 /// assert!(v.get(..42).is_none());
 /// ```
 #[rune::function(instance)]
-fn get(s: &str, key: Value) -> VmResult<Option<String>> {
-    use crate::runtime::{FromValue, RangeLimits, TypeOf};
+fn get(this: &str, key: Value) -> VmResult<Option<String>> {
+    use crate::runtime::TypeOf;
 
-    match key {
+    let slice = match key {
+        Value::RangeFrom(range) => {
+            let range = vm_try!(range.borrow_ref());
+            let start = vm_try!(range.start.as_usize());
+            this.get(start..)
+        }
+        Value::RangeFull(..) => this.get(..),
+        Value::RangeInclusive(range) => {
+            let range = vm_try!(range.borrow_ref());
+            let start = vm_try!(range.start.as_usize());
+            let end = vm_try!(range.end.as_usize());
+            this.get(start..=end)
+        }
+        Value::RangeToInclusive(range) => {
+            let range = vm_try!(range.borrow_ref());
+            let end = vm_try!(range.end.as_usize());
+            this.get(..=end)
+        }
+        Value::RangeTo(range) => {
+            let range = vm_try!(range.borrow_ref());
+            let end = vm_try!(range.end.as_usize());
+            this.get(..end)
+        }
         Value::Range(range) => {
             let range = vm_try!(range.borrow_ref());
-
-            let start = match range.start.clone() {
-                Some(value) => Some(vm_try!(<usize>::from_value(value))),
-                None => None,
-            };
-
-            let end = match range.end.clone() {
-                Some(value) => Some(vm_try!(<usize>::from_value(value))),
-                None => None,
-            };
-
-            let out = match range.limits {
-                RangeLimits::HalfOpen => match (start, end) {
-                    (Some(start), Some(end)) => s.get(start..end),
-                    (Some(start), None) => s.get(start..),
-                    (None, Some(end)) => s.get(..end),
-                    (None, None) => s.get(..),
-                },
-                RangeLimits::Closed => match (start, end) {
-                    (Some(start), Some(end)) => s.get(start..=end),
-                    (None, Some(end)) => s.get(..=end),
-                    _ => return VmResult::err(VmErrorKind::UnsupportedRange),
-                },
-            };
-
-            VmResult::Ok(out.map(|out| out.to_owned()))
+            let start = vm_try!(range.start.as_usize());
+            let end = vm_try!(range.end.as_usize());
+            this.get(start..end)
         }
-        index => VmResult::err(VmErrorKind::UnsupportedIndexGet {
-            target: String::type_info(),
-            index: vm_try!(index.type_info()),
-        }),
-    }
+        index => {
+            return VmResult::err(VmErrorKind::UnsupportedIndexGet {
+                target: String::type_info(),
+                index: vm_try!(index.type_info()),
+            })
+        }
+    };
+
+    let Some(slice) = slice else {
+        return VmResult::Ok(None);
+    };
+
+    VmResult::Ok(Some(slice.to_owned()))
 }
 
 /// Get a specific string index.

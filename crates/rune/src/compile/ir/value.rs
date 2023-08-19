@@ -160,18 +160,18 @@ impl Value {
     /// Get the type information of the value.
     pub(crate) fn type_info(&self) -> TypeInfo {
         match self {
-            Self::Unit => TypeInfo::StaticType(rt::UNIT_TYPE),
-            Self::Byte(..) => TypeInfo::StaticType(rt::BYTE_TYPE),
-            Self::Char(..) => TypeInfo::StaticType(rt::CHAR_TYPE),
-            Self::Bool(..) => TypeInfo::StaticType(rt::BOOL_TYPE),
-            Self::String(..) => TypeInfo::StaticType(rt::STRING_TYPE),
-            Self::Bytes(..) => TypeInfo::StaticType(rt::BYTES_TYPE),
-            Self::Integer(..) => TypeInfo::StaticType(rt::INTEGER_TYPE),
-            Self::Float(..) => TypeInfo::StaticType(rt::FLOAT_TYPE),
-            Self::Option(..) => TypeInfo::StaticType(rt::OPTION_TYPE),
-            Self::Vec(..) => TypeInfo::StaticType(rt::VEC_TYPE),
-            Self::Tuple(..) => TypeInfo::StaticType(rt::TUPLE_TYPE),
-            Self::Object(..) => TypeInfo::StaticType(rt::OBJECT_TYPE),
+            Self::Unit => TypeInfo::StaticType(rt::static_type::UNIT_TYPE),
+            Self::Byte(..) => TypeInfo::StaticType(rt::static_type::BYTE_TYPE),
+            Self::Char(..) => TypeInfo::StaticType(rt::static_type::CHAR_TYPE),
+            Self::Bool(..) => TypeInfo::StaticType(rt::static_type::BOOL_TYPE),
+            Self::String(..) => TypeInfo::StaticType(rt::static_type::STRING_TYPE),
+            Self::Bytes(..) => TypeInfo::StaticType(rt::static_type::BYTES_TYPE),
+            Self::Integer(..) => TypeInfo::StaticType(rt::static_type::INTEGER_TYPE),
+            Self::Float(..) => TypeInfo::StaticType(rt::static_type::FLOAT_TYPE),
+            Self::Option(..) => TypeInfo::StaticType(rt::static_type::OPTION_TYPE),
+            Self::Vec(..) => TypeInfo::StaticType(rt::static_type::VEC_TYPE),
+            Self::Tuple(..) => TypeInfo::StaticType(rt::static_type::TUPLE_TYPE),
+            Self::Object(..) => TypeInfo::StaticType(rt::static_type::OBJECT_TYPE),
         }
     }
 }
