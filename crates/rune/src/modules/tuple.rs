@@ -1,7 +1,7 @@
 //! The `std::tuple` module.
 
 use crate as rune;
-use crate::runtime::{FromValue, OwnedTuple, Tuple, Value, VmResult};
+use crate::runtime::{OwnedTuple, Tuple, Value, Vec, VmResult};
 use crate::{ContextError, Module};
 
 /// Install the core package into the given functions namespace.
@@ -63,49 +63,5 @@ fn is_empty(this: &Tuple) -> bool {
 /// ```
 #[rune::function(instance)]
 fn get(this: &Tuple, index: Value) -> VmResult<Option<Value>> {
-    let slice = match index {
-        Value::RangeFrom(range) => {
-            let range = vm_try!(range.borrow_ref());
-            let start = vm_try!(range.start.as_usize());
-            this.get(start..)
-        }
-        Value::RangeFull(..) => this.get(..),
-        Value::RangeInclusive(range) => {
-            let range = vm_try!(range.borrow_ref());
-            let start = vm_try!(range.start.as_usize());
-            let end = vm_try!(range.end.as_usize());
-            this.get(start..=end)
-        }
-        Value::RangeToInclusive(range) => {
-            let range = vm_try!(range.borrow_ref());
-            let end = vm_try!(range.end.as_usize());
-            this.get(..=end)
-        }
-        Value::RangeTo(range) => {
-            let range = vm_try!(range.borrow_ref());
-            let end = vm_try!(range.end.as_usize());
-            this.get(..end)
-        }
-        Value::Range(range) => {
-            let range = vm_try!(range.borrow_ref());
-            let start = vm_try!(range.start.as_usize());
-            let end = vm_try!(range.end.as_usize());
-            this.get(start..end)
-        }
-        value => {
-            let index = vm_try!(usize::from_value(value));
-
-            let Some(value) = this.get(index) else {
-                return VmResult::Ok(None);
-            };
-
-            return VmResult::Ok(Some(value.clone()));
-        }
-    };
-
-    let Some(values) = slice else {
-        return VmResult::Ok(None);
-    };
-
-    VmResult::Ok(Some(Value::vec(values.to_vec())))
+    Vec::index_get(this, index)
 }
