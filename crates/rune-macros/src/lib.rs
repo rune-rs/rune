@@ -35,6 +35,7 @@ mod inst_display;
 mod instrument;
 mod internals;
 mod macro_;
+mod module;
 mod opaque;
 mod option_spanned;
 mod parse;
@@ -81,6 +82,22 @@ pub fn macro_(
     let macro_ = syn::parse_macro_input!(item with crate::macro_::Macro::parse);
 
     let output = match macro_.expand(attrs, format_ident!("function")) {
+        Ok(output) => output,
+        Err(e) => return proc_macro::TokenStream::from(e.to_compile_error()),
+    };
+
+    output.into()
+}
+
+#[proc_macro_attribute]
+pub fn module(
+    attrs: proc_macro::TokenStream,
+    item: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+    let attrs = syn::parse_macro_input!(attrs with crate::module::ModuleAttrs::parse);
+    let module = syn::parse_macro_input!(item with crate::module::Module::parse);
+
+    let output = match module.expand(attrs) {
         Ok(output) => output,
         Err(e) => return proc_macro::TokenStream::from(e.to_compile_error()),
     };

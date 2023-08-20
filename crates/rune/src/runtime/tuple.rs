@@ -163,6 +163,12 @@ impl<'a> IntoIterator for &'a mut Tuple {
     }
 }
 
+impl Named for Tuple {
+    const BASE_NAME: RawStr = RawStr::from_str("Tuple");
+}
+
+impl InstallWith for Tuple {}
+
 /// Struct representing a dynamic anonymous object.
 ///
 /// To access borrowed values of a tuple in native functions, use [`Tuple`].
@@ -289,12 +295,6 @@ impl From<Box<[ConstValue]>> for OwnedTuple {
         }
     }
 }
-
-impl Named for OwnedTuple {
-    const BASE_NAME: RawStr = RawStr::from_str("Tuple");
-}
-
-impl InstallWith for OwnedTuple {}
 
 impl FromValue for OwnedTuple {
     fn from_value(value: Value) -> VmResult<Self> {

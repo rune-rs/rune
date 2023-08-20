@@ -22,6 +22,24 @@ use crate::runtime::{
 };
 use crate::Hash;
 
+#[doc(hidden)]
+pub struct ModuleMetaData {
+    #[doc(hidden)]
+    pub item: ItemBuf,
+    #[doc(hidden)]
+    pub docs: &'static [&'static str],
+}
+
+/// Type used to collect and store module metadata through the `#[rune::module]`
+/// macro.
+///
+/// This is the argument type for [`Module::from_meta`], and is from a public
+/// API perspective completely opaque and might change for any release.
+///
+/// Calling and making use of `ModuleMeta` manually despite this warning might
+/// lead to future breakage.
+pub type ModuleMeta = fn() -> ModuleMetaData;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum Name {
     /// An associated key.
@@ -104,6 +122,14 @@ impl Module {
         Self::inner_new(ItemBuf::with_crate_item(name, iter))
     }
 
+    /// Construct a new module from the given module meta.
+    pub fn from_meta(module_meta: ModuleMeta) -> Self {
+        let meta = module_meta();
+        let mut m = Self::inner_new(meta.item);
+        m.item_mut().static_docs(meta.docs);
+        m
+    }
+
     fn inner_new(item: ItemBuf) -> Self {
         Self {
             names: HashSet::new(),
@@ -170,7 +196,7 @@ impl Module {
     /// ```
     pub fn ty<T>(&mut self) -> Result<TypeMut<'_, T>, ContextError>
     where
-        T: Named + TypeOf + InstallWith,
+        T: ?Sized + Named + TypeOf + InstallWith,
     {
         let item = ItemBuf::with_item([T::BASE_NAME]);
         let hash = T::type_hash();

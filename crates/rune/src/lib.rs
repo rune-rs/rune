@@ -427,6 +427,9 @@ pub use rune_macros::macro_;
 #[doc(hidden)]
 pub use rune_macros::attribute_macro;
 
+/// Macro used to annotate a module with metadata.
+pub use rune_macros::module;
+
 cfg_cli! {
     pub mod cli;
 }
@@ -441,9 +444,11 @@ cfg_doc! {
 /// Privately exported details.
 #[doc(hidden)]
 pub mod __private {
+    pub use crate::compile::ItemBuf;
     pub use crate::module::module::Module;
     pub use crate::module::{
         FunctionMetaData, FunctionMetaKind, InstallWith, MacroMetaData, MacroMetaKind,
+        ModuleMetaData,
     };
     pub use crate::params::Params;
     pub use crate::runtime::TypeOf;

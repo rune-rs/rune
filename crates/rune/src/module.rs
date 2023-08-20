@@ -26,7 +26,7 @@ pub(crate) use self::function_meta::{AssociatedFunctionName, ToFieldFunction, To
 pub use self::function_meta::{FunctionMetaData, FunctionMetaKind, MacroMetaData, MacroMetaKind};
 pub use self::function_traits::{Async, Function, FunctionKind, InstanceFunction, Plain};
 #[doc(hidden)]
-pub use self::module::Module;
+pub use self::module::{Module, ModuleMeta, ModuleMetaData};
 
 /// Trait to handle the installation of auxilliary functions for a type
 /// installed into a module.
@@ -259,6 +259,14 @@ impl ItemMut<'_> {
         self.docs.set_docs(docs);
         self
     }
+
+    /// Set static documentation.
+    ///
+    /// This completely replaces any existing documentation.
+    pub fn static_docs(self, docs: &'static [&'static str]) -> Self {
+        self.docs.set_docs(docs);
+        self
+    }
 }
 
 impl fmt::Debug for ItemMut<'_> {
@@ -382,18 +390,18 @@ impl fmt::Debug for ItemFnMut<'_> {
 /// its metadata.
 pub struct VariantMut<'a, T>
 where
-    T: TypeOf,
+    T: ?Sized + TypeOf,
 {
     pub(crate) index: usize,
     pub(crate) docs: &'a mut Docs,
     pub(crate) fields: &'a mut Option<Fields>,
     pub(crate) constructor: &'a mut Option<Arc<FunctionHandler>>,
-    pub(crate) _marker: PhantomData<&'a mut T>,
+    pub(crate) _marker: PhantomData<T>,
 }
 
 impl<T> VariantMut<'_, T>
 where
-    T: TypeOf,
+    T: ?Sized + TypeOf,
 {
     /// Set documentation for an inserted type.
     ///
@@ -466,16 +474,16 @@ where
 /// Access enum metadata mutably.
 pub struct EnumMut<'a, T>
 where
-    T: TypeOf,
+    T: ?Sized + TypeOf,
 {
     docs: &'a mut Docs,
     enum_: &'a mut Enum,
-    _marker: PhantomData<&'a mut T>,
+    _marker: PhantomData<T>,
 }
 
 impl<T> EnumMut<'_, T>
 where
-    T: TypeOf,
+    T: ?Sized + TypeOf,
 {
     /// Set documentation for an inserted type.
     ///
@@ -519,15 +527,15 @@ where
 /// Access internal enum metadata mutably.
 pub struct InternalEnumMut<'a, T>
 where
-    T: TypeOf,
+    T: ?Sized + TypeOf,
 {
     enum_: &'a mut InternalEnum,
-    _marker: PhantomData<&'a mut T>,
+    _marker: PhantomData<T>,
 }
 
 impl<T> InternalEnumMut<'_, T>
 where
-    T: TypeOf,
+    T: ?Sized + TypeOf,
 {
     /// Set documentation for an inserted internal enum.
     ///
@@ -577,18 +585,18 @@ where
 ///   type.
 pub struct TypeMut<'a, T>
 where
-    T: TypeOf,
+    T: ?Sized + TypeOf,
 {
     docs: &'a mut Docs,
     spec: &'a mut Option<TypeSpecification>,
     constructor: &'a mut Option<Arc<FunctionHandler>>,
     item: &'a Item,
-    _marker: PhantomData<&'a mut T>,
+    _marker: PhantomData<T>,
 }
 
 impl<'a, T> TypeMut<'a, T>
 where
-    T: TypeOf,
+    T: ?Sized + TypeOf,
 {
     /// Set documentation for an inserted type.
     ///
