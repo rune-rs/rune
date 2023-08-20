@@ -1,14 +1,14 @@
 //! The `std::tuple` module.
 
 use crate as rune;
-use crate::runtime::{OwnedTuple, Tuple, Value, Vec, VmResult};
+use crate::runtime::{Tuple, Value, Vec, VmResult};
 use crate::{ContextError, Module};
 
-/// Install the core package into the given functions namespace.
+/// Dynamic tuples.
+#[rune::module(::std::tuple)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::with_crate_item("std", ["tuple"]);
-    m.item_mut().docs(["The `std::tuple` module."]);
-    m.ty::<OwnedTuple>()?.docs(["The tuple type."]);
+    let mut m = Module::from_meta(self::module_meta);
+    m.ty::<Tuple>()?.docs(["The tuple type."]);
     m.function_meta(len)?;
     m.function_meta(is_empty)?;
     m.function_meta(get)?;
@@ -19,7 +19,7 @@ pub fn module() -> Result<Module, ContextError> {
 ///
 /// # Examples
 ///
-/// ```
+/// ```rune
 /// let a = (1, 2, 3);
 /// assert_eq!(a.len(), 3);
 /// ```
@@ -32,7 +32,7 @@ fn len(this: &Tuple) -> usize {
 ///
 /// # Examples
 ///
-/// ```
+/// ```rune
 /// let a = (1, 2, 3);
 /// assert!(!a.is_empty());
 ///

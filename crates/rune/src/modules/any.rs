@@ -1,4 +1,4 @@
-//! `std::any` module.
+//! The `std::any` rune module.
 
 use core::fmt::{self, Write};
 
@@ -8,11 +8,15 @@ use crate as rune;
 use crate::runtime::{Type, Value, VmResult};
 use crate::{ContextError, Module};
 
-/// Construct the `std::any` module.
+/// Utilities for dynamic typing or type reflection.
+///
+/// # `Type`
+///
+/// Values of this type indicates the type of any dynamic value and can be
+/// constructed through the [`Type::of_val`] function.
+#[rune::module(::std::any)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::with_crate_item("std", ["any"]);
-
-    m.item_mut().docs(["The `std::any` module."]);
+    let mut m = Module::from_meta(self::module_meta);
 
     m.ty::<Type>()?
         .docs(["Represents a type in the Rune type system."]);
