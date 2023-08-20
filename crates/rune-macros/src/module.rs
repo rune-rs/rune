@@ -74,11 +74,21 @@ impl Module {
 
                 let krate = syn::LitStr::new(&krate.ident.to_string(), krate.ident.span());
                 let item = build_item(it);
-                quote!(rune::__private::ItemBuf::with_crate_item(#krate, #item))
+
+                if item.elems.is_empty() {
+                    quote!(rune::__private::ItemBuf::with_crate(#krate))
+                } else {
+                    quote!(rune::__private::ItemBuf::with_crate_item(#krate, #item))
+                }
             }
             None => {
                 let item = build_item(attrs.path.segments.iter());
-                quote!(rune::__private::ItemBuf::from_item(#item))
+
+                if item.elems.is_empty() {
+                    quote!(rune::__private::ItemBuf::new())
+                } else {
+                    quote!(rune::__private::ItemBuf::from_item(#item))
+                }
             }
         };
 

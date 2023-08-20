@@ -9,9 +9,10 @@ use crate::parse::Parser;
 use crate::runtime::{Panic, Value, VmResult};
 use crate::{ContextError, Module};
 
-/// Construct the `std` module.
+#[rune::module(::std)]
+/// The Rune standard library.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate("std").with_unique("std");
+    let mut module = Module::from_meta(self::module_meta).with_unique("std");
 
     module.ty::<bool>()?.docs(["The primitive boolean type."]);
     module.ty::<char>()?.docs(["The primitive character type."]);

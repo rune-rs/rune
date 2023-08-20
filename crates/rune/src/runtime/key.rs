@@ -224,7 +224,22 @@ impl fmt::Debug for Key {
             Key::Bytes(b) => write!(f, "{:?}", b),
             Key::Vec(vec) => write!(f, "{:?}", vec),
             Key::EmptyTuple => write!(f, "()"),
-            Key::Tuple(tuple) => write!(f, "{:?}", tuple),
+            Key::Tuple(tuple) => {
+                write!(f, "(")?;
+
+                let mut it = tuple.iter().peekable();
+
+                while let Some(key) = it.next() {
+                    write!(f, "{:?}", key)?;
+
+                    if it.peek().is_some() {
+                        write!(f, ", ")?;
+                    }
+                }
+
+                write!(f, "(")?;
+                Ok(())
+            }
             Key::Option(opt) => write!(f, "{:?}", opt),
             Key::Variant(variant) => write!(f, "{:?}", variant),
         }

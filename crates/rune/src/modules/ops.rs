@@ -1,14 +1,18 @@
 //! The `std::ops` module.
 
+use core::cmp::Ordering;
+
+use crate as rune;
 use crate::runtime::{
     Function, Protocol, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive,
-    Value,
+    Value, VmResult,
 };
 use crate::{ContextError, Module};
 
-/// Construct the `std::ops` module.
+#[rune::module(::std::ops)]
+/// Overloadable operators.
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::with_crate_item("std", ["ops"]);
+    let mut m = Module::from_meta(self::module_meta);
 
     {
         m.ty::<RangeFrom>()?;
@@ -292,5 +296,112 @@ pub fn module() -> Result<Module, ContextError> {
         "```",
     ]);
 
+    m.function_meta(partial_eq)?;
+    m.function_meta(eq)?;
+    m.function_meta(partial_cmp)?;
+    m.function_meta(cmp)?;
+
     Ok(m)
+}
+
+/// Perform a partial equality check over two values.
+///
+/// This produces the same behavior as the equality operator (`==`).
+///
+/// For non-builtin types this leans on the behavior of the [`PARTIAL_EQ`]
+/// protocol.
+///
+/// # Panics
+///
+/// Panics if we're trying to compare two values which are not comparable.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::ops::partial_eq;
+///
+/// assert!(partial_eq(1.0, 1.0));
+/// assert!(!partial_eq(1.0, 2.0));
+/// ```
+#[rune::function]
+fn partial_eq(lhs: Value, rhs: Value) -> VmResult<bool> {
+    Value::partial_eq(&lhs, &rhs)
+}
+
+/// Perform a partial equality check over two values.
+///
+/// This produces the same behavior as the equality operator (`==`).
+///
+/// For non-builtin types this leans on the behavior of the [`EQ`] protocol.
+///
+/// # Panics
+///
+/// Panics if we're trying to compare two values which are not comparable.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::ops::eq;
+///
+/// assert!(eq(1.0, 1.0));
+/// assert!(!eq(1.0, 2.0));
+/// ```
+#[rune::function]
+fn eq(lhs: Value, rhs: Value) -> VmResult<bool> {
+    Value::eq(&lhs, &rhs)
+}
+
+/// Perform a partial comparison over two values.
+///
+/// This produces the same behavior as when comparison operators like less than
+/// (`<`) is used.
+///
+/// For non-builtin types this leans on the behavior of the [`PARTIAL_CMP`]
+/// protocol.
+///
+/// # Panics
+///
+/// Panics if we're trying to compare two values which are not comparable.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::ops::partial_cmp;
+/// use std::cmp::Ordering;
+///
+/// assert_eq!(partial_cmp(1.0, 1.0), Some(Ordering::Equal));
+/// assert_eq!(partial_cmp(1.0, 2.0), Some(Ordering::Less));
+/// assert_eq!(partial_cmp(1.0, f64::NAN), None);
+/// ```
+#[rune::function]
+fn partial_cmp(lhs: Value, rhs: Value) -> VmResult<Option<Ordering>> {
+    Value::partial_cmp(&lhs, &rhs)
+}
+
+/// Perform a total comparison over two values.
+///
+/// For non-builtin types this leans on the behavior of the [`CMP`] protocol.
+///
+/// # Panics
+///
+/// Panics if we're trying to compare two values which are not comparable.
+///
+/// ```rune,should_panic
+/// use std::ops::cmp;
+///
+/// let _ = cmp(1.0, f64::NAN);
+/// ```
+///
+/// # Examples
+///
+/// ```rune
+/// use std::ops::cmp;
+/// use std::cmp::Ordering;
+///
+/// assert_eq!(cmp(1, 1), Ordering::Equal);
+/// assert_eq!(cmp(1, 2), Ordering::Less);
+/// ```
+#[rune::function]
+fn cmp(lhs: Value, rhs: Value) -> VmResult<Ordering> {
+    Value::cmp(&lhs, &rhs)
 }

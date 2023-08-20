@@ -225,18 +225,18 @@ fn sort_by(vec: &mut Vec, comparator: &Function) -> VmResult<()> {
 ///
 /// If any elements present are not comparable, this method will panic.
 ///
-/// This will panic because a tuple and a string is not comparable:
+/// This will panic because a tuple and a string are not comparable:
 ///
 /// ```rune,should_panic
 /// let values = [(3, 1), "hello"];
 /// values.sort();
 /// ```
 ///
-/// This too will panic because floating point values do not have a total
+/// This too will panic because floating point values which do not have a total
 /// ordering:
 ///
 /// ```rune,should_panic
-/// let values = [1.0, 2.0];
+/// let values = [1.0, 2.0, f64::NAN];
 /// values.sort();
 /// ```
 ///
