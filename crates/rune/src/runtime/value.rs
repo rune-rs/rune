@@ -1372,6 +1372,13 @@ impl Value {
             (Self::Bool(a), Self::Bool(b)) => return VmResult::Ok(a == b),
             (Self::Byte(a), Self::Byte(b)) => return VmResult::Ok(a == b),
             (Self::Char(a), Self::Char(b)) => return VmResult::Ok(a == b),
+            (Self::Float(a), Self::Float(b)) => {
+                if let Some(ordering) = a.partial_cmp(b) {
+                    return VmResult::Ok(matches!(ordering, Ordering::Equal));
+                }
+
+                return VmResult::err(VmErrorKind::IllegalFloatComparison { lhs: *a, rhs: *b });
+            }
             (Self::Integer(a), Self::Integer(b)) => return VmResult::Ok(a == b),
             (Self::Type(a), Self::Type(b)) => return VmResult::Ok(a == b),
             (Self::Bytes(a), Self::Bytes(b)) => {
@@ -1695,6 +1702,13 @@ impl Value {
             (Self::Bool(a), Self::Bool(b)) => return VmResult::Ok(a.cmp(b)),
             (Self::Byte(a), Self::Byte(b)) => return VmResult::Ok(a.cmp(b)),
             (Self::Char(a), Self::Char(b)) => return VmResult::Ok(a.cmp(b)),
+            (Self::Float(a), Self::Float(b)) => {
+                if let Some(ordering) = a.partial_cmp(b) {
+                    return VmResult::Ok(ordering);
+                }
+
+                return VmResult::err(VmErrorKind::IllegalFloatComparison { lhs: *a, rhs: *b });
+            }
             (Self::Integer(a), Self::Integer(b)) => return VmResult::Ok(a.cmp(b)),
             (Self::Type(a), Self::Type(b)) => return VmResult::Ok(a.cmp(b)),
             (Self::Bytes(a), Self::Bytes(b)) => {
@@ -1795,7 +1809,6 @@ impl Value {
                 let a = vm_try!(a.borrow_ref());
                 return VmResult::Ok(a.cmp(&**b));
             }
-            // fast string comparison: exact string slot.
             (Self::StaticString(a), Self::StaticString(b)) => {
                 return VmResult::Ok(a.cmp(b));
             }

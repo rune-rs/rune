@@ -584,6 +584,10 @@ pub(crate) enum VmErrorKind {
     UnsupportedObjectFieldGet {
         target: TypeInfo,
     },
+    IllegalFloatComparison {
+        lhs: f64,
+        rhs: f64,
+    },
 }
 
 impl fmt::Display for VmErrorKind {
@@ -775,6 +779,12 @@ impl fmt::Display for VmErrorKind {
                 f,
                 "The object field get operation is not supported on `{target}`",
             ),
+            VmErrorKind::IllegalFloatComparison { lhs, rhs } => {
+                write!(
+                    f,
+                    "Cannot perform a comparison of the floats {lhs} and {rhs}",
+                )
+            }
         }
     }
 }

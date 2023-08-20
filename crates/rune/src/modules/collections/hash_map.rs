@@ -4,7 +4,7 @@ use crate::no_std::collections;
 use crate::no_std::prelude::*;
 
 use crate as rune;
-use crate::runtime::{FromValue, Iterator, Key, Protocol, Value, VmErrorKind, VmResult};
+use crate::runtime::{FromValue, Iterator, Key, Value, VmErrorKind, VmResult};
 use crate::{Any, ContextError, Module};
 
 pub(super) fn setup(module: &mut Module) -> Result<(), ContextError> {
@@ -24,12 +24,12 @@ pub(super) fn setup(module: &mut Module) -> Result<(), ContextError> {
     module.function_meta(HashMap::extend)?;
     module.function_meta(from)?;
     module.function_meta(clone)?;
-    module.associated_function(Protocol::INTO_ITER, HashMap::__rune_fn__iter)?;
-    module.associated_function(Protocol::INDEX_SET, HashMap::index_set)?;
-    module.associated_function(Protocol::INDEX_GET, HashMap::index_get)?;
-    module.associated_function(Protocol::STRING_DEBUG, HashMap::string_debug)?;
-    module.associated_function(Protocol::PARTIAL_EQ, HashMap::partial_eq)?;
-    module.associated_function(Protocol::EQ, HashMap::eq)?;
+    module.function_meta(HashMap::into_iter)?;
+    module.function_meta(HashMap::index_set)?;
+    module.function_meta(HashMap::index_get)?;
+    module.function_meta(HashMap::string_debug)?;
+    module.function_meta(HashMap::partial_eq)?;
+    module.function_meta(HashMap::eq)?;
     Ok(())
 }
 
@@ -128,6 +128,28 @@ impl HashMap {
         self.map.is_empty()
     }
 
+    /// An iterator visiting all key-value pairs in arbitrary order.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// use std::collections::HashMap;
+    ///
+    /// let map = HashMap::from([
+    ///     ("a", 1),
+    ///     ("b", 2),
+    ///     ("c", 3),
+    /// ]);
+    ///
+    /// let pairs = map.iter().collect::<Vec>();
+    /// pairs.sort();
+    /// assert_eq!(pairs, [("a", 1), ("b", 2), ("c", 3)]);
+    /// ```
+    ///
+    /// # Performance
+    ///
+    /// In the current implementation, iterating over map takes O(capacity) time
+    /// instead of O(len) because it internally visits empty buckets too.
     #[rune::function]
     fn iter(&self) -> Iterator {
         let iter = self.map.clone().into_iter();
@@ -327,10 +349,84 @@ impl HashMap {
         VmResult::Ok(Self { map })
     }
 
+    /// An iterator visiting all key-value pairs in arbitrary order.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// use std::collections::HashMap;
+    ///
+    /// let map = HashMap::from([
+    ///     ("a", 1),
+    ///     ("b", 2),
+    ///     ("c", 3),
+    /// ]);
+    ///
+    /// let pairs = [];
+    ///
+    /// for pair in map {
+    ///     pairs.push(pair);
+    /// }
+    ///
+    /// pairs.sort();
+    /// assert_eq!(pairs, [("a", 1), ("b", 2), ("c", 3)]);
+    /// ```
+    ///
+    /// # Performance
+    ///
+    /// In the current implementation, iterating over map takes O(capacity) time
+    /// instead of O(len) because it internally visits empty buckets too.
+    #[rune::function(protocol = INTO_ITER)]
+    fn into_iter(&self) -> Iterator {
+        self.__rune_fn__iter()
+    }
+
+    /// Inserts a key-value pair into the map.
+    ///
+    /// If the map did have this key present, the value is updated.
+    ///
+    /// [module-level documentation]: crate::collections#insert-and-complex-keys
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// use std::collections::HashMap;
+    ///
+    /// let map = HashMap::new();
+    /// map[37] = "a";
+    /// assert!(!map.is_empty());
+    ///
+    /// map[37] = "c";
+    /// assert_eq!(map[37], "c");
+    /// ```
+    #[rune::function(protocol = INDEX_SET)]
     fn index_set(&mut self, key: Key, value: Value) {
         let _ = self.map.insert(key, value);
     }
 
+    /// Returns a the value corresponding to the key.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the given value is not present in the map.
+    ///
+    /// ```rune,should_panic
+    /// use std::collections::HashMap;
+    ///
+    /// let map = HashMap::new();
+    /// let _ = map[1];
+    /// ```
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// use std::collections::HashMap;
+    ///
+    /// let map = HashMap::new();
+    /// map[1] = "a";
+    /// assert_eq!(map[1], "a");
+    /// ```
+    #[rune::function(protocol = INDEX_GET)]
     fn index_get(&self, key: Key) -> VmResult<Value> {
         use crate::runtime::TypeOf;
 
@@ -344,10 +440,80 @@ impl HashMap {
         VmResult::Ok(value.clone())
     }
 
-    fn string_debug(&self, s: &mut String) -> fmt::Result {
-        write!(s, "{:?}", self.map)
+    /// Debug format the current map.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// use std::collections::HashMap;
+    ///
+    /// let map = HashMap::new();
+    /// map[1] = "a";
+    ///
+    /// assert_eq!(format!("{:?}", map), "{1: \"a\"}");
+    /// ```
+    #[rune::function(protocol = STRING_DEBUG)]
+    fn string_debug(&self, s: &mut String) -> VmResult<fmt::Result> {
+        if let Err(fmt::Error) = write!(s, "{{") {
+            return VmResult::Ok(Err(fmt::Error));
+        }
+
+        let mut it = self.map.iter().peekable();
+
+        while let Some((key, value)) = it.next() {
+            if let Err(fmt::Error) = write!(s, "{:?}", key) {
+                return VmResult::Ok(Err(fmt::Error));
+            }
+
+            if let Err(fmt::Error) = write!(s, ": ") {
+                return VmResult::Ok(Err(fmt::Error));
+            }
+
+            if let Err(fmt::Error) = vm_try!(value.string_debug(s)) {
+                return VmResult::Ok(Err(fmt::Error));
+            }
+
+            if it.peek().is_some() {
+                if let Err(fmt::Error) = write!(s, ", ") {
+                    return VmResult::Ok(Err(fmt::Error));
+                }
+            }
+        }
+
+        if let Err(fmt::Error) = write!(s, "}}") {
+            return VmResult::Ok(Err(fmt::Error));
+        }
+
+        VmResult::Ok(Ok(()))
     }
 
+    /// Perform a partial equality check over two maps.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// use std::collections::HashMap;
+    ///
+    /// let map1 = HashMap::from([
+    ///     ("a", 1.0),
+    ///     ("c", 3.0),
+    ///     ("b", 2.0),
+    /// ]);
+    ///
+    /// let map2 = HashMap::from([
+    ///     ("c", 3.0),
+    ///     ("a", 1.0),
+    ///     ("b", 2.0),
+    /// ]);
+    ///
+    /// assert!(map1 == map2);
+    ///
+    /// map1["b"] = f64::NAN;
+    /// map2["b"] = f64::NAN;
+    ///
+    /// assert!(map1 != map2);
+    /// ```
+    #[rune::function(protocol = PARTIAL_EQ)]
     fn partial_eq(&self, other: &Self) -> VmResult<bool> {
         if self.map.len() != other.map.len() {
             return VmResult::Ok(false);
@@ -366,6 +532,29 @@ impl HashMap {
         VmResult::Ok(true)
     }
 
+    /// Perform a total equality check over two maps.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// use std::collections::HashMap;
+    /// use std::ops::eq;
+    ///
+    /// let map1 = HashMap::from([
+    ///     ("a", 1),
+    ///     ("c", 3),
+    ///     ("b", 2),
+    /// ]);
+    ///
+    /// let map2 = HashMap::from([
+    ///     ("c", 3),
+    ///     ("a", 1),
+    ///     ("b", 2),
+    /// ]);
+    ///
+    /// assert!(eq(map1, map2));
+    /// ```
+    #[rune::function(protocol = EQ)]
     fn eq(&self, other: &Self) -> VmResult<bool> {
         if self.map.len() != other.map.len() {
             return VmResult::Ok(false);

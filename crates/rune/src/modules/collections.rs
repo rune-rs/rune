@@ -9,10 +9,12 @@ use crate::{ContextError, Module};
 pub(crate) use self::hash_map::HashMap;
 pub(crate) use self::hash_set::HashSet;
 pub(crate) use self::vec_deque::VecDeque;
+use crate as rune;
 
+#[rune::module(::std::collections)]
 /// The `std::collections` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["collections"]);
+    let mut module = Module::from_meta(self::module_meta);
     hash_map::setup(&mut module)?;
     hash_set::setup(&mut module)?;
     vec_deque::setup(&mut module)?;
