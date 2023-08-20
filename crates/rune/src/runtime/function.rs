@@ -7,8 +7,8 @@ use crate::no_std::sync::Arc;
 use crate::compile::Named;
 use crate::module::{self, InstallWith};
 use crate::runtime::{
-    Args, Call, ConstValue, FromValue, FunctionHandler, RawStr, Rtti, RuntimeContext, Stack, Tuple,
-    Unit, Value, VariantRtti, Vm, VmCall, VmErrorKind, VmHalt, VmResult,
+    Args, Call, ConstValue, FromValue, FunctionHandler, OwnedTuple, RawStr, Rtti, RuntimeContext,
+    Stack, Unit, Value, VariantRtti, Vm, VmCall, VmErrorKind, VmHalt, VmResult,
 };
 use crate::shared::AssertSend;
 use crate::Hash;
@@ -448,7 +448,7 @@ impl SyncFunction {
 struct FunctionImpl<V>
 where
     V: Clone,
-    Tuple: From<Box<[V]>>,
+    OwnedTuple: From<Box<[V]>>,
 {
     inner: Inner<V>,
 }
@@ -456,7 +456,7 @@ where
 impl<V> FunctionImpl<V>
 where
     V: Clone,
-    Tuple: From<Box<[V]>>,
+    OwnedTuple: From<Box<[V]>>,
 {
     fn call<A, T>(&self, args: A) -> VmResult<T>
     where
@@ -474,10 +474,10 @@ where
             Inner::FnOffset(fn_offset) => vm_try!(fn_offset.call(args, ())),
             Inner::FnClosureOffset(closure) => vm_try!(closure
                 .fn_offset
-                .call(args, (Tuple::from(closure.environment.clone()),))),
+                .call(args, (OwnedTuple::from(closure.environment.clone()),))),
             Inner::FnUnitStruct(empty) => {
                 vm_try!(check_args(args.count(), 0));
-                Value::unit_struct(empty.rtti.clone())
+                Value::empty_struct(empty.rtti.clone())
             }
             Inner::FnTupleStruct(tuple) => {
                 vm_try!(check_args(args.count(), tuple.args));
@@ -545,7 +545,7 @@ where
                 if let Some(vm_call) = vm_try!(closure.fn_offset.call_with_vm(
                     vm,
                     args,
-                    (Tuple::from(closure.environment.clone()),),
+                    (OwnedTuple::from(closure.environment.clone()),),
                 )) {
                     return VmResult::Ok(Some(VmHalt::VmCall(vm_call)));
                 }
@@ -554,7 +554,7 @@ where
             }
             Inner::FnUnitStruct(empty) => {
                 vm_try!(check_args(args, 0));
-                vm.stack_mut().push(Value::unit_struct(empty.rtti.clone()));
+                vm.stack_mut().push(Value::empty_struct(empty.rtti.clone()));
                 None
             }
             Inner::FnTupleStruct(tuple) => {

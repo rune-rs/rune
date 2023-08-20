@@ -427,12 +427,6 @@ impl UnsafeToMut for Result<Value, Value> {
     }
 }
 
-impl FromValue for () {
-    fn from_value(value: Value) -> VmResult<Self> {
-        VmResult::Ok(vm_try!(value.into_unit()))
-    }
-}
-
 impl FromValue for u8 {
     #[inline]
     fn from_value(value: Value) -> VmResult<Self> {

@@ -68,7 +68,7 @@ where
         };
 
         futures.push(SelectFuture::new(index, future));
-        results.push(Value::Unit);
+        results.push(Value::EmptyTuple);
     }
 
     while !futures.is_empty() {
@@ -81,7 +81,7 @@ where
 
 async fn join(value: Value) -> VmResult<Value> {
     match value {
-        Value::Unit => VmResult::Ok(Value::Unit),
+        Value::EmptyTuple => VmResult::Ok(Value::EmptyTuple),
         Value::Tuple(tuple) => {
             let tuple = vm_try!(tuple.borrow_ref());
             VmResult::Ok(vm_try!(

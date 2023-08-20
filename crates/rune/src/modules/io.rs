@@ -80,7 +80,7 @@ fn dbg_impl(stack: &mut Stack, args: usize) -> VmResult<()> {
         vm_try!(writeln!(stdout, "{:?}", value).map_err(Panic::custom));
     }
 
-    stack.push(Value::Unit);
+    stack.push(Value::EmptyTuple);
     VmResult::Ok(())
 }
 

@@ -243,7 +243,7 @@ pub(crate) enum UnitFn {
         args: usize,
     },
     /// An empty constructor of the type identified by the given hash.
-    UnitStruct {
+    EmptyStruct {
         /// The type hash of the empty.
         hash: Hash,
     },
@@ -274,7 +274,7 @@ impl fmt::Display for UnitFn {
             Self::Offset { offset, call, args } => {
                 write!(f, "offset {}, {}, {}", offset, call, args)?;
             }
-            Self::UnitStruct { hash } => {
+            Self::EmptyStruct { hash } => {
                 write!(f, "unit {}", hash)?;
             }
             Self::TupleStruct { hash, args } => {

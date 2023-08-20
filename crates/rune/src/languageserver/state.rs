@@ -854,7 +854,7 @@ pub(super) struct Definition {
 #[derive(Debug, Clone, Copy)]
 pub(super) enum DefinitionKind {
     /// A unit struct.
-    UnitStruct,
+    EmptyStruct,
     /// A tuple struct.
     TupleStruct,
     /// A struct.
@@ -900,7 +900,7 @@ impl CompileVisitor for Visitor {
             meta::Kind::Struct {
                 fields: meta::Fields::Empty,
                 ..
-            } => DefinitionKind::UnitStruct,
+            } => DefinitionKind::EmptyStruct,
             meta::Kind::Struct {
                 fields: meta::Fields::Unnamed(..),
                 ..

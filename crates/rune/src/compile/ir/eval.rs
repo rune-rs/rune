@@ -58,7 +58,7 @@ fn eval_ir_assign(
         .scopes
         .mut_target(&ir.target, move |t| ir.op.assign(ir, t, value))?;
 
-    Ok(ir::Value::Unit)
+    Ok(ir::Value::EmptyTuple)
 }
 
 fn eval_ir_binary(
@@ -176,7 +176,7 @@ fn eval_ir_branches(
         return eval_ir_scope(branch, interp, used);
     }
 
-    Ok(ir::Value::Unit)
+    Ok(ir::Value::EmptyTuple)
 }
 
 fn eval_ir_call(
@@ -218,7 +218,7 @@ fn eval_ir_decl(
     interp.budget.take(ir)?;
     let value = eval_ir(&ir.value, interp, used)?;
     interp.scopes.decl(&ir.name, value).with_span(ir)?;
-    Ok(ir::Value::Unit)
+    Ok(ir::Value::EmptyTuple)
 }
 
 fn eval_ir_loop(
@@ -269,7 +269,7 @@ fn eval_ir_loop(
 
         Ok(value)
     } else {
-        Ok(ir::Value::Unit)
+        Ok(ir::Value::EmptyTuple)
     }
 }
 
@@ -302,7 +302,7 @@ fn eval_ir_scope(
     let value = if let Some(last) = &ir.last {
         eval_ir(last, interp, used)?
     } else {
-        ir::Value::Unit
+        ir::Value::EmptyTuple
     };
 
     interp.scopes.pop(guard).with_span(ir)?;
@@ -317,7 +317,7 @@ fn eval_ir_set(
     interp.budget.take(ir)?;
     let value = eval_ir(&ir.value, interp, used)?;
     interp.scopes.set_target(&ir.target, value)?;
-    Ok(ir::Value::Unit)
+    Ok(ir::Value::EmptyTuple)
 }
 
 fn eval_ir_template(

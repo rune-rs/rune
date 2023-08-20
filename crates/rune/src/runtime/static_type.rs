@@ -40,16 +40,6 @@ impl hash::Hash for &'static StaticType {
     }
 }
 
-/// The specialized type information for a unit.
-pub(crate) static UNIT_TYPE: &StaticType = &StaticType {
-    name: RawStr::from_str("unit"),
-    // hash for ::std::unit
-    hash: Hash::new(0x9f40107c53277b0c),
-};
-
-impl_static_type!(() => UNIT_TYPE);
-impl_static_type!(rt::UnitStruct => UNIT_TYPE);
-
 /// Hash for `::std::u8`.
 pub(crate) const BYTE_TYPE_HASH: Hash = Hash::new(0xe6cb97d2df702ff4);
 
@@ -143,10 +133,11 @@ impl_static_type!(impl<T> rt::VecTuple<T> => VEC_TYPE);
 
 pub(crate) static TUPLE_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Tuple"),
-    // hash for ::std::Tuple
-    hash: Hash::new(0xf94a979fcb406fde),
+    // hash for ::std::tuple::Tuple
+    hash: Hash::new(0xfeb65b3f4755aef0),
 };
 
+impl_static_type!(rt::OwnedTuple => TUPLE_TYPE);
 impl_static_type!(rt::Tuple => TUPLE_TYPE);
 
 pub(crate) static OBJECT_TYPE: &StaticType = &StaticType {

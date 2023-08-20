@@ -130,6 +130,18 @@ impl VmError {
         Self::from(Panic::custom(message))
     }
 
+    /// Construct an expectation error. The actual type received is `actual`,
+    /// but we expected `E`.
+    pub fn expected<E>(actual: TypeInfo) -> Self
+    where
+        E: ?Sized + TypeOf,
+    {
+        Self::from(VmErrorKind::Expected {
+            expected: E::type_info(),
+            actual,
+        })
+    }
+
     /// Get the location where the error happened.
     pub fn at(&self) -> &VmErrorAt {
         &self.inner.error
@@ -138,18 +150,6 @@ impl VmError {
     /// Get the full backtrace of errors and their corresponding instructions.
     pub fn chain(&self) -> &[VmErrorAt] {
         &self.inner.chain
-    }
-
-    /// Construct an expectation error. The actual type received is `actual`,
-    /// but we expected `E`.
-    pub fn expected<E>(actual: TypeInfo) -> Self
-    where
-        E: TypeOf,
-    {
-        Self::from(VmErrorKind::Expected {
-            expected: E::type_info(),
-            actual,
-        })
     }
 
     /// Construct an overflow error.
@@ -209,7 +209,7 @@ impl<T> VmResult<T> {
     /// but we expected `E`.
     pub fn expected<E>(actual: TypeInfo) -> Self
     where
-        E: TypeOf,
+        E: ?Sized + TypeOf,
     {
         Self::Err(VmError::expected::<E>(actual))
     }
@@ -811,7 +811,7 @@ impl VmErrorKind {
     /// Bad argument.
     pub fn bad_argument<T>(arg: usize, value: &Value) -> VmResult<Self>
     where
-        T: TypeOf,
+        T: ?Sized + TypeOf,
     {
         VmResult::Ok(Self::BadArgumentAt {
             arg,
@@ -823,7 +823,7 @@ impl VmErrorKind {
     /// Construct an expected error.
     pub fn expected<T>(actual: TypeInfo) -> Self
     where
-        T: TypeOf,
+        T: ?Sized + TypeOf,
     {
         Self::Expected {
             expected: T::type_info(),

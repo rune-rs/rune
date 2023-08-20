@@ -10,7 +10,7 @@ use crate::runtime::{Bytes, ConstValue, Shared, TypeInfo};
 #[derive(Debug, Clone)]
 pub enum Value {
     /// A constant unit.
-    Unit,
+    EmptyTuple,
     /// A byte.
     Byte(u8),
     /// A character.
@@ -58,7 +58,7 @@ impl Value {
     /// Convert a constant value into an interpreter value.
     pub(crate) fn from_const(value: &ConstValue) -> Self {
         match value {
-            ConstValue::Unit => Self::Unit,
+            ConstValue::EmptyTuple => Self::EmptyTuple,
             ConstValue::Byte(b) => Self::Byte(*b),
             ConstValue::Char(c) => Self::Char(*c),
             ConstValue::Bool(b) => Self::Bool(*b),
@@ -106,7 +106,7 @@ impl Value {
         S: Copy + Spanned,
     {
         Ok(match self {
-            Value::Unit => ConstValue::Unit,
+            Value::EmptyTuple => ConstValue::EmptyTuple,
             Value::Byte(b) => ConstValue::Byte(b),
             Value::Char(c) => ConstValue::Char(c),
             Value::Bool(b) => ConstValue::Bool(b),
@@ -160,7 +160,7 @@ impl Value {
     /// Get the type information of the value.
     pub(crate) fn type_info(&self) -> TypeInfo {
         match self {
-            Self::Unit => TypeInfo::StaticType(rt::static_type::UNIT_TYPE),
+            Self::EmptyTuple => TypeInfo::StaticType(rt::static_type::TUPLE_TYPE),
             Self::Byte(..) => TypeInfo::StaticType(rt::static_type::BYTE_TYPE),
             Self::Char(..) => TypeInfo::StaticType(rt::static_type::CHAR_TYPE),
             Self::Bool(..) => TypeInfo::StaticType(rt::static_type::BOOL_TYPE),

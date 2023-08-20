@@ -6,20 +6,18 @@ use crate as rune;
 use crate::compile;
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
-use crate::runtime::{Panic, Tuple, Value, VmResult};
+use crate::runtime::{Panic, Value, VmResult};
 use crate::{ContextError, Module};
 
 /// Construct the `std` module.
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate("std").with_unique("std");
 
-    module.unit("unit")?.docs(["The primitive unit type."]);
     module.ty::<bool>()?.docs(["The primitive boolean type."]);
     module.ty::<char>()?.docs(["The primitive character type."]);
     module.ty::<u8>()?.docs(["The primitive byte type."]);
     module.ty::<f64>()?.docs(["The primitive float type."]);
     module.ty::<i64>()?.docs(["The primitive integer type."]);
-    module.ty::<Tuple>()?.docs(["The tuple type."]);
 
     module.function_meta(panic)?;
     module.function_meta(is_readable)?;
@@ -61,7 +59,7 @@ fn panic(message: &str) -> VmResult<()> {
 #[rune::function]
 fn is_readable(value: Value) -> bool {
     match value {
-        Value::Unit => true,
+        Value::EmptyTuple => true,
         Value::Bool(_) => true,
         Value::Byte(_) => true,
         Value::Char(_) => true,
@@ -87,7 +85,7 @@ fn is_readable(value: Value) -> bool {
         Value::GeneratorState(value) => value.is_readable(),
         Value::Option(value) => value.is_readable(),
         Value::Result(value) => value.is_readable(),
-        Value::UnitStruct(value) => value.is_readable(),
+        Value::EmptyStruct(value) => value.is_readable(),
         Value::TupleStruct(value) => value.is_readable(),
         Value::Struct(value) => value.is_readable(),
         Value::Variant(value) => value.is_readable(),
@@ -115,7 +113,7 @@ fn is_readable(value: Value) -> bool {
 #[rune::function]
 fn is_writable(value: Value) -> bool {
     match value {
-        Value::Unit => true,
+        Value::EmptyTuple => true,
         Value::Bool(_) => true,
         Value::Byte(_) => true,
         Value::Char(_) => true,
@@ -141,7 +139,7 @@ fn is_writable(value: Value) -> bool {
         Value::GeneratorState(value) => value.is_writable(),
         Value::Option(value) => value.is_writable(),
         Value::Result(value) => value.is_writable(),
-        Value::UnitStruct(value) => value.is_writable(),
+        Value::EmptyStruct(value) => value.is_writable(),
         Value::TupleStruct(value) => value.is_writable(),
         Value::Struct(value) => value.is_writable(),
         Value::Variant(value) => value.is_writable(),

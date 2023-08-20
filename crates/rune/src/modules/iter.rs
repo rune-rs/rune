@@ -5,7 +5,7 @@ use crate::no_std::prelude::*;
 use crate as rune;
 use crate::modules::collections::{HashMap, HashSet, VecDeque};
 use crate::runtime::{
-    FromValue, Function, Iterator, Object, Protocol, Tuple, Value, Vec, VmResult,
+    FromValue, Function, Iterator, Object, OwnedTuple, Protocol, Value, Vec, VmResult,
 };
 use crate::{ContextError, Module};
 
@@ -1096,9 +1096,9 @@ fn collect_hash_map(it: Iterator) -> VmResult<HashMap> {
 /// ```rune
 /// assert_eq!((0..3).iter().collect::<Tuple>(), (0, 1, 2));
 /// ```
-#[rune::function(instance, path = collect::<Tuple>)]
-fn collect_tuple(it: Iterator) -> VmResult<Tuple> {
-    VmResult::Ok(Tuple::from(vm_try!(it.collect::<Value>())))
+#[rune::function(instance, path = collect::<OwnedTuple>)]
+fn collect_tuple(it: Iterator) -> VmResult<OwnedTuple> {
+    VmResult::Ok(OwnedTuple::from(vm_try!(it.collect::<Value>())))
 }
 
 /// Collect the iterator as an [`Object`].

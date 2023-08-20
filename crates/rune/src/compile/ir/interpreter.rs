@@ -8,7 +8,7 @@ use crate::compile::{self, IrErrorKind, ItemId, ModId, WithSpan};
 use crate::hir;
 use crate::parse::NonZeroId;
 use crate::query::{Query, Used};
-use crate::runtime::{ConstValue, Object, Tuple};
+use crate::runtime::{ConstValue, Object, OwnedTuple};
 
 /// The interpreter that executed [Ir][crate::ir::Ir].
 pub struct Interpreter<'a, 'arena> {
@@ -197,7 +197,7 @@ impl ir::Scopes {
                         }
                     }
                     actual => {
-                        return Err(compile::Error::expected_type::<_, Tuple>(
+                        return Err(compile::Error::expected_type::<_, OwnedTuple>(
                             ir_target, &actual,
                         ))
                     }
@@ -229,7 +229,7 @@ impl ir::Scopes {
                         }
                     }
                     actual => {
-                        return Err(compile::Error::expected_type::<_, Tuple>(
+                        return Err(compile::Error::expected_type::<_, OwnedTuple>(
                             ir_target, &actual,
                         ))
                     }
@@ -292,7 +292,7 @@ impl ir::Scopes {
                         }
                     }
                     actual => {
-                        return Err(compile::Error::expected_type::<_, Tuple>(
+                        return Err(compile::Error::expected_type::<_, OwnedTuple>(
                             ir_target, &actual,
                         ));
                     }
@@ -365,7 +365,7 @@ impl ir::Scopes {
 
                         op(value)
                     }
-                    actual => Err(compile::Error::expected_type::<_, Tuple>(
+                    actual => Err(compile::Error::expected_type::<_, OwnedTuple>(
                         ir_target, &actual,
                     )),
                 }

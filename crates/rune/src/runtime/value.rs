@@ -14,10 +14,10 @@ use crate::compile::ItemBuf;
 use crate::runtime::vm::CallResult;
 use crate::runtime::{
     AccessKind, AnyObj, Bytes, ConstValue, EnvProtocolCaller, Format, FromValue, FullTypeOf,
-    Function, Future, Generator, GeneratorState, Iterator, MaybeTypeOf, Mut, Object, Protocol,
-    ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive, RawMut,
-    RawRef, Ref, Shared, StaticString, Stream, ToValue, Tuple, Type, TypeInfo, Variant, Vec, Vm,
-    VmError, VmErrorKind, VmIntegerRepr, VmResult,
+    Function, Future, Generator, GeneratorState, Iterator, MaybeTypeOf, Mut, Object, OwnedTuple,
+    Protocol, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
+    RangeToInclusive, RawMut, RawRef, Ref, Shared, StaticString, Stream, ToValue, Tuple, Type,
+    TypeInfo, Variant, Vec, Vm, VmError, VmErrorKind, VmIntegerRepr, VmResult,
 };
 use crate::{Any, Hash};
 
@@ -32,12 +32,12 @@ where
 }
 
 /// A empty with a well-defined type.
-pub struct UnitStruct {
+pub struct EmptyStruct {
     /// The type hash of the empty.
     pub(crate) rtti: Arc<Rtti>,
 }
 
-impl UnitStruct {
+impl EmptyStruct {
     /// Access runtime type information.
     pub fn rtti(&self) -> &Arc<Rtti> {
         &self.rtti
@@ -49,7 +49,7 @@ impl UnitStruct {
     }
 }
 
-impl fmt::Debug for UnitStruct {
+impl fmt::Debug for EmptyStruct {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.rtti.item)
     }
@@ -60,7 +60,7 @@ pub struct TupleStruct {
     /// The type hash of the tuple.
     pub(crate) rtti: Arc<Rtti>,
     /// Content of the tuple.
-    pub(crate) data: Tuple,
+    pub(crate) data: OwnedTuple,
 }
 
 impl TupleStruct {
@@ -70,12 +70,12 @@ impl TupleStruct {
     }
 
     /// Access underlying data.
-    pub fn data(&self) -> &Tuple {
+    pub fn data(&self) -> &OwnedTuple {
         &self.data
     }
 
     /// Access underlying data mutably.
-    pub fn data_mut(&mut self) -> &mut Tuple {
+    pub fn data_mut(&mut self) -> &mut OwnedTuple {
         &mut self.data
     }
 
@@ -238,8 +238,6 @@ impl Ord for Rtti {
 /// An entry on the stack.
 #[derive(Clone)]
 pub enum Value {
-    /// The unit value.
-    Unit,
     /// A boolean.
     Bool(bool),
     /// A single byte.
@@ -269,8 +267,10 @@ pub enum Value {
     Bytes(Shared<Bytes>),
     /// A vector containing any values.
     Vec(Shared<Vec>),
+    /// The unit value.
+    EmptyTuple,
     /// A tuple.
-    Tuple(Shared<Tuple>),
+    Tuple(Shared<OwnedTuple>),
     /// An object.
     Object(Shared<Object>),
     /// A range `start..`
@@ -298,7 +298,7 @@ pub enum Value {
     /// A stored result in a slot.
     Result(Shared<Result<Value, Value>>),
     /// An struct with a well-defined type.
-    UnitStruct(Shared<UnitStruct>),
+    EmptyStruct(Shared<EmptyStruct>),
     /// A tuple with a well-defined type.
     TupleStruct(Shared<TupleStruct>),
     /// An struct with a well-defined type.
@@ -404,9 +404,6 @@ impl Value {
         caller: &mut impl ProtocolCaller,
     ) -> VmResult<fmt::Result> {
         let result = match self {
-            Value::Unit => {
-                write!(s, "()")
-            }
             Value::Bool(value) => {
                 write!(s, "{:?}", value)
             }
@@ -436,6 +433,9 @@ impl Value {
             }
             Value::Vec(value) => {
                 write!(s, "{:?}", value)
+            }
+            Value::EmptyTuple => {
+                write!(s, "()")
             }
             Value::Tuple(value) => {
                 write!(s, "{:?}", value)
@@ -479,7 +479,7 @@ impl Value {
             Value::Result(value) => {
                 write!(s, "{:?}", value)
             }
-            Value::UnitStruct(value) => {
+            Value::EmptyStruct(value) => {
                 write!(s, "{:?}", value)
             }
             Value::TupleStruct(value) => {
@@ -602,19 +602,19 @@ impl Value {
 
     /// Construct a tuple.
     pub fn tuple(vec: vec::Vec<Value>) -> Self {
-        Self::Tuple(Shared::new(Tuple::from(vec)))
+        Self::Tuple(Shared::new(OwnedTuple::from(vec)))
     }
 
     /// Construct an empty.
-    pub fn unit_struct(rtti: Arc<Rtti>) -> Self {
-        Self::UnitStruct(Shared::new(UnitStruct { rtti }))
+    pub fn empty_struct(rtti: Arc<Rtti>) -> Self {
+        Self::EmptyStruct(Shared::new(EmptyStruct { rtti }))
     }
 
     /// Construct a typed tuple.
     pub fn tuple_struct(rtti: Arc<Rtti>, vec: vec::Vec<Value>) -> Self {
         Self::TupleStruct(Shared::new(TupleStruct {
             rtti,
-            data: Tuple::from(vec),
+            data: OwnedTuple::from(vec),
         }))
     }
 
@@ -625,13 +625,12 @@ impl Value {
 
     /// Construct a tuple variant.
     pub fn tuple_variant(rtti: Arc<VariantRtti>, vec: vec::Vec<Value>) -> Self {
-        Self::Variant(Shared::new(Variant::tuple(rtti, Tuple::from(vec))))
+        Self::Variant(Shared::new(Variant::tuple(rtti, OwnedTuple::from(vec))))
     }
 
     /// Take the interior value.
     pub fn take(self) -> VmResult<Self> {
         VmResult::Ok(match self {
-            Self::Unit => Self::Unit,
             Self::Bool(value) => Self::Bool(value),
             Self::Byte(value) => Self::Byte(value),
             Self::Char(value) => Self::Char(value),
@@ -643,6 +642,7 @@ impl Value {
             Self::String(value) => Self::String(Shared::new(vm_try!(value.take()))),
             Self::Bytes(value) => Self::Bytes(Shared::new(vm_try!(value.take()))),
             Self::Vec(value) => Self::Vec(Shared::new(vm_try!(value.take()))),
+            Self::EmptyTuple => Self::EmptyTuple,
             Self::Tuple(value) => Self::Tuple(Shared::new(vm_try!(value.take()))),
             Self::Object(value) => Self::Object(Shared::new(vm_try!(value.take()))),
             Self::RangeFrom(value) => Self::RangeFrom(Shared::new(vm_try!(value.take()))),
@@ -659,7 +659,7 @@ impl Value {
             Self::GeneratorState(value) => Self::GeneratorState(Shared::new(vm_try!(value.take()))),
             Self::Option(value) => Self::Option(Shared::new(vm_try!(value.take()))),
             Self::Result(value) => Self::Result(Shared::new(vm_try!(value.take()))),
-            Self::UnitStruct(value) => Self::UnitStruct(Shared::new(vm_try!(value.take()))),
+            Self::EmptyStruct(value) => Self::EmptyStruct(Shared::new(vm_try!(value.take()))),
             Self::TupleStruct(value) => Self::TupleStruct(Shared::new(vm_try!(value.take()))),
             Self::Struct(value) => Self::Struct(Shared::new(vm_try!(value.take()))),
             Self::Variant(value) => Self::Variant(Shared::new(vm_try!(value.take()))),
@@ -674,7 +674,7 @@ impl Value {
     #[inline]
     pub fn into_unit(self) -> VmResult<()> {
         match self {
-            Value::Unit => VmResult::Ok(()),
+            Value::EmptyTuple => VmResult::Ok(()),
             actual => err(VmErrorKind::expected::<()>(vm_try!(actual.type_info()))),
         }
     }
@@ -916,10 +916,13 @@ impl Value {
 
     /// Try to coerce value into a tuple.
     #[inline]
-    pub fn into_tuple(self) -> VmResult<Shared<Tuple>> {
+    pub fn into_tuple(self) -> VmResult<Shared<OwnedTuple>> {
         match self {
+            Self::EmptyTuple => VmResult::Ok(Shared::new(OwnedTuple::new())),
             Self::Tuple(tuple) => VmResult::Ok(tuple),
-            actual => err(VmErrorKind::expected::<Tuple>(vm_try!(actual.type_info()))),
+            actual => err(VmErrorKind::expected::<OwnedTuple>(vm_try!(
+                actual.type_info()
+            ))),
         }
     }
 
@@ -1090,7 +1093,6 @@ impl Value {
     /// *enum*, and not the type hash of the variant itself.
     pub fn type_hash(&self) -> Result<Hash, VmError> {
         Ok(match self {
-            Self::Unit => crate::runtime::static_type::UNIT_TYPE.hash,
             Self::Bool(..) => crate::runtime::static_type::BOOL_TYPE.hash,
             Self::Byte(..) => crate::runtime::static_type::BYTE_TYPE.hash,
             Self::Char(..) => crate::runtime::static_type::CHAR_TYPE.hash,
@@ -1102,6 +1104,7 @@ impl Value {
             Self::String(..) => crate::runtime::static_type::STRING_TYPE.hash,
             Self::Bytes(..) => crate::runtime::static_type::BYTES_TYPE.hash,
             Self::Vec(..) => crate::runtime::static_type::VEC_TYPE.hash,
+            Self::EmptyTuple => crate::runtime::static_type::TUPLE_TYPE.hash,
             Self::Tuple(..) => crate::runtime::static_type::TUPLE_TYPE.hash,
             Self::Object(..) => crate::runtime::static_type::OBJECT_TYPE.hash,
             Self::RangeFrom(..) => crate::runtime::static_type::RANGE_FROM_TYPE.hash,
@@ -1119,7 +1122,7 @@ impl Value {
             Self::Function(..) => crate::runtime::static_type::FUNCTION_TYPE.hash,
             Self::Format(..) => crate::runtime::static_type::FORMAT_TYPE.hash,
             Self::Iterator(..) => crate::runtime::static_type::ITERATOR_TYPE.hash,
-            Self::UnitStruct(empty) => empty.borrow_ref()?.rtti.hash,
+            Self::EmptyStruct(empty) => empty.borrow_ref()?.rtti.hash,
             Self::TupleStruct(tuple) => tuple.borrow_ref()?.rtti.hash,
             Self::Struct(object) => object.borrow_ref()?.rtti.hash,
             Self::Variant(variant) => variant.borrow_ref()?.rtti().enum_hash,
@@ -1130,7 +1133,6 @@ impl Value {
     /// Get the type information for the current value.
     pub fn type_info(&self) -> VmResult<TypeInfo> {
         VmResult::Ok(match self {
-            Self::Unit => TypeInfo::StaticType(crate::runtime::static_type::UNIT_TYPE),
             Self::Bool(..) => TypeInfo::StaticType(crate::runtime::static_type::BOOL_TYPE),
             Self::Byte(..) => TypeInfo::StaticType(crate::runtime::static_type::BYTE_TYPE),
             Self::Char(..) => TypeInfo::StaticType(crate::runtime::static_type::CHAR_TYPE),
@@ -1144,6 +1146,7 @@ impl Value {
             Self::String(..) => TypeInfo::StaticType(crate::runtime::static_type::STRING_TYPE),
             Self::Bytes(..) => TypeInfo::StaticType(crate::runtime::static_type::BYTES_TYPE),
             Self::Vec(..) => TypeInfo::StaticType(crate::runtime::static_type::VEC_TYPE),
+            Self::EmptyTuple => TypeInfo::StaticType(crate::runtime::static_type::TUPLE_TYPE),
             Self::Tuple(..) => TypeInfo::StaticType(crate::runtime::static_type::TUPLE_TYPE),
             Self::Object(..) => TypeInfo::StaticType(crate::runtime::static_type::OBJECT_TYPE),
             Self::RangeFrom(..) => {
@@ -1173,7 +1176,7 @@ impl Value {
             Self::Function(..) => TypeInfo::StaticType(crate::runtime::static_type::FUNCTION_TYPE),
             Self::Format(..) => TypeInfo::StaticType(crate::runtime::static_type::FORMAT_TYPE),
             Self::Iterator(..) => TypeInfo::StaticType(crate::runtime::static_type::ITERATOR_TYPE),
-            Self::UnitStruct(empty) => vm_try!(empty.borrow_ref()).type_info(),
+            Self::EmptyStruct(empty) => vm_try!(empty.borrow_ref()).type_info(),
             Self::TupleStruct(tuple) => vm_try!(tuple.borrow_ref()).type_info(),
             Self::Struct(object) => vm_try!(object.borrow_ref()).type_info(),
             Self::Variant(empty) => vm_try!(empty.borrow_ref()).type_info(),
@@ -1204,7 +1207,6 @@ impl Value {
         caller: &mut impl ProtocolCaller,
     ) -> VmResult<bool> {
         match (a, b) {
-            (Self::Unit, Self::Unit) => return VmResult::Ok(true),
             (Self::Bool(a), Self::Bool(b)) => return VmResult::Ok(a == b),
             (Self::Byte(a), Self::Byte(b)) => return VmResult::Ok(a == b),
             (Self::Char(a), Self::Char(b)) => return VmResult::Ok(a == b),
@@ -1221,6 +1223,7 @@ impl Value {
                 let b = vm_try!(b.borrow_ref());
                 return Vec::partial_eq_with(&a, &b, caller);
             }
+            (Self::EmptyTuple, Self::EmptyTuple) => return VmResult::Ok(true),
             (Self::Tuple(a), Self::Tuple(b)) => {
                 let a = vm_try!(a.borrow_ref());
                 let b = vm_try!(b.borrow_ref());
@@ -1261,7 +1264,7 @@ impl Value {
                 let b = vm_try!(b.borrow_ref());
                 return Range::partial_eq_with(&a, &b, caller);
             }
-            (Self::UnitStruct(a), Self::UnitStruct(b)) => {
+            (Self::EmptyStruct(a), Self::EmptyStruct(b)) => {
                 if vm_try!(a.borrow_ref()).rtti.hash == vm_try!(b.borrow_ref()).rtti.hash {
                     // NB: don't get any future ideas, this must fall through to
                     // the VmError below since it's otherwise a comparison
@@ -1366,7 +1369,6 @@ impl Value {
         caller: &mut impl ProtocolCaller,
     ) -> VmResult<bool> {
         match (a, b) {
-            (Self::Unit, Self::Unit) => return VmResult::Ok(true),
             (Self::Bool(a), Self::Bool(b)) => return VmResult::Ok(a == b),
             (Self::Byte(a), Self::Byte(b)) => return VmResult::Ok(a == b),
             (Self::Char(a), Self::Char(b)) => return VmResult::Ok(a == b),
@@ -1382,6 +1384,7 @@ impl Value {
                 let b = vm_try!(b.borrow_ref());
                 return Vec::eq_with(&a, &b, caller);
             }
+            (Self::EmptyTuple, Self::EmptyTuple) => return VmResult::Ok(true),
             (Self::Tuple(a), Self::Tuple(b)) => {
                 let a = vm_try!(a.borrow_ref());
                 let b = vm_try!(b.borrow_ref());
@@ -1422,7 +1425,7 @@ impl Value {
                 let b = vm_try!(b.borrow_ref());
                 return Range::eq_with(&a, &b, caller);
             }
-            (Self::UnitStruct(a), Self::UnitStruct(b)) => {
+            (Self::EmptyStruct(a), Self::EmptyStruct(b)) => {
                 if vm_try!(a.borrow_ref()).rtti.hash == vm_try!(b.borrow_ref()).rtti.hash {
                     // NB: don't get any future ideas, this must fall through to
                     // the VmError below since it's otherwise a comparison
@@ -1523,7 +1526,6 @@ impl Value {
         caller: &mut impl ProtocolCaller,
     ) -> VmResult<Option<Ordering>> {
         match (a, b) {
-            (Self::Unit, Self::Unit) => return VmResult::Ok(Some(Ordering::Equal)),
             (Self::Bool(a), Self::Bool(b)) => return VmResult::Ok(a.partial_cmp(b)),
             (Self::Byte(a), Self::Byte(b)) => return VmResult::Ok(a.partial_cmp(b)),
             (Self::Char(a), Self::Char(b)) => return VmResult::Ok(a.partial_cmp(b)),
@@ -1540,6 +1542,7 @@ impl Value {
                 let b = vm_try!(b.borrow_ref());
                 return Vec::partial_cmp_with(&a, &b, caller);
             }
+            (Self::EmptyTuple, Self::EmptyTuple) => return VmResult::Ok(Some(Ordering::Equal)),
             (Self::Tuple(a), Self::Tuple(b)) => {
                 let a = vm_try!(a.borrow_ref());
                 let b = vm_try!(b.borrow_ref());
@@ -1580,7 +1583,7 @@ impl Value {
                 let b = vm_try!(b.borrow_ref());
                 return Range::partial_cmp_with(&a, &b, caller);
             }
-            (Self::UnitStruct(a), Self::UnitStruct(b)) => {
+            (Self::EmptyStruct(a), Self::EmptyStruct(b)) => {
                 if vm_try!(a.borrow_ref()).rtti.hash == vm_try!(b.borrow_ref()).rtti.hash {
                     // NB: don't get any future ideas, this must fall through to
                     // the VmError below since it's otherwise a comparison
@@ -1689,7 +1692,6 @@ impl Value {
         caller: &mut impl ProtocolCaller,
     ) -> VmResult<Ordering> {
         match (a, b) {
-            (Self::Unit, Self::Unit) => return VmResult::Ok(Ordering::Equal),
             (Self::Bool(a), Self::Bool(b)) => return VmResult::Ok(a.cmp(b)),
             (Self::Byte(a), Self::Byte(b)) => return VmResult::Ok(a.cmp(b)),
             (Self::Char(a), Self::Char(b)) => return VmResult::Ok(a.cmp(b)),
@@ -1705,6 +1707,7 @@ impl Value {
                 let b = vm_try!(b.borrow_ref());
                 return Vec::cmp_with(&a, &b, caller);
             }
+            (Self::EmptyTuple, Self::EmptyTuple) => return VmResult::Ok(Ordering::Equal),
             (Self::Tuple(a), Self::Tuple(b)) => {
                 let a = vm_try!(a.borrow_ref());
                 let b = vm_try!(b.borrow_ref());
@@ -1745,7 +1748,7 @@ impl Value {
                 let b = vm_try!(b.borrow_ref());
                 return Range::cmp_with(&a, &b, caller);
             }
-            (Self::UnitStruct(a), Self::UnitStruct(b)) => {
+            (Self::EmptyStruct(a), Self::EmptyStruct(b)) => {
                 if vm_try!(a.borrow_ref()).rtti.hash == vm_try!(b.borrow_ref()).rtti.hash {
                     // NB: don't get any future ideas, this must fall through to
                     // the VmError below since it's otherwise a comparison
@@ -1863,9 +1866,6 @@ impl Value {
 impl fmt::Debug for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Value::Unit => {
-                write!(f, "()")?;
-            }
             Value::Bool(value) => {
                 write!(f, "{:?}", value)?;
             }
@@ -1895,6 +1895,9 @@ impl fmt::Debug for Value {
             }
             Value::Vec(value) => {
                 write!(f, "{:?}", value)?;
+            }
+            Value::EmptyTuple => {
+                write!(f, "()")?;
             }
             Value::Tuple(value) => {
                 write!(f, "{:?}", value)?;
@@ -1938,7 +1941,7 @@ impl fmt::Debug for Value {
             Value::Result(value) => {
                 write!(f, "{:?}", value)?;
             }
-            Value::UnitStruct(value) => {
+            Value::EmptyStruct(value) => {
                 write!(f, "{:?}", value)?;
             }
             Value::TupleStruct(value) => {
@@ -1977,7 +1980,7 @@ impl fmt::Debug for Value {
 
 impl Default for Value {
     fn default() -> Self {
-        Self::Unit
+        Self::EmptyTuple
     }
 }
 
@@ -1992,19 +1995,13 @@ where
 
 impl From<()> for Value {
     fn from((): ()) -> Self {
-        Self::Unit
+        Self::EmptyTuple
     }
 }
 
 impl ToValue for Value {
     fn to_value(self) -> VmResult<Value> {
         VmResult::Ok(self)
-    }
-}
-
-impl ToValue for () {
-    fn to_value(self) -> VmResult<Value> {
-        VmResult::Ok(Value::from(()))
     }
 }
 
@@ -2068,7 +2065,7 @@ impl_from_wrapper! {
     Bytes => Shared<Bytes>,
     String => Shared<String>,
     Vec => Shared<Vec>,
-    Tuple => Shared<Tuple>,
+    Tuple => Shared<OwnedTuple>,
     Object => Shared<Object>,
     RangeFrom => Shared<RangeFrom>,
     RangeFull => Shared<RangeFull>,
@@ -2080,7 +2077,7 @@ impl_from_wrapper! {
     Stream => Shared<Stream<Vm>>,
     Generator => Shared<Generator<Vm>>,
     GeneratorState => Shared<GeneratorState>,
-    UnitStruct => Shared<UnitStruct>,
+    EmptyStruct => Shared<EmptyStruct>,
     TupleStruct => Shared<TupleStruct>,
     Struct => Shared<Struct>,
     Variant => Shared<Variant>,
@@ -2108,7 +2105,6 @@ impl ser::Serialize for Value {
         use serde::ser::SerializeSeq as _;
 
         match self {
-            Value::Unit => serializer.serialize_unit(),
             Value::Bool(b) => serializer.serialize_bool(*b),
             Value::Char(c) => serializer.serialize_char(*c),
             Value::Byte(c) => serializer.serialize_u8(*c),
@@ -2135,6 +2131,7 @@ impl ser::Serialize for Value {
 
                 serializer.end()
             }
+            Value::EmptyTuple => serializer.serialize_unit(),
             Value::Tuple(tuple) => {
                 let tuple = tuple.borrow_ref().map_err(ser::Error::custom)?;
                 let mut serializer = serializer.serialize_seq(Some(tuple.len()))?;
@@ -2159,7 +2156,7 @@ impl ser::Serialize for Value {
                 let option = option.borrow_ref().map_err(ser::Error::custom)?;
                 <Option<Value>>::serialize(&*option, serializer)
             }
-            Value::UnitStruct(..) => serializer.serialize_unit(),
+            Value::EmptyStruct(..) => serializer.serialize_unit(),
             Value::TupleStruct(..) => Err(ser::Error::custom("cannot serialize tuple structs")),
             Value::Struct(..) => Err(ser::Error::custom("cannot serialize objects structs")),
             Value::Variant(..) => Err(ser::Error::custom("cannot serialize variants")),
@@ -2193,6 +2190,7 @@ struct VmVisitor;
 impl<'de> de::Visitor<'de> for VmVisitor {
     type Value = Value;
 
+    #[inline]
     fn expecting(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.write_str("any valid value")
     }
@@ -2334,11 +2332,21 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     }
 
     #[inline]
+    fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Ok(Value::Option(Shared::new(Some(Value::deserialize(
+            deserializer,
+        )?))))
+    }
+
+    #[inline]
     fn visit_none<E>(self) -> Result<Self::Value, E>
     where
         E: de::Error,
     {
-        Ok(Value::Unit)
+        Ok(Value::Option(Shared::new(None)))
     }
 
     #[inline]
@@ -2346,7 +2354,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(Value::Unit)
+        Ok(Value::EmptyTuple)
     }
 
     #[inline]

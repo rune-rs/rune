@@ -14,7 +14,7 @@ use crate::module::{
     AssociatedKey, Async, EnumMut, Function, FunctionKind, InstallWith, InstanceFunction,
     InternalEnum, InternalEnumMut, ItemFnMut, ItemMut, ModuleAssociated, ModuleAttributeMacro,
     ModuleConstant, ModuleFunction, ModuleMacro, ModuleType, Plain, TypeMut, TypeSpecification,
-    UnitType, VariantMut,
+    VariantMut,
 };
 use crate::runtime::{
     AttributeMacroHandler, ConstValue, FromValue, GeneratorState, MacroHandler, MaybeTypeOf,
@@ -60,8 +60,6 @@ pub struct Module {
     pub(crate) types: Vec<ModuleType>,
     /// Type hash to types mapping.
     pub(crate) types_hash: HashMap<Hash, usize>,
-    /// Registered unit type.
-    pub(crate) unit_type: Option<UnitType>,
     /// Registered generator state type.
     pub(crate) internal_enums: Vec<InternalEnum>,
     /// Module level documentation.
@@ -117,7 +115,6 @@ impl Module {
             associated: Vec::new(),
             types: Vec::new(),
             types_hash: HashMap::new(),
-            unit_type: None,
             internal_enums: Vec::new(),
             constants: Vec::new(),
             docs: Docs::EMPTY,
@@ -317,41 +314,6 @@ impl Module {
         self.variant_meta::<F::Return>(index)?
             .constructor(constructor)?;
         Ok(())
-    }
-
-    /// Construct type information for the `unit` type.
-    ///
-    /// Registering this allows the given type to be used in Rune scripts when
-    /// referring to the `unit` type.
-    ///
-    /// # Examples
-    ///
-    /// This shows how to register the unit type `()` as `nonstd::unit`.
-    ///
-    /// ```
-    /// use rune::{Any, Module};
-    ///
-    /// let mut module = Module::with_crate("nonstd");
-    /// module.unit("unit")?;
-    /// # Ok::<_, rune::Error>(())
-    pub fn unit<N>(&mut self, name: N) -> Result<ItemMut<'_>, ContextError>
-    where
-        N: AsRef<str>,
-    {
-        if self.unit_type.is_some() {
-            return Err(ContextError::UnitAlreadyPresent);
-        }
-
-        self.unit_type = Some(UnitType {
-            name: <Box<str>>::from(name.as_ref()),
-            docs: Docs::EMPTY,
-        });
-
-        let last = self.unit_type.as_mut().unwrap();
-
-        Ok(ItemMut {
-            docs: &mut last.docs,
-        })
     }
 
     /// Construct the type information for the `GeneratorState` type.

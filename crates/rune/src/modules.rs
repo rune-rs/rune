@@ -32,4 +32,5 @@ pub mod result;
 pub mod stream;
 pub mod string;
 pub mod test;
+pub mod tuple;
 pub mod vec;

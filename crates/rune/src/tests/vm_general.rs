@@ -200,7 +200,7 @@ fn test_loop() {
                 a = a + 1;
             };
 
-            [a, value is unit]
+            [a, value is Tuple]
         }
     };
     assert_eq!(out, VecTuple((10, true)));
@@ -276,7 +276,7 @@ fn test_for() {
                 a = a + 1;
             };
 
-            a is unit
+            a is Tuple
         }
     };
     assert_eq!(out, true);
@@ -308,13 +308,13 @@ fn test_is() {
     let out: bool = rune!(pub fn main() { #{} is Object });
     assert!(out);
 
-    let out: bool = rune!(pub fn main() { () is unit });
+    let out: bool = rune!(pub fn main() { () is Tuple });
     assert!(out);
 
-    let out: bool = rune!(fn foo() {} pub fn main() { foo() is unit });
+    let out: bool = rune!(fn foo() {} pub fn main() { foo() is Tuple });
     assert!(out);
 
-    let out: bool = rune!(pub fn main() {{} is unit });
+    let out: bool = rune!(pub fn main() {{} is Tuple });
     assert!(out);
 
     let out: bool = rune!(pub fn main() { true is bool });

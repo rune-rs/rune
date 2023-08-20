@@ -97,6 +97,6 @@ fn dbg_impl(o: &mut Vec<u8>, stack: &mut Stack, args: usize) -> VmResult<()> {
         vm_try!(writeln!(o, "{:?}", value).map_err(VmError::panic));
     }
 
-    stack.push(Value::Unit);
+    stack.push(Value::EmptyTuple);
     VmResult::Ok(())
 }

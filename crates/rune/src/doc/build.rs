@@ -776,7 +776,7 @@ fn module<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<
         #[serde(serialize_with = "serialize_component_ref")]
         name: ComponentRef<'a>,
         path: RelativePathBuf,
-        first: Option<&'a String>,
+        doc: Option<String>,
     }
 
     #[derive(Serialize)]
@@ -786,7 +786,7 @@ fn module<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<
         item: ItemBuf,
         #[serde(serialize_with = "serialize_component_ref")]
         name: ComponentRef<'a>,
-        first: Option<&'a String>,
+        doc: Option<String>,
     }
 
     #[derive(Serialize)]
@@ -796,7 +796,7 @@ fn module<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<
         item: ItemBuf,
         #[serde(serialize_with = "serialize_component_ref")]
         name: ComponentRef<'a>,
-        first: Option<&'a String>,
+        doc: Option<String>,
     }
 
     #[derive(Serialize)]
@@ -829,6 +829,7 @@ fn module<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<
         #[serde(serialize_with = "serialize_component_ref")]
         name: ComponentRef<'a>,
         path: RelativePathBuf,
+        doc: Option<String>,
     }
 
     let meta_item = meta.item.context("Missing item")?;
@@ -852,7 +853,7 @@ fn module<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<
                         item: item.clone(),
                         path,
                         name,
-                        first: m.docs.first(),
+                        doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
                     });
                 }
                 Kind::Struct { .. } => {
@@ -862,7 +863,7 @@ fn module<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<
                         item: item.clone(),
                         path,
                         name,
-                        first: m.docs.first(),
+                        doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
                     });
                 }
                 Kind::Enum { .. } => {
@@ -872,7 +873,7 @@ fn module<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<
                         item: item.clone(),
                         path,
                         name,
-                        first: m.docs.first(),
+                        doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
                     });
                 }
                 Kind::Macro => {
@@ -915,7 +916,10 @@ fn module<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<
                     queue.push_front(Build::Module(m));
                     let path = cx.item_path(item, ItemKind::Module)?;
                     let name = item.last().context("missing name of module")?;
-                    modules.push(Module { item, name, path })
+                    modules.push(Module {
+                        item, name, path,
+                        doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
+                     })
                 }
                 _ => {
                     continue;

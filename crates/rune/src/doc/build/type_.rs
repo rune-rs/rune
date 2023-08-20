@@ -123,7 +123,7 @@ pub(super) fn build_assoc_fns<'m>(
                 } else {
                     None
                 };
-        
+
                 protocols.push(Protocol {
                     name: protocol.name,
                     repr,

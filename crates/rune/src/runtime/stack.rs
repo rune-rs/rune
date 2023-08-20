@@ -179,7 +179,7 @@ impl Stack {
     /// let mut it = stack.drain(2)?;
     ///
     /// assert!(matches!(it.next(), Some(Value::String(..))));
-    /// assert!(matches!(it.next(), Some(Value::Unit)));
+    /// assert!(matches!(it.next(), Some(Value::EmptyTuple)));
     /// assert!(matches!(it.next(), None));
     /// # Ok::<_, rune::Error>(())
     /// ```
@@ -210,12 +210,12 @@ impl Stack {
     ///
     /// let mut stack = Stack::new();
     ///
-    /// stack.extend([Value::from(42i64), Value::from(String::from("foo")), Value::Unit]);
+    /// stack.extend([Value::from(42i64), Value::from(String::from("foo")), Value::EmptyTuple]);
     ///
     /// let mut it = stack.drain(2)?;
     ///
     /// assert!(matches!(it.next(), Some(Value::String(..))));
-    /// assert!(matches!(it.next(), Some(Value::Unit)));
+    /// assert!(matches!(it.next(), Some(Value::EmptyTuple)));
     /// assert!(matches!(it.next(), None));
     /// # Ok::<_, rune::Error>(())
     /// ```

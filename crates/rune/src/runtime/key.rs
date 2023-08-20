@@ -9,7 +9,7 @@ use crate::no_std::vec;
 use serde::{de, ser};
 
 use crate::runtime::{
-    Bytes, FromValue, FullTypeOf, MaybeTypeOf, Object, Shared, StaticString, ToValue, Tuple,
+    Bytes, FromValue, FullTypeOf, MaybeTypeOf, Object, OwnedTuple, Shared, StaticString, ToValue,
     TypeInfo, Value, Variant, VariantData, VariantRtti, Vec, VmErrorKind, VmResult,
 };
 
@@ -17,7 +17,7 @@ use crate::runtime::{
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Key {
     /// A constant unit.
-    Unit,
+    EmptyTuple,
     /// A byte.
     Byte(u8),
     /// A character.
@@ -44,7 +44,7 @@ impl Key {
     /// Convert a value reference into a key.
     pub fn from_value(value: &Value) -> VmResult<Self> {
         return VmResult::Ok(match value {
-            Value::Unit => Self::Unit,
+            Value::EmptyTuple => Self::EmptyTuple,
             Value::Byte(b) => Self::Byte(*b),
             Value::Char(c) => Self::Char(*c),
             Value::Bool(b) => Self::Bool(*b),
@@ -80,7 +80,7 @@ impl Key {
                 let variant = vm_try!(variant.borrow_ref());
 
                 let data = match &variant.data {
-                    VariantData::Unit => VariantKeyData::Unit,
+                    VariantData::Empty => VariantKeyData::Unit,
                     VariantData::Tuple(tuple) => {
                         VariantKeyData::Tuple(vm_try!(tuple_from_value(tuple)))
                     }
@@ -101,10 +101,10 @@ impl Key {
             }
         });
 
-        fn tuple_from_value(tuple: &Tuple) -> VmResult<Box<[Key]>> {
+        fn tuple_from_value(tuple: &OwnedTuple) -> VmResult<Box<[Key]>> {
             let mut output = vec::Vec::with_capacity(tuple.len());
 
-            for value in tuple {
+            for value in tuple.iter() {
                 output.push(vm_try!(Key::from_value(value)));
             }
 
@@ -129,7 +129,7 @@ impl Key {
     /// otherwise.
     pub fn into_value(self) -> Value {
         return match self {
-            Self::Unit => Value::Unit,
+            Self::EmptyTuple => Value::EmptyTuple,
             Self::Byte(b) => Value::Byte(b),
             Self::Char(c) => Value::Char(c),
             Self::Bool(b) => Value::Bool(b),
@@ -154,7 +154,7 @@ impl Key {
             Self::Tuple(tuple) => Value::Tuple(Shared::new(tuple_into_value(tuple))),
             Self::Variant(variant) => {
                 let data = match variant.data {
-                    VariantKeyData::Unit => VariantData::Unit,
+                    VariantKeyData::Unit => VariantData::Empty,
                     VariantKeyData::Tuple(tuple) => VariantData::Tuple(tuple_into_value(tuple)),
                     VariantKeyData::Struct(st) => VariantData::Struct(struct_into_value(st)),
                 };
@@ -166,14 +166,14 @@ impl Key {
             }
         };
 
-        fn tuple_into_value(data: Box<[Key]>) -> Tuple {
+        fn tuple_into_value(data: Box<[Key]>) -> OwnedTuple {
             let mut t = vec::Vec::with_capacity(data.len());
 
             for value in vec::Vec::from(data) {
                 t.push(value.into_value());
             }
 
-            Tuple::from(t)
+            OwnedTuple::from(t)
         }
 
         fn struct_into_value(data: Box<[(Box<str>, Key)]>) -> Object {
@@ -198,7 +198,6 @@ impl Key {
     /// Get the type information of the value.
     pub fn type_info(&self) -> TypeInfo {
         match self {
-            Self::Unit => TypeInfo::StaticType(crate::runtime::static_type::UNIT_TYPE),
             Self::Byte(..) => TypeInfo::StaticType(crate::runtime::static_type::BYTE_TYPE),
             Self::Char(..) => TypeInfo::StaticType(crate::runtime::static_type::CHAR_TYPE),
             Self::Bool(..) => TypeInfo::StaticType(crate::runtime::static_type::BOOL_TYPE),
@@ -206,6 +205,7 @@ impl Key {
             Self::Bytes(..) => TypeInfo::StaticType(crate::runtime::static_type::BYTES_TYPE),
             Self::Integer(..) => TypeInfo::StaticType(crate::runtime::static_type::INTEGER_TYPE),
             Self::Vec(..) => TypeInfo::StaticType(crate::runtime::static_type::VEC_TYPE),
+            Self::EmptyTuple => TypeInfo::StaticType(crate::runtime::static_type::TUPLE_TYPE),
             Self::Tuple(..) => TypeInfo::StaticType(crate::runtime::static_type::TUPLE_TYPE),
             Self::Option(..) => TypeInfo::StaticType(crate::runtime::static_type::OPTION_TYPE),
             Self::Variant(variant) => TypeInfo::Variant(variant.rtti.clone()),
@@ -216,7 +216,6 @@ impl Key {
 impl fmt::Debug for Key {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Key::Unit => write!(f, "()"),
             Key::Byte(b) => write!(f, "{:?}", b),
             Key::Char(c) => write!(f, "{:?}", c),
             Key::Bool(b) => write!(f, "{}", b),
@@ -224,6 +223,7 @@ impl fmt::Debug for Key {
             Key::String(s) => write!(f, "{:?}", s),
             Key::Bytes(b) => write!(f, "{:?}", b),
             Key::Vec(vec) => write!(f, "{:?}", vec),
+            Key::EmptyTuple => write!(f, "()"),
             Key::Tuple(tuple) => write!(f, "{:?}", tuple),
             Key::Option(opt) => write!(f, "{:?}", opt),
             Key::Variant(variant) => write!(f, "{:?}", variant),
@@ -271,7 +271,6 @@ impl ser::Serialize for Key {
         use serde::ser::SerializeSeq as _;
 
         match self {
-            Self::Unit => serializer.serialize_unit(),
             Self::Bool(b) => serializer.serialize_bool(*b),
             Self::Char(c) => serializer.serialize_char(*c),
             Self::Byte(c) => serializer.serialize_u8(*c),
@@ -287,6 +286,7 @@ impl ser::Serialize for Key {
 
                 serializer.end()
             }
+            Self::EmptyTuple => serializer.serialize_unit(),
             Self::Tuple(tuple) => {
                 let mut serializer = serializer.serialize_seq(Some(tuple.len()))?;
 
@@ -436,7 +436,7 @@ impl<'de> de::Visitor<'de> for KeyVisitor {
     where
         E: de::Error,
     {
-        Ok(Key::Unit)
+        Ok(Key::EmptyTuple)
     }
 
     #[inline]
@@ -444,7 +444,7 @@ impl<'de> de::Visitor<'de> for KeyVisitor {
     where
         E: de::Error,
     {
-        Ok(Key::Unit)
+        Ok(Key::EmptyTuple)
     }
 
     #[inline]

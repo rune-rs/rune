@@ -7,38 +7,37 @@ use crate::{ContextError, Module};
 
 /// Install the core package into the given functions namespace.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["f64"]);
+    let mut m = Module::with_crate_item("std", ["f64"]);
 
-    module
-        .function_meta(parse)?
+    m.function_meta(parse)?
         .deprecated("Use std::string::parse::<f64> instead");
-    module.function_meta(is_nan)?;
-    module.function_meta(is_infinite)?;
-    module.function_meta(is_finite)?;
-    module.function_meta(is_subnormal)?;
-    module.function_meta(is_normal)?;
-    module.function_meta(max)?;
-    module.function_meta(min)?;
+    m.function_meta(is_nan)?;
+    m.function_meta(is_infinite)?;
+    m.function_meta(is_finite)?;
+    m.function_meta(is_subnormal)?;
+    m.function_meta(is_normal)?;
+    m.function_meta(max)?;
+    m.function_meta(min)?;
     #[cfg(feature = "std")]
-    module.function_meta(abs)?;
+    m.function_meta(abs)?;
     #[cfg(feature = "std")]
-    module.function_meta(powf)?;
+    m.function_meta(powf)?;
     #[cfg(feature = "std")]
-    module.function_meta(powi)?;
-    module.function_meta(to_integer)?;
+    m.function_meta(powi)?;
+    m.function_meta(to_integer)?;
 
-    module.constant(["EPSILON"], f64::EPSILON)?;
-    module.constant(["MIN"], f64::MIN)?;
-    module.constant(["MAX"], f64::MAX)?;
-    module.constant(["MIN_POSITIVE"], f64::MIN_POSITIVE)?;
-    module.constant(["MIN_EXP"], f64::MIN_EXP)?;
-    module.constant(["MAX_EXP"], f64::MAX_EXP)?;
-    module.constant(["MIN_10_EXP"], f64::MIN_10_EXP)?;
-    module.constant(["MAX_10_EXP"], f64::MAX_10_EXP)?;
-    module.constant(["NAN"], f64::NAN)?;
-    module.constant(["INFINITY"], f64::INFINITY)?;
-    module.constant(["NEG_INFINITY"], f64::NEG_INFINITY)?;
-    Ok(module)
+    m.constant(["EPSILON"], f64::EPSILON)?;
+    m.constant(["MIN"], f64::MIN)?;
+    m.constant(["MAX"], f64::MAX)?;
+    m.constant(["MIN_POSITIVE"], f64::MIN_POSITIVE)?;
+    m.constant(["MIN_EXP"], f64::MIN_EXP)?;
+    m.constant(["MAX_EXP"], f64::MAX_EXP)?;
+    m.constant(["MIN_10_EXP"], f64::MIN_10_EXP)?;
+    m.constant(["MAX_10_EXP"], f64::MAX_10_EXP)?;
+    m.constant(["NAN"], f64::NAN)?;
+    m.constant(["INFINITY"], f64::INFINITY)?;
+    m.constant(["NEG_INFINITY"], f64::NEG_INFINITY)?;
+    Ok(m)
 }
 
 #[rune::function]

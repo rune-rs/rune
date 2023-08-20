@@ -5,19 +5,21 @@ use core::fmt::{self, Write};
 use crate::no_std::prelude::*;
 
 use crate as rune;
-use crate::runtime::{Protocol, Type, Value, VmResult};
+use crate::runtime::{Type, Value, VmResult};
 use crate::{ContextError, Module};
 
 /// Construct the `std::any` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["any"]);
-    module
-        .ty::<Type>()?
+    let mut m = Module::with_crate_item("std", ["any"]);
+
+    m.item_mut().docs(["The `std::any` module."]);
+
+    m.ty::<Type>()?
         .docs(["Represents a type in the Rune type system."]);
-    module.function_meta(type_of_val)?;
-    module.function_meta(type_name_of_val)?;
-    module.associated_function(Protocol::STRING_DISPLAY, format_type)?;
-    Ok(module)
+    m.function_meta(type_of_val)?;
+    m.function_meta(type_name_of_val)?;
+    m.function_meta(format_type)?;
+    Ok(m)
 }
 
 /// Convert a value into a [`Type`] object.
@@ -37,6 +39,16 @@ fn type_of_val(value: Value) -> VmResult<Type> {
     VmResult::Ok(Type::new(vm_try!(value.type_hash())))
 }
 
+/// Formatting a type.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::any;
+///
+/// assert_eq!(format!("{}", any::Type::of_val(42)), "Type(0x1cad9186c9641c4f)");
+/// ```
+#[rune::function(instance, protocol = STRING_DISPLAY)]
 fn format_type(ty: Type, buf: &mut String) -> fmt::Result {
     write!(buf, "{:?}", ty)
 }

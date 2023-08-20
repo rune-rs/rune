@@ -21,6 +21,7 @@ impl Expander {
             value,
             from_value,
             vm_result,
+            tuple,
             ..
         } = &self.tokens;
 
@@ -28,15 +29,15 @@ impl Expander {
             syn::Fields::Unit => {
                 let expanded = quote_spanned! {
                     input.span() =>
-                    #value::Unit => {
+                    #value::EmptyTuple => {
                         #vm_result::Ok(Self)
                     }
-                    #value::UnitStruct(..) => {
+                    #value::EmptyStruct(..) => {
                         #vm_result::Ok(Self)
                     }
                 };
 
-                (expanded, &self.tokens.unit_struct)
+                (expanded, &self.tokens.owned_tuple)
             }
             syn::Fields::Unnamed(f) => {
                 let expanded = self.expand_unnamed(f)?;
@@ -44,6 +45,10 @@ impl Expander {
 
                 let expanded = quote_spanned! {
                     f.span() =>
+                    #value::EmptyTuple => {
+                        let tuple = #tuple::new(&[]);
+                        #vm_result::Ok(Self(#expanded))
+                    }
                     #value::Tuple(tuple) => {
                         let tuple = #borrow_ref;
                         #vm_result::Ok(Self(#expanded))
@@ -54,7 +59,7 @@ impl Expander {
                     }
                 };
 
-                (expanded, &self.tokens.tuple)
+                (expanded, &self.tokens.owned_tuple)
             }
             syn::Fields::Named(f) => {
                 let expanded = self.expand_named(f)?;
@@ -157,7 +162,7 @@ impl Expander {
                 };
 
                 match variant.data() {
-                    #variant_data::Unit => match name {
+                    #variant_data::Empty => match name {
                         #(#unit_matches,)* #missing,
                     },
                     #variant_data::Tuple(tuple) => match name {

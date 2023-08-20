@@ -271,7 +271,7 @@ impl<T> Shared<T> {
 
             Ok(Mut {
                 data: ptr::NonNull::new_unchecked(this.inner.as_ref().data.get()),
-                guard,
+                guard: Some(guard),
                 inner: RawDrop::decrement_shared_box(this.inner),
             })
         }
@@ -671,7 +671,7 @@ impl Shared<AnyObj> {
 
             Ok(Mut {
                 data: ptr::NonNull::new_unchecked(data as *mut T),
-                guard,
+                guard: Some(guard),
                 inner: RawDrop::decrement_shared_box(this.inner),
             })
         }
@@ -1113,11 +1113,20 @@ pub struct Mut<T: ?Sized> {
     // Safety: it is important that the guard is dropped before `RawDrop`, since
     // `RawDrop` might deallocate the `Access` instance the guard is referring
     // to. This is guaranteed by: https://github.com/rust-lang/rfcs/pull/1857
-    guard: RawAccessGuard,
+    guard: Option<RawAccessGuard>,
     inner: RawDrop,
 }
 
 impl<T: ?Sized> Mut<T> {
+    /// Construct a static mutable reference.
+    pub fn from_static(value: &'static mut T) -> Mut<T> {
+        Mut {
+            data: unsafe { ptr::NonNull::new_unchecked(value as *mut _) },
+            guard: None,
+            inner: RawDrop::empty(),
+        }
+    }
+
     /// Map the interior reference of an owned mutable value.
     ///
     /// # Examples
@@ -1263,7 +1272,7 @@ where
 
 /// A raw guard to a [Ref].
 pub struct RawMut {
-    _guard: RawAccessGuard,
+    _guard: Option<RawAccessGuard>,
     _inner: RawDrop,
 }
 

@@ -28,7 +28,7 @@ struct TestUnnamed(Mut<String>, Mut<Custom>);
 #[derive(ToValue)]
 struct Test2 {
     a: String,
-    b: Tuple,
+    b: OwnedTuple,
     c: Object,
     d: Custom,
     e: Custom,
