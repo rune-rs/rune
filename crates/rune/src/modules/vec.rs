@@ -4,8 +4,7 @@ use core::cmp::Ordering;
 
 use crate as rune;
 use crate::runtime::{
-    EnvProtocolCaller, FromValue, Function, Iterator, Protocol, Ref, Value, Vec, VmErrorKind,
-    VmResult,
+    EnvProtocolCaller, Function, Iterator, Protocol, Ref, Value, Vec, VmErrorKind, VmResult,
 };
 use crate::{ContextError, Module};
 
@@ -184,51 +183,7 @@ fn capacity(vec: &Vec) -> usize {
 /// ```
 #[rune::function(instance, path = Vec::get)]
 fn get(this: &Vec, index: Value) -> VmResult<Option<Value>> {
-    let slice = match index {
-        Value::RangeFrom(range) => {
-            let range = vm_try!(range.borrow_ref());
-            let start = vm_try!(range.start.as_usize());
-            this.get(start..)
-        }
-        Value::RangeFull(..) => this.get(..),
-        Value::RangeInclusive(range) => {
-            let range = vm_try!(range.borrow_ref());
-            let start = vm_try!(range.start.as_usize());
-            let end = vm_try!(range.end.as_usize());
-            this.get(start..=end)
-        }
-        Value::RangeToInclusive(range) => {
-            let range = vm_try!(range.borrow_ref());
-            let end = vm_try!(range.end.as_usize());
-            this.get(..=end)
-        }
-        Value::RangeTo(range) => {
-            let range = vm_try!(range.borrow_ref());
-            let end = vm_try!(range.end.as_usize());
-            this.get(..end)
-        }
-        Value::Range(range) => {
-            let range = vm_try!(range.borrow_ref());
-            let start = vm_try!(range.start.as_usize());
-            let end = vm_try!(range.end.as_usize());
-            this.get(start..end)
-        }
-        value => {
-            let index = vm_try!(usize::from_value(value));
-
-            let Some(value) = this.get(index) else {
-                return VmResult::Ok(None);
-            };
-
-            return VmResult::Ok(Some(value.clone()));
-        }
-    };
-
-    let Some(values) = slice else {
-        return VmResult::Ok(None);
-    };
-
-    VmResult::Ok(Some(Value::vec(values.to_vec())))
+    Vec::index_get(this, index)
 }
 
 /// Sort a vector by the specified comparator function.
