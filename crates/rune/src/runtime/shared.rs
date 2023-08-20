@@ -1,3 +1,4 @@
+use core::alloc::Layout;
 use core::any::{self, TypeId};
 use core::cell::{Cell, UnsafeCell};
 use core::fmt;
@@ -8,6 +9,8 @@ use core::pin::Pin;
 use core::ptr;
 use core::task::{Context, Poll};
 
+#[cfg(feature = "alloc")]
+use alloc::alloc::alloc;
 #[cfg(feature = "alloc")]
 use alloc::rc::Rc;
 #[cfg(feature = "alloc")]
@@ -279,6 +282,46 @@ impl<T> Shared<T> {
 }
 
 impl<T: ?Sized> Shared<T> {
+    unsafe fn from_ptr(ptr: *mut SharedBox<T>) -> Self {
+        Self {
+            inner: ptr::NonNull::new_unchecked(ptr),
+        }
+    }
+
+    #[cfg(feature = "alloc")]
+    fn from_box(value: Box<T>) -> Self {
+        unsafe {
+            let ptr = Box::into_raw(value);
+            let layout = Layout::for_value(&*ptr);
+
+            let layout = Layout::new::<SharedBox<()>>()
+                .extend(layout)
+                .unwrap()
+                .0
+                .pad_to_align();
+
+            let box_ptr = alloc(layout);
+            assert!(!box_ptr.is_null(), "failed to allocate shared value");
+
+            // This needs to be supported but needs https://github.com/rust-lang/rust/issues/81513
+            let box_ptr = box_ptr as *mut SharedBox<T>;
+
+            ptr::write(ptr::addr_of_mut!((*box_ptr).access), Access::new(false));
+            ptr::write(ptr::addr_of_mut!((*box_ptr).count), Cell::new(1));
+
+            let value_size = mem::size_of_val(&*ptr);
+
+            // Copy value as bytes
+            ptr::copy_nonoverlapping(
+                ptr as *const u8,
+                ptr::addr_of_mut!((*box_ptr).data) as *mut _ as *mut u8,
+                value_size,
+            );
+
+            Self::from_ptr(box_ptr)
+        }
+    }
+
     /// Get a reference to the interior value while checking for shared access.
     ///
     /// This prevents other exclusive accesses from being performed while the
@@ -712,6 +755,16 @@ where
                 write!(fmt, "{:?}", &&*inner.data.get())
             }
         }
+    }
+}
+
+#[cfg(feature = "alloc")]
+impl<T> From<Box<T>> for Shared<T>
+where
+    T: ?Sized,
+{
+    fn from(value: Box<T>) -> Self {
+        Shared::from_box(value)
     }
 }
 
