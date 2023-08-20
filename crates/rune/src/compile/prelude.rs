@@ -25,7 +25,6 @@ impl Prelude {
         this.add_prelude("f64", ["f64"]);
         this.add_prelude("i64", ["i64"]);
         this.add_prelude("char", ["char"]);
-        this.add_prelude("Tuple", ["Tuple"]);
         this.add_prelude("dbg", ["io", "dbg"]);
         this.add_prelude("drop", ["mem", "drop"]);
         this.add_prelude("Err", ["result", "Result", "Err"]);
@@ -35,6 +34,7 @@ impl Prelude {
         this.add_prelude("is_writable", ["is_writable"]);
         this.add_prelude("line", ["macros", "builtin", "line"]);
         this.add_prelude("None", ["option", "Option", "None"]);
+        this.add_prelude("Tuple", ["tuple", "Tuple"]);
         this.add_prelude("Object", ["object", "Object"]);
         this.add_prelude("Ok", ["result", "Result", "Ok"]);
         this.add_prelude("Option", ["option", "Option"]);
@@ -45,7 +45,6 @@ impl Prelude {
         this.add_prelude("Some", ["option", "Option", "Some"]);
         this.add_prelude("String", ["string", "String"]);
         this.add_prelude("stringify", ["stringify"]);
-        this.add_prelude("unit", ["unit"]);
         this.add_prelude("Vec", ["vec", "Vec"]);
         this.add_prelude("Bytes", ["bytes", "Bytes"]);
 

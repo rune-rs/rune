@@ -74,7 +74,7 @@ fn assign_ops_struct() -> Result<()> {
                 assert_eq!(foo.field, $expected, "{} != {} (field)", foo.field, $expected);
                 assert_eq!(foo.derived, $expected, "{} != {} (derived)", foo.derived, $expected);
                 assert_eq!(foo.custom, $expected, "{} != {} (custom)", foo.custom, $expected);
-                assert!(matches!(output, Value::Unit));
+                assert!(matches!(output, Value::EmptyTuple));
             }
         }};
     }
@@ -156,7 +156,7 @@ fn assign_ops_tuple() -> Result<()> {
                 assert_eq!(foo.1, $expected, "{} != {} (field .1)", foo.1, $expected);
                 assert_eq!(foo.2, $expected, "{} != {} (derived .2)", foo.2, $expected);
                 assert_eq!(foo.3, $expected, "{} != {} (custom .3)", foo.3, $expected);
-                assert!(matches!(output, Value::Unit));
+                assert!(matches!(output, Value::EmptyTuple));
             }
         }};
     }

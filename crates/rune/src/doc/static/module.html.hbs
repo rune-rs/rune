@@ -7,7 +7,7 @@
 
 {{#each types}}
     <div class="item-entry">
-    <a class="type" href="{{literal this.path}}">{{this.name}}</a>
+    <a class="type" href="{{literal this.path}}">{{this.name}}</a>{{#if this.doc}}<span class="inline-sep">&dash;</span><span class="inline-docs">{{literal this.doc}}</span>{{/if}}
     </div>
 {{/each}}
 {{/if}}
@@ -17,7 +17,7 @@
 
 {{#each structs}}
     <div class="item-entry">
-    <a class="struct" href="{{literal this.path}}">{{this.name}}</a>
+    <a class="struct" href="{{literal this.path}}">{{this.name}}</a>{{#if this.doc}}<span class="inline-sep">&dash;</span><span class="inline-docs">{{literal this.doc}}</span>{{/if}}
     </div>
 {{/each}}
 {{/if}}
@@ -27,7 +27,7 @@
 
 {{#each enums}}
     <div class="item-entry">
-    <a class="enum" href="{{literal this.path}}">{{this.name}}</a>
+    <a class="enum" href="{{literal this.path}}">{{this.name}}</a>{{#if this.doc}}<span class="inline-sep">&dash;</span><span class="inline-docs">{{literal this.doc}}</span>{{/if}}
     </div>
 {{/each}}
 {{/if}}
@@ -57,7 +57,7 @@
 
 {{#each modules}}
     <div id="module.{{this.item}}" class="item-entry">
-    <a class="module" href="{{this.path}}">{{this.name}}</a>
+    <a class="module" href="{{this.path}}">{{this.name}}</a>{{#if this.doc}}<span class="inline-sep">&dash;</span><span class="inline-docs">{{literal this.doc}}</span>{{/if}}
     </div>
 {{/each}}
 {{/if}}

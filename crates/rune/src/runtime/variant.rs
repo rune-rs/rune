@@ -2,7 +2,7 @@ use core::cmp::Ordering;
 use core::fmt;
 
 use crate::no_std::sync::Arc;
-use crate::runtime::{Object, ProtocolCaller, Tuple, TypeInfo, VariantRtti, VmResult};
+use crate::runtime::{Object, OwnedTuple, ProtocolCaller, Tuple, TypeInfo, VariantRtti, VmResult};
 
 /// The variant of a type.
 pub struct Variant {
@@ -15,12 +15,12 @@ impl Variant {
     pub fn unit(rtti: Arc<VariantRtti>) -> Self {
         Self {
             rtti,
-            data: VariantData::Unit,
+            data: VariantData::Empty,
         }
     }
 
     /// Construct a tuple variant.
-    pub fn tuple(rtti: Arc<VariantRtti>, tuple: Tuple) -> Self {
+    pub fn tuple(rtti: Arc<VariantRtti>, tuple: OwnedTuple) -> Self {
         Self {
             rtti,
             data: VariantData::Tuple(tuple),
@@ -70,7 +70,7 @@ impl Variant {
         }
 
         match (&a.data, &b.data) {
-            (VariantData::Unit, VariantData::Unit) => VmResult::Ok(true),
+            (VariantData::Empty, VariantData::Empty) => VmResult::Ok(true),
             (VariantData::Tuple(a), VariantData::Tuple(b)) => Tuple::partial_eq_with(a, b, caller),
             (VariantData::Struct(a), VariantData::Struct(b)) => {
                 Object::partial_eq_with(a, b, caller)
@@ -90,7 +90,7 @@ impl Variant {
         }
 
         match (&a.data, &b.data) {
-            (VariantData::Unit, VariantData::Unit) => VmResult::Ok(true),
+            (VariantData::Empty, VariantData::Empty) => VmResult::Ok(true),
             (VariantData::Tuple(a), VariantData::Tuple(b)) => Tuple::eq_with(a, b, caller),
             (VariantData::Struct(a), VariantData::Struct(b)) => Object::eq_with(a, b, caller),
             _ => VmResult::panic("data mismatch between variants"),
@@ -113,7 +113,7 @@ impl Variant {
         }
 
         match (&a.data, &b.data) {
-            (VariantData::Unit, VariantData::Unit) => VmResult::Ok(Some(Ordering::Equal)),
+            (VariantData::Empty, VariantData::Empty) => VmResult::Ok(Some(Ordering::Equal)),
             (VariantData::Tuple(a), VariantData::Tuple(b)) => Tuple::partial_cmp_with(a, b, caller),
             (VariantData::Struct(a), VariantData::Struct(b)) => {
                 Object::partial_cmp_with(a, b, caller)
@@ -138,7 +138,7 @@ impl Variant {
         }
 
         match (&a.data, &b.data) {
-            (VariantData::Unit, VariantData::Unit) => VmResult::Ok(Ordering::Equal),
+            (VariantData::Empty, VariantData::Empty) => VmResult::Ok(Ordering::Equal),
             (VariantData::Tuple(a), VariantData::Tuple(b)) => Tuple::cmp_with(a, b, caller),
             (VariantData::Struct(a), VariantData::Struct(b)) => Object::cmp_with(a, b, caller),
             _ => VmResult::panic("data mismatch between variants"),
@@ -149,11 +149,11 @@ impl Variant {
 /// The data of the variant.
 pub enum VariantData {
     /// A unit variant.
-    Unit,
+    Empty,
     /// A struct variant.
     Struct(Object),
     /// A tuple variant.
-    Tuple(Tuple),
+    Tuple(OwnedTuple),
 }
 
 impl fmt::Debug for Variant {
@@ -161,7 +161,7 @@ impl fmt::Debug for Variant {
         write!(f, "{}", self.rtti.item)?;
 
         match &self.data {
-            VariantData::Unit => {}
+            VariantData::Empty => {}
             VariantData::Struct(st) => {
                 write!(f, "{:?}", st)?;
             }

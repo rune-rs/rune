@@ -12,9 +12,9 @@ pub(crate) mod prelude {
     pub(crate) use crate::module::InstallWith;
     pub(crate) use crate::parse;
     pub(crate) use crate::runtime::{
-        self, AnyObj, AnyTypeInfo, Bytes, FullTypeOf, Function, MaybeTypeOf, Mut, Object, Protocol,
-        RawRef, RawStr, Ref, Shared, Stack, Tuple, TypeInfo, TypeOf, UnsafeToRef, VecTuple,
-        VmErrorKind, VmResult,
+        self, AnyObj, AnyTypeInfo, Bytes, FullTypeOf, Function, MaybeTypeOf, Mut, Object,
+        OwnedTuple, Protocol, RawRef, RawStr, Ref, Shared, Stack, Tuple, TypeInfo, TypeOf,
+        UnsafeToRef, VecTuple, VmErrorKind, VmResult,
     };
     pub(crate) use crate::tests::run;
     pub(crate) use crate::{

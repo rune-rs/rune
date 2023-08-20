@@ -36,7 +36,7 @@ where
     /// Get the next value produced by this stream.
     #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> VmResult<Option<Value>> {
-        VmResult::Ok(match vm_try!(self.resume(Value::Unit)) {
+        VmResult::Ok(match vm_try!(self.resume(Value::EmptyTuple)) {
             GeneratorState::Yielded(value) => Some(value),
             GeneratorState::Complete(_) => None,
         })

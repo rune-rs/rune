@@ -88,23 +88,23 @@ fn test_missing_dynamic_field() {
 fn test_enum_proxy() {
     #[derive(Debug, PartialEq, Eq, FromValue)]
     enum Proxy {
-        Unit,
+        Empty,
         Tuple(String),
         Struct { field: String },
     }
 
     let proxy: Proxy = rune! {
         pub fn main() {
-            enum Proxy { Unit, Tuple(a), Struct { field } }
-            Proxy::Unit
+            enum Proxy { Empty, Tuple(a), Struct { field } }
+            Proxy::Empty
         }
     };
 
-    assert_eq!(proxy, Proxy::Unit);
+    assert_eq!(proxy, Proxy::Empty);
 
     let proxy: Proxy = rune! {
         pub fn main() {
-            enum Proxy { Unit, Tuple(a), Struct { field } }
+            enum Proxy { Empty, Tuple(a), Struct { field } }
             Proxy::Tuple("Hello World")
         }
     };
@@ -113,7 +113,7 @@ fn test_enum_proxy() {
 
     let proxy: Proxy = rune! {
         pub fn main() {
-            enum Proxy { Unit, Tuple(a), Struct { field } }
+            enum Proxy { Empty, Tuple(a), Struct { field } }
             Proxy::Struct { field: "Hello World" }
         }
     };

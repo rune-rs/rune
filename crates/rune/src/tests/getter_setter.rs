@@ -41,6 +41,6 @@ fn test_getter_setter() -> Result<()> {
     assert_eq!(foo.number, 43);
     assert_eq!(foo.string, "Hello World");
 
-    assert!(matches!(output, Value::Unit));
+    assert!(matches!(output, Value::EmptyTuple));
     Ok(())
 }

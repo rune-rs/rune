@@ -34,7 +34,7 @@ where
 
     /// Get the next value produced by this stream.
     pub async fn next(&mut self) -> VmResult<Option<Value>> {
-        VmResult::Ok(match vm_try!(self.resume(Value::Unit).await) {
+        VmResult::Ok(match vm_try!(self.resume(Value::EmptyTuple).await) {
             GeneratorState::Yielded(value) => Some(value),
             GeneratorState::Complete(_) => None,
         })

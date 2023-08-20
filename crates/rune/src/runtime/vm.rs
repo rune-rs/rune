@@ -12,12 +12,12 @@ use crate::runtime::budget;
 use crate::runtime::future::SelectFuture;
 use crate::runtime::unit::{UnitFn, UnitStorage};
 use crate::runtime::{
-    self, Args, Awaited, BorrowMut, Bytes, Call, Format, FormatSpec, FromValue, Function, Future,
-    Generator, GuardedArgs, Inst, InstAddress, InstAssignOp, InstOp, InstRange, InstTarget,
-    InstValue, InstVariant, Object, Panic, Protocol, Range, RangeFrom, RangeFull, RangeInclusive,
-    RangeTo, RangeToInclusive, RuntimeContext, Select, Shared, Stack, Stream, Struct, Tuple, Type,
-    TypeCheck, TypeOf, Unit, UnitStruct, Value, Variant, VariantData, Vec, VmError, VmErrorKind,
-    VmExecution, VmHalt, VmIntegerRepr, VmResult, VmSendExecution,
+    self, Args, Awaited, BorrowMut, Bytes, Call, EmptyStruct, Format, FormatSpec, FromValue,
+    Function, Future, Generator, GuardedArgs, Inst, InstAddress, InstAssignOp, InstOp, InstRange,
+    InstTarget, InstValue, InstVariant, Object, OwnedTuple, Panic, Protocol, Range, RangeFrom,
+    RangeFull, RangeInclusive, RangeTo, RangeToInclusive, RuntimeContext, Select, Shared, Stack,
+    Stream, Struct, Type, TypeCheck, TypeOf, Unit, Value, Variant, VariantData, Vec, VmError,
+    VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmResult, VmSendExecution,
 };
 
 /// Small helper function to build errors.
@@ -649,7 +649,7 @@ impl Vm {
     /// Implementation of getting a string index on an object-like type.
     fn try_tuple_like_index_get(target: &Value, index: usize) -> VmResult<Option<Value>> {
         let value = match target {
-            Value::Unit => None,
+            Value::EmptyTuple => None,
             Value::Tuple(tuple) => vm_try!(tuple.borrow_ref()).get(index).cloned(),
             Value::Vec(vec) => vm_try!(vec.borrow_ref()).get(index).cloned(),
             Value::Result(result) => {
@@ -713,7 +713,7 @@ impl Vm {
         index: usize,
     ) -> VmResult<Option<BorrowMut<'_, Value>>> {
         let value = match target {
-            Value::Unit => None,
+            Value::EmptyTuple => None,
             Value::Tuple(tuple) => {
                 let tuple = vm_try!(tuple.borrow_mut());
 
@@ -819,7 +819,7 @@ impl Vm {
     /// Implementation of getting a string index on an object-like type.
     fn try_tuple_like_index_set(target: &Value, index: usize, value: Value) -> VmResult<bool> {
         match target {
-            Value::Unit => VmResult::Ok(false),
+            Value::EmptyTuple => VmResult::Ok(false),
             Value::Tuple(tuple) => {
                 let mut tuple = vm_try!(tuple.borrow_mut());
 
@@ -997,6 +997,7 @@ impl Vm {
         F: FnOnce(&[Value]) -> O,
     {
         VmResult::Ok(match (ty, value) {
+            (TypeCheck::EmptyTuple, Value::EmptyTuple) => Some(f(&[])),
             (TypeCheck::Tuple, Value::Tuple(tuple)) => Some(f(&vm_try!(tuple.borrow_ref()))),
             (TypeCheck::Vec, Value::Vec(vec)) => Some(f(&vm_try!(vec.borrow_ref()))),
             (TypeCheck::Result(v), Value::Result(result)) => {
@@ -1027,7 +1028,6 @@ impl Vm {
                     _ => return VmResult::Ok(None),
                 })
             }
-            (TypeCheck::Unit, Value::Unit) => Some(f(&[])),
             _ => None,
         })
     }
@@ -1619,20 +1619,20 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_tuple(&mut self, count: usize) -> VmResult<()> {
         let tuple = vm_try!(self.stack.pop_sequence(count));
-        self.stack.push(Tuple::from(tuple));
+        self.stack.push(OwnedTuple::from(tuple));
         VmResult::Ok(())
     }
 
     /// Construct a new tuple with a fixed number of arguments.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_tuple_n(&mut self, args: &[InstAddress]) -> VmResult<()> {
-        let mut tuple = vec![Value::Unit; args.len()];
+        let mut tuple = vec![Value::EmptyTuple; args.len()];
 
         for (n, arg) in args.iter().enumerate().rev() {
             tuple[n] = vm_try!(self.stack.address(*arg));
         }
 
-        self.stack.push(Tuple::from(tuple));
+        self.stack.push(OwnedTuple::from(tuple));
         VmResult::Ok(())
     }
 
@@ -2032,7 +2032,7 @@ impl Vm {
                     args,
                     hash,
                 ),
-                UnitFn::UnitStruct { hash } => {
+                UnitFn::EmptyStruct { hash } => {
                     let rtti = self
                         .unit
                         .lookup_rtti(hash)
@@ -2342,7 +2342,7 @@ impl Vm {
             .lookup_rtti(hash)
             .ok_or(VmErrorKind::MissingRtti { hash }));
 
-        self.stack.push(UnitStruct { rtti: rtti.clone() });
+        self.stack.push(EmptyStruct { rtti: rtti.clone() });
         VmResult::Ok(())
     }
 
@@ -2457,7 +2457,7 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_is_unit(&mut self) -> VmResult<()> {
         let value = vm_try!(self.stack.pop());
-        self.stack.push(matches!(value, Value::Unit));
+        self.stack.push(matches!(value, Value::EmptyTuple));
         VmResult::Ok(())
     }
 
@@ -2672,7 +2672,7 @@ impl Vm {
                     _ => false,
                 }
             }
-            (TypeCheck::Unit, Value::Unit) => true,
+            (TypeCheck::EmptyTuple, Value::EmptyTuple) => true,
             _ => false,
         };
 
@@ -2795,7 +2795,7 @@ impl Vm {
                     vm_try!(check_args(args, expected));
                     vm_try!(self.call_offset_fn(offset, call, args));
                 }
-                UnitFn::UnitStruct { hash } => {
+                UnitFn::EmptyStruct { hash } => {
                     vm_try!(check_args(args, 0));
 
                     let rtti = vm_try!(self
@@ -2803,7 +2803,7 @@ impl Vm {
                         .lookup_rtti(hash)
                         .ok_or(VmErrorKind::MissingRtti { hash }));
 
-                    self.stack.push(Value::unit_struct(rtti.clone()));
+                    self.stack.push(Value::empty_struct(rtti.clone()));
                 }
                 UnitFn::TupleStruct {
                     hash,
@@ -3138,7 +3138,7 @@ impl Vm {
                 Inst::Range { range } => {
                     vm_try!(self.op_range(range));
                 }
-                Inst::UnitStruct { hash } => {
+                Inst::EmptyStruct { hash } => {
                     vm_try!(self.op_empty_struct(hash));
                 }
                 Inst::Struct { hash, slot } => {
@@ -3219,7 +3219,7 @@ impl Vm {
                     return VmResult::Ok(VmHalt::Yielded);
                 }
                 Inst::YieldUnit => {
-                    self.stack.push(Value::Unit);
+                    self.stack.push(Value::EmptyTuple);
                     return VmResult::Ok(VmHalt::Yielded);
                 }
                 Inst::Variant { variant } => {

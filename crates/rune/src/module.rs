@@ -37,14 +37,6 @@ pub trait InstallWith {
     }
 }
 
-/// Specialized information on `Option` types.
-pub(crate) struct UnitType {
-    /// Item of the unit type.
-    pub(crate) name: Box<str>,
-    /// Documentation on the unit type.
-    pub(crate) docs: Docs,
-}
-
 /// Specialized information on `GeneratorState` types.
 pub(crate) struct InternalEnum {
     /// The name of the internal enum.

@@ -447,7 +447,7 @@ pub(crate) fn expr_object<'hir>(
                     ..
                 } => {
                     check_object_fields(&HashMap::new(), item)?;
-                    hir::ExprObjectKind::UnitStruct { hash: meta.hash }
+                    hir::ExprObjectKind::EmptyStruct { hash: meta.hash }
                 }
                 meta::Kind::Struct {
                     fields: meta::Fields::Named(st),

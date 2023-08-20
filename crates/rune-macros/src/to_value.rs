@@ -58,7 +58,7 @@ impl Expander {
         let Tokens {
             to_value,
             value,
-            tuple,
+            owned_tuple,
             vm_result,
             ..
         } = &self.tokens;
@@ -76,7 +76,7 @@ impl Expander {
             unnamed.span() =>
             let mut tuple = Vec::with_capacity(#cap);
             #(#to_values;)*
-            #vm_result::Ok(#value::from(#tuple::from(tuple)))
+            #vm_result::Ok(#value::from(#owned_tuple::from(tuple)))
         })
     }
 

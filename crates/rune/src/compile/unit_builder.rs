@@ -314,7 +314,7 @@ impl UnitBuilder {
                 fields: meta::Fields::Empty,
                 ..
             } => {
-                let info = UnitFn::UnitStruct { hash: meta.hash };
+                let info = UnitFn::EmptyStruct { hash: meta.hash };
 
                 let signature = DebugSignature::new(
                     pool.item(meta.item_meta.item).to_owned(),

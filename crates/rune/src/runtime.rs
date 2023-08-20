@@ -136,7 +136,7 @@ mod to_value;
 pub use self::to_value::{to_value, ToValue, UnsafeToValue};
 
 mod tuple;
-pub use self::tuple::Tuple;
+pub use self::tuple::{OwnedTuple, Tuple};
 
 mod type_info;
 pub use self::type_info::{AnyTypeInfo, TypeInfo};
@@ -149,7 +149,7 @@ pub(crate) use self::unit::UnitFn;
 pub use self::unit::{Unit, UnitStorage};
 
 mod value;
-pub use self::value::{Rtti, Struct, TupleStruct, UnitStruct, Value, VariantRtti};
+pub use self::value::{EmptyStruct, Rtti, Struct, TupleStruct, Value, VariantRtti};
 
 mod variant;
 pub use self::variant::{Variant, VariantData};

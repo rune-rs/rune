@@ -52,7 +52,7 @@ impl fmt::Display for PanicReason {
 #[non_exhaustive]
 pub enum TypeCheck {
     /// Matches a unit type.
-    Unit,
+    EmptyTuple,
     /// Matches an anonymous tuple.
     Tuple,
     /// Matches an anonymous object.
@@ -73,7 +73,7 @@ pub enum TypeCheck {
 impl fmt::Display for TypeCheck {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Unit => write!(fmt, "Unit"),
+            Self::EmptyTuple => write!(fmt, "Unit"),
             Self::Tuple => write!(fmt, "Tuple"),
             Self::Object => write!(fmt, "Object"),
             Self::Vec => write!(fmt, "Vec"),
@@ -681,7 +681,7 @@ pub enum Inst {
     /// => <object>
     /// ```
     #[musli(packed)]
-    UnitStruct {
+    EmptyStruct {
         /// The type of the object to construct.
         hash: Hash,
     },
@@ -1071,7 +1071,7 @@ impl Inst {
     /// Construct an instruction to push a unit.
     pub fn unit() -> Self {
         Self::Push {
-            value: InstValue::Unit,
+            value: InstValue::EmptyTuple,
         }
     }
 
@@ -1437,8 +1437,8 @@ impl fmt::Display for InstOp {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
 #[non_exhaustive]
 pub enum InstValue {
-    /// A unit.
-    Unit,
+    /// An empty tuple.
+    EmptyTuple,
     /// A boolean.
     #[musli(packed)]
     Bool(bool),
@@ -1463,7 +1463,7 @@ impl InstValue {
     /// Convert into a value that can be pushed onto the stack.
     pub fn into_value(self) -> Value {
         match self {
-            Self::Unit => Value::Unit,
+            Self::EmptyTuple => Value::EmptyTuple,
             Self::Bool(v) => Value::Bool(v),
             Self::Byte(v) => Value::Byte(v),
             Self::Char(v) => Value::Char(v),
@@ -1477,7 +1477,7 @@ impl InstValue {
 impl fmt::Display for InstValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Unit => write!(f, "()")?,
+            Self::EmptyTuple => write!(f, "()")?,
             Self::Bool(v) => write!(f, "{}", v)?,
             Self::Byte(v) => {
                 if v.is_ascii_graphic() {

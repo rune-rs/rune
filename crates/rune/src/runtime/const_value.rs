@@ -6,7 +6,7 @@ use crate::no_std::sync::Arc;
 use crate::no_std::vec;
 
 use crate::runtime::{
-    Bytes, FromValue, Object, Shared, StaticString, ToValue, Tuple, TypeInfo, Value, Vec,
+    Bytes, FromValue, Object, OwnedTuple, Shared, StaticString, ToValue, TypeInfo, Value, Vec,
     VmErrorKind, VmResult,
 };
 
@@ -14,7 +14,7 @@ use crate::runtime::{
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum ConstValue {
     /// A constant unit.
-    Unit,
+    EmptyTuple,
     /// A byte.
     Byte(u8),
     /// A character.
@@ -49,7 +49,6 @@ impl ConstValue {
     /// otherwise.
     pub fn into_value(self) -> Value {
         match self {
-            Self::Unit => Value::Unit,
             Self::Byte(b) => Value::Byte(b),
             Self::Char(c) => Value::Char(c),
             Self::Bool(b) => Value::Bool(b),
@@ -70,6 +69,7 @@ impl ConstValue {
 
                 Value::Vec(Shared::new(v))
             }
+            Self::EmptyTuple => Value::EmptyTuple,
             Self::Tuple(tuple) => {
                 let mut t = vec::Vec::with_capacity(tuple.len());
 
@@ -77,7 +77,7 @@ impl ConstValue {
                     t.push(value.into_value());
                 }
 
-                Value::Tuple(Shared::new(Tuple::from(t)))
+                Value::Tuple(Shared::new(OwnedTuple::from(t)))
             }
             Self::Object(object) => {
                 let mut o = Object::with_capacity(object.len());
@@ -102,7 +102,7 @@ impl ConstValue {
     /// Get the type information of the value.
     pub fn type_info(&self) -> TypeInfo {
         match self {
-            Self::Unit => TypeInfo::StaticType(crate::runtime::static_type::UNIT_TYPE),
+            Self::EmptyTuple => TypeInfo::StaticType(crate::runtime::static_type::TUPLE_TYPE),
             Self::Byte(..) => TypeInfo::StaticType(crate::runtime::static_type::BYTE_TYPE),
             Self::Char(..) => TypeInfo::StaticType(crate::runtime::static_type::CHAR_TYPE),
             Self::Bool(..) => TypeInfo::StaticType(crate::runtime::static_type::BOOL_TYPE),
@@ -124,7 +124,7 @@ impl ConstValue {
 impl FromValue for ConstValue {
     fn from_value(value: Value) -> VmResult<Self> {
         VmResult::Ok(match value {
-            Value::Unit => Self::Unit,
+            Value::EmptyTuple => Self::EmptyTuple,
             Value::Byte(b) => Self::Byte(b),
             Value::Char(c) => Self::Char(c),
             Value::Bool(b) => Self::Bool(b),

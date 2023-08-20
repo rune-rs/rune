@@ -819,7 +819,7 @@ fn const_<'hir>(
     }
 
     match value {
-        ConstValue::Unit => {
+        ConstValue::EmptyTuple => {
             cx.asm.push(Inst::unit(), span);
         }
         ConstValue::Byte(b) => {
@@ -1971,8 +1971,8 @@ fn expr_object<'hir>(
             .new_static_object_keys_iter(span, hir.assignments.iter().map(|a| a.key.1))?;
 
     match hir.kind {
-        hir::ExprObjectKind::UnitStruct { hash } => {
-            cx.asm.push(Inst::UnitStruct { hash }, span);
+        hir::ExprObjectKind::EmptyStruct { hash } => {
+            cx.asm.push(Inst::EmptyStruct { hash }, span);
         }
         hir::ExprObjectKind::Struct { hash } => {
             cx.asm.push(Inst::Struct { hash, slot }, span);

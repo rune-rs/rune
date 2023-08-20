@@ -190,16 +190,7 @@ impl fmt::Display for Hash {
 
 impl fmt::Debug for Hash {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        return f.debug_tuple("Hash").field(&Hex(self.0)).finish();
-
-        #[repr(transparent)]
-        struct Hex(u64);
-
-        impl fmt::Debug for Hex {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                write!(f, "0x{:x}", self.0)
-            }
-        }
+        write!(f, "0x{:x}", self.0)
     }
 }
 

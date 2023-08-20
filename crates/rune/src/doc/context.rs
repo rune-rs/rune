@@ -168,10 +168,10 @@ impl<'a> Context<'a> {
 
         fn context_to_associated(context: &crate::Context, hash: Hash) -> Option<Assoc<'_>> {
             let meta = context.lookup_meta_by_hash(hash).next()?;
-            let name = meta.item.as_deref()?.last()?.as_str()?;
 
             match &meta.kind {
                 meta::Kind::Variant { .. } => {
+                    let name = meta.item.as_deref()?.last()?.as_str()?;
                     Some(Assoc::Variant(AssocVariant { name, docs: meta.docs.lines() }))
                 }
                 meta::Kind::AssociatedFunction { kind, parameter_types, signature, .. } => {
@@ -199,6 +199,7 @@ impl<'a> Context<'a> {
                     }))
                 }
                 meta::Kind::Function { signature, .. } => {
+                    let name = meta.item.as_deref()?.last()?.as_str()?;
                     let kind = AssocFnKind::Method(name, signature.args, Signature::Function);
 
                     Some(Assoc::Fn(AssocFn {

@@ -1,5 +1,7 @@
-pub fn main() {
-    assert!(() is unit, "units should be units");
+#[test]
+fn types() {
+    assert!(() is Tuple, "tuples should be tuples");
+    assert!((1, 2) is Tuple, "tuples should be tuples");
     assert!(true is bool, "bools should be bools");
     assert!('a' is char, "chars should be chars");
     assert!(b'a' is u8, "bytes should be bytes");

@@ -8,7 +8,7 @@ fn test_ignore_binding() {
         }
 
         pub fn main() {
-            returns_unit(1) is unit
+            returns_unit(1) is Tuple
         }
     };
     assert_eq!(out, true);
@@ -22,7 +22,7 @@ fn test_name_binding() {
         }
 
         pub fn main() {
-            returns_unit(1) is unit
+            returns_unit(1) is Tuple
         }
     };
     assert_eq!(out, true);
@@ -36,7 +36,7 @@ fn test_match_binding() {
         }
 
         pub fn main() {
-            returns_unit(1) is unit
+            returns_unit(1) is Tuple
         }
     };
     assert_eq!(out, true);

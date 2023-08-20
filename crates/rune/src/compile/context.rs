@@ -9,12 +9,12 @@ use crate::compile::meta;
 use crate::compile::Docs;
 use crate::compile::{ComponentRef, ContextError, IntoComponent, Item, ItemBuf, MetaInfo, Names};
 use crate::module::{
-    Fields, Function, InternalEnum, Module, ModuleAssociated, ModuleAttributeMacro, ModuleConstant,
-    ModuleFunction, ModuleMacro, ModuleType, TypeSpecification, UnitType,
+    Fields, InternalEnum, Module, ModuleAssociated, ModuleAttributeMacro, ModuleConstant,
+    ModuleFunction, ModuleMacro, ModuleType, TypeSpecification,
 };
 use crate::runtime::{
     AttributeMacroHandler, ConstValue, FunctionHandler, MacroHandler, Protocol, RuntimeContext,
-    StaticType, TypeCheck, TypeInfo, TypeOf, VariantRtti,
+    StaticType, TypeCheck, TypeInfo, VariantRtti,
 };
 use crate::Hash;
 
@@ -138,6 +138,7 @@ impl Context {
         this.install(crate::modules::cmp::module()?)?;
         this.install(crate::modules::collections::module()?)?;
         this.install(crate::modules::f64::module()?)?;
+        this.install(crate::modules::tuple::module()?)?;
         this.install(crate::modules::fmt::module()?)?;
         this.install(crate::modules::future::module()?)?;
         this.install(crate::modules::generator::module()?)?;
@@ -226,10 +227,6 @@ impl Context {
 
         for m in &module.constants {
             self.install_constant(module, m)?;
-        }
-
-        if let Some(unit_type) = &module.unit_type {
-            self.install_unit_type(module, unit_type)?;
         }
 
         for internal_enum in &module.internal_enums {
@@ -785,63 +782,6 @@ impl Context {
             #[cfg(feature = "doc")]
             docs: assoc.docs.clone(),
         })?;
-
-        Ok(())
-    }
-
-    /// Install unit type.
-    fn install_unit_type(
-        &mut self,
-        module: &Module,
-        unit_type: &UnitType,
-    ) -> Result<(), ContextError> {
-        let item = module.item.extended(&*unit_type.name);
-
-        self.install_type_info(ContextType {
-            item: item.clone(),
-            hash: crate::runtime::static_type::UNIT_TYPE.hash,
-            type_check: Some(TypeCheck::Unit),
-            type_info: crate::runtime::static_type::UNIT_TYPE.type_info(),
-            type_parameters: Hash::EMPTY,
-        })?;
-
-        let hash = <() as TypeOf>::type_hash();
-
-        let signature = meta::Signature {
-            #[cfg(feature = "doc")]
-            is_async: false,
-            #[cfg(feature = "doc")]
-            deprecated: None,
-            #[cfg(feature = "doc")]
-            args: Some(0),
-            #[cfg(feature = "doc")]
-            return_type: Some(hash),
-            #[cfg(feature = "doc")]
-            argument_types: Box::from([]),
-        };
-
-        let constructor = || ();
-        let handler: Arc<FunctionHandler> =
-            Arc::new(move |stack, args| constructor.fn_call(stack, args));
-
-        self.insert_native_fn(hash, &handler)?;
-
-        self.install_meta(ContextMeta {
-            hash,
-            item: Some(item.clone()),
-            kind: meta::Kind::Struct {
-                fields: meta::Fields::Unnamed(0),
-                constructor: Some(signature),
-                parameters: Hash::EMPTY,
-            },
-            #[cfg(feature = "doc")]
-            docs: unit_type.docs.clone(),
-        })?;
-
-        self.constants.insert(
-            Hash::associated_function(hash, Protocol::INTO_TYPE_NAME),
-            ConstValue::String(item.to_string()),
-        );
 
         Ok(())
     }
