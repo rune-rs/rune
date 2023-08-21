@@ -10,14 +10,14 @@ use crate::runtime::{
 /// A generator with a stored virtual machine.
 pub struct Generator<T>
 where
-    T: AsMut<Vm>,
+    T: AsRef<Vm> + AsMut<Vm>,
 {
     execution: Option<VmExecution<T>>,
 }
 
 impl<T> Generator<T>
 where
-    T: AsMut<Vm>,
+    T: AsRef<Vm> + AsMut<Vm>,
 {
     /// Construct a generator from a virtual machine.
     pub(crate) fn new(vm: T) -> Self {
@@ -108,7 +108,7 @@ impl iter::Iterator for GeneratorIterator {
 
 impl<T> fmt::Debug for Generator<T>
 where
-    T: AsMut<Vm>,
+    T: AsRef<Vm> + AsMut<Vm>,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Generator")
@@ -119,11 +119,11 @@ where
 
 impl<T> Named for Generator<T>
 where
-    T: AsMut<Vm>,
+    T: AsRef<Vm> + AsMut<Vm>,
 {
     const BASE_NAME: RawStr = RawStr::from_str("Generator");
 }
 
-impl<T> InstallWith for Generator<T> where T: AsMut<Vm> {}
+impl<T> InstallWith for Generator<T> where T: AsRef<Vm> + AsMut<Vm> {}
 
 from_value!(Generator<Vm>, into_generator);

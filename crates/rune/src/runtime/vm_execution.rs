@@ -1,12 +1,14 @@
 use core::fmt;
 use core::future::Future;
-use core::mem::take;
+use core::mem::{replace, take};
 
 use crate::no_std::prelude::*;
+use crate::no_std::sync::Arc;
 
 use crate::runtime::budget;
 use crate::runtime::{
-    Generator, GeneratorState, Stream, Value, Vm, VmErrorKind, VmHalt, VmHaltInfo, VmResult,
+    Generator, GeneratorState, RuntimeContext, Stream, Unit, Value, Vm, VmErrorKind, VmHalt,
+    VmHaltInfo, VmResult,
 };
 use crate::shared::AssertSend;
 
@@ -33,51 +35,37 @@ impl fmt::Display for ExecutionState {
     }
 }
 
+pub(crate) struct VmExecutionState {
+    pub(crate) context: Option<Arc<RuntimeContext>>,
+    pub(crate) unit: Option<Arc<Unit>>,
+}
+
 /// The execution environment for a virtual machine.
 ///
 /// When an execution is dropped, the stack of the stack of the head machine
 /// will be cleared.
 pub struct VmExecution<T = Vm>
 where
-    T: AsMut<Vm>,
+    T: AsRef<Vm> + AsMut<Vm>,
 {
     /// The current head vm which holds the execution.
     head: T,
     /// The state of an execution.
     state: ExecutionState,
-    /// The current stack of virtual machines and the execution state that must
-    /// be restored once one is popped.
-    vms: Vec<(Vm, ExecutionState)>,
-}
-
-macro_rules! vm {
-    ($slf:expr) => {
-        match $slf.vms.last() {
-            Some((vm, _)) => vm,
-            None => $slf.head.as_ref(),
-        }
-    };
-}
-
-macro_rules! vm_mut {
-    ($slf:expr) => {
-        match $slf.vms.last_mut() {
-            Some((vm, _)) => vm,
-            None => $slf.head.as_mut(),
-        }
-    };
+    /// Indicates the current stack of suspended contexts.
+    states: Vec<VmExecutionState>,
 }
 
 impl<T> VmExecution<T>
 where
-    T: AsMut<Vm>,
+    T: AsRef<Vm> + AsMut<Vm>,
 {
     /// Construct an execution from a virtual machine.
     pub(crate) fn new(head: T) -> Self {
         Self {
             head,
-            vms: vec![],
             state: ExecutionState::Initial,
+            states: vec![],
         }
     }
 
@@ -156,16 +144,13 @@ where
     }
 
     /// Get a reference to the current virtual machine.
-    pub fn vm(&self) -> &Vm
-    where
-        T: AsRef<Vm>,
-    {
-        vm!(self)
+    pub fn vm(&self) -> &Vm {
+        self.head.as_ref()
     }
 
     /// Get a mutable reference the current virtual machine.
     pub fn vm_mut(&mut self) -> &mut Vm {
-        vm_mut!(self)
+        self.head.as_mut()
     }
 
     /// Complete the current execution without support for async instructions.
@@ -203,7 +188,7 @@ where
             });
         }
 
-        vm_mut!(self).stack_mut().push(value);
+        self.head.as_mut().stack_mut().push(value);
         self.inner_async_resume().await
     }
 
@@ -213,7 +198,7 @@ where
     /// it while returning a unit from the current `yield`.
     pub async fn async_resume(&mut self) -> VmResult<GeneratorState> {
         if matches!(self.state, ExecutionState::Resumed) {
-            vm_mut!(self).stack_mut().push(Value::EmptyTuple);
+            self.head.as_mut().stack_mut().push(Value::EmptyTuple);
         } else {
             self.state = ExecutionState::Resumed;
         }
@@ -223,10 +208,9 @@ where
 
     async fn inner_async_resume(&mut self) -> VmResult<GeneratorState> {
         loop {
-            let len = self.vms.len();
-            let vm = vm_mut!(self);
+            let vm = self.head.as_mut();
 
-            match vm_try!(Self::run(vm)) {
+            match vm_try!(vm.run().with_vm(vm)) {
                 VmHalt::Exited => (),
                 VmHalt::Awaited(awaited) => {
                     vm_try!(awaited.into_vm(vm).await);
@@ -247,12 +231,12 @@ where
                 }
             }
 
-            if len == 0 {
+            if self.states.is_empty() {
                 let value = vm_try!(self.end());
                 return VmResult::Ok(GeneratorState::Complete(value));
             }
 
-            vm_try!(self.pop_vm());
+            vm_try!(self.pop_state());
         }
     }
 
@@ -267,7 +251,7 @@ where
             });
         }
 
-        vm_mut!(self).stack_mut().push(value);
+        self.head.as_mut().stack_mut().push(value);
         self.inner_resume()
     }
 
@@ -280,7 +264,7 @@ where
     #[tracing::instrument(skip_all)]
     pub fn resume(&mut self) -> VmResult<GeneratorState> {
         if matches!(self.state, ExecutionState::Resumed) {
-            vm_mut!(self).stack_mut().push(Value::EmptyTuple);
+            self.head.as_mut().stack_mut().push(Value::EmptyTuple);
         } else {
             self.state = ExecutionState::Resumed;
         }
@@ -290,10 +274,10 @@ where
 
     fn inner_resume(&mut self) -> VmResult<GeneratorState> {
         loop {
-            let len = self.vms.len();
-            let vm = vm_mut!(self);
+            let len = self.states.len();
+            let vm = self.head.as_mut();
 
-            match vm_try!(Self::run(vm)) {
+            match vm_try!(vm.run().with_vm(vm)) {
                 VmHalt::Exited => (),
                 VmHalt::VmCall(vm_call) => {
                     vm_try!(vm_call.into_execution(self));
@@ -315,7 +299,7 @@ where
                 return VmResult::Ok(GeneratorState::Complete(value));
             }
 
-            vm_try!(self.pop_vm());
+            vm_try!(self.pop_state());
         }
     }
 
@@ -324,10 +308,10 @@ where
     ///
     /// If any async instructions are encountered, this will error.
     pub fn step(&mut self) -> VmResult<Option<Value>> {
-        let len = self.vms.len();
-        let vm = vm_mut!(self);
+        let len = self.states.len();
+        let vm = self.head.as_mut();
 
-        match vm_try!(budget::with(1, || Self::run(vm)).call()) {
+        match vm_try!(budget::with(1, || vm.run().with_vm(vm)).call()) {
             VmHalt::Exited => (),
             VmHalt::VmCall(vm_call) => {
                 vm_try!(vm_call.into_execution(self));
@@ -346,17 +330,16 @@ where
             return VmResult::Ok(Some(value));
         }
 
-        vm_try!(self.pop_vm());
+        vm_try!(self.pop_state());
         VmResult::Ok(None)
     }
 
     /// Step the single execution for one step with support for async
     /// instructions.
     pub async fn async_step(&mut self) -> VmResult<Option<Value>> {
-        let len = self.vms.len();
-        let vm = vm_mut!(self);
+        let vm = self.head.as_mut();
 
-        match vm_try!(budget::with(1, || Self::run(vm)).call()) {
+        match vm_try!(budget::with(1, || vm.run().with_vm(vm)).call()) {
             VmHalt::Exited => (),
             VmHalt::Awaited(awaited) => {
                 vm_try!(awaited.into_vm(vm).await);
@@ -374,12 +357,12 @@ where
             }
         }
 
-        if len == 0 {
+        if self.states.is_empty() {
             let value = vm_try!(self.end());
             return VmResult::Ok(Some(value));
         }
 
-        vm_try!(self.pop_vm());
+        vm_try!(self.pop_state());
         VmResult::Ok(None)
     }
 
@@ -387,34 +370,38 @@ where
     pub(crate) fn end(&mut self) -> VmResult<Value> {
         let vm = self.head.as_mut();
         let value = vm_try!(vm.stack_mut().pop());
-        debug_assert!(self.vms.is_empty(), "execution vms should be empty");
+        debug_assert!(self.states.is_empty(), "execution vms should be empty");
         VmResult::Ok(value)
     }
 
     /// Push a virtual machine state onto the execution.
-    pub(crate) fn push_vm(&mut self, vm: Vm) {
-        self.vms.push((vm, self.state));
-        self.state = ExecutionState::Initial;
+    #[tracing::instrument(skip_all)]
+    pub(crate) fn push_state(&mut self, state: VmExecutionState) {
+        tracing::trace!("pushing suspended state");
+        let vm = self.head.as_mut();
+        let context = state.context.map(|c| replace(vm.context_mut(), c));
+        let unit = state.unit.map(|u| replace(vm.unit_mut(), u));
+        self.states.push(VmExecutionState { context, unit });
     }
 
     /// Pop a virtual machine state from the execution and transfer the top of
     /// the stack from the popped machine.
-    fn pop_vm(&mut self) -> VmResult<()> {
-        let (mut from, state) = vm_try!(self.vms.pop().ok_or(VmErrorKind::NoRunningVm));
+    #[tracing::instrument(skip_all)]
+    fn pop_state(&mut self) -> VmResult<()> {
+        tracing::trace!("popping suspended state");
 
-        let stack = from.stack_mut();
-        let value = vm_try!(stack.pop());
-        debug_assert!(stack.is_empty(), "vm stack not clean");
+        let state = vm_try!(self.states.pop().ok_or(VmErrorKind::NoRunningVm));
+        let vm = self.head.as_mut();
 
-        let onto = vm_mut!(self);
-        onto.stack_mut().push(value);
-        self.state = state;
+        if let Some(context) = state.context {
+            *vm.context_mut() = context;
+        }
+
+        if let Some(unit) = state.unit {
+            *vm.unit_mut() = unit;
+        }
+
         VmResult::Ok(())
-    }
-
-    #[inline]
-    fn run(vm: &mut Vm) -> VmResult<VmHalt> {
-        vm.run().with_vm(vm)
     }
 }
 
@@ -426,7 +413,7 @@ impl VmExecution<&mut Vm> {
 
         VmExecution {
             head,
-            vms: self.vms,
+            states: self.states,
             state: self.state,
         }
     }

@@ -9,14 +9,14 @@ use crate::runtime::{
 /// A stream with a stored virtual machine.
 pub struct Stream<T>
 where
-    T: AsMut<Vm>,
+    T: AsRef<Vm> + AsMut<Vm>,
 {
     execution: Option<VmExecution<T>>,
 }
 
 impl<T> Stream<T>
 where
-    T: AsMut<Vm>,
+    T: AsRef<Vm> + AsMut<Vm>,
 {
     /// Construct a stream from a virtual machine.
     pub(crate) fn new(vm: T) -> Self {
@@ -83,16 +83,16 @@ impl Stream<&mut Vm> {
 
 impl<T> Named for Stream<T>
 where
-    T: AsMut<Vm>,
+    T: AsRef<Vm> + AsMut<Vm>,
 {
     const BASE_NAME: RawStr = RawStr::from_str("Stream");
 }
 
-impl<T> InstallWith for Stream<T> where T: AsMut<Vm> {}
+impl<T> InstallWith for Stream<T> where T: AsRef<Vm> + AsMut<Vm> {}
 
 impl<T> fmt::Debug for Stream<T>
 where
-    T: AsMut<Vm>,
+    T: AsRef<Vm> + AsMut<Vm>,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Stream")

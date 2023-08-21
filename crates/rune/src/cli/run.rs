@@ -317,7 +317,7 @@ async fn do_trace<T>(
     mut limit: usize,
 ) -> Result<Value, TraceError>
 where
-    T: AsMut<Vm> + AsRef<Vm>,
+    T: AsRef<Vm> + AsMut<Vm>,
 {
     let mut current_frame_len = execution.vm().call_frames().len();
 
