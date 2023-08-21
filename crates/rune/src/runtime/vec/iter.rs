@@ -1,14 +1,14 @@
-use crate::runtime::{Ref, Value, Vec};
+use crate::runtime::{Ref, Value};
 
 /// An efficient reference counter iterator over a vector.
 pub(crate) struct Iter {
-    vec: Ref<Vec>,
+    vec: Ref<[Value]>,
     front: usize,
     back: usize,
 }
 
 impl Iter {
-    pub(crate) fn new(vec: Ref<Vec>) -> Self {
+    pub(crate) fn new(vec: Ref<[Value]>) -> Self {
         let back = vec.len();
         Self {
             vec,

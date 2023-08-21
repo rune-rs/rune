@@ -1,7 +1,9 @@
 //! The `std::tuple` module.
 
+use core::cmp::Ordering;
+
 use crate as rune;
-use crate::runtime::{Tuple, Value, Vec, VmResult};
+use crate::runtime::{EnvProtocolCaller, Iterator, Ref, Tuple, Value, Vec, VmResult};
 use crate::{ContextError, Module};
 
 /// Dynamic tuples.
@@ -12,6 +14,12 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(len)?;
     m.function_meta(is_empty)?;
     m.function_meta(get)?;
+    m.function_meta(iter)?;
+    m.function_meta(into_iter)?;
+    m.function_meta(partial_eq)?;
+    m.function_meta(eq)?;
+    m.function_meta(partial_cmp)?;
+    m.function_meta(cmp)?;
     Ok(m)
 }
 
@@ -64,4 +72,105 @@ fn is_empty(this: &Tuple) -> bool {
 #[rune::function(instance)]
 fn get(this: &Tuple, index: Value) -> VmResult<Option<Value>> {
     Vec::index_get(this, index)
+}
+
+/// Construct an iterator over the tuple.
+///
+/// # Examples
+///
+/// ```rune
+/// let tuple = (1, 2, 3);
+/// assert_eq!(tuple.iter().collect::<Vec>(), [1, 2, 3]);
+/// ```
+#[rune::function(instance)]
+fn iter(this: Ref<Tuple>) -> Iterator {
+    Vec::iter_ref(Ref::map(this, |tuple| &**tuple))
+}
+
+/// Construct an iterator over the tuple.
+///
+/// # Examples
+///
+/// ```rune
+/// let tuple = (1, 2, 3);
+/// let out = [];
+///
+/// for v in tuple {
+///     out.push(v);
+/// }
+///
+/// assert_eq!(out, [1, 2, 3]);
+/// ```
+#[rune::function(instance, protocol = INTO_ITER)]
+fn into_iter(this: Ref<Tuple>) -> Iterator {
+    Vec::iter_ref(Ref::map(this, |tuple| &**tuple))
+}
+
+/// Perform a partial equality check with this tuple.
+///
+/// This can take any argument which can be converted into an iterator using
+/// [`INTO_ITER`].
+///
+/// # Examples
+///
+/// ```rune
+/// let tuple = (1, 2, 3);
+///
+/// assert!(tuple == (1, 2, 3));
+/// assert!(tuple == (1..=3));
+/// assert!(tuple != (2, 3, 4));
+/// ```
+#[rune::function(instance, protocol = PARTIAL_EQ)]
+fn partial_eq(this: &Tuple, other: Value) -> VmResult<bool> {
+    Vec::partial_eq_with(this, other, &mut EnvProtocolCaller)
+}
+
+/// Perform a total equality check with this tuple.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::ops::eq;
+///
+/// let tuple = (1, 2, 3);
+///
+/// assert!(eq(tuple, (1, 2, 3)));
+/// assert!(!eq(tuple, (2, 3, 4)));
+/// ```
+#[rune::function(instance, protocol = EQ)]
+fn eq(this: &Tuple, other: &Tuple) -> VmResult<bool> {
+    Vec::eq_with(this, other, Value::eq_with, &mut EnvProtocolCaller)
+}
+
+/// Perform a partial comparison check with this tuple.
+///
+/// # Examples
+///
+/// ```rune
+/// let tuple = (1, 2, 3);
+///
+/// assert!(tuple > (0, 2, 3));
+/// assert!(tuple < (2, 2, 3));
+/// ```
+#[rune::function(instance, protocol = PARTIAL_CMP)]
+fn partial_cmp(this: &Tuple, other: &Tuple) -> VmResult<Option<Ordering>> {
+    Vec::partial_cmp_with(this, other, &mut EnvProtocolCaller)
+}
+
+/// Perform a total comparison check with this tuple.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::cmp::Ordering;
+/// use std::ops::cmp;
+///
+/// let tuple = (1, 2, 3);
+///
+/// assert_eq!(cmp(tuple, (0, 2, 3)), Ordering::Greater);
+/// assert_eq!(cmp(tuple, (2, 2, 3)), Ordering::Less);
+/// ```
+#[rune::function(instance, protocol = CMP)]
+fn cmp(this: &Tuple, other: &Tuple) -> VmResult<Ordering> {
+    Vec::cmp_with(this, other, &mut EnvProtocolCaller)
 }

@@ -202,7 +202,7 @@ impl Vec {
     }
 
     /// Convert into a rune iterator.
-    pub fn iter_ref(this: Ref<Self>) -> Iterator {
+    pub fn iter_ref(this: Ref<[Value]>) -> Iterator {
         Iterator::from_double_ended("std::vec::Iter", Iter::new(this))
     }
 
@@ -212,30 +212,44 @@ impl Vec {
     }
 
     pub(crate) fn partial_eq_with(
-        a: &Self,
-        b: &Self,
+        a: &[Value],
+        b: Value,
         caller: &mut impl ProtocolCaller,
     ) -> VmResult<bool> {
-        if a.len() != b.len() {
-            return VmResult::Ok(false);
-        }
+        let mut b = vm_try!(b.into_iter_with(caller));
 
-        for (a, b) in a.iter().zip(b.iter()) {
-            if !vm_try!(Value::partial_eq_with(a, b, caller)) {
+        for a in a {
+            let Some(b) = vm_try!(b.next()) else {
+                return VmResult::Ok(false);
+            };
+
+            if !vm_try!(Value::partial_eq_with(a, &b, caller)) {
                 return VmResult::Ok(false);
             }
+        }
+
+        if vm_try!(b.next()).is_some() {
+            return VmResult::Ok(false);
         }
 
         VmResult::Ok(true)
     }
 
-    pub(crate) fn eq_with(a: &Self, b: &Self, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
+    pub(crate) fn eq_with<P>(
+        a: &[Value],
+        b: &[Value],
+        eq: fn(&Value, &Value, &mut P) -> VmResult<bool>,
+        caller: &mut P,
+    ) -> VmResult<bool>
+    where
+        P: ProtocolCaller,
+    {
         if a.len() != b.len() {
             return VmResult::Ok(false);
         }
 
         for (a, b) in a.iter().zip(b.iter()) {
-            if !vm_try!(Value::eq_with(a, b, caller)) {
+            if !vm_try!(eq(a, b, caller)) {
                 return VmResult::Ok(false);
             }
         }
@@ -244,13 +258,13 @@ impl Vec {
     }
 
     pub(crate) fn partial_cmp_with(
-        a: &Self,
-        b: &Self,
+        a: &[Value],
+        b: &[Value],
         caller: &mut impl ProtocolCaller,
     ) -> VmResult<Option<Ordering>> {
-        let mut b = b.inner.iter();
+        let mut b = b.iter();
 
-        for a in a.inner.iter() {
+        for a in a.iter() {
             let Some(b) = b.next() else {
                 return VmResult::Ok(Some(Ordering::Greater));
             };
@@ -269,13 +283,13 @@ impl Vec {
     }
 
     pub(crate) fn cmp_with(
-        a: &Self,
-        b: &Self,
+        a: &[Value],
+        b: &[Value],
         caller: &mut impl ProtocolCaller,
     ) -> VmResult<Ordering> {
-        let mut b = b.inner.iter();
+        let mut b = b.iter();
 
-        for a in a.inner.iter() {
+        for a in a.iter() {
             let Some(b) = b.next() else {
                 return VmResult::Ok(Ordering::Greater);
             };

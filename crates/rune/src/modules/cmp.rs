@@ -1,8 +1,10 @@
 //! The `std::cmp` module.
 
 use core::cmp::Ordering;
+use core::fmt::{self, Write};
 
 use crate as rune;
+use crate::no_std::prelude::*;
 use crate::runtime::{Protocol, Value, VmResult};
 use crate::{ContextError, Module};
 
@@ -16,16 +18,17 @@ pub fn module() -> Result<Module, ContextError> {
             "",
             "# Examples",
             "",
-            "```",
+            "```rune",
             "use std::cmp::Ordering;",
+            "use std::ops::cmp;",
             "",
-            "let result = 1.cmp(2);",
+            "let result = cmp(1, 2);",
             "assert_eq!(Ordering::Less, result);",
             "",
-            "let result = 1.cmp(1);",
+            "let result = cmp(1, 1);",
             "assert_eq!(Ordering::Equal, result);",
             "",
-            "let result = 2.cmp(1);",
+            "let result = cmp(2, 1);",
             "assert_eq!(Ordering::Greater, result);",
             "```",
         ]);
@@ -52,6 +55,7 @@ pub fn module() -> Result<Module, ContextError> {
         lhs == rhs
     })?;
     m.associated_function(Protocol::EQ, |lhs: Ordering, rhs: Ordering| lhs == rhs)?;
+    m.function_meta(ordering_string_debug)?;
     m.function_meta(min)?;
     m.function_meta(max)?;
     Ok(m)
@@ -99,4 +103,18 @@ fn min(v1: Value, v2: Value) -> VmResult<Value> {
         Ordering::Less | Ordering::Equal => v1,
         Ordering::Greater => v2,
     })
+}
+
+/// Debug format [`Ordering`].
+///
+/// # Examples
+///
+/// ```rune
+/// use std::cmp::Ordering;
+///
+/// assert_eq!(format!("{:?}", Ordering::Less), "Less");
+/// ```
+#[rune::function(instance, protocol = STRING_DEBUG)]
+fn ordering_string_debug(this: Ordering, s: &mut String) -> fmt::Result {
+    write!(s, "{:?}", this)
 }

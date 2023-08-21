@@ -44,12 +44,12 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(clone)?;
     m.function_meta(sort_by)?;
     m.function_meta(sort)?;
-    m.associated_function(Protocol::INTO_ITER, Vec::iter_ref)?;
+    m.function_meta(into_iter)?;
     m.associated_function(Protocol::INDEX_SET, Vec::set)?;
-    m.associated_function(Protocol::PARTIAL_EQ, partial_eq)?;
-    m.associated_function(Protocol::EQ, eq)?;
-    m.associated_function(Protocol::PARTIAL_CMP, partial_cmp)?;
-    m.associated_function(Protocol::CMP, cmp)?;
+    m.function_meta(partial_eq)?;
+    m.function_meta(eq)?;
+    m.function_meta(partial_cmp)?;
+    m.function_meta(cmp)?;
     Ok(m)
 }
 
@@ -191,8 +191,10 @@ fn get(this: &Vec, index: Value) -> VmResult<Option<Value>> {
 /// # Examples
 ///
 /// ```rune
+/// use std::ops::cmp;
+///
 /// let values = [1, 2, 3];
-/// values.sort_by(|a, b| b.cmp(a))
+/// values.sort_by(|a, b| cmp(b, a))
 /// ```
 #[rune::function(instance)]
 fn sort_by(vec: &mut Vec, comparator: &Function) -> VmResult<()> {
@@ -323,7 +325,7 @@ fn extend(this: &mut Vec, value: Value) -> VmResult<()> {
 /// ```
 #[rune::function(instance)]
 fn iter(this: Ref<Vec>) -> Iterator {
-    Vec::iter_ref(this)
+    Vec::iter_ref(Ref::map(this, |vec| &**vec))
 }
 
 /// Removes the last element from a vector and returns it, or [`None`] if it is
@@ -452,34 +454,90 @@ fn clone(this: &Vec) -> Vec {
     this.clone()
 }
 
+/// Construct an iterator over the tuple.
+///
+/// # Examples
+///
+/// ```rune
+/// let vec = [1, 2, 3];
+/// let out = [];
+///
+/// for v in vec {
+///     out.push(v);
+/// }
+///
+/// assert_eq!(out, [1, 2, 3]);
+/// ```
+#[rune::function(instance, protocol = INTO_ITER)]
+fn into_iter(this: Ref<Vec>) -> Iterator {
+    Vec::iter_ref(Ref::map(this, |vec| &**vec))
+}
+
+/// Perform a partial equality check with this vector.
+///
+/// This can take any argument which can be converted into an iterator using
+/// [`INTO_ITER`].
+///
+/// # Examples
+///
+/// ```rune
+/// let vec = [1, 2, 3];
+///
+/// assert!(vec == [1, 2, 3]);
+/// assert!(vec == (1..=3));
+/// assert!(vec != [2, 3, 4]);
+/// ```
+#[rune::function(instance, protocol = PARTIAL_EQ)]
 fn partial_eq(this: &Vec, other: Value) -> VmResult<bool> {
-    let mut other = vm_try!(other.into_iter());
-
-    for a in this.as_slice() {
-        let Some(b) = vm_try!(other.next()) else {
-            return VmResult::Ok(false);
-        };
-
-        if !vm_try!(Value::partial_eq(a, &b)) {
-            return VmResult::Ok(false);
-        }
-    }
-
-    if vm_try!(other.next()).is_some() {
-        return VmResult::Ok(false);
-    }
-
-    VmResult::Ok(true)
+    Vec::partial_eq_with(this, other, &mut EnvProtocolCaller)
 }
 
+/// Perform a total equality check with this vector.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::ops::eq;
+///
+/// let vec = [1, 2, 3];
+///
+/// assert!(eq(vec, [1, 2, 3]));
+/// assert!(!eq(vec, [2, 3, 4]));
+/// ```
+#[rune::function(instance, protocol = EQ)]
 fn eq(this: &Vec, other: &Vec) -> VmResult<bool> {
-    Vec::eq_with(this, other, &mut EnvProtocolCaller)
+    Vec::eq_with(this, other, Value::eq_with, &mut EnvProtocolCaller)
 }
 
+/// Perform a partial comparison check with this vector.
+///
+/// # Examples
+///
+/// ```rune
+/// let vec = [1, 2, 3];
+///
+/// assert!(vec > [0, 2, 3]);
+/// assert!(vec < [2, 2, 3]);
+/// ```
+#[rune::function(instance, protocol = PARTIAL_CMP)]
 fn partial_cmp(this: &Vec, other: &Vec) -> VmResult<Option<Ordering>> {
     Vec::partial_cmp_with(this, other, &mut EnvProtocolCaller)
 }
 
+/// Perform a total comparison check with this vector.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::cmp::Ordering;
+/// use std::ops::cmp;
+///
+/// let vec = [1, 2, 3];
+///
+/// assert_eq!(cmp(vec, [0, 2, 3]), Ordering::Greater);
+/// assert_eq!(cmp(vec, [2, 2, 3]), Ordering::Less);
+/// ```
+#[rune::function(instance, protocol = CMP)]
 fn cmp(this: &Vec, other: &Vec) -> VmResult<Ordering> {
     Vec::cmp_with(this, other, &mut EnvProtocolCaller)
 }

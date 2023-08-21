@@ -13,7 +13,6 @@ pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", ["i64"]);
 
     module.function(["parse"], parse)?;
-    module.function_meta(cmp)?;
     module.function_meta(to_float)?;
 
     module.function_meta(max)?;
@@ -43,6 +42,10 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(is_positive)?;
     module.function_meta(is_negative)?;
 
+    module.function_meta(partial_eq)?;
+    module.function_meta(eq)?;
+    module.function_meta(partial_cmp)?;
+    module.function_meta(cmp)?;
     module.function_meta(to_string)?;
 
     module.constant(["MIN"], i64::MIN)?.docs([
@@ -83,26 +86,6 @@ pub fn module() -> Result<Module, ContextError> {
 /// ```
 fn parse(s: &str) -> Result<i64, ParseIntError> {
     str::parse::<i64>(s)
-}
-
-/// This method returns an Ordering between self and other.
-///
-/// By convention, `self.cmp(other)` returns the ordering matching the
-/// expression `self <operator> other` if true.
-///
-/// # Examples
-///
-/// ```rune
-/// use std::cmp::Ordering;
-///
-/// assert_eq!(5.cmp(10), Ordering::Less);
-/// assert_eq!(10.cmp(5), Ordering::Greater);
-/// assert_eq!(5.cmp(5), Ordering::Equal);
-/// ```
-#[rune::function(instance)]
-#[inline]
-fn cmp(this: i64, rhs: i64) -> Ordering {
-    this.cmp(&rhs)
 }
 
 /// Convert an `int` to a `float`.
@@ -531,6 +514,76 @@ fn is_positive(this: i64) -> bool {
 #[inline]
 fn is_negative(this: i64) -> bool {
     i64::is_negative(this)
+}
+
+/// Test two integers for partial equality.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::ops::partial_eq;
+///
+/// assert_eq!(partial_eq(5, 5), true);
+/// assert_eq!(partial_eq(5, 10), false);
+/// assert_eq!(partial_eq(10, 5), false);
+/// ```
+#[rune::function(instance, protocol = PARTIAL_EQ)]
+#[inline]
+fn partial_eq(this: i64, rhs: i64) -> bool {
+    this.eq(&rhs)
+}
+
+/// Test two integers for total equality.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::ops::eq;
+///
+/// assert_eq!(eq(5, 5), true);
+/// assert_eq!(eq(5, 10), false);
+/// assert_eq!(eq(10, 5), false);
+/// ```
+#[rune::function(instance, protocol = EQ)]
+#[inline]
+fn eq(this: i64, rhs: i64) -> bool {
+    this.eq(&rhs)
+}
+
+/// Perform a partial ordered comparison between two integers.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::cmp::Ordering;
+/// use std::ops::partial_cmp;
+///
+/// assert_eq!(partial_cmp(5, 10), Some(Ordering::Less));
+/// assert_eq!(partial_cmp(10, 5), Some(Ordering::Greater));
+/// assert_eq!(partial_cmp(5, 5), Some(Ordering::Equal));
+/// ```
+#[rune::function(instance, protocol = PARTIAL_CMP)]
+#[inline]
+fn partial_cmp(this: i64, rhs: i64) -> Option<Ordering> {
+    this.partial_cmp(&rhs)
+}
+
+/// Perform a partial ordered comparison between two integers.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::cmp::Ordering;
+/// use std::ops::cmp;
+///
+/// assert_eq!(cmp(5, 10), Ordering::Less);
+/// assert_eq!(cmp(10, 5), Ordering::Greater);
+/// assert_eq!(cmp(5, 5), Ordering::Equal);
+/// ```
+#[rune::function(instance, protocol = CMP)]
+#[inline]
+fn cmp(this: i64, rhs: i64) -> Ordering {
+    this.cmp(&rhs)
 }
 
 /// Returns the number as a string.

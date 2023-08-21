@@ -1004,6 +1004,7 @@ impl<T: ?Sized> Ref<T> {
     /// assert_eq!(&*value, &[1u32, 2u32][..]);
     /// # Ok::<_, rune::Error>(())
     /// ```
+    #[inline]
     pub fn map<U: ?Sized, F>(this: Self, f: F) -> Ref<U>
     where
         F: FnOnce(&T) -> &U,
