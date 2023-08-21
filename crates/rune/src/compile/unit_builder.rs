@@ -575,7 +575,6 @@ impl UnitBuilder {
         );
 
         self.debug_info_mut().functions.insert(hash, signature);
-
         self.add_assembly(location, assembly, unit_encoder)?;
         Ok(())
     }
@@ -833,7 +832,26 @@ impl UnitBuilder {
                         .with_span(span)?;
                 }
                 AssemblyInst::Raw { raw } => {
-                    storage.encode(raw).with_span(span)?;
+                    // Optimization to avoid performing lookups for recursive
+                    // function calls.
+                    let inst = match raw {
+                        inst @ Inst::Call { hash, args } => {
+                            if let Some(UnitFn::Offset { offset, call, .. }) =
+                                self.functions.get(&hash)
+                            {
+                                Inst::CallOffset {
+                                    offset: *offset,
+                                    call: *call,
+                                    args,
+                                }
+                            } else {
+                                inst
+                            }
+                        }
+                        inst => inst,
+                    };
+
+                    storage.encode(inst).with_span(span)?;
                 }
             }
 

@@ -4,7 +4,7 @@ use musli::{Decode, Encode};
 use rune_macros::InstDisplay;
 use serde::{Deserialize, Serialize};
 
-use crate::runtime::{FormatSpec, Type, Value};
+use crate::runtime::{Call, FormatSpec, Type, Value};
 use crate::Hash;
 
 /// Pre-canned panic reasons.
@@ -124,6 +124,19 @@ pub enum Inst {
         hash: Hash,
         /// The number of arguments to store in the environment on the stack.
         count: usize,
+    },
+    /// Perform a function call within the same unit.
+    ///
+    /// It will construct a new stack frame which includes the last `args`
+    /// number of entries.
+    #[musli(packed)]
+    CallOffset {
+        /// The offset of the function being called in the same unit.
+        offset: usize,
+        /// The calling convention to use.
+        call: Call,
+        /// The number of arguments expected on the stack for this call.
+        args: usize,
     },
     /// Perform a function call.
     ///
