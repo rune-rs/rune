@@ -8,6 +8,7 @@ use crate::compile::meta;
 #[cfg(feature = "doc")]
 use crate::compile::Docs;
 use crate::compile::{ComponentRef, ContextError, IntoComponent, Item, ItemBuf, MetaInfo, Names};
+use crate::hash;
 use crate::module::{
     Fields, InternalEnum, Module, ModuleAssociated, ModuleAttributeMacro, ModuleConstant,
     ModuleFunction, ModuleMacro, ModuleType, TypeSpecification,
@@ -86,7 +87,7 @@ pub struct Context {
     /// Store item to hash mapping.
     item_to_hash: HashMap<ItemBuf, BTreeSet<Hash>>,
     /// Registered native function handlers.
-    functions: HashMap<Hash, Arc<FunctionHandler>>,
+    functions: hash::Map<Arc<FunctionHandler>>,
     /// Information on associated types.
     #[cfg(feature = "doc")]
     associated: HashMap<Hash, Vec<Hash>>,
@@ -103,7 +104,7 @@ pub struct Context {
     /// Registered crates.
     crates: HashSet<Box<str>>,
     /// Constants visible in this context
-    constants: HashMap<Hash, ConstValue>,
+    constants: hash::Map<ConstValue>,
 }
 
 impl Context {

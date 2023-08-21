@@ -12,6 +12,7 @@ use crate::no_std::sync::Arc;
 use crate::ast::{Span, Spanned};
 use crate::compile::meta;
 use crate::compile::{self, Assembly, AssemblyInst, ErrorKind, Item, Location, Pool, WithSpan};
+use crate::hash;
 use crate::query::QueryInner;
 use crate::runtime::debug::{DebugArgs, DebugSignature};
 use crate::runtime::unit::UnitEncoder;
@@ -50,7 +51,7 @@ pub(crate) struct UnitBuilder {
     /// Registered re-exports.
     reexports: HashMap<Hash, Hash>,
     /// Where functions are located in the collection of instructions.
-    functions: HashMap<Hash, UnitFn>,
+    functions: hash::Map<UnitFn>,
     /// Function by address.
     functions_rev: HashMap<usize, Hash>,
     /// A static string.
@@ -71,9 +72,9 @@ pub(crate) struct UnitBuilder {
     /// Used to detect duplicates in the collection of static object keys.
     static_object_keys_rev: HashMap<Hash, usize>,
     /// Runtime type information for types.
-    rtti: HashMap<Hash, Arc<Rtti>>,
+    rtti: hash::Map<Arc<Rtti>>,
     /// Runtime type information for variants.
-    variant_rtti: HashMap<Hash, Arc<VariantRtti>>,
+    variant_rtti: hash::Map<Arc<VariantRtti>>,
     /// The current label count.
     label_count: usize,
     /// A collection of required function hashes.
@@ -81,7 +82,7 @@ pub(crate) struct UnitBuilder {
     /// Debug info if available for unit.
     debug: Option<Box<DebugInfo>>,
     /// Constant values
-    constants: HashMap<Hash, ConstValue>,
+    constants: hash::Map<ConstValue>,
 }
 
 impl UnitBuilder {

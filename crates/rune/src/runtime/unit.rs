@@ -9,13 +9,13 @@ mod storage;
 
 use core::fmt;
 
-use crate::no_std::collections::HashMap;
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
+use crate::hash;
 use crate::runtime::{
     Call, ConstValue, DebugInfo, Inst, Rtti, StaticString, VariantRtti, VmError, VmErrorKind,
 };
@@ -53,7 +53,7 @@ pub struct Logic<S = DefaultStorage> {
     /// Storage for the unit.
     storage: S,
     /// Where functions are located in the collection of instructions.
-    functions: HashMap<Hash, UnitFn>,
+    functions: hash::Map<UnitFn>,
     /// A static string.
     static_strings: Vec<Arc<StaticString>>,
     /// A static byte string.
@@ -66,11 +66,11 @@ pub struct Logic<S = DefaultStorage> {
     /// All keys are sorted with the default string sort.
     static_object_keys: Vec<Box<[String]>>,
     /// Runtime information for types.
-    rtti: HashMap<Hash, Arc<Rtti>>,
+    rtti: hash::Map<Arc<Rtti>>,
     /// Runtime information for variants.
-    variant_rtti: HashMap<Hash, Arc<VariantRtti>>,
+    variant_rtti: hash::Map<Arc<VariantRtti>>,
     /// Named constants
-    constants: HashMap<Hash, ConstValue>,
+    constants: hash::Map<ConstValue>,
 }
 
 impl<S> Unit<S> {
@@ -86,14 +86,14 @@ impl<S> Unit<S> {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         storage: S,
-        functions: HashMap<Hash, UnitFn>,
+        functions: hash::Map<UnitFn>,
         static_strings: Vec<Arc<StaticString>>,
         static_bytes: Vec<Vec<u8>>,
         static_object_keys: Vec<Box<[String]>>,
-        rtti: HashMap<Hash, Arc<Rtti>>,
-        variant_rtti: HashMap<Hash, Arc<VariantRtti>>,
+        rtti: hash::Map<Arc<Rtti>>,
+        variant_rtti: hash::Map<Arc<VariantRtti>>,
         debug: Option<Box<DebugInfo>>,
-        constants: HashMap<Hash, ConstValue>,
+        constants: hash::Map<ConstValue>,
     ) -> Self {
         Self {
             logic: Logic {

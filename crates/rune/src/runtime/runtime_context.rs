@@ -1,9 +1,9 @@
 use core::fmt;
 
-use crate::no_std::collections::HashMap;
 use crate::no_std::sync::Arc;
 
 use crate::compile;
+use crate::hash;
 use crate::macros::{MacroContext, TokenStream};
 use crate::runtime::{ConstValue, Stack, VmResult};
 use crate::Hash;
@@ -29,15 +29,15 @@ pub(crate) type AttributeMacroHandler = dyn Fn(&mut MacroContext, &TokenStream, 
 #[derive(Default, Clone)]
 pub struct RuntimeContext {
     /// Registered native function handlers.
-    functions: HashMap<Hash, Arc<FunctionHandler>>,
+    functions: hash::Map<Arc<FunctionHandler>>,
     /// Named constant values
-    constants: HashMap<Hash, ConstValue>,
+    constants: hash::Map<ConstValue>,
 }
 
 impl RuntimeContext {
     pub(crate) fn new(
-        functions: HashMap<Hash, Arc<FunctionHandler>>,
-        constants: HashMap<Hash, ConstValue>,
+        functions: hash::Map<Arc<FunctionHandler>>,
+        constants: hash::Map<ConstValue>,
     ) -> Self {
         Self {
             functions,
