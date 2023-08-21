@@ -19,7 +19,7 @@ pub(crate) struct FieldAttrs {
     /// `#[rune(iter)]`
     pub(crate) iter: Option<Span>,
     /// `#[rune(skip)]`
-    skip: Option<Span>,
+    pub(crate) skip: Option<Span>,
     /// `#[rune(optional)]`
     pub(crate) optional: Option<Span>,
     /// `#[rune(meta)]`
@@ -145,6 +145,11 @@ impl Context {
     /// Register an error.
     pub(crate) fn error(&self, error: syn::Error) {
         self.errors.borrow_mut().push(error)
+    }
+
+    /// Test if context has any errors.
+    pub(crate) fn has_errors(&self) -> bool {
+        !self.errors.borrow().is_empty()
     }
 
     /// Get a field identifier.
@@ -525,115 +530,6 @@ impl Context {
         Ok(Some(parse_path_compat(input)?))
     }
 
-    /// Build an inner spanned decoder from an iterator.
-    pub(crate) fn build_spanned_iter<'a>(
-        &self,
-        tokens: &Tokens,
-        back: bool,
-        mut it: impl Iterator<Item = (Result<TokenStream, ()>, &'a syn::Field)>,
-    ) -> Result<(bool, Option<TokenStream>), ()> {
-        let mut quote = None::<TokenStream>;
-
-        loop {
-            let (var, field) = match it.next() {
-                Some((var, field)) => (var?, field),
-                None => {
-                    return Ok((true, quote));
-                }
-            };
-
-            let attrs = self.field_attrs(&field.attrs)?;
-
-            let spanned = &tokens.spanned;
-
-            if attrs.skip() {
-                continue;
-            }
-
-            if attrs.optional.is_some() {
-                let option_spanned = &tokens.option_spanned;
-                let next = quote_spanned! {
-                    field.span() => #option_spanned::option_span(#var)
-                };
-
-                if quote.is_some() {
-                    quote = Some(quote_spanned! {
-                        field.span() => #quote.or_else(|| #next)
-                    });
-                } else {
-                    quote = Some(next);
-                }
-
-                continue;
-            }
-
-            if attrs.iter.is_some() {
-                let next = if back {
-                    quote_spanned!(field.span() => next_back)
-                } else {
-                    quote_spanned!(field.span() => next)
-                };
-
-                let spanned = &tokens.spanned;
-                let next = quote_spanned! {
-                    field.span() => IntoIterator::into_iter(#var).#next().map(#spanned::span)
-                };
-
-                if quote.is_some() {
-                    quote = Some(quote_spanned! {
-                        field.span() => #quote.or_else(|| #next)
-                    });
-                } else {
-                    quote = Some(next);
-                }
-
-                continue;
-            }
-
-            if quote.is_some() {
-                quote = Some(quote_spanned! {
-                    field.span() => #quote.unwrap_or_else(|| #spanned::span(#var))
-                });
-            } else {
-                quote = Some(quote_spanned! {
-                    field.span() => #spanned::span(#var)
-                });
-            }
-
-            return Ok((false, quote));
-        }
-    }
-
-    /// Explicit span for fields.
-    pub(crate) fn explicit_span(
-        &self,
-        named: &syn::FieldsNamed,
-    ) -> Result<Option<TokenStream>, ()> {
-        let mut explicit_span = None;
-
-        for field in &named.named {
-            let attrs = self.field_attrs(&field.attrs)?;
-
-            if let Some(span) = attrs.span {
-                if explicit_span.is_some() {
-                    self.error(syn::Error::new(
-                        span,
-                        "Only one field can be marked `#[rune(span)]`",
-                    ));
-                    return Err(());
-                }
-
-                let ident = &field.ident;
-
-                explicit_span = Some(quote_spanned! {
-                    field.span() => self.#ident
-                });
-            }
-        }
-
-        Ok(explicit_span)
-    }
-
     pub(crate) fn tokens_with_module(&self, module: Option<&syn::Path>) -> Tokens {
         let mut core = syn::Path {
             leading_colon: Some(<Token![::]>::default()),
@@ -707,6 +603,10 @@ impl Context {
             variant_data: path(m, ["runtime", "VariantData"]),
             vm_error: path(m, ["runtime", "VmError"]),
             vm_result: path(m, ["runtime", "VmResult"]),
+            into_iterator: path(&core, ["iter", "IntoIterator"]),
+            iterator: path(&core, ["iter", "Iterator"]),
+            double_ended_iterator: path(&core, ["iter", "DoubleEndedIterator"]),
+            option: path(&core, ["option", "Option"]),
         }
     }
 }
@@ -784,6 +684,10 @@ pub(crate) struct Tokens {
     pub(crate) variant_data: syn::Path,
     pub(crate) vm_error: syn::Path,
     pub(crate) vm_result: syn::Path,
+    pub(crate) into_iterator: syn::Path,
+    pub(crate) iterator: syn::Path,
+    pub(crate) double_ended_iterator: syn::Path,
+    pub(crate) option: syn::Path,
 }
 
 impl Tokens {

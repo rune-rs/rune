@@ -44,6 +44,7 @@ pub struct ExprSelect {
     /// The open brace.
     pub open: T!['{'],
     /// The branches of the select.
+    #[rune(optional)]
     pub branches: Vec<(ExprSelectBranch, Option<T![,]>)>,
     /// The close brace.
     pub close: T!['}'],

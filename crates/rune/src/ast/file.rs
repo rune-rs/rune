@@ -53,7 +53,7 @@ fn ast_parse() {
 }
 
 /// A rune file.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, OptionSpanned)]
 #[non_exhaustive]
 pub struct File {
     /// Top-level shebang.
@@ -65,20 +65,6 @@ pub struct File {
     /// All the declarations in a file.
     #[rune(iter)]
     pub items: Vec<(ast::Item, Option<T![;]>)>,
-}
-
-impl OptionSpanned for File {
-    fn option_span(&self) -> Option<Span> {
-        let start = self.attributes.option_span();
-        let end = self.attributes.option_span();
-
-        match (start, end) {
-            (Some(start), Some(end)) => Some(start.join(end)),
-            (Some(start), None) => Some(start),
-            (None, Some(end)) => Some(end),
-            _ => None,
-        }
-    }
 }
 
 impl Parse for File {

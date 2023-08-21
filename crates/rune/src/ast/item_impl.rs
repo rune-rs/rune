@@ -26,6 +26,7 @@ pub struct ItemImpl {
     /// The open brace.
     pub open: T!['{'],
     /// The collection of functions.
+    #[rune(iter)]
     pub functions: Vec<ast::ItemFn>,
     /// The close brace.
     pub close: T!['}'],

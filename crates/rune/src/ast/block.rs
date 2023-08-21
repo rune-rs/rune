@@ -55,6 +55,7 @@ pub struct Block {
     /// The close brace.
     pub open: T!['{'],
     /// Statements in the block.
+    #[rune(iter)]
     pub statements: Vec<ast::Stmt>,
     /// The close brace.
     pub close: T!['}'],

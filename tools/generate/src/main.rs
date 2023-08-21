@@ -132,6 +132,7 @@ fn main() -> Result<()> {
     let peek = &rust::import("crate::parse", "Peek");
     let span = &rust::import("crate::ast", "Span");
     let spanned = &rust::import("crate::ast", "Spanned");
+    let option_spanned = &rust::import("crate::ast", "OptionSpanned");
     let lit_source = &rust::import("crate::ast", "LitSource");
     let to_tokens = &rust::import("crate::macros", "ToTokens");
     let token = &rust::import("crate::ast", "Token");
@@ -155,6 +156,12 @@ fn main() -> Result<()> {
                 impl $spanned for $(t.variant()) {
                     fn span(&self) -> $span {
                         self.span
+                    }
+                }
+
+                impl $option_spanned for $(t.variant()) {
+                    fn option_span(&self) -> Option<$span> {
+                        Some(self.span)
                     }
                 }
 
