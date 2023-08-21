@@ -4,7 +4,7 @@ use core::fmt;
 
 use crate as rune;
 use crate::no_std::prelude::*;
-use crate::runtime::{Function, Iterator, Panic, Protocol, Shared, Value, VmResult};
+use crate::runtime::{Function, Iterator, Panic, Shared, Value, VmResult};
 use crate::{ContextError, Module};
 
 /// Construct the `std::option` module.
@@ -25,7 +25,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(transpose)?;
     module.function_meta(ok_or)?;
     module.function_meta(ok_or_else)?;
-    module.associated_function(Protocol::INTO_ITER, __rune_fn__iter)?;
+    module.function_meta(into_iter)?;
     Ok(module)
 }
 
@@ -135,6 +135,26 @@ fn is_none(this: &Option<Value>) -> bool {
 #[rune::function(instance)]
 fn iter(option: Option<Value>) -> Iterator {
     Iterator::from_double_ended("std::option::Iter", option.into_iter())
+}
+
+/// Construct an iterator over an optional value.
+///
+/// # Examples
+///
+/// ```rune
+/// let value = Some(1);
+///
+/// let out = [];
+///
+/// for v in value {
+///     out.push(v);
+/// }
+///
+/// assert_eq!(out, [1]);
+/// ```
+#[rune::function(instance, protocol = INTO_ITER)]
+fn into_iter(option: Option<Value>) -> Iterator {
+    __rune_fn__iter(option)
 }
 
 /// Returns [`None`] if the option is [`None`], otherwise calls `f` with the

@@ -1,4 +1,3 @@
-use core::cmp::Ordering;
 use core::fmt;
 use core::ops;
 use core::slice;
@@ -8,8 +7,8 @@ use crate::no_std::prelude::*;
 use crate::compile::Named;
 use crate::module::InstallWith;
 use crate::runtime::{
-    ConstValue, FromValue, Mut, ProtocolCaller, RawMut, RawRef, RawStr, Ref, Shared, ToValue,
-    UnsafeToMut, UnsafeToRef, Value, VmErrorKind, VmResult,
+    ConstValue, FromValue, Mut, RawMut, RawRef, RawStr, Ref, Shared, ToValue, UnsafeToMut,
+    UnsafeToRef, Value, VmErrorKind, VmResult,
 };
 
 /// The type of a tuple slice.
@@ -42,88 +41,6 @@ impl Tuple {
         };
 
         VmResult::Ok(Some(vm_try!(T::from_value(value))))
-    }
-
-    pub(crate) fn partial_eq_with(
-        a: &Self,
-        b: &Self,
-        caller: &mut impl ProtocolCaller,
-    ) -> VmResult<bool> {
-        if a.len() != b.len() {
-            return VmResult::Ok(false);
-        }
-
-        for (a, b) in a.iter().zip(b.iter()) {
-            if !vm_try!(Value::partial_eq_with(a, b, caller)) {
-                return VmResult::Ok(false);
-            }
-        }
-
-        VmResult::Ok(true)
-    }
-
-    pub(crate) fn eq_with(a: &Self, b: &Self, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
-        if a.len() != b.len() {
-            return VmResult::Ok(false);
-        }
-
-        for (a, b) in a.iter().zip(b.iter()) {
-            if !vm_try!(Value::eq_with(a, b, caller)) {
-                return VmResult::Ok(false);
-            }
-        }
-
-        VmResult::Ok(true)
-    }
-
-    pub(crate) fn partial_cmp_with(
-        a: &Self,
-        b: &Self,
-        caller: &mut impl ProtocolCaller,
-    ) -> VmResult<Option<Ordering>> {
-        let mut b = b.iter();
-
-        for a in a.iter() {
-            let Some(b) = b.next() else {
-                return VmResult::Ok(Some(Ordering::Greater));
-            };
-
-            match vm_try!(Value::partial_cmp_with(a, b, caller)) {
-                Some(Ordering::Equal) => continue,
-                other => return VmResult::Ok(other),
-            }
-        }
-
-        if b.next().is_some() {
-            return VmResult::Ok(Some(Ordering::Less));
-        }
-
-        VmResult::Ok(Some(Ordering::Equal))
-    }
-
-    pub(crate) fn cmp_with(
-        a: &Self,
-        b: &Self,
-        caller: &mut impl ProtocolCaller,
-    ) -> VmResult<Ordering> {
-        let mut b = b.iter();
-
-        for a in a.iter() {
-            let Some(b) = b.next() else {
-                return VmResult::Ok(Ordering::Greater);
-            };
-
-            match vm_try!(Value::cmp_with(a, b, caller)) {
-                Ordering::Equal => continue,
-                other => return VmResult::Ok(other),
-            }
-        }
-
-        if b.next().is_some() {
-            return VmResult::Ok(Ordering::Less);
-        }
-
-        VmResult::Ok(Ordering::Equal)
     }
 }
 

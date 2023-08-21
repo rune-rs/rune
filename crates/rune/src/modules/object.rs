@@ -5,9 +5,7 @@ use core::cmp::Ordering;
 use crate::no_std::prelude::*;
 
 use crate as rune;
-use crate::runtime::{
-    EnvProtocolCaller, FromValue, Iterator, Object, Protocol, Ref, Value, VmResult,
-};
+use crate::runtime::{EnvProtocolCaller, Iterator, Object, Protocol, Value, VmResult};
 use crate::{ContextError, Module};
 
 /// Construct the `std::object` module.
@@ -30,10 +28,10 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(keys)?;
     m.function_meta(values)?;
     m.associated_function(Protocol::INTO_ITER, Object::rune_iter)?;
-    m.associated_function(Protocol::PARTIAL_EQ, partial_eq)?;
-    m.associated_function(Protocol::EQ, eq)?;
-    m.associated_function(Protocol::PARTIAL_CMP, partial_cmp)?;
-    m.associated_function(Protocol::CMP, cmp)?;
+    m.function_meta(partial_eq)?;
+    m.function_meta(eq)?;
+    m.function_meta(partial_cmp)?;
+    m.function_meta(cmp)?;
     Ok(m)
 }
 
@@ -126,40 +124,22 @@ fn values(object: &Object) -> Iterator {
     Iterator::from_double_ended("std::object::Values", iter)
 }
 
+#[rune::function(instance, protocol = PARTIAL_EQ)]
 fn partial_eq(this: &Object, other: Value) -> VmResult<bool> {
-    let mut other = vm_try!(other.into_iter());
-
-    for (k1, v1) in this.iter() {
-        let Some(value) = vm_try!(other.next()) else {
-            return VmResult::Ok(false);
-        };
-
-        let (k2, v2) = vm_try!(<(Ref<String>, Value)>::from_value(value));
-
-        if k1 != &*k2 {
-            return VmResult::Ok(false);
-        }
-
-        if !vm_try!(Value::partial_eq(v1, &v2)) {
-            return VmResult::Ok(false);
-        }
-    }
-
-    if vm_try!(other.next()).is_some() {
-        return VmResult::Ok(false);
-    }
-
-    VmResult::Ok(true)
+    Object::partial_eq_with(this, other, &mut EnvProtocolCaller)
 }
 
+#[rune::function(instance, protocol = EQ)]
 fn eq(this: &Object, other: &Object) -> VmResult<bool> {
-    Object::eq_with(this, other, &mut EnvProtocolCaller)
+    Object::eq_with(this, other, Value::eq_with, &mut EnvProtocolCaller)
 }
 
+#[rune::function(instance, protocol = PARTIAL_CMP)]
 fn partial_cmp(this: &Object, other: &Object) -> VmResult<Option<Ordering>> {
     Object::partial_cmp_with(this, other, &mut EnvProtocolCaller)
 }
 
+#[rune::function(instance, protocol = CMP)]
 fn cmp(this: &Object, other: &Object) -> VmResult<Ordering> {
     Object::cmp_with(this, other, &mut EnvProtocolCaller)
 }

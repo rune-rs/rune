@@ -11,7 +11,7 @@ use crate::no_std::prelude::*;
 use crate as rune;
 use crate::compile::{ItemBuf, Named};
 use crate::module::InstallWith;
-use crate::runtime::{FromValue, Iterator, ProtocolCaller, RawStr, ToValue, Value, VmResult};
+use crate::runtime::{FromValue, Iterator, ProtocolCaller, RawStr, Ref, ToValue, Value, VmResult};
 
 /// An owning iterator over the entries of a `Object`.
 ///
@@ -296,27 +296,43 @@ impl Object {
 
     pub(crate) fn partial_eq_with(
         a: &Self,
-        b: &Self,
+        b: Value,
         caller: &mut impl ProtocolCaller,
     ) -> VmResult<bool> {
-        if a.inner.len() != b.inner.len() {
-            return VmResult::Ok(false);
-        }
+        let mut b = vm_try!(b.into_iter());
 
-        for (key, a) in a.inner.iter() {
-            let Some(b) = b.inner.get(key) else {
+        for (k1, v1) in a.iter() {
+            let Some(value) = vm_try!(b.next()) else {
                 return VmResult::Ok(false);
             };
 
-            if !vm_try!(Value::partial_eq_with(a, b, caller)) {
+            let (k2, v2) = vm_try!(<(Ref<String>, Value)>::from_value(value));
+
+            if k1 != &*k2 {
                 return VmResult::Ok(false);
             }
+
+            if !vm_try!(Value::partial_eq_with(v1, &v2, caller)) {
+                return VmResult::Ok(false);
+            }
+        }
+
+        if vm_try!(b.next()).is_some() {
+            return VmResult::Ok(false);
         }
 
         VmResult::Ok(true)
     }
 
-    pub(crate) fn eq_with(a: &Self, b: &Self, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
+    pub(crate) fn eq_with<P>(
+        a: &Self,
+        b: &Self,
+        eq: fn(&Value, &Value, &mut P) -> VmResult<bool>,
+        caller: &mut P,
+    ) -> VmResult<bool>
+    where
+        P: ProtocolCaller,
+    {
         if a.inner.len() != b.inner.len() {
             return VmResult::Ok(false);
         }
@@ -326,7 +342,7 @@ impl Object {
                 return VmResult::Ok(false);
             };
 
-            if !vm_try!(Value::eq_with(a, b, caller)) {
+            if !vm_try!(eq(a, b, caller)) {
                 return VmResult::Ok(false);
             }
         }

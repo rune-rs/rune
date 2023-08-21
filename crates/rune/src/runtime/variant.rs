@@ -2,7 +2,9 @@ use core::cmp::Ordering;
 use core::fmt;
 
 use crate::no_std::sync::Arc;
-use crate::runtime::{Object, OwnedTuple, ProtocolCaller, Tuple, TypeInfo, VariantRtti, VmResult};
+use crate::runtime::{
+    Object, OwnedTuple, ProtocolCaller, TypeInfo, Value, VariantRtti, Vec, VmResult,
+};
 
 /// The variant of a type.
 pub struct Variant {
@@ -71,9 +73,11 @@ impl Variant {
 
         match (&a.data, &b.data) {
             (VariantData::Empty, VariantData::Empty) => VmResult::Ok(true),
-            (VariantData::Tuple(a), VariantData::Tuple(b)) => Tuple::partial_eq_with(a, b, caller),
+            (VariantData::Tuple(a), VariantData::Tuple(b)) => {
+                Vec::eq_with(a, b, Value::partial_eq_with, caller)
+            }
             (VariantData::Struct(a), VariantData::Struct(b)) => {
-                Object::partial_eq_with(a, b, caller)
+                Object::eq_with(a, b, Value::partial_eq_with, caller)
             }
             _ => VmResult::panic("data mismatch between variants"),
         }
@@ -91,8 +95,12 @@ impl Variant {
 
         match (&a.data, &b.data) {
             (VariantData::Empty, VariantData::Empty) => VmResult::Ok(true),
-            (VariantData::Tuple(a), VariantData::Tuple(b)) => Tuple::eq_with(a, b, caller),
-            (VariantData::Struct(a), VariantData::Struct(b)) => Object::eq_with(a, b, caller),
+            (VariantData::Tuple(a), VariantData::Tuple(b)) => {
+                Vec::eq_with(a, b, Value::eq_with, caller)
+            }
+            (VariantData::Struct(a), VariantData::Struct(b)) => {
+                Object::eq_with(a, b, Value::eq_with, caller)
+            }
             _ => VmResult::panic("data mismatch between variants"),
         }
     }
@@ -114,7 +122,7 @@ impl Variant {
 
         match (&a.data, &b.data) {
             (VariantData::Empty, VariantData::Empty) => VmResult::Ok(Some(Ordering::Equal)),
-            (VariantData::Tuple(a), VariantData::Tuple(b)) => Tuple::partial_cmp_with(a, b, caller),
+            (VariantData::Tuple(a), VariantData::Tuple(b)) => Vec::partial_cmp_with(a, b, caller),
             (VariantData::Struct(a), VariantData::Struct(b)) => {
                 Object::partial_cmp_with(a, b, caller)
             }
@@ -139,7 +147,7 @@ impl Variant {
 
         match (&a.data, &b.data) {
             (VariantData::Empty, VariantData::Empty) => VmResult::Ok(Ordering::Equal),
-            (VariantData::Tuple(a), VariantData::Tuple(b)) => Tuple::cmp_with(a, b, caller),
+            (VariantData::Tuple(a), VariantData::Tuple(b)) => Vec::cmp_with(a, b, caller),
             (VariantData::Struct(a), VariantData::Struct(b)) => Object::cmp_with(a, b, caller),
             _ => VmResult::panic("data mismatch between variants"),
         }

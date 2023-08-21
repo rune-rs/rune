@@ -16,8 +16,8 @@ use crate::runtime::{
     AccessKind, AnyObj, Bytes, ConstValue, EnvProtocolCaller, Format, FromValue, FullTypeOf,
     Function, Future, Generator, GeneratorState, Iterator, MaybeTypeOf, Mut, Object, OwnedTuple,
     Protocol, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
-    RangeToInclusive, RawMut, RawRef, Ref, Shared, StaticString, Stream, ToValue, Tuple, Type,
-    TypeInfo, Variant, Vec, Vm, VmError, VmErrorKind, VmIntegerRepr, VmResult,
+    RangeToInclusive, RawMut, RawRef, Ref, Shared, StaticString, Stream, ToValue, Type, TypeInfo,
+    Variant, Vec, Vm, VmError, VmErrorKind, VmIntegerRepr, VmResult,
 };
 use crate::{Any, Hash};
 
@@ -528,14 +528,22 @@ impl Value {
     ///
     /// This function will error if called outside of a virtual machine context.
     pub fn into_iter(self) -> VmResult<Iterator> {
+        self.into_iter_with(&mut EnvProtocolCaller)
+    }
+
+    pub(crate) fn into_iter_with(self, caller: &mut impl ProtocolCaller) -> VmResult<Iterator> {
         let target = match self {
             Value::Iterator(iterator) => return VmResult::Ok(vm_try!(iterator.take())),
-            Value::Vec(vec) => return VmResult::Ok(Vec::iter_ref(vm_try!(vec.into_ref()))),
+            Value::Vec(vec) => {
+                return VmResult::Ok(Vec::iter_ref(Ref::map(vm_try!(vec.into_ref()), |vec| {
+                    &**vec
+                })))
+            }
             Value::Object(object) => return VmResult::Ok(vm_try!(object.borrow_ref()).rune_iter()),
             target => target,
         };
 
-        let value = vm_try!(EnvProtocolCaller.call_protocol_fn(Protocol::INTO_ITER, target, ()));
+        let value = vm_try!(caller.call_protocol_fn(Protocol::INTO_ITER, target, ()));
         Iterator::from_value(value)
     }
 
@@ -1218,21 +1226,18 @@ impl Value {
                 let b = vm_try!(b.borrow_ref());
                 return VmResult::Ok(*a == *b);
             }
-            (Self::Vec(a), Self::Vec(b)) => {
+            (Self::Vec(a), b) => {
                 let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return Vec::partial_eq_with(&a, &b, caller);
+                return Vec::partial_eq_with(&a, b.clone(), caller);
             }
             (Self::EmptyTuple, Self::EmptyTuple) => return VmResult::Ok(true),
-            (Self::Tuple(a), Self::Tuple(b)) => {
+            (Self::Tuple(a), b) => {
                 let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return Tuple::partial_eq_with(&a, &b, caller);
+                return Vec::partial_eq_with(&a, b.clone(), caller);
             }
-            (Self::Object(a), Self::Object(b)) => {
+            (Self::Object(a), b) => {
                 let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return Object::partial_eq_with(&a, &b, caller);
+                return Object::partial_eq_with(&a, b.clone(), caller);
             }
             (Self::RangeFrom(a), Self::RangeFrom(b)) => {
                 let a = vm_try!(a.borrow_ref());
@@ -1279,7 +1284,7 @@ impl Value {
                 let b = vm_try!(b.borrow_ref());
 
                 if a.rtti.hash == b.rtti.hash {
-                    return Tuple::partial_eq_with(&a.data, &b.data, caller);
+                    return Vec::eq_with(&a.data, &b.data, Value::partial_eq_with, caller);
                 }
             }
             (Self::Struct(a), Self::Struct(b)) => {
@@ -1287,7 +1292,7 @@ impl Value {
                 let b = vm_try!(b.borrow_ref());
 
                 if a.rtti.hash == b.rtti.hash {
-                    return Object::partial_eq_with(&a.data, &b.data, caller);
+                    return Object::eq_with(&a.data, &b.data, Value::partial_eq_with, caller);
                 }
             }
             (Self::Variant(a), Self::Variant(b)) => {
@@ -1389,18 +1394,18 @@ impl Value {
             (Self::Vec(a), Self::Vec(b)) => {
                 let a = vm_try!(a.borrow_ref());
                 let b = vm_try!(b.borrow_ref());
-                return Vec::eq_with(&a, &b, caller);
+                return Vec::eq_with(&a, &b, Value::eq_with, caller);
             }
             (Self::EmptyTuple, Self::EmptyTuple) => return VmResult::Ok(true),
             (Self::Tuple(a), Self::Tuple(b)) => {
                 let a = vm_try!(a.borrow_ref());
                 let b = vm_try!(b.borrow_ref());
-                return Tuple::eq_with(&a, &b, caller);
+                return Vec::eq_with(&a, &b, Value::eq_with, caller);
             }
             (Self::Object(a), Self::Object(b)) => {
                 let a = vm_try!(a.borrow_ref());
                 let b = vm_try!(b.borrow_ref());
-                return Object::eq_with(&a, &b, caller);
+                return Object::eq_with(&a, &b, Value::eq_with, caller);
             }
             (Self::RangeFrom(a), Self::RangeFrom(b)) => {
                 let a = vm_try!(a.borrow_ref());
@@ -1447,7 +1452,7 @@ impl Value {
                 let b = vm_try!(b.borrow_ref());
 
                 if a.rtti.hash == b.rtti.hash {
-                    return Tuple::eq_with(&a.data, &b.data, caller);
+                    return Vec::eq_with(&a.data, &b.data, Value::eq_with, caller);
                 }
             }
             (Self::Struct(a), Self::Struct(b)) => {
@@ -1455,7 +1460,7 @@ impl Value {
                 let b = vm_try!(b.borrow_ref());
 
                 if a.rtti.hash == b.rtti.hash {
-                    return Object::eq_with(&a.data, &b.data, caller);
+                    return Object::eq_with(&a.data, &b.data, Value::eq_with, caller);
                 }
             }
             (Self::Variant(a), Self::Variant(b)) => {
@@ -1553,7 +1558,7 @@ impl Value {
             (Self::Tuple(a), Self::Tuple(b)) => {
                 let a = vm_try!(a.borrow_ref());
                 let b = vm_try!(b.borrow_ref());
-                return Tuple::partial_cmp_with(&a, &b, caller);
+                return Vec::partial_cmp_with(&a, &b, caller);
             }
             (Self::Object(a), Self::Object(b)) => {
                 let a = vm_try!(a.borrow_ref());
@@ -1605,7 +1610,7 @@ impl Value {
                 let b = vm_try!(b.borrow_ref());
 
                 if a.rtti.hash == b.rtti.hash {
-                    return Tuple::partial_cmp_with(&a.data, &b.data, caller);
+                    return Vec::partial_cmp_with(&a.data, &b.data, caller);
                 }
             }
             (Self::Struct(a), Self::Struct(b)) => {
@@ -1725,7 +1730,7 @@ impl Value {
             (Self::Tuple(a), Self::Tuple(b)) => {
                 let a = vm_try!(a.borrow_ref());
                 let b = vm_try!(b.borrow_ref());
-                return Tuple::cmp_with(&a, &b, caller);
+                return Vec::cmp_with(&a, &b, caller);
             }
             (Self::Object(a), Self::Object(b)) => {
                 let a = vm_try!(a.borrow_ref());
@@ -1777,7 +1782,7 @@ impl Value {
                 let b = vm_try!(b.borrow_ref());
 
                 if a.rtti.hash == b.rtti.hash {
-                    return Tuple::cmp_with(&a.data, &b.data, caller);
+                    return Vec::cmp_with(&a.data, &b.data, caller);
                 }
             }
             (Self::Struct(a), Self::Struct(b)) => {
