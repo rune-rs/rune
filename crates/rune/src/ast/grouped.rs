@@ -29,7 +29,7 @@ fn ast_parse() {
 macro_rules! grouped {
     ($(#[$meta:meta])* $name:ident { $field:ident, $open:ty, $close:ty }) => {
         $(#[$meta])*
-        #[derive(Debug, Clone, PartialEq, Eq, Spanned, ToTokens)]
+        #[derive(Debug, Clone, PartialEq, Eq, ToTokens)]
         #[non_exhaustive]
         pub struct $name<T, S> {
             /// The open parenthesis.
@@ -38,6 +38,13 @@ macro_rules! grouped {
             pub $field: Vec<(T, Option<S>)>,
             /// The close parenthesis.
             pub close: $close,
+        }
+
+        impl<T, S> Spanned for $name<T, S> {
+            #[inline]
+            fn span(&self) -> Span {
+                self.open.span().join(self.close.span())
+            }
         }
 
         impl<T, S> $name<T, S> {

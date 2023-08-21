@@ -27,6 +27,7 @@ pub struct ExprMatch {
     /// The open brace of the match.
     pub open: T!['{'],
     /// Branches.
+    #[rune(optional)]
     pub branches: Vec<(ExprMatchBranch, Option<T![,]>)>,
     /// The close brace of the match.
     pub close: T!['}'],
@@ -78,6 +79,7 @@ pub struct ExprMatchBranch {
     /// The pattern to match.
     pub pat: ast::Pat,
     /// The branch condition.
+    #[rune(iter)]
     pub condition: Option<(T![if], ast::Expr)>,
     /// The rocket token.
     pub rocket: T![=>],

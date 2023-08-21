@@ -18,6 +18,7 @@ pub struct Group {
     /// The opening delimiter.
     pub open: ast::Token,
     /// The content between the delimiters.
+    #[rune(optional)]
     pub content: TokenStream,
     /// The closing delimiter.
     pub close: ast::Token,

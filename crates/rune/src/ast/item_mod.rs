@@ -75,6 +75,7 @@ pub struct ItemInlineBody {
     /// The open brace.
     pub open: T!['{'],
     /// A nested "file" declaration.
+    #[rune(optional)]
     pub file: Box<ast::File>,
     /// The close brace.
     pub close: T!['}'],

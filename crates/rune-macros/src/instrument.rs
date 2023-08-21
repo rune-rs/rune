@@ -76,8 +76,10 @@ impl Expander {
                         let _instrument_span = ::tracing::span!(::tracing::Level::TRACE, #ident);
                         let _instrument_enter = _instrument_span.enter();
 
-                        if let Some(source) = #a.q.sources.source(#a.source_id, Spanned::span(&#span)) {
-                            ::tracing::trace!("{:?}", source);
+                        if ::tracing::enabled!(::tracing::Level::TRACE) {
+                            if let Some(source) = #a.q.sources.source(#a.source_id, Spanned::span(&#span)) {
+                                ::tracing::trace!("{:?}", source);
+                            }
                         }
                     }),
                     None => Some(quote! {

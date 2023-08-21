@@ -246,6 +246,12 @@ macro_rules! decl_tokens {
                 }
             }
 
+            impl OptionSpanned for $parser {
+                fn option_span(&self) -> Option<Span> {
+                    Some(self.span)
+                }
+            }
+
             impl Parse for $parser {
                 fn parse(parser: &mut Parser<'_>) -> $crate::compile::Result<Self> {
                     let t = parser.next()?;

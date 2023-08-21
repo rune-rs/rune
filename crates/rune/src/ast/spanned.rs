@@ -42,10 +42,14 @@ pub trait Spanned {
 impl<A, B> Spanned for (A, B)
 where
     A: Spanned,
-    B: Spanned,
+    B: OptionSpanned,
 {
     fn span(&self) -> Span {
-        self.0.span().join(self.1.span())
+        if let Some(end) = self.1.option_span() {
+            self.0.span().join(end)
+        } else {
+            self.0.span()
+        }
     }
 }
 
@@ -124,15 +128,6 @@ where
     }
 }
 
-impl<T> OptionSpanned for Box<T>
-where
-    T: OptionSpanned,
-{
-    fn option_span(&self) -> Option<Span> {
-        OptionSpanned::option_span(&**self)
-    }
-}
-
 /// Take the span of a vector of spanned.
 /// Provides the span between the first and the last element.
 impl<T> OptionSpanned for Vec<T>
@@ -167,5 +162,14 @@ where
 {
     fn option_span(&self) -> Option<Span> {
         Some(self.as_ref()?.span())
+    }
+}
+
+impl<T> OptionSpanned for Box<T>
+where
+    T: OptionSpanned,
+{
+    fn option_span(&self) -> Option<Span> {
+        OptionSpanned::option_span(&**self)
     }
 }

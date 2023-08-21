@@ -2,9 +2,9 @@ use crate::{
     add_trait_bounds,
     context::{Context, Tokens},
 };
-use proc_macro2::TokenStream;
-use quote::{quote, quote_spanned};
-use syn::spanned::Spanned as _;
+use proc_macro2::{Span, TokenStream};
+use quote::{format_ident, quote, ToTokens};
+use syn::Token;
 
 /// Derive implementation of the AST macro.
 pub struct Derive {
@@ -20,32 +20,93 @@ impl syn::parse::Parse for Derive {
 }
 
 impl Derive {
-    pub(super) fn expand(self) -> Result<TokenStream, Vec<syn::Error>> {
+    pub(super) fn expand(self, is_option_spanned: bool) -> Result<TokenStream, Vec<syn::Error>> {
         let cx = Context::new();
         let tokens = cx.tokens_with_module(None);
 
         let mut expander = Expander { cx, tokens };
 
-        match &self.input.data {
+        if expander.cx.type_attrs(&self.input.attrs).is_err() {
+            return Err(expander.cx.errors.into_inner());
+        }
+
+        let inner = match &self.input.data {
             syn::Data::Struct(st) => {
-                if let Ok(stream) = expander.expand_struct(&self.input, st) {
-                    return Ok(stream);
-                }
+                let Ok(inner) = expander.expand_struct_fields(&st.fields, |member| quote!(&self.#member), is_option_spanned) else {
+                    return Err(expander.cx.errors.into_inner());
+                };
+
+                inner
             }
-            syn::Data::Enum(en) => {
-                if let Ok(stream) = expander.expand_enum(&self.input, en) {
-                    return Ok(stream);
-                }
+            syn::Data::Enum(enum_) => {
+                let Ok(inner) = expander.expand_enum(enum_, is_option_spanned) else {
+                    return Err(expander.cx.errors.into_inner());
+                };
+
+                inner
             }
             syn::Data::Union(un) => {
                 expander.cx.error(syn::Error::new_spanned(
                     un.union_token,
                     "not supported on unions",
                 ));
-            }
-        }
 
-        Err(expander.cx.errors.into_inner())
+                return Err(expander.cx.errors.into_inner());
+            }
+        };
+
+        let ident = &self.input.ident;
+
+        let Tokens {
+            spanned,
+            option_spanned,
+            span,
+            option,
+            ..
+        } = &expander.tokens;
+
+        let mut generics = self.input.generics.clone();
+
+        let (trait_t, ret) = if is_option_spanned {
+            add_trait_bounds(&mut generics, option_spanned);
+            (option_spanned, quote!(#option<#span>))
+        } else {
+            add_trait_bounds(&mut generics, spanned);
+            (spanned, quote!(#span))
+        };
+
+        let (impl_gen, type_gen, where_gen) = generics.split_for_impl();
+
+        let name = if is_option_spanned {
+            syn::Ident::new("option_span", Span::call_site())
+        } else {
+            syn::Ident::new("span", Span::call_site())
+        };
+
+        let implementation = quote! {
+            #[automatically_derived]
+            impl #impl_gen #trait_t for #ident #type_gen #where_gen {
+                fn #name(&self) -> #ret {
+                    #inner
+                }
+            }
+        };
+
+        let option_spanned = (!is_option_spanned).then(|| {
+            quote! {
+                #[automatically_derived]
+                impl #impl_gen #option_spanned for #ident #type_gen #where_gen {
+                    fn option_span(&self) -> #option<#span> {
+                        #option::Some(#spanned::span(self))
+                    }
+                }
+            }
+        });
+
+        Ok(quote! {
+            #implementation
+            #option_spanned
+        })
     }
 }
 
@@ -56,197 +117,184 @@ struct Expander {
 
 impl Expander {
     /// Expand on a struct.
-    fn expand_struct(
-        &mut self,
-        input: &syn::DeriveInput,
-        st: &syn::DataStruct,
-    ) -> Result<TokenStream, ()> {
-        let inner = self.expand_struct_fields(&st.fields)?;
-
-        let ident = &input.ident;
-        let spanned = &self.tokens.spanned;
-        let span = &self.tokens.span;
-
-        let mut generics = input.generics.clone();
-
-        add_trait_bounds(&mut generics, spanned);
-
-        let (impl_gen, type_gen, where_gen) = generics.split_for_impl();
-
-        Ok(quote! {
-            #[automatically_derived]
-            impl #impl_gen #spanned for #ident #type_gen #where_gen {
-                fn span(&self) -> #span {
-                    #inner
-                }
-            }
-        })
-    }
-
-    /// Expand on a struct.
     fn expand_enum(
         &mut self,
-        input: &syn::DeriveInput,
-        st: &syn::DataEnum,
+        enum_: &syn::DataEnum,
+        is_option_spanned: bool,
     ) -> Result<TokenStream, ()> {
-        let _ = self.cx.type_attrs(&input.attrs)?;
+        let mut variants = Vec::new();
 
-        let mut impl_spanned = Vec::new();
+        for variant in &enum_.variants {
+            let ident = &variant.ident;
 
-        for variant in &st.variants {
-            impl_spanned.push(self.expand_variant_fields(variant, &variant.fields)?);
+            if matches!(&variant.fields, syn::Fields::Unit if !is_option_spanned) {
+                self.cx.error(syn::Error::new_spanned(
+                    variant,
+                    "Spanned cannot be implemented for unit variants",
+                ));
+                continue;
+            }
+
+            let mut assign = Vec::new();
+
+            for (index, field) in variant.fields.iter().enumerate() {
+                let member = match &field.ident {
+                    Some(ident) => syn::Member::Named(ident.clone()),
+                    None => syn::Member::Unnamed(syn::Index::from(index)),
+                };
+
+                let to = match &field.ident {
+                    Some(ident) => ident.clone(),
+                    None => format_ident!("_{}", index),
+                };
+
+                assign.push(syn::FieldValue {
+                    attrs: Vec::new(),
+                    member,
+                    colon_token: Some(<Token![:]>::default()),
+                    expr: syn::Expr::Path(syn::ExprPath {
+                        attrs: Vec::new(),
+                        qself: None,
+                        path: syn::Path::from(to),
+                    }),
+                });
+            }
+
+            if let Ok(body) = self.expand_struct_fields(
+                &variant.fields,
+                |member| match member {
+                    syn::Member::Named(field) => quote!(#field),
+                    syn::Member::Unnamed(index) => format_ident!("_{}", index).into_token_stream(),
+                },
+                is_option_spanned,
+            ) {
+                variants.push(quote! {
+                    Self::#ident { #(#assign),* } => { #body }
+                });
+            }
         }
 
-        let ident = &input.ident;
-        let spanned = &self.tokens.spanned;
-        let span = &self.tokens.span;
+        if self.cx.has_errors() {
+            return Err(());
+        }
 
-        let mut generics = input.generics.clone();
-
-        add_trait_bounds(&mut generics, spanned);
-
-        let (impl_gen, type_gen, where_gen) = generics.split_for_impl();
-
-        Ok(quote_spanned! { input.span() =>
-            #[automatically_derived]
-            impl #impl_gen #spanned for #ident #type_gen #where_gen {
-                fn span(&self) -> #span {
-                    match self {
-                        #(#impl_spanned,)*
-                    }
-                }
+        Ok(quote! {
+            match self {
+                #(#variants,)*
             }
         })
     }
 
     /// Expand field decoding.
-    fn expand_struct_fields(&mut self, fields: &syn::Fields) -> Result<TokenStream, ()> {
-        match fields {
-            syn::Fields::Named(named) => self.expand_struct_named(named),
-            syn::Fields::Unnamed(..) => {
-                self.cx.error(syn::Error::new_spanned(
-                    fields,
-                    "Tuple structs are not supported",
-                ));
-                Err(())
-            }
-            syn::Fields::Unit => {
-                self.cx.error(syn::Error::new_spanned(
-                    fields,
-                    "Unit structs are not supported",
-                ));
-                Err(())
-            }
-        }
-    }
-
-    /// Expand named fields.
-    fn expand_struct_named(&mut self, named: &syn::FieldsNamed) -> Result<TokenStream, ()> {
-        if let Some(span_impl) = self.cx.explicit_span(named)? {
-            return Ok(span_impl);
-        }
-
-        let values = named
-            .named
-            .iter()
-            .map(|f| {
-                let var = self.cx.field_ident(f).map(|n| quote!(&self.#n));
-                (var, f)
-            })
-            .collect::<Vec<_>>();
-
-        self.build_spanned(named, values)
-    }
-
-    fn build_spanned(
+    fn expand_struct_fields(
         &mut self,
-        tokens: &(impl quote::ToTokens + syn::spanned::Spanned),
-        values: Vec<(Result<TokenStream, ()>, &syn::Field)>,
+        fields: &syn::Fields,
+        access_member: fn(&syn::Member) -> TokenStream,
+        is_option_spanned: bool,
     ) -> Result<TokenStream, ()> {
-        let (optional, begin) =
-            self.cx
-                .build_spanned_iter(&self.tokens, false, values.clone().into_iter())?;
+        let mut explicit_span = None;
 
-        let begin = match (optional, begin) {
-            (false, Some(begin)) => begin,
-            _ => {
+        let Tokens {
+            spanned,
+            into_iterator,
+            span,
+            option,
+            option_spanned,
+            iterator,
+            double_ended_iterator,
+            ..
+        } = &self.tokens;
+
+        let mut out = quote!(#into_iterator::into_iter(#option::<#span>::None));
+        let mut any = false;
+
+        for (index, field) in fields.iter().enumerate() {
+            let attr = self.cx.field_attrs(&field.attrs)?;
+
+            if attr.id.is_some() || attr.skip.is_some() {
+                continue;
+            }
+
+            let member = match &field.ident {
+                Some(ident) => syn::Member::Named(ident.clone()),
+                None => syn::Member::Unnamed(syn::Index::from(index)),
+            };
+
+            if let Some(span) = attr.span {
+                if explicit_span.is_some() {
+                    self.cx.error(syn::Error::new(
+                        span,
+                        "Only one field can be marked `#[rune(span)]`",
+                    ));
+                    return Err(());
+                }
+
+                explicit_span = Some(member.clone());
+            }
+
+            let access = access_member(&member);
+
+            if attr.iter.is_some() {
+                out = quote! {
+                    #iterator::chain(#out, #iterator::map(#into_iterator::into_iter(#access), #spanned::span))
+                };
+            } else if attr.optional.is_some() {
+                out = quote! {
+                    #iterator::chain(#out, #iterator::flat_map(#into_iterator::into_iter([#access]), #option_spanned::option_span))
+                };
+            } else {
+                out = quote! {
+                    #iterator::chain(#out, #iterator::map(#into_iterator::into_iter([#access]), #spanned::span))
+                };
+
+                any = true;
+            }
+        }
+
+        let match_head_back = if is_option_spanned {
+            if let Some(explicit_span) = explicit_span {
+                let access = access_member(&explicit_span);
+                return Ok(quote!(#option::Some(#spanned::span(#access))));
+            }
+
+            quote! {
+                match (head, back) {
+                    (#option::Some(head), #option::Some(back)) => #option::Some(#span::join(head, back)),
+                    (#option::Some(head), #option::None) => #option::Some(head),
+                    (#option::None, #option::Some(back)) => #option::Some(back),
+                    _ => None,
+                }
+            }
+        } else {
+            if let Some(explicit_span) = explicit_span {
+                let access = access_member(&explicit_span);
+                return Ok(quote!(#spanned::span(#access)));
+            }
+
+            if !any {
                 self.cx.error(syn::Error::new_spanned(
-                    tokens,
-                    "ran out of fields to calculate exact span",
+                    fields,
+                    "No fields available to calculate `Spanned` from",
                 ));
+
                 return Err(());
+            }
+
+            quote! {
+                match (head, back) {
+                    (#option::Some(head), #option::Some(back)) => #span::join(head, back),
+                    (#option::Some(head), #option::None) => head,
+                    (#option::None, #option::Some(back)) => back,
+                    _ => unreachable!(),
+                }
             }
         };
 
-        let (end_optional, end) =
-            self.cx
-                .build_spanned_iter(&self.tokens, true, values.into_iter().rev())?;
-
-        Ok(if end_optional {
-            if let Some(end) = end {
-                quote_spanned! { tokens.span() => {
-                    let begin = #begin;
-
-                    match #end {
-                        Ok(end) => begin.join(end),
-                        None => begin,
-                    }
-                }}
-            } else {
-                quote_spanned!(tokens.span() => #begin)
-            }
-        } else {
-            quote_spanned!(tokens.span() => #begin.join(#end))
+        Ok(quote! {
+            let mut iter = #out;
+            let head: #option<#span> = #iterator::next(&mut iter);
+            let back: #option<#span> = #double_ended_iterator::next_back(&mut iter);
+            #match_head_back
         })
-    }
-
-    /// Expand variant ast.
-    fn expand_variant_fields(
-        &mut self,
-        variant: &syn::Variant,
-        fields: &syn::Fields,
-    ) -> Result<TokenStream, ()> {
-        match fields {
-            syn::Fields::Named(..) => {
-                self.cx.error(syn::Error::new_spanned(
-                    fields,
-                    "Named enum variants are not supported",
-                ));
-                Err(())
-            }
-            syn::Fields::Unnamed(unnamed) => self.expand_variant_unnamed(variant, unnamed),
-            syn::Fields::Unit => {
-                self.cx.error(syn::Error::new_spanned(
-                    fields,
-                    "Unit variants are not supported",
-                ));
-                Err(())
-            }
-        }
-    }
-
-    /// Expand named variant fields.
-    fn expand_variant_unnamed(
-        &mut self,
-        variant: &syn::Variant,
-        unnamed: &syn::FieldsUnnamed,
-    ) -> Result<TokenStream, ()> {
-        let values = unnamed
-            .unnamed
-            .iter()
-            .enumerate()
-            .map(|(n, f)| {
-                let ident = syn::Ident::new(&format!("f{}", n), f.span());
-                (Ok(quote!(#ident)), f)
-            })
-            .collect::<Vec<_>>();
-
-        let body = self.build_spanned(unnamed, values)?;
-
-        let ident = &variant.ident;
-        let vars =
-            (0..unnamed.unnamed.len()).map(|n| syn::Ident::new(&format!("f{}", n), variant.span()));
-
-        Ok(quote_spanned!(variant.span() => Self::#ident(#(#vars,)*) => #body))
     }
 }

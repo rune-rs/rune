@@ -37,7 +37,6 @@ mod internals;
 mod macro_;
 mod module;
 mod opaque;
-mod option_spanned;
 mod parse;
 mod quote;
 mod spanned;
@@ -139,14 +138,17 @@ pub fn parse(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 #[doc(hidden)]
 pub fn spanned(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let derive = syn::parse_macro_input!(input as spanned::Derive);
-    derive.expand().unwrap_or_else(to_compile_errors).into()
+    derive
+        .expand(false)
+        .unwrap_or_else(to_compile_errors)
+        .into()
 }
 
 #[proc_macro_derive(OptionSpanned, attributes(rune))]
 #[doc(hidden)]
 pub fn option_spanned(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let derive = syn::parse_macro_input!(input as option_spanned::Derive);
-    derive.expand().unwrap_or_else(to_compile_errors).into()
+    let derive = syn::parse_macro_input!(input as spanned::Derive);
+    derive.expand(true).unwrap_or_else(to_compile_errors).into()
 }
 
 #[proc_macro_derive(Opaque, attributes(rune))]
@@ -217,17 +219,12 @@ fn to_compile_errors(errors: Vec<syn::Error>) -> proc_macro2::TokenStream {
 
 /// Adds the `path` as trait bound to each generic
 fn add_trait_bounds(generics: &mut Generics, path: &Path) {
-    for p in &mut generics.params {
-        match p {
-            syn::GenericParam::Type(ty) => {
-                ty.bounds.push(syn::TypeParamBound::Trait(syn::TraitBound {
-                    paren_token: None,
-                    modifier: syn::TraitBoundModifier::None,
-                    lifetimes: None,
-                    path: path.clone(),
-                }));
-            }
-            _ => continue,
-        }
+    for ty in &mut generics.type_params_mut() {
+        ty.bounds.push(syn::TypeParamBound::Trait(syn::TraitBound {
+            paren_token: None,
+            modifier: syn::TraitBoundModifier::None,
+            lifetimes: None,
+            path: path.clone(),
+        }));
     }
 }

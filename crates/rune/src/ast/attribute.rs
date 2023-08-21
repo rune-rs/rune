@@ -49,6 +49,7 @@ pub struct Attribute {
     /// The `#` character
     pub hash: T![#],
     /// Specify if the attribute is outer `#!` or inner `#`
+    #[rune(optional)]
     pub style: AttrStyle,
     /// The `[` character
     pub open: T!['['],
@@ -60,6 +61,7 @@ pub struct Attribute {
     /// The `]` character
     pub close: T![']'],
 }
+
 impl Attribute {
     pub(crate) fn input_span(&self) -> Span {
         self.input
@@ -130,7 +132,7 @@ impl IntoExpectation for Attribute {
 }
 
 /// Whether or not the attribute is an outer `#!` or inner `#` attribute
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ToTokens)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, OptionSpanned, ToTokens)]
 #[non_exhaustive]
 pub enum AttrStyle {
     /// `#`

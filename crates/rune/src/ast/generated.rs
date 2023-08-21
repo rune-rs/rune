@@ -21,6 +21,12 @@ impl ast::Spanned for Abstract {
     }
 }
 
+impl ast::OptionSpanned for Abstract {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for Abstract {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -62,6 +68,12 @@ pub struct AlignOf {
 impl ast::Spanned for AlignOf {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for AlignOf {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -109,6 +121,12 @@ impl ast::Spanned for Amp {
     }
 }
 
+impl ast::OptionSpanned for Amp {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for Amp {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -150,6 +168,12 @@ pub struct AmpAmp {
 impl ast::Spanned for AmpAmp {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for AmpAmp {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -197,6 +221,12 @@ impl ast::Spanned for AmpEq {
     }
 }
 
+impl ast::OptionSpanned for AmpEq {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for AmpEq {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -238,6 +268,12 @@ pub struct Arrow {
 impl ast::Spanned for Arrow {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for Arrow {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -285,6 +321,12 @@ impl ast::Spanned for As {
     }
 }
 
+impl ast::OptionSpanned for As {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for As {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -326,6 +368,12 @@ pub struct Async {
 impl ast::Spanned for Async {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for Async {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -373,6 +421,12 @@ impl ast::Spanned for At {
     }
 }
 
+impl ast::OptionSpanned for At {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for At {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -414,6 +468,12 @@ pub struct Await {
 impl ast::Spanned for Await {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for Await {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -461,6 +521,12 @@ impl ast::Spanned for Bang {
     }
 }
 
+impl ast::OptionSpanned for Bang {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for Bang {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -502,6 +568,12 @@ pub struct BangEq {
 impl ast::Spanned for BangEq {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for BangEq {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -549,6 +621,12 @@ impl ast::Spanned for Become {
     }
 }
 
+impl ast::OptionSpanned for Become {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for Become {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -590,6 +668,12 @@ pub struct Break {
 impl ast::Spanned for Break {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for Break {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -637,6 +721,12 @@ impl ast::Spanned for Caret {
     }
 }
 
+impl ast::OptionSpanned for Caret {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for Caret {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -678,6 +768,12 @@ pub struct CaretEq {
 impl ast::Spanned for CaretEq {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for CaretEq {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -725,6 +821,12 @@ impl ast::Spanned for Colon {
     }
 }
 
+impl ast::OptionSpanned for Colon {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for Colon {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -766,6 +868,12 @@ pub struct ColonColon {
 impl ast::Spanned for ColonColon {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for ColonColon {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -813,6 +921,12 @@ impl ast::Spanned for Comma {
     }
 }
 
+impl ast::OptionSpanned for Comma {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for Comma {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -854,6 +968,12 @@ pub struct Const {
 impl ast::Spanned for Const {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for Const {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -901,6 +1021,12 @@ impl ast::Spanned for Continue {
     }
 }
 
+impl ast::OptionSpanned for Continue {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for Continue {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -942,6 +1068,12 @@ pub struct Crate {
 impl ast::Spanned for Crate {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for Crate {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -989,6 +1121,12 @@ impl ast::Spanned for Dash {
     }
 }
 
+impl ast::OptionSpanned for Dash {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for Dash {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -1030,6 +1168,12 @@ pub struct DashEq {
 impl ast::Spanned for DashEq {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for DashEq {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -1077,6 +1221,12 @@ impl ast::Spanned for Default {
     }
 }
 
+impl ast::OptionSpanned for Default {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for Default {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -1118,6 +1268,12 @@ pub struct Div {
 impl ast::Spanned for Div {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for Div {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -1165,6 +1321,12 @@ impl ast::Spanned for Do {
     }
 }
 
+impl ast::OptionSpanned for Do {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for Do {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -1206,6 +1368,12 @@ pub struct Dollar {
 impl ast::Spanned for Dollar {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for Dollar {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -1253,6 +1421,12 @@ impl ast::Spanned for Dot {
     }
 }
 
+impl ast::OptionSpanned for Dot {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for Dot {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -1294,6 +1468,12 @@ pub struct DotDot {
 impl ast::Spanned for DotDot {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for DotDot {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -1341,6 +1521,12 @@ impl ast::Spanned for DotDotEq {
     }
 }
 
+impl ast::OptionSpanned for DotDotEq {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for DotDotEq {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -1382,6 +1568,12 @@ pub struct Else {
 impl ast::Spanned for Else {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for Else {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -1429,6 +1621,12 @@ impl ast::Spanned for Enum {
     }
 }
 
+impl ast::OptionSpanned for Enum {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for Enum {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -1470,6 +1668,12 @@ pub struct Eq {
 impl ast::Spanned for Eq {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for Eq {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -1517,6 +1721,12 @@ impl ast::Spanned for EqEq {
     }
 }
 
+impl ast::OptionSpanned for EqEq {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for EqEq {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -1558,6 +1768,12 @@ pub struct Extern {
 impl ast::Spanned for Extern {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for Extern {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -1605,6 +1821,12 @@ impl ast::Spanned for False {
     }
 }
 
+impl ast::OptionSpanned for False {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for False {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -1646,6 +1868,12 @@ pub struct Final {
 impl ast::Spanned for Final {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for Final {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -1693,6 +1921,12 @@ impl ast::Spanned for Fn {
     }
 }
 
+impl ast::OptionSpanned for Fn {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for Fn {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -1734,6 +1968,12 @@ pub struct For {
 impl ast::Spanned for For {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for For {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -1781,6 +2021,12 @@ impl ast::Spanned for Gt {
     }
 }
 
+impl ast::OptionSpanned for Gt {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for Gt {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -1822,6 +2068,12 @@ pub struct GtEq {
 impl ast::Spanned for GtEq {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for GtEq {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -1869,6 +2121,12 @@ impl ast::Spanned for GtGt {
     }
 }
 
+impl ast::OptionSpanned for GtGt {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for GtGt {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -1910,6 +2168,12 @@ pub struct GtGtEq {
 impl ast::Spanned for GtGtEq {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for GtGtEq {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -1957,6 +2221,12 @@ impl ast::Spanned for If {
     }
 }
 
+impl ast::OptionSpanned for If {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for If {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -1998,6 +2268,12 @@ pub struct Impl {
 impl ast::Spanned for Impl {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for Impl {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -2045,6 +2321,12 @@ impl ast::Spanned for In {
     }
 }
 
+impl ast::OptionSpanned for In {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for In {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -2086,6 +2368,12 @@ pub struct Is {
 impl ast::Spanned for Is {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for Is {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -2133,6 +2421,12 @@ impl ast::Spanned for Let {
     }
 }
 
+impl ast::OptionSpanned for Let {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for Let {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -2174,6 +2468,12 @@ pub struct Loop {
 impl ast::Spanned for Loop {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for Loop {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -2221,6 +2521,12 @@ impl ast::Spanned for Lt {
     }
 }
 
+impl ast::OptionSpanned for Lt {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for Lt {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -2262,6 +2568,12 @@ pub struct LtEq {
 impl ast::Spanned for LtEq {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for LtEq {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -2309,6 +2621,12 @@ impl ast::Spanned for LtLt {
     }
 }
 
+impl ast::OptionSpanned for LtLt {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for LtLt {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -2350,6 +2668,12 @@ pub struct LtLtEq {
 impl ast::Spanned for LtLtEq {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for LtLtEq {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -2397,6 +2721,12 @@ impl ast::Spanned for Macro {
     }
 }
 
+impl ast::OptionSpanned for Macro {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for Macro {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -2438,6 +2768,12 @@ pub struct Match {
 impl ast::Spanned for Match {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for Match {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -2485,6 +2821,12 @@ impl ast::Spanned for Mod {
     }
 }
 
+impl ast::OptionSpanned for Mod {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for Mod {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -2526,6 +2868,12 @@ pub struct Move {
 impl ast::Spanned for Move {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for Move {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -2573,6 +2921,12 @@ impl ast::Spanned for Mut {
     }
 }
 
+impl ast::OptionSpanned for Mut {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for Mut {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -2614,6 +2968,12 @@ pub struct Not {
 impl ast::Spanned for Not {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for Not {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -2661,6 +3021,12 @@ impl ast::Spanned for OffsetOf {
     }
 }
 
+impl ast::OptionSpanned for OffsetOf {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for OffsetOf {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -2702,6 +3068,12 @@ pub struct Override {
 impl ast::Spanned for Override {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for Override {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -2749,6 +3121,12 @@ impl ast::Spanned for Perc {
     }
 }
 
+impl ast::OptionSpanned for Perc {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for Perc {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -2790,6 +3168,12 @@ pub struct PercEq {
 impl ast::Spanned for PercEq {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for PercEq {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -2837,6 +3221,12 @@ impl ast::Spanned for Pipe {
     }
 }
 
+impl ast::OptionSpanned for Pipe {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for Pipe {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -2878,6 +3268,12 @@ pub struct PipeEq {
 impl ast::Spanned for PipeEq {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for PipeEq {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -2925,6 +3321,12 @@ impl ast::Spanned for PipePipe {
     }
 }
 
+impl ast::OptionSpanned for PipePipe {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for PipePipe {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -2966,6 +3368,12 @@ pub struct Plus {
 impl ast::Spanned for Plus {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for Plus {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -3013,6 +3421,12 @@ impl ast::Spanned for PlusEq {
     }
 }
 
+impl ast::OptionSpanned for PlusEq {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for PlusEq {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -3054,6 +3468,12 @@ pub struct Pound {
 impl ast::Spanned for Pound {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for Pound {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -3101,6 +3521,12 @@ impl ast::Spanned for Priv {
     }
 }
 
+impl ast::OptionSpanned for Priv {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for Priv {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -3142,6 +3568,12 @@ pub struct Proc {
 impl ast::Spanned for Proc {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for Proc {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -3189,6 +3621,12 @@ impl ast::Spanned for Pub {
     }
 }
 
+impl ast::OptionSpanned for Pub {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for Pub {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -3230,6 +3668,12 @@ pub struct Pure {
 impl ast::Spanned for Pure {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for Pure {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -3277,6 +3721,12 @@ impl ast::Spanned for QuestionMark {
     }
 }
 
+impl ast::OptionSpanned for QuestionMark {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for QuestionMark {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -3318,6 +3768,12 @@ pub struct Ref {
 impl ast::Spanned for Ref {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for Ref {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -3365,6 +3821,12 @@ impl ast::Spanned for Return {
     }
 }
 
+impl ast::OptionSpanned for Return {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for Return {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -3406,6 +3868,12 @@ pub struct Rocket {
 impl ast::Spanned for Rocket {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for Rocket {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -3453,6 +3921,12 @@ impl ast::Spanned for Select {
     }
 }
 
+impl ast::OptionSpanned for Select {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for Select {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -3494,6 +3968,12 @@ pub struct SelfType {
 impl ast::Spanned for SelfType {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for SelfType {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -3541,6 +4021,12 @@ impl ast::Spanned for SelfValue {
     }
 }
 
+impl ast::OptionSpanned for SelfValue {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for SelfValue {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -3582,6 +4068,12 @@ pub struct SemiColon {
 impl ast::Spanned for SemiColon {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for SemiColon {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -3629,6 +4121,12 @@ impl ast::Spanned for SizeOf {
     }
 }
 
+impl ast::OptionSpanned for SizeOf {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for SizeOf {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -3670,6 +4168,12 @@ pub struct SlashEq {
 impl ast::Spanned for SlashEq {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for SlashEq {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -3717,6 +4221,12 @@ impl ast::Spanned for Star {
     }
 }
 
+impl ast::OptionSpanned for Star {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for Star {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -3758,6 +4268,12 @@ pub struct StarEq {
 impl ast::Spanned for StarEq {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for StarEq {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -3805,6 +4321,12 @@ impl ast::Spanned for Static {
     }
 }
 
+impl ast::OptionSpanned for Static {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for Static {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -3846,6 +4368,12 @@ pub struct Struct {
 impl ast::Spanned for Struct {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for Struct {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -3893,6 +4421,12 @@ impl ast::Spanned for Super {
     }
 }
 
+impl ast::OptionSpanned for Super {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for Super {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -3934,6 +4468,12 @@ pub struct Tilde {
 impl ast::Spanned for Tilde {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for Tilde {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -3981,6 +4521,12 @@ impl ast::Spanned for True {
     }
 }
 
+impl ast::OptionSpanned for True {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for True {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -4022,6 +4568,12 @@ pub struct TypeOf {
 impl ast::Spanned for TypeOf {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for TypeOf {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -4069,6 +4621,12 @@ impl ast::Spanned for Underscore {
     }
 }
 
+impl ast::OptionSpanned for Underscore {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for Underscore {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -4110,6 +4668,12 @@ pub struct Unsafe {
 impl ast::Spanned for Unsafe {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for Unsafe {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -4157,6 +4721,12 @@ impl ast::Spanned for Use {
     }
 }
 
+impl ast::OptionSpanned for Use {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for Use {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -4198,6 +4768,12 @@ pub struct Virtual {
 impl ast::Spanned for Virtual {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for Virtual {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
@@ -4245,6 +4821,12 @@ impl ast::Spanned for While {
     }
 }
 
+impl ast::OptionSpanned for While {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
+    }
+}
+
 impl parse::Parse for While {
     fn parse(p: &mut parse::Parser<'_>) -> compile::Result<Self> {
         let token = p.next()?;
@@ -4286,6 +4868,12 @@ pub struct Yield {
 impl ast::Spanned for Yield {
     fn span(&self) -> ast::Span {
         self.span
+    }
+}
+
+impl ast::OptionSpanned for Yield {
+    fn option_span(&self) -> Option<ast::Span> {
+        Some(self.span)
     }
 }
 
