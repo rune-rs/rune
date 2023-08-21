@@ -823,26 +823,33 @@ impl FnOffset {
     ///
     /// This will cause a halt in case the vm being called into isn't the same
     /// as the context and unit of the function.
+    #[tracing::instrument(skip_all, fields(args, extra = extra.count(), ?self.offset, ?self.call, ?self.args, ?self.hash))]
     fn call_with_vm<E>(&self, vm: &mut Vm, args: usize, extra: E) -> VmResult<Option<VmCall>>
     where
         E: Args,
     {
+        tracing::trace!("calling");
+
         vm_try!(check_args(args, self.args));
 
-        // Fast past, just allocate a call frame and keep running.
-        if let Call::Immediate = self.call {
-            if vm.is_same(&self.context, &self.unit) {
-                vm_try!(vm.push_call_frame(self.offset, args));
-                vm_try!(extra.into_stack(vm.stack_mut()));
-                return VmResult::Ok(None);
-            }
+        let same_unit = matches!(self.call, Call::Immediate if vm.is_same_unit(&self.unit));
+        let same_context =
+            matches!(self.call, Call::Immediate if vm.is_same_context(&self.context));
+
+        vm_try!(vm.push_call_frame(self.offset, args, !same_context));
+        vm_try!(extra.into_stack(vm.stack_mut()));
+
+        // Fast path, just allocate a call frame and keep running.
+        if same_context && same_unit {
+            tracing::trace!("same context and unit");
+            return VmResult::Ok(None);
         }
 
-        let mut new_stack = vm_try!(vm.stack_mut().drain(args)).collect::<Stack>();
-        vm_try!(extra.into_stack(&mut new_stack));
-        let mut vm = Vm::with_stack(self.context.clone(), self.unit.clone(), new_stack);
-        vm.set_ip(self.offset);
-        VmResult::Ok(Some(VmCall::new(self.call, vm)))
+        VmResult::Ok(Some(VmCall::new(
+            self.call,
+            (!same_context).then(|| self.context.clone()),
+            (!same_unit).then(|| self.unit.clone()),
+        )))
     }
 }
 

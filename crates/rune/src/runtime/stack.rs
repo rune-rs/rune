@@ -1,7 +1,7 @@
 use core::array;
 use core::fmt;
 use core::iter;
-use core::mem;
+use core::mem::replace;
 use core::slice;
 
 use crate::no_std::borrow::Cow;
@@ -109,6 +109,14 @@ impl Stack {
     /// [stack_bottom]: Self::stack_bottom()
     pub fn len(&self) -> usize {
         self.stack.len()
+    }
+
+    pub(crate) fn stack_size(&self) -> Result<usize, StackError> {
+        let Some(size) = self.stack.len().checked_sub(self.stack_bottom) else {
+            return Err(StackError);
+        };
+
+        Ok(size)
     }
 
     /// Perform a raw access over the stack.
@@ -345,9 +353,12 @@ impl Stack {
     /// This is used internally when returning from a call frame.
     ///
     /// Returns the old stack top.
+    #[tracing::instrument(skip_all)]
     pub(crate) fn swap_stack_bottom(&mut self, count: usize) -> Result<usize, StackError> {
+        tracing::trace!(stack = ?self.stack.len(), self.stack_bottom, count);
+
         match self.stack.len().checked_sub(count) {
-            Some(new_top) => Ok(mem::replace(&mut self.stack_bottom, new_top)),
+            Some(new_top) => Ok(replace(&mut self.stack_bottom, new_top)),
             None => Err(StackError),
         }
     }
@@ -356,10 +367,7 @@ impl Stack {
     // at the point of return.
     #[tracing::instrument(skip_all)]
     pub(crate) fn check_stack_top(&self) -> Result<(), StackError> {
-        tracing::trace!(
-            stack_len = self.stack.len(),
-            stack_bottom = self.stack_bottom,
-        );
+        tracing::trace!(stack = self.stack.len(), self.stack_bottom,);
 
         if self.stack.len() == self.stack_bottom {
             return Ok(());

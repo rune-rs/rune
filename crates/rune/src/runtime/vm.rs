@@ -1,6 +1,6 @@
 use core::cmp::Ordering;
 use core::fmt;
-use core::mem;
+use core::mem::{replace, swap};
 use core::ops;
 use core::slice;
 
@@ -132,6 +132,16 @@ impl Vm {
         Arc::ptr_eq(&self.context, context) && Arc::ptr_eq(&self.unit, unit)
     }
 
+    /// Test if the virtual machine is the same context.
+    pub fn is_same_context(&self, context: &Arc<RuntimeContext>) -> bool {
+        Arc::ptr_eq(&self.context, context)
+    }
+
+    /// Test if the virtual machine is the same context.
+    pub fn is_same_unit(&self, unit: &Arc<Unit>) -> bool {
+        Arc::ptr_eq(&self.unit, unit)
+    }
+
     /// Set  the current instruction pointer.
     #[inline]
     pub fn set_ip(&mut self, ip: usize) {
@@ -156,10 +166,22 @@ impl Vm {
         &mut self.stack
     }
 
+    /// Access the context related to the virtual machine mutably.
+    #[inline]
+    pub fn context_mut(&mut self) -> &mut Arc<RuntimeContext> {
+        &mut self.context
+    }
+
     /// Access the context related to the virtual machine.
     #[inline]
     pub fn context(&self) -> &Arc<RuntimeContext> {
         &self.context
+    }
+
+    /// Access the underlying unit of the virtual machine mutablys.
+    #[inline]
+    pub fn unit_mut(&mut self) -> &mut Arc<Unit> {
+        &mut self.unit
     }
 
     /// Access the underlying unit of the virtual machine.
@@ -593,32 +615,58 @@ impl Vm {
     ///
     /// This will cause the `args` number of elements on the stack to be
     /// associated and accessible to the new call frame.
-    pub(crate) fn push_call_frame(&mut self, ip: usize, args: usize) -> Result<(), VmErrorKind> {
-        let stack_top = self.stack.swap_stack_bottom(args)?;
+    #[tracing::instrument(skip(self), fields(call_frames = self.call_frames.len(), stack_bottom = self.stack.stack_bottom(), stack = self.stack.len(), self.ip))]
+    pub(crate) fn push_call_frame(
+        &mut self,
+        ip: usize,
+        args: usize,
+        isolated: bool,
+    ) -> Result<(), VmErrorKind> {
+        tracing::trace!("pushing call frame");
 
-        self.call_frames.push(CallFrame {
-            ip: self.ip,
-            stack_bottom: stack_top,
-        });
+        let stack_bottom = self.stack.swap_stack_bottom(args)?;
+        let ip = replace(&mut self.ip, ip);
 
-        self.ip = ip;
+        let frame = CallFrame {
+            ip,
+            stack_bottom,
+            isolated,
+        };
+
+        self.call_frames.push(frame);
         Ok(())
     }
 
-    /// Pop a call frame and return it.
-    #[tracing::instrument(skip_all)]
-    fn pop_call_frame(&mut self) -> Result<bool, VmErrorKind> {
-        let frame = match self.call_frames.pop() {
-            Some(frame) => frame,
-            None => {
-                self.stack.check_stack_top()?;
-                return Ok(true);
-            }
+    /// Pop a call frame from an internal call, which needs the current stack
+    /// pointer to be returned and does not check for context isolation through
+    /// [`CallFrame::isolated`].
+    #[tracing::instrument(skip(self), fields(call_frames = self.call_frames.len(), stack_bottom = self.stack.stack_bottom(), stack = self.stack.len(), self.ip))]
+    pub(crate) fn pop_call_frame_from_call(&mut self) -> Result<Option<usize>, VmErrorKind> {
+        tracing::trace!("popping call frame from call");
+
+        let Some(frame) = self.call_frames.pop() else {
+            return Ok(None);
         };
 
+        tracing::trace!(?frame);
+        self.stack.pop_stack_top(frame.stack_bottom)?;
+        Ok(Some(replace(&mut self.ip, frame.ip)))
+    }
+
+    /// Pop a call frame and return it.
+    #[tracing::instrument(skip(self), fields(call_frames = self.call_frames.len(), stack_bottom = self.stack.stack_bottom(), stack = self.stack.len(), self.ip))]
+    pub(crate) fn pop_call_frame(&mut self) -> Result<bool, VmErrorKind> {
+        tracing::trace!("popping call frame");
+
+        let Some(frame) = self.call_frames.pop() else {
+            self.stack.check_stack_top()?;
+            return Ok(true);
+        };
+
+        tracing::trace!(?frame);
         self.stack.pop_stack_top(frame.stack_bottom)?;
         self.ip = frame.ip;
-        Ok(false)
+        Ok(frame.isolated)
     }
 
     /// Implementation of getting a string index on an object-like type.
@@ -1161,7 +1209,7 @@ impl Vm {
                 false
             }
             Call::Immediate => {
-                self.push_call_frame(offset, args)?;
+                self.push_call_frame(offset, args, false)?;
                 true
             }
             Call::Stream => {
@@ -1540,7 +1588,7 @@ impl Vm {
     fn op_replace(&mut self, offset: usize) -> VmResult<()> {
         let mut value = vm_try!(self.stack.pop());
         let stack_value = vm_try!(self.stack.at_offset_mut(offset));
-        mem::swap(stack_value, &mut value);
+        swap(stack_value, &mut value);
         VmResult::Ok(())
     }
 
@@ -2007,6 +2055,7 @@ impl Vm {
     }
 
     #[inline]
+    #[tracing::instrument(skip(self))]
     fn op_return_internal(
         &mut self,
         return_value: Value,
@@ -2083,6 +2132,7 @@ impl Vm {
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
+    #[tracing::instrument(skip(self))]
     fn op_return_unit(&mut self) -> Result<bool, VmErrorKind> {
         let exit = self.pop_call_frame()?;
         self.stack.push(());
@@ -2888,6 +2938,7 @@ impl Vm {
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
+    #[tracing::instrument(skip(self))]
     fn op_call_fn(&mut self, args: usize) -> VmResult<Option<VmHalt>> {
         let function = vm_try!(self.stack.pop());
 
@@ -3272,6 +3323,9 @@ pub struct CallFrame {
     /// I.e. a function should not be able to manipulate the size of any other
     /// stack than its own.
     pub stack_bottom: usize,
+    /// Indicates that the call frame is isolated and should force an exit into
+    /// the vm execution context.
+    pub isolated: bool,
 }
 
 /// Clear stack on drop.

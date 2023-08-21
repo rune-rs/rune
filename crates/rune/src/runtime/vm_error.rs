@@ -588,6 +588,7 @@ pub(crate) enum VmErrorKind {
         lhs: f64,
         rhs: f64,
     },
+    MissingCallFrame,
 }
 
 impl fmt::Display for VmErrorKind {
@@ -784,6 +785,9 @@ impl fmt::Display for VmErrorKind {
                     f,
                     "Cannot perform a comparison of the floats {lhs} and {rhs}",
                 )
+            }
+            VmErrorKind::MissingCallFrame => {
+                write!(f, "Missing call frame for internal vm call")
             }
         }
     }
