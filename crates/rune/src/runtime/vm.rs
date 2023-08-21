@@ -2907,6 +2907,13 @@ impl Vm {
         VmResult::Ok(())
     }
 
+    /// Call a function at the given offset with the given number of arguments.
+    #[cfg_attr(feature = "bench", inline(never))]
+    fn op_call_offset(&mut self, offset: usize, call: Call, args: usize) -> VmResult<()> {
+        vm_try!(self.call_offset_fn(offset, call, args));
+        VmResult::Ok(())
+    }
+
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_call_associated(&mut self, hash: Hash, args: usize) -> VmResult<()> {
         // NB: +1 to include the instance itself.
@@ -3059,6 +3066,9 @@ impl Vm {
                 }
                 Inst::Call { hash, args } => {
                     vm_try!(self.op_call(hash, args));
+                }
+                Inst::CallOffset { offset, call, args } => {
+                    vm_try!(self.op_call_offset(offset, call, args));
                 }
                 Inst::CallAssociated { hash, args } => {
                     vm_try!(self.op_call_associated(hash, args));
