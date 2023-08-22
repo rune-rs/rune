@@ -74,9 +74,6 @@ impl Command {
                 Value::String(s) => {
                     self.inner.arg(&*rune::vm_try!(s.borrow_ref()));
                 }
-                Value::StaticString(s) => {
-                    self.inner.arg(&***s);
-                }
                 actual => {
                     return VmResult::expected::<String>(rune::vm_try!(actual.type_info()));
                 }

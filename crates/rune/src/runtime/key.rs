@@ -1,6 +1,4 @@
-use core::cmp;
 use core::fmt;
-use core::hash;
 
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
@@ -9,8 +7,8 @@ use crate::no_std::vec;
 use serde::{de, ser};
 
 use crate::runtime::{
-    Bytes, FromValue, FullTypeOf, MaybeTypeOf, Object, OwnedTuple, Shared, StaticString, ToValue,
-    TypeInfo, Value, Variant, VariantData, VariantRtti, Vec, VmErrorKind, VmResult,
+    Bytes, FromValue, FullTypeOf, MaybeTypeOf, Object, OwnedTuple, Shared, ToValue, TypeInfo,
+    Value, Variant, VariantData, VariantRtti, Vec, VmErrorKind, VmResult,
 };
 
 /// A key that can be used as an anonymous object key.
@@ -27,9 +25,9 @@ pub enum Key {
     /// An integer constant.
     Integer(i64),
     /// A string constant designated by its slot.
-    String(StringKey),
+    String(Box<str>),
     /// A byte string.
-    Bytes(Bytes),
+    Bytes(Box<[u8]>),
     /// A vector of values.
     Vec(vec::Vec<Key>),
     /// An anonymous tuple.
@@ -49,19 +47,12 @@ impl Key {
             Value::Char(c) => Self::Char(*c),
             Value::Bool(b) => Self::Bool(*b),
             Value::Integer(n) => Self::Integer(*n),
-            Value::String(s) => {
-                let s = vm_try!(s.borrow_ref());
-                Self::String(StringKey::String((**s).into()))
-            }
-            Value::StaticString(s) => Self::String(StringKey::StaticString(s.clone())),
+            Value::String(s) => Self::String(vm_try!(s.borrow_ref()).as_str().into()),
+            Value::Bytes(b) => Self::Bytes(vm_try!(b.borrow_ref()).as_ref().into()),
             Value::Option(option) => Self::Option(match &*vm_try!(option.borrow_ref()) {
                 Some(some) => Some(Box::new(vm_try!(Self::from_value(some)))),
                 None => None,
             }),
-            Value::Bytes(b) => {
-                let b = vm_try!(b.borrow_ref());
-                Self::Bytes((*b).clone())
-            }
             Value::Vec(vec) => {
                 let vec = vm_try!(vec.borrow_ref());
                 let mut key_vec = vec::Vec::with_capacity(vec.len());
@@ -134,11 +125,8 @@ impl Key {
             Self::Char(c) => Value::Char(c),
             Self::Bool(b) => Value::Bool(b),
             Self::Integer(n) => Value::Integer(n),
-            Self::String(s) => match s {
-                StringKey::String(s) => Value::String(Shared::new(String::from(s))),
-                StringKey::StaticString(s) => Value::StaticString(s),
-            },
-            Self::Bytes(b) => Value::Bytes(Shared::new(b)),
+            Self::String(s) => Value::String(Shared::new(String::from(s))),
+            Self::Bytes(b) => Value::Bytes(Shared::new(Bytes::from(b))),
             Self::Option(option) => {
                 Value::Option(Shared::new(option.map(|some| some.into_value())))
             }
@@ -290,7 +278,7 @@ impl ser::Serialize for Key {
             Self::Char(c) => serializer.serialize_char(*c),
             Self::Byte(c) => serializer.serialize_u8(*c),
             Self::Integer(integer) => serializer.serialize_i64(*integer),
-            Self::String(string) => serializer.serialize_str(string.as_str()),
+            Self::String(string) => serializer.serialize_str(string),
             Self::Bytes(bytes) => serializer.serialize_bytes(bytes),
             Self::Vec(vec) => {
                 let mut serializer = serializer.serialize_seq(Some(vec.len()))?;
@@ -331,7 +319,7 @@ impl<'de> de::Visitor<'de> for KeyVisitor {
     where
         E: de::Error,
     {
-        Ok(Key::String(StringKey::String(value.into())))
+        Ok(Key::String(value.into()))
     }
 
     #[inline]
@@ -339,7 +327,7 @@ impl<'de> de::Visitor<'de> for KeyVisitor {
     where
         E: de::Error,
     {
-        Ok(Key::String(StringKey::String(value.into())))
+        Ok(Key::String(value.into()))
     }
 
     #[inline]
@@ -347,7 +335,7 @@ impl<'de> de::Visitor<'de> for KeyVisitor {
     where
         E: de::Error,
     {
-        Ok(Key::Bytes(Bytes::from_vec(v.to_vec())))
+        Ok(Key::Bytes(v.into()))
     }
 
     #[inline]
@@ -355,7 +343,7 @@ impl<'de> de::Visitor<'de> for KeyVisitor {
     where
         E: de::Error,
     {
-        Ok(Key::Bytes(Bytes::from_vec(v)))
+        Ok(Key::Bytes(v.into()))
     }
 
     #[inline]
@@ -481,59 +469,24 @@ impl<'de> de::Visitor<'de> for KeyVisitor {
     }
 }
 
+impl From<Box<str>> for Key {
+    #[inline]
+    fn from(value: Box<str>) -> Self {
+        Self::String(value)
+    }
+}
+
 impl From<String> for Key {
+    #[inline]
     fn from(value: String) -> Self {
-        Self::String(StringKey::String(value.into()))
+        Self::String(value.into())
     }
 }
 
 impl From<i64> for Key {
+    #[inline]
     fn from(value: i64) -> Self {
         Self::Integer(value)
-    }
-}
-
-/// A key that can be used as an anonymous object key.
-#[derive(Debug, Clone)]
-pub enum StringKey {
-    /// A simple string.
-    String(Box<str>),
-    /// A static string.
-    StaticString(Arc<StaticString>),
-}
-
-impl StringKey {
-    fn as_str(&self) -> &str {
-        match self {
-            Self::String(s) => s.as_ref(),
-            Self::StaticString(s) => s.as_str(),
-        }
-    }
-}
-
-impl cmp::PartialEq for StringKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.as_str() == other.as_str()
-    }
-}
-
-impl cmp::Eq for StringKey {}
-
-impl hash::Hash for StringKey {
-    fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        self.as_str().hash(state)
-    }
-}
-
-impl cmp::PartialOrd for StringKey {
-    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
-        self.as_str().partial_cmp(other.as_str())
-    }
-}
-
-impl cmp::Ord for StringKey {
-    fn cmp(&self, other: &Self) -> cmp::Ordering {
-        self.as_str().cmp(other.as_str())
     }
 }
 

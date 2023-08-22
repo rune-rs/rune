@@ -841,10 +841,6 @@ fn const_<'hir>(
             let slot = cx.q.unit.new_static_string(span, s)?;
             cx.asm.push(Inst::String { slot }, span);
         }
-        ConstValue::StaticString(s) => {
-            let slot = cx.q.unit.new_static_string(span, s.as_ref())?;
-            cx.asm.push(Inst::String { slot }, span);
-        }
         ConstValue::Bytes(b) => {
             let slot = cx.q.unit.new_static_bytes(span, b)?;
             cx.asm.push(Inst::Bytes { slot }, span);

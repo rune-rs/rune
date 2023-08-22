@@ -65,7 +65,6 @@ impl Value {
             ConstValue::Integer(n) => Self::Integer(*n),
             ConstValue::Float(n) => Self::Float(*n),
             ConstValue::String(s) => Self::String(Shared::new(s.clone())),
-            ConstValue::StaticString(s) => Self::String(Shared::new((***s).to_owned())),
             ConstValue::Bytes(b) => Self::Bytes(Shared::new(b.clone())),
             ConstValue::Option(option) => Self::Option(Shared::new(
                 option.as_ref().map(|some| Self::from_const(some)),

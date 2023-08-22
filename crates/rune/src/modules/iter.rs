@@ -1141,9 +1141,6 @@ fn collect_string(mut it: Iterator) -> VmResult<String> {
                 let s = vm_try!(s.into_ref());
                 string.push_str(s.as_str());
             }
-            Value::StaticString(s) => {
-                string.push_str(s.as_str());
-            }
             value => {
                 return VmResult::expected::<String>(vm_try!(value.type_info()));
             }

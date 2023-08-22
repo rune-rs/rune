@@ -142,7 +142,7 @@ fn from_utf8(bytes: &[u8]) -> Result<String, FromUtf8Error> {
 /// Basic usage:
 ///
 /// ```rune
-/// let s = String::from("hello");
+/// let s = "hello";
 ///
 /// assert_eq!(b"hello", s.as_bytes());
 /// assert!(is_readable(s));
@@ -341,7 +341,7 @@ fn capacity(this: &String) -> usize {
 /// Basic usage:
 ///
 /// ```rune
-/// let s = String::from("foo");
+/// let s = "foo";
 ///
 /// s.clear();
 ///
@@ -387,7 +387,7 @@ fn contains(this: &str, other: &str) -> bool {
 /// Basic usage:
 ///
 /// ```rune
-/// let s = String::from("abc");
+/// let s = "abc";
 ///
 /// s.push('1');
 /// s.push('2');
@@ -407,7 +407,7 @@ fn push(this: &mut String, c: char) {
 /// Basic usage:
 ///
 /// ```rune
-/// let s = String::from("foo");
+/// let s = "foo";
 ///
 /// s.push_str("bar");
 ///
@@ -521,7 +521,7 @@ fn reserve_exact(this: &mut String, additional: usize) {
 /// Basic usage:
 ///
 /// ```rune
-/// let s = String::from("hello");
+/// let s = "hello";
 ///
 /// assert_eq!(b"hello", s.into_bytes());
 /// assert!(!is_readable(s));
@@ -588,7 +588,7 @@ fn char_at(s: &str, index: usize) -> Option<char> {
 /// Basic usage:
 ///
 /// ```rune
-/// let a = String::from("h");
+/// let a = "h";
 /// let b = a;
 /// b.push('i');
 ///
@@ -612,7 +612,7 @@ fn clone(s: &String) -> String {
 /// Basic usage:
 ///
 /// ```rune
-/// let s = String::from("foo");
+/// let s = "foo";
 ///
 /// s.reserve(100);
 /// assert!(s.capacity() >= 100);
@@ -736,10 +736,6 @@ fn split(this: &str, value: Value) -> VmResult<Iterator> {
     let lines = match value {
         Value::String(s) => this
             .split(vm_try!(s.borrow_ref()).as_str())
-            .map(String::from)
-            .collect::<Vec<String>>(),
-        Value::StaticString(s) => this
-            .split(s.as_str())
             .map(String::from)
             .collect::<Vec<String>>(),
         Value::Char(pat) => this.split(pat).map(String::from).collect::<Vec<String>>(),

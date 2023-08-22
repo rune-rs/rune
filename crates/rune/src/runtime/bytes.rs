@@ -244,8 +244,18 @@ impl Bytes {
 }
 
 impl From<Vec<u8>> for Bytes {
+    #[inline]
     fn from(bytes: Vec<u8>) -> Self {
         Self { bytes }
+    }
+}
+
+impl From<Box<[u8]>> for Bytes {
+    #[inline]
+    fn from(bytes: Box<[u8]>) -> Self {
+        Self {
+            bytes: bytes.into(),
+        }
     }
 }
 
