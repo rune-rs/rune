@@ -762,7 +762,12 @@ fn split(this: &str, value: Value) -> VmResult<Iterator> {
 
             lines
         }
-        value => return VmResult::err(vm_try!(VmErrorKind::bad_argument::<String>(0, &value))),
+        actual => {
+            return VmResult::err([
+                VmErrorKind::expected::<String>(vm_try!(actual.type_info())),
+                VmErrorKind::bad_argument(0),
+            ])
+        }
     };
 
     VmResult::Ok(Iterator::from_double_ended(

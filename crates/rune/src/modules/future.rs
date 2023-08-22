@@ -63,7 +63,10 @@ where
         let future = match value {
             Value::Future(future) => vm_try!(future.clone().into_mut()),
             value => {
-                return VmResult::err(vm_try!(VmErrorKind::bad_argument::<Future>(index, value)))
+                return VmResult::err([
+                    VmErrorKind::expected::<Future>(vm_try!(value.type_info())),
+                    VmErrorKind::bad_argument(index),
+                ])
             }
         };
 
@@ -94,7 +97,10 @@ async fn join(value: Value) -> VmResult<Value> {
                 try_join_impl(vec.iter(), vec.len(), Value::vec).await
             ))
         }
-        value => VmResult::err(vm_try!(VmErrorKind::bad_argument::<Vec<Value>>(0, &value))),
+        actual => VmResult::err([
+            VmErrorKind::bad_argument(0),
+            VmErrorKind::expected::<Vec<Value>>(vm_try!(actual.type_info())),
+        ]),
     }
 }
 

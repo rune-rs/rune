@@ -167,8 +167,8 @@ mod vm_call;
 pub(crate) use self::vm_call::VmCall;
 
 mod vm_error;
-pub(crate) use self::vm_error::VmErrorKind;
 pub use self::vm_error::{try_result, TryFromResult, VmError, VmIntegerRepr, VmResult};
+pub(crate) use self::vm_error::{VmErrorAt, VmErrorKind};
 
 mod vm_execution;
 pub use self::vm_execution::{ExecutionState, VmExecution, VmSendExecution};
