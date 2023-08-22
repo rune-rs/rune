@@ -2,6 +2,7 @@ use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{ContextError, Diagnostics, Module, Vm};
 use std::sync::Arc;
 
+#[rune::function(instance)]
 fn divide_by_three(value: i64) -> i64 {
     value / 3
 }
@@ -44,6 +45,6 @@ async fn main() -> rune::Result<()> {
 
 fn module() -> Result<Module, ContextError> {
     let mut m = Module::with_item(["mymodule"]);
-    m.associated_function("divide_by_three", divide_by_three)?;
+    m.function_meta(divide_by_three)?;
     Ok(m)
 }

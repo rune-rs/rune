@@ -5,7 +5,9 @@ use crate as rune;
 use crate::no_std::collections;
 use crate::no_std::prelude::*;
 
-use crate::runtime::{Iterator, Protocol, Value, VmErrorKind, VmResult};
+use crate::runtime::{
+    EnvProtocolCaller, Iterator, Protocol, ProtocolCaller, Value, VmErrorKind, VmResult,
+};
 use crate::{Any, ContextError, Module};
 
 pub(super) fn setup(m: &mut Module) -> Result<(), ContextError> {
@@ -54,11 +56,11 @@ pub(super) fn setup(m: &mut Module) -> Result<(), ContextError> {
     m.associated_function(Protocol::INDEX_GET, VecDeque::get)?;
     m.associated_function(Protocol::INDEX_SET, VecDeque::set)?;
     m.associated_function(Protocol::INTO_ITER, VecDeque::__rune_fn__iter)?;
-    m.associated_function(Protocol::STRING_DEBUG, VecDeque::string_debug)?;
-    m.associated_function(Protocol::PARTIAL_EQ, VecDeque::partial_eq)?;
-    m.associated_function(Protocol::EQ, VecDeque::eq)?;
-    m.associated_function(Protocol::PARTIAL_CMP, VecDeque::partial_cmp)?;
-    m.associated_function(Protocol::CMP, VecDeque::cmp)?;
+    m.function_meta(VecDeque::string_debug)?;
+    m.function_meta(VecDeque::partial_eq)?;
+    m.function_meta(VecDeque::eq)?;
+    m.function_meta(VecDeque::partial_cmp)?;
+    m.function_meta(VecDeque::cmp)?;
     Ok(())
 }
 
@@ -504,60 +506,164 @@ impl VecDeque {
         VmResult::Ok(())
     }
 
+    /// Write a debug representation to a string.
+    ///
+    /// This calls the [`STRING_DEBUG`] protocol over all elements of the
+    /// collection.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// use std::collections::VecDeque;
+    ///
+    /// let deque = VecDeque::from([1, 2, 3]);
+    /// assert_eq!(format!("{:?}", deque), "[1, 2, 3]");
+    /// ```
+    #[rune::function(protocol = STRING_DEBUG)]
+    fn string_debug(&self, s: &mut String) -> VmResult<fmt::Result> {
+        self.string_debug_with(s, &mut EnvProtocolCaller)
+    }
+
     #[inline]
-    fn string_debug(&self, s: &mut String) -> fmt::Result {
-        write!(s, "{:?}", self.inner)
+    fn string_debug_with(
+        &self,
+        s: &mut String,
+        caller: &mut impl ProtocolCaller,
+    ) -> VmResult<fmt::Result> {
+        if let Err(fmt::Error) = write!(s, "[") {
+            return VmResult::Ok(Err(fmt::Error));
+        }
+
+        let mut it = self.inner.iter().peekable();
+
+        while let Some(value) = it.next() {
+            if let Err(fmt::Error) = vm_try!(value.string_debug_with(s, caller)) {
+                return VmResult::Ok(Err(fmt::Error));
+            }
+
+            if it.peek().is_some() {
+                if let Err(fmt::Error) = write!(s, ", ") {
+                    return VmResult::Ok(Err(fmt::Error));
+                }
+            }
+        }
+
+        if let Err(fmt::Error) = write!(s, "]") {
+            return VmResult::Ok(Err(fmt::Error));
+        }
+
+        VmResult::Ok(Ok(()))
     }
 
-    fn partial_eq(this: &VecDeque, other: Value) -> VmResult<bool> {
-        let mut other = vm_try!(other.into_iter());
+    /// Perform a partial equality check with this deque.
+    ///
+    /// This can take any argument which can be converted into an iterator using
+    /// [`INTO_ITER`].
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// use std::collections::VecDeque;
+    ///
+    /// let deque = VecDeque::from([1, 2, 3]);
+    ///
+    /// assert!(deque == [1, 2, 3]);
+    /// assert!(deque == (1..=3));
+    /// assert!(deque != [2, 3, 4]);
+    /// ```
+    #[rune::function(protocol = PARTIAL_EQ)]
+    fn partial_eq(&self, b: Value) -> VmResult<bool> {
+        self.partial_eq_with(b, &mut EnvProtocolCaller)
+    }
 
-        for a in &this.inner {
-            let Some(b) = vm_try!(other.next()) else {
+    fn partial_eq_with(&self, b: Value, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
+        let mut b = vm_try!(b.into_iter_with(caller));
+
+        for a in &self.inner {
+            let Some(b) = vm_try!(b.next()) else {
                 return VmResult::Ok(false);
             };
 
-            if !vm_try!(Value::partial_eq(a, &b)) {
+            if !vm_try!(Value::partial_eq_with(a, &b, caller)) {
                 return VmResult::Ok(false);
             }
         }
 
-        if vm_try!(other.next()).is_some() {
+        if vm_try!(b.next()).is_some() {
             return VmResult::Ok(false);
         }
 
         VmResult::Ok(true)
     }
 
-    fn eq(this: &VecDeque, other: Value) -> VmResult<bool> {
-        let mut other = vm_try!(other.into_iter());
+    /// Perform a total equality check with this deque.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// use std::collections::VecDeque;
+    /// use std::ops::eq;
+    ///
+    /// let deque = VecDeque::from([1, 2, 3]);
+    ///
+    /// assert!(eq(deque, VecDeque::from([1, 2, 3])));
+    /// assert!(!eq(deque, VecDeque::from([2, 3, 4])));
+    /// ```
+    #[rune::function(protocol = EQ)]
+    fn eq(&self, b: &VecDeque) -> VmResult<bool> {
+        self.eq_with(b, &mut EnvProtocolCaller)
+    }
 
-        for a in &this.inner {
-            let Some(b) = vm_try!(other.next()) else {
+    fn eq_with(&self, b: &VecDeque, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
+        let mut b = b.inner.iter();
+
+        for a in &self.inner {
+            let Some(b) = b.next() else {
                 return VmResult::Ok(false);
             };
 
-            if !vm_try!(Value::eq(a, &b)) {
+            if !vm_try!(Value::eq_with(a, &b, caller)) {
                 return VmResult::Ok(false);
             }
         }
 
-        if vm_try!(other.next()).is_some() {
+        if b.next().is_some() {
             return VmResult::Ok(false);
         }
 
         VmResult::Ok(true)
     }
 
-    fn partial_cmp(this: &VecDeque, other: &VecDeque) -> VmResult<Option<Ordering>> {
-        let mut b = other.inner.iter();
+    /// Perform a partial comparison check with this deque.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// use std::collections::VecDeque;
+    ///
+    /// let deque = VecDeque::from([1, 2, 3]);
+    ///
+    /// assert!(deque > VecDeque::from([0, 2, 3]));
+    /// assert!(deque < VecDeque::from([2, 2, 3]));
+    /// ```
+    #[rune::function(protocol = PARTIAL_CMP)]
+    fn partial_cmp(&self, b: &VecDeque) -> VmResult<Option<Ordering>> {
+        self.partial_cmp_with(b, &mut EnvProtocolCaller)
+    }
 
-        for a in this.inner.iter() {
+    fn partial_cmp_with(
+        &self,
+        b: &VecDeque,
+        caller: &mut impl ProtocolCaller,
+    ) -> VmResult<Option<Ordering>> {
+        let mut b = b.inner.iter();
+
+        for a in self.inner.iter() {
             let Some(b) = b.next() else {
                 return VmResult::Ok(Some(Ordering::Greater));
             };
 
-            match vm_try!(Value::partial_cmp(a, b)) {
+            match vm_try!(Value::partial_cmp_with(a, b, caller)) {
                 Some(Ordering::Equal) => (),
                 other => return VmResult::Ok(other),
             }
@@ -570,15 +676,34 @@ impl VecDeque {
         VmResult::Ok(Some(Ordering::Equal))
     }
 
-    fn cmp(this: &VecDeque, other: &VecDeque) -> VmResult<Ordering> {
+    /// Perform a total comparison check with this deque.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// use std::collections::VecDeque;
+    /// use std::cmp::Ordering;
+    /// use std::ops::cmp;
+    ///
+    /// let deque = VecDeque::from([1, 2, 3]);
+    ///
+    /// assert_eq!(cmp(deque, VecDeque::from([0, 2, 3])), Ordering::Greater);
+    /// assert_eq!(cmp(deque, VecDeque::from([2, 2, 3])), Ordering::Less);
+    /// ```
+    #[rune::function(protocol = CMP)]
+    fn cmp(&self, b: &VecDeque) -> VmResult<Ordering> {
+        self.cmp_with(b, &mut EnvProtocolCaller)
+    }
+
+    fn cmp_with(&self, other: &VecDeque, caller: &mut impl ProtocolCaller) -> VmResult<Ordering> {
         let mut b = other.inner.iter();
 
-        for a in this.inner.iter() {
+        for a in self.inner.iter() {
             let Some(b) = b.next() else {
                 return VmResult::Ok(Ordering::Greater);
             };
 
-            match vm_try!(Value::cmp(a, b)) {
+            match vm_try!(Value::cmp_with(a, b, caller)) {
                 Ordering::Equal => (),
                 other => return VmResult::Ok(other),
             }

@@ -284,9 +284,107 @@ pub(crate) use rune_macros::__internal_impl_any;
 /// * The name of the function can be set using the `#[rune::function(path = ...)]`.
 /// * Instance functions can be made a protocol function `#[rune::function(protocol = STRING_DISPLAY)]`.
 ///
+/// # Instance and associated functions
+///
+/// Instance and associated functions are a bit tricky to declare using
+/// `#[rune::function]`, and care must be taken that you understand what needs
+/// to be done. So this section is dedicated to documenting the ins and outs of
+/// the process.
+///
+/// Briefly we should mention that instance functions are functions which are
+/// associated with a type at runtime. Calling a value like `value.hello()`
+/// invokes the `hello` associated function through the instance of `value`. The
+/// exact type of `value` will then be used to look up which function to call.
+/// They must take some kind of `self` parameter. Meanwhile associated functions
+/// are just functions which are associated with a static type. Like
+/// `String::new()`. The type `String` must then be in scope, and the function
+/// does not take a `self` parameter.
+///
+/// This is how you declare an instance function which takes `&self` or `&mut
+/// self`:
+///
+/// ```rust
+/// # use rune::Any;
+/// #[derive(Any)]
+/// struct Struct {
+///     /* .. */
+/// }
+///
+/// impl Struct {
+///     /// Get the length of the `Struct`.
+///     #[rune::function]
+///     fn len(&self) -> usize {
+///         /* .. */
+///         # todo!()
+///     }
+/// }
+/// ```
+///
+/// If a function does not take `&self` or `&mut self`, you must specify that
+/// it's an instance function using `#[rune::function(instance)]`. The first
+/// argument is then considered the instance the function gets associated with:
+///
+/// ```rust
+/// # use rune::Any;
+/// #[derive(Any)]
+/// struct Struct {
+///     /* .. */
+/// }
+///
+/// /// Get the length of the `Struct`.
+/// #[rune::function(instance)]
+/// fn len(this: &Struct) -> usize {
+///     /* .. */
+///     # todo!()
+/// }
+/// ```
+///
+/// To declare an associated function which does not receive the type we
+/// must specify the path to the function using `#[rune::function(path =
+/// Self::<name>)]`:
+///
+/// ```rust
+/// # use rune::Any;
+/// #[derive(Any)]
+/// struct Struct {
+///     /* .. */
+/// }
+///
+/// impl Struct {
+///     /// Construct a new [`Struct`].
+///     #[rune::function(path = Self::new)]
+///     fn new() -> Struct {
+///         Struct {
+///            /* .. */
+///         }
+///     }
+/// }
+/// ```
+///
+/// Or externally like this:
+///
+/// ```rust
+/// # use rune::Any;
+/// #[derive(Any)]
+/// struct Struct {
+///     /* .. */
+/// }
+///
+/// /// Construct a new [`Struct`].
+/// #[rune::function(path = Struct::new)]
+/// fn new() -> Struct {
+///     Struct {
+///        /* .. */
+///     }
+/// }
+/// ```
+///
+/// The first part `Struct` in `Struct::new` is used to determine the type
+/// the function is associated with.
+///
 /// # Examples
 ///
-/// A simple free function:
+/// Defining and using a simple free function:
 ///
 /// ```
 /// use rune::{Module, ContextError};
@@ -329,7 +427,7 @@ pub(crate) use rune_macros::__internal_impl_any;
 /// }
 /// ```
 ///
-/// Regular instance functions and protocol functions:
+/// Regular instance and protocol functions:
 ///
 /// ```
 /// use rune::{Any, Module, ContextError};
@@ -364,6 +462,14 @@ pub(crate) use rune_macros::__internal_impl_any;
 ///         }
 ///     }
 ///
+///     /// Display the string using the [`STRING_DISPLAY`] protocol.
+///     ///
+///     /// # Examples
+///     ///
+///     /// ```rune
+///     /// let string = String::new("hello");
+///     /// assert_eq!(format!("{}", string), "hello");
+///     /// ```
 ///     #[rune::function(protocol = STRING_DISPLAY)]
 ///     fn display(&self, buffer: &mut std::string::String) -> fmt::Result {
 ///         write!(buffer, "{}", self.inner)

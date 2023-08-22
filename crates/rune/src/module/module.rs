@@ -171,27 +171,28 @@ impl Module {
     /// }
     ///
     /// impl MyBytes {
+    ///     #[rune::function]
     ///     fn len(&self) -> usize {
     ///         self.queue.len()
     ///     }
     /// }
     ///
     /// // Register `len` without registering a type.
-    /// let mut module = Module::default();
+    /// let mut m = Module::default();
     /// // Note: cannot do this until we have registered a type.
-    /// module.associated_function("len", MyBytes::len)?;
+    /// m.function_meta(MyBytes::len)?;
     ///
     /// let mut context = rune::Context::new();
-    /// assert!(context.install(module).is_err());
+    /// assert!(context.install(m).is_err());
     ///
     /// // Register `len` properly.
-    /// let mut module = Module::default();
+    /// let mut m = Module::default();
     ///
-    /// module.ty::<MyBytes>()?;
-    /// module.associated_function("len", MyBytes::len)?;
+    /// m.ty::<MyBytes>()?;
+    /// m.function_meta(MyBytes::len)?;
     ///
     /// let mut context = Context::new();
-    /// assert!(context.install(module).is_ok());
+    /// assert!(context.install(m).is_ok());
     /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn ty<T>(&mut self) -> Result<TypeMut<'_, T>, ContextError>
@@ -780,11 +781,11 @@ impl Module {
     ///     }
     /// }
     ///
-    /// let mut module = Module::default();
+    /// let mut m = Module::default();
     ///
-    /// module.ty::<MyBytes>()?;
-    /// module.function_meta(MyBytes::len)?;
-    /// module.function_meta(MyBytes::download)?;
+    /// m.ty::<MyBytes>()?;
+    /// m.function_meta(MyBytes::len)?;
+    /// m.function_meta(MyBytes::download)?;
     /// # Ok::<_, rune::Error>(())
     /// ```
     #[inline]
@@ -878,8 +879,92 @@ impl Module {
     /// If possible, [`Module::function_meta`] should be used since it includes
     /// more useful information about the function.
     ///
-    /// This returns a [`ItemMut`], which is a handle that can be used to associate more metadata
-    /// with the inserted item.
+    /// This returns a [`ItemMut`], which is a handle that can be used to
+    /// associate more metadata with the inserted item.
+    ///
+    /// # Replacing this with `function_meta` and `#[rune::function]`
+    ///
+    /// This is how you declare an instance function which takes `&self` or
+    /// `&mut self`:
+    ///
+    /// ```rust
+    /// # use rune::Any;
+    /// #[derive(Any)]
+    /// struct Struct {
+    ///     /* .. */
+    /// }
+    ///
+    /// impl Struct {
+    ///     /// Get the length of the `Struct`.
+    ///     #[rune::function]
+    ///     fn len(&self) -> usize {
+    ///         /* .. */
+    ///         # todo!()
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// If a function does not take `&self` or `&mut self`, you must specify that
+    /// it's an instance function using `#[rune::function(instance)]`. The first
+    /// argument is then considered the instance the function gets associated with:
+    ///
+    /// ```rust
+    /// # use rune::Any;
+    /// #[derive(Any)]
+    /// struct Struct {
+    ///     /* .. */
+    /// }
+    ///
+    /// /// Get the length of the `Struct`.
+    /// #[rune::function(instance)]
+    /// fn len(this: &Struct) -> usize {
+    ///     /* .. */
+    ///     # todo!()
+    /// }
+    /// ```
+    ///
+    /// To declare an associated function which does not receive the type we
+    /// must specify the path to the function using `#[rune::function(path =
+    /// Self::<name>)]`:
+    ///
+    /// ```rust
+    /// # use rune::Any;
+    /// #[derive(Any)]
+    /// struct Struct {
+    ///     /* .. */
+    /// }
+    ///
+    /// impl Struct {
+    ///     /// Construct a new [`Struct`].
+    ///     #[rune::function(path = Self::new)]
+    ///     fn new() -> Struct {
+    ///         Struct {
+    ///            /* .. */
+    ///         }
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// Or externally like this:
+    ///
+    /// ```rust
+    /// # use rune::Any;
+    /// #[derive(Any)]
+    /// struct Struct {
+    ///     /* .. */
+    /// }
+    ///
+    /// /// Construct a new [`Struct`].
+    /// #[rune::function(path = Struct::new)]
+    /// fn new() -> Struct {
+    ///     Struct {
+    ///        /* .. */
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// The first part `Struct` in `Struct::new` is used to determine the type
+    /// the function is associated with.
     ///
     /// # Examples
     ///
@@ -892,26 +977,26 @@ impl Module {
     /// }
     ///
     /// impl MyBytes {
+    ///     /// Construct a new empty bytes container.
+    ///     #[rune::function(path = Self::new)]
     ///     fn new() -> Self {
     ///         Self {
     ///             queue: Vec::new(),
     ///         }
     ///     }
     ///
+    ///     /// Get the number of bytes.
+    ///     #[rune::function]
     ///     fn len(&self) -> usize {
     ///         self.queue.len()
     ///     }
     /// }
     ///
-    /// let mut module = Module::default();
+    /// let mut m = Module::default();
     ///
-    /// module.ty::<MyBytes>()?;
-    ///
-    /// module.function(["MyBytes", "new"], MyBytes::new)?
-    ///     .docs(["Construct a new empty bytes container."]);
-    ///
-    /// module.associated_function("len", MyBytes::len)?
-    ///     .docs(["Get the number of bytes."]);
+    /// m.ty::<MyBytes>()?;
+    /// m.function_meta(MyBytes::new)?;
+    /// m.function_meta(MyBytes::len)?;
     /// # Ok::<_, rune::Error>(())
     /// ```
     ///

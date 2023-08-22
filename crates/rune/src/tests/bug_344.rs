@@ -40,11 +40,18 @@ fn bug_344_function() -> Result<()> {
 
 #[test]
 fn bug_344_inst_fn() -> Result<()> {
+    #[rune::function(instance)]
+    fn function(s: &GuardCheck, check: &GuardCheck) -> i64 {
+        s.ensure_not_dropped("async self argument");
+        check.ensure_not_dropped("async instance argument");
+        42
+    }
+
     let mut context = Context::new();
     let mut module = Module::new();
 
     module.ty::<GuardCheck>()?;
-    module.associated_function("function", function)?;
+    module.function_meta(function)?;
 
     context.install(module)?;
     let runtime = context.runtime();
@@ -59,13 +66,7 @@ fn bug_344_inst_fn() -> Result<()> {
     function(&mut stack, 2).into_result()?;
 
     assert_eq!(stack.pop()?.into_integer().into_result()?, 42);
-    return Ok(());
-
-    fn function(s: &GuardCheck, check: &GuardCheck) -> i64 {
-        s.ensure_not_dropped("async self argument");
-        check.ensure_not_dropped("async instance argument");
-        42
-    }
+    Ok(())
 }
 
 #[test]
@@ -106,11 +107,18 @@ fn bug_344_async_function() -> Result<()> {
 
 #[test]
 fn bug_344_async_inst_fn() -> Result<()> {
+    #[rune::function(instance)]
+    async fn function(s: Ref<GuardCheck>, check: Ref<GuardCheck>) -> VmResult<i64> {
+        s.ensure_not_dropped("self argument");
+        check.ensure_not_dropped("instance argument");
+        VmResult::Ok(42)
+    }
+
     let mut context = Context::new();
     let mut module = Module::new();
 
     module.ty::<GuardCheck>()?;
-    module.associated_function("function", function)?;
+    module.function_meta(function)?;
 
     context.install(module)?;
     let runtime = context.runtime();
@@ -132,13 +140,8 @@ fn bug_344_async_inst_fn() -> Result<()> {
             .into_result()?,
         42
     );
-    return Ok(());
 
-    async fn function(s: Ref<GuardCheck>, check: Ref<GuardCheck>) -> VmResult<i64> {
-        s.ensure_not_dropped("self argument");
-        check.ensure_not_dropped("instance argument");
-        VmResult::Ok(42)
-    }
+    Ok(())
 }
 
 struct Guard {

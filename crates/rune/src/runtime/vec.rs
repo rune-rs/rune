@@ -2,7 +2,7 @@ mod iter;
 
 use core::cmp;
 use core::cmp::Ordering;
-use core::fmt;
+use core::fmt::{self, Write};
 use core::ops;
 use core::slice;
 use core::slice::SliceIndex;
@@ -209,6 +209,36 @@ impl Vec {
     /// Access the inner values as a slice.
     pub(crate) fn as_slice(&self) -> &[Value] {
         &self.inner
+    }
+
+    pub(crate) fn string_debug_with(
+        this: &[Value],
+        s: &mut String,
+        caller: &mut impl ProtocolCaller,
+    ) -> VmResult<fmt::Result> {
+        if let Err(fmt::Error) = write!(s, "[") {
+            return VmResult::Ok(Err(fmt::Error));
+        }
+
+        let mut it = this.iter().peekable();
+
+        while let Some(value) = it.next() {
+            if let Err(fmt::Error) = vm_try!(value.string_debug_with(s, caller)) {
+                return VmResult::Ok(Err(fmt::Error));
+            }
+
+            if it.peek().is_some() {
+                if let Err(fmt::Error) = write!(s, ", ") {
+                    return VmResult::Ok(Err(fmt::Error));
+                }
+            }
+        }
+
+        if let Err(fmt::Error) = write!(s, "]") {
+            return VmResult::Ok(Err(fmt::Error));
+        }
+
+        VmResult::Ok(Ok(()))
     }
 
     pub(crate) fn partial_eq_with(
