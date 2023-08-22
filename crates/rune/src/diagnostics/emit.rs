@@ -14,9 +14,10 @@ use crate::compile::{ErrorKind, Location, LinkerError};
 use crate::diagnostics::{
     Diagnostic, FatalDiagnostic, FatalDiagnosticKind, WarningDiagnostic, WarningDiagnosticKind,
 };
-use crate::runtime::{Unit, VmErrorKind, VmError, DebugInst, VmErrorAt};
+use crate::runtime::{Unit, VmErrorKind, VmError, DebugInst, VmErrorAt, Protocol};
 use crate::{Source, Diagnostics, SourceId, Sources};
 use crate::ast::{Span, Spanned};
+use crate::hash::Hash;
 
 struct StackFrame {
     source_id: SourceId,
@@ -149,6 +150,12 @@ impl VmError {
             Some(debug_inst)
         };
 
+        let get_ident = |at: &VmErrorAt, hash: Hash| {
+            let l = self.inner.stacktrace.get(at.index())?;
+            let debug_info = l.unit.debug_info()?;
+            debug_info.ident_for_hash(hash)
+        };
+
         for at in &self.inner.chain {
             // Populate source-specific notes.
             match at.kind() {
@@ -181,6 +188,35 @@ impl VmError {
                     .with_message(self.inner.error.to_string()),
             );
         };
+
+        for at in [&self.inner.error].into_iter().chain(&self.inner.chain) {
+            // Populate source-specific notes.
+            if let VmErrorKind::MissingInstanceFunction { hash, instance } = at.kind() {
+                // Undo instance function hashing to extract the hash of the
+                // name. This is an implementation detail in how hash mixing
+                // works, in that it can be reversed because we simply xor
+                // the values together with an associated function seed. But
+                // this is not guaranteed to work everywhere.
+
+                if let Some(&DebugInst { source_id, span, .. }) = get(at) {
+                    let instance_hash = Hash::associated_function(instance.type_hash(), *hash);
+
+                    if let Some(ident) = get_ident(at, instance_hash) {
+                        labels.push(
+                            d::Label::secondary(source_id, span.range())
+                                .with_message(format!("This corresponds to the `{instance}::{ident}` instance function")),
+                        );
+                    }
+
+                    if let Some(protocol) = Protocol::from_hash(instance_hash) {
+                        labels.push(
+                            d::Label::secondary(source_id, span.range())
+                                .with_message(format!("This corresponds to the `{protocol}` protocol function for `{instance}`")),
+                        );
+                    }
+                }
+            };
+        }
 
         let diagnostic = d::Diagnostic::error().with_message(self.inner.error.to_string())
             .with_labels(labels)

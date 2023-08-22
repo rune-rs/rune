@@ -66,9 +66,8 @@ impl ProtocolCaller for EnvProtocolCaller {
                 return call.call_with_vm(vm);
             }
 
-            let handler = match context.function(hash) {
-                Some(handler) => handler,
-                None => return VmResult::err(VmErrorKind::MissingFunction { hash }),
+            let Some(handler) = context.function(hash) else {
+                return VmResult::err(VmErrorKind::MissingInstanceFunction { hash, instance: vm_try!(target.type_info()) });
             };
 
             let mut stack = Stack::with_capacity(count);

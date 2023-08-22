@@ -1692,8 +1692,12 @@ fn expr_call<'hir>(
             }) => {
                 let hash = match expr_field {
                     hir::ExprField::Index(index) => Hash::index(index),
-                    hir::ExprField::Ident(ident) => Hash::ident(ident),
+                    hir::ExprField::Ident(ident) => {
+                        cx.q.unit.insert_debug_ident(ident);
+                        Hash::ident(ident)
+                    }
                     hir::ExprField::IdentGenerics(ident, hash) => {
+                        cx.q.unit.insert_debug_ident(ident);
                         Hash::ident(ident).with_function_parameters(hash)
                     }
                 };
