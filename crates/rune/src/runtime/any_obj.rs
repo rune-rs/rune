@@ -481,7 +481,10 @@ impl AnyObj {
 
     /// Access full type info for type.
     pub fn type_info(&self) -> TypeInfo {
-        TypeInfo::Any(AnyTypeInfo::new((self.vtable.type_name)()))
+        TypeInfo::Any(AnyTypeInfo::__private_new(
+            (self.vtable.type_name)(),
+            (self.vtable.type_hash)(),
+        ))
     }
 }
 

@@ -83,15 +83,23 @@ pub(crate) struct UnitBuilder {
     debug: Option<Box<DebugInfo>>,
     /// Constant values
     constants: hash::Map<ConstValue>,
+    /// Hash to identifiers.
+    hash_to_ident: HashMap<Hash, Box<str>>,
 }
 
 impl UnitBuilder {
+    /// Insert an identifier for debug purposes.
+    pub(crate) fn insert_debug_ident(&mut self, ident: &str) {
+        self.hash_to_ident.insert(Hash::ident(ident), ident.into());
+    }
+
     /// Convert into a runtime unit, shedding our build metadata in the process.
     ///
     /// Returns `None` if the builder is still in use.
     pub(crate) fn build<S>(mut self, span: Span, storage: S) -> compile::Result<Unit<S>> {
         if let Some(debug) = &mut self.debug {
             debug.functions_rev = self.functions_rev;
+            debug.hash_to_ident = self.hash_to_ident;
         }
 
         for (from, to) in self.reexports {

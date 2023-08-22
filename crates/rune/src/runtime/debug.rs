@@ -9,8 +9,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::ast::Span;
 use crate::compile::ItemBuf;
+use crate::hash::Hash;
 use crate::runtime::DebugLabel;
-use crate::{Hash, SourceId};
+use crate::SourceId;
 
 /// Debug information about a unit.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -22,6 +23,8 @@ pub struct DebugInfo {
     pub functions: HashMap<Hash, DebugSignature>,
     /// Reverse lookup of a function.
     pub functions_rev: HashMap<usize, Hash>,
+    /// Hash to identifier.
+    pub hash_to_ident: HashMap<Hash, Box<str>>,
 }
 
 impl DebugInfo {
@@ -35,6 +38,11 @@ impl DebugInfo {
         let hash = *self.functions_rev.get(&ip)?;
         let signature = self.functions.get(&hash)?;
         Some((hash, signature))
+    }
+
+    /// Access an identifier for the given hash - if it exists.
+    pub fn ident_for_hash(&self, hash: Hash) -> Option<&str> {
+        Some(self.hash_to_ident.get(&hash)?)
     }
 }
 
