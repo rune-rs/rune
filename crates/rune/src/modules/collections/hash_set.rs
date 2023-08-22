@@ -343,28 +343,19 @@ impl HashSet {
         s: &mut String,
         _: &mut impl ProtocolCaller,
     ) -> VmResult<fmt::Result> {
-        if let Err(fmt::Error) = write!(s, "{{") {
-            return VmResult::Ok(Err(fmt::Error));
-        }
+        vm_write!(s, "{{");
 
         let mut it = self.set.iter().peekable();
 
         while let Some(value) = it.next() {
-            if let Err(fmt::Error) = write!(s, "{:?}", value) {
-                return VmResult::Ok(Err(fmt::Error));
-            }
+            vm_write!(s, "{:?}", value);
 
             if it.peek().is_some() {
-                if let Err(fmt::Error) = write!(s, ", ") {
-                    return VmResult::Ok(Err(fmt::Error));
-                }
+                vm_write!(s, ", ");
             }
         }
 
-        if let Err(fmt::Error) = write!(s, "}}") {
-            return VmResult::Ok(Err(fmt::Error));
-        }
-
+        vm_write!(s, "}}");
         VmResult::Ok(Ok(()))
     }
 

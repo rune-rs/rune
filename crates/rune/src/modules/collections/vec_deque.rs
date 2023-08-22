@@ -530,11 +530,9 @@ impl VecDeque {
         s: &mut String,
         caller: &mut impl ProtocolCaller,
     ) -> VmResult<fmt::Result> {
-        if let Err(fmt::Error) = write!(s, "[") {
-            return VmResult::Ok(Err(fmt::Error));
-        }
-
         let mut it = self.inner.iter().peekable();
+
+        vm_write!(s, "[");
 
         while let Some(value) = it.next() {
             if let Err(fmt::Error) = vm_try!(value.string_debug_with(s, caller)) {
@@ -542,16 +540,11 @@ impl VecDeque {
             }
 
             if it.peek().is_some() {
-                if let Err(fmt::Error) = write!(s, ", ") {
-                    return VmResult::Ok(Err(fmt::Error));
-                }
+                vm_write!(s, ", ");
             }
         }
 
-        if let Err(fmt::Error) = write!(s, "]") {
-            return VmResult::Ok(Err(fmt::Error));
-        }
-
+        vm_write!(s, "]");
         VmResult::Ok(Ok(()))
     }
 
