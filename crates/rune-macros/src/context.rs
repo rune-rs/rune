@@ -20,8 +20,8 @@ pub(crate) struct FieldAttrs {
     pub(crate) iter: Option<Span>,
     /// `#[rune(skip)]`
     pub(crate) skip: Option<Span>,
-    /// `#[rune(optional)]`
-    pub(crate) optional: Option<Span>,
+    /// `#[rune(option)]`
+    pub(crate) option: Option<Span>,
     /// `#[rune(meta)]`
     pub(crate) meta: Option<Span>,
     /// A single field marked with `#[rune(span)]`.
@@ -230,9 +230,9 @@ impl Context {
                 } else if meta.path == SKIP {
                     // `#[rune(skip)]`.
                     attr.skip = Some(meta.path.span());
-                } else if meta.path == OPTIONAL {
-                    // `#[rune(optional)]`.
-                    attr.optional = Some(meta.path.span());
+                } else if meta.path == OPTION {
+                    // `#[rune(option)]`.
+                    attr.option = Some(meta.path.span());
                 } else if meta.path == META {
                     // `#[rune(meta)]`.
                     attr.meta = Some(meta.path.span());

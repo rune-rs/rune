@@ -50,7 +50,7 @@ pub struct ItemFn {
     #[rune(iter, meta)]
     pub attributes: Vec<ast::Attribute>,
     /// The visibility of the `fn` item
-    #[rune(optional, meta)]
+    #[rune(option, meta)]
     pub visibility: ast::Visibility,
     /// The optional `const` keyword.
     #[rune(iter, meta)]

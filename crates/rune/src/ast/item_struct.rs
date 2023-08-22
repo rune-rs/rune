@@ -38,14 +38,14 @@ pub struct ItemStruct {
     #[rune(iter, meta)]
     pub attributes: Vec<ast::Attribute>,
     /// The visibility of the `struct` item
-    #[rune(optional, meta)]
+    #[rune(option, meta)]
     pub visibility: ast::Visibility,
     /// The `struct` keyword.
     pub struct_token: T![struct],
     /// The identifier of the struct declaration.
     pub ident: ast::Ident,
     /// The body of the struct.
-    #[rune(optional)]
+    #[rune(iter)]
     pub body: ast::Fields,
 }
 
@@ -66,7 +66,7 @@ pub struct Field {
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The visibility of the field
-    #[rune(optional)]
+    #[rune(option)]
     pub visibility: ast::Visibility,
     /// Name of the field.
     pub name: ast::Ident,

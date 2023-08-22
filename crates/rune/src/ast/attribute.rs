@@ -49,14 +49,14 @@ pub struct Attribute {
     /// The `#` character
     pub hash: T![#],
     /// Specify if the attribute is outer `#!` or inner `#`
-    #[rune(optional)]
+    #[rune(option)]
     pub style: AttrStyle,
     /// The `[` character
     pub open: T!['['],
     /// The path of the attribute
     pub path: ast::Path,
     /// The input to the input of the attribute
-    #[rune(optional)]
+    #[rune(iter)]
     pub input: TokenStream,
     /// The `]` character
     pub close: T![']'],

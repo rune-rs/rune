@@ -1,3 +1,6 @@
+use core::iter;
+use core::slice;
+
 use crate::ast::prelude::*;
 
 /// An item body declaration.
@@ -35,5 +38,26 @@ impl Parse for Fields {
             K!['{'] => Self::Named(p.parse()?),
             _ => Self::Empty,
         })
+    }
+}
+
+type ToField = fn(&(ast::Field, Option<T![,]>)) -> &ast::Field;
+
+fn to_field((field, _): &(ast::Field, Option<T![,]>)) -> &ast::Field {
+    field
+}
+
+impl<'a> IntoIterator for &'a Fields {
+    type Item = &'a ast::Field;
+    type IntoIter = iter::Map<slice::Iter<'a, (ast::Field, Option<T![,]>)>, ToField>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        static STATIC: &[(ast::Field, Option<T![,]>); 0] = &[];
+
+        match self {
+            Fields::Named(fields) => fields.iter().map(to_field as ToField),
+            Fields::Unnamed(fields) => fields.iter().map(to_field as ToField),
+            Fields::Empty => STATIC.iter().map(to_field as ToField),
+        }
     }
 }

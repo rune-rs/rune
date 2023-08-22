@@ -26,7 +26,7 @@ pub struct ItemEnum {
     #[rune(iter, meta)]
     pub attributes: Vec<ast::Attribute>,
     /// The visibility of the `enum` item
-    #[rune(optional, meta)]
+    #[rune(option, meta)]
     pub visibility: ast::Visibility,
     /// The `enum` token.
     pub enum_token: T![enum],
@@ -51,6 +51,6 @@ pub struct ItemVariant {
     /// The name of the variant.
     pub name: ast::Ident,
     /// The body of the variant.
-    #[rune(optional)]
+    #[rune(iter)]
     pub body: ast::Fields,
 }

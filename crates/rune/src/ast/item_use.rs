@@ -28,7 +28,7 @@ pub struct ItemUse {
     #[rune(iter, meta)]
     pub attributes: Vec<ast::Attribute>,
     /// The visibility of the `use` item
-    #[rune(optional, meta)]
+    #[rune(option, meta)]
     pub visibility: ast::Visibility,
     /// The use token.
     pub use_token: T![use],
