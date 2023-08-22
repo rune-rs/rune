@@ -205,8 +205,8 @@ impl Expander {
             ..
         } = &self.tokens;
 
-        let mut out = quote!(#into_iterator::into_iter(#option::<#span>::None));
-        let mut any = false;
+        let mut out = None;
+        let mut definite_span = false;
 
         for (index, field) in fields.iter().enumerate() {
             let attr = self.cx.field_attrs(&field.attrs)?;
@@ -234,29 +234,39 @@ impl Expander {
 
             let access = access_member(&member);
 
-            if attr.iter.is_some() {
-                out = quote! {
-                    #iterator::chain(#out, #iterator::map(#into_iterator::into_iter(#access), #spanned::span))
-                };
-            } else if attr.optional.is_some() {
-                out = quote! {
-                    #iterator::chain(#out, #iterator::flat_map(#into_iterator::into_iter([#access]), #option_spanned::option_span))
-                };
+            let next = if attr.iter.is_some() {
+                quote! {
+                    #iterator::map(#into_iterator::into_iter(#access), #spanned::span)
+                }
+            } else if attr.option.is_some() {
+                quote! {
+                    #iterator::flat_map(#into_iterator::into_iter([#access]), #option_spanned::option_span)
+                }
             } else {
-                out = quote! {
-                    #iterator::chain(#out, #iterator::map(#into_iterator::into_iter([#access]), #spanned::span))
-                };
+                definite_span = true;
 
-                any = true;
+                quote! {
+                    #iterator::map(#into_iterator::into_iter([#access]), #spanned::span)
+                }
+            };
+
+            out = Some(match out.take() {
+                Some(out) => quote!(#iterator::chain(#out, #next)),
+                None => next,
+            });
+        }
+
+        if let Some(explicit_span) = explicit_span {
+            let access = access_member(&explicit_span);
+
+            if is_option_spanned {
+                return Ok(quote!(#option::Some(#spanned::span(#access))));
+            } else {
+                return Ok(quote!(#spanned::span(#access)));
             }
         }
 
         let match_head_back = if is_option_spanned {
-            if let Some(explicit_span) = explicit_span {
-                let access = access_member(&explicit_span);
-                return Ok(quote!(#option::Some(#spanned::span(#access))));
-            }
-
             quote! {
                 match (head, back) {
                     (#option::Some(head), #option::Some(back)) => #option::Some(#span::join(head, back)),
@@ -266,15 +276,10 @@ impl Expander {
                 }
             }
         } else {
-            if let Some(explicit_span) = explicit_span {
-                let access = access_member(&explicit_span);
-                return Ok(quote!(#spanned::span(#access)));
-            }
-
-            if !any {
+            if !definite_span {
                 self.cx.error(syn::Error::new_spanned(
                     fields,
-                    "No fields available to calculate `Spanned` from",
+                    "No field available that can definitely produce a `Span` from",
                 ));
 
                 return Err(());
@@ -288,6 +293,10 @@ impl Expander {
                     _ => unreachable!(),
                 }
             }
+        };
+
+        let Some(out) = out else {
+            return Ok(quote!(#option::None));
         };
 
         Ok(quote! {

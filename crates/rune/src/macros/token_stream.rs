@@ -77,7 +77,7 @@ pub struct TokenStreamIter<'a> {
 
 impl OptionSpanned for TokenStreamIter<'_> {
     fn option_span(&self) -> Option<Span> {
-        self.iter.option_span()
+        self.iter.as_slice().option_span()
     }
 }
 
@@ -99,6 +99,7 @@ impl<'a> IntoIterator for &'a TokenStream {
     type Item = &'a ast::Token;
     type IntoIter = slice::Iter<'a, ast::Token>;
 
+    #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.stream.iter()
     }
@@ -108,6 +109,7 @@ impl IntoIterator for TokenStream {
     type Item = ast::Token;
     type IntoIter = vec::IntoIter<ast::Token>;
 
+    #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.stream.into_iter()
     }

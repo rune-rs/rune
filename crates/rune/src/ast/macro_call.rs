@@ -28,7 +28,7 @@ pub struct MacroCall {
     /// Opening token.
     pub open: ast::Token,
     /// The tokens provided to the macro.
-    #[rune(optional)]
+    #[rune(iter)]
     pub input: TokenStream,
     /// Closing token.
     pub close: ast::Token,

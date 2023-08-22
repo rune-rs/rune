@@ -1,10 +1,13 @@
-use core::slice;
-
 use crate::no_std::boxed::Box;
-use crate::no_std::vec::Vec;
 
 use crate::ast::Span;
 use crate::parse::{Id, NonZeroId};
+
+/// Helper derive to implement [`Spanned`].
+pub use rune_macros::Spanned;
+
+/// Helper derive to implement [`OptionSpanned`].
+pub use rune_macros::OptionSpanned;
 
 /// Defer building a span from a function.
 pub(crate) fn from_fn<F>(function: F) -> FromFn<F> {
@@ -26,12 +29,6 @@ where
         (self.function)()
     }
 }
-
-/// Helper derive to implement [`OptionSpanned`].
-pub use rune_macros::OptionSpanned;
-
-/// Helper derive to implement [`Spanned`].
-pub use rune_macros::Spanned;
 
 /// Types for which we can get a span.
 pub trait Spanned {
@@ -117,26 +114,6 @@ where
 pub trait OptionSpanned {
     /// Get the optional span of the type.
     fn option_span(&self) -> Option<Span>;
-}
-
-impl<S> OptionSpanned for slice::Iter<'_, S>
-where
-    S: Spanned,
-{
-    fn option_span(&self) -> Option<Span> {
-        OptionSpanned::option_span(self.as_slice())
-    }
-}
-
-/// Take the span of a vector of spanned.
-/// Provides the span between the first and the last element.
-impl<T> OptionSpanned for Vec<T>
-where
-    T: Spanned,
-{
-    fn option_span(&self) -> Option<Span> {
-        OptionSpanned::option_span(&**self)
-    }
 }
 
 /// Take the span of a vector of spanned.

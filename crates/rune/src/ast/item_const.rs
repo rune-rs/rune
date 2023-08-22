@@ -19,7 +19,7 @@ pub struct ItemConst {
     #[rune(iter, meta)]
     pub attributes: Vec<ast::Attribute>,
     /// The visibility of the const.
-    #[rune(optional, meta)]
+    #[rune(option, meta)]
     pub visibility: ast::Visibility,
     /// The `const` keyword.
     #[rune(meta)]

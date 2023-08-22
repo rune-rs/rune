@@ -27,7 +27,7 @@ pub struct ExprMatch {
     /// The open brace of the match.
     pub open: T!['{'],
     /// Branches.
-    #[rune(optional)]
+    #[rune(iter)]
     pub branches: Vec<(ExprMatchBranch, Option<T![,]>)>,
     /// The close brace of the match.
     pub close: T!['}'],

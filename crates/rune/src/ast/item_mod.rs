@@ -26,7 +26,7 @@ pub struct ItemMod {
     #[rune(iter, meta)]
     pub attributes: Vec<ast::Attribute>,
     /// The visibility of the `mod` item
-    #[rune(optional, meta)]
+    #[rune(option, meta)]
     pub visibility: ast::Visibility,
     /// The `mod` keyword.
     pub mod_token: T![mod],
@@ -75,7 +75,7 @@ pub struct ItemInlineBody {
     /// The open brace.
     pub open: T!['{'],
     /// A nested "file" declaration.
-    #[rune(optional)]
+    #[rune(option)]
     pub file: Box<ast::File>,
     /// The close brace.
     pub close: T!['}'],
