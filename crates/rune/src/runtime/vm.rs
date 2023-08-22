@@ -1990,17 +1990,12 @@ impl Vm {
         let value = vm_try!(self.stack.pop());
 
         'out: {
-            // NB: local storage for string.
-            let local_field;
-
             let field = match &index {
-                Value::String(string) => {
-                    local_field = vm_try!(string.borrow_ref());
-                    local_field.as_str()
-                }
-                Value::StaticString(string) => string.as_ref(),
+                Value::String(string) => vm_try!(string.borrow_ref()),
                 _ => break 'out,
             };
+
+            let field = field.as_str();
 
             match &target {
                 Value::Object(object) => {
@@ -2162,14 +2157,6 @@ impl Vm {
                     &target,
                     string_ref.as_str()
                 )) {
-                    self.stack.push(value);
-                    return VmResult::Ok(());
-                }
-            }
-            Value::StaticString(string) => {
-                if let Some(value) =
-                    vm_try!(Self::try_object_like_index_get(&target, string.as_ref()))
-                {
                     self.stack.push(value);
                     return VmResult::Ok(());
                 }
@@ -2463,7 +2450,7 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_string(&mut self, slot: usize) -> VmResult<()> {
         let string = vm_try!(self.unit.lookup_string(slot));
-        self.stack.push(string.clone());
+        self.stack.push(String::from(string.as_str()));
         VmResult::Ok(())
     }
 
@@ -2602,10 +2589,6 @@ impl Vm {
                 let string = vm_try!(self.unit.lookup_string(slot));
                 let actual = vm_try!(actual.borrow_ref());
                 *actual == ***string
-            }
-            Value::StaticString(actual) => {
-                let string = vm_try!(self.unit.lookup_string(slot));
-                **actual == ***string
             }
             _ => false,
         };

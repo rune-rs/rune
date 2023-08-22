@@ -16,8 +16,8 @@ use crate::runtime::{
     AccessKind, AnyObj, Bytes, ConstValue, EnvProtocolCaller, Format, FromValue, FullTypeOf,
     Function, Future, Generator, GeneratorState, Iterator, MaybeTypeOf, Mut, Object, OwnedTuple,
     Protocol, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
-    RangeToInclusive, RawMut, RawRef, Ref, Shared, StaticString, Stream, ToValue, Type, TypeInfo,
-    Variant, Vec, Vm, VmError, VmErrorKind, VmIntegerRepr, VmResult,
+    RangeToInclusive, RawMut, RawRef, Ref, Shared, Stream, ToValue, Type, TypeInfo, Variant, Vec,
+    Vm, VmError, VmErrorKind, VmIntegerRepr, VmResult,
 };
 use crate::{Any, Hash};
 
@@ -252,15 +252,6 @@ pub enum Value {
     Type(Type),
     /// Ordering.
     Ordering(Ordering),
-    /// A static string.
-    ///
-    /// While `Rc<str>` would've been enough to store an unsized `str`, either
-    /// `Box<str>` or `String` must be used to reduce the size of the type to
-    /// 8 bytes, to ensure that a stack value is 16 bytes in size.
-    ///
-    /// `Rc<str>` on the other hand wraps a so-called fat pointer, which is 16
-    /// bytes.
-    StaticString(Arc<StaticString>),
     /// A UTF-8 string.
     String(Shared<String>),
     /// A byte string.
@@ -349,9 +340,6 @@ impl Value {
             Value::String(string) => {
                 s.push_str(&vm_try!(string.borrow_ref()));
             }
-            Value::StaticString(string) => {
-                s.push_str(string.as_ref());
-            }
             Value::Integer(integer) => {
                 let mut buffer = itoa::Buffer::new();
                 s.push_str(buffer.format(*integer));
@@ -420,9 +408,6 @@ impl Value {
                 write!(s, "{:?}", value)
             }
             Value::Type(value) => {
-                write!(s, "{:?}", value)
-            }
-            Value::StaticString(value) => {
                 write!(s, "{:?}", value)
             }
             Value::String(value) => {
@@ -587,7 +572,6 @@ impl Value {
             if let Some(name) = context.constant(hash) {
                 match name {
                     ConstValue::String(s) => return VmResult::Ok(s.clone()),
-                    ConstValue::StaticString(s) => return VmResult::Ok((*s).to_string()),
                     _ => return err(VmErrorKind::expected::<String>(name.type_info())),
                 }
             }
@@ -595,7 +579,6 @@ impl Value {
             if let Some(name) = unit.constant(hash) {
                 match name {
                     ConstValue::String(s) => return VmResult::Ok(s.clone()),
-                    ConstValue::StaticString(s) => return VmResult::Ok((*s).to_string()),
                     _ => return err(VmErrorKind::expected::<String>(name.type_info())),
                 }
             }
@@ -647,7 +630,6 @@ impl Value {
             Self::Float(value) => Self::Float(value),
             Self::Type(value) => Self::Type(value),
             Self::Ordering(value) => Self::Ordering(value),
-            Self::StaticString(value) => Self::StaticString(value),
             Self::String(value) => Self::String(Shared::new(vm_try!(value.take()))),
             Self::Bytes(value) => Self::Bytes(Shared::new(vm_try!(value.take()))),
             Self::Vec(value) => Self::Vec(Shared::new(vm_try!(value.take()))),
@@ -1109,7 +1091,6 @@ impl Value {
             Self::Float(..) => crate::runtime::static_type::FLOAT_TYPE.hash,
             Self::Type(..) => crate::runtime::static_type::TYPE.hash,
             Self::Ordering(..) => crate::runtime::static_type::ORDERING.hash,
-            Self::StaticString(..) => crate::runtime::static_type::STRING_TYPE.hash,
             Self::String(..) => crate::runtime::static_type::STRING_TYPE.hash,
             Self::Bytes(..) => crate::runtime::static_type::BYTES_TYPE.hash,
             Self::Vec(..) => crate::runtime::static_type::VEC_TYPE.hash,
@@ -1149,9 +1130,6 @@ impl Value {
             Self::Float(..) => TypeInfo::StaticType(crate::runtime::static_type::FLOAT_TYPE),
             Self::Type(..) => TypeInfo::StaticType(crate::runtime::static_type::TYPE),
             Self::Ordering(..) => TypeInfo::StaticType(crate::runtime::static_type::ORDERING),
-            Self::StaticString(..) => {
-                TypeInfo::StaticType(crate::runtime::static_type::STRING_TYPE)
-            }
             Self::String(..) => TypeInfo::StaticType(crate::runtime::static_type::STRING_TYPE),
             Self::Bytes(..) => TypeInfo::StaticType(crate::runtime::static_type::BYTES_TYPE),
             Self::Vec(..) => TypeInfo::StaticType(crate::runtime::static_type::VEC_TYPE),
@@ -1306,18 +1284,6 @@ impl Value {
             }
             (Self::String(a), Self::String(b)) => {
                 return VmResult::Ok(*vm_try!(a.borrow_ref()) == *vm_try!(b.borrow_ref()));
-            }
-            (Self::StaticString(a), Self::String(b)) => {
-                let b = vm_try!(b.borrow_ref());
-                return VmResult::Ok(***a == *b);
-            }
-            (Self::String(a), Self::StaticString(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                return VmResult::Ok(*a == ***b);
-            }
-            // fast string comparison: exact string slot.
-            (Self::StaticString(a), Self::StaticString(b)) => {
-                return VmResult::Ok(***a == ***b);
             }
             (Self::Option(a), Self::Option(b)) => {
                 match (&*vm_try!(a.borrow_ref()), &*vm_try!(b.borrow_ref())) {
@@ -1475,18 +1441,6 @@ impl Value {
             (Self::String(a), Self::String(b)) => {
                 return VmResult::Ok(*vm_try!(a.borrow_ref()) == *vm_try!(b.borrow_ref()));
             }
-            (Self::StaticString(a), Self::String(b)) => {
-                let b = vm_try!(b.borrow_ref());
-                return VmResult::Ok(***a == *b);
-            }
-            (Self::String(a), Self::StaticString(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                return VmResult::Ok(*a == ***b);
-            }
-            // fast string comparison: exact string slot.
-            (Self::StaticString(a), Self::StaticString(b)) => {
-                return VmResult::Ok(***a == ***b);
-            }
             (Self::Option(a), Self::Option(b)) => {
                 match (&*vm_try!(a.borrow_ref()), &*vm_try!(b.borrow_ref())) {
                     (Some(a), Some(b)) => return Self::eq_with(a, b, caller),
@@ -1634,18 +1588,6 @@ impl Value {
                 let a = vm_try!(a.borrow_ref());
                 let b = vm_try!(b.borrow_ref());
                 return VmResult::Ok((*a).partial_cmp(&*b));
-            }
-            (Self::StaticString(a), Self::String(b)) => {
-                let b = vm_try!(b.borrow_ref());
-                return VmResult::Ok((***a).as_str().partial_cmp(&**b));
-            }
-            (Self::String(a), Self::StaticString(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                return VmResult::Ok(a.partial_cmp(&***b));
-            }
-            // fast string comparison: exact string slot.
-            (Self::StaticString(a), Self::StaticString(b)) => {
-                return VmResult::Ok(a.partial_cmp(b));
             }
             (Self::Option(a), Self::Option(b)) => {
                 match (&*vm_try!(a.borrow_ref()), &*vm_try!(b.borrow_ref())) {
@@ -1807,17 +1749,6 @@ impl Value {
                 let b = vm_try!(b.borrow_ref());
                 return VmResult::Ok(a.cmp(&b));
             }
-            (Self::StaticString(a), Self::String(b)) => {
-                let b = vm_try!(b.borrow_ref());
-                return VmResult::Ok(a.as_ref().as_ref().cmp(&b));
-            }
-            (Self::String(a), Self::StaticString(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                return VmResult::Ok(a.cmp(&**b));
-            }
-            (Self::StaticString(a), Self::StaticString(b)) => {
-                return VmResult::Ok(a.cmp(b));
-            }
             (Self::Option(a), Self::Option(b)) => {
                 match (&*vm_try!(a.borrow_ref()), &*vm_try!(b.borrow_ref())) {
                     (Some(a), Some(b)) => return Self::cmp_with(a, b, caller),
@@ -1901,9 +1832,6 @@ impl fmt::Debug for Value {
                 write!(f, "{:?}", value)?;
             }
             Value::Type(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::StaticString(value) => {
                 write!(f, "{:?}", value)?;
             }
             Value::String(value) => {
@@ -2078,7 +2006,6 @@ impl_from! {
 }
 
 impl_from_wrapper! {
-    StaticString => Arc<StaticString>,
     Format => Box<Format>,
     Iterator => Shared<Iterator>,
     Bytes => Shared<Bytes>,
@@ -2131,7 +2058,6 @@ impl ser::Serialize for Value {
             Value::Float(float) => serializer.serialize_f64(*float),
             Value::Type(..) => Err(ser::Error::custom("cannot serialize types")),
             Value::Ordering(..) => Err(ser::Error::custom("cannot serialize orderings")),
-            Value::StaticString(string) => serializer.serialize_str(string.as_ref()),
             Value::String(string) => {
                 let string = string.borrow_ref().map_err(ser::Error::custom)?;
                 serializer.serialize_str(&string)

@@ -2,12 +2,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::no_std::collections::HashMap;
 use crate::no_std::prelude::*;
-use crate::no_std::sync::Arc;
 use crate::no_std::vec;
 
 use crate::runtime::{
-    Bytes, FromValue, Object, OwnedTuple, Shared, StaticString, ToValue, TypeInfo, Value, Vec,
-    VmErrorKind, VmResult,
+    Bytes, FromValue, Object, OwnedTuple, Shared, ToValue, TypeInfo, Value, Vec, VmErrorKind,
+    VmResult,
 };
 
 /// A constant value.
@@ -27,8 +26,6 @@ pub enum ConstValue {
     Float(f64),
     /// A string constant designated by its slot.
     String(String),
-    /// A static string.
-    StaticString(Arc<StaticString>),
     /// A byte string.
     Bytes(Bytes),
     /// A vector of values.
@@ -55,7 +52,6 @@ impl ConstValue {
             Self::Integer(n) => Value::Integer(n),
             Self::Float(n) => Value::Float(n),
             Self::String(s) => Value::String(Shared::new(s)),
-            Self::StaticString(s) => Value::StaticString(s),
             Self::Bytes(b) => Value::Bytes(Shared::new(b)),
             Self::Option(option) => {
                 Value::Option(Shared::new(option.map(|some| some.into_value())))
@@ -107,9 +103,6 @@ impl ConstValue {
             Self::Char(..) => TypeInfo::StaticType(crate::runtime::static_type::CHAR_TYPE),
             Self::Bool(..) => TypeInfo::StaticType(crate::runtime::static_type::BOOL_TYPE),
             Self::String(..) => TypeInfo::StaticType(crate::runtime::static_type::STRING_TYPE),
-            Self::StaticString(..) => {
-                TypeInfo::StaticType(crate::runtime::static_type::STRING_TYPE)
-            }
             Self::Bytes(..) => TypeInfo::StaticType(crate::runtime::static_type::BYTES_TYPE),
             Self::Integer(..) => TypeInfo::StaticType(crate::runtime::static_type::INTEGER_TYPE),
             Self::Float(..) => TypeInfo::StaticType(crate::runtime::static_type::FLOAT_TYPE),
@@ -134,7 +127,6 @@ impl FromValue for ConstValue {
                 let s = vm_try!(s.take());
                 Self::String(s)
             }
-            Value::StaticString(s) => Self::StaticString(s),
             Value::Option(option) => Self::Option(match vm_try!(option.take()) {
                 Some(some) => Some(Box::new(vm_try!(Self::from_value(some)))),
                 None => None,

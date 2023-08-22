@@ -2,10 +2,9 @@ use core::cmp::Ordering;
 
 use crate::no_std::collections::HashMap;
 use crate::no_std::prelude::*;
-use crate::no_std::sync::Arc;
 
 use crate::runtime::{
-    AnyObj, Mut, RawMut, RawRef, Ref, Shared, StaticString, Value, VmError, VmErrorKind, VmResult,
+    AnyObj, Mut, RawMut, RawRef, Ref, Shared, Value, VmError, VmErrorKind, VmResult,
 };
 use crate::Any;
 
@@ -262,7 +261,6 @@ impl FromValue for String {
     fn from_value(value: Value) -> VmResult<Self> {
         match value {
             Value::String(string) => VmResult::Ok(vm_try!(string.take())),
-            Value::StaticString(string) => VmResult::Ok((**string).to_owned()),
             actual => VmResult::err(VmErrorKind::expected::<String>(vm_try!(actual.type_info()))),
         }
     }
@@ -272,7 +270,6 @@ impl FromValue for Box<str> {
     fn from_value(value: Value) -> VmResult<Self> {
         match value {
             Value::String(string) => VmResult::Ok(vm_try!(string.take()).into_boxed_str()),
-            Value::StaticString(string) => VmResult::Ok(string.as_str().into()),
             actual => VmResult::err(VmErrorKind::expected::<String>(vm_try!(actual.type_info()))),
         }
     }
@@ -282,9 +279,6 @@ impl FromValue for Mut<String> {
     fn from_value(value: Value) -> VmResult<Self> {
         match value {
             Value::String(string) => VmResult::Ok(vm_try!(string.into_mut())),
-            Value::StaticString(string) => {
-                VmResult::Ok(vm_try!(Shared::new((**string).to_owned()).into_mut()))
-            }
             actual => VmResult::err(VmErrorKind::expected::<String>(vm_try!(actual.type_info()))),
         }
     }
@@ -294,7 +288,6 @@ impl FromValue for Ref<String> {
     fn from_value(value: Value) -> VmResult<Self> {
         match value {
             Value::String(string) => VmResult::Ok(vm_try!(string.into_ref())),
-            Value::StaticString(string) => VmResult::Ok(Ref::map(Ref::from(string), |s| &**s)),
             actual => VmResult::err(VmErrorKind::expected::<String>(vm_try!(actual.type_info()))),
         }
     }
@@ -306,37 +299,20 @@ impl FromValue for Ref<str> {
             Value::String(string) => {
                 VmResult::Ok(Ref::map(vm_try!(string.into_ref()), |s| s.as_str()))
             }
-            Value::StaticString(string) => {
-                VmResult::Ok(Ref::map(Ref::from(string), |s| s.as_str()))
-            }
             actual => VmResult::err(VmErrorKind::expected::<String>(vm_try!(actual.type_info()))),
         }
     }
 }
 
-/// Raw guard used for `&str` references.
-///
-/// Note that we need to hold onto an instance of the static string to prevent
-/// the reference to it from being deallocated (the `StaticString` variant).
-#[non_exhaustive]
-pub enum StrGuard {
-    RawRef(RawRef),
-    StaticString(Arc<StaticString>),
-}
-
 impl UnsafeToRef for str {
-    type Guard = StrGuard;
+    type Guard = RawRef;
 
     unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
         match value {
             Value::String(string) => {
                 let string = vm_try!(string.into_ref());
                 let (string, guard) = Ref::into_raw(string);
-                VmResult::Ok((&*string, StrGuard::RawRef(guard)))
-            }
-            Value::StaticString(string) => {
-                let value = unsafe { &*((*string).as_str() as *const _) };
-                VmResult::Ok((value, StrGuard::StaticString(string)))
+                VmResult::Ok((&*string, guard))
             }
             actual => VmResult::err(VmErrorKind::expected::<String>(vm_try!(actual.type_info()))),
         }
@@ -344,14 +320,14 @@ impl UnsafeToRef for str {
 }
 
 impl UnsafeToMut for str {
-    type Guard = Option<RawMut>;
+    type Guard = RawMut;
 
     unsafe fn unsafe_to_mut<'a>(value: Value) -> VmResult<(&'a mut Self, Self::Guard)> {
         match value {
             Value::String(string) => {
                 let string = vm_try!(string.into_mut());
                 let (string, guard) = Mut::into_raw(string);
-                VmResult::Ok(((*string).as_mut_str(), Some(guard)))
+                VmResult::Ok(((*string).as_mut_str(), guard))
             }
             actual => VmResult::err(VmErrorKind::expected::<String>(vm_try!(actual.type_info()))),
         }
@@ -359,18 +335,14 @@ impl UnsafeToMut for str {
 }
 
 impl UnsafeToRef for String {
-    type Guard = StrGuard;
+    type Guard = RawRef;
 
     unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
         match value {
             Value::String(string) => {
                 let string = vm_try!(string.into_ref());
                 let (string, guard) = Ref::into_raw(string);
-                VmResult::Ok((&*string, StrGuard::RawRef(guard)))
-            }
-            Value::StaticString(string) => {
-                let value = (*string).as_ref() as *const _;
-                VmResult::Ok((&*value, StrGuard::StaticString(string)))
+                VmResult::Ok((&*string, guard))
             }
             actual => VmResult::err(VmErrorKind::expected::<String>(vm_try!(actual.type_info()))),
         }

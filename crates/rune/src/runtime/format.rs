@@ -211,10 +211,6 @@ impl FormatSpec {
                 buf.push_str(&vm_try!(s.borrow_ref()));
                 self.format_fill(out, buf, self.align, self.fill, None);
             }
-            Value::StaticString(s) => {
-                buf.push_str(s.as_ref());
-                self.format_fill(out, buf, self.align, self.fill, None);
-            }
             Value::Integer(n) => {
                 let (n, align, fill, sign) = self.int_traits(*n);
                 self.format_number(buf, n);
@@ -245,9 +241,6 @@ impl FormatSpec {
             Value::String(s) => {
                 let s = vm_try!(s.borrow_ref());
                 vm_try!(write!(out, "{:?}", &*s).map_err(|_| VmErrorKind::FormatError));
-            }
-            Value::StaticString(s) => {
-                vm_try!(write!(out, "{:?}", s.as_ref()).map_err(|_| VmErrorKind::FormatError));
             }
             Value::Integer(n) => {
                 let (n, align, fill, sign) = self.int_traits(*n);
