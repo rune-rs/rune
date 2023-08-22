@@ -622,7 +622,7 @@ impl VecDeque {
                 return VmResult::Ok(false);
             };
 
-            if !vm_try!(Value::eq_with(a, &b, caller)) {
+            if !vm_try!(Value::eq_with(a, b, caller)) {
                 return VmResult::Ok(false);
             }
         }
