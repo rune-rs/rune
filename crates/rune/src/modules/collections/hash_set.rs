@@ -5,7 +5,9 @@ use crate as rune;
 use crate::no_std::collections;
 use crate::no_std::prelude::*;
 
-use crate::runtime::{Iterator, IteratorTrait, Key, Protocol, Ref, Value, VmResult};
+use crate::runtime::{
+    EnvProtocolCaller, Iterator, IteratorTrait, Key, Protocol, ProtocolCaller, Ref, Value, VmResult,
+};
 use crate::{Any, ContextError, Module};
 
 pub(super) fn setup(module: &mut Module) -> Result<(), ContextError> {
@@ -27,7 +29,7 @@ pub(super) fn setup(module: &mut Module) -> Result<(), ContextError> {
     module.function_meta(clone)?;
     module.function_meta(from)?;
     module.associated_function(Protocol::INTO_ITER, HashSet::__rune_fn__iter)?;
-    module.associated_function(Protocol::STRING_DEBUG, HashSet::string_debug)?;
+    module.function_meta(HashSet::string_debug)?;
     module.associated_function(Protocol::PARTIAL_EQ, HashSet::partial_eq)?;
     module.associated_function(Protocol::EQ, HashSet::eq)?;
     Ok(())
@@ -318,9 +320,52 @@ impl HashSet {
         VmResult::Ok(())
     }
 
-    #[inline]
-    fn string_debug(&self, s: &mut String) -> fmt::Result {
-        write!(s, "{:?}", self.set)
+    /// Write a debug representation to a string.
+    ///
+    /// This calls the [`STRING_DEBUG`] protocol over all elements of the
+    /// collection.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// use std::collections::HashSet;
+    ///
+    /// let set = HashSet::from([1, 2, 3]);
+    /// println!("{:?}", set);
+    /// ```
+    #[rune::function(protocol = STRING_DEBUG)]
+    fn string_debug(&self, s: &mut String) -> VmResult<fmt::Result> {
+        self.string_debug_with(s, &mut EnvProtocolCaller)
+    }
+
+    fn string_debug_with(
+        &self,
+        s: &mut String,
+        _: &mut impl ProtocolCaller,
+    ) -> VmResult<fmt::Result> {
+        if let Err(fmt::Error) = write!(s, "{{") {
+            return VmResult::Ok(Err(fmt::Error));
+        }
+
+        let mut it = self.set.iter().peekable();
+
+        while let Some(value) = it.next() {
+            if let Err(fmt::Error) = write!(s, "{:?}", value) {
+                return VmResult::Ok(Err(fmt::Error));
+            }
+
+            if it.peek().is_some() {
+                if let Err(fmt::Error) = write!(s, ", ") {
+                    return VmResult::Ok(Err(fmt::Error));
+                }
+            }
+        }
+
+        if let Err(fmt::Error) = write!(s, "}}") {
+            return VmResult::Ok(Err(fmt::Error));
+        }
+
+        VmResult::Ok(Ok(()))
     }
 
     pub(crate) fn from_iter(mut it: Iterator) -> VmResult<Self> {

@@ -1,8 +1,10 @@
 //! The `std::vec` module.
 
 use core::cmp::Ordering;
+use core::fmt;
 
 use crate as rune;
+use crate::no_std::prelude::*;
 use crate::runtime::{
     EnvProtocolCaller, Function, Iterator, Protocol, Ref, Value, Vec, VmErrorKind, VmResult,
 };
@@ -46,6 +48,7 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(sort)?;
     m.function_meta(into_iter)?;
     m.associated_function(Protocol::INDEX_SET, Vec::set)?;
+    m.function_meta(string_debug)?;
     m.function_meta(partial_eq)?;
     m.function_meta(eq)?;
     m.function_meta(partial_cmp)?;
@@ -471,6 +474,22 @@ fn clone(this: &Vec) -> Vec {
 #[rune::function(instance, protocol = INTO_ITER)]
 fn into_iter(this: Ref<Vec>) -> Iterator {
     Vec::iter_ref(Ref::map(this, |vec| &**vec))
+}
+
+/// Write a debug representation to a string.
+///
+/// This calls the [`STRING_DEBUG`] protocol over all elements of the
+/// collection.
+///
+/// # Examples
+///
+/// ```rune
+/// let vec = [1, 2, 3];
+/// assert_eq!(format!("{:?}", vec), "[1, 2, 3]");
+/// ```
+#[rune::function(instance, protocol = STRING_DEBUG)]
+fn string_debug(this: &Vec, s: &mut String) -> VmResult<fmt::Result> {
+    Vec::string_debug_with(this, s, &mut EnvProtocolCaller)
 }
 
 /// Perform a partial equality check with this vector.

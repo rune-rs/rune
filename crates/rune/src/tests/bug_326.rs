@@ -38,10 +38,11 @@ fn bug_326() -> Result<()> {
 
 fn trim_module() -> Result<Module, ContextError> {
     let mut m = Module::with_item(["mymodule"]);
-    m.associated_function("trim_indent", trim_indent)?;
+    m.function_meta(trim_indent)?;
     Ok(m)
 }
 
+#[rune::function(instance)]
 fn trim_indent(string: String) -> String {
     string
         .lines()

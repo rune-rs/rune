@@ -4,7 +4,9 @@ use crate::no_std::collections;
 use crate::no_std::prelude::*;
 
 use crate as rune;
-use crate::runtime::{FromValue, Iterator, Key, Value, VmErrorKind, VmResult};
+use crate::runtime::{
+    EnvProtocolCaller, FromValue, Iterator, Key, ProtocolCaller, Value, VmErrorKind, VmResult,
+};
 use crate::{Any, ContextError, Module};
 
 pub(super) fn setup(module: &mut Module) -> Result<(), ContextError> {
@@ -454,6 +456,14 @@ impl HashMap {
     /// ```
     #[rune::function(protocol = STRING_DEBUG)]
     fn string_debug(&self, s: &mut String) -> VmResult<fmt::Result> {
+        self.string_debug_with(s, &mut EnvProtocolCaller)
+    }
+
+    pub(crate) fn string_debug_with(
+        &self,
+        s: &mut String,
+        caller: &mut impl ProtocolCaller,
+    ) -> VmResult<fmt::Result> {
         if let Err(fmt::Error) = write!(s, "{{") {
             return VmResult::Ok(Err(fmt::Error));
         }
@@ -469,7 +479,7 @@ impl HashMap {
                 return VmResult::Ok(Err(fmt::Error));
             }
 
-            if let Err(fmt::Error) = vm_try!(value.string_debug(s)) {
+            if let Err(fmt::Error) = vm_try!(value.string_debug_with(s, caller)) {
                 return VmResult::Ok(Err(fmt::Error));
             }
 
@@ -515,6 +525,14 @@ impl HashMap {
     /// ```
     #[rune::function(protocol = PARTIAL_EQ)]
     fn partial_eq(&self, other: &Self) -> VmResult<bool> {
+        self.partial_eq_with(other, &mut EnvProtocolCaller)
+    }
+
+    pub(crate) fn partial_eq_with(
+        &self,
+        other: &Self,
+        caller: &mut impl ProtocolCaller,
+    ) -> VmResult<bool> {
         if self.map.len() != other.map.len() {
             return VmResult::Ok(false);
         }
@@ -524,7 +542,7 @@ impl HashMap {
                 return VmResult::Ok(false);
             };
 
-            if !vm_try!(Value::partial_eq(v, v2)) {
+            if !vm_try!(Value::partial_eq_with(v, v2, caller)) {
                 return VmResult::Ok(false);
             }
         }
@@ -556,6 +574,10 @@ impl HashMap {
     /// ```
     #[rune::function(protocol = EQ)]
     fn eq(&self, other: &Self) -> VmResult<bool> {
+        self.eq_with(other, &mut EnvProtocolCaller)
+    }
+
+    fn eq_with(&self, other: &Self, caller: &mut EnvProtocolCaller) -> VmResult<bool> {
         if self.map.len() != other.map.len() {
             return VmResult::Ok(false);
         }
@@ -565,7 +587,7 @@ impl HashMap {
                 return VmResult::Ok(false);
             };
 
-            if !vm_try!(Value::eq(v, v2)) {
+            if !vm_try!(Value::eq_with(v, v2, caller)) {
                 return VmResult::Ok(false);
             }
         }

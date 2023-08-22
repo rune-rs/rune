@@ -432,7 +432,8 @@ impl Value {
                 write!(s, "{:?}", value)
             }
             Value::Vec(value) => {
-                write!(s, "{:?}", value)
+                let value = vm_try!(value.borrow_ref());
+                vm_try!(Vec::string_debug_with(&value, s, caller))
             }
             Value::EmptyTuple => {
                 write!(s, "()")
