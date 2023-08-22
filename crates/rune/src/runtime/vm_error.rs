@@ -8,7 +8,7 @@ use crate::hash::Hash;
 use crate::runtime::unit::{BadInstruction, BadJump};
 use crate::runtime::{
     AccessError, BoxedPanic, CallFrame, ExecutionState, FullTypeOf, Key, MaybeTypeOf, Panic,
-    StackError, TypeInfo, TypeOf, Unit, Value, Vm, VmHaltInfo,
+    StackError, TypeInfo, TypeOf, Unit, Vm, VmHaltInfo,
 };
 
 /// Trait used to convert result types to [`VmResult`].
@@ -84,16 +84,16 @@ pub struct VmErrorLocation {
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct VmErrorAt {
-    /// The instruction which caused the error.
-    instruction: usize,
+    /// Index into the backtrace which contains information of what caused this error.
+    index: usize,
     /// The kind of error.
     kind: VmErrorKind,
 }
 
 impl VmErrorAt {
     /// Get the instruction which caused the error.
-    pub fn instruction(&self) -> usize {
-        self.instruction
+    pub(crate) fn index(&self) -> usize {
+        self.index
     }
 
     #[cfg(feature = "emit")]
@@ -136,10 +136,7 @@ impl VmError {
     where
         E: ?Sized + TypeOf,
     {
-        Self::from(VmErrorKind::Expected {
-            expected: E::type_info(),
-            actual,
-        })
+        Self::from(VmErrorKind::expected::<E>(actual))
     }
 
     /// Get the location where the error happened.
@@ -218,7 +215,7 @@ impl<T> VmResult<T> {
     /// [`VmError`].
     pub(crate) fn err<E>(error: E) -> Self
     where
-        VmErrorKind: From<E>,
+        VmError: From<E>,
     {
         Self::Err(VmError::from(error))
     }
@@ -261,7 +258,7 @@ impl<T> VmResult<T> {
                 let index = err.inner.stacktrace.len();
 
                 err.inner.chain.push(VmErrorAt {
-                    instruction: index,
+                    index,
                     kind: VmErrorKind::from(error()),
                 });
 
@@ -365,10 +362,40 @@ where
         Self {
             inner: Box::new(VmErrorInner {
                 error: VmErrorAt {
-                    instruction: 0,
+                    index: 0,
                     kind: VmErrorKind::from(error),
                 },
                 chain: Vec::new(),
+                stacktrace: Vec::new(),
+            }),
+        }
+    }
+}
+
+impl<const N: usize> From<[VmErrorKind; N]> for VmError {
+    fn from(kinds: [VmErrorKind; N]) -> Self {
+        let mut it = kinds.into_iter();
+
+        let first = match it.next() {
+            None => VmErrorKind::Panic {
+                reason: Panic::msg("Unknown error"),
+            },
+            Some(first) => first,
+        };
+
+        let mut chain = Vec::with_capacity(it.len());
+
+        for kind in it {
+            chain.push(VmErrorAt { index: 0, kind });
+        }
+
+        Self {
+            inner: Box::new(VmErrorInner {
+                error: VmErrorAt {
+                    index: 0,
+                    kind: first,
+                },
+                chain,
                 stacktrace: Vec::new(),
             }),
         }
@@ -455,11 +482,6 @@ pub(crate) enum VmErrorKind {
     BadArgumentCount {
         actual: usize,
         expected: usize,
-    },
-    BadArgumentAt {
-        arg: usize,
-        expected: TypeInfo,
-        actual: TypeInfo,
     },
     BadArgument {
         arg: usize,
@@ -653,15 +675,7 @@ impl fmt::Display for VmErrorKind {
                 f,
                 "Wrong number of arguments `{actual}`, expected `{expected}`",
             ),
-            VmErrorKind::BadArgumentAt {
-                arg,
-                expected,
-                actual,
-            } => write!(
-                f,
-                "Bad argument #{arg}, expected `{expected}` but got `{actual}`",
-            ),
-            VmErrorKind::BadArgument { arg } => write!(f, "Bad argument at #{arg}",),
+            VmErrorKind::BadArgument { arg } => write!(f, "Bad argument #{arg}"),
             VmErrorKind::UnsupportedIndexSet {
                 target,
                 index,
@@ -727,7 +741,7 @@ impl fmt::Display for VmErrorKind {
                 write!(f, "Type `{actual}` is not supported as iter-next operand",)
             }
             VmErrorKind::Expected { expected, actual } => {
-                write!(f, "Expected type `{expected}`, but found `{actual}`",)
+                write!(f, "Expected type `{expected}` but found `{actual}`",)
             }
             VmErrorKind::ExpectedAny { actual } => {
                 write!(f, "Expected `Any` type, but found `{actual}`",)
@@ -823,15 +837,8 @@ impl From<BadJump> for VmErrorKind {
 
 impl VmErrorKind {
     /// Bad argument.
-    pub fn bad_argument<T>(arg: usize, value: &Value) -> VmResult<Self>
-    where
-        T: ?Sized + TypeOf,
-    {
-        VmResult::Ok(Self::BadArgumentAt {
-            arg,
-            expected: T::type_info(),
-            actual: vm_try!(value.type_info()),
-        })
+    pub fn bad_argument(arg: usize) -> Self {
+        Self::BadArgument { arg }
     }
 
     /// Construct an expected error.

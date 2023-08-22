@@ -7,14 +7,14 @@ use crate::no_std::prelude::*;
 
 use codespan_reporting::diagnostic as d;
 use codespan_reporting::term;
-use codespan_reporting::term::termcolor::WriteColor;
 pub use codespan_reporting::term::termcolor;
+use codespan_reporting::term::termcolor::WriteColor;
 
 use crate::compile::{ErrorKind, Location, LinkerError};
 use crate::diagnostics::{
     Diagnostic, FatalDiagnostic, FatalDiagnosticKind, WarningDiagnostic, WarningDiagnosticKind,
 };
-use crate::runtime::{Unit, VmErrorKind, VmError};
+use crate::runtime::{Unit, VmErrorKind, VmError, DebugInst, VmErrorAt};
 use crate::{Source, Diagnostics, SourceId, Sources};
 use crate::ast::{Span, Spanned};
 
@@ -84,7 +84,7 @@ impl Diagnostics {
             return Ok(());
         }
 
-        let config = codespan_reporting::term::Config::default();
+        let config = term::Config::default();
 
         for diagnostic in self.diagnostics() {
             match diagnostic {
@@ -114,8 +114,11 @@ impl VmError {
     where
         O: WriteColor,
     {
+        let mut red = termcolor::ColorSpec::new();
+        red.set_fg(Some(termcolor::Color::Red));
+
         let mut backtrace = vec![];
-        let config = codespan_reporting::term::Config::default();
+        let config = term::Config::default();
 
         for l in &self.inner.stacktrace {
             let debug_info = match l.unit.debug_info() {
@@ -136,75 +139,52 @@ impl VmError {
             }
         }
 
-        let mut diagnostic = d::Diagnostic::error();
+        let mut labels = Vec::new();
+        let mut notes = Vec::new();
 
-        for at in [&self.inner.error].into_iter().chain(&self.inner.chain) {
-            let get = || {
-                let l = self.inner.stacktrace.get(at.instruction())?;
-                let debug_info = l.unit.debug_info()?;
-                let debug_inst = debug_info.instruction_at(l.ip)?;
-                Some(debug_inst)
-            };
+        let get = |at: &VmErrorAt| -> Option<&DebugInst> {
+            let l = self.inner.stacktrace.get(at.index())?;
+            let debug_info = l.unit.debug_info()?;
+            let debug_inst = debug_info.instruction_at(l.ip)?;
+            Some(debug_inst)
+        };
 
-            let debug_inst = match get() {
-                Some(debug_inst) => debug_inst,
-                None => {
-                    println!("error: {} (no debug information)", at);
-                    continue;
-                }
-            };
-
-            let source_id = debug_inst.source_id;
-            let span = debug_inst.span;
-
-            let mut labels = Vec::new();
-
-            let (reason, notes) = match at.kind() {
-                VmErrorKind::Panic { reason } => {
-                    labels.push(d::Label::primary(source_id, span.range()).with_message("panicked"));
-                    ("panic in runtime".to_owned(), vec![reason.to_string()])
-                }
-                VmErrorKind::UnsupportedBinaryOperation { lhs, rhs, op } => {
-                    labels.push(
-                        d::Label::primary(source_id, span.range())
-                            .with_message("in this expression".to_string()),
-                    );
-
-                    (
-                        format!("Type mismatch for operation `{}`", op),
-                        vec![
-                            format!("left hand side has type `{}`", lhs),
-                            format!("right hand side has type `{}`", rhs),
-                        ],
-                    )
+        for at in &self.inner.chain {
+            // Populate source-specific notes.
+            match at.kind() {
+                VmErrorKind::UnsupportedBinaryOperation { lhs, rhs, .. } => {
+                    notes.extend(vec![
+                        format!("Left hand side has type `{}`", lhs),
+                        format!("Right hand side has type `{}`", rhs),
+                    ]);
                 }
                 VmErrorKind::BadArgumentCount { actual, expected } => {
-                    labels.push(
-                        d::Label::primary(source_id, span.range())
-                            .with_message("in this function call".to_string()),
-                    );
-
-                    (
-                        "wrong number of arguments".to_string(),
-                        vec![
-                            format!("expected `{}`", expected),
-                            format!("got `{}`", actual),
-                        ],
-                    )
+                    notes.extend([
+                        format!("Expected `{}`", expected),
+                        format!("Got `{}`", actual),
+                    ]);
                 }
-                e => {
-                    labels.push(
-                        d::Label::primary(source_id, span.range())
-                            .with_message("in this expression".to_string()),
-                    );
-                    ("internal vm error".to_owned(), vec![e.to_string()])
-                }
+                _ => {}
             };
 
-            diagnostic = diagnostic.with_message(reason)
-                .with_labels(labels)
-                .with_notes(notes);
+            if let Some(&DebugInst { source_id, span, .. }) = get(at) {
+                labels.push(
+                    d::Label::primary(source_id, span.range())
+                        .with_message(at.to_string()),
+                );
+            }
         }
+
+        if let Some(&DebugInst { source_id, span, .. }) = get(&self.inner.error) {
+            labels.push(
+                d::Label::primary(source_id, span.range())
+                    .with_message(self.inner.error.to_string()),
+            );
+        };
+
+        let diagnostic = d::Diagnostic::error().with_message(self.inner.error.to_string())
+            .with_labels(labels)
+            .with_notes(notes);
 
         term::emit(out, &config, sources, &diagnostic)?;
 
@@ -212,22 +192,25 @@ impl VmError {
             writeln!(out, "Backtrace:")?;
 
             for frame in &backtrace {
-                let source = match sources.get(frame.source_id) {
-                    Some(source) => source,
-                    None => continue,
+                let Some(source) = sources.get(frame.source_id) else {
+                    continue;
                 };
 
-                let (line, line_count, text) = match source.line(frame.span) {
+                let (line, line_count, [prefix, mid, suffix]) = match source.line(frame.span) {
                     Some((line, line_count, text)) => (
                         line.saturating_add(1),
                         line_count.saturating_add(1),
-                        text.trim_end(),
+                        text,
                     ),
                     None => continue,
                 };
 
-                writeln!(out, "At {}:{}:{}:", source.name(), line, line_count)?;
-                writeln!(out, "{text}")?;
+                writeln!(out, "{}:{line}:{line_count}:", source.name())?;
+                write!(out, "{prefix}")?;
+                out.set_color(&red)?;
+                write!(out, "{mid}")?;
+                out.reset()?;
+                writeln!(out, "{}", suffix.trim_end_matches(|c| matches!(c, '\n' | '\r')))?;
             }
         }
 
@@ -248,8 +231,7 @@ impl FatalDiagnostic {
     where
         O: WriteColor,
     {
-        let config = codespan_reporting::term::Config::default();
-
+        let config = term::Config::default();
         fatal_diagnostics_emit(self, out, sources, &config)
     }
 }
@@ -375,7 +357,7 @@ fn warning_diagnostics_emit<O>(
     this: &WarningDiagnostic,
     out: &mut O,
     sources: &Sources,
-    config: &codespan_reporting::term::Config,
+    config: &term::Config,
 ) -> Result<(), EmitError>
 where
     O: WriteColor,
@@ -429,7 +411,7 @@ fn fatal_diagnostics_emit<O>(
     this: &FatalDiagnostic,
     out: &mut O,
     sources: &Sources,
-    config: &codespan_reporting::term::Config,
+    config: &term::Config,
 ) -> Result<(), EmitError>
 where
     O: WriteColor,

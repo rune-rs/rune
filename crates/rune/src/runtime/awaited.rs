@@ -14,11 +14,11 @@ impl Awaited {
     pub(crate) async fn into_vm(self, vm: &mut Vm) -> VmResult<()> {
         match self {
             Self::Future(future) => {
-                let value = vm_try!(vm_try!(future.borrow_mut()).await);
+                let value = vm_try!(vm_try!(future.borrow_mut()).await.with_vm(vm));
                 vm.stack_mut().push(value);
             }
             Self::Select(select) => {
-                let (branch, value) = vm_try!(select.await);
+                let (branch, value) = vm_try!(select.await.with_vm(vm));
                 vm.stack_mut().push(value);
                 vm.stack_mut().push(vm_try!(ToValue::to_value(branch)));
             }

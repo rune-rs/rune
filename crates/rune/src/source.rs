@@ -193,12 +193,20 @@ impl Source {
 
     /// Access the line number of content that starts with the given span.
     #[cfg(feature = "emit")]
-    pub(crate) fn line(&self, span: Span) -> Option<(usize, usize, &str)> {
-        let start = span.start.into_usize();
-        let (line, col) = self.pos_to_utf8_linecol(start);
-        let range = self.line_range(line)?;
-        let text = self.source.get(range)?;
-        Some((line, col, text))
+    pub(crate) fn line(&self, span: Span) -> Option<(usize, usize, [&str; 3])> {
+        let from = span.range();
+        let (lin, col) = self.pos_to_utf8_linecol(from.start);
+        let line = self.line_range(lin)?;
+
+        let start = from.start.checked_sub(line.start)?;
+        let end = from.end.checked_sub(line.start)?;
+
+        let text = self.source.get(line)?;
+        let prefix = text.get(..start)?;
+        let mid = text.get(start..end)?;
+        let suffix = text.get(end..)?;
+
+        Some((lin, col, [prefix, mid, suffix]))
     }
 
     fn position(&self, offset: usize) -> (usize, usize, &str) {
