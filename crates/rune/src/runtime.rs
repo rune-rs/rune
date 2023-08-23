@@ -179,3 +179,6 @@ pub use self::vm_halt::VmHaltInfo;
 
 mod fmt;
 pub use self::fmt::Formatter;
+
+mod control_flow;
+pub use self::control_flow::ControlFlow;

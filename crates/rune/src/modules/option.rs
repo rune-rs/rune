@@ -3,7 +3,7 @@
 use core::fmt;
 
 use crate as rune;
-use crate::runtime::{Formatter, Function, Iterator, Panic, Shared, Value, VmResult};
+use crate::runtime::{ControlFlow, Formatter, Function, Iterator, Panic, Shared, Value, VmResult};
 use crate::{ContextError, Module};
 
 /// Construct the `std::option` module.
@@ -25,6 +25,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(ok_or)?;
     module.function_meta(ok_or_else)?;
     module.function_meta(into_iter)?;
+    module.function_meta(option_try__meta)?;
     Ok(module)
 }
 
@@ -395,5 +396,25 @@ fn ok_or_else(this: Option<Value>, err: Function) -> VmResult<Result<Value, Valu
     match this {
         Some(value) => VmResult::Ok(Ok(value)),
         None => VmResult::Ok(Err(vm_try!(err.call(())))),
+    }
+}
+
+/// Using [`Option`] with the try protocol.
+///
+/// # Examples
+///
+/// ```rune
+/// fn maybe_add_one(value) {
+///     Some(value? + 1)
+/// }
+///
+/// assert_eq!(maybe_add_one(Some(4)), Some(5));
+/// assert_eq!(maybe_add_one(None), None);
+/// ```
+#[rune::function(keep, instance, protocol = TRY)]
+pub(crate) fn option_try(this: Option<Value>) -> ControlFlow {
+    match this {
+        Some(value) => ControlFlow::Continue(value),
+        None => ControlFlow::Break(Value::Option(Shared::new(None))),
     }
 }

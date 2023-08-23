@@ -1,5 +1,6 @@
 use core::cmp::{Eq, Ordering, PartialEq};
 use core::hash;
+use core::ops::ControlFlow;
 
 use crate::no_std::collections::HashMap;
 use crate::no_std::prelude::*;
@@ -183,6 +184,14 @@ pub(crate) static RANGE_TYPE: &StaticType = &StaticType {
 };
 
 impl_static_type!(rt::Range => RANGE_TYPE);
+
+pub(crate) static CONTROL_FLOW_TYPE: &StaticType = &StaticType {
+    name: RawStr::from_str("ControlFlow"),
+    hash: ::rune_macros::hash!(::std::ops::ControlFlow),
+};
+
+impl_static_type!(rt::ControlFlow => CONTROL_FLOW_TYPE);
+impl_static_type!(impl<C, B> ControlFlow<C, B> => CONTROL_FLOW_TYPE);
 
 pub(crate) static FUTURE_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Future"),

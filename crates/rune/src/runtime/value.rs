@@ -12,11 +12,11 @@ use crate::no_std::vec;
 use crate::compile::ItemBuf;
 use crate::runtime::vm::CallResult;
 use crate::runtime::{
-    AccessKind, AnyObj, Bytes, ConstValue, EnvProtocolCaller, Format, Formatter, FromValue,
-    FullTypeOf, Function, Future, Generator, GeneratorState, Iterator, MaybeTypeOf, Mut, Object,
-    OwnedTuple, Protocol, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
-    RangeToInclusive, RawMut, RawRef, Ref, Shared, Stream, ToValue, Type, TypeInfo, Variant, Vec,
-    Vm, VmError, VmErrorKind, VmIntegerRepr, VmResult,
+    AccessKind, AnyObj, Bytes, ConstValue, ControlFlow, EnvProtocolCaller, Format, Formatter,
+    FromValue, FullTypeOf, Function, Future, Generator, GeneratorState, Iterator, MaybeTypeOf, Mut,
+    Object, OwnedTuple, Protocol, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive,
+    RangeTo, RangeToInclusive, RawMut, RawRef, Ref, Shared, Stream, ToValue, Type, TypeInfo,
+    Variant, Vec, Vm, VmError, VmErrorKind, VmIntegerRepr, VmResult,
 };
 use crate::{Any, Hash};
 
@@ -275,6 +275,8 @@ pub enum Value {
     RangeTo(Shared<RangeTo>),
     /// A range `start..end`.
     Range(Shared<Range>),
+    /// A control flow indicator.
+    ControlFlow(Shared<ControlFlow>),
     /// A stored future.
     Future(Shared<Future>),
     /// A Stream.
@@ -443,6 +445,10 @@ impl Value {
             }
             Value::Range(value) => {
                 write!(f, "{:?}", value)
+            }
+            Value::ControlFlow(value) => {
+                let value = vm_try!(value.borrow_ref());
+                vm_try!(ControlFlow::string_debug_with(&value, f, caller))
             }
             Value::Future(value) => {
                 write!(f, "{:?}", value)
@@ -635,6 +641,7 @@ impl Value {
             }
             Self::RangeTo(value) => Self::RangeTo(Shared::new(vm_try!(value.take()))),
             Self::Range(value) => Self::Range(Shared::new(vm_try!(value.take()))),
+            Self::ControlFlow(value) => Self::ControlFlow(Shared::new(vm_try!(value.take()))),
             Self::Future(value) => Self::Future(Shared::new(vm_try!(value.take()))),
             Self::Stream(value) => Self::Stream(Shared::new(vm_try!(value.take()))),
             Self::Generator(value) => Self::Generator(Shared::new(vm_try!(value.take()))),
@@ -981,6 +988,17 @@ impl Value {
         }
     }
 
+    /// Try to coerce value into a [`ControlFlow`].
+    #[inline]
+    pub fn into_control_flow(self) -> VmResult<Shared<ControlFlow>> {
+        match self {
+            Self::ControlFlow(object) => VmResult::Ok(object),
+            actual => err(VmErrorKind::expected::<ControlFlow>(vm_try!(
+                actual.type_info()
+            ))),
+        }
+    }
+
     /// Try to coerce value into a function pointer.
     #[inline]
     pub fn into_function(self) -> VmResult<Shared<Function>> {
@@ -1094,6 +1112,7 @@ impl Value {
             Self::RangeToInclusive(..) => crate::runtime::static_type::RANGE_TO_INCLUSIVE_TYPE.hash,
             Self::RangeTo(..) => crate::runtime::static_type::RANGE_TO_TYPE.hash,
             Self::Range(..) => crate::runtime::static_type::RANGE_TYPE.hash,
+            Self::ControlFlow(..) => crate::runtime::static_type::CONTROL_FLOW_TYPE.hash,
             Self::Future(..) => crate::runtime::static_type::FUTURE_TYPE.hash,
             Self::Stream(..) => crate::runtime::static_type::STREAM_TYPE.hash,
             Self::Generator(..) => crate::runtime::static_type::GENERATOR_TYPE.hash,
@@ -1141,6 +1160,9 @@ impl Value {
             }
             Self::RangeTo(..) => TypeInfo::StaticType(crate::runtime::static_type::RANGE_TO_TYPE),
             Self::Range(..) => TypeInfo::StaticType(crate::runtime::static_type::RANGE_TYPE),
+            Self::ControlFlow(..) => {
+                TypeInfo::StaticType(crate::runtime::static_type::CONTROL_FLOW_TYPE)
+            }
             Self::Future(..) => TypeInfo::StaticType(crate::runtime::static_type::FUTURE_TYPE),
             Self::Stream(..) => TypeInfo::StaticType(crate::runtime::static_type::STREAM_TYPE),
             Self::Generator(..) => {
@@ -1238,6 +1260,11 @@ impl Value {
                 let a = vm_try!(a.borrow_ref());
                 let b = vm_try!(b.borrow_ref());
                 return Range::partial_eq_with(&a, &b, caller);
+            }
+            (Self::ControlFlow(a), Self::ControlFlow(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+                return ControlFlow::partial_eq_with(&a, &b, caller);
             }
             (Self::EmptyStruct(a), Self::EmptyStruct(b)) => {
                 if vm_try!(a.borrow_ref()).rtti.hash == vm_try!(b.borrow_ref()).rtti.hash {
@@ -1394,6 +1421,11 @@ impl Value {
                 let a = vm_try!(a.borrow_ref());
                 let b = vm_try!(b.borrow_ref());
                 return Range::eq_with(&a, &b, caller);
+            }
+            (Self::ControlFlow(a), Self::ControlFlow(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+                return ControlFlow::eq_with(&a, &b, caller);
             }
             (Self::EmptyStruct(a), Self::EmptyStruct(b)) => {
                 if vm_try!(a.borrow_ref()).rtti.hash == vm_try!(b.borrow_ref()).rtti.hash {
@@ -1861,6 +1893,9 @@ impl fmt::Debug for Value {
             Value::Range(value) => {
                 write!(f, "{:?}", value)?;
             }
+            Value::ControlFlow(value) => {
+                write!(f, "{:?}", value)?;
+            }
             Value::Future(value) => {
                 write!(f, "{:?}", value)?;
             }
@@ -2010,6 +2045,7 @@ impl_from_wrapper! {
     RangeToInclusive => Shared<RangeToInclusive>,
     RangeTo => Shared<RangeTo>,
     Range => Shared<Range>,
+    ControlFlow => Shared<ControlFlow>,
     Future => Shared<Future>,
     Stream => Shared<Stream<Vm>>,
     Generator => Shared<Generator<Vm>>,
@@ -2116,6 +2152,9 @@ impl ser::Serialize for Value {
             }
             Value::RangeTo(..) => Err(ser::Error::custom("cannot serialize `..end` ranges")),
             Value::Range(..) => Err(ser::Error::custom("cannot serialize `start..end` ranges")),
+            Value::ControlFlow(..) => {
+                Err(ser::Error::custom("cannot serialize `start..end` ranges"))
+            }
             Value::Any(..) => Err(ser::Error::custom("cannot serialize external objects")),
         }
     }

@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::{quote, quote_spanned, ToTokens};
 use rune_core::Hash;
 use syn::punctuated::Punctuated;
@@ -51,8 +51,7 @@ impl InternalCall {
         };
 
         let name = syn::LitStr::new(&name.to_string(), name.span());
-
-        expand_any(&self.path, type_hash, &name, &[], &tokens, &generics)
+        expand_any(None, &self.path, type_hash, &name, &[], &tokens, &generics)
     }
 }
 
@@ -110,7 +109,15 @@ impl Derive {
 
         let name = syn::LitStr::new(&name.to_string(), name.span());
 
-        expand_any(ident, type_hash, &name, &installers, &tokens, generics)
+        expand_any(
+            attr.builtin,
+            ident,
+            type_hash,
+            &name,
+            &installers,
+            &tokens,
+            generics,
+        )
     }
 }
 
@@ -334,7 +341,7 @@ fn expand_enum_install_with(
                     enum_.variant_mut(#variant_index)?.make_named(&[#(#field_names),*])?.static_docs(&#variant_docs)
                 });
 
-                variants.push((None, attr));
+                variants.push((None, variant_attr));
             }
             syn::Fields::Unnamed(fields) => {
                 let mut fields_len = 0usize;
@@ -373,7 +380,7 @@ fn expand_enum_install_with(
                     None
                 };
 
-                variants.push((constructor, attr));
+                variants.push((constructor, variant_attr));
             }
             syn::Fields::Unit => {
                 variant_metas.push(quote! {
@@ -386,7 +393,7 @@ fn expand_enum_install_with(
                     None
                 };
 
-                variants.push((constructor, attr));
+                variants.push((constructor, variant_attr));
             }
         }
     }
@@ -463,6 +470,7 @@ fn expand_enum_install_with(
 
 /// Expand the necessary implementation details for `Any`.
 pub(super) fn expand_any<T>(
+    builtin: Option<Span>,
     ident: T,
     type_hash: Hash,
     name: &syn::LitStr,
@@ -522,20 +530,6 @@ where
         }
     };
 
-    let type_hash = type_hash.into_inner();
-
-    let make_hash = if !generic_names.is_empty() {
-        quote!(#hash::new_with_type_parameters(#type_hash, #hash::parameters([#(<#generic_names as #type_of>::type_hash()),*])))
-    } else {
-        quote!(#hash::new(#type_hash))
-    };
-
-    let type_parameters = if !generic_names.is_empty() {
-        quote!(#hash::parameters([#(<#generic_names as #type_of>::type_hash()),*]))
-    } else {
-        quote!(#hash::EMPTY)
-    };
-
     let install_with = quote! {
         #[automatically_derived]
         impl #impl_generics #install_with for #ident #type_generics #where_clause {
@@ -546,92 +540,113 @@ where
         }
     };
 
-    Ok(quote! {
-        #[automatically_derived]
-        impl #impl_generics #any for #ident #type_generics #where_clause {
-            fn type_hash() -> #hash {
-                #make_hash
-            }
-        }
+    let any = if builtin.is_none() {
+        let type_hash = type_hash.into_inner();
 
+        let make_hash = if !generic_names.is_empty() {
+            quote!(#hash::new_with_type_parameters(#type_hash, #hash::parameters([#(<#generic_names as #type_of>::type_hash()),*])))
+        } else {
+            quote!(#hash::new(#type_hash))
+        };
+
+        let type_parameters = if !generic_names.is_empty() {
+            quote!(#hash::parameters([#(<#generic_names as #type_of>::type_hash()),*]))
+        } else {
+            quote!(#hash::EMPTY)
+        };
+
+        Some(quote! {
+            #[automatically_derived]
+            impl #impl_generics #any for #ident #type_generics #where_clause {
+                fn type_hash() -> #hash {
+                    #make_hash
+                }
+            }
+
+            #[automatically_derived]
+            impl #impl_generics #type_of for #ident #type_generics #where_clause {
+                #[inline]
+                fn type_hash() -> #hash {
+                    <Self as #any>::type_hash()
+                }
+
+                #[inline]
+                fn type_parameters() -> #hash {
+                    #type_parameters
+                }
+
+                #[inline]
+                fn type_info() -> #type_info {
+                    #type_info::Any(#any_type_info::__private_new(
+                        #raw_str::from_str(core::any::type_name::<Self>()),
+                        <Self as #type_of>::type_hash(),
+                    ))
+                }
+            }
+
+            #[automatically_derived]
+            impl #impl_generics #maybe_type_of for #ident #type_generics #where_clause {
+                #[inline]
+                fn maybe_type_of() -> Option<#full_type_of> {
+                    Some(<Self as #type_of>::type_of())
+                }
+            }
+
+            #[automatically_derived]
+            impl #impl_generics #unsafe_to_ref for #ident #type_generics #where_clause {
+                type Guard = #raw_into_ref;
+
+                unsafe fn unsafe_to_ref<'a>(value: #value) -> #vm_result<(&'a Self, Self::Guard)> {
+                    let (value, guard) = match value.into_any_ptr() {
+                        #vm_result::Ok(value) => value,
+                        #vm_result::Err(err) => return #vm_result::Err(err),
+                    };
+
+                    #vm_result::Ok((&*value, guard))
+                }
+            }
+
+            #[automatically_derived]
+            impl #impl_generics #unsafe_to_mut for #ident #type_generics #where_clause {
+                type Guard = #raw_into_mut;
+
+                unsafe fn unsafe_to_mut<'a>(value: #value) -> #vm_result<(&'a mut Self, Self::Guard)> {
+                    let (value, guard) = match value.into_any_mut() {
+                        #vm_result::Ok(value) => value,
+                        #vm_result::Err(err) => return #vm_result::Err(err),
+                    };
+
+                    #vm_result::Ok((&mut *value, guard))
+                }
+            }
+
+            #[automatically_derived]
+            impl #impl_generics #unsafe_to_value for &#ident #type_generics #where_clause {
+                type Guard = #pointer_guard;
+
+                unsafe fn unsafe_to_value(self) -> #vm_result<(#value, Self::Guard)> {
+                    let (shared, guard) = #shared::from_ref(self);
+                    #vm_result::Ok((#value::from(shared), guard))
+                }
+            }
+
+            #[automatically_derived]
+            impl #impl_generics #unsafe_to_value for &mut #ident #type_generics #where_clause {
+                type Guard = #pointer_guard;
+
+                unsafe fn unsafe_to_value(self) -> #vm_result<(#value, Self::Guard)> {
+                    let (shared, guard) = #shared::from_mut(self);
+                    #vm_result::Ok((#value::from(shared), guard))
+                }
+            }
+        })
+    } else {
+        None
+    };
+
+    Ok(quote! {
         #install_with
         #impl_named
-
-        #[automatically_derived]
-        impl #impl_generics #type_of for #ident #type_generics #where_clause {
-            #[inline]
-            fn type_hash() -> #hash {
-                <Self as #any>::type_hash()
-            }
-
-            #[inline]
-            fn type_parameters() -> #hash {
-                #type_parameters
-            }
-
-            #[inline]
-            fn type_info() -> #type_info {
-                #type_info::Any(#any_type_info::__private_new(
-                    #raw_str::from_str(core::any::type_name::<Self>()),
-                    <Self as #type_of>::type_hash(),
-                ))
-            }
-        }
-
-        #[automatically_derived]
-        impl #impl_generics #maybe_type_of for #ident #type_generics #where_clause {
-            #[inline]
-            fn maybe_type_of() -> Option<#full_type_of> {
-                Some(<Self as #type_of>::type_of())
-            }
-        }
-
-        #[automatically_derived]
-        impl #impl_generics #unsafe_to_ref for #ident #type_generics #where_clause {
-            type Guard = #raw_into_ref;
-
-            unsafe fn unsafe_to_ref<'a>(value: #value) -> #vm_result<(&'a Self, Self::Guard)> {
-                let (value, guard) = match value.into_any_ptr() {
-                    #vm_result::Ok(value) => value,
-                    #vm_result::Err(err) => return #vm_result::Err(err),
-                };
-
-                #vm_result::Ok((&*value, guard))
-            }
-        }
-
-        #[automatically_derived]
-        impl #impl_generics #unsafe_to_mut for #ident #type_generics #where_clause {
-            type Guard = #raw_into_mut;
-
-            unsafe fn unsafe_to_mut<'a>(value: #value) -> #vm_result<(&'a mut Self, Self::Guard)> {
-                let (value, guard) = match value.into_any_mut() {
-                    #vm_result::Ok(value) => value,
-                    #vm_result::Err(err) => return #vm_result::Err(err),
-                };
-
-                #vm_result::Ok((&mut *value, guard))
-            }
-        }
-
-        #[automatically_derived]
-        impl #impl_generics #unsafe_to_value for &#ident #type_generics #where_clause {
-            type Guard = #pointer_guard;
-
-            unsafe fn unsafe_to_value(self) -> #vm_result<(#value, Self::Guard)> {
-                let (shared, guard) = #shared::from_ref(self);
-                #vm_result::Ok((#value::from(shared), guard))
-            }
-        }
-
-        #[automatically_derived]
-        impl #impl_generics #unsafe_to_value for &mut #ident #type_generics #where_clause {
-            type Guard = #pointer_guard;
-
-            unsafe fn unsafe_to_value(self) -> #vm_result<(#value, Self::Guard)> {
-                let (shared, guard) = #shared::from_mut(self);
-                #vm_result::Ok((#value::from(shared), guard))
-            }
-        }
+        #any
     })
 }

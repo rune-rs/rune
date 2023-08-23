@@ -1,5 +1,7 @@
 prelude!();
 
+use core::ops::ControlFlow;
+
 #[test]
 fn test_unwrap() {
     let out: Result<i64, i64> = rune! {
@@ -47,10 +49,17 @@ fn test_unwrap() {
 fn custom_try() -> Result<()> {
     #[derive(Any)]
     struct CustomResult(bool);
+
     let mut module = Module::new();
+
     module.ty::<CustomResult>()?;
+
     module.associated_function(Protocol::TRY, |r: CustomResult| {
-        r.0.then_some(42).ok_or(Err::<(), _>(0))
+        if r.0 {
+            ControlFlow::Continue(42i64)
+        } else {
+            ControlFlow::Break(Err::<Value, _>(0i64))
+        }
     })?;
 
     assert_eq!(

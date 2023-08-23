@@ -4,8 +4,8 @@ use core::cmp::Ordering;
 
 use crate as rune;
 use crate::runtime::{
-    EnvProtocolCaller, Function, Generator, GeneratorState, Iterator, Protocol, Range, RangeFrom,
-    RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Value, Vm, VmResult,
+    ControlFlow, EnvProtocolCaller, Function, Generator, GeneratorState, Iterator, Protocol, Range,
+    RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Value, Vm, VmResult,
 };
 use crate::{ContextError, Module};
 
@@ -283,6 +283,26 @@ pub fn module() -> Result<Module, ContextError> {
         m.function_meta(Range::eq__meta)?;
         m.function_meta(Range::partial_cmp__meta)?;
         m.function_meta(Range::cmp__meta)?;
+    }
+
+    {
+        m.ty::<ControlFlow>()?.docs([
+            " Used to tell an operation whether it should exit early or go on as usual.",
+            "",
+            " This acts as the basis of the [`TRY`] protocol in Rune.",
+            "",
+            " [`TRY`]: crate::Protocol::TRY",
+            "",
+            "# Examples",
+            "",
+            "```rune",
+            "use std::ops::ControlFlow;",
+            "",
+            "let c = ControlFlow::Continue(42);",
+            "assert_eq!(c.0, 42);",
+            "assert_eq!(c, ControlFlow::Continue(42));",
+            "```",
+        ]);
     }
 
     m.ty::<Function>()?.docs([

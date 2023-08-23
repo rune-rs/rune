@@ -21,6 +21,7 @@ pub const MODULE: Symbol = Symbol("module");
 pub const INSTALL_WITH: Symbol = Symbol("install_with");
 
 pub const CONSTRUCTOR: Symbol = Symbol("constructor");
+pub const BUILTIN: Symbol = Symbol("builtin");
 pub const GET: Symbol = Symbol("get");
 pub const SET: Symbol = Symbol("set");
 pub const COPY: Symbol = Symbol("copy");
