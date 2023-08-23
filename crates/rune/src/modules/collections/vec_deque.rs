@@ -3,10 +3,9 @@ use core::fmt::{self, Write};
 
 use crate as rune;
 use crate::no_std::collections;
-use crate::no_std::prelude::*;
 
 use crate::runtime::{
-    EnvProtocolCaller, Iterator, Protocol, ProtocolCaller, Value, VmErrorKind, VmResult,
+    EnvProtocolCaller, Formatter, Iterator, Protocol, ProtocolCaller, Value, VmErrorKind, VmResult,
 };
 use crate::{Any, ContextError, Module};
 
@@ -520,31 +519,31 @@ impl VecDeque {
     /// assert_eq!(format!("{:?}", deque), "[1, 2, 3]");
     /// ```
     #[rune::function(protocol = STRING_DEBUG)]
-    fn string_debug(&self, s: &mut String) -> VmResult<fmt::Result> {
-        self.string_debug_with(s, &mut EnvProtocolCaller)
+    fn string_debug(&self, f: &mut Formatter) -> VmResult<fmt::Result> {
+        self.string_debug_with(f, &mut EnvProtocolCaller)
     }
 
     #[inline]
     fn string_debug_with(
         &self,
-        s: &mut String,
+        f: &mut Formatter,
         caller: &mut impl ProtocolCaller,
     ) -> VmResult<fmt::Result> {
         let mut it = self.inner.iter().peekable();
 
-        vm_write!(s, "[");
+        vm_write!(f, "[");
 
         while let Some(value) = it.next() {
-            if let Err(fmt::Error) = vm_try!(value.string_debug_with(s, caller)) {
+            if let Err(fmt::Error) = vm_try!(value.string_debug_with(f, caller)) {
                 return VmResult::Ok(Err(fmt::Error));
             }
 
             if it.peek().is_some() {
-                vm_write!(s, ", ");
+                vm_write!(f, ", ");
             }
         }
 
-        vm_write!(s, "]");
+        vm_write!(f, "]");
         VmResult::Ok(Ok(()))
     }
 

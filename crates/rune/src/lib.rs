@@ -431,6 +431,7 @@ pub(crate) use rune_macros::__internal_impl_any;
 ///
 /// ```
 /// use rune::{Any, Module, ContextError};
+/// use rune::runtime::Formatter;
 /// use std::fmt::{self, Write};
 ///
 /// #[derive(Any)]
@@ -471,8 +472,8 @@ pub(crate) use rune_macros::__internal_impl_any;
 ///     /// assert_eq!(format!("{}", string), "hello");
 ///     /// ```
 ///     #[rune::function(protocol = STRING_DISPLAY)]
-///     fn display(&self, buffer: &mut std::string::String) -> fmt::Result {
-///         write!(buffer, "{}", self.inner)
+///     fn display(&self, f: &mut Formatter) -> fmt::Result {
+///         write!(f, "{}", self.inner)
 ///     }
 /// }
 ///

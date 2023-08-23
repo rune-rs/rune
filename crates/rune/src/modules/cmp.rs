@@ -4,8 +4,7 @@ use core::cmp::Ordering;
 use core::fmt::{self, Write};
 
 use crate as rune;
-use crate::no_std::prelude::*;
-use crate::runtime::{Protocol, Value, VmResult};
+use crate::runtime::{Formatter, Protocol, Value, VmResult};
 use crate::{ContextError, Module};
 
 /// Construct the `std::cmp` module.
@@ -115,6 +114,6 @@ fn min(v1: Value, v2: Value) -> VmResult<Value> {
 /// assert_eq!(format!("{:?}", Ordering::Less), "Less");
 /// ```
 #[rune::function(instance, protocol = STRING_DEBUG)]
-fn ordering_string_debug(this: Ordering, s: &mut String) -> fmt::Result {
+fn ordering_string_debug(this: Ordering, s: &mut Formatter) -> fmt::Result {
     write!(s, "{:?}", this)
 }

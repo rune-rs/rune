@@ -5,7 +5,7 @@ use core::fmt::{self, Write};
 use crate::no_std::prelude::*;
 
 use crate as rune;
-use crate::runtime::{Type, Value, VmResult};
+use crate::runtime::{Formatter, Type, Value, VmResult};
 use crate::{ContextError, Module};
 
 /// Utilities for dynamic typing or type reflection.
@@ -53,8 +53,8 @@ fn type_of_val(value: Value) -> VmResult<Type> {
 /// assert_eq!(format!("{}", any::Type::of_val(42)), "Type(0x1cad9186c9641c4f)");
 /// ```
 #[rune::function(instance, protocol = STRING_DISPLAY)]
-fn format_type(ty: Type, buf: &mut String) -> fmt::Result {
-    write!(buf, "{:?}", ty)
+fn format_type(ty: Type, f: &mut Formatter) -> fmt::Result {
+    write!(f, "{:?}", ty)
 }
 
 /// Get the type name of a value.

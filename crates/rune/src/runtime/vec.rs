@@ -13,8 +13,8 @@ use crate::no_std::vec;
 use crate::compile::Named;
 use crate::module::InstallWith;
 use crate::runtime::{
-    FromValue, Iterator, ProtocolCaller, RawRef, RawStr, Ref, Shared, ToValue, UnsafeToRef, Value,
-    VmErrorKind, VmResult,
+    Formatter, FromValue, Iterator, ProtocolCaller, RawRef, RawStr, Ref, Shared, ToValue,
+    UnsafeToRef, Value, VmErrorKind, VmResult,
 };
 
 use self::iter::Iter;
@@ -213,23 +213,23 @@ impl Vec {
 
     pub(crate) fn string_debug_with(
         this: &[Value],
-        s: &mut String,
+        f: &mut Formatter,
         caller: &mut impl ProtocolCaller,
     ) -> VmResult<fmt::Result> {
         let mut it = this.iter().peekable();
-        vm_write!(s, "[");
+        vm_write!(f, "[");
 
         while let Some(value) = it.next() {
-            if let Err(fmt::Error) = vm_try!(value.string_debug_with(s, caller)) {
+            if let Err(fmt::Error) = vm_try!(value.string_debug_with(f, caller)) {
                 return VmResult::Ok(Err(fmt::Error));
             }
 
             if it.peek().is_some() {
-                vm_write!(s, ", ");
+                vm_write!(f, ", ");
             }
         }
 
-        vm_write!(s, "]");
+        vm_write!(f, "]");
         VmResult::Ok(Ok(()))
     }
 

@@ -3,13 +3,11 @@
 use std::fmt::{self, Write as _};
 use std::io::{self, Write as _};
 
-use crate::no_std::prelude::*;
-
 use crate as rune;
 use crate::compile;
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
-use crate::runtime::{Panic, Protocol, Stack, Value, VmResult};
+use crate::runtime::{Formatter, Panic, Stack, Value, VmResult};
 use crate::{ContextError, Module};
 
 /// Construct the `std::io` module.
@@ -33,7 +31,7 @@ pub fn module(stdio: bool) -> Result<Module, ContextError> {
     ]);
 
     module.ty::<io::Error>()?;
-    module.associated_function(Protocol::STRING_DISPLAY, format_io_error)?;
+    module.function_meta(io_error_string_display)?;
 
     if stdio {
         module.function_meta(print_impl)?;
@@ -68,8 +66,9 @@ pub fn module(stdio: bool) -> Result<Module, ContextError> {
     Ok(module)
 }
 
-fn format_io_error(error: &io::Error, buf: &mut String) -> fmt::Result {
-    write!(buf, "{}", error)
+#[rune::function(instance, protocol = STRING_DISPLAY)]
+fn io_error_string_display(error: &io::Error, f: &mut Formatter) -> fmt::Result {
+    write!(f, "{}", error)
 }
 
 fn dbg_impl(stack: &mut Stack, args: usize) -> VmResult<()> {

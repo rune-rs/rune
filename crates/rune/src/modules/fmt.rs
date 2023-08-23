@@ -2,28 +2,27 @@
 
 use core::fmt::{self, Write};
 
-use crate::no_std::prelude::*;
-
 use crate as rune;
 use crate::compile;
 use crate::macros::{FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
-use crate::runtime::{Format, Protocol};
+use crate::runtime::{Format, Formatter};
 use crate::{ContextError, Module};
 
 /// Construct the `std::fmt` module.
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", ["fmt"]).with_unique("std::fmt");
-    module.ty::<fmt::Error>()?;
-    module.associated_function(Protocol::STRING_DISPLAY, format_fmt_error)?;
-    module.macro_meta(format)?;
-
     module.ty::<Format>()?;
+    module.ty::<Formatter>()?;
+    module.ty::<fmt::Error>()?;
+    module.function_meta(fmt_error_string_display)?;
+    module.macro_meta(format)?;
     Ok(module)
 }
 
-fn format_fmt_error(error: &fmt::Error, buf: &mut String) -> fmt::Result {
-    write!(buf, "{}", error)
+#[rune::function(instance, protocol = STRING_DISPLAY)]
+fn fmt_error_string_display(error: &fmt::Error, f: &mut Formatter) -> fmt::Result {
+    write!(f, "{}", error)
 }
 
 /// Format a string using a format specifier.

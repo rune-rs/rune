@@ -3,8 +3,7 @@
 use core::fmt;
 
 use crate as rune;
-use crate::no_std::prelude::*;
-use crate::runtime::{Function, Panic, Value, VmResult};
+use crate::runtime::{Formatter, Function, Panic, Value, VmResult};
 use crate::{ContextError, Module};
 
 /// Construct the `std::result` module.
@@ -193,20 +192,19 @@ fn expect(result: Result<Value, Value>, message: Value) -> VmResult<Value> {
     match result {
         Ok(value) => VmResult::Ok(value),
         Err(err) => {
-            let mut s = String::new();
-            let mut buf = String::new();
+            let mut f = Formatter::new();
 
-            if let Err(fmt::Error) = vm_try!(message.string_display(&mut s, &mut buf)) {
+            if let Err(fmt::Error) = vm_try!(message.string_display(&mut f)) {
                 return VmResult::err(Panic::msg("Failed to format message"));
             }
 
-            s.push_str(": ");
+            f.push_str(": ");
 
-            if let Err(fmt::Error) = vm_try!(err.string_debug(&mut s)) {
+            if let Err(fmt::Error) = vm_try!(err.string_debug(&mut f)) {
                 return VmResult::err(Panic::msg("Failed to format error"));
             }
 
-            VmResult::err(Panic::custom(s))
+            VmResult::err(Panic::custom(f.into_string()))
         }
     }
 }

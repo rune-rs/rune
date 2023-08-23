@@ -5,7 +5,8 @@ use crate::no_std::prelude::*;
 
 use crate as rune;
 use crate::runtime::{
-    EnvProtocolCaller, FromValue, Iterator, Key, ProtocolCaller, Value, VmErrorKind, VmResult,
+    EnvProtocolCaller, Formatter, FromValue, Iterator, Key, ProtocolCaller, Value, VmErrorKind,
+    VmResult,
 };
 use crate::{Any, ContextError, Module};
 
@@ -455,32 +456,32 @@ impl HashMap {
     /// assert_eq!(format!("{:?}", map), "{1: \"a\"}");
     /// ```
     #[rune::function(protocol = STRING_DEBUG)]
-    fn string_debug(&self, s: &mut String) -> VmResult<fmt::Result> {
-        self.string_debug_with(s, &mut EnvProtocolCaller)
+    fn string_debug(&self, f: &mut Formatter) -> VmResult<fmt::Result> {
+        self.string_debug_with(f, &mut EnvProtocolCaller)
     }
 
     pub(crate) fn string_debug_with(
         &self,
-        s: &mut String,
+        f: &mut Formatter,
         caller: &mut impl ProtocolCaller,
     ) -> VmResult<fmt::Result> {
-        vm_write!(s, "{{");
+        vm_write!(f, "{{");
 
         let mut it = self.map.iter().peekable();
 
         while let Some((key, value)) = it.next() {
-            vm_write!(s, "{:?}: ", key);
+            vm_write!(f, "{:?}: ", key);
 
-            if let Err(fmt::Error) = vm_try!(value.string_debug_with(s, caller)) {
+            if let Err(fmt::Error) = vm_try!(value.string_debug_with(f, caller)) {
                 return VmResult::Ok(Err(fmt::Error));
             }
 
             if it.peek().is_some() {
-                vm_write!(s, ", ");
+                vm_write!(f, ", ");
             }
         }
 
-        vm_write!(s, "}}");
+        vm_write!(f, "}}");
         VmResult::Ok(Ok(()))
     }
 
