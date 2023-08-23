@@ -3,8 +3,8 @@ use std::cell::RefCell;
 use crate::internals::*;
 use proc_macro2::Span;
 use proc_macro2::TokenStream;
-use quote::quote_spanned;
-use quote::{quote, ToTokens};
+use quote::{quote, quote_spanned, ToTokens};
+use syn::parse::Parse;
 use syn::parse::ParseStream;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned as _;
@@ -74,6 +74,10 @@ pub(crate) struct TypeAttr {
     pub(crate) item: Option<syn::Path>,
     /// `#[rune(constructor)]`.
     pub(crate) constructor: bool,
+    /// Protocols to "derive"
+    pub(crate) protocols: Vec<TypeProtocol>,
+    /// Assosiated functions
+    pub(crate) functions: Vec<syn::Path>,
     /// Parsed documentation.
     pub(crate) docs: Vec<syn::Expr>,
 }
@@ -111,6 +115,64 @@ pub(crate) struct Generate<'a> {
 pub(crate) struct FieldProtocol {
     pub(crate) generate: fn(Generate<'_>) -> TokenStream,
     custom: Option<syn::Path>,
+}
+
+pub(crate) struct TypeProtocol {
+    protocol: syn::Ident,
+    handler: Option<syn::Expr>,
+}
+
+impl TypeProtocol {
+    pub fn expand(&self) -> TokenStream {
+        if let Some(handler) = &self.handler {
+            let protocol = &self.protocol;
+            return quote_spanned! {protocol.span()=>
+                module.associated_function(rune::runtime::Protocol::#protocol, #handler)?;
+            };
+        }
+        match self.protocol.to_string().as_str() {
+            "ADD" => quote_spanned! {self.protocol.span()=>
+                module.associated_function(rune::runtime::Protocol::ADD, |this: Self, other: Self| this + other)?;
+            },
+            "STRING_DISPLAY" => quote_spanned! {self.protocol.span()=>
+                module.associated_function(rune::runtime::Protocol::STRING_DISPLAY, |this: &Self, buf: &mut ::std::string::String| {
+                    use ::core::fmt::Write as _;
+                    ::core::write!(buf, "{this}")
+                })?;
+            },
+            "STRING_DEBUG" => quote_spanned! {self.protocol.span()=>
+                module.associated_function(rune::runtime::Protocol::STRING_DEBUG, |this: &Self, buf: &mut ::std::string::String| {
+                    use ::core::fmt::Write as _;
+                    ::core::write!(buf, "{this:?}")
+                })?;
+            },
+            _ => unreachable!("`parse()` ensures only supported protocols"),
+        }
+    }
+}
+
+impl Parse for TypeProtocol {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let it = Self {
+            protocol: input.parse()?,
+            handler: if input.parse::<Token![=]>().is_ok() {
+                Some(input.parse()?)
+            } else {
+                None
+            },
+        };
+
+        if it.handler.is_some()
+            || ["ADD", "STRING_DISPLAY", "STRING_DEBUG"].contains(&it.protocol.to_string().as_str())
+        {
+            Ok(it)
+        } else {
+            Err(syn::Error::new_spanned(
+                &it.protocol,
+                format!("Rune protocol `{}` cannot be derived", it.protocol),
+            ))
+        }
+    }
 }
 
 #[derive(Default)]
@@ -402,7 +464,7 @@ impl Context {
         let mut error = false;
         let mut attr = TypeAttr::default();
 
-        for a in input {
+        'attrs: for a in input {
             if a.path().is_ident("doc") {
                 if let syn::Meta::NameValue(meta) = &a.meta {
                     attr.docs.push(meta.value.clone());
@@ -411,60 +473,86 @@ impl Context {
                 continue;
             }
 
-            if a.path() == RUNE {
-                let result = a.parse_nested_meta(|meta| {
-                    if meta.path == PARSE {
-                        // Parse `#[rune(parse = "..")]`
-                        meta.input.parse::<Token![=]>()?;
-                        let s: syn::LitStr = meta.input.parse()?;
+            let err = 'error: {
+                if a.path() == RUNE {
+                    let result = a.parse_nested_meta(|meta| {
+                        if meta.path == PARSE {
+                            // Parse `#[rune(parse = "..")]`
+                            meta.input.parse::<Token![=]>()?;
+                            let s: syn::LitStr = meta.input.parse()?;
 
-                        match s.value().as_str() {
-                            "meta_only" => {
-                                attr.parse = ParseKind::MetaOnly;
+                            match s.value().as_str() {
+                                "meta_only" => {
+                                    attr.parse = ParseKind::MetaOnly;
+                                }
+                                other => {
+                                    return Err(syn::Error::new(
+                                        meta.input.span(),
+                                        format!(
+                                            "Unsupported `#[rune(parse = ..)]` argument `{}`",
+                                            other
+                                        ),
+                                    ));
+                                }
+                            };
+                        } else if meta.path == ITEM {
+                            // Parse `#[rune(item = "..")]`
+                            meta.input.parse::<Token![=]>()?;
+                            attr.item = Some(meta.input.parse()?);
+                        } else if meta.path == NAME {
+                            // Parse `#[rune(name = "..")]`
+                            meta.input.parse::<Token![=]>()?;
+                            attr.name = Some(meta.input.parse()?);
+                        } else if meta.path == MODULE {
+                            // Parse `#[rune(module = <path>)]`
+                            meta.input.parse::<Token![=]>()?;
+                            attr.module = Some(parse_path_compat(meta.input)?);
+                        } else if meta.path == INSTALL_WITH {
+                            // Parse `#[rune(install_with = <path>)]`
+                            meta.input.parse::<Token![=]>()?;
+                            attr.install_with = Some(parse_path_compat(meta.input)?);
+                        } else if meta.path == CONSTRUCTOR {
+                            attr.constructor = true;
+                        } else {
+                            return Err(syn::Error::new_spanned(
+                                &meta.path,
+                                "Unsupported type attribute",
+                            ));
+                        }
+
+                        Ok(())
+                    });
+
+                    if let Err(e) = result {
+                        break 'error e;
+                    };
+                }
+
+                if a.path() == RUNE_DERIVE {
+                    attr.protocols.extend(
+                        match a.parse_args_with(Punctuated::<_, Token![,]>::parse_terminated) {
+                            Ok(it) => it,
+                            Err(err) => {
+                                break 'error err;
                             }
-                            other => {
-                                return Err(syn::Error::new(
-                                    meta.input.span(),
-                                    format!(
-                                        "Unsupported `#[rune(parse = ..)]` argument `{}`",
-                                        other
-                                    ),
-                                ));
+                        },
+                    );
+                }
+
+                if a.path() == RUNE_FUNCTIONS {
+                    attr.functions.extend(
+                        match a.parse_args_with(Punctuated::<_, Token![,]>::parse_terminated) {
+                            Ok(it) => it,
+                            Err(err) => {
+                                break 'error err;
                             }
-                        };
-                    } else if meta.path == ITEM {
-                        // Parse `#[rune(item = "..")]`
-                        meta.input.parse::<Token![=]>()?;
-                        attr.item = Some(meta.input.parse()?);
-                    } else if meta.path == NAME {
-                        // Parse `#[rune(name = "..")]`
-                        meta.input.parse::<Token![=]>()?;
-                        attr.name = Some(meta.input.parse()?);
-                    } else if meta.path == MODULE {
-                        // Parse `#[rune(module = <path>)]`
-                        meta.input.parse::<Token![=]>()?;
-                        attr.module = Some(parse_path_compat(meta.input)?);
-                    } else if meta.path == INSTALL_WITH {
-                        // Parse `#[rune(install_with = <path>)]`
-                        meta.input.parse::<Token![=]>()?;
-                        attr.install_with = Some(parse_path_compat(meta.input)?);
-                    } else if meta.path == CONSTRUCTOR {
-                        attr.constructor = true;
-                    } else {
-                        return Err(syn::Error::new_spanned(
-                            &meta.path,
-                            "Unsupported type attribute",
-                        ));
-                    }
-
-                    Ok(())
-                });
-
-                if let Err(e) = result {
-                    error = true;
-                    self.error(e);
-                };
-            }
+                        },
+                    );
+                }
+                continue 'attrs;
+            };
+            error = true;
+            self.error(err);
         }
 
         if error {

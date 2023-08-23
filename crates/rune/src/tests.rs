@@ -400,6 +400,7 @@ mod range;
 mod reference_error;
 mod rename_type;
 mod result;
+mod rune_derive;
 mod stmt_reordering;
 mod tuple;
 mod type_name_native;

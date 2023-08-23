@@ -6,6 +6,8 @@ use std::fmt;
 pub struct Symbol(&'static str);
 
 pub const RUNE: Symbol = Symbol("rune");
+pub const RUNE_DERIVE: Symbol = Symbol("rune_derive");
+pub const RUNE_FUNCTIONS: Symbol = Symbol("rune_functions");
 pub const ID: Symbol = Symbol("id");
 pub const SKIP: Symbol = Symbol("skip");
 pub const ITER: Symbol = Symbol("iter");

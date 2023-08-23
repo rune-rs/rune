@@ -82,7 +82,9 @@ impl Derive {
         let generics = &self.input.generics;
         let mut installers = Vec::new();
 
-        let Ok(()) = expand_install_with(&cx, &self.input, &tokens, &attr, generics, &mut installers) else {
+        let Ok(()) =
+            expand_install_with(&cx, &self.input, &tokens, &attr, generics, &mut installers)
+        else {
             return Err(cx.errors.into_inner());
         };
 
@@ -140,6 +142,13 @@ pub(crate) fn expand_install_with(
             return Err(());
         }
     }
+
+    installers.extend(attr.protocols.iter().map(|protocol| protocol.expand()));
+    installers.extend(attr.functions.iter().map(|function| {
+        quote_spanned! {function.span()=>
+            module.function_meta(#function)?;
+        }
+    }));
 
     if let Some(install_with) = &attr.install_with {
         installers.push(quote_spanned! { input.span() =>
