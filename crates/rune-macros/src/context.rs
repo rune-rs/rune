@@ -76,6 +76,9 @@ pub(crate) struct TypeAttr {
     pub(crate) constructor: bool,
     /// Parsed documentation.
     pub(crate) docs: Vec<syn::Expr>,
+    /// Indicates that this is a builtin type, so don't generate an `Any`
+    /// implementation for it.
+    pub(crate) builtin: Option<Span>,
 }
 
 /// Parsed variant attributes.
@@ -450,6 +453,8 @@ impl Context {
                         attr.install_with = Some(parse_path_compat(meta.input)?);
                     } else if meta.path == CONSTRUCTOR {
                         attr.constructor = true;
+                    } else if meta.path == BUILTIN {
+                        attr.builtin = Some(meta.path.span());
                     } else {
                         return Err(syn::Error::new_spanned(
                             &meta.path,

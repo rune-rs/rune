@@ -5,6 +5,7 @@ use core::ops;
 use core::slice;
 
 use crate::hash::{Hash, IntoHash, ToTypeHash};
+use crate::modules::{option, result};
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 use crate::no_std::vec;
@@ -12,12 +13,13 @@ use crate::runtime::budget;
 use crate::runtime::future::SelectFuture;
 use crate::runtime::unit::{UnitFn, UnitStorage};
 use crate::runtime::{
-    self, Args, Awaited, BorrowMut, Bytes, Call, EmptyStruct, Format, FormatSpec, Formatter,
-    FromValue, Function, Future, Generator, GuardedArgs, Inst, InstAddress, InstAssignOp, InstOp,
-    InstRange, InstTarget, InstValue, InstVariant, Object, OwnedTuple, Panic, Protocol, Range,
-    RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive, RuntimeContext, Select,
-    Shared, Stack, Stream, Struct, Type, TypeCheck, TypeOf, Unit, Value, Variant, VariantData, Vec,
-    VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmResult, VmSendExecution,
+    self, Args, Awaited, BorrowMut, Bytes, Call, ControlFlow, EmptyStruct, Format, FormatSpec,
+    Formatter, FromValue, Function, Future, Generator, GuardedArgs, Inst, InstAddress,
+    InstAssignOp, InstOp, InstRange, InstTarget, InstValue, InstVariant, Object, OwnedTuple, Panic,
+    Protocol, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive,
+    RuntimeContext, Select, Shared, Stack, Stream, Struct, Type, TypeCheck, TypeOf, Unit, Value,
+    Variant, VariantData, Vec, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmResult,
+    VmSendExecution,
 };
 
 /// Small helper function to build errors.
@@ -2488,44 +2490,36 @@ impl Vm {
     /// Perform the try operation on the given stack location.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_try(&mut self, address: InstAddress, clean: usize, preserve: bool) -> VmResult<bool> {
-        let return_value = vm_try!(self.stack.address(address));
+        let value = vm_try!(self.stack.address(address));
 
-        let result = match &return_value {
-            Value::Result(result) => {
-                let ok = match &*vm_try!(result.borrow_ref()) {
-                    Result::Ok(value) => Some(value.clone()),
-                    Result::Err(..) => None,
-                };
-                ok.ok_or(return_value)
-            }
-            Value::Option(option) => {
-                let some = (*vm_try!(option.borrow_ref())).clone();
-                some.ok_or(return_value)
-            }
-            _ => {
+        let result = match value {
+            Value::Result(result) => result::result_try(vm_try!(result.take())),
+            Value::Option(option) => option::option_try(vm_try!(option.take())),
+            value => {
                 if let CallResult::Unsupported(target) =
-                    vm_try!(self.call_instance_fn(return_value, Protocol::TRY, ()))
+                    vm_try!(self.call_instance_fn(value, Protocol::TRY, ()))
                 {
                     return err(VmErrorKind::UnsupportedTryOperand {
                         actual: vm_try!(target.type_info()),
                     });
                 }
 
-                vm_try!(<Result<Value, Value>>::from_value(vm_try!(self
-                    .stack
-                    .pop())))
+                let value = vm_try!(self.stack.pop());
+                vm_try!(ControlFlow::from_value(value))
             }
         };
 
         match result {
-            Ok(value) => {
+            ControlFlow::Continue(value) => {
                 if preserve {
                     self.stack.push(value);
                 }
 
                 VmResult::Ok(false)
             }
-            Err(err) => VmResult::Ok(vm_try!(self.op_return_internal(err, clean))),
+            ControlFlow::Break(error) => {
+                VmResult::Ok(vm_try!(self.op_return_internal(error, clean)))
+            }
         }
     }
 

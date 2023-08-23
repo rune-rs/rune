@@ -3,7 +3,7 @@
 use core::fmt;
 
 use crate as rune;
-use crate::runtime::{Formatter, Function, Panic, Value, VmResult};
+use crate::runtime::{ControlFlow, Formatter, Function, Panic, Shared, Value, VmResult};
 use crate::{ContextError, Module};
 
 /// Construct the `std::result` module.
@@ -31,6 +31,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(expect)?;
     module.function_meta(and_then)?;
     module.function_meta(map)?;
+    module.function_meta(result_try__meta)?;
     Ok(module)
 }
 
@@ -256,5 +257,25 @@ fn map(this: &Result<Value, Value>, then: Function) -> VmResult<Result<Value, Va
     match this {
         Ok(v) => VmResult::Ok(Ok(vm_try!(then.call::<_, _>((v,))))),
         Err(e) => VmResult::Ok(Err(e.clone())),
+    }
+}
+
+/// Using [`Result`] with the try protocol.
+///
+/// # Examples
+///
+/// ```rune
+/// fn maybe_add_one(value) {
+///     Ok(value? + 1)
+/// }
+///
+/// assert_eq!(maybe_add_one(Ok(4)), Ok(5));
+/// assert_eq!(maybe_add_one(Err("not a number")), Err("not a number"));
+/// ```
+#[rune::function(keep, instance, protocol = TRY)]
+pub(crate) fn result_try(this: Result<Value, Value>) -> ControlFlow {
+    match this {
+        Ok(value) => ControlFlow::Continue(value),
+        Err(error) => ControlFlow::Break(Value::Result(Shared::new(Err(error)))),
     }
 }
