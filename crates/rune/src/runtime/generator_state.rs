@@ -1,6 +1,6 @@
 use crate::compile::Named;
 use crate::module::InstallWith;
-use crate::runtime::{RawStr, Value, VmResult};
+use crate::runtime::{ProtocolCaller, RawStr, Value, VmResult};
 
 /// The state of a generator.
 ///
@@ -65,6 +65,34 @@ impl GeneratorState {
     /// Test if the state is complete.
     pub fn is_complete(&self) -> bool {
         matches!(self, Self::Complete(..))
+    }
+
+    pub(crate) fn partial_eq_with(
+        &self,
+        other: &Self,
+        caller: &mut impl ProtocolCaller,
+    ) -> VmResult<bool> {
+        match (self, other) {
+            (GeneratorState::Yielded(a), GeneratorState::Yielded(b)) => {
+                Value::partial_eq_with(a, b, caller)
+            }
+            (GeneratorState::Complete(a), GeneratorState::Complete(b)) => {
+                Value::partial_eq_with(a, b, caller)
+            }
+            _ => VmResult::Ok(false),
+        }
+    }
+
+    pub(crate) fn eq_with(&self, other: &Self, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
+        match (self, other) {
+            (GeneratorState::Yielded(a), GeneratorState::Yielded(b)) => {
+                Value::eq_with(a, b, caller)
+            }
+            (GeneratorState::Complete(a), GeneratorState::Complete(b)) => {
+                Value::eq_with(a, b, caller)
+            }
+            _ => VmResult::Ok(false),
+        }
     }
 }
 

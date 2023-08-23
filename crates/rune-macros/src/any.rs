@@ -1,9 +1,8 @@
 use std::collections::BTreeMap;
-use std::mem::take;
 
 use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned, ToTokens};
-use rune_core::{ComponentRef, Hash, ItemBuf};
+use rune_core::Hash;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::Token;
@@ -45,7 +44,11 @@ impl InternalCall {
 
         let mut item = self.item.clone();
         item.segments.push(syn::PathSegment::from(name.clone()));
-        let type_hash = build_type_hash(&item);
+
+        let type_hash = match crate::hash::build_type_hash(&item) {
+            Ok(type_hash) => type_hash,
+            Err(error) => return Err(vec![error]),
+        };
 
         let name = syn::LitStr::new(&name.to_string(), name.span());
 
@@ -99,30 +102,16 @@ impl Derive {
         };
 
         item.segments.push(syn::PathSegment::from(name.clone()));
-        let type_hash = build_type_hash(&item);
+
+        let type_hash = match crate::hash::build_type_hash(&item) {
+            Ok(type_hash) => type_hash,
+            Err(error) => return Err(vec![error]),
+        };
 
         let name = syn::LitStr::new(&name.to_string(), name.span());
 
         expand_any(ident, type_hash, &name, &installers, &tokens, generics)
     }
-}
-
-fn build_type_hash(item: &syn::Path) -> Hash {
-    // Construct type hash.
-    let mut buf = ItemBuf::new();
-    let mut first = item.leading_colon.is_some();
-
-    for s in &item.segments {
-        let ident = s.ident.to_string();
-
-        if take(&mut first) {
-            buf.push(ComponentRef::Crate(&ident));
-        } else {
-            buf.push(ComponentRef::Str(&ident));
-        }
-    }
-
-    Hash::type_hash(&buf)
 }
 
 /// Expannd the install into impl.

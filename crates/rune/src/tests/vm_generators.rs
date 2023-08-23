@@ -22,7 +22,7 @@ fn test_simple_generator() {
 #[test]
 fn test_resume() {
     let out: i64 = rune! {
-        use std::generator::GeneratorState;
+        use std::ops::GeneratorState;
 
         fn foo() { let a = yield 1; let b = yield a; b }
 

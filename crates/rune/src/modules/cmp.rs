@@ -4,7 +4,7 @@ use core::cmp::Ordering;
 use core::fmt::{self, Write};
 
 use crate as rune;
-use crate::runtime::{Formatter, Protocol, Value, VmResult};
+use crate::runtime::{Formatter, Value, VmResult};
 use crate::{ContextError, Module};
 
 /// Construct the `std::cmp` module.
@@ -50,10 +50,8 @@ pub fn module() -> Result<Module, ContextError> {
             .docs(["An ordering where a compared value is greater than another."]);
     }
 
-    m.associated_function(Protocol::PARTIAL_EQ, |lhs: Ordering, rhs: Ordering| {
-        lhs == rhs
-    })?;
-    m.associated_function(Protocol::EQ, |lhs: Ordering, rhs: Ordering| lhs == rhs)?;
+    m.function_meta(ordering_partial_eq)?;
+    m.function_meta(ordering_eq)?;
     m.function_meta(ordering_string_debug)?;
     m.function_meta(min)?;
     m.function_meta(max)?;
@@ -102,6 +100,37 @@ fn min(v1: Value, v2: Value) -> VmResult<Value> {
         Ordering::Less | Ordering::Equal => v1,
         Ordering::Greater => v2,
     })
+}
+
+/// Perform a partial ordering equality test.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::cmp::Ordering;
+///
+/// assert!(Ordering::Less == Ordering::Less);
+/// assert!(Ordering::Less != Ordering::Equal);
+/// ```
+#[rune::function(instance, protocol = PARTIAL_EQ)]
+fn ordering_partial_eq(this: Ordering, other: Ordering) -> bool {
+    this == other
+}
+
+/// Perform a total ordering equality test.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::ops::eq;
+/// use std::cmp::Ordering;
+///
+/// assert!(eq(Ordering::Less, Ordering::Less));
+/// assert!(!eq(Ordering::Less, Ordering::Equal));
+/// ```
+#[rune::function(instance, protocol = EQ)]
+fn ordering_eq(this: Ordering, other: Ordering) -> bool {
+    this == other
 }
 
 /// Debug format [`Ordering`].

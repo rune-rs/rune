@@ -50,22 +50,24 @@ impl RangeFull {
         VmResult::Ok(Ordering::Equal)
     }
 
-    /// Test if the range contains the given integer.
+    /// Test if the range contains the given value.
+    ///
+    /// The check is performed using the [`PARTIAL_CMP`] protocol.
     ///
     /// # Examples
     ///
     /// ```rune
     /// let range = ..;
     ///
-    /// assert!(range.contains::<i64>(-10));
-    /// assert!(range.contains::<i64>(5));
-    /// assert!(range.contains::<i64>(10));
-    /// assert!(range.contains::<i64>(20));
+    /// assert!(range.contains(-10));
+    /// assert!(range.contains(5));
+    /// assert!(range.contains(10));
+    /// assert!(range.contains(20));
     ///
     /// assert!(range is std::ops::RangeFull);
     /// ```
-    #[rune::function(path = contains::<i64>)]
-    pub(crate) fn contains(&self, _: i64) -> VmResult<bool> {
+    #[rune::function]
+    pub(crate) fn contains(&self, _: Value) -> VmResult<bool> {
         VmResult::Ok(true)
     }
 }

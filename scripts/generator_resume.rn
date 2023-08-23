@@ -1,4 +1,4 @@
-use std::generator::GeneratorState;
+use std::ops::GeneratorState;
 
 fn foo() {
     let a = yield 1;

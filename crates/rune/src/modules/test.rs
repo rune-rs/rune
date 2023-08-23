@@ -81,14 +81,14 @@ pub(crate) fn assert(
         let expanded = message.expand(cx)?;
 
         quote!(if !(#expr) {
-            panic("assertion failed: " + (#expanded));
+            ::std::panic("assertion failed: " + (#expanded));
         })
     } else {
         let message = format!("assertion failed: {}", cx.stringify(&expr));
         let message = cx.lit(&message);
 
         quote!(if !(#expr) {
-            panic(#message);
+            ::std::panic(#message);
         })
     };
 
@@ -133,9 +133,9 @@ pub(crate) fn assert_eq(
 
             if !(left == right) {
                 let message = #message;
-                message += format!("\nleft: {:?}", left);
-                message += format!("\nright: {:?}", right);
-                panic("assertion failed (left == right): " + message);
+                message += ::std::fmt::format!("\nleft: {:?}", left);
+                message += ::std::fmt::format!("\nright: {:?}", right);
+                ::std::panic("assertion failed (left == right): " + message);
             }
         }}
     } else {
@@ -146,10 +146,10 @@ pub(crate) fn assert_eq(
             let right = #right;
 
             if !(left == right) {
-                let message = String::from(#message);
-                message += format!("\nleft: {:?}", left);
-                message += format!("\nright: {:?}", right);
-                panic(message);
+                let message = ::std::string::String::from(#message);
+                message += ::std::fmt::format!("\nleft: {:?}", left);
+                message += ::std::fmt::format!("\nright: {:?}", right);
+                ::std::panic(message);
             }
         }}
     };
@@ -195,9 +195,9 @@ pub(crate) fn assert_ne(
 
             if !(left != right) {
                 let message = #message;
-                message += format!("\nleft: {:?}", left);
-                message += format!("\nright: {:?}", right);
-                panic("assertion failed (left != right): " + message);
+                message += ::std::fmt::format!("\nleft: {:?}", left);
+                message += ::std::fmt::format!("\nright: {:?}", right);
+                ::std::panic("assertion failed (left != right): " + message);
             }
         }}
     } else {
@@ -208,10 +208,10 @@ pub(crate) fn assert_ne(
             let right = #right;
 
             if !(left != right) {
-                let message = String::from(#message);
-                message += format!("\nleft: {:?}", left);
-                message += format!("\nright: {:?}", right);
-                panic(message);
+                let message = ::std::string::String::from(#message);
+                message += ::std::fmt::format!("\nleft: {:?}", left);
+                message += ::std::fmt::format!("\nright: {:?}", right);
+                ::std::panic(message);
             }
         }}
     };
