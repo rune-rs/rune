@@ -3,26 +3,46 @@ use core::fmt;
 use core::ops;
 
 use crate as rune;
-use crate::compile::Named;
-use crate::module::InstallWith;
-use crate::runtime::{
-    EnvProtocolCaller, FromValue, ProtocolCaller, RawStr, ToValue, Value, VmResult,
-};
+use crate::runtime::{EnvProtocolCaller, FromValue, ProtocolCaller, ToValue, Value, VmResult};
+use crate::Any;
 
-/// Struct representing an open range `..=end`.
+/// Type for an inclusive range expression `..=end`.
 ///
 /// # Examples
 ///
+/// ```rune
+/// let range = ..=10;
+/// assert!(range.contains(-10));
+/// assert!(range.contains(5));
+/// assert!(range.contains(10));
+/// assert!(!range.contains(20));
+///
+/// assert!(range is std::ops::RangeToInclusive);
 /// ```
+///
+/// Ranges can contain any type:
+///
+/// ```rune
+/// let range = ..='f';
+/// assert_eq!(range.end, 'f');
+/// range.end = 'g';
+/// assert_eq!(range.end, 'g');
+/// ```
+///
+/// # Examples
+///
+/// ```rust
 /// use rune::runtime::RangeToInclusive;
 ///
 /// let end = rune::to_value(10)?;
 /// let _ = RangeToInclusive::new(end);
 /// # Ok::<_, rune::Error>(())
 /// ```
-#[derive(Clone)]
+#[derive(Any, Clone)]
+#[rune(builtin, constructor)]
 pub struct RangeToInclusive {
     /// The end value of the range.
+    #[rune(get, set)]
     pub end: Value,
 }
 
@@ -188,9 +208,3 @@ where
 }
 
 from_value!(RangeToInclusive, into_range_to_inclusive);
-
-impl Named for RangeToInclusive {
-    const BASE_NAME: RawStr = RawStr::from_str("RangeToInclusive");
-}
-
-impl InstallWith for RangeToInclusive {}

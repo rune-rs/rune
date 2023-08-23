@@ -3,21 +3,34 @@ use core::fmt;
 use core::ops;
 
 use crate as rune;
-use crate::compile::Named;
-use crate::module::InstallWith;
-use crate::runtime::{FromValue, ProtocolCaller, RawStr, ToValue, Value, VmResult};
+use crate::runtime::{FromValue, ProtocolCaller, ToValue, Value, VmResult};
+use crate::Any;
 
-/// Struct representing an open range `start..`.
+/// Type for a full range expression `..`.
 ///
 /// # Examples
 ///
+/// ```rune
+/// let range = ..;
+///
+/// assert!(range.contains(-10));
+/// assert!(range.contains(5));
+/// assert!(range.contains(10));
+/// assert!(range.contains(20));
+///
+/// assert!(range is std::ops::RangeFull);
 /// ```
+///
+/// # Rust Examples
+///
+/// ```rust
 /// use rune::runtime::RangeFull;
 ///
 /// let _ = RangeFull::new();
 /// # Ok::<_, rune::Error>(())
 /// ```
-#[derive(Default, Clone)]
+#[derive(Any, Default, Clone)]
+#[rune(builtin, constructor)]
 pub struct RangeFull;
 
 impl RangeFull {
@@ -94,9 +107,3 @@ impl FromValue for ops::RangeFull {
 }
 
 from_value!(RangeFull, into_range_full);
-
-impl Named for RangeFull {
-    const BASE_NAME: RawStr = RawStr::from_str("RangeFull");
-}
-
-impl InstallWith for RangeFull {}

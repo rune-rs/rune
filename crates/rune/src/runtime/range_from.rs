@@ -3,27 +3,56 @@ use core::fmt;
 use core::ops;
 
 use crate as rune;
-use crate::compile::Named;
-use crate::module::InstallWith;
 use crate::runtime::{
-    EnvProtocolCaller, FromValue, Iterator, ProtocolCaller, RawStr, ToValue, Value, VmErrorKind,
-    VmResult,
+    EnvProtocolCaller, FromValue, Iterator, ProtocolCaller, ToValue, Value, VmErrorKind, VmResult,
 };
+use crate::Any;
 
-/// Struct representing an open range `start..`.
+/// Type for a from range expression `start..`.
 ///
 /// # Examples
 ///
+/// ```rune
+/// let range = 0..;
+///
+/// assert!(!range.contains(-10));
+/// assert!(range.contains(5));
+/// assert!(range.contains(10));
+/// assert!(range.contains(20));
+///
+/// assert!(range is std::ops::RangeFrom);
 /// ```
+///
+/// Ranges can contain any type:
+///
+/// ```rune
+/// let range = 'a'..;
+/// assert_eq!(range.start, 'a');
+/// range.start = 'b';
+/// assert_eq!(range.start, 'b');
+/// ```
+///
+/// Certain ranges can be used as iterators:
+///
+/// ```rune
+/// let range = 'a'..;
+/// assert_eq!(range.iter().take(5).collect::<Vec>(), ['a', 'b', 'c', 'd', 'e']);
+/// ```
+///
+/// # Rust examples
+///
+/// ```rust
 /// use rune::runtime::RangeFrom;
 ///
 /// let start = rune::to_value(1)?;
 /// let _ = RangeFrom::new(start);
 /// # Ok::<_, rune::Error>(())
 /// ```
-#[derive(Clone)]
+#[derive(Any, Clone)]
+#[rune(builtin, constructor)]
 pub struct RangeFrom {
     /// The start value of the range.
+    #[rune(get, set)]
     pub start: Value,
 }
 
@@ -258,9 +287,3 @@ where
 }
 
 from_value!(RangeFrom, into_range_from);
-
-impl Named for RangeFrom {
-    const BASE_NAME: RawStr = RawStr::from_str("RangeFrom");
-}
-
-impl InstallWith for RangeFrom {}
