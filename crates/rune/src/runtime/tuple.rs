@@ -318,7 +318,7 @@ impl UnsafeToRef for Tuple {
             Value::Tuple(tuple) => {
                 let tuple = Ref::map(vm_try!(tuple.into_ref()), |tuple| &**tuple);
                 let (value, guard) = Ref::into_raw(tuple);
-                VmResult::Ok((&*value, Some(guard)))
+                VmResult::Ok((value.as_ref(), Some(guard)))
             }
             actual => VmResult::err(VmErrorKind::expected::<Self>(vm_try!(actual.type_info()))),
         }
@@ -333,8 +333,8 @@ impl UnsafeToMut for Tuple {
             Value::EmptyTuple => VmResult::Ok((Tuple::new_mut(&mut []), None)),
             Value::Tuple(tuple) => {
                 let tuple = Mut::map(vm_try!(tuple.into_mut()), |tuple| &mut **tuple);
-                let (value, guard) = Mut::into_raw(tuple);
-                VmResult::Ok((&mut *value, Some(guard)))
+                let (mut value, guard) = Mut::into_raw(tuple);
+                VmResult::Ok((value.as_mut(), Some(guard)))
             }
             actual => VmResult::err(VmErrorKind::expected::<Self>(vm_try!(actual.type_info()))),
         }

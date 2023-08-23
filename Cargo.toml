@@ -18,3 +18,6 @@ default-members = [
 [profile.bench]
 lto = false
 debug = true
+
+[patch.crates-io]
+hashbrown = { git = "https://github.com/udoprog/hashbrown", branch = "raw-infallible-context" }

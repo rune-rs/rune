@@ -480,9 +480,9 @@ impl UnsafeToRef for [Value] {
     unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
         let vec = vm_try!(value.into_vec());
         let (vec, guard) = Ref::into_raw(vm_try!(vec.into_ref()));
-        // Safety: we're holding onto the guard for the vector here, so it is
+        // SAFETY: we're holding onto the guard for the vector here, so it is
         // live.
-        VmResult::Ok(((*vec).as_slice(), guard))
+        VmResult::Ok((vec.as_ref().as_slice(), guard))
     }
 }
 

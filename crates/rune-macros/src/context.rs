@@ -612,6 +612,7 @@ impl Context {
             iterator: path(&core, ["iter", "Iterator"]),
             double_ended_iterator: path(&core, ["iter", "DoubleEndedIterator"]),
             option: path(&core, ["option", "Option"]),
+            non_null: path(&core, ["ptr", "NonNull"]),
         }
     }
 }
@@ -693,6 +694,7 @@ pub(crate) struct Tokens {
     pub(crate) iterator: syn::Path,
     pub(crate) double_ended_iterator: syn::Path,
     pub(crate) option: syn::Path,
+    pub(crate) non_null: syn::Path,
 }
 
 impl Tokens {

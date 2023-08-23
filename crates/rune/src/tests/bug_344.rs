@@ -217,12 +217,12 @@ impl UnsafeToRef for GuardCheck {
 
         let guard = Guard {
             _guard: guard,
-            // Safety: regardless of what happens, the value is available here
-            // and the refcounted value will be available even if the underlying
-            // value *is* dropped prematurely because it's been cloned.
-            dropped: unsafe { (*output).dropped.clone() },
+            // Regardless of what happens, the value is available here and the
+            // refcounted value will be available even if the underlying value
+            // *is* dropped prematurely because it's been cloned.
+            dropped: output.as_ref().dropped.clone(),
         };
 
-        VmResult::Ok((&*output, guard))
+        VmResult::Ok((output.as_ref(), guard))
     }
 }

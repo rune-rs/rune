@@ -4,6 +4,7 @@ use core::cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd};
 use core::fmt;
 use core::fmt::Write;
 use core::hash;
+use core::ptr;
 
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
@@ -13,10 +14,10 @@ use crate::compile::ItemBuf;
 use crate::runtime::vm::CallResult;
 use crate::runtime::{
     AccessKind, AnyObj, Bytes, ConstValue, ControlFlow, EnvProtocolCaller, Format, Formatter,
-    FromValue, FullTypeOf, Function, Future, Generator, GeneratorState, Iterator, MaybeTypeOf, Mut,
-    Object, OwnedTuple, Protocol, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive,
-    RangeTo, RangeToInclusive, RawMut, RawRef, Ref, Shared, Stream, ToValue, Type, TypeInfo,
-    Variant, Vec, Vm, VmError, VmErrorKind, VmIntegerRepr, VmResult,
+    FromValue, FullTypeOf, Function, Future, Generator, GeneratorState, Hasher, Iterator,
+    MaybeTypeOf, Mut, Object, OwnedTuple, Protocol, ProtocolCaller, Range, RangeFrom, RangeFull,
+    RangeInclusive, RangeTo, RangeToInclusive, RawMut, RawRef, Ref, Shared, Stream, ToValue, Type,
+    TypeInfo, Variant, Vec, Vm, VmError, VmErrorKind, VmIntegerRepr, VmResult,
 };
 use crate::{Any, Hash};
 
@@ -1049,7 +1050,7 @@ impl Value {
     /// outlive the returned guard, not the virtual machine the value belongs
     /// to.
     #[inline]
-    pub fn into_any_ptr<T>(self) -> VmResult<(*const T, RawRef)>
+    pub fn into_any_ptr<T>(self) -> VmResult<(ptr::NonNull<T>, RawRef)>
     where
         T: Any,
     {
@@ -1073,7 +1074,7 @@ impl Value {
     /// outlive the returned guard, not the virtual machine the value belongs
     /// to.
     #[inline]
-    pub fn into_any_mut<T>(self) -> VmResult<(*mut T, RawMut)>
+    pub fn into_any_mut<T>(self) -> VmResult<(ptr::NonNull<T>, RawMut)>
     where
         T: Any,
     {
@@ -1336,6 +1337,57 @@ impl Value {
         })
     }
 
+    /// Hash the current value.
+    pub(crate) fn hash_with(
+        &self,
+        hasher: &mut Hasher,
+        caller: &mut impl ProtocolCaller,
+    ) -> VmResult<()> {
+        match self {
+            Value::Integer(value) => {
+                hasher.write_i64(*value);
+                return VmResult::Ok(());
+            }
+            Value::Byte(value) => {
+                hasher.write_u8(*value);
+                return VmResult::Ok(());
+            }
+            // Care must be taken whan hashing floats, to ensure that `hash(v1)
+            // === hash(v2)` if `eq(v1) === eq(v2)`. Hopefully we accomplish
+            // this by rejecting NaNs and rectifying subnormal values of zero.
+            Value::Float(value) => {
+                if value.is_nan() {
+                    return VmResult::err(VmErrorKind::IllegalFloatOperation { value: *value });
+                }
+
+                let zero = *value == 0.0;
+                hasher.write_f64(f64::from(zero) * 0.0 + f64::from(!zero) * *value);
+                return VmResult::Ok(());
+            }
+            Value::String(string) => {
+                let string = vm_try!(string.borrow_ref());
+                hasher.write_str(&string);
+                return VmResult::Ok(());
+            }
+            Value::Bytes(bytes) => {
+                let bytes = vm_try!(bytes.borrow_ref());
+                hasher.write(&bytes);
+                return VmResult::Ok(());
+            }
+            value => {
+                match vm_try!(caller.try_call_protocol_fn(Protocol::HASH, value.clone(), ())) {
+                    CallResult::Ok(value) => return <()>::from_value(value),
+                    CallResult::Unsupported(..) => {}
+                }
+            }
+        }
+
+        err(VmErrorKind::UnsupportedUnaryOperation {
+            op: "hash",
+            operand: vm_try!(self.type_info()),
+        })
+    }
+
     /// Perform a total equality test between two values.
     ///
     /// This is the basis for the eq operation (`==`).
@@ -1346,19 +1398,15 @@ impl Value {
     /// # Errors
     ///
     /// This function will error if called outside of a virtual machine context.
-    pub fn eq(a: &Value, b: &Value) -> VmResult<bool> {
-        Value::eq_with(a, b, &mut EnvProtocolCaller)
+    pub fn eq(&self, b: &Value) -> VmResult<bool> {
+        self.eq_with(b, &mut EnvProtocolCaller)
     }
 
     /// Perform a total equality test between two values.
     ///
     /// This is the basis for the eq operation (`==`).
-    pub(crate) fn eq_with(
-        a: &Value,
-        b: &Value,
-        caller: &mut impl ProtocolCaller,
-    ) -> VmResult<bool> {
-        match (a, b) {
+    pub(crate) fn eq_with(&self, b: &Value, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
+        match (self, b) {
             (Self::Bool(a), Self::Bool(b)) => return VmResult::Ok(a == b),
             (Self::Byte(a), Self::Byte(b)) => return VmResult::Ok(a == b),
             (Self::Char(a), Self::Char(b)) => return VmResult::Ok(a == b),
@@ -1478,8 +1526,9 @@ impl Value {
                     _ => return VmResult::Ok(false),
                 }
             }
-            (a, b) => {
-                match vm_try!(caller.try_call_protocol_fn(Protocol::EQ, a.clone(), (b.clone(),))) {
+            _ => {
+                match vm_try!(caller.try_call_protocol_fn(Protocol::EQ, self.clone(), (b.clone(),)))
+                {
                     CallResult::Ok(value) => return bool::from_value(value),
                     CallResult::Unsupported(..) => {}
                 }
@@ -1488,7 +1537,7 @@ impl Value {
 
         err(VmErrorKind::UnsupportedBinaryOperation {
             op: "eq",
-            lhs: vm_try!(a.type_info()),
+            lhs: vm_try!(self.type_info()),
             rhs: vm_try!(b.type_info()),
         })
     }

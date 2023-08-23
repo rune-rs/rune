@@ -39,7 +39,7 @@ pub fn module() -> Result<Module, ContextError> {
 /// let bytes = Bytes::new();
 /// assert_eq!(bytes, b"");
 /// ```
-#[rune::function(path = Bytes::new)]
+#[rune::function(free, path = Bytes::new)]
 #[inline]
 pub const fn new() -> Bytes {
     Bytes::new()
@@ -55,7 +55,7 @@ pub const fn new() -> Bytes {
 /// bytes.extend(b"abcd");
 /// assert_eq!(bytes, b"abcd");
 /// ```
-#[rune::function(path = Bytes::with_capacity)]
+#[rune::function(free, path = Bytes::with_capacity)]
 #[inline]
 pub fn with_capacity(capacity: usize) -> Bytes {
     Bytes::with_capacity(capacity)
@@ -69,7 +69,7 @@ pub fn with_capacity(capacity: usize) -> Bytes {
 /// let bytes = Bytes::from_vec([b'a', b'b', b'c', b'd']);
 /// assert_eq!(bytes, b"abcd");
 /// ```
-#[rune::function(path = Bytes::from_vec)]
+#[rune::function(free, path = Bytes::from_vec)]
 #[inline]
 pub fn from_vec(bytes: Vec<u8>) -> Bytes {
     Bytes::from_vec(bytes)

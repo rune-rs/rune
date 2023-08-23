@@ -182,3 +182,6 @@ pub use self::fmt::Formatter;
 
 mod control_flow;
 pub use self::control_flow::ControlFlow;
+
+mod hasher;
+pub use self::hasher::Hasher;

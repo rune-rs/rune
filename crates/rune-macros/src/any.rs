@@ -503,6 +503,7 @@ where
         value,
         vm_result,
         install_with,
+        non_null,
         ..
     } = &tokens;
 
@@ -602,7 +603,7 @@ where
                         #vm_result::Err(err) => return #vm_result::Err(err),
                     };
 
-                    #vm_result::Ok((&*value, guard))
+                    #vm_result::Ok((#non_null::as_ref(&value), guard))
                 }
             }
 
@@ -611,12 +612,12 @@ where
                 type Guard = #raw_into_mut;
 
                 unsafe fn unsafe_to_mut<'a>(value: #value) -> #vm_result<(&'a mut Self, Self::Guard)> {
-                    let (value, guard) = match value.into_any_mut() {
+                    let (mut value, guard) = match value.into_any_mut() {
                         #vm_result::Ok(value) => value,
                         #vm_result::Err(err) => return #vm_result::Err(err),
                     };
 
-                    #vm_result::Ok((&mut *value, guard))
+                    #vm_result::Ok((#non_null::as_mut(&mut value), guard))
                 }
             }
 

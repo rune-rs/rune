@@ -119,7 +119,7 @@ macro_rules! from_value {
                 let value = vm_try!(value.$into());
                 let value = vm_try!(value.into_ref());
                 let (value, guard) = $crate::runtime::Ref::into_raw(value);
-                $crate::runtime::VmResult::Ok((&*value, guard))
+                $crate::runtime::VmResult::Ok((value.as_ref(), guard))
             }
         }
 
@@ -131,8 +131,8 @@ macro_rules! from_value {
             ) -> $crate::runtime::VmResult<(&'a mut Self, Self::Guard)> {
                 let value = vm_try!(value.$into());
                 let value = vm_try!(value.into_mut());
-                let (value, guard) = $crate::runtime::Mut::into_raw(value);
-                $crate::runtime::VmResult::Ok((&mut *value, guard))
+                let (mut value, guard) = $crate::runtime::Mut::into_raw(value);
+                $crate::runtime::VmResult::Ok((value.as_mut(), guard))
             }
         }
 

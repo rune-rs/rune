@@ -270,3 +270,10 @@ pub(crate) static ORDERING: &StaticType = &StaticType {
 };
 
 impl_static_type!(Ordering => ORDERING);
+
+pub(crate) static HASHER: &StaticType = &StaticType {
+    name: RawStr::from_str("Hasher"),
+    hash: ::rune_macros::hash!(::std::hash::Hasher),
+};
+
+impl_static_type!(rt::Hasher => HASHER);

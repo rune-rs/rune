@@ -718,7 +718,7 @@ impl VecDeque {
 ///
 /// let buf = VecDeque::from([1, 2, 3]);
 /// ```
-#[rune::function(path = VecDeque::from)]
+#[rune::function(free, path = VecDeque::from)]
 fn from(value: Value) -> VmResult<VecDeque> {
     VecDeque::from_iter(vm_try!(value.into_iter()))
 }

@@ -520,7 +520,7 @@ impl IteratorTrait for Union {
     }
 }
 
-#[rune::function(path = HashSet::from)]
+#[rune::function(free, path = HashSet::from)]
 fn from(value: Value) -> VmResult<HashSet> {
     HashSet::from_iter(vm_try!(value.into_iter()))
 }

@@ -279,10 +279,15 @@ pub(crate) use rune_macros::__internal_impl_any;
 ///   generated Rune documentation.
 /// * The name of arguments is captured to improve documentation generation.
 /// * If an instance function is annotated this is detected (if the function
-///   receives `self`). This behavior can be forced using `#[rune::function(instance)]` if
-///   the function doesn't take `self`.
-/// * The name of the function can be set using the `#[rune::function(path = ...)]`.
-/// * Instance functions can be made a protocol function `#[rune::function(protocol = STRING_DISPLAY)]`.
+///   receives `self`). This behavior can be forced using
+///   `#[rune::function(instance)]` if the function doesn't take `self`.
+/// * The name of the function can be set using the `#[rune::function(path =
+///   name)]` argument.
+/// * An associated function can be specified with the `#[rune::function(path =
+///   Type::name)]` argument. If `instance` is specified it is an associated
+///   instance function that can be defined externally.
+/// * Instance functions can be made a protocol function
+///   `#[rune::function(protocol = STRING_DISPLAY)]`.
 ///
 /// # Instance and associated functions
 ///
@@ -381,6 +386,24 @@ pub(crate) use rune_macros::__internal_impl_any;
 ///
 /// The first part `Struct` in `Struct::new` is used to determine the type
 /// the function is associated with.
+///
+/// Protocol functions can either be defined in an impl block or externally. To
+/// define a protocol externally, you can simply do this:
+///
+/// ```rust
+/// # use rune::Any;
+/// # use rune::runtime::Formatter;
+/// #[derive(Any)]
+/// struct Struct {
+///     /* .. */
+/// }
+///
+/// #[rune::function(instance, protocol = STRING_DISPLAY)]
+/// fn string_display(this: &Struct, f: &mut Formatter) -> std::fmt::Result {
+///     /* .. */
+///     # todo!()
+/// }
+/// ```
 ///
 /// # Examples
 ///

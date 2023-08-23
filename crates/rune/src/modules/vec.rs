@@ -66,7 +66,7 @@ pub fn module() -> Result<Module, ContextError> {
 /// ```rune
 /// let vec = Vec::new();
 /// ```
-#[rune::function(path = Vec::new)]
+#[rune::function(free, path = Vec::new)]
 fn vec_new() -> Vec {
     Vec::new()
 }
@@ -114,7 +114,7 @@ fn vec_new() -> Vec {
 /// assert_eq!(vec.len(), 11);
 /// assert!(vec.capacity() >= 11);
 /// ```
-#[rune::function(path = Vec::with_capacity)]
+#[rune::function(free, path = Vec::with_capacity)]
 fn vec_with_capacity(capacity: usize) -> Vec {
     Vec::with_capacity(capacity)
 }
@@ -185,7 +185,7 @@ fn capacity(vec: &Vec) -> usize {
 /// assert_eq!(None, v.get(3));
 /// assert_eq!(None, v.get(0..4));
 /// ```
-#[rune::function(instance, path = Vec::get)]
+#[rune::function(instance)]
 fn get(this: &Vec, index: Value) -> VmResult<Option<Value>> {
     Vec::index_get(this, index)
 }

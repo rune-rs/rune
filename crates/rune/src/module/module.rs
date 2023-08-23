@@ -966,6 +966,24 @@ impl Module {
     /// The first part `Struct` in `Struct::new` is used to determine the type
     /// the function is associated with.
     ///
+    /// Protocol functions can either be defined in an impl block or externally.
+    /// To define a protocol externally, you can simply do this:
+    ///
+    /// ```rust
+    /// # use rune::Any;
+    /// # use rune::runtime::Formatter;
+    /// #[derive(Any)]
+    /// struct Struct {
+    ///     /* .. */
+    /// }
+    ///
+    /// #[rune::function(instance, protocol = STRING_DISPLAY)]
+    /// fn string_display(this: &Struct, f: &mut Formatter) -> std::fmt::Result {
+    ///     /* .. */
+    ///     # todo!()
+    /// }
+    /// ```
+    ///
     /// # Examples
     ///
     /// ```
