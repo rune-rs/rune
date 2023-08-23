@@ -4,7 +4,6 @@ use core::cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd};
 use core::fmt;
 use core::fmt::Write;
 use core::hash;
-use core::mem::{replace, take};
 
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
@@ -13,9 +12,9 @@ use crate::no_std::vec;
 use crate::compile::ItemBuf;
 use crate::runtime::vm::CallResult;
 use crate::runtime::{
-    AccessKind, AnyObj, Bytes, ConstValue, EnvProtocolCaller, Format, FromValue, FullTypeOf,
-    Function, Future, Generator, GeneratorState, Iterator, MaybeTypeOf, Mut, Object, OwnedTuple,
-    Protocol, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
+    AccessKind, AnyObj, Bytes, ConstValue, EnvProtocolCaller, Format, Formatter, FromValue,
+    FullTypeOf, Function, Future, Generator, GeneratorState, Iterator, MaybeTypeOf, Mut, Object,
+    OwnedTuple, Protocol, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
     RangeToInclusive, RawMut, RawRef, Ref, Shared, Stream, ToValue, Type, TypeInfo, Variant, Vec,
     Vm, VmError, VmErrorKind, VmIntegerRepr, VmResult,
 };
@@ -319,53 +318,49 @@ impl Value {
     /// # Panics
     ///
     /// This function will panic if called outside of a virtual machine.
-    pub fn string_display(&self, s: &mut String, buf: &mut String) -> VmResult<fmt::Result> {
-        self.string_display_with(s, buf, &mut EnvProtocolCaller)
+    pub fn string_display(&self, f: &mut Formatter) -> VmResult<fmt::Result> {
+        self.string_display_with(f, &mut EnvProtocolCaller)
     }
 
     /// Internal impl of string_display with a customizable caller.
     pub(crate) fn string_display_with(
         &self,
-        s: &mut String,
-        buf: &mut String,
+        f: &mut Formatter,
         caller: &mut impl ProtocolCaller,
     ) -> VmResult<fmt::Result> {
         match self {
             Value::Format(format) => {
-                vm_try!(format.spec.format(&format.value, s, buf, caller));
+                vm_try!(format.spec.format(&format.value, f, caller));
             }
             Value::Char(c) => {
-                s.push(*c);
+                f.push(*c);
             }
             Value::String(string) => {
-                s.push_str(&vm_try!(string.borrow_ref()));
+                f.push_str(&vm_try!(string.borrow_ref()));
             }
             Value::Integer(integer) => {
                 let mut buffer = itoa::Buffer::new();
-                s.push_str(buffer.format(*integer));
+                f.push_str(buffer.format(*integer));
             }
             Value::Float(float) => {
                 let mut buffer = ryu::Buffer::new();
-                s.push_str(buffer.format(*float));
+                f.push_str(buffer.format(*float));
             }
             Value::Bool(bool) => {
-                return VmResult::Ok(write!(s, "{}", bool));
+                return VmResult::Ok(write!(f, "{}", bool));
             }
             Value::Byte(byte) => {
                 let mut buffer = itoa::Buffer::new();
-                s.push_str(buffer.format(*byte));
+                f.push_str(buffer.format(*byte));
             }
             value => {
-                let b = Shared::new(take(s));
-
                 let result = vm_try!(caller.call_protocol_fn(
                     Protocol::STRING_DISPLAY,
                     value.clone(),
-                    (Value::from(b.clone()),),
+                    (f,),
                 ));
 
                 let result = vm_try!(fmt::Result::from_value(result));
-                drop(replace(s, vm_try!(b.take())));
                 return VmResult::Ok(result);
             }
         }
@@ -373,7 +368,7 @@ impl Value {
         VmResult::Ok(fmt::Result::Ok(()))
     }
 
-    /// Debug format the value using the [Protocol::STRING_DEBUG] protocol.
+    /// Debug format the value using the [`STRING_DEBUG`] protocol.
     ///
     /// You must use [Vm::with] to specify which virtual machine this function
     /// is called inside.
@@ -381,122 +376,118 @@ impl Value {
     /// # Panics
     ///
     /// This function will panic if called outside of a virtual machine.
-    pub fn string_debug(&self, s: &mut String) -> VmResult<fmt::Result> {
-        self.string_debug_with(s, &mut EnvProtocolCaller)
+    ///
+    /// [`STRING_DEBUG`]: Protocol::STRING_DEBUG
+    pub fn string_debug(&self, f: &mut Formatter) -> VmResult<fmt::Result> {
+        self.string_debug_with(f, &mut EnvProtocolCaller)
     }
 
     /// Internal impl of string_debug with a customizable caller.
     pub(crate) fn string_debug_with(
         &self,
-        s: &mut String,
+        f: &mut Formatter,
         caller: &mut impl ProtocolCaller,
     ) -> VmResult<fmt::Result> {
         let result = match self {
             Value::Bool(value) => {
-                write!(s, "{:?}", value)
+                write!(f, "{:?}", value)
             }
             Value::Byte(value) => {
-                write!(s, "{:?}", value)
+                write!(f, "{:?}", value)
             }
             Value::Char(value) => {
-                write!(s, "{:?}", value)
+                write!(f, "{:?}", value)
             }
             Value::Integer(value) => {
-                write!(s, "{:?}", value)
+                write!(f, "{:?}", value)
             }
             Value::Float(value) => {
-                write!(s, "{:?}", value)
+                write!(f, "{:?}", value)
             }
             Value::Type(value) => {
-                write!(s, "{:?}", value)
+                write!(f, "{:?}", value)
             }
             Value::String(value) => {
-                write!(s, "{:?}", value)
+                write!(f, "{:?}", value)
             }
             Value::Bytes(value) => {
-                write!(s, "{:?}", value)
+                write!(f, "{:?}", value)
             }
             Value::Vec(value) => {
                 let value = vm_try!(value.borrow_ref());
-                vm_try!(Vec::string_debug_with(&value, s, caller))
+                vm_try!(Vec::string_debug_with(&value, f, caller))
             }
             Value::EmptyTuple => {
-                write!(s, "()")
+                write!(f, "()")
             }
             Value::Tuple(value) => {
-                write!(s, "{:?}", value)
+                write!(f, "{:?}", value)
             }
             Value::Object(value) => {
-                write!(s, "{:?}", value)
+                write!(f, "{:?}", value)
             }
             Value::RangeFrom(value) => {
-                write!(s, "{:?}", value)
+                write!(f, "{:?}", value)
             }
             Value::RangeFull(value) => {
-                write!(s, "{:?}", value)
+                write!(f, "{:?}", value)
             }
             Value::RangeInclusive(value) => {
-                write!(s, "{:?}", value)
+                write!(f, "{:?}", value)
             }
             Value::RangeToInclusive(value) => {
-                write!(s, "{:?}", value)
+                write!(f, "{:?}", value)
             }
             Value::RangeTo(value) => {
-                write!(s, "{:?}", value)
+                write!(f, "{:?}", value)
             }
             Value::Range(value) => {
-                write!(s, "{:?}", value)
+                write!(f, "{:?}", value)
             }
             Value::Future(value) => {
-                write!(s, "{:?}", value)
+                write!(f, "{:?}", value)
             }
             Value::Stream(value) => {
-                write!(s, "{:?}", value)
+                write!(f, "{:?}", value)
             }
             Value::Generator(value) => {
-                write!(s, "{:?}", value)
+                write!(f, "{:?}", value)
             }
             Value::GeneratorState(value) => {
-                write!(s, "{:?}", value)
+                write!(f, "{:?}", value)
             }
             Value::Option(value) => {
-                write!(s, "{:?}", value)
+                write!(f, "{:?}", value)
             }
             Value::Result(value) => {
-                write!(s, "{:?}", value)
+                write!(f, "{:?}", value)
             }
             Value::EmptyStruct(value) => {
-                write!(s, "{:?}", value)
+                write!(f, "{:?}", value)
             }
             Value::TupleStruct(value) => {
-                write!(s, "{:?}", value)
+                write!(f, "{:?}", value)
             }
             Value::Struct(value) => {
-                write!(s, "{:?}", value)
+                write!(f, "{:?}", value)
             }
             Value::Variant(value) => {
-                write!(s, "{:?}", value)
+                write!(f, "{:?}", value)
             }
             Value::Function(value) => {
-                write!(s, "{:?}", value)
+                write!(f, "{:?}", value)
             }
             Value::Format(value) => {
-                write!(s, "{:?}", value)
+                write!(f, "{:?}", value)
             }
             Value::Iterator(value) => {
-                write!(s, "{:?}", value)
+                write!(f, "{:?}", value)
             }
             value => {
-                let b = Shared::new(take(s));
-
-                let result = vm_try!(caller.call_protocol_fn(
-                    Protocol::STRING_DEBUG,
-                    value.clone(),
-                    (Value::from(b.clone()),),
-                ));
+                let result =
+                    vm_try!(caller.call_protocol_fn(Protocol::STRING_DEBUG, value.clone(), (f,),));
 
                 let result = vm_try!(fmt::Result::from_value(result));
-                drop(replace(s, vm_try!(b.take())));
                 return VmResult::Ok(result);
             }
         };
@@ -1910,14 +1901,14 @@ impl fmt::Debug for Value {
                 write!(f, "{:?}", value)?;
             }
             value => {
-                let mut s = String::new();
+                let mut formatter = Formatter::new();
 
-                match value.string_debug(&mut s) {
+                match value.string_debug(&mut formatter) {
                     VmResult::Ok(result) => result?,
-                    VmResult::Err(error) => return write!(f, "{:?}", error),
+                    VmResult::Err(..) => return Err(fmt::Error),
                 }
 
-                f.write_str(&s)?;
+                f.write_str(formatter.as_str())?;
             }
         }
 

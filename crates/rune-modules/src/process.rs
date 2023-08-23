@@ -30,7 +30,7 @@
 //! ```
 
 use rune::{Any, Module, ContextError};
-use rune::runtime::{Bytes, Shared, Value, Protocol, VmResult};
+use rune::runtime::{Bytes, Shared, Value, VmResult, Formatter};
 use std::fmt;
 use std::io;
 use tokio::process;
@@ -43,13 +43,13 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.ty::<ExitStatus>()?;
     module.ty::<Output>()?;
 
-    module.function(["Command", "new"], Command::new)?;
-    module.associated_function("spawn", Command::spawn)?;
-    module.associated_function("arg", Command::arg)?;
-    module.associated_function("args", Command::args)?;
-    module.associated_function("wait_with_output", Child::wait_with_output)?;
-    module.associated_function(Protocol::STRING_DISPLAY, ExitStatus::display)?;
-    module.associated_function("code", ExitStatus::code)?;
+    module.function_meta(Command::new)?;
+    module.function_meta(Command::spawn)?;
+    module.function_meta(Command::arg)?;
+    module.function_meta(Command::args)?;
+    module.function_meta(Child::wait_with_output)?;
+    module.function_meta(ExitStatus::string_display)?;
+    module.function_meta(ExitStatus::code)?;
     Ok(module)
 }
 
@@ -61,6 +61,7 @@ struct Command {
 
 impl Command {
     /// Construct a new command.
+    #[rune::function(path = Self::new)]
     fn new(command: &str) -> Self {
         Self {
             inner: process::Command::new(command),
@@ -68,6 +69,7 @@ impl Command {
     }
 
     /// Add arguments.
+    #[rune::function(instance)]
     fn args(&mut self, args: &[Value]) -> VmResult<()> {
         for arg in args {
             match arg {
@@ -84,11 +86,13 @@ impl Command {
     }
 
     /// Add an argument.
+    #[rune::function(instance)]
     fn arg(&mut self, arg: &str) {
         self.inner.arg(arg);
     }
 
     /// Spawn the command.
+    #[rune::function(instance)]
     fn spawn(mut self) -> io::Result<Child> {
         Ok(Child {
             inner: Some(self.inner.spawn()?),
@@ -109,6 +113,7 @@ struct Child {
 impl Child {
     // Returns a future that will resolve to an Output, containing the exit
     // status, stdout, and stderr of the child process.
+    #[rune::function(instance)]
     async fn wait_with_output(self) -> VmResult<io::Result<Output>> {
         let inner = match self.inner {
             Some(inner) => inner,
@@ -148,11 +153,13 @@ struct ExitStatus {
 }
 
 impl ExitStatus {
-    fn display(&self, buf: &mut String) -> fmt::Result {
+    #[rune::function(protocol = STRING_DISPLAY)]
+    fn string_display(&self, f: &mut Formatter) -> fmt::Result {
         use std::fmt::Write as _;
-        write!(buf, "{}", self.status)
+        write!(f, "{}", self.status)
     }
 
+    #[rune::function]
     fn code(&self) -> Option<i32> {
         self.status.code()
     }

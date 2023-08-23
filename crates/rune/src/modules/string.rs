@@ -10,7 +10,7 @@ use alloc::string::FromUtf8Error;
 use crate::no_std::prelude::*;
 
 use crate as rune;
-use crate::runtime::{Bytes, Iterator, Panic, Protocol, Value, VmErrorKind, VmResult};
+use crate::runtime::{Bytes, Formatter, Iterator, Panic, Protocol, Value, VmErrorKind, VmResult};
 use crate::{Any, ContextError, Module};
 
 /// Construct the `std::string` module.
@@ -66,12 +66,13 @@ pub fn module() -> Result<Module, ContextError> {
 struct NotCharBoundary(());
 
 impl NotCharBoundary {
-    fn string_display(&self, s: &mut String) -> fmt::Result {
-        write!(s, "index outside of character boundary")
+    #[rune::function(instance, protocol = STRING_DISPLAY)]
+    fn string_display(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "index outside of character boundary")
     }
 
     fn install(m: &mut Module) -> Result<(), ContextError> {
-        m.associated_function(Protocol::STRING_DISPLAY, Self::string_display)?;
+        m.function_meta(Self::string_display)?;
         Ok(())
     }
 }

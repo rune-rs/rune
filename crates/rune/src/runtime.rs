@@ -176,3 +176,6 @@ pub use self::vm_execution::{ExecutionState, VmExecution, VmSendExecution};
 mod vm_halt;
 pub(crate) use self::vm_halt::VmHalt;
 pub use self::vm_halt::VmHaltInfo;
+
+mod fmt;
+pub use self::fmt::Formatter;

@@ -4,9 +4,9 @@ use core::cmp::Ordering;
 use core::fmt;
 
 use crate as rune;
-use crate::no_std::prelude::*;
 use crate::runtime::{
-    EnvProtocolCaller, Function, Iterator, Protocol, Ref, Value, Vec, VmErrorKind, VmResult,
+    EnvProtocolCaller, Formatter, Function, Iterator, Ref, TypeOf, Value, Vec, VmErrorKind,
+    VmResult,
 };
 use crate::{ContextError, Module};
 
@@ -47,7 +47,8 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(sort_by)?;
     m.function_meta(sort)?;
     m.function_meta(into_iter)?;
-    m.associated_function(Protocol::INDEX_SET, Vec::set)?;
+    m.function_meta(index_set)?;
+    m.function_meta(index_get)?;
     m.function_meta(string_debug)?;
     m.function_meta(partial_eq)?;
     m.function_meta(eq)?;
@@ -476,6 +477,60 @@ fn into_iter(this: Ref<Vec>) -> Iterator {
     Vec::iter_ref(Ref::map(this, |vec| &**vec))
 }
 
+/// Returns a reference to an element or subslice depending on the type of
+/// index.
+///
+/// - If given a position, returns a reference to the element at that position
+///   or `None` if out of bounds.
+/// - If given a range, returns the subslice corresponding to that range, or
+///   `None` if out of bounds.
+///
+/// # Panics
+///
+/// Panics if the specified `index` is out of range.
+///
+/// ```rune,should_panic
+/// let v = [10, 40, 30];
+/// assert_eq!(None, v[1..4]);
+/// ```
+///
+/// ```rune,should_panic
+/// let v = [10, 40, 30];
+/// assert_eq!(None, v[3]);
+/// ```
+///
+/// # Examples
+///
+/// ```rune
+/// let v = [10, 40, 30];
+/// assert_eq!(40, v[1]);
+/// assert_eq!([10, 40], v[0..2]);
+/// ```
+#[rune::function(instance, protocol = INDEX_GET)]
+fn index_get(this: &Vec, index: Value) -> VmResult<Value> {
+    let Some(value) = vm_try!(Vec::index_get(this, index)) else {
+        return VmResult::err(VmErrorKind::MissingIndex {
+            target: Vec::type_info(),
+        });
+    };
+
+    VmResult::Ok(value)
+}
+
+/// Inserts a value into the vector.
+///
+/// # Examples
+///
+/// ```rune
+/// let vec = [1, 2, 3];
+/// vec[0] = "a";
+/// assert_eq!(vec, ["a", 2, 3]);
+/// ```
+#[rune::function(instance, protocol = INDEX_SET)]
+fn index_set(this: &mut Vec, index: usize, value: Value) -> VmResult<()> {
+    Vec::set(this, index, value)
+}
+
 /// Write a debug representation to a string.
 ///
 /// This calls the [`STRING_DEBUG`] protocol over all elements of the
@@ -488,8 +543,8 @@ fn into_iter(this: Ref<Vec>) -> Iterator {
 /// assert_eq!(format!("{:?}", vec), "[1, 2, 3]");
 /// ```
 #[rune::function(instance, protocol = STRING_DEBUG)]
-fn string_debug(this: &Vec, s: &mut String) -> VmResult<fmt::Result> {
-    Vec::string_debug_with(this, s, &mut EnvProtocolCaller)
+fn string_debug(this: &Vec, f: &mut Formatter) -> VmResult<fmt::Result> {
+    Vec::string_debug_with(this, f, &mut EnvProtocolCaller)
 }
 
 /// Perform a partial equality check with this vector.

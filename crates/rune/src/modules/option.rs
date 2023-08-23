@@ -3,8 +3,7 @@
 use core::fmt;
 
 use crate as rune;
-use crate::no_std::prelude::*;
-use crate::runtime::{Function, Iterator, Panic, Shared, Value, VmResult};
+use crate::runtime::{Formatter, Function, Iterator, Panic, Shared, Value, VmResult};
 use crate::{ContextError, Module};
 
 /// Construct the `std::option` module.
@@ -72,14 +71,13 @@ fn expect(option: Option<Value>, message: Value) -> VmResult<Value> {
     match option {
         Some(some) => VmResult::Ok(some),
         None => {
-            let mut s = String::new();
-            let mut buf = String::new();
+            let mut f = Formatter::new();
 
-            if let Err(fmt::Error) = vm_try!(message.string_display(&mut s, &mut buf)) {
+            if let Err(fmt::Error) = vm_try!(message.string_display(&mut f)) {
                 return VmResult::err(Panic::msg("Failed to format message"));
             }
 
-            VmResult::err(Panic::custom(s))
+            VmResult::err(Panic::custom(f.into_string()))
         }
     }
 }

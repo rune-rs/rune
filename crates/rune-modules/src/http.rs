@@ -49,7 +49,7 @@
 //! ```
 
 use rune::{Any, Module, Value, ContextError};
-use rune::runtime::{Bytes, Protocol, Ref};
+use rune::runtime::{Bytes, Ref, Formatter};
 use std::fmt;
 use std::fmt::Write;
 
@@ -77,8 +77,8 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.function_meta(RequestBuilder::header)?;
     module.function_meta(RequestBuilder::body_bytes)?;
 
-    module.associated_function(Protocol::STRING_DISPLAY, Error::display)?;
-    module.associated_function(Protocol::STRING_DISPLAY, StatusCode::display)?;
+    module.function_meta(Error::string_display)?;
+    module.function_meta(StatusCode::string_display)?;
     Ok(module)
 }
 
@@ -95,8 +95,9 @@ impl From<reqwest::Error> for Error {
 }
 
 impl Error {
-    fn display(&self, buf: &mut String) -> fmt::Result {
-        write!(buf, "{}", self.inner)
+    #[rune::function(instance, protocol = STRING_DISPLAY)]
+    fn string_display(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{}", self.inner)
     }
 }
 
@@ -144,8 +145,9 @@ pub struct StatusCode {
 }
 
 impl StatusCode {
-    fn display(&self, buf: &mut String) -> fmt::Result {
-        write!(buf, "{}", self.inner)
+    #[rune::function(instance, protocol = STRING_DISPLAY)]
+    fn string_display(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{}", self.inner)
     }
 }
 

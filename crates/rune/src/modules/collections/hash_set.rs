@@ -3,10 +3,10 @@ use core::iter;
 
 use crate as rune;
 use crate::no_std::collections;
-use crate::no_std::prelude::*;
 
 use crate::runtime::{
-    EnvProtocolCaller, Iterator, IteratorTrait, Key, Protocol, ProtocolCaller, Ref, Value, VmResult,
+    EnvProtocolCaller, Formatter, Iterator, IteratorTrait, Key, ProtocolCaller, Ref, Value,
+    VmResult,
 };
 use crate::{Any, ContextError, Module};
 
@@ -28,10 +28,10 @@ pub(super) fn setup(module: &mut Module) -> Result<(), ContextError> {
     module.function_meta(HashSet::iter)?;
     module.function_meta(clone)?;
     module.function_meta(from)?;
-    module.associated_function(Protocol::INTO_ITER, HashSet::__rune_fn__iter)?;
+    module.function_meta(HashSet::into_iter)?;
     module.function_meta(HashSet::string_debug)?;
-    module.associated_function(Protocol::PARTIAL_EQ, HashSet::partial_eq)?;
-    module.associated_function(Protocol::EQ, HashSet::eq)?;
+    module.function_meta(HashSet::partial_eq)?;
+    module.function_meta(HashSet::eq)?;
     Ok(())
 }
 
@@ -301,6 +301,18 @@ impl HashSet {
         VmResult::Ok(Iterator::from("std::collections::set::Union", iter))
     }
 
+    /// Iterate over the hash set.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// use std::collections::HashSet;
+    ///
+    /// let set = HashSet::from([3, 2, 1]);
+    /// let vec = set.iter().collect::<Vec>();
+    /// vec.sort();
+    /// assert_eq!(vec, [1, 2, 3]);
+    /// ```
     #[rune::function]
     fn iter(&self) -> Iterator {
         let iter = self.set.clone().into_iter();
@@ -320,6 +332,28 @@ impl HashSet {
         VmResult::Ok(())
     }
 
+    /// Convert the set into an iterator.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// use std::collections::HashSet;
+    ///
+    /// let set = HashSet::from([3, 2, 1]);
+    /// let vec = [];
+    ///
+    /// for value in set {
+    ///     vec.push(value);
+    /// }
+    ///
+    /// vec.sort();
+    /// assert_eq!(vec, [1, 2, 3]);
+    /// ```
+    #[rune::function(protocol = INTO_ITER)]
+    fn into_iter(&self) -> Iterator {
+        self.__rune_fn__iter()
+    }
+
     /// Write a debug representation to a string.
     ///
     /// This calls the [`STRING_DEBUG`] protocol over all elements of the
@@ -334,28 +368,28 @@ impl HashSet {
     /// println!("{:?}", set);
     /// ```
     #[rune::function(protocol = STRING_DEBUG)]
-    fn string_debug(&self, s: &mut String) -> VmResult<fmt::Result> {
-        self.string_debug_with(s, &mut EnvProtocolCaller)
+    fn string_debug(&self, f: &mut Formatter) -> VmResult<fmt::Result> {
+        self.string_debug_with(f, &mut EnvProtocolCaller)
     }
 
     fn string_debug_with(
         &self,
-        s: &mut String,
+        f: &mut Formatter,
         _: &mut impl ProtocolCaller,
     ) -> VmResult<fmt::Result> {
-        vm_write!(s, "{{");
+        vm_write!(f, "{{");
 
         let mut it = self.set.iter().peekable();
 
         while let Some(value) = it.next() {
-            vm_write!(s, "{:?}", value);
+            vm_write!(f, "{:?}", value);
 
             if it.peek().is_some() {
-                vm_write!(s, ", ");
+                vm_write!(f, ", ");
             }
         }
 
-        vm_write!(s, "}}");
+        vm_write!(f, "}}");
         VmResult::Ok(Ok(()))
     }
 
@@ -369,10 +403,37 @@ impl HashSet {
         VmResult::Ok(HashSet { set })
     }
 
+    /// Perform a partial equality test between two sets.
+    ///
+    /// # Examples
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// use std::collections::HashSet;
+    ///
+    /// let set = HashSet::from([1, 2, 3]);
+    /// assert_eq!(set, HashSet::from([1, 2, 3]));
+    /// assert_ne!(set, HashSet::from([2, 3, 4]));
+    /// ```
+    #[rune::function(protocol = PARTIAL_EQ)]
     fn partial_eq(&self, other: &Self) -> bool {
         self.set == other.set
     }
 
+    /// Perform a total equality test between two sets.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// use std::ops::eq;
+    /// use std::collections::HashSet;
+    ///
+    /// let set = HashSet::from([1, 2, 3]);
+    /// assert!(eq(set, HashSet::from([1, 2, 3])));
+    /// assert!(!eq(set, HashSet::from([2, 3, 4])));
+    /// ```
+    #[rune::function(protocol = EQ)]
     fn eq(&self, other: &Self) -> bool {
         self.set == other.set
     }

@@ -524,6 +524,9 @@ pub(crate) enum VmErrorKind {
     },
     MissingIndex {
         target: TypeInfo,
+    },
+    MissingIndexInteger {
+        target: TypeInfo,
         index: VmIntegerRepr,
     },
     MissingIndexKey {
@@ -715,7 +718,10 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::ObjectIndexMissing { slot } => {
                 write!(f, "Missing index by static string slot `{slot}`",)
             }
-            VmErrorKind::MissingIndex { target, index } => {
+            VmErrorKind::MissingIndex { target } => {
+                write!(f, "Type `{target}` missing index",)
+            }
+            VmErrorKind::MissingIndexInteger { target, index } => {
                 write!(f, "Type `{target}` missing index `{index}`",)
             }
             VmErrorKind::MissingIndexKey { target, index } => {

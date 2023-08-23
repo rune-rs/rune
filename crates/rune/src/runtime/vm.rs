@@ -12,12 +12,12 @@ use crate::runtime::budget;
 use crate::runtime::future::SelectFuture;
 use crate::runtime::unit::{UnitFn, UnitStorage};
 use crate::runtime::{
-    self, Args, Awaited, BorrowMut, Bytes, Call, EmptyStruct, Format, FormatSpec, FromValue,
-    Function, Future, Generator, GuardedArgs, Inst, InstAddress, InstAssignOp, InstOp, InstRange,
-    InstTarget, InstValue, InstVariant, Object, OwnedTuple, Panic, Protocol, Range, RangeFrom,
-    RangeFull, RangeInclusive, RangeTo, RangeToInclusive, RuntimeContext, Select, Shared, Stack,
-    Stream, Struct, Type, TypeCheck, TypeOf, Unit, Value, Variant, VariantData, Vec, VmError,
-    VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmResult, VmSendExecution,
+    self, Args, Awaited, BorrowMut, Bytes, Call, EmptyStruct, Format, FormatSpec, Formatter,
+    FromValue, Function, Future, Generator, GuardedArgs, Inst, InstAddress, InstAssignOp, InstOp,
+    InstRange, InstTarget, InstValue, InstVariant, Object, OwnedTuple, Panic, Protocol, Range,
+    RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive, RuntimeContext, Select,
+    Shared, Stack, Stream, Struct, Type, TypeCheck, TypeOf, Unit, Value, Variant, VariantData, Vec,
+    VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmResult, VmSendExecution,
 };
 
 /// Small helper function to build errors.
@@ -742,14 +742,11 @@ impl Vm {
             _ => return VmResult::Ok(None),
         };
 
-        let value = match value {
-            Some(value) => value,
-            None => {
-                return err(VmErrorKind::MissingIndex {
-                    target: vm_try!(target.type_info()),
-                    index: VmIntegerRepr::from(index),
-                });
-            }
+        let Some(value) = value else {
+            return err(VmErrorKind::MissingIndexInteger {
+                target: vm_try!(target.type_info()),
+                index: VmIntegerRepr::from(index),
+            });
         };
 
         VmResult::Ok(Some(value))
@@ -815,14 +812,11 @@ impl Vm {
             _ => return VmResult::Ok(None),
         };
 
-        let value = match value {
-            Some(value) => value,
-            None => {
-                return err(VmErrorKind::MissingIndex {
-                    target: vm_try!(target.type_info()),
-                    index: VmIntegerRepr::from(index),
-                });
-            }
+        let Some(value) = value else {
+            return err(VmErrorKind::MissingIndexInteger {
+                target: vm_try!(target.type_info()),
+                index: VmIntegerRepr::from(index),
+            });
         };
 
         VmResult::Ok(Some(value))
@@ -2162,14 +2156,11 @@ impl Vm {
                 }
             }
             Value::Integer(index) => {
-                let index = match (*index).try_into() {
-                    Result::Ok(index) => index,
-                    Result::Err(..) => {
-                        return err(VmErrorKind::MissingIndex {
-                            target: vm_try!(target.type_info()),
-                            index: VmIntegerRepr::from(*index),
-                        });
-                    }
+                let Ok(index) = (*index).try_into() else {
+                    return err(VmErrorKind::MissingIndexInteger {
+                        target: vm_try!(target.type_info()),
+                        index: VmIntegerRepr::from(*index),
+                    });
                 };
 
                 if let Some(value) = vm_try!(Self::try_tuple_like_index_get(&target, index)) {
@@ -2466,20 +2457,16 @@ impl Vm {
     fn op_string_concat(&mut self, len: usize, size_hint: usize) -> VmResult<()> {
         let values = vm_try!(self.stack.drain(len)).collect::<vec::Vec<_>>();
 
-        let mut out = String::with_capacity(size_hint);
-        let mut buf = String::with_capacity(16);
+        let mut f = Formatter::with_capacity(size_hint);
 
         for value in values {
-            buf.clear();
-
-            if let Result::Err(fmt::Error) =
-                vm_try!(value.string_display_with(&mut out, &mut buf, &mut *self))
+            if let Result::Err(fmt::Error) = vm_try!(value.string_display_with(&mut f, &mut *self))
             {
                 return err(VmErrorKind::FormatError);
             }
         }
 
-        self.stack.push(out);
+        self.stack.push(f.into_string());
         VmResult::Ok(())
     }
 
@@ -2982,6 +2969,7 @@ impl Vm {
     ///
     /// ```,no_run
     /// use rune::{Context, Unit};
+    /// use rune::runtime::Formatter;
     /// use std::sync::Arc;
     ///
     /// let context = Context::with_default_modules()?;
@@ -2998,12 +2986,11 @@ impl Vm {
     /// // Call the string_display protocol on `output`. This requires
     /// // access to a virtual machine since it might use functions
     /// // registered in the unit associated with it.
-    /// let mut s = String::new();
-    /// let mut buf = String::new();
+    /// let mut f = Formatter::default();
     ///
     /// // Note: We do an extra unwrap because the return value is
     /// // `fmt::Result`.
-    /// vm.with(|| output.string_display(&mut s, &mut buf)).into_result()?.expect("formatting should succeed");
+    /// vm.with(|| output.string_display(&mut f)).into_result()?.expect("formatting should succeed");
     /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn with<F, T>(&mut self, f: F) -> T
