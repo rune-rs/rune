@@ -9,7 +9,17 @@ use crate::Any;
 ///
 /// This acts as the basis of the [`TRY`] protocol in Rune.
 ///
-/// [`TRY`]: crate::Protocol::TRY
+/// [`TRY`]: crate::runtime::Protocol::TRY
+///
+/// # Examples
+///
+/// ```rune
+/// use std::ops::ControlFlow;
+///
+/// let c = ControlFlow::Continue(42);
+/// assert_eq!(c.0, 42);
+/// assert_eq!(c, ControlFlow::Continue(42));
+/// ```
 #[derive(Debug, Clone, Any)]
 #[rune(builtin)]
 pub enum ControlFlow {

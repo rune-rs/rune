@@ -3,18 +3,48 @@ use core::fmt;
 use core::ops;
 
 use crate as rune;
-use crate::compile::Named;
-use crate::module::InstallWith;
 use crate::runtime::{
-    EnvProtocolCaller, FromValue, Iterator, ProtocolCaller, RawStr, ToValue, Value, VmErrorKind,
-    VmResult,
+    EnvProtocolCaller, FromValue, Iterator, ProtocolCaller, ToValue, Value, VmErrorKind, VmResult,
 };
+use crate::Any;
 
-/// Struct representing a range `start..=end`.
+/// Type for an inclusive range expression `start..=end`.
 ///
 /// # Examples
 ///
+/// ```rune
+/// let range = 0..=10;
+///
+/// assert!(!range.contains(-10));
+/// assert!(range.contains(5));
+/// assert!(range.contains(10));
+/// assert!(!range.contains(20));
+///
+/// assert!(range is std::ops::RangeInclusive);
 /// ```
+///
+/// Ranges can contain any type:
+///
+/// ```rune
+/// let range = 'a'..='f';
+/// assert_eq!(range.start, 'a');
+/// range.start = 'b';
+/// assert_eq!(range.start, 'b');
+/// assert_eq!(range.end, 'f');
+/// range.end = 'g';
+/// assert_eq!(range.end, 'g');
+/// ```
+///
+/// Certain ranges can be used as iterators:
+///
+/// ```rune
+/// let range = 'a'..='e';
+/// assert_eq!(range.iter().collect::<Vec>(), ['a', 'b', 'c', 'd', 'e']);
+/// ```
+///
+/// # Rust Examples
+///
+/// ```rust
 /// use rune::runtime::RangeInclusive;
 ///
 /// let start = rune::to_value(1)?;
@@ -22,11 +52,14 @@ use crate::runtime::{
 /// let _ = RangeInclusive::new(start, end);
 /// # Ok::<_, rune::Error>(())
 /// ```
-#[derive(Clone)]
+#[derive(Any, Clone)]
+#[rune(builtin, constructor)]
 pub struct RangeInclusive {
     /// The start value of the range.
+    #[rune(get, set)]
     pub start: Value,
     /// The end value of the range.
+    #[rune(get, set)]
     pub end: Value,
 }
 
@@ -287,9 +320,3 @@ where
 }
 
 from_value!(RangeInclusive, into_range_inclusive);
-
-impl Named for RangeInclusive {
-    const BASE_NAME: RawStr = RawStr::from_str("RangeInclusive");
-}
-
-impl InstallWith for RangeInclusive {}

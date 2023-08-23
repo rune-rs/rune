@@ -4,17 +4,44 @@ use core::future::Future;
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
-use crate::compile::Named;
-use crate::module::{self, InstallWith};
+use crate as rune;
+use crate::module;
 use crate::runtime::{
-    Args, Call, ConstValue, FromValue, FunctionHandler, OwnedTuple, RawStr, Rtti, RuntimeContext,
-    Stack, Unit, Value, VariantRtti, Vm, VmCall, VmErrorKind, VmHalt, VmResult,
+    Args, Call, ConstValue, FromValue, FunctionHandler, OwnedTuple, Rtti, RuntimeContext, Stack,
+    Unit, Value, VariantRtti, Vm, VmCall, VmErrorKind, VmHalt, VmResult,
 };
 use crate::shared::AssertSend;
+use crate::Any;
 use crate::Hash;
 
-/// A callable non-sync function.
+/// The type of a function in Rune.
+///
+/// Functions can be called using call expression syntax, such as `<expr>()`.
+///
+/// There are multiple different kind of things which can be coerced into a
+/// function in Rune:
+/// * Regular functions.
+/// * Closures (which might or might not capture their environment).
+/// * Built-in constructors for tuple types (tuple structs, tuple variants).
+///
+/// # Examples
+///
+/// ```rune
+/// // Captures the constructor for the `Some(<value>)` tuple variant.
+/// let build_some = Some;
+/// assert_eq!(build_some(42), Some(42));
+///
+/// fn build(value) {
+///     Some(value)
+/// }
+///
+/// // Captures the function previously defined.
+/// let build_some = build;
+/// assert_eq!(build_some(42), Some(42));
+/// ```
+#[derive(Any)]
 #[repr(transparent)]
+#[rune(builtin)]
 pub struct Function(FunctionImpl<Value>);
 
 impl Function {
@@ -907,12 +934,6 @@ impl FromValue for SyncFunction {
         let function = vm_try!(function.take());
         function.into_sync()
     }
-}
-
-impl InstallWith for Function {}
-
-impl Named for Function {
-    const BASE_NAME: RawStr = RawStr::from_str("Function");
 }
 
 from_value!(Function, into_function);
