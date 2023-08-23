@@ -74,26 +74,26 @@ impl Generator<&mut Vm> {
 
 impl Generator<Vm> {
     /// Convert into iterator
-    pub fn into_iterator(self) -> Iterator {
-        Iterator::from("std::generator::GeneratorIterator", self.into_iter())
+    pub fn rune_iter(self) -> Iterator {
+        Iterator::from("std::ops::generator::Iter", self.into_iter())
     }
 }
 
 impl IntoIterator for Generator<Vm> {
     type Item = VmResult<Value>;
-    type IntoIter = GeneratorIterator;
+    type IntoIter = Iter;
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
-        GeneratorIterator { generator: self }
+        Iter { generator: self }
     }
 }
 
-pub struct GeneratorIterator {
+pub struct Iter {
     generator: Generator<Vm>,
 }
 
-impl iter::Iterator for GeneratorIterator {
+impl iter::Iterator for Iter {
     type Item = VmResult<Value>;
 
     #[inline]

@@ -32,7 +32,7 @@ fn test_simple_stream() {
 #[test]
 fn test_resume() {
     let out: i64 = rune! {
-        use std::generator::GeneratorState;
+        use std::ops::GeneratorState;
 
         async fn foo() { let a = yield 1; let b = yield a; b }
 

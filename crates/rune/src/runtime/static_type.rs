@@ -41,7 +41,7 @@ impl hash::Hash for &'static StaticType {
 }
 
 /// Hash for `::std::u8`.
-pub(crate) const BYTE_TYPE_HASH: Hash = Hash::new(0xe6cb97d2df702ff4);
+pub(crate) const BYTE_TYPE_HASH: Hash = ::rune_macros::hash!(::std::u8);
 
 /// The specialized type information for a byte type.
 pub(crate) static BYTE_TYPE: &StaticType = &StaticType {
@@ -54,8 +54,7 @@ impl_static_type!(u8 => BYTE_TYPE);
 /// The specialized type information for a bool type.
 pub(crate) static BOOL_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("bool"),
-    // hash for ::std::bool
-    hash: Hash::new(0x981333df5abb043f),
+    hash: ::rune_macros::hash!(::std::bool),
 };
 
 impl_static_type!(bool => BOOL_TYPE);
@@ -63,14 +62,13 @@ impl_static_type!(bool => BOOL_TYPE);
 /// The specialized type information for a char type.
 pub(crate) static CHAR_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("char"),
-    // hash for ::std::char
-    hash: Hash::new(0x214e0b95f9831430),
+    hash: ::rune_macros::hash!(::std::char),
 };
 
 impl_static_type!(char => CHAR_TYPE);
 
 /// Hash for `::std::i64`.
-pub(crate) const INTEGER_TYPE_HASH: Hash = Hash::new(0x1cad9186c9641c4f);
+pub(crate) const INTEGER_TYPE_HASH: Hash = ::rune_macros::hash!(::std::i64);
 
 /// The specialized type information for a integer type.
 pub(crate) static INTEGER_TYPE: &StaticType = &StaticType {
@@ -92,7 +90,7 @@ impl_static_type!(usize => INTEGER_TYPE);
 impl_static_type!(isize => INTEGER_TYPE);
 
 /// Hash for `::std::f64`.
-pub(crate) const FLOAT_TYPE_HASH: Hash = Hash::new(0xb9b22c3893248f31);
+pub(crate) const FLOAT_TYPE_HASH: Hash = ::rune_macros::hash!(::std::f64);
 
 pub(crate) static FLOAT_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("f64"),
@@ -104,8 +102,7 @@ impl_static_type!(f64 => FLOAT_TYPE);
 
 pub(crate) static STRING_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("String"),
-    // hash for ::std::string::String
-    hash: Hash::new(0x2f4720d36d2b70c),
+    hash: ::rune_macros::hash!(::std::string::String),
 };
 
 impl_static_type!(String => STRING_TYPE);
@@ -113,8 +110,7 @@ impl_static_type!(str => STRING_TYPE);
 
 pub(crate) static BYTES_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Bytes"),
-    // hash for ::std::bytes::Bytes
-    hash: Hash::new(0x3470d9498e601529),
+    hash: ::rune_macros::hash!(::std::bytes::Bytes),
 };
 
 impl_static_type!(rt::Bytes => BYTES_TYPE);
@@ -122,8 +118,7 @@ impl_static_type!([u8] => BYTES_TYPE);
 
 pub(crate) static VEC_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Vec"),
-    // hash for ::std::vec::Vec
-    hash: Hash::new(0xc11b1e769aea94f2),
+    hash: ::rune_macros::hash!(::std::vec::Vec),
 };
 
 impl_static_type!(rt::Vec => VEC_TYPE);
@@ -133,8 +128,7 @@ impl_static_type!(impl<T> rt::VecTuple<T> => VEC_TYPE);
 
 pub(crate) static TUPLE_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Tuple"),
-    // hash for ::std::tuple::Tuple
-    hash: Hash::new(0xfeb65b3f4755aef0),
+    hash: ::rune_macros::hash!(::std::tuple::Tuple),
 };
 
 impl_static_type!(rt::OwnedTuple => TUPLE_TYPE);
@@ -142,8 +136,7 @@ impl_static_type!(rt::Tuple => TUPLE_TYPE);
 
 pub(crate) static OBJECT_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Object"),
-    // hash for ::std::object::Object
-    hash: Hash::new(0x2f5c2c7799148025),
+    hash: ::rune_macros::hash!(::std::object::Object),
 };
 
 impl_static_type!(rt::Object => OBJECT_TYPE);
@@ -151,104 +144,91 @@ impl_static_type!(rt::Struct => OBJECT_TYPE);
 
 pub(crate) static RANGE_FROM_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("RangeFrom"),
-    // hash for ::std::ops::RangeFrom
-    hash: Hash::new(0x5ef6dd950a769b9e),
+    hash: ::rune_macros::hash!(::std::ops::RangeFrom),
 };
 
 impl_static_type!(rt::RangeFrom => RANGE_FROM_TYPE);
 
 pub(crate) static RANGE_FULL_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("RangeFull"),
-    // hash for ::std::ops::RangeFull
-    hash: Hash::new(0xc16d3e8d86723c1c),
+    hash: ::rune_macros::hash!(::std::ops::RangeFull),
 };
 
 impl_static_type!(rt::RangeFull => RANGE_FULL_TYPE);
 
 pub(crate) static RANGE_INCLUSIVE_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("RangeInclusive"),
-    // hash for ::std::ops::RangeInclusive
-    hash: Hash::new(0x58ec7f802ac7728),
+    hash: ::rune_macros::hash!(::std::ops::RangeInclusive),
 };
 
 impl_static_type!(rt::RangeInclusive => RANGE_INCLUSIVE_TYPE);
 
 pub(crate) static RANGE_TO_INCLUSIVE_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("RangeToInclusive"),
-    // hash for ::std::ops::RangeToInclusive
-    hash: Hash::new(0xd46e14ce9cc3e9ae),
+    hash: ::rune_macros::hash!(::std::ops::RangeToInclusive),
 };
 
 impl_static_type!(rt::RangeToInclusive => RANGE_TO_INCLUSIVE_TYPE);
 
 pub(crate) static RANGE_TO_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("RangeTo"),
-    // hash for ::std::ops::RangeTo
-    hash: Hash::new(0xf48d2d43d015d3b7),
+    hash: ::rune_macros::hash!(::std::ops::RangeTo),
 };
 
 impl_static_type!(rt::RangeTo => RANGE_TO_TYPE);
 
 pub(crate) static RANGE_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Range"),
-    // hash for ::std::ops::Range
-    hash: Hash::new(0x700a34bcd6630cba),
+    hash: ::rune_macros::hash!(::std::ops::Range),
 };
 
 impl_static_type!(rt::Range => RANGE_TYPE);
 
 pub(crate) static FUTURE_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Future"),
-    // hash for ::std::future::Future
-    hash: Hash::new(0x157cfe667ac47042),
+    hash: ::rune_macros::hash!(::std::future::Future),
 };
 
 impl_static_type!(rt::Future => FUTURE_TYPE);
 
 pub(crate) static GENERATOR_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Generator"),
-    // hash for ::std::generator::Generator
-    hash: Hash::new(0x9041ff127bcec639),
+    hash: ::rune_macros::hash!(::std::ops::Generator),
 };
 
 impl_static_type!(rt::Generator<rt::Vm> => GENERATOR_TYPE);
 
 pub(crate) static GENERATOR_STATE_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("GeneratorState"),
-    // hash for ::std::generator::GeneratorState
-    hash: Hash::new(0xae44122e30ae33ae),
+    hash: ::rune_macros::hash!(::std::ops::GeneratorState),
 };
 
 impl_static_type!(rt::GeneratorState => GENERATOR_STATE_TYPE);
 
 pub(crate) static STREAM_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Stream"),
-    // hash for ::std::stream::Stream
-    hash: Hash::new(0xd849ef81ff581a21),
+    hash: ::rune_macros::hash!(::std::stream::Stream),
 };
 
 impl_static_type!(rt::Stream<rt::Vm> => STREAM_TYPE);
 
 pub(crate) static RESULT_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Result"),
-    // hash for ::std::result::Result
-    hash: Hash::new(0x1978eae6b50a98ef),
+    hash: ::rune_macros::hash!(::std::result::Result),
 };
 
 impl_static_type!(impl<T, E> Result<T, E> => RESULT_TYPE);
 
 pub(crate) static OPTION_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Option"),
-    // hash for ::std::option::Option
-    hash: Hash::new(0xc0958f246e193e78),
+    hash: ::rune_macros::hash!(::std::option::Option),
 };
 
 impl_static_type!(impl<T> Option<T> => OPTION_TYPE);
 
 pub(crate) static FUNCTION_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Function"),
-    // hash for ::std::ops::Function
-    hash: Hash::new(0x20b8050151a2855),
+    hash: ::rune_macros::hash!(::std::ops::Function),
 };
 
 impl_static_type!(rt::Function => FUNCTION_TYPE);
@@ -256,32 +236,28 @@ impl_static_type!(impl<T> HashMap<String, T> => OBJECT_TYPE);
 
 pub(crate) static FORMAT_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Format"),
-    // hash for ::std::fmt::Format
-    hash: Hash::new(0xc331a83f0ad5a659),
+    hash: ::rune_macros::hash!(::std::fmt::Format),
 };
 
 impl_static_type!(rt::Format => FORMAT_TYPE);
 
 pub(crate) static ITERATOR_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Iterator"),
-    // hash for ::std::iter::Iterator
-    hash: Hash::new(0xff918cc536a3fa32),
+    hash: ::rune_macros::hash!(::std::iter::Iterator),
 };
 
 impl_static_type!(rt::Iterator => ITERATOR_TYPE);
 
 pub(crate) static TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Type"),
-    // hash for ::std::any::Type
-    hash: Hash::new(0xbd7ccf79d00ee140),
+    hash: ::rune_macros::hash!(::std::any::Type),
 };
 
 impl_static_type!(rt::Type => TYPE);
 
 pub(crate) static ORDERING: &StaticType = &StaticType {
     name: RawStr::from_str("Ordering"),
-    // hash for ::std::cmp::Ordering
-    hash: Hash::new(0x30d24cc3fa13e4b7),
+    hash: ::rune_macros::hash!(::std::cmp::Ordering),
 };
 
 impl_static_type!(Ordering => ORDERING);

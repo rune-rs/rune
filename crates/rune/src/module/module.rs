@@ -351,12 +351,12 @@ impl Module {
     /// # Examples
     ///
     /// This shows how to register the `GeneratorState` as
-    /// `nonstd::generator::GeneratorState`.
+    /// `nonstd::ops::GeneratorState`.
     ///
     /// ```
     /// use rune::Module;
     ///
-    /// let mut module = Module::with_crate_item("nonstd", ["generator"]);
+    /// let mut module = Module::with_crate_item("nonstd", ["ops"]);
     /// module.generator_state(["GeneratorState"])?;
     /// # Ok::<_, rune::Error>(())
     pub fn generator_state<N>(
@@ -1020,6 +1020,8 @@ impl Module {
     /// }
     ///
     /// impl Client {
+    ///     /// Download a thing.
+    ///     #[rune::function(instance, path = Self::download)]
     ///     async fn download(this: Ref<Self>) -> Result<(), DownloadError> {
     ///         /* .. */
     ///         # Ok(())
@@ -1029,8 +1031,7 @@ impl Module {
     /// let mut module = Module::default();
     ///
     /// module.ty::<Client>()?;
-    /// module.associated_function("download", Client::download)?
-    ///     .docs(["Download a thing."]);
+    /// module.function_meta(Client::download)?;
     /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn associated_function<N, F, A, K>(

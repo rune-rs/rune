@@ -31,6 +31,7 @@ mod any;
 mod context;
 mod from_value;
 mod function;
+mod hash;
 mod inst_display;
 mod instrument;
 mod internals;
@@ -180,6 +181,30 @@ pub fn any(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     derive.expand().unwrap_or_else(to_compile_errors).into()
 }
 
+/// Calculate a type hash.
+///
+/// # Examples
+///
+/// ```
+/// use rune_core::Hash;
+///
+/// let hash: Hash = rune_macros::hash!(::std::ops::Generator);
+/// ```
+#[proc_macro]
+pub fn hash(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let path = syn::parse_macro_input!(input as syn::Path);
+
+    let stream = match self::hash::build_type_hash(&path) {
+        Ok(hash) => {
+            let hash = hash.into_inner();
+            ::quote::quote!(Hash::new(#hash))
+        }
+        Err(error) => to_compile_errors([error]),
+    };
+
+    stream.into()
+}
+
 #[proc_macro]
 #[doc(hidden)]
 pub fn __internal_impl_any(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -212,7 +237,10 @@ pub fn inst_display(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     derive.expand().unwrap_or_else(to_compile_errors).into()
 }
 
-fn to_compile_errors(errors: Vec<syn::Error>) -> proc_macro2::TokenStream {
+fn to_compile_errors<I>(errors: I) -> proc_macro2::TokenStream
+where
+    I: IntoIterator<Item = syn::Error>,
+{
     let compile_errors = errors.into_iter().map(syn::Error::into_compile_error);
     ::quote::quote!(#(#compile_errors)*)
 }

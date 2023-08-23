@@ -4,8 +4,8 @@ use core::cmp::Ordering;
 
 use crate as rune;
 use crate::runtime::{
-    Function, Protocol, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive,
-    Value, VmResult,
+    EnvProtocolCaller, Function, Generator, GeneratorState, Iterator, Protocol, Range, RangeFrom,
+    RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Value, Vm, VmResult,
 };
 use crate::{ContextError, Module};
 
@@ -26,10 +26,10 @@ pub fn module() -> Result<Module, ContextError> {
                 "```rune",
                 "let range = 0..;",
                 "",
-                "assert!(!range.contains::<i64>(-10));",
-                "assert!(range.contains::<i64>(5));",
-                "assert!(range.contains::<i64>(10));",
-                "assert!(range.contains::<i64>(20));",
+                "assert!(!range.contains(-10));",
+                "assert!(range.contains(5));",
+                "assert!(range.contains(10));",
+                "assert!(range.contains(20));",
                 "",
                 "assert!(range is std::ops::RangeFrom);",
                 "```",
@@ -54,9 +54,13 @@ pub fn module() -> Result<Module, ContextError> {
         m.field_function(Protocol::SET, "start", |r: &mut RangeFrom, value: Value| {
             r.start = value;
         })?;
-        m.associated_function(Protocol::INTO_ITER, RangeFrom::iter)?;
-        m.function_meta(RangeFrom::contains)?;
         m.function_meta(RangeFrom::iter__meta)?;
+        m.function_meta(RangeFrom::contains__meta)?;
+        m.function_meta(RangeFrom::into_iter__meta)?;
+        m.function_meta(RangeFrom::partial_eq__meta)?;
+        m.function_meta(RangeFrom::eq__meta)?;
+        m.function_meta(RangeFrom::partial_cmp__meta)?;
+        m.function_meta(RangeFrom::cmp__meta)?;
     }
 
     {
@@ -69,10 +73,10 @@ pub fn module() -> Result<Module, ContextError> {
             "```rune",
             "let range = ..;",
             "",
-            "assert!(range.contains::<i64>(-10));",
-            "assert!(range.contains::<i64>(5));",
-            "assert!(range.contains::<i64>(10));",
-            "assert!(range.contains::<i64>(20));",
+            "assert!(range.contains(-10));",
+            "assert!(range.contains(5));",
+            "assert!(range.contains(10));",
+            "assert!(range.contains(20));",
             "",
             "assert!(range is std::ops::RangeFull);",
             "```",
@@ -92,10 +96,10 @@ pub fn module() -> Result<Module, ContextError> {
                 "```rune",
                 "let range = 0..=10;",
                 "",
-                "assert!(!range.contains::<i64>(-10));",
-                "assert!(range.contains::<i64>(5));",
-                "assert!(range.contains::<i64>(10));",
-                "assert!(!range.contains::<i64>(20));",
+                "assert!(!range.contains(-10));",
+                "assert!(range.contains(5));",
+                "assert!(range.contains(10));",
+                "assert!(!range.contains(20));",
                 "",
                 "assert!(range is std::ops::RangeInclusive);",
                 "```",
@@ -135,13 +139,13 @@ pub fn module() -> Result<Module, ContextError> {
                 r.end = value;
             },
         )?;
-        m.associated_function(Protocol::INTO_ITER, RangeInclusive::iter)?;
-        m.function_meta(RangeInclusive::contains)?;
-        m.function_meta(RangeInclusive::iter__meta)?.docs([
-            "Iterate over the range.",
-            "",
-            "This panics if the range is not a well-defined range.",
-        ]);
+        m.function_meta(RangeInclusive::iter__meta)?;
+        m.function_meta(RangeInclusive::contains__meta)?;
+        m.function_meta(RangeInclusive::into_iter__meta)?;
+        m.function_meta(RangeInclusive::partial_eq__meta)?;
+        m.function_meta(RangeInclusive::eq__meta)?;
+        m.function_meta(RangeInclusive::partial_cmp__meta)?;
+        m.function_meta(RangeInclusive::cmp__meta)?;
     }
 
     {
@@ -155,10 +159,10 @@ pub fn module() -> Result<Module, ContextError> {
                 "",
                 "```rune",
                 "let range = ..=10;",
-                "assert!(range.contains::<i64>(-10));",
-                "assert!(range.contains::<i64>(5));",
-                "assert!(range.contains::<i64>(10));",
-                "assert!(!range.contains::<i64>(20));",
+                "assert!(range.contains(-10));",
+                "assert!(range.contains(5));",
+                "assert!(range.contains(10));",
+                "assert!(!range.contains(20));",
                 "",
                 "assert!(range is std::ops::RangeToInclusive);",
                 "```",
@@ -180,7 +184,11 @@ pub fn module() -> Result<Module, ContextError> {
                 r.end = value;
             },
         )?;
-        m.function_meta(RangeToInclusive::contains)?;
+        m.function_meta(RangeToInclusive::contains__meta)?;
+        m.function_meta(RangeToInclusive::partial_eq__meta)?;
+        m.function_meta(RangeToInclusive::eq__meta)?;
+        m.function_meta(RangeToInclusive::partial_cmp__meta)?;
+        m.function_meta(RangeToInclusive::cmp__meta)?;
     }
 
     {
@@ -194,10 +202,10 @@ pub fn module() -> Result<Module, ContextError> {
                 "",
                 "```rune",
                 "let range = ..10;",
-                "assert!(range.contains::<i64>(-10));",
-                "assert!(range.contains::<i64>(5));",
-                "assert!(!range.contains::<i64>(10));",
-                "assert!(!range.contains::<i64>(20));",
+                "assert!(range.contains(-10));",
+                "assert!(range.contains(5));",
+                "assert!(!range.contains(10));",
+                "assert!(!range.contains(20));",
                 "",
                 "assert!(range is std::ops::RangeTo);",
                 "```",
@@ -215,7 +223,11 @@ pub fn module() -> Result<Module, ContextError> {
         m.field_function(Protocol::SET, "end", |r: &mut RangeTo, value: Value| {
             r.end = value;
         })?;
-        m.function_meta(RangeTo::contains)?;
+        m.function_meta(RangeTo::contains__meta)?;
+        m.function_meta(RangeTo::partial_eq__meta)?;
+        m.function_meta(RangeTo::eq__meta)?;
+        m.function_meta(RangeTo::partial_cmp__meta)?;
+        m.function_meta(RangeTo::cmp__meta)?;
     }
 
     {
@@ -229,10 +241,10 @@ pub fn module() -> Result<Module, ContextError> {
                 "",
                 "```rune",
                 "let range = 0..10;",
-                "assert!(!range.contains::<i64>(-10));",
-                "assert!(range.contains::<i64>(5));",
-                "assert!(!range.contains::<i64>(10));",
-                "assert!(!range.contains::<i64>(20));",
+                "assert!(!range.contains(-10));",
+                "assert!(range.contains(5));",
+                "assert!(!range.contains(10));",
+                "assert!(!range.contains(20));",
                 "",
                 "assert!(range is std::ops::Range);",
                 "```",
@@ -264,9 +276,13 @@ pub fn module() -> Result<Module, ContextError> {
         m.field_function(Protocol::SET, "end", |r: &mut Range, value: Value| {
             r.end = value;
         })?;
-        m.associated_function(Protocol::INTO_ITER, Range::iter)?;
-        m.function_meta(Range::contains)?;
         m.function_meta(Range::iter__meta)?;
+        m.function_meta(Range::into_iter__meta)?;
+        m.function_meta(Range::contains__meta)?;
+        m.function_meta(Range::partial_eq__meta)?;
+        m.function_meta(Range::eq__meta)?;
+        m.function_meta(Range::partial_cmp__meta)?;
+        m.function_meta(Range::cmp__meta)?;
     }
 
     m.ty::<Function>()?.docs([
@@ -296,11 +312,45 @@ pub fn module() -> Result<Module, ContextError> {
         "```",
     ]);
 
+    {
+        m.ty::<Generator<Vm>>()?.docs([
+            "The return value of a function producing a generator.",
+            "",
+            "Functions which contain the `yield` keyword produces generators.",
+            "",
+            "# Examples",
+            "",
+            "```rune",
+            "use std::ops::Generator;",
+            "",
+            "fn generate() {",
+            "    yield 1;",
+            "    yield 2;",
+            "}",
+            "",
+            "let g = generate();",
+            "assert!(g is Generator)",
+            "```",
+        ]);
+
+        m.function_meta(generator_next)?;
+        m.function_meta(generator_resume)?;
+        m.function_meta(generator_iter)?;
+        m.function_meta(generator_into_iter)?;
+    }
+
+    {
+        m.generator_state(["GeneratorState"])?
+            .docs(["Enum indicating the state of a generator."]);
+
+        m.function_meta(generator_state_partial_eq)?;
+        m.function_meta(generator_state_eq)?;
+    }
+
     m.function_meta(partial_eq)?;
     m.function_meta(eq)?;
     m.function_meta(partial_cmp)?;
     m.function_meta(cmp)?;
-
     Ok(m)
 }
 
@@ -404,4 +454,109 @@ fn partial_cmp(lhs: Value, rhs: Value) -> VmResult<Option<Ordering>> {
 #[rune::function]
 fn cmp(lhs: Value, rhs: Value) -> VmResult<Ordering> {
     Value::cmp(&lhs, &rhs)
+}
+
+/// Advance a generator producing the next value yielded.
+///
+/// Unlike [`Generator::resume`], this can only consume the yielded values.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::ops::{Generator, GeneratorState};
+///
+/// fn generate() {
+///     yield 1;
+///     yield 2;
+/// }
+///
+/// let g = generate();
+///
+/// assert_eq!(g.next(), Some(1));
+/// assert_eq!(g.next(), Some(2));
+/// assert_eq!(g.next(), None);
+/// ``
+#[rune::function(instance, path = next)]
+fn generator_next(this: &mut Generator<Vm>) -> VmResult<Option<Value>> {
+    this.next()
+}
+
+/// Advance a generator producing the next [`GeneratorState`].
+///
+/// # Examples
+///
+/// ```rune
+/// use std::ops::{Generator, GeneratorState};
+///
+/// fn generate() {
+///     let n = yield 1;
+///     yield 2 + n;
+/// }
+///
+/// let g = generate();
+///
+/// assert_eq!(g.resume(()), GeneratorState::Yielded(1));
+/// assert_eq!(g.resume(1), GeneratorState::Yielded(3));
+/// assert_eq!(g.resume(()), GeneratorState::Complete(()));
+/// ``
+#[rune::function(instance, path = resume)]
+fn generator_resume(this: &mut Generator<Vm>, value: Value) -> VmResult<GeneratorState> {
+    this.resume(value)
+}
+
+#[rune::function(instance, path = iter)]
+fn generator_iter(this: Generator<Vm>) -> Iterator {
+    this.rune_iter()
+}
+
+#[rune::function(instance, protocol = INTO_ITER)]
+fn generator_into_iter(this: Generator<Vm>) -> Iterator {
+    this.rune_iter()
+}
+
+/// Test for partial equality over a generator state.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::ops::{Generator, GeneratorState};
+///
+/// fn generate() {
+///     let n = yield 1;
+///     yield 2 + n;
+/// }
+///
+/// let g = generate();
+///
+/// assert_eq!(g.resume(()), GeneratorState::Yielded(1));
+/// assert_eq!(g.resume(1), GeneratorState::Yielded(3));
+/// assert_eq!(g.resume(()), GeneratorState::Complete(()));
+/// ``
+#[rune::function(instance, protocol = PARTIAL_EQ)]
+fn generator_state_partial_eq(this: &GeneratorState, other: &GeneratorState) -> VmResult<bool> {
+    this.partial_eq_with(other, &mut EnvProtocolCaller)
+}
+
+/// Test for total equality over a generator state.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::ops::{Generator, GeneratorState};
+/// use std::ops::eq;
+///
+/// fn generate() {
+///     let n = yield 1;
+///     yield 2 + n;
+/// }
+///
+/// let g = generate();
+///
+/// assert!(eq(g.resume(()), GeneratorState::Yielded(1)));
+/// assert!(eq(g.resume(1), GeneratorState::Yielded(3)));
+/// assert!(eq(g.resume(()), GeneratorState::Complete(())));
+/// ``
+#[rune::function(instance, protocol = EQ)]
+fn generator_state_eq(this: &GeneratorState, other: &GeneratorState) -> VmResult<bool> {
+    this.eq_with(other, &mut EnvProtocolCaller)
 }

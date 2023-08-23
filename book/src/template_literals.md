@@ -30,7 +30,7 @@ It expects a function with the signature `fn(&self, buf: &mut String) -> fmt::Re
 
 ```rust,noplaypen
 use rune::{ContextError, Module};
-use rune::runtime::Protocol;
+use rune::runtime::{Protocol, Formatter};
 use std::fmt::Write as _;
 use std::fmt;
 
@@ -40,14 +40,15 @@ pub struct StatusCode {
 }
 
 impl StatusCode {
-    fn display(&self, buf: &mut String) -> fmt::Result {
-        write!(buf, "{}", self.inner)
+    #[rune::function(protocol = STRING_DISPLAY)]
+    fn string_display(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{}", self.inner)
     }
 }
 
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(["http"]);
-    module.associated_function(Protocol::STRING_DISPLAY, StatusCode::display)?;
+    module.function_meta(StatusCode::string_display)?;
     Ok(module)
 }
 ```
