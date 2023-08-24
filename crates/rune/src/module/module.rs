@@ -241,7 +241,7 @@ impl Module {
     /// Accessor to modify type metadata such as documentaiton, fields, variants.
     pub fn type_meta<T>(&mut self) -> Result<TypeMut<'_, T>, ContextError>
     where
-        T: Named + TypeOf,
+        T: ?Sized + Named + TypeOf,
     {
         let type_hash = T::type_hash();
 

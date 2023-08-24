@@ -10,12 +10,12 @@ use core::slice::SliceIndex;
 use crate::no_std::prelude::*;
 use crate::no_std::vec;
 
-use crate::compile::Named;
-use crate::module::InstallWith;
+use crate as rune;
 use crate::runtime::{
-    Formatter, FromValue, Iterator, ProtocolCaller, RawRef, RawStr, Ref, Shared, ToValue,
-    UnsafeToRef, Value, VmErrorKind, VmResult,
+    Formatter, FromValue, Iterator, ProtocolCaller, RawRef, Ref, Shared, ToValue, UnsafeToRef,
+    Value, VmErrorKind, VmResult,
 };
+use crate::Any;
 
 use self::iter::Iter;
 
@@ -36,8 +36,9 @@ use self::iter::Iter;
 /// assert_eq!(None::<bool>, vec.get_value(2).into_result()?);
 /// # Ok::<_, rune::Error>(())
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Any)]
 #[repr(transparent)]
+#[rune(builtin, static_type = VEC_TYPE, from_value = Value::into_vec)]
 pub struct Vec {
     inner: vec::Vec<Value>,
 }
@@ -447,14 +448,6 @@ impl From<Box<[Value]>> for Vec {
         }
     }
 }
-
-impl Named for Vec {
-    const BASE_NAME: RawStr = RawStr::from_str("Vec");
-}
-
-impl InstallWith for Vec {}
-
-from_value!(Vec, into_vec);
 
 impl<T> FromValue for vec::Vec<T>
 where

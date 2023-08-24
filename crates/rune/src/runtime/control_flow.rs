@@ -21,7 +21,7 @@ use crate::Any;
 /// assert_eq!(c, ControlFlow::Continue(42));
 /// ```
 #[derive(Debug, Clone, Any)]
-#[rune(builtin)]
+#[rune(builtin, static_type = CONTROL_FLOW_TYPE)]
 pub enum ControlFlow {
     /// Move on to the next phase of the operation as normal.
     #[rune(constructor)]

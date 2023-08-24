@@ -4,8 +4,7 @@ use core::iter;
 use core::mem;
 
 use hashbrown::raw::{RawIter, RawTable};
-
-use crate::no_std::collections::hash_map::{DefaultHasher, RandomState};
+use std::collections::hash_map::{DefaultHasher, RandomState};
 
 use crate as rune;
 use crate::runtime::{
@@ -362,7 +361,6 @@ impl HashMap {
         // SAFETY: Table will be alive and a reference to it held for as long as
         // `RawRef` is alive.
         let iter = unsafe { this.as_ref().table.iter() };
-
         Iterator::from("std::collections::hash_map::Iter", Iter { iter, _guard })
     }
 

@@ -1,13 +1,14 @@
 use core::hash::{BuildHasher, Hasher as _};
 
 use crate::no_std::collections::hash_map::DefaultHasher;
+use crate::runtime::Value;
 
 use crate as rune;
 use crate::Any;
 
 /// The default hasher used in Rune.
 #[derive(Any)]
-#[rune(builtin)]
+#[rune(builtin, from_value = Value::into_hasher, static_type = HASHER_TYPE)]
 pub struct Hasher {
     hasher: DefaultHasher,
 }

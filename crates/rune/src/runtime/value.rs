@@ -1100,7 +1100,7 @@ impl Value {
             Self::Integer(..) => crate::runtime::static_type::INTEGER_TYPE.hash,
             Self::Float(..) => crate::runtime::static_type::FLOAT_TYPE.hash,
             Self::Type(..) => crate::runtime::static_type::TYPE.hash,
-            Self::Ordering(..) => crate::runtime::static_type::ORDERING.hash,
+            Self::Ordering(..) => crate::runtime::static_type::ORDERING_TYPE.hash,
             Self::String(..) => crate::runtime::static_type::STRING_TYPE.hash,
             Self::Bytes(..) => crate::runtime::static_type::BYTES_TYPE.hash,
             Self::Vec(..) => crate::runtime::static_type::VEC_TYPE.hash,
@@ -1140,7 +1140,7 @@ impl Value {
             Self::Integer(..) => TypeInfo::StaticType(crate::runtime::static_type::INTEGER_TYPE),
             Self::Float(..) => TypeInfo::StaticType(crate::runtime::static_type::FLOAT_TYPE),
             Self::Type(..) => TypeInfo::StaticType(crate::runtime::static_type::TYPE),
-            Self::Ordering(..) => TypeInfo::StaticType(crate::runtime::static_type::ORDERING),
+            Self::Ordering(..) => TypeInfo::StaticType(crate::runtime::static_type::ORDERING_TYPE),
             Self::String(..) => TypeInfo::StaticType(crate::runtime::static_type::STRING_TYPE),
             Self::Bytes(..) => TypeInfo::StaticType(crate::runtime::static_type::BYTES_TYPE),
             Self::Vec(..) => TypeInfo::StaticType(crate::runtime::static_type::VEC_TYPE),
@@ -1361,7 +1361,7 @@ impl Value {
                 }
 
                 let zero = *value == 0.0;
-                hasher.write_f64(f64::from(zero) * 0.0 + f64::from(!zero) * *value);
+                hasher.write_f64((zero as u8 as f64) * 0.0 + (!zero as u8 as f64) * *value);
                 return VmResult::Ok(());
             }
             Value::String(string) => {
@@ -1375,7 +1375,8 @@ impl Value {
                 return VmResult::Ok(());
             }
             value => {
-                match vm_try!(caller.try_call_protocol_fn(Protocol::HASH, value.clone(), ())) {
+                match vm_try!(caller.try_call_protocol_fn(Protocol::HASH, value.clone(), (hasher,)))
+                {
                     CallResult::Ok(value) => return <()>::from_value(value),
                     CallResult::Unsupported(..) => {}
                 }

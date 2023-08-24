@@ -4,14 +4,16 @@ use core::slice;
 
 use crate::no_std::prelude::*;
 
-use crate::compile::Named;
-use crate::module::InstallWith;
+use crate as rune;
 use crate::runtime::{
-    ConstValue, FromValue, Mut, RawMut, RawRef, RawStr, Ref, Shared, ToValue, UnsafeToMut,
-    UnsafeToRef, Value, VmErrorKind, VmResult,
+    ConstValue, FromValue, Mut, RawMut, RawRef, Ref, Shared, ToValue, UnsafeToMut, UnsafeToRef,
+    Value, VmErrorKind, VmResult,
 };
+use crate::Any;
 
 /// The type of a tuple slice.
+#[derive(Any)]
+#[rune(builtin, static_type = TUPLE_TYPE)]
 #[repr(transparent)]
 pub struct Tuple {
     values: [Value],
@@ -79,12 +81,6 @@ impl<'a> IntoIterator for &'a mut Tuple {
         self.iter_mut()
     }
 }
-
-impl Named for Tuple {
-    const BASE_NAME: RawStr = RawStr::from_str("Tuple");
-}
-
-impl InstallWith for Tuple {}
 
 /// Struct representing a dynamic anonymous object.
 ///

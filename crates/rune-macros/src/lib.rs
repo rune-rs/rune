@@ -22,6 +22,8 @@
 //!
 //! This is part of the [Rune Language](https://rune-rs.github.io).
 
+#![allow(clippy::manual_map)]
+
 use ::quote::format_ident;
 use syn::{Generics, Path};
 
@@ -43,6 +45,8 @@ mod quote;
 mod spanned;
 mod to_tokens;
 mod to_value;
+
+use self::context::Context;
 
 #[proc_macro]
 pub fn quote(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -178,7 +182,13 @@ pub fn to_value(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 #[proc_macro_derive(Any, attributes(rune))]
 pub fn any(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let derive = syn::parse_macro_input!(input as any::Derive);
-    derive.expand().unwrap_or_else(to_compile_errors).into()
+    let cx = Context::new();
+
+    let Ok(builder) = derive.into_any_builder(&cx) else {
+        return to_compile_errors(cx.errors.into_inner()).into();
+    };
+
+    builder.expand().into()
 }
 
 /// Calculate a type hash.
@@ -209,10 +219,13 @@ pub fn hash(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 #[doc(hidden)]
 pub fn __internal_impl_any(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let internal_call = syn::parse_macro_input!(input as any::InternalCall);
-    internal_call
-        .expand()
-        .unwrap_or_else(to_compile_errors)
-        .into()
+    let cx = Context::with_crate();
+
+    let Ok(builder) = internal_call.into_any_builder(&cx) else {
+        return to_compile_errors(cx.errors.into_inner()).into();
+    };
+
+    builder.expand().into()
 }
 
 #[proc_macro_attribute]

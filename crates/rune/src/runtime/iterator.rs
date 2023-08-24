@@ -5,9 +5,9 @@ use core::iter;
 use crate::no_std::prelude::*;
 use crate::no_std::vec;
 
-use crate::compile::Named;
-use crate::module::InstallWith;
-use crate::runtime::{FromValue, Function, Panic, RawStr, ToValue, Value, VmErrorKind, VmResult};
+use crate as rune;
+use crate::runtime::{FromValue, Function, Panic, ToValue, Value, VmErrorKind, VmResult};
+use crate::Any;
 
 // Note: A fair amount of code in this module is duplicated from the Rust
 // project under the MIT license.
@@ -72,6 +72,8 @@ macro_rules! maybe {
 }
 
 /// An owning iterator.
+#[derive(Any)]
+#[rune(builtin, static_type = ITERATOR_TYPE, from_value = Value::into_iterator)]
 pub struct Iterator {
     iter: IterRepr,
 }
@@ -383,14 +385,6 @@ impl fmt::Debug for Iterator {
         fmt::Debug::fmt(&self.iter, f)
     }
 }
-
-impl Named for Iterator {
-    const BASE_NAME: RawStr = RawStr::from_str("Iterator");
-}
-
-impl InstallWith for Iterator {}
-
-from_value!(Iterator, into_iterator);
 
 /// The inner representation of an [Iterator]. It handles all the necessary
 /// dynamic dispatch to support dynamic iterators.

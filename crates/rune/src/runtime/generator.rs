@@ -1,13 +1,29 @@
 use core::fmt;
 use core::iter;
 
-use crate::compile::Named;
-use crate::module::InstallWith;
-use crate::runtime::{
-    GeneratorState, Iterator, RawStr, Value, Vm, VmErrorKind, VmExecution, VmResult,
-};
+use crate as rune;
+use crate::runtime::{GeneratorState, Iterator, Value, Vm, VmErrorKind, VmExecution, VmResult};
+use crate::Any;
 
-/// A generator with a stored virtual machine.
+/// The return value of a function producing a generator.
+///
+/// Functions which contain the `yield` keyword produces generators.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::ops::Generator;
+///
+/// fn generate() {
+///     yield 1;
+///     yield 2;
+/// }
+///
+/// let g = generate();
+/// assert!(g is Generator)
+/// ```
+#[derive(Any)]
+#[rune(builtin, static_type = GENERATOR_TYPE, from_value = Value::into_generator, from_value_params = [Vm])]
 pub struct Generator<T>
 where
     T: AsRef<Vm> + AsMut<Vm>,
@@ -116,14 +132,3 @@ where
             .finish()
     }
 }
-
-impl<T> Named for Generator<T>
-where
-    T: AsRef<Vm> + AsMut<Vm>,
-{
-    const BASE_NAME: RawStr = RawStr::from_str("Generator");
-}
-
-impl<T> InstallWith for Generator<T> where T: AsRef<Vm> + AsMut<Vm> {}
-
-from_value!(Generator<Vm>, into_generator);

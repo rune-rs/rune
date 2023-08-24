@@ -9,9 +9,9 @@ use crate::no_std::collections::{btree_map, BTreeMap};
 use crate::no_std::prelude::*;
 
 use crate as rune;
-use crate::compile::{ItemBuf, Named};
-use crate::module::InstallWith;
-use crate::runtime::{FromValue, Iterator, ProtocolCaller, RawStr, Ref, ToValue, Value, VmResult};
+use crate::compile::ItemBuf;
+use crate::runtime::{FromValue, Iterator, ProtocolCaller, Ref, ToValue, Value, VmResult};
+use crate::Any;
 
 /// An owning iterator over the entries of a `Object`.
 ///
@@ -60,9 +60,9 @@ pub type Values<'a> = btree_map::Values<'a, String, Value>;
 
 /// Struct representing a dynamic anonymous object.
 ///
-/// # Examples
+/// # Rust Examples
 ///
-/// ```
+/// ```rust
 /// let mut object = rune::runtime::Object::new();
 /// assert!(object.is_empty());
 ///
@@ -75,8 +75,9 @@ pub type Values<'a> = btree_map::Values<'a, String, Value>;
 /// assert_eq!(None::<bool>, object.get_value("baz").into_result()?);
 /// # Ok::<_, rune::Error>(())
 /// ```
-#[derive(Default, Clone)]
+#[derive(Any, Default, Clone)]
 #[repr(transparent)]
+#[rune(builtin, static_type = OBJECT_TYPE)]
 pub struct Object {
     inner: BTreeMap<String, Value>,
 }
@@ -462,12 +463,6 @@ impl iter::FromIterator<(String, Value)> for Object {
 }
 
 from_value!(Object, into_object);
-
-impl Named for Object {
-    const BASE_NAME: RawStr = RawStr::from_str("Object");
-}
-
-impl InstallWith for Object {}
 
 pub struct DebugStruct<'a> {
     item: &'a ItemBuf,

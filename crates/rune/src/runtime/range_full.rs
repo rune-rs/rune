@@ -30,7 +30,7 @@ use crate::Any;
 /// # Ok::<_, rune::Error>(())
 /// ```
 #[derive(Any, Default, Clone)]
-#[rune(builtin, constructor)]
+#[rune(builtin, constructor, from_value = Value::into_range_full, static_type = RANGE_FULL_TYPE)]
 pub struct RangeFull;
 
 impl RangeFull {
@@ -105,5 +105,3 @@ impl FromValue for ops::RangeFull {
         VmResult::Ok(ops::RangeFull)
     }
 }
-
-from_value!(RangeFull, into_range_full);

@@ -12,9 +12,9 @@ use crate::no_std::prelude::*;
 use musli::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
-use crate::compile::Named;
-use crate::module::InstallWith;
-use crate::runtime::{Formatter, FromValue, ProtocolCaller, RawStr, Value, VmErrorKind, VmResult};
+use crate as rune;
+use crate::runtime::{Formatter, FromValue, ProtocolCaller, Value, VmErrorKind, VmResult};
+use crate::Any;
 
 /// Error raised when trying to parse a type string and it fails.
 #[derive(Debug, Clone, Copy)]
@@ -40,19 +40,14 @@ impl fmt::Display for AlignmentFromStrError {
 }
 
 /// A format specification, wrapping an inner value.
-#[derive(Debug, Clone)]
+#[derive(Any, Debug, Clone)]
+#[rune(builtin, static_type = FORMAT_TYPE)]
 pub struct Format {
     /// The value being formatted.
     pub(crate) value: Value,
     /// The specification.
     pub(crate) spec: FormatSpec,
 }
-
-impl Named for Format {
-    const BASE_NAME: RawStr = RawStr::from_str("Format");
-}
-
-impl InstallWith for Format {}
 
 impl FromValue for Format {
     #[inline]

@@ -41,7 +41,7 @@ use crate::Hash;
 /// ```
 #[derive(Any)]
 #[repr(transparent)]
-#[rune(builtin)]
+#[rune(builtin, static_type = FUNCTION_TYPE)]
 pub struct Function(FunctionImpl<Value>);
 
 impl Function {

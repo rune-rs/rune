@@ -77,26 +77,7 @@ pub fn module() -> Result<Module, ContextError> {
     m.ty::<Function>()?;
 
     {
-        m.ty::<Generator<Vm>>()?.docs([
-            "The return value of a function producing a generator.",
-            "",
-            "Functions which contain the `yield` keyword produces generators.",
-            "",
-            "# Examples",
-            "",
-            "```rune",
-            "use std::ops::Generator;",
-            "",
-            "fn generate() {",
-            "    yield 1;",
-            "    yield 2;",
-            "}",
-            "",
-            "let g = generate();",
-            "assert!(g is Generator)",
-            "```",
-        ]);
-
+        m.ty::<Generator<Vm>>()?;
         m.function_meta(generator_next)?;
         m.function_meta(generator_resume)?;
         m.function_meta(generator_iter)?;

@@ -1,12 +1,12 @@
 use core::fmt;
 
-use crate::compile::Named;
-use crate::module::InstallWith;
-use crate::runtime::{
-    GeneratorState, RawStr, Shared, Value, Vm, VmErrorKind, VmExecution, VmResult,
-};
+use crate as rune;
+use crate::runtime::{GeneratorState, Shared, Value, Vm, VmErrorKind, VmExecution, VmResult};
+use crate::Any;
 
 /// A stream with a stored virtual machine.
+#[derive(Any)]
+#[rune(builtin, static_type = STREAM_TYPE, from_value = Value::into_stream, from_value_params = [Vm])]
 pub struct Stream<T>
 where
     T: AsRef<Vm> + AsMut<Vm>,
@@ -81,15 +81,6 @@ impl Stream<&mut Vm> {
     }
 }
 
-impl<T> Named for Stream<T>
-where
-    T: AsRef<Vm> + AsMut<Vm>,
-{
-    const BASE_NAME: RawStr = RawStr::from_str("Stream");
-}
-
-impl<T> InstallWith for Stream<T> where T: AsRef<Vm> + AsMut<Vm> {}
-
 impl<T> fmt::Debug for Stream<T>
 where
     T: AsRef<Vm> + AsMut<Vm>,
@@ -100,5 +91,3 @@ where
             .finish()
     }
 }
-
-from_value!(Stream<Vm>, into_stream);
