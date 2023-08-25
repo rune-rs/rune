@@ -5,7 +5,8 @@ use crate::no_std::prelude::*;
 use crate as rune;
 use crate::modules::collections::{HashMap, HashSet, VecDeque};
 use crate::runtime::{
-    FromValue, Function, Iterator, Object, OwnedTuple, Protocol, Value, Vec, VmResult,
+    EnvProtocolCaller, FromValue, Function, Iterator, Object, OwnedTuple, Protocol, Value, Vec,
+    VmResult,
 };
 use crate::{ContextError, Module};
 
@@ -1070,7 +1071,8 @@ fn collect_vec_deque(it: Iterator) -> VmResult<VecDeque> {
 /// ```
 #[rune::function(instance, path = collect::<HashSet>)]
 fn collect_hash_set(it: Iterator) -> VmResult<HashSet> {
-    HashSet::from_iter(it)
+    let mut caller = EnvProtocolCaller;
+    HashSet::from_iter(it, &mut caller)
 }
 
 /// Collect the iterator as a [`HashMap`].
@@ -1086,7 +1088,8 @@ fn collect_hash_set(it: Iterator) -> VmResult<HashSet> {
 /// ```
 #[rune::function(instance, path = collect::<HashMap>)]
 fn collect_hash_map(it: Iterator) -> VmResult<HashMap> {
-    HashMap::from_iter(it)
+    let mut caller = EnvProtocolCaller;
+    HashMap::from_iter(it, &mut caller)
 }
 
 /// Collect the iterator as a [`Tuple`].

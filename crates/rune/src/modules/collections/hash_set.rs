@@ -1,44 +1,44 @@
 use core::fmt::{self, Write};
 use core::iter;
+use core::ptr;
 
 use crate as rune;
-use crate::no_std::collections;
 
+use crate::hashbrown::{IterRef, RawIter, Table};
 use crate::runtime::{
-    EnvProtocolCaller, Formatter, Iterator, IteratorTrait, Key, ProtocolCaller, Ref, Value,
-    VmResult,
+    EnvProtocolCaller, Formatter, Iterator, ProtocolCaller, RawRef, Ref, Value, VmResult,
 };
 use crate::{Any, ContextError, Module};
 
 pub(super) fn setup(module: &mut Module) -> Result<(), ContextError> {
     module.ty::<HashSet>()?;
-    module.function_meta(HashSet::new)?;
-    module.function_meta(HashSet::with_capacity)?;
-    module.function_meta(HashSet::len)?;
-    module.function_meta(HashSet::is_empty)?;
-    module.function_meta(HashSet::capacity)?;
-    module.function_meta(HashSet::insert)?;
-    module.function_meta(HashSet::remove)?;
-    module.function_meta(HashSet::contains)?;
-    module.function_meta(HashSet::clear)?;
-    module.function_meta(HashSet::difference)?;
-    module.function_meta(HashSet::extend)?;
-    module.function_meta(HashSet::intersection)?;
-    module.function_meta(HashSet::union)?;
-    module.function_meta(HashSet::iter)?;
-    module.function_meta(clone)?;
-    module.function_meta(from)?;
-    module.function_meta(HashSet::into_iter)?;
-    module.function_meta(HashSet::string_debug)?;
-    module.function_meta(HashSet::partial_eq)?;
-    module.function_meta(HashSet::eq)?;
+    module.function_meta(HashSet::new__meta)?;
+    module.function_meta(HashSet::with_capacity__meta)?;
+    module.function_meta(HashSet::len__meta)?;
+    module.function_meta(HashSet::is_empty__meta)?;
+    module.function_meta(HashSet::capacity__meta)?;
+    module.function_meta(HashSet::insert__meta)?;
+    module.function_meta(HashSet::remove__meta)?;
+    module.function_meta(HashSet::contains__meta)?;
+    module.function_meta(HashSet::clear__meta)?;
+    module.function_meta(HashSet::difference__meta)?;
+    module.function_meta(HashSet::extend__meta)?;
+    module.function_meta(HashSet::intersection__meta)?;
+    module.function_meta(HashSet::union__meta)?;
+    module.function_meta(HashSet::iter__meta)?;
+    module.function_meta(HashSet::into_iter__meta)?;
+    module.function_meta(HashSet::string_debug__meta)?;
+    module.function_meta(HashSet::partial_eq__meta)?;
+    module.function_meta(HashSet::eq__meta)?;
+    module.function_meta(HashSet::clone__meta)?;
+    module.function_meta(HashSet::from__meta)?;
     Ok(())
 }
 
 #[derive(Any, Clone)]
 #[rune(module = crate, item = ::std::collections)]
 pub(crate) struct HashSet {
-    set: collections::HashSet<Key>,
+    table: Table<()>,
 }
 
 impl HashSet {
@@ -54,10 +54,10 @@ impl HashSet {
     ///
     /// let set = HashSet::new();
     /// ```
-    #[rune::function(path = Self::new)]
+    #[rune::function(keep, path = Self::new)]
     fn new() -> Self {
         Self {
-            set: collections::HashSet::new(),
+            table: Table::new(),
         }
     }
 
@@ -75,10 +75,10 @@ impl HashSet {
     /// let set = HashSet::with_capacity(10);
     /// assert!(set.capacity() >= 10);
     /// ```
-    #[rune::function(path = Self::with_capacity)]
+    #[rune::function(keep, path = Self::with_capacity)]
     fn with_capacity(capacity: usize) -> Self {
         Self {
-            set: collections::HashSet::with_capacity(capacity),
+            table: Table::with_capacity(capacity),
         }
     }
 
@@ -94,9 +94,9 @@ impl HashSet {
     /// v.insert(1);
     /// assert_eq!(v.len(), 1);
     /// ```
-    #[rune::function]
+    #[rune::function(keep)]
     fn len(&self) -> usize {
-        self.set.len()
+        self.table.len()
     }
 
     /// Returns `true` if the set contains no elements.
@@ -111,9 +111,9 @@ impl HashSet {
     /// v.insert(1);
     /// assert!(!v.is_empty());
     /// ```
-    #[rune::function]
+    #[rune::function(keep)]
     fn is_empty(&self) -> bool {
-        self.set.is_empty()
+        self.table.is_empty()
     }
 
     /// Returns the number of elements the set can hold without reallocating.
@@ -126,9 +126,9 @@ impl HashSet {
     /// let set = HashSet::with_capacity(100);
     /// assert!(set.capacity() >= 100);
     /// ```
-    #[rune::function]
+    #[rune::function(keep)]
     fn capacity(&self) -> usize {
-        self.set.capacity()
+        self.table.capacity()
     }
 
     /// Adds a value to the set.
@@ -149,9 +149,10 @@ impl HashSet {
     /// assert_eq!(set.insert(2), false);
     /// assert_eq!(set.len(), 1);
     /// ```
-    #[rune::function]
-    fn insert(&mut self, key: Key) -> bool {
-        self.set.insert(key)
+    #[rune::function(keep)]
+    fn insert(&mut self, key: Value) -> VmResult<bool> {
+        let mut caller = EnvProtocolCaller;
+        VmResult::Ok(vm_try!(self.table.insert_with(key, (), &mut caller)).is_none())
     }
 
     /// Removes a value from the set. Returns whether the value was present in
@@ -168,9 +169,10 @@ impl HashSet {
     /// assert_eq!(set.remove(2), true);
     /// assert_eq!(set.remove(2), false);
     /// ```
-    #[rune::function]
-    fn remove(&mut self, key: Key) -> bool {
-        self.set.remove(&key)
+    #[rune::function(keep)]
+    fn remove(&mut self, key: Value) -> VmResult<bool> {
+        let mut caller = EnvProtocolCaller;
+        VmResult::Ok(vm_try!(self.table.remove_with(&key, &mut caller)).is_some())
     }
 
     /// Returns `true` if the set contains a value.
@@ -184,9 +186,10 @@ impl HashSet {
     /// assert_eq!(set.contains(1), true);
     /// assert_eq!(set.contains(4), false);
     /// ```
-    #[rune::function]
-    fn contains(&self, key: Key) -> bool {
-        self.set.contains(&key)
+    #[rune::function(keep)]
+    fn contains(&self, key: Value) -> VmResult<bool> {
+        let mut caller = EnvProtocolCaller;
+        VmResult::Ok(vm_try!(self.table.get(&key, &mut caller)).is_some())
     }
 
     /// Clears the set, removing all values.
@@ -201,9 +204,9 @@ impl HashSet {
     /// v.clear();
     /// assert!(v.is_empty());
     /// ```
-    #[rune::function]
+    #[rune::function(keep)]
     fn clear(&mut self) {
-        self.set.clear()
+        self.table.clear()
     }
 
     /// Visits the values representing the difference, i.e., the values that are
@@ -225,15 +228,17 @@ impl HashSet {
     /// let diff = b.difference(a).collect::<HashSet>();
     /// assert_eq!(diff, [4].iter().collect::<HashSet>());
     /// ```
-    #[rune::function(instance, path = Self::difference)]
+    #[rune::function(keep, instance, path = Self::difference)]
     fn difference(this: Ref<Self>, other: Ref<Self>) -> Iterator {
-        Iterator::from(
-            "std::collections::set::Difference",
-            Difference {
-                this: this.set.clone().into_iter(),
-                other: Some(other),
-            },
-        )
+        let iter = Self::difference_inner(this, other);
+        Iterator::from("std::collections::hash_set::Difference", iter)
+    }
+
+    fn difference_inner(this: Ref<Self>, other: Ref<Self>) -> Difference {
+        Difference {
+            this: Table::iter_ref(Ref::map(this, |this| &this.table)),
+            other: Some(other),
+        }
     }
 
     /// Visits the values representing the intersection, i.e., the values that
@@ -253,22 +258,22 @@ impl HashSet {
     /// let values = a.intersection(b).collect::<HashSet>();
     /// assert_eq!(values, [2, 3].iter().collect::<HashSet>());
     /// ```
-    #[rune::function(instance, path = Self::intersection)]
+    #[rune::function(keep, instance, path = Self::intersection)]
     fn intersection(this: Ref<Self>, other: Ref<Self>) -> Iterator {
         // use shortest iterator as driver for intersections
-        let intersection = if this.set.len() <= other.set.len() {
+        let iter = if this.table.len() <= other.table.len() {
             Intersection {
-                this: this.set.clone().into_iter(),
+                this: Table::iter_ref(Ref::map(this, |this| &this.table)),
                 other: Some(other),
             }
         } else {
             Intersection {
-                this: other.set.clone().into_iter(),
+                this: Table::iter_ref(Ref::map(other, |this| &this.table)),
                 other: Some(this),
             }
         };
 
-        Iterator::from("std::collections::set::Intersection", intersection)
+        Iterator::from("std::collections::hash_set::Intersection", iter)
     }
 
     /// Visits the values representing the union, i.e., all the values in `self`
@@ -284,21 +289,41 @@ impl HashSet {
     ///
     /// let union = a.union(b).collect::<HashSet>();
     /// assert_eq!(union, HashSet::from([1, 2, 3, 4]));
+    ///
+    /// let union = b.union(a).collect::<HashSet>();
+    /// assert_eq!(union, HashSet::from([1, 2, 3, 4]));
     /// ```
-    #[rune::function(instance, path = Self::union)]
+    #[rune::function(keep, instance, path = Self::union)]
     fn union(this: Ref<Self>, other: Ref<Self>) -> VmResult<Iterator> {
-        // use longest as lead and then append any missing that are in second
-        let iter = Union {
-            iter: if this.set.len() >= other.set.len() {
-                vm_try!(HashSet::__rune_fn__iter(&this)
-                    .chain_raw(HashSet::__rune_fn__difference(other, this)))
-            } else {
-                vm_try!(HashSet::__rune_fn__iter(&other)
-                    .chain_raw(HashSet::__rune_fn__difference(this, other)))
-            },
-        };
+        unsafe {
+            let (this, this_guard) = Ref::into_raw(Ref::map(this, |this| &this.table));
+            let (other, other_guard) = Ref::into_raw(Ref::map(other, |this| &this.table));
 
-        VmResult::Ok(Iterator::from("std::collections::set::Union", iter))
+            // use longest as lead and then append any missing that are in second
+            let iter = if this.as_ref().len() >= other.as_ref().len() {
+                let this_iter = Table::iter_ref_raw(this);
+                let other_iter = Table::iter_ref_raw(other);
+
+                Union {
+                    this,
+                    this_iter,
+                    other_iter,
+                    _guards: (this_guard, other_guard),
+                }
+            } else {
+                let this_iter = Table::iter_ref_raw(other);
+                let other_iter = Table::iter_ref_raw(this);
+
+                Union {
+                    this: other,
+                    this_iter,
+                    other_iter,
+                    _guards: (other_guard, this_guard),
+                }
+            };
+
+            VmResult::Ok(Iterator::from("std::collections::hash_set::Union", iter))
+        }
     }
 
     /// Iterate over the hash set.
@@ -313,20 +338,24 @@ impl HashSet {
     /// vec.sort();
     /// assert_eq!(vec, [1, 2, 3]);
     /// ```
-    #[rune::function]
-    fn iter(&self) -> Iterator {
-        let iter = self.set.clone().into_iter();
-        Iterator::from("std::collections::set::Iter", iter)
+    #[rune::function(keep, instance, path = Self::iter)]
+    fn iter(this: Ref<Self>) -> VmResult<Iterator> {
+        let iter = Self::iter_inner(this);
+        VmResult::Ok(Iterator::from("std::collections::hash_set::Iter", iter))
+    }
+
+    fn iter_inner(this: Ref<Self>) -> impl iter::Iterator<Item = Value> {
+        Table::iter_ref(Ref::map(this, |this| &this.table)).map(|(key, ())| key)
     }
 
     /// Extend this set from an iterator.
-    #[rune::function]
+    #[rune::function(keep)]
     fn extend(&mut self, value: Value) -> VmResult<()> {
+        let mut caller = EnvProtocolCaller;
         let mut it = vm_try!(value.into_iter());
 
-        while let Some(value) = vm_try!(it.next()) {
-            let key = vm_try!(Key::from_value(&value));
-            self.set.insert(key);
+        while let Some(key) = vm_try!(it.next()) {
+            vm_try!(self.table.insert_with(key, (), &mut caller));
         }
 
         VmResult::Ok(())
@@ -349,9 +378,9 @@ impl HashSet {
     /// vec.sort();
     /// assert_eq!(vec, [1, 2, 3]);
     /// ```
-    #[rune::function(protocol = INTO_ITER)]
-    fn into_iter(&self) -> Iterator {
-        self.__rune_fn__iter()
+    #[rune::function(keep, instance, protocol = INTO_ITER, path = Self)]
+    fn into_iter(this: Ref<Self>) -> VmResult<Iterator> {
+        Self::iter(this)
     }
 
     /// Write a debug representation to a string.
@@ -367,7 +396,7 @@ impl HashSet {
     /// let set = HashSet::from([1, 2, 3]);
     /// println!("{:?}", set);
     /// ```
-    #[rune::function(protocol = STRING_DEBUG)]
+    #[rune::function(keep, protocol = STRING_DEBUG)]
     fn string_debug(&self, f: &mut Formatter) -> VmResult<fmt::Result> {
         self.string_debug_with(f, &mut EnvProtocolCaller)
     }
@@ -379,7 +408,7 @@ impl HashSet {
     ) -> VmResult<fmt::Result> {
         vm_write!(f, "{{");
 
-        let mut it = self.set.iter().peekable();
+        let mut it = self.table.iter().peekable();
 
         while let Some(value) = it.next() {
             vm_write!(f, "{:?}", value);
@@ -393,14 +422,17 @@ impl HashSet {
         VmResult::Ok(Ok(()))
     }
 
-    pub(crate) fn from_iter(mut it: Iterator) -> VmResult<Self> {
-        let mut set = collections::HashSet::with_capacity(it.size_hint().0);
+    pub(crate) fn from_iter<P>(mut it: Iterator, caller: &mut P) -> VmResult<Self>
+    where
+        P: ?Sized + ProtocolCaller,
+    {
+        let mut set = Table::with_capacity(it.size_hint().0);
 
-        while let Some(value) = vm_try!(it.next()) {
-            set.insert(vm_try!(Key::from_value(&value)));
+        while let Some(key) = vm_try!(it.next()) {
+            vm_try!(set.insert_with(key, (), caller));
         }
 
-        VmResult::Ok(HashSet { set })
+        VmResult::Ok(HashSet { table: set })
     }
 
     /// Perform a partial equality test between two sets.
@@ -416,9 +448,9 @@ impl HashSet {
     /// assert_eq!(set, HashSet::from([1, 2, 3]));
     /// assert_ne!(set, HashSet::from([2, 3, 4]));
     /// ```
-    #[rune::function(protocol = PARTIAL_EQ)]
-    fn partial_eq(&self, other: &Self) -> bool {
-        self.set == other.set
+    #[rune::function(keep, protocol = PARTIAL_EQ)]
+    fn partial_eq(&self, other: &Self) -> VmResult<bool> {
+        self.eq_with(other, &mut EnvProtocolCaller)
     }
 
     /// Perform a total equality test between two sets.
@@ -433,36 +465,62 @@ impl HashSet {
     /// assert!(eq(set, HashSet::from([1, 2, 3])));
     /// assert!(!eq(set, HashSet::from([2, 3, 4])));
     /// ```
-    #[rune::function(protocol = EQ)]
-    fn eq(&self, other: &Self) -> bool {
-        self.set == other.set
+    #[rune::function(keep, protocol = EQ)]
+    fn eq(&self, other: &Self) -> VmResult<bool> {
+        self.eq_with(other, &mut EnvProtocolCaller)
+    }
+
+    fn eq_with(&self, other: &Self, caller: &mut EnvProtocolCaller) -> VmResult<bool> {
+        if self.table.len() != other.table.len() {
+            return VmResult::Ok(false);
+        }
+
+        for (key, ()) in self.table.iter() {
+            if vm_try!(other.table.get(key, caller)).is_none() {
+                return VmResult::Ok(false);
+            }
+        }
+
+        VmResult::Ok(true)
+    }
+
+    #[rune::function(keep, path = Self::from)]
+    fn from(value: Value) -> VmResult<HashSet> {
+        let mut caller = EnvProtocolCaller;
+        HashSet::from_iter(vm_try!(value.into_iter()), &mut caller)
+    }
+
+    #[rune::function(keep, instance, path = Self::clone)]
+    fn clone(this: &HashSet) -> HashSet {
+        this.clone()
     }
 }
 
-struct Intersection<I>
-where
-    I: iter::Iterator<Item = Key>,
-{
-    this: I,
+struct Intersection {
+    this: IterRef<()>,
     other: Option<Ref<HashSet>>,
 }
 
-impl<I> iter::Iterator for Intersection<I>
-where
-    I: iter::Iterator<Item = Key>,
-{
-    type Item = Key;
+impl iter::Iterator for Intersection {
+    type Item = VmResult<Value>;
+
     fn next(&mut self) -> Option<Self::Item> {
-        let other = self.other.take()?;
+        let mut caller = EnvProtocolCaller;
+        let other = self.other.as_ref()?;
 
-        loop {
-            let item = self.this.next()?;
+        for (key, ()) in self.this.by_ref() {
+            let c = match other.table.get(&key, &mut caller) {
+                VmResult::Ok(c) => c.is_some(),
+                VmResult::Err(e) => return Some(VmResult::Err(e)),
+            };
 
-            if other.set.contains(&item) {
-                self.other = Some(other);
-                return Some(item);
+            if c {
+                return Some(VmResult::Ok(key));
             }
         }
+
+        self.other = None;
+        None
     }
 
     #[inline]
@@ -472,31 +530,31 @@ where
     }
 }
 
-struct Difference<I>
-where
-    I: iter::Iterator<Item = Key>,
-{
-    this: I,
+struct Difference {
+    this: IterRef<()>,
     other: Option<Ref<HashSet>>,
 }
 
-impl<I> iter::Iterator for Difference<I>
-where
-    I: iter::Iterator<Item = Key>,
-{
-    type Item = Key;
+impl iter::Iterator for Difference {
+    type Item = VmResult<Value>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let other = self.other.take()?;
+        let mut caller = EnvProtocolCaller;
+        let other = self.other.as_ref()?;
 
-        loop {
-            let item = self.this.next()?;
+        for (key, ()) in self.this.by_ref() {
+            let c = match other.table.get(&key, &mut caller) {
+                VmResult::Ok(c) => c.is_some(),
+                VmResult::Err(e) => return Some(VmResult::Err(e)),
+            };
 
-            if !other.set.contains(&item) {
-                self.other = Some(other);
-                return Some(item);
+            if !c {
+                return Some(VmResult::Ok(key));
             }
         }
+
+        self.other = None;
+        None
     }
 
     #[inline]
@@ -507,25 +565,37 @@ where
 }
 
 struct Union {
-    iter: Iterator,
+    this: ptr::NonNull<Table<()>>,
+    this_iter: RawIter<(Value, ())>,
+    other_iter: RawIter<(Value, ())>,
+    _guards: (RawRef, RawRef),
 }
 
-impl IteratorTrait for Union {
-    fn next(&mut self) -> VmResult<Option<Value>> {
-        self.iter.next()
+impl iter::Iterator for Union {
+    type Item = VmResult<Value>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // SAFETY: we're holding onto the ref guards for both collections during
+        // iteration, so this is valid for the lifetime of the iterator.
+        unsafe {
+            if let Some(bucket) = self.this_iter.next() {
+                let (value, ()) = bucket.as_ref();
+                return Some(VmResult::Ok(value.clone()));
+            }
+
+            let mut caller = EnvProtocolCaller;
+
+            for bucket in self.other_iter.by_ref() {
+                let (key, ()) = bucket.as_ref();
+
+                match self.this.as_ref().get(key, &mut caller) {
+                    VmResult::Ok(None) => return Some(VmResult::Ok(key.clone())),
+                    VmResult::Ok(..) => {}
+                    VmResult::Err(e) => return Some(VmResult::Err(e)),
+                }
+            }
+
+            None
+        }
     }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.iter.size_hint()
-    }
-}
-
-#[rune::function(free, path = HashSet::from)]
-fn from(value: Value) -> VmResult<HashSet> {
-    HashSet::from_iter(vm_try!(value.into_iter()))
-}
-
-#[rune::function(instance)]
-fn clone(this: &HashSet) -> HashSet {
-    this.clone()
 }

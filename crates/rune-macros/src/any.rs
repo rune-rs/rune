@@ -89,7 +89,7 @@ impl Derive {
 
         let mut installers = Vec::new();
 
-        expand_install_with(&cx, &self.input, &tokens, &attr, &mut installers)?;
+        expand_install_with(cx, &self.input, &tokens, &attr, &mut installers)?;
 
         let name = match &attr.name {
             Some(name) => name,
@@ -717,7 +717,7 @@ where
                     impl #from_value for #ty {
                         fn from_value(value: Value) -> #vm_result<Self> {
                             let value = #vm_try!(#path(value));
-                            let value = #vm_try!(value.take());
+                            let value = #vm_try!(#shared::take(value));
                             #vm_result::Ok(value)
                         }
                     }
@@ -725,11 +725,9 @@ where
                     impl #unsafe_to_ref for #ty {
                         type Guard = #raw_ref;
 
-                        unsafe fn unsafe_to_ref<'a>(
-                            value: #value,
-                        ) -> #vm_result<(&'a Self, Self::Guard)> {
+                        unsafe fn unsafe_to_ref<'a>(value: #value) -> #vm_result<(&'a Self, Self::Guard)> {
                             let value = #vm_try!(#path(value));
-                            let value = #vm_try!(value.into_ref());
+                            let value = #vm_try!(#shared::into_ref(value));
                             let (value, guard) = #ref_::into_raw(value);
                             #vm_result::Ok((value.as_ref(), guard))
                         }
@@ -738,9 +736,7 @@ where
                     impl #unsafe_to_mut for #ty {
                         type Guard = #raw_mut;
 
-                        unsafe fn unsafe_to_mut<'a>(
-                            value: #value,
-                        ) -> #vm_result<(&'a mut Self, Self::Guard)> {
+                        unsafe fn unsafe_to_mut<'a>(value: #value) -> #vm_result<(&'a mut Self, Self::Guard)> {
                             let value = #vm_try!(#path(value));
                             let value = #vm_try!(#shared::into_mut(value));
                             let (mut value, guard) = #mut_::into_raw(value);

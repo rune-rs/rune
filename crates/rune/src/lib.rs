@@ -269,6 +269,9 @@ cfg_workspace! {
     pub mod workspace;
 }
 
+#[cfg(feature = "std")]
+mod hashbrown;
+
 // Macros used internally and re-exported.
 pub(crate) use rune_macros::__internal_impl_any;
 

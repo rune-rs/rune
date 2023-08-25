@@ -233,11 +233,6 @@ pub(crate) static ORDERING_TYPE: &StaticType = &StaticType {
 
 impl_static_type!(Ordering => ORDERING_TYPE);
 
-pub(crate) static HASHER_TYPE: &StaticType = &StaticType {
-    name: RawStr::from_str("Hasher"),
-    hash: ::rune_macros::hash!(::std::hash::Hasher),
-};
-
 pub(crate) static TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Type"),
     hash: ::rune_macros::hash!(::std::any::Type),

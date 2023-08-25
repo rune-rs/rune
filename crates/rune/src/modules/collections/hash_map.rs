@@ -1,15 +1,10 @@
 use core::fmt::{self, Write};
-use core::hash::BuildHasher;
-use core::iter;
-use core::mem;
-
-use hashbrown::raw::{RawIter, RawTable};
-use std::collections::hash_map::{DefaultHasher, RandomState};
 
 use crate as rune;
+use crate::hashbrown::Table;
 use crate::runtime::{
-    EnvProtocolCaller, Formatter, FromValue, Hasher, Iterator, ProtocolCaller, RawRef, Ref, Value,
-    VmError, VmErrorKind, VmResult,
+    EnvProtocolCaller, Formatter, FromValue, Iterator, ProtocolCaller, Ref, Value, VmErrorKind,
+    VmResult,
 };
 use crate::{Any, ContextError, Module};
 
@@ -18,6 +13,7 @@ pub(super) fn setup(module: &mut Module) -> Result<(), ContextError> {
     module.function_meta(HashMap::new__meta)?;
     module.function_meta(HashMap::with_capacity__meta)?;
     module.function_meta(HashMap::len__meta)?;
+    module.function_meta(HashMap::capacity__meta)?;
     module.function_meta(HashMap::insert__meta)?;
     module.function_meta(HashMap::get__meta)?;
     module.function_meta(HashMap::contains_key__meta)?;
@@ -39,41 +35,10 @@ pub(super) fn setup(module: &mut Module) -> Result<(), ContextError> {
     Ok(())
 }
 
-/// Convenience function to hash a value.
-fn hash<S>(state: &S, value: &Value, caller: &mut impl ProtocolCaller) -> VmResult<u64>
-where
-    S: BuildHasher<Hasher = DefaultHasher>,
-{
-    let mut hasher = Hasher::new_with(state);
-    vm_try!(value.hash_with(&mut hasher, caller));
-    VmResult::Ok(hasher.finish())
-}
-
-/// Construct a hasher for a value in the table.
-fn hasher<P: ?Sized, S>(state: &S) -> impl Fn(&mut P, &(Value, Value)) -> Result<u64, VmError> + '_
-where
-    S: BuildHasher<Hasher = DefaultHasher>,
-    P: ProtocolCaller,
-{
-    move |caller, (key, _): &(Value, Value)| hash(state, key, caller).into_result()
-}
-
-/// Construct an equality function for a value in the table that will compare an
-/// entry with the current key.
-fn eq<P: ?Sized>(key: &Value) -> impl Fn(&mut P, &(Value, Value)) -> Result<bool, VmError> + '_
-where
-    P: ProtocolCaller,
-{
-    move |caller: &mut P, (other, _): &(Value, Value)| -> Result<bool, VmError> {
-        key.eq_with(other, caller).into_result()
-    }
-}
-
 #[derive(Any, Clone)]
 #[rune(item = ::std::collections)]
 pub(crate) struct HashMap {
-    table: RawTable<(Value, Value)>,
-    state: RandomState,
+    table: Table<Value>,
 }
 
 impl HashMap {
@@ -91,8 +56,7 @@ impl HashMap {
     #[rune::function(keep, path = Self::new)]
     fn new() -> Self {
         Self {
-            table: RawTable::new(),
-            state: RandomState::new(),
+            table: Table::new(),
         }
     }
 
@@ -111,8 +75,7 @@ impl HashMap {
     #[rune::function(keep, path = Self::with_capacity)]
     fn with_capacity(capacity: usize) -> Self {
         Self {
-            table: RawTable::with_capacity(capacity),
-            state: RandomState::new(),
+            table: Table::with_capacity(capacity),
         }
     }
 
@@ -194,30 +157,7 @@ impl HashMap {
     #[rune::function(keep)]
     fn insert(&mut self, key: Value, value: Value) -> VmResult<Option<Value>> {
         let mut caller = EnvProtocolCaller;
-
-        let hash = vm_try!(hash(&self.state, &key, &mut caller));
-
-        let result = match self.table.find_or_find_insert_slot2(
-            &mut caller,
-            hash,
-            eq(&key),
-            hasher(&self.state),
-        ) {
-            Ok(result) => result,
-            Err(error) => return VmResult::Err(error),
-        };
-
-        let existing = match result {
-            Ok(bucket) => Some(mem::replace(unsafe { &mut bucket.as_mut().1 }, value)),
-            Err(slot) => {
-                unsafe {
-                    self.table.insert_in_slot(hash, slot, (key, value));
-                }
-                None
-            }
-        };
-
-        VmResult::Ok(existing)
+        self.table.insert_with(key, value, &mut caller)
     }
 
     /// Returns the value corresponding to the [`Key`].
@@ -234,17 +174,8 @@ impl HashMap {
     /// ```
     #[rune::function(keep)]
     fn get(&self, key: Value) -> VmResult<Option<Value>> {
-        VmResult::Ok(vm_try!(self.get_inner(&key)).map(|(_, value)| value.clone()))
-    }
-
-    fn get_inner(&self, key: &Value) -> VmResult<Option<&(Value, Value)>> {
-        if self.table.is_empty() {
-            return VmResult::Ok(None);
-        }
-
         let mut caller = EnvProtocolCaller;
-        let hash = vm_try!(hash(&self.state, key, &mut caller));
-        VmResult::Ok(vm_try!(self.table.get2(&mut caller, hash, eq(key))))
+        VmResult::Ok(vm_try!(self.table.get(&key, &mut caller)).map(|(_, v)| v.clone()))
     }
 
     /// Returns `true` if the map contains a value for the specified [`Key`].
@@ -261,13 +192,8 @@ impl HashMap {
     /// ```
     #[rune::function(keep)]
     fn contains_key(&self, key: Value) -> VmResult<bool> {
-        if self.table.is_empty() {
-            return VmResult::Ok(false);
-        }
-
         let mut caller = EnvProtocolCaller;
-        let hash = vm_try!(hash(&self.state, &key, &mut caller));
-        VmResult::Ok(vm_try!(self.table.get2(&mut caller, hash, eq(&key))).is_some())
+        VmResult::Ok(vm_try!(self.table.get(&key, &mut caller)).is_some())
     }
 
     /// Removes a key from the map, returning the value at the [`Key`] if the
@@ -286,12 +212,7 @@ impl HashMap {
     #[rune::function(keep)]
     fn remove(&mut self, key: Value) -> VmResult<Option<Value>> {
         let mut caller = EnvProtocolCaller;
-        let hash = vm_try!(hash(&self.state, &key, &mut caller));
-
-        match self.table.remove_entry2(&mut caller, hash, eq(&key)) {
-            Ok(value) => VmResult::Ok(value.map(|(_, value)| value)),
-            Err(error) => VmResult::Err(error),
-        }
+        self.table.remove_with(&key, &mut caller)
     }
 
     /// Clears the map, removing all key-value pairs. Keeps the allocated memory
@@ -336,32 +257,8 @@ impl HashMap {
     /// instead of O(len) because it internally visits empty buckets too.
     #[rune::function(keep, instance, path = Self::iter)]
     fn iter(this: Ref<Self>) -> Iterator {
-        struct Iter {
-            iter: RawIter<(Value, Value)>,
-            _guard: RawRef,
-        }
-
-        impl iter::Iterator for Iter {
-            type Item = (Value, Value);
-
-            #[inline]
-            fn next(&mut self) -> Option<Self::Item> {
-                // SAFETY: we're still holding onto the `RawRef` guard.
-                unsafe { Some(self.iter.next()?.as_ref().clone()) }
-            }
-
-            #[inline]
-            fn size_hint(&self) -> (usize, Option<usize>) {
-                self.iter.size_hint()
-            }
-        }
-
-        let (this, _guard) = Ref::into_raw(this);
-
-        // SAFETY: Table will be alive and a reference to it held for as long as
-        // `RawRef` is alive.
-        let iter = unsafe { this.as_ref().table.iter() };
-        Iterator::from("std::collections::hash_map::Iter", Iter { iter, _guard })
+        let iter = Table::iter_ref(Ref::map(this, |this| &this.table));
+        Iterator::from("std::collections::hash_map::Iter", iter)
     }
 
     /// An iterator visiting all keys in arbitrary order.
@@ -388,33 +285,8 @@ impl HashMap {
     /// time instead of O(len) because it internally visits empty buckets too.
     #[rune::function(keep, instance, path = Self::keys)]
     fn keys(this: Ref<Self>) -> Iterator {
-        struct Keys {
-            iter: RawIter<(Value, Value)>,
-            _guard: RawRef,
-        }
-
-        impl iter::Iterator for Keys {
-            type Item = Value;
-
-            #[inline]
-            fn next(&mut self) -> Option<Self::Item> {
-                // SAFETY: we're still holding onto the `RawRef` guard.
-                unsafe { Some(self.iter.next()?.as_ref().0.clone()) }
-            }
-
-            #[inline]
-            fn size_hint(&self) -> (usize, Option<usize>) {
-                self.iter.size_hint()
-            }
-        }
-
-        let (this, _guard) = Ref::into_raw(this);
-
-        // SAFETY: Table will be alive and a reference to it held for as long as
-        // `RawRef` is alive.
-        let iter = unsafe { this.as_ref().table.iter() };
-
-        Iterator::from("std::collections::hash_map::Keys", Keys { iter, _guard })
+        let iter = Table::keys_ref(Ref::map(this, |this| &this.table));
+        Iterator::from("std::collections::hash_map::Keys", iter)
     }
 
     /// An iterator visiting all values in arbitrary order.
@@ -441,36 +313,9 @@ impl HashMap {
     /// time instead of O(len) because it internally visits empty buckets too.
     #[rune::function(keep, instance, path = Self::values)]
     fn values(this: Ref<Self>) -> Iterator {
-        struct Values {
-            iter: RawIter<(Value, Value)>,
-            _guard: RawRef,
-        }
+        let iter = Table::values_ref(Ref::map(this, |this| &this.table));
 
-        impl iter::Iterator for Values {
-            type Item = Value;
-
-            #[inline]
-            fn next(&mut self) -> Option<Self::Item> {
-                // SAFETY: we're still holding onto the `RawRef` guard.
-                unsafe { Some(self.iter.next()?.as_ref().1.clone()) }
-            }
-
-            #[inline]
-            fn size_hint(&self) -> (usize, Option<usize>) {
-                self.iter.size_hint()
-            }
-        }
-
-        let (this, _guard) = Ref::into_raw(this);
-
-        // SAFETY: Table will be alive and a reference to it held for as long as
-        // `RawRef` is alive.
-        let iter = unsafe { this.as_ref().table.iter() };
-
-        Iterator::from(
-            "std::collections::hash_map::Values",
-            Values { iter, _guard },
-        )
+        Iterator::from("std::collections::hash_map::Values", iter)
     }
 
     /// Extend this map from an iterator.
@@ -506,7 +351,8 @@ impl HashMap {
     /// protocol, and each item produces should be a tuple pair.
     #[rune::function(keep, path = Self::from)]
     fn from(value: Value) -> VmResult<HashMap> {
-        HashMap::from_iter(vm_try!(value.into_iter()))
+        let mut caller = EnvProtocolCaller;
+        HashMap::from_iter(vm_try!(value.into_iter()), &mut caller)
     }
 
     /// Clone the map.
@@ -529,12 +375,15 @@ impl HashMap {
         Clone::clone(this)
     }
 
-    pub(crate) fn from_iter(mut it: Iterator) -> VmResult<Self> {
+    pub(crate) fn from_iter<P>(mut it: Iterator, caller: &mut P) -> VmResult<Self>
+    where
+        P: ?Sized + ProtocolCaller,
+    {
         let mut map = Self::new();
 
         while let Some(value) = vm_try!(it.next()) {
             let (key, value) = vm_try!(<(Value, Value)>::from_value(value));
-            vm_try!(map.insert(key, value));
+            vm_try!(map.table.insert_with(key, value, caller));
         }
 
         VmResult::Ok(map)
@@ -590,7 +439,9 @@ impl HashMap {
     fn index_get(&self, key: Value) -> VmResult<Value> {
         use crate::runtime::TypeOf;
 
-        let Some((_, value)) = vm_try!(self.get_inner(&key)) else {
+        let mut caller = EnvProtocolCaller;
+
+        let Some((_, value)) = vm_try!(self.table.get(&key, &mut caller)) else {
             return VmResult::err(VmErrorKind::MissingIndexKey {
                 target: Self::type_info(),
             });
@@ -623,22 +474,21 @@ impl HashMap {
     ) -> VmResult<fmt::Result> {
         vm_write!(f, "{{");
 
-        // SAFETY: we're holding onto the map for the duration of the iteration.
-        unsafe {
-            let mut it = self.table.iter().peekable();
+        let mut it = self.table.iter().peekable();
 
-            while let Some(bucket) = it.next() {
-                let (key, value) = bucket.as_ref();
+        while let Some((key, value)) = it.next() {
+            if let Err(fmt::Error) = vm_try!(key.string_debug_with(f, caller)) {
+                return VmResult::Ok(Err(fmt::Error));
+            }
 
-                vm_write!(f, "{:?}: ", key);
+            vm_write!(f, ": ");
 
-                if let Err(fmt::Error) = vm_try!(value.string_debug_with(f, caller)) {
-                    return VmResult::Ok(Err(fmt::Error));
-                }
+            if let Err(fmt::Error) = vm_try!(value.string_debug_with(f, caller)) {
+                return VmResult::Ok(Err(fmt::Error));
+            }
 
-                if it.peek().is_some() {
-                    vm_write!(f, ", ");
-                }
+            if it.peek().is_some() {
+                vm_write!(f, ", ");
             }
         }
 
@@ -682,18 +532,13 @@ impl HashMap {
             return VmResult::Ok(false);
         }
 
-        // SAFETY: we're holding onto the map for the duration of the iteration.
-        unsafe {
-            for bucket in self.table.iter() {
-                let (k, v1) = bucket.as_ref();
+        for (k, v1) in self.table.iter() {
+            let Some((_, v2)) = vm_try!(other.table.get(k, caller)) else {
+                return VmResult::Ok(false);
+            };
 
-                let Some((_, v2)) = vm_try!(other.get_inner(k)) else {
-                    return VmResult::Ok(false);
-                };
-
-                if !vm_try!(Value::partial_eq_with(v1, v2, caller)) {
-                    return VmResult::Ok(false);
-                }
+            if !vm_try!(Value::partial_eq_with(v1, v2, caller)) {
+                return VmResult::Ok(false);
             }
         }
 
@@ -732,18 +577,13 @@ impl HashMap {
             return VmResult::Ok(false);
         }
 
-        // SAFETY: we're holding onto the map for the duration of the iteration.
-        unsafe {
-            for bucket in self.table.iter() {
-                let (k, v1) = bucket.as_ref();
+        for (k, v1) in self.table.iter() {
+            let Some((_, v2)) = vm_try!(other.table.get(k, caller)) else {
+                return VmResult::Ok(false);
+            };
 
-                let Some((_, v2)) = vm_try!(other.get_inner(k)) else {
-                    return VmResult::Ok(false);
-                };
-
-                if !vm_try!(Value::eq_with(v1, v2, caller)) {
-                    return VmResult::Ok(false);
-                }
+            if !vm_try!(Value::eq_with(v1, v2, caller)) {
+                return VmResult::Ok(false);
             }
         }
 

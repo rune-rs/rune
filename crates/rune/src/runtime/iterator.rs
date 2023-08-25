@@ -225,16 +225,6 @@ impl Iterator {
     }
 
     #[inline]
-    pub(crate) fn chain_raw(self, other: Self) -> VmResult<Self> {
-        VmResult::Ok(Self {
-            iter: IterRepr::Chain(Box::new(Chain {
-                a: Some(self.iter),
-                b: Some(other.iter),
-            })),
-        })
-    }
-
-    #[inline]
     pub(crate) fn rev(self) -> VmResult<Self> {
         if !self.iter.is_double_ended() {
             return VmResult::panic(format!("`{:?}` is not a double-ended iterator", self));
