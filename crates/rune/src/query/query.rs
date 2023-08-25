@@ -1,4 +1,5 @@
 use core::fmt;
+#[cfg(feature = "emit")]
 use core::mem::take;
 
 use crate::no_std::borrow::Cow;
@@ -284,6 +285,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
 
         Err(Box::new(ErrorKind::AmbiguousContextItem {
             item: self.pool.item(item).to_owned(),
+            #[cfg(feature = "emit")]
             infos: metas.map(|i| i.info()).collect(),
         }))
     }
@@ -414,6 +416,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         let item = self.insert_new_item(items, location, parent, visibility, docs)?;
 
         let query_mod = self.pool.alloc_module(ModMeta {
+            #[cfg(feature = "emit")]
             location: location.location(),
             item: item.item,
             visibility,
@@ -437,6 +440,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         let location = Location::new(source_id, spanned);
 
         let module = self.pool.alloc_module(ModMeta {
+            #[cfg(feature = "emit")]
             location,
             item: ItemId::default(),
             visibility: Visibility::Public,
@@ -1107,7 +1111,14 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 cur.push(c);
                 let cur = self.pool.alloc_item(&cur);
 
-                let update = self.import_step(span, module, cur, used, &mut path)?;
+                let update = self.import_step(
+                    span,
+                    module,
+                    cur,
+                    used,
+                    #[cfg(feature = "emit")]
+                    &mut path,
+                )?;
 
                 let update = match update {
                     Some(update) => update,
@@ -1120,7 +1131,13 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 });
 
                 if !visited.insert(self.pool.alloc_item(&item)) {
-                    return Err(compile::Error::new(span, ErrorKind::ImportCycle { path }));
+                    return Err(compile::Error::new(
+                        span,
+                        ErrorKind::ImportCycle {
+                            #[cfg(feature = "emit")]
+                            path,
+                        },
+                    ));
                 }
 
                 module = update.module;
@@ -1147,7 +1164,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         module: ModId,
         item: ItemId,
         used: Used,
-        path: &mut Vec<ImportStep>,
+        #[cfg(feature = "emit")] path: &mut Vec<ImportStep>,
     ) -> compile::Result<Option<meta::Import>> {
         // already resolved query.
         if let Some(meta) = self.inner.meta.get(&(item, Hash::EMPTY)) {
@@ -1168,8 +1185,10 @@ impl<'a, 'arena> Query<'a, 'arena> {
             module,
             item,
             entry.item_meta.module,
+            #[cfg(feature = "emit")]
             entry.item_meta.location,
             entry.item_meta.visibility,
+            #[cfg(feature = "emit")]
             path,
         )?;
 
@@ -1559,6 +1578,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 span,
                 ErrorKind::AmbiguousItem {
                     item: self.pool.item(cur.item_meta.item).to_owned(),
+                    #[cfg(feature = "emit")]
                     locations: locations
                         .into_iter()
                         .map(|(loc, item)| (loc, self.pool.item(item).to_owned()))
@@ -1572,6 +1592,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 span,
                 ErrorKind::AmbiguousItem {
                     item: self.pool.item(cur.item_meta.item).to_owned(),
+                    #[cfg(feature = "emit")]
                     locations: locations
                         .into_iter()
                         .map(|(loc, item)| (loc, self.pool.item(item).to_owned()))
@@ -1640,10 +1661,11 @@ impl<'a, 'arena> Query<'a, 'arena> {
         from: ModId,
         item: ItemId,
         module: ModId,
-        location: Location,
+        #[cfg(feature = "emit")] location: Location,
         visibility: Visibility,
-        chain: &mut Vec<ImportStep>,
+        #[cfg(feature = "emit")] chain: &mut Vec<ImportStep>,
     ) -> compile::Result<()> {
+        #[cfg(feature = "emit")]
         fn into_chain(chain: Vec<ImportStep>) -> Vec<Location> {
             chain.into_iter().map(|c| c.location).collect()
         }
@@ -1672,7 +1694,9 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 return Err(compile::Error::new(
                     span,
                     ErrorKind::NotVisibleMod {
+                        #[cfg(feature = "emit")]
                         chain: into_chain(take(chain)),
+                        #[cfg(feature = "emit")]
                         location: m.location,
                         visibility: m.visibility,
                         item: current_module,
@@ -1686,7 +1710,9 @@ impl<'a, 'arena> Query<'a, 'arena> {
             return Err(compile::Error::new(
                 span,
                 ErrorKind::NotVisible {
+                    #[cfg(feature = "emit")]
                     chain: into_chain(take(chain)),
+                    #[cfg(feature = "emit")]
                     location,
                     visibility,
                     item: self.pool.item(item).to_owned(),

@@ -1,12 +1,16 @@
 //! `std::collections` module.
 
+#[cfg(feature = "std")]
 mod hash_map;
+#[cfg(feature = "std")]
 mod hash_set;
 mod vec_deque;
 
 use crate::{ContextError, Module};
 
+#[cfg(feature = "std")]
 pub(crate) use self::hash_map::HashMap;
+#[cfg(feature = "std")]
 pub(crate) use self::hash_set::HashSet;
 pub(crate) use self::vec_deque::VecDeque;
 use crate as rune;

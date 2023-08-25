@@ -3,10 +3,13 @@
 use crate::no_std::prelude::*;
 
 use crate as rune;
-use crate::modules::collections::{HashMap, HashSet, VecDeque};
+use crate::modules::collections::VecDeque;
+#[cfg(feature = "std")]
+use crate::modules::collections::{HashMap, HashSet};
+#[cfg(feature = "std")]
+use crate::runtime::EnvProtocolCaller;
 use crate::runtime::{
-    EnvProtocolCaller, FromValue, Function, Iterator, Object, OwnedTuple, Protocol, Value, Vec,
-    VmResult,
+    FromValue, Function, Iterator, Object, OwnedTuple, Protocol, Value, Vec, VmResult,
 };
 use crate::{ContextError, Module};
 
@@ -49,7 +52,9 @@ pub fn module() -> Result<Module, ContextError> {
 
     module.function_meta(collect_vec)?;
     module.function_meta(collect_vec_deque)?;
+    #[cfg(feature = "std")]
     module.function_meta(collect_hash_set)?;
+    #[cfg(feature = "std")]
     module.function_meta(collect_hash_map)?;
     module.function_meta(collect_tuple)?;
     module.function_meta(collect_object)?;
@@ -1070,6 +1075,7 @@ fn collect_vec_deque(it: Iterator) -> VmResult<VecDeque> {
 /// assert_eq!((0..3).iter().collect::<HashSet>(), HashSet::from([0, 1, 2]));
 /// ```
 #[rune::function(instance, path = collect::<HashSet>)]
+#[cfg(feature = "std")]
 fn collect_hash_set(it: Iterator) -> VmResult<HashSet> {
     let mut caller = EnvProtocolCaller;
     HashSet::from_iter(it, &mut caller)
@@ -1087,6 +1093,7 @@ fn collect_hash_set(it: Iterator) -> VmResult<HashSet> {
 /// assert_eq!(actual, expected);
 /// ```
 #[rune::function(instance, path = collect::<HashMap>)]
+#[cfg(feature = "std")]
 fn collect_hash_map(it: Iterator) -> VmResult<HashMap> {
     let mut caller = EnvProtocolCaller;
     HashMap::from_iter(it, &mut caller)

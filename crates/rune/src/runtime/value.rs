@@ -12,12 +12,14 @@ use crate::no_std::vec;
 
 use crate::compile::ItemBuf;
 use crate::runtime::vm::CallResult;
+#[cfg(feature = "std")]
+use crate::runtime::Hasher;
 use crate::runtime::{
     AccessKind, AnyObj, Bytes, ConstValue, ControlFlow, EnvProtocolCaller, Format, Formatter,
-    FromValue, FullTypeOf, Function, Future, Generator, GeneratorState, Hasher, Iterator,
-    MaybeTypeOf, Mut, Object, OwnedTuple, Protocol, ProtocolCaller, Range, RangeFrom, RangeFull,
-    RangeInclusive, RangeTo, RangeToInclusive, RawMut, RawRef, Ref, Shared, Stream, ToValue, Type,
-    TypeInfo, Variant, Vec, Vm, VmError, VmErrorKind, VmIntegerRepr, VmResult,
+    FromValue, FullTypeOf, Function, Future, Generator, GeneratorState, Iterator, MaybeTypeOf, Mut,
+    Object, OwnedTuple, Protocol, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive,
+    RangeTo, RangeToInclusive, RawMut, RawRef, Ref, Shared, Stream, ToValue, Type, TypeInfo,
+    Variant, Vec, Vm, VmError, VmErrorKind, VmIntegerRepr, VmResult,
 };
 use crate::{Any, Hash};
 
@@ -1338,6 +1340,7 @@ impl Value {
     }
 
     /// Hash the current value.
+    #[cfg(feature = "std")]
     pub(crate) fn hash_with(
         &self,
         hasher: &mut Hasher,

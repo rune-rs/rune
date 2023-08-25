@@ -372,11 +372,13 @@ pub(crate) fn expr_object<'hir>(
     let assignments = &mut *iter!(&ast.assignments, |(ast, _)| {
         let key = object_key(cx, &ast.key)?;
 
-        if let Some(existing) = keys_dup.insert(key.1, key.0) {
+        if let Some(_existing) = keys_dup.insert(key.1, key.0) {
             return Err(compile::Error::new(
                 key.0,
                 ErrorKind::DuplicateObjectKey {
-                    existing: existing.span(),
+                    #[cfg(feature = "emit")]
+                    existing: _existing.span(),
+                    #[cfg(feature = "emit")]
                     object: key.0.span(),
                 },
             ));
@@ -1206,11 +1208,13 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                     }
                 };
 
-                if let Some(existing) = keys_dup.insert(key, pat) {
+                if let Some(_existing) = keys_dup.insert(key, pat) {
                     return Err(compile::Error::new(
                         pat,
                         ErrorKind::DuplicateObjectKey {
-                            existing: existing.span(),
+                            #[cfg(feature = "emit")]
+                            existing: _existing.span(),
+                            #[cfg(feature = "emit")]
                             object: pat.span(),
                         },
                     ));
@@ -1259,6 +1263,7 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                             ast,
                             ErrorKind::PatternMissingFields {
                                 item: cx.q.pool.item(meta.item_meta.item).to_owned(),
+                                #[cfg(feature = "emit")]
                                 fields,
                             },
                         ));

@@ -20,6 +20,7 @@ pub enum TypeInfo {
 }
 
 impl TypeInfo {
+    #[cfg(feature = "emit")]
     pub(crate) fn type_hash(&self) -> Hash {
         match self {
             TypeInfo::StaticType(ty) => ty.hash,

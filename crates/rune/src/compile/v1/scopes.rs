@@ -143,11 +143,12 @@ impl<'hir> Scopes<'hir> {
                 tracing::trace!(?var, "getting var");
                 q.visitor.visit_variable_use(self.source_id, var.span, span);
 
-                if let Some(moved_at) = var.moved_at {
+                if let Some(_moved_at) = var.moved_at {
                     return Err(compile::Error::new(
                         span,
                         ErrorKind::VariableMoved {
-                            moved_at: moved_at.span(),
+                            #[cfg(feature = "emit")]
+                            moved_at: _moved_at.span(),
                         },
                     ));
                 }
@@ -177,11 +178,12 @@ impl<'hir> Scopes<'hir> {
                 tracing::trace!(?var, "taking var");
                 q.visitor.visit_variable_use(self.source_id, var.span, span);
 
-                if let Some(moved_at) = var.moved_at {
+                if let Some(_moved_at) = var.moved_at {
                     return Err(compile::Error::new(
                         span,
                         ErrorKind::VariableMoved {
-                            moved_at: moved_at.span(),
+                            #[cfg(feature = "emit")]
+                            moved_at: _moved_at.span(),
                         },
                     ));
                 }

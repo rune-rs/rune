@@ -85,6 +85,7 @@ pub struct VmErrorLocation {
 #[non_exhaustive]
 pub struct VmErrorAt {
     /// Index into the backtrace which contains information of what caused this error.
+    #[cfg(feature = "emit")]
     index: usize,
     /// The kind of error.
     kind: VmErrorKind,
@@ -92,6 +93,7 @@ pub struct VmErrorAt {
 
 impl VmErrorAt {
     /// Get the instruction which caused the error.
+    #[cfg(feature = "emit")]
     pub(crate) fn index(&self) -> usize {
         self.index
     }
@@ -255,9 +257,11 @@ impl<T> VmResult<T> {
         match self {
             Self::Ok(ok) => Self::Ok(ok),
             Self::Err(mut err) => {
+                #[cfg(feature = "emit")]
                 let index = err.inner.stacktrace.len();
 
                 err.inner.chain.push(VmErrorAt {
+                    #[cfg(feature = "emit")]
                     index,
                     kind: VmErrorKind::from(error()),
                 });
@@ -362,6 +366,7 @@ where
         Self {
             inner: Box::new(VmErrorInner {
                 error: VmErrorAt {
+                    #[cfg(feature = "emit")]
                     index: 0,
                     kind: VmErrorKind::from(error),
                 },
@@ -386,12 +391,17 @@ impl<const N: usize> From<[VmErrorKind; N]> for VmError {
         let mut chain = Vec::with_capacity(it.len());
 
         for kind in it {
-            chain.push(VmErrorAt { index: 0, kind });
+            chain.push(VmErrorAt {
+                #[cfg(feature = "emit")]
+                index: 0,
+                kind,
+            });
         }
 
         Self {
             inner: Box::new(VmErrorInner {
                 error: VmErrorAt {
+                    #[cfg(feature = "emit")]
                     index: 0,
                     kind: first,
                 },
@@ -529,6 +539,7 @@ pub(crate) enum VmErrorKind {
         target: TypeInfo,
         index: VmIntegerRepr,
     },
+    #[cfg(feature = "std")]
     MissingIndexKey {
         target: TypeInfo,
     },
@@ -612,6 +623,7 @@ pub(crate) enum VmErrorKind {
         lhs: f64,
         rhs: f64,
     },
+    #[cfg(feature = "std")]
     IllegalFloatOperation {
         value: f64,
     },
@@ -729,6 +741,7 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::MissingIndexInteger { target, index } => {
                 write!(f, "Type `{target}` missing integer index `{index}`",)
             }
+            #[cfg(feature = "std")]
             VmErrorKind::MissingIndexKey { target } => {
                 write!(f, "Type `{target}` missing index",)
             }
@@ -811,6 +824,7 @@ impl fmt::Display for VmErrorKind {
                     "Cannot perform a comparison of the floats {lhs} and {rhs}",
                 )
             }
+            #[cfg(feature = "std")]
             VmErrorKind::IllegalFloatOperation { value } => {
                 write!(f, "Cannot perform operation on float `{value}`",)
             }

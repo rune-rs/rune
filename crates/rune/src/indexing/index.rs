@@ -458,12 +458,13 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
                 .load(root, self.q.pool.module_item(mod_item), &*item_mod)?;
 
         if let Some(loaded) = self.loaded.as_mut() {
-            if let Some(existing) = loaded.insert(mod_item, (self.source_id, item_mod.span())) {
+            if let Some(_existing) = loaded.insert(mod_item, (self.source_id, item_mod.span())) {
                 return Err(compile::Error::new(
                     &*item_mod,
                     ErrorKind::ModAlreadyLoaded {
                         item: self.q.pool.module_item(mod_item).to_owned(),
-                        existing,
+                        #[cfg(feature = "emit")]
+                        existing: _existing,
                     },
                 ));
             }
@@ -756,10 +757,13 @@ fn item_fn(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemFn) -> compile::Result<(
 
     let is_test = match p.try_parse::<attrs::Test>(resolve_context!(idx.q), &ast.attributes)? {
         Some((attr, _)) => {
-            if let Some(nested_span) = idx.nested_item {
+            if let Some(_nested_span) = idx.nested_item {
                 return Err(compile::Error::new(
                     attr,
-                    ErrorKind::NestedTest { nested_span },
+                    ErrorKind::NestedTest {
+                        #[cfg(feature = "emit")]
+                        nested_span: _nested_span,
+                    },
                 ));
             }
 
@@ -770,12 +774,15 @@ fn item_fn(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemFn) -> compile::Result<(
 
     let is_bench = match p.try_parse::<attrs::Bench>(resolve_context!(idx.q), &ast.attributes)? {
         Some((attr, _)) => {
-            if let Some(nested_span) = idx.nested_item {
+            if let Some(_nested_span) = idx.nested_item {
                 let span = attr.span().join(ast.descriptive_span());
 
                 return Err(compile::Error::new(
                     span,
-                    ErrorKind::NestedBench { nested_span },
+                    ErrorKind::NestedBench {
+                        #[cfg(feature = "emit")]
+                        nested_span: _nested_span,
+                    },
                 ));
             }
 
@@ -940,6 +947,7 @@ fn statements(idx: &mut Indexer<'_, '_>, ast: &mut Vec<ast::Stmt>) -> compile::R
             return Err(compile::Error::new(
                 span,
                 ErrorKind::ExpectedBlockSemiColon {
+                    #[cfg(feature = "emit")]
                     followed_span: stmt.span(),
                 },
             ));

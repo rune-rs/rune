@@ -4,7 +4,9 @@ use core::fmt;
 
 use crate::no_std::collections::HashMap;
 
-use crate::compile::{Item, ItemBuf, Location, Visibility};
+#[cfg(feature = "emit")]
+use crate::compile::Location;
+use crate::compile::{Item, ItemBuf, Visibility};
 use crate::hash::Hash;
 
 /// The identifier of a module.
@@ -34,6 +36,7 @@ impl fmt::Display for ItemId {
 #[non_exhaustive]
 pub(crate) struct ModMeta {
     /// The location of the module.
+    #[cfg(feature = "emit")]
     pub(crate) location: Location,
     /// The item of the module.
     pub(crate) item: ItemId,
