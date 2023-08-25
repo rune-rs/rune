@@ -59,14 +59,15 @@ impl<V> Table<V> {
     {
         let hash = vm_try!(hash(&self.state, &key, caller));
 
-        let result =
-            match self
-                .table
-                .find_or_find_insert_slot2(caller, hash, eq(&key), hasher(&self.state))
-            {
-                Ok(result) => result,
-                Err(error) => return VmResult::Err(error),
-            };
+        let result = match self.table.find_or_find_insert_slot_with(
+            caller,
+            hash,
+            eq(&key),
+            hasher(&self.state),
+        ) {
+            Ok(result) => result,
+            Err(error) => return VmResult::Err(error),
+        };
 
         let existing = match result {
             Ok(bucket) => Some(mem::replace(unsafe { &mut bucket.as_mut().1 }, value)),
@@ -90,7 +91,7 @@ impl<V> Table<V> {
         }
 
         let hash = vm_try!(hash(&self.state, key, caller));
-        VmResult::Ok(vm_try!(self.table.get2(caller, hash, eq(key))))
+        VmResult::Ok(vm_try!(self.table.get_with(caller, hash, eq(key))))
     }
 
     #[inline(always)]
@@ -100,7 +101,7 @@ impl<V> Table<V> {
     {
         let hash = vm_try!(hash(&self.state, key, caller));
 
-        match self.table.remove_entry2(caller, hash, eq(key)) {
+        match self.table.remove_entry_with(caller, hash, eq(key)) {
             Ok(value) => VmResult::Ok(value.map(|(_, value)| value)),
             Err(error) => VmResult::Err(error),
         }
