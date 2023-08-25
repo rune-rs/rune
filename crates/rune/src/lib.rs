@@ -379,7 +379,7 @@ pub(crate) use rune_macros::__internal_impl_any;
 /// }
 ///
 /// /// Construct a new [`Struct`].
-/// #[rune::function(path = Struct::new)]
+/// #[rune::function(free, path = Struct::new)]
 /// fn new() -> Struct {
 ///     Struct {
 ///        /* .. */
@@ -511,7 +511,7 @@ pub(crate) use rune_macros::__internal_impl_any;
 /// /// let string = String::empty();
 /// /// assert_eq!(string, "hello");
 /// /// ```
-/// #[rune::function(path = String::empty)]
+/// #[rune::function(free, path = String::empty)]
 /// fn empty() -> String {
 ///     String {
 ///         inner: std::string::String::new()

@@ -9,6 +9,8 @@ use crate::runtime::{
     ConstValue, FromValue, Mut, RawMut, RawRef, Ref, Shared, ToValue, UnsafeToMut, UnsafeToRef,
     Value, VmErrorKind, VmResult,
 };
+#[cfg(feature = "std")]
+use crate::runtime::{Hasher, ProtocolCaller};
 use crate::Any;
 
 /// The type of a tuple slice.
@@ -43,6 +45,19 @@ impl Tuple {
         };
 
         VmResult::Ok(Some(vm_try!(T::from_value(value))))
+    }
+
+    #[cfg(feature = "std")]
+    pub(crate) fn hash_with(
+        &self,
+        hasher: &mut Hasher,
+        caller: &mut impl ProtocolCaller,
+    ) -> VmResult<()> {
+        for value in self.values.iter() {
+            vm_try!(value.hash_with(hasher, caller));
+        }
+
+        VmResult::Ok(())
     }
 }
 

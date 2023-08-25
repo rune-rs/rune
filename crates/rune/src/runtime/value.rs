@@ -12,8 +12,6 @@ use crate::no_std::vec;
 
 use crate::compile::ItemBuf;
 use crate::runtime::vm::CallResult;
-#[cfg(feature = "std")]
-use crate::runtime::Hasher;
 use crate::runtime::{
     AccessKind, AnyObj, Bytes, ConstValue, ControlFlow, EnvProtocolCaller, Format, Formatter,
     FromValue, FullTypeOf, Function, Future, Generator, GeneratorState, Iterator, MaybeTypeOf, Mut,
@@ -21,6 +19,8 @@ use crate::runtime::{
     RangeTo, RangeToInclusive, RawMut, RawRef, Ref, Shared, Stream, ToValue, Type, TypeInfo,
     Variant, Vec, Vm, VmError, VmErrorKind, VmIntegerRepr, VmResult,
 };
+#[cfg(feature = "std")]
+use crate::runtime::{Hasher, Tuple};
 use crate::{Any, Hash};
 
 use serde::{de, ser, Deserialize, Serialize};
@@ -1341,6 +1341,12 @@ impl Value {
 
     /// Hash the current value.
     #[cfg(feature = "std")]
+    pub fn hash(&self, hasher: &mut Hasher) -> VmResult<()> {
+        self.hash_with(hasher, &mut EnvProtocolCaller)
+    }
+
+    /// Hash the current value.
+    #[cfg(feature = "std")]
     pub(crate) fn hash_with(
         &self,
         hasher: &mut Hasher,
@@ -1376,6 +1382,14 @@ impl Value {
                 let bytes = vm_try!(bytes.borrow_ref());
                 hasher.write(&bytes);
                 return VmResult::Ok(());
+            }
+            Value::Tuple(tuple) => {
+                let tuple = vm_try!(tuple.borrow_ref());
+                return Tuple::hash_with(&tuple, hasher, caller);
+            }
+            Value::Vec(vec) => {
+                let vec = vm_try!(vec.borrow_ref());
+                return Vec::hash_with(&vec, hasher, caller);
             }
             value => {
                 match vm_try!(caller.try_call_protocol_fn(Protocol::HASH, value.clone(), (hasher,)))

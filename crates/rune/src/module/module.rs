@@ -955,7 +955,7 @@ impl Module {
     /// }
     ///
     /// /// Construct a new [`Struct`].
-    /// #[rune::function(path = Struct::new)]
+    /// #[rune::function(free, path = Struct::new)]
     /// fn new() -> Struct {
     ///     Struct {
     ///        /* .. */

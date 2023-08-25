@@ -11,6 +11,8 @@ use crate::no_std::prelude::*;
 use crate::no_std::vec;
 
 use crate as rune;
+#[cfg(feature = "std")]
+use crate::runtime::Hasher;
 use crate::runtime::{
     Formatter, FromValue, Iterator, ProtocolCaller, RawRef, Ref, Shared, ToValue, UnsafeToRef,
     Value, VmErrorKind, VmResult,
@@ -378,6 +380,19 @@ impl Vec {
         };
 
         VmResult::Ok(Some(Value::vec(values.to_vec())))
+    }
+
+    #[cfg(feature = "std")]
+    pub(crate) fn hash_with(
+        &self,
+        hasher: &mut Hasher,
+        caller: &mut impl ProtocolCaller,
+    ) -> VmResult<()> {
+        for value in self.inner.iter() {
+            vm_try!(value.hash_with(hasher, caller));
+        }
+
+        VmResult::Ok(())
     }
 }
 
