@@ -4,7 +4,7 @@ use core::marker::PhantomData;
 use core::mem;
 use core::ptr;
 
-use hashbrown::raw::{RawIter, RawTable};
+use crate::hashbrown::fork::raw::{RawIter, RawTable};
 use std::collections::hash_map::{DefaultHasher, RandomState};
 
 use crate::runtime::{Hasher, ProtocolCaller, RawRef, Ref, Value, VmError, VmResult};
