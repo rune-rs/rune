@@ -24,8 +24,8 @@ pub(super) fn complete_for_unit(
     results: &mut Vec<CompletionItem>,
 ) {
     let Some(debug_info) = unit.debug_info() else {
-		return;
-	};
+        return;
+    };
 
     for (hash, function) in debug_info.functions.iter() {
         let func_name = function.to_string();

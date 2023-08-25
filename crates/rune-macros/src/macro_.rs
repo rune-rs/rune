@@ -144,7 +144,10 @@ impl Macro {
                 Path::Path(_, path) => {
                     for s in &path.segments {
                         let syn::PathArguments::None = s.arguments else {
-                            return Err(syn::Error::new_spanned(s, "Expected simple ident path segment"));
+                            return Err(syn::Error::new_spanned(
+                                s,
+                                "Expected simple ident path segment",
+                            ));
                         };
 
                         let ident = syn::LitStr::new(&s.ident.to_string(), s.span());

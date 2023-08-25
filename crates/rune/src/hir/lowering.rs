@@ -166,7 +166,10 @@ pub(crate) fn async_block_secondary<'hir>(
     alloc_with!(cx, ast);
 
     let Some(captures) = cx.q.get_captures(captures) else {
-        return Err(compile::Error::msg(ast, format_args!("Missing captures for hash {captures}")));
+        return Err(compile::Error::msg(
+            ast,
+            format_args!("Missing captures for hash {captures}"),
+        ));
     };
 
     let captures = &*iter!(captures, |capture| {
@@ -198,7 +201,10 @@ pub(crate) fn expr_closure_secondary<'hir>(
     alloc_with!(cx, ast);
 
     let Some(captures) = cx.q.get_captures(captures) else {
-        return Err(compile::Error::msg(ast, format_args!("Missing captures for hash {captures}")));
+        return Err(compile::Error::msg(
+            ast,
+            format_args!("Missing captures for hash {captures}"),
+        ));
     };
 
     let captures = &*iter!(captures, |capture| match capture {
@@ -240,12 +246,10 @@ fn expr_call_closure<'hir>(
             ErrorKind::MissingItem {
                 item: cx.q.pool.item(item.item).to_owned(),
             },
-        ))
+        ));
     };
 
-    let meta::Kind::Closure {
-        call, do_move, ..
-    } = meta.kind else {
+    let meta::Kind::Closure { call, do_move, .. } = meta.kind else {
         return Err(compile::Error::expected_meta(
             ast,
             meta.info(cx.q.pool),
@@ -382,9 +386,12 @@ pub(crate) fn expr_object<'hir>(
             Some((_, ast)) => expr(cx, ast)?,
             None => {
                 let Some((name, _)) = cx.scopes.get(hir::Name::Str(key.1)) else {
-                    return Err(compile::Error::new(key.0, ErrorKind::MissingLocal {
-                        name: key.1.to_owned(),
-                    },))
+                    return Err(compile::Error::new(
+                        key.0,
+                        ErrorKind::MissingLocal {
+                            name: key.1.to_owned(),
+                        },
+                    ));
                 };
 
                 hir::Expr {
@@ -829,7 +836,14 @@ pub(crate) fn expr_unary<'hir>(
         return Err(compile::Error::new(ast, ErrorKind::UnsupportedRef));
     }
 
-    let (ast::UnOp::Neg(..), ast::Expr::Lit(ast::ExprLit { lit: ast::Lit::Number(n), .. })) = (ast.op, &*ast.expr) else {
+    let (
+        ast::UnOp::Neg(..),
+        ast::Expr::Lit(ast::ExprLit {
+            lit: ast::Lit::Number(n),
+            ..
+        }),
+    ) = (ast.op, &*ast.expr)
+    else {
         return Ok(hir::ExprKind::Unary(alloc!(hir::ExprUnary {
             op: ast.op,
             expr: expr(cx, &ast.expr)?,
@@ -959,7 +973,12 @@ fn expr_break<'hir>(
 
     let Some(drop) = cx.scopes.loop_drop(label) else {
         if let Some(label) = label {
-            return Err(compile::Error::new(ast, ErrorKind::MissingLoopLabel { label: label.into() }));
+            return Err(compile::Error::new(
+                ast,
+                ErrorKind::MissingLoopLabel {
+                    label: label.into(),
+                },
+            ));
         } else {
             return Err(compile::Error::new(ast, ErrorKind::BreakOutsideOfLoop));
         }
@@ -993,7 +1012,12 @@ fn expr_continue<'hir>(
 
     let Some(drop) = cx.scopes.loop_drop(label) else {
         if let Some(label) = label {
-            return Err(compile::Error::new(ast, ErrorKind::MissingLoopLabel { label: label.into() }));
+            return Err(compile::Error::new(
+                ast,
+                ErrorKind::MissingLoopLabel {
+                    label: label.into(),
+                },
+            ));
         } else {
             return Err(compile::Error::new(ast, ErrorKind::ContinueOutsideOfLoop));
         }
@@ -1201,7 +1225,9 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                     let parameters = generics_parameters(cx, &named)?;
                     let meta = cx.lookup_meta(path, named.item, parameters)?;
 
-                    let Some((mut fields, kind)) = struct_match_for(cx, &meta, is_open && count == 0) else {
+                    let Some((mut fields, kind)) =
+                        struct_match_for(cx, &meta, is_open && count == 0)
+                    else {
                         return Err(compile::Error::expected_meta(
                             path,
                             meta.info(cx.q.pool),
@@ -1293,10 +1319,7 @@ pub(crate) fn expr_path<'hir>(
 
     if let Some(ast::PathKind::SelfValue) = ast.as_kind() {
         let Some(..) = cx.scopes.get(hir::Name::SelfValue) else {
-            return Err(compile::Error::new(
-                ast,
-                ErrorKind::MissingSelf,
-            ));
+            return Err(compile::Error::new(ast, ErrorKind::MissingSelf));
         };
 
         return Ok(hir::ExprKind::Variable(hir::Name::SelfValue));
@@ -1561,10 +1584,7 @@ fn generics_parameters(
 
             for (s, _) in generics {
                 let hir::ExprKind::Type(ty) = expr(cx, &s.expr)?.kind else {
-                    return Err(compile::Error::new(
-                        s,
-                        ErrorKind::UnsupportedGenerics,
-                    ));
+                    return Err(compile::Error::new(s, ErrorKind::UnsupportedGenerics));
                 };
 
                 builder.add(ty.into_hash());
@@ -1752,10 +1772,7 @@ fn expr_field_access<'hir>(
 
                     for (s, _) in generics {
                         let hir::ExprKind::Type(ty) = expr(cx, &s.expr)?.kind else {
-                            return Err(compile::Error::new(
-                                s,
-                                ErrorKind::UnsupportedGenerics,
-                            ));
+                            return Err(compile::Error::new(s, ErrorKind::UnsupportedGenerics));
                         };
 
                         builder.add(ty.into_hash());

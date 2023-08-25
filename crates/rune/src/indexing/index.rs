@@ -95,7 +95,9 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
         p: &mut attrs::Parser,
         ast: &mut ast::MacroCall,
     ) -> compile::Result<bool> {
-        let Some((_, builtin)) = p.try_parse::<attrs::BuiltIn>(resolve_context!(self.q), &ast.attributes)? else {
+        let Some((_, builtin)) =
+            p.try_parse::<attrs::BuiltIn>(resolve_context!(self.q), &ast.attributes)?
+        else {
             return Ok(false);
         };
 
@@ -108,7 +110,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
                 ErrorKind::NoSuchBuiltInMacro {
                     name: ast.path.resolve(resolve_context!(self.q))?,
                 },
-            ))
+            ));
         };
 
         let ident = ident.resolve(resolve_context!(self.q))?;
@@ -561,11 +563,11 @@ pub(crate) fn file(idx: &mut Indexer<'_, '_>, ast: &mut ast::File) -> compile::R
             // for the `item` handler or to be used by the macro_call expansion
             // below.
             if let Some(mut attr) = item.remove_first_attribute() {
-                let Some(file) = idx.expand_attribute_macro::<ast::File>(&mut attr, &mut item)? else {
+                let Some(file) = idx.expand_attribute_macro::<ast::File>(&mut attr, &mut item)?
+                else {
                     skipped_attributes.push(attr);
 
-                    if !matches!(item, ast::Item::MacroCall(_)) && item.attributes().is_empty()
-                    {
+                    if !matches!(item, ast::Item::MacroCall(_)) && item.attributes().is_empty() {
                         // For all we know only non macro attributes remain, which will be
                         // handled by the item handler.
                         *item.attributes_mut() = skipped_attributes;
@@ -597,7 +599,10 @@ pub(crate) fn file(idx: &mut Indexer<'_, '_>, ast: &mut ast::File) -> compile::R
             }
 
             let ast::Item::MacroCall(mut macro_call) = item else {
-                return Err(compile::Error::msg(&item, "Expected attributes on macro call"));
+                return Err(compile::Error::msg(
+                    &item,
+                    "Expected attributes on macro call",
+                ));
             };
 
             macro_call.attributes = skipped_attributes;
@@ -802,7 +807,10 @@ fn item_fn(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemFn) -> compile::Result<(
         }
 
         let Some(impl_item) = idx.item.impl_item else {
-            return Err(compile::Error::new(&ast, ErrorKind::InstanceFunctionOutsideImpl));
+            return Err(compile::Error::new(
+                &ast,
+                ErrorKind::InstanceFunctionOutsideImpl,
+            ));
         };
 
         idx.q.index_and_build(indexing::Entry {
@@ -1466,7 +1474,10 @@ fn item_impl(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemImpl) -> compile::Resu
 
     for path_segment in ast.path.as_components() {
         let Some(ident_segment) = path_segment.try_as_ident() else {
-            return Err(compile::Error::msg(path_segment, "Unsupported path segment"));
+            return Err(compile::Error::msg(
+                path_segment,
+                "Unsupported path segment",
+            ));
         };
 
         let ident = ident_segment.resolve(resolve_context!(idx.q))?;
@@ -1626,7 +1637,10 @@ fn item(idx: &mut Indexer<'_, '_>, ast: ast::Item) -> compile::Result<()> {
             }
 
             let Some(queue) = idx.queue.as_mut() else {
-                return Err(compile::Error::msg(&item_use, "Imports are not supported in this context"));
+                return Err(compile::Error::msg(
+                    &item_use,
+                    "Imports are not supported in this context",
+                ));
             };
 
             let visibility = ast_to_visibility(&item_use.visibility)?;

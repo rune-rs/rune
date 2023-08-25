@@ -32,7 +32,11 @@ impl Derive {
 
         let inner = match &self.input.data {
             syn::Data::Struct(st) => {
-                let Ok(inner) = expander.expand_struct_fields(&st.fields, |member| quote!(&self.#member), is_option_spanned) else {
+                let Ok(inner) = expander.expand_struct_fields(
+                    &st.fields,
+                    |member| quote!(&self.#member),
+                    is_option_spanned,
+                ) else {
                     return Err(expander.cx.errors.into_inner());
                 };
 

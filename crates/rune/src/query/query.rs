@@ -4,6 +4,7 @@ use core::mem::take;
 use crate::no_std::borrow::Cow;
 use crate::no_std::collections::{hash_map, BTreeMap, HashMap, HashSet, VecDeque};
 use crate::no_std::prelude::*;
+use crate::no_std::rc::Rc;
 use crate::no_std::sync::Arc;
 
 use crate::ast::{Span, Spanned};
@@ -62,7 +63,7 @@ pub(crate) struct QueryInner<'arena> {
     /// be compiled.
     indexed: BTreeMap<ItemId, Vec<indexing::Entry>>,
     /// Compiled constant functions.
-    const_fns: HashMap<NonZeroId, Arc<ConstFn<'arena>>>,
+    const_fns: HashMap<NonZeroId, Rc<ConstFn<'arena>>>,
     /// Indexed constant values.
     constants: HashMap<Hash, ConstValue>,
     /// Query paths.
@@ -319,7 +320,10 @@ impl<'a, 'arena> Query<'a, 'arena> {
         };
 
         let Some(item) = &meta.item else {
-            return Err(compile::Error::new(location.as_spanned(), ErrorKind::MissingItemHash { hash: meta.hash }));
+            return Err(compile::Error::new(
+                location.as_spanned(),
+                ErrorKind::MissingItemHash { hash: meta.hash },
+            ));
         };
 
         let meta = meta::Meta {
@@ -587,7 +591,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
     }
 
     /// Get the constant function associated with the opaque.
-    pub(crate) fn const_fn_for<T>(&self, ast: T) -> compile::Result<Arc<ConstFn<'a>>, MissingId>
+    pub(crate) fn const_fn_for<T>(&self, ast: T) -> compile::Result<Rc<ConstFn<'a>>, MissingId>
     where
         T: Opaque,
     {
@@ -855,8 +859,16 @@ impl<'a, 'arena> Query<'a, 'arena> {
             return Err(compile::Error::msg(path, "Tried to use non-indexed path"));
         };
 
-        let Some(&QueryPath { module, item, impl_item }) = self.inner.query_paths.get(&id) else {
-            return Err(compile::Error::msg(path, format_args!("Missing query path for id {}", id)));
+        let Some(&QueryPath {
+            module,
+            item,
+            impl_item,
+        }) = self.inner.query_paths.get(&id)
+        else {
+            return Err(compile::Error::msg(
+                path,
+                format_args!("Missing query path for id {}", id),
+            ));
         };
 
         let mut in_self_type = false;
@@ -871,7 +883,10 @@ impl<'a, 'arena> Query<'a, 'arena> {
             (None, segment) => match segment {
                 ast::PathSegment::Ident(ident) => self.convert_initial_path(module, item, ident)?,
                 ast::PathSegment::Super(..) => {
-                    let Some(segment) = self.pool.try_map_alloc(self.pool.module(module).item, Item::parent) else {
+                    let Some(segment) = self
+                        .pool
+                        .try_map_alloc(self.pool.module(module).item, Item::parent)
+                    else {
                         return Err(compile::Error::new(segment, ErrorKind::UnsupportedSuper));
                     };
 
@@ -879,7 +894,10 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 }
                 ast::PathSegment::SelfType(..) => {
                     let Some(impl_item) = impl_item else {
-                        return Err(compile::Error::new(segment.span(), ErrorKind::UnsupportedSelfType));
+                        return Err(compile::Error::new(
+                            segment.span(),
+                            ErrorKind::UnsupportedSelfType,
+                        ));
                     };
 
                     in_self_type = true;
@@ -922,10 +940,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 }
                 ast::PathSegment::Generics(arguments) => {
                     let Some(p) = parameters_it.next() else {
-                        return Err(compile::Error::new(
-                            segment,
-                            ErrorKind::UnsupportedGenerics,
-                        ));
+                        return Err(compile::Error::new(segment, ErrorKind::UnsupportedGenerics));
                     };
 
                     trailing += 1;
@@ -954,13 +969,11 @@ impl<'a, 'arena> Query<'a, 'arena> {
             item.push(ident.resolve(resolve_context!(self))?);
 
             let Some(p) = parameters_it.next() else {
-                return Err(compile::Error::new(
-                    segment,
-                    ErrorKind::UnsupportedGenerics,
-                ));
+                return Err(compile::Error::new(segment, ErrorKind::UnsupportedGenerics));
             };
 
-            let Some(ast::PathSegment::Generics(arguments)) = it.clone().next().map(|(_, p)| p) else {
+            let Some(ast::PathSegment::Generics(arguments)) = it.clone().next().map(|(_, p)| p)
+            else {
                 continue;
             };
 
@@ -1004,8 +1017,15 @@ impl<'a, 'arena> Query<'a, 'arena> {
             None => None,
         };
 
-        let Some(last) = alias.as_ref().map(IntoComponent::as_component_ref).or_else(|| target.last()) else {
-            return Err(compile::Error::new(location.as_spanned(), ErrorKind::LastUseComponent));
+        let Some(last) = alias
+            .as_ref()
+            .map(IntoComponent::as_component_ref)
+            .or_else(|| target.last())
+        else {
+            return Err(compile::Error::new(
+                location.as_spanned(),
+                ErrorKind::LastUseComponent,
+            ));
         };
 
         let item = self.pool.alloc_item(at.extended(last));
@@ -1213,7 +1233,10 @@ impl<'a, 'arena> Query<'a, 'arena> {
 
                 // Ensure that the enum is being built and marked as used.
                 let Some(enum_meta) = self.query_meta(span, enum_.item, Default::default())? else {
-                    return Err(compile::Error::msg(span, format_args!("Missing enum by {:?}", variant.enum_id)));
+                    return Err(compile::Error::msg(
+                        span,
+                        format_args!("Missing enum by {:?}", variant.enum_id),
+                    ));
                 };
 
                 meta::Kind::Variant {
@@ -1415,7 +1438,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
 
                 self.inner.const_fns.insert(
                     id,
-                    Arc::new(ConstFn {
+                    Rc::new(ConstFn {
                         item_meta,
                         ir_fn,
                         hir,

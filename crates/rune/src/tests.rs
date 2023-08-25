@@ -89,7 +89,7 @@ pub fn vm(
             .expect("Emit diagnostics");
 
         let buffer = String::from_utf8(buffer.into_inner()).expect("Non utf-8 output");
-        return Err(RunError::BuildError(buffer))
+        return Err(RunError::BuildError(buffer));
     };
 
     let context = Arc::new(context.runtime());

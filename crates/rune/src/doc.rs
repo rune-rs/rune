@@ -1,7 +1,7 @@
 //! Helper to generate documentation from a context.
 
 mod context;
-pub(self) use self::context::Context;
+use self::context::Context;
 
 mod artifacts;
 pub(crate) use self::artifacts::{TestParams, Artifacts};

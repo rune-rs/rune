@@ -110,7 +110,10 @@ impl Interpreter<'_, '_> {
                 match &meta.kind {
                     meta::Kind::Const => {
                         let Some(const_value) = self.q.get_const_value(meta.hash) else {
-                            return Err(compile::Error::msg(span, format_args!("Missing constant for hash {}", meta.hash)));
+                            return Err(compile::Error::msg(
+                                span,
+                                format_args!("Missing constant for hash {}", meta.hash),
+                            ));
                         };
 
                         return Ok(ir::Value::from_const(const_value));
