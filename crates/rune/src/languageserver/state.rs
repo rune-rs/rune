@@ -253,10 +253,14 @@ impl<'a> State<'a> {
     pub(super) fn format(&mut self, uri: &Url) -> Result<Option<lsp::TextEdit>> {
         let sources = &mut self.workspace.sources;
         tracing::trace!(uri = ?uri, uri_exists = sources.get(uri).is_some());
-        let Some(workspace_source) = sources.get_mut(uri) else { return Ok(None); };
+        let Some(workspace_source) = sources.get_mut(uri) else {
+            return Ok(None);
+        };
 
         let source = workspace_source.content.to_string();
-        let Ok(formatted) = crate::fmt::layout_source(&source) else { return Ok(None) };
+        let Ok(formatted) = crate::fmt::layout_source(&source) else {
+            return Ok(None);
+        };
         let formatted = String::from_utf8(formatted).context("format produced invalid utf8")?;
 
         // Only modify if changed
@@ -525,7 +529,10 @@ fn emit_scripts(diagnostics: crate::Diagnostics, build: &Build, reporter: &mut R
                 FatalDiagnosticKind::LinkError(e) => match e {
                     LinkerError::MissingFunction { hash, spans } => {
                         for (span, source_id) in spans {
-                            let (Some(url), Some(source)) = (build.id_to_url.get(source_id), build.sources.get(*source_id)) else {
+                            let (Some(url), Some(source)) = (
+                                build.id_to_url.get(source_id),
+                                build.sources.get(*source_id),
+                            ) else {
                                 continue;
                             };
 
@@ -732,7 +739,10 @@ where
 {
     let span = error.span();
 
-    let (Some(source), Some(url)) = (build.sources.get(source_id), build.id_to_url.get(&source_id)) else {
+    let (Some(source), Some(url)) = (
+        build.sources.get(source_id),
+        build.id_to_url.get(&source_id),
+    ) else {
         return;
     };
 

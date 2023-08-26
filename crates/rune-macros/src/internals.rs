@@ -22,6 +22,9 @@ pub const INSTALL_WITH: Symbol = Symbol("install_with");
 
 pub const CONSTRUCTOR: Symbol = Symbol("constructor");
 pub const BUILTIN: Symbol = Symbol("builtin");
+pub const STATIC_TYPE: Symbol = Symbol("static_type");
+pub const FROM_VALUE: Symbol = Symbol("from_value");
+pub const FROM_VALUE_PARAMS: Symbol = Symbol("from_value_params");
 pub const GET: Symbol = Symbol("get");
 pub const SET: Symbol = Symbol("set");
 pub const COPY: Symbol = Symbol("copy");

@@ -95,7 +95,9 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
         p: &mut attrs::Parser,
         ast: &mut ast::MacroCall,
     ) -> compile::Result<bool> {
-        let Some((_, builtin)) = p.try_parse::<attrs::BuiltIn>(resolve_context!(self.q), &ast.attributes)? else {
+        let Some((_, builtin)) =
+            p.try_parse::<attrs::BuiltIn>(resolve_context!(self.q), &ast.attributes)?
+        else {
             return Ok(false);
         };
 
@@ -108,7 +110,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
                 ErrorKind::NoSuchBuiltInMacro {
                     name: ast.path.resolve(resolve_context!(self.q))?,
                 },
-            ))
+            ));
         };
 
         let ident = ident.resolve(resolve_context!(self.q))?;
@@ -456,12 +458,13 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
                 .load(root, self.q.pool.module_item(mod_item), &*item_mod)?;
 
         if let Some(loaded) = self.loaded.as_mut() {
-            if let Some(existing) = loaded.insert(mod_item, (self.source_id, item_mod.span())) {
+            if let Some(_existing) = loaded.insert(mod_item, (self.source_id, item_mod.span())) {
                 return Err(compile::Error::new(
                     &*item_mod,
                     ErrorKind::ModAlreadyLoaded {
                         item: self.q.pool.module_item(mod_item).to_owned(),
-                        existing,
+                        #[cfg(feature = "emit")]
+                        existing: _existing,
                     },
                 ));
             }
@@ -561,11 +564,11 @@ pub(crate) fn file(idx: &mut Indexer<'_, '_>, ast: &mut ast::File) -> compile::R
             // for the `item` handler or to be used by the macro_call expansion
             // below.
             if let Some(mut attr) = item.remove_first_attribute() {
-                let Some(file) = idx.expand_attribute_macro::<ast::File>(&mut attr, &mut item)? else {
+                let Some(file) = idx.expand_attribute_macro::<ast::File>(&mut attr, &mut item)?
+                else {
                     skipped_attributes.push(attr);
 
-                    if !matches!(item, ast::Item::MacroCall(_)) && item.attributes().is_empty()
-                    {
+                    if !matches!(item, ast::Item::MacroCall(_)) && item.attributes().is_empty() {
                         // For all we know only non macro attributes remain, which will be
                         // handled by the item handler.
                         *item.attributes_mut() = skipped_attributes;
@@ -597,7 +600,10 @@ pub(crate) fn file(idx: &mut Indexer<'_, '_>, ast: &mut ast::File) -> compile::R
             }
 
             let ast::Item::MacroCall(mut macro_call) = item else {
-                return Err(compile::Error::msg(&item, "Expected attributes on macro call"));
+                return Err(compile::Error::msg(
+                    &item,
+                    "Expected attributes on macro call",
+                ));
             };
 
             macro_call.attributes = skipped_attributes;
@@ -751,10 +757,13 @@ fn item_fn(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemFn) -> compile::Result<(
 
     let is_test = match p.try_parse::<attrs::Test>(resolve_context!(idx.q), &ast.attributes)? {
         Some((attr, _)) => {
-            if let Some(nested_span) = idx.nested_item {
+            if let Some(_nested_span) = idx.nested_item {
                 return Err(compile::Error::new(
                     attr,
-                    ErrorKind::NestedTest { nested_span },
+                    ErrorKind::NestedTest {
+                        #[cfg(feature = "emit")]
+                        nested_span: _nested_span,
+                    },
                 ));
             }
 
@@ -765,12 +774,15 @@ fn item_fn(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemFn) -> compile::Result<(
 
     let is_bench = match p.try_parse::<attrs::Bench>(resolve_context!(idx.q), &ast.attributes)? {
         Some((attr, _)) => {
-            if let Some(nested_span) = idx.nested_item {
+            if let Some(_nested_span) = idx.nested_item {
                 let span = attr.span().join(ast.descriptive_span());
 
                 return Err(compile::Error::new(
                     span,
-                    ErrorKind::NestedBench { nested_span },
+                    ErrorKind::NestedBench {
+                        #[cfg(feature = "emit")]
+                        nested_span: _nested_span,
+                    },
                 ));
             }
 
@@ -802,7 +814,10 @@ fn item_fn(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemFn) -> compile::Result<(
         }
 
         let Some(impl_item) = idx.item.impl_item else {
-            return Err(compile::Error::new(&ast, ErrorKind::InstanceFunctionOutsideImpl));
+            return Err(compile::Error::new(
+                &ast,
+                ErrorKind::InstanceFunctionOutsideImpl,
+            ));
         };
 
         idx.q.index_and_build(indexing::Entry {
@@ -932,6 +947,7 @@ fn statements(idx: &mut Indexer<'_, '_>, ast: &mut Vec<ast::Stmt>) -> compile::R
             return Err(compile::Error::new(
                 span,
                 ErrorKind::ExpectedBlockSemiColon {
+                    #[cfg(feature = "emit")]
                     followed_span: stmt.span(),
                 },
             ));
@@ -1466,7 +1482,10 @@ fn item_impl(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemImpl) -> compile::Resu
 
     for path_segment in ast.path.as_components() {
         let Some(ident_segment) = path_segment.try_as_ident() else {
-            return Err(compile::Error::msg(path_segment, "Unsupported path segment"));
+            return Err(compile::Error::msg(
+                path_segment,
+                "Unsupported path segment",
+            ));
         };
 
         let ident = ident_segment.resolve(resolve_context!(idx.q))?;
@@ -1626,7 +1645,10 @@ fn item(idx: &mut Indexer<'_, '_>, ast: ast::Item) -> compile::Result<()> {
             }
 
             let Some(queue) = idx.queue.as_mut() else {
-                return Err(compile::Error::msg(&item_use, "Imports are not supported in this context"));
+                return Err(compile::Error::msg(
+                    &item_use,
+                    "Imports are not supported in this context",
+                ));
             };
 
             let visibility = ast_to_visibility(&item_use.visibility)?;

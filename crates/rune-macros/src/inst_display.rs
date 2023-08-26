@@ -23,7 +23,10 @@ impl Derive {
         let mut errors = Vec::new();
 
         let syn::Data::Enum(en) = &self.input.data else {
-            errors.push(syn::Error::new_spanned(&self.input.ident, "InstDisplay is only supported for enums"));
+            errors.push(syn::Error::new_spanned(
+                &self.input.ident,
+                "InstDisplay is only supported for enums",
+            ));
             return Err(errors);
         };
 

@@ -212,6 +212,7 @@ pub(crate) enum ErrorKind {
     },
     ModAlreadyLoaded {
         item: ItemBuf,
+        #[cfg(feature = "emit")]
         existing: (SourceId, Span),
     },
     MissingMacro {
@@ -268,7 +269,9 @@ pub(crate) enum ErrorKind {
     UnsupportedPatternExpr,
     UnsupportedBinding,
     DuplicateObjectKey {
+        #[cfg(feature = "emit")]
         existing: Span,
+        #[cfg(feature = "emit")]
         object: Span,
     },
     InstanceFunctionOutsideImpl,
@@ -279,6 +282,7 @@ pub(crate) enum ErrorKind {
     ContinueOutsideOfLoop,
     SelectMultipleDefaults,
     ExpectedBlockSemiColon {
+        #[cfg(feature = "emit")]
         followed_span: Span,
     },
     FnConstAsyncConflict,
@@ -339,13 +343,16 @@ pub(crate) enum ErrorKind {
         name: Box<str>,
     },
     VariableMoved {
+        #[cfg(feature = "emit")]
         moved_at: Span,
     },
     UnsupportedGenerics,
     NestedTest {
+        #[cfg(feature = "emit")]
         nested_span: Span,
     },
     NestedBench {
+        #[cfg(feature = "emit")]
         nested_span: Span,
     },
     MissingFunctionHash {
@@ -356,6 +363,7 @@ pub(crate) enum ErrorKind {
     },
     PatternMissingFields {
         item: ItemBuf,
+        #[cfg(feature = "emit")]
         fields: Box<[Box<str>]>,
     },
     MissingLabelLocation {
@@ -412,21 +420,27 @@ pub(crate) enum ErrorKind {
     BadNumberLiteral,
     AmbiguousItem {
         item: ItemBuf,
+        #[cfg(feature = "emit")]
         locations: Vec<(Location, ItemBuf)>,
     },
     AmbiguousContextItem {
         item: ItemBuf,
+        #[cfg(feature = "emit")]
         infos: Box<[MetaInfo]>,
     },
     NotVisible {
+        #[cfg(feature = "emit")]
         chain: Vec<Location>,
+        #[cfg(feature = "emit")]
         location: Location,
         visibility: Visibility,
         item: ItemBuf,
         from: ItemBuf,
     },
     NotVisibleMod {
+        #[cfg(feature = "emit")]
         chain: Vec<Location>,
+        #[cfg(feature = "emit")]
         location: Location,
         visibility: Visibility,
         item: ItemBuf,
@@ -436,6 +450,7 @@ pub(crate) enum ErrorKind {
         item: ItemBuf,
     },
     ImportCycle {
+        #[cfg(feature = "emit")]
         path: Vec<ImportStep>,
     },
     ImportRecursionLimit {

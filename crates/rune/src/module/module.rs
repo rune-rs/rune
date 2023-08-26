@@ -241,7 +241,7 @@ impl Module {
     /// Accessor to modify type metadata such as documentaiton, fields, variants.
     pub fn type_meta<T>(&mut self) -> Result<TypeMut<'_, T>, ContextError>
     where
-        T: Named + TypeOf,
+        T: ?Sized + Named + TypeOf,
     {
         let type_hash = T::type_hash();
 
@@ -955,7 +955,7 @@ impl Module {
     /// }
     ///
     /// /// Construct a new [`Struct`].
-    /// #[rune::function(path = Struct::new)]
+    /// #[rune::function(free, path = Struct::new)]
     /// fn new() -> Struct {
     ///     Struct {
     ///        /* .. */
@@ -965,6 +965,24 @@ impl Module {
     ///
     /// The first part `Struct` in `Struct::new` is used to determine the type
     /// the function is associated with.
+    ///
+    /// Protocol functions can either be defined in an impl block or externally.
+    /// To define a protocol externally, you can simply do this:
+    ///
+    /// ```rust
+    /// # use rune::Any;
+    /// # use rune::runtime::Formatter;
+    /// #[derive(Any)]
+    /// struct Struct {
+    ///     /* .. */
+    /// }
+    ///
+    /// #[rune::function(instance, protocol = STRING_DISPLAY)]
+    /// fn string_display(this: &Struct, f: &mut Formatter) -> std::fmt::Result {
+    ///     /* .. */
+    ///     # todo!()
+    /// }
+    /// ```
     ///
     /// # Examples
     ///

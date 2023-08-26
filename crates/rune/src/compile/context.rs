@@ -7,7 +7,9 @@ use crate::no_std::sync::Arc;
 use crate::compile::meta;
 #[cfg(feature = "doc")]
 use crate::compile::Docs;
-use crate::compile::{ComponentRef, ContextError, IntoComponent, Item, ItemBuf, MetaInfo, Names};
+#[cfg(feature = "emit")]
+use crate::compile::MetaInfo;
+use crate::compile::{ComponentRef, ContextError, IntoComponent, Item, ItemBuf, Names};
 use crate::hash;
 use crate::module::{
     Fields, InternalEnum, Module, ModuleAssociated, ModuleAttributeMacro, ModuleConstant,
@@ -35,6 +37,7 @@ pub(crate) struct ContextMeta {
 }
 
 impl ContextMeta {
+    #[cfg(feature = "emit")]
     pub(crate) fn info(&self) -> MetaInfo {
         MetaInfo::new(&self.kind, self.hash, self.item.as_deref())
     }
@@ -136,6 +139,7 @@ impl Context {
         this.install(crate::modules::any::module()?)?;
         this.install(crate::modules::bytes::module()?)?;
         this.install(crate::modules::char::module()?)?;
+        this.install(crate::modules::hash::module()?)?;
         this.install(crate::modules::cmp::module()?)?;
         this.install(crate::modules::collections::module()?)?;
         this.install(crate::modules::f64::module()?)?;

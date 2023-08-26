@@ -242,7 +242,7 @@ impl UnsafeToRef for Option<Value> {
         let option = vm_try!(value.into_option());
         let option = vm_try!(option.into_ref());
         let (value, guard) = Ref::into_raw(option);
-        VmResult::Ok((&*value, guard))
+        VmResult::Ok((value.as_ref(), guard))
     }
 }
 
@@ -252,8 +252,8 @@ impl UnsafeToMut for Option<Value> {
     unsafe fn unsafe_to_mut<'a>(value: Value) -> VmResult<(&'a mut Self, Self::Guard)> {
         let option = vm_try!(value.into_option());
         let option = vm_try!(option.into_mut());
-        let (value, guard) = Mut::into_raw(option);
-        VmResult::Ok((&mut *value, guard))
+        let (mut value, guard) = Mut::into_raw(option);
+        VmResult::Ok((value.as_mut(), guard))
     }
 }
 
@@ -312,7 +312,7 @@ impl UnsafeToRef for str {
             Value::String(string) => {
                 let string = vm_try!(string.into_ref());
                 let (string, guard) = Ref::into_raw(string);
-                VmResult::Ok((&*string, guard))
+                VmResult::Ok((string.as_ref(), guard))
             }
             actual => VmResult::err(VmErrorKind::expected::<String>(vm_try!(actual.type_info()))),
         }
@@ -326,8 +326,8 @@ impl UnsafeToMut for str {
         match value {
             Value::String(string) => {
                 let string = vm_try!(string.into_mut());
-                let (string, guard) = Mut::into_raw(string);
-                VmResult::Ok(((*string).as_mut_str(), guard))
+                let (mut string, guard) = Mut::into_raw(string);
+                VmResult::Ok((string.as_mut().as_mut_str(), guard))
             }
             actual => VmResult::err(VmErrorKind::expected::<String>(vm_try!(actual.type_info()))),
         }
@@ -342,7 +342,7 @@ impl UnsafeToRef for String {
             Value::String(string) => {
                 let string = vm_try!(string.into_ref());
                 let (string, guard) = Ref::into_raw(string);
-                VmResult::Ok((&*string, guard))
+                VmResult::Ok((string.as_ref(), guard))
             }
             actual => VmResult::err(VmErrorKind::expected::<String>(vm_try!(actual.type_info()))),
         }
@@ -356,8 +356,8 @@ impl UnsafeToMut for String {
         match value {
             Value::String(string) => {
                 let string = vm_try!(string.into_mut());
-                let (string, guard) = Mut::into_raw(string);
-                VmResult::Ok((&mut *string, guard))
+                let (mut string, guard) = Mut::into_raw(string);
+                VmResult::Ok((string.as_mut(), guard))
             }
             actual => VmResult::err(VmErrorKind::expected::<String>(vm_try!(actual.type_info()))),
         }
@@ -384,7 +384,7 @@ impl UnsafeToRef for Result<Value, Value> {
         let result = vm_try!(value.into_result());
         let result = vm_try!(result.into_ref());
         let (value, guard) = Ref::into_raw(result);
-        VmResult::Ok((&*value, guard))
+        VmResult::Ok((value.as_ref(), guard))
     }
 }
 
@@ -394,8 +394,8 @@ impl UnsafeToMut for Result<Value, Value> {
     unsafe fn unsafe_to_mut<'a>(value: Value) -> VmResult<(&'a mut Self, Self::Guard)> {
         let result = vm_try!(value.into_result());
         let result = vm_try!(result.into_mut());
-        let (value, guard) = Mut::into_raw(result);
-        VmResult::Ok((&mut *value, guard))
+        let (mut value, guard) = Mut::into_raw(result);
+        VmResult::Ok((value.as_mut(), guard))
     }
 }
 

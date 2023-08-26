@@ -5,9 +5,9 @@ use core::task::{Context, Poll};
 
 use crate::no_std::prelude::*;
 
-use crate::compile::Named;
-use crate::module::InstallWith;
-use crate::runtime::{RawStr, ToValue, Value, VmErrorKind, VmResult};
+use crate as rune;
+use crate::runtime::{ToValue, Value, VmErrorKind, VmResult};
+use crate::Any;
 
 use pin_project::pin_project;
 
@@ -16,6 +16,8 @@ type DynFuture = dyn future::Future<Output = VmResult<Value>> + 'static;
 
 /// A type-erased future that can only be unsafely polled in combination with
 /// the virtual machine that created it.
+#[derive(Any)]
+#[rune(builtin, static_type = FUTURE_TYPE, from_value = Value::into_future)]
 pub struct Future {
     future: Option<Pin<Box<DynFuture>>>,
 }
@@ -109,11 +111,3 @@ where
         }
     }
 }
-
-from_value!(Future, into_future);
-
-impl Named for Future {
-    const BASE_NAME: RawStr = RawStr::from_str("Future");
-}
-
-impl InstallWith for Future {}

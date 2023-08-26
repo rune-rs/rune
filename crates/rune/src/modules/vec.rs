@@ -4,6 +4,8 @@ use core::cmp::Ordering;
 use core::fmt;
 
 use crate as rune;
+#[cfg(feature = "std")]
+use crate::runtime::Hasher;
 use crate::runtime::{
     EnvProtocolCaller, Formatter, Function, Iterator, Ref, TypeOf, Value, Vec, VmErrorKind,
     VmResult,
@@ -54,6 +56,8 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(eq)?;
     m.function_meta(partial_cmp)?;
     m.function_meta(cmp)?;
+    #[cfg(feature = "std")]
+    m.function_meta(hash)?;
     Ok(m)
 }
 
@@ -66,7 +70,7 @@ pub fn module() -> Result<Module, ContextError> {
 /// ```rune
 /// let vec = Vec::new();
 /// ```
-#[rune::function(path = Vec::new)]
+#[rune::function(free, path = Vec::new)]
 fn vec_new() -> Vec {
     Vec::new()
 }
@@ -114,7 +118,7 @@ fn vec_new() -> Vec {
 /// assert_eq!(vec.len(), 11);
 /// assert!(vec.capacity() >= 11);
 /// ```
-#[rune::function(path = Vec::with_capacity)]
+#[rune::function(free, path = Vec::with_capacity)]
 fn vec_with_capacity(capacity: usize) -> Vec {
     Vec::with_capacity(capacity)
 }
@@ -185,7 +189,7 @@ fn capacity(vec: &Vec) -> usize {
 /// assert_eq!(None, v.get(3));
 /// assert_eq!(None, v.get(0..4));
 /// ```
-#[rune::function(instance, path = Vec::get)]
+#[rune::function(instance)]
 fn get(this: &Vec, index: Value) -> VmResult<Option<Value>> {
     Vec::index_get(this, index)
 }
@@ -614,4 +618,19 @@ fn partial_cmp(this: &Vec, other: &Vec) -> VmResult<Option<Ordering>> {
 #[rune::function(instance, protocol = CMP)]
 fn cmp(this: &Vec, other: &Vec) -> VmResult<Ordering> {
     Vec::cmp_with(this, other, &mut EnvProtocolCaller)
+}
+
+/// Calculate the hash of a vector.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::ops::hash;
+///
+/// assert_eq!(hash([0, 2, 3]), hash([0, 2, 3]));
+/// ```
+#[rune::function(instance, protocol = HASH)]
+#[cfg(feature = "std")]
+fn hash(this: &Vec, hasher: &mut Hasher) -> VmResult<()> {
+    Vec::hash_with(this, hasher, &mut EnvProtocolCaller)
 }

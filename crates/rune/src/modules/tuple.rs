@@ -3,6 +3,8 @@
 use core::cmp::Ordering;
 
 use crate as rune;
+#[cfg(feature = "std")]
+use crate::runtime::Hasher;
 use crate::runtime::{EnvProtocolCaller, Iterator, Ref, Tuple, Value, Vec, VmResult};
 use crate::{ContextError, Module};
 
@@ -20,6 +22,8 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(eq)?;
     m.function_meta(partial_cmp)?;
     m.function_meta(cmp)?;
+    #[cfg(feature = "std")]
+    m.function_meta(hash)?;
     Ok(m)
 }
 
@@ -173,4 +177,21 @@ fn partial_cmp(this: &Tuple, other: &Tuple) -> VmResult<Option<Ordering>> {
 #[rune::function(instance, protocol = CMP)]
 fn cmp(this: &Tuple, other: &Tuple) -> VmResult<Ordering> {
     Vec::cmp_with(this, other, &mut EnvProtocolCaller)
+}
+
+/// Calculate a hash for a tuple.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::ops::hash;
+///
+/// assert_eq!(hash((0, 2, 3)), hash((0, 2, 3)));
+/// // Note: this is not guaranteed to be true forever, but it's true right now.
+/// assert_eq!(hash((0, 2, 3)), hash([0, 2, 3]));
+/// ```
+#[rune::function(instance, protocol = HASH)]
+#[cfg(feature = "std")]
+fn hash(this: &Tuple, hasher: &mut Hasher) -> VmResult<()> {
+    Tuple::hash_with(this, hasher, &mut EnvProtocolCaller)
 }

@@ -1,6 +1,6 @@
-use crate::compile::Named;
-use crate::module::InstallWith;
-use crate::runtime::{ProtocolCaller, RawStr, Value, VmResult};
+use crate as rune;
+use crate::runtime::{ProtocolCaller, Value, VmResult};
+use crate::Any;
 
 /// The state of a generator.
 ///
@@ -48,7 +48,8 @@ use crate::runtime::{ProtocolCaller, RawStr, Value, VmResult};
 /// assert_eq!(ret, 42);
 /// # Ok::<_, rune::Error>(())
 /// ```
-#[derive(Debug)]
+#[derive(Any, Debug)]
+#[rune(builtin, static_type = GENERATOR_STATE_TYPE)]
 pub enum GeneratorState {
     /// The generator yielded.
     Yielded(Value),
@@ -97,9 +98,3 @@ impl GeneratorState {
 }
 
 from_value!(GeneratorState, into_generator_state);
-
-impl Named for GeneratorState {
-    const BASE_NAME: RawStr = RawStr::from_str("GeneratorState");
-}
-
-impl InstallWith for GeneratorState {}

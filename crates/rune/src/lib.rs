@@ -5,7 +5,7 @@
 //! <a href="https://docs.rs/rune"><img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-rune-66c2a5?style=for-the-badge&logoColor=white&logo=data:image/svg+xml;base64,PHN2ZyByb2xlPSJpbWciIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveD0iMCAwIDUxMiA1MTIiPjxwYXRoIGZpbGw9IiNmNWY1ZjUiIGQ9Ik00ODguNiAyNTAuMkwzOTIgMjE0VjEwNS41YzAtMTUtOS4zLTI4LjQtMjMuNC0zMy43bC0xMDAtMzcuNWMtOC4xLTMuMS0xNy4xLTMuMS0yNS4zIDBsLTEwMCAzNy41Yy0xNC4xIDUuMy0yMy40IDE4LjctMjMuNCAzMy43VjIxNGwtOTYuNiAzNi4yQzkuMyAyNTUuNSAwIDI2OC45IDAgMjgzLjlWMzk0YzAgMTMuNiA3LjcgMjYuMSAxOS45IDMyLjJsMTAwIDUwYzEwLjEgNS4xIDIyLjEgNS4xIDMyLjIgMGwxMDMuOS01MiAxMDMuOSA1MmMxMC4xIDUuMSAyMi4xIDUuMSAzMi4yIDBsMTAwLTUwYzEyLjItNi4xIDE5LjktMTguNiAxOS45LTMyLjJWMjgzLjljMC0xNS05LjMtMjguNC0yMy40LTMzLjd6TTM1OCAyMTQuOGwtODUgMzEuOXYtNjguMmw4NS0zN3Y3My4zek0xNTQgMTA0LjFsMTAyLTM4LjIgMTAyIDM4LjJ2LjZsLTEwMiA0MS40LTEwMi00MS40di0uNnptODQgMjkxLjFsLTg1IDQyLjV2LTc5LjFsODUtMzguOHY3NS40em0wLTExMmwtMTAyIDQxLjQtMTAyLTQxLjR2LS42bDEwMi0zOC4yIDEwMiAzOC4ydi42em0yNDAgMTEybC04NSA0Mi41di03OS4xbDg1LTM4Ljh2NzUuNHptMC0xMTJsLTEwMiA0MS40LTEwMi00MS40di0uNmwxMDItMzguMiAxMDIgMzguMnYuNnoiPjwvcGF0aD48L3N2Zz4K" height="20"></a>
 //! <a href="https://discord.gg/v5AeNkT"><img alt="chat on discord" src="https://img.shields.io/discord/558644981137670144.svg?logo=discord&style=flat-square" height="20"></a>
 //! <br>
-//! Minimum support: Rust <b>1.67+</b>.
+//! Minimum support: Rust <b>1.70+</b>.
 //! <br>
 //! <br>
 //! <a href="https://rune-rs.github.io"><b>Visit the site 🌐</b></a>
@@ -208,8 +208,8 @@ mod exported_macros;
 #[macro_use]
 pub mod ast;
 
-#[cfg(feature = "fmt")]
-pub mod fmt;
+#[cfg(all(feature = "fmt", feature = "cli"))]
+pub(crate) mod fmt;
 
 cfg_emit! {
     pub use ::codespan_reporting::term::termcolor;
@@ -269,6 +269,9 @@ cfg_workspace! {
     pub mod workspace;
 }
 
+#[cfg(feature = "std")]
+mod hashbrown;
+
 // Macros used internally and re-exported.
 pub(crate) use rune_macros::__internal_impl_any;
 
@@ -279,10 +282,15 @@ pub(crate) use rune_macros::__internal_impl_any;
 ///   generated Rune documentation.
 /// * The name of arguments is captured to improve documentation generation.
 /// * If an instance function is annotated this is detected (if the function
-///   receives `self`). This behavior can be forced using `#[rune::function(instance)]` if
-///   the function doesn't take `self`.
-/// * The name of the function can be set using the `#[rune::function(path = ...)]`.
-/// * Instance functions can be made a protocol function `#[rune::function(protocol = STRING_DISPLAY)]`.
+///   receives `self`). This behavior can be forced using
+///   `#[rune::function(instance)]` if the function doesn't take `self`.
+/// * The name of the function can be set using the `#[rune::function(path =
+///   name)]` argument.
+/// * An associated function can be specified with the `#[rune::function(path =
+///   Type::name)]` argument. If `instance` is specified it is an associated
+///   instance function that can be defined externally.
+/// * Instance functions can be made a protocol function
+///   `#[rune::function(protocol = STRING_DISPLAY)]`.
 ///
 /// # Instance and associated functions
 ///
@@ -371,7 +379,7 @@ pub(crate) use rune_macros::__internal_impl_any;
 /// }
 ///
 /// /// Construct a new [`Struct`].
-/// #[rune::function(path = Struct::new)]
+/// #[rune::function(free, path = Struct::new)]
 /// fn new() -> Struct {
 ///     Struct {
 ///        /* .. */
@@ -381,6 +389,24 @@ pub(crate) use rune_macros::__internal_impl_any;
 ///
 /// The first part `Struct` in `Struct::new` is used to determine the type
 /// the function is associated with.
+///
+/// Protocol functions can either be defined in an impl block or externally. To
+/// define a protocol externally, you can simply do this:
+///
+/// ```rust
+/// # use rune::Any;
+/// # use rune::runtime::Formatter;
+/// #[derive(Any)]
+/// struct Struct {
+///     /* .. */
+/// }
+///
+/// #[rune::function(instance, protocol = STRING_DISPLAY)]
+/// fn string_display(this: &Struct, f: &mut Formatter) -> std::fmt::Result {
+///     /* .. */
+///     # todo!()
+/// }
+/// ```
 ///
 /// # Examples
 ///
@@ -485,7 +511,7 @@ pub(crate) use rune_macros::__internal_impl_any;
 /// /// let string = String::empty();
 /// /// assert_eq!(string, "hello");
 /// /// ```
-/// #[rune::function(path = String::empty)]
+/// #[rune::function(free, path = String::empty)]
 /// fn empty() -> String {
 ///     String {
 ///         inner: std::string::String::new()

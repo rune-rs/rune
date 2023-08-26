@@ -127,7 +127,7 @@ impl NotCharBoundary {
 /// [`Vec<u8>`]: crate::vec::Vec "Vec"
 /// [`&str`]: prim@str "&str"
 /// [`into_bytes`]: String::into_bytes
-#[rune::function(path = String::from_utf8)]
+#[rune::function(free, path = String::from_utf8)]
 fn from_utf8(bytes: &[u8]) -> Result<String, FromUtf8Error> {
     String::from_utf8(bytes.to_vec())
 }
@@ -163,12 +163,12 @@ fn as_bytes(s: &str) -> Bytes {
 /// let s = String::from("hello");
 /// assert_eq!(s, "hello");
 /// ```
-#[rune::function(path = String::from)]
+#[rune::function(free, path = String::from)]
 fn string_from(value: &str) -> String {
     String::from(value)
 }
 
-#[rune::function(path = String::from_str)]
+#[rune::function(free, path = String::from_str)]
 fn string_from_str(value: &str) -> String {
     String::from(value)
 }
@@ -190,7 +190,7 @@ fn string_from_str(value: &str) -> String {
 /// ```
 /// let s = String::new();
 /// ```
-#[rune::function(path = String::new)]
+#[rune::function(free, path = String::new)]
 fn string_new() -> String {
     String::new()
 }
@@ -233,7 +233,7 @@ fn string_new() -> String {
 /// // ...but this may make the string reallocate
 /// s.push('a');
 /// ```
-#[rune::function(path = String::with_capacity)]
+#[rune::function(free, path = String::with_capacity)]
 fn string_with_capacity(capacity: usize) -> String {
     String::with_capacity(capacity)
 }

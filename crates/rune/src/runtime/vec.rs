@@ -10,12 +10,14 @@ use core::slice::SliceIndex;
 use crate::no_std::prelude::*;
 use crate::no_std::vec;
 
-use crate::compile::Named;
-use crate::module::InstallWith;
+use crate as rune;
+#[cfg(feature = "std")]
+use crate::runtime::Hasher;
 use crate::runtime::{
-    Formatter, FromValue, Iterator, ProtocolCaller, RawRef, RawStr, Ref, Shared, ToValue,
-    UnsafeToRef, Value, VmErrorKind, VmResult,
+    Formatter, FromValue, Iterator, ProtocolCaller, RawRef, Ref, Shared, ToValue, UnsafeToRef,
+    Value, VmErrorKind, VmResult,
 };
+use crate::Any;
 
 use self::iter::Iter;
 
@@ -36,8 +38,9 @@ use self::iter::Iter;
 /// assert_eq!(None::<bool>, vec.get_value(2).into_result()?);
 /// # Ok::<_, rune::Error>(())
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Any)]
 #[repr(transparent)]
+#[rune(builtin, static_type = VEC_TYPE, from_value = Value::into_vec)]
 pub struct Vec {
     inner: vec::Vec<Value>,
 }
@@ -378,6 +381,19 @@ impl Vec {
 
         VmResult::Ok(Some(Value::vec(values.to_vec())))
     }
+
+    #[cfg(feature = "std")]
+    pub(crate) fn hash_with(
+        &self,
+        hasher: &mut Hasher,
+        caller: &mut impl ProtocolCaller,
+    ) -> VmResult<()> {
+        for value in self.inner.iter() {
+            vm_try!(value.hash_with(hasher, caller));
+        }
+
+        VmResult::Ok(())
+    }
 }
 
 impl fmt::Debug for Vec {
@@ -448,14 +464,6 @@ impl From<Box<[Value]>> for Vec {
     }
 }
 
-impl Named for Vec {
-    const BASE_NAME: RawStr = RawStr::from_str("Vec");
-}
-
-impl InstallWith for Vec {}
-
-from_value!(Vec, into_vec);
-
 impl<T> FromValue for vec::Vec<T>
 where
     T: FromValue,
@@ -480,9 +488,9 @@ impl UnsafeToRef for [Value] {
     unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
         let vec = vm_try!(value.into_vec());
         let (vec, guard) = Ref::into_raw(vm_try!(vec.into_ref()));
-        // Safety: we're holding onto the guard for the vector here, so it is
+        // SAFETY: we're holding onto the guard for the vector here, so it is
         // live.
-        VmResult::Ok(((*vec).as_slice(), guard))
+        VmResult::Ok((vec.as_ref().as_slice(), guard))
     }
 }
 

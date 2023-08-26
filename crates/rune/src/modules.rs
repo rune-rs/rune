@@ -18,6 +18,7 @@ pub mod f64;
 pub mod fmt;
 pub mod future;
 pub mod generator;
+pub mod hash;
 pub mod i64;
 #[cfg(feature = "std")]
 pub mod io;

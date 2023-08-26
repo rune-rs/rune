@@ -49,7 +49,7 @@ use crate::Any;
 /// # Ok::<_, rune::Error>(())
 /// ```
 #[derive(Any, Clone)]
-#[rune(builtin, constructor)]
+#[rune(builtin, constructor, from_value = Value::into_range_from, static_type = RANGE_FROM_TYPE)]
 pub struct RangeFrom {
     /// The start value of the range.
     #[rune(get, set)]
@@ -285,5 +285,3 @@ where
         VmResult::Ok(ops::RangeFrom { start })
     }
 }
-
-from_value!(RangeFrom, into_range_from);

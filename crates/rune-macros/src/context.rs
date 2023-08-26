@@ -79,6 +79,12 @@ pub(crate) struct TypeAttr {
     /// Indicates that this is a builtin type, so don't generate an `Any`
     /// implementation for it.
     pub(crate) builtin: Option<Span>,
+    /// Indicate a static type to use.
+    pub(crate) static_type: Option<syn::Ident>,
+    /// Method to use to convert from value.
+    pub(crate) from_value: Option<syn::Path>,
+    /// Method to use to convert from value.
+    pub(crate) from_value_params: Option<syn::punctuated::Punctuated<syn::Type, Token![,]>>,
 }
 
 /// Parsed variant attributes.
@@ -455,6 +461,18 @@ impl Context {
                         attr.constructor = true;
                     } else if meta.path == BUILTIN {
                         attr.builtin = Some(meta.path.span());
+                    } else if meta.path == STATIC_TYPE {
+                        meta.input.parse::<Token![=]>()?;
+                        attr.static_type = Some(meta.input.parse()?);
+                    } else if meta.path == FROM_VALUE {
+                        meta.input.parse::<Token![=]>()?;
+                        attr.from_value = Some(meta.input.parse()?);
+                    } else if meta.path == FROM_VALUE_PARAMS {
+                        meta.input.parse::<Token![=]>()?;
+                        let content;
+                        syn::bracketed!(content in meta.input);
+                        attr.from_value_params =
+                            Some(syn::punctuated::Punctuated::parse_terminated(&content)?);
                     } else {
                         return Err(syn::Error::new_spanned(
                             &meta.path,
@@ -545,6 +563,15 @@ impl Context {
             Span::call_site(),
         )));
 
+        let mut alloc = syn::Path {
+            leading_colon: Some(<Token![::]>::default()),
+            segments: Punctuated::default(),
+        };
+        alloc.segments.push(syn::PathSegment::from(syn::Ident::new(
+            "alloc",
+            Span::call_site(),
+        )));
+
         let mut default_module;
 
         let m = match module {
@@ -570,6 +597,11 @@ impl Context {
             compile_error: path(m, ["compile", "Error"]),
             context_error: path(m, ["compile", "ContextError"]),
             from_value: path(m, ["runtime", "FromValue"]),
+            raw_ref: path(m, ["runtime", "RawRef"]),
+            raw_mut: path(m, ["runtime", "RawMut"]),
+            ref_: path(m, ["runtime", "Ref"]),
+            mut_: path(m, ["runtime", "Mut"]),
+            vm_try: path(m, ["vm_try"]),
             full_type_of: path(m, ["runtime", "FullTypeOf"]),
             hash: path(m, ["Hash"]),
             id: path(m, ["parse", "Id"]),
@@ -612,6 +644,9 @@ impl Context {
             iterator: path(&core, ["iter", "Iterator"]),
             double_ended_iterator: path(&core, ["iter", "DoubleEndedIterator"]),
             option: path(&core, ["option", "Option"]),
+            non_null: path(&core, ["ptr", "NonNull"]),
+            box_: path(&alloc, ["boxed", "Box"]),
+            static_type_mod: path(m, ["runtime", "static_type"]),
         }
     }
 }
@@ -693,6 +728,14 @@ pub(crate) struct Tokens {
     pub(crate) iterator: syn::Path,
     pub(crate) double_ended_iterator: syn::Path,
     pub(crate) option: syn::Path,
+    pub(crate) non_null: syn::Path,
+    pub(crate) box_: syn::Path,
+    pub(crate) static_type_mod: syn::Path,
+    pub(crate) raw_ref: syn::Path,
+    pub(crate) raw_mut: syn::Path,
+    pub(crate) ref_: syn::Path,
+    pub(crate) mut_: syn::Path,
+    pub(crate) vm_try: syn::Path,
 }
 
 impl Tokens {

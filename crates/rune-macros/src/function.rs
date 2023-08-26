@@ -9,7 +9,6 @@ use syn::{Error, Token};
 enum Path {
     #[default]
     None,
-    Instance(syn::Ident, syn::PathSegment),
     Rename(syn::PathSegment),
     Protocol(syn::Path),
 }
@@ -17,12 +16,14 @@ enum Path {
 #[derive(Default)]
 pub(crate) struct FunctionAttrs {
     instance: bool,
+    /// A free function.
+    free: bool,
     /// Keep the existing function in place, and generate a separate hidden meta function.
     keep: bool,
     /// Path to register in.
     path: Path,
     /// Looks like an associated type.
-    self_type: bool,
+    self_type: Option<syn::PathSegment>,
 }
 
 impl FunctionAttrs {
@@ -35,6 +36,8 @@ impl FunctionAttrs {
 
             if ident == "instance" {
                 out.instance = true;
+            } else if ident == "free" {
+                out.free = true;
             } else if ident == "keep" {
                 out.keep = true;
             } else if ident == "protocol" {
@@ -55,10 +58,6 @@ impl FunctionAttrs {
                 })
             } else if ident == "path" {
                 input.parse::<Token![=]>()?;
-
-                if input.peek(Token![Self]) {
-                    out.self_type = true;
-                }
 
                 let path = input.parse::<syn::Path>()?;
 
@@ -86,7 +85,10 @@ impl FunctionAttrs {
                         ));
                     };
 
-                    out.path = Path::Instance(first.ident, second);
+                    out.self_type = Some(first);
+                    out.path = Path::Rename(second);
+                } else if first.ident == "Self" {
+                    out.self_type = Some(first);
                 } else {
                     out.path = Path::Rename(first);
                 }
@@ -200,37 +202,33 @@ impl Function {
             (meta_fn, real_fn, sig, true)
         };
 
-        let real_fn_path = if self.takes_self || attrs.self_type {
-            let mut path = syn::Path {
-                leading_colon: None,
-                segments: Punctuated::default(),
-            };
-
-            path.segments.push(syn::PathSegment::from(syn::Ident::new(
-                "Self",
-                self.sig.span(),
-            )));
-            path.segments.push(syn::PathSegment::from(real_fn));
-
-            syn::TypePath { qself: None, path }
-        } else {
-            let mut path = syn::Path {
-                leading_colon: None,
-                segments: Punctuated::default(),
-            };
-
-            path.segments.push(syn::PathSegment::from(real_fn));
-            syn::TypePath { qself: None, path }
+        let mut path = syn::Path {
+            leading_colon: None,
+            segments: Punctuated::default(),
         };
+
+        match (self.takes_self, attrs.free, &attrs.self_type) {
+            (true, _, _) => {
+                path.segments
+                    .push(syn::PathSegment::from(<Token![Self]>::default()));
+                path.segments.push(syn::PathSegment::from(real_fn));
+            }
+            (_, false, Some(self_type)) => {
+                path.segments.push(self_type.clone());
+                path.segments.push(syn::PathSegment::from(real_fn));
+            }
+            _ => {
+                path.segments.push(syn::PathSegment::from(real_fn));
+            }
+        }
+
+        let real_fn_path = syn::TypePath { qself: None, path };
 
         let name_string = syn::LitStr::new(&self.sig.ident.to_string(), self.sig.ident.span());
 
-        let self_type;
         let mut name;
 
         if instance {
-            self_type = None;
-
             name = 'out: {
                 syn::Expr::Lit(syn::ExprLit {
                     attrs: Vec::new(),
@@ -243,21 +241,16 @@ impl Function {
                             })
                         }
                         Path::None => name_string.clone(),
-                        Path::Rename(last) | Path::Instance(_, last) => {
+                        Path::Rename(last) => {
                             syn::LitStr::new(&last.ident.to_string(), last.ident.span())
                         }
                     }),
                 })
             };
         } else {
-            self_type = match &attrs.path {
-                Path::Instance(self_type, _) => Some(self_type.clone()),
-                _ => None,
-            };
-
             name = match &attrs.path {
                 Path::None => expr_lit(&self.sig.ident),
-                Path::Rename(last) | Path::Instance(_, last) => expr_lit(&last.ident),
+                Path::Rename(last) => expr_lit(&last.ident),
                 Path::Protocol(protocol) => syn::Expr::Path(syn::ExprPath {
                     attrs: Vec::new(),
                     qself: None,
@@ -265,7 +258,7 @@ impl Function {
                 }),
             };
 
-            if !matches!(attrs.path, Path::Instance(..)) {
+            if attrs.self_type.is_none() {
                 let mut out = syn::ExprArray {
                     attrs: Vec::new(),
                     bracket_token: syn::token::Bracket::default(),
@@ -279,7 +272,7 @@ impl Function {
 
         let arguments = match &attrs.path {
             Path::None | Path::Protocol(_) => Punctuated::default(),
-            Path::Rename(last) | Path::Instance(_, last) => match &last.arguments {
+            Path::Rename(last) => match &last.arguments {
                 syn::PathArguments::AngleBracketed(arguments) => arguments.args.clone(),
                 syn::PathArguments::None => Punctuated::default(),
                 arguments => {
@@ -346,7 +339,7 @@ impl Function {
 
         let build_with = if instance {
             None
-        } else if let Some(self_type) = self_type {
+        } else if let Some(self_type) = &attrs.self_type {
             Some(quote!(.build_associated::<#self_type>()))
         } else {
             Some(quote!(.build()))

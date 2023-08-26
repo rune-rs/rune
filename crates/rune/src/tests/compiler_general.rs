@@ -38,8 +38,8 @@ fn test_pointers() {
 
 #[test]
 fn test_template_strings() {
-    assert_parse!(r#"pub fn main() { `hello \`` }"#);
-    assert_parse!(r#"pub fn main() { `hello \$` }"#);
+    assert_parse!(r"pub fn main() { `hello \`` }");
+    assert_parse!(r"pub fn main() { `hello \$` }");
 }
 
 #[test]

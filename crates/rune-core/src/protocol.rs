@@ -478,4 +478,12 @@ define! {
         repr: Some("value?"),
         doc: ["Allows the `?` operator to apply to values of this type."],
     };
+
+    /// Protocol used when calculating a hash.
+    pub const [HASH, HASH_HASH]: Protocol = Protocol {
+        name: "hash",
+        hash: 0xf6cf2d9f416cef08u64,
+        repr: Some("let output = hash($value)"),
+        doc: ["Hash the given value."],
+    };
 }

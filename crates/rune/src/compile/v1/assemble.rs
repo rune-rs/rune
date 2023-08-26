@@ -431,10 +431,7 @@ fn pat_lit<'hir>(
     load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, Needs) -> compile::Result<()>,
 ) -> compile::Result<bool> {
     let Some(inst) = pat_lit_inst(cx, hir)? else {
-        return Err(compile::Error::new(
-            hir,
-            ErrorKind::UnsupportedPatternExpr,
-        ));
+        return Err(compile::Error::new(hir, ErrorKind::UnsupportedPatternExpr));
     };
 
     load(cx, Needs::Value)?;
@@ -1204,10 +1201,7 @@ fn expr_binary<'hir>(
         };
 
         let Some(target) = supported else {
-            return Err(compile::Error::new(
-                span,
-                ErrorKind::UnsupportedBinaryExpr,
-            ));
+            return Err(compile::Error::new(span, ErrorKind::UnsupportedBinaryExpr));
         };
 
         let op = match bin_op {
@@ -1301,10 +1295,7 @@ fn expr_break<'hir>(
     _: Needs,
 ) -> compile::Result<Asm<'hir>> {
     let Some(current_loop) = cx.loops.last().cloned() else {
-        return Err(compile::Error::new(
-            span,
-            ErrorKind::BreakOutsideOfLoop,
-        ));
+        return Err(compile::Error::new(span, ErrorKind::BreakOutsideOfLoop));
     };
 
     let (last_loop, to_drop, has_value) = match (hir.label, hir.expr) {
@@ -1479,10 +1470,7 @@ fn expr_continue<'hir>(
     _: Needs,
 ) -> compile::Result<Asm<'hir>> {
     let Some(current_loop) = cx.loops.last().cloned() else {
-        return Err(compile::Error::new(
-            span,
-            ErrorKind::ContinueOutsideOfLoop,
-        ));
+        return Err(compile::Error::new(span, ErrorKind::ContinueOutsideOfLoop));
     };
 
     let last_loop = if let Some(label) = hir.label {
@@ -2019,10 +2007,7 @@ fn reorder_field_assignments<'hir>(
     for a in 0..hir.assignments.len() {
         loop {
             let Some(&b) = order.get(a) else {
-                return Err(compile::Error::msg(
-                    span,
-                    "Order out-of-bounds",
-                ));
+                return Err(compile::Error::msg(span, "Order out-of-bounds"));
             };
 
             if a == b {

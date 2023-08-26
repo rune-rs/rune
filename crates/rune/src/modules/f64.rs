@@ -293,10 +293,7 @@ fn partial_eq(this: f64, rhs: f64) -> bool {
 #[inline]
 fn eq(this: f64, rhs: f64) -> VmResult<bool> {
     let Some(ordering) = this.partial_cmp(&rhs) else {
-        return VmResult::err(VmErrorKind::IllegalFloatComparison {
-            lhs: this,
-            rhs,
-        })
+        return VmResult::err(VmErrorKind::IllegalFloatComparison { lhs: this, rhs });
     };
 
     VmResult::Ok(matches!(ordering, Ordering::Equal))
@@ -337,10 +334,7 @@ fn partial_cmp(this: f64, rhs: f64) -> Option<Ordering> {
 #[inline]
 fn cmp(this: f64, rhs: f64) -> VmResult<Ordering> {
     let Some(ordering) = this.partial_cmp(&rhs) else {
-        return VmResult::err(VmErrorKind::IllegalFloatComparison {
-            lhs: this,
-            rhs,
-        })
+        return VmResult::err(VmErrorKind::IllegalFloatComparison { lhs: this, rhs });
     };
 
     VmResult::Ok(ordering)

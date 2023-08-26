@@ -10,8 +10,8 @@ macro_rules! resolve_context {
 
 /// Build an implementation of `TypeOf` basic of a static type.
 macro_rules! impl_static_type {
-    (impl <$($p:ident),*> $ty:ty => $static_type:expr) => {
-        impl<$($p,)*> $crate::runtime::TypeOf for $ty {
+    (impl <$($p:ident),*> $ty:ty => $static_type:expr $(, where $($where:tt)+)?) => {
+        impl<$($p,)*> $crate::runtime::TypeOf for $ty $(where $($where)+)* {
             #[inline]
             fn type_hash() -> $crate::Hash {
                 $static_type.hash
@@ -23,7 +23,7 @@ macro_rules! impl_static_type {
             }
         }
 
-        impl<$($p,)*> $crate::runtime::MaybeTypeOf for $ty {
+        impl<$($p,)*> $crate::runtime::MaybeTypeOf for $ty $(where $($where)+)* {
             #[inline]
             fn maybe_type_of() -> Option<$crate::runtime::FullTypeOf> {
                 Some(<$ty as $crate::runtime::TypeOf>::type_of())
@@ -119,7 +119,7 @@ macro_rules! from_value {
                 let value = vm_try!(value.$into());
                 let value = vm_try!(value.into_ref());
                 let (value, guard) = $crate::runtime::Ref::into_raw(value);
-                $crate::runtime::VmResult::Ok((&*value, guard))
+                $crate::runtime::VmResult::Ok((value.as_ref(), guard))
             }
         }
 
@@ -131,8 +131,8 @@ macro_rules! from_value {
             ) -> $crate::runtime::VmResult<(&'a mut Self, Self::Guard)> {
                 let value = vm_try!(value.$into());
                 let value = vm_try!(value.into_mut());
-                let (value, guard) = $crate::runtime::Mut::into_raw(value);
-                $crate::runtime::VmResult::Ok((&mut *value, guard))
+                let (mut value, guard) = $crate::runtime::Mut::into_raw(value);
+                $crate::runtime::VmResult::Ok((value.as_mut(), guard))
             }
         }
 

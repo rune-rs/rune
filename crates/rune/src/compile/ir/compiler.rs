@@ -44,7 +44,10 @@ pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut Ctxt<'_, '_>) -> compile::Result
         }
         hir::ExprKind::Const(hash) => {
             let Some(value) = c.q.get_const_value(hash) else {
-                return Err(compile::Error::msg(hir, format_args!("Missing constant for hash {hash}")));
+                return Err(compile::Error::msg(
+                    hir,
+                    format_args!("Missing constant for hash {hash}"),
+                ));
             };
 
             ir::Ir::new(span, ir::Value::from_const(value))
@@ -393,7 +396,7 @@ fn expr_if(
         let Some(cond) = hir.condition else {
             let ir = block(&hir.block, c)?;
             default_branch = Some(ir);
-            continue
+            continue;
         };
 
         let cond = condition(cond, c)?;

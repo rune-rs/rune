@@ -10,13 +10,14 @@ use crate::no_std::prelude::*;
 
 use serde::{Deserialize, Serialize};
 
-use crate::compile::Named;
-use crate::module::InstallWith;
-use crate::runtime::{RawRef, RawStr, Ref, UnsafeToRef, Value, VmResult};
+use crate as rune;
+use crate::runtime::{RawRef, Ref, UnsafeToRef, Value, VmResult};
+use crate::Any;
 
 /// A vector of bytes.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
+#[derive(Any, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
 #[serde(transparent)]
+#[rune(builtin, static_type = BYTES_TYPE)]
 pub struct Bytes {
     #[serde(with = "serde_bytes")]
     pub(crate) bytes: Vec<u8>,
@@ -300,15 +301,9 @@ impl UnsafeToRef for [u8] {
         let (value, guard) = Ref::into_raw(bytes);
         // Safety: we're holding onto the guard for the slice here, so it is
         // live.
-        VmResult::Ok(((*value).as_slice(), guard))
+        VmResult::Ok((value.as_ref().as_slice(), guard))
     }
 }
-
-impl Named for Bytes {
-    const BASE_NAME: RawStr = RawStr::from_str("Bytes");
-}
-
-impl InstallWith for Bytes {}
 
 impl<const N: usize> cmp::PartialEq<[u8; N]> for Bytes {
     #[inline]

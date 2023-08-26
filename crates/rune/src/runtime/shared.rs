@@ -1064,13 +1064,13 @@ impl<T: ?Sized> Ref<T> {
     /// The returned pointer must not outlive the associated guard, since this
     /// prevents other uses of the underlying data which is incompatible with
     /// the current.
-    pub fn into_raw(this: Self) -> (*const T, RawRef) {
+    pub fn into_raw(this: Self) -> (ptr::NonNull<T>, RawRef) {
         let guard = RawRef {
             _guard: this.guard,
             _inner: this.inner,
         };
 
-        (this.data.as_ptr(), guard)
+        (this.data, guard)
     }
 }
 
@@ -1207,13 +1207,13 @@ impl<T: ?Sized> Mut<T> {
     /// The returned pointer must not outlive the associated guard, since this
     /// prevents other uses of the underlying data which is incompatible with
     /// the current.
-    pub fn into_raw(this: Self) -> (*mut T, RawMut) {
+    pub fn into_raw(this: Self) -> (ptr::NonNull<T>, RawMut) {
         let guard = RawMut {
             _guard: this.guard,
             _inner: this.inner,
         };
 
-        (this.data.as_ptr(), guard)
+        (this.data, guard)
     }
 }
 

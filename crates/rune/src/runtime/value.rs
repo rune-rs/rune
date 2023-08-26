@@ -4,6 +4,7 @@ use core::cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd};
 use core::fmt;
 use core::fmt::Write;
 use core::hash;
+use core::ptr;
 
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
@@ -18,6 +19,8 @@ use crate::runtime::{
     RangeTo, RangeToInclusive, RawMut, RawRef, Ref, Shared, Stream, ToValue, Type, TypeInfo,
     Variant, Vec, Vm, VmError, VmErrorKind, VmIntegerRepr, VmResult,
 };
+#[cfg(feature = "std")]
+use crate::runtime::{Hasher, Tuple};
 use crate::{Any, Hash};
 
 use serde::{de, ser, Deserialize, Serialize};
@@ -1049,7 +1052,7 @@ impl Value {
     /// outlive the returned guard, not the virtual machine the value belongs
     /// to.
     #[inline]
-    pub fn into_any_ptr<T>(self) -> VmResult<(*const T, RawRef)>
+    pub fn into_any_ptr<T>(self) -> VmResult<(ptr::NonNull<T>, RawRef)>
     where
         T: Any,
     {
@@ -1073,7 +1076,7 @@ impl Value {
     /// outlive the returned guard, not the virtual machine the value belongs
     /// to.
     #[inline]
-    pub fn into_any_mut<T>(self) -> VmResult<(*mut T, RawMut)>
+    pub fn into_any_mut<T>(self) -> VmResult<(ptr::NonNull<T>, RawMut)>
     where
         T: Any,
     {
@@ -1099,7 +1102,7 @@ impl Value {
             Self::Integer(..) => crate::runtime::static_type::INTEGER_TYPE.hash,
             Self::Float(..) => crate::runtime::static_type::FLOAT_TYPE.hash,
             Self::Type(..) => crate::runtime::static_type::TYPE.hash,
-            Self::Ordering(..) => crate::runtime::static_type::ORDERING.hash,
+            Self::Ordering(..) => crate::runtime::static_type::ORDERING_TYPE.hash,
             Self::String(..) => crate::runtime::static_type::STRING_TYPE.hash,
             Self::Bytes(..) => crate::runtime::static_type::BYTES_TYPE.hash,
             Self::Vec(..) => crate::runtime::static_type::VEC_TYPE.hash,
@@ -1139,7 +1142,7 @@ impl Value {
             Self::Integer(..) => TypeInfo::StaticType(crate::runtime::static_type::INTEGER_TYPE),
             Self::Float(..) => TypeInfo::StaticType(crate::runtime::static_type::FLOAT_TYPE),
             Self::Type(..) => TypeInfo::StaticType(crate::runtime::static_type::TYPE),
-            Self::Ordering(..) => TypeInfo::StaticType(crate::runtime::static_type::ORDERING),
+            Self::Ordering(..) => TypeInfo::StaticType(crate::runtime::static_type::ORDERING_TYPE),
             Self::String(..) => TypeInfo::StaticType(crate::runtime::static_type::STRING_TYPE),
             Self::Bytes(..) => TypeInfo::StaticType(crate::runtime::static_type::BYTES_TYPE),
             Self::Vec(..) => TypeInfo::StaticType(crate::runtime::static_type::VEC_TYPE),
@@ -1336,6 +1339,73 @@ impl Value {
         })
     }
 
+    /// Hash the current value.
+    #[cfg(feature = "std")]
+    pub fn hash(&self, hasher: &mut Hasher) -> VmResult<()> {
+        self.hash_with(hasher, &mut EnvProtocolCaller)
+    }
+
+    /// Hash the current value.
+    #[cfg(feature = "std")]
+    pub(crate) fn hash_with(
+        &self,
+        hasher: &mut Hasher,
+        caller: &mut impl ProtocolCaller,
+    ) -> VmResult<()> {
+        match self {
+            Value::Integer(value) => {
+                hasher.write_i64(*value);
+                return VmResult::Ok(());
+            }
+            Value::Byte(value) => {
+                hasher.write_u8(*value);
+                return VmResult::Ok(());
+            }
+            // Care must be taken whan hashing floats, to ensure that `hash(v1)
+            // === hash(v2)` if `eq(v1) === eq(v2)`. Hopefully we accomplish
+            // this by rejecting NaNs and rectifying subnormal values of zero.
+            Value::Float(value) => {
+                if value.is_nan() {
+                    return VmResult::err(VmErrorKind::IllegalFloatOperation { value: *value });
+                }
+
+                let zero = *value == 0.0;
+                hasher.write_f64((zero as u8 as f64) * 0.0 + (!zero as u8 as f64) * *value);
+                return VmResult::Ok(());
+            }
+            Value::String(string) => {
+                let string = vm_try!(string.borrow_ref());
+                hasher.write_str(&string);
+                return VmResult::Ok(());
+            }
+            Value::Bytes(bytes) => {
+                let bytes = vm_try!(bytes.borrow_ref());
+                hasher.write(&bytes);
+                return VmResult::Ok(());
+            }
+            Value::Tuple(tuple) => {
+                let tuple = vm_try!(tuple.borrow_ref());
+                return Tuple::hash_with(&tuple, hasher, caller);
+            }
+            Value::Vec(vec) => {
+                let vec = vm_try!(vec.borrow_ref());
+                return Vec::hash_with(&vec, hasher, caller);
+            }
+            value => {
+                match vm_try!(caller.try_call_protocol_fn(Protocol::HASH, value.clone(), (hasher,)))
+                {
+                    CallResult::Ok(value) => return <()>::from_value(value),
+                    CallResult::Unsupported(..) => {}
+                }
+            }
+        }
+
+        err(VmErrorKind::UnsupportedUnaryOperation {
+            op: "hash",
+            operand: vm_try!(self.type_info()),
+        })
+    }
+
     /// Perform a total equality test between two values.
     ///
     /// This is the basis for the eq operation (`==`).
@@ -1346,19 +1416,15 @@ impl Value {
     /// # Errors
     ///
     /// This function will error if called outside of a virtual machine context.
-    pub fn eq(a: &Value, b: &Value) -> VmResult<bool> {
-        Value::eq_with(a, b, &mut EnvProtocolCaller)
+    pub fn eq(&self, b: &Value) -> VmResult<bool> {
+        self.eq_with(b, &mut EnvProtocolCaller)
     }
 
     /// Perform a total equality test between two values.
     ///
     /// This is the basis for the eq operation (`==`).
-    pub(crate) fn eq_with(
-        a: &Value,
-        b: &Value,
-        caller: &mut impl ProtocolCaller,
-    ) -> VmResult<bool> {
-        match (a, b) {
+    pub(crate) fn eq_with(&self, b: &Value, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
+        match (self, b) {
             (Self::Bool(a), Self::Bool(b)) => return VmResult::Ok(a == b),
             (Self::Byte(a), Self::Byte(b)) => return VmResult::Ok(a == b),
             (Self::Char(a), Self::Char(b)) => return VmResult::Ok(a == b),
@@ -1478,8 +1544,9 @@ impl Value {
                     _ => return VmResult::Ok(false),
                 }
             }
-            (a, b) => {
-                match vm_try!(caller.try_call_protocol_fn(Protocol::EQ, a.clone(), (b.clone(),))) {
+            _ => {
+                match vm_try!(caller.try_call_protocol_fn(Protocol::EQ, self.clone(), (b.clone(),)))
+                {
                     CallResult::Ok(value) => return bool::from_value(value),
                     CallResult::Unsupported(..) => {}
                 }
@@ -1488,7 +1555,7 @@ impl Value {
 
         err(VmErrorKind::UnsupportedBinaryOperation {
             op: "eq",
-            lhs: vm_try!(a.type_info()),
+            lhs: vm_try!(self.type_info()),
             rhs: vm_try!(b.type_info()),
         })
     }

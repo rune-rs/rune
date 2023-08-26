@@ -185,7 +185,9 @@ impl Arena {
         chunks.push(Chunk::new(new_cap)?);
 
         let Some(chunk) = chunks.last_mut() else {
-            return Err(ArenaAllocError { requested: additional });
+            return Err(ArenaAllocError {
+                requested: additional,
+            });
         };
 
         let range = chunk.storage.as_mut_ptr_range();

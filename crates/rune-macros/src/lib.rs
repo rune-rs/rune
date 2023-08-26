@@ -5,7 +5,7 @@
 //! <a href="https://docs.rs/rune-macros"><img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-rune--macros-66c2a5?style=for-the-badge&logoColor=white&logo=data:image/svg+xml;base64,PHN2ZyByb2xlPSJpbWciIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveD0iMCAwIDUxMiA1MTIiPjxwYXRoIGZpbGw9IiNmNWY1ZjUiIGQ9Ik00ODguNiAyNTAuMkwzOTIgMjE0VjEwNS41YzAtMTUtOS4zLTI4LjQtMjMuNC0zMy43bC0xMDAtMzcuNWMtOC4xLTMuMS0xNy4xLTMuMS0yNS4zIDBsLTEwMCAzNy41Yy0xNC4xIDUuMy0yMy40IDE4LjctMjMuNCAzMy43VjIxNGwtOTYuNiAzNi4yQzkuMyAyNTUuNSAwIDI2OC45IDAgMjgzLjlWMzk0YzAgMTMuNiA3LjcgMjYuMSAxOS45IDMyLjJsMTAwIDUwYzEwLjEgNS4xIDIyLjEgNS4xIDMyLjIgMGwxMDMuOS01MiAxMDMuOSA1MmMxMC4xIDUuMSAyMi4xIDUuMSAzMi4yIDBsMTAwLTUwYzEyLjItNi4xIDE5LjktMTguNiAxOS45LTMyLjJWMjgzLjljMC0xNS05LjMtMjguNC0yMy40LTMzLjd6TTM1OCAyMTQuOGwtODUgMzEuOXYtNjguMmw4NS0zN3Y3My4zek0xNTQgMTA0LjFsMTAyLTM4LjIgMTAyIDM4LjJ2LjZsLTEwMiA0MS40LTEwMi00MS40di0uNnptODQgMjkxLjFsLTg1IDQyLjV2LTc5LjFsODUtMzguOHY3NS40em0wLTExMmwtMTAyIDQxLjQtMTAyLTQxLjR2LS42bDEwMi0zOC4yIDEwMiAzOC4ydi42em0yNDAgMTEybC04NSA0Mi41di03OS4xbDg1LTM4Ljh2NzUuNHptMC0xMTJsLTEwMiA0MS40LTEwMi00MS40di0uNmwxMDItMzguMiAxMDIgMzguMnYuNnoiPjwvcGF0aD48L3N2Zz4K" height="20"></a>
 //! <a href="https://discord.gg/v5AeNkT"><img alt="chat on discord" src="https://img.shields.io/discord/558644981137670144.svg?logo=discord&style=flat-square" height="20"></a>
 //! <br>
-//! Minimum support: Rust <b>1.67+</b>.
+//! Minimum support: Rust <b>1.70+</b>.
 //! <br>
 //! <br>
 //! <a href="https://rune-rs.github.io"><b>Visit the site 🌐</b></a>
@@ -21,6 +21,8 @@
 //! ## Usage
 //!
 //! This is part of the [Rune Language](https://rune-rs.github.io).
+
+#![allow(clippy::manual_map)]
 
 use ::quote::format_ident;
 use syn::{Generics, Path};
@@ -43,6 +45,8 @@ mod quote;
 mod spanned;
 mod to_tokens;
 mod to_value;
+
+use self::context::Context;
 
 #[proc_macro]
 pub fn quote(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -178,7 +182,13 @@ pub fn to_value(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 #[proc_macro_derive(Any, attributes(rune))]
 pub fn any(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let derive = syn::parse_macro_input!(input as any::Derive);
-    derive.expand().unwrap_or_else(to_compile_errors).into()
+    let cx = Context::new();
+
+    let Ok(builder) = derive.into_any_builder(&cx) else {
+        return to_compile_errors(cx.errors.into_inner()).into();
+    };
+
+    builder.expand().into()
 }
 
 /// Calculate a type hash.
@@ -209,10 +219,13 @@ pub fn hash(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 #[doc(hidden)]
 pub fn __internal_impl_any(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let internal_call = syn::parse_macro_input!(input as any::InternalCall);
-    internal_call
-        .expand()
-        .unwrap_or_else(to_compile_errors)
-        .into()
+    let cx = Context::with_crate();
+
+    let Ok(builder) = internal_call.into_any_builder(&cx) else {
+        return to_compile_errors(cx.errors.into_inner()).into();
+    };
+
+    builder.expand().into()
 }
 
 #[proc_macro_attribute]

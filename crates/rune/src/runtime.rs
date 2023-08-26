@@ -167,8 +167,10 @@ mod vm_call;
 pub(crate) use self::vm_call::VmCall;
 
 mod vm_error;
+#[cfg(feature = "emit")]
+pub(crate) use self::vm_error::VmErrorAt;
+pub(crate) use self::vm_error::VmErrorKind;
 pub use self::vm_error::{try_result, TryFromResult, VmError, VmIntegerRepr, VmResult};
-pub(crate) use self::vm_error::{VmErrorAt, VmErrorKind};
 
 mod vm_execution;
 pub use self::vm_execution::{ExecutionState, VmExecution, VmSendExecution};
@@ -182,3 +184,8 @@ pub use self::fmt::Formatter;
 
 mod control_flow;
 pub use self::control_flow::ControlFlow;
+
+#[cfg(feature = "std")]
+mod hasher;
+#[cfg(feature = "std")]
+pub use self::hasher::Hasher;

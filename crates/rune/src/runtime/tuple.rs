@@ -4,14 +4,18 @@ use core::slice;
 
 use crate::no_std::prelude::*;
 
-use crate::compile::Named;
-use crate::module::InstallWith;
+use crate as rune;
 use crate::runtime::{
-    ConstValue, FromValue, Mut, RawMut, RawRef, RawStr, Ref, Shared, ToValue, UnsafeToMut,
-    UnsafeToRef, Value, VmErrorKind, VmResult,
+    ConstValue, FromValue, Mut, RawMut, RawRef, Ref, Shared, ToValue, UnsafeToMut, UnsafeToRef,
+    Value, VmErrorKind, VmResult,
 };
+#[cfg(feature = "std")]
+use crate::runtime::{Hasher, ProtocolCaller};
+use crate::Any;
 
 /// The type of a tuple slice.
+#[derive(Any)]
+#[rune(builtin, static_type = TUPLE_TYPE)]
 #[repr(transparent)]
 pub struct Tuple {
     values: [Value],
@@ -41,6 +45,19 @@ impl Tuple {
         };
 
         VmResult::Ok(Some(vm_try!(T::from_value(value))))
+    }
+
+    #[cfg(feature = "std")]
+    pub(crate) fn hash_with(
+        &self,
+        hasher: &mut Hasher,
+        caller: &mut impl ProtocolCaller,
+    ) -> VmResult<()> {
+        for value in self.values.iter() {
+            vm_try!(value.hash_with(hasher, caller));
+        }
+
+        VmResult::Ok(())
     }
 }
 
@@ -79,12 +96,6 @@ impl<'a> IntoIterator for &'a mut Tuple {
         self.iter_mut()
     }
 }
-
-impl Named for Tuple {
-    const BASE_NAME: RawStr = RawStr::from_str("Tuple");
-}
-
-impl InstallWith for Tuple {}
 
 /// Struct representing a dynamic anonymous object.
 ///
@@ -318,7 +329,7 @@ impl UnsafeToRef for Tuple {
             Value::Tuple(tuple) => {
                 let tuple = Ref::map(vm_try!(tuple.into_ref()), |tuple| &**tuple);
                 let (value, guard) = Ref::into_raw(tuple);
-                VmResult::Ok((&*value, Some(guard)))
+                VmResult::Ok((value.as_ref(), Some(guard)))
             }
             actual => VmResult::err(VmErrorKind::expected::<Self>(vm_try!(actual.type_info()))),
         }
@@ -333,8 +344,8 @@ impl UnsafeToMut for Tuple {
             Value::EmptyTuple => VmResult::Ok((Tuple::new_mut(&mut []), None)),
             Value::Tuple(tuple) => {
                 let tuple = Mut::map(vm_try!(tuple.into_mut()), |tuple| &mut **tuple);
-                let (value, guard) = Mut::into_raw(tuple);
-                VmResult::Ok((&mut *value, Some(guard)))
+                let (mut value, guard) = Mut::into_raw(tuple);
+                VmResult::Ok((value.as_mut(), Some(guard)))
             }
             actual => VmResult::err(VmErrorKind::expected::<Self>(vm_try!(actual.type_info()))),
         }

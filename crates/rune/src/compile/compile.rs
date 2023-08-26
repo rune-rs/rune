@@ -255,7 +255,11 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                     c.q.lookup_meta(&location, f.impl_item, GenericsParameters::default())?;
 
                 let Some(type_hash) = meta.type_hash_of() else {
-                    return Err(compile::Error::expected_meta(&f.ast, meta.info(c.q.pool), "instance function"));
+                    return Err(compile::Error::expected_meta(
+                        &f.ast,
+                        meta.info(c.q.pool),
+                        "instance function",
+                    ));
                 };
 
                 let mut cx = hir::lowering::Ctxt::with_query(
@@ -405,13 +409,16 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
             Build::ReExport => {
                 tracing::trace!("re-export: {}", self.q.pool.item(item_meta.item));
 
-                let Some(import) = self.q.import(&location, item_meta.module, item_meta.item, used)? else {
+                let Some(import) =
+                    self.q
+                        .import(&location, item_meta.module, item_meta.item, used)?
+                else {
                     return Err(compile::Error::new(
                         location.span,
                         ErrorKind::MissingItem {
                             item: self.q.pool.item(item_meta.item).to_owned(),
                         },
-                    ))
+                    ));
                 };
 
                 self.q.unit.new_function_reexport(

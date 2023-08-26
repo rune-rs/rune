@@ -37,7 +37,7 @@ pub fn module() -> Result<Module, ContextError> {
 /// let ty2 = Type::of_val(value2);
 /// assert_eq!(ty1, ty2);
 /// ```
-#[rune::function(path = Type::of_val)]
+#[rune::function(free, path = Type::of_val)]
 #[inline]
 fn type_of_val(value: Value) -> VmResult<Type> {
     VmResult::Ok(Type::new(vm_try!(value.type_hash())))

@@ -7,8 +7,8 @@ use crate::compile::ItemBuf;
 use crate::hash::Hash;
 use crate::runtime::unit::{BadInstruction, BadJump};
 use crate::runtime::{
-    AccessError, BoxedPanic, CallFrame, ExecutionState, FullTypeOf, Key, MaybeTypeOf, Panic,
-    StackError, TypeInfo, TypeOf, Unit, Vm, VmHaltInfo,
+    AccessError, BoxedPanic, CallFrame, ExecutionState, FullTypeOf, MaybeTypeOf, Panic, StackError,
+    TypeInfo, TypeOf, Unit, Vm, VmHaltInfo,
 };
 
 /// Trait used to convert result types to [`VmResult`].
@@ -85,6 +85,7 @@ pub struct VmErrorLocation {
 #[non_exhaustive]
 pub struct VmErrorAt {
     /// Index into the backtrace which contains information of what caused this error.
+    #[cfg(feature = "emit")]
     index: usize,
     /// The kind of error.
     kind: VmErrorKind,
@@ -92,6 +93,7 @@ pub struct VmErrorAt {
 
 impl VmErrorAt {
     /// Get the instruction which caused the error.
+    #[cfg(feature = "emit")]
     pub(crate) fn index(&self) -> usize {
         self.index
     }
@@ -255,9 +257,11 @@ impl<T> VmResult<T> {
         match self {
             Self::Ok(ok) => Self::Ok(ok),
             Self::Err(mut err) => {
+                #[cfg(feature = "emit")]
                 let index = err.inner.stacktrace.len();
 
                 err.inner.chain.push(VmErrorAt {
+                    #[cfg(feature = "emit")]
                     index,
                     kind: VmErrorKind::from(error()),
                 });
@@ -362,6 +366,7 @@ where
         Self {
             inner: Box::new(VmErrorInner {
                 error: VmErrorAt {
+                    #[cfg(feature = "emit")]
                     index: 0,
                     kind: VmErrorKind::from(error),
                 },
@@ -386,12 +391,17 @@ impl<const N: usize> From<[VmErrorKind; N]> for VmError {
         let mut chain = Vec::with_capacity(it.len());
 
         for kind in it {
-            chain.push(VmErrorAt { index: 0, kind });
+            chain.push(VmErrorAt {
+                #[cfg(feature = "emit")]
+                index: 0,
+                kind,
+            });
         }
 
         Self {
             inner: Box::new(VmErrorInner {
                 error: VmErrorAt {
+                    #[cfg(feature = "emit")]
                     index: 0,
                     kind: first,
                 },
@@ -529,9 +539,9 @@ pub(crate) enum VmErrorKind {
         target: TypeInfo,
         index: VmIntegerRepr,
     },
+    #[cfg(feature = "std")]
     MissingIndexKey {
         target: TypeInfo,
-        index: Key,
     },
     OutOfRange {
         index: VmIntegerRepr,
@@ -613,6 +623,10 @@ pub(crate) enum VmErrorKind {
         lhs: f64,
         rhs: f64,
     },
+    #[cfg(feature = "std")]
+    IllegalFloatOperation {
+        value: f64,
+    },
     MissingCallFrame,
 }
 
@@ -656,10 +670,13 @@ impl fmt::Display for VmErrorKind {
                 "Instruction pointer `{ip}` is out-of-bounds `0-{length}`",
             ),
             VmErrorKind::UnsupportedBinaryOperation { op, lhs, rhs } => {
-                write!(f, "Unsupported operation `{lhs} {op} {rhs}`",)
+                write!(
+                    f,
+                    "Unsupported binary operation `{op}` on `{lhs}` and `{rhs}`",
+                )
             }
             VmErrorKind::UnsupportedUnaryOperation { op, operand } => {
-                write!(f, "Unsupported operation `{op}{operand}`",)
+                write!(f, "Unsupported unary operation `{op}` on {operand}",)
             }
             VmErrorKind::MissingStaticString { slot } => {
                 write!(f, "Static string slot `{slot}` does not exist",)
@@ -722,10 +739,11 @@ impl fmt::Display for VmErrorKind {
                 write!(f, "Type `{target}` missing index",)
             }
             VmErrorKind::MissingIndexInteger { target, index } => {
-                write!(f, "Type `{target}` missing index `{index}`",)
+                write!(f, "Type `{target}` missing integer index `{index}`",)
             }
-            VmErrorKind::MissingIndexKey { target, index } => {
-                write!(f, "Type `{target}` missing index `{index:?}`",)
+            #[cfg(feature = "std")]
+            VmErrorKind::MissingIndexKey { target } => {
+                write!(f, "Type `{target}` missing index",)
             }
             VmErrorKind::OutOfRange { index, length } => write!(
                 f,
@@ -805,6 +823,10 @@ impl fmt::Display for VmErrorKind {
                     f,
                     "Cannot perform a comparison of the floats {lhs} and {rhs}",
                 )
+            }
+            #[cfg(feature = "std")]
+            VmErrorKind::IllegalFloatOperation { value } => {
+                write!(f, "Cannot perform operation on float `{value}`",)
             }
             VmErrorKind::MissingCallFrame => {
                 write!(f, "Missing call frame for internal vm call")
