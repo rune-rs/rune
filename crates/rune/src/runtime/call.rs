@@ -25,12 +25,13 @@ impl Call {
     #[inline]
     pub(crate) fn call_with_vm(self, vm: Vm) -> VmResult<Value> {
         VmResult::Ok(match self {
-            Call::Stream => Value::from(Stream::new(vm)),
-            Call::Generator => Value::from(Generator::new(vm)),
+            Call::Stream => vm_try!(Value::try_from(Stream::new(vm))),
+            Call::Generator => vm_try!(Value::try_from(Generator::new(vm))),
             Call::Immediate => vm_try!(vm.complete()),
             Call::Async => {
                 let mut execution = vm.into_execution();
-                Value::from(Future::new(async move { execution.async_complete().await }))
+                let future = Future::new(async move { execution.async_complete().await });
+                vm_try!(Value::try_from(future))
             }
         })
     }

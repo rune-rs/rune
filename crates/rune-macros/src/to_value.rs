@@ -1,7 +1,6 @@
 use crate::context::{Context, Tokens};
 use proc_macro2::TokenStream;
-use quote::{quote, quote_spanned};
-use syn::spanned::Spanned as _;
+use quote::quote;
 
 struct Expander {
     cx: Context,
@@ -26,7 +25,7 @@ impl Expander {
             ..
         } = &self.tokens;
 
-        Ok(quote_spanned! { input.span() =>
+        Ok(quote! {
             #[automatically_derived]
             impl #to_value for #ident {
                 fn to_value(self) -> #vm_result<#value> {
@@ -60,23 +59,25 @@ impl Expander {
             value,
             owned_tuple,
             vm_result,
+            vm_try,
+            try_from,
+            vec,
             ..
         } = &self.tokens;
 
         for (index, f) in unnamed.unnamed.iter().enumerate() {
             let _ = self.cx.field_attrs(&f.attrs)?;
             let index = syn::Index::from(index);
-            let to_value = self.tokens.vm_try(quote!(#to_value::to_value(self.#index)));
-            to_values.push(quote_spanned!(f.span() => tuple.push(#to_value)));
+            to_values.push(quote!(#vm_try!(#vec::try_push(&mut tuple, #vm_try!(#to_value::to_value(self.#index))))));
         }
 
         let cap = unnamed.unnamed.len();
 
-        Ok(quote_spanned! {
-            unnamed.span() =>
-            let mut tuple = Vec::with_capacity(#cap);
+        Ok(quote! {
+            let mut tuple = #vm_try!(#vec::try_with_capacity(#cap));
             #(#to_values;)*
-            #vm_result::Ok(#value::from(#owned_tuple::from(tuple)))
+            let tuple = #vm_try!(<#owned_tuple as #try_from<_>>::try_from(tuple));
+            #vm_result::Ok(#vm_try!(<#value as #try_from<_>>::try_from(tuple)))
         })
     }
 
@@ -87,6 +88,9 @@ impl Expander {
             value,
             object,
             vm_result,
+            vm_try,
+            string,
+            try_from,
             ..
         } = &self.tokens;
 
@@ -97,16 +101,16 @@ impl Expander {
             let _ = self.cx.field_attrs(&f.attrs)?;
 
             let name = &syn::LitStr::new(&ident.to_string(), ident.span());
-            let to_value = self.tokens.vm_try(quote!(#to_value::to_value(self.#ident)));
-            to_values
-                .push(quote_spanned!(f.span() => object.insert(String::from(#name), #to_value)));
+
+            to_values.push(quote! {
+                object.insert(#vm_try!(<#string as #try_from<_>>::try_from(#name)), #vm_try!(#to_value::to_value(self.#ident)))
+            });
         }
 
-        Ok(quote_spanned! {
-            named.span() =>
+        Ok(quote! {
             let mut object = <#object>::new();
             #(#to_values;)*
-            #vm_result::Ok(#value::from(object))
+            #vm_result::Ok(#vm_try!(<#value as #try_from<_>>::try_from(object)))
         })
     }
 }

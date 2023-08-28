@@ -6,7 +6,9 @@ use crate::no_std::prelude::*;
 
 use crate::ast::{Span, Spanned};
 use crate::compile;
-use crate::compile::{CompileVisitor, FileSourceLoader, Located, Options, Pool, SourceLoader};
+use crate::compile::{
+    CompileVisitor, FileSourceLoader, Located, MetaError, Options, Pool, SourceLoader,
+};
 use crate::runtime::unit::{DefaultStorage, UnitEncoder};
 use crate::runtime::Unit;
 use crate::{Context, Diagnostics, SourceId, Sources};
@@ -108,10 +110,12 @@ struct CompileVisitorGroup<'a> {
 }
 
 impl<'a> compile::CompileVisitor for CompileVisitorGroup<'a> {
-    fn register_meta(&mut self, meta: compile::MetaRef<'_>) {
+    fn register_meta(&mut self, meta: compile::MetaRef<'_>) -> Result<(), MetaError> {
         for v in self.visitors.iter_mut() {
-            v.register_meta(meta)
+            v.register_meta(meta)?;
         }
+
+        Ok(())
     }
 
     fn visit_meta(&mut self, location: &dyn Located, meta: compile::MetaRef<'_>) {

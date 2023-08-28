@@ -372,7 +372,7 @@ impl Context {
     /// Install the given meta.
     fn install_meta(&mut self, meta: ContextMeta) -> Result<(), ContextError> {
         if let Some(item) = &meta.item {
-            self.names.insert(item);
+            self.names.insert(item)?;
 
             self.item_to_hash
                 .entry(item.clone())
@@ -395,7 +395,7 @@ impl Context {
 
     /// Install a module, ensuring that its meta is defined.
     fn install_module(&mut self, m: &Module) -> Result<(), ContextError> {
-        self.names.insert(&m.item);
+        self.names.insert(&m.item)?;
 
         let mut current = Some((m.item.as_ref(), Some(&m.docs)));
 
@@ -608,7 +608,7 @@ impl Context {
         f: &ModuleFunction,
     ) -> Result<(), ContextError> {
         let item = module.item.join(&f.item);
-        self.names.insert(&item);
+        self.names.insert(&item)?;
 
         let hash = Hash::type_hash(&item);
 

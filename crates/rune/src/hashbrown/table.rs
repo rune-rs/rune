@@ -1,35 +1,40 @@
+use rune_alloc::hash_map;
+
 use core::hash::BuildHasher;
 use core::iter;
 use core::marker::PhantomData;
 use core::mem;
 use core::ptr;
 
-use crate::hashbrown::fork::raw::{RawIter, RawTable};
-use std::collections::hash_map::{DefaultHasher, RandomState};
+use crate::alloc::{Allocator, Error, Global, TryClone};
 
-use crate::runtime::{Hasher, ProtocolCaller, RawRef, Ref, Value, VmError, VmResult};
+#[cfg(feature = "alloc")]
+use crate::runtime::Hasher;
+use crate::runtime::{ProtocolCaller, RawRef, Ref, Value, VmError, VmResult};
 
-#[derive(Clone)]
-pub(crate) struct Table<V> {
-    table: RawTable<(Value, V)>,
-    state: RandomState,
+use crate::alloc::hashbrown::raw::{RawIter, RawTable};
+use crate::alloc::hashbrown::ErrorOrInsertSlot;
+
+pub(crate) struct Table<V, A: Allocator + Clone = Global> {
+    table: RawTable<(Value, V), A>,
+    state: hash_map::RandomState,
 }
 
-impl<V> Table<V> {
+impl<V, A: Allocator + Clone> Table<V, A> {
     #[inline(always)]
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new_in(alloc: A) -> Self {
         Self {
-            table: RawTable::new(),
-            state: RandomState::new(),
+            table: RawTable::new_in(alloc),
+            state: hash_map::RandomState::new(),
         }
     }
 
     #[inline(always)]
-    pub(crate) fn with_capacity(capacity: usize) -> Self {
-        Self {
-            table: RawTable::with_capacity(capacity),
-            state: RandomState::new(),
-        }
+    pub(crate) fn try_with_capacity_in(capacity: usize, alloc: A) -> Result<Self, Error> {
+        Ok(Self {
+            table: RawTable::try_with_capacity_in(capacity, alloc)?,
+            state: hash_map::RandomState::new(),
+        })
     }
 
     #[inline(always)]
@@ -59,25 +64,20 @@ impl<V> Table<V> {
     {
         let hash = vm_try!(hash(&self.state, &key, caller));
 
-        let result = match self.table.find_or_find_insert_slot_with(
-            caller,
-            hash,
-            eq(&key),
-            hasher(&self.state),
-        ) {
-            Ok(result) => result,
-            Err(error) => return VmResult::Err(error),
-        };
-
-        let existing = match result {
-            Ok(bucket) => Some(mem::replace(unsafe { &mut bucket.as_mut().1 }, value)),
-            Err(slot) => {
-                unsafe {
-                    self.table.insert_in_slot(hash, slot, (key, value));
+        let existing =
+            match self
+                .table
+                .find_or_find_insert_slot(caller, hash, eq(&key), hasher(&self.state))
+            {
+                Ok(bucket) => Some(mem::replace(unsafe { &mut bucket.as_mut().1 }, value)),
+                Err(ErrorOrInsertSlot::InsertSlot(slot)) => {
+                    unsafe {
+                        self.table.insert_in_slot(hash, slot, (key, value));
+                    }
+                    None
                 }
-                None
-            }
-        };
+                Err(ErrorOrInsertSlot::Error(error)) => return VmResult::err(error),
+            };
 
         VmResult::Ok(existing)
     }
@@ -91,7 +91,7 @@ impl<V> Table<V> {
         }
 
         let hash = vm_try!(hash(&self.state, key, caller));
-        VmResult::Ok(vm_try!(self.table.get_with(caller, hash, eq(key))))
+        VmResult::Ok(vm_try!(self.table.get(caller, hash, eq(key))))
     }
 
     #[inline(always)]
@@ -101,7 +101,7 @@ impl<V> Table<V> {
     {
         let hash = vm_try!(hash(&self.state, key, caller));
 
-        match self.table.remove_entry_with(caller, hash, eq(key)) {
+        match self.table.remove_entry(caller, hash, eq(key)) {
             Ok(value) => VmResult::Ok(value.map(|(_, value)| value)),
             Err(error) => VmResult::Err(error),
         }
@@ -152,6 +152,23 @@ impl<V> Table<V> {
         // `RawRef` is alive.
         let iter = unsafe { this.as_ref().table.iter() };
         ValuesRef { iter, _guard }
+    }
+}
+
+impl<V, A: Allocator + Clone> TryClone for Table<V, A>
+where
+    V: TryClone,
+{
+    fn try_clone(&self) -> Result<Self, Error> {
+        Ok(Self {
+            table: self.table.try_clone()?,
+            state: self.state.clone(),
+        })
+    }
+
+    #[inline]
+    fn try_clone_from(&mut self, source: &Self) -> Result<(), Error> {
+        self.table.try_clone_from(&source.table)
     }
 }
 
@@ -244,7 +261,7 @@ where
 /// Convenience function to hash a value.
 fn hash<S>(state: &S, value: &Value, caller: &mut impl ProtocolCaller) -> VmResult<u64>
 where
-    S: BuildHasher<Hasher = DefaultHasher>,
+    S: BuildHasher<Hasher = hash_map::Hasher>,
 {
     let mut hasher = Hasher::new_with(state);
     vm_try!(value.hash_with(&mut hasher, caller));
@@ -255,7 +272,7 @@ where
 fn hasher<P, V, S>(state: &S) -> impl Fn(&mut P, &(Value, V)) -> Result<u64, VmError> + '_
 where
     P: ?Sized + ProtocolCaller,
-    S: BuildHasher<Hasher = DefaultHasher>,
+    S: BuildHasher<Hasher = hash_map::Hasher>,
 {
     move |caller, (key, _): &(Value, V)| hash(state, key, caller).into_result()
 }

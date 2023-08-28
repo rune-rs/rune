@@ -81,7 +81,7 @@ where
         let name = naming.name(&e);
 
         let item = ItemBuf::with_crate(&name);
-        let mut visitor = crate::doc::Visitor::new(item);
+        let mut visitor = crate::doc::Visitor::new(item)?;
         let mut sources = Sources::new();
         let source = Source::from_path(e.path())
             .with_context(|| e.path().display().to_string())?;

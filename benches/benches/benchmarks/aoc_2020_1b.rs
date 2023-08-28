@@ -4,6 +4,8 @@
 
 use criterion::Criterion;
 
+use rune::alloc::TryClone;
+
 criterion::criterion_group!(benches, aoc_2020_1b);
 
 const INPUT: &str = include_str!("data/aoc_2020_1.txt");
@@ -60,6 +62,9 @@ fn aoc_2020_1b(b: &mut Criterion) {
     let entry = rune::Hash::type_hash(["main"]);
 
     b.bench_function("aoc_2020_1b", |b| {
-        b.iter(|| vm.call(entry, (data.clone(),)).expect("failed call"));
+        b.iter(|| {
+            vm.call(entry, (data.try_clone().unwrap(),))
+                .expect("failed call")
+        });
     });
 }

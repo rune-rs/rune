@@ -1,9 +1,9 @@
 //! The `std::cmp` module.
 
 use core::cmp::Ordering;
-use core::fmt::{self, Write};
 
 use crate as rune;
+use crate::alloc::fmt::TryWrite;
 use crate::runtime::{Formatter, Value, VmResult};
 use crate::{ContextError, Module};
 
@@ -143,6 +143,7 @@ fn ordering_eq(this: Ordering, other: Ordering) -> bool {
 /// assert_eq!(format!("{:?}", Ordering::Less), "Less");
 /// ```
 #[rune::function(instance, protocol = STRING_DEBUG)]
-fn ordering_string_debug(this: Ordering, s: &mut Formatter) -> fmt::Result {
-    write!(s, "{:?}", this)
+fn ordering_string_debug(this: Ordering, s: &mut Formatter) -> VmResult<()> {
+    vm_write!(s, "{:?}", this);
+    VmResult::Ok(())
 }

@@ -1,8 +1,10 @@
+use core::convert::Infallible;
 use core::fmt;
 
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
+use crate::alloc::{AllocError, CustomError, Error};
 use crate::compile::ItemBuf;
 use crate::hash::Hash;
 use crate::runtime::unit::{BadInstruction, BadJump};
@@ -124,6 +126,23 @@ pub struct VmError {
 }
 
 impl VmError {
+    pub(crate) fn new<E>(error: E) -> Self
+    where
+        VmErrorKind: From<E>,
+    {
+        Self {
+            inner: Box::new(VmErrorInner {
+                error: VmErrorAt {
+                    #[cfg(feature = "emit")]
+                    index: 0,
+                    kind: VmErrorKind::from(error),
+                },
+                chain: Vec::new(),
+                stacktrace: Vec::new(),
+            }),
+        }
+    }
+
     /// Construct an error containing a panic.
     pub fn panic<D>(message: D) -> Self
     where
@@ -363,16 +382,19 @@ where
     VmErrorKind: From<E>,
 {
     fn from(error: E) -> Self {
-        Self {
-            inner: Box::new(VmErrorInner {
-                error: VmErrorAt {
-                    #[cfg(feature = "emit")]
-                    index: 0,
-                    kind: VmErrorKind::from(error),
-                },
-                chain: Vec::new(),
-                stacktrace: Vec::new(),
-            }),
+        Self::new(error)
+    }
+}
+
+impl<E> From<CustomError<E>> for VmError
+where
+    VmError: From<E>,
+{
+    #[inline]
+    fn from(error: CustomError<E>) -> Self {
+        match error {
+            CustomError::Custom(error) => Self::from(error),
+            CustomError::Error(error) => VmError::new(error),
         }
     }
 }
@@ -443,7 +465,6 @@ pub(crate) enum VmErrorKind {
     Halted {
         halt: VmHaltInfo,
     },
-    FormatError,
     Overflow,
     Underflow,
     DivideByZero,
@@ -539,7 +560,7 @@ pub(crate) enum VmErrorKind {
         target: TypeInfo,
         index: VmIntegerRepr,
     },
-    #[cfg(feature = "std")]
+    #[cfg(feature = "alloc")]
     MissingIndexKey {
         target: TypeInfo,
     },
@@ -586,9 +607,6 @@ pub(crate) enum VmErrorKind {
     ConstNotSupported {
         actual: TypeInfo,
     },
-    KeyNotSupported {
-        actual: TypeInfo,
-    },
     MissingInterfaceEnvironment,
     ExpectedExecutionState {
         expected: ExecutionState,
@@ -623,11 +641,18 @@ pub(crate) enum VmErrorKind {
         lhs: f64,
         rhs: f64,
     },
-    #[cfg(feature = "std")]
+    #[cfg(feature = "alloc")]
     IllegalFloatOperation {
         value: f64,
     },
     MissingCallFrame,
+    IllegalFormat,
+    TryReserveError {
+        error: Error,
+    },
+    AllocError {
+        error: AllocError,
+    },
 }
 
 impl fmt::Display for VmErrorKind {
@@ -646,7 +671,6 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::Panic { reason } => write!(f, "Panicked: {reason}",),
             VmErrorKind::NoRunningVm {} => write!(f, "No running virtual machines"),
             VmErrorKind::Halted { halt } => write!(f, "Halted for unexpected reason `{halt}`",),
-            VmErrorKind::FormatError {} => write!(f, "Failed to format argument"),
             VmErrorKind::Overflow {} => write!(f, "Numerical overflow"),
             VmErrorKind::Underflow {} => write!(f, "Numerical underflow"),
             VmErrorKind::DivideByZero {} => write!(f, "Division by zero"),
@@ -741,7 +765,7 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::MissingIndexInteger { target, index } => {
                 write!(f, "Type `{target}` missing integer index `{index}`",)
             }
-            #[cfg(feature = "std")]
+            #[cfg(feature = "alloc")]
             VmErrorKind::MissingIndexKey { target } => {
                 write!(f, "Type `{target}` missing index",)
             }
@@ -783,9 +807,6 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::ConstNotSupported { actual } => {
                 write!(f, "Type `{actual}` can't be converted to a constant value",)
             }
-            VmErrorKind::KeyNotSupported { actual } => {
-                write!(f, "Type `{actual}` can't be converted to a hash key",)
-            }
             VmErrorKind::MissingInterfaceEnvironment {} => {
                 write!(f, "Missing interface environment")
             }
@@ -824,14 +845,31 @@ impl fmt::Display for VmErrorKind {
                     "Cannot perform a comparison of the floats {lhs} and {rhs}",
                 )
             }
-            #[cfg(feature = "std")]
+            #[cfg(feature = "alloc")]
             VmErrorKind::IllegalFloatOperation { value } => {
                 write!(f, "Cannot perform operation on float `{value}`",)
             }
             VmErrorKind::MissingCallFrame => {
                 write!(f, "Missing call frame for internal vm call")
             }
+            VmErrorKind::IllegalFormat => {
+                write!(f, "Value cannot be formatted")
+            }
+            VmErrorKind::TryReserveError { error } => {
+                write!(
+                    f,
+                    "Failed to allocate memory for the current operation: {error}"
+                )
+            }
+            VmErrorKind::AllocError { error } => error.fmt(f),
         }
+    }
+}
+
+impl From<Infallible> for VmErrorKind {
+    #[inline(always)]
+    fn from(error: Infallible) -> Self {
+        match error {}
     }
 }
 
@@ -860,6 +898,20 @@ impl From<BadJump> for VmErrorKind {
     #[allow(deprecated)]
     fn from(error: BadJump) -> Self {
         VmErrorKind::BadJump { error }
+    }
+}
+
+impl From<Error> for VmErrorKind {
+    #[inline]
+    fn from(error: Error) -> Self {
+        VmErrorKind::TryReserveError { error }
+    }
+}
+
+impl From<AllocError> for VmErrorKind {
+    #[inline]
+    fn from(error: AllocError) -> Self {
+        VmErrorKind::AllocError { error }
     }
 }
 

@@ -1,7 +1,5 @@
 //! The `std::option` module.
 
-use core::fmt;
-
 use crate as rune;
 use crate::runtime::{ControlFlow, Formatter, Function, Iterator, Panic, Shared, Value, VmResult};
 use crate::{ContextError, Module};
@@ -73,11 +71,7 @@ fn expect(option: Option<Value>, message: Value) -> VmResult<Value> {
         Some(some) => VmResult::Ok(some),
         None => {
             let mut f = Formatter::new();
-
-            if let Err(fmt::Error) = vm_try!(message.string_display(&mut f)) {
-                return VmResult::err(Panic::msg("Failed to format message"));
-            }
-
+            vm_try!(message.string_display(&mut f));
             VmResult::err(Panic::custom(f.into_string()))
         }
     }
@@ -259,8 +253,8 @@ fn transpose(this: Option<Value>) -> VmResult<Value> {
     let value = match this {
         Some(value) => value,
         None => {
-            let none = Value::from(Shared::new(Option::<Value>::None));
-            let result = Value::from(Shared::new(Result::<Value, Value>::Ok(none)));
+            let none = Value::from(vm_try!(Shared::new(Option::<Value>::None)));
+            let result = Value::from(vm_try!(Shared::new(Result::<Value, Value>::Ok(none))));
             return VmResult::Ok(result);
         }
     };
@@ -269,12 +263,14 @@ fn transpose(this: Option<Value>) -> VmResult<Value> {
 
     match result {
         Ok(ok) => {
-            let some = Value::from(Shared::new(Option::<Value>::Some(ok.clone())));
-            let result = Value::from(Shared::new(Result::<Value, Value>::Ok(some)));
+            let some = Value::from(vm_try!(Shared::new(Option::<Value>::Some(ok.clone()))));
+            let result = Value::from(vm_try!(Shared::new(Result::<Value, Value>::Ok(some))));
             VmResult::Ok(result)
         }
         Err(err) => {
-            let result = Value::from(Shared::new(Result::<Value, Value>::Err(err.clone())));
+            let result = Value::from(vm_try!(Shared::new(Result::<Value, Value>::Err(
+                err.clone()
+            ))));
             VmResult::Ok(result)
         }
     }
@@ -412,9 +408,9 @@ fn ok_or_else(this: Option<Value>, err: Function) -> VmResult<Result<Value, Valu
 /// assert_eq!(maybe_add_one(None), None);
 /// ```
 #[rune::function(keep, instance, protocol = TRY)]
-pub(crate) fn option_try(this: Option<Value>) -> ControlFlow {
-    match this {
+pub(crate) fn option_try(this: Option<Value>) -> VmResult<ControlFlow> {
+    VmResult::Ok(match this {
         Some(value) => ControlFlow::Continue(value),
-        None => ControlFlow::Break(Value::Option(Shared::new(None))),
-    }
+        None => ControlFlow::Break(Value::Option(vm_try!(Shared::new(None)))),
+    })
 }

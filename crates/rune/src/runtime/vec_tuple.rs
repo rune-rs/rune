@@ -1,3 +1,4 @@
+use crate::alloc::Vec;
 use crate::runtime::{FromValue, ToValue, Value, VmErrorKind, VmResult};
 
 /// A helper type to deserialize arrays with different interior types.
@@ -43,10 +44,12 @@ macro_rules! impl_from_value_tuple_vec {
         where
             $($ty: ToValue,)*
         {
+            #[allow(unused_mut)]
             fn to_value(self) -> VmResult<Value> {
                 let ($($var,)*) = self.0;
-                let vec = vec![$(vm_try!($var.to_value()),)*];
-                VmResult::Ok(Value::vec(vec))
+                let mut vec = vm_try!(Vec::try_with_capacity($count));
+                $(vm_try!(vec.try_push(vm_try!($var.to_value())));)*
+                Value::vec(vec)
             }
         }
     };

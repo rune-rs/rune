@@ -1,9 +1,9 @@
 //! The `std::io` module.
 
-use std::fmt::{self, Write as _};
 use std::io::{self, Write as _};
 
 use crate as rune;
+use crate::alloc::fmt::TryWrite;
 use crate::compile;
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
@@ -67,8 +67,9 @@ pub fn module(stdio: bool) -> Result<Module, ContextError> {
 }
 
 #[rune::function(instance, protocol = STRING_DISPLAY)]
-fn io_error_string_display(error: &io::Error, f: &mut Formatter) -> fmt::Result {
-    write!(f, "{}", error)
+fn io_error_string_display(error: &io::Error, f: &mut Formatter) -> VmResult<()> {
+    vm_write!(f, "{}", error);
+    VmResult::Ok(())
 }
 
 fn dbg_impl(stack: &mut Stack, args: usize) -> VmResult<()> {
@@ -79,7 +80,7 @@ fn dbg_impl(stack: &mut Stack, args: usize) -> VmResult<()> {
         vm_try!(writeln!(stdout, "{:?}", value).map_err(Panic::custom));
     }
 
-    stack.push(Value::EmptyTuple);
+    vm_try!(stack.push(Value::EmptyTuple));
     VmResult::Ok(())
 }
 

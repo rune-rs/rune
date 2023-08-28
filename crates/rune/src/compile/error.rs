@@ -4,6 +4,7 @@ use crate::no_std::io;
 use crate::no_std::path::PathBuf;
 use crate::no_std::prelude::*;
 
+use crate::alloc::AllocError;
 use crate::ast;
 use crate::ast::unescape;
 use crate::ast::{Span, Spanned};
@@ -193,8 +194,11 @@ pub(crate) enum ErrorKind {
     Unsupported {
         what: Expectation,
     },
+    AllocError {
+        error: rune_alloc::Error,
+    },
     IrError(IrErrorKind),
-    MetaConflict(MetaConflict),
+    MetaError(MetaError),
     AccessError(AccessError),
     EncodeError(EncodeError),
     MissingLastId(MissingLastId),
@@ -479,8 +483,9 @@ pub(crate) enum ErrorKind {
 impl crate::no_std::error::Error for ErrorKind {
     fn source(&self) -> Option<&(dyn crate::no_std::error::Error + 'static)> {
         match self {
+            ErrorKind::AllocError { error, .. } => Some(error),
             ErrorKind::IrError(source) => Some(source),
-            ErrorKind::MetaConflict(source) => Some(source),
+            ErrorKind::MetaError(source) => Some(source),
             ErrorKind::AccessError(source) => Some(source),
             ErrorKind::EncodeError(source) => Some(source),
             ErrorKind::MissingLastId(source) => Some(source),
@@ -512,10 +517,13 @@ impl fmt::Display for ErrorKind {
             ErrorKind::Unsupported { what } => {
                 write!(f, "Unsupported `{what}`", what = what)?;
             }
+            ErrorKind::AllocError { error } => {
+                error.fmt(f)?;
+            }
             ErrorKind::IrError(error) => {
                 error.fmt(f)?;
             }
-            ErrorKind::MetaConflict(error) => {
+            ErrorKind::MetaError(error) => {
                 error.fmt(f)?;
             }
             ErrorKind::AccessError(error) => {
@@ -989,24 +997,40 @@ impl fmt::Display for ErrorKind {
     }
 }
 
-impl From<IrErrorKind> for ErrorKind {
+impl From<AllocError> for ErrorKind {
     #[inline]
-    fn from(source: IrErrorKind) -> Self {
-        ErrorKind::IrError(source)
+    fn from(error: AllocError) -> Self {
+        ErrorKind::AllocError {
+            error: error.into(),
+        }
     }
 }
 
-impl From<MetaConflict> for ErrorKind {
+impl From<rune_alloc::Error> for ErrorKind {
     #[inline]
-    fn from(source: MetaConflict) -> Self {
-        ErrorKind::MetaConflict(source)
+    fn from(error: rune_alloc::Error) -> Self {
+        ErrorKind::AllocError { error }
+    }
+}
+
+impl From<IrErrorKind> for ErrorKind {
+    #[inline]
+    fn from(error: IrErrorKind) -> Self {
+        ErrorKind::IrError(error)
+    }
+}
+
+impl From<MetaError> for ErrorKind {
+    #[inline]
+    fn from(error: MetaError) -> Self {
+        ErrorKind::MetaError(error)
     }
 }
 
 impl From<AccessError> for ErrorKind {
     #[inline]
-    fn from(source: AccessError) -> Self {
-        ErrorKind::AccessError(source)
+    fn from(error: AccessError) -> Self {
+        ErrorKind::AccessError(error)
     }
 }
 
@@ -1161,29 +1185,63 @@ pub struct ImportStep {
     pub item: ItemBuf,
 }
 
+/// A meta error.
 #[derive(Debug)]
-/// Tried to add an item that already exists.
-pub(crate) struct MetaConflict {
-    /// The meta we tried to insert.
-    pub(crate) current: MetaInfo,
-    /// The existing item.
-    pub(crate) existing: MetaInfo,
-    /// Parameters hash.
-    pub(crate) parameters: Hash,
+pub struct MetaError {
+    kind: Box<MetaErrorKind>,
 }
 
-impl fmt::Display for MetaConflict {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let MetaConflict {
-            current,
-            existing,
-            parameters,
-        } = self;
-        write!(f, "Can't insert item `{current}` ({parameters}) because conflicting meta `{existing}` already exists")
+impl MetaError {
+    /// Construct a new meta error.
+    pub(crate) fn new<E>(kind: E) -> Self
+    where
+        MetaErrorKind: From<E>,
+    {
+        Self {
+            kind: Box::new(kind.into()),
+        }
     }
 }
 
-impl crate::no_std::error::Error for MetaConflict {}
+impl From<AllocError> for MetaError {
+    #[inline]
+    fn from(error: AllocError) -> Self {
+        Self::new(MetaErrorKind::AllocError { error })
+    }
+}
+
+#[derive(Debug)]
+/// Tried to add an item that already exists.
+pub(crate) enum MetaErrorKind {
+    AllocError {
+        error: AllocError,
+    },
+    MetaConflict {
+        /// The meta we tried to insert.
+        current: MetaInfo,
+        /// The existing item.
+        existing: MetaInfo,
+        /// Parameters hash.
+        parameters: Hash,
+    },
+}
+
+impl fmt::Display for MetaError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &*self.kind {
+            MetaErrorKind::AllocError { error } => error.fmt(f),
+            MetaErrorKind::MetaConflict {
+                current,
+                existing,
+                parameters,
+            } => {
+                write!(f, "Can't insert item `{current}` ({parameters}) because conflicting meta `{existing}` already exists")
+            }
+        }
+    }
+}
+
+impl crate::no_std::error::Error for MetaError {}
 
 #[derive(Debug)]
 pub(crate) struct MissingScope(pub(crate) usize);

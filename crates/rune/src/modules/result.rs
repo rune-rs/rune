@@ -1,8 +1,7 @@
 //! The `std::result` module.
 
-use core::fmt;
-
 use crate as rune;
+use crate::alloc::fmt::TryWrite;
 use crate::runtime::{ControlFlow, Formatter, Function, Panic, Shared, Value, VmResult};
 use crate::{ContextError, Module};
 
@@ -194,17 +193,9 @@ fn expect(result: Result<Value, Value>, message: Value) -> VmResult<Value> {
         Ok(value) => VmResult::Ok(value),
         Err(err) => {
             let mut f = Formatter::new();
-
-            if let Err(fmt::Error) = vm_try!(message.string_display(&mut f)) {
-                return VmResult::err(Panic::msg("Failed to format message"));
-            }
-
-            f.push_str(": ");
-
-            if let Err(fmt::Error) = vm_try!(err.string_debug(&mut f)) {
-                return VmResult::err(Panic::msg("Failed to format error"));
-            }
-
+            vm_try!(message.string_display(&mut f));
+            vm_try!(f.try_write_str(": "));
+            vm_try!(err.string_debug(&mut f));
             VmResult::err(Panic::custom(f.into_string()))
         }
     }
@@ -273,9 +264,9 @@ fn map(this: &Result<Value, Value>, then: Function) -> VmResult<Result<Value, Va
 /// assert_eq!(maybe_add_one(Err("not a number")), Err("not a number"));
 /// ```
 #[rune::function(keep, instance, protocol = TRY)]
-pub(crate) fn result_try(this: Result<Value, Value>) -> ControlFlow {
-    match this {
+pub(crate) fn result_try(this: Result<Value, Value>) -> VmResult<ControlFlow> {
+    VmResult::Ok(match this {
         Ok(value) => ControlFlow::Continue(value),
-        Err(error) => ControlFlow::Break(Value::Result(Shared::new(Err(error)))),
-    }
+        Err(error) => ControlFlow::Break(Value::Result(vm_try!(Shared::new(Err(error))))),
+    })
 }

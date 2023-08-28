@@ -9,12 +9,11 @@ use core::ptr;
 use core::task::{Context, Poll};
 
 #[cfg(feature = "alloc")]
-use alloc::rc::Rc;
+use ::rust_alloc::rc::Rc;
 #[cfg(feature = "alloc")]
-use alloc::sync::Arc;
+use ::rust_alloc::sync::Arc;
 
-use crate::no_std::prelude::*;
-
+use crate::alloc::{Box, Error, Global};
 use crate::runtime::{
     Access, AccessError, AccessKind, AnyObj, AnyObjError, BorrowMut, BorrowRef, RawAccessGuard,
 };
@@ -27,16 +26,18 @@ pub struct Shared<T: ?Sized> {
 
 impl<T> Shared<T> {
     /// Construct a new shared value.
-    pub fn new(data: T) -> Self {
-        let inner = Box::leak(Box::new(SharedBox {
+    pub fn new(data: T) -> Result<Self, Error> {
+        let shared = SharedBox {
             access: Access::new(false),
             count: Cell::new(1),
             data: data.into(),
-        }));
+        };
 
-        Self {
+        let inner = Box::leak(Box::try_new_in(shared, Global)?);
+
+        Ok(Self {
             inner: inner.into(),
-        }
+        })
     }
 
     /// Return a debug formatter, that when printed will display detailed
@@ -52,7 +53,7 @@ impl<T> Shared<T> {
     /// ```
     /// use rune::runtime::Shared;
     ///
-    /// let shared = Shared::new(1u32);
+    /// let shared = Shared::new(1u32)?;
     /// assert!(shared.is_readable());
     ///
     /// {
@@ -66,6 +67,7 @@ impl<T> Shared<T> {
     /// }
     ///
     /// assert!(shared.is_readable());
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     ///
     /// # Taking inner value
@@ -73,12 +75,13 @@ impl<T> Shared<T> {
     /// ```
     /// use rune::runtime::Shared;
     ///
-    /// let shared = Shared::new(1u32);
+    /// let shared = Shared::new(1u32)?;
     /// let shared2 = shared.clone();
     /// assert!(shared.is_readable());
     /// shared.take().unwrap();
     /// assert!(!shared2.is_readable());
     /// assert!(shared2.take().is_err());
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn is_readable(&self) -> bool {
         // Safety: Since we have a reference to this shared, we know that the
@@ -93,7 +96,7 @@ impl<T> Shared<T> {
     /// ```
     /// use rune::runtime::Shared;
     ///
-    /// let shared = Shared::new(1u32);
+    /// let shared = Shared::new(1u32)?;
     /// assert!(shared.is_writable());
     ///
     /// {
@@ -102,6 +105,7 @@ impl<T> Shared<T> {
     /// }
     ///
     /// assert!(shared.is_writable());
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn is_writable(&self) -> bool {
         // Safety: Since we have a reference to this shared, we know that the
@@ -124,7 +128,7 @@ impl<T> Shared<T> {
     ///     counter: isize,
     /// }
     ///
-    /// let a = Shared::new(Foo { counter: 0 });
+    /// let a = Shared::new(Foo { counter: 0 })?;
     /// let b = a.clone();
     ///
     /// {
@@ -136,6 +140,7 @@ impl<T> Shared<T> {
     ///
     /// let a = a.take().unwrap();
     /// assert_eq!(a.counter, 1);
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn take(self) -> Result<T, AccessError> {
         // Safety: We know that interior value is alive since this container is
@@ -176,7 +181,7 @@ impl<T> Shared<T> {
     ///     counter: isize,
     /// }
     ///
-    /// let a = Shared::new(Foo { counter: 0 });
+    /// let a = Shared::new(Foo { counter: 0 })?;
     /// let b = a.clone();
     ///
     /// b.borrow_mut().unwrap().counter += 1;
@@ -191,6 +196,7 @@ impl<T> Shared<T> {
     /// let mut b = b.borrow_mut().unwrap();
     /// b.counter += 1;
     /// assert_eq!(b.counter, 2);
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn into_ref(self) -> Result<Ref<T>, AccessError> {
         // NB: we default to a "safer" mode with `AccessKind::Owned`, where
@@ -236,7 +242,7 @@ impl<T> Shared<T> {
     ///     counter: isize,
     /// }
     ///
-    /// let a = Shared::new(Foo { counter: 0 });
+    /// let a = Shared::new(Foo { counter: 0 })?;
     /// let b = a.clone();
     ///
     /// {
@@ -248,6 +254,7 @@ impl<T> Shared<T> {
     /// }
     ///
     /// assert_eq!(b.borrow_ref().unwrap().counter, 1);
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn into_mut(self) -> Result<Mut<T>, AccessError> {
         // NB: we default to a "safer" mode with `AccessKind::Owned`, where
@@ -294,7 +301,7 @@ impl<T: ?Sized> Shared<T> {
     ///     counter: isize,
     /// }
     ///
-    /// let a = Shared::new(Foo { counter: 0 });
+    /// let a = Shared::new(Foo { counter: 0 })?;
     ///
     /// a.borrow_mut().unwrap().counter += 1;
     ///
@@ -308,6 +315,7 @@ impl<T: ?Sized> Shared<T> {
     /// let mut a = a.borrow_mut().unwrap();
     /// a.counter += 1;
     /// assert_eq!(a.counter, 2);
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn borrow_ref(&self) -> Result<BorrowRef<'_, T>, AccessError> {
         // Safety: We know that interior value is alive since this container is
@@ -337,7 +345,7 @@ impl<T: ?Sized> Shared<T> {
     ///     counter: isize,
     /// }
     ///
-    /// let a = Shared::new(Foo { counter: 0 });
+    /// let a = Shared::new(Foo { counter: 0 })?;
     ///
     /// {
     ///     let mut a_mut = a.borrow_mut().unwrap();
@@ -348,6 +356,7 @@ impl<T: ?Sized> Shared<T> {
     ///
     /// let a = a.borrow_ref().unwrap();
     /// assert_eq!(a.counter, 1);
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn borrow_mut(&self) -> Result<BorrowMut<'_, T>, AccessError> {
         // Safety: We know that interior value is alive since this container is
@@ -383,7 +392,7 @@ impl Shared<AnyObj> {
     /// let value = Thing(10u32);
     ///
     /// unsafe {
-    ///     let (shared, guard) = Shared::from_ref(&value);
+    ///     let (shared, guard) = Shared::from_ref(&value)?;
     ///     assert!(shared.downcast_borrow_mut::<Thing>().is_err());
     ///     assert_eq!(10u32, shared.downcast_borrow_ref::<Thing>().unwrap().0);
     ///
@@ -392,8 +401,9 @@ impl Shared<AnyObj> {
     ///     assert!(shared.downcast_borrow_mut::<Thing>().is_err());
     ///     assert!(shared.downcast_borrow_ref::<Thing>().is_err());
     /// }
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
-    pub unsafe fn from_ref<T>(data: &T) -> (Self, SharedPointerGuard)
+    pub unsafe fn from_ref<T>(data: &T) -> Result<(Self, SharedPointerGuard), Error>
     where
         T: Any,
     {
@@ -419,7 +429,7 @@ impl Shared<AnyObj> {
     /// let mut value = Thing(10u32);
     ///
     /// unsafe {
-    ///     let (shared, guard) = Shared::from_mut(&mut value);
+    ///     let (shared, guard) = Shared::from_mut(&mut value)?;
     ///     shared.downcast_borrow_mut::<Thing>().unwrap().0 = 20;
     ///
     ///     assert_eq!(20u32, shared.downcast_borrow_mut::<Thing>().unwrap().0);
@@ -430,8 +440,9 @@ impl Shared<AnyObj> {
     ///     assert!(shared.downcast_borrow_mut::<Thing>().is_err());
     ///     assert!(shared.downcast_borrow_ref::<Thing>().is_err());
     /// }
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
-    pub unsafe fn from_mut<T>(data: &mut T) -> (Self, SharedPointerGuard)
+    pub unsafe fn from_mut<T>(data: &mut T) -> Result<(Self, SharedPointerGuard), Error>
     where
         T: Any,
     {
@@ -444,19 +455,20 @@ impl Shared<AnyObj> {
     /// # Safety
     ///
     /// The reference must be valid for the duration of the guard.
-    unsafe fn unsafe_from_any_pointer(any: AnyObj) -> (Self, SharedPointerGuard) {
-        let inner = ptr::NonNull::from(Box::leak(Box::new(SharedBox {
+    unsafe fn unsafe_from_any_pointer(any: AnyObj) -> Result<(Self, SharedPointerGuard), Error> {
+        let shared = SharedBox {
             access: Access::new(true),
             count: Cell::new(2),
             data: any.into(),
-        })));
+        };
+        let inner = ptr::NonNull::from(Box::leak(Box::try_new_in(shared, Global)?));
 
         let guard = SharedPointerGuard {
             _inner: RawDrop::take_shared_box(inner),
         };
 
         let value = Self { inner };
-        (value, guard)
+        Ok((value, guard))
     }
 
     /// Take the interior value, if we have exlusive access to it and there
@@ -487,7 +499,7 @@ impl Shared<AnyObj> {
             let expected = TypeId::of::<T>();
 
             let (e, any) = match any.raw_take(expected) {
-                Ok(value) => return Ok(*Box::from_raw(value as *mut T)),
+                Ok(value) => return Ok(Box::into_inner(Box::from_raw_in(value as *mut T, Global))),
                 Err((AnyObjError::Cast, any)) => {
                     let actual = any.type_name();
 
@@ -791,7 +803,7 @@ impl<T: ?Sized> SharedBox<T> {
             return false;
         }
 
-        let this = Box::from_raw(this);
+        let this = Box::from_raw_in(this, Global);
 
         if this.access.is_taken() {
             // NB: This prevents the inner `T` from being dropped in case it
@@ -997,7 +1009,7 @@ impl<T: ?Sized> Ref<T> {
     /// ```
     /// use rune::runtime::{Shared, Ref};
     ///
-    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
+    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4])?;
     /// let vec = vec.into_ref()?;
     /// let value: Ref<[u32]> = Ref::map(vec, |vec| &vec[0..2]);
     ///
@@ -1032,7 +1044,7 @@ impl<T: ?Sized> Ref<T> {
     /// ```
     /// use rune::runtime::{Shared, Ref};
     ///
-    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
+    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4])?;
     /// let vec = vec.into_ref()?;
     /// let value: Option<Ref<[u32]>> = Ref::try_map(vec, |vec| vec.get(0..2));
     ///
@@ -1135,7 +1147,7 @@ impl<T: ?Sized> Mut<T> {
     /// ```
     /// use rune::runtime::{Mut, Shared};
     ///
-    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
+    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4])?;
     /// let vec = vec.into_mut()?;
     /// let value: Mut<[u32]> = Mut::map(vec, |vec| &mut vec[0..2]);
     ///
@@ -1172,7 +1184,7 @@ impl<T: ?Sized> Mut<T> {
     /// ```
     /// use rune::runtime::{Mut, Shared};
     ///
-    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
+    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4])?;
     /// let vec = vec.into_mut()?;
     /// let mut value: Option<Mut<[u32]>> = Mut::try_map(vec, |vec| vec.get_mut(0..2));
     ///

@@ -17,6 +17,7 @@ fn test_get_const() -> Result<()> {
             .expect("successful lookup")
             .clone()
             .into_value()
+            .expect("could not allocate value")
             .into_integer()
             .expect("the inner value"),
         1337
@@ -45,6 +46,7 @@ fn test_get_const_re_export() -> Result<()> {
             .expect("successful lookup")
             .clone()
             .into_value()
+            .expect("could not allocate value")
             .into_integer()
             .expect("the inner value"),
         1337
@@ -71,6 +73,7 @@ fn test_get_const_nested() -> Result<()> {
             .expect("successful lookup")
             .clone()
             .into_value()
+            .expect("could not allocate value")
             .into_integer()
             .expect("the inner value"),
         1337

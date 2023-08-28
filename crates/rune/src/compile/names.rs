@@ -1,18 +1,25 @@
 use core::mem::replace;
 
-use crate::no_std::collections::BTreeMap;
-
+use crate::alloc::{AllocError, BTreeMap, Error, TryClone};
 use crate::compile::{Component, ComponentRef, IntoComponent};
 
 /// A tree of names.
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug)]
 pub struct Names {
     root: Node,
 }
 
+impl TryClone for Names {
+    fn try_clone(&self) -> Result<Self, Error> {
+        Ok(Self {
+            root: self.root.try_clone()?,
+        })
+    }
+}
+
 impl Names {
     /// Insert the given item as an import.
-    pub(crate) fn insert<I>(&mut self, iter: I) -> bool
+    pub(crate) fn insert<I>(&mut self, iter: I) -> Result<bool, AllocError>
     where
         I: IntoIterator,
         I::Item: IntoComponent,
@@ -20,10 +27,13 @@ impl Names {
         let mut current = &mut self.root;
 
         for c in iter {
-            current = current.children.entry(c.into_component()).or_default();
+            current = current
+                .children
+                .entry(c.into_component())
+                .or_try_default()?;
         }
 
-        replace(&mut current.term, true)
+        Ok(replace(&mut current.term, true))
     }
 
     /// Test if the given import exists.
@@ -101,12 +111,21 @@ impl Names {
     }
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug)]
 struct Node {
     /// If the node is terminating.
     term: bool,
     /// The children of this node.
     children: BTreeMap<Component, Node>,
+}
+
+impl TryClone for Node {
+    fn try_clone(&self) -> Result<Self, Error> {
+        Ok(Self {
+            term: self.term,
+            children: self.children.try_clone()?,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -117,17 +136,17 @@ mod tests {
     fn insert() {
         let mut names = Names::default();
         assert!(!names.contains(["test"]));
-        assert!(!names.insert(["test"]));
+        assert!(!names.insert(["test"]).unwrap());
         assert!(names.contains(["test"]));
-        assert!(names.insert(["test"]));
+        assert!(names.insert(["test"]).unwrap());
     }
 
     #[test]
     fn contains() {
         let mut names = Names::default();
         assert!(!names.contains(["test"]));
-        assert!(!names.insert(["test"]));
+        assert!(!names.insert(["test"]).unwrap());
         assert!(names.contains(["test"]));
-        assert!(names.insert(["test"]));
+        assert!(names.insert(["test"]).unwrap());
     }
 }

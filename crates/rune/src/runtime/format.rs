@@ -1,19 +1,18 @@
 //! Types for dealing with formatting specifications.
 
 use core::fmt;
-use core::fmt::Write;
 use core::iter;
 use core::mem::take;
 use core::num::NonZeroUsize;
 use core::str;
 
-use crate::no_std::prelude::*;
-
 use musli::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 use crate as rune;
-use crate::runtime::{Formatter, FromValue, ProtocolCaller, Value, VmErrorKind, VmResult};
+use crate::alloc::fmt::TryWrite;
+use crate::alloc::{Global, String};
+use crate::runtime::{Formatter, ProtocolCaller, Value, VmErrorKind, VmResult};
 use crate::Any;
 
 /// Error raised when trying to parse a type string and it fails.
@@ -49,12 +48,7 @@ pub struct Format {
     pub(crate) spec: FormatSpec,
 }
 
-impl FromValue for Format {
-    #[inline]
-    fn from_value(value: Value) -> VmResult<Self> {
-        VmResult::Ok(*vm_try!(value.into_format()))
-    }
-}
+from_value!(Format, into_format);
 
 /// A format specification.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
@@ -125,36 +119,43 @@ impl FormatSpec {
     }
 
     /// Format the given number.
-    fn format_number(&self, buf: &mut String, n: i64) {
+    fn format_number(&self, buf: &mut String<Global>, n: i64) -> VmResult<()> {
         let mut buffer = itoa::Buffer::new();
-        buf.push_str(buffer.format(n));
+        vm_try!(buf.try_push_str(buffer.format(n)));
+        VmResult::Ok(())
     }
 
     /// Format the given float.
-    fn format_float(&self, buf: &mut String, n: f64) -> Result<(), VmErrorKind> {
+    fn format_float(&self, buf: &mut String<Global>, n: f64) -> VmResult<()> {
         if let Some(precision) = self.precision {
-            write!(buf, "{:.*}", precision.get(), n).map_err(|_| VmErrorKind::FormatError)?;
+            vm_write!(buf, "{:.*}", precision.get(), n);
         } else {
             let mut buffer = ryu::Buffer::new();
-            buf.push_str(buffer.format(n));
+            vm_try!(buf.try_push_str(buffer.format(n)));
         }
 
-        Ok(())
+        VmResult::Ok(())
     }
 
     /// Format fill.
-    fn format_fill(&self, f: &mut Formatter, align: Alignment, fill: char, sign: Option<char>) {
+    fn format_fill(
+        &self,
+        f: &mut Formatter,
+        align: Alignment,
+        fill: char,
+        sign: Option<char>,
+    ) -> VmResult<()> {
         let (f, buf) = f.parts_mut();
 
         if let Some(sign) = sign {
-            f.push(sign);
+            vm_try!(f.try_push(sign));
         }
 
         let mut w = self.width.map(|n| n.get()).unwrap_or_default();
 
         if w == 0 {
-            f.push_str(buf);
-            return;
+            vm_try!(f.try_push_str(buf));
+            return VmResult::Ok(());
         }
 
         w = w
@@ -162,27 +163,41 @@ impl FormatSpec {
             .saturating_sub(sign.map(|_| 1).unwrap_or_default());
 
         if w == 0 {
-            f.push_str(buf);
-            return;
+            vm_try!(f.try_push_str(buf));
+            return VmResult::Ok(());
         }
 
         let mut filler = iter::repeat(fill).take(w);
 
         match align {
             Alignment::Left => {
-                f.push_str(buf);
-                f.extend(filler);
+                vm_try!(f.try_push_str(buf));
+
+                for c in filler {
+                    vm_try!(f.try_push(c));
+                }
             }
             Alignment::Center => {
-                f.extend((&mut filler).take(w / 2));
-                f.push_str(buf);
-                f.extend(filler);
+                for c in (&mut filler).take(w / 2) {
+                    vm_try!(f.try_push(c));
+                }
+
+                vm_try!(f.try_push_str(buf));
+
+                for c in filler {
+                    vm_try!(f.try_push(c));
+                }
             }
             Alignment::Right => {
-                f.extend(filler);
-                f.push_str(buf);
+                for c in filler {
+                    vm_try!(f.try_push(c));
+                }
+
+                vm_try!(f.try_push_str(buf));
             }
         }
+
+        VmResult::Ok(())
     }
 
     fn format_display(
@@ -193,26 +208,25 @@ impl FormatSpec {
     ) -> VmResult<()> {
         match value {
             Value::Char(c) => {
-                f.buf_mut().push(*c);
-                self.format_fill(f, self.align, self.fill, None);
+                vm_try!(f.buf_mut().try_push(*c));
+                vm_try!(self.format_fill(f, self.align, self.fill, None));
             }
             Value::String(s) => {
-                f.buf_mut().push_str(&vm_try!(s.borrow_ref()));
-                self.format_fill(f, self.align, self.fill, None);
+                vm_try!(f.buf_mut().try_push_str(&vm_try!(s.borrow_ref())));
+                vm_try!(self.format_fill(f, self.align, self.fill, None));
             }
             Value::Integer(n) => {
                 let (n, align, fill, sign) = self.int_traits(*n);
-                self.format_number(f.buf_mut(), n);
-                self.format_fill(f, align, fill, sign);
+                vm_try!(self.format_number(f.buf_mut(), n));
+                vm_try!(self.format_fill(f, align, fill, sign));
             }
             Value::Float(n) => {
                 let (n, align, fill, sign) = self.float_traits(*n);
                 vm_try!(self.format_float(f.buf_mut(), n));
-                self.format_fill(f, align, fill, sign);
+                vm_try!(self.format_fill(f, align, fill, sign));
             }
             _ => {
-                let result = vm_try!(value.string_display_with(f, caller));
-                vm_try!(result.map_err(|_| VmErrorKind::FormatError));
+                vm_try!(value.string_display_with(f, caller));
             }
         }
 
@@ -228,86 +242,84 @@ impl FormatSpec {
         match value {
             Value::String(s) => {
                 let s = vm_try!(s.borrow_ref());
-                vm_try!(write!(f, "{:?}", &*s).map_err(|_| VmErrorKind::FormatError));
+                vm_write!(f, "{:?}", &*s);
             }
             Value::Integer(n) => {
                 let (n, align, fill, sign) = self.int_traits(*n);
-                self.format_number(f.buf_mut(), n);
-                self.format_fill(f, align, fill, sign);
+                vm_try!(self.format_number(f.buf_mut(), n));
+                vm_try!(self.format_fill(f, align, fill, sign));
             }
             Value::Float(n) => {
                 let (n, align, fill, sign) = self.float_traits(*n);
                 vm_try!(self.format_float(f.buf_mut(), n));
-                self.format_fill(f, align, fill, sign);
+                vm_try!(self.format_fill(f, align, fill, sign));
             }
             value => {
-                let result = vm_try!(value.string_debug_with(f, caller));
-                vm_try!(result.map_err(|_| VmErrorKind::FormatError));
+                vm_try!(value.string_debug_with(f, caller));
             }
         }
 
         VmResult::Ok(())
     }
 
-    fn format_upper_hex(&self, value: &Value, f: &mut Formatter) -> Result<(), VmErrorKind> {
+    fn format_upper_hex(&self, value: &Value, f: &mut Formatter) -> VmResult<()> {
         match value {
             Value::Integer(n) => {
                 let (n, align, fill, sign) = self.int_traits(*n);
-                write!(f.buf_mut(), "{:X}", n).map_err(|_| VmErrorKind::FormatError)?;
-                self.format_fill(f, align, fill, sign);
+                vm_write!(f.buf_mut(), "{:X}", n);
+                vm_try!(self.format_fill(f, align, fill, sign));
             }
             _ => {
-                return Err(VmErrorKind::FormatError);
+                return VmResult::err(VmErrorKind::IllegalFormat);
             }
         }
 
-        Ok(())
+        VmResult::Ok(())
     }
 
-    fn format_lower_hex(&self, value: &Value, f: &mut Formatter) -> Result<(), VmErrorKind> {
+    fn format_lower_hex(&self, value: &Value, f: &mut Formatter) -> VmResult<()> {
         match value {
             Value::Integer(n) => {
                 let (n, align, fill, sign) = self.int_traits(*n);
-                write!(f.buf_mut(), "{:x}", n).map_err(|_| VmErrorKind::FormatError)?;
-                self.format_fill(f, align, fill, sign);
+                vm_write!(f.buf_mut(), "{:x}", n);
+                vm_try!(self.format_fill(f, align, fill, sign));
             }
             _ => {
-                return Err(VmErrorKind::FormatError);
+                return VmResult::err(VmErrorKind::IllegalFormat);
             }
         }
 
-        Ok(())
+        VmResult::Ok(())
     }
 
-    fn format_binary(&self, value: &Value, f: &mut Formatter) -> Result<(), VmErrorKind> {
+    fn format_binary(&self, value: &Value, f: &mut Formatter) -> VmResult<()> {
         match value {
             Value::Integer(n) => {
                 let (n, align, fill, sign) = self.int_traits(*n);
-                write!(f.buf_mut(), "{:b}", n).map_err(|_| VmErrorKind::FormatError)?;
-                self.format_fill(f, align, fill, sign);
+                vm_write!(f.buf_mut(), "{:b}", n);
+                vm_try!(self.format_fill(f, align, fill, sign));
             }
             _ => {
-                return Err(VmErrorKind::FormatError);
+                return VmResult::err(VmErrorKind::IllegalFormat);
             }
         }
 
-        Ok(())
+        VmResult::Ok(())
     }
 
-    fn format_pointer(&self, value: &Value, f: &mut Formatter) -> Result<(), VmErrorKind> {
+    fn format_pointer(&self, value: &Value, f: &mut Formatter) -> VmResult<()> {
         match value {
             Value::Integer(n) => {
                 let (n, align, fill, sign) = self.int_traits(*n);
-                write!(f.buf_mut(), "{:p}", n as *const ())
-                    .map_err(|_| VmErrorKind::FormatError)?;
-                self.format_fill(f, align, fill, sign);
+                vm_write!(f.buf_mut(), "{:p}", n as *const ());
+                vm_try!(self.format_fill(f, align, fill, sign));
             }
             _ => {
-                return Err(VmErrorKind::FormatError);
+                return VmResult::err(VmErrorKind::IllegalFormat);
             }
         }
 
-        Ok(())
+        VmResult::Ok(())
     }
 
     /// Format the given value to the out buffer `out`, using `buf` for

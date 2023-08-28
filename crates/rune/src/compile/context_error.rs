@@ -2,6 +2,7 @@ use core::fmt;
 
 use crate::no_std::prelude::*;
 
+use crate::alloc::AllocError;
 use crate::compile::ItemBuf;
 use crate::runtime::{TypeInfo, VmError};
 use crate::Hash;
@@ -11,6 +12,9 @@ use crate::Hash;
 #[allow(missing_docs)]
 #[non_exhaustive]
 pub enum ContextError {
+    AllocError {
+        error: AllocError,
+    },
     UnitAlreadyPresent,
     InternalAlreadyPresent {
         name: &'static str,
@@ -111,9 +115,18 @@ pub enum ContextError {
     },
 }
 
+impl From<AllocError> for ContextError {
+    fn from(error: AllocError) -> Self {
+        ContextError::AllocError { error }
+    }
+}
+
 impl fmt::Display for ContextError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            ContextError::AllocError { error } => {
+                error.fmt(f)?;
+            }
             ContextError::UnitAlreadyPresent {} => {
                 write!(f, "Unit `()` type is already present")?;
             }

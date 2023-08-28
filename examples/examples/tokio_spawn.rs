@@ -1,3 +1,4 @@
+use rune::alloc::TryClone;
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{Diagnostics, Vm};
 use std::sync::Arc;
@@ -31,13 +32,13 @@ async fn main() -> rune::Result<()> {
 
     let vm = Vm::new(runtime, Arc::new(unit));
 
-    let execution = vm.clone().send_execute(["main"], (5u32,))?;
+    let execution = vm.try_clone()?.send_execute(["main"], (5u32,))?;
     let t1 = tokio::spawn(async move {
         execution.async_complete().await.unwrap();
         println!("timer ticked");
     });
 
-    let execution = vm.clone().send_execute(["main"], (2u32,))?;
+    let execution = vm.try_clone()?.send_execute(["main"], (2u32,))?;
     let t2 = tokio::spawn(async move {
         execution.async_complete().await.unwrap();
         println!("timer ticked");

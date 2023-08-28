@@ -3,9 +3,8 @@ use core::hash;
 use core::ops::ControlFlow;
 
 use crate::no_std::collections::HashMap;
-use crate::no_std::prelude::*;
-use crate::no_std::vec;
 
+use crate::alloc;
 use crate::runtime as rt;
 use crate::runtime::{RawStr, TypeInfo};
 use crate::Hash;
@@ -106,7 +105,9 @@ pub(crate) static STRING_TYPE: &StaticType = &StaticType {
     hash: ::rune_macros::hash!(::std::string::String),
 };
 
-impl_static_type!(String => STRING_TYPE);
+#[cfg(feature = "alloc")]
+impl_static_type!(::rust_alloc::string::String => STRING_TYPE);
+impl_static_type!(alloc::String => STRING_TYPE);
 impl_static_type!(str => STRING_TYPE);
 
 pub(crate) static BYTES_TYPE: &StaticType = &StaticType {
@@ -122,7 +123,9 @@ pub(crate) static VEC_TYPE: &StaticType = &StaticType {
 };
 
 impl_static_type!([rt::Value] => VEC_TYPE);
-impl_static_type!(impl<T> vec::Vec<T> => VEC_TYPE);
+#[cfg(feature = "alloc")]
+impl_static_type!(impl<T> ::rust_alloc::vec::Vec<T> => VEC_TYPE);
+impl_static_type!(impl<T> alloc::Vec<T> => VEC_TYPE);
 impl_static_type!(impl<T> rt::VecTuple<T> => VEC_TYPE);
 
 pub(crate) static TUPLE_TYPE: &StaticType = &StaticType {
@@ -138,7 +141,7 @@ pub(crate) static OBJECT_TYPE: &StaticType = &StaticType {
 };
 
 impl_static_type!(rt::Struct => OBJECT_TYPE);
-impl_static_type!(impl<T> HashMap<String, T> => OBJECT_TYPE);
+impl_static_type!(impl<T> HashMap<alloc::String, T> => OBJECT_TYPE);
 
 pub(crate) static RANGE_FROM_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("RangeFrom"),

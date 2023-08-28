@@ -2,14 +2,15 @@ use core::fmt;
 use core::ops;
 use core::slice;
 
-use crate::no_std::prelude::*;
+use crate::no_std::std;
 
 use crate as rune;
+use crate::alloc::{Box, Error, Global, TryClone};
 use crate::runtime::{
-    ConstValue, FromValue, Mut, RawMut, RawRef, Ref, Shared, ToValue, UnsafeToMut, UnsafeToRef,
-    Value, VmErrorKind, VmResult,
+    ConstValue, FromValue, Mut, RawMut, RawRef, Ref, ToValue, UnsafeToMut, UnsafeToRef, Value,
+    VmErrorKind, VmResult,
 };
-#[cfg(feature = "std")]
+#[cfg(feature = "alloc")]
 use crate::runtime::{Hasher, ProtocolCaller};
 use crate::Any;
 
@@ -47,7 +48,7 @@ impl Tuple {
         VmResult::Ok(Some(vm_try!(T::from_value(value))))
     }
 
-    #[cfg(feature = "std")]
+    #[cfg(feature = "alloc")]
     pub(crate) fn hash_with(
         &self,
         hasher: &mut Hasher,
@@ -100,10 +101,9 @@ impl<'a> IntoIterator for &'a mut Tuple {
 /// Struct representing a dynamic anonymous object.
 ///
 /// To access borrowed values of a tuple in native functions, use [`Tuple`].
-#[derive(Clone)]
 #[repr(transparent)]
 pub struct OwnedTuple {
-    inner: Option<Box<[Value]>>,
+    inner: Box<[Value]>,
 }
 
 impl OwnedTuple {
@@ -114,18 +114,37 @@ impl OwnedTuple {
     /// ```
     /// use rune::runtime::OwnedTuple;
     ///
-    /// const EMPTY: OwnedTuple = OwnedTuple::new();
+    /// let empty = OwnedTuple::new();
     /// ```
-    pub const fn new() -> Self {
-        Self { inner: None }
+    pub fn new() -> Self {
+        Self {
+            inner: Box::default(),
+        }
     }
 
     /// Convert into inner std boxed slice.
     pub fn into_inner(self) -> Box<[Value]> {
-        match self.inner {
-            Some(values) => values,
-            None => Box::from([]),
-        }
+        self.inner
+    }
+}
+
+impl Default for OwnedTuple {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl TryClone for OwnedTuple {
+    #[inline]
+    fn try_clone(&self) -> Result<Self, Error> {
+        Ok(Self {
+            inner: self.inner.try_clone()?,
+        })
+    }
+
+    #[inline]
+    fn try_clone_from(&mut self, source: &Self) -> Result<(), Error> {
+        self.inner.try_clone_from(&source.inner)
     }
 }
 
@@ -154,73 +173,105 @@ impl ops::Deref for OwnedTuple {
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        match &self.inner {
-            Some(values) => Tuple::new(values),
-            None => Tuple::new(&[]),
-        }
+        Tuple::new(&self.inner)
     }
 }
 
 impl ops::DerefMut for OwnedTuple {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        match &mut self.inner {
-            Some(values) => Tuple::new_mut(values),
-            None => Tuple::new_mut(&mut []),
-        }
+        Tuple::new_mut(&mut self.inner)
     }
 }
 
-impl From<Vec<Value>> for OwnedTuple {
+impl TryFrom<std::Vec<Value>> for OwnedTuple {
+    type Error = Error;
+
     #[inline]
-    fn from(vec: Vec<Value>) -> Self {
-        Self {
-            inner: if vec.is_empty() {
-                None
-            } else {
-                Some(vec.into_boxed_slice())
-            },
-        }
+    fn try_from(vec: std::Vec<Value>) -> Result<Self, Self::Error> {
+        Ok(Self {
+            inner: rune_alloc::Box::try_from(vec.into_boxed_slice())?,
+        })
     }
 }
 
-impl<const N: usize> From<[Value; N]> for OwnedTuple {
+impl TryFrom<rune_alloc::Vec<Value>> for OwnedTuple {
+    type Error = Error;
+
     #[inline]
-    fn from(values: [Value; N]) -> Self {
-        Self {
-            inner: if values.is_empty() {
-                None
-            } else {
-                Some(values.into())
-            },
-        }
+    fn try_from(vec: rune_alloc::Vec<Value>) -> Result<Self, Self::Error> {
+        Ok(Self {
+            inner: vec.try_into_boxed_slice()?,
+        })
     }
 }
 
-impl From<Box<[Value]>> for OwnedTuple {
+impl<const N: usize> TryFrom<[Value; N]> for OwnedTuple {
+    type Error = Error;
+
     #[inline]
-    fn from(inner: Box<[Value]>) -> Self {
-        Self {
-            inner: if inner.is_empty() { None } else { Some(inner) },
-        }
+    fn try_from(values: [Value; N]) -> Result<Self, Self::Error> {
+        Ok(Self {
+            inner: values.try_into()?,
+        })
     }
 }
 
-impl From<Box<[ConstValue]>> for OwnedTuple {
-    fn from(inner: Box<[ConstValue]>) -> Self {
+impl TryFrom<std::Box<[Value]>> for OwnedTuple {
+    type Error = Error;
+
+    #[inline]
+    fn try_from(inner: std::Box<[Value]>) -> Result<Self, Error> {
+        Ok(Self {
+            inner: rune_alloc::Box::try_from(inner)?,
+        })
+    }
+}
+
+impl From<rune_alloc::Box<[Value]>> for OwnedTuple {
+    #[inline]
+    fn from(inner: rune_alloc::Box<[Value]>) -> Self {
+        Self { inner }
+    }
+}
+
+impl TryFrom<std::Box<[ConstValue]>> for OwnedTuple {
+    type Error = Error;
+
+    fn try_from(inner: std::Box<[ConstValue]>) -> Result<Self, Error> {
         if inner.is_empty() {
-            return OwnedTuple::new();
+            return Ok(OwnedTuple::new());
         }
 
-        let mut out = Vec::with_capacity(inner.len());
+        let mut out = rune_alloc::Vec::try_with_capacity_in(inner.len(), Global)?;
 
         for value in inner.into_vec() {
-            out.push(value.into_value());
+            out.try_push(value.into_value()?)?;
         }
 
-        Self {
-            inner: Some(out.into_boxed_slice()),
+        Ok(Self {
+            inner: out.try_into_boxed_slice()?,
+        })
+    }
+}
+
+impl TryFrom<rune_alloc::Box<[ConstValue]>> for OwnedTuple {
+    type Error = Error;
+
+    fn try_from(inner: rune_alloc::Box<[ConstValue]>) -> Result<Self, Error> {
+        if inner.is_empty() {
+            return Ok(OwnedTuple::new());
         }
+
+        let mut out = rune_alloc::Vec::try_with_capacity_in(inner.len(), Global)?;
+
+        for value in rune_alloc::Vec::from(inner) {
+            out.try_push(value.into_value()?)?;
+        }
+
+        Ok(Self {
+            inner: out.try_into_boxed_slice()?,
+        })
     }
 }
 
@@ -280,7 +331,9 @@ macro_rules! impl_tuple {
             fn to_value(self) -> VmResult<Value> {
                 let ($($var,)*) = self;
                 $(let $var = vm_try!($var.to_value());)*
-                VmResult::Ok(Value::from(OwnedTuple::from(vec![$($var,)*])))
+                let mut vec = vm_try!(rune_alloc::Vec::try_with_capacity($count));
+                $(vm_try!(vec.try_push($var));)*
+                VmResult::Ok(vm_try!(Value::try_from(vm_try!(OwnedTuple::try_from(vec)))))
             }
         }
     };
@@ -291,11 +344,7 @@ repeat_macro!(impl_tuple);
 impl FromValue for Mut<Tuple> {
     fn from_value(value: Value) -> VmResult<Self> {
         match value {
-            Value::EmptyTuple => {
-                let tuple = vm_try!(Shared::new(OwnedTuple::new()).into_mut());
-                let tuple = Mut::map(tuple, |this| &mut **this);
-                VmResult::Ok(tuple)
-            }
+            Value::EmptyTuple => VmResult::Ok(Mut::from_static(Tuple::new_mut(&mut []))),
             Value::Tuple(tuple) => {
                 let tuple = vm_try!(tuple.into_mut());
                 let tuple = Mut::map(tuple, |this| &mut **this);

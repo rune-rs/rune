@@ -15,7 +15,7 @@ struct TestUnit;
 
 #[derive(FromValue)]
 struct TestNamed {
-    a: Mut<String>,
+    a: Mut<alloc::String>,
     b: Mut<Tuple>,
     c: Mut<Object>,
     d: Ref<Custom>,
@@ -23,11 +23,11 @@ struct TestNamed {
 }
 
 #[derive(FromValue)]
-struct TestUnnamed(Mut<String>, Mut<Custom>);
+struct TestUnnamed(Mut<alloc::String>, Mut<Custom>);
 
 #[derive(ToValue)]
 struct Test2 {
-    a: String,
+    a: alloc::String,
     b: OwnedTuple,
     c: Object,
     d: Custom,
@@ -35,20 +35,20 @@ struct Test2 {
 }
 
 #[derive(ToValue)]
-struct Test2Unnamed(String, Custom);
+struct Test2Unnamed(alloc::String, Custom);
 
 #[derive(FromValue)]
 enum TestEnum {
     TestUnit,
     TestNamed {
-        a: Mut<String>,
+        a: Mut<alloc::String>,
         b: Mut<Tuple>,
         c: Mut<Object>,
         d: Ref<Custom>,
         e: Mut<Custom>,
     },
     TestUnnamed(
-        Mut<String>,
+        Mut<alloc::String>,
         Mut<Tuple>,
         Mut<Object>,
         Ref<Custom>,

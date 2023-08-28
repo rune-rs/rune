@@ -191,7 +191,7 @@ where
 {
     fn to_value(self) -> VmResult<Value> {
         let end = vm_try!(self.end.to_value());
-        VmResult::Ok(Value::from(RangeTo::new(end)))
+        VmResult::Ok(vm_try!(Value::try_from(RangeTo::new(end))))
     }
 }
 

@@ -1,10 +1,8 @@
 //! The `std::any` rune module.
 
-use core::fmt::{self, Write};
-
-use crate::no_std::prelude::*;
-
 use crate as rune;
+use crate::alloc::fmt::TryWrite;
+use crate::alloc::String;
 use crate::runtime::{Formatter, Type, Value, VmResult};
 use crate::{ContextError, Module};
 
@@ -53,8 +51,9 @@ fn type_of_val(value: Value) -> VmResult<Type> {
 /// assert_eq!(format!("{}", any::Type::of_val(42)), "Type(0x1cad9186c9641c4f)");
 /// ```
 #[rune::function(instance, protocol = STRING_DISPLAY)]
-fn format_type(ty: Type, f: &mut Formatter) -> fmt::Result {
-    write!(f, "{:?}", ty)
+fn format_type(ty: Type, f: &mut Formatter) -> VmResult<()> {
+    vm_write!(f, "{:?}", ty);
+    VmResult::Ok(())
 }
 
 /// Get the type name of a value.

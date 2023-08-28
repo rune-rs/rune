@@ -6,6 +6,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::item::ComponentRef;
 
+#[cfg(feature = "alloc")]
+use rune_alloc::{Error, TryClone};
+
 /// The component of an item.
 ///
 /// All indexes refer to sibling indexes. So two sibling id components could
@@ -47,5 +50,14 @@ impl fmt::Display for Component {
             Self::Str(s) => write!(fmt, "{}", s),
             Self::Id(n) => write!(fmt, "${}", n),
         }
+    }
+}
+
+#[cfg(feature = "alloc")]
+impl TryClone for Component {
+    #[inline]
+    fn try_clone(&self) -> Result<Self, Error> {
+        // TODO: use fallible allocations for component.
+        Ok(self.clone())
     }
 }

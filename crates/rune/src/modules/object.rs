@@ -5,6 +5,7 @@ use core::cmp::Ordering;
 use crate::no_std::prelude::*;
 
 use crate as rune;
+use crate::alloc::TryClone;
 use crate::runtime::{EnvProtocolCaller, Iterator, Object, Protocol, Value, VmResult};
 use crate::{ContextError, Module};
 
@@ -15,10 +16,10 @@ pub fn module() -> Result<Module, ContextError> {
     m.ty::<Object>()?;
 
     m.function_meta(Object::new__meta)?;
-    m.function_meta(Object::with_capacity__meta)?;
+    m.function_meta(Object::rune_with_capacity)?;
     m.function_meta(Object::len__meta)?;
     m.function_meta(Object::is_empty__meta)?;
-    m.function_meta(Object::insert__meta)?;
+    m.function_meta(Object::rune_insert)?;
     m.function_meta(remove)?;
     m.function_meta(Object::clear__meta)?;
     m.function_meta(contains_key)?;
@@ -97,9 +98,18 @@ fn get(object: &Object, key: &str) -> Option<Value> {
 /// ```
 #[rune::function(instance)]
 #[inline]
-fn keys(object: &Object) -> Iterator {
-    let iter = object.keys().cloned().collect::<Vec<_>>().into_iter();
-    Iterator::from_double_ended("std::object::Keys", iter)
+fn keys(object: &Object) -> VmResult<Iterator> {
+    // TODO: implement as lazy iteration.
+    let mut keys = Vec::new();
+
+    for key in object.keys() {
+        keys.push(vm_try!(key.try_clone()));
+    }
+
+    VmResult::Ok(Iterator::from_double_ended(
+        "std::object::Keys",
+        keys.into_iter(),
+    ))
 }
 
 /// An iterator visiting all values in arbitrary order.

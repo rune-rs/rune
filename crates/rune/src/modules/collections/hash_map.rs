@@ -1,6 +1,6 @@
-use core::fmt::{self, Write};
-
 use crate as rune;
+use crate::alloc::fmt::TryWrite;
+use crate::alloc::{Global, TryClone};
 use crate::hashbrown::Table;
 use crate::runtime::{
     EnvProtocolCaller, Formatter, FromValue, Iterator, ProtocolCaller, Ref, Value, VmErrorKind,
@@ -35,7 +35,7 @@ pub(super) fn setup(module: &mut Module) -> Result<(), ContextError> {
     Ok(())
 }
 
-#[derive(Any, Clone)]
+#[derive(Any)]
 #[rune(item = ::std::collections)]
 pub(crate) struct HashMap {
     table: Table<Value>,
@@ -56,7 +56,7 @@ impl HashMap {
     #[rune::function(keep, path = Self::new)]
     fn new() -> Self {
         Self {
-            table: Table::new(),
+            table: Table::new_in(Global),
         }
     }
 
@@ -73,10 +73,10 @@ impl HashMap {
     /// let map = HashMap::with_capacity(10);
     /// ```
     #[rune::function(keep, path = Self::with_capacity)]
-    fn with_capacity(capacity: usize) -> Self {
-        Self {
-            table: Table::with_capacity(capacity),
-        }
+    fn with_capacity(capacity: usize) -> VmResult<Self> {
+        VmResult::Ok(Self {
+            table: vm_try!(Table::try_with_capacity_in(capacity, Global)),
+        })
     }
 
     /// Returns the number of elements in the map.
@@ -371,8 +371,10 @@ impl HashMap {
     /// assert_eq!(b.len(), 3);
     /// ```
     #[rune::function(keep, instance, path = Self::clone)]
-    fn clone(this: &HashMap) -> HashMap {
-        Clone::clone(this)
+    fn clone(this: &HashMap) -> VmResult<HashMap> {
+        VmResult::Ok(Self {
+            table: vm_try!(this.table.try_clone()),
+        })
     }
 
     pub(crate) fn from_iter<P>(mut it: Iterator, caller: &mut P) -> VmResult<Self>
@@ -463,7 +465,7 @@ impl HashMap {
     /// assert_eq!(format!("{:?}", map), "{1: \"a\"}");
     /// ```
     #[rune::function(keep, protocol = STRING_DEBUG)]
-    fn string_debug(&self, f: &mut Formatter) -> VmResult<fmt::Result> {
+    fn string_debug(&self, f: &mut Formatter) -> VmResult<()> {
         self.string_debug_with(f, &mut EnvProtocolCaller)
     }
 
@@ -471,21 +473,15 @@ impl HashMap {
         &self,
         f: &mut Formatter,
         caller: &mut impl ProtocolCaller,
-    ) -> VmResult<fmt::Result> {
+    ) -> VmResult<()> {
         vm_write!(f, "{{");
 
         let mut it = self.table.iter().peekable();
 
         while let Some((key, value)) = it.next() {
-            if let Err(fmt::Error) = vm_try!(key.string_debug_with(f, caller)) {
-                return VmResult::Ok(Err(fmt::Error));
-            }
-
+            vm_try!(key.string_debug_with(f, caller));
             vm_write!(f, ": ");
-
-            if let Err(fmt::Error) = vm_try!(value.string_debug_with(f, caller)) {
-                return VmResult::Ok(Err(fmt::Error));
-            }
+            vm_try!(value.string_debug_with(f, caller));
 
             if it.peek().is_some() {
                 vm_write!(f, ", ");
@@ -493,7 +489,7 @@ impl HashMap {
         }
 
         vm_write!(f, "}}");
-        VmResult::Ok(Ok(()))
+        VmResult::Ok(())
     }
 
     /// Perform a partial equality check over two maps.

@@ -1,3 +1,4 @@
+use rune::alloc;
 use rune::runtime::Object;
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{Diagnostics, Value, Vm};
@@ -34,7 +35,7 @@ fn main() -> rune::Result<()> {
     let mut vm = Vm::new(runtime, Arc::new(unit));
 
     let mut object = Object::new();
-    object.insert(String::from("key"), Value::from(42i64));
+    object.insert(alloc::String::try_from("key")?, Value::from(42i64))?;
 
     let output = vm.call(["calc"], (object,))?;
     let output: Object = rune::from_value(output)?;

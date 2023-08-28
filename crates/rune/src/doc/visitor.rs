@@ -2,9 +2,11 @@ use crate::no_std::prelude::*;
 use crate::no_std::collections::{hash_map, HashMap};
 
 use crate::compile::{
-    meta, CompileVisitor, IntoComponent, Item, ItemBuf, MetaRef, Names, Located,
+    MetaError, CompileVisitor, IntoComponent, Item, ItemBuf, MetaRef, Names, Located,
 };
+use crate::compile::meta;
 use crate::hash::Hash;
+use crate::alloc::AllocError;
 
 pub(crate) struct VisitorData {
     pub(crate) item: ItemBuf,
@@ -38,7 +40,7 @@ pub struct Visitor {
 
 impl Visitor {
     /// Construct a visitor with the given base component.
-    pub fn new<I>(base: I) -> Self
+    pub fn new<I>(base: I) -> Result<Self, AllocError>
     where
         I: IntoIterator,
         I::Item: IntoComponent,
@@ -52,10 +54,10 @@ impl Visitor {
         };
 
         let hash = Hash::type_hash(&this.base);
-        this.names.insert(&this.base);
+        this.names.insert(&this.base)?;
         this.data.insert(hash, VisitorData::new(this.base.clone(), hash, Some(meta::Kind::Module)));
         this.item_to_hash.insert(this.base.clone(), hash);
-        this
+        Ok(this)
     }
 
     /// Get meta by item.
@@ -71,16 +73,16 @@ impl Visitor {
 }
 
 impl CompileVisitor for Visitor {
-    fn register_meta(&mut self, meta: MetaRef<'_>) {
+    fn register_meta(&mut self, meta: MetaRef<'_>) -> Result<(), MetaError> {
         // Skip over context meta, since we pick that up separately.
         if meta.context {
-            return;
+            return Ok(());
         }
 
         let item = self.base.join(meta.item);
         tracing::trace!(base = ?self.base, meta = ?meta.item, ?item, "register meta");
 
-        self.names.insert(&item);
+        self.names.insert(&item)?;
         self.item_to_hash.insert(item.to_owned(), meta.hash);
 
         match self.data.entry(meta.hash) {
@@ -98,6 +100,8 @@ impl CompileVisitor for Visitor {
                 .or_default()
                 .push(meta.hash);
         }
+
+        Ok(())
     }
 
     fn visit_doc_comment(&mut self, _location: &dyn Located, item: &Item, hash: Hash, string: &str) {

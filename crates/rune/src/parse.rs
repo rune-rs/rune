@@ -22,10 +22,9 @@ pub(crate) use self::resolve::{Resolve, ResolveContext};
 use crate::compile;
 use crate::SourceId;
 
-/// Parse the given input as the given type that implements
-/// [Parse][crate::parse::Parse]. The specified `source_id` will be used when
-/// referencing any parsed elements. `shebang` indicates if the parser should
-/// try to parse a shebang or not.
+/// Parse the given input as the given type that implements [Parse]. The
+/// specified `source_id` will be used when referencing any parsed elements.
+/// `shebang` indicates if the parser should try to parse a shebang or not.
 ///
 /// This will raise an error through [Parser::eof] if the specified `source` is
 /// not fully consumed by the parser.

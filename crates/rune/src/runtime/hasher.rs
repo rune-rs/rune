@@ -1,6 +1,6 @@
 use core::hash::{BuildHasher, Hasher as _};
 
-use crate::no_std::collections::hash_map::DefaultHasher;
+use rune_alloc::hash_map;
 
 use crate as rune;
 use crate::Any;
@@ -9,14 +9,14 @@ use crate::Any;
 #[derive(Any)]
 #[rune(item = ::std::hash)]
 pub struct Hasher {
-    hasher: DefaultHasher,
+    hasher: hash_map::Hasher,
 }
 
 impl Hasher {
     /// Construct a new empty hasher.
     pub(crate) fn new_with<S>(build_hasher: &S) -> Self
     where
-        S: BuildHasher<Hasher = DefaultHasher>,
+        S: BuildHasher<Hasher = hash_map::Hasher>,
     {
         Self {
             hasher: build_hasher.build_hasher(),

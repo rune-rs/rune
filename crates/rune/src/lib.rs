@@ -160,7 +160,7 @@ extern crate std;
 compile_error!("The `alloc` feature is currently required to build rune, but will change for parts of rune in the future.");
 
 #[macro_use]
-extern crate alloc;
+extern crate alloc as rust_alloc;
 
 /// A macro that can be used to construct a [Span][crate::ast::Span] that can be
 /// pattern matched over.
@@ -191,6 +191,8 @@ pub type Result<T, E = crate::no_std::Error> = ::core::result::Result<T, E>;
 
 /// Boxed error type, which is an alias of [anyhow::Error].
 pub type Error = crate::no_std::Error;
+
+pub use rune_alloc as alloc;
 
 #[macro_use]
 #[cfg(test)]
@@ -236,6 +238,9 @@ pub use self::diagnostics::Diagnostics;
 mod hash;
 pub use self::hash::{Hash, ToTypeHash};
 
+#[cfg(feature = "alloc")]
+mod hashbrown;
+
 mod params;
 pub use self::params::Params;
 
@@ -268,9 +273,6 @@ mod worker;
 cfg_workspace! {
     pub mod workspace;
 }
-
-#[cfg(feature = "std")]
-mod hashbrown;
 
 // Macros used internally and re-exported.
 pub(crate) use rune_macros::__internal_impl_any;
@@ -457,8 +459,9 @@ pub(crate) use rune_macros::__internal_impl_any;
 ///
 /// ```
 /// use rune::{Any, Module, ContextError};
-/// use rune::runtime::Formatter;
-/// use std::fmt::{self, Write};
+/// use rune::vm_write;
+/// use rune::runtime::{Formatter, VmResult};
+/// use rune::alloc::TryWrite;
 ///
 /// #[derive(Any)]
 /// struct String {
@@ -498,8 +501,9 @@ pub(crate) use rune_macros::__internal_impl_any;
 ///     /// assert_eq!(format!("{}", string), "hello");
 ///     /// ```
 ///     #[rune::function(protocol = STRING_DISPLAY)]
-///     fn display(&self, f: &mut Formatter) -> fmt::Result {
-///         write!(f, "{}", self.inner)
+///     fn display(&self, f: &mut Formatter) -> VmResult<()> {
+///         vm_write!(f, "{}", self.inner);
+///         VmResult::Ok(())
 ///     }
 /// }
 ///
@@ -585,6 +589,7 @@ pub mod __private {
     };
     pub use crate::params::Params;
     pub use crate::runtime::TypeOf;
+    pub use rust_alloc::boxed::Box;
 }
 
 #[cfg(test)]

@@ -145,7 +145,7 @@ fn eval_ir_binary(
         let b = b.borrow_ref().with_span(span)?;
         let mut a = String::from(&*a);
         a.push_str(&b);
-        Ok(Shared::new(a))
+        Ok(Shared::new(a).with_span(span)?)
     }
 }
 
@@ -284,7 +284,7 @@ fn eval_ir_object(
         object.insert(key.as_ref().to_owned(), eval_ir(value, interp, used)?);
     }
 
-    Ok(ir::Value::Object(Shared::new(object)))
+    Ok(ir::Value::Object(Shared::new(object).with_span(ir)?))
 }
 
 fn eval_ir_scope(
@@ -360,7 +360,7 @@ fn eval_ir_template(
         }
     }
 
-    Ok(ir::Value::String(Shared::new(buf)))
+    Ok(ir::Value::String(Shared::new(buf).with_span(ir)?))
 }
 
 fn eval_ir_tuple(
@@ -374,7 +374,9 @@ fn eval_ir_tuple(
         items.push(eval_ir(item, interp, used)?);
     }
 
-    Ok(ir::Value::Tuple(Shared::new(items.into_boxed_slice())))
+    Ok(ir::Value::Tuple(
+        Shared::new(items.into_boxed_slice()).with_span(ir)?,
+    ))
 }
 
 fn eval_ir_vec(
@@ -388,7 +390,7 @@ fn eval_ir_vec(
         vec.push(eval_ir(item, interp, used)?);
     }
 
-    Ok(ir::Value::Vec(Shared::new(vec)))
+    Ok(ir::Value::Vec(Shared::new(vec).with_span(ir)?))
 }
 
 /// IrEval the interior expression.

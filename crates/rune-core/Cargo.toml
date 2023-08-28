@@ -17,9 +17,11 @@ categories = ["parser-implementations"]
 default = ["alloc"]
 doc = []
 std = ["alloc"]
-alloc = ["serde/alloc"]
+alloc = ["serde/alloc", "rune-alloc/alloc"]
 
 [dependencies]
+rune-alloc = { path = "../rune-alloc", version = "0.12.3" }
+
 twox-hash = { version = "1.6.3", default-features = false }
 serde = { version = "1.0.163", default-features = false, features = ["derive"] }
 smallvec = { version = "1.10.0", default-features = false, features = ["const_new", "serde"] }

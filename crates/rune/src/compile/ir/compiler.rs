@@ -4,7 +4,7 @@ use crate::no_std::prelude::*;
 
 use crate::ast::{self, Span, Spanned};
 use crate::compile::ir;
-use crate::compile::{self, ErrorKind};
+use crate::compile::{self, ErrorKind, WithSpan};
 use crate::hir;
 use crate::query::Query;
 use crate::runtime::{Bytes, Shared};
@@ -50,7 +50,7 @@ pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut Ctxt<'_, '_>) -> compile::Result
                 ));
             };
 
-            ir::Ir::new(span, ir::Value::from_const(value))
+            ir::Ir::new(span, ir::Value::from_const(value).with_span(span)?)
         }
         hir::ExprKind::Variable(name) => {
             return Ok(ir::Ir::new(span, name.into_owned()));
@@ -203,14 +203,16 @@ fn expr_binary(
 fn lit(c: &mut Ctxt<'_, '_>, span: Span, hir: hir::Lit<'_>) -> compile::Result<ir::Ir> {
     Ok(match hir {
         hir::Lit::Bool(boolean) => ir::Ir::new(span, ir::Value::Bool(boolean)),
-        hir::Lit::Str(string) => {
-            ir::Ir::new(span, ir::Value::String(Shared::new(string.to_owned())))
-        }
+        hir::Lit::Str(string) => ir::Ir::new(
+            span,
+            ir::Value::String(Shared::new(string.to_owned()).with_span(span)?),
+        ),
         hir::Lit::Integer(n) => ir::Ir::new(span, ir::Value::Integer(n)),
         hir::Lit::Float(n) => ir::Ir::new(span, ir::Value::Float(n)),
         hir::Lit::Byte(b) => ir::Ir::new(span, ir::Value::Byte(b)),
         hir::Lit::ByteStr(byte_str) => {
-            let value = ir::Value::Bytes(Shared::new(Bytes::from_vec(byte_str.to_vec())));
+            let value =
+                ir::Value::Bytes(Shared::new(Bytes::from_vec(byte_str.to_vec())).with_span(span)?);
             ir::Ir::new(span, value)
         }
         hir::Lit::Char(c) => ir::Ir::new(span, ir::Value::Char(c)),

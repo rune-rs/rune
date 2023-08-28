@@ -31,7 +31,7 @@
 
 use rune::{Any, Module, ContextError};
 use rune::runtime::{Bytes, Shared, Value, VmResult, Formatter};
-use std::fmt;
+use rune::alloc::TryWrite;
 use std::io;
 use tokio::process;
 
@@ -129,8 +129,8 @@ impl Child {
 
         VmResult::Ok(Ok(Output {
             status: ExitStatus { status: output.status },
-            stdout: Shared::new(Bytes::from_vec(output.stdout)),
-            stderr: Shared::new(Bytes::from_vec(output.stderr)),
+            stdout: rune::vm_try!(Shared::new(Bytes::from_vec(output.stdout))),
+            stderr: rune::vm_try!(Shared::new(Bytes::from_vec(output.stderr))),
         }))
     }
 }
@@ -154,9 +154,9 @@ struct ExitStatus {
 
 impl ExitStatus {
     #[rune::function(protocol = STRING_DISPLAY)]
-    fn string_display(&self, f: &mut Formatter) -> fmt::Result {
-        use std::fmt::Write as _;
-        write!(f, "{}", self.status)
+    fn string_display(&self, f: &mut Formatter) -> VmResult<()> {
+        rune::vm_write!(f, "{}", self.status);
+        VmResult::Ok(())
     }
 
     #[rune::function]

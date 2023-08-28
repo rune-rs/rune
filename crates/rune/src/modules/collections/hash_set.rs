@@ -1,10 +1,12 @@
-use core::fmt::{self, Write};
+use crate::alloc::fmt::TryWrite;
 use core::iter;
 use core::ptr;
 
 use crate as rune;
 
-use crate::hashbrown::{IterRef, RawIter, Table};
+use crate::alloc::hashbrown::raw::RawIter;
+use crate::alloc::{Global, TryClone};
+use crate::hashbrown::{IterRef, Table};
 use crate::runtime::{
     EnvProtocolCaller, Formatter, Iterator, ProtocolCaller, RawRef, Ref, Value, VmResult,
 };
@@ -35,7 +37,7 @@ pub(super) fn setup(module: &mut Module) -> Result<(), ContextError> {
     Ok(())
 }
 
-#[derive(Any, Clone)]
+#[derive(Any)]
 #[rune(module = crate, item = ::std::collections)]
 pub(crate) struct HashSet {
     table: Table<()>,
@@ -57,7 +59,7 @@ impl HashSet {
     #[rune::function(keep, path = Self::new)]
     fn new() -> Self {
         Self {
-            table: Table::new(),
+            table: Table::new_in(Global),
         }
     }
 
@@ -76,10 +78,10 @@ impl HashSet {
     /// assert!(set.capacity() >= 10);
     /// ```
     #[rune::function(keep, path = Self::with_capacity)]
-    fn with_capacity(capacity: usize) -> Self {
-        Self {
-            table: Table::with_capacity(capacity),
-        }
+    fn with_capacity(capacity: usize) -> VmResult<Self> {
+        VmResult::Ok(Self {
+            table: vm_try!(Table::try_with_capacity_in(capacity, Global)),
+        })
     }
 
     /// Returns the number of elements in the set.
@@ -301,8 +303,8 @@ impl HashSet {
 
             // use longest as lead and then append any missing that are in second
             let iter = if this.as_ref().len() >= other.as_ref().len() {
-                let this_iter = Table::iter_ref_raw(this);
-                let other_iter = Table::iter_ref_raw(other);
+                let this_iter = Table::<_, Global>::iter_ref_raw(this);
+                let other_iter = Table::<_, Global>::iter_ref_raw(other);
 
                 Union {
                     this,
@@ -311,8 +313,8 @@ impl HashSet {
                     _guards: (this_guard, other_guard),
                 }
             } else {
-                let this_iter = Table::iter_ref_raw(other);
-                let other_iter = Table::iter_ref_raw(this);
+                let this_iter = Table::<_, Global>::iter_ref_raw(other);
+                let other_iter = Table::<_, Global>::iter_ref_raw(this);
 
                 Union {
                     this: other,
@@ -397,15 +399,11 @@ impl HashSet {
     /// println!("{:?}", set);
     /// ```
     #[rune::function(keep, protocol = STRING_DEBUG)]
-    fn string_debug(&self, f: &mut Formatter) -> VmResult<fmt::Result> {
+    fn string_debug(&self, f: &mut Formatter) -> VmResult<()> {
         self.string_debug_with(f, &mut EnvProtocolCaller)
     }
 
-    fn string_debug_with(
-        &self,
-        f: &mut Formatter,
-        _: &mut impl ProtocolCaller,
-    ) -> VmResult<fmt::Result> {
+    fn string_debug_with(&self, f: &mut Formatter, _: &mut impl ProtocolCaller) -> VmResult<()> {
         vm_write!(f, "{{");
 
         let mut it = self.table.iter().peekable();
@@ -419,14 +417,14 @@ impl HashSet {
         }
 
         vm_write!(f, "}}");
-        VmResult::Ok(Ok(()))
+        VmResult::Ok(())
     }
 
     pub(crate) fn from_iter<P>(mut it: Iterator, caller: &mut P) -> VmResult<Self>
     where
         P: ?Sized + ProtocolCaller,
     {
-        let mut set = Table::with_capacity(it.size_hint().0);
+        let mut set = vm_try!(Table::try_with_capacity_in(it.size_hint().0, Global));
 
         while let Some(key) = vm_try!(it.next()) {
             vm_try!(set.insert_with(key, (), caller));
@@ -491,8 +489,10 @@ impl HashSet {
     }
 
     #[rune::function(keep, instance, path = Self::clone)]
-    fn clone(this: &HashSet) -> HashSet {
-        this.clone()
+    fn clone(this: &HashSet) -> VmResult<HashSet> {
+        VmResult::Ok(Self {
+            table: vm_try!(this.table.try_clone()),
+        })
     }
 }
 

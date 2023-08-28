@@ -295,7 +295,7 @@ impl UnitBuilder {
         &mut self,
         span: &dyn Spanned,
         meta: &meta::Meta,
-        pool: &mut Pool,
+        pool: &Pool,
         query: &mut QueryInner,
     ) -> compile::Result<()> {
         match meta.kind {

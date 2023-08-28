@@ -1182,7 +1182,7 @@ impl Module {
     ///
     /// ```
     /// use rune::Module;
-    /// use rune::runtime::{Stack, VmResult};
+    /// use rune::runtime::{Stack, VmResult, ToValue};
     /// use rune::vm_try;
     ///
     /// fn sum(stack: &mut Stack, args: usize) -> VmResult<()> {
@@ -1192,7 +1192,7 @@ impl Module {
     ///         number += vm_try!(vm_try!(stack.pop()).into_integer());
     ///     }
     ///
-    ///     stack.push(number);
+    ///     stack.push(vm_try!(number.to_value()));
     ///     VmResult::Ok(())
     /// }
     ///

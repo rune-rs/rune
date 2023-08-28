@@ -314,7 +314,7 @@ impl<'a> State<'a> {
                 }
                 Ok(script_builds) => {
                     for script_build in script_builds {
-                        script_results.push(self.build_scripts(script_build, Some(&mut visited)));
+                        script_results.push(self.build_scripts(script_build, Some(&mut visited))?);
                     }
                 }
             };
@@ -342,7 +342,7 @@ impl<'a> State<'a> {
             };
 
             build.sources.insert(input);
-            script_results.push(self.build_scripts(build, None));
+            script_results.push(self.build_scripts(build, None)?);
         }
 
         // We need to pupulate diagnostics for everything we know about, in
@@ -457,16 +457,16 @@ impl<'a> State<'a> {
         &self,
         mut build: Build,
         built: Option<&mut HashSet<Url>>,
-    ) -> (
+    ) -> Result<(
         crate::Diagnostics,
         Build,
         Visitor,
         crate::doc::Visitor,
         Result<Unit, BuildError>,
-    ) {
+    )> {
         let mut diagnostics = crate::Diagnostics::new();
         let mut source_visitor = Visitor::default();
-        let mut doc_visitor = crate::doc::Visitor::new(ItemBuf::new());
+        let mut doc_visitor = crate::doc::Visitor::new(ItemBuf::new())?;
 
         let mut source_loader = ScriptSourceLoader::new(&self.workspace.sources);
 
@@ -483,7 +483,7 @@ impl<'a> State<'a> {
             build.visit(built);
         }
 
-        (diagnostics, build, source_visitor, doc_visitor, unit)
+        Ok((diagnostics, build, source_visitor, doc_visitor, unit))
     }
 }
 

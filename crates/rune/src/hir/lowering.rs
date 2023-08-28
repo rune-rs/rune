@@ -1002,7 +1002,7 @@ fn expr_break<'hir>(
 /// Unroll a continue expression, capturing all variables which are in scope at
 /// the time of it.
 fn expr_continue<'hir>(
-    cx: &mut Ctxt<'hir, '_, '_>,
+    cx: &Ctxt<'hir, '_, '_>,
     ast: &ast::ExprContinue,
 ) -> compile::Result<hir::ExprContinue<'hir>> {
     alloc_with!(cx, ast);
@@ -1292,7 +1292,7 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
 }
 
 fn object_key<'hir, 'ast>(
-    cx: &mut Ctxt<'hir, '_, '_>,
+    cx: &Ctxt<'hir, '_, '_>,
     ast: &'ast ast::ObjectKey,
 ) -> compile::Result<(&'ast dyn Spanned, &'hir str)> {
     alloc_with!(cx, ast);

@@ -1,7 +1,6 @@
 //! The `std::future` module.
 
-use crate::no_std::prelude::*;
-
+use crate::alloc::Vec;
 use crate::runtime::{Future, SelectFuture, Shared, Stack, Value, VmErrorKind, VmResult};
 use crate::{ContextError, Module};
 
@@ -52,12 +51,12 @@ pub fn module() -> Result<Module, ContextError> {
 async fn try_join_impl<'a, I, F>(values: I, len: usize, factory: F) -> VmResult<Value>
 where
     I: IntoIterator<Item = &'a Value>,
-    F: FnOnce(Vec<Value>) -> Value,
+    F: FnOnce(Vec<Value>) -> VmResult<Value>,
 {
     use futures_util::stream::StreamExt as _;
 
     let mut futures = futures_util::stream::FuturesUnordered::new();
-    let mut results = Vec::with_capacity(len);
+    let mut results = vm_try!(Vec::try_with_capacity(len));
 
     for (index, value) in values.into_iter().enumerate() {
         let future = match value {
@@ -71,7 +70,7 @@ where
         };
 
         futures.push(SelectFuture::new(index, future));
-        results.push(Value::EmptyTuple);
+        vm_try!(results.try_push(Value::EmptyTuple));
     }
 
     while !futures.is_empty() {
@@ -79,7 +78,7 @@ where
         *results.get_mut(index).unwrap() = value;
     }
 
-    VmResult::Ok(factory(results))
+    factory(results)
 }
 
 async fn join(value: Value) -> VmResult<Value> {
@@ -88,7 +87,10 @@ async fn join(value: Value) -> VmResult<Value> {
         Value::Tuple(tuple) => {
             let tuple = vm_try!(tuple.borrow_ref());
             VmResult::Ok(vm_try!(
-                try_join_impl(tuple.iter(), tuple.len(), Value::tuple).await
+                try_join_impl(tuple.iter(), tuple.len(), |vec| VmResult::Ok(vm_try!(
+                    Value::tuple(vec)
+                )))
+                .await
             ))
         }
         Value::Vec(vec) => {
@@ -99,7 +101,7 @@ async fn join(value: Value) -> VmResult<Value> {
         }
         actual => VmResult::err([
             VmErrorKind::bad_argument(0),
-            VmErrorKind::expected::<Vec<Value>>(vm_try!(actual.type_info())),
+            VmErrorKind::expected::<crate::runtime::Vec>(vm_try!(actual.type_info())),
         ]),
     }
 }
@@ -114,7 +116,7 @@ fn raw_join(stack: &mut Stack, args: usize) -> VmResult<()> {
     }
 
     let value = vm_try!(stack.pop());
-    let value = Value::Future(Shared::new(Future::new(join(value))));
-    stack.push(value);
+    let value = Value::Future(vm_try!(Shared::new(Future::new(join(value)))));
+    vm_try!(stack.push(value));
     VmResult::Ok(())
 }
