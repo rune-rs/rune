@@ -2,16 +2,16 @@ use std::sync::Arc;
 
 use rune::sources;
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{Any, Context, ContextError, Diagnostics, Module, Vm};
+use rune::{AnyRef, Context, ContextError, Diagnostics, Module, Vm};
 
-#[derive(Any)]
+#[derive(AnyRef)]
 pub struct Factory<'c> {
     pub widgets: &'c u32,
 }
 
-impl<'c> Factory<'c> {
+impl<'a> Factory<'c> {
     #[rune::function(instance, path = Self::escape)]
-    fn escape(this: &Factory<'static>) {
+    fn escape(this: &Factory) {
         let widgets = this.widgets;
 
         std::thread::spawn(move || {

@@ -21,7 +21,7 @@ use crate::runtime::{
 };
 #[cfg(feature = "std")]
 use crate::runtime::{Hasher, Tuple};
-use crate::{Any, Hash};
+use crate::{Any, AnyRef, Hash, Projection};
 
 use serde::{de, ser, Deserialize, Serialize};
 
@@ -1060,6 +1060,38 @@ impl Value {
             Self::Any(any) => {
                 let any = vm_try!(any.internal_downcast_into_ref::<T>(AccessKind::Any));
                 let (data, guard) = Ref::into_raw(any);
+                VmResult::Ok((data, guard))
+            }
+            actual => err(VmErrorKind::expected_any(vm_try!(actual.type_info()))),
+        }
+    }
+
+    /// Try to coerce the value into a reference to T containing lifetimes.
+    #[inline]
+    pub fn into_projection<T>(self) -> VmResult<(ptr::NonNull<Projection<T>>, RawRef)>
+    where
+        T: AnyRef,
+    {
+        match self {
+            Self::Any(any) => {
+                let any = vm_try!(any.internal_downcast_into_ref::<Projection<T>>(AccessKind::Any));
+                let (data, guard) = Ref::into_raw(any);
+                VmResult::Ok((data, guard))
+            }
+            actual => err(VmErrorKind::expected_any(vm_try!(actual.type_info()))),
+        }
+    }
+
+    /// Try to coerce the value into a mutable reference to T containing lifetimes.
+    #[inline]
+    pub fn into_projection_mut<T>(self) -> VmResult<(ptr::NonNull<Projection<T>>, RawMut)>
+    where
+        T: AnyRef,
+    {
+        match self {
+            Self::Any(any) => {
+                let any = vm_try!(any.internal_downcast_into_mut::<Projection<T>>(AccessKind::Any));
+                let (data, guard) = Mut::into_raw(any);
                 VmResult::Ok((data, guard))
             }
             actual => err(VmErrorKind::expected_any(vm_try!(actual.type_info()))),

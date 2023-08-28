@@ -216,7 +216,7 @@ cfg_emit! {
 }
 
 mod any;
-pub use self::any::Any;
+pub use self::any::{Any, AnyRef, TypeHash};
 
 mod build;
 pub use self::build::{prepare, Build, BuildError};
@@ -252,7 +252,9 @@ pub mod parse;
 pub mod query;
 
 pub mod runtime;
-pub use self::runtime::{from_value, to_value, FromValue, ToValue, Unit, Value, Vm};
+pub use self::runtime::{
+    from_value, to_value, FromValue, Projectable, Projection, ToValue, Unit, Value, Vm,
+};
 
 mod shared;
 

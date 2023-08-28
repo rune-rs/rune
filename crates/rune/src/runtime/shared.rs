@@ -18,7 +18,7 @@ use crate::no_std::prelude::*;
 use crate::runtime::{
     Access, AccessError, AccessKind, AnyObj, AnyObjError, BorrowMut, BorrowRef, RawAccessGuard,
 };
-use crate::Any;
+use crate::{Any, AnyRef, TypeHash};
 
 /// A shared value.
 pub struct Shared<T: ?Sized> {
@@ -438,6 +438,22 @@ impl Shared<AnyObj> {
         Self::unsafe_from_any_pointer(AnyObj::from_mut(data))
     }
 
+    /// Create a new Shared value from a Projectable.
+    pub unsafe fn from_projectable<T>(data: &T) -> (Self, SharedPointerGuard)
+    where
+        T: AnyRef,
+    {
+        Self::unsafe_from_any_pointer(AnyObj::new_projection(data))
+    }
+
+    /// Create a new Shared value from a mutable Projection.
+    pub unsafe fn from_projectable_mut<T>(data: &mut T) -> (Self, SharedPointerGuard)
+    where
+        T: AnyRef,
+    {
+        Self::unsafe_from_any_pointer(AnyObj::new_projection_mut(data))
+    }
+
     /// Construct a `Shared<Any>` from an Any which is expected to wrap a
     /// pointer, that will be "taken" once the returned guard is dropped.
     ///
@@ -590,7 +606,7 @@ impl Shared<AnyObj> {
         kind: AccessKind,
     ) -> Result<Ref<T>, AccessError>
     where
-        T: Any,
+        T: TypeHash,
     {
         unsafe {
             let (data, guard) = {
@@ -642,7 +658,7 @@ impl Shared<AnyObj> {
         kind: AccessKind,
     ) -> Result<Mut<T>, AccessError>
     where
-        T: Any,
+        T: TypeHash,
     {
         unsafe {
             let (data, guard) = {

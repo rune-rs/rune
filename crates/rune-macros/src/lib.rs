@@ -191,6 +191,19 @@ pub fn any(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     builder.expand().into()
 }
 
+#[proc_macro_derive(AnyRef, attributes(rune))]
+pub fn any_ref(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let derive = syn::parse_macro_input!(input as any::Derive);
+    let cx = Context::new();
+
+    let Ok(builder) = derive.into_any_builder(&cx) else {
+        return to_compile_errors(cx.errors.into_inner()).into();
+    };
+
+    // TODO: separate TypeBuilder into two types?
+    builder.expand_ref().into()
+}
+
 /// Calculate a type hash.
 ///
 /// # Examples

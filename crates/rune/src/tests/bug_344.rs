@@ -12,6 +12,8 @@ prelude!();
 use std::cell::Cell;
 use std::rc::Rc;
 
+use crate::TypeHash;
+
 #[test]
 fn bug_344_function() -> Result<()> {
     let mut context = Context::new();
@@ -56,7 +58,7 @@ fn bug_344_inst_fn() -> Result<()> {
     context.install(module)?;
     let runtime = context.runtime();
 
-    let hash = Hash::associated_function(<GuardCheck as Any>::type_hash(), "function");
+    let hash = Hash::associated_function(<GuardCheck as TypeHash>::type_hash(), "function");
 
     let function = runtime.function(hash).expect("expect function");
 
@@ -123,7 +125,7 @@ fn bug_344_async_inst_fn() -> Result<()> {
     context.install(module)?;
     let runtime = context.runtime();
 
-    let hash = Hash::associated_function(<GuardCheck as Any>::type_hash(), "function");
+    let hash = Hash::associated_function(<GuardCheck as TypeHash>::type_hash(), "function");
 
     let function = runtime.function(hash).expect("expect function");
 
@@ -175,11 +177,13 @@ impl GuardCheck {
     }
 }
 
-impl Any for GuardCheck {
+impl TypeHash for GuardCheck {
     fn type_hash() -> Hash {
         rune_macros::hash!(GuardCheck)
     }
 }
+
+impl Any for GuardCheck {}
 
 impl Named for GuardCheck {
     const BASE_NAME: RawStr = RawStr::from_str("GuardCheck");
@@ -188,7 +192,7 @@ impl Named for GuardCheck {
 impl TypeOf for GuardCheck {
     #[inline]
     fn type_hash() -> Hash {
-        <Self as Any>::type_hash()
+        <Self as TypeHash>::type_hash()
     }
 
     #[inline]

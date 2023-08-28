@@ -52,7 +52,7 @@ use crate::hash::Hash;
 ///     Ok(module)
 /// }
 /// ```
-pub use rune_macros::Any;
+pub use rune_macros::{Any, AnyRef};
 
 /// A trait which can be stored inside of an [AnyObj](crate::runtime::AnyObj).
 ///
@@ -70,7 +70,16 @@ pub use rune_macros::Any;
 ///     name: String,
 /// }
 /// ```
-pub trait Any: Named {
+pub trait Any: Named + TypeHash + 'static {}
+
+impl<T: Any + crate::runtime::TypeOf> AnyRef for T {}
+
+/// A trait which can be stored inside of an [AnyObj](crate::runtime::AnyObj),
+/// while containing references to other [Any](crate::Any) types.
+pub trait AnyRef: Named + TypeHash + crate::runtime::TypeOf {}
+
+/// A type possessing a unique identifying hash.
+pub trait TypeHash {
     /// The type hash of the type.
     ///
     /// TODO: make const field when `TypeId::of` is const.

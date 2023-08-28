@@ -275,7 +275,8 @@ impl Context {
                                 ty,
                                 target,
                                 tokens: Tokens {
-                                    any_obj, ..
+                                    any_obj,
+                                    ..
                                 },
                                 ..
                             } = g;
@@ -313,16 +314,35 @@ impl Context {
                                     }
                                 }
                                 GenerateTarget::Numbered { field_index } => {
-                                    let access = if g.attrs.copy {
-                                        quote!(s.#field_index)
-                                    } else {
-                                        quote!(Clone::clone(&s.#field_index))
-                                    };
-
                                     let protocol = g.tokens.protocol(PROTOCOL_GET);
 
-                                    quote_spanned! { g.field.span() =>
-                                        module.index_function(#protocol, #field_index, |s: &Self| #access)?;
+
+                                    match ty {
+                                        syn::Type::Reference(TypeReference{ mutability: None, ..}) => {
+                                            quote_spanned! { g.field.span() =>
+                                                module.index_function(#protocol, #field_index, |s: &Self| {
+                                                    unsafe { AnyObj::from_ref(s.#field_index) } 
+                                                })?;
+                                            }
+                                        },
+                                        syn::Type::Reference(TypeReference{ mutability: Some(_), ..}) => {
+                                            quote_spanned! { g.field.span() =>
+                                                module.index_function(#protocol, #field_index, |s: &mut Self| {
+                                                    unsafe { AnyObj::from_mut(s.#field_index) }
+                                                })?;
+                                            }
+                                        },
+                                        _ => {
+                                            let access = if g.attrs.copy {
+                                                quote!(s.#field_index)
+                                            } else {
+                                                quote!(Clone::clone(&s.#field_index))
+                                            };
+
+                                            quote_spanned! { g.field.span() =>
+                                                module.index_function(#protocol, #field_index, |s: &Self| #access)?;
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -353,6 +373,67 @@ impl Context {
                                         module.index_function(#protocol, #field_index, |s: &mut Self, value: #ty| {
                                             s.#field_index = value;
                                         })?;
+                                    }
+                                }
+                            }
+                        },
+                    });
+                } else if meta.path == GET_REF {
+                    attr.field = true;
+                    attr.protocols.push(FieldProtocol {
+                        custom: self.parse_field_custom(meta.input)?,
+                        generate: |g| {
+                            let Generate {
+                                ty,
+                                target,
+                                ..
+                            } = g;
+
+                            match target {
+                                GenerateTarget::Named { field_ident, field_name } => {
+                                    let protocol = g.tokens.protocol(PROTOCOL_GET);
+
+                                    match ty {
+                                        syn::Type::Reference(TypeReference{ mutability: None, ..}) => {
+                                            quote_spanned! { g.field.span() =>
+                                                module.field_function(#protocol, #field_name, |s: &Self| {
+                                                    let s = Shared::new(AnyObj::new_projection(s.#field_ident));
+                                                    Value::Any(s)
+                                                })?;
+                                            }
+                                        },
+                                        syn::Type::Reference(TypeReference{ mutability: Some(_), ..}) => {
+                                            quote_spanned! { g.field.span() =>
+                                                module.field_function(#protocol, #field_name, |s: &mut Self| {
+                                                    let s = Shared::new(AnyObj::new_projection_mut(s.#field_ident));
+                                                    Value::Any(s)
+                                                })?;
+                                            }
+                                        },
+                                        _ => {
+                                            let access: TokenStream = if g.attrs.copy {
+                                                quote!(s.#field_ident)
+                                            } else {
+                                                quote!(Clone::clone(&s.#field_ident))
+                                            };
+
+                                            quote_spanned! { g.field.span() =>
+                                                module.field_function(#protocol, #field_name, |s: &Self| #access)?;
+                                            }
+                                        }
+                                    }
+                                }
+                                GenerateTarget::Numbered { field_index } => {
+                                    let access = if g.attrs.copy {
+                                        quote!(s.#field_index)
+                                    } else {
+                                        quote!(Clone::clone(&s.#field_index))
+                                    };
+
+                                    let protocol = g.tokens.protocol(PROTOCOL_GET);
+
+                                    quote_spanned! { g.field.span() =>
+                                        module.index_function(#protocol, #field_index, |s: &Self| #access)?;
                                     }
                                 }
                             }
@@ -617,6 +698,9 @@ impl Context {
             any_type_info: path(m, ["runtime", "AnyTypeInfo"]),
             any: path(m, ["Any"]),
             any_obj: path(m, ["runtime", "AnyObj"]),
+            any_ref: path(m, ["AnyRef"]),
+            projectable: path(m, ["Projectable"]),
+            type_hash: path(m, ["TypeHash"]),
             compile_error: path(m, ["compile", "Error"]),
             context_error: path(m, ["compile", "ContextError"]),
             from_value: path(m, ["runtime", "FromValue"]),
@@ -707,11 +791,14 @@ pub(crate) struct Tokens {
     pub(crate) any_type_info: syn::Path,
     pub(crate) any: syn::Path,
     pub(crate) any_obj: syn::Path,
+    pub(crate) any_ref: syn::Path,
+    pub(crate) projectable: syn::Path,
     pub(crate) compile_error: syn::Path,
     pub(crate) context_error: syn::Path,
     pub(crate) from_value: syn::Path,
     pub(crate) full_type_of: syn::Path,
     pub(crate) hash: syn::Path,
+    pub(crate) type_hash: syn::Path,
     pub(crate) id: syn::Path,
     pub(crate) install_with: syn::Path,
     pub(crate) macro_context: syn::Path,

@@ -504,6 +504,7 @@ where
             any,
             context_error,
             hash,
+            type_hash: type_hash_trait,
             module,
             named,
             pointer_guard,
@@ -584,7 +585,7 @@ where
                 impl #impl_generics #type_of for #ident #type_generics #where_clause {
                     #[inline]
                     fn type_hash() -> #hash {
-                        <Self as #any>::type_hash()
+                        <Self as #type_hash_trait>::type_hash()
                     }
 
                     #[inline]
@@ -647,10 +648,15 @@ where
 
             Some(quote! {
                 #[automatically_derived]
-                impl #impl_generics #any for #ident #type_generics #where_clause {
+                impl #impl_generics #type_hash_trait for #ident #type_generics #where_clause {
                     fn type_hash() -> #hash {
                         #make_hash
                     }
+                }
+
+                #[automatically_derived]
+                impl #impl_generics #any for #ident #type_generics #where_clause {
+
                 }
 
                 #[automatically_derived]
@@ -778,6 +784,224 @@ where
             #impl_type_of
             #impl_from_value
             #any
+        }
+    }
+
+    /// Expand the necessary implementation details for `AnyRef`.
+    pub(super) fn expand_ref(self) -> TokenStream {
+        let TypeBuilder {
+            attr,
+            ident,
+            type_hash,
+            name,
+            installers,
+            tokens,
+            generics,
+        } = self;
+
+        let Tokens {
+            any_obj,
+            any_ref,
+            projectable: lifetime,
+            type_hash: type_hash_trait,
+            context_error,
+            hash,
+            module,
+            named,
+            raw_str,
+            type_info,
+            any_type_info,
+            type_of,
+            maybe_type_of,
+            full_type_of,
+            unsafe_to_value,
+            value,
+            vm_result,
+            install_with,
+            box_,
+            static_type_mod,
+            unsafe_to_ref,
+            unsafe_to_mut,
+            raw_ref,
+            raw_mut,
+            vm_try,
+            shared,
+            ..
+        } = &tokens;
+
+        let (impl_generics, type_generics, where_clause) = generics.split_for_impl();
+
+        let generic_names = if attr.static_type.is_some() {
+            vec![]
+        } else {
+            generics.type_params().map(|v| &v.ident).collect::<Vec<_>>()
+        };
+
+        let impl_named = if !generic_names.is_empty() {
+            quote! {
+                #[automatically_derived]
+                impl #impl_generics #named for #ident #type_generics #where_clause {
+                    const BASE_NAME: #raw_str  = #raw_str::from_str(#name);
+
+                    fn full_name() -> #box_<str> {
+                        [#name, "<", &#(#generic_names::full_name(),)* ">"].join("").into_boxed_str()
+                    }
+                }
+            }
+        } else {
+            quote! {
+                #[automatically_derived]
+                impl #impl_generics #named for #ident #type_generics #where_clause {
+                    const BASE_NAME: #raw_str = #raw_str::from_str(#name);
+                }
+            }
+        };
+
+        let install_with = quote! {
+            #[automatically_derived]
+            impl #impl_generics #install_with for #ident #type_generics #where_clause {
+                fn install_with(#[allow(unused)] module: &mut #module) -> core::result::Result<(), #context_error> {
+                    #(#installers)*
+                    Ok(())
+                }
+            }
+        };
+
+        let impl_type_of = if attr.builtin.is_none() {
+            let type_parameters = if !generic_names.is_empty() {
+                quote!(#hash::parameters([#(<#generic_names as #type_of>::type_hash()),*]))
+            } else {
+                quote!(#hash::EMPTY)
+            };
+
+            Some(quote! {
+                #[automatically_derived]
+                impl #impl_generics #type_of for #ident #type_generics #where_clause {
+                    #[inline]
+                    fn type_hash() -> #hash {
+                        <Self as #type_hash_trait>::type_hash()
+                    }
+
+                    #[inline]
+                    fn type_parameters() -> #hash {
+                        #type_parameters
+                    }
+
+                    #[inline]
+                    fn type_info() -> #type_info {
+                        #type_info::Any(#any_type_info::__private_new(
+                            #raw_str::from_str(core::any::type_name::<Self>()),
+                            <Self as #type_of>::type_hash(),
+                        ))
+                    }
+                }
+
+                #[automatically_derived]
+                impl #impl_generics #maybe_type_of for #ident #type_generics #where_clause {
+                    #[inline]
+                    fn maybe_type_of() -> Option<#full_type_of> {
+                        Some(<Self as #type_of>::type_of())
+                    }
+                }
+            })
+        } else if let Some(ty) = attr.static_type {
+            Some(quote! {
+                #[automatically_derived]
+                impl #impl_generics #type_of for #ident #type_generics #where_clause {
+                    #[inline]
+                    fn type_hash() -> #hash {
+                        #static_type_mod::#ty.hash
+                    }
+
+                    #[inline]
+                    fn type_info() -> #type_info {
+                        #type_info::StaticType(#static_type_mod::#ty)
+                    }
+                }
+
+                #[automatically_derived]
+                impl #impl_generics #maybe_type_of for #ident #type_generics #where_clause {
+                    #[inline]
+                    fn maybe_type_of() -> Option<#full_type_of> {
+                        Some(<Self as #type_of>::type_of())
+                    }
+                }
+            })
+        } else {
+            None
+        };
+
+        let any_ref = attr.builtin.is_none().then(|| {
+            let type_hash = type_hash.into_inner();
+
+            let make_hash = if !generic_names.is_empty() {
+                quote!(#hash::new_with_type_parameters(#type_hash, #hash::parameters([#(<#generic_names as #type_of>::type_hash()),*])))
+            } else {
+                quote!(#hash::new(#type_hash))
+            };
+
+            Some(quote! {
+                #[automatically_derived]
+                impl #impl_generics #type_hash_trait for #ident #type_generics #where_clause {
+                    fn type_hash() -> #hash {
+                        #make_hash
+                    }
+                }
+
+                #[automatically_derived]
+                impl #impl_generics #any_ref for #ident #type_generics #where_clause {
+
+                }
+
+                #[automatically_derived]
+                impl #impl_generics #unsafe_to_value for &#ident #type_generics #where_clause {
+                    type Guard = ();
+
+                    unsafe fn unsafe_to_value(self) -> #vm_result<(#value, Self::Guard)> {
+                        let any_obj = #shared::new(#any_obj::new_projection(self));
+                        #vm_result::Ok((#value::from(any_obj), ()))
+                    }
+                }
+
+                #[automatically_derived]
+                impl #impl_generics #unsafe_to_value for &mut #ident #type_generics #where_clause {
+                    type Guard = ();
+
+                    unsafe fn unsafe_to_value(self) -> #vm_result<(#value, Self::Guard)> {
+                        let any_obj = #shared::new(#any_obj::new_projection_mut(self));
+                        #vm_result::Ok((#value::from(any_obj), ()))
+                    }
+                }
+
+                #[automatically_derived]
+                impl #impl_generics #unsafe_to_ref for #ident #type_generics #where_clause {
+                    type Guard = #raw_ref;
+
+                    unsafe fn unsafe_to_ref<'__rune_g>(value: #value) -> #vm_result<(&'__rune_g Self, Self::Guard)> {
+                        let (projection, guard) = #vm_try!(value.into_projection());
+                        let projection = projection.as_ref();
+                        #vm_result::Ok((#lifetime::get(projection), guard))
+                    }
+                }
+
+                #[automatically_derived]
+                impl #impl_generics #unsafe_to_mut for #ident #type_generics #where_clause {
+                    type Guard = #raw_mut;
+
+                    unsafe fn unsafe_to_mut<'__rune_g>(value: #value) -> #vm_result<(&'__rune_g mut Self, Self::Guard)> {
+                        let (mut projection, guard) = #vm_try!(value.into_projection_mut());
+                        let projection = projection.as_mut();
+                        #vm_result::Ok((#lifetime::get_mut(projection), guard))
+                    }
+                }
+            })
+        });
+
+        quote! {
+            #install_with
+            #impl_named
+            #impl_type_of
+            #any_ref
         }
     }
 }

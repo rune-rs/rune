@@ -8,8 +8,10 @@ use core::ptr;
 use crate::no_std::prelude::*;
 
 use crate::any::Any;
+use crate::compile::Named;
 use crate::hash::Hash;
 use crate::runtime::{AnyTypeInfo, FullTypeOf, MaybeTypeOf, RawStr, TypeInfo};
+use crate::{AnyRef, Projection, TypeHash};
 
 /// Errors raised during casting operations.
 #[derive(Debug)]
@@ -71,6 +73,53 @@ impl AnyObj {
         Self {
             vtable: &AnyObjVtable {
                 kind: AnyObjKind::Owned,
+                drop: drop_impl::<T>,
+                as_ptr: as_ptr_impl::<T>,
+                debug: debug_impl::<T>,
+                type_name: type_name_impl::<T>,
+                type_hash: type_hash_impl::<T>,
+            },
+            data,
+        }
+    }
+
+    /// Create an AnyObj from a reference to a type T containing lifetimes.
+    pub(crate) fn new_projection<T>(value: &T) -> Self
+    where
+        T: AnyRef,
+    {
+        let projection = Projection::new(value);
+
+        let data =
+            unsafe { ptr::NonNull::new_unchecked(Box::into_raw(Box::new(projection)) as *mut ()) };
+
+        Self {
+            vtable: &AnyObjVtable {
+                kind: AnyObjKind::RefPtr,
+                drop: drop_impl::<T>,
+                as_ptr: as_ptr_impl::<T>,
+                debug: debug_impl::<T>,
+                type_name: type_name_impl::<T>,
+                type_hash: type_hash_impl::<T>,
+            },
+            data,
+        }
+    }
+
+    /// Create an AnyObj from a mutable reference to a type T containing
+    /// lifetimes.
+    pub(crate) fn new_projection_mut<T>(value: &mut T) -> Self
+    where
+        T: AnyRef,
+    {
+        let projection = Projection::new(value);
+
+        let data =
+            unsafe { ptr::NonNull::new_unchecked(Box::into_raw(Box::new(projection)) as *mut _) };
+
+        Self {
+            vtable: &AnyObjVtable {
+                kind: AnyObjKind::MutPtr,
                 drop: drop_impl::<T>,
                 as_ptr: as_ptr_impl::<T>,
                 debug: debug_impl::<T>,
@@ -330,7 +379,7 @@ impl AnyObj {
     #[inline]
     pub fn is<T>(&self) -> bool
     where
-        T: Any,
+        T: TypeHash,
     {
         self.raw_as_ptr(T::type_hash()).is_ok()
     }
@@ -357,7 +406,7 @@ impl AnyObj {
     #[inline]
     pub fn downcast_borrow_ref<T>(&self) -> Option<&T>
     where
-        T: Any,
+        T: TypeHash,
     {
         unsafe {
             (self.vtable.as_ptr)(self.data.as_ptr(), T::type_hash()).map(|v| &*(v as *const _))
@@ -555,7 +604,7 @@ unsafe fn drop_impl<T>(this: *mut ()) {
 
 fn as_ptr_impl<T>(this: *const (), expected: Hash) -> Option<*const ()>
 where
-    T: Any,
+    T: TypeHash,
 {
     if expected == T::type_hash() {
         Some(this)
@@ -592,35 +641,35 @@ fn noop_drop_impl<T>(_: *mut ()) {}
 
 fn debug_impl<T>(f: &mut fmt::Formatter<'_>) -> fmt::Result
 where
-    T: Any,
+    T: Named,
 {
     write!(f, "{}", T::BASE_NAME)
 }
 
 fn debug_ref_impl<T>(f: &mut fmt::Formatter<'_>) -> fmt::Result
 where
-    T: ?Sized + Any,
+    T: ?Sized + Named,
 {
     write!(f, "&{}", T::BASE_NAME)
 }
 
 fn debug_mut_impl<T>(f: &mut fmt::Formatter<'_>) -> fmt::Result
 where
-    T: ?Sized + Any,
+    T: ?Sized + Named,
 {
     write!(f, "&mut {}", T::BASE_NAME)
 }
 
 fn type_name_impl<T>() -> RawStr
 where
-    T: ?Sized + Any,
+    T: ?Sized + Named,
 {
     T::BASE_NAME
 }
 
 fn type_hash_impl<T>() -> Hash
 where
-    T: ?Sized + Any,
+    T: ?Sized + TypeHash,
 {
     T::type_hash()
 }

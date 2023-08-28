@@ -27,6 +27,7 @@ pub const FROM_VALUE: Symbol = Symbol("from_value");
 pub const FROM_VALUE_PARAMS: Symbol = Symbol("from_value_params");
 pub const GET: Symbol = Symbol("get");
 pub const SET: Symbol = Symbol("set");
+pub const GET_REF: Symbol = Symbol("get_ref");
 pub const COPY: Symbol = Symbol("copy");
 
 pub const ADD_ASSIGN: Symbol = Symbol("add_assign");

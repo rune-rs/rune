@@ -107,6 +107,9 @@ pub use self::range_inclusive::RangeInclusive;
 mod range;
 pub use self::range::Range;
 
+mod projection;
+pub use self::projection::{Projectable, Projection};
+
 #[doc(inline)]
 pub use rune_core::RawStr;
 
