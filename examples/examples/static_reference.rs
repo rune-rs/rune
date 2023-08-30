@@ -9,7 +9,7 @@ pub struct Factory<'c> {
     pub widgets: &'c u32,
 }
 
-impl<'a> Factory<'c> {
+impl<'c> Factory<'c> {
     #[rune::function(instance, path = Self::escape)]
     fn escape(this: &Factory) {
         let widgets = this.widgets;

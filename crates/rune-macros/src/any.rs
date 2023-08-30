@@ -802,7 +802,7 @@ where
         let Tokens {
             any_obj,
             any_ref,
-            projectable: lifetime,
+            projectable,
             type_hash: type_hash_trait,
             context_error,
             hash,
@@ -980,7 +980,7 @@ where
                     unsafe fn unsafe_to_ref<'__rune_g>(value: #value) -> #vm_result<(&'__rune_g Self, Self::Guard)> {
                         let (projection, guard) = #vm_try!(value.into_projection());
                         let projection = projection.as_ref();
-                        #vm_result::Ok((#lifetime::get(projection), guard))
+                        #vm_result::Ok((#projectable::get(projection), guard))
                     }
                 }
 
@@ -991,7 +991,7 @@ where
                     unsafe fn unsafe_to_mut<'__rune_g>(value: #value) -> #vm_result<(&'__rune_g mut Self, Self::Guard)> {
                         let (mut projection, guard) = #vm_try!(value.into_projection_mut());
                         let projection = projection.as_mut();
-                        #vm_result::Ok((#lifetime::get_mut(projection), guard))
+                        #vm_result::Ok((#projectable::get_mut(projection), guard))
                     }
                 }
             })

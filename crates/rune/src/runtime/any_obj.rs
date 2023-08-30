@@ -84,7 +84,7 @@ impl AnyObj {
     }
 
     /// Create an AnyObj from a reference to a type T containing lifetimes.
-    pub(crate) fn new_projection<T>(value: &T) -> Self
+    pub fn new_projection<T>(value: &T) -> Self
     where
         T: AnyRef,
     {
@@ -108,7 +108,7 @@ impl AnyObj {
 
     /// Create an AnyObj from a mutable reference to a type T containing
     /// lifetimes.
-    pub(crate) fn new_projection_mut<T>(value: &mut T) -> Self
+    pub fn new_projection_mut<T>(value: &mut T) -> Self
     where
         T: AnyRef,
     {
