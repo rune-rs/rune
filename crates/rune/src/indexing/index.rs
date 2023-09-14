@@ -9,12 +9,15 @@ use crate::no_std::prelude::*;
 use crate::ast::spanned;
 use crate::ast::{self, OptionSpanned, Span, Spanned};
 use crate::compile::attrs;
-use crate::compile::{self, Doc, ErrorKind, ItemId, ModId, Visibility, WithSpan};
-use crate::compile::{meta, DynLocation};
+use crate::compile::meta;
+use crate::compile::{self, Doc, DynLocation, ErrorKind, Location, ModId, Visibility, WithSpan};
 use crate::indexing::{self, Indexed, Items, Layer, Scopes};
 use crate::macros::MacroCompiler;
 use crate::parse::{NonZeroId, Parse, Parser, Resolve};
-use crate::query::{BuiltInFile, BuiltInFormat, BuiltInLine, BuiltInMacro, BuiltInTemplate, Query};
+use crate::query::{
+    BuiltInFile, BuiltInFormat, BuiltInLine, BuiltInMacro, BuiltInTemplate, ItemImplEntry, Query,
+    QueryImplFn,
+};
 use crate::runtime::format;
 use crate::runtime::Call;
 use crate::worker::{Import, ImportKind, LoadFileKind, Task};
@@ -699,7 +702,10 @@ pub(crate) fn empty_block_fn(
 }
 
 #[instrument(span = ast)]
-fn item_fn(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemFn) -> compile::Result<()> {
+pub(crate) fn item_fn_immediate(
+    idx: &mut Indexer<'_, '_>,
+    mut ast: ast::ItemFn,
+) -> compile::Result<()> {
     let name = ast.name.resolve(resolve_context!(idx.q))?;
 
     let visibility = ast_to_visibility(&ast.visibility)?;
@@ -750,10 +756,6 @@ fn item_fn(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemFn) -> compile::Result<(
         idx.q.index_const_fn(item_meta, Box::new(ast))?;
         return Ok(());
     };
-
-    // NB: it's only a public item in the sense of exporting it if it's not
-    // inside of a nested item.
-    let is_public = item_meta.is_public(idx.q.pool) && idx.nested_item.is_none();
 
     let is_test = match p.try_parse::<attrs::Test>(resolve_context!(idx.q), &ast.attributes)? {
         Some((attr, _)) => {
@@ -829,6 +831,10 @@ fn item_fn(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemFn) -> compile::Result<(
             }),
         });
     } else {
+        // NB: it's only a public item in the sense of exporting it if it's not
+        // inside of a nested item.
+        let is_public = item_meta.is_public(idx.q.pool) && idx.nested_item.is_none();
+
         let entry = indexing::Entry {
             item_meta,
             indexed: Indexed::Function(indexing::Function {
@@ -836,6 +842,7 @@ fn item_fn(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemFn) -> compile::Result<(
                 call,
                 is_test,
                 is_bench,
+                impl_item: idx.item.impl_item,
             }),
         };
 
@@ -844,6 +851,22 @@ fn item_fn(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemFn) -> compile::Result<(
         } else {
             idx.q.index(entry);
         }
+    }
+
+    Ok(())
+}
+
+#[instrument(span = ast)]
+fn item_fn(idx: &mut Indexer<'_, '_>, ast: ast::ItemFn) -> compile::Result<()> {
+    if let Some(impl_item) = idx.item.impl_item {
+        idx.q
+            .inner
+            .impl_functions
+            .entry(impl_item)
+            .or_default()
+            .push(QueryImplFn { ast: Box::new(ast) });
+    } else {
+        item_fn_immediate(idx, ast)?;
     }
 
     Ok(())
@@ -1471,40 +1494,27 @@ fn item_impl(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemImpl) -> compile::Resu
         ));
     }
 
-    let mut guards = Vec::new();
+    path(idx, &mut ast.path)?;
 
-    if let Some(global) = &ast.path.global {
-        return Err(compile::Error::msg(
-            global,
-            "Global path scopes on impl blocks are not supported",
-        ));
-    }
+    let location = Location::new(idx.source_id, ast.path.span());
+    let id = idx.q.gen.next();
 
-    for path_segment in ast.path.as_components() {
-        let Some(ident_segment) = path_segment.try_as_ident() else {
-            return Err(compile::Error::msg(
-                path_segment,
-                "Unsupported path segment",
-            ));
-        };
+    idx.q.inner.impl_item_queue.push_back(ItemImplEntry {
+        path: Box::new(ast.path),
+        location,
+        id,
+        root: idx.root.clone(),
+        nested_item: idx.nested_item,
+        macro_depth: idx.macro_depth,
+    });
 
-        let ident = ident_segment.resolve(resolve_context!(idx.q))?;
-        guards.push(idx.items.push_name(ident));
-    }
-
-    let new = idx.q.pool.alloc_item(idx.items.item());
-    let idx_item = idx.item.replace_impl(new);
+    let idx_item = idx.item.replace_impl(id);
 
     for i in ast.functions.drain(..) {
         item_fn(idx, i)?;
     }
 
     idx.item = idx_item;
-
-    for guard in guards.into_iter().rev() {
-        idx.items.pop(guard).with_span(&ast)?;
-    }
-
     Ok(())
 }
 
@@ -1987,7 +1997,7 @@ pub(crate) struct IndexItem {
     /// The current module being indexed.
     pub(crate) module: ModId,
     /// Set if we are inside of an impl self.
-    pub(crate) impl_item: Option<ItemId>,
+    pub(crate) impl_item: Option<NonZeroId>,
     /// Whether the item has been inserted or not.
     pub(crate) id: Option<NonZeroId>,
 }
@@ -1997,6 +2007,14 @@ impl IndexItem {
         Self {
             module,
             impl_item: None,
+            id: None,
+        }
+    }
+
+    pub(crate) fn with_impl_item(module: ModId, impl_item: NonZeroId) -> Self {
+        Self {
+            module,
+            impl_item: Some(impl_item),
             id: None,
         }
     }
@@ -2020,7 +2038,7 @@ impl IndexItem {
     }
 
     /// Replace module id.
-    fn replace_impl(&mut self, item: ItemId) -> IndexItem {
+    fn replace_impl(&mut self, item: NonZeroId) -> IndexItem {
         IndexItem {
             module: self.module,
             impl_item: replace(&mut self.impl_item, Some(item)),

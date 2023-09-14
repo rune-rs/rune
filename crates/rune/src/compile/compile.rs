@@ -80,7 +80,7 @@ pub(crate) fn compile(
         });
     }
 
-    worker.run();
+    worker.index();
 
     if worker.q.diagnostics.has_error() {
         return Err(());
@@ -251,14 +251,22 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
 
                 let arena = hir::Arena::new();
                 let mut c = self.compiler1(location, &f.ast, &mut asm);
+
+                let Some(impl_item) = c.q.inner.items.get(&f.impl_item) else {
+                    return Err(compile::Error::msg(
+                        &f.ast,
+                        "Impl item has not been expanded",
+                    ));
+                };
+
                 let meta =
-                    c.q.lookup_meta(&location, f.impl_item, GenericsParameters::default())?;
+                    c.q.lookup_meta(&location, impl_item.item, GenericsParameters::default())?;
 
                 let Some(type_hash) = meta.type_hash_of() else {
                     return Err(compile::Error::expected_meta(
                         &f.ast,
                         meta.info(c.q.pool),
-                        "instance function",
+                        "type for associated function",
                     ));
                 };
 

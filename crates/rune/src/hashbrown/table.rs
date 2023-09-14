@@ -166,7 +166,7 @@ impl<'a, V> iter::Iterator for Iter<'a, V> {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         // SAFETY: we're still holding onto the `RawRef` guard.
-        unsafe { Some(self.iter.next()?.as_ref().clone()) }
+        unsafe { Some(self.iter.next()?.as_ref()) }
     }
 
     #[inline]

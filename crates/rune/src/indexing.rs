@@ -69,6 +69,9 @@ pub(crate) struct Function {
     pub(crate) is_test: bool,
     /// If this is a bench function.
     pub(crate) is_bench: bool,
+    /// The impl item this function is registered in.
+    #[allow(unused)]
+    pub(crate) impl_item: Option<NonZeroId>,
 }
 
 #[derive(Debug, Clone)]
@@ -88,7 +91,7 @@ pub(crate) struct InstanceFunction {
     /// The calling convention of the function.
     pub(crate) call: Call,
     /// The item of the instance function.
-    pub(crate) impl_item: ItemId,
+    pub(crate) impl_item: NonZeroId,
 }
 
 #[derive(Debug, Clone, Copy)]

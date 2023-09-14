@@ -22,7 +22,8 @@ use crate::indexing::{self, Indexed, Items};
 use crate::macros::Storage;
 use crate::parse::{Id, NonZeroId, Opaque, Resolve, ResolveContext};
 use crate::query::{
-    Build, BuildEntry, BuiltInMacro, ConstFn, GenericsParameters, Named, QueryPath, Used,
+    Build, BuildEntry, BuiltInMacro, ConstFn, GenericsParameters, ItemImplEntry, Named,
+    QueryImplFn, QueryPath, Used,
 };
 #[cfg(feature = "doc")]
 use crate::runtime::Call;
@@ -69,6 +70,10 @@ pub(crate) struct QueryInner<'arena> {
     constants: HashMap<Hash, ConstValue>,
     /// Query paths.
     pub(crate) query_paths: HashMap<NonZeroId, QueryPath>,
+    /// Functions associated with impl blocks.
+    pub(crate) impl_functions: HashMap<NonZeroId, Vec<QueryImplFn>>,
+    /// Queue of impl items to process.
+    pub(crate) impl_item_queue: VecDeque<ItemImplEntry>,
     /// The result of internally resolved macros.
     internal_macros: HashMap<NonZeroId, Arc<BuiltInMacro>>,
     /// Associated between `id` and `Item`. Use to look up items through
@@ -76,7 +81,7 @@ pub(crate) struct QueryInner<'arena> {
     ///
     /// These items are associated with AST elements, and encodoes the item path
     /// that the AST element was indexed.
-    items: HashMap<NonZeroId, ItemMeta>,
+    pub(crate) items: HashMap<NonZeroId, ItemMeta>,
     /// All available names.
     names: Names,
     /// Recorded captures.
@@ -184,6 +189,11 @@ impl<'a, 'arena> Query<'a, 'arena> {
             context: self.context,
             inner: self.inner,
         }
+    }
+
+    /// Get the next impl item in queue to process.
+    pub(crate) fn next_impl_item_entry(&mut self) -> Option<ItemImplEntry> {
+        self.inner.impl_item_queue.pop_front()
     }
 
     /// Get the next build entry from the build queue associated with the query
@@ -385,7 +395,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
     pub(crate) fn insert_path(
         &mut self,
         module: ModId,
-        impl_item: Option<ItemId>,
+        impl_item: Option<NonZeroId>,
         item: &Item,
     ) -> NonZeroId {
         let item = self.pool.alloc_item(item);
@@ -904,8 +914,15 @@ impl<'a, 'arena> Query<'a, 'arena> {
                         ));
                     };
 
+                    let Some(impl_item) = self.inner.items.get(&impl_item) else {
+                        return Err(compile::Error::msg(
+                            segment.span(),
+                            "Can't use `Self` due to unexpanded impl item",
+                        ));
+                    };
+
                     in_self_type = true;
-                    impl_item
+                    impl_item.item
                 }
                 ast::PathSegment::SelfValue(..) => self.pool.module(module).item,
                 ast::PathSegment::Crate(..) => ItemId::default(),
@@ -989,6 +1006,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
 
         if let Some(new) = self.import(path, module, item, Used::Used)? {
             return Ok(Named {
+                module,
                 item: new,
                 trailing,
                 parameters,
@@ -996,6 +1014,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         }
 
         Ok(Named {
+            module,
             item,
             trailing,
             parameters,
@@ -1120,9 +1139,8 @@ impl<'a, 'arena> Query<'a, 'arena> {
                     &mut path,
                 )?;
 
-                let update = match update {
-                    Some(update) => update,
-                    None => continue,
+                let Some(update) = update else {
+                    continue;
                 };
 
                 path.push(ImportStep {
@@ -1175,9 +1193,8 @@ impl<'a, 'arena> Query<'a, 'arena> {
         }
 
         // resolve query.
-        let entry = match self.remove_indexed(span, item)? {
-            Some(entry) => entry,
-            _ => return Ok(None),
+        let Some(entry) = self.remove_indexed(span, item)? else {
+            return Ok(None);
         };
 
         self.check_access_to(
@@ -1327,6 +1344,13 @@ impl<'a, 'arena> Query<'a, 'arena> {
             Indexed::InstanceFunction(f) => {
                 let name: Cow<str> = Cow::Owned(f.ast.name.resolve(resolve_context!(self))?.into());
 
+                let Some(_impl_item) = self.inner.items.get(&f.impl_item) else {
+                    return Err(compile::Error::msg(
+                        item_meta.location.span,
+                        "Missing resolved impl item",
+                    ));
+                };
+
                 let kind = meta::Kind::AssociatedFunction {
                     kind: meta::AssociatedKind::Instance(name),
                     signature: meta::Signature {
@@ -1343,7 +1367,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
                     },
                     parameters: Hash::EMPTY,
                     #[cfg(feature = "doc")]
-                    container: self.pool.item_type_hash(f.impl_item),
+                    container: self.pool.item_type_hash(_impl_item.item),
                     #[cfg(feature = "doc")]
                     parameter_types: Vec::new(),
                 };

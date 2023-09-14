@@ -379,6 +379,7 @@ mod core_macros;
 mod custom_macros;
 mod derive_from_to_value;
 mod destructuring;
+mod esoteric_impls;
 mod external_constructor;
 mod external_generic;
 mod external_match;
