@@ -804,14 +804,14 @@ pub(crate) fn item_fn_immediate(
         if is_test {
             return Err(compile::Error::msg(
                 &ast,
-                "The #[test] attribute is not supported on member functions",
+                "The #[test] attribute is not supported on functions receiving `self`",
             ));
         }
 
         if is_bench {
             return Err(compile::Error::msg(
                 &ast,
-                "The #[bench] attribute is not supported on member functions",
+                "The #[bench] attribute is not supported on functions receiving `self`",
             ));
         }
 
@@ -831,9 +831,9 @@ pub(crate) fn item_fn_immediate(
             }),
         });
     } else {
-        // NB: it's only a public item in the sense of exporting it if it's not
+        // NB: It's only a public item in the sense of exporting it if it's not
         // inside of a nested item.
-        let is_public = item_meta.is_public(idx.q.pool) && idx.nested_item.is_none();
+        let is_exported = item_meta.is_public(idx.q.pool) && idx.nested_item.is_none();
 
         let entry = indexing::Entry {
             item_meta,
@@ -846,7 +846,7 @@ pub(crate) fn item_fn_immediate(
             }),
         };
 
-        if is_public || is_test || is_bench {
+        if is_exported || is_test || is_bench {
             idx.q.index_and_build(entry);
         } else {
             idx.q.index(entry);

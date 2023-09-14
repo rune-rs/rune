@@ -10,7 +10,7 @@ use crate::compile::{
 use crate::hir;
 use crate::macros::Storage;
 use crate::parse::Resolve;
-use crate::query::{Build, BuildEntry, GenericsParameters, Query};
+use crate::query::{Build, BuildEntry, GenericsParameters, Query, Used};
 use crate::runtime::unit::UnitEncoder;
 use crate::shared::{Consts, Gen};
 use crate::worker::{LoadFileKind, Task, Worker};
@@ -146,11 +146,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
         entry: BuildEntry,
         unit_storage: &mut dyn UnitEncoder,
     ) -> compile::Result<()> {
-        let BuildEntry {
-            item_meta,
-            build,
-            used,
-        } = entry;
+        let BuildEntry { item_meta, build } = entry;
 
         let location = item_meta.location;
 
@@ -159,6 +155,12 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
         match build {
             Build::Query => {
                 tracing::trace!("query: {}", self.q.pool.item(item_meta.item));
+
+                let used = if self.q.is_used(&item_meta) {
+                    Used::Used
+                } else {
+                    Used::Unused
+                };
 
                 if self
                     .q
@@ -190,7 +192,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                 let mut c = self.compiler1(location, span, &mut asm);
                 assemble::fn_from_item_fn(&mut c, &hir, false)?;
 
-                if used.is_unused() {
+                if !self.q.is_used(&item_meta) {
                     self.q.diagnostics.not_used(location.source_id, span, None);
                 } else {
                     self.q.unit.new_function(
@@ -225,7 +227,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                 let mut c = self.compiler1(location, span, &mut asm);
                 assemble::fn_from_item_fn(&mut c, &hir, false)?;
 
-                if used.is_unused() {
+                if !self.q.is_used(&item_meta) {
                     self.q.diagnostics.not_used(location.source_id, span, None);
                 } else {
                     self.q.unit.new_function(
@@ -278,7 +280,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                 let hir = hir::lowering::item_fn(&mut cx, &f.ast)?;
                 assemble::fn_from_item_fn(&mut c, &hir, true)?;
 
-                if used.is_unused() {
+                if !c.q.is_used(&item_meta) {
                     c.q.diagnostics.not_used(location.source_id, &f.ast, None);
                 } else {
                     let name = f.ast.name.resolve(resolve_context!(self.q))?;
@@ -319,7 +321,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                 let mut c = self.compiler1(location, &closure.ast, &mut asm);
                 assemble::expr_closure_secondary(&mut c, &hir, &closure.ast)?;
 
-                if used.is_unused() {
+                if !c.q.is_used(&item_meta) {
                     c.q.diagnostics
                         .not_used(location.source_id, &location.span, None);
                 } else {
@@ -351,7 +353,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                 let mut c = self.compiler1(location, &b.ast, &mut asm);
                 assemble::async_block_secondary(&mut c, &hir)?;
 
-                if used.is_unused() {
+                if !self.q.is_used(&item_meta) {
                     self.q
                         .diagnostics
                         .not_used(location.source_id, &location.span, None);
@@ -381,12 +383,18 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
             Build::Import(import) => {
                 tracing::trace!("import: {}", self.q.pool.item(item_meta.item));
 
-                // Issue the import to check access.
-                let result = self
-                    .q
-                    .import(&location, item_meta.module, item_meta.item, used)?;
+                let used = if self.q.is_used(&item_meta) {
+                    Used::Used
+                } else {
+                    Used::Unused
+                };
 
-                if used.is_unused() {
+                // Issue the import to check access.
+                let result =
+                    self.q
+                        .import(&location, item_meta.module, item_meta.item, used, used)?;
+
+                if !self.q.is_used(&item_meta) {
                     self.q
                         .diagnostics
                         .not_used(location.source_id, &location.span, None);
@@ -417,9 +425,15 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
             Build::ReExport => {
                 tracing::trace!("re-export: {}", self.q.pool.item(item_meta.item));
 
+                let used = if self.q.is_used(&item_meta) {
+                    Used::Used
+                } else {
+                    Used::Unused
+                };
+
                 let Some(import) =
                     self.q
-                        .import(&location, item_meta.module, item_meta.item, used)?
+                        .import(&location, item_meta.module, item_meta.item, used, used)?
                 else {
                     return Err(compile::Error::new(
                         location.span,

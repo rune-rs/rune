@@ -13,7 +13,7 @@ use crate::hash::{Hash, ParametersBuilder};
 use crate::hir;
 use crate::indexing;
 use crate::parse::Resolve;
-use crate::query::{self, Build, BuildEntry, GenericsParameters, Named, Query, Used};
+use crate::query::{self, Build, BuildEntry, GenericsParameters, Named, Query};
 use crate::runtime::{Type, TypeCheck};
 use crate::SourceId;
 
@@ -270,13 +270,13 @@ fn expr_call_closure<'hir>(
             expr(cx, &ast.body)?;
             let layer = cx.scopes.pop().with_span(&ast.body)?;
 
+            cx.q.set_used(&meta.item_meta);
             cx.q.inner.queue.push_back(BuildEntry {
                 item_meta: meta.item_meta,
                 build: Build::Closure(indexing::Closure {
                     ast: Box::new(ast.clone()),
                     call,
                 }),
-                used: Used::Used,
             });
 
             cx.q.insert_captures(meta.hash, layer.captures());
@@ -925,13 +925,13 @@ pub(crate) fn expr_block<'hir>(
 
                     cx.q.insert_captures(meta.hash, layer.captures());
 
+                    cx.q.set_used(&meta.item_meta);
                     cx.q.inner.queue.push_back(BuildEntry {
                         item_meta: meta.item_meta,
                         build: Build::AsyncBlock(indexing::AsyncBlock {
                             ast: ast.block.clone(),
                             call,
                         }),
-                        used: Used::Used,
                     });
 
                     iter!(layer.captures())

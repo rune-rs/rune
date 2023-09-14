@@ -11,7 +11,7 @@ use crate::compile::{self, ModId};
 use crate::indexing::index;
 use crate::indexing::items::Items;
 use crate::indexing::{IndexItem, Indexer, Scopes};
-use crate::query::{GenericsParameters, Query};
+use crate::query::{GenericsParameters, Query, Used};
 use crate::SourceId;
 
 mod import;
@@ -177,7 +177,9 @@ impl<'a, 'arena> Worker<'a, 'arena> {
                     // Rust does, and at some point in the future we might
                     // introduce bounds which would not be communicated through
                     // `Self`.
-                    let named = self.q.convert_path_with(&entry.path, true)?;
+                    let named =
+                        self.q
+                            .convert_path_with(&entry.path, true, Used::Used, Used::Unused)?;
 
                     if let Some((spanned, _)) = named.parameters.into_iter().flatten().next() {
                         return Err(compile::Error::new(

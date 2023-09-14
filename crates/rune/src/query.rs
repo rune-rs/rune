@@ -142,8 +142,6 @@ pub(crate) enum Build {
 pub(crate) struct BuildEntry {
     /// The item of the build entry.
     pub(crate) item_meta: ItemMeta,
-    /// If the queued up entry was unused or not.
-    pub(crate) used: Used,
     /// The build entry.
     pub(crate) build: Build,
 }

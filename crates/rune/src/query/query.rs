@@ -61,6 +61,8 @@ pub(crate) struct QueryInner<'arena> {
     meta: HashMap<(ItemId, Hash), meta::Meta>,
     /// Build queue.
     pub(crate) queue: VecDeque<BuildEntry>,
+    /// Set of used items.
+    used: HashSet<NonZeroId>,
     /// Indexed items that can be queried for, which will queue up for them to
     /// be compiled.
     indexed: BTreeMap<ItemId, Vec<indexing::Entry>>,
@@ -189,6 +191,16 @@ impl<'a, 'arena> Query<'a, 'arena> {
             context: self.context,
             inner: self.inner,
         }
+    }
+
+    /// Test if the given meta item id is used.
+    pub(crate) fn is_used(&self, item_meta: &ItemMeta) -> bool {
+        self.inner.used.contains(&item_meta.id)
+    }
+
+    /// Set the given meta item as used.
+    pub(crate) fn set_used(&mut self, item_meta: &ItemMeta) {
+        self.inner.used.insert(item_meta.id);
     }
 
     /// Get the next impl item in queue to process.
@@ -494,10 +506,10 @@ impl<'a, 'arena> Query<'a, 'arena> {
     pub(crate) fn insert_meta(
         &mut self,
         meta: meta::Meta,
-    ) -> Result<(), compile::error::MetaConflict> {
+    ) -> Result<&ItemMeta, compile::error::MetaConflict> {
         self.visitor.register_meta(meta.as_meta_ref(self.pool));
 
-        match self
+        let meta = match self
             .inner
             .meta
             .entry((meta.item_meta.item, meta.parameters))
@@ -509,12 +521,10 @@ impl<'a, 'arena> Query<'a, 'arena> {
                     parameters: meta.parameters,
                 });
             }
-            hash_map::Entry::Vacant(e) => {
-                e.insert(meta);
-            }
-        }
+            hash_map::Entry::Vacant(e) => e.insert(meta),
+        };
 
-        Ok(())
+        Ok(&meta.item_meta)
     }
 
     /// Insert a new item with the given newly allocated identifier and complete
@@ -621,7 +631,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
     /// Index the given entry. It is not allowed to overwrite other entries.
     #[tracing::instrument(skip_all)]
     pub(crate) fn index(&mut self, entry: indexing::Entry) {
-        tracing::trace!(item = ?entry.item_meta.item);
+        tracing::trace!(item = ?self.pool.item(entry.item_meta.item));
 
         self.insert_name(entry.item_meta.item);
 
@@ -635,9 +645,10 @@ impl<'a, 'arena> Query<'a, 'arena> {
     /// Same as `index`, but also queues the indexed entry up for building.
     #[tracing::instrument(skip_all)]
     pub(crate) fn index_and_build(&mut self, entry: indexing::Entry) {
+        self.set_used(&entry.item_meta);
+
         self.inner.queue.push_back(BuildEntry {
             item_meta: entry.item_meta,
-            used: Used::Used,
             build: Build::Query,
         });
 
@@ -866,7 +877,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         &mut self,
         path: &'ast ast::Path,
     ) -> compile::Result<Named<'ast>> {
-        self.convert_path_with(path, false)
+        self.convert_path_with(path, false, Used::Used, Used::Used)
     }
 
     /// Perform a path conversion with custom configuration.
@@ -875,6 +886,8 @@ impl<'a, 'arena> Query<'a, 'arena> {
         &mut self,
         path: &'ast ast::Path,
         deny_self_type: bool,
+        import_used: Used,
+        used: Used,
     ) -> compile::Result<Named<'ast>> {
         tracing::trace!("converting path");
 
@@ -904,7 +917,9 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 return Err(compile::Error::new(span, ErrorKind::UnsupportedGlobal));
             }
             (None, segment) => match segment {
-                ast::PathSegment::Ident(ident) => self.convert_initial_path(module, item, ident)?,
+                ast::PathSegment::Ident(ident) => {
+                    self.convert_initial_path(module, item, ident, used)?
+                }
                 ast::PathSegment::Super(..) => {
                     let Some(segment) = self
                         .pool
@@ -1016,7 +1031,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
 
         let item = self.pool.alloc_item(item);
 
-        if let Some(new) = self.import(path, module, item, Used::Used)? {
+        if let Some(new) = self.import(path, module, item, import_used, used)? {
             return Ok(Named {
                 module,
                 item: new,
@@ -1077,10 +1092,11 @@ impl<'a, 'arena> Query<'a, 'arena> {
 
         // toplevel public uses are re-exported.
         if item_meta.is_public(self.pool) {
+            self.inner.used.insert(item_meta.id);
+
             self.inner.queue.push_back(BuildEntry {
                 item_meta,
                 build: Build::ReExport,
-                used: Used::Used,
             });
         }
 
@@ -1116,6 +1132,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         span: &dyn Spanned,
         mut module: ModId,
         item: ItemId,
+        import_used: Used,
         used: Used,
     ) -> compile::Result<Option<ItemId>> {
         let mut visited = HashSet::<ItemId>::new();
@@ -1140,6 +1157,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
 
             while let Some(c) = it.next() {
                 cur.push(c);
+
                 let cur = self.pool.alloc_item(&cur);
 
                 let update = self.import_step(
@@ -1151,9 +1169,14 @@ impl<'a, 'arena> Query<'a, 'arena> {
                     &mut path,
                 )?;
 
-                let Some(update) = update else {
+                let Some((item_meta, update)) = update else {
                     continue;
                 };
+
+                // Imports are *always* used once they pass this step.
+                if let Used::Used = import_used {
+                    self.set_used(&item_meta);
+                }
 
                 path.push(ImportStep {
                     location: update.location,
@@ -1195,11 +1218,11 @@ impl<'a, 'arena> Query<'a, 'arena> {
         item: ItemId,
         used: Used,
         #[cfg(feature = "emit")] path: &mut Vec<ImportStep>,
-    ) -> compile::Result<Option<meta::Import>> {
+    ) -> compile::Result<Option<(ItemMeta, meta::Import)>> {
         // already resolved query.
         if let Some(meta) = self.inner.meta.get(&(item, Hash::EMPTY)) {
             return Ok(match meta.kind {
-                meta::Kind::Import(import) => Some(import),
+                meta::Kind::Import(import) => Some((meta.item_meta, import)),
                 _ => None,
             });
         }
@@ -1238,8 +1261,8 @@ impl<'a, 'arena> Query<'a, 'arena> {
             parameters: Hash::EMPTY,
         };
 
-        self.insert_meta(meta).with_span(span)?;
-        Ok(Some(import))
+        let item_meta = self.insert_meta(meta).with_span(span)?;
+        Ok(Some((*item_meta, import)))
     }
 
     /// Build a single, indexed entry and return its metadata.
@@ -1271,6 +1294,10 @@ impl<'a, 'arena> Query<'a, 'arena> {
         }
 
         let indexing::Entry { item_meta, indexed } = entry;
+
+        if let Used::Used = used {
+            self.inner.used.insert(item_meta.id);
+        }
 
         let kind = match indexed {
             Indexed::Enum => meta::Kind::Enum {
@@ -1321,7 +1348,6 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 self.inner.queue.push_back(BuildEntry {
                     item_meta,
                     build: Build::EmptyFunction(f),
-                    used,
                 });
 
                 kind
@@ -1348,7 +1374,6 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 self.inner.queue.push_back(BuildEntry {
                     item_meta,
                     build: Build::Function(f),
-                    used,
                 });
 
                 kind
@@ -1387,7 +1412,6 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 self.inner.queue.push_back(BuildEntry {
                     item_meta,
                     build: Build::InstanceFunction(f),
-                    used,
                 });
 
                 kind
@@ -1426,7 +1450,6 @@ impl<'a, 'arena> Query<'a, 'arena> {
                     self.inner.queue.push_back(BuildEntry {
                         item_meta,
                         build: Build::Unused,
-                        used,
                     });
                 }
 
@@ -1466,7 +1489,6 @@ impl<'a, 'arena> Query<'a, 'arena> {
                     self.inner.queue.push_back(BuildEntry {
                         item_meta,
                         build: Build::Unused,
-                        used,
                     });
                 }
 
@@ -1504,7 +1526,6 @@ impl<'a, 'arena> Query<'a, 'arena> {
                     self.inner.queue.push_back(BuildEntry {
                         item_meta,
                         build: Build::Unused,
-                        used,
                     });
                 }
 
@@ -1515,7 +1536,6 @@ impl<'a, 'arena> Query<'a, 'arena> {
                     self.inner.queue.push_back(BuildEntry {
                         item_meta,
                         build: Build::Import(import),
-                        used,
                     });
                 }
 
@@ -1647,6 +1667,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         module: ModId,
         item: ItemId,
         local: &ast::Ident,
+        used: Used,
     ) -> compile::Result<ItemId> {
         let mut base = self.pool.item(item).to_owned();
         debug_assert!(base.starts_with(self.pool.module_item(module)));
@@ -1663,7 +1684,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
 
                 // TODO: We probably should not engage the whole query meta
                 // machinery here.
-                if let Some(meta) = self.query_meta(local, item, Used::Used)? {
+                if let Some(meta) = self.query_meta(local, item, used)? {
                     if !matches!(meta.kind, meta::Kind::AssociatedFunction { .. }) {
                         return Ok(self.pool.alloc_item(base));
                     }
