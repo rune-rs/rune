@@ -9,7 +9,7 @@ impl ToInstance for Protocol {
     #[inline]
     fn to_instance(self) -> AssociatedFunctionName {
         AssociatedFunctionName {
-            kind: meta::AssociatedKind::Protocol(self),
+            associated: meta::AssociatedKind::Protocol(self),
             function_parameters: Hash::EMPTY,
             #[cfg(feature = "doc")]
             parameter_types: vec![],

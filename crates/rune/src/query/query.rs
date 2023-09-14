@@ -18,7 +18,7 @@ use crate::compile::{
     SourceLoader, SourceMeta, UnitBuilder, Visibility, WithSpan,
 };
 use crate::hir;
-use crate::indexing::{self, Indexed, Items};
+use crate::indexing::{self, FunctionAst, Indexed, Items};
 use crate::macros::Storage;
 use crate::parse::{Id, NonZeroId, Opaque, Resolve, ResolveContext};
 use crate::query::{
@@ -239,8 +239,13 @@ impl<'a, 'arena> Query<'a, 'arena> {
                     meta::Kind::Enum { .. }
                     | meta::Kind::Struct { .. }
                     | meta::Kind::Type { .. } => Kind::Type,
-                    meta::Kind::Function { .. } => Kind::Function,
-                    meta::Kind::AssociatedFunction { .. } => Kind::AssociatedFunction,
+                    meta::Kind::Function {
+                        associated: None, ..
+                    } => Kind::Function,
+                    meta::Kind::Function {
+                        associated: Some(..),
+                        ..
+                    } => Kind::AssociatedFunction,
                     _ => {
                         continue;
                     }
@@ -1326,34 +1331,16 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 constructor: None,
                 parameters: Hash::EMPTY,
             },
-            Indexed::EmptyFunction(f) => {
-                let kind = meta::Kind::Function {
-                    is_test: false,
-                    is_bench: false,
-                    signature: meta::Signature {
-                        #[cfg(feature = "doc")]
-                        is_async: matches!(f.call, Call::Async | Call::Stream),
-                        #[cfg(feature = "doc")]
-                        deprecated: None,
-                        #[cfg(feature = "doc")]
-                        args: Some(0),
-                        #[cfg(feature = "doc")]
-                        return_type: None,
-                        #[cfg(feature = "doc")]
-                        argument_types: Box::from([]),
-                    },
-                    parameters: Hash::EMPTY,
-                };
-
-                self.inner.queue.push_back(BuildEntry {
-                    item_meta,
-                    build: Build::EmptyFunction(f),
-                });
-
-                kind
-            }
             Indexed::Function(f) => {
                 let kind = meta::Kind::Function {
+                    associated: match (f.is_instance, &f.ast) {
+                        (true, FunctionAst::Item(ast)) => {
+                            let name: Cow<str> =
+                                Cow::Owned(ast.name.resolve(resolve_context!(self))?.into());
+                            Some(meta::AssociatedKind::Instance(name))
+                        }
+                        _ => None,
+                    },
                     is_test: f.is_test,
                     is_bench: f.is_bench,
                     signature: meta::Signature {
@@ -1362,41 +1349,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
                         #[cfg(feature = "doc")]
                         deprecated: None,
                         #[cfg(feature = "doc")]
-                        args: Some(f.ast.args.len()),
-                        #[cfg(feature = "doc")]
-                        return_type: None,
-                        #[cfg(feature = "doc")]
-                        argument_types: Box::from([]),
-                    },
-                    parameters: Hash::EMPTY,
-                };
-
-                self.inner.queue.push_back(BuildEntry {
-                    item_meta,
-                    build: Build::Function(f),
-                });
-
-                kind
-            }
-            Indexed::InstanceFunction(f) => {
-                let name: Cow<str> = Cow::Owned(f.ast.name.resolve(resolve_context!(self))?.into());
-
-                let Some(_impl_item) = self.inner.items.get(&f.impl_item) else {
-                    return Err(compile::Error::msg(
-                        item_meta.location.span,
-                        "Missing resolved impl item",
-                    ));
-                };
-
-                let kind = meta::Kind::AssociatedFunction {
-                    kind: meta::AssociatedKind::Instance(name),
-                    signature: meta::Signature {
-                        #[cfg(feature = "doc")]
-                        is_async: f.ast.async_token.is_some(),
-                        #[cfg(feature = "doc")]
-                        deprecated: None,
-                        #[cfg(feature = "doc")]
-                        args: Some(f.ast.args.len()),
+                        args: Some(f.ast.args()),
                         #[cfg(feature = "doc")]
                         return_type: None,
                         #[cfg(feature = "doc")]
@@ -1404,14 +1357,28 @@ impl<'a, 'arena> Query<'a, 'arena> {
                     },
                     parameters: Hash::EMPTY,
                     #[cfg(feature = "doc")]
-                    container: self.pool.item_type_hash(_impl_item.item),
+                    container: {
+                        match f.impl_item {
+                            Some(impl_item) => {
+                                let Some(impl_item) = self.inner.items.get(&impl_item) else {
+                                    return Err(compile::Error::msg(
+                                        item_meta.location.span,
+                                        "Missing resolved impl item",
+                                    ));
+                                };
+
+                                Some(self.pool.item_type_hash(impl_item.item))
+                            }
+                            None => None,
+                        }
+                    },
                     #[cfg(feature = "doc")]
                     parameter_types: Vec::new(),
                 };
 
                 self.inner.queue.push_back(BuildEntry {
                     item_meta,
-                    build: Build::InstanceFunction(f),
+                    build: Build::Function(f),
                 });
 
                 kind
@@ -1685,7 +1652,13 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 // TODO: We probably should not engage the whole query meta
                 // machinery here.
                 if let Some(meta) = self.query_meta(local, item, used)? {
-                    if !matches!(meta.kind, meta::Kind::AssociatedFunction { .. }) {
+                    if !matches!(
+                        meta.kind,
+                        meta::Kind::Function {
+                            associated: Some(..),
+                            ..
+                        }
+                    ) {
                         return Ok(self.pool.alloc_item(base));
                     }
                 }

@@ -124,9 +124,7 @@ pub(crate) struct BuiltInLine {
 /// An entry in the build queue.
 #[derive(Debug, Clone)]
 pub(crate) enum Build {
-    EmptyFunction(indexing::EmptyFunction),
     Function(indexing::Function),
-    InstanceFunction(indexing::InstanceFunction),
     Closure(indexing::Closure),
     AsyncBlock(indexing::AsyncBlock),
     Unused,

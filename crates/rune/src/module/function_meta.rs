@@ -151,7 +151,7 @@ impl AttributeMacroData {
 #[doc(hidden)]
 pub struct AssociatedFunctionName {
     /// The name of the instance function.
-    pub kind: meta::AssociatedKind,
+    pub associated: meta::AssociatedKind,
     /// Parameters hash.
     pub function_parameters: Hash,
     #[cfg(feature = "doc")]
@@ -161,7 +161,7 @@ pub struct AssociatedFunctionName {
 impl AssociatedFunctionName {
     pub(crate) fn index(protocol: Protocol, index: usize) -> Self {
         Self {
-            kind: meta::AssociatedKind::IndexFn(protocol, index),
+            associated: meta::AssociatedKind::IndexFn(protocol, index),
             function_parameters: Hash::EMPTY,
             #[cfg(feature = "doc")]
             parameter_types: vec![],
@@ -186,7 +186,7 @@ impl ToInstance for &'static str {
     #[inline]
     fn to_instance(self) -> AssociatedFunctionName {
         AssociatedFunctionName {
-            kind: meta::AssociatedKind::Instance(Cow::Borrowed(self)),
+            associated: meta::AssociatedKind::Instance(Cow::Borrowed(self)),
             function_parameters: Hash::EMPTY,
             #[cfg(feature = "doc")]
             parameter_types: vec![],
@@ -198,7 +198,7 @@ impl ToFieldFunction for &'static str {
     #[inline]
     fn to_field_function(self, protocol: Protocol) -> AssociatedFunctionName {
         AssociatedFunctionName {
-            kind: meta::AssociatedKind::FieldFn(protocol, Cow::Borrowed(self)),
+            associated: meta::AssociatedKind::FieldFn(protocol, Cow::Borrowed(self)),
             function_parameters: Hash::EMPTY,
             #[cfg(feature = "doc")]
             parameter_types: vec![],
@@ -256,7 +256,7 @@ impl AssociatedFunctionData {
     pub(crate) fn assoc_key(&self) -> AssociatedKey {
         AssociatedKey {
             type_hash: self.container.hash,
-            kind: self.name.kind.clone(),
+            kind: self.name.associated.clone(),
             parameters: self.name.function_parameters,
         }
     }

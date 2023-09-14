@@ -4,7 +4,8 @@ mod scopes;
 
 use crate::no_std::prelude::*;
 
-use crate::ast::{self, Span};
+use crate as rune;
+use crate::ast::{self, Span, Spanned};
 use crate::compile::meta;
 use crate::compile::{ItemId, ItemMeta};
 use crate::parse::NonZeroId;
@@ -41,12 +42,8 @@ pub(crate) enum Indexed {
     Struct(Struct),
     /// A variant.
     Variant(Variant),
-    /// An empty function.
-    EmptyFunction(EmptyFunction),
     /// A function.
     Function(Function),
-    /// An instance function.
-    InstanceFunction(InstanceFunction),
     /// A constant expression.
     ConstExpr(ConstExpr),
     /// A constant block.
@@ -59,12 +56,34 @@ pub(crate) enum Indexed {
     Module,
 }
 
+/// The ast of a function.
+#[derive(Debug, Clone, Spanned)]
+pub(crate) enum FunctionAst {
+    /// An empty function body.
+    Empty(Box<ast::EmptyBlock>, #[rune(span)] Span),
+    /// A regular item function body.
+    Item(Box<ast::ItemFn>),
+}
+
+impl FunctionAst {
+    /// Get the number of arguments for the function ast.
+    #[cfg(feature = "doc")]
+    pub(crate) fn args(&self) -> usize {
+        match self {
+            FunctionAst::Empty(..) => 0,
+            FunctionAst::Item(ast) => ast.args.len(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct Function {
     /// Ast for declaration.
-    pub(crate) ast: Box<ast::ItemFn>,
+    pub(crate) ast: FunctionAst,
     /// The calling convention of the function.
     pub(crate) call: Call,
+    /// If this is an instance function that receives `self`.
+    pub(crate) is_instance: bool,
     /// If this is a test function.
     pub(crate) is_test: bool,
     /// If this is a bench function.
@@ -72,26 +91,6 @@ pub(crate) struct Function {
     /// The impl item this function is registered in.
     #[allow(unused)]
     pub(crate) impl_item: Option<NonZeroId>,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct EmptyFunction {
-    /// The span of the empty function.
-    pub(crate) span: Span,
-    /// Ast for declaration.
-    pub(crate) ast: Box<ast::EmptyBlock>,
-    /// The calling convention of the function.
-    pub(crate) call: Call,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct InstanceFunction {
-    /// Ast for declaration.
-    pub(crate) ast: Box<ast::ItemFn>,
-    /// The calling convention of the function.
-    pub(crate) call: Call,
-    /// The item of the instance function.
-    pub(crate) impl_item: NonZeroId,
 }
 
 #[derive(Debug, Clone, Copy)]

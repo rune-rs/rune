@@ -88,8 +88,8 @@ pub(super) fn complete_native_instance_data(
         let (prefix, kind, n) = match (&meta.item, &meta.kind) {
             (
                 Some(item),
-                meta::Kind::AssociatedFunction {
-                    kind: meta::AssociatedKind::Instance(name),
+                meta::Kind::Function {
+                    associated: Some(meta::AssociatedKind::Instance(name)),
                     ..
                 },
             ) => (item, CompletionItemKind::FUNCTION, name),

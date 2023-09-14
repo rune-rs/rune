@@ -932,8 +932,13 @@ impl CompileVisitor for Visitor {
                 ..
             } => DefinitionKind::StructVariant,
             meta::Kind::Enum { .. } => DefinitionKind::Enum,
-            meta::Kind::Function { .. } => DefinitionKind::Function,
-            meta::Kind::AssociatedFunction { .. } => DefinitionKind::AssociatedFunction,
+            meta::Kind::Function {
+                associated: None, ..
+            } => DefinitionKind::Function,
+            meta::Kind::Function {
+                associated: Some(..),
+                ..
+            } => DefinitionKind::AssociatedFunction,
             _ => return,
         };
 

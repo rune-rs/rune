@@ -117,7 +117,6 @@ impl Meta {
             Kind::Struct { .. } => Some(self.hash),
             Kind::Enum { .. } => Some(self.hash),
             Kind::Function { .. } => Some(self.hash),
-            Kind::AssociatedFunction { .. } => Some(self.hash),
             Kind::Closure { .. } => Some(self.hash),
             Kind::AsyncBlock { .. } => Some(self.hash),
             Kind::Variant { .. } => None,
@@ -183,6 +182,9 @@ pub enum Kind {
     AttributeMacro,
     /// A function declaration.
     Function {
+        /// The associated kind of the function, if it is an associated
+        /// function.
+        associated: Option<AssociatedKind>,
         /// Native signature for this function.
         signature: Signature,
         /// Whether this function has a `#[test]` annotation
@@ -191,18 +193,9 @@ pub enum Kind {
         is_bench: bool,
         /// Hash of generic parameters.
         parameters: Hash,
-    },
-    /// An associated function.
-    AssociatedFunction {
-        /// The name of the instance function.
-        kind: AssociatedKind,
-        /// Native signature for this function.
-        signature: Signature,
-        /// Parameters hash.
-        parameters: Hash,
         /// The container of the associated function.
         #[cfg(feature = "doc")]
-        container: Hash,
+        container: Option<Hash>,
         /// Parameter types.
         #[cfg(feature = "doc")]
         parameter_types: Vec<Hash>,
@@ -242,7 +235,6 @@ impl Kind {
             Kind::Struct { constructor, .. } => constructor.as_ref(),
             Kind::Variant { constructor, .. } => constructor.as_ref(),
             Kind::Function { signature, .. } => Some(signature),
-            Kind::AssociatedFunction { signature, .. } => Some(signature),
             _ => None,
         }
     }
@@ -251,7 +243,6 @@ impl Kind {
     pub(crate) fn as_parameters(&self) -> Hash {
         match self {
             Kind::Function { parameters, .. } => *parameters,
-            Kind::AssociatedFunction { parameters, .. } => *parameters,
             Kind::Type { parameters, .. } => *parameters,
             Kind::Enum { parameters, .. } => *parameters,
             Kind::Struct { parameters, .. } => *parameters,
@@ -264,7 +255,7 @@ impl Kind {
     pub(crate) fn associated_container(&self) -> Option<Hash> {
         match self {
             Kind::Variant { enum_hash, .. } => Some(*enum_hash),
-            Kind::AssociatedFunction { container, .. } => Some(*container),
+            Kind::Function { container, .. } => *container,
             _ => None,
         }
     }

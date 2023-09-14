@@ -1423,9 +1423,7 @@ fn expr_path_meta<'hir>(
                 fields: meta::Fields::Unnamed(..),
                 ..
             } => Ok(hir::ExprKind::Fn(meta.hash)),
-            meta::Kind::Function { .. } | meta::Kind::AssociatedFunction { .. } => {
-                Ok(hir::ExprKind::Fn(meta.hash))
-            }
+            meta::Kind::Function { .. } => Ok(hir::ExprKind::Fn(meta.hash)),
             meta::Kind::Const { .. } => Ok(hir::ExprKind::Const(meta.hash)),
             meta::Kind::Struct { .. } | meta::Kind::Type { .. } | meta::Kind::Enum { .. } => {
                 Ok(hir::ExprKind::Type(Type::new(meta.hash)))
@@ -1689,7 +1687,7 @@ fn expr_call<'hir>(
                             );
                         }
                     }
-                    meta::Kind::Function { .. } | meta::Kind::AssociatedFunction { .. } => (),
+                    meta::Kind::Function { .. } => (),
                     meta::Kind::ConstFn { id, .. } => {
                         let id = *id;
                         let from = cx.q.item_for(ast.id).with_span(ast)?;

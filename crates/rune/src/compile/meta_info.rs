@@ -120,8 +120,13 @@ impl MetaInfoKind {
             meta::Kind::Enum { .. } => MetaInfoKind::Enum,
             meta::Kind::Macro { .. } => MetaInfoKind::Macro,
             meta::Kind::AttributeMacro { .. } => MetaInfoKind::AttributeMacro,
-            meta::Kind::Function { .. } => MetaInfoKind::Function,
-            meta::Kind::AssociatedFunction { .. } => MetaInfoKind::Associated,
+            meta::Kind::Function {
+                associated: None, ..
+            } => MetaInfoKind::Function,
+            meta::Kind::Function {
+                associated: Some(..),
+                ..
+            } => MetaInfoKind::Associated,
             meta::Kind::Closure { .. } => MetaInfoKind::Closure,
             meta::Kind::AsyncBlock { .. } => MetaInfoKind::AsyncBlock,
             meta::Kind::Const { .. } => MetaInfoKind::Const,

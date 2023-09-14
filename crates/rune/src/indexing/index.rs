@@ -691,10 +691,13 @@ pub(crate) fn empty_block_fn(
 
     idx.q.index_and_build(indexing::Entry {
         item_meta,
-        indexed: Indexed::EmptyFunction(indexing::EmptyFunction {
-            span: span.span(),
-            ast: Box::new(ast),
+        indexed: Indexed::Function(indexing::Function {
+            ast: indexing::FunctionAst::Empty(Box::new(ast), span.span()),
             call,
+            is_instance: false,
+            is_test: false,
+            is_bench: false,
+            impl_item: None,
         }),
     });
 
@@ -800,7 +803,9 @@ pub(crate) fn item_fn_immediate(
         ));
     }
 
-    if ast.is_instance() {
+    let is_instance = ast.is_instance();
+
+    if is_instance {
         if is_test {
             return Err(compile::Error::msg(
                 &ast,
@@ -815,42 +820,38 @@ pub(crate) fn item_fn_immediate(
             ));
         }
 
-        let Some(impl_item) = idx.item.impl_item else {
+        if idx.item.impl_item.is_none() {
             return Err(compile::Error::new(
                 &ast,
                 ErrorKind::InstanceFunctionOutsideImpl,
             ));
         };
+    }
 
-        idx.q.index_and_build(indexing::Entry {
-            item_meta,
-            indexed: Indexed::InstanceFunction(indexing::InstanceFunction {
-                ast: Box::new(ast),
-                call,
-                impl_item,
-            }),
-        });
+    let entry = indexing::Entry {
+        item_meta,
+        indexed: Indexed::Function(indexing::Function {
+            ast: indexing::FunctionAst::Item(Box::new(ast)),
+            call,
+            is_instance,
+            is_test,
+            is_bench,
+            impl_item: idx.item.impl_item,
+        }),
+    };
+
+    // It's only a public item in the sense of exporting it if it's not inside
+    // of a nested item. Instance functions are always eagerly exported since
+    // they need to be accessed dynamically through `self`.
+    let is_exported = is_instance
+        || item_meta.is_public(idx.q.pool) && idx.nested_item.is_none()
+        || is_test
+        || is_bench;
+
+    if is_exported {
+        idx.q.index_and_build(entry);
     } else {
-        // NB: It's only a public item in the sense of exporting it if it's not
-        // inside of a nested item.
-        let is_exported = item_meta.is_public(idx.q.pool) && idx.nested_item.is_none();
-
-        let entry = indexing::Entry {
-            item_meta,
-            indexed: Indexed::Function(indexing::Function {
-                ast: Box::new(ast),
-                call,
-                is_test,
-                is_bench,
-                impl_item: idx.item.impl_item,
-            }),
-        };
-
-        if is_exported || is_test || is_bench {
-            idx.q.index_and_build(entry);
-        } else {
-            idx.q.index(entry);
-        }
+        idx.q.index(entry);
     }
 
     Ok(())

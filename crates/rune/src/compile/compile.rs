@@ -8,6 +8,7 @@ use crate::compile::{
     SourceLoader, UnitBuilder,
 };
 use crate::hir;
+use crate::indexing::FunctionAst;
 use crate::macros::Storage;
 use crate::parse::Resolve;
 use crate::query::{Build, BuildEntry, GenericsParameters, Query, Used};
@@ -175,121 +176,88 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                     ));
                 }
             }
-            Build::EmptyFunction(f) => {
-                tracing::trace!("empty function: {}", self.q.pool.item(item_meta.item));
-
-                use self::v1::assemble;
-
-                let span = &f.span;
-
-                let arena = hir::Arena::new();
-                let mut cx = hir::lowering::Ctxt::with_query(
-                    &arena,
-                    self.q.borrow(),
-                    item_meta.location.source_id,
-                );
-                let hir = hir::lowering::empty_fn(&mut cx, &f.ast, &f.span)?;
-                let mut c = self.compiler1(location, span, &mut asm);
-                assemble::fn_from_item_fn(&mut c, &hir, false)?;
-
-                if !self.q.is_used(&item_meta) {
-                    self.q.diagnostics.not_used(location.source_id, span, None);
-                } else {
-                    self.q.unit.new_function(
-                        location,
-                        self.q.pool.item(item_meta.item),
-                        0,
-                        asm,
-                        f.call,
-                        Box::default(),
-                        unit_storage,
-                    )?;
-                }
-            }
             Build::Function(f) => {
                 tracing::trace!("function: {}", self.q.pool.item(item_meta.item));
 
                 use self::v1::assemble;
 
-                let args =
-                    format_fn_args(self.q.sources, location, f.ast.args.iter().map(|(a, _)| a))?;
+                // For instance functions, we are required to know the type hash
+                // of the type it is associated with to perform the proper
+                // naming of the function.
+                let type_hash = if f.is_instance {
+                    let Some(impl_item) =
+                        f.impl_item.and_then(|item| self.q.inner.items.get(&item))
+                    else {
+                        return Err(compile::Error::msg(
+                            &f.ast,
+                            "Impl item has not been expanded",
+                        ));
+                    };
 
-                let span = &*f.ast;
-                let count = f.ast.args.len();
+                    let meta = self.q.lookup_meta(
+                        &location,
+                        impl_item.item,
+                        GenericsParameters::default(),
+                    )?;
+
+                    let Some(type_hash) = meta.type_hash_of() else {
+                        return Err(compile::Error::expected_meta(
+                            &f.ast,
+                            meta.info(self.q.pool),
+                            "type for associated function",
+                        ));
+                    };
+
+                    Some(type_hash)
+                } else {
+                    None
+                };
+
+                let (args, span): (_, &dyn Spanned) = match &f.ast {
+                    FunctionAst::Item(ast) => {
+                        let args = format_fn_args(
+                            self.q.sources,
+                            location,
+                            ast.args.iter().map(|(a, _)| a),
+                        )?;
+                        (args, ast)
+                    }
+                    FunctionAst::Empty(.., span) => (Box::default(), span),
+                };
 
                 let arena = hir::Arena::new();
+
                 let mut cx = hir::lowering::Ctxt::with_query(
                     &arena,
                     self.q.borrow(),
                     item_meta.location.source_id,
                 );
-                let hir = hir::lowering::item_fn(&mut cx, &f.ast)?;
+
+                let hir = match &f.ast {
+                    FunctionAst::Item(ast) => hir::lowering::item_fn(&mut cx, ast)?,
+                    FunctionAst::Empty(ast, span) => hir::lowering::empty_fn(&mut cx, ast, &span)?,
+                };
+
+                let count = hir.args.len();
+
                 let mut c = self.compiler1(location, span, &mut asm);
-                assemble::fn_from_item_fn(&mut c, &hir, false)?;
+                assemble::fn_from_item_fn(&mut c, &hir, f.is_instance)?;
 
                 if !self.q.is_used(&item_meta) {
                     self.q.diagnostics.not_used(location.source_id, span, None);
                 } else {
+                    let instance = match (type_hash, &f.ast) {
+                        (Some(type_hash), FunctionAst::Item(ast)) => {
+                            let name = ast.name.resolve(resolve_context!(self.q))?;
+                            Some((type_hash, name))
+                        }
+                        _ => None,
+                    };
+
                     self.q.unit.new_function(
                         location,
                         self.q.pool.item(item_meta.item),
-                        count,
-                        asm,
-                        f.call,
-                        args,
-                        unit_storage,
-                    )?;
-                }
-            }
-            Build::InstanceFunction(f) => {
-                tracing::trace!("instance function: {}", self.q.pool.item(item_meta.item));
-
-                use self::v1::assemble;
-
-                let args =
-                    format_fn_args(self.q.sources, location, f.ast.args.iter().map(|(a, _)| a))?;
-
-                let count = f.ast.args.len();
-
-                let arena = hir::Arena::new();
-                let mut c = self.compiler1(location, &f.ast, &mut asm);
-
-                let Some(impl_item) = c.q.inner.items.get(&f.impl_item) else {
-                    return Err(compile::Error::msg(
-                        &f.ast,
-                        "Impl item has not been expanded",
-                    ));
-                };
-
-                let meta =
-                    c.q.lookup_meta(&location, impl_item.item, GenericsParameters::default())?;
-
-                let Some(type_hash) = meta.type_hash_of() else {
-                    return Err(compile::Error::expected_meta(
-                        &f.ast,
-                        meta.info(c.q.pool),
-                        "type for associated function",
-                    ));
-                };
-
-                let mut cx = hir::lowering::Ctxt::with_query(
-                    &arena,
-                    c.q.borrow(),
-                    item_meta.location.source_id,
-                );
-                let hir = hir::lowering::item_fn(&mut cx, &f.ast)?;
-                assemble::fn_from_item_fn(&mut c, &hir, true)?;
-
-                if !c.q.is_used(&item_meta) {
-                    c.q.diagnostics.not_used(location.source_id, &f.ast, None);
-                } else {
-                    let name = f.ast.name.resolve(resolve_context!(self.q))?;
-
-                    self.q.unit.new_instance_function(
-                        location,
-                        self.q.pool.item(item_meta.item),
-                        type_hash,
-                        name,
+                        instance,
                         count,
                         asm,
                         f.call,
@@ -328,6 +296,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                     self.q.unit.new_function(
                         location,
                         self.q.pool.item(item_meta.item),
+                        None,
                         closure.ast.args.len(),
                         asm,
                         closure.call,
@@ -363,6 +332,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                     self.q.unit.new_function(
                         location,
                         self.q.pool.item(item_meta.item),
+                        None,
                         args,
                         asm,
                         b.call,
