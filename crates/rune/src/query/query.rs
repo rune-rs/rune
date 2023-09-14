@@ -861,11 +861,20 @@ impl<'a, 'arena> Query<'a, 'arena> {
         Ok(None)
     }
 
-    /// Perform a path lookup on the current state of the unit.
-    #[tracing::instrument(skip_all)]
+    /// Perform a default path conversion.
     pub(crate) fn convert_path<'ast>(
         &mut self,
         path: &'ast ast::Path,
+    ) -> compile::Result<Named<'ast>> {
+        self.convert_path_with(path, false)
+    }
+
+    /// Perform a path conversion with custom configuration.
+    #[tracing::instrument(skip(self, path))]
+    pub(crate) fn convert_path_with<'ast>(
+        &mut self,
+        path: &'ast ast::Path,
+        deny_self_type: bool,
     ) -> compile::Result<Named<'ast>> {
         tracing::trace!("converting path");
 
@@ -907,11 +916,14 @@ impl<'a, 'arena> Query<'a, 'arena> {
                     segment
                 }
                 ast::PathSegment::SelfType(..) => {
-                    let Some(impl_item) = impl_item else {
-                        return Err(compile::Error::new(
-                            segment.span(),
-                            ErrorKind::UnsupportedSelfType,
-                        ));
+                    let impl_item = match impl_item {
+                        Some(impl_item) if !deny_self_type => impl_item,
+                        _ => {
+                            return Err(compile::Error::new(
+                                segment.span(),
+                                ErrorKind::UnsupportedSelfType,
+                            ));
+                        }
                     };
 
                     let Some(impl_item) = self.inner.items.get(&impl_item) else {

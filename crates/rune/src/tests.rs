@@ -172,7 +172,7 @@ where
 macro_rules! expected {
     ($name:literal, $expected:pat, $actual:expr) => {
         panic!(
-            "Did not get expected {}\nExpected: {}\n  Actual: {:?}",
+            "Did not match expected {}\nExpected: {}\n  Actual: {:?}",
             $name,
             stringify!($expected),
             $actual

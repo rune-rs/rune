@@ -1,5 +1,7 @@
 prelude!();
 
+use ErrorKind::*;
+
 #[test]
 fn impl_in_other_mod() {
     rune! {
@@ -56,5 +58,23 @@ fn impl_in_block() {
 
             assert_eq!(Foo.lol(), 4);
         }
+    }
+}
+
+#[test]
+fn deny_self_impl() {
+    assert_errors! {
+        r#"
+        struct Foo;
+
+        impl Foo {
+            fn a() {
+                impl Self {
+                    fn b(self) {}
+                }
+            }
+        }
+        "#,
+        span!(83, 87), UnsupportedSelfType,
     }
 }

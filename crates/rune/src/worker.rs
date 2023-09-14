@@ -173,7 +173,11 @@ impl<'a, 'arena> Worker<'a, 'arena> {
                 tracing::trace!(?entry.id, "next impl item entry");
 
                 let process = || {
-                    let named = self.q.convert_path(&entry.path)?;
+                    // We conservatively deny `Self` impl since that is what
+                    // Rust does, and at some point in the future we might
+                    // introduce bounds which would not be communicated through
+                    // `Self`.
+                    let named = self.q.convert_path_with(&entry.path, true)?;
 
                     if let Some((spanned, _)) = named.parameters.into_iter().flatten().next() {
                         return Err(compile::Error::new(
