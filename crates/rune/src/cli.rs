@@ -384,7 +384,7 @@ enum Command {
 }
 
 impl Command {
-    const ALL: [&str; 8] = [
+    const ALL: [&'static str; 8] = [
         "check",
         "doc",
         "test",

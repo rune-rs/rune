@@ -1,5 +1,3 @@
-use core::iter;
-
 use crate::ast::prelude::*;
 
 #[test]
@@ -81,20 +79,6 @@ impl Path {
         }
 
         None
-    }
-
-    /// Iterate over all components in path.
-    pub(crate) fn as_components(&self) -> impl Iterator<Item = &'_ PathSegment> + '_ {
-        let mut first = Some(&self.first);
-        let mut it = self.rest.iter();
-
-        iter::from_fn(move || {
-            if let Some(first) = first.take() {
-                return Some(first);
-            }
-
-            Some(&it.next()?.1)
-        })
     }
 }
 

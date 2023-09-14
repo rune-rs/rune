@@ -127,22 +127,24 @@ impl<'a> Context<'a> {
             Some(associated.iter().flat_map(move |hash| {
                 let data = visitor.data.get(hash)?;
 
-                let (is_async, deprecated, kind) = match data.kind {
+                let (is_async, deprecated, kind) = match &data.kind {
                     Some(meta::Kind::Function {
-                        signature: ref f,
+                        associated: None,
+                        signature: f,
                         ..
                     }) => (
                         f.is_async,
                         f.deprecated.as_deref(),
                         AssocFnKind::Method(data.item.last()?.as_str()?, f.args, Signature::Function),
                     ),
-                    Some(meta::Kind::AssociatedFunction {
-                        signature: ref f,
+                    Some(meta::Kind::Function {
+                        associated: Some(meta::AssociatedKind::Instance(name)),
+                        signature: f,
                         ..
                     }) => (
                         f.is_async,
                         f.deprecated.as_deref(),
-                        AssocFnKind::Method(data.item.last()?.as_str()?, f.args, Signature::Instance),
+                        AssocFnKind::Method(name.as_ref(), f.args, Signature::Instance),
                     ),
                     Some(meta::Kind::Variant { .. }) => {
                         return Some(Assoc::Variant(AssocVariant {
@@ -174,8 +176,8 @@ impl<'a> Context<'a> {
                     let name = meta.item.as_deref()?.last()?.as_str()?;
                     Some(Assoc::Variant(AssocVariant { name, docs: meta.docs.lines() }))
                 }
-                meta::Kind::AssociatedFunction { kind, parameter_types, signature, .. } => {
-                    let kind = match *kind {
+                meta::Kind::Function { associated: Some(associated), parameter_types, signature, .. } => {
+                    let kind = match *associated {
                         meta::AssociatedKind::Protocol(protocol) => AssocFnKind::Protocol(protocol),
                         meta::AssociatedKind::FieldFn(protocol, ref field) => {
                             AssocFnKind::FieldFn(protocol, field)
@@ -198,7 +200,7 @@ impl<'a> Context<'a> {
                         parameter_types: &parameter_types[..],
                     }))
                 }
-                meta::Kind::Function { signature, .. } => {
+                meta::Kind::Function { associated: None, signature, .. } => {
                     let name = meta.item.as_deref()?.last()?.as_str()?;
                     let kind = AssocFnKind::Method(name, signature.args, Signature::Function);
 
@@ -291,6 +293,7 @@ impl<'a> Context<'a> {
             meta::Kind::Variant { .. } => Kind::Variant,
             meta::Kind::Enum { .. } => Kind::Enum,
             meta::Kind::Function {
+                associated: None,
                 signature: f,
                 ..
             } => {
@@ -304,7 +307,8 @@ impl<'a> Context<'a> {
                     argument_types: &f.argument_types,
                 })
             }
-            meta::Kind::AssociatedFunction {
+            meta::Kind::Function {
+                associated: Some(..),
                 signature: f,
                 ..
             } => {
@@ -351,21 +355,15 @@ fn visitor_meta_to_meta<'a>(base: &'a Item, data: &'a VisitorData) -> Meta<'a> {
         Some(meta::Kind::Struct { .. }) => Kind::Struct,
         Some(meta::Kind::Variant { .. }) => Kind::Variant,
         Some(meta::Kind::Enum { .. }) => Kind::Enum,
-        Some(meta::Kind::Function { signature: f, .. }) => Kind::Function(Function {
+        Some(meta::Kind::Function { associated, signature: f, .. }) => Kind::Function(Function {
             is_async: f.is_async,
             deprecated: f.deprecated.as_deref(),
             arg_names: None,
             args: f.args,
-            signature: Signature::Function,
-            return_type: f.return_type,
-            argument_types: &f.argument_types,
-        }),
-        Some(meta::Kind::AssociatedFunction { signature: f, .. }) => Kind::Function(Function {
-            is_async: f.is_async,
-            deprecated: f.deprecated.as_deref(),
-            arg_names: None,
-            args: f.args,
-            signature: Signature::Instance,
+            signature: match associated {
+                Some(..) => Signature::Instance,
+                None => Signature::Function,
+            },
             return_type: f.return_type,
             argument_types: &f.argument_types,
         }),

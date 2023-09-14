@@ -191,7 +191,7 @@ impl hash::Hash for VariantRtti {
 
 impl PartialOrd for VariantRtti {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.hash.partial_cmp(&other.hash)
+        Some(self.cmp(other))
     }
 }
 
@@ -227,7 +227,7 @@ impl hash::Hash for Rtti {
 
 impl PartialOrd for Rtti {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.hash.partial_cmp(&other.hash)
+        Some(self.cmp(other))
     }
 }
 

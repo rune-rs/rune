@@ -26,7 +26,7 @@ impl cmp::Eq for StaticString {}
 
 impl cmp::PartialOrd for StaticString {
     fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
-        self.inner.partial_cmp(&other.inner)
+        Some(self.cmp(other))
     }
 }
 

@@ -6,6 +6,7 @@ mod query;
 use core::fmt;
 use core::num::NonZeroUsize;
 
+use crate::no_std::path::PathBuf;
 use crate::no_std::prelude::*;
 
 pub(crate) use self::query::{MissingId, Query, QueryInner};
@@ -14,10 +15,11 @@ use crate as rune;
 use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::compile::ir;
-use crate::compile::{ItemId, ItemMeta, ModId};
+use crate::compile::{ItemId, ItemMeta, Location, ModId};
 use crate::hash::Hash;
 use crate::hir;
 use crate::indexing;
+use crate::parse::NonZeroId;
 use crate::runtime::format;
 
 /// Indication whether a value is being evaluated because it's being used or not.
@@ -44,6 +46,8 @@ impl Default for Used {
 
 /// The result of calling [Query::convert_path].
 pub(crate) struct Named<'ast> {
+    /// Module named item belongs to.
+    pub(crate) module: ModId,
     /// The path resolved to the given item.
     pub(crate) item: ItemId,
     /// Trailing parameters.
@@ -120,9 +124,7 @@ pub(crate) struct BuiltInLine {
 /// An entry in the build queue.
 #[derive(Debug, Clone)]
 pub(crate) enum Build {
-    EmptyFunction(indexing::EmptyFunction),
     Function(indexing::Function),
-    InstanceFunction(indexing::InstanceFunction),
     Closure(indexing::Closure),
     AsyncBlock(indexing::AsyncBlock),
     Unused,
@@ -138,18 +140,37 @@ pub(crate) enum Build {
 pub(crate) struct BuildEntry {
     /// The item of the build entry.
     pub(crate) item_meta: ItemMeta,
-    /// If the queued up entry was unused or not.
-    pub(crate) used: Used,
     /// The build entry.
     pub(crate) build: Build,
+}
+
+/// An implementation function.
+pub(crate) struct QueryImplFn {
+    /// Ast for declaration.
+    pub(crate) ast: Box<ast::ItemFn>,
+}
+
+pub(crate) struct ItemImplEntry {
+    /// Non-expanded ast of the path.
+    pub(crate) path: Box<ast::Path>,
+    /// Location where the item impl is defined and is being expanded.
+    pub(crate) location: Location,
+    /// The item impl being expanded.
+    pub(crate) id: NonZeroId,
+    ///See [Indexer][crate::indexing::Indexer].
+    pub(crate) root: Option<PathBuf>,
+    ///See [Indexer][crate::indexing::Indexer].
+    pub(crate) nested_item: Option<Span>,
+    /// See [Indexer][crate::indexing::Indexer].
+    pub(crate) macro_depth: usize,
 }
 
 /// Query information for a path.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct QueryPath {
     pub(crate) module: ModId,
+    pub(crate) impl_item: Option<NonZeroId>,
     pub(crate) item: ItemId,
-    pub(crate) impl_item: Option<ItemId>,
 }
 
 /// A compiled constant function.

@@ -14,7 +14,7 @@ where
         let info = self.name.to_instance();
 
         AssociatedFunctionName {
-            kind: info.kind,
+            associated: info.associated,
             function_parameters: Hash::parameters(self.parameters.iter().map(|t| t.hash)),
             #[cfg(feature = "doc")]
             parameter_types: self.parameters.iter().map(|t| t.hash).collect(),
@@ -31,7 +31,7 @@ where
         let info = self.name.to_field_function(protocol);
 
         AssociatedFunctionName {
-            kind: info.kind,
+            associated: info.associated,
             function_parameters: Hash::parameters(self.parameters.iter().map(|p| p.hash)),
             #[cfg(feature = "doc")]
             parameter_types: self.parameters.iter().map(|p| p.hash).collect(),

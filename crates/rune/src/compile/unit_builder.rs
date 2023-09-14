@@ -534,7 +534,6 @@ impl UnitBuilder {
             meta::Kind::Macro { .. } => (),
             meta::Kind::AttributeMacro { .. } => (),
             meta::Kind::Function { .. } => (),
-            meta::Kind::AssociatedFunction { .. } => (),
             meta::Kind::Closure { .. } => (),
             meta::Kind::AsyncBlock { .. } => (),
             meta::Kind::ConstFn { .. } => (),
@@ -548,43 +547,6 @@ impl UnitBuilder {
     /// Construct a new empty assembly associated with the current unit.
     pub(crate) fn new_assembly(&self, location: Location) -> Assembly {
         Assembly::new(location, self.label_count)
-    }
-
-    /// Declare a new function at the current instruction pointer.
-    pub(crate) fn new_function(
-        &mut self,
-        location: Location,
-        item: &Item,
-        args: usize,
-        assembly: Assembly,
-        call: Call,
-        debug_args: Box<[Box<str>]>,
-        unit_encoder: &mut dyn UnitEncoder,
-    ) -> compile::Result<()> {
-        let offset = unit_encoder.offset();
-        let hash = Hash::type_hash(item);
-
-        self.functions_rev.insert(offset, hash);
-        let info = UnitFn::Offset { offset, call, args };
-        let signature = DebugSignature::new(item.to_owned(), DebugArgs::Named(debug_args));
-
-        if self.functions.insert(hash, info).is_some() {
-            return Err(compile::Error::new(
-                location.span,
-                ErrorKind::FunctionConflict {
-                    existing: signature,
-                },
-            ));
-        }
-
-        self.constants.insert(
-            Hash::associated_function(hash, Protocol::INTO_TYPE_NAME),
-            ConstValue::String(signature.path.to_string()),
-        );
-
-        self.debug_info_mut().functions.insert(hash, signature);
-        self.add_assembly(location, assembly, unit_encoder)?;
-        Ok(())
     }
 
     /// Register a new function re-export.
@@ -608,12 +570,11 @@ impl UnitBuilder {
     }
 
     /// Declare a new instance function at the current instruction pointer.
-    pub(crate) fn new_instance_function(
+    pub(crate) fn new_function(
         &mut self,
         location: Location,
         item: &Item,
-        type_hash: Hash,
-        name: &str,
+        instance: Option<(Hash, &str)>,
         args: usize,
         assembly: Assembly,
         call: Call,
@@ -623,20 +584,28 @@ impl UnitBuilder {
         tracing::trace!("instance fn: {}", item);
 
         let offset = unit_storage.offset();
-        let instance_fn = Hash::associated_function(type_hash, name);
-        let hash = Hash::type_hash(item);
 
         let info = UnitFn::Offset { offset, call, args };
         let signature = DebugSignature::new(item.to_owned(), DebugArgs::Named(debug_args));
 
-        if self.functions.insert(instance_fn, info).is_some() {
-            return Err(compile::Error::new(
-                location.span,
-                ErrorKind::FunctionConflict {
-                    existing: signature,
-                },
-            ));
+        if let Some((type_hash, name)) = instance {
+            let instance_fn = Hash::associated_function(type_hash, name);
+
+            if self.functions.insert(instance_fn, info).is_some() {
+                return Err(compile::Error::new(
+                    location.span,
+                    ErrorKind::FunctionConflict {
+                        existing: signature,
+                    },
+                ));
+            }
+
+            self.debug_info_mut()
+                .functions
+                .insert(instance_fn, signature.clone());
         }
+
+        let hash = Hash::type_hash(item);
 
         if self.functions.insert(hash, info).is_some() {
             return Err(compile::Error::new(
@@ -652,9 +621,7 @@ impl UnitBuilder {
             ConstValue::String(signature.path.to_string()),
         );
 
-        self.debug_info_mut()
-            .functions
-            .insert(instance_fn, signature);
+        self.debug_info_mut().functions.insert(hash, signature);
         self.functions_rev.insert(offset, hash);
         self.add_assembly(location, assembly, unit_storage)?;
         Ok(())

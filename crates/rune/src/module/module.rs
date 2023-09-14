@@ -1304,7 +1304,7 @@ impl Module {
         docs: Docs,
     ) -> Result<ItemFnMut<'_>, ContextError> {
         if !self.names.insert(Name::Associated(data.assoc_key())) {
-            return Err(match data.name.kind {
+            return Err(match data.name.associated {
                 meta::AssociatedKind::Protocol(protocol) => {
                     ContextError::ConflictingProtocolFunction {
                         type_info: data.container_type_info,
