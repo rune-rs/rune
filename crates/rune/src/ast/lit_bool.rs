@@ -12,7 +12,8 @@ fn ast_parse() {
 ///
 /// * `true`.
 /// * `false`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, Spanned)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct LitBool {
     /// The span corresponding to the literal.
@@ -48,7 +49,11 @@ impl Peek for LitBool {
 }
 
 impl ToTokens for LitBool {
-    fn to_tokens(&self, _: &mut MacroContext<'_, '_, '_>, stream: &mut TokenStream) {
+    fn to_tokens(
+        &self,
+        _: &mut MacroContext<'_, '_, '_>,
+        stream: &mut TokenStream,
+    ) -> alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: if self.value {
@@ -56,6 +61,6 @@ impl ToTokens for LitBool {
             } else {
                 ast::Kind::False
             },
-        });
+        })
     }
 }

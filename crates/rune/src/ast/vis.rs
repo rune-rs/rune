@@ -41,7 +41,7 @@ fn ast_parse() {
 /// * `pub(super)`.
 /// * `pub(crate)`.
 /// * `pub(in some::module)`.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, OptionSpanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, OptionSpanned)]
 #[non_exhaustive]
 pub enum Visibility {
     /// An inherited visibility level, this usually means private.
@@ -121,7 +121,7 @@ impl Parse for Visibility {
 }
 
 /// A `in path` restriction to visibility.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct VisibilityIn {
     /// The `in` keyword.
@@ -131,8 +131,9 @@ pub struct VisibilityIn {
 }
 
 /// A restriction to visibility.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
+#[try_clone(bound = {T: TryClone})]
 pub struct VisibilityRestrict<T> {
     /// `pub` keyword.
     pub pub_token: ast::generated::Pub,

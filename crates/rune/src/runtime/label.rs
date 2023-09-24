@@ -4,16 +4,19 @@ use core::cell::Cell;
 use core::fmt;
 use core::num::NonZeroUsize;
 
-use crate::no_std::borrow::Cow;
+use crate as rune;
+use crate::alloc::borrow::Cow;
+use crate::alloc::prelude::*;
 use crate::no_std::rc::Rc;
 
 use serde::{Deserialize, Serialize};
 
 /// A label that can be jumped to.
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 pub(crate) struct Label {
     pub(crate) name: &'static str,
     pub(crate) index: usize,
+    #[try_clone(with = Rc::clone)]
     jump: Rc<Cell<Option<NonZeroUsize>>>,
 }
 
@@ -63,7 +66,7 @@ impl fmt::Display for Label {
 }
 
 /// A label that can be jumped to.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, TryClone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct DebugLabel {
     /// The name of the label.
     name: Cow<'static, str>,

@@ -27,7 +27,7 @@ use crate::Any;
 /// use rune::runtime::RangeFull;
 ///
 /// let _ = RangeFull::new();
-/// # Ok::<_, rune::Error>(())
+/// # Ok::<_, rune::support::Error>(())
 /// ```
 #[derive(Any, Default, Clone)]
 #[rune(builtin, constructor, from_value = Value::into_range_full, static_type = RANGE_FULL_TYPE)]

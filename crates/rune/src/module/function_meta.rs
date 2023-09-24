@@ -1,9 +1,13 @@
 use core::marker::PhantomData;
 
-use crate::no_std::borrow::Cow;
-use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
+use crate as rune;
+use crate::alloc::borrow::Cow;
+use crate::alloc::prelude::*;
+#[cfg(feature = "doc")]
+use crate::alloc::Vec;
+use crate::alloc::{self, try_vec, Box};
 use crate::compile::{self, meta, IntoComponent, ItemBuf, Named};
 use crate::hash::Hash;
 use crate::macros::{MacroContext, TokenStream};
@@ -33,7 +37,7 @@ mod sealed {
 ///
 /// Calling and making use of `FunctionMeta` manually despite this warning might
 /// lead to future breakage.
-pub type FunctionMeta = fn() -> FunctionMetaData;
+pub type FunctionMeta = fn() -> alloc::Result<FunctionMetaData>;
 
 /// Type used to collect and store function metadata through the
 /// `#[rune::macro_]` macro.
@@ -44,10 +48,9 @@ pub type FunctionMeta = fn() -> FunctionMetaData;
 ///
 /// Calling and making use of `MacroMeta` manually despite this warning might
 /// lead to future breakage.
-pub type MacroMeta = fn() -> MacroMetaData;
+pub type MacroMeta = fn() -> alloc::Result<MacroMetaData>;
 
 /// Runtime data for a function.
-#[derive(Clone)]
 pub struct FunctionData {
     pub(crate) item: ItemBuf,
     pub(crate) handler: Arc<FunctionHandler>,
@@ -65,7 +68,7 @@ pub struct FunctionData {
 
 impl FunctionData {
     #[inline]
-    pub(crate) fn new<F, A, N, K>(name: N, f: F) -> Self
+    pub(crate) fn new<F, A, N, K>(name: N, f: F) -> alloc::Result<Self>
     where
         F: Function<A, K>,
         F::Return: MaybeTypeOf,
@@ -74,8 +77,8 @@ impl FunctionData {
         A: FunctionArgs,
         K: FunctionKind,
     {
-        Self {
-            item: ItemBuf::with_item(name),
+        Ok(Self {
+            item: ItemBuf::with_item(name)?,
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
             #[cfg(feature = "doc")]
             is_async: K::is_async(),
@@ -86,13 +89,12 @@ impl FunctionData {
             #[cfg(feature = "doc")]
             return_type: F::Return::maybe_type_of(),
             #[cfg(feature = "doc")]
-            argument_types: A::into_box(),
-        }
+            argument_types: A::into_box()?,
+        })
     }
 }
 
 /// Runtime data for a macro.
-#[derive(Clone)]
 pub struct FunctionMacroData {
     pub(crate) item: ItemBuf,
     pub(crate) handler: Arc<MacroHandler>,
@@ -100,7 +102,7 @@ pub struct FunctionMacroData {
 
 impl FunctionMacroData {
     #[inline]
-    pub(crate) fn new<F, N>(name: N, f: F) -> Self
+    pub(crate) fn new<F, N>(name: N, f: F) -> alloc::Result<Self>
     where
         F: 'static
             + Send
@@ -109,15 +111,14 @@ impl FunctionMacroData {
         N: IntoIterator,
         N::Item: IntoComponent,
     {
-        Self {
-            item: ItemBuf::with_item(name),
+        Ok(Self {
+            item: ItemBuf::with_item(name)?,
             handler: Arc::new(f),
-        }
+        })
     }
 }
 
 /// Runtime data for an attribute macro.
-#[derive(Clone)]
 pub struct AttributeMacroData {
     pub(crate) item: ItemBuf,
     pub(crate) handler: Arc<AttributeMacroHandler>,
@@ -125,7 +126,7 @@ pub struct AttributeMacroData {
 
 impl AttributeMacroData {
     #[inline]
-    pub(crate) fn new<F, N>(name: N, f: F) -> Self
+    pub(crate) fn new<F, N>(name: N, f: F) -> alloc::Result<Self>
     where
         F: 'static
             + Send
@@ -138,15 +139,15 @@ impl AttributeMacroData {
         N: IntoIterator,
         N::Item: IntoComponent,
     {
-        Self {
-            item: ItemBuf::with_item(name),
+        Ok(Self {
+            item: ItemBuf::with_item(name)?,
             handler: Arc::new(f),
-        }
+        })
     }
 }
 
 /// A descriptor for an instance function.
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 #[non_exhaustive]
 #[doc(hidden)]
 pub struct AssociatedFunctionName {
@@ -164,7 +165,7 @@ impl AssociatedFunctionName {
             associated: meta::AssociatedKind::IndexFn(protocol, index),
             function_parameters: Hash::EMPTY,
             #[cfg(feature = "doc")]
-            parameter_types: vec![],
+            parameter_types: Vec::new(),
         }
     }
 }
@@ -173,41 +174,40 @@ impl AssociatedFunctionName {
 pub trait ToInstance: self::sealed::Sealed {
     /// Get information on the naming of the instance function.
     #[doc(hidden)]
-    fn to_instance(self) -> AssociatedFunctionName;
+    fn to_instance(self) -> alloc::Result<AssociatedFunctionName>;
 }
 
 /// Trait used to determine what can be used as an instance function name.
 pub trait ToFieldFunction: self::sealed::Sealed {
     #[doc(hidden)]
-    fn to_field_function(self, protocol: Protocol) -> AssociatedFunctionName;
+    fn to_field_function(self, protocol: Protocol) -> alloc::Result<AssociatedFunctionName>;
 }
 
 impl ToInstance for &'static str {
     #[inline]
-    fn to_instance(self) -> AssociatedFunctionName {
-        AssociatedFunctionName {
+    fn to_instance(self) -> alloc::Result<AssociatedFunctionName> {
+        Ok(AssociatedFunctionName {
             associated: meta::AssociatedKind::Instance(Cow::Borrowed(self)),
             function_parameters: Hash::EMPTY,
             #[cfg(feature = "doc")]
-            parameter_types: vec![],
-        }
+            parameter_types: Vec::new(),
+        })
     }
 }
 
 impl ToFieldFunction for &'static str {
     #[inline]
-    fn to_field_function(self, protocol: Protocol) -> AssociatedFunctionName {
-        AssociatedFunctionName {
+    fn to_field_function(self, protocol: Protocol) -> alloc::Result<AssociatedFunctionName> {
+        Ok(AssociatedFunctionName {
             associated: meta::AssociatedKind::FieldFn(protocol, Cow::Borrowed(self)),
             function_parameters: Hash::EMPTY,
             #[cfg(feature = "doc")]
-            parameter_types: vec![],
-        }
+            parameter_types: Vec::new(),
+        })
     }
 }
 
 /// Runtime data for an associated function.
-#[derive(Clone)]
 pub struct AssociatedFunctionData {
     pub(crate) name: AssociatedFunctionName,
     pub(crate) handler: Arc<FunctionHandler>,
@@ -227,14 +227,14 @@ pub struct AssociatedFunctionData {
 
 impl AssociatedFunctionData {
     #[inline]
-    pub(crate) fn new<F, A, K>(name: AssociatedFunctionName, f: F) -> Self
+    pub(crate) fn new<F, A, K>(name: AssociatedFunctionName, f: F) -> alloc::Result<Self>
     where
         F: InstanceFunction<A, K>,
         F::Return: MaybeTypeOf,
         A: FunctionArgs,
         K: FunctionKind,
     {
-        Self {
+        Ok(Self {
             name,
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
             container: F::Instance::type_of(),
@@ -248,17 +248,17 @@ impl AssociatedFunctionData {
             #[cfg(feature = "doc")]
             return_type: F::Return::maybe_type_of(),
             #[cfg(feature = "doc")]
-            argument_types: A::into_box(),
-        }
+            argument_types: A::into_box()?,
+        })
     }
 
     /// Get associated key.
-    pub(crate) fn assoc_key(&self) -> AssociatedKey {
-        AssociatedKey {
+    pub(crate) fn assoc_key(&self) -> alloc::Result<AssociatedKey> {
+        Ok(AssociatedKey {
             type_hash: self.container.hash,
-            kind: self.name.associated.clone(),
+            kind: self.name.associated.try_clone()?,
             parameters: self.name.function_parameters,
-        }
+        })
     }
 }
 
@@ -266,7 +266,6 @@ impl AssociatedFunctionData {
 ///
 /// Even though this is marked as `pub`, this is private API. If you use this it
 /// might cause breakage.
-#[derive(Clone)]
 #[doc(hidden)]
 pub enum FunctionMetaKind {
     #[doc(hidden)]
@@ -278,23 +277,23 @@ pub enum FunctionMetaKind {
 impl FunctionMetaKind {
     #[doc(hidden)]
     #[inline]
-    pub fn function<N, F, A, K>(name: N, f: F) -> FunctionBuilder<N, F, A, K>
+    pub fn function<N, F, A, K>(name: N, f: F) -> alloc::Result<FunctionBuilder<N, F, A, K>>
     where
         F: Function<A, K>,
         F::Return: MaybeTypeOf,
         A: FunctionArgs,
         K: FunctionKind,
     {
-        FunctionBuilder {
+        Ok(FunctionBuilder {
             name,
             f,
             _marker: PhantomData,
-        }
+        })
     }
 
     #[doc(hidden)]
     #[inline]
-    pub fn instance<N, F, A, K>(name: N, f: F) -> Self
+    pub fn instance<N, F, A, K>(name: N, f: F) -> alloc::Result<Self>
     where
         N: ToInstance,
         F: InstanceFunction<A, K>,
@@ -302,7 +301,10 @@ impl FunctionMetaKind {
         A: FunctionArgs,
         K: FunctionKind,
     {
-        Self::AssociatedFunction(AssociatedFunctionData::new(name.to_instance(), f))
+        Ok(Self::AssociatedFunction(AssociatedFunctionData::new(
+            name.to_instance()?,
+            f,
+        )?))
     }
 }
 
@@ -322,37 +324,41 @@ where
 {
     #[doc(hidden)]
     #[inline]
-    pub fn build(self) -> FunctionMetaKind
+    pub fn build(self) -> alloc::Result<FunctionMetaKind>
     where
         N: IntoIterator,
         N::Item: IntoComponent,
     {
-        FunctionMetaKind::Function(FunctionData::new(self.name, self.f))
+        Ok(FunctionMetaKind::Function(FunctionData::new(
+            self.name, self.f,
+        )?))
     }
 
     #[doc(hidden)]
     #[inline]
-    pub fn build_associated<T>(self) -> FunctionMetaKind
+    pub fn build_associated<T>(self) -> alloc::Result<FunctionMetaKind>
     where
         N: ToInstance,
         T: TypeOf + Named,
     {
-        FunctionMetaKind::AssociatedFunction(AssociatedFunctionData {
-            name: self.name.to_instance(),
-            handler: Arc::new(move |stack, args| self.f.fn_call(stack, args)),
-            container: T::type_of(),
-            container_type_info: T::type_info(),
-            #[cfg(feature = "doc")]
-            is_async: K::is_async(),
-            #[cfg(feature = "doc")]
-            deprecated: None,
-            #[cfg(feature = "doc")]
-            args: Some(F::args()),
-            #[cfg(feature = "doc")]
-            return_type: F::Return::maybe_type_of(),
-            #[cfg(feature = "doc")]
-            argument_types: A::into_box(),
-        })
+        Ok(FunctionMetaKind::AssociatedFunction(
+            AssociatedFunctionData {
+                name: self.name.to_instance()?,
+                handler: Arc::new(move |stack, args| self.f.fn_call(stack, args)),
+                container: T::type_of(),
+                container_type_info: T::type_info(),
+                #[cfg(feature = "doc")]
+                is_async: K::is_async(),
+                #[cfg(feature = "doc")]
+                deprecated: None,
+                #[cfg(feature = "doc")]
+                args: Some(F::args()),
+                #[cfg(feature = "doc")]
+                return_type: F::Return::maybe_type_of(),
+                #[cfg(feature = "doc")]
+                argument_types: A::into_box()?,
+            },
+        ))
     }
 }
 
@@ -360,7 +366,6 @@ where
 ///
 /// Even though this is marked as `pub`, this is private API. If you use this it
 /// might cause breakage.
-#[derive(Clone)]
 #[doc(hidden)]
 pub enum MacroMetaKind {
     #[doc(hidden)]
@@ -372,7 +377,7 @@ pub enum MacroMetaKind {
 impl MacroMetaKind {
     #[doc(hidden)]
     #[inline]
-    pub fn function<F, N>(name: N, f: F) -> Self
+    pub fn function<F, N>(name: N, f: F) -> alloc::Result<Self>
     where
         F: 'static
             + Send
@@ -381,12 +386,12 @@ impl MacroMetaKind {
         N: IntoIterator,
         N::Item: IntoComponent,
     {
-        Self::Function(FunctionMacroData::new(name, f))
+        Ok(Self::Function(FunctionMacroData::new(name, f)?))
     }
 
     #[doc(hidden)]
     #[inline]
-    pub fn attribute<F, N>(name: N, f: F) -> Self
+    pub fn attribute<F, N>(name: N, f: F) -> alloc::Result<Self>
     where
         F: 'static
             + Send
@@ -399,7 +404,7 @@ impl MacroMetaKind {
         N: IntoIterator,
         N::Item: IntoComponent,
     {
-        Self::Attribute(AttributeMacroData::new(name, f))
+        Ok(Self::Attribute(AttributeMacroData::new(name, f)?))
     }
 }
 
@@ -408,7 +413,6 @@ impl MacroMetaKind {
 /// Even though this is marked as `pub`, this is private API. If you use this it
 /// might cause breakage.
 #[doc(hidden)]
-#[derive(Clone)]
 pub struct MacroMetaData {
     #[doc(hidden)]
     pub kind: MacroMetaKind,
@@ -423,7 +427,6 @@ pub struct MacroMetaData {
 /// Even though this is marked as `pub`, this is private API. If you use this it
 /// might cause breakage.
 #[doc(hidden)]
-#[derive(Clone)]
 pub struct FunctionMetaData {
     #[doc(hidden)]
     pub kind: FunctionMetaKind,
@@ -439,7 +442,7 @@ pub struct FunctionMetaData {
 #[doc(hidden)]
 pub trait FunctionArgs {
     #[doc(hidden)]
-    fn into_box() -> Box<[Option<FullTypeOf>]>;
+    fn into_box() -> alloc::Result<Box<[Option<FullTypeOf>]>>;
 }
 
 macro_rules! iter_function_args {
@@ -450,8 +453,8 @@ macro_rules! iter_function_args {
         {
             #[inline]
             #[doc(hidden)]
-            fn into_box() -> Box<[Option<FullTypeOf>]> {
-                vec![$(<$ty>::maybe_type_of(),)*].into()
+            fn into_box() -> alloc::Result<Box<[Option<FullTypeOf>]>> {
+                try_vec![$(<$ty>::maybe_type_of()),*].try_into_boxed_slice()
             }
         }
     }

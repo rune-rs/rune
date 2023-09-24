@@ -1,10 +1,11 @@
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{Diagnostics, Vm};
+
 use std::sync::Arc;
 
-fn main() -> rune::Result<()> {
+fn main() -> rune::support::Result<()> {
     let context = rune_modules::default_context()?;
-    let runtime = Arc::new(context.runtime());
+    let runtime = Arc::new(context.runtime()?);
 
     let mut sources = rune::sources! {
         entry => {

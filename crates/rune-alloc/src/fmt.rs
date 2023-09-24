@@ -1,8 +1,10 @@
 //! Built-in formatting utilities.
 
-use core::fmt;
+use core::fmt::{self, Arguments};
 
-use crate::alloc::Error;
+use crate::borrow::TryToOwned;
+use crate::error::Error;
+use crate::string::String;
 
 /// Fallible write formatting implementation.
 pub trait TryWrite {
@@ -20,15 +22,17 @@ pub trait TryWrite {
     /// # Examples
     ///
     /// ```
-    /// use std::fmt::{Error, Write};
+    /// use rune_alloc::fmt::TryWrite;
+    /// use rune_alloc::{String, Error};
     ///
-    /// fn writer<W: Write>(f: &mut W, s: &str) -> Result<(), Error> {
-    ///     f.write_str(s)
+    /// fn writer<W: TryWrite>(f: &mut W, s: &str) -> Result<(), Error> {
+    ///     f.try_write_str(s)
     /// }
     ///
     /// let mut buf = String::new();
-    /// writer(&mut buf, "hola").unwrap();
+    /// writer(&mut buf, "hola")?;
     /// assert_eq!(&buf, "hola");
+    /// # Ok::<_, rune_alloc::Error>(())
     /// ```
     fn try_write_str(&mut self, s: &str) -> Result<(), Error>;
 
@@ -46,16 +50,18 @@ pub trait TryWrite {
     /// # Examples
     ///
     /// ```
-    /// use std::fmt::{Error, Write};
+    /// use rune_alloc::fmt::TryWrite;
+    /// use rune_alloc::{String, Error};
     ///
-    /// fn writer<W: Write>(f: &mut W, c: char) -> Result<(), Error> {
-    ///     f.write_char(c)
+    /// fn writer<W: TryWrite>(f: &mut W, c: char) -> Result<(), Error> {
+    ///     f.try_write_char(c)
     /// }
     ///
     /// let mut buf = String::new();
-    /// writer(&mut buf, 'a').unwrap();
-    /// writer(&mut buf, 'b').unwrap();
+    /// writer(&mut buf, 'a')?;
+    /// writer(&mut buf, 'b')?;
     /// assert_eq!(&buf, "ab");
+    /// # Ok::<_, rune_alloc::Error>(())
     /// ```
     #[inline]
     fn try_write_char(&mut self, c: char) -> Result<(), Error> {
@@ -98,12 +104,69 @@ pub trait TryWrite {
             error: None,
         };
 
-        fmt::write(&mut writer, args).unwrap();
+        if let Err(fmt::Error) = fmt::write(&mut writer, args) {
+            return Err(Error::FormatError);
+        }
 
         if let Some(error) = writer.error {
             Err(error)
         } else {
             Ok(())
         }
+    }
+}
+
+/// The `format` function takes an [`Arguments`] struct and returns the
+/// resulting formatted string.
+///
+/// The [`Arguments`] instance can be created with the [`format_args!`] macro.
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```
+/// use rune_alloc::fmt;
+///
+/// let s = fmt::try_format(format_args!("Hello, {}!", "world"))?;
+/// assert_eq!(s, "Hello, world!");
+/// # Ok::<_, rune_alloc::Error>(())
+/// ```
+///
+/// Please note that using [`format!`] might be preferable.
+/// Example:
+///
+/// ```
+/// use rune_alloc::try_format;
+///
+/// let s = try_format!("Hello, {}!", "world");
+/// assert_eq!(s, "Hello, world!");
+/// # Ok::<_, rune_alloc::Error>(())
+/// ```
+///
+/// [`format_args!`]: core::format_args
+/// [`format!`]: crate::format
+#[inline]
+pub fn try_format(args: Arguments<'_>) -> Result<String, Error> {
+    #[cfg(rune_nightly)]
+    fn estimated_capacity(args: &Arguments<'_>) -> usize {
+        args.estimated_capacity()
+    }
+
+    #[cfg(not(rune_nightly))]
+    fn estimated_capacity(_: &Arguments<'_>) -> usize {
+        0
+    }
+
+    fn format_inner(args: Arguments<'_>) -> Result<String, Error> {
+        let capacity = estimated_capacity(&args);
+        let mut output = String::try_with_capacity(capacity)?;
+        output.write_fmt(args)?;
+        Ok(output)
+    }
+
+    match args.as_str() {
+        Some(string) => string.try_to_owned(),
+        None => format_inner(args),
     }
 }

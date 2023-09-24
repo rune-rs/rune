@@ -137,16 +137,20 @@ fn main() -> Result<()> {
     let to_tokens = &rust::import("crate::macros", "ToTokens");
     let token = &rust::import("crate::ast", "Token");
     let token_stream = &rust::import("crate::macros", "TokenStream");
+    let try_clone = &rust::import("crate::alloc::clone", "TryClone");
+    let alloc = &rust::import("crate", "alloc");
 
     write_tokens(
         Path::new("crates/rune/src/ast/generated.rs"),
         genco::quote! {
+            use crate as rune;
             $(format!("/// This file has been generated from `{}`", asset.display()))
             $("/// DO NOT modify by hand!")
 
             $(for t in &non_syntax join($['\n']) =>
                 $(format!("/// {}", t.doc()))
-                #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+                #[derive(Debug, $try_clone, Clone, Copy, PartialEq, Eq, Hash)]
+                #[try_clone(copy)]
                 #[non_exhaustive]
                 pub struct $(t.variant()) {
                     $("/// Associated span.")
@@ -183,11 +187,11 @@ fn main() -> Result<()> {
                 }
 
                 impl $to_tokens for $(t.variant()) {
-                    fn to_tokens(&self, _: &mut $macro_context<'_, '_, '_>, stream: &mut $token_stream) {
+                    fn to_tokens(&self, _: &mut $macro_context<'_, '_, '_>, stream: &mut $token_stream) -> $alloc::Result<()> {
                         stream.push($token {
                             span: self.span,
                             kind: $kind::$(t.variant()),
-                        });
+                        })
                     }
                 }
             )
@@ -261,7 +265,7 @@ fn main() -> Result<()> {
             }
 
             $("/// The kind of the token.")
-            #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+            #[derive(Debug, $try_clone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
             pub enum Kind {
                 $("/// En end-of-file marker.")
                 Eof,
@@ -331,11 +335,11 @@ fn main() -> Result<()> {
             }
 
             impl $to_tokens for Kind {
-                fn to_tokens(&self, context: &mut $macro_context<'_, '_, '_>, stream: &mut $token_stream) {
+                fn to_tokens(&self, context: &mut $macro_context<'_, '_, '_>, stream: &mut $token_stream) -> $alloc::Result<()> {
                     stream.push($token {
                         kind: *self,
                         span: context.macro_span(),
-                    });
+                    })
                 }
             }
 

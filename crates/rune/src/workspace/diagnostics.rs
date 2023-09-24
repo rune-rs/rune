@@ -1,6 +1,6 @@
 use crate::no_std::prelude::*;
 
-use crate::{SourceId};
+use crate::SourceId;
 use crate::workspace::WorkspaceError;
 
 /// A fatal diagnostic in a workspace.

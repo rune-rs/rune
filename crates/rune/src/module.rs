@@ -10,9 +10,13 @@ pub(crate) mod module;
 use core::fmt;
 use core::marker::PhantomData;
 
-use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
+use crate as rune;
+use crate::alloc::prelude::*;
+#[cfg(feature = "doc")]
+use crate::alloc::Box;
+use crate::alloc::{self, Vec};
 use crate::compile::{meta, ContextError, Docs, IntoComponent, Item, ItemBuf};
 use crate::runtime::{
     AttributeMacroHandler, ConstValue, FullTypeOf, FunctionHandler, MacroHandler, MaybeTypeOf,
@@ -53,18 +57,22 @@ pub(crate) struct InternalEnum {
 
 impl InternalEnum {
     /// Construct a new handler for an internal enum.
-    fn new<N>(name: &'static str, base_type: N, static_type: &'static StaticType) -> Self
+    fn new<N>(
+        name: &'static str,
+        base_type: N,
+        static_type: &'static StaticType,
+    ) -> alloc::Result<Self>
     where
         N: IntoIterator,
         N::Item: IntoComponent,
     {
-        InternalEnum {
+        Ok(InternalEnum {
             name,
-            base_type: ItemBuf::with_item(base_type),
+            base_type: ItemBuf::with_item(base_type)?,
             static_type,
             variants: Vec::new(),
             docs: Docs::EMPTY,
-        }
+        })
     }
 
     /// Register a new variant.
@@ -73,23 +81,23 @@ impl InternalEnum {
         name: &'static str,
         type_check: TypeCheck,
         constructor: C,
-    ) -> ItemMut<'_>
+    ) -> alloc::Result<ItemMut<'_>>
     where
         C: Function<A, Plain>,
     {
         let constructor: Arc<FunctionHandler> =
             Arc::new(move |stack, args| constructor.fn_call(stack, args));
 
-        self.variants.push(Variant {
+        self.variants.try_push(Variant {
             name,
             type_check: Some(type_check),
             fields: Some(Fields::Unnamed(C::args())),
             constructor: Some(constructor),
             docs: Docs::EMPTY,
-        });
+        })?;
 
         let v = self.variants.last_mut().unwrap();
-        ItemMut { docs: &mut v.docs }
+        Ok(ItemMut { docs: &mut v.docs })
     }
 }
 
@@ -173,7 +181,7 @@ pub(crate) enum TypeSpecification {
 }
 
 /// A key that identifies an associated function.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, TryClone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub(crate) struct AssociatedKey {
     /// The type the associated function belongs to.
@@ -184,7 +192,7 @@ pub(crate) struct AssociatedKey {
     pub(crate) parameters: Hash,
 }
 
-#[derive(Clone)]
+#[derive(TryClone)]
 pub(crate) struct ModuleFunction {
     pub(crate) item: ItemBuf,
     pub(crate) handler: Arc<FunctionHandler>,
@@ -201,7 +209,7 @@ pub(crate) struct ModuleFunction {
     pub(crate) docs: Docs,
 }
 
-#[derive(Clone)]
+#[derive(TryClone)]
 pub(crate) struct ModuleAssociated {
     pub(crate) container: FullTypeOf,
     pub(crate) container_type_info: TypeInfo,
@@ -251,21 +259,21 @@ impl ItemMut<'_> {
     /// Set documentation for an inserted item.
     ///
     /// This completely replaces any existing documentation.
-    pub fn docs<I>(self, docs: I) -> Self
+    pub fn docs<I>(self, docs: I) -> Result<Self, ContextError>
     where
         I: IntoIterator,
         I::Item: AsRef<str>,
     {
-        self.docs.set_docs(docs);
-        self
+        self.docs.set_docs(docs)?;
+        Ok(self)
     }
 
     /// Set static documentation.
     ///
     /// This completely replaces any existing documentation.
-    pub fn static_docs(self, docs: &'static [&'static str]) -> Self {
-        self.docs.set_docs(docs);
-        self
+    pub fn static_docs(self, docs: &'static [&'static str]) -> Result<Self, ContextError> {
+        self.docs.set_docs(docs)?;
+        Ok(self)
     }
 }
 
@@ -307,13 +315,13 @@ impl ItemFnMut<'_> {
     /// Set documentation for an inserted item.
     ///
     /// This completely replaces any existing documentation.
-    pub fn docs<I>(self, docs: I) -> Self
+    pub fn docs<I>(self, docs: I) -> Result<Self, ContextError>
     where
         I: IntoIterator,
         I::Item: AsRef<str>,
     {
-        self.docs.set_docs(docs);
-        self
+        self.docs.set_docs(docs)?;
+        Ok(self)
     }
 
     /// Mark the given item as an async function.
@@ -330,16 +338,16 @@ impl ItemFnMut<'_> {
     pub fn deprecated<S>(
         self,
         #[cfg_attr(not(feature = "doc"), allow(unused))] deprecated: S,
-    ) -> Self
+    ) -> Result<Self, ContextError>
     where
         S: AsRef<str>,
     {
         #[cfg(feature = "doc")]
         {
-            *self.deprecated = Some(deprecated.as_ref().into());
+            *self.deprecated = Some(deprecated.as_ref().try_into()?);
         }
 
-        self
+        Ok(self)
     }
 
     /// Indicate the number of arguments this function accepts.
@@ -369,13 +377,13 @@ impl ItemFnMut<'_> {
     pub fn argument_types<const N: usize>(
         self,
         #[cfg_attr(not(feature = "doc"), allow(unused))] arguments: [Option<FullTypeOf>; N],
-    ) -> Self {
+    ) -> Result<Self, ContextError> {
         #[cfg(feature = "doc")]
         {
-            *self.argument_types = Box::from(arguments.into_iter().collect::<Vec<_>>());
+            *self.argument_types = arguments.into_iter().try_collect::<Box<[_]>>()?;
         }
 
-        self
+        Ok(self)
     }
 }
 
@@ -406,21 +414,21 @@ where
     /// Set documentation for an inserted type.
     ///
     /// This completely replaces any existing documentation.
-    pub fn docs<I>(self, docs: I) -> Self
+    pub fn docs<I>(self, docs: I) -> Result<Self, ContextError>
     where
         I: IntoIterator,
         I::Item: AsRef<str>,
     {
-        self.docs.set_docs(docs);
-        self
+        self.docs.set_docs(docs)?;
+        Ok(self)
     }
 
     /// Set static documentation.
     ///
     /// This completely replaces any existing documentation.
-    pub fn static_docs(self, docs: &'static [&'static str]) -> Self {
-        self.docs.set_docs(docs);
-        self
+    pub fn static_docs(self, docs: &'static [&'static str]) -> Result<Self, ContextError> {
+        self.docs.set_docs(docs)?;
+        Ok(self)
     }
 
     /// Mark the given variant with named fields.
@@ -488,21 +496,21 @@ where
     /// Set documentation for an inserted type.
     ///
     /// This completely replaces any existing documentation.
-    pub fn docs<I>(self, docs: I) -> Self
+    pub fn docs<I>(self, docs: I) -> Result<Self, ContextError>
     where
         I: IntoIterator,
         I::Item: AsRef<str>,
     {
-        self.docs.set_docs(docs);
-        self
+        self.docs.set_docs(docs)?;
+        Ok(self)
     }
 
     /// Set static documentation.
     ///
     /// This completely replaces any existing documentation.
-    pub fn static_docs(self, docs: &'static [&'static str]) -> Self {
-        self.docs.set_docs(docs);
-        self
+    pub fn static_docs(self, docs: &'static [&'static str]) -> Result<Self, ContextError> {
+        self.docs.set_docs(docs)?;
+        Ok(self)
     }
 
     /// Get the given variant mutably.
@@ -540,21 +548,21 @@ where
     /// Set documentation for an inserted internal enum.
     ///
     /// This completely replaces any existing documentation.
-    pub fn docs<I>(self, docs: I) -> Self
+    pub fn docs<I>(self, docs: I) -> Result<Self, ContextError>
     where
         I: IntoIterator,
         I::Item: AsRef<str>,
     {
-        self.enum_.docs.set_docs(docs);
-        self
+        self.enum_.docs.set_docs(docs)?;
+        Ok(self)
     }
 
     /// Set static documentation for an inserted internal enum.
     ///
     /// This completely replaces any existing documentation.
-    pub fn static_docs(self, docs: &'static [&'static str]) -> Self {
-        self.enum_.docs.set_docs(docs);
-        self
+    pub fn static_docs(self, docs: &'static [&'static str]) -> Result<Self, ContextError> {
+        self.enum_.docs.set_docs(docs)?;
+        Ok(self)
     }
 
     /// Get the given variant mutably.
@@ -601,21 +609,21 @@ where
     /// Set documentation for an inserted type.
     ///
     /// This completely replaces any existing documentation.
-    pub fn docs<I>(self, docs: I) -> Self
+    pub fn docs<I>(self, docs: I) -> Result<Self, ContextError>
     where
         I: IntoIterator,
         I::Item: AsRef<str>,
     {
-        self.docs.set_docs(docs);
-        self
+        self.docs.set_docs(docs)?;
+        Ok(self)
     }
 
     /// Set static documentation.
     ///
     /// This completely replaces any existing documentation.
-    pub fn static_docs(self, docs: &'static [&'static str]) -> Self {
-        self.docs.set_docs(docs);
-        self
+    pub fn static_docs(self, docs: &'static [&'static str]) -> Result<Self, ContextError> {
+        self.docs.set_docs(docs)?;
+        Ok(self)
     }
 
     /// Mark the current type as a struct with named fields.
@@ -639,12 +647,12 @@ where
         variants: &'static [&'static str],
     ) -> Result<EnumMut<'a, T>, ContextError> {
         let old = self.spec.replace(TypeSpecification::Enum(Enum {
-            variants: variants.iter().copied().map(Variant::new).collect(),
+            variants: variants.iter().copied().map(Variant::new).try_collect()?,
         }));
 
         if old.is_some() {
             return Err(ContextError::ConflictingTypeMeta {
-                item: self.item.to_owned(),
+                item: self.item.try_to_owned()?,
                 type_info: T::type_info(),
             });
         }
@@ -683,7 +691,7 @@ where
 
         if old.is_some() {
             return Err(ContextError::ConflictingTypeMeta {
-                item: self.item.to_owned(),
+                item: self.item.try_to_owned()?,
                 type_info: T::type_info(),
             });
         }

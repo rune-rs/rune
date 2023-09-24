@@ -4,7 +4,8 @@ use super::Eq;
 /// An `= ...` e.g. inside an attribute `#[doc = ...]`.
 ///
 /// To get unparsed tokens use `EqValue<TokenStream>`.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Parse, Spanned)]
+#[try_clone(bound = {T: TryClone})]
 pub struct EqValue<T> {
     /// The `=` token.
     pub eq: Eq,
@@ -13,7 +14,7 @@ pub struct EqValue<T> {
 }
 
 /// Parses `[{( ... )}]` ensuring that the delimiter is balanced.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct Group {
     /// The opening delimiter.
     pub open: ast::Token,
@@ -66,7 +67,7 @@ impl Parse for Group {
                 _ => (),
             }
 
-            stream.push(token);
+            stream.try_push(token)?;
         }
 
         Ok(Self {

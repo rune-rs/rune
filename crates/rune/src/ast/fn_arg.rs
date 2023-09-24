@@ -10,7 +10,7 @@ fn ast_parse() {
 }
 
 /// A single argument in a closure.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub enum FnArg {
     /// The `self` parameter.

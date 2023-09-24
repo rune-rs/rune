@@ -53,7 +53,7 @@ fn ast_parse() {
 }
 
 /// A rune file.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, OptionSpanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, OptionSpanned)]
 #[non_exhaustive]
 pub struct File {
     /// Top-level shebang.
@@ -71,11 +71,11 @@ impl Parse for File {
     fn parse(p: &mut Parser<'_>) -> Result<Self> {
         let shebang = p.parse()?;
 
-        let mut attributes = vec![];
+        let mut attributes = try_vec![];
 
         // only allow outer attributes at the top of a file
         while p.peek::<ast::attribute::OuterAttribute>()? {
-            attributes.push(p.parse()?);
+            attributes.try_push(p.parse()?)?;
         }
 
         let mut items = Vec::new();
@@ -94,7 +94,7 @@ impl Parse for File {
                 None
             };
 
-            items.push((item, semi_colon));
+            items.try_push((item, semi_colon))?;
             item_attributes = p.parse()?;
             item_visibility = p.parse()?;
             path = p.parse()?;
@@ -118,7 +118,7 @@ impl Parse for File {
 }
 
 /// The shebang of a file.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, TryClone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Shebang {
     /// The span of the shebang.
@@ -154,7 +154,11 @@ impl Spanned for Shebang {
 }
 
 impl ToTokens for Shebang {
-    fn to_tokens(&self, _: &mut MacroContext<'_, '_, '_>, stream: &mut TokenStream) {
+    fn to_tokens(
+        &self,
+        _: &mut MacroContext<'_, '_, '_>,
+        stream: &mut TokenStream,
+    ) -> alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Shebang(self.source),

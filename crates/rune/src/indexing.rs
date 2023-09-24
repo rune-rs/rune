@@ -2,9 +2,9 @@ pub(crate) mod index;
 pub(crate) mod items;
 mod scopes;
 
-use crate::no_std::prelude::*;
-
 use crate as rune;
+use crate::alloc::prelude::*;
+use crate::alloc::Box;
 use crate::ast::{self, Span, Spanned};
 use crate::compile::meta;
 use crate::compile::{ItemId, ItemMeta};
@@ -15,7 +15,7 @@ pub(crate) use self::index::{IndexItem, Indexer};
 pub(crate) use self::items::Items;
 pub(crate) use self::scopes::{Layer, Scopes};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 pub(crate) struct Entry {
     /// The query item this indexed entry belongs to.
     pub(crate) item_meta: ItemMeta,
@@ -34,7 +34,7 @@ impl Entry {
 }
 
 /// An entry that has been indexed.
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 pub(crate) enum Indexed {
     /// An enum.
     Enum,
@@ -57,7 +57,7 @@ pub(crate) enum Indexed {
 }
 
 /// The ast of a function.
-#[derive(Debug, Clone, Spanned)]
+#[derive(Debug, TryClone, Spanned)]
 pub(crate) enum FunctionAst {
     /// An empty function body.
     Empty(Box<ast::EmptyBlock>, #[rune(span)] Span),
@@ -76,7 +76,7 @@ impl FunctionAst {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 pub(crate) struct Function {
     /// Ast for declaration.
     pub(crate) ast: FunctionAst,
@@ -93,7 +93,8 @@ pub(crate) struct Function {
     pub(crate) impl_item: Option<NonZeroId>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 pub(crate) struct Import {
     /// The import entry.
     pub(crate) entry: meta::Import,
@@ -103,13 +104,13 @@ pub(crate) struct Import {
     pub(crate) wildcard: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 pub(crate) struct Struct {
     /// The ast of the struct.
     pub(crate) ast: Box<ast::ItemStruct>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 pub(crate) struct Variant {
     /// Id of of the enum type.
     pub(crate) enum_id: NonZeroId,
@@ -119,7 +120,7 @@ pub(crate) struct Variant {
     pub(crate) index: usize,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 pub(crate) struct Closure {
     /// Ast for closure.
     pub(crate) ast: Box<ast::ExprClosure>,
@@ -127,7 +128,7 @@ pub(crate) struct Closure {
     pub(crate) call: Call,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 pub(crate) struct AsyncBlock {
     /// Ast for block.
     pub(crate) ast: ast::Block,
@@ -135,17 +136,17 @@ pub(crate) struct AsyncBlock {
     pub(crate) call: Call,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 pub(crate) struct ConstExpr {
     pub(crate) ast: Box<ast::Expr>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 pub(crate) struct ConstBlock {
     pub(crate) ast: Box<ast::Block>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 pub(crate) struct ConstFn {
     /// The const fn ast.
     pub(crate) item_fn: Box<ast::ItemFn>,

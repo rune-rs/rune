@@ -12,25 +12,26 @@
 //! use rune::compile;
 //! use rune::macros::{quote, MacroContext, TokenStream};
 //! use rune::parse::Parser;
+//! use rune::alloc::prelude::*;
+//!
 //! use std::sync::Arc;
 //!
 //! #[rune::macro_]
 //! fn ident_to_string(cx: &mut MacroContext<'_, '_, '_>, stream: &TokenStream) -> compile::Result<TokenStream> {
 //!     let mut p = Parser::from_token_stream(stream, cx.input_span());
 //!     let ident = p.parse_all::<ast::Ident>()?;
-//!     let ident = cx.resolve(ident)?.to_owned();
-//!     let string = cx.lit(&ident);
-//!     Ok(quote!(#string).into_token_stream(cx))
+//!     let ident = cx.resolve(ident)?.try_to_owned()?;
+//!     let string = cx.lit(&ident)?;
+//!     Ok(quote!(#string).into_token_stream(cx)?)
 //! }
 //!
-//! # fn main() -> rune::Result<()> {
 //! let mut m = Module::new();
 //! m.macro_meta(ident_to_string)?;
 //!
 //! let mut context = Context::new();
 //! context.install(m)?;
 //!
-//! let runtime = Arc::new(context.runtime());
+//! let runtime = Arc::new(context.runtime()?);
 //!
 //! let mut sources = rune::sources! {
 //!     entry => {
@@ -51,10 +52,11 @@
 //! let value: String = rune::from_value(value)?;
 //!
 //! assert_eq!(value, "hello");
-//! # Ok(())
-//! # }
+//! # Ok::<_, rune::support::Error>(())
 //! ```
 
+use crate as rune;
+use crate::alloc::prelude::*;
 use crate::macros::{MacroContext, ToTokens, TokenStream};
 use crate::parse::{Parse, Parser, Peek};
 
@@ -234,7 +236,8 @@ macro_rules! decl_tokens {
     ($(($parser:ident, $name:expr, $doc:expr, $($kind:tt)*),)*) => {
         $(
             #[doc = $doc]
-            #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+            #[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq)]
+            #[try_clone(copy)]
             pub struct $parser {
                 /// Associated token.
                 pub span: Span,
@@ -270,8 +273,8 @@ macro_rules! decl_tokens {
             }
 
             impl ToTokens for $parser {
-                fn to_tokens(&self, _: &mut MacroContext<'_, '_, '_>, stream: &mut TokenStream) {
-                    stream.push(Token { span: self.span, kind: $($kind)* });
+                fn to_tokens(&self, _: &mut MacroContext<'_, '_, '_>, stream: &mut TokenStream) -> alloc::Result<()> {
+                    stream.push(Token { span: self.span, kind: $($kind)* })
                 }
             }
         )*
@@ -290,7 +293,8 @@ decl_tokens! {
 }
 
 /// The composite `is not` operation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, ToTokens, Spanned)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, Hash, ToTokens, Spanned)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct IsNot {
     /// The `is` token.

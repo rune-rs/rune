@@ -1,16 +1,16 @@
-use std::sync::Arc;
-
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::Any;
 use rune::{ContextError, Diagnostics, Module, Vm};
 
-fn main() -> rune::Result<()> {
+use std::sync::Arc;
+
+fn main() -> rune::support::Result<()> {
     let m = module()?;
 
     let mut context = rune_modules::default_context()?;
     context.install(m)?;
 
-    let runtime = Arc::new(context.runtime());
+    let runtime = Arc::new(context.runtime()?);
 
     let mut sources = rune::sources! {
         entry => {

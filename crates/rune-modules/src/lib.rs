@@ -83,7 +83,7 @@
 pub mod experiments;
 
 macro_rules! modules {
-    ($($ident:ident, $name:literal),* $(,)?) => {
+    ($({$ident:ident, $name:literal $(, $module:ident)*}),* $(,)?) => {
         $(
             #[cfg(feature = $name)]
             pub mod $ident;
@@ -101,6 +101,7 @@ macro_rules! modules {
                 #[cfg(feature = $name)]
                 {
                     context.install(self::$ident::module(stdio)?)?;
+                    $(context.install(self::$ident::$module::module(stdio)?)?;)*
                 }
             )*
 
@@ -115,17 +116,17 @@ macro_rules! modules {
 }
 
 modules! {
-    core, "core",
-    fmt, "fmt",
-    fs, "fs",
-    http, "http",
-    io, "io",
-    json, "json",
-    macros, "macros",
-    process, "process",
-    rand, "rand",
-    signal, "signal",
-    test, "test",
-    time, "time",
-    toml, "toml",
+    {core, "core"},
+    {fmt, "fmt"},
+    {fs, "fs"},
+    {http, "http"},
+    {io, "io"},
+    {json, "json"},
+    {macros, "macros"},
+    {process, "process"},
+    {rand, "rand"},
+    {signal, "signal"},
+    {test, "test"},
+    {time, "time"},
+    {toml, "toml", ser, de},
 }

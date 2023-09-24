@@ -1,8 +1,7 @@
-use crate::no_std::prelude::*;
-
 use anyhow::{Context, Result};
 use serde::Serialize;
 
+use crate::alloc::{String, Vec};
 use crate::compile::{ComponentRef, Item};
 use crate::doc::context::Meta;
 use crate::doc::build::{self, Builder, Ctxt, IndexEntry};
@@ -35,7 +34,7 @@ pub(crate) fn build<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<(Builde
 
     let builder = Builder::new(cx, move |cx| {
         cx.enum_template.render(&Params {
-            shared: cx.shared(),
+            shared: cx.shared()?,
             module,
             name,
             item,
@@ -44,7 +43,7 @@ pub(crate) fn build<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<(Builde
             protocols,
             doc,
         })
-    });
+    })?;
 
     Ok((builder, index))
 }

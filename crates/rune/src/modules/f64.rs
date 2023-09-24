@@ -9,10 +9,10 @@ use crate::{ContextError, Module};
 
 /// Install the core package into the given functions namespace.
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::with_crate_item("std", ["f64"]);
+    let mut m = Module::with_crate_item("std", ["f64"])?;
 
     m.function_meta(parse)?
-        .deprecated("Use std::string::parse::<f64> instead");
+        .deprecated("Use std::string::parse::<f64> instead")?;
     m.function_meta(is_nan)?;
     m.function_meta(is_infinite)?;
     m.function_meta(is_finite)?;

@@ -33,7 +33,7 @@ fn ast_parse() {
 /// A `select` expression that selects over a collection of futures.
 ///
 /// * `select { [arm]* }`.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprSelect {
     /// The attributes of the `select`
@@ -65,7 +65,7 @@ impl ExprSelect {
             let branch = ExprSelectBranch::parse(p)?;
             let comma = p.parse::<Option<T![,]>>()?;
             let is_end = ast::utils::is_block_end(branch.expr(), comma.as_ref());
-            branches.push((branch, comma));
+            branches.try_push((branch, comma))?;
 
             if is_end {
                 break;
@@ -87,7 +87,7 @@ impl ExprSelect {
 expr_parse!(Select, ExprSelect, "select expression");
 
 /// A single selection branch.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 #[allow(clippy::large_enum_variant)]
 pub enum ExprSelectBranch {
@@ -118,7 +118,7 @@ impl Parse for ExprSelectBranch {
 }
 
 /// A single selection branch.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Parse, Spanned)]
 #[non_exhaustive]
 pub struct ExprSelectPatBranch {
     /// The identifier to bind the result to.
@@ -134,7 +134,7 @@ pub struct ExprSelectPatBranch {
 }
 
 /// A single selection branch.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Parse, Spanned)]
 #[non_exhaustive]
 pub struct ExprDefaultBranch {
     /// The `default` keyword.

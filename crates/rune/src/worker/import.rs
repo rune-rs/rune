@@ -1,8 +1,7 @@
 use core::mem::take;
 
-use crate::no_std::collections::VecDeque;
-use crate::no_std::prelude::*;
-
+use crate::alloc::prelude::*;
+use crate::alloc::{self, Box, VecDeque};
 use crate::ast;
 use crate::ast::Spanned;
 use crate::compile::{self, DynLocation, ErrorKind, ItemBuf, Location, ModId, Visibility};
@@ -24,12 +23,12 @@ pub(crate) struct Import {
 
 impl Import {
     /// Lookup a local identifier in the current context and query.
-    fn lookup_local(&self, query: &Query<'_, '_>, local: &str) -> ItemBuf {
-        let item = query.pool.module_item(self.module).extended(local);
+    fn lookup_local(&self, query: &Query<'_, '_>, local: &str) -> alloc::Result<ItemBuf> {
+        let item = query.pool.module_item(self.module).extended(local)?;
 
         if let ImportKind::Local = self.kind {
-            if query.contains_prefix(&item) {
-                return item;
+            if query.contains_prefix(&item)? {
+                return Ok(item);
             }
         }
 
@@ -37,14 +36,14 @@ impl Import {
             return ItemBuf::with_crate(local);
         }
 
-        item
+        Ok(item)
     }
 
     /// Process the import, populating the unit.
     pub(crate) fn process(
         mut self,
         q: &mut Query<'_, '_>,
-        add_task: &mut impl FnMut(Task),
+        add_task: &mut impl FnMut(Task) -> compile::Result<()>,
     ) -> compile::Result<()> {
         let (name, first, initial) = match self.kind {
             ImportKind::Global => {
@@ -52,7 +51,7 @@ impl Import {
                     Some(global) => match &self.ast.path.first {
                         ast::ItemUseSegment::PathSegment(ast::PathSegment::Ident(ident)) => {
                             let ident = ident.resolve(resolve_context!(q))?;
-                            (ItemBuf::with_crate(ident), None, false)
+                            (ItemBuf::with_crate(ident)?, None, false)
                         }
                         _ => {
                             return Err(compile::Error::new(
@@ -64,7 +63,7 @@ impl Import {
                     // NB: defer non-local imports.
                     _ => {
                         self.kind = ImportKind::Local;
-                        add_task(Task::ExpandImport(self));
+                        add_task(Task::ExpandImport(self))?;
                         return Ok(());
                     }
                 }
@@ -74,7 +73,7 @@ impl Import {
 
         let mut queue = VecDeque::new();
 
-        queue.push_back((&self.ast.path, name, first, initial));
+        queue.try_push_back((&self.ast.path, name, first, initial))?;
 
         while let Some((path, mut name, first, mut initial)) = queue.pop_front() {
             tracing::trace!("process one");
@@ -99,11 +98,11 @@ impl Import {
                             let ident = ident.resolve(resolve_context!(q))?;
 
                             if !initial {
-                                name.push(ident);
+                                name.push(ident)?;
                                 continue;
                             }
 
-                            name = self.lookup_local(q, ident);
+                            name = self.lookup_local(q, ident)?;
                         }
                         ast::PathSegment::SelfType(self_type) => {
                             return Err(compile::Error::new(
@@ -119,7 +118,7 @@ impl Import {
                                 ));
                             }
 
-                            name = q.pool.module_item(self.module).to_owned();
+                            name = q.pool.module_item(self.module).try_to_owned()?;
                         }
                         ast::PathSegment::Crate(crate_token) => {
                             if !initial {
@@ -133,10 +132,10 @@ impl Import {
                         }
                         ast::PathSegment::Super(super_token) => {
                             if initial {
-                                name = q.pool.module_item(self.module).to_owned();
+                                name = q.pool.module_item(self.module).try_to_owned()?;
                             }
 
-                            name.pop().ok_or_else(|| {
+                            name.pop()?.ok_or_else(|| {
                                 compile::Error::new(super_token, ErrorKind::UnsupportedSuper)
                             })?;
                         }
@@ -150,15 +149,15 @@ impl Import {
                     ast::ItemUseSegment::Wildcard(star_token) => {
                         let mut wildcard_import = WildcardImport {
                             visibility: self.visibility,
-                            from: self.item.clone(),
-                            name: name.clone(),
+                            from: self.item.try_clone()?,
+                            name: name.try_clone()?,
                             location: Location::new(self.source_id, star_token.span()),
                             module: self.module,
                             found: false,
                         };
 
                         wildcard_import.process_global(q)?;
-                        add_task(Task::ExpandWildcardImport(wildcard_import));
+                        add_task(Task::ExpandWildcardImport(wildcard_import))?;
                         break Some(star_token.span());
                     }
                     ast::ItemUseSegment::Group(group) => {
@@ -170,7 +169,12 @@ impl Import {
                                 ));
                             }
 
-                            queue.push_back((path, name.clone(), Some(&path.first), initial));
+                            queue.try_push_back((
+                                path,
+                                name.try_clone()?,
+                                Some(&path.first),
+                                initial,
+                            ))?;
                         }
 
                         break Some(group.span());
@@ -201,7 +205,7 @@ impl Import {
                     &DynLocation::new(self.source_id, path),
                     self.module,
                     self.visibility,
-                    self.item.clone(),
+                    self.item.try_clone()?,
                     name,
                     alias,
                     false,

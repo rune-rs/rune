@@ -5,7 +5,7 @@ use core::iter;
 use crate::no_std::prelude::*;
 
 use crate as rune;
-use crate::alloc::{self, Global};
+use crate::alloc;
 use crate::runtime::{FromValue, Function, Panic, ToValue, Value, VmErrorKind, VmResult};
 use crate::Any;
 
@@ -292,7 +292,7 @@ impl Iterator {
         T: FromValue,
     {
         let (cap, _) = self.iter.size_hint();
-        let mut vec = vm_try!(alloc::Vec::try_with_capacity_in(cap, Global));
+        let mut vec = vm_try!(alloc::Vec::try_with_capacity(cap));
 
         while let Some(value) = vm_try!(self.next()) {
             vm_try!(vec.try_push(vm_try!(T::from_value(value))));

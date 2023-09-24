@@ -14,6 +14,7 @@ pub(crate) use self::error::{ErrorKind, IrErrorKind};
 
 mod compile_visitor;
 pub use self::compile_visitor::CompileVisitor;
+#[cfg(feature = "std")]
 pub(crate) use self::compile_visitor::NoopCompileVisitor;
 
 pub(crate) mod context;

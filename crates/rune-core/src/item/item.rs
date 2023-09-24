@@ -1,11 +1,11 @@
 use core::fmt;
 
 #[cfg(feature = "alloc")]
-use alloc::borrow::ToOwned;
+use crate::alloc::borrow::TryToOwned;
 #[cfg(feature = "alloc")]
-use alloc::vec::Vec;
-
-use smallvec::ToSmallVec;
+use crate::alloc::iter::IteratorExt;
+#[cfg(feature = "alloc")]
+use crate::alloc::{self, Vec};
 
 #[cfg(feature = "alloc")]
 use crate::item::Component;
@@ -52,8 +52,9 @@ impl Item {
     ///
     /// assert_eq!(Item::new().as_bytes(), b"");
     ///
-    /// let item = ItemBuf::with_item(["foo", "bar"]);
+    /// let item = ItemBuf::with_item(["foo", "bar"])?;
     /// assert_eq!(item.as_bytes(), b"\x0d\0foo\x0d\0\x0d\0bar\x0d\0");
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
@@ -67,11 +68,12 @@ impl Item {
     /// ```
     /// use rune::compile::ItemBuf;
     ///
-    /// let item = ItemBuf::with_crate("std");
+    /// let item = ItemBuf::with_crate("std")?;
     /// assert_eq!(item.as_crate(), Some("std"));
     ///
-    /// let item = ItemBuf::with_item(["local"]);
+    /// let item = ItemBuf::with_item(["local"])?;
     /// assert_eq!(item.as_crate(), None);
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn as_crate(&self) -> Option<&str> {
         if let Some(ComponentRef::Crate(s)) = self.iter().next() {
@@ -88,8 +90,9 @@ impl Item {
     /// ```
     /// use rune::compile::{ComponentRef, ItemBuf};
     ///
-    /// let item = ItemBuf::with_item(["foo", "bar"]);
+    /// let item = ItemBuf::with_item(["foo", "bar"])?;
     /// assert_eq!(item.first(), Some(ComponentRef::Str("foo")));
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn first(&self) -> Option<ComponentRef<'_>> {
@@ -106,8 +109,9 @@ impl Item {
     /// let item = ItemBuf::new();
     /// assert!(item.is_empty());
     ///
-    /// let item = ItemBuf::with_crate("std");
+    /// let item = ItemBuf::with_crate("std")?;
     /// assert!(!item.is_empty());
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn is_empty(&self) -> bool {
@@ -116,10 +120,10 @@ impl Item {
 
     /// Construct a new vector from the current item.
     #[cfg(feature = "alloc")]
-    pub fn as_vec(&self) -> Vec<Component> {
+    pub fn as_vec(&self) -> alloc::Result<Vec<Component>> {
         self.iter()
             .map(ComponentRef::into_component)
-            .collect::<Vec<_>>()
+            .try_collect::<Result<Vec<_>, _>>()?
     }
 
     /// If the item only contains one element, return that element.
@@ -132,34 +136,61 @@ impl Item {
         }
     }
 
-    /// Join this path with another.
-    pub fn join<I>(&self, other: I) -> ItemBuf
+    /// Return an owned and joined variant of this item.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::compile::{Item, ComponentRef};
+    ///
+    /// let item = Item::new();
+    /// assert!(item.is_empty());
+    ///
+    /// let item2 = item.join(["hello", "world"])?;
+    /// assert_eq!(item2.first(), Some(ComponentRef::Str("hello")));
+    /// assert_eq!(item2.last(), Some(ComponentRef::Str("world")));
+    /// # Ok::<(), rune::support::Error>(())
+    /// ```
+    pub fn join<I>(&self, other: I) -> alloc::Result<ItemBuf>
     where
         I: IntoIterator,
         I::Item: IntoComponent,
     {
-        let mut content = self.content.to_smallvec();
+        let mut content = self.content.try_to_owned()?;
 
         for c in other {
-            c.write_component(&mut content);
+            c.write_component(&mut content)?;
         }
 
         // SAFETY: construction through write_component ensures valid
         // construction of buffer.
-        unsafe { ItemBuf::from_raw(content) }
+        Ok(unsafe { ItemBuf::from_raw(content) })
     }
 
-    /// Clone and extend the item path.
-    pub fn extended<C>(&self, part: C) -> ItemBuf
+    /// Return an owned and extended variant of this item.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::compile::{Item, ComponentRef};
+    ///
+    /// let item = Item::new();
+    /// assert!(item.is_empty());
+    ///
+    /// let item2 = item.extended("hello")?;
+    /// assert_eq!(item2.first(), Some(ComponentRef::Str("hello")));
+    /// # Ok::<(), rune::support::Error>(())
+    /// ```
+    pub fn extended<C>(&self, part: C) -> alloc::Result<ItemBuf>
     where
         C: IntoComponent,
     {
-        let mut content = self.content.to_smallvec();
-        part.write_component(&mut content);
+        let mut content = self.content.try_to_owned()?;
+        part.write_component(&mut content)?;
 
         // SAFETY: construction through write_component ensures valid
         // construction of buffer.
-        unsafe { ItemBuf::from_raw(content) }
+        Ok(unsafe { ItemBuf::from_raw(content) })
     }
 
     /// Access the last component in the path.
@@ -177,12 +208,12 @@ impl Item {
     ///
     /// let mut item = ItemBuf::new();
     ///
-    /// item.push("start");
-    /// item.push(ComponentRef::Id(1));
-    /// item.push(ComponentRef::Id(2));
-    /// item.push("middle");
-    /// item.push(ComponentRef::Id(3));
-    /// item.push("end");
+    /// item.push("start")?;
+    /// item.push(ComponentRef::Id(1))?;
+    /// item.push(ComponentRef::Id(2))?;
+    /// item.push("middle")?;
+    /// item.push(ComponentRef::Id(3))?;
+    /// item.push("end")?;
     ///
     /// let mut it = item.iter();
     ///
@@ -195,6 +226,7 @@ impl Item {
     /// assert_eq!(it.next(), None);
     ///
     /// assert!(!item.is_empty());
+    /// # Ok::<(), rune::support::Error>(())
     /// ```
     #[inline]
     pub fn iter(&self) -> Iter<'_> {
@@ -203,8 +235,11 @@ impl Item {
 
     /// Test if current item starts with another.
     #[inline]
-    pub fn starts_with(&self, other: &Self) -> bool {
-        self.content.starts_with(&other.content)
+    pub fn starts_with<U>(&self, other: U) -> bool
+    where
+        U: AsRef<Item>,
+    {
+        self.content.starts_with(&other.as_ref().content)
     }
 
     /// Test if current is immediate super of `other`.
@@ -212,16 +247,22 @@ impl Item {
     /// # Examples
     ///
     /// ```
-    /// use rune::compile::ItemBuf;
+    /// use rune::compile::{Item, ItemBuf};
     ///
-    /// assert!(ItemBuf::new().is_super_of(&ItemBuf::new(), 1));
-    /// assert!(!ItemBuf::with_item(["a"]).is_super_of(&ItemBuf::new(), 1));
+    /// assert!(Item::new().is_super_of(Item::new(), 1));
+    /// assert!(!ItemBuf::with_item(["a"])?.is_super_of(Item::new(), 1));
     ///
-    /// assert!(!ItemBuf::with_item(["a", "b"]).is_super_of(&ItemBuf::with_item(["a"]), 1));
-    /// assert!(ItemBuf::with_item(["a", "b"]).is_super_of(&ItemBuf::with_item(["a", "b"]), 1));
-    /// assert!(!ItemBuf::with_item(["a"]).is_super_of(&ItemBuf::with_item(["a", "b", "c"]), 1));
+    /// assert!(!ItemBuf::with_item(["a", "b"])?.is_super_of(ItemBuf::with_item(["a"])?, 1));
+    /// assert!(ItemBuf::with_item(["a", "b"])?.is_super_of(ItemBuf::with_item(["a", "b"])?, 1));
+    /// assert!(!ItemBuf::with_item(["a"])?.is_super_of(ItemBuf::with_item(["a", "b", "c"])?, 1));
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
-    pub fn is_super_of(&self, other: &Self, n: usize) -> bool {
+    pub fn is_super_of<U>(&self, other: U, n: usize) -> bool
+    where
+        U: AsRef<Item>,
+    {
+        let other = other.as_ref();
+
         if self == other {
             return true;
         }
@@ -250,35 +291,40 @@ impl Item {
     /// # Examples
     ///
     /// ```
-    /// use rune::compile::ItemBuf;
+    /// use rune::compile::{Item, ItemBuf};
     ///
     /// assert_eq!(
     ///     (ItemBuf::new(), ItemBuf::new()),
-    ///     ItemBuf::new().ancestry(&ItemBuf::new())
+    ///     Item::new().ancestry(Item::new())?
     /// );
     ///
     /// assert_eq!(
-    ///     (ItemBuf::new(), ItemBuf::with_item(["a"])),
-    ///     ItemBuf::new().ancestry(&ItemBuf::with_item(["a"]))
+    ///     (ItemBuf::new(), ItemBuf::with_item(["a"])?),
+    ///     Item::new().ancestry(ItemBuf::with_item(["a"])?)?
     /// );
     ///
     /// assert_eq!(
-    ///     (ItemBuf::new(), ItemBuf::with_item(["a", "b"])),
-    ///     ItemBuf::new().ancestry(&ItemBuf::with_item(["a", "b"]))
+    ///     (ItemBuf::new(), ItemBuf::with_item(["a", "b"])?),
+    ///     Item::new().ancestry(ItemBuf::with_item(["a", "b"])?)?
     /// );
     ///
     /// assert_eq!(
-    ///     (ItemBuf::with_item(["a"]), ItemBuf::with_item(["b"])),
-    ///     ItemBuf::with_item(["a", "c"]).ancestry(&ItemBuf::with_item(["a", "b"]))
+    ///     (ItemBuf::with_item(["a"])?, ItemBuf::with_item(["b"])?),
+    ///     ItemBuf::with_item(["a", "c"])?.ancestry(ItemBuf::with_item(["a", "b"])?)?
     /// );
     ///
     /// assert_eq!(
-    ///     (ItemBuf::with_item(["a", "b"]), ItemBuf::with_item(["d", "e"])),
-    ///     ItemBuf::with_item(["a", "b", "c"]).ancestry(&ItemBuf::with_item(["a", "b", "d", "e"]))
+    ///     (ItemBuf::with_item(["a", "b"])?, ItemBuf::with_item(["d", "e"])?),
+    ///     ItemBuf::with_item(["a", "b", "c"])?.ancestry(ItemBuf::with_item(["a", "b", "d", "e"])?)?
     /// );
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
-    pub fn ancestry(&self, other: &Self) -> (ItemBuf, ItemBuf) {
+    pub fn ancestry<U>(&self, other: U) -> alloc::Result<(ItemBuf, ItemBuf)>
+    where
+        U: AsRef<Item>,
+    {
         let mut a = self.iter();
+        let other = other.as_ref();
         let mut b = other.iter();
 
         let mut shared = ItemBuf::new();
@@ -287,21 +333,21 @@ impl Item {
         while let Some(v) = b.next() {
             if let Some(u) = a.next() {
                 if u == v {
-                    shared.push(v);
+                    shared.push(v)?;
                     continue;
                 } else {
-                    suffix.push(v);
-                    suffix.extend(b);
-                    return (shared, suffix);
+                    suffix.push(v)?;
+                    suffix.extend(b)?;
+                    return Ok((shared, suffix));
                 }
             }
 
-            suffix.push(v);
+            suffix.push(v)?;
             break;
         }
 
-        suffix.extend(b);
-        (shared, suffix)
+        suffix.extend(b)?;
+        Ok((shared, suffix))
     }
 
     /// Get the parent item for the current item.
@@ -311,10 +357,11 @@ impl Item {
     /// ```
     /// use rune::compile::ItemBuf;
     ///
-    /// let item = ItemBuf::with_item(["foo", "bar", "baz"]);
-    /// let item2 = ItemBuf::with_item(["foo", "bar"]);
+    /// let item = ItemBuf::with_item(["foo", "bar", "baz"])?;
+    /// let item2 = ItemBuf::with_item(["foo", "bar"])?;
     ///
     /// assert_eq!(item.parent(), Some(&*item2));
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn parent(&self) -> Option<&Item> {
         let mut it = self.iter();
@@ -338,13 +385,13 @@ impl Default for &Item {
 }
 
 #[cfg(feature = "alloc")]
-impl ToOwned for Item {
+impl TryToOwned for Item {
     type Owned = ItemBuf;
 
     #[inline]
-    fn to_owned(&self) -> Self::Owned {
+    fn try_to_owned(&self) -> alloc::Result<Self::Owned> {
         // SAFETY: item ensures that content is valid.
-        unsafe { ItemBuf::from_raw(self.content.to_smallvec()) }
+        Ok(unsafe { ItemBuf::from_raw(self.content.try_to_owned()?) })
     }
 }
 
@@ -357,12 +404,14 @@ impl ToOwned for Item {
 ///
 /// ```
 /// use rune::compile::{ComponentRef, ItemBuf};
+/// use rune::alloc::prelude::*;
 ///
-/// let root = ItemBuf::new().to_string();
+/// let root = ItemBuf::new().try_to_string()?;
 /// assert_eq!("{root}", root);
 ///
-/// let hello = ItemBuf::with_item(&[ComponentRef::Str("hello"), ComponentRef::Id(0)]);
-/// assert_eq!("hello::$0", hello.to_string());
+/// let hello = ItemBuf::with_item(&[ComponentRef::Str("hello"), ComponentRef::Id(0)])?;
+/// assert_eq!("hello::$0", hello.try_to_string()?);
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 impl fmt::Display for Item {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

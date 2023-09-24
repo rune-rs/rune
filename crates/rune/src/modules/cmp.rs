@@ -9,7 +9,7 @@ use crate::{ContextError, Module};
 
 /// Construct the `std::cmp` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::with_crate_item("std", ["cmp"]);
+    let mut m = Module::with_crate_item("std", ["cmp"])?;
 
     {
         let ty = m.ty::<Ordering>()?.docs([
@@ -30,24 +30,24 @@ pub fn module() -> Result<Module, ContextError> {
             "let result = cmp(2, 1);",
             "assert_eq!(Ordering::Greater, result);",
             "```",
-        ]);
+        ])?;
 
         let mut ty = ty.make_enum(&["Less", "Equal", "Greater"])?;
 
         ty.variant_mut(0)?
             .make_empty()?
             .constructor(|| Ordering::Less)?
-            .docs(["An ordering where a compared value is less than another."]);
+            .docs(["An ordering where a compared value is less than another."])?;
 
         ty.variant_mut(1)?
             .make_empty()?
             .constructor(|| Ordering::Equal)?
-            .docs(["An ordering where a compared value is equal to another."]);
+            .docs(["An ordering where a compared value is equal to another."])?;
 
         ty.variant_mut(2)?
             .make_empty()?
             .constructor(|| Ordering::Greater)?
-            .docs(["An ordering where a compared value is greater than another."]);
+            .docs(["An ordering where a compared value is greater than another."])?;
     }
 
     m.function_meta(ordering_partial_eq)?;

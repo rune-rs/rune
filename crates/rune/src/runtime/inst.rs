@@ -4,6 +4,8 @@ use musli::{Decode, Encode};
 use rune_macros::InstDisplay;
 use serde::{Deserialize, Serialize};
 
+use crate as rune;
+use crate::alloc::prelude::*;
 use crate::runtime::{Call, FormatSpec, Type, Value};
 use crate::Hash;
 
@@ -11,7 +13,8 @@ use crate::Hash;
 ///
 /// To formulate a custom reason, use
 /// [`VmError::panic`][crate::runtime::VmError::panic].
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
+#[derive(Debug, TryClone, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub enum PanicReason {
     /// Not implemented.
@@ -48,7 +51,8 @@ impl fmt::Display for PanicReason {
 }
 
 /// Type checks for built-in types.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Decode, Encode)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Serialize, Deserialize, Decode, Encode)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub enum TypeCheck {
     /// Matches a unit type.
@@ -88,7 +92,8 @@ impl fmt::Display for TypeCheck {
 }
 
 /// An operation in the stack-based virtual machine.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Decode, Encode, InstDisplay)]
+#[derive(Debug, TryClone, Clone, Copy, Serialize, Deserialize, Decode, Encode, InstDisplay)]
+#[try_clone(copy)]
 pub enum Inst {
     /// Not operator. Takes a boolean from the top of the stack  and inverts its
     /// logical value.
@@ -1125,7 +1130,8 @@ impl Inst {
 }
 
 /// How an instruction addresses a value.
-#[derive(Default, Debug, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
+#[derive(Default, Debug, TryClone, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
+#[try_clone(copy)]
 pub enum InstAddress {
     /// Addressed from the top of the stack.
     #[default]
@@ -1145,7 +1151,8 @@ impl fmt::Display for InstAddress {
 }
 
 /// Range limits of a range expression.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
+#[derive(Debug, TryClone, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
+#[try_clone(copy)]
 pub enum InstRange {
     /// `start..`.
     RangeFrom,
@@ -1175,7 +1182,8 @@ impl fmt::Display for InstRange {
 }
 
 /// The target of an operation.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, TryClone, Clone, Copy, Serialize, Deserialize, Encode, Decode)]
+#[try_clone(copy)]
 pub enum InstTarget {
     /// Target is an offset to the current call frame.
     #[musli(packed)]
@@ -1199,7 +1207,8 @@ impl fmt::Display for InstTarget {
 }
 
 /// An operation between two values on the machine.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
+#[derive(Debug, TryClone, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
+#[try_clone(copy)]
 pub enum InstAssignOp {
     /// The add operation. `a + b`.
     Add,
@@ -1263,7 +1272,8 @@ impl fmt::Display for InstAssignOp {
 }
 
 /// An operation between two values on the machine.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
+#[derive(Debug, TryClone, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
+#[try_clone(copy)]
 pub enum InstOp {
     /// The add operation. `a + b`.
     Add,
@@ -1447,7 +1457,8 @@ impl fmt::Display for InstOp {
 }
 
 /// A literal value that can be pushed.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
+#[derive(Debug, TryClone, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub enum InstValue {
     /// An empty tuple.
@@ -1510,7 +1521,8 @@ impl fmt::Display for InstValue {
 }
 
 /// A variant that can be constructed.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
+#[derive(Debug, TryClone, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
+#[try_clone(copy)]
 pub enum InstVariant {
     /// `Option::Some`, which uses one value.
     Some,

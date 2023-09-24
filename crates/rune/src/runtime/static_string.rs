@@ -3,14 +3,14 @@ use core::fmt;
 use core::hash;
 use core::ops;
 
-use crate::no_std::prelude::*;
-
 use serde::{Deserialize, Serialize};
 
+use crate::alloc::prelude::*;
+use crate::alloc::{self, String};
 use crate::hash::{Hash, IntoHash};
 
 /// Struct representing a static string.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct StaticString {
     inner: String,
     hash: Hash,
@@ -44,13 +44,13 @@ impl hash::Hash for StaticString {
 
 impl StaticString {
     /// Construct a new static string.
-    pub fn new<S>(s: S) -> Self
+    pub fn new<S>(s: S) -> alloc::Result<Self>
     where
         S: AsRef<str>,
     {
-        let inner = s.as_ref().to_owned();
+        let inner = s.as_ref().try_to_owned()?;
         let hash = s.as_ref().into_hash();
-        Self { inner, hash }
+        Ok(Self { inner, hash })
     }
 
     /// Get the hash of the string.

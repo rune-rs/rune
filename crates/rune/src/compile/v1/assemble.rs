@@ -1,7 +1,8 @@
 use core::mem::{replace, take};
 
-use crate::no_std::prelude::*;
-
+use crate as rune;
+use crate::alloc::prelude::*;
+use crate::alloc::{try_format, Vec};
 use crate::ast::{self, Span, Spanned};
 use crate::compile::ir;
 use crate::compile::v1::{Layer, Loop, Loops, ScopeGuard, Scopes, Var};
@@ -19,7 +20,8 @@ use rune_macros::instrument;
 /// A needs hint for an expression.
 /// This is used to contextually determine what an expression is expected to
 /// produce.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 pub(crate) enum Needs {
     Value,
     None,
@@ -53,16 +55,22 @@ pub(crate) struct Ctxt<'a, 'hir, 'arena> {
 
 impl<'a, 'hir, 'arena> Ctxt<'a, 'hir, 'arena> {
     /// Pop locals by simply popping them.
-    pub(crate) fn locals_pop(&mut self, total_var_count: usize, span: &dyn Spanned) {
+    pub(crate) fn locals_pop(
+        &mut self,
+        total_var_count: usize,
+        span: &dyn Spanned,
+    ) -> compile::Result<()> {
         match total_var_count {
             0 => (),
             1 => {
-                self.asm.push(Inst::Pop, span);
+                self.asm.push(Inst::Pop, span)?;
             }
             count => {
-                self.asm.push(Inst::PopN { count }, span);
+                self.asm.push(Inst::PopN { count }, span)?;
             }
         }
+
+        Ok(())
     }
 
     /// Clean up local variables by preserving the value that is on top and
@@ -70,13 +78,19 @@ impl<'a, 'hir, 'arena> Ctxt<'a, 'hir, 'arena> {
     ///
     /// The clean operation will preserve the value that is on top of the stack,
     /// and pop the values under it.
-    pub(crate) fn locals_clean(&mut self, total_var_count: usize, span: &dyn Spanned) {
+    pub(crate) fn locals_clean(
+        &mut self,
+        total_var_count: usize,
+        span: &dyn Spanned,
+    ) -> compile::Result<()> {
         match total_var_count {
             0 => (),
             count => {
-                self.asm.push(Inst::Clean { count }, span);
+                self.asm.push(Inst::Clean { count }, span)?;
             }
         }
+
+        Ok(())
     }
 
     /// Clean the last scope.
@@ -89,9 +103,9 @@ impl<'a, 'hir, 'arena> Ctxt<'a, 'hir, 'arena> {
         let scope = self.scopes.pop(expected, span)?;
 
         if needs.value() {
-            self.locals_clean(scope.local, span);
+            self.locals_clean(scope.local, span)?;
         } else {
-            self.locals_pop(scope.local, span);
+            self.locals_pop(scope.local, span)?;
         }
 
         Ok(())
@@ -130,12 +144,12 @@ impl<'a, 'hir, 'arena> Ctxt<'a, 'hir, 'arena> {
 
         // TODO: precompile these and fetch using opaque id?
         for (hir, name) in args.iter().zip(&query_const_fn.ir_fn.args) {
-            compiled.push((ir::compiler::expr(hir, &mut compiler)?, name));
+            compiled.try_push((ir::compiler::expr(hir, &mut compiler)?, name))?;
         }
 
         let mut interpreter = ir::Interpreter {
             budget: ir::Budget::new(1_000_000),
-            scopes: Default::default(),
+            scopes: ir::Scopes::new()?,
             module: from_module,
             item: from_item,
             q: self.q.borrow(),
@@ -231,7 +245,7 @@ pub(crate) fn fn_from_item_fn<'hir>(
             }
             hir::FnArg::Pat(pat) => {
                 let offset = cx.scopes.alloc(pat)?;
-                patterns.push((pat, offset));
+                patterns.try_push((pat, offset))?;
             }
         }
 
@@ -244,8 +258,8 @@ pub(crate) fn fn_from_item_fn<'hir>(
 
     if hir.body.statements.is_empty() {
         let total_var_count = cx.scopes.total(hir)?;
-        cx.locals_pop(total_var_count, hir);
-        cx.asm.push(Inst::ReturnUnit, hir);
+        cx.locals_pop(total_var_count, hir)?;
+        cx.asm.push(Inst::ReturnUnit, hir)?;
         return Ok(());
     }
 
@@ -255,8 +269,8 @@ pub(crate) fn fn_from_item_fn<'hir>(
         block(cx, &hir.body, Needs::None)?.apply(cx)?;
 
         let total_var_count = cx.scopes.total(hir)?;
-        cx.locals_pop(total_var_count, hir);
-        cx.asm.push(Inst::ReturnUnit, hir);
+        cx.locals_pop(total_var_count, hir)?;
+        cx.asm.push(Inst::ReturnUnit, hir)?;
     }
 
     cx.scopes.pop_last(hir)?;
@@ -294,13 +308,13 @@ pub(crate) fn expr_closure_secondary<'hir>(
             }
             hir::FnArg::Pat(pat) => {
                 let offset = cx.scopes.alloc(pat)?;
-                patterns.push((pat, offset));
+                patterns.try_push((pat, offset))?;
             }
         }
     }
 
     if !hir.captures.is_empty() {
-        cx.asm.push(Inst::PushTuple, span);
+        cx.asm.push(Inst::PushTuple, span)?;
 
         for capture in hir.captures.iter().copied() {
             cx.scopes.define(capture, span)?;
@@ -326,7 +340,7 @@ fn return_<'hir, T>(
     let clean = cx.scopes.total(span)?;
 
     let address = asm(cx, hir, Needs::Value)?.apply_targeted(cx)?;
-    cx.asm.push(Inst::Return { address, clean }, span);
+    cx.asm.push(Inst::Return { address, clean }, span)?;
 
     // Top address produces an anonymous variable, which is consumed by the
     // return statement.
@@ -346,7 +360,7 @@ fn pat_with_offset<'hir>(
 ) -> compile::Result<()> {
     let load = |cx: &mut Ctxt<'_, 'hir, '_>, needs: Needs| {
         if needs.value() {
-            cx.asm.push(Inst::Copy { offset }, hir);
+            cx.asm.push(Inst::Copy { offset }, hir)?;
         }
 
         Ok(())
@@ -359,14 +373,14 @@ fn pat_with_offset<'hir>(
             .let_pattern_might_panic(cx.source_id, hir, cx.context());
 
         let ok_label = cx.asm.new_label("let_ok");
-        cx.asm.jump(&ok_label, hir);
+        cx.asm.jump(&ok_label, hir)?;
         cx.asm.label(&false_label)?;
         cx.asm.push(
             Inst::Panic {
                 reason: PanicReason::UnmatchedPattern,
             },
             hir,
-        );
+        )?;
 
         cx.asm.label(&ok_label)?;
     }
@@ -399,9 +413,9 @@ fn pat<'hir>(
         hir::PatKind::Path(kind) => match *kind {
             hir::PatPathKind::Kind(kind) => {
                 load(cx, Needs::Value)?;
-                cx.asm.push(pat_sequence_kind_to_inst(*kind), hir);
+                cx.asm.push(pat_sequence_kind_to_inst(*kind), hir)?;
                 cx.asm
-                    .pop_and_jump_if_not(cx.scopes.local(hir)?, false_label, hir);
+                    .pop_and_jump_if_not(cx.scopes.local(hir)?, false_label, hir)?;
                 Ok(true)
             }
             hir::PatPathKind::Ident(name) => {
@@ -435,9 +449,9 @@ fn pat_lit<'hir>(
     };
 
     load(cx, Needs::Value)?;
-    cx.asm.push(inst, hir);
+    cx.asm.push(inst, hir)?;
     cx.asm
-        .pop_and_jump_if_not(cx.scopes.local(hir)?, false_label, hir);
+        .pop_and_jump_if_not(cx.scopes.local(hir)?, false_label, hir)?;
     Ok(true)
 }
 
@@ -478,7 +492,7 @@ fn condition<'hir>(
         hir::Condition::Expr(e) => {
             let guard = cx.scopes.child(e)?;
             expr(cx, e, Needs::Value)?.apply(cx)?;
-            cx.asm.jump_if(then_label, e);
+            cx.asm.jump_if(then_label, e)?;
             Ok(cx.scopes.pop(guard, e)?)
         }
         hir::Condition::ExprLet(expr_let) => {
@@ -494,10 +508,10 @@ fn condition<'hir>(
             };
 
             if pat(cx, &expr_let.pat, &false_label, &load)? {
-                cx.asm.jump(then_label, span);
+                cx.asm.jump(then_label, span)?;
                 cx.asm.label(&false_label)?;
             } else {
-                cx.asm.jump(then_label, span);
+                cx.asm.jump(then_label, span)?;
             };
 
             Ok(cx.scopes.pop(expected, span)?)
@@ -524,9 +538,9 @@ fn pat_sequence<'hir>(
             is_open: false
         }
     ) {
-        cx.asm.push(Inst::IsUnit, span);
+        cx.asm.push(Inst::IsUnit, span)?;
         cx.asm
-            .pop_and_jump_if_not(cx.scopes.local(span)?, false_label, span);
+            .pop_and_jump_if_not(cx.scopes.local(span)?, false_label, span)?;
         return Ok(());
     }
 
@@ -536,16 +550,16 @@ fn pat_sequence<'hir>(
 
     let inst = pat_sequence_kind_to_inst(hir.kind);
 
-    cx.asm.push(Inst::Copy { offset }, span);
-    cx.asm.push(inst, span);
+    cx.asm.push(Inst::Copy { offset }, span)?;
+    cx.asm.push(inst, span)?;
 
     cx.asm
-        .pop_and_jump_if_not(cx.scopes.local(span)?, false_label, span);
+        .pop_and_jump_if_not(cx.scopes.local(span)?, false_label, span)?;
 
     for (index, p) in hir.items.iter().enumerate() {
         let load = move |cx: &mut Ctxt<'_, 'hir, '_>, needs: Needs| {
             if needs.value() {
-                cx.asm.push(Inst::TupleIndexGetAt { offset, index }, p);
+                cx.asm.push(Inst::TupleIndexGetAt { offset, index }, p)?;
             }
 
             Ok(())
@@ -600,7 +614,7 @@ fn pat_object<'hir>(
     let mut string_slots = Vec::new();
 
     for binding in hir.bindings {
-        string_slots.push(cx.q.unit.new_static_string(span, binding.key())?);
+        string_slots.try_push(cx.q.unit.new_static_string(span, binding.key())?)?;
     }
 
     let inst = match hir.kind {
@@ -629,18 +643,19 @@ fn pat_object<'hir>(
 
     // Copy the temporary and check that its length matches the pattern and
     // that it is indeed a vector.
-    cx.asm.push(Inst::Copy { offset }, span);
-    cx.asm.push(inst, span);
+    cx.asm.push(Inst::Copy { offset }, span)?;
+    cx.asm.push(inst, span)?;
 
     cx.asm
-        .pop_and_jump_if_not(cx.scopes.local(span)?, false_label, span);
+        .pop_and_jump_if_not(cx.scopes.local(span)?, false_label, span)?;
 
     for (binding, slot) in hir.bindings.iter().zip(string_slots) {
         match *binding {
             hir::Binding::Binding(span, _, p) => {
                 let load = move |cx: &mut Ctxt<'_, 'hir, '_>, needs: Needs| {
                     if needs.value() {
-                        cx.asm.push(Inst::ObjectIndexGetAt { offset, slot }, &span);
+                        cx.asm
+                            .push(Inst::ObjectIndexGetAt { offset, slot }, &span)?;
                     }
 
                     Ok(())
@@ -649,7 +664,8 @@ fn pat_object<'hir>(
                 pat(cx, p, false_label, &load)?;
             }
             hir::Binding::Ident(span, name) => {
-                cx.asm.push(Inst::ObjectIndexGetAt { offset, slot }, &span);
+                cx.asm
+                    .push(Inst::ObjectIndexGetAt { offset, slot }, &span)?;
                 cx.scopes.define(hir::Name::Str(name), binding)?;
             }
         }
@@ -665,7 +681,7 @@ fn block<'hir>(
     hir: &hir::Block<'hir>,
     needs: Needs,
 ) -> compile::Result<Asm<'hir>> {
-    cx.contexts.push(hir.span());
+    cx.contexts.try_push(hir.span())?;
     let scopes_count = cx.scopes.child(hir)?;
 
     let mut last = None::<(&hir::Expr<'_>, bool)>;
@@ -708,13 +724,13 @@ fn block<'hir>(
 
     if needs.value() {
         if produced {
-            cx.locals_clean(scope.local, hir);
+            cx.locals_clean(scope.local, hir)?;
         } else {
-            cx.locals_pop(scope.local, hir);
-            cx.asm.push(Inst::unit(), hir);
+            cx.locals_pop(scope.local, hir)?;
+            cx.asm.push(Inst::unit(), hir)?;
         }
     } else {
-        cx.locals_pop(scope.local, hir);
+        cx.locals_pop(scope.local, hir)?;
     }
 
     cx.contexts
@@ -744,10 +760,10 @@ fn builtin_format<'hir>(
     let spec = format::FormatSpec::new(flags, fill, align, width, precision, format_type);
 
     expr(cx, &format.value, Needs::Value)?.apply(cx)?;
-    cx.asm.push(Inst::Format { spec }, format);
+    cx.asm.push(Inst::Format { spec }, format)?;
 
     if !needs.value() {
-        cx.asm.push(Inst::Pop, format);
+        cx.asm.push(Inst::Pop, format)?;
     }
 
     Ok(Asm::top(format))
@@ -770,7 +786,7 @@ fn builtin_template<'hir>(
         if let hir::ExprKind::Lit(hir::Lit::Str(s)) = hir.kind {
             size_hint += s.len();
             let slot = cx.q.unit.new_static_string(span, s)?;
-            cx.asm.push(Inst::String { slot }, span);
+            cx.asm.push(Inst::String { slot }, span)?;
             cx.scopes.alloc(span)?;
             continue;
         }
@@ -792,10 +808,10 @@ fn builtin_template<'hir>(
             size_hint,
         },
         span,
-    );
+    )?;
 
     if !needs.value() {
-        cx.asm.push(Inst::Pop, span);
+        cx.asm.push(Inst::Pop, span)?;
     }
 
     let _ = cx.scopes.pop(expected, span)?;
@@ -817,30 +833,30 @@ fn const_<'hir>(
 
     match value {
         ConstValue::EmptyTuple => {
-            cx.asm.push(Inst::unit(), span);
+            cx.asm.push(Inst::unit(), span)?;
         }
         ConstValue::Byte(b) => {
-            cx.asm.push(Inst::byte(*b), span);
+            cx.asm.push(Inst::byte(*b), span)?;
         }
         ConstValue::Char(ch) => {
-            cx.asm.push(Inst::char(*ch), span);
+            cx.asm.push(Inst::char(*ch), span)?;
         }
         ConstValue::Integer(n) => {
-            cx.asm.push(Inst::integer(*n), span);
+            cx.asm.push(Inst::integer(*n), span)?;
         }
         ConstValue::Float(n) => {
-            cx.asm.push(Inst::float(*n), span);
+            cx.asm.push(Inst::float(*n), span)?;
         }
         ConstValue::Bool(b) => {
-            cx.asm.push(Inst::bool(*b), span);
+            cx.asm.push(Inst::bool(*b), span)?;
         }
         ConstValue::String(s) => {
             let slot = cx.q.unit.new_static_string(span, s)?;
-            cx.asm.push(Inst::String { slot }, span);
+            cx.asm.push(Inst::String { slot }, span)?;
         }
         ConstValue::Bytes(b) => {
             let slot = cx.q.unit.new_static_bytes(span, b)?;
-            cx.asm.push(Inst::Bytes { slot }, span);
+            cx.asm.push(Inst::Bytes { slot }, span)?;
         }
         ConstValue::Option(option) => match option {
             Some(value) => {
@@ -850,7 +866,7 @@ fn const_<'hir>(
                         variant: InstVariant::Some,
                     },
                     span,
-                );
+                )?;
             }
             None => {
                 cx.asm.push(
@@ -858,7 +874,7 @@ fn const_<'hir>(
                         variant: InstVariant::None,
                     },
                     span,
-                );
+                )?;
             }
         },
         ConstValue::Vec(vec) => {
@@ -866,17 +882,17 @@ fn const_<'hir>(
                 const_(cx, value, span, Needs::Value)?;
             }
 
-            cx.asm.push(Inst::Vec { count: vec.len() }, span);
+            cx.asm.push(Inst::Vec { count: vec.len() }, span)?;
         }
         ConstValue::Tuple(tuple) => {
             for value in tuple.iter() {
                 const_(cx, value, span, Needs::Value)?;
             }
 
-            cx.asm.push(Inst::Tuple { count: tuple.len() }, span);
+            cx.asm.push(Inst::Tuple { count: tuple.len() }, span)?;
         }
         ConstValue::Object(object) => {
-            let mut entries = object.iter().collect::<Vec<_>>();
+            let mut entries = object.iter().try_collect::<Vec<_>>()?;
             entries.sort_by_key(|k| k.0);
 
             for (_, value) in entries.iter().copied() {
@@ -887,7 +903,7 @@ fn const_<'hir>(
                 cx.q.unit
                     .new_static_object_keys_iter(span, entries.iter().map(|e| e.0))?;
 
-            cx.asm.push(Inst::Object { slot }, span);
+            cx.asm.push(Inst::Object { slot }, span)?;
         }
     }
 
@@ -914,11 +930,11 @@ fn expr<'hir>(
                     value: InstValue::Type(ty),
                 },
                 span,
-            );
+            )?;
             Asm::top(span)
         }
         hir::ExprKind::Fn(hash) => {
-            cx.asm.push(Inst::LoadFn { hash }, span);
+            cx.asm.push(Inst::LoadFn { hash }, span)?;
             Asm::top(span)
         }
         hir::ExprKind::For(hir) => expr_for(cx, hir, span, needs)?,
@@ -995,7 +1011,7 @@ fn expr_assign<'hir>(
                     expr(cx, &field_access.expr, Needs::Value)?.apply(cx)?;
                     cx.scopes.alloc(span)?;
 
-                    cx.asm.push(Inst::ObjectIndexSet { slot }, span);
+                    cx.asm.push(Inst::ObjectIndexSet { slot }, span)?;
                     cx.scopes.free(span, 2)?;
                     true
                 }
@@ -1004,7 +1020,7 @@ fn expr_assign<'hir>(
                     cx.scopes.alloc(&hir.rhs)?;
 
                     expr(cx, &field_access.expr, Needs::Value)?.apply(cx)?;
-                    cx.asm.push(Inst::TupleIndexSet { index }, span);
+                    cx.asm.push(Inst::TupleIndexSet { index }, span)?;
                     cx.scopes.free(span, 1)?;
                     true
                 }
@@ -1023,7 +1039,7 @@ fn expr_assign<'hir>(
             expr(cx, &expr_index_get.index, Needs::Value)?.apply(cx)?;
             cx.scopes.alloc(span)?;
 
-            cx.asm.push(Inst::IndexSet, span);
+            cx.asm.push(Inst::IndexSet, span)?;
             cx.scopes.free(span, 3)?;
             true
         }
@@ -1035,7 +1051,7 @@ fn expr_assign<'hir>(
     }
 
     if needs.value() {
-        cx.asm.push(Inst::unit(), span);
+        cx.asm.push(Inst::unit(), span)?;
     }
 
     Ok(Asm::top(span))
@@ -1050,10 +1066,10 @@ fn expr_await<'hir>(
     needs: Needs,
 ) -> compile::Result<Asm<'hir>> {
     expr(cx, hir, Needs::Value)?.apply(cx)?;
-    cx.asm.push(Inst::Await, span);
+    cx.asm.push(Inst::Await, span)?;
 
     if !needs.value() {
-        cx.asm.push(Inst::Pop, span);
+        cx.asm.push(Inst::Pop, span)?;
     }
 
     Ok(Asm::top(span))
@@ -1116,12 +1132,12 @@ fn expr_binary<'hir>(
         }
     };
 
-    cx.asm.push(Inst::Op { op, a, b }, span);
+    cx.asm.push(Inst::Op { op, a, b }, span)?;
 
     // NB: we put it here to preserve the call in case it has side effects.
     // But if we don't need the value, then pop it from the stack.
     if !needs.value() {
-        cx.asm.push(Inst::Pop, span);
+        cx.asm.push(Inst::Pop, span)?;
     }
 
     cx.scopes.pop(guard, span)?;
@@ -1141,10 +1157,10 @@ fn expr_binary<'hir>(
 
         match bin_op {
             ast::BinOp::And(..) => {
-                cx.asm.jump_if_not_or_pop(&end_label, lhs);
+                cx.asm.jump_if_not_or_pop(&end_label, lhs)?;
             }
             ast::BinOp::Or(..) => {
-                cx.asm.jump_if_or_pop(&end_label, lhs);
+                cx.asm.jump_if_or_pop(&end_label, lhs)?;
             }
             op => {
                 return Err(compile::Error::new(
@@ -1159,7 +1175,7 @@ fn expr_binary<'hir>(
         cx.asm.label(&end_label)?;
 
         if !needs.value() {
-            cx.asm.push(Inst::Pop, span);
+            cx.asm.push(Inst::Pop, span)?;
         }
 
         Ok(())
@@ -1220,10 +1236,10 @@ fn expr_binary<'hir>(
             }
         };
 
-        cx.asm.push(Inst::Assign { target, op }, span);
+        cx.asm.push(Inst::Assign { target, op }, span)?;
 
         if needs.value() {
-            cx.asm.push(Inst::unit(), span);
+            cx.asm.push(Inst::unit(), span)?;
         }
 
         Ok(())
@@ -1273,13 +1289,14 @@ fn const_item<'hir>(
     span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm<'hir>> {
-    let Some(const_value) = cx.q.get_const_value(hash).cloned() else {
+    let Some(const_value) = cx.q.get_const_value(hash) else {
         return Err(compile::Error::msg(
             span,
-            format_args!("Missing constant value for hash {hash}"),
+            try_format!("Missing constant value for hash {hash}"),
         ));
     };
 
+    let const_value = const_value.try_clone().with_span(span)?;
     const_(cx, &const_value, span, needs)?;
     Ok(Asm::top(span))
 }
@@ -1294,34 +1311,34 @@ fn expr_break<'hir>(
     span: &dyn Spanned,
     _: Needs,
 ) -> compile::Result<Asm<'hir>> {
-    let Some(current_loop) = cx.loops.last().cloned() else {
+    let Some(current_loop) = cx.loops.last().try_cloned()? else {
         return Err(compile::Error::new(span, ErrorKind::BreakOutsideOfLoop));
     };
 
     let (last_loop, to_drop, has_value) = match (hir.label, hir.expr) {
         (None, Some(e)) => {
             expr(cx, e, current_loop.needs)?.apply(cx)?;
-            let to_drop = current_loop.drop.into_iter().collect();
+            let to_drop = current_loop.drop.into_iter().try_collect()?;
             (current_loop, to_drop, true)
         }
         (Some(label), None) => {
             let (last_loop, to_drop) = cx.loops.walk_until_label(label, span)?;
-            (last_loop.clone(), to_drop, false)
+            (last_loop.try_clone()?, to_drop, false)
         }
         (Some(label), Some(e)) => {
             expr(cx, e, current_loop.needs)?.apply(cx)?;
             let (last_loop, to_drop) = cx.loops.walk_until_label(label, span)?;
-            (last_loop.clone(), to_drop, true)
+            (last_loop.try_clone()?, to_drop, true)
         }
         (None, None) => {
-            let to_drop = current_loop.drop.into_iter().collect();
+            let to_drop = current_loop.drop.into_iter().try_collect()?;
             (current_loop, to_drop, false)
         }
     };
 
     // Drop loop temporaries. Typically an iterator.
     for offset in to_drop {
-        cx.asm.push(Inst::Drop { offset }, span);
+        cx.asm.push(Inst::Drop { offset }, span)?;
     }
 
     let vars = cx
@@ -1333,16 +1350,16 @@ fn expr_break<'hir>(
 
     if last_loop.needs.value() {
         if has_value {
-            cx.locals_clean(vars, span);
+            cx.locals_clean(vars, span)?;
         } else {
-            cx.locals_pop(vars, span);
-            cx.asm.push(Inst::unit(), span);
+            cx.locals_pop(vars, span)?;
+            cx.asm.push(Inst::unit(), span)?;
         }
     } else {
-        cx.locals_pop(vars, span);
+        cx.locals_pop(vars, span)?;
     }
 
-    cx.asm.jump(&last_loop.break_label, span);
+    cx.asm.jump(&last_loop.break_label, span)?;
     Ok(Asm::top(span))
 }
 
@@ -1368,7 +1385,7 @@ fn expr_call<'hir>(
             var.copy(cx, span, &"call")?;
             cx.scopes.alloc(span)?;
 
-            cx.asm.push(Inst::CallFn { args }, span);
+            cx.asm.push(Inst::CallFn { args }, span)?;
 
             cx.scopes.free(span, hir.args.len() + 1)?;
         }
@@ -1381,7 +1398,7 @@ fn expr_call<'hir>(
                 cx.scopes.alloc(span)?;
             }
 
-            cx.asm.push(Inst::CallAssociated { hash, args }, span);
+            cx.asm.push(Inst::CallAssociated { hash, args }, span)?;
             cx.scopes.free(span, hir.args.len() + 1)?;
         }
         hir::Call::Meta { hash } => {
@@ -1390,7 +1407,7 @@ fn expr_call<'hir>(
                 cx.scopes.alloc(span)?;
             }
 
-            cx.asm.push(Inst::Call { hash, args }, span);
+            cx.asm.push(Inst::Call { hash, args }, span)?;
             cx.scopes.free(span, args)?;
         }
         hir::Call::Expr { expr: e } => {
@@ -1402,7 +1419,7 @@ fn expr_call<'hir>(
             expr(cx, e, Needs::Value)?.apply(cx)?;
             cx.scopes.alloc(span)?;
 
-            cx.asm.push(Inst::CallFn { args }, span);
+            cx.asm.push(Inst::CallFn { args }, span)?;
 
             cx.scopes.free(span, args + 1)?;
         }
@@ -1418,7 +1435,7 @@ fn expr_call<'hir>(
     }
 
     if !needs.value() {
-        cx.asm.push(Inst::Pop, span);
+        cx.asm.push(Inst::Pop, span)?;
     }
 
     Ok(Asm::top(span))
@@ -1456,7 +1473,7 @@ fn expr_call_closure<'hir>(
             count: hir.captures.len(),
         },
         span,
-    );
+    )?;
 
     Ok(Asm::top(span))
 }
@@ -1469,13 +1486,13 @@ fn expr_continue<'hir>(
     span: &dyn Spanned,
     _: Needs,
 ) -> compile::Result<Asm<'hir>> {
-    let Some(current_loop) = cx.loops.last().cloned() else {
+    let Some(current_loop) = cx.loops.last().try_cloned()? else {
         return Err(compile::Error::new(span, ErrorKind::ContinueOutsideOfLoop));
     };
 
     let last_loop = if let Some(label) = hir.label {
         let (last_loop, _) = cx.loops.walk_until_label(label, span)?;
-        last_loop.clone()
+        last_loop.try_clone()?
     } else {
         current_loop
     };
@@ -1487,9 +1504,9 @@ fn expr_continue<'hir>(
         .ok_or("Var count should be larger")
         .with_span(span)?;
 
-    cx.locals_pop(vars, span);
+    cx.locals_pop(vars, span)?;
 
-    cx.asm.jump(&last_loop.continue_label, span);
+    cx.asm.jump(&last_loop.continue_label, span)?;
     Ok(Asm::top(span))
 }
 
@@ -1522,7 +1539,7 @@ fn expr_field_access<'hir>(
 
         if !needs.value() {
             cx.q.diagnostics.not_used(cx.source_id, span, cx.context());
-            cx.asm.push(Inst::Pop, span);
+            cx.asm.push(Inst::Pop, span)?;
         }
 
         return Ok(Asm::top(span));
@@ -1532,11 +1549,11 @@ fn expr_field_access<'hir>(
 
     match hir.expr_field {
         hir::ExprField::Index(index) => {
-            cx.asm.push(Inst::TupleIndexGet { index }, span);
+            cx.asm.push(Inst::TupleIndexGet { index }, span)?;
 
             if !needs.value() {
                 cx.q.diagnostics.not_used(cx.source_id, span, cx.context());
-                cx.asm.push(Inst::Pop, span);
+                cx.asm.push(Inst::Pop, span)?;
             }
 
             Ok(Asm::top(span))
@@ -1544,11 +1561,11 @@ fn expr_field_access<'hir>(
         hir::ExprField::Ident(field) => {
             let slot = cx.q.unit.new_static_string(span, field)?;
 
-            cx.asm.push(Inst::ObjectIndexGet { slot }, span);
+            cx.asm.push(Inst::ObjectIndexGet { slot }, span)?;
 
             if !needs.value() {
                 cx.q.diagnostics.not_used(cx.source_id, span, cx.context());
-                cx.asm.push(Inst::Pop, span);
+                cx.asm.push(Inst::Pop, span)?;
             }
 
             Ok(Asm::top(span))
@@ -1591,7 +1608,7 @@ fn expr_for<'hir>(
 
     // Declare named loop variable.
     let binding_offset = {
-        cx.asm.push(Inst::unit(), &hir.iter);
+        cx.asm.push(Inst::unit(), &hir.iter)?;
         cx.scopes.alloc(&hir.binding)?
     };
 
@@ -1626,13 +1643,13 @@ fn expr_for<'hir>(
 
     cx.loops.push(Loop {
         label: hir.label,
-        continue_label: continue_label.clone(),
+        continue_label: continue_label.try_clone()?,
         continue_var_count,
-        break_label: break_label.clone(),
+        break_label: break_label.try_clone()?,
         break_var_count,
         needs,
         drop: Some(iter_offset),
-    });
+    })?;
 
     // Use the memoized loop variable.
     if let Some(next_offset) = next_offset {
@@ -1652,14 +1669,14 @@ fn expr_for<'hir>(
             &"copy next",
         )?;
 
-        cx.asm.push(Inst::CallFn { args: 1 }, span);
+        cx.asm.push(Inst::CallFn { args: 1 }, span)?;
 
         cx.asm.push(
             Inst::Replace {
                 offset: binding_offset,
             },
             &hir.binding,
-        );
+        )?;
     } else {
         // call the `next` function to get the next level of iteration, bind the
         // result to the loop variable in the loop.
@@ -1668,7 +1685,7 @@ fn expr_for<'hir>(
                 offset: iter_offset,
             },
             &hir.iter,
-        );
+        )?;
 
         cx.asm.push_with_comment(
             Inst::CallAssociated {
@@ -1684,11 +1701,11 @@ fn expr_for<'hir>(
                 offset: binding_offset,
             },
             &hir.binding,
-        );
+        )?;
     }
 
     // Test loop condition and unwrap the option, or jump to `end_label` if the current value is `None`.
-    cx.asm.iter_next(binding_offset, &end_label, &hir.binding);
+    cx.asm.iter_next(binding_offset, &end_label, &hir.binding)?;
 
     let guard = cx.scopes.child(&hir.body)?;
 
@@ -1697,7 +1714,7 @@ fn expr_for<'hir>(
     block(cx, &hir.body, Needs::None)?.apply(cx)?;
     cx.clean_last_scope(span, guard, Needs::None)?;
 
-    cx.asm.jump(&continue_label, span);
+    cx.asm.jump(&continue_label, span)?;
     cx.asm.label(&end_label)?;
 
     // Drop the iterator.
@@ -1706,13 +1723,13 @@ fn expr_for<'hir>(
             offset: iter_offset,
         },
         span,
-    );
+    )?;
 
     cx.clean_last_scope(span, loop_scope_expected, Needs::None)?;
 
     // NB: If a value is needed from a for loop, encode it as a unit.
     if needs.value() {
-        cx.asm.push(Inst::unit(), span);
+        cx.asm.push(Inst::unit(), span)?;
     }
 
     // NB: breaks produce their own value.
@@ -1746,7 +1763,7 @@ fn expr_if<'hir>(
 
         let label = cx.asm.new_label("if_branch");
         let scope = condition(cx, cond, &label)?;
-        branches.push((branch, label, scope));
+        branches.try_push((branch, label, scope))?;
     }
 
     // use fallback as fall through.
@@ -1756,23 +1773,23 @@ fn expr_if<'hir>(
         // NB: if we must produce a value and there is no fallback branch,
         // encode the result of the statement as a unit.
         if needs.value() {
-            cx.asm.push(Inst::unit(), span);
+            cx.asm.push(Inst::unit(), span)?;
         }
     }
 
-    cx.asm.jump(&end_label, span);
+    cx.asm.jump(&end_label, span)?;
 
     let mut it = branches.into_iter().peekable();
 
     while let Some((branch, label, scope)) = it.next() {
         cx.asm.label(&label)?;
 
-        let scopes = cx.scopes.push(scope);
+        let scopes = cx.scopes.push(scope)?;
         block(cx, &branch.block, needs)?.apply(cx)?;
         cx.clean_last_scope(branch, scopes, needs)?;
 
         if it.peek().is_some() {
-            cx.asm.jump(&end_label, branch);
+            cx.asm.jump(&end_label, branch)?;
         }
     }
 
@@ -1793,12 +1810,12 @@ fn expr_index<'hir>(
     let target = expr(cx, &hir.target, Needs::Value)?.apply_targeted(cx)?;
     let index = expr(cx, &hir.index, Needs::Value)?.apply_targeted(cx)?;
 
-    cx.asm.push(Inst::IndexGet { index, target }, span);
+    cx.asm.push(Inst::IndexGet { index, target }, span)?;
 
     // NB: we still need to perform the operation since it might have side
     // effects, but pop the result in case a value is not needed.
     if !needs.value() {
-        cx.asm.push(Inst::Pop, span);
+        cx.asm.push(Inst::Pop, span)?;
     }
 
     cx.scopes.pop(guard, span)?;
@@ -1825,21 +1842,21 @@ fn expr_let<'hir>(
             .let_pattern_might_panic(cx.source_id, hir, cx.context());
 
         let ok_label = cx.asm.new_label("let_ok");
-        cx.asm.jump(&ok_label, hir);
+        cx.asm.jump(&ok_label, hir)?;
         cx.asm.label(&false_label)?;
         cx.asm.push(
             Inst::Panic {
                 reason: PanicReason::UnmatchedPattern,
             },
             hir,
-        );
+        )?;
 
         cx.asm.label(&ok_label)?;
     }
 
     // If a value is needed for a let expression, it is evaluated as a unit.
     if needs.value() {
-        cx.asm.push(Inst::unit(), hir);
+        cx.asm.push(Inst::unit(), hir)?;
     }
 
     Ok(Asm::top(hir))
@@ -1871,7 +1888,7 @@ fn expr_match<'hir>(
 
         let load = move |this: &mut Ctxt, needs: Needs| {
             if needs.value() {
-                this.asm.push(Inst::Copy { offset }, span);
+                this.asm.push(Inst::Copy { offset }, span)?;
             }
 
             Ok(())
@@ -1888,27 +1905,28 @@ fn expr_match<'hir>(
             cx.clean_last_scope(span, guard, Needs::Value)?;
             let scope = cx.scopes.pop(parent_guard, span)?;
 
-            cx.asm.pop_and_jump_if_not(scope.local, &match_false, span);
+            cx.asm
+                .pop_and_jump_if_not(scope.local, &match_false, span)?;
 
-            cx.asm.jump(&branch_label, span);
+            cx.asm.jump(&branch_label, span)?;
             scope
         } else {
             cx.scopes.pop(parent_guard, span)?
         };
 
-        cx.asm.jump(&branch_label, span);
+        cx.asm.jump(&branch_label, span)?;
         cx.asm.label(&match_false)?;
 
-        branches.push((branch_label, scope));
+        branches.try_push((branch_label, scope))?;
     }
 
     // what to do in case nothing matches and the pattern doesn't have any
     // default match branch.
     if needs.value() {
-        cx.asm.push(Inst::unit(), span);
+        cx.asm.push(Inst::unit(), span)?;
     }
 
-    cx.asm.jump(&end_label, span);
+    cx.asm.jump(&end_label, span)?;
 
     let mut it = hir.branches.iter().zip(&branches).peekable();
 
@@ -1917,12 +1935,12 @@ fn expr_match<'hir>(
 
         cx.asm.label(label)?;
 
-        let expected = cx.scopes.push(scope.clone());
+        let expected = cx.scopes.push(scope.try_clone()?)?;
         expr(cx, &branch.body, needs)?.apply(cx)?;
         cx.clean_last_scope(span, expected, needs)?;
 
         if it.peek().is_some() {
-            cx.asm.jump(&end_label, span);
+            cx.asm.jump(&end_label, span)?;
         }
     }
 
@@ -1956,27 +1974,27 @@ fn expr_object<'hir>(
 
     match hir.kind {
         hir::ExprObjectKind::EmptyStruct { hash } => {
-            cx.asm.push(Inst::EmptyStruct { hash }, span);
+            cx.asm.push(Inst::EmptyStruct { hash }, span)?;
         }
         hir::ExprObjectKind::Struct { hash } => {
-            cx.asm.push(Inst::Struct { hash, slot }, span);
+            cx.asm.push(Inst::Struct { hash, slot }, span)?;
         }
         hir::ExprObjectKind::StructVariant { hash } => {
-            cx.asm.push(Inst::StructVariant { hash, slot }, span);
+            cx.asm.push(Inst::StructVariant { hash, slot }, span)?;
         }
         hir::ExprObjectKind::ExternalType { hash, args } => {
             reorder_field_assignments(cx, hir, base, span)?;
-            cx.asm.push(Inst::Call { hash, args }, span);
+            cx.asm.push(Inst::Call { hash, args }, span)?;
         }
         hir::ExprObjectKind::Anonymous => {
-            cx.asm.push(Inst::Object { slot }, span);
+            cx.asm.push(Inst::Object { slot }, span)?;
         }
     }
 
     // No need to encode an object since the value is not needed.
     if !needs.value() {
         cx.q.diagnostics.not_used(cx.source_id, span, cx.context());
-        cx.asm.push(Inst::Pop, span);
+        cx.asm.push(Inst::Pop, span)?;
     }
 
     cx.scopes.pop(guard, span)?;
@@ -1991,17 +2009,17 @@ fn reorder_field_assignments<'hir>(
     base: usize,
     span: &dyn Spanned,
 ) -> compile::Result<()> {
-    let mut order = Vec::with_capacity(hir.assignments.len());
+    let mut order = Vec::try_with_capacity(hir.assignments.len())?;
 
     for assign in hir.assignments {
         let Some(position) = assign.position else {
             return Err(compile::Error::msg(
                 span,
-                format_args!("Missing position for field assignment {}", assign.key.1),
+                try_format!("Missing position for field assignment {}", assign.key.1),
             ));
         };
 
-        order.push(position);
+        order.try_push(position)?;
     }
 
     for a in 0..hir.assignments.len() {
@@ -2023,7 +2041,7 @@ fn reorder_field_assignments<'hir>(
                 ));
             };
 
-            cx.asm.push(Inst::Swap { a, b }, span);
+            cx.asm.push(Inst::Swap { a, b }, span)?;
         }
     }
 
@@ -2074,7 +2092,7 @@ fn expr_range<'hir>(
     };
 
     if needs.value() {
-        cx.asm.push(Inst::Range { range }, span);
+        cx.asm.push(Inst::Range { range }, span)?;
     }
 
     cx.scopes.free(span, count)?;
@@ -2093,7 +2111,7 @@ fn expr_return<'hir>(
     // NB: drop any loop temporaries.
     for l in cx.loops.iter() {
         if let Some(offset) = l.drop {
-            cx.asm.push(Inst::Drop { offset }, span);
+            cx.asm.push(Inst::Drop { offset }, span)?;
         }
     }
 
@@ -2103,8 +2121,8 @@ fn expr_return<'hir>(
         // NB: we actually want total_var_count here since we need to clean up
         // _every_ variable declared until we reached the current return.
         let clean = cx.scopes.total(span)?;
-        cx.locals_pop(clean, span);
-        cx.asm.push(Inst::ReturnUnit, span);
+        cx.locals_pop(clean, span)?;
+        cx.asm.push(Inst::ReturnUnit, span)?;
     }
 
     Ok(Asm::top(span))
@@ -2118,7 +2136,7 @@ fn expr_select<'hir>(
     span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm<'hir>> {
-    cx.contexts.push(span.span());
+    cx.contexts.try_push(span.span())?;
 
     let len = hir.branches.len();
     let mut default_branch = None;
@@ -2130,7 +2148,7 @@ fn expr_select<'hir>(
         match *branch {
             hir::ExprSelectBranch::Pat(pat) => {
                 let label = cx.asm.new_label("select_branch");
-                branches.push((label, pat));
+                branches.try_push((label, pat))?;
             }
             hir::ExprSelectBranch::Default(def) => {
                 if default_branch.is_some() {
@@ -2147,22 +2165,22 @@ fn expr_select<'hir>(
         expr(cx, &branch.expr, Needs::Value)?.apply(cx)?;
     }
 
-    cx.asm.push(Inst::Select { len }, span);
+    cx.asm.push(Inst::Select { len }, span)?;
 
     for (branch, (label, _)) in branches.iter().enumerate() {
-        cx.asm.jump_if_branch(branch as i64, label, span);
+        cx.asm.jump_if_branch(branch as i64, label, span)?;
     }
 
     if let Some((_, label)) = &default_branch {
-        cx.asm.push(Inst::Pop, span);
-        cx.asm.jump(label, span);
+        cx.asm.push(Inst::Pop, span)?;
+        cx.asm.jump(label, span)?;
     }
 
     if !needs.value() {
-        cx.asm.push(Inst::Pop, span);
+        cx.asm.push(Inst::Pop, span)?;
     }
 
-    cx.asm.jump(&end_label, span);
+    cx.asm.jump(&end_label, span)?;
 
     for (label, branch) in branches {
         cx.asm.label(&label)?;
@@ -2174,7 +2192,7 @@ fn expr_select<'hir>(
                 cx.scopes.define(hir::Name::Str(name), &branch.pat)?;
             }
             hir::PatKind::Ignore => {
-                cx.asm.push(Inst::Pop, &branch.body);
+                cx.asm.push(Inst::Pop, &branch.body)?;
             }
             _ => {
                 return Err(compile::Error::new(
@@ -2187,7 +2205,7 @@ fn expr_select<'hir>(
         // Set up a new scope with the binding.
         expr(cx, &branch.body, needs)?.apply(cx)?;
         cx.clean_last_scope(&branch.body, expected, needs)?;
-        cx.asm.jump(&end_label, span);
+        cx.asm.jump(&end_label, span)?;
     }
 
     if let Some((branch, label)) = default_branch {
@@ -2223,7 +2241,7 @@ fn expr_try<'hir>(
             preserve: needs.value(),
         },
         span,
-    );
+    )?;
 
     if let InstAddress::Top = address {
         cx.scopes.free(span, 1)?;
@@ -2263,14 +2281,14 @@ fn expr_tuple<'hir>(
                     args: [$($var,)*],
                 },
                 span,
-            );
+            )?;
 
             cx.scopes.pop(guard, span)?;
         }};
     }
 
     if hir.items.is_empty() {
-        cx.asm.push(Inst::unit(), span);
+        cx.asm.push(Inst::unit(), span)?;
     } else {
         match hir.items.len() {
             1 => tuple!(Tuple1, e1),
@@ -2288,7 +2306,7 @@ fn expr_tuple<'hir>(
                         count: hir.items.len(),
                     },
                     span,
-                );
+                )?;
 
                 cx.scopes.free(span, hir.items.len())?;
             }
@@ -2297,7 +2315,7 @@ fn expr_tuple<'hir>(
 
     if !needs.value() {
         cx.q.diagnostics.not_used(cx.source_id, span, cx.context());
-        cx.asm.push(Inst::Pop, span);
+        cx.asm.push(Inst::Pop, span)?;
     }
 
     Ok(Asm::top(span))
@@ -2315,10 +2333,10 @@ fn expr_unary<'hir>(
 
     match hir.op {
         ast::UnOp::Not(..) => {
-            cx.asm.push(Inst::Not, span);
+            cx.asm.push(Inst::Not, span)?;
         }
         ast::UnOp::Neg(..) => {
-            cx.asm.push(Inst::Neg, span);
+            cx.asm.push(Inst::Neg, span)?;
         }
         op => {
             return Err(compile::Error::new(
@@ -2331,7 +2349,7 @@ fn expr_unary<'hir>(
     // NB: we put it here to preserve the call in case it has side effects.
     // But if we don't need the value, then pop it from the stack.
     if !needs.value() {
-        cx.asm.push(Inst::Pop, span);
+        cx.asm.push(Inst::Pop, span)?;
     }
 
     Ok(Asm::top(span))
@@ -2352,14 +2370,14 @@ fn expr_vec<'hir>(
         cx.scopes.alloc(e)?;
     }
 
-    cx.asm.push(Inst::Vec { count }, span);
+    cx.asm.push(Inst::Vec { count }, span)?;
     cx.scopes.free(span, hir.items.len())?;
 
     // Evaluate the expressions one by one, then pop them to cause any
     // side effects (without creating an object).
     if !needs.value() {
         cx.q.diagnostics.not_used(cx.source_id, span, cx.context());
-        cx.asm.push(Inst::Pop, span);
+        cx.asm.push(Inst::Pop, span)?;
     }
 
     Ok(Asm::top(span))
@@ -2382,21 +2400,21 @@ fn expr_loop<'hir>(
 
     cx.loops.push(Loop {
         label: hir.label,
-        continue_label: continue_label.clone(),
+        continue_label: continue_label.try_clone()?,
         continue_var_count: var_count,
-        break_label: break_label.clone(),
+        break_label: break_label.try_clone()?,
         break_var_count: var_count,
         needs,
         drop: None,
-    });
+    })?;
 
     cx.asm.label(&continue_label)?;
 
     let expected = if let Some(hir) = hir.condition {
         let then_scope = condition(cx, hir, &then_label)?;
-        let expected = cx.scopes.push(then_scope);
+        let expected = cx.scopes.push(then_scope)?;
 
-        cx.asm.jump(&end_label, span);
+        cx.asm.jump(&end_label, span)?;
         cx.asm.label(&then_label)?;
         Some(expected)
     } else {
@@ -2409,11 +2427,11 @@ fn expr_loop<'hir>(
         cx.clean_last_scope(span, expected, Needs::None)?;
     }
 
-    cx.asm.jump(&continue_label, span);
+    cx.asm.jump(&continue_label, span)?;
     cx.asm.label(&end_label)?;
 
     if needs.value() {
-        cx.asm.push(Inst::unit(), span);
+        cx.asm.push(Inst::unit(), span)?;
     }
 
     // NB: breaks produce their own value / perform their own cleanup.
@@ -2432,13 +2450,13 @@ fn expr_yield<'hir>(
 ) -> compile::Result<Asm<'hir>> {
     if let Some(e) = hir {
         expr(cx, e, Needs::Value)?.apply(cx)?;
-        cx.asm.push(Inst::Yield, span);
+        cx.asm.push(Inst::Yield, span)?;
     } else {
-        cx.asm.push(Inst::YieldUnit, span);
+        cx.asm.push(Inst::YieldUnit, span)?;
     }
 
     if !needs.value() {
-        cx.asm.push(Inst::Pop, span);
+        cx.asm.push(Inst::Pop, span)?;
     }
 
     Ok(Asm::top(span))
@@ -2460,27 +2478,27 @@ fn lit<'hir>(
 
     match hir {
         hir::Lit::Bool(boolean) => {
-            cx.asm.push(Inst::bool(boolean), span);
+            cx.asm.push(Inst::bool(boolean), span)?;
         }
         hir::Lit::Byte(byte) => {
-            cx.asm.push(Inst::byte(byte), span);
+            cx.asm.push(Inst::byte(byte), span)?;
         }
         hir::Lit::Char(char) => {
-            cx.asm.push(Inst::char(char), span);
+            cx.asm.push(Inst::char(char), span)?;
         }
         hir::Lit::Integer(integer) => {
-            cx.asm.push(Inst::integer(integer), span);
+            cx.asm.push(Inst::integer(integer), span)?;
         }
         hir::Lit::Float(float) => {
-            cx.asm.push(Inst::float(float), span);
+            cx.asm.push(Inst::float(float), span)?;
         }
         hir::Lit::Str(string) => {
             let slot = cx.q.unit.new_static_string(span, string)?;
-            cx.asm.push(Inst::String { slot }, span);
+            cx.asm.push(Inst::String { slot }, span)?;
         }
         hir::Lit::ByteStr(bytes) => {
             let slot = cx.q.unit.new_static_bytes(span, bytes)?;
-            cx.asm.push(Inst::Bytes { slot }, span);
+            cx.asm.push(Inst::Bytes { slot }, span)?;
         }
     };
 
@@ -2507,21 +2525,21 @@ fn local<'hir>(
             .let_pattern_might_panic(cx.source_id, hir, cx.context());
 
         let ok_label = cx.asm.new_label("let_ok");
-        cx.asm.jump(&ok_label, hir);
+        cx.asm.jump(&ok_label, hir)?;
         cx.asm.label(&false_label)?;
         cx.asm.push(
             Inst::Panic {
                 reason: PanicReason::UnmatchedPattern,
             },
             hir,
-        );
+        )?;
 
         cx.asm.label(&ok_label)?;
     }
 
     // If a value is needed for a let expression, it is evaluated as a unit.
     if needs.value() {
-        cx.asm.push(Inst::unit(), hir);
+        cx.asm.push(Inst::unit(), hir)?;
     }
 
     Ok(Asm::top(hir))

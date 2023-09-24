@@ -15,7 +15,7 @@
 //! ```rust
 //! let mut context = rune::Context::with_default_modules()?;
 //! context.install(rune_modules::signal::module(true)?)?;
-//! # Ok::<_, rune::Error>(())
+//! # Ok::<_, rune::support::Error>(())
 //! ```
 //!
 //! Use it in Rune:
@@ -33,7 +33,7 @@ use rune::{Module, ContextError};
 
 /// Construct the `signal` module.
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
-    let mut module = Module::with_crate("signal");
+    let mut module = Module::with_crate("signal")?;
     module.function_meta(ctrl_c)?;
     Ok(module)
 }

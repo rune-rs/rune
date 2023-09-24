@@ -29,7 +29,7 @@ fn test_getter_setter() -> Result<()> {
 
     let unit = prepare(&mut sources).with_context(&context).build()?;
 
-    let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
+    let mut vm = Vm::new(Arc::new(context.runtime()?), Arc::new(unit));
 
     let mut foo = Foo {
         number: 42,

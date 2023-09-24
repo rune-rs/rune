@@ -4,6 +4,7 @@ use rune::macros::{quote, MacroContext, TokenStream};
 use rune::parse::Parser;
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{Context, Diagnostics, Module, Vm, T};
+
 use std::sync::Arc;
 
 #[rune::macro_]
@@ -29,18 +30,18 @@ fn concat_idents(
 
     p.eof()?;
 
-    let output = cx.ident(&output);
-    Ok(quote!(#output).into_token_stream(cx))
+    let output = cx.ident(&output)?;
+    Ok(quote!(#output).into_token_stream(cx)?)
 }
 
-fn main() -> rune::Result<()> {
+fn main() -> rune::support::Result<()> {
     let mut m = Module::new();
     m.macro_meta(concat_idents)?;
 
     let mut context = Context::new();
     context.install(m)?;
 
-    let runtime = Arc::new(context.runtime());
+    let runtime = Arc::new(context.runtime()?);
 
     let mut sources = rune::sources! {
         entry => {

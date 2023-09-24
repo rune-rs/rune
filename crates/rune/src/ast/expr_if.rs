@@ -14,7 +14,7 @@ fn ast_parse() {
 /// A conditional `if` expression.
 ///
 /// * `if cond { true } else { false }`.
-#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]
 pub struct ExprIf {
@@ -38,7 +38,7 @@ pub struct ExprIf {
 expr_parse!(If, ExprIf, "if expression");
 
 /// An else branch of an if expression.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Parse, Spanned)]
 #[non_exhaustive]
 pub struct ExprElseIf {
     /// The `else` token.
@@ -58,7 +58,7 @@ impl Peek for ExprElseIf {
 }
 
 /// An else branch of an if expression.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Parse, Spanned)]
 #[non_exhaustive]
 pub struct ExprElse {
     /// The `else` token.

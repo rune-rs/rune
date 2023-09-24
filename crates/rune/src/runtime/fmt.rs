@@ -1,7 +1,7 @@
 use crate as rune;
 
 use crate::alloc::fmt::TryWrite;
-use crate::alloc::{Error, Global, String};
+use crate::alloc::{self, String};
 use crate::Any;
 
 /// A formatter for the rune virtual machine.
@@ -14,8 +14,8 @@ use crate::Any;
 #[derive(Any)]
 #[rune(item = ::std::fmt)]
 pub struct Formatter {
-    pub(crate) string: String<Global>,
-    pub(crate) buf: String<Global>,
+    pub(crate) string: String,
+    pub(crate) buf: String,
 }
 
 impl Formatter {
@@ -31,41 +31,41 @@ impl Formatter {
     #[inline]
     pub fn new() -> Self {
         Self {
-            string: String::new_in(Global),
-            buf: String::new_in(Global),
+            string: String::new(),
+            buf: String::new(),
         }
     }
 
     #[inline]
-    pub(crate) fn with_capacity(capacity: usize) -> Result<Self, Error> {
+    pub(crate) fn with_capacity(capacity: usize) -> alloc::Result<Self> {
         Ok(Self {
-            string: String::try_with_capacity_in(capacity, Global)?,
-            buf: String::new_in(Global),
+            string: String::try_with_capacity(capacity)?,
+            buf: String::new(),
         })
     }
 
     #[inline]
-    pub(crate) fn parts_mut(&mut self) -> (&mut String<Global>, &str) {
+    pub(crate) fn parts_mut(&mut self) -> (&mut String, &str) {
         (&mut self.string, &self.buf)
     }
 
     #[inline]
-    pub(crate) fn buf_mut(&mut self) -> &mut String<Global> {
+    pub(crate) fn buf_mut(&mut self) -> &mut String {
         &mut self.buf
     }
 
     #[inline]
-    pub(crate) fn push(&mut self, c: char) -> Result<(), Error> {
+    pub(crate) fn push(&mut self, c: char) -> alloc::Result<()> {
         self.string.try_push(c)
     }
 
     #[inline]
-    pub(crate) fn push_str(&mut self, s: &str) -> Result<(), Error> {
+    pub(crate) fn push_str(&mut self, s: &str) -> alloc::Result<()> {
         self.string.try_push_str(s)
     }
 
     #[inline]
-    pub(crate) fn into_string(self) -> String<Global> {
+    pub(crate) fn into_string(self) -> String {
         self.string
     }
 
@@ -83,12 +83,12 @@ impl Default for Formatter {
 
 impl TryWrite for Formatter {
     #[inline]
-    fn try_write_str(&mut self, s: &str) -> Result<(), Error> {
+    fn try_write_str(&mut self, s: &str) -> alloc::Result<()> {
         self.string.try_push_str(s)
     }
 
     #[inline]
-    fn try_write_char(&mut self, c: char) -> Result<(), Error> {
+    fn try_write_char(&mut self, c: char) -> alloc::Result<()> {
         self.string.try_push(c)
     }
 }

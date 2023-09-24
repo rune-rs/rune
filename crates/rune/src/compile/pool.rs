@@ -1,16 +1,17 @@
-use crate::no_std::prelude::*;
-
 use core::fmt;
 
-use crate::no_std::collections::HashMap;
-
+use crate as rune;
+use crate::alloc::prelude::*;
+use crate::alloc::try_vec;
+use crate::alloc::{self, HashMap, Vec};
 #[cfg(feature = "emit")]
 use crate::compile::Location;
 use crate::compile::{Item, ItemBuf, Visibility};
 use crate::hash::Hash;
 
 /// The identifier of a module.
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Default, Debug, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[try_clone(copy)]
 #[repr(transparent)]
 pub(crate) struct ModId(u32);
 
@@ -21,7 +22,8 @@ impl fmt::Display for ModId {
 }
 
 /// The identifier of an item.
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Default, Debug, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[try_clone(copy)]
 #[repr(transparent)]
 pub(crate) struct ItemId(u32);
 
@@ -72,9 +74,9 @@ macro_rules! alloc_item {
             Some(id) => *id,
             None => {
                 let id = ItemId(u32::try_from($self.items.len()).expect("ran out of item ids"));
-                let item = $item.to_owned();
-                $self.items.push(ItemStorage { hash, item });
-                $self.hash_to_item.insert(hash, id);
+                let item = $item.try_to_owned()?;
+                $self.items.try_push(ItemStorage { hash, item })?;
+                $self.hash_to_item.try_insert(hash, id)?;
                 id
             }
         }
@@ -95,6 +97,20 @@ pub(crate) struct Pool {
 }
 
 impl Pool {
+    pub fn new() -> alloc::Result<Self> {
+        let root_hash: Hash = Hash::type_hash(Item::new());
+
+        Ok(Self {
+            modules: Vec::new(),
+            items: try_vec![ItemStorage {
+                hash: root_hash,
+                item: ItemBuf::new(),
+            }],
+            item_to_mod: HashMap::new(),
+            hash_to_item: HashMap::try_from_iter([(root_hash, ItemId(0))])?,
+        })
+    }
+
     /// Lookup an item by the given identifier.
     pub(crate) fn item(&self, id: ItemId) -> &Item {
         &self.item_storage(id).item
@@ -133,32 +149,35 @@ impl Pool {
     }
 
     /// Allocate or return an existing module identifier.
-    pub(crate) fn alloc_module(&mut self, item: ModMeta) -> ModId {
+    pub(crate) fn alloc_module(&mut self, item: ModMeta) -> alloc::Result<ModId> {
         if let Some(id) = self.item_to_mod.get(&item.item) {
-            return *id;
+            return Ok(*id);
         }
 
         let id = ModId(u32::try_from(self.modules.len()).expect("ran out of item ids"));
-        self.item_to_mod.insert(item.item, id);
-        self.modules.push(item);
-        id
+        self.item_to_mod.try_insert(item.item, id)?;
+        self.modules.try_push(item)?;
+        Ok(id)
     }
 
     /// Allocate or return an existing item.
-    pub(crate) fn alloc_item<T>(&mut self, item: T) -> ItemId
+    pub(crate) fn alloc_item<T>(&mut self, item: T) -> alloc::Result<ItemId>
     where
         T: AsRef<Item>,
     {
-        alloc_item!(self, item.as_ref())
+        Ok(alloc_item!(self, item.as_ref()))
     }
 
     /// Map a value into a new item.
-    pub(crate) fn try_map_alloc<M>(&mut self, id: ItemId, m: M) -> Option<ItemId>
+    pub(crate) fn try_map_alloc<M>(&mut self, id: ItemId, m: M) -> alloc::Result<Option<ItemId>>
     where
         M: FnOnce(&Item) -> Option<&Item>,
     {
-        let item = m(self.item(id))?;
-        Some(alloc_item!(self, item))
+        let Some(item) = m(self.item(id)) else {
+            return Ok(None);
+        };
+
+        Ok(Some(alloc_item!(self, item)))
     }
 
     fn item_storage(&self, ItemId(id): ItemId) -> &ItemStorage {
@@ -167,22 +186,6 @@ impl Pool {
         match self.items.get(id) {
             Some(item) => item,
             None => panic!("missing item by id {id}"),
-        }
-    }
-}
-
-impl Default for Pool {
-    fn default() -> Self {
-        let root_hash: Hash = Hash::type_hash(Item::new());
-
-        Self {
-            modules: Default::default(),
-            items: vec![ItemStorage {
-                hash: root_hash,
-                item: ItemBuf::new(),
-            }],
-            item_to_mod: Default::default(),
-            hash_to_item: HashMap::from_iter([(root_hash, ItemId(0))]),
         }
     }
 }

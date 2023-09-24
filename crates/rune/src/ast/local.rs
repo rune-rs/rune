@@ -12,7 +12,7 @@ fn ast_parse() {
 /// A local variable declaration.
 ///
 /// * `let <pattern> = <expr>;`
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Parse, Spanned)]
 #[non_exhaustive]
 pub struct Local {
     /// The attributes for the let expression

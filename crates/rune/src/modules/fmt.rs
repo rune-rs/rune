@@ -12,7 +12,7 @@ use crate::{ContextError, Module};
 
 /// Construct the `std::fmt` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["fmt"]).with_unique("std::fmt");
+    let mut module = Module::with_crate_item("std", ["fmt"])?.with_unique("std::fmt");
     module.ty::<Format>()?;
     module.ty::<Formatter>()?;
     module.ty::<fmt::Error>()?;
@@ -45,5 +45,5 @@ pub(crate) fn format(
     let args = p.parse::<FormatArgs>()?;
     p.eof()?;
     let expanded = args.expand(cx)?;
-    Ok(expanded.into_token_stream(cx))
+    Ok(expanded.into_token_stream(cx)?)
 }

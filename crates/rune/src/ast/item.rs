@@ -5,7 +5,7 @@ use crate::ast::prelude::*;
 use super::Attribute;
 
 /// A declaration.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub enum Item {
     /// A use declaration.

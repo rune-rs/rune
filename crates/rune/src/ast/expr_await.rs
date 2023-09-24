@@ -12,7 +12,7 @@ fn ast_parse() {
 /// An await expression.
 ///
 /// * `<expr>.await`.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprAwait {
     /// Attributes associated with expression.

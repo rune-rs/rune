@@ -2,7 +2,6 @@ use core::cmp::Ordering;
 
 use crate::alloc::String;
 use crate::module::InstallWith;
-use crate::no_std::boxed::Box;
 use crate::runtime::RawStr;
 
 /// The trait used for something that can be statically named.
@@ -11,7 +10,7 @@ pub trait Named {
     const BASE_NAME: RawStr;
 
     /// The exact type name
-    fn full_name() -> Box<str> {
+    fn full_name() -> ::rust_alloc::boxed::Box<str> {
         (*Self::BASE_NAME).into()
     }
 }

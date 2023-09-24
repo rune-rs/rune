@@ -1,10 +1,10 @@
 use core::any;
 use core::cmp::Ordering;
 
-use crate::no_std::collections::HashMap;
 use crate::no_std::std;
 
-use crate::alloc::{self, TryToString};
+use crate::alloc::prelude::*;
+use crate::alloc::{self, HashMap};
 use crate::runtime::{
     AnyObj, Object, Shared, Value, VmError, VmErrorKind, VmIntegerRepr, VmResult,
 };
@@ -39,7 +39,7 @@ use crate::Any;
 /// let value: u64 = rune::from_value(value)?;
 ///
 /// assert_eq!(value, 43);
-/// # Ok::<_, rune::Error>(())
+/// # Ok::<_, rune::support::Error>(())
 /// ```
 pub use rune_macros::ToValue;
 
@@ -71,7 +71,7 @@ pub use rune_macros::ToValue;
 /// let foo: u64 = rune::from_value(foo)?;
 ///
 /// assert_eq!(foo, 43);
-/// # Ok::<_, rune::Error>(())
+/// # Ok::<_, rune::support::Error>(())
 /// ```
 pub fn to_value<T>(value: T) -> Result<Value, VmError>
 where
@@ -108,7 +108,7 @@ where
 /// let foo: u64 = rune::from_value(foo)?;
 ///
 /// assert_eq!(foo, 43);
-/// # Ok::<_, rune::Error>(())
+/// # Ok::<_, rune::support::Error>(())
 /// ```
 pub trait ToValue: Sized {
     /// Convert into a value.
@@ -290,6 +290,10 @@ macro_rules! impl_map {
     };
 }
 
+#[cfg(feature = "std")]
+impl_map!(::std::collections::HashMap<std::String, T>);
+#[cfg(feature = "std")]
+impl_map!(::std::collections::HashMap<alloc::String, T>);
 impl_map!(HashMap<std::String, T>);
 impl_map!(HashMap<alloc::String, T>);
 

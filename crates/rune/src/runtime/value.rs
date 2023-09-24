@@ -9,7 +9,9 @@ use core::ptr;
 
 use crate::no_std::sync::Arc;
 
-use crate::alloc::{self, Error, String, TryClone, TryToString, TryWrite};
+use crate::alloc::fmt::TryWrite;
+use crate::alloc::prelude::*;
+use crate::alloc::{self, String};
 use crate::compile::ItemBuf;
 use crate::runtime::vm::CallResult;
 use crate::runtime::{
@@ -2148,7 +2150,7 @@ impl MaybeTypeOf for Value {
 }
 
 impl TryClone for Value {
-    fn try_clone(&self) -> Result<Self, Error> {
+    fn try_clone(&self) -> alloc::Result<Self> {
         // NB: value cloning is a shallow clone of the underlying data.
         Ok(self.clone())
     }

@@ -12,7 +12,7 @@ use crate::{ContextError, Module};
 
 /// Construct the `std::io` module.
 pub fn module(stdio: bool) -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["io"]).with_unique("std::io");
+    let mut module = Module::with_crate_item("std", ["io"])?.with_unique("std::io");
 
     module.item_mut().docs([
         "The std::io module contains a number of common things",
@@ -28,7 +28,7 @@ pub fn module(stdio: bool) -> Result<Module, ContextError> {
         "Their definitions can be omitted from the built-in standard library, and",
         "can then easily be defined by third party modules allowing for printing",
         "to be hooked up to whatever system you want.",
-    ]);
+    ])?;
 
     module.ty::<io::Error>()?;
     module.function_meta(io_error_string_display)?;
@@ -55,7 +55,7 @@ pub fn module(stdio: bool) -> Result<Module, ContextError> {
             "",
             "dbg(number, string);",
             "```",
-        ]);
+        ])?;
     }
 
     // These are unconditionally included, but using them might cause a
@@ -107,7 +107,7 @@ pub(crate) fn dbg_macro(
     cx: &mut MacroContext<'_, '_, '_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
-    Ok(quote!(::std::io::dbg(#stream)).into_token_stream(cx))
+    Ok(quote!(::std::io::dbg(#stream)).into_token_stream(cx)?)
 }
 
 /// Prints to output.
@@ -129,7 +129,7 @@ pub(crate) fn print_macro(
     let mut p = Parser::from_token_stream(stream, cx.input_span());
     let args = p.parse_all::<FormatArgs>()?;
     let expanded = args.expand(cx)?;
-    Ok(quote!(::std::io::print(#expanded)).into_token_stream(cx))
+    Ok(quote!(::std::io::print(#expanded)).into_token_stream(cx)?)
 }
 
 /// Prints to output.
@@ -176,7 +176,7 @@ pub(crate) fn println_macro(
     let mut p = Parser::from_token_stream(stream, cx.input_span());
     let args = p.parse_all::<FormatArgs>()?;
     let expanded = args.expand(cx)?;
-    Ok(quote!(::std::io::println(#expanded)).into_token_stream(cx))
+    Ok(quote!(::std::io::println(#expanded)).into_token_stream(cx)?)
 }
 
 /// Prints to output, with a newline.

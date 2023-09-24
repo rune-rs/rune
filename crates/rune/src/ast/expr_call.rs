@@ -11,7 +11,7 @@ fn ast_parse() {
 /// A call expression.
 ///
 /// * `<expr>(<args>)`.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned, Opaque)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned, Opaque)]
 #[non_exhaustive]
 pub struct ExprCall {
     /// Opaque identifier related with call.

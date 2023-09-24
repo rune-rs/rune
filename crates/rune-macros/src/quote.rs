@@ -1,6 +1,5 @@
 use proc_macro2 as p;
 use proc_macro2::{Span, TokenStream, TokenTree};
-use syn::Error;
 
 mod builder;
 mod generated;
@@ -25,10 +24,13 @@ impl Quote {
 
     /// Parse the given input stream and convert into code that constructs a
     /// `ToTokens` implementation.
-    pub fn parse(&self, input: TokenStream) -> Result<TokenStream, Error> {
+    pub fn parse(&self, input: TokenStream) -> syn::Result<TokenStream> {
+        let mut output = self.process(input)?;
+        output.push(("Ok", p(p(()))));
+
         let arg = (
             ("move", '|', self.cx, ',', self.stream, '|'),
-            braced(self.process(input)?),
+            braced(output),
         );
 
         let mut output = Builder::new();
@@ -36,30 +38,27 @@ impl Quote {
         Ok(output.into_stream())
     }
 
-    fn process(&self, input: TokenStream) -> Result<Builder, Error> {
+    fn process(&self, input: TokenStream) -> syn::Result<Builder> {
         let mut output = Builder::new();
 
         let mut stack = vec![(p::Delimiter::None, input.into_iter().peekable())];
 
         while let Some((_, it)) = stack.last_mut() {
-            let tt = match it.next() {
-                Some(tt) => tt,
-                None => {
-                    let (d, _) = stack
-                        .pop()
-                        .ok_or_else(|| Error::new(Span::call_site(), "stack is empty"))?;
+            let Some(tt) = it.next() else {
+                let Some((d, _)) = stack.pop() else {
+                    return Err(syn::Error::new(Span::call_site(), "stack is empty"));
+                };
 
-                    // Add the closing delimiter.
-                    if let Some(variant) = Delimiter::from_proc_macro(d) {
-                        self.encode_to_tokens(
-                            Span::call_site(),
-                            &mut output,
-                            (Kind("Close"), p(variant)),
-                        );
-                    }
-
-                    continue;
+                // Add the closing delimiter.
+                if let Some(variant) = Delimiter::from_proc_macro(d) {
+                    self.encode_to_tokens(
+                        Span::call_site(),
+                        &mut output,
+                        (Kind("Close"), p(variant)),
+                    );
                 }
+
+                continue;
             };
 
             match tt {
@@ -133,7 +132,7 @@ impl Quote {
         punct: &p::Punct,
         output: &mut Builder,
         it: &mut Peekable<impl Iterator<Item = TokenTree> + Clone>,
-    ) -> Result<bool, Error> {
+    ) -> syn::Result<bool> {
         // Clone for lookahead.
         let mut lh = it.clone();
 
@@ -169,6 +168,7 @@ impl Quote {
                     (
                         ToTokensFn,
                         p(('&', "value", ',', self.cx, ',', self.stream)),
+                        '?',
                         ';',
                     ),
                     ("if", "it", '.', "peek", p(()), '.', "is_some", p(())),
@@ -200,7 +200,7 @@ impl Quote {
             (
                 ToTokensFn,
                 p(('&', tokens, ',', self.cx, ',', self.stream)),
-                ';',
+                ('?', ';'),
             ),
         );
     }

@@ -1,14 +1,14 @@
 //! The `std::bytes` module.
 
-use crate::no_std::prelude::*;
-
 use crate as rune;
-use crate::runtime::Bytes;
+use crate::alloc::prelude::*;
+use crate::alloc::Vec;
+use crate::runtime::{Bytes, VmResult};
 use crate::{ContextError, Module};
 
 /// Construct the `std::bytes` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["bytes"]);
+    let mut module = Module::with_crate_item("std", ["bytes"])?;
 
     module.ty::<Bytes>()?;
     module.function_meta(new)?;
@@ -57,8 +57,8 @@ pub const fn new() -> Bytes {
 /// ```
 #[rune::function(free, path = Bytes::with_capacity)]
 #[inline]
-pub fn with_capacity(capacity: usize) -> Bytes {
-    Bytes::with_capacity(capacity)
+pub fn with_capacity(capacity: usize) -> VmResult<Bytes> {
+    VmResult::Ok(vm_try!(Bytes::with_capacity(capacity)))
 }
 
 /// Convert a byte array into bytes.
@@ -103,8 +103,8 @@ pub fn into_vec(bytes: Bytes) -> Vec<u8> {
 /// ```
 #[rune::function(instance)]
 #[inline]
-pub fn as_vec(bytes: &Bytes) -> Vec<u8> {
-    bytes.as_slice().to_vec()
+pub fn as_vec(bytes: &Bytes) -> VmResult<Vec<u8>> {
+    VmResult::Ok(vm_try!(Vec::try_from(bytes.as_slice())))
 }
 
 /// Extend these bytes with another collection of bytes.
@@ -118,8 +118,9 @@ pub fn as_vec(bytes: &Bytes) -> Vec<u8> {
 /// ```
 #[rune::function(instance)]
 #[inline]
-pub fn extend(this: &mut Bytes, other: &Bytes) {
-    this.extend(other);
+pub fn extend(this: &mut Bytes, other: &Bytes) -> VmResult<()> {
+    vm_try!(this.extend(other));
+    VmResult::Ok(())
 }
 
 /// Extend this bytes collection with a string.
@@ -132,8 +133,9 @@ pub fn extend(this: &mut Bytes, other: &Bytes) {
 /// assert_eq!(bytes, b"abcdefgh");
 /// ```
 #[rune::function(instance)]
-pub fn extend_str(this: &mut Bytes, s: &str) {
-    this.extend(s.as_bytes());
+pub fn extend_str(this: &mut Bytes, s: &str) -> VmResult<()> {
+    vm_try!(this.extend(s.as_bytes()));
+    VmResult::Ok(())
 }
 
 /// Pop the last byte.
@@ -258,8 +260,9 @@ fn clear(this: &mut Bytes) {
 /// assert!(vec.capacity() >= 11);
 /// ```
 #[rune::function(instance)]
-fn reserve(this: &mut Bytes, additional: usize) {
-    this.reserve(additional);
+fn reserve(this: &mut Bytes, additional: usize) -> VmResult<()> {
+    vm_try!(this.reserve(additional));
+    VmResult::Ok(())
 }
 
 /// Reserves the minimum capacity for at least `additional` more elements to be
@@ -287,8 +290,9 @@ fn reserve(this: &mut Bytes, additional: usize) {
 /// assert!(vec.capacity() >= 11);
 /// ```
 #[rune::function(instance)]
-fn reserve_exact(this: &mut Bytes, additional: usize) {
-    this.reserve_exact(additional)
+fn reserve_exact(this: &mut Bytes, additional: usize) -> VmResult<()> {
+    vm_try!(this.reserve_exact(additional));
+    VmResult::Ok(())
 }
 
 /// Clone the byte array.
@@ -305,8 +309,8 @@ fn reserve_exact(this: &mut Bytes, additional: usize) {
 /// assert_eq!(b, b"hello world");
 /// ```
 #[rune::function(instance)]
-fn clone(this: &Bytes) -> Bytes {
-    this.clone()
+fn clone(this: &Bytes) -> VmResult<Bytes> {
+    VmResult::Ok(vm_try!(this.try_clone()))
 }
 
 /// Shrinks the capacity of the byte array as much as possible.
@@ -324,6 +328,7 @@ fn clone(this: &Bytes) -> Bytes {
 /// assert!(bytes.capacity() >= 3);
 /// ```
 #[rune::function(instance)]
-fn shrink_to_fit(this: &mut Bytes) {
-    this.shrink_to_fit();
+fn shrink_to_fit(this: &mut Bytes) -> VmResult<()> {
+    vm_try!(this.shrink_to_fit());
+    VmResult::Ok(())
 }

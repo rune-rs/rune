@@ -3,6 +3,7 @@ use std::path::Path;
 use crate::ast::Span;
 use crate::Source;
 use crate::workspace::WorkspaceError;
+use crate::compile::WithSpan;
 
 use super::WorkspaceErrorKind;
 
@@ -30,7 +31,7 @@ impl SourceLoader for FileSourceLoader {
             Err(error) => Err(WorkspaceError::new(
                 span,
                 WorkspaceErrorKind::FileError {
-                    path: path.into(),
+                    path: path.try_into().with_span(span)?,
                     error,
                 },
             )),

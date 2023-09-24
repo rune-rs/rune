@@ -11,7 +11,7 @@ fn ast_parse() {
 /// A macro call.
 ///
 /// * `<expr>!(<args>)`.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned, Opaque)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned, Opaque)]
 #[non_exhaustive]
 pub struct MacroCall {
     /// Opaque identifier for macro call. Use to store reference to internally
@@ -97,7 +97,7 @@ impl MacroCall {
                 _ => (),
             }
 
-            stream.push(token);
+            stream.try_push(token)?;
         }
 
         Ok(Self {

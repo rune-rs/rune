@@ -78,9 +78,9 @@ use rune::termcolor::{ColorChoice, StandardStream};
 use std::sync::Arc;
 
 #[tokio::main]
-async fn main() -> rune::Result<()> {
+async fn main() -> rune::support::Result<()> {
     let context = Context::with_default_modules()?;
-    let runtime = Arc::new(context.runtime());
+    let runtime = Arc::new(context.runtime()?);
 
     let mut sources = Sources::new();
     sources.insert(Source::new(

@@ -14,10 +14,10 @@ use crate::{ContextError, Module};
 /// constructed through the [`Type::of_val`] function.
 #[rune::module(::std::any)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::from_meta(self::module_meta);
+    let mut m = Module::from_meta(self::module_meta)?;
 
     m.ty::<Type>()?
-        .docs(["Represents a type in the Rune type system."]);
+        .docs(["Represents a type in the Rune type system."])?;
     m.function_meta(type_of_val)?;
     m.function_meta(type_name_of_val)?;
     m.function_meta(format_type)?;

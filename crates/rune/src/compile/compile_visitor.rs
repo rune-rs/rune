@@ -11,7 +11,9 @@ pub trait CompileVisitor {
     }
 
     /// Mark that we've resolved a specific compile meta at the given location.
-    fn visit_meta(&mut self, _location: &dyn Located, _meta: MetaRef<'_>) {}
+    fn visit_meta(&mut self, _location: &dyn Located, _meta: MetaRef<'_>) -> Result<(), MetaError> {
+        Ok(())
+    }
 
     /// Visit a variable use.
     fn visit_variable_use(
@@ -19,11 +21,14 @@ pub trait CompileVisitor {
         _source_id: SourceId,
         _var_span: &dyn Spanned,
         _span: &dyn Spanned,
-    ) {
+    ) -> Result<(), MetaError> {
+        Ok(())
     }
 
     /// Visit something that is a module.
-    fn visit_mod(&mut self, _location: &dyn Located) {}
+    fn visit_mod(&mut self, _location: &dyn Located) -> Result<(), MetaError> {
+        Ok(())
+    }
 
     /// Visit anterior `///`-style comments, and interior `//!`-style doc
     /// comments for an item.
@@ -39,7 +44,8 @@ pub trait CompileVisitor {
         _item: &Item,
         _hash: Hash,
         _docstr: &str,
-    ) {
+    ) -> Result<(), MetaError> {
+        Ok(())
     }
 
     /// Visit anterior `///`-style comments, and interior `//!`-style doc
@@ -54,13 +60,16 @@ pub trait CompileVisitor {
         _hash: Hash,
         _field: &str,
         _docstr: &str,
-    ) {
+    ) -> Result<(), MetaError> {
+        Ok(())
     }
 }
 
 /// A [CompileVisitor] which does nothing.
+#[cfg(feature = "std")]
 pub(crate) struct NoopCompileVisitor(());
 
+#[cfg(feature = "std")]
 impl NoopCompileVisitor {
     /// Construct a new noop compile visitor.
     pub(crate) const fn new() -> Self {
@@ -68,4 +77,5 @@ impl NoopCompileVisitor {
     }
 }
 
+#[cfg(feature = "std")]
 impl CompileVisitor for NoopCompileVisitor {}

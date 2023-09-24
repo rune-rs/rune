@@ -1,9 +1,12 @@
 use core::marker::PhantomData;
 
-use crate::no_std::collections::{HashMap, HashSet};
-use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
+use crate as rune;
+use crate::alloc::prelude::*;
+#[cfg(feature = "doc")]
+use crate::alloc::Box;
+use crate::alloc::{self, HashMap, HashSet, String, Vec};
 use crate::compile::{self, meta, ContextError, Docs, IntoComponent, ItemBuf, Named};
 use crate::macros::{MacroContext, TokenStream};
 use crate::module::function_meta::{
@@ -38,9 +41,9 @@ pub struct ModuleMetaData {
 ///
 /// Calling and making use of `ModuleMeta` manually despite this warning might
 /// lead to future breakage.
-pub type ModuleMeta = fn() -> ModuleMetaData;
+pub type ModuleMeta = fn() -> alloc::Result<ModuleMetaData>;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, TryClone, PartialEq, Eq, Hash)]
 enum Name {
     /// An associated key.
     Associated(AssociatedKey),
@@ -100,34 +103,34 @@ impl Module {
     }
 
     /// Construct a new module for the given item.
-    pub fn with_item<I>(iter: I) -> Self
+    pub fn with_item<I>(iter: I) -> Result<Self, ContextError>
     where
         I: IntoIterator,
         I::Item: IntoComponent,
     {
-        Self::inner_new(ItemBuf::with_item(iter))
+        Ok(Self::inner_new(ItemBuf::with_item(iter)?))
     }
 
     /// Construct a new module for the given crate.
-    pub fn with_crate(name: &str) -> Self {
-        Self::inner_new(ItemBuf::with_crate(name))
+    pub fn with_crate(name: &str) -> Result<Self, ContextError> {
+        Ok(Self::inner_new(ItemBuf::with_crate(name)?))
     }
 
     /// Construct a new module for the given crate.
-    pub fn with_crate_item<I>(name: &str, iter: I) -> Self
+    pub fn with_crate_item<I>(name: &str, iter: I) -> Result<Self, ContextError>
     where
         I: IntoIterator,
         I::Item: IntoComponent,
     {
-        Self::inner_new(ItemBuf::with_crate_item(name, iter))
+        Ok(Self::inner_new(ItemBuf::with_crate_item(name, iter)?))
     }
 
     /// Construct a new module from the given module meta.
-    pub fn from_meta(module_meta: ModuleMeta) -> Self {
-        let meta = module_meta();
+    pub fn from_meta(module_meta: ModuleMeta) -> Result<Self, ContextError> {
+        let meta = module_meta()?;
         let mut m = Self::inner_new(meta.item);
-        m.item_mut().static_docs(meta.docs);
-        m
+        m.item_mut().static_docs(meta.docs)?;
+        Ok(m)
     }
 
     fn inner_new(item: ItemBuf) -> Self {
@@ -193,18 +196,18 @@ impl Module {
     ///
     /// let mut context = Context::new();
     /// assert!(context.install(m).is_ok());
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn ty<T>(&mut self) -> Result<TypeMut<'_, T>, ContextError>
     where
         T: ?Sized + Named + TypeOf + InstallWith,
     {
-        let item = ItemBuf::with_item([T::BASE_NAME]);
+        let item = ItemBuf::with_item([T::BASE_NAME])?;
         let hash = T::type_hash();
         let type_parameters = T::type_parameters();
         let type_info = T::type_info();
 
-        if !self.names.insert(Name::Item(hash)) {
+        if !self.names.try_insert(Name::Item(hash))? {
             return Err(ContextError::ConflictingType {
                 item,
                 type_info,
@@ -213,9 +216,9 @@ impl Module {
         }
 
         let index = self.types.len();
-        self.types_hash.insert(hash, index);
+        self.types_hash.try_insert(hash, index)?;
 
-        self.types.push(ModuleType {
+        self.types.try_push(ModuleType {
             item,
             hash,
             type_parameters,
@@ -223,7 +226,7 @@ impl Module {
             spec: None,
             constructor: None,
             docs: Docs::EMPTY,
-        });
+        })?;
 
         T::install_with(self)?;
 
@@ -246,8 +249,10 @@ impl Module {
         let type_hash = T::type_hash();
 
         let Some(ty) = self.types_hash.get(&type_hash).map(|&i| &mut self.types[i]) else {
+            let full_name = String::try_from(T::full_name())?;
+
             return Err(ContextError::MissingType {
-                item: ItemBuf::with_item(&[T::full_name()]),
+                item: ItemBuf::with_item(&[full_name])?,
                 type_info: T::type_info(),
             });
         };
@@ -298,15 +303,19 @@ impl Module {
         let type_hash = T::type_hash();
 
         let Some(ty) = self.types_hash.get(&type_hash).map(|&i| &mut self.types[i]) else {
+            let full_name = String::try_from(T::full_name())?;
+
             return Err(ContextError::MissingType {
-                item: ItemBuf::with_item(&[T::full_name()]),
+                item: ItemBuf::with_item(&[full_name])?,
                 type_info: T::type_info(),
             });
         };
 
         let Some(TypeSpecification::Enum(en)) = &mut ty.spec else {
+            let full_name = String::try_from(T::full_name())?;
+
             return Err(ContextError::MissingEnum {
-                item: ItemBuf::with_item(&[T::full_name()]),
+                item: ItemBuf::with_item(&[full_name])?,
                 type_info: T::type_info(),
             });
         };
@@ -356,9 +365,10 @@ impl Module {
     /// ```
     /// use rune::Module;
     ///
-    /// let mut module = Module::with_crate_item("nonstd", ["ops"]);
+    /// let mut module = Module::with_crate_item("nonstd", ["ops"])?;
     /// module.generator_state(["GeneratorState"])?;
-    /// # Ok::<_, rune::Error>(())
+    ///
+    /// Ok::<_, rune::support::Error>(())
     pub fn generator_state<N>(
         &mut self,
         name: N,
@@ -371,7 +381,7 @@ impl Module {
             "GeneratorState",
             name,
             crate::runtime::static_type::GENERATOR_STATE_TYPE,
-        );
+        )?;
 
         // Note: these numeric variants are magic, and must simply match up with
         // what's being used in the virtual machine implementation for these
@@ -380,15 +390,15 @@ impl Module {
             "Complete",
             TypeCheck::GeneratorState(0),
             GeneratorState::Complete,
-        );
+        )?;
 
         enum_.variant(
             "Yielded",
             TypeCheck::GeneratorState(1),
             GeneratorState::Yielded,
-        );
+        )?;
 
-        self.internal_enums.push(enum_);
+        self.internal_enums.try_push(enum_)?;
 
         Ok(InternalEnumMut {
             enum_: self.internal_enums.last_mut().unwrap(),
@@ -407,22 +417,24 @@ impl Module {
     /// ```
     /// use rune::Module;
     ///
-    /// let mut module = Module::with_crate_item("nonstd", ["option"]);
+    /// let mut module = Module::with_crate_item("nonstd", ["option"])?;
     /// module.option(["Option"])?;
-    /// # Ok::<_, rune::Error>(())
+    ///
+    /// Ok::<_, rune::support::Error>(())
     pub fn option<N>(&mut self, name: N) -> Result<InternalEnumMut<'_, Option<Value>>, ContextError>
     where
         N: IntoIterator,
         N::Item: IntoComponent,
     {
-        let mut enum_ = InternalEnum::new("Option", name, crate::runtime::static_type::OPTION_TYPE);
+        let mut enum_ =
+            InternalEnum::new("Option", name, crate::runtime::static_type::OPTION_TYPE)?;
 
         // Note: these numeric variants are magic, and must simply match up with
         // what's being used in the virtual machine implementation for these
         // types.
-        enum_.variant("Some", TypeCheck::Option(0), Option::<Value>::Some);
-        enum_.variant("None", TypeCheck::Option(1), || Option::<Value>::None);
-        self.internal_enums.push(enum_);
+        enum_.variant("Some", TypeCheck::Option(0), Option::<Value>::Some)?;
+        enum_.variant("None", TypeCheck::Option(1), || Option::<Value>::None)?;
+        self.internal_enums.try_push(enum_)?;
 
         Ok(InternalEnumMut {
             enum_: self.internal_enums.last_mut().unwrap(),
@@ -442,9 +454,10 @@ impl Module {
     /// ```
     /// use rune::Module;
     ///
-    /// let mut module = Module::with_crate_item("nonstd", ["result"]);
+    /// let mut module = Module::with_crate_item("nonstd", ["result"])?;
     /// module.result(["Result"])?;
-    /// # Ok::<_, rune::Error>(())
+    ///
+    /// Ok::<_, rune::support::Error>(())
     pub fn result<N>(
         &mut self,
         name: N,
@@ -453,14 +466,15 @@ impl Module {
         N: IntoIterator,
         N::Item: IntoComponent,
     {
-        let mut enum_ = InternalEnum::new("Result", name, crate::runtime::static_type::RESULT_TYPE);
+        let mut enum_ =
+            InternalEnum::new("Result", name, crate::runtime::static_type::RESULT_TYPE)?;
 
         // Note: these numeric variants are magic, and must simply match up with
         // what's being used in the virtual machine implementation for these
         // types.
-        enum_.variant("Ok", TypeCheck::Result(0), Result::<Value, Value>::Ok);
-        enum_.variant("Err", TypeCheck::Result(1), Result::<Value, Value>::Err);
-        self.internal_enums.push(enum_);
+        enum_.variant("Ok", TypeCheck::Result(0), Result::<Value, Value>::Ok)?;
+        enum_.variant("Err", TypeCheck::Result(1), Result::<Value, Value>::Err)?;
+        self.internal_enums.try_push(enum_)?;
 
         Ok(InternalEnumMut {
             enum_: self.internal_enums.last_mut().unwrap(),
@@ -479,7 +493,7 @@ impl Module {
     ///
     /// module.constant(["TEN"], 10)?.docs(["A global ten value."]);
     /// module.constant(["MyType", "TEN"], 10)?.docs(["Ten which looks like an associated constant."]);
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn constant<N, V>(&mut self, name: N, value: V) -> Result<ItemMut<'_>, ContextError>
     where
@@ -487,7 +501,7 @@ impl Module {
         N::Item: IntoComponent,
         V: ToValue,
     {
-        let item = ItemBuf::with_item(name);
+        let item = ItemBuf::with_item(name)?;
         let hash = Hash::type_hash(&item);
 
         let value = match value.to_value() {
@@ -500,15 +514,15 @@ impl Module {
             VmResult::Err(error) => return Err(ContextError::ValueError { error }),
         };
 
-        if !self.names.insert(Name::Item(hash)) {
+        if !self.names.try_insert(Name::Item(hash))? {
             return Err(ContextError::ConflictingConstantName { item, hash });
         }
 
-        self.constants.push(ModuleConstant {
+        self.constants.try_push(ModuleConstant {
             item,
             value,
             docs: Docs::EMPTY,
-        });
+        })?;
 
         let c = self.constants.last_mut().unwrap();
         Ok(ItemMut { docs: &mut c.docs })
@@ -531,6 +545,7 @@ impl Module {
     /// use rune::compile;
     /// use rune::macros::{quote, MacroContext, TokenStream};
     /// use rune::parse::Parser;
+    /// use rune::alloc::prelude::*;
     ///
     /// /// Takes an identifier and converts it into a string.
     /// ///
@@ -543,24 +558,25 @@ impl Module {
     /// fn ident_to_string(cx: &mut MacroContext<'_, '_, '_>, stream: &TokenStream) -> compile::Result<TokenStream> {
     ///     let mut p = Parser::from_token_stream(stream, cx.input_span());
     ///     let ident = p.parse_all::<ast::Ident>()?;
-    ///     let ident = cx.resolve(ident)?.to_owned();
-    ///     let string = cx.lit(&ident);
-    ///     Ok(quote!(#string).into_token_stream(cx))
+    ///     let ident = cx.resolve(ident)?.try_to_owned()?;
+    ///     let string = cx.lit(&ident)?;
+    ///     Ok(quote!(#string).into_token_stream(cx)?)
     /// }
     ///
     /// let mut m = Module::new();
     /// m.macro_meta(ident_to_string)?;
-    /// Ok::<_, rune::Error>(())
+    ///
+    /// Ok::<_, rune::support::Error>(())
     /// ```
     #[inline]
     pub fn macro_meta(&mut self, meta: MacroMeta) -> Result<ItemMut<'_>, ContextError> {
-        let meta = meta();
+        let meta = meta()?;
 
         let docs = match meta.kind {
             MacroMetaKind::Function(data) => {
                 let hash = Hash::type_hash(&data.item);
 
-                if !self.names.insert(Name::Macro(hash)) {
+                if !self.names.try_insert(Name::Macro(hash))? {
                     return Err(ContextError::ConflictingMacroName {
                         item: data.item,
                         hash,
@@ -568,19 +584,19 @@ impl Module {
                 }
 
                 let mut docs = Docs::EMPTY;
-                docs.set_docs(meta.docs);
+                docs.set_docs(meta.docs)?;
 
-                self.macros.push(ModuleMacro {
+                self.macros.try_push(ModuleMacro {
                     item: data.item,
                     handler: data.handler,
                     docs,
-                });
+                })?;
                 &mut self.macros.last_mut().unwrap().docs
             }
             MacroMetaKind::Attribute(data) => {
                 let hash = Hash::type_hash(&data.item);
 
-                if !self.names.insert(Name::AttributeMacro(hash)) {
+                if !self.names.try_insert(Name::AttributeMacro(hash))? {
                     return Err(ContextError::ConflictingMacroName {
                         item: data.item,
                         hash,
@@ -588,13 +604,13 @@ impl Module {
                 }
 
                 let mut docs = Docs::EMPTY;
-                docs.set_docs(meta.docs);
+                docs.set_docs(meta.docs)?;
 
-                self.attribute_macros.push(ModuleAttributeMacro {
+                self.attribute_macros.try_push(ModuleAttributeMacro {
                     item: data.item,
                     handler: data.handler,
                     docs,
-                });
+                })?;
                 &mut self.attribute_macros.last_mut().unwrap().docs
             }
         };
@@ -615,18 +631,20 @@ impl Module {
     /// use rune::compile;
     /// use rune::macros::{quote, MacroContext, TokenStream};
     /// use rune::parse::Parser;
+    /// use rune::alloc::prelude::*;
     ///
     /// fn ident_to_string(cx: &mut MacroContext<'_, '_, '_>, stream: &TokenStream) -> compile::Result<TokenStream> {
     ///     let mut p = Parser::from_token_stream(stream, cx.input_span());
     ///     let ident = p.parse_all::<ast::Ident>()?;
-    ///     let ident = cx.resolve(ident)?.to_owned();
-    ///     let string = cx.lit(&ident);
-    ///     Ok(quote!(#string).into_token_stream(cx))
+    ///     let ident = cx.resolve(ident)?.try_to_owned()?;
+    ///     let string = cx.lit(&ident)?;
+    ///     Ok(quote!(#string).into_token_stream(cx)?)
     /// }
     ///
     /// let mut m = Module::new();
     /// m.macro_(["ident_to_string"], ident_to_string)?;
-    /// # Ok::<_, rune::Error>(())
+    ///
+    /// Ok::<_, rune::support::Error>(())
     /// ```
     pub fn macro_<N, M>(&mut self, name: N, f: M) -> Result<ItemMut<'_>, ContextError>
     where
@@ -637,20 +655,20 @@ impl Module {
         N: IntoIterator,
         N::Item: IntoComponent,
     {
-        let item = ItemBuf::with_item(name);
+        let item = ItemBuf::with_item(name)?;
         let hash = Hash::type_hash(&item);
 
-        if !self.names.insert(Name::Macro(hash)) {
+        if !self.names.try_insert(Name::Macro(hash))? {
             return Err(ContextError::ConflictingMacroName { item, hash });
         }
 
         let handler: Arc<MacroHandler> = Arc::new(f);
 
-        self.macros.push(ModuleMacro {
+        self.macros.try_push(ModuleMacro {
             item,
             handler,
             docs: Docs::EMPTY,
-        });
+        })?;
 
         let m = self.macros.last_mut().unwrap();
 
@@ -677,12 +695,13 @@ impl Module {
     ///
     ///     let mut input = Parser::from_token_stream(input, cx.input_span());
     ///     fun.name = input.parse_all::<ast::EqValue<_>>()?.value;
-    ///     Ok(quote!(#fun).into_token_stream(cx))
+    ///     Ok(quote!(#fun).into_token_stream(cx)?)
     /// }
     ///
     /// let mut m = Module::new();
     /// m.attribute_macro(["rename_fn"], rename_fn)?;
-    /// # Ok::<_, rune::Error>(())
+    ///
+    /// Ok::<_, rune::support::Error>(())
     /// ```
     pub fn attribute_macro<N, M>(&mut self, name: N, f: M) -> Result<ItemMut<'_>, ContextError>
     where
@@ -697,20 +716,20 @@ impl Module {
         N: IntoIterator,
         N::Item: IntoComponent,
     {
-        let item = ItemBuf::with_item(name);
+        let item = ItemBuf::with_item(name)?;
         let hash = Hash::type_hash(&item);
 
-        if !self.names.insert(Name::AttributeMacro(hash)) {
+        if !self.names.try_insert(Name::AttributeMacro(hash))? {
             return Err(ContextError::ConflictingMacroName { item, hash });
         }
 
         let handler: Arc<AttributeMacroHandler> = Arc::new(f);
 
-        self.attribute_macros.push(ModuleAttributeMacro {
+        self.attribute_macros.try_push(ModuleAttributeMacro {
             item,
             handler,
             docs: Docs::EMPTY,
-        });
+        })?;
 
         let m = self.attribute_macros.last_mut().unwrap();
 
@@ -740,7 +759,7 @@ impl Module {
     ///
     /// /// This is a pretty neat download function
     /// #[rune::function]
-    /// async fn download(url: Ref<str>) -> rune::Result<String> {
+    /// async fn download(url: Ref<str>) -> rune::support::Result<String> {
     ///     todo!()
     /// }
     ///
@@ -776,7 +795,7 @@ impl Module {
     ///     }
     ///
     ///     #[rune::function(instance, path = Self::download)]
-    ///     async fn download(this: Ref<Self>, url: Ref<str>) -> rune::Result<()> {
+    ///     async fn download(this: Ref<Self>, url: Ref<str>) -> rune::support::Result<()> {
     ///         todo!()
     ///     }
     /// }
@@ -786,23 +805,23 @@ impl Module {
     /// m.ty::<MyBytes>()?;
     /// m.function_meta(MyBytes::len)?;
     /// m.function_meta(MyBytes::download)?;
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     #[inline]
     pub fn function_meta(&mut self, meta: FunctionMeta) -> Result<ItemFnMut<'_>, ContextError> {
-        let meta = meta();
+        let meta = meta()?;
 
         match meta.kind {
             FunctionMetaKind::Function(data) => {
                 let mut docs = Docs::EMPTY;
-                docs.set_docs(meta.docs);
-                docs.set_arguments(meta.arguments);
+                docs.set_docs(meta.docs)?;
+                docs.set_arguments(meta.arguments)?;
                 self.function_inner(data, docs)
             }
             FunctionMetaKind::AssociatedFunction(data) => {
                 let mut docs = Docs::EMPTY;
-                docs.set_docs(meta.docs);
-                docs.set_arguments(meta.arguments);
+                docs.set_docs(meta.docs)?;
+                docs.set_arguments(meta.arguments)?;
                 self.assoc_fn(data, docs)
             }
         }
@@ -825,7 +844,7 @@ impl Module {
     /// let mut module = Module::default();
     ///
     /// module.function(["add_ten"], add_ten)?.docs(["Adds 10 to any integer passed in."]);
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     ///
     /// Asynchronous function:
@@ -847,7 +866,7 @@ impl Module {
     ///
     /// module.function(["download_quote"], download_quote)?
     ///     .docs(["Download a random quote from the internet."]);
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn function<F, A, N, K>(&mut self, name: N, f: F) -> Result<ItemFnMut<'_>, ContextError>
     where
@@ -858,7 +877,7 @@ impl Module {
         A: FunctionArgs,
         K: FunctionKind,
     {
-        self.function_inner(FunctionData::new(name, f), Docs::EMPTY)
+        self.function_inner(FunctionData::new(name, f)?, Docs::EMPTY)
     }
 
     /// See [`Module::function`].
@@ -871,7 +890,7 @@ impl Module {
         N::Item: IntoComponent,
         A: FunctionArgs,
     {
-        self.function_inner(FunctionData::new(name, f), Docs::EMPTY)
+        self.function_inner(FunctionData::new(name, f)?, Docs::EMPTY)
     }
 
     /// Register an instance function.
@@ -1015,7 +1034,7 @@ impl Module {
     /// m.ty::<MyBytes>()?;
     /// m.function_meta(MyBytes::new)?;
     /// m.function_meta(MyBytes::len)?;
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     ///
     /// Asynchronous function:
@@ -1050,7 +1069,7 @@ impl Module {
     ///
     /// module.ty::<Client>()?;
     /// module.function_meta(Client::download)?;
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn associated_function<N, F, A, K>(
         &mut self,
@@ -1065,7 +1084,7 @@ impl Module {
         K: FunctionKind,
     {
         self.assoc_fn(
-            AssociatedFunctionData::new(name.to_instance(), f),
+            AssociatedFunctionData::new(name.to_instance()?, f)?,
             Docs::EMPTY,
         )
     }
@@ -1113,7 +1132,7 @@ impl Module {
         A: FunctionArgs,
     {
         self.assoc_fn(
-            AssociatedFunctionData::new(name.to_field_function(protocol), f),
+            AssociatedFunctionData::new(name.to_field_function(protocol)?, f)?,
             Docs::EMPTY,
         )
     }
@@ -1152,7 +1171,7 @@ impl Module {
         A: FunctionArgs,
     {
         let name = AssociatedFunctionName::index(protocol, index);
-        self.assoc_fn(AssociatedFunctionData::new(name, f), Docs::EMPTY)
+        self.assoc_fn(AssociatedFunctionData::new(name, f)?, Docs::EMPTY)
     }
 
     /// See [`Module::index_function`].
@@ -1202,7 +1221,7 @@ impl Module {
     /// sum.docs([
     ///     "Sum all numbers provided to the function."
     /// ]);
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn raw_fn<F, N>(&mut self, name: N, f: F) -> Result<ItemFnMut<'_>, ContextError>
     where
@@ -1210,14 +1229,14 @@ impl Module {
         N: IntoIterator,
         N::Item: IntoComponent,
     {
-        let item = ItemBuf::with_item(name);
+        let item = ItemBuf::with_item(name)?;
         let hash = Hash::type_hash(&item);
 
-        if !self.names.insert(Name::Item(hash)) {
+        if !self.names.try_insert(Name::Item(hash))? {
             return Err(ContextError::ConflictingFunctionName { item, hash });
         }
 
-        self.functions.push(ModuleFunction {
+        self.functions.try_push(ModuleFunction {
             item,
             handler: Arc::new(move |stack, args| f(stack, args)),
             #[cfg(feature = "doc")]
@@ -1229,9 +1248,9 @@ impl Module {
             #[cfg(feature = "doc")]
             return_type: None,
             #[cfg(feature = "doc")]
-            argument_types: Box::from([]),
+            argument_types: Box::default(),
             docs: Docs::EMPTY,
-        });
+        })?;
 
         let last = self.functions.last_mut().unwrap();
 
@@ -1257,14 +1276,14 @@ impl Module {
     ) -> Result<ItemFnMut<'_>, ContextError> {
         let hash = Hash::type_hash(&data.item);
 
-        if !self.names.insert(Name::Item(hash)) {
+        if !self.names.try_insert(Name::Item(hash))? {
             return Err(ContextError::ConflictingFunctionName {
                 item: data.item,
                 hash,
             });
         }
 
-        self.functions.push(ModuleFunction {
+        self.functions.try_push(ModuleFunction {
             item: data.item,
             handler: data.handler,
             #[cfg(feature = "doc")]
@@ -1278,7 +1297,7 @@ impl Module {
             #[cfg(feature = "doc")]
             argument_types: data.argument_types,
             docs,
-        });
+        })?;
 
         let last = self.functions.last_mut().unwrap();
 
@@ -1303,36 +1322,36 @@ impl Module {
         data: AssociatedFunctionData,
         docs: Docs,
     ) -> Result<ItemFnMut<'_>, ContextError> {
-        if !self.names.insert(Name::Associated(data.assoc_key())) {
+        if !self.names.try_insert(Name::Associated(data.assoc_key()?))? {
             return Err(match data.name.associated {
                 meta::AssociatedKind::Protocol(protocol) => {
                     ContextError::ConflictingProtocolFunction {
                         type_info: data.container_type_info,
-                        name: protocol.name.into(),
+                        name: protocol.name.try_into()?,
                     }
                 }
                 meta::AssociatedKind::FieldFn(protocol, field) => {
                     ContextError::ConflictingFieldFunction {
                         type_info: data.container_type_info,
-                        name: protocol.name.into(),
-                        field: field.into(),
+                        name: protocol.name.try_into()?,
+                        field: field.try_into()?,
                     }
                 }
                 meta::AssociatedKind::IndexFn(protocol, index) => {
                     ContextError::ConflictingIndexFunction {
                         type_info: data.container_type_info,
-                        name: protocol.name.into(),
+                        name: protocol.name.try_into()?,
                         index,
                     }
                 }
                 meta::AssociatedKind::Instance(name) => ContextError::ConflictingInstanceFunction {
                     type_info: data.container_type_info,
-                    name: name.into(),
+                    name: name.try_into()?,
                 },
             });
         }
 
-        self.associated.push(ModuleAssociated {
+        self.associated.try_push(ModuleAssociated {
             container: data.container,
             container_type_info: data.container_type_info,
             name: data.name,
@@ -1348,7 +1367,7 @@ impl Module {
             #[cfg(feature = "doc")]
             argument_types: data.argument_types,
             docs,
-        });
+        })?;
 
         let last = self.associated.last_mut().unwrap();
 

@@ -85,8 +85,8 @@ fn deny_nested_bench() {
 fn deny_struct_attributes() {
     assert_errors! {
         "#[struct_attribute] struct Struct {}",
-        span!(0, 19), Custom { message } => {
-            assert_eq!(message.as_ref(), "Attributes on structs are not supported");
+        span!(0, 19), Custom { error } => {
+            assert_eq!(error.to_string(), "Attributes on structs are not supported");
         }
     }
 }
@@ -95,8 +95,8 @@ fn deny_struct_attributes() {
 fn deny_enum_attributes() {
     assert_errors! {
         "#[enum_attribute] enum Enum {}",
-        span!(0, 17), Custom { message } => {
-            assert_eq!(message.as_ref(), "Attributes on enums are not supported");
+        span!(0, 17), Custom { error } => {
+            assert_eq!(error.to_string(), "Attributes on enums are not supported");
         }
     }
 }
@@ -105,8 +105,8 @@ fn deny_enum_attributes() {
 fn deny_fn_attributes() {
     assert_errors! {
         "#[function_attribute] fn function() {}",
-        span!(0, 21), Custom { message } => {
-            assert_eq!(message.as_ref(), "Attributes on functions are not supported");
+        span!(0, 21), Custom { error } => {
+            assert_eq!(error.to_string(), "Attributes on functions are not supported");
         }
     }
 }
@@ -115,8 +115,8 @@ fn deny_fn_attributes() {
 fn deny_const_attributes() {
     assert_errors! {
         "#[constant_attribute] const CONSTANT = 42;",
-        span!(0, 21), Custom { message } => {
-            assert_eq!(message.as_ref(), "Attributes on constants are not supported");
+        span!(0, 21), Custom { error } => {
+            assert_eq!(error.to_string(), "Attributes on constants are not supported");
         }
     }
 }
@@ -125,8 +125,8 @@ fn deny_const_attributes() {
 fn deny_use_attributes() {
     assert_errors! {
         "#[use_attribute] use std::str;",
-        span!(0, 16), Custom { message } => {
-            assert_eq!(message.as_ref(), "Attributes on uses are not supported");
+        span!(0, 16), Custom { error } => {
+            assert_eq!(error.to_string(), "Attributes on uses are not supported");
         }
     }
 }
@@ -135,8 +135,8 @@ fn deny_use_attributes() {
 fn deny_mod_attributes() {
     assert_errors! {
         "#[mod_attribute] mod inner {}",
-        span!(0, 16), Custom { message } => {
-            assert_eq!(message.as_ref(), "Attributes on modules are not supported");
+        span!(0, 16), Custom { error } => {
+            assert_eq!(error.to_string(), "Attributes on modules are not supported");
         }
     }
 }
@@ -145,8 +145,8 @@ fn deny_mod_attributes() {
 fn deny_local_attributes() {
     assert_errors! {
         "pub fn main() { #[local_attribute] let x = 1; }",
-        span!(16, 34), Custom { message } => {
-            assert_eq!(message.as_ref(), "Attributes on local declarations are not supported");
+        span!(16, 34), Custom { error } => {
+            assert_eq!(error.to_string(), "Attributes on local declarations are not supported");
         }
     };
 }
@@ -155,8 +155,8 @@ fn deny_local_attributes() {
 fn deny_block_attributes() {
     assert_errors! {
         r#"pub fn main() { #[block_attribute] {} }"#,
-        span!(16, 34), Custom { message } => {
-            assert_eq!(message.as_ref(), "Attributes on blocks are not supported");
+        span!(16, 34), Custom { error } => {
+            assert_eq!(error.to_string(), "Attributes on blocks are not supported");
         }
     };
 }
@@ -165,8 +165,8 @@ fn deny_block_attributes() {
 fn deny_macro_attributes() {
     assert_errors! {
         r#"#[macro_attribute] macro_call!()"#,
-        span!(0, 18), Custom { message } => {
-            assert_eq!(message.as_ref(), "Attributes on macros are not supported");
+        span!(0, 18), Custom { error } => {
+            assert_eq!(error.to_string(), "Attributes on macros are not supported");
         }
     };
 }
@@ -175,8 +175,8 @@ fn deny_macro_attributes() {
 fn deny_field_attributes() {
     assert_errors! {
         r#"struct Struct { #[field_attribute] field }"#,
-        span!(16, 34), Custom { message } => {
-            assert_eq!(message.as_ref(), "Attributes on fields are not supported");
+        span!(16, 34), Custom { error } => {
+            assert_eq!(error.to_string(), "Attributes on fields are not supported");
         }
     };
 }
@@ -185,8 +185,8 @@ fn deny_field_attributes() {
 fn deny_variant_attributes() {
     assert_errors! {
         r#"enum Enum { #[field_attribute] Variant }"#,
-        span!(12, 30), Custom { message } => {
-            assert_eq!(message.as_ref(), "Attributes on variants are not supported");
+        span!(12, 30), Custom { error } => {
+            assert_eq!(error.to_string(), "Attributes on variants are not supported");
         }
     };
 }
@@ -195,8 +195,8 @@ fn deny_variant_attributes() {
 fn deny_variant_field_attributes() {
     assert_errors! {
         r#"enum Enum { Variant { #[field_attribute] field } }"#,
-        span!(22, 40), Custom { message } => {
-            assert_eq!(message.as_ref(), "Attributes on variant fields are not supported");
+        span!(22, 40), Custom { error } => {
+            assert_eq!(error.to_string(), "Attributes on variant fields are not supported");
         }
     };
 }
@@ -205,8 +205,8 @@ fn deny_variant_field_attributes() {
 fn deny_expr_attributes() {
     assert_errors! {
         r#"pub fn main() { #[expr_attribute] 42 }"#,
-        span!(16, 33), Custom { message } => {
-            assert_eq!(message.as_ref(), "Attributes on expressions are not supported");
+        span!(16, 33), Custom { error } => {
+            assert_eq!(error.to_string(), "Attributes on expressions are not supported");
         }
     };
 }

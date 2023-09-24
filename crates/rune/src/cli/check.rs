@@ -50,7 +50,7 @@ pub(super) fn run(
 
     let mut sources = Sources::new();
 
-    sources.insert(source);
+    sources.insert(source)?;
 
     let mut diagnostics = if shared.warnings || flags.warnings_are_errors {
         Diagnostics::new()
@@ -65,7 +65,7 @@ pub(super) fn run(
         .with_context(&context)
         .with_diagnostics(&mut diagnostics)
         .with_options(options)
-        .with_visitor(&mut test_finder)
+        .with_visitor(&mut test_finder)?
         .with_source_loader(&mut source_loader)
         .build();
 

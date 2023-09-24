@@ -27,5 +27,5 @@ pub(crate) fn stringy_math(
     }
 
     parser.eof()?;
-    Ok(output.into_token_stream(cx))
+    Ok(output.into_token_stream(cx)?)
 }

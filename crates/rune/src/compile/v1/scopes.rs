@@ -1,8 +1,8 @@
 use core::fmt;
 
-use crate::no_std::collections::HashMap;
-use crate::no_std::prelude::*;
-
+use crate as rune;
+use crate::alloc::prelude::*;
+use crate::alloc::{self, try_format, try_vec, HashMap, Vec};
 use crate::ast::Spanned;
 use crate::compile::v1::Ctxt;
 use crate::compile::{self, Assembly, ErrorKind, WithSpan};
@@ -13,7 +13,8 @@ use crate::SourceId;
 
 /// A locally declared variable, its calculated stack offset and where it was
 /// declared in its source file.
-#[derive(Clone, Copy)]
+#[derive(TryClone, Clone, Copy)]
+#[try_clone(copy)]
 pub struct Var<'hir> {
     /// Offset from the current stack frame.
     pub(crate) offset: usize,
@@ -77,7 +78,7 @@ impl<'hir> Var<'hir> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 pub(crate) struct Layer<'hir> {
     /// Named variables.
     variables: HashMap<hir::Name<'hir>, Var<'hir>>,
@@ -121,11 +122,11 @@ pub(crate) struct Scopes<'hir> {
 
 impl<'hir> Scopes<'hir> {
     /// Construct a new collection of scopes.
-    pub(crate) fn new(source_id: SourceId) -> Self {
-        Self {
-            layers: vec![Layer::new()],
+    pub(crate) fn new(source_id: SourceId) -> alloc::Result<Self> {
+        Ok(Self {
+            layers: try_vec![Layer::new()],
             source_id,
-        }
+        })
     }
 
     /// Get the local with the given name.
@@ -141,7 +142,9 @@ impl<'hir> Scopes<'hir> {
         for layer in self.layers.iter().rev() {
             if let Some(var) = layer.variables.get(&name) {
                 tracing::trace!(?var, "getting var");
-                q.visitor.visit_variable_use(self.source_id, var.span, span);
+                q.visitor
+                    .visit_variable_use(self.source_id, var.span, span)
+                    .with_span(span)?;
 
                 if let Some(_moved_at) = var.moved_at {
                     return Err(compile::Error::new(
@@ -159,7 +162,7 @@ impl<'hir> Scopes<'hir> {
 
         Err(compile::Error::msg(
             span,
-            format_args!("Missing variable `{name}`"),
+            try_format!("Missing variable `{name}`"),
         ))
     }
 
@@ -176,7 +179,9 @@ impl<'hir> Scopes<'hir> {
         for layer in self.layers.iter_mut().rev() {
             if let Some(var) = layer.variables.get_mut(&name) {
                 tracing::trace!(?var, "taking var");
-                q.visitor.visit_variable_use(self.source_id, var.span, span);
+                q.visitor
+                    .visit_variable_use(self.source_id, var.span, span)
+                    .with_span(span)?;
 
                 if let Some(_moved_at) = var.moved_at {
                     return Err(compile::Error::new(
@@ -195,7 +200,7 @@ impl<'hir> Scopes<'hir> {
 
         Err(compile::Error::msg(
             span,
-            format_args!("Missing variable `{name}` to take"),
+            try_format!("Missing variable `{name}` to take"),
         ))
     }
 
@@ -223,7 +228,7 @@ impl<'hir> Scopes<'hir> {
 
         layer.total += 1;
         layer.local += 1;
-        layer.variables.insert(name, local);
+        layer.variables.try_insert(name, local)?;
         Ok(offset)
     }
 
@@ -278,7 +283,7 @@ impl<'hir> Scopes<'hir> {
         if self.layers.len() != expected {
             return Err(compile::Error::msg(
                 span,
-                format_args!(
+                try_format!(
                     "Scope guard mismatch, {} (actual) != {} (expected)",
                     self.layers.len(),
                     expected
@@ -307,7 +312,7 @@ impl<'hir> Scopes<'hir> {
         };
 
         tracing::trace!(?layer);
-        Ok(self.push(layer.child()))
+        Ok(self.push(layer.child())?)
     }
 
     /// Get the total var count of the top scope.
@@ -329,8 +334,8 @@ impl<'hir> Scopes<'hir> {
     }
 
     /// Push a scope and return an index.
-    pub(crate) fn push(&mut self, layer: Layer<'hir>) -> ScopeGuard {
-        self.layers.push(layer);
-        ScopeGuard(self.layers.len())
+    pub(crate) fn push(&mut self, layer: Layer<'hir>) -> alloc::Result<ScopeGuard> {
+        self.layers.try_push(layer)?;
+        Ok(ScopeGuard(self.layers.len()))
     }
 }

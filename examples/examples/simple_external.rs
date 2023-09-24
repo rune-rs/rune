@@ -1,8 +1,8 @@
-use std::sync::Arc;
-
 use rune::runtime::Vm;
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{Any, ContextError, Diagnostics, Module};
+
+use std::sync::Arc;
 
 #[derive(Debug, Any)]
 struct External {
@@ -15,12 +15,12 @@ pub fn module() -> Result<Module, ContextError> {
     Ok(module)
 }
 
-fn main() -> rune::Result<()> {
+fn main() -> rune::support::Result<()> {
     let m = module()?;
 
     let mut context = rune_modules::default_context()?;
     context.install(m)?;
-    let runtime = Arc::new(context.runtime());
+    let runtime = Arc::new(context.runtime()?);
 
     let mut sources = rune::sources! {
         entry => {

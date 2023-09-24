@@ -16,7 +16,7 @@
 //! ```rust
 //! let mut context = rune::Context::with_default_modules()?;
 //! context.install(rune_modules::rand::module(true)?)?;
-//! # Ok::<_, rune::Error>(())
+//! # Ok::<_, rune::support::Error>(())
 //! ```
 //!
 //! Use it in Rune:
@@ -37,7 +37,7 @@ use rune::runtime::Value;
 
 /// Construct the `rand` module.
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
-    let mut module = Module::with_crate("rand");
+    let mut module = Module::with_crate("rand")?;
 
     module.ty::<WyRand>()?;
     module.function(["WyRand", "new"], WyRand::new)?;
@@ -121,13 +121,13 @@ impl Pcg64 {
     }
 }
 
-fn int() -> rune::Result<Value> {
+fn int() -> rune::support::Result<Value> {
     Ok(Value::Integer(
         nanorand::WyRand::new().generate::<u64>() as i64
     ))
 }
 
-fn int_range(lower: i64, upper: i64) -> rune::Result<Value> {
+fn int_range(lower: i64, upper: i64) -> rune::support::Result<Value> {
     Ok(Value::Integer(
         nanorand::WyRand::new().generate_range(0..(upper - lower) as u64) as i64 + lower,
     ))

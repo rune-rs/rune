@@ -52,7 +52,7 @@ pub(super) async fn run(
     sources: &Sources,
     fns: &[(Hash, ItemBuf)],
 ) -> anyhow::Result<ExitCode> {
-    let runtime = Arc::new(context.runtime());
+    let runtime = Arc::new(context.runtime()?);
     let mut vm = Vm::new(runtime, unit);
 
     if fns.is_empty() {

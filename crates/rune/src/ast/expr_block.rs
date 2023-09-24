@@ -26,7 +26,7 @@ fn ast_parse() {
 /// * `<block>`.
 /// * `async <block>`.
 /// * `const <block>`.
-#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]
 pub struct ExprBlock {

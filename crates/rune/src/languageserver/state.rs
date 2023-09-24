@@ -3,19 +3,19 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use crate::no_std::collections::HashMap;
-use crate::no_std::prelude::*;
-
 use anyhow::{anyhow, Context as _, Result};
 use lsp::Url;
 use ropey::Rope;
 use tokio::sync::Notify;
 
+use crate as rune;
+use crate::alloc::prelude::*;
+use crate::alloc::{self, HashMap, String, Vec};
 use crate::ast::{Span, Spanned};
 use crate::compile::meta;
 use crate::compile::{
-    self, CompileVisitor, ComponentRef, Item, ItemBuf, LinkerError, Located, Location, MetaRef,
-    SourceMeta,
+    self, CompileVisitor, ComponentRef, Item, LinkerError, Located, Location, MetaError, MetaRef,
+    SourceMeta, WithSpan,
 };
 use crate::diagnostics::{Diagnostic, FatalDiagnosticKind};
 use crate::doc::VisitorData;
@@ -50,7 +50,7 @@ struct Build {
 }
 
 impl Build {
-    pub(super) fn populate(&mut self, reporter: &mut Reporter) {
+    pub(super) fn populate(&mut self, reporter: &mut Reporter) -> Result<()> {
         for id in self.sources.source_ids() {
             let Some(source) = self.sources.get(id) else {
                 continue;
@@ -65,8 +65,10 @@ impl Build {
             };
 
             reporter.ensure(&url);
-            self.id_to_url.insert(id, url);
+            self.id_to_url.try_insert(id, url)?;
         }
+
+        Ok(())
     }
 
     pub(super) fn visit(&mut self, visited: &mut HashSet<Url>) {
@@ -201,21 +203,27 @@ impl<'a> State<'a> {
         &self,
         uri: &Url,
         position: lsp::Position,
-    ) -> Option<Vec<lsp::CompletionItem>> {
+    ) -> Result<Option<Vec<lsp::CompletionItem>>> {
         let sources = &self.workspace.sources;
         tracing::trace!(uri = ?uri, uri_exists = sources.get(uri).is_some());
-        let workspace_source = sources.get(uri)?;
+
+        let Some(workspace_source) = sources.get(uri) else {
+            return Ok(None);
+        };
 
         let offset = workspace_source.lsp_position_to_offset(position);
 
-        let (mut symbol, start) = workspace_source.looking_back(offset)?;
+        let Some((mut symbol, start)) = workspace_source.looking_back(offset)? else {
+            return Ok(None);
+        };
+
         tracing::trace!(symbol = ?symbol, start = ?start);
 
         if symbol.is_empty() {
-            return None;
+            return Ok(None);
         }
 
-        let mut results = vec![];
+        let mut results = Vec::new();
 
         let can_use_instance_fn: &[_] = &['.'];
         let first_char = symbol.remove(0);
@@ -228,7 +236,7 @@ impl<'a> State<'a> {
                 symbol,
                 position,
                 &mut results,
-            );
+            )?;
         }
 
         if first_char.is_ascii_alphabetic() || can_use_instance_fn.contains(&first_char) {
@@ -237,31 +245,34 @@ impl<'a> State<'a> {
                 symbol,
                 position,
                 &mut results,
-            );
+            )?;
         } else {
             super::completion::complete_native_loose_data(
                 &self.context,
                 symbol,
                 position,
                 &mut results,
-            );
+            )?;
         }
 
-        Some(results)
+        Ok(Some(results))
     }
 
     pub(super) fn format(&mut self, uri: &Url) -> Result<Option<lsp::TextEdit>> {
         let sources = &mut self.workspace.sources;
-        tracing::trace!(uri = ?uri, uri_exists = sources.get(uri).is_some());
+        tracing::trace!(uri = ?uri.try_to_string()?, uri_exists = sources.get(uri).is_some());
+
         let Some(workspace_source) = sources.get_mut(uri) else {
             return Ok(None);
         };
 
-        let source = workspace_source.content.to_string();
+        let source = workspace_source.content.try_to_string()?;
+
         let Ok(formatted) = crate::fmt::layout_source(&source) else {
             return Ok(None);
         };
-        let formatted = String::from_utf8(formatted).context("format produced invalid utf8")?;
+
+        let formatted = String::from_utf8(formatted).context("Format produced invalid utf8")?;
 
         // Only modify if changed
         Ok(if source != formatted {
@@ -274,7 +285,7 @@ impl<'a> State<'a> {
                     lsp::Position::new(0, 0),
                     lsp::Position::new(u32::MAX, u32::MAX),
                 ),
-                formatted,
+                formatted.into_std(),
             ))
         } else {
             None
@@ -314,17 +325,18 @@ impl<'a> State<'a> {
                 }
                 Ok(script_builds) => {
                     for script_build in script_builds {
-                        script_results.push(self.build_scripts(script_build, Some(&mut visited))?);
+                        script_results
+                            .try_push(self.build_scripts(script_build, Some(&mut visited))?)?;
                     }
                 }
             };
 
-            workspace_results.push((diagnostics, build));
+            workspace_results.try_push((diagnostics, build))?;
         }
 
         for (url, source) in &self.workspace.sources {
             if visited.contains(url) {
-                tracing::trace!(url = url.to_string(), "already populated by workspace");
+                tracing::trace!(url = ?url.try_to_string()?, "already populated by workspace");
                 continue;
             }
 
@@ -332,17 +344,17 @@ impl<'a> State<'a> {
                 continue;
             }
 
-            tracing::trace!(url = url.to_string(), "build plain source");
+            tracing::trace!(url = ?url.try_to_string()?, "build plain source");
 
             let mut build = Build::default();
 
             let input = match url.to_file_path() {
-                Ok(path) => crate::Source::with_path(url, source.to_string(), path),
-                Err(..) => crate::Source::new(url, source.to_string()),
+                Ok(path) => crate::Source::with_path(url, source.try_to_string()?, path),
+                Err(..) => crate::Source::new(url, source.try_to_string()?),
             };
 
-            build.sources.insert(input);
-            script_results.push(self.build_scripts(build, None)?);
+            build.sources.insert(input)?;
+            script_results.try_push(self.build_scripts(build, None)?)?;
         }
 
         // We need to pupulate diagnostics for everything we know about, in
@@ -352,13 +364,13 @@ impl<'a> State<'a> {
         }
 
         for (diagnostics, mut build) in workspace_results {
-            build.populate(&mut reporter);
-            emit_workspace(diagnostics, &build, &mut reporter);
+            build.populate(&mut reporter)?;
+            emit_workspace(diagnostics, &build, &mut reporter)?;
         }
 
         for (diagnostics, mut build, source_visitor, doc_visitor, unit) in script_results {
-            build.populate(&mut reporter);
-            emit_scripts(diagnostics, &build, &mut reporter);
+            build.populate(&mut reporter)?;
+            emit_scripts(diagnostics, &build, &mut reporter)?;
 
             let sources = Arc::new(build.sources);
             let doc_visitor = Arc::new(doc_visitor);
@@ -375,8 +387,8 @@ impl<'a> State<'a> {
                 source.index = value;
                 source.build_sources = Some(sources.clone());
 
-                if let Ok(unit) = unit.as_ref().map(|v| v.clone()) {
-                    source.unit = Some(unit.clone());
+                if let Ok(unit) = &unit {
+                    source.unit = Some(unit.try_clone()?);
                 }
 
                 source.docs = Some(doc_visitor.clone());
@@ -384,11 +396,15 @@ impl<'a> State<'a> {
         }
 
         for (url, diagnostics) in reporter.by_url {
-            tracing::info!(url = ?url.to_string(), diagnostics = diagnostics.len(), "publishing diagnostics");
+            tracing::info!(
+                url = ?url.try_to_string()?,
+                diagnostics = diagnostics.len(),
+                "publishing diagnostics"
+            );
 
             let diagnostics = lsp::PublishDiagnosticsParams {
                 uri: url.clone(),
-                diagnostics,
+                diagnostics: diagnostics.into_std(),
                 version: None,
             };
 
@@ -409,16 +425,21 @@ impl<'a> State<'a> {
         diagnostics: &mut workspace::Diagnostics,
         workspace: &Workspace,
     ) -> Result<Vec<Build>, anyhow::Error> {
-        tracing::info!(url = ?url.to_string(), "building workspace");
+        tracing::info!(url = ?url.try_to_string(), "building workspace");
 
         let source = match workspace.sources.get(url) {
-            Some(source) => source.chunks().collect::<String>(),
-            None => std::fs::read_to_string(path).with_context(|| url.to_string())?,
+            Some(source) => source.chunks().try_collect::<String>()?,
+            None => match std::fs::read_to_string(path) {
+                Ok(source) => String::try_from(source)?,
+                Err(error) => {
+                    return Err(error).context(url.try_to_string()?);
+                }
+            },
         };
 
         manifest_build
             .sources
-            .insert(crate::Source::with_path(url, source, path));
+            .insert(crate::Source::with_path(url, source, path))?;
 
         let mut source_loader = WorkspaceSourceLoader::new(&self.workspace.sources);
 
@@ -434,20 +455,22 @@ impl<'a> State<'a> {
                 continue;
             };
 
-            tracing::trace!("found manifest source: {}", url);
+            tracing::trace!("Found manifest source: {}", url);
 
             let source = match workspace.sources.get(&url) {
-                Some(source) => source.chunks().collect::<String>(),
-                None => std::fs::read_to_string(&p.found.path)
-                    .with_context(|| p.found.path.display().to_string())?,
+                Some(source) => source.chunks().try_collect::<String>()?,
+                None => match std::fs::read_to_string(&p.found.path) {
+                    Ok(string) => String::try_from(string)?,
+                    Err(err) => return Err(err).context(p.found.path.display().try_to_string()?),
+                },
             };
 
             let mut build = Build::default();
             build
                 .sources
-                .insert(crate::Source::with_path(&url, source, p.found.path));
+                .insert(crate::Source::with_path(&url, source, p.found.path))?;
 
-            script_builds.push(build);
+            script_builds.try_push(build)?;
         }
 
         Ok(script_builds)
@@ -466,7 +489,7 @@ impl<'a> State<'a> {
     )> {
         let mut diagnostics = crate::Diagnostics::new();
         let mut source_visitor = Visitor::default();
-        let mut doc_visitor = crate::doc::Visitor::new(ItemBuf::new())?;
+        let mut doc_visitor = crate::doc::Visitor::new(Item::new())?;
 
         let mut source_loader = ScriptSourceLoader::new(&self.workspace.sources);
 
@@ -474,8 +497,8 @@ impl<'a> State<'a> {
             .with_context(&self.context)
             .with_diagnostics(&mut diagnostics)
             .with_options(&self.options)
-            .with_visitor(&mut doc_visitor)
-            .with_visitor(&mut source_visitor)
+            .with_visitor(&mut doc_visitor)?
+            .with_visitor(&mut source_visitor)?
             .with_source_loader(&mut source_loader)
             .build();
 
@@ -488,13 +511,18 @@ impl<'a> State<'a> {
 }
 
 /// Emit diagnostics workspace.
-fn emit_workspace(diagnostics: workspace::Diagnostics, build: &Build, reporter: &mut Reporter) {
+fn emit_workspace(
+    diagnostics: workspace::Diagnostics,
+    build: &Build,
+    reporter: &mut Reporter,
+) -> Result<()> {
     if tracing::enabled!(tracing::Level::TRACE) {
         let id_to_url = build
             .id_to_url
             .iter()
-            .map(|(k, v)| (*k, v.to_string()))
-            .collect::<HashMap<_, _>>();
+            .map(|(k, v)| Ok::<_, alloc::Error>((*k, v.try_to_string()?)))
+            .try_collect::<alloc::Result<HashMap<_, _>, _>>()??;
+
         tracing::trace!(?id_to_url, "emitting manifest diagnostics");
     }
 
@@ -502,18 +530,24 @@ fn emit_workspace(diagnostics: workspace::Diagnostics, build: &Build, reporter: 
         tracing::trace!(?diagnostic, "workspace diagnostic");
 
         let workspace::Diagnostic::Fatal(f) = diagnostic;
-        report(build, reporter, f.source_id(), f.error(), to_error);
+        report(build, reporter, f.source_id(), f.error(), to_error)?;
     }
+
+    Ok(())
 }
 
 /// Emit regular compile diagnostics.
-fn emit_scripts(diagnostics: crate::Diagnostics, build: &Build, reporter: &mut Reporter) {
+fn emit_scripts(
+    diagnostics: crate::Diagnostics,
+    build: &Build,
+    reporter: &mut Reporter,
+) -> Result<()> {
     if tracing::enabled!(tracing::Level::TRACE) {
         let id_to_url = build
             .id_to_url
             .iter()
-            .map(|(k, v)| (*k, v.to_string()))
-            .collect::<HashMap<_, _>>();
+            .map(|(k, v)| Ok::<_, alloc::Error>((*k, v.try_to_string()?)))
+            .try_collect::<alloc::Result<HashMap<_, _>, _>>()??;
 
         tracing::trace!(?id_to_url, "emitting script diagnostics");
     }
@@ -524,7 +558,7 @@ fn emit_scripts(diagnostics: crate::Diagnostics, build: &Build, reporter: &mut R
         match diagnostic {
             Diagnostic::Fatal(f) => match f.kind() {
                 FatalDiagnosticKind::CompileError(e) => {
-                    report(build, reporter, f.source_id(), e, to_error);
+                    report(build, reporter, f.source_id(), e, to_error)?;
                 }
                 FatalDiagnosticKind::LinkError(e) => match e {
                     LinkerError::MissingFunction { hash, spans } => {
@@ -542,22 +576,24 @@ fn emit_scripts(diagnostics: crate::Diagnostics, build: &Build, reporter: &mut R
 
                             let diagnostics = reporter.entry(url);
 
-                            diagnostics.push(to_error(
+                            diagnostics.try_push(to_error(
                                 range,
-                                format!("missing function with hash `{}`", hash),
-                            ));
+                                format_args!("Missing function with hash `{}`", hash),
+                            )?)?;
                         }
                     }
                 },
                 FatalDiagnosticKind::Internal(e) => {
-                    report_without_span(build, reporter, f.source_id(), e, to_error);
+                    report_without_span(build, reporter, f.source_id(), e, to_error)?;
                 }
             },
             Diagnostic::Warning(e) => {
-                report(build, reporter, e.source_id(), e, to_warning);
+                report(build, reporter, e.source_id(), e, to_warning)?;
             }
         }
     }
+
+    Ok(())
 }
 
 /// A collection of open sources.
@@ -578,16 +614,17 @@ impl Workspace {
         url: Url,
         text: String,
         language: Language,
-    ) -> Option<Source> {
+    ) -> alloc::Result<Option<Source>> {
         let source = Source {
-            content: Rope::from(text),
+            content: Rope::from_str(text.as_str()),
             index: Default::default(),
             build_sources: None,
             language,
             unit: None,
             docs: None,
         };
-        self.sources.insert(url, source)
+
+        self.sources.try_insert(url, source)
     }
 
     /// Get the source at the given url.
@@ -601,10 +638,12 @@ impl Workspace {
     }
 
     /// Remove the given url as a source.
-    pub(super) fn remove(&mut self, url: &Url) {
+    pub(super) fn remove(&mut self, url: &Url) -> Result<()> {
         if self.sources.remove(url).is_some() {
-            self.removed.push(url.clone());
+            self.removed.try_push(url.clone())?;
         }
+
+        Ok(())
     }
 }
 
@@ -664,7 +703,7 @@ impl Source {
     }
 
     /// Returns the best match wordwise when looking back. Note that this will also include the *previous* terminal token.
-    pub fn looking_back(&self, offset: usize) -> Option<(String, usize)> {
+    pub(crate) fn looking_back(&self, offset: usize) -> alloc::Result<Option<(String, usize)>> {
         let (chunk, start_byte, _, _) = self.content.chunk_at_byte(offset);
 
         // The set of tokens that delimit symbols.
@@ -673,12 +712,15 @@ impl Source {
         ];
 
         let end_search = (offset - start_byte + 1).min(chunk.len());
-        chunk[..end_search].rfind(x).map(|looking_back| {
-            (
-                chunk[looking_back..end_search].trim().to_owned(),
-                start_byte + looking_back,
-            )
-        })
+
+        let Some(looking_back) = chunk[..end_search].rfind(x) else {
+            return Ok(None);
+        };
+
+        Ok(Some((
+            chunk[looking_back..end_search].trim().try_to_owned()?,
+            start_byte + looking_back,
+        )))
     }
 
     pub(super) fn get_docs_by_hash(&self, hash: crate::Hash) -> Option<&VisitorData> {
@@ -731,11 +773,17 @@ fn rope_utf16_position(rope: &Rope, position: lsp::Position) -> Result<usize> {
 }
 
 /// Convert the given span and error into an error diagnostic.
-fn report<E, R>(build: &Build, reporter: &mut Reporter, source_id: SourceId, error: E, report: R)
+fn report<E, R>(
+    build: &Build,
+    reporter: &mut Reporter,
+    source_id: SourceId,
+    error: E,
+    report: R,
+) -> Result<()>
 where
     E: fmt::Display,
     E: Spanned,
-    R: Fn(lsp::Range, E) -> lsp::Diagnostic,
+    R: Fn(lsp::Range, E) -> alloc::Result<lsp::Diagnostic>,
 {
     let span = error.span();
 
@@ -743,14 +791,15 @@ where
         build.sources.get(source_id),
         build.id_to_url.get(&source_id),
     ) else {
-        return;
+        return Ok(());
     };
 
     let Some(range) = span_to_lsp_range(source, span) else {
-        return;
+        return Ok(());
     };
 
-    reporter.entry(url).push(report(range, error));
+    reporter.entry(url).try_push(report(range, error)?)?;
+    Ok(())
 }
 
 /// Convert the given span and error into an error diagnostic.
@@ -760,21 +809,23 @@ fn report_without_span<E, R>(
     source_id: SourceId,
     error: E,
     report: R,
-) where
+) -> Result<()>
+where
     E: fmt::Display,
-    R: Fn(lsp::Range, E) -> lsp::Diagnostic,
+    R: Fn(lsp::Range, E) -> alloc::Result<lsp::Diagnostic>,
 {
     let Some(url) = build.id_to_url.get(&source_id) else {
-        return;
+        return Ok(());
     };
 
     let range = lsp::Range::default();
     let diagnostics = reporter.entry(url);
-    diagnostics.push(report(range, error));
+    diagnostics.try_push(report(range, error)?)?;
+    Ok(())
 }
 
 /// Convert the given span and error into an error diagnostic.
-fn to_error<E>(range: lsp::Range, error: E) -> lsp::Diagnostic
+fn to_error<E>(range: lsp::Range, error: E) -> alloc::Result<lsp::Diagnostic>
 where
     E: fmt::Display,
 {
@@ -782,7 +833,7 @@ where
 }
 
 /// Convert the given span and error into a warning diagnostic.
-fn to_warning<E>(range: lsp::Range, error: E) -> lsp::Diagnostic
+fn to_warning<E>(range: lsp::Range, error: E) -> alloc::Result<lsp::Diagnostic>
 where
     E: fmt::Display,
 {
@@ -794,21 +845,21 @@ fn display_to_diagnostic<E>(
     range: lsp::Range,
     error: E,
     severity: lsp::DiagnosticSeverity,
-) -> lsp::Diagnostic
+) -> alloc::Result<lsp::Diagnostic>
 where
     E: fmt::Display,
 {
-    lsp::Diagnostic {
+    Ok(lsp::Diagnostic {
         range,
         severity: Some(severity),
         code: None,
         code_description: None,
         source: None,
-        message: error.to_string(),
+        message: error.try_to_string()?.into_std(),
         related_information: None,
         tags: None,
         data: None,
-    }
+    })
 }
 
 #[derive(Default)]
@@ -818,7 +869,7 @@ pub(super) struct Index {
 }
 
 /// A definition source.
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 pub(super) enum DefinitionSource {
     /// Only a file source.
     Source(SourceId),
@@ -853,7 +904,7 @@ impl DefinitionSource {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 pub(super) struct Definition {
     /// The kind of the definition.
     pub(super) kind: DefinitionKind,
@@ -861,7 +912,8 @@ pub(super) struct Definition {
     pub(super) source: DefinitionSource,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 pub(super) enum DefinitionKind {
     /// A unit struct.
     EmptyStruct,
@@ -900,10 +952,9 @@ impl Visitor {
 }
 
 impl CompileVisitor for Visitor {
-    fn visit_meta(&mut self, location: &dyn Located, meta: MetaRef<'_>) {
-        let source = match meta.source {
-            Some(source) => source,
-            None => return,
+    fn visit_meta(&mut self, location: &dyn Located, meta: MetaRef<'_>) -> Result<(), MetaError> {
+        let Some(source) = meta.source else {
+            return Ok(());
         };
 
         let kind = match &meta.kind {
@@ -939,21 +990,23 @@ impl CompileVisitor for Visitor {
                 associated: Some(..),
                 ..
             } => DefinitionKind::AssociatedFunction,
-            _ => return,
+            _ => return Ok(()),
         };
 
         let definition = Definition {
             kind,
-            source: DefinitionSource::SourceMeta(source.clone()),
+            source: DefinitionSource::SourceMeta(source.try_clone()?),
         };
 
         let location = location.location();
 
-        let index = self.indexes.entry(location.source_id).or_default();
+        let index = self.indexes.entry(location.source_id).or_try_default()?;
 
         if let Some(d) = index.definitions.insert(location.span, definition) {
             tracing::warn!("Replaced definition: {:?}", d.kind)
         }
+
+        Ok(())
     }
 
     fn visit_variable_use(
@@ -961,20 +1014,22 @@ impl CompileVisitor for Visitor {
         source_id: SourceId,
         var_span: &dyn Spanned,
         span: &dyn Spanned,
-    ) {
+    ) -> Result<(), MetaError> {
         let definition = Definition {
             kind: DefinitionKind::Local,
             source: DefinitionSource::Location(Location::new(source_id, var_span.span())),
         };
 
-        let index = self.indexes.entry(source_id).or_default();
+        let index = self.indexes.entry(source_id).or_try_default()?;
 
         if let Some(d) = index.definitions.insert(span.span(), definition) {
             tracing::warn!("replaced definition: {:?}", d.kind)
         }
+
+        Ok(())
     }
 
-    fn visit_mod(&mut self, location: &dyn Located) {
+    fn visit_mod(&mut self, location: &dyn Located) -> Result<(), MetaError> {
         let location = location.location();
 
         let definition = Definition {
@@ -982,11 +1037,13 @@ impl CompileVisitor for Visitor {
             source: DefinitionSource::Source(location.source_id),
         };
 
-        let index = self.indexes.entry(location.source_id).or_default();
+        let index = self.indexes.entry(location.source_id).or_try_default()?;
 
         if let Some(d) = index.definitions.insert(location.span, definition) {
             tracing::warn!("replaced definition: {:?}", d.kind)
         }
+
+        Ok(())
     }
 }
 
@@ -1005,30 +1062,36 @@ impl<'a> ScriptSourceLoader<'a> {
     }
 
     /// Generate a collection of URl candidates.
-    fn candidates(root: &Path, item: &Item) -> Option<[(Url, PathBuf); 2]> {
-        let mut base = root.to_owned();
+    fn candidates(
+        root: &Path,
+        item: &Item,
+        span: &dyn Spanned,
+    ) -> compile::Result<Option<[(Url, PathBuf); 2]>> {
+        let mut base = root.try_to_owned()?;
 
         let mut it = item.iter().peekable();
         let mut last = None;
 
         while let Some(c) = it.next() {
             if it.peek().is_none() {
-                last = match c {
-                    ComponentRef::Str(string) => Some(string),
-                    _ => return None,
+                let ComponentRef::Str(string) = c else {
+                    return Ok(None);
                 };
 
+                last = Some(string);
                 break;
             }
 
-            if let ComponentRef::Str(string) = c {
-                base.push(string);
-            } else {
-                return None;
-            }
+            let ComponentRef::Str(string) = c else {
+                return Ok(None);
+            };
+
+            base.push(string);
         }
 
-        let last = last?;
+        let Some(last) = last else {
+            return Ok(None);
+        };
 
         let mut a = base.clone();
         a.push(&format!("{}.rn", last));
@@ -1037,10 +1100,10 @@ impl<'a> ScriptSourceLoader<'a> {
         b.push(last);
         b.push("mod.rn");
 
-        let a_url = crate::languageserver::url::from_file_path(&a).ok()?;
-        let b_url = crate::languageserver::url::from_file_path(&b).ok()?;
+        let a_url = crate::languageserver::url::from_file_path(&a).with_span(span)?;
+        let b_url = crate::languageserver::url::from_file_path(&b).with_span(span)?;
 
-        Some([(a_url, a), (b_url, b)])
+        Ok(Some([(a_url, a), (b_url, b)]))
     }
 }
 
@@ -1053,10 +1116,10 @@ impl<'a> crate::compile::SourceLoader for ScriptSourceLoader<'a> {
     ) -> compile::Result<crate::Source> {
         tracing::trace!("load {} (root: {})", item, root.display());
 
-        if let Some(candidates) = Self::candidates(root, item) {
+        if let Some(candidates) = Self::candidates(root, item, span)? {
             for (url, path) in candidates {
                 if let Some(s) = self.sources.get(&url) {
-                    return Ok(crate::Source::with_path(url, s.to_string(), path));
+                    return Ok(crate::Source::with_path(url, s.try_to_string()?, path));
                 }
             }
         }
@@ -1084,7 +1147,8 @@ impl<'a> workspace::SourceLoader for WorkspaceSourceLoader<'a> {
     fn load(&mut self, span: Span, path: &Path) -> Result<crate::Source, WorkspaceError> {
         if let Ok(url) = crate::languageserver::url::from_file_path(path) {
             if let Some(s) = self.sources.get(&url) {
-                return Ok(crate::Source::with_path(url, s.to_string(), path));
+                let source = s.try_to_string().with_span(span)?;
+                return Ok(crate::Source::with_path(url, source, path));
             }
         }
 

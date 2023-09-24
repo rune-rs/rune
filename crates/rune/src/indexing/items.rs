@@ -1,9 +1,9 @@
 use core::fmt;
 use core::mem::replace;
 
-use crate::no_std::prelude::*;
-
-use crate::compile::{ComponentRef, Item, ItemBuf};
+use crate::alloc;
+use crate::alloc::prelude::*;
+use crate::compile::{ComponentRef, ErrorKind, Item, ItemBuf};
 use crate::parse::NonZeroId;
 use crate::shared::Gen;
 
@@ -53,13 +53,13 @@ pub(crate) struct Items<'a> {
 
 impl<'a> Items<'a> {
     /// Construct a new items manager.
-    pub(crate) fn new(item: &Item, id: NonZeroId, gen: &'a Gen) -> Self {
-        Self {
+    pub(crate) fn new(item: &Item, id: NonZeroId, gen: &'a Gen) -> alloc::Result<Self> {
+        Ok(Self {
             block_index: item.last().and_then(ComponentRef::id).unwrap_or_default(),
-            item: item.to_owned(),
+            item: item.try_to_owned()?,
             last_id: id,
             gen,
-        }
+        })
     }
 
     /// Access the last added id.
@@ -73,37 +73,37 @@ impl<'a> Items<'a> {
     }
 
     /// Push a component and return a guard to it.
-    pub(crate) fn push_id(&mut self) -> Guard {
+    pub(crate) fn push_id(&mut self) -> alloc::Result<Guard> {
         let id = self.gen.next();
         let next_index = self.block_index;
-        self.item.push(ComponentRef::Id(next_index));
+        self.item.push(ComponentRef::Id(next_index))?;
         let last_id = replace(&mut self.last_id, id);
-        Guard(id, last_id)
+        Ok(Guard(id, last_id))
     }
 
     /// Push a component and return a guard to it.
-    pub(crate) fn push_name(&mut self, name: &str) -> Guard {
+    pub(crate) fn push_name(&mut self, name: &str) -> alloc::Result<Guard> {
         let id = self.gen.next();
         self.block_index = 0;
-        self.item.push(name);
+        self.item.push(name)?;
         let last_id = replace(&mut self.last_id, id);
-        Guard(id, last_id)
+        Ok(Guard(id, last_id))
     }
 
     /// Pop the scope associated with the given guard.
-    pub(crate) fn pop(&mut self, guard: Guard) -> Result<(), GuardMismatch> {
+    pub(crate) fn pop(&mut self, guard: Guard) -> Result<(), ErrorKind> {
         let Guard(expected_id, last_id) = guard;
 
         if self.last_id != expected_id {
-            return Err(GuardMismatch {
+            return Err(ErrorKind::from(GuardMismatch {
                 actual: self.last_id,
                 expected: expected_id,
-            });
+            }));
         }
 
         self.block_index = self
             .item
-            .pop()
+            .pop()?
             .and_then(|c| c.id())
             .and_then(|n| n.checked_add(1))
             .unwrap_or_default();

@@ -1,4 +1,7 @@
+pub use self::into_hash::IntoHash;
 mod into_hash;
+
+pub use self::to_type_hash::ToTypeHash;
 mod to_type_hash;
 
 use core::fmt;
@@ -11,8 +14,8 @@ use twox_hash::XxHash64;
 
 use crate::protocol::Protocol;
 
-pub use self::into_hash::IntoHash;
-pub use self::to_type_hash::ToTypeHash;
+use crate::alloc;
+use crate::alloc::clone::TryClone;
 
 const SEP: u64 = 0x4bc94d6bd06053ad;
 const PARAMS: u64 = 0x19893cc8f39b1371;
@@ -179,6 +182,12 @@ impl Hash {
     /// Construct a new hasher.
     fn new_hasher() -> XxHash64 {
         BuildHasherDefault::<XxHash64>::default().build_hasher()
+    }
+}
+
+impl TryClone for Hash {
+    fn try_clone(&self) -> alloc::Result<Self> {
+        Ok(*self)
     }
 }
 

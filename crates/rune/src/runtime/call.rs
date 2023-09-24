@@ -3,10 +3,13 @@ use core::fmt;
 use musli::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
+use crate as rune;
+use crate::alloc::prelude::*;
 use crate::runtime::{Future, Generator, Stream, Value, Vm, VmResult};
 
 /// The calling convention of a function.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, TryClone, Clone, Copy, Serialize, Deserialize, Encode, Decode)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub enum Call {
     /// Function is `async` and returns a future that must be await:ed to make

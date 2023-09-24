@@ -11,7 +11,7 @@ fn ast_parse() {
 /// A prioritized expression group.
 ///
 /// * `(<expr>)`.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprGroup {
     /// Attributes associated with expression.

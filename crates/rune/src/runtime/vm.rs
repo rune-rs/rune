@@ -3,11 +3,11 @@ use core::mem::{replace, swap};
 use core::ops;
 use core::slice;
 
-use crate::alloc::{Error, IteratorExt, String, TryClone, TryToOwned};
+use crate::alloc::prelude::*;
+use crate::alloc::{self, String};
 use crate::hash::{Hash, IntoHash, ToTypeHash};
 use crate::modules::{option, result};
 use crate::no_std::borrow::ToOwned;
-use crate::no_std::std;
 use crate::no_std::sync::Arc;
 use crate::no_std::vec;
 use crate::runtime::budget;
@@ -102,7 +102,7 @@ pub struct Vm {
     /// The current stack.
     stack: Stack,
     /// Frames relative to the stack.
-    call_frames: vec::Vec<CallFrame>,
+    call_frames: alloc::Vec<CallFrame>,
 }
 
 impl Vm {
@@ -119,7 +119,7 @@ impl Vm {
             ip: 0,
             last_ip_len: 0,
             stack,
-            call_frames: vec::Vec::new(),
+            call_frames: alloc::Vec::new(),
         }
     }
 
@@ -223,7 +223,7 @@ impl Vm {
     /// use std::sync::Arc;
     ///
     /// let context = Context::with_default_modules()?;
-    /// let context = Arc::new(context.runtime());
+    /// let context = Arc::new(context.runtime()?);
     ///
     /// let mut sources = rune::sources! {
     ///     entry => {
@@ -249,15 +249,15 @@ impl Vm {
     /// assert_eq!(value, 20);
     ///
     /// // Building an item buffer to lookup an `::std` item.
-    /// let mut item = ItemBuf::with_crate("std");
-    /// item.push("i64");
-    /// item.push("max");
+    /// let mut item = ItemBuf::with_crate("std")?;
+    /// item.push("i64")?;
+    /// item.push("max")?;
     ///
     /// let max = vm.lookup_function(&item)?;
     ///
     /// let value: i64 = rune::from_value(max.call((10, 20)).into_result()?)?;
     /// assert_eq!(value, 20);
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn lookup_function<N>(&self, name: N) -> Result<Function, VmError>
     where
@@ -301,7 +301,7 @@ impl Vm {
     /// use std::sync::Arc;
     ///
     /// let context = Context::with_default_modules()?;
-    /// let context = Arc::new(context.runtime());
+    /// let context = Arc::new(context.runtime()?);
     ///
     /// // Normally the unit would be created by compiling some source,
     /// // and since this one is empty it won't do anything.
@@ -313,7 +313,7 @@ impl Vm {
     /// let output: i64 = rune::from_value(output)?;
     ///
     /// println!("output: {}", output);
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     ///
     /// You can use a `Vec<Value>` to provide a variadic collection of
@@ -324,7 +324,7 @@ impl Vm {
     /// use std::sync::Arc;
     ///
     /// let context = Context::with_default_modules()?;
-    /// let context = Arc::new(context.runtime());
+    /// let context = Arc::new(context.runtime()?);
     ///
     /// // Normally the unit would be created by compiling some source,
     /// // and since this one is empty it won't do anything.
@@ -340,7 +340,7 @@ impl Vm {
     /// let output: i64 = rune::from_value(output)?;
     ///
     /// println!("output: {}", output);
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn execute<A, N>(&mut self, name: N, args: A) -> Result<VmExecution<&mut Self>, VmError>
     where
@@ -464,13 +464,13 @@ impl Vm {
     {
         let hash = name.to_type_hash();
 
-        let info = self.unit.function(hash).ok_or_else(|| {
-            if let Some(item) = name.to_item() {
+        let Some(info) = self.unit.function(hash) else {
+            return Err(if let Some(item) = name.to_item()? {
                 VmErrorKind::MissingEntry { hash, item }
             } else {
                 VmErrorKind::MissingEntryHash { hash }
-            }
-        })?;
+            });
+        };
 
         let offset = match info {
             // NB: we ignore the calling convention.
@@ -636,7 +636,7 @@ impl Vm {
             isolated,
         };
 
-        self.call_frames.push(frame);
+        self.call_frames.try_push(frame)?;
         Ok(())
     }
 
@@ -2484,7 +2484,9 @@ impl Vm {
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_bytes(&mut self, slot: usize) -> VmResult<()> {
-        let bytes = vm_try!(self.unit.lookup_bytes(slot)).to_vec();
+        let bytes = vm_try!(alloc::Vec::<u8>::try_from(vm_try!(self
+            .unit
+            .lookup_bytes(slot))));
         vm_try!(self
             .stack
             .push(vm_try!(Value::try_from(Bytes::from_vec(bytes)))));
@@ -2734,7 +2736,7 @@ impl Vm {
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_match_object(&mut self, slot: usize, exact: bool) -> VmResult<()> {
-        fn test(object: &Object, keys: &[std::String], exact: bool) -> bool {
+        fn test(object: &Object, keys: &[alloc::String], exact: bool) -> bool {
             if exact {
                 if object.len() != keys.len() {
                     return false;
@@ -3018,7 +3020,7 @@ impl Vm {
     /// use std::sync::Arc;
     ///
     /// let context = Context::with_default_modules()?;
-    /// let context = Arc::new(context.runtime());
+    /// let context = Arc::new(context.runtime()?);
     ///
     /// // Normally the unit would be created by compiling some source,
     /// // and since this one is empty it'll just error.
@@ -3036,7 +3038,7 @@ impl Vm {
     /// // Note: We do an extra unwrap because the return value is
     /// // `fmt::Result`.
     /// vm.with(|| output.string_display(&mut f)).into_result()?;
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn with<F, T>(&mut self, f: F) -> T
     where
@@ -3321,14 +3323,14 @@ impl Vm {
 }
 
 impl TryClone for Vm {
-    fn try_clone(&self) -> Result<Self, Error> {
+    fn try_clone(&self) -> alloc::Result<Self> {
         Ok(Self {
             context: self.context.clone(),
             unit: self.unit.clone(),
             ip: self.ip,
             last_ip_len: self.last_ip_len,
             stack: self.stack.try_clone()?,
-            call_frames: self.call_frames.clone(),
+            call_frames: self.call_frames.try_clone()?,
         })
     }
 }
@@ -3364,6 +3366,13 @@ pub struct CallFrame {
     /// Indicates that the call frame is isolated and should force an exit into
     /// the vm execution context.
     pub isolated: bool,
+}
+
+impl TryClone for CallFrame {
+    #[inline]
+    fn try_clone(&self) -> alloc::Result<Self> {
+        Ok(*self)
+    }
 }
 
 /// Clear stack on drop.

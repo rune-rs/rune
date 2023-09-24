@@ -1,11 +1,12 @@
-use crate::no_std::collections::HashMap;
-use crate::no_std::prelude::*;
-
+use crate::alloc::prelude::*;
+use crate::alloc::{self, try_vec, Box, HashMap, Vec};
+use crate::ast::Spanned;
 use crate::compile::ir;
+use crate::compile::{self, ErrorKind};
 use crate::hir;
 
 /// Error indicating that a local variable is missing.
-pub(crate) struct MissingLocal(pub(crate) hir::OwnedName);
+pub(crate) struct MissingLocal(pub(crate) Box<str>);
 
 /// A hierarchy of constant scopes.
 pub(crate) struct Scopes {
@@ -13,6 +14,13 @@ pub(crate) struct Scopes {
 }
 
 impl Scopes {
+    /// Construct a new empty scope.
+    pub(crate) fn new() -> alloc::Result<Self> {
+        Ok(Self {
+            scopes: try_vec![Scope::default()],
+        })
+    }
+
     /// Clear the current scope.
     pub(crate) fn clear_current(&mut self) -> Result<(), &'static str> {
         let last = self
@@ -29,9 +37,11 @@ impl Scopes {
         &mut self,
         name: &hir::OwnedName,
         value: ir::Value,
-    ) -> Result<(), &'static str> {
-        let last = self.last_mut().ok_or("expected at least one scope")?;
-        last.locals.insert(name.clone(), value);
+    ) -> Result<(), ErrorKind> {
+        let last = self
+            .last_mut()
+            .ok_or_else(|| ErrorKind::msg("Expected at least one scope"))?;
+        last.locals.try_insert(name.try_clone()?, value)?;
         Ok(())
     }
 
@@ -52,7 +62,11 @@ impl Scopes {
     }
 
     /// Get the given variable.
-    pub(crate) fn get_name(&self, name: &hir::OwnedName) -> Result<&ir::Value, MissingLocal> {
+    pub(crate) fn get_name(
+        &self,
+        name: &hir::OwnedName,
+        span: &dyn Spanned,
+    ) -> compile::Result<&ir::Value> {
         for scope in self.scopes.iter().rev() {
             if let Some(current) = scope.locals.get(name) {
                 return Ok(current);
@@ -64,14 +78,18 @@ impl Scopes {
             }
         }
 
-        Err(MissingLocal(name.clone()))
+        Err(compile::Error::new(
+            span,
+            MissingLocal(name.try_to_string()?.try_into_boxed_str()?),
+        ))
     }
 
     /// Get the given variable as mutable.
     pub(crate) fn get_name_mut(
         &mut self,
         name: &hir::OwnedName,
-    ) -> Result<&mut ir::Value, MissingLocal> {
+        span: &dyn Spanned,
+    ) -> compile::Result<&mut ir::Value> {
         for scope in self.scopes.iter_mut().rev() {
             if let Some(current) = scope.locals.get_mut(name) {
                 return Ok(current);
@@ -83,25 +101,28 @@ impl Scopes {
             }
         }
 
-        Err(MissingLocal(name.clone()))
+        Err(compile::Error::new(
+            span,
+            MissingLocal(name.try_to_string()?.try_into_boxed_str()?),
+        ))
     }
 
     /// Push a scope and return the guard associated with the scope.
-    pub(crate) fn push(&mut self) -> ScopeGuard {
+    pub(crate) fn push(&mut self) -> alloc::Result<ScopeGuard> {
         let length = self.scopes.len();
-        self.scopes.push(Scope::default());
-        ScopeGuard { length }
+        self.scopes.try_push(Scope::default())?;
+        Ok(ScopeGuard { length })
     }
 
     /// Push an isolate scope and return the guard associated with the scope.
-    pub(crate) fn isolate(&mut self) -> ScopeGuard {
+    pub(crate) fn isolate(&mut self) -> alloc::Result<ScopeGuard> {
         let length = self.scopes.len();
         let scope = Scope {
             kind: ScopeKind::Isolate,
             ..Default::default()
         };
-        self.scopes.push(scope);
-        ScopeGuard { length }
+        self.scopes.try_push(scope)?;
+        Ok(ScopeGuard { length })
     }
 
     pub(crate) fn pop(&mut self, guard: ScopeGuard) -> Result<(), &'static str> {
@@ -119,14 +140,6 @@ impl Scopes {
     /// Get the last scope mutably.
     pub(crate) fn last_mut(&mut self) -> Option<&mut Scope> {
         self.scopes.last_mut()
-    }
-}
-
-impl Default for Scopes {
-    fn default() -> Self {
-        Self {
-            scopes: vec![Scope::default()],
-        }
     }
 }
 
@@ -151,7 +164,7 @@ impl Default for Scope {
     fn default() -> Self {
         Self {
             kind: ScopeKind::None,
-            locals: Default::default(),
+            locals: HashMap::new(),
         }
     }
 }

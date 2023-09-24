@@ -43,7 +43,7 @@ fn ast_parse() {
 ///
 /// * `#[derive(Debug)]`.
 /// * `#![doc = "test"]`.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct Attribute {
     /// The `#` character
@@ -98,7 +98,7 @@ impl Parse for Attribute {
                 break;
             }
 
-            input.push(token);
+            input.push(token)?;
         }
 
         Ok(Attribute {
@@ -132,7 +132,8 @@ impl IntoExpectation for Attribute {
 }
 
 /// Whether or not the attribute is an outer `#!` or inner `#` attribute
-#[derive(Debug, Clone, Copy, PartialEq, Eq, OptionSpanned, ToTokens)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, OptionSpanned, ToTokens)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub enum AttrStyle {
     /// `#`

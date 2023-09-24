@@ -20,7 +20,7 @@ fn bug_344_function() -> Result<()> {
     module.function(["function"], function)?;
 
     context.install(module)?;
-    let runtime = context.runtime();
+    let runtime = context.runtime()?;
 
     let hash = Hash::type_hash(["function"]);
 
@@ -54,7 +54,7 @@ fn bug_344_inst_fn() -> Result<()> {
     module.function_meta(function)?;
 
     context.install(module)?;
-    let runtime = context.runtime();
+    let runtime = context.runtime()?;
 
     let hash = Hash::associated_function(<GuardCheck as Any>::type_hash(), "function");
 
@@ -77,7 +77,7 @@ fn bug_344_async_function() -> Result<()> {
     module.function(["function"], function)?;
 
     context.install(module)?;
-    let runtime = context.runtime();
+    let runtime = context.runtime()?;
 
     let hash = Hash::type_hash(["function"]);
 
@@ -121,7 +121,7 @@ fn bug_344_async_inst_fn() -> Result<()> {
     module.function_meta(function)?;
 
     context.install(module)?;
-    let runtime = context.runtime();
+    let runtime = context.runtime()?;
 
     let hash = Hash::associated_function(<GuardCheck as Any>::type_hash(), "function");
 

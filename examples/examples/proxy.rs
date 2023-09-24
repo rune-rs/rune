@@ -2,6 +2,7 @@ use rune::alloc;
 use rune::runtime::{Mut, Ref};
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{Any, Context, Diagnostics, FromValue, Vm};
+
 use std::sync::Arc;
 
 #[derive(Any, Debug, Default)]
@@ -16,7 +17,7 @@ struct Proxy {
     my_bytes: Ref<MyBytes>,
 }
 
-fn main() -> rune::Result<()> {
+fn main() -> rune::support::Result<()> {
     let context = Context::with_default_modules()?;
 
     let mut sources = rune::sources! {
@@ -41,7 +42,7 @@ fn main() -> rune::Result<()> {
 
     let unit = result?;
 
-    let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
+    let mut vm = Vm::new(Arc::new(context.runtime()?), Arc::new(unit));
 
     let input = MyBytes {
         bytes: vec![77, 77, 77, 77],

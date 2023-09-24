@@ -16,7 +16,8 @@ fn ast_parse() {
 ///
 /// * `42`.
 /// * `4.2e10`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, Spanned)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct LitNumber {
     /// The span corresponding to the literal.
@@ -51,9 +52,8 @@ impl<'a> Resolve<'a> for LitNumber {
         let span = self.span;
 
         let text = match self.source {
-            ast::NumberSource::Synthetic(id) => match cx.storage.get_number(id) {
-                Some(number) => return Ok(number.clone()),
-                None => {
+            ast::NumberSource::Synthetic(id) => {
+                let Some(number) = cx.storage.get_number(id) else {
                     return Err(compile::Error::new(
                         span,
                         ErrorKind::BadSyntheticId {
@@ -61,8 +61,10 @@ impl<'a> Resolve<'a> for LitNumber {
                             id,
                         },
                     ));
-                }
-            },
+                };
+
+                return Ok((*number).try_clone()?);
+            }
             ast::NumberSource::Text(text) => text,
         };
 
@@ -121,10 +123,14 @@ impl<'a> Resolve<'a> for LitNumber {
 }
 
 impl ToTokens for LitNumber {
-    fn to_tokens(&self, _: &mut MacroContext<'_, '_, '_>, stream: &mut TokenStream) {
+    fn to_tokens(
+        &self,
+        _: &mut MacroContext<'_, '_, '_>,
+        stream: &mut TokenStream,
+    ) -> alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Number(self.source),
-        });
+        })
     }
 }

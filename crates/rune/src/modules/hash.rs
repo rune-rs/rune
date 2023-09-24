@@ -9,7 +9,7 @@ use crate::{ContextError, Module};
 /// Types for dealing with hashing in Rune.
 pub fn module() -> Result<Module, ContextError> {
     #[allow(unused_mut)]
-    let mut module = Module::from_meta(self::module_meta);
+    let mut module = Module::from_meta(self::module_meta)?;
     #[cfg(feature = "std")]
     module.ty::<Hasher>()?;
     Ok(module)

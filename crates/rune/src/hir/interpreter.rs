@@ -1,5 +1,4 @@
-use crate::no_std::collections::HashMap;
-
+use crate::alloc::HashMap;
 use crate::runtime::Value;
 
 /// HIR interpreter.

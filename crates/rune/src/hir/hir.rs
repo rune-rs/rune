@@ -1,9 +1,9 @@
 use core::fmt;
 use core::num::NonZeroUsize;
 
-use crate::no_std::prelude::*;
-
 use crate as rune;
+use crate::alloc::prelude::*;
+use crate::alloc::{self, String};
 use crate::ast::{self, Span, Spanned};
 use crate::compile::{ItemId, ModId};
 use crate::parse::NonZeroId;
@@ -11,7 +11,7 @@ use crate::runtime::{format, Type, TypeCheck};
 use crate::Hash;
 
 /// An owned name.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, TryClone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) enum OwnedName {
     SelfValue,
     Str(String),
@@ -40,7 +40,8 @@ impl fmt::Display for OwnedName {
 }
 
 /// A captured variable.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[try_clone(copy)]
 pub(crate) enum Name<'hir> {
     /// Capture of the `self` value.
     SelfValue,
@@ -52,12 +53,12 @@ pub(crate) enum Name<'hir> {
 
 impl<'hir> Name<'hir> {
     /// Coerce into an owned name.
-    pub(crate) fn into_owned(self) -> OwnedName {
-        match self {
+    pub(crate) fn into_owned(self) -> alloc::Result<OwnedName> {
+        Ok(match self {
             Name::SelfValue => OwnedName::SelfValue,
-            Name::Str(name) => OwnedName::Str(name.to_owned()),
+            Name::Str(name) => OwnedName::Str(name.try_to_owned()?),
             Name::Id(id) => OwnedName::Id(id),
-        }
+        })
     }
 
     /// Test if the name starts with the given test.
@@ -81,7 +82,8 @@ impl fmt::Display for Name<'_> {
 }
 
 /// A pattern.
-#[derive(Debug, Clone, Copy, Spanned)]
+#[derive(Debug, TryClone, Clone, Copy, Spanned)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct Pat<'hir> {
     /// The span of the pattern.
@@ -91,14 +93,16 @@ pub(crate) struct Pat<'hir> {
     pub(crate) kind: PatKind<'hir>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 pub(crate) enum PatPathKind<'hir> {
     Kind(&'hir PatSequenceKind),
     Ident(&'hir str),
 }
 
 /// The kind of a [Pat].
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 pub(crate) enum PatKind<'hir> {
     /// An ignored binding.
     Ignore,
@@ -112,7 +116,8 @@ pub(crate) enum PatKind<'hir> {
     Object(&'hir PatObject<'hir>),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 pub(crate) enum PatSequenceKind {
     Type {
         hash: Hash,
@@ -133,7 +138,8 @@ pub(crate) enum PatSequenceKind {
 }
 
 /// Items pattern matching.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct PatSequence<'hir> {
     /// The kind of pattern items.
@@ -143,7 +149,8 @@ pub(crate) struct PatSequence<'hir> {
 }
 
 /// Object pattern matching.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct PatObject<'hir> {
     /// The kind of pattern items.
@@ -152,7 +159,8 @@ pub(crate) struct PatObject<'hir> {
     pub(crate) bindings: &'hir [Binding<'hir>],
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) enum Binding<'hir> {
     Binding(Span, &'hir str, &'hir Pat<'hir>),
@@ -178,7 +186,8 @@ impl<'hir> Binding<'hir> {
 }
 
 /// An expression.
-#[derive(Debug, Clone, Copy, Spanned)]
+#[derive(Debug, TryClone, Clone, Copy, Spanned)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct Expr<'hir> {
     /// Span of the expression.
@@ -189,7 +198,8 @@ pub(crate) struct Expr<'hir> {
 }
 
 /// The kind of a number.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) enum Lit<'hir> {
     Bool(bool),
@@ -202,7 +212,8 @@ pub(crate) enum Lit<'hir> {
 }
 
 /// The kind of an [Expr].
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) enum ExprKind<'hir> {
     Variable(Name<'hir>),
@@ -242,7 +253,8 @@ pub(crate) enum ExprKind<'hir> {
 }
 
 /// An internally resolved template.
-#[derive(Debug, Clone, Copy, Spanned)]
+#[derive(Debug, TryClone, Clone, Copy, Spanned)]
+#[try_clone(copy)]
 pub(crate) struct BuiltInTemplate<'hir> {
     /// The span of the built-in template.
     #[rune(span)]
@@ -254,7 +266,8 @@ pub(crate) struct BuiltInTemplate<'hir> {
 }
 
 /// An internal format specification.
-#[derive(Debug, Clone, Copy, Spanned)]
+#[derive(Debug, TryClone, Clone, Copy, Spanned)]
+#[try_clone(copy)]
 pub(crate) struct BuiltInFormat<'hir> {
     #[rune(span)]
     pub(crate) span: Span,
@@ -275,7 +288,8 @@ pub(crate) struct BuiltInFormat<'hir> {
 }
 
 /// An assign expression `a = b`.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct ExprAssign<'hir> {
     /// The expression being assigned to.
@@ -285,7 +299,8 @@ pub(crate) struct ExprAssign<'hir> {
 }
 
 /// A `loop` expression: `loop { ... }`.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct ExprLoop<'hir> {
     /// A label.
@@ -300,7 +315,8 @@ pub(crate) struct ExprLoop<'hir> {
 }
 
 /// A `for` loop over an iterator: `for i in [1, 2, 3] {}`.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct ExprFor<'hir> {
     /// The label of the loop.
@@ -318,7 +334,8 @@ pub(crate) struct ExprFor<'hir> {
 }
 
 /// A let expression `let <name> = <expr>`
-#[derive(Debug, Clone, Copy, Spanned)]
+#[derive(Debug, TryClone, Clone, Copy, Spanned)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct ExprLet<'hir> {
     /// The name of the binding.
@@ -334,7 +351,8 @@ pub(crate) struct ExprLet<'hir> {
 /// ```text
 /// if cond { true } else { false }
 /// ```
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct Conditional<'hir> {
     /// Else if branches.
@@ -342,7 +360,8 @@ pub(crate) struct Conditional<'hir> {
 }
 
 /// An else branch of an if expression.
-#[derive(Debug, Clone, Copy, Spanned)]
+#[derive(Debug, TryClone, Clone, Copy, Spanned)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct ConditionalBranch<'hir> {
     /// Span of the expression.
@@ -359,7 +378,8 @@ pub(crate) struct ConditionalBranch<'hir> {
 }
 
 /// A match expression.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct ExprMatch<'hir> {
     /// The expression who's result we match over.
@@ -369,7 +389,8 @@ pub(crate) struct ExprMatch<'hir> {
 }
 
 /// A match branch.
-#[derive(Debug, Clone, Copy, Spanned)]
+#[derive(Debug, TryClone, Clone, Copy, Spanned)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct ExprMatchBranch<'hir> {
     /// Span of the expression.
@@ -387,7 +408,8 @@ pub(crate) struct ExprMatchBranch<'hir> {
     pub(crate) drop: &'hir [Name<'hir>],
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 pub(crate) enum Call<'hir> {
     Var {
         /// The name of the variable being called.
@@ -417,7 +439,8 @@ pub(crate) enum Call<'hir> {
 }
 
 /// A function call `<expr>(<args>)`.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct ExprCall<'hir> {
     /// The call being performed.
@@ -427,7 +450,8 @@ pub(crate) struct ExprCall<'hir> {
 }
 
 /// A field access `<expr>.<field>`.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct ExprFieldAccess<'hir> {
     /// The expr where the field is being accessed.
@@ -437,7 +461,8 @@ pub(crate) struct ExprFieldAccess<'hir> {
 }
 
 /// The field being accessed.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) enum ExprField<'hir> {
     /// A tuple index.
@@ -461,7 +486,8 @@ pub(crate) enum ExprField<'hir> {
 }
 
 /// A binary expression.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct ExprBinary<'hir> {
     /// The left-hand side of a binary operation.
@@ -473,7 +499,8 @@ pub(crate) struct ExprBinary<'hir> {
 }
 
 /// A unary expression.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct ExprUnary<'hir> {
     /// The operation to apply.
@@ -483,7 +510,8 @@ pub(crate) struct ExprUnary<'hir> {
 }
 
 /// An index get operation `<t>[<index>]`.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct ExprIndex<'hir> {
     /// The target of the index set.
@@ -493,7 +521,8 @@ pub(crate) struct ExprIndex<'hir> {
 }
 
 /// An async block being called.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct ExprAsyncBlock<'hir> {
     pub(crate) hash: Hash,
@@ -501,7 +530,8 @@ pub(crate) struct ExprAsyncBlock<'hir> {
     pub(crate) captures: &'hir [Name<'hir>],
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 pub(crate) struct ExprBreak<'hir> {
     /// Label being continued.
     pub(crate) label: Option<&'hir str>,
@@ -512,7 +542,8 @@ pub(crate) struct ExprBreak<'hir> {
     pub(crate) drop: &'hir [Name<'hir>],
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 pub(crate) struct ExprContinue<'hir> {
     /// Label being continued.
     pub(crate) label: Option<&'hir str>,
@@ -522,7 +553,8 @@ pub(crate) struct ExprContinue<'hir> {
 }
 
 /// A `select` expression that selects over a collection of futures.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct ExprSelect<'hir> {
     /// The branches of the select.
@@ -530,7 +562,8 @@ pub(crate) struct ExprSelect<'hir> {
 }
 
 /// A single selection branch.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) enum ExprSelectBranch<'hir> {
     /// A patterned branch.
@@ -540,7 +573,8 @@ pub(crate) enum ExprSelectBranch<'hir> {
 }
 
 /// A single selection branch.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct ExprSelectPatBranch<'hir> {
     /// The identifier to bind the result to.
@@ -555,7 +589,8 @@ pub(crate) struct ExprSelectPatBranch<'hir> {
 }
 
 /// Calling a closure.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct ExprCallClosure<'hir> {
     pub(crate) do_move: bool,
@@ -564,7 +599,8 @@ pub(crate) struct ExprCallClosure<'hir> {
 }
 
 /// A closure expression.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct ExprClosure<'hir> {
     /// Arguments to the closure.
@@ -575,7 +611,8 @@ pub(crate) struct ExprClosure<'hir> {
     pub(crate) captures: &'hir [Name<'hir>],
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 pub(crate) enum ExprObjectKind {
     EmptyStruct { hash: Hash },
     Struct { hash: Hash },
@@ -585,7 +622,8 @@ pub(crate) enum ExprObjectKind {
 }
 
 /// An object expression.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct ExprObject<'hir> {
     /// The kind of an object being created.
@@ -595,7 +633,8 @@ pub(crate) struct ExprObject<'hir> {
 }
 
 /// A single field assignment in an object expression.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct FieldAssign<'hir> {
     /// The key of the field.
@@ -607,7 +646,8 @@ pub(crate) struct FieldAssign<'hir> {
 }
 
 /// A literal vector.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct ExprSeq<'hir> {
     /// Items in the vector.
@@ -615,7 +655,8 @@ pub(crate) struct ExprSeq<'hir> {
 }
 
 /// A range expression such as `a .. b` or `a ..= b`.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) enum ExprRange<'hir> {
     /// `start..`.
@@ -633,7 +674,8 @@ pub(crate) enum ExprRange<'hir> {
 }
 
 /// The condition in an if statement.
-#[derive(Debug, Clone, Copy, Spanned)]
+#[derive(Debug, TryClone, Clone, Copy, Spanned)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) enum Condition<'hir> {
     /// A regular expression.
@@ -642,7 +684,8 @@ pub(crate) enum Condition<'hir> {
     ExprLet(&'hir ExprLet<'hir>),
 }
 
-#[derive(Debug, Clone, Copy, Spanned)]
+#[derive(Debug, TryClone, Clone, Copy, Spanned)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct ItemFn<'hir> {
     /// The span of the function.
@@ -655,7 +698,8 @@ pub(crate) struct ItemFn<'hir> {
 }
 
 /// A single argument to a function.
-#[derive(Debug, Clone, Copy, Spanned)]
+#[derive(Debug, TryClone, Clone, Copy, Spanned)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) enum FnArg<'hir> {
     /// The `self` parameter.
@@ -665,7 +709,8 @@ pub(crate) enum FnArg<'hir> {
 }
 
 /// A block of statements.
-#[derive(Debug, Clone, Copy, Spanned)]
+#[derive(Debug, TryClone, Clone, Copy, Spanned)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct Block<'hir> {
     /// The span of the block.
@@ -687,14 +732,16 @@ impl Block<'_> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 pub(crate) struct AsyncBlock<'hir> {
     pub(crate) block: Block<'hir>,
     pub(crate) captures: &'hir [Name<'hir>],
 }
 
 /// A statement within a block.
-#[derive(Debug, Clone, Copy, Spanned)]
+#[derive(Debug, TryClone, Clone, Copy, Spanned)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) enum Stmt<'hir> {
     /// A local declaration.
@@ -708,7 +755,8 @@ pub(crate) enum Stmt<'hir> {
 }
 
 /// A local variable declaration `let <pattern> = <expr>;`
-#[derive(Debug, Clone, Copy, Spanned)]
+#[derive(Debug, TryClone, Clone, Copy, Spanned)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct Local<'hir> {
     /// The span of the local declaration.

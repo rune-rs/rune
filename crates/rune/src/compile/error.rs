@@ -1,10 +1,11 @@
 use core::fmt;
 
 use crate::no_std::io;
-use crate::no_std::path::PathBuf;
-use crate::no_std::prelude::*;
 
-use crate::alloc::AllocError;
+use crate as rune;
+use crate::alloc::path::PathBuf;
+use crate::alloc::prelude::*;
+use crate::alloc::{self, Box, String, Vec};
 use crate::ast;
 use crate::ast::unescape;
 use crate::ast::{Span, Spanned};
@@ -23,7 +24,9 @@ use crate::{Hash, SourceId};
 #[derive(Debug)]
 pub struct Error {
     span: Span,
-    kind: Box<ErrorKind>,
+    // Errors are exempt from fallible allocations since they're not commonly
+    // constructed.
+    kind: rust_alloc::boxed::Box<ErrorKind>,
 }
 
 impl Error {
@@ -35,7 +38,7 @@ impl Error {
     {
         Self {
             span: span.span(),
-            kind: Box::new(ErrorKind::from(kind)),
+            kind: rust_alloc::boxed::Box::new(ErrorKind::from(kind)),
         }
     }
 
@@ -43,13 +46,11 @@ impl Error {
     pub fn msg<S, M>(span: S, message: M) -> Self
     where
         S: Spanned,
-        M: fmt::Display,
+        M: fmt::Display + fmt::Debug + Send + Sync + 'static,
     {
         Self {
             span: span.span(),
-            kind: Box::new(ErrorKind::Custom {
-                message: message.to_string().into(),
-            }),
+            kind: rust_alloc::boxed::Box::new(ErrorKind::msg(message)),
         }
     }
 
@@ -85,33 +86,34 @@ impl fmt::Display for Error {
     }
 }
 
-impl<E> From<HasSpan<E>> for Error
+impl<S, E> From<HasSpan<S, E>> for Error
 where
+    S: Spanned,
     ErrorKind: From<E>,
 {
-    fn from(spanned: HasSpan<E>) -> Self {
-        Error {
-            span: spanned.span,
-            kind: Box::new(ErrorKind::from(spanned.error)),
-        }
+    fn from(spanned: HasSpan<S, E>) -> Self {
+        Self::new(spanned.span(), spanned.into_inner())
     }
 }
 
 impl From<ir::scopes::MissingLocal> for ErrorKind {
     #[inline]
     fn from(error: ir::scopes::MissingLocal) -> Self {
-        ErrorKind::MissingLocal {
-            name: error.0.to_string(),
-        }
+        ErrorKind::MissingLocal { name: error.0 }
+    }
+}
+
+impl From<anyhow::Error> for ErrorKind {
+    #[inline]
+    fn from(error: anyhow::Error) -> Self {
+        ErrorKind::Custom { error }
     }
 }
 
 impl From<&'static str> for ErrorKind {
     #[inline]
     fn from(value: &'static str) -> Self {
-        ErrorKind::Custom {
-            message: Box::from(value),
-        }
+        ErrorKind::msg(value)
     }
 }
 
@@ -122,7 +124,25 @@ where
 {
     #[inline]
     fn from(kind: Box<T>) -> Self {
+        ErrorKind::from(Box::into_inner(kind))
+    }
+}
+
+// TODO: remove implementation.
+impl<T> From<rust_alloc::boxed::Box<T>> for ErrorKind
+where
+    ErrorKind: From<T>,
+{
+    #[inline]
+    fn from(kind: rust_alloc::boxed::Box<T>) -> Self {
         ErrorKind::from(*kind)
+    }
+}
+
+impl From<alloc::Error> for rust_alloc::boxed::Box<ErrorKind> {
+    #[inline]
+    fn from(error: alloc::Error) -> Self {
+        rust_alloc::boxed::Box::new(ErrorKind::from(error))
     }
 }
 
@@ -185,7 +205,7 @@ impl Error {
 #[non_exhaustive]
 pub(crate) enum ErrorKind {
     Custom {
-        message: Box<str>,
+        error: anyhow::Error,
     },
     Expected {
         actual: Expectation,
@@ -195,7 +215,7 @@ pub(crate) enum ErrorKind {
         what: Expectation,
     },
     AllocError {
-        error: rune_alloc::Error,
+        error: alloc::Error,
     },
     IrError(IrErrorKind),
     MetaError(MetaError),
@@ -224,7 +244,7 @@ pub(crate) enum ErrorKind {
     },
     MissingSelf,
     MissingLocal {
-        name: String,
+        name: Box<str>,
     },
     MissingItem {
         item: ItemBuf,
@@ -480,6 +500,17 @@ pub(crate) enum ErrorKind {
     UnsupportedSuffix,
 }
 
+impl ErrorKind {
+    pub(crate) fn msg<M>(message: M) -> Self
+    where
+        M: fmt::Display + fmt::Debug + Send + Sync + 'static,
+    {
+        Self::Custom {
+            error: anyhow::Error::msg(message),
+        }
+    }
+}
+
 impl crate::no_std::error::Error for ErrorKind {
     fn source(&self) -> Option<&(dyn crate::no_std::error::Error + 'static)> {
         match self {
@@ -503,19 +534,14 @@ impl crate::no_std::error::Error for ErrorKind {
 impl fmt::Display for ErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ErrorKind::Custom { message } => {
-                write!(f, "{message}", message = message)?;
+            ErrorKind::Custom { error } => {
+                error.fmt(f)?;
             }
             ErrorKind::Expected { actual, expected } => {
-                write!(
-                    f,
-                    "Expected `{expected}`, but got `{actual}`",
-                    expected = expected,
-                    actual = actual
-                )?;
+                write!(f, "Expected `{expected}`, but got `{actual}`",)?;
             }
             ErrorKind::Unsupported { what } => {
-                write!(f, "Unsupported `{what}`", what = what)?;
+                write!(f, "Unsupported `{what}`")?;
             }
             ErrorKind::AllocError { error } => {
                 error.fmt(f)?;
@@ -551,12 +577,7 @@ impl fmt::Display for ErrorKind {
                 error.fmt(f)?;
             }
             ErrorKind::FileError { path, error } => {
-                write!(
-                    f,
-                    "Failed to load `{path}`: {error}",
-                    path = path.display(),
-                    error = error
-                )?;
+                write!(f, "Failed to load `{path}`: {error}", path = path.display(),)?;
             }
             ErrorKind::ModNotFound { path } => {
                 write!(
@@ -616,7 +637,7 @@ impl fmt::Display for ErrorKind {
                 write!(f, "Unsupported binary operator `{op}`")?;
             }
             ErrorKind::UnsupportedLitObject { meta } => {
-                write!(f, "Item `{meta}` is not an object", meta = meta)?;
+                write!(f, "Item `{meta}` is not an object")?;
             }
             ErrorKind::LitObjectMissingField { field, item } => {
                 write!(f, "Missing field `{field}` in declaration of `{item}`",)?;
@@ -730,7 +751,7 @@ impl fmt::Display for ErrorKind {
                 write!(f, "Conflicting function hash already exists `{hash}`",)?;
             }
             ErrorKind::ConstantConflict { hash } => {
-                write!(f, "Conflicting constant for hash `{hash}`", hash = hash)?;
+                write!(f, "Conflicting constant for hash `{hash}`")?;
             }
             ErrorKind::StaticStringMissing { hash, slot } => {
                 write!(
@@ -892,7 +913,7 @@ impl fmt::Display for ErrorKind {
                 write!(f, "Can only specify one attribute named `{name}`",)?;
             }
             ErrorKind::MissingSourceId { source_id } => {
-                write!(f, "Missing source id `{source_id}`", source_id = source_id)?;
+                write!(f, "Missing source id `{source_id}`")?;
             }
             ErrorKind::ExpectedMultilineCommentTerm => {
                 write!(f, "Expected multiline comment to be terminated with a `*/`")?;
@@ -970,11 +991,7 @@ impl fmt::Display for ErrorKind {
                 )?;
             }
             ErrorKind::ArenaAllocError { requested } => {
-                write!(
-                    f,
-                    "Allocation error for {requested} bytes",
-                    requested = requested
-                )?;
+                write!(f, "Allocation error for {requested} bytes",)?;
             }
             ErrorKind::UnsupportedPatternRest => {
                 write!(f, "Pattern `..` is not supported in this location")?;
@@ -997,19 +1014,31 @@ impl fmt::Display for ErrorKind {
     }
 }
 
-impl From<AllocError> for ErrorKind {
+impl From<alloc::Error> for Error {
     #[inline]
-    fn from(error: AllocError) -> Self {
-        ErrorKind::AllocError {
-            error: error.into(),
-        }
+    fn from(error: alloc::Error) -> Self {
+        Error::new(Span::empty(), ErrorKind::AllocError { error })
     }
 }
 
-impl From<rune_alloc::Error> for ErrorKind {
+impl From<alloc::Error> for ErrorKind {
     #[inline]
-    fn from(error: rune_alloc::Error) -> Self {
+    fn from(error: alloc::Error) -> Self {
         ErrorKind::AllocError { error }
+    }
+}
+
+impl From<alloc::alloc::AllocError> for Error {
+    #[inline]
+    fn from(error: alloc::alloc::AllocError) -> Self {
+        Self::from(alloc::Error::from(error))
+    }
+}
+
+impl From<alloc::alloc::AllocError> for ErrorKind {
+    #[inline]
+    fn from(error: alloc::alloc::AllocError) -> Self {
+        Self::from(alloc::Error::from(error))
     }
 }
 
@@ -1176,7 +1205,7 @@ impl fmt::Display for IrErrorKind {
 /// A single step in an import.
 ///
 /// This is used to indicate a step in an import chain in an error message.
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 #[non_exhaustive]
 pub struct ImportStep {
     /// The location of the import.
@@ -1188,7 +1217,7 @@ pub struct ImportStep {
 /// A meta error.
 #[derive(Debug)]
 pub struct MetaError {
-    kind: Box<MetaErrorKind>,
+    kind: ::rust_alloc::boxed::Box<MetaErrorKind>,
 }
 
 impl MetaError {
@@ -1198,15 +1227,22 @@ impl MetaError {
         MetaErrorKind: From<E>,
     {
         Self {
-            kind: Box::new(kind.into()),
+            kind: ::rust_alloc::boxed::Box::new(kind.into()),
         }
     }
 }
 
-impl From<AllocError> for MetaError {
+impl From<alloc::Error> for MetaError {
     #[inline]
-    fn from(error: AllocError) -> Self {
+    fn from(error: alloc::Error) -> Self {
         Self::new(MetaErrorKind::AllocError { error })
+    }
+}
+
+impl From<alloc::alloc::AllocError> for MetaError {
+    #[inline]
+    fn from(error: alloc::alloc::AllocError) -> Self {
+        Self::from(alloc::Error::from(error))
     }
 }
 
@@ -1214,7 +1250,7 @@ impl From<AllocError> for MetaError {
 /// Tried to add an item that already exists.
 pub(crate) enum MetaErrorKind {
     AllocError {
-        error: AllocError,
+        error: alloc::Error,
     },
     MetaConflict {
         /// The meta we tried to insert.

@@ -1,9 +1,7 @@
-use crate::{
-    add_trait_bounds,
-    context::{Context, Tokens},
-};
+use crate::add_trait_bounds;
+use crate::context::{Context, Tokens};
 use proc_macro2::TokenStream;
-use quote::quote_spanned;
+use quote::{quote, quote_spanned};
 use syn::spanned::Spanned as _;
 
 /// Derive implementation of the ToTokens macro.
@@ -81,9 +79,13 @@ impl Expander {
         }
 
         let ident = &input.ident;
-        let to_tokens = &self.tokens.to_tokens;
-        let macro_context = &self.tokens.macro_context;
-        let token_stream = &self.tokens.token_stream;
+        let Tokens {
+            to_tokens,
+            macro_context,
+            token_stream,
+            alloc,
+            ..
+        } = &self.tokens;
 
         let mut generics = input.generics.clone();
 
@@ -91,13 +93,15 @@ impl Expander {
 
         let (impl_generics, type_generics, where_generics) = generics.split_for_impl();
 
-        Ok(quote_spanned! { input.span() =>
+        Ok(quote! {
             #[automatically_derived]
             impl #impl_generics #to_tokens for #ident #type_generics #where_generics {
-                fn to_tokens(&self, context: &mut #macro_context, stream: &mut #token_stream) {
+                fn to_tokens(&self, context: &mut #macro_context, stream: &mut #token_stream) -> #alloc::Result<()> {
                     match self {
-                        #(#impl_into_tokens,)*
+                        #(#impl_into_tokens),*
                     }
+
+                    Ok(())
                 }
             }
         })
@@ -149,6 +153,14 @@ impl Expander {
     ) -> Result<TokenStream, ()> {
         let mut fields = Vec::new();
 
+        let Tokens {
+            to_tokens,
+            macro_context,
+            token_stream,
+            alloc,
+            ..
+        } = &self.tokens;
+
         for field in &named.named {
             let ident = self.cx.field_ident(field)?;
             let attrs = self.cx.field_attrs(&field.attrs)?;
@@ -157,14 +169,10 @@ impl Expander {
                 continue;
             }
 
-            fields.push(quote_spanned! { field.span() => self.#ident.to_tokens(context, stream) })
+            fields.push(quote! { #to_tokens::to_tokens(&self.#ident, context, stream)? })
         }
 
         let ident = &input.ident;
-
-        let to_tokens = &self.tokens.to_tokens;
-        let macro_context = &self.tokens.macro_context;
-        let token_stream = &self.tokens.token_stream;
 
         let mut generics = input.generics.clone();
 
@@ -175,8 +183,9 @@ impl Expander {
         let into_tokens_impl = quote_spanned! { named.span() =>
             #[automatically_derived]
             impl #impl_generics #to_tokens for #ident #type_generics #where_generics {
-                fn to_tokens(&self, context: &mut #macro_context, stream: &mut #token_stream) {
+                fn to_tokens(&self, context: &mut #macro_context, stream: &mut #token_stream) -> #alloc::Result<()> {
                     #(#fields;)*
+                    Ok(())
                 }
             }
         };
@@ -195,6 +204,8 @@ impl Expander {
         let mut fields = Vec::new();
         let mut idents = Vec::new();
 
+        let Tokens { to_tokens, .. } = &self.tokens;
+
         for field in &named.named {
             let ident = self.cx.field_ident(field)?;
             let attrs = self.cx.field_attrs(&field.attrs)?;
@@ -204,12 +215,12 @@ impl Expander {
                 continue;
             }
 
-            fields.push(quote_spanned! { field.span() => #ident.to_tokens(context, stream) })
+            fields.push(quote! { #to_tokens::to_tokens(&#ident, context, stream)? })
         }
 
         let ident = &variant.ident;
 
-        Ok(quote_spanned! { named.span() =>
+        Ok(quote! {
             Self::#ident { #(#idents,)* } => { #(#fields;)* }
         })
     }
@@ -223,6 +234,8 @@ impl Expander {
         let mut field_into_tokens = Vec::new();
         let mut idents = Vec::new();
 
+        let Tokens { to_tokens, .. } = &self.tokens;
+
         for (n, field) in named.unnamed.iter().enumerate() {
             let ident = syn::Ident::new(&format!("f{}", n), field.span());
             let attrs = self.cx.field_attrs(&field.attrs)?;
@@ -233,13 +246,12 @@ impl Expander {
                 continue;
             }
 
-            field_into_tokens
-                .push(quote_spanned! { field.span() => #ident.to_tokens(context, stream) })
+            field_into_tokens.push(quote! { #to_tokens::to_tokens(#ident, context, stream)? })
         }
 
         let ident = &variant.ident;
 
-        Ok(quote_spanned! { named.span() =>
+        Ok(quote! {
             Self::#ident(#(#idents,)*) => { #(#field_into_tokens;)* }
         })
     }

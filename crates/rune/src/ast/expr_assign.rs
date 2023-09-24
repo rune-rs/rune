@@ -11,7 +11,7 @@ fn ast_parse() {
 /// An assign expression.
 ///
 /// * `a = b`.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprAssign {
     /// Attributes associated with the assign expression.

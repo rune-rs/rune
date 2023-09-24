@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate as rune;
 use crate::alloc::fmt::TryWrite;
-use crate::alloc::{Global, String};
+use crate::alloc::String;
 use crate::runtime::{Formatter, ProtocolCaller, Value, VmErrorKind, VmResult};
 use crate::Any;
 
@@ -119,14 +119,14 @@ impl FormatSpec {
     }
 
     /// Format the given number.
-    fn format_number(&self, buf: &mut String<Global>, n: i64) -> VmResult<()> {
+    fn format_number(&self, buf: &mut String, n: i64) -> VmResult<()> {
         let mut buffer = itoa::Buffer::new();
         vm_try!(buf.try_push_str(buffer.format(n)));
         VmResult::Ok(())
     }
 
     /// Format the given float.
-    fn format_float(&self, buf: &mut String<Global>, n: f64) -> VmResult<()> {
+    fn format_float(&self, buf: &mut String, n: f64) -> VmResult<()> {
         if let Some(precision) = self.precision {
             vm_write!(buf, "{:.*}", precision.get(), n);
         } else {

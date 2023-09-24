@@ -14,7 +14,7 @@ fn ast_parse() {
 }
 
 /// A path, where each element is separated by a `::`.
-#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned, Opaque)]
+#[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned, Opaque)]
 #[non_exhaustive]
 pub struct Path {
     /// Opaque id associated with path.
@@ -102,65 +102,66 @@ impl<'a> Resolve<'a> for Path {
         let mut buf = String::new();
 
         if self.global.is_some() {
-            buf.push_str("::");
+            buf.try_push_str("::")?;
         }
 
         match &self.first {
             PathSegment::SelfType(_) => {
-                buf.push_str("Self");
+                buf.try_push_str("Self")?;
             }
             PathSegment::SelfValue(_) => {
-                buf.push_str("self");
+                buf.try_push_str("self")?;
             }
             PathSegment::Ident(ident) => {
-                buf.push_str(ident.resolve(cx)?);
+                buf.try_push_str(ident.resolve(cx)?)?;
             }
             PathSegment::Crate(_) => {
-                buf.push_str("crate");
+                buf.try_push_str("crate")?;
             }
             PathSegment::Super(_) => {
-                buf.push_str("super");
+                buf.try_push_str("super")?;
             }
             PathSegment::Generics(_) => {
-                buf.push_str("<*>");
+                buf.try_push_str("<*>")?;
             }
         }
 
         for (_, segment) in &self.rest {
-            buf.push_str("::");
+            buf.try_push_str("::")?;
 
             match segment {
                 PathSegment::SelfType(_) => {
-                    buf.push_str("Self");
+                    buf.try_push_str("Self")?;
                 }
                 PathSegment::SelfValue(_) => {
-                    buf.push_str("self");
+                    buf.try_push_str("self")?;
                 }
                 PathSegment::Ident(ident) => {
-                    buf.push_str(ident.resolve(cx)?);
+                    buf.try_push_str(ident.resolve(cx)?)?;
                 }
                 PathSegment::Crate(_) => {
-                    buf.push_str("crate");
+                    buf.try_push_str("crate")?;
                 }
                 PathSegment::Super(_) => {
-                    buf.push_str("super");
+                    buf.try_push_str("super")?;
                 }
                 PathSegment::Generics(_) => {
-                    buf.push_str("<*>");
+                    buf.try_push_str("<*>")?;
                 }
             }
         }
 
         if self.trailing.is_some() {
-            buf.push_str("::");
+            buf.try_push_str("::")?;
         }
 
-        Ok(buf.into_boxed_str())
+        Ok(buf.try_into_boxed_str()?)
     }
 }
 
 /// An identified path kind.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub enum PathKind<'a> {
     /// A path that is the `self` value.
@@ -170,7 +171,7 @@ pub enum PathKind<'a> {
 }
 
 /// Part of a `::` separated path.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub enum PathSegment {
     /// A path segment that contains `Self`.
@@ -235,7 +236,7 @@ impl Peek for PathSegment {
 }
 
 /// Used to parse an expression without supporting an immediate binary expression.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct PathSegmentExpr {
     /// The expression that makes up the path segment.

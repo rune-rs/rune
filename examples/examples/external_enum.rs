@@ -1,8 +1,8 @@
-use std::sync::Arc;
-
 use rune::runtime::Vm;
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{Any, ContextError, Diagnostics, Module};
+
+use std::sync::Arc;
 
 #[derive(Debug, Any, PartialEq, Eq)]
 enum External {
@@ -21,12 +21,12 @@ enum External {
     Output(#[rune(get)] u32),
 }
 
-fn main() -> rune::Result<()> {
+fn main() -> rune::support::Result<()> {
     let m = module()?;
 
     let mut context = rune_modules::default_context()?;
     context.install(m)?;
-    let runtime = Arc::new(context.runtime());
+    let runtime = Arc::new(context.runtime()?);
 
     let mut sources = rune::sources! {
         entry => {

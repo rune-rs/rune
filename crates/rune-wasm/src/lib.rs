@@ -155,6 +155,8 @@ fn setup_context(experimental: bool, io: &CaptureIo) -> Result<Context, ContextE
     context.install(http::module()?)?;
     context.install(rune_modules::json::module(false)?)?;
     context.install(rune_modules::toml::module(false)?)?;
+    context.install(rune_modules::toml::ser::module(false)?)?;
+    context.install(rune_modules::toml::de::module(false)?)?;
     context.install(rune_modules::rand::module(false)?)?;
 
     if experimental {
@@ -176,7 +178,7 @@ async fn inner_compile(
 
     let source = rune::Source::new("entry", input);
     let mut sources = rune::Sources::new();
-    sources.insert(source);
+    sources.insert(source)?;
 
     let context = setup_context(config.experimental, io)?;
 
@@ -290,7 +292,7 @@ async fn inner_compile(
         None
     };
 
-    let mut vm = rune::Vm::new(Arc::new(context.runtime()), unit);
+    let mut vm = rune::Vm::new(Arc::new(context.runtime()?), unit);
 
     let mut execution = match vm.execute(["main"], ()) {
         Ok(execution) => execution,

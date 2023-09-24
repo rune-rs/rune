@@ -1,6 +1,6 @@
 use crate::no_std::sync::Arc;
 
-use crate::alloc::IteratorExt;
+use crate::alloc::prelude::*;
 use crate::runtime::vm_execution::VmExecutionState;
 use crate::runtime::{
     Call, Future, Generator, RuntimeContext, Stack, Stream, Unit, Value, Vm, VmErrorKind,

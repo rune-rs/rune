@@ -9,12 +9,14 @@ mod storage;
 
 use core::fmt;
 
-use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
+use crate as rune;
+use crate::alloc::prelude::*;
+use crate::alloc::{self, Box, String, Vec};
 use crate::hash;
 use crate::runtime::{
     Call, ConstValue, DebugInfo, Inst, Rtti, StaticString, VariantRtti, VmError, VmErrorKind,
@@ -36,8 +38,9 @@ pub type DefaultStorage = ArrayUnit;
 pub type DefaultStorage = ByteCodeUnit;
 
 /// Instructions and debug info from a single source file.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, TryClone, Default, Serialize, Deserialize)]
 #[serde(bound = "S: Serialize + DeserializeOwned")]
+#[try_clone(bound = {S: TryClone})]
 pub struct Unit<S = DefaultStorage> {
     /// The information needed to execute the program.
     #[serde(flatten)]
@@ -47,8 +50,9 @@ pub struct Unit<S = DefaultStorage> {
 }
 
 /// Instructions from a single source file.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, TryClone, Default, Serialize, Deserialize)]
 #[serde(rename = "Unit")]
+#[try_clone(bound = {S: TryClone})]
 pub struct Logic<S = DefaultStorage> {
     /// Storage for the unit.
     storage: S,
@@ -75,11 +79,11 @@ pub struct Logic<S = DefaultStorage> {
 
 impl<S> Unit<S> {
     /// Constructs a new unit from a pair of data and debug info.
-    pub fn from_parts(data: Logic<S>, debug: Option<DebugInfo>) -> Self {
-        Self {
+    pub fn from_parts(data: Logic<S>, debug: Option<DebugInfo>) -> alloc::Result<Self> {
+        Ok(Self {
             logic: data,
-            debug: debug.map(Box::new),
-        }
+            debug: debug.map(Box::try_new).transpose()?,
+        })
     }
 
     /// Construct a new unit with the given content.
@@ -266,6 +270,13 @@ pub(crate) enum UnitFn {
         /// The number of arguments the tuple takes.
         args: usize,
     },
+}
+
+impl TryClone for UnitFn {
+    #[inline]
+    fn try_clone(&self) -> alloc::Result<Self> {
+        Ok(*self)
+    }
 }
 
 impl fmt::Display for UnitFn {

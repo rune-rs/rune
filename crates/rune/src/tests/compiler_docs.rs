@@ -8,11 +8,18 @@ struct DocVisitor {
 }
 
 impl compile::CompileVisitor for DocVisitor {
-    fn visit_doc_comment(&mut self, _: &dyn Located, item: &Item, _: Hash, doc: &str) {
+    fn visit_doc_comment(
+        &mut self,
+        _: &dyn Located,
+        item: &Item,
+        _: Hash,
+        doc: &str,
+    ) -> Result<(), compile::MetaError> {
         self.collected
             .entry(item.to_string())
             .or_default()
             .push(doc.to_string());
+        Ok(())
     }
 
     fn visit_field_doc_comment(
@@ -22,11 +29,12 @@ impl compile::CompileVisitor for DocVisitor {
         _: Hash,
         field: &str,
         doc: &str,
-    ) {
+    ) -> Result<(), compile::MetaError> {
         self.collected
             .entry(format!("{item}.{field}"))
             .or_default()
             .push(doc.to_string());
+        Ok(())
     }
 }
 
@@ -88,7 +96,7 @@ macro_rules! expect_docs {
 }
 
 #[test]
-fn harvest_docs() {
+fn harvest_docs() -> Result<()> {
     let mut diagnostics = Diagnostics::new();
     let mut vis = expect_docs! {
         "{root}" => {
@@ -188,12 +196,12 @@ fn harvest_docs() {
 
     let context = Context::default();
 
-    let result = prepare(&mut sources)
+    let _ = prepare(&mut sources)
         .with_context(&context)
         .with_diagnostics(&mut diagnostics)
-        .with_visitor(&mut vis)
-        .build();
+        .with_visitor(&mut vis)?
+        .build()?;
 
-    result.unwrap();
     vis.assert();
+    Ok(())
 }

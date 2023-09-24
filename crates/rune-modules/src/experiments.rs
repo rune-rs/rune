@@ -15,9 +15,10 @@
 //! ```rust
 //! let mut context = rune::Context::with_default_modules()?;
 //! context.install(rune_modules::experiments::module(true)?)?;
-//! # Ok::<_, rune::Error>(())
+//! # Ok::<_, rune::support::Error>(())
 //! ```
 
+use rune::alloc::prelude::*;
 use rune::ast;
 use rune::compile;
 use rune::macros::{quote, MacroContext, TokenStream};
@@ -29,7 +30,7 @@ mod stringy_math_macro;
 
 /// Construct the `std::experiments` module, which contains experiments.
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["experiments"]);
+    let mut module = Module::with_crate_item("std", ["experiments"])?;
     module.macro_meta(passthrough)?;
     module.macro_meta(stringy_math_macro::stringy_math)?;
     module.macro_meta(make_function)?;
@@ -42,7 +43,7 @@ fn passthrough(
     _: &mut MacroContext<'_, '_, '_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
-    Ok(stream.clone())
+    Ok(stream.try_clone()?)
 }
 
 /// Implementation for the `make_function!` macro.
@@ -58,5 +59,5 @@ fn make_function(
     let output = parser.parse::<ast::ExprBlock>()?;
     parser.eof()?;
 
-    Ok(quote!(fn #ident() { #output }).into_token_stream(cx))
+    Ok(quote!(fn #ident() { #output }).into_token_stream(cx)?)
 }

@@ -1,6 +1,7 @@
 use core::fmt;
 
-use crate::alloc::{self, Global, TryToOwned};
+use crate::alloc;
+use crate::alloc::prelude::*;
 use crate::no_std::std;
 use crate::runtime::{Bytes, Object, Shared, Vec};
 
@@ -141,8 +142,9 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
+        let v = alloc::Vec::try_from(v).map_err(E::custom)?;
         Ok(Value::Bytes(
-            Shared::new(Bytes::from_vec(v.to_vec())).map_err(E::custom)?,
+            Shared::new(Bytes::from_vec(v)).map_err(E::custom)?,
         ))
     }
 
@@ -151,6 +153,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
+        let v = alloc::Vec::try_from(v).map_err(E::custom)?;
         Ok(Value::Bytes(
             Shared::new(Bytes::from_vec(v)).map_err(E::custom)?,
         ))
@@ -292,9 +295,9 @@ impl<'de> de::Visitor<'de> for VmVisitor {
         V: de::SeqAccess<'de>,
     {
         let mut vec = if let Some(hint) = visitor.size_hint() {
-            alloc::Vec::try_with_capacity_in(hint, Global).map_err(V::Error::custom)?
+            alloc::Vec::try_with_capacity(hint).map_err(V::Error::custom)?
         } else {
-            alloc::Vec::new_in(Global)
+            alloc::Vec::new()
         };
 
         while let Some(elem) = visitor.next_element()? {

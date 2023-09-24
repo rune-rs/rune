@@ -12,7 +12,8 @@ fn ast_parse() {
 }
 
 /// A character literal.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, Spanned)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct LitChar {
     /// The span corresponding to the literal.
@@ -110,10 +111,14 @@ impl<'a> Resolve<'a> for LitChar {
 }
 
 impl ToTokens for LitChar {
-    fn to_tokens(&self, _: &mut MacroContext<'_, '_, '_>, stream: &mut TokenStream) {
+    fn to_tokens(
+        &self,
+        _: &mut MacroContext<'_, '_, '_>,
+        stream: &mut TokenStream,
+    ) -> alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Char(self.source),
-        });
+        })
     }
 }

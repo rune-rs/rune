@@ -19,8 +19,8 @@ use tokio::sync::Notify;
 use crate::languageserver::connection::stdio;
 use crate::languageserver::envelope::Code;
 use crate::languageserver::state::State;
+use crate::support::Result;
 use crate::workspace::MANIFEST_FILE;
-use crate::Result;
 use crate::{Context, Options};
 
 enum Language {
@@ -210,13 +210,15 @@ async fn completion(
     state: &mut State<'_>,
     params: lsp::CompletionParams,
 ) -> Result<Option<lsp::CompletionResponse>> {
-    let results = state.complete(
+    let Some(results) = state.complete(
         &params.text_document_position.text_document.uri,
         params.text_document_position.position,
-    );
+    )?
+    else {
+        return Ok(None);
+    };
 
-    let results = results.map(lsp::CompletionResponse::Array);
-    Ok(results)
+    Ok(Some(lsp::CompletionResponse::Array(results.into_std())))
 }
 
 /// Handle formatting request.
@@ -242,9 +244,9 @@ async fn did_open_text_document(
     if s.workspace_mut()
         .insert_source(
             params.text_document.uri.clone(),
-            params.text_document.text,
+            params.text_document.text.try_into()?,
             lagnuage,
-        )
+        )?
         .is_some()
     {
         tracing::warn!(
@@ -290,7 +292,7 @@ async fn did_close_text_document(
     s: &mut State<'_>,
     params: lsp::DidCloseTextDocumentParams,
 ) -> Result<()> {
-    s.workspace_mut().remove(&params.text_document.uri);
+    s.workspace_mut().remove(&params.text_document.uri)?;
     s.rebuild_interest();
     Ok(())
 }

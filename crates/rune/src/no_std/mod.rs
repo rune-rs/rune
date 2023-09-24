@@ -27,13 +27,6 @@ macro_rules! alloc {
     }
 }
 
-#[cfg(feature = "std")]
-pub use ::anyhow::Error;
-#[cfg(not(feature = "std"))]
-pub(crate) mod anyhow;
-#[cfg(not(feature = "std"))]
-pub use self::anyhow::Error;
-
 alloc! {
     pub(crate) use ::sync;
     pub(crate) use ::vec;
@@ -42,8 +35,6 @@ alloc! {
     pub(crate) use ::borrow;
     pub(crate) use ::string;
 }
-
-pub(crate) use ::core::fmt;
 
 pub(crate) mod std {
     alloc! {
@@ -68,10 +59,6 @@ pub(crate) mod collections {
     pub(crate) use ::rust_alloc::collections::{btree_map, BTreeMap};
     pub(crate) use ::rust_alloc::collections::{btree_set, BTreeSet};
     pub(crate) use ::rust_alloc::collections::{vec_deque, VecDeque};
-    #[cfg(not(feature = "std"))]
-    pub(crate) use hashbrown::{hash_map, HashMap};
-    #[cfg(not(feature = "std"))]
-    pub(crate) use hashbrown::{hash_set, HashSet};
     #[cfg(feature = "std")]
     pub(crate) use std::collections::{hash_map, HashMap};
     #[cfg(feature = "std")]
@@ -86,25 +73,3 @@ pub(crate) mod io;
 
 #[doc(inline)]
 pub(crate) use rune_core::error;
-
-#[cfg(not(feature = "std"))]
-pub(crate) mod path;
-
-#[cfg(feature = "std")]
-pub(crate) use ::std::path;
-
-#[cfg(not(feature = "std"))]
-extern "C" {
-    fn __rune_abort() -> !;
-}
-
-#[cfg(not(feature = "std"))]
-pub(crate) fn abort() -> ! {
-    // SAFETY: hook is always safe to call.
-    unsafe { __rune_abort() }
-}
-
-#[cfg(feature = "std")]
-pub(crate) fn abort() -> ! {
-    ::std::process::abort()
-}

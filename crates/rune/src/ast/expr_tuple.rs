@@ -14,7 +14,7 @@ fn ast_parse() {
 /// An expression to construct a literal tuple.
 ///
 /// * `(<expr>,*)`.
-#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprTuple {
     /// Attributes associated with tuple.

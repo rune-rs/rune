@@ -1,7 +1,6 @@
 use core::slice;
 
-use crate::no_std::vec;
-
+use crate::alloc::vec;
 use crate::ast::prelude::*;
 
 #[test]
@@ -29,7 +28,8 @@ fn ast_parse() {
 macro_rules! grouped {
     ($(#[$meta:meta])* $name:ident { $field:ident, $open:ty, $close:ty }) => {
         $(#[$meta])*
-        #[derive(Debug, Clone, PartialEq, Eq, ToTokens)]
+        #[derive(Debug, TryClone, PartialEq, Eq, ToTokens)]
+        #[try_clone(bound = {T: TryClone, S: TryClone})]
         #[non_exhaustive]
         pub struct $name<T, S> {
             /// The open parenthesis.
@@ -138,7 +138,7 @@ macro_rules! grouped {
                 loop {
                     let comma = parser.parse::<Option<S>>()?;
                     let is_end = comma.is_none();
-                    $field.push((current, comma));
+                    $field.try_push((current, comma))?;
 
                     if is_end || parser.peek::<$close>()? {
                         break;
@@ -171,7 +171,7 @@ macro_rules! grouped {
                     let expr = parser.parse()?;
                     let sep = parser.parse::<Option<S>>()?;
                     let is_end = sep.is_none();
-                    $field.push((expr, sep));
+                    $field.try_push((expr, sep))?;
 
                     if is_end {
                         break;

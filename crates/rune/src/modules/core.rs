@@ -3,6 +3,7 @@
 use crate::no_std::prelude::*;
 
 use crate as rune;
+use crate::alloc::prelude::*;
 use crate::compile;
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
@@ -12,13 +13,15 @@ use crate::{ContextError, Module};
 #[rune::module(::std)]
 /// The Rune standard library.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::from_meta(self::module_meta).with_unique("std");
+    let mut module = Module::from_meta(self::module_meta)?.with_unique("std");
 
-    module.ty::<bool>()?.docs(["The primitive boolean type."]);
-    module.ty::<char>()?.docs(["The primitive character type."]);
-    module.ty::<u8>()?.docs(["The primitive byte type."]);
-    module.ty::<f64>()?.docs(["The primitive float type."]);
-    module.ty::<i64>()?.docs(["The primitive integer type."]);
+    module.ty::<bool>()?.docs(["The primitive boolean type."])?;
+    module
+        .ty::<char>()?
+        .docs(["The primitive character type."])?;
+    module.ty::<u8>()?.docs(["The primitive byte type."])?;
+    module.ty::<f64>()?.docs(["The primitive float type."])?;
+    module.ty::<i64>()?.docs(["The primitive integer type."])?;
 
     module.function_meta(panic)?;
     module.function_meta(is_readable)?;
@@ -161,9 +164,9 @@ pub(crate) fn stringify_macro(
     cx: &mut MacroContext<'_, '_, '_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
-    let lit = cx.stringify(stream).to_string();
-    let lit = cx.lit(lit);
-    Ok(quote!(#lit).into_token_stream(cx))
+    let lit = cx.stringify(stream)?.try_to_string()?;
+    let lit = cx.lit(lit)?;
+    Ok(quote!(#lit).into_token_stream(cx)?)
 }
 
 /// Cause a vm panic with a formatted message.
@@ -179,5 +182,5 @@ pub(crate) fn panic_macro(
     let mut p = Parser::from_token_stream(stream, cx.input_span());
     let args = p.parse_all::<FormatArgs>()?;
     let expanded = args.expand(cx)?;
-    Ok(quote!(::std::panic(#expanded)).into_token_stream(cx))
+    Ok(quote!(::std::panic(#expanded)).into_token_stream(cx)?)
 }

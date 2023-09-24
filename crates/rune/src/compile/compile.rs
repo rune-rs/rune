@@ -1,5 +1,5 @@
-use crate::no_std::prelude::*;
-
+use crate::alloc::prelude::*;
+use crate::alloc::{self, try_vec, Box, Vec};
 use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::compile::v1;
@@ -29,7 +29,7 @@ pub(crate) fn compile(
     source_loader: &mut dyn SourceLoader,
     options: &Options,
     unit_storage: &mut dyn UnitEncoder,
-) -> Result<(), ()> {
+) -> alloc::Result<()> {
     // Shared id generator.
     let gen = Gen::new();
     let const_arena = hir::Arena::new();
@@ -69,22 +69,29 @@ pub(crate) fn compile(
             Ok(result) => result,
             Err(error) => {
                 worker.q.diagnostics.error(source_id, error);
-                return Err(());
+                continue;
             }
         };
 
-        worker.queue.push_back(Task::LoadFile {
+        let result = worker.queue.try_push_back(Task::LoadFile {
             kind: LoadFileKind::Root,
             source_id,
             mod_item,
             mod_item_id: root_item_id,
         });
+
+        if let Err(error) = result {
+            worker
+                .q
+                .diagnostics
+                .error(source_id, compile::Error::from(error));
+        }
     }
 
     worker.index();
 
     if worker.q.diagnostics.has_error() {
-        return Err(());
+        return Ok(());
     }
 
     loop {
@@ -102,17 +109,15 @@ pub(crate) fn compile(
             }
         }
 
-        match worker.q.queue_unused_entries() {
-            Ok(true) => (),
-            Ok(false) => break,
-            Err((source_id, error)) => {
-                worker.q.diagnostics.error(source_id, error);
-            }
-        }
-    }
+        let mut errors = Vec::new();
 
-    if worker.q.diagnostics.has_error() {
-        return Err(());
+        if worker.q.queue_unused_entries(&mut errors)? {
+            break;
+        }
+
+        for (source_id, error) in errors {
+            worker.q.diagnostics.error(source_id, error);
+        }
     }
 
     Ok(())
@@ -129,16 +134,16 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
         location: Location,
         span: &dyn Spanned,
         asm: &'a mut Assembly,
-    ) -> v1::Ctxt<'a, 'hir, 'arena> {
-        v1::Ctxt {
+    ) -> alloc::Result<v1::Ctxt<'a, 'hir, 'arena>> {
+        Ok(v1::Ctxt {
             source_id: location.source_id,
             q: self.q.borrow(),
             asm,
-            scopes: self::v1::Scopes::new(location.source_id),
-            contexts: vec![span.span()],
+            scopes: self::v1::Scopes::new(location.source_id)?,
+            contexts: try_vec![span.span()],
             loops: self::v1::Loops::new(),
             options: self.options,
-        }
+        })
     }
 
     #[tracing::instrument(skip_all)]
@@ -171,7 +176,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                     return Err(compile::Error::new(
                         item_meta.location.span,
                         ErrorKind::MissingItem {
-                            item: self.q.pool.item(item_meta.item).to_owned(),
+                            item: self.q.pool.item(item_meta.item).try_to_owned()?,
                         },
                     ));
                 }
@@ -203,7 +208,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                     let Some(type_hash) = meta.type_hash_of() else {
                         return Err(compile::Error::expected_meta(
                             &f.ast,
-                            meta.info(self.q.pool),
+                            meta.info(self.q.pool)?,
                             "type for associated function",
                         ));
                     };
@@ -231,7 +236,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                     &arena,
                     self.q.borrow(),
                     item_meta.location.source_id,
-                );
+                )?;
 
                 let hir = match &f.ast {
                     FunctionAst::Item(ast) => hir::lowering::item_fn(&mut cx, ast)?,
@@ -240,7 +245,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
 
                 let count = hir.args.len();
 
-                let mut c = self.compiler1(location, span, &mut asm);
+                let mut c = self.compiler1(location, span, &mut asm)?;
                 assemble::fn_from_item_fn(&mut c, &hir, f.is_instance)?;
 
                 if !self.q.is_used(&item_meta) {
@@ -284,9 +289,9 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                     &arena,
                     self.q.borrow(),
                     item_meta.location.source_id,
-                );
+                )?;
                 let hir = hir::lowering::expr_closure_secondary(&mut cx, &closure.ast, captures)?;
-                let mut c = self.compiler1(location, &closure.ast, &mut asm);
+                let mut c = self.compiler1(location, &closure.ast, &mut asm)?;
                 assemble::expr_closure_secondary(&mut c, &hir, &closure.ast)?;
 
                 if !c.q.is_used(&item_meta) {
@@ -317,9 +322,9 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                     &arena,
                     self.q.borrow(),
                     item_meta.location.source_id,
-                );
+                )?;
                 let hir = hir::lowering::async_block_secondary(&mut cx, &b.ast, captures)?;
-                let mut c = self.compiler1(location, &b.ast, &mut asm);
+                let mut c = self.compiler1(location, &b.ast, &mut asm)?;
                 assemble::async_block_secondary(&mut c, &hir)?;
 
                 if !self.q.is_used(&item_meta) {
@@ -374,7 +379,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                     Some(item_id) => {
                         let item = self.q.pool.item(item_id);
 
-                        if self.q.context.contains_prefix(item) || self.q.contains_prefix(item) {
+                        if self.q.context.contains_prefix(item)? || self.q.contains_prefix(item)? {
                             None
                         } else {
                             Some(item_id)
@@ -387,7 +392,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                     return Err(compile::Error::new(
                         location,
                         ErrorKind::MissingItem {
-                            item: self.q.pool.item(item).to_owned(),
+                            item: self.q.pool.item(item).try_to_owned()?,
                         },
                     ));
                 }
@@ -408,7 +413,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                     return Err(compile::Error::new(
                         location.span,
                         ErrorKind::MissingItem {
-                            item: self.q.pool.item(item_meta.item).to_owned(),
+                            item: self.q.pool.item(item_meta.item).try_to_owned()?,
                         },
                     ));
                 };
@@ -438,19 +443,19 @@ where
     for arg in arguments {
         match arg {
             ast::FnArg::SelfValue(..) => {
-                args.push("self".into());
+                args.try_push(Box::try_from("self")?)?;
             }
             ast::FnArg::Pat(pat) => {
                 let span = pat.span();
 
                 if let Some(s) = sources.source(location.source_id, span) {
-                    args.push(s.into());
+                    args.try_push(Box::try_from(s)?)?;
                 } else {
-                    args.push("*".into());
+                    args.try_push(Box::try_from("*")?)?;
                 }
             }
         }
     }
 
-    Ok(args.into())
+    Ok(args.try_into_boxed_slice()?)
 }

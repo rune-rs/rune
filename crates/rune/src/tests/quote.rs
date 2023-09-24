@@ -2,11 +2,11 @@ prelude!();
 
 use ast::Kind::*;
 use ast::{CopySource, Delimiter, LitSource, NumberSource, StrSource};
-use macros::{quote, MacroContext};
+use macros::quote;
 
 macro_rules! assert_quote {
     ($cx:expr, [$($expected:pat),* $(,)?], $quote:expr) => {
-        let ts = $quote.into_token_stream($cx);
+        let ts = $quote.into_token_stream($cx).unwrap();
         let mut it = ts.into_iter();
 
         $(
@@ -19,8 +19,8 @@ macro_rules! assert_quote {
 }
 
 #[test]
-fn test_tokens() {
-    MacroContext::test(|cx| {
+fn test_tokens() -> Result<()> {
+    macros::test(|cx| {
         assert_quote!(cx, [Amp], quote!(&));
         assert_quote!(cx, [Abstract], quote!(abstract));
         assert_quote!(cx, [AlignOf], quote!(alignof));
@@ -117,12 +117,15 @@ fn test_tokens() {
         assert_quote!(cx, [Virtual], quote!(virtual));
         assert_quote!(cx, [While], quote!(while));
         assert_quote!(cx, [Yield], quote!(yield));
-    });
+        Ok(())
+    })?;
+
+    Ok(())
 }
 
 #[test]
-fn test_synthetic() {
-    MacroContext::test(|cx| {
+fn test_synthetic() -> Result<()> {
+    macros::test(|cx| {
         assert_quote!(cx, [Ident(LitSource::Synthetic(..))], quote!(hello));
         assert_quote!(cx, [ByteStr(StrSource::Synthetic(..))], quote!(b"hello"));
         assert_quote!(cx, [Str(StrSource::Synthetic(..))], quote!("hello"));
@@ -130,20 +133,26 @@ fn test_synthetic() {
         assert_quote!(cx, [Number(NumberSource::Synthetic(..))], quote!(42.0));
         assert_quote!(cx, [Char(CopySource::Inline('a'))], quote!('a'));
         assert_quote!(cx, [Byte(CopySource::Inline(b'a'))], quote!(b'a'));
-    });
+        Ok(())
+    })?;
+
+    Ok(())
 }
 
 #[test]
-fn test_interpolate() {
-    MacroContext::test(|cx| {
+fn test_interpolate() -> Result<()> {
+    macros::test(|cx| {
         let outer = quote!(self struct enum);
         assert_quote!(cx, [SelfValue, Struct, Enum], quote!(#outer));
-    });
+        Ok(())
+    })?;
+
+    Ok(())
 }
 
 #[test]
-fn test_attribute() {
-    MacroContext::test(|cx| {
+fn test_attribute() -> Result<()> {
+    macros::test(|cx| {
         assert_quote!(
             cx,
             [
@@ -154,12 +163,16 @@ fn test_attribute() {
             ],
             quote!(#[test])
         );
-    });
+
+        Ok(())
+    })?;
+
+    Ok(())
 }
 
 #[test]
-fn test_object() {
-    MacroContext::test(|cx| {
+fn test_object() -> Result<()> {
+    macros::test(|cx| {
         assert_quote!(
             cx,
             [
@@ -172,5 +185,9 @@ fn test_object() {
             ],
             quote!(#{test: 42})
         );
-    });
+
+        Ok(())
+    })?;
+
+    Ok(())
 }

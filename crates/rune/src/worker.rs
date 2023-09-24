@@ -1,10 +1,7 @@
 //! Worker used by compiler.
 
-use crate::no_std::prelude::*;
-
-use crate::no_std::collections::HashMap;
-use crate::no_std::collections::VecDeque;
-
+use crate::alloc::prelude::*;
+use crate::alloc::{Box, HashMap, Vec, VecDeque};
 use crate::ast;
 use crate::ast::Span;
 use crate::compile::{self, ModId};
@@ -64,77 +61,71 @@ impl<'a, 'arena> Worker<'a, 'arena> {
                         mod_item,
                         mod_item_id,
                     } => {
-                        let item = self.q.pool.module_item(mod_item);
-                        tracing::trace!("load file: {}", item);
+                        let result = (|| {
+                            let Some(source) = self.q.sources.get(source_id) else {
+                                self.q
+                                    .diagnostics
+                                    .internal(source_id, "Missing queued source by id");
+                                return Ok(());
+                            };
 
-                        let Some(source) = self.q.sources.get(source_id) else {
-                            self.q
-                                .diagnostics
-                                .internal(source_id, "Missing queued source by id");
-                            continue;
-                        };
+                            let item = self.q.pool.module_item(mod_item);
+                            tracing::trace!("Load file: {}", item);
 
-                        let root = match kind {
-                            LoadFileKind::Root => source.path().map(ToOwned::to_owned),
-                            LoadFileKind::Module { root } => root,
-                        };
+                            let root = match kind {
+                                LoadFileKind::Root => {
+                                    source.path().map(|p| p.try_to_owned()).transpose()?
+                                }
+                                LoadFileKind::Module { root } => root,
+                            };
 
-                        let items = Items::new(item, mod_item_id, self.q.gen);
+                            let items = Items::new(item, mod_item_id, self.q.gen)?;
 
-                        macro_rules! indexer {
-                            () => {
-                                Indexer {
-                                    q: self.q.borrow(),
-                                    root,
+                            macro_rules! indexer {
+                                () => {
+                                    Indexer {
+                                        q: self.q.borrow(),
+                                        root,
+                                        source_id,
+                                        items,
+                                        scopes: Scopes::new()?,
+                                        item: IndexItem::new(mod_item),
+                                        nested_item: None,
+                                        macro_depth: 0,
+                                        loaded: Some(&mut self.loaded),
+                                        queue: Some(&mut self.queue),
+                                    }
+                                };
+                            }
+
+                            if self.q.options.function_body {
+                                let ast = crate::parse::parse_all::<ast::EmptyBlock>(
+                                    source.as_str(),
                                     source_id,
-                                    items,
-                                    scopes: Scopes::default(),
-                                    item: IndexItem::new(mod_item),
-                                    nested_item: None,
-                                    macro_depth: 0,
-                                    loaded: Some(&mut self.loaded),
-                                    queue: Some(&mut self.queue),
-                                }
-                            };
-                        }
+                                    true,
+                                )?;
 
-                        if self.q.options.function_body {
-                            let ast = match crate::parse::parse_all::<ast::EmptyBlock>(
-                                source.as_str(),
-                                source_id,
-                                true,
-                            ) {
-                                Ok(ast) => ast,
-                                Err(error) => {
-                                    self.q.diagnostics.error(source_id, error);
-                                    continue;
-                                }
-                            };
+                                let span = Span::new(0, source.len());
+                                let mut idx = indexer!();
 
-                            let span = Span::new(0, source.len());
-                            let mut idx = indexer!();
+                                index::empty_block_fn(&mut idx, ast, &span)?;
+                            } else {
+                                let mut ast = crate::parse::parse_all::<ast::File>(
+                                    source.as_str(),
+                                    source_id,
+                                    true,
+                                )?;
 
-                            if let Err(error) = index::empty_block_fn(&mut idx, ast, &span) {
-                                idx.q.diagnostics.error(source_id, error);
+                                let mut idx = indexer!();
+
+                                index::file(&mut idx, &mut ast)?;
                             }
-                        } else {
-                            let mut ast = match crate::parse::parse_all::<ast::File>(
-                                source.as_str(),
-                                source_id,
-                                true,
-                            ) {
-                                Ok(ast) => ast,
-                                Err(error) => {
-                                    self.q.diagnostics.error(source_id, error);
-                                    continue;
-                                }
-                            };
 
-                            let mut idx = indexer!();
+                            Ok::<_, compile::Error>(())
+                        })();
 
-                            if let Err(error) = index::file(&mut idx, &mut ast) {
-                                idx.q.diagnostics.error(source_id, error);
-                            }
+                        if let Err(error) = result {
+                            self.q.diagnostics.error(source_id, error);
                         }
                     }
                     Task::ExpandImport(import) => {
@@ -144,7 +135,8 @@ impl<'a, 'arena> Worker<'a, 'arena> {
                         let queue = &mut self.queue;
 
                         let result = import.process(&mut self.q, &mut |task| {
-                            queue.push_back(task);
+                            queue.try_push_back(task)?;
+                            Ok(())
                         });
 
                         if let Err(error) = result {
@@ -153,7 +145,14 @@ impl<'a, 'arena> Worker<'a, 'arena> {
                     }
                     Task::ExpandWildcardImport(wildcard_import) => {
                         tracing::trace!("expand wildcard import");
-                        wildcard_imports.push(wildcard_import);
+
+                        let source_id = wildcard_import.location.source_id;
+
+                        if let Err(error) = wildcard_imports.try_push(wildcard_import) {
+                            self.q
+                                .diagnostics
+                                .error(source_id, compile::Error::from(error));
+                        }
                     }
                 }
             }
@@ -197,17 +196,20 @@ impl<'a, 'arena> Worker<'a, 'arena> {
                     // TODO: this should not be necessary, since the item being
                     // referenced should already have been inserted at this
                     // point.
-                    self.q.inner.items.insert(meta.item_meta.id, meta.item_meta);
+                    self.q
+                        .inner
+                        .items
+                        .try_insert(meta.item_meta.id, meta.item_meta)?;
 
                     let item = self.q.pool.item(meta.item_meta.item);
-                    let items = Items::new(item, meta.item_meta.id, self.q.gen);
+                    let items = Items::new(item, meta.item_meta.id, self.q.gen)?;
 
                     let mut idx = Indexer {
                         q: self.q.borrow(),
                         root: entry.root,
                         source_id: entry.location.source_id,
                         items,
-                        scopes: Scopes::default(),
+                        scopes: Scopes::new()?,
                         item: IndexItem::with_impl_item(named.module, meta.item_meta.id),
                         nested_item: entry.nested_item,
                         macro_depth: entry.macro_depth,
@@ -223,7 +225,7 @@ impl<'a, 'arena> Worker<'a, 'arena> {
                         .unwrap_or_default();
 
                     for f in removed {
-                        index::item_fn_immediate(&mut idx, *f.ast)?;
+                        index::item_fn_immediate(&mut idx, Box::into_inner(f.ast))?;
                     }
 
                     Ok::<_, compile::Error>(())

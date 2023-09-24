@@ -15,7 +15,7 @@ fn test_get_const() -> Result<()> {
     assert_eq!(
         unit.constant(Hash::type_hash(["LEET"]))
             .expect("successful lookup")
-            .clone()
+            .try_clone()?
             .into_value()
             .expect("could not allocate value")
             .into_integer()
@@ -44,7 +44,7 @@ fn test_get_const_re_export() -> Result<()> {
     assert_eq!(
         unit.constant(Hash::type_hash(["LEET"]))
             .expect("successful lookup")
-            .clone()
+            .try_clone()?
             .into_value()
             .expect("could not allocate value")
             .into_integer()
@@ -71,7 +71,7 @@ fn test_get_const_nested() -> Result<()> {
     assert_eq!(
         unit.constant(Hash::type_hash(["inner", "LEET"]))
             .expect("successful lookup")
-            .clone()
+            .try_clone()?
             .into_value()
             .expect("could not allocate value")
             .into_integer()

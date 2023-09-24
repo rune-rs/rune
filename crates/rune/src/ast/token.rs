@@ -2,6 +2,7 @@ use core::ascii;
 use core::fmt;
 use core::ops::Neg;
 
+use crate::ast::prelude::*;
 use crate::ast::{Kind, Span, Spanned};
 use crate::compile;
 use crate::macros::{MacroContext, SyntheticId, ToTokens, TokenStream};
@@ -9,7 +10,8 @@ use crate::parse::{Expectation, IntoExpectation, Parse, Parser, Peek};
 use crate::SourceId;
 
 /// A single token encountered during parsing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Token {
     /// The span of the token.
@@ -162,8 +164,12 @@ impl Peek for Token {
 }
 
 impl ToTokens for Token {
-    fn to_tokens(&self, _: &mut MacroContext<'_, '_, '_>, stream: &mut TokenStream) {
-        stream.push(*self);
+    fn to_tokens(
+        &self,
+        _: &mut MacroContext<'_, '_, '_>,
+        stream: &mut TokenStream,
+    ) -> alloc::Result<()> {
+        stream.push(*self)
     }
 }
 
@@ -180,17 +186,18 @@ impl IntoExpectation for Token {
 }
 
 /// The value of a number literal.
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 #[non_exhaustive]
 pub enum NumberValue {
     /// A float literal number.
     Float(f64),
     /// An integer literal number.
-    Integer(num::BigInt),
+    Integer(#[try_clone(with = num::BigInt::clone)] num::BigInt),
 }
 
 /// The suffix of a number.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub enum NumberSuffix {
     /// The `i64` suffix.
@@ -202,7 +209,7 @@ pub enum NumberSuffix {
 }
 
 /// A resolved number literal.
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 #[non_exhaustive]
 pub struct Number {
     /// The parsed number value.
@@ -304,7 +311,8 @@ impl fmt::Display for Number {
 }
 
 /// The kind of a number literal.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub enum NumberBase {
     /// A decimal number literal, like `3.14`.
@@ -332,7 +340,8 @@ impl fmt::Display for NumberBase {
 ///
 /// This is necessary to synthesize identifiers in the lexer since there's not
 /// storage available, nor is the identifier reflected in the source.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub enum BuiltIn {
     /// `template`.
@@ -367,7 +376,8 @@ impl fmt::Display for BuiltIn {
 }
 
 /// The kind of the identifier.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub enum LitSource {
     /// The identifier is from the source text.
@@ -381,7 +391,8 @@ pub enum LitSource {
 /// The source of the literal string. This need to be treated separately from
 /// [LitSource] because it might encompass special things like quoting and
 /// escaping.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub enum StrSource {
     /// The literal string source is from the source text.
@@ -391,7 +402,8 @@ pub enum StrSource {
 }
 
 /// Configuration for a literal string.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct StrText {
     /// The source of the text.
@@ -403,7 +415,8 @@ pub struct StrText {
 }
 
 /// The source of a number.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub enum NumberSource {
     /// The number is from the source text (and need to be parsed while it's
@@ -414,8 +427,10 @@ pub enum NumberSource {
 }
 
 /// The source of an item that implements Copy.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
+#[try_clone(bound = {T: TryClone})]
 pub enum CopySource<T>
 where
     T: Copy,
@@ -428,7 +443,8 @@ where
 }
 
 /// Configuration of a text number.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct NumberText {
     /// The source of the text.
@@ -444,7 +460,8 @@ pub struct NumberText {
 }
 
 /// A delimiter, `{`, `{`, or `[`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub enum Delimiter {
     /// A parenthesis delimiter `(` and `)`.

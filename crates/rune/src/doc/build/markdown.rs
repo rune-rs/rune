@@ -1,31 +1,43 @@
-use core::fmt::{self, Write};
-
-use crate::no_std::collections::HashMap;
-use crate::no_std::prelude::*;
-use crate::no_std::Error;
+use core::fmt;
+use std::io;
 
 use crate::doc::artifacts::TestParams;
+use crate::alloc::{try_vec, String, Vec, HashMap};
+use crate::alloc::fmt::TryWrite;
 
 use syntect::parsing::{SyntaxReference, SyntaxSet};
-use pulldown_cmark::escape::{escape_href, escape_html};
+use pulldown_cmark::escape::{escape_href, escape_html, StrWrite};
 use pulldown_cmark::{CowStr, Alignment, CodeBlockKind, LinkType, Tag, Event};
+use anyhow::Result;
 
 pub(crate) const RUST_TOKEN: &str = "rust";
 pub(crate) const RUNE_TOKEN: &str = "rune";
 
 use Event::*;
 
-type Result<T, E = Error> = core::result::Result<T, E>;
-
 enum TableState {
     Head,
     Body,
 }
 
+struct StringWriter<'a> {
+    string: &'a mut String,
+}
+
+impl StrWrite for StringWriter<'_> {
+    fn write_str(&mut self, s: &str) -> io::Result<()> {
+        self.string.try_push_str(s).map_err(|error| io::Error::new(io::ErrorKind::Other, error))
+    }
+
+    fn write_fmt(&mut self, args: fmt::Arguments) -> io::Result<()> {
+        TryWrite::write_fmt(self.string, args).map_err(|error| io::Error::new(io::ErrorKind::Other, error))
+    }
+}
+
 struct Writer<'a, 'o, I> {
     syntax_set: &'a SyntaxSet,
     iter: I,
-    out: &'o mut String,
+    out: StringWriter<'o>,
     tests: Option<&'o mut Vec<(String, TestParams)>>,
     codeblock: Option<(&'a SyntaxReference, Option<TestParams>)>,
     table_state: TableState,
@@ -40,7 +52,7 @@ where
 {
     #[inline]
     fn write(&mut self, s: &str) -> Result<()> {
-        self.out.write_str(s)?;
+        self.out.string.try_push_str(s)?;
         Ok(())
     }
 
@@ -62,7 +74,7 @@ where
 
                         if let Some(params) = params {
                             if let Some(tests) = self.tests.as_mut() {
-                                tests.push((string, params));
+                                tests.try_push((string, params))?;
                             }
                         }
 
@@ -93,7 +105,7 @@ where
                     self.write("<sup class=\"footnote-reference\"><a href=\"#")?;
                     escape_html(&mut self.out, &name)?;
                     self.write("\">")?;
-                    let number = *self.numbers.entry(name).or_insert(len);
+                    let number = *self.numbers.entry(name).or_try_insert(len)?;
                     write!(&mut self.out, "{}", number)?;
                     self.write("</a></sup>")?;
                 }
@@ -140,7 +152,7 @@ where
                 self.write(">")?;
             }
             Tag::Table(alignments) => {
-                self.table_alignments = alignments;
+                self.table_alignments = alignments.try_into()?;
                 self.write("<table>")?;
             }
             Tag::TableHead => {
@@ -246,7 +258,7 @@ where
                 escape_html(&mut self.out, &name).map_err(|_| fmt::Error)?;
                 self.write("\"><sup class=\"footnote-definition-label\">")?;
                 let len = self.numbers.len() + 1;
-                let number = *self.numbers.entry(name).or_insert(len);
+                let number = *self.numbers.entry(name).or_try_insert(len)?;
                 write!(&mut self.out, "{}", number)?;
                 self.write("</sup>")?;
             }
@@ -387,8 +399,8 @@ where
                 }
                 FootnoteReference(name) => {
                     let len = self.numbers.len() + 1;
-                    let number = *self.numbers.entry(name).or_insert(len);
-                    write!(&mut self.out, "[{}]", number)?;
+                    let number = *self.numbers.entry(name).or_try_insert(len)?;
+                    write!(self.out, "[{}]", number)?;
                 }
                 TaskListMarker(true) => self.write("[x]")?,
                 TaskListMarker(false) => self.write("[ ]")?,
@@ -400,18 +412,18 @@ where
 }
 
 /// Process markdown html and captures tests.
-pub(super) fn push_html<'a, I>(syntax_set: &'a SyntaxSet, out: &'a mut String, iter: I, tests: Option<&'a mut Vec<(String, TestParams)>>) -> Result<()>
+pub(super) fn push_html<'a, I>(syntax_set: &'a SyntaxSet, string: &'a mut String, iter: I, tests: Option<&'a mut Vec<(String, TestParams)>>) -> Result<()>
 where
     I: Iterator<Item = Event<'a>>,
 {
     let writer = Writer {
         syntax_set,
         iter,
-        out,
+        out: StringWriter { string },
         tests,
         codeblock: None,
         table_state: TableState::Head,
-        table_alignments: vec![],
+        table_alignments: try_vec![],
         table_cell_index: 0,
         numbers: HashMap::new(),
     };

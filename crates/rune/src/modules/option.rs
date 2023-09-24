@@ -6,7 +6,7 @@ use crate::{ContextError, Module};
 
 /// Construct the `std::option` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["option"]);
+    let mut module = Module::with_crate_item("std", ["option"])?;
     module.option(["Option"])?;
     // Sorted for ease of finding
     module.function_meta(expect)?;

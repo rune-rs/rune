@@ -12,7 +12,7 @@ fn ast_parse() {
 /// A literal vector.
 ///
 /// * `[<expr>,*]`
-#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprVec {
     /// Attributes associated with vector.

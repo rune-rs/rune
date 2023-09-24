@@ -3,6 +3,9 @@ use core::ops;
 use core::slice;
 use core::str;
 
+use crate::alloc;
+use crate::alloc::clone::TryClone;
+
 /// A raw static string.
 ///
 /// We define and use this instead of relying on `&'static str` (which should
@@ -22,6 +25,12 @@ impl RawStr {
             data: s.as_ptr(),
             len: s.len(),
         }
+    }
+}
+
+impl TryClone for RawStr {
+    fn try_clone(&self) -> alloc::Result<Self> {
+        Ok(*self)
     }
 }
 

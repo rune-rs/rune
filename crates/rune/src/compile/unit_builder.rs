@@ -5,10 +5,11 @@
 
 use core::fmt;
 
-use crate::no_std::collections::HashMap;
-use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
+use crate::alloc::fmt::TryWrite;
+use crate::alloc::prelude::*;
+use crate::alloc::{self, try_format, Box, HashMap, String, Vec};
 use crate::ast::{Span, Spanned};
 use crate::compile::meta;
 use crate::compile::{self, Assembly, AssemblyInst, ErrorKind, Item, Location, Pool, WithSpan};
@@ -37,7 +38,7 @@ impl fmt::Display for LinkerError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             LinkerError::MissingFunction { hash, .. } => {
-                write!(f, "Missing function with hash {hash}",)
+                write!(f, "Missing function with hash {hash}")
             }
         }
     }
@@ -89,8 +90,10 @@ pub(crate) struct UnitBuilder {
 
 impl UnitBuilder {
     /// Insert an identifier for debug purposes.
-    pub(crate) fn insert_debug_ident(&mut self, ident: &str) {
-        self.hash_to_ident.insert(Hash::ident(ident), ident.into());
+    pub(crate) fn insert_debug_ident(&mut self, ident: &str) -> alloc::Result<()> {
+        self.hash_to_ident
+            .try_insert(Hash::ident(ident), ident.try_into()?)?;
+        Ok(())
     }
 
     /// Convert into a runtime unit, shedding our build metadata in the process.
@@ -105,7 +108,12 @@ impl UnitBuilder {
         for (from, to) in self.reexports {
             if let Some(info) = self.functions.get(&to) {
                 let info = *info;
-                if self.functions.insert(from, info).is_some() {
+                if self
+                    .functions
+                    .try_insert(from, info)
+                    .with_span(span)?
+                    .is_some()
+                {
                     return Err(compile::Error::new(
                         span,
                         ErrorKind::FunctionConflictHash { hash: from },
@@ -115,9 +123,14 @@ impl UnitBuilder {
             }
 
             if let Some(value) = self.constants.get(&to) {
-                let const_value = value.clone();
+                let const_value = value.try_clone()?;
 
-                if self.constants.insert(from, const_value).is_some() {
+                if self
+                    .constants
+                    .try_insert(from, const_value)
+                    .with_span(span)?
+                    .is_some()
+                {
                     return Err(compile::Error::new(
                         span,
                         ErrorKind::ConstantConflict { hash: from },
@@ -155,27 +168,27 @@ impl UnitBuilder {
         span: &dyn Spanned,
         current: &str,
     ) -> compile::Result<usize> {
-        let current = StaticString::new(current);
+        let current = StaticString::new(current)?;
         let hash = current.hash();
 
         if let Some(existing_slot) = self.static_string_rev.get(&hash).copied() {
-            let existing = self.static_strings.get(existing_slot).ok_or_else(|| {
-                compile::Error::new(
+            let Some(existing) = self.static_strings.get(existing_slot) else {
+                return Err(compile::Error::new(
                     span,
                     ErrorKind::StaticStringMissing {
                         hash,
                         slot: existing_slot,
                     },
-                )
-            })?;
+                ));
+            };
 
             if ***existing != *current {
                 return Err(compile::Error::new(
                     span,
                     ErrorKind::StaticStringHashConflict {
                         hash,
-                        current: (*current).clone(),
-                        existing: (***existing).clone(),
+                        current: (*current).try_clone()?,
+                        existing: (***existing).try_clone()?,
                     },
                 ));
             }
@@ -184,8 +197,8 @@ impl UnitBuilder {
         }
 
         let new_slot = self.static_strings.len();
-        self.static_strings.push(Arc::new(current));
-        self.static_string_rev.insert(hash, new_slot);
+        self.static_strings.try_push(Arc::new(current))?;
+        self.static_string_rev.try_insert(hash, new_slot)?;
         Ok(new_slot)
     }
 
@@ -216,8 +229,8 @@ impl UnitBuilder {
                     span,
                     ErrorKind::StaticBytesHashConflict {
                         hash,
-                        current: current.to_owned(),
-                        existing: existing.clone(),
+                        current: current.try_to_owned()?,
+                        existing: existing.try_clone()?,
                     },
                 ));
             }
@@ -226,8 +239,8 @@ impl UnitBuilder {
         }
 
         let new_slot = self.static_bytes.len();
-        self.static_bytes.push(current.to_owned());
-        self.static_bytes_rev.insert(hash, new_slot);
+        self.static_bytes.try_push(current.try_to_owned()?)?;
+        self.static_bytes_rev.try_insert(hash, new_slot)?;
         Ok(new_slot)
     }
 
@@ -244,8 +257,8 @@ impl UnitBuilder {
     {
         let current = current
             .into_iter()
-            .map(|s| s.as_ref().to_owned())
-            .collect::<Box<_>>();
+            .map(|s| s.as_ref().try_to_owned())
+            .try_collect::<alloc::Result<Box<_>>>()??;
 
         self.new_static_object_keys(span, current)
     }
@@ -276,7 +289,7 @@ impl UnitBuilder {
                     ErrorKind::StaticObjectKeysHashConflict {
                         hash,
                         current,
-                        existing: existing.clone(),
+                        existing: existing.try_clone()?,
                     },
                 ));
             }
@@ -285,8 +298,8 @@ impl UnitBuilder {
         }
 
         let new_slot = self.static_object_keys.len();
-        self.static_object_keys.push(current);
-        self.static_object_keys_rev.insert(hash, new_slot);
+        self.static_object_keys.try_push(current)?;
+        self.static_object_keys_rev.try_insert(hash, new_slot)?;
         Ok(new_slot)
     }
 
@@ -304,15 +317,17 @@ impl UnitBuilder {
 
                 let rtti = Arc::new(Rtti {
                     hash,
-                    item: pool.item(meta.item_meta.item).to_owned(),
+                    item: pool.item(meta.item_meta.item).try_to_owned()?,
                 });
 
-                self.constants.insert(
-                    Hash::associated_function(hash, Protocol::INTO_TYPE_NAME),
-                    ConstValue::String(rtti.item.to_string()),
-                );
+                self.constants
+                    .try_insert(
+                        Hash::associated_function(hash, Protocol::INTO_TYPE_NAME),
+                        ConstValue::String(rtti.item.try_to_string()?),
+                    )
+                    .with_span(span)?;
 
-                if self.rtti.insert(hash, rtti).is_some() {
+                if self.rtti.try_insert(hash, rtti).with_span(span)?.is_some() {
                     return Err(compile::Error::new(
                         span,
                         ErrorKind::TypeRttiConflict { hash },
@@ -326,23 +341,33 @@ impl UnitBuilder {
                 let info = UnitFn::EmptyStruct { hash: meta.hash };
 
                 let signature = DebugSignature::new(
-                    pool.item(meta.item_meta.item).to_owned(),
+                    pool.item(meta.item_meta.item).try_to_owned()?,
                     DebugArgs::EmptyArgs,
                 );
 
                 let rtti = Arc::new(Rtti {
                     hash: meta.hash,
-                    item: pool.item(meta.item_meta.item).to_owned(),
+                    item: pool.item(meta.item_meta.item).try_to_owned()?,
                 });
 
-                if self.rtti.insert(meta.hash, rtti).is_some() {
+                if self
+                    .rtti
+                    .try_insert(meta.hash, rtti)
+                    .with_span(span)?
+                    .is_some()
+                {
                     return Err(compile::Error::new(
                         span,
                         ErrorKind::TypeRttiConflict { hash: meta.hash },
                     ));
                 }
 
-                if self.functions.insert(meta.hash, info).is_some() {
+                if self
+                    .functions
+                    .try_insert(meta.hash, info)
+                    .with_span(span)?
+                    .is_some()
+                {
                     return Err(compile::Error::new(
                         span,
                         ErrorKind::FunctionConflict {
@@ -351,12 +376,16 @@ impl UnitBuilder {
                     ));
                 }
 
-                self.constants.insert(
-                    Hash::associated_function(meta.hash, Protocol::INTO_TYPE_NAME),
-                    ConstValue::String(signature.path.to_string()),
-                );
+                self.constants
+                    .try_insert(
+                        Hash::associated_function(meta.hash, Protocol::INTO_TYPE_NAME),
+                        ConstValue::String(signature.path.try_to_string()?),
+                    )
+                    .with_span(span)?;
 
-                self.debug_info_mut().functions.insert(meta.hash, signature);
+                self.debug_mut()?
+                    .functions
+                    .try_insert(meta.hash, signature)?;
             }
             meta::Kind::Struct {
                 fields: meta::Fields::Unnamed(args),
@@ -368,23 +397,33 @@ impl UnitBuilder {
                 };
 
                 let signature = DebugSignature::new(
-                    pool.item(meta.item_meta.item).to_owned(),
+                    pool.item(meta.item_meta.item).try_to_owned()?,
                     DebugArgs::TupleArgs(args),
                 );
 
                 let rtti = Arc::new(Rtti {
                     hash: meta.hash,
-                    item: pool.item(meta.item_meta.item).to_owned(),
+                    item: pool.item(meta.item_meta.item).try_to_owned()?,
                 });
 
-                if self.rtti.insert(meta.hash, rtti).is_some() {
+                if self
+                    .rtti
+                    .try_insert(meta.hash, rtti)
+                    .with_span(span)?
+                    .is_some()
+                {
                     return Err(compile::Error::new(
                         span,
                         ErrorKind::TypeRttiConflict { hash: meta.hash },
                     ));
                 }
 
-                if self.functions.insert(meta.hash, info).is_some() {
+                if self
+                    .functions
+                    .try_insert(meta.hash, info)
+                    .with_span(span)?
+                    .is_some()
+                {
                     return Err(compile::Error::new(
                         span,
                         ErrorKind::FunctionConflict {
@@ -393,27 +432,33 @@ impl UnitBuilder {
                     ));
                 }
 
-                self.constants.insert(
-                    Hash::associated_function(meta.hash, Protocol::INTO_TYPE_NAME),
-                    ConstValue::String(signature.path.to_string()),
-                );
+                self.constants
+                    .try_insert(
+                        Hash::associated_function(meta.hash, Protocol::INTO_TYPE_NAME),
+                        ConstValue::String(signature.path.try_to_string()?),
+                    )
+                    .with_span(span)?;
 
-                self.debug_info_mut().functions.insert(meta.hash, signature);
+                self.debug_mut()?
+                    .functions
+                    .try_insert(meta.hash, signature)?;
             }
             meta::Kind::Struct { .. } => {
                 let hash = pool.item_type_hash(meta.item_meta.item);
 
                 let rtti = Arc::new(Rtti {
                     hash,
-                    item: pool.item(meta.item_meta.item).to_owned(),
+                    item: pool.item(meta.item_meta.item).try_to_owned()?,
                 });
 
-                self.constants.insert(
-                    Hash::associated_function(hash, Protocol::INTO_TYPE_NAME),
-                    ConstValue::String(rtti.item.to_string()),
-                );
+                self.constants
+                    .try_insert(
+                        Hash::associated_function(hash, Protocol::INTO_TYPE_NAME),
+                        ConstValue::String(rtti.item.try_to_string()?),
+                    )
+                    .with_span(span)?;
 
-                if self.rtti.insert(hash, rtti).is_some() {
+                if self.rtti.try_insert(hash, rtti).with_span(span)?.is_some() {
                     return Err(compile::Error::new(
                         span,
                         ErrorKind::TypeRttiConflict { hash },
@@ -428,10 +473,15 @@ impl UnitBuilder {
                 let rtti = Arc::new(VariantRtti {
                     enum_hash,
                     hash: meta.hash,
-                    item: pool.item(meta.item_meta.item).to_owned(),
+                    item: pool.item(meta.item_meta.item).try_to_owned()?,
                 });
 
-                if self.variant_rtti.insert(meta.hash, rtti).is_some() {
+                if self
+                    .variant_rtti
+                    .try_insert(meta.hash, rtti)
+                    .with_span(span)?
+                    .is_some()
+                {
                     return Err(compile::Error::new(
                         span,
                         ErrorKind::VariantRttiConflict { hash: meta.hash },
@@ -441,11 +491,16 @@ impl UnitBuilder {
                 let info = UnitFn::UnitVariant { hash: meta.hash };
 
                 let signature = DebugSignature::new(
-                    pool.item(meta.item_meta.item).to_owned(),
+                    pool.item(meta.item_meta.item).try_to_owned()?,
                     DebugArgs::EmptyArgs,
                 );
 
-                if self.functions.insert(meta.hash, info).is_some() {
+                if self
+                    .functions
+                    .try_insert(meta.hash, info)
+                    .with_span(span)?
+                    .is_some()
+                {
                     return Err(compile::Error::new(
                         span,
                         ErrorKind::FunctionConflict {
@@ -454,7 +509,9 @@ impl UnitBuilder {
                     ));
                 }
 
-                self.debug_info_mut().functions.insert(meta.hash, signature);
+                self.debug_mut()?
+                    .functions
+                    .try_insert(meta.hash, signature)?;
             }
             meta::Kind::Variant {
                 enum_hash,
@@ -464,10 +521,15 @@ impl UnitBuilder {
                 let rtti = Arc::new(VariantRtti {
                     enum_hash,
                     hash: meta.hash,
-                    item: pool.item(meta.item_meta.item).to_owned(),
+                    item: pool.item(meta.item_meta.item).try_to_owned()?,
                 });
 
-                if self.variant_rtti.insert(meta.hash, rtti).is_some() {
+                if self
+                    .variant_rtti
+                    .try_insert(meta.hash, rtti)
+                    .with_span(span)?
+                    .is_some()
+                {
                     return Err(compile::Error::new(
                         span,
                         ErrorKind::VariantRttiConflict { hash: meta.hash },
@@ -480,11 +542,16 @@ impl UnitBuilder {
                 };
 
                 let signature = DebugSignature::new(
-                    pool.item(meta.item_meta.item).to_owned(),
+                    pool.item(meta.item_meta.item).try_to_owned()?,
                     DebugArgs::TupleArgs(args),
                 );
 
-                if self.functions.insert(meta.hash, info).is_some() {
+                if self
+                    .functions
+                    .try_insert(meta.hash, info)
+                    .with_span(span)?
+                    .is_some()
+                {
                     return Err(compile::Error::new(
                         span,
                         ErrorKind::FunctionConflict {
@@ -493,7 +560,9 @@ impl UnitBuilder {
                     ));
                 }
 
-                self.debug_info_mut().functions.insert(meta.hash, signature);
+                self.debug_mut()?
+                    .functions
+                    .try_insert(meta.hash, signature)?;
             }
             meta::Kind::Variant {
                 enum_hash,
@@ -505,10 +574,15 @@ impl UnitBuilder {
                 let rtti = Arc::new(VariantRtti {
                     enum_hash,
                     hash,
-                    item: pool.item(meta.item_meta.item).to_owned(),
+                    item: pool.item(meta.item_meta.item).try_to_owned()?,
                 });
 
-                if self.variant_rtti.insert(hash, rtti).is_some() {
+                if self
+                    .variant_rtti
+                    .try_insert(hash, rtti)
+                    .with_span(span)?
+                    .is_some()
+                {
                     return Err(compile::Error::new(
                         span,
                         ErrorKind::VariantRttiConflict { hash },
@@ -516,20 +590,31 @@ impl UnitBuilder {
                 }
             }
             meta::Kind::Enum { .. } => {
-                self.constants.insert(
-                    Hash::associated_function(meta.hash, Protocol::INTO_TYPE_NAME),
-                    ConstValue::String(pool.item(meta.item_meta.item).to_string()),
-                );
+                let name = pool
+                    .item(meta.item_meta.item)
+                    .try_to_string()
+                    .with_span(span)?;
+
+                self.constants
+                    .try_insert(
+                        Hash::associated_function(meta.hash, Protocol::INTO_TYPE_NAME),
+                        ConstValue::String(name),
+                    )
+                    .with_span(span)?;
             }
             meta::Kind::Const { .. } => {
                 let Some(const_value) = query.get_const_value(meta.hash) else {
                     return Err(compile::Error::msg(
                         span,
-                        format_args!("Missing constant for hash {}", meta.hash),
+                        try_format!("Missing constant for hash {}", meta.hash),
                     ));
                 };
 
-                self.constants.insert(meta.hash, const_value.clone());
+                let value = const_value.try_clone().with_span(span)?;
+
+                self.constants
+                    .try_insert(meta.hash, value)
+                    .with_span(span)?;
             }
             meta::Kind::Macro { .. } => (),
             meta::Kind::AttributeMacro { .. } => (),
@@ -559,7 +644,7 @@ impl UnitBuilder {
         let hash = Hash::type_hash(item);
         let target = Hash::type_hash(target);
 
-        if self.reexports.insert(hash, target).is_some() {
+        if self.reexports.try_insert(hash, target)?.is_some() {
             return Err(compile::Error::new(
                 location.span,
                 ErrorKind::FunctionReExportConflict { hash },
@@ -586,12 +671,17 @@ impl UnitBuilder {
         let offset = unit_storage.offset();
 
         let info = UnitFn::Offset { offset, call, args };
-        let signature = DebugSignature::new(item.to_owned(), DebugArgs::Named(debug_args));
+        let signature = DebugSignature::new(item.try_to_owned()?, DebugArgs::Named(debug_args));
 
         if let Some((type_hash, name)) = instance {
             let instance_fn = Hash::associated_function(type_hash, name);
 
-            if self.functions.insert(instance_fn, info).is_some() {
+            if self
+                .functions
+                .try_insert(instance_fn, info)
+                .with_span(location.span)?
+                .is_some()
+            {
                 return Err(compile::Error::new(
                     location.span,
                     ErrorKind::FunctionConflict {
@@ -600,14 +690,19 @@ impl UnitBuilder {
                 ));
             }
 
-            self.debug_info_mut()
+            self.debug_mut()?
                 .functions
-                .insert(instance_fn, signature.clone());
+                .try_insert(instance_fn, signature.try_clone()?)?;
         }
 
         let hash = Hash::type_hash(item);
 
-        if self.functions.insert(hash, info).is_some() {
+        if self
+            .functions
+            .try_insert(hash, info)
+            .with_span(location.span)?
+            .is_some()
+        {
             return Err(compile::Error::new(
                 location.span,
                 ErrorKind::FunctionConflict {
@@ -616,13 +711,15 @@ impl UnitBuilder {
             ));
         }
 
-        self.constants.insert(
-            Hash::associated_function(hash, Protocol::INTO_TYPE_NAME),
-            ConstValue::String(signature.path.to_string()),
-        );
+        self.constants
+            .try_insert(
+                Hash::associated_function(hash, Protocol::INTO_TYPE_NAME),
+                ConstValue::String(signature.path.try_to_string().with_span(location.span)?),
+            )
+            .with_span(location.span)?;
 
-        self.debug_info_mut().functions.insert(hash, signature);
-        self.functions_rev.insert(offset, hash);
+        self.debug_mut()?.functions.try_insert(hash, signature)?;
+        self.functions_rev.try_insert(offset, hash)?;
         self.add_assembly(location, assembly, unit_storage)?;
         Ok(())
     }
@@ -631,23 +728,33 @@ impl UnitBuilder {
     /// functions are provided.
     ///
     /// This can prevent a number of runtime errors, like missing functions.
-    pub(crate) fn link(&mut self, context: &Context, diagnostics: &mut Diagnostics) {
+    pub(crate) fn link(
+        &mut self,
+        context: &Context,
+        diagnostics: &mut Diagnostics,
+    ) -> alloc::Result<()> {
         for (hash, spans) in &self.required_functions {
             if self.functions.get(hash).is_none() && context.lookup_function(*hash).is_none() {
                 diagnostics.error(
                     SourceId::empty(),
                     LinkerError::MissingFunction {
                         hash: *hash,
-                        spans: spans.clone(),
+                        spans: spans.try_clone()?,
                     },
                 );
             }
         }
+
+        Ok(())
     }
 
     /// Insert and access debug information.
-    fn debug_info_mut(&mut self) -> &mut DebugInfo {
-        self.debug.get_or_insert_with(Default::default)
+    fn debug_mut(&mut self) -> alloc::Result<&mut DebugInfo> {
+        if self.debug.is_none() {
+            self.debug = Some(Box::try_new(DebugInfo::default())?);
+        }
+
+        Ok(self.debug.as_mut().unwrap())
     }
 
     /// Translate the given assembly into instructions.
@@ -657,12 +764,11 @@ impl UnitBuilder {
         assembly: Assembly,
         storage: &mut dyn UnitEncoder,
     ) -> compile::Result<()> {
-        use core::fmt::Write;
-
         self.label_count = assembly.label_count;
 
-        let base = storage.extend_offsets(assembly.labels.len());
-        self.required_functions.extend(assembly.required_functions);
+        let base = storage.extend_offsets(assembly.labels.len())?;
+        self.required_functions
+            .try_extend(assembly.required_functions)?;
 
         for (offset, (_, labels)) in &assembly.labels {
             for label in labels {
@@ -689,7 +795,7 @@ impl UnitBuilder {
                     storage.mark_offset(index);
                 }
 
-                labels.push(label.to_debug_label());
+                labels.try_push(label.to_debug_label())?;
             }
 
             match inst {
@@ -702,9 +808,7 @@ impl UnitBuilder {
                         })
                         .with_span(span)?;
 
-                    if let Err(fmt::Error) = write!(comment, "label:{}", label) {
-                        return Err(compile::Error::msg(span, "Failed to write comment"));
-                    }
+                    write!(comment, "label:{}", label)?;
 
                     storage.encode(Inst::Jump { jump }).with_span(span)?;
                 }
@@ -717,9 +821,7 @@ impl UnitBuilder {
                         })
                         .with_span(span)?;
 
-                    if let Err(fmt::Error) = write!(comment, "label:{}", label) {
-                        return Err(compile::Error::msg(span, "Failed to write comment"));
-                    }
+                    write!(comment, "label:{}", label)?;
 
                     storage.encode(Inst::JumpIf { jump }).with_span(span)?;
                 }
@@ -732,9 +834,7 @@ impl UnitBuilder {
                         })
                         .with_span(span)?;
 
-                    if let Err(fmt::Error) = write!(comment, "label:{}", label) {
-                        return Err(compile::Error::msg(span, "Failed to write comment"));
-                    }
+                    write!(comment, "label:{}", label)?;
 
                     storage.encode(Inst::JumpIfOrPop { jump }).with_span(span)?;
                 }
@@ -747,9 +847,7 @@ impl UnitBuilder {
                         })
                         .with_span(span)?;
 
-                    if let Err(fmt::Error) = write!(comment, "label:{}", label) {
-                        return Err(compile::Error::msg(span, "Failed to write comment"));
-                    }
+                    write!(comment, "label:{}", label)?;
 
                     storage
                         .encode(Inst::JumpIfNotOrPop { jump })
@@ -764,9 +862,7 @@ impl UnitBuilder {
                         })
                         .with_span(span)?;
 
-                    if let Err(fmt::Error) = write!(comment, "label:{}", label) {
-                        return Err(compile::Error::msg(span, "Failed to write comment"));
-                    }
+                    write!(comment, "label:{}", label)?;
 
                     storage
                         .encode(Inst::JumpIfBranch { branch, jump })
@@ -781,9 +877,7 @@ impl UnitBuilder {
                         })
                         .with_span(span)?;
 
-                    if let Err(fmt::Error) = write!(comment, "label:{}", label) {
-                        return Err(compile::Error::msg(span, "Failed to write comment"));
-                    }
+                    write!(comment, "label:{}", label)?;
 
                     storage
                         .encode(Inst::PopAndJumpIfNot { count, jump })
@@ -798,9 +892,7 @@ impl UnitBuilder {
                         })
                         .with_span(span)?;
 
-                    if let Err(fmt::Error) = write!(comment, "label:{}", label) {
-                        return Err(compile::Error::msg(span, "Failed to write comment"));
-                    }
+                    write!(comment, "label:{}", label)?;
 
                     storage
                         .encode(Inst::IterNext { offset, jump })
@@ -832,24 +924,22 @@ impl UnitBuilder {
 
             if let Some(c) = assembly.comments.get(&pos) {
                 if !comment.is_empty() {
-                    comment.push_str("; ");
+                    comment.try_push_str("; ")?;
                 }
 
-                comment.push_str(c);
+                comment.try_push_str(c)?;
             }
-
-            let debug = self.debug.get_or_insert_with(Default::default);
 
             let comment = if comment.is_empty() {
                 None
             } else {
-                Some(comment.into())
+                Some(comment.try_into()?)
             };
 
-            debug.instructions.insert(
+            self.debug_mut()?.instructions.try_insert(
                 at,
                 DebugInst::new(location.source_id, span, comment, labels),
-            );
+            )?;
         }
 
         Ok(())

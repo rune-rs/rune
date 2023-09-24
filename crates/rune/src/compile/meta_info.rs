@@ -1,12 +1,12 @@
 use core::fmt;
 
-use crate::no_std::prelude::*;
-
+use crate::alloc;
+use crate::alloc::prelude::*;
 use crate::compile::{meta, Item, ItemBuf};
 use crate::Hash;
 
 /// Provides an owned human-readable description of a meta item.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 #[non_exhaustive]
 pub struct MetaInfo {
     /// The kind of the item.
@@ -19,12 +19,12 @@ pub struct MetaInfo {
 
 impl MetaInfo {
     /// Construct a new meta info.
-    pub(crate) fn new(kind: &meta::Kind, hash: Hash, item: Option<&Item>) -> Self {
-        Self {
+    pub(crate) fn new(kind: &meta::Kind, hash: Hash, item: Option<&Item>) -> alloc::Result<Self> {
+        Ok(Self {
             kind: MetaInfoKind::from_kind(kind),
             hash,
-            item: item.map(|item| item.to_owned()),
-        }
+            item: item.map(|item| item.try_to_owned()).transpose()?,
+        })
     }
 }
 

@@ -1,17 +1,19 @@
-use crate::no_std::prelude::*;
+use crate::alloc::{self, String};
 
 /// Encode `string` as part of a quoted javascript string.
-pub(crate) fn encode_quoted(out: &mut String, string: &str) {
+pub(crate) fn encode_quoted(out: &mut String, string: &str) -> alloc::Result<()> {
     for c in string.chars() {
         let s = match c {
             '\\' => "\\\\",
             '\"' => "\\\"",
             c => {
-                out.push(c);
+                out.try_push(c)?;
                 continue;
             }
         };
 
-        out.push_str(s);
+        out.try_push_str(s)?;
     }
+
+    Ok(())
 }

@@ -22,7 +22,7 @@ fn ast_parse() {
 }
 
 /// A unary expression.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprUnary {
     /// Attributes associated with expression.
@@ -44,12 +44,12 @@ impl ExprUnary {
         Ok(Self {
             attributes,
             op: p.parse()?,
-            expr: Box::new(ast::Expr::parse_with(
+            expr: Box::try_new(ast::Expr::parse_with(
                 p,
                 eager_brace,
                 ast::expr::NOT_EAGER_BINARY,
                 ast::expr::CALLABLE,
-            )?),
+            )?)?,
         })
     }
 }
@@ -57,7 +57,8 @@ impl ExprUnary {
 expr_parse!(Unary, ExprUnary, "try expression");
 
 /// A unary operation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, ToTokens, Spanned)]
+#[try_clone(copy)]
 pub enum UnOp {
     /// Not `!<thing>`.
     Not(ast::Bang),

@@ -3,6 +3,7 @@
 
 use rune::runtime::Protocol;
 use rune::{Any, ContextError, Diagnostics, Module, Vm};
+
 use std::sync::Arc;
 
 #[derive(Debug, Default, Any)]
@@ -18,13 +19,13 @@ impl Foo {
     }
 }
 
-fn main() -> rune::Result<()> {
+fn main() -> rune::support::Result<()> {
     let m = module()?;
 
     let mut context = rune_modules::default_context()?;
     context.install(m)?;
 
-    let runtime = Arc::new(context.runtime());
+    let runtime = Arc::new(context.runtime()?);
 
     let mut sources = rune::sources! {
         entry => {
@@ -50,7 +51,7 @@ fn main() -> rune::Result<()> {
 }
 
 fn module() -> Result<Module, ContextError> {
-    let mut m = Module::with_item(["module"]);
+    let mut m = Module::with_item(["module"])?;
     m.ty::<Foo>()?;
     m.associated_function(Protocol::MUL, Foo::mul)?;
     Ok(m)

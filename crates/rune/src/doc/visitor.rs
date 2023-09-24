@@ -1,12 +1,12 @@
-use crate::no_std::prelude::*;
-use crate::no_std::collections::{hash_map, HashMap};
-
+use crate::alloc::prelude::*;
+use crate::alloc::{Box, Vec, String};
+use crate::alloc::hash_map::{self, HashMap};
 use crate::compile::{
     MetaError, CompileVisitor, IntoComponent, Item, ItemBuf, MetaRef, Names, Located,
 };
 use crate::compile::meta;
 use crate::hash::Hash;
-use crate::alloc::AllocError;
+use crate::alloc;
 
 pub(crate) struct VisitorData {
     pub(crate) item: ItemBuf,
@@ -40,13 +40,13 @@ pub struct Visitor {
 
 impl Visitor {
     /// Construct a visitor with the given base component.
-    pub fn new<I>(base: I) -> Result<Self, AllocError>
+    pub fn new<I>(base: I) -> alloc::Result<Self>
     where
         I: IntoIterator,
         I::Item: IntoComponent,
     {
         let mut this = Self {
-            base: base.into_iter().collect::<ItemBuf>(),
+            base: base.into_iter().try_collect::<ItemBuf>()?,
             names: Names::default(),
             data: HashMap::default(),
             item_to_hash: HashMap::new(),
@@ -55,8 +55,8 @@ impl Visitor {
 
         let hash = Hash::type_hash(&this.base);
         this.names.insert(&this.base)?;
-        this.data.insert(hash, VisitorData::new(this.base.clone(), hash, Some(meta::Kind::Module)));
-        this.item_to_hash.insert(this.base.clone(), hash);
+        this.data.try_insert(hash, VisitorData::new(this.base.try_clone()?, hash, Some(meta::Kind::Module)))?;
+        this.item_to_hash.try_insert(this.base.try_clone()?, hash)?;
         Ok(this)
     }
 
@@ -79,32 +79,32 @@ impl CompileVisitor for Visitor {
             return Ok(());
         }
 
-        let item = self.base.join(meta.item);
+        let item = self.base.join(meta.item)?;
         tracing::trace!(base = ?self.base, meta = ?meta.item, ?item, "register meta");
 
         self.names.insert(&item)?;
-        self.item_to_hash.insert(item.to_owned(), meta.hash);
+        self.item_to_hash.try_insert(item.try_to_owned()?, meta.hash)?;
 
         match self.data.entry(meta.hash) {
             hash_map::Entry::Occupied(e) => {
-                e.into_mut().kind = Some(meta.kind.clone());
+                e.into_mut().kind = Some(meta.kind.try_clone()?);
             }
             hash_map::Entry::Vacant(e) => {
-                e.insert(VisitorData::new(item, meta.hash, Some(meta.kind.clone())));
+                e.try_insert(VisitorData::new(item, meta.hash, Some(meta.kind.try_clone()?)))?;
             }
         }
 
         if let Some(container) = meta.kind.associated_container() {
             self.associated
                 .entry(container)
-                .or_default()
-                .push(meta.hash);
+                .or_try_default()?
+                .try_push(meta.hash)?;
         }
 
         Ok(())
     }
 
-    fn visit_doc_comment(&mut self, _location: &dyn Located, item: &Item, hash: Hash, string: &str) {
+    fn visit_doc_comment(&mut self, _location: &dyn Located, item: &Item, hash: Hash, string: &str) -> Result<(), MetaError> {
         // Documentation comments are literal source lines, so they're newline
         // terminated. Since we perform our own internal newlines conversion
         // these need to be trimmed - at least between each doc item.
@@ -112,15 +112,16 @@ impl CompileVisitor for Visitor {
             matches!(c, '\n' | '\r')
         }
 
-        let item = self.base.join(item);
+        let item = self.base.join(item)?;
         tracing::trace!(?item, "visiting comment");
 
-        let data = self
-            .data
-            .entry(hash)
-            .or_insert_with(|| VisitorData::new(item.to_owned(), hash, None));
+        let data = match self.data.entry(hash) {
+            hash_map::Entry::Occupied(e) => e.into_mut(),
+            hash_map::Entry::Vacant(e) => e.try_insert(VisitorData::new(item.try_to_owned()?, hash, None))?,
+        };
 
-        data.docs.push(string.trim_end_matches(newlines).to_owned());
+        data.docs.try_push(string.trim_end_matches(newlines).try_to_owned()?)?;
+        Ok(())
     }
 
     fn visit_field_doc_comment(
@@ -130,17 +131,20 @@ impl CompileVisitor for Visitor {
         hash: Hash,
         field: &str,
         string: &str,
-    ) {
-        let item = self.base.join(item);
+    ) -> Result<(), MetaError> {
+        let item = self.base.join(item)?;
         tracing::trace!(?item, "visiting field comment");
 
-        let data = self
-            .data
-            .entry(hash)
-            .or_insert_with(|| VisitorData::new(item.to_owned(), hash, None));
+        let data = match self.data.entry(hash) {
+            hash_map::Entry::Occupied(e) => e.into_mut(),
+            hash_map::Entry::Vacant(e) => e.try_insert(VisitorData::new(item.try_to_owned()?, hash, None))?,
+        };
+
         data.field_docs
-            .entry(field.into())
-            .or_default()
-            .push(string.to_owned());
+            .entry(field.try_into()?)
+            .or_try_default()?
+            .try_push(string.try_to_owned()?)?;
+
+        Ok(())
     }
 }

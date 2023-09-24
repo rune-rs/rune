@@ -2,13 +2,13 @@ use core::fmt;
 #[cfg(feature = "emit")]
 use core::mem::take;
 
-use crate::no_std::borrow::Cow;
-use crate::no_std::collections::{hash_map, BTreeMap, HashMap, HashSet, VecDeque};
-use crate::no_std::prelude::*;
 use crate::no_std::rc::Rc;
 use crate::no_std::sync::Arc;
 
-use crate::alloc::AllocError;
+use crate::alloc::borrow::Cow;
+use crate::alloc::prelude::*;
+use crate::alloc::{self, try_format, try_vec, BTreeMap, Box, HashSet, Vec, VecDeque};
+use crate::alloc::{hash_map, HashMap};
 use crate::ast::{Span, Spanned};
 use crate::compile::context::ContextMeta;
 use crate::compile::ir;
@@ -200,8 +200,9 @@ impl<'a, 'arena> Query<'a, 'arena> {
     }
 
     /// Set the given meta item as used.
-    pub(crate) fn set_used(&mut self, item_meta: &ItemMeta) {
-        self.inner.used.insert(item_meta.id);
+    pub(crate) fn set_used(&mut self, item_meta: &ItemMeta) -> alloc::Result<()> {
+        self.inner.used.try_insert(item_meta.id)?;
+        Ok(())
     }
 
     /// Get the next impl item in queue to process.
@@ -221,7 +222,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         item: ItemId,
         metas: impl Iterator<Item = &'m ContextMeta> + Clone,
         parameters: &GenericsParameters,
-    ) -> Result<ContextMatch<'this, 'm>, Box<ErrorKind>> {
+    ) -> Result<ContextMatch<'this, 'm>, rust_alloc::boxed::Box<ErrorKind>> {
         #[derive(Debug, PartialEq, Eq, Clone, Copy)]
         enum Kind {
             None,
@@ -311,11 +312,15 @@ impl<'a, 'arena> Query<'a, 'arena> {
             return Ok(ContextMatch::None);
         }
 
-        Err(Box::new(ErrorKind::AmbiguousContextItem {
-            item: self.pool.item(item).to_owned(),
-            #[cfg(feature = "emit")]
-            infos: metas.map(|i| i.info()).collect(),
-        }))
+        Err(rust_alloc::boxed::Box::new(
+            ErrorKind::AmbiguousContextItem {
+                item: self.pool.item(item).try_to_owned()?,
+                #[cfg(feature = "emit")]
+                infos: metas
+                    .map(|i| i.info())
+                    .try_collect::<alloc::Result<_>>()??,
+            },
+        ))
     }
 
     /// Access the meta for the given language item.
@@ -331,7 +336,8 @@ impl<'a, 'arena> Query<'a, 'arena> {
             if let Some(meta) = self.query_meta(location.as_spanned(), item, Default::default())? {
                 tracing::trace!("found in query: {:?}", meta);
                 self.visitor
-                    .visit_meta(location, meta.as_meta_ref(self.pool));
+                    .visit_meta(location, meta.as_meta_ref(self.pool))
+                    .with_span(location.as_spanned())?;
                 return Ok(Some(meta));
             }
         }
@@ -345,7 +351,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
             .with_span(location.as_spanned())?
         {
             ContextMatch::None => return Ok(None),
-            ContextMatch::Meta(meta) => return Ok(Some(meta.clone())),
+            ContextMatch::Meta(meta) => return Ok(Some(meta.try_clone()?)),
             ContextMatch::Context(meta, parameters) => (meta, parameters),
         };
 
@@ -362,22 +368,23 @@ impl<'a, 'arena> Query<'a, 'arena> {
             item_meta: ItemMeta {
                 id: self.gen.next(),
                 location: Default::default(),
-                item: self.pool.alloc_item(item),
+                item: self.pool.alloc_item(item)?,
                 visibility: Default::default(),
                 module: Default::default(),
             },
-            kind: meta.kind.clone(),
+            kind: meta.kind.try_clone()?,
             source: None,
             parameters,
         };
 
-        self.insert_meta(meta.clone())
+        self.insert_meta(meta.try_clone()?)
             .with_span(location.as_spanned())?;
 
         tracing::trace!(?meta, "Found in context");
 
         self.visitor
-            .visit_meta(location, meta.as_meta_ref(self.pool));
+            .visit_meta(location, meta.as_meta_ref(self.pool))
+            .with_span(location.as_spanned())?;
 
         Ok(Some(meta))
     }
@@ -397,12 +404,12 @@ impl<'a, 'arena> Query<'a, 'arena> {
 
         let kind = if !parameters.parameters.is_empty() {
             ErrorKind::MissingItemParameters {
-                item: self.pool.item(item).to_owned(),
-                parameters: parameters.as_boxed(),
+                item: self.pool.item(item).try_to_owned()?,
+                parameters: parameters.as_boxed()?,
             }
         } else {
             ErrorKind::MissingItem {
-                item: self.pool.item(item).to_owned(),
+                item: self.pool.item(item).try_to_owned()?,
             }
         };
 
@@ -415,21 +422,21 @@ impl<'a, 'arena> Query<'a, 'arena> {
         module: ModId,
         impl_item: Option<NonZeroId>,
         item: &Item,
-    ) -> NonZeroId {
-        let item = self.pool.alloc_item(item);
+    ) -> alloc::Result<NonZeroId> {
+        let item = self.pool.alloc_item(item)?;
         let id = self.gen.next();
 
-        let old = self.inner.query_paths.insert(
+        let old = self.inner.query_paths.try_insert(
             id,
             QueryPath {
                 module,
                 impl_item,
                 item,
             },
-        );
+        )?;
 
         debug_assert!(old.is_none(), "should use a unique identifier");
-        id
+        Ok(id)
     }
 
     /// Insert module and associated metadata.
@@ -449,7 +456,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
             item: item.item,
             visibility,
             parent: Some(parent),
-        });
+        })?;
 
         self.index_and_build(indexing::Entry {
             item_meta: item,
@@ -474,9 +481,9 @@ impl<'a, 'arena> Query<'a, 'arena> {
             item: ItemId::default(),
             visibility: Visibility::Public,
             parent: None,
-        });
+        })?;
 
-        self.inner.items.insert(
+        self.inner.items.try_insert(
             item_id,
             ItemMeta {
                 id: item_id,
@@ -485,7 +492,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 visibility: Visibility::Public,
                 module,
             },
-        );
+        )?;
 
         self.insert_name(ItemId::default()).with_span(span)?;
         Ok(module)
@@ -504,7 +511,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         docs: &[Doc],
     ) -> compile::Result<ItemMeta> {
         let id = items.id().with_span(location.as_spanned())?;
-        let item = self.pool.alloc_item(items.item());
+        let item = self.pool.alloc_item(items.item())?;
         self.insert_new_item_with(id, item, location, module, visibility, docs)
     }
 
@@ -520,13 +527,13 @@ impl<'a, 'arena> Query<'a, 'arena> {
             hash_map::Entry::Occupied(e) => {
                 return Err(MetaError::new(
                     compile::error::MetaErrorKind::MetaConflict {
-                        current: meta.info(self.pool),
-                        existing: e.get().info(self.pool),
+                        current: meta.info(self.pool)?,
+                        existing: e.get().info(self.pool)?,
                         parameters: meta.parameters,
                     },
                 ));
             }
-            hash_map::Entry::Vacant(e) => e.insert(meta),
+            hash_map::Entry::Vacant(e) => e.try_insert(meta)?,
         };
 
         Ok(&meta.item_meta)
@@ -550,12 +557,14 @@ impl<'a, 'arena> Query<'a, 'arena> {
             let cx = resolve_context!(self);
 
             for doc in docs {
-                self.visitor.visit_doc_comment(
-                    &DynLocation::new(location.source_id, &doc.span),
-                    self.pool.item(item),
-                    self.pool.item_type_hash(item),
-                    doc.doc_string.resolve(cx)?.as_ref(),
-                );
+                self.visitor
+                    .visit_doc_comment(
+                        &DynLocation::new(location.source_id, &doc.span),
+                        self.pool.item(item),
+                        self.pool.item_type_hash(item),
+                        doc.doc_string.resolve(cx)?.as_ref(),
+                    )
+                    .with_span(location)?;
             }
         }
 
@@ -567,7 +576,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
             visibility,
         };
 
-        self.inner.items.insert(id, item_meta);
+        self.inner.items.try_insert(id, item_meta)?;
         Ok(item_meta)
     }
 
@@ -579,7 +588,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         let id = self.gen.next();
         self.inner
             .internal_macros
-            .insert(id, Arc::new(internal_macro));
+            .try_insert(id, Arc::new(internal_macro))?;
         Ok(id)
     }
 
@@ -644,8 +653,8 @@ impl<'a, 'arena> Query<'a, 'arena> {
         self.inner
             .indexed
             .entry(entry.item_meta.item)
-            .or_default()
-            .push(entry);
+            .or_try_default()?
+            .try_push(entry)?;
 
         Ok(())
     }
@@ -653,12 +662,12 @@ impl<'a, 'arena> Query<'a, 'arena> {
     /// Same as `index`, but also queues the indexed entry up for building.
     #[tracing::instrument(skip_all)]
     pub(crate) fn index_and_build(&mut self, entry: indexing::Entry) -> compile::Result<()> {
-        self.set_used(&entry.item_meta);
+        self.set_used(&entry.item_meta)?;
 
-        self.inner.queue.push_back(BuildEntry {
+        self.inner.queue.try_push_back(BuildEntry {
             item_meta: entry.item_meta,
             build: Build::Query,
-        });
+        })?;
 
         self.index(entry)?;
         Ok(())
@@ -676,7 +685,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         self.index(indexing::Entry {
             item_meta,
             indexed: Indexed::ConstExpr(indexing::ConstExpr {
-                ast: Box::new(ast.clone()),
+                ast: Box::try_new(ast.try_clone()?)?,
             }),
         })?;
 
@@ -695,7 +704,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         self.index(indexing::Entry {
             item_meta,
             indexed: Indexed::ConstBlock(indexing::ConstBlock {
-                ast: Box::new(ast.clone()),
+                ast: Box::try_new(ast.try_clone()?)?,
             }),
         })?;
 
@@ -787,7 +796,8 @@ impl<'a, 'arena> Query<'a, 'arena> {
             path: self
                 .sources
                 .path(item_meta.location.source_id)
-                .map(Into::into),
+                .map(|p| p.try_into())
+                .transpose()?,
         };
 
         let meta = meta::Meta {
@@ -810,8 +820,9 @@ impl<'a, 'arena> Query<'a, 'arena> {
     #[tracing::instrument(skip_all)]
     pub(crate) fn queue_unused_entries(
         &mut self,
-    ) -> compile::Result<bool, (SourceId, compile::Error)> {
-        tracing::trace!("queue unused");
+        errors: &mut Vec<(SourceId, compile::Error)>,
+    ) -> alloc::Result<bool> {
+        tracing::trace!("Queue unused");
 
         let unused = self
             .inner
@@ -819,19 +830,19 @@ impl<'a, 'arena> Query<'a, 'arena> {
             .values()
             .flat_map(|entries| entries.iter())
             .map(|e| (e.item_meta.location, e.item_meta.item))
-            .collect::<Vec<_>>();
+            .try_collect::<Vec<_>>()?;
 
         if unused.is_empty() {
-            return Ok(false);
+            return Ok(true);
         }
 
         for (location, item) in unused {
-            let _ = self
-                .query_indexed_meta(&location, item, Used::Unused)
-                .map_err(|e| (location.source_id, e))?;
+            if let Err(error) = self.query_indexed_meta(&location, item, Used::Unused) {
+                errors.try_push((location.source_id, error))?;
+            }
         }
 
-        Ok(true)
+        Ok(false)
     }
 
     /// Explicitly look for meta with the given item and hash.
@@ -854,7 +865,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
             // `queue_unused_entries` might end up spinning indefinitely since
             // it will never be exhausted.
             debug_assert!(!self.inner.indexed.contains_key(&item));
-            return Ok(Some(meta.clone()));
+            return Ok(Some(meta.try_clone()?));
         }
 
         self.query_indexed_meta(span, item, used)
@@ -873,7 +884,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         if let Some(entry) = self.remove_indexed(span, item)? {
             let meta = self.build_indexed_entry(span, entry, used)?;
             self.unit.insert_meta(span, &meta, self.pool, self.inner)?;
-            self.insert_meta(meta.clone()).with_span(span)?;
+            self.insert_meta(meta.try_clone()?).with_span(span)?;
             tracing::trace!(item = ?item, meta = ?meta, "build");
             return Ok(Some(meta));
         }
@@ -912,7 +923,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         else {
             return Err(compile::Error::msg(
                 path,
-                format_args!("Missing query path for id {}", id),
+                try_format!("Missing query path for id {}", id),
             ));
         };
 
@@ -921,7 +932,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         let item = match (&path.global, &path.first) {
             (Some(..), ast::PathSegment::Ident(ident)) => self
                 .pool
-                .alloc_item(ItemBuf::with_crate(ident.resolve(resolve_context!(self))?)),
+                .alloc_item(ItemBuf::with_crate(ident.resolve(resolve_context!(self))?)?)?,
             (Some(span), _) => {
                 return Err(compile::Error::new(span, ErrorKind::UnsupportedGlobal));
             }
@@ -932,7 +943,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 ast::PathSegment::Super(..) => {
                     let Some(segment) = self
                         .pool
-                        .try_map_alloc(self.pool.module(module).item, Item::parent)
+                        .try_map_alloc(self.pool.module(module).item, Item::parent)?
                     else {
                         return Err(compile::Error::new(segment, ErrorKind::UnsupportedSuper));
                     };
@@ -971,7 +982,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
             },
         };
 
-        let mut item = self.pool.item(item).to_owned();
+        let mut item = self.pool.item(item).try_to_owned()?;
         let mut trailing = 0;
         let mut parameters: [Option<(&dyn Spanned, _)>; 2] = [None, None];
 
@@ -981,7 +992,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         for (_, segment) in it.by_ref() {
             match segment {
                 ast::PathSegment::Ident(ident) => {
-                    item.push(ident.resolve(resolve_context!(self))?);
+                    item.push(ident.resolve(resolve_context!(self))?)?;
                 }
                 ast::PathSegment::Super(span) => {
                     if in_self_type {
@@ -991,7 +1002,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
                         ));
                     }
 
-                    if item.pop().is_none() {
+                    if item.pop()?.is_none() {
                         return Err(compile::Error::new(segment, ErrorKind::UnsupportedSuper));
                     }
                 }
@@ -1023,7 +1034,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
             };
 
             trailing += 1;
-            item.push(ident.resolve(resolve_context!(self))?);
+            item.push(ident.resolve(resolve_context!(self))?)?;
 
             let Some(p) = parameters_it.next() else {
                 return Err(compile::Error::new(segment, ErrorKind::UnsupportedGenerics));
@@ -1038,7 +1049,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
             it.next();
         }
 
-        let item = self.pool.alloc_item(item);
+        let item = self.pool.alloc_item(item)?;
 
         if let Some(new) = self.import(path, module, item, import_used, used)? {
             return Ok(Named {
@@ -1087,8 +1098,8 @@ impl<'a, 'arena> Query<'a, 'arena> {
             ));
         };
 
-        let item = self.pool.alloc_item(at.extended(last));
-        let target = self.pool.alloc_item(target);
+        let item = self.pool.alloc_item(at.extended(last)?)?;
+        let target = self.pool.alloc_item(target)?;
 
         let entry = meta::Import {
             location: location.location(),
@@ -1101,12 +1112,12 @@ impl<'a, 'arena> Query<'a, 'arena> {
 
         // toplevel public uses are re-exported.
         if item_meta.is_public(self.pool) {
-            self.inner.used.insert(item_meta.id);
+            self.inner.used.try_insert(item_meta.id)?;
 
-            self.inner.queue.push_back(BuildEntry {
+            self.inner.queue.try_push_back(BuildEntry {
                 item_meta,
                 build: Build::ReExport,
-            });
+            })?;
         }
 
         self.index(indexing::Entry {
@@ -1118,7 +1129,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
     }
 
     /// Check if unit contains the given name by prefix.
-    pub(crate) fn contains_prefix(&self, item: &Item) -> bool {
+    pub(crate) fn contains_prefix(&self, item: &Item) -> alloc::Result<bool> {
         self.inner.names.contains_prefix(item)
     }
 
@@ -1126,7 +1137,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
     pub(crate) fn iter_components<'it, I: 'it>(
         &'it self,
         iter: I,
-    ) -> impl Iterator<Item = ComponentRef<'it>> + 'it
+    ) -> alloc::Result<impl Iterator<Item = ComponentRef<'it>> + 'it>
     where
         I: IntoIterator,
         I::Item: IntoComponent,
@@ -1146,7 +1157,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
     ) -> compile::Result<Option<ItemId>> {
         let mut visited = HashSet::<ItemId>::new();
         let mut path = Vec::new();
-        let mut item = self.pool.item(item).to_owned();
+        let mut item = self.pool.item(item).try_to_owned()?;
         let mut any_matched = false;
 
         let mut count = 0usize;
@@ -1165,9 +1176,9 @@ impl<'a, 'arena> Query<'a, 'arena> {
             let mut it = item.iter();
 
             while let Some(c) = it.next() {
-                cur.push(c);
+                cur.push(c)?;
 
-                let cur = self.pool.alloc_item(&cur);
+                let cur = self.pool.alloc_item(&cur)?;
 
                 let update = self.import_step(
                     span,
@@ -1184,15 +1195,15 @@ impl<'a, 'arena> Query<'a, 'arena> {
 
                 // Imports are *always* used once they pass this step.
                 if let Used::Used = import_used {
-                    self.set_used(&item_meta);
+                    self.set_used(&item_meta)?;
                 }
 
-                path.push(ImportStep {
+                path.try_push(ImportStep {
                     location: update.location,
-                    item: self.pool.item(update.target).to_owned(),
-                });
+                    item: self.pool.item(update.target).try_to_owned()?,
+                })?;
 
-                if !visited.insert(self.pool.alloc_item(&item)) {
+                if !visited.try_insert(self.pool.alloc_item(&item)?)? {
                     return Err(compile::Error::new(
                         span,
                         ErrorKind::ImportCycle {
@@ -1203,7 +1214,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 }
 
                 module = update.module;
-                item = self.pool.item(update.target).join(it);
+                item = self.pool.item(update.target).join(it)?;
                 any_matched = true;
                 continue 'outer;
             }
@@ -1212,7 +1223,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         }
 
         if any_matched {
-            return Ok(Some(self.pool.alloc_item(item)));
+            return Ok(Some(self.pool.alloc_item(item)?));
         }
 
         Ok(None)
@@ -1290,11 +1301,11 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 ast::Fields::Empty => meta::Fields::Empty,
                 ast::Fields::Unnamed(tuple) => meta::Fields::Unnamed(tuple.len()),
                 ast::Fields::Named(st) => {
-                    let mut fields = HashMap::with_capacity(st.len());
+                    let mut fields = HashMap::try_with_capacity(st.len())?;
 
                     for (position, (ast::Field { name, .. }, _)) in st.iter().enumerate() {
                         let name = name.resolve(cx)?;
-                        fields.insert(name.into(), FieldMeta { position });
+                        fields.try_insert(name.try_into()?, FieldMeta { position })?;
                     }
 
                     meta::Fields::Named(meta::FieldsNamed { fields })
@@ -1305,7 +1316,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         let indexing::Entry { item_meta, indexed } = entry;
 
         if let Used::Used = used {
-            self.inner.used.insert(item_meta.id);
+            self.inner.used.try_insert(item_meta.id)?;
         }
 
         let kind = match indexed {
@@ -1319,7 +1330,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 let Some(enum_meta) = self.query_meta(span, enum_.item, Default::default())? else {
                     return Err(compile::Error::msg(
                         span,
-                        format_args!("Missing enum by {:?}", variant.enum_id),
+                        try_format!("Missing enum by {:?}", variant.enum_id),
                     ));
                 };
 
@@ -1331,7 +1342,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 }
             }
             Indexed::Struct(st) => meta::Kind::Struct {
-                fields: convert_fields(resolve_context!(self), st.ast.body)?,
+                fields: convert_fields(resolve_context!(self), Box::into_inner(st.ast).body)?,
                 constructor: None,
                 parameters: Hash::EMPTY,
             },
@@ -1340,7 +1351,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
                     associated: match (f.is_instance, &f.ast) {
                         (true, FunctionAst::Item(ast)) => {
                             let name: Cow<str> =
-                                Cow::Owned(ast.name.resolve(resolve_context!(self))?.into());
+                                Cow::Owned(ast.name.resolve(resolve_context!(self))?.try_into()?);
                             Some(meta::AssociatedKind::Instance(name))
                         }
                         _ => None,
@@ -1357,7 +1368,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
                         #[cfg(feature = "doc")]
                         return_type: None,
                         #[cfg(feature = "doc")]
-                        argument_types: Box::from([]),
+                        argument_types: Box::default(),
                     },
                     parameters: Hash::EMPTY,
                     #[cfg(feature = "doc")]
@@ -1380,10 +1391,10 @@ impl<'a, 'arena> Query<'a, 'arena> {
                     parameter_types: Vec::new(),
                 };
 
-                self.inner.queue.push_back(BuildEntry {
+                self.inner.queue.try_push_back(BuildEntry {
                     item_meta,
                     build: Build::Function(f),
-                });
+                })?;
 
                 kind
             }
@@ -1394,7 +1405,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
                         &arena,
                         self.borrow(),
                         item_meta.location.source_id,
-                    );
+                    )?;
                     let hir = crate::hir::lowering::expr(&mut hir_ctx, &c.ast)?;
 
                     let mut cx = ir::Ctxt {
@@ -1406,7 +1417,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
 
                 let mut const_compiler = ir::Interpreter {
                     budget: ir::Budget::new(1_000_000),
-                    scopes: Default::default(),
+                    scopes: ir::Scopes::new()?,
                     module: item_meta.module,
                     item: item_meta.item,
                     q: self.borrow(),
@@ -1415,13 +1426,13 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 let const_value = const_compiler.eval_const(&ir, used)?;
 
                 let hash = self.pool.item_type_hash(item_meta.item);
-                self.inner.constants.insert(hash, const_value);
+                self.inner.constants.try_insert(hash, const_value)?;
 
                 if used.is_unused() {
-                    self.inner.queue.push_back(BuildEntry {
+                    self.inner.queue.try_push_back(BuildEntry {
                         item_meta,
                         build: Build::Unused,
-                    });
+                    })?;
                 }
 
                 meta::Kind::Const
@@ -1433,7 +1444,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
                         &arena,
                         self.borrow(),
                         item_meta.location.source_id,
-                    );
+                    )?;
                     let hir = crate::hir::lowering::block(&mut hir_ctx, &c.ast)?;
 
                     let mut cx = ir::Ctxt {
@@ -1445,7 +1456,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
 
                 let mut const_compiler = ir::Interpreter {
                     budget: ir::Budget::new(1_000_000),
-                    scopes: Default::default(),
+                    scopes: ir::Scopes::new()?,
                     module: item_meta.module,
                     item: item_meta.item,
                     q: self.borrow(),
@@ -1454,13 +1465,13 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 let const_value = const_compiler.eval_const(&ir, used)?;
 
                 let hash = self.pool.item_type_hash(item_meta.item);
-                self.inner.constants.insert(hash, const_value);
+                self.inner.constants.try_insert(hash, const_value)?;
 
                 if used.is_unused() {
-                    self.inner.queue.push_back(BuildEntry {
+                    self.inner.queue.try_push_back(BuildEntry {
                         item_meta,
                         build: Build::Unused,
-                    });
+                    })?;
                 }
 
                 meta::Kind::Const
@@ -1472,7 +1483,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
                         self.const_arena,
                         self.borrow(),
                         item_meta.location.source_id,
-                    );
+                    )?;
                     let hir = crate::hir::lowering::item_fn(&mut cx, &c.item_fn)?;
 
                     let mut cx = ir::Ctxt {
@@ -1484,30 +1495,30 @@ impl<'a, 'arena> Query<'a, 'arena> {
 
                 let id = self.gen.next();
 
-                self.inner.const_fns.insert(
+                self.inner.const_fns.try_insert(
                     id,
                     Rc::new(ConstFn {
                         item_meta,
                         ir_fn,
                         hir,
                     }),
-                );
+                )?;
 
                 if used.is_unused() {
-                    self.inner.queue.push_back(BuildEntry {
+                    self.inner.queue.try_push_back(BuildEntry {
                         item_meta,
                         build: Build::Unused,
-                    });
+                    })?;
                 }
 
                 meta::Kind::ConstFn { id }
             }
             Indexed::Import(import) => {
                 if !import.wildcard {
-                    self.inner.queue.push_back(BuildEntry {
+                    self.inner.queue.try_push_back(BuildEntry {
                         item_meta,
                         build: Build::Import(import),
-                    });
+                    })?;
                 }
 
                 meta::Kind::Import(import.entry)
@@ -1520,7 +1531,8 @@ impl<'a, 'arena> Query<'a, 'arena> {
             path: self
                 .sources
                 .path(item_meta.location.source_id)
-                .map(Into::into),
+                .map(|p| p.try_into())
+                .transpose()?,
         };
 
         Ok(meta::Meta {
@@ -1534,7 +1546,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
     }
 
     /// Insert the given name into the unit.
-    fn insert_name(&mut self, item: ItemId) -> Result<(), AllocError> {
+    fn insert_name(&mut self, item: ItemId) -> alloc::Result<()> {
         let item = self.pool.item(item);
         self.inner.names.insert(item)?;
         Ok(())
@@ -1566,26 +1578,24 @@ impl<'a, 'arena> Query<'a, 'arena> {
         item: ItemId,
     ) -> compile::Result<Option<indexing::Entry>> {
         // See if there's an index entry we can construct and insert.
-        let entries = match self.inner.indexed.remove(&item) {
-            Some(entries) => entries,
-            None => return Ok(None),
+        let Some(entries) = self.inner.indexed.remove(&item) else {
+            return Ok(None);
         };
 
         let mut it = entries.into_iter().peekable();
 
-        let mut cur = match it.next() {
-            Some(first) => first,
-            None => return Ok(None),
+        let Some(mut cur) = it.next() else {
+            return Ok(None);
         };
 
         if it.peek().is_none() {
             return Ok(Some(cur));
         }
 
-        let mut locations = vec![(cur.item_meta.location, cur.item().to_owned())];
+        let mut locations = try_vec![(cur.item_meta.location, cur.item())];
 
         while let Some(oth) = it.next() {
-            locations.push((oth.item_meta.location, oth.item().to_owned()));
+            locations.try_push((oth.item_meta.location, oth.item()))?;
 
             if let (Indexed::Import(a), Indexed::Import(b)) = (&cur.indexed, &oth.indexed) {
                 if a.wildcard {
@@ -1599,18 +1609,18 @@ impl<'a, 'arena> Query<'a, 'arena> {
             }
 
             for oth in it {
-                locations.push((oth.item_meta.location, oth.item().to_owned()));
+                locations.try_push((oth.item_meta.location, oth.item()))?;
             }
 
             return Err(compile::Error::new(
                 span,
                 ErrorKind::AmbiguousItem {
-                    item: self.pool.item(cur.item_meta.item).to_owned(),
+                    item: self.pool.item(cur.item_meta.item).try_to_owned()?,
                     #[cfg(feature = "emit")]
                     locations: locations
                         .into_iter()
-                        .map(|(loc, item)| (loc, self.pool.item(item).to_owned()))
-                        .collect(),
+                        .map(|(loc, item)| Ok((loc, self.pool.item(item).try_to_owned()?)))
+                        .try_collect::<alloc::Result<_>>()??,
                 },
             ));
         }
@@ -1619,12 +1629,12 @@ impl<'a, 'arena> Query<'a, 'arena> {
             return Err(compile::Error::new(
                 span,
                 ErrorKind::AmbiguousItem {
-                    item: self.pool.item(cur.item_meta.item).to_owned(),
+                    item: self.pool.item(cur.item_meta.item).try_to_owned()?,
                     #[cfg(feature = "emit")]
                     locations: locations
                         .into_iter()
-                        .map(|(loc, item)| (loc, self.pool.item(item).to_owned()))
-                        .collect(),
+                        .map(|(loc, item)| Ok((loc, self.pool.item(item).try_to_owned()?)))
+                        .try_collect::<alloc::Result<_>>()??,
                 },
             ));
         }
@@ -1641,18 +1651,17 @@ impl<'a, 'arena> Query<'a, 'arena> {
         local: &ast::Ident,
         used: Used,
     ) -> compile::Result<ItemId> {
-        let mut base = self.pool.item(item).to_owned();
+        let mut base = self.pool.item(item).try_to_owned()?;
         debug_assert!(base.starts_with(self.pool.module_item(module)));
 
-        let local_str = local.resolve(resolve_context!(self))?.to_owned();
+        let local_str = local.resolve(resolve_context!(self))?.try_to_owned()?;
 
         while base.starts_with(self.pool.module_item(module)) {
-            base.push(&local_str);
-
+            base.push(&local_str)?;
             tracing::trace!(?base, "testing");
 
-            if self.inner.names.contains(&base) {
-                let item = self.pool.alloc_item(&base);
+            if self.inner.names.contains(&base)? {
+                let item = self.pool.alloc_item(&base)?;
 
                 // TODO: We probably should not engage the whole query meta
                 // machinery here.
@@ -1664,29 +1673,29 @@ impl<'a, 'arena> Query<'a, 'arena> {
                             ..
                         }
                     ) {
-                        return Ok(self.pool.alloc_item(base));
+                        return Ok(self.pool.alloc_item(base)?);
                     }
                 }
             }
 
-            let c = base.pop();
+            let c = base.pop()?;
             debug_assert!(c.is_some());
 
-            if base.pop().is_none() {
+            if base.pop()?.is_none() {
                 break;
             }
         }
 
         if let Some(item) = self.prelude.get(&local_str) {
-            return Ok(self.pool.alloc_item(item));
+            return Ok(self.pool.alloc_item(item)?);
         }
 
         if self.context.contains_crate(&local_str) {
-            return Ok(self.pool.alloc_item(ItemBuf::with_crate(&local_str)));
+            return Ok(self.pool.alloc_item(ItemBuf::with_crate(&local_str)?)?);
         }
 
-        let new_module = self.pool.module_item(module).extended(&local_str);
-        Ok(self.pool.alloc_item(new_module))
+        let new_module = self.pool.module_item(module).extended(&local_str)?;
+        Ok(self.pool.alloc_item(new_module)?)
     }
 
     /// Check that the given item is accessible from the given module.
@@ -1701,41 +1710,42 @@ impl<'a, 'arena> Query<'a, 'arena> {
         #[cfg(feature = "emit")] chain: &mut Vec<ImportStep>,
     ) -> compile::Result<()> {
         #[cfg(feature = "emit")]
-        fn into_chain(chain: Vec<ImportStep>) -> Vec<Location> {
-            chain.into_iter().map(|c| c.location).collect()
+        fn into_chain(chain: Vec<ImportStep>) -> alloc::Result<Vec<Location>> {
+            chain.into_iter().map(|c| c.location).try_collect()
         }
 
         let (common, tree) = self
             .pool
             .module_item(from)
-            .ancestry(self.pool.module_item(module));
-        let mut current_module = common.clone();
+            .ancestry(self.pool.module_item(module))?;
+
+        let mut current_module = common.try_clone()?;
 
         // Check each module from the common ancestrly to the module.
         for c in &tree {
-            current_module.push(c);
-            let current_module_id = self.pool.alloc_item(&current_module);
+            current_module.push(c)?;
+            let current_module_id = self.pool.alloc_item(&current_module)?;
 
-            let m = self.pool.module_by_item(current_module_id).ok_or_else(|| {
-                compile::Error::new(
+            let Some(m) = self.pool.module_by_item(current_module_id) else {
+                return Err(compile::Error::new(
                     span,
                     ErrorKind::MissingMod {
-                        item: current_module.clone(),
+                        item: current_module.try_clone()?,
                     },
-                )
-            })?;
+                ));
+            };
 
             if !m.visibility.is_visible(&common, &current_module) {
                 return Err(compile::Error::new(
                     span,
                     ErrorKind::NotVisibleMod {
                         #[cfg(feature = "emit")]
-                        chain: into_chain(take(chain)),
+                        chain: into_chain(take(chain))?,
                         #[cfg(feature = "emit")]
                         location: m.location,
                         visibility: m.visibility,
                         item: current_module,
-                        from: self.pool.module_item(from).to_owned(),
+                        from: self.pool.module_item(from).try_to_owned()?,
                     },
                 ));
             }
@@ -1746,12 +1756,12 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 span,
                 ErrorKind::NotVisible {
                     #[cfg(feature = "emit")]
-                    chain: into_chain(take(chain)),
+                    chain: into_chain(take(chain))?,
                     #[cfg(feature = "emit")]
                     location,
                     visibility,
-                    item: self.pool.item(item).to_owned(),
-                    from: self.pool.module_item(from).to_owned(),
+                    item: self.pool.item(item).try_to_owned()?,
+                    from: self.pool.module_item(from).try_to_owned()?,
                 },
             ));
         }
@@ -1769,12 +1779,18 @@ impl<'a, 'arena> Query<'a, 'arena> {
     }
 
     /// Insert captures.
-    pub(crate) fn insert_captures<'hir, C>(&mut self, hash: Hash, captures: C)
+    pub(crate) fn insert_captures<'hir, C>(&mut self, hash: Hash, captures: C) -> alloc::Result<()>
     where
         C: IntoIterator<Item = hir::Name<'hir>>,
     {
-        let captures = captures.into_iter().map(hir::Name::into_owned);
-        self.inner.captures.insert(hash, captures.collect());
+        let captures = captures
+            .into_iter()
+            .map(hir::Name::into_owned)
+            .try_collect::<alloc::Result<_>>()??;
+
+        self.inner.captures.try_insert(hash, captures)?;
+
+        Ok(())
     }
 
     /// Get captures for the given hash.

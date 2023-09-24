@@ -27,7 +27,7 @@ fn ast_parse() {
 }
 
 /// A struct item.
-#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned, Opaque)]
+#[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned, Opaque)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]
 pub struct ItemStruct {
@@ -59,7 +59,7 @@ impl ItemStruct {
 item_parse!(Struct, ItemStruct, "struct item");
 
 /// A field as part of a struct or a tuple body.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Parse, Spanned)]
 #[non_exhaustive]
 pub struct Field {
     /// Attributes associated with field.

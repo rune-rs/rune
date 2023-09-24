@@ -14,7 +14,7 @@ fn ast_parse() {
 /// A match expression.
 ///
 /// * `match <expr> { [arm]* }`.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprMatch {
     /// The attributes for the match expression
@@ -50,7 +50,7 @@ impl ExprMatch {
             let branch = parser.parse::<ExprMatchBranch>()?;
             let comma = parser.parse::<Option<T![,]>>()?;
             let is_end = ast::utils::is_block_end(&branch.body, comma.as_ref());
-            branches.push((branch, comma));
+            branches.try_push((branch, comma))?;
 
             if is_end {
                 break;
@@ -62,7 +62,7 @@ impl ExprMatch {
         Ok(ExprMatch {
             attributes,
             match_,
-            expr: Box::new(expr),
+            expr: Box::try_new(expr)?,
             open,
             branches,
             close,
@@ -73,7 +73,7 @@ impl ExprMatch {
 expr_parse!(Match, ExprMatch, "match expression");
 
 /// A match branch.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Parse, Spanned)]
 #[non_exhaustive]
 pub struct ExprMatchBranch {
     /// The pattern to match.

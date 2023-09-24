@@ -18,7 +18,7 @@ fn ast_parse() {
 }
 
 /// An enum item.
-#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]
 pub struct ItemEnum {
@@ -39,7 +39,7 @@ pub struct ItemEnum {
 item_parse!(Enum, ItemEnum, "enum item");
 
 /// An enum variant.
-#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned, Opaque)]
+#[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned, Opaque)]
 #[non_exhaustive]
 pub struct ItemVariant {
     /// Opaque identifier of variant.

@@ -2,6 +2,7 @@ use core::fmt;
 
 use crate::no_std::io;
 
+use crate::alloc;
 use crate::compile;
 
 #[derive(Debug)]
@@ -10,6 +11,7 @@ pub(crate) enum FormattingError {
     Io(io::Error),
     InvalidSpan(usize, usize, usize),
     CompileError(compile::Error),
+    AllocError(alloc::Error),
     Eof,
 }
 
@@ -21,6 +23,7 @@ impl fmt::Display for FormattingError {
                 write!(f, "Invalid span {from}..{to} but max is {max}",)
             }
             FormattingError::CompileError(error) => error.fmt(f),
+            FormattingError::AllocError(error) => error.fmt(f),
             FormattingError::Eof {} => write!(f, "Unexpected end of input"),
         }
     }
@@ -37,6 +40,13 @@ impl From<compile::Error> for FormattingError {
     #[inline]
     fn from(error: compile::Error) -> Self {
         FormattingError::CompileError(error)
+    }
+}
+
+impl From<alloc::Error> for FormattingError {
+    #[inline]
+    fn from(error: alloc::Error) -> Self {
+        FormattingError::AllocError(error)
     }
 }
 

@@ -6,9 +6,9 @@ mod tests;
 use core::ops::{Deref, DerefMut};
 use core::str;
 
-use crate::no_std::io::{self, Write};
-use crate::no_std::prelude::*;
-
+use crate::alloc::fmt::TryWrite;
+use crate::alloc::prelude::*;
+use crate::alloc::{self, try_vec, Vec};
 use crate::ast::Span;
 
 use super::comments::Comment;
@@ -22,12 +22,12 @@ pub(super) struct IndentedWriter {
 }
 
 impl IndentedWriter {
-    pub(super) fn new() -> Self {
-        Self {
-            lines: vec![Vec::new()],
+    pub(super) fn new() -> alloc::Result<Self> {
+        Ok(Self {
+            lines: try_vec![Vec::new()],
             indent: 0,
             needs_indent: true,
-        }
+        })
     }
 
     pub(super) fn into_inner(self) -> Vec<Vec<u8>> {
@@ -42,10 +42,10 @@ impl IndentedWriter {
         self.indent = self.indent.saturating_sub(4);
     }
 
-    fn write_indent(&mut self) -> io::Result<usize> {
+    fn write_indent(&mut self) -> alloc::Result<usize> {
         for _ in 0..self.indent {
             if let Some(line) = self.lines.last_mut() {
-                line.push(b' ');
+                line.try_push(b' ')?;
             }
         }
 
@@ -53,16 +53,18 @@ impl IndentedWriter {
     }
 }
 
-impl Write for IndentedWriter {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        if buf[0] == b'\n' {
+impl TryWrite for IndentedWriter {
+    fn try_write_str(&mut self, buf: &str) -> alloc::Result<()> {
+        if buf.starts_with('\n') {
             self.needs_indent = true;
-            self.lines.push(Vec::new());
-            return Ok(buf.len());
+            self.lines.try_push(Vec::new())?;
+            return Ok(());
         }
-        let ends_with_newline = buf.last() == Some(&b'\n');
-        let line_count = buf.iter().filter(|&&b| b == b'\n').count();
-        let lines = buf.split(|&b| b == b'\n');
+
+        let ends_with_newline = buf.ends_with('\n');
+        let line_count = buf.chars().filter(|&b| b == '\n').count();
+        let lines = buf.split(|b| b == '\n');
+
         let lines_to_write = if ends_with_newline {
             line_count
         } else {
@@ -77,20 +79,16 @@ impl Write for IndentedWriter {
 
             if !line.is_empty() {
                 if let Some(last_line) = self.lines.last_mut() {
-                    last_line.extend(line);
+                    last_line.try_extend_from_slice(line.as_bytes())?;
                 }
             }
 
             if idx < line_count.saturating_sub(1) || ends_with_newline {
-                self.lines.push(Vec::new());
+                self.lines.try_push(Vec::new())?;
                 self.needs_indent = true;
             }
         }
 
-        Ok(buf.len())
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
         Ok(())
     }
 }
@@ -123,10 +121,11 @@ impl<'a> SpanInjectionWriter<'a> {
         let empty_line_spans = super::whitespace::gather_empty_line_spans(source)?;
 
         let mut queued_spans = Vec::new();
-        queued_spans.extend(comment_spans.into_iter().map(ResolvedSpan::Comment));
-        queued_spans.extend(empty_line_spans.into_iter().map(ResolvedSpan::Empty));
+        queued_spans.try_extend(comment_spans.into_iter().map(ResolvedSpan::Comment))?;
+        queued_spans.try_extend(empty_line_spans.into_iter().map(ResolvedSpan::Empty))?;
 
         queued_spans.sort_by_key(|span| span.span().start);
+
         Ok(Self {
             writer,
             queued_spans,
@@ -145,8 +144,8 @@ impl<'a> SpanInjectionWriter<'a> {
                     if comment.on_new_line {
                         writeln!(self.writer, "{}", self.resolve(comment.span)?)?;
                     } else {
-                        self.extend_previous_line(b" ");
-                        self.extend_previous_line(self.resolve(comment.span)?.as_bytes());
+                        self.extend_previous_line(b" ")?;
+                        self.extend_previous_line(self.resolve(comment.span)?.as_bytes())?;
                     }
                 }
             }
@@ -155,18 +154,19 @@ impl<'a> SpanInjectionWriter<'a> {
         Ok(self.writer.into_inner())
     }
 
-    fn extend_previous_line(&mut self, text: &[u8]) {
+    fn extend_previous_line(&mut self, text: &[u8]) -> alloc::Result<()> {
         let Some(idx) = self.writer.lines.len().checked_sub(2) else {
             // TODO: bubble up an internal error?
-            return;
+            return Ok(());
         };
 
         let Some(last_line) = self.writer.lines.get_mut(idx) else {
             // TODO: bubble up an internal error?
-            return;
+            return Ok(());
         };
 
-        last_line.extend(text);
+        last_line.try_extend_from_slice(text)?;
+        Ok(())
     }
 
     fn resolve(&self, span: Span) -> Result<&'a str, FormattingError> {
@@ -223,8 +223,8 @@ impl<'a> SpanInjectionWriter<'a> {
                     if comment.on_new_line {
                         writeln!(self.writer, "{}", self.resolve(comment.span)?)?;
                     } else {
-                        self.extend_previous_line(b" ");
-                        self.extend_previous_line(self.resolve(comment.span)?.as_bytes());
+                        self.extend_previous_line(b" ")?;
+                        self.extend_previous_line(self.resolve(comment.span)?.as_bytes())?;
                     }
                 }
             }

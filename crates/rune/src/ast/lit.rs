@@ -25,14 +25,17 @@ fn ast_parse() {
 ///
 /// ```
 /// use rune::ast;
-/// use rune::macros::MacroContext;
+/// use rune::macros;
 ///
-/// MacroContext::test(|cx| {
-///     let lit = cx.lit("hello world");
-///     assert!(matches!(lit, ast::Lit::Str(..)))
-/// });
+/// macros::test(|cx| {
+///     let lit = cx.lit("hello world")?;
+///     assert!(matches!(lit, ast::Lit::Str(..)));
+///     Ok(())
+/// })?;
+/// # Ok::<_, rune::support::Error>(())
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, ToTokens, Spanned)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub enum Lit {
     /// A boolean literal

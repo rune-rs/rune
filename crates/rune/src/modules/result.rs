@@ -7,19 +7,19 @@ use crate::{ContextError, Module};
 
 /// Construct the `std::result` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["result"]);
+    let mut module = Module::with_crate_item("std", ["result"])?;
     // Sorted for ease of finding
     let mut result = module
         .result(["Result"])?
-        .static_docs(&["Result is a type that represents either success (Ok) or failure (Err)."]);
+        .static_docs(&["Result is a type that represents either success (Ok) or failure (Err)."])?;
 
     result
         .variant_mut(0)?
-        .static_docs(&["Contains the success value"]);
+        .static_docs(&["Contains the success value"])?;
 
     result
         .variant_mut(1)?
-        .static_docs(&["Contains the error value"]);
+        .static_docs(&["Contains the error value"])?;
 
     module.function_meta(ok)?;
     module.function_meta(is_ok)?;

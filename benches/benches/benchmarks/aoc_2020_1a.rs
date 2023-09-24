@@ -4,7 +4,7 @@
 
 use anyhow::Context;
 use criterion::Criterion;
-use rune::alloc::TryClone;
+use rune::alloc::prelude::*;
 
 criterion::criterion_group!(benches, aoc_2020_1a);
 

@@ -4,7 +4,7 @@ use core::slice;
 use crate::ast::prelude::*;
 
 /// An item body declaration.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, OptionSpanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, OptionSpanned)]
 #[non_exhaustive]
 pub enum Fields {
     /// A regular body.

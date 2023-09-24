@@ -1,5 +1,6 @@
 use criterion::Criterion;
-use rune::{Hash, Result, Vm};
+use rune::support::Result;
+use rune::{Hash, Vm};
 
 use rune::modules::capture_io::CaptureIo;
 

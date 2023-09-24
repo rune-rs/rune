@@ -15,7 +15,7 @@
 //! ```rust
 //! let mut context = rune::Context::with_default_modules()?;
 //! context.install(rune_modules::fs::module(true)?)?;
-//! # Ok::<_, rune::Error>(())
+//! # Ok::<_, rune::support::Error>(())
 //! ```
 //!
 //! Use it in Rune:
@@ -33,7 +33,7 @@ use rune::{Module, ContextError};
 
 /// Construct the `fs` module.
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
-    let mut module = Module::with_crate("fs");
+    let mut module = Module::with_crate("fs")?;
     module.function(["read_to_string"], read_to_string)?;
     Ok(module)
 }

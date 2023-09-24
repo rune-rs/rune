@@ -20,7 +20,7 @@ fn ast_parse() {
 /// A `use` item.
 ///
 /// * `use <path>`
-#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]
 pub struct ItemUse {
@@ -41,7 +41,7 @@ item_parse!(Use, ItemUse, "use item");
 /// A single use declaration path.
 ///
 /// * `foo::bar::{baz::*, biz}`.
-#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ItemUsePath {
     /// Global prefix.
@@ -58,7 +58,7 @@ pub struct ItemUsePath {
 }
 
 /// A use component.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub enum ItemUseSegment {
     /// A path segment.

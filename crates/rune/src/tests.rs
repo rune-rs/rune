@@ -5,7 +5,8 @@
 
 pub(crate) mod prelude {
     pub(crate) use crate as rune;
-    pub(crate) use crate::alloc::{self, TryClone};
+    pub(crate) use crate::alloc;
+    pub(crate) use crate::alloc::prelude::*;
     pub(crate) use crate::ast;
     pub(crate) use crate::compile::{self, ErrorKind, Item, ItemBuf, Located, Named};
     pub(crate) use crate::diagnostics;
@@ -17,10 +18,11 @@ pub(crate) mod prelude {
         OwnedTuple, Protocol, RawRef, RawStr, Ref, Shared, Stack, Tuple, TypeInfo, TypeOf,
         UnsafeToRef, VecTuple, VmErrorKind, VmResult,
     };
+    pub(crate) use crate::support::Result;
     pub(crate) use crate::tests::run;
     pub(crate) use crate::{
         from_value, prepare, sources, span, vm_try, Any, Context, ContextError, Diagnostics,
-        FromValue, Hash, Module, Result, Source, Sources, ToValue, Value, Vm,
+        FromValue, Hash, Module, Source, Sources, ToValue, Value, Vm,
     };
     pub(crate) use futures_executor::block_on;
 }
@@ -32,6 +34,7 @@ use crate::no_std::sync::Arc;
 
 use anyhow::{Context as _, Error, Result};
 
+use crate::alloc;
 use crate::compile::{IntoComponent, ItemBuf};
 use crate::runtime::{Args, VmError, VmResult};
 use crate::{termcolor, BuildError, Context, Diagnostics, FromValue, Source, Sources, Unit, Vm};
@@ -43,6 +46,8 @@ pub enum RunError {
     BuildError(String),
     /// A virtual machine error was raised during testing.
     VmError(VmError),
+    /// Allocation error.
+    AllocError(alloc::Error),
 }
 
 impl fmt::Display for RunError {
@@ -50,6 +55,18 @@ impl fmt::Display for RunError {
         match self {
             RunError::BuildError(error) => write!(f, "Build error: {error}"),
             RunError::VmError(error) => write!(f, "Vm error: {error}"),
+            RunError::AllocError(error) => write!(f, "Allocation error: {error}"),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for RunError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            RunError::VmError(error) => Some(error),
+            RunError::AllocError(error) => Some(error),
+            _ => None,
         }
     }
 }
@@ -60,7 +77,7 @@ pub fn compile_helper(source: &str, diagnostics: &mut Diagnostics) -> Result<Uni
     let context = crate::Context::with_default_modules().expect("setting up default modules");
 
     let mut sources = Sources::new();
-    sources.insert(Source::new("main", source));
+    sources.insert(Source::new("main", source))?;
 
     let unit = crate::prepare(&mut sources)
         .with_context(&context)
@@ -93,7 +110,7 @@ pub fn vm(
         return Err(RunError::BuildError(buffer));
     };
 
-    let context = Arc::new(context.runtime());
+    let context = Arc::new(context.runtime().map_err(RunError::AllocError)?);
     Ok(Vm::new(context, Arc::new(unit)))
 }
 
@@ -115,9 +132,9 @@ where
     ::futures_executor::block_on(async move {
         let mut vm = vm(context, sources, diagnostics)?;
 
-        let mut execute = vm
-            .execute(&ItemBuf::with_item(function), args)
-            .map_err(RunError::VmError)?;
+        let item = ItemBuf::with_item(function).map_err(RunError::AllocError)?;
+
+        let mut execute = vm.execute(&item, args).map_err(RunError::VmError)?;
 
         let output = execute
             .async_complete()
@@ -135,7 +152,9 @@ where
 #[doc(hidden)]
 pub fn sources(source: &str) -> Sources {
     let mut sources = Sources::new();
-    sources.insert(Source::new("main", source));
+    sources
+        .insert(Source::new("main", source))
+        .expect("Failed to insert source");
     sources
 }
 
@@ -148,7 +167,7 @@ where
     T: FromValue,
 {
     let mut sources = Sources::new();
-    sources.insert(Source::new("main", source));
+    sources.insert(Source::new("main", source))?;
 
     let mut diagnostics = Default::default();
 
@@ -166,6 +185,7 @@ where
                 String::from_utf8(buffer.into_inner()).context("Decode output as utf-8")?;
             Err(Error::msg(buffer))
         }
+        RunError::AllocError(error) => Err(Error::from(error)),
     }
 }
 

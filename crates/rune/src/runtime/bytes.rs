@@ -6,20 +6,19 @@ use core::cmp;
 use core::fmt;
 use core::ops;
 
-use crate::no_std::prelude::*;
-
-use serde::{Deserialize, Serialize};
+use serde::de;
+use serde::ser;
 
 use crate as rune;
+use crate::alloc::prelude::*;
+use crate::alloc::{self, Box, Vec};
 use crate::runtime::{RawRef, Ref, UnsafeToRef, Value, VmResult};
 use crate::Any;
 
 /// A vector of bytes.
-#[derive(Any, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
-#[serde(transparent)]
+#[derive(Any, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[rune(builtin, static_type = BYTES_TYPE)]
 pub struct Bytes {
-    #[serde(with = "serde_bytes")]
     pub(crate) bytes: Vec<u8>,
 }
 
@@ -46,16 +45,17 @@ impl Bytes {
     /// ```
     /// use rune::runtime::Bytes;
     ///
-    /// let mut bytes = Bytes::with_capacity(32);
+    /// let mut bytes = Bytes::with_capacity(32)?;
     /// assert_eq!(bytes, b"");
-    /// bytes.extend(b"abcd");
+    /// bytes.extend(b"abcd")?;
     /// assert_eq!(bytes, b"abcd");
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     #[inline]
-    pub fn with_capacity(cap: usize) -> Self {
-        Bytes {
-            bytes: Vec::with_capacity(cap),
-        }
+    pub fn with_capacity(cap: usize) -> alloc::Result<Self> {
+        Ok(Self {
+            bytes: Vec::try_with_capacity(cap)?,
+        })
     }
 
     /// Convert the byte array into a vector of bytes.
@@ -64,9 +64,13 @@ impl Bytes {
     ///
     /// ```
     /// use rune::runtime::Bytes;
+    /// use rune::alloc::prelude::*;
+    /// use rune::alloc::try_vec;
     ///
-    /// let bytes = Bytes::from_vec(vec![b'a', b'b', b'c', b'd']);
+    /// let bytes = Bytes::from_vec(try_vec![b'a', b'b', b'c', b'd']);
     /// assert_eq!(bytes.into_vec(), [b'a', b'b', b'c', b'd']);
+    ///
+    /// Ok::<_, rune::support::Error>(())
     /// ```
     #[inline]
     pub fn into_vec(self) -> Vec<u8> {
@@ -79,9 +83,12 @@ impl Bytes {
     ///
     /// ```
     /// use rune::runtime::Bytes;
+    /// use rune::alloc::try_vec;
     ///
-    /// let bytes = Bytes::from_vec(vec![b'a', b'b', b'c', b'd']);
+    /// let bytes = Bytes::from_vec(try_vec![b'a', b'b', b'c', b'd']);
     /// assert_eq!(bytes.as_slice(), &[b'a', b'b', b'c', b'd']);
+    ///
+    /// Ok::<_, rune::support::Error>(())
     /// ```
     #[inline]
     pub fn as_slice(&self) -> &[u8] {
@@ -97,17 +104,19 @@ impl Bytes {
     /// ```
     /// use rune::runtime::Bytes;
     ///
-    /// let bytes = Bytes::from_slice(vec![b'a', b'b', b'c', b'd']);
+    /// let bytes = Bytes::from_slice(vec![b'a', b'b', b'c', b'd'])?;
     /// assert_eq!(bytes, b"abcd");
+    ///
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     #[inline]
-    pub fn from_slice<B>(bytes: B) -> Self
+    pub fn from_slice<B>(bytes: B) -> alloc::Result<Self>
     where
         B: AsRef<[u8]>,
     {
-        Self {
-            bytes: bytes.as_ref().to_vec(),
-        }
+        Ok(Self {
+            bytes: Vec::try_from(bytes.as_ref())?,
+        })
     }
 
     /// Convert a byte array into bytes.
@@ -116,9 +125,11 @@ impl Bytes {
     ///
     /// ```
     /// use rune::runtime::Bytes;
+    /// use rune::alloc::try_vec;
     ///
-    /// let bytes = Bytes::from_vec(vec![b'a', b'b', b'c', b'd']);
+    /// let bytes = Bytes::from_vec(try_vec![b'a', b'b', b'c', b'd']);
     /// assert_eq!(bytes, b"abcd");
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     #[inline]
     pub fn from_vec(bytes: Vec<u8>) -> Self {
@@ -131,16 +142,19 @@ impl Bytes {
     ///
     /// ```
     /// use rune::runtime::Bytes;
+    /// use rune::alloc::try_vec;
     ///
-    /// let mut bytes = Bytes::from_vec(vec![b'a', b'b', b'c', b'd']);
+    /// let mut bytes = Bytes::from_vec(try_vec![b'a', b'b', b'c', b'd']);
     /// bytes.extend(b"efgh");
     /// assert_eq!(bytes, b"abcdefgh");
+    ///
+    /// Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn extend<O>(&mut self, other: O)
+    pub fn extend<O>(&mut self, other: O) -> alloc::Result<()>
     where
         O: AsRef<[u8]>,
     {
-        self.bytes.extend_from_slice(other.as_ref());
+        self.bytes.try_extend_from_slice(other.as_ref())
     }
 
     /// Test if the collection is empty.
@@ -186,18 +200,18 @@ impl Bytes {
     /// Reserve additional space.
     ///
     /// The exact amount is unspecified.
-    pub fn reserve(&mut self, additional: usize) {
-        self.bytes.reserve(additional);
+    pub fn reserve(&mut self, additional: usize) -> alloc::Result<()> {
+        self.bytes.try_reserve(additional)
     }
 
     /// Resever additional space to the exact amount specified.
-    pub fn reserve_exact(&mut self, additional: usize) {
-        self.bytes.reserve_exact(additional);
+    pub fn reserve_exact(&mut self, additional: usize) -> alloc::Result<()> {
+        self.bytes.try_reserve_exact(additional)
     }
 
     /// Shrink to fit the amount of bytes in the container.
-    pub fn shrink_to_fit(&mut self) {
-        self.bytes.shrink_to_fit();
+    pub fn shrink_to_fit(&mut self) -> alloc::Result<()> {
+        self.bytes.try_shrink_to_fit()
     }
 
     /// Pop the last byte.
@@ -207,9 +221,10 @@ impl Bytes {
     /// ```
     /// use rune::runtime::Bytes;
     ///
-    /// let mut bytes = Bytes::from_slice(b"abcd");
+    /// let mut bytes = Bytes::from_slice(b"abcd")?;
     /// assert_eq!(bytes.pop(), Some(b'd'));
     /// assert_eq!(bytes, b"abc");
+    /// Ok::<_, rune::support::Error>(())
     /// ```
     pub fn pop(&mut self) -> Option<u8> {
         self.bytes.pop()
@@ -222,8 +237,10 @@ impl Bytes {
     /// ```
     /// use rune::runtime::Bytes;
     ///
-    /// let bytes = Bytes::from_slice(b"abcd");
+    /// let bytes = Bytes::from_slice(b"abcd")?;
     /// assert_eq!(bytes.first(), Some(b'a'));
+    ///
+    /// Ok::<_, rune::support::Error>(())
     /// ```
     pub fn first(&self) -> Option<u8> {
         self.bytes.first().copied()
@@ -236,11 +253,21 @@ impl Bytes {
     /// ```
     /// use rune::runtime::Bytes;
     ///
-    /// let bytes = Bytes::from_slice(b"abcd");
+    /// let bytes = Bytes::from_slice(b"abcd")?;
     /// assert_eq!(bytes.last(), Some(b'd'));
+    ///
+    /// Ok::<_, rune::support::Error>(())
     /// ```
     pub fn last(&self) -> Option<u8> {
         self.bytes.last().copied()
+    }
+}
+
+impl TryClone for Bytes {
+    fn try_clone(&self) -> alloc::Result<Self> {
+        Ok(Self {
+            bytes: self.bytes.try_clone()?,
+        })
     }
 }
 
@@ -251,12 +278,36 @@ impl From<Vec<u8>> for Bytes {
     }
 }
 
+#[cfg(feature = "alloc")]
+impl TryFrom<::rust_alloc::vec::Vec<u8>> for Bytes {
+    type Error = alloc::Error;
+
+    #[inline]
+    fn try_from(bytes: ::rust_alloc::vec::Vec<u8>) -> Result<Self, Self::Error> {
+        Ok(Self {
+            bytes: Vec::try_from(bytes)?,
+        })
+    }
+}
+
 impl From<Box<[u8]>> for Bytes {
     #[inline]
     fn from(bytes: Box<[u8]>) -> Self {
         Self {
-            bytes: bytes.into(),
+            bytes: Vec::from(bytes),
         }
+    }
+}
+
+#[cfg(feature = "alloc")]
+impl TryFrom<::rust_alloc::boxed::Box<[u8]>> for Bytes {
+    type Error = alloc::Error;
+
+    #[inline]
+    fn try_from(bytes: ::rust_alloc::boxed::Box<[u8]>) -> Result<Self, Self::Error> {
+        Ok(Self {
+            bytes: Vec::try_from(bytes.as_ref())?,
+        })
     }
 }
 
@@ -347,8 +398,46 @@ impl cmp::PartialEq<Bytes> for [u8] {
     }
 }
 
+impl ser::Serialize for Bytes {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: ser::Serializer,
+    {
+        serializer.serialize_bytes(&self.bytes)
+    }
+}
+
+impl<'de> de::Deserialize<'de> for Bytes {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        struct Visitor;
+
+        impl<'de> de::Visitor<'de> for Visitor {
+            type Value = Bytes;
+
+            #[inline]
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                write!(f, "a byte array")
+            }
+
+            #[inline]
+            fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Bytes::from_slice(v).map_err(E::custom)
+            }
+        }
+
+        deserializer.deserialize_bytes(Visitor)
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::alloc::clone::TryClone;
     use crate::no_std::prelude::*;
     use crate::runtime::{Bytes, Shared, Value};
 
@@ -359,7 +448,7 @@ mod tests {
 
         let _ = {
             let shared = shared.into_bytes().into_result()?;
-            let out = shared.borrow_ref()?.clone();
+            let out = shared.borrow_ref()?.try_clone()?;
             out
         };
 

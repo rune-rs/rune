@@ -31,7 +31,7 @@ where
 }
 
 fn make_native_module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate("native_crate");
+    let mut module = Module::with_crate("native_crate")?;
     module.ty::<Generic<i64>>()?;
     module.associated_function("get_value", Generic::<i64>::get_value)?;
 
@@ -57,7 +57,7 @@ fn compile(mut sources: Sources) -> Result<Vm> {
     }
 
     let unit = result?;
-    Ok(Vm::new(Arc::new(context.runtime()), Arc::new(unit)))
+    Ok(Vm::new(Arc::new(context.runtime()?), Arc::new(unit)))
 }
 
 // This is similar to the generic test that existed before, but ensures that the

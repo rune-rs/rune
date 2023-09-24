@@ -1,18 +1,14 @@
 use core::str;
 
-use crate::no_std::collections::{BTreeMap, BTreeSet, HashMap};
-use crate::no_std::prelude::*;
-
-use crate::ast;
-use crate::ast::{Span, Spanned};
+use crate as rune;
+use crate::alloc::prelude::*;
+use crate::alloc::{self, BTreeMap, BTreeSet, Box, HashMap, String, Vec};
+use crate::ast::{self, Span, Spanned};
 use crate::compile::ir;
 use crate::compile::{self, WithSpan};
 use crate::macros::{quote, MacroContext, Quote};
 use crate::parse::{Parse, Parser, Peek, Peeker};
 use crate::runtime::format;
-
-// NB: needed for quote macro.
-use crate as rune;
 
 /// A format specification: A format string followed by arguments to be
 /// formatted in accordance with that string.
@@ -44,11 +40,11 @@ impl FormatArgs {
                         ));
                     }
 
-                    pos.push(expr);
+                    pos.try_push(expr)?;
                 }
                 FormatArg::Named(n) => {
                     let name = cx.resolve(n.key)?;
-                    named.insert(name.into(), n);
+                    named.try_insert(name.try_into()?, n)?;
                 }
             }
         }
@@ -63,11 +59,11 @@ impl FormatArgs {
             }
         };
 
-        let mut unused_pos = (0..pos.len()).collect::<BTreeSet<_>>();
+        let mut unused_pos = (0..pos.len()).try_collect::<BTreeSet<_>>()?;
         let mut unused_named = named
             .iter()
-            .map(|(key, n)| (key.clone(), n.span()))
-            .collect::<BTreeMap<_, _>>();
+            .map(|(key, n)| Ok::<_, alloc::Error>((key.try_clone()?, n.span())))
+            .try_collect::<alloc::Result<BTreeMap<_, _>>>()??;
 
         let expanded = match expand_format_spec(
             cx,
@@ -121,7 +117,7 @@ impl Parse for FormatArgs {
                 break;
             }
 
-            args.push(p.parse()?);
+            args.try_push(p.parse()?)?;
         }
 
         Ok(Self { format, args })
@@ -135,7 +131,7 @@ impl Peek for FormatArgs {
 }
 
 /// A named format argument.
-#[derive(Debug, Clone, Parse, Spanned)]
+#[derive(Debug, TryClone, Parse, Spanned)]
 pub struct NamedFormatArg {
     /// The key of the named argument.
     pub key: ast::Ident,
@@ -146,7 +142,7 @@ pub struct NamedFormatArg {
 }
 
 /// A single format argument.
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 pub enum FormatArg {
     /// A positional argument.
     Positional(ast::Expr),
@@ -186,11 +182,11 @@ fn expand_format_spec<'a>(
     while let Some(value) = iter.next() {
         match value {
             ('}', '}') => {
-                buf.push('}');
+                buf.try_push('}')?;
                 iter.next();
             }
             ('{', '{') => {
-                buf.push('{');
+                buf.try_push('{')?;
                 iter.next();
             }
             ('}', _) => {
@@ -201,11 +197,11 @@ fn expand_format_spec<'a>(
             }
             ('{', _) => {
                 if !buf.is_empty() {
-                    components.push(C::Literal(buf.clone().into_boxed_str()));
+                    components.try_push(C::Literal(buf.try_clone()?.try_into_boxed_str()?))?;
                     buf.clear();
                 }
 
-                components.push(parse_group(
+                components.try_push(parse_group(
                     cx,
                     span,
                     &mut iter,
@@ -217,16 +213,16 @@ fn expand_format_spec<'a>(
                     unused_pos,
                     named,
                     unused_named,
-                )?);
+                )?)?;
             }
             (a, _) => {
-                buf.push(a);
+                buf.try_push(a)?;
             }
         }
     }
 
     if !buf.is_empty() {
-        components.push(C::Literal(buf.clone().into_boxed_str()));
+        components.try_push(C::Literal(buf.try_clone()?.try_into_boxed_str()?))?;
         buf.clear();
     }
 
@@ -239,8 +235,8 @@ fn expand_format_spec<'a>(
     for c in components {
         match c {
             C::Literal(literal) => {
-                let lit = cx.lit(&*literal);
-                args.push(quote!(#lit));
+                let lit = cx.lit(&*literal)?;
+                args.try_push(quote!(#lit))?;
             }
             C::Format {
                 expr,
@@ -253,43 +249,62 @@ fn expand_format_spec<'a>(
             } => {
                 let mut specs = Vec::new();
 
-                specs.extend(fill.map(|fill| {
-                    let fill = cx.lit(fill);
-                    quote!(fill = #fill)
-                }));
+                let fill = fill
+                    .map(|fill| {
+                        let fill = cx.lit(fill)?;
+                        Ok::<_, alloc::Error>(quote!(fill = #fill))
+                    })
+                    .transpose()?;
 
-                specs.extend(width.map(|width| {
-                    let width = cx.lit(width);
-                    quote!(width = #width)
-                }));
+                let width = width
+                    .map(|width| {
+                        let width = cx.lit(width)?;
+                        Ok::<_, alloc::Error>(quote!(width = #width))
+                    })
+                    .transpose()?;
 
-                specs.extend(precision.map(|precision| {
-                    let precision = cx.lit(precision);
-                    quote!(precision = #precision)
-                }));
+                let precision = precision
+                    .map(|precision| {
+                        let precision = cx.lit(precision)?;
+                        Ok::<_, alloc::Error>(quote!(precision = #precision))
+                    })
+                    .transpose()?;
 
-                specs.extend(align.map(|align| {
-                    let align = cx.ident(&align.to_string());
-                    quote!(align = #align)
-                }));
+                let align = align
+                    .map(|align| {
+                        let align = align.try_to_string()?;
+                        let align = cx.ident(&align)?;
+                        Ok::<_, alloc::Error>(quote!(align = #align))
+                    })
+                    .transpose()?;
+
+                specs.try_extend(fill)?;
+                specs.try_extend(width)?;
+                specs.try_extend(precision)?;
+                specs.try_extend(align)?;
 
                 if !flags.is_empty() {
-                    let flags = cx.lit(flags.into_u32());
-                    specs.push(quote!(flags = #flags));
+                    let flags = cx.lit(flags.into_u32())?;
+                    specs.try_push(quote!(flags = #flags))?;
                 }
 
-                specs.extend(format_type.map(|format_type| {
-                    let format_type = cx.ident(&format_type.to_string());
-                    quote!(type = #format_type)
-                }));
+                let format_type = format_type
+                    .map(|format_type| {
+                        let format_type = format_type.try_to_string()?;
+                        let format_type = cx.ident(&format_type)?;
+                        Ok::<_, alloc::Error>(quote!(type = #format_type))
+                    })
+                    .transpose()?;
+
+                specs.try_extend(format_type)?;
 
                 if specs.is_empty() {
-                    args.push(quote!(#expr));
+                    args.try_push(quote!(#expr))?;
                 } else {
-                    args.push(quote!(
+                    args.try_push(quote!(
                         #[builtin]
                         format!(#expr, #(specs),*)
-                    ));
+                    ))?;
                 }
             }
         }
@@ -386,7 +401,7 @@ fn expand_format_spec<'a>(
                         mode = Mode::End;
                     }
                     c => {
-                        name.push(c);
+                        name.try_push(c)?;
                         iter.next();
                     }
                 },
@@ -439,7 +454,7 @@ fn expand_format_spec<'a>(
                 Mode::Width => {
                     match a {
                         '0'..='9' => {
-                            width.push(a);
+                            width.try_push(a)?;
                             iter.next();
                             continue;
                         }
@@ -460,7 +475,7 @@ fn expand_format_spec<'a>(
                             iter.next();
                         }
                         '0'..='9' => {
-                            precision.push(a);
+                            precision.try_push(a)?;
                             iter.next();
                             continue;
                         }

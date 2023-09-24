@@ -20,8 +20,11 @@ mod naming;
 use std::fmt;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use rust_alloc::string::String;
+use rust_alloc::vec::Vec;
 
-use crate::no_std::prelude::*;
+use crate::alloc;
+use crate::alloc::prelude::*;
 use crate::workspace::{self, WorkspaceFilter};
 
 use anyhow::{bail, Context as _, Error, Result};
@@ -57,7 +60,7 @@ pub type ContextBuilder = dyn FnMut(ContextOptions<'_>) -> Result<Context, Conte
 /// configuration such as your own modules.
 #[derive(Default)]
 pub struct Entry<'a> {
-    about: Option<String>,
+    about: Option<alloc::String>,
     context: Option<&'a mut ContextBuilder>,
 }
 
@@ -80,7 +83,7 @@ impl<'a> Entry<'a> {
     ///     .run();
     ///```
     pub fn about(mut self, about: impl fmt::Display) -> Self {
-        self.about = Some(about.to_string());
+        self.about = Some(about.try_to_string().expect("Failed to format about string"));
         self
     }
 
@@ -447,16 +450,16 @@ struct Config {
     /// Manifest root directory.
     manifest_root: Option<PathBuf>,
     /// Immediate found paths.
-    found_paths: Vec<PathBuf>,
+    found_paths: alloc::Vec<PathBuf>,
 }
 
 impl Config {
     /// Construct build paths from configuration.
-    fn build_paths<'m>(&'m self, cmd: CommandSharedRef<'_>) -> Result<Vec<BuildPath<'m>>> {
-        let mut build_paths = Vec::new();
+    fn build_paths<'m>(&'m self, cmd: CommandSharedRef<'_>) -> Result<alloc::Vec<BuildPath<'m>>> {
+        let mut build_paths = alloc::Vec::new();
 
         if !self.found_paths.is_empty() {
-            build_paths.extend(self.found_paths.iter().map(|p| BuildPath::Path(p)));
+            build_paths.try_extend(self.found_paths.iter().map(|p| BuildPath::Path(p)))?;
 
             if !cmd.shared.workspace {
                 return Ok(build_paths);
@@ -465,25 +468,25 @@ impl Config {
 
         if let Some(bin) = cmd.find_bins() {
             for p in self.manifest.find_bins(bin)? {
-                build_paths.push(BuildPath::Package(p));
+                build_paths.try_push(BuildPath::Package(p))?;
             }
         }
     
         if let Some(test) = cmd.find_tests() {
             for p in self.manifest.find_tests(test)? {
-                build_paths.push(BuildPath::Package(p));
+                build_paths.try_push(BuildPath::Package(p))?;
             }
         }
     
         if let Some(example) = cmd.find_examples() {
             for p in self.manifest.find_examples(example)? {
-                build_paths.push(BuildPath::Package(p));
+                build_paths.try_push(BuildPath::Package(p))?;
             }
         }
     
         if let Some(bench) = cmd.find_benches() {
             for p in self.manifest.find_benches(bench)? {
-                build_paths.push(BuildPath::Package(p));
+                build_paths.try_push(BuildPath::Package(p))?;
             }
         }
     
@@ -661,12 +664,12 @@ fn find_manifest() -> Option<(PathBuf, PathBuf)> {
 }
 
 fn populate_config(io: &mut Io<'_>, c: &mut Config, cmd: CommandSharedRef<'_>) -> Result<()> {
-    c.found_paths.extend(
+    c.found_paths.try_extend(
         cmd.shared
             .paths
             .iter()
             .map(|p| p.as_path().into()),
-    );
+    )?;
 
     if !c.found_paths.is_empty() && !cmd.shared.workspace {
         return Ok(());
@@ -677,7 +680,7 @@ fn populate_config(io: &mut Io<'_>, c: &mut Config, cmd: CommandSharedRef<'_>) -
             let path = Path::new(file);
 
             if path.is_file() {
-                c.found_paths.push(path.into());
+                c.found_paths.try_push(path.into())?;
                 return Ok(());
             }
         }
@@ -696,7 +699,7 @@ fn populate_config(io: &mut Io<'_>, c: &mut Config, cmd: CommandSharedRef<'_>) -
     c.manifest_root = Some(manifest_root);
 
     let mut sources = crate::Sources::new();
-    sources.insert(crate::Source::from_path(manifest_path)?);
+    sources.insert(crate::Source::from_path(manifest_path)?)?;
 
     let mut diagnostics = workspace::Diagnostics::new();
 
@@ -719,13 +722,13 @@ async fn main_with_out(io: &mut Io<'_>, entry: &mut Entry<'_>, mut args: Args) -
     let cmd = match &args.cmd {
         Some(cmd) => cmd,
         None => {
-            let commands = Command::ALL.into_iter().collect::<Vec<_>>().join(", ");
+            let commands: alloc::String = Command::ALL.into_iter().try_join(", ")?;
             writeln!(io.stdout, "Expected a subcommand: {commands}")?;
             return Ok(ExitCode::Failure);
         }
     };
     
-    let mut entrys = Vec::new();
+    let mut entrys = alloc::Vec::new();
 
     if let Some(cmd) = cmd.as_command_shared_ref() {
         populate_config(io, &mut c, cmd)?;
@@ -739,8 +742,8 @@ async fn main_with_out(io: &mut Io<'_>, entry: &mut Entry<'_>, mut args: Args) -
         for build_path in build_paths {
             match build_path {
                 BuildPath::Path(path) => {
-                    for path in loader::recurse_paths(recursive, path.to_owned()) {
-                        entrys.push(EntryPoint::Path(path?));
+                    for path in loader::recurse_paths(recursive, path.try_to_owned()?) {
+                        entrys.try_push(EntryPoint::Path(path?))?;
                     }
                 }
                 BuildPath::Package(p) => {
@@ -754,7 +757,7 @@ async fn main_with_out(io: &mut Io<'_>, entry: &mut Entry<'_>, mut args: Args) -
                         writeln!(o, " {} `{}` (from {})", p.found.kind, p.found.path.display(), p.package.name)?;
                     }
     
-                    entrys.push(EntryPoint::Package(p));
+                    entrys.try_push(EntryPoint::Package(p))?;
                 }
             }
         }

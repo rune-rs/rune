@@ -10,7 +10,7 @@ use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
 #[test]
-fn test_concat_idents() -> rune::Result<()> {
+fn test_concat_idents() -> rune::support::Result<()> {
     #[rune::macro_]
     fn concat_idents(
         cx: &mut MacroContext<'_, '_, '_>,
@@ -34,8 +34,8 @@ fn test_concat_idents() -> rune::Result<()> {
 
         p.eof()?;
 
-        let output = cx.ident(&output);
-        Ok(quote!(#output).into_token_stream(cx))
+        let output = cx.ident(&output)?;
+        Ok(quote!(#output).into_token_stream(cx)?)
     }
 
     let mut m = Module::new();
@@ -44,7 +44,7 @@ fn test_concat_idents() -> rune::Result<()> {
     let mut context = Context::new();
     context.install(m)?;
 
-    let runtime = Arc::new(context.runtime());
+    let runtime = Arc::new(context.runtime()?);
 
     let mut sources = rune::sources! {
         entry => {
@@ -83,7 +83,7 @@ fn test_concat_idents() -> rune::Result<()> {
 }
 
 #[test]
-fn test_rename() -> rune::Result<()> {
+fn test_rename() -> rune::support::Result<()> {
     #[rune::attribute_macro]
     fn rename(
         cx: &mut MacroContext<'_, '_, '_>,
@@ -97,7 +97,7 @@ fn test_rename() -> rune::Result<()> {
         fun.name = parser.parse_all::<ast::EqValue<_>>()?.value;
 
         let mut tokens = TokenStream::new();
-        fun.to_tokens(cx, &mut tokens);
+        fun.to_tokens(cx, &mut tokens)?;
         Ok(tokens)
     }
 
@@ -107,7 +107,7 @@ fn test_rename() -> rune::Result<()> {
     let mut context = Context::new();
     context.install(m)?;
 
-    let runtime = Arc::new(context.runtime());
+    let runtime = Arc::new(context.runtime()?);
 
     let mut sources = rune::sources! {
         entry => {

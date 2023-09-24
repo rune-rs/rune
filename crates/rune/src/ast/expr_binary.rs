@@ -13,7 +13,7 @@ fn ast_parse() {
 /// A binary expression.
 ///
 /// * `<expr> <op> <expr>`.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprBinary {
     /// Attributes associated with the binary expression.
@@ -30,7 +30,8 @@ pub struct ExprBinary {
 expr_parse!(Binary, ExprBinary, "binary expression");
 
 /// A binary operation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, ToTokens, Spanned)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, Hash, ToTokens, Spanned)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub enum BinOp {
     /// Addition `a + b`.

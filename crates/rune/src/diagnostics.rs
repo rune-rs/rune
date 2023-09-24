@@ -27,7 +27,7 @@
 //! }
 //!
 //! let unit = result?;
-//! # Ok::<_, rune::Error>(())
+//! # Ok::<_, rune::support::Error>(())
 //! ```
 
 use crate::no_std::prelude::*;
@@ -93,7 +93,7 @@ impl Mode {
 ///     let mut writer = StandardStream::stderr(ColorChoice::Always);
 ///     diagnostics.emit(&mut writer, &sources)?;
 /// }
-/// # Ok::<_, rune::Error>(())
+/// # Ok::<_, rune::support::Error>(())
 /// ```
 #[derive(Debug)]
 pub struct Diagnostics {

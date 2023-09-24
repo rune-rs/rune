@@ -27,7 +27,7 @@ use crate::hash::Hash;
 /// }
 ///
 /// fn install() -> Result<rune::Module, rune::ContextError> {
-///     let mut module = rune::Module::with_crate("process");
+///     let mut module = rune::Module::with_crate("process")?;
 ///     module.ty::<Process>()?;
 ///     Ok(module)
 /// }
@@ -81,6 +81,7 @@ pub trait Any: Named + any::Any {
 
 // Internal any impls for useful types in the std library.
 
-crate::__internal_impl_any!(::std::fmt, crate::no_std::fmt::Error);
-crate::__internal_impl_any!(::std::io, crate::no_std::io::Error);
-crate::__internal_impl_any!(::std::error, crate::no_std::Error);
+crate::__internal_impl_any!(::std::fmt, core::fmt::Error);
+#[cfg(feature = "std")]
+crate::__internal_impl_any!(::std::io, std::io::Error);
+crate::__internal_impl_any!(::std::error, anyhow::Error);

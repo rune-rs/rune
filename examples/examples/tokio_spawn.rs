@@ -1,12 +1,13 @@
-use rune::alloc::TryClone;
+use rune::alloc::prelude::*;
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{Diagnostics, Vm};
+
 use std::sync::Arc;
 
 #[tokio::main]
-async fn main() -> rune::Result<()> {
+async fn main() -> rune::support::Result<()> {
     let context = rune_modules::default_context()?;
-    let runtime = Arc::new(context.runtime());
+    let runtime = Arc::new(context.runtime()?);
 
     let mut sources = rune::sources! {
         entry => {

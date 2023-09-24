@@ -8,7 +8,7 @@ fn ast_parse() {
 }
 
 /// A const declaration.
-#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned, Opaque)]
+#[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned, Opaque)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]
 pub struct ItemConst {

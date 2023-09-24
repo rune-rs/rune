@@ -1,5 +1,4 @@
-use crate::no_std::prelude::*;
-
+use crate::alloc::{Box, Vec};
 use crate::compile;
 use crate::parse::{Parser, Peek};
 
@@ -48,7 +47,7 @@ where
 {
     #[inline]
     fn parse(parser: &mut Parser) -> compile::Result<Self> {
-        Ok(Box::new(parser.parse()?))
+        Ok(Box::try_new(parser.parse()?)?)
     }
 }
 
@@ -62,7 +61,7 @@ where
         let mut output = Vec::new();
 
         while parser.peek::<T>()? {
-            output.push(parser.parse()?);
+            output.try_push(parser.parse()?)?;
         }
 
         Ok(output)

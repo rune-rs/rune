@@ -1,4 +1,4 @@
-use crate::no_std::collections::HashMap;
+use crate::alloc::HashMap;
 
 use core::hash::{BuildHasher, Hasher};
 

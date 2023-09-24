@@ -5,7 +5,8 @@ use core::slice;
 use crate::no_std::std;
 
 use crate as rune;
-use crate::alloc::{Box, Error, Global, TryClone};
+use crate::alloc::clone::TryClone;
+use crate::alloc::{self, Box};
 use crate::runtime::{
     ConstValue, FromValue, Mut, RawMut, RawRef, Ref, ToValue, UnsafeToMut, UnsafeToRef, Value,
     VmErrorKind, VmResult,
@@ -136,14 +137,14 @@ impl Default for OwnedTuple {
 
 impl TryClone for OwnedTuple {
     #[inline]
-    fn try_clone(&self) -> Result<Self, Error> {
+    fn try_clone(&self) -> alloc::Result<Self> {
         Ok(Self {
             inner: self.inner.try_clone()?,
         })
     }
 
     #[inline]
-    fn try_clone_from(&mut self, source: &Self) -> Result<(), Error> {
+    fn try_clone_from(&mut self, source: &Self) -> alloc::Result<()> {
         self.inner.try_clone_from(&source.inner)
     }
 }
@@ -185,7 +186,7 @@ impl ops::DerefMut for OwnedTuple {
 }
 
 impl TryFrom<std::Vec<Value>> for OwnedTuple {
-    type Error = Error;
+    type Error = alloc::Error;
 
     #[inline]
     fn try_from(vec: std::Vec<Value>) -> Result<Self, Self::Error> {
@@ -196,7 +197,7 @@ impl TryFrom<std::Vec<Value>> for OwnedTuple {
 }
 
 impl TryFrom<rune_alloc::Vec<Value>> for OwnedTuple {
-    type Error = Error;
+    type Error = alloc::Error;
 
     #[inline]
     fn try_from(vec: rune_alloc::Vec<Value>) -> Result<Self, Self::Error> {
@@ -207,7 +208,7 @@ impl TryFrom<rune_alloc::Vec<Value>> for OwnedTuple {
 }
 
 impl<const N: usize> TryFrom<[Value; N]> for OwnedTuple {
-    type Error = Error;
+    type Error = alloc::Error;
 
     #[inline]
     fn try_from(values: [Value; N]) -> Result<Self, Self::Error> {
@@ -218,10 +219,10 @@ impl<const N: usize> TryFrom<[Value; N]> for OwnedTuple {
 }
 
 impl TryFrom<std::Box<[Value]>> for OwnedTuple {
-    type Error = Error;
+    type Error = alloc::Error;
 
     #[inline]
-    fn try_from(inner: std::Box<[Value]>) -> Result<Self, Error> {
+    fn try_from(inner: std::Box<[Value]>) -> alloc::Result<Self> {
         Ok(Self {
             inner: rune_alloc::Box::try_from(inner)?,
         })
@@ -236,14 +237,14 @@ impl From<rune_alloc::Box<[Value]>> for OwnedTuple {
 }
 
 impl TryFrom<std::Box<[ConstValue]>> for OwnedTuple {
-    type Error = Error;
+    type Error = alloc::Error;
 
-    fn try_from(inner: std::Box<[ConstValue]>) -> Result<Self, Error> {
+    fn try_from(inner: std::Box<[ConstValue]>) -> alloc::Result<Self> {
         if inner.is_empty() {
             return Ok(OwnedTuple::new());
         }
 
-        let mut out = rune_alloc::Vec::try_with_capacity_in(inner.len(), Global)?;
+        let mut out = rune_alloc::Vec::try_with_capacity(inner.len())?;
 
         for value in inner.into_vec() {
             out.try_push(value.into_value()?)?;
@@ -256,14 +257,14 @@ impl TryFrom<std::Box<[ConstValue]>> for OwnedTuple {
 }
 
 impl TryFrom<rune_alloc::Box<[ConstValue]>> for OwnedTuple {
-    type Error = Error;
+    type Error = alloc::Error;
 
-    fn try_from(inner: rune_alloc::Box<[ConstValue]>) -> Result<Self, Error> {
+    fn try_from(inner: rune_alloc::Box<[ConstValue]>) -> alloc::Result<Self> {
         if inner.is_empty() {
             return Ok(OwnedTuple::new());
         }
 
-        let mut out = rune_alloc::Vec::try_with_capacity_in(inner.len(), Global)?;
+        let mut out = rune_alloc::Vec::try_with_capacity(inner.len())?;
 
         for value in rune_alloc::Vec::from(inner) {
             out.try_push(value.into_value()?)?;

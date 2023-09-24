@@ -195,7 +195,7 @@ pub(super) async fn run(
         }
     }
 
-    let runtime = Arc::new(context.runtime());
+    let runtime = Arc::new(context.runtime()?);
 
     let last = Instant::now();
 

@@ -1,9 +1,13 @@
-use crate::no_std::path::Path;
-use crate::no_std::borrow::Cow;
-use crate::no_std::io;
-use crate::no_std::prelude::*;
+use rust_alloc::string::ToString;
 
+use crate::no_std::io;
+
+use rust_alloc::borrow::ToOwned;
+use std::path::Path;
+
+use crate::alloc::borrow::Cow;
 use crate::compile::ItemBuf;
+use crate::alloc::{String, Vec};
 
 use base64::display::Base64Display;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -106,10 +110,10 @@ impl Artifacts {
             path.as_ref().to_owned()
         };
 
-        self.assets.push(Asset {
+        self.assets.try_push(Asset {
             path: path.clone(),
             content,
-        });
+        })?;
 
         Ok(path)
     }

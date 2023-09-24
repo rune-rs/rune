@@ -20,7 +20,7 @@ use crate::SourceId;
 ///
 /// let mut parser = Parser::new("fn foo() {}", SourceId::empty(), false);
 /// let ast = parser.parse::<ast::ItemFn>()?;
-/// # Ok::<_, rune::Error>(())
+/// # Ok::<_, rune::support::Error>(())
 /// ```
 #[derive(Debug)]
 pub struct Parser<'a> {

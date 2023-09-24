@@ -36,7 +36,7 @@ use crate::Any;
 ///
 /// let end = rune::to_value(1)?;
 /// let _ = RangeTo::new(end);
-/// # Ok::<_, rune::Error>(())
+/// # Ok::<_, rune::support::Error>(())
 /// ```
 #[derive(Any, Clone)]
 #[rune(builtin, constructor, from_value = Value::into_range_to, static_type = RANGE_TO_TYPE)]
