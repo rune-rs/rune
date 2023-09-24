@@ -152,7 +152,8 @@ impl<T: ?Sized, A: Allocator> Box<T, A> {
     /// let static_ref: &'static mut usize = Box::leak(x);
     /// *static_ref += 1;
     /// assert_eq!(*static_ref, 42);
-    /// # Ok::<_, rune_alloc::Error>(()) }
+    /// # Ok(())
+    /// # }
     /// # #[cfg(miri)] fn main() {}
     /// ```
     ///
@@ -167,7 +168,8 @@ impl<T: ?Sized, A: Allocator> Box<T, A> {
     /// let static_ref = Box::leak(x);
     /// static_ref[0] = 4;
     /// assert_eq!(*static_ref, [4, 2, 3]);
-    /// # Ok::<_, rune_alloc::Error>(()) }
+    /// # Ok(())
+    /// # }
     /// # #[cfg(miri)] fn main() {}
     /// ```
     #[inline]

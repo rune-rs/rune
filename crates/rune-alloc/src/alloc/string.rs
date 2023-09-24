@@ -1647,7 +1647,8 @@ impl<A: Allocator> String<A> {
     /// let x = String::try_from("bucket")?;
     /// let static_ref: &'static mut str = x.leak();
     /// assert_eq!(static_ref, "bucket");
-    /// # Ok::<_, rune_alloc::Error>(()) }
+    /// # Ok(())
+    /// # }
     /// # #[cfg(miri)] fn main() {}
     /// ```
     #[inline]

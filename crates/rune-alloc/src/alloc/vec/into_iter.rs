@@ -91,11 +91,12 @@ impl<T, A: Allocator> IntoIter<T, A> {
     /// # use rune_alloc::Vec;
     /// # #[cfg(not(miri))]
     /// # fn main() -> Result<(), rune_alloc::Error> {
-    /// # let mut into_iter = Vec::<u8>::with_capacity(10)?.into_iter();
+    /// # let mut into_iter = Vec::<u8>::try_with_capacity(10)?.into_iter();
     /// let mut into_iter = std::mem::replace(&mut into_iter, Vec::new().into_iter());
     /// (&mut into_iter).for_each(drop);
     /// std::mem::forget(into_iter);
-    /// # Ok::<_, rune_alloc::Error>(()) }
+    /// # Ok(())
+    /// # }
     /// # #[cfg(miri)] fn main() {}
     /// ```
     ///

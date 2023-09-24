@@ -1177,7 +1177,8 @@ impl<T, A: Allocator> Vec<T, A> {
     /// unsafe {
     ///     vec.set_len(0);
     /// }
-    /// # Ok::<_, rune_alloc::Error>(()) }
+    /// # Ok(())
+    /// # }
     /// # #[cfg(miri)] fn main() {}
     /// ```
     ///
@@ -2073,7 +2074,8 @@ impl<T, A: Allocator> Vec<T, A> {
     /// let static_ref: &'static mut [usize] = x.leak();
     /// static_ref[0] += 1;
     /// assert_eq!(static_ref, &[2, 2, 3]);
-    /// # Ok::<_, rune_alloc::Error>(()) }
+    /// # Ok(())
+    /// # }
     /// # #[cfg(miri)] fn main() {}
     /// ```
     #[inline]
