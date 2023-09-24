@@ -34,7 +34,7 @@ macro_rules! impl_into_args {
             unsafe fn unsafe_into_stack(self, stack: &mut Stack) -> VmResult<Self::Guard> {
                 let ($($value,)*) = self;
                 $(let $value = vm_try!($value.unsafe_to_value());)*
-                $(stack.push($value.0);)*
+                $(vm_try!(stack.push($value.0));)*
                 VmResult::Ok(($($value.1,)*))
             }
 

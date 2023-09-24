@@ -1,5 +1,6 @@
 use crate::no_std::sync::Arc;
 
+use crate::alloc::IteratorExt;
 use crate::runtime::vm_execution::VmExecutionState;
 use crate::runtime::{
     Call, Future, Generator, RuntimeContext, Stack, Stream, Unit, Value, Vm, VmErrorKind,
@@ -40,7 +41,9 @@ impl VmCall {
             Call::Async => {
                 let vm = vm_try!(self.build_vm(execution));
                 let mut execution = vm.into_execution();
-                Value::from(Future::new(async move { execution.async_complete().await }))
+                vm_try!(Value::try_from(Future::new(async move {
+                    execution.async_complete().await
+                })))
             }
             Call::Immediate => {
                 execution.push_state(VmExecutionState {
@@ -52,15 +55,15 @@ impl VmCall {
             }
             Call::Stream => {
                 let vm = vm_try!(self.build_vm(execution));
-                Value::from(Stream::new(vm))
+                vm_try!(Value::try_from(Stream::new(vm)))
             }
             Call::Generator => {
                 let vm = vm_try!(self.build_vm(execution));
-                Value::from(Generator::new(vm))
+                vm_try!(Value::try_from(Generator::new(vm)))
             }
         };
 
-        execution.vm_mut().stack_mut().push(value);
+        vm_try!(execution.vm_mut().stack_mut().push(value));
         VmResult::Ok(())
     }
 
@@ -74,7 +77,7 @@ impl VmCall {
 
         tracing::trace!(args);
 
-        let new_stack = vm_try!(vm.stack_mut().drain(args)).collect::<Stack>();
+        let new_stack = vm_try!(vm_try!(vm.stack_mut().drain(args)).try_collect::<Stack>());
 
         let Some(ip) = vm_try!(vm.pop_call_frame_from_call()) else {
             return VmResult::err(VmErrorKind::MissingCallFrame);

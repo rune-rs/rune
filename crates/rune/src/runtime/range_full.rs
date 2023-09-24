@@ -35,7 +35,7 @@ pub struct RangeFull;
 
 impl RangeFull {
     /// Construct a new range.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 
@@ -94,7 +94,7 @@ impl fmt::Debug for RangeFull {
 impl ToValue for ops::RangeFull {
     fn to_value(self) -> VmResult<Value> {
         let range = RangeFull::new();
-        VmResult::Ok(Value::from(range))
+        VmResult::Ok(vm_try!(Value::try_from(range)))
     }
 }
 

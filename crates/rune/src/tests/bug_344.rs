@@ -27,7 +27,7 @@ fn bug_344_function() -> Result<()> {
     let function = runtime.function(hash).expect("expect function");
 
     let mut stack = Stack::new();
-    stack.push(GuardCheck::new());
+    stack.push(rune::to_value(GuardCheck::new())?)?;
     function(&mut stack, 1).into_result()?;
     assert_eq!(stack.pop()?.into_integer().into_result()?, 42);
     return Ok(());
@@ -61,8 +61,8 @@ fn bug_344_inst_fn() -> Result<()> {
     let function = runtime.function(hash).expect("expect function");
 
     let mut stack = Stack::new();
-    stack.push(GuardCheck::new());
-    stack.push(GuardCheck::new());
+    stack.push(rune::to_value(GuardCheck::new())?)?;
+    stack.push(rune::to_value(GuardCheck::new())?)?;
     function(&mut stack, 2).into_result()?;
 
     assert_eq!(stack.pop()?.into_integer().into_result()?, 42);
@@ -84,7 +84,7 @@ fn bug_344_async_function() -> Result<()> {
     let function = runtime.function(hash).expect("expect function");
 
     let mut stack = Stack::new();
-    stack.push(GuardCheck::new());
+    stack.push(rune::to_value(GuardCheck::new())?)?;
     function(&mut stack, 1).into_result()?;
     let future = stack.pop()?.into_future().into_result()?.take()?;
     assert_eq!(
@@ -128,8 +128,8 @@ fn bug_344_async_inst_fn() -> Result<()> {
     let function = runtime.function(hash).expect("expect function");
 
     let mut stack = Stack::new();
-    stack.push(GuardCheck::new());
-    stack.push(GuardCheck::new());
+    stack.push(rune::to_value(GuardCheck::new())?)?;
+    stack.push(rune::to_value(GuardCheck::new())?)?;
     function(&mut stack, 2).into_result()?;
 
     let future = stack.pop()?.into_future().into_result()?.take()?;

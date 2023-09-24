@@ -112,7 +112,7 @@ where
             Diagnostics::without_warnings()
         };
 
-        let mut doc_visitor = crate::doc::Visitor::new(item);
+        let mut doc_visitor = crate::doc::Visitor::new(item)?;
         let mut functions = visitor::FunctionVisitor::new(visitor::Attribute::Test);
         let mut source_loader = FileSourceLoader::new();
 

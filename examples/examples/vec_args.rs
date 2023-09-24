@@ -1,7 +1,9 @@
+use std::sync::Arc;
+
+use rune::alloc::Vec;
 use rune::runtime::{Function, VmResult};
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{ContextError, Diagnostics, Module, Value, Vm};
-use std::sync::Arc;
 
 fn main() -> rune::Result<()> {
     let m = module()?;

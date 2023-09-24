@@ -188,7 +188,7 @@ where
             });
         }
 
-        self.head.as_mut().stack_mut().push(value);
+        vm_try!(self.head.as_mut().stack_mut().push(value));
         self.inner_async_resume().await
     }
 
@@ -198,7 +198,7 @@ where
     /// it while returning a unit from the current `yield`.
     pub async fn async_resume(&mut self) -> VmResult<GeneratorState> {
         if matches!(self.state, ExecutionState::Resumed) {
-            self.head.as_mut().stack_mut().push(Value::EmptyTuple);
+            vm_try!(self.head.as_mut().stack_mut().push(Value::EmptyTuple));
         } else {
             self.state = ExecutionState::Resumed;
         }
@@ -251,7 +251,7 @@ where
             });
         }
 
-        self.head.as_mut().stack_mut().push(value);
+        vm_try!(self.head.as_mut().stack_mut().push(value));
         self.inner_resume()
     }
 
@@ -264,7 +264,7 @@ where
     #[tracing::instrument(skip_all)]
     pub fn resume(&mut self) -> VmResult<GeneratorState> {
         if matches!(self.state, ExecutionState::Resumed) {
-            self.head.as_mut().stack_mut().push(Value::EmptyTuple);
+            vm_try!(self.head.as_mut().stack_mut().push(Value::EmptyTuple));
         } else {
             self.state = ExecutionState::Resumed;
         }

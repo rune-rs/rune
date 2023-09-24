@@ -3,9 +3,9 @@ use core::fmt;
 use core::iter;
 
 use crate::no_std::prelude::*;
-use crate::no_std::vec;
 
 use crate as rune;
+use crate::alloc::{self, Global};
 use crate::runtime::{FromValue, Function, Panic, ToValue, Value, VmErrorKind, VmResult};
 use crate::Any;
 
@@ -287,15 +287,15 @@ impl Iterator {
     }
 
     #[inline]
-    pub(crate) fn collect<T>(mut self) -> VmResult<vec::Vec<T>>
+    pub(crate) fn collect<T>(mut self) -> VmResult<alloc::Vec<T>>
     where
         T: FromValue,
     {
         let (cap, _) = self.iter.size_hint();
-        let mut vec = vec::Vec::with_capacity(cap);
+        let mut vec = vm_try!(alloc::Vec::try_with_capacity_in(cap, Global));
 
         while let Some(value) = vm_try!(self.next()) {
-            vec.push(vm_try!(T::from_value(value)));
+            vm_try!(vec.try_push(vm_try!(T::from_value(value))));
         }
 
         VmResult::Ok(vec)

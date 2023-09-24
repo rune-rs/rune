@@ -4,7 +4,8 @@ use core::cmp::Ordering;
 use core::num::ParseIntError;
 
 use crate as rune;
-use crate::no_std::prelude::*;
+use crate::alloc;
+use crate::alloc::string::TryToString;
 use crate::runtime::{VmErrorKind, VmResult};
 use crate::{ContextError, Module};
 
@@ -598,6 +599,6 @@ fn cmp(this: i64, rhs: i64) -> Ordering {
 /// ```
 #[rune::function(instance)]
 #[inline]
-fn to_string(this: i64) -> String {
-    this.to_string()
+fn to_string(this: i64) -> VmResult<alloc::String> {
+    VmResult::Ok(vm_try!(this.try_to_string()))
 }

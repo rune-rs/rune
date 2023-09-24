@@ -7,13 +7,13 @@ struct Foo(isize);
 
 #[test]
 fn test_take() {
-    let thing = Shared::new(AnyObj::new(Foo(0)));
+    let thing = Shared::new(AnyObj::new(Foo(0))).unwrap();
     let _ = thing.take().unwrap();
 }
 
 #[test]
 fn test_clone_take() {
-    let thing = Shared::new(AnyObj::new(Foo(0)));
+    let thing = Shared::new(AnyObj::new(Foo(0))).unwrap();
     let thing2 = thing.clone();
     assert_eq!(Foo(0), thing2.take_downcast::<Foo>().unwrap());
     assert!(thing.take().is_err());
@@ -27,7 +27,7 @@ fn test_from_ref() {
     let value = Thing(10u32);
 
     unsafe {
-        let (shared, guard) = Shared::from_ref(&value);
+        let (shared, guard) = Shared::from_ref(&value).unwrap();
         assert!(shared.downcast_borrow_mut::<Thing>().is_err());
         assert_eq!(10u32, shared.downcast_borrow_ref::<Thing>().unwrap().0);
 
@@ -46,7 +46,7 @@ fn test_from_mut() {
     let mut value = Thing(10u32);
 
     unsafe {
-        let (shared, guard) = Shared::from_mut(&mut value);
+        let (shared, guard) = Shared::from_mut(&mut value).unwrap();
         shared.downcast_borrow_mut::<Thing>().unwrap().0 = 20;
 
         assert_eq!(20u32, shared.downcast_borrow_mut::<Thing>().unwrap().0);

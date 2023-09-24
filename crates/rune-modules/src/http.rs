@@ -49,9 +49,8 @@
 //! ```
 
 use rune::{Any, Module, Value, ContextError};
-use rune::runtime::{Bytes, Ref, Formatter};
-use std::fmt;
-use std::fmt::Write;
+use rune::runtime::{Bytes, Ref, Formatter, VmResult};
+use rune::alloc::TryWrite;
 
 /// Construct the `http` module.
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
@@ -96,8 +95,9 @@ impl From<reqwest::Error> for Error {
 
 impl Error {
     #[rune::function(instance, protocol = STRING_DISPLAY)]
-    fn string_display(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "{}", self.inner)
+    fn string_display(&self, f: &mut Formatter) -> VmResult<()> {
+        rune::vm_write!(f, "{}", self.inner);
+        VmResult::Ok(())
     }
 }
 
@@ -146,8 +146,9 @@ pub struct StatusCode {
 
 impl StatusCode {
     #[rune::function(instance, protocol = STRING_DISPLAY)]
-    fn string_display(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "{}", self.inner)
+    fn string_display(&self, f: &mut Formatter) -> VmResult<()> {
+        rune::vm_write!(f, "{}", self.inner);
+        VmResult::Ok(())
     }
 }
 

@@ -302,7 +302,7 @@ where
         let (start, end) = self.into_inner();
         let start = vm_try!(start.to_value());
         let end = vm_try!(end.to_value());
-        VmResult::Ok(Value::from(RangeInclusive::new(start, end)))
+        VmResult::Ok(vm_try!(Value::try_from(RangeInclusive::new(start, end))))
     }
 }
 

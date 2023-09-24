@@ -243,6 +243,26 @@ pub fn instrument(
         .into()
 }
 
+/// Shim for an ignored `#[stable]` attribute.
+#[proc_macro_attribute]
+#[doc(hidden)]
+pub fn stable(
+    _attr: proc_macro::TokenStream,
+    item: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+    item
+}
+
+/// Shim for an ignored `#[unstable]` attribute.
+#[proc_macro_attribute]
+#[doc(hidden)]
+pub fn unstable(
+    _attr: proc_macro::TokenStream,
+    item: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+    item
+}
+
 #[proc_macro_derive(InstDisplay, attributes(inst_display))]
 #[doc(hidden)]
 pub fn inst_display(input: proc_macro::TokenStream) -> proc_macro::TokenStream {

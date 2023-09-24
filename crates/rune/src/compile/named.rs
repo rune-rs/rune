@@ -1,8 +1,8 @@
 use core::cmp::Ordering;
 
-use crate::no_std::prelude::*;
-
+use crate::alloc::String;
 use crate::module::InstallWith;
+use crate::no_std::boxed::Box;
 use crate::runtime::RawStr;
 
 /// The trait used for something that can be statically named.

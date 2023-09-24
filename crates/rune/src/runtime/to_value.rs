@@ -2,8 +2,9 @@ use core::any;
 use core::cmp::Ordering;
 
 use crate::no_std::collections::HashMap;
-use crate::no_std::prelude::*;
+use crate::no_std::std;
 
+use crate::alloc::{self, TryToString};
 use crate::runtime::{
     AnyObj, Object, Shared, Value, VmError, VmErrorKind, VmIntegerRepr, VmResult,
 };
@@ -133,7 +134,7 @@ where
     T: Any,
 {
     fn to_value(self) -> VmResult<Value> {
-        VmResult::Ok(Value::from(AnyObj::new(self)))
+        VmResult::Ok(vm_try!(Value::try_from(AnyObj::new(self))))
     }
 }
 
@@ -162,27 +163,40 @@ where
     T: ToValue,
 {
     fn to_value(self) -> VmResult<Value> {
-        VmResult::Ok(Value::from(Shared::new(match self {
-            Some(some) => {
-                let value = vm_try!(some.to_value());
-                Some(value)
-            }
+        VmResult::Ok(Value::from(vm_try!(Shared::new(match self {
+            Some(some) => Some(vm_try!(some.to_value())),
             None => None,
-        })))
+        }))))
     }
 }
 
 // String impls
 
-impl ToValue for Box<str> {
+impl ToValue for std::Box<str> {
     fn to_value(self) -> VmResult<Value> {
-        VmResult::Ok(Value::from(Shared::new(self.to_string())))
+        let this = vm_try!(self.try_to_string());
+        VmResult::Ok(Value::from(vm_try!(Shared::new(this))))
+    }
+}
+
+impl ToValue for alloc::Box<str> {
+    fn to_value(self) -> VmResult<Value> {
+        let this = alloc::String::from(self);
+        VmResult::Ok(Value::from(vm_try!(Shared::new(this))))
+    }
+}
+
+impl ToValue for std::String {
+    fn to_value(self) -> VmResult<Value> {
+        let string = vm_try!(alloc::String::try_from(self));
+        VmResult::Ok(Value::from(vm_try!(Shared::new(string))))
     }
 }
 
 impl ToValue for &str {
     fn to_value(self) -> VmResult<Value> {
-        VmResult::Ok(Value::from(Shared::new(self.to_string())))
+        let this = vm_try!(alloc::String::try_from(self));
+        VmResult::Ok(Value::from(vm_try!(Shared::new(this))))
     }
 }
 
@@ -208,11 +222,11 @@ where
         VmResult::Ok(match self {
             Ok(ok) => {
                 let ok = vm_try!(ok.to_value());
-                Value::from(Shared::new(Ok(ok)))
+                Value::from(vm_try!(Shared::new(Ok(ok))))
             }
             Err(err) => {
                 let err = vm_try!(err.to_value());
-                Value::from(Shared::new(Err(err)))
+                Value::from(vm_try!(Shared::new(Err(err))))
             }
         })
     }
@@ -263,19 +277,21 @@ macro_rules! impl_map {
             T: ToValue,
         {
             fn to_value(self) -> VmResult<Value> {
-                let mut output = Object::with_capacity(self.len());
+                let mut output = vm_try!(Object::with_capacity(self.len()));
 
                 for (key, value) in self {
-                    output.insert(key, vm_try!(value.to_value()));
+                    let key = vm_try!(alloc::String::try_from(key));
+                    vm_try!(output.insert(key, vm_try!(value.to_value())));
                 }
 
-                VmResult::Ok(Value::from(Shared::new(output)))
+                VmResult::Ok(Value::from(vm_try!(Shared::new(output))))
             }
         }
     };
 }
 
-impl_map!(HashMap<String, T>);
+impl_map!(HashMap<std::String, T>);
+impl_map!(HashMap<alloc::String, T>);
 
 impl ToValue for Ordering {
     #[inline]

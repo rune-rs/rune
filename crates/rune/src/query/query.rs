@@ -8,14 +8,15 @@ use crate::no_std::prelude::*;
 use crate::no_std::rc::Rc;
 use crate::no_std::sync::Arc;
 
+use crate::alloc::AllocError;
 use crate::ast::{Span, Spanned};
 use crate::compile::context::ContextMeta;
 use crate::compile::ir;
 use crate::compile::meta::{self, FieldMeta};
 use crate::compile::{
     self, CompileVisitor, ComponentRef, Doc, DynLocation, ErrorKind, ImportStep, IntoComponent,
-    Item, ItemBuf, ItemId, ItemMeta, Located, Location, ModId, ModMeta, Names, Pool, Prelude,
-    SourceLoader, SourceMeta, UnitBuilder, Visibility, WithSpan,
+    Item, ItemBuf, ItemId, ItemMeta, Located, Location, MetaError, ModId, ModMeta, Names, Pool,
+    Prelude, SourceLoader, SourceMeta, UnitBuilder, Visibility, WithSpan,
 };
 use crate::hir;
 use crate::indexing::{self, FunctionAst, Indexed, Items};
@@ -453,7 +454,8 @@ impl<'a, 'arena> Query<'a, 'arena> {
         self.index_and_build(indexing::Entry {
             item_meta: item,
             indexed: Indexed::Module,
-        });
+        })?;
+
         Ok(query_mod)
     }
 
@@ -462,9 +464,9 @@ impl<'a, 'arena> Query<'a, 'arena> {
         &mut self,
         item_id: NonZeroId,
         source_id: SourceId,
-        spanned: Span,
+        span: Span,
     ) -> compile::Result<ModId> {
-        let location = Location::new(source_id, spanned);
+        let location = Location::new(source_id, span);
 
         let module = self.pool.alloc_module(ModMeta {
             #[cfg(feature = "emit")]
@@ -485,7 +487,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
             },
         );
 
-        self.insert_name(ItemId::default());
+        self.insert_name(ItemId::default()).with_span(span)?;
         Ok(module)
     }
 
@@ -507,12 +509,8 @@ impl<'a, 'arena> Query<'a, 'arena> {
     }
 
     /// Insert the given compile meta.
-    #[allow(clippy::result_large_err)]
-    pub(crate) fn insert_meta(
-        &mut self,
-        meta: meta::Meta,
-    ) -> Result<&ItemMeta, compile::error::MetaConflict> {
-        self.visitor.register_meta(meta.as_meta_ref(self.pool));
+    pub(crate) fn insert_meta(&mut self, meta: meta::Meta) -> Result<&ItemMeta, MetaError> {
+        self.visitor.register_meta(meta.as_meta_ref(self.pool))?;
 
         let meta = match self
             .inner
@@ -520,11 +518,13 @@ impl<'a, 'arena> Query<'a, 'arena> {
             .entry((meta.item_meta.item, meta.parameters))
         {
             hash_map::Entry::Occupied(e) => {
-                return Err(compile::error::MetaConflict {
-                    current: meta.info(self.pool),
-                    existing: e.get().info(self.pool),
-                    parameters: meta.parameters,
-                });
+                return Err(MetaError::new(
+                    compile::error::MetaErrorKind::MetaConflict {
+                        current: meta.info(self.pool),
+                        existing: e.get().info(self.pool),
+                        parameters: meta.parameters,
+                    },
+                ));
             }
             hash_map::Entry::Vacant(e) => e.insert(meta),
         };
@@ -635,21 +635,24 @@ impl<'a, 'arena> Query<'a, 'arena> {
 
     /// Index the given entry. It is not allowed to overwrite other entries.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn index(&mut self, entry: indexing::Entry) {
+    pub(crate) fn index(&mut self, entry: indexing::Entry) -> compile::Result<()> {
         tracing::trace!(item = ?self.pool.item(entry.item_meta.item));
 
-        self.insert_name(entry.item_meta.item);
+        self.insert_name(entry.item_meta.item)
+            .with_span(entry.item_meta.location.span)?;
 
         self.inner
             .indexed
             .entry(entry.item_meta.item)
             .or_default()
             .push(entry);
+
+        Ok(())
     }
 
     /// Same as `index`, but also queues the indexed entry up for building.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn index_and_build(&mut self, entry: indexing::Entry) {
+    pub(crate) fn index_and_build(&mut self, entry: indexing::Entry) -> compile::Result<()> {
         self.set_used(&entry.item_meta);
 
         self.inner.queue.push_back(BuildEntry {
@@ -657,7 +660,8 @@ impl<'a, 'arena> Query<'a, 'arena> {
             build: Build::Query,
         });
 
-        self.index(entry);
+        self.index(entry)?;
+        Ok(())
     }
 
     /// Index a constant expression.
@@ -674,7 +678,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
             indexed: Indexed::ConstExpr(indexing::ConstExpr {
                 ast: Box::new(ast.clone()),
             }),
-        });
+        })?;
 
         Ok(())
     }
@@ -693,7 +697,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
             indexed: Indexed::ConstBlock(indexing::ConstBlock {
                 ast: Box::new(ast.clone()),
             }),
-        });
+        })?;
 
         Ok(())
     }
@@ -710,7 +714,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         self.index(indexing::Entry {
             item_meta,
             indexed: Indexed::ConstFn(indexing::ConstFn { item_fn }),
-        });
+        })?;
 
         Ok(())
     }
@@ -723,7 +727,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         self.index(indexing::Entry {
             item_meta,
             indexed: Indexed::Enum,
-        });
+        })?;
 
         Ok(())
     }
@@ -740,7 +744,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         self.index(indexing::Entry {
             item_meta,
             indexed: Indexed::Struct(indexing::Struct { ast }),
-        });
+        })?;
 
         Ok(())
     }
@@ -763,7 +767,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 ast,
                 index,
             }),
-        });
+        })?;
 
         Ok(())
     }
@@ -1108,7 +1112,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         self.index(indexing::Entry {
             item_meta,
             indexed: Indexed::Import(indexing::Import { wildcard, entry }),
-        });
+        })?;
 
         Ok(())
     }
@@ -1530,9 +1534,10 @@ impl<'a, 'arena> Query<'a, 'arena> {
     }
 
     /// Insert the given name into the unit.
-    fn insert_name(&mut self, item: ItemId) {
+    fn insert_name(&mut self, item: ItemId) -> Result<(), AllocError> {
         let item = self.pool.item(item);
-        self.inner.names.insert(item);
+        self.inner.names.insert(item)?;
+        Ok(())
     }
 
     /// Handle an imported indexed entry.

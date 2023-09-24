@@ -3,9 +3,9 @@ use core::convert::AsRef;
 use core::fmt;
 use core::ops::Deref;
 
-use alloc::borrow::Borrow;
-use alloc::borrow::ToOwned;
-use alloc::boxed::Box;
+use ::rust_alloc::borrow::Borrow;
+use ::rust_alloc::borrow::ToOwned;
+use ::rust_alloc::boxed::Box;
 
 #[derive(Debug)]
 #[repr(transparent)]

@@ -2,15 +2,13 @@
 
 use core::char;
 use core::cmp::Ordering;
-use core::fmt::{self, Write};
 use core::num::{ParseFloatError, ParseIntError};
 
-use alloc::string::FromUtf8Error;
-
-use crate::no_std::prelude::*;
-
 use crate as rune;
-use crate::runtime::{Bytes, Formatter, Iterator, Panic, Protocol, Value, VmErrorKind, VmResult};
+use crate::alloc::string::FromUtf8Error;
+use crate::alloc::{String, TryClone, TryToOwned, TryWrite, Vec};
+use crate::no_std::std;
+use crate::runtime::{Bytes, Formatter, Iterator, Panic, Value, VmErrorKind, VmResult};
 use crate::{Any, ContextError, Module};
 
 /// Construct the `std::string` module.
@@ -55,9 +53,9 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(parse_int)?;
     module.function_meta(parse_char)?;
 
-    module.associated_function(Protocol::ADD, add)?;
-    module.associated_function(Protocol::ADD_ASSIGN, String::push_str)?;
-    module.associated_function(Protocol::INDEX_GET, string_index_get)?;
+    module.function_meta(add)?;
+    module.function_meta(add_assign)?;
+    module.function_meta(index_get)?;
     Ok(module)
 }
 
@@ -67,8 +65,9 @@ struct NotCharBoundary(());
 
 impl NotCharBoundary {
     #[rune::function(instance, protocol = STRING_DISPLAY)]
-    fn string_display(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "index outside of character boundary")
+    fn string_display(&self, f: &mut Formatter) -> VmResult<()> {
+        vm_write!(f, "index outside of character boundary");
+        VmResult::Ok(())
     }
 
     fn install(m: &mut Module) -> Result<(), ContextError> {
@@ -128,8 +127,9 @@ impl NotCharBoundary {
 /// [`&str`]: prim@str "&str"
 /// [`into_bytes`]: String::into_bytes
 #[rune::function(free, path = String::from_utf8)]
-fn from_utf8(bytes: &[u8]) -> Result<String, FromUtf8Error> {
-    String::from_utf8(bytes.to_vec())
+fn from_utf8(bytes: &[u8]) -> VmResult<Result<String, FromUtf8Error>> {
+    let vec = vm_try!(Vec::try_from(bytes));
+    VmResult::Ok(String::from_utf8(vec))
 }
 
 /// Returns a byte slice of this `String`'s contents.
@@ -164,13 +164,13 @@ fn as_bytes(s: &str) -> Bytes {
 /// assert_eq!(s, "hello");
 /// ```
 #[rune::function(free, path = String::from)]
-fn string_from(value: &str) -> String {
-    String::from(value)
+fn string_from(value: &str) -> VmResult<String> {
+    VmResult::Ok(vm_try!(String::try_from(value)))
 }
 
 #[rune::function(free, path = String::from_str)]
-fn string_from_str(value: &str) -> String {
-    String::from(value)
+fn string_from_str(value: &str) -> VmResult<String> {
+    VmResult::Ok(vm_try!(String::try_from(value)))
 }
 
 /// Creates a new empty `String`.
@@ -234,8 +234,8 @@ fn string_new() -> String {
 /// s.push('a');
 /// ```
 #[rune::function(free, path = String::with_capacity)]
-fn string_with_capacity(capacity: usize) -> String {
-    String::with_capacity(capacity)
+fn string_with_capacity(capacity: usize) -> VmResult<String> {
+    VmResult::Ok(vm_try!(String::try_with_capacity(capacity)))
 }
 
 #[rune::function(instance)]
@@ -397,8 +397,9 @@ fn contains(this: &str, other: &str) -> bool {
 /// assert_eq!("abc123", s);
 /// ```
 #[rune::function(instance)]
-fn push(this: &mut String, c: char) {
-    this.push(c);
+fn push(this: &mut String, c: char) -> VmResult<()> {
+    vm_try!(this.try_push(c));
+    VmResult::Ok(())
 }
 
 /// Appends a given string slice onto the end of this `String`.
@@ -415,8 +416,9 @@ fn push(this: &mut String, c: char) {
 /// assert_eq!("foobar", s);
 /// ```
 #[rune::function(instance)]
-fn push_str(this: &mut String, other: &str) {
-    this.push_str(other);
+fn push_str(this: &mut String, other: &str) -> VmResult<()> {
+    vm_try!(this.try_push_str(other));
+    VmResult::Ok(())
 }
 
 /// Reserves capacity for at least `additional` bytes more than the current
@@ -460,8 +462,9 @@ fn push_str(this: &mut String, other: &str) {
 /// assert_eq!(capacity, s.capacity());
 /// ```
 #[rune::function(instance)]
-fn reserve(this: &mut String, additional: usize) {
-    this.reserve(additional);
+fn reserve(this: &mut String, additional: usize) -> VmResult<()> {
+    vm_try!(this.try_reserve(additional));
+    VmResult::Ok(())
 }
 
 /// Reserves the minimum capacity for at least `additional` bytes more than the
@@ -507,8 +510,9 @@ fn reserve(this: &mut String, additional: usize) {
 /// assert_eq!(capacity, s.capacity());
 /// ```
 #[rune::function(instance)]
-fn reserve_exact(this: &mut String, additional: usize) {
-    this.reserve_exact(additional);
+fn reserve_exact(this: &mut String, additional: usize) -> VmResult<()> {
+    vm_try!(this.try_reserve_exact(additional));
+    VmResult::Ok(())
 }
 
 /// Returns a byte slice of this `String`'s contents while moving the string.
@@ -529,7 +533,7 @@ fn reserve_exact(this: &mut String, additional: usize) {
 /// ```
 #[rune::function(instance)]
 fn into_bytes(s: String) -> Bytes {
-    Bytes::from_vec(s.into_bytes())
+    Bytes::from_vec(std::Vec::from(s.into_bytes()))
 }
 
 /// Checks that `index`-th byte is the first byte in a UTF-8 code point sequence
@@ -602,8 +606,8 @@ fn char_at(s: &str, index: usize) -> Option<char> {
 /// ```
 #[rune::function(instance)]
 #[allow(clippy::ptr_arg)]
-fn clone(s: &String) -> String {
-    s.clone()
+fn clone(s: &String) -> VmResult<String> {
+    VmResult::Ok(vm_try!(s.try_clone()))
 }
 
 /// Shrinks the capacity of this `String` to match its length.
@@ -622,8 +626,9 @@ fn clone(s: &String) -> String {
 /// assert_eq!(3, s.capacity());
 /// ```
 #[rune::function(instance)]
-fn shrink_to_fit(s: &mut String) {
-    s.shrink_to_fit();
+fn shrink_to_fit(s: &mut String) -> VmResult<()> {
+    vm_try!(s.try_shrink_to_fit());
+    VmResult::Ok(())
 }
 
 /// An iterator over substrings of this string slice, separated by
@@ -734,17 +739,34 @@ fn shrink_to_fit(s: &mut String) {
 /// [`split_whitespace`]: str::split_whitespace
 #[rune::function(instance)]
 fn split(this: &str, value: Value) -> VmResult<Iterator> {
+    const NAME: &str = "std::str::Split";
+
     let lines = match value {
-        Value::String(s) => this
-            .split(vm_try!(s.borrow_ref()).as_str())
-            .map(String::from)
-            .collect::<Vec<String>>(),
-        Value::Char(pat) => this.split(pat).map(String::from).collect::<Vec<String>>(),
+        Value::String(s) => {
+            let mut out = Vec::new();
+
+            for value in this.split(vm_try!(s.borrow_ref()).as_str()) {
+                let value = vm_try!(String::try_from(value));
+                vm_try!(out.try_push(value));
+            }
+
+            out
+        }
+        Value::Char(pat) => {
+            let mut out = Vec::new();
+
+            for value in this.split(pat) {
+                let value = vm_try!(String::try_from(value));
+                vm_try!(out.try_push(value));
+            }
+
+            out
+        }
         Value::Function(f) => {
             let f = vm_try!(f.borrow_ref());
             let mut err = None;
 
-            let lines = this.split(|c: char| match f.call::<_, bool>((c,)) {
+            let iter = this.split(|c: char| match f.call::<_, bool>((c,)) {
                 VmResult::Ok(b) => b,
                 VmResult::Err(e) => {
                     if err.is_none() {
@@ -755,13 +777,18 @@ fn split(this: &str, value: Value) -> VmResult<Iterator> {
                 }
             });
 
-            let lines = lines.map(String::from).collect::<Vec<String>>();
+            let mut out = Vec::new();
+
+            for value in iter {
+                let value = vm_try!(String::try_from(value));
+                vm_try!(out.try_push(value));
+            }
 
             if let Some(e) = err.take() {
                 return VmResult::Err(e);
             }
 
-            lines
+            out
         }
         actual => {
             return VmResult::err([
@@ -771,10 +798,7 @@ fn split(this: &str, value: Value) -> VmResult<Iterator> {
         }
     };
 
-    VmResult::Ok(Iterator::from_double_ended(
-        "std::str::Split",
-        lines.into_iter(),
-    ))
+    VmResult::Ok(Iterator::from_double_ended(NAME, lines.into_iter()))
 }
 
 /// Returns a string slice with leading and trailing whitespace removed.
@@ -792,8 +816,8 @@ fn split(this: &str, value: Value) -> VmResult<Iterator> {
 /// assert_eq!("Hello\tworld", s.trim());
 /// ```
 #[rune::function(instance)]
-fn trim(this: &str) -> String {
-    this.trim().to_owned()
+fn trim(this: &str) -> VmResult<String> {
+    VmResult::Ok(vm_try!(this.trim().try_to_owned()))
 }
 
 /// Returns a string slice with trailing whitespace removed.
@@ -827,16 +851,8 @@ fn trim(this: &str) -> String {
 /// assert!(Some('ת') == s.trim_end().chars().rev().next());
 /// ```
 #[rune::function(instance)]
-fn trim_end(this: &str) -> String {
-    this.trim_end().to_owned()
-}
-
-/// The add operation for strings.
-fn add(a: &str, b: &str) -> String {
-    let mut string = String::with_capacity(a.len() + b.len());
-    string.push_str(a);
-    string.push_str(b);
-    string
+fn trim_end(this: &str) -> VmResult<String> {
+    VmResult::Ok(vm_try!(this.trim_end().try_to_owned()))
 }
 
 /// Returns `true` if `self` has a length of zero bytes.
@@ -881,8 +897,8 @@ fn is_empty(this: &str) -> bool {
 /// assert_eq!(s, s.replace("cookie monster", "little lamb"));
 /// ```
 #[rune::function(instance)]
-fn replace(a: &str, from: &str, to: &str) -> String {
-    a.replace(from, to)
+fn replace(a: &str, from: &str, to: &str) -> VmResult<String> {
+    VmResult::Ok(vm_try!(String::try_from(a.replace(from, to))))
 }
 
 /// Returns an iterator over the [`char`]s of a string slice.
@@ -934,7 +950,7 @@ fn replace(a: &str, from: &str, to: &str) -> String {
 /// ```
 #[rune::function(instance)]
 fn chars(s: &str) -> Iterator {
-    let iter = s.chars().collect::<Vec<_>>().into_iter();
+    let iter = s.chars().collect::<std::Vec<_>>().into_iter();
     Iterator::from_double_ended("std::str::Chars", iter)
 }
 
@@ -1002,11 +1018,28 @@ fn get(this: &str, key: Value) -> VmResult<Option<String>> {
         return VmResult::Ok(None);
     };
 
-    VmResult::Ok(Some(slice.to_owned()))
+    VmResult::Ok(Some(vm_try!(slice.try_to_owned())))
+}
+
+/// The add operation for strings.
+#[rune::function(instance, protocol = ADD)]
+fn add(a: &str, b: &str) -> VmResult<String> {
+    let mut string = vm_try!(String::try_with_capacity(a.len() + b.len()));
+    vm_try!(string.try_push_str(a));
+    vm_try!(string.try_push_str(b));
+    VmResult::Ok(string)
+}
+
+/// The add assign operation for strings.
+#[rune::function(instance, protocol = ADD_ASSIGN)]
+fn add_assign(this: &mut String, other: &str) -> VmResult<()> {
+    vm_try!(this.try_push_str(other));
+    VmResult::Ok(())
 }
 
 /// Get a specific string index.
-fn string_index_get(s: &str, key: Value) -> VmResult<String> {
+#[rune::function(instance, protocol = INDEX_GET)]
+fn index_get(s: &str, key: Value) -> VmResult<String> {
     match vm_try!(__rune_fn__get(s, key)) {
         Some(slice) => VmResult::Ok(slice),
         None => VmResult::err(Panic::custom("missing string slice")),

@@ -270,7 +270,7 @@ where
     fn to_value(self) -> VmResult<Value> {
         let start = vm_try!(self.start.to_value());
         let range = RangeFrom::new(start);
-        VmResult::Ok(Value::from(range))
+        VmResult::Ok(vm_try!(Value::try_from(range)))
     }
 }
 

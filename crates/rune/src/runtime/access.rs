@@ -380,7 +380,7 @@ impl<'a, T: ?Sized> BorrowRef<'a, T> {
     /// ```
     /// use rune::runtime::{BorrowRef, Shared};
     ///
-    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
+    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4])?;
     /// let vec = vec.borrow_ref()?;
     /// let value: BorrowRef<[u32]> = BorrowRef::map(vec, |vec| &vec[0..2]);
     ///
@@ -404,7 +404,7 @@ impl<'a, T: ?Sized> BorrowRef<'a, T> {
     /// ```
     /// use rune::runtime::{BorrowRef, Shared};
     ///
-    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
+    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4])?;
     /// let vec = vec.borrow_ref()?;
     /// let mut value: Option<BorrowRef<[u32]>> = BorrowRef::try_map(vec, |vec| vec.get(0..2));
     ///
@@ -518,7 +518,7 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
     /// ```
     /// use rune::runtime::{BorrowMut, Shared};
     ///
-    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
+    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4])?;
     /// let vec = vec.borrow_mut()?;
     /// let value: BorrowMut<[u32]> = BorrowMut::map(vec, |vec| &mut vec[0..2]);
     ///
@@ -542,7 +542,7 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
     /// ```
     /// use rune::runtime::{BorrowMut, Shared};
     ///
-    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
+    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4])?;
     /// let vec = vec.borrow_mut()?;
     /// let mut value: Option<BorrowMut<[u32]>> = BorrowMut::try_map(vec, |vec| vec.get_mut(0..2));
     ///

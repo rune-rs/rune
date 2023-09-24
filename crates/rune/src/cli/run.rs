@@ -309,7 +309,7 @@ pub(super) async fn run(
 
 /// Perform a detailed trace of the program.
 async fn do_trace<T>(
-    io: &mut Io<'_>,
+    io: &Io<'_>,
     execution: &mut VmExecution<T>,
     sources: &Sources,
     dump_stack: bool,

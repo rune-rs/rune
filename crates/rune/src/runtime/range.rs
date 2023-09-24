@@ -301,7 +301,7 @@ where
         let start = vm_try!(self.start.to_value());
         let end = vm_try!(self.end.to_value());
         let range = Range::new(start, end);
-        VmResult::Ok(Value::from(range))
+        VmResult::Ok(vm_try!(Value::try_from(range)))
     }
 }
 

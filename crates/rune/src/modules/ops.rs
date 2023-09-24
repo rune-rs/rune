@@ -2,16 +2,17 @@
 
 use core::cmp::Ordering;
 
+use once_cell::sync::OnceCell;
+use rune_alloc::hash_map::RandomState;
+
 use crate as rune;
-#[cfg(feature = "std")]
-use crate::runtime::Hasher;
 use crate::runtime::{
-    ControlFlow, EnvProtocolCaller, Function, Generator, GeneratorState, Iterator, Range,
+    ControlFlow, EnvProtocolCaller, Function, Generator, GeneratorState, Hasher, Iterator, Range,
     RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Value, Vm, VmResult,
 };
 use crate::{ContextError, Module};
-#[cfg(feature = "std")]
-use std::collections::hash_map::RandomState;
+
+static STATE: OnceCell<RandomState> = OnceCell::new();
 
 #[rune::module(::std::ops)]
 /// Overloadable operators.
@@ -100,7 +101,6 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(eq)?;
     m.function_meta(partial_cmp)?;
     m.function_meta(cmp)?;
-    #[cfg(feature = "std")]
     m.function_meta(hash)?;
     Ok(m)
 }
@@ -207,11 +207,6 @@ fn cmp(lhs: Value, rhs: Value) -> VmResult<Ordering> {
     Value::cmp(&lhs, &rhs)
 }
 
-#[cfg(feature = "std")]
-lazy_static::lazy_static! {
-    static ref STATE: RandomState = RandomState::new();
-}
-
 /// Hashes the given value.
 ///
 /// For non-builtin types this uses the [`HASH`] protocol.
@@ -235,9 +230,9 @@ lazy_static::lazy_static! {
 /// assert_eq!(hash([1, 2]), hash((1, 2)));
 /// ```
 #[rune::function]
-#[cfg(feature = "std")]
 fn hash(value: Value) -> VmResult<i64> {
-    let mut hasher = Hasher::new_with(&*STATE);
+    let state = STATE.get_or_init(RandomState::new);
+    let mut hasher = Hasher::new_with(state);
 
     vm_try!(Value::hash_with(
         &value,

@@ -1,10 +1,10 @@
 use core::fmt;
 use core::future::Future;
 
-use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
 use crate as rune;
+use crate::alloc::{Box, Error, TryClone, Vec};
 use crate::module;
 use crate::runtime::{
     Args, Call, ConstValue, FromValue, FunctionHandler, OwnedTuple, Rtti, RuntimeContext, Stack,
@@ -357,7 +357,6 @@ impl Function {
 
 /// A callable sync function. This currently only supports a subset of values
 /// that are supported by the Vm.
-#[derive(Clone)]
 #[repr(transparent)]
 pub struct SyncFunction(FunctionImpl<ConstValue>);
 
@@ -470,20 +469,34 @@ impl SyncFunction {
     }
 }
 
+impl TryClone for SyncFunction {
+    fn try_clone(&self) -> Result<Self, Error> {
+        Ok(Self(self.0.try_clone()?))
+    }
+}
+
 /// A stored function, of some specific kind.
-#[derive(Clone)]
-struct FunctionImpl<V>
-where
-    V: Clone,
-    OwnedTuple: From<Box<[V]>>,
-{
+struct FunctionImpl<V> {
     inner: Inner<V>,
+}
+
+impl<V> TryClone for FunctionImpl<V>
+where
+    V: TryClone,
+{
+    #[inline]
+    fn try_clone(&self) -> Result<Self, Error> {
+        Ok(Self {
+            inner: self.inner.try_clone()?,
+        })
+    }
 }
 
 impl<V> FunctionImpl<V>
 where
-    V: Clone,
-    OwnedTuple: From<Box<[V]>>,
+    V: TryClone,
+    OwnedTuple: TryFrom<Box<[V]>>,
+    VmErrorKind: From<<OwnedTuple as TryFrom<Box<[V]>>>::Error>,
 {
     fn call<A, T>(&self, args: A) -> VmResult<T>
     where
@@ -493,30 +506,38 @@ where
         let value = match &self.inner {
             Inner::FnHandler(handler) => {
                 let arg_count = args.count();
-                let mut stack = Stack::with_capacity(arg_count);
+                let mut stack = vm_try!(Stack::with_capacity(arg_count));
                 vm_try!(args.into_stack(&mut stack));
                 vm_try!((handler.handler)(&mut stack, arg_count));
                 vm_try!(stack.pop())
             }
             Inner::FnOffset(fn_offset) => vm_try!(fn_offset.call(args, ())),
-            Inner::FnClosureOffset(closure) => vm_try!(closure
-                .fn_offset
-                .call(args, (OwnedTuple::from(closure.environment.clone()),))),
+            Inner::FnClosureOffset(closure) => {
+                let environment = vm_try!(closure.environment.try_clone());
+                let environment = vm_try!(OwnedTuple::try_from(environment));
+                vm_try!(closure.fn_offset.call(args, (environment,)))
+            }
             Inner::FnUnitStruct(empty) => {
                 vm_try!(check_args(args.count(), 0));
-                Value::empty_struct(empty.rtti.clone())
+                vm_try!(Value::empty_struct(empty.rtti.clone()))
             }
             Inner::FnTupleStruct(tuple) => {
                 vm_try!(check_args(args.count(), tuple.args));
-                Value::tuple_struct(tuple.rtti.clone(), vm_try!(args.into_vec()))
+                vm_try!(Value::tuple_struct(
+                    tuple.rtti.clone(),
+                    vm_try!(args.try_into_vec())
+                ))
             }
             Inner::FnUnitVariant(unit) => {
                 vm_try!(check_args(args.count(), 0));
-                Value::unit_variant(unit.rtti.clone())
+                vm_try!(Value::unit_variant(unit.rtti.clone()))
             }
             Inner::FnTupleVariant(tuple) => {
                 vm_try!(check_args(args.count(), tuple.args));
-                Value::tuple_variant(tuple.rtti.clone(), vm_try!(args.into_vec()))
+                vm_try!(Value::tuple_variant(
+                    tuple.rtti.clone(),
+                    vm_try!(args.try_into_vec())
+                ))
             }
         };
 
@@ -569,11 +590,12 @@ where
                 None
             }
             Inner::FnClosureOffset(closure) => {
-                if let Some(vm_call) = vm_try!(closure.fn_offset.call_with_vm(
-                    vm,
-                    args,
-                    (OwnedTuple::from(closure.environment.clone()),),
-                )) {
+                let environment = vm_try!(closure.environment.try_clone());
+                let environment = vm_try!(OwnedTuple::try_from(environment));
+
+                if let Some(vm_call) =
+                    vm_try!(closure.fn_offset.call_with_vm(vm, args, (environment,)))
+                {
                     return VmResult::Ok(Some(VmHalt::VmCall(vm_call)));
                 }
 
@@ -581,34 +603,38 @@ where
             }
             Inner::FnUnitStruct(empty) => {
                 vm_try!(check_args(args, 0));
-                vm.stack_mut().push(Value::empty_struct(empty.rtti.clone()));
+                let value = vm_try!(Value::empty_struct(empty.rtti.clone()));
+                vm_try!(vm.stack_mut().push(value));
                 None
             }
             Inner::FnTupleStruct(tuple) => {
                 vm_try!(check_args(args, tuple.args));
 
-                let value = Value::tuple_struct(
+                let value = vm_try!(Value::tuple_struct(
                     tuple.rtti.clone(),
-                    vm_try!(vm.stack_mut().pop_sequence(args)),
-                );
-                vm.stack_mut().push(value);
+                    vm_try!(vm_try!(vm.stack_mut().pop_sequence(args))),
+                ));
+
+                vm_try!(vm.stack_mut().push(value));
                 None
             }
             Inner::FnUnitVariant(tuple) => {
                 vm_try!(check_args(args, 0));
 
-                let value = Value::unit_variant(tuple.rtti.clone());
-                vm.stack_mut().push(value);
+                let value = vm_try!(Value::unit_variant(tuple.rtti.clone()));
+
+                vm_try!(vm.stack_mut().push(value));
                 None
             }
             Inner::FnTupleVariant(tuple) => {
                 vm_try!(check_args(args, tuple.args));
 
-                let value = Value::tuple_variant(
+                let value = vm_try!(Value::tuple_variant(
                     tuple.rtti.clone(),
-                    vm_try!(vm.stack_mut().pop_sequence(args)),
-                );
-                vm.stack_mut().push(value);
+                    vm_try!(vm_try!(vm.stack_mut().pop_sequence(args))),
+                ));
+
+                vm_try!(vm.stack_mut().push(value));
                 None
             }
         };
@@ -717,15 +743,15 @@ impl FunctionImpl<Value> {
     fn into_sync(self) -> VmResult<FunctionImpl<ConstValue>> {
         let inner = match self.inner {
             Inner::FnClosureOffset(closure) => {
-                let mut env = Vec::with_capacity(closure.environment.len());
+                let mut env = vm_try!(Vec::try_with_capacity(closure.environment.len()));
 
-                for value in closure.environment.into_vec() {
-                    env.push(vm_try!(FromValue::from_value(value)));
+                for value in Vec::from(closure.environment) {
+                    vm_try!(env.try_push(vm_try!(FromValue::from_value(value))));
                 }
 
                 Inner::FnClosureOffset(FnClosureOffset {
                     fn_offset: closure.fn_offset,
-                    environment: env.into_boxed_slice(),
+                    environment: vm_try!(env.try_into_boxed_slice()),
                 })
             }
             Inner::FnHandler(inner) => Inner::FnHandler(inner),
@@ -774,7 +800,7 @@ impl fmt::Debug for Function {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 enum Inner<V> {
     /// A native function handler.
     /// This is wrapped as an `Arc<dyn FunctionHandler>`.
@@ -797,6 +823,23 @@ enum Inner<V> {
     FnUnitVariant(FnUnitVariant),
     /// Constructor for a tuple variant.
     FnTupleVariant(FnTupleVariant),
+}
+
+impl<V> TryClone for Inner<V>
+where
+    V: TryClone,
+{
+    fn try_clone(&self) -> Result<Self, Error> {
+        Ok(match self {
+            Inner::FnHandler(inner) => Inner::FnHandler(inner.clone()),
+            Inner::FnOffset(inner) => Inner::FnOffset(inner.clone()),
+            Inner::FnClosureOffset(inner) => Inner::FnClosureOffset(inner.try_clone()?),
+            Inner::FnUnitStruct(inner) => Inner::FnUnitStruct(inner.clone()),
+            Inner::FnTupleStruct(inner) => Inner::FnTupleStruct(inner.clone()),
+            Inner::FnUnitVariant(inner) => Inner::FnUnitVariant(inner.clone()),
+            Inner::FnTupleVariant(inner) => Inner::FnTupleVariant(inner.clone()),
+        })
+    }
 }
 
 #[derive(Clone)]
@@ -892,12 +935,25 @@ impl fmt::Debug for FnOffset {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct FnClosureOffset<V> {
     /// The offset in the associated unit that the function lives.
     fn_offset: FnOffset,
     /// Captured environment.
     environment: Box<[V]>,
+}
+
+impl<V> TryClone for FnClosureOffset<V>
+where
+    V: TryClone,
+{
+    #[inline]
+    fn try_clone(&self) -> Result<Self, Error> {
+        Ok(Self {
+            fn_offset: self.fn_offset.clone(),
+            environment: self.environment.try_clone()?,
+        })
+    }
 }
 
 #[derive(Debug, Clone)]

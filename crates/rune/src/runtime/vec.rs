@@ -2,16 +2,17 @@ mod iter;
 
 use core::cmp;
 use core::cmp::Ordering;
-use core::fmt::{self, Write};
+use core::fmt;
 use core::ops;
 use core::slice;
 use core::slice::SliceIndex;
 
-use crate::no_std::prelude::*;
-use crate::no_std::vec;
+use crate::no_std::std;
 
 use crate as rune;
-#[cfg(feature = "std")]
+use crate::alloc::fmt::TryWrite;
+use crate::alloc::{self, Error, Global, TryClone};
+#[cfg(feature = "alloc")]
 use crate::runtime::Hasher;
 use crate::runtime::{
     Formatter, FromValue, Iterator, ProtocolCaller, RawRef, Ref, Shared, ToValue, UnsafeToRef,
@@ -38,11 +39,11 @@ use self::iter::Iter;
 /// assert_eq!(None::<bool>, vec.get_value(2).into_result()?);
 /// # Ok::<_, rune::Error>(())
 /// ```
-#[derive(Clone, Any)]
+#[derive(Any)]
 #[repr(transparent)]
 #[rune(builtin, static_type = VEC_TYPE, from_value = Value::into_vec)]
 pub struct Vec {
-    inner: vec::Vec<Value>,
+    inner: alloc::Vec<Value, Global>,
 }
 
 impl Vec {
@@ -59,7 +60,7 @@ impl Vec {
     /// ```
     pub const fn new() -> Self {
         Self {
-            inner: vec::Vec::new(),
+            inner: alloc::Vec::new_in(Global),
         }
     }
 
@@ -73,14 +74,14 @@ impl Vec {
 
     /// Construct a new dynamic vector guaranteed to have at least the given
     /// capacity.
-    pub fn with_capacity(cap: usize) -> Self {
-        Self {
-            inner: vec::Vec::with_capacity(cap),
-        }
+    pub fn with_capacity(cap: usize) -> Result<Self, Error> {
+        Ok(Self {
+            inner: alloc::Vec::try_with_capacity_in(cap, Global)?,
+        })
     }
 
     /// Convert into inner std vector.
-    pub fn into_inner(self) -> vec::Vec<Value> {
+    pub fn into_inner(self) -> alloc::Vec<Value, Global> {
         self.inner
     }
 
@@ -127,8 +128,8 @@ impl Vec {
     }
 
     /// Appends an element to the back of a dynamic vector.
-    pub fn push(&mut self, value: Value) {
-        self.inner.push(value);
+    pub fn push(&mut self, value: Value) -> Result<(), Error> {
+        self.inner.try_push(value)
     }
 
     /// Appends an element to the back of a dynamic vector, converting it as
@@ -137,7 +138,7 @@ impl Vec {
     where
         T: ToValue,
     {
-        self.inner.push(vm_try!(value.to_value()));
+        vm_try!(self.inner.try_push(vm_try!(value.to_value())));
         VmResult::Ok(())
     }
 
@@ -188,8 +189,9 @@ impl Vec {
 
     /// Inserts an element at position index within the vector, shifting all
     /// elements after it to the right.
-    pub fn insert(&mut self, index: usize, value: Value) {
-        self.inner.insert(index, value);
+    pub fn insert(&mut self, index: usize, value: Value) -> VmResult<()> {
+        vm_try!(self.inner.try_insert(index, value));
+        VmResult::Ok(())
     }
 
     /// Extend this vector with something that implements the into_iter
@@ -198,7 +200,7 @@ impl Vec {
         let mut it = vm_try!(value.into_iter());
 
         while let Some(value) = vm_try!(it.next()) {
-            self.push(value);
+            vm_try!(self.push(value));
         }
 
         VmResult::Ok(())
@@ -206,7 +208,7 @@ impl Vec {
 
     /// Convert into a rune iterator.
     pub fn iter_ref(this: Ref<[Value]>) -> Iterator {
-        Iterator::from_double_ended("std::vec::Iter", Iter::new(this))
+        Iterator::from_double_ended("std::alloc::Iter", Iter::new(this))
     }
 
     /// Access the inner values as a slice.
@@ -218,14 +220,12 @@ impl Vec {
         this: &[Value],
         f: &mut Formatter,
         caller: &mut impl ProtocolCaller,
-    ) -> VmResult<fmt::Result> {
+    ) -> VmResult<()> {
         let mut it = this.iter().peekable();
         vm_write!(f, "[");
 
         while let Some(value) = it.next() {
-            if let Err(fmt::Error) = vm_try!(value.string_debug_with(f, caller)) {
-                return VmResult::Ok(Err(fmt::Error));
-            }
+            vm_try!(value.string_debug_with(f, caller));
 
             if it.peek().is_some() {
                 vm_write!(f, ", ");
@@ -233,7 +233,7 @@ impl Vec {
         }
 
         vm_write!(f, "]");
-        VmResult::Ok(Ok(()))
+        VmResult::Ok(())
     }
 
     pub(crate) fn partial_eq_with(
@@ -379,10 +379,11 @@ impl Vec {
             return VmResult::Ok(None);
         };
 
-        VmResult::Ok(Some(Value::vec(values.to_vec())))
+        let vec = vm_try!(alloc::Vec::try_from(values));
+        VmResult::Ok(Some(vm_try!(Value::vec(vec))))
     }
 
-    #[cfg(feature = "std")]
+    #[cfg(feature = "alloc")]
     pub(crate) fn hash_with(
         &self,
         hasher: &mut Hasher,
@@ -393,6 +394,14 @@ impl Vec {
         }
 
         VmResult::Ok(())
+    }
+}
+
+impl TryClone for Vec {
+    fn try_clone(&self) -> Result<Self, Error> {
+        Ok(Self {
+            inner: self.inner.try_clone()?,
+        })
     }
 }
 
@@ -420,7 +429,7 @@ impl ops::DerefMut for Vec {
 
 impl IntoIterator for Vec {
     type Item = Value;
-    type IntoIter = vec::IntoIter<Value>;
+    type IntoIter = alloc::vec::IntoIter<Value>;
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
@@ -448,23 +457,38 @@ impl<'a> IntoIterator for &'a mut Vec {
     }
 }
 
-impl From<vec::Vec<Value>> for Vec {
+impl TryFrom<std::Vec<Value>> for Vec {
+    type Error = Error;
+
     #[inline]
-    fn from(inner: vec::Vec<Value>) -> Self {
+    fn try_from(values: std::Vec<Value>) -> Result<Self, Self::Error> {
+        let mut inner = alloc::Vec::try_with_capacity_in(values.len(), Global)?;
+
+        for value in values {
+            inner.try_push(value)?;
+        }
+
+        Ok(Self { inner })
+    }
+}
+
+impl TryFrom<std::Box<[Value]>> for Vec {
+    type Error = Error;
+
+    #[inline]
+    fn try_from(inner: std::Box<[Value]>) -> Result<Self, Self::Error> {
+        Vec::try_from(inner.into_vec())
+    }
+}
+
+impl From<alloc::Vec<Value, Global>> for Vec {
+    #[inline]
+    fn from(inner: alloc::Vec<Value>) -> Self {
         Self { inner }
     }
 }
 
-impl From<Box<[Value]>> for Vec {
-    #[inline]
-    fn from(inner: Box<[Value]>) -> Self {
-        Self {
-            inner: inner.to_vec(),
-        }
-    }
-}
-
-impl<T> FromValue for vec::Vec<T>
+impl<T> FromValue for std::Vec<T>
 where
     T: FromValue,
 {
@@ -472,10 +496,28 @@ where
         let vec = vm_try!(value.into_vec());
         let vec = vm_try!(vec.take());
 
-        let mut output = vec::Vec::with_capacity(vec.len());
+        let mut output = std::Vec::with_capacity(vec.len());
 
         for value in vec {
             output.push(vm_try!(T::from_value(value)));
+        }
+
+        VmResult::Ok(output)
+    }
+}
+
+impl<T> FromValue for alloc::Vec<T>
+where
+    T: FromValue,
+{
+    fn from_value(value: Value) -> VmResult<Self> {
+        let vec = vm_try!(value.into_vec());
+        let vec = vm_try!(vec.take());
+
+        let mut output = vm_try!(alloc::Vec::try_with_capacity_in(vec.len(), Global));
+
+        for value in vec {
+            vm_try!(output.try_push(vm_try!(T::from_value(value))));
         }
 
         VmResult::Ok(output)
@@ -494,17 +536,32 @@ impl UnsafeToRef for [Value] {
     }
 }
 
-impl<T> ToValue for vec::Vec<T>
+impl<T> ToValue for alloc::Vec<T, Global>
 where
     T: ToValue,
 {
     fn to_value(self) -> VmResult<Value> {
-        let mut vec = vec::Vec::with_capacity(self.len());
+        let mut inner = vm_try!(alloc::Vec::try_with_capacity_in(self.len(), Global));
 
         for value in self {
-            vec.push(vm_try!(value.to_value()));
+            vm_try!(inner.try_push(vm_try!(value.to_value())));
         }
 
-        VmResult::Ok(Value::from(Shared::new(Vec::from(vec))))
+        VmResult::Ok(Value::from(vm_try!(Shared::new(Vec { inner }))))
+    }
+}
+
+impl<T> ToValue for std::Vec<T>
+where
+    T: ToValue,
+{
+    fn to_value(self) -> VmResult<Value> {
+        let mut inner = vm_try!(alloc::Vec::try_with_capacity_in(self.len(), Global));
+
+        for value in self {
+            vm_try!(inner.try_push(vm_try!(value.to_value())));
+        }
+
+        VmResult::Ok(Value::from(vm_try!(Shared::new(Vec { inner }))))
     }
 }

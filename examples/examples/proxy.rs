@@ -1,3 +1,4 @@
+use rune::alloc;
 use rune::runtime::{Mut, Ref};
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{Any, Context, Diagnostics, FromValue, Vm};
@@ -11,7 +12,7 @@ struct MyBytes {
 
 #[derive(FromValue)]
 struct Proxy {
-    field: Mut<String>,
+    field: Mut<alloc::String>,
     my_bytes: Ref<MyBytes>,
 }
 

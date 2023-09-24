@@ -1,9 +1,9 @@
 //! The `std::vec` module.
 
 use core::cmp::Ordering;
-use core::fmt;
 
 use crate as rune;
+use crate::alloc::TryClone;
 #[cfg(feature = "std")]
 use crate::runtime::Hasher;
 use crate::runtime::{
@@ -119,8 +119,8 @@ fn vec_new() -> Vec {
 /// assert!(vec.capacity() >= 11);
 /// ```
 #[rune::function(free, path = Vec::with_capacity)]
-fn vec_with_capacity(capacity: usize) -> Vec {
-    Vec::with_capacity(capacity)
+fn vec_with_capacity(capacity: usize) -> VmResult<Vec> {
+    VmResult::Ok(vm_try!(Vec::with_capacity(capacity)))
 }
 
 /// Returns the number of elements in the vector, also referred to as its
@@ -370,8 +370,9 @@ fn pop(this: &mut Vec) -> Option<Value> {
 /// assert_eq!(vec, [1, 2, 3]);
 /// ```
 #[rune::function(instance)]
-fn push(this: &mut Vec, value: Value) {
-    this.push(value);
+fn push(this: &mut Vec, value: Value) -> VmResult<()> {
+    vm_try!(this.push(value));
+    VmResult::Ok(())
 }
 
 /// Removes and returns the element at position `index` within the vector,
@@ -440,7 +441,7 @@ fn insert(this: &mut Vec, index: usize, value: Value) -> VmResult<()> {
         });
     }
 
-    this.insert(index, value);
+    vm_try!(this.insert(index, value));
     VmResult::Ok(())
 }
 
@@ -458,8 +459,8 @@ fn insert(this: &mut Vec, index: usize, value: Value) -> VmResult<()> {
 /// assert_eq!(b, [1, 2, 3, 4]);
 /// ```
 #[rune::function(instance)]
-fn clone(this: &Vec) -> Vec {
-    this.clone()
+fn clone(this: &Vec) -> VmResult<Vec> {
+    VmResult::Ok(vm_try!(this.try_clone()))
 }
 
 /// Construct an iterator over the tuple.
@@ -547,7 +548,7 @@ fn index_set(this: &mut Vec, index: usize, value: Value) -> VmResult<()> {
 /// assert_eq!(format!("{:?}", vec), "[1, 2, 3]");
 /// ```
 #[rune::function(instance, protocol = STRING_DEBUG)]
-fn string_debug(this: &Vec, f: &mut Formatter) -> VmResult<fmt::Result> {
+fn string_debug(this: &Vec, f: &mut Formatter) -> VmResult<()> {
     Vec::string_debug_with(this, f, &mut EnvProtocolCaller)
 }
 

@@ -68,7 +68,7 @@ fn assign_ops_struct() -> Result<()> {
                 foo.derived = $initial;
                 foo.custom = $initial;
 
-                let output = vm.clone().call(["type"], (&mut foo,))?;
+                let output = vm.try_clone()?.call(["type"], (&mut foo,))?;
 
                 assert_eq!(foo.value, $expected, "{} != {} (value)", foo.value, $expected);
                 assert_eq!(foo.field, $expected, "{} != {} (field)", foo.field, $expected);
@@ -150,7 +150,7 @@ fn assign_ops_tuple() -> Result<()> {
                 foo.2 = $initial;
                 foo.3 = $initial;
 
-                let output = vm.clone().call(["type"], (&mut foo,))?;
+                let output = vm.try_clone()?.call(["type"], (&mut foo,))?;
 
                 assert_eq!(foo.0, $expected, "{} != {} (value .0)", foo.0, $expected);
                 assert_eq!(foo.1, $expected, "{} != {} (field .1)", foo.1, $expected);
@@ -219,7 +219,7 @@ fn ordering_struct() -> Result<()> {
                 let mut foo = External::default();
                 foo.value = $initial;
 
-                let output = vm.clone().call(["type"], (&mut foo,))?;
+                let output = vm.try_clone()?.call(["type"], (&mut foo,))?;
                 let a = <bool as FromValue>::from_value(output).into_result()?;
 
                 assert_eq!(a, $expected, "{} != {} (value)", foo.value, $expected);
@@ -288,7 +288,7 @@ fn eq_struct() -> Result<()> {
                 let mut foo = External::default();
                 foo.value = $initial;
 
-                let output = vm.clone().call(["type"], (&mut foo,))?;
+                let output = vm.try_clone()?.call(["type"], (&mut foo,))?;
                 let a = <bool as FromValue>::from_value(output).into_result()?;
 
                 assert_eq!(a, $expected, "{} != {} (value)", foo.value, $expected);

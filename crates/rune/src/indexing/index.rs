@@ -401,7 +401,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
     fn expand_attribute_macro<T>(
         &mut self,
         attr: &mut ast::Attribute,
-        item: &mut ast::Item,
+        item: &ast::Item,
     ) -> compile::Result<Option<T>>
     where
         T: Parse,
@@ -567,8 +567,7 @@ pub(crate) fn file(idx: &mut Indexer<'_, '_>, ast: &mut ast::File) -> compile::R
             // for the `item` handler or to be used by the macro_call expansion
             // below.
             if let Some(mut attr) = item.remove_first_attribute() {
-                let Some(file) = idx.expand_attribute_macro::<ast::File>(&mut attr, &mut item)?
-                else {
+                let Some(file) = idx.expand_attribute_macro::<ast::File>(&mut attr, &item)? else {
                     skipped_attributes.push(attr);
 
                     if !matches!(item, ast::Item::MacroCall(_)) && item.attributes().is_empty() {
@@ -699,7 +698,7 @@ pub(crate) fn empty_block_fn(
             is_bench: false,
             impl_item: None,
         }),
-    });
+    })?;
 
     Ok(())
 }
@@ -849,9 +848,9 @@ pub(crate) fn item_fn_immediate(
         || is_bench;
 
     if is_exported {
-        idx.q.index_and_build(entry);
+        idx.q.index_and_build(entry)?;
     } else {
-        idx.q.index(entry);
+        idx.q.index(entry)?;
     }
 
     Ok(())

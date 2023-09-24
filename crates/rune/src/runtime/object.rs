@@ -5,12 +5,12 @@ use core::fmt;
 use core::hash;
 use core::iter;
 
-use crate::no_std::collections::{btree_map, BTreeMap};
-use crate::no_std::prelude::*;
+use crate::alloc::{btree_map, BTreeMap};
+use crate::alloc::{Error, Global, String, TryClone};
 
 use crate as rune;
 use crate::compile::ItemBuf;
-use crate::runtime::{FromValue, Iterator, ProtocolCaller, Ref, ToValue, Value, VmResult};
+use crate::runtime::{FromValue, Iterator, ProtocolCaller, RawRef, Ref, ToValue, Value, VmResult};
 use crate::Any;
 
 /// An owning iterator over the entries of a `Object`.
@@ -63,11 +63,13 @@ pub type Values<'a> = btree_map::Values<'a, String, Value>;
 /// # Rust Examples
 ///
 /// ```rust
+/// use rune::alloc::String;
+///
 /// let mut object = rune::runtime::Object::new();
 /// assert!(object.is_empty());
 ///
-/// object.insert_value(String::from("foo"), 42).into_result()?;
-/// object.insert_value(String::from("bar"), true).into_result()?;
+/// object.insert_value(String::try_from("foo")?, 42).into_result()?;
+/// object.insert_value(String::try_from("bar")?, true).into_result()?;
 /// assert_eq!(2, object.len());
 ///
 /// assert_eq!(Some(42), object.get_value("foo").into_result()?);
@@ -75,11 +77,11 @@ pub type Values<'a> = btree_map::Values<'a, String, Value>;
 /// assert_eq!(None::<bool>, object.get_value("baz").into_result()?);
 /// # Ok::<_, rune::Error>(())
 /// ```
-#[derive(Any, Default, Clone)]
+#[derive(Any, Default)]
 #[repr(transparent)]
 #[rune(builtin, static_type = OBJECT_TYPE)]
 pub struct Object {
-    inner: BTreeMap<String, Value>,
+    inner: BTreeMap<String, Value, Global>,
 }
 
 impl Object {
@@ -95,7 +97,7 @@ impl Object {
     #[rune::function(keep, path = Self::new)]
     pub fn new() -> Self {
         Self {
-            inner: BTreeMap::new(),
+            inner: BTreeMap::new_in(Global),
         }
     }
 
@@ -108,13 +110,18 @@ impl Object {
     /// object.insert("Hello", "World");
     /// ```
     #[inline]
-    #[rune::function(keep, path = Self::with_capacity)]
-    pub fn with_capacity(#[allow(unused)] capacity: usize) -> Self {
+    #[rune::function(path = Self::with_capacity)]
+    pub(crate) fn rune_with_capacity(capacity: usize) -> VmResult<Self> {
+        VmResult::Ok(vm_try!(Self::with_capacity(capacity)))
+    }
+
+    /// Construct a new object with the given capacity.
+    pub fn with_capacity(#[allow(unused)] capacity: usize) -> Result<Self, Error> {
         // BTreeMap doesn't support setting capacity on creation but we keep
         // this here in case we want to switch store later.
-        Self {
-            inner: BTreeMap::new(),
-        }
+        Ok(Self {
+            inner: BTreeMap::new_in(Global),
+        })
     }
 
     /// Returns the number of elements in the object.
@@ -211,7 +218,7 @@ impl Object {
     where
         T: ToValue,
     {
-        self.inner.insert(k, vm_try!(v.to_value()));
+        vm_try!(self.inner.try_insert(k, vm_try!(v.to_value())));
         VmResult::Ok(())
     }
 
@@ -231,9 +238,16 @@ impl Object {
     /// assert_eq!(map["b"], 3);
     /// ```
     #[inline]
-    #[rune::function(keep)]
-    pub fn insert(&mut self, k: String, v: Value) -> Option<Value> {
-        self.inner.insert(k, v)
+    #[rune::function(path = Self::insert)]
+    pub(crate) fn rune_insert(&mut self, k: String, v: Value) -> VmResult<Option<Value>> {
+        VmResult::Ok(vm_try!(self.inner.try_insert(k, v)))
+    }
+
+    /// Inserts a key-value pair into the map.
+    ///
+    /// If the map did not have this key present, `None` is returned.
+    pub fn insert(&mut self, k: String, v: Value) -> Result<Option<Value>, Error> {
+        Ok(self.inner.try_insert(k, v)?)
     }
 
     /// Clears the object, removing all key-value pairs. Keeps the allocated
@@ -291,8 +305,37 @@ impl Object {
     /// assert_eq!(vec, [("a", 1), ("b", 2), ("c", 3)]);
     /// ```
     #[rune::function(keep, path = Self::iter)]
-    pub fn rune_iter(&self) -> Iterator {
-        Iterator::from("std::object::Iter", self.clone().into_iter())
+    pub fn rune_iter(this: Ref<Self>) -> Iterator {
+        struct Iter {
+            iter: btree_map::IterRaw<String, Value>,
+            _guard: RawRef,
+        }
+
+        impl iter::Iterator for Iter {
+            type Item = VmResult<(String, Value)>;
+
+            fn next(&mut self) -> Option<Self::Item> {
+                let (key, value) = self.iter.next()?;
+
+                unsafe {
+                    let key = match (*key).try_clone() {
+                        Ok(key) => key,
+                        Err(err) => return Some(VmResult::err(err)),
+                    };
+
+                    Some(VmResult::Ok((key, (*value).clone())))
+                }
+            }
+        }
+
+        // SAFETY: we're holding onto the related reference guard, and making
+        // sure that it's dropped after the iterator.
+        let iter = unsafe { this.inner.iter_raw() };
+        let (_, _guard) = Ref::into_raw(this);
+
+        let iter = Iter { iter, _guard };
+
+        Iterator::from("std::object::Iter", iter)
     }
 
     pub(crate) fn partial_eq_with(
@@ -418,6 +461,14 @@ impl Object {
     }
 }
 
+impl TryClone for Object {
+    fn try_clone(&self) -> Result<Self, Error> {
+        Ok(Self {
+            inner: self.inner.try_clone()?,
+        })
+    }
+}
+
 impl<'a> IntoIterator for &'a Object {
     type Item = (&'a String, &'a Value);
     type IntoIter = Iter<'a>;
@@ -454,14 +505,6 @@ impl fmt::Debug for Object {
     }
 }
 
-impl iter::FromIterator<(String, Value)> for Object {
-    fn from_iter<T: IntoIterator<Item = (String, Value)>>(src: T) -> Self {
-        Self {
-            inner: src.into_iter().collect(),
-        }
-    }
-}
-
 from_value!(Object, into_object);
 
 pub struct DebugStruct<'a> {
@@ -471,6 +514,8 @@ pub struct DebugStruct<'a> {
 
 impl fmt::Display for DebugStruct<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use ::rust_alloc::string::ToString;
+
         let mut d = f.debug_struct(&self.item.to_string());
 
         for (key, value) in self.st.iter() {

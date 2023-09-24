@@ -1,13 +1,13 @@
 use serde::{Deserialize, Serialize};
 
 use crate::no_std::collections::HashMap;
-use crate::no_std::prelude::*;
-use crate::no_std::vec;
-
+use crate::no_std::std;
 use crate::runtime::{
     Bytes, FromValue, Object, OwnedTuple, Shared, ToValue, TypeInfo, Value, Vec, VmErrorKind,
     VmResult,
 };
+
+use crate::alloc::{Error, TryClone};
 
 /// A constant value.
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -25,17 +25,17 @@ pub enum ConstValue {
     /// An float constant.
     Float(f64),
     /// A string constant designated by its slot.
-    String(String),
+    String(std::String),
     /// A byte string.
     Bytes(Bytes),
     /// A vector of values.
-    Vec(vec::Vec<ConstValue>),
+    Vec(std::Vec<ConstValue>),
     /// An anonymous tuple.
-    Tuple(Box<[ConstValue]>),
+    Tuple(std::Box<[ConstValue]>),
     /// An anonymous object.
-    Object(HashMap<String, ConstValue>),
+    Object(HashMap<std::String, ConstValue>),
     /// An option.
-    Option(Option<Box<ConstValue>>),
+    Option(Option<std::Box<ConstValue>>),
 }
 
 impl ConstValue {
@@ -44,47 +44,53 @@ impl ConstValue {
     /// We provide this associated method since a constant value can be
     /// converted into a value infallibly, which is not captured by the trait
     /// otherwise.
-    pub fn into_value(self) -> Value {
-        match self {
+    pub fn into_value(self) -> Result<Value, Error> {
+        Ok(match self {
             Self::Byte(b) => Value::Byte(b),
             Self::Char(c) => Value::Char(c),
             Self::Bool(b) => Value::Bool(b),
             Self::Integer(n) => Value::Integer(n),
             Self::Float(n) => Value::Float(n),
-            Self::String(s) => Value::String(Shared::new(s)),
-            Self::Bytes(b) => Value::Bytes(Shared::new(b)),
-            Self::Option(option) => {
-                Value::Option(Shared::new(option.map(|some| some.into_value())))
+            Self::String(string) => {
+                let string = rune_alloc::String::try_from(string)?;
+                Value::String(Shared::new(string)?)
             }
+            Self::Bytes(b) => Value::Bytes(Shared::new(b)?),
+            Self::Option(option) => Value::Option(Shared::new(match option {
+                Some(some) => Some(some.into_value()?),
+                None => None,
+            })?),
             Self::Vec(vec) => {
-                let mut v = Vec::with_capacity(vec.len());
+                let mut v = Vec::with_capacity(vec.len())?;
 
                 for value in vec {
-                    v.push(value.into_value());
+                    v.push(value.into_value()?)?;
                 }
 
-                Value::Vec(Shared::new(v))
+                Value::Vec(Shared::new(v)?)
             }
             Self::EmptyTuple => Value::EmptyTuple,
             Self::Tuple(tuple) => {
-                let mut t = vec::Vec::with_capacity(tuple.len());
+                let mut t = rune_alloc::Vec::try_with_capacity(tuple.len())?;
 
-                for value in vec::Vec::from(tuple) {
-                    t.push(value.into_value());
+                for value in std::Vec::from(tuple) {
+                    let value = value.into_value()?;
+                    t.try_push(value)?;
                 }
 
-                Value::Tuple(Shared::new(OwnedTuple::from(t)))
+                Value::Tuple(Shared::new(OwnedTuple::try_from(t)?)?)
             }
             Self::Object(object) => {
-                let mut o = Object::with_capacity(object.len());
+                let mut o = Object::with_capacity(object.len())?;
 
                 for (key, value) in object {
-                    o.insert(key, value.into_value());
+                    let key = rune_alloc::String::try_from(key)?;
+                    o.insert(key, value.into_value()?)?;
                 }
 
-                Value::Object(Shared::new(o))
+                Value::Object(Shared::new(o)?)
             }
-        }
+        })
     }
 
     /// Try to coerce into boolean.
@@ -125,10 +131,10 @@ impl FromValue for ConstValue {
             Value::Float(f) => Self::Float(f),
             Value::String(s) => {
                 let s = vm_try!(s.take());
-                Self::String(s)
+                Self::String(std::String::from(s))
             }
             Value::Option(option) => Self::Option(match vm_try!(option.take()) {
-                Some(some) => Some(Box::new(vm_try!(Self::from_value(some)))),
+                Some(some) => Some(std::Box::new(vm_try!(Self::from_value(some)))),
                 None => None,
             }),
             Value::Bytes(b) => {
@@ -137,7 +143,7 @@ impl FromValue for ConstValue {
             }
             Value::Vec(vec) => {
                 let vec = vm_try!(vec.take());
-                let mut const_vec = vec::Vec::with_capacity(vec.len());
+                let mut const_vec = std::Vec::with_capacity(vec.len());
 
                 for value in vec {
                     const_vec.push(vm_try!(Self::from_value(value)));
@@ -147,9 +153,9 @@ impl FromValue for ConstValue {
             }
             Value::Tuple(tuple) => {
                 let tuple = vm_try!(tuple.take());
-                let mut const_tuple = vec::Vec::with_capacity(tuple.len());
+                let mut const_tuple = std::Vec::with_capacity(tuple.len());
 
-                for value in vec::Vec::from(tuple.into_inner()) {
+                for value in rune_alloc::Vec::from(tuple.into_inner()) {
                     const_tuple.push(vm_try!(Self::from_value(value)));
                 }
 
@@ -160,6 +166,7 @@ impl FromValue for ConstValue {
                 let mut const_object = HashMap::with_capacity(object.len());
 
                 for (key, value) in object {
+                    let key = std::String::from(key);
                     const_object.insert(key, vm_try!(Self::from_value(value)));
                 }
 
@@ -174,8 +181,15 @@ impl FromValue for ConstValue {
     }
 }
 
+impl TryClone for ConstValue {
+    fn try_clone(&self) -> Result<Self, Error> {
+        // TODO: perform fallible allocations.
+        Ok(self.clone())
+    }
+}
+
 impl ToValue for ConstValue {
     fn to_value(self) -> VmResult<Value> {
-        VmResult::Ok(ConstValue::into_value(self))
+        VmResult::Ok(vm_try!(ConstValue::into_value(self)))
     }
 }

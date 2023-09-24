@@ -247,7 +247,7 @@ macro_rules! impl_function_traits {
                 $(drop($var.1);)*
 
                 let ret = vm_try!(ToValue::to_value(ret));
-                stack.push(ret);
+                vm_try!(stack.push(ret));
                 VmResult::Ok(())
             }
         }
@@ -281,7 +281,7 @@ macro_rules! impl_function_traits {
                     VmResult::Ok(vm_try!(output.to_value()))
                 });
 
-                stack.push(ret);
+                vm_try!(stack.push(vm_try!(Value::try_from(ret))));
                 VmResult::Ok(())
             }
         }

@@ -1,7 +1,7 @@
-use core::fmt::{self, Write};
 use core::ops;
 
 use crate as rune;
+use crate::alloc::fmt::TryWrite;
 use crate::runtime::{Formatter, FromValue, ProtocolCaller, ToValue, Value, VmResult};
 use crate::Any;
 
@@ -36,29 +36,21 @@ impl ControlFlow {
         &self,
         f: &mut Formatter,
         caller: &mut impl ProtocolCaller,
-    ) -> VmResult<fmt::Result> {
+    ) -> VmResult<()> {
         match self {
             ControlFlow::Continue(value) => {
                 vm_write!(f, "Continue(");
-
-                if let Err(fmt::Error) = vm_try!(Value::string_debug_with(value, f, caller)) {
-                    return VmResult::Ok(Err(fmt::Error));
-                }
-
+                vm_try!(Value::string_debug_with(value, f, caller));
                 vm_write!(f, ")");
             }
             ControlFlow::Break(value) => {
                 vm_write!(f, "Break(");
-
-                if let Err(fmt::Error) = vm_try!(Value::string_debug_with(value, f, caller)) {
-                    return VmResult::Ok(Err(fmt::Error));
-                }
-
+                vm_try!(Value::string_debug_with(value, f, caller));
                 vm_write!(f, ")");
             }
         }
 
-        VmResult::Ok(Ok(()))
+        VmResult::Ok(())
     }
 
     pub(crate) fn partial_eq_with(
@@ -104,7 +96,7 @@ where
             ops::ControlFlow::Break(value) => ControlFlow::Break(vm_try!(ToValue::to_value(value))),
         };
 
-        VmResult::Ok(Value::from(value))
+        VmResult::Ok(vm_try!(Value::try_from(value)))
     }
 }
 

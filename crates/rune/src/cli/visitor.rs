@@ -1,7 +1,7 @@
 use crate::no_std::prelude::*;
 
 use crate::compile::meta;
-use crate::compile::{CompileVisitor, ItemBuf, MetaRef};
+use crate::compile::{MetaError, CompileVisitor, ItemBuf, MetaRef};
 use crate::Hash;
 
 /// Attribute to collect.
@@ -36,13 +36,14 @@ impl FunctionVisitor {
 }
 
 impl CompileVisitor for FunctionVisitor {
-    fn register_meta(&mut self, meta: MetaRef<'_>) {
+    fn register_meta(&mut self, meta: MetaRef<'_>) -> Result<(), MetaError> {
         let type_hash = match (self.attribute, &meta.kind) {
             (Attribute::Test, meta::Kind::Function { is_test, .. }) if *is_test => meta.hash,
             (Attribute::Bench, meta::Kind::Function { is_bench, .. }) if *is_bench => meta.hash,
-            _ => return,
+            _ => return Ok(()),
         };
 
         self.functions.push((type_hash, meta.item.to_owned()));
+        Ok(())
     }
 }

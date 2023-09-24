@@ -1,12 +1,11 @@
 //! The `std::iter` module.
 
-use crate::no_std::prelude::*;
-
 use crate as rune;
+use crate::alloc::String;
 use crate::modules::collections::VecDeque;
-#[cfg(feature = "std")]
+#[cfg(feature = "alloc")]
 use crate::modules::collections::{HashMap, HashSet};
-#[cfg(feature = "std")]
+#[cfg(feature = "alloc")]
 use crate::runtime::EnvProtocolCaller;
 use crate::runtime::{
     FromValue, Function, Iterator, Object, OwnedTuple, Protocol, Value, Vec, VmResult,
@@ -1075,7 +1074,7 @@ fn collect_vec_deque(it: Iterator) -> VmResult<VecDeque> {
 /// assert_eq!((0..3).iter().collect::<HashSet>(), HashSet::from([0, 1, 2]));
 /// ```
 #[rune::function(instance, path = collect::<HashSet>)]
-#[cfg(feature = "std")]
+#[cfg(feature = "alloc")]
 fn collect_hash_set(it: Iterator) -> VmResult<HashSet> {
     let mut caller = EnvProtocolCaller;
     HashSet::from_iter(it, &mut caller)
@@ -1093,7 +1092,7 @@ fn collect_hash_set(it: Iterator) -> VmResult<HashSet> {
 /// assert_eq!(actual, expected);
 /// ```
 #[rune::function(instance, path = collect::<HashMap>)]
-#[cfg(feature = "std")]
+#[cfg(feature = "alloc")]
 fn collect_hash_map(it: Iterator) -> VmResult<HashMap> {
     let mut caller = EnvProtocolCaller;
     HashMap::from_iter(it, &mut caller)
@@ -1108,7 +1107,9 @@ fn collect_hash_map(it: Iterator) -> VmResult<HashMap> {
 /// ```
 #[rune::function(instance, path = collect::<OwnedTuple>)]
 fn collect_tuple(it: Iterator) -> VmResult<OwnedTuple> {
-    VmResult::Ok(OwnedTuple::from(vm_try!(it.collect::<Value>())))
+    VmResult::Ok(vm_try!(OwnedTuple::try_from(
+        vm_try!(it.collect::<Value>())
+    )))
 }
 
 /// Collect the iterator as an [`Object`].
@@ -1121,11 +1122,11 @@ fn collect_tuple(it: Iterator) -> VmResult<OwnedTuple> {
 #[rune::function(instance, path = collect::<Object>)]
 fn collect_object(mut it: Iterator) -> VmResult<Object> {
     let (cap, _) = it.size_hint();
-    let mut object = Object::with_capacity(cap);
+    let mut object = vm_try!(Object::with_capacity(cap));
 
     while let Some(value) = vm_try!(it.next()) {
         let (key, value) = vm_try!(<(String, Value)>::from_value(value));
-        object.insert(key, value);
+        vm_try!(object.insert(key, value));
     }
 
     VmResult::Ok(object)
@@ -1145,11 +1146,11 @@ fn collect_string(mut it: Iterator) -> VmResult<String> {
     while let Some(value) = vm_try!(it.next()) {
         match value {
             Value::Char(c) => {
-                string.push(c);
+                vm_try!(string.try_push(c));
             }
             Value::String(s) => {
                 let s = vm_try!(s.into_ref());
-                string.push_str(s.as_str());
+                vm_try!(string.try_push_str(s.as_str()));
             }
             value => {
                 return VmResult::expected::<String>(vm_try!(value.type_info()));

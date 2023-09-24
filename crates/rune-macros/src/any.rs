@@ -658,11 +658,7 @@ where
                     type Guard = #raw_into_ref;
 
                     unsafe fn unsafe_to_ref<'a>(value: #value) -> #vm_result<(&'a Self, Self::Guard)> {
-                        let (value, guard) = match value.into_any_ptr() {
-                            #vm_result::Ok(value) => value,
-                            #vm_result::Err(err) => return #vm_result::Err(err),
-                        };
-
+                        let (value, guard) = #vm_try!(value.into_any_ptr());
                         #vm_result::Ok((#non_null::as_ref(&value), guard))
                     }
                 }
@@ -672,11 +668,7 @@ where
                     type Guard = #raw_into_mut;
 
                     unsafe fn unsafe_to_mut<'a>(value: #value) -> #vm_result<(&'a mut Self, Self::Guard)> {
-                        let (mut value, guard) = match value.into_any_mut() {
-                            #vm_result::Ok(value) => value,
-                            #vm_result::Err(err) => return #vm_result::Err(err),
-                        };
-
+                        let (mut value, guard) = #vm_try!(value.into_any_mut());
                         #vm_result::Ok((#non_null::as_mut(&mut value), guard))
                     }
                 }
@@ -686,7 +678,7 @@ where
                     type Guard = #pointer_guard;
 
                     unsafe fn unsafe_to_value(self) -> #vm_result<(#value, Self::Guard)> {
-                        let (shared, guard) = #shared::from_ref(self);
+                        let (shared, guard) = #vm_try!(#shared::from_ref(self));
                         #vm_result::Ok((#value::from(shared), guard))
                     }
                 }
@@ -696,7 +688,7 @@ where
                     type Guard = #pointer_guard;
 
                     unsafe fn unsafe_to_value(self) -> #vm_result<(#value, Self::Guard)> {
-                        let (shared, guard) = #shared::from_mut(self);
+                        let (shared, guard) = #vm_try!(#shared::from_mut(self));
                         #vm_result::Ok((#value::from(shared), guard))
                     }
                 }

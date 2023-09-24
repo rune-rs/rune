@@ -1,12 +1,13 @@
 //! The `std::fmt` module.
 
-use core::fmt::{self, Write};
+use core::fmt;
 
 use crate as rune;
+use crate::alloc::fmt::TryWrite;
 use crate::compile;
 use crate::macros::{FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
-use crate::runtime::{Format, Formatter};
+use crate::runtime::{Format, Formatter, VmResult};
 use crate::{ContextError, Module};
 
 /// Construct the `std::fmt` module.
@@ -21,8 +22,9 @@ pub fn module() -> Result<Module, ContextError> {
 }
 
 #[rune::function(instance, protocol = STRING_DISPLAY)]
-fn fmt_error_string_display(error: &fmt::Error, f: &mut Formatter) -> fmt::Result {
-    write!(f, "{}", error)
+fn fmt_error_string_display(error: &fmt::Error, f: &mut Formatter) -> VmResult<()> {
+    vm_write!(f, "{}", error);
+    VmResult::Ok(())
 }
 
 /// Format a string using a format specifier.

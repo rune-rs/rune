@@ -1,12 +1,13 @@
 use core::cmp::Ordering;
-use core::fmt;
 use core::mem::{replace, swap};
 use core::ops;
 use core::slice;
 
+use crate::alloc::{Error, IteratorExt, String, TryClone, TryToOwned};
 use crate::hash::{Hash, IntoHash, ToTypeHash};
 use crate::modules::{option, result};
-use crate::no_std::prelude::*;
+use crate::no_std::borrow::ToOwned;
+use crate::no_std::std;
 use crate::no_std::sync::Arc;
 use crate::no_std::vec;
 use crate::runtime::budget;
@@ -88,7 +89,7 @@ macro_rules! target_value {
 }
 
 /// A stack which references variables indirectly from a slab.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Vm {
     /// Context associated with virtual machine.
     context: Arc<RuntimeContext>,
@@ -515,7 +516,7 @@ impl Vm {
             args: expected,
         }) = self.unit.function(hash)
         {
-            self.stack.push(target);
+            vm_try!(self.stack.push(target));
             // Safety: We hold onto the guard for the duration of this call.
             let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut self.stack)) };
             vm_try!(check_args(count, expected));
@@ -524,7 +525,7 @@ impl Vm {
         }
 
         if let Some(handler) = self.context.function(hash) {
-            self.stack.push(target);
+            vm_try!(self.stack.push(target));
             // Safety: We hold onto the guard for the duration of this call.
             let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut self.stack)) };
             vm_try!(handler(&mut self.stack, count));
@@ -551,7 +552,7 @@ impl Vm {
         let hash = Hash::field_function(protocol, vm_try!(target.type_hash()), name);
 
         if let Some(handler) = self.context.function(hash) {
-            self.stack.push(target);
+            vm_try!(self.stack.push(target));
             let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut self.stack)) };
             vm_try!(handler(&mut self.stack, count));
             return VmResult::Ok(CallResult::Ok(()));
@@ -576,7 +577,7 @@ impl Vm {
         let hash = Hash::index_function(protocol, vm_try!(target.type_hash()), Hash::index(index));
 
         if let Some(handler) = self.context.function(hash) {
-            self.stack.push(target);
+            vm_try!(self.stack.push(target));
             let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut self.stack)) };
             vm_try!(handler(&mut self.stack, count));
             return VmResult::Ok(CallResult::Ok(()));
@@ -609,7 +610,7 @@ impl Vm {
             }
         };
 
-        self.stack.push(out);
+        vm_try!(self.stack.push(Value::from(out)));
         VmResult::Ok(())
     }
 
@@ -945,14 +946,14 @@ impl Vm {
             Value::Object(object) => {
                 let object = vm_try!(object.borrow_ref());
 
-                if let Some(value) = object.get(&***index) {
+                if let Some(value) = object.get(index.as_str()) {
                     return VmResult::Ok(CallResult::Ok(value.clone()));
                 }
             }
             Value::Struct(typed_object) => {
                 let typed_object = vm_try!(typed_object.borrow_ref());
 
-                if let Some(value) = typed_object.get(&***index) {
+                if let Some(value) = typed_object.get(index.as_str()) {
                     return VmResult::Ok(CallResult::Ok(value.clone()));
                 }
             }
@@ -960,7 +961,7 @@ impl Vm {
                 let variant = vm_try!(variant.borrow_ref());
 
                 if let VariantData::Struct(data) = variant.data() {
-                    if let Some(value) = data.get(&***index) {
+                    if let Some(value) = data.get(index.as_str()) {
                         return VmResult::Ok(CallResult::Ok(value.clone()));
                     }
                 }
@@ -991,7 +992,8 @@ impl Vm {
         VmResult::Ok(match target {
             Value::Object(object) => {
                 let mut object = vm_try!(object.borrow_mut());
-                object.insert(field.as_str().to_owned(), value);
+                let key = vm_try!(field.as_str().try_to_owned());
+                vm_try!(object.insert(key, value));
                 return VmResult::Ok(CallResult::Ok(()));
             }
             Value::Struct(typed_object) => {
@@ -1003,8 +1005,8 @@ impl Vm {
                 }
 
                 return err(VmErrorKind::MissingField {
-                    field: field.as_str().to_owned(),
                     target: typed_object.type_info(),
+                    field: field.as_str().to_owned(),
                 });
             }
             Value::Variant(variant) => {
@@ -1018,8 +1020,8 @@ impl Vm {
                 }
 
                 return err(VmErrorKind::MissingField {
-                    field: field.as_str().to_owned(),
                     target: variant.type_info(),
+                    field: field.as_str().to_owned(),
                 });
             }
             target => {
@@ -1159,36 +1161,36 @@ impl Vm {
             }
         };
 
-        self.stack.push(out);
+        vm_try!(self.stack.push(Value::from(out)));
         VmResult::Ok(())
     }
 
     /// Construct a future from calling an async function.
     fn call_generator_fn(&mut self, offset: usize, args: usize) -> Result<(), VmErrorKind> {
-        let stack = self.stack.drain(args)?.collect::<Stack>();
+        let stack = self.stack.drain(args)?.try_collect::<Stack>()?;
         let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack);
         vm.ip = offset;
-        self.stack.push(Generator::new(vm));
+        self.stack.push(Value::try_from(Generator::new(vm))?)?;
         Ok(())
     }
 
     /// Construct a stream from calling a function.
     fn call_stream_fn(&mut self, offset: usize, args: usize) -> Result<(), VmErrorKind> {
-        let stack = self.stack.drain(args)?.collect::<Stack>();
+        let stack = self.stack.drain(args)?.try_collect::<Stack>()?;
         let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack);
         vm.ip = offset;
-        self.stack.push(Stream::new(vm));
+        self.stack.push(Value::try_from(Stream::new(vm))?)?;
         Ok(())
     }
 
     /// Construct a future from calling a function.
     fn call_async_fn(&mut self, offset: usize, args: usize) -> Result<(), VmErrorKind> {
-        let stack = self.stack.drain(args)?.collect::<Stack>();
+        let stack = self.stack.drain(args)?.try_collect::<Stack>()?;
         let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack);
         vm.ip = offset;
         let mut execution = vm.into_execution();
-        self.stack
-            .push(Future::new(async move { execution.async_complete().await }));
+        let future = Future::new(async move { execution.async_complete().await });
+        self.stack.push(Value::try_from(future)?)?;
         Ok(())
     }
 
@@ -1317,12 +1319,13 @@ impl Vm {
 
         let (lhs, rhs) = match (lhs, rhs) {
             (Value::Integer(lhs), Value::Integer(rhs)) => {
-                self.stack
-                    .push(vm_try!(integer_op(lhs, rhs).ok_or_else(error)));
+                vm_try!(self
+                    .stack
+                    .push(Value::from(vm_try!(integer_op(lhs, rhs).ok_or_else(error)))));
                 return VmResult::Ok(());
             }
             (Value::Float(lhs), Value::Float(rhs)) => {
-                self.stack.push(float_op(lhs, rhs));
+                vm_try!(self.stack.push(Value::from(float_op(lhs, rhs))));
                 return VmResult::Ok(());
             }
             (lhs, rhs) => (lhs, rhs),
@@ -1353,7 +1356,7 @@ impl Vm {
 
         let (lhs, rhs) = match (lhs, rhs) {
             (Value::Integer(lhs), Value::Integer(rhs)) => {
-                self.stack.push(integer_op(lhs, rhs));
+                vm_try!(self.stack.push(Value::from(integer_op(lhs, rhs))));
                 return VmResult::Ok(());
             }
             (lhs, rhs) => (lhs, rhs),
@@ -1385,11 +1388,11 @@ impl Vm {
 
         let (lhs, rhs) = match (lhs, rhs) {
             (Value::Integer(lhs), Value::Integer(rhs)) => {
-                self.stack.push(integer_op(lhs, rhs));
+                vm_try!(self.stack.push(Value::from(integer_op(lhs, rhs))));
                 return VmResult::Ok(());
             }
             (Value::Bool(lhs), Value::Bool(rhs)) => {
-                self.stack.push(bool_op(lhs, rhs));
+                vm_try!(self.stack.push(Value::from(bool_op(lhs, rhs))));
                 return VmResult::Ok(());
             }
             (lhs, rhs) => (lhs, rhs),
@@ -1443,8 +1446,8 @@ impl Vm {
 
         let (lhs, rhs) = match (lhs, rhs) {
             (Value::Integer(lhs), Value::Integer(rhs)) => {
-                self.stack
-                    .push(vm_try!(integer_op(lhs, rhs).ok_or_else(error)));
+                let integer = vm_try!(integer_op(lhs, rhs).ok_or_else(error));
+                vm_try!(self.stack.push(Value::from(integer)));
                 return VmResult::Ok(());
             }
             (lhs, rhs) => (lhs, rhs),
@@ -1506,7 +1509,7 @@ impl Vm {
 
         // NB: nothing to poll.
         if futures.is_empty() {
-            self.stack.push(());
+            vm_try!(self.stack.push(Value::from(())));
             return VmResult::Ok(None);
         }
 
@@ -1522,7 +1525,7 @@ impl Vm {
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_push(&mut self, value: InstValue) -> VmResult<()> {
-        self.stack.push(value.into_value());
+        vm_try!(self.stack.push(value.into_value()));
         VmResult::Ok(())
     }
 
@@ -1550,7 +1553,7 @@ impl Vm {
     fn op_clean(&mut self, n: usize) -> VmResult<()> {
         let value = vm_try!(self.stack.pop());
         vm_try!(self.op_popn(n));
-        self.stack.push(value);
+        vm_try!(self.stack.push(value));
         VmResult::Ok(())
     }
 
@@ -1559,7 +1562,7 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_copy(&mut self, offset: usize) -> VmResult<()> {
         let value = vm_try!(self.stack.at_offset(offset)).clone();
-        self.stack.push(value);
+        vm_try!(self.stack.push(value));
         VmResult::Ok(())
     }
 
@@ -1568,7 +1571,7 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_move(&mut self, offset: usize) -> VmResult<()> {
         let value = vm_try!(self.stack.at_offset(offset)).clone();
-        self.stack.push(vm_try!(value.take()));
+        vm_try!(self.stack.push(vm_try!(value.take())));
         VmResult::Ok(())
     }
 
@@ -1654,16 +1657,24 @@ impl Vm {
     /// Construct a new vec.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_vec(&mut self, count: usize) -> VmResult<()> {
-        let vec = Vec::from(vm_try!(self.stack.pop_sequence(count)));
-        self.stack.push(Shared::new(vec));
+        let vec = vm_try!(Vec::try_from(vm_try!(vm_try!(self
+            .stack
+            .pop_sequence(count)))));
+        vm_try!(self
+            .stack
+            .push(vm_try!(Value::try_from(vm_try!(Shared::new(vec))))));
         VmResult::Ok(())
     }
 
     /// Construct a new tuple.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_tuple(&mut self, count: usize) -> VmResult<()> {
-        let tuple = vm_try!(self.stack.pop_sequence(count));
-        self.stack.push(OwnedTuple::from(tuple));
+        let tuple = vm_try!(vm_try!(self.stack.pop_sequence(count)));
+        vm_try!(self
+            .stack
+            .push(vm_try!(Value::try_from(vm_try!(OwnedTuple::try_from(
+                tuple
+            ))))));
         VmResult::Ok(())
     }
 
@@ -1676,7 +1687,12 @@ impl Vm {
             tuple[n] = vm_try!(self.stack.address(*arg));
         }
 
-        self.stack.push(OwnedTuple::from(tuple));
+        vm_try!(self
+            .stack
+            .push(vm_try!(Value::try_from(vm_try!(OwnedTuple::try_from(
+                tuple
+            ))))));
+
         VmResult::Ok(())
     }
 
@@ -1684,8 +1700,9 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_push_tuple(&mut self) -> VmResult<()> {
         let tuple = vm_try!(vm_try!(self.stack.pop()).into_tuple());
-        self.stack
-            .extend(vm_try!(tuple.borrow_ref()).iter().cloned());
+        vm_try!(self
+            .stack
+            .extend(vm_try!(tuple.borrow_ref()).iter().cloned()));
         VmResult::Ok(())
     }
 
@@ -1702,7 +1719,7 @@ impl Vm {
             }
         };
 
-        self.stack.push(value);
+        vm_try!(self.stack.push(value));
         VmResult::Ok(())
     }
 
@@ -1719,7 +1736,7 @@ impl Vm {
             }
         };
 
-        self.stack.push(value);
+        vm_try!(self.stack.push(value));
         VmResult::Ok(())
     }
 
@@ -1858,13 +1875,13 @@ impl Vm {
                 let rhs = vm_try!(self.stack.address(rhs));
                 let lhs = vm_try!(self.stack.address(lhs));
                 let test = vm_try!(Value::partial_eq_with(&lhs, &rhs, self));
-                self.stack.push(test);
+                vm_try!(self.stack.push(Value::from(test)));
             }
             InstOp::Neq => {
                 let rhs = vm_try!(self.stack.address(rhs));
                 let lhs = vm_try!(self.stack.address(lhs));
                 let test = vm_try!(Value::partial_eq_with(&lhs, &rhs, self));
-                self.stack.push(!test);
+                vm_try!(self.stack.push(Value::from(!test)));
             }
             InstOp::And => {
                 vm_try!(self.internal_boolean_op(|a, b| a && b, "&&", lhs, rhs));
@@ -1874,15 +1891,15 @@ impl Vm {
             }
             InstOp::As => {
                 let value = vm_try!(self.as_op(lhs, rhs));
-                self.stack.push(value);
+                vm_try!(self.stack.push(value));
             }
             InstOp::Is => {
                 let is_instance = vm_try!(self.test_is_instance(lhs, rhs));
-                self.stack.push(is_instance);
+                vm_try!(self.stack.push(Value::from(is_instance)));
             }
             InstOp::IsNot => {
                 let is_instance = vm_try!(self.test_is_instance(lhs, rhs));
-                self.stack.push(!is_instance);
+                vm_try!(self.stack.push(Value::from(!is_instance)));
             }
         }
 
@@ -1996,7 +2013,7 @@ impl Vm {
             match &target {
                 Value::Object(object) => {
                     let mut object = vm_try!(object.borrow_mut());
-                    object.insert(field.to_owned(), value);
+                    vm_try!(object.insert(vm_try!(field.try_to_owned()), value));
                     return VmResult::Ok(());
                 }
                 Value::Struct(typed_object) => {
@@ -2008,8 +2025,8 @@ impl Vm {
                     }
 
                     return err(VmErrorKind::MissingField {
-                        field: field.to_owned(),
                         target: typed_object.type_info(),
+                        field: field.to_owned(),
                     });
                 }
                 Value::Variant(variant) => {
@@ -2023,8 +2040,8 @@ impl Vm {
                     }
 
                     return err(VmErrorKind::MissingField {
-                        field: field.to_owned(),
                         target: variant.type_info(),
+                        field: field.to_owned(),
                     });
                 }
                 _ => {}
@@ -2057,7 +2074,7 @@ impl Vm {
         }
 
         let exit = self.pop_call_frame()?;
-        self.stack.push(return_value);
+        self.stack.push(return_value)?;
         Ok(exit)
     }
 
@@ -2126,7 +2143,7 @@ impl Vm {
     #[tracing::instrument(skip(self))]
     fn op_return_unit(&mut self) -> Result<bool, VmErrorKind> {
         let exit = self.pop_call_frame()?;
-        self.stack.push(());
+        self.stack.push(Value::from(()))?;
         Ok(exit)
     }
 
@@ -2135,7 +2152,7 @@ impl Vm {
         let instance = self.stack.pop()?;
         let ty = instance.type_hash()?;
         let hash = Hash::associated_function(ty, hash);
-        self.stack.push(Value::Type(Type::new(hash)));
+        self.stack.push(Value::Type(Type::new(hash)))?;
         Ok(())
     }
 
@@ -2153,7 +2170,7 @@ impl Vm {
                     &target,
                     string_ref.as_str()
                 )) {
-                    self.stack.push(value);
+                    vm_try!(self.stack.push(value));
                     return VmResult::Ok(());
                 }
             }
@@ -2166,7 +2183,7 @@ impl Vm {
                 };
 
                 if let Some(value) = vm_try!(Self::try_tuple_like_index_get(&target, index)) {
-                    self.stack.push(value);
+                    vm_try!(self.stack.push(value));
                     return VmResult::Ok(());
                 }
             }
@@ -2194,7 +2211,7 @@ impl Vm {
         let value = vm_try!(self.stack.pop());
 
         if let Some(value) = vm_try!(Self::try_tuple_like_index_get(&value, index)) {
-            self.stack.push(value);
+            vm_try!(self.stack.push(value));
             return VmResult::Ok(());
         }
 
@@ -2232,7 +2249,7 @@ impl Vm {
         let value = vm_try!(self.stack.at_offset(offset));
 
         if let Some(value) = vm_try!(Self::try_tuple_like_index_get(value, index)) {
-            self.stack.push(value);
+            vm_try!(self.stack.push(value));
             return VmResult::Ok(());
         }
 
@@ -2255,10 +2272,10 @@ impl Vm {
     fn op_eq_bool(&mut self, boolean: bool) -> VmResult<()> {
         let value = vm_try!(self.stack.pop());
 
-        self.stack.push(match value {
+        vm_try!(self.stack.push(Value::from(match value {
             Value::Bool(actual) => actual == boolean,
             _ => false,
-        });
+        })));
 
         VmResult::Ok(())
     }
@@ -2270,7 +2287,7 @@ impl Vm {
 
         match vm_try!(self.try_object_slot_index_get(target, string_slot)) {
             CallResult::Ok(value) => {
-                self.stack.push(value);
+                vm_try!(self.stack.push(value));
                 VmResult::Ok(())
             }
             CallResult::Unsupported(target) => err(VmErrorKind::UnsupportedObjectSlotIndexGet {
@@ -2303,7 +2320,7 @@ impl Vm {
 
         match vm_try!(self.try_object_slot_index_get(target, string_slot)) {
             CallResult::Ok(value) => {
-                self.stack.push(value);
+                vm_try!(self.stack.push(value));
                 VmResult::Ok(())
             }
             CallResult::Unsupported(target) => err(VmErrorKind::UnsupportedObjectSlotIndexGet {
@@ -2320,14 +2337,17 @@ impl Vm {
             .lookup_object_keys(slot)
             .ok_or(VmErrorKind::MissingStaticObjectKeys { slot }));
 
-        let mut object = Object::with_capacity(keys.len());
+        let mut object = vm_try!(Object::with_capacity(keys.len()));
         let values = vm_try!(self.stack.drain(keys.len()));
 
         for (key, value) in keys.iter().zip(values) {
-            object.insert(key.clone(), value);
+            let key = vm_try!(String::try_from(key.as_str()));
+            vm_try!(object.insert(key, value));
         }
 
-        self.stack.push(Shared::new(object));
+        vm_try!(self
+            .stack
+            .push(vm_try!(Value::try_from(vm_try!(Shared::new(object))))));
         VmResult::Ok(())
     }
 
@@ -2337,30 +2357,32 @@ impl Vm {
         let value = match range {
             InstRange::RangeFrom => {
                 let start = vm_try!(self.stack.pop());
-                Value::from(RangeFrom::new(start))
+                vm_try!(Value::try_from(RangeFrom::new(start)))
             }
-            InstRange::RangeFull => Value::from(RangeFull::new()),
+            InstRange::RangeFull => {
+                vm_try!(Value::try_from(RangeFull::new()))
+            }
             InstRange::RangeInclusive => {
                 let end = vm_try!(self.stack.pop());
                 let start = vm_try!(self.stack.pop());
-                Value::from(RangeInclusive::new(start, end))
+                vm_try!(Value::try_from(RangeInclusive::new(start, end)))
             }
             InstRange::RangeToInclusive => {
                 let end = vm_try!(self.stack.pop());
-                Value::from(RangeToInclusive::new(end))
+                vm_try!(Value::try_from(RangeToInclusive::new(end)))
             }
             InstRange::RangeTo => {
                 let end = vm_try!(self.stack.pop());
-                Value::from(RangeTo::new(end))
+                vm_try!(Value::try_from(RangeTo::new(end)))
             }
             InstRange::Range => {
                 let end = vm_try!(self.stack.pop());
                 let start = vm_try!(self.stack.pop());
-                Value::from(Range::new(start, end))
+                vm_try!(Value::try_from(Range::new(start, end)))
             }
         };
 
-        self.stack.push(value);
+        vm_try!(self.stack.push(value));
         VmResult::Ok(())
     }
 
@@ -2372,7 +2394,9 @@ impl Vm {
             .lookup_rtti(hash)
             .ok_or(VmErrorKind::MissingRtti { hash }));
 
-        self.stack.push(EmptyStruct { rtti: rtti.clone() });
+        vm_try!(self
+            .stack
+            .push(vm_try!(Value::try_from(EmptyStruct { rtti: rtti.clone() }))));
         VmResult::Ok(())
     }
 
@@ -2390,16 +2414,17 @@ impl Vm {
             .ok_or(VmErrorKind::MissingRtti { hash }));
 
         let values = vm_try!(self.stack.drain(keys.len()));
-        let mut data = Object::with_capacity(keys.len());
+        let mut data = vm_try!(Object::with_capacity(keys.len()));
 
         for (key, value) in keys.iter().zip(values) {
-            data.insert(key.clone(), value);
+            let key = vm_try!(String::try_from(key.as_str()));
+            vm_try!(data.insert(key, value));
         }
 
-        self.stack.push(Struct {
+        vm_try!(self.stack.push(vm_try!(Value::try_from(Struct {
             rtti: rtti.clone(),
             data,
-        });
+        }))));
 
         VmResult::Ok(())
     }
@@ -2412,7 +2437,9 @@ impl Vm {
             .lookup_variant_rtti(hash)
             .ok_or(VmErrorKind::MissingVariantRtti { hash }));
 
-        self.stack.push(Variant::unit(rtti.clone()));
+        vm_try!(self
+            .stack
+            .push(vm_try!(Value::try_from(Variant::unit(rtti.clone())))));
         VmResult::Ok(())
     }
 
@@ -2429,28 +2456,38 @@ impl Vm {
             .lookup_variant_rtti(hash)
             .ok_or(VmErrorKind::MissingVariantRtti { hash }));
 
-        let mut data = Object::with_capacity(keys.len());
+        let mut data = vm_try!(Object::with_capacity(keys.len()));
         let values = vm_try!(self.stack.drain(keys.len()));
 
         for (key, value) in keys.iter().zip(values) {
-            data.insert(key.clone(), value);
+            let key = vm_try!(String::try_from(key.as_str()));
+            vm_try!(data.insert(key, value));
         }
 
-        self.stack.push(Variant::struct_(rtti.clone(), data));
+        vm_try!(self.stack.push(vm_try!(Value::try_from(Variant::struct_(
+            rtti.clone(),
+            data
+        )))));
         VmResult::Ok(())
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_string(&mut self, slot: usize) -> VmResult<()> {
         let string = vm_try!(self.unit.lookup_string(slot));
-        self.stack.push(String::from(string.as_str()));
+        vm_try!(self
+            .stack
+            .push(vm_try!(Value::try_from(vm_try!(String::try_from(
+                string.as_str()
+            ))))));
         VmResult::Ok(())
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_bytes(&mut self, slot: usize) -> VmResult<()> {
-        let bytes = vm_try!(self.unit.lookup_bytes(slot)).to_owned();
-        self.stack.push(Bytes::from_vec(bytes));
+        let bytes = vm_try!(self.unit.lookup_bytes(slot)).to_vec();
+        vm_try!(self
+            .stack
+            .push(vm_try!(Value::try_from(Bytes::from_vec(bytes)))));
         VmResult::Ok(())
     }
 
@@ -2459,16 +2496,13 @@ impl Vm {
     fn op_string_concat(&mut self, len: usize, size_hint: usize) -> VmResult<()> {
         let values = vm_try!(self.stack.drain(len)).collect::<vec::Vec<_>>();
 
-        let mut f = Formatter::with_capacity(size_hint);
+        let mut f = vm_try!(Formatter::with_capacity(size_hint));
 
         for value in values {
-            if let Result::Err(fmt::Error) = vm_try!(value.string_display_with(&mut f, &mut *self))
-            {
-                return err(VmErrorKind::FormatError);
-            }
+            vm_try!(value.string_display_with(&mut f, &mut *self));
         }
 
-        self.stack.push(f.into_string());
+        vm_try!(self.stack.push(vm_try!(Value::try_from(f.string))));
         VmResult::Ok(())
     }
 
@@ -2476,14 +2510,18 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_format(&mut self, spec: FormatSpec) -> VmResult<()> {
         let value = vm_try!(self.stack.pop());
-        self.stack.push(Format { value, spec });
+        vm_try!(self
+            .stack
+            .push(vm_try!(Value::try_from(Format { value, spec }))));
         VmResult::Ok(())
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_is_unit(&mut self) -> VmResult<()> {
         let value = vm_try!(self.stack.pop());
-        self.stack.push(matches!(value, Value::EmptyTuple));
+        vm_try!(self
+            .stack
+            .push(Value::from(matches!(value, Value::EmptyTuple))));
         VmResult::Ok(())
     }
 
@@ -2493,8 +2531,8 @@ impl Vm {
         let value = vm_try!(self.stack.address(address));
 
         let result = match value {
-            Value::Result(result) => result::result_try(vm_try!(result.take())),
-            Value::Option(option) => option::option_try(vm_try!(option.take())),
+            Value::Result(result) => vm_try!(result::result_try(vm_try!(result.take()))),
+            Value::Option(option) => vm_try!(option::option_try(vm_try!(option.take()))),
             value => {
                 if let CallResult::Unsupported(target) =
                     vm_try!(self.call_instance_fn(value, Protocol::TRY, ()))
@@ -2512,7 +2550,7 @@ impl Vm {
         match result {
             ControlFlow::Continue(value) => {
                 if preserve {
-                    self.stack.push(value);
+                    vm_try!(self.stack.push(value));
                 }
 
                 VmResult::Ok(false)
@@ -2527,10 +2565,10 @@ impl Vm {
     fn op_eq_byte(&mut self, byte: u8) -> VmResult<()> {
         let value = vm_try!(self.stack.pop());
 
-        self.stack.push(match value {
+        vm_try!(self.stack.push(Value::from(match value {
             Value::Byte(actual) => actual == byte,
             _ => false,
-        });
+        })));
 
         VmResult::Ok(())
     }
@@ -2539,10 +2577,10 @@ impl Vm {
     fn op_eq_character(&mut self, character: char) -> VmResult<()> {
         let value = vm_try!(self.stack.pop());
 
-        self.stack.push(match value {
+        vm_try!(self.stack.push(Value::from(match value {
             Value::Char(actual) => actual == character,
             _ => false,
-        });
+        })));
 
         VmResult::Ok(())
     }
@@ -2551,10 +2589,10 @@ impl Vm {
     fn op_eq_integer(&mut self, integer: i64) -> VmResult<()> {
         let value = vm_try!(self.stack.pop());
 
-        self.stack.push(match value {
+        vm_try!(self.stack.push(Value::from(match value {
             Value::Integer(actual) => actual == integer,
             _ => false,
-        });
+        })));
 
         VmResult::Ok(())
     }
@@ -2569,12 +2607,12 @@ impl Vm {
             Value::String(actual) => {
                 let string = vm_try!(self.unit.lookup_string(slot));
                 let actual = vm_try!(actual.borrow_ref());
-                *actual == ***string
+                actual.as_str() == string.as_str()
             }
             _ => false,
         };
 
-        self.stack.push(Value::Bool(equal));
+        vm_try!(self.stack.push(Value::Bool(equal)));
         VmResult::Ok(())
     }
 
@@ -2593,7 +2631,7 @@ impl Vm {
             _ => false,
         };
 
-        self.stack.push(Value::Bool(equal));
+        vm_try!(self.stack.push(Value::Bool(equal)));
         VmResult::Ok(())
     }
 
@@ -2609,7 +2647,7 @@ impl Vm {
             }
         }));
 
-        self.stack.push(Value::Bool(result.unwrap_or_default()));
+        vm_try!(self.stack.push(Value::Bool(result.unwrap_or_default())));
         VmResult::Ok(())
     }
 
@@ -2617,7 +2655,7 @@ impl Vm {
     fn op_match_type(&mut self, hash: Hash) -> VmResult<()> {
         let value = vm_try!(self.stack.pop());
         let is_match = vm_try!(value.type_hash()) == hash;
-        self.stack.push(is_match);
+        vm_try!(self.stack.push(Value::from(is_match)));
         VmResult::Ok(())
     }
 
@@ -2647,7 +2685,7 @@ impl Vm {
             _ => false,
         };
 
-        self.stack.push(is_match);
+        vm_try!(self.stack.push(Value::from(is_match)));
         VmResult::Ok(())
     }
 
@@ -2690,12 +2728,30 @@ impl Vm {
             _ => false,
         };
 
-        self.stack.push(is_match);
+        vm_try!(self.stack.push(Value::from(is_match)));
         VmResult::Ok(())
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_match_object(&mut self, slot: usize, exact: bool) -> VmResult<()> {
+        fn test(object: &Object, keys: &[std::String], exact: bool) -> bool {
+            if exact {
+                if object.len() != keys.len() {
+                    return false;
+                }
+            } else if object.len() < keys.len() {
+                return false;
+            }
+
+            for key in keys {
+                if !object.contains_key(key.as_str()) {
+                    return false;
+                }
+            }
+
+            true
+        }
+
         let value = vm_try!(self.stack.pop());
 
         let is_match = match value {
@@ -2711,26 +2767,8 @@ impl Vm {
             _ => false,
         };
 
-        self.stack.push(is_match);
-        return VmResult::Ok(());
-
-        fn test(object: &Object, keys: &[String], exact: bool) -> bool {
-            if exact {
-                if object.len() != keys.len() {
-                    return false;
-                }
-            } else if object.len() < keys.len() {
-                return false;
-            }
-
-            for key in keys {
-                if !object.contains_key(key) {
-                    return false;
-                }
-            }
-
-            true
-        }
+        vm_try!(self.stack.push(Value::from(is_match)));
+        VmResult::Ok(())
     }
 
     /// Push the given variant onto the stack.
@@ -2739,20 +2777,24 @@ impl Vm {
         match variant {
             InstVariant::Some => {
                 let some = vm_try!(self.stack.pop());
-                self.stack.push(Value::Option(Shared::new(Some(some))));
+                vm_try!(self
+                    .stack
+                    .push(Value::Option(vm_try!(Shared::new(Some(some))))));
             }
             InstVariant::None => {
-                self.stack.push(Value::Option(Shared::new(None)));
+                vm_try!(self.stack.push(Value::Option(vm_try!(Shared::new(None)))));
             }
             InstVariant::Ok => {
                 let some = vm_try!(self.stack.pop());
-                self.stack
-                    .push(Value::Result(Shared::new(Result::Ok(some))));
+                vm_try!(self
+                    .stack
+                    .push(Value::Result(vm_try!(Shared::new(Result::Ok(some))))));
             }
             InstVariant::Err => {
                 let some = vm_try!(self.stack.pop());
-                self.stack
-                    .push(Value::Result(Shared::new(Result::Err(some))));
+                vm_try!(self
+                    .stack
+                    .push(Value::Result(vm_try!(Shared::new(Result::Err(some))))));
             }
         }
 
@@ -2763,7 +2805,9 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_load_fn(&mut self, hash: Hash) -> VmResult<()> {
         let function = vm_try!(self.lookup_function_by_hash(hash));
-        self.stack.push(Value::Function(Shared::new(function)));
+        vm_try!(self
+            .stack
+            .push(Value::Function(vm_try!(Shared::new(function)))));
         VmResult::Ok(())
     }
 
@@ -2780,7 +2824,8 @@ impl Vm {
             _ => return err(VmErrorKind::MissingFunction { hash }),
         };
 
-        let environment = vm_try!(self.stack.pop_sequence(count)).into_boxed_slice();
+        let environment =
+            vm_try!(vm_try!(vm_try!(self.stack.pop_sequence(count))).try_into_boxed_slice());
 
         let function = Function::from_vm_closure(
             self.context.clone(),
@@ -2792,7 +2837,9 @@ impl Vm {
             hash,
         );
 
-        self.stack.push(Value::Function(Shared::new(function)));
+        vm_try!(self
+            .stack
+            .push(Value::Function(vm_try!(Shared::new(function)))));
         VmResult::Ok(())
     }
 
@@ -2817,21 +2864,23 @@ impl Vm {
                         .lookup_rtti(hash)
                         .ok_or(VmErrorKind::MissingRtti { hash }));
 
-                    self.stack.push(Value::empty_struct(rtti.clone()));
+                    vm_try!(self.stack.push(vm_try!(Value::empty_struct(rtti.clone()))));
                 }
                 UnitFn::TupleStruct {
                     hash,
                     args: expected,
                 } => {
                     vm_try!(check_args(args, expected));
-                    let tuple = vm_try!(self.stack.pop_sequence(args));
+                    let tuple = vm_try!(vm_try!(self.stack.pop_sequence(args)));
 
                     let rtti = vm_try!(self
                         .unit
                         .lookup_rtti(hash)
                         .ok_or(VmErrorKind::MissingRtti { hash }));
 
-                    self.stack.push(Value::tuple_struct(rtti.clone(), tuple));
+                    vm_try!(self
+                        .stack
+                        .push(vm_try!(Value::tuple_struct(rtti.clone(), tuple))));
                 }
                 UnitFn::TupleVariant {
                     hash,
@@ -2844,8 +2893,10 @@ impl Vm {
                         .lookup_variant_rtti(hash)
                         .ok_or(VmErrorKind::MissingVariantRtti { hash }));
 
-                    let tuple = vm_try!(self.stack.pop_sequence(args));
-                    self.stack.push(Value::tuple_variant(rtti.clone(), tuple));
+                    let tuple = vm_try!(vm_try!(self.stack.pop_sequence(args)));
+                    vm_try!(self
+                        .stack
+                        .push(vm_try!(Value::tuple_variant(rtti.clone(), tuple))));
                 }
                 UnitFn::UnitVariant { hash } => {
                     vm_try!(check_args(args, 0));
@@ -2855,7 +2906,7 @@ impl Vm {
                         .lookup_variant_rtti(hash)
                         .ok_or(VmErrorKind::MissingVariantRtti { hash }));
 
-                    self.stack.push(Value::unit_variant(rtti.clone()));
+                    vm_try!(self.stack.push(vm_try!(Value::unit_variant(rtti.clone()))));
                 }
             },
             None => {
@@ -2980,11 +3031,11 @@ impl Vm {
     /// // Call the string_display protocol on `output`. This requires
     /// // access to a virtual machine since it might use functions
     /// // registered in the unit associated with it.
-    /// let mut f = Formatter::default();
+    /// let mut f = Formatter::new();
     ///
     /// // Note: We do an extra unwrap because the return value is
     /// // `fmt::Result`.
-    /// vm.with(|| output.string_display(&mut f)).into_result()?.expect("formatting should succeed");
+    /// vm.with(|| output.string_display(&mut f)).into_result()?;
     /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn with<F, T>(&mut self, f: F) -> T
@@ -3244,7 +3295,7 @@ impl Vm {
                     return VmResult::Ok(VmHalt::Yielded);
                 }
                 Inst::YieldUnit => {
-                    self.stack.push(Value::EmptyTuple);
+                    vm_try!(self.stack.push(Value::EmptyTuple));
                     return VmResult::Ok(VmHalt::Yielded);
                 }
                 Inst::Variant { variant } => {
@@ -3266,6 +3317,19 @@ impl Vm {
                 }
             }
         }
+    }
+}
+
+impl TryClone for Vm {
+    fn try_clone(&self) -> Result<Self, Error> {
+        Ok(Self {
+            context: self.context.clone(),
+            unit: self.unit.clone(),
+            ip: self.ip,
+            last_ip_len: self.last_ip_len,
+            stack: self.stack.try_clone()?,
+            call_frames: self.call_frames.clone(),
+        })
     }
 }
 

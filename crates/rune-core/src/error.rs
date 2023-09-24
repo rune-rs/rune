@@ -20,3 +20,5 @@ where
         (**self).source()
     }
 }
+
+impl Error for ::rune_alloc::Error {}

@@ -1,11 +1,12 @@
 use core::cmp::Ordering;
-use core::fmt::{self, Write};
+use core::iter;
 
 use crate as rune;
-use crate::no_std::collections;
-
+use crate::alloc::fmt::TryWrite;
+use crate::alloc::{self, Error, Global, TryClone};
 use crate::runtime::{
-    EnvProtocolCaller, Formatter, Iterator, Protocol, ProtocolCaller, Value, VmErrorKind, VmResult,
+    EnvProtocolCaller, Formatter, Iterator, Protocol, ProtocolCaller, RawRef, Ref, Value,
+    VmErrorKind, VmResult,
 };
 use crate::{Any, ContextError, Module};
 
@@ -63,10 +64,10 @@ pub(super) fn setup(m: &mut Module) -> Result<(), ContextError> {
     Ok(())
 }
 
-#[derive(Any, Clone, Default)]
+#[derive(Any, Default)]
 #[rune(module = crate, item = ::std::collections)]
 pub(crate) struct VecDeque {
-    inner: collections::VecDeque<Value>,
+    inner: alloc::VecDeque<Value>,
 }
 
 impl VecDeque {
@@ -82,7 +83,7 @@ impl VecDeque {
     #[rune::function(path = Self::new)]
     fn new() -> VecDeque {
         Self {
-            inner: collections::VecDeque::new(),
+            inner: alloc::VecDeque::new(),
         }
     }
 
@@ -97,10 +98,10 @@ impl VecDeque {
     /// assert!(deque.capacity() >= 10);
     /// ```
     #[rune::function(path = Self::with_capacity)]
-    fn with_capacity(count: usize) -> VecDeque {
-        Self {
-            inner: collections::VecDeque::with_capacity(count),
-        }
+    fn with_capacity(count: usize) -> VmResult<VecDeque> {
+        VmResult::Ok(Self {
+            inner: vm_try!(alloc::VecDeque::try_with_capacity_in(count, Global)),
+        })
     }
 
     /// Extend this VecDeque with something that implements the [`INTO_ITER`]
@@ -122,7 +123,7 @@ impl VecDeque {
         let mut it = vm_try!(value.into_iter());
 
         while let Some(value) = vm_try!(it.next()) {
-            self.inner.push_back(value);
+            vm_try!(self.inner.try_push_back(value));
         }
 
         VmResult::Ok(())
@@ -181,8 +182,9 @@ impl VecDeque {
     /// assert_eq!(Some(3), buf.back());
     /// ```
     #[rune::function]
-    fn push_back(&mut self, value: Value) {
-        self.inner.push_back(value);
+    fn push_back(&mut self, value: Value) -> VmResult<()> {
+        vm_try!(self.inner.try_push_back(value));
+        VmResult::Ok(())
     }
 
     /// Prepends an element to the deque.
@@ -198,8 +200,9 @@ impl VecDeque {
     /// assert_eq!(d.front(), Some(2));
     /// ```
     #[rune::function]
-    fn push_front(&mut self, value: Value) {
-        self.inner.push_front(value);
+    fn push_front(&mut self, value: Value) -> VmResult<()> {
+        vm_try!(self.inner.try_push_front(value));
+        VmResult::Ok(())
     }
 
     /// Removes the first element and returns it, or `None` if the deque is
@@ -260,8 +263,9 @@ impl VecDeque {
     /// assert!(buf.capacity() >= 11);
     /// ```
     #[rune::function]
-    fn reserve(&mut self, index: usize) {
-        self.inner.reserve(index);
+    fn reserve(&mut self, index: usize) -> VmResult<()> {
+        vm_try!(self.inner.try_reserve(index));
+        VmResult::Ok(())
     }
 
     /// Returns the number of elements in the deque.
@@ -328,7 +332,7 @@ impl VecDeque {
             });
         }
 
-        self.inner.insert(index, value);
+        vm_try!(self.inner.try_insert(index, value));
         VmResult::Ok(())
     }
 
@@ -461,22 +465,51 @@ impl VecDeque {
     /// buf.push_back(5);
     /// buf.push_back(3);
     /// buf.push_back(4);
-    /// let b = [5, 3, 4];
-    /// let c = buf;
-    /// assert_eq!(c, b);
+    ///
+    /// assert_eq!([5, 3, 4], buf.iter());
+    /// assert_eq!([4, 3, 5], buf.iter().rev());
     /// ```
     #[inline]
-    #[rune::function]
-    fn iter(&self) -> Iterator {
-        let iter = self.inner.clone().into_iter();
-        Iterator::from("std::collections::vec_deque::Iter", iter)
+    #[rune::function(instance, path = Self::iter)]
+    fn iter(this: Ref<Self>) -> Iterator {
+        struct Iter {
+            iter: alloc::vec_deque::RawIter<Value>,
+            // Drop must happen after the raw iterator.
+            _guard: RawRef,
+        }
+
+        impl iter::Iterator for Iter {
+            type Item = Value;
+
+            #[inline]
+            fn next(&mut self) -> Option<Self::Item> {
+                // SAFETY: We're holding onto the reference guard.
+                unsafe { Some((*self.iter.next()?).clone()) }
+            }
+        }
+
+        impl iter::DoubleEndedIterator for Iter {
+            fn next_back(&mut self) -> Option<Self::Item> {
+                // SAFETY: We're holding onto the reference guard.
+                unsafe { Some((*self.iter.next_back()?).clone()) }
+            }
+        }
+
+        // SAFETY: We're holding onto the reference guard.
+        let iter = unsafe { this.inner.raw_iter() };
+        let (_, _guard) = Ref::into_raw(this);
+        let iter = Iter { iter, _guard };
+        Iterator::from_double_ended("std::collections::vec_deque::Iter", iter)
     }
 
     pub(crate) fn from_iter(mut it: Iterator) -> VmResult<Self> {
-        let mut inner = collections::VecDeque::with_capacity(it.size_hint().0);
+        let mut inner = vm_try!(alloc::VecDeque::try_with_capacity_in(
+            it.size_hint().0,
+            Global
+        ));
 
         while let Some(value) = vm_try!(it.next()) {
-            inner.push_back(value);
+            vm_try!(inner.try_push_back(value));
         }
 
         VmResult::Ok(Self { inner })
@@ -519,7 +552,7 @@ impl VecDeque {
     /// assert_eq!(format!("{:?}", deque), "[1, 2, 3]");
     /// ```
     #[rune::function(protocol = STRING_DEBUG)]
-    fn string_debug(&self, f: &mut Formatter) -> VmResult<fmt::Result> {
+    fn string_debug(&self, f: &mut Formatter) -> VmResult<()> {
         self.string_debug_with(f, &mut EnvProtocolCaller)
     }
 
@@ -528,15 +561,13 @@ impl VecDeque {
         &self,
         f: &mut Formatter,
         caller: &mut impl ProtocolCaller,
-    ) -> VmResult<fmt::Result> {
+    ) -> VmResult<()> {
         let mut it = self.inner.iter().peekable();
 
         vm_write!(f, "[");
 
         while let Some(value) = it.next() {
-            if let Err(fmt::Error) = vm_try!(value.string_debug_with(f, caller)) {
-                return VmResult::Ok(Err(fmt::Error));
-            }
+            vm_try!(value.string_debug_with(f, caller));
 
             if it.peek().is_some() {
                 vm_write!(f, ", ");
@@ -544,7 +575,7 @@ impl VecDeque {
         }
 
         vm_write!(f, "]");
-        VmResult::Ok(Ok(()))
+        VmResult::Ok(())
     }
 
     /// Perform a partial equality check with this deque.
@@ -706,6 +737,20 @@ impl VecDeque {
         };
 
         VmResult::Ok(Ordering::Equal)
+    }
+}
+
+impl TryClone for VecDeque {
+    #[inline]
+    fn try_clone(&self) -> Result<Self, Error> {
+        Ok(Self {
+            inner: self.inner.try_clone()?,
+        })
+    }
+
+    #[inline]
+    fn try_clone_from(&mut self, source: &Self) -> Result<(), Error> {
+        self.inner.try_clone_from(&source.inner)
     }
 }
 

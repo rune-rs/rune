@@ -70,9 +70,6 @@ pub use self::iterator::{Iterator, IteratorTrait};
 mod type_;
 pub use self::type_::Type;
 
-mod key;
-pub use self::key::Key;
-
 mod label;
 pub use self::label::DebugLabel;
 pub(crate) use self::label::Label;
@@ -185,7 +182,7 @@ pub use self::fmt::Formatter;
 mod control_flow;
 pub use self::control_flow::ControlFlow;
 
-#[cfg(feature = "std")]
+#[cfg(feature = "alloc")]
 mod hasher;
-#[cfg(feature = "std")]
+#[cfg(feature = "alloc")]
 pub use self::hasher::Hasher;

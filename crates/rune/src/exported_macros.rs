@@ -7,7 +7,7 @@ macro_rules! vm_try {
         match $crate::runtime::try_result($expr) {
             $crate::runtime::VmResult::Ok(value) => value,
             $crate::runtime::VmResult::Err(err) => {
-                return $crate::runtime::VmResult::Err($crate::runtime::VmError::from(err))
+                return $crate::runtime::VmResult::Err($crate::runtime::VmError::from(err));
             }
         }
     };
@@ -20,8 +20,11 @@ macro_rules! vm_try {
 #[macro_export]
 macro_rules! vm_write {
     ($($tt:tt)*) => {
-        if let core::result::Result::Err(error) = core::write!($($tt)*) {
-            return VmResult::Ok(core::result::Result::Err(error));
+        match core::write!($($tt)*) {
+            Ok(()) => (),
+            Err(err) => {
+                return $crate::runtime::VmResult::Err($crate::runtime::VmError::from(err));
+            }
         }
     };
 }

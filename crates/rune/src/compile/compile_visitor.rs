@@ -1,12 +1,14 @@
 use crate::ast::Spanned;
-use crate::compile::{Item, Located, MetaRef};
+use crate::compile::{Item, Located, MetaError, MetaRef};
 use crate::hash::Hash;
 use crate::SourceId;
 
 /// A visitor that will be called for every language item compiled.
 pub trait CompileVisitor {
     /// Called when a meta item is registered.
-    fn register_meta(&mut self, _meta: MetaRef<'_>) {}
+    fn register_meta(&mut self, _meta: MetaRef<'_>) -> Result<(), MetaError> {
+        Ok(())
+    }
 
     /// Mark that we've resolved a specific compile meta at the given location.
     fn visit_meta(&mut self, _location: &dyn Located, _meta: MetaRef<'_>) {}

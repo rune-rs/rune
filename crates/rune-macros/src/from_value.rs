@@ -1,6 +1,6 @@
 use crate::context::{Context, Tokens};
 use proc_macro2::TokenStream;
-use quote::{quote, quote_spanned};
+use quote::quote_spanned;
 use syn::spanned::Spanned as _;
 
 struct Expander {
@@ -22,6 +22,7 @@ impl Expander {
             from_value,
             vm_result,
             tuple,
+            vm_try,
             ..
         } = &self.tokens;
 
@@ -41,7 +42,6 @@ impl Expander {
             }
             syn::Fields::Unnamed(f) => {
                 let expanded = self.expand_unnamed(f)?;
-                let borrow_ref = self.tokens.vm_try(quote!(tuple.borrow_ref()));
 
                 let expanded = quote_spanned! {
                     f.span() =>
@@ -50,11 +50,11 @@ impl Expander {
                         #vm_result::Ok(Self(#expanded))
                     }
                     #value::Tuple(tuple) => {
-                        let tuple = #borrow_ref;
+                        let tuple = #vm_try!(tuple.borrow_ref());
                         #vm_result::Ok(Self(#expanded))
                     }
                     #value::TupleStruct(tuple) => {
-                        let tuple = #borrow_ref;
+                        let tuple = #vm_try!(tuple.borrow_ref());
                         #vm_result::Ok(Self(#expanded))
                     }
                 };
@@ -63,16 +63,15 @@ impl Expander {
             }
             syn::Fields::Named(f) => {
                 let expanded = self.expand_named(f)?;
-                let borrow_ref = self.tokens.vm_try(quote!(object.borrow_ref()));
 
                 let expanded = quote_spanned! {
                     f.span() =>
                     #value::Object(object) => {
-                        let object = #borrow_ref;
+                        let object = #vm_try!(object.borrow_ref());
                         #vm_result::Ok(Self { #expanded })
                     }
                     #value::Struct(object) => {
-                        let object = #borrow_ref;
+                        let object = #vm_try!(object.borrow_ref());
                         #vm_result::Ok(Self { #expanded })
                     }
                 };
@@ -81,8 +80,6 @@ impl Expander {
             }
         };
 
-        let actual_type_info = self.tokens.vm_try(quote!(actual.type_info()));
-
         Ok(quote_spanned! { input.span() =>
             #[automatically_derived]
             impl #from_value for #ident {
@@ -90,7 +87,7 @@ impl Expander {
                     match value {
                         #expanded
                         actual => {
-                            #vm_result::expected::<#expected>(#actual_type_info)
+                            #vm_result::expected::<#expected>(#vm_try!(actual.type_info()))
                         }
                     }
                 }
@@ -115,6 +112,7 @@ impl Expander {
             variant_data,
             value,
             vm_result,
+            vm_try,
             ..
         } = &self.tokens;
 
@@ -145,15 +143,13 @@ impl Expander {
             }
         }
 
-        let borrow_ref = self.tokens.vm_try(quote!(variant.borrow_ref()));
-
         let missing = quote_spanned! { input.span() =>
             name => #vm_result::__rune_macros__missing_variant(name)
         };
 
         let variant = quote_spanned! { input.span() =>
             #value::Variant(variant) => {
-                let variant = #borrow_ref;
+                let variant = #vm_try!(variant.borrow_ref());
                 let mut it = variant.rtti().item.iter();
 
                 let name = match it.next_back_str() {
@@ -175,8 +171,6 @@ impl Expander {
             }
         };
 
-        let actual_type_info = self.tokens.vm_try(quote!(actual.type_info()));
-
         Ok(quote_spanned! { input.span() =>
             #[automatically_derived]
             impl #from_value for #ident {
@@ -184,7 +178,7 @@ impl Expander {
                     match value {
                         #variant,
                         actual => {
-                            #vm_result::__rune_macros__expected_variant(#actual_type_info)
+                            #vm_result::__rune_macros__expected_variant(#vm_try!(actual.type_info()))
                         }
                     }
                 }
@@ -214,19 +208,18 @@ impl Expander {
             from_value,
             vm_result,
             type_name,
+            vm_try,
+            clone,
             ..
         } = &self.tokens;
 
         for (index, field) in unnamed.unnamed.iter().enumerate() {
             let _ = self.cx.field_attrs(&field.attrs)?;
-            let from_value = self
-                .tokens
-                .vm_try(quote!(#from_value::from_value(value.clone())));
 
             from_values.push(quote_spanned! {
                 field.span() =>
                 match tuple.get(#index) {
-                    Some(value) => #from_value,
+                    Some(value) => #vm_try!(#from_value::from_value(#clone::clone(value))),
                     None => {
                         return #vm_result::__rune_macros__missing_tuple_index(#type_name::<Self>(), #index);
                     }
@@ -251,17 +244,14 @@ impl Expander {
                 from_value,
                 vm_result,
                 type_name,
+                vm_try,
                 ..
             } = &self.tokens;
-
-            let from_value = self
-                .tokens
-                .vm_try(quote!(#from_value::from_value(value.clone())));
 
             from_values.push(quote_spanned! {
                 field.span() =>
                 #ident: match object.get(#name) {
-                    Some(value) => #from_value,
+                    Some(value) => #vm_try!(#from_value::from_value(value.clone())),
                     None => {
                         return #vm_result::__rune_macros__missing_struct_field(#type_name::<Self>(), #name);
                     }

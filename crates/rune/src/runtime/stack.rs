@@ -1,12 +1,11 @@
 use core::array;
 use core::fmt;
-use core::iter;
 use core::mem::replace;
 use core::slice;
 
 use crate::no_std::borrow::Cow;
-use crate::no_std::prelude::*;
 
+use crate::alloc::{Error, Global, IteratorExt, TryClone, TryFromIteratorIn, Vec};
 use crate::runtime::{InstAddress, Value};
 
 /// An error raised when interacting with the stack.
@@ -24,7 +23,7 @@ impl fmt::Display for StackError {
 impl crate::no_std::error::Error for StackError {}
 
 /// The stack of the virtual machine, where all values are stored.
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug)]
 pub struct Stack {
     /// The current stack of values.
     stack: Vec<Value>,
@@ -43,7 +42,7 @@ impl Stack {
     ///
     /// let mut stack = Stack::new();
     /// assert!(stack.pop().is_err());
-    /// stack.push(String::from("Hello World"));
+    /// stack.push(rune::to_value(String::from("Hello World"))?);
     /// assert!(matches!(stack.pop()?, Value::String(..)));
     /// # Ok::<_, rune::Error>(())
     /// ```
@@ -60,17 +59,17 @@ impl Stack {
     /// use rune::runtime::Stack;
     /// use rune::Value;
     ///
-    /// let mut stack = Stack::with_capacity(16);
+    /// let mut stack = Stack::with_capacity(16)?;
     /// assert!(stack.pop().is_err());
-    /// stack.push(String::from("Hello World"));
+    /// stack.push(rune::to_value(String::from("Hello World"))?);
     /// assert!(matches!(stack.pop()?, Value::String(..)));
     /// # Ok::<_, rune::Error>(())
     /// ```
-    pub fn with_capacity(capacity: usize) -> Self {
-        Self {
-            stack: Vec::with_capacity(capacity),
+    pub fn with_capacity(capacity: usize) -> Result<Self, Error> {
+        Ok(Self {
+            stack: Vec::try_with_capacity(capacity)?,
             stack_bottom: 0,
-        }
+        })
     }
 
     /// Check if the stack is empty.
@@ -83,8 +82,9 @@ impl Stack {
     ///
     /// let mut stack = Stack::new();
     /// assert!(stack.is_empty());
-    /// stack.push(String::from("Hello World"));
+    /// stack.push(rune::to_value(String::from("Hello World"))?);
     /// assert!(!stack.is_empty());
+    /// # Ok::<_, rune::Error>(())
     /// ```
     ///
     /// [stack_bottom]: Self::stack_bottom()
@@ -102,8 +102,9 @@ impl Stack {
     ///
     /// let mut stack = Stack::new();
     /// assert_eq!(stack.len(), 0);
-    /// stack.push(String::from("Hello World"));
+    /// stack.push(rune::to_value(String::from("Hello World"))?);
     /// assert_eq!(stack.len(), 1);
+    /// # Ok::<_, rune::Error>(())
     /// ```
     ///
     /// [stack_bottom]: Self::stack_bottom()
@@ -140,15 +141,13 @@ impl Stack {
     ///
     /// let mut stack = Stack::new();
     /// assert!(stack.pop().is_err());
-    /// stack.push(String::from("Hello World"));
+    /// stack.push(rune::to_value(String::from("Hello World"))?);
     /// assert!(matches!(stack.pop()?, Value::String(..)));
     /// # Ok::<_, rune::Error>(())
     /// ```
-    pub fn push<T>(&mut self, value: T)
-    where
-        Value: From<T>,
-    {
-        self.stack.push(Value::from(value));
+    pub fn push(&mut self, value: Value) -> Result<(), Error> {
+        self.stack.try_push(value)?;
+        Ok(())
     }
 
     /// Pop a value from the stack.
@@ -159,7 +158,7 @@ impl Stack {
     ///
     /// let mut stack = Stack::new();
     /// assert!(stack.pop().is_err());
-    /// stack.push(String::from("Hello World"));
+    /// stack.push(rune::to_value(String::from("Hello World"))?);
     /// assert!(matches!(stack.pop()?, Value::String(..)));
     /// # Ok::<_, rune::Error>(())
     /// ```
@@ -180,9 +179,9 @@ impl Stack {
     ///
     /// let mut stack = Stack::new();
     ///
-    /// stack.push(42i64);
-    /// stack.push(String::from("foo"));
-    /// stack.push(());
+    /// stack.push(rune::to_value(42i64)?);
+    /// stack.push(rune::to_value(String::from("foo"))?);
+    /// stack.push(rune::to_value(())?);
     ///
     /// let mut it = stack.drain(2)?;
     ///
@@ -214,11 +213,12 @@ impl Stack {
     ///
     /// ```
     /// use rune::runtime::Stack;
+    /// use rune::alloc::String;
     /// use rune::Value;
     ///
     /// let mut stack = Stack::new();
     ///
-    /// stack.extend([Value::from(42i64), Value::from(String::from("foo")), Value::EmptyTuple]);
+    /// stack.extend([Value::from(42i64), Value::try_from(String::try_from("foo")?)?, Value::EmptyTuple]);
     ///
     /// let mut it = stack.drain(2)?;
     ///
@@ -227,11 +227,15 @@ impl Stack {
     /// assert!(matches!(it.next(), None));
     /// # Ok::<_, rune::Error>(())
     /// ```
-    pub fn extend<I>(&mut self, iter: I)
+    pub fn extend<I>(&mut self, iter: I) -> Result<(), Error>
     where
         I: IntoIterator<Item = Value>,
     {
-        self.stack.extend(iter);
+        for value in iter {
+            self.stack.try_push(value)?;
+        }
+
+        Ok(())
     }
 
     /// Clear the current stack.
@@ -327,8 +331,21 @@ impl Stack {
     }
 
     /// Pop a sequence of values from the stack.
-    pub(crate) fn pop_sequence(&mut self, count: usize) -> Result<Vec<Value>, StackError> {
-        Ok(self.drain(count)?.collect::<Vec<_>>())
+    pub(crate) fn pop_sequence(
+        &mut self,
+        count: usize,
+    ) -> Result<Result<Vec<Value>, StackError>, Error> {
+        let Ok(iter) = self.drain(count) else {
+            return Ok(Err(StackError));
+        };
+
+        let mut vec = Vec::try_with_capacity(iter.size_hint().0)?;
+
+        for value in iter {
+            vec.try_push(value)?;
+        }
+
+        Ok(Ok(vec))
     }
 
     /// Swap the value at position a with the value at position b.
@@ -388,12 +405,21 @@ impl Stack {
     }
 }
 
-impl iter::FromIterator<Value> for Stack {
-    fn from_iter<T: IntoIterator<Item = Value>>(iter: T) -> Self {
-        Self {
-            stack: iter.into_iter().collect(),
+impl TryClone for Stack {
+    fn try_clone(&self) -> Result<Self, Error> {
+        Ok(Self {
+            stack: self.stack.try_clone()?,
+            stack_bottom: self.stack_bottom,
+        })
+    }
+}
+
+impl TryFromIteratorIn<Value, Global> for Stack {
+    fn try_from_iter_in<T: IntoIterator<Item = Value>>(iter: T, _: Global) -> Result<Self, Error> {
+        Ok(Self {
+            stack: iter.into_iter().try_collect()?,
             stack_bottom: 0,
-        }
+        })
     }
 }
 
