@@ -64,7 +64,7 @@ impl<'a, T, A: Allocator> Drain<'a, T, A> {
     /// # Examples
     ///
     /// ```
-    /// let mut vec = rune_alloc::vec!['a', 'b', 'c'];
+    /// let mut vec = rune_alloc::try_vec!['a', 'b', 'c'];
     /// let mut drain = vec.drain(..);
     ///
     /// assert_eq!(drain.next().unwrap(), 'a');
@@ -75,6 +75,7 @@ impl<'a, T, A: Allocator> Drain<'a, T, A> {
     /// // If we wouldn't call `keep_rest()`,
     /// // `vec` would be empty.
     /// assert_eq!(vec, ['b', 'c']);
+    /// # Ok::<_, rune_alloc::Error>(())
     /// ```
     pub fn keep_rest(self) {
         // At this moment layout looks like this:

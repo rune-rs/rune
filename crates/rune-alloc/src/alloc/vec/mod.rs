@@ -1164,6 +1164,8 @@ impl<T, A: Allocator> Vec<T, A> {
     /// the inner vectors were not freed prior to the `set_len` call:
     ///
     /// ```
+    /// # #[cfg(not(miri))]
+    /// # fn main() -> Result<(), rune_alloc::Error> {
     /// use rune_alloc::try_vec;
     ///
     /// let mut vec = try_vec![try_vec![1, 0, 0],
@@ -1175,7 +1177,8 @@ impl<T, A: Allocator> Vec<T, A> {
     /// unsafe {
     ///     vec.set_len(0);
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune_alloc::Error>(()) }
+    /// # #[cfg(miri)] fn main() {}
     /// ```
     ///
     /// Normally, here, one would use [`clear`] instead to correctly drop
@@ -2064,11 +2067,14 @@ impl<T, A: Allocator> Vec<T, A> {
     /// Simple usage:
     ///
     /// ```
+    /// # #[cfg(not(miri))]
+    /// # fn main() -> Result<(), rune_alloc::Error> {
     /// let x = rune_alloc::try_vec![1, 2, 3];
     /// let static_ref: &'static mut [usize] = x.leak();
     /// static_ref[0] += 1;
     /// assert_eq!(static_ref, &[2, 2, 3]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune_alloc::Error>(()) }
+    /// # #[cfg(miri)] fn main() {}
     /// ```
     #[inline]
     pub fn leak<'a>(self) -> &'a mut [T]

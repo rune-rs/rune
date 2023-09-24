@@ -81,17 +81,22 @@ impl<T, A: Allocator> IntoIter<T, A> {
         ptr::slice_from_raw_parts_mut(self.ptr as *mut T, self.len())
     }
 
-    /// Drops remaining elements and relinquishes the backing allocation.
-    /// This method guarantees it won't panic before relinquishing
-    /// the backing allocation.
+    /// Drops remaining elements and relinquishes the backing allocation. This
+    /// method guarantees it won't panic before relinquishing the backing
+    /// allocation.
     ///
     /// This is roughly equivalent to the following, but more efficient
     ///
     /// ```
-    /// # let mut into_iter = Vec::<u8>::with_capacity(10).into_iter();
+    /// # use rune_alloc::Vec;
+    /// # #[cfg(not(miri))]
+    /// # fn main() -> Result<(), rune_alloc::Error> {
+    /// # let mut into_iter = Vec::<u8>::with_capacity(10)?.into_iter();
     /// let mut into_iter = std::mem::replace(&mut into_iter, Vec::new().into_iter());
     /// (&mut into_iter).for_each(drop);
     /// std::mem::forget(into_iter);
+    /// # Ok::<_, rune_alloc::Error>(()) }
+    /// # #[cfg(miri)] fn main() {}
     /// ```
     ///
     /// This method is used by in-place iteration, refer to the vec::in_place_collect

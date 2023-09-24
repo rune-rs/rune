@@ -144,25 +144,31 @@ impl<T: ?Sized, A: Allocator> Box<T, A> {
     /// Simple usage:
     ///
     /// ```
+    /// # #[cfg(not(miri))]
+    /// # fn main() -> Result<(), rune_alloc::Error> {
     /// use rune_alloc::Box;
     ///
     /// let x = Box::new(41)?;
     /// let static_ref: &'static mut usize = Box::leak(x);
     /// *static_ref += 1;
     /// assert_eq!(*static_ref, 42);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune_alloc::Error>(()) }
+    /// # #[cfg(miri)] fn main() {}
     /// ```
     ///
     /// Unsized data:
     ///
     /// ```
+    /// # #[cfg(not(miri))]
+    /// # fn main() -> Result<(), rune_alloc::Error> {
     /// use rune_alloc::Box;
     ///
     /// let x = rune_alloc::try_vec![1, 2, 3].try_into_boxed_slice()?;
     /// let static_ref = Box::leak(x);
     /// static_ref[0] = 4;
     /// assert_eq!(*static_ref, [4, 2, 3]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune_alloc::Error>(()) }
+    /// # #[cfg(miri)] fn main() {}
     /// ```
     #[inline]
     pub fn leak<'a>(b: Self) -> &'a mut T

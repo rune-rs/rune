@@ -1640,12 +1640,15 @@ impl<A: Allocator> String<A> {
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(not(miri))]
+    /// # fn main() -> Result<(), rune_alloc::Error> {
     /// use rune_alloc::String;
     ///
     /// let x = String::try_from("bucket")?;
     /// let static_ref: &'static mut str = x.leak();
     /// assert_eq!(static_ref, "bucket");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune_alloc::Error>(()) }
+    /// # #[cfg(miri)] fn main() {}
     /// ```
     #[inline]
     pub fn leak<'a>(self) -> &'a mut str
