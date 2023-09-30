@@ -34,9 +34,18 @@ use rune::runtime::{Bytes, Value, Formatter};
 use rune::alloc::{Vec, String};
 use rune::alloc::fmt::TryWrite;
 
-/// Construct the `json` module.
+#[rune::module(::json)]
+/// Module for processing JSON.
+///
+/// # Examples
+///
+/// ```rune
+/// let object = #{"number": 42, "string": "Hello World"};
+/// let object = json::from_string(json::to_string(object)?)?;
+/// assert_eq!(object, #{"number": 42, "string": "Hello World"});
+/// ```
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
-    let mut module = Module::with_crate("json")?;
+    let mut module = Module::from_meta(self::module_meta)?;
     module.ty::<Error>()?;
     module.function_meta(Error::display)?;
     module.function_meta(Error::debug)?;
@@ -49,6 +58,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
 
 #[derive(Any)]
 #[rune(item = ::json)]
+/// Error type raised during JSON serialization.
 struct Error {
     error: serde_json::Error,
 }
@@ -72,24 +82,54 @@ impl From<serde_json::Error> for Error {
 }
 
 /// Convert JSON bytes into a rune value.
+/// 
+/// # Examples
+/// 
+/// ```rune
+/// let object = json::from_bytes(b"{\"number\": 42, \"string\": \"Hello World\"}")?;
+/// assert_eq!(object, #{"number": 42, "string": "Hello World"});
+/// ```
 #[rune::function]
 fn from_bytes(bytes: &[u8]) -> Result<Value, Error> {
     Ok(serde_json::from_slice(bytes)?)
 }
 
 /// Convert a JSON string into a rune value.
+/// 
+/// # Examples
+/// 
+/// ```rune
+/// let object = json::from_string("{\"number\": 42, \"string\": \"Hello World\"}")?;
+/// assert_eq!(object, #{"number": 42, "string": "Hello World"});
+/// ```
 #[rune::function]
 fn from_string(string: &str) -> Result<Value, Error> {
     Ok(serde_json::from_str(string)?)
 }
 
 /// Convert any value to a json string.
+/// 
+/// # Examples
+/// 
+/// ```rune
+/// let object = #{"number": 42, "string": "Hello World"};
+/// let object = json::from_string(json::to_string(object)?)?;
+/// assert_eq!(object, #{"number": 42, "string": "Hello World"});
+/// ```
 #[rune::function(vm_result)]
 fn to_string(value: Value) -> Result<String, Error> {
     Ok(String::try_from(serde_json::to_string(&value)?).vm?)
 }
 
 /// Convert any value to json bytes.
+/// 
+/// # Examples
+/// 
+/// ```rune
+/// let object = #{"number": 42, "string": "Hello World"};
+/// let object = json::from_bytes(json::to_bytes(object)?)?;
+/// assert_eq!(object, #{"number": 42, "string": "Hello World"});
+/// ```
 #[rune::function(vm_result)]
 fn to_bytes(value: Value) -> Result<Bytes, Error> {
     Ok(Bytes::from_vec(Vec::try_from(serde_json::to_vec(&value)?).vm?))
