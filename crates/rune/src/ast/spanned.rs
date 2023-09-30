@@ -1,5 +1,6 @@
 use crate::no_std::boxed::Box;
 
+use crate::alloc;
 use crate::ast::Span;
 use crate::parse::{Id, NonZeroId};
 
@@ -57,6 +58,15 @@ impl Spanned for Span {
 }
 
 impl<T> Spanned for Box<T>
+where
+    T: Spanned,
+{
+    fn span(&self) -> Span {
+        Spanned::span(&**self)
+    }
+}
+
+impl<T> Spanned for alloc::Box<T>
 where
     T: Spanned,
 {
@@ -143,6 +153,15 @@ where
 }
 
 impl<T> OptionSpanned for Box<T>
+where
+    T: OptionSpanned,
+{
+    fn option_span(&self) -> Option<Span> {
+        OptionSpanned::option_span(&**self)
+    }
+}
+
+impl<T> OptionSpanned for alloc::Box<T>
 where
     T: OptionSpanned,
 {

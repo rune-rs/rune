@@ -12,7 +12,7 @@ fn ast_parse() {
 /// A range expression.
 ///
 /// * `a .. b` or `a ..= b`.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprRange {
     /// Attributes associated with the assign expression.
@@ -29,7 +29,7 @@ pub struct ExprRange {
 }
 
 /// The limits of the specified range.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub enum ExprRangeLimits {
     /// Half-open range expression.

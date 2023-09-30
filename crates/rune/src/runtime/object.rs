@@ -5,8 +5,9 @@ use core::fmt;
 use core::hash;
 use core::iter;
 
+use crate::alloc::prelude::*;
+use crate::alloc::{self, String};
 use crate::alloc::{btree_map, BTreeMap};
-use crate::alloc::{Error, Global, String, TryClone};
 
 use crate as rune;
 use crate::compile::ItemBuf;
@@ -75,13 +76,13 @@ pub type Values<'a> = btree_map::Values<'a, String, Value>;
 /// assert_eq!(Some(42), object.get_value("foo").into_result()?);
 /// assert_eq!(Some(true), object.get_value("bar").into_result()?);
 /// assert_eq!(None::<bool>, object.get_value("baz").into_result()?);
-/// # Ok::<_, rune::Error>(())
+/// # Ok::<_, rune::support::Error>(())
 /// ```
 #[derive(Any, Default)]
 #[repr(transparent)]
 #[rune(builtin, static_type = OBJECT_TYPE)]
 pub struct Object {
-    inner: BTreeMap<String, Value, Global>,
+    inner: BTreeMap<String, Value>,
 }
 
 impl Object {
@@ -97,7 +98,7 @@ impl Object {
     #[rune::function(keep, path = Self::new)]
     pub fn new() -> Self {
         Self {
-            inner: BTreeMap::new_in(Global),
+            inner: BTreeMap::new(),
         }
     }
 
@@ -116,11 +117,11 @@ impl Object {
     }
 
     /// Construct a new object with the given capacity.
-    pub fn with_capacity(#[allow(unused)] capacity: usize) -> Result<Self, Error> {
+    pub fn with_capacity(#[allow(unused)] capacity: usize) -> alloc::Result<Self> {
         // BTreeMap doesn't support setting capacity on creation but we keep
         // this here in case we want to switch store later.
         Ok(Self {
-            inner: BTreeMap::new_in(Global),
+            inner: BTreeMap::new(),
         })
     }
 
@@ -246,7 +247,7 @@ impl Object {
     /// Inserts a key-value pair into the map.
     ///
     /// If the map did not have this key present, `None` is returned.
-    pub fn insert(&mut self, k: String, v: Value) -> Result<Option<Value>, Error> {
+    pub fn insert(&mut self, k: String, v: Value) -> alloc::Result<Option<Value>> {
         Ok(self.inner.try_insert(k, v)?)
     }
 
@@ -462,7 +463,7 @@ impl Object {
 }
 
 impl TryClone for Object {
-    fn try_clone(&self) -> Result<Self, Error> {
+    fn try_clone(&self) -> alloc::Result<Self> {
         Ok(Self {
             inner: self.inner.try_clone()?,
         })

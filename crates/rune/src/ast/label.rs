@@ -15,14 +15,17 @@ fn ast_parse() {
 ///
 /// ```
 /// use rune::ast;
-/// use rune::macros::MacroContext;
+/// use rune::macros;
 ///
-/// MacroContext::test(|cx| {
-///     let lit = cx.label("foo");
-///     assert!(matches!(lit, ast::Label { .. }))
-/// });
+/// macros::test(|cx| {
+///     let lit = cx.label("foo")?;
+///     assert!(matches!(lit, ast::Label { .. }));
+///     Ok(())
+/// })?;
+/// # Ok::<_, rune::support::Error>(())
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, Spanned)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Label {
     /// The token of the label.
@@ -86,10 +89,14 @@ impl<'a> Resolve<'a> for Label {
 }
 
 impl ToTokens for Label {
-    fn to_tokens(&self, _: &mut MacroContext<'_, '_, '_>, stream: &mut TokenStream) {
+    fn to_tokens(
+        &self,
+        _: &mut MacroContext<'_, '_, '_>,
+        stream: &mut TokenStream,
+    ) -> alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Label(self.source),
-        });
+        })
     }
 }

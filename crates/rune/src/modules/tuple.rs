@@ -11,8 +11,8 @@ use crate::{ContextError, Module};
 /// Dynamic tuples.
 #[rune::module(::std::tuple)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::from_meta(self::module_meta);
-    m.ty::<Tuple>()?.docs(["The tuple type."]);
+    let mut m = Module::from_meta(self::module_meta)?;
+    m.ty::<Tuple>()?.docs(["The tuple type."])?;
     m.function_meta(len)?;
     m.function_meta(is_empty)?;
     m.function_meta(get)?;

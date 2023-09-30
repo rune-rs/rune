@@ -12,7 +12,7 @@ fn ast_parse() {
 ///
 /// * `true`.
 /// * `let Some(<pat>) = <expr>`.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub enum Condition {
     /// A regular expression.

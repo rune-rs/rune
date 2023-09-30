@@ -4,11 +4,9 @@ use std::io;
 use std::path::PathBuf;
 use std::{path::Path, sync::Arc};
 
-use crate::no_std::collections::VecDeque;
-use crate::no_std::prelude::*;
-
 use anyhow::{anyhow, Context as _, Result};
 
+use crate::alloc::{VecDeque, Vec};
 use crate::cli::{visitor, Io, SharedFlags};
 use crate::compile::{FileSourceLoader, ItemBuf};
 use crate::Diagnostics;
@@ -35,7 +33,7 @@ pub(super) fn load(
         Source::from_path(path).with_context(|| anyhow!("cannot read file: {}", path.display()))?;
 
     let mut sources = Sources::new();
-    sources.insert(source);
+    sources.insert(source)?;
 
     let use_cache = options.bytecode && should_cache_be_used(path, &bytecode_path)?;
 
@@ -75,7 +73,7 @@ pub(super) fn load(
                 .with_context(context)
                 .with_diagnostics(&mut diagnostics)
                 .with_options(options)
-                .with_visitor(&mut functions)
+                .with_visitor(&mut functions)?
                 .with_source_loader(&mut source_loader)
                 .build();
 
@@ -115,12 +113,12 @@ fn should_cache_be_used(source: &Path, cached: &Path) -> io::Result<bool> {
 pub(super) fn recurse_paths(
     recursive: bool,
     first: PathBuf,
-) -> impl Iterator<Item = io::Result<PathBuf>> {
-    let mut queue = VecDeque::with_capacity(1);
-    queue.push_back(first);
+) -> impl Iterator<Item = Result<PathBuf>> {
+    let mut queue = VecDeque::new();
+    let mut first = Some(first);
 
     std::iter::from_fn(move || loop {
-        let path = queue.pop_front()?;
+        let path = first.take().or_else(|| queue.pop_front())?;
 
         if !recursive {
             return Some(Ok(path));
@@ -136,16 +134,18 @@ pub(super) fn recurse_paths(
 
         let d = match fs::read_dir(path) {
             Ok(d) => d,
-            Err(error) => return Some(Err(error)),
+            Err(error) => return Some(Err(anyhow::Error::from(error))),
         };
 
         for e in d {
             let e = match e {
                 Ok(e) => e,
-                Err(error) => return Some(Err(error)),
+                Err(error) => return Some(Err(anyhow::Error::from(error))),
             };
 
-            queue.push_back(e.path());
+            if let Err(error) = queue.try_push_back(e.path()) {
+                return Some(Err(anyhow::Error::from(error)));
+            }
         }
     })
 }

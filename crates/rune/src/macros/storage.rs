@@ -1,12 +1,14 @@
 use core::fmt;
 
-use crate::no_std::prelude::*;
-
+use crate as rune;
+use crate::alloc;
+use crate::alloc::prelude::*;
+use crate::alloc::{HashMap, String, Vec};
 use crate::ast;
-use crate::no_std::collections::HashMap;
 
 /// A synthetic identifier which can be used to reference something in storage.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[try_clone(copy)]
 pub struct SyntheticId(usize);
 
 impl fmt::Display for SyntheticId {
@@ -63,59 +65,60 @@ impl Storage {
     ///
     /// The number will be stored in this storage, and will be synthetic
     /// (rather than from the source).
-    pub(crate) fn insert_number<N>(&mut self, number: N) -> SyntheticId
+    pub(crate) fn insert_number<N>(&mut self, number: N) -> alloc::Result<SyntheticId>
     where
         ast::Number: From<N>,
     {
         let id = SyntheticId(self.numbers.len());
-        self.numbers.push(number.into());
-        id
+        self.numbers.try_push(number.into())?;
+        Ok(id)
     }
 
     /// Insert the given text into storage and return its id.
     ///
     /// This will reuse old storage slots that already contains the given
     /// string.
-    pub(crate) fn insert_str(&mut self, string: &str) -> SyntheticId {
+    pub(crate) fn insert_str(&mut self, string: &str) -> alloc::Result<SyntheticId> {
         if let Some(id) = self.strings_rev.get(string).copied() {
-            return id;
+            return Ok(id);
         }
 
         let id = SyntheticId(self.strings.len());
-        let string = string.to_owned();
-        self.strings.push(string.clone());
-        self.strings_rev.insert(string, id);
-        id
+        let string = string.try_to_owned()?;
+        self.strings.try_push(string.try_clone()?)?;
+        self.strings_rev.try_insert(string, id)?;
+        Ok(id)
     }
 
     /// Insert the given owned string into storage and return its id.
     ///
     /// This will reuse old storage slots that already contains the given
     /// string.
-    pub(crate) fn insert_string(&mut self, string: String) -> SyntheticId {
+    pub(crate) fn insert_string(&mut self, string: String) -> alloc::Result<SyntheticId> {
         if let Some(id) = self.strings_rev.get(&string).copied() {
-            return id;
+            return Ok(id);
         }
 
         let id = SyntheticId(self.strings.len());
-        self.strings.push(string.clone());
-        self.strings_rev.insert(string, id);
-        id
+        self.strings.try_push(string.try_clone()?)?;
+        self.strings_rev.try_insert(string, id)?;
+        Ok(id)
     }
 
     /// Insert the given text into storage and return its id.
     ///
     /// This will reuse old storage slots that already contains the given
     /// byte string.
-    pub(crate) fn insert_byte_string(&mut self, bytes: &[u8]) -> SyntheticId {
+    pub(crate) fn insert_byte_string(&mut self, bytes: &[u8]) -> alloc::Result<SyntheticId> {
         if let Some(id) = self.byte_strings_rev.get(bytes).copied() {
-            return id;
+            return Ok(id);
         }
 
         let id = SyntheticId(self.byte_strings.len());
-        self.byte_strings.push(bytes.to_vec());
-        self.byte_strings_rev.insert(bytes.to_vec(), id);
-        id
+        self.byte_strings.try_push(Vec::try_from(bytes)?)?;
+        self.byte_strings_rev
+            .try_insert(Vec::try_from(bytes)?, id)?;
+        Ok(id)
     }
 
     /// Get the content of the string with the specified id.

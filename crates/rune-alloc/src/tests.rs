@@ -1,4 +1,5 @@
-use crate::{Error, Vec};
+use crate::error::Error;
+use crate::vec::Vec;
 
 #[test]
 fn test_vec_macro() -> Result<(), Error> {

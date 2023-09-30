@@ -1,6 +1,5 @@
-use crate::no_std::path::Path;
-use crate::no_std::prelude::*;
-
+use crate::alloc::path::Path;
+use crate::alloc::prelude::*;
 use crate::ast::Spanned;
 use crate::compile::{self, ComponentRef, ErrorKind, Item};
 use crate::Source;
@@ -36,13 +35,13 @@ impl FileSourceLoader {
 
 impl SourceLoader for FileSourceLoader {
     fn load(&mut self, root: &Path, item: &Item, span: &dyn Spanned) -> compile::Result<Source> {
-        let mut base = root.to_owned();
+        let mut base = root.try_to_owned()?;
 
         if !base.pop() {
             return Err(compile::Error::new(
                 span,
                 ErrorKind::UnsupportedModuleRoot {
-                    root: root.to_owned(),
+                    root: root.try_to_owned()?,
                 },
             ));
         }
@@ -54,7 +53,7 @@ impl SourceLoader for FileSourceLoader {
                 return Err(compile::Error::new(
                     span,
                     ErrorKind::UnsupportedModuleItem {
-                        item: item.to_owned(),
+                        item: item.try_to_owned()?,
                     },
                 ));
             }
@@ -71,14 +70,11 @@ impl SourceLoader for FileSourceLoader {
             }
         }
 
-        let path = match found {
-            Some(path) => path,
-            None => {
-                return Err(compile::Error::new(
-                    span,
-                    ErrorKind::ModNotFound { path: base },
-                ));
-            }
+        let Some(path) = found else {
+            return Err(compile::Error::new(
+                span,
+                ErrorKind::ModNotFound { path: base },
+            ));
         };
 
         match Source::from_path(path) {
@@ -86,7 +82,7 @@ impl SourceLoader for FileSourceLoader {
             Err(error) => Err(compile::Error::new(
                 span,
                 ErrorKind::FileError {
-                    path: path.to_owned(),
+                    path: path.clone(),
                     error,
                 },
             )),

@@ -6,7 +6,7 @@ use crate::{ContextError, Module};
 
 /// Install the core package into the given functions namespace.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["num"]);
+    let mut module = Module::with_crate_item("std", ["num"])?;
     module.ty::<ParseFloatError>()?;
     module.ty::<ParseIntError>()?;
     Ok(module)

@@ -6,7 +6,8 @@ use core::marker::PhantomData;
 use core::mem;
 use core::ptr;
 
-use crate::alloc::{Allocator, Error, Global, TryClone};
+use crate::alloc;
+use crate::alloc::prelude::*;
 
 #[cfg(feature = "alloc")]
 use crate::runtime::Hasher;
@@ -15,24 +16,24 @@ use crate::runtime::{ProtocolCaller, RawRef, Ref, Value, VmError, VmResult};
 use crate::alloc::hashbrown::raw::{RawIter, RawTable};
 use crate::alloc::hashbrown::ErrorOrInsertSlot;
 
-pub(crate) struct Table<V, A: Allocator + Clone = Global> {
-    table: RawTable<(Value, V), A>,
+pub(crate) struct Table<V> {
+    table: RawTable<(Value, V)>,
     state: hash_map::RandomState,
 }
 
-impl<V, A: Allocator + Clone> Table<V, A> {
+impl<V> Table<V> {
     #[inline(always)]
-    pub(crate) fn new_in(alloc: A) -> Self {
+    pub(crate) fn new() -> Self {
         Self {
-            table: RawTable::new_in(alloc),
+            table: RawTable::new(),
             state: hash_map::RandomState::new(),
         }
     }
 
     #[inline(always)]
-    pub(crate) fn try_with_capacity_in(capacity: usize, alloc: A) -> Result<Self, Error> {
+    pub(crate) fn try_with_capacity(capacity: usize) -> alloc::Result<Self> {
         Ok(Self {
-            table: RawTable::try_with_capacity_in(capacity, alloc)?,
+            table: RawTable::try_with_capacity(capacity)?,
             state: hash_map::RandomState::new(),
         })
     }
@@ -155,11 +156,11 @@ impl<V, A: Allocator + Clone> Table<V, A> {
     }
 }
 
-impl<V, A: Allocator + Clone> TryClone for Table<V, A>
+impl<V> TryClone for Table<V>
 where
     V: TryClone,
 {
-    fn try_clone(&self) -> Result<Self, Error> {
+    fn try_clone(&self) -> alloc::Result<Self> {
         Ok(Self {
             table: self.table.try_clone()?,
             state: self.state.clone(),
@@ -167,7 +168,7 @@ where
     }
 
     #[inline]
-    fn try_clone_from(&mut self, source: &Self) -> Result<(), Error> {
+    fn try_clone_from(&mut self, source: &Self) -> alloc::Result<()> {
         self.table.try_clone_from(&source.table)
     }
 }

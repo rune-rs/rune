@@ -3,8 +3,10 @@ use core::iter;
 use core::mem::size_of;
 use core::slice;
 
+use crate as rune;
+use crate::alloc::prelude::*;
+use crate::alloc::{self, Vec};
 use crate::no_std::error;
-use crate::no_std::vec::Vec;
 
 #[cfg(feature = "byte-code")]
 use musli_storage::error::BufferError;
@@ -33,7 +35,7 @@ pub trait UnitEncoder: self::sealed::Sealed {
 
     /// Indicate that the given number of offsets have been added.
     #[doc(hidden)]
-    fn extend_offsets(&mut self, extra: usize) -> usize;
+    fn extend_offsets(&mut self, extra: usize) -> alloc::Result<usize>;
 
     /// Mark that the given offset index is at the current offset.
     #[doc(hidden)]
@@ -45,7 +47,7 @@ pub trait UnitEncoder: self::sealed::Sealed {
 }
 
 /// Instruction storage used by a [`Unit`][super::Unit].
-pub trait UnitStorage: self::sealed::Sealed + fmt::Debug + Default + Clone {
+pub trait UnitStorage: self::sealed::Sealed + fmt::Debug + Default {
     /// Iterator over instructions and their corresponding instruction offsets.
     type Iter<'this>: Iterator<Item = (usize, Inst)>
     where
@@ -69,7 +71,7 @@ pub trait UnitStorage: self::sealed::Sealed + fmt::Debug + Default + Clone {
 }
 
 /// Unit stored as array of instructions.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, TryClone, Default, Serialize, Deserialize)]
 pub struct ArrayUnit {
     instructions: Vec<Inst>,
 }
@@ -82,13 +84,13 @@ impl UnitEncoder for ArrayUnit {
 
     #[inline]
     fn encode(&mut self, inst: Inst) -> Result<(), EncodeError> {
-        self.instructions.push(inst);
+        self.instructions.try_push(inst)?;
         Ok(())
     }
 
     #[inline]
-    fn extend_offsets(&mut self, _: usize) -> usize {
-        self.instructions.len()
+    fn extend_offsets(&mut self, _: usize) -> alloc::Result<usize> {
+        Ok(self.instructions.len())
     }
 
     #[inline]
@@ -150,15 +152,25 @@ impl From<BufferError> for EncodeError {
     }
 }
 
+impl From<alloc::Error> for EncodeError {
+    #[inline]
+    fn from(error: alloc::Error) -> Self {
+        Self {
+            kind: EncodeErrorKind::AllocError { error },
+        }
+    }
+}
+
 impl fmt::Display for EncodeError {
     #[inline]
     fn fmt(
         &self,
         #[cfg_attr(not(feature = "byte-code"), allow(unused))] f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        match self.kind {
+        match &self.kind {
             #[cfg(feature = "byte-code")]
-            EncodeErrorKind::BufferError { ref error } => error.fmt(f),
+            EncodeErrorKind::BufferError { error } => error.fmt(f),
+            EncodeErrorKind::AllocError { error } => error.fmt(f),
         }
     }
 }
@@ -168,7 +180,12 @@ impl error::Error for EncodeError {}
 #[derive(Debug)]
 enum EncodeErrorKind {
     #[cfg(feature = "byte-code")]
-    BufferError { error: BufferError },
+    BufferError {
+        error: BufferError,
+    },
+    AllocError {
+        error: alloc::Error,
+    },
 }
 
 /// Error indicating that a bad instruction was located at the given instruction

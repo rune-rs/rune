@@ -2,7 +2,6 @@ use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 use syn::parse::ParseStream;
 use syn::punctuated::Punctuated;
-use syn::Error;
 
 pub(crate) struct ModuleAttrs {
     path: syn::Path,
@@ -10,7 +9,7 @@ pub(crate) struct ModuleAttrs {
 
 impl ModuleAttrs {
     /// Parse the given parse stream.
-    pub(crate) fn parse(input: ParseStream) -> Result<Self, Error> {
+    pub(crate) fn parse(input: ParseStream) -> syn::Result<Self> {
         let path = input.parse::<syn::Path>()?;
         let stream = input.parse::<TokenStream>()?;
 
@@ -30,7 +29,7 @@ pub(crate) struct Module {
 
 impl Module {
     /// Parse the given parse stream.
-    pub(crate) fn parse(input: ParseStream) -> Result<Self, Error> {
+    pub(crate) fn parse(input: ParseStream) -> syn::Result<Self> {
         let parsed_attributes = input.call(syn::Attribute::parse_outer)?;
 
         let mut docs = syn::ExprArray {
@@ -61,7 +60,7 @@ impl Module {
     }
 
     /// Expand the function declaration.
-    pub(crate) fn expand(self, attrs: ModuleAttrs) -> Result<TokenStream, Error> {
+    pub(crate) fn expand(self, attrs: ModuleAttrs) -> syn::Result<TokenStream> {
         let docs = self.docs;
 
         let item = match attrs.path.leading_colon {
@@ -69,25 +68,28 @@ impl Module {
                 let mut it = attrs.path.segments.iter();
 
                 let Some(krate) = it.next() else {
-                    return Err(Error::new_spanned(&attrs.path, "missing leading segment"));
+                    return Err(syn::Error::new_spanned(
+                        &attrs.path,
+                        "missing leading segment",
+                    ));
                 };
 
                 let krate = syn::LitStr::new(&krate.ident.to_string(), krate.ident.span());
                 let item = build_item(it);
 
                 if item.elems.is_empty() {
-                    quote!(rune::__private::ItemBuf::with_crate(#krate))
+                    quote!(rune::__private::ItemBuf::with_crate(#krate)?)
                 } else {
-                    quote!(rune::__private::ItemBuf::with_crate_item(#krate, #item))
+                    quote!(rune::__private::ItemBuf::with_crate_item(#krate, #item)?)
                 }
             }
             None => {
                 let item = build_item(attrs.path.segments.iter());
 
                 if item.elems.is_empty() {
-                    quote!(rune::__private::ItemBuf::new())
+                    quote!(rune::__private::ItemBuf::new()?)
                 } else {
-                    quote!(rune::__private::ItemBuf::from_item(#item))
+                    quote!(rune::__private::ItemBuf::from_item(#item)?)
                 }
             }
         };
@@ -98,11 +100,11 @@ impl Module {
             /// Get module metadata.
             #[automatically_derived]
             #[doc(hidden)]
-            fn module_meta() -> rune::__private::ModuleMetaData {
-                rune::__private::ModuleMetaData {
+            fn module_meta() -> rune::alloc::Result<rune::__private::ModuleMetaData> {
+                Ok(rune::__private::ModuleMetaData {
                     docs: &#docs[..],
                     item: #item,
-                }
+                })
             }
         });
 

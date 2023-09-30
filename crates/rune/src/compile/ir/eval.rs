@@ -1,9 +1,8 @@
-use core::fmt::Write;
 use core::ops::{Add, Mul, Shl, Shr, Sub};
 
-use crate::no_std::collections::HashMap;
-use crate::no_std::prelude::*;
-
+use crate::alloc::fmt::TryWrite;
+use crate::alloc::prelude::*;
+use crate::alloc::{Box, HashMap, String, Vec};
 use crate::ast::{Span, Spanned};
 use crate::compile::ir;
 use crate::compile::{self, WithSpan};
@@ -143,8 +142,8 @@ fn eval_ir_binary(
     ) -> compile::Result<Shared<String>> {
         let a = a.borrow_ref().with_span(span)?;
         let b = b.borrow_ref().with_span(span)?;
-        let mut a = String::from(&*a);
-        a.push_str(&b);
+        let mut a = (*a).try_clone()?;
+        a.try_push_str(&b)?;
         Ok(Shared::new(a).with_span(span)?)
     }
 }
@@ -155,7 +154,7 @@ fn eval_ir_branches(
     used: Used,
 ) -> Result<ir::Value, EvalOutcome> {
     for (ir_condition, branch) in &ir.branches {
-        let guard = interp.scopes.push();
+        let guard = interp.scopes.push()?;
 
         let value = eval_ir_condition(ir_condition, interp, used)?;
 
@@ -187,7 +186,7 @@ fn eval_ir_call(
     let mut args = Vec::new();
 
     for arg in &ir.args {
-        args.push(eval_ir(arg, interp, used)?);
+        args.try_push(eval_ir(arg, interp, used)?)?;
     }
 
     Ok(interp.call_const_fn(ir, ir.id, args, used)?)
@@ -229,7 +228,7 @@ fn eval_ir_loop(
     let span = ir.span();
     interp.budget.take(span)?;
 
-    let guard = interp.scopes.push();
+    let guard = interp.scopes.push()?;
 
     let value = loop {
         if let Some(condition) = &ir.condition {
@@ -278,10 +277,10 @@ fn eval_ir_object(
     interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
 ) -> Result<ir::Value, EvalOutcome> {
-    let mut object = HashMap::with_capacity(ir.assignments.len());
+    let mut object = HashMap::try_with_capacity(ir.assignments.len())?;
 
     for (key, value) in ir.assignments.iter() {
-        object.insert(key.as_ref().to_owned(), eval_ir(value, interp, used)?);
+        object.try_insert(key.as_ref().try_to_owned()?, eval_ir(value, interp, used)?)?;
     }
 
     Ok(ir::Value::Object(Shared::new(object).with_span(ir)?))
@@ -293,7 +292,7 @@ fn eval_ir_scope(
     used: Used,
 ) -> Result<ir::Value, EvalOutcome> {
     interp.budget.take(ir)?;
-    let guard = interp.scopes.push();
+    let guard = interp.scopes.push()?;
 
     for ir in &ir.instructions {
         let _ = eval_ir(ir, interp, used)?;
@@ -332,25 +331,25 @@ fn eval_ir_template(
     for component in &ir.components {
         match component {
             ir::IrTemplateComponent::String(string) => {
-                buf.push_str(string);
+                buf.try_push_str(string)?;
             }
             ir::IrTemplateComponent::Ir(ir) => {
                 let const_value = eval_ir(ir, interp, used)?;
 
                 match const_value {
                     ir::Value::Integer(integer) => {
-                        write!(buf, "{}", integer).unwrap();
+                        write!(buf, "{}", integer)?;
                     }
                     ir::Value::Float(float) => {
                         let mut buffer = ryu::Buffer::new();
-                        buf.push_str(buffer.format(float));
+                        buf.try_push_str(buffer.format(float))?;
                     }
                     ir::Value::Bool(b) => {
-                        write!(buf, "{}", b).unwrap();
+                        write!(buf, "{}", b)?;
                     }
                     ir::Value::String(s) => {
                         let s = s.borrow_ref().with_span(ir)?;
-                        buf.push_str(&s);
+                        buf.try_push_str(&s)?;
                     }
                     _ => {
                         return Err(EvalOutcome::not_const(ir));
@@ -368,14 +367,14 @@ fn eval_ir_tuple(
     interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
 ) -> Result<ir::Value, EvalOutcome> {
-    let mut items = Vec::with_capacity(ir.items.len());
+    let mut items = Vec::try_with_capacity(ir.items.len())?;
 
     for item in ir.items.iter() {
-        items.push(eval_ir(item, interp, used)?);
+        items.try_push(eval_ir(item, interp, used)?)?;
     }
 
     Ok(ir::Value::Tuple(
-        Shared::new(items.into_boxed_slice()).with_span(ir)?,
+        Shared::new(items.try_into_boxed_slice()?).with_span(ir)?,
     ))
 }
 
@@ -384,10 +383,10 @@ fn eval_ir_vec(
     interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
 ) -> Result<ir::Value, EvalOutcome> {
-    let mut vec = Vec::with_capacity(ir.items.len());
+    let mut vec = Vec::try_with_capacity(ir.items.len())?;
 
     for item in ir.items.iter() {
-        vec.push(eval_ir(item, interp, used)?);
+        vec.try_push(eval_ir(item, interp, used)?)?;
     }
 
     Ok(ir::Value::Vec(Shared::new(vec).with_span(ir)?))
@@ -410,7 +409,7 @@ pub(crate) fn eval_ir(
         ir::IrKind::Template(ir) => eval_ir_template(ir, interp, used),
         ir::IrKind::Name(name) => Ok(interp.resolve_var(ir, name, used)?),
         ir::IrKind::Target(target) => Ok(interp.scopes.get_target(target)?),
-        ir::IrKind::Value(value) => Ok(value.clone()),
+        ir::IrKind::Value(value) => Ok(value.try_clone()?),
         ir::IrKind::Branches(ir) => eval_ir_branches(ir, interp, used),
         ir::IrKind::Loop(ir) => eval_ir_loop(ir, interp, used),
         ir::IrKind::Break(ir) => Err(ir.as_outcome(interp, used)),

@@ -1,10 +1,13 @@
+use crate as rune;
+use crate::alloc;
+use crate::alloc::prelude::*;
 #[cfg(feature = "doc")]
-use crate::no_std::prelude::*;
+use crate::alloc::{String, Vec};
 
 /// The documentation for a function.
 ///
 /// If the `doc` feature is disabled, this is a zero-sized type.
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 pub(crate) struct Docs {
     /// Lines of documentation.
     #[cfg(feature = "doc")]
@@ -36,7 +39,7 @@ impl Docs {
 
     /// Update documentation.
     #[cfg(feature = "doc")]
-    pub(crate) fn set_docs<S>(&mut self, docs: S)
+    pub(crate) fn set_docs<S>(&mut self, docs: S) -> alloc::Result<()>
     where
         S: IntoIterator,
         S::Item: AsRef<str>,
@@ -44,21 +47,24 @@ impl Docs {
         self.docs.clear();
 
         for line in docs {
-            self.docs.push(line.as_ref().to_owned());
+            self.docs.try_push(line.as_ref().try_to_owned()?)?;
         }
+
+        Ok(())
     }
 
     #[cfg(not(feature = "doc"))]
-    pub(crate) fn set_docs<S>(&mut self, _: S)
+    pub(crate) fn set_docs<S>(&mut self, _: S) -> alloc::Result<()>
     where
         S: IntoIterator,
         S::Item: AsRef<str>,
     {
+        Ok(())
     }
 
     /// Update arguments.
     #[cfg(feature = "doc")]
-    pub(crate) fn set_arguments<S>(&mut self, arguments: S)
+    pub(crate) fn set_arguments<S>(&mut self, arguments: S) -> alloc::Result<()>
     where
         S: IntoIterator,
         S::Item: AsRef<str>,
@@ -67,18 +73,20 @@ impl Docs {
         out.clear();
 
         for argument in arguments {
-            out.push(argument.as_ref().to_owned());
+            out.try_push(argument.as_ref().try_to_owned()?)?;
         }
 
         self.arguments = Some(out);
+        Ok(())
     }
 
     #[cfg(not(feature = "doc"))]
-    pub(crate) fn set_arguments<S>(&mut self, _: S)
+    pub(crate) fn set_arguments<S>(&mut self, _: S) -> alloc::Result<()>
     where
         S: IntoIterator,
         S::Item: AsRef<str>,
     {
+        Ok(())
     }
 }
 

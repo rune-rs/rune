@@ -16,7 +16,7 @@ impl NativeStruct {
 }
 
 fn make_native_module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate("native_crate");
+    let mut module = Module::with_crate("native_crate")?;
     module.ty::<NativeStruct>()?;
     module.function(["native_fn"], native_fn)?;
     module.associated_function("instance_fn", NativeStruct::instance_fn)?;

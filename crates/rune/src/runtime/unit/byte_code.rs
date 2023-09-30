@@ -1,18 +1,20 @@
 use core::mem::size_of;
 
-use crate::no_std::vec::Vec;
-
 use serde::{Deserialize, Serialize};
 
+use crate as rune;
+use crate::alloc::prelude::*;
+use crate::alloc::{self, Vec};
 use crate::runtime::unit::{BadInstruction, BadJump, EncodeError, UnitEncoder, UnitStorage};
 use crate::runtime::Inst;
 
 /// Unit stored as byte code, which is a more compact representation than
 /// [`ArrayUnit`], but takes more time to execute since it needs to be decoded.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, TryClone, Default, Serialize, Deserialize)]
 pub struct ByteCodeUnit {
     /// The instructions contained in the source file.
-    bytes: Vec<u8>,
+    #[try_clone(with = Clone::clone)]
+    bytes: rust_alloc::vec::Vec<u8>,
     /// Known jump offsets.
     offsets: Vec<usize>,
 }
@@ -51,10 +53,10 @@ impl UnitEncoder for ByteCodeUnit {
     }
 
     #[inline]
-    fn extend_offsets(&mut self, extra: usize) -> usize {
+    fn extend_offsets(&mut self, extra: usize) -> alloc::Result<usize> {
         let base = self.offsets.len();
-        self.offsets.extend((0..extra).map(|_| 0));
-        base
+        self.offsets.try_extend((0..extra).map(|_| 0))?;
+        Ok(base)
     }
 
     #[inline]

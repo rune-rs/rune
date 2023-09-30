@@ -12,7 +12,7 @@ fn ast_parse() {
 /// A `yield` expression to return a value from a generator.
 ///
 /// * `yield [expr]`.
-#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]
 pub struct ExprYield {

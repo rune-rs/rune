@@ -649,6 +649,7 @@ impl Context {
             variant_data: path(m, ["runtime", "VariantData"]),
             vm_result: path(m, ["runtime", "VmResult"]),
             vm_try: path(m, ["vm_try"]),
+            alloc: path(m, ["alloc"]),
         }
     }
 }
@@ -740,6 +741,7 @@ pub(crate) struct Tokens {
     pub(crate) variant_data: syn::Path,
     pub(crate) vm_result: syn::Path,
     pub(crate) vm_try: syn::Path,
+    pub(crate) alloc: syn::Path,
 }
 
 impl Tokens {

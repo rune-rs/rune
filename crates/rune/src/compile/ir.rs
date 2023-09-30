@@ -11,9 +11,9 @@ mod value;
 
 use core::ops::{AddAssign, MulAssign, ShlAssign, ShrAssign, SubAssign};
 
-use crate::no_std::prelude::*;
-
 use crate as rune;
+use crate::alloc::prelude::*;
+use crate::alloc::{Box, Vec};
 use crate::ast::{self, Span, Spanned};
 use crate::compile::ir;
 use crate::compile::{self, WithSpan};
@@ -31,7 +31,7 @@ pub(crate) use self::value::Value;
 
 impl ast::Expr {
     pub(crate) fn eval(&self, cx: &mut MacroContext<'_, '_, '_>) -> compile::Result<Value> {
-        let mut expr = self.clone();
+        let mut expr = self.try_clone()?;
         index::expr(cx.idx, &mut expr)?;
 
         let ir = {
@@ -41,7 +41,7 @@ impl ast::Expr {
                 &arena,
                 cx.idx.q.borrow(),
                 cx.item_meta.location.source_id,
-            );
+            )?;
             let hir = hir::lowering::expr(&mut hir_ctx, &expr)?;
 
             let mut cx = Ctxt {
@@ -54,7 +54,7 @@ impl ast::Expr {
 
         let mut ir_interpreter = Interpreter {
             budget: Budget::new(1_000_000),
-            scopes: Default::default(),
+            scopes: Scopes::new()?,
             module: cx.item_meta.module,
             item: cx.item_meta.item,
             q: cx.idx.q.borrow(),
@@ -87,7 +87,7 @@ macro_rules! decl_kind {
 }
 
 /// A single operation in the Rune intermediate language.
-#[derive(Debug, Clone, Spanned)]
+#[derive(Debug, TryClone, Spanned)]
 pub(crate) struct Ir {
     #[rune(span)]
     pub(crate) span: Span,
@@ -109,7 +109,7 @@ impl Ir {
 }
 
 /// The target of a set operation.
-#[derive(Debug, Clone, Spanned)]
+#[derive(Debug, TryClone, Spanned)]
 pub(crate) struct IrTarget {
     /// Span of the target.
     #[rune(span)]
@@ -119,7 +119,7 @@ pub(crate) struct IrTarget {
 }
 
 /// The kind of the target.
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 pub(crate) enum IrTargetKind {
     /// A variable.
     Name(hir::OwnedName),
@@ -131,7 +131,7 @@ pub(crate) enum IrTargetKind {
 
 decl_kind! {
     /// The kind of an intermediate operation.
-    #[derive(Debug, Clone)]
+    #[derive(Debug, TryClone)]
     pub(crate) enum IrKind {
         /// Push a scope with the given instructions.
         Scope(IrScope),
@@ -170,7 +170,7 @@ decl_kind! {
 }
 
 /// An interpeted function.
-#[derive(Debug, Clone, Spanned)]
+#[derive(Debug, TryClone, Spanned)]
 pub(crate) struct IrFn {
     /// The span of the function.
     #[rune(span)]
@@ -194,7 +194,7 @@ impl IrFn {
                 ..
             }) = arg
             {
-                args.push(hir::Name::Str(name).into_owned());
+                args.try_push(hir::Name::Str(name).into_owned()?)?;
                 continue;
             }
 
@@ -212,7 +212,7 @@ impl IrFn {
 }
 
 /// Definition of a new variable scope.
-#[derive(Debug, Clone, Spanned)]
+#[derive(Debug, TryClone, Spanned)]
 pub(crate) struct IrScope {
     /// The span of the scope.
     #[rune(span)]
@@ -224,7 +224,7 @@ pub(crate) struct IrScope {
 }
 
 /// A binary operation.
-#[derive(Debug, Clone, Spanned)]
+#[derive(Debug, TryClone, Spanned)]
 pub(crate) struct IrBinary {
     /// The span of the binary op.
     #[rune(span)]
@@ -238,7 +238,7 @@ pub(crate) struct IrBinary {
 }
 
 /// A local variable declaration.
-#[derive(Debug, Clone, Spanned)]
+#[derive(Debug, TryClone, Spanned)]
 pub(crate) struct IrDecl {
     /// The span of the declaration.
     #[rune(span)]
@@ -250,7 +250,7 @@ pub(crate) struct IrDecl {
 }
 
 /// Set a target.
-#[derive(Debug, Clone, Spanned)]
+#[derive(Debug, TryClone, Spanned)]
 pub(crate) struct IrSet {
     /// The span of the set operation.
     #[rune(span)]
@@ -262,7 +262,7 @@ pub(crate) struct IrSet {
 }
 
 /// Assign a target.
-#[derive(Debug, Clone, Spanned)]
+#[derive(Debug, TryClone, Spanned)]
 pub(crate) struct IrAssign {
     /// The span of the set operation.
     #[rune(span)]
@@ -276,7 +276,7 @@ pub(crate) struct IrAssign {
 }
 
 /// A string template.
-#[derive(Debug, Clone, Spanned)]
+#[derive(Debug, TryClone, Spanned)]
 pub(crate) struct IrTemplate {
     /// The span of the template.
     #[rune(span)]
@@ -286,7 +286,7 @@ pub(crate) struct IrTemplate {
 }
 
 /// A string template.
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 pub(crate) enum IrTemplateComponent {
     /// An ir expression.
     Ir(Ir),
@@ -295,7 +295,7 @@ pub(crate) enum IrTemplateComponent {
 }
 
 /// Branch conditions in intermediate representation.
-#[derive(Debug, Clone, Spanned)]
+#[derive(Debug, TryClone, Spanned)]
 pub(crate) struct IrBranches {
     /// Span associated with branches.
     #[rune(span)]
@@ -307,7 +307,7 @@ pub(crate) struct IrBranches {
 }
 
 /// The condition for a branch.
-#[derive(Debug, Clone, Spanned)]
+#[derive(Debug, TryClone, Spanned)]
 pub(crate) enum IrCondition {
     /// A simple conditional ir expression.
     Ir(Ir),
@@ -316,7 +316,7 @@ pub(crate) enum IrCondition {
 }
 
 /// A pattern match.
-#[derive(Debug, Clone, Spanned)]
+#[derive(Debug, TryClone, Spanned)]
 pub(crate) struct IrLet {
     /// The span of the let condition.
     #[rune(span)]
@@ -328,7 +328,7 @@ pub(crate) struct IrLet {
 }
 
 /// A pattern.
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 pub(crate) enum IrPat {
     /// An ignore pattern `_`.
     Ignore,
@@ -341,7 +341,7 @@ impl IrPat {
         match hir.kind {
             hir::PatKind::Ignore => return Ok(ir::IrPat::Ignore),
             hir::PatKind::Path(&hir::PatPathKind::Ident(name)) => {
-                return Ok(ir::IrPat::Binding(hir::Name::Str(name).into_owned()));
+                return Ok(ir::IrPat::Binding(hir::Name::Str(name).into_owned()?));
             }
             _ => (),
         }
@@ -369,7 +369,7 @@ impl IrPat {
 }
 
 /// A loop with an optional condition.
-#[derive(Debug, Clone, Spanned)]
+#[derive(Debug, TryClone, Spanned)]
 pub(crate) struct IrLoop {
     /// The span of the loop.
     #[rune(span)]
@@ -383,7 +383,7 @@ pub(crate) struct IrLoop {
 }
 
 /// A break operation.
-#[derive(Debug, Clone, Spanned)]
+#[derive(Debug, TryClone, Spanned)]
 pub(crate) struct IrBreak {
     /// The span of the break.
     #[rune(span)]
@@ -400,10 +400,10 @@ impl IrBreak {
         cx: &mut Ctxt<'_, '_>,
         hir: &hir::ExprBreak,
     ) -> compile::Result<Self> {
-        let label = hir.label.map(Into::into);
+        let label = hir.label.map(TryInto::try_into).transpose()?;
 
         let expr = match hir.expr {
-            Some(e) => Some(Box::new(compiler::expr(e, cx)?)),
+            Some(e) => Some(Box::try_new(compiler::expr(e, cx)?)?),
             None => None,
         };
 
@@ -426,12 +426,17 @@ impl IrBreak {
             None => None,
         };
 
-        ir::EvalOutcome::Break(span, self.label.clone(), expr)
+        let label = match self.label.try_clone() {
+            Ok(label) => label,
+            Err(error) => return error.into(),
+        };
+
+        ir::EvalOutcome::Break(span, label, expr)
     }
 }
 
 /// Tuple expression.
-#[derive(Debug, Clone, Spanned)]
+#[derive(Debug, TryClone, Spanned)]
 pub(crate) struct Tuple {
     /// Span of the tuple.
     #[rune(span)]
@@ -441,7 +446,7 @@ pub(crate) struct Tuple {
 }
 
 /// Object expression.
-#[derive(Debug, Clone, Spanned)]
+#[derive(Debug, TryClone, Spanned)]
 pub(crate) struct IrObject {
     /// Span of the object.
     #[rune(span)]
@@ -451,7 +456,7 @@ pub(crate) struct IrObject {
 }
 
 /// Call expressions.
-#[derive(Debug, Clone, Spanned)]
+#[derive(Debug, TryClone, Spanned)]
 pub(crate) struct IrCall {
     /// Span of the call.
     #[rune(span)]
@@ -463,7 +468,7 @@ pub(crate) struct IrCall {
 }
 
 /// Vector expression.
-#[derive(Debug, Clone, Spanned)]
+#[derive(Debug, TryClone, Spanned)]
 pub(crate) struct IrVec {
     /// Span of the vector.
     #[rune(span)]
@@ -473,7 +478,8 @@ pub(crate) struct IrVec {
 }
 
 /// A binary operation.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 pub(crate) enum IrBinaryOp {
     /// Add `+`.
     Add,
@@ -500,7 +506,8 @@ pub(crate) enum IrBinaryOp {
 }
 
 /// An assign operation.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 pub(crate) enum IrAssignOp {
     /// `+=`.
     Add,

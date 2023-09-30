@@ -12,7 +12,8 @@ fn ast_parse() {
 }
 
 /// A byte literal.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, Spanned)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct LitByte {
     /// The span corresponding to the literal.
@@ -112,10 +113,14 @@ impl<'a> Resolve<'a> for LitByte {
 }
 
 impl ToTokens for LitByte {
-    fn to_tokens(&self, _: &mut MacroContext<'_, '_, '_>, stream: &mut TokenStream) {
+    fn to_tokens(
+        &self,
+        _: &mut MacroContext<'_, '_, '_>,
+        stream: &mut TokenStream,
+    ) -> alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Byte(self.source),
-        });
+        })
     }
 }

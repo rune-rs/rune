@@ -1,14 +1,13 @@
-use crate::no_std::collections::HashMap;
-use crate::no_std::prelude::*;
-
-use crate::alloc::Error;
+use crate as rune;
+use crate::alloc::prelude::*;
+use crate::alloc::{self, Box, HashMap, String, Vec};
 use crate::ast::Spanned;
 use crate::compile::{self, WithSpan};
 use crate::runtime as rt;
 use crate::runtime::{Bytes, ConstValue, Shared, TypeInfo};
 
 /// A constant value.
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 pub enum Value {
     /// A constant unit.
     EmptyTuple,
@@ -57,7 +56,7 @@ impl Value {
     }
 
     /// Convert a constant value into an interpreter value.
-    pub(crate) fn from_const(value: &ConstValue) -> Result<Self, Error> {
+    pub(crate) fn from_const(value: &ConstValue) -> alloc::Result<Self> {
         Ok(match value {
             ConstValue::EmptyTuple => Self::EmptyTuple,
             ConstValue::Byte(b) => Self::Byte(*b),
@@ -65,35 +64,35 @@ impl Value {
             ConstValue::Bool(b) => Self::Bool(*b),
             ConstValue::Integer(n) => Self::Integer(*n),
             ConstValue::Float(n) => Self::Float(*n),
-            ConstValue::String(s) => Self::String(Shared::new(s.clone())?),
-            ConstValue::Bytes(b) => Self::Bytes(Shared::new(b.clone())?),
+            ConstValue::String(s) => Self::String(Shared::new(s.try_clone()?)?),
+            ConstValue::Bytes(b) => Self::Bytes(Shared::new(b.try_clone()?)?),
             ConstValue::Option(option) => Self::Option(Shared::new(match option {
                 Some(some) => Some(Self::from_const(some)?),
                 None => None,
             })?),
             ConstValue::Vec(vec) => {
-                let mut ir_vec = Vec::with_capacity(vec.len());
+                let mut ir_vec = Vec::try_with_capacity(vec.len())?;
 
                 for value in vec {
-                    ir_vec.push(Self::from_const(value)?);
+                    ir_vec.try_push(Self::from_const(value)?)?;
                 }
 
                 Self::Vec(Shared::new(ir_vec)?)
             }
             ConstValue::Tuple(tuple) => {
-                let mut ir_tuple = Vec::with_capacity(tuple.len());
+                let mut ir_tuple = Vec::try_with_capacity(tuple.len())?;
 
                 for value in tuple.iter() {
-                    ir_tuple.push(Self::from_const(value)?);
+                    ir_tuple.try_push(Self::from_const(value)?)?;
                 }
 
-                Self::Tuple(Shared::new(ir_tuple.into_boxed_slice())?)
+                Self::Tuple(Shared::new(ir_tuple.try_into_boxed_slice()?)?)
             }
             ConstValue::Object(object) => {
-                let mut ir_object = HashMap::with_capacity(object.len());
+                let mut ir_object = HashMap::try_with_capacity(object.len())?;
 
                 for (key, value) in object {
-                    ir_object.insert(key.clone(), Self::from_const(value)?);
+                    ir_object.try_insert(key.try_clone()?, Self::from_const(value)?)?;
                 }
 
                 Self::Object(Shared::new(ir_object)?)
@@ -122,35 +121,35 @@ impl Value {
                 ConstValue::Bytes(b)
             }
             Self::Option(option) => ConstValue::Option(match option.take().with_span(spanned)? {
-                Some(value) => Some(Box::new(value.into_const(spanned)?)),
+                Some(value) => Some(Box::try_new(value.into_const(spanned)?)?),
                 None => None,
             }),
             Value::Vec(vec) => {
                 let vec = vec.take().with_span(spanned)?;
-                let mut const_vec = Vec::with_capacity(vec.len());
+                let mut const_vec = Vec::try_with_capacity(vec.len())?;
 
                 for value in vec {
-                    const_vec.push(value.into_const(spanned)?);
+                    const_vec.try_push(value.into_const(spanned)?)?;
                 }
 
                 ConstValue::Vec(const_vec)
             }
             Value::Tuple(tuple) => {
                 let tuple = tuple.take().with_span(spanned)?;
-                let mut const_tuple = Vec::with_capacity(tuple.len());
+                let mut const_tuple = Vec::try_with_capacity(tuple.len())?;
 
                 for value in Vec::from(tuple) {
-                    const_tuple.push(value.into_const(spanned)?);
+                    const_tuple.try_push(value.into_const(spanned)?)?;
                 }
 
-                ConstValue::Tuple(const_tuple.into_boxed_slice())
+                ConstValue::Tuple(const_tuple.try_into_boxed_slice()?)
             }
             Value::Object(object) => {
                 let object = object.take().with_span(spanned)?;
-                let mut const_object = HashMap::with_capacity(object.len());
+                let mut const_object = HashMap::try_with_capacity(object.len())?;
 
                 for (key, value) in object {
-                    const_object.insert(key, value.into_const(spanned)?);
+                    const_object.try_insert(key, value.into_const(spanned)?)?;
                 }
 
                 ConstValue::Object(const_object)

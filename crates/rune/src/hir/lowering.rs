@@ -1,11 +1,11 @@
 use core::cell::Cell;
 use core::ops::Neg;
 
-use crate::no_std::collections::{HashMap, HashSet};
-use crate::no_std::prelude::*;
-
 use num::ToPrimitive;
 
+use crate::alloc::prelude::*;
+use crate::alloc::try_format;
+use crate::alloc::{self, Box, HashMap, HashSet};
 use crate::ast::{self, Spanned};
 use crate::compile::meta;
 use crate::compile::{self, DynLocation, ErrorKind, Item, ItemId, WithSpan};
@@ -56,7 +56,7 @@ impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
         arena: &'hir hir::arena::Arena,
         q: Query<'a, 'arena>,
         source_id: SourceId,
-    ) -> Self {
+    ) -> alloc::Result<Self> {
         Self::inner(arena, q, source_id, false)
     }
 
@@ -66,7 +66,7 @@ impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
         arena: &'hir hir::arena::Arena,
         q: Query<'a, 'arena>,
         source_id: SourceId,
-    ) -> Self {
+    ) -> alloc::Result<Self> {
         Self::inner(arena, q, source_id, true)
     }
 
@@ -75,17 +75,17 @@ impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
         q: Query<'a, 'arena>,
         source_id: SourceId,
         const_eval: bool,
-    ) -> Self {
-        Self {
+    ) -> alloc::Result<Self> {
+        Ok(Self {
             arena,
             q,
             source_id,
             in_template: Cell::new(false),
             in_path: Cell::new(false),
             needs: Cell::new(Needs::default()),
-            scopes: hir::Scopes::default(),
+            scopes: hir::Scopes::new()?,
             const_eval,
-        }
+        })
     }
 
     #[allow(unused)]
@@ -168,18 +168,18 @@ pub(crate) fn async_block_secondary<'hir>(
     let Some(captures) = cx.q.get_captures(captures) else {
         return Err(compile::Error::msg(
             ast,
-            format_args!("Missing captures for hash {captures}"),
+            try_format!("Missing captures for hash {captures}"),
         ));
     };
 
     let captures = &*iter!(captures, |capture| {
         match capture {
-            hir::OwnedName::SelfValue => cx.scopes.define(hir::Name::SelfValue).with_span(ast)?,
+            hir::OwnedName::SelfValue => cx.scopes.define(hir::Name::SelfValue, ast)?,
             hir::OwnedName::Str(name) => {
                 let name = alloc_str!(name.as_str());
-                cx.scopes.define(hir::Name::Str(name)).with_span(ast)?
+                cx.scopes.define(hir::Name::Str(name), ast)?
             }
-            hir::OwnedName::Id(id) => cx.scopes.define(hir::Name::Id(*id)).with_span(ast)?,
+            hir::OwnedName::Id(id) => cx.scopes.define(hir::Name::Id(*id), ast)?,
         }
     });
 
@@ -203,20 +203,20 @@ pub(crate) fn expr_closure_secondary<'hir>(
     let Some(captures) = cx.q.get_captures(captures) else {
         return Err(compile::Error::msg(
             ast,
-            format_args!("Missing captures for hash {captures}"),
+            try_format!("Missing captures for hash {captures}"),
         ));
     };
 
     let captures = &*iter!(captures, |capture| match capture {
         hir::OwnedName::SelfValue => {
-            cx.scopes.define(hir::Name::SelfValue).with_span(ast)?
+            cx.scopes.define(hir::Name::SelfValue, ast)?
         }
         hir::OwnedName::Str(name) => {
             let name = hir::Name::Str(alloc_str!(name.as_str()));
-            cx.scopes.define(name).with_span(ast)?
+            cx.scopes.define(name, ast)?
         }
         hir::OwnedName::Id(id) => {
-            cx.scopes.define(hir::Name::Id(*id)).with_span(ast)?
+            cx.scopes.define(hir::Name::Id(*id), ast)?
         }
     });
 
@@ -244,7 +244,7 @@ fn expr_call_closure<'hir>(
         return Err(compile::Error::new(
             ast,
             ErrorKind::MissingItem {
-                item: cx.q.pool.item(item.item).to_owned(),
+                item: cx.q.pool.item(item.item).try_to_owned()?,
             },
         ));
     };
@@ -252,7 +252,7 @@ fn expr_call_closure<'hir>(
     let meta::Kind::Closure { call, do_move, .. } = meta.kind else {
         return Err(compile::Error::expected_meta(
             ast,
-            meta.info(cx.q.pool),
+            meta.info(cx.q.pool)?,
             "a closure",
         ));
     };
@@ -270,16 +270,16 @@ fn expr_call_closure<'hir>(
             expr(cx, &ast.body)?;
             let layer = cx.scopes.pop().with_span(&ast.body)?;
 
-            cx.q.set_used(&meta.item_meta);
-            cx.q.inner.queue.push_back(BuildEntry {
+            cx.q.set_used(&meta.item_meta)?;
+            cx.q.inner.queue.try_push_back(BuildEntry {
                 item_meta: meta.item_meta,
                 build: Build::Closure(indexing::Closure {
-                    ast: Box::new(ast.clone()),
+                    ast: Box::try_new(ast.try_clone()?)?,
                     call,
                 }),
-            });
+            })?;
 
-            cx.q.insert_captures(meta.hash, layer.captures());
+            cx.q.insert_captures(meta.hash, layer.captures())?;
             iter!(layer.captures())
         }
         Some(captures) => {
@@ -372,7 +372,7 @@ pub(crate) fn expr_object<'hir>(
     let assignments = &mut *iter!(&ast.assignments, |(ast, _)| {
         let key = object_key(cx, &ast.key)?;
 
-        if let Some(_existing) = keys_dup.insert(key.1, key.0) {
+        if let Some(_existing) = keys_dup.try_insert(key.1, key.0)? {
             return Err(compile::Error::new(
                 key.0,
                 ErrorKind::DuplicateObjectKey {
@@ -387,11 +387,11 @@ pub(crate) fn expr_object<'hir>(
         let assign = match &ast.assign {
             Some((_, ast)) => expr(cx, ast)?,
             None => {
-                let Some((name, _)) = cx.scopes.get(hir::Name::Str(key.1)) else {
+                let Some((name, _)) = cx.scopes.get(hir::Name::Str(key.1))? else {
                     return Err(compile::Error::new(
                         key.0,
                         ErrorKind::MissingLocal {
-                            name: key.1.to_owned(),
+                            name: key.1.try_to_string()?.try_into()?,
                         },
                     ));
                 };
@@ -411,7 +411,7 @@ pub(crate) fn expr_object<'hir>(
     });
 
     let mut check_object_fields = |fields: &HashMap<_, meta::FieldMeta>, item: &Item| {
-        let mut fields = fields.clone();
+        let mut fields = fields.try_clone()?;
 
         for assign in assignments.iter_mut() {
             match fields.remove(assign.key.1) {
@@ -422,8 +422,8 @@ pub(crate) fn expr_object<'hir>(
                     return Err(compile::Error::new(
                         assign.key.0,
                         ErrorKind::LitObjectNotField {
-                            field: assign.key.1.into(),
-                            item: item.to_owned(),
+                            field: assign.key.1.try_into()?,
+                            item: item.try_to_owned()?,
                         },
                     ));
                 }
@@ -435,7 +435,7 @@ pub(crate) fn expr_object<'hir>(
                 span,
                 ErrorKind::LitObjectMissingField {
                     field,
-                    item: item.to_owned(),
+                    item: item.try_to_owned()?,
                 },
             ));
         }
@@ -484,7 +484,7 @@ pub(crate) fn expr_object<'hir>(
                     return Err(compile::Error::new(
                         span,
                         ErrorKind::UnsupportedLitObject {
-                            meta: meta.info(cx.q.pool),
+                            meta: meta.info(cx.q.pool)?,
                         },
                     ));
                 }
@@ -923,16 +923,16 @@ pub(crate) fn expr_block<'hir>(
                     block(cx, &ast.block)?;
                     let layer = cx.scopes.pop().with_span(&ast.block)?;
 
-                    cx.q.insert_captures(meta.hash, layer.captures());
+                    cx.q.insert_captures(meta.hash, layer.captures())?;
 
-                    cx.q.set_used(&meta.item_meta);
-                    cx.q.inner.queue.push_back(BuildEntry {
+                    cx.q.set_used(&meta.item_meta)?;
+                    cx.q.inner.queue.try_push_back(BuildEntry {
                         item_meta: meta.item_meta,
                         build: Build::AsyncBlock(indexing::AsyncBlock {
-                            ast: ast.block.clone(),
+                            ast: ast.block.try_clone()?,
                             call,
                         }),
-                    });
+                    })?;
 
                     iter!(layer.captures())
                 }
@@ -954,7 +954,7 @@ pub(crate) fn expr_block<'hir>(
         (ExprBlockKind::Const, meta::Kind::Const { .. }) => Ok(hir::ExprKind::Const(meta.hash)),
         _ => Err(compile::Error::expected_meta(
             ast,
-            meta.info(cx.q.pool),
+            meta.info(cx.q.pool)?,
             "async or const block",
         )),
     }
@@ -978,7 +978,7 @@ fn expr_break<'hir>(
             return Err(compile::Error::new(
                 ast,
                 ErrorKind::MissingLoopLabel {
-                    label: label.into(),
+                    label: label.try_into()?,
                 },
             ));
         } else {
@@ -1017,7 +1017,7 @@ fn expr_continue<'hir>(
             return Err(compile::Error::new(
                 ast,
                 ErrorKind::MissingLoopLabel {
-                    label: label.into(),
+                    label: label.try_into()?,
                 },
             ));
         } else {
@@ -1043,7 +1043,7 @@ fn fn_arg<'hir>(
 
     Ok(match ast {
         ast::FnArg::SelfValue(ast) => {
-            cx.scopes.define(hir::Name::SelfValue).with_span(ast)?;
+            cx.scopes.define(hir::Name::SelfValue, ast)?;
             hir::FnArg::SelfValue(ast.span())
         }
         ast::FnArg::Pat(ast) => hir::FnArg::Pat(alloc!(pat(cx, ast)?)),
@@ -1102,7 +1102,7 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
 
                 if let Some(ident) = ast.path.try_as_ident() {
                     let name = alloc_str!(ident.resolve(resolve_context!(cx.q))?);
-                    cx.scopes.define(hir::Name::Str(name)).with_span(ast)?;
+                    cx.scopes.define(hir::Name::Str(name), ast)?;
                     break 'ok hir::PatPathKind::Ident(name);
                 }
 
@@ -1147,7 +1147,7 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                 let Some((args, kind)) = tuple_match_for(cx, &meta) else {
                     return Err(compile::Error::expected_meta(
                         path,
-                        meta.info(cx.q.pool),
+                        meta.info(cx.q.pool)?,
                         "type that can be used in a tuple pattern",
                     ));
                 };
@@ -1200,7 +1200,7 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                         };
 
                         let key = alloc_str!(ident.resolve(resolve_context!(cx.q))?);
-                        cx.scopes.define(hir::Name::Str(key)).with_span(ident)?;
+                        cx.scopes.define(hir::Name::Str(key), ident)?;
                         (key, hir::Binding::Ident(path.span(), key))
                     }
                     _ => {
@@ -1208,7 +1208,7 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                     }
                 };
 
-                if let Some(_existing) = keys_dup.insert(key, pat) {
+                if let Some(_existing) = keys_dup.try_insert(key, pat)? {
                     return Err(compile::Error::new(
                         pat,
                         ErrorKind::DuplicateObjectKey {
@@ -1230,11 +1230,11 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                     let meta = cx.lookup_meta(path, named.item, parameters)?;
 
                     let Some((mut fields, kind)) =
-                        struct_match_for(cx, &meta, is_open && count == 0)
+                        struct_match_for(cx, &meta, is_open && count == 0)?
                     else {
                         return Err(compile::Error::expected_meta(
                             path,
-                            meta.info(cx.q.pool),
+                            meta.info(cx.q.pool)?,
                             "type that can be used in a struct pattern",
                         ));
                     };
@@ -1244,25 +1244,22 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                             return Err(compile::Error::new(
                                 ast,
                                 ErrorKind::LitObjectNotField {
-                                    field: binding.key().into(),
-                                    item: cx.q.pool.item(meta.item_meta.item).to_owned(),
+                                    field: binding.key().try_into()?,
+                                    item: cx.q.pool.item(meta.item_meta.item).try_to_owned()?,
                                 },
                             ));
                         }
                     }
 
                     if !is_open && !fields.is_empty() {
-                        let mut fields = fields
-                            .into_iter()
-                            .map(Box::<str>::from)
-                            .collect::<Box<[_]>>();
+                        let mut fields = fields.into_iter().try_collect::<Box<[_]>>()?;
 
                         fields.sort();
 
                         return Err(compile::Error::new(
                             ast,
                             ErrorKind::PatternMissingFields {
-                                item: cx.q.pool.item(meta.item_meta.item).to_owned(),
+                                item: cx.q.pool.item(meta.item_meta.item).try_to_owned()?,
                                 #[cfg(feature = "emit")]
                                 fields,
                             },
@@ -1323,7 +1320,7 @@ pub(crate) fn expr_path<'hir>(
     alloc_with!(cx, ast);
 
     if let Some(ast::PathKind::SelfValue) = ast.as_kind() {
-        let Some(..) = cx.scopes.get(hir::Name::SelfValue) else {
+        let Some(..) = cx.scopes.get(hir::Name::SelfValue)? else {
             return Err(compile::Error::new(ast, ErrorKind::MissingSelf));
         };
 
@@ -1334,7 +1331,7 @@ pub(crate) fn expr_path<'hir>(
         if let Some(name) = ast.try_as_ident() {
             let name = alloc_str!(name.resolve(resolve_context!(cx.q))?);
 
-            if let Some((name, _)) = cx.scopes.get(hir::Name::Str(name)) {
+            if let Some((name, _)) = cx.scopes.get(hir::Name::Str(name))? {
                 return Ok(hir::ExprKind::Variable(name));
             }
         }
@@ -1362,7 +1359,7 @@ pub(crate) fn expr_path<'hir>(
             return Err(compile::Error::new(
                 ast,
                 ErrorKind::MissingLocal {
-                    name: local.to_owned(),
+                    name: Box::<str>::try_from(local)?,
                 },
             ));
         }
@@ -1370,12 +1367,12 @@ pub(crate) fn expr_path<'hir>(
 
     let kind = if !parameters.parameters.is_empty() {
         ErrorKind::MissingItemParameters {
-            item: cx.q.pool.item(named.item).to_owned(),
-            parameters: parameters.parameters.as_ref().into(),
+            item: cx.q.pool.item(named.item).try_to_owned()?,
+            parameters: parameters.parameters.into_iter().try_collect()?,
         }
     } else {
         ErrorKind::MissingItem {
-            item: cx.q.pool.item(named.item).to_owned(),
+            item: cx.q.pool.item(named.item).try_to_owned()?,
         }
     };
 
@@ -1430,14 +1427,18 @@ fn expr_path_meta<'hir>(
             }
             _ => Err(compile::Error::expected_meta(
                 span,
-                meta.info(cx.q.pool),
+                meta.info(cx.q.pool)?,
                 "something that can be used as a value",
             )),
         }
     } else {
-        let type_hash = meta.type_hash_of().ok_or_else(|| {
-            compile::Error::expected_meta(span, meta.info(cx.q.pool), "something that has a type")
-        })?;
+        let Some(type_hash) = meta.type_hash_of() else {
+            return Err(compile::Error::expected_meta(
+                span,
+                meta.info(cx.q.pool)?,
+                "something that has a type",
+            ));
+        };
 
         Ok(hir::ExprKind::Type(Type::new(type_hash)))
     }
@@ -1489,7 +1490,7 @@ fn struct_match_for(
     cx: &Ctxt<'_, '_, '_>,
     meta: &meta::Meta,
     open: bool,
-) -> Option<(HashSet<Box<str>>, hir::PatSequenceKind)> {
+) -> alloc::Result<Option<(HashSet<Box<str>>, hir::PatSequenceKind)>> {
     let (fields, kind) = match &meta.kind {
         meta::Kind::Struct { fields, .. } => {
             (fields, hir::PatSequenceKind::Type { hash: meta.hash })
@@ -1513,18 +1514,22 @@ fn struct_match_for(
             (fields, kind)
         }
         _ => {
-            return None;
+            return Ok(None);
         }
     };
 
     let fields = match fields {
         meta::Fields::Unnamed(0) if open => HashSet::new(),
         meta::Fields::Empty if open => HashSet::new(),
-        meta::Fields::Named(st) => st.fields.keys().cloned().collect(),
-        _ => return None,
+        meta::Fields::Named(st) => st
+            .fields
+            .keys()
+            .try_cloned()
+            .try_collect::<alloc::Result<_>>()??,
+        _ => return Ok(None),
     };
 
-    Some((fields, kind))
+    Ok(Some((fields, kind)))
 }
 
 fn tuple_match_for(
@@ -1701,7 +1706,7 @@ fn expr_call<'hir>(
                     _ => {
                         return Err(compile::Error::expected_meta(
                             ast,
-                            meta.info(cx.q.pool),
+                            meta.info(cx.q.pool)?,
                             "something that can be called as a function",
                         ));
                     }
@@ -1716,11 +1721,11 @@ fn expr_call<'hir>(
                 let hash = match expr_field {
                     hir::ExprField::Index(index) => Hash::index(index),
                     hir::ExprField::Ident(ident) => {
-                        cx.q.unit.insert_debug_ident(ident);
+                        cx.q.unit.insert_debug_ident(ident)?;
                         Hash::ident(ident)
                     }
                     hir::ExprField::IdentGenerics(ident, hash) => {
-                        cx.q.unit.insert_debug_ident(ident);
+                        cx.q.unit.insert_debug_ident(ident)?;
                         Hash::ident(ident).with_function_parameters(hash)
                     }
                 };

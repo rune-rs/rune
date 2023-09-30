@@ -3,21 +3,26 @@ mod type_;
 mod markdown;
 mod js;
 
-use core::fmt::{self, Write};
+use core::fmt;
 use core::str;
 
-use crate::no_std::prelude::*;
-use crate::no_std::borrow::Cow;
-use crate::no_std::collections::VecDeque;
+use rust_alloc::string::ToString;
 
 use anyhow::{anyhow, bail, Context as _, Result};
 use relative_path::{RelativePath, RelativePathBuf};
-use rust_embed::RustEmbed;
 use serde::{Serialize, Serializer};
 use syntect::highlighting::ThemeSet;
 use syntect::html::{self, ClassStyle, ClassedHTMLGenerator};
 use syntect::parsing::{SyntaxReference, SyntaxSet};
 
+use crate as rune;
+use crate::std;
+use crate::std::borrow::ToOwned;
+use crate::alloc::{self, String, VecDeque, Vec};
+use crate::alloc::prelude::*;
+use crate::alloc::fmt::TryWrite;
+use crate::alloc::borrow::Cow;
+use crate::alloc::try_format;
 use crate::compile::{ComponentRef, Item, ItemBuf};
 use crate::doc::context::{Function, Kind, Signature, Meta};
 use crate::doc::templating;
@@ -37,21 +42,28 @@ const RUNEDOC_CSS: &str = "runedoc.css";
 
 pub(crate) struct Builder<'m> {
     state: State,
-    builder: Box<dyn FnOnce(&Ctxt<'_, '_>) -> Result<String> + 'm>,
+    builder: rust_alloc::boxed::Box<dyn FnOnce(&Ctxt<'_, '_>) -> Result<String> + 'm>,
 }
 
 impl<'m> Builder<'m> {
-    fn new<B>(cx: &Ctxt<'_, '_>, builder: B) -> Self where B: FnOnce(&Ctxt<'_, '_>) -> Result<String> + 'm {
-        Self {
-            state: cx.state.clone(),
-            builder: Box::new(builder),
-        }
+    fn new<B>(cx: &Ctxt<'_, '_>, builder: B) -> alloc::Result<Self> where B: FnOnce(&Ctxt<'_, '_>) -> Result<String> + 'm {
+        Ok(Self {
+            state: cx.state.try_clone()?,
+            builder: rust_alloc::boxed::Box::new(builder),
+        })
     }
 }
 
-#[derive(RustEmbed)]
-#[folder = "src/doc/static"]
-struct Assets;
+mod embed {
+    use rust_alloc::string::String;
+    use rust_alloc::boxed::Box;
+
+    use rust_embed::RustEmbed;
+
+    #[derive(RustEmbed)]
+    #[folder = "src/doc/static"]
+    pub(super) struct Assets;
+}
 
 /// Build documentation based on the given context and visitors.
 pub(crate) fn build(
@@ -77,7 +89,7 @@ pub(crate) fn build(
     let mut css = Vec::new();
     let mut js = Vec::new();
 
-    for file in Assets::iter() {
+    for file in embed::Assets::iter() {
         let path = RelativePath::new(file.as_ref());
 
         let out = match path.extension() {
@@ -87,21 +99,22 @@ pub(crate) fn build(
             _ => continue,
         };
 
-        let file = Assets::get(file.as_ref()).context("missing asset")?;
-        let builder_path = artifacts.asset(true, path, move || Ok(file.data))?;
-        paths.insert(path.as_str(), builder_path.as_str());
-        out.push(builder_path);
+        let file = embed::Assets::get(file.as_ref()).context("missing asset")?;
+        let data = Cow::try_from(file.data)?;
+        let builder_path = artifacts.asset(true, path, move || Ok(data))?;
+        paths.insert(path.as_str(), builder_path.as_str())?;
+        out.try_push(builder_path)?;
     }
 
     let theme = theme_set.themes.get(THEME).context("missing theme")?;
 
     let syntax_css = artifacts.asset(true, "syntax.css", || {
-        let content = html::css_for_theme_with_class_style(theme, html::ClassStyle::Spaced)?;
+        let content = String::try_from(html::css_for_theme_with_class_style(theme, html::ClassStyle::Spaced)?)?;
         Ok(content.into_bytes().into())
     })?;
 
-    paths.insert("syntax.css", syntax_css.as_str());
-    css.push(syntax_css);
+    paths.insert("syntax.css", syntax_css.as_str())?;
+    css.try_push(syntax_css)?;
 
     let runedoc_css = artifacts.asset(true, RUNEDOC_CSS, || {
         let runedoc = compile(&templating, "runedoc.css.hbs")?;
@@ -109,15 +122,16 @@ pub(crate) fn build(
         Ok(string.into_bytes().into())
     })?;
 
-    paths.insert(RUNEDOC_CSS, runedoc_css.as_str());
-    css.push(runedoc_css);
+    paths.insert(RUNEDOC_CSS, runedoc_css.as_str())?;
+    css.try_push(runedoc_css)?;
 
     // Collect an ordered set of modules, so we have a baseline of what to render when.
     let mut initial = VecDeque::new();
 
     for item in context.iter_modules() {
-        let meta = context.meta(&item).into_iter().find(|m| matches!(&m.kind, Kind::Module)).with_context(|| anyhow!("Missing meta for {item}"))?;
-        initial.push_back(Build::Module(meta));
+        let item = item?;
+        let meta = context.meta(&item)?.into_iter().find(|m| matches!(&m.kind, Kind::Module)).with_context(|| anyhow!("Missing meta for {item}"))?;
+        initial.try_push_back(Build::Module(meta))?;
     }
 
     let search_index = RelativePath::new("index.js");
@@ -141,7 +155,7 @@ pub(crate) fn build(
         tests: Vec::new(),
     };
 
-    let mut queue = initial.into_iter().collect::<VecDeque<_>>();
+    let mut queue = initial.into_iter().try_collect::<VecDeque<_>>()?;
 
     let mut modules = Vec::new();
     let mut builders = Vec::new();
@@ -151,34 +165,34 @@ pub(crate) fn build(
             Build::Type(meta) => {
                 cx.set_path(meta)?;
                 let (builder, items) = self::type_::build(&mut cx, "Type", "type", meta)?;
-                builders.push(builder);
-                cx.index.extend(items);
+                builders.try_push(builder)?;
+                cx.index.try_extend(items)?;
             }
             Build::Struct(meta) => {
                 cx.set_path(meta)?;
                 let (builder, index) = self::type_::build(&mut cx, "Struct", "struct", meta)?;
-                builders.push(builder);
-                cx.index.extend(index);
+                builders.try_push(builder)?;
+                cx.index.try_extend(index)?;
             }
             Build::Enum(meta) => {
                 cx.set_path(meta)?;
                 let (builder, index) = self::enum_::build(&mut cx, meta)?;
-                builders.push(builder);
-                cx.index.extend(index);
+                builders.try_push(builder)?;
+                cx.index.try_extend(index)?;
             }
             Build::Macro(meta) => {
                 cx.set_path(meta)?;
-                builders.push(build_macro(&mut cx, meta)?);
+                builders.try_push(build_macro(&mut cx, meta)?)?;
             }
             Build::Function(meta) => {
                 cx.set_path(meta)?;
-                builders.push(build_function(&mut cx, meta)?);
+                builders.try_push(build_function(&mut cx, meta)?)?;
             }
             Build::Module(meta) => {
                 cx.set_path(meta)?;
-                builders.push(module(&mut cx, meta, &mut queue)?);
+                builders.try_push(module(&mut cx, meta, &mut queue)?)?;
                 let item = meta.item.context("Missing item")?;
-                modules.push((item, cx.state.path.clone()));
+                modules.try_push((item, cx.state.path.clone()))?;
             }
         }
     }
@@ -191,11 +205,11 @@ pub(crate) fn build(
     cx.search_index = Some(&search_index_path);
 
     cx.state.path = RelativePath::new("index.html").to_owned();
-    builders.push(build_index(&cx, modules)?);
+    builders.try_push(build_index(&cx, modules)?)?;
 
     for builder in builders {
         cx.state = builder.state;
-        artifacts.asset(false, &cx.state.path, || Ok((builder.builder)(&cx)?.into_bytes().into()))?;
+        artifacts.asset(false, &cx.state.path, || Ok((builder.builder)(&cx)?.into_bytes().try_into()?))?;
     }
 
     artifacts.set_tests(cx.tests);
@@ -211,7 +225,7 @@ fn build_search_index(cx: &Ctxt) -> Result<String> {
         write!(s, "[\"{path}\",\"{item}\",\"{kind}\",\"")?;
 
         if let Some(doc) = doc {
-            js::encode_quoted(&mut s, doc);
+            js::encode_quoted(&mut s, doc)?;
         }
 
         write!(s, "\"]")?;
@@ -282,8 +296,9 @@ pub(crate) struct IndexEntry<'m> {
     pub(crate) doc: Option<String>,
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, TryClone)]
 pub(crate) struct State {
+    #[try_clone(with = RelativePathBuf::clone)]
     path: RelativePathBuf,
     item: ItemBuf,
 }
@@ -323,18 +338,18 @@ impl<'m> Ctxt<'_, 'm> {
         let item = meta.item.context("Missing meta item")?;
 
         self.state.path = RelativePathBuf::new();
-        self.state.item = item.to_owned();
+        self.state.item = item.try_to_owned()?;
 
         build_item_path(self.name, item, item_kind, &mut self.state.path)?;
 
         let doc = self.render_line_docs(meta, meta.docs.get(..1).unwrap_or_default())?;
 
-        self.index.push(IndexEntry {
+        self.index.try_push(IndexEntry {
             path: self.state.path.clone(),
             item: Cow::Borrowed(item),
             kind: IndexKind::Item(item_kind),
             doc,
-        });
+        })?;
 
         Ok(())
     }
@@ -343,16 +358,16 @@ impl<'m> Ctxt<'_, 'm> {
         self.state.path.parent().unwrap_or(RelativePath::new(""))
     }
 
-    fn shared(&self) -> Shared<'_> {
+    fn shared(&self) -> Result<Shared<'_>> {
         let dir = self.dir();
 
-        Shared {
+        Ok(Shared {
             data_path: self.state.path.parent(),
             search_index: self.search_index.map(|p| dir.relative(p)),
-            fonts: self.fonts.iter().map(|f| dir.relative(f)).collect(),
-            css: self.css.iter().map(|f| dir.relative(f)).collect(),
-            js: self.js.iter().map(|f| dir.relative(f)).collect(),
-        }
+            fonts: self.fonts.iter().map(|f| dir.relative(f)).try_collect()?,
+            css: self.css.iter().map(|f| dir.relative(f)).try_collect()?,
+            js: self.js.iter().map(|f| dir.relative(f)).try_collect()?,
+        })
     }
 
     /// Render rust code.
@@ -366,7 +381,7 @@ impl<'m> Ctxt<'_, 'm> {
             None => self.syntax_set.find_syntax_plain_text(),
         };
 
-        Ok(format!(
+        Ok(try_format!(
             "<pre><code class=\"language-rune\">{}</code></pre>",
             render_code_by_syntax(&self.syntax_set, lines, syntax, None)?
         ))
@@ -386,7 +401,6 @@ impl<'m> Ctxt<'_, 'm> {
         S: AsRef<str>,
     {
         use pulldown_cmark::{Options, Parser, BrokenLink};
-        use std::fmt::Write;
 
         if docs.is_empty() {
             return Ok(None);
@@ -397,8 +411,8 @@ impl<'m> Ctxt<'_, 'm> {
         for line in docs {
             let line = line.as_ref();
             let line = line.strip_prefix(' ').unwrap_or(line);
-            input.push_str(line);
-            input.push('\n');
+            input.try_push_str(line)?;
+            input.try_push('\n')?;
         }
 
         let mut o = String::new();
@@ -406,9 +420,18 @@ impl<'m> Ctxt<'_, 'm> {
         let mut options = Options::empty();
         options.insert(Options::ENABLE_STRIKETHROUGH);
 
+        let mut link_error = None;
+
         let mut callback = |link: BrokenLink<'_>| {
-            let (path, title) = self.link_callback(meta, link.reference.as_ref())?;
-            Some((path.to_string().into(), title.into()))
+            let (path, title) = match self.link_callback(meta, link.reference.as_ref()) {
+                Ok(out) => out?,
+                Err(error) => {
+                    link_error = Some(error);
+                    return None;
+                }
+            };
+
+            Some((path.to_string().into(), title.into_std().into()))
         };
 
         let iter = Parser::new_with_broken_link_callback(&input, options, Some(&mut callback));
@@ -417,13 +440,17 @@ impl<'m> Ctxt<'_, 'm> {
 
         markdown::push_html(&self.syntax_set, &mut o, iter, capture_tests.then_some(&mut tests))?;
 
+        if let Some(error) = link_error {
+            return Err(error);
+        }
+
         if capture_tests && !tests.is_empty() {
             for (content, params) in tests {
-                self.tests.push(Test {
-                    item: self.state.item.clone(),
+                self.tests.try_push(Test {
+                    item: self.state.item.try_clone()?,
                     content,
                     params,
-                });
+                })?;
             }
         }
 
@@ -448,7 +475,7 @@ impl<'m> Ctxt<'_, 'm> {
         while iter.next_back().is_some() {
             if let Some(name) = iter.as_item().last() {
                 let url = self.item_path(iter.as_item(), ItemKind::Module)?;
-                module.push(format!("<a class=\"module\" href=\"{url}\">{name}</a>"));
+                module.try_push(try_format!("<a class=\"module\" href=\"{url}\">{name}</a>"))?;
             }
         }
 
@@ -456,11 +483,26 @@ impl<'m> Ctxt<'_, 'm> {
 
         if is_module {
             if let Some(name) = item.last() {
-                module.push(format!("<span class=\"module\">{name}</span>"));
+                module.try_push(try_format!("<span class=\"module\">{name}</span>"))?;
             }
         }
 
-        Ok(module.join("::"))
+        let mut string = String::new();
+
+        let mut it = module.into_iter();
+
+        let last = it.next_back();
+
+        for c in it {
+            string.try_push_str(c.as_str())?;
+            string.try_push_str("::")?;
+        }
+
+        if let Some(c) = last {
+            string.try_push_str(c.as_str())?;
+        }
+
+        Ok(string)
     }
 
     /// Convert a hash into a link.
@@ -475,16 +517,16 @@ impl<'m> Ctxt<'_, 'm> {
             }
         }
 
-        let mut it = self.context.meta_by_hash(hash).into_iter().flat_map(|m| Some((m, into_item_kind(m)?)));
+        let mut it = self.context.meta_by_hash(hash)?.into_iter().flat_map(|m| Some((m, into_item_kind(m)?)));
 
         let Some((meta, kind)) = it.next() else {
             tracing::warn!(?hash, "No link for hash");
 
-            for meta in self.context.meta_by_hash(hash) {
+            for meta in self.context.meta_by_hash(hash)? {
                 tracing::warn!("Candidate: {:?}", meta.kind);
             }
 
-            return Ok(Some(format!("{hash}")))
+            return Ok(Some(try_format!("{hash}")))
         };
 
         let item = meta.item.context("Missing item link meta")?;
@@ -498,7 +540,7 @@ impl<'m> Ctxt<'_, 'm> {
         };
 
         let path = self.item_path(item, kind)?;
-        Ok(Some(format!("<a class=\"{kind}\" href=\"{path}\">{name}</a>")))
+        Ok(Some(try_format!("<a class=\"{kind}\" href=\"{path}\">{name}</a>")))
     }
 
     /// Coerce args into string.
@@ -510,7 +552,6 @@ impl<'m> Ctxt<'_, 'm> {
         argument_types: &[Option<Hash>],
     ) -> Result<String> {
         use std::borrow::Cow;
-        use std::fmt::Write;
 
         let mut string = String::new();
         let mut types = argument_types.iter();
@@ -575,20 +616,20 @@ impl<'m> Ctxt<'_, 'm> {
             if arg == "self" {
                 if let Some(Some(hash)) = types.next() {
                     if let Some(link) = self.link(*hash, Some("self"))? {
-                        string.push_str(&link);
+                        string.try_push_str(&link)?;
                     } else {
-                        string.push_str("self");
+                        string.try_push_str("self")?;
                     }
                 } else {
-                    string.push_str("self");
+                    string.try_push_str("self")?;
                 }
             } else {
-                string.push_str(arg.as_ref());
+                string.try_push_str(arg.as_ref())?;
 
                 if let Some(Some(hash)) = types.next() {
                     if let Some(link) = self.link(*hash, None)? {
-                        string.push_str(": ");
-                        string.push_str(&link);
+                        string.try_push_str(": ")?;
+                        string.try_push_str(&link)?;
                     }
                 }
             }
@@ -601,7 +642,7 @@ impl<'m> Ctxt<'_, 'm> {
         Ok(string)
     }
 
-    fn link_callback(&self, meta: Meta<'_>, link: &str) -> Option<(RelativePathBuf, String)> {
+    fn link_callback(&self, meta: Meta<'_>, link: &str) -> Result<Option<(RelativePathBuf, String)>> {
         enum Flavor {
             Any,
             Macro,
@@ -641,17 +682,25 @@ impl<'m> Ctxt<'_, 'm> {
         let link = link.trim_matches(|c| matches!(c, '`'));
         let (link, flavor) = flavor(link);
 
+        let Some(item) = meta.item else {
+            return Ok(None);
+        };
+
         let item = if matches!(meta.kind, Kind::Module) {
-            meta.item?.join([link])
+            item.join([link])?
         } else {
-            meta.item?.parent()?.join([link])
+            let Some(parent) = item.parent() else {
+                return Ok(None);
+            };
+
+            parent.join([link])?
         };
 
         let item_path = 'out: {
             let mut alts = Vec::new();
 
-            for meta in self.context.meta(&item) {
-                alts.push(match meta.kind {
+            for meta in self.context.meta(&item)? {
+                alts.try_push(match meta.kind {
                     Kind::Struct if flavor.is_struct() => ItemKind::Struct,
                     Kind::Enum if flavor.is_enum() => ItemKind::Enum,
                     Kind::Macro if flavor.is_macro() => ItemKind::Macro,
@@ -659,7 +708,7 @@ impl<'m> Ctxt<'_, 'm> {
                     _ => {
                         continue;
                     },
-                });
+                })?;
             }
 
             match &alts[..] {
@@ -672,12 +721,12 @@ impl<'m> Ctxt<'_, 'm> {
                 }
             }
 
-            return None;
+            return Ok(None);
         };
 
-        let path = self.item_path(&item, item_path).ok()?;
-        let title = format!("{item_path} {link}");
-        Some((path, title))
+        let path = self.item_path(&item, item_path)?;
+        let title = try_format!("{item_path} {link}");
+        Ok(Some((path, title)))
     }
 }
 
@@ -692,11 +741,11 @@ enum Build<'a> {
 
 /// Get an asset as a string.
 fn asset_str(path: &str) -> Result<Cow<'static, str>> {
-    let asset = Assets::get(path).with_context(|| anyhow!("{path}: missing asset"))?;
+    let asset = embed::Assets::get(path).with_context(|| anyhow!("{path}: missing asset"))?;
 
     let data = match asset.data {
-        Cow::Borrowed(data) => Cow::Borrowed(str::from_utf8(data).with_context(|| anyhow!("{path}: not utf-8"))?),
-        Cow::Owned(data) => Cow::Owned(String::from_utf8(data).with_context(|| anyhow!("{path}: not utf-8"))?),
+        rust_alloc::borrow::Cow::Borrowed(data) => Cow::Borrowed(str::from_utf8(data).with_context(|| anyhow!("{path}: not utf-8"))?),
+        rust_alloc::borrow::Cow::Owned(data) => Cow::Owned(String::from_utf8(data.try_into()?).with_context(|| anyhow!("{path}: not utf-8"))?),
     };
 
     Ok(data)
@@ -739,15 +788,15 @@ fn build_index<'m>(cx: &Ctxt<'_, 'm>, mods: Vec<(&'m Item, RelativePathBuf)>) ->
             continue;
         }
 
-        modules.push(Module { item, path });
+        modules.try_push(Module { item, path })?;
     }
 
     Ok(Builder::new(cx, move |cx| {
         cx.index_template.render(&Params {
-            shared: cx.shared(),
+            shared: cx.shared()?,
             modules,
         })
-    }))
+    })?)
 }
 
 /// Build a single module.
@@ -841,69 +890,69 @@ fn module<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<
     let mut functions = Vec::new();
     let mut modules = Vec::new();
 
-    for (_, name) in cx.context.iter_components(meta_item) {
-        let item = meta_item.join([name]);
+    for (_, name) in cx.context.iter_components(meta_item)? {
+        let item = meta_item.join([name])?;
 
-        for m in cx.context.meta(&item) {
+        for m in cx.context.meta(&item)? {
             match m.kind {
                 Kind::Type { .. } => {
-                    queue.push_front(Build::Type(m));
+                    queue.try_push_front(Build::Type(m))?;
                     let path = cx.item_path(&item, ItemKind::Type)?;
-                    types.push(Type {
-                        item: item.clone(),
+                    types.try_push(Type {
+                        item: item.try_clone()?,
                         path,
                         name,
                         doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
-                    });
+                    })?;
                 }
                 Kind::Struct { .. } => {
-                    queue.push_front(Build::Struct(m));
+                    queue.try_push_front(Build::Struct(m))?;
                     let path = cx.item_path(&item, ItemKind::Struct)?;
-                    structs.push(Struct {
-                        item: item.clone(),
+                    structs.try_push(Struct {
+                        item: item.try_clone()?,
                         path,
                         name,
                         doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
-                    });
+                    })?;
                 }
                 Kind::Enum { .. } => {
-                    queue.push_front(Build::Enum(m));
+                    queue.try_push_front(Build::Enum(m))?;
                     let path = cx.item_path(&item, ItemKind::Enum)?;
-                    enums.push(Enum {
-                        item: item.clone(),
+                    enums.try_push(Enum {
+                        item: item.try_clone()?,
                         path,
                         name,
                         doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
-                    });
+                    })?;
                 }
                 Kind::Macro => {
                     let item = m.item.context("Missing macro item")?;
 
-                    queue.push_front(Build::Macro(m));
+                    queue.try_push_front(Build::Macro(m))?;
 
-                    macros.push(Macro {
+                    macros.try_push(Macro {
                         path: cx.item_path(item, ItemKind::Macro)?,
                         item,
                         name,
                         doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
-                    });
+                    })?;
                 }
                 Kind::Function(f) => {
                     if matches!(f.signature, Signature::Instance { .. }) {
                         continue;
                     }
 
-                    queue.push_front(Build::Function(m));
+                    queue.try_push_front(Build::Function(m))?;
 
-                    functions.push(Function {
+                    functions.try_push(Function {
                         is_async: f.is_async,
                         deprecated: f.deprecated,
                         path: cx.item_path(&item, ItemKind::Function)?,
-                        item: item.clone(),
+                        item: item.try_clone()?,
                         name,
                         args: cx.args_to_string(f.arg_names, f.args, f.signature, f.argument_types)?,
                         doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
-                    });
+                    })?;
                 }
                 Kind::Module => {
                     let item = m.item.context("Missing module item")?;
@@ -913,13 +962,13 @@ fn module<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<
                         continue;
                     }
 
-                    queue.push_front(Build::Module(m));
+                    queue.try_push_front(Build::Module(m))?;
                     let path = cx.item_path(item, ItemKind::Module)?;
                     let name = item.last().context("missing name of module")?;
-                    modules.push(Module {
+                    modules.try_push(Module {
                         item, name, path,
                         doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
-                     })
+                    })?;
                 }
                 _ => {
                     continue;
@@ -932,7 +981,7 @@ fn module<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<
 
     Ok(Builder::new(cx, move |cx| {
         cx.module_template.render(&Params {
-            shared: cx.shared(),
+            shared: cx.shared()?,
             item: meta_item,
             module: cx.module_path_html(meta, true)?,
             doc,
@@ -943,7 +992,7 @@ fn module<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<
             functions,
             modules,
         })
-    }))
+    })?)
 }
 
 /// Build a macro.
@@ -967,13 +1016,13 @@ fn build_macro<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'m>>
 
     Ok(Builder::new(cx, move |cx| {
         cx.macro_template.render(&Params {
-            shared: cx.shared(),
+            shared: cx.shared()?,
             module: cx.module_path_html(meta, false)?,
             item,
             name,
             doc,
         })
-    }))
+    })?)
 }
 
 /// Build a function.
@@ -1015,7 +1064,7 @@ fn build_function<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'
 
     Ok(Builder::new(cx, move |cx| {
         cx.function_template.render(&Params {
-            shared: cx.shared(),
+            shared: cx.shared()?,
             module: cx.module_path_html(meta, false)?,
             is_async: f.is_async,
             deprecated: f.deprecated,
@@ -1025,7 +1074,7 @@ fn build_function<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'
             doc,
             return_type,
         })
-    }))
+    })?)
 }
 
 /// Helper to serialize an item.
@@ -1092,23 +1141,23 @@ where
 
         if line.starts_with('#') {
             if let Some(o) = out.as_mut() {
-                o.push_str(line.trim_start_matches('#'));
-                o.push('\n');
+                o.try_push_str(line.trim_start_matches('#'))?;
+                o.try_push('\n')?;
             }
 
             continue;
         }
 
         if let Some(o) = out.as_mut() {
-            o.push_str(line);
-            o.push('\n');
+            o.try_push_str(line)?;
+            o.try_push('\n')?;
         }
 
         buf.clear();
-        buf.push_str(line);
-        buf.push('\n');
+        buf.try_push_str(line)?;
+        buf.try_push('\n')?;
         gen.parse_html_for_line_which_includes_newline(&buf)?;
     }
 
-    Ok(gen.finalize())
+    Ok(gen.finalize().try_into()?)
 }

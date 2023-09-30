@@ -9,7 +9,7 @@ fn bug_326() -> Result<()> {
     let mut context = Context::with_default_modules()?;
     context.install(trim_module()?)?;
 
-    let runtime = Arc::new(context.runtime());
+    let runtime = Arc::new(context.runtime()?);
 
     let mut sources = Sources::new();
     sources.insert(Source::new(
@@ -25,7 +25,7 @@ fn bug_326() -> Result<()> {
             println(template_runtime_failure);
         }
         "#,
-    ));
+    ))?;
 
     let result = prepare(&mut sources).with_context(&context).build();
 
@@ -37,7 +37,7 @@ fn bug_326() -> Result<()> {
 }
 
 fn trim_module() -> Result<Module, ContextError> {
-    let mut m = Module::with_item(["mymodule"]);
+    let mut m = Module::with_item(["mymodule"])?;
     m.function_meta(trim_indent)?;
     Ok(m)
 }

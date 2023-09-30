@@ -164,7 +164,7 @@ Must now instead do this:
 pub(crate) fn stringy_math(
     cx: &mut MacroContext<'_, '_, '_>,
     stream: &TokenStream,
-) -> rune::Result<TokenStream> {
+) -> rune::support::Result<TokenStream> {
     let mut parser = Parser::from_token_stream(stream, cx.stream_span());
 
     let mut output = quote!(0);

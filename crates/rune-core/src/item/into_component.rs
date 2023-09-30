@@ -1,13 +1,13 @@
 use core::hash::{self, Hash};
 
 #[cfg(feature = "alloc")]
-use alloc::borrow::Cow;
+use crate::alloc::alloc::Allocator;
 #[cfg(feature = "alloc")]
-use alloc::boxed::Box;
+use crate::alloc::borrow::Cow;
 #[cfg(feature = "alloc")]
-use alloc::string::String;
-
-use smallvec::SmallVec;
+use crate::alloc::clone::TryClone;
+#[cfg(feature = "alloc")]
+use crate::alloc::{self, Box, String, Vec};
 
 #[cfg(feature = "alloc")]
 use crate::item::Component;
@@ -22,14 +22,15 @@ pub trait IntoComponent: Sized {
     /// Convert into component.
     #[inline]
     #[cfg(feature = "alloc")]
-    fn into_component(self) -> Component {
+    fn into_component(self) -> alloc::Result<Component> {
         into_component(self.as_component_ref())
     }
 
     /// Write a component directly to a buffer.
     #[inline]
     #[doc(hidden)]
-    fn write_component(self, output: &mut SmallVec<[u8; internal::INLINE]>) {
+    #[cfg(feature = "alloc")]
+    fn write_component<A: Allocator>(self, output: &mut Vec<u8, A>) -> alloc::Result<()> {
         write_component(self.as_component_ref(), output)
     }
 
@@ -52,7 +53,7 @@ impl IntoComponent for ComponentRef<'_> {
 
     #[inline]
     #[cfg(feature = "alloc")]
-    fn into_component(self) -> Component {
+    fn into_component(self) -> alloc::Result<Component> {
         into_component(self)
     }
 }
@@ -65,7 +66,7 @@ impl IntoComponent for &ComponentRef<'_> {
 
     #[inline]
     #[cfg(feature = "alloc")]
-    fn into_component(self) -> Component {
+    fn into_component(self) -> alloc::Result<Component> {
         into_component(*self)
     }
 }
@@ -78,8 +79,8 @@ impl IntoComponent for Component {
     }
 
     #[inline]
-    fn into_component(self) -> Component {
-        self
+    fn into_component(self) -> alloc::Result<Component> {
+        Ok(self)
     }
 }
 
@@ -91,8 +92,8 @@ impl IntoComponent for &Component {
     }
 
     #[inline]
-    fn into_component(self) -> Component {
-        self.clone()
+    fn into_component(self) -> alloc::Result<Component> {
+        self.try_clone()
     }
 }
 
@@ -104,11 +105,12 @@ macro_rules! impl_into_component_for_str {
             }
 
             #[cfg(feature = "alloc")]
-            fn into_component($slf) -> Component {
-                Component::Str($into)
+            fn into_component($slf) -> alloc::Result<Component> {
+                Ok(Component::Str($into))
             }
 
-            fn write_component(self, output: &mut smallvec::SmallVec<[u8; internal::INLINE]>) {
+            #[cfg(feature = "alloc")]
+            fn write_component<A: Allocator>(self, output: &mut Vec<u8, A>) -> alloc::Result<()> {
                 internal::write_str(self.as_ref(), output)
             }
 
@@ -122,43 +124,47 @@ macro_rules! impl_into_component_for_str {
     }
 }
 
-impl_into_component_for_str!(&str, self, self.into());
-impl_into_component_for_str!(&&str, self, (*self).into());
-impl_into_component_for_str!(RawStr, self, (*self).into());
-impl_into_component_for_str!(&RawStr, self, (**self).into());
+impl_into_component_for_str!(&str, self, self.try_into()?);
+impl_into_component_for_str!(&&str, self, (*self).try_into()?);
+impl_into_component_for_str!(RawStr, self, (*self).try_into()?);
+impl_into_component_for_str!(&RawStr, self, (**self).try_into()?);
 #[cfg(feature = "alloc")]
-impl_into_component_for_str!(String, self, self.into());
+impl_into_component_for_str!(String, self, self.as_str().try_into()?);
 #[cfg(feature = "alloc")]
-impl_into_component_for_str!(&String, self, self.clone().into());
+impl_into_component_for_str!(&String, self, self.as_str().try_into()?);
 #[cfg(feature = "alloc")]
 impl_into_component_for_str!(Box<str>, self, self);
 #[cfg(feature = "alloc")]
-impl_into_component_for_str!(&Box<str>, self, self.clone());
+impl_into_component_for_str!(&Box<str>, self, self.try_clone()?);
 #[cfg(feature = "alloc")]
-impl_into_component_for_str!(Cow<'_, str>, self, self.as_ref().into());
+impl_into_component_for_str!(Cow<'_, str>, self, self.as_ref().try_into()?);
+#[cfg(feature = "alloc")]
+impl_into_component_for_str!(
+    ::rust_alloc::borrow::Cow<'_, str>,
+    self,
+    self.as_ref().try_into()?
+);
 
 /// Convert into an owned component.
 #[cfg(feature = "alloc")]
-fn into_component(component: ComponentRef<'_>) -> Component {
-    match component {
-        ComponentRef::Crate(s) => Component::Crate(s.into()),
-        ComponentRef::Str(s) => Component::Str(s.into()),
+fn into_component(component: ComponentRef<'_>) -> alloc::Result<Component> {
+    Ok(match component {
+        ComponentRef::Crate(s) => Component::Crate(s.try_into()?),
+        ComponentRef::Str(s) => Component::Str(s.try_into()?),
         ComponentRef::Id(n) => Component::Id(n),
-    }
+    })
 }
 
 /// Write the current component to the given vector.
-fn write_component(component: ComponentRef<'_>, output: &mut SmallVec<[u8; internal::INLINE]>) {
+#[cfg(feature = "alloc")]
+fn write_component<A: Allocator>(
+    component: ComponentRef<'_>,
+    output: &mut Vec<u8, A>,
+) -> alloc::Result<()> {
     match component {
-        ComponentRef::Crate(s) => {
-            internal::write_crate(s, output);
-        }
-        ComponentRef::Str(s) => {
-            internal::write_str(s, output);
-        }
-        ComponentRef::Id(c) => {
-            internal::write_tag(output, internal::ID, c);
-        }
+        ComponentRef::Crate(s) => internal::write_crate(s, output),
+        ComponentRef::Str(s) => internal::write_str(s, output),
+        ComponentRef::Id(c) => internal::write_tag(output, internal::ID, c),
     }
 }
 

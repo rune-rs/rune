@@ -2,9 +2,9 @@
 
 use core::mem::take;
 
-use crate::no_std::io::Write;
-use crate::no_std::prelude::*;
-
+use crate::alloc::fmt::TryWrite;
+use crate::alloc::prelude::*;
+use crate::alloc::Vec;
 use crate::ast::{self, Span, Spanned};
 
 use super::error::FormattingError;
@@ -20,7 +20,7 @@ pub(super) struct Printer<'a> {
 
 impl<'a> Printer<'a> {
     pub(super) fn new(source: &'a str) -> Result<Self> {
-        let writer = SpanInjectionWriter::new(IndentedWriter::new(), source)?;
+        let writer = SpanInjectionWriter::new(IndentedWriter::new()?, source)?;
         Ok(Self { writer, source })
     }
 
@@ -39,15 +39,15 @@ impl<'a> Printer<'a> {
             }
 
             if !take(&mut head) {
-                out.resize(out.len().saturating_add(lines), b'\n');
+                out.try_resize(out.len().saturating_add(lines), b'\n')?;
             }
 
-            out.extend(line);
+            out.try_extend(line)?;
             lines = 1;
         }
 
         if lines > 0 {
-            out.push(b'\n');
+            out.try_push(b'\n')?;
         }
 
         Ok(out)

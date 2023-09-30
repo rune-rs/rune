@@ -1,16 +1,16 @@
-use std::sync::Arc;
-
 use rune::alloc::Vec;
 use rune::runtime::{Function, VmResult};
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{ContextError, Diagnostics, Module, Value, Vm};
 
-fn main() -> rune::Result<()> {
+use std::sync::Arc;
+
+fn main() -> rune::support::Result<()> {
     let m = module()?;
 
     let mut context = rune_modules::default_context()?;
     context.install(m)?;
-    let runtime = Arc::new(context.runtime());
+    let runtime = Arc::new(context.runtime()?);
 
     let mut sources = rune::sources! {
         entry => {
@@ -47,7 +47,7 @@ fn main() -> rune::Result<()> {
 }
 
 fn module() -> Result<Module, ContextError> {
-    let mut m = Module::with_item(["mymodule"]);
+    let mut m = Module::with_item(["mymodule"])?;
 
     m.function(
         ["pass_along"],

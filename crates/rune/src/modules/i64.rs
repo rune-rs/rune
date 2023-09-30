@@ -11,7 +11,7 @@ use crate::{ContextError, Module};
 
 /// Construct the `std::i64` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["i64"]);
+    let mut module = Module::with_crate_item("std", ["i64"])?;
 
     module.function(["parse"], parse)?;
     module.function_meta(to_float)?;
@@ -60,7 +60,7 @@ pub fn module() -> Result<Module, ContextError> {
         "```rune",
         "assert_eq!(i64::MIN, -9223372036854775808);",
         "```",
-    ]);
+    ])?;
 
     module.constant(["MAX"], i64::MAX)?.docs([
         "The largest value that can be represented by this integer type",
@@ -73,7 +73,7 @@ pub fn module() -> Result<Module, ContextError> {
         "```rune",
         "assert_eq!(i64::MAX, 9223372036854775807);",
         "```",
-    ]);
+    ])?;
 
     Ok(module)
 }

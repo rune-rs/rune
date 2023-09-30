@@ -3,12 +3,17 @@ use core::fmt;
 use core::hash::{self, Hash as _};
 use core::ops;
 
+use crate as rune;
+#[cfg(feature = "alloc")]
+use crate::alloc;
+use crate::alloc::prelude::*;
 use crate::hash::IntoHash;
 use crate::hash::{Hash, ToTypeHash};
 use crate::item::ItemBuf;
 
 /// A built in instance function.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Protocol {
     /// The name of the builtin function.
@@ -42,8 +47,9 @@ impl ToTypeHash for Protocol {
     }
 
     #[inline]
-    fn to_item(&self) -> Option<ItemBuf> {
-        None
+    #[cfg(feature = "alloc")]
+    fn to_item(&self) -> alloc::Result<Option<ItemBuf>> {
+        Ok(None)
     }
 
     #[inline]
@@ -127,7 +133,7 @@ macro_rules! define {
 
         #[test]
         fn ensure_unique_hashes() {
-            let mut map = ::std::collections::HashMap::<_, &'static str>::new();
+            let mut map = ::rust_std::collections::HashMap::<_, &'static str>::new();
 
             $(
                 if let Some(ident) = map.insert($hash, stringify!($ident)) {
@@ -470,8 +476,10 @@ define! {
     /// Signature: `fn(self) -> Result`.
     ///
     /// Note that it uses the `Result` like [`std::ops::Try`] uses
-    /// [`ControlFlow`](std::ops::ControlFlow) i.e., for `Result::<T, E>`
-    /// it should return `Result<T, Result<(), E>>`
+    /// [`ControlFlow`] i.e., for `Result::<T, E>` it should return `Result<T,
+    /// Result<(), E>>`
+    ///
+    /// [`ControlFlow`]: std::ops::ControlFlow
     pub const [TRY, TRY_HASH]: Protocol = Protocol {
         name: "try",
         hash: 0x5da1a80787003354u64,

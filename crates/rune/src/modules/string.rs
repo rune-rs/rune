@@ -3,24 +3,27 @@
 use core::char;
 use core::cmp::Ordering;
 use core::num::{ParseFloatError, ParseIntError};
+use core::str::Utf8Error;
 
 use crate as rune;
+use crate::alloc::fmt::TryWrite;
+use crate::alloc::prelude::*;
 use crate::alloc::string::FromUtf8Error;
-use crate::alloc::{String, TryClone, TryToOwned, TryWrite, Vec};
+use crate::alloc::{String, Vec};
 use crate::no_std::std;
 use crate::runtime::{Bytes, Formatter, Iterator, Panic, Value, VmErrorKind, VmResult};
 use crate::{Any, ContextError, Module};
 
 /// Construct the `std::string` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["string"]);
+    let mut module = Module::with_crate_item("std", ["string"])?;
 
     module.ty::<String>()?;
 
     module.function_meta(string_from)?;
     module
         .function_meta(string_from_str)?
-        .deprecated("Use String::from instead");
+        .deprecated("Use String::from instead")?;
     module.function_meta(string_new)?;
     module.function_meta(string_with_capacity)?;
     module.function_meta(cmp)?;
@@ -43,7 +46,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(split)?;
     module
         .associated_function("split_str", __rune_fn__split)?
-        .deprecated("Use String::split instead");
+        .deprecated("Use String::split instead")?;
     module.function_meta(trim)?;
     module.function_meta(trim_end)?;
     module.function_meta(replace)?;
@@ -149,8 +152,8 @@ fn from_utf8(bytes: &[u8]) -> VmResult<Result<String, FromUtf8Error>> {
 /// assert!(is_readable(s));
 /// ```
 #[rune::function(instance)]
-fn as_bytes(s: &str) -> Bytes {
-    Bytes::from_vec(s.as_bytes().to_vec())
+fn as_bytes(s: &str) -> VmResult<Bytes> {
+    VmResult::Ok(Bytes::from_vec(vm_try!(Vec::try_from(s.as_bytes()))))
 }
 
 /// Constructs a string from another string.
@@ -533,7 +536,7 @@ fn reserve_exact(this: &mut String, additional: usize) -> VmResult<()> {
 /// ```
 #[rune::function(instance)]
 fn into_bytes(s: String) -> Bytes {
-    Bytes::from_vec(std::Vec::from(s.into_bytes()))
+    Bytes::from_vec(s.into_bytes())
 }
 
 /// Checks that `index`-th byte is the first byte in a UTF-8 code point sequence
@@ -1107,3 +1110,4 @@ fn parse_char(s: &str) -> Result<char, char::ParseCharError> {
 }
 
 crate::__internal_impl_any!(::std::string, FromUtf8Error);
+crate::__internal_impl_any!(::std::string, Utf8Error);

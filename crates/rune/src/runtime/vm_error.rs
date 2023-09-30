@@ -4,7 +4,8 @@ use core::fmt;
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
-use crate::alloc::{AllocError, CustomError, Error};
+use crate::alloc;
+use crate::alloc::error::CustomError;
 use crate::compile::ItemBuf;
 use crate::hash::Hash;
 use crate::runtime::unit::{BadInstruction, BadJump};
@@ -647,11 +648,8 @@ pub(crate) enum VmErrorKind {
     },
     MissingCallFrame,
     IllegalFormat,
-    TryReserveError {
-        error: Error,
-    },
     AllocError {
-        error: AllocError,
+        error: alloc::Error,
     },
 }
 
@@ -855,12 +853,6 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::IllegalFormat => {
                 write!(f, "Value cannot be formatted")
             }
-            VmErrorKind::TryReserveError { error } => {
-                write!(
-                    f,
-                    "Failed to allocate memory for the current operation: {error}"
-                )
-            }
             VmErrorKind::AllocError { error } => error.fmt(f),
         }
     }
@@ -901,17 +893,19 @@ impl From<BadJump> for VmErrorKind {
     }
 }
 
-impl From<Error> for VmErrorKind {
+impl From<alloc::Error> for VmErrorKind {
     #[inline]
-    fn from(error: Error) -> Self {
-        VmErrorKind::TryReserveError { error }
+    fn from(error: alloc::Error) -> Self {
+        VmErrorKind::AllocError { error }
     }
 }
 
-impl From<AllocError> for VmErrorKind {
+impl From<alloc::alloc::AllocError> for VmErrorKind {
     #[inline]
-    fn from(error: AllocError) -> Self {
-        VmErrorKind::AllocError { error }
+    fn from(error: alloc::alloc::AllocError) -> Self {
+        VmErrorKind::AllocError {
+            error: error.into(),
+        }
     }
 }
 

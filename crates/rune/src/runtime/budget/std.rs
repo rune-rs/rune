@@ -1,12 +1,12 @@
 use core::cell::Cell;
 
-std::thread_local!(static BUDGET: Cell<usize> = Cell::new(usize::max_value()));
+std::thread_local!(static BUDGET: Cell<usize> = Cell::new(usize::MAX));
 
 pub(super) fn rune_budget_take() -> bool {
     BUDGET.with(|tls| {
         let v = tls.get();
 
-        if v == usize::max_value() {
+        if v == usize::MAX {
             true
         } else if v == 0 {
             false

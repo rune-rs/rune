@@ -1,3 +1,6 @@
+use crate::alloc;
+#[cfg(feature = "doc")]
+use crate::alloc::prelude::*;
 use crate::hash::Hash;
 use crate::module::{AssociatedFunctionName, ToFieldFunction, ToInstance};
 use crate::runtime::Protocol;
@@ -10,15 +13,15 @@ where
     T: ToInstance,
 {
     #[inline]
-    fn to_instance(self) -> AssociatedFunctionName {
-        let info = self.name.to_instance();
+    fn to_instance(self) -> alloc::Result<AssociatedFunctionName> {
+        let info = self.name.to_instance()?;
 
-        AssociatedFunctionName {
+        Ok(AssociatedFunctionName {
             associated: info.associated,
             function_parameters: Hash::parameters(self.parameters.iter().map(|t| t.hash)),
             #[cfg(feature = "doc")]
-            parameter_types: self.parameters.iter().map(|t| t.hash).collect(),
-        }
+            parameter_types: self.parameters.iter().map(|t| t.hash).try_collect()?,
+        })
     }
 }
 
@@ -27,14 +30,14 @@ where
     T: ToFieldFunction,
 {
     #[inline]
-    fn to_field_function(self, protocol: Protocol) -> AssociatedFunctionName {
-        let info = self.name.to_field_function(protocol);
+    fn to_field_function(self, protocol: Protocol) -> alloc::Result<AssociatedFunctionName> {
+        let info = self.name.to_field_function(protocol)?;
 
-        AssociatedFunctionName {
+        Ok(AssociatedFunctionName {
             associated: info.associated,
             function_parameters: Hash::parameters(self.parameters.iter().map(|p| p.hash)),
             #[cfg(feature = "doc")]
-            parameter_types: self.parameters.iter().map(|p| p.hash).collect(),
-        }
+            parameter_types: self.parameters.iter().map(|p| p.hash).try_collect()?,
+        })
     }
 }

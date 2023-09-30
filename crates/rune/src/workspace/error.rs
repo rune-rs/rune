@@ -1,18 +1,18 @@
 use core::fmt;
 
-use crate::no_std::prelude::*;
+use std::path::Path;
+use std::io;
 
-use crate::no_std::path::Path;
-use crate::no_std::io;
-
-use crate::{SourceId};
+use crate::alloc::{self, Box, String};
+use crate::SourceId;
+use crate::compile::HasSpan;
 use crate::ast::{Span, Spanned};
 
 /// An error raised when interacting with workspaces.
 #[derive(Debug)]
 pub struct WorkspaceError {
     span: Span,
-    kind: Box<WorkspaceErrorKind>,
+    kind: rust_alloc::boxed::Box<WorkspaceErrorKind>,
 }
 
 impl WorkspaceError {
@@ -25,7 +25,7 @@ impl WorkspaceError {
     {
         Self {
             span: spanned.span(),
-            kind: Box::new(WorkspaceErrorKind::from(kind)),
+            kind: rust_alloc::boxed::Box::new(WorkspaceErrorKind::from(kind)),
         }
     }
 
@@ -33,9 +33,9 @@ impl WorkspaceError {
     pub fn msg<S, M>(spanned: S, message: M) -> Self
     where
         S: Spanned,
-        M: fmt::Display,
+        M: fmt::Display + fmt::Debug + Send + Sync + 'static,
     {
-        Self::new(spanned, WorkspaceErrorKind::Custom { message: message.to_string().into() })
+        Self::new(spanned, WorkspaceErrorKind::Custom { error: anyhow::Error::msg(message) })
     }
 }
 
@@ -69,12 +69,22 @@ impl WorkspaceError {
     }
 }
 
+impl<S, E> From<HasSpan<S, E>> for WorkspaceError
+where
+    S: Spanned,
+    WorkspaceErrorKind: From<E>,
+{
+    fn from(spanned: HasSpan<S, E>) -> Self {
+        Self::new(spanned.span(), spanned.into_inner())
+    }
+}
+
 /// A workspace error.
 #[derive(Debug)]
 #[allow(missing_docs)]
 #[non_exhaustive]
 pub(crate) enum WorkspaceErrorKind {
-    Custom { message: Box<str> },
+    Custom { error: anyhow::Error },
     FileError {
         path: Box<Path>,
         error: io::Error,
@@ -87,6 +97,7 @@ pub(crate) enum WorkspaceErrorKind {
     MissingManifestPath,
     ExpectedTable,
     UnsupportedKey { key: String },
+    AllocError { error: alloc::Error },
 }
 
 impl crate::no_std::error::Error for WorkspaceErrorKind {
@@ -109,8 +120,8 @@ impl crate::no_std::error::Error for WorkspaceErrorKind {
 impl fmt::Display for WorkspaceErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            WorkspaceErrorKind::Custom { message } => {
-                write!(f, "{message}")
+            WorkspaceErrorKind::Custom { error } => {
+                error.fmt(f)
             }
             WorkspaceErrorKind::FileError { path, error } => write!(
                 f,
@@ -143,20 +154,33 @@ impl fmt::Display for WorkspaceErrorKind {
                 f,
                 "Key `{key}` not supported",
             ),
+            WorkspaceErrorKind::AllocError { error } => error.fmt(f),
         }
     }
 }
 
 impl From<toml::de::Error> for WorkspaceErrorKind {
     #[allow(deprecated)]
-    fn from(source: toml::de::Error) -> Self {
-        WorkspaceErrorKind::Toml { error: source }
+    fn from(error: toml::de::Error) -> Self {
+        WorkspaceErrorKind::Toml { error }
     }
 }
 
 impl From<serde_hashkey::Error> for WorkspaceErrorKind {
     #[allow(deprecated)]
-    fn from(source: serde_hashkey::Error) -> Self {
-        WorkspaceErrorKind::Key { error: source }
+    fn from(error: serde_hashkey::Error) -> Self {
+        WorkspaceErrorKind::Key { error }
+    }
+}
+
+impl From<alloc::Error> for WorkspaceError {
+    fn from(error: alloc::Error) -> Self {
+        WorkspaceError::new(Span::empty(), error)
+    }
+}
+
+impl From<alloc::Error> for WorkspaceErrorKind {
+    fn from(error: alloc::Error) -> Self {
+        WorkspaceErrorKind::AllocError { error }
     }
 }

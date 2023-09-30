@@ -3,7 +3,6 @@ use quote::{quote, ToTokens};
 use syn::parse::ParseStream;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
-use syn::Error;
 
 #[derive(Default)]
 enum Path {
@@ -19,7 +18,7 @@ pub(crate) struct Config {
 
 impl Config {
     /// Parse the given parse stream.
-    pub(crate) fn parse(input: ParseStream) -> Result<Self, Error> {
+    pub(crate) fn parse(input: ParseStream) -> syn::Result<Self> {
         let span = input.span();
         let mut out = Self::default();
 
@@ -62,7 +61,7 @@ pub(crate) struct Macro {
 
 impl Macro {
     /// Parse the given parse stream.
-    pub(crate) fn parse(input: ParseStream) -> Result<Self, Error> {
+    pub(crate) fn parse(input: ParseStream) -> syn::Result<Self> {
         let parsed_attributes = input.call(syn::Attribute::parse_outer)?;
         let vis = input.parse::<syn::Visibility>()?;
         let mut sig = input.parse::<syn::Signature>()?;
@@ -109,7 +108,7 @@ impl Macro {
     }
 
     /// Expand the function declaration.
-    pub(crate) fn expand(self, attrs: Config, macro_kind: Ident) -> Result<TokenStream, Error> {
+    pub(crate) fn expand(self, attrs: Config, macro_kind: Ident) -> syn::Result<TokenStream> {
         let real_fn_path = {
             let mut segments = Punctuated::default();
 
@@ -182,12 +181,12 @@ impl Macro {
         stream.extend(quote! {
             /// Get function metadata.
             #[automatically_derived]
-            #meta_vis fn #meta_fn() -> rune::__private::MacroMetaData {
-                rune::__private::MacroMetaData {
-                    kind: rune::__private::MacroMetaKind::#macro_kind(#meta_name, #real_fn_path),
+            #meta_vis fn #meta_fn() -> rune::alloc::Result<rune::__private::MacroMetaData> {
+                Ok(rune::__private::MacroMetaData {
+                    kind: rune::__private::MacroMetaKind::#macro_kind(#meta_name, #real_fn_path)?,
                     name: #name_string,
                     docs: &#docs[..],
-                }
+                })
             }
         });
 

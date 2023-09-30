@@ -1,5 +1,5 @@
-use crate::no_std::prelude::*;
-
+use crate::alloc::prelude::*;
+use crate::alloc::{try_format, Vec};
 use crate::ast::Spanned;
 use crate::compile::ir;
 use crate::compile::ir::scopes::MissingLocal;
@@ -31,10 +31,10 @@ impl Interpreter<'_, '_> {
         tracing::trace!("processing constant: {}", self.q.pool.item(self.item));
 
         if let Some(const_value) = self.q.consts.get(self.item) {
-            return Ok(const_value.clone());
+            return Ok(const_value.try_clone()?);
         }
 
-        if !self.q.consts.mark(self.item) {
+        if !self.q.consts.mark(self.item)? {
             return Err(compile::Error::new(ir, IrErrorKind::ConstCycle));
         }
 
@@ -58,7 +58,7 @@ impl Interpreter<'_, '_> {
         if self
             .q
             .consts
-            .insert(self.item, const_value.clone())
+            .insert(self.item, const_value.try_clone()?)?
             .is_some()
         {
             return Err(compile::Error::new(ir, IrErrorKind::ConstCycle));
@@ -94,13 +94,16 @@ impl Interpreter<'_, '_> {
         used: Used,
     ) -> compile::Result<ir::Value> {
         if let Some(ir_value) = self.scopes.try_get(name) {
-            return Ok(ir_value.clone());
+            return Ok(ir_value.try_clone()?);
         }
 
-        let mut base = self.q.pool.item(self.item).to_owned();
+        let mut base = self.q.pool.item(self.item).try_to_owned()?;
 
         loop {
-            let item = self.q.pool.alloc_item(base.extended(name.to_string()));
+            let item = self
+                .q
+                .pool
+                .alloc_item(base.extended(name.try_to_string()?)?)?;
 
             if let Some(const_value) = self.q.consts.get(item) {
                 return Ok(ir::Value::from_const(const_value).with_span(span)?);
@@ -112,7 +115,7 @@ impl Interpreter<'_, '_> {
                         let Some(const_value) = self.q.get_const_value(meta.hash) else {
                             return Err(compile::Error::msg(
                                 span,
-                                format_args!("Missing constant for hash {}", meta.hash),
+                                try_format!("Missing constant for hash {}", meta.hash),
                             ));
                         };
 
@@ -122,7 +125,7 @@ impl Interpreter<'_, '_> {
                         return Err(compile::Error::new(
                             span,
                             IrErrorKind::UnsupportedMeta {
-                                meta: meta.info(self.q.pool),
+                                meta: meta.info(self.q.pool)?,
                             },
                         ));
                     }
@@ -133,16 +136,19 @@ impl Interpreter<'_, '_> {
                 break;
             }
 
-            base.pop();
+            base.pop()?;
         }
 
         if name.as_ref().starts_with(char::is_lowercase) {
-            Err(compile::Error::new(span, MissingLocal(name.clone())))
+            Err(compile::Error::new(
+                span,
+                MissingLocal(name.try_to_string()?.try_into_boxed_str()?),
+            ))
         } else {
             Err(compile::Error::new(
                 span,
                 IrErrorKind::MissingConst {
-                    name: name.to_string().into(),
+                    name: name.try_to_string()?.try_into()?,
                 },
             ))
         }
@@ -171,7 +177,7 @@ impl Interpreter<'_, '_> {
             ));
         }
 
-        let guard = self.scopes.isolate();
+        let guard = self.scopes.isolate()?;
 
         for (name, value) in const_fn.ir_fn.args.iter().zip(args) {
             self.scopes.decl(name, value).with_span(span)?;
@@ -187,7 +193,7 @@ impl ir::Scopes {
     /// Get the given target as mut.
     pub(crate) fn get_target(&mut self, ir_target: &ir::IrTarget) -> compile::Result<ir::Value> {
         match &ir_target.kind {
-            ir::IrTargetKind::Name(name) => Ok(self.get_name(name).with_span(ir_target)?.clone()),
+            ir::IrTargetKind::Name(name) => Ok(self.get_name(name, ir_target)?.try_clone()?),
             ir::IrTargetKind::Field(ir_target, field) => {
                 let value = self.get_target(ir_target)?;
 
@@ -195,7 +201,7 @@ impl ir::Scopes {
                     ir::Value::Object(object) => {
                         let object = object.borrow_ref().with_span(ir_target)?;
 
-                        if let Some(value) = object.get(field.as_ref()).cloned() {
+                        if let Some(value) = object.get(field.as_ref()).try_cloned()? {
                             return Ok(value);
                         }
                     }
@@ -209,7 +215,7 @@ impl ir::Scopes {
                 Err(compile::Error::new(
                     ir_target,
                     IrErrorKind::MissingField {
-                        field: field.clone(),
+                        field: field.try_clone()?,
                     },
                 ))
             }
@@ -220,14 +226,14 @@ impl ir::Scopes {
                     ir::Value::Vec(vec) => {
                         let vec = vec.borrow_ref().with_span(ir_target)?;
 
-                        if let Some(value) = vec.get(*index).cloned() {
+                        if let Some(value) = vec.get(*index).try_cloned()? {
                             return Ok(value);
                         }
                     }
                     ir::Value::Tuple(tuple) => {
                         let tuple = tuple.borrow_ref().with_span(ir_target)?;
 
-                        if let Some(value) = tuple.get(*index).cloned() {
+                        if let Some(value) = tuple.get(*index).try_cloned()? {
                             return Ok(value);
                         }
                     }
@@ -254,7 +260,7 @@ impl ir::Scopes {
     ) -> compile::Result<()> {
         match &ir_target.kind {
             ir::IrTargetKind::Name(name) => {
-                *self.get_name_mut(name).with_span(ir_target)? = value;
+                *self.get_name_mut(name, ir_target)? = value;
                 Ok(())
             }
             ir::IrTargetKind::Field(target, field) => {
@@ -263,7 +269,7 @@ impl ir::Scopes {
                 match current {
                     ir::Value::Object(object) => {
                         let mut object = object.borrow_mut().with_span(ir_target)?;
-                        object.insert(field.as_ref().to_owned(), value);
+                        object.try_insert(field.as_ref().try_to_owned()?, value)?;
                     }
                     actual => {
                         return Err(compile::Error::expected_type::<_, Object>(
@@ -314,7 +320,7 @@ impl ir::Scopes {
     ) -> compile::Result<()> {
         match &ir_target.kind {
             ir::IrTargetKind::Name(name) => {
-                let value = self.get_name_mut(name).with_span(ir_target)?;
+                let value = self.get_name_mut(name, ir_target)?;
                 op(value)
             }
             ir::IrTargetKind::Field(target, field) => {
@@ -324,14 +330,14 @@ impl ir::Scopes {
                     ir::Value::Object(object) => {
                         let mut object = object.borrow_mut().with_span(ir_target)?;
 
-                        let value = object.get_mut(field.as_ref()).ok_or_else(|| {
-                            compile::Error::new(
+                        let Some(value) = object.get_mut(field.as_ref()) else {
+                            return Err(compile::Error::new(
                                 ir_target,
                                 IrErrorKind::MissingField {
-                                    field: field.clone(),
+                                    field: field.try_clone()?,
                                 },
-                            )
-                        })?;
+                            ));
+                        };
 
                         op(value)
                     }

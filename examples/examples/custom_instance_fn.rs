@@ -1,5 +1,6 @@
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{ContextError, Diagnostics, Module, Vm};
+
 use std::sync::Arc;
 
 #[rune::function(instance)]
@@ -8,12 +9,12 @@ fn divide_by_three(value: i64) -> i64 {
 }
 
 #[tokio::main]
-async fn main() -> rune::Result<()> {
+async fn main() -> rune::support::Result<()> {
     let m = module()?;
 
     let mut context = rune_modules::default_context()?;
     context.install(m)?;
-    let runtime = Arc::new(context.runtime());
+    let runtime = Arc::new(context.runtime()?);
 
     let mut sources = rune::sources!(entry => {
         pub fn main(number) {
@@ -44,7 +45,7 @@ async fn main() -> rune::Result<()> {
 }
 
 fn module() -> Result<Module, ContextError> {
-    let mut m = Module::with_item(["mymodule"]);
+    let mut m = Module::with_item(["mymodule"])?;
     m.function_meta(divide_by_three)?;
     Ok(m)
 }

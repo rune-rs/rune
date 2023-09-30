@@ -1,7 +1,7 @@
 //! Our own private error trait for use in no-std environments.
 
 #[cfg(feature = "alloc")]
-use alloc::boxed::Box;
+use crate::alloc::boxed::Box;
 
 pub trait Error {
     #[inline]
@@ -21,4 +21,4 @@ where
     }
 }
 
-impl Error for ::rune_alloc::Error {}
+impl Error for crate::alloc::Error {}

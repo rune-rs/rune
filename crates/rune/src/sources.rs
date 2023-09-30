@@ -1,9 +1,10 @@
 use core::fmt;
 use core::num;
 
-use crate::no_std::path::Path;
-use crate::no_std::prelude::*;
-
+use crate as rune;
+use crate::alloc::path::Path;
+use crate::alloc::prelude::*;
+use crate::alloc::{self, Vec};
 use crate::ast::Span;
 use crate::source::Source;
 #[cfg(feature = "codespan-reporting")]
@@ -11,6 +12,9 @@ use codespan_reporting::files;
 
 /// Helper macro to define a collection of sources populatedc with the given
 /// entries.
+///
+/// Calling this macro is fallible with [alloc::Error], so you should do it in a
+/// function that returns a `Result`.
 ///
 /// ```
 /// let sources = rune::sources! {
@@ -20,12 +24,14 @@ use codespan_reporting::files;
 ///         }
 ///     }
 /// };
+///
+/// Ok::<_, rune::support::Error>(())
 /// ```
 #[macro_export]
 macro_rules! sources {
     ($($name:ident => {$($tt:tt)*}),* $(,)?) => {{
         let mut sources = $crate::Sources::new();
-        $(sources.insert($crate::Source::new(stringify!($name), stringify!($($tt)*)));)*
+        $(sources.insert($crate::Source::new(stringify!($name), stringify!($($tt)*)))?;)*
         sources
     }};
 }
@@ -57,11 +63,11 @@ impl Sources {
     /// let id2 = sources.insert(Source::new("<memory>", "pub fn main() { 10 }"));
     /// assert_ne!(id, id2);
     /// ```
-    pub fn insert(&mut self, source: Source) -> SourceId {
+    pub fn insert(&mut self, source: Source) -> alloc::Result<SourceId> {
         let id =
             SourceId::try_from(self.sources.len()).expect("could not build a source identifier");
-        self.sources.push(source);
-        id
+        self.sources.try_push(source)?;
+        Ok(id)
     }
 
     /// Get the source matching the given source id.
@@ -69,16 +75,16 @@ impl Sources {
     /// # Examples
     ///
     /// ```
-    /// # use anyhow::{Context, Error};
+    /// # use anyhow::Context;
     /// use rune::{Sources, Source};
     ///
     /// let mut sources = Sources::new();
-    /// let id = sources.insert(Source::new("<memory>", "pub fn main() { 10 }"));
+    /// let id = sources.insert(Source::new("<memory>", "pub fn main() { 10 }"))?;
     ///
     /// let source = sources.get(id).context("expected source")?;
     ///
     /// assert_eq!(source.name(), "<memory>");
-    /// # Ok::<_, Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn get(&self, id: SourceId) -> Option<&Source> {
         self.sources.get(id.into_index())
@@ -158,7 +164,8 @@ impl<'a> files::Files<'a> for Sources {
 ///
 /// It can be used to reference the inserted source file in the future through
 /// methods such as [`Sources::get`].
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(TryClone, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[try_clone(copy)]
 #[repr(transparent)]
 pub struct SourceId {
     index: u32,

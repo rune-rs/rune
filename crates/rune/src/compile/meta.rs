@@ -2,12 +2,11 @@
 
 use core::fmt;
 
-use crate::no_std::borrow::Cow;
-use crate::no_std::collections::HashMap;
-use crate::no_std::path::Path;
-use crate::no_std::prelude::*;
-
 use crate as rune;
+use crate::alloc::borrow::Cow;
+use crate::alloc::path::Path;
+use crate::alloc::prelude::*;
+use crate::alloc::{self, Box, HashMap, Vec};
 use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::compile::attrs::Parser;
@@ -17,7 +16,8 @@ use crate::parse::{NonZeroId, ResolveContext};
 use crate::runtime::{Call, Protocol};
 
 /// A meta reference to an item being compiled.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct MetaRef<'a> {
     /// If the meta comes from the context or not.
@@ -33,7 +33,7 @@ pub struct MetaRef<'a> {
 }
 
 /// Information on a compile sourc.
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 #[non_exhaustive]
 pub struct SourceMeta {
     /// The location of the compile source.
@@ -43,7 +43,8 @@ pub struct SourceMeta {
 }
 
 /// Doc content for a compiled item.
-#[derive(Debug, Clone, Copy, Spanned)]
+#[derive(Debug, TryClone, Clone, Copy, Spanned)]
+#[try_clone(copy)]
 pub(crate) struct Doc {
     #[rune(span)]
     pub(crate) span: Span,
@@ -65,14 +66,14 @@ impl Doc {
                     doc_string: doc.doc_string,
                 })
             })
-            .collect::<compile::Result<_>>()?;
+            .try_collect::<compile::Result<_>>()??;
 
         Ok(docs)
     }
 }
 
 /// Metadata about a compiled unit.
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 #[non_exhaustive]
 pub(crate) struct Meta {
     /// If the meta comes from the context or not.
@@ -91,7 +92,7 @@ pub(crate) struct Meta {
 
 impl Meta {
     /// Get the [Meta] which describes metadata.
-    pub(crate) fn info(&self, pool: &Pool) -> MetaInfo {
+    pub(crate) fn info(&self, pool: &Pool) -> alloc::Result<MetaInfo> {
         MetaInfo::new(&self.kind, self.hash, Some(pool.item(self.item_meta.item)))
     }
 
@@ -131,7 +132,7 @@ impl Meta {
 }
 
 /// The kind of a variant.
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 pub enum Fields {
     /// Named fields.
     Named(FieldsNamed),
@@ -142,7 +143,7 @@ pub enum Fields {
 }
 
 /// Compile-time metadata kind about a unit.
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 #[non_exhaustive]
 pub enum Kind {
     /// The type is completely opaque. We have no idea about what it is with the
@@ -262,7 +263,8 @@ impl Kind {
 }
 
 /// An imported entry.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Import {
     /// The location of the import.
@@ -274,7 +276,7 @@ pub struct Import {
 }
 
 /// Metadata about named fields.
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 #[non_exhaustive]
 pub struct FieldsNamed {
     /// Fields associated with the type.
@@ -282,14 +284,15 @@ pub struct FieldsNamed {
 }
 
 /// Metadata for a single named field.
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 pub struct FieldMeta {
     /// Position of the field in its containing type declaration.
     pub(crate) position: usize,
 }
 
 /// Item and the module that the item belongs to.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct ItemMeta {
     /// The id of the item.
@@ -312,7 +315,7 @@ impl ItemMeta {
 }
 
 /// A description of a function signature.
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 pub struct Signature {
     /// An asynchronous function.
     #[cfg(feature = "doc")]
@@ -332,7 +335,7 @@ pub struct Signature {
 }
 
 /// The kind of an associated function.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, TryClone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum AssociatedKind {
     /// A protocol function implemented on the type itself.

@@ -27,10 +27,12 @@
 #![no_std]
 
 #[cfg(feature = "std")]
-extern crate std;
+extern crate std as rust_std;
 
 #[cfg(feature = "alloc")]
-extern crate alloc;
+extern crate alloc as rust_alloc;
+
+pub use rune_alloc as alloc;
 
 mod hash;
 #[doc(hidden)]
@@ -56,7 +58,7 @@ pub use self::type_of::FullTypeOf;
 
 #[cfg(feature = "std")]
 #[doc(hidden)]
-pub use std::error;
+pub use rust_std::error;
 
 #[cfg(not(feature = "std"))]
 pub mod error;

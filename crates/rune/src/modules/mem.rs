@@ -6,7 +6,7 @@ use crate::{ContextError, Module};
 
 /// Construct the `std` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["mem"]);
+    let mut module = Module::with_crate_item("std", ["mem"])?;
     module.function_meta(drop)?;
     Ok(module)
 }

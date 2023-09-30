@@ -15,7 +15,7 @@
 //! ```rust
 //! let mut context = rune::Context::with_default_modules()?;
 //! context.install(rune_modules::json::module(true)?)?;
-//! # Ok::<_, rune::Error>(())
+//! # Ok::<_, rune::support::Error>(())
 //! ```
 //!
 //! Use it in Rune:
@@ -29,35 +29,108 @@
 //! }
 //! ```
 
-use rune::{ContextError, Module};
-use rune::runtime::{Bytes, Value};
+use rune::{ContextError, Module, vm_write, Any};
+use rune::runtime::{Bytes, Value, Formatter};
+use rune::alloc::{Vec, String};
+use rune::alloc::fmt::TryWrite;
 
-/// Construct the `json` module.
+#[rune::module(::json)]
+/// Module for processing JSON.
+///
+/// # Examples
+///
+/// ```rune
+/// let object = #{"number": 42, "string": "Hello World"};
+/// let object = json::from_string(json::to_string(object)?)?;
+/// assert_eq!(object, #{"number": 42, "string": "Hello World"});
+/// ```
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
-    let mut module = Module::with_crate("json");
-    module.function(["from_bytes"], from_bytes)?;
-    module.function(["from_string"], from_string)?;
-    module.function(["to_string"], to_string)?;
-    module.function(["to_bytes"], to_bytes)?;
+    let mut module = Module::from_meta(self::module_meta)?;
+    module.ty::<Error>()?;
+    module.function_meta(Error::display)?;
+    module.function_meta(Error::debug)?;
+    module.function_meta(from_bytes)?;
+    module.function_meta(from_string)?;
+    module.function_meta(to_string)?;
+    module.function_meta(to_bytes)?;
     Ok(module)
 }
 
-fn from_bytes(bytes: &[u8]) -> rune::Result<Value> {
+#[derive(Any)]
+#[rune(item = ::json)]
+/// Error type raised during JSON serialization.
+struct Error {
+    error: serde_json::Error,
+}
+
+impl Error {
+    #[rune::function(vm_result, protocol = STRING_DISPLAY)]
+    pub(crate) fn display(&self, f: &mut Formatter) {
+        vm_write!(f, "{}", self.error);
+    }
+
+    #[rune::function(vm_result, protocol = STRING_DEBUG)]
+    pub(crate) fn debug(&self, f: &mut Formatter) {
+        vm_write!(f, "{:?}", self.error);
+    }
+}
+
+impl From<serde_json::Error> for Error {
+    fn from(error: serde_json::Error) -> Self {
+        Self { error }
+    }
+}
+
+/// Convert JSON bytes into a rune value.
+/// 
+/// # Examples
+/// 
+/// ```rune
+/// let object = json::from_bytes(b"{\"number\": 42, \"string\": \"Hello World\"}")?;
+/// assert_eq!(object, #{"number": 42, "string": "Hello World"});
+/// ```
+#[rune::function]
+fn from_bytes(bytes: &[u8]) -> Result<Value, Error> {
     Ok(serde_json::from_slice(bytes)?)
 }
 
-/// Get value from json string.
-fn from_string(string: &str) -> rune::Result<Value> {
+/// Convert a JSON string into a rune value.
+/// 
+/// # Examples
+/// 
+/// ```rune
+/// let object = json::from_string("{\"number\": 42, \"string\": \"Hello World\"}")?;
+/// assert_eq!(object, #{"number": 42, "string": "Hello World"});
+/// ```
+#[rune::function]
+fn from_string(string: &str) -> Result<Value, Error> {
     Ok(serde_json::from_str(string)?)
 }
 
 /// Convert any value to a json string.
-fn to_string(value: Value) -> rune::Result<String> {
-    Ok(serde_json::to_string(&value)?)
+/// 
+/// # Examples
+/// 
+/// ```rune
+/// let object = #{"number": 42, "string": "Hello World"};
+/// let object = json::from_string(json::to_string(object)?)?;
+/// assert_eq!(object, #{"number": 42, "string": "Hello World"});
+/// ```
+#[rune::function(vm_result)]
+fn to_string(value: Value) -> Result<String, Error> {
+    Ok(String::try_from(serde_json::to_string(&value)?).vm?)
 }
 
 /// Convert any value to json bytes.
-fn to_bytes(value: Value) -> rune::Result<Bytes> {
-    let bytes = serde_json::to_vec(&value)?;
-    Ok(Bytes::from_vec(bytes))
+/// 
+/// # Examples
+/// 
+/// ```rune
+/// let object = #{"number": 42, "string": "Hello World"};
+/// let object = json::from_bytes(json::to_bytes(object)?)?;
+/// assert_eq!(object, #{"number": 42, "string": "Hello World"});
+/// ```
+#[rune::function(vm_result)]
+fn to_bytes(value: Value) -> Result<Bytes, Error> {
+    Ok(Bytes::from_vec(Vec::try_from(serde_json::to_vec(&value)?).vm?))
 }

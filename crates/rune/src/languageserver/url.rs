@@ -1,8 +1,12 @@
 // Implementation copied and adjusted from https://github.com/servo/rust-url
 
-use crate::no_std::prelude::*;
+use std::fmt::Write;
+use std::path::Path;
 
-use std::{fmt::Write, path::Path};
+use anyhow::anyhow;
+
+use crate::no_std::prelude::*;
+use crate::support::Result;
 
 use percent_encoding::{percent_encode, AsciiSet, CONTROLS};
 use url::Url;
@@ -14,13 +18,17 @@ const PATH: &AsciiSet = &FRAGMENT.add(b'#').add(b'?').add(b'{').add(b'}');
 const PATH_SEGMENT: &AsciiSet = &PATH.add(b'/').add(b'%');
 
 /// Convert a file path into a URL.
-pub(super) fn from_file_path<P>(path: P) -> Result<Url, ()>
+pub(super) fn from_file_path<P>(path: P) -> Result<Url>
 where
     P: AsRef<Path>,
 {
     let mut buf = "file://".to_owned();
-    path_to_file_url_segments(path.as_ref(), &mut buf)?;
-    Url::parse(&buf).map_err(|_| ())
+
+    let Ok(()) = path_to_file_url_segments(path.as_ref(), &mut buf) else {
+        return Err(anyhow!("failed to construct file segments"));
+    };
+
+    Ok(Url::parse(&buf)?)
 }
 
 #[cfg(any(unix, target_os = "redox", target_os = "wasi"))]

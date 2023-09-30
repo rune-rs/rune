@@ -55,7 +55,7 @@ pub(super) fn run<'m, I>(io: &mut Io<'_>, entry: &mut Entry<'_>, c: &Config, ent
         };
 
         let mut sources = Sources::new();
-        sources.insert(Source::from_path(e.path()).with_context(|| e.path().display().to_string())?);
+        sources.insert(Source::from_path(e.path()).with_context(|| e.path().display().to_string())?)?;
 
         let _ = crate::prepare(&mut sources)
             .with_context(&context)

@@ -6,14 +6,14 @@ use crate::{ContextError, Module};
 
 /// Construct the `std::future` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["future"]);
+    let mut module = Module::with_crate_item("std", ["future"])?;
     module.ty::<Future>()?;
 
     module
         .raw_fn(["join"], raw_join)?
         .is_async(true)
         .args(1)
-        .argument_types([None])
+        .argument_types([None])?
         .docs([
             "Waits for a collection of futures to complete and joins their result.",
             "",
@@ -43,7 +43,7 @@ pub fn module() -> Result<Module, ContextError> {
             "let () = std::future::join(()).await;",
             "let [] = std::future::join([]).await;",
             "```",
-        ]);
+        ])?;
 
     Ok(module)
 }

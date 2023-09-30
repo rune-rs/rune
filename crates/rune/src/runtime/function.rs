@@ -4,7 +4,8 @@ use core::future::Future;
 use crate::no_std::sync::Arc;
 
 use crate as rune;
-use crate::alloc::{Box, Error, TryClone, Vec};
+use crate::alloc::prelude::*;
+use crate::alloc::{self, Box, Vec};
 use crate::module;
 use crate::runtime::{
     Args, Call, ConstValue, FromValue, FunctionHandler, OwnedTuple, Rtti, RuntimeContext, Stack,
@@ -72,7 +73,7 @@ impl Function {
     /// let value = vm.call(["main"], (function,))?;
     /// let value: u32 = rune::from_value(value)?;
     /// assert_eq!(value, 42);
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     ///
     /// Asynchronous functions:
@@ -101,9 +102,9 @@ impl Function {
     /// let value = vm.async_call(["main"], (function,)).await?;
     /// let value: u32 = rune::from_value(value)?;
     /// assert_eq!(value, 42);
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// # })?;
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn new<F, A, K>(f: F) -> Self
     where
@@ -172,7 +173,7 @@ impl Function {
     ///
     /// let value: Function = rune::from_value(value)?;
     /// assert_eq!(value.call::<_, u32>((1, 2)).into_result()?, 3);
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn call<A, T>(&self, args: A) -> VmResult<T>
     where
@@ -278,7 +279,7 @@ impl Function {
     /// let pony: Function = rune::from_value(pony)?;
     ///
     /// assert_eq!(pony.type_hash(), Hash::type_hash(["pony"]));
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn type_hash(&self) -> Hash {
         self.0.type_hash()
@@ -312,7 +313,7 @@ impl Function {
     /// let pony = pony.into_sync().into_result()?;
     ///
     /// assert_eq!(pony.type_hash(), Hash::type_hash(["pony"]));
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     ///
     /// The following *does not* work, because we return a closure which tries
@@ -348,7 +349,7 @@ impl Function {
     /// // This is *not* fine since the returned closure has captured a
     /// // generator which is not a constant value.
     /// assert!(closure.into_sync().is_err());
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn into_sync(self) -> VmResult<SyncFunction> {
         VmResult::Ok(SyncFunction(vm_try!(self.0.into_sync())))
@@ -389,9 +390,9 @@ impl SyncFunction {
     ///
     /// let value = add.async_send_call::<_, u32>((1, 2)).await.into_result()?;
     /// assert_eq!(value, 3);
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// # })?;
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub async fn async_send_call<A, T>(&self, args: A) -> VmResult<T>
     where
@@ -426,7 +427,7 @@ impl SyncFunction {
     /// let add: SyncFunction = rune::from_value(add)?;
     ///
     /// assert_eq!(add.call::<_, u32>((1, 2)).into_result()?, 3);
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn call<A, T>(&self, args: A) -> VmResult<T>
     where
@@ -462,7 +463,7 @@ impl SyncFunction {
     /// let pony: SyncFunction = rune::from_value(pony)?;
     ///
     /// assert_eq!(pony.type_hash(), Hash::type_hash(["pony"]));
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn type_hash(&self) -> Hash {
         self.0.type_hash()
@@ -470,7 +471,7 @@ impl SyncFunction {
 }
 
 impl TryClone for SyncFunction {
-    fn try_clone(&self) -> Result<Self, Error> {
+    fn try_clone(&self) -> alloc::Result<Self> {
         Ok(Self(self.0.try_clone()?))
     }
 }
@@ -485,7 +486,7 @@ where
     V: TryClone,
 {
     #[inline]
-    fn try_clone(&self) -> Result<Self, Error> {
+    fn try_clone(&self) -> alloc::Result<Self> {
         Ok(Self {
             inner: self.inner.try_clone()?,
         })
@@ -829,7 +830,7 @@ impl<V> TryClone for Inner<V>
 where
     V: TryClone,
 {
-    fn try_clone(&self) -> Result<Self, Error> {
+    fn try_clone(&self) -> alloc::Result<Self> {
         Ok(match self {
             Inner::FnHandler(inner) => Inner::FnHandler(inner.clone()),
             Inner::FnOffset(inner) => Inner::FnOffset(inner.clone()),
@@ -948,7 +949,7 @@ where
     V: TryClone,
 {
     #[inline]
-    fn try_clone(&self) -> Result<Self, Error> {
+    fn try_clone(&self) -> alloc::Result<Self> {
         Ok(Self {
             fn_offset: self.fn_offset.clone(),
             environment: self.environment.try_clone()?,

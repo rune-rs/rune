@@ -5,7 +5,7 @@ use core::ptr;
 use crate as rune;
 
 use crate::alloc::hashbrown::raw::RawIter;
-use crate::alloc::{Global, TryClone};
+use crate::alloc::prelude::*;
 use crate::hashbrown::{IterRef, Table};
 use crate::runtime::{
     EnvProtocolCaller, Formatter, Iterator, ProtocolCaller, RawRef, Ref, Value, VmResult,
@@ -59,7 +59,7 @@ impl HashSet {
     #[rune::function(keep, path = Self::new)]
     fn new() -> Self {
         Self {
-            table: Table::new_in(Global),
+            table: Table::new(),
         }
     }
 
@@ -80,7 +80,7 @@ impl HashSet {
     #[rune::function(keep, path = Self::with_capacity)]
     fn with_capacity(capacity: usize) -> VmResult<Self> {
         VmResult::Ok(Self {
-            table: vm_try!(Table::try_with_capacity_in(capacity, Global)),
+            table: vm_try!(Table::try_with_capacity(capacity)),
         })
     }
 
@@ -303,8 +303,8 @@ impl HashSet {
 
             // use longest as lead and then append any missing that are in second
             let iter = if this.as_ref().len() >= other.as_ref().len() {
-                let this_iter = Table::<_, Global>::iter_ref_raw(this);
-                let other_iter = Table::<_, Global>::iter_ref_raw(other);
+                let this_iter = Table::iter_ref_raw(this);
+                let other_iter = Table::iter_ref_raw(other);
 
                 Union {
                     this,
@@ -313,8 +313,8 @@ impl HashSet {
                     _guards: (this_guard, other_guard),
                 }
             } else {
-                let this_iter = Table::<_, Global>::iter_ref_raw(other);
-                let other_iter = Table::<_, Global>::iter_ref_raw(this);
+                let this_iter = Table::iter_ref_raw(other);
+                let other_iter = Table::iter_ref_raw(this);
 
                 Union {
                     this: other,
@@ -424,7 +424,7 @@ impl HashSet {
     where
         P: ?Sized + ProtocolCaller,
     {
-        let mut set = vm_try!(Table::try_with_capacity_in(it.size_hint().0, Global));
+        let mut set = vm_try!(Table::try_with_capacity(it.size_hint().0));
 
         while let Some(key) = vm_try!(it.next()) {
             vm_try!(set.insert_with(key, (), caller));

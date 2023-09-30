@@ -3,7 +3,7 @@
 use core::cmp::Ordering;
 
 use crate as rune;
-use crate::alloc::TryClone;
+use crate::alloc::prelude::*;
 #[cfg(feature = "std")]
 use crate::runtime::Hasher;
 use crate::runtime::{
@@ -14,7 +14,7 @@ use crate::{ContextError, Module};
 
 /// Construct the `std::vec` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::with_crate_item("std", ["vec"]);
+    let mut m = Module::with_crate_item("std", ["vec"])?;
 
     m.ty::<Vec>()?.docs([
         "A dynamic vector.",
@@ -30,7 +30,7 @@ pub fn module() -> Result<Module, ContextError> {
         "assert!([1, 2, 3] < [1, 2, 4]);",
         "assert!([1, 2, 4] > [1, 2, 3]);",
         "```",
-    ]);
+    ])?;
 
     m.function_meta(vec_new)?;
     m.function_meta(vec_with_capacity)?;

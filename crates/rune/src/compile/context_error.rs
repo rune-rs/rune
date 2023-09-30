@@ -1,8 +1,6 @@
 use core::fmt;
 
-use crate::no_std::prelude::*;
-
-use crate::alloc::AllocError;
+use crate::alloc::{self, Box};
 use crate::compile::ItemBuf;
 use crate::runtime::{TypeInfo, VmError};
 use crate::Hash;
@@ -13,7 +11,7 @@ use crate::Hash;
 #[non_exhaustive]
 pub enum ContextError {
     AllocError {
-        error: AllocError,
+        error: alloc::Error,
     },
     UnitAlreadyPresent,
     InternalAlreadyPresent {
@@ -115,9 +113,19 @@ pub enum ContextError {
     },
 }
 
-impl From<AllocError> for ContextError {
-    fn from(error: AllocError) -> Self {
+impl From<alloc::Error> for ContextError {
+    #[inline]
+    fn from(error: alloc::Error) -> Self {
         ContextError::AllocError { error }
+    }
+}
+
+impl From<alloc::alloc::AllocError> for ContextError {
+    #[inline]
+    fn from(error: alloc::alloc::AllocError) -> Self {
+        ContextError::AllocError {
+            error: error.into(),
+        }
     }
 }
 

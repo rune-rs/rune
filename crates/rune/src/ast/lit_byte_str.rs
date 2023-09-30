@@ -1,5 +1,4 @@
-use crate::no_std::borrow::Cow;
-
+use crate::alloc::borrow::Cow;
 use crate::ast::prelude::*;
 
 #[test]
@@ -13,7 +12,8 @@ fn ast_parse() {
 /// A string literal.
 ///
 /// * `"Hello World"`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, Spanned)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct LitByteStr {
     /// The span corresponding to the literal.
@@ -25,7 +25,7 @@ pub struct LitByteStr {
 
 impl LitByteStr {
     fn parse_escaped(&self, span: Span, source: &str) -> Result<Vec<u8>> {
-        let mut buffer = Vec::with_capacity(source.len());
+        let mut buffer = Vec::try_with_capacity(source.len())?;
 
         let start = span.start.into_usize();
 
@@ -35,7 +35,7 @@ impl LitByteStr {
             .peekable();
 
         while let Some((start, c)) = it.next() {
-            buffer.extend(match c {
+            buffer.try_extend(match c {
                 '\\' => {
                     match ast::unescape::parse_byte_escape(
                         &mut it,
@@ -52,7 +52,7 @@ impl LitByteStr {
                     }
                 }
                 c => Some(c as u8),
-            });
+            })?;
         }
 
         Ok(buffer)
@@ -111,10 +111,14 @@ impl<'a> Resolve<'a> for LitByteStr {
 }
 
 impl ToTokens for LitByteStr {
-    fn to_tokens(&self, _: &mut MacroContext<'_, '_, '_>, stream: &mut TokenStream) {
+    fn to_tokens(
+        &self,
+        _: &mut MacroContext<'_, '_, '_>,
+        stream: &mut TokenStream,
+    ) -> alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::ByteStr(self.source),
-        });
+        })
     }
 }

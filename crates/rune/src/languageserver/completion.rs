@@ -1,5 +1,4 @@
-use crate::no_std::prelude::*;
-
+use anyhow::Result;
 use lsp::CompletionItem;
 use lsp::CompletionItemKind;
 use lsp::CompletionItemLabelDetails;
@@ -9,6 +8,9 @@ use lsp::MarkupContent;
 use lsp::MarkupKind;
 use lsp::TextEdit;
 
+use crate::alloc::fmt::TryWrite;
+use crate::alloc::prelude::*;
+use crate::alloc::{String, Vec};
 use crate::compile::meta;
 use crate::runtime::debug::DebugArgs;
 use crate::Context;
@@ -22,25 +24,37 @@ pub(super) fn complete_for_unit(
     symbol: &str,
     position: lsp::Position,
     results: &mut Vec<CompletionItem>,
-) {
+) -> Result<()> {
     let Some(debug_info) = unit.debug_info() else {
-        return;
+        return Ok(());
     };
 
     for (hash, function) in debug_info.functions.iter() {
-        let func_name = function.to_string();
+        let func_name = function.try_to_string()?;
+
         if !func_name.starts_with(symbol) {
             continue;
         }
 
         let args = match &function.args {
             DebugArgs::EmptyArgs => None,
-            DebugArgs::TupleArgs(n) => Some(
-                (0..*n)
-                    .map(|n| format!("_{}", n))
-                    .fold("".to_owned(), |a, b| format!("{}, {}", a, b)),
-            ),
-            DebugArgs::Named(names) => Some(names.join(", ")),
+            DebugArgs::TupleArgs(n) => Some({
+                let mut o = String::new();
+
+                let mut it = 0..*n;
+                let last = it.next_back();
+
+                for n in it {
+                    write!(o, "_{n}, ")?;
+                }
+
+                if let Some(n) = last {
+                    write!(o, "_{n}")?;
+                }
+
+                o
+            }),
+            DebugArgs::Named(names) => Some(names.iter().map(|s| s.as_ref()).try_join(", ")?),
         };
 
         let docs = workspace_source
@@ -48,7 +62,8 @@ pub(super) fn complete_for_unit(
             .map(|docs| docs.docs.join("\n"));
 
         let detail = args.map(|a| format!("({a:}) -> ?"));
-        results.push(CompletionItem {
+
+        results.try_push(CompletionItem {
             label: format!("{}", function.path.last().unwrap()),
             kind: Some(CompletionItemKind::FUNCTION),
             detail: detail.clone(),
@@ -74,8 +89,10 @@ pub(super) fn complete_for_unit(
             }),
             commit_characters: Some(vec!["(".into()]),
             ..Default::default()
-        })
+        })?;
     }
+
+    Ok(())
 }
 
 pub(super) fn complete_native_instance_data(
@@ -83,7 +100,7 @@ pub(super) fn complete_native_instance_data(
     symbol: &str,
     position: lsp::Position,
     results: &mut Vec<CompletionItem>,
-) {
+) -> Result<()> {
     for (meta, signature) in context.iter_functions() {
         let (prefix, kind, n) = match (&meta.item, &meta.kind) {
             (
@@ -107,8 +124,8 @@ pub(super) fn complete_native_instance_data(
 
             let detail = return_type.map(|r| format!("({args} -> {r}"));
 
-            results.push(CompletionItem {
-                label: n.to_string(),
+            results.try_push(CompletionItem {
+                label: n.try_to_string()?.into_std(),
                 kind: Some(kind),
                 detail,
                 documentation: Some(lsp::Documentation::MarkupContent(MarkupContent {
@@ -123,17 +140,19 @@ pub(super) fn complete_native_instance_data(
                         },
                         end: position,
                     },
-                    new_text: n.to_string(),
+                    new_text: n.try_to_string()?.into_std(),
                 })),
                 label_details: Some(CompletionItemLabelDetails {
                     detail: None,
-                    description: Some(prefix.to_string()),
+                    description: Some(prefix.try_to_string()?.into_std()),
                 }),
                 data: Some(serde_json::to_value(meta.hash).unwrap()),
                 ..Default::default()
-            })
+            })?;
         }
     }
+
+    Ok(())
 }
 
 pub(super) fn complete_native_loose_data(
@@ -141,16 +160,17 @@ pub(super) fn complete_native_loose_data(
     symbol: &str,
     position: lsp::Position,
     results: &mut Vec<CompletionItem>,
-) {
+) -> Result<()> {
     for (meta, signature) in context.iter_functions() {
         let (item, kind) = match (&meta.item, &meta.kind) {
-            (Some(item), meta::Kind::Function { .. }) => {
-                (item.clone(), CompletionItemKind::FUNCTION)
-            }
+            (Some(item), meta::Kind::Function { .. }) => (item, CompletionItemKind::FUNCTION),
             _ => continue,
         };
 
-        let func_name = item.to_string().trim_start_matches("::").to_owned();
+        let func_name = item
+            .try_to_string()?
+            .trim_start_matches("::")
+            .try_to_owned()?;
 
         if func_name.starts_with(symbol) {
             let return_type = signature
@@ -163,8 +183,8 @@ pub(super) fn complete_native_loose_data(
 
             let detail = return_type.map(|r| format!("({args}) -> {r}"));
 
-            results.push(CompletionItem {
-                label: func_name.clone(),
+            results.try_push(CompletionItem {
+                label: func_name.try_clone()?.into_std(),
                 kind: Some(kind),
                 detail,
                 documentation: Some(lsp::Documentation::MarkupContent(MarkupContent {
@@ -179,11 +199,13 @@ pub(super) fn complete_native_loose_data(
                         },
                         end: position,
                     },
-                    new_text: func_name,
+                    new_text: func_name.into_std(),
                 })),
                 data: Some(serde_json::to_value(meta.hash).unwrap()),
                 ..Default::default()
-            })
+            })?;
         }
     }
+
+    Ok(())
 }

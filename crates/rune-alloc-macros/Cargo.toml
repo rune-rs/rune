@@ -1,0 +1,22 @@
+[package]
+name = "rune-alloc-macros"
+version = "0.12.3"
+authors = ["John-John Tedro <udoprog@tedro.se>"]
+edition = "2021"
+rust-version = "1.70"
+description = "Macros for the Rune Language, an embeddable dynamic programming language for Rust."
+documentation = "https://docs.rs/rune"
+readme = "README.md"
+homepage = "https://github.com/rune-rs/rune"
+repository = "https://github.com/rune-rs/rune"
+license = "MIT OR Apache-2.0"
+keywords = ["language", "scripting", "scripting-language"]
+categories = ["parser-implementations"]
+
+[dependencies]
+syn = { version = "2.0.16", features = ["full"] }
+quote = "1.0.27"
+proc-macro2 = "1.0.56"
+
+[lib]
+proc-macro = true

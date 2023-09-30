@@ -2,8 +2,9 @@ use core::cmp::Ordering;
 use core::iter;
 
 use crate as rune;
+use crate::alloc;
 use crate::alloc::fmt::TryWrite;
-use crate::alloc::{self, Error, Global, TryClone};
+use crate::alloc::prelude::*;
 use crate::runtime::{
     EnvProtocolCaller, Formatter, Iterator, Protocol, ProtocolCaller, RawRef, Ref, Value,
     VmErrorKind, VmResult,
@@ -31,7 +32,7 @@ pub(super) fn setup(m: &mut Module) -> Result<(), ContextError> {
         "[`pop_front`]: VecDeque::pop_front",
         "[`extend`]: VecDeque::extend",
         "[`append`]: VecDeque::append",
-    ]);
+    ])?;
 
     m.function_meta(VecDeque::new)?;
     m.function_meta(VecDeque::with_capacity)?;
@@ -100,7 +101,7 @@ impl VecDeque {
     #[rune::function(path = Self::with_capacity)]
     fn with_capacity(count: usize) -> VmResult<VecDeque> {
         VmResult::Ok(Self {
-            inner: vm_try!(alloc::VecDeque::try_with_capacity_in(count, Global)),
+            inner: vm_try!(alloc::VecDeque::try_with_capacity(count)),
         })
     }
 
@@ -503,10 +504,7 @@ impl VecDeque {
     }
 
     pub(crate) fn from_iter(mut it: Iterator) -> VmResult<Self> {
-        let mut inner = vm_try!(alloc::VecDeque::try_with_capacity_in(
-            it.size_hint().0,
-            Global
-        ));
+        let mut inner = vm_try!(alloc::VecDeque::try_with_capacity(it.size_hint().0,));
 
         while let Some(value) = vm_try!(it.next()) {
             vm_try!(inner.try_push_back(value));
@@ -742,14 +740,14 @@ impl VecDeque {
 
 impl TryClone for VecDeque {
     #[inline]
-    fn try_clone(&self) -> Result<Self, Error> {
+    fn try_clone(&self) -> alloc::Result<Self> {
         Ok(Self {
             inner: self.inner.try_clone()?,
         })
     }
 
     #[inline]
-    fn try_clone_from(&mut self, source: &Self) -> Result<(), Error> {
+    fn try_clone_from(&mut self, source: &Self) -> alloc::Result<()> {
         self.inner.try_clone_from(&source.inner)
     }
 }

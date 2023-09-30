@@ -11,3 +11,16 @@ std = ["rune/std"]
 [dependencies]
 rune = { path = "../crates/rune", default-features = false, features = ["alloc"] }
 wee_alloc = "0.4.5"
+# Pull in your own critical-section implementation.
+# See: https://github.com/rust-embedded/critical-section/tree/main#usage-in-no-std-binaries
+critical-section = { version = "1.1.2", default-features = false }
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+
+[profile.unix]
+lto = true
+inherits = "dev"

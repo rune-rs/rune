@@ -43,7 +43,7 @@
 #![allow(clippy::drop_non_drop)]
 
 #[cfg(feature = "std")]
-extern crate std as rust_std;
+extern crate std;
 
 #[cfg(feature = "alloc")]
 extern crate alloc as rust_alloc;
@@ -53,46 +53,86 @@ extern crate alloc as rust_alloc;
 #[cfg(not(feature = "alloc"))]
 compile_error!("The `alloc` feature is currently required to build rune-alloc, but will change for parts of rune in the future.");
 
+/// A `Result` aliased specialized towards an allocation [`Error`].
+pub type Result<T, E = crate::error::Error> = core::result::Result<T, E>;
+
+#[cfg(feature = "std")]
+pub use std::path;
+#[cfg(not(feature = "std"))]
+pub mod path;
+
+#[cfg(not(feature = "std"))]
+mod no_std;
+#[cfg(not(feature = "std"))]
+pub use self::no_std::abort;
+
+#[cfg(feature = "std")]
+pub use std::process::abort;
+
+#[cfg(feature = "serde")]
+mod serde;
+
 #[macro_use]
 mod public_macros;
 
 #[macro_use]
 mod macros;
 
-pub use self::alloc::boxed::{self, Box};
-pub use self::alloc::btree::{map as btree_map, map::BTreeMap};
-pub use self::alloc::btree::{set as btree_set, set::BTreeSet};
-pub use self::alloc::hashbrown;
-pub use self::alloc::hashbrown::{map as hash_map, map::HashMap};
-pub use self::alloc::hashbrown::{set as hash_set, set::HashSet};
-pub use self::alloc::str;
-pub use self::alloc::string::{self, String, TryToString};
-pub use self::alloc::vec::{self, Vec};
-pub use self::alloc::vec_deque::{self, VecDeque};
-pub use self::alloc::{
-    AllocError, Allocator, CustomError, Error, Global, TryClone, TryExtend, TryFromIterator,
-    TryFromIteratorIn, TryToOwned,
-};
-pub(crate) mod alloc;
+pub use self::error::Error;
+pub mod error;
 
-pub use self::iter::IteratorExt;
+pub mod str;
+
+pub(crate) mod raw_vec;
+
+pub use self::boxed::Box;
+pub mod boxed;
+
+pub use self::btree::{map as btree_map, map::BTreeMap};
+pub use self::btree::{set as btree_set, set::BTreeSet};
+pub(crate) mod btree;
+
+pub use self::hashbrown::{map as hash_map, map::HashMap};
+pub use self::hashbrown::{set as hash_set, set::HashSet};
+pub mod hashbrown;
+
+pub use self::vec::Vec;
+pub mod vec;
+
+pub use self::vec_deque::VecDeque;
+pub mod vec_deque;
+
+pub use self::string::String;
+pub mod string;
+
+pub mod alloc;
+
+pub mod clone;
+
+pub mod borrow;
+
 pub mod iter;
 
-pub use self::fmt::TryWrite;
 pub mod fmt;
+
+mod option;
 
 pub(crate) mod hint;
 pub(crate) mod ptr;
-pub(crate) mod slice;
+#[doc(hidden)]
+pub mod slice;
 
 pub mod prelude {
     //! Prelude for common traits used in combination with this crate which
     //! matches the behavior of the std prelude.
-    pub use crate::{
-        IteratorExt, TryClone, TryExtend, TryFromIterator, TryFromIteratorIn, TryToOwned,
-        TryToString,
-    };
+    pub use crate::borrow::TryToOwned;
+    pub use crate::clone::{TryClone, TryCopy};
+    pub use crate::iter::{IteratorExt, TryExtend, TryFromIterator, TryFromIteratorIn};
+    pub use crate::option::OptionExt;
+    pub use crate::string::TryToString;
 }
+
+pub mod limit;
 
 #[cfg(test)]
 mod testing;

@@ -13,7 +13,7 @@ fn ast_parse() {
 }
 
 /// An impl item.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ItemImpl {
     /// The attributes of the `impl` block
@@ -42,10 +42,10 @@ impl ItemImpl {
         let path = parser.parse()?;
         let open = parser.parse()?;
 
-        let mut functions = vec![];
+        let mut functions = Vec::new();
 
         while !parser.peek::<ast::CloseBrace>()? {
-            functions.push(ast::ItemFn::parse(parser)?);
+            functions.try_push(ast::ItemFn::parse(parser)?)?;
         }
 
         let close = parser.parse()?;

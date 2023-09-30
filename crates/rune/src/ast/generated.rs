@@ -1,3 +1,5 @@
+use crate as rune;
+use crate::alloc::clone;
 use crate::ast;
 use crate::compile;
 use crate::macros;
@@ -8,7 +10,8 @@ use core::fmt;
 /// DO NOT modify by hand!
 
 /// The `abstract` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Abstract {
     /// Associated span.
@@ -49,16 +52,17 @@ impl macros::ToTokens for Abstract {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Abstract,
-        });
+        })
     }
 }
 
 /// The `alignof` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct AlignOf {
     /// Associated span.
@@ -99,16 +103,17 @@ impl macros::ToTokens for AlignOf {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::AlignOf,
-        });
+        })
     }
 }
 
 /// `&`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Amp {
     /// Associated span.
@@ -149,16 +154,17 @@ impl macros::ToTokens for Amp {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Amp,
-        });
+        })
     }
 }
 
 /// `&&`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct AmpAmp {
     /// Associated span.
@@ -199,16 +205,17 @@ impl macros::ToTokens for AmpAmp {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::AmpAmp,
-        });
+        })
     }
 }
 
 /// `&=`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct AmpEq {
     /// Associated span.
@@ -249,16 +256,17 @@ impl macros::ToTokens for AmpEq {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::AmpEq,
-        });
+        })
     }
 }
 
 /// `->`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Arrow {
     /// Associated span.
@@ -299,16 +307,17 @@ impl macros::ToTokens for Arrow {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Arrow,
-        });
+        })
     }
 }
 
 /// The `as` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct As {
     /// Associated span.
@@ -349,16 +358,17 @@ impl macros::ToTokens for As {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::As,
-        });
+        })
     }
 }
 
 /// The `async` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Async {
     /// Associated span.
@@ -399,16 +409,17 @@ impl macros::ToTokens for Async {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Async,
-        });
+        })
     }
 }
 
 /// `@`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct At {
     /// Associated span.
@@ -449,16 +460,17 @@ impl macros::ToTokens for At {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::At,
-        });
+        })
     }
 }
 
 /// The `await` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Await {
     /// Associated span.
@@ -499,16 +511,17 @@ impl macros::ToTokens for Await {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Await,
-        });
+        })
     }
 }
 
 /// `!`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Bang {
     /// Associated span.
@@ -549,16 +562,17 @@ impl macros::ToTokens for Bang {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Bang,
-        });
+        })
     }
 }
 
 /// `!=`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct BangEq {
     /// Associated span.
@@ -599,16 +613,17 @@ impl macros::ToTokens for BangEq {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::BangEq,
-        });
+        })
     }
 }
 
 /// The `become` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Become {
     /// Associated span.
@@ -649,16 +664,17 @@ impl macros::ToTokens for Become {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Become,
-        });
+        })
     }
 }
 
 /// The `break` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Break {
     /// Associated span.
@@ -699,16 +715,17 @@ impl macros::ToTokens for Break {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Break,
-        });
+        })
     }
 }
 
 /// `^`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Caret {
     /// Associated span.
@@ -749,16 +766,17 @@ impl macros::ToTokens for Caret {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Caret,
-        });
+        })
     }
 }
 
 /// `^=`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct CaretEq {
     /// Associated span.
@@ -799,16 +817,17 @@ impl macros::ToTokens for CaretEq {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::CaretEq,
-        });
+        })
     }
 }
 
 /// `:`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Colon {
     /// Associated span.
@@ -849,16 +868,17 @@ impl macros::ToTokens for Colon {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Colon,
-        });
+        })
     }
 }
 
 /// `::`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct ColonColon {
     /// Associated span.
@@ -899,16 +919,17 @@ impl macros::ToTokens for ColonColon {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::ColonColon,
-        });
+        })
     }
 }
 
 /// `,`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Comma {
     /// Associated span.
@@ -949,16 +970,17 @@ impl macros::ToTokens for Comma {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Comma,
-        });
+        })
     }
 }
 
 /// The `const` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Const {
     /// Associated span.
@@ -999,16 +1021,17 @@ impl macros::ToTokens for Const {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Const,
-        });
+        })
     }
 }
 
 /// The `continue` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Continue {
     /// Associated span.
@@ -1049,16 +1072,17 @@ impl macros::ToTokens for Continue {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Continue,
-        });
+        })
     }
 }
 
 /// The `crate` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Crate {
     /// Associated span.
@@ -1099,16 +1123,17 @@ impl macros::ToTokens for Crate {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Crate,
-        });
+        })
     }
 }
 
 /// `-`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Dash {
     /// Associated span.
@@ -1149,16 +1174,17 @@ impl macros::ToTokens for Dash {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Dash,
-        });
+        })
     }
 }
 
 /// `-=`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct DashEq {
     /// Associated span.
@@ -1199,16 +1225,17 @@ impl macros::ToTokens for DashEq {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::DashEq,
-        });
+        })
     }
 }
 
 /// The `default` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Default {
     /// Associated span.
@@ -1249,16 +1276,17 @@ impl macros::ToTokens for Default {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Default,
-        });
+        })
     }
 }
 
 /// `/`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Div {
     /// Associated span.
@@ -1299,16 +1327,17 @@ impl macros::ToTokens for Div {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Div,
-        });
+        })
     }
 }
 
 /// The `do` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Do {
     /// Associated span.
@@ -1349,16 +1378,17 @@ impl macros::ToTokens for Do {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Do,
-        });
+        })
     }
 }
 
 /// `$`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Dollar {
     /// Associated span.
@@ -1399,16 +1429,17 @@ impl macros::ToTokens for Dollar {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Dollar,
-        });
+        })
     }
 }
 
 /// `.`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Dot {
     /// Associated span.
@@ -1449,16 +1480,17 @@ impl macros::ToTokens for Dot {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Dot,
-        });
+        })
     }
 }
 
 /// `..`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct DotDot {
     /// Associated span.
@@ -1499,16 +1531,17 @@ impl macros::ToTokens for DotDot {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::DotDot,
-        });
+        })
     }
 }
 
 /// `..=`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct DotDotEq {
     /// Associated span.
@@ -1549,16 +1582,17 @@ impl macros::ToTokens for DotDotEq {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::DotDotEq,
-        });
+        })
     }
 }
 
 /// The `else` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Else {
     /// Associated span.
@@ -1599,16 +1633,17 @@ impl macros::ToTokens for Else {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Else,
-        });
+        })
     }
 }
 
 /// The `enum` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Enum {
     /// Associated span.
@@ -1649,16 +1684,17 @@ impl macros::ToTokens for Enum {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Enum,
-        });
+        })
     }
 }
 
 /// `=`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Eq {
     /// Associated span.
@@ -1699,16 +1735,17 @@ impl macros::ToTokens for Eq {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Eq,
-        });
+        })
     }
 }
 
 /// `==`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct EqEq {
     /// Associated span.
@@ -1749,16 +1786,17 @@ impl macros::ToTokens for EqEq {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::EqEq,
-        });
+        })
     }
 }
 
 /// The `extern` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Extern {
     /// Associated span.
@@ -1799,16 +1837,17 @@ impl macros::ToTokens for Extern {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Extern,
-        });
+        })
     }
 }
 
 /// The `false` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct False {
     /// Associated span.
@@ -1849,16 +1888,17 @@ impl macros::ToTokens for False {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::False,
-        });
+        })
     }
 }
 
 /// The `final` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Final {
     /// Associated span.
@@ -1899,16 +1939,17 @@ impl macros::ToTokens for Final {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Final,
-        });
+        })
     }
 }
 
 /// The `fn` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Fn {
     /// Associated span.
@@ -1949,16 +1990,17 @@ impl macros::ToTokens for Fn {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Fn,
-        });
+        })
     }
 }
 
 /// The `for` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct For {
     /// Associated span.
@@ -1999,16 +2041,17 @@ impl macros::ToTokens for For {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::For,
-        });
+        })
     }
 }
 
 /// `>`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Gt {
     /// Associated span.
@@ -2049,16 +2092,17 @@ impl macros::ToTokens for Gt {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Gt,
-        });
+        })
     }
 }
 
 /// `>=`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct GtEq {
     /// Associated span.
@@ -2099,16 +2143,17 @@ impl macros::ToTokens for GtEq {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::GtEq,
-        });
+        })
     }
 }
 
 /// `>>`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct GtGt {
     /// Associated span.
@@ -2149,16 +2194,17 @@ impl macros::ToTokens for GtGt {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::GtGt,
-        });
+        })
     }
 }
 
 /// `>>=`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct GtGtEq {
     /// Associated span.
@@ -2199,16 +2245,17 @@ impl macros::ToTokens for GtGtEq {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::GtGtEq,
-        });
+        })
     }
 }
 
 /// The `if` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct If {
     /// Associated span.
@@ -2249,16 +2296,17 @@ impl macros::ToTokens for If {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::If,
-        });
+        })
     }
 }
 
 /// The `impl` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Impl {
     /// Associated span.
@@ -2299,16 +2347,17 @@ impl macros::ToTokens for Impl {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Impl,
-        });
+        })
     }
 }
 
 /// The `in` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct In {
     /// Associated span.
@@ -2349,16 +2398,17 @@ impl macros::ToTokens for In {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::In,
-        });
+        })
     }
 }
 
 /// The `is` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Is {
     /// Associated span.
@@ -2399,16 +2449,17 @@ impl macros::ToTokens for Is {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Is,
-        });
+        })
     }
 }
 
 /// The `let` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Let {
     /// Associated span.
@@ -2449,16 +2500,17 @@ impl macros::ToTokens for Let {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Let,
-        });
+        })
     }
 }
 
 /// The `loop` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Loop {
     /// Associated span.
@@ -2499,16 +2551,17 @@ impl macros::ToTokens for Loop {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Loop,
-        });
+        })
     }
 }
 
 /// `<`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Lt {
     /// Associated span.
@@ -2549,16 +2602,17 @@ impl macros::ToTokens for Lt {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Lt,
-        });
+        })
     }
 }
 
 /// `<=`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct LtEq {
     /// Associated span.
@@ -2599,16 +2653,17 @@ impl macros::ToTokens for LtEq {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::LtEq,
-        });
+        })
     }
 }
 
 /// `<<`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct LtLt {
     /// Associated span.
@@ -2649,16 +2704,17 @@ impl macros::ToTokens for LtLt {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::LtLt,
-        });
+        })
     }
 }
 
 /// `<<=`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct LtLtEq {
     /// Associated span.
@@ -2699,16 +2755,17 @@ impl macros::ToTokens for LtLtEq {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::LtLtEq,
-        });
+        })
     }
 }
 
 /// The `macro` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Macro {
     /// Associated span.
@@ -2749,16 +2806,17 @@ impl macros::ToTokens for Macro {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Macro,
-        });
+        })
     }
 }
 
 /// The `match` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Match {
     /// Associated span.
@@ -2799,16 +2857,17 @@ impl macros::ToTokens for Match {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Match,
-        });
+        })
     }
 }
 
 /// The `mod` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Mod {
     /// Associated span.
@@ -2849,16 +2908,17 @@ impl macros::ToTokens for Mod {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Mod,
-        });
+        })
     }
 }
 
 /// The `move` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Move {
     /// Associated span.
@@ -2899,16 +2959,17 @@ impl macros::ToTokens for Move {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Move,
-        });
+        })
     }
 }
 
 /// The `mut` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Mut {
     /// Associated span.
@@ -2949,16 +3010,17 @@ impl macros::ToTokens for Mut {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Mut,
-        });
+        })
     }
 }
 
 /// The `not` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Not {
     /// Associated span.
@@ -2999,16 +3061,17 @@ impl macros::ToTokens for Not {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Not,
-        });
+        })
     }
 }
 
 /// The `offsetof` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct OffsetOf {
     /// Associated span.
@@ -3049,16 +3112,17 @@ impl macros::ToTokens for OffsetOf {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::OffsetOf,
-        });
+        })
     }
 }
 
 /// The `override` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Override {
     /// Associated span.
@@ -3099,16 +3163,17 @@ impl macros::ToTokens for Override {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Override,
-        });
+        })
     }
 }
 
 /// `%`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Perc {
     /// Associated span.
@@ -3149,16 +3214,17 @@ impl macros::ToTokens for Perc {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Perc,
-        });
+        })
     }
 }
 
 /// `%=`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct PercEq {
     /// Associated span.
@@ -3199,16 +3265,17 @@ impl macros::ToTokens for PercEq {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::PercEq,
-        });
+        })
     }
 }
 
 /// `|`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Pipe {
     /// Associated span.
@@ -3249,16 +3316,17 @@ impl macros::ToTokens for Pipe {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Pipe,
-        });
+        })
     }
 }
 
 /// |=`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct PipeEq {
     /// Associated span.
@@ -3299,16 +3367,17 @@ impl macros::ToTokens for PipeEq {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::PipeEq,
-        });
+        })
     }
 }
 
 /// `||`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct PipePipe {
     /// Associated span.
@@ -3349,16 +3418,17 @@ impl macros::ToTokens for PipePipe {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::PipePipe,
-        });
+        })
     }
 }
 
 /// `+`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Plus {
     /// Associated span.
@@ -3399,16 +3469,17 @@ impl macros::ToTokens for Plus {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Plus,
-        });
+        })
     }
 }
 
 /// `+=`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct PlusEq {
     /// Associated span.
@@ -3449,16 +3520,17 @@ impl macros::ToTokens for PlusEq {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::PlusEq,
-        });
+        })
     }
 }
 
 /// `#`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Pound {
     /// Associated span.
@@ -3499,16 +3571,17 @@ impl macros::ToTokens for Pound {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Pound,
-        });
+        })
     }
 }
 
 /// The `priv` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Priv {
     /// Associated span.
@@ -3549,16 +3622,17 @@ impl macros::ToTokens for Priv {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Priv,
-        });
+        })
     }
 }
 
 /// The `proc` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Proc {
     /// Associated span.
@@ -3599,16 +3673,17 @@ impl macros::ToTokens for Proc {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Proc,
-        });
+        })
     }
 }
 
 /// The `pub` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Pub {
     /// Associated span.
@@ -3649,16 +3724,17 @@ impl macros::ToTokens for Pub {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Pub,
-        });
+        })
     }
 }
 
 /// The `pure` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Pure {
     /// Associated span.
@@ -3699,16 +3775,17 @@ impl macros::ToTokens for Pure {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Pure,
-        });
+        })
     }
 }
 
 /// `?`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct QuestionMark {
     /// Associated span.
@@ -3749,16 +3826,17 @@ impl macros::ToTokens for QuestionMark {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::QuestionMark,
-        });
+        })
     }
 }
 
 /// The `ref` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Ref {
     /// Associated span.
@@ -3799,16 +3877,17 @@ impl macros::ToTokens for Ref {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Ref,
-        });
+        })
     }
 }
 
 /// The `return` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Return {
     /// Associated span.
@@ -3849,16 +3928,17 @@ impl macros::ToTokens for Return {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Return,
-        });
+        })
     }
 }
 
 /// `=>`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Rocket {
     /// Associated span.
@@ -3899,16 +3979,17 @@ impl macros::ToTokens for Rocket {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Rocket,
-        });
+        })
     }
 }
 
 /// The `select` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Select {
     /// Associated span.
@@ -3949,16 +4030,17 @@ impl macros::ToTokens for Select {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Select,
-        });
+        })
     }
 }
 
 /// The `Self` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct SelfType {
     /// Associated span.
@@ -3999,16 +4081,17 @@ impl macros::ToTokens for SelfType {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::SelfType,
-        });
+        })
     }
 }
 
 /// The `self` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct SelfValue {
     /// Associated span.
@@ -4049,16 +4132,17 @@ impl macros::ToTokens for SelfValue {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::SelfValue,
-        });
+        })
     }
 }
 
 /// `;`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct SemiColon {
     /// Associated span.
@@ -4099,16 +4183,17 @@ impl macros::ToTokens for SemiColon {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::SemiColon,
-        });
+        })
     }
 }
 
 /// The `sizeof` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct SizeOf {
     /// Associated span.
@@ -4149,16 +4234,17 @@ impl macros::ToTokens for SizeOf {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::SizeOf,
-        });
+        })
     }
 }
 
 /// `/=`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct SlashEq {
     /// Associated span.
@@ -4199,16 +4285,17 @@ impl macros::ToTokens for SlashEq {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::SlashEq,
-        });
+        })
     }
 }
 
 /// `*`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Star {
     /// Associated span.
@@ -4249,16 +4336,17 @@ impl macros::ToTokens for Star {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Star,
-        });
+        })
     }
 }
 
 /// `*=`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct StarEq {
     /// Associated span.
@@ -4299,16 +4387,17 @@ impl macros::ToTokens for StarEq {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::StarEq,
-        });
+        })
     }
 }
 
 /// The `static` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Static {
     /// Associated span.
@@ -4349,16 +4438,17 @@ impl macros::ToTokens for Static {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Static,
-        });
+        })
     }
 }
 
 /// The `struct` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Struct {
     /// Associated span.
@@ -4399,16 +4489,17 @@ impl macros::ToTokens for Struct {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Struct,
-        });
+        })
     }
 }
 
 /// The `super` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Super {
     /// Associated span.
@@ -4449,16 +4540,17 @@ impl macros::ToTokens for Super {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Super,
-        });
+        })
     }
 }
 
 /// `~`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Tilde {
     /// Associated span.
@@ -4499,16 +4591,17 @@ impl macros::ToTokens for Tilde {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Tilde,
-        });
+        })
     }
 }
 
 /// The `true` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct True {
     /// Associated span.
@@ -4549,16 +4642,17 @@ impl macros::ToTokens for True {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::True,
-        });
+        })
     }
 }
 
 /// The `typeof` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct TypeOf {
     /// Associated span.
@@ -4599,16 +4693,17 @@ impl macros::ToTokens for TypeOf {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::TypeOf,
-        });
+        })
     }
 }
 
 /// `_`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Underscore {
     /// Associated span.
@@ -4649,16 +4744,17 @@ impl macros::ToTokens for Underscore {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Underscore,
-        });
+        })
     }
 }
 
 /// The `unsafe` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Unsafe {
     /// Associated span.
@@ -4699,16 +4795,17 @@ impl macros::ToTokens for Unsafe {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Unsafe,
-        });
+        })
     }
 }
 
 /// The `use` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Use {
     /// Associated span.
@@ -4749,16 +4846,17 @@ impl macros::ToTokens for Use {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Use,
-        });
+        })
     }
 }
 
 /// The `virtual` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Virtual {
     /// Associated span.
@@ -4799,16 +4897,17 @@ impl macros::ToTokens for Virtual {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Virtual,
-        });
+        })
     }
 }
 
 /// The `while` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct While {
     /// Associated span.
@@ -4849,16 +4948,17 @@ impl macros::ToTokens for While {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::While,
-        });
+        })
     }
 }
 
 /// The `yield` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Yield {
     /// Associated span.
@@ -4899,11 +4999,11 @@ impl macros::ToTokens for Yield {
         &self,
         _: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Yield,
-        });
+        })
     }
 }
 
@@ -5352,7 +5452,8 @@ macro_rules! K {
 }
 
 /// The kind of the token.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, clone::TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[try_clone(copy)]
 pub enum Kind {
     /// En end-of-file marker.
     Eof,
@@ -5768,11 +5869,11 @@ impl macros::ToTokens for Kind {
         &self,
         context: &mut macros::MacroContext<'_, '_, '_>,
         stream: &mut macros::TokenStream,
-    ) {
+    ) -> crate::alloc::Result<()> {
         stream.push(ast::Token {
             kind: *self,
             span: context.macro_span(),
-        });
+        })
     }
 }
 

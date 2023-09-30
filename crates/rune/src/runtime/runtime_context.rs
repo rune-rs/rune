@@ -2,6 +2,8 @@ use core::fmt;
 
 use crate::no_std::sync::Arc;
 
+use crate as rune;
+use crate::alloc::prelude::*;
 use crate::compile;
 use crate::hash;
 use crate::macros::{MacroContext, TokenStream};
@@ -26,7 +28,7 @@ pub(crate) type AttributeMacroHandler = dyn Fn(&mut MacroContext, &TokenStream, 
 /// * Declared functions.
 /// * Declared instance functions.
 /// * Built-in type checks.
-#[derive(Default, Clone)]
+#[derive(Default, TryClone)]
 pub struct RuntimeContext {
     /// Registered native function handlers.
     functions: hash::Map<Arc<FunctionHandler>>,

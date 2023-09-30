@@ -17,6 +17,7 @@
 //! use rune::macros::{quote, MacroContext, TokenStream, ToTokens};
 //! use rune::parse::Parser;
 //! use rune::termcolor::{ColorChoice, StandardStream};
+//! use rune::alloc::String;
 //!
 //! use std::sync::Arc;
 //!
@@ -27,7 +28,7 @@
 //!     let mut p = Parser::from_token_stream(input, cx.input_span());
 //!
 //!     let ident = p.parse::<ast::Ident>()?;
-//!     output.push_str(cx.resolve(ident)?);
+//!     output.try_push_str(cx.resolve(ident)?)?;
 //!
 //!     while p.parse::<Option<T![,]>>()?.is_some() {
 //!         if p.is_eof()? {
@@ -35,13 +36,13 @@
 //!         }
 //!
 //!         let ident = p.parse::<ast::Ident>()?;
-//!         output.push_str(cx.resolve(ident)?);
+//!         output.try_push_str(cx.resolve(ident)?)?;
 //!     }
 //!
 //!     p.eof()?;
 //!
-//!     let output = cx.ident(&output);
-//!     Ok(quote!(#output).into_token_stream(cx))
+//!     let output = cx.ident(&output)?;
+//!     Ok(quote!(#output).into_token_stream(cx)?)
 //! }
 //!
 //! #[rune::attribute_macro]
@@ -64,7 +65,7 @@
 //! let mut context = Context::new();
 //! context.install(m)?;
 //!
-//! let runtime = Arc::new(context.runtime());
+//! let runtime = Arc::new(context.runtime()?);
 //!
 //! let mut sources = rune::sources! {
 //!     entry => {
@@ -100,7 +101,7 @@
 //! let value: u32 = rune::from_value(value)?;
 //!
 //! assert_eq!(value, 42);
-//! # Ok::<_, rune::Error>(())
+//! # Ok::<_, rune::support::Error>(())
 //! ```
 
 mod format_args;
@@ -114,6 +115,8 @@ mod token_stream;
 pub use self::format_args::FormatArgs;
 pub use self::into_lit::IntoLit;
 pub(crate) use self::macro_compiler::MacroCompiler;
+#[cfg(feature = "std")]
+pub use self::macro_context::test;
 pub use self::macro_context::MacroContext;
 pub use self::quote_fn::{quote_fn, Quote};
 pub(crate) use self::storage::Storage;

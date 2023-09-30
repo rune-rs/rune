@@ -9,7 +9,7 @@ use crate as rune;
 
 /// Construct the `std::char` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["char"]);
+    let mut module = Module::with_crate_item("std", ["char"])?;
     module.ty::<ParseCharError>()?;
 
     module.function_meta(from_i64)?;

@@ -1,12 +1,13 @@
-use crate::no_std::prelude::*;
-
+use crate as rune;
+use crate::alloc::prelude::*;
+use crate::alloc::{self, Vec};
 use crate::ast::Spanned;
 use crate::compile::v1::Needs;
 use crate::compile::{self, ErrorKind};
 use crate::runtime::Label;
 
 /// Loops we are inside.
-#[derive(Clone)]
+#[derive(TryClone)]
 pub(crate) struct Loop<'hir> {
     /// The optional label of the start of the loop.
     pub(crate) label: Option<&'hir str>,
@@ -31,7 +32,7 @@ pub(crate) struct Loops<'hir> {
 impl<'hir> Loops<'hir> {
     /// Construct a new collection of loops.
     pub(crate) fn new() -> Self {
-        Self { loops: vec![] }
+        Self { loops: Vec::new() }
     }
 
     /// Get the last loop context.
@@ -40,8 +41,9 @@ impl<'hir> Loops<'hir> {
     }
 
     /// Push loop information.
-    pub(crate) fn push(&mut self, l: Loop<'hir>) {
-        self.loops.push(l);
+    pub(crate) fn push(&mut self, l: Loop<'hir>) -> alloc::Result<()> {
+        self.loops.try_push(l)?;
+        Ok(())
     }
 
     pub(crate) fn pop(&mut self) {
@@ -58,7 +60,7 @@ impl<'hir> Loops<'hir> {
         let mut to_drop = Vec::new();
 
         for l in self.loops.iter().rev() {
-            to_drop.extend(l.drop);
+            to_drop.try_extend(l.drop)?;
 
             let Some(label) = l.label else {
                 continue;
@@ -72,7 +74,7 @@ impl<'hir> Loops<'hir> {
         Err(compile::Error::new(
             span,
             ErrorKind::MissingLoopLabel {
-                label: expected.into(),
+                label: expected.try_into()?,
             },
         ))
     }

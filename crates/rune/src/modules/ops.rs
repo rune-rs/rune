@@ -17,7 +17,7 @@ static STATE: OnceCell<RandomState> = OnceCell::new();
 #[rune::module(::std::ops)]
 /// Overloadable operators.
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::from_meta(self::module_meta);
+    let mut m = Module::from_meta(self::module_meta)?;
 
     {
         m.ty::<RangeFrom>()?;
@@ -91,7 +91,7 @@ pub fn module() -> Result<Module, ContextError> {
 
     {
         m.generator_state(["GeneratorState"])?
-            .docs(["Enum indicating the state of a generator."]);
+            .docs(["Enum indicating the state of a generator."])?;
 
         m.function_meta(generator_state_partial_eq)?;
         m.function_meta(generator_state_eq)?;

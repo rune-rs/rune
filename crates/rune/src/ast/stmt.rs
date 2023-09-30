@@ -11,7 +11,7 @@ fn ast_parse() {
 }
 
 /// A statement within a block.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 #[allow(clippy::large_enum_variant)]
 pub enum Stmt {
@@ -56,7 +56,7 @@ impl Parse for Stmt {
         }
 
         let stmt = if let K![let] = p.nth(0)? {
-            let local = Box::new(ast::Local::parse_with_meta(p, take(&mut attributes))?);
+            let local = Box::try_new(ast::Local::parse_with_meta(p, take(&mut attributes))?)?;
             Self::Local(local)
         } else {
             let expr = ast::Expr::parse_with_meta(p, &mut attributes, ast::expr::CALLABLE)?;
@@ -77,7 +77,7 @@ impl Parse for Stmt {
 }
 
 /// Parsing an item or an expression.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, TryClone, PartialEq, Eq)]
 #[non_exhaustive]
 #[allow(clippy::large_enum_variant)]
 pub enum ItemOrExpr {
@@ -131,7 +131,8 @@ impl Parse for ItemOrExpr {
 }
 
 /// Key used to stort a statement into its processing order.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub enum StmtSortKey {
     /// USe statements, that should be processed first.
@@ -147,7 +148,7 @@ pub enum StmtSortKey {
 /// These have special meaning since they indicate that whatever block or
 /// function they belong to should not evaluate to the value of the expression
 /// if it is the last expression in the block.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct StmtSemi {
     /// The expression that is considered to be semi-terminated.

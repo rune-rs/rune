@@ -3,14 +3,15 @@ use rune::parse::Parser;
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{ast, ContextError};
 use rune::{Diagnostics, Module, Vm};
+
 use std::sync::Arc;
 
-pub fn main() -> rune::Result<()> {
+pub fn main() -> rune::support::Result<()> {
     let m = module()?;
 
     let mut context = rune_modules::default_context()?;
     context.install(m)?;
-    let runtime = Arc::new(context.runtime());
+    let runtime = Arc::new(context.runtime()?);
 
     let mut sources = rune::sources! {
         entry => {
@@ -50,20 +51,20 @@ fn module() -> Result<Module, ContextError> {
     let string = "1 + 2 + 13 * 3";
 
     m.macro_(["string_as_code"], move |cx, _| {
-        let id = cx.insert_source("string_as_code", string);
+        let id = cx.insert_source("string_as_code", string)?;
         let expr = cx.parse_source::<ast::Expr>(id)?;
 
-        Ok(quote!(#expr).into_token_stream(cx))
+        Ok(quote!(#expr).into_token_stream(cx)?)
     })?;
 
     m.macro_(["string_as_code_from_arg"], |cx, stream| {
         let mut p = Parser::from_token_stream(stream, cx.input_span());
         let s = p.parse_all::<ast::LitStr>()?;
-        let s = cx.resolve(s)?.into_owned();
-        let id = cx.insert_source("string_as_code_from_arg", &s);
+        let s = cx.resolve(s)?.try_into_owned()?;
+        let id = cx.insert_source("string_as_code_from_arg", &s)?;
         let expr = cx.parse_source::<ast::Expr>(id)?;
 
-        Ok(quote!(#expr).into_token_stream(cx))
+        Ok(quote!(#expr).into_token_stream(cx)?)
     })?;
 
     Ok(m)

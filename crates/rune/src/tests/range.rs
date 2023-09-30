@@ -129,15 +129,15 @@ fn test_range_non_eager_brace() {
 fn unsupported_compile_range() {
     assert_errors! {
         "pub fn main() { 'a'..= }",
-        span!(16, 22), Custom { message } => {
-            assert_eq!(message.as_ref(), "Unsupported range, you probably want `..` instead of `..=`")
+        span!(16, 22), Custom { error } => {
+            assert_eq!(error.to_string(), "Unsupported range, you probably want `..` instead of `..=`")
         }
     };
 
     assert_errors! {
         "pub fn main() { ..= }",
-        span!(16, 19), Custom { message } => {
-            assert_eq!(message.as_ref(), "Unsupported range, you probably want `..` instead of `..=`")
+        span!(16, 19), Custom { error } => {
+            assert_eq!(error.to_string(), "Unsupported range, you probably want `..` instead of `..=`")
         }
     };
 }

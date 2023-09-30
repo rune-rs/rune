@@ -18,7 +18,7 @@ use crate as rune;
 #[rune::module(::std::collections)]
 /// The `std::collections` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::from_meta(self::module_meta);
+    let mut module = Module::from_meta(self::module_meta)?;
     #[cfg(feature = "alloc")]
     hash_map::setup(&mut module)?;
     #[cfg(feature = "alloc")]

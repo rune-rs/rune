@@ -11,13 +11,15 @@ pub(crate) fn vm(
         .with_diagnostics(diagnostics)
         .build()?;
 
-    let context = Arc::new(context.runtime());
+    let context = Arc::new(context.runtime()?);
     Ok(Vm::new(context, Arc::new(unit)))
 }
 
 pub(crate) fn sources(source: &str) -> Sources {
     let mut sources = Sources::new();
-    sources.insert(Source::new("main", source));
+    sources
+        .insert(Source::new("main", source))
+        .expect("Failed to insert source");
     sources
 }
 

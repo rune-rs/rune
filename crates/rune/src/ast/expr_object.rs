@@ -1,5 +1,4 @@
-use crate::no_std::borrow::Cow;
-
+use crate::alloc::borrow::Cow;
 use crate::ast::prelude::*;
 
 #[test]
@@ -22,7 +21,7 @@ fn ast_parse() {
 ///
 /// * `#{ [field]* }`.
 /// * `Object { [field]* }`.
-#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprObject {
     /// Attributes associated with object.
@@ -46,7 +45,7 @@ impl Peek for ExprObject {
 }
 
 /// A literal object identifier.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub enum ObjectIdent {
     /// An anonymous object.
@@ -65,7 +64,7 @@ impl Parse for ObjectIdent {
 }
 
 /// A single field assignment in an object expression.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct FieldAssign {
     /// The key of the field.
@@ -92,7 +91,7 @@ impl Parse for FieldAssign {
 }
 
 /// Possible literal object keys.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub enum ObjectKey {
     /// A literal string (with escapes).

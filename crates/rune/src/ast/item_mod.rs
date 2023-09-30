@@ -15,7 +15,7 @@ fn ast_parse() {
 }
 
 /// A module item.
-#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned, Opaque)]
+#[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned, Opaque)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]
 pub struct ItemMod {
@@ -50,7 +50,7 @@ impl ItemMod {
 item_parse!(Mod, ItemMod, "mod item");
 
 /// An item body.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub enum ItemModBody {
     /// An empty body terminated by a semicolon.
@@ -69,7 +69,7 @@ impl Parse for ItemModBody {
 }
 
 /// A module declaration.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Parse, Spanned)]
 #[non_exhaustive]
 pub struct ItemInlineBody {
     /// The open brace.

@@ -107,7 +107,7 @@ impl ops::Deref for Callable {
 }
 
 /// A rune expression.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub enum Expr {
     /// An path expression.
@@ -562,7 +562,7 @@ fn chain(p: &mut Parser<'_>, mut expr: Expr, callable: Callable) -> Result<Expr>
             K!['['] if is_callable => {
                 expr = Expr::Index(ast::ExprIndex {
                     attributes: expr.take_attributes(),
-                    target: Box::new(expr),
+                    target: Box::try_new(expr)?,
                     open: p.parse()?,
                     index: p.parse()?,
                     close: p.parse()?,
@@ -575,14 +575,14 @@ fn chain(p: &mut Parser<'_>, mut expr: Expr, callable: Callable) -> Result<Expr>
                 expr = Expr::Call(ast::ExprCall {
                     id: Default::default(),
                     attributes: expr.take_attributes(),
-                    expr: Box::new(expr),
+                    expr: Box::try_new(expr)?,
                     args,
                 });
             }
             K![?] => {
                 expr = Expr::Try(ast::ExprTry {
                     attributes: expr.take_attributes(),
-                    expr: Box::new(expr),
+                    expr: Box::try_new(expr)?,
                     try_token: p.parse()?,
                 });
             }
@@ -592,9 +592,9 @@ fn chain(p: &mut Parser<'_>, mut expr: Expr, callable: Callable) -> Result<Expr>
 
                 expr = Expr::Assign(ast::ExprAssign {
                     attributes: expr.take_attributes(),
-                    lhs: Box::new(expr),
+                    lhs: Box::try_new(expr)?,
                     eq,
-                    rhs: Box::new(rhs),
+                    rhs: Box::try_new(rhs)?,
                 });
             }
             K![.] => {
@@ -603,7 +603,7 @@ fn chain(p: &mut Parser<'_>, mut expr: Expr, callable: Callable) -> Result<Expr>
                     K![await] => {
                         expr = Expr::Await(ast::ExprAwait {
                             attributes: expr.take_attributes(),
-                            expr: Box::new(expr),
+                            expr: Box::try_new(expr)?,
                             dot: p.parse()?,
                             await_token: p.parse()?,
                         });
@@ -612,7 +612,7 @@ fn chain(p: &mut Parser<'_>, mut expr: Expr, callable: Callable) -> Result<Expr>
                     K![ident] => {
                         expr = Expr::FieldAccess(ast::ExprFieldAccess {
                             attributes: expr.take_attributes(),
-                            expr: Box::new(expr),
+                            expr: Box::try_new(expr)?,
                             dot: p.parse()?,
                             expr_field: ast::ExprField::Path(p.parse()?),
                         });
@@ -621,7 +621,7 @@ fn chain(p: &mut Parser<'_>, mut expr: Expr, callable: Callable) -> Result<Expr>
                     K![number] => {
                         expr = Expr::FieldAccess(ast::ExprFieldAccess {
                             attributes: expr.take_attributes(),
-                            expr: Box::new(expr),
+                            expr: Box::try_new(expr)?,
                             dot: p.parse()?,
                             expr_field: ast::ExprField::LitNumber(p.parse()?),
                         });
@@ -660,7 +660,7 @@ fn binary(
                 lhs = range(
                     p,
                     lhs.take_attributes(),
-                    Some(Box::new(lhs)),
+                    Some(Box::try_new(lhs)?),
                     ast::ExprRangeLimits::HalfOpen(token),
                     eager_brace,
                 )?;
@@ -671,7 +671,7 @@ fn binary(
                 lhs = range(
                     p,
                     lhs.take_attributes(),
-                    Some(Box::new(lhs)),
+                    Some(Box::try_new(lhs)?),
                     ast::ExprRangeLimits::Closed(token),
                     eager_brace,
                 )?;
@@ -681,7 +681,7 @@ fn binary(
             _ => (),
         }
 
-        let mut rhs = primary(p, &mut vec![], eager_brace, CALLABLE)?;
+        let mut rhs = primary(p, &mut Vec::new(), eager_brace, CALLABLE)?;
         lookahead = ast::BinOp::from_peeker(p.peeker());
 
         while let Some(next) = lookahead {
@@ -708,9 +708,9 @@ fn binary(
 
         lhs = Expr::Binary(ast::ExprBinary {
             attributes: lhs.take_attributes(),
-            lhs: Box::new(lhs),
+            lhs: Box::try_new(lhs)?,
             op,
-            rhs: Box::new(rhs),
+            rhs: Box::try_new(rhs)?,
         });
     }
 
@@ -726,12 +726,12 @@ fn range(
     eager_brace: EagerBrace,
 ) -> Result<Expr> {
     let to = if Expr::peek_with_brace(p.peeker(), eager_brace) {
-        Some(Box::new(Expr::parse_with(
+        Some(Box::try_new(Expr::parse_with(
             p,
             eager_brace,
             EAGER_BINARY,
             CALLABLE,
-        )?))
+        )?)?)
     } else {
         None
     };
@@ -753,7 +753,7 @@ fn empty_group(p: &mut Parser<'_>, attributes: Vec<ast::Attribute>) -> Result<Ex
     Ok(Expr::Empty(ast::ExprEmpty {
         attributes,
         open,
-        expr: Box::new(expr),
+        expr: Box::try_new(expr)?,
         close,
     }))
 }
@@ -773,7 +773,7 @@ fn paren_group(p: &mut Parser<'_>, attributes: Vec<ast::Attribute>) -> Result<Ex
         return Ok(Expr::Group(ast::ExprGroup {
             attributes,
             open,
-            expr: Box::new(expr),
+            expr: Box::try_new(expr)?,
             close: p.parse()?,
         }));
     }

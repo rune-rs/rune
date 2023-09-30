@@ -6,8 +6,8 @@ use core::iter;
 use core::ops::Range;
 use core::slice;
 
+use crate::alloc::path::Path;
 use crate::no_std::io;
-use crate::no_std::path::Path;
 use crate::no_std::prelude::*;
 
 #[cfg(feature = "emit")]

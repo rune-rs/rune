@@ -1,12 +1,14 @@
 use core::fmt;
 
+use crate as rune;
+use crate::alloc::prelude::*;
 use crate::hash::Hash;
 use crate::no_std::sync::Arc;
 use crate::runtime::{RawStr, Rtti, StaticType, VariantRtti};
 
 /// Type information about a value, that can be printed for human consumption
 /// through its [Display][fmt::Display] implementation.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, TryClone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TypeInfo {
     /// The static type of a value.
@@ -53,7 +55,8 @@ impl fmt::Display for TypeInfo {
 }
 
 /// Type information for the [`Any`][crate::Any] type.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct AnyTypeInfo {
     /// The name of the type.

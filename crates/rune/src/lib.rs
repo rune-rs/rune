@@ -80,9 +80,9 @@
 //! use std::sync::Arc;
 //!
 //! #[tokio::main]
-//! async fn main() -> rune::Result<()> {
+//! async fn main() -> rune::support::Result<()> {
 //!     let context = Context::with_default_modules()?;
-//!     let runtime = Arc::new(context.runtime());
+//!     let runtime = Arc::new(context.runtime()?);
 //!
 //!     let mut sources = Sources::new();
 //!     sources.insert(Source::new(
@@ -185,13 +185,7 @@ macro_rules! span {
     };
 }
 
-/// Exported result type for convenience using [anyhow::Error] as the default
-/// error type.
-pub type Result<T, E = crate::no_std::Error> = ::core::result::Result<T, E>;
-
-/// Boxed error type, which is an alias of [anyhow::Error].
-pub type Error = crate::no_std::Error;
-
+#[doc(inline)]
 pub use rune_alloc as alloc;
 
 #[macro_use]
@@ -269,6 +263,9 @@ mod sources;
 pub use self::sources::{SourceId, Sources};
 
 mod worker;
+
+#[doc(hidden)]
+pub mod support;
 
 cfg_workspace! {
     pub mod workspace;
@@ -397,14 +394,14 @@ pub(crate) use rune_macros::__internal_impl_any;
 ///
 /// ```rust
 /// # use rune::Any;
-/// # use rune::runtime::Formatter;
+/// # use rune::runtime::{Formatter, VmResult};
 /// #[derive(Any)]
 /// struct Struct {
 ///     /* .. */
 /// }
 ///
 /// #[rune::function(instance, protocol = STRING_DISPLAY)]
-/// fn string_display(this: &Struct, f: &mut Formatter) -> std::fmt::Result {
+/// fn string_display(this: &Struct, f: &mut Formatter) -> VmResult<()> {
 ///     /* .. */
 ///     # todo!()
 /// }
@@ -461,7 +458,7 @@ pub(crate) use rune_macros::__internal_impl_any;
 /// use rune::{Any, Module, ContextError};
 /// use rune::vm_write;
 /// use rune::runtime::{Formatter, VmResult};
-/// use rune::alloc::TryWrite;
+/// use rune::alloc::fmt::TryWrite;
 ///
 /// #[derive(Any)]
 /// struct String {
@@ -548,6 +545,43 @@ pub(crate) use rune_macros::__internal_impl_any;
 ///     Ok(m)
 /// }
 /// ```
+///
+/// # Using `vm_result` and `<expr>.vm?`.
+///
+/// In order to conveniently deal with virtual machine errors which require use
+/// [`VmResult`] this attribute macro supports the `vm_result` option.
+///
+/// This changes the return value of the function to be [`VmResult`], and
+/// ensures that any try operator use is wrapped as appropriate. The special
+/// operator `<expr>.vm?` is also supported in this context, which is a
+/// shorthand for the [`vm_try!`] macro.
+///
+/// ```
+/// use rune::alloc::String;
+/// use rune::alloc::prelude::*;
+///
+/// #[rune::function(vm_result)]
+/// fn trim(string: &str) -> String {
+///     string.trim().try_to_owned().vm?
+/// }
+/// ```
+///
+/// This can be combined with regular uses of the try operator `?`:
+///
+/// ```
+/// use core::str::Utf8Error;
+///
+/// use rune::alloc::String;
+/// use rune::alloc::prelude::*;
+///
+/// #[rune::function(vm_result)]
+/// fn trim_bytes(bytes: &[u8]) -> Result<String, Utf8Error> {
+///     Ok(core::str::from_utf8(bytes)?.trim().try_to_owned().vm?)
+/// }
+/// ```
+///
+/// [`VmResult`]: crate::runtime::VmResult
+/// [`vm_try!`]: crate::vm_try!
 pub use rune_macros::function;
 
 /// Macro used to annotate native functions which can be loaded as macros in

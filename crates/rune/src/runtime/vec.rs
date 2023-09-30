@@ -10,8 +10,9 @@ use core::slice::SliceIndex;
 use crate::no_std::std;
 
 use crate as rune;
+use crate::alloc;
 use crate::alloc::fmt::TryWrite;
-use crate::alloc::{self, Error, Global, TryClone};
+use crate::alloc::prelude::*;
 #[cfg(feature = "alloc")]
 use crate::runtime::Hasher;
 use crate::runtime::{
@@ -37,13 +38,13 @@ use self::iter::Iter;
 /// assert_eq!(Some(42), vec.get_value(0).into_result()?);
 /// assert_eq!(Some(true), vec.get_value(1).into_result()?);
 /// assert_eq!(None::<bool>, vec.get_value(2).into_result()?);
-/// # Ok::<_, rune::Error>(())
+/// # Ok::<_, rune::support::Error>(())
 /// ```
 #[derive(Any)]
 #[repr(transparent)]
 #[rune(builtin, static_type = VEC_TYPE, from_value = Value::into_vec)]
 pub struct Vec {
-    inner: alloc::Vec<Value, Global>,
+    inner: alloc::Vec<Value>,
 }
 
 impl Vec {
@@ -60,7 +61,7 @@ impl Vec {
     /// ```
     pub const fn new() -> Self {
         Self {
-            inner: alloc::Vec::new_in(Global),
+            inner: alloc::Vec::new(),
         }
     }
 
@@ -74,14 +75,14 @@ impl Vec {
 
     /// Construct a new dynamic vector guaranteed to have at least the given
     /// capacity.
-    pub fn with_capacity(cap: usize) -> Result<Self, Error> {
+    pub fn with_capacity(cap: usize) -> alloc::Result<Self> {
         Ok(Self {
-            inner: alloc::Vec::try_with_capacity_in(cap, Global)?,
+            inner: alloc::Vec::try_with_capacity(cap)?,
         })
     }
 
     /// Convert into inner std vector.
-    pub fn into_inner(self) -> alloc::Vec<Value, Global> {
+    pub fn into_inner(self) -> alloc::Vec<Value> {
         self.inner
     }
 
@@ -128,7 +129,7 @@ impl Vec {
     }
 
     /// Appends an element to the back of a dynamic vector.
-    pub fn push(&mut self, value: Value) -> Result<(), Error> {
+    pub fn push(&mut self, value: Value) -> alloc::Result<()> {
         self.inner.try_push(value)
     }
 
@@ -398,7 +399,7 @@ impl Vec {
 }
 
 impl TryClone for Vec {
-    fn try_clone(&self) -> Result<Self, Error> {
+    fn try_clone(&self) -> alloc::Result<Self> {
         Ok(Self {
             inner: self.inner.try_clone()?,
         })
@@ -458,11 +459,11 @@ impl<'a> IntoIterator for &'a mut Vec {
 }
 
 impl TryFrom<std::Vec<Value>> for Vec {
-    type Error = Error;
+    type Error = alloc::Error;
 
     #[inline]
     fn try_from(values: std::Vec<Value>) -> Result<Self, Self::Error> {
-        let mut inner = alloc::Vec::try_with_capacity_in(values.len(), Global)?;
+        let mut inner = alloc::Vec::try_with_capacity(values.len())?;
 
         for value in values {
             inner.try_push(value)?;
@@ -473,7 +474,7 @@ impl TryFrom<std::Vec<Value>> for Vec {
 }
 
 impl TryFrom<std::Box<[Value]>> for Vec {
-    type Error = Error;
+    type Error = alloc::Error;
 
     #[inline]
     fn try_from(inner: std::Box<[Value]>) -> Result<Self, Self::Error> {
@@ -481,7 +482,7 @@ impl TryFrom<std::Box<[Value]>> for Vec {
     }
 }
 
-impl From<alloc::Vec<Value, Global>> for Vec {
+impl From<alloc::Vec<Value>> for Vec {
     #[inline]
     fn from(inner: alloc::Vec<Value>) -> Self {
         Self { inner }
@@ -514,7 +515,7 @@ where
         let vec = vm_try!(value.into_vec());
         let vec = vm_try!(vec.take());
 
-        let mut output = vm_try!(alloc::Vec::try_with_capacity_in(vec.len(), Global));
+        let mut output = vm_try!(alloc::Vec::try_with_capacity(vec.len()));
 
         for value in vec {
             vm_try!(output.try_push(vm_try!(T::from_value(value))));
@@ -536,12 +537,12 @@ impl UnsafeToRef for [Value] {
     }
 }
 
-impl<T> ToValue for alloc::Vec<T, Global>
+impl<T> ToValue for alloc::Vec<T>
 where
     T: ToValue,
 {
     fn to_value(self) -> VmResult<Value> {
-        let mut inner = vm_try!(alloc::Vec::try_with_capacity_in(self.len(), Global));
+        let mut inner = vm_try!(alloc::Vec::try_with_capacity(self.len()));
 
         for value in self {
             vm_try!(inner.try_push(vm_try!(value.to_value())));
@@ -556,7 +557,7 @@ where
     T: ToValue,
 {
     fn to_value(self) -> VmResult<Value> {
-        let mut inner = vm_try!(alloc::Vec::try_with_capacity_in(self.len(), Global));
+        let mut inner = vm_try!(alloc::Vec::try_with_capacity(self.len()));
 
         for value in self {
             vm_try!(inner.try_push(vm_try!(value.to_value())));

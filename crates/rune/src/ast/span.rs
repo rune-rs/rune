@@ -4,8 +4,11 @@ use core::ops;
 
 use serde::{Deserialize, Serialize};
 
+use crate::ast::prelude::*;
+
 /// A span corresponding to a range in the source file being parsed.
-#[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Default, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[try_clone(copy)]
 pub struct Span {
     /// The start of the span in bytes.
     pub start: ByteIndex,
@@ -200,9 +203,12 @@ impl fmt::Debug for Span {
 }
 
 /// A single index in a [Span], like the start or ending index.
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Default, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
 #[repr(transparent)]
 #[serde(transparent)]
+#[try_clone(copy)]
 pub struct ByteIndex(#[doc(hidden)] pub u32);
 
 impl ByteIndex {

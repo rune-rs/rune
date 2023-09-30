@@ -5,6 +5,7 @@
 use crate::no_std::vec::Vec;
 
 use crate as rune;
+use crate::alloc::try_format;
 use crate::ast;
 use crate::compile;
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
@@ -34,7 +35,7 @@ impl Bencher {
 
 /// Construct the `std::test` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["test"]).with_unique("std::test");
+    let mut module = Module::with_crate_item("std", ["test"])?.with_unique("std::test");
     module.macro_meta(assert)?;
     module.macro_meta(assert_eq)?;
     module.macro_meta(assert_ne)?;
@@ -42,7 +43,7 @@ pub fn module() -> Result<Module, ContextError> {
         "A type to perform benchmarks.",
         "",
         "This is the type of the argument to any function which is annotated with `#[bench]`",
-    ]);
+    ])?;
     module.function_meta(Bencher::iter)?;
     Ok(module)
 }
@@ -84,15 +85,15 @@ pub(crate) fn assert(
             ::std::panic("assertion failed: " + (#expanded));
         })
     } else {
-        let message = format!("assertion failed: {}", cx.stringify(&expr));
-        let message = cx.lit(&message);
+        let message = try_format!("assertion failed: {}", cx.stringify(&expr)?);
+        let message = cx.lit(&message)?;
 
         quote!(if !(#expr) {
             ::std::panic(#message);
         })
     };
 
-    Ok(output.into_token_stream(cx))
+    Ok(output.into_token_stream(cx)?)
 }
 
 /// Assert that the two arguments provided are equal, or cause a vm panic.
@@ -139,7 +140,7 @@ pub(crate) fn assert_eq(
             }
         }}
     } else {
-        let message = cx.lit("assertion failed (left == right):");
+        let message = cx.lit("assertion failed (left == right):")?;
 
         quote! {{
             let left = #left;
@@ -154,7 +155,7 @@ pub(crate) fn assert_eq(
         }}
     };
 
-    Ok(output.into_token_stream(cx))
+    Ok(output.into_token_stream(cx)?)
 }
 
 /// Assert that the two arguments provided are not equal, or cause a vm panic.
@@ -201,7 +202,7 @@ pub(crate) fn assert_ne(
             }
         }}
     } else {
-        let message = cx.lit("assertion failed (left != right):");
+        let message = cx.lit("assertion failed (left != right):")?;
 
         quote! {{
             let left = #left;
@@ -216,5 +217,5 @@ pub(crate) fn assert_ne(
         }}
     };
 
-    Ok(output.into_token_stream(cx))
+    Ok(output.into_token_stream(cx)?)
 }

@@ -245,19 +245,19 @@ fn expand_struct_install_with(
             });
 
             installers.push(quote! {
-                module.type_meta::<Self>()?.make_named_struct(&[#(#fields,)*])?#constructor.static_docs(&#docs);
+                module.type_meta::<Self>()?.make_named_struct(&[#(#fields,)*])?#constructor.static_docs(&#docs)?;
             });
         }
         syn::Fields::Unnamed(fields) => {
             let len = fields.unnamed.len();
 
             installers.push(quote! {
-                module.type_meta::<Self>()?.make_unnamed_struct(#len)?.static_docs(&#docs);
+                module.type_meta::<Self>()?.make_unnamed_struct(#len)?.static_docs(&#docs)?;
             });
         }
         syn::Fields::Unit => {
             installers.push(quote! {
-                module.type_meta::<Self>()?.make_empty_struct()?.static_docs(&#docs);
+                module.type_meta::<Self>()?.make_empty_struct()?.static_docs(&#docs)?;
             });
         }
     }
@@ -344,7 +344,7 @@ fn expand_enum_install_with(
                 }
 
                 variant_metas.push(quote! {
-                    enum_.variant_mut(#variant_index)?.make_named(&[#(#field_names),*])?.static_docs(&#variant_docs)
+                    enum_.variant_mut(#variant_index)?.make_named(&[#(#field_names),*])?.static_docs(&#variant_docs)?
                 });
 
                 variants.push((None, variant_attr));
@@ -372,7 +372,7 @@ fn expand_enum_install_with(
                 }
 
                 variant_metas.push(quote! {
-                    enum_.variant_mut(#variant_index)?.make_unnamed(#fields_len)?.static_docs(&#variant_docs)
+                    enum_.variant_mut(#variant_index)?.make_unnamed(#fields_len)?.static_docs(&#variant_docs)?
                 });
 
                 let constructor = if variant_attr.constructor {
@@ -390,7 +390,7 @@ fn expand_enum_install_with(
             }
             syn::Fields::Unit => {
                 variant_metas.push(quote! {
-                    enum_.variant_mut(#variant_index)?.make_empty()?.static_docs(&#variant_docs)
+                    enum_.variant_mut(#variant_index)?.make_empty()?.static_docs(&#variant_docs)?
                 });
 
                 let constructor = if variant_attr.constructor {
@@ -448,7 +448,7 @@ fn expand_enum_install_with(
     }
 
     let enum_meta = quote! {
-        let mut enum_ = module.type_meta::<Self>()?.make_enum(&[#(#variant_names,)*])?.static_docs(&#docs);
+        let mut enum_ = module.type_meta::<Self>()?.make_enum(&[#(#variant_names,)*])?.static_docs(&#docs)?;
         #(#variant_metas;)*
     };
 
@@ -468,7 +468,7 @@ fn expand_enum_install_with(
         let constructor = constructor.as_ref().map(|c| quote!(.constructor(#c)?));
 
         installers
-            .push(quote!(module.variant_meta::<Self>(#index)?#constructor.static_docs(&#docs);))
+            .push(quote!(module.variant_meta::<Self>(#index)?#constructor.static_docs(&#docs)?;))
     }
 
     Ok(())

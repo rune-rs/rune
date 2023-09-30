@@ -1,9 +1,9 @@
-use crate::no_std::prelude::*;
-use crate::no_std::borrow::Cow;
-
 use anyhow::{Context, Result};
 use serde::Serialize;
 
+use crate::alloc::{Vec, String};
+use crate::alloc::borrow::Cow;
+use crate::alloc::prelude::*;
 use crate::compile::{ComponentRef, Item};
 use crate::doc::context::{Assoc, AssocFnKind, Meta};
 use crate::doc::build::{Ctxt, IndexEntry, IndexKind, Builder};
@@ -51,11 +51,11 @@ pub(super) fn build_assoc_fns<'m>(
                 let line_doc = cx.render_line_docs(meta, variant.docs.get(..1).unwrap_or_default())?;
                 let doc = cx.render_docs(meta, variant.docs, true)?;
 
-                variants.push(Variant {
+                variants.try_push(Variant {
                     name: variant.name,
                     line_doc,
                     doc,
-                });
+                })?;
             }
             Assoc::Fn(assoc) => {
                 let value;
@@ -73,23 +73,23 @@ pub(super) fn build_assoc_fns<'m>(
                     AssocFnKind::Method(name, args, sig) => {
                         let line_doc = cx.render_line_docs(meta, assoc.docs.get(..1).unwrap_or_default())?;
 
-                        cx.state.item.push(name);
+                        cx.state.item.push(name)?;
                         let doc = cx.render_docs(meta, assoc.docs, true)?;
-                        cx.state.item.pop();
+                        cx.state.item.pop()?;
 
                         let mut list = Vec::new();
         
                         for &hash in assoc.parameter_types {
                             if let Some(link) = cx.link(hash, None)? {
-                                list.push(link);
+                                list.try_push(link)?;
                             } else {
-                                list.push(hash.to_string());
+                                list.try_push(hash.try_to_string()?)?;
                             }
                         }
-        
-                        let parameters = (!list.is_empty()).then(|| list.join(", "));
-        
-                        methods.push(Method {
+
+                        let parameters = (!list.is_empty()).then(|| list.iter().try_join(", ")).transpose()?;
+
+                        methods.try_push(Method {
                             is_async: assoc.is_async,
                             deprecated: assoc.deprecated,
                             name,
@@ -106,7 +106,7 @@ pub(super) fn build_assoc_fns<'m>(
                             },
                             line_doc,
                             doc,
-                        });
+                        })?;
         
                         continue;
                     }
@@ -124,7 +124,7 @@ pub(super) fn build_assoc_fns<'m>(
                     None
                 };
 
-                protocols.push(Protocol {
+                protocols.try_push(Protocol {
                     name: protocol.name,
                     repr,
                     return_type: match assoc.return_type {
@@ -132,7 +132,7 @@ pub(super) fn build_assoc_fns<'m>(
                         None => None,
                     },
                     doc,
-                });
+                })?;
             }
         }
     }
@@ -140,24 +140,24 @@ pub(super) fn build_assoc_fns<'m>(
     let mut index = Vec::new();
 
     if let Some(name) = cx.state.path.file_name() {
-        index.reserve(methods.len());
+        index.try_reserve(methods.len())?;
 
         for m in &methods {
-            index.push(IndexEntry {
+            index.try_push(IndexEntry {
                 path: cx.state.path.with_file_name(format!("{name}#method.{}", m.name)),
-                item: Cow::Owned(meta_item.join([m.name])),
+                item: Cow::Owned(meta_item.join([m.name])?),
                 kind: IndexKind::Method,
-                doc: m.line_doc.clone(),
-            });
+                doc: m.line_doc.try_clone()?,
+            })?;
         }
 
         for m in &variants {
-            index.push(IndexEntry {
+            index.try_push(IndexEntry {
                 path: cx.state.path.with_file_name(format!("{name}#variant.{}", m.name)),
-                item: Cow::Owned(meta_item.join([m.name])),
+                item: Cow::Owned(meta_item.join([m.name])?),
                 kind: IndexKind::Variant,
-                doc: m.line_doc.clone(),
-            });
+                doc: m.line_doc.try_clone()?,
+            })?;
         }
     }
 
@@ -193,7 +193,7 @@ pub(crate) fn build<'m>(cx: &mut Ctxt<'_, 'm>, what: &'static str, what_class: &
 
     let builder = Builder::new(cx, move |cx| {
         cx.type_template.render(&Params {
-            shared: cx.shared(),
+            shared: cx.shared()?,
             what,
             what_class,
             module,
@@ -203,7 +203,7 @@ pub(crate) fn build<'m>(cx: &mut Ctxt<'_, 'm>, what: &'static str, what_class: &
             protocols,
             doc,
         })
-    });
+    })?;
 
     Ok((builder, index))
 }

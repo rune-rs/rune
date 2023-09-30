@@ -1,6 +1,6 @@
 use crate as rune;
 use crate::alloc::fmt::TryWrite;
-use crate::alloc::{Global, TryClone};
+use crate::alloc::prelude::*;
 use crate::hashbrown::Table;
 use crate::runtime::{
     EnvProtocolCaller, Formatter, FromValue, Iterator, ProtocolCaller, Ref, Value, VmErrorKind,
@@ -56,7 +56,7 @@ impl HashMap {
     #[rune::function(keep, path = Self::new)]
     fn new() -> Self {
         Self {
-            table: Table::new_in(Global),
+            table: Table::new(),
         }
     }
 
@@ -75,7 +75,7 @@ impl HashMap {
     #[rune::function(keep, path = Self::with_capacity)]
     fn with_capacity(capacity: usize) -> VmResult<Self> {
         VmResult::Ok(Self {
-            table: vm_try!(Table::try_with_capacity_in(capacity, Global)),
+            table: vm_try!(Table::try_with_capacity(capacity)),
         })
     }
 

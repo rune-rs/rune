@@ -13,7 +13,8 @@ use ::rust_alloc::rc::Rc;
 #[cfg(feature = "alloc")]
 use ::rust_alloc::sync::Arc;
 
-use crate::alloc::{Box, Error, Global};
+use crate::alloc::prelude::*;
+use crate::alloc::{self, Box};
 use crate::runtime::{
     Access, AccessError, AccessKind, AnyObj, AnyObjError, BorrowMut, BorrowRef, RawAccessGuard,
 };
@@ -26,14 +27,14 @@ pub struct Shared<T: ?Sized> {
 
 impl<T> Shared<T> {
     /// Construct a new shared value.
-    pub fn new(data: T) -> Result<Self, Error> {
+    pub fn new(data: T) -> alloc::Result<Self> {
         let shared = SharedBox {
             access: Access::new(false),
             count: Cell::new(1),
             data: data.into(),
         };
 
-        let inner = Box::leak(Box::try_new_in(shared, Global)?);
+        let inner = Box::leak(Box::try_new(shared)?);
 
         Ok(Self {
             inner: inner.into(),
@@ -403,7 +404,7 @@ impl Shared<AnyObj> {
     /// }
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
-    pub unsafe fn from_ref<T>(data: &T) -> Result<(Self, SharedPointerGuard), Error>
+    pub unsafe fn from_ref<T>(data: &T) -> alloc::Result<(Self, SharedPointerGuard)>
     where
         T: Any,
     {
@@ -442,7 +443,7 @@ impl Shared<AnyObj> {
     /// }
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
-    pub unsafe fn from_mut<T>(data: &mut T) -> Result<(Self, SharedPointerGuard), Error>
+    pub unsafe fn from_mut<T>(data: &mut T) -> alloc::Result<(Self, SharedPointerGuard)>
     where
         T: Any,
     {
@@ -455,13 +456,13 @@ impl Shared<AnyObj> {
     /// # Safety
     ///
     /// The reference must be valid for the duration of the guard.
-    unsafe fn unsafe_from_any_pointer(any: AnyObj) -> Result<(Self, SharedPointerGuard), Error> {
+    unsafe fn unsafe_from_any_pointer(any: AnyObj) -> alloc::Result<(Self, SharedPointerGuard)> {
         let shared = SharedBox {
             access: Access::new(true),
             count: Cell::new(2),
             data: any.into(),
         };
-        let inner = ptr::NonNull::from(Box::leak(Box::try_new_in(shared, Global)?));
+        let inner = ptr::NonNull::from(Box::leak(Box::try_new(shared)?));
 
         let guard = SharedPointerGuard {
             _inner: RawDrop::take_shared_box(inner),
@@ -499,7 +500,12 @@ impl Shared<AnyObj> {
             let expected = TypeId::of::<T>();
 
             let (e, any) = match any.raw_take(expected) {
-                Ok(value) => return Ok(Box::into_inner(Box::from_raw_in(value as *mut T, Global))),
+                Ok(value) => {
+                    return Ok(Box::into_inner(Box::from_raw_in(
+                        value as *mut T,
+                        rune_alloc::alloc::Global,
+                    )))
+                }
                 Err((AnyObjError::Cast, any)) => {
                     let actual = any.type_name();
 
@@ -690,6 +696,13 @@ impl Shared<AnyObj> {
     }
 }
 
+impl<T: ?Sized> TryClone for Shared<T> {
+    #[inline]
+    fn try_clone(&self) -> alloc::Result<Self> {
+        Ok(self.clone())
+    }
+}
+
 impl<T: ?Sized> Clone for Shared<T> {
     fn clone(&self) -> Self {
         unsafe {
@@ -776,8 +789,8 @@ impl<T: ?Sized> SharedBox<T> {
     unsafe fn inc(this: *const Self) {
         let count = (*this).count.get();
 
-        if count == 0 || count == usize::max_value() {
-            crate::no_std::abort();
+        if count == 0 || count == usize::MAX {
+            crate::alloc::abort();
         }
 
         (*this).count.set(count + 1);
@@ -793,7 +806,7 @@ impl<T: ?Sized> SharedBox<T> {
         let count = (*this).count.get();
 
         if count == 0 {
-            crate::no_std::abort();
+            crate::alloc::abort();
         }
 
         let count = count - 1;
@@ -803,7 +816,7 @@ impl<T: ?Sized> SharedBox<T> {
             return false;
         }
 
-        let this = Box::from_raw_in(this, Global);
+        let this = Box::from_raw_in(this, rune_alloc::alloc::Global);
 
         if this.access.is_taken() {
             // NB: This prevents the inner `T` from being dropped in case it
@@ -1014,7 +1027,7 @@ impl<T: ?Sized> Ref<T> {
     /// let value: Ref<[u32]> = Ref::map(vec, |vec| &vec[0..2]);
     ///
     /// assert_eq!(&*value, &[1u32, 2u32][..]);
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     #[inline]
     pub fn map<U: ?Sized, F>(this: Self, f: F) -> Ref<U>
@@ -1049,7 +1062,7 @@ impl<T: ?Sized> Ref<T> {
     /// let value: Option<Ref<[u32]>> = Ref::try_map(vec, |vec| vec.get(0..2));
     ///
     /// assert_eq!(value.as_deref(), Some(&[1u32, 2u32][..]));
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn try_map<U: ?Sized, F>(this: Self, f: F) -> Option<Ref<U>>
     where
@@ -1152,7 +1165,7 @@ impl<T: ?Sized> Mut<T> {
     /// let value: Mut<[u32]> = Mut::map(vec, |vec| &mut vec[0..2]);
     ///
     /// assert_eq!(&*value, &mut [1u32, 2u32][..]);
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn map<U: ?Sized, F>(this: Self, f: F) -> Mut<U>
     where
@@ -1189,7 +1202,7 @@ impl<T: ?Sized> Mut<T> {
     /// let mut value: Option<Mut<[u32]>> = Mut::try_map(vec, |vec| vec.get_mut(0..2));
     ///
     /// assert_eq!(value.as_deref_mut(), Some(&mut [1u32, 2u32][..]));
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn try_map<U: ?Sized, F>(this: Self, f: F) -> Option<Mut<U>>
     where

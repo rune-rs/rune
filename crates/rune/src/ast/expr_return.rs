@@ -12,7 +12,7 @@ fn ast_parse() {
 /// A return expression.
 ///
 /// * `return [expr]`.
-#[derive(Debug, Clone, Parse, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, Parse, PartialEq, Eq, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]
 pub struct ExprReturn {

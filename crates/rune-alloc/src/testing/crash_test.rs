@@ -4,7 +4,8 @@ use core::cmp::Ordering;
 use core::fmt::Debug;
 use core::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 
-use crate::alloc::{Error, TryClone};
+use crate::clone::TryClone;
+use crate::error::Error;
 
 /// A blueprint for crash test dummy instances that monitor particular events.
 /// Some instances may be configured to panic at some point.

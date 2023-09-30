@@ -1,11 +1,14 @@
 use core::fmt;
 
+use crate as rune;
+use crate::alloc::prelude::*;
 use crate::ast::{Span, Spanned};
 use crate::SourceId;
 
 /// A fully descriptive location which is a combination of a [SourceId] and a
 /// [Span].
-#[derive(Default, Clone, Copy)]
+#[derive(Default, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct Location {
     /// The source id of the file of the location.

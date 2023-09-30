@@ -7,6 +7,7 @@ use crate::no_std::prelude::*;
 use anyhow::{bail, Result, Context};
 use clap::Parser;
 
+use crate::alloc::prelude::*;
 use crate::cli::{ExitCode, Io, CommandBase, AssetKind, Config, SharedFlags, EntryPoint, Entry, Options};
 use crate::cli::visitor;
 use crate::cli::naming::Naming;
@@ -97,14 +98,14 @@ where
 
     for e in entries {
         let name = naming.name(&e);
-        let item = ItemBuf::with_crate(&name);
+        let item = ItemBuf::with_crate(&name)?;
 
         let mut sources = Sources::new();
 
         let source = Source::from_path(e.path())
             .with_context(|| e.path().display().to_string())?;
 
-        sources.insert(source);
+        sources.insert(source)?;
 
         let mut diagnostics = if shared.warnings || flags.warnings_are_errors {
             Diagnostics::new()
@@ -112,7 +113,7 @@ where
             Diagnostics::without_warnings()
         };
 
-        let mut doc_visitor = crate::doc::Visitor::new(item)?;
+        let mut doc_visitor = crate::doc::Visitor::new(&item)?;
         let mut functions = visitor::FunctionVisitor::new(visitor::Attribute::Test);
         let mut source_loader = FileSourceLoader::new();
 
@@ -120,8 +121,8 @@ where
             .with_context(&context)
             .with_diagnostics(&mut diagnostics)
             .with_options(options)
-            .with_visitor(&mut doc_visitor)
-            .with_visitor(&mut functions)
+            .with_visitor(&mut doc_visitor)?
+            .with_visitor(&mut functions)?
             .with_source_loader(&mut source_loader)
             .build();
 
@@ -153,7 +154,7 @@ where
         let mut sources = Sources::new();
 
         let source = Source::new(test.item.to_string(), &test.content);
-        sources.insert(source);
+        sources.insert(source)?;
 
         let mut diagnostics = if shared.warnings || flags.warnings_are_errors {
             Diagnostics::new()
@@ -188,11 +189,11 @@ where
                 bail!("Compiling source did not result in a function at offset 0");
             };
 
-            cases.push(TestCase::new(hash, test.item.clone(), unit.clone(), sources.clone(), test.params));
+            cases.push(TestCase::new(hash, test.item.try_clone()?, unit.clone(), sources.clone(), test.params));
         }
     }
 
-    let runtime = Arc::new(context.runtime());
+    let runtime = Arc::new(context.runtime()?);
     let mut failed = Vec::new();
 
     let total = cases.len();

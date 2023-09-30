@@ -11,7 +11,7 @@ fn ast_parse() {
 
 /// A literal expression. With the addition of being able to receive attributes,
 /// this is identical to [ast::Lit].
-#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]
 pub struct ExprLit {

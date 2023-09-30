@@ -178,7 +178,7 @@ pub(crate) struct NewIdent<'a>(pub(crate) &'static str, pub(crate) &'a str);
 
 impl ToTokens for NewIdent<'_> {
     fn to_tokens(self, stream: &mut p::TokenStream, span: p::Span) {
-        (self.0, '.', "ident", p(p::Literal::string(self.1))).to_tokens(stream, span);
+        (self.0, '.', "ident", p(p::Literal::string(self.1)), '?').to_tokens(stream, span);
     }
 }
 
@@ -187,6 +187,6 @@ pub(crate) struct NewLit(pub(crate) &'static str, pub(crate) p::Literal);
 
 impl ToTokens for NewLit {
     fn to_tokens(self, stream: &mut p::TokenStream, span: p::Span) {
-        (self.0, '.', "lit", p(self.1)).to_tokens(stream, span);
+        (self.0, '.', "lit", p(self.1), '?').to_tokens(stream, span);
     }
 }

@@ -80,12 +80,12 @@ where
     for e in entries {
         let name = naming.name(&e);
 
-        let item = ItemBuf::with_crate(&name);
-        let mut visitor = crate::doc::Visitor::new(item)?;
+        let item = ItemBuf::with_crate(&name)?;
+        let mut visitor = crate::doc::Visitor::new(&item)?;
         let mut sources = Sources::new();
         let source = Source::from_path(e.path())
             .with_context(|| e.path().display().to_string())?;
-        sources.insert(source);
+        sources.insert(source)?;
 
         let mut diagnostics = if shared.warnings || flags.warnings_are_errors {
             Diagnostics::new()
@@ -99,7 +99,7 @@ where
             .with_context(&context)
             .with_diagnostics(&mut diagnostics)
             .with_options(options)
-            .with_visitor(&mut visitor)
+            .with_visitor(&mut visitor)?
             .with_source_loader(&mut source_loader)
             .build();
 

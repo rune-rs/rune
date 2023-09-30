@@ -1,5 +1,4 @@
-use crate::no_std::borrow::Cow;
-
+use crate::alloc::borrow::Cow;
 use crate::ast::prelude::*;
 
 #[test]
@@ -14,7 +13,8 @@ fn ast_parse() {
 ///
 /// * `"Hello World"`.
 /// * `"Hello\nWorld"`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, Spanned)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct LitStr {
     /// The span corresponding to the literal.
@@ -86,7 +86,7 @@ impl LitStr {
         source: &str,
         with_template: ast::unescape::WithTemplate,
     ) -> Result<String> {
-        let mut buffer = String::with_capacity(source.len());
+        let mut buffer = String::try_with_capacity(source.len())?;
 
         let start = span.start.into_usize();
 
@@ -96,7 +96,7 @@ impl LitStr {
             .peekable();
 
         while let Some((start, c)) = it.next() {
-            buffer.extend(match c {
+            buffer.try_extend(match c {
                 '\\' => match ast::unescape::parse_char_escape(
                     &mut it,
                     with_template,
@@ -112,7 +112,7 @@ impl LitStr {
                     }
                 },
                 c => Some(c),
-            });
+            })?;
         }
 
         Ok(buffer)
@@ -142,10 +142,14 @@ impl<'a> Resolve<'a> for LitStr {
 }
 
 impl ToTokens for LitStr {
-    fn to_tokens(&self, _: &mut MacroContext<'_, '_, '_>, stream: &mut TokenStream) {
+    fn to_tokens(
+        &self,
+        _: &mut MacroContext<'_, '_, '_>,
+        stream: &mut TokenStream,
+    ) -> alloc::Result<()> {
         stream.push(ast::Token {
             span: self.span,
             kind: ast::Kind::Str(self.source),
-        });
+        })
     }
 }

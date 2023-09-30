@@ -15,7 +15,7 @@
 //! ```rust
 //! let mut context = rune::Context::with_default_modules()?;
 //! context.install(rune_modules::time::module(true)?)?;
-//! # Ok::<_, rune::Error>(())
+//! # Ok::<_, rune::support::Error>(())
 //! ```
 //!
 //! Use it in Rune:
@@ -33,7 +33,7 @@ use rune::{Any, ContextError, Module};
 
 /// Construct the `time` module.
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
-    let mut module = Module::with_crate("time");
+    let mut module = Module::with_crate("time")?;
     module.ty::<Duration>()?;
     module.function_meta(Duration::from_secs__meta)?;
     module.function_meta(sleep)?;

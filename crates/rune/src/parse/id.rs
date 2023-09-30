@@ -1,12 +1,16 @@
 use core::fmt;
 use core::num::NonZeroU32;
 
+use crate as rune;
+use crate::alloc::prelude::*;
+
 /// A non-zero [Id] which definitely contains a value. We keep this distinct
 /// from `Id` to allow for safely using this as a key in a hashmap, preventing
 /// us from inadvertently storing an empty identifier.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[try_clone(copy)]
 #[repr(transparent)]
-pub struct NonZeroId(NonZeroU32);
+pub struct NonZeroId(#[try_clone(copy)] NonZeroU32);
 
 impl fmt::Display for NonZeroId {
     #[inline]
@@ -26,7 +30,8 @@ impl From<NonZeroU32> for NonZeroId {
 /// The default implementation for an identifier is empty, meaning it does not
 /// hold any value. Attempting to perform lookups over it will fail with an
 /// error indicating that it's empty with the formatted string `Id(*)`.
-#[derive(Clone, Copy, Default, PartialEq, Eq)]
+#[derive(TryClone, Clone, Copy, Default, PartialEq, Eq)]
+#[try_clone(copy)]
 #[repr(transparent)]
 pub struct Id(Option<NonZeroId>);
 

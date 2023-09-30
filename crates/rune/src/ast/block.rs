@@ -46,7 +46,7 @@ fn ast_parse() {
 /// A block of statements.
 ///
 /// * `{ (<stmt>)* }`.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned, Opaque)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned, Opaque)]
 #[non_exhaustive]
 pub struct Block {
     /// The unique identifier for the block expression.
@@ -68,7 +68,7 @@ impl Parse for Block {
         let open = parser.parse()?;
 
         while !parser.peek::<T!['}']>()? {
-            statements.push(parser.parse()?);
+            statements.try_push(parser.parse()?)?;
         }
 
         let close = parser.parse()?;
@@ -85,7 +85,7 @@ impl Parse for Block {
 /// A block of statements.
 ///
 /// * `{ (<stmt>)* }`.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Opaque)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Opaque)]
 #[non_exhaustive]
 pub struct EmptyBlock {
     /// The unique identifier for the block expression.
@@ -100,7 +100,7 @@ impl Parse for EmptyBlock {
         let mut statements = Vec::new();
 
         while !parser.is_eof()? {
-            statements.push(parser.parse()?);
+            statements.try_push(parser.parse()?)?;
         }
 
         Ok(Self {

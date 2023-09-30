@@ -1,5 +1,5 @@
-use crate::no_std::prelude::*;
-
+use crate::alloc::{self, String, Vec};
+use crate::alloc::prelude::*;
 use crate::compile::context::ContextMeta;
 use crate::compile::{meta, ComponentRef, IntoComponent, Item, ItemBuf};
 use crate::doc::{Visitor, VisitorData};
@@ -240,50 +240,58 @@ impl<'a> Context<'a> {
     pub(crate) fn iter_components<I>(
         &self,
         iter: I,
-    ) -> impl Iterator<Item = (MetaSource<'a>, ComponentRef<'a>)> + 'a
+    ) -> alloc::Result<impl Iterator<Item = (MetaSource<'a>, ComponentRef<'a>)> + 'a>
     where
         I: 'a + Clone + IntoIterator,
         I::Item: IntoComponent,
     {
-        let tail = self.context.iter_components(iter.clone()).map(|n| (MetaSource::Context, n));
-        self.visitors
-            .iter()
-            .flat_map(move |v| v.names.iter_components(iter.clone()).map(|n| (MetaSource::Source(&v.base), n)))
-            .chain(tail)
+        let mut out = Vec::new();
+
+        for c in self.context.iter_components(iter.clone())? {
+            out.try_push((MetaSource::Context, c))?;
+        }
+
+        for v in self.visitors {
+            for c in v.names.iter_components(iter.clone())? {
+                out.try_push((MetaSource::Source(&v.base), c))?;
+            }
+        }
+
+        Ok(out.into_iter())
     }
 
     /// Get all matching meta items by hash.
-    pub(crate) fn meta_by_hash(&self, hash: Hash) -> Vec<Meta<'_>> {
+    pub(crate) fn meta_by_hash(&self, hash: Hash) -> alloc::Result<Vec<Meta<'_>>> {
         let mut out = Vec::new();
 
         for visitor in self.visitors {
             if let Some(data) = visitor.get_by_hash(hash) {
-                out.push(visitor_meta_to_meta(&visitor.base, data));
+                out.try_push(visitor_meta_to_meta(&visitor.base, data))?;
             }
         }
 
         for meta in self.context.lookup_meta_by_hash(hash) {
-            out.extend(self.context_meta_to_meta(meta));
+            out.try_extend(self.context_meta_to_meta(meta))?;
         }
 
-        out
+        Ok(out)
     }
 
     /// Lookup all meta matching the given item.
-    pub(crate) fn meta(&self, item: &Item) -> Vec<Meta<'a>> {
+    pub(crate) fn meta(&self, item: &Item) -> alloc::Result<Vec<Meta<'a>>> {
         let mut out = Vec::new();
 
         for visitor in self.visitors {
             if let Some(data) = visitor.get(item) {
-                out.push(visitor_meta_to_meta(&visitor.base, data));
+                out.try_push(visitor_meta_to_meta(&visitor.base, data))?;
             }
         }
 
         for meta in self.context.lookup_meta(item).into_iter().flatten() {
-            out.extend(self.context_meta_to_meta(meta));
+            out.try_extend(self.context_meta_to_meta(meta))?;
         }
 
-        out
+        Ok(out)
     }
 
     fn context_meta_to_meta(&self, meta: &'a ContextMeta) -> Option<Meta<'a>> {
@@ -341,10 +349,10 @@ impl<'a> Context<'a> {
     }
 
     /// Iterate over known modules.
-    pub(crate) fn iter_modules(&self) -> impl IntoIterator<Item = ItemBuf> + '_ {
+    pub(crate) fn iter_modules(&self) -> impl IntoIterator<Item = alloc::Result<ItemBuf>> + '_ {
         self.visitors
             .iter()
-            .map(|v| v.base.clone())
+            .map(|v| v.base.try_clone())
             .chain(self.context.iter_crates().map(ItemBuf::with_crate))
     }
 }

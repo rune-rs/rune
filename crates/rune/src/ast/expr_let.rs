@@ -11,7 +11,7 @@ fn ast_parse() {
 /// A let expression.
 ///
 /// * `let <name> = <expr>`
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprLet {
     /// The attributes for the let expression
@@ -42,19 +42,19 @@ impl ExprLet {
             mut_token: parser.parse()?,
             pat: parser.parse()?,
             eq: parser.parse()?,
-            expr: Box::new(ast::Expr::parse_without_eager_brace(parser)?),
+            expr: Box::try_new(ast::Expr::parse_without_eager_brace(parser)?)?,
         })
     }
 
     /// Parse a let expression without eager bracing.
     pub(crate) fn parse_without_eager_brace(parser: &mut Parser) -> Result<Self> {
         Ok(Self {
-            attributes: vec![],
+            attributes: Vec::new(),
             let_token: parser.parse()?,
             mut_token: parser.parse()?,
             pat: parser.parse()?,
             eq: parser.parse()?,
-            expr: Box::new(ast::Expr::parse_without_eager_brace(parser)?),
+            expr: Box::try_new(ast::Expr::parse_without_eager_brace(parser)?)?,
         })
     }
 }

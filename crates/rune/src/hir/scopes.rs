@@ -4,11 +4,13 @@ use core::cell::RefCell;
 use core::fmt;
 use core::num::NonZeroUsize;
 
-use crate::no_std::collections::{BTreeSet, HashSet};
 use crate::no_std::prelude::*;
 use crate::no_std::vec::Vec;
 
+use crate::alloc::{self, BTreeSet, HashSet};
+use crate::ast::Spanned;
 use crate::compile::error::{MissingScope, PopError};
+use crate::compile::{self, HasSpan};
 use crate::hir;
 
 use rune_macros::instrument;
@@ -71,6 +73,18 @@ impl<'hir> Scopes<'hir> {
     /// Root scope.
     pub const ROOT: Scope = Scope(0);
 
+    #[inline]
+    pub(crate) fn new() -> alloc::Result<Self> {
+        let mut scopes = slab::Slab::new();
+        scopes.insert(Layer::default());
+
+        Ok(Self {
+            scope: Scopes::ROOT,
+            scopes,
+            ids: 0,
+        })
+    }
+
     /// Push a scope.
     pub(crate) fn push(&mut self) {
         self.push_kind(LayerKind::Default, None)
@@ -125,28 +139,36 @@ impl<'hir> Scopes<'hir> {
     pub(crate) fn define(
         &mut self,
         name: hir::Name<'hir>,
-    ) -> Result<hir::Name<'hir>, MissingScope> {
+        span: &dyn Spanned,
+    ) -> compile::Result<hir::Name<'hir>> {
         tracing::trace!(?self.scope, ?name, "define");
 
         let Some(layer) = self.scopes.get_mut(self.scope.0) else {
-            return Err(MissingScope(self.scope.0));
+            return Err(HasSpan::new(span, MissingScope(self.scope.0)).into());
         };
 
-        layer.variables.insert(name);
+        layer.variables.try_insert(name)?;
         layer.order.push(name);
         Ok(name)
     }
 
     /// Try to lookup the given variable.
     #[tracing::instrument(skip_all, fields(?self.scope, ?name))]
-    pub(crate) fn get(&mut self, name: hir::Name<'hir>) -> Option<(hir::Name<'hir>, Scope)> {
+    pub(crate) fn get(
+        &mut self,
+        name: hir::Name<'hir>,
+    ) -> alloc::Result<Option<(hir::Name<'hir>, Scope)>> {
         tracing::trace!("get");
 
         let mut blocks = Vec::new();
         let mut scope = self.scopes.get(self.scope.0);
 
         let scope = 'ok: {
-            while let Some(layer) = scope.take() {
+            loop {
+                let Some(layer) = scope.take() else {
+                    return Ok(None);
+                };
+
                 if layer.variables.contains(&name) {
                     break 'ok layer.scope;
                 }
@@ -156,10 +178,13 @@ impl<'hir> Scopes<'hir> {
                 }
 
                 tracing::trace!(parent = ?layer.parent());
-                scope = self.scopes.get(layer.parent()?);
-            }
 
-            return None;
+                let Some(parent) = layer.parent() else {
+                    return Ok(None);
+                };
+
+                scope = self.scopes.get(parent);
+            }
         };
 
         for s in blocks {
@@ -167,10 +192,10 @@ impl<'hir> Scopes<'hir> {
                 continue;
             };
 
-            layer.captures.insert(name);
+            layer.captures.try_insert(name)?;
         }
 
-        Some((name, scope))
+        Ok(Some((name, scope)))
     }
 
     /// Walk the loop and construct captures for it.
@@ -194,19 +219,5 @@ impl<'hir> Scopes<'hir> {
         }
 
         None
-    }
-}
-
-impl<'hir> Default for Scopes<'hir> {
-    #[inline]
-    fn default() -> Self {
-        let mut scopes = slab::Slab::new();
-        scopes.insert(Layer::default());
-
-        Self {
-            scope: Scopes::ROOT,
-            scopes,
-            ids: 0,
-        }
     }
 }

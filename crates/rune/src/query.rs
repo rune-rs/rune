@@ -6,12 +6,12 @@ mod query;
 use core::fmt;
 use core::num::NonZeroUsize;
 
-use crate::no_std::path::PathBuf;
-use crate::no_std::prelude::*;
-
 pub(crate) use self::query::{MissingId, Query, QueryInner};
 
 use crate as rune;
+use crate::alloc::path::PathBuf;
+use crate::alloc::prelude::*;
+use crate::alloc::{self, Box, Vec};
 use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::compile::ir;
@@ -23,7 +23,8 @@ use crate::parse::NonZeroId;
 use crate::runtime::format;
 
 /// Indication whether a value is being evaluated because it's being used or not.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 pub(crate) enum Used {
     /// The value is not being used.
     Unused,
@@ -108,21 +109,23 @@ pub(crate) struct BuiltInFormat {
 }
 
 /// Macro data for `file!()`
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, Spanned)]
+#[try_clone(copy)]
 pub(crate) struct BuiltInFile {
     /// Path value to use
     pub(crate) value: ast::Lit,
 }
 
 /// Macro data for `line!()`
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, Spanned)]
+#[try_clone(copy)]
 pub(crate) struct BuiltInLine {
     /// The line number
     pub(crate) value: ast::Lit,
 }
 
 /// An entry in the build queue.
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 pub(crate) enum Build {
     Function(indexing::Function),
     Closure(indexing::Closure),
@@ -136,7 +139,7 @@ pub(crate) enum Build {
 }
 
 /// An entry in the build queue.
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 pub(crate) struct BuildEntry {
     /// The item of the build entry.
     pub(crate) item_meta: ItemMeta,
@@ -166,7 +169,8 @@ pub(crate) struct ItemImplEntry {
 }
 
 /// Query information for a path.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 pub(crate) struct QueryPath {
     pub(crate) module: ModId,
     pub(crate) impl_item: Option<NonZeroId>,
@@ -196,8 +200,8 @@ impl GenericsParameters {
         self.parameters.iter().all(|p| p.is_none())
     }
 
-    pub(crate) fn as_boxed(&self) -> Box<[Option<Hash>]> {
-        self.parameters.iter().copied().collect()
+    pub(crate) fn as_boxed(&self) -> alloc::Result<Box<[Option<Hash>]>> {
+        self.parameters.iter().copied().try_collect()
     }
 }
 

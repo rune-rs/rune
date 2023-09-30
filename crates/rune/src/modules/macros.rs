@@ -11,7 +11,7 @@ use crate::{ContextError, Module};
 /// Construct the `std::macros` module.
 pub fn module() -> Result<Module, ContextError> {
     let mut builtins =
-        Module::with_crate_item("std", ["macros", "builtin"]).with_unique("std::macros::builtin");
+        Module::with_crate_item("std", ["macros", "builtin"])?.with_unique("std::macros::builtin");
     builtins.macro_meta(file)?;
     builtins.macro_meta(line)?;
     Ok(builtins)
@@ -34,11 +34,12 @@ pub(crate) fn line(
     let mut parser = Parser::from_token_stream(stream, cx.input_span());
     parser.eof()?;
 
-    Ok(quote!(
+    let stream = quote!(
         #[builtin]
         line!()
-    )
-    .into_token_stream(cx))
+    );
+
+    Ok(stream.into_token_stream(cx)?)
 }
 
 /// Return the name of the current file.
@@ -58,9 +59,10 @@ pub(crate) fn file(
     let mut parser = Parser::from_token_stream(stream, cx.input_span());
     parser.eof()?;
 
-    Ok(quote!(
+    let stream = quote!(
         #[builtin]
         file!()
-    )
-    .into_token_stream(cx))
+    );
+
+    Ok(stream.into_token_stream(cx)?)
 }

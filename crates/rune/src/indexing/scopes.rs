@@ -4,10 +4,7 @@ use core::cell::RefCell;
 use core::fmt;
 use core::num::NonZeroUsize;
 
-use crate::no_std::collections::BTreeSet;
-use crate::no_std::collections::HashMap;
-use crate::no_std::vec::Vec;
-
+use crate::alloc::{self, BTreeSet, HashMap, Vec};
 use crate::ast::Span;
 use crate::compile::error::{MissingScope, PopError};
 
@@ -52,6 +49,16 @@ impl Scopes {
     /// Root scope.
     pub const ROOT: Scope = Scope(0);
 
+    pub(crate) fn new() -> alloc::Result<Self> {
+        let mut scopes = slab::Slab::new();
+        scopes.insert(Layer::default());
+
+        Ok(Self {
+            scope: Scopes::ROOT,
+            scopes,
+        })
+    }
+
     /// Push a scope.
     pub(crate) fn push(&mut self) {
         let scope = Scope(self.scopes.vacant_key());
@@ -83,30 +90,13 @@ impl Scopes {
 
     /// Define the given variable.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn mark<F>(&mut self, f: F) -> Result<(), MissingScope>
-    where
-        F: FnOnce(&mut Layer),
-    {
+    pub(crate) fn mark(&mut self) -> Result<&mut Layer, MissingScope> {
         tracing::trace!(?self.scope, "mark await");
 
         let Some(layer) = self.scopes.get_mut(self.scope.0) else {
             return Err(MissingScope(self.scope.0));
         };
 
-        f(layer);
-        Ok(())
-    }
-}
-
-impl Default for Scopes {
-    #[inline]
-    fn default() -> Self {
-        let mut scopes = slab::Slab::new();
-        scopes.insert(Layer::default());
-
-        Self {
-            scope: Scopes::ROOT,
-            scopes,
-        }
+        Ok(layer)
     }
 }

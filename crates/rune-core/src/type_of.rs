@@ -1,7 +1,10 @@
+use crate as rune;
+use crate::alloc::prelude::*;
 use crate::hash::Hash;
 
 /// Full type information.
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct FullTypeOf {
     #[doc(hidden)]

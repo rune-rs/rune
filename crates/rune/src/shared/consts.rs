@@ -3,8 +3,7 @@
 //! This maps the item of a global constant to its value. It's also used to
 //! detect resolution cycles during constant evaluation.
 
-use crate::no_std::collections::{HashMap, HashSet};
-
+use crate::alloc::{self, HashMap, HashSet};
 use crate::compile::ItemId;
 use crate::runtime::ConstValue;
 
@@ -22,8 +21,8 @@ impl Consts {
     ///
     /// Returns `true` if the given constant hasn't been marked yet. This is
     /// used to detect cycles during processing.
-    pub(crate) fn mark(&mut self, item: ItemId) -> bool {
-        self.processing.insert(item)
+    pub(crate) fn mark(&mut self, item: ItemId) -> alloc::Result<bool> {
+        self.processing.try_insert(item)
     }
 
     /// Get the value for the constant at the given item, if present.
@@ -32,7 +31,11 @@ impl Consts {
     }
 
     /// Insert a constant value at the given item.
-    pub(crate) fn insert(&mut self, item: ItemId, value: ConstValue) -> Option<ConstValue> {
-        self.resolved.insert(item, value)
+    pub(crate) fn insert(
+        &mut self,
+        item: ItemId,
+        value: ConstValue,
+    ) -> alloc::Result<Option<ConstValue>> {
+        self.resolved.try_insert(item, value)
     }
 }

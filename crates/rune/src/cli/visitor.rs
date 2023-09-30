@@ -1,5 +1,5 @@
-use crate::no_std::prelude::*;
-
+use crate::alloc::prelude::*;
+use crate::alloc::Vec;
 use crate::compile::meta;
 use crate::compile::{MetaError, CompileVisitor, ItemBuf, MetaRef};
 use crate::Hash;
@@ -25,7 +25,7 @@ impl FunctionVisitor {
     pub(super) fn new(kind: Attribute) -> Self {
         Self {
             attribute: kind,
-            functions: Default::default(),
+            functions: Vec::default(),
         }
     }
 
@@ -43,7 +43,7 @@ impl CompileVisitor for FunctionVisitor {
             _ => return Ok(()),
         };
 
-        self.functions.push((type_hash, meta.item.to_owned()));
+        self.functions.try_push((type_hash, meta.item.try_to_owned()?))?;
         Ok(())
     }
 }

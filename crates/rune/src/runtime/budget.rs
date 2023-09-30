@@ -17,7 +17,7 @@ use pin_project::pin_project;
 
 #[cfg(feature = "std")]
 #[cfg(not(feature = "std"))]
-static BUDGET: Cell<usize> = Cell::new(usize::max_value());
+static BUDGET: Cell<usize> = Cell::new(usize::MAX);
 
 /// Something being budgeted.
 #[pin_project]

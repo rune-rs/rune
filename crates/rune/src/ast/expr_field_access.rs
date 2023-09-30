@@ -14,7 +14,7 @@ fn ast_parse() {
 /// A field access.
 ///
 /// * `<expr>.<field>`.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprFieldAccess {
     /// Attributes associated with expression.
@@ -31,7 +31,7 @@ pub struct ExprFieldAccess {
 expr_parse!(FieldAccess, ExprFieldAccess, "field access expression");
 
 /// The field being accessed.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub enum ExprField {
     /// An identifier.

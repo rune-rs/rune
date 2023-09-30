@@ -25,7 +25,7 @@ use crate::{ContextError, Module, Value};
 
 /// Provide a bunch of `std` functions that can be used during tests to capture output.
 pub fn module(io: &CaptureIo) -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["io"]);
+    let mut module = Module::with_crate_item("std", ["io"])?;
 
     let o = io.clone();
 

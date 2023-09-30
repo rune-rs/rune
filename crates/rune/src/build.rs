@@ -2,8 +2,7 @@ use core::fmt;
 use core::marker::PhantomData;
 use core::mem::take;
 
-use crate::no_std::prelude::*;
-
+use crate::alloc::{self, Vec};
 use crate::ast::{Span, Spanned};
 use crate::compile;
 use crate::compile::{
@@ -16,20 +15,41 @@ use crate::{Context, Diagnostics, SourceId, Sources};
 /// Error raised when we failed to load sources.
 ///
 /// Look at the passed in [Diagnostics] instance for details.
-#[derive(Debug)]
+#[derive(Default, Debug)]
 #[non_exhaustive]
-pub struct BuildError;
+pub struct BuildError {
+    kind: BuildErrorKind,
+}
 
-impl fmt::Display for BuildError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "Failed to build rune sources (see diagnostics for details)"
-        )
+impl From<alloc::Error> for BuildError {
+    fn from(error: alloc::Error) -> Self {
+        Self {
+            kind: BuildErrorKind::AllocError(error),
+        }
     }
 }
 
-impl crate::no_std::error::Error for BuildError {}
+#[derive(Default, Debug)]
+enum BuildErrorKind {
+    #[default]
+    FatalError,
+    AllocError(alloc::Error),
+}
+
+impl fmt::Display for BuildError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.kind {
+            BuildErrorKind::FatalError => write!(
+                f,
+                "Failed to build rune sources (see diagnostics for details)"
+            ),
+            BuildErrorKind::AllocError(error) => error.fmt(f),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for BuildError {}
 
 /// Entry point to building [Sources] of Rune using the default unit storage.
 ///
@@ -47,7 +67,7 @@ impl crate::no_std::error::Error for BuildError {}
 /// use std::sync::Arc;
 ///
 /// let context = Context::with_default_modules()?;
-/// let runtime = Arc::new(context.runtime());
+/// let runtime = Arc::new(context.runtime()?);
 ///
 /// let mut sources = rune::Sources::new();
 /// sources.insert(Source::new("entry", r#"
@@ -71,7 +91,7 @@ impl crate::no_std::error::Error for BuildError {}
 /// let unit = result?;
 /// let unit = Arc::new(unit);
 /// let vm = Vm::new(runtime, unit);
-/// # Ok::<_, rune::Error>(())
+/// # Ok::<_, rune::support::Error>(())
 /// ```
 pub fn prepare(sources: &mut Sources) -> Build<'_, DefaultStorage> {
     prepare_with(sources)
@@ -118,10 +138,16 @@ impl<'a> compile::CompileVisitor for CompileVisitorGroup<'a> {
         Ok(())
     }
 
-    fn visit_meta(&mut self, location: &dyn Located, meta: compile::MetaRef<'_>) {
+    fn visit_meta(
+        &mut self,
+        location: &dyn Located,
+        meta: compile::MetaRef<'_>,
+    ) -> Result<(), MetaError> {
         for v in self.visitors.iter_mut() {
-            v.visit_meta(location, meta)
+            v.visit_meta(location, meta)?;
         }
+
+        Ok(())
     }
 
     fn visit_variable_use(
@@ -129,16 +155,20 @@ impl<'a> compile::CompileVisitor for CompileVisitorGroup<'a> {
         source_id: SourceId,
         var_span: &dyn Spanned,
         span: &dyn Spanned,
-    ) {
+    ) -> Result<(), MetaError> {
         for v in self.visitors.iter_mut() {
-            v.visit_variable_use(source_id, var_span, span)
+            v.visit_variable_use(source_id, var_span, span)?;
         }
+
+        Ok(())
     }
 
-    fn visit_mod(&mut self, location: &dyn Located) {
+    fn visit_mod(&mut self, location: &dyn Located) -> Result<(), MetaError> {
         for v in self.visitors.iter_mut() {
-            v.visit_mod(location)
+            v.visit_mod(location)?;
         }
+
+        Ok(())
     }
 
     fn visit_doc_comment(
@@ -147,10 +177,12 @@ impl<'a> compile::CompileVisitor for CompileVisitorGroup<'a> {
         item: &compile::Item,
         hash: crate::Hash,
         doc: &str,
-    ) {
+    ) -> Result<(), MetaError> {
         for v in self.visitors.iter_mut() {
-            v.visit_doc_comment(location, item, hash, doc)
+            v.visit_doc_comment(location, item, hash, doc)?;
         }
+
+        Ok(())
     }
 
     fn visit_field_doc_comment(
@@ -160,10 +192,12 @@ impl<'a> compile::CompileVisitor for CompileVisitorGroup<'a> {
         hash: crate::Hash,
         field: &str,
         doc: &str,
-    ) {
+    ) -> Result<(), MetaError> {
         for v in self.visitors.iter_mut() {
-            v.visit_field_doc_comment(location, item, hash, field, doc);
+            v.visit_field_doc_comment(location, item, hash, field, doc)?;
         }
+
+        Ok(())
     }
 }
 
@@ -200,9 +234,9 @@ impl<'a, S> Build<'a, S> {
     /// Like if you want to collect every function that is discovered in the
     /// project.
     #[inline]
-    pub fn with_visitor(mut self, visitor: &'a mut dyn CompileVisitor) -> Self {
-        self.visitors.push(visitor);
-        self
+    pub fn with_visitor(mut self, visitor: &'a mut dyn CompileVisitor) -> alloc::Result<Self> {
+        self.visitors.try_push(visitor)?;
+        Ok(self)
     }
 
     /// Modify the current [Build] to configure the given [SourceLoader].
@@ -233,7 +267,7 @@ impl<'a, S> Build<'a, S> {
         let mut unit = compile::UnitBuilder::default();
 
         let prelude = if context.has_default_modules() {
-            compile::Prelude::with_default_prelude()
+            compile::Prelude::with_default_prelude()?
         } else {
             compile::Prelude::default()
         };
@@ -261,7 +295,9 @@ impl<'a, S> Build<'a, S> {
         let mut default_visitors;
         let visitors = match self.visitors.is_empty() {
             true => {
-                default_visitors = CompileVisitorGroup { visitors: vec![] };
+                default_visitors = CompileVisitorGroup {
+                    visitors: Vec::new(),
+                };
                 &mut default_visitors
             }
             false => {
@@ -282,10 +318,10 @@ impl<'a, S> Build<'a, S> {
             }
         };
 
-        let mut pool = Pool::default();
+        let mut pool = Pool::new()?;
         let mut unit_storage = S::default();
 
-        let result = compile::compile(
+        compile::compile(
             &mut unit,
             &prelude,
             self.sources,
@@ -296,25 +332,25 @@ impl<'a, S> Build<'a, S> {
             source_loader,
             options,
             &mut unit_storage,
-        );
+        )?;
 
-        if let Err(()) = result {
-            return Err(BuildError);
+        if diagnostics.has_error() {
+            return Err(BuildError::default());
         }
 
         if options.link_checks {
-            unit.link(context, diagnostics);
+            unit.link(context, diagnostics)?;
+        }
 
-            if diagnostics.has_error() {
-                return Err(BuildError);
-            }
+        if diagnostics.has_error() {
+            return Err(BuildError::default());
         }
 
         match unit.build(Span::empty(), unit_storage) {
             Ok(unit) => Ok(unit),
             Err(error) => {
                 diagnostics.error(SourceId::empty(), error);
-                Err(BuildError)
+                Err(BuildError::default())
             }
         }
     }

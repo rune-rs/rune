@@ -1,5 +1,4 @@
-use crate::no_std::path::PathBuf;
-
+use crate::alloc::path::PathBuf;
 use crate::compile::ModId;
 use crate::parse::NonZeroId;
 use crate::worker::{Import, WildcardImport};

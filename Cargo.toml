@@ -1,12 +1,13 @@
 [workspace]
 resolver = "2"
+
 members = [
     "crates/*",
     "examples",
     "benches",
     "tools/*",
-    "no-std-examples",
 ]
+
 default-members = [
     "crates/*",
     "examples",
@@ -14,6 +15,7 @@ default-members = [
     "tools/site",
     "tools/builder",
 ]
+exclude = ["no-std-examples"]
 
 [profile.bench]
 lto = false

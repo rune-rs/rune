@@ -9,7 +9,7 @@ use core::ptr;
 use core::slice;
 use core::str;
 
-use crate::no_std::collections::HashMap;
+use crate::alloc::{self, HashMap};
 use crate::no_std::prelude::*;
 
 #[non_exhaustive]
@@ -21,6 +21,12 @@ pub struct ArenaWriteSliceOutOfBounds {
 #[non_exhaustive]
 pub struct ArenaAllocError {
     pub requested: usize,
+}
+
+impl From<alloc::Error> for ArenaAllocError {
+    fn from(_: alloc::Error) -> Self {
+        Self { requested: 0 }
+    }
 }
 
 /// The size of a slab in the arena allocator.
@@ -84,7 +90,7 @@ impl Arena {
             slice::from_raw_parts(ptr.as_ptr() as *const _, bytes.len())
         };
 
-        self.bytes.borrow_mut().insert(bytes.into(), ptr);
+        self.bytes.borrow_mut().try_insert(bytes.into(), ptr)?;
         Ok(output)
     }
 

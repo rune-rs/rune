@@ -1,16 +1,16 @@
-use std::sync::Mutex;
-
-use crate::no_std::collections::HashMap;
-use crate::no_std::prelude::*;
+use crate::std::sync::Mutex;
 use crate::no_std::sync::Arc;
-use crate::no_std::borrow::Cow;
+use crate::no_std::std;
+use crate::alloc::{self, String, HashMap};
+use crate::alloc::borrow::Cow;
+use crate::alloc::prelude::*;
 
 use handlebars::{
     Context, Handlebars, Helper, HelperResult, Output, RenderContext, Renderable, StringOutput, HelperDef,
 };
 use serde::Serialize;
 
-use crate::Result;
+use crate::support::Result;
 
 /// A compiled template.
 pub(crate) struct Template {
@@ -29,7 +29,7 @@ impl Template {
         let mut out = StringOutput::new();
         self.template
             .render(&self.handlebars, &cx, &mut render_context, &mut out)?;
-        Ok(out.into_string()?)
+        Ok(out.into_string()?.try_into()?)
     }
 }
 
@@ -40,8 +40,9 @@ pub(crate) struct Paths {
 
 impl Paths {
     /// Insert a path redirect.
-    pub(crate) fn insert(&self, from: &str, to: &str) {
-        self.inner.lock().unwrap().insert(from.to_owned(), to.to_owned());
+    pub(crate) fn insert(&self, from: &str, to: &str) -> alloc::Result<()> {
+        self.inner.lock().unwrap().try_insert(from.try_to_owned()?, to.try_to_owned()?)?;
+        Ok(())
     }
 }
 
@@ -54,8 +55,8 @@ impl Templating {
     /// Set up a new templating engine.
     pub(crate) fn new<'a, I>(partials: I, paths: Paths) -> Result<Templating> where I: IntoIterator<Item = (&'a str, Cow<'a, str>)> {
         let mut handlebars = Handlebars::new();
-        handlebars.register_helper("literal", Box::new(literal));
-        handlebars.register_helper("path", Box::new(path(paths)));
+        handlebars.register_helper("literal", std::Box::new(literal));
+        handlebars.register_helper("path", std::Box::new(path(paths)));
 
         for (name, source) in partials {
             handlebars.register_partial(name, source.as_ref())?;

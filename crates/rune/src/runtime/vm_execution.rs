@@ -101,7 +101,7 @@ where
     ///     assert_eq!(value, n);
     ///     n += 1;
     /// }
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn into_generator(self) -> Generator<T> {
         Generator::from_execution(self)
@@ -135,9 +135,9 @@ where
     ///     assert_eq!(value, n);
     ///     n += 1;
     /// }
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// # })?;
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn into_stream(self) -> Stream<T> {
         Stream::from_execution(self)

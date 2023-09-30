@@ -36,7 +36,7 @@ use crate::Any;
 /// let foo: Foo = rune::from_value(foo)?;
 ///
 /// assert_eq!(foo.field, 42);
-/// # Ok::<_, rune::Error>(())
+/// # Ok::<_, rune::support::Error>(())
 /// ```
 pub use rune_macros::FromValue;
 
@@ -68,7 +68,7 @@ pub use rune_macros::FromValue;
 /// let foo: u64 = rune::from_value(foo)?;
 ///
 /// assert_eq!(foo, 43);
-/// # Ok::<_, rune::Error>(())
+/// # Ok::<_, rune::support::Error>(())
 /// ```
 pub fn from_value<T>(value: Value) -> Result<T, VmError>
 where
@@ -101,7 +101,7 @@ where
 /// let foo: Foo = rune::from_value(foo)?;
 ///
 /// assert_eq!(foo.field, 42);
-/// # Ok::<_, rune::Error>(())
+/// # Ok::<_, rune::support::Error>(())
 /// ```
 pub trait FromValue: 'static + Sized {
     /// Try to convert to the given type, from the given value.

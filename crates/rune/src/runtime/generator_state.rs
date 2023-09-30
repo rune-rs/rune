@@ -46,7 +46,7 @@ use crate::Any;
 /// };
 ///
 /// assert_eq!(ret, 42);
-/// # Ok::<_, rune::Error>(())
+/// # Ok::<_, rune::support::Error>(())
 /// ```
 #[derive(Any, Debug)]
 #[rune(builtin, static_type = GENERATOR_STATE_TYPE)]

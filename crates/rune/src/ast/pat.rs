@@ -19,7 +19,7 @@ fn ast_parse() {
 }
 
 /// A pattern match.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub enum Pat {
     /// An ignored binding `_`.
@@ -48,25 +48,25 @@ impl Parse for Pat {
             K![byte] => {
                 return Ok(Self::Lit(PatLit {
                     attributes,
-                    expr: Box::new(ast::Expr::from_lit(ast::Lit::Byte(p.parse()?))),
+                    expr: Box::try_new(ast::Expr::from_lit(ast::Lit::Byte(p.parse()?)))?,
                 }));
             }
             K![char] => {
                 return Ok(Self::Lit(PatLit {
                     attributes,
-                    expr: Box::new(ast::Expr::from_lit(ast::Lit::Char(p.parse()?))),
+                    expr: Box::try_new(ast::Expr::from_lit(ast::Lit::Char(p.parse()?)))?,
                 }));
             }
             K![bytestr] => {
                 return Ok(Self::Lit(PatLit {
                     attributes,
-                    expr: Box::new(ast::Expr::from_lit(ast::Lit::ByteStr(p.parse()?))),
+                    expr: Box::try_new(ast::Expr::from_lit(ast::Lit::ByteStr(p.parse()?)))?,
                 }));
             }
             K![true] | K![false] => {
                 return Ok(Self::Lit(PatLit {
                     attributes,
-                    expr: Box::new(ast::Expr::from_lit(ast::Lit::Bool(p.parse()?))),
+                    expr: Box::try_new(ast::Expr::from_lit(ast::Lit::Bool(p.parse()?)))?,
                 }));
             }
             K![str] => {
@@ -79,14 +79,14 @@ impl Parse for Pat {
                     }),
                     _ => Self::Lit(PatLit {
                         attributes,
-                        expr: Box::new(ast::Expr::from_lit(ast::Lit::Str(p.parse()?))),
+                        expr: Box::try_new(ast::Expr::from_lit(ast::Lit::Str(p.parse()?)))?,
                     }),
                 });
             }
             K![number] => {
                 return Ok(Self::Lit(PatLit {
                     attributes,
-                    expr: Box::new(ast::Expr::from_lit(ast::Lit::Number(p.parse()?))),
+                    expr: Box::try_new(ast::Expr::from_lit(ast::Lit::Number(p.parse()?)))?,
                 }));
             }
             K![..] => {
@@ -125,7 +125,7 @@ impl Parse for Pat {
                 if expr.is_lit() {
                     return Ok(Self::Lit(PatLit {
                         attributes,
-                        expr: Box::new(expr),
+                        expr: Box::try_new(expr)?,
                     }));
                 }
             }
@@ -182,7 +182,7 @@ impl Peek for Pat {
 }
 
 /// A literal pattern.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct PatLit {
     /// Attributes associated with the pattern.
@@ -193,7 +193,7 @@ pub struct PatLit {
 }
 
 /// The rest pattern `..` and associated attributes.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct PatRest {
     /// Attribute associated with the rest pattern.
@@ -204,7 +204,7 @@ pub struct PatRest {
 }
 
 /// An array pattern.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct PatVec {
     /// Attributes associated with the vector pattern.
@@ -215,7 +215,7 @@ pub struct PatVec {
 }
 
 /// A tuple pattern.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct PatTuple {
     /// Attributes associated with the object pattern.
@@ -229,7 +229,7 @@ pub struct PatTuple {
 }
 
 /// An object pattern.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct PatObject {
     /// Attributes associated with the object pattern.
@@ -242,7 +242,7 @@ pub struct PatObject {
 }
 
 /// An object item.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned, Parse)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned, Parse)]
 #[non_exhaustive]
 pub struct PatBinding {
     /// Attributes associate with the binding.
@@ -257,7 +257,7 @@ pub struct PatBinding {
 }
 
 /// A path pattern.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct PatPath {
     /// Attributes associate with the path.
@@ -268,7 +268,7 @@ pub struct PatPath {
 }
 
 /// An ignore pattern.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct PatIgnore {
     /// Attributes associate with the pattern.

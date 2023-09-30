@@ -5,7 +5,9 @@ use core::slice;
 
 use crate::no_std::borrow::Cow;
 
-use crate::alloc::{Error, Global, IteratorExt, TryClone, TryFromIteratorIn, Vec};
+use crate::alloc::alloc::Global;
+use crate::alloc::prelude::*;
+use crate::alloc::{self, Vec};
 use crate::runtime::{InstAddress, Value};
 
 /// An error raised when interacting with the stack.
@@ -44,7 +46,7 @@ impl Stack {
     /// assert!(stack.pop().is_err());
     /// stack.push(rune::to_value(String::from("Hello World"))?);
     /// assert!(matches!(stack.pop()?, Value::String(..)));
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub const fn new() -> Self {
         Self {
@@ -63,9 +65,9 @@ impl Stack {
     /// assert!(stack.pop().is_err());
     /// stack.push(rune::to_value(String::from("Hello World"))?);
     /// assert!(matches!(stack.pop()?, Value::String(..)));
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn with_capacity(capacity: usize) -> Result<Self, Error> {
+    pub fn with_capacity(capacity: usize) -> alloc::Result<Self> {
         Ok(Self {
             stack: Vec::try_with_capacity(capacity)?,
             stack_bottom: 0,
@@ -84,7 +86,7 @@ impl Stack {
     /// assert!(stack.is_empty());
     /// stack.push(rune::to_value(String::from("Hello World"))?);
     /// assert!(!stack.is_empty());
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     ///
     /// [stack_bottom]: Self::stack_bottom()
@@ -104,7 +106,7 @@ impl Stack {
     /// assert_eq!(stack.len(), 0);
     /// stack.push(rune::to_value(String::from("Hello World"))?);
     /// assert_eq!(stack.len(), 1);
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     ///
     /// [stack_bottom]: Self::stack_bottom()
@@ -143,9 +145,9 @@ impl Stack {
     /// assert!(stack.pop().is_err());
     /// stack.push(rune::to_value(String::from("Hello World"))?);
     /// assert!(matches!(stack.pop()?, Value::String(..)));
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn push(&mut self, value: Value) -> Result<(), Error> {
+    pub fn push(&mut self, value: Value) -> alloc::Result<()> {
         self.stack.try_push(value)?;
         Ok(())
     }
@@ -160,7 +162,7 @@ impl Stack {
     /// assert!(stack.pop().is_err());
     /// stack.push(rune::to_value(String::from("Hello World"))?);
     /// assert!(matches!(stack.pop()?, Value::String(..)));
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn pop(&mut self) -> Result<Value, StackError> {
         if self.stack.len() == self.stack_bottom {
@@ -188,7 +190,7 @@ impl Stack {
     /// assert!(matches!(it.next(), Some(Value::String(..))));
     /// assert!(matches!(it.next(), Some(Value::EmptyTuple)));
     /// assert!(matches!(it.next(), None));
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn drain(
         &mut self,
@@ -225,9 +227,9 @@ impl Stack {
     /// assert!(matches!(it.next(), Some(Value::String(..))));
     /// assert!(matches!(it.next(), Some(Value::EmptyTuple)));
     /// assert!(matches!(it.next(), None));
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn extend<I>(&mut self, iter: I) -> Result<(), Error>
+    pub fn extend<I>(&mut self, iter: I) -> alloc::Result<()>
     where
         I: IntoIterator<Item = Value>,
     {
@@ -334,7 +336,7 @@ impl Stack {
     pub(crate) fn pop_sequence(
         &mut self,
         count: usize,
-    ) -> Result<Result<Vec<Value>, StackError>, Error> {
+    ) -> alloc::Result<Result<Vec<Value>, StackError>> {
         let Ok(iter) = self.drain(count) else {
             return Ok(Err(StackError));
         };
@@ -406,7 +408,7 @@ impl Stack {
 }
 
 impl TryClone for Stack {
-    fn try_clone(&self) -> Result<Self, Error> {
+    fn try_clone(&self) -> alloc::Result<Self> {
         Ok(Self {
             stack: self.stack.try_clone()?,
             stack_bottom: self.stack_bottom,
@@ -415,9 +417,12 @@ impl TryClone for Stack {
 }
 
 impl TryFromIteratorIn<Value, Global> for Stack {
-    fn try_from_iter_in<T: IntoIterator<Item = Value>>(iter: T, _: Global) -> Result<Self, Error> {
+    fn try_from_iter_in<T: IntoIterator<Item = Value>>(
+        iter: T,
+        alloc: Global,
+    ) -> alloc::Result<Self> {
         Ok(Self {
-            stack: iter.into_iter().try_collect()?,
+            stack: iter.into_iter().try_collect_in(alloc)?,
             stack_bottom: 0,
         })
     }

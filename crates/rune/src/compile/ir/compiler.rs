@@ -1,7 +1,7 @@
 use core::mem::{replace, take};
 
-use crate::no_std::prelude::*;
-
+use crate::alloc::prelude::*;
+use crate::alloc::{try_format, Box, Vec};
 use crate::ast::{self, Span, Spanned};
 use crate::compile::ir;
 use crate::compile::{self, ErrorKind, WithSpan};
@@ -46,14 +46,14 @@ pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut Ctxt<'_, '_>) -> compile::Result
             let Some(value) = c.q.get_const_value(hash) else {
                 return Err(compile::Error::msg(
                     hir,
-                    format_args!("Missing constant for hash {hash}"),
+                    try_format!("Missing constant for hash {hash}"),
                 ));
             };
 
             ir::Ir::new(span, ir::Value::from_const(value).with_span(span)?)
         }
         hir::ExprKind::Variable(name) => {
-            return Ok(ir::Ir::new(span, name.into_owned()));
+            return Ok(ir::Ir::new(span, name.into_owned()?));
         }
         _ => {
             return Err(compile::Error::msg(
@@ -70,7 +70,7 @@ fn ir_target(expr: &hir::Expr<'_>) -> compile::Result<ir::IrTarget> {
         hir::ExprKind::Variable(name) => {
             return Ok(ir::IrTarget {
                 span: expr.span(),
-                kind: ir::IrTargetKind::Name(name.into_owned()),
+                kind: ir::IrTargetKind::Name(name.into_owned()?),
             });
         }
         hir::ExprKind::FieldAccess(expr_field_access) => {
@@ -80,13 +80,13 @@ fn ir_target(expr: &hir::Expr<'_>) -> compile::Result<ir::IrTarget> {
                 hir::ExprField::Ident(name) => {
                     return Ok(ir::IrTarget {
                         span: expr.span(),
-                        kind: ir::IrTargetKind::Field(Box::new(target), name.into()),
+                        kind: ir::IrTargetKind::Field(Box::try_new(target)?, name.try_into()?),
                     });
                 }
                 hir::ExprField::Index(index) => {
                     return Ok(ir::IrTarget {
                         span: expr.span(),
-                        kind: ir::IrTargetKind::Index(Box::new(target), index),
+                        kind: ir::IrTargetKind::Index(Box::try_new(target)?, index),
                     });
                 }
                 _ => {
@@ -113,7 +113,7 @@ fn expr_assign(
         ir::IrSet {
             span,
             target,
-            value: Box::new(expr(&hir.rhs, c)?),
+            value: Box::try_new(expr(&hir.rhs, c)?)?,
         },
     ))
 }
@@ -124,10 +124,10 @@ fn expr_call(
     c: &mut Ctxt<'_, '_>,
     hir: &hir::ExprCall<'_>,
 ) -> compile::Result<ir::IrCall> {
-    let mut args = Vec::with_capacity(hir.args.len());
+    let mut args = Vec::try_with_capacity(hir.args.len())?;
 
     for e in hir.args {
-        args.push(expr(e, c)?);
+        args.try_push(expr(e, c)?)?;
     }
 
     if let hir::Call::ConstFn { id, .. } = hir.call {
@@ -164,7 +164,7 @@ fn expr_binary(
             ir::IrAssign {
                 span,
                 target,
-                value: Box::new(expr(&hir.rhs, c)?),
+                value: Box::try_new(expr(&hir.rhs, c)?)?,
                 op,
             },
         ));
@@ -193,8 +193,8 @@ fn expr_binary(
         ir::IrBinary {
             span,
             op,
-            lhs: Box::new(lhs),
-            rhs: Box::new(rhs),
+            lhs: Box::try_new(lhs)?,
+            rhs: Box::try_new(rhs)?,
         },
     ))
 }
@@ -205,14 +205,15 @@ fn lit(c: &mut Ctxt<'_, '_>, span: Span, hir: hir::Lit<'_>) -> compile::Result<i
         hir::Lit::Bool(boolean) => ir::Ir::new(span, ir::Value::Bool(boolean)),
         hir::Lit::Str(string) => ir::Ir::new(
             span,
-            ir::Value::String(Shared::new(string.to_owned()).with_span(span)?),
+            ir::Value::String(Shared::new(string.try_to_owned()?).with_span(span)?),
         ),
         hir::Lit::Integer(n) => ir::Ir::new(span, ir::Value::Integer(n)),
         hir::Lit::Float(n) => ir::Ir::new(span, ir::Value::Float(n)),
         hir::Lit::Byte(b) => ir::Ir::new(span, ir::Value::Byte(b)),
         hir::Lit::ByteStr(byte_str) => {
-            let value =
-                ir::Value::Bytes(Shared::new(Bytes::from_vec(byte_str.to_vec())).with_span(span)?);
+            let value = ir::Value::Bytes(
+                Shared::new(Bytes::from_vec(Vec::try_from(byte_str)?)).with_span(span)?,
+            );
             ir::Ir::new(span, value)
         }
         hir::Lit::Char(c) => ir::Ir::new(span, ir::Value::Char(c)),
@@ -228,14 +229,14 @@ fn expr_tuple(c: &mut Ctxt<'_, '_>, span: Span, hir: &hir::ExprSeq<'_>) -> compi
     let mut items = Vec::new();
 
     for e in hir.items {
-        items.push(expr(e, c)?);
+        items.try_push(expr(e, c)?)?;
     }
 
     Ok(ir::Ir::new(
         span,
         ir::Tuple {
             span,
-            items: items.into_boxed_slice(),
+            items: items.try_into_boxed_slice()?,
         },
     ))
 }
@@ -249,12 +250,12 @@ fn expr_vec(
     let mut items = Vec::new();
 
     for e in hir.items {
-        items.push(expr(e, c)?);
+        items.try_push(expr(e, c)?)?;
     }
 
     Ok(ir::IrVec {
         span,
-        items: items.into_boxed_slice(),
+        items: items.try_into_boxed_slice()?,
     })
 }
 
@@ -269,12 +270,12 @@ fn expr_object(
     for assign in hir.assignments {
         let (_, key) = assign.key;
         let ir = expr(&assign.assign, c)?;
-        assignments.push((key.into(), ir))
+        assignments.try_push((key.try_into()?, ir))?
     }
 
     Ok(ir::IrObject {
         span,
-        assignments: assignments.into_boxed_slice(),
+        assignments: assignments.try_into_boxed_slice()?,
     })
 }
 
@@ -289,10 +290,10 @@ pub(crate) fn block(hir: &hir::Block<'_>, c: &mut Ctxt<'_, '_>) -> compile::Resu
         let (e, term) = match stmt {
             hir::Stmt::Local(l) => {
                 if let Some((e, _)) = take(&mut last) {
-                    instructions.push(expr(e, c)?);
+                    instructions.try_push(expr(e, c)?)?;
                 }
 
-                instructions.push(local(l, c)?);
+                instructions.try_push(local(l, c)?)?;
                 continue;
             }
             hir::Stmt::Expr(e) => (e, false),
@@ -301,16 +302,16 @@ pub(crate) fn block(hir: &hir::Block<'_>, c: &mut Ctxt<'_, '_>) -> compile::Resu
         };
 
         if let Some((e, _)) = replace(&mut last, Some((e, term))) {
-            instructions.push(expr(e, c)?);
+            instructions.try_push(expr(e, c)?)?;
         }
     }
 
     let last = if let Some((e, term)) = last {
         if term {
-            instructions.push(expr(e, c)?);
+            instructions.try_push(expr(e, c)?)?;
             None
         } else {
-            Some(Box::new(expr(e, c)?))
+            Some(Box::try_new(expr(e, c)?)?)
         }
     } else {
         None
@@ -333,12 +334,12 @@ fn builtin_template(
 
     for e in template.exprs {
         if let hir::ExprKind::Lit(hir::Lit::Str(s)) = e.kind {
-            components.push(ir::IrTemplateComponent::String(s.into()));
+            components.try_push(ir::IrTemplateComponent::String(s.try_into()?))?;
             continue;
         }
 
         let ir = expr(e, c)?;
-        components.push(ir::IrTemplateComponent::Ir(ir));
+        components.try_push(ir::IrTemplateComponent::Ir(ir))?;
     }
 
     Ok(ir::IrTemplate { span, components })
@@ -362,8 +363,8 @@ fn local(hir: &hir::Local<'_>, c: &mut Ctxt<'_, '_>) -> compile::Result<ir::Ir> 
         span,
         ir::IrDecl {
             span,
-            name: hir::Name::Str(name).into_owned(),
-            value: Box::new(expr(&hir.expr, c)?),
+            name: hir::Name::Str(name).into_owned()?,
+            value: Box::try_new(expr(&hir.expr, c)?)?,
         },
     ))
 }
@@ -403,7 +404,7 @@ fn expr_if(
 
         let cond = condition(cond, c)?;
         let ir = block(&hir.block, c)?;
-        branches.push((cond, ir));
+        branches.try_push((cond, ir))?;
     }
 
     Ok(ir::IrBranches {
@@ -421,9 +422,9 @@ fn expr_loop(
 ) -> compile::Result<ir::IrLoop> {
     Ok(ir::IrLoop {
         span,
-        label: hir.label.map(|l| l.into()),
+        label: hir.label.map(TryInto::try_into).transpose()?,
         condition: match hir.condition {
-            Some(hir) => Some(Box::new(condition(hir, c)?)),
+            Some(hir) => Some(Box::try_new(condition(hir, c)?)?),
             None => None,
         },
         body: block(&hir.body, c)?,

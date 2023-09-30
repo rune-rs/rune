@@ -13,7 +13,7 @@ fn ast_parse() {
 /// A `for` loop over an iterator.
 ///
 /// * `for <pat> in <expr> <block>`.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprFor {
     /// The attributes of the `for` loop
@@ -48,7 +48,7 @@ impl ExprFor {
             for_token: parser.parse()?,
             binding: parser.parse()?,
             in_: parser.parse()?,
-            iter: Box::new(ast::Expr::parse_without_eager_brace(parser)?),
+            iter: Box::try_new(ast::Expr::parse_without_eager_brace(parser)?)?,
             body: parser.parse()?,
         })
     }

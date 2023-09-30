@@ -2,10 +2,9 @@ use core::num::NonZeroUsize;
 
 use core::mem::{replace, take};
 
-use crate::no_std::collections::{HashMap, VecDeque};
-use crate::no_std::path::PathBuf;
-use crate::no_std::prelude::*;
-
+use crate::alloc::path::PathBuf;
+use crate::alloc::prelude::*;
+use crate::alloc::{self, Box, HashMap, Vec, VecDeque};
 use crate::ast::spanned;
 use crate::ast::{self, OptionSpanned, Span, Spanned};
 use crate::compile::attrs;
@@ -161,7 +160,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
         let mut exprs = Vec::new();
 
         while !p.is_eof()? {
-            exprs.push(p.parse::<ast::Expr>()?);
+            exprs.try_push(p.parse::<ast::Expr>()?)?;
 
             if p.parse::<Option<T![,]>>()?.is_none() {
                 break;
@@ -335,7 +334,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
                 },
             )
         })?;
-        let id = self.q.storage.insert_str(name);
+        let id = self.q.storage.insert_str(name)?;
         let source = ast::StrSource::Synthetic(id);
         let value = ast::Lit::Str(ast::LitStr {
             span: ast.span(),
@@ -354,7 +353,8 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
             .map(|s| s.pos_to_utf16cu_linecol(ast.open.span.start.into_usize()))
             .unwrap_or_default();
 
-        let id = self.q.storage.insert_number(l + 1); // 1-indexed as that is what most editors will use
+        // 1-indexed as that is what most editors will use
+        let id = self.q.storage.insert_number(l + 1)?;
         let source = ast::NumberSource::Synthetic(id);
 
         Ok(BuiltInMacro::Line(BuiltInLine {
@@ -366,17 +366,17 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
     }
 
     /// Get or insert an item id.
-    fn item_id(&mut self) -> NonZeroId {
+    fn item_id(&mut self) -> alloc::Result<NonZeroId> {
         if let Some(id) = self.item.id {
-            return id;
+            return Ok(id);
         }
 
         let id = self
             .q
-            .insert_path(self.item.module, self.item.impl_item, self.items.item());
+            .insert_path(self.item.module, self.item.impl_item, self.items.item())?;
 
         self.item.id = Some(id);
-        id
+        Ok(id)
     }
 
     /// Perform a macro expansion.
@@ -384,7 +384,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
     where
         T: Parse,
     {
-        ast.path.id.set(self.item_id());
+        ast.path.id.set(self.item_id()?);
 
         let id = self.items.id().with_span(&ast)?;
         let item = self.q.item_for(id).with_span(&ast)?;
@@ -406,7 +406,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
     where
         T: Parse,
     {
-        attr.path.id.set(self.item_id());
+        attr.path.id.set(self.item_id()?);
 
         let id = self.items.id().with_span(&*attr)?;
 
@@ -430,7 +430,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
 
         let visibility = ast_to_visibility(&item_mod.visibility)?;
 
-        let guard = self.items.push_name(name.as_ref());
+        let guard = self.items.push_name(name.as_ref())?;
         let idx_item = self.item.replace();
 
         let mod_item_id = self.items.id().with_span(&*item_mod)?;
@@ -461,11 +461,13 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
                 .load(root, self.q.pool.module_item(mod_item), &*item_mod)?;
 
         if let Some(loaded) = self.loaded.as_mut() {
-            if let Some(_existing) = loaded.insert(mod_item, (self.source_id, item_mod.span())) {
+            if let Some(_existing) =
+                loaded.try_insert(mod_item, (self.source_id, item_mod.span()))?
+            {
                 return Err(compile::Error::new(
                     &*item_mod,
                     ErrorKind::ModAlreadyLoaded {
-                        item: self.q.pool.module_item(mod_item).to_owned(),
+                        item: self.q.pool.module_item(mod_item).try_to_owned()?,
                         #[cfg(feature = "emit")]
                         existing: _existing,
                     },
@@ -473,21 +475,22 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
             }
         }
 
-        let source_id = self.q.sources.insert(source);
+        let source_id = self.q.sources.insert(source)?;
 
         self.q
             .visitor
-            .visit_mod(&DynLocation::new(source_id, &*item_mod));
+            .visit_mod(&DynLocation::new(source_id, &*item_mod))
+            .with_span(&*item_mod)?;
 
         if let Some(queue) = self.queue.as_mut() {
-            queue.push_back(Task::LoadFile {
+            queue.try_push_back(Task::LoadFile {
                 kind: LoadFileKind::Module {
                     root: self.root.clone(),
                 },
                 source_id,
                 mod_item,
                 mod_item_id,
-            });
+            })?;
         }
 
         Ok(())
@@ -502,12 +505,15 @@ pub(crate) fn file(idx: &mut Indexer<'_, '_>, ast: &mut ast::File) -> compile::R
     for doc in p.parse_all::<attrs::Doc>(resolve_context!(idx.q), &ast.attributes) {
         let (span, doc) = doc?;
 
-        idx.q.visitor.visit_doc_comment(
-            &DynLocation::new(idx.source_id, &span),
-            idx.q.pool.module_item(idx.item.module),
-            idx.q.pool.module_item_hash(idx.item.module),
-            &doc.doc_string.resolve(resolve_context!(idx.q))?,
-        );
+        idx.q
+            .visitor
+            .visit_doc_comment(
+                &DynLocation::new(idx.source_id, &span),
+                idx.q.pool.module_item(idx.item.module),
+                idx.q.pool.module_item_hash(idx.item.module),
+                &doc.doc_string.resolve(resolve_context!(idx.q))?,
+            )
+            .with_span(span)?;
     }
 
     if let Some(first) = p.remaining(&ast.attributes).next() {
@@ -527,13 +533,13 @@ pub(crate) fn file(idx: &mut Indexer<'_, '_>, ast: &mut ast::File) -> compile::R
     for (item, semi) in ast.items.drain(..) {
         match item {
             i @ ast::Item::MacroCall(_) => {
-                queue.push_back((0, i, Vec::new(), semi));
+                queue.try_push_back((0, i, Vec::new(), semi))?;
             }
             i if !i.attributes().is_empty() => {
-                queue.push_back((0, i, Vec::new(), semi));
+                queue.try_push_back((0, i, Vec::new(), semi))?;
             }
             i => {
-                head.push_back((i, semi));
+                head.try_push_back((i, semi))?;
             }
         }
     }
@@ -568,17 +574,17 @@ pub(crate) fn file(idx: &mut Indexer<'_, '_>, ast: &mut ast::File) -> compile::R
             // below.
             if let Some(mut attr) = item.remove_first_attribute() {
                 let Some(file) = idx.expand_attribute_macro::<ast::File>(&mut attr, &item)? else {
-                    skipped_attributes.push(attr);
+                    skipped_attributes.try_push(attr)?;
 
                     if !matches!(item, ast::Item::MacroCall(_)) && item.attributes().is_empty() {
                         // For all we know only non macro attributes remain, which will be
                         // handled by the item handler.
                         *item.attributes_mut() = skipped_attributes;
-                        head.push_front((item, semi));
+                        head.try_push_front((item, semi))?;
                     } else {
                         // items with remaining attributes and macro calls will be dealt with by
                         // reinserting in the queue.
-                        queue.push_back((depth, item, skipped_attributes, semi))
+                        queue.try_push_back((depth, item, skipped_attributes, semi))?;
                     }
 
                     continue;
@@ -587,13 +593,13 @@ pub(crate) fn file(idx: &mut Indexer<'_, '_>, ast: &mut ast::File) -> compile::R
                 for (item, semi) in file.items.into_iter().rev() {
                     match item {
                         item @ ast::Item::MacroCall(_) => {
-                            queue.push_back((depth.wrapping_add(1), item, Vec::new(), semi));
+                            queue.try_push_back((depth.wrapping_add(1), item, Vec::new(), semi))?;
                         }
                         item if !item.attributes().is_empty() => {
-                            queue.push_back((depth.wrapping_add(1), item, Vec::new(), semi));
+                            queue.try_push_back((depth.wrapping_add(1), item, Vec::new(), semi))?;
                         }
                         item => {
-                            head.push_front((item, semi));
+                            head.try_push_front((item, semi))?;
                         }
                     }
                 }
@@ -621,7 +627,8 @@ pub(crate) fn file(idx: &mut Indexer<'_, '_>, ast: &mut ast::File) -> compile::R
                 }
 
                 // Macro call must be added to output to make sure its instructions are assembled.
-                ast.items.push((ast::Item::MacroCall(macro_call), semi));
+                ast.items
+                    .try_push((ast::Item::MacroCall(macro_call), semi))?;
             } else {
                 if let Some(attr) = p.remaining(&macro_call.attributes).next() {
                     return Err(compile::Error::msg(
@@ -635,13 +642,13 @@ pub(crate) fn file(idx: &mut Indexer<'_, '_>, ast: &mut ast::File) -> compile::R
                 for (item, semi) in file.items.into_iter().rev() {
                     match item {
                         item @ ast::Item::MacroCall(_) => {
-                            queue.push_back((depth.wrapping_add(1), item, Vec::new(), semi));
+                            queue.try_push_back((depth.wrapping_add(1), item, Vec::new(), semi))?;
                         }
                         item if !item.attributes().is_empty() => {
-                            queue.push_back((depth.wrapping_add(1), item, Vec::new(), semi));
+                            queue.try_push_back((depth.wrapping_add(1), item, Vec::new(), semi))?;
                         }
                         item => {
-                            head.push_front((item, semi));
+                            head.try_push_front((item, semi))?;
                         }
                     }
                 }
@@ -662,7 +669,7 @@ pub(crate) fn empty_block_fn(
     mut ast: ast::EmptyBlock,
     span: &dyn Spanned,
 ) -> compile::Result<()> {
-    let guard = idx.items.push_id();
+    let guard = idx.items.push_id()?;
     let idx_item = idx.item.replace();
 
     let item_meta = idx.q.insert_new_item(
@@ -691,7 +698,7 @@ pub(crate) fn empty_block_fn(
     idx.q.index_and_build(indexing::Entry {
         item_meta,
         indexed: Indexed::Function(indexing::Function {
-            ast: indexing::FunctionAst::Empty(Box::new(ast), span.span()),
+            ast: indexing::FunctionAst::Empty(Box::try_new(ast)?, span.span()),
             call,
             is_instance: false,
             is_test: false,
@@ -716,7 +723,7 @@ pub(crate) fn item_fn_immediate(
 
     let docs = Doc::collect_from(resolve_context!(idx.q), &mut p, &ast.attributes)?;
 
-    let guard = idx.items.push_name(name.as_ref());
+    let guard = idx.items.push_name(name.as_ref())?;
     let idx_item = idx.item.replace();
 
     let item_meta = idx.q.insert_new_item(
@@ -755,7 +762,7 @@ pub(crate) fn item_fn_immediate(
     let call = validate_call(ast.const_token.as_ref(), ast.async_token.as_ref(), &layer)?;
 
     let Some(call) = call else {
-        idx.q.index_const_fn(item_meta, Box::new(ast))?;
+        idx.q.index_const_fn(item_meta, Box::try_new(ast)?)?;
         return Ok(());
     };
 
@@ -830,7 +837,7 @@ pub(crate) fn item_fn_immediate(
     let entry = indexing::Entry {
         item_meta,
         indexed: Indexed::Function(indexing::Function {
-            ast: indexing::FunctionAst::Item(Box::new(ast)),
+            ast: indexing::FunctionAst::Item(Box::try_new(ast)?),
             call,
             is_instance,
             is_test,
@@ -863,8 +870,10 @@ fn item_fn(idx: &mut Indexer<'_, '_>, ast: ast::ItemFn) -> compile::Result<()> {
             .inner
             .impl_functions
             .entry(impl_item)
-            .or_default()
-            .push(QueryImplFn { ast: Box::new(ast) });
+            .or_try_default()?
+            .try_push(QueryImplFn {
+                ast: Box::try_new(ast)?,
+            })?;
     } else {
         item_fn_immediate(idx, ast)?;
     }
@@ -892,7 +901,7 @@ fn expr_block(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprBlock) -> compile::R
         return block(idx, &mut ast.block);
     }
 
-    let guard = idx.items.push_id();
+    let guard = idx.items.push_id()?;
     let idx_item = idx.item.replace();
 
     let item_meta = idx.q.insert_new_item(
@@ -958,7 +967,7 @@ fn statements(idx: &mut Indexer<'_, '_>, ast: &mut Vec<ast::Stmt>) -> compile::R
                 item(idx, i)?;
             }
             stmt => {
-                statements.push(stmt);
+                statements.try_push(stmt)?;
             }
         }
     }
@@ -1008,7 +1017,7 @@ fn statements(idx: &mut Indexer<'_, '_>, ast: &mut Vec<ast::Stmt>) -> compile::R
 
 #[instrument(span = ast)]
 fn block(idx: &mut Indexer<'_, '_>, ast: &mut ast::Block) -> compile::Result<()> {
-    let guard = idx.items.push_id();
+    let guard = idx.items.push_id()?;
     let idx_item = idx.item.replace();
 
     idx.q.insert_new_item(
@@ -1342,7 +1351,7 @@ fn item_enum(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemEnum) -> compile::Resu
     }
 
     let name = ast.name.resolve(resolve_context!(idx.q))?;
-    let guard = idx.items.push_name(name.as_ref());
+    let guard = idx.items.push_name(name.as_ref())?;
     let idx_item = idx.item.replace();
 
     let visibility = ast_to_visibility(&ast.visibility)?;
@@ -1369,7 +1378,7 @@ fn item_enum(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemEnum) -> compile::Resu
         }
 
         let name = variant.name.resolve(resolve_context!(idx.q))?;
-        let guard = idx.items.push_name(name.as_ref());
+        let guard = idx.items.push_name(name.as_ref())?;
         let idx_item = idx.item.replace();
 
         let item_meta = idx.q.insert_new_item(
@@ -1398,13 +1407,16 @@ fn item_enum(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemEnum) -> compile::Resu
             let name = field.name.resolve(cx)?;
 
             for doc in docs {
-                idx.q.visitor.visit_field_doc_comment(
-                    &DynLocation::new(idx.source_id, &doc),
-                    idx.q.pool.item(item_meta.item),
-                    idx.q.pool.item_type_hash(item_meta.item),
-                    name,
-                    doc.doc_string.resolve(cx)?.as_ref(),
-                );
+                idx.q
+                    .visitor
+                    .visit_field_doc_comment(
+                        &DynLocation::new(idx.source_id, &doc),
+                        idx.q.pool.item(item_meta.item),
+                        idx.q.pool.item_type_hash(item_meta.item),
+                        name,
+                        doc.doc_string.resolve(cx)?.as_ref(),
+                    )
+                    .with_span(doc)?;
             }
         }
 
@@ -1433,7 +1445,7 @@ fn item_struct(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemStruct) -> compile::
     }
 
     let ident = ast.ident.resolve(resolve_context!(idx.q))?;
-    let guard = idx.items.push_name(ident);
+    let guard = idx.items.push_name(ident)?;
     let idx_item = idx.item.replace();
 
     let visibility = ast_to_visibility(&ast.visibility)?;
@@ -1462,13 +1474,16 @@ fn item_struct(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemStruct) -> compile::
         let name = field.name.resolve(cx)?;
 
         for doc in docs {
-            idx.q.visitor.visit_field_doc_comment(
-                &DynLocation::new(idx.source_id, &doc),
-                idx.q.pool.item(item_meta.item),
-                idx.q.pool.item_type_hash(item_meta.item),
-                name,
-                doc.doc_string.resolve(cx)?.as_ref(),
-            );
+            idx.q
+                .visitor
+                .visit_field_doc_comment(
+                    &DynLocation::new(idx.source_id, &doc),
+                    idx.q.pool.item(item_meta.item),
+                    idx.q.pool.item_type_hash(item_meta.item),
+                    name,
+                    doc.doc_string.resolve(cx)?.as_ref(),
+                )
+                .with_span(doc)?;
         }
 
         if !field.visibility.is_inherited() {
@@ -1481,7 +1496,7 @@ fn item_struct(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemStruct) -> compile::
 
     idx.item = idx_item;
     idx.items.pop(guard).with_span(&ast)?;
-    idx.q.index_struct(item_meta, Box::new(ast))?;
+    idx.q.index_struct(item_meta, Box::try_new(ast)?)?;
     Ok(())
 }
 
@@ -1499,14 +1514,14 @@ fn item_impl(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemImpl) -> compile::Resu
     let location = Location::new(idx.source_id, ast.path.span());
     let id = idx.q.gen.next();
 
-    idx.q.inner.impl_item_queue.push_back(ItemImplEntry {
-        path: Box::new(ast.path),
+    idx.q.inner.impl_item_queue.try_push_back(ItemImplEntry {
+        path: Box::try_new(ast.path)?,
         location,
         id,
         root: idx.root.clone(),
         nested_item: idx.nested_item,
         macro_depth: idx.macro_depth,
-    });
+    })?;
 
     let idx_item = idx.item.replace_impl(id);
 
@@ -1539,7 +1554,7 @@ fn item_mod(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemMod) -> compile::Result
         }
         ast::ItemModBody::InlineBody(body) => {
             let name = ast.name.resolve(resolve_context!(idx.q))?;
-            let guard = idx.items.push_name(name.as_ref());
+            let guard = idx.items.push_name(name.as_ref())?;
             let idx_item = idx.item.replace();
 
             let visibility = ast_to_visibility(&ast.visibility)?;
@@ -1582,7 +1597,7 @@ fn item_const(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemConst) -> compile::Re
     }
 
     let name = ast.name.resolve(resolve_context!(idx.q))?;
-    let guard = idx.items.push_name(name.as_ref());
+    let guard = idx.items.push_name(name.as_ref())?;
     let idx_item = idx.item.replace();
 
     let item_meta = idx.q.insert_new_item(
@@ -1667,13 +1682,14 @@ fn item(idx: &mut Indexer<'_, '_>, ast: ast::Item) -> compile::Result<()> {
                 kind: ImportKind::Global,
                 visibility,
                 module: idx.item.module,
-                item: idx.items.item().clone(),
+                item: idx.items.item().try_clone()?,
                 source_id: idx.source_id,
-                ast: Box::new(item_use),
+                ast: Box::try_new(item_use)?,
             };
 
             import.process(&mut idx.q, &mut |task| {
-                queue.push_back(task);
+                queue.try_push_back(task)?;
+                Ok(())
             })?;
         }
     }
@@ -1683,7 +1699,7 @@ fn item(idx: &mut Indexer<'_, '_>, ast: ast::Item) -> compile::Result<()> {
 
 #[instrument(span = ast)]
 fn path(idx: &mut Indexer<'_, '_>, ast: &mut ast::Path) -> compile::Result<()> {
-    ast.id.set(idx.item_id());
+    ast.id.set(idx.item_id()?);
 
     path_segment(idx, &mut ast.first)?;
 
@@ -1728,7 +1744,7 @@ fn expr_for(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprFor) -> compile::Resul
 
 #[instrument(span = ast)]
 fn expr_closure(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprClosure) -> compile::Result<()> {
-    let guard = idx.items.push_id();
+    let guard = idx.items.push_id()?;
     let idx_item = idx.item.replace();
 
     idx.scopes.push();
@@ -1824,9 +1840,8 @@ fn expr_continue(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprContinue) -> comp
 
 #[instrument(span = ast)]
 fn expr_yield(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprYield) -> compile::Result<()> {
-    idx.scopes
-        .mark(|l| l.yields.push(ast.span()))
-        .with_span(&*ast)?;
+    let l = idx.scopes.mark().with_span(&*ast)?;
+    l.yields.try_push(ast.span())?;
 
     if let Some(e) = &mut ast.expr {
         expr(idx, e)?;
@@ -1846,9 +1861,8 @@ fn expr_return(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprReturn) -> compile:
 
 #[instrument(span = ast)]
 fn expr_await(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprAwait) -> compile::Result<()> {
-    idx.scopes
-        .mark(|l| l.awaits.push(ast.span()))
-        .with_span(&*ast)?;
+    let l = idx.scopes.mark().with_span(&*ast)?;
+    l.awaits.try_push(ast.span())?;
 
     expr(idx, &mut ast.expr)?;
     Ok(())
@@ -1862,9 +1876,8 @@ fn expr_try(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprTry) -> compile::Resul
 
 #[instrument(span = ast)]
 fn expr_select(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprSelect) -> compile::Result<()> {
-    idx.scopes
-        .mark(|l| l.awaits.push(ast.span()))
-        .with_span(&*ast)?;
+    let l = idx.scopes.mark().with_span(&*ast)?;
+    l.awaits.try_push(ast.span())?;
 
     for (branch, _) in &mut ast.branches {
         match branch {

@@ -2,20 +2,110 @@
 
 use core::fmt;
 
+use crate::alloc;
 use crate::ast;
 use crate::ast::Span;
 use crate::compile::ir;
-use crate::compile::{
-    self, Context, ErrorKind, Item, ItemMeta, NoopCompileVisitor, NoopSourceLoader, Pool, Prelude,
-    UnitBuilder,
-};
-use crate::hir;
-use crate::indexing::{IndexItem, Indexer, Items, Scopes};
-use crate::macros::{IntoLit, Storage, ToTokens, TokenStream};
+use crate::compile::{self, ErrorKind, ItemMeta};
+use crate::indexing::Indexer;
+use crate::macros::{IntoLit, ToTokens, TokenStream};
 use crate::parse::{Parse, Resolve};
-use crate::query::Query;
-use crate::shared::{Consts, Gen};
-use crate::{Diagnostics, Options, Source, SourceId, Sources};
+use crate::{Source, SourceId};
+
+/// Construct an empty macro context which can be used for testing.
+///
+/// # Examples
+///
+/// ```
+/// use rune::ast;
+/// use rune::macros;
+///
+/// macros::test(|cx| {
+///     let lit = cx.lit("hello world")?;
+///     assert!(matches!(lit, ast::Lit::Str(..)));
+///     Ok(())
+/// })?;
+/// # Ok::<_, rune::support::Error>(())
+/// ```
+#[cfg(feature = "std")]
+pub fn test<F, O>(f: F) -> crate::support::Result<O>
+where
+    F: FnOnce(&mut MacroContext<'_, '_, '_>) -> crate::support::Result<O>,
+{
+    use crate::compile::{Item, NoopCompileVisitor, NoopSourceLoader, Pool, Prelude, UnitBuilder};
+    use crate::hir;
+    use crate::indexing::{IndexItem, Items, Scopes};
+    use crate::macros::Storage;
+    use crate::query::Query;
+    use crate::shared::{Consts, Gen};
+    use crate::{Context, Diagnostics, Options, Sources};
+    use anyhow::Context as _;
+
+    let mut unit = UnitBuilder::default();
+    let prelude = Prelude::default();
+    let gen = Gen::default();
+    let const_arena = hir::Arena::new();
+    let mut consts = Consts::default();
+    let mut storage = Storage::default();
+    let mut sources = Sources::default();
+    let mut pool = Pool::new().context("Failed to allocate pool")?;
+    let mut visitor = NoopCompileVisitor::new();
+    let mut diagnostics = Diagnostics::default();
+    let mut source_loader = NoopSourceLoader::default();
+    let options = Options::default();
+    let context = Context::default();
+    let mut inner = Default::default();
+
+    let mut query = Query::new(
+        &mut unit,
+        &prelude,
+        &const_arena,
+        &mut consts,
+        &mut storage,
+        &mut sources,
+        &mut pool,
+        &mut visitor,
+        &mut diagnostics,
+        &mut source_loader,
+        &options,
+        &gen,
+        &context,
+        &mut inner,
+    );
+
+    let root_id = gen.next();
+    let source_id = SourceId::empty();
+
+    let root_mod_id = query
+        .insert_root_mod(root_id, source_id, Span::empty())
+        .context("Failed to inserted root module")?;
+
+    let item_meta = query
+        .item_for(root_id)
+        .context("Just inserted item meta does not exist")?;
+
+    let mut idx = Indexer {
+        q: query.borrow(),
+        source_id,
+        items: Items::new(Item::new(), root_id, &gen).context("Failed to construct items")?,
+        scopes: Scopes::new().context("Failed to build indexer scopes")?,
+        item: IndexItem::new(root_mod_id),
+        nested_item: None,
+        macro_depth: 0,
+        root: None,
+        queue: None,
+        loaded: None,
+    };
+
+    let mut cx = MacroContext {
+        macro_span: Span::empty(),
+        input_span: Span::empty(),
+        item_meta,
+        idx: &mut idx,
+    };
+
+    f(&mut cx)
+}
 
 /// Context for a running macro.
 pub struct MacroContext<'a, 'b, 'arena> {
@@ -30,85 +120,6 @@ pub struct MacroContext<'a, 'b, 'arena> {
 }
 
 impl<'a, 'b, 'arena> MacroContext<'a, 'b, 'arena> {
-    /// Construct an empty macro context which can be used for testing.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rune::macros::MacroContext;
-    ///
-    /// MacroContext::test(|cx| ());
-    /// ```
-    pub fn test<F, O>(f: F) -> O
-    where
-        F: FnOnce(&mut MacroContext<'_, '_, '_>) -> O,
-    {
-        let mut unit = UnitBuilder::default();
-        let prelude = Prelude::default();
-        let gen = Gen::default();
-        let const_arena = hir::Arena::new();
-        let mut consts = Consts::default();
-        let mut storage = Storage::default();
-        let mut sources = Sources::default();
-        let mut pool = Pool::default();
-        let mut visitor = NoopCompileVisitor::new();
-        let mut diagnostics = Diagnostics::default();
-        let mut source_loader = NoopSourceLoader::default();
-        let options = Options::default();
-        let context = Context::default();
-        let mut inner = Default::default();
-
-        let mut query = Query::new(
-            &mut unit,
-            &prelude,
-            &const_arena,
-            &mut consts,
-            &mut storage,
-            &mut sources,
-            &mut pool,
-            &mut visitor,
-            &mut diagnostics,
-            &mut source_loader,
-            &options,
-            &gen,
-            &context,
-            &mut inner,
-        );
-
-        let root_id = gen.next();
-        let source_id = SourceId::empty();
-
-        let root_mod_id = query
-            .insert_root_mod(root_id, source_id, Span::empty())
-            .expect("Failed to inserted root module");
-
-        let item_meta = query
-            .item_for(root_id)
-            .expect("Just inserted item meta does not exist");
-
-        let mut idx = Indexer {
-            q: query.borrow(),
-            source_id,
-            items: Items::new(Item::new(), root_id, &gen),
-            scopes: Scopes::default(),
-            item: IndexItem::new(root_mod_id),
-            nested_item: None,
-            macro_depth: 0,
-            root: None,
-            queue: None,
-            loaded: None,
-        };
-
-        let mut cx = MacroContext {
-            macro_span: Span::empty(),
-            input_span: Span::empty(),
-            item_meta,
-            idx: &mut idx,
-        };
-
-        f(&mut cx)
-    }
-
     /// Evaluate the given target as a constant expression.
     ///
     /// # Panics
@@ -118,20 +129,23 @@ impl<'a, 'b, 'arena> MacroContext<'a, 'b, 'arena> {
     /// # Examples
     ///
     /// ```
+    /// # use rune::support::*;
     /// use rune::ast;
-    /// use rune::macros::{MacroContext, quote};
+    /// use rune::macros::{self, quote};
     /// use rune::parse::{Parser};
     ///
-    /// // Note: should only be used for testing.
-    /// MacroContext::test(|cx| {
-    ///     let stream = quote!(1 + 2).into_token_stream(cx);
+    /// macros::test(|cx| {
+    ///     let stream = quote!(1 + 2).into_token_stream(cx)?;
     ///
     ///     let mut p = Parser::from_token_stream(&stream, cx.input_span());
-    ///     let expr = p.parse_all::<ast::Expr>().unwrap();
-    ///     let value = cx.eval(&expr).unwrap();
+    ///     let expr = p.parse_all::<ast::Expr>()?;
+    ///     let value = cx.eval(&expr)?;
     ///
-    ///     assert_eq!(3, value.into_integer::<u32>().unwrap());
-    /// });
+    ///     let integer = value.into_integer::<u32>().context("Expected integer")?;
+    ///     assert_eq!(3, integer);
+    ///     Ok(())
+    /// })?;
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn eval(&mut self, target: &ast::Expr) -> compile::Result<ir::Value> {
         target.eval(self)
@@ -143,14 +157,16 @@ impl<'a, 'b, 'arena> MacroContext<'a, 'b, 'arena> {
     ///
     /// ```
     /// use rune::ast;
-    /// use rune::macros::MacroContext;
+    /// use rune::macros;
     ///
-    /// MacroContext::test(|cx| {
-    ///     let lit = cx.lit("hello world");
-    ///     assert!(matches!(lit, ast::Lit::Str(..)))
-    /// });
+    /// macros::test(|cx| {
+    ///     let lit = cx.lit("hello world")?;
+    ///     assert!(matches!(lit, ast::Lit::Str(..)));
+    ///     Ok(())
+    /// })?;
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn lit<T>(&mut self, lit: T) -> ast::Lit
+    pub fn lit<T>(&mut self, lit: T) -> alloc::Result<ast::Lit>
     where
         T: IntoLit,
     {
@@ -164,18 +180,20 @@ impl<'a, 'b, 'arena> MacroContext<'a, 'b, 'arena> {
     ///
     /// ```
     /// use rune::ast;
-    /// use rune::macros::MacroContext;
+    /// use rune::macros;
     ///
-    /// MacroContext::test(|cx| {
-    ///     let lit = cx.ident("foo");
-    ///     assert!(matches!(lit, ast::Ident { .. }))
-    /// });
+    /// macros::test(|cx| {
+    ///     let lit = cx.ident("foo")?;
+    ///     assert!(matches!(lit, ast::Ident { .. }));
+    ///     Ok(())
+    /// })?;
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn ident(&mut self, ident: &str) -> ast::Ident {
+    pub fn ident(&mut self, ident: &str) -> alloc::Result<ast::Ident> {
         let span = self.macro_span();
-        let id = self.idx.q.storage.insert_str(ident);
+        let id = self.idx.q.storage.insert_str(ident)?;
         let source = ast::LitSource::Synthetic(id);
-        ast::Ident { span, source }
+        Ok(ast::Ident { span, source })
     }
 
     /// Construct a new label from the given string. The string should be
@@ -188,28 +206,30 @@ impl<'a, 'b, 'arena> MacroContext<'a, 'b, 'arena> {
     ///
     /// ```
     /// use rune::ast;
-    /// use rune::macros::MacroContext;
+    /// use rune::macros;
     ///
-    /// MacroContext::test(|cx| {
-    ///     let lit = cx.label("foo");
-    ///     assert!(matches!(lit, ast::Label { .. }))
-    /// });
+    /// macros::test(|cx| {
+    ///     let lit = cx.label("foo")?;
+    ///     assert!(matches!(lit, ast::Label { .. }));
+    ///     Ok(())
+    /// })?;
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn label(&mut self, label: &str) -> ast::Label {
+    pub fn label(&mut self, label: &str) -> alloc::Result<ast::Label> {
         let span = self.macro_span();
-        let id = self.idx.q.storage.insert_str(label);
+        let id = self.idx.q.storage.insert_str(label)?;
         let source = ast::LitSource::Synthetic(id);
-        ast::Label { span, source }
+        Ok(ast::Label { span, source })
     }
 
     /// Stringify the token stream.
-    pub fn stringify<T>(&mut self, tokens: &T) -> Stringify<'_, 'a, 'b, 'arena>
+    pub fn stringify<T>(&mut self, tokens: &T) -> alloc::Result<Stringify<'_, 'a, 'b, 'arena>>
     where
         T: ToTokens,
     {
         let mut stream = TokenStream::new();
-        tokens.to_tokens(self, &mut stream);
-        Stringify { cx: self, stream }
+        tokens.to_tokens(self, &mut stream)?;
+        Ok(Stringify { cx: self, stream })
     }
 
     /// Resolve the value of a token.
@@ -232,7 +252,7 @@ impl<'a, 'b, 'arena> MacroContext<'a, 'b, 'arena> {
     /// Insert the given source so that it has a [SourceId] that can be used in
     /// combination with parsing functions such as
     /// [parse_source][MacroContext::parse_source].
-    pub fn insert_source(&mut self, name: &str, source: &str) -> SourceId {
+    pub fn insert_source(&mut self, name: &str, source: &str) -> alloc::Result<SourceId> {
         self.idx.q.sources.insert(Source::new(name, source))
     }
 

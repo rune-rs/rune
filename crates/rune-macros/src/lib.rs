@@ -270,14 +270,6 @@ pub fn inst_display(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     derive.expand().unwrap_or_else(to_compile_errors).into()
 }
 
-fn to_compile_errors<I>(errors: I) -> proc_macro2::TokenStream
-where
-    I: IntoIterator<Item = syn::Error>,
-{
-    let compile_errors = errors.into_iter().map(syn::Error::into_compile_error);
-    ::quote::quote!(#(#compile_errors)*)
-}
-
 /// Adds the `path` as trait bound to each generic
 fn add_trait_bounds(generics: &mut Generics, path: &Path) {
     for ty in &mut generics.type_params_mut() {
@@ -288,4 +280,12 @@ fn add_trait_bounds(generics: &mut Generics, path: &Path) {
             path: path.clone(),
         }));
     }
+}
+
+fn to_compile_errors<I>(errors: I) -> proc_macro2::TokenStream
+where
+    I: IntoIterator<Item = syn::Error>,
+{
+    let compile_errors = errors.into_iter().map(syn::Error::into_compile_error);
+    ::quote::quote!(#(#compile_errors)*)
 }

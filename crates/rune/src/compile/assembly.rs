@@ -2,15 +2,17 @@
 
 use core::fmt;
 
-use crate::no_std::collections::{hash_map, HashMap};
-use crate::no_std::prelude::*;
-
+use crate as rune;
+use crate::alloc::fmt::TryWrite;
+use crate::alloc::prelude::*;
+use crate::alloc::{hash_map, HashMap};
+use crate::alloc::{try_vec, String, Vec};
 use crate::ast::{Span, Spanned};
 use crate::compile::{self, Location};
 use crate::runtime::{Inst, Label};
 use crate::{Hash, SourceId};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 pub(crate) enum AssemblyInst {
     Jump { label: Label },
     JumpIf { label: Label },
@@ -23,7 +25,7 @@ pub(crate) enum AssemblyInst {
 }
 
 /// Helper structure to build instructions and maintain certain invariants.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, TryClone, Default)]
 pub(crate) struct Assembly {
     /// The location that caused the assembly.
     location: Location,
@@ -67,11 +69,11 @@ impl Assembly {
             hash_map::Entry::Occupied(e) => {
                 let &mut (len, ref mut labels) = e.into_mut();
                 label.set_jump(len);
-                labels.push(label.clone());
+                labels.try_push(label.try_clone()?)?;
             }
             hash_map::Entry::Vacant(e) => {
                 label.set_jump(len);
-                e.insert((len, vec![label.clone()]));
+                e.try_insert((len, try_vec![label.try_clone()?]))?;
             }
         }
 
@@ -79,90 +81,128 @@ impl Assembly {
     }
 
     /// Add a jump to the given label.
-    pub(crate) fn jump(&mut self, label: &Label, span: &dyn Spanned) {
+    pub(crate) fn jump(&mut self, label: &Label, span: &dyn Spanned) -> compile::Result<()> {
         self.inner_push(
             AssemblyInst::Jump {
-                label: label.clone(),
+                label: label.try_clone()?,
             },
             span,
-        );
+        )?;
+
+        Ok(())
     }
 
     /// Add a conditional jump to the given label.
-    pub(crate) fn jump_if(&mut self, label: &Label, span: &dyn Spanned) {
+    pub(crate) fn jump_if(&mut self, label: &Label, span: &dyn Spanned) -> compile::Result<()> {
         self.inner_push(
             AssemblyInst::JumpIf {
-                label: label.clone(),
+                label: label.try_clone()?,
             },
             span,
-        );
+        )?;
+
+        Ok(())
     }
 
     /// Add a conditional jump to the given label. Only pops the top of the
     /// stack if the jump is not executed.
-    pub(crate) fn jump_if_or_pop(&mut self, label: &Label, span: &dyn Spanned) {
+    pub(crate) fn jump_if_or_pop(
+        &mut self,
+        label: &Label,
+        span: &dyn Spanned,
+    ) -> compile::Result<()> {
         self.inner_push(
             AssemblyInst::JumpIfOrPop {
-                label: label.clone(),
+                label: label.try_clone()?,
             },
             span,
-        );
+        )?;
+
+        Ok(())
     }
 
     /// Add a conditional jump to the given label. Only pops the top of the
     /// stack if the jump is not executed.
-    pub(crate) fn jump_if_not_or_pop(&mut self, label: &Label, span: &dyn Spanned) {
+    pub(crate) fn jump_if_not_or_pop(
+        &mut self,
+        label: &Label,
+        span: &dyn Spanned,
+    ) -> compile::Result<()> {
         self.inner_push(
             AssemblyInst::JumpIfNotOrPop {
-                label: label.clone(),
+                label: label.try_clone()?,
             },
             span,
-        );
+        )?;
+
+        Ok(())
     }
 
     /// Add a conditional jump-if-branch instruction.
-    pub(crate) fn jump_if_branch(&mut self, branch: i64, label: &Label, span: &dyn Spanned) {
+    pub(crate) fn jump_if_branch(
+        &mut self,
+        branch: i64,
+        label: &Label,
+        span: &dyn Spanned,
+    ) -> compile::Result<()> {
         self.inner_push(
             AssemblyInst::JumpIfBranch {
                 branch,
-                label: label.clone(),
+                label: label.try_clone()?,
             },
             span,
-        );
+        )?;
+
+        Ok(())
     }
 
     /// Add a pop-and-jump-if-not instruction to a label.
-    pub(crate) fn pop_and_jump_if_not(&mut self, count: usize, label: &Label, span: &dyn Spanned) {
+    pub(crate) fn pop_and_jump_if_not(
+        &mut self,
+        count: usize,
+        label: &Label,
+        span: &dyn Spanned,
+    ) -> compile::Result<()> {
         self.inner_push(
             AssemblyInst::PopAndJumpIfNot {
                 count,
-                label: label.clone(),
+                label: label.try_clone()?,
             },
             span,
-        );
+        )?;
+
+        Ok(())
     }
 
     /// Add an instruction that advanced an iterator.
-    pub(crate) fn iter_next(&mut self, offset: usize, label: &Label, span: &dyn Spanned) {
+    pub(crate) fn iter_next(
+        &mut self,
+        offset: usize,
+        label: &Label,
+        span: &dyn Spanned,
+    ) -> compile::Result<()> {
         self.inner_push(
             AssemblyInst::IterNext {
                 offset,
-                label: label.clone(),
+                label: label.try_clone()?,
             },
             span,
-        );
+        )?;
+
+        Ok(())
     }
 
     /// Push a raw instruction.
-    pub(crate) fn push(&mut self, raw: Inst, span: &dyn Spanned) {
+    pub(crate) fn push(&mut self, raw: Inst, span: &dyn Spanned) -> compile::Result<()> {
         if let Inst::Call { hash, .. } = raw {
             self.required_functions
                 .entry(hash)
-                .or_default()
-                .push((span.span(), self.location.source_id));
+                .or_try_default()?
+                .try_push((span.span(), self.location.source_id))?;
         }
 
-        self.inner_push(AssemblyInst::Raw { raw }, span);
+        self.inner_push(AssemblyInst::Raw { raw }, span)?;
+        Ok(())
     }
 
     /// Push a raw instruction.
@@ -172,25 +212,21 @@ impl Assembly {
         span: &dyn Spanned,
         comment: &dyn fmt::Display,
     ) -> compile::Result<()> {
-        use core::fmt::Write;
-
         let pos = self.instructions.len();
 
-        let c = self.comments.entry(pos).or_default();
+        let c = self.comments.entry(pos).or_try_default()?;
 
         if !c.is_empty() {
-            c.push_str("; ");
+            c.try_push_str("; ")?;
         }
 
-        if let Err(fmt::Error) = write!(c, "{}", comment) {
-            return Err(compile::Error::msg(span, "Failed to write comment"));
-        }
-
-        self.push(raw, span);
+        write!(c, "{}", comment)?;
+        self.push(raw, span)?;
         Ok(())
     }
 
-    fn inner_push(&mut self, inst: AssemblyInst, span: &dyn Spanned) {
-        self.instructions.push((inst, span.span()));
+    fn inner_push(&mut self, inst: AssemblyInst, span: &dyn Spanned) -> compile::Result<()> {
+        self.instructions.try_push((inst, span.span()))?;
+        Ok(())
     }
 }

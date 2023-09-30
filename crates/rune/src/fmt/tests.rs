@@ -1,13 +1,14 @@
-use crate::no_std::prelude::*;
-
+use crate::alloc::prelude::*;
+use crate::alloc::{String, Vec};
 use crate::fmt::FormattingError;
+use crate::support::Result;
 
 pub(crate) fn layout_string(contents: String) -> Result<Vec<u8>, FormattingError> {
     super::layout_source(&contents)
 }
 
 #[test]
-fn test_layout_string() {
+fn test_layout_string() -> Result<()> {
     let input = r#"
         fn main() {
             let x = 1; let y = 2;           x + y
@@ -21,14 +22,13 @@ fn test_layout_string() {
 }
 "#;
 
-    assert_eq!(
-        layout_string(input.to_owned()).unwrap(),
-        expected.as_bytes()
-    );
+    assert_eq!(layout_string(input.try_to_owned()?)?, expected.as_bytes());
+
+    Ok(())
 }
 
 #[test]
-fn test_layout_two_fns() {
+fn test_layout_two_fns() -> Result<()> {
     let input = r#"
         fn main() {
             let x = 1; let y = 2;           x + y
@@ -52,14 +52,13 @@ fn foo() {
 }
 "#;
 
-    assert_eq!(
-        layout_string(input.to_owned()).unwrap(),
-        expected.as_bytes()
-    );
+    assert_eq!(layout_string(input.try_to_owned()?)?, expected.as_bytes());
+
+    Ok(())
 }
 
 #[test]
-fn test_layout_two_fns_with_comments() {
+fn test_layout_two_fns_with_comments() -> Result<()> {
     let input = r#"
         fn main() {
             let x = 1; let y = 2;           x + y
@@ -85,14 +84,13 @@ fn foo() {
 }
 "#;
 
-    assert_eq!(
-        layout_string(input.to_owned()).unwrap(),
-        expected.as_bytes()
-    );
+    assert_eq!(layout_string(input.try_to_owned()?)?, expected.as_bytes());
+
+    Ok(())
 }
 
 #[test]
-fn test_macrocall_whitespace() {
+fn test_macrocall_whitespace() -> Result<()> {
     let input = r#"
         fn main() {
             foo!();
@@ -108,13 +106,14 @@ fn test_macrocall_whitespace() {
 }
 "#;
 
-    let output = layout_string(input.to_owned()).unwrap();
-    let output = layout_string(String::from_utf8(output).unwrap()).unwrap();
-    assert_eq!(std::str::from_utf8(&output).unwrap(), expected);
+    let output = layout_string(input.try_to_owned()?)?;
+    let output = layout_string(String::from_utf8(output)?)?;
+    assert_eq!(std::str::from_utf8(&output)?, expected);
+    Ok(())
 }
 
 #[test]
-fn test_macrocall_whitespace2() {
+fn test_macrocall_whitespace2() -> Result<()> {
     let input = r#"make_function!(root_fn => { "Hello World!" });
 // NB: we put the import in the bottom to test that import resolution isn't order-dependent.
 "#;
@@ -123,16 +122,17 @@ fn test_macrocall_whitespace2() {
 // NB: we put the import in the bottom to test that import resolution isn't order-dependent.
 "#;
 
-    let output = layout_string(input.to_owned()).unwrap();
-    assert_eq!(std::str::from_utf8(&output).unwrap(), expected);
-    let output = layout_string(String::from_utf8(output).unwrap()).unwrap();
-    assert_eq!(std::str::from_utf8(&output).unwrap(), expected);
-    let output = layout_string(String::from_utf8(output).unwrap()).unwrap();
-    assert_eq!(std::str::from_utf8(&output).unwrap(), expected);
+    let output = layout_string(input.try_to_owned()?)?;
+    assert_eq!(std::str::from_utf8(&output)?, expected);
+    let output = layout_string(String::from_utf8(output)?)?;
+    assert_eq!(std::str::from_utf8(&output)?, expected);
+    let output = layout_string(String::from_utf8(output)?)?;
+    assert_eq!(std::str::from_utf8(&output)?, expected);
+    Ok(())
 }
 
 #[test]
-fn test_macrocall_whitespace3() {
+fn test_macrocall_whitespace3() -> Result<()> {
     let input = r#"make_function!(root_fn => { "Hello World!" });
 
 
@@ -149,10 +149,11 @@ fn test_macrocall_whitespace3() {
 // NB: we put the import in the bottom to test that import resolution isn't order-dependent.
 "#;
 
-    let output = layout_string(input.to_owned()).unwrap();
-    assert_eq!(std::str::from_utf8(&output).unwrap(), expected);
-    let output = layout_string(String::from_utf8(output).unwrap()).unwrap();
-    assert_eq!(std::str::from_utf8(&output).unwrap(), expected);
-    let output = layout_string(String::from_utf8(output).unwrap()).unwrap();
-    assert_eq!(std::str::from_utf8(&output).unwrap(), expected);
+    let output = layout_string(input.try_to_owned()?)?;
+    assert_eq!(std::str::from_utf8(&output)?, expected);
+    let output = layout_string(String::from_utf8(output)?)?;
+    assert_eq!(std::str::from_utf8(&output)?, expected);
+    let output = layout_string(String::from_utf8(output)?)?;
+    assert_eq!(std::str::from_utf8(&output)?, expected);
+    Ok(())
 }

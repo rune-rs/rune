@@ -1,7 +1,7 @@
 use core::fmt;
 
 use crate::Sources;
-use crate::workspace::{SourceLoader, Diagnostics, FileSourceLoader};
+use crate::workspace::{SourceLoader, Diagnostics, FileSourceLoader, WorkspaceError};
 use crate::workspace::manifest::{Loader, Manifest};
 
 /// Failed to build workspace.
@@ -79,7 +79,10 @@ impl<'a> Build<'a> {
 
         for id in self.sources.source_ids() {
             let mut loader = Loader::new(id, self.sources, diagnostics, source_loader, &mut manifest);
-            loader.load_manifest();
+
+            if let Err(error) = loader.load_manifest() {
+                diagnostics.fatal(id, WorkspaceError::from(error));
+            }
         }
 
         if diagnostics.has_errors() {

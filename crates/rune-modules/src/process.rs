@@ -15,7 +15,7 @@
 //! ```rust
 //! let mut context = rune::Context::with_default_modules()?;
 //! context.install(rune_modules::process::module(true)?)?;
-//! # Ok::<_, rune::Error>(())
+//! # Ok::<_, rune::support::Error>(())
 //! ```
 //!
 //! Use it in Rune:
@@ -29,15 +29,17 @@
 //! }
 //! ```
 
-use rune::{Any, Module, ContextError};
+use rune::{Any, Module, ContextError, vm_try};
 use rune::runtime::{Bytes, Shared, Value, VmResult, Formatter};
-use rune::alloc::TryWrite;
+use rune::alloc::fmt::TryWrite;
+use rune::alloc::Vec;
+
 use std::io;
 use tokio::process;
 
 /// Construct the `process` module.
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
-    let mut module = Module::with_crate("process");
+    let mut module = Module::with_crate("process")?;
     module.ty::<Command>()?;
     module.ty::<Child>()?;
     module.ty::<ExitStatus>()?;
@@ -74,10 +76,10 @@ impl Command {
         for arg in args {
             match arg {
                 Value::String(s) => {
-                    self.inner.arg(&*rune::vm_try!(s.borrow_ref()));
+                    self.inner.arg(&*vm_try!(s.borrow_ref()));
                 }
                 actual => {
-                    return VmResult::expected::<String>(rune::vm_try!(actual.type_info()));
+                    return VmResult::expected::<String>(vm_try!(actual.type_info()));
                 }
             }
         }
@@ -113,25 +115,22 @@ struct Child {
 impl Child {
     // Returns a future that will resolve to an Output, containing the exit
     // status, stdout, and stderr of the child process.
-    #[rune::function(instance)]
-    async fn wait_with_output(self) -> VmResult<io::Result<Output>> {
+    #[rune::function(vm_result, instance)]
+    async fn wait_with_output(self) -> io::Result<Output> {
         let inner = match self.inner {
             Some(inner) => inner,
             None => {
-                return VmResult::panic("already completed");
+                rune::vm_panic!("already completed");
             }
         };
 
-        let output = match inner.wait_with_output().await {
-            Ok(output) => output,
-            Err(error) => return VmResult::Ok(Err(error)),
-        };
+        let output = inner.wait_with_output().await?;
 
-        VmResult::Ok(Ok(Output {
+        Ok(Output {
             status: ExitStatus { status: output.status },
-            stdout: rune::vm_try!(Shared::new(Bytes::from_vec(output.stdout))),
-            stderr: rune::vm_try!(Shared::new(Bytes::from_vec(output.stderr))),
-        }))
+            stdout: Shared::new(Bytes::from_vec(Vec::try_from(output.stdout).vm?)).vm?,
+            stderr: Shared::new(Bytes::from_vec(Vec::try_from(output.stderr).vm?)).vm?,
+        })
     }
 }
 

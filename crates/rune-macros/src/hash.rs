@@ -11,11 +11,14 @@ pub(crate) fn build_type_hash(path: &syn::Path) -> syn::Result<Hash> {
     for s in &path.segments {
         let ident = s.ident.to_string();
 
-        if take(&mut first) {
-            buf.push(ComponentRef::Crate(&ident));
+        let c = if take(&mut first) {
+            ComponentRef::Crate(&ident)
         } else {
-            buf.push(ComponentRef::Str(&ident));
-        }
+            ComponentRef::Str(&ident)
+        };
+
+        buf.push(c)
+            .map_err(|error| syn::Error::new_spanned(s, error))?;
 
         match &s.arguments {
             syn::PathArguments::None => {}

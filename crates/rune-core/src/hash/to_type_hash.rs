@@ -1,5 +1,7 @@
 use core::hash::{self, Hash as _, Hasher as _};
 
+#[cfg(feature = "alloc")]
+use crate::alloc;
 use crate::hash::{Hash, TYPE};
 use crate::item::{IntoComponent, ItemBuf};
 
@@ -14,7 +16,8 @@ pub trait ToTypeHash {
 
     /// Optionally convert into an item, if appropriate.
     #[doc(hidden)]
-    fn to_item(&self) -> Option<ItemBuf>;
+    #[cfg(feature = "alloc")]
+    fn to_item(&self) -> alloc::Result<Option<ItemBuf>>;
 
     /// Hash the current value in-place.
     #[doc(hidden)]
@@ -36,8 +39,9 @@ where
     }
 
     #[inline]
-    fn to_item(&self) -> Option<ItemBuf> {
-        Some(ItemBuf::with_item(*self))
+    #[cfg(feature = "alloc")]
+    fn to_item(&self) -> alloc::Result<Option<ItemBuf>> {
+        Ok(Some(ItemBuf::with_item(*self)?))
     }
 
     #[inline]
@@ -60,8 +64,9 @@ impl ToTypeHash for Hash {
     }
 
     #[inline]
-    fn to_item(&self) -> Option<ItemBuf> {
-        None
+    #[cfg(feature = "alloc")]
+    fn to_item(&self) -> alloc::Result<Option<ItemBuf>> {
+        Ok(None)
     }
 
     #[inline]

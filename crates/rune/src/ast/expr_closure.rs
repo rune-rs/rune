@@ -21,7 +21,7 @@ fn ast_parse() {
 ///
 /// * `|| <expr>`.
 /// * `async || <expr>`.
-#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned, Opaque)]
+#[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned, Opaque)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]
 pub struct ExprClosure {
@@ -57,7 +57,7 @@ impl ExprClosure {
 expr_parse!(Closure, ExprClosure, "closure expression");
 
 /// Representation of closure arguments.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens)]
 #[non_exhaustive]
 pub enum ExprClosureArgs {
     /// Closure has no arguments.
@@ -116,7 +116,7 @@ impl Parse for ExprClosureArgs {
 
             let comma = p.parse::<Option<T![,]>>()?;
             let is_end = comma.is_none();
-            args.push((arg, comma));
+            args.try_push((arg, comma))?;
 
             if is_end {
                 break;

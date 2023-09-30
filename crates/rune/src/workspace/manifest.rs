@@ -1,18 +1,19 @@
 use std::fmt;
 use std::path::{PathBuf, Path};
-use std::{iter};
+use std::iter;
 use std::io;
 use std::fs;
 use std::ffi::OsStr;
 
-use crate::no_std::prelude::*;
-
+use anyhow::Result;
 use relative_path::{RelativePathBuf, RelativePath};
 use semver::Version;
-use serde::de::{IntoDeserializer};
+use serde::de::IntoDeserializer;
 use serde::Deserialize;
 use serde_hashkey as key;
 
+use crate::alloc::{self, Vec, String};
+use crate::alloc::prelude::*;
 use crate::{Sources, SourceId};
 use crate::ast::{Span, Spanned};
 use crate::workspace::{MANIFEST_FILE, WorkspaceErrorKind, Diagnostics, WorkspaceError, SourceLoader};
@@ -109,12 +110,12 @@ pub struct Manifest {
 }
 
 impl Manifest {
-    fn find_paths<'m>(&'m self, m: WorkspaceFilter<'_>, kind: FoundKind, auto_path: &Path, auto_find: fn(&Package) -> bool) -> io::Result<Vec<FoundPackage<'m>>> {
+    fn find_paths<'m>(&'m self, m: WorkspaceFilter<'_>, kind: FoundKind, auto_path: &Path, auto_find: fn(&Package) -> bool) -> Result<Vec<FoundPackage<'m>>> {
         let mut output = Vec::new();
 
         for package in self.packages.iter() {
             for found in package.find_paths(m, kind, auto_path, auto_find)? {
-                output.push(FoundPackage { found, package });
+                output.try_push(FoundPackage { found, package })?;
             }
         }
 
@@ -122,32 +123,32 @@ impl Manifest {
     }
 
     /// Find every single entrypoint available.
-    pub fn find_all(&self, m: WorkspaceFilter<'_>) -> io::Result<Vec<FoundPackage<'_>>> {
+    pub fn find_all(&self, m: WorkspaceFilter<'_>) -> Result<Vec<FoundPackage<'_>>> {
         let mut output = Vec::new();
-        output.extend(self.find_bins(m)?);
-        output.extend(self.find_tests(m)?);
-        output.extend(self.find_examples(m)?);
-        output.extend(self.find_benches(m)?);
+        output.try_extend(self.find_bins(m)?)?;
+        output.try_extend(self.find_tests(m)?)?;
+        output.try_extend(self.find_examples(m)?)?;
+        output.try_extend(self.find_benches(m)?)?;
         Ok(output)
     }
 
     /// Find all binaries matching the given name in the workspace.
-    pub fn find_bins(&self, m: WorkspaceFilter<'_>) -> io::Result<Vec<FoundPackage<'_>>> {
+    pub fn find_bins(&self, m: WorkspaceFilter<'_>) -> Result<Vec<FoundPackage<'_>>> {
         self.find_paths(m, FoundKind::Binary, Path::new(BIN), |p| p.auto_bins)
     }
 
     /// Find all tests associated with the given base name.
-    pub fn find_tests(&self, m: WorkspaceFilter<'_>) -> io::Result<Vec<FoundPackage<'_>>> {
+    pub fn find_tests(&self, m: WorkspaceFilter<'_>) -> Result<Vec<FoundPackage<'_>>> {
         self.find_paths(m, FoundKind::Test, Path::new(TESTS), |p| p.auto_tests)
     }
 
     /// Find all examples matching the given name in the workspace.
-    pub fn find_examples(&self, m: WorkspaceFilter<'_>) -> io::Result<Vec<FoundPackage<'_>>> {
+    pub fn find_examples(&self, m: WorkspaceFilter<'_>) -> Result<Vec<FoundPackage<'_>>> {
         self.find_paths(m, FoundKind::Example, Path::new(EXAMPLES), |p| p.auto_examples)
     }
 
     /// Find all benches matching the given name in the workspace.
-    pub fn find_benches(&self, m: WorkspaceFilter<'_>) -> io::Result<Vec<FoundPackage<'_>>> {
+    pub fn find_benches(&self, m: WorkspaceFilter<'_>) -> Result<Vec<FoundPackage<'_>>> {
         self.find_paths(m, FoundKind::Bench, Path::new(BENCHES), |p| p.auto_benches)
     }
 }
@@ -173,7 +174,7 @@ pub struct Package {
 }
 
 impl Package {
-    fn find_paths(&self, m: WorkspaceFilter<'_>, kind: FoundKind, auto_path: &Path, auto_find: fn(&Package) -> bool) -> io::Result<Vec<Found>> {
+    fn find_paths(&self, m: WorkspaceFilter<'_>, kind: FoundKind, auto_path: &Path, auto_find: fn(&Package) -> bool) -> Result<Vec<Found>> {
         let mut output = Vec::new();
 
         if let (Some(path), true) = (&self.root, auto_find(self)) {
@@ -184,7 +185,7 @@ impl Package {
                 let (path, name) = result?;
 
                 if m.matches(&name) {
-                    output.push(Found { kind, path, name });
+                    output.try_push(Found { kind, path, name })?;
                 }
             }
         }
@@ -193,32 +194,32 @@ impl Package {
     }
 
     /// Find every single entrypoint available.
-    pub fn find_all(&self, m: WorkspaceFilter<'_>) -> io::Result<Vec<Found>> {
+    pub fn find_all(&self, m: WorkspaceFilter<'_>) -> Result<Vec<Found>> {
         let mut output = Vec::new();
-        output.extend(self.find_bins(m)?);
-        output.extend(self.find_tests(m)?);
-        output.extend(self.find_examples(m)?);
-        output.extend(self.find_benches(m)?);
+        output.try_extend(self.find_bins(m)?)?;
+        output.try_extend(self.find_tests(m)?)?;
+        output.try_extend(self.find_examples(m)?)?;
+        output.try_extend(self.find_benches(m)?)?;
         Ok(output)
     }
 
     /// Find all binaries matching the given name in the workspace.
-    pub fn find_bins(&self, m: WorkspaceFilter<'_>) -> io::Result<Vec<Found>> {
+    pub fn find_bins(&self, m: WorkspaceFilter<'_>) -> Result<Vec<Found>> {
         self.find_paths(m, FoundKind::Binary, Path::new(BIN), |p| p.auto_bins)
     }
 
     /// Find all tests associated with the given base name.
-    pub fn find_tests(&self, m: WorkspaceFilter<'_>) -> io::Result<Vec<Found>> {
+    pub fn find_tests(&self, m: WorkspaceFilter<'_>) -> Result<Vec<Found>> {
         self.find_paths(m, FoundKind::Test, Path::new(TESTS), |p| p.auto_tests)
     }
 
     /// Find all examples matching the given name in the workspace.
-    pub fn find_examples(&self, m: WorkspaceFilter<'_>) -> io::Result<Vec<Found>> {
+    pub fn find_examples(&self, m: WorkspaceFilter<'_>) -> Result<Vec<Found>> {
         self.find_paths(m, FoundKind::Example, Path::new(EXAMPLES), |p| p.auto_examples)
     }
 
     /// Find all benches matching the given name in the workspace.
-    pub fn find_benches(&self, m: WorkspaceFilter<'_>) -> io::Result<Vec<Found>> {
+    pub fn find_benches(&self, m: WorkspaceFilter<'_>) -> Result<Vec<Found>> {
         self.find_paths(m, FoundKind::Bench, Path::new(BENCHES), |p| p.auto_benches)
     }
 }
@@ -245,10 +246,10 @@ impl<'a> Loader<'a> {
     }
 
     /// Load a manifest.
-    pub(crate) fn load_manifest(&mut self) {
+    pub(crate) fn load_manifest(&mut self) -> alloc::Result<()> {
         let Some(source) = self.sources.get(self.id) else {
             self.fatal(WorkspaceError::new(Span::empty(), WorkspaceErrorKind::MissingSourceId { source_id: self.id }));
-            return;
+            return Ok(());
         };
 
         let value: SpannedValue = match toml::from_str(source.as_str()) {
@@ -260,21 +261,21 @@ impl<'a> Loader<'a> {
                 };
 
                 self.fatal(WorkspaceError::new(span, e));
-                return;
+                return Ok(());
             }
         };
 
-        let root = source.path().and_then(|p| Some(p.parent()?.to_owned()));
+        let root = source.path().and_then(|p| p.parent().map(TryToOwned::try_to_owned)).transpose()?;
         let root = root.as_deref();
 
         let Some((mut table, _)) = self.ensure_table(value) else {
-            return;
+            return Ok(());
         };
 
         // If manifest is a package, add it here.
         if let Some((package, span)) = table.remove("package").and_then(|value| self.ensure_table(value)) {
-            if let Some(package) = self.load_package(package, span, root) {
-                self.manifest.packages.push(package);
+            if let Some(package) = self.load_package(package, span, root)? {
+                self.manifest.packages.try_push(package)?;
             }
         }
 
@@ -282,9 +283,9 @@ impl<'a> Loader<'a> {
         if let Some((mut table, span)) = table.remove("workspace").and_then(|value| self.ensure_table(value)) {
             match &root {
                 Some(root) => {
-                    if let Some(members) = self.load_members(&mut table, root) {
+                    if let Some(members) = self.load_members(&mut table, root)? {
                         for (span, path) in members {
-                            self.load_member(span, &path);
+                            self.load_member(span, &path)?;
                         }
                     }
                 },
@@ -293,19 +294,23 @@ impl<'a> Loader<'a> {
                 }
             }
 
-            self.ensure_empty(table);
+            self.ensure_empty(table)?;
         }
 
-        self.ensure_empty(table);
+        self.ensure_empty(table)?;
+        Ok(())
     }
 
     /// Load members from the given workspace configuration.
-    fn load_members(&mut self, table: &mut Table, root: &Path) -> Option<Vec<(Span, PathBuf)>> {
+    fn load_members(&mut self, table: &mut Table, root: &Path) -> alloc::Result<Option<Vec<(Span, PathBuf)>>> {
         let Some(members) = table.remove("members") else {
-            return None;
+            return Ok(None);
         };
 
-        let (members, _) = self.ensure_array(members)?;
+        let Some((members, _)) = self.ensure_array(members) else {
+            return Ok(None);
+        };
+
         let mut output = Vec::new();
 
         for value in members {
@@ -313,7 +318,7 @@ impl<'a> Loader<'a> {
 
             match deserialize::<RelativePathBuf>(value) {
                 Ok(member) => {
-                    self.glob_relative_path(&mut output, span, &member, root);
+                    self.glob_relative_path(&mut output, span, &member, root)?;
                 }
                 Err(error) => {
                     self.fatal(error);
@@ -321,18 +326,18 @@ impl<'a> Loader<'a> {
             };
         }
 
-        Some(output)
+        Ok(Some(output))
     }
 
     /// Glob a relative path.
     ///
     /// Currently only supports expanding `*` and required interacting with the
     /// filesystem.
-    fn glob_relative_path(&mut self, output: &mut Vec<(Span, PathBuf)>, span: Span, member: &RelativePath, root: &Path) {
+    fn glob_relative_path(&mut self, output: &mut Vec<(Span, PathBuf)>, span: Span, member: &RelativePath, root: &Path) -> alloc::Result<()> {
         let glob = crate::workspace::glob::Glob::new(root, member);
 
         for m in glob.matcher() {
-            let Some(mut path) = self.source_error(span, root, m) else {
+            let Some(mut path) = self.source_error(span, root, m)? else {
                 continue;
             };
 
@@ -342,64 +347,73 @@ impl<'a> Loader<'a> {
                 continue;
             }
 
-            output.push((span, path));
+            output.try_push((span, path))?;
         }
+
+        Ok(())
     }
 
     /// Helper to convert an [io::Error] into a [WorkspaceErrorKind::SourceError].
-    fn source_error<T>(&mut self, span: Span, path: &Path, result: io::Result<T>) -> Option<T> {
-        match result {
+    fn source_error<T>(&mut self, span: Span, path: &Path, result: io::Result<T>) -> alloc::Result<Option<T>> {
+        Ok(match result {
             Ok(result) => Some(result),
             Err(error) => {
                 self.fatal(WorkspaceError::new(span, WorkspaceErrorKind::FileError {
-                    path: path.into(),
+                    path: path.try_into()?,
                     error,
                 }));
 
                 None
             }
-        }
+        })
     }
 
     /// Try to load the given path as a member in the current manifest.
-    fn load_member(&mut self, span: Span, path: &Path) {
+    fn load_member(&mut self, span: Span, path: &Path) -> alloc::Result<()> {
         let source = match self.source_loader.load(span, path) {
             Ok(source) => source,
             Err(error) => {
                 self.fatal(error);
-                return;
+                return Ok(());
             }
         };
 
-        let id = self.sources.insert(source);
+        let id = self.sources.insert(source)?;
         let old = std::mem::replace(&mut self.id, id);
-        self.load_manifest();
+        self.load_manifest()?;
         self.id = old;
+        Ok(())
     }
 
     /// Load a package from a value.
-    fn load_package(&mut self, mut table: Table, span: Span, root: Option<&Path>) -> Option<Package> {
+    fn load_package(&mut self, mut table: Table, span: Span, root: Option<&Path>) -> alloc::Result<Option<Package>> {
         let name = self.field(&mut table, span, "name");
         let version = self.field(&mut table, span, "version");
-        self.ensure_empty(table);
+        self.ensure_empty(table)?;
 
-        Some(Package {
-            name: name?,
-            version: version?,
+        let (Some(name), Some(version)) = (name, version) else {
+            return Ok(None);
+        };
+
+        Ok(Some(Package {
+            name,
+            version,
             root: root.map(|p| p.into()),
             auto_bins: true,
             auto_tests: true,
             auto_examples: true,
             auto_benches: true,
-        })
+        }))
     }
 
     /// Ensure that a table is empty and mark any additional elements as erroneous.
-    fn ensure_empty(&mut self, table: Table) {
+    fn ensure_empty(&mut self, table: Table) -> alloc::Result<()> {
         for (key, _) in table {
             let span = Spanned::span(&key);
-            self.fatal(WorkspaceError::new(span, WorkspaceErrorKind::UnsupportedKey { key: key.get_ref().clone() }));
+            self.fatal(WorkspaceError::new(span, WorkspaceErrorKind::UnsupportedKey { key: key.get_ref().as_str().try_into()? }));
         }
+
+        Ok(())
     }
 
     /// Ensure that value is a table.
@@ -466,11 +480,11 @@ fn deserialize<T>(value: SpannedValue) -> Result<T, WorkspaceError> where T: for
 }
 
 /// Find all rune files in the given path.
-fn find_rune_files(path: &Path) -> io::Result<impl Iterator<Item = io::Result<(PathBuf, String)>>> {
+fn find_rune_files(path: &Path) -> Result<impl Iterator<Item = Result<(PathBuf, String)>>> {
     let mut dir = match fs::read_dir(path) {
         Ok(dir) => Some(dir),
         Err(e) if e.kind() == io::ErrorKind::NotFound => None,
-        Err(e) => return Err(e),
+        Err(e) => return Err(e.into()),
     };
 
     Ok(iter::from_fn(move || {
@@ -479,12 +493,12 @@ fn find_rune_files(path: &Path) -> io::Result<impl Iterator<Item = io::Result<(P
 
             let e = match e {
                 Ok(e) => e,
-                Err(err) => return Some(Err(err)),
+                Err(err) => return Some(Err(err.into())),
             };
 
             let m = match e.metadata() {
                 Ok(m) => m,
-                Err(err) => return Some(Err(err)),
+                Err(err) => return Some(Err(err.into())),
             };
 
             if !m.is_file() {
@@ -501,7 +515,11 @@ fn find_rune_files(path: &Path) -> io::Result<impl Iterator<Item = io::Result<(P
                 continue;
             }
 
-            let name = name.into();
+            let name = match String::try_from(name) {
+                Ok(name) => name,
+                Err(error) => return Some(Err(error.into())),
+            };
+
             return Some(Ok((path, name)));
         }
     }))

@@ -241,7 +241,7 @@ impl Access {
         let state = self.get();
 
         if state == MAX_USES {
-            crate::no_std::abort();
+            crate::alloc::abort();
         }
 
         let n = state.wrapping_sub(1);
@@ -385,7 +385,7 @@ impl<'a, T: ?Sized> BorrowRef<'a, T> {
     /// let value: BorrowRef<[u32]> = BorrowRef::map(vec, |vec| &vec[0..2]);
     ///
     /// assert_eq!(&*value, &[1u32, 2u32][..]);
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn map<M, U: ?Sized>(this: Self, m: M) -> BorrowRef<'a, U>
     where
@@ -409,7 +409,7 @@ impl<'a, T: ?Sized> BorrowRef<'a, T> {
     /// let mut value: Option<BorrowRef<[u32]>> = BorrowRef::try_map(vec, |vec| vec.get(0..2));
     ///
     /// assert_eq!(value.as_deref(), Some(&[1u32, 2u32][..]));
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn try_map<M, U: ?Sized>(this: Self, m: M) -> Option<BorrowRef<'a, U>>
     where
@@ -523,7 +523,7 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
     /// let value: BorrowMut<[u32]> = BorrowMut::map(vec, |vec| &mut vec[0..2]);
     ///
     /// assert_eq!(&*value, &mut [1u32, 2u32][..]);
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn map<M, U: ?Sized>(this: Self, m: M) -> BorrowMut<'a, U>
     where
@@ -547,7 +547,7 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
     /// let mut value: Option<BorrowMut<[u32]>> = BorrowMut::try_map(vec, |vec| vec.get_mut(0..2));
     ///
     /// assert_eq!(value.as_deref_mut(), Some(&mut [1u32, 2u32][..]));
-    /// # Ok::<_, rune::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn try_map<M, U: ?Sized>(this: Self, m: M) -> Option<BorrowMut<'a, U>>
     where

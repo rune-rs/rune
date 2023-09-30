@@ -1,7 +1,6 @@
 //! Macro compiler.
 
-use crate::no_std::prelude::*;
-
+use crate::alloc::prelude::*;
 use crate::ast;
 use crate::ast::Spanned;
 use crate::compile::{self, ErrorKind, ItemMeta};
@@ -41,7 +40,7 @@ impl MacroCompiler<'_, '_, '_> {
                 return Err(compile::Error::new(
                     span,
                     ErrorKind::MissingMacro {
-                        item: self.idx.q.pool.item(named.item).to_owned(),
+                        item: self.idx.q.pool.item(named.item).try_to_owned()?,
                     },
                 ));
             }
@@ -104,7 +103,7 @@ impl MacroCompiler<'_, '_, '_> {
             };
 
             let mut item_stream = TokenStream::new();
-            item.to_tokens(&mut macro_context, &mut item_stream);
+            item.to_tokens(&mut macro_context, &mut item_stream)?;
 
             handler(&mut macro_context, input_stream, &item_stream)?
         };

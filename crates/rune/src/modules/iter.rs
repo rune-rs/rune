@@ -14,7 +14,7 @@ use crate::{ContextError, Module};
 
 /// Construct the `std::iter` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["iter"]);
+    let mut module = Module::with_crate_item("std", ["iter"])?;
     module.ty::<Iterator>()?;
 
     module.function_meta(next)?;

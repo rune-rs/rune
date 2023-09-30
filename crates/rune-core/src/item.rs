@@ -1,4 +1,6 @@
+#[cfg(feature = "alloc")]
 mod item_buf;
+#[cfg(feature = "alloc")]
 pub use self::item_buf::ItemBuf;
 
 mod item;
@@ -19,6 +21,8 @@ mod into_component;
 pub use self::into_component::IntoComponent;
 
 mod internal;
+
+mod serde;
 
 #[cfg(test)]
 mod tests;

@@ -1,30 +1,9 @@
 //! Types used to govern how allocations are performed.
 
 use core::alloc::Layout;
-use core::fmt;
 
-use crate::ptr::{self, invalid_mut, NonNull};
-
-use ::rust_alloc::alloc::{alloc, alloc_zeroed, dealloc};
-
-/// Error raised while allocating.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct AllocError {
-    pub(crate) layout: Layout,
-}
-
-impl fmt::Display for AllocError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "Failed to allocate {} bytes of memory",
-            self.layout.size()
-        )
-    }
-}
-
-#[cfg(feature = "std")]
-impl ::rust_std::error::Error for AllocError {}
+use crate::alloc::AllocError;
+use crate::ptr::{self, NonNull};
 
 /// An implementation of `Allocator` can allocate, grow, shrink, and deallocate
 /// arbitrary blocks of data described via [`Layout`].
@@ -299,8 +278,7 @@ where
 
     #[inline]
     unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
-        // SAFETY: the safety contract must be upheld by the caller
-        unsafe { (**self).deallocate(ptr, layout) }
+        (**self).deallocate(ptr, layout)
     }
 
     #[inline]
@@ -310,8 +288,7 @@ where
         old_layout: Layout,
         new_layout: Layout,
     ) -> Result<NonNull<[u8]>, AllocError> {
-        // SAFETY: the safety contract must be upheld by the caller
-        unsafe { (**self).grow(ptr, old_layout, new_layout) }
+        (**self).grow(ptr, old_layout, new_layout)
     }
 
     #[inline]
@@ -321,63 +298,6 @@ where
         old_layout: Layout,
         new_layout: Layout,
     ) -> Result<NonNull<[u8]>, AllocError> {
-        // SAFETY: the safety contract must be upheld by the caller
-        unsafe { (**self).shrink(ptr, old_layout, new_layout) }
-    }
-}
-
-/// The default global allocator.
-#[derive(Default, Debug, Clone)]
-pub struct Global;
-
-impl Global {
-    #[inline]
-    fn alloc_impl(&self, layout: Layout, zeroed: bool) -> Result<NonNull<[u8]>, AllocError> {
-        /// Creates a `NonNull` that is dangling, but well-aligned for this Layout.
-        ///
-        /// Note that the pointer value may potentially represent a valid pointer, which
-        /// means this must not be used as a "not yet initialized" sentinel value. Types
-        /// that lazily allocate must track initialization by some other means.
-        pub(crate) const fn dangling<T>(layout: &Layout) -> NonNull<T> {
-            unsafe { NonNull::new_unchecked(invalid_mut::<T>(layout.align())) }
-        }
-
-        match layout.size() {
-            0 => Ok(NonNull::slice_from_raw_parts(dangling(&layout), 0)),
-            // SAFETY: `layout` is non-zero in size,
-            size => unsafe {
-                let raw_ptr = if zeroed {
-                    alloc_zeroed(layout)
-                } else {
-                    alloc(layout)
-                };
-
-                let Some(ptr) = NonNull::new(raw_ptr) else {
-                    return Err(AllocError { layout });
-                };
-
-                Ok(NonNull::slice_from_raw_parts(ptr, size))
-            },
-        }
-    }
-}
-
-unsafe impl Allocator for Global {
-    #[inline]
-    fn allocate(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
-        self.alloc_impl(layout, false)
-    }
-
-    #[inline]
-    fn allocate_zeroed(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
-        self.alloc_impl(layout, true)
-    }
-
-    unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
-        if layout.size() != 0 {
-            // SAFETY: `layout` is non-zero in size,
-            // other conditions must be upheld by the caller
-            unsafe { dealloc(ptr.as_ptr(), layout) }
-        }
+        (**self).shrink(ptr, old_layout, new_layout)
     }
 }
