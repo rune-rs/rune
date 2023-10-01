@@ -24,6 +24,10 @@
 //! dependency errors since its API is not stable.
 
 #![allow(clippy::module_inception)]
+#![deny(rustdoc::broken_intra_doc_links)]
+#![deny(rustdoc::private_doc_tests)]
+#![cfg_attr(rune_nightly, feature(rustdoc_missing_doc_code_examples))]
+#![cfg_attr(rune_nightly, deny(rustdoc::missing_doc_code_examples))]
 #![no_std]
 
 #[cfg(feature = "std")]

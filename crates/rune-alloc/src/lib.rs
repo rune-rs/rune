@@ -36,6 +36,10 @@
 #![no_std]
 // TODO: get rid of this once we've evaluated what we want to have public.
 #![allow(dead_code)]
+#![deny(rustdoc::broken_intra_doc_links)]
+#![deny(rustdoc::private_doc_tests)]
+#![cfg_attr(rune_nightly, feature(rustdoc_missing_doc_code_examples))]
+#![cfg_attr(rune_nightly, deny(rustdoc::missing_doc_code_examples))]
 #![cfg_attr(rune_nightly, feature(core_intrinsics))]
 #![cfg_attr(rune_nightly, feature(dropck_eyepatch))]
 #![cfg_attr(rune_nightly, feature(min_specialization))]
@@ -134,6 +138,8 @@ pub(crate) mod hint;
 pub(crate) mod ptr;
 #[doc(hidden)]
 pub mod slice;
+
+pub mod callable;
 
 pub mod prelude {
     //! Prelude for common traits used in combination with this crate which

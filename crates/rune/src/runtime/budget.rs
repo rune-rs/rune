@@ -13,16 +13,18 @@ use core::future::Future;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
+use crate::alloc::callable::Callable;
+
 use pin_project::pin_project;
 
-#[cfg(feature = "std")]
-#[cfg(not(feature = "std"))]
-static BUDGET: Cell<usize> = Cell::new(usize::MAX);
-
-/// Something being budgeted.
+/// Wrapper for something being [budgeted].
+///
+/// See [with].
+///
+/// [budgeted]: self
 #[pin_project]
 pub struct Budget<T> {
-    /// The current budget.
+    /// Instruction budget.
     budget: usize,
     /// The thing being budgeted.
     #[pin]
@@ -38,24 +40,57 @@ pub struct Budget<T> {
 /// native functions that you provide to Rune to ensure that the limits you
 /// impose cannot be circumvented.
 ///
+/// The following things can be wrapped:
+/// * A [`FnOnce`] closure, like `with(|| println!("Hello World")).call()`.
+/// * A [`Future`], like `with(async { /* async work */ }).await`;
+///
+/// It's also possible to wrap other wrappers which implement [`Callable`].
+///
+/// # Examples
+///
 /// ```no_run
 /// use rune::runtime::budget;
 /// use rune::Vm;
 ///
 /// let mut vm: Vm = todo!();
-/// // The virtual machine and any tasks associated with it is only allowed to execute 100 instructions.
+/// // The virtual machine and any tasks associated with it is only allowed to execute 100 budget.
 /// budget::with(100, || vm.call(&["main"], ())).call()?;
 /// # Ok::<(), rune::support::Error>(())
+/// ```
+///
+/// This budget can be conveniently combined with the memory [`limit`] module
+/// due to both wrappers implementing [`Callable`].
+///
+/// [`limit`]: crate::alloc::limit
+///
+/// ```
+/// use rune::runtime::budget;
+/// use rune::alloc::{limit, Vec};
+///
+/// #[derive(Debug, PartialEq)]
+/// struct Marker;
+///
+/// // Limit the given closure to run one instruction and allocate 1024 bytes.
+/// let f = budget::with(1, limit::with(1024, || {
+///     assert!(budget::take());
+///     assert!(!budget::take());
+///     assert!(Vec::<u8>::try_with_capacity(1).is_ok());
+///     assert!(Vec::<u8>::try_with_capacity(1024).is_ok());
+///     assert!(Vec::<u8>::try_with_capacity(1025).is_err());
+///     Marker
+/// }));
+///
+/// assert_eq!(f.call(), Marker);
 /// ```
 pub fn with<T>(budget: usize, value: T) -> Budget<T> {
     tracing::trace!(?budget);
     Budget { budget, value }
 }
 
-/// Take a ticket from the budget, indicating with `true` if the budget is
-/// maintained
+/// Take a ticket from the budget, returning `true` if we were still within the
+/// budget before the ticket was taken, `false` otherwise.
 #[inline(never)]
-pub(crate) fn take() -> bool {
+pub fn take() -> bool {
     self::no_std::rune_budget_take()
 }
 
@@ -68,14 +103,26 @@ impl Drop for BudgetGuard {
     }
 }
 
-impl<T, O> Budget<T>
+impl<T> Budget<T>
 where
-    T: FnOnce() -> O,
+    T: Callable,
 {
-    /// Call the wrapped function.
-    pub fn call(self) -> O {
+    /// Call the budgeted function.
+    pub fn call(self) -> T::Output {
+        Callable::call(self)
+    }
+}
+
+impl<T> Callable for Budget<T>
+where
+    T: Callable,
+{
+    type Output = T::Output;
+
+    #[inline]
+    fn call(self) -> Self::Output {
         let _guard = BudgetGuard(self::no_std::rune_budget_replace(self.budget));
-        (self.value)()
+        self.value.call()
     }
 }
 

@@ -245,7 +245,7 @@ fn is_uppercase(c: char) -> bool {
 ///
 /// Basic usage:
 ///
-/// ```
+/// ```rune
 /// assert!(' '.is_whitespace());
 ///
 /// // line break
@@ -287,21 +287,21 @@ fn is_whitespace(c: char) -> bool {
 ///
 /// Basic usage:
 ///
-/// ```
+/// ```rune
 /// assert_eq!('1'.to_digit(10), Some(1));
 /// assert_eq!('f'.to_digit(16), Some(15));
 /// ```
 ///
 /// Passing a non-digit results in failure:
 ///
-/// ```
+/// ```rune
 /// assert_eq!('f'.to_digit(10), None);
 /// assert_eq!('z'.to_digit(16), None);
 /// ```
 ///
 /// Passing a large radix, causing a panic:
 ///
-/// ```should_panic
+/// ```rune,should_panic
 /// // this panics
 /// let _ = '1'.to_digit(37);
 /// ```
