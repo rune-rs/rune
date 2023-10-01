@@ -730,7 +730,7 @@ float_product_ops!(product_float, f64);
 ///
 /// Basic usage:
 ///
-/// ```
+/// ```rune
 /// let a = [1, 2, 3];
 ///
 /// // the sum of all of the elements of the array

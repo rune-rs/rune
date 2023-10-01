@@ -83,6 +83,8 @@ fn is_nan(this: f64) -> bool {
 /// Returns `true` if this value is positive infinity or negative infinity, and
 /// `false` otherwise.
 ///
+/// # Examples
+///
 /// ```rune
 /// let f = 7.0f64;
 /// let inf = f64::INFINITY;
@@ -101,6 +103,8 @@ fn is_infinite(this: f64) -> bool {
 }
 
 /// Returns `true` if this number is neither infinite nor NaN.
+///
+/// # Examples
 ///
 /// ```rune
 /// let f = 7.0f64;
@@ -121,7 +125,9 @@ fn is_finite(this: f64) -> bool {
 
 /// Returns `true` if the number is [subnormal].
 ///
-/// ```
+/// # Examples
+///
+/// ```rune
 /// let min = f64::MIN_POSITIVE; // 2.2250738585072014e-308_f64
 /// let max = f64::MAX;
 /// let lower_than_min = 1.0e-308_f64;
@@ -136,6 +142,7 @@ fn is_finite(this: f64) -> bool {
 /// // Values between `0` and `min` are Subnormal.
 /// assert!(lower_than_min.is_subnormal());
 /// ```
+///
 /// [subnormal]: https://en.wikipedia.org/wiki/Denormal_number
 #[rune::function(instance)]
 fn is_subnormal(this: f64) -> bool {
@@ -143,6 +150,8 @@ fn is_subnormal(this: f64) -> bool {
 }
 
 /// Returns `true` if the number is neither zero, infinite, [subnormal], or NaN.
+///
+/// # Examples
 ///
 /// ```rune
 /// let min = f64::MIN_POSITIVE; // 2.2250738585072014e-308f64
@@ -173,6 +182,8 @@ fn is_normal(this: f64) -> bool {
 /// maxNum's problems with associativity. This also matches the behavior of
 /// libm’s fmax.
 ///
+/// # Examples
+///
 /// ```rune
 /// let x = 1.0_f64;
 /// let y = 2.0_f64;
@@ -192,6 +203,8 @@ fn max(this: f64, other: f64) -> f64 {
 /// minNum's problems with associativity. This also matches the behavior of
 /// libm’s fmin.
 ///
+/// # Examples
+///
 /// ```rune
 /// let x = 1.0_f64;
 /// let y = 2.0_f64;
@@ -207,7 +220,7 @@ fn min(this: f64, other: f64) -> f64 {
 ///
 /// # Examples
 ///
-/// ```
+/// ```rune
 /// let x = 3.5_f64;
 /// let y = -3.5_f64;
 ///

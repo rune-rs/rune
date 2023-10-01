@@ -62,7 +62,7 @@
 //!
 //! [`try_push`]: Vec::try_push
 
-pub(crate) use self::drain::Drain;
+pub use self::drain::Drain;
 
 mod drain;
 pub use self::into_iter::IntoIter;
@@ -2171,8 +2171,10 @@ impl<T, A: Allocator> Vec<T, A> {
     /// # Examples
     ///
     /// ```
+    /// use rune::alloc::Vec;
+    ///
     /// // Allocate vector big enough for 10 elements.
-    /// let mut v = Vec::with_capacity(10);
+    /// let mut v = Vec::try_with_capacity(10)?;
     ///
     /// // Fill in the first 3 elements.
     /// let uninit = v.spare_capacity_mut();
@@ -2186,9 +2188,10 @@ impl<T, A: Allocator> Vec<T, A> {
     /// }
     ///
     /// assert_eq!(&v, &[0, 1, 2]);
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
-    pub(crate) fn spare_capacity_mut(&mut self) -> &mut [MaybeUninit<T>] {
+    pub fn spare_capacity_mut(&mut self) -> &mut [MaybeUninit<T>] {
         // Note:
         // This method is not implemented in terms of `split_at_spare_mut`,
         // to prevent invalidation of pointers to the buffer.

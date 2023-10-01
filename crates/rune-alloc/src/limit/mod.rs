@@ -1,12 +1,29 @@
 //! Memory limits for Rune.
 //!
 //! This module contains methods which allows for limiting the memory use of the
-//! virtual machine to abide by the specified budget.
+//! virtual machine to abide by the specified memory limit.
 //!
 //! By default memory limits are disabled, but can be enabled by wrapping your
 //! function call or future in [with].
+//!
+//! # Limitations
+//!
+//! Limiting is plugged in at the [Rust allocator level], and does not account
+//! for allocator overhead. Allocator overhead comes about because an allocator
+//! needs to use some extra system memory to perform internal bookkeeping.
+//! Usually this should not be an issue, because the allocator overhead should
+//! be a fragment of memory use. But the exact details would depend on the
+//! [global allocator] used.
+//!
+//! As an example, see the [implementation notes for jemalloc].
+//!
+//! [implementation notes for jemalloc]:
+//!     http://jemalloc.net/jemalloc.3.html#implementation_notes
+//! [Rust allocator level]: https://doc.rust-lang.org/alloc/alloc/index.html
+//! [global allocator]:
+//!     https://doc.rust-lang.org/alloc/alloc/trait.GlobalAlloc.html
 
-#[cfg_attr(feature = "std", path = "limit/std.rs")]
+#[cfg_attr(feature = "std", path = "std.rs")]
 mod no_std;
 
 use core::future::Future;
@@ -15,17 +32,32 @@ use core::task::{Context, Poll};
 
 use pin_project::pin_project;
 
+use crate::callable::Callable;
+
 /// Something being budgeted.
+///
+/// See [`with`].
 #[pin_project]
 pub struct Memory<T> {
-    /// The current budget.
-    budget: usize,
+    /// The current limit.
+    memory: usize,
     /// The thing being budgeted.
     #[pin]
     value: T,
 }
 
-/// Wrap the given value with a memory limit.
+/// Wrap the given value with a memory limit. Using a value of [`usize::MAX`]
+/// effectively disables the memory limit.
+///
+/// The following things can be wrapped:
+/// * A [`FnOnce`] closure, like `with(|| println!("Hello World")).call()`.
+/// * A [`Future`], like `with(async { /* async work */ }).await`;
+///
+/// It's also possible to wrap other wrappers which implement [`Callable`].
+///
+/// See the [module level documentation] for more details.
+///
+/// [module level documentation]: crate::limit
 ///
 /// # Examples
 ///
@@ -48,7 +80,7 @@ pub struct Memory<T> {
 /// # Ok::<_, rune::alloc::Error>(())
 /// ```
 ///
-/// Overloading the limit. Note that this happens because while the vector is
+/// Breaching the limit. Note that this happens because while the vector is
 /// growing it might both over-allocate, and hold onto two allocations
 /// simultaneously.
 ///
@@ -68,8 +100,8 @@ pub struct Memory<T> {
 ///
 /// assert!(f.call().is_err());
 /// ```
-pub fn with<T>(budget: usize, value: T) -> Memory<T> {
-    Memory { budget, value }
+pub fn with<T>(memory: usize, value: T) -> Memory<T> {
+    Memory { memory, value }
 }
 
 /// Get remaining memory that may be allocated.
@@ -122,9 +154,9 @@ impl Drop for MemoryGuard {
     }
 }
 
-impl<T, O> Memory<T>
+impl<T> Memory<T>
 where
-    T: FnOnce() -> O,
+    T: Callable,
 {
     /// Call the wrapped function, replacing the current budget and restoring it
     /// once the function call completes.
@@ -193,9 +225,21 @@ where
     /// assert_eq!(limit::get(), usize::MAX);
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
-    pub fn call(self) -> O {
-        let _guard = MemoryGuard(self::no_std::rune_memory_replace(self.budget));
-        (self.value)()
+    pub fn call(self) -> T::Output {
+        Callable::call(self)
+    }
+}
+
+impl<T> Callable for Memory<T>
+where
+    T: Callable,
+{
+    type Output = T::Output;
+
+    #[inline]
+    fn call(self) -> Self::Output {
+        let _guard = MemoryGuard(self::no_std::rune_memory_replace(self.memory));
+        self.value.call()
     }
 }
 
@@ -281,9 +325,9 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
 
-        let _guard = MemoryGuard(self::no_std::rune_memory_replace(*this.budget));
+        let _guard = MemoryGuard(self::no_std::rune_memory_replace(*this.memory));
         let poll = this.value.poll(cx);
-        *this.budget = self::no_std::rune_memory_get();
+        *this.memory = self::no_std::rune_memory_get();
         poll
     }
 }

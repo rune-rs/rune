@@ -82,47 +82,8 @@ impl<T, A: Allocator> IntoIter<T, A> {
         ptr::slice_from_raw_parts_mut(self.ptr as *mut T, self.len())
     }
 
-    /// Drops remaining elements and relinquishes the backing allocation. This
-    /// method guarantees it won't panic before relinquishing the backing
-    /// allocation.
-    ///
-    /// This is roughly equivalent to the following, but more efficient
-    ///
-    /// ```
-    /// use rune::alloc::Vec;
-    ///
-    /// # #[cfg(not(miri))]
-    /// # fn main() -> Result<(), rune_alloc::Error> {
-    /// # let mut into_iter = Vec::<u8>::try_with_capacity(10)?.into_iter();
-    /// let mut into_iter = std::mem::replace(&mut into_iter, Vec::new().into_iter());
-    /// (&mut into_iter).for_each(drop);
-    /// std::mem::forget(into_iter);
-    /// # Ok(())
-    /// # }
-    /// # #[cfg(miri)] fn main() {}
-    /// ```
-    ///
-    /// This method is used by in-place iteration, refer to the vec::in_place_collect
-    /// documentation for an overview.
-    pub(super) fn forget_allocation_drop_remaining(&mut self) {
-        let remaining = self.as_raw_mut_slice();
-
-        // overwrite the individual fields instead of creating a new
-        // struct and then overwriting &mut self.
-        // this creates less assembly
-        self.cap = 0;
-        self.buf = unsafe { NonNull::new_unchecked(RawVec::NEW.ptr()) };
-        self.ptr = self.buf.as_ptr();
-        self.end = self.buf.as_ptr();
-
-        // Dropping the remaining elements can panic, so this needs to be
-        // done only after updating the other fields.
-        unsafe {
-            ptr::drop_in_place(remaining);
-        }
-    }
-
     /// Forgets to Drop the remaining elements while still allowing the backing allocation to be freed.
+    #[cfg(rune_nightly)]
     pub(crate) fn forget_remaining_elements(&mut self) {
         // For th ZST case, it is crucial that we mutate `end` here, not `ptr`.
         // `ptr` must stay aligned, while `end` may be unaligned.

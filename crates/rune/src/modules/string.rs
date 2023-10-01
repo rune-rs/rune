@@ -189,7 +189,7 @@ fn string_from_str(value: &str) -> VmResult<String> {
 ///
 /// Basic usage:
 ///
-/// ```
+/// ```rune
 /// let s = String::new();
 /// ```
 #[rune::function(free, path = String::new)]
@@ -372,7 +372,7 @@ fn clear(this: &mut String) {
 ///
 /// Basic usage:
 ///
-/// ```
+/// ```rune
 /// let bananas = "bananas";
 ///
 /// assert!(bananas.contains("nana"));
@@ -894,7 +894,7 @@ fn is_empty(this: &str) -> bool {
 ///
 /// When the pattern doesn't match, it returns this string slice as [`String`]:
 ///
-/// ```
+/// ```rune
 /// let s = "this is old";
 /// assert_eq!(s, s.replace("cookie monster", "little lamb"));
 /// ```
