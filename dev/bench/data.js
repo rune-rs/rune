@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1695603672234,
+  "lastUpdate": 1696122467555,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -22613,6 +22613,94 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 899,
             "range": "± 15",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "6a4b4ce845ef83bd511660de2f28f02da44db692",
+          "message": "Support memory sandboxing (#632)\n\n* Implement memory limits in Global allocator\n\n* Document JSON module",
+          "timestamp": "2023-09-30T21:38:32Z",
+          "url": "https://github.com/rune-rs/rune/commit/6a4b4ce845ef83bd511660de2f28f02da44db692"
+        },
+        "date": 1696122466766,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 262737,
+            "range": "± 17301",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 906945,
+            "range": "± 3107",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 400205465,
+            "range": "± 1296411",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 241225129,
+            "range": "± 637256",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 1165739,
+            "range": "± 3560",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 12621818,
+            "range": "± 31753",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 67932957,
+            "range": "± 316009",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 10789585,
+            "range": "± 63551",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 496473,
+            "range": "± 2301",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 5482068,
+            "range": "± 43199",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 757,
+            "range": "± 6",
             "unit": "ns/iter"
           }
         ]
