@@ -29,14 +29,14 @@ pub trait TryToString {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::String;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::String;
+    /// use rune::alloc::prelude::*;
     ///
     /// let i = 5;
     /// let five = String::try_from("5")?;
     ///
     /// assert_eq!(five, i.try_to_string()?);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     fn try_to_string(&self) -> Result<String, Error>;
 }

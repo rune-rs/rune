@@ -2,10 +2,11 @@ use core::cmp;
 use core::fmt;
 use core::iter;
 
-use crate::no_std::prelude::*;
+use rust_alloc::boxed::Box;
 
 use crate as rune;
 use crate::alloc;
+use crate::alloc::prelude::*;
 use crate::runtime::{FromValue, Function, Panic, ToValue, Value, VmErrorKind, VmResult};
 use crate::Any;
 
@@ -279,10 +280,11 @@ impl Iterator {
     pub(crate) fn peek(&mut self) -> VmResult<Option<Value>> {
         match &mut self.iter {
             IterRepr::Peekable(peekable) => peekable.peek(),
-            _ => VmResult::err(Panic::msg(format_args!(
+            _ => VmResult::err(Panic::custom(vm_try!(format_args!(
                 "`{:?}` is not a peekable iterator",
                 self.iter
-            ))),
+            )
+            .try_to_string()))),
         }
     }
 
@@ -453,10 +455,14 @@ impl RuneIterator for IterRepr {
 
     fn next_back(&mut self) -> VmResult<Option<Value>> {
         match self {
-            Self::Iterator(iter) => VmResult::err(Panic::msg(format_args!(
-                "`{}` is not a double-ended iterator",
-                iter.name
-            ))),
+            Self::Iterator(iter) => {
+                let message = vm_try!(format_args!(
+                    "`{}` is not a double-ended iterator",
+                    iter.name
+                )
+                .try_to_string());
+                VmResult::err(Panic::custom(message))
+            }
             Self::DoubleEndedIterator(iter) => iter.iter.next_back(),
             Self::Map(iter) => iter.next_back(),
             Self::FlatMap(iter) => iter.next_back(),

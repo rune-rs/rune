@@ -1,3 +1,7 @@
+//! Utilities for the `str` primitive type.
+//!
+//! *[See also the `str` primitive type](str).*
+
 use crate::alloc::{Allocator, Global};
 use crate::borrow::TryToOwned;
 use crate::boxed::Box;
@@ -10,14 +14,14 @@ use crate::string::String;
 /// # Examples
 ///
 /// ```
-/// use rune_alloc::Box;
-/// use rune_alloc::str;
+/// use rune::alloc::Box;
+/// use rune::alloc::str;
 ///
 /// let smile_utf8 = Box::try_from([226, 152, 186])?;
 /// let smile = unsafe { str::from_boxed_utf8_unchecked(smile_utf8) };
 ///
 /// assert_eq!("☺", &*smile);
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 ///
 /// # Safety
@@ -37,15 +41,15 @@ pub unsafe fn from_boxed_utf8_unchecked<A: Allocator>(v: Box<[u8], A>) -> Box<st
 /// Basic usage:
 ///
 /// ```
-/// use rune_alloc::String;
-/// use rune_alloc::str;
-/// use rune_alloc::prelude::*;
+/// use rune::alloc::String;
+/// use rune::alloc::str;
+/// use rune::alloc::prelude::*;
 ///
 /// let string = String::try_from("birthday gift")?;
 /// let boxed_str = string.try_clone()?.try_into_boxed_str()?;
 ///
 /// assert_eq!(str::into_string(boxed_str), string);
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 #[must_use = "`self` will be dropped if the result is not used"]
 #[inline]

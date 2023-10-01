@@ -82,6 +82,9 @@ pub trait Any: Named + any::Any {
 // Internal any impls for useful types in the std library.
 
 crate::__internal_impl_any!(::std::fmt, core::fmt::Error);
-#[cfg(feature = "std")]
-crate::__internal_impl_any!(::std::io, std::io::Error);
+
+cfg_std! {
+    crate::__internal_impl_any!(::std::io, std::io::Error);
+}
+
 crate::__internal_impl_any!(::std::error, anyhow::Error);

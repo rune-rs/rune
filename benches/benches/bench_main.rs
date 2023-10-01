@@ -18,7 +18,7 @@ pub(crate) fn vm(
 pub(crate) fn sources(source: &str) -> Sources {
     let mut sources = Sources::new();
     sources
-        .insert(Source::new("main", source))
+        .insert(Source::new("main", source).expect("Failed to construct source"))
         .expect("Failed to insert source");
     sources
 }

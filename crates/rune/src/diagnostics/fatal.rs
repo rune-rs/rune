@@ -1,6 +1,6 @@
 use core::fmt;
 
-use crate::no_std::prelude::*;
+use ::rust_alloc::boxed::Box;
 
 #[cfg(feature = "emit")]
 use crate::ast::{Span, Spanned};
@@ -50,13 +50,15 @@ impl fmt::Display for FatalDiagnostic {
     }
 }
 
-impl crate::no_std::error::Error for FatalDiagnostic {
-    #[inline]
-    fn source(&self) -> Option<&(dyn crate::no_std::error::Error + 'static)> {
-        match &*self.kind {
-            FatalDiagnosticKind::CompileError(error) => Some(error),
-            FatalDiagnosticKind::LinkError(error) => Some(error),
-            _ => None,
+cfg_std! {
+    impl std::error::Error for FatalDiagnostic {
+        #[inline]
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            match &*self.kind {
+                FatalDiagnosticKind::CompileError(error) => Some(error),
+                FatalDiagnosticKind::LinkError(error) => Some(error),
+                _ => None,
+            }
         }
     }
 }

@@ -7,8 +7,6 @@ use core::ops;
 use core::slice;
 use core::slice::SliceIndex;
 
-use crate::no_std::std;
-
 use crate as rune;
 use crate::alloc;
 use crate::alloc::fmt::TryWrite;
@@ -209,7 +207,7 @@ impl Vec {
 
     /// Convert into a rune iterator.
     pub fn iter_ref(this: Ref<[Value]>) -> Iterator {
-        Iterator::from_double_ended("std::alloc::Iter", Iter::new(this))
+        Iterator::from_double_ended("std::slice::Iter", Iter::new(this))
     }
 
     /// Access the inner values as a slice.
@@ -458,11 +456,12 @@ impl<'a> IntoIterator for &'a mut Vec {
     }
 }
 
-impl TryFrom<std::Vec<Value>> for Vec {
+#[cfg(feature = "alloc")]
+impl TryFrom<::rust_alloc::vec::Vec<Value>> for Vec {
     type Error = alloc::Error;
 
     #[inline]
-    fn try_from(values: std::Vec<Value>) -> Result<Self, Self::Error> {
+    fn try_from(values: ::rust_alloc::vec::Vec<Value>) -> Result<Self, Self::Error> {
         let mut inner = alloc::Vec::try_with_capacity(values.len())?;
 
         for value in values {
@@ -473,11 +472,12 @@ impl TryFrom<std::Vec<Value>> for Vec {
     }
 }
 
-impl TryFrom<std::Box<[Value]>> for Vec {
+#[cfg(feature = "alloc")]
+impl TryFrom<::rust_alloc::boxed::Box<[Value]>> for Vec {
     type Error = alloc::Error;
 
     #[inline]
-    fn try_from(inner: std::Box<[Value]>) -> Result<Self, Self::Error> {
+    fn try_from(inner: ::rust_alloc::boxed::Box<[Value]>) -> Result<Self, Self::Error> {
         Vec::try_from(inner.into_vec())
     }
 }
@@ -489,7 +489,8 @@ impl From<alloc::Vec<Value>> for Vec {
     }
 }
 
-impl<T> FromValue for std::Vec<T>
+#[cfg(feature = "alloc")]
+impl<T> FromValue for ::rust_alloc::vec::Vec<T>
 where
     T: FromValue,
 {
@@ -497,7 +498,7 @@ where
         let vec = vm_try!(value.into_vec());
         let vec = vm_try!(vec.take());
 
-        let mut output = std::Vec::with_capacity(vec.len());
+        let mut output = ::rust_alloc::vec::Vec::with_capacity(vec.len());
 
         for value in vec {
             output.push(vm_try!(T::from_value(value)));
@@ -552,7 +553,8 @@ where
     }
 }
 
-impl<T> ToValue for std::Vec<T>
+#[cfg(feature = "alloc")]
+impl<T> ToValue for ::rust_alloc::vec::Vec<T>
 where
     T: ToValue,
 {

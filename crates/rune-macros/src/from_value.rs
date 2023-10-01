@@ -144,7 +144,7 @@ impl Expander {
         }
 
         let missing = quote_spanned! { input.span() =>
-            name => #vm_result::__rune_macros__missing_variant(name)
+            name => #vm_try!(#vm_result::__rune_macros__missing_variant(name))
         };
 
         let variant = quote_spanned! { input.span() =>

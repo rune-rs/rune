@@ -2,11 +2,12 @@ use std::io::Write;
 use std::path::PathBuf;
 
 use crate::doc::Artifacts;
-use crate::no_std::prelude::*;
 
 use anyhow::{Context, Result};
 use clap::Parser;
 
+use crate::alloc::Vec;
+use crate::alloc::prelude::*;
 use crate::cli::{Config, Entry, EntryPoint, ExitCode, Io, SharedFlags, CommandBase, AssetKind};
 use crate::cli::naming::Naming;
 use crate::compile::{FileSourceLoader, ItemBuf};
@@ -50,7 +51,7 @@ where
     I: IntoIterator<Item = EntryPoint<'p>>,
 {
     let root = match &flags.output {
-        Some(root) => root.to_owned(),
+        Some(root) => root.clone(),
         None => match &c.manifest_root {
             Some(path) => path.join("target").join("rune-doc"),
             None => match std::env::var_os("CARGO_TARGET_DIR") {
@@ -78,13 +79,17 @@ where
     let mut naming = Naming::default();
 
     for e in entries {
-        let name = naming.name(&e);
+        let name = naming.name(&e)?;
 
         let item = ItemBuf::with_crate(&name)?;
         let mut visitor = crate::doc::Visitor::new(&item)?;
         let mut sources = Sources::new();
-        let source = Source::from_path(e.path())
-            .with_context(|| e.path().display().to_string())?;
+
+        let source = match Source::from_path(e.path()) {
+            Ok(source) => source,
+            Err(error) => return Err(error).context(e.path().display().try_to_string()?),
+        };
+
         sources.insert(source)?;
 
         let mut diagnostics = if shared.warnings || flags.warnings_are_errors {
@@ -109,7 +114,7 @@ where
             return Ok(ExitCode::Failure);
         }
 
-        visitors.push(visitor);
+        visitors.try_push(visitor)?;
     }
 
     let mut artifacts = Artifacts::new();
@@ -122,7 +127,7 @@ where
 
     if flags.open {
         let path = root.join("index.html");
-        let _ = webbrowser::open(&path.display().to_string());
+        let _ = webbrowser::open(&path.display().try_to_string()?);
     }
 
     Ok(ExitCode::Success)

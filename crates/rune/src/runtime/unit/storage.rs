@@ -6,7 +6,6 @@ use core::slice;
 use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Vec};
-use crate::no_std::error;
 
 #[cfg(feature = "byte-code")]
 use musli_storage::error::BufferError;
@@ -175,7 +174,9 @@ impl fmt::Display for EncodeError {
     }
 }
 
-impl error::Error for EncodeError {}
+cfg_std! {
+    impl std::error::Error for EncodeError {}
+}
 
 #[derive(Debug)]
 enum EncodeErrorKind {
@@ -202,7 +203,9 @@ impl fmt::Display for BadInstruction {
     }
 }
 
-impl error::Error for BadInstruction {}
+cfg_std! {
+    impl std::error::Error for BadInstruction {}
+}
 
 /// Error indicating that a bad instruction was located at the given instruction
 /// pointer.
@@ -218,4 +221,6 @@ impl fmt::Display for BadJump {
     }
 }
 
-impl error::Error for BadJump {}
+cfg_std! {
+    impl std::error::Error for BadJump {}
+}

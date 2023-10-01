@@ -118,13 +118,13 @@ impl<'a, K: Ord, V, A: Allocator> Entry<'a, K, V, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut map: BTreeMap<&str, usize> = BTreeMap::new();
     /// map.entry("poneyland").or_try_insert(12)?;
     ///
     /// assert_eq!(map["poneyland"], 12);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn or_try_insert(self, default: V) -> Result<&'a mut V, AllocError> {
         match self {
@@ -140,7 +140,7 @@ impl<'a, K: Ord, V, A: Allocator> Entry<'a, K, V, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut map: BTreeMap<&str, String> = BTreeMap::new();
     /// let s = "hoho".to_string();
@@ -148,7 +148,7 @@ impl<'a, K: Ord, V, A: Allocator> Entry<'a, K, V, A> {
     /// map.entry("poneyland").or_try_insert_with(|| s)?;
     ///
     /// assert_eq!(map["poneyland"], "hoho".to_string());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn or_try_insert_with<F: FnOnce() -> V>(self, default: F) -> Result<&'a mut V, AllocError> {
         match self {
@@ -168,14 +168,14 @@ impl<'a, K: Ord, V, A: Allocator> Entry<'a, K, V, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut map: BTreeMap<&str, usize> = BTreeMap::new();
     ///
     /// map.entry("poneyland").or_try_insert_with_key(|key| key.chars().count())?;
     ///
     /// assert_eq!(map["poneyland"], 9);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn or_try_insert_with_key<F: FnOnce(&K) -> V>(
@@ -196,11 +196,11 @@ impl<'a, K: Ord, V, A: Allocator> Entry<'a, K, V, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut map: BTreeMap<&str, usize> = BTreeMap::new();
     /// assert_eq!(map.entry("poneyland").key(), &"poneyland");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn key(&self) -> &K {
         match *self {
@@ -215,7 +215,7 @@ impl<'a, K: Ord, V, A: Allocator> Entry<'a, K, V, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut map: BTreeMap<&str, usize> = BTreeMap::new();
     ///
@@ -228,7 +228,7 @@ impl<'a, K: Ord, V, A: Allocator> Entry<'a, K, V, A> {
     ///    .and_modify(|e| { *e += 1 })
     ///    .or_try_insert(42)?;
     /// assert_eq!(map["poneyland"], 43);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn and_modify<F>(self, f: F) -> Self
     where
@@ -251,13 +251,13 @@ impl<'a, K: Ord, V: Default, A: Allocator> Entry<'a, K, V, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut map: BTreeMap<&str, Option<usize>> = BTreeMap::new();
     /// map.entry("poneyland").or_try_default()?;
     ///
     /// assert_eq!(map["poneyland"], None);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn or_try_default(self) -> Result<&'a mut V, AllocError> {
         match self {
@@ -274,7 +274,7 @@ impl<'a, K, V, A: Allocator> VacantEntry<'a, K, V, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut map: BTreeMap<&str, usize> = BTreeMap::new();
     /// assert_eq!(map.entry("poneyland").key(), &"poneyland");
@@ -288,8 +288,8 @@ impl<'a, K, V, A: Allocator> VacantEntry<'a, K, V, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
-    /// use rune_alloc::btree_map::Entry;
+    /// use rune::alloc::BTreeMap;
+    /// use rune::alloc::btree_map::Entry;
     ///
     /// let mut map: BTreeMap<&str, usize> = BTreeMap::new();
     ///
@@ -307,8 +307,8 @@ impl<'a, K, V, A: Allocator> VacantEntry<'a, K, V, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
-    /// use rune_alloc::btree_map::Entry;
+    /// use rune::alloc::BTreeMap;
+    /// use rune::alloc::btree_map::Entry;
     ///
     /// let mut map: BTreeMap<&str, u32> = BTreeMap::new();
     ///
@@ -317,7 +317,7 @@ impl<'a, K, V, A: Allocator> VacantEntry<'a, K, V, A> {
     /// }
     ///
     /// assert_eq!(map["poneyland"], 37);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn try_insert(mut self, value: V) -> Result<&'a mut V, AllocError> {
         let out_ptr = match self.handle {
@@ -369,12 +369,12 @@ impl<'a, K, V, A: Allocator> OccupiedEntry<'a, K, V, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut map: BTreeMap<&str, usize> = BTreeMap::new();
     /// map.entry("poneyland").or_try_insert(12)?;
     /// assert_eq!(map.entry("poneyland").key(), &"poneyland");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[must_use]
     pub fn key(&self) -> &K {
@@ -386,8 +386,8 @@ impl<'a, K, V, A: Allocator> OccupiedEntry<'a, K, V, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
-    /// use rune_alloc::btree_map::Entry;
+    /// use rune::alloc::BTreeMap;
+    /// use rune::alloc::btree_map::Entry;
     ///
     /// let mut map: BTreeMap<&str, usize> = BTreeMap::new();
     /// map.entry("poneyland").or_try_insert(12)?;
@@ -399,7 +399,7 @@ impl<'a, K, V, A: Allocator> OccupiedEntry<'a, K, V, A> {
     ///
     /// // If now try to get the value, it will panic:
     /// // println!("{}", map["poneyland"]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn remove_entry(self) -> (K, V) {
         self.remove_kv()
@@ -410,8 +410,8 @@ impl<'a, K, V, A: Allocator> OccupiedEntry<'a, K, V, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
-    /// use rune_alloc::btree_map::Entry;
+    /// use rune::alloc::BTreeMap;
+    /// use rune::alloc::btree_map::Entry;
     ///
     /// let mut map: BTreeMap<&str, usize> = BTreeMap::new();
     /// map.entry("poneyland").or_try_insert(12)?;
@@ -419,7 +419,7 @@ impl<'a, K, V, A: Allocator> OccupiedEntry<'a, K, V, A> {
     /// if let Entry::Occupied(o) = map.entry("poneyland") {
     ///     assert_eq!(o.get(), &12);
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[must_use]
     pub fn get(&self) -> &V {
@@ -436,8 +436,8 @@ impl<'a, K, V, A: Allocator> OccupiedEntry<'a, K, V, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
-    /// use rune_alloc::btree_map::Entry;
+    /// use rune::alloc::BTreeMap;
+    /// use rune::alloc::btree_map::Entry;
     ///
     /// let mut map: BTreeMap<&str, usize> = BTreeMap::new();
     /// map.entry("poneyland").or_try_insert(12)?;
@@ -451,7 +451,7 @@ impl<'a, K, V, A: Allocator> OccupiedEntry<'a, K, V, A> {
     ///     *o.get_mut() += 2;
     /// }
     /// assert_eq!(map["poneyland"], 24);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn get_mut(&mut self) -> &mut V {
         self.handle.kv_mut().1
@@ -466,8 +466,8 @@ impl<'a, K, V, A: Allocator> OccupiedEntry<'a, K, V, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
-    /// use rune_alloc::btree_map::Entry;
+    /// use rune::alloc::BTreeMap;
+    /// use rune::alloc::btree_map::Entry;
     ///
     /// let mut map: BTreeMap<&str, usize> = BTreeMap::new();
     /// map.entry("poneyland").or_try_insert(12)?;
@@ -477,7 +477,7 @@ impl<'a, K, V, A: Allocator> OccupiedEntry<'a, K, V, A> {
     ///     *o.into_mut() += 10;
     /// }
     /// assert_eq!(map["poneyland"], 22);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[must_use = "`self` will be dropped if the result is not used"]
     pub fn into_mut(self) -> &'a mut V {
@@ -490,8 +490,8 @@ impl<'a, K, V, A: Allocator> OccupiedEntry<'a, K, V, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
-    /// use rune_alloc::btree_map::Entry;
+    /// use rune::alloc::BTreeMap;
+    /// use rune::alloc::btree_map::Entry;
     ///
     /// let mut map: BTreeMap<&str, usize> = BTreeMap::new();
     /// map.entry("poneyland").or_try_insert(12)?;
@@ -501,7 +501,7 @@ impl<'a, K, V, A: Allocator> OccupiedEntry<'a, K, V, A> {
     /// }
     ///
     /// assert_eq!(map["poneyland"], 15);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn insert(&mut self, value: V) -> V {
         mem::replace(self.get_mut(), value)
@@ -512,8 +512,8 @@ impl<'a, K, V, A: Allocator> OccupiedEntry<'a, K, V, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
-    /// use rune_alloc::btree_map::Entry;
+    /// use rune::alloc::BTreeMap;
+    /// use rune::alloc::btree_map::Entry;
     ///
     /// let mut map: BTreeMap<&str, usize> = BTreeMap::new();
     /// map.entry("poneyland").or_try_insert(12)?;
@@ -524,7 +524,7 @@ impl<'a, K, V, A: Allocator> OccupiedEntry<'a, K, V, A> {
     ///
     /// // If we try to get "poneyland"'s value, it'll panic:
     /// // println!("{}", map["poneyland"]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn remove(self) -> V {
         self.remove_kv().1

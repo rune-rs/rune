@@ -1,12 +1,13 @@
 use core::fmt;
 
 use std::path::Path;
-use std::io;
 
 use crate::alloc::{self, Box, String};
 use crate::SourceId;
 use crate::compile::HasSpan;
 use crate::ast::{Span, Spanned};
+use crate::workspace::glob;
+use crate::source;
 
 /// An error raised when interacting with workspaces.
 #[derive(Debug)]
@@ -46,10 +47,12 @@ impl Spanned for WorkspaceError {
     }
 }
 
-impl crate::no_std::error::Error for WorkspaceError {
-    #[inline]
-    fn source(&self) -> Option<&(dyn crate::no_std::error::Error + 'static)> {
-        self.kind.source()
+cfg_std! {
+    impl std::error::Error for WorkspaceError {
+        #[inline]
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            self.kind.source()
+        }
     }
 }
 
@@ -85,9 +88,13 @@ where
 #[non_exhaustive]
 pub(crate) enum WorkspaceErrorKind {
     Custom { error: anyhow::Error },
-    FileError {
+    GlobError {
         path: Box<Path>,
-        error: io::Error,
+        error: glob::GlobError,
+    },
+    Source {
+        path: Box<Path>,
+        error: source::FromPathError,
     },
     Toml { error: toml::de::Error },
     Key { error: serde_hashkey::Error },
@@ -100,19 +107,24 @@ pub(crate) enum WorkspaceErrorKind {
     AllocError { error: alloc::Error },
 }
 
-impl crate::no_std::error::Error for WorkspaceErrorKind {
-    fn source(&self) -> Option<&(dyn crate::no_std::error::Error + 'static)> {
-        match self {
-            WorkspaceErrorKind::FileError { error, .. } => {
-                Some(error)
+cfg_std! {
+    impl std::error::Error for WorkspaceErrorKind {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            match self {
+                WorkspaceErrorKind::GlobError { error, .. } => {
+                    Some(error)
+                }
+                WorkspaceErrorKind::Source { error, .. } => {
+                    Some(error)
+                }
+                WorkspaceErrorKind::Toml { error, .. } => {
+                    Some(error)
+                }
+                WorkspaceErrorKind::Key { error, .. } => {
+                    Some(error)
+                }
+                _ => None,
             }
-            WorkspaceErrorKind::Toml { error, .. } => {
-                Some(error)
-            }
-            WorkspaceErrorKind::Key { error, .. } => {
-                Some(error)
-            }
-            _ => None,
         }
     }
 }
@@ -123,9 +135,13 @@ impl fmt::Display for WorkspaceErrorKind {
             WorkspaceErrorKind::Custom { error } => {
                 error.fmt(f)
             }
-            WorkspaceErrorKind::FileError { path, error } => write!(
+            WorkspaceErrorKind::GlobError { path, error } => write!(
                 f,
-                "Failed to load `{path}`: {error}", path = path.display()
+                "Failed to glob at `{path}`: {error}", path = path.display()
+            ),
+            WorkspaceErrorKind::Source { path, error } => write!(
+                f,
+                "Failed to load source at `{path}`: {error}", path = path.display()
             ),
             WorkspaceErrorKind::Toml { error } => write!(
                 f,
@@ -156,6 +172,12 @@ impl fmt::Display for WorkspaceErrorKind {
             ),
             WorkspaceErrorKind::AllocError { error } => error.fmt(f),
         }
+    }
+}
+
+impl From<anyhow::Error> for WorkspaceErrorKind {
+    fn from(error: anyhow::Error) -> Self {
+        WorkspaceErrorKind::Custom { error }
     }
 }
 

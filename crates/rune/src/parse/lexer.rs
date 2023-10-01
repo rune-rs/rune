@@ -1,9 +1,7 @@
 use core::fmt;
 use core::mem::take;
 
-use crate::no_std::collections::VecDeque;
-use crate::no_std::prelude::*;
-
+use crate::alloc::{self, Vec, VecDeque};
 use crate::ast;
 use crate::ast::Span;
 use crate::compile::{self, ErrorKind};
@@ -63,75 +61,88 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn emit_doc_attribute(&mut self, inner: bool, span: Span, docstring_span: Span) {
+    fn emit_doc_attribute(
+        &mut self,
+        inner: bool,
+        span: Span,
+        docstring_span: Span,
+    ) -> alloc::Result<()> {
         // outer: #[doc = ...]
         // inner: #![doc = ...]
 
-        self.buffer.push_back(ast::Token { kind: K![#], span });
+        self.buffer
+            .try_push_back(ast::Token { kind: K![#], span })?;
 
         if inner {
-            self.buffer.push_back(ast::Token { kind: K![!], span });
+            self.buffer
+                .try_push_back(ast::Token { kind: K![!], span })?;
         }
 
-        self.buffer.push_back(ast::Token {
+        self.buffer.try_push_back(ast::Token {
             kind: K!['['],
             span,
-        });
+        })?;
 
-        self.buffer.push_back(ast::Token {
+        self.buffer.try_push_back(ast::Token {
             kind: ast::Kind::Ident(ast::LitSource::BuiltIn(ast::BuiltIn::Doc)),
             span,
-        });
+        })?;
 
-        self.buffer.push_back(ast::Token { kind: K![=], span });
+        self.buffer
+            .try_push_back(ast::Token { kind: K![=], span })?;
 
-        self.buffer.push_back(ast::Token {
+        self.buffer.try_push_back(ast::Token {
             kind: ast::Kind::Str(ast::StrSource::Text(ast::StrText {
                 source_id: self.source_id,
                 escaped: false,
                 wrapped: false,
             })),
             span: docstring_span,
-        });
+        })?;
 
-        self.buffer.push_back(ast::Token {
+        self.buffer.try_push_back(ast::Token {
             kind: K![']'],
             span,
-        });
+        })?;
+
+        Ok(())
     }
 
-    fn emit_builtin_attribute(&mut self, span: Span) {
-        self.buffer.push_back(ast::Token { kind: K![#], span });
+    fn emit_builtin_attribute(&mut self, span: Span) -> alloc::Result<()> {
+        self.buffer
+            .try_push_back(ast::Token { kind: K![#], span })?;
 
-        self.buffer.push_back(ast::Token {
+        self.buffer.try_push_back(ast::Token {
             kind: K!['['],
             span,
-        });
+        })?;
 
-        self.buffer.push_back(ast::Token {
+        self.buffer.try_push_back(ast::Token {
             kind: ast::Kind::Ident(ast::LitSource::BuiltIn(ast::BuiltIn::BuiltIn)),
             span,
-        });
+        })?;
 
-        self.buffer.push_back(ast::Token {
+        self.buffer.try_push_back(ast::Token {
             kind: K!['('],
             span,
-        });
+        })?;
 
-        self.buffer.push_back(ast::Token {
+        self.buffer.try_push_back(ast::Token {
             kind: ast::Kind::Ident(ast::LitSource::BuiltIn(ast::BuiltIn::Literal)),
             span,
-        });
+        })?;
 
-        self.buffer.push_back(ast::Token {
+        self.buffer.try_push_back(ast::Token {
             kind: K![')'],
             span,
-        });
+        })?;
 
-        self.buffer.push_back(ast::Token {
+        self.buffer.try_push_back(ast::Token {
             kind: K![']'],
             span,
-        });
+        })?;
+
+        Ok(())
     }
 
     fn next_ident(&mut self, start: usize) -> compile::Result<Option<ast::Token>> {
@@ -465,32 +476,32 @@ impl<'a> Lexer<'a> {
 
                     if had_string {
                         if *expressions > 0 {
-                            self.buffer.push_back(ast::Token {
+                            self.buffer.try_push_back(ast::Token {
                                 kind: ast::Kind::Comma,
                                 span,
-                            });
+                            })?;
                         }
 
-                        self.buffer.push_back(ast::Token {
+                        self.buffer.try_push_back(ast::Token {
                             kind: ast::Kind::Str(ast::StrSource::Text(ast::StrText {
                                 source_id: self.source_id,
                                 escaped: take(&mut escaped),
                                 wrapped: false,
                             })),
                             span,
-                        });
+                        })?;
 
                         *expressions += 1;
                     }
 
                     if *expressions > 0 {
-                        self.buffer.push_back(ast::Token {
+                        self.buffer.try_push_back(ast::Token {
                             kind: ast::Kind::Comma,
                             span: self.iter.span_to_pos(start),
-                        });
+                        })?;
                     }
 
-                    self.modes.push(LexerMode::Default(1));
+                    self.modes.push(LexerMode::Default(1))?;
                     return Ok(());
                 }
                 '\\' => {
@@ -515,33 +526,33 @@ impl<'a> Lexer<'a> {
 
                     if had_string {
                         if *expressions > 0 {
-                            self.buffer.push_back(ast::Token {
+                            self.buffer.try_push_back(ast::Token {
                                 kind: ast::Kind::Comma,
                                 span,
-                            });
+                            })?;
                         }
 
-                        self.buffer.push_back(ast::Token {
+                        self.buffer.try_push_back(ast::Token {
                             kind: ast::Kind::Str(ast::StrSource::Text(ast::StrText {
                                 source_id: self.source_id,
                                 escaped: take(&mut escaped),
                                 wrapped: false,
                             })),
                             span,
-                        });
+                        })?;
 
                         *expressions += 1;
                     }
 
-                    self.buffer.push_back(ast::Token {
+                    self.buffer.try_push_back(ast::Token {
                         kind: K![')'],
                         span: self.iter.span_to_pos(start),
-                    });
+                    })?;
 
-                    self.buffer.push_back(ast::Token {
+                    self.buffer.try_push_back(ast::Token {
                         kind: ast::Kind::Close(ast::Delimiter::Empty),
                         span: self.iter.span_to_pos(start),
-                    });
+                    })?;
 
                     let expressions = *expressions;
                     self.modes
@@ -656,7 +667,7 @@ impl<'a> Lexer<'a> {
                             if doc {
                                 // docstring span drops the first 3 characters (/// or //!)
                                 let span = self.iter.span_to_pos(start);
-                                self.emit_doc_attribute(inner, span, span.trim_start(3));
+                                self.emit_doc_attribute(inner, span, span.trim_start(3))?;
                                 continue 'outer;
                             } else {
                                 break ast::Kind::Comment;
@@ -678,7 +689,7 @@ impl<'a> Lexer<'a> {
                                     inner,
                                     span,
                                     span.trim_start(3).trim_end(2),
-                                );
+                                )?;
                                 continue 'outer;
                             } else {
                                 break ast::Kind::MultilineComment(true);
@@ -772,7 +783,7 @@ impl<'a> Lexer<'a> {
                     ')' => ast::Kind::Close(ast::Delimiter::Parenthesis),
                     '{' => {
                         if level > 0 {
-                            self.modes.push(LexerMode::Default(level + 1));
+                            self.modes.push(LexerMode::Default(level + 1))?;
                         }
 
                         ast::Kind::Open(ast::Delimiter::Brace)
@@ -830,26 +841,27 @@ impl<'a> Lexer<'a> {
                     '`' => {
                         let span = self.iter.span_to_pos(start);
 
-                        self.buffer.push_back(ast::Token {
+                        self.buffer.try_push_back(ast::Token {
                             kind: ast::Kind::Open(ast::Delimiter::Empty),
                             span,
-                        });
+                        })?;
 
-                        self.emit_builtin_attribute(span);
+                        self.emit_builtin_attribute(span)?;
 
-                        self.buffer.push_back(ast::Token {
+                        self.buffer.try_push_back(ast::Token {
                             kind: ast::Kind::Ident(ast::LitSource::BuiltIn(ast::BuiltIn::Template)),
                             span,
-                        });
+                        })?;
 
-                        self.buffer.push_back(ast::Token { kind: K![!], span });
+                        self.buffer
+                            .try_push_back(ast::Token { kind: K![!], span })?;
 
-                        self.buffer.push_back(ast::Token {
+                        self.buffer.try_push_back(ast::Token {
                             kind: K!['('],
                             span,
-                        });
+                        })?;
 
-                        self.modes.push(LexerMode::Template(0));
+                        self.modes.push(LexerMode::Template(0))?;
                         continue 'outer;
                     }
                     '\'' => {
@@ -970,8 +982,8 @@ impl LexerModes {
     }
 
     /// Push the given lexer mode.
-    fn push(&mut self, mode: LexerMode) {
-        self.modes.push(mode);
+    fn push(&mut self, mode: LexerMode) -> alloc::Result<()> {
+        self.modes.try_push(mode)
     }
 
     /// Pop the expected lexer mode.

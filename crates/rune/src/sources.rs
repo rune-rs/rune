@@ -31,7 +31,7 @@ use codespan_reporting::files;
 macro_rules! sources {
     ($($name:ident => {$($tt:tt)*}),* $(,)?) => {{
         let mut sources = $crate::Sources::new();
-        $(sources.insert($crate::Source::new(stringify!($name), stringify!($($tt)*)))?;)*
+        $(sources.insert($crate::Source::new(stringify!($name), stringify!($($tt)*))?)?;)*
         sources
     }};
 }
@@ -59,9 +59,10 @@ impl Sources {
     /// use rune::{Sources, Source};
     ///
     /// let mut sources = Sources::new();
-    /// let id = sources.insert(Source::new("<memory>", "pub fn main() { 10 }"));
-    /// let id2 = sources.insert(Source::new("<memory>", "pub fn main() { 10 }"));
+    /// let id = sources.insert(Source::new("<memory>", "pub fn main() { 10 }")?)?;
+    /// let id2 = sources.insert(Source::new("<memory>", "pub fn main() { 10 }")?)?;
     /// assert_ne!(id, id2);
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn insert(&mut self, source: Source) -> alloc::Result<SourceId> {
         let id =
@@ -79,7 +80,7 @@ impl Sources {
     /// use rune::{Sources, Source};
     ///
     /// let mut sources = Sources::new();
-    /// let id = sources.insert(Source::new("<memory>", "pub fn main() { 10 }"))?;
+    /// let id = sources.insert(Source::new("<memory>", "pub fn main() { 10 }")?)?;
     ///
     /// let source = sources.get(id).context("expected source")?;
     ///

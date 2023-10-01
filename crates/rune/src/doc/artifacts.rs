@@ -1,6 +1,7 @@
 use rust_alloc::string::ToString;
 
-use crate::no_std::io;
+use std::io;
+use std::fs;
 
 use rust_alloc::borrow::ToOwned;
 use std::path::Path;
@@ -131,7 +132,7 @@ impl Asset {
         let p = self.path.to_path(root);
         tracing::info!("Writing: {}", p.display());
         ensure_parent_dir(&p)?;
-        std::fs::write(&p, &self.content).with_context(|| p.display().to_string())?;
+        fs::write(&p, &self.content).with_context(|| p.display().to_string())?;
         Ok(())
     }
 }
@@ -145,7 +146,7 @@ fn ensure_parent_dir(path: &Path) -> Result<()> {
 
         tracing::info!("create dir: {}", p.display());
 
-        match std::fs::create_dir_all(p) {
+        match fs::create_dir_all(p) {
             Ok(()) => {}
             Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {}
             Err(e) => return Err(Error::from(e)).context(p.display().to_string()),

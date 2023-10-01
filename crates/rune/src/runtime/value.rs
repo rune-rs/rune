@@ -7,7 +7,7 @@ use core::fmt;
 use core::hash;
 use core::ptr;
 
-use crate::no_std::sync::Arc;
+use ::rust_alloc::sync::Arc;
 
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
@@ -1371,7 +1371,6 @@ impl Value {
     }
 
     /// Hash the current value.
-    #[cfg(feature = "alloc")]
     pub(crate) fn hash_with(
         &self,
         hasher: &mut Hasher,

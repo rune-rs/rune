@@ -2,12 +2,10 @@ use std::io::Write;
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::no_std::prelude::*;
-
 use anyhow::{bail, Result, Context};
-use clap::Parser;
 
 use crate::alloc::prelude::*;
+use crate::alloc::Vec;
 use crate::cli::{ExitCode, Io, CommandBase, AssetKind, Config, SharedFlags, EntryPoint, Entry, Options};
 use crate::cli::visitor;
 use crate::cli::naming::Naming;
@@ -18,21 +16,29 @@ use crate::doc::TestParams;
 use crate::{Hash, Sources, Unit, Diagnostics, Source};
 use crate::termcolor::{WriteColor, ColorSpec, Color};
 
-#[derive(Parser, Debug, Clone)]
-pub(super) struct Flags {
-    /// Exit with a non-zero exit-code even for warnings
-    #[arg(long)]
-    warnings_are_errors: bool,
-    /// Display one character per test instead of one line
-    #[arg(long, short = 'q')]
-    quiet: bool,
-    /// Also run tests for `::std`.
-    #[arg(long, long = "opt")]
-    options: Vec<String>,
-    /// Break on the first test failed.
-    #[arg(long)]
-    fail_fast: bool,
+mod cli {
+    use clap::Parser;
+    use ::rust_alloc::vec::Vec;
+    use ::rust_alloc::string::String;
+
+    #[derive(Parser, Debug, Clone)]
+    pub struct Flags {
+        /// Exit with a non-zero exit-code even for warnings
+        #[arg(long)]
+        pub warnings_are_errors: bool,
+        /// Display one character per test instead of one line
+        #[arg(long, short = 'q')]
+        pub quiet: bool,
+        /// Also run tests for `::std`.
+        #[arg(long, long = "opt")]
+        pub options: Vec<String>,
+        /// Break on the first test failed.
+        #[arg(long)]
+        pub fail_fast: bool,
+    }
 }
+
+pub(super) use cli::Flags;
 
 impl CommandBase for Flags {
     #[inline]
@@ -97,13 +103,15 @@ where
     }
 
     for e in entries {
-        let name = naming.name(&e);
+        let name = naming.name(&e)?;
         let item = ItemBuf::with_crate(&name)?;
 
         let mut sources = Sources::new();
 
-        let source = Source::from_path(e.path())
-            .with_context(|| e.path().display().to_string())?;
+        let source = match Source::from_path(e.path()) {
+            Ok(source) => source,
+            Err(error) => return Err(error).context(e.path().display().try_to_string()?),
+        };
 
         sources.insert(source)?;
 
@@ -136,10 +144,10 @@ where
         let unit = Arc::new(unit?);
         let sources = Arc::new(sources);
 
-        doc_visitors.push(doc_visitor);
+        doc_visitors.try_push(doc_visitor)?;
 
         for (hash, item) in functions.into_functions() {
-            cases.push(TestCase::new(hash, item, unit.clone(), sources.clone(), TestParams::default()));
+            cases.try_push(TestCase::new(hash, item, unit.clone(), sources.clone(), TestParams::default()))?;
         }
     }
 
@@ -153,7 +161,7 @@ where
 
         let mut sources = Sources::new();
 
-        let source = Source::new(test.item.to_string(), &test.content);
+        let source = Source::new(test.item.try_to_string()?, &test.content)?;
         sources.insert(source)?;
 
         let mut diagnostics = if shared.warnings || flags.warnings_are_errors {
@@ -189,7 +197,7 @@ where
                 bail!("Compiling source did not result in a function at offset 0");
             };
 
-            cases.push(TestCase::new(hash, test.item.try_clone()?, unit.clone(), sources.clone(), test.params));
+            cases.try_push(TestCase::new(hash, test.item.try_clone()?, unit.clone(), sources.clone(), test.params))?;
         }
     }
 
@@ -218,7 +226,7 @@ where
             write!(io.stdout, "f")?;
         }
 
-        failed.push(case);
+        failed.try_push(case)?;
 
         if flags.fail_fast {
             break;

@@ -1,9 +1,53 @@
+//! The `TryClone` trait for types that cannot be 'implicitly copied'.
+//!
+//! In Rust, some simple types are "implicitly copyable" and when you assign
+//! them or pass them as arguments, the receiver will get a copy, leaving the
+//! original value in place. These types do not require allocation to copy and
+//! do not have finalizers (i.e., they do not contain owned boxes or implement
+//! [`Drop`]), so the compiler considers them cheap and safe to copy. For other
+//! types copies must be made explicitly, by convention implementing the
+//! [`TryClone`] trait and calling the [`try_clone`] method.
+//!
+//! [`try_clone`]: TryClone::try_clone
+//!
+//! Basic usage example:
+//!
+//! ```
+//! use rune::alloc::String;
+//! use rune::alloc::prelude::*;
+//!
+//! // String type implements TryClone
+//! let s = String::new();
+//! // ... so we can clone it
+//! let copy = s.try_clone()?;
+//! # Ok::<_, rune::alloc::Error>(())
+//! ```
+//!
+//! To easily implement the TryClone trait, you can also use
+//! `#[derive(TryClone)]`. Example:
+//!
+//! ```
+//! use rune::alloc::prelude::*;
+//!
+//! // we add the TryClone trait to Morpheus struct
+//! #[derive(TryClone)]
+//! struct Morpheus {
+//!    blue_pill: f32,
+//!    red_pill: i64,
+//! }
+//!
+//! let f = Morpheus { blue_pill: 0.0, red_pill: 0 };
+//! // and now we can clone it!
+//! let copy = f.try_clone()?;
+//! # Ok::<_, rune::alloc::Error>(())
+//! ```
+
 use crate::error::Error;
 
 #[doc(inline)]
 pub use rune_alloc_macros::TryClone;
 
-/// Fallible `Clone` trait.
+/// Fallible `TryClone` trait.
 pub trait TryClone: Sized {
     /// Try to clone the current value, raising an allocation error if it's unsuccessful.
     fn try_clone(&self) -> Result<Self, Error>;

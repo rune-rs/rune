@@ -4,10 +4,8 @@ use core::cmp::Ordering;
 
 use crate as rune;
 use crate::alloc::prelude::*;
-#[cfg(feature = "std")]
-use crate::runtime::Hasher;
 use crate::runtime::{
-    EnvProtocolCaller, Formatter, Function, Iterator, Ref, TypeOf, Value, Vec, VmErrorKind,
+    EnvProtocolCaller, Formatter, Function, Hasher, Iterator, Ref, TypeOf, Value, Vec, VmErrorKind,
     VmResult,
 };
 use crate::{ContextError, Module};
@@ -56,7 +54,6 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(eq)?;
     m.function_meta(partial_cmp)?;
     m.function_meta(cmp)?;
-    #[cfg(feature = "std")]
     m.function_meta(hash)?;
     Ok(m)
 }
@@ -631,7 +628,6 @@ fn cmp(this: &Vec, other: &Vec) -> VmResult<Ordering> {
 /// assert_eq!(hash([0, 2, 3]), hash([0, 2, 3]));
 /// ```
 #[rune::function(instance, protocol = HASH)]
-#[cfg(feature = "std")]
 fn hash(this: &Vec, hasher: &mut Hasher) -> VmResult<()> {
     Vec::hash_with(this, hasher, &mut EnvProtocolCaller)
 }

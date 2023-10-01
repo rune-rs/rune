@@ -437,9 +437,8 @@ impl<'de> de::Deserialize<'de> for Bytes {
 
 #[cfg(test)]
 mod tests {
-    use crate::alloc::clone::TryClone;
-    use crate::no_std::prelude::*;
     use crate::runtime::{Bytes, Shared, Value};
+    use crate::tests::prelude::*;
 
     #[test]
     #[allow(clippy::let_and_return)]

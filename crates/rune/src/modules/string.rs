@@ -10,7 +10,6 @@ use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::string::FromUtf8Error;
 use crate::alloc::{String, Vec};
-use crate::no_std::std;
 use crate::runtime::{Bytes, Formatter, Iterator, Panic, Value, VmErrorKind, VmResult};
 use crate::{Any, ContextError, Module};
 
@@ -952,9 +951,10 @@ fn replace(a: &str, from: &str, to: &str) -> VmResult<String> {
 /// assert_eq!(None, chars.next());
 /// ```
 #[rune::function(instance)]
-fn chars(s: &str) -> Iterator {
-    let iter = s.chars().collect::<std::Vec<_>>().into_iter();
-    Iterator::from_double_ended("std::str::Chars", iter)
+fn chars(s: &str) -> VmResult<Iterator> {
+    // TODO: perform lazy iteration.
+    let iter = vm_try!(s.chars().try_collect::<Vec<_>>()).into_iter();
+    VmResult::Ok(Iterator::from_double_ended("std::str::Chars", iter))
 }
 
 /// Returns a subslice of `str`.

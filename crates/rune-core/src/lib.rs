@@ -55,10 +55,3 @@ pub use self::params::Params;
 
 mod type_of;
 pub use self::type_of::FullTypeOf;
-
-#[cfg(feature = "std")]
-#[doc(hidden)]
-pub use rust_std::error;
-
-#[cfg(not(feature = "std"))]
-pub mod error;

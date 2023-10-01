@@ -3,9 +3,8 @@ use core::fmt;
 use core::mem::replace;
 use core::slice;
 
-use crate::no_std::borrow::Cow;
-
 use crate::alloc::alloc::Global;
+use crate::alloc::borrow::Cow;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Vec};
 use crate::runtime::{InstAddress, Value};
@@ -22,7 +21,9 @@ impl fmt::Display for StackError {
     }
 }
 
-impl crate::no_std::error::Error for StackError {}
+cfg_std! {
+    impl std::error::Error for StackError {}
+}
 
 /// The stack of the virtual machine, where all values are stored.
 #[derive(Default, Debug)]

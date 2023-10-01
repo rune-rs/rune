@@ -79,42 +79,31 @@ use rune::{Context, Diagnostics, Source, Sources, Vm};
 use rune::termcolor::{ColorChoice, StandardStream};
 use std::sync::Arc;
 
-#[tokio::main]
-async fn main() -> rune::support::Result<()> {
-    let context = Context::with_default_modules()?;
-    let runtime = Arc::new(context.runtime()?);
+let context = Context::with_default_modules()?;
+let runtime = Arc::new(context.runtime()?);
 
-    let mut sources = Sources::new();
-    sources.insert(Source::new(
-        "script",
-        r#"
-        pub fn add(a, b) {
-            a + b
-        }
-        "#,
-    ));
+let mut sources = Sources::new();
+sources.insert(Source::memory("pub fn add(a, b) { a + b }")?);
 
-    let mut diagnostics = Diagnostics::new();
+let mut diagnostics = Diagnostics::new();
 
-    let result = rune::prepare(&mut sources)
-        .with_context(&context)
-        .with_diagnostics(&mut diagnostics)
-        .build();
+let result = rune::prepare(&mut sources)
+    .with_context(&context)
+    .with_diagnostics(&mut diagnostics)
+    .build();
 
-    if !diagnostics.is_empty() {
-        let mut writer = StandardStream::stderr(ColorChoice::Always);
-        diagnostics.emit(&mut writer, &sources)?;
-    }
-
-    let unit = result?;
-    let mut vm = Vm::new(runtime, Arc::new(unit));
-
-    let output = vm.call(["add"], (10i64, 20i64))?;
-    let output: i64 = rune::from_value(output)?;
-
-    println!("{}", output);
-    Ok(())
+if !diagnostics.is_empty() {
+    let mut writer = StandardStream::stderr(ColorChoice::Always);
+    diagnostics.emit(&mut writer, &sources)?;
 }
+
+let unit = result?;
+let mut vm = Vm::new(runtime, Arc::new(unit));
+
+let output = vm.call(["add"], (10i64, 20i64))?;
+let output: i64 = rune::from_value(output)?;
+
+println!("{}", output);
 ```
 
 [in the `examples` folder]: https://github.com/rune-rs/rune/tree/main/examples/examples

@@ -1,7 +1,10 @@
 use crate::alloc::path::Path;
+#[cfg(feature = "std")]
 use crate::alloc::prelude::*;
 use crate::ast::Spanned;
-use crate::compile::{self, ComponentRef, ErrorKind, Item};
+use crate::compile::{self, Item};
+#[cfg(feature = "std")]
+use crate::compile::{ComponentRef, ErrorKind};
 use crate::Source;
 
 /// A source loader.
@@ -17,75 +20,77 @@ pub struct NoopSourceLoader;
 
 impl SourceLoader for NoopSourceLoader {
     fn load(&mut self, _: &Path, _: &Item, span: &dyn Spanned) -> compile::Result<Source> {
-        Err(compile::Error::msg(span, "File loading is not supported"))
+        Err(compile::Error::msg(span, "Source loading is not supported"))
     }
 }
 
-/// A filesystem-based source loader.
-#[derive(Default)]
-#[non_exhaustive]
-pub struct FileSourceLoader;
+cfg_std! {
+    /// A filesystem-based source loader.
+    #[derive(Default)]
+    #[non_exhaustive]
+    pub struct FileSourceLoader;
 
-impl FileSourceLoader {
-    /// Construct a new filesystem-based source loader.
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
-
-impl SourceLoader for FileSourceLoader {
-    fn load(&mut self, root: &Path, item: &Item, span: &dyn Spanned) -> compile::Result<Source> {
-        let mut base = root.try_to_owned()?;
-
-        if !base.pop() {
-            return Err(compile::Error::new(
-                span,
-                ErrorKind::UnsupportedModuleRoot {
-                    root: root.try_to_owned()?,
-                },
-            ));
+    impl FileSourceLoader {
+        /// Construct a new filesystem-based source loader.
+        pub fn new() -> Self {
+            Self::default()
         }
+    }
 
-        for c in item {
-            if let ComponentRef::Str(string) = c {
-                base.push(string);
-            } else {
+    impl SourceLoader for FileSourceLoader {
+        fn load(&mut self, root: &Path, item: &Item, span: &dyn Spanned) -> compile::Result<Source> {
+            let mut base = root.try_to_owned()?;
+
+            if !base.pop() {
                 return Err(compile::Error::new(
                     span,
-                    ErrorKind::UnsupportedModuleItem {
-                        item: item.try_to_owned()?,
+                    ErrorKind::UnsupportedModuleRoot {
+                        root: root.try_to_owned()?,
                     },
                 ));
             }
-        }
 
-        let candidates = [base.join("mod.rn"), base.with_extension("rn")];
-
-        let mut found = None;
-
-        for path in &candidates[..] {
-            if path.is_file() {
-                found = Some(path);
-                break;
+            for c in item {
+                if let ComponentRef::Str(string) = c {
+                    base.push(string);
+                } else {
+                    return Err(compile::Error::new(
+                        span,
+                        ErrorKind::UnsupportedModuleItem {
+                            item: item.try_to_owned()?,
+                        },
+                    ));
+                }
             }
-        }
 
-        let Some(path) = found else {
-            return Err(compile::Error::new(
-                span,
-                ErrorKind::ModNotFound { path: base },
-            ));
-        };
+            let candidates = [base.join("mod.rn"), base.with_extension("rn")];
 
-        match Source::from_path(path) {
-            Ok(source) => Ok(source),
-            Err(error) => Err(compile::Error::new(
-                span,
-                ErrorKind::FileError {
-                    path: path.clone(),
-                    error,
-                },
-            )),
+            let mut found = None;
+
+            for path in &candidates[..] {
+                if path.is_file() {
+                    found = Some(path);
+                    break;
+                }
+            }
+
+            let Some(path) = found else {
+                return Err(compile::Error::new(
+                    span,
+                    ErrorKind::ModNotFound { path: base },
+                ));
+            };
+
+            match Source::from_path(path) {
+                Ok(source) => Ok(source),
+                Err(error) => Err(compile::Error::new(
+                    span,
+                    ErrorKind::SourceError {
+                        path: path.clone(),
+                        error,
+                    },
+                )),
+            }
         }
     }
 }

@@ -2,7 +2,6 @@ use core::fmt;
 
 use crate::alloc;
 use crate::alloc::prelude::*;
-use crate::no_std::std;
 use crate::runtime::{Bytes, Object, Shared, Vec};
 
 use serde::de::{self, Deserialize as _, Error};
@@ -129,7 +128,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     }
 
     #[inline]
-    fn visit_string<E>(self, value: std::String) -> Result<Self::Value, E>
+    fn visit_string<E>(self, value: ::rust_alloc::string::String) -> Result<Self::Value, E>
     where
         E: de::Error,
     {
@@ -149,7 +148,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     }
 
     #[inline]
-    fn visit_byte_buf<E>(self, v: std::Vec<u8>) -> Result<Self::Value, E>
+    fn visit_byte_buf<E>(self, v: ::rust_alloc::vec::Vec<u8>) -> Result<Self::Value, E>
     where
         E: de::Error,
     {

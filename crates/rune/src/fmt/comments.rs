@@ -5,8 +5,7 @@ mod tests;
 
 use core::str::CharIndices;
 
-use crate::no_std::prelude::*;
-
+use crate::alloc::Vec;
 use crate::ast::Span;
 use crate::fmt::FormattingError;
 
@@ -33,29 +32,34 @@ pub(super) fn parse_comments(input: &str) -> Result<Vec<Comment>, FormattingErro
     let mut in_template = false;
     let mut on_new_line = true;
 
-    while let Some((idx, c)) = chars.next() {
+    while let Some((start, c)) = chars.next() {
         match c {
             '/' if !in_string && !in_char && !in_template => match chars.clone().next() {
                 Some((_, '/')) => {
                     let end = parse_line_comment(&mut chars);
 
-                    if !input[idx..end].starts_with("///") && !input[idx..end].starts_with("//!") {
-                        comments.push(Comment {
+                    if !input[start..end].starts_with("///")
+                        && !input[start..end].starts_with("//!")
+                    {
+                        comments.try_push(Comment {
                             on_new_line,
                             kind: CommentKind::Line,
-                            span: Span::new(idx, end),
-                        });
+                            span: Span::new(start, end),
+                        })?;
                     }
                 }
                 Some((_, '*')) => {
-                    let end = parse_block_comment(&mut chars).ok_or(FormattingError::Eof)?;
+                    let end =
+                        parse_block_comment(&mut chars).ok_or(FormattingError::OpenComment)?;
 
-                    if !input[idx..end].starts_with("/**") && !input[idx..end].starts_with("/*!") {
-                        comments.push(Comment {
+                    if !input[start..end].starts_with("/**")
+                        && !input[start..end].starts_with("/*!")
+                    {
+                        comments.try_push(Comment {
                             on_new_line,
                             kind: CommentKind::Block,
-                            span: Span::new(idx, end),
-                        });
+                            span: Span::new(start, end),
+                        })?;
                     }
                 }
                 _ => {}

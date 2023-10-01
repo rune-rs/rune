@@ -3,15 +3,15 @@
 use std::fmt;
 use std::io;
 
-use crate::no_std::prelude::*;
-
 use codespan_reporting::diagnostic as d;
 use codespan_reporting::term;
 use codespan_reporting::term::termcolor::WriteColor;
 pub use codespan_reporting::term::termcolor;
 
-use crate::{Sources};
-use crate::ast::{Spanned};
+use crate::alloc::prelude::*;
+use crate::alloc;
+use crate::Sources;
+use crate::ast::Spanned;
 use crate::workspace::{Diagnostics, Diagnostic, FatalDiagnostic};
 
 /// Errors that can be raised when formatting diagnostics.
@@ -20,8 +20,8 @@ use crate::workspace::{Diagnostics, Diagnostic, FatalDiagnostic};
 pub enum EmitError {
     /// Source Error.
     Io(io::Error),
-    /// Source Error.
-    Fmt(fmt::Error),
+    /// Allocation Error.
+    Alloc(alloc::Error),
     /// Codespan reporting error.
     CodespanReporting(codespan_reporting::files::Error),
 }
@@ -30,7 +30,7 @@ impl fmt::Display for EmitError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             EmitError::Io(..) => write!(f, "I/O error"),
-            EmitError::Fmt(..) => write!(f, "formatting error"),
+            EmitError::Alloc(error) => error.fmt(f),
             EmitError::CodespanReporting(..) => write!(f, "codespan reporting error"),
         }
     }
@@ -42,9 +42,9 @@ impl From<io::Error> for EmitError {
     }
 }
 
-impl From<fmt::Error> for EmitError {
-    fn from(source: fmt::Error) -> Self {
-        EmitError::Fmt(source)
+impl From<alloc::Error> for EmitError {
+    fn from(error: alloc::Error) -> Self {
+        EmitError::Alloc(error)
     }
 }
 
@@ -54,12 +54,14 @@ impl From<codespan_reporting::files::Error> for EmitError {
     }
 }
 
-impl crate::no_std::error::Error for EmitError {
-    fn source(&self) -> Option<&(dyn crate::no_std::error::Error + 'static)> {
-        match self {
-            EmitError::Io(error) => Some(error),
-            EmitError::Fmt(error) => Some(error),
-            EmitError::CodespanReporting(error) => Some(error),
+cfg_std! {
+    impl std::error::Error for EmitError {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            match self {
+                EmitError::Io(error) => Some(error),
+                EmitError::Alloc(error) => Some(error),
+                EmitError::CodespanReporting(error) => Some(error),
+            }
         }
     }
 }
@@ -105,13 +107,13 @@ fn error_diagnostics_emit<O>(
 where
     O: WriteColor,
 {
-    let mut labels = Vec::new();
+    let mut labels = rust_alloc::vec::Vec::new();
 
     let span = this.error().span();
-    labels.push(d::Label::primary(this.source_id(), span.range()).with_message(this.error().to_string()));
+    labels.push(d::Label::primary(this.source_id(), span.range()).with_message(this.error().try_to_string()?.into_std()));
 
     let diagnostic = d::Diagnostic::error()
-        .with_message(this.error().to_string())
+        .with_message(this.error().try_to_string()?.into_std())
         .with_labels(labels);
 
     term::emit(out, config, sources, &diagnostic)?;

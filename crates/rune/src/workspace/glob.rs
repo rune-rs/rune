@@ -1,15 +1,56 @@
 #[cfg(test)]
 mod tests;
 
+use std::fmt;
 use std::fs;
 use std::io;
 use std::mem;
 use std::path::{Path, PathBuf};
 
-use crate::no_std::collections::VecDeque;
-use crate::no_std::prelude::*;
+use crate as rune;
+use crate::alloc::prelude::*;
+use crate::alloc::{self, VecDeque, Vec, Box};
 
 use relative_path::RelativePath;
+
+/// Errors raised during glob expansion.
+#[derive(Debug)]
+pub enum GlobError {
+    Io(io::Error),
+    Alloc(alloc::Error),
+}
+
+impl From<io::Error> for GlobError {
+    fn from(error: io::Error) -> Self {
+        Self::Io(error)
+    }
+}
+
+impl From<alloc::Error> for GlobError {
+    fn from(error: alloc::Error) -> Self {
+        Self::Alloc(error)
+    }
+}
+
+impl fmt::Display for GlobError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            GlobError::Io(error) => error.fmt(f),
+            GlobError::Alloc(error) => error.fmt(f),
+        }
+    }
+}
+
+cfg_std! {
+    impl std::error::Error for GlobError {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            match self {
+                GlobError::Io(error) => Some(error),
+                GlobError::Alloc(error) => Some(error),
+            }
+        }
+    }
+}
 
 /// A compiled glob expression.
 pub struct Glob<'a> {
@@ -19,26 +60,26 @@ pub struct Glob<'a> {
 
 impl<'a> Glob<'a> {
     /// Construct a new glob pattern.
-    pub fn new<R, P>(root: &'a R, pattern: &'a P) -> Self
+    pub fn new<R, P>(root: &'a R, pattern: &'a P) -> alloc::Result<Self>
     where
         R: ?Sized + AsRef<Path>,
         P: ?Sized + AsRef<RelativePath>,
     {
-        let components = compile_pattern(pattern);
+        let components = compile_pattern(pattern)?;
 
-        Self {
+        Ok(Self {
             root: root.as_ref(),
             components,
-        }
+        })
     }
 
     /// Construct a new matcher.
-    pub(crate) fn matcher(&self) -> Matcher<'_> {
-        Matcher {
-            queue: [(self.root.to_owned(), self.components.as_ref())]
+    pub(crate) fn matcher(&self) -> alloc::Result<Matcher<'_>> {
+        Ok(Matcher {
+            queue: [(self.root.to_path_buf(), self.components.as_ref())]
                 .into_iter()
-                .collect(),
-        }
+                .try_collect()?,
+        })
     }
 }
 
@@ -46,17 +87,17 @@ impl<'a> Matcher<'a> {
     /// Perform an expansion in the filesystem.
     fn expand_filesystem<M>(
         &mut self,
-        path: &PathBuf,
+        path: &Path,
         rest: &'a [Component<'a>],
         mut m: M,
-    ) -> io::Result<()>
+    ) -> Result<(), GlobError>
     where
-        M: FnMut(&str) -> bool,
+        M: FnMut(&str) -> alloc::Result<bool>,
     {
         let io_path = if path.as_os_str().is_empty() {
             Path::new(std::path::Component::CurDir.as_os_str())
         } else {
-            path.as_path()
+            path
         };
 
         match fs::metadata(io_path) {
@@ -68,7 +109,7 @@ impl<'a> Matcher<'a> {
             Err(e) if e.kind() == io::ErrorKind::NotFound => {
                 return Ok(());
             }
-            Err(e) => return Err(e),
+            Err(e) => return Err(e.into()),
         }
 
         for e in fs::read_dir(io_path)? {
@@ -76,24 +117,24 @@ impl<'a> Matcher<'a> {
             let file_name = e.file_name();
             let c = file_name.to_string_lossy();
 
-            if !m(c.as_ref()) {
+            if !m(c.as_ref())? {
                 continue;
             }
 
-            let mut new = path.to_owned();
+            let mut new = path.to_path_buf();
             new.push(file_name);
-            self.queue.push_back((new, rest));
+            self.queue.try_push_back((new, rest))?;
         }
 
         Ok(())
     }
 
     /// Perform star star expansion.
-    fn walk(&mut self, path: &Path, rest: &'a [Component<'a>]) -> io::Result<()> {
-        self.queue.push_back((path.to_owned(), rest));
+    fn walk(&mut self, path: &Path, rest: &'a [Component<'a>]) -> Result<(), GlobError> {
+        self.queue.try_push_back((path.to_path_buf(), rest))?;
 
         let mut queue = VecDeque::new();
-        queue.push_back(path.to_owned());
+        queue.try_push_back(path.to_path_buf())?;
 
         while let Some(path) = queue.pop_front() {
             let io_path = if path.as_os_str().is_empty() {
@@ -111,13 +152,13 @@ impl<'a> Matcher<'a> {
                 Err(e) if e.kind() == io::ErrorKind::NotFound => {
                     continue;
                 }
-                Err(e) => return Err(e),
+                Err(e) => return Err(e.into()),
             }
 
             for e in fs::read_dir(io_path)? {
                 let next = e?.path();
-                self.queue.push_back((next.clone(), rest));
-                queue.push_back(next);
+                self.queue.try_push_back((next.clone(), rest))?;
+                queue.try_push_back(next)?;
             }
         }
 
@@ -130,7 +171,7 @@ pub(crate) struct Matcher<'a> {
 }
 
 impl<'a> Iterator for Matcher<'a> {
-    type Item = io::Result<PathBuf>;
+    type Item = Result<PathBuf, GlobError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         'outer: loop {
@@ -170,19 +211,19 @@ impl<'a> Iterator for Matcher<'a> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 enum Component<'a> {
     /// Parent directory.
     ParentDir,
     /// A normal component.
-    Normal(&'a str),
+    Normal(#[try_clone(copy)] &'a str),
     /// Normal component, compiled into a fragment.
     Fragment(Fragment<'a>),
     /// `**` component, which keeps expanding.
     StarStar,
 }
 
-fn compile_pattern<P>(pattern: &P) -> Vec<Component<'_>>
+fn compile_pattern<P>(pattern: &P) -> alloc::Result<Vec<Component<'_>>>
 where
     P: ?Sized + AsRef<RelativePath>,
 {
@@ -191,12 +232,12 @@ where
     let mut output = Vec::new();
 
     for c in pattern.components() {
-        output.push(match c {
+        output.try_push(match c {
             relative_path::Component::CurDir => continue,
             relative_path::Component::ParentDir => Component::ParentDir,
             relative_path::Component::Normal("**") => Component::StarStar,
             relative_path::Component::Normal(normal) => {
-                let fragment = Fragment::parse(normal);
+                let fragment = Fragment::parse(normal)?;
 
                 if let Some(normal) = fragment.as_literal() {
                     Component::Normal(normal)
@@ -204,26 +245,27 @@ where
                     Component::Fragment(fragment)
                 }
             }
-        });
+        })?;
     }
 
-    output
+    Ok(output)
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
 enum Part<'a> {
     Star,
     Literal(&'a str),
 }
 
 /// A match fragment.
-#[derive(Debug, Clone)]
+#[derive(Debug, TryClone)]
 pub(crate) struct Fragment<'a> {
     parts: Box<[Part<'a>]>,
 }
 
 impl<'a> Fragment<'a> {
-    pub(crate) fn parse(string: &'a str) -> Fragment<'a> {
+    pub(crate) fn parse(string: &'a str) -> alloc::Result<Fragment<'a>> {
         let mut literal = true;
         let mut parts = Vec::new();
         let mut start = None;
@@ -232,11 +274,11 @@ impl<'a> Fragment<'a> {
             match c {
                 '*' => {
                     if let Some(s) = start.take() {
-                        parts.push(Part::Literal(&string[s..n]));
+                        parts.try_push(Part::Literal(&string[s..n]))?;
                     }
 
                     if mem::take(&mut literal) {
-                        parts.push(Part::Star);
+                        parts.try_push(Part::Star)?;
                     }
                 }
                 _ => {
@@ -250,18 +292,18 @@ impl<'a> Fragment<'a> {
         }
 
         if let Some(s) = start {
-            parts.push(Part::Literal(&string[s..]));
+            parts.try_push(Part::Literal(&string[s..]))?;
         }
 
-        Fragment {
-            parts: parts.into(),
-        }
+        Ok(Fragment {
+            parts: parts.try_into()?,
+        })
     }
 
     /// Test if the given string matches the current fragment.
-    pub(crate) fn is_match(&self, string: &str) -> bool {
+    pub(crate) fn is_match(&self, string: &str) -> alloc::Result<bool> {
         let mut backtrack = VecDeque::new();
-        backtrack.push_back((self.parts.as_ref(), string));
+        backtrack.try_push_back((self.parts.as_ref(), string))?;
 
         while let Some((mut parts, mut string)) = backtrack.pop_front() {
             while let Some(part) = parts.first() {
@@ -271,19 +313,19 @@ impl<'a> Fragment<'a> {
                         // trailing wildcard (which this constitutes) then it
                         // is by definition a match.
                         let Some(Part::Literal(peek)) = parts.get(1) else {
-                            return true;
+                            return Ok(true);
                         };
 
                         let Some(peek) = peek.chars().next() else {
-                            return true;
+                            return Ok(true);
                         };
 
                         while let Some(c) = string.chars().next() {
                             if c == peek {
-                                backtrack.push_front((
+                                backtrack.try_push_front((
                                     parts,
                                     string.get(c.len_utf8()..).unwrap_or_default(),
-                                ));
+                                ))?;
                                 break;
                             }
 
@@ -294,7 +336,7 @@ impl<'a> Fragment<'a> {
                         // The literal component must be an exact prefix of the
                         // current string.
                         let Some(remainder) = string.strip_prefix(literal) else {
-                            return false;
+                            return Ok(false);
                         };
 
                         string = remainder;
@@ -305,11 +347,11 @@ impl<'a> Fragment<'a> {
             }
 
             if string.is_empty() {
-                return true;
+                return Ok(true);
             }
         }
 
-        false
+        Ok(false)
     }
 
     /// Treat the fragment as a single normal component.

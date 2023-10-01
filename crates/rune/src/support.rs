@@ -96,8 +96,8 @@ pub(crate) mod no_std {
     }
 
     #[cfg(test)]
-    impl From<tests::RunError> for Error {
-        fn from(error: tests::RunError) -> Self {
+    impl From<tests::TestError> for Error {
+        fn from(error: tests::TestError) -> Self {
             Self {
                 kind: ErrorKind::Test(error),
             }
@@ -128,7 +128,7 @@ pub(crate) mod no_std {
         Vm(runtime::VmError),
         Custom(anyhow::Error),
         #[cfg(test)]
-        Test(tests::RunError),
+        Test(tests::TestError),
     }
 
     #[cfg(feature = "std")]

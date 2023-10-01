@@ -13,13 +13,13 @@
 
 use core::mem::take;
 
-use crate::no_std::io::{self, Write};
-use crate::no_std::prelude::*;
-use crate::no_std::string::FromUtf8Error;
-use crate::no_std::sync::Arc;
+use ::rust_alloc::sync::Arc;
 
 use parking_lot::Mutex;
 
+use crate::alloc::fmt::TryWrite;
+use crate::alloc::string::FromUtf8Error;
+use crate::alloc::{String, Vec};
 use crate::runtime::{Stack, VmError, VmResult};
 use crate::{ContextError, Module, Value};
 
@@ -73,16 +73,20 @@ impl CaptureIo {
         take(&mut *o)
     }
 
-    /// Drain all captured I/O that has been written to output functions into
-    /// the given [Write].
-    pub fn drain_into<O>(&self, mut out: O) -> io::Result<()>
-    where
-        O: Write,
-    {
-        let mut o = self.inner.lock();
-        out.write_all(&o)?;
-        o.clear();
-        Ok(())
+    cfg_std! {
+        /// Drain all captured I/O that has been written to output functions into
+        /// the given [Write].
+        ///
+        /// [Write]: std::io::Write
+        pub fn drain_into<O>(&self, mut out: O) -> std::io::Result<()>
+        where
+            O: std::io::Write,
+        {
+            let mut o = self.inner.lock();
+            out.write_all(o.as_slice())?;
+            o.clear();
+            Ok(())
+        }
     }
 
     /// Drain all captured I/O that has been written to output functions and try

@@ -31,7 +31,7 @@
 use std::fmt;
 use std::sync::Arc;
 
-use anyhow::Context as _;
+use anyhow::{Context as _, Result};
 use gloo_utils::format::JsValueSerdeExt;
 use rune::ast::Spanned;
 use rune::compile::LinkerError;
@@ -119,7 +119,7 @@ impl WasmCompileResult {
             diagnostics_output,
             diagnostics,
             result: Some(format!("{:?}", output)),
-            output: io.drain_utf8().ok(),
+            output: io.drain_utf8().ok().map(|s| s.into_std()),
             instructions,
         }
     }
@@ -140,7 +140,7 @@ impl WasmCompileResult {
             diagnostics_output,
             diagnostics,
             result: None,
-            output: io.drain_utf8().ok(),
+            output: io.drain_utf8().ok().map(|s| s.into_std()),
             instructions,
         }
     }
@@ -170,13 +170,13 @@ async fn inner_compile(
     input: String,
     config: JsValue,
     io: &CaptureIo,
-) -> Result<WasmCompileResult, anyhow::Error> {
+) -> Result<WasmCompileResult> {
     let instructions = None;
 
     let config: Config = JsValueSerdeExt::into_serde(&config)?;
     let budget = config.budget.unwrap_or(1_000_000);
 
-    let source = rune::Source::new("entry", input);
+    let source = rune::Source::new("entry", input)?;
     let mut sources = rune::Sources::new();
     sources.insert(source)?;
 
@@ -267,7 +267,7 @@ async fn inner_compile(
 
     if !config.suppress_text_warnings {
         d.emit(&mut writer, &sources)
-            .context("emitting to buffer should never fail")?;
+            .context("Emitting to buffer should never fail")?;
     }
 
     let unit = match result {
@@ -287,7 +287,7 @@ async fn inner_compile(
         let mut out = rune::termcolor::Buffer::no_color();
         unit.emit_instructions(&mut out, &sources, false)
             .expect("dumping to string shouldn't fail");
-        Some(diagnostics_output(out).context("converting instructions to UTF-8")?)
+        Some(diagnostics_output(out).context("Converting instructions to UTF-8")?)
     } else {
         None
     };
@@ -299,7 +299,7 @@ async fn inner_compile(
         Err(error) => {
             error
                 .emit(&mut writer, &sources)
-                .context("emitting to buffer should never fail")?;
+                .context("Emitting to buffer should never fail")?;
 
             return Ok(WasmCompileResult::from_error(
                 io,
@@ -346,7 +346,7 @@ async fn inner_compile(
 
             error
                 .emit(&mut writer, &sources)
-                .context("emitting to buffer should never fail")?;
+                .context("Emitting to buffer should never fail")?;
 
             return Ok(WasmCompileResult::from_error(
                 io,

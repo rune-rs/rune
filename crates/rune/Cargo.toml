@@ -42,7 +42,6 @@ ryu = "1.0.13"
 serde = { version = "1.0.163", default-features = false, features = ["derive", "rc"] }
 tracing =  { version = "0.1.37", default-features = false, features = ["attributes"] }
 musli = { version = "0.0.42", default-features = false, features = ["alloc"] }
-slab = { version = "0.4.8", default-features = false }
 once_cell = { version = "1.18.0", default-features = false, features = ["critical-section"] }
 
 musli-storage = { version = "0.0.42", default-features = false, optional = true, features = ["alloc"] }

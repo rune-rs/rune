@@ -28,4 +28,4 @@ byteorder = { version = "1.4.3", default-features = false }
 musli = { version = "0.0.42", default-features = false, optional = true }
 
 [dev-dependencies]
-rune = { path = "../rune" }
+rune = { package = "rune-shim", path = "../rune-shim", features = ["core", "alloc"] }

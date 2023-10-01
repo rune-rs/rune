@@ -1,3 +1,12 @@
+//! Module for dealing with sources.
+//!
+//! The primary type in here is the [`Source`] struct, which holds onto all
+//! metadata necessary related to a source in order to build it.
+//!
+//! Sources are stored in the [`Sources`] collection.
+//!
+//! [`Sources`]: crate::sources::Sources
+
 #[cfg(feature = "emit")]
 use core::cmp;
 use core::fmt;
@@ -6,15 +15,70 @@ use core::iter;
 use core::ops::Range;
 use core::slice;
 
+use crate as rune;
+#[cfg(feature = "std")]
+use crate::alloc::borrow::Cow;
 use crate::alloc::path::Path;
-use crate::no_std::io;
-use crate::no_std::prelude::*;
+use crate::alloc::prelude::*;
+use crate::alloc::{self, Box};
 
 #[cfg(feature = "emit")]
 use crate::ast::Span;
 
+/// Error raised when constructing a source.
+#[derive(Debug)]
+pub struct FromPathError {
+    kind: FromPathErrorKind,
+}
+
+impl From<alloc::Error> for FromPathError {
+    fn from(error: alloc::Error) -> Self {
+        Self {
+            kind: FromPathErrorKind::Alloc(error),
+        }
+    }
+}
+
+cfg_std! {
+    impl From<std::io::Error> for FromPathError {
+        fn from(error: std::io::Error) -> Self {
+            Self {
+                kind: FromPathErrorKind::Io(error),
+            }
+        }
+    }
+}
+
+impl fmt::Display for FromPathError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.kind {
+            FromPathErrorKind::Alloc(error) => error.fmt(f),
+            #[cfg(feature = "std")]
+            FromPathErrorKind::Io(error) => error.fmt(f),
+        }
+    }
+}
+
+#[derive(Debug)]
+enum FromPathErrorKind {
+    Alloc(alloc::Error),
+    #[cfg(feature = "std")]
+    Io(std::io::Error),
+}
+
+cfg_std! {
+    impl std::error::Error for FromPathError {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            match &self.kind {
+                FromPathErrorKind::Alloc(error) => Some(error),
+                FromPathErrorKind::Io(error) => Some(error),
+            }
+        }
+    }
+}
+
 /// A single source file.
-#[derive(Default, Clone)]
+#[derive(Default, TryClone)]
 pub struct Source {
     /// The name of the source.
     name: SourceName,
@@ -28,16 +92,17 @@ pub struct Source {
 
 impl Source {
     /// Construct a new source with the given name.
-    pub fn new(name: impl AsRef<str>, source: impl AsRef<str>) -> Self {
+    pub fn new(name: impl AsRef<str>, source: impl AsRef<str>) -> alloc::Result<Self> {
+        let name = Box::try_from(name.as_ref())?;
         let source = source.as_ref();
-        let line_starts = line_starts(source).collect::<Box<[_]>>();
+        let line_starts = line_starts(source).try_collect::<Box<[_]>>()?;
 
-        Self {
-            name: SourceName::Name(name.as_ref().into()),
-            source: source.into(),
+        Ok(Self {
+            name: SourceName::Name(name),
+            source: source.try_into()?,
             path: None,
             line_starts,
-        }
+        })
     }
 
     /// Construct a new anonymously named `<memory>` source.
@@ -46,39 +111,38 @@ impl Source {
     ///
     /// ```
     /// use rune::Source;
-    /// let source = Source::memory("pub fn main() { 42 }");
+    ///
+    /// let source = Source::memory("pub fn main() { 42 }")?;
     /// assert_eq!(source.name(), "<memory>");
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn memory(source: impl AsRef<str>) -> Self {
+    pub fn memory(source: impl AsRef<str>) -> alloc::Result<Self> {
         let source = source.as_ref();
-        let line_starts = line_starts(source).collect::<Box<[_]>>();
-
-        Self {
-            name: SourceName::Memory,
-            source: source.into(),
-            path: None,
-            line_starts,
-        }
-    }
-
-    /// Constructing sources from paths is not supported in no-std environments.
-    #[cfg(not(feature = "std"))]
-    pub fn from_path<P>(_: P) -> io::Result<Self> {
-        Err(io::Error::new())
-    }
-
-    /// Read and load a source from the given filesystem path.
-    #[cfg(feature = "std")]
-    pub fn from_path(path: impl AsRef<Path>) -> io::Result<Self> {
-        let source = std::fs::read_to_string(path.as_ref())?;
-        let line_starts = line_starts(&source).collect::<Box<[_]>>();
+        let line_starts = line_starts(source).try_collect::<Box<[_]>>()?;
 
         Ok(Self {
-            name: SourceName::Name(path.as_ref().to_string_lossy().into_owned().into()),
-            source: source.into(),
-            path: Some(path.as_ref().into()),
+            name: SourceName::Memory,
+            source: source.try_into()?,
+            path: None,
             line_starts,
         })
+    }
+
+    cfg_std! {
+        /// Read and load a source from the given filesystem path.
+        pub fn from_path(path: impl AsRef<Path>) -> Result<Self, FromPathError> {
+            let name = Box::try_from(Cow::try_from(path.as_ref().to_string_lossy())?)?;
+            let source = Box::try_from(std::fs::read_to_string(path.as_ref())?)?;
+            let path = Some(path.as_ref().try_into()?);
+            let line_starts = line_starts(source.as_ref()).try_collect::<Box<[_]>>()?;
+
+            Ok(Self {
+                name: SourceName::Name(name),
+                source,
+                path,
+                line_starts,
+            })
+        }
     }
 
     /// Construct a new source with the given content and path.
@@ -89,24 +153,27 @@ impl Source {
     /// use std::path::Path;
     /// use rune::Source;
     ///
-    /// let source = Source::with_path("test", "pub fn main() { 42 }", "test.rn");
+    /// let source = Source::with_path("test", "pub fn main() { 42 }", "test.rn")?;
     /// assert_eq!(source.name(), "test");
     /// assert_eq!(source.path(), Some(Path::new("test.rn")));
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn with_path(
         name: impl AsRef<str>,
         source: impl AsRef<str>,
         path: impl AsRef<Path>,
-    ) -> Self {
-        let source = source.as_ref();
-        let line_starts = line_starts(source).collect::<Box<[_]>>();
+    ) -> alloc::Result<Self> {
+        let name = Box::try_from(name.as_ref())?;
+        let source = Box::try_from(source.as_ref())?;
+        let path = Some(path.as_ref().try_into()?);
+        let line_starts = line_starts(source.as_ref()).try_collect::<Box<[_]>>()?;
 
-        Self {
-            name: SourceName::Name(name.as_ref().into()),
-            source: source.into(),
-            path: Some(path.as_ref().into()),
+        Ok(Self {
+            name: SourceName::Name(name),
+            source,
+            path,
             line_starts,
-        }
+        })
     }
 
     /// Access all line starts in the source.
@@ -144,9 +211,10 @@ impl Source {
     /// use std::path::Path;
     /// use rune::Source;
     ///
-    /// let source = Source::with_path("test", "pub fn main() { 42 }", "test.rn");
+    /// let source = Source::with_path("test", "pub fn main() { 42 }", "test.rn")?;
     /// assert_eq!(source.name(), "test");
     /// assert_eq!(source.path(), Some(Path::new("test.rn")));
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn path(&self) -> Option<&Path> {
         self.path.as_deref()
@@ -251,7 +319,7 @@ impl fmt::Debug for Source {
 }
 
 /// Holder for the name of a source.
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, TryClone, PartialEq, Eq)]
 enum SourceName {
     /// An in-memory source, will use `<memory>` when the source is being
     /// referred to in diagnostics.

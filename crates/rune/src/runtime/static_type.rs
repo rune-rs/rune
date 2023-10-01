@@ -2,8 +2,6 @@ use core::cmp::{Eq, Ordering, PartialEq};
 use core::hash;
 use core::ops::ControlFlow;
 
-use crate::no_std::std;
-
 use crate::alloc::{self, HashMap};
 use crate::runtime as rt;
 use crate::runtime::{RawStr, TypeInfo};
@@ -141,12 +139,13 @@ pub(crate) static OBJECT_TYPE: &StaticType = &StaticType {
 };
 
 impl_static_type!(rt::Struct => OBJECT_TYPE);
-#[cfg(feature = "std")]
-impl_static_type!(impl<T> ::std::collections::HashMap<std::String, T> => OBJECT_TYPE);
-#[cfg(feature = "std")]
-impl_static_type!(impl<T> ::std::collections::HashMap<alloc::String, T> => OBJECT_TYPE);
-impl_static_type!(impl<T> HashMap<std::String, T> => OBJECT_TYPE);
+impl_static_type!(impl<T> HashMap<::rust_alloc::string::String, T> => OBJECT_TYPE);
 impl_static_type!(impl<T> HashMap<alloc::String, T> => OBJECT_TYPE);
+
+cfg_std! {
+    impl_static_type!(impl<T> ::std::collections::HashMap<::rust_alloc::string::String, T> => OBJECT_TYPE);
+    impl_static_type!(impl<T> ::std::collections::HashMap<alloc::String, T> => OBJECT_TYPE);
+}
 
 pub(crate) static RANGE_FROM_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("RangeFrom"),

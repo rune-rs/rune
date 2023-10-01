@@ -5,15 +5,8 @@ std::thread_local!(static BUDGET: Cell<usize> = Cell::new(usize::MAX));
 pub(super) fn rune_budget_take() -> bool {
     BUDGET.with(|tls| {
         let v = tls.get();
-
-        if v == usize::MAX {
-            true
-        } else if v == 0 {
-            false
-        } else {
-            tls.set(v - 1);
-            true
-        }
+        tls.set(v.wrapping_sub(usize::from((v != usize::MAX) & (v != 0))));
+        v != 0
     })
 }
 

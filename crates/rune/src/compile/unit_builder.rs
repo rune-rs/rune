@@ -5,7 +5,7 @@
 
 use core::fmt;
 
-use crate::no_std::sync::Arc;
+use ::rust_alloc::sync::Arc;
 
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
@@ -44,7 +44,9 @@ impl fmt::Display for LinkerError {
     }
 }
 
-impl crate::no_std::error::Error for LinkerError {}
+cfg_std! {
+    impl std::error::Error for LinkerError {}
+}
 
 /// Instructions from a single source file.
 #[derive(Debug, Default)]
@@ -741,7 +743,7 @@ impl UnitBuilder {
                         hash: *hash,
                         spans: spans.try_clone()?,
                     },
-                );
+                )?;
             }
         }
 

@@ -1,3 +1,5 @@
+//! Error types used by rune alloc.
+
 use core::fmt;
 
 use crate::alloc::AllocError;

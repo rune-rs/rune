@@ -129,7 +129,7 @@ pub(super) const MIN_LEN: usize = node::MIN_LEN_AFTER_SPLIT;
 /// # Examples
 ///
 /// ```
-/// use rune_alloc::BTreeMap;
+/// use rune::alloc::BTreeMap;
 ///
 /// // type inference lets us omit an explicit type signature (which
 /// // would be `BTreeMap<&str, &str>` in this example).
@@ -166,13 +166,13 @@ pub(super) const MIN_LEN: usize = node::MIN_LEN_AFTER_SPLIT;
 /// for (movie, review) in &movie_reviews {
 ///     println!("{movie}: \"{review}\"");
 /// }
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 ///
 /// A `BTreeMap` with a known list of items can be initialized from an array:
 ///
 /// ```
-/// use rune_alloc::BTreeMap;
+/// use rune::alloc::BTreeMap;
 ///
 /// let solar_distance = BTreeMap::try_from([
 ///     ("Mercury", 0.4),
@@ -180,7 +180,7 @@ pub(super) const MIN_LEN: usize = node::MIN_LEN_AFTER_SPLIT;
 ///     ("Earth", 1.0),
 ///     ("Mars", 1.5),
 /// ])?;
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 ///
 /// `BTreeMap` implements an [`Entry API`], which allows for complex
@@ -189,7 +189,7 @@ pub(super) const MIN_LEN: usize = node::MIN_LEN_AFTER_SPLIT;
 /// [`Entry API`]: BTreeMap::entry
 ///
 /// ```
-/// use rune_alloc::BTreeMap;
+/// use rune::alloc::BTreeMap;
 ///
 /// // type inference lets us omit an explicit type signature (which
 /// // would be `BTreeMap<&str, u8>` in this example).
@@ -214,7 +214,7 @@ pub(super) const MIN_LEN: usize = node::MIN_LEN_AFTER_SPLIT;
 ///
 /// // modify an entry before an insert with in-place mutation
 /// player_stats.entry("mana").and_modify(|mana| *mana += 200).or_try_insert(100)?;
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 pub struct BTreeMap<K, V, A: Allocator = Global> {
     root: Option<Root<K, V>>,
@@ -521,7 +521,7 @@ impl<'a, K: 'a, V: 'a> Default for Iter<'a, K, V> {
     /// Creates an empty `btree_map::Iter`.
     ///
     /// ```
-    /// use rune_alloc::btree_map;
+    /// use rune::alloc::btree_map;
     ///
     /// let iter: btree_map::Iter<'_, u8, u8> = Default::default();
     /// assert_eq!(iter.len(), 0);
@@ -562,7 +562,7 @@ impl<'a, K: 'a, V: 'a> Default for IterMut<'a, K, V> {
     /// Creates an empty `btree_map::IterMut`.
     ///
     /// ```
-    /// use rune_alloc::btree_map;
+    /// use rune::alloc::btree_map;
     ///
     /// let iter: btree_map::IterMut<'_, u8, u8> = Default::default();
     /// assert_eq!(iter.len(), 0);
@@ -613,7 +613,7 @@ where
     /// Creates an empty `btree_map::IntoIter`.
     ///
     /// ```
-    /// use rune_alloc::btree_map;
+    /// use rune::alloc::btree_map;
     ///
     /// let iter: btree_map::IntoIter<u8, u8> = Default::default();
     /// assert_eq!(iter.len(), 0);
@@ -768,13 +768,13 @@ impl<K, V> BTreeMap<K, V> {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut map = BTreeMap::new();
     ///
     /// // entries can now be inserted into the empty map
     /// map.try_insert(1, "a")?;
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[must_use]
     pub const fn new() -> BTreeMap<K, V> {
@@ -803,14 +803,14 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
-    /// use rune_alloc::alloc::Global;
+    /// use rune::alloc::BTreeMap;
+    /// use rune::alloc::alloc::Global;
     ///
     /// let mut map = BTreeMap::new_in(Global);
     ///
     /// // entries can now be inserted into the empty map
     /// map.try_insert(1, "a")?;
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn new_in(alloc: A) -> BTreeMap<K, V, A> {
         BTreeMap {
@@ -830,13 +830,13 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut a = BTreeMap::new();
     /// a.try_insert(1, "a")?;
     /// a.clear();
     /// assert!(a.is_empty());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn clear(&mut self) {
         drop(into_iter!(self));
@@ -854,13 +854,13 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut map = BTreeMap::new();
     /// map.try_insert(1, "a")?;
     /// assert_eq!(map.get(&1), Some(&"a"));
     /// assert_eq!(map.get(&2), None);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn get<Q: ?Sized>(&self, key: &Q) -> Option<&V>
     where
@@ -897,13 +897,13 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut map = BTreeMap::new();
     /// map.try_insert(1, "a")?;
     /// assert_eq!(map.get_key_value(&1), Some((&1, &"a")));
     /// assert_eq!(map.get_key_value(&2), None);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn get_key_value<Q: ?Sized>(&self, k: &Q) -> Option<(&K, &V)>
     where
@@ -925,14 +925,14 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut map = BTreeMap::new();
     /// assert_eq!(map.first_key_value(), None);
     /// map.try_insert(1, "b")?;
     /// map.try_insert(2, "a")?;
     /// assert_eq!(map.first_key_value(), Some((&1, &"b")));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn first_key_value(&self) -> Option<(&K, &V)> {
         let root_node = self.root.as_ref()?.reborrow();
@@ -949,7 +949,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut map = BTreeMap::new();
     /// map.try_insert(1, "a")?;
@@ -963,7 +963,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     ///
     /// assert_eq!(*map.get(&1).unwrap(), "first");
     /// assert_eq!(*map.get(&2).unwrap(), "b");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn first_entry(&mut self) -> Option<OccupiedEntry<'_, K, V, A>> {
         let (map, dormant_map) = DormantMutRef::new(self);
@@ -985,7 +985,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// Draining elements in ascending order, while keeping a usable map each iteration.
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut map = BTreeMap::new();
     /// map.try_insert(1, "a")?;
@@ -994,7 +994,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     ///     assert!(map.iter().all(|(k, _v)| *k > key));
     /// }
     /// assert!(map.is_empty());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn pop_first(&mut self) -> Option<(K, V)> {
         self.first_entry().map(|entry| entry.remove_entry())
@@ -1008,13 +1008,13 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut map = BTreeMap::new();
     /// map.try_insert(1, "b")?;
     /// map.try_insert(2, "a")?;
     /// assert_eq!(map.last_key_value(), Some((&2, &"a")));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn last_key_value(&self) -> Option<(&K, &V)> {
         let root_node = self.root.as_ref()?.reborrow();
@@ -1031,7 +1031,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut map = BTreeMap::new();
     /// map.try_insert(1, "a")?;
@@ -1045,7 +1045,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     ///
     /// assert_eq!(*map.get(&1).unwrap(), "a");
     /// assert_eq!(*map.get(&2).unwrap(), "last");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn last_entry(&mut self) -> Option<OccupiedEntry<'_, K, V, A>> {
         let (map, dormant_map) = DormantMutRef::new(self);
@@ -1067,7 +1067,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// Draining elements in descending order, while keeping a usable map each iteration.
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut map = BTreeMap::new();
     /// map.try_insert(1, "a")?;
@@ -1078,7 +1078,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// }
     ///
     /// assert!(map.is_empty());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn pop_last(&mut self) -> Option<(K, V)> {
         self.last_entry().map(|entry| entry.remove_entry())
@@ -1094,14 +1094,14 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut map = BTreeMap::new();
     /// map.try_insert(1, "a")?;
     ///
     /// assert_eq!(map.contains_key(&1), true);
     /// assert_eq!(map.contains_key(&2), false);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn contains_key<Q: ?Sized>(&self, key: &Q) -> bool
     where
@@ -1134,7 +1134,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut map = BTreeMap::new();
     ///
@@ -1145,7 +1145,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// }
     ///
     /// assert_eq!(map[&1], "b");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     // See `get` for implementation notes, this is basically a copy-paste with mut's added
     pub fn get_mut<Q: ?Sized>(&mut self, key: &Q) -> Option<&mut V>
@@ -1156,7 +1156,11 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
         into_ok(self.get_mut_with(&mut (), key, infallible_cmp))
     }
 
-    pub(crate) fn get_mut_with<C: ?Sized, Q: ?Sized, E>(
+    /// Like [`BTreeMap::get_mut`] but allows for custom value comparisons.
+    ///
+    /// The comparison implementation should to be coherent with the ones used
+    /// for insertion, else unexpected values might be accessed.
+    pub fn get_mut_with<C: ?Sized, Q: ?Sized, E>(
         &mut self,
         cx: &mut C,
         key: &Q,
@@ -1191,7 +1195,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut map = BTreeMap::new();
     /// assert_eq!(map.try_insert(37, "a")?, None);
@@ -1200,7 +1204,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// map.try_insert(37, "b")?;
     /// assert_eq!(map.try_insert(37, "c")?, Some("b"));
     /// assert_eq!(map[&37], "c");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn try_insert(&mut self, key: K, value: V) -> Result<Option<V>, AllocError>
     where
@@ -1234,8 +1238,8 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
-    /// use rune_alloc::error::CustomError;
+    /// use rune::alloc::BTreeMap;
+    /// use rune::alloc::error::CustomError;
     ///
     /// let mut map = BTreeMap::new();
     /// assert_eq!(map.try_insert_or(37, "a").unwrap(), &"a");
@@ -1245,7 +1249,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     ///     assert_eq!(err.entry.get(), &"a");
     ///     assert_eq!(err.value, "b");
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn try_insert_or(
         &mut self,
@@ -1284,13 +1288,13 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut map = BTreeMap::new();
     /// map.try_insert(1, "a")?;
     /// assert_eq!(map.remove(&1), Some("a"));
     /// assert_eq!(map.remove(&1), None);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn remove<Q: ?Sized>(&mut self, key: &Q) -> Option<V>
     where
@@ -1311,13 +1315,13 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut map = BTreeMap::new();
     /// map.try_insert(1, "a")?;
     /// assert_eq!(map.remove_entry(&1), Some((1, "a")));
     /// assert_eq!(map.remove_entry(&1), None);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn remove_entry<Q: ?Sized>(&mut self, key: &Q) -> Option<(K, V)>
     where
@@ -1365,14 +1369,14 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::BTreeMap;
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut map: BTreeMap<i32, i32> = (0..8).map(|x| (x, x*10)).try_collect()?;
     /// // Keep only the elements with even-numbered keys.
     /// map.retain(|&k, _| k % 2 == 0);
     /// assert!(map.into_iter().eq(vec![(0, 0), (2, 20), (4, 40), (6, 60)]));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn retain<F>(&mut self, mut f: F)
@@ -1391,7 +1395,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut a = BTreeMap::new();
     /// a.try_insert(1, "a")?;
@@ -1413,7 +1417,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// assert_eq!(a[&3], "d"); // Note: "c" has been overwritten.
     /// assert_eq!(a[&4], "e");
     /// assert_eq!(a[&5], "f");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn try_append(&mut self, other: &mut Self) -> Result<(), AllocError>
     where
@@ -1466,7 +1470,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     /// use core::ops::Bound::Included;
     ///
     /// let mut map = BTreeMap::new();
@@ -1479,7 +1483,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// }
     ///
     /// assert_eq!(Some((&5, &"b")), map.range(4..).next());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn range<Q: ?Sized, R>(&self, range: R) -> Range<'_, K, V>
     where
@@ -1528,7 +1532,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut map: BTreeMap<&str, i32> =
     ///     [("Alice", 0), ("Bob", 0), ("Carol", 0), ("Cheryl", 0)].try_into()?;
@@ -1540,7 +1544,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// for (name, balance) in &map {
     ///     println!("{name} => {balance}");
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn range_mut<Q: ?Sized, R>(&mut self, range: R) -> RangeMut<'_, K, V>
     where
@@ -1582,7 +1586,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut count: BTreeMap<&str, usize> = BTreeMap::new();
     ///
@@ -1594,7 +1598,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// assert_eq!(count["a"], 3);
     /// assert_eq!(count["b"], 2);
     /// assert_eq!(count["c"], 1);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn entry(&mut self, key: K) -> Entry<'_, K, V, A>
     where
@@ -1646,7 +1650,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut a = BTreeMap::new();
     /// a.try_insert(1, "a")?;
@@ -1666,7 +1670,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// assert_eq!(b[&3], "c");
     /// assert_eq!(b[&17], "d");
     /// assert_eq!(b[&41], "e");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn try_split_off<Q: ?Sized>(&mut self, key: &Q) -> Result<Self, Error>
     where
@@ -1740,15 +1744,15 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// Splitting a map into even and odd keys, reusing the original map:
     ///
     /// ```
-    /// use rune_alloc::{Vec, BTreeMap};
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::{Vec, BTreeMap};
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut map: BTreeMap<i32, i32> = (0..8).map(|x| (x, x)).try_collect()?;
     /// let evens: BTreeMap<_, _> = map.extract_if(|k, _v| k % 2 == 0).try_collect()?;
     /// let odds = map;
     /// assert_eq!(evens.keys().copied().try_collect::<Vec<_>>()?, [0, 2, 4, 6]);
     /// assert_eq!(odds.keys().copied().try_collect::<Vec<_>>()?, [1, 3, 5, 7]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn extract_if<F>(&mut self, pred: F) -> ExtractIf<'_, K, V, F, A>
     where
@@ -1788,8 +1792,8 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::{BTreeMap, Vec};
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::{BTreeMap, Vec};
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut a = BTreeMap::new();
     /// a.try_insert(2, "b")?;
@@ -1797,7 +1801,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     ///
     /// let keys: Vec<i32> = a.into_keys().try_collect()?;
     /// assert_eq!(keys, [1, 2]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn into_keys(self) -> IntoKeys<K, V, A> {
@@ -1813,8 +1817,8 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::{BTreeMap, Vec};
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::{BTreeMap, Vec};
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut a = BTreeMap::new();
     /// a.try_insert(1, "hello");
@@ -1822,7 +1826,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     ///
     /// let values: Vec<&str> = a.into_values().try_collect()?;
     /// assert_eq!(values, ["hello", "goodbye"]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn into_values(self) -> IntoValues<K, V, A> {
@@ -2141,7 +2145,7 @@ impl<K, V> Default for Keys<'_, K, V> {
     /// Creates an empty `btree_map::Keys`.
     ///
     /// ```
-    /// use rune_alloc::btree_map;
+    /// use rune::alloc::btree_map;
     ///
     /// let iter: btree_map::Keys<'_, u8, u8> = Default::default();
     /// assert_eq!(iter.len(), 0);
@@ -2195,7 +2199,7 @@ impl<K, V> Default for Values<'_, K, V> {
     /// Creates an empty `btree_map::Values`.
     ///
     /// ```
-    /// use rune_alloc::btree_map;
+    /// use rune::alloc::btree_map;
     ///
     /// let iter: btree_map::Values<'_, u8, u8> = Default::default();
     /// assert_eq!(iter.len(), 0);
@@ -2337,7 +2341,7 @@ impl<K, V> Default for Range<'_, K, V> {
     /// Creates an empty [`Range`].
     ///
     /// ```
-    /// use rune_alloc::btree_map;
+    /// use rune::alloc::btree_map;
     ///
     /// let iter: btree_map::Range<'_, u8, u8> = Default::default();
     /// assert_eq!(iter.count(), 0);
@@ -2430,7 +2434,7 @@ where
     /// Creates an empty `btree_map::IntoKeys`.
     ///
     /// ```
-    /// use rune_alloc::btree_map;
+    /// use rune::alloc::btree_map;
     ///
     /// let iter: btree_map::IntoKeys<u8, u8> = Default::default();
     /// assert_eq!(iter.len(), 0);
@@ -2479,7 +2483,7 @@ where
     /// Creates an empty `btree_map::IntoValues`.
     ///
     /// ```
-    /// use rune_alloc::btree_map;
+    /// use rune::alloc::btree_map;
     ///
     /// let iter: btree_map::IntoValues<u8, u8> = Default::default();
     /// assert_eq!(iter.len(), 0);
@@ -2647,7 +2651,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut map = BTreeMap::new();
     /// map.try_insert(3, "c")?;
@@ -2660,7 +2664,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     ///
     /// let (first_key, first_value) = map.iter().next().unwrap();
     /// assert_eq!((*first_key, *first_value), (1, "a"));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn iter(&self) -> Iter<'_, K, V> {
         if let Some(root) = &self.root {
@@ -2706,7 +2710,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut map = BTreeMap::try_from([
     ///    ("a", 1),
@@ -2720,7 +2724,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     ///         *value += 10;
     ///     }
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn iter_mut(&mut self) -> IterMut<'_, K, V> {
         if let Some(root) = &mut self.root {
@@ -2747,7 +2751,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut a = BTreeMap::new();
     /// a.try_insert(2, "b")?;
@@ -2755,7 +2759,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     ///
     /// let keys: Vec<_> = a.keys().cloned().collect();
     /// assert_eq!(keys, [1, 2]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn keys(&self) -> Keys<'_, K, V> {
         Keys { inner: self.iter() }
@@ -2768,8 +2772,8 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::{BTreeMap, Vec};
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::{BTreeMap, Vec};
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut a = BTreeMap::new();
     /// a.try_insert(1, "hello")?;
@@ -2777,7 +2781,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     ///
     /// let values: Vec<&str> = a.values().copied().try_collect()?;
     /// assert_eq!(values, ["hello", "goodbye"]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn values(&self) -> Values<'_, K, V> {
         Values { inner: self.iter() }
@@ -2790,8 +2794,8 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::{BTreeMap, Vec, String};
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::{BTreeMap, Vec, String};
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut a = BTreeMap::new();
     /// a.try_insert(1, String::try_from("hello")?)?;
@@ -2809,7 +2813,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     ///
     /// assert_eq!(values, [String::try_from("hello!")?,
     ///                     String::try_from("goodbye!")?]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn values_mut(&mut self) -> ValuesMut<'_, K, V> {
         ValuesMut {
@@ -2824,13 +2828,13 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut a = BTreeMap::new();
     /// assert_eq!(a.len(), 0);
     /// a.try_insert(1, "a")?;
     /// assert_eq!(a.len(), 1);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[must_use]
     pub const fn len(&self) -> usize {
@@ -2844,13 +2848,13 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     ///
     /// let mut a = BTreeMap::new();
     /// assert!(a.is_empty());
     /// a.try_insert(1, "a")?;
     /// assert!(!a.is_empty());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[must_use]
     pub const fn is_empty(&self) -> bool {
@@ -2871,7 +2875,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     /// use std::ops::Bound;
     ///
     /// let mut a = BTreeMap::new();
@@ -2881,7 +2885,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// a.try_insert(4, "c")?;
     /// let cursor = a.lower_bound(Bound::Excluded(&2));
     /// assert_eq!(cursor.key(), Some(&3));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn lower_bound<Q>(&self, bound: Bound<&Q>) -> Cursor<'_, K, V>
     where
@@ -2929,7 +2933,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     /// use std::ops::Bound;
     ///
     /// let mut a = BTreeMap::new();
@@ -2939,7 +2943,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// a.try_insert(4, "c")?;
     /// let cursor = a.lower_bound_mut(Bound::Excluded(&2));
     /// assert_eq!(cursor.key(), Some(&3));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn lower_bound_mut<Q: ?Sized>(&mut self, bound: Bound<&Q>) -> CursorMut<'_, K, V, A>
     where
@@ -2993,7 +2997,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     /// use std::ops::Bound;
     ///
     /// let mut a = BTreeMap::new();
@@ -3003,7 +3007,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// a.try_insert(4, "c")?;
     /// let cursor = a.upper_bound(Bound::Excluded(&3));
     /// assert_eq!(cursor.key(), Some(&2));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn upper_bound<Q>(&self, bound: Bound<&Q>) -> Cursor<'_, K, V>
     where
@@ -3051,7 +3055,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::BTreeMap;
+    /// use rune::alloc::BTreeMap;
     /// use std::ops::Bound;
     ///
     /// let mut a = BTreeMap::new();
@@ -3061,7 +3065,7 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// a.try_insert(4, "c")?;
     /// let cursor = a.upper_bound_mut(Bound::Excluded(&3));
     /// assert_eq!(cursor.key(), Some(&2));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn upper_bound_mut<Q: ?Sized>(&mut self, bound: Bound<&Q>) -> CursorMut<'_, K, V, A>
     where

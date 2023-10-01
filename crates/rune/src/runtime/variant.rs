@@ -1,10 +1,10 @@
 use core::cmp::Ordering;
 use core::fmt;
 
-use crate::no_std::sync::Arc;
 use crate::runtime::{
     Object, OwnedTuple, ProtocolCaller, TypeInfo, Value, VariantRtti, Vec, VmResult,
 };
+use ::rust_alloc::sync::Arc;
 
 /// The variant of a type.
 pub struct Variant {

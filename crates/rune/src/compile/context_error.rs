@@ -267,4 +267,5 @@ impl fmt::Display for ContextError {
     }
 }
 
-impl crate::no_std::error::Error for ContextError {}
+#[cfg(feature = "std")]
+impl std::error::Error for ContextError {}

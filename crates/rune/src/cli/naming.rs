@@ -1,10 +1,9 @@
 use core::mem::replace;
 
-use std::collections::HashSet;
 use std::ffi::OsStr;
 
-use crate::no_std::prelude::*;
-
+use crate::alloc::{self, try_format, String, HashSet};
+use crate::alloc::prelude::*;
 use crate::cli::EntryPoint;
 use crate::workspace;
 
@@ -17,12 +16,12 @@ pub(crate) struct Naming {
 
 impl Naming {
     /// Construct a unique crate name for the given entrypoint.
-    pub(crate) fn name(&mut self, e: &EntryPoint<'_>) -> String {
+    pub(crate) fn name(&mut self, e: &EntryPoint<'_>) -> alloc::Result<String> {
         let name = match &e {
             EntryPoint::Path(path) => {
                 match path.file_stem().and_then(OsStr::to_str) {
-                    Some(name) => String::from(name),
-                    None => String::from("entry"),
+                    Some(name) => String::try_from(name)?,
+                    None => String::try_from("entry")?,
                 }
             }
             EntryPoint::Package(p) => {
@@ -35,18 +34,18 @@ impl Naming {
                     workspace::FoundKind::Bench => "bench",
                 };
 
-                format!("{}-{name}-{ext}", p.package.name)
+                try_format!("{}-{name}-{ext}", p.package.name)
             },
         };
 
         // TODO: make it so that we can communicate different entrypoints in the
         // visitors context instead of this hackery.
-        if !self.names.insert(name.clone()) {
+        Ok(if !self.names.try_insert(name.try_clone()?)? {
             let next = self.count.wrapping_add(1);
             let index = replace(&mut self.count, next);
-            format!("{name}{index}")
+            try_format!("{name}{index}")
         } else {
             name
-        }
+        })
     }
 }

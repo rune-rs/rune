@@ -1,21 +1,51 @@
 use core::fmt;
 
 use crate::Sources;
+use crate::ast::Span;
+use crate::alloc;
 use crate::workspace::{SourceLoader, Diagnostics, FileSourceLoader, WorkspaceError};
 use crate::workspace::manifest::{Loader, Manifest};
 
 /// Failed to build workspace.
 #[derive(Debug)]
-pub struct BuildError;
+pub struct BuildError {
+    kind: BuildErrorKind,
+}
+
+impl BuildError {
+    pub(crate) const DEFAULT: Self = Self {
+        kind: BuildErrorKind::Default,
+    };
+}
+
+#[derive(Debug)]
+enum BuildErrorKind {
+    Default,
+    Alloc(alloc::Error),
+}
+
+impl From<alloc::Error> for BuildError {
+    fn from(error: alloc::Error) -> Self {
+        Self {
+            kind: BuildErrorKind::Alloc(error),
+        }
+    }
+}
 
 impl fmt::Display for BuildError {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Failed to load workspace (see diagnostics for details)")
+        match &self.kind {
+            BuildErrorKind::Default => {
+                write!(f, "Failed to load workspace (see diagnostics for details)")
+            },
+            BuildErrorKind::Alloc(error) => error.fmt(f),
+        }
     }
 }
 
-impl crate::no_std::error::Error for BuildError {
+cfg_std! {
+    impl std::error::Error for BuildError {}
 }
 
 /// Prepare a workspace build.
@@ -81,12 +111,12 @@ impl<'a> Build<'a> {
             let mut loader = Loader::new(id, self.sources, diagnostics, source_loader, &mut manifest);
 
             if let Err(error) = loader.load_manifest() {
-                diagnostics.fatal(id, WorkspaceError::from(error));
+                diagnostics.fatal(id, WorkspaceError::new(Span::empty(), error))?;
             }
         }
 
         if diagnostics.has_errors() {
-            return Err(BuildError);
+            return Err(BuildError::DEFAULT);
         }
     
         Ok(manifest)

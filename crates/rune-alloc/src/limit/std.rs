@@ -6,13 +6,10 @@ pub(super) fn rune_memory_take(amount: usize) -> bool {
     MEMORY.with(|tls| {
         let v = tls.get();
 
-        if v == usize::MAX {
-            true
-        } else if v >= amount {
-            tls.set(v - amount);
+        if v >= amount {
+            tls.set(v.wrapping_sub(amount));
             true
         } else {
-            tls.set(0);
             false
         }
     })
@@ -21,10 +18,7 @@ pub(super) fn rune_memory_take(amount: usize) -> bool {
 pub(super) fn rune_memory_release(amount: usize) {
     MEMORY.with(|tls| {
         let v = tls.get();
-
-        if v != usize::MAX {
-            tls.set(v.saturating_add(amount));
-        }
+        tls.set(v.saturating_add(amount));
     })
 }
 

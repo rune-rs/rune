@@ -30,16 +30,17 @@
 //! # Ok::<_, rune::support::Error>(())
 //! ```
 
-use crate::no_std::prelude::*;
+pub use self::fatal::{FatalDiagnostic, FatalDiagnosticKind};
+mod fatal;
 
+pub use self::warning::{WarningDiagnostic, WarningDiagnosticKind};
+mod warning;
+
+use ::rust_alloc::boxed::Box;
+
+use crate::alloc::{self, Vec};
 use crate::ast::{Span, Spanned};
 use crate::SourceId;
-
-mod fatal;
-pub use self::fatal::{FatalDiagnostic, FatalDiagnosticKind};
-
-mod warning;
-pub use self::warning::{WarningDiagnostic, WarningDiagnosticKind};
 
 cfg_emit! {
     mod emit;
@@ -183,8 +184,12 @@ impl Diagnostics {
     ///
     /// This should be used for programming invariants of the compiler which are
     /// broken for some reason.
-    pub(crate) fn internal(&mut self, source_id: SourceId, message: &'static str) {
-        self.error(source_id, FatalDiagnosticKind::Internal(message));
+    pub(crate) fn internal(
+        &mut self,
+        source_id: SourceId,
+        message: &'static str,
+    ) -> alloc::Result<()> {
+        self.error(source_id, FatalDiagnosticKind::Internal(message))
     }
 
     /// Indicate that a value is produced but never used.
@@ -193,14 +198,14 @@ impl Diagnostics {
         source_id: SourceId,
         span: &dyn Spanned,
         context: Option<Span>,
-    ) {
+    ) -> alloc::Result<()> {
         self.warning(
             source_id,
             WarningDiagnosticKind::NotUsed {
                 span: span.span(),
                 context,
             },
-        );
+        )
     }
 
     /// Indicate that a binding pattern might panic.
@@ -211,14 +216,14 @@ impl Diagnostics {
         source_id: SourceId,
         span: &dyn Spanned,
         context: Option<Span>,
-    ) {
+    ) -> alloc::Result<()> {
         self.warning(
             source_id,
             WarningDiagnosticKind::LetPatternMightPanic {
                 span: span.span(),
                 context,
             },
-        );
+        )
     }
 
     /// Indicate that we encountered a template string without any expansion
@@ -230,14 +235,14 @@ impl Diagnostics {
         source_id: SourceId,
         span: &dyn Spanned,
         context: Option<Span>,
-    ) {
+    ) -> alloc::Result<()> {
         self.warning(
             source_id,
             WarningDiagnosticKind::TemplateWithoutExpansions {
                 span: span.span(),
                 context,
             },
-        );
+        )
     }
 
     /// Add a warning indicating that the parameters of an empty tuple can be
@@ -250,7 +255,7 @@ impl Diagnostics {
         span: &dyn Spanned,
         variant: &dyn Spanned,
         context: Option<Span>,
-    ) {
+    ) -> alloc::Result<()> {
         self.warning(
             source_id,
             WarningDiagnosticKind::RemoveTupleCallParams {
@@ -258,46 +263,53 @@ impl Diagnostics {
                 variant: variant.span(),
                 context,
             },
-        );
+        )
     }
 
     /// Add a warning about an unecessary semi-colon.
-    pub(crate) fn unnecessary_semi_colon(&mut self, source_id: SourceId, span: &dyn Spanned) {
+    pub(crate) fn unnecessary_semi_colon(
+        &mut self,
+        source_id: SourceId,
+        span: &dyn Spanned,
+    ) -> alloc::Result<()> {
         self.warning(
             source_id,
             WarningDiagnosticKind::UnnecessarySemiColon { span: span.span() },
-        );
+        )
     }
 
     /// Push a warning to the collection of diagnostics.
-    pub(crate) fn warning<T>(&mut self, source_id: SourceId, kind: T)
+    pub(crate) fn warning<T>(&mut self, source_id: SourceId, kind: T) -> alloc::Result<()>
     where
         WarningDiagnosticKind: From<T>,
     {
         if !self.mode.warnings() {
-            return;
+            return Ok(());
         }
 
         self.diagnostics
-            .push(Diagnostic::Warning(WarningDiagnostic {
+            .try_push(Diagnostic::Warning(WarningDiagnostic {
                 source_id,
                 kind: kind.into(),
-            }));
+            }))?;
 
         self.has_warning = true;
+        Ok(())
     }
 
     /// Report an error.
-    pub(crate) fn error<T>(&mut self, source_id: SourceId, kind: T)
+    pub(crate) fn error<T>(&mut self, source_id: SourceId, kind: T) -> alloc::Result<()>
     where
         FatalDiagnosticKind: From<T>,
     {
-        self.diagnostics.push(Diagnostic::Fatal(FatalDiagnostic {
-            source_id,
-            kind: Box::new(kind.into()),
-        }));
+        self.diagnostics
+            .try_push(Diagnostic::Fatal(FatalDiagnostic {
+                source_id,
+                kind: Box::new(kind.into()),
+            }))?;
 
         self.has_error = true;
+        Ok(())
     }
 }
 

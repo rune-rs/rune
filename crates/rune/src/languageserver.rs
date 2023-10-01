@@ -9,13 +9,12 @@ mod fs;
 mod state;
 mod url;
 
-use crate::no_std::prelude::*;
-
 use lsp::notification::Notification;
 use lsp::request::Request;
 use serde::Deserialize;
 use tokio::sync::Notify;
 
+use crate::alloc::String;
 use crate::languageserver::connection::stdio;
 use crate::languageserver::envelope::Code;
 use crate::languageserver::state::State;
@@ -147,7 +146,7 @@ async fn initialize(
     };
 
     let server_info = lsp::ServerInfo {
-        name: String::from("Rune Language Server"),
+        name: String::try_from("Rune Language Server")?.into_std(),
         version: None,
     };
 
@@ -225,7 +224,7 @@ async fn completion(
 async fn formatting(
     state: &mut State<'_>,
     params: lsp::DocumentFormattingParams,
-) -> Result<Option<Vec<lsp::TextEdit>>> {
+) -> Result<Option<::rust_alloc::vec::Vec<lsp::TextEdit>>> {
     state
         .format(&params.text_document.uri)
         .map(|option| option.map(|formatted| vec![formatted]))

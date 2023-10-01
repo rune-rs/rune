@@ -41,7 +41,9 @@ impl fmt::Display for ErrorKind {
     }
 }
 
-impl crate::no_std::error::Error for ErrorKind {}
+cfg_std! {
+    impl std::error::Error for ErrorKind {}
+}
 
 /// Indicates if we are parsing template escapes.
 #[derive(Debug, Clone, Copy)]
@@ -235,7 +237,7 @@ pub(super) fn parse_unicode_escape(
 #[cfg(test)]
 mod tests {
     use super::{parse_hex_escape, parse_unicode_escape};
-    use crate::no_std::prelude::*;
+    use crate::tests::prelude::*;
 
     macro_rules! input {
         ($string:expr) => {

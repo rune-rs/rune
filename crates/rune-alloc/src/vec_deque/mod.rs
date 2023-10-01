@@ -62,10 +62,10 @@ mod raw_iter;
 /// A `VecDeque` with a known list of items can be initialized from an array:
 ///
 /// ```
-/// use rune_alloc::VecDeque;
+/// use rune::alloc::VecDeque;
 ///
 /// let deq = VecDeque::try_from([-1, 0, 1])?;
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 ///
 /// Since `VecDeque` is a ring buffer, its elements are not necessarily contiguous
@@ -506,7 +506,7 @@ impl<T> VecDeque<T> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let deque: VecDeque<u32> = VecDeque::new();
     /// ```
@@ -521,10 +521,10 @@ impl<T> VecDeque<T> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let deque: VecDeque<u32> = VecDeque::try_with_capacity(10)?;
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn try_with_capacity(capacity: usize) -> Result<Self, Error> {
         Self::try_with_capacity_in(capacity, Global)
@@ -537,7 +537,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let deque: VecDeque<u32> = VecDeque::new();
     /// ```
@@ -555,11 +555,11 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
-    /// use rune_alloc::alloc::Global;
+    /// use rune::alloc::VecDeque;
+    /// use rune::alloc::alloc::Global;
     ///
     /// let deque: VecDeque<u32> = VecDeque::try_with_capacity_in(10, Global)?;
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn try_with_capacity_in(capacity: usize, alloc: A) -> Result<VecDeque<T, A>, Error> {
         Ok(VecDeque {
@@ -608,7 +608,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut buf = VecDeque::new();
     ///
@@ -619,7 +619,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     ///
     /// assert_eq!(buf.get(1), Some(&4));
     ///
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn get(&self, index: usize) -> Option<&T> {
         if index < self.len {
@@ -637,7 +637,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut buf = VecDeque::new();
     ///
@@ -653,7 +653,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// }
     ///
     /// assert_eq!(buf[1], 7);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn get_mut(&mut self, index: usize) -> Option<&mut T> {
         if index < self.len {
@@ -677,7 +677,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut buf = VecDeque::new();
     ///
@@ -690,7 +690,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// buf.swap(0, 2);
     ///
     /// assert_eq!(buf, [5, 4, 3]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn swap(&mut self, i: usize, j: usize) {
         assert!(i < self.len());
@@ -705,11 +705,11 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let buf: VecDeque<i32> = VecDeque::try_with_capacity(10)?;
     /// assert!(buf.capacity() >= 10);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn capacity(&self) -> usize {
@@ -739,8 +739,8 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::{VecDeque, Error};
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::{VecDeque, Error};
+    /// use rune::alloc::prelude::*;
     ///
     /// fn process_data(data: &[u32]) -> Result<VecDeque<u32>, Error> {
     ///     let mut output = VecDeque::new();
@@ -788,8 +788,8 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::{VecDeque, Error};
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::{VecDeque, Error};
+    /// use rune::alloc::prelude::*;
     ///
     /// fn process_data(data: &[u32]) -> Result<VecDeque<u32>, Error> {
     ///     let mut output = VecDeque::new();
@@ -831,15 +831,15 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::VecDeque;
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut buf = VecDeque::try_with_capacity(15)?;
     /// buf.try_extend(0..4)?;
     /// assert_eq!(buf.capacity(), 15);
     /// buf.try_shrink_to_fit()?;
     /// assert!(buf.capacity() >= 4);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn try_shrink_to_fit(&mut self) -> Result<(), Error> {
         self.try_shrink_to(0)
@@ -855,8 +855,8 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::VecDeque;
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut buf = VecDeque::try_with_capacity(15)?;
     /// buf.try_extend(0..4)?;
@@ -865,7 +865,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// assert!(buf.capacity() >= 6);
     /// buf.try_shrink_to(0)?;
     /// assert!(buf.capacity() >= 4);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn try_shrink_to(&mut self, min_capacity: usize) -> Result<(), Error> {
         let target_cap = min_capacity.max(self.len);
@@ -954,7 +954,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut buf = VecDeque::new();
     ///
@@ -967,7 +967,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// buf.truncate(1);
     ///
     /// assert_eq!(buf, [5]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn truncate(&mut self, len: usize) {
         /// Runs the destructor for all items in the slice when it gets dropped (normally or
@@ -1024,8 +1024,8 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::{Vec, VecDeque};
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::{Vec, VecDeque};
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut buf = VecDeque::new();
     /// buf.try_push_back(5)?;
@@ -1034,7 +1034,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// let b: &[_] = &[&5, &3, &4];
     /// let c: Vec<&i32> = buf.iter().try_collect()?;
     /// assert_eq!(&c[..], b);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn iter(&self) -> Iter<'_, T> {
         let (a, b) = self.as_slices();
@@ -1056,7 +1056,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut buf = VecDeque::new();
     /// buf.try_push_back(5)?;
@@ -1067,7 +1067,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// }
     /// let b: &[_] = &[&mut 3, &mut 1, &mut 2];
     /// assert_eq!(&buf.iter_mut().collect::<Vec<&mut i32>>()[..], b);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn iter_mut(&mut self) -> IterMut<'_, T> {
         let (a, b) = self.as_mut_slices();
@@ -1085,7 +1085,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut deque = VecDeque::new();
     ///
@@ -1099,7 +1099,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// deque.try_push_front(9)?;
     ///
     /// assert_eq!(deque.as_slices(), (&[9, 10][..], &[0, 1, 2][..]));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn as_slices(&self) -> (&[T], &[T]) {
@@ -1120,7 +1120,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut deque = VecDeque::new();
     ///
@@ -1133,7 +1133,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// deque.as_mut_slices().0[0] = 42;
     /// deque.as_mut_slices().1[0] = 24;
     /// assert_eq!(deque.as_slices(), (&[42, 10][..], &[24, 1][..]));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn as_mut_slices(&mut self) -> (&mut [T], &mut [T]) {
@@ -1153,13 +1153,13 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut deque = VecDeque::new();
     /// assert_eq!(deque.len(), 0);
     /// deque.try_push_back(1)?;
     /// assert_eq!(deque.len(), 1);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn len(&self) -> usize {
         self.len
@@ -1170,13 +1170,13 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut deque = VecDeque::new();
     /// assert!(deque.is_empty());
     /// deque.try_push_front(1)?;
     /// assert!(!deque.is_empty());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn is_empty(&self) -> bool {
         self.len == 0
@@ -1236,8 +1236,8 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::VecDeque;
+    /// use rune::alloc::prelude::*;
     ///
     /// let deque: VecDeque<_> = [1, 2, 3].try_into()?;
     /// let range = deque.range(2..).copied().try_collect::<VecDeque<_>>()?;
@@ -1246,7 +1246,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// // A full range covers all contents
     /// let all = deque.range(..);
     /// assert_eq!(all.len(), 3);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn range<R>(&self, range: R) -> Iter<'_, T>
@@ -1273,7 +1273,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut deque: VecDeque<_> = [1, 2, 3].try_into()?;
     /// for v in deque.range_mut(2..) {
@@ -1286,7 +1286,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     ///   *v *= 2;
     /// }
     /// assert_eq!(deque, [2, 4, 12]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn range_mut<R>(&mut self, range: R) -> IterMut<'_, T>
@@ -1325,8 +1325,8 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::VecDeque;
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut deque: VecDeque<_> = [1, 2, 3].try_into()?;
     /// let drained = deque.drain(2..).try_collect::<VecDeque<_>>()?;
@@ -1336,7 +1336,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// // A full range clears all contents, like `clear()` does
     /// deque.drain(..);
     /// assert!(deque.is_empty());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn drain<R>(&mut self, range: R) -> Drain<'_, T, A>
@@ -1384,13 +1384,13 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut deque = VecDeque::new();
     /// deque.try_push_back(1)?;
     /// deque.clear();
     /// assert!(deque.is_empty());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn clear(&mut self) {
@@ -1411,7 +1411,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut deque: VecDeque<u32> = VecDeque::new();
     ///
@@ -1420,7 +1420,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     ///
     /// assert_eq!(deque.contains(&1), true);
     /// assert_eq!(deque.contains(&10), false);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn contains(&self, x: &T) -> bool
     where
@@ -1436,7 +1436,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut d = VecDeque::new();
     /// assert_eq!(d.front(), None);
@@ -1444,7 +1444,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// d.try_push_back(1)?;
     /// d.try_push_back(2)?;
     /// assert_eq!(d.front(), Some(&1));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn front(&self) -> Option<&T> {
         self.get(0)
@@ -1456,7 +1456,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut d = VecDeque::new();
     /// assert_eq!(d.front_mut(), None);
@@ -1468,7 +1468,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     ///     None => (),
     /// }
     /// assert_eq!(d.front(), Some(&9));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn front_mut(&mut self) -> Option<&mut T> {
         self.get_mut(0)
@@ -1480,7 +1480,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut d = VecDeque::new();
     /// assert_eq!(d.back(), None);
@@ -1488,7 +1488,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// d.try_push_back(1)?;
     /// d.try_push_back(2)?;
     /// assert_eq!(d.back(), Some(&2));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn back(&self) -> Option<&T> {
         self.get(self.len.wrapping_sub(1))
@@ -1500,7 +1500,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut d = VecDeque::new();
     /// assert_eq!(d.back(), None);
@@ -1512,7 +1512,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     ///     None => (),
     /// }
     /// assert_eq!(d.back(), Some(&9));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn back_mut(&mut self) -> Option<&mut T> {
         self.get_mut(self.len.wrapping_sub(1))
@@ -1524,7 +1524,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut d = VecDeque::new();
     /// d.try_push_back(1)?;
@@ -1533,7 +1533,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// assert_eq!(d.pop_front(), Some(1));
     /// assert_eq!(d.pop_front(), Some(2));
     /// assert_eq!(d.pop_front(), None);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn pop_front(&mut self) -> Option<T> {
         if self.is_empty() {
@@ -1552,14 +1552,14 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut buf = VecDeque::new();
     /// assert_eq!(buf.pop_back(), None);
     /// buf.try_push_back(1)?;
     /// buf.try_push_back(3)?;
     /// assert_eq!(buf.pop_back(), Some(3));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn pop_back(&mut self) -> Option<T> {
         if self.is_empty() {
@@ -1575,13 +1575,13 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut d = VecDeque::new();
     /// d.try_push_front(1)?;
     /// d.try_push_front(2)?;
     /// assert_eq!(d.front(), Some(&2));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn try_push_front(&mut self, value: T) -> Result<(), Error> {
         if self.is_full() {
@@ -1603,13 +1603,13 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut buf = VecDeque::new();
     /// buf.try_push_back(1)?;
     /// buf.try_push_back(3)?;
     /// assert_eq!(3, *buf.back().unwrap());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn try_push_back(&mut self, value: T) -> Result<(), Error> {
         if self.is_full() {
@@ -1639,7 +1639,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut buf = VecDeque::new();
     /// assert_eq!(buf.swap_remove_front(0), None);
@@ -1650,7 +1650,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     ///
     /// assert_eq!(buf.swap_remove_front(2), Some(3));
     /// assert_eq!(buf, [2, 1]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn swap_remove_front(&mut self, index: usize) -> Option<T> {
         let length = self.len;
@@ -1674,7 +1674,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut buf = VecDeque::new();
     /// assert_eq!(buf.swap_remove_back(0), None);
@@ -1685,7 +1685,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     ///
     /// assert_eq!(buf.swap_remove_back(0), Some(1));
     /// assert_eq!(buf, [3, 2]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn swap_remove_back(&mut self, index: usize) -> Option<T> {
         let length = self.len;
@@ -1709,7 +1709,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut vec_deque = VecDeque::new();
     /// vec_deque.try_push_back('a')?;
@@ -1719,7 +1719,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     ///
     /// vec_deque.try_insert(1, 'd')?;
     /// assert_eq!(vec_deque, &['a', 'd', 'b', 'c']);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn try_insert(&mut self, index: usize, value: T) -> Result<(), Error> {
         assert!(index <= self.len(), "index out of bounds");
@@ -1767,7 +1767,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut buf = VecDeque::new();
     /// buf.try_push_back(1)?;
@@ -1777,7 +1777,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     ///
     /// assert_eq!(buf.remove(1), Some(2));
     /// assert_eq!(buf, [1, 3]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn remove(&mut self, index: usize) -> Option<T> {
         if self.len <= index {
@@ -1821,13 +1821,13 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut buf: VecDeque<_> = [1, 2, 3].try_into()?;
     /// let buf2 = buf.try_split_off(1)?;
     /// assert_eq!(buf, [1]);
     /// assert_eq!(buf2, [2, 3]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     #[must_use = "use `.truncate()` if you don't need the other half"]
@@ -1887,14 +1887,14 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut buf: VecDeque<_> = [1, 2].try_into()?;
     /// let mut buf2: VecDeque<_> = [3, 4].try_into()?;
     /// buf.try_append(&mut buf2)?;
     /// assert_eq!(buf, [1, 2, 3, 4]);
     /// assert_eq!(buf2, []);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn try_append(&mut self, other: &mut Self) -> Result<(), Error> {
@@ -1935,22 +1935,22 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::VecDeque;
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut buf = VecDeque::new();
     /// buf.try_extend(1..5)?;
     /// buf.retain(|&x| x % 2 == 0);
     /// assert_eq!(buf, [2, 4]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     ///
     /// Because the elements are visited exactly once in the original order,
     /// external state may be used to decide which elements to keep.
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::VecDeque;
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut buf = VecDeque::new();
     /// buf.try_extend(1..6)?;
@@ -1959,7 +1959,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// let mut iter = keep.iter();
     /// buf.retain(|_| *iter.next().unwrap());
     /// assert_eq!(buf, [2, 3, 5]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn retain<F>(&mut self, mut f: F)
     where
@@ -1977,8 +1977,8 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::VecDeque;
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut buf = VecDeque::new();
     /// buf.try_extend(1..5)?;
@@ -1989,7 +1989,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     ///     false
     /// });
     /// assert_eq!(buf, [3, 5]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn retain_mut<F>(&mut self, mut f: F)
     where
@@ -2049,7 +2049,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut buf = VecDeque::new();
     /// buf.try_push_back(5)?;
@@ -2066,7 +2066,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// let mut state = 100;
     /// buf.try_resize_with(5, || { state += 1; state })?;
     /// assert_eq!(buf, [5, 10, 101, 102, 103]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn try_resize_with(
         &mut self,
@@ -2105,7 +2105,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// Sorting the content of a deque.
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut buf = VecDeque::try_with_capacity(15)?;
     ///
@@ -2120,13 +2120,13 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// // sorting it in reverse order
     /// buf.make_contiguous().sort_by(|a, b| b.cmp(a));
     /// assert_eq!(buf.as_slices(), (&[3, 2, 1] as &[_], &[] as &[_]));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     ///
     /// Getting immutable access to the contiguous slice.
     ///
     /// ```rust
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut buf = VecDeque::new();
     ///
@@ -2141,7 +2141,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     ///     assert_eq!(buf.len(), slice.len());
     ///     assert_eq!(slice, &[3, 2, 1] as &[_]);
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn make_contiguous(&mut self) -> &mut [T] {
         if T::IS_ZST {
@@ -2288,8 +2288,8 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::VecDeque;
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut buf: VecDeque<_> = (0..10).try_collect()?;
     ///
@@ -2301,7 +2301,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     ///     buf.rotate_left(3);
     /// }
     /// assert_eq!(buf, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn rotate_left(&mut self, mid: usize) {
         assert!(mid <= self.len());
@@ -2332,8 +2332,8 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::VecDeque;
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut buf: VecDeque<_> = (0..10).try_collect()?;
     ///
@@ -2345,7 +2345,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     ///     buf.rotate_right(3);
     /// }
     /// assert_eq!(buf, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn rotate_right(&mut self, k: usize) {
         assert!(k <= self.len());
@@ -2404,7 +2404,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// found; the fourth could match any position in `[1, 4]`.
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let deque: VecDeque<_> = [0, 1, 1, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55].try_into()?;
     ///
@@ -2413,14 +2413,14 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// assert_eq!(deque.binary_search(&100), Err(13));
     /// let r = deque.binary_search(&1);
     /// assert!(matches!(r, Ok(1..=4)));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     ///
     /// If you want to insert an item to a sorted deque, while maintaining
     /// sort order, consider using [`partition_point`]:
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut deque: VecDeque<_> = [0, 1, 1, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55].try_into()?;
     /// let num = 42;
@@ -2428,7 +2428,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// // The above is equivalent to `let idx = deque.binary_search(&num).unwrap_or_else(|x| x);`
     /// deque.try_insert(idx, num)?;
     /// assert_eq!(deque, &[0, 1, 1, 1, 1, 2, 3, 5, 8, 13, 21, 34, 42, 55]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn binary_search(&self, x: &T) -> Result<usize, usize>
@@ -2466,7 +2466,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// found; the fourth could match any position in `[1, 4]`.
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let deque: VecDeque<_> = [0, 1, 1, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55].try_into()?;
     ///
@@ -2475,7 +2475,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// assert_eq!(deque.binary_search_by(|x| x.cmp(&100)), Err(13));
     /// let r = deque.binary_search_by(|x| x.cmp(&1));
     /// assert!(matches!(r, Ok(1..=4)));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn binary_search_by<'a, F>(&'a self, mut f: F) -> Result<usize, usize>
     where
@@ -2523,7 +2523,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// fourth could match any position in `[1, 4]`.
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let deque: VecDeque<_> = [(0, 0), (2, 1), (4, 1), (5, 1),
     ///          (3, 1), (1, 2), (2, 3), (4, 5), (5, 8), (3, 13),
@@ -2534,7 +2534,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// assert_eq!(deque.binary_search_by_key(&100, |&(a, b)| b), Err(13));
     /// let r = deque.binary_search_by_key(&1, |&(a, b)| b);
     /// assert!(matches!(r, Ok(1..=4)));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn binary_search_by_key<'a, B, F>(&'a self, b: &B, mut f: F) -> Result<usize, usize>
@@ -2566,7 +2566,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let deque: VecDeque<_> = [1, 2, 3, 3, 5, 6, 7].try_into()?;
     /// let i = deque.partition_point(|&x| x < 5);
@@ -2574,21 +2574,21 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// assert_eq!(i, 4);
     /// assert!(deque.iter().take(i).all(|&x| x < 5));
     /// assert!(deque.iter().skip(i).all(|&x| !(x < 5)));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     ///
     /// If you want to insert an item to a sorted deque, while maintaining
     /// sort order:
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut deque: VecDeque<_> = [0, 1, 1, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55].try_into()?;
     /// let num = 42;
     /// let idx = deque.partition_point(|&x| x < num);
     /// deque.try_insert(idx, num)?;
     /// assert_eq!(deque, &[0, 1, 1, 1, 1, 2, 3, 5, 8, 13, 21, 34, 42, 55]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn partition_point<P>(&self, mut pred: P) -> usize
     where
@@ -2612,7 +2612,7 @@ impl<T: TryClone, A: Allocator> VecDeque<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let mut buf = VecDeque::new();
     /// buf.try_push_back(5)?;
@@ -2625,7 +2625,7 @@ impl<T: TryClone, A: Allocator> VecDeque<T, A> {
     ///
     /// buf.try_resize(5, 20)?;
     /// assert_eq!(buf, [5, 10, 20, 20, 20]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn try_resize(&mut self, new_len: usize, value: T) -> Result<(), Error> {
         if new_len > self.len() {
@@ -2809,8 +2809,8 @@ impl<T, A: Allocator> From<VecDeque<T, A>> for Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::{VecDeque, Vec};
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::{VecDeque, Vec};
+    /// use rune::alloc::prelude::*;
     ///
     /// // This one is *O*(1).
     /// let deque: VecDeque<_> = (1..5).try_collect()?;
@@ -2827,7 +2827,7 @@ impl<T, A: Allocator> From<VecDeque<T, A>> for Vec<T, A> {
     /// let vec = Vec::from(deque);
     /// assert_eq!(vec, [8, 9, 1, 2, 3, 4]);
     /// assert_eq!(vec.as_ptr(), ptr);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     fn from(mut other: VecDeque<T, A>) -> Self {
         other.make_contiguous();
@@ -2853,12 +2853,12 @@ impl<T, const N: usize> TryFrom<[T; N]> for VecDeque<T> {
     /// Converts a `[T; N]` into a `VecDeque<T>`.
     ///
     /// ```
-    /// use rune_alloc::VecDeque;
+    /// use rune::alloc::VecDeque;
     ///
     /// let deq1 = VecDeque::try_from([1, 2, 3, 4])?;
     /// let deq2: VecDeque<_> = [1, 2, 3, 4].try_into()?;
     /// assert_eq!(deq1, deq2);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     fn try_from(arr: [T; N]) -> Result<Self, Self::Error> {
         Ok(VecDeque::from(Vec::try_from(arr)?))

@@ -2,9 +2,9 @@ use core::fmt;
 use core::future::Future;
 use core::mem::{replace, take};
 
-use crate::no_std::prelude::*;
-use crate::no_std::sync::Arc;
+use ::rust_alloc::sync::Arc;
 
+use crate::alloc::Vec;
 use crate::runtime::budget;
 use crate::runtime::{
     Generator, GeneratorState, RuntimeContext, Stream, Unit, Value, Vm, VmErrorKind, VmHalt,
@@ -65,7 +65,7 @@ where
         Self {
             head,
             state: ExecutionState::Initial,
-            states: vec![],
+            states: Vec::new(),
         }
     }
 
@@ -376,12 +376,13 @@ where
 
     /// Push a virtual machine state onto the execution.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn push_state(&mut self, state: VmExecutionState) {
+    pub(crate) fn push_state(&mut self, state: VmExecutionState) -> VmResult<()> {
         tracing::trace!("pushing suspended state");
         let vm = self.head.as_mut();
         let context = state.context.map(|c| replace(vm.context_mut(), c));
         let unit = state.unit.map(|u| replace(vm.unit_mut(), u));
-        self.states.push(VmExecutionState { context, unit });
+        vm_try!(self.states.try_push(VmExecutionState { context, unit }));
+        VmResult::Ok(())
     }
 
     /// Pop a virtual machine state from the execution and transfer the top of

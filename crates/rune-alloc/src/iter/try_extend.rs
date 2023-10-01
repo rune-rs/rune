@@ -82,8 +82,8 @@ pub trait TryExtend<T> {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::String;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::String;
+    /// use rune::alloc::prelude::*;
     ///
     /// // You can extend a String with some chars:
     /// let mut message = String::try_from("abc")?;
@@ -91,7 +91,7 @@ pub trait TryExtend<T> {
     /// message.try_extend(['d', 'e', 'f'].into_iter())?;
     ///
     /// assert_eq!("abcdef", &message);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     fn try_extend<I>(&mut self, iter: I) -> Result<(), Error>
     where

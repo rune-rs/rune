@@ -435,7 +435,7 @@ impl<T> Bucket<T> {
     /// use core::hash::{BuildHasher, Hash};
     /// use core::convert::Infallible;
     ///
-    /// use rune_alloc::hashbrown::raw::{Bucket, RawTable};
+    /// use rune::alloc::hashbrown::raw::{Bucket, RawTable};
     ///
     /// type NewHashBuilder = core::hash::BuildHasherDefault<ahash::AHasher>;
     ///
@@ -596,7 +596,7 @@ impl<T> Bucket<T> {
     /// use core::hash::{BuildHasher, Hash};
     /// use core::convert::Infallible;
     ///
-    /// use rune_alloc::hashbrown::raw::{Bucket, RawTable};
+    /// use rune::alloc::hashbrown::raw::{Bucket, RawTable};
     ///
     /// type NewHashBuilder = core::hash::BuildHasherDefault<ahash::AHasher>;
     ///
@@ -650,7 +650,7 @@ impl<T> Bucket<T> {
     /// use core::hash::{BuildHasher, Hash};
     /// use core::convert::Infallible;
     ///
-    /// use rune_alloc::hashbrown::raw::{Bucket, RawTable};
+    /// use rune::alloc::hashbrown::raw::{Bucket, RawTable};
     ///
     /// type NewHashBuilder = core::hash::BuildHasherDefault<ahash::AHasher>;
     ///
@@ -684,7 +684,7 @@ impl<T> Bucket<T> {
     ///         "is a small horse less than 147 cm at the withers".to_owned()
     ///     )
     /// );
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub unsafe fn as_mut<'a>(&self) -> &'a mut T {

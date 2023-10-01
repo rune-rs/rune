@@ -1,9 +1,8 @@
 //! Worker used by compiler.
 
 use crate::alloc::prelude::*;
-use crate::alloc::{Box, HashMap, Vec, VecDeque};
-use crate::ast;
-use crate::ast::Span;
+use crate::alloc::{self, Box, HashMap, Vec, VecDeque};
+use crate::ast::{self, Span};
 use crate::compile::{self, ModId};
 use crate::indexing::index;
 use crate::indexing::items::Items;
@@ -39,7 +38,7 @@ impl<'a, 'arena> Worker<'a, 'arena> {
     }
 
     /// Perform indexing in the worker.
-    pub(crate) fn index(&mut self) {
+    pub(crate) fn index(&mut self) -> alloc::Result<()> {
         // NB: defer wildcard expansion until all other imports have been
         // indexed.
         let mut wildcard_imports = Vec::new();
@@ -65,7 +64,7 @@ impl<'a, 'arena> Worker<'a, 'arena> {
                             let Some(source) = self.q.sources.get(source_id) else {
                                 self.q
                                     .diagnostics
-                                    .internal(source_id, "Missing queued source by id");
+                                    .internal(source_id, "Missing queued source by id")?;
                                 return Ok(());
                             };
 
@@ -125,7 +124,7 @@ impl<'a, 'arena> Worker<'a, 'arena> {
                         })();
 
                         if let Err(error) = result {
-                            self.q.diagnostics.error(source_id, error);
+                            self.q.diagnostics.error(source_id, error)?;
                         }
                     }
                     Task::ExpandImport(import) => {
@@ -140,7 +139,7 @@ impl<'a, 'arena> Worker<'a, 'arena> {
                         });
 
                         if let Err(error) = result {
-                            self.q.diagnostics.error(source_id, error);
+                            self.q.diagnostics.error(source_id, error)?;
                         }
                     }
                     Task::ExpandWildcardImport(wildcard_import) => {
@@ -151,7 +150,7 @@ impl<'a, 'arena> Worker<'a, 'arena> {
                         if let Err(error) = wildcard_imports.try_push(wildcard_import) {
                             self.q
                                 .diagnostics
-                                .error(source_id, compile::Error::from(error));
+                                .error(source_id, compile::Error::from(error))?;
                         }
                     }
                 }
@@ -163,7 +162,7 @@ impl<'a, 'arena> Worker<'a, 'arena> {
                 if let Err(error) = wildcard_import.process_local(&mut self.q) {
                     self.q
                         .diagnostics
-                        .error(wildcard_import.location.source_id, error);
+                        .error(wildcard_import.location.source_id, error)?;
                 }
             }
 
@@ -232,10 +231,12 @@ impl<'a, 'arena> Worker<'a, 'arena> {
                 };
 
                 if let Err(error) = process() {
-                    self.q.diagnostics.error(entry.location.source_id, error);
+                    self.q.diagnostics.error(entry.location.source_id, error)?;
                 }
             }
         }
+
+        Ok(())
     }
 }
 

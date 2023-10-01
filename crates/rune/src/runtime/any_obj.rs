@@ -6,8 +6,8 @@ use core::mem::ManuallyDrop;
 use core::ops::{Deref, DerefMut};
 use core::ptr;
 
-use crate::no_std::prelude::*;
-
+use crate::alloc::alloc::Global;
+use crate::alloc::{self, Box};
 use crate::any::Any;
 use crate::hash::Hash;
 use crate::runtime::{AnyTypeInfo, FullTypeOf, MaybeTypeOf, RawStr, TypeInfo};
@@ -42,7 +42,9 @@ impl fmt::Display for AnyObjError {
     }
 }
 
-impl crate::no_std::error::Error for AnyObjError {}
+cfg_std! {
+    impl std::error::Error for AnyObjError {}
+}
 
 /// Our own private dynamic Any implementation.
 ///
@@ -63,13 +65,16 @@ impl fmt::Debug for AnyObj {
 
 impl AnyObj {
     /// Construct a new any from the original any.
-    pub fn new<T>(data: T) -> Self
+    pub fn new<T>(data: T) -> alloc::Result<Self>
     where
         T: Any,
     {
-        let data = unsafe { ptr::NonNull::new_unchecked(Box::into_raw(Box::new(data)) as *mut _) };
+        let data = unsafe {
+            let (ptr, Global) = Box::into_raw_with_allocator(Box::try_new_in(data, Global)?);
+            ptr::NonNull::new_unchecked(ptr.cast())
+        };
 
-        Self {
+        Ok(Self {
             vtable: &AnyObjVtable {
                 kind: AnyObjKind::Owned,
                 drop: drop_impl::<T>,
@@ -79,7 +84,7 @@ impl AnyObj {
                 type_hash: type_hash_impl::<T>,
             },
             data,
-        }
+        })
     }
 
     /// Construct an Any that wraps a pointer.
@@ -161,19 +166,23 @@ impl AnyObj {
     /// let mut v = RefCell::new(Foo(1u32));
     /// let mut guard = v.borrow();
     ///
-    /// let any = unsafe { AnyObj::from_deref(guard) };
+    /// let any = unsafe { AnyObj::from_deref(guard)? };
     ///
     /// let b = any.downcast_borrow_ref::<Foo>().unwrap();
     /// assert_eq!(b.0, 1u32);
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub unsafe fn from_deref<T>(data: T) -> Self
+    pub unsafe fn from_deref<T>(data: T) -> alloc::Result<Self>
     where
         T: Deref,
         T::Target: Any,
     {
-        let data = ptr::NonNull::new_unchecked(Box::into_raw(Box::new(data)) as *mut ());
+        let data = {
+            let (ptr, Global) = Box::into_raw_with_allocator(Box::try_new_in(data, Global)?);
+            ptr::NonNull::new_unchecked(ptr.cast())
+        };
 
-        Self {
+        Ok(Self {
             vtable: &AnyObjVtable {
                 kind: AnyObjKind::RefPtr,
                 drop: drop_impl::<T>,
@@ -183,7 +192,7 @@ impl AnyObj {
                 type_hash: type_hash_impl::<T::Target>,
             },
             data,
-        }
+        })
     }
 
     /// Construct an Any that wraps a mutable pointer.
@@ -271,19 +280,23 @@ impl AnyObj {
     /// let mut v = RefCell::new(Foo(1u32));
     /// let mut guard = v.borrow_mut();
     ///
-    /// let any = unsafe { AnyObj::from_deref_mut(guard) };
+    /// let any = unsafe { AnyObj::from_deref_mut(guard)? };
     ///
     /// let b = any.downcast_borrow_ref::<Foo>().unwrap();
     /// assert_eq!(b.0, 1u32);
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub unsafe fn from_deref_mut<T>(data: T) -> Self
+    pub unsafe fn from_deref_mut<T>(data: T) -> alloc::Result<Self>
     where
         T: DerefMut,
         T::Target: Any,
     {
-        let data = ptr::NonNull::new_unchecked(Box::into_raw(Box::new(data)) as *mut ());
+        let data = {
+            let (ptr, Global) = Box::into_raw_with_allocator(Box::try_new_in(data, Global)?);
+            ptr::NonNull::new_unchecked(ptr.cast())
+        };
 
-        Self {
+        Ok(Self {
             vtable: &AnyObjVtable {
                 kind: AnyObjKind::MutPtr,
                 drop: drop_impl::<T>,
@@ -293,7 +306,7 @@ impl AnyObj {
                 type_hash: type_hash_impl::<T::Target>,
             },
             data,
-        }
+        })
     }
 
     /// Construct a new any with the specified raw components.
@@ -323,10 +336,11 @@ impl AnyObj {
     /// #[derive(Debug, Any)]
     /// struct Other;
     ///
-    /// let any = AnyObj::new(Foo);
+    /// let any = AnyObj::new(Foo)?;
     ///
     /// assert!(any.is::<Foo>());
     /// assert!(!any.is::<Other>());
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     #[inline]
     pub fn is<T>(&self) -> bool
@@ -351,9 +365,10 @@ impl AnyObj {
     /// #[derive(Debug, PartialEq, Eq, Any)]
     /// struct Other;
     ///
-    /// let any = AnyObj::new(Thing(1u32));
+    /// let any = AnyObj::new(Thing(1u32))?;
     /// assert_eq!(Some(&Thing(1u32)), any.downcast_borrow_ref::<Thing>());
     /// assert_eq!(None, any.downcast_borrow_ref::<Other>());
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     #[inline]
     pub fn downcast_borrow_ref<T>(&self) -> Option<&T>
@@ -377,9 +392,10 @@ impl AnyObj {
     /// #[derive(Debug, PartialEq, Eq, Any)]
     /// struct Thing(u32);
     ///
-    /// let mut any = AnyObj::new(Thing(1u32));
+    /// let mut any = AnyObj::new(Thing(1u32))?;
     /// any.downcast_borrow_mut::<Thing>().unwrap().0 = 2;
     /// assert_eq!(Some(&Thing(2u32)), any.downcast_borrow_ref::<Thing>());
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     #[inline]
     pub fn downcast_borrow_mut<T>(&mut self) -> Option<&mut T>
@@ -551,7 +567,7 @@ pub struct AnyObjVtable {
 }
 
 unsafe fn drop_impl<T>(this: *mut ()) {
-    drop(Box::from_raw(this as *mut T));
+    drop(Box::from_raw_in(this as *mut T, Global));
 }
 
 fn as_ptr_impl<T>(this: *const (), expected: TypeId) -> Option<*const ()>

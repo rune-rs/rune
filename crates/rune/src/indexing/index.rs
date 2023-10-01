@@ -499,10 +499,10 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
 
 /// Index the contents of a module known by its AST as a "file".
 pub(crate) fn file(idx: &mut Indexer<'_, '_>, ast: &mut ast::File) -> compile::Result<()> {
-    let mut p = attrs::Parser::new(&ast.attributes);
+    let mut p = attrs::Parser::new(&ast.attributes)?;
 
     // This part catches comments interior to the module of the form `//!`.
-    for doc in p.parse_all::<attrs::Doc>(resolve_context!(idx.q), &ast.attributes) {
+    for doc in p.parse_all::<attrs::Doc>(resolve_context!(idx.q), &ast.attributes)? {
         let (span, doc) = doc?;
 
         idx.q
@@ -550,7 +550,7 @@ pub(crate) fn file(idx: &mut Indexer<'_, '_>, ast: &mut ast::File) -> compile::R
                 if !i.needs_semi_colon() {
                     idx.q
                         .diagnostics
-                        .unnecessary_semi_colon(idx.source_id, &semi);
+                        .unnecessary_semi_colon(idx.source_id, &semi)?;
                 }
             }
 
@@ -616,7 +616,7 @@ pub(crate) fn file(idx: &mut Indexer<'_, '_>, ast: &mut ast::File) -> compile::R
 
             macro_call.attributes = skipped_attributes;
 
-            let mut p = attrs::Parser::new(&macro_call.attributes);
+            let mut p = attrs::Parser::new(&macro_call.attributes)?;
 
             if idx.try_expand_internal_macro(&mut p, &mut macro_call)? {
                 if let Some(attr) = p.remaining(&macro_call.attributes).next() {
@@ -680,7 +680,7 @@ pub(crate) fn empty_block_fn(
         &[],
     )?;
 
-    idx.scopes.push();
+    idx.scopes.push()?;
 
     statements(idx, &mut ast.statements)?;
 
@@ -719,7 +719,7 @@ pub(crate) fn item_fn_immediate(
 
     let visibility = ast_to_visibility(&ast.visibility)?;
 
-    let mut p = attrs::Parser::new(&ast.attributes);
+    let mut p = attrs::Parser::new(&ast.attributes)?;
 
     let docs = Doc::collect_from(resolve_context!(idx.q), &mut p, &ast.attributes)?;
 
@@ -734,7 +734,7 @@ pub(crate) fn item_fn_immediate(
         &docs,
     )?;
 
-    idx.scopes.push();
+    idx.scopes.push()?;
 
     for (arg, _) in &mut ast.args {
         if let ast::FnArg::Pat(p) = arg {
@@ -925,7 +925,7 @@ fn expr_block(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprBlock) -> compile::R
         block(idx, &mut ast.block)?;
         idx.q.index_const_block(item_meta, &ast.block)?;
     } else {
-        idx.scopes.push();
+        idx.scopes.push()?;
         block(idx, &mut ast.block)?;
         let layer = idx.scopes.pop().with_span(&ast)?;
 
@@ -960,7 +960,7 @@ fn statements(idx: &mut Indexer<'_, '_>, ast: &mut Vec<ast::Stmt>) -> compile::R
                     if !i.needs_semi_colon() {
                         idx.q
                             .diagnostics
-                            .unnecessary_semi_colon(idx.source_id, &semi);
+                            .unnecessary_semi_colon(idx.source_id, &semi)?;
                     }
                 }
 
@@ -1000,7 +1000,7 @@ fn statements(idx: &mut Indexer<'_, '_>, ast: &mut Vec<ast::Stmt>) -> compile::R
                 if !semi.needs_semi() {
                     idx.q
                         .diagnostics
-                        .unnecessary_semi_colon(idx.source_id, semi);
+                        .unnecessary_semi_colon(idx.source_id, semi)?;
                 }
 
                 expr(idx, &mut semi.expr)?;
@@ -1240,7 +1240,7 @@ pub(crate) fn expr(idx: &mut Indexer<'_, '_>, ast: &mut ast::Expr) -> compile::R
             // engine.
 
             if !macro_call.id.is_set() {
-                let mut p = attrs::Parser::new(&macro_call.attributes);
+                let mut p = attrs::Parser::new(&macro_call.attributes)?;
 
                 let expanded = idx.try_expand_internal_macro(&mut p, macro_call)?;
 
@@ -1339,7 +1339,7 @@ fn condition(idx: &mut Indexer<'_, '_>, ast: &mut ast::Condition) -> compile::Re
 
 #[instrument(span = ast)]
 fn item_enum(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemEnum) -> compile::Result<()> {
-    let mut p = attrs::Parser::new(&ast.attributes);
+    let mut p = attrs::Parser::new(&ast.attributes)?;
 
     let docs = Doc::collect_from(resolve_context!(idx.q), &mut p, &ast.attributes)?;
 
@@ -1366,7 +1366,7 @@ fn item_enum(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemEnum) -> compile::Resu
     idx.q.index_enum(enum_item)?;
 
     for (index, (mut variant, _)) in ast.variants.drain().enumerate() {
-        let mut p = attrs::Parser::new(&variant.attributes);
+        let mut p = attrs::Parser::new(&variant.attributes)?;
 
         let docs = Doc::collect_from(resolve_context!(idx.q), &mut p, &variant.attributes)?;
 
@@ -1394,7 +1394,7 @@ fn item_enum(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemEnum) -> compile::Resu
         let cx = resolve_context!(idx.q);
 
         for (field, _) in variant.body.fields() {
-            let mut p = attrs::Parser::new(&field.attributes);
+            let mut p = attrs::Parser::new(&field.attributes)?;
             let docs = Doc::collect_from(cx, &mut p, &field.attributes)?;
 
             if let Some(first) = p.remaining(&field.attributes).next() {
@@ -1433,7 +1433,7 @@ fn item_enum(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemEnum) -> compile::Resu
 
 #[instrument(span = ast)]
 fn item_struct(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemStruct) -> compile::Result<()> {
-    let mut p = attrs::Parser::new(&ast.attributes);
+    let mut p = attrs::Parser::new(&ast.attributes)?;
 
     let docs = Doc::collect_from(resolve_context!(idx.q), &mut p, &ast.attributes)?;
 
@@ -1461,7 +1461,7 @@ fn item_struct(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemStruct) -> compile::
     let cx = resolve_context!(idx.q);
 
     for (field, _) in ast.body.fields() {
-        let mut p = attrs::Parser::new(&field.attributes);
+        let mut p = attrs::Parser::new(&field.attributes)?;
         let docs = Doc::collect_from(cx, &mut p, &field.attributes)?;
 
         if let Some(first) = p.remaining(&field.attributes).next() {
@@ -1535,7 +1535,7 @@ fn item_impl(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemImpl) -> compile::Resu
 
 #[instrument(span = ast)]
 fn item_mod(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemMod) -> compile::Result<()> {
-    let mut p = attrs::Parser::new(&ast.attributes);
+    let mut p = attrs::Parser::new(&ast.attributes)?;
 
     let docs = Doc::collect_from(resolve_context!(idx.q), &mut p, &ast.attributes)?;
 
@@ -1585,7 +1585,7 @@ fn item_mod(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemMod) -> compile::Result
 
 #[instrument(span = ast)]
 fn item_const(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemConst) -> compile::Result<()> {
-    let mut p = attrs::Parser::new(&ast.attributes);
+    let mut p = attrs::Parser::new(&ast.attributes)?;
 
     let docs = Doc::collect_from(resolve_context!(idx.q), &mut p, &ast.attributes)?;
 
@@ -1747,7 +1747,7 @@ fn expr_closure(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprClosure) -> compil
     let guard = idx.items.push_id()?;
     let idx_item = idx.item.replace();
 
-    idx.scopes.push();
+    idx.scopes.push()?;
 
     let item_meta = idx.q.insert_new_item(
         &idx.items,

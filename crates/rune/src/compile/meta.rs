@@ -59,7 +59,7 @@ impl Doc {
         attributes: &[ast::Attribute],
     ) -> compile::Result<Vec<Doc>> {
         let docs = attrs
-            .parse_all::<crate::compile::attrs::Doc>(cx, attributes)
+            .parse_all::<crate::compile::attrs::Doc>(cx, attributes)?
             .map(|result| {
                 result.map(|(span, doc)| Doc {
                     span: span.span(),
