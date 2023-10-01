@@ -2,35 +2,39 @@
 
 use core::fmt;
 
-use crate::no_std::prelude::*;
-
+use crate as rune;
+use crate::alloc::prelude::*;
+use crate::alloc::String;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, TryClone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(untagged)]
 pub(super) enum RequestId {
     Number(u64),
     String(String),
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, TryClone, Deserialize)]
 pub(super) struct IncomingMessage {
     #[allow(unused)]
     pub(super) jsonrpc: V2,
     pub(super) id: Option<RequestId>,
     pub(super) method: String,
     #[serde(default)]
+    #[try_clone(with = Clone::clone)]
     pub(super) params: serde_json::Value,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, TryClone, Serialize)]
+#[try_clone(bound = {T: TryClone})]
 pub(super) struct NotificationMessage<T> {
     pub(super) jsonrpc: V2,
     pub(super) method: &'static str,
     pub(super) params: T,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, TryClone, Serialize, Deserialize)]
+#[try_clone(bound = {T: TryClone, D: TryClone})]
 pub(super) struct ResponseMessage<'a, T, D> {
     pub(super) jsonrpc: V2,
     // NB: serializing for this is not skipped, since the spec requires it to be
@@ -50,7 +54,8 @@ macro_rules! code {
             $($variant:ident = $value:expr),* $(,)?
         }
     ) => {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+        #[try_clone(copy)]
         $vis enum $name {
             $($variant,)*
             Unknown(i32),
@@ -99,14 +104,16 @@ code! {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, TryClone, Serialize, Deserialize)]
+#[try_clone(bound = {D: TryClone})]
 pub(super) struct ResponseError<'a, D> {
     pub(super) code: Code,
     pub(super) message: &'a str,
     pub(super) data: Option<D>,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy, Hash, Eq)]
+#[derive(Debug, PartialEq, TryClone, Clone, Copy, Hash, Eq)]
+#[try_clone(copy)]
 pub(super) struct V2;
 
 impl serde::Serialize for V2 {

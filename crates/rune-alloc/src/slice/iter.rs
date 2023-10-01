@@ -23,8 +23,10 @@ use crate::ptr::{self, invalid, invalid_mut, NonNull};
 /// Basic usage:
 ///
 /// ```
+/// use rune::alloc::try_vec;
+///
 /// // First, we declare a type which has `iter` method to get the `Iter` struct (`&[usize]` here):
-/// let vec = rune_alloc::try_vec![1, 2, 3];
+/// let vec = try_vec![1, 2, 3];
 ///
 /// // Then, we iterate over it:
 /// unsafe {
@@ -32,7 +34,7 @@ use crate::ptr::{self, invalid, invalid_mut, NonNull};
 ///         println!("{}", *element);
 ///     }
 /// }
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 ///
 /// [`iter`]: slice::iter
@@ -88,9 +90,11 @@ impl<T> RawIter<T> {
     /// Basic usage:
     ///
     /// ```
+    /// use rune::alloc::try_vec;
+    ///
     /// // First, we declare a type which has the `iter` method to get the `Iter`
     /// // struct (`&[usize]` here):
-    /// let slice = rune_alloc::try_vec![1, 2, 3];
+    /// let slice = try_vec![1, 2, 3];
     ///
     /// unsafe {
     ///     // Then, we get the iterator:
@@ -104,7 +108,7 @@ impl<T> RawIter<T> {
     ///     // Now `as_slice` returns "[2, 3]":
     ///     println!("{:?}", iter.as_slice());
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[must_use]
     #[inline]
@@ -134,9 +138,11 @@ impl<T> Clone for RawIter<T> {
 /// Basic usage:
 ///
 /// ```
+/// use rune::alloc::try_vec;
+///
 /// // First, we declare a type which has `iter_mut` method to get the `IterMut`
 /// // struct (`&[usize]` here):
-/// let mut slice = rune_alloc::try_vec![1, 2, 3];
+/// let mut slice = try_vec![1, 2, 3];
 ///
 /// // Then, we iterate over it and increment each element value:
 /// unsafe {
@@ -147,7 +153,7 @@ impl<T> Clone for RawIter<T> {
 ///
 /// // We now have "[2, 3, 4]":
 /// println!("{slice:?}");
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 ///
 /// [`iter_mut`]: slice::iter_mut
@@ -218,7 +224,9 @@ impl<T> RawIterMut<T> {
     /// Basic usage:
     ///
     /// ```
-    /// let mut slice = rune_alloc::try_vec![1, 2, 3];
+    /// use rune::alloc::try_vec;
+    ///
+    /// let mut slice = try_vec![1, 2, 3];
     ///
     /// unsafe {
     ///     // First, we get the iterator:
@@ -232,7 +240,7 @@ impl<T> RawIterMut<T> {
     ///     // Now `as_slice` returns "[2, 3]":
     ///     assert_eq!(iter.as_slice(), &[2, 3]);
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[must_use]
     #[inline]
@@ -250,7 +258,9 @@ impl<T> RawIterMut<T> {
     /// Basic usage:
     ///
     /// ```
-    /// let mut slice = rune_alloc::try_vec![1, 2, 3];
+    /// use rune::alloc::try_vec;
+    ///
+    /// let mut slice = try_vec![1, 2, 3];
     ///
     /// unsafe {
     ///     // First, we get the iterator:
@@ -270,7 +280,7 @@ impl<T> RawIterMut<T> {
     ///     // Now `as_mut_slice` returns "[2, 5]":
     ///     assert_eq!(iter.as_mut_slice(), &mut [2, 5]);
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[must_use]
     pub unsafe fn as_mut_slice<'a>(&mut self) -> &'a mut [T] {

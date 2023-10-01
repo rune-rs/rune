@@ -10,7 +10,7 @@
 #[cfg_attr(feature = "std", path = "env/std.rs")]
 mod no_std;
 
-use crate::no_std::sync::Arc;
+use ::rust_alloc::sync::Arc;
 
 use crate::runtime::{RuntimeContext, Unit, VmErrorKind, VmResult};
 

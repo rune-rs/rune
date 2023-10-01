@@ -2,8 +2,6 @@ use core::fmt;
 use core::ops;
 use core::slice;
 
-use crate::no_std::std;
-
 use crate as rune;
 use crate::alloc::clone::TryClone;
 use crate::alloc::{self, Box};
@@ -49,7 +47,6 @@ impl Tuple {
         VmResult::Ok(Some(vm_try!(T::from_value(value))))
     }
 
-    #[cfg(feature = "alloc")]
     pub(crate) fn hash_with(
         &self,
         hasher: &mut Hasher,
@@ -185,22 +182,23 @@ impl ops::DerefMut for OwnedTuple {
     }
 }
 
-impl TryFrom<std::Vec<Value>> for OwnedTuple {
+#[cfg(feature = "alloc")]
+impl TryFrom<::rust_alloc::vec::Vec<Value>> for OwnedTuple {
     type Error = alloc::Error;
 
     #[inline]
-    fn try_from(vec: std::Vec<Value>) -> Result<Self, Self::Error> {
+    fn try_from(vec: ::rust_alloc::vec::Vec<Value>) -> Result<Self, Self::Error> {
         Ok(Self {
-            inner: rune_alloc::Box::try_from(vec.into_boxed_slice())?,
+            inner: alloc::Box::try_from(vec.into_boxed_slice())?,
         })
     }
 }
 
-impl TryFrom<rune_alloc::Vec<Value>> for OwnedTuple {
+impl TryFrom<alloc::Vec<Value>> for OwnedTuple {
     type Error = alloc::Error;
 
     #[inline]
-    fn try_from(vec: rune_alloc::Vec<Value>) -> Result<Self, Self::Error> {
+    fn try_from(vec: alloc::Vec<Value>) -> Result<Self, Self::Error> {
         Ok(Self {
             inner: vec.try_into_boxed_slice()?,
         })
@@ -218,35 +216,24 @@ impl<const N: usize> TryFrom<[Value; N]> for OwnedTuple {
     }
 }
 
-impl TryFrom<std::Box<[Value]>> for OwnedTuple {
-    type Error = alloc::Error;
-
+impl From<alloc::Box<[Value]>> for OwnedTuple {
     #[inline]
-    fn try_from(inner: std::Box<[Value]>) -> alloc::Result<Self> {
-        Ok(Self {
-            inner: rune_alloc::Box::try_from(inner)?,
-        })
-    }
-}
-
-impl From<rune_alloc::Box<[Value]>> for OwnedTuple {
-    #[inline]
-    fn from(inner: rune_alloc::Box<[Value]>) -> Self {
+    fn from(inner: alloc::Box<[Value]>) -> Self {
         Self { inner }
     }
 }
 
-impl TryFrom<std::Box<[ConstValue]>> for OwnedTuple {
+impl TryFrom<alloc::Box<[ConstValue]>> for OwnedTuple {
     type Error = alloc::Error;
 
-    fn try_from(inner: std::Box<[ConstValue]>) -> alloc::Result<Self> {
+    fn try_from(inner: alloc::Box<[ConstValue]>) -> alloc::Result<Self> {
         if inner.is_empty() {
             return Ok(OwnedTuple::new());
         }
 
-        let mut out = rune_alloc::Vec::try_with_capacity(inner.len())?;
+        let mut out = alloc::Vec::try_with_capacity(inner.len())?;
 
-        for value in inner.into_vec() {
+        for value in alloc::Vec::from(inner) {
             out.try_push(value.into_value()?)?;
         }
 
@@ -256,17 +243,30 @@ impl TryFrom<std::Box<[ConstValue]>> for OwnedTuple {
     }
 }
 
-impl TryFrom<rune_alloc::Box<[ConstValue]>> for OwnedTuple {
+#[cfg(feature = "alloc")]
+impl TryFrom<::rust_alloc::boxed::Box<[Value]>> for OwnedTuple {
     type Error = alloc::Error;
 
-    fn try_from(inner: rune_alloc::Box<[ConstValue]>) -> alloc::Result<Self> {
+    #[inline]
+    fn try_from(inner: ::rust_alloc::boxed::Box<[Value]>) -> alloc::Result<Self> {
+        Ok(Self {
+            inner: alloc::Box::try_from(inner)?,
+        })
+    }
+}
+
+#[cfg(feature = "alloc")]
+impl TryFrom<::rust_alloc::boxed::Box<[ConstValue]>> for OwnedTuple {
+    type Error = alloc::Error;
+
+    fn try_from(inner: ::rust_alloc::boxed::Box<[ConstValue]>) -> alloc::Result<Self> {
         if inner.is_empty() {
             return Ok(OwnedTuple::new());
         }
 
-        let mut out = rune_alloc::Vec::try_with_capacity(inner.len())?;
+        let mut out = alloc::Vec::try_with_capacity(inner.len())?;
 
-        for value in rune_alloc::Vec::from(inner) {
+        for value in inner.into_vec() {
             out.try_push(value.into_value()?)?;
         }
 
@@ -332,7 +332,7 @@ macro_rules! impl_tuple {
             fn to_value(self) -> VmResult<Value> {
                 let ($($var,)*) = self;
                 $(let $var = vm_try!($var.to_value());)*
-                let mut vec = vm_try!(rune_alloc::Vec::try_with_capacity($count));
+                let mut vec = vm_try!(alloc::Vec::try_with_capacity($count));
                 $(vm_try!(vec.try_push($var));)*
                 VmResult::Ok(vm_try!(Value::try_from(vm_try!(OwnedTuple::try_from(vec)))))
             }

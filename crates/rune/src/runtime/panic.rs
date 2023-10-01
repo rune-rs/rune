@@ -1,6 +1,7 @@
 use core::fmt;
 
-use crate::no_std::prelude::*;
+use ::rust_alloc::boxed::Box;
+
 use crate::runtime::PanicReason;
 
 pub trait BoxedPanic: fmt::Display + fmt::Debug + Send + Sync {}
@@ -16,16 +17,6 @@ pub struct Panic {
 }
 
 impl Panic {
-    /// A custom panic reason.
-    pub(crate) fn msg<D>(message: D) -> Self
-    where
-        D: fmt::Display,
-    {
-        Self {
-            inner: Box::new(message.to_string()),
-        }
-    }
-
     /// A custom panic reason.
     pub(crate) fn custom<D>(message: D) -> Self
     where

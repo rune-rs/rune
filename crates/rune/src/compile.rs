@@ -37,7 +37,9 @@ pub(crate) mod ir;
 pub use rune_core::{Component, ComponentRef, IntoComponent, Item, ItemBuf};
 
 mod source_loader;
-pub use self::source_loader::{FileSourceLoader, NoopSourceLoader, SourceLoader};
+#[cfg(feature = "std")]
+pub use self::source_loader::FileSourceLoader;
+pub use self::source_loader::{NoopSourceLoader, SourceLoader};
 
 mod unit_builder;
 pub use self::unit_builder::LinkerError;

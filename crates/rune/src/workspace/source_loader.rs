@@ -30,7 +30,7 @@ impl SourceLoader for FileSourceLoader {
             Ok(source) => Ok(source),
             Err(error) => Err(WorkspaceError::new(
                 span,
-                WorkspaceErrorKind::FileError {
+                WorkspaceErrorKind::Source {
                     path: path.try_into().with_span(span)?,
                     error,
                 },

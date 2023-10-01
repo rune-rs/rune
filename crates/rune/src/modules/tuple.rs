@@ -3,9 +3,7 @@
 use core::cmp::Ordering;
 
 use crate as rune;
-#[cfg(feature = "std")]
-use crate::runtime::Hasher;
-use crate::runtime::{EnvProtocolCaller, Iterator, Ref, Tuple, Value, Vec, VmResult};
+use crate::runtime::{EnvProtocolCaller, Hasher, Iterator, Ref, Tuple, Value, Vec, VmResult};
 use crate::{ContextError, Module};
 
 /// Dynamic tuples.
@@ -22,7 +20,6 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(eq)?;
     m.function_meta(partial_cmp)?;
     m.function_meta(cmp)?;
-    #[cfg(feature = "std")]
     m.function_meta(hash)?;
     Ok(m)
 }
@@ -191,7 +188,6 @@ fn cmp(this: &Tuple, other: &Tuple) -> VmResult<Ordering> {
 /// assert_eq!(hash((0, 2, 3)), hash([0, 2, 3]));
 /// ```
 #[rune::function(instance, protocol = HASH)]
-#[cfg(feature = "std")]
 fn hash(this: &Tuple, hasher: &mut Hasher) -> VmResult<()> {
     Tuple::hash_with(this, hasher, &mut EnvProtocolCaller)
 }

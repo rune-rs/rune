@@ -1,8 +1,7 @@
 #[cfg(test)]
 mod tests;
 
-use crate::no_std::prelude::*;
-
+use crate::alloc::Vec;
 use crate::ast::Span;
 use crate::fmt::FormattingError;
 
@@ -22,9 +21,9 @@ pub(super) fn gather_empty_line_spans(source: &str) -> Result<Vec<EmptyLine>, Fo
     for (i, c) in source.char_indices() {
         if c == '\n' {
             if line_was_empty {
-                empty_lines.push(EmptyLine {
+                empty_lines.try_push(EmptyLine {
                     span: Span::new(line_start, i + 1),
-                });
+                })?;
             }
             line_start = i + 1;
             line_was_empty = true;

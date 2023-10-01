@@ -1,11 +1,12 @@
 use core::convert::Infallible;
 use core::fmt;
 
-use crate::no_std::prelude::*;
-use crate::no_std::sync::Arc;
+use ::rust_alloc::boxed::Box;
+use ::rust_alloc::sync::Arc;
 
-use crate::alloc;
 use crate::alloc::error::CustomError;
+use crate::alloc::prelude::*;
+use crate::alloc::{self, String};
 use crate::compile::ItemBuf;
 use crate::hash::Hash;
 use crate::runtime::unit::{BadInstruction, BadJump};
@@ -81,7 +82,7 @@ pub struct VmErrorLocation {
     /// Frozen instruction pointer.
     pub ip: usize,
     /// All lower call frames before the unwind trigger point
-    pub frames: Vec<CallFrame>,
+    pub frames: ::rust_alloc::vec::Vec<CallFrame>,
 }
 
 #[derive(Debug)]
@@ -117,8 +118,8 @@ impl fmt::Display for VmErrorAt {
 #[non_exhaustive]
 pub(crate) struct VmErrorInner {
     pub(crate) error: VmErrorAt,
-    pub(crate) chain: Vec<VmErrorAt>,
-    pub(crate) stacktrace: Vec<VmErrorLocation>,
+    pub(crate) chain: ::rust_alloc::vec::Vec<VmErrorAt>,
+    pub(crate) stacktrace: ::rust_alloc::vec::Vec<VmErrorLocation>,
 }
 
 /// A virtual machine error which includes tracing information.
@@ -138,8 +139,8 @@ impl VmError {
                     index: 0,
                     kind: VmErrorKind::from(error),
                 },
-                chain: Vec::new(),
-                stacktrace: Vec::new(),
+                chain: ::rust_alloc::vec::Vec::new(),
+                stacktrace: ::rust_alloc::vec::Vec::new(),
             }),
         }
     }
@@ -204,7 +205,9 @@ impl fmt::Debug for VmError {
     }
 }
 
-impl crate::no_std::error::Error for VmError {}
+cfg_std! {
+    impl std::error::Error for VmError {}
+}
 
 /// A result produced by the virtual machine.
 #[must_use]
@@ -320,10 +323,10 @@ impl<T> VmResult<T> {
 
     #[doc(hidden)]
     #[inline]
-    pub fn __rune_macros__missing_variant(name: &str) -> Self {
-        Self::err(VmErrorKind::MissingVariant {
-            name: name.to_owned(),
-        })
+    pub fn __rune_macros__missing_variant(name: &str) -> alloc::Result<Self> {
+        Ok(Self::err(VmErrorKind::MissingVariant {
+            name: name.try_to_owned()?,
+        }))
     }
 
     #[doc(hidden)]
@@ -367,13 +370,14 @@ where
     }
 }
 
-#[cfg(feature = "std")]
-impl<T> ::std::process::Termination for VmResult<T> {
-    #[inline]
-    fn report(self) -> ::std::process::ExitCode {
-        match self {
-            VmResult::Ok(_) => ::std::process::ExitCode::SUCCESS,
-            VmResult::Err(_) => ::std::process::ExitCode::FAILURE,
+cfg_std! {
+    impl<T> ::std::process::Termination for VmResult<T> {
+        #[inline]
+        fn report(self) -> ::std::process::ExitCode {
+            match self {
+                VmResult::Ok(_) => ::std::process::ExitCode::SUCCESS,
+                VmResult::Err(_) => ::std::process::ExitCode::FAILURE,
+            }
         }
     }
 }
@@ -406,12 +410,12 @@ impl<const N: usize> From<[VmErrorKind; N]> for VmError {
 
         let first = match it.next() {
             None => VmErrorKind::Panic {
-                reason: Panic::msg("Unknown error"),
+                reason: Panic::custom("Unknown error"),
             },
             Some(first) => first,
         };
 
-        let mut chain = Vec::with_capacity(it.len());
+        let mut chain = ::rust_alloc::vec::Vec::with_capacity(it.len());
 
         for kind in it {
             chain.push(VmErrorAt {
@@ -429,7 +433,7 @@ impl<const N: usize> From<[VmErrorKind; N]> for VmError {
                     kind: first,
                 },
                 chain,
-                stacktrace: Vec::new(),
+                stacktrace: ::rust_alloc::vec::Vec::new(),
             }),
         }
     }

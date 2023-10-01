@@ -27,6 +27,12 @@ jobs:
     - run: cargo run --bin rune -- doc --output target/site/docs
       env:
         RUST_LOG: rune=info
+    - uses: dtolnay/rust-toolchain@nightly
+    - run: cargo +nightly doc -p rune --all-features --target-dir target/site/api
+      env:
+        RUST_LOG: rune=info
+        RUSTFLAGS: --cfg docsrs
+        RUSTDOCFLAGS: --cfg docsrs
     - run: mdbook build -d ../target/site/book book
     - uses: peaceiris/actions-gh-pages@v3
       with:

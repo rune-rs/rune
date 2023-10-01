@@ -5,9 +5,11 @@ use core::mem::take;
 use crate::alloc::{self, Vec};
 use crate::ast::{Span, Spanned};
 use crate::compile;
-use crate::compile::{
-    CompileVisitor, FileSourceLoader, Located, MetaError, Options, Pool, SourceLoader,
-};
+#[cfg(feature = "std")]
+use crate::compile::FileSourceLoader as DefaultSourceLoader;
+#[cfg(not(feature = "std"))]
+use crate::compile::NoopSourceLoader as DefaultSourceLoader;
+use crate::compile::{CompileVisitor, Located, MetaError, Options, Pool, SourceLoader};
 use crate::runtime::unit::{DefaultStorage, UnitEncoder};
 use crate::runtime::Unit;
 use crate::{Context, Diagnostics, SourceId, Sources};
@@ -24,7 +26,7 @@ pub struct BuildError {
 impl From<alloc::Error> for BuildError {
     fn from(error: alloc::Error) -> Self {
         Self {
-            kind: BuildErrorKind::AllocError(error),
+            kind: BuildErrorKind::Alloc(error),
         }
     }
 }
@@ -32,24 +34,32 @@ impl From<alloc::Error> for BuildError {
 #[derive(Default, Debug)]
 enum BuildErrorKind {
     #[default]
-    FatalError,
-    AllocError(alloc::Error),
+    Default,
+    Alloc(alloc::Error),
 }
 
 impl fmt::Display for BuildError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
-            BuildErrorKind::FatalError => write!(
+            BuildErrorKind::Default => write!(
                 f,
                 "Failed to build rune sources (see diagnostics for details)"
             ),
-            BuildErrorKind::AllocError(error) => error.fmt(f),
+            BuildErrorKind::Alloc(error) => error.fmt(f),
         }
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for BuildError {}
+cfg_std! {
+    impl std::error::Error for BuildError {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            match &self.kind {
+                BuildErrorKind::Alloc(error) => Some(error),
+                _ => None,
+            }
+        }
+    }
+}
 
 /// Entry point to building [Sources] of Rune using the default unit storage.
 ///
@@ -70,11 +80,12 @@ impl std::error::Error for BuildError {}
 /// let runtime = Arc::new(context.runtime()?);
 ///
 /// let mut sources = rune::Sources::new();
+///
 /// sources.insert(Source::new("entry", r#"
 /// pub fn main() {
 ///     println("Hello World");
 /// }
-/// "#));
+/// "#)?)?;
 ///
 /// let mut diagnostics = rune::Diagnostics::new();
 ///
@@ -313,7 +324,7 @@ impl<'a, S> Build<'a, S> {
         let source_loader = match self.source_loader.take() {
             Some(source_loader) => source_loader,
             None => {
-                default_source_loader = FileSourceLoader::new();
+                default_source_loader = DefaultSourceLoader::default();
                 &mut default_source_loader
             }
         };
@@ -349,7 +360,7 @@ impl<'a, S> Build<'a, S> {
         match unit.build(Span::empty(), unit_storage) {
             Ok(unit) => Ok(unit),
             Err(error) => {
-                diagnostics.error(SourceId::empty(), error);
+                diagnostics.error(SourceId::empty(), error)?;
                 Err(BuildError::default())
             }
         }

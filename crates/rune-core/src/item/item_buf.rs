@@ -6,8 +6,6 @@ use core::mem::take;
 use core::ops::Deref;
 use core::str::FromStr;
 
-use crate::error;
-
 use crate::alloc::alloc::{Allocator, Global};
 use crate::alloc::clone::TryClone;
 use crate::alloc::iter::TryFromIteratorIn;
@@ -417,7 +415,8 @@ impl fmt::Display for FromStrError {
     }
 }
 
-impl error::Error for FromStrError {}
+#[cfg(feature = "std")]
+impl rust_std::error::Error for FromStrError {}
 
 impl<A: Allocator> FromStr for ItemBuf<A>
 where

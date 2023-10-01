@@ -68,7 +68,7 @@ pub(crate) fn compile(
         {
             Ok(result) => result,
             Err(error) => {
-                worker.q.diagnostics.error(source_id, error);
+                worker.q.diagnostics.error(source_id, error)?;
                 continue;
             }
         };
@@ -84,11 +84,11 @@ pub(crate) fn compile(
             worker
                 .q
                 .diagnostics
-                .error(source_id, compile::Error::from(error));
+                .error(source_id, compile::Error::from(error))?;
         }
     }
 
-    worker.index();
+    worker.index()?;
 
     if worker.q.diagnostics.has_error() {
         return Ok(());
@@ -105,7 +105,7 @@ pub(crate) fn compile(
             };
 
             if let Err(error) = task.compile(entry, unit_storage) {
-                worker.q.diagnostics.error(source_id, error);
+                worker.q.diagnostics.error(source_id, error)?;
             }
         }
 
@@ -116,7 +116,7 @@ pub(crate) fn compile(
         }
 
         for (source_id, error) in errors {
-            worker.q.diagnostics.error(source_id, error);
+            worker.q.diagnostics.error(source_id, error)?;
         }
     }
 
@@ -249,7 +249,9 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                 assemble::fn_from_item_fn(&mut c, &hir, f.is_instance)?;
 
                 if !self.q.is_used(&item_meta) {
-                    self.q.diagnostics.not_used(location.source_id, span, None);
+                    self.q
+                        .diagnostics
+                        .not_used(location.source_id, span, None)?;
                 } else {
                     let instance = match (type_hash, &f.ast) {
                         (Some(type_hash), FunctionAst::Item(ast)) => {
@@ -296,7 +298,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
 
                 if !c.q.is_used(&item_meta) {
                     c.q.diagnostics
-                        .not_used(location.source_id, &location.span, None);
+                        .not_used(location.source_id, &location.span, None)?;
                 } else {
                     self.q.unit.new_function(
                         location,
@@ -330,7 +332,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                 if !self.q.is_used(&item_meta) {
                     self.q
                         .diagnostics
-                        .not_used(location.source_id, &location.span, None);
+                        .not_used(location.source_id, &location.span, None)?;
                 } else {
                     let args = hir.captures.len();
 
@@ -352,7 +354,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                 if !item_meta.visibility.is_public() {
                     self.q
                         .diagnostics
-                        .not_used(location.source_id, &location.span, None);
+                        .not_used(location.source_id, &location.span, None)?;
                 }
             }
             Build::Import(import) => {
@@ -372,7 +374,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                 if !self.q.is_used(&item_meta) {
                     self.q
                         .diagnostics
-                        .not_used(location.source_id, &location.span, None);
+                        .not_used(location.source_id, &location.span, None)?;
                 }
 
                 let missing = match result {

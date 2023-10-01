@@ -1,6 +1,6 @@
 use core::fmt;
 
-use crate::no_std::prelude::*;
+use ::rust_alloc::boxed::Box;
 
 /// Error raised when trying to parse an invalid option.
 #[derive(Debug, Clone)]
@@ -14,7 +14,9 @@ impl fmt::Display for ParseOptionError {
     }
 }
 
-impl crate::no_std::error::Error for ParseOptionError {}
+cfg_std! {
+    impl std::error::Error for ParseOptionError {}
+}
 
 /// Options that can be provided to the compiler.
 ///

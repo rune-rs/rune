@@ -1,8 +1,6 @@
 use core::any;
 use core::cmp::Ordering;
 
-use crate::no_std::std;
-
 use crate::alloc::prelude::*;
 use crate::alloc::{self, HashMap};
 use crate::runtime::{
@@ -134,7 +132,7 @@ where
     T: Any,
 {
     fn to_value(self) -> VmResult<Value> {
-        VmResult::Ok(vm_try!(Value::try_from(AnyObj::new(self))))
+        VmResult::Ok(vm_try!(Value::try_from(vm_try!(AnyObj::new(self)))))
     }
 }
 
@@ -172,13 +170,6 @@ where
 
 // String impls
 
-impl ToValue for std::Box<str> {
-    fn to_value(self) -> VmResult<Value> {
-        let this = vm_try!(self.try_to_string());
-        VmResult::Ok(Value::from(vm_try!(Shared::new(this))))
-    }
-}
-
 impl ToValue for alloc::Box<str> {
     fn to_value(self) -> VmResult<Value> {
         let this = alloc::String::from(self);
@@ -186,17 +177,26 @@ impl ToValue for alloc::Box<str> {
     }
 }
 
-impl ToValue for std::String {
-    fn to_value(self) -> VmResult<Value> {
-        let string = vm_try!(alloc::String::try_from(self));
-        VmResult::Ok(Value::from(vm_try!(Shared::new(string))))
-    }
-}
-
 impl ToValue for &str {
     fn to_value(self) -> VmResult<Value> {
         let this = vm_try!(alloc::String::try_from(self));
         VmResult::Ok(Value::from(vm_try!(Shared::new(this))))
+    }
+}
+
+#[cfg(feature = "alloc")]
+impl ToValue for ::rust_alloc::boxed::Box<str> {
+    fn to_value(self) -> VmResult<Value> {
+        let this = vm_try!(self.try_to_string());
+        VmResult::Ok(Value::from(vm_try!(Shared::new(this))))
+    }
+}
+
+#[cfg(feature = "alloc")]
+impl ToValue for ::rust_alloc::string::String {
+    fn to_value(self) -> VmResult<Value> {
+        let string = vm_try!(alloc::String::try_from(self));
+        VmResult::Ok(Value::from(vm_try!(Shared::new(string))))
     }
 }
 
@@ -290,12 +290,13 @@ macro_rules! impl_map {
     };
 }
 
-#[cfg(feature = "std")]
-impl_map!(::std::collections::HashMap<std::String, T>);
-#[cfg(feature = "std")]
-impl_map!(::std::collections::HashMap<alloc::String, T>);
-impl_map!(HashMap<std::String, T>);
+impl_map!(HashMap<::rust_alloc::string::String, T>);
 impl_map!(HashMap<alloc::String, T>);
+
+cfg_std! {
+    impl_map!(::std::collections::HashMap<::rust_alloc::string::String, T>);
+    impl_map!(::std::collections::HashMap<alloc::String, T>);
+}
 
 impl ToValue for Ordering {
     #[inline]

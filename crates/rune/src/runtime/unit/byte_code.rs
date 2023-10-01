@@ -9,7 +9,8 @@ use crate::runtime::unit::{BadInstruction, BadJump, EncodeError, UnitEncoder, Un
 use crate::runtime::Inst;
 
 /// Unit stored as byte code, which is a more compact representation than
-/// [`ArrayUnit`], but takes more time to execute since it needs to be decoded.
+/// `ArrayUnit`, but takes more time to execute since it needs to be decoded as
+/// it's being executed.
 #[derive(Debug, TryClone, Default, Serialize, Deserialize)]
 pub struct ByteCodeUnit {
     /// The instructions contained in the source file.

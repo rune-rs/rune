@@ -1,8 +1,7 @@
 use core::fmt;
 use core::ops;
 
-use crate::no_std::collections::VecDeque;
-
+use crate::alloc::VecDeque;
 use crate::ast::{Kind, OptionSpanned, Span, Token};
 use crate::compile::{self, ErrorKind};
 use crate::macros::{TokenStream, TokenStreamIter};
@@ -329,7 +328,7 @@ impl<'a> Peeker<'a> {
             };
 
             self.last = Some(token.span);
-            self.buf.push_back(token);
+            self.buf.try_push_back(token)?;
         }
 
         Ok(self.buf.get(n).copied())

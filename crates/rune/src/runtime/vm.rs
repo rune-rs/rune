@@ -3,13 +3,12 @@ use core::mem::{replace, swap};
 use core::ops;
 use core::slice;
 
+use ::rust_alloc::sync::Arc;
+
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
 use crate::hash::{Hash, IntoHash, ToTypeHash};
 use crate::modules::{option, result};
-use crate::no_std::borrow::ToOwned;
-use crate::no_std::sync::Arc;
-use crate::no_std::vec;
 use crate::runtime::budget;
 use crate::runtime::future::SelectFuture;
 use crate::runtime::unit::{UnitFn, UnitStorage};
@@ -689,7 +688,7 @@ impl Vm {
             None => {
                 return err(VmErrorKind::MissingField {
                     target: vm_try!(target.type_info()),
-                    field: field.to_owned(),
+                    field: vm_try!(field.try_to_owned()),
                 });
             }
         };
@@ -853,7 +852,7 @@ impl Vm {
             None => {
                 return err(VmErrorKind::MissingField {
                     target: vm_try!(target.type_info()),
-                    field: field.to_owned(),
+                    field: vm_try!(field.try_to_owned()),
                 });
             }
         };
@@ -1006,7 +1005,7 @@ impl Vm {
 
                 return err(VmErrorKind::MissingField {
                     target: typed_object.type_info(),
-                    field: field.as_str().to_owned(),
+                    field: vm_try!(field.as_str().try_to_owned()),
                 });
             }
             Value::Variant(variant) => {
@@ -1021,7 +1020,7 @@ impl Vm {
 
                 return err(VmErrorKind::MissingField {
                     target: variant.type_info(),
-                    field: field.as_str().to_owned(),
+                    field: vm_try!(field.as_str().try_to_owned()),
                 });
             }
             target => {
@@ -1189,7 +1188,7 @@ impl Vm {
         let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack);
         vm.ip = offset;
         let mut execution = vm.into_execution();
-        let future = Future::new(async move { execution.async_complete().await });
+        let future = Future::new(async move { execution.async_complete().await })?;
         self.stack.push(Value::try_from(future)?)?;
         Ok(())
     }
@@ -2026,7 +2025,7 @@ impl Vm {
 
                     return err(VmErrorKind::MissingField {
                         target: typed_object.type_info(),
-                        field: field.to_owned(),
+                        field: vm_try!(field.try_to_owned()),
                     });
                 }
                 Value::Variant(variant) => {
@@ -2041,7 +2040,7 @@ impl Vm {
 
                     return err(VmErrorKind::MissingField {
                         target: variant.type_info(),
-                        field: field.to_owned(),
+                        field: vm_try!(field.try_to_owned()),
                     });
                 }
                 _ => {}
@@ -2190,7 +2189,7 @@ impl Vm {
             _ => (),
         }
 
-        let target = target.into_owned();
+        let target = vm_try!(target.try_into_owned());
 
         if let CallResult::Unsupported(target) =
             vm_try!(self.call_instance_fn(target, Protocol::INDEX_GET, (&index,)))
@@ -2496,7 +2495,7 @@ impl Vm {
     /// Optimize operation to perform string concatenation.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_string_concat(&mut self, len: usize, size_hint: usize) -> VmResult<()> {
-        let values = vm_try!(self.stack.drain(len)).collect::<vec::Vec<_>>();
+        let values = vm_try!(vm_try!(self.stack.drain(len)).try_collect::<alloc::Vec<_>>());
 
         let mut f = vm_try!(Formatter::with_capacity(size_hint));
 

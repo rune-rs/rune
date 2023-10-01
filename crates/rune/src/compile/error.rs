@@ -1,9 +1,9 @@
 use core::fmt;
 
-use crate::no_std::io;
+#[cfg(feature = "std")]
+use std::path::PathBuf;
 
 use crate as rune;
-use crate::alloc::path::PathBuf;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, String, Vec};
 use crate::ast;
@@ -18,11 +18,14 @@ use crate::query::MissingId;
 use crate::runtime::debug::DebugSignature;
 use crate::runtime::unit::EncodeError;
 use crate::runtime::{AccessError, TypeInfo, TypeOf};
+#[cfg(feature = "std")]
+use crate::source;
 use crate::{Hash, SourceId};
 
 /// An error raised by the compiler.
 #[derive(Debug)]
 pub struct Error {
+    // The span the error is associated with.
     span: Span,
     // Errors are exempt from fallible allocations since they're not commonly
     // constructed.
@@ -74,9 +77,11 @@ impl Spanned for Error {
     }
 }
 
-impl crate::no_std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn crate::no_std::error::Error + 'static)> {
-        self.kind.source()
+cfg_std! {
+    impl std::error::Error for Error {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            self.kind.source()
+        }
     }
 }
 
@@ -227,10 +232,12 @@ pub(crate) enum ErrorKind {
     PopError(PopError),
     MissingId(MissingId),
     UnescapeError(unescape::ErrorKind),
-    FileError {
+    #[cfg(feature = "std")]
+    SourceError {
         path: PathBuf,
-        error: io::Error,
+        error: source::FromPathError,
     },
+    #[cfg(feature = "std")]
     ModNotFound {
         path: PathBuf,
     },
@@ -258,9 +265,11 @@ pub(crate) enum ErrorKind {
     },
     UnsupportedGlobal,
     UnsupportedModuleSource,
+    #[cfg(feature = "std")]
     UnsupportedModuleRoot {
         root: PathBuf,
     },
+    #[cfg(feature = "std")]
     UnsupportedModuleItem {
         item: ItemBuf,
     },
@@ -511,22 +520,24 @@ impl ErrorKind {
     }
 }
 
-impl crate::no_std::error::Error for ErrorKind {
-    fn source(&self) -> Option<&(dyn crate::no_std::error::Error + 'static)> {
-        match self {
-            ErrorKind::AllocError { error, .. } => Some(error),
-            ErrorKind::IrError(source) => Some(source),
-            ErrorKind::MetaError(source) => Some(source),
-            ErrorKind::AccessError(source) => Some(source),
-            ErrorKind::EncodeError(source) => Some(source),
-            ErrorKind::MissingLastId(source) => Some(source),
-            ErrorKind::GuardMismatch(source) => Some(source),
-            ErrorKind::MissingScope(source) => Some(source),
-            ErrorKind::PopError(source) => Some(source),
-            ErrorKind::MissingId(source) => Some(source),
-            ErrorKind::UnescapeError(source) => Some(source),
-            ErrorKind::FileError { error, .. } => Some(error),
-            _ => None,
+cfg_std! {
+    impl std::error::Error for ErrorKind {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            match self {
+                ErrorKind::AllocError { error, .. } => Some(error),
+                ErrorKind::IrError(source) => Some(source),
+                ErrorKind::MetaError(source) => Some(source),
+                ErrorKind::AccessError(source) => Some(source),
+                ErrorKind::EncodeError(source) => Some(source),
+                ErrorKind::MissingLastId(source) => Some(source),
+                ErrorKind::GuardMismatch(source) => Some(source),
+                ErrorKind::MissingScope(source) => Some(source),
+                ErrorKind::PopError(source) => Some(source),
+                ErrorKind::MissingId(source) => Some(source),
+                ErrorKind::UnescapeError(source) => Some(source),
+                ErrorKind::SourceError { error, .. } => Some(error),
+                _ => None,
+            }
         }
     }
 }
@@ -576,9 +587,15 @@ impl fmt::Display for ErrorKind {
             ErrorKind::UnescapeError(error) => {
                 error.fmt(f)?;
             }
-            ErrorKind::FileError { path, error } => {
-                write!(f, "Failed to load `{path}`: {error}", path = path.display(),)?;
+            #[cfg(feature = "std")]
+            ErrorKind::SourceError { path, error } => {
+                write!(
+                    f,
+                    "Failed to load source at `{path}`: {error}",
+                    path = path.display(),
+                )?;
             }
+            #[cfg(feature = "std")]
             ErrorKind::ModNotFound { path } => {
                 write!(
                     f,
@@ -617,6 +634,7 @@ impl fmt::Display for ErrorKind {
                     "Cannot load modules using a source without an associated URL"
                 )?;
             }
+            #[cfg(feature = "std")]
             ErrorKind::UnsupportedModuleRoot { root } => {
                 write!(
                     f,
@@ -624,6 +642,7 @@ impl fmt::Display for ErrorKind {
                     root = root.display()
                 )?;
             }
+            #[cfg(feature = "std")]
             ErrorKind::UnsupportedModuleItem { item } => {
                 write!(f, "Cannot load module for `{item}`")?;
             }
@@ -1158,7 +1177,9 @@ pub(crate) enum IrErrorKind {
     },
 }
 
-impl crate::no_std::error::Error for IrErrorKind {}
+cfg_std! {
+    impl std::error::Error for IrErrorKind {}
+}
 
 impl fmt::Display for IrErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -1277,7 +1298,9 @@ impl fmt::Display for MetaError {
     }
 }
 
-impl crate::no_std::error::Error for MetaError {}
+cfg_std! {
+    impl std::error::Error for MetaError {}
+}
 
 #[derive(Debug)]
 pub(crate) struct MissingScope(pub(crate) usize);
@@ -1289,7 +1312,8 @@ impl fmt::Display for MissingScope {
     }
 }
 
-impl crate::no_std::error::Error for MissingScope {}
+#[cfg(feature = "std")]
+impl std::error::Error for MissingScope {}
 
 #[derive(Debug)]
 pub(crate) enum PopError {
@@ -1307,4 +1331,6 @@ impl fmt::Display for PopError {
     }
 }
 
-impl crate::no_std::error::Error for PopError {}
+cfg_std! {
+    impl std::error::Error for PopError {}
+}

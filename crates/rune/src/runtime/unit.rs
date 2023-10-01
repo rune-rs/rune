@@ -9,7 +9,7 @@ mod storage;
 
 use core::fmt;
 
-use crate::no_std::sync::Arc;
+use ::rust_alloc::sync::Arc;
 
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};

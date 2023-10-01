@@ -50,7 +50,7 @@ use super::raw::RawTable;
 /// # Examples
 ///
 /// ```
-/// use rune_alloc::HashSet;
+/// use rune::alloc::HashSet;
 /// // Type inference lets us omit an explicit type signature (which
 /// // would be `HashSet<String>` in this example).
 /// let mut books = HashSet::new();
@@ -74,7 +74,7 @@ use super::raw::RawTable;
 /// for book in &books {
 ///     println!("{}", book);
 /// }
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 ///
 /// The easiest way to use `HashSet` with a custom type is to derive
@@ -82,7 +82,7 @@ use super::raw::RawTable;
 /// future be implied by [`Eq`].
 ///
 /// ```
-/// use rune_alloc::HashSet;
+/// use rune::alloc::HashSet;
 ///
 /// #[derive(Hash, Eq, PartialEq, Debug)]
 /// struct Viking {
@@ -101,19 +101,19 @@ use super::raw::RawTable;
 /// for x in &vikings {
 ///     println!("{:?}", x);
 /// }
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 ///
 /// A `HashSet` with fixed list of elements can be initialized from an array:
 ///
 /// ```
-/// use rune_alloc::HashSet;
-/// use rune_alloc::prelude::*;
+/// use rune::alloc::HashSet;
+/// use rune::alloc::prelude::*;
 ///
 /// let viking_names: HashSet<&'static str> =
 ///     [ "Einar", "Olaf", "Harald" ].iter().copied().try_collect()?;
 /// // use the values stored in the set
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 ///
 /// [`Cell`]: https://doc.rust-lang.org/std/cell/struct.Cell.html
@@ -179,7 +179,7 @@ impl<T> HashSet<T, DefaultHashBuilder> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
+    /// use rune::alloc::HashSet;
     /// let set: HashSet<i32> = HashSet::new();
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
@@ -210,10 +210,10 @@ impl<T> HashSet<T, DefaultHashBuilder> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
+    /// use rune::alloc::HashSet;
     /// let set: HashSet<i32> = HashSet::try_with_capacity(10)?;
     /// assert!(set.capacity() >= 10);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn try_with_capacity(capacity: usize) -> Result<Self, Error> {
@@ -249,8 +249,8 @@ impl<T: Hash + Eq, A: Allocator> HashSet<T, DefaultHashBuilder, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
-    /// use rune_alloc::alloc::Global;
+    /// use rune::alloc::HashSet;
+    /// use rune::alloc::alloc::Global;
     ///
     /// let set: HashSet<i32> = HashSet::new_in(Global);
     /// ```
@@ -284,10 +284,10 @@ impl<T: Hash + Eq, A: Allocator> HashSet<T, DefaultHashBuilder, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
+    /// use rune::alloc::HashSet;
     /// let set: HashSet<i32> = HashSet::try_with_capacity(10)?;
     /// assert!(set.capacity() >= 10);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn try_with_capacity_in(capacity: usize, alloc: A) -> Result<Self, Error> {
@@ -303,11 +303,11 @@ impl<T, S, A: Allocator> HashSet<T, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
+    /// use rune::alloc::HashSet;
     ///
     /// let set: HashSet<i32> = HashSet::try_with_capacity(100)?;
     /// assert!(set.capacity() >= 100);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn capacity(&self) -> usize {
@@ -320,7 +320,7 @@ impl<T, S, A: Allocator> HashSet<T, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
+    /// use rune::alloc::HashSet;
     ///
     /// let mut set = HashSet::new();
     /// set.try_insert("a")?;
@@ -330,7 +330,7 @@ impl<T, S, A: Allocator> HashSet<T, S, A> {
     /// for x in set.iter() {
     ///     println!("{}", x);
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn iter(&self) -> Iter<'_, T> {
@@ -344,13 +344,13 @@ impl<T, S, A: Allocator> HashSet<T, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
+    /// use rune::alloc::HashSet;
     ///
     /// let mut v = HashSet::new();
     /// assert_eq!(v.len(), 0);
     /// v.try_insert(1)?;
     /// assert_eq!(v.len(), 1);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn len(&self) -> usize {
@@ -362,13 +362,13 @@ impl<T, S, A: Allocator> HashSet<T, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
+    /// use rune::alloc::HashSet;
     ///
     /// let mut v = HashSet::new();
     /// assert!(v.is_empty());
     /// v.try_insert(1)?;
     /// assert!(!v.is_empty());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn is_empty(&self) -> bool {
@@ -380,7 +380,7 @@ impl<T, S, A: Allocator> HashSet<T, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
+    /// use rune::alloc::HashSet;
     ///
     /// let mut set: HashSet<_> = HashSet::try_from([1, 2, 3])?;
     /// assert!(!set.is_empty());
@@ -391,7 +391,7 @@ impl<T, S, A: Allocator> HashSet<T, S, A> {
     /// }
     ///
     /// assert!(set.is_empty());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn drain(&mut self) -> Drain<'_, T, A> {
@@ -407,12 +407,12 @@ impl<T, S, A: Allocator> HashSet<T, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
+    /// use rune::alloc::HashSet;
     ///
     /// let mut set: HashSet<i32> = HashSet::try_from([1, 2, 3, 4, 5, 6])?;
     /// set.retain(|&k| k % 2 == 0);
     /// assert_eq!(set.len(), 3);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn retain<F>(&mut self, mut f: F)
     where
@@ -437,8 +437,8 @@ impl<T, S, A: Allocator> HashSet<T, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::{HashSet, Vec};
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::{try_vec, HashSet, Vec};
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut set: HashSet<i32> = (0..8).try_collect()?;
     /// let drained: HashSet<i32> = set.extract_if(|v| v % 2 == 0).try_collect()?;
@@ -448,9 +448,9 @@ impl<T, S, A: Allocator> HashSet<T, S, A> {
     /// evens.sort();
     /// odds.sort();
     ///
-    /// assert_eq!(evens, rune_alloc::try_vec![0, 2, 4, 6]);
-    /// assert_eq!(odds, rune_alloc::try_vec![1, 3, 5, 7]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// assert_eq!(evens, try_vec![0, 2, 4, 6]);
+    /// assert_eq!(odds, try_vec![1, 3, 5, 7]);
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn extract_if<F>(&mut self, f: F) -> ExtractIf<'_, T, F, A>
@@ -471,13 +471,13 @@ impl<T, S, A: Allocator> HashSet<T, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
+    /// use rune::alloc::HashSet;
     ///
     /// let mut v = HashSet::new();
     /// v.try_insert(1)?;
     /// v.clear();
     /// assert!(v.is_empty());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn clear(&mut self) {
@@ -510,13 +510,13 @@ impl<T, S> HashSet<T, S, Global> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
-    /// use rune_alloc::hash_map::DefaultHashBuilder;
+    /// use rune::alloc::HashSet;
+    /// use rune::alloc::hash_map::DefaultHashBuilder;
     ///
     /// let s = DefaultHashBuilder::default();
     /// let mut set = HashSet::with_hasher(s);
     /// set.try_insert(2)?;
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub const fn with_hasher(hasher: S) -> Self {
@@ -549,13 +549,13 @@ impl<T, S> HashSet<T, S, Global> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
-    /// use rune_alloc::hash_map::DefaultHashBuilder;
+    /// use rune::alloc::HashSet;
+    /// use rune::alloc::hash_map::DefaultHashBuilder;
     ///
     /// let s = DefaultHashBuilder::default();
     /// let mut set = HashSet::try_with_capacity_and_hasher(10, s)?;
     /// set.try_insert(1)?;
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn try_with_capacity_and_hasher(capacity: usize, hasher: S) -> Result<Self, Error> {
@@ -604,13 +604,13 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
-    /// use rune_alloc::hash_map::DefaultHashBuilder;
+    /// use rune::alloc::HashSet;
+    /// use rune::alloc::hash_map::DefaultHashBuilder;
     ///
     /// let s = DefaultHashBuilder::default();
     /// let mut set = HashSet::with_hasher(s);
     /// set.try_insert(2)?;
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub const fn with_hasher_in(hasher: S, alloc: A) -> Self {
@@ -643,14 +643,14 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
-    /// use rune_alloc::alloc::Global;
-    /// use rune_alloc::hash_map::DefaultHashBuilder;
+    /// use rune::alloc::HashSet;
+    /// use rune::alloc::alloc::Global;
+    /// use rune::alloc::hash_map::DefaultHashBuilder;
     ///
     /// let s = DefaultHashBuilder::default();
     /// let mut set = HashSet::try_with_capacity_and_hasher_in(10, s, Global)?;
     /// set.try_insert(1)?;
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn try_with_capacity_and_hasher_in(
@@ -670,8 +670,8 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
-    /// use rune_alloc::hash_map::DefaultHashBuilder;
+    /// use rune::alloc::HashSet;
+    /// use rune::alloc::hash_map::DefaultHashBuilder;
     ///
     /// let hasher = DefaultHashBuilder::default();
     /// let set: HashSet<i32> = HashSet::with_hasher(hasher);
@@ -701,7 +701,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
+    /// use rune::alloc::HashSet;
     /// let mut set: HashSet<i32> = HashSet::new();
     /// set.try_reserve(10).expect("why is the test harness OOMing on 10 bytes?");
     /// ```
@@ -722,7 +722,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
+    /// use rune::alloc::HashSet;
     ///
     /// let mut set = HashSet::try_with_capacity(100)?;
     /// set.try_insert(1)?;
@@ -730,7 +730,7 @@ where
     /// assert!(set.capacity() >= 100);
     /// set.try_shrink_to_fit()?;
     /// assert!(set.capacity() >= 2);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn try_shrink_to_fit(&mut self) -> Result<(), Error> {
@@ -752,7 +752,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
+    /// use rune::alloc::HashSet;
     ///
     /// let mut set = HashSet::try_with_capacity(100)?;
     /// set.try_insert(1)?;
@@ -762,7 +762,7 @@ where
     /// assert!(set.capacity() >= 10);
     /// set.try_shrink_to(0)?;
     /// assert!(set.capacity() >= 2);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn try_shrink_to(&mut self, min_capacity: usize) -> Result<(), Error> {
@@ -775,8 +775,8 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::HashSet;
+    /// use rune::alloc::prelude::*;
     ///
     /// let a: HashSet<_> = HashSet::try_from([1, 2, 3])?;
     /// let b: HashSet<_> = HashSet::try_from([4, 2, 3, 4])?;
@@ -793,7 +793,7 @@ where
     /// // and `b - a` means something else:
     /// let diff: HashSet<_> = b.difference(&a).copied().try_collect()?;
     /// assert_eq!(diff, HashSet::try_from([4])?);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn difference<'a>(&'a self, other: &'a Self) -> Difference<'a, T, S, A> {
@@ -809,8 +809,8 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::HashSet;
+    /// use rune::alloc::prelude::*;
     ///
     /// let a: HashSet<_> = HashSet::try_from([1, 2, 3])?;
     /// let b: HashSet<_> = HashSet::try_from([4, 2, 3, 4])?;
@@ -825,7 +825,7 @@ where
     ///
     /// assert_eq!(diff1, diff2);
     /// assert_eq!(diff1, HashSet::try_from([1, 4])?);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn symmetric_difference<'a>(&'a self, other: &'a Self) -> SymmetricDifference<'a, T, S, A> {
@@ -840,8 +840,8 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::HashSet;
+    /// use rune::alloc::prelude::*;
     ///
     /// let a: HashSet<_> = HashSet::try_from([1, 2, 3])?;
     /// let b: HashSet<_> = HashSet::try_from([4, 2, 3, 4])?;
@@ -853,7 +853,7 @@ where
     ///
     /// let intersection: HashSet<_> = a.intersection(&b).copied().try_collect()?;
     /// assert_eq!(intersection, HashSet::try_from([2, 3])?);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn intersection<'a>(&'a self, other: &'a Self) -> Intersection<'a, T, S, A> {
@@ -874,8 +874,8 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::HashSet;
+    /// use rune::alloc::prelude::*;
     ///
     /// let a: HashSet<_> = HashSet::try_from([1, 2, 3])?;
     /// let b: HashSet<_> = HashSet::try_from([4, 2, 3, 4])?;
@@ -887,7 +887,7 @@ where
     ///
     /// let union: HashSet<_> = a.union(&b).copied().try_collect()?;
     /// assert_eq!(union, HashSet::try_from([1, 2, 3, 4])?);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn union<'a>(&'a self, other: &'a Self) -> Union<'a, T, S, A> {
@@ -912,12 +912,12 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
+    /// use rune::alloc::HashSet;
     ///
     /// let set: HashSet<_> = HashSet::try_from([1, 2, 3])?;
     /// assert_eq!(set.contains(&1), true);
     /// assert_eq!(set.contains(&4), false);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     ///
     /// [`Eq`]: https://doc.rust-lang.org/std/cmp/trait.Eq.html
@@ -939,12 +939,12 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
+    /// use rune::alloc::HashSet;
     ///
     /// let set: HashSet<_> = HashSet::try_from([1, 2, 3])?;
     /// assert_eq!(set.get(&2), Some(&2));
     /// assert_eq!(set.get(&4), None);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     ///
     /// [`Eq`]: https://doc.rust-lang.org/std/cmp/trait.Eq.html
@@ -967,14 +967,14 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
+    /// use rune::alloc::HashSet;
     ///
     /// let mut set: HashSet<_> = HashSet::try_from([1, 2, 3])?;
     /// assert_eq!(set.len(), 3);
     /// assert_eq!(set.get_or_try_insert(2)?, &2);
     /// assert_eq!(set.get_or_try_insert(100)?, &100);
     /// assert_eq!(set.len(), 4); // 100 was inserted
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn get_or_try_insert(&mut self, value: T) -> Result<&T, Error> {
@@ -994,8 +994,8 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::{HashSet, String, Error};
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::{HashSet, String, Error};
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut set: HashSet<String> = ["cat", "dog", "horse"]
     ///     .iter().map(|&pet| pet.try_to_owned()).try_collect::<Result<_, _>>()??;
@@ -1006,7 +1006,7 @@ where
     ///     assert_eq!(value, pet);
     /// }
     /// assert_eq!(set.len(), 4); // a new "fish" was inserted
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn get_or_try_insert_owned<Q: ?Sized>(&mut self, value: &Q) -> Result<&T, Error>
@@ -1029,8 +1029,8 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::{HashSet, String, Error};
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::{HashSet, String, Error};
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut set: HashSet<String> = ["cat", "dog", "horse"]
     ///     .iter().map(|&pet| pet.try_to_owned()).try_collect::<Result<_, _>>()??;
@@ -1041,7 +1041,7 @@ where
     ///     assert_eq!(value, pet);
     /// }
     /// assert_eq!(set.len(), 4); // a new "fish" was inserted
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn get_or_try_insert_with<Q: ?Sized, F>(&mut self, value: &Q, f: F) -> Result<&T, Error>
@@ -1064,8 +1064,8 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
-    /// use rune_alloc::hash_set::Entry::*;
+    /// use rune::alloc::HashSet;
+    /// use rune::alloc::hash_set::Entry::*;
     ///
     /// let mut singles = HashSet::new();
     /// let mut dupes = HashSet::new();
@@ -1091,7 +1091,7 @@ where
     /// assert!(!singles.contains(&'t') && dupes.contains(&'t'));
     /// assert!(singles.contains(&'u') && !dupes.contains(&'u'));
     /// assert!(!singles.contains(&'v') && !dupes.contains(&'v'));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn entry(&mut self, value: T) -> Entry<'_, T, S, A> {
@@ -1107,7 +1107,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
+    /// use rune::alloc::HashSet;
     ///
     /// let a = HashSet::try_from([1, 2, 3])?;
     /// let mut b = HashSet::new();
@@ -1117,7 +1117,7 @@ where
     /// assert_eq!(a.is_disjoint(&b), true);
     /// b.try_insert(1)?;
     /// assert_eq!(a.is_disjoint(&b), false);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn is_disjoint(&self, other: &Self) -> bool {
         self.iter().all(|v| !other.contains(v))
@@ -1129,7 +1129,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
+    /// use rune::alloc::HashSet;
     ///
     /// let sup = HashSet::try_from([1, 2, 3])?;
     /// let mut set = HashSet::new();
@@ -1139,7 +1139,7 @@ where
     /// assert_eq!(set.is_subset(&sup), true);
     /// set.try_insert(4)?;
     /// assert_eq!(set.is_subset(&sup), false);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn is_subset(&self, other: &Self) -> bool {
         self.len() <= other.len() && self.iter().all(|v| other.contains(v))
@@ -1151,7 +1151,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
+    /// use rune::alloc::HashSet;
     ///
     /// let sub = HashSet::try_from([1, 2])?;
     /// let mut set = HashSet::new();
@@ -1164,7 +1164,7 @@ where
     ///
     /// set.try_insert(2)?;
     /// assert_eq!(set.is_superset(&sub), true);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn is_superset(&self, other: &Self) -> bool {
@@ -1180,14 +1180,14 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
+    /// use rune::alloc::HashSet;
     ///
     /// let mut set = HashSet::new();
     ///
     /// assert_eq!(set.try_insert(2)?, true);
     /// assert_eq!(set.try_insert(2)?, false);
     /// assert_eq!(set.len(), 1);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn try_insert(&mut self, value: T) -> Result<bool, Error> {
@@ -1229,7 +1229,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
+    /// use rune::alloc::HashSet;
     ///
     /// let mut set = HashSet::new();
     /// set.try_insert(Vec::<i32>::new())?;
@@ -1237,7 +1237,7 @@ where
     /// assert_eq!(set.get(&[][..]).unwrap().capacity(), 0);
     /// set.try_replace(Vec::with_capacity(10))?;
     /// assert_eq!(set.get(&[][..]).unwrap().capacity(), 10);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn try_replace(&mut self, value: T) -> Result<Option<T>, Error> {
@@ -1265,14 +1265,14 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
+    /// use rune::alloc::HashSet;
     ///
     /// let mut set = HashSet::new();
     ///
     /// set.try_insert(2)?;
     /// assert_eq!(set.remove(&2), true);
     /// assert_eq!(set.remove(&2), false);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     ///
     /// [`Eq`]: https://doc.rust-lang.org/std/cmp/trait.Eq.html
@@ -1294,12 +1294,12 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
+    /// use rune::alloc::HashSet;
     ///
     /// let mut set: HashSet<_> = HashSet::try_from([1, 2, 3])?;
     /// assert_eq!(set.take(&2), Some(2));
     /// assert_eq!(set.take(&2), None);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     ///
     /// [`Eq`]: https://doc.rust-lang.org/std/cmp/trait.Eq.html
@@ -1436,12 +1436,12 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
+    /// use rune::alloc::HashSet;
     ///
     /// let set1: HashSet<_> = HashSet::try_from([1, 2, 3, 4])?;
     /// let set2: HashSet<_> = [1, 2, 3, 4].try_into()?;
     /// assert_eq!(set1, set2);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     fn try_from(arr: [T; N]) -> Result<Self, Self::Error> {
         Self::try_from_iter_in(arr, A::default())
@@ -1632,8 +1632,8 @@ impl<T, S, A: Allocator> IntoIterator for HashSet<T, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::{HashSet, Vec};
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::{HashSet, Vec};
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut set = HashSet::new();
     /// set.try_insert("a".to_string())?;
@@ -1646,7 +1646,7 @@ impl<T, S, A: Allocator> IntoIterator for HashSet<T, S, A> {
     /// for x in &v {
     ///     println!("{}", x);
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     fn into_iter(self) -> IntoIter<T, A> {
@@ -1983,9 +1983,9 @@ where
 /// # Examples
 ///
 /// ```
-/// use rune_alloc::{HashSet, Vec};
-/// use rune_alloc::hash_set::{Entry, OccupiedEntry};
-/// use rune_alloc::prelude::*;
+/// use rune::alloc::{HashSet, Vec};
+/// use rune::alloc::hash_set::{Entry, OccupiedEntry};
+/// use rune::alloc::prelude::*;
 ///
 /// let mut set = HashSet::new();
 /// set.try_extend(["a", "b", "c"])?;
@@ -2010,7 +2010,7 @@ where
 /// // items must be sorted to test them against a sorted array.
 /// vec.sort_unstable();
 /// assert_eq!(vec, ["a", "b", "c", "d", "e"]);
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 pub enum Entry<'a, T, S, A = Global>
 where
@@ -2021,8 +2021,8 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_set::Entry;
-    /// use rune_alloc::HashSet;
+    /// use rune::alloc::hash_set::Entry;
+    /// use rune::alloc::HashSet;
     ///
     /// let mut set: HashSet<_> = HashSet::try_from(["a", "b"])?;
     ///
@@ -2030,7 +2030,7 @@ where
     ///     Entry::Vacant(_) => unreachable!(),
     ///     Entry::Occupied(_) => { }
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     Occupied(OccupiedEntry<'a, T, S, A>),
 
@@ -2039,14 +2039,14 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_set::{Entry, HashSet};
+    /// use rune::alloc::hash_set::{Entry, HashSet};
     /// let mut set = HashSet::new();
     ///
     /// match set.entry("a") {
     ///     Entry::Occupied(_) => unreachable!(),
     ///     Entry::Vacant(_) => { }
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     Vacant(VacantEntry<'a, T, S, A>),
 }
@@ -2068,8 +2068,8 @@ impl<T: fmt::Debug, S, A: Allocator> fmt::Debug for Entry<'_, T, S, A> {
 /// # Examples
 ///
 /// ```
-/// use rune_alloc::hash_set::{Entry, HashSet, OccupiedEntry};
-/// use rune_alloc::prelude::*;
+/// use rune::alloc::hash_set::{Entry, HashSet, OccupiedEntry};
+/// use rune::alloc::prelude::*;
 ///
 /// let mut set = HashSet::new();
 /// set.try_extend(["a", "b", "c"])?;
@@ -2096,7 +2096,7 @@ impl<T: fmt::Debug, S, A: Allocator> fmt::Debug for Entry<'_, T, S, A> {
 /// }
 /// assert_eq!(set.get(&"c"), None);
 /// assert_eq!(set.len(), 2);
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 pub struct OccupiedEntry<'a, T, S, A: Allocator = Global> {
     inner: map::OccupiedEntry<'a, T, (), S, A>,
@@ -2118,7 +2118,7 @@ impl<T: fmt::Debug, S, A: Allocator> fmt::Debug for OccupiedEntry<'_, T, S, A> {
 /// # Examples
 ///
 /// ```
-/// use rune_alloc::hash_set::{Entry, HashSet, VacantEntry};
+/// use rune::alloc::hash_set::{Entry, HashSet, VacantEntry};
 ///
 /// let mut set = HashSet::<&str>::new();
 ///
@@ -2135,7 +2135,7 @@ impl<T: fmt::Debug, S, A: Allocator> fmt::Debug for OccupiedEntry<'_, T, S, A> {
 ///     Entry::Occupied(_) => unreachable!(),
 /// }
 /// assert!(set.contains("b") && set.len() == 2);
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 pub struct VacantEntry<'a, T, S, A: Allocator = Global> {
     inner: map::VacantEntry<'a, T, (), S, A>,
@@ -2153,13 +2153,13 @@ impl<'a, T, S, A: Allocator> Entry<'a, T, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
+    /// use rune::alloc::HashSet;
     ///
     /// let mut set: HashSet<&str> = HashSet::new();
     /// let entry = set.entry("horseyland").try_insert()?;
     ///
     /// assert_eq!(entry.get(), &"horseyland");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn try_insert(self) -> Result<OccupiedEntry<'a, T, S, A>, Error>
@@ -2178,7 +2178,7 @@ impl<'a, T, S, A: Allocator> Entry<'a, T, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
+    /// use rune::alloc::HashSet;
     ///
     /// let mut set: HashSet<&str> = HashSet::new();
     ///
@@ -2190,7 +2190,7 @@ impl<'a, T, S, A: Allocator> Entry<'a, T, S, A> {
     /// set.entry("poneyland").or_try_insert()?;
     /// assert!(set.contains("poneyland"));
     /// assert_eq!(set.len(), 1);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn or_try_insert(self) -> Result<(), Error>
@@ -2210,7 +2210,7 @@ impl<'a, T, S, A: Allocator> Entry<'a, T, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
+    /// use rune::alloc::HashSet;
     ///
     /// let mut set: HashSet<&str> = HashSet::new();
     /// set.entry("poneyland").or_try_insert()?;
@@ -2218,7 +2218,7 @@ impl<'a, T, S, A: Allocator> Entry<'a, T, S, A> {
     /// assert_eq!(set.entry("poneyland").get(), &"poneyland");
     /// // nonexistent key
     /// assert_eq!(set.entry("horseland").get(), &"horseland");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn get(&self) -> &T {
@@ -2235,7 +2235,7 @@ impl<T, S, A: Allocator> OccupiedEntry<'_, T, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_set::{Entry, HashSet};
+    /// use rune::alloc::hash_set::{Entry, HashSet};
     ///
     /// let mut set: HashSet<&str> = HashSet::new();
     /// set.entry("poneyland").or_try_insert()?;
@@ -2244,7 +2244,7 @@ impl<T, S, A: Allocator> OccupiedEntry<'_, T, S, A> {
     ///     Entry::Vacant(_) => panic!(),
     ///     Entry::Occupied(entry) => assert_eq!(entry.get(), &"poneyland"),
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn get(&self) -> &T {
@@ -2257,8 +2257,8 @@ impl<T, S, A: Allocator> OccupiedEntry<'_, T, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
-    /// use rune_alloc::hash_set::Entry;
+    /// use rune::alloc::HashSet;
+    /// use rune::alloc::hash_set::Entry;
     ///
     /// let mut set: HashSet<&str> = HashSet::new();
     /// // The set is empty
@@ -2274,7 +2274,7 @@ impl<T, S, A: Allocator> OccupiedEntry<'_, T, S, A> {
     /// assert_eq!(set.contains("poneyland"), false);
     /// // Now set hold none elements but capacity is equal to the old one
     /// assert!(set.len() == 0 && set.capacity() == capacity_before_remove);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn remove(self) -> T {
@@ -2292,7 +2292,7 @@ impl<T, S, A: Allocator> OccupiedEntry<'_, T, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_set::{Entry, HashSet};
+    /// use rune::alloc::hash_set::{Entry, HashSet};
     /// use std::rc::Rc;
     ///
     /// let mut set: HashSet<Rc<String>> = HashSet::new();
@@ -2312,7 +2312,7 @@ impl<T, S, A: Allocator> OccupiedEntry<'_, T, S, A> {
     ///
     /// assert!(Rc::strong_count(&key_one) == 1 && Rc::strong_count(&key_two) == 2);
     /// assert!(set.contains(&"Stringthing".to_owned()));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn replace(self) -> T {
@@ -2327,7 +2327,7 @@ impl<'a, T, S, A: Allocator> VacantEntry<'a, T, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
+    /// use rune::alloc::HashSet;
     ///
     /// let mut set: HashSet<&str> = HashSet::new();
     /// assert_eq!(set.entry("poneyland").get(), &"poneyland");
@@ -2342,7 +2342,7 @@ impl<'a, T, S, A: Allocator> VacantEntry<'a, T, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_set::{Entry, HashSet};
+    /// use rune::alloc::hash_set::{Entry, HashSet};
     ///
     /// let mut set = HashSet::new();
     ///
@@ -2361,8 +2361,8 @@ impl<'a, T, S, A: Allocator> VacantEntry<'a, T, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashSet;
-    /// use rune_alloc::hash_set::Entry;
+    /// use rune::alloc::HashSet;
+    /// use rune::alloc::hash_set::Entry;
     ///
     /// let mut set: HashSet<&str> = HashSet::new();
     ///
@@ -2370,7 +2370,7 @@ impl<'a, T, S, A: Allocator> VacantEntry<'a, T, S, A> {
     ///     o.try_insert()?;
     /// }
     /// assert!(set.contains("poneyland"));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn try_insert(self) -> Result<(), Error>

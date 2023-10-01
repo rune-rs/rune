@@ -370,7 +370,7 @@ fn pat_with_offset<'hir>(
 
     if pat(cx, hir, &false_label, &load)? {
         cx.q.diagnostics
-            .let_pattern_might_panic(cx.source_id, hir, cx.context());
+            .let_pattern_might_panic(cx.source_id, hir, cx.context())?;
 
         let ok_label = cx.asm.new_label("let_ok");
         cx.asm.jump(&ok_label, hir)?;
@@ -799,7 +799,7 @@ fn builtin_template<'hir>(
 
     if template.from_literal && expansions == 0 {
         cx.q.diagnostics
-            .template_without_expansions(cx.source_id, span, cx.context());
+            .template_without_expansions(cx.source_id, span, cx.context())?;
     }
 
     cx.asm.push(
@@ -827,7 +827,8 @@ fn const_<'hir>(
     needs: Needs,
 ) -> compile::Result<()> {
     if !needs.value() {
-        cx.q.diagnostics.not_used(cx.source_id, span, cx.context());
+        cx.q.diagnostics
+            .not_used(cx.source_id, span, cx.context())?;
         return Ok(());
     }
 
@@ -1450,7 +1451,8 @@ fn expr_call_closure<'hir>(
     needs: Needs,
 ) -> compile::Result<Asm<'hir>> {
     if !needs.value() {
-        cx.q.diagnostics.not_used(cx.source_id, span, cx.context());
+        cx.q.diagnostics
+            .not_used(cx.source_id, span, cx.context())?;
         return Ok(Asm::top(span));
     }
 
@@ -1538,7 +1540,8 @@ fn expr_field_access<'hir>(
         )?;
 
         if !needs.value() {
-            cx.q.diagnostics.not_used(cx.source_id, span, cx.context());
+            cx.q.diagnostics
+                .not_used(cx.source_id, span, cx.context())?;
             cx.asm.push(Inst::Pop, span)?;
         }
 
@@ -1552,7 +1555,8 @@ fn expr_field_access<'hir>(
             cx.asm.push(Inst::TupleIndexGet { index }, span)?;
 
             if !needs.value() {
-                cx.q.diagnostics.not_used(cx.source_id, span, cx.context());
+                cx.q.diagnostics
+                    .not_used(cx.source_id, span, cx.context())?;
                 cx.asm.push(Inst::Pop, span)?;
             }
 
@@ -1564,7 +1568,8 @@ fn expr_field_access<'hir>(
             cx.asm.push(Inst::ObjectIndexGet { slot }, span)?;
 
             if !needs.value() {
-                cx.q.diagnostics.not_used(cx.source_id, span, cx.context());
+                cx.q.diagnostics
+                    .not_used(cx.source_id, span, cx.context())?;
                 cx.asm.push(Inst::Pop, span)?;
             }
 
@@ -1839,7 +1844,7 @@ fn expr_let<'hir>(
 
     if pat(cx, &hir.pat, &false_label, &load)? {
         cx.q.diagnostics
-            .let_pattern_might_panic(cx.source_id, hir, cx.context());
+            .let_pattern_might_panic(cx.source_id, hir, cx.context())?;
 
         let ok_label = cx.asm.new_label("let_ok");
         cx.asm.jump(&ok_label, hir)?;
@@ -1993,7 +1998,8 @@ fn expr_object<'hir>(
 
     // No need to encode an object since the value is not needed.
     if !needs.value() {
-        cx.q.diagnostics.not_used(cx.source_id, span, cx.context());
+        cx.q.diagnostics
+            .not_used(cx.source_id, span, cx.context())?;
         cx.asm.push(Inst::Pop, span)?;
     }
 
@@ -2314,7 +2320,8 @@ fn expr_tuple<'hir>(
     }
 
     if !needs.value() {
-        cx.q.diagnostics.not_used(cx.source_id, span, cx.context());
+        cx.q.diagnostics
+            .not_used(cx.source_id, span, cx.context())?;
         cx.asm.push(Inst::Pop, span)?;
     }
 
@@ -2376,7 +2383,8 @@ fn expr_vec<'hir>(
     // Evaluate the expressions one by one, then pop them to cause any
     // side effects (without creating an object).
     if !needs.value() {
-        cx.q.diagnostics.not_used(cx.source_id, span, cx.context());
+        cx.q.diagnostics
+            .not_used(cx.source_id, span, cx.context())?;
         cx.asm.push(Inst::Pop, span)?;
     }
 
@@ -2472,7 +2480,8 @@ fn lit<'hir>(
 ) -> compile::Result<Asm<'hir>> {
     // Elide the entire literal if it's not needed.
     if !needs.value() {
-        cx.q.diagnostics.not_used(cx.source_id, span, cx.context());
+        cx.q.diagnostics
+            .not_used(cx.source_id, span, cx.context())?;
         return Ok(Asm::top(span));
     }
 
@@ -2522,7 +2531,7 @@ fn local<'hir>(
 
     if pat(cx, &hir.pat, &false_label, &load)? {
         cx.q.diagnostics
-            .let_pattern_might_panic(cx.source_id, hir, cx.context());
+            .let_pattern_might_panic(cx.source_id, hir, cx.context())?;
 
         let ok_label = cx.asm.new_label("let_ok");
         cx.asm.jump(&ok_label, hir)?;

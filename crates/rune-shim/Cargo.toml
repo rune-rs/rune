@@ -1,0 +1,18 @@
+[package]
+name = "rune-shim"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = """
+Improves how long it takes to run doc tests by shimming out rune which would otherwise have to be compiled for every test case.
+"""
+
+[features]
+core = ["rune-core"]
+alloc = ["rune-alloc"]
+
+[dependencies]
+rune-alloc = { path = "../rune-alloc", optional = true, features = ["std"] }
+rune-core = { path = "../rune-core", optional = true, features = ["std"] }
+
+anyhow = "1.0.71"

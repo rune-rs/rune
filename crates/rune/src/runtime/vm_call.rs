@@ -1,4 +1,4 @@
-use crate::no_std::sync::Arc;
+use ::rust_alloc::sync::Arc;
 
 use crate::alloc::prelude::*;
 use crate::runtime::vm_execution::VmExecutionState;
@@ -41,15 +41,15 @@ impl VmCall {
             Call::Async => {
                 let vm = vm_try!(self.build_vm(execution));
                 let mut execution = vm.into_execution();
-                vm_try!(Value::try_from(Future::new(async move {
+                vm_try!(Value::try_from(vm_try!(Future::new(async move {
                     execution.async_complete().await
-                })))
+                }))))
             }
             Call::Immediate => {
-                execution.push_state(VmExecutionState {
+                vm_try!(execution.push_state(VmExecutionState {
                     context: self.context,
                     unit: self.unit,
-                });
+                }));
 
                 return VmResult::Ok(());
             }

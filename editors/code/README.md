@@ -83,6 +83,7 @@ async fn main() -> rune::support::Result<()> {
     let runtime = Arc::new(context.runtime()?);
 
     let mut sources = Sources::new();
+
     sources.insert(Source::new(
         "script",
         r#"
@@ -90,7 +91,7 @@ async fn main() -> rune::support::Result<()> {
             a + b
         }
         "#,
-    ));
+    )?)?;
 
     let mut diagnostics = Diagnostics::new();
 

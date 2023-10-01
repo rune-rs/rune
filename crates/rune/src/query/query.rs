@@ -2,8 +2,8 @@ use core::fmt;
 #[cfg(feature = "emit")]
 use core::mem::take;
 
-use crate::no_std::rc::Rc;
-use crate::no_std::sync::Arc;
+use ::rust_alloc::rc::Rc;
+use ::rust_alloc::sync::Arc;
 
 use crate::alloc::borrow::Cow;
 use crate::alloc::prelude::*;
@@ -34,7 +34,7 @@ use crate::{ast, Options};
 use crate::{Context, Diagnostics, Hash, SourceId, Sources};
 
 #[derive(Debug)]
-pub struct MissingId {
+pub(crate) struct MissingId {
     what: &'static str,
     id: Id,
 }
@@ -45,7 +45,8 @@ impl fmt::Display for MissingId {
     }
 }
 
-impl crate::no_std::error::Error for MissingId {}
+#[cfg(feature = "std")]
+impl std::error::Error for MissingId {}
 
 enum ContextMatch<'this, 'm> {
     Context(&'m ContextMeta, Hash),

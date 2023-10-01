@@ -1,5 +1,7 @@
 //! Built-in formatting utilities.
 
+mod impls;
+
 use core::fmt::{self, Arguments};
 
 use crate::borrow::TryToOwned;
@@ -22,8 +24,8 @@ pub trait TryWrite {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::fmt::TryWrite;
-    /// use rune_alloc::{String, Error};
+    /// use rune::alloc::fmt::TryWrite;
+    /// use rune::alloc::{String, Error};
     ///
     /// fn writer<W: TryWrite>(f: &mut W, s: &str) -> Result<(), Error> {
     ///     f.try_write_str(s)
@@ -32,7 +34,7 @@ pub trait TryWrite {
     /// let mut buf = String::new();
     /// writer(&mut buf, "hola")?;
     /// assert_eq!(&buf, "hola");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     fn try_write_str(&mut self, s: &str) -> Result<(), Error>;
 
@@ -50,8 +52,8 @@ pub trait TryWrite {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::fmt::TryWrite;
-    /// use rune_alloc::{String, Error};
+    /// use rune::alloc::fmt::TryWrite;
+    /// use rune::alloc::{String, Error};
     ///
     /// fn writer<W: TryWrite>(f: &mut W, c: char) -> Result<(), Error> {
     ///     f.try_write_char(c)
@@ -61,7 +63,7 @@ pub trait TryWrite {
     /// writer(&mut buf, 'a')?;
     /// writer(&mut buf, 'b')?;
     /// assert_eq!(&buf, "ab");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     fn try_write_char(&mut self, c: char) -> Result<(), Error> {
@@ -126,26 +128,25 @@ pub trait TryWrite {
 /// Basic usage:
 ///
 /// ```
-/// use rune_alloc::fmt;
+/// use rune::alloc::fmt;
 ///
 /// let s = fmt::try_format(format_args!("Hello, {}!", "world"))?;
 /// assert_eq!(s, "Hello, world!");
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 ///
-/// Please note that using [`format!`] might be preferable.
-/// Example:
+/// Please note that using [`try_format!`] might be preferable. Example:
 ///
 /// ```
-/// use rune_alloc::try_format;
+/// use rune::alloc::try_format;
 ///
 /// let s = try_format!("Hello, {}!", "world");
 /// assert_eq!(s, "Hello, world!");
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 ///
 /// [`format_args!`]: core::format_args
-/// [`format!`]: crate::format
+/// [`try_format!`]: try_format!
 #[inline]
 pub fn try_format(args: Arguments<'_>) -> Result<String, Error> {
     #[cfg(rune_nightly)]

@@ -28,8 +28,8 @@ pub trait IteratorExt: Iterator + self::sealed::Sealed {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::String;
+    /// use rune::alloc::prelude::*;
     ///
     /// let values = ["foo", "bar"];
     /// let string: String = values.into_iter().try_join("/")?;
@@ -38,7 +38,7 @@ pub trait IteratorExt: Iterator + self::sealed::Sealed {
     /// let values = ["foo", "bar"];
     /// let string: String = values.into_iter().try_join('/')?;
     /// assert_eq!(string, "foo/bar");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     fn try_join<J, S>(self, sep: S) -> Result<J, Error>
     where
@@ -72,8 +72,8 @@ pub trait IteratorExt: Iterator + self::sealed::Sealed {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::{try_vec, Vec};
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::{try_vec, Vec};
+    /// use rune::alloc::prelude::*;
     ///
     /// let a = [1, 2, 3];
     ///
@@ -84,7 +84,7 @@ pub trait IteratorExt: Iterator + self::sealed::Sealed {
     ///
     /// assert_eq!(v_cloned, [1, 2, 3]);
     /// assert_eq!(v_map, [1, 2, 3]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     fn try_cloned<'a, T: 'a>(self) -> TryCloned<Self>
     where

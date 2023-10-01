@@ -33,7 +33,7 @@ impl Call {
             Call::Immediate => vm_try!(vm.complete()),
             Call::Async => {
                 let mut execution = vm.into_execution();
-                let future = Future::new(async move { execution.async_complete().await });
+                let future = vm_try!(Future::new(async move { execution.async_complete().await }));
                 vm_try!(Value::try_from(future))
             }
         })

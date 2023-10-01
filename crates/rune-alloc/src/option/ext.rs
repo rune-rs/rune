@@ -9,14 +9,14 @@ pub trait OptionExt<T> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::prelude::*;
     ///
     /// let x = 12u32;
     /// let opt_x = Some(&x);
     /// assert_eq!(opt_x, Some(&12));
     /// let cloned = opt_x.try_cloned()?;
     /// assert_eq!(cloned, Some(12u32));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[must_use = "`self` will be dropped if the result is not used"]
     fn try_cloned(self) -> Result<Option<T>, Error>;

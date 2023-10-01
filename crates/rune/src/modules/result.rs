@@ -2,6 +2,7 @@
 
 use crate as rune;
 use crate::alloc::fmt::TryWrite;
+use crate::alloc::prelude::*;
 use crate::runtime::{ControlFlow, Formatter, Function, Panic, Shared, Value, VmResult};
 use crate::{ContextError, Module};
 
@@ -107,10 +108,14 @@ fn is_err(result: &Result<Value, Value>) -> bool {
 fn unwrap(result: Result<Value, Value>) -> VmResult<Value> {
     match result {
         Ok(value) => VmResult::Ok(value),
-        Err(err) => VmResult::err(Panic::msg(format_args!(
-            "Called `Result::unwrap()` on an `Err` value: {:?}",
-            err
-        ))),
+        Err(err) => {
+            let message = vm_try!(format_args!(
+                "Called `Result::unwrap()` on an `Err` value: {:?}",
+                err
+            )
+            .try_to_string());
+            VmResult::err(Panic::custom(message))
+        }
     }
 }
 

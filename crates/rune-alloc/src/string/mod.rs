@@ -9,24 +9,24 @@
 //! There are multiple ways to create a new [`String`] from a string literal:
 //!
 //! ```
-//! use rune_alloc::String;
-//! use rune_alloc::prelude::*;
+//! use rune::alloc::String;
+//! use rune::alloc::prelude::*;
 //!
 //! let s = "Hello".try_to_string()?;
 //!
 //! let s = String::try_from("world")?;
 //! let s: String = "also this".try_into()?;
-//! # Ok::<_, rune_alloc::Error>(())
+//! # Ok::<_, rune::alloc::Error>(())
 //! ```
 //!
 //! If you have a vector of valid UTF-8 bytes, you can make a [`String`] out of
 //! it. You can do the reverse too.
 //!
 //! ```
-//! use rune_alloc::String;
-//! use rune_alloc::prelude::*;
+//! use rune::alloc::{try_vec, String};
+//! use rune::alloc::prelude::*;
 //!
-//! let sparkle_heart = rune_alloc::try_vec![240, 159, 146, 150];
+//! let sparkle_heart = try_vec![240, 159, 146, 150];
 //! let sparkle_heart = String::from_utf8(sparkle_heart)?;
 //!
 //! assert_eq!("💖", sparkle_heart);
@@ -85,23 +85,23 @@ use crate::vec::Vec;
 /// [`String::try_from`]: TryFrom::try_from
 ///
 /// ```
-/// use rune_alloc::String;
+/// use rune::alloc::String;
 ///
 /// let hello = String::try_from("Hello, world!")?;
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 ///
 /// You can append a [`char`] to a `String` with the [`try_push`] method, and
 /// append a [`&str`] with the [`try_push_str`] method:
 ///
 /// ```
-/// use rune_alloc::String;
+/// use rune::alloc::String;
 ///
 /// let mut hello = String::try_from("Hello, ")?;
 ///
 /// hello.try_push('w')?;
 /// hello.try_push_str("orld!")?;
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 ///
 /// [`try_push`]: String::try_push
@@ -111,10 +111,10 @@ use crate::vec::Vec;
 /// the [`from_utf8`] method:
 ///
 /// ```
-/// use rune_alloc::String;
+/// use rune::alloc::{try_vec, String};
 ///
 /// // some bytes, in a vector
-/// let sparkle_heart = rune_alloc::try_vec![240, 159, 146, 150];
+/// let sparkle_heart = try_vec![240, 159, 146, 150];
 /// let sparkle_heart = String::from_utf8(sparkle_heart)?;
 ///
 /// assert_eq!("💖", sparkle_heart);
@@ -226,14 +226,14 @@ use crate::vec::Vec;
 /// function which takes a [`&str`] by using an ampersand (`&`):
 ///
 /// ```
-/// use rune_alloc::String;
+/// use rune::alloc::String;
 ///
 /// fn takes_str(s: &str) { }
 ///
 /// let s = String::try_from("Hello")?;
 ///
 /// takes_str(&s);
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 ///
 /// This will create a [`&str`] from the `String` and pass it in. This
@@ -249,7 +249,7 @@ use crate::vec::Vec;
 /// means to do. For that reason, the following example will not compile.
 ///
 /// ```compile_fail,E0277
-/// use rune_alloc::String;
+/// use rune::alloc::String;
 ///
 /// trait TraitExample {}
 ///
@@ -259,7 +259,7 @@ use crate::vec::Vec;
 ///
 /// let example_string = String::try_from("example_string")?;
 /// example_func(&example_string);
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 ///
 /// There are two options that would work instead. The first would be to
@@ -287,7 +287,7 @@ use crate::vec::Vec;
 ///
 /// ```
 /// use core::mem;
-/// use rune_alloc::String;
+/// use rune::alloc::String;
 ///
 /// let story = String::try_from("Once upon a time...")?;
 ///
@@ -308,7 +308,7 @@ use crate::vec::Vec;
 /// let s = unsafe { String::from_raw_parts_in(ptr, len, capacity, allocator) } ;
 ///
 /// assert_eq!("Once upon a time...", s);
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 ///
 /// [`as_ptr`]: str::as_ptr
@@ -319,7 +319,7 @@ use crate::vec::Vec;
 /// re-allocate. For example, consider this program:
 ///
 /// ```
-/// use rune_alloc::String;
+/// use rune::alloc::String;
 ///
 /// let mut s = String::new();
 ///
@@ -329,7 +329,7 @@ use crate::vec::Vec;
 ///     s.try_push_str("hello")?;
 ///     println!("{}", s.capacity());
 /// }
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 ///
 /// This will output the following:
@@ -348,8 +348,8 @@ use crate::vec::Vec;
 /// [`try_with_capacity_in`] method to allocate the correct capacity initially:
 ///
 /// ```
-/// use rune_alloc::String;
-/// use rune_alloc::alloc::Global;
+/// use rune::alloc::String;
+/// use rune::alloc::alloc::Global;
 ///
 /// let mut s = String::try_with_capacity_in(25, Global)?;
 ///
@@ -359,7 +359,7 @@ use crate::vec::Vec;
 ///     s.try_push_str("hello")?;
 ///     println!("{}", s.capacity());
 /// }
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 ///
 /// [`try_with_capacity_in`]: String::try_with_capacity_in
@@ -403,7 +403,7 @@ impl String {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::String;
+    /// use rune::alloc::String;
     ///
     /// let s = String::new();
     /// ```
@@ -434,7 +434,7 @@ impl String {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::String;
+    /// use rune::alloc::String;
     ///
     /// let mut s = String::try_with_capacity(10)?;
     ///
@@ -452,7 +452,7 @@ impl String {
     ///
     /// // ...but this may make the string reallocate
     /// s.try_push('a')?;
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn try_with_capacity(capacity: usize) -> Result<Self, Error> {
@@ -502,16 +502,16 @@ impl String {
 /// # Examples
 ///
 /// ```
-/// use rune_alloc::String;
+/// use rune::alloc::{try_vec, String};
 ///
 /// // some invalid bytes, in a vector
-/// let bytes = rune_alloc::try_vec![0, 159];
+/// let bytes = try_vec![0, 159];
 ///
 /// let value = String::from_utf8(bytes);
 ///
 /// assert!(value.is_err());
-/// assert_eq!(rune_alloc::try_vec![0, 159], value.unwrap_err().into_bytes());
-/// # Ok::<_, rune_alloc::Error>(())
+/// assert_eq!(try_vec![0, 159], value.unwrap_err().into_bytes());
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 pub struct FromUtf8Error<A: Allocator = Global> {
     bytes: Vec<u8, A>,
@@ -567,8 +567,8 @@ impl<A: Allocator> String<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
-    /// use rune_alloc::alloc::Global;
+    /// use rune::alloc::String;
+    /// use rune::alloc::alloc::Global;
     ///
     /// let s = String::new_in(Global);
     /// ```
@@ -585,8 +585,8 @@ impl<A: Allocator> String<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
-    /// use rune_alloc::alloc::Global;
+    /// use rune::alloc::String;
+    /// use rune::alloc::alloc::Global;
     ///
     /// let s = String::new_in(Global);
     /// let alloc: &Global = s.allocator();
@@ -615,8 +615,8 @@ impl<A: Allocator> String<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
-    /// use rune_alloc::alloc::Global;
+    /// use rune::alloc::String;
+    /// use rune::alloc::alloc::Global;
     ///
     /// let mut s = String::try_with_capacity_in(10, Global)?;
     ///
@@ -634,7 +634,7 @@ impl<A: Allocator> String<A> {
     ///
     /// // ...but this may make the string reallocate
     /// s.try_push('a')?;
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn try_with_capacity_in(capacity: usize, alloc: A) -> Result<String<A>, Error> {
@@ -677,7 +677,7 @@ impl<A: Allocator> String<A> {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::{try_vec, String};
+    /// use rune::alloc::{try_vec, String};
     ///
     /// // some bytes, in a vector
     /// let sparkle_heart = try_vec![240, 159, 146, 150];
@@ -690,13 +690,13 @@ impl<A: Allocator> String<A> {
     /// Incorrect bytes:
     ///
     /// ```
-    /// use rune_alloc::{try_vec, String};
+    /// use rune::alloc::{try_vec, String};
     ///
     /// // some invalid bytes, in a vector
     /// let sparkle_heart = try_vec![0, 159, 146, 150];
     ///
     /// assert!(String::from_utf8(sparkle_heart).is_err());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     ///
     /// See the docs for [`FromUtf8Error`] for more details on what you can do
@@ -745,7 +745,7 @@ impl<A: Allocator> String<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
+    /// use rune::alloc::String;
     /// use core::mem;
     ///
     /// unsafe {
@@ -763,7 +763,7 @@ impl<A: Allocator> String<A> {
     ///
     ///     assert_eq!("hello", s);
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub unsafe fn from_raw_parts_in(
@@ -796,17 +796,17 @@ impl<A: Allocator> String<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
+    /// use rune::alloc::{try_vec, String};
     ///
     /// // some bytes, in a vector
-    /// let sparkle_heart = rune_alloc::try_vec![240, 159, 146, 150];
+    /// let sparkle_heart = try_vec![240, 159, 146, 150];
     ///
     /// let sparkle_heart = unsafe {
     ///     String::from_utf8_unchecked(sparkle_heart)
     /// };
     ///
     /// assert_eq!("💖", sparkle_heart);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     #[must_use]
@@ -821,13 +821,13 @@ impl<A: Allocator> String<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
+    /// use rune::alloc::String;
     ///
     /// let s = String::try_from("hello")?;
     /// let bytes = s.into_bytes();
     ///
     /// assert_eq!(&[104, 101, 108, 108, 111][..], &bytes[..]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     #[must_use = "`self` will be dropped if the result is not used"]
@@ -840,12 +840,12 @@ impl<A: Allocator> String<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
+    /// use rune::alloc::String;
     ///
     /// let s = String::try_from("foo")?;
     ///
     /// assert_eq!("foo", s.as_str());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     #[must_use]
@@ -858,7 +858,7 @@ impl<A: Allocator> String<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
+    /// use rune::alloc::String;
     ///
     /// let mut s = String::try_from("foobar")?;
     /// let s_mut_str = s.as_mut_str();
@@ -866,7 +866,7 @@ impl<A: Allocator> String<A> {
     /// s_mut_str.make_ascii_uppercase();
     ///
     /// assert_eq!("FOOBAR", s_mut_str);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     #[must_use]
@@ -879,8 +879,8 @@ impl<A: Allocator> String<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
-    /// use rune_alloc::alloc::Global;
+    /// use rune::alloc::String;
+    /// use rune::alloc::alloc::Global;
     ///
     /// let mut s = String::try_with_capacity_in(3, Global)?;
     ///
@@ -888,7 +888,7 @@ impl<A: Allocator> String<A> {
     /// s.try_push_str("bar")?;
     ///
     /// assert_eq!("foobar", s);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn try_push_str(&mut self, string: &str) -> Result<(), Error> {
@@ -905,13 +905,13 @@ impl<A: Allocator> String<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
-    /// use rune_alloc::alloc::Global;
+    /// use rune::alloc::String;
+    /// use rune::alloc::alloc::Global;
     ///
     /// let s = String::try_with_capacity_in(10, Global)?;
     ///
     /// assert!(s.capacity() >= 10);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     #[must_use]
@@ -934,7 +934,7 @@ impl<A: Allocator> String<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::{String, Error};
+    /// use rune::alloc::{String, Error};
     ///
     /// fn process_data(data: &str) -> Result<String, Error> {
     ///     let mut output = String::new();
@@ -974,7 +974,7 @@ impl<A: Allocator> String<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::{String, Error};
+    /// use rune::alloc::{String, Error};
     ///
     /// fn process_data(data: &str) -> Result<String, Error> {
     ///     let mut output = String::new();
@@ -998,7 +998,7 @@ impl<A: Allocator> String<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
+    /// use rune::alloc::String;
     /// let mut s = String::try_from("foo")?;
     ///
     /// s.try_reserve(100)?;
@@ -1006,7 +1006,7 @@ impl<A: Allocator> String<A> {
     ///
     /// s.try_shrink_to_fit()?;
     /// assert_eq!(3, s.capacity());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn try_shrink_to_fit(&mut self) -> Result<(), Error> {
@@ -1023,7 +1023,7 @@ impl<A: Allocator> String<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
+    /// use rune::alloc::String;
     ///
     /// let mut s = String::try_from("foo")?;
     ///
@@ -1034,7 +1034,7 @@ impl<A: Allocator> String<A> {
     /// assert!(s.capacity() >= 10);
     /// s.try_shrink_to(0)?;
     /// assert!(s.capacity() >= 3);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn try_shrink_to(&mut self, min_capacity: usize) -> Result<(), Error> {
@@ -1046,8 +1046,8 @@ impl<A: Allocator> String<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
-    /// use rune_alloc::alloc::Global;
+    /// use rune::alloc::String;
+    /// use rune::alloc::alloc::Global;
     ///
     /// let mut s = String::try_with_capacity_in(3, Global)?;
     /// s.try_push_str("abc")?;
@@ -1057,7 +1057,7 @@ impl<A: Allocator> String<A> {
     /// s.try_push('3')?;
     ///
     /// assert_eq!("abc123", s);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn try_push(&mut self, ch: char) -> Result<(), Error> {
@@ -1078,12 +1078,12 @@ impl<A: Allocator> String<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
+    /// use rune::alloc::String;
     ///
     /// let s = String::try_from("hello")?;
     ///
     /// assert_eq!(&[104, 101, 108, 108, 111], s.as_bytes());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     #[must_use]
@@ -1106,14 +1106,14 @@ impl<A: Allocator> String<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
+    /// use rune::alloc::String;
     ///
     /// let mut s = String::try_from("hello")?;
     ///
     /// s.truncate(2);
     ///
     /// assert_eq!("he", s);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn truncate(&mut self, new_len: usize) {
@@ -1130,7 +1130,7 @@ impl<A: Allocator> String<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
+    /// use rune::alloc::String;
     ///
     /// let mut s = String::try_from("abč")?;
     ///
@@ -1139,7 +1139,7 @@ impl<A: Allocator> String<A> {
     /// assert_eq!(s.pop(), Some('a'));
     ///
     /// assert_eq!(s.pop(), None);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn pop(&mut self) -> Option<char> {
@@ -1164,14 +1164,14 @@ impl<A: Allocator> String<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
+    /// use rune::alloc::String;
     ///
     /// let mut s = String::try_from("abç")?;
     ///
     /// assert_eq!(s.remove(0), 'a');
     /// assert_eq!(s.remove(1), 'ç');
     /// assert_eq!(s.remove(0), 'b');
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn remove(&mut self, idx: usize) -> char {
@@ -1202,28 +1202,28 @@ impl<A: Allocator> String<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
+    /// use rune::alloc::String;
     ///
     /// let mut s = String::try_from("f_o_ob_ar")?;
     ///
     /// s.retain(|c| c != '_');
     ///
     /// assert_eq!(s, "foobar");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     ///
     /// Because the elements are visited exactly once in the original order,
     /// external state may be used to decide which elements to keep.
     ///
     /// ```
-    /// use rune_alloc::String;
+    /// use rune::alloc::String;
     ///
     /// let mut s = String::try_from("abcde")?;
     /// let keep = [false, true, true, false, true];
     /// let mut iter = keep.iter();
     /// s.retain(|_| *iter.next().unwrap());
     /// assert_eq!(s, "bce");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn retain<F>(&mut self, mut f: F)
@@ -1296,8 +1296,8 @@ impl<A: Allocator> String<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
-    /// use rune_alloc::alloc::Global;
+    /// use rune::alloc::String;
+    /// use rune::alloc::alloc::Global;
     ///
     /// let mut s = String::try_with_capacity_in(3, Global)?;
     ///
@@ -1306,7 +1306,7 @@ impl<A: Allocator> String<A> {
     /// s.try_insert(2, 'o')?;
     ///
     /// assert_eq!(s, "foo");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn try_insert(&mut self, idx: usize, ch: char) -> Result<(), Error> {
@@ -1352,14 +1352,14 @@ impl<A: Allocator> String<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
+    /// use rune::alloc::String;
     ///
     /// let mut s = String::try_from("bar")?;
     ///
     /// s.try_insert_str(0, "foo")?;
     ///
     /// assert_eq!("foobar", s);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn try_insert_str(&mut self, idx: usize, string: &str) -> Result<(), Error> {
@@ -1385,7 +1385,7 @@ impl<A: Allocator> String<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
+    /// use rune::alloc::String;
     ///
     /// let mut s = String::try_from("hello")?;
     ///
@@ -1396,7 +1396,7 @@ impl<A: Allocator> String<A> {
     ///     vec.reverse();
     /// }
     /// assert_eq!(s, "olleh");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub unsafe fn as_mut_vec(&mut self) -> &mut Vec<u8, A> {
@@ -1410,7 +1410,7 @@ impl<A: Allocator> String<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
+    /// use rune::alloc::String;
     ///
     /// let a = String::try_from("foo")?;
     /// assert_eq!(a.len(), 3);
@@ -1418,7 +1418,7 @@ impl<A: Allocator> String<A> {
     /// let fancy_f = String::try_from("ƒoo")?;
     /// assert_eq!(fancy_f.len(), 4);
     /// assert_eq!(fancy_f.chars().count(), 3);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     #[must_use]
@@ -1432,14 +1432,14 @@ impl<A: Allocator> String<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
+    /// use rune::alloc::String;
     ///
     /// let mut v = String::new();
     /// assert!(v.is_empty());
     ///
     /// v.try_push('a')?;
     /// assert!(!v.is_empty());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     #[must_use]
@@ -1463,13 +1463,13 @@ impl<A: Allocator> String<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
+    /// use rune::alloc::String;
     ///
     /// let mut hello = String::try_from("Hello, World!")?;
     /// let world = hello.try_split_off(7)?;
     /// assert_eq!(hello, "Hello, ");
     /// assert_eq!(world, "World!");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     #[must_use = "use `.truncate()` if you don't need the other half"]
@@ -1490,7 +1490,7 @@ impl<A: Allocator> String<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
+    /// use rune::alloc::String;
     ///
     /// let mut s = String::try_from("foo")?;
     ///
@@ -1499,7 +1499,7 @@ impl<A: Allocator> String<A> {
     /// assert!(s.is_empty());
     /// assert_eq!(0, s.len());
     /// assert_eq!(3, s.capacity());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn clear(&mut self) {
@@ -1527,8 +1527,8 @@ impl<A: Allocator> String<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::String;
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut s = String::try_from("α is alpha, β is beta")?;
     /// let beta_offset = s.find('β').unwrap_or(s.len());
@@ -1541,7 +1541,7 @@ impl<A: Allocator> String<A> {
     /// // A full range clears the string, like `clear()` does
     /// s.drain(..);
     /// assert_eq!(s, "");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn drain<R>(&mut self, range: R) -> Drain<'_, A>
     where
@@ -1583,7 +1583,7 @@ impl<A: Allocator> String<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
+    /// use rune::alloc::String;
     ///
     /// let mut s = String::try_from("α is alpha, β is beta")?;
     /// let beta_offset = s.find('β').unwrap_or(s.len());
@@ -1591,7 +1591,7 @@ impl<A: Allocator> String<A> {
     /// // Replace the range up until the β from the string
     /// s.try_replace_range(..beta_offset, "Α is capital alpha; ")?;
     /// assert_eq!(s, "Α is capital alpha; β is beta");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn try_replace_range<R>(&mut self, range: R, replace_with: &str) -> Result<(), Error>
     where
@@ -1633,11 +1633,11 @@ impl<A: Allocator> String<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
+    /// use rune::alloc::String;
     /// let s = String::try_from("hello")?;
     ///
     /// let b = s.try_into_boxed_str()?;
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[must_use = "`self` will be dropped if the result is not used"]
     #[inline]
@@ -1665,7 +1665,7 @@ impl<A: Allocator> String<A> {
     /// ```
     /// # #[cfg(not(miri))]
     /// # fn main() -> Result<(), rune_alloc::Error> {
-    /// use rune_alloc::String;
+    /// use rune::alloc::String;
     ///
     /// let x = String::try_from("bucket")?;
     /// let static_ref: &'static mut str = x.leak();
@@ -1690,15 +1690,15 @@ impl<A: Allocator> FromUtf8Error<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
+    /// use rune::alloc::{try_vec, String};
     ///
     /// // some invalid bytes, in a vector
-    /// let bytes = rune_alloc::try_vec![0, 159];
+    /// let bytes = try_vec![0, 159];
     ///
     /// let value = String::from_utf8(bytes);
     ///
     /// assert_eq!(&[0, 159], value.unwrap_err().as_bytes());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
@@ -1714,15 +1714,15 @@ impl<A: Allocator> FromUtf8Error<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
+    /// use rune::alloc::{try_vec, String};
     ///
     /// // some invalid bytes, in a vector
-    /// let bytes = rune_alloc::try_vec![0, 159];
+    /// let bytes = try_vec![0, 159];
     ///
     /// let value = String::from_utf8(bytes);
     ///
-    /// assert_eq!(rune_alloc::try_vec![0, 159], value.unwrap_err().into_bytes());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// assert_eq!(try_vec![0, 159], value.unwrap_err().into_bytes());
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[must_use = "`self` will be dropped if the result is not used"]
     pub fn into_bytes(self) -> Vec<u8, A> {
@@ -1742,7 +1742,7 @@ impl<A: Allocator> FromUtf8Error<A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::{try_vec, String};
+    /// use rune::alloc::{try_vec, String};
     ///
     /// // some invalid bytes, in a vector
     /// let bytes = try_vec![0, 159];
@@ -1751,7 +1751,7 @@ impl<A: Allocator> FromUtf8Error<A> {
     ///
     /// // the first byte is invalid here
     /// assert_eq!(1, error.valid_up_to());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[must_use]
     pub fn utf8_error(&self) -> Utf8Error {
@@ -1768,7 +1768,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
+    /// use rune::alloc::String;
     /// let s = String::default();
     /// assert_eq!(s, "");
     /// ```
@@ -2046,14 +2046,14 @@ impl<A: Allocator> From<Box<str, A>> for String<A> {
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::{Box, String};
+    /// use rune::alloc::{Box, String};
     ///
     /// let s1: String = String::try_from("hello world")?;
     /// let s2: Box<str> = s1.try_into_boxed_str()?;
     /// let s3: String = String::from(s2);
     ///
     /// assert_eq!("hello world", s3);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     fn from(s: Box<str, A>) -> String<A> {
         crate::str::into_string(s)
@@ -2083,11 +2083,13 @@ impl TryFrom<::rust_alloc::string::String> for String<Global> {
     /// # Examples
     ///
     /// ```
+    /// use rune::alloc;
+    ///
     /// let s1 = String::from("Hello World");
-    /// let s2 = rune_alloc::String::try_from(s1)?;
+    /// let s2 = alloc::String::try_from(s1)?;
     ///
     /// assert_eq!("Hello World", s2);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     fn try_from(string: ::rust_alloc::string::String) -> Result<Self, Error> {
         let mut string = ManuallyDrop::new(string.into_bytes());
@@ -2124,11 +2126,11 @@ impl TryFrom<&str> for String<Global> {
     /// The result is fallibly allocated on the heap.
     ///
     /// ```
-    /// use rune_alloc::String;
+    /// use rune::alloc::String;
     ///
     /// let s = String::try_from("Hello World")?;
     /// assert_eq!(s, "Hello World");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     fn try_from(s: &str) -> Result<Self, Error> {
         let mut out = String::try_with_capacity_in(s.len(), Global)?;
@@ -2146,8 +2148,8 @@ impl TryFrom<Cow<'_, str>> for String<Global> {
     /// `Cow::Owned`.
     ///
     /// ```
-    /// use rune_alloc::String;
-    /// use rune_alloc::borrow::Cow;
+    /// use rune::alloc::String;
+    /// use rune::alloc::borrow::Cow;
     ///
     /// let s = Cow::Borrowed("Hello World");
     /// let s = String::try_from(s)?;
@@ -2156,7 +2158,7 @@ impl TryFrom<Cow<'_, str>> for String<Global> {
     /// let s = Cow::Owned(String::try_from("Hello World")?);
     /// let s = String::try_from(s)?;
     /// assert_eq!(s, "Hello World");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     fn try_from(s: Cow<'_, str>) -> Result<Self, Error> {
         match s {
@@ -2174,13 +2176,13 @@ impl<A: Allocator> TryFrom<String<A>> for Box<str, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::{String, Box};
+    /// use rune::alloc::{String, Box};
     ///
     /// let s1: String = String::try_from("Hello World")?;
     /// let s2: Box<str> = Box::try_from("Hello World")?;
     ///
     /// assert_eq!("Hello World", s2.as_ref());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     fn try_from(s: String<A>) -> Result<Box<str, A>, Error> {
         s.try_into_boxed_str()
@@ -2195,13 +2197,13 @@ impl TryFrom<Cow<'_, str>> for Box<str> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::Box;
-    /// use rune_alloc::borrow::Cow;
+    /// use rune::alloc::Box;
+    /// use rune::alloc::borrow::Cow;
     ///
     /// let s2: Box<str> = Box::try_from(Cow::Borrowed("Hello World"))?;
     ///
     /// assert_eq!("Hello World", s2.as_ref());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     fn try_from(s: Cow<'_, str>) -> Result<Self, Error> {
         Self::try_from(s.as_ref())
@@ -2214,7 +2216,7 @@ impl<A: Allocator> From<String<A>> for Vec<u8, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::{String, Vec};
+    /// use rune::alloc::{String, Vec};
     ///
     /// let s1 = String::try_from("hello world")?;
     /// let v1 = Vec::from(s1);
@@ -2222,7 +2224,7 @@ impl<A: Allocator> From<String<A>> for Vec<u8, A> {
     /// for b in v1 {
     ///     println!("{b}");
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     fn from(string: String<A>) -> Vec<u8, A> {
         string.into_bytes()
@@ -2275,14 +2277,14 @@ impl<'a, A: Allocator> Drain<'a, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::String;
+    /// use rune::alloc::String;
     ///
     /// let mut s = String::try_from("abc")?;
     /// let mut drain = s.drain(..);
     /// assert_eq!(drain.as_str(), "abc");
     /// assert!(drain.next().is_some());
     /// assert_eq!(drain.as_str(), "bc");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[must_use]
     pub fn as_str(&self) -> &str {
@@ -2345,12 +2347,12 @@ impl<A: Allocator> TryFromIteratorIn<char, A> for String<A> {
     /// Construct a string from an iterator of characters.
     ///
     /// ```
-    /// use rune_alloc::String;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::String;
+    /// use rune::alloc::prelude::*;
     ///
     /// let string = String::try_from_iter(['a', 'b', 'c'].into_iter())?;
     /// assert_eq!(string, "abc");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     fn try_from_iter_in<I>(iter: I, alloc: A) -> Result<Self, Error>
     where
@@ -2366,12 +2368,12 @@ impl<'a, A: Allocator> TryFromIteratorIn<&'a str, A> for String<A> {
     /// Construct a string from an iterator of characters.
     ///
     /// ```
-    /// use rune_alloc::String;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::String;
+    /// use rune::alloc::prelude::*;
     ///
     /// let string = String::try_from_iter(["hello", " ", "world"].into_iter())?;
     /// assert_eq!(string, "hello world");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     fn try_from_iter_in<I>(iter: I, alloc: A) -> Result<Self, Error>
     where
@@ -2435,13 +2437,13 @@ impl<A: Allocator> TryExtend<char> for String<A> {
     /// Extend a string using a character iterator.
     ///
     /// ```
-    /// use rune_alloc::String;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::String;
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut string = String::new();
     /// string.try_extend(['a', 'b', 'c'])?;
     /// assert_eq!(string, "abc");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     fn try_extend<I: IntoIterator<Item = char>>(&mut self, iter: I) -> Result<(), Error> {
@@ -2457,13 +2459,13 @@ impl<'a, A: Allocator> TryExtend<&'a str> for String<A> {
     /// Extend a string using a character iterator.
     ///
     /// ```
-    /// use rune_alloc::String;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::String;
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut string = String::new();
     /// string.try_extend(["hello", " ", "world"])?;
     /// assert_eq!(string, "hello world");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     fn try_extend<I: IntoIterator<Item = &'a str>>(&mut self, iter: I) -> Result<(), Error> {

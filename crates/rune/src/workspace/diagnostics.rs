@@ -1,5 +1,4 @@
-use crate::no_std::prelude::*;
-
+use crate::alloc::{self, Vec};
 use crate::SourceId;
 use crate::workspace::WorkspaceError;
 
@@ -53,8 +52,8 @@ impl Diagnostics {
     }
 
     /// Report a single workspace error.
-    pub(crate) fn fatal(&mut self, source_id: SourceId, error: WorkspaceError) {
-        self.diagnostics.push(Diagnostic::Fatal(FatalDiagnostic {
+    pub(crate) fn fatal(&mut self, source_id: SourceId, error: WorkspaceError) -> alloc::Result<()> {
+        self.diagnostics.try_push(Diagnostic::Fatal(FatalDiagnostic {
             source_id,
             error,
         }))

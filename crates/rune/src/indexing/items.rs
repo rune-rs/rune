@@ -17,7 +17,8 @@ impl fmt::Display for MissingLastId {
     }
 }
 
-impl crate::no_std::error::Error for MissingLastId {}
+#[cfg(feature = "std")]
+impl std::error::Error for MissingLastId {}
 
 #[derive(Debug)]
 #[non_exhaustive]
@@ -36,7 +37,8 @@ impl fmt::Display for GuardMismatch {
     }
 }
 
-impl crate::no_std::error::Error for GuardMismatch {}
+#[cfg(feature = "std")]
+impl std::error::Error for GuardMismatch {}
 
 /// Guard returned.
 #[must_use]

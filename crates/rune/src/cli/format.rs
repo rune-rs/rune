@@ -1,13 +1,13 @@
 use core::fmt;
 
-use crate::no_std::io::Write;
-use crate::no_std::collections::BTreeSet;
-use crate::no_std::prelude::*;
+use std::io::Write;
 
-use anyhow::{Context, Result};
 use clap::Parser;
 use similar::{ChangeTag, TextDiff};
 
+use crate::support::{Context, Result};
+use crate::alloc::BTreeSet;
+use crate::alloc::prelude::*;
 use crate::cli::{Entry, ExitCode, Io, EntryPoint, SharedFlags, Config, CommandBase, AssetKind};
 use crate::termcolor::{WriteColor, ColorSpec, Color};
 use crate::{Source, Sources, Options, Diagnostics};
@@ -55,7 +55,11 @@ pub(super) fn run<'m, I>(io: &mut Io<'_>, entry: &mut Entry<'_>, c: &Config, ent
         };
 
         let mut sources = Sources::new();
-        sources.insert(Source::from_path(e.path()).with_context(|| e.path().display().to_string())?)?;
+
+        sources.insert(match Source::from_path(e.path()) {
+            Ok(source) => source,
+            Err(error) => return Err(error).context(e.path().display().try_to_string()?),
+        })?;
 
         let _ = crate::prepare(&mut sources)
             .with_context(&context)
@@ -71,13 +75,16 @@ pub(super) fn run<'m, I>(io: &mut Io<'_>, entry: &mut Entry<'_>, c: &Config, ent
 
         for source in sources.iter() {
             if let Some(path) = source.path() {
-                paths.insert(path.to_owned());
+                paths.try_insert(path.try_to_owned()?)?;
             }
         }
     }
 
     for path in paths {
-        let source = Source::from_path(&path).with_context(|| path.display().to_string())?;
+        let source = match Source::from_path(&path) {
+            Ok(source) => source,
+            Err(error) => return Err(error).context(path.display().try_to_string()?),
+        };
 
         let val = match crate::fmt::layout_source(source.as_str()) {
             Ok(val) => val,

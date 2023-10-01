@@ -1,7 +1,5 @@
 //! The core `std` module.
 
-use crate::no_std::prelude::*;
-
 use crate as rune;
 use crate::alloc::prelude::*;
 use crate::compile;
@@ -41,7 +39,7 @@ pub fn module() -> Result<Module, ContextError> {
 /// If you want to format a message, consider using the [panic!] macro.
 #[rune::function]
 fn panic(message: &str) -> VmResult<()> {
-    VmResult::err(Panic::custom(message.to_owned()))
+    VmResult::err(Panic::custom(vm_try!(message.try_to_owned())))
 }
 
 /// Test if the given `value` is readable.

@@ -11,7 +11,7 @@
 //! You can explicitly create a [`Vec`] with [`Vec::new`]:
 //!
 //! ```
-//! use rune_alloc::Vec;
+//! use rune::alloc::Vec;
 //!
 //! let v: Vec<i32> = Vec::new();
 //! ```
@@ -19,42 +19,45 @@
 //! ...or by using the [`try_vec!`][crate::try_vec!] macro:
 //!
 //! ```
-//! use rune_alloc::Vec;
+//! use rune::alloc::{try_vec, Vec};
 //!
-//! let v: Vec<i32> = rune_alloc::try_vec![];
-//!
-//! let v = rune_alloc::try_vec![1, 2, 3, 4, 5];
-//!
-//! let v = rune_alloc::try_vec![0; 10]; // ten zeroes
-//! # Ok::<_, rune_alloc::Error>(())
+//! let v: Vec<i32> = try_vec![];
+//! let v = try_vec![1, 2, 3, 4, 5];
+//! let v = try_vec![0; 10]; // ten zeroes
+//! # Ok::<_, rune::alloc::Error>(())
 //! ```
 //!
 //! You can [`try_push`] values onto the end of a vector (which will grow the vector
 //! as needed):
 //!
 //! ```
-//! let mut v = rune_alloc::try_vec![1, 2];
+//! use rune::alloc::try_vec;
+//! let mut v = try_vec![1, 2];
 //!
 //! v.try_push(3)?;
-//! # Ok::<_, rune_alloc::Error>(())
+//! # Ok::<_, rune::alloc::Error>(())
 //! ```
 //!
 //! Popping values works in much the same way:
 //!
 //! ```
-//! let mut v = rune_alloc::try_vec![1, 2];
+//! use rune::alloc::try_vec;
+//!
+//! let mut v = try_vec![1, 2];
 //!
 //! let two = v.pop();
-//! # Ok::<_, rune_alloc::Error>(())
+//! # Ok::<_, rune::alloc::Error>(())
 //! ```
 //!
 //! Vectors also support indexing (through the [`Index`] and [`IndexMut`] traits):
 //!
 //! ```
-//! let mut v = rune_alloc::try_vec![1, 2, 3];
+//! use rune::alloc::try_vec;
+//!
+//! let mut v = try_vec![1, 2, 3];
 //! let three = v[2];
 //! v[1] = v[1] + 5;
-//! # Ok::<_, rune_alloc::Error>(())
+//! # Ok::<_, rune::alloc::Error>(())
 //! ```
 //!
 //! [`try_push`]: Vec::try_push
@@ -120,8 +123,8 @@ pub fn try_from_elem<T: TryClone>(elem: T, n: usize) -> Result<Vec<T>, Error> {
 /// # Examples
 ///
 /// ```
-/// use rune_alloc::Vec;
-/// use rune_alloc::prelude::*;
+/// use rune::alloc::Vec;
+/// use rune::alloc::prelude::*;
 ///
 /// let mut vec = Vec::new();
 /// vec.try_push(1)?;
@@ -143,20 +146,20 @@ pub fn try_from_elem<T: TryClone>(elem: T, n: usize) -> Result<Vec<T>, Error> {
 /// }
 ///
 /// assert_eq!(vec, [7, 1, 2, 3]);
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 ///
 /// The [`try_vec!`][crate::try_vec!] macro is provided for convenient
 /// initialization:
 ///
 /// ```
-/// use rune_alloc::Vec;
+/// use rune::alloc::{try_vec, Vec};
 ///
-/// let mut vec1 = rune_alloc::try_vec![1, 2, 3];
+/// let mut vec1 = try_vec![1, 2, 3];
 /// vec1.try_push(4)?;
 /// let vec2 = Vec::try_from([1, 2, 3, 4])?;
 /// assert_eq!(vec1, vec2);
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 ///
 /// It can also initialize each element of a `Vec<T>` with a given value.
@@ -164,16 +167,16 @@ pub fn try_from_elem<T: TryClone>(elem: T, n: usize) -> Result<Vec<T>, Error> {
 /// in separate steps, especially when initializing a vector of zeros:
 ///
 /// ```
-/// use rune_alloc::Vec;
+/// use rune::alloc::{try_vec, Vec};
 ///
-/// let vec = rune_alloc::try_vec![0; 5];
+/// let vec = try_vec![0; 5];
 /// assert_eq!(vec, [0, 0, 0, 0, 0]);
 ///
 /// // The following is equivalent, but potentially slower:
 /// let mut vec = Vec::try_with_capacity(5)?;
 /// vec.try_resize(5, 0)?;
 /// assert_eq!(vec, [0, 0, 0, 0, 0]);
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 ///
 /// For more information, see
@@ -182,7 +185,7 @@ pub fn try_from_elem<T: TryClone>(elem: T, n: usize) -> Result<Vec<T>, Error> {
 /// Use a `Vec<T>` as an efficient stack:
 ///
 /// ```
-/// use rune_alloc::Vec;
+/// use rune::alloc::Vec;
 ///
 /// let mut stack = Vec::new();
 ///
@@ -194,7 +197,7 @@ pub fn try_from_elem<T: TryClone>(elem: T, n: usize) -> Result<Vec<T>, Error> {
 ///     // Prints 3, 2, 1
 ///     println!("{top}");
 /// }
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 ///
 /// # Indexing
@@ -203,18 +206,22 @@ pub fn try_from_elem<T: TryClone>(elem: T, n: usize) -> Result<Vec<T>, Error> {
 /// [`Index`] trait. An example will be more explicit:
 ///
 /// ```
-/// let v = rune_alloc::try_vec![0, 2, 4, 6];
+/// use rune::alloc::try_vec;
+///
+/// let v = try_vec![0, 2, 4, 6];
 /// println!("{}", v[1]); // it will display '2'
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 ///
 /// However be careful: if you try to access an index which isn't in the `Vec`,
 /// your software will panic! You cannot do this:
 ///
 /// ```should_panic
-/// let v = rune_alloc::try_vec![0, 2, 4, 6];
+/// use rune::alloc::try_vec;
+///
+/// let v = try_vec![0, 2, 4, 6];
 /// println!("{}", v[6]); // it will panic!
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 ///
 /// Use [`get`] and [`get_mut`] if you want to check whether the index is in
@@ -226,11 +233,13 @@ pub fn try_from_elem<T: TryClone>(elem: T, n: usize) -> Result<Vec<T>, Error> {
 /// To get a [slice][prim@slice], use [`&`]. Example:
 ///
 /// ```
+/// use rune::alloc::try_vec;
+///
 /// fn read_slice(slice: &[usize]) {
 ///     // ...
 /// }
 ///
-/// let v = rune_alloc::try_vec![0, 1];
+/// let v = try_vec![0, 1];
 /// read_slice(&v);
 ///
 /// // ... and that's all!
@@ -238,7 +247,7 @@ pub fn try_from_elem<T: TryClone>(elem: T, n: usize) -> Result<Vec<T>, Error> {
 /// let u: &[usize] = &v;
 /// // or like this:
 /// let u: &[_] = &v;
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 ///
 /// In Rust, it's more common to pass slices as arguments rather than vectors
@@ -500,8 +509,8 @@ impl<T, A: Allocator> Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::Vec;
-    /// use rune_alloc::alloc::Global;
+    /// use rune::alloc::Vec;
+    /// use rune::alloc::alloc::Global;
     ///
     /// let mut vec: Vec<i32, Global> = Vec::new_in(Global);
     /// ```
@@ -542,8 +551,8 @@ impl<T, A: Allocator> Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::Vec;
-    /// use rune_alloc::alloc::Global;
+    /// use rune::alloc::Vec;
+    /// use rune::alloc::alloc::Global;
     ///
     /// let mut vec = Vec::try_with_capacity_in(10, Global)?;
     ///
@@ -568,7 +577,7 @@ impl<T, A: Allocator> Vec<T, A> {
     /// // allocation is necessary
     /// let vec_units = Vec::<(), Global>::try_with_capacity_in(10, Global)?;
     /// assert_eq!(vec_units.capacity(), usize::MAX);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn try_with_capacity_in(capacity: usize, alloc: A) -> Result<Self, Error> {
@@ -628,11 +637,11 @@ impl<T, A: Allocator> Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::Vec;
-    /// use rune_alloc::alloc::Global;
-    ///
     /// use std::ptr;
     /// use std::mem;
+    ///
+    /// use rune::alloc::Vec;
+    /// use rune::alloc::alloc::Global;
     ///
     /// let mut v = Vec::try_with_capacity_in(3, Global)?;
     /// v.try_push(1)?;
@@ -659,7 +668,7 @@ impl<T, A: Allocator> Vec<T, A> {
     ///     let rebuilt = Vec::from_raw_parts_in(p, len, cap, alloc.clone());
     ///     assert_eq!(rebuilt, [4, 5, 6]);
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     ///
     /// Using memory that was allocated elsewhere:
@@ -667,8 +676,8 @@ impl<T, A: Allocator> Vec<T, A> {
     /// ```rust
     /// use core::alloc::Layout;
     ///
-    /// use rune_alloc::Vec;
-    /// use rune_alloc::alloc::{Allocator, AllocError, Global};
+    /// use rune::alloc::Vec;
+    /// use rune::alloc::alloc::{Allocator, AllocError, Global};
     ///
     /// let layout = Layout::array::<u32>(16).expect("overflow cannot happen");
     ///
@@ -728,8 +737,8 @@ impl<T, A: Allocator> Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::Vec;
-    /// use rune_alloc::alloc::Global;
+    /// use rune::alloc::Vec;
+    /// use rune::alloc::alloc::Global;
     ///
     /// let mut v: Vec<i32> = Vec::new_in(Global);
     /// v.try_push(-1)?;
@@ -747,7 +756,7 @@ impl<T, A: Allocator> Vec<T, A> {
     /// };
     ///
     /// assert_eq!(rebuilt, [4294967295, 0, 1]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn into_raw_parts_with_alloc(self) -> (*mut T, usize, usize, A) {
         let mut me = ManuallyDrop::new(self);
@@ -764,13 +773,13 @@ impl<T, A: Allocator> Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::Vec;
-    /// use rune_alloc::alloc::Global;
+    /// use rune::alloc::Vec;
+    /// use rune::alloc::alloc::Global;
     ///
     /// let mut vec: Vec<i32> = Vec::try_with_capacity_in(10, Global)?;
     /// vec.try_push(42)?;
     /// assert!(vec.capacity() >= 10);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn capacity(&self) -> usize {
@@ -792,7 +801,7 @@ impl<T, A: Allocator> Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::{Vec, Error};
+    /// use rune::alloc::{Vec, Error};
     ///
     /// fn process_data(data: &[u32]) -> Result<Vec<u32>, Error> {
     ///     let mut output = Vec::new();
@@ -833,8 +842,8 @@ impl<T, A: Allocator> Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::{Vec, Error};
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::{Vec, Error};
+    /// use rune::alloc::prelude::*;
     ///
     /// fn process_data(data: &[u32]) -> Result<Vec<u32>, Error> {
     ///     let mut output = Vec::new();
@@ -863,15 +872,15 @@ impl<T, A: Allocator> Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::Vec;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::Vec;
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut vec = Vec::try_with_capacity(10)?;
     /// vec.try_extend([1, 2, 3])?;
     /// assert!(vec.capacity() >= 10);
     /// vec.try_shrink_to_fit()?;
     /// assert!(vec.capacity() >= 3);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn try_shrink_to_fit(&mut self) -> Result<(), Error> {
         // The capacity is never less than the length, and there's nothing to do when
@@ -894,8 +903,8 @@ impl<T, A: Allocator> Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::Vec;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::Vec;
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut vec = Vec::try_with_capacity(10)?;
     /// vec.try_extend([1, 2, 3])?;
@@ -904,7 +913,7 @@ impl<T, A: Allocator> Vec<T, A> {
     /// assert!(vec.capacity() >= 4);
     /// vec.try_shrink_to(0)?;
     /// assert!(vec.capacity() >= 3);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn try_shrink_to(&mut self, min_capacity: usize) -> Result<(), Error> {
         if self.capacity() > min_capacity {
@@ -925,17 +934,18 @@ impl<T, A: Allocator> Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// let v = rune_alloc::try_vec![1, 2, 3];
+    /// use rune::alloc::try_vec;
     ///
+    /// let v = try_vec![1, 2, 3];
     /// let slice = v.try_into_boxed_slice()?;
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     ///
     /// Any excess capacity is removed:
     ///
     /// ```
-    /// use rune_alloc::Vec;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::Vec;
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut vec = Vec::try_with_capacity(10)?;
     /// vec.try_extend([1, 2, 3])?;
@@ -943,7 +953,7 @@ impl<T, A: Allocator> Vec<T, A> {
     /// assert!(vec.capacity() >= 10);
     /// let slice = vec.try_into_boxed_slice()?;
     /// assert_eq!(Vec::from(slice).capacity(), 3);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn try_into_boxed_slice(mut self) -> Result<Box<[T], A>, Error> {
         unsafe {
@@ -972,30 +982,36 @@ impl<T, A: Allocator> Vec<T, A> {
     /// Truncating a five element vector to two elements:
     ///
     /// ```
-    /// let mut vec = rune_alloc::try_vec![1, 2, 3, 4, 5];
+    /// use rune::alloc::try_vec;
+    ///
+    /// let mut vec = try_vec![1, 2, 3, 4, 5];
     /// vec.truncate(2);
     /// assert_eq!(vec, [1, 2]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     ///
     /// No truncation occurs when `len` is greater than the vector's current
     /// length:
     ///
     /// ```
-    /// let mut vec = rune_alloc::try_vec![1, 2, 3];
+    /// use rune::alloc::try_vec;
+    ///
+    /// let mut vec = try_vec![1, 2, 3];
     /// vec.truncate(8);
     /// assert_eq!(vec, [1, 2, 3]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     ///
     /// Truncating when `len == 0` is equivalent to calling the [`clear`]
     /// method.
     ///
     /// ```
-    /// let mut vec = rune_alloc::try_vec![1, 2, 3];
+    /// use rune::alloc::try_vec;
+    ///
+    /// let mut vec = try_vec![1, 2, 3];
     /// vec.truncate(0);
     /// assert_eq!(vec, []);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     ///
     /// [`clear`]: Vec::clear
@@ -1030,10 +1046,11 @@ impl<T, A: Allocator> Vec<T, A> {
     ///
     /// ```
     /// use std::io::{self, Write};
+    /// use rune::alloc::try_vec;
     ///
-    /// let buffer = rune_alloc::try_vec![1, 2, 3, 5, 8];
+    /// let buffer = try_vec![1, 2, 3, 5, 8];
     /// io::sink().write(buffer.as_slice()).unwrap();
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn as_slice(&self) -> &[T] {
@@ -1048,9 +1065,11 @@ impl<T, A: Allocator> Vec<T, A> {
     ///
     /// ```
     /// use std::io::{self, Read};
-    /// let mut buffer = rune_alloc::try_vec![0; 3];
+    /// use rune::alloc::try_vec;
+    ///
+    /// let mut buffer = try_vec![0; 3];
     /// io::repeat(0b101).read_exact(buffer.as_mut_slice()).unwrap();
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn as_mut_slice(&mut self) -> &mut [T] {
@@ -1073,7 +1092,9 @@ impl<T, A: Allocator> Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// let x = rune_alloc::try_vec![1, 2, 4];
+    /// use rune::alloc::try_vec;
+    ///
+    /// let x = try_vec![1, 2, 4];
     /// let x_ptr = x.as_ptr();
     ///
     /// unsafe {
@@ -1081,7 +1102,7 @@ impl<T, A: Allocator> Vec<T, A> {
     ///         assert_eq!(*x_ptr.add(i), 1 << i);
     ///     }
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     ///
     /// [`as_mut_ptr`]: Vec::as_mut_ptr
@@ -1103,7 +1124,7 @@ impl<T, A: Allocator> Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::Vec;
+    /// use rune::alloc::Vec;
     ///
     /// // Allocate vector big enough for 4 elements.
     /// let size = 4;
@@ -1118,7 +1139,7 @@ impl<T, A: Allocator> Vec<T, A> {
     ///     x.set_len(size);
     /// }
     /// assert_eq!(&*x, &[0, 1, 2, 3]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn as_mut_ptr(&mut self) -> *mut T {
@@ -1194,7 +1215,7 @@ impl<T, A: Allocator> Vec<T, A> {
     /// ```
     /// # #[cfg(not(miri))]
     /// # fn main() -> Result<(), rune_alloc::Error> {
-    /// use rune_alloc::try_vec;
+    /// use rune::alloc::try_vec;
     ///
     /// let mut vec = try_vec![try_vec![1, 0, 0],
     ///                        try_vec![0, 1, 0],
@@ -1234,14 +1255,16 @@ impl<T, A: Allocator> Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// let mut v = rune_alloc::try_vec!["foo", "bar", "baz", "qux"];
+    /// use rune::alloc::try_vec;
+    ///
+    /// let mut v = try_vec!["foo", "bar", "baz", "qux"];
     ///
     /// assert_eq!(v.swap_remove(1), "bar");
     /// assert_eq!(v, ["foo", "qux", "baz"]);
     ///
     /// assert_eq!(v.swap_remove(0), "foo");
     /// assert_eq!(v, ["baz", "qux"]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn swap_remove(&mut self, index: usize) -> T {
@@ -1277,12 +1300,14 @@ impl<T, A: Allocator> Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// let mut vec = rune_alloc::try_vec![1, 2, 3];
+    /// use rune::alloc::try_vec;
+    ///
+    /// let mut vec = try_vec![1, 2, 3];
     /// vec.try_insert(1, 4)?;
     /// assert_eq!(vec, [1, 4, 2, 3]);
     /// vec.try_insert(4, 5)?;
     /// assert_eq!(vec, [1, 4, 2, 3, 5]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn try_insert(&mut self, index: usize, element: T) -> Result<(), Error> {
         #[cold]
@@ -1341,10 +1366,12 @@ impl<T, A: Allocator> Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// let mut v = rune_alloc::try_vec![1, 2, 3];
+    /// use rune::alloc::try_vec;
+    ///
+    /// let mut v = try_vec![1, 2, 3];
     /// assert_eq!(v.remove(1), 2);
     /// assert_eq!(v, [1, 3]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[track_caller]
     pub fn remove(&mut self, index: usize) -> T {
@@ -1386,22 +1413,26 @@ impl<T, A: Allocator> Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// let mut vec = rune_alloc::try_vec![1, 2, 3, 4];
+    /// use rune::alloc::try_vec;
+    ///
+    /// let mut vec = try_vec![1, 2, 3, 4];
     /// vec.retain(|&x| x % 2 == 0);
     /// assert_eq!(vec, [2, 4]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     ///
     /// Because the elements are visited exactly once in the original order,
     /// external state may be used to decide which elements to keep.
     ///
     /// ```
-    /// let mut vec = rune_alloc::try_vec![1, 2, 3, 4, 5];
+    /// use rune::alloc::try_vec;
+    ///
+    /// let mut vec = try_vec![1, 2, 3, 4, 5];
     /// let keep = [false, true, true, false, true];
     /// let mut iter = keep.iter();
     /// vec.retain(|_| *iter.next().unwrap());
     /// assert_eq!(vec, [2, 3, 5]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn retain<F>(&mut self, mut f: F)
     where
@@ -1419,7 +1450,9 @@ impl<T, A: Allocator> Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// let mut vec = rune_alloc::try_vec![1, 2, 3, 4];
+    /// use rune::alloc::try_vec;
+    ///
+    /// let mut vec = try_vec![1, 2, 3, 4];
     /// vec.retain_mut(|x| if *x <= 3 {
     ///     *x += 1;
     ///     true
@@ -1427,7 +1460,7 @@ impl<T, A: Allocator> Vec<T, A> {
     ///     false
     /// });
     /// assert_eq!(vec, [2, 3, 4]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn retain_mut<F>(&mut self, mut f: F)
     where
@@ -1537,12 +1570,12 @@ impl<T, A: Allocator> Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// let mut vec = rune_alloc::try_vec![10, 20, 21, 30, 20];
+    /// use rune::alloc::try_vec;
     ///
+    /// let mut vec = try_vec![10, 20, 21, 30, 20];
     /// vec.dedup_by_key(|i| *i / 10);
-    ///
     /// assert_eq!(vec, [10, 20, 30, 20]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn dedup_by_key<F, K>(&mut self, mut key: F)
@@ -1566,12 +1599,12 @@ impl<T, A: Allocator> Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// let mut vec = rune_alloc::try_vec!["foo", "bar", "Bar", "baz", "bar"];
+    /// use rune::alloc::try_vec;
     ///
+    /// let mut vec = try_vec!["foo", "bar", "Bar", "baz", "bar"];
     /// vec.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
-    ///
     /// assert_eq!(vec, ["foo", "bar", "baz", "bar"]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn dedup_by<F>(&mut self, mut same_bucket: F)
     where
@@ -1683,15 +1716,15 @@ impl<T, A: Allocator> Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::Vec;
-    /// use rune_alloc::alloc::Global;
+    /// use rune::alloc::Vec;
+    /// use rune::alloc::alloc::Global;
     ///
     /// let mut vec: Vec<i32> = Vec::try_with_capacity_in(2, Global)?;
     /// vec.try_push(1)?;
     /// vec.try_push(2)?;
     /// vec.try_push(3)?;
     /// assert_eq!(vec, [1, 2, 3]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn try_push(&mut self, value: T) -> Result<(), Error> {
@@ -1725,8 +1758,8 @@ impl<T, A: Allocator> Vec<T, A> {
     /// A manual, alternative to [`TryFromIteratorIn`]:
     ///
     /// ```
-    /// use rune_alloc::{Vec, Error};
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::{Vec, Error};
+    /// use rune::alloc::prelude::*;
     ///
     /// fn from_iter_fallible<T>(iter: impl Iterator<Item=T>) -> Result<Vec<T>, Error> {
     ///     let mut vec = Vec::new();
@@ -1766,13 +1799,13 @@ impl<T, A: Allocator> Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::Vec;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::Vec;
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut vec = Vec::try_from_iter([1, 2, 3])?;
     /// assert_eq!(vec.pop(), Some(3));
     /// assert_eq!(vec, [1, 2]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn pop(&mut self) -> Option<T> {
@@ -1795,12 +1828,14 @@ impl<T, A: Allocator> Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// let mut vec = rune_alloc::try_vec![1, 2, 3];
-    /// let mut vec2 = rune_alloc::try_vec![4, 5, 6];
+    /// use rune::alloc::try_vec;
+    ///
+    /// let mut vec = try_vec![1, 2, 3];
+    /// let mut vec2 = try_vec![4, 5, 6];
     /// vec.try_append(&mut vec2)?;
     /// assert_eq!(vec, [1, 2, 3, 4, 5, 6]);
     /// assert_eq!(vec2, []);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn try_append(&mut self, other: &mut Self) -> Result<(), Error> {
@@ -1870,10 +1905,10 @@ impl<T, A: Allocator> Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::Vec;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::{try_vec, Vec};
+    /// use rune::alloc::prelude::*;
     ///
-    /// let mut v = rune_alloc::try_vec![1, 2, 3];
+    /// let mut v = try_vec![1, 2, 3];
     /// let u: Vec<_> = v.drain(1..).try_collect()?;
     /// assert_eq!(v, &[1]);
     /// assert_eq!(u, &[2, 3]);
@@ -1881,7 +1916,7 @@ impl<T, A: Allocator> Vec<T, A> {
     /// // A full range clears the vector, like `clear()` does
     /// v.drain(..);
     /// assert_eq!(v, &[]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn drain<R>(&mut self, range: R) -> Drain<'_, T, A>
     where
@@ -1921,12 +1956,12 @@ impl<T, A: Allocator> Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// let mut v = rune_alloc::try_vec![1, 2, 3];
+    /// use rune::alloc::try_vec;
     ///
+    /// let mut v = try_vec![1, 2, 3];
     /// v.clear();
-    ///
     /// assert!(v.is_empty());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn clear(&mut self) {
@@ -1950,8 +1985,8 @@ impl<T, A: Allocator> Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::Vec;
-    /// use rune_alloc::alloc::Global;
+    /// use rune::alloc::Vec;
+    /// use rune::alloc::alloc::Global;
     ///
     /// let mut a = Vec::new_in(Global);
     ///
@@ -1960,7 +1995,7 @@ impl<T, A: Allocator> Vec<T, A> {
     /// }
     ///
     /// assert_eq!(a.len(), 3);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn len(&self) -> usize {
@@ -1972,14 +2007,14 @@ impl<T, A: Allocator> Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::Vec;
+    /// use rune::alloc::Vec;
     ///
     /// let mut v = Vec::new();
     /// assert!(v.is_empty());
     ///
     /// v.try_push(1)?;
     /// assert!(!v.is_empty());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn is_empty(&self) -> bool {
         self.len() == 0
@@ -1998,11 +2033,13 @@ impl<T, A: Allocator> Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// let mut vec = rune_alloc::try_vec![1, 2, 3];
+    /// use rune::alloc::try_vec;
+    ///
+    /// let mut vec = try_vec![1, 2, 3];
     /// let vec2 = vec.try_split_off(1)?;
     /// assert_eq!(vec, [1]);
     /// assert_eq!(vec2, [2, 3]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     #[must_use = "use `.truncate()` if you don't need the other half"]
@@ -2056,15 +2093,17 @@ impl<T, A: Allocator> Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// let mut vec = rune_alloc::try_vec![1, 2, 3];
+    /// use rune::alloc::try_vec;
+    ///
+    /// let mut vec = try_vec![1, 2, 3];
     /// vec.try_resize_with(5, Default::default)?;
     /// assert_eq!(vec, [1, 2, 3, 0, 0]);
     ///
-    /// let mut vec = rune_alloc::try_vec![];
+    /// let mut vec = try_vec![];
     /// let mut p = 1;
     /// vec.try_resize_with(4, || { p *= 2; p })?;
     /// assert_eq!(vec, [2, 4, 8, 16]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn try_resize_with<F>(&mut self, new_len: usize, f: F) -> Result<(), Error>
     where
@@ -2099,9 +2138,11 @@ impl<T, A: Allocator> Vec<T, A> {
     /// Simple usage:
     ///
     /// ```
+    /// use rune::alloc::try_vec;
+    ///
     /// # #[cfg(not(miri))]
     /// # fn main() -> Result<(), rune_alloc::Error> {
-    /// let x = rune_alloc::try_vec![1, 2, 3];
+    /// let x = try_vec![1, 2, 3];
     /// let static_ref: &'static mut [usize] = x.leak();
     /// static_ref[0] += 1;
     /// assert_eq!(static_ref, &[2, 2, 3]);
@@ -2186,7 +2227,9 @@ impl<T, A: Allocator> Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// let mut v = rune_alloc::try_vec![1, 1, 2];
+    /// use rune::alloc::try_vec;
+    ///
+    /// let mut v = try_vec![1, 1, 2];
     ///
     /// // Reserve additional space big enough for 10 elements.
     /// v.try_reserve(10)?;
@@ -2207,7 +2250,7 @@ impl<T, A: Allocator> Vec<T, A> {
     /// }
     ///
     /// assert_eq!(&v, &[1, 1, 2, 4, 8, 12, 16]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn split_at_spare_mut(&mut self) -> (&mut [T], &mut [MaybeUninit<T>]) {
@@ -2316,14 +2359,16 @@ where
     /// # Examples
     ///
     /// ```
-    /// let mut vec = rune_alloc::try_vec!["hello"];
+    /// use rune::alloc::try_vec;
+    ///
+    /// let mut vec = try_vec!["hello"];
     /// vec.try_resize(3, "world")?;
     /// assert_eq!(vec, ["hello", "world", "world"]);
     ///
-    /// let mut vec = rune_alloc::try_vec![1, 2, 3, 4];
+    /// let mut vec = try_vec![1, 2, 3, 4];
     /// vec.try_resize(2, 0)?;
     /// assert_eq!(vec, [1, 2]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn try_resize(&mut self, new_len: usize, value: T) -> Result<(), Error> {
         let len = self.len();
@@ -2350,10 +2395,12 @@ where
     /// # Examples
     ///
     /// ```
-    /// let mut vec = rune_alloc::try_vec![1];
+    /// use rune::alloc::try_vec;
+    ///
+    /// let mut vec = try_vec![1];
     /// vec.try_extend_from_slice(&[2, 3, 4]);
     /// assert_eq!(vec, [1, 2, 3, 4]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     ///
     /// [`try_extend`]: Vec::try_extend
@@ -2371,7 +2418,9 @@ where
     /// # Examples
     ///
     /// ```
-    /// let mut vec = rune_alloc::try_vec![0, 1, 2, 3, 4];
+    /// use rune::alloc::try_vec;
+    ///
+    /// let mut vec = try_vec![0, 1, 2, 3, 4];
     ///
     /// vec.try_extend_from_within(2..);
     /// assert_eq!(vec, [0, 1, 2, 3, 4, 2, 3, 4]);
@@ -2381,7 +2430,7 @@ where
     ///
     /// vec.try_extend_from_within(4..8);
     /// assert_eq!(vec, [0, 1, 2, 3, 4, 2, 3, 4, 0, 1, 4, 2, 3, 4]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn try_extend_from_within<R>(&mut self, src: R) -> Result<(), Error>
     where
@@ -2425,12 +2474,14 @@ impl<T, A: Allocator, const N: usize> Vec<[T; N], A> {
     /// # Examples
     ///
     /// ```
-    /// let mut vec = rune_alloc::try_vec![[1, 2, 3], [4, 5, 6], [7, 8, 9]];
+    /// use rune::alloc::try_vec;
+    ///
+    /// let mut vec = try_vec![[1, 2, 3], [4, 5, 6], [7, 8, 9]];
     /// assert_eq!(vec.pop(), Some([7, 8, 9]));
     ///
     /// let mut flattened = vec.into_flattened();
     /// assert_eq!(flattened.pop(), Some(6));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn into_flattened(self) -> Vec<T, A> {
         let (ptr, len, cap, alloc) = self.into_raw_parts_with_alloc();
@@ -2502,12 +2553,12 @@ where
     /// # Examples
     ///
     /// ```
-    /// let mut vec = rune_alloc::try_vec![1, 2, 2, 3, 2];
+    /// use rune::alloc::try_vec;
     ///
+    /// let mut vec = try_vec![1, 2, 2, 3, 2];
     /// vec.dedup();
-    ///
     /// assert_eq!(vec, [1, 2, 3, 2]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn dedup(&mut self) {
@@ -2560,13 +2611,13 @@ where
 ///
 /// ```
 /// use std::hash::BuildHasher;
-/// use rune_alloc::Vec;
+/// use rune::alloc::{try_vec, Vec};
 ///
 /// let b = std::collections::hash_map::RandomState::new();
-/// let v: Vec<u8> = rune_alloc::try_vec![0xa8, 0x3c, 0x09];
+/// let v: Vec<u8> = try_vec![0xa8, 0x3c, 0x09];
 /// let s: &[u8] = &[0xa8, 0x3c, 0x09];
 /// assert_eq!(b.hash_one(v), b.hash_one(s));
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 impl<T: Hash, A: Allocator> Hash for Vec<T, A> {
     #[inline]
@@ -2602,7 +2653,9 @@ impl<T, A: Allocator> IntoIterator for Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// let v = rune_alloc::try_vec!["a".to_string(), "b".to_string()];
+    /// use rune::alloc::try_vec;
+    ///
+    /// let v = try_vec!["a".to_string(), "b".to_string()];
     /// let mut v_iter = v.into_iter();
     ///
     /// let first_element: Option<String> = v_iter.next();
@@ -2610,7 +2663,7 @@ impl<T, A: Allocator> IntoIterator for Vec<T, A> {
     /// assert_eq!(first_element, Some("a".to_string()));
     /// assert_eq!(v_iter.next(), Some("b".to_string()));
     /// assert_eq!(v_iter.next(), None);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
@@ -2815,12 +2868,12 @@ impl<T, const N: usize> TryFrom<[T; N]> for Vec<T> {
     /// The result is fallibly allocated on the heap.
     ///
     /// ```
-    /// use rune_alloc::{vec, Vec};
+    /// use rune::alloc::{vec, Vec};
     ///
     /// let a = Vec::try_from([1, 2, 3])?;
     /// let b: Vec<_> = [1, 2, 3].try_into()?;
     /// assert_eq!(a, b);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     fn try_from(arr: [T; N]) -> Result<Self, Error> {
         let mut out = Vec::try_with_capacity(arr.len())?;
@@ -2874,25 +2927,27 @@ impl<T, A: Allocator, const N: usize> TryFrom<Vec<T, A>> for [T; N] {
     /// # Examples
     ///
     /// ```
-    /// assert_eq!(rune_alloc::try_vec![1, 2, 3].try_into(), Ok([1, 2, 3]));
+    /// use rune::alloc::try_vec;
+    ///
+    /// assert_eq!(try_vec![1, 2, 3].try_into(), Ok([1, 2, 3]));
     /// assert_eq!(<Vec<i32>>::new().try_into(), Ok([]));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     ///
     /// If the length doesn't match, the input comes back in `Err`:
     /// ```
-    /// use rune_alloc::Vec;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::{try_vec, Vec};
+    /// use rune::alloc::prelude::*;
     ///
     /// let r: Result<[i32; 4], _> = (0..10).try_collect::<Vec<_>>()?.try_into();
-    /// assert_eq!(r, Err(rune_alloc::try_vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// assert_eq!(r, Err(try_vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]));
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     ///
     /// If you're fine with just getting a prefix of the `Vec<T>`,
     /// you can call [`.truncate(N)`](Vec::truncate) first.
     /// ```
-    /// use rune_alloc::String;
+    /// use rune::alloc::String;
     ///
     /// let mut v = String::try_from("hello world")?.into_bytes();
     /// v.sort();
@@ -2900,7 +2955,7 @@ impl<T, A: Allocator, const N: usize> TryFrom<Vec<T, A>> for [T; N] {
     /// let [a, b]: [_; 2] = v.try_into().unwrap();
     /// assert_eq!(a, b' ');
     /// assert_eq!(b, b'd');
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     fn try_from(mut vec: Vec<T, A>) -> Result<[T; N], Vec<T, A>> {
         if vec.len() != N {
@@ -2927,8 +2982,8 @@ impl<T, A: Allocator> From<Box<[T], A>> for Vec<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::{Box, Vec};
-    /// use rune_alloc::try_vec;
+    /// use rune::alloc::{Box, Vec};
+    /// use rune::alloc::try_vec;
     ///
     /// let s: Box<[i32]> = Box::try_from([10, 40, 30])?;
     /// let x: Vec<i32> = Vec::from(s);
@@ -2939,7 +2994,7 @@ impl<T, A: Allocator> From<Box<[T], A>> for Vec<T, A> {
     /// let x: Vec<i32> = Vec::from(s);
     ///
     /// assert_eq!(x, [10, 40, 30]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     fn from(s: Box<[T], A>) -> Self {
         crate::slice::into_vec(s)
@@ -2975,5 +3030,42 @@ impl<T, A: Allocator> TryExtend<T> for Vec<T, A> {
     #[inline]
     fn try_extend<I: IntoIterator<Item = T>>(&mut self, iter: I) -> Result<(), Error> {
         <Self as SpecExtend<T, I::IntoIter>>::spec_extend(self, iter.into_iter())
+    }
+}
+
+#[cfg(feature = "std")]
+fn io_err(error: Error) -> std::io::Error {
+    std::io::Error::new(std::io::ErrorKind::Other, error)
+}
+
+#[cfg(feature = "std")]
+impl std::io::Write for Vec<u8> {
+    #[inline]
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.try_extend_from_slice(buf).map_err(io_err)?;
+        Ok(buf.len())
+    }
+
+    #[inline]
+    fn write_vectored(&mut self, bufs: &[std::io::IoSlice<'_>]) -> std::io::Result<usize> {
+        let len = bufs.iter().map(|b| b.len()).sum();
+        self.try_reserve(len).map_err(io_err)?;
+
+        for buf in bufs {
+            self.try_extend_from_slice(buf).map_err(io_err)?;
+        }
+
+        Ok(len)
+    }
+
+    #[inline]
+    fn write_all(&mut self, buf: &[u8]) -> std::io::Result<()> {
+        self.try_extend_from_slice(buf).map_err(io_err)?;
+        Ok(())
+    }
+
+    #[inline]
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
     }
 }

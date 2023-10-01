@@ -51,7 +51,7 @@ fn assign_ops_struct() -> Result<()> {
                     number.custom {op} {arg};
                 }}
                 "#, op = stringify!($($op)*), arg = stringify!($arg)),
-            ))?;
+            )?)?;
 
             let unit = prepare(&mut sources)
                 .with_context(&context)
@@ -133,7 +133,7 @@ fn assign_ops_tuple() -> Result<()> {
                     number.3 {op} {arg};
                 }}
                 "#, op = stringify!($($op)*), arg = stringify!($arg)),
-            ))?;
+            )?)?;
 
             let unit = prepare(&mut sources)
                 .with_context(&context)
@@ -205,7 +205,7 @@ fn ordering_struct() -> Result<()> {
                     number {op} {arg}
                 }}
                 "#, op = stringify!($($op)*), arg = stringify!($arg)),
-            ))?;
+            )?)?;
 
             let unit = prepare(&mut sources)
                 .with_context(&context)
@@ -274,7 +274,7 @@ fn eq_struct() -> Result<()> {
                     number {op} {arg}
                 }}
                 "#, op = stringify!($($op)*), arg = stringify!($arg)),
-            ))?;
+            )?)?;
 
             let unit = prepare(&mut sources)
                 .with_context(&context)

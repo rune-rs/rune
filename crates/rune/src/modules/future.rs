@@ -116,7 +116,7 @@ fn raw_join(stack: &mut Stack, args: usize) -> VmResult<()> {
     }
 
     let value = vm_try!(stack.pop());
-    let value = Value::Future(vm_try!(Shared::new(Future::new(join(value)))));
+    let value = Value::Future(vm_try!(Shared::new(vm_try!(Future::new(join(value))))));
     vm_try!(stack.push(value));
     VmResult::Ok(())
 }

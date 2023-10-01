@@ -64,10 +64,12 @@ impl fmt::Display for WarningDiagnostic {
     }
 }
 
-impl crate::no_std::error::Error for WarningDiagnostic {
-    #[inline]
-    fn source(&self) -> Option<&(dyn crate::no_std::error::Error + 'static)> {
-        None
+cfg_std! {
+    impl std::error::Error for WarningDiagnostic {
+        #[inline]
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            None
+        }
     }
 }
 

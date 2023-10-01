@@ -16,7 +16,7 @@ use crate::alloc::{self, Vec, String};
 use crate::alloc::prelude::*;
 use crate::{Sources, SourceId};
 use crate::ast::{Span, Spanned};
-use crate::workspace::{MANIFEST_FILE, WorkspaceErrorKind, Diagnostics, WorkspaceError, SourceLoader};
+use crate::workspace::{MANIFEST_FILE, WorkspaceErrorKind, Diagnostics, WorkspaceError, SourceLoader, glob};
 use crate::workspace::spanned_value::{Array, SpannedValue, Value, Table};
 
 const BIN: &str = "bin";
@@ -246,9 +246,9 @@ impl<'a> Loader<'a> {
     }
 
     /// Load a manifest.
-    pub(crate) fn load_manifest(&mut self) -> alloc::Result<()> {
+    pub(crate) fn load_manifest(&mut self) -> Result<()> {
         let Some(source) = self.sources.get(self.id) else {
-            self.fatal(WorkspaceError::new(Span::empty(), WorkspaceErrorKind::MissingSourceId { source_id: self.id }));
+            self.fatal(WorkspaceError::new(Span::empty(), WorkspaceErrorKind::MissingSourceId { source_id: self.id }))?;
             return Ok(());
         };
 
@@ -260,7 +260,7 @@ impl<'a> Loader<'a> {
                     None => Span::new(0, source.len()),
                 };
 
-                self.fatal(WorkspaceError::new(span, e));
+                self.fatal(WorkspaceError::new(span, e))?;
                 return Ok(());
             }
         };
@@ -268,19 +268,19 @@ impl<'a> Loader<'a> {
         let root = source.path().and_then(|p| p.parent().map(TryToOwned::try_to_owned)).transpose()?;
         let root = root.as_deref();
 
-        let Some((mut table, _)) = self.ensure_table(value) else {
+        let Some((mut table, _)) = self.ensure_table(value)? else {
             return Ok(());
         };
 
         // If manifest is a package, add it here.
-        if let Some((package, span)) = table.remove("package").and_then(|value| self.ensure_table(value)) {
+        if let Some((package, span)) = table.remove("package").map(|value| self.ensure_table(value)).transpose()?.flatten() {
             if let Some(package) = self.load_package(package, span, root)? {
                 self.manifest.packages.try_push(package)?;
             }
         }
 
         // Load the [workspace] section.
-        if let Some((mut table, span)) = table.remove("workspace").and_then(|value| self.ensure_table(value)) {
+        if let Some((mut table, span)) = table.remove("workspace").map(|value| self.ensure_table(value)).transpose()?.flatten() {
             match &root {
                 Some(root) => {
                     if let Some(members) = self.load_members(&mut table, root)? {
@@ -290,7 +290,7 @@ impl<'a> Loader<'a> {
                     }
                 },
                 None => {
-                    self.fatal(WorkspaceError::new(span, WorkspaceErrorKind::MissingManifestPath));
+                    self.fatal(WorkspaceError::new(span, WorkspaceErrorKind::MissingManifestPath))?;
                 }
             }
 
@@ -302,12 +302,12 @@ impl<'a> Loader<'a> {
     }
 
     /// Load members from the given workspace configuration.
-    fn load_members(&mut self, table: &mut Table, root: &Path) -> alloc::Result<Option<Vec<(Span, PathBuf)>>> {
+    fn load_members(&mut self, table: &mut Table, root: &Path) -> Result<Option<Vec<(Span, PathBuf)>>> {
         let Some(members) = table.remove("members") else {
             return Ok(None);
         };
 
-        let Some((members, _)) = self.ensure_array(members) else {
+        let Some((members, _)) = self.ensure_array(members)? else {
             return Ok(None);
         };
 
@@ -321,7 +321,7 @@ impl<'a> Loader<'a> {
                     self.glob_relative_path(&mut output, span, &member, root)?;
                 }
                 Err(error) => {
-                    self.fatal(error);
+                    self.fatal(error)?;
                 }
             };
         }
@@ -333,11 +333,11 @@ impl<'a> Loader<'a> {
     ///
     /// Currently only supports expanding `*` and required interacting with the
     /// filesystem.
-    fn glob_relative_path(&mut self, output: &mut Vec<(Span, PathBuf)>, span: Span, member: &RelativePath, root: &Path) -> alloc::Result<()> {
-        let glob = crate::workspace::glob::Glob::new(root, member);
+    fn glob_relative_path(&mut self, output: &mut Vec<(Span, PathBuf)>, span: Span, member: &RelativePath, root: &Path) -> Result<()> {
+        let glob = glob::Glob::new(root, member)?;
 
-        for m in glob.matcher() {
-            let Some(mut path) = self.source_error(span, root, m)? else {
+        for m in glob.matcher()? {
+            let Some(mut path) = self.glob_error(span, root, m)? else {
                 continue;
             };
 
@@ -354,14 +354,14 @@ impl<'a> Loader<'a> {
     }
 
     /// Helper to convert an [io::Error] into a [WorkspaceErrorKind::SourceError].
-    fn source_error<T>(&mut self, span: Span, path: &Path, result: io::Result<T>) -> alloc::Result<Option<T>> {
+    fn glob_error<T>(&mut self, span: Span, path: &Path, result: Result<T, glob::GlobError>) -> alloc::Result<Option<T>> {
         Ok(match result {
             Ok(result) => Some(result),
             Err(error) => {
-                self.fatal(WorkspaceError::new(span, WorkspaceErrorKind::FileError {
+                self.fatal(WorkspaceError::new(span, WorkspaceErrorKind::GlobError {
                     path: path.try_into()?,
                     error,
-                }));
+                }))?;
 
                 None
             }
@@ -369,11 +369,11 @@ impl<'a> Loader<'a> {
     }
 
     /// Try to load the given path as a member in the current manifest.
-    fn load_member(&mut self, span: Span, path: &Path) -> alloc::Result<()> {
+    fn load_member(&mut self, span: Span, path: &Path) -> Result<()> {
         let source = match self.source_loader.load(span, path) {
             Ok(source) => source,
             Err(error) => {
-                self.fatal(error);
+                self.fatal(error)?;
                 return Ok(());
             }
         };
@@ -387,8 +387,8 @@ impl<'a> Loader<'a> {
 
     /// Load a package from a value.
     fn load_package(&mut self, mut table: Table, span: Span, root: Option<&Path>) -> alloc::Result<Option<Package>> {
-        let name = self.field(&mut table, span, "name");
-        let version = self.field(&mut table, span, "version");
+        let name = self.field(&mut table, span, "name")?;
+        let version = self.field(&mut table, span, "version")?;
         self.ensure_empty(table)?;
 
         let (Some(name), Some(version)) = (name, version) else {
@@ -410,63 +410,63 @@ impl<'a> Loader<'a> {
     fn ensure_empty(&mut self, table: Table) -> alloc::Result<()> {
         for (key, _) in table {
             let span = Spanned::span(&key);
-            self.fatal(WorkspaceError::new(span, WorkspaceErrorKind::UnsupportedKey { key: key.get_ref().as_str().try_into()? }));
+            self.fatal(WorkspaceError::new(span, WorkspaceErrorKind::UnsupportedKey { key: key.get_ref().as_str().try_into()? }))?;
         }
 
         Ok(())
     }
 
     /// Ensure that value is a table.
-    fn ensure_table(&mut self, value: SpannedValue) -> Option<(Table, Span)> {
+    fn ensure_table(&mut self, value: SpannedValue) -> alloc::Result<Option<(Table, Span)>> {
         let span = Spanned::span(&value);
 
-        match value.into_inner() {
+        Ok(match value.into_inner() {
             Value::Table(table) => Some((table, span)),
             _ => {
                 let error = WorkspaceError::new(span, WorkspaceErrorKind::ExpectedTable);
-                self.fatal(error);
+                self.fatal(error)?;
                 None
             }
-        }
+        })
     }
 
     /// Coerce into an array or error.
-    fn ensure_array(&mut self, value: SpannedValue) -> Option<(Array, Span)> {
+    fn ensure_array(&mut self, value: SpannedValue) -> alloc::Result<Option<(Array, Span)>> {
         let span = Spanned::span(&value);
 
-        match value.into_inner() {
+        Ok(match value.into_inner() {
             Value::Array(array) => Some((array, span)),
             _ => {
                 let error = WorkspaceError::expected_array(span);
-                self.fatal(error);
+                self.fatal(error)?;
                 None
             }
-        }
+        })
     }
 
     /// Helper to load a single field.
-    fn field<T>(&mut self, table: &mut Table, span: Span, field: &'static str) -> Option<T> where T: for<'de> Deserialize<'de> {
-        match table.remove(field) {
+    fn field<T>(&mut self, table: &mut Table, span: Span, field: &'static str) -> alloc::Result<Option<T>> where T: for<'de> Deserialize<'de> {
+        Ok(match table.remove(field) {
             Some(value) => {
                 match deserialize(value) {
                     Ok(value) => Some(value),
                     Err(error) => {
-                        self.fatal(error);
+                        self.fatal(error)?;
                         None
                     }
                 }
             },
             None => {
                 let error = WorkspaceError::missing_field(span, field);
-                self.fatal(error);
+                self.fatal(error)?;
                 None
             }
-        }
+        })
     }
 
     /// Report a fatal diagnostic.
-    fn fatal(&mut self, error: WorkspaceError) {
-        self.diagnostics.fatal(self.id, error);
+    fn fatal(&mut self, error: WorkspaceError) -> alloc::Result<()> {
+        self.diagnostics.fatal(self.id, error)
     }
 }
 

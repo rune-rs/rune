@@ -3,9 +3,8 @@ use core::future;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
-use crate::no_std::prelude::*;
-
 use crate as rune;
+use crate::alloc::{self, Box};
 use crate::runtime::{ToValue, Value, VmErrorKind, VmResult};
 use crate::Any;
 
@@ -24,16 +23,31 @@ pub struct Future {
 
 impl Future {
     /// Construct a new wrapped future.
-    pub fn new<T, O>(future: T) -> Self
+    pub fn new<T, O>(future: T) -> alloc::Result<Self>
     where
         T: 'static + future::Future<Output = VmResult<O>>,
         O: ToValue,
     {
-        Self {
-            future: Some(Box::pin(async move {
-                let value = vm_try!(future.await);
-                value.to_value()
-            })),
+        // First construct a normal box, then coerce unsized.
+        let b = Box::try_new(async move {
+            let value = vm_try!(future.await);
+            value.to_value()
+        })?;
+
+        // SAFETY: We know that the allocator the boxed used is `Global`, which
+        // is compatible with the allocator used by the `std` box.
+        unsafe {
+            let (ptr, alloc) = Box::into_raw_with_allocator(b);
+            // Our janky coerce unsized.
+            let b: ::rust_alloc::boxed::Box<DynFuture> = ::rust_alloc::boxed::Box::from_raw(ptr);
+            let b = ::rust_alloc::boxed::Box::into_raw(b);
+            let b = Box::from_raw_in(b, alloc);
+
+            // Second convert into one of our boxes, which ensures that memory is
+            // being accounted for.
+            Ok(Self {
+                future: Some(Box::into_pin(b)),
+            })
         }
     }
 

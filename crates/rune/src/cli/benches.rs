@@ -3,16 +3,16 @@ use std::io::Write;
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::no_std::prelude::*;
-
 use clap::Parser;
 
+use crate::alloc::Vec;
 use crate::cli::{ExitCode, Io, CommandBase, AssetKind, Config, SharedFlags};
 use crate::compile::{Item, ItemBuf};
 use crate::modules::capture_io::CaptureIo;
 use crate::runtime::{Function, Unit, Value};
 use crate::{Context, Hash, Sources, Vm};
 use crate::modules::test::Bencher;
+use crate::support::Result;
 
 #[derive(Parser, Debug)]
 pub(super) struct Flags {
@@ -51,7 +51,7 @@ pub(super) async fn run(
     unit: Arc<Unit>,
     sources: &Sources,
     fns: &[(Hash, ItemBuf)],
-) -> anyhow::Result<ExitCode> {
+) -> Result<ExitCode> {
     let runtime = Arc::new(context.runtime()?);
     let mut vm = Vm::new(runtime, unit);
 
@@ -113,20 +113,20 @@ fn bench_fn(
     args: &Flags,
     f: &Function,
     multiple: bool,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     for _ in 0..args.warmup {
         let value = f.call::<_, Value>(()).into_result()?;
         drop(value);
     }
 
     let iterations = usize::try_from(args.iterations).expect("iterations out of bounds");
-    let mut collected = Vec::with_capacity(iterations);
+    let mut collected = Vec::try_with_capacity(iterations)?;
 
     for _ in 0..args.iterations {
         let start = Instant::now();
         let value = f.call::<_, Value>(()).into_result()?;
         let duration = Instant::now().duration_since(start);
-        collected.push(duration.as_nanos() as i128);
+        collected.try_push(duration.as_nanos() as i128)?;
         drop(value);
     }
 

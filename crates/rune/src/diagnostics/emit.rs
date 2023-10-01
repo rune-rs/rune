@@ -1,15 +1,17 @@
 //! Runtime helpers for loading code and emitting diagnostics.
 
-use core::fmt::{self, Write};
+use core::fmt;
 
-use crate::no_std::io;
-use crate::no_std::prelude::*;
+use std::io;
 
 use codespan_reporting::diagnostic as d;
 use codespan_reporting::term;
 pub use codespan_reporting::term::termcolor;
 use codespan_reporting::term::termcolor::WriteColor;
 
+use crate::alloc::{self, String};
+use crate::alloc::fmt::TryWrite;
+use crate::alloc::prelude::*;
 use crate::compile::{ErrorKind, Location, LinkerError};
 use crate::diagnostics::{
     Diagnostic, FatalDiagnostic, FatalDiagnosticKind, WarningDiagnostic, WarningDiagnosticKind,
@@ -30,8 +32,8 @@ struct StackFrame {
 pub enum EmitError {
     /// Source Error.
     Io(io::Error),
-    /// Source Error.
-    Fmt(fmt::Error),
+    /// Allocation error.
+    Alloc(alloc::Error),
     /// Codespan reporting error.
     CodespanReporting(codespan_reporting::files::Error),
 }
@@ -41,31 +43,40 @@ impl fmt::Display for EmitError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             EmitError::Io(error) => error.fmt(f),
-            EmitError::Fmt(error) => error.fmt(f),
+            EmitError::Alloc(error) => error.fmt(f),
             EmitError::CodespanReporting(error) => error.fmt(f),
         }
     }
 }
 
 impl From<io::Error> for EmitError {
-    fn from(source: io::Error) -> Self {
-        EmitError::Io(source)
+    fn from(error: io::Error) -> Self {
+        EmitError::Io(error)
     }
 }
 
-impl From<fmt::Error> for EmitError {
-    fn from(source: fmt::Error) -> Self {
-        EmitError::Fmt(source)
+impl From<alloc::Error> for EmitError {
+    fn from(error: alloc::Error) -> Self {
+        EmitError::Alloc(error)
     }
 }
 
 impl From<codespan_reporting::files::Error> for EmitError {
-    fn from(source: codespan_reporting::files::Error) -> Self {
-        EmitError::CodespanReporting(source)
+    fn from(error: codespan_reporting::files::Error) -> Self {
+        EmitError::CodespanReporting(error)
     }
 }
 
-impl crate::no_std::error::Error for EmitError {
+cfg_std! {
+    impl std::error::Error for EmitError {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            match self {
+                EmitError::Io(error) => Some(error),
+                EmitError::Alloc(error) => Some(error),
+                EmitError::CodespanReporting(error) => Some(error),
+            }
+        }
+    }
 }
 
 impl Diagnostics {
@@ -140,8 +151,8 @@ impl VmError {
             }
         }
 
-        let mut labels = Vec::new();
-        let mut notes = Vec::new();
+        let mut labels = ::rust_alloc::vec::Vec::new();
+        let mut notes = ::rust_alloc::vec::Vec::new();
 
         let get = |at: &VmErrorAt| -> Option<&DebugInst> {
             let l = self.inner.stacktrace.get(at.index())?;
@@ -177,7 +188,7 @@ impl VmError {
             if let Some(&DebugInst { source_id, span, .. }) = get(at) {
                 labels.push(
                     d::Label::primary(source_id, span.range())
-                        .with_message(at.to_string()),
+                        .with_message(at.try_to_string()?),
                 );
             }
         }
@@ -185,7 +196,7 @@ impl VmError {
         if let Some(&DebugInst { source_id, span, .. }) = get(&self.inner.error) {
             labels.push(
                 d::Label::primary(source_id, span.range())
-                    .with_message(self.inner.error.to_string()),
+                    .with_message(self.inner.error.try_to_string()?),
             );
         };
 
@@ -218,7 +229,7 @@ impl VmError {
             };
         }
 
-        let diagnostic = d::Diagnostic::error().with_message(self.inner.error.to_string())
+        let diagnostic = d::Diagnostic::error().with_message(self.inner.error.try_to_string()?)
             .with_labels(labels)
             .with_notes(notes);
 
@@ -398,10 +409,10 @@ fn warning_diagnostics_emit<O>(
 where
     O: WriteColor,
 {
-    let mut notes = Vec::new();
-    let mut labels = Vec::new();
+    let mut notes = ::rust_alloc::vec::Vec::new();
+    let mut labels = ::rust_alloc::vec::Vec::new();
 
-    labels.push(d::Label::primary(this.source_id(), this.span().range()).with_message(this.to_string()));
+    labels.push(d::Label::primary(this.source_id(), this.span().range()).with_message(this.try_to_string()?));
 
     match this.kind() {
         WarningDiagnosticKind::LetPatternMightPanic { span, .. } => {
@@ -411,7 +422,7 @@ where
                 writeln!(note, "if {} {{", binding)?;
                 writeln!(note, "    // ..")?;
                 writeln!(note, "}}")?;
-                notes.push(note);
+                notes.push(note.into_std());
             }
         }
         WarningDiagnosticKind::RemoveTupleCallParams {
@@ -421,7 +432,7 @@ where
             if let Some(variant) = sources.source(this.source_id(), *variant) {
                 let mut note = String::new();
                 writeln!(note, "Hint: Rewrite to `{}`", variant)?;
-                notes.push(note);
+                notes.push(note.into_std());
             }
         }
         _ => {}
@@ -452,11 +463,11 @@ fn fatal_diagnostics_emit<O>(
 where
     O: WriteColor,
 {
-    let mut labels = Vec::new();
-    let mut notes = Vec::new();
+    let mut labels = ::rust_alloc::vec::Vec::new();
+    let mut notes = ::rust_alloc::vec::Vec::new();
 
     if let Some(span) = this.span() {
-        labels.push(d::Label::primary(this.source_id(), span.range()).with_message(this.kind().to_string()));
+        labels.push(d::Label::primary(this.source_id(), span.range()).with_message(this.kind().try_to_string()?));
     }
 
     match this.kind() {
@@ -467,7 +478,7 @@ where
         FatalDiagnosticKind::LinkError(error) => {
             match error {
                 LinkerError::MissingFunction { hash, spans } => {
-                    let mut labels = Vec::new();
+                    let mut labels = ::rust_alloc::vec::Vec::new();
 
                     for (span, source_id) in spans {
                         labels.push(
@@ -502,7 +513,7 @@ where
     };
 
     let diagnostic = d::Diagnostic::error()
-        .with_message(this.kind().to_string())
+        .with_message(this.kind().try_to_string()?)
         .with_labels(labels)
         .with_notes(notes);
 
@@ -514,9 +525,9 @@ where
         sources: &Sources,
         span: Span,
         kind: &ErrorKind,
-        labels: &mut Vec<d::Label<SourceId>>,
-        notes: &mut Vec<String>,
-    ) -> fmt::Result {
+        labels: &mut ::rust_alloc::vec::Vec<d::Label<SourceId>>,
+        notes: &mut ::rust_alloc::vec::Vec<rust_alloc::string::String>,
+    ) -> Result<(), EmitError> {
         match kind {
             ErrorKind::ImportCycle { path } => {
                 let mut it = path.iter();
@@ -615,7 +626,7 @@ where
                 if let Some(binding) = binding {
                     let mut note = String::new();
                     writeln!(note, "Hint: Rewrite to `{};`", binding)?;
-                    notes.push(note);
+                    notes.push(note.into_std());
                 }
             }
             ErrorKind::VariableMoved { moved_at, .. } => {
@@ -650,7 +661,7 @@ where
                         .with_message(format!("Missing {}: {}", pl, fields)),
                 );
 
-                notes.push("You can also make the pattern non-exhaustive by adding `..`".to_string());
+                notes.push("You can also make the pattern non-exhaustive by adding `..`".try_to_string()?.into_std());
             }
             _ => (),
         }

@@ -3,8 +3,8 @@ use core::fmt;
 use crate as rune;
 use crate::alloc::prelude::*;
 use crate::hash::Hash;
-use crate::no_std::sync::Arc;
 use crate::runtime::{RawStr, Rtti, StaticType, VariantRtti};
+use ::rust_alloc::sync::Arc;
 
 /// Type information about a value, that can be printed for human consumption
 /// through its [Display][fmt::Display] implementation.

@@ -25,48 +25,61 @@ pub(crate) mod prelude {
         FromValue, Hash, Module, Source, Sources, ToValue, Value, Vm,
     };
     pub(crate) use futures_executor::block_on;
+
+    pub(crate) use ::rust_alloc::borrow::ToOwned;
+    pub(crate) use ::rust_alloc::boxed::Box;
+    pub(crate) use ::rust_alloc::string::{String, ToString};
+    pub(crate) use ::rust_alloc::sync::Arc;
+    pub(crate) use ::rust_alloc::vec::Vec;
 }
 
 use core::fmt;
 
-use crate::no_std::prelude::*;
-use crate::no_std::sync::Arc;
+use ::rust_alloc::string::String;
+use ::rust_alloc::sync::Arc;
 
 use anyhow::{Context as _, Error, Result};
 
 use crate::alloc;
 use crate::compile::{IntoComponent, ItemBuf};
-use crate::runtime::{Args, VmError, VmResult};
+use crate::runtime::{Args, VmError};
 use crate::{termcolor, BuildError, Context, Diagnostics, FromValue, Source, Sources, Unit, Vm};
 
 /// An error that can be raised during testing.
 #[derive(Debug)]
-pub enum RunError {
+pub enum TestError {
     /// A load error was raised during testing.
-    BuildError(String),
+    Error(Error),
     /// A virtual machine error was raised during testing.
     VmError(VmError),
-    /// Allocation error.
-    AllocError(alloc::Error),
 }
 
-impl fmt::Display for RunError {
+impl From<Error> for TestError {
+    fn from(error: Error) -> Self {
+        TestError::Error(error)
+    }
+}
+
+impl From<alloc::Error> for TestError {
+    fn from(error: alloc::Error) -> Self {
+        TestError::Error(Error::new(error))
+    }
+}
+
+impl fmt::Display for TestError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            RunError::BuildError(error) => write!(f, "Build error: {error}"),
-            RunError::VmError(error) => write!(f, "Vm error: {error}"),
-            RunError::AllocError(error) => write!(f, "Allocation error: {error}"),
+            TestError::Error(error) => write!(f, "Build error: {error}"),
+            TestError::VmError(error) => write!(f, "Vm error: {error}"),
         }
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for RunError {
+impl std::error::Error for TestError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            RunError::VmError(error) => Some(error),
-            RunError::AllocError(error) => Some(error),
-            _ => None,
+            TestError::Error(error) => Some(error.as_ref()),
+            TestError::VmError(error) => Some(error),
         }
     }
 }
@@ -77,7 +90,7 @@ pub fn compile_helper(source: &str, diagnostics: &mut Diagnostics) -> Result<Uni
     let context = crate::Context::with_default_modules().expect("setting up default modules");
 
     let mut sources = Sources::new();
-    sources.insert(Source::new("main", source))?;
+    sources.insert(Source::new("main", source)?)?;
 
     let unit = crate::prepare(&mut sources)
         .with_context(&context)
@@ -93,7 +106,7 @@ pub fn vm(
     context: &Context,
     sources: &mut Sources,
     diagnostics: &mut Diagnostics,
-) -> Result<Vm, RunError> {
+) -> Result<Vm, TestError> {
     let result = crate::prepare(sources)
         .with_context(context)
         .with_diagnostics(diagnostics)
@@ -104,13 +117,13 @@ pub fn vm(
 
         diagnostics
             .emit(&mut buffer, sources)
-            .expect("Emit diagnostics");
+            .context("Emit diagnostics")?;
 
-        let buffer = String::from_utf8(buffer.into_inner()).expect("Non utf-8 output");
-        return Err(RunError::BuildError(buffer));
+        let error = Error::msg(String::from_utf8(buffer.into_inner()).context("Non utf-8 output")?);
+        return Err(TestError::Error(error));
     };
 
-    let context = Arc::new(context.runtime().map_err(RunError::AllocError)?);
+    let context = Arc::new(context.runtime()?);
     Ok(Vm::new(context, Arc::new(unit)))
 }
 
@@ -122,38 +135,31 @@ pub fn run_helper<N, A, T>(
     diagnostics: &mut Diagnostics,
     function: N,
     args: A,
-) -> Result<T, RunError>
+) -> Result<T, TestError>
 where
     N: IntoIterator,
     N::Item: IntoComponent,
     A: Args,
     T: FromValue,
 {
-    ::futures_executor::block_on(async move {
-        let mut vm = vm(context, sources, diagnostics)?;
+    let mut vm = vm(context, sources, diagnostics)?;
 
-        let item = ItemBuf::with_item(function).map_err(RunError::AllocError)?;
+    let item = ItemBuf::with_item(function)?;
 
-        let mut execute = vm.execute(&item, args).map_err(RunError::VmError)?;
+    let mut execute = vm.execute(&item, args).map_err(TestError::VmError)?;
 
-        let output = execute
-            .async_complete()
-            .await
-            .into_result()
-            .map_err(RunError::VmError)?;
+    let output = ::futures_executor::block_on(execute.async_complete())
+        .into_result()
+        .map_err(TestError::VmError)?;
 
-        match T::from_value(output) {
-            VmResult::Ok(output) => Ok(output),
-            VmResult::Err(err) => Err(RunError::VmError(err)),
-        }
-    })
+    crate::from_value(output).map_err(TestError::VmError)
 }
 
 #[doc(hidden)]
 pub fn sources(source: &str) -> Sources {
     let mut sources = Sources::new();
     sources
-        .insert(Source::new("main", source))
+        .insert(Source::new("main", source).expect("Failed to build source"))
         .expect("Failed to insert source");
     sources
 }
@@ -167,7 +173,7 @@ where
     T: FromValue,
 {
     let mut sources = Sources::new();
-    sources.insert(Source::new("main", source))?;
+    sources.insert(Source::new("main", source)?)?;
 
     let mut diagnostics = Default::default();
 
@@ -177,15 +183,14 @@ where
     };
 
     match e {
-        RunError::BuildError(string) => Err(Error::msg(string)),
-        RunError::VmError(e) => {
+        TestError::Error(error) => Err(error),
+        TestError::VmError(e) => {
             let mut buffer = termcolor::Buffer::no_color();
             e.emit(&mut buffer, &sources).context("Emit diagnostics")?;
             let buffer =
                 String::from_utf8(buffer.into_inner()).context("Decode output as utf-8")?;
             Err(Error::msg(buffer))
         }
-        RunError::AllocError(error) => Err(Error::from(error)),
     }
 }
 
@@ -250,7 +255,7 @@ macro_rules! assert_vm_error {
         };
 
         let e = match e {
-            $crate::tests::RunError::VmError(e) => e,
+            $crate::tests::TestError::VmError(e) => e,
             actual => {
                 expected!("vm error", VmError(e), actual)
             }
@@ -365,8 +370,6 @@ macro_rules! assert_matches {
 
 macro_rules! prelude {
     () => {
-        #[allow(unused_imports)]
-        use crate::no_std::prelude::*;
         #[allow(unused_imports)]
         use crate::tests::prelude::*;
     };

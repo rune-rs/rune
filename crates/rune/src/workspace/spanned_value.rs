@@ -9,7 +9,11 @@ use core::mem::discriminant;
 use core::ops;
 use core::str::FromStr;
 
-use crate::no_std::prelude::*;
+use rust_alloc::string::{String, ToString};
+use rust_alloc::vec::Vec;
+
+use crate as rune;
+use crate::alloc::prelude::*;
 
 use serde::de;
 use serde::ser;
@@ -243,10 +247,10 @@ where
     }
 }
 
-impl<'a> From<&'a str> for Value {
+impl From<&str> for Value {
     #[inline]
-    fn from(val: &'a str) -> Value {
-        Value::String(val.to_string())
+    fn from(string: &str) -> Value {
+        Value::String(string.to_string())
     }
 }
 
@@ -443,7 +447,7 @@ impl<'de> de::Deserialize<'de> for Value {
                 Ok(Value::Integer(value))
             }
 
-            fn visit_u64<E: de::Error>(self, value: u64) -> Result<Value, E> {
+            fn visit_u64<E>(self, value: u64) -> Result<Value, E> where E: de::Error {
                 if value <= i64::max_value() as u64 {
                     Ok(Value::Integer(value as i64))
                 } else {
@@ -463,11 +467,11 @@ impl<'de> de::Deserialize<'de> for Value {
                 Ok(Value::Float(value))
             }
 
-            fn visit_str<E>(self, value: &str) -> Result<Value, E> {
-                Ok(Value::String(value.into()))
+            fn visit_str<E>(self, value: &str) -> Result<Value, E> where E: de::Error {
+                Ok(Value::String(value.to_string()))
             }
 
-            fn visit_string<E>(self, value: String) -> Result<Value, E> {
+            fn visit_string<E>(self, value: String) -> Result<Value, E> where E: de::Error {
                 Ok(Value::String(value))
             }
 
@@ -650,7 +654,7 @@ impl<'de, V: de::Visitor<'de>> de::Visitor<'de> for DatetimeOrTableWrapper<V> {
         Ok(None)
     }
 
-    fn visit_string<E>(self, _s: String) -> Result<Self::Value, E>
+    fn visit_string<E>(self, _s: rust_alloc::string::String) -> Result<Self::Value, E>
     where
         E: de::Error,
     {

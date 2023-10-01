@@ -55,11 +55,7 @@ impl<'a> Printer<'a> {
 
     pub(super) fn resolve(&self, span: Span) -> Result<&'a str> {
         let Some(s) = self.source.get(span.range()) else {
-            return Err(FormattingError::InvalidSpan(
-                span.start.into_usize(),
-                span.end.into_usize(),
-                self.source.len(),
-            ));
+            return Err(FormattingError::BadRange(span.range(), self.source.len()));
         };
 
         Ok(s)

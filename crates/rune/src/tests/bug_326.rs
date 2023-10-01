@@ -25,7 +25,7 @@ fn bug_326() -> Result<()> {
             println(template_runtime_failure);
         }
         "#,
-    ))?;
+    )?)?;
 
     let result = prepare(&mut sources).with_context(&context).build();
 

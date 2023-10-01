@@ -1,7 +1,6 @@
 use core::cmp::Ordering;
 
-use crate::no_std::std;
-
+use crate::alloc;
 use crate::runtime::{
     AnyObj, Mut, RawMut, RawRef, Ref, Shared, Value, VmError, VmErrorKind, VmResult,
 };
@@ -256,26 +255,26 @@ impl UnsafeToMut for Option<Value> {
     }
 }
 
-impl FromValue for rune_alloc::String {
+impl FromValue for alloc::String {
     fn from_value(value: Value) -> VmResult<Self> {
         match value {
             Value::String(string) => VmResult::Ok(vm_try!(string.take())),
-            actual => VmResult::err(VmErrorKind::expected::<rune_alloc::String>(vm_try!(
+            actual => VmResult::err(VmErrorKind::expected::<alloc::String>(vm_try!(
                 actual.type_info()
             ))),
         }
     }
 }
 
-impl FromValue for std::String {
+impl FromValue for ::rust_alloc::string::String {
     fn from_value(value: Value) -> VmResult<Self> {
-        VmResult::Ok(std::String::from(vm_try!(rune_alloc::String::from_value(
-            value
-        ))))
+        VmResult::Ok(::rust_alloc::string::String::from(vm_try!(
+            alloc::String::from_value(value)
+        )))
     }
 }
 
-impl FromValue for rune_alloc::Box<str> {
+impl FromValue for alloc::Box<str> {
     fn from_value(value: Value) -> VmResult<Self> {
         match value {
             Value::String(string) => {
@@ -283,44 +282,45 @@ impl FromValue for rune_alloc::Box<str> {
                 let string = vm_try!(string.try_into_boxed_str());
                 VmResult::Ok(string)
             }
-            actual => VmResult::err(VmErrorKind::expected::<rune_alloc::String>(vm_try!(
+            actual => VmResult::err(VmErrorKind::expected::<alloc::String>(vm_try!(
                 actual.type_info()
             ))),
         }
     }
 }
 
-impl FromValue for std::Box<str> {
+#[cfg(feature = "alloc")]
+impl FromValue for ::rust_alloc::boxed::Box<str> {
     fn from_value(value: Value) -> VmResult<Self> {
         match value {
             Value::String(string) => {
                 let string = vm_try!(string.take());
-                let string = std::Box::from(string.as_str());
+                let string = ::rust_alloc::boxed::Box::from(string.as_str());
                 VmResult::Ok(string)
             }
-            actual => VmResult::err(VmErrorKind::expected::<rune_alloc::String>(vm_try!(
+            actual => VmResult::err(VmErrorKind::expected::<alloc::String>(vm_try!(
                 actual.type_info()
             ))),
         }
     }
 }
 
-impl FromValue for Mut<rune_alloc::String> {
+impl FromValue for Mut<alloc::String> {
     fn from_value(value: Value) -> VmResult<Self> {
         match value {
             Value::String(string) => VmResult::Ok(vm_try!(string.into_mut())),
-            actual => VmResult::err(VmErrorKind::expected::<rune_alloc::String>(vm_try!(
+            actual => VmResult::err(VmErrorKind::expected::<alloc::String>(vm_try!(
                 actual.type_info()
             ))),
         }
     }
 }
 
-impl FromValue for Ref<rune_alloc::String> {
+impl FromValue for Ref<alloc::String> {
     fn from_value(value: Value) -> VmResult<Self> {
         match value {
             Value::String(string) => VmResult::Ok(vm_try!(string.into_ref())),
-            actual => VmResult::err(VmErrorKind::expected::<rune_alloc::String>(vm_try!(
+            actual => VmResult::err(VmErrorKind::expected::<alloc::String>(vm_try!(
                 actual.type_info()
             ))),
         }
@@ -333,7 +333,7 @@ impl FromValue for Ref<str> {
             Value::String(string) => {
                 VmResult::Ok(Ref::map(vm_try!(string.into_ref()), |s| s.as_str()))
             }
-            actual => VmResult::err(VmErrorKind::expected::<rune_alloc::String>(vm_try!(
+            actual => VmResult::err(VmErrorKind::expected::<alloc::String>(vm_try!(
                 actual.type_info()
             ))),
         }
@@ -350,7 +350,7 @@ impl UnsafeToRef for str {
                 let (string, guard) = Ref::into_raw(string);
                 VmResult::Ok((string.as_ref(), guard))
             }
-            actual => VmResult::err(VmErrorKind::expected::<rune_alloc::String>(vm_try!(
+            actual => VmResult::err(VmErrorKind::expected::<alloc::String>(vm_try!(
                 actual.type_info()
             ))),
         }
@@ -367,14 +367,14 @@ impl UnsafeToMut for str {
                 let (mut string, guard) = Mut::into_raw(string);
                 VmResult::Ok((string.as_mut().as_mut_str(), guard))
             }
-            actual => VmResult::err(VmErrorKind::expected::<rune_alloc::String>(vm_try!(
+            actual => VmResult::err(VmErrorKind::expected::<alloc::String>(vm_try!(
                 actual.type_info()
             ))),
         }
     }
 }
 
-impl UnsafeToRef for rune_alloc::String {
+impl UnsafeToRef for alloc::String {
     type Guard = RawRef;
 
     unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
@@ -384,14 +384,14 @@ impl UnsafeToRef for rune_alloc::String {
                 let (string, guard) = Ref::into_raw(string);
                 VmResult::Ok((string.as_ref(), guard))
             }
-            actual => VmResult::err(VmErrorKind::expected::<rune_alloc::String>(vm_try!(
+            actual => VmResult::err(VmErrorKind::expected::<alloc::String>(vm_try!(
                 actual.type_info()
             ))),
         }
     }
 }
 
-impl UnsafeToMut for rune_alloc::String {
+impl UnsafeToMut for alloc::String {
     type Guard = RawMut;
 
     unsafe fn unsafe_to_mut<'a>(value: Value) -> VmResult<(&'a mut Self, Self::Guard)> {
@@ -401,7 +401,7 @@ impl UnsafeToMut for rune_alloc::String {
                 let (mut string, guard) = Mut::into_raw(string);
                 VmResult::Ok((string.as_mut(), guard))
             }
-            actual => VmResult::err(VmErrorKind::expected::<rune_alloc::String>(vm_try!(
+            actual => VmResult::err(VmErrorKind::expected::<alloc::String>(vm_try!(
                 actual.type_info()
             ))),
         }
@@ -507,8 +507,36 @@ impl FromValue for f32 {
     }
 }
 
-#[cfg(feature = "std")]
-macro_rules! impl_map {
+cfg_std! {
+    macro_rules! impl_map {
+        ($ty:ty, $key:ty) => {
+            impl<T> FromValue for $ty
+            where
+                T: FromValue,
+            {
+                fn from_value(value: Value) -> VmResult<Self> {
+                    let object = vm_try!(value.into_object());
+                    let object = vm_try!(object.take());
+
+                    let mut output = <$ty>::with_capacity(object.len());
+
+                    for (key, value) in object {
+                        let key = vm_try!(<$key>::try_from(key));
+                        let value = vm_try!(<T>::from_value(value));
+                        output.insert(key, value);
+                    }
+
+                    VmResult::Ok(output)
+                }
+            }
+        };
+    }
+
+    impl_map!(::std::collections::HashMap<alloc::String, T>, alloc::String);
+    impl_map!(::std::collections::HashMap<::rust_alloc::string::String, T>, ::rust_alloc::string::String);
+}
+
+macro_rules! impl_try_map {
     ($ty:ty, $key:ty) => {
         impl<T> FromValue for $ty
         where
@@ -518,12 +546,12 @@ macro_rules! impl_map {
                 let object = vm_try!(value.into_object());
                 let object = vm_try!(object.take());
 
-                let mut output = <$ty>::with_capacity(object.len());
+                let mut output = vm_try!(<$ty>::try_with_capacity(object.len()));
 
                 for (key, value) in object {
                     let key = vm_try!(<$key>::try_from(key));
                     let value = vm_try!(<T>::from_value(value));
-                    output.insert(key, value);
+                    vm_try!(output.try_insert(key, value));
                 }
 
                 VmResult::Ok(output)
@@ -532,10 +560,9 @@ macro_rules! impl_map {
     };
 }
 
-#[cfg(feature = "std")]
-impl_map!(::std::collections::HashMap<rune_alloc::String, T>, rune_alloc::String);
-#[cfg(feature = "std")]
-impl_map!(::std::collections::HashMap<std::String, T>, std::String);
+impl_try_map!(alloc::HashMap<alloc::String, T>, alloc::String);
+#[cfg(feature = "alloc")]
+impl_try_map!(alloc::HashMap<::rust_alloc::string::String, T>, ::rust_alloc::string::String);
 
 impl FromValue for Ordering {
     #[inline]

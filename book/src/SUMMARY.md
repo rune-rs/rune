@@ -30,6 +30,7 @@
 - [Macros](./macros.md)
 - [Advanced](./advanced.md)
   - [Safety](./safety.md)
+  - [Sandboxing](./sandboxing.md)
   - [The stack](./the_stack.md)
   - [Call frames](./call_frames.md)
   - [Compiler guide](./compiler_guide.md)

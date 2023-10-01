@@ -89,7 +89,8 @@ impl<T, A: Allocator> IntoIter<T, A> {
     /// This is roughly equivalent to the following, but more efficient
     ///
     /// ```
-    /// # use rune_alloc::Vec;
+    /// use rune::alloc::Vec;
+    ///
     /// # #[cfg(not(miri))]
     /// # fn main() -> Result<(), rune_alloc::Error> {
     /// # let mut into_iter = Vec::<u8>::try_with_capacity(10)?.into_iter();

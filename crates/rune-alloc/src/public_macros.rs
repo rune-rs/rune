@@ -49,14 +49,14 @@ macro_rules! try_vec {
 /// # Examples
 ///
 /// ```
-/// use rune_alloc::try_format;
+/// use rune::alloc::try_format;
 ///
 /// try_format!("test");
 /// try_format!("hello {}", "world!");
 /// try_format!("x = {}, y = {y}", 10, y = 30);
 /// let (x, y) = (1, 2);
 /// try_format!("{x} + {y} = 3");
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 #[macro_export]
 macro_rules! try_format {

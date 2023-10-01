@@ -42,7 +42,7 @@ impl Layer {
 
 pub(crate) struct Scopes {
     scope: Scope,
-    scopes: slab::Slab<Layer>,
+    scopes: Vec<Layer>,
 }
 
 impl Scopes {
@@ -50,8 +50,8 @@ impl Scopes {
     pub const ROOT: Scope = Scope(0);
 
     pub(crate) fn new() -> alloc::Result<Self> {
-        let mut scopes = slab::Slab::new();
-        scopes.insert(Layer::default());
+        let mut scopes = Vec::new();
+        scopes.try_push(Layer::default())?;
 
         Ok(Self {
             scope: Scopes::ROOT,
@@ -60,8 +60,8 @@ impl Scopes {
     }
 
     /// Push a scope.
-    pub(crate) fn push(&mut self) {
-        let scope = Scope(self.scopes.vacant_key());
+    pub(crate) fn push(&mut self) -> alloc::Result<()> {
+        let scope = Scope(self.scopes.len());
 
         let layer = Layer {
             scope,
@@ -70,15 +70,20 @@ impl Scopes {
             yields: Vec::new(),
         };
 
-        self.scopes.insert(layer);
+        self.scopes.try_push(layer)?;
         self.scope = scope;
+        Ok(())
     }
 
     /// Pop the given scope.
     pub(crate) fn pop(&mut self) -> Result<Layer, PopError> {
-        let Some(layer) = self.scopes.try_remove(self.scope.0) else {
+        let Some(layer) = self.scopes.pop() else {
             return Err(PopError::MissingScope(self.scope.0));
         };
+
+        if layer.scope.0 != self.scope.0 {
+            return Err(PopError::MissingScope(self.scope.0));
+        }
 
         let Some(parent) = layer.parent() else {
             return Err(PopError::MissingParentScope(self.scope.0));

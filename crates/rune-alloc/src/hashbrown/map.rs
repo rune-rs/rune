@@ -62,7 +62,7 @@ pub type Hasher = ahash::AHasher;
 /// # Examples
 ///
 /// ```
-/// use rune_alloc::HashMap;
+/// use rune::alloc::HashMap;
 ///
 /// // Type inference lets us omit an explicit type signature (which
 /// // would be `HashMap<String, String>` in this example).
@@ -113,7 +113,7 @@ pub type Hasher = ahash::AHasher;
 /// for (book, review) in &book_reviews {
 ///     println!("{}: \"{}\"", book, review);
 /// }
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 ///
 /// `HashMap` also implements an [`Entry API`](#method.entry), which allows
@@ -121,7 +121,7 @@ pub type Hasher = ahash::AHasher;
 /// their values:
 ///
 /// ```
-/// use rune_alloc::HashMap;
+/// use rune::alloc::HashMap;
 ///
 /// // type inference lets us omit an explicit type signature (which
 /// // would be `HashMap<&str, u8>` in this example).
@@ -143,7 +143,7 @@ pub type Hasher = ahash::AHasher;
 /// // update a key, guarding against the key possibly not being set
 /// let stat = player_stats.entry("attack").or_try_insert(100)?;
 /// *stat += random_stat_buff();
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 ///
 /// The easiest way to use `HashMap` with a custom key type is to derive [`Eq`] and [`Hash`].
@@ -161,7 +161,7 @@ pub type Hasher = ahash::AHasher;
 /// [`AHash`]: https://crates.io/crates/ahash
 ///
 /// ```
-/// use rune_alloc::HashMap;
+/// use rune::alloc::HashMap;
 ///
 /// #[derive(Hash, Eq, PartialEq, Debug)]
 /// struct Viking {
@@ -187,19 +187,19 @@ pub type Hasher = ahash::AHasher;
 /// for (viking, health) in &vikings {
 ///     println!("{:?} has {} hp", viking, health);
 /// }
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 ///
 /// A `HashMap` with fixed list of elements can be initialized from an array:
 ///
 /// ```
-/// use rune_alloc::HashMap;
-/// use rune_alloc::prelude::*;
+/// use rune::alloc::HashMap;
+/// use rune::alloc::prelude::*;
 ///
 /// let timber_resources: HashMap<&str, i32> = [("Norway", 100), ("Denmark", 50), ("Iceland", 10)]
 ///     .iter().cloned().try_collect()?;
 /// // use the values stored in map
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 pub struct HashMap<K, V, S = DefaultHashBuilder, A: Allocator = Global> {
     pub(crate) hash_builder: S,
@@ -317,11 +317,11 @@ impl<K, V> HashMap<K, V, DefaultHashBuilder> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     /// let mut map: HashMap<&str, i32> = HashMap::new();
     /// assert_eq!(map.len(), 0);
     /// assert_eq!(map.capacity(), 0);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn new() -> Self {
@@ -349,11 +349,11 @@ impl<K, V> HashMap<K, V, DefaultHashBuilder> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     /// let mut map: HashMap<&str, i32> = HashMap::try_with_capacity(10)?;
     /// assert_eq!(map.len(), 0);
     /// assert!(map.capacity() >= 10);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn try_with_capacity(capacity: usize) -> Result<Self, Error> {
@@ -387,8 +387,8 @@ impl<K, V, A: Allocator> HashMap<K, V, DefaultHashBuilder, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
-    /// use rune_alloc::alloc::Global;
+    /// use rune::alloc::HashMap;
+    /// use rune::alloc::alloc::Global;
     ///
     /// let mut map = HashMap::new_in(Global);
     ///
@@ -404,7 +404,7 @@ impl<K, V, A: Allocator> HashMap<K, V, DefaultHashBuilder, A> {
     /// assert_eq!(map.len(), 1);
     /// // And it also allocates some capacity
     /// assert!(map.capacity() > 1);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn new_in(alloc: A) -> Self {
@@ -433,8 +433,8 @@ impl<K, V, A: Allocator> HashMap<K, V, DefaultHashBuilder, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
-    /// use rune_alloc::alloc::Global;
+    /// use rune::alloc::HashMap;
+    /// use rune::alloc::alloc::Global;
     ///
     /// let mut map = HashMap::try_with_capacity_in(5, Global)?;
     ///
@@ -455,7 +455,7 @@ impl<K, V, A: Allocator> HashMap<K, V, DefaultHashBuilder, A> {
     /// assert_eq!(map.len(), 5);
     /// // But its capacity isn't changed
     /// assert_eq!(map.capacity(), empty_map_capacity);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn try_with_capacity_in(capacity: usize, alloc: A) -> Result<Self, Error> {
@@ -488,8 +488,8 @@ impl<K, V, S> HashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
-    /// use rune_alloc::hash_map::DefaultHashBuilder;
+    /// use rune::alloc::HashMap;
+    /// use rune::alloc::hash_map::DefaultHashBuilder;
     ///
     /// let s = DefaultHashBuilder::default();
     /// let mut map = HashMap::with_hasher(s);
@@ -497,7 +497,7 @@ impl<K, V, S> HashMap<K, V, S> {
     /// assert_eq!(map.capacity(), 0);
     ///
     /// map.try_insert(1, 2)?;
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub const fn with_hasher(hash_builder: S) -> Self {
@@ -531,8 +531,8 @@ impl<K, V, S> HashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
-    /// use rune_alloc::hash_map::DefaultHashBuilder;
+    /// use rune::alloc::HashMap;
+    /// use rune::alloc::hash_map::DefaultHashBuilder;
     ///
     /// let s = DefaultHashBuilder::default();
     /// let mut map = HashMap::try_with_capacity_and_hasher(10, s)?;
@@ -540,7 +540,7 @@ impl<K, V, S> HashMap<K, V, S> {
     /// assert!(map.capacity() >= 10);
     ///
     /// map.try_insert(1, 2)?;
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn try_with_capacity_and_hasher(capacity: usize, hash_builder: S) -> Result<Self, Error> {
@@ -583,13 +583,13 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
-    /// use rune_alloc::hash_map::DefaultHashBuilder;
+    /// use rune::alloc::HashMap;
+    /// use rune::alloc::hash_map::DefaultHashBuilder;
     ///
     /// let s = DefaultHashBuilder::default();
     /// let mut map = HashMap::with_hasher(s);
     /// map.try_insert(1, 2)?;
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub const fn with_hasher_in(hash_builder: S, alloc: A) -> Self {
@@ -619,14 +619,14 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
-    /// use rune_alloc::alloc::Global;
-    /// use rune_alloc::hash_map::DefaultHashBuilder;
+    /// use rune::alloc::HashMap;
+    /// use rune::alloc::alloc::Global;
+    /// use rune::alloc::hash_map::DefaultHashBuilder;
     ///
     /// let s = DefaultHashBuilder::default();
     /// let mut map = HashMap::try_with_capacity_and_hasher_in(10, s, Global)?;
     /// map.try_insert(1, 2)?;
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn try_with_capacity_and_hasher_in(
@@ -647,13 +647,13 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
-    /// use rune_alloc::hash_map::DefaultHashBuilder;
+    /// use rune::alloc::HashMap;
+    /// use rune::alloc::hash_map::DefaultHashBuilder;
     ///
     /// let hasher = DefaultHashBuilder::default();
     /// let map: HashMap<i32, i32> = HashMap::with_hasher(hasher);
     /// let hasher: &DefaultHashBuilder = map.hasher();
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn hasher(&self) -> &S {
@@ -668,11 +668,11 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     /// let map: HashMap<i32, i32> = HashMap::try_with_capacity(100)?;
     /// assert_eq!(map.len(), 0);
     /// assert!(map.capacity() >= 100);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn capacity(&self) -> usize {
@@ -685,7 +685,7 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map = HashMap::new();
     /// map.try_insert("a", 1)?;
@@ -705,7 +705,7 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     /// assert_eq!(vec, ["a", "b", "c"]);
     ///
     /// assert_eq!(map.len(), 3);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn keys(&self) -> Keys<'_, K, V> {
@@ -718,7 +718,7 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map = HashMap::new();
     /// map.try_insert("a", 1)?;
@@ -738,7 +738,7 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     /// assert_eq!(vec, [1, 2, 3]);
     ///
     /// assert_eq!(map.len(), 3);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn values(&self) -> Values<'_, K, V> {
@@ -751,7 +751,7 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map = HashMap::new();
     ///
@@ -777,7 +777,7 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     /// assert_eq!(vec, [11, 12, 13]);
     ///
     /// assert_eq!(map.len(), 3);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn values_mut(&mut self) -> ValuesMut<'_, K, V> {
@@ -792,7 +792,7 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map = HashMap::new();
     /// map.try_insert("a", 1)?;
@@ -812,7 +812,7 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     /// assert_eq!(vec, [("a", 1), ("b", 2), ("c", 3)]);
     ///
     /// assert_eq!(map.len(), 3);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn iter(&self) -> Iter<'_, K, V> {
@@ -832,7 +832,7 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map = HashMap::new();
     /// map.try_insert("a", 1)?;
@@ -858,7 +858,7 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     /// assert_eq!(vec, [("a", 2), ("b", 4), ("c", 6)]);
     ///
     /// assert_eq!(map.len(), 3);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn iter_mut(&mut self) -> IterMut<'_, K, V> {
@@ -882,13 +882,13 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut a = HashMap::new();
     /// assert_eq!(a.len(), 0);
     /// a.try_insert(1, "a")?;
     /// assert_eq!(a.len(), 1);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn len(&self) -> usize {
@@ -900,13 +900,13 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut a = HashMap::new();
     /// assert!(a.is_empty());
     /// a.try_insert(1, "a")?;
     /// assert!(!a.is_empty());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn is_empty(&self) -> bool {
@@ -923,7 +923,7 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut a = HashMap::new();
     /// a.try_insert(1, "a")?;
@@ -950,7 +950,7 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     ///
     /// // But the map is empty even if we do not use Drain iterator.
     /// assert!(a.is_empty());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn drain(&mut self) -> Drain<'_, K, V, A> {
@@ -968,8 +968,8 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::{HashMap, Vec};
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::{HashMap, Vec};
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut map: HashMap<i32, i32> = (0..8).map(|x|(x, x*10)).try_collect()?;
     /// assert_eq!(map.len(), 8);
@@ -982,7 +982,7 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     /// let mut vec: Vec<(i32, i32)> = map.iter().map(|(&k, &v)| (k, v)).try_collect()?;
     /// vec.sort_unstable();
     /// assert_eq!(vec, [(0, 0), (2, 20), (4, 40), (6, 60)]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn retain<F>(&mut self, mut f: F)
     where
@@ -1017,8 +1017,8 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::{HashMap, Vec};
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::{try_vec, HashMap, Vec};
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut map: HashMap<i32, i32> = (0..8).map(|x| (x, x)).try_collect()?;
     ///
@@ -1029,8 +1029,8 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     /// evens.sort();
     /// odds.sort();
     ///
-    /// assert_eq!(evens, rune_alloc::try_vec![0, 2, 4, 6]);
-    /// assert_eq!(odds, rune_alloc::try_vec![1, 3, 5, 7]);
+    /// assert_eq!(evens, try_vec![0, 2, 4, 6]);
+    /// assert_eq!(odds, try_vec![1, 3, 5, 7]);
     ///
     /// let mut map: HashMap<i32, i32> = (0..8).map(|x| (x, x)).try_collect()?;
     ///
@@ -1040,7 +1040,7 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     ///
     /// // ExtractIf was not exhausted, therefore no elements were drained.
     /// assert_eq!(map.len(), 8);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     ///
     /// [`retain`]: HashMap::retain
@@ -1064,7 +1064,7 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut a = HashMap::new();
     /// a.try_insert(1, "a")?;
@@ -1076,7 +1076,7 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     /// assert!(a.is_empty());
     /// // But map capacity is equal to old one.
     /// assert_eq!(a.capacity(), capacity_before_clear);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn clear(&mut self) {
@@ -1090,8 +1090,8 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::{HashMap, Vec};
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::{HashMap, Vec};
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut map = HashMap::new();
     /// map.try_insert("a", 1)?;
@@ -1104,7 +1104,7 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     /// // keys must be sorted to test them against a sorted array.
     /// vec.sort_unstable();
     /// assert_eq!(vec, ["a", "b", "c"]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn into_keys(self) -> IntoKeys<K, V, A> {
@@ -1120,8 +1120,8 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::{HashMap, Vec};
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::{HashMap, Vec};
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut map = HashMap::new();
     /// map.try_insert("a", 1)?;
@@ -1134,7 +1134,7 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     /// // the values must be sorted to test them against a sorted array.
     /// vec.sort_unstable();
     /// assert_eq!(vec, [1, 2, 3]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn into_values(self) -> IntoValues<K, V, A> {
@@ -1162,7 +1162,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map: HashMap<&str, isize> = HashMap::new();
     /// // Map is empty and doesn't allocate memory
@@ -1177,7 +1177,7 @@ where
     /// is returned:
     /// ```
     /// # fn test() {
-    /// use rune_alloc::{HashMap, Error};
+    /// use rune::alloc::{HashMap, Error};
     /// let mut map: HashMap<i32, i32> = HashMap::new();
     ///
     /// match map.try_reserve(usize::MAX) {
@@ -1214,7 +1214,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map: HashMap<i32, i32> = HashMap::try_with_capacity(100)?;
     /// map.try_insert(1, 2)?;
@@ -1222,7 +1222,7 @@ where
     /// assert!(map.capacity() >= 100);
     /// map.try_shrink_to_fit()?;
     /// assert!(map.capacity() >= 2);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn try_shrink_to_fit(&mut self) -> Result<(), Error> {
@@ -1248,7 +1248,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map: HashMap<i32, i32> = HashMap::try_with_capacity(100)?;
     /// map.try_insert(1, 2)?;
@@ -1260,7 +1260,7 @@ where
     /// assert!(map.capacity() >= 2);
     /// map.try_shrink_to(10)?;
     /// assert!(map.capacity() >= 2);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn try_shrink_to(&mut self, min_capacity: usize) -> Result<(), Error> {
@@ -1276,7 +1276,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut letters = HashMap::new();
     ///
@@ -1289,7 +1289,7 @@ where
     /// assert_eq!(letters[&'t'], 3);
     /// assert_eq!(letters[&'u'], 1);
     /// assert_eq!(letters.get(&'y'), None);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn entry(&mut self, key: K) -> Entry<'_, K, V, S, A> {
@@ -1315,7 +1315,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut words: HashMap<String, usize> = HashMap::new();
     /// let source = ["poneyland", "horseyland", "poneyland", "poneyland"];
@@ -1326,7 +1326,7 @@ where
     ///
     /// assert_eq!(words["poneyland"], 3);
     /// assert_eq!(words["horseyland"], 1);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn entry_ref<'a, 'b, Q: ?Sized>(&'a mut self, key: &'b Q) -> EntryRef<'a, 'b, K, Q, V, S, A>
@@ -1363,13 +1363,13 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map = HashMap::new();
     /// map.try_insert(1, "a")?;
     /// assert_eq!(map.get(&1), Some(&"a"));
     /// assert_eq!(map.get(&2), None);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&V>
@@ -1395,13 +1395,13 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map = HashMap::new();
     /// map.try_insert(1, "a")?;
     /// assert_eq!(map.get_key_value(&1), Some((&1, &"a")));
     /// assert_eq!(map.get_key_value(&2), None);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn get_key_value<Q: ?Sized>(&self, k: &Q) -> Option<(&K, &V)>
@@ -1440,7 +1440,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map = HashMap::new();
     /// map.try_insert(1, "a")?;
@@ -1450,7 +1450,7 @@ where
     /// *v = "b";
     /// assert_eq!(map.get_key_value_mut(&1), Some((&1, &mut "b")));
     /// assert_eq!(map.get_key_value_mut(&2), None);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     pub fn get_key_value_mut<Q: ?Sized>(&mut self, k: &Q) -> Option<(&K, &mut V)>
@@ -1476,13 +1476,13 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map = HashMap::new();
     /// map.try_insert(1, "a")?;
     /// assert_eq!(map.contains_key(&1), true);
     /// assert_eq!(map.contains_key(&2), false);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn contains_key<Q: ?Sized>(&self, k: &Q) -> bool
@@ -1504,7 +1504,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map = HashMap::new();
     /// map.try_insert(1, "a")?;
@@ -1514,7 +1514,7 @@ where
     /// assert_eq!(map[&1], "b");
     ///
     /// assert_eq!(map.get_mut(&2), None);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn get_mut<Q: ?Sized>(&mut self, k: &Q) -> Option<&mut V>
@@ -1550,7 +1550,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut libraries = HashMap::new();
     /// libraries.try_insert("Bodleian Library".to_string(), 1602)?;
@@ -1583,7 +1583,7 @@ where
     ///     "Athenæum",
     /// ]);
     /// assert_eq!(got, None);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn get_many_mut<Q: ?Sized, const N: usize>(&mut self, ks: [&Q; N]) -> Option<[&'_ mut V; N]>
     where
@@ -1610,7 +1610,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut libraries = HashMap::new();
     /// libraries.try_insert("Bodleian Library".to_string(), 1602)?;
@@ -1636,7 +1636,7 @@ where
     ///     "New York Public Library",
     /// ]);
     /// assert_eq!(got, None);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub unsafe fn get_many_unchecked_mut<Q: ?Sized, const N: usize>(
         &mut self,
@@ -1659,7 +1659,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut libraries = HashMap::new();
     /// libraries.try_insert("Bodleian Library".to_string(), 1602)?;
@@ -1692,7 +1692,7 @@ where
     ///     "Herzogin-Anna-Amalia-Bibliothek",
     /// ]);
     /// assert_eq!(got, None);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn get_many_key_value_mut<Q: ?Sized, const N: usize>(
         &mut self,
@@ -1723,7 +1723,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut libraries = HashMap::new();
     /// libraries.try_insert("Bodleian Library".to_string(), 1602)?;
@@ -1748,7 +1748,7 @@ where
     ///     "Gewandhaus",
     /// ]);
     /// assert_eq!(got, None);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub unsafe fn get_many_key_value_unchecked_mut<Q: ?Sized, const N: usize>(
         &mut self,
@@ -1816,7 +1816,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map = HashMap::new();
     /// assert_eq!(map.try_insert(37, "a")?, None);
@@ -1825,7 +1825,7 @@ where
     /// map.try_insert(37, "b")?;
     /// assert_eq!(map.try_insert(37, "c")?, Some("b"));
     /// assert_eq!(map[&37], "c");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn try_insert(&mut self, k: K, v: V) -> Result<Option<V>, Error> {
@@ -1883,7 +1883,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map1 = HashMap::new();
     /// assert_eq!(map1.try_insert(1, "a")?, None);
@@ -1907,7 +1907,7 @@ where
     /// assert_eq!(map2[&3], "c");
     /// assert_eq!(map2[&4], "e");
     /// assert_eq!(map2.len(), 4);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn try_insert_unique_unchecked(&mut self, k: K, v: V) -> Result<(&K, &mut V), Error> {
@@ -1939,9 +1939,9 @@ where
     /// Basic usage:
     ///
     /// ```
-    /// use rune_alloc::HashMap;
-    /// use rune_alloc::error::CustomError;
-    /// use rune_alloc::hash_map::OccupiedError;
+    /// use rune::alloc::HashMap;
+    /// use rune::alloc::error::CustomError;
+    /// use rune::alloc::hash_map::OccupiedError;
     ///
     /// let mut map = HashMap::new();
     /// assert_eq!(map.try_insert_or(37, "a").unwrap(), &"a");
@@ -1954,7 +1954,7 @@ where
     ///     }
     ///     _ => panic!()
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn try_insert_or(
@@ -1981,7 +1981,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map = HashMap::new();
     /// // The map is empty
@@ -1994,7 +1994,7 @@ where
     ///
     /// // Now map holds none elements
     /// assert!(map.is_empty());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn remove<Q: ?Sized>(&mut self, k: &Q) -> Option<V>
@@ -2021,7 +2021,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map = HashMap::new();
     /// // The map is empty
@@ -2034,7 +2034,7 @@ where
     ///
     /// // Now map hold none elements
     /// assert!(map.is_empty());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn remove_entry<Q: ?Sized>(&mut self, k: &Q) -> Option<(K, V)>
@@ -2083,8 +2083,8 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     ///
     /// ```
     /// use core::hash::{BuildHasher, Hash};
-    /// use rune_alloc::hash_map::{HashMap, RawEntryMut};
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::hash_map::{HashMap, RawEntryMut};
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut map = HashMap::new();
     /// map.try_extend([("a", 100), ("b", 200), ("c", 300)])?;
@@ -2144,7 +2144,7 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     /// }
     /// assert_eq!(map.get(&"d"), None);
     /// assert_eq!(map.len(), 2);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn raw_entry_mut(&mut self) -> RawEntryBuilderMut<'_, K, V, S, A> {
@@ -2171,8 +2171,8 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     ///
     /// ```
     /// use core::hash::{BuildHasher, Hash};
-    /// use rune_alloc::HashMap;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::HashMap;
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut map = HashMap::new();
     /// map.try_extend([("a", 100), ("b", 200), ("c", 300)])?;
@@ -2195,7 +2195,7 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     ///     assert_eq!(map.raw_entry().from_hash(hash, |q| *q == k), kv);
     ///     assert_eq!(map.raw_entry().from_key_hashed_nocheck(hash, &k), kv);
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn raw_entry(&self) -> RawEntryBuilder<'_, K, V, S, A> {
@@ -2233,8 +2233,8 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     /// ```
     /// use core::hash::{BuildHasher, Hash};
     /// use core::convert::Infallible;
-    /// use rune_alloc::HashMap;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::HashMap;
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut map = HashMap::new();
     /// map.try_extend([("a", 10), ("b", 20), ("c", 30)])?;
@@ -2269,7 +2269,7 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     /// assert_eq!(remove_by_hash(&mut map, hash, |(_, v)| *v == 10), Some(("a", 10)));
     /// assert_eq!(map.get(&"a"), None);
     /// assert_eq!(map.len(), 2);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn raw_table_mut(&mut self) -> &mut RawTable<(K, V), A> {
@@ -2324,7 +2324,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     /// use std::collections::hash_map::RandomState;
     ///
     /// // You can specify all types of HashMap, including hasher and allocator.
@@ -2333,7 +2333,7 @@ where
     /// assert_eq!(map.capacity(), 0);
     /// let map: HashMap<u32, String, RandomState> = HashMap::default();
     /// assert_eq!(map.capacity(), 0);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     fn default() -> Self {
@@ -2359,13 +2359,13 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let map: HashMap<_, _> = [("a", "One"), ("b", "Two")].try_into()?;
     ///
     /// assert_eq!(map[&"a"], "One");
     /// assert_eq!(map[&"b"], "Two");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     fn index(&self, key: &Q) -> &V {
@@ -2384,12 +2384,12 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let map1 = HashMap::try_from([(1, 2), (3, 4)])?;
     /// let map2: HashMap<_, _> = [(1, 2), (3, 4)].try_into()?;
     /// assert_eq!(map1, map2);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     fn try_from(arr: [(K, V); N]) -> Result<Self, Self::Error> {
         HashMap::try_from_iter_in(arr, A::default())
@@ -2408,7 +2408,7 @@ where
 /// # Examples
 ///
 /// ```
-/// use rune_alloc::HashMap;
+/// use rune::alloc::HashMap;
 ///
 /// let map: HashMap<_, _> = [(1, "a"), (2, "b"), (3, "c")].try_into()?;
 ///
@@ -2423,7 +2423,7 @@ where
 /// // It is fused iterator
 /// assert_eq!(iter.next(), None);
 /// assert_eq!(iter.next(), None);
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 pub struct Iter<'a, K, V> {
     inner: RawIter<(K, V)>,
@@ -2459,7 +2459,7 @@ impl<K: Debug, V: Debug> fmt::Debug for Iter<'_, K, V> {
 /// # Examples
 ///
 /// ```
-/// use rune_alloc::HashMap;
+/// use rune::alloc::HashMap;
 ///
 /// let mut map: HashMap<_, _> = [(1, "One".to_owned()), (2, "Two".into())].try_into()?;
 ///
@@ -2473,7 +2473,7 @@ impl<K: Debug, V: Debug> fmt::Debug for Iter<'_, K, V> {
 ///
 /// assert_eq!(map.get(&1).unwrap(), &"One Mississippi".to_owned());
 /// assert_eq!(map.get(&2).unwrap(), &"Two Mississippi".to_owned());
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 pub struct IterMut<'a, K, V> {
     inner: RawIter<(K, V)>,
@@ -2511,7 +2511,7 @@ impl<K, V> IterMut<'_, K, V> {
 /// # Examples
 ///
 /// ```
-/// use rune_alloc::HashMap;
+/// use rune::alloc::HashMap;
 ///
 /// let map: HashMap<_, _> = [(1, "a"), (2, "b"), (3, "c")].try_into()?;
 ///
@@ -2526,7 +2526,7 @@ impl<K, V> IterMut<'_, K, V> {
 /// // It is fused iterator
 /// assert_eq!(iter.next(), None);
 /// assert_eq!(iter.next(), None);
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 pub struct IntoIter<K, V, A: Allocator = Global> {
     inner: RawIntoIter<(K, V), A>,
@@ -2556,7 +2556,7 @@ impl<K, V, A: Allocator> IntoIter<K, V, A> {
 /// # Examples
 ///
 /// ```
-/// use rune_alloc::HashMap;
+/// use rune::alloc::HashMap;
 ///
 /// let map: HashMap<_, _> = [(1, "a"), (2, "b"), (3, "c")].try_into()?;
 ///
@@ -2571,7 +2571,7 @@ impl<K, V, A: Allocator> IntoIter<K, V, A> {
 /// // It is fused iterator
 /// assert_eq!(keys.next(), None);
 /// assert_eq!(keys.next(), None);
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 pub struct IntoKeys<K, V, A: Allocator = Global> {
     inner: IntoIter<K, V, A>,
@@ -2619,7 +2619,7 @@ impl<K: Debug, V: Debug, A: Allocator> fmt::Debug for IntoKeys<K, V, A> {
 /// # Examples
 ///
 /// ```
-/// use rune_alloc::HashMap;
+/// use rune::alloc::HashMap;
 ///
 /// let map: HashMap<_, _> = [(1, "a"), (2, "b"), (3, "c")].try_into()?;
 ///
@@ -2634,7 +2634,7 @@ impl<K: Debug, V: Debug, A: Allocator> fmt::Debug for IntoKeys<K, V, A> {
 /// // It is fused iterator
 /// assert_eq!(values.next(), None);
 /// assert_eq!(values.next(), None);
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 pub struct IntoValues<K, V, A: Allocator = Global> {
     inner: IntoIter<K, V, A>,
@@ -2682,7 +2682,7 @@ impl<K, V: Debug, A: Allocator> fmt::Debug for IntoValues<K, V, A> {
 /// # Examples
 ///
 /// ```
-/// use rune_alloc::HashMap;
+/// use rune::alloc::HashMap;
 ///
 /// let map: HashMap<_, _> = [(1, "a"), (2, "b"), (3, "c")].try_into()?;
 ///
@@ -2697,7 +2697,7 @@ impl<K, V: Debug, A: Allocator> fmt::Debug for IntoValues<K, V, A> {
 /// // It is fused iterator
 /// assert_eq!(keys.next(), None);
 /// assert_eq!(keys.next(), None);
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 pub struct Keys<'a, K, V> {
     inner: Iter<'a, K, V>,
@@ -2731,7 +2731,7 @@ impl<K: Debug, V> fmt::Debug for Keys<'_, K, V> {
 /// # Examples
 ///
 /// ```
-/// use rune_alloc::HashMap;
+/// use rune::alloc::HashMap;
 ///
 /// let map: HashMap<_, _> = [(1, "a"), (2, "b"), (3, "c")].try_into()?;
 ///
@@ -2746,7 +2746,7 @@ impl<K: Debug, V> fmt::Debug for Keys<'_, K, V> {
 /// // It is fused iterator
 /// assert_eq!(values.next(), None);
 /// assert_eq!(values.next(), None);
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 pub struct Values<'a, K, V> {
     inner: Iter<'a, K, V>,
@@ -2780,7 +2780,7 @@ impl<K, V: Debug> fmt::Debug for Values<'_, K, V> {
 /// # Examples
 ///
 /// ```
-/// use rune_alloc::HashMap;
+/// use rune::alloc::HashMap;
 ///
 /// let mut map: HashMap<_, _> = [(1, "a"), (2, "b"), (3, "c")].try_into()?;
 ///
@@ -2795,7 +2795,7 @@ impl<K, V: Debug> fmt::Debug for Values<'_, K, V> {
 /// // It is fused iterator
 /// assert_eq!(drain_iter.next(), None);
 /// assert_eq!(drain_iter.next(), None);
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 pub struct Drain<'a, K, V, A: Allocator = Global> {
     inner: RawDrain<'a, (K, V), A>,
@@ -2824,7 +2824,7 @@ impl<K, V, A: Allocator> Drain<'_, K, V, A> {
 /// # Examples
 ///
 /// ```
-/// use rune_alloc::HashMap;
+/// use rune::alloc::HashMap;
 ///
 /// let mut map: HashMap<i32, &str> = [(1, "a"), (2, "b"), (3, "c")].try_into()?;
 ///
@@ -2842,7 +2842,7 @@ impl<K, V, A: Allocator> Drain<'_, K, V, A> {
 /// drop(extract_if);
 ///
 /// assert_eq!(map.len(), 1);
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 #[must_use = "Iterators are lazy unless consumed"]
 pub struct ExtractIf<'a, K, V, F, A: Allocator = Global>
@@ -2909,7 +2909,7 @@ impl<K, V, A: Allocator> ExtractIfInner<'_, K, V, A> {
 /// # Examples
 ///
 /// ```
-/// use rune_alloc::HashMap;
+/// use rune::alloc::HashMap;
 ///
 /// let mut map: HashMap<_, _> = [(1, "One".to_owned()), (2, "Two".into())].try_into()?;
 ///
@@ -2923,7 +2923,7 @@ impl<K, V, A: Allocator> ExtractIfInner<'_, K, V, A> {
 ///
 /// assert_eq!(map.get(&1).unwrap(), &"One Mississippi".to_owned());
 /// assert_eq!(map.get(&2).unwrap(), &"Two Mississippi".to_owned());
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 pub struct ValuesMut<'a, K, V> {
     inner: IterMut<'a, K, V>,
@@ -2939,9 +2939,9 @@ pub struct ValuesMut<'a, K, V> {
 ///
 /// ```
 /// use core::hash::{BuildHasher, Hash};
-/// use rune_alloc::hash_map::{RawEntryBuilderMut, RawEntryMut::Vacant, RawEntryMut::Occupied};
-/// use rune_alloc::HashMap;
-/// use rune_alloc::prelude::*;
+/// use rune::alloc::hash_map::{RawEntryBuilderMut, RawEntryMut::Vacant, RawEntryMut::Occupied};
+/// use rune::alloc::HashMap;
+/// use rune::alloc::prelude::*;
 ///
 /// let mut map = HashMap::new();
 /// map.try_extend([(1, 11), (2, 12), (3, 13), (4, 14), (5, 15), (6, 16)])?;
@@ -2984,7 +2984,7 @@ pub struct ValuesMut<'a, K, V> {
 /// }
 ///
 /// assert_eq!(map.len(), 6);
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 pub struct RawEntryBuilderMut<'a, K, V, S, A: Allocator = Global> {
     map: &'a mut HashMap<K, V, S, A>,
@@ -3006,8 +3006,8 @@ pub struct RawEntryBuilderMut<'a, K, V, S, A: Allocator = Global> {
 ///
 /// ```
 /// use core::hash::{BuildHasher, Hash};
-/// use rune_alloc::hash_map::{HashMap, RawEntryMut, RawOccupiedEntryMut};
-/// use rune_alloc::prelude::*;
+/// use rune::alloc::hash_map::{HashMap, RawEntryMut, RawOccupiedEntryMut};
+/// use rune::alloc::prelude::*;
 ///
 /// let mut map = HashMap::new();
 /// map.try_extend([('a', 1), ('b', 2), ('c', 3)])?;
@@ -3074,7 +3074,7 @@ pub struct RawEntryBuilderMut<'a, K, V, S, A: Allocator = Global> {
 /// // items must be sorted to test them against a sorted array.
 /// vec.sort_unstable();
 /// assert_eq!(vec, [('a', 10), ('b', 20), ('c', 30), ('d', 40), ('e', 50), ('f', 60)]);
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 pub enum RawEntryMut<'a, K, V, S, A: Allocator = Global> {
     /// An occupied entry.
@@ -3082,8 +3082,8 @@ pub enum RawEntryMut<'a, K, V, S, A: Allocator = Global> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_map::RawEntryMut;
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::hash_map::RawEntryMut;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map: HashMap<_, _> = [("a", 100), ("b", 200)].try_into()?;
     ///
@@ -3091,7 +3091,7 @@ pub enum RawEntryMut<'a, K, V, S, A: Allocator = Global> {
     ///     RawEntryMut::Vacant(_) => unreachable!(),
     ///     RawEntryMut::Occupied(_) => { }
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     Occupied(RawOccupiedEntryMut<'a, K, V, S, A>),
     /// A vacant entry.
@@ -3099,7 +3099,7 @@ pub enum RawEntryMut<'a, K, V, S, A: Allocator = Global> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::{hash_map::RawEntryMut, HashMap};
+    /// use rune::alloc::{hash_map::RawEntryMut, HashMap};
     /// let mut map: HashMap<&str, i32> = HashMap::new();
     ///
     /// match map.raw_entry_mut().from_key("a") {
@@ -3119,9 +3119,9 @@ pub enum RawEntryMut<'a, K, V, S, A: Allocator = Global> {
 ///
 /// ```
 /// use core::hash::{BuildHasher, Hash};
-/// use rune_alloc::hash_map::{RawEntryMut, RawOccupiedEntryMut};
-/// use rune_alloc::HashMap;
-/// use rune_alloc::prelude::*;
+/// use rune::alloc::hash_map::{RawEntryMut, RawOccupiedEntryMut};
+/// use rune::alloc::HashMap;
+/// use rune::alloc::prelude::*;
 ///
 /// let mut map = HashMap::new();
 /// map.try_extend([("a", 10), ("b", 20), ("c", 30)])?;
@@ -3171,7 +3171,7 @@ pub enum RawEntryMut<'a, K, V, S, A: Allocator = Global> {
 /// }
 /// assert_eq!(map.get(&"b"), None);
 /// assert_eq!(map.len(), 1);
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 pub struct RawOccupiedEntryMut<'a, K, V, S, A: Allocator = Global> {
     elem: Bucket<(K, V)>,
@@ -3205,8 +3205,8 @@ where
 ///
 /// ```
 /// use core::hash::{BuildHasher, Hash};
-/// use rune_alloc::hash_map::{RawEntryMut, RawVacantEntryMut};
-/// use rune_alloc::HashMap;
+/// use rune::alloc::hash_map::{RawEntryMut, RawVacantEntryMut};
+/// use rune::alloc::HashMap;
 ///
 /// let mut map = HashMap::<&str, i32>::new();
 ///
@@ -3244,7 +3244,7 @@ where
 ///     }
 /// }
 /// assert!(map[&"c"] == 30 && map.len() == 3);
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 pub struct RawVacantEntryMut<'a, K, V, S, A: Allocator = Global> {
     table: &'a mut RawTable<(K, V), A>,
@@ -3261,9 +3261,9 @@ pub struct RawVacantEntryMut<'a, K, V, S, A: Allocator = Global> {
 ///
 /// ```
 /// use core::hash::{BuildHasher, Hash};
-/// use rune_alloc::hash_map::RawEntryBuilder;
-/// use rune_alloc::HashMap;
-/// use rune_alloc::prelude::*;
+/// use rune::alloc::hash_map::RawEntryBuilder;
+/// use rune::alloc::HashMap;
+/// use rune::alloc::prelude::*;
 ///
 /// let mut map = HashMap::new();
 /// map.try_extend([(1, 10), (2, 20), (3, 30)])?;
@@ -3286,7 +3286,7 @@ pub struct RawVacantEntryMut<'a, K, V, S, A: Allocator = Global> {
 ///     assert_eq!(map.raw_entry().from_hash(hash, |q| *q == k), kv);
 ///     assert_eq!(map.raw_entry().from_key_hashed_nocheck(hash, &k), kv);
 /// }
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 pub struct RawEntryBuilder<'a, K, V, S, A: Allocator = Global> {
     map: &'a HashMap<K, V, S, A>,
@@ -3298,15 +3298,15 @@ impl<'a, K, V, S, A: Allocator> RawEntryBuilderMut<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_map::RawEntryMut;
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::hash_map::RawEntryMut;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map: HashMap<&str, u32> = HashMap::new();
     /// let key = "a";
     /// let entry: RawEntryMut<&str, u32, _> = map.raw_entry_mut().from_key(&key);
     /// entry.try_insert(key, 100)?;
     /// assert_eq!(map[&"a"], 100);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     #[allow(clippy::wrong_self_convention)]
@@ -3325,7 +3325,7 @@ impl<'a, K, V, S, A: Allocator> RawEntryBuilderMut<'a, K, V, S, A> {
     ///
     /// ```
     /// use core::hash::{BuildHasher, Hash};
-    /// use rune_alloc::hash_map::{HashMap, RawEntryMut};
+    /// use rune::alloc::hash_map::{HashMap, RawEntryMut};
     ///
     /// fn compute_hash<K: Hash + ?Sized, S: BuildHasher>(hash_builder: &S, key: &K) -> u64 {
     ///     use core::hash::Hasher;
@@ -3340,7 +3340,7 @@ impl<'a, K, V, S, A: Allocator> RawEntryBuilderMut<'a, K, V, S, A> {
     /// let entry: RawEntryMut<&str, u32, _> = map.raw_entry_mut().from_key_hashed_nocheck(hash, &key);
     /// entry.try_insert(key, 100)?;
     /// assert_eq!(map[&"a"], 100);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
     #[allow(clippy::wrong_self_convention)]
@@ -3359,7 +3359,7 @@ impl<'a, K, V, S, A: Allocator> RawEntryBuilderMut<'a, K, V, S, A> {
     ///
     /// ```
     /// use core::hash::{BuildHasher, Hash};
-    /// use rune_alloc::hash_map::{HashMap, RawEntryMut};
+    /// use rune::alloc::hash_map::{HashMap, RawEntryMut};
     ///
     /// fn compute_hash<K: Hash + ?Sized, S: BuildHasher>(hash_builder: &S, key: &K) -> u64 {
     ///     use core::hash::Hasher;
@@ -3374,7 +3374,7 @@ impl<'a, K, V, S, A: Allocator> RawEntryBuilderMut<'a, K, V, S, A> {
     /// let entry: RawEntryMut<&str, u32, _> = map.raw_entry_mut().from_hash(hash, |k| k == &key);
     /// entry.try_insert(key, 100)?;
     /// assert_eq!(map[&"a"], 100);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     #[allow(clippy::wrong_self_convention)]
@@ -3414,12 +3414,12 @@ impl<'a, K, V, S, A: Allocator> RawEntryBuilder<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let map: HashMap<&str, u32> = [("a", 100), ("b", 200)].try_into()?;
     /// let key = "a";
     /// assert_eq!(map.raw_entry().from_key(&key), Some((&"a", &100)));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     #[allow(clippy::wrong_self_convention)]
@@ -3438,7 +3438,7 @@ impl<'a, K, V, S, A: Allocator> RawEntryBuilder<'a, K, V, S, A> {
     ///
     /// ```
     /// use core::hash::{BuildHasher, Hash};
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// fn compute_hash<K: Hash + ?Sized, S: BuildHasher>(hash_builder: &S, key: &K) -> u64 {
     ///     use core::hash::Hasher;
@@ -3451,7 +3451,7 @@ impl<'a, K, V, S, A: Allocator> RawEntryBuilder<'a, K, V, S, A> {
     /// let key = "a";
     /// let hash = compute_hash(map.hasher(), &key);
     /// assert_eq!(map.raw_entry().from_key_hashed_nocheck(hash, &key), Some((&"a", &100)));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     #[allow(clippy::wrong_self_convention)]
@@ -3483,7 +3483,7 @@ impl<'a, K, V, S, A: Allocator> RawEntryBuilder<'a, K, V, S, A> {
     ///
     /// ```
     /// use core::hash::{BuildHasher, Hash};
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// fn compute_hash<K: Hash + ?Sized, S: BuildHasher>(hash_builder: &S, key: &K) -> u64 {
     ///     use core::hash::Hasher;
@@ -3496,7 +3496,7 @@ impl<'a, K, V, S, A: Allocator> RawEntryBuilder<'a, K, V, S, A> {
     /// let key = "a";
     /// let hash = compute_hash(map.hasher(), &key);
     /// assert_eq!(map.raw_entry().from_hash(hash, |k| k == &key), Some((&"a", &100)));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     #[allow(clippy::wrong_self_convention)]
@@ -3514,13 +3514,13 @@ impl<'a, K, V, S, A: Allocator> RawEntryMut<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map: HashMap<&str, u32> = HashMap::new();
     /// let entry = map.raw_entry_mut().from_key("horseyland").try_insert("horseyland", 37)?;
     ///
     /// assert_eq!(entry.remove_entry(), ("horseyland", 37));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn try_insert(self, key: K, value: V) -> Result<RawOccupiedEntryMut<'a, K, V, S, A>, Error>
@@ -3555,7 +3555,7 @@ impl<'a, K, V, S, A: Allocator> RawEntryMut<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map: HashMap<&str, u32> = HashMap::new();
     ///
@@ -3564,7 +3564,7 @@ impl<'a, K, V, S, A: Allocator> RawEntryMut<'a, K, V, S, A> {
     ///
     /// *map.raw_entry_mut().from_key("poneyland").or_try_insert("poneyland", 10)?.1 *= 2;
     /// assert_eq!(map["poneyland"], 6);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn or_try_insert(
@@ -3588,7 +3588,7 @@ impl<'a, K, V, S, A: Allocator> RawEntryMut<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map: HashMap<&str, String> = HashMap::new();
     ///
@@ -3597,7 +3597,7 @@ impl<'a, K, V, S, A: Allocator> RawEntryMut<'a, K, V, S, A> {
     /// })?;
     ///
     /// assert_eq!(map["poneyland"], "hoho".to_string());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn or_try_insert_with<F>(self, default: F) -> Result<(&'a mut K, &'a mut V), Error>
@@ -3621,7 +3621,7 @@ impl<'a, K, V, S, A: Allocator> RawEntryMut<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map: HashMap<&str, u32> = HashMap::new();
     ///
@@ -3636,7 +3636,7 @@ impl<'a, K, V, S, A: Allocator> RawEntryMut<'a, K, V, S, A> {
     ///    .and_modify(|_k, v| { *v += 1 })
     ///    .or_try_insert("poneyland", 0)?;
     /// assert_eq!(map["poneyland"], 43);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn and_modify<F>(self, f: F) -> Self
@@ -3662,8 +3662,8 @@ impl<'a, K, V, S, A: Allocator> RawEntryMut<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
-    /// use rune_alloc::hash_map::RawEntryMut;
+    /// use rune::alloc::HashMap;
+    /// use rune::alloc::hash_map::RawEntryMut;
     ///
     /// let mut map: HashMap<&str, u32> = HashMap::new();
     ///
@@ -3709,7 +3709,7 @@ impl<'a, K, V, S, A: Allocator> RawEntryMut<'a, K, V, S, A> {
     /// }
     ///
     /// assert!(!map.contains_key("poneyland"));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn and_replace_entry_with<F>(self, f: F) -> Self
@@ -3729,7 +3729,7 @@ impl<'a, K, V, S, A: Allocator> RawOccupiedEntryMut<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_map::{HashMap, RawEntryMut};
+    /// use rune::alloc::hash_map::{HashMap, RawEntryMut};
     ///
     /// let mut map: HashMap<&str, u32> = [("a", 100), ("b", 200)].try_into()?;
     ///
@@ -3737,7 +3737,7 @@ impl<'a, K, V, S, A: Allocator> RawOccupiedEntryMut<'a, K, V, S, A> {
     ///     RawEntryMut::Vacant(_) => panic!(),
     ///     RawEntryMut::Occupied(o) => assert_eq!(o.key(), &"a")
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn key(&self) -> &K {
@@ -3749,7 +3749,7 @@ impl<'a, K, V, S, A: Allocator> RawOccupiedEntryMut<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_map::{HashMap, RawEntryMut};
+    /// use rune::alloc::hash_map::{HashMap, RawEntryMut};
     /// use std::rc::Rc;
     ///
     /// let key_one = Rc::new("a");
@@ -3769,7 +3769,7 @@ impl<'a, K, V, S, A: Allocator> RawOccupiedEntryMut<'a, K, V, S, A> {
     /// }
     /// assert_eq!(map[&key_two], 10);
     /// assert!(Rc::strong_count(&key_one) == 1 && Rc::strong_count(&key_two) == 2);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn key_mut(&mut self) -> &mut K {
@@ -3782,7 +3782,7 @@ impl<'a, K, V, S, A: Allocator> RawOccupiedEntryMut<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_map::{HashMap, RawEntryMut};
+    /// use rune::alloc::hash_map::{HashMap, RawEntryMut};
     /// use std::rc::Rc;
     ///
     /// let key_one = Rc::new("a");
@@ -3804,7 +3804,7 @@ impl<'a, K, V, S, A: Allocator> RawOccupiedEntryMut<'a, K, V, S, A> {
     ///
     /// assert_eq!(map[&key_two], 10);
     /// assert!(Rc::strong_count(&key_one) == 1 && Rc::strong_count(&key_two) == 2);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn into_key(self) -> &'a mut K {
@@ -3816,7 +3816,7 @@ impl<'a, K, V, S, A: Allocator> RawOccupiedEntryMut<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_map::{HashMap, RawEntryMut};
+    /// use rune::alloc::hash_map::{HashMap, RawEntryMut};
     ///
     /// let mut map: HashMap<&str, u32> = [("a", 100), ("b", 200)].try_into()?;
     ///
@@ -3824,7 +3824,7 @@ impl<'a, K, V, S, A: Allocator> RawOccupiedEntryMut<'a, K, V, S, A> {
     ///     RawEntryMut::Vacant(_) => panic!(),
     ///     RawEntryMut::Occupied(o) => assert_eq!(o.get(), &100),
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn get(&self) -> &V {
@@ -3837,7 +3837,7 @@ impl<'a, K, V, S, A: Allocator> RawOccupiedEntryMut<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_map::{HashMap, RawEntryMut};
+    /// use rune::alloc::hash_map::{HashMap, RawEntryMut};
     ///
     /// let mut map: HashMap<&str, u32> = [("a", 100), ("b", 200)].try_into()?;
     ///
@@ -3850,7 +3850,7 @@ impl<'a, K, V, S, A: Allocator> RawOccupiedEntryMut<'a, K, V, S, A> {
     /// *value += 900;
     ///
     /// assert_eq!(map[&"a"], 1000);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn into_mut(self) -> &'a mut V {
@@ -3862,7 +3862,7 @@ impl<'a, K, V, S, A: Allocator> RawOccupiedEntryMut<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_map::{HashMap, RawEntryMut};
+    /// use rune::alloc::hash_map::{HashMap, RawEntryMut};
     ///
     /// let mut map: HashMap<&str, u32> = [("a", 100), ("b", 200)].try_into()?;
     ///
@@ -3872,7 +3872,7 @@ impl<'a, K, V, S, A: Allocator> RawOccupiedEntryMut<'a, K, V, S, A> {
     /// }
     ///
     /// assert_eq!(map[&"a"], 1000);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn get_mut(&mut self) -> &mut V {
@@ -3884,7 +3884,7 @@ impl<'a, K, V, S, A: Allocator> RawOccupiedEntryMut<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_map::{HashMap, RawEntryMut};
+    /// use rune::alloc::hash_map::{HashMap, RawEntryMut};
     ///
     /// let mut map: HashMap<&str, u32> = [("a", 100), ("b", 200)].try_into()?;
     ///
@@ -3892,7 +3892,7 @@ impl<'a, K, V, S, A: Allocator> RawOccupiedEntryMut<'a, K, V, S, A> {
     ///     RawEntryMut::Vacant(_) => panic!(),
     ///     RawEntryMut::Occupied(o) => assert_eq!(o.get_key_value(), (&"a", &100)),
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn get_key_value(&self) -> (&K, &V) {
@@ -3907,7 +3907,7 @@ impl<'a, K, V, S, A: Allocator> RawOccupiedEntryMut<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_map::{HashMap, RawEntryMut};
+    /// use rune::alloc::hash_map::{HashMap, RawEntryMut};
     /// use std::rc::Rc;
     ///
     /// let key_one = Rc::new("a");
@@ -3929,7 +3929,7 @@ impl<'a, K, V, S, A: Allocator> RawOccupiedEntryMut<'a, K, V, S, A> {
     /// }
     /// assert_eq!(map[&key_two], 100);
     /// assert!(Rc::strong_count(&key_one) == 1 && Rc::strong_count(&key_two) == 2);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn get_key_value_mut(&mut self) -> (&mut K, &mut V) {
@@ -3945,7 +3945,7 @@ impl<'a, K, V, S, A: Allocator> RawOccupiedEntryMut<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_map::{HashMap, RawEntryMut};
+    /// use rune::alloc::hash_map::{HashMap, RawEntryMut};
     /// use std::rc::Rc;
     ///
     /// let key_one = Rc::new("a");
@@ -3971,7 +3971,7 @@ impl<'a, K, V, S, A: Allocator> RawOccupiedEntryMut<'a, K, V, S, A> {
     /// *inside_value = 100;
     /// assert_eq!(map[&key_two], 100);
     /// assert!(Rc::strong_count(&key_one) == 1 && Rc::strong_count(&key_two) == 2);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn into_key_value(self) -> (&'a mut K, &'a mut V) {
@@ -3986,7 +3986,7 @@ impl<'a, K, V, S, A: Allocator> RawOccupiedEntryMut<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_map::{HashMap, RawEntryMut};
+    /// use rune::alloc::hash_map::{HashMap, RawEntryMut};
     ///
     /// let mut map: HashMap<&str, u32> = [("a", 100), ("b", 200)].try_into()?;
     ///
@@ -3996,7 +3996,7 @@ impl<'a, K, V, S, A: Allocator> RawOccupiedEntryMut<'a, K, V, S, A> {
     /// }
     ///
     /// assert_eq!(map[&"a"], 1000);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn insert(&mut self, value: V) -> V {
@@ -4008,7 +4008,7 @@ impl<'a, K, V, S, A: Allocator> RawOccupiedEntryMut<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_map::{HashMap, RawEntryMut};
+    /// use rune::alloc::hash_map::{HashMap, RawEntryMut};
     /// use std::rc::Rc;
     ///
     /// let key_one = Rc::new("a");
@@ -4029,7 +4029,7 @@ impl<'a, K, V, S, A: Allocator> RawOccupiedEntryMut<'a, K, V, S, A> {
     /// }
     /// assert_eq!(map[&key_two], 10);
     /// assert!(Rc::strong_count(&key_one) == 1 && Rc::strong_count(&key_two) == 2);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn insert_key(&mut self, key: K) -> K {
@@ -4041,7 +4041,7 @@ impl<'a, K, V, S, A: Allocator> RawOccupiedEntryMut<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_map::{HashMap, RawEntryMut};
+    /// use rune::alloc::hash_map::{HashMap, RawEntryMut};
     ///
     /// let mut map: HashMap<&str, u32> = [("a", 100), ("b", 200)].try_into()?;
     ///
@@ -4050,7 +4050,7 @@ impl<'a, K, V, S, A: Allocator> RawOccupiedEntryMut<'a, K, V, S, A> {
     ///     RawEntryMut::Occupied(o) => assert_eq!(o.remove(), 100),
     /// }
     /// assert_eq!(map.get(&"a"), None);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn remove(self) -> V {
@@ -4062,7 +4062,7 @@ impl<'a, K, V, S, A: Allocator> RawOccupiedEntryMut<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_map::{HashMap, RawEntryMut};
+    /// use rune::alloc::hash_map::{HashMap, RawEntryMut};
     ///
     /// let mut map: HashMap<&str, u32> = [("a", 100), ("b", 200)].try_into()?;
     ///
@@ -4071,7 +4071,7 @@ impl<'a, K, V, S, A: Allocator> RawOccupiedEntryMut<'a, K, V, S, A> {
     ///     RawEntryMut::Occupied(o) => assert_eq!(o.remove_entry(), ("a", 100)),
     /// }
     /// assert_eq!(map.get(&"a"), None);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn remove_entry(self) -> (K, V) {
@@ -4085,7 +4085,7 @@ impl<'a, K, V, S, A: Allocator> RawOccupiedEntryMut<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_map::{HashMap, RawEntryMut};
+    /// use rune::alloc::hash_map::{HashMap, RawEntryMut};
     ///
     /// let mut map: HashMap<&str, u32> = [("a", 100), ("b", 200)].try_into()?;
     ///
@@ -4110,7 +4110,7 @@ impl<'a, K, V, S, A: Allocator> RawOccupiedEntryMut<'a, K, V, S, A> {
     ///     RawEntryMut::Occupied(_) => panic!(),
     /// };
     /// assert_eq!(map.get(&"a"), None);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn replace_entry_with<F>(self, f: F) -> RawEntryMut<'a, K, V, S, A>
@@ -4143,7 +4143,7 @@ impl<'a, K, V, S, A: Allocator> RawVacantEntryMut<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_map::{HashMap, RawEntryMut};
+    /// use rune::alloc::hash_map::{HashMap, RawEntryMut};
     ///
     /// let mut map: HashMap<&str, u32> = [("a", 100), ("b", 200)].try_into()?;
     ///
@@ -4153,7 +4153,7 @@ impl<'a, K, V, S, A: Allocator> RawVacantEntryMut<'a, K, V, S, A> {
     /// }
     ///
     /// assert_eq!(map[&"c"], 300);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn try_insert(self, key: K, value: V) -> Result<(&'a mut K, &'a mut V), Error>
@@ -4189,7 +4189,7 @@ impl<'a, K, V, S, A: Allocator> RawVacantEntryMut<'a, K, V, S, A> {
     ///
     /// ```
     /// use core::hash::{BuildHasher, Hash};
-    /// use rune_alloc::hash_map::{HashMap, RawEntryMut};
+    /// use rune::alloc::hash_map::{HashMap, RawEntryMut};
     ///
     /// fn compute_hash<K: Hash + ?Sized, S: BuildHasher>(hash_builder: &S, key: &K) -> u64 {
     ///     use core::hash::Hasher;
@@ -4211,7 +4211,7 @@ impl<'a, K, V, S, A: Allocator> RawVacantEntryMut<'a, K, V, S, A> {
     /// }
     ///
     /// assert_eq!(map[&"c"], 300);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     #[allow(clippy::shadow_unrelated)]
@@ -4240,8 +4240,8 @@ impl<'a, K, V, S, A: Allocator> RawVacantEntryMut<'a, K, V, S, A> {
     ///
     /// ```
     /// use core::hash::{BuildHasher, Hash};
-    /// use rune_alloc::hash_map::{HashMap, RawEntryMut};
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::hash_map::{HashMap, RawEntryMut};
+    /// use rune::alloc::prelude::*;
     ///
     /// fn make_hasher<K, S>(hash_builder: &S) -> impl Fn(&K) -> u64 + '_
     /// where
@@ -4271,7 +4271,7 @@ impl<'a, K, V, S, A: Allocator> RawVacantEntryMut<'a, K, V, S, A> {
     ///
     /// map.try_extend([("b", 200), ("c", 300), ("d", 400), ("e", 500), ("f", 600)])?;
     /// assert_eq!(map[&"a"], 100);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn try_insert_with_hasher<H>(
@@ -4381,8 +4381,8 @@ impl<K, V, S, A: Allocator> Debug for RawEntryBuilder<'_, K, V, S, A> {
 /// # Examples
 ///
 /// ```
-/// use rune_alloc::hash_map::{Entry, HashMap, OccupiedEntry};
-/// use rune_alloc::prelude::*;
+/// use rune::alloc::hash_map::{Entry, HashMap, OccupiedEntry};
+/// use rune::alloc::prelude::*;
 ///
 /// let mut map = HashMap::new();
 /// map.try_extend([("a", 10), ("b", 20), ("c", 30)])?;
@@ -4414,7 +4414,7 @@ impl<K, V, S, A: Allocator> Debug for RawEntryBuilder<'_, K, V, S, A> {
 /// // items must be sorted to test them against a sorted array.
 /// vec.sort_unstable();
 /// assert_eq!(vec, [("a", 1), ("b", 2), ("c", 3), ("d", 4), ("e", 5), ("f", 6)]);
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 pub enum Entry<'a, K, V, S, A = Global>
 where
@@ -4425,14 +4425,14 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_map::{Entry, HashMap};
+    /// use rune::alloc::hash_map::{Entry, HashMap};
     /// let mut map: HashMap<_, _> = [("a", 100), ("b", 200)].try_into()?;
     ///
     /// match map.entry("a") {
     ///     Entry::Vacant(_) => unreachable!(),
     ///     Entry::Occupied(_) => { }
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     Occupied(OccupiedEntry<'a, K, V, S, A>),
 
@@ -4441,7 +4441,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_map::{Entry, HashMap};
+    /// use rune::alloc::hash_map::{Entry, HashMap};
     /// let mut map: HashMap<&str, i32> = HashMap::new();
     ///
     /// match map.entry("a") {
@@ -4469,8 +4469,8 @@ impl<K: Debug, V: Debug, S, A: Allocator> Debug for Entry<'_, K, V, S, A> {
 /// # Examples
 ///
 /// ```
-/// use rune_alloc::hash_map::{Entry, HashMap, OccupiedEntry};
-/// use rune_alloc::prelude::*;
+/// use rune::alloc::hash_map::{Entry, HashMap, OccupiedEntry};
+/// use rune::alloc::prelude::*;
 ///
 /// let mut map = HashMap::new();
 /// map.try_extend([("a", 10), ("b", 20), ("c", 30)])?;
@@ -4501,7 +4501,7 @@ impl<K: Debug, V: Debug, S, A: Allocator> Debug for Entry<'_, K, V, S, A> {
 /// }
 /// assert_eq!(map.get(&"c"), None);
 /// assert_eq!(map.len(), 2);
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 pub struct OccupiedEntry<'a, K, V, S = DefaultHashBuilder, A: Allocator = Global> {
     hash: u64,
@@ -4544,7 +4544,7 @@ impl<K: Debug, V: Debug, S, A: Allocator> Debug for OccupiedEntry<'_, K, V, S, A
 /// # Examples
 ///
 /// ```
-/// use rune_alloc::hash_map::{Entry, HashMap, VacantEntry};
+/// use rune::alloc::hash_map::{Entry, HashMap, VacantEntry};
 ///
 /// let mut map = HashMap::<&str, i32>::new();
 ///
@@ -4565,7 +4565,7 @@ impl<K: Debug, V: Debug, S, A: Allocator> Debug for OccupiedEntry<'_, K, V, S, A
 ///     }
 /// }
 /// assert!(map[&"b"] == 20 && map.len() == 2);
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 pub struct VacantEntry<'a, K, V, S = DefaultHashBuilder, A: Allocator = Global> {
     hash: u64,
@@ -4598,8 +4598,8 @@ impl<K: Debug, V, S, A: Allocator> Debug for VacantEntry<'_, K, V, S, A> {
 /// # Examples
 ///
 /// ```
-/// use rune_alloc::hash_map::{EntryRef, HashMap, OccupiedEntryRef};
-/// use rune_alloc::prelude::*;
+/// use rune::alloc::hash_map::{EntryRef, HashMap, OccupiedEntryRef};
+/// use rune::alloc::prelude::*;
 ///
 /// let mut map = HashMap::new();
 /// map.try_extend([("a".to_owned(), 10), ("b".into(), 20), ("c".into(), 30)])?;
@@ -4631,7 +4631,7 @@ impl<K: Debug, V, S, A: Allocator> Debug for VacantEntry<'_, K, V, S, A> {
 ///     assert_eq!(map[key], value)
 /// }
 /// assert_eq!(map.len(), 6);
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 pub enum EntryRef<'a, 'b, K, Q: ?Sized, V, S, A = Global>
 where
@@ -4642,14 +4642,14 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_map::{EntryRef, HashMap};
+    /// use rune::alloc::hash_map::{EntryRef, HashMap};
     /// let mut map: HashMap<_, _> = [("a".to_owned(), 100), ("b".into(), 200)].try_into()?;
     ///
     /// match map.entry_ref("a") {
     ///     EntryRef::Vacant(_) => unreachable!(),
     ///     EntryRef::Occupied(_) => { }
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     Occupied(OccupiedEntryRef<'a, 'b, K, Q, V, S, A>),
 
@@ -4658,7 +4658,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_map::{EntryRef, HashMap};
+    /// use rune::alloc::hash_map::{EntryRef, HashMap};
     /// let mut map: HashMap<String, i32> = HashMap::new();
     ///
     /// match map.entry_ref("a") {
@@ -4714,8 +4714,8 @@ impl<'a, K: Borrow<Q>, Q: ?Sized> AsRef<Q> for KeyOrRef<'a, K, Q> {
 /// # Examples
 ///
 /// ```
-/// use rune_alloc::hash_map::{EntryRef, HashMap, OccupiedEntryRef};
-/// use rune_alloc::prelude::*;
+/// use rune::alloc::hash_map::{EntryRef, HashMap, OccupiedEntryRef};
+/// use rune::alloc::prelude::*;
 ///
 /// let mut map = HashMap::new();
 /// map.try_extend([("a".to_owned(), 10), ("b".into(), 20), ("c".into(), 30)])?;
@@ -4747,7 +4747,7 @@ impl<'a, K: Borrow<Q>, Q: ?Sized> AsRef<Q> for KeyOrRef<'a, K, Q> {
 /// }
 /// assert_eq!(map.get("c"), None);
 /// assert_eq!(map.len(), 2);
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 pub struct OccupiedEntryRef<'a, 'b, K, Q: ?Sized, V, S, A: Allocator = Global> {
     hash: u64,
@@ -4794,7 +4794,7 @@ impl<K: Borrow<Q>, Q: ?Sized + Debug, V: Debug, S, A: Allocator> Debug
 /// # Examples
 ///
 /// ```
-/// use rune_alloc::hash_map::{EntryRef, HashMap, VacantEntryRef};
+/// use rune::alloc::hash_map::{EntryRef, HashMap, VacantEntryRef};
 ///
 /// let mut map = HashMap::<String, i32>::new();
 ///
@@ -4815,7 +4815,7 @@ impl<K: Borrow<Q>, Q: ?Sized + Debug, V: Debug, S, A: Allocator> Debug
 ///     }
 /// }
 /// assert!(map["b"] == 20 && map.len() == 2);
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 pub struct VacantEntryRef<'a, 'b, K, Q: ?Sized, V, S, A: Allocator = Global> {
     hash: u64,
@@ -4838,8 +4838,8 @@ impl<K: Borrow<Q>, Q: ?Sized + Debug, V, S, A: Allocator> Debug
 /// # Examples
 ///
 /// ```
-/// use rune_alloc::hash_map::{HashMap, OccupiedError};
-/// use rune_alloc::error::CustomError;
+/// use rune::alloc::hash_map::{HashMap, OccupiedError};
+/// use rune::alloc::error::CustomError;
 ///
 /// let mut map: HashMap<_, _> = [("a", 10), ("b", 20)].try_into()?;
 ///
@@ -4855,7 +4855,7 @@ impl<K: Borrow<Q>, Q: ?Sized + Debug, V, S, A: Allocator> Debug
 ///     _ => unreachable!(),
 /// }
 /// assert_eq!(map[&"a"], 100);
-/// # Ok::<_, rune_alloc::Error>(())
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 pub struct OccupiedError<'a, K, V, S, A: Allocator = Global> {
     /// The entry in the map that was already occupied.
@@ -4901,7 +4901,7 @@ impl<'a, K, V, S, A: Allocator> IntoIterator for &'a HashMap<K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     /// let map_one: HashMap<_, _> = [(1, "a"), (2, "b"), (3, "c")].try_into()?;
     /// let mut map_two = HashMap::new();
     ///
@@ -4911,7 +4911,7 @@ impl<'a, K, V, S, A: Allocator> IntoIterator for &'a HashMap<K, V, S, A> {
     /// }
     ///
     /// assert_eq!(map_one, map_two);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     fn into_iter(self) -> Iter<'a, K, V> {
@@ -4936,7 +4936,7 @@ impl<'a, K, V, S, A: Allocator> IntoIterator for &'a mut HashMap<K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     /// let mut map: HashMap<_, _> = [("a", 1), ("b", 2), ("c", 3)].try_into()?;
     ///
     /// for (key, value) in &mut map {
@@ -4949,7 +4949,7 @@ impl<'a, K, V, S, A: Allocator> IntoIterator for &'a mut HashMap<K, V, S, A> {
     /// // items must be sorted to test them against a sorted array.
     /// vec.sort_unstable();
     /// assert_eq!(vec, [(&"a", &2), (&"b", &4), (&"c", &6)]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     fn into_iter(self) -> IterMut<'a, K, V> {
@@ -4968,7 +4968,7 @@ impl<K, V, S, A: Allocator> IntoIterator for HashMap<K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let map: HashMap<_, _> = [("a", 1), ("b", 2), ("c", 3)].try_into()?;
     ///
@@ -4978,7 +4978,7 @@ impl<K, V, S, A: Allocator> IntoIterator for HashMap<K, V, S, A> {
     /// // the items must be sorted to test them against a sorted array.
     /// vec.sort_unstable();
     /// assert_eq!(vec, [("a", 1), ("b", 2), ("c", 3)]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     fn into_iter(self) -> IntoIter<K, V, A> {
@@ -5196,13 +5196,13 @@ impl<'a, K, V, S, A: Allocator> Entry<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map: HashMap<&str, u32> = HashMap::new();
     /// let entry = map.entry("horseyland").try_insert(37)?;
     ///
     /// assert_eq!(entry.key(), &"horseyland");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn try_insert(self, value: V) -> Result<OccupiedEntry<'a, K, V, S, A>, Error>
@@ -5234,7 +5234,7 @@ impl<'a, K, V, S, A: Allocator> Entry<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map: HashMap<&str, u32> = HashMap::new();
     ///
@@ -5245,7 +5245,7 @@ impl<'a, K, V, S, A: Allocator> Entry<'a, K, V, S, A> {
     /// // existing key
     /// *map.entry("poneyland").or_try_insert(10)? *= 2;
     /// assert_eq!(map["poneyland"], 6);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn or_try_insert(self, default: V) -> Result<&'a mut V, Error>
@@ -5274,7 +5274,7 @@ impl<'a, K, V, S, A: Allocator> Entry<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map: HashMap<&str, u32> = HashMap::new();
     ///
@@ -5285,7 +5285,7 @@ impl<'a, K, V, S, A: Allocator> Entry<'a, K, V, S, A> {
     /// // existing key
     /// *map.entry("poneyland").or_try_insert_with(|| 10)? *= 2;
     /// assert_eq!(map["poneyland"], 6);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn or_try_insert_with<F>(self, default: F) -> Result<&'a mut V, Error>
@@ -5311,7 +5311,7 @@ impl<'a, K, V, S, A: Allocator> Entry<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map: HashMap<&str, usize> = HashMap::new();
     ///
@@ -5322,7 +5322,7 @@ impl<'a, K, V, S, A: Allocator> Entry<'a, K, V, S, A> {
     /// // existing key
     /// *map.entry("poneyland").or_try_insert_with_key(|key| key.chars().count() * 10)? *= 2;
     /// assert_eq!(map["poneyland"], 18);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn or_try_insert_with_key<F>(self, default: F) -> Result<&'a mut V, Error>
@@ -5345,7 +5345,7 @@ impl<'a, K, V, S, A: Allocator> Entry<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map: HashMap<&str, u32> = HashMap::new();
     /// map.entry("poneyland").or_try_insert(3)?;
@@ -5353,7 +5353,7 @@ impl<'a, K, V, S, A: Allocator> Entry<'a, K, V, S, A> {
     /// assert_eq!(map.entry("poneyland").key(), &"poneyland");
     /// // nonexistent key
     /// assert_eq!(map.entry("horseland").key(), &"horseland");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn key(&self) -> &K {
@@ -5369,7 +5369,7 @@ impl<'a, K, V, S, A: Allocator> Entry<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map: HashMap<&str, u32> = HashMap::new();
     ///
@@ -5382,7 +5382,7 @@ impl<'a, K, V, S, A: Allocator> Entry<'a, K, V, S, A> {
     ///    .and_modify(|e| { *e += 1 })
     ///    .or_try_insert(42);
     /// assert_eq!(map["poneyland"], 43);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn and_modify<F>(self, f: F) -> Self
@@ -5405,8 +5405,8 @@ impl<'a, K, V, S, A: Allocator> Entry<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
-    /// use rune_alloc::hash_map::Entry;
+    /// use rune::alloc::HashMap;
+    /// use rune::alloc::hash_map::Entry;
     ///
     /// let mut map: HashMap<&str, u32> = HashMap::new();
     ///
@@ -5451,7 +5451,7 @@ impl<'a, K, V, S, A: Allocator> Entry<'a, K, V, S, A> {
     /// }
     ///
     /// assert!(!map.contains_key("poneyland"));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn and_replace_entry_with<F>(self, f: F) -> Self
@@ -5472,7 +5472,7 @@ impl<'a, K, V: Default, S, A: Allocator> Entry<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map: HashMap<&str, Option<u32>> = HashMap::new();
     ///
@@ -5484,7 +5484,7 @@ impl<'a, K, V: Default, S, A: Allocator> Entry<'a, K, V, S, A> {
     ///
     /// // existing key
     /// assert_eq!(map.entry("horseland").or_try_default()?, &mut Some(3));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn or_try_default(self) -> Result<&'a mut V, Error>
@@ -5505,8 +5505,8 @@ impl<'a, K, V, S, A: Allocator> OccupiedEntry<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
-    /// use rune_alloc::hash_map::{Entry};
+    /// use rune::alloc::HashMap;
+    /// use rune::alloc::hash_map::{Entry};
     ///
     /// let mut map: HashMap<&str, u32> = HashMap::new();
     /// map.entry("poneyland").or_try_insert(12)?;
@@ -5515,7 +5515,7 @@ impl<'a, K, V, S, A: Allocator> OccupiedEntry<'a, K, V, S, A> {
     ///     Entry::Vacant(_) => panic!(),
     ///     Entry::Occupied(entry) => assert_eq!(entry.key(), &"poneyland"),
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn key(&self) -> &K {
@@ -5528,8 +5528,8 @@ impl<'a, K, V, S, A: Allocator> OccupiedEntry<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
-    /// use rune_alloc::hash_map::Entry;
+    /// use rune::alloc::HashMap;
+    /// use rune::alloc::hash_map::Entry;
     ///
     /// let mut map: HashMap<&str, u32> = HashMap::new();
     /// // The map is empty
@@ -5545,7 +5545,7 @@ impl<'a, K, V, S, A: Allocator> OccupiedEntry<'a, K, V, S, A> {
     /// assert_eq!(map.contains_key("poneyland"), false);
     /// // Now map hold none elements
     /// assert!(map.is_empty());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn remove_entry(self) -> (K, V) {
@@ -5557,8 +5557,8 @@ impl<'a, K, V, S, A: Allocator> OccupiedEntry<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
-    /// use rune_alloc::hash_map::Entry;
+    /// use rune::alloc::HashMap;
+    /// use rune::alloc::hash_map::Entry;
     ///
     /// let mut map: HashMap<&str, u32> = HashMap::new();
     /// map.entry("poneyland").or_try_insert(12)?;
@@ -5567,7 +5567,7 @@ impl<'a, K, V, S, A: Allocator> OccupiedEntry<'a, K, V, S, A> {
     ///     Entry::Vacant(_) => panic!(),
     ///     Entry::Occupied(entry) => assert_eq!(entry.get(), &12),
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn get(&self) -> &V {
@@ -5584,8 +5584,8 @@ impl<'a, K, V, S, A: Allocator> OccupiedEntry<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
-    /// use rune_alloc::hash_map::Entry;
+    /// use rune::alloc::HashMap;
+    /// use rune::alloc::hash_map::Entry;
     ///
     /// let mut map: HashMap<&str, u32> = HashMap::new();
     /// map.entry("poneyland").or_try_insert(12)?;
@@ -5600,7 +5600,7 @@ impl<'a, K, V, S, A: Allocator> OccupiedEntry<'a, K, V, S, A> {
     /// }
     ///
     /// assert_eq!(map["poneyland"], 24);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn get_mut(&mut self) -> &mut V {
@@ -5617,8 +5617,8 @@ impl<'a, K, V, S, A: Allocator> OccupiedEntry<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
-    /// use rune_alloc::hash_map::Entry;
+    /// use rune::alloc::HashMap;
+    /// use rune::alloc::hash_map::Entry;
     ///
     /// let mut map: HashMap<&str, u32> = HashMap::new();
     /// map.entry("poneyland").or_try_insert(12)?;
@@ -5633,7 +5633,7 @@ impl<'a, K, V, S, A: Allocator> OccupiedEntry<'a, K, V, S, A> {
     /// *value += 10;
     ///
     /// assert_eq!(map["poneyland"], 22);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn into_mut(self) -> &'a mut V {
@@ -5645,8 +5645,8 @@ impl<'a, K, V, S, A: Allocator> OccupiedEntry<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
-    /// use rune_alloc::hash_map::Entry;
+    /// use rune::alloc::HashMap;
+    /// use rune::alloc::hash_map::Entry;
     ///
     /// let mut map: HashMap<&str, u32> = HashMap::new();
     /// map.entry("poneyland").or_try_insert(12)?;
@@ -5656,7 +5656,7 @@ impl<'a, K, V, S, A: Allocator> OccupiedEntry<'a, K, V, S, A> {
     /// }
     ///
     /// assert_eq!(map["poneyland"], 15);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn insert(&mut self, value: V) -> V {
@@ -5669,8 +5669,8 @@ impl<'a, K, V, S, A: Allocator> OccupiedEntry<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
-    /// use rune_alloc::hash_map::Entry;
+    /// use rune::alloc::HashMap;
+    /// use rune::alloc::hash_map::Entry;
     ///
     /// let mut map: HashMap<&str, u32> = HashMap::new();
     /// // The map is empty
@@ -5685,7 +5685,7 @@ impl<'a, K, V, S, A: Allocator> OccupiedEntry<'a, K, V, S, A> {
     /// assert_eq!(map.contains_key("poneyland"), false);
     /// // Now map hold none elements
     /// assert!(map.is_empty());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn remove(self) -> V {
@@ -5702,8 +5702,8 @@ impl<'a, K, V, S, A: Allocator> OccupiedEntry<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
-    /// use rune_alloc::hash_map::Entry;
+    /// use rune::alloc::HashMap;
+    /// use rune::alloc::hash_map::Entry;
     /// use std::rc::Rc;
     ///
     /// let mut map: HashMap<Rc<String>, u32> = HashMap::new();
@@ -5723,7 +5723,7 @@ impl<'a, K, V, S, A: Allocator> OccupiedEntry<'a, K, V, S, A> {
     ///
     /// assert!(Rc::strong_count(&key_one) == 1 && Rc::strong_count(&key_two) == 2);
     /// assert_eq!(map[&"Stringthing".to_owned()], 16);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn replace_entry(self, value: V) -> (K, V) {
@@ -5744,7 +5744,7 @@ impl<'a, K, V, S, A: Allocator> OccupiedEntry<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_map::{Entry, HashMap};
+    /// use rune::alloc::hash_map::{Entry, HashMap};
     /// use std::rc::Rc;
     ///
     /// let mut map: HashMap<Rc<String>, usize> = HashMap::try_with_capacity(6)?;
@@ -5778,7 +5778,7 @@ impl<'a, K, V, S, A: Allocator> OccupiedEntry<'a, K, V, S, A> {
     ///         }
     ///     }
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn replace_key(self) -> K {
@@ -5793,8 +5793,8 @@ impl<'a, K, V, S, A: Allocator> OccupiedEntry<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
-    /// use rune_alloc::hash_map::Entry;
+    /// use rune::alloc::HashMap;
+    /// use rune::alloc::hash_map::Entry;
     ///
     /// let mut map: HashMap<&str, u32> = HashMap::new();
     /// map.try_insert("poneyland", 42)?;
@@ -5833,7 +5833,7 @@ impl<'a, K, V, S, A: Allocator> OccupiedEntry<'a, K, V, S, A> {
     /// }
     ///
     /// assert!(!map.contains_key("poneyland"));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn replace_entry_with<F>(self, f: F) -> Entry<'a, K, V, S, A>
@@ -5874,7 +5874,7 @@ impl<'a, K, V, S, A: Allocator> VacantEntry<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map: HashMap<&str, u32> = HashMap::new();
     /// assert_eq!(map.entry("poneyland").key(), &"poneyland");
@@ -5889,7 +5889,7 @@ impl<'a, K, V, S, A: Allocator> VacantEntry<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_map::{Entry, HashMap};
+    /// use rune::alloc::hash_map::{Entry, HashMap};
     ///
     /// let mut map: HashMap<&str, u32> = HashMap::new();
     ///
@@ -5909,8 +5909,8 @@ impl<'a, K, V, S, A: Allocator> VacantEntry<'a, K, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
-    /// use rune_alloc::hash_map::Entry;
+    /// use rune::alloc::HashMap;
+    /// use rune::alloc::hash_map::Entry;
     ///
     /// let mut map: HashMap<&str, u32> = HashMap::new();
     ///
@@ -5919,7 +5919,7 @@ impl<'a, K, V, S, A: Allocator> VacantEntry<'a, K, V, S, A> {
     /// }
     ///
     /// assert_eq!(map["poneyland"], 37);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn try_insert(self, value: V) -> Result<&'a mut V, Error>
@@ -5977,13 +5977,13 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> EntryRef<'a, 'b, K, Q, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map: HashMap<String, u32> = HashMap::new();
     /// let entry = map.entry_ref("horseyland").try_insert(37)?;
     ///
     /// assert_eq!(entry.key(), "horseyland");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn try_insert(self, value: V) -> Result<OccupiedEntryRef<'a, 'b, K, Q, V, S, A>, Error>
@@ -6015,7 +6015,7 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> EntryRef<'a, 'b, K, Q, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map: HashMap<String, u32> = HashMap::new();
     ///
@@ -6026,7 +6026,7 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> EntryRef<'a, 'b, K, Q, V, S, A> {
     /// // existing key
     /// *map.entry_ref("poneyland").or_try_insert(10)? *= 2;
     /// assert_eq!(map["poneyland"], 6);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn or_try_insert(self, default: V) -> Result<&'a mut V, Error>
@@ -6055,7 +6055,7 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> EntryRef<'a, 'b, K, Q, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map: HashMap<String, u32> = HashMap::new();
     ///
@@ -6066,7 +6066,7 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> EntryRef<'a, 'b, K, Q, V, S, A> {
     /// // existing key
     /// *map.entry_ref("poneyland").or_try_insert_with(|| 10)? *= 2;
     /// assert_eq!(map["poneyland"], 6);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn or_try_insert_with<F: FnOnce() -> V>(self, default: F) -> Result<&'a mut V, Error>
@@ -6087,7 +6087,7 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> EntryRef<'a, 'b, K, Q, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map: HashMap<String, usize> = HashMap::new();
     ///
@@ -6098,7 +6098,7 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> EntryRef<'a, 'b, K, Q, V, S, A> {
     /// // existing key
     /// *map.entry_ref("poneyland").or_try_insert_with_key(|key| key.chars().count() * 10)? *= 2;
     /// assert_eq!(map["poneyland"], 18);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn or_try_insert_with_key<F: FnOnce(&Q) -> V>(self, default: F) -> Result<&'a mut V, Error>
@@ -6120,7 +6120,7 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> EntryRef<'a, 'b, K, Q, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map: HashMap<String, u32> = HashMap::new();
     /// map.entry_ref("poneyland").or_try_insert(3)?;
@@ -6128,7 +6128,7 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> EntryRef<'a, 'b, K, Q, V, S, A> {
     /// assert_eq!(map.entry_ref("poneyland").key(), "poneyland");
     /// // nonexistent key
     /// assert_eq!(map.entry_ref("horseland").key(), "horseland");
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn key(&self) -> &Q
@@ -6147,7 +6147,7 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> EntryRef<'a, 'b, K, Q, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map: HashMap<String, u32> = HashMap::new();
     ///
@@ -6160,7 +6160,7 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> EntryRef<'a, 'b, K, Q, V, S, A> {
     ///    .and_modify(|e| { *e += 1 })
     ///    .or_try_insert(42)?;
     /// assert_eq!(map["poneyland"], 43);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn and_modify<F>(self, f: F) -> Self
@@ -6183,8 +6183,8 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> EntryRef<'a, 'b, K, Q, V, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
-    /// use rune_alloc::hash_map::EntryRef;
+    /// use rune::alloc::HashMap;
+    /// use rune::alloc::hash_map::EntryRef;
     ///
     /// let mut map: HashMap<String, u32> = HashMap::new();
     ///
@@ -6229,7 +6229,7 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> EntryRef<'a, 'b, K, Q, V, S, A> {
     /// }
     ///
     /// assert!(!map.contains_key("poneyland"));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn and_replace_entry_with<F>(self, f: F) -> Self
@@ -6250,7 +6250,7 @@ impl<'a, 'b, K, Q: ?Sized, V: Default, S, A: Allocator> EntryRef<'a, 'b, K, Q, V
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map: HashMap<String, Option<u32>> = HashMap::new();
     ///
@@ -6262,7 +6262,7 @@ impl<'a, 'b, K, Q: ?Sized, V: Default, S, A: Allocator> EntryRef<'a, 'b, K, Q, V
     ///
     /// // existing key
     /// assert_eq!(map.entry_ref("horseland").or_try_default()?, &mut Some(3));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn or_try_default(self) -> Result<&'a mut V, Error>
@@ -6283,7 +6283,7 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> OccupiedEntryRef<'a, 'b, K, Q, V,
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_map::{EntryRef, HashMap};
+    /// use rune::alloc::hash_map::{EntryRef, HashMap};
     ///
     /// let mut map: HashMap<String, u32> = HashMap::new();
     /// map.entry_ref("poneyland").or_try_insert(12)?;
@@ -6292,7 +6292,7 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> OccupiedEntryRef<'a, 'b, K, Q, V,
     ///     EntryRef::Vacant(_) => panic!(),
     ///     EntryRef::Occupied(entry) => assert_eq!(entry.key(), "poneyland"),
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn key(&self) -> &K {
@@ -6305,8 +6305,8 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> OccupiedEntryRef<'a, 'b, K, Q, V,
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
-    /// use rune_alloc::hash_map::EntryRef;
+    /// use rune::alloc::HashMap;
+    /// use rune::alloc::hash_map::EntryRef;
     ///
     /// let mut map: HashMap<String, u32> = HashMap::new();
     /// // The map is empty
@@ -6322,7 +6322,7 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> OccupiedEntryRef<'a, 'b, K, Q, V,
     /// assert_eq!(map.contains_key("poneyland"), false);
     /// // Now map hold none elements but capacity is equal to the old one
     /// assert!(map.is_empty());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn remove_entry(self) -> (K, V) {
@@ -6334,8 +6334,8 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> OccupiedEntryRef<'a, 'b, K, Q, V,
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
-    /// use rune_alloc::hash_map::EntryRef;
+    /// use rune::alloc::HashMap;
+    /// use rune::alloc::hash_map::EntryRef;
     ///
     /// let mut map: HashMap<String, u32> = HashMap::new();
     /// map.entry_ref("poneyland").or_try_insert(12)?;
@@ -6344,7 +6344,7 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> OccupiedEntryRef<'a, 'b, K, Q, V,
     ///     EntryRef::Vacant(_) => panic!(),
     ///     EntryRef::Occupied(entry) => assert_eq!(entry.get(), &12),
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn get(&self) -> &V {
@@ -6361,8 +6361,8 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> OccupiedEntryRef<'a, 'b, K, Q, V,
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
-    /// use rune_alloc::hash_map::EntryRef;
+    /// use rune::alloc::HashMap;
+    /// use rune::alloc::hash_map::EntryRef;
     ///
     /// let mut map: HashMap<String, u32> = HashMap::new();
     /// map.entry_ref("poneyland").or_try_insert(12)?;
@@ -6377,7 +6377,7 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> OccupiedEntryRef<'a, 'b, K, Q, V,
     /// }
     ///
     /// assert_eq!(map["poneyland"], 24);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn get_mut(&mut self) -> &mut V {
@@ -6394,7 +6394,7 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> OccupiedEntryRef<'a, 'b, K, Q, V,
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_map::{EntryRef, HashMap};
+    /// use rune::alloc::hash_map::{EntryRef, HashMap};
     ///
     /// let mut map: HashMap<String, u32> = HashMap::new();
     /// map.entry_ref("poneyland").or_try_insert(12)?;
@@ -6407,7 +6407,7 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> OccupiedEntryRef<'a, 'b, K, Q, V,
     /// *value += 10;
     ///
     /// assert_eq!(map["poneyland"], 22);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn into_mut(self) -> &'a mut V {
@@ -6419,8 +6419,8 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> OccupiedEntryRef<'a, 'b, K, Q, V,
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
-    /// use rune_alloc::hash_map::EntryRef;
+    /// use rune::alloc::HashMap;
+    /// use rune::alloc::hash_map::EntryRef;
     ///
     /// let mut map: HashMap<String, u32> = HashMap::new();
     /// map.entry_ref("poneyland").or_try_insert(12)?;
@@ -6430,7 +6430,7 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> OccupiedEntryRef<'a, 'b, K, Q, V,
     /// }
     ///
     /// assert_eq!(map["poneyland"], 15);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn insert(&mut self, value: V) -> V {
@@ -6443,8 +6443,8 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> OccupiedEntryRef<'a, 'b, K, Q, V,
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
-    /// use rune_alloc::hash_map::EntryRef;
+    /// use rune::alloc::HashMap;
+    /// use rune::alloc::hash_map::EntryRef;
     ///
     /// let mut map: HashMap<String, u32> = HashMap::new();
     /// // The map is empty
@@ -6459,7 +6459,7 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> OccupiedEntryRef<'a, 'b, K, Q, V,
     /// assert_eq!(map.contains_key("poneyland"), false);
     /// // Now map hold none elements but capacity is equal to the old one
     /// assert!(map.is_empty());
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn remove(self) -> V {
@@ -6476,7 +6476,7 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> OccupiedEntryRef<'a, 'b, K, Q, V,
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_map::{EntryRef, HashMap};
+    /// use rune::alloc::hash_map::{EntryRef, HashMap};
     /// use std::rc::Rc;
     ///
     /// let mut map: HashMap<Rc<str>, u32> = HashMap::new();
@@ -6495,7 +6495,7 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> OccupiedEntryRef<'a, 'b, K, Q, V,
     ///
     /// assert_eq!(Rc::strong_count(&key), 1);
     /// assert_eq!(map["Stringthing"], 16);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn replace_entry(self, value: V) -> (K, V)
@@ -6520,7 +6520,7 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> OccupiedEntryRef<'a, 'b, K, Q, V,
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_map::{EntryRef, HashMap};
+    /// use rune::alloc::hash_map::{EntryRef, HashMap};
     /// use std::rc::Rc;
     ///
     /// let mut map: HashMap<Rc<str>, usize> = HashMap::try_with_capacity(6)?;
@@ -6548,7 +6548,7 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> OccupiedEntryRef<'a, 'b, K, Q, V,
     ///         }
     ///     }
     /// }
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn replace_key(self) -> K
@@ -6566,8 +6566,8 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> OccupiedEntryRef<'a, 'b, K, Q, V,
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
-    /// use rune_alloc::hash_map::EntryRef;
+    /// use rune::alloc::HashMap;
+    /// use rune::alloc::hash_map::EntryRef;
     ///
     /// let mut map: HashMap<String, u32> = HashMap::new();
     /// map.try_insert("poneyland".to_string(), 42)?;
@@ -6606,7 +6606,7 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> OccupiedEntryRef<'a, 'b, K, Q, V,
     /// }
     ///
     /// assert!(!map.contains_key("poneyland"));
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn replace_entry_with<F>(self, f: F) -> EntryRef<'a, 'b, K, Q, V, S, A>
@@ -6647,7 +6647,7 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> VacantEntryRef<'a, 'b, K, Q, V, S
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
+    /// use rune::alloc::HashMap;
     ///
     /// let mut map: HashMap<String, u32> = HashMap::new();
     /// let key: &str = "poneyland";
@@ -6666,7 +6666,7 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> VacantEntryRef<'a, 'b, K, Q, V, S
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_map::{EntryRef, HashMap};
+    /// use rune::alloc::hash_map::{EntryRef, HashMap};
     ///
     /// let mut map: HashMap<String, u32> = HashMap::new();
     /// let key: &str = "poneyland";
@@ -6689,8 +6689,8 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> VacantEntryRef<'a, 'b, K, Q, V, S
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::HashMap;
-    /// use rune_alloc::hash_map::EntryRef;
+    /// use rune::alloc::HashMap;
+    /// use rune::alloc::hash_map::EntryRef;
     ///
     /// let mut map: HashMap<String, u32> = HashMap::new();
     /// let key: &str = "poneyland";
@@ -6700,7 +6700,7 @@ impl<'a, 'b, K, Q: ?Sized, V, S, A: Allocator> VacantEntryRef<'a, 'b, K, Q, V, S
     /// }
     ///
     /// assert_eq!(map["poneyland"], 37);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn try_insert(self, value: V) -> Result<&'a mut V, Error>
@@ -6800,8 +6800,8 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::{HashMap, Vec};
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::{try_vec, HashMap, Vec};
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut map = HashMap::new();
     /// map.try_insert(1, 100)?;
@@ -6812,7 +6812,7 @@ where
     /// // So that the map.get(&1) doesn't return Some(&100).
     /// assert_eq!(map.get(&1), Some(&1));
     ///
-    /// let some_vec: Vec<_> = rune_alloc::try_vec![(3, 3), (4, 4)];
+    /// let some_vec: Vec<_> = try_vec![(3, 3), (4, 4)];
     /// map.try_extend(some_vec)?;
     ///
     /// let some_arr = [(5, 5), (6, 6)];
@@ -6829,7 +6829,7 @@ where
     /// // items must be sorted to test them against a sorted array.
     /// vec.sort_unstable();
     /// assert_eq!(vec, [(1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6)]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     fn try_extend<T: IntoIterator<Item = (K, V)>>(&mut self, iter: T) -> Result<(), Error> {
@@ -6885,8 +6885,8 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_map::HashMap;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::hash_map::HashMap;
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut map = HashMap::new();
     /// map.try_insert(1, 100)?;
@@ -6914,7 +6914,7 @@ where
     /// // items must be sorted to test them against a sorted array.
     /// vec.sort_unstable();
     /// assert_eq!(vec, [(1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6)]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     fn try_extend<T: IntoIterator<Item = (&'a K, &'a V)>>(&mut self, iter: T) -> Result<(), Error> {
@@ -6953,8 +6953,8 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune_alloc::hash_map::HashMap;
-    /// use rune_alloc::prelude::*;
+    /// use rune::alloc::hash_map::HashMap;
+    /// use rune::alloc::prelude::*;
     ///
     /// let mut map = HashMap::new();
     /// map.try_insert(1, 100)?;
@@ -6977,7 +6977,7 @@ where
     /// // items must be sorted to test them against a sorted array.
     /// vec.sort_unstable();
     /// assert_eq!(vec, [(1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6)]);
-    /// # Ok::<_, rune_alloc::Error>(())
+    /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg_attr(feature = "inline-more", inline)]
     fn try_extend<T: IntoIterator<Item = &'a (K, V)>>(&mut self, iter: T) -> Result<(), Error> {
@@ -7060,7 +7060,7 @@ mod test_map {
     use crate::iter::TryExtend;
     use crate::testing::*;
 
-    std::thread_local! { static DROP_VECTOR: RefCell<Vec<i32>> = RefCell::new(Vec::new()) }
+    std::thread_local!(static DROP_VECTOR: RefCell<Vec<i32>> = RefCell::new(Vec::new()));
 
     #[test]
     fn test_zero_capacities() {

@@ -6,8 +6,7 @@ use crate::parse::Parser;
 use crate::termcolor::{ColorChoice, StandardStream};
 use crate::{Context, Diagnostics, Module, Vm, T};
 
-use crate::no_std::prelude::*;
-use crate::no_std::sync::Arc;
+use crate::tests::prelude::*;
 
 #[test]
 fn test_concat_idents() -> rune::support::Result<()> {

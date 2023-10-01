@@ -1,5 +1,3 @@
-use crate::no_std::boxed::Box;
-
 use crate::alloc;
 use crate::ast::Span;
 use crate::parse::{Id, NonZeroId};
@@ -57,7 +55,8 @@ impl Spanned for Span {
     }
 }
 
-impl<T> Spanned for Box<T>
+#[cfg(feature = "alloc")]
+impl<T> Spanned for ::rust_alloc::boxed::Box<T>
 where
     T: Spanned,
 {
@@ -152,7 +151,8 @@ where
     }
 }
 
-impl<T> OptionSpanned for Box<T>
+#[cfg(feature = "alloc")]
+impl<T> OptionSpanned for ::rust_alloc::boxed::Box<T>
 where
     T: OptionSpanned,
 {

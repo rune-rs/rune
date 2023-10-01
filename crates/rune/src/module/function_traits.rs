@@ -276,10 +276,10 @@ macro_rules! impl_function_traits {
                 // used.
                 $(drop($var.1);)*
 
-                let ret = runtime::Future::new(async move {
+                let ret = vm_try!(runtime::Future::new(async move {
                     let output = fut.await;
                     VmResult::Ok(vm_try!(output.to_value()))
-                });
+                }));
 
                 vm_try!(stack.push(vm_try!(Value::try_from(ret))));
                 VmResult::Ok(())

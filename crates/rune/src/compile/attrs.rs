@@ -1,9 +1,8 @@
 use core::marker::PhantomData;
 
-use crate::no_std::collections::VecDeque;
-use crate::no_std::prelude::*;
-
 use crate as rune;
+use crate::alloc::prelude::*;
+use crate::alloc::{Vec, VecDeque};
 use crate::ast;
 use crate::ast::{LitStr, Spanned};
 use crate::compile::{self, ErrorKind};
@@ -19,11 +18,15 @@ pub(crate) struct Parser {
 
 impl Parser {
     /// Construct a new attributes parser.
-    pub(crate) fn new(attributes: &[ast::Attribute]) -> Self {
-        Self {
-            unused: attributes.iter().enumerate().map(|(i, _)| i).collect(),
+    pub(crate) fn new(attributes: &[ast::Attribute]) -> compile::Result<Self> {
+        Ok(Self {
+            unused: attributes
+                .iter()
+                .enumerate()
+                .map(|(i, _)| i)
+                .try_collect()?,
             missed: Vec::new(),
-        }
+        })
     }
 
     /// Try to parse and collect all attributes of a given type.
@@ -33,20 +36,20 @@ impl Parser {
         &'this mut self,
         cx: ResolveContext<'this>,
         attributes: &'a [ast::Attribute],
-    ) -> ParseAll<'this, 'a, T>
+    ) -> compile::Result<ParseAll<'this, 'a, T>>
     where
         T: Attribute + Parse,
     {
         for index in self.missed.drain(..) {
-            self.unused.push_back(index);
+            self.unused.try_push_back(index)?;
         }
 
-        ParseAll {
+        Ok(ParseAll {
             outer: self,
             attributes,
             cx,
             _marker: PhantomData,
-        }
+        })
     }
 
     /// Try to parse a unique attribute with the given type.
@@ -61,7 +64,7 @@ impl Parser {
     where
         T: Attribute + Parse,
     {
-        let mut vec = self.parse_all::<T>(cx, attributes);
+        let mut vec = self.parse_all::<T>(cx, attributes)?;
         let first = vec.next();
         let second = vec.next();
 
@@ -105,12 +108,18 @@ where
             let index = self.outer.unused.pop_front()?;
 
             let Some(a) = self.attributes.get(index) else {
-                self.outer.missed.push(index);
+                if let Err(error) = self.outer.missed.try_push(index) {
+                    return Some(Err(error.into()));
+                }
+
                 continue;
             };
 
             let Some(ident) = a.path.try_as_ident() else {
-                self.outer.missed.push(index);
+                if let Err(error) = self.outer.missed.try_push(index) {
+                    return Some(Err(error.into()));
+                }
+
                 continue;
             };
 
@@ -122,7 +131,10 @@ where
             };
 
             if ident != T::PATH {
-                self.outer.missed.push(index);
+                if let Err(error) = self.outer.missed.try_push(index) {
+                    return Some(Err(error.into()));
+                }
+
                 continue;
             }
 

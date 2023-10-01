@@ -30,14 +30,16 @@ pub enum AccessError {
     AnyObjError { error: AnyObjError },
 }
 
-impl crate::no_std::error::Error for AccessError {
-    fn source(&self) -> Option<&(dyn crate::no_std::error::Error + 'static)> {
-        match self {
-            AccessError::NotAccessibleRef { error, .. } => Some(error),
-            AccessError::NotAccessibleMut { error, .. } => Some(error),
-            AccessError::NotAccessibleTake { error, .. } => Some(error),
-            AccessError::AnyObjError { error, .. } => Some(error),
-            _ => None,
+cfg_std! {
+    impl std::error::Error for AccessError {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            match self {
+                AccessError::NotAccessibleRef { error, .. } => Some(error),
+                AccessError::NotAccessibleMut { error, .. } => Some(error),
+                AccessError::NotAccessibleTake { error, .. } => Some(error),
+                AccessError::AnyObjError { error, .. } => Some(error),
+                _ => None,
+            }
         }
     }
 }
@@ -97,7 +99,9 @@ impl fmt::Display for NotAccessibleRef {
     }
 }
 
-impl crate::no_std::error::Error for NotAccessibleRef {}
+cfg_std! {
+    impl std::error::Error for NotAccessibleRef {}
+}
 
 /// Error raised when tried to access for exclusive access but it was not
 /// accessible.
@@ -111,7 +115,9 @@ impl fmt::Display for NotAccessibleMut {
     }
 }
 
-impl crate::no_std::error::Error for NotAccessibleMut {}
+cfg_std! {
+    impl std::error::Error for NotAccessibleMut {}
+}
 
 /// Error raised when tried to access the guarded data for taking.
 ///
@@ -127,7 +133,9 @@ impl fmt::Display for NotAccessibleTake {
     }
 }
 
-impl crate::no_std::error::Error for NotAccessibleTake {}
+cfg_std! {
+    impl std::error::Error for NotAccessibleTake {}
+}
 
 /// The kind of access to perform.
 #[derive(Debug, Clone, Copy)]

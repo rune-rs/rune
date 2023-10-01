@@ -7,7 +7,7 @@ use core::num::NonZeroUsize;
 use crate as rune;
 use crate::alloc::borrow::Cow;
 use crate::alloc::prelude::*;
-use crate::no_std::rc::Rc;
+use ::rust_alloc::rc::Rc;
 
 use serde::{Deserialize, Serialize};
 

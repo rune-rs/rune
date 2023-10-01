@@ -1,6 +1,5 @@
 use crate::std::sync::Mutex;
-use crate::no_std::sync::Arc;
-use crate::no_std::std;
+use ::rust_alloc::sync::Arc;
 use crate::alloc::{self, String, HashMap};
 use crate::alloc::borrow::Cow;
 use crate::alloc::prelude::*;
@@ -55,8 +54,8 @@ impl Templating {
     /// Set up a new templating engine.
     pub(crate) fn new<'a, I>(partials: I, paths: Paths) -> Result<Templating> where I: IntoIterator<Item = (&'a str, Cow<'a, str>)> {
         let mut handlebars = Handlebars::new();
-        handlebars.register_helper("literal", std::Box::new(literal));
-        handlebars.register_helper("path", std::Box::new(path(paths)));
+        handlebars.register_helper("literal", ::rust_alloc::boxed::Box::new(literal));
+        handlebars.register_helper("path", ::rust_alloc::boxed::Box::new(path(paths)));
 
         for (name, source) in partials {
             handlebars.register_partial(name, source.as_ref())?;

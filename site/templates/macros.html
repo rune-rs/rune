@@ -13,19 +13,53 @@
     {% endif %}
 
     {% if extra.book %}
-    <li class="button {{bsize}} font_faint"><a title="Read The Book" href="https://{{extra.book}}" target="_blank" >book <i class="fa fa-book" ></i></a></li>
+    <li class="button {{bsize}} font_faint">
+        <a title="Read The Book" href="https://{{extra.book}}" target="_blank">
+            <i class="fa-solid fa-book"></i>
+            book
+        </a>
+    </li>
     {% endif %}
 
     {% if extra.github %}
-    <li class="button {{bsize}} font_faint"><a title="Visit GitHub Project" href="https://github.com/{{extra.github}}" target="_blank" >{{extra.github}} <i class="fab fa-github" ></i></a></li>
+    <li class="button {{bsize}} font_faint">
+        <a title="Visit GitHub Project" href="https://github.com/{{extra.github}}" target="_blank">
+            <i class="fab fa-github"></i>
+            {{extra.github}}
+        </a>
+    </li>
     {% endif %}
 
     {% if extra.discord %}
-    <li class="button {{bsize}} font_faint"><a title="Join Community Discord" href="{{extra.discord}}" target="_blank" >discord <i class="fab fa-discord" ></i></a></li>
+    <li class="button {{bsize}} font_faint">
+        <a title="Join Community Discord" href="{{extra.discord}}" target="_blank">
+            <i class="fab fa-discord"></i>
+            discord
+        </a>
+    </li>
+    {% endif %}
+
+    <li class="button {{bsize}} font_faint">
+        <a title="rustdocs" href="{{config.base_url}}/docs/">
+            <i class="fab fa-rust"></i>
+            rustdocs
+        </a>
+    </li>
+
+    <li class="button {{bsize}} font_faint">
+        <a title="runedocs" href="{{config.base_url}}/api/">
+            <i class="fa fa-book"></i>
+            runedocs
+        </a>
+    </li>
 
     {% if rss %}
-    <li class="button {{bsize}} font_faint"><a href="{{siteurl}}/rss.xml" target ="_blank">rss <i class="fas fa-rss" ></i></a></li>
-    {% endif %}
+    <li class="button {{bsize}} font_faint">
+        <a href="{{siteurl}}/rss.xml" target ="_blank">
+            <i class="fas fa-rss"></i>
+            rss
+        </a>
+    </li>
     {% endif %}
 </ul>
 {% endmacro social_list %}

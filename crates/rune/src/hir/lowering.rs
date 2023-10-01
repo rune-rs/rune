@@ -121,7 +121,7 @@ pub(crate) fn empty_fn<'hir>(
 ) -> compile::Result<hir::ItemFn<'hir>> {
     alloc_with!(cx, span);
 
-    cx.scopes.push();
+    cx.scopes.push()?;
 
     let statements = iter!(&ast.statements, |ast| stmt(cx, ast)?);
 
@@ -261,7 +261,7 @@ fn expr_call_closure<'hir>(
         None => {
             tracing::trace!("queuing closure build entry");
 
-            cx.scopes.push_captures();
+            cx.scopes.push_captures()?;
 
             for (arg, _) in ast.args.as_slice() {
                 fn_arg(cx, arg)?;
@@ -309,7 +309,7 @@ pub(crate) fn block<'hir>(
 ) -> compile::Result<hir::Block<'hir>> {
     alloc_with!(cx, ast);
 
-    cx.scopes.push();
+    cx.scopes.push()?;
 
     let statements = iter!(&ast.statements, |ast| stmt(cx, ast)?);
 
@@ -524,7 +524,7 @@ pub(crate) fn expr<'hir>(
                 None => None,
             };
 
-            cx.scopes.push_loop(label);
+            cx.scopes.push_loop(label)?;
             let condition = condition(cx, &ast.condition)?;
             let body = block(cx, &ast.body)?;
             let layer = cx.scopes.pop().with_span(ast)?;
@@ -542,7 +542,7 @@ pub(crate) fn expr<'hir>(
                 None => None,
             };
 
-            cx.scopes.push_loop(label);
+            cx.scopes.push_loop(label)?;
             let body = block(cx, &ast.body)?;
             let layer = cx.scopes.pop().with_span(ast)?;
 
@@ -563,8 +563,7 @@ pub(crate) fn expr<'hir>(
                 None => None,
             };
 
-            cx.scopes.push_loop(label);
-
+            cx.scopes.push_loop(label)?;
             let binding = pat(cx, &ast.binding)?;
             let body = block(cx, &ast.body)?;
 
@@ -586,7 +585,7 @@ pub(crate) fn expr<'hir>(
         ast::Expr::Match(ast) => hir::ExprKind::Match(alloc!(hir::ExprMatch {
             expr: expr(cx, &ast.expr)?,
             branches: iter!(&ast.branches, |(ast, _)| {
-                cx.scopes.push();
+                cx.scopes.push()?;
 
                 let pat = pat(cx, &ast.pat)?;
                 let condition = option!(&ast.condition, |(_, ast)| expr(cx, ast)?);
@@ -646,7 +645,7 @@ pub(crate) fn expr<'hir>(
             branches: iter!(&ast.branches, |(ast, _)| {
                 match ast {
                     ast::ExprSelectBranch::Pat(ast) => {
-                        cx.scopes.push();
+                        cx.scopes.push()?;
 
                         let pat = pat(cx, &ast.pat)?;
                         let body = expr(cx, &ast.body)?;
@@ -742,7 +741,7 @@ pub(crate) fn expr_if<'hir>(
     let branches = iter!(branches, length, |(span, c, b)| {
         let (condition, block, drop) = match c {
             Some(c) => {
-                cx.scopes.push();
+                cx.scopes.push()?;
 
                 let condition = condition(cx, c)?;
                 let block = block(cx, b)?;
@@ -919,7 +918,7 @@ pub(crate) fn expr_block<'hir>(
                 None => {
                     tracing::trace!("queuing async block build entry");
 
-                    cx.scopes.push_captures();
+                    cx.scopes.push_captures()?;
                     block(cx, &ast.block)?;
                     let layer = cx.scopes.pop().with_span(&ast.block)?;
 
@@ -973,7 +972,7 @@ fn expr_break<'hir>(
         None => None,
     };
 
-    let Some(drop) = cx.scopes.loop_drop(label) else {
+    let Some(drop) = cx.scopes.loop_drop(label)? else {
         if let Some(label) = label {
             return Err(compile::Error::new(
                 ast,
@@ -1012,7 +1011,7 @@ fn expr_continue<'hir>(
         None => None,
     };
 
-    let Some(drop) = cx.scopes.loop_drop(label) else {
+    let Some(drop) = cx.scopes.loop_drop(label)? else {
         if let Some(label) = label {
             return Err(compile::Error::new(
                 ast,
@@ -1689,7 +1688,7 @@ fn expr_call<'hir>(
                                 &ast.args,
                                 path,
                                 None,
-                            );
+                            )?;
                         }
                     }
                     meta::Kind::Function { .. } => (),

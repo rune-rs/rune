@@ -2,10 +2,8 @@
 //!
 //! [Rune Language]: https://rune-rs.github.io
 
-use crate::no_std::vec::Vec;
-
 use crate as rune;
-use crate::alloc::try_format;
+use crate::alloc::{try_format, Vec};
 use crate::ast;
 use crate::compile;
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
@@ -27,9 +25,9 @@ impl Bencher {
     }
 
     /// Run a benchmark using the given closure.
-    #[rune::function]
+    #[rune::function(vm_result)]
     fn iter(&mut self, f: Function) {
-        self.fns.push(f);
+        self.fns.try_push(f).vm?;
     }
 }
 

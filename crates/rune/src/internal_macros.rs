@@ -99,6 +99,16 @@ macro_rules! cfg_doc {
     }
 }
 
+macro_rules! cfg_std {
+    ($($item:item)*) => {
+        $(
+            #[cfg(feature = "std")]
+            #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
+            $item
+        )*
+    }
+}
+
 /// Implements a set of common value conversions.
 macro_rules! from_value {
     ($ty:ty, $into:ident) => {

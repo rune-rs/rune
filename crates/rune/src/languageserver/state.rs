@@ -349,8 +349,8 @@ impl<'a> State<'a> {
             let mut build = Build::default();
 
             let input = match url.to_file_path() {
-                Ok(path) => crate::Source::with_path(url, source.try_to_string()?, path),
-                Err(..) => crate::Source::new(url, source.try_to_string()?),
+                Ok(path) => crate::Source::with_path(url, source.try_to_string()?, path)?,
+                Err(..) => crate::Source::new(url, source.try_to_string()?)?,
             };
 
             build.sources.insert(input)?;
@@ -439,7 +439,7 @@ impl<'a> State<'a> {
 
         manifest_build
             .sources
-            .insert(crate::Source::with_path(url, source, path))?;
+            .insert(crate::Source::with_path(url, source, path)?)?;
 
         let mut source_loader = WorkspaceSourceLoader::new(&self.workspace.sources);
 
@@ -468,7 +468,7 @@ impl<'a> State<'a> {
             let mut build = Build::default();
             build
                 .sources
-                .insert(crate::Source::with_path(&url, source, p.found.path))?;
+                .insert(crate::Source::with_path(&url, source, p.found.path)?)?;
 
             script_builds.try_push(build)?;
         }
@@ -1119,7 +1119,7 @@ impl<'a> crate::compile::SourceLoader for ScriptSourceLoader<'a> {
         if let Some(candidates) = Self::candidates(root, item, span)? {
             for (url, path) in candidates {
                 if let Some(s) = self.sources.get(&url) {
-                    return Ok(crate::Source::with_path(url, s.try_to_string()?, path));
+                    return Ok(crate::Source::with_path(url, s.try_to_string()?, path)?);
                 }
             }
         }
@@ -1148,7 +1148,7 @@ impl<'a> workspace::SourceLoader for WorkspaceSourceLoader<'a> {
         if let Ok(url) = crate::languageserver::url::from_file_path(path) {
             if let Some(s) = self.sources.get(&url) {
                 let source = s.try_to_string().with_span(span)?;
-                return Ok(crate::Source::with_path(url, source, path));
+                return Ok(crate::Source::with_path(url, source, path).with_span(span)?);
             }
         }
 

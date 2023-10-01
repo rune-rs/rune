@@ -9,8 +9,7 @@ use core::ptr;
 use core::slice;
 use core::str;
 
-use crate::alloc::{self, HashMap};
-use crate::no_std::prelude::*;
+use crate::alloc::{self, try_vec, Box, HashMap, Vec};
 
 #[non_exhaustive]
 pub struct ArenaWriteSliceOutOfBounds {
@@ -40,10 +39,8 @@ struct Chunk {
 impl Chunk {
     /// Construct a new chunk with the specified length.
     fn new(len: usize) -> Result<Self, ArenaAllocError> {
-        // TODO: check allocation and return ArenaAllocError if we're unable to
-        // allocate any more.
         Ok(Self {
-            storage: Box::from(vec![0u8; len]),
+            storage: try_vec![0u8; len].try_into_boxed_slice()?,
         })
     }
 }
@@ -90,7 +87,7 @@ impl Arena {
             slice::from_raw_parts(ptr.as_ptr() as *const _, bytes.len())
         };
 
-        self.bytes.borrow_mut().try_insert(bytes.into(), ptr)?;
+        self.bytes.borrow_mut().try_insert(bytes.try_into()?, ptr)?;
         Ok(output)
     }
 
@@ -188,7 +185,7 @@ impl Arena {
                 .unwrap_or(PAGE),
         );
 
-        chunks.push(Chunk::new(new_cap)?);
+        chunks.try_push(Chunk::new(new_cap)?)?;
 
         let Some(chunk) = chunks.last_mut() else {
             return Err(ArenaAllocError {
