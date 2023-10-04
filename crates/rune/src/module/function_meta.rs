@@ -284,11 +284,7 @@ impl FunctionMetaKind {
         A: FunctionArgs,
         K: FunctionKind,
     {
-        Ok(FunctionBuilder {
-            name,
-            f,
-            _marker: PhantomData,
-        })
+        Ok(FunctionBuilder::new(name, f))
     }
 
     #[doc(hidden)]
@@ -313,6 +309,16 @@ pub struct FunctionBuilder<N, F, A, K> {
     name: N,
     f: F,
     _marker: PhantomData<(A, K)>,
+}
+
+impl<N, F, A, K> FunctionBuilder<N, F, A, K> {
+    pub(crate) fn new(name: N, f: F) -> Self {
+        Self {
+            name,
+            f,
+            _marker: PhantomData,
+        }
+    }
 }
 
 impl<N, F, A, K> FunctionBuilder<N, F, A, K>

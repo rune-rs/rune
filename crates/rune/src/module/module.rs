@@ -10,8 +10,8 @@ use crate::alloc::{self, HashMap, HashSet, String, Vec};
 use crate::compile::{self, meta, ContextError, Docs, IntoComponent, ItemBuf, Named};
 use crate::macros::{MacroContext, TokenStream};
 use crate::module::function_meta::{
-    AssociatedFunctionData, AssociatedFunctionName, FunctionArgs, FunctionData, FunctionMeta,
-    FunctionMetaKind, MacroMeta, MacroMetaKind, ToFieldFunction, ToInstance,
+    AssociatedFunctionData, AssociatedFunctionName, FunctionArgs, FunctionBuilder, FunctionData,
+    FunctionMeta, FunctionMetaKind, MacroMeta, MacroMetaKind, ToFieldFunction, ToInstance,
 };
 use crate::module::{
     AssociatedKey, Async, EnumMut, Function, FunctionKind, InstallWith, InstanceFunction,
@@ -24,6 +24,46 @@ use crate::runtime::{
     Protocol, Stack, ToValue, TypeCheck, TypeOf, Value, VmResult,
 };
 use crate::Hash;
+
+/// Function builder as returned by [`Module::function`].
+///
+/// This allows for building a function regularly with
+/// [`ModuleFunctionBuilder::build`] or statically associate the function with a
+/// type through [`ModuleFunctionBuilder::build_associated::<T>`].
+pub struct ModuleFunctionBuilder<'a, F, A, N, K> {
+    module: &'a mut Module,
+    inner: FunctionBuilder<N, F, A, K>,
+}
+
+impl<'a, F, A, N, K> ModuleFunctionBuilder<'a, F, A, N, K>
+where
+    F: Function<A, K>,
+    F::Return: MaybeTypeOf,
+    A: FunctionArgs,
+    K: FunctionKind,
+{
+    /// Construct a regular function.
+    #[inline]
+    pub fn build(self) -> Result<ItemFnMut<'a>, ContextError>
+    where
+        N: IntoIterator,
+        N::Item: IntoComponent,
+    {
+        let meta = self.inner.build()?;
+        self.module.function_from_meta_kind(meta)
+    }
+
+    /// Construct a function that is associated with `T`.
+    #[inline]
+    pub fn build_associated<T>(self) -> Result<ItemFnMut<'a>, ContextError>
+    where
+        N: ToInstance,
+        T: TypeOf + Named,
+    {
+        let meta = self.inner.build_associated::<T>()?;
+        self.module.function_from_meta_kind(meta)
+    }
+}
 
 #[doc(hidden)]
 pub struct ModuleMetaData {
@@ -827,6 +867,17 @@ impl Module {
         }
     }
 
+    // TODO: clean up a bit.
+    fn function_from_meta_kind(
+        &mut self,
+        kind: FunctionMetaKind,
+    ) -> Result<ItemFnMut<'_>, ContextError> {
+        match kind {
+            FunctionMetaKind::Function(data) => self.function_inner(data, Docs::EMPTY),
+            FunctionMetaKind::AssociatedFunction(data) => self.assoc_fn(data, Docs::EMPTY),
+        }
+    }
+
     /// Register a function.
     ///
     /// If possible, [`Module::function_meta`] should be used since it includes more
@@ -878,6 +929,31 @@ impl Module {
         K: FunctionKind,
     {
         self.function_inner(FunctionData::new(name, f)?, Docs::EMPTY)
+    }
+
+    /// Register a function and return a [`ModuleFunctionBuilder`] providing
+    /// more control.
+    ///
+    /// If possible, [`Module::function_meta`] should be used since it includes
+    /// more useful information about the function.
+    // TODO: Replace the newly added `function` with this and document.
+    pub fn function2<F, A, N, K>(
+        &mut self,
+        name: N,
+        f: F,
+    ) -> Result<ModuleFunctionBuilder<'_, F, A, N, K>, ContextError>
+    where
+        F: Function<A, K>,
+        F::Return: MaybeTypeOf,
+        N: IntoIterator,
+        N::Item: IntoComponent,
+        A: FunctionArgs,
+        K: FunctionKind,
+    {
+        Ok(ModuleFunctionBuilder {
+            module: self,
+            inner: FunctionBuilder::new(name, f),
+        })
     }
 
     /// See [`Module::function`].

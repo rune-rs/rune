@@ -30,7 +30,7 @@ pub(crate) use self::function_meta::{AssociatedFunctionName, ToFieldFunction, To
 pub use self::function_meta::{FunctionMetaData, FunctionMetaKind, MacroMetaData, MacroMetaKind};
 pub use self::function_traits::{Async, Function, FunctionKind, InstanceFunction, Plain};
 #[doc(hidden)]
-pub use self::module::{Module, ModuleMeta, ModuleMetaData};
+pub use self::module::{Module, ModuleFunctionBuilder, ModuleMeta, ModuleMetaData};
 
 /// Trait to handle the installation of auxilliary functions for a type
 /// installed into a module.
