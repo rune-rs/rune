@@ -20,8 +20,8 @@ use crate::module::{
     VariantMut,
 };
 use crate::runtime::{
-    AttributeMacroHandler, ConstValue, FromValue, GeneratorState, MacroHandler, MaybeTypeOf,
-    Protocol, Stack, ToValue, TypeCheck, TypeOf, Value, VmResult,
+    AttributeMacroHandler, ConstValue, FromValue, FullTypeOf, GeneratorState, MacroHandler,
+    MaybeTypeOf, Protocol, Stack, ToValue, TypeCheck, TypeInfo, TypeOf, Value, VmResult,
 };
 use crate::Hash;
 
@@ -43,6 +43,7 @@ where
     K: FunctionKind,
 {
     /// Construct a regular function.
+    // TODO: add code example.
     #[inline]
     pub fn build(self) -> Result<ItemFnMut<'a>, ContextError>
     where
@@ -54,6 +55,7 @@ where
     }
 
     /// Construct a function that is associated with `T`.
+    // TODO: add code example.
     #[inline]
     pub fn build_associated<T>(self) -> Result<ItemFnMut<'a>, ContextError>
     where
@@ -61,6 +63,30 @@ where
         T: TypeOf + Named,
     {
         let meta = self.inner.build_associated::<T>()?;
+        self.module.function_from_meta_kind(meta)
+    }
+
+    /// Construct a function that is associated with a custom dynamically
+    /// specified container.
+    ///
+    /// [`FullTypeOf`] and [`TypeInfo`] are usually constructed through the
+    /// [`TypeOf`] trait. But that requires access to a static type, for which
+    /// you should use [`build_associated`] instead.
+    ///
+    /// [`build_associated`]: ModuleFunctionBuilder::build_associated
+    // TODO: add code example.
+    #[inline]
+    pub fn build_associated_with(
+        self,
+        container: FullTypeOf,
+        container_type_info: TypeInfo,
+    ) -> Result<ItemFnMut<'a>, ContextError>
+    where
+        N: ToInstance,
+    {
+        let meta = self
+            .inner
+            .build_associated_with(container, container_type_info)?;
         self.module.function_from_meta_kind(meta)
     }
 }

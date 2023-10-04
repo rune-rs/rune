@@ -347,12 +347,25 @@ where
         N: ToInstance,
         T: TypeOf + Named,
     {
+        self.build_associated_with(T::type_of(), T::type_info())
+    }
+
+    #[doc(hidden)]
+    #[inline]
+    pub fn build_associated_with(
+        self,
+        container: FullTypeOf,
+        container_type_info: TypeInfo,
+    ) -> alloc::Result<FunctionMetaKind>
+    where
+        N: ToInstance,
+    {
         Ok(FunctionMetaKind::AssociatedFunction(
             AssociatedFunctionData {
                 name: self.name.to_instance()?,
                 handler: Arc::new(move |stack, args| self.f.fn_call(stack, args)),
-                container: T::type_of(),
-                container_type_info: T::type_info(),
+                container,
+                container_type_info,
                 #[cfg(feature = "doc")]
                 is_async: K::is_async(),
                 #[cfg(feature = "doc")]
