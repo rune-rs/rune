@@ -971,8 +971,6 @@ impl Module {
     where
         F: Function<A, K>,
         F::Return: MaybeTypeOf,
-        N: IntoIterator,
-        N::Item: IntoComponent,
         A: FunctionArgs,
         K: FunctionKind,
     {
