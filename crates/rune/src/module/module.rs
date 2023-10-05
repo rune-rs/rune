@@ -271,13 +271,16 @@ impl<'a, N> ModuleRawFunctionBuilder<'a, N> {
 /// [`ModuleConstantBuilder::build`] or statically associate the function with a
 /// type through [`ModuleConstantBuilder::build_associated::<T>`].
 #[must_use = "Must call one of the build functions, like `build` or `build_associated`"]
-pub struct ModuleConstantBuilder<'a, N, T> {
+pub struct ModuleConstantBuilder<'a, N, V> {
     module: &'a mut Module,
     name: N,
-    value: T,
+    value: V,
 }
 
-impl<'a, N, T> ModuleConstantBuilder<'a, N, T> {
+impl<'a, N, V> ModuleConstantBuilder<'a, N, V>
+where
+    V: ToValue,
+{
     /// Add the free constant directly to the module.
     ///
     /// # Examples
@@ -328,12 +331,12 @@ impl<'a, N, T> ModuleConstantBuilder<'a, N, T> {
     /// module.constant("TEN", 10).build_associated::<Thing>()?.docs(["Ten which is an associated constant."]);
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    fn build_associated<T>(self) -> Result<ItemMut<'a>, ContextError>
+    pub fn build_associated<T>(self) -> Result<ItemMut<'a>, ContextError>
     where
         N: ToInstance,
     {
-        let name = self.name.to_instance()?;
-        todo!("Implement associated constants")
+        let _ = self.name.to_instance()?;
+        todo!("implement associated constants")
     }
 }
 
@@ -807,7 +810,7 @@ impl Module {
     /// module.constant("TEN", 10).build_associated::<MyType>()?.docs(["Ten which looks like an associated constant."]);
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn constant<N, V>(&mut self, name: N, value: V) -> ModuleConstantBuilder<'_, N, T>
+    pub fn constant<N, V>(&mut self, name: N, value: V) -> ModuleConstantBuilder<'_, N, V>
     where
         V: ToValue,
     {
@@ -1038,7 +1041,7 @@ impl Module {
             ) -> compile::Result<TokenStream>,
         N: IntoComponent,
     {
-        let item = ItemBuf::with_item(name)?;
+        let item = ItemBuf::with_item([name])?;
         let hash = Hash::type_hash(&item);
 
         if !self.names.try_insert(Name::AttributeMacro(hash))? {
