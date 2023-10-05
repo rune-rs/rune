@@ -13,7 +13,7 @@ use crate::{ContextError, Module};
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", ["i64"])?;
 
-    module.function(["parse"], parse)?;
+    module.function("parse", parse).build()?;
     module.function_meta(to_float)?;
 
     module.function_meta(max)?;
@@ -49,7 +49,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(cmp)?;
     module.function_meta(to_string)?;
 
-    module.constant(["MIN"], i64::MIN)?.docs([
+    module.constant("MIN", i64::MIN).build()?.docs([
         "The smallest value that can be represented by this integer type",
         "(&minus;2<sup>63</sup>).",
         "",
@@ -62,7 +62,7 @@ pub fn module() -> Result<Module, ContextError> {
         "```",
     ])?;
 
-    module.constant(["MAX"], i64::MAX)?.docs([
+    module.constant("MAX", i64::MAX).build()?.docs([
         "The largest value that can be represented by this integer type",
         "(2<sup>63</sup> &minus; 1).",
         "",

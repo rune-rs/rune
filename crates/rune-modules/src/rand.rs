@@ -40,20 +40,19 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     let mut module = Module::with_crate("rand")?;
 
     module.ty::<WyRand>()?;
-    module.function(["WyRand", "new"], WyRand::new)?;
-    module.function(["WyRand", "new_seed"], WyRand::new_seed)?;
+    module.function("new", WyRand::new).build_associated::<WyRand>()?;
+    module.function("new_seed", WyRand::new_seed).build_associated::<WyRand>()?;
     module.associated_function("int", WyRand::int)?;
     module.associated_function("int_range", WyRand::int_range)?;
 
     module.ty::<Pcg64>()?;
-    module.function(["Pcg64", "new"], Pcg64::new)?;
-    module.function(["Pcg64", "new_seed"], Pcg64::new_seed)?;
+    module.function("new", Pcg64::new).build_associated::<Pcg64>()?;
+    module.function("new_seed", Pcg64::new_seed).build_associated::<Pcg64>()?;
     module.associated_function("int", Pcg64::int)?;
     module.associated_function("int_range", Pcg64::int_range)?;
 
-    module.function(["int"], int)?;
-    module.function(["int_range"], int_range)?;
-
+    module.function("int", int).build()?;
+    module.function("int_range", int_range).build()?;
     Ok(module)
 }
 

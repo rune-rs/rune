@@ -11,7 +11,7 @@ pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", ["result"])?;
     // Sorted for ease of finding
     let mut result = module
-        .result(["Result"])?
+        .result("Result")?
         .static_docs(&["Result is a type that represents either success (Ok) or failure (Err)."])?;
 
     result

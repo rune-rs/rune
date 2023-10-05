@@ -37,7 +37,7 @@ pub fn module(stdio: bool) -> Result<Module, ContextError> {
         module.function_meta(print_impl)?;
         module.function_meta(println_impl)?;
 
-        module.raw_fn(["dbg"], dbg_impl)?.docs([
+        module.raw_function("dbg", dbg_impl).build()?.docs([
             "Debug to output.",
             "",
             "This is the actual output hook, and if you install rune modules without",

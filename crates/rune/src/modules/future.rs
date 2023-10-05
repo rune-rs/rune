@@ -10,7 +10,8 @@ pub fn module() -> Result<Module, ContextError> {
     module.ty::<Future>()?;
 
     module
-        .raw_fn(["join"], raw_join)?
+        .raw_function("join", raw_join)
+        .build()?
         .is_async(true)
         .args(1)
         .argument_types([None])?

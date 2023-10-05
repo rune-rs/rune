@@ -17,7 +17,7 @@ fn bug_344_function() -> Result<()> {
     let mut context = Context::new();
     let mut module = Module::new();
 
-    module.function(["function"], function)?;
+    module.function("function", function).build()?;
 
     context.install(module)?;
     let runtime = context.runtime()?;
@@ -74,7 +74,7 @@ fn bug_344_async_function() -> Result<()> {
     let mut context = Context::new();
     let mut module = Module::new();
 
-    module.function(["function"], function)?;
+    module.function("function", function).build()?;
 
     context.install(module)?;
     let runtime = context.runtime()?;

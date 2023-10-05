@@ -2,11 +2,15 @@ prelude!();
 
 fn make_module() -> Result<Module, ContextError> {
     let mut module = Module::new();
-    module.function(["receive_tuple"], |(_, _): (Value, Value)| ())?;
-    module.function(
-        ["receive_vec_tuple"],
-        |VecTuple((_, _)): VecTuple<(Value, Value)>| (),
-    )?;
+    module
+        .function("receive_tuple", |(_, _): (Value, Value)| ())
+        .build()?;
+    module
+        .function(
+            "receive_vec_tuple",
+            |VecTuple((_, _)): VecTuple<(Value, Value)>| (),
+        )
+        .build()?;
     Ok(module)
 }
 

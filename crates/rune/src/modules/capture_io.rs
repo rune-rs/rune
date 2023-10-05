@@ -29,28 +29,34 @@ pub fn module(io: &CaptureIo) -> Result<Module, ContextError> {
 
     let o = io.clone();
 
-    module.function(["print"], move |m: &str| {
-        match write!(o.inner.lock(), "{}", m) {
-            Ok(()) => VmResult::Ok(()),
-            Err(error) => VmResult::panic(error),
-        }
-    })?;
+    module
+        .function("print", move |m: &str| {
+            match write!(o.inner.lock(), "{}", m) {
+                Ok(()) => VmResult::Ok(()),
+                Err(error) => VmResult::panic(error),
+            }
+        })
+        .build()?;
 
     let o = io.clone();
 
-    module.function(["println"], move |m: &str| {
-        match writeln!(o.inner.lock(), "{}", m) {
-            Ok(()) => VmResult::Ok(()),
-            Err(error) => VmResult::panic(error),
-        }
-    })?;
+    module
+        .function("println", move |m: &str| {
+            match writeln!(o.inner.lock(), "{}", m) {
+                Ok(()) => VmResult::Ok(()),
+                Err(error) => VmResult::panic(error),
+            }
+        })
+        .build()?;
 
     let o = io.clone();
 
-    module.raw_fn(["dbg"], move |stack, args| {
-        let mut o = o.inner.lock();
-        dbg_impl(&mut o, stack, args)
-    })?;
+    module
+        .raw_function("dbg", move |stack, args| {
+            let mut o = o.inner.lock();
+            dbg_impl(&mut o, stack, args)
+        })
+        .build()?;
 
     Ok(module)
 }

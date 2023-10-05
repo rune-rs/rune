@@ -16,7 +16,7 @@ fn test_reference_error() -> Result<()> {
     }
 
     let mut module = Module::new();
-    module.function(["take_it"], take_it)?;
+    module.function("take_it", take_it).build()?;
 
     let mut context = Context::new();
     context.install(module)?;

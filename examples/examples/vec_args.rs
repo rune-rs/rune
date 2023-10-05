@@ -50,9 +50,10 @@ fn module() -> Result<Module, ContextError> {
     let mut m = Module::with_item(["mymodule"])?;
 
     m.function(
-        ["pass_along"],
+        "pass_along",
         |func: Function, args: Vec<Value>| -> VmResult<Value> { func.call(args) },
-    )?;
+    )
+    .build()?;
 
     Ok(m)
 }

@@ -16,16 +16,18 @@ use crate::{ContextError, Module};
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", ["io"])?;
 
-    module.function(["print"], move |_: &str| {})?;
+    module.function("print", move |_: &str| {}).build()?;
 
-    module.function(["println"], move |_: &str| {})?;
+    module.function("println", move |_: &str| {}).build()?;
 
-    module.raw_fn(["dbg"], move |stack: &mut Stack, args: usize| {
-        // NB: still need to maintain the stack.
-        drop(vm_try!(stack.drain(args)));
-        vm_try!(stack.push(Value::from(())));
-        VmResult::Ok(())
-    })?;
+    module
+        .raw_function("dbg", move |stack: &mut Stack, args: usize| {
+            // NB: still need to maintain the stack.
+            drop(vm_try!(stack.drain(args)));
+            vm_try!(stack.push(Value::from(())));
+            VmResult::Ok(())
+        })
+        .build()?;
 
     Ok(module)
 }
