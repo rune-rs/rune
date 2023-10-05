@@ -946,7 +946,7 @@ fn module<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<
 
                     functions.try_push(Function {
                         is_async: f.is_async,
-                        deprecated: f.deprecated,
+                        deprecated: meta.deprecated,
                         path: cx.item_path(&item, ItemKind::Function)?,
                         item: item.try_clone()?,
                         name,
@@ -1060,6 +1060,7 @@ fn build_function<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'
     };
 
     let item = meta.item.context("Missing item")?;
+    let deprecated = meta.deprecated;
     let name = item.last().context("Missing item name")?;
 
     Ok(Builder::new(cx, move |cx| {
@@ -1067,7 +1068,7 @@ fn build_function<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'
             shared: cx.shared()?,
             module: cx.module_path_html(meta, false)?,
             is_async: f.is_async,
-            deprecated: f.deprecated,
+            deprecated,
             item,
             name,
             args: cx.args_to_string(f.arg_names, f.args, f.signature, f.argument_types)?,

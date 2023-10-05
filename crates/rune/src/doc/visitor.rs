@@ -12,6 +12,7 @@ pub(crate) struct VisitorData {
     pub(crate) item: ItemBuf,
     pub(crate) hash: Hash,
     pub(crate) kind: Option<meta::Kind>,
+    pub(crate) deprecated: Option<String>,
     pub(crate) docs: Vec<String>,
     pub(crate) field_docs: HashMap<Box<str>, Vec<String>>,
 }
@@ -22,6 +23,7 @@ impl VisitorData {
             item,
             hash,
             kind,
+            deprecated: None,
             docs: Vec::new(),
             field_docs: HashMap::new(),
         }

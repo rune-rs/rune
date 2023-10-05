@@ -320,9 +320,6 @@ pub struct Signature {
     /// An asynchronous function.
     #[cfg(feature = "doc")]
     pub(crate) is_async: bool,
-    /// Deprecation notice.
-    #[cfg(feature = "doc")]
-    pub(crate) deprecated: Option<Box<str>>,
     /// Arguments.
     #[cfg(feature = "doc")]
     pub(crate) args: Option<usize>,

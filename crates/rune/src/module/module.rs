@@ -4,7 +4,7 @@ use ::rust_alloc::sync::Arc;
 
 use crate as rune;
 use crate::alloc::prelude::*;
-use crate::alloc::{self, HashMap, HashSet, String, Vec};
+use crate::alloc::{self, Box, HashMap, HashSet, String, Vec};
 use crate::compile::{self, meta, ContextError, Docs, IntoComponent, ItemBuf, Named};
 use crate::macros::{MacroContext, TokenStream};
 use crate::module::function_meta::{
@@ -14,9 +14,9 @@ use crate::module::function_meta::{
 };
 use crate::module::{
     AssociatedKey, Async, EnumMut, Function, FunctionKind, InstallWith, InstanceFunction,
-    InternalEnum, InternalEnumMut, ItemFnMut, ItemMut, ModuleAssociated, ModuleAssociatedConstant,
-    ModuleAssociatedFunction, ModuleAssociatedKind, ModuleAttributeMacro, ModuleConstant,
-    ModuleFunction, ModuleMacro, ModuleType, Plain, TypeMut, TypeSpecification, VariantMut,
+    InternalEnum, InternalEnumMut, ItemFnMut, ItemMut, ModuleAssociated, ModuleAssociatedKind,
+    ModuleAttributeMacro, ModuleFunction, ModuleItem, ModuleItemCommon, ModuleItemKind,
+    ModuleMacro, ModuleType, Plain, TypeMut, TypeSpecification, VariantMut,
 };
 use crate::runtime::{
     AttributeMacroHandler, ConstValue, FromValue, FullTypeOf, FunctionHandler, GeneratorState,
@@ -404,23 +404,15 @@ pub struct Module {
     /// The name of the module.
     pub(crate) item: ItemBuf,
     /// Functions.
-    pub(crate) functions: Vec<ModuleFunction>,
-    /// MacroHandler handlers.
-    pub(crate) macros: Vec<ModuleMacro>,
-    /// AttributeMacroHandler handlers.
-    pub(crate) attribute_macros: Vec<ModuleAttributeMacro>,
-    /// Constant values.
-    pub(crate) constants: Vec<ModuleConstant>,
+    pub(crate) items: Vec<ModuleItem>,
     /// Associated items.
     pub(crate) associated: Vec<ModuleAssociated>,
     /// Registered types.
     pub(crate) types: Vec<ModuleType>,
     /// Type hash to types mapping.
     pub(crate) types_hash: HashMap<Hash, usize>,
-    /// Registered generator state type.
-    pub(crate) internal_enums: Vec<InternalEnum>,
-    /// Module level documentation.
-    pub(crate) docs: Docs,
+    /// Module level metadata.
+    pub(crate) common: ModuleItemCommon,
 }
 
 impl Module {
@@ -474,22 +466,24 @@ impl Module {
             names: HashSet::new(),
             unique: None,
             item,
-            functions: Vec::new(),
-            macros: Vec::new(),
-            attribute_macros: Vec::new(),
+            items: Vec::new(),
             associated: Vec::new(),
             types: Vec::new(),
             types_hash: HashMap::new(),
-            internal_enums: Vec::new(),
-            constants: Vec::new(),
-            docs: Docs::EMPTY,
+            common: ModuleItemCommon {
+                docs: Docs::EMPTY,
+                #[cfg(feature = "doc")]
+                deprecated: None,
+            },
         }
     }
 
     /// Mutate item-level properties for this module.
     pub fn item_mut(&mut self) -> ItemMut<'_> {
         ItemMut {
-            docs: &mut self.docs,
+            docs: &mut self.common.docs,
+            #[cfg(feature = "doc")]
+            deprecated: &mut self.common.deprecated,
         }
     }
 
@@ -556,12 +550,16 @@ impl Module {
 
         self.types.try_push(ModuleType {
             item,
+            common: ModuleItemCommon {
+                docs: Docs::EMPTY,
+                #[cfg(feature = "doc")]
+                deprecated: None,
+            },
             hash,
             type_parameters,
             type_info,
             spec: None,
             constructor: None,
-            docs: Docs::EMPTY,
         })?;
 
         T::install_with(self)?;
@@ -569,7 +567,9 @@ impl Module {
         let ty = self.types.last_mut().unwrap();
 
         Ok(TypeMut {
-            docs: &mut ty.docs,
+            docs: &mut ty.common.docs,
+            #[cfg(feature = "doc")]
+            deprecated: &mut ty.common.deprecated,
             spec: &mut ty.spec,
             constructor: &mut ty.constructor,
             item: &ty.item,
@@ -594,7 +594,9 @@ impl Module {
         };
 
         Ok(TypeMut {
-            docs: &mut ty.docs,
+            docs: &mut ty.common.docs,
+            #[cfg(feature = "doc")]
+            deprecated: &mut ty.common.deprecated,
             spec: &mut ty.spec,
             constructor: &mut ty.constructor,
             item: &ty.item,
@@ -714,9 +716,8 @@ impl Module {
     {
         let mut enum_ = InternalEnum::new(
             "GeneratorState",
-            name,
             crate::runtime::static_type::GENERATOR_STATE_TYPE,
-        )?;
+        );
 
         // Note: these numeric variants are magic, and must simply match up with
         // what's being used in the virtual machine implementation for these
@@ -733,12 +734,7 @@ impl Module {
             GeneratorState::Yielded,
         )?;
 
-        self.internal_enums.try_push(enum_)?;
-
-        Ok(InternalEnumMut {
-            enum_: self.internal_enums.last_mut().unwrap(),
-            _marker: PhantomData,
-        })
+        self.install_internal_enum(name, enum_)
     }
     /// Construct type information for the `Option` type.
     ///
@@ -760,20 +756,15 @@ impl Module {
     where
         N: IntoComponent,
     {
-        let mut enum_ =
-            InternalEnum::new("Option", name, crate::runtime::static_type::OPTION_TYPE)?;
+        let mut enum_ = InternalEnum::new("Option", crate::runtime::static_type::OPTION_TYPE);
 
         // Note: these numeric variants are magic, and must simply match up with
         // what's being used in the virtual machine implementation for these
         // types.
         enum_.variant("Some", TypeCheck::Option(0), Option::<Value>::Some)?;
         enum_.variant("None", TypeCheck::Option(1), || Option::<Value>::None)?;
-        self.internal_enums.try_push(enum_)?;
 
-        Ok(InternalEnumMut {
-            enum_: self.internal_enums.last_mut().unwrap(),
-            _marker: PhantomData,
-        })
+        self.install_internal_enum(name, enum_)
     }
 
     /// Construct type information for the internal `Result` type.
@@ -799,18 +790,42 @@ impl Module {
     where
         N: IntoComponent,
     {
-        let mut enum_ =
-            InternalEnum::new("Result", name, crate::runtime::static_type::RESULT_TYPE)?;
+        let mut enum_ = InternalEnum::new("Result", crate::runtime::static_type::RESULT_TYPE);
 
         // Note: these numeric variants are magic, and must simply match up with
         // what's being used in the virtual machine implementation for these
         // types.
         enum_.variant("Ok", TypeCheck::Result(0), Result::<Value, Value>::Ok)?;
         enum_.variant("Err", TypeCheck::Result(1), Result::<Value, Value>::Err)?;
-        self.internal_enums.try_push(enum_)?;
+
+        self.install_internal_enum(name, enum_)
+    }
+
+    fn install_internal_enum<N, T>(
+        &mut self,
+        name: N,
+        enum_: InternalEnum,
+    ) -> Result<InternalEnumMut<'_, T>, ContextError>
+    where
+        N: IntoComponent,
+        T: ?Sized + TypeOf,
+    {
+        self.items.try_push(ModuleItem {
+            item: ItemBuf::with_item([name])?,
+            common: ModuleItemCommon::default(),
+            kind: ModuleItemKind::InternalEnum(enum_),
+        })?;
+
+        let item = self.items.last_mut().unwrap();
+
+        let internal_enum = match &mut item.kind {
+            ModuleItemKind::InternalEnum(internal_enum) => internal_enum,
+            _ => unreachable!(),
+        };
 
         Ok(InternalEnumMut {
-            enum_: self.internal_enums.last_mut().unwrap(),
+            enum_: internal_enum,
+            common: &mut item.common,
             _marker: PhantomData,
         })
     }
@@ -862,14 +877,23 @@ impl Module {
             return Err(ContextError::ConflictingConstantName { item, hash });
         }
 
-        self.constants.try_push(ModuleConstant {
+        self.items.try_push(ModuleItem {
             item,
-            value,
-            docs: Docs::EMPTY,
+            common: ModuleItemCommon {
+                docs: Docs::EMPTY,
+                #[cfg(feature = "doc")]
+                deprecated: None,
+            },
+            kind: ModuleItemKind::Constant(value),
         })?;
 
-        let c = self.constants.last_mut().unwrap();
-        Ok(ItemMut { docs: &mut c.docs })
+        let c = self.items.last_mut().unwrap();
+
+        Ok(ItemMut {
+            docs: &mut c.common.docs,
+            #[cfg(feature = "doc")]
+            deprecated: &mut c.common.deprecated,
+        })
     }
 
     fn insert_associated_constant<V>(
@@ -896,16 +920,20 @@ impl Module {
             container: associated.container,
             container_type_info: associated.container_type_info,
             name: associated.name,
-            #[cfg(feature = "doc")]
-            deprecated: None,
-            docs: Docs::EMPTY,
-            kind: ModuleAssociatedKind::Constant(ModuleAssociatedConstant { value }),
+            common: ModuleItemCommon {
+                docs: Docs::EMPTY,
+                #[cfg(feature = "doc")]
+                deprecated: None,
+            },
+            kind: ModuleAssociatedKind::Constant(value),
         })?;
 
         let last = self.associated.last_mut().unwrap();
 
         Ok(ItemMut {
-            docs: &mut last.docs,
+            docs: &mut last.common.docs,
+            #[cfg(feature = "doc")]
+            deprecated: &mut last.common.deprecated,
         })
     }
 
@@ -953,7 +981,7 @@ impl Module {
     pub fn macro_meta(&mut self, meta: MacroMeta) -> Result<ItemMut<'_>, ContextError> {
         let meta = meta()?;
 
-        let docs = match meta.kind {
+        let item = match meta.kind {
             MacroMetaKind::Function(data) => {
                 let hash = Hash::type_hash(&data.item);
 
@@ -967,12 +995,19 @@ impl Module {
                 let mut docs = Docs::EMPTY;
                 docs.set_docs(meta.docs)?;
 
-                self.macros.try_push(ModuleMacro {
+                self.items.try_push(ModuleItem {
                     item: data.item,
-                    handler: data.handler,
-                    docs,
+                    common: ModuleItemCommon {
+                        docs,
+                        #[cfg(feature = "doc")]
+                        deprecated: None,
+                    },
+                    kind: ModuleItemKind::Macro(ModuleMacro {
+                        handler: data.handler,
+                    }),
                 })?;
-                &mut self.macros.last_mut().unwrap().docs
+
+                self.items.last_mut().unwrap()
             }
             MacroMetaKind::Attribute(data) => {
                 let hash = Hash::type_hash(&data.item);
@@ -987,16 +1022,27 @@ impl Module {
                 let mut docs = Docs::EMPTY;
                 docs.set_docs(meta.docs)?;
 
-                self.attribute_macros.try_push(ModuleAttributeMacro {
+                self.items.try_push(ModuleItem {
                     item: data.item,
-                    handler: data.handler,
-                    docs,
+                    common: ModuleItemCommon {
+                        docs,
+                        #[cfg(feature = "doc")]
+                        deprecated: None,
+                    },
+                    kind: ModuleItemKind::AttributeMacro(ModuleAttributeMacro {
+                        handler: data.handler,
+                    }),
                 })?;
-                &mut self.attribute_macros.last_mut().unwrap().docs
+
+                self.items.last_mut().unwrap()
             }
         };
 
-        Ok(ItemMut { docs })
+        Ok(ItemMut {
+            docs: &mut item.common.docs,
+            #[cfg(feature = "doc")]
+            deprecated: &mut item.common.deprecated,
+        })
     }
 
     /// Register a native macro handler.
@@ -1044,15 +1090,19 @@ impl Module {
 
         let handler: Arc<MacroHandler> = Arc::new(f);
 
-        self.macros.try_push(ModuleMacro {
+        self.items.try_push(ModuleItem {
             item,
-            handler,
-            docs: Docs::EMPTY,
+            common: ModuleItemCommon::default(),
+            kind: ModuleItemKind::Macro(ModuleMacro { handler }),
         })?;
 
-        let m = self.macros.last_mut().unwrap();
+        let m = self.items.last_mut().unwrap();
 
-        Ok(ItemMut { docs: &mut m.docs })
+        Ok(ItemMut {
+            docs: &mut m.common.docs,
+            #[cfg(feature = "doc")]
+            deprecated: &mut m.common.deprecated,
+        })
     }
 
     /// Register a native attribute macro handler.
@@ -1104,15 +1154,23 @@ impl Module {
 
         let handler: Arc<AttributeMacroHandler> = Arc::new(f);
 
-        self.attribute_macros.try_push(ModuleAttributeMacro {
+        self.items.try_push(ModuleItem {
             item,
-            handler,
-            docs: Docs::EMPTY,
+            common: ModuleItemCommon {
+                docs: Docs::EMPTY,
+                #[cfg(feature = "doc")]
+                deprecated: None,
+            },
+            kind: ModuleItemKind::AttributeMacro(ModuleAttributeMacro { handler }),
         })?;
 
-        let m = self.attribute_macros.last_mut().unwrap();
+        let m = self.items.last_mut().unwrap();
 
-        Ok(ItemMut { docs: &mut m.docs })
+        Ok(ItemMut {
+            docs: &mut m.common.docs,
+            #[cfg(feature = "doc")]
+            deprecated: &mut m.common.deprecated,
+        })
     }
 
     /// Register a function handler through its meta.
@@ -1195,13 +1253,15 @@ impl Module {
                 let mut docs = Docs::EMPTY;
                 docs.set_docs(meta.docs)?;
                 docs.set_arguments(meta.arguments)?;
-                self.function_inner(data, docs)
+                let deprecated = meta.deprecated.map(TryInto::try_into).transpose()?;
+                self.function_inner(data, docs, deprecated)
             }
             FunctionMetaKind::AssociatedFunction(data) => {
                 let mut docs = Docs::EMPTY;
                 docs.set_docs(meta.docs)?;
                 docs.set_arguments(meta.arguments)?;
-                self.insert_associated_function(data, docs)
+                let deprecated = meta.deprecated.map(TryInto::try_into).transpose()?;
+                self.insert_associated_function(data, docs, deprecated)
             }
         }
     }
@@ -1211,9 +1271,9 @@ impl Module {
         kind: FunctionMetaKind,
     ) -> Result<ItemFnMut<'_>, ContextError> {
         match kind {
-            FunctionMetaKind::Function(data) => self.function_inner(data, Docs::EMPTY),
+            FunctionMetaKind::Function(data) => self.function_inner(data, Docs::EMPTY, None),
             FunctionMetaKind::AssociatedFunction(data) => {
-                self.insert_associated_function(data, Docs::EMPTY)
+                self.insert_associated_function(data, Docs::EMPTY, None)
             }
         }
     }
@@ -1302,7 +1362,7 @@ impl Module {
         N: IntoComponent,
         A: FunctionArgs,
     {
-        self.function_inner(FunctionData::new(name, f)?, Docs::EMPTY)
+        self.function_inner(FunctionData::new(name, f)?, Docs::EMPTY, None)
     }
 
     /// Register an instance function.
@@ -1498,6 +1558,7 @@ impl Module {
         self.insert_associated_function(
             AssociatedFunctionData::from_instance_function(name.to_instance()?, f)?,
             Docs::EMPTY,
+            None,
         )
     }
 
@@ -1546,6 +1607,7 @@ impl Module {
         self.insert_associated_function(
             AssociatedFunctionData::from_instance_function(name.to_field_function(protocol)?, f)?,
             Docs::EMPTY,
+            None,
         )
     }
 
@@ -1586,6 +1648,7 @@ impl Module {
         self.insert_associated_function(
             AssociatedFunctionData::from_instance_function(name, f)?,
             Docs::EMPTY,
+            None,
         )
     }
 
@@ -1665,6 +1728,7 @@ impl Module {
         &mut self,
         data: FunctionData,
         docs: Docs,
+        #[allow(unused)] deprecated: Option<Box<str>>,
     ) -> Result<ItemFnMut<'_>, ContextError> {
         let hash = Hash::type_hash(&data.item);
 
@@ -1675,36 +1739,46 @@ impl Module {
             });
         }
 
-        self.functions.try_push(ModuleFunction {
+        self.items.try_push(ModuleItem {
             item: data.item,
-            handler: data.handler,
-            #[cfg(feature = "doc")]
-            is_async: data.is_async,
-            #[cfg(feature = "doc")]
-            deprecated: data.deprecated,
-            #[cfg(feature = "doc")]
-            args: data.args,
-            #[cfg(feature = "doc")]
-            return_type: data.return_type,
-            #[cfg(feature = "doc")]
-            argument_types: data.argument_types,
-            docs,
+            common: ModuleItemCommon {
+                docs,
+                #[cfg(feature = "doc")]
+                deprecated,
+            },
+            kind: ModuleItemKind::Function(ModuleFunction {
+                handler: data.handler,
+                #[cfg(feature = "doc")]
+                is_async: data.is_async,
+                #[cfg(feature = "doc")]
+                args: data.args,
+                #[cfg(feature = "doc")]
+                return_type: data.return_type,
+                #[cfg(feature = "doc")]
+                argument_types: data.argument_types,
+            }),
         })?;
 
-        let last = self.functions.last_mut().unwrap();
+        let last = self.items.last_mut().unwrap();
+
+        #[cfg(feature = "doc")]
+        let last_fn = match &mut last.kind {
+            ModuleItemKind::Function(f) => f,
+            _ => unreachable!(),
+        };
 
         Ok(ItemFnMut {
-            docs: &mut last.docs,
+            docs: &mut last.common.docs,
             #[cfg(feature = "doc")]
-            is_async: &mut last.is_async,
+            deprecated: &mut last.common.deprecated,
             #[cfg(feature = "doc")]
-            deprecated: &mut last.deprecated,
+            is_async: &mut last_fn.is_async,
             #[cfg(feature = "doc")]
-            args: &mut last.args,
+            args: &mut last_fn.args,
             #[cfg(feature = "doc")]
-            return_type: &mut last.return_type,
+            return_type: &mut last_fn.return_type,
             #[cfg(feature = "doc")]
-            argument_types: &mut last.argument_types,
+            argument_types: &mut last_fn.argument_types,
         })
     }
 
@@ -1713,6 +1787,7 @@ impl Module {
         &mut self,
         data: AssociatedFunctionData,
         docs: Docs,
+        #[allow(unused)] deprecated: Option<Box<str>>,
     ) -> Result<ItemFnMut<'_>, ContextError> {
         self.insert_associated_name(&data.associated)?;
 
@@ -1720,14 +1795,15 @@ impl Module {
             container: data.associated.container,
             container_type_info: data.associated.container_type_info,
             name: data.associated.name,
-            #[cfg(feature = "doc")]
-            deprecated: data.deprecated,
-            docs,
-            kind: ModuleAssociatedKind::Function(ModuleAssociatedFunction {
+            common: ModuleItemCommon {
+                docs,
+                #[cfg(feature = "doc")]
+                deprecated,
+            },
+            kind: ModuleAssociatedKind::Function(ModuleFunction {
                 handler: data.handler,
                 #[cfg(feature = "doc")]
                 is_async: data.is_async,
-                #[cfg(feature = "doc")]
                 #[cfg(feature = "doc")]
                 args: data.args,
                 #[cfg(feature = "doc")]
@@ -1746,11 +1822,11 @@ impl Module {
         };
 
         Ok(ItemFnMut {
-            docs: &mut last.docs,
+            docs: &mut last.common.docs,
+            #[cfg(feature = "doc")]
+            deprecated: &mut last.common.deprecated,
             #[cfg(feature = "doc")]
             is_async: &mut last_fn.is_async,
-            #[cfg(feature = "doc")]
-            deprecated: &mut last.deprecated,
             #[cfg(feature = "doc")]
             args: &mut last_fn.args,
             #[cfg(feature = "doc")]

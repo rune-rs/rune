@@ -372,6 +372,7 @@ impl Function {
                 Ok(rune::__private::FunctionMetaData {
                     kind: rune::__private::FunctionMetaKind::#meta_kind(#name, #real_fn_path)?#build_with,
                     name: #name_string,
+                    deprecated: None,
                     docs: &#docs[..],
                     arguments: &#arguments[..],
                 })

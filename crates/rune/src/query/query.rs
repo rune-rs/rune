@@ -1363,8 +1363,6 @@ impl<'a, 'arena> Query<'a, 'arena> {
                         #[cfg(feature = "doc")]
                         is_async: matches!(f.call, Call::Async | Call::Stream),
                         #[cfg(feature = "doc")]
-                        deprecated: None,
-                        #[cfg(feature = "doc")]
                         args: Some(f.ast.args()),
                         #[cfg(feature = "doc")]
                         return_type: None,
