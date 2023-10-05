@@ -30,7 +30,10 @@ pub(crate) use self::function_meta::{AssociatedName, ToFieldFunction, ToInstance
 pub use self::function_meta::{FunctionMetaData, FunctionMetaKind, MacroMetaData, MacroMetaKind};
 pub use self::function_traits::{Async, Function, FunctionKind, InstanceFunction, Plain};
 #[doc(hidden)]
-pub use self::module::{Module, ModuleFunctionBuilder, ModuleMeta, ModuleMetaData};
+pub use self::module::{
+    Module, ModuleConstantBuilder, ModuleFunctionBuilder, ModuleMeta, ModuleMetaData,
+    ModuleRawFunctionBuilder,
+};
 
 /// Trait to handle the installation of auxilliary functions for a type
 /// installed into a module.
@@ -194,6 +197,7 @@ pub(crate) struct AssociatedKey {
 #[derive(TryClone)]
 pub(crate) struct ModuleFunction {
     pub(crate) item: ItemBuf,
+    pub(crate) docs: Docs,
     pub(crate) handler: Arc<FunctionHandler>,
     #[cfg(feature = "doc")]
     pub(crate) is_async: bool,
@@ -205,7 +209,30 @@ pub(crate) struct ModuleFunction {
     pub(crate) return_type: Option<FullTypeOf>,
     #[cfg(feature = "doc")]
     pub(crate) argument_types: Box<[Option<FullTypeOf>]>,
-    pub(crate) docs: Docs,
+}
+
+#[derive(TryClone)]
+pub(crate) struct ModuleAssociatedConstant {
+    pub(crate) value: ConstValue,
+}
+
+#[derive(TryClone)]
+pub(crate) struct ModuleAssociatedFunction {
+    pub(crate) handler: Arc<FunctionHandler>,
+    #[cfg(feature = "doc")]
+    pub(crate) is_async: bool,
+    #[cfg(feature = "doc")]
+    pub(crate) args: Option<usize>,
+    #[cfg(feature = "doc")]
+    pub(crate) return_type: Option<FullTypeOf>,
+    #[cfg(feature = "doc")]
+    pub(crate) argument_types: Box<[Option<FullTypeOf>]>,
+}
+
+#[derive(TryClone)]
+pub(crate) enum ModuleAssociatedKind {
+    Constant(ModuleAssociatedConstant),
+    Function(ModuleAssociatedFunction),
 }
 
 #[derive(TryClone)]
@@ -213,18 +240,10 @@ pub(crate) struct ModuleAssociated {
     pub(crate) container: FullTypeOf,
     pub(crate) container_type_info: TypeInfo,
     pub(crate) name: AssociatedName,
-    pub(crate) handler: Arc<FunctionHandler>,
-    #[cfg(feature = "doc")]
-    pub(crate) is_async: bool,
+    pub(crate) docs: Docs,
     #[cfg(feature = "doc")]
     pub(crate) deprecated: Option<Box<str>>,
-    #[cfg(feature = "doc")]
-    pub(crate) args: Option<usize>,
-    #[cfg(feature = "doc")]
-    pub(crate) return_type: Option<FullTypeOf>,
-    #[cfg(feature = "doc")]
-    pub(crate) argument_types: Box<[Option<FullTypeOf>]>,
-    pub(crate) docs: Docs,
+    pub(crate) kind: ModuleAssociatedKind,
 }
 
 /// Handle to a macro inserted into a module.

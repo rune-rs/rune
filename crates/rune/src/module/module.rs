@@ -14,9 +14,9 @@ use crate::module::function_meta::{
 };
 use crate::module::{
     AssociatedKey, Async, EnumMut, Function, FunctionKind, InstallWith, InstanceFunction,
-    InternalEnum, InternalEnumMut, ItemFnMut, ItemMut, ModuleAssociated, ModuleAttributeMacro,
-    ModuleConstant, ModuleFunction, ModuleMacro, ModuleType, Plain, TypeMut, TypeSpecification,
-    VariantMut,
+    InternalEnum, InternalEnumMut, ItemFnMut, ItemMut, ModuleAssociated, ModuleAssociatedConstant,
+    ModuleAssociatedFunction, ModuleAssociatedKind, ModuleAttributeMacro, ModuleConstant,
+    ModuleFunction, ModuleMacro, ModuleType, Plain, TypeMut, TypeSpecification, VariantMut,
 };
 use crate::runtime::{
     AttributeMacroHandler, ConstValue, FromValue, FullTypeOf, FunctionHandler, GeneratorState,
@@ -54,9 +54,9 @@ where
     /// ```
     /// use rune::{Any, Module};
     ///
-    /// let mut m = Module::with_item(["module"]); m.function("floob", ||
-    /// ()).build()?;
-    /// # Ok::<_, rune::ContextError>(())
+    /// let mut m = Module::with_item(["module"])?;
+    /// m.function("floob", || ()).build()?;
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     #[inline]
     pub fn build(self) -> Result<ItemFnMut<'a>, ContextError>
@@ -74,17 +74,23 @@ where
     ///
     /// # Errors
     ///
-    /// The function call will error if the specified type is not already
-    /// registered in the module.
+    /// This function call will cause an error in [`Context::install`] if the
+    /// type we're associating it with has not been registered.
+    ///
+    /// [`Context::install`]: crate::Context::install
     ///
     /// ```
-    /// use rune::{Any, Module};
+    /// use rune::{Any, Context, Module};
     ///
     /// #[derive(Any)]
     /// struct Thing;
     ///
     /// let mut m = Module::default();
-    /// assert!(m.function("floob", || ()).build_associated::<Thing>().is_err());
+    /// m.function("floob", || ()).build_associated::<Thing>()?;
+    ///
+    /// let mut c = Context::default();
+    /// assert!(c.install(m).is_err());
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     ///
     /// # Examples
@@ -98,7 +104,7 @@ where
     /// let mut m = Module::default();
     /// m.ty::<Thing>()?;
     /// m.function("floob", || ()).build_associated::<Thing>()?;
-    /// # Ok::<_, rune::ContextError>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     #[inline]
     pub fn build_associated<T>(self) -> Result<ItemFnMut<'a>, ContextError>
@@ -167,9 +173,9 @@ impl<'a, N> ModuleRawFunctionBuilder<'a, N> {
     /// use rune::{Any, Module};
     /// use rune::runtime::VmResult;
     ///
-    /// let mut m = Module::with_item(["module"]);
+    /// let mut m = Module::with_item(["module"])?;
     /// m.raw_function("floob", |stac, args| VmResult::Ok(())).build()?;
-    /// # Ok::<_, rune::ContextError>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     #[inline]
     pub fn build(self) -> Result<ItemFnMut<'a>, ContextError>
@@ -191,17 +197,23 @@ impl<'a, N> ModuleRawFunctionBuilder<'a, N> {
     ///
     /// # Errors
     ///
-    /// The function call will error if the specified type is not already
-    /// registered in the module.
+    /// This function call will cause an error in [`Context::install`] if the
+    /// type we're associating it with has not been registered.
+    ///
+    /// [`Context::install`]: crate::Context::install
     ///
     /// ```
-    /// use rune::{Any, Module};
+    /// use rune::{Any, Module, Context};
     ///
     /// #[derive(Any)]
     /// struct Thing;
     ///
     /// let mut m = Module::default();
-    /// assert!(m.function("floob", || ()).build_associated::<Thing>().is_err());
+    /// m.function("floob", || ()).build_associated::<Thing>()?;
+    ///
+    /// let mut c = Context::default();
+    /// assert!(c.install(m).is_err());
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     ///
     /// # Examples
@@ -215,8 +227,8 @@ impl<'a, N> ModuleRawFunctionBuilder<'a, N> {
     ///
     /// let mut m = Module::default();
     /// m.ty::<Thing>()?;
-    /// m.raw_function("floob", || VmResult::Ok(())).build_associated::<Thing>()?;
-    /// # Ok::<_, rune::ContextError>(())
+    /// m.raw_function("floob", |_, _| VmResult::Ok(())).build_associated::<Thing>()?;
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     #[inline]
     pub fn build_associated<T>(self) -> Result<ItemFnMut<'a>, ContextError>
@@ -289,33 +301,39 @@ where
     /// use rune::{Any, Module};
     /// use rune::runtime::VmResult;
     ///
-    /// let mut m = Module::with_item(["module"]);
+    /// let mut m = Module::with_item(["module"])?;
     /// m.constant("NAME", "Hello World").build()?;
-    /// # Ok::<_, rune::ContextError>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn build(self) -> Result<ItemMut<'a>, ContextError>
     where
         N: IntoComponent,
     {
         let item = ItemBuf::with_item([self.name])?;
-        self.module.build_constant_inner(item, self.value)
+        self.module.insert_constant(item, self.value)
     }
 
     /// Build a constant that is associated with the static type `T`.
     ///
     /// # Errors
     ///
-    /// The function call will error if the specified type is not already
-    /// registered in the module.
+    /// This function call will cause an error in [`Context::install`] if the
+    /// type we're associating it with has not been registered.
+    ///
+    /// [`Context::install`]: crate::Context::install
     ///
     /// ```
-    /// use rune::{Any, Module};
+    /// use rune::{Any, Context, Module};
     ///
     /// #[derive(Any)]
     /// struct Thing;
     ///
     /// let mut m = Module::default();
-    /// assert!(m.constant("CONSTANT", "Hello World").build_associated::<Thing>().is_err());
+    /// m.constant("CONSTANT", "Hello World").build_associated::<Thing>()?;
+    ///
+    /// let mut c = Context::default();
+    /// assert!(c.install(m).is_err());
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     ///
     /// # Examples
@@ -333,10 +351,13 @@ where
     /// ```
     pub fn build_associated<T>(self) -> Result<ItemMut<'a>, ContextError>
     where
+        T: TypeOf,
         N: ToInstance,
     {
-        let _ = self.name.to_instance()?;
-        todo!("implement associated constants")
+        let name = self.name.to_instance()?;
+        let associated = Associated::from_type::<T>(name)?;
+        self.module
+            .insert_associated_constant(associated, self.value)
     }
 }
 
@@ -821,16 +842,10 @@ impl Module {
         }
     }
 
-    fn build_constant_inner<V>(
-        &mut self,
-        item: ItemBuf,
-        value: V,
-    ) -> Result<ItemMut<'_>, ContextError>
+    fn insert_constant<V>(&mut self, item: ItemBuf, value: V) -> Result<ItemMut<'_>, ContextError>
     where
         V: ToValue,
     {
-        let hash = Hash::type_hash(&item);
-
         let value = match value.to_value() {
             VmResult::Ok(v) => v,
             VmResult::Err(error) => return Err(ContextError::ValueError { error }),
@@ -840,6 +855,8 @@ impl Module {
             VmResult::Ok(v) => v,
             VmResult::Err(error) => return Err(ContextError::ValueError { error }),
         };
+
+        let hash = Hash::type_hash(&item);
 
         if !self.names.try_insert(Name::Item(hash))? {
             return Err(ContextError::ConflictingConstantName { item, hash });
@@ -853,6 +870,43 @@ impl Module {
 
         let c = self.constants.last_mut().unwrap();
         Ok(ItemMut { docs: &mut c.docs })
+    }
+
+    fn insert_associated_constant<V>(
+        &mut self,
+        associated: Associated,
+        value: V,
+    ) -> Result<ItemMut<'_>, ContextError>
+    where
+        V: ToValue,
+    {
+        let value = match value.to_value() {
+            VmResult::Ok(v) => v,
+            VmResult::Err(error) => return Err(ContextError::ValueError { error }),
+        };
+
+        let value = match <ConstValue as FromValue>::from_value(value) {
+            VmResult::Ok(v) => v,
+            VmResult::Err(error) => return Err(ContextError::ValueError { error }),
+        };
+
+        self.insert_associated_name(&associated)?;
+
+        self.associated.try_push(ModuleAssociated {
+            container: associated.container,
+            container_type_info: associated.container_type_info,
+            name: associated.name,
+            #[cfg(feature = "doc")]
+            deprecated: None,
+            docs: Docs::EMPTY,
+            kind: ModuleAssociatedKind::Constant(ModuleAssociatedConstant { value }),
+        })?;
+
+        let last = self.associated.last_mut().unwrap();
+
+        Ok(ItemMut {
+            docs: &mut last.docs,
+        })
     }
 
     /// Register a native macro handler through its meta.
@@ -1147,7 +1201,7 @@ impl Module {
                 let mut docs = Docs::EMPTY;
                 docs.set_docs(meta.docs)?;
                 docs.set_arguments(meta.arguments)?;
-                self.assoc_fn(data, docs)
+                self.insert_associated_function(data, docs)
             }
         }
     }
@@ -1158,7 +1212,9 @@ impl Module {
     ) -> Result<ItemFnMut<'_>, ContextError> {
         match kind {
             FunctionMetaKind::Function(data) => self.function_inner(data, Docs::EMPTY),
-            FunctionMetaKind::AssociatedFunction(data) => self.assoc_fn(data, Docs::EMPTY),
+            FunctionMetaKind::AssociatedFunction(data) => {
+                self.insert_associated_function(data, Docs::EMPTY)
+            }
         }
     }
 
@@ -1439,7 +1495,7 @@ impl Module {
         A: FunctionArgs,
         K: FunctionKind,
     {
-        self.assoc_fn(
+        self.insert_associated_function(
             AssociatedFunctionData::from_instance_function(name.to_instance()?, f)?,
             Docs::EMPTY,
         )
@@ -1487,7 +1543,7 @@ impl Module {
         F::Return: MaybeTypeOf,
         A: FunctionArgs,
     {
-        self.assoc_fn(
+        self.insert_associated_function(
             AssociatedFunctionData::from_instance_function(name.to_field_function(protocol)?, f)?,
             Docs::EMPTY,
         )
@@ -1527,7 +1583,7 @@ impl Module {
         A: FunctionArgs,
     {
         let name = AssociatedName::index(protocol, index);
-        self.assoc_fn(
+        self.insert_associated_function(
             AssociatedFunctionData::from_instance_function(name, f)?,
             Docs::EMPTY,
         )
@@ -1577,7 +1633,7 @@ impl Module {
     /// let mut module = Module::default();
     ///
     /// module.raw_function("sum", sum)
-    ///     .build()?;
+    ///     .build()?
     ///     .docs([
     ///         "Sum all numbers provided to the function."
     ///     ])?;
@@ -1587,7 +1643,6 @@ impl Module {
     pub fn raw_function<F, N>(&mut self, name: N, f: F) -> ModuleRawFunctionBuilder<'_, N>
     where
         F: 'static + Fn(&mut Stack, usize) -> VmResult<()> + Send + Sync,
-        N: IntoComponent,
     {
         ModuleRawFunctionBuilder {
             module: self,
@@ -1597,7 +1652,7 @@ impl Module {
     }
 
     /// See [`Module::raw_function`].
-    #[deprecated = "Use `raw_function` instead"]
+    #[deprecated = "Use `raw_function` builder instead"]
     pub fn raw_fn<F, N>(&mut self, name: N, f: F) -> Result<ItemFnMut<'_>, ContextError>
     where
         F: 'static + Fn(&mut Stack, usize) -> VmResult<()> + Send + Sync,
@@ -1654,73 +1709,91 @@ impl Module {
     }
 
     /// Install an associated function.
-    fn assoc_fn(
+    fn insert_associated_function(
         &mut self,
         data: AssociatedFunctionData,
         docs: Docs,
     ) -> Result<ItemFnMut<'_>, ContextError> {
-        if !self.names.try_insert(Name::Associated(data.assoc_key()?))? {
-            return Err(match data.associated.name.kind {
-                meta::AssociatedKind::Protocol(protocol) => {
-                    ContextError::ConflictingProtocolFunction {
-                        type_info: data.associated.container_type_info,
-                        name: protocol.name.try_into()?,
-                    }
-                }
-                meta::AssociatedKind::FieldFn(protocol, field) => {
-                    ContextError::ConflictingFieldFunction {
-                        type_info: data.associated.container_type_info,
-                        name: protocol.name.try_into()?,
-                        field: field.try_into()?,
-                    }
-                }
-                meta::AssociatedKind::IndexFn(protocol, index) => {
-                    ContextError::ConflictingIndexFunction {
-                        type_info: data.associated.container_type_info,
-                        name: protocol.name.try_into()?,
-                        index,
-                    }
-                }
-                meta::AssociatedKind::Instance(name) => ContextError::ConflictingInstanceFunction {
-                    type_info: data.associated.container_type_info,
-                    name: name.try_into()?,
-                },
-            });
-        }
+        self.insert_associated_name(&data.associated)?;
 
         self.associated.try_push(ModuleAssociated {
             container: data.associated.container,
             container_type_info: data.associated.container_type_info,
             name: data.associated.name,
-            handler: data.handler,
-            #[cfg(feature = "doc")]
-            is_async: data.is_async,
             #[cfg(feature = "doc")]
             deprecated: data.deprecated,
-            #[cfg(feature = "doc")]
-            args: data.args,
-            #[cfg(feature = "doc")]
-            return_type: data.return_type,
-            #[cfg(feature = "doc")]
-            argument_types: data.argument_types,
             docs,
+            kind: ModuleAssociatedKind::Function(ModuleAssociatedFunction {
+                handler: data.handler,
+                #[cfg(feature = "doc")]
+                is_async: data.is_async,
+                #[cfg(feature = "doc")]
+                #[cfg(feature = "doc")]
+                args: data.args,
+                #[cfg(feature = "doc")]
+                return_type: data.return_type,
+                #[cfg(feature = "doc")]
+                argument_types: data.argument_types,
+            }),
         })?;
 
         let last = self.associated.last_mut().unwrap();
 
+        #[cfg(feature = "doc")]
+        let last_fn = match &mut last.kind {
+            ModuleAssociatedKind::Function(f) => f,
+            _ => unreachable!(),
+        };
+
         Ok(ItemFnMut {
             docs: &mut last.docs,
             #[cfg(feature = "doc")]
-            is_async: &mut last.is_async,
+            is_async: &mut last_fn.is_async,
             #[cfg(feature = "doc")]
             deprecated: &mut last.deprecated,
             #[cfg(feature = "doc")]
-            args: &mut last.args,
+            args: &mut last_fn.args,
             #[cfg(feature = "doc")]
-            return_type: &mut last.return_type,
+            return_type: &mut last_fn.return_type,
             #[cfg(feature = "doc")]
-            argument_types: &mut last.argument_types,
+            argument_types: &mut last_fn.argument_types,
         })
+    }
+
+    fn insert_associated_name(&mut self, associated: &Associated) -> Result<(), ContextError> {
+        if !self
+            .names
+            .try_insert(Name::Associated(associated.as_key()?))?
+        {
+            return Err(match &associated.name.kind {
+                meta::AssociatedKind::Protocol(protocol) => {
+                    ContextError::ConflictingProtocolFunction {
+                        type_info: associated.container_type_info.try_clone()?,
+                        name: protocol.name.try_into()?,
+                    }
+                }
+                meta::AssociatedKind::FieldFn(protocol, field) => {
+                    ContextError::ConflictingFieldFunction {
+                        type_info: associated.container_type_info.try_clone()?,
+                        name: protocol.name.try_into()?,
+                        field: field.as_ref().try_into()?,
+                    }
+                }
+                meta::AssociatedKind::IndexFn(protocol, index) => {
+                    ContextError::ConflictingIndexFunction {
+                        type_info: associated.container_type_info.try_clone()?,
+                        name: protocol.name.try_into()?,
+                        index: *index,
+                    }
+                }
+                meta::AssociatedKind::Instance(name) => ContextError::ConflictingInstanceFunction {
+                    type_info: associated.container_type_info.try_clone()?,
+                    name: name.as_ref().try_into()?,
+                },
+            });
+        }
+
+        Ok(())
     }
 }
 

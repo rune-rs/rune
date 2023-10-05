@@ -254,6 +254,15 @@ impl Associated {
             container_type_info: T::type_info(),
         })
     }
+
+    /// Get unique key for the associated item.
+    pub(crate) fn as_key(&self) -> alloc::Result<AssociatedKey> {
+        Ok(AssociatedKey {
+            type_hash: self.container.hash,
+            kind: self.name.kind.try_clone()?,
+            parameters: self.name.function_parameters,
+        })
+    }
 }
 
 /// Runtime data for an associated function.
@@ -335,15 +344,6 @@ impl AssociatedFunctionData {
             return_type: F::Return::maybe_type_of(),
             #[cfg(feature = "doc")]
             argument_types: A::into_box()?,
-        })
-    }
-
-    /// Get associated key.
-    pub(crate) fn assoc_key(&self) -> alloc::Result<AssociatedKey> {
-        Ok(AssociatedKey {
-            type_hash: self.associated.container.hash,
-            kind: self.associated.name.kind.try_clone()?,
-            parameters: self.associated.name.function_parameters,
         })
     }
 }

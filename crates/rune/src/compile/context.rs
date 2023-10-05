@@ -13,8 +13,8 @@ use crate::compile::MetaInfo;
 use crate::compile::{ComponentRef, ContextError, IntoComponent, Item, ItemBuf, Names};
 use crate::hash;
 use crate::module::{
-    Fields, InternalEnum, Module, ModuleAssociated, ModuleAttributeMacro, ModuleConstant,
-    ModuleFunction, ModuleMacro, ModuleType, TypeSpecification,
+    Fields, InternalEnum, Module, ModuleAssociated, ModuleAssociatedKind, ModuleAttributeMacro,
+    ModuleConstant, ModuleFunction, ModuleMacro, ModuleType, TypeSpecification,
 };
 use crate::runtime::{
     AttributeMacroHandler, ConstValue, FunctionHandler, MacroHandler, Protocol, RuntimeContext,
@@ -741,23 +741,6 @@ impl Context {
             .hash(assoc.container.hash)
             .with_function_parameters(assoc.name.function_parameters);
 
-        let signature = meta::Signature {
-            #[cfg(feature = "doc")]
-            is_async: assoc.is_async,
-            #[cfg(feature = "doc")]
-            deprecated: assoc.deprecated.try_clone()?,
-            #[cfg(feature = "doc")]
-            args: assoc.args,
-            #[cfg(feature = "doc")]
-            return_type: assoc.return_type.as_ref().map(|f| f.hash),
-            #[cfg(feature = "doc")]
-            argument_types: assoc
-                .argument_types
-                .iter()
-                .map(|f| f.as_ref().map(|f| f.hash))
-                .try_collect()?,
-        };
-
         // If the associated function is a named instance function - register it
         // under the name of the item it corresponds to unless it's a field
         // function.
@@ -771,35 +754,69 @@ impl Context {
                 .with_type_parameters(info.type_parameters)
                 .with_function_parameters(assoc.name.function_parameters);
 
-            self.constants.try_insert(
-                Hash::associated_function(hash, Protocol::INTO_TYPE_NAME),
-                ConstValue::String(item.try_to_string()?),
-            )?;
-
-            self.insert_native_fn(hash, &assoc.handler)?;
-            Some(item)
+            Some((hash, item))
         } else {
             None
         };
 
-        self.insert_native_fn(hash, &assoc.handler)?;
+        let kind = match &assoc.kind {
+            ModuleAssociatedKind::Constant(c) => {
+                if let Some((hash, ..)) = &item {
+                    self.constants.try_insert(*hash, c.value.try_clone()?)?;
+                }
+
+                self.constants.try_insert(hash, c.value.try_clone()?)?;
+                meta::Kind::Const
+            }
+            ModuleAssociatedKind::Function(f) => {
+                let signature = meta::Signature {
+                    #[cfg(feature = "doc")]
+                    is_async: f.is_async,
+                    #[cfg(feature = "doc")]
+                    deprecated: assoc.deprecated.try_clone()?,
+                    #[cfg(feature = "doc")]
+                    args: f.args,
+                    #[cfg(feature = "doc")]
+                    return_type: f.return_type.as_ref().map(|f| f.hash),
+                    #[cfg(feature = "doc")]
+                    argument_types: f
+                        .argument_types
+                        .iter()
+                        .map(|f| f.as_ref().map(|f| f.hash))
+                        .try_collect()?,
+                };
+
+                if let Some((hash, item)) = &item {
+                    self.constants.try_insert(
+                        Hash::associated_function(*hash, Protocol::INTO_TYPE_NAME),
+                        ConstValue::String(item.try_to_string()?),
+                    )?;
+
+                    self.insert_native_fn(*hash, &f.handler)?;
+                }
+
+                self.insert_native_fn(hash, &f.handler)?;
+
+                meta::Kind::Function {
+                    associated: Some(assoc.name.kind.try_clone()?),
+                    signature,
+                    is_test: false,
+                    is_bench: false,
+                    parameters: Hash::EMPTY
+                        .with_type_parameters(info.type_parameters)
+                        .with_function_parameters(assoc.name.function_parameters),
+                    #[cfg(feature = "doc")]
+                    container: Some(assoc.container.hash),
+                    #[cfg(feature = "doc")]
+                    parameter_types: assoc.name.parameter_types.try_clone()?,
+                }
+            }
+        };
 
         self.install_meta(ContextMeta {
             hash,
-            item,
-            kind: meta::Kind::Function {
-                associated: Some(assoc.name.kind.try_clone()?),
-                signature,
-                is_test: false,
-                is_bench: false,
-                parameters: Hash::EMPTY
-                    .with_type_parameters(info.type_parameters)
-                    .with_function_parameters(assoc.name.function_parameters),
-                #[cfg(feature = "doc")]
-                container: Some(assoc.container.hash),
-                #[cfg(feature = "doc")]
-                parameter_types: assoc.name.parameter_types.try_clone()?,
-            },
+            item: item.map(|(_, item)| item),
+            kind,
             #[cfg(feature = "doc")]
             docs: assoc.docs.try_clone()?,
         })?;
