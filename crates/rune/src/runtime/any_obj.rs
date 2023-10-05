@@ -442,7 +442,10 @@ impl AnyObj {
     ///
     /// If the conversion is not possible, we return a reconstructed `Any` as
     /// the error variant.
-    pub(crate) fn raw_take(self, expected: TypeId) -> Result<*mut (), (AnyObjError, Self)> {
+    pub(crate) unsafe fn raw_take<T>(self) -> Result<T, (AnyObjError, Self)>
+    where
+        T: Any,
+    {
         match self.vtable.kind {
             // Only owned things can be taken.
             AnyObjKind::Owned => (),
@@ -464,6 +467,7 @@ impl AnyObj {
             }
         };
 
+        let expected = TypeId::of::<T>();
         let this = ManuallyDrop::new(self);
 
         // Safety: invariants are checked at construction time.
@@ -471,7 +475,16 @@ impl AnyObj {
         // access to the `Any`.
         unsafe {
             match (this.vtable.as_ptr)(this.data.as_ptr(), expected) {
-                Some(data) => Ok(data as *mut ()),
+                Some(data) => {
+                    // At this point we simply read the pointer as a box, which
+                    // ensures that the value is moved from the data pointer
+                    // onto the stack and that the box allocation gets freed
+                    // without dropping the data.
+                    Ok(Box::into_inner(Box::from_raw_in(
+                        data as *mut () as *mut T,
+                        Global,
+                    )))
+                }
                 None => {
                     let this = ManuallyDrop::into_inner(this);
                     Err((AnyObjError::Cast, this))

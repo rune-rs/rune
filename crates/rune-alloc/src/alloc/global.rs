@@ -40,6 +40,7 @@ impl Global {
     }
 
     #[inline]
+    #[track_caller]
     fn alloc_impl(&self, layout: Layout, zeroed: bool) -> Result<NonNull<[u8]>, AllocError> {
         self.take(layout)?;
 
@@ -65,15 +66,18 @@ impl Global {
 
 unsafe impl Allocator for Global {
     #[inline]
+    #[track_caller]
     fn allocate(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
         self.alloc_impl(layout, false)
     }
 
     #[inline]
+    #[track_caller]
     fn allocate_zeroed(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
         self.alloc_impl(layout, true)
     }
 
+    #[track_caller]
     unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
         if layout.size() != 0 {
             // SAFETY: `layout` is non-zero in size,
