@@ -8,7 +8,7 @@ pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate("http")?;
     module.ty::<Response>()?;
     module.ty::<Error>()?;
-    module.function(["get"], get)?;
+    module.function("get", get).build()?;
     module.associated_function("text", Response::text)?;
     Ok(module)
 }

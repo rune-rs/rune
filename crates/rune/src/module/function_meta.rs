@@ -8,7 +8,7 @@ use crate::alloc::prelude::*;
 #[cfg(feature = "doc")]
 use crate::alloc::Vec;
 use crate::alloc::{self, try_vec, Box};
-use crate::compile::{self, meta, IntoComponent, ItemBuf, Named};
+use crate::compile::{self, meta, IntoComponent, ItemBuf};
 use crate::hash::Hash;
 use crate::macros::{MacroContext, TokenStream};
 use crate::module::{AssociatedKey, Function, FunctionKind, InstanceFunction};
@@ -67,18 +67,34 @@ pub struct FunctionData {
 }
 
 impl FunctionData {
+    pub(crate) fn from_raw(item: ItemBuf, handler: Arc<FunctionHandler>) -> Self {
+        Self {
+            item,
+            handler,
+            #[cfg(feature = "doc")]
+            is_async: false,
+            #[cfg(feature = "doc")]
+            deprecated: None,
+            #[cfg(feature = "doc")]
+            args: None,
+            #[cfg(feature = "doc")]
+            return_type: None,
+            #[cfg(feature = "doc")]
+            argument_types: Box::default(),
+        }
+    }
+
     #[inline]
     pub(crate) fn new<F, A, N, K>(name: N, f: F) -> alloc::Result<Self>
     where
         F: Function<A, K>,
         F::Return: MaybeTypeOf,
-        N: IntoIterator,
-        N::Item: IntoComponent,
+        N: IntoComponent,
         A: FunctionArgs,
         K: FunctionKind,
     {
         Ok(Self {
-            item: ItemBuf::with_item(name)?,
+            item: ItemBuf::with_item([name])?,
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
             #[cfg(feature = "doc")]
             is_async: K::is_async(),
@@ -150,19 +166,19 @@ impl AttributeMacroData {
 #[derive(Debug, TryClone)]
 #[non_exhaustive]
 #[doc(hidden)]
-pub struct AssociatedFunctionName {
+pub struct AssociatedName {
     /// The name of the instance function.
-    pub associated: meta::AssociatedKind,
+    pub kind: meta::AssociatedKind,
     /// Parameters hash.
     pub function_parameters: Hash,
     #[cfg(feature = "doc")]
     pub parameter_types: Vec<Hash>,
 }
 
-impl AssociatedFunctionName {
+impl AssociatedName {
     pub(crate) fn index(protocol: Protocol, index: usize) -> Self {
         Self {
-            associated: meta::AssociatedKind::IndexFn(protocol, index),
+            kind: meta::AssociatedKind::IndexFn(protocol, index),
             function_parameters: Hash::EMPTY,
             #[cfg(feature = "doc")]
             parameter_types: Vec::new(),
@@ -174,20 +190,20 @@ impl AssociatedFunctionName {
 pub trait ToInstance: self::sealed::Sealed {
     /// Get information on the naming of the instance function.
     #[doc(hidden)]
-    fn to_instance(self) -> alloc::Result<AssociatedFunctionName>;
+    fn to_instance(self) -> alloc::Result<AssociatedName>;
 }
 
 /// Trait used to determine what can be used as an instance function name.
 pub trait ToFieldFunction: self::sealed::Sealed {
     #[doc(hidden)]
-    fn to_field_function(self, protocol: Protocol) -> alloc::Result<AssociatedFunctionName>;
+    fn to_field_function(self, protocol: Protocol) -> alloc::Result<AssociatedName>;
 }
 
 impl ToInstance for &'static str {
     #[inline]
-    fn to_instance(self) -> alloc::Result<AssociatedFunctionName> {
-        Ok(AssociatedFunctionName {
-            associated: meta::AssociatedKind::Instance(Cow::Borrowed(self)),
+    fn to_instance(self) -> alloc::Result<AssociatedName> {
+        Ok(AssociatedName {
+            kind: meta::AssociatedKind::Instance(Cow::Borrowed(self)),
             function_parameters: Hash::EMPTY,
             #[cfg(feature = "doc")]
             parameter_types: Vec::new(),
@@ -197,9 +213,9 @@ impl ToInstance for &'static str {
 
 impl ToFieldFunction for &'static str {
     #[inline]
-    fn to_field_function(self, protocol: Protocol) -> alloc::Result<AssociatedFunctionName> {
-        Ok(AssociatedFunctionName {
-            associated: meta::AssociatedKind::FieldFn(protocol, Cow::Borrowed(self)),
+    fn to_field_function(self, protocol: Protocol) -> alloc::Result<AssociatedName> {
+        Ok(AssociatedName {
+            kind: meta::AssociatedKind::FieldFn(protocol, Cow::Borrowed(self)),
             function_parameters: Hash::EMPTY,
             #[cfg(feature = "doc")]
             parameter_types: Vec::new(),
@@ -207,12 +223,43 @@ impl ToFieldFunction for &'static str {
     }
 }
 
+/// The full naming of an associated item.
+pub struct Associated {
+    /// The name of the associated item.
+    pub(crate) name: AssociatedName,
+    /// The container the associated item is associated with.
+    pub(crate) container: FullTypeOf,
+    /// Type info for the container the associated item is associated with.
+    pub(crate) container_type_info: TypeInfo,
+}
+
+impl Associated {
+    /// Construct a raw associated name.
+    pub fn new(name: AssociatedName, container: FullTypeOf, container_type_info: TypeInfo) -> Self {
+        Self {
+            name,
+            container,
+            container_type_info,
+        }
+    }
+
+    /// Construct an associated name from static type information.
+    pub fn from_type<T>(name: AssociatedName) -> alloc::Result<Self>
+    where
+        T: TypeOf,
+    {
+        Ok(Self {
+            name,
+            container: T::type_of(),
+            container_type_info: T::type_info(),
+        })
+    }
+}
+
 /// Runtime data for an associated function.
 pub struct AssociatedFunctionData {
-    pub(crate) name: AssociatedFunctionName,
+    pub(crate) associated: Associated,
     pub(crate) handler: Arc<FunctionHandler>,
-    pub(crate) container: FullTypeOf,
-    pub(crate) container_type_info: TypeInfo,
     #[cfg(feature = "doc")]
     pub(crate) is_async: bool,
     #[cfg(feature = "doc")]
@@ -226,8 +273,49 @@ pub struct AssociatedFunctionData {
 }
 
 impl AssociatedFunctionData {
+    pub(crate) fn from_raw(associated: Associated, handler: Arc<FunctionHandler>) -> Self {
+        Self {
+            associated,
+            handler,
+            #[cfg(feature = "doc")]
+            is_async: false,
+            #[cfg(feature = "doc")]
+            deprecated: None,
+            #[cfg(feature = "doc")]
+            args: None,
+            #[cfg(feature = "doc")]
+            return_type: None,
+            #[cfg(feature = "doc")]
+            argument_types: Box::default(),
+        }
+    }
+
     #[inline]
-    pub(crate) fn new<F, A, K>(name: AssociatedFunctionName, f: F) -> alloc::Result<Self>
+    pub(crate) fn from_function<F, A, K>(associated: Associated, f: F) -> alloc::Result<Self>
+    where
+        F: Function<A, K>,
+        F::Return: MaybeTypeOf,
+        A: FunctionArgs,
+        K: FunctionKind,
+    {
+        Ok(Self {
+            associated,
+            handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
+            #[cfg(feature = "doc")]
+            is_async: K::is_async(),
+            #[cfg(feature = "doc")]
+            deprecated: None,
+            #[cfg(feature = "doc")]
+            args: Some(F::args()),
+            #[cfg(feature = "doc")]
+            return_type: F::Return::maybe_type_of(),
+            #[cfg(feature = "doc")]
+            argument_types: A::into_box()?,
+        })
+    }
+
+    #[inline]
+    pub(crate) fn from_instance_function<F, A, K>(name: AssociatedName, f: F) -> alloc::Result<Self>
     where
         F: InstanceFunction<A, K>,
         F::Return: MaybeTypeOf,
@@ -235,10 +323,8 @@ impl AssociatedFunctionData {
         K: FunctionKind,
     {
         Ok(Self {
-            name,
+            associated: Associated::from_type::<F::Instance>(name)?,
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
-            container: F::Instance::type_of(),
-            container_type_info: F::Instance::type_info(),
             #[cfg(feature = "doc")]
             is_async: K::is_async(),
             #[cfg(feature = "doc")]
@@ -255,9 +341,9 @@ impl AssociatedFunctionData {
     /// Get associated key.
     pub(crate) fn assoc_key(&self) -> alloc::Result<AssociatedKey> {
         Ok(AssociatedKey {
-            type_hash: self.container.hash,
-            kind: self.name.associated.try_clone()?,
-            parameters: self.name.function_parameters,
+            type_hash: self.associated.container.hash,
+            kind: self.associated.name.kind.try_clone()?,
+            parameters: self.associated.name.function_parameters,
         })
     }
 }
@@ -297,10 +383,9 @@ impl FunctionMetaKind {
         A: FunctionArgs,
         K: FunctionKind,
     {
-        Ok(Self::AssociatedFunction(AssociatedFunctionData::new(
-            name.to_instance()?,
-            f,
-        )?))
+        Ok(Self::AssociatedFunction(
+            AssociatedFunctionData::from_instance_function(name.to_instance()?, f)?,
+        ))
     }
 }
 
@@ -332,8 +417,7 @@ where
     #[inline]
     pub fn build(self) -> alloc::Result<FunctionMetaKind>
     where
-        N: IntoIterator,
-        N::Item: IntoComponent,
+        N: IntoComponent,
     {
         Ok(FunctionMetaKind::Function(FunctionData::new(
             self.name, self.f,
@@ -345,9 +429,13 @@ where
     pub fn build_associated<T>(self) -> alloc::Result<FunctionMetaKind>
     where
         N: ToInstance,
-        T: TypeOf + Named,
+        T: TypeOf,
     {
-        self.build_associated_with(T::type_of(), T::type_info())
+        let associated = Associated::from_type::<T>(self.name.to_instance()?)?;
+
+        Ok(FunctionMetaKind::AssociatedFunction(
+            AssociatedFunctionData::from_function(associated, self.f)?,
+        ))
     }
 
     #[doc(hidden)]
@@ -360,23 +448,11 @@ where
     where
         N: ToInstance,
     {
+        let name = self.name.to_instance()?;
+        let associated = Associated::new(name, container, container_type_info);
+
         Ok(FunctionMetaKind::AssociatedFunction(
-            AssociatedFunctionData {
-                name: self.name.to_instance()?,
-                handler: Arc::new(move |stack, args| self.f.fn_call(stack, args)),
-                container,
-                container_type_info,
-                #[cfg(feature = "doc")]
-                is_async: K::is_async(),
-                #[cfg(feature = "doc")]
-                deprecated: None,
-                #[cfg(feature = "doc")]
-                args: Some(F::args()),
-                #[cfg(feature = "doc")]
-                return_type: F::Return::maybe_type_of(),
-                #[cfg(feature = "doc")]
-                argument_types: A::into_box()?,
-            },
+            AssociatedFunctionData::from_function(associated, self.f)?,
         ))
     }
 }

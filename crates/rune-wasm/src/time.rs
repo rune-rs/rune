@@ -13,8 +13,10 @@ extern "C" {
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate("time")?;
     module.ty::<Duration>()?;
-    module.function(["Duration", "from_secs"], Duration::from_secs)?;
-    module.function(["delay_for"], delay_for)?;
+    module
+        .function("from_secs", Duration::from_secs)
+        .build_associated::<Duration>()?;
+    module.function("delay_for", delay_for).build()?;
     Ok(module)
 }
 

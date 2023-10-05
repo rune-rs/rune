@@ -230,10 +230,8 @@ impl Function {
 
         let name_string = syn::LitStr::new(&self.sig.ident.to_string(), self.sig.ident.span());
 
-        let mut name;
-
-        if instance {
-            name = 'out: {
+        let name = if instance {
+            'out: {
                 syn::Expr::Lit(syn::ExprLit {
                     attrs: Vec::new(),
                     lit: syn::Lit::Str(match &attrs.path {
@@ -250,9 +248,9 @@ impl Function {
                         }
                     }),
                 })
-            };
+            }
         } else {
-            name = match &attrs.path {
+            match &attrs.path {
                 Path::None => expr_lit(&self.sig.ident),
                 Path::Rename(last) => expr_lit(&last.ident),
                 Path::Protocol(protocol) => syn::Expr::Path(syn::ExprPath {
@@ -260,17 +258,6 @@ impl Function {
                     qself: None,
                     path: protocol.clone(),
                 }),
-            };
-
-            if attrs.self_type.is_none() {
-                let mut out = syn::ExprArray {
-                    attrs: Vec::new(),
-                    bracket_token: syn::token::Bracket::default(),
-                    elems: Punctuated::default(),
-                };
-
-                out.elems.push(name);
-                name = syn::Expr::Array(out);
             }
         };
 

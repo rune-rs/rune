@@ -43,6 +43,6 @@ fn main() -> rune::support::Result<()> {
 
 fn module() -> Result<Module, ContextError> {
     let mut m = Module::new();
-    m.function(["add"], |a: i64| a + 1)?;
+    m.function("add", |a: i64| a + 1).build()?;
     Ok(m)
 }

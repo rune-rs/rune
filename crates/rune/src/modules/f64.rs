@@ -32,17 +32,17 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(partial_cmp)?;
     m.function_meta(cmp)?;
 
-    m.constant(["EPSILON"], f64::EPSILON)?;
-    m.constant(["MIN"], f64::MIN)?;
-    m.constant(["MAX"], f64::MAX)?;
-    m.constant(["MIN_POSITIVE"], f64::MIN_POSITIVE)?;
-    m.constant(["MIN_EXP"], f64::MIN_EXP)?;
-    m.constant(["MAX_EXP"], f64::MAX_EXP)?;
-    m.constant(["MIN_10_EXP"], f64::MIN_10_EXP)?;
-    m.constant(["MAX_10_EXP"], f64::MAX_10_EXP)?;
-    m.constant(["NAN"], f64::NAN)?;
-    m.constant(["INFINITY"], f64::INFINITY)?;
-    m.constant(["NEG_INFINITY"], f64::NEG_INFINITY)?;
+    m.constant("EPSILON", f64::EPSILON).build()?;
+    m.constant("MIN", f64::MIN).build()?;
+    m.constant("MAX", f64::MAX).build()?;
+    m.constant("MIN_POSITIVE", f64::MIN_POSITIVE).build()?;
+    m.constant("MIN_EXP", f64::MIN_EXP).build()?;
+    m.constant("MAX_EXP", f64::MAX_EXP).build()?;
+    m.constant("MIN_10_EXP", f64::MIN_10_EXP).build()?;
+    m.constant("MAX_10_EXP", f64::MAX_10_EXP).build()?;
+    m.constant("NAN", f64::NAN).build()?;
+    m.constant("INFINITY", f64::INFINITY).build()?;
+    m.constant("NEG_INFINITY", f64::NEG_INFINITY).build()?;
     Ok(m)
 }
 

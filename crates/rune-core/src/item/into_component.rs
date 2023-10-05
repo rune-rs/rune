@@ -45,6 +45,41 @@ pub trait IntoComponent: Sized {
     }
 }
 
+/// IntoCompoment implementation preserved for backwards compatibility.
+impl<T> IntoComponent for [T; 1]
+where
+    T: IntoComponent,
+{
+    fn as_component_ref(&self) -> ComponentRef<'_> {
+        let [this] = self;
+        this.as_component_ref()
+    }
+
+    #[inline]
+    #[cfg(feature = "alloc")]
+    fn into_component(self) -> alloc::Result<Component> {
+        let [this] = self;
+        this.into_component()
+    }
+
+    #[inline]
+    #[doc(hidden)]
+    #[cfg(feature = "alloc")]
+    fn write_component<A: Allocator>(self, output: &mut Vec<u8, A>) -> alloc::Result<()> {
+        let [this] = self;
+        this.write_component(output)
+    }
+
+    #[inline]
+    fn hash_component<H>(self, hasher: &mut H)
+    where
+        H: hash::Hasher,
+    {
+        let [this] = self;
+        this.hash_component(hasher)
+    }
+}
+
 impl IntoComponent for ComponentRef<'_> {
     #[inline]
     fn as_component_ref(&self) -> ComponentRef<'_> {

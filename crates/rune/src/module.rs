@@ -24,7 +24,7 @@ use crate::runtime::{
 };
 use crate::Hash;
 
-pub(crate) use self::function_meta::{AssociatedFunctionName, ToFieldFunction, ToInstance};
+pub(crate) use self::function_meta::{AssociatedName, ToFieldFunction, ToInstance};
 
 #[doc(hidden)]
 pub use self::function_meta::{FunctionMetaData, FunctionMetaKind, MacroMetaData, MacroMetaKind};
@@ -63,12 +63,11 @@ impl InternalEnum {
         static_type: &'static StaticType,
     ) -> alloc::Result<Self>
     where
-        N: IntoIterator,
-        N::Item: IntoComponent,
+        N: IntoComponent,
     {
         Ok(InternalEnum {
             name,
-            base_type: ItemBuf::with_item(base_type)?,
+            base_type: ItemBuf::with_item([base_type])?,
             static_type,
             variants: Vec::new(),
             docs: Docs::EMPTY,
@@ -213,7 +212,7 @@ pub(crate) struct ModuleFunction {
 pub(crate) struct ModuleAssociated {
     pub(crate) container: FullTypeOf,
     pub(crate) container_type_info: TypeInfo,
-    pub(crate) name: AssociatedFunctionName,
+    pub(crate) name: AssociatedName,
     pub(crate) handler: Arc<FunctionHandler>,
     #[cfg(feature = "doc")]
     pub(crate) is_async: bool,

@@ -737,7 +737,7 @@ impl Context {
         // should not be mixed in again.
         let hash = assoc
             .name
-            .associated
+            .kind
             .hash(assoc.container.hash)
             .with_function_parameters(assoc.name.function_parameters);
 
@@ -764,7 +764,7 @@ impl Context {
         //
         // The other alternatives are protocol functions (which are not free)
         // and plain hashes.
-        let item = if let meta::AssociatedKind::Instance(name) = &assoc.name.associated {
+        let item = if let meta::AssociatedKind::Instance(name) = &assoc.name.kind {
             let item = info.item.extended(name.as_ref())?;
 
             let hash = Hash::type_hash(&item)
@@ -788,7 +788,7 @@ impl Context {
             hash,
             item,
             kind: meta::Kind::Function {
-                associated: Some(assoc.name.associated.try_clone()?),
+                associated: Some(assoc.name.kind.try_clone()?),
                 signature,
                 is_test: false,
                 is_bench: false,

@@ -34,7 +34,7 @@ fn vm_execution_unit_fn() -> Result<()> {
 #[test]
 fn vm_execution_with_complex_external() -> Result<()> {
     let mut m = Module::new();
-    m.function(["external"], || 42i64)?;
+    m.function("external", || 42i64).build()?;
 
     let mut c1 = Context::with_default_modules()?;
     c1.install(m)?;
