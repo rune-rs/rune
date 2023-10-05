@@ -111,6 +111,12 @@ pub enum ContextError {
         hash: Hash,
         item_hash: Hash,
     },
+    StaticTypeHashMismatch {
+        type_info: TypeInfo,
+        item: ItemBuf,
+        hash: Hash,
+        item_hash: Hash,
+    },
 }
 
 impl From<alloc::Error> for ContextError {
@@ -260,6 +266,14 @@ impl fmt::Display for ContextError {
                 item_hash,
             } => {
                 write!(f,"Type hash mismatch for `{type_info}`, from module is `{hash}` while from item `{item}` is `{item_hash}`. A possibility is that it has the wrong #[rune(item = ..)] setting.")?;
+            }
+            ContextError::StaticTypeHashMismatch {
+                type_info,
+                item,
+                hash,
+                item_hash,
+            } => {
+                write!(f, "Static type hash mismatch for `{type_info}`, from module is `{hash}` while from item `{item}` is `{item_hash}`. The static item might be registered in the wrong module, or that the static type hash is miscalculated.")?;
             }
         }
 

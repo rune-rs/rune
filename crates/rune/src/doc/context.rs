@@ -17,6 +17,8 @@ pub(crate) enum MetaSource<'a> {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Meta<'a> {
+    /// Kind of the meta item.
+    pub(crate) kind: Kind<'a>,
     /// Item of the meta.
     pub(crate) item: Option<&'a Item>,
     /// The meta source.
@@ -24,8 +26,8 @@ pub(crate) struct Meta<'a> {
     pub(crate) source: MetaSource<'a>,
     /// Type hash for the meta item.
     pub(crate) hash: Hash,
-    /// Kind of the meta item.
-    pub(crate) kind: Kind<'a>,
+    /// Indicates if the item is deprecated.
+    pub(crate) deprecated: Option<&'a str>,
     /// Documentation for the meta item.
     pub(crate) docs: &'a [String],
 }
@@ -33,7 +35,6 @@ pub(crate) struct Meta<'a> {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Function<'a> {
     pub(crate) is_async: bool,
-    pub(crate) deprecated: Option<&'a str>,
     pub(crate) arg_names: Option<&'a [String]>,
     pub(crate) args: Option<usize>,
     pub(crate) signature: Signature,
@@ -65,15 +66,15 @@ pub(crate) struct AssocVariant<'a> {
 pub(crate) struct AssocFn<'a> {
     pub(crate) kind: AssocFnKind<'a>,
     pub(crate) is_async: bool,
-    pub(crate) deprecated: Option<&'a str>,
     pub(crate) return_type: Option<Hash>,
     pub(crate) argument_types: &'a [Option<Hash>],
-    pub(crate) docs: &'a [String],
     /// Literal argument replacements.
     /// TODO: replace this with structured information that includes type hash so it can be linked if it's available.
     pub(crate) arg_names: Option<&'a [String]>,
     /// Generic instance parameters for function.
     pub(crate) parameter_types: &'a [Hash],
+    pub(crate) deprecated: Option<&'a str>,
+    pub(crate) docs: &'a [String],
 }
 
 /// Information on an associated item.
@@ -127,14 +128,13 @@ impl<'a> Context<'a> {
             Some(associated.iter().flat_map(move |hash| {
                 let data = visitor.data.get(hash)?;
 
-                let (is_async, deprecated, kind) = match &data.kind {
+                let (is_async, kind) = match &data.kind {
                     Some(meta::Kind::Function {
                         associated: None,
                         signature: f,
                         ..
                     }) => (
                         f.is_async,
-                        f.deprecated.as_deref(),
                         AssocFnKind::Method(data.item.last()?.as_str()?, f.args, Signature::Function),
                     ),
                     Some(meta::Kind::Function {
@@ -143,7 +143,6 @@ impl<'a> Context<'a> {
                         ..
                     }) => (
                         f.is_async,
-                        f.deprecated.as_deref(),
                         AssocFnKind::Method(name.as_ref(), f.args, Signature::Instance),
                     ),
                     Some(meta::Kind::Variant { .. }) => {
@@ -158,12 +157,12 @@ impl<'a> Context<'a> {
                 Some(Assoc::Fn(AssocFn {
                     kind,
                     is_async,
-                    deprecated,
                     return_type: None,
                     argument_types: &[],
-                    docs: &data.docs,
                     arg_names: None,
                     parameter_types: &[],
+                    deprecated: data.deprecated.as_deref(),
+                    docs: &data.docs,
                 }))
             }))
         }
@@ -191,13 +190,13 @@ impl<'a> Context<'a> {
                     Some(Assoc::Fn(AssocFn {
                         kind,
                         is_async: signature.is_async,
-                        deprecated: signature.deprecated.as_deref(),
                         return_type: signature.return_type,
                         argument_types: &signature
                             .argument_types,
-                        docs: meta.docs.lines(),
                         arg_names: meta.docs.args(),
                         parameter_types: &parameter_types[..],
+                        deprecated: meta.deprecated.as_deref(),
+                        docs: meta.docs.lines(),
                     }))
                 }
                 meta::Kind::Function { associated: None, signature, .. } => {
@@ -207,13 +206,13 @@ impl<'a> Context<'a> {
                     Some(Assoc::Fn(AssocFn {
                         kind,
                         is_async: signature.is_async,
-                        deprecated: signature.deprecated.as_deref(),
                         return_type: signature.return_type,
                         argument_types: &signature
                             .argument_types,
-                        docs: meta.docs.lines(),
                         arg_names: meta.docs.args(),
                         parameter_types: &[],
+                        deprecated: meta.deprecated.as_deref(),
+                        docs: meta.docs.lines(),
                     }))
                 }
                 kind => {
@@ -307,7 +306,6 @@ impl<'a> Context<'a> {
             } => {
                 Kind::Function(Function {
                     is_async: f.is_async,
-                    deprecated: f.deprecated.as_deref(),
                     signature: Signature::Function,
                     arg_names: meta.docs.args(),
                     args: f.args,
@@ -322,7 +320,6 @@ impl<'a> Context<'a> {
             } => {
                 Kind::Function(Function {
                     is_async: f.is_async,
-                    deprecated: f.deprecated.as_deref(),
                     signature: Signature::Instance,
                     arg_names: meta.docs.args(),
                     args: f.args,
@@ -340,11 +337,12 @@ impl<'a> Context<'a> {
         };
 
         Some(Meta {
+            kind,
             source: MetaSource::Context,
             item: meta.item.as_deref(),
             hash: meta.hash,
+            deprecated: meta.deprecated.as_deref(),
             docs: meta.docs.lines(),
-            kind,
         })
     }
 
@@ -365,7 +363,6 @@ fn visitor_meta_to_meta<'a>(base: &'a Item, data: &'a VisitorData) -> Meta<'a> {
         Some(meta::Kind::Enum { .. }) => Kind::Enum,
         Some(meta::Kind::Function { associated, signature: f, .. }) => Kind::Function(Function {
             is_async: f.is_async,
-            deprecated: f.deprecated.as_deref(),
             arg_names: None,
             args: f.args,
             signature: match associated {
@@ -383,6 +380,7 @@ fn visitor_meta_to_meta<'a>(base: &'a Item, data: &'a VisitorData) -> Meta<'a> {
         source: MetaSource::Source(base),
         item: Some(&data.item),
         hash: data.hash,
+        deprecated: None,
         docs: data.docs.as_slice(),
         kind,
     }

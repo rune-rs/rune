@@ -17,7 +17,7 @@ use crate::alloc::prelude::*;
 #[cfg(feature = "doc")]
 use crate::alloc::Box;
 use crate::alloc::{self, Vec};
-use crate::compile::{meta, ContextError, Docs, IntoComponent, Item, ItemBuf};
+use crate::compile::{meta, ContextError, Docs, Item, ItemBuf};
 use crate::runtime::{
     AttributeMacroHandler, ConstValue, FullTypeOf, FunctionHandler, MacroHandler, MaybeTypeOf,
     StaticType, TypeCheck, TypeInfo, TypeOf,
@@ -48,33 +48,20 @@ pub trait InstallWith {
 pub(crate) struct InternalEnum {
     /// The name of the internal enum.
     pub(crate) name: &'static str,
-    /// The result type.
-    pub(crate) base_type: ItemBuf,
     /// The static type of the enum.
     pub(crate) static_type: &'static StaticType,
     /// Internal variants.
     pub(crate) variants: Vec<Variant>,
-    /// Documentation for internal enum.
-    pub(crate) docs: Docs,
 }
 
 impl InternalEnum {
     /// Construct a new handler for an internal enum.
-    fn new<N>(
-        name: &'static str,
-        base_type: N,
-        static_type: &'static StaticType,
-    ) -> alloc::Result<Self>
-    where
-        N: IntoComponent,
-    {
-        Ok(InternalEnum {
+    fn new(name: &'static str, static_type: &'static StaticType) -> Self {
+        InternalEnum {
             name,
-            base_type: ItemBuf::with_item([base_type])?,
             static_type,
             variants: Vec::new(),
-            docs: Docs::EMPTY,
-        })
+        }
     }
 
     /// Register a new variant.
@@ -95,11 +82,18 @@ impl InternalEnum {
             type_check: Some(type_check),
             fields: Some(Fields::Unnamed(C::args())),
             constructor: Some(constructor),
+            #[cfg(feature = "doc")]
+            deprecated: None,
             docs: Docs::EMPTY,
         })?;
 
         let v = self.variants.last_mut().unwrap();
-        Ok(ItemMut { docs: &mut v.docs })
+
+        Ok(ItemMut {
+            docs: &mut v.docs,
+            #[cfg(feature = "doc")]
+            deprecated: &mut v.deprecated,
+        })
     }
 }
 
@@ -109,6 +103,8 @@ pub(crate) struct ModuleType {
     /// The name of the installed type which will be the final component in the
     /// item it will constitute.
     pub(crate) item: ItemBuf,
+    /// Common item metadata.
+    pub(crate) common: ModuleItemCommon,
     /// Type hash.
     pub(crate) hash: Hash,
     /// Type parameters for this item.
@@ -119,8 +115,6 @@ pub(crate) struct ModuleType {
     pub(crate) spec: Option<TypeSpecification>,
     /// Handler to use if this type can be constructed through a regular function call.
     pub(crate) constructor: Option<Arc<FunctionHandler>>,
-    /// Documentation for the type.
-    pub(crate) docs: Docs,
 }
 
 /// The kind of the variant.
@@ -144,6 +138,8 @@ pub struct Variant {
     pub(crate) fields: Option<Fields>,
     /// Handler to use if this variant can be constructed through a regular function call.
     pub(crate) constructor: Option<Arc<FunctionHandler>>,
+    #[cfg(feature = "doc")]
+    pub(crate) deprecated: Option<Box<str>>,
     /// Variant documentation.
     pub(crate) docs: Docs,
 }
@@ -155,6 +151,8 @@ impl Variant {
             type_check: None,
             fields: None,
             constructor: None,
+            #[cfg(feature = "doc")]
+            deprecated: None,
             docs: Docs::EMPTY,
         }
     }
@@ -162,11 +160,13 @@ impl Variant {
 
 impl fmt::Debug for Variant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Variant")
-            .field("fields", &self.fields)
-            .field("constructor", &self.constructor.is_some())
-            .field("docs", &self.docs)
-            .finish()
+        let mut f = f.debug_struct("Variant");
+        f.field("fields", &self.fields);
+        f.field("constructor", &self.constructor.is_some());
+        #[cfg(feature = "doc")]
+        f.field("deprecated", &self.deprecated);
+        f.field("docs", &self.docs);
+        f.finish()
     }
 }
 
@@ -194,30 +194,22 @@ pub(crate) struct AssociatedKey {
     pub(crate) parameters: Hash,
 }
 
+pub(crate) enum ModuleItemKind {
+    Constant(ConstValue),
+    Function(ModuleFunction),
+    Macro(ModuleMacro),
+    AttributeMacro(ModuleAttributeMacro),
+    InternalEnum(InternalEnum),
+}
+
+pub(crate) struct ModuleItem {
+    pub(crate) item: ItemBuf,
+    pub(crate) common: ModuleItemCommon,
+    pub(crate) kind: ModuleItemKind,
+}
+
 #[derive(TryClone)]
 pub(crate) struct ModuleFunction {
-    pub(crate) item: ItemBuf,
-    pub(crate) docs: Docs,
-    pub(crate) handler: Arc<FunctionHandler>,
-    #[cfg(feature = "doc")]
-    pub(crate) is_async: bool,
-    #[cfg(feature = "doc")]
-    pub(crate) deprecated: Option<Box<str>>,
-    #[cfg(feature = "doc")]
-    pub(crate) args: Option<usize>,
-    #[cfg(feature = "doc")]
-    pub(crate) return_type: Option<FullTypeOf>,
-    #[cfg(feature = "doc")]
-    pub(crate) argument_types: Box<[Option<FullTypeOf>]>,
-}
-
-#[derive(TryClone)]
-pub(crate) struct ModuleAssociatedConstant {
-    pub(crate) value: ConstValue,
-}
-
-#[derive(TryClone)]
-pub(crate) struct ModuleAssociatedFunction {
     pub(crate) handler: Arc<FunctionHandler>,
     #[cfg(feature = "doc")]
     pub(crate) is_async: bool,
@@ -231,8 +223,17 @@ pub(crate) struct ModuleAssociatedFunction {
 
 #[derive(TryClone)]
 pub(crate) enum ModuleAssociatedKind {
-    Constant(ModuleAssociatedConstant),
-    Function(ModuleAssociatedFunction),
+    Constant(ConstValue),
+    Function(ModuleFunction),
+}
+
+#[derive(Default, TryClone)]
+pub(crate) struct ModuleItemCommon {
+    /// Documentation for the item.
+    pub(crate) docs: Docs,
+    /// Deprecation marker for the item.
+    #[cfg(feature = "doc")]
+    pub(crate) deprecated: Option<Box<str>>,
 }
 
 #[derive(TryClone)]
@@ -240,37 +241,26 @@ pub(crate) struct ModuleAssociated {
     pub(crate) container: FullTypeOf,
     pub(crate) container_type_info: TypeInfo,
     pub(crate) name: AssociatedName,
-    pub(crate) docs: Docs,
-    #[cfg(feature = "doc")]
-    pub(crate) deprecated: Option<Box<str>>,
+    pub(crate) common: ModuleItemCommon,
     pub(crate) kind: ModuleAssociatedKind,
 }
 
 /// Handle to a macro inserted into a module.
 pub(crate) struct ModuleMacro {
-    pub(crate) item: ItemBuf,
     pub(crate) handler: Arc<MacroHandler>,
-    pub(crate) docs: Docs,
 }
 
 /// Handle to an attribute macro inserted into a module.
 pub(crate) struct ModuleAttributeMacro {
-    pub(crate) item: ItemBuf,
     pub(crate) handler: Arc<AttributeMacroHandler>,
-    pub(crate) docs: Docs,
-}
-
-/// A constant registered in a module.
-pub(crate) struct ModuleConstant {
-    pub(crate) item: ItemBuf,
-    pub(crate) value: ConstValue,
-    pub(crate) docs: Docs,
 }
 
 /// Handle to a an item inserted into a module which allows for mutation of item
 /// metadata.
 pub struct ItemMut<'a> {
     docs: &'a mut Docs,
+    #[cfg(feature = "doc")]
+    deprecated: &'a mut Option<Box<str>>,
 }
 
 impl ItemMut<'_> {
@@ -291,6 +281,22 @@ impl ItemMut<'_> {
     /// This completely replaces any existing documentation.
     pub fn static_docs(self, docs: &'static [&'static str]) -> Result<Self, ContextError> {
         self.docs.set_docs(docs)?;
+        Ok(self)
+    }
+
+    /// Mark the given item as deprecated.
+    pub fn deprecated<S>(
+        self,
+        #[cfg_attr(not(feature = "doc"), allow(unused))] deprecated: S,
+    ) -> Result<Self, ContextError>
+    where
+        S: AsRef<str>,
+    {
+        #[cfg(feature = "doc")]
+        {
+            *self.deprecated = Some(deprecated.as_ref().try_into()?);
+        }
+
         Ok(self)
     }
 }
@@ -318,9 +324,9 @@ impl fmt::Debug for ItemMut<'_> {
 pub struct ItemFnMut<'a> {
     docs: &'a mut Docs,
     #[cfg(feature = "doc")]
-    is_async: &'a mut bool,
-    #[cfg(feature = "doc")]
     deprecated: &'a mut Option<Box<str>>,
+    #[cfg(feature = "doc")]
+    is_async: &'a mut bool,
     #[cfg(feature = "doc")]
     args: &'a mut Option<usize>,
     #[cfg(feature = "doc")]
@@ -556,6 +562,7 @@ where
     T: ?Sized + TypeOf,
 {
     enum_: &'a mut InternalEnum,
+    common: &'a mut ModuleItemCommon,
     _marker: PhantomData<T>,
 }
 
@@ -571,7 +578,7 @@ where
         I: IntoIterator,
         I::Item: AsRef<str>,
     {
-        self.enum_.docs.set_docs(docs)?;
+        self.common.docs.set_docs(docs)?;
         Ok(self)
     }
 
@@ -579,7 +586,23 @@ where
     ///
     /// This completely replaces any existing documentation.
     pub fn static_docs(self, docs: &'static [&'static str]) -> Result<Self, ContextError> {
-        self.enum_.docs.set_docs(docs)?;
+        self.common.docs.set_docs(docs)?;
+        Ok(self)
+    }
+
+    /// Mark the given type as deprecated.
+    pub fn deprecated<S>(
+        self,
+        #[cfg_attr(not(feature = "doc"), allow(unused))] deprecated: S,
+    ) -> Result<Self, ContextError>
+    where
+        S: AsRef<str>,
+    {
+        #[cfg(feature = "doc")]
+        {
+            self.common.deprecated = Some(deprecated.as_ref().try_into()?);
+        }
+
         Ok(self)
     }
 
@@ -614,6 +637,8 @@ where
     T: ?Sized + TypeOf,
 {
     docs: &'a mut Docs,
+    #[cfg(feature = "doc")]
+    deprecated: &'a mut Option<Box<str>>,
     spec: &'a mut Option<TypeSpecification>,
     constructor: &'a mut Option<Arc<FunctionHandler>>,
     item: &'a Item,
@@ -641,6 +666,22 @@ where
     /// This completely replaces any existing documentation.
     pub fn static_docs(self, docs: &'static [&'static str]) -> Result<Self, ContextError> {
         self.docs.set_docs(docs)?;
+        Ok(self)
+    }
+
+    /// Mark the given type as deprecated.
+    pub fn deprecated<S>(
+        self,
+        #[cfg_attr(not(feature = "doc"), allow(unused))] deprecated: S,
+    ) -> Result<Self, ContextError>
+    where
+        S: AsRef<str>,
+    {
+        #[cfg(feature = "doc")]
+        {
+            *self.deprecated = Some(deprecated.as_ref().try_into()?);
+        }
+
         Ok(self)
     }
 
