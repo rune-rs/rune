@@ -264,35 +264,6 @@ impl AnyObj {
         }
     }
 
-    /// Construct an Any that wraps a bevy specific mutable pointer that does change detection.
-    ///
-    /// # Safety
-    ///
-    /// Caller must ensure that the returned `AnyObj` doesn't outlive the
-    /// reference it is wrapping.
-    #[cfg(feature = "bevy")]
-    pub unsafe fn from_bevy_mut<T>(data: bevy::prelude::Mut<T>) -> Self
-    where
-        T: Any,
-    {
-        let untyped = bevy::ecs::change_detection::MutUntyped::from(data);
-        let (ptr, _) = Box::into_raw_with_allocator(Box::try_new(untyped).unwrap());
-        let data = ptr::NonNull::new_unchecked(ptr as *mut _ as *mut ());
-
-        Self {
-            vtable: &AnyObjVtable {
-                kind: AnyObjKind::MutPtr,
-                drop: bevy_mut_drop::<T>,
-                as_ptr: as_bevy_ptr_impl::<T>,
-                as_ptr_mut: as_bevy_ptr_mut_impl::<T>,
-                debug: debug_mut_impl::<T>,
-                type_name: type_name_impl::<T>,
-                type_hash: type_hash_impl::<T>,
-            },
-            data,
-        }
-    }
-
     /// Construct an Any that wraps a DerefMut type, behaving as the Target of
     /// the DerefMut implementation
     ///
@@ -575,7 +546,7 @@ pub type TypeNameFn = fn() -> RawStr;
 pub type TypeHashFn = fn() -> Hash;
 
 /// The kind of the stored value in the `AnyObj`.
-enum AnyObjKind {
+pub enum AnyObjKind {
     /// A boxed value that is owned.
     Owned,
     /// A pointer (`*const T`).
@@ -592,19 +563,19 @@ enum AnyObjKind {
 #[repr(C)]
 pub struct AnyObjVtable {
     /// The kind of the object being stored. Determines how it can be accessed.
-    kind: AnyObjKind,
+    pub kind: AnyObjKind,
     /// The underlying drop implementation for the stored type.
-    drop: DropFn,
+    pub drop: DropFn,
     /// Punt the inner pointer to the type corresponding to the type hash.
-    as_ptr: AsPtrFn,
+    pub as_ptr: AsPtrFn,
     /// Punt the inner pointer to the type corresponding to the type hash, but mutably,
-    as_ptr_mut: AsPtrMutFn,
+    pub as_ptr_mut: AsPtrMutFn,
     /// Type information for diagnostics.
-    debug: DebugFn,
+    pub debug: DebugFn,
     /// Type name accessor.
-    type_name: TypeNameFn,
+    pub type_name: TypeNameFn,
     /// Get the type hash of the stored type.
-    type_hash: TypeHashFn,
+    pub type_hash: TypeHashFn,
 }
 
 unsafe fn drop_impl<T>(this: *mut ()) {
@@ -628,30 +599,6 @@ where
 {
     if expected == TypeId::of::<T>() {
         Some(this)
-    } else {
-        None
-    }
-}
-
-#[cfg(feature = "bevy")]
-fn as_bevy_ptr_impl<T: 'static>(this: *const (), expected: TypeId) -> Option<*const ()> {
-    if expected == TypeId::of::<T>() {
-        let this = this as *const () as *const bevy::ecs::change_detection::MutUntyped;
-        let this = unsafe { &*this }.as_ref();
-        Some(unsafe { this.as_ptr() } as *const _ as *const ())
-    } else {
-        None
-    }
-}
-
-#[cfg(feature = "bevy")]
-fn as_bevy_ptr_mut_impl<T: 'static>(this: *mut (), expected: TypeId) -> Option<*mut ()> {
-    use bevy::prelude::DetectChangesMut;
-    if expected == TypeId::of::<T>() {
-        let this = this as *mut () as *mut bevy::ecs::change_detection::MutUntyped;
-        unsafe { DetectChangesMut::set_changed(&mut *this) }
-        let this = unsafe { DetectChangesMut::bypass_change_detection(&mut *this) };
-        Some(this.as_ptr() as *mut _ as *mut ())
     } else {
         None
     }
@@ -681,16 +628,6 @@ where
     }
 }
 fn noop_drop_impl<T>(_: *mut ()) {}
-
-#[cfg(feature = "bevy")]
-fn bevy_mut_drop<T>(this: *mut ()) {
-    unsafe {
-        drop(Box::from_raw_in(
-            this as *mut bevy::ecs::change_detection::MutUntyped,
-            Global,
-        ));
-    }
-}
 
 fn debug_impl<T>(f: &mut fmt::Formatter<'_>) -> fmt::Result
 where

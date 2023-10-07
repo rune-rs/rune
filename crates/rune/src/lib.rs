@@ -618,8 +618,9 @@ pub mod __private {
     pub use rust_alloc::boxed::Box;
 }
 
-/// Bevy related specific traits and implementations
+/// Bevy support.
 #[cfg(feature = "bevy")]
 pub mod bevy_related;
+
 #[cfg(test)]
 mod tests;
