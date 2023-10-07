@@ -450,6 +450,25 @@ impl Shared<AnyObj> {
         Self::unsafe_from_any_pointer(AnyObj::from_mut(data))
     }
 
+    /// Construct a `Shared<Any>` from a bevy specific mutable pointer that does change detection, this will be "taken"
+    /// once the returned guard is dropped.
+    ///
+    /// # Safety
+    ///
+    /// The reference must be valid for the duration of the guard.
+    ///
+    /// # Examples
+    ///
+    #[cfg(feature = "bevy")]
+    pub unsafe fn from_bevy_mut<T>(
+        data: bevy::prelude::Mut<T>,
+    ) -> alloc::Result<(Self, SharedPointerGuard)>
+    where
+        T: Any,
+    {
+        Self::unsafe_from_any_pointer(AnyObj::from_bevy_mut(data))
+    }
+
     /// Construct a `Shared<Any>` from an Any which is expected to wrap a
     /// pointer, that will be "taken" once the returned guard is dropped.
     ///

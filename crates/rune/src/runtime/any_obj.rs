@@ -79,6 +79,7 @@ impl AnyObj {
                 kind: AnyObjKind::Owned,
                 drop: drop_impl::<T>,
                 as_ptr: as_ptr_impl::<T>,
+                as_ptr_mut: as_ptr_mut_impl::<T>,
                 debug: debug_impl::<T>,
                 type_name: type_name_impl::<T>,
                 type_hash: type_hash_impl::<T>,
@@ -137,6 +138,7 @@ impl AnyObj {
                 kind: AnyObjKind::RefPtr,
                 drop: noop_drop_impl::<T>,
                 as_ptr: as_ptr_impl::<T>,
+                as_ptr_mut: as_ptr_mut_impl::<T>,
                 debug: debug_ref_impl::<T>,
                 type_name: type_name_impl::<T>,
                 type_hash: type_hash_impl::<T>,
@@ -175,6 +177,7 @@ impl AnyObj {
     pub unsafe fn from_deref<T>(data: T) -> alloc::Result<Self>
     where
         T: Deref,
+        T: DerefMut,
         T::Target: Any,
     {
         let data = {
@@ -187,6 +190,7 @@ impl AnyObj {
                 kind: AnyObjKind::RefPtr,
                 drop: drop_impl::<T>,
                 as_ptr: as_ptr_deref_impl::<T>,
+                as_ptr_mut: as_ptr_deref_mut_impl::<T>,
                 debug: debug_ref_impl::<T::Target>,
                 type_name: type_name_impl::<T::Target>,
                 type_hash: type_hash_impl::<T::Target>,
@@ -251,6 +255,36 @@ impl AnyObj {
                 kind: AnyObjKind::MutPtr,
                 drop: noop_drop_impl::<T>,
                 as_ptr: as_ptr_impl::<T>,
+                as_ptr_mut: as_ptr_mut_impl::<T>,
+                debug: debug_mut_impl::<T>,
+                type_name: type_name_impl::<T>,
+                type_hash: type_hash_impl::<T>,
+            },
+            data,
+        }
+    }
+
+    /// Construct an Any that wraps a bevy specific mutable pointer that does change detection.
+    ///
+    /// # Safety
+    ///
+    /// Caller must ensure that the returned `AnyObj` doesn't outlive the
+    /// reference it is wrapping.
+    #[cfg(feature = "bevy")]
+    pub unsafe fn from_bevy_mut<T>(data: bevy::prelude::Mut<T>) -> Self
+    where
+        T: Any,
+    {
+        let untyped = bevy::ecs::change_detection::MutUntyped::from(data);
+        let (ptr, _) = Box::into_raw_with_allocator(Box::try_new(untyped).unwrap());
+        let data = ptr::NonNull::new_unchecked(ptr as *mut _ as *mut ());
+
+        Self {
+            vtable: &AnyObjVtable {
+                kind: AnyObjKind::MutPtr,
+                drop: bevy_mut_drop::<T>,
+                as_ptr: as_bevy_ptr_impl::<T>,
+                as_ptr_mut: as_bevy_ptr_mut_impl::<T>,
                 debug: debug_mut_impl::<T>,
                 type_name: type_name_impl::<T>,
                 type_hash: type_hash_impl::<T>,
@@ -300,7 +334,8 @@ impl AnyObj {
             vtable: &AnyObjVtable {
                 kind: AnyObjKind::MutPtr,
                 drop: drop_impl::<T>,
-                as_ptr: as_ptr_deref_mut_impl::<T>,
+                as_ptr: as_ptr_deref_impl::<T>,
+                as_ptr_mut: as_ptr_deref_mut_impl::<T>,
                 debug: debug_mut_impl::<T::Target>,
                 type_name: type_name_impl::<T::Target>,
                 type_hash: type_hash_impl::<T::Target>,
@@ -403,7 +438,8 @@ impl AnyObj {
         T: Any,
     {
         unsafe {
-            (self.vtable.as_ptr)(self.data.as_ptr(), TypeId::of::<T>()).map(|v| &mut *(v as *mut _))
+            (self.vtable.as_ptr_mut)(self.data.as_ptr(), TypeId::of::<T>())
+                .map(|v| &mut *(v as *mut _))
         }
     }
 
@@ -431,8 +467,8 @@ impl AnyObj {
         // Safety: invariants are checked at construction time.
         // We have mutable access to the inner value because we have mutable
         // access to the `Any`.
-        match unsafe { (self.vtable.as_ptr)(self.data.as_ptr(), expected) } {
-            Some(ptr) => Ok(ptr as *mut ()),
+        match unsafe { (self.vtable.as_ptr_mut)(self.data.as_ptr(), expected) } {
+            Some(ptr) => Ok(ptr),
             None => Err(AnyObjError::Cast),
         }
     }
@@ -470,8 +506,8 @@ impl AnyObj {
         // We have mutable access to the inner value because we have mutable
         // access to the `Any`.
         unsafe {
-            match (this.vtable.as_ptr)(this.data.as_ptr(), expected) {
-                Some(data) => Ok(data as *mut ()),
+            match (this.vtable.as_ptr_mut)(this.data.as_ptr(), expected) {
+                Some(data) => Ok(data),
                 None => {
                     let this = ManuallyDrop::into_inner(this);
                     Err((AnyObjError::Cast, this))
@@ -526,6 +562,9 @@ pub type DropFn = unsafe fn(*mut ());
 /// The signature of a pointer coercion function.
 pub type AsPtrFn = unsafe fn(this: *const (), expected: TypeId) -> Option<*const ()>;
 
+/// The signature of a pointer coercion function, but mutably.
+pub type AsPtrMutFn = unsafe fn(this: *mut (), expected: TypeId) -> Option<*mut ()>;
+
 /// The signature of a descriptive type name function.
 pub type DebugFn = fn(&mut fmt::Formatter<'_>) -> fmt::Result;
 
@@ -558,6 +597,8 @@ pub struct AnyObjVtable {
     drop: DropFn,
     /// Punt the inner pointer to the type corresponding to the type hash.
     as_ptr: AsPtrFn,
+    /// Punt the inner pointer to the type corresponding to the type hash, but mutably,
+    as_ptr_mut: AsPtrMutFn,
     /// Type information for diagnostics.
     debug: DebugFn,
     /// Type name accessor.
@@ -581,6 +622,41 @@ where
     }
 }
 
+fn as_ptr_mut_impl<T>(this: *mut (), expected: TypeId) -> Option<*mut ()>
+where
+    T: Any,
+{
+    if expected == TypeId::of::<T>() {
+        Some(this)
+    } else {
+        None
+    }
+}
+
+#[cfg(feature = "bevy")]
+fn as_bevy_ptr_impl<T: 'static>(this: *const (), expected: TypeId) -> Option<*const ()> {
+    if expected == TypeId::of::<T>() {
+        let this = this as *const () as *const bevy::ecs::change_detection::MutUntyped;
+        let this = unsafe { &*this }.as_ref();
+        Some(unsafe { this.as_ptr() } as *const _ as *const ())
+    } else {
+        None
+    }
+}
+
+#[cfg(feature = "bevy")]
+fn as_bevy_ptr_mut_impl<T: 'static>(this: *mut (), expected: TypeId) -> Option<*mut ()> {
+    use bevy::prelude::DetectChangesMut;
+    if expected == TypeId::of::<T>() {
+        let this = this as *mut () as *mut bevy::ecs::change_detection::MutUntyped;
+        unsafe { DetectChangesMut::set_changed(&mut *this) }
+        let this = unsafe { DetectChangesMut::bypass_change_detection(&mut *this) };
+        Some(this.as_ptr() as *mut _ as *mut ())
+    } else {
+        None
+    }
+}
+
 fn as_ptr_deref_impl<T: Deref>(this: *const (), expected: TypeId) -> Option<*const ()>
 where
     T::Target: Any,
@@ -593,19 +669,28 @@ where
     }
 }
 
-fn as_ptr_deref_mut_impl<T: DerefMut>(this: *const (), expected: TypeId) -> Option<*const ()>
+fn as_ptr_deref_mut_impl<T: DerefMut>(this: *mut (), expected: TypeId) -> Option<*mut ()>
 where
     T::Target: Any,
 {
     if expected == TypeId::of::<T::Target>() {
         let guard = this as *mut T;
-        unsafe { Some((*guard).deref_mut() as *const _ as *const ()) }
+        unsafe { Some((*guard).deref_mut() as *mut _ as *mut ()) }
     } else {
         None
     }
 }
-
 fn noop_drop_impl<T>(_: *mut ()) {}
+
+#[cfg(feature = "bevy")]
+fn bevy_mut_drop<T>(this: *mut ()) {
+    unsafe {
+        drop(Box::from_raw_in(
+            this as *mut bevy::ecs::change_detection::MutUntyped,
+            Global,
+        ));
+    }
+}
 
 fn debug_impl<T>(f: &mut fmt::Formatter<'_>) -> fmt::Result
 where
