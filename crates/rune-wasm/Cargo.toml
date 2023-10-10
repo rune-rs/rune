@@ -1,6 +1,6 @@
 [package]
 name = "rune-wasm"
-version = "0.12.3"
+version = "0.13.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
 rust-version = "1.70"
@@ -14,9 +14,9 @@ keywords = ["language", "scripting", "scripting-language"]
 categories = ["parser-implementations"]
 
 [dependencies]
-rune = { version = "0.12.3", path = "../rune", features = ["capture-io"] }
-rune-macros = { version = "=0.12.3", path = "../rune-macros" }
-rune-modules = { version = "0.12.3", path = "../rune-modules", features = ["core", "test", "json", "toml", "rand", "experiments"] }
+rune = { version = "0.13.0", path = "../rune", features = ["capture-io"] }
+rune-macros = { version = "=0.13.0", path = "../rune-macros" }
+rune-modules = { version = "0.13.0", path = "../rune-modules", features = ["core", "test", "json", "toml", "rand", "experiments"] }
 
 serde = { version = "1.0.163", features = ["derive"] }
 wasm-bindgen = { version = "0.2.85", features = ["serde-serialize"] }

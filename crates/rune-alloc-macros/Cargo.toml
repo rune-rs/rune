@@ -1,10 +1,10 @@
 [package]
 name = "rune-alloc-macros"
-version = "0.12.3"
+version = "0.13.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
 rust-version = "1.70"
-description = "Macros for the Rune Language, an embeddable dynamic programming language for Rust."
+description = "Macros for alloc crate of the Rune Language, an embeddable dynamic programming language for Rust."
 documentation = "https://docs.rs/rune"
 readme = "README.md"
 homepage = "https://github.com/rune-rs/rune"

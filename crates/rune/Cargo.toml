@@ -1,6 +1,6 @@
 [package]
 name = "rune"
-version = "0.12.3"
+version = "0.13.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
 rust-version = "1.70"
@@ -29,9 +29,9 @@ std = ["alloc", "num/std", "serde/std", "rune-core/std", "rune-alloc/std", "musl
 alloc = ["anyhow", "rune-alloc/alloc", "rune-core/alloc", "once_cell/alloc", "serde/alloc"]
 
 [dependencies]
-rune-macros = { version = "=0.12.3", path = "../rune-macros" }
-rune-core = { version = "=0.12.3", path = "../rune-core", features = ["musli"] }
-rune-alloc = { version = "=0.12.3", path = "../rune-alloc", features = ["serde"], default-features = false }
+rune-macros = { version = "=0.13.0", path = "../rune-macros" }
+rune-core = { version = "=0.13.0", path = "../rune-core", features = ["musli"] }
+rune-alloc = { version = "0.13.0", path = "../rune-alloc", features = ["serde"], default-features = false }
 
 futures-core = { version = "0.3.28", default-features = false }
 futures-util = { version = "0.3.28", default-features = false, features = ["alloc"] }

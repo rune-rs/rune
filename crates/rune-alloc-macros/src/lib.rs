@@ -14,7 +14,7 @@
 //! <br>
 //! <br>
 //!
-//! Macros for the Rune Language, an embeddable dynamic programming language for Rust.
+//! Macros for alloc crate of the Rune Language, an embeddable dynamic programming language for Rust.
 //!
 //! <br>
 //!
