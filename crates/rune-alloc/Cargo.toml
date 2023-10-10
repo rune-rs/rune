@@ -1,6 +1,6 @@
 [package]
 name = "rune-alloc"
-version = "0.13.0"
+version = "0.13.1"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
 rust-version = "1.70"
@@ -19,7 +19,7 @@ std = ["alloc", "ahash/std", "serde?/std"]
 alloc = []
 
 [dependencies]
-rune-alloc-macros = { version = "=0.13.0", path = "../rune-alloc-macros" }
+rune-alloc-macros = { version = "=0.13.1", path = "../rune-alloc-macros" }
 
 serde = { version = "1.0", default-features = false, features = ["derive"], optional = true }
 ahash = { version = "0.8.3", default-features = false }
