@@ -196,7 +196,7 @@ mod exported_macros;
 #[macro_use]
 pub mod ast;
 
-#[cfg(all(feature = "fmt", feature = "cli"))]
+#[cfg(feature = "fmt")]
 pub(crate) mod fmt;
 
 cfg_emit! {
