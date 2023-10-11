@@ -641,7 +641,7 @@ impl Vm {
         };
 
         tracing::trace!(?frame);
-        self.stack.pop_stack_top(frame.stack_bottom)?;
+        self.stack.pop_stack_top(frame.stack_bottom);
         Ok(Some(replace(&mut self.ip, frame.ip)))
     }
 
@@ -651,12 +651,12 @@ impl Vm {
         tracing::trace!("popping call frame");
 
         let Some(frame) = self.call_frames.pop() else {
-            self.stack.check_stack_top()?;
+            self.stack.pop_stack_top(0);
             return Ok(true);
         };
 
         tracing::trace!(?frame);
-        self.stack.pop_stack_top(frame.stack_bottom)?;
+        self.stack.pop_stack_top(frame.stack_bottom);
         self.ip = frame.ip;
         Ok(frame.isolated)
     }
@@ -2028,15 +2028,7 @@ impl Vm {
 
     #[inline]
     #[tracing::instrument(skip(self))]
-    fn op_return_internal(
-        &mut self,
-        return_value: Value,
-        clean: usize,
-    ) -> Result<bool, VmErrorKind> {
-        if clean > 0 {
-            self.stack.popn(clean)?;
-        }
-
+    fn op_return_internal(&mut self, return_value: Value) -> Result<bool, VmErrorKind> {
         let exit = self.pop_call_frame()?;
         self.stack.push(return_value)?;
         Ok(exit)
@@ -2098,9 +2090,9 @@ impl Vm {
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_return(&mut self, address: InstAddress, clean: usize) -> Result<bool, VmErrorKind> {
+    fn op_return(&mut self, address: InstAddress) -> Result<bool, VmErrorKind> {
         let return_value = self.stack.address(address)?;
-        self.op_return_internal(return_value, clean)
+        self.op_return_internal(return_value)
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
@@ -2471,7 +2463,7 @@ impl Vm {
 
     /// Perform the try operation on the given stack location.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_try(&mut self, address: InstAddress, clean: usize, preserve: bool) -> VmResult<bool> {
+    fn op_try(&mut self, address: InstAddress, preserve: bool) -> VmResult<bool> {
         let value = vm_try!(self.stack.address(address));
 
         let result = 'out: {
@@ -2501,9 +2493,7 @@ impl Vm {
 
                 VmResult::Ok(false)
             }
-            ControlFlow::Break(error) => {
-                VmResult::Ok(vm_try!(self.op_return_internal(error, clean)))
-            }
+            ControlFlow::Break(error) => VmResult::Ok(vm_try!(self.op_return_internal(error))),
         }
     }
 
@@ -3039,8 +3029,8 @@ impl Vm {
                 Inst::IndexSet => {
                     vm_try!(self.op_index_set());
                 }
-                Inst::Return { address, clean } => {
-                    if vm_try!(self.op_return(address, clean)) {
+                Inst::Return { address } => {
+                    if vm_try!(self.op_return(address)) {
                         return VmResult::Ok(VmHalt::Exited);
                     }
                 }
@@ -3160,12 +3150,8 @@ impl Vm {
                 Inst::IsUnit => {
                     vm_try!(self.op_is_unit());
                 }
-                Inst::Try {
-                    address,
-                    clean,
-                    preserve,
-                } => {
-                    if vm_try!(self.op_try(address, clean, preserve)) {
+                Inst::Try { address, preserve } => {
+                    if vm_try!(self.op_try(address, preserve)) {
                         return VmResult::Ok(VmHalt::Exited);
                     }
                 }

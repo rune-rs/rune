@@ -397,28 +397,15 @@ impl Stack {
         }
     }
 
-    // Assert that the stack frame has been restored to the previous top
-    // at the point of return.
-    #[tracing::instrument(skip_all)]
-    pub(crate) fn check_stack_top(&self) -> Result<(), StackError> {
-        tracing::trace!(stack = self.stack.len(), self.stack_bottom,);
-
-        if self.stack.len() == self.stack_bottom {
-            return Ok(());
-        }
-
-        Err(StackError)
-    }
-
     /// Pop the current stack top and modify it to a different one.
     ///
     /// This asserts that the size of the current stack frame is exactly zero
     /// before restoring it.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn pop_stack_top(&mut self, stack_bottom: usize) -> Result<(), StackError> {
-        self.check_stack_top()?;
+    pub(crate) fn pop_stack_top(&mut self, stack_bottom: usize) {
+        tracing::trace!(stack = self.stack.len(), self.stack_bottom);
+        self.stack.truncate(self.stack_bottom);
         self.stack_bottom = stack_bottom;
-        Ok(())
     }
 }
 

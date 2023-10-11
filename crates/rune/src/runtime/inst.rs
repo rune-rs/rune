@@ -480,10 +480,6 @@ pub enum Inst {
     Return {
         /// The address of the value to return.
         address: InstAddress,
-        /// Number of variables to clean. If address is top, this should only
-        /// specify variables in excess of the top variable. Otherwise, this
-        /// includes the return value.
-        clean: usize,
     },
     /// Pop the current stack frame and restore the instruction pointer from it.
     ///
@@ -826,9 +822,6 @@ pub enum Inst {
     Try {
         /// Address to test if value.
         address: InstAddress,
-        /// Variable count that needs to be cleaned in case the operation
-        /// results in a return.
-        clean: usize,
         /// If the value on top of the stack should be preserved.
         preserve: bool,
     },

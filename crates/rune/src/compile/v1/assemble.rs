@@ -75,9 +75,6 @@ impl<'a, 'hir, 'arena> Ctxt<'a, 'hir, 'arena> {
 
     /// Clean up local variables by preserving the value that is on top and
     /// popping the rest.
-    ///
-    /// The clean operation will preserve the value that is on top of the stack,
-    /// and pop the values under it.
     pub(crate) fn locals_clean(
         &mut self,
         total_var_count: usize,
@@ -337,10 +334,8 @@ fn return_<'hir, T>(
     hir: T,
     asm: impl FnOnce(&mut Ctxt<'_, 'hir, '_>, T, Needs) -> compile::Result<Asm<'hir>>,
 ) -> compile::Result<()> {
-    let clean = cx.scopes.total(span)?;
-
     let address = asm(cx, hir, Needs::Value)?.apply_targeted(cx)?;
-    cx.asm.push(Inst::Return { address, clean }, span)?;
+    cx.asm.push(Inst::Return { address }, span)?;
 
     // Top address produces an anonymous variable, which is consumed by the
     // return statement.
@@ -389,9 +384,6 @@ fn pat_with_offset<'hir>(
 }
 
 /// Encode a pattern.
-///
-/// Patterns will clean up their own locals and execute a jump to `false_label`
-/// in case the pattern does not match.
 ///
 /// Returns a boolean indicating if the label was used.
 #[instrument(span = hir)]
@@ -2124,10 +2116,6 @@ fn expr_return<'hir>(
     if let Some(e) = hir {
         return_(cx, span, e, expr)?;
     } else {
-        // NB: we actually want total_var_count here since we need to clean up
-        // _every_ variable declared until we reached the current return.
-        let clean = cx.scopes.total(span)?;
-        cx.locals_pop(clean, span)?;
         cx.asm.push(Inst::ReturnUnit, span)?;
     }
 
@@ -2237,13 +2225,11 @@ fn expr_try<'hir>(
     span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm<'hir>> {
-    let clean = cx.scopes.total(span)?;
     let address = expr(cx, hir, Needs::Value)?.apply_targeted(cx)?;
 
     cx.asm.push(
         Inst::Try {
             address,
-            clean,
             preserve: needs.value(),
         },
         span,

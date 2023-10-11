@@ -203,8 +203,8 @@ impl<'a> Lexer<'a> {
                     has_exponent = true;
                     is_fractional = true;
 
-                    // Negative exponent.
-                    if matches!(self.iter.peek(), Some('-')) {
+                    // Negative or explicitly positive exponent.
+                    if matches!(self.iter.peek(), Some('-') | Some('+')) {
                         self.iter.next();
                     }
                 }
