@@ -37,7 +37,7 @@ impl Formatter {
     }
 
     #[inline]
-    pub fn with_capacity(capacity: usize) -> alloc::Result<Self> {
+    pub(crate) fn with_capacity(capacity: usize) -> alloc::Result<Self> {
         Ok(Self {
             string: String::try_with_capacity(capacity)?,
             buf: String::new(),
@@ -45,32 +45,32 @@ impl Formatter {
     }
 
     #[inline]
-    pub fn parts_mut(&mut self) -> (&mut String, &str) {
+    pub(crate) fn parts_mut(&mut self) -> (&mut String, &str) {
         (&mut self.string, &self.buf)
     }
 
     #[inline]
-    pub fn buf_mut(&mut self) -> &mut String {
+    pub(crate) fn buf_mut(&mut self) -> &mut String {
         &mut self.buf
     }
 
     #[inline]
-    pub fn push(&mut self, c: char) -> alloc::Result<()> {
+    pub(crate) fn push(&mut self, c: char) -> alloc::Result<()> {
         self.string.try_push(c)
     }
 
     #[inline]
-    pub fn push_str(&mut self, s: &str) -> alloc::Result<()> {
+    pub(crate) fn push_str(&mut self, s: &str) -> alloc::Result<()> {
         self.string.try_push_str(s)
     }
 
     #[inline]
-    pub fn into_string(self) -> String {
+    pub(crate) fn into_string(self) -> String {
         self.string
     }
 
     #[inline]
-    pub fn as_str(&self) -> &str {
+    pub(crate) fn as_str(&self) -> &str {
         &self.string
     }
 }

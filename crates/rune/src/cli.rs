@@ -136,6 +136,23 @@ impl<'a> Entry<'a> {
         }
     }
 
+    /// Run the configured application without starting a new tokio runtime.
+    ///
+    /// This will take over stdout and stdin.
+    pub async fn run_async(self) -> ! {
+        match self.inner().await {
+            Ok(exit_code) => {
+                std::process::exit(exit_code as i32);
+            }
+            Err(error) => {
+                let o = std::io::stderr();
+                // ignore error because stdout / stderr might've been closed.
+                let _ = format_errors(o.lock(), &error);
+                std::process::exit(ExitCode::Failure as i32);
+            }
+        }
+    }
+
     async fn inner(mut self) -> Result<ExitCode> {
         let args = match Args::try_parse() {
             Ok(args) => args,
