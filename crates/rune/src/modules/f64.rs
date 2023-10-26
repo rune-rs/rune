@@ -28,6 +28,8 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(powf)?;
     #[cfg(feature = "std")]
     m.function_meta(powi)?;
+    #[cfg(feature = "std")]
+    m.function_meta(floor)?;
     m.function_meta(to_integer)?;
     m.function_meta(partial_eq)?;
     m.function_meta(eq)?;
@@ -297,6 +299,25 @@ fn powf(this: f64, other: f64) -> f64 {
 #[cfg(feature = "std")]
 fn powi(this: f64, other: i32) -> f64 {
     this.powi(other)
+}
+
+/// Returns the largest integer less than or equal to `self`.
+///
+/// # Examples
+///
+/// ```rune
+/// let f = 3.7_f64;
+/// let g = 3.0_f64;
+/// let h = -3.7_f64;
+///
+/// assert!(f.floor() == 3.0);
+/// assert!(g.floor() == 3.0);
+/// assert!(h.floor() == -4.0);
+/// ```
+#[rune::function(instance)]
+#[cfg(feature = "std")]
+fn floor(this: f64) -> f64 {
+    this.floor()
 }
 
 /// Test two floats for partial equality.
