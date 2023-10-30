@@ -6,7 +6,7 @@ use crate::compile;
 
 #[derive(Debug)]
 #[non_exhaustive]
-pub(crate) enum FormattingError {
+pub enum FormattingError {
     BadRange(Range<usize>, usize),
     Compile(compile::Error),
     Alloc(alloc::Error),

@@ -197,7 +197,7 @@ mod exported_macros;
 pub mod ast;
 
 #[cfg(feature = "fmt")]
-pub(crate) mod fmt;
+pub mod fmt;
 
 cfg_emit! {
     pub use ::codespan_reporting::term::termcolor;

@@ -18,7 +18,7 @@ use self::error::FormattingError;
 use self::printer::Printer;
 
 /// Format the given source.
-pub(crate) fn layout_source(source: &str) -> Result<Vec<u8>, FormattingError> {
+pub fn layout_source(source: &str) -> Result<Vec<u8>, FormattingError> {
     let mut parser = Parser::new(source, SourceId::new(0), true);
 
     let ast = ast::File::parse(&mut parser)?;
