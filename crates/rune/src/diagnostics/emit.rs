@@ -286,6 +286,24 @@ impl FatalDiagnostic {
     }
 }
 
+impl WarningDiagnostic {
+    /// Generate formatted diagnostics capable of referencing source lines and
+    /// hints.
+    ///
+    /// See [prepare][crate::prepare] for how to use.
+    pub fn emit<O>(
+        &self,
+        out: &mut O,
+        sources: &Sources,
+    ) -> Result<(), EmitError>
+    where
+        O: WriteColor,
+    {
+        let config = term::Config::default();
+        warning_diagnostics_emit(self, out, sources, &config)
+    }
+}
+
 impl Unit {
     /// Dump instructions in a human readable manner.
     pub fn emit_instructions<O>(
