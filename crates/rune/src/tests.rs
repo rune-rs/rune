@@ -403,7 +403,6 @@ mod core_macros;
 mod custom_macros;
 mod derive_from_to_value;
 mod destructuring;
-mod dynamic_fields;
 mod esoteric_impls;
 mod external_constructor;
 mod external_generic;
@@ -462,3 +461,6 @@ mod vm_tuples;
 mod vm_typed_tuple;
 mod vm_types;
 mod wildcard_imports;
+
+#[cfg(feature = "dynamic_fields")]
+mod dynamic_fields;
