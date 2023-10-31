@@ -20,9 +20,6 @@ pub const NAME: Symbol = Symbol("name");
 pub const ITEM: Symbol = Symbol("item");
 pub const MODULE: Symbol = Symbol("module");
 pub const INSTALL_WITH: Symbol = Symbol("install_with");
-#[cfg(feature = "dynamic_fields")]
-pub const DYNAMIC_FIELDS: Symbol = Symbol("dynamic_fields");
-
 pub const CONSTRUCTOR: Symbol = Symbol("constructor");
 pub const BUILTIN: Symbol = Symbol("builtin");
 pub const STATIC_TYPE: Symbol = Symbol("static_type");

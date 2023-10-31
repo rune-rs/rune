@@ -479,28 +479,27 @@ impl Context {
                         attr.from_value_params =
                             Some(syn::punctuated::Punctuated::parse_terminated(&content)?);
                     } else if meta.path == META_FIELDS {
-                        if cfg!(not(feature = "dynamic_fields")) {
-                            return Err(syn::Error::new_spanned(
-                                &meta.path,
-                                "Dynamic fields feature flag \"dynamic_fields\" is not enabled",
-                            ));
-                        }
-                        meta.input.parse::<Token![=]>()?;
-                        let ty: syn::Ident = meta.input.parse()?;
-                        let value = match ty.to_string().as_str() {
-                            "never" => Some(format_ident!("Never")),
-                            "first" => Some(format_ident!("First")),
-                            "last" => Some(format_ident!("Last")),
-                            "only" => Some(format_ident!("Only")),
-                            _ => {
-                                return Err(syn::Error::new_spanned(
-                                    &meta.path,
-                                    "Expected `never`, `only`, `first` or `last`",
-                                ))
-                            }
-                        };
+                        #[cfg(not(feature = "dynamic_fields"))]
+                        return Err(syn::Error::new_spanned(
+                            &meta.path,
+                            "Dynamic fields feature flag \"dynamic_fields\" is not enabled",
+                        ));
                         #[cfg(feature = "dynamic_fields")]
                         {
+                            meta.input.parse::<Token![=]>()?;
+                            let ty: syn::Ident = meta.input.parse()?;
+                            let value = match ty.to_string().as_str() {
+                                "never" => Some(format_ident!("Never")),
+                                "first" => Some(format_ident!("First")),
+                                "last" => Some(format_ident!("Last")),
+                                "only" => Some(format_ident!("Only")),
+                                _ => {
+                                    return Err(syn::Error::new_spanned(
+                                        &meta.path,
+                                        "Expected `never`, `only`, `first` or `last`",
+                                    ))
+                                }
+                            };
                             attr.meta_fields = value;
                         }
                     } else {
