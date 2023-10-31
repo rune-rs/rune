@@ -1,8 +1,5 @@
 use core::any;
 
-use crate::compile::Named;
-use crate::hash::Hash;
-
 /// Macro to mark a value as external, which will implement all the appropriate
 /// traits.
 ///
@@ -56,6 +53,10 @@ use crate::hash::Hash;
 /// ```
 pub use rune_macros::Any;
 
+use crate::compile::Named;
+use crate::hash::Hash;
+use crate::DynamicFieldSearch;
+
 /// A trait which can be stored inside of an [AnyObj](crate::runtime::AnyObj).
 ///
 /// We use our own marker trait that must be explicitly derived to prevent other
@@ -72,7 +73,8 @@ pub use rune_macros::Any;
 ///     name: String,
 /// }
 /// ```
-pub trait Any: Named + any::Any {
+
+pub trait Any: Named + DynamicFieldSearch + any::Any {
     /// The type hash of the type.
     ///
     /// TODO: make const field when `TypeId::of` is const.

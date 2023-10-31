@@ -1,6 +1,7 @@
+use std::fmt;
+
 use proc_macro2::Span;
 use quote::{ToTokens, TokenStreamExt as _};
-use std::fmt;
 
 #[derive(Copy, Clone)]
 pub struct Symbol(&'static str);
@@ -19,12 +20,15 @@ pub const NAME: Symbol = Symbol("name");
 pub const ITEM: Symbol = Symbol("item");
 pub const MODULE: Symbol = Symbol("module");
 pub const INSTALL_WITH: Symbol = Symbol("install_with");
+pub const DYNAMIC_FIELDS: Symbol = Symbol("dynamic_fields");
 
 pub const CONSTRUCTOR: Symbol = Symbol("constructor");
 pub const BUILTIN: Symbol = Symbol("builtin");
 pub const STATIC_TYPE: Symbol = Symbol("static_type");
 pub const FROM_VALUE: Symbol = Symbol("from_value");
 pub const FROM_VALUE_PARAMS: Symbol = Symbol("from_value_params");
+
+pub const META_FIELDS: Symbol = Symbol("meta_fields");
 pub const GET: Symbol = Symbol("get");
 pub const SET: Symbol = Symbol("set");
 pub const COPY: Symbol = Symbol("copy");

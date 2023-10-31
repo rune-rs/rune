@@ -1,12 +1,12 @@
+use ::rust_alloc::sync::Arc;
 use core::cmp::Ordering;
 use core::mem::{replace, swap};
 use core::ops;
 use core::slice;
 
-use ::rust_alloc::sync::Arc;
-
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
+use crate::compile::dynamic_fields::DynamicFieldMode;
 use crate::hash::{Hash, IntoHash, ToTypeHash};
 use crate::modules::{option, result};
 use crate::runtime::budget;
@@ -102,6 +102,9 @@ pub struct Vm {
     stack: Stack,
     /// Frames relative to the stack.
     call_frames: alloc::Vec<CallFrame>,
+    #[cfg(feature = "dynamic_fields")]
+    /// Enables dynamic fields within the virtual machine.
+    dynamic_fields: bool,
 }
 
 impl Vm {
@@ -119,6 +122,8 @@ impl Vm {
             last_ip_len: 0,
             stack,
             call_frames: alloc::Vec::new(),
+            #[cfg(feature = "dynamic_fields")]
+            dynamic_fields: false,
         }
     }
 
@@ -144,7 +149,14 @@ impl Vm {
         Arc::ptr_eq(&self.unit, unit)
     }
 
-    /// Set  the current instruction pointer.
+    #[cfg(feature = "dynamic_fields")]
+    /// Set if dynamic fields are enabled.
+    #[inline]
+    pub fn set_dynamic_fields(&mut self, state: bool) {
+        self.dynamic_fields = state;
+    }
+
+    /// Set the current instruction pointer.
     #[inline]
     pub fn set_ip(&mut self, ip: usize) {
         self.ip = ip;
@@ -967,7 +979,132 @@ impl Vm {
             }
             target => {
                 let hash = index.hash();
+                #[cfg(feature = "dynamic_fields")]
+                return VmResult::Ok({
+                    let field_grab_type = vm_try!(target.field_mode());
+                    match field_grab_type {
+                        _ if !self.dynamic_fields => {
+                            match vm_try!(self.call_field_fn(Protocol::GET, target, hash, ())) {
+                                CallResult::Ok(()) => CallResult::Ok(vm_try!(self.stack.pop())),
+                                CallResult::Unsupported(target) => CallResult::Unsupported(target),
+                            }
+                        }
+                        DynamicFieldMode::Never => {
+                            match vm_try!(self.call_field_fn(Protocol::GET, target, hash, ())) {
+                                CallResult::Ok(()) => CallResult::Ok(vm_try!(self.stack.pop())),
+                                CallResult::Unsupported(target) => CallResult::Unsupported(target),
+                            }
+                        }
+                        DynamicFieldMode::First => {
+                            let hash = index.hash();
+                            match vm_try!(self.call_instance_fn(
+                                target.clone(),
+                                Protocol::DYNAMIC_FIELD_GET,
+                                (index.clone().as_str(),),
+                            )) {
+                                CallResult::Ok(()) => {
+                                    let result = vm_try!(self.stack.pop());
+                                    let result = match result {
+                                        Value::Option(val) => vm_try!(val.take()),
+                                        val => Some(val),
+                                    };
+                                    if let Some(result) = result {
+                                        CallResult::Ok(result)
+                                    } else {
+                                        match vm_try!(self.call_field_fn(
+                                            Protocol::GET,
+                                            target,
+                                            hash,
+                                            ()
+                                        )) {
+                                            CallResult::Ok(()) => {
+                                                CallResult::Ok(vm_try!(self.stack.pop()))
+                                            }
+                                            CallResult::Unsupported(target) => {
+                                                CallResult::Unsupported(target)
+                                            }
+                                        }
+                                    }
+                                }
+                                CallResult::Unsupported(target) => {
+                                    return VmResult::Ok(
+                                        match vm_try!(self.call_field_fn(
+                                            Protocol::GET,
+                                            target,
+                                            hash,
+                                            ()
+                                        )) {
+                                            CallResult::Ok(()) => {
+                                                CallResult::Ok(vm_try!(self.stack.pop()))
+                                            }
+                                            CallResult::Unsupported(target) => {
+                                                CallResult::Unsupported(target)
+                                            }
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                        DynamicFieldMode::Last => {
+                            let hash = index.hash();
+                            let index = index.clone();
+                            match vm_try!(self.call_field_fn(Protocol::GET, target, hash, ())) {
+                                CallResult::Ok(()) => {
+                                    return VmResult::Ok(CallResult::Ok(vm_try!(self.stack.pop())))
+                                }
+                                CallResult::Unsupported(target) => {
+                                    match vm_try!(self.call_instance_fn(
+                                        target.clone(),
+                                        Protocol::DYNAMIC_FIELD_GET,
+                                        (index.as_str(),),
+                                    )) {
+                                        CallResult::Ok(()) => {
+                                            let result = vm_try!(self.stack.pop());
+                                            if let Value::Option(result) = result {
+                                                let val = vm_try!(result.take());
+                                                if let Some(val) = val {
+                                                    CallResult::Ok(val)
+                                                } else {
+                                                    CallResult::Unsupported(target)
+                                                }
+                                            } else {
+                                                CallResult::Ok(result)
+                                            }
+                                        }
+                                        CallResult::Unsupported(target) => {
+                                            CallResult::Unsupported(target)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        DynamicFieldMode::Only => {
+                            let index = index.clone();
+                            match vm_try!(self.call_instance_fn(
+                                target.clone(),
+                                Protocol::DYNAMIC_FIELD_GET,
+                                (index.as_str(),),
+                            )) {
+                                CallResult::Ok(()) => {
+                                    let result = vm_try!(self.stack.pop());
+                                    if let Value::Option(v) = result {
+                                        let val = vm_try!(v.take());
+                                        if let Some(val) = val {
+                                            CallResult::Ok(val)
+                                        } else {
+                                            CallResult::Unsupported(target)
+                                        }
+                                    } else {
+                                        CallResult::Ok(result)
+                                    }
+                                }
+                                CallResult::Unsupported(target) => CallResult::Unsupported(target),
+                            }
+                        }
+                    }
+                });
 
+                #[cfg(not(feature = "dynamic_fields"))]
                 return VmResult::Ok(
                     match vm_try!(self.call_field_fn(Protocol::GET, target, hash, ())) {
                         CallResult::Ok(()) => CallResult::Ok(vm_try!(self.stack.pop())),
@@ -1026,6 +1163,141 @@ impl Vm {
             target => {
                 let hash = field.hash();
 
+                #[cfg(feature = "dynamic_fields")]
+                {
+                    let field_grab_type = target.field_mode().unwrap();
+                    match field_grab_type {
+                        _ if !self.dynamic_fields => {
+                            match vm_try!(self.call_field_fn(Protocol::SET, target, hash, (value,)))
+                            {
+                                CallResult::Ok(()) => {
+                                    vm_try!(<()>::from_value(vm_try!(self.stack.pop())));
+                                    CallResult::Ok(())
+                                }
+                                result => result,
+                            }
+                        }
+                        DynamicFieldMode::Never => {
+                            match vm_try!(self.call_field_fn(Protocol::SET, target, hash, (value,)))
+                            {
+                                CallResult::Ok(()) => {
+                                    vm_try!(<()>::from_value(vm_try!(self.stack.pop())));
+                                    CallResult::Ok(())
+                                }
+                                result => result,
+                            }
+                        }
+                        DynamicFieldMode::First => {
+                            let hash = field.hash();
+                            match vm_try!(self.call_instance_fn(
+                                target.clone(),
+                                Protocol::DYNAMIC_FIELD_SET,
+                                (field.clone().as_str(), value.clone()),
+                            )) {
+                                CallResult::Ok(()) => {
+                                    if let Value::Bool(v) = vm_try!(self.stack.pop()) {
+                                        if !v {
+                                            match vm_try!(self.call_field_fn(
+                                                Protocol::SET,
+                                                target,
+                                                hash,
+                                                (value,),
+                                            )) {
+                                                CallResult::Ok(()) => {
+                                                    vm_try!(self.stack.pop());
+                                                    CallResult::Ok(())
+                                                }
+                                                CallResult::Unsupported(target) => {
+                                                    CallResult::Unsupported(target)
+                                                }
+                                            }
+                                        } else {
+                                            CallResult::Ok(())
+                                        }
+                                    } else {
+                                        CallResult::Ok(())
+                                    }
+                                }
+                                CallResult::Unsupported(target) => {
+                                    match vm_try!(self.call_field_fn(
+                                        Protocol::SET,
+                                        target,
+                                        hash,
+                                        (value,)
+                                    )) {
+                                        CallResult::Ok(()) => {
+                                            vm_try!(self.stack.pop());
+                                            CallResult::Ok(())
+                                        }
+                                        CallResult::Unsupported(target) => {
+                                            CallResult::Unsupported(target)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        DynamicFieldMode::Last => {
+                            let hash = field.hash();
+                            let field = field.clone();
+                            match vm_try!(self.call_field_fn(
+                                Protocol::SET,
+                                target.clone(),
+                                hash,
+                                (value.clone(),),
+                            )) {
+                                CallResult::Ok(()) => {
+                                    if let Value::Bool(v) = vm_try!(self.stack.pop()) {
+                                        if !v {
+                                            CallResult::Unsupported(target)
+                                        } else {
+                                            CallResult::Ok(())
+                                        }
+                                    } else {
+                                        CallResult::Ok(())
+                                    }
+                                }
+                                CallResult::Unsupported(target) => {
+                                    match vm_try!(self.call_instance_fn(
+                                        target,
+                                        Protocol::DYNAMIC_FIELD_SET,
+                                        (field.as_str(), value),
+                                    )) {
+                                        CallResult::Ok(()) => {
+                                            vm_try!(self.stack.pop());
+                                            CallResult::Ok(())
+                                        }
+                                        CallResult::Unsupported(target) => {
+                                            CallResult::Unsupported(target)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        DynamicFieldMode::Only => {
+                            let field = field.clone();
+                            match vm_try!(self.call_instance_fn(
+                                target.clone(),
+                                Protocol::DYNAMIC_FIELD_SET,
+                                (field.as_str(), value),
+                            )) {
+                                CallResult::Ok(()) => {
+                                    if let Value::Bool(v) = vm_try!(self.stack.pop()) {
+                                        if !v {
+                                            CallResult::Unsupported(target)
+                                        } else {
+                                            CallResult::Ok(())
+                                        }
+                                    } else {
+                                        CallResult::Ok(())
+                                    }
+                                }
+                                CallResult::Unsupported(target) => CallResult::Unsupported(target),
+                            }
+                        }
+                    }
+                }
+
+                #[cfg(not(feature = "dynamic_fields"))]
                 match vm_try!(self.call_field_fn(Protocol::SET, target, hash, (value,))) {
                     CallResult::Ok(()) => {
                         vm_try!(<()>::from_value(vm_try!(self.stack.pop())));
@@ -3330,6 +3602,8 @@ impl TryClone for Vm {
             last_ip_len: self.last_ip_len,
             stack: self.stack.try_clone()?,
             call_frames: self.call_frames.try_clone()?,
+            #[cfg(feature = "dynamic_fields")]
+            dynamic_fields: self.dynamic_fields,
         })
     }
 }

@@ -2,10 +2,11 @@ use std::collections::BTreeMap;
 
 use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned, ToTokens};
-use rune_core::Hash;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::Token;
+
+use rune_core::Hash;
 
 use crate::context::{Context, Generate, GenerateTarget, Tokens, TypeAttr};
 
@@ -531,6 +532,8 @@ where
             mut_,
             ref_,
             vm_try,
+            dynamic_field_search,
+            dynamic_field_mode,
             ..
         } = &tokens;
 
@@ -644,6 +647,25 @@ where
             } else {
                 quote!(#hash::new(#type_hash))
             };
+            #[cfg(feature = "dynamic_fields")]
+            let meta_fields = if let Some(meta_fields) = attr.meta_fields {
+                quote! {
+                    #[automatically_derived]
+                impl #impl_generics #dynamic_field_search for #ident #type_generics #where_clause {
+                    const DYNAMIC_FIELD_MODE: #dynamic_field_mode = #dynamic_field_mode::#meta_fields;
+                }
+                }
+            } else {
+                quote! {
+                    #[automatically_derived]
+                impl #impl_generics #dynamic_field_search for #ident #type_generics #where_clause {
+                    const DYNAMIC_FIELD_MODE: #dynamic_field_mode = #dynamic_field_mode::Never;
+                }
+                }
+            };
+
+            #[cfg(not(feature = "dynamic_fields"))]
+            let meta_fields = quote! {};
 
             Some(quote! {
                 #[automatically_derived]
@@ -652,6 +674,8 @@ where
                         #make_hash
                     }
                 }
+
+                #meta_fields
 
                 #[automatically_derived]
                 impl #impl_generics #unsafe_to_ref for #ident #type_generics #where_clause {

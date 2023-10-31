@@ -1,16 +1,38 @@
-use core::fmt;
-
 use ::rust_alloc::boxed::Box;
+use core::fmt;
 
 /// Error raised when trying to parse an invalid option.
 #[derive(Debug, Clone)]
-pub struct ParseOptionError {
-    option: Box<str>,
+pub enum ParseOptionError {
+    /// Error raised when trying to parse an invalid option.
+    UnsupportedOption {
+        /// The unsupported option.
+        option: Box<str>,
+    },
+    /// Error raised when trying to enable a option which is not enabled by a feature gate.
+    DisabledFeatureOptionError {
+        /// The disabled option.
+        option: Box<str>,
+        /// The required feature to enable this option.
+        required_feature: &'static str,
+    },
 }
 
 impl fmt::Display for ParseOptionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Unsupported compile option `{}`", self.option)
+        match self {
+            Self::UnsupportedOption { option } => {
+                write!(f, "Unsupported compile option `{}`", option)
+            }
+            Self::DisabledFeatureOptionError {
+                option,
+                required_feature,
+            } => write!(
+                f,
+                "Featured gated compile option `{}` requires feature `{}`",
+                option, required_feature
+            ),
+        }
     }
 }
 
@@ -77,7 +99,7 @@ impl Options {
                 self.function_body = it.next() == Some("true");
             }
             _ => {
-                return Err(ParseOptionError {
+                return Err(ParseOptionError::UnsupportedOption {
                     option: option.into(),
                 });
             }
