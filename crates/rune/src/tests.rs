@@ -3,7 +3,26 @@
 #![allow(clippy::bool_assert_comparison)]
 #![allow(clippy::approx_constant)]
 
+use ::rust_alloc::string::String;
+use ::rust_alloc::sync::Arc;
+use core::fmt;
+
+use anyhow::{Context as _, Error, Result};
+
+use crate::alloc;
+use crate::compile::{IntoComponent, ItemBuf};
+use crate::runtime::{Args, VmError};
+use crate::{termcolor, BuildError, Context, Diagnostics, FromValue, Source, Sources, Unit, Vm};
+
 pub(crate) mod prelude {
+    pub(crate) use ::rust_alloc::borrow::ToOwned;
+    pub(crate) use ::rust_alloc::boxed::Box;
+    pub(crate) use ::rust_alloc::string::{String, ToString};
+    pub(crate) use ::rust_alloc::sync::Arc;
+    pub(crate) use ::rust_alloc::vec::Vec;
+
+    pub(crate) use futures_executor::block_on;
+
     pub(crate) use crate as rune;
     pub(crate) use crate::alloc;
     pub(crate) use crate::alloc::prelude::*;
@@ -24,26 +43,7 @@ pub(crate) mod prelude {
         from_value, prepare, sources, span, vm_try, Any, Context, ContextError, Diagnostics,
         FromValue, Hash, Module, Source, Sources, ToValue, Value, Vm,
     };
-    pub(crate) use futures_executor::block_on;
-
-    pub(crate) use ::rust_alloc::borrow::ToOwned;
-    pub(crate) use ::rust_alloc::boxed::Box;
-    pub(crate) use ::rust_alloc::string::{String, ToString};
-    pub(crate) use ::rust_alloc::sync::Arc;
-    pub(crate) use ::rust_alloc::vec::Vec;
 }
-
-use core::fmt;
-
-use ::rust_alloc::string::String;
-use ::rust_alloc::sync::Arc;
-
-use anyhow::{Context as _, Error, Result};
-
-use crate::alloc;
-use crate::compile::{IntoComponent, ItemBuf};
-use crate::runtime::{Args, VmError};
-use crate::{termcolor, BuildError, Context, Diagnostics, FromValue, Source, Sources, Unit, Vm};
 
 /// An error that can be raised during testing.
 #[derive(Debug)]
@@ -403,6 +403,7 @@ mod core_macros;
 mod custom_macros;
 mod derive_from_to_value;
 mod destructuring;
+mod dynamic_fields;
 mod esoteric_impls;
 mod external_constructor;
 mod external_generic;

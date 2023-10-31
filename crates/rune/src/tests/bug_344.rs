@@ -7,10 +7,12 @@
 //!
 //! See: https://github.com/rune-rs/rune/issues/344
 
-prelude!();
-
 use std::cell::Cell;
 use std::rc::Rc;
+
+use crate::{DynamicFieldMode, DynamicFieldSearch};
+
+prelude!();
 
 #[test]
 fn bug_344_function() -> Result<()> {
@@ -183,6 +185,10 @@ impl Any for GuardCheck {
 
 impl Named for GuardCheck {
     const BASE_NAME: RawStr = RawStr::from_str("GuardCheck");
+}
+
+impl DynamicFieldSearch for GuardCheck {
+    const DYNAMIC_FIELD_MODE: DynamicFieldMode = DynamicFieldMode::Never;
 }
 
 impl TypeOf for GuardCheck {
