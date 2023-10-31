@@ -6,7 +6,6 @@ use core::slice;
 
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
-use crate::compile::dynamic_fields::DynamicFieldMode;
 use crate::hash::{Hash, IntoHash, ToTypeHash};
 use crate::modules::{option, result};
 use crate::runtime::budget;
@@ -21,6 +20,8 @@ use crate::runtime::{
     Variant, VariantData, Vec, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmResult,
     VmSendExecution,
 };
+#[cfg(feature = "dynamic_fields")]
+use crate::DynamicFieldMode;
 
 /// Small helper function to build errors.
 fn err<T, E>(error: E) -> VmResult<T>
