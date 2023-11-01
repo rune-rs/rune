@@ -11,8 +11,6 @@ use ::serde::{Deserialize, Serialize};
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
-#[cfg(feature = "dynamic_fields")]
-use crate::compile::dynamic_fields::DynamicFieldMode;
 use crate::compile::ItemBuf;
 use crate::runtime::vm::CallResult;
 use crate::runtime::{
@@ -1211,17 +1209,6 @@ impl Value {
             Self::Variant(empty) => vm_try!(empty.borrow_ref()).type_info(),
             Self::Any(any) => vm_try!(any.borrow_ref()).type_info(),
         })
-    }
-
-    #[cfg(feature = "dynamic_fields")]
-    /// Function returns the method in which to search for fields within
-    /// the value.
-    pub(crate) fn field_mode(&self) -> Result<DynamicFieldMode, VmError> {
-        if let Value::Any(v) = self {
-            Ok(v.borrow_ref()?.field_mode())
-        } else {
-            Ok(DynamicFieldMode::Never)
-        }
     }
 
     /// Perform a partial equality test between two values.

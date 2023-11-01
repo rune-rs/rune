@@ -11,8 +11,6 @@ use crate::alloc::{self, Box};
 use crate::any::Any;
 use crate::hash::Hash;
 use crate::runtime::{AnyTypeInfo, FullTypeOf, MaybeTypeOf, RawStr, TypeInfo};
-#[cfg(feature = "dynamic_fields")]
-use crate::{DynamicFieldMode, DynamicFieldSearch};
 
 /// Errors raised during casting operations.
 #[derive(Debug)]
@@ -84,8 +82,6 @@ impl AnyObj {
                 debug: debug_impl::<T>,
                 type_name: type_name_impl::<T>,
                 type_hash: type_hash_impl::<T>,
-                #[cfg(feature = "dynamic_fields")]
-                field_mode: T::DYNAMIC_FIELD_MODE,
             },
             data,
         })
@@ -144,8 +140,6 @@ impl AnyObj {
                 debug: debug_ref_impl::<T>,
                 type_name: type_name_impl::<T>,
                 type_hash: type_hash_impl::<T>,
-                #[cfg(feature = "dynamic_fields")]
-                field_mode: T::DYNAMIC_FIELD_MODE,
             },
             data,
         }
@@ -196,8 +190,6 @@ impl AnyObj {
                 debug: debug_ref_impl::<T::Target>,
                 type_name: type_name_impl::<T::Target>,
                 type_hash: type_hash_impl::<T::Target>,
-                #[cfg(feature = "dynamic_fields")]
-                field_mode: T::Target::DYNAMIC_FIELD_MODE,
             },
             data,
         })
@@ -262,8 +254,6 @@ impl AnyObj {
                 debug: debug_mut_impl::<T>,
                 type_name: type_name_impl::<T>,
                 type_hash: type_hash_impl::<T>,
-                #[cfg(feature = "dynamic_fields")]
-                field_mode: T::DYNAMIC_FIELD_MODE,
             },
             data,
         }
@@ -314,8 +304,6 @@ impl AnyObj {
                 debug: debug_mut_impl::<T::Target>,
                 type_name: type_name_impl::<T::Target>,
                 type_hash: type_hash_impl::<T::Target>,
-                #[cfg(feature = "dynamic_fields")]
-                field_mode: T::Target::DYNAMIC_FIELD_MODE,
             },
             data,
         })
@@ -514,12 +502,6 @@ impl AnyObj {
             (self.vtable.type_hash)(),
         ))
     }
-
-    #[cfg(feature = "dynamic_fields")]
-    /// Access the dynamic field mode for the type.
-    pub fn field_mode(&self) -> DynamicFieldMode {
-        self.vtable.field_mode
-    }
 }
 
 impl MaybeTypeOf for AnyObj {
@@ -582,8 +564,6 @@ pub struct AnyObjVtable {
     type_name: TypeNameFn,
     /// Get the type hash of the stored type.
     type_hash: TypeHashFn,
-    #[cfg(feature = "dynamic_fields")]
-    field_mode: DynamicFieldMode,
 }
 
 unsafe fn drop_impl<T>(this: *mut ()) {

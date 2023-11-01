@@ -55,7 +55,6 @@ pub use rune_macros::Any;
 
 use crate::compile::Named;
 use crate::hash::Hash;
-use crate::DynamicFieldSearch;
 
 /// A trait which can be stored inside of an [AnyObj](crate::runtime::AnyObj).
 ///
@@ -74,7 +73,7 @@ use crate::DynamicFieldSearch;
 /// }
 /// ```
 
-pub trait Any: Named + DynamicFieldSearch + any::Any {
+pub trait Any: Named + any::Any {
     /// The type hash of the type.
     ///
     /// TODO: make const field when `TypeId::of` is const.

@@ -2,7 +2,7 @@ use std::cell::RefCell;
 
 use proc_macro2::Span;
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote_spanned};
+use quote::quote_spanned;
 use quote::{quote, ToTokens};
 use syn::parse::ParseStream;
 use syn::punctuated::Punctuated;
@@ -86,10 +86,6 @@ pub(crate) struct TypeAttr {
     pub(crate) from_value: Option<syn::Path>,
     /// Method to use to convert from value.
     pub(crate) from_value_params: Option<syn::punctuated::Punctuated<syn::Type, Token![,]>>,
-    #[cfg(feature = "dynamic_fields")]
-    /// `#[rune(meta_fields = never|first|last|only)]` to allow meta fields on a type
-    /// and when to access.
-    pub(crate) meta_fields: Option<syn::Ident>,
 }
 
 /// Parsed variant attributes.
@@ -478,30 +474,6 @@ impl Context {
                         syn::bracketed!(content in meta.input);
                         attr.from_value_params =
                             Some(syn::punctuated::Punctuated::parse_terminated(&content)?);
-                    } else if meta.path == META_FIELDS {
-                        #[cfg(not(feature = "dynamic_fields"))]
-                        return Err(syn::Error::new_spanned(
-                            &meta.path,
-                            "Dynamic fields feature flag \"dynamic_fields\" is not enabled",
-                        ));
-                        #[cfg(feature = "dynamic_fields")]
-                        {
-                            meta.input.parse::<Token![=]>()?;
-                            let ty: syn::Ident = meta.input.parse()?;
-                            let value = match ty.to_string().as_str() {
-                                "never" => Some(format_ident!("Never")),
-                                "first" => Some(format_ident!("First")),
-                                "last" => Some(format_ident!("Last")),
-                                "only" => Some(format_ident!("Only")),
-                                _ => {
-                                    return Err(syn::Error::new_spanned(
-                                        &meta.path,
-                                        "Expected `never`, `only`, `first` or `last`",
-                                    ))
-                                }
-                            };
-                            attr.meta_fields = value;
-                        }
                     } else {
                         return Err(syn::Error::new_spanned(
                             &meta.path,
@@ -632,8 +604,6 @@ impl Context {
             from_value: path(m, ["runtime", "FromValue"]),
             full_type_of: path(m, ["runtime", "FullTypeOf"]),
             hash: path(m, ["Hash"]),
-            dynamic_field_search: path(m, ["DynamicFieldSearch"]),
-            dynamic_field_mode: path(m, ["DynamicFieldMode"]),
             id: path(m, ["parse", "Id"]),
             install_with: path(m, ["__private", "InstallWith"]),
             into_iterator: path(&core, ["iter", "IntoIterator"]),
@@ -726,8 +696,6 @@ pub(crate) struct Tokens {
     pub(crate) from_value: syn::Path,
     pub(crate) full_type_of: syn::Path,
     pub(crate) hash: syn::Path,
-    pub(crate) dynamic_field_search: syn::Path,
-    pub(crate) dynamic_field_mode: syn::Path,
     pub(crate) id: syn::Path,
     pub(crate) install_with: syn::Path,
     pub(crate) into_iterator: syn::Path,

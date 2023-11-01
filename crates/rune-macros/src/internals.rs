@@ -26,7 +26,6 @@ pub const STATIC_TYPE: Symbol = Symbol("static_type");
 pub const FROM_VALUE: Symbol = Symbol("from_value");
 pub const FROM_VALUE_PARAMS: Symbol = Symbol("from_value_params");
 
-pub const META_FIELDS: Symbol = Symbol("meta_fields");
 pub const GET: Symbol = Symbol("get");
 pub const SET: Symbol = Symbol("set");
 pub const COPY: Symbol = Symbol("copy");

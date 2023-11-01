@@ -50,7 +50,6 @@ mod unit_builder;
 pub(crate) mod v1;
 
 mod compile;
-pub(crate) mod dynamic_fields;
 mod location;
 pub mod meta;
 mod named;

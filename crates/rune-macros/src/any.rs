@@ -532,8 +532,6 @@ where
             mut_,
             ref_,
             vm_try,
-            dynamic_field_search,
-            dynamic_field_mode,
             ..
         } = &tokens;
 
@@ -647,30 +645,6 @@ where
             } else {
                 quote!(#hash::new(#type_hash))
             };
-            #[cfg(feature = "dynamic_fields")]
-            let meta_fields = if let Some(meta_fields) = attr.meta_fields {
-                quote! {
-                    #[automatically_derived]
-                impl #impl_generics #dynamic_field_search for #ident #type_generics #where_clause {
-                    const DYNAMIC_FIELD_MODE: #dynamic_field_mode = #dynamic_field_mode::#meta_fields;
-                }
-                }
-            } else {
-                quote! {
-                    #[automatically_derived]
-                impl #impl_generics #dynamic_field_search for #ident #type_generics #where_clause {
-                    const DYNAMIC_FIELD_MODE: #dynamic_field_mode = #dynamic_field_mode::Never;
-                }
-                }
-            };
-
-            #[cfg(not(feature = "dynamic_fields"))]
-            let meta_fields = quote! {
-                #[automatically_derived]
-                impl #impl_generics #dynamic_field_search for #ident #type_generics #where_clause {
-                    const DYNAMIC_FIELD_MODE: #dynamic_field_mode = #dynamic_field_mode::Never;
-                }
-            };
 
             Some(quote! {
                 #[automatically_derived]
@@ -679,8 +653,6 @@ where
                         #make_hash
                     }
                 }
-
-                #meta_fields
 
                 #[automatically_derived]
                 impl #impl_generics #unsafe_to_ref for #ident #type_generics #where_clause {

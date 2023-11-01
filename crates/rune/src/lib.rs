@@ -143,20 +143,129 @@
 #![allow(clippy::self_named_constructors)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-#[macro_use]
-extern crate alloc as rust_alloc;
 #[cfg(feature = "std")]
 #[macro_use]
 extern crate std;
 
+// This is here for forward compatibility when we can support allocation-free
+// execution.
+#[cfg(not(feature = "alloc"))]
+compile_error!("The `alloc` feature is currently required to build rune, but will change for parts of rune in the future.");
+
+#[macro_use]
+extern crate alloc as rust_alloc;
+
+/// A macro that can be used to construct a [Span][crate::ast::Span] that can be
+/// pattern matched over.
+///
+/// # Examples
+///
+/// ```
+/// use rune::ast::Span;
+/// use rune::span;
+///
+/// let span = Span::new(42, 84);
+/// assert!(matches!(span, span!(42, 84)));
+/// ```
+#[macro_export]
+#[doc(hidden)]
+macro_rules! span {
+    ($start:expr, $end:expr) => {
+        $crate::ast::Span {
+            start: $crate::ast::ByteIndex($start),
+            end: $crate::ast::ByteIndex($end),
+        }
+    };
+}
+
+pub mod alloc;
+
+#[macro_use]
+#[cfg(test)]
+pub(crate) mod testing;
+
+/// Helper prelude for #[no_std] support.
+pub mod no_std;
+
+#[macro_use]
+mod internal_macros;
+
+#[macro_use]
+mod exported_macros;
+
+#[macro_use]
+pub mod ast;
+
+#[cfg(feature = "fmt")]
+pub(crate) mod fmt;
+
+cfg_emit! {
+    pub use ::codespan_reporting::term::termcolor;
+}
+
+mod any;
+pub use self::any::Any;
+
+mod build;
+pub use self::build::{prepare, Build, BuildError};
+
+pub mod compile;
+#[doc(inline)]
+pub use self::compile::{Context, ContextError, Options};
+
+pub mod module;
+#[doc(inline)]
+pub use self::module::module::Module;
+
+pub mod diagnostics;
+#[doc(inline)]
+pub use self::diagnostics::Diagnostics;
+
+mod hash;
+pub use self::hash::{Hash, ToTypeHash};
+
+#[cfg(feature = "alloc")]
+mod hashbrown;
+
+mod params;
+pub use self::params::Params;
+
+mod hir;
+
+mod indexing;
+
+pub mod macros;
+
+pub mod modules;
+
+pub mod parse;
+
+pub mod query;
+
+pub mod runtime;
+pub use self::runtime::{from_value, to_value, FromValue, ToValue, Unit, Value, Vm};
+
+mod shared;
+
+pub mod source;
+pub use self::source::Source;
+
+#[macro_use]
+mod sources;
+pub use self::sources::{SourceId, Sources};
+
+mod worker;
+
+#[doc(hidden)]
+pub mod support;
+
+cfg_workspace! {
+    pub mod workspace;
+}
+
 // Macros used internally and re-exported.
 pub(crate) use rune_macros::__internal_impl_any;
-/// Macro used to annotate native functions which can be loaded as attribute
-/// macros in rune.
-///
-/// See [`Module::macro_meta`].
-#[doc(hidden)]
-pub use rune_macros::attribute_macro;
+
 /// Macro used to annotate native functions which can be loaded into rune.
 ///
 /// This macro automatically performs the following things:
@@ -466,121 +575,23 @@ pub use rune_macros::attribute_macro;
 /// [`VmResult`]: crate::runtime::VmResult
 /// [`vm_try!`]: crate::vm_try!
 pub use rune_macros::function;
+
 /// Macro used to annotate native functions which can be loaded as macros in
 /// rune.
 ///
 /// See [`Module::macro_meta`].
 #[doc(hidden)]
 pub use rune_macros::macro_;
+
+/// Macro used to annotate native functions which can be loaded as attribute
+/// macros in rune.
+///
+/// See [`Module::macro_meta`].
+#[doc(hidden)]
+pub use rune_macros::attribute_macro;
+
 /// Macro used to annotate a module with metadata.
 pub use rune_macros::module;
-
-pub use self::any::Any;
-pub use self::build::{prepare, Build, BuildError};
-#[doc(inline)]
-pub use self::compile::{
-    dynamic_fields::{DynamicFieldMode, DynamicFieldSearch},
-    Context, ContextError, Options,
-};
-#[doc(inline)]
-pub use self::diagnostics::Diagnostics;
-pub use self::hash::{Hash, ToTypeHash};
-#[doc(inline)]
-pub use self::module::module::Module;
-pub use self::params::Params;
-pub use self::runtime::{from_value, to_value, FromValue, ToValue, Unit, Value, Vm};
-pub use self::source::Source;
-pub use self::sources::{SourceId, Sources};
-
-// This is here for forward compatibility when we can support allocation-free
-// execution.
-#[cfg(not(feature = "alloc"))]
-compile_error!("The `alloc` feature is currently required to build rune, but will change for parts of rune in the future.");
-
-/// A macro that can be used to construct a [Span][crate::ast::Span] that can be
-/// pattern matched over.
-///
-/// # Examples
-///
-/// ```
-/// use rune::ast::Span;
-/// use rune::span;
-///
-/// let span = Span::new(42, 84);
-/// assert!(matches!(span, span!(42, 84)));
-/// ```
-#[macro_export]
-#[doc(hidden)]
-macro_rules! span {
-    ($start:expr, $end:expr) => {
-        $crate::ast::Span {
-            start: $crate::ast::ByteIndex($start),
-            end: $crate::ast::ByteIndex($end),
-        }
-    };
-}
-
-pub mod alloc;
-
-#[macro_use]
-#[cfg(test)]
-pub(crate) mod testing;
-
-/// Helper prelude for #[no_std] support.
-pub mod no_std;
-
-#[macro_use]
-mod internal_macros;
-
-#[macro_use]
-mod exported_macros;
-
-#[macro_use]
-pub mod ast;
-
-#[cfg(feature = "fmt")]
-pub(crate) mod fmt;
-
-cfg_emit! {
-    pub use ::codespan_reporting::term::termcolor;
-}
-
-mod any;
-mod build;
-pub mod compile;
-pub mod diagnostics;
-mod hash;
-#[cfg(feature = "alloc")]
-mod hashbrown;
-pub mod module;
-
-mod hir;
-mod params;
-
-mod indexing;
-
-pub mod macros;
-
-pub mod modules;
-
-pub mod parse;
-
-pub mod query;
-
-pub mod runtime;
-mod shared;
-
-pub mod source;
-#[macro_use]
-mod sources;
-mod worker;
-
-#[doc(hidden)]
-pub mod support;
-
-cfg_workspace! {
-    pub mod workspace;
-}
 
 cfg_cli! {
     pub mod cli;
@@ -596,8 +607,6 @@ cfg_doc! {
 /// Privately exported details.
 #[doc(hidden)]
 pub mod __private {
-    pub use rust_alloc::boxed::Box;
-
     pub use crate::compile::ItemBuf;
     pub use crate::module::module::Module;
     pub use crate::module::{
@@ -606,6 +615,7 @@ pub mod __private {
     };
     pub use crate::params::Params;
     pub use crate::runtime::TypeOf;
+    pub use rust_alloc::boxed::Box;
 }
 
 #[cfg(test)]

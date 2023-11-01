@@ -1,3 +1,4 @@
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
 prelude!();
@@ -34,29 +35,27 @@ macro_rules! set_up_vm {
         let result = prepare(&mut sources).with_context(&context).build();
 
         let unit = result?;
-        let mut vm = Vm::new(runtime, Arc::new(unit));
-        vm.set_dynamic_fields(true);
-        vm
+        Vm::new(runtime, Arc::new(unit))
     }};
 }
 
 macro_rules! register_type {
-    ($mode:ident) => {
+    ($($protocols:ident),* $(,)?) => {
         #[derive(Any, Clone)]
-        #[rune(meta_fields = $mode)]
         struct TestClass {
-            #[rune(get, set)]
+            #[rune($($protocols),*)]
             a: i64,
             values: HashMap<String, i64>,
         }
+
         impl TestClass {
             #[rune::function(instance, protocol = DYNAMIC_FIELD_GET)]
             fn get_meta_field(&self, key: &str) -> Option<i64> {
                 self.values.get(key).copied()
             }
+
             #[rune::function(instance, protocol = DYNAMIC_FIELD_SET)]
             fn set_meta_field(&mut self, key: String, val: i64) {
-                use std::collections::hash_map::Entry;
                 match self.values.entry(key) {
                     Entry::Occupied(entry) => {
                         *entry.into_mut() = val;
@@ -72,7 +71,7 @@ macro_rules! register_type {
 
 #[test]
 fn dynamic_fields_never() -> Result<()> {
-    register_type!(never);
+    register_type!(get, set);
     let mut vm = set_up_vm!();
 
     let input = TestClass {
@@ -98,8 +97,9 @@ fn dynamic_fields_never() -> Result<()> {
 
 #[test]
 fn dynamic_fields_first() -> Result<()> {
-    register_type!(first);
+    register_type!(get, set);
     let mut vm = set_up_vm!();
+
     let input = TestClass {
         a: 69,
         values: {
@@ -119,7 +119,6 @@ fn dynamic_fields_first() -> Result<()> {
     let value = i64::from_value(vm.call(["get_field"], (input.clone(),))?).into_result()?;
     assert_eq!(value, 69);
 
-    vm.set_dynamic_fields(false);
     let value = vm.call(["get_meta_field"], (input.clone(),));
     assert!(value.is_err());
 
@@ -131,7 +130,7 @@ fn dynamic_fields_first() -> Result<()> {
 
 #[test]
 fn dynamic_fields_last() -> Result<()> {
-    register_type!(last);
+    register_type!(get, set);
     let mut vm = set_up_vm!();
 
     let input = TestClass {
@@ -153,7 +152,6 @@ fn dynamic_fields_last() -> Result<()> {
     let value = i64::from_value(vm.call(["get_field"], (input.clone(),))?).into_result()?;
     assert_eq!(value, 69);
 
-    vm.set_dynamic_fields(false);
     let value = vm.call(["get_meta_field"], (input.clone(),));
     assert!(value.is_err());
 
@@ -165,7 +163,7 @@ fn dynamic_fields_last() -> Result<()> {
 
 #[test]
 fn dynamic_fields_only() -> Result<()> {
-    register_type!(only);
+    register_type!(get, set);
     let mut vm = set_up_vm!();
 
     let input = TestClass {
@@ -183,7 +181,6 @@ fn dynamic_fields_only() -> Result<()> {
     let value = vm.call(["get_field"], (input.clone(),));
     assert!(value.is_err());
 
-    vm.set_dynamic_fields(false);
     let value = vm.call(["get_meta_field"], (input.clone(),));
     assert!(value.is_err());
 
