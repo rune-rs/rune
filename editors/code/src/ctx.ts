@@ -124,7 +124,7 @@ export class Ctx {
 
         log.info("Using server binary at", binary.path);
 
-        if (!isValidExecutable(binary.path)) {
+        if (!isValidExecutable(binary.path, this.config.serverExtraEnv)) {
             if (this.config.serverPath) {
                 throw new Error(`Failed to execute ${binary.path} --version. \`config.server.path\` has been set explicitly.\
                 Consider removing this config or making a valid server binary available at that path.`);
@@ -166,7 +166,7 @@ export class Ctx {
             });
         });
 
-        if (code != 0) {
+        if (code !== 0) {
             let e = new Error(`cargo --version: failed (${code})`);
             // Smuggle details.
             (e as any).details = err;
@@ -230,13 +230,13 @@ export class Ctx {
 
                 let output = JSON.parse(data) as ReasonOutput;
 
-                if (output.reason == "compiler-artifact") {
+                if (output.reason === "compiler-artifact") {
                     let artifact = output as CompilerArtifact;
                     this.statusBar.text = `rune: cargo (${artifact.target.name})`;
 
                     let [id, ...rest] = artifact.package_id.split(" ");
 
-                    if (id == name && artifact.target.kind.includes("bin")) {
+                    if (id === name && artifact.target.kind.includes("bin")) {
                         executable = artifact.executable;
                     }
                 }

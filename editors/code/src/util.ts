@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { strict as nativeAssert } from "assert";
 import { exec, ExecOptions, spawnSync } from "child_process";
+import { Env, substituteVariablesInEnv } from "./config";
 import { inspect } from "util";
 
 export function assert(condition: boolean, explanation: string): asserts condition {
@@ -60,10 +61,13 @@ export const log = new (class {
     }
 })();
 
-export function isValidExecutable(path: string): boolean {
+export function isValidExecutable(path: string, extraEnv: Env): boolean {
     log.debug("Checking availability of a binary at", path);
 
-    const res = spawnSync(path, ["--version"], { encoding: "utf8" });
+    const newEnv = substituteVariablesInEnv(Object.assign({}, process.env, extraEnv));
+    log.debug('newEnv', newEnv);
+
+    const res = spawnSync(path, ["--version"], { encoding: "utf8", env: newEnv });
 
     const printOutput = res.error && (res.error as any).code !== "ENOENT" ? log.warn : log.debug;
     printOutput(path, "--version:", res);
