@@ -124,7 +124,7 @@ export class Ctx {
 
         log.info("Using server binary at", binary.path);
 
-        if (!isValidExecutable(binary.path)) {
+        if (!isValidExecutable(binary.path, this.config.serverExtraEnv)) {
             if (this.config.serverPath) {
                 throw new Error(`Failed to execute ${binary.path} --version. \`config.server.path\` has been set explicitly.\
                 Consider removing this config or making a valid server binary available at that path.`);
