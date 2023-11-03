@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1698282037824,
+  "lastUpdate": 1698973299272,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -23141,6 +23141,94 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 926,
             "range": "± 3",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Simon Wörner",
+            "username": "SWW13",
+            "email": "git@simon-woerner.de"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "4b611d25139f5cf3332667132f24893ae44ef3fd",
+          "message": "vscode: Pass extra env when validating (#654)",
+          "timestamp": "2023-11-02T18:29:09Z",
+          "url": "https://github.com/rune-rs/rune/commit/4b611d25139f5cf3332667132f24893ae44ef3fd"
+        },
+        "date": 1698973297959,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 271000,
+            "range": "± 198",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 940762,
+            "range": "± 9535",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 422720821,
+            "range": "± 1270906",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 250357531,
+            "range": "± 812736",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 1230230,
+            "range": "± 12922",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 13196632,
+            "range": "± 108438",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 71582274,
+            "range": "± 628330",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 11437159,
+            "range": "± 123705",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 469463,
+            "range": "± 305",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 5245208,
+            "range": "± 2689",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 736,
+            "range": "± 20",
             "unit": "ns/iter"
           }
         ]
