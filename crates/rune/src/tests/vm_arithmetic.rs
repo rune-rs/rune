@@ -130,6 +130,44 @@ fn test_rem() {
 }
 
 #[test]
+fn test_byte_ops() {
+    let out: u8 = rune!(
+        pub fn main() {
+            12u8 & 6u8
+        }
+    );
+    assert_eq!(out, 4u8);
+
+    let out: u8 = rune!(
+        pub fn main() {
+            12u8 ^ 6u8
+        }
+    );
+    assert_eq!(out, 10u8);
+
+    let out: u8 = rune!(
+        pub fn main() {
+            12u8 | 6u8
+        }
+    );
+    assert_eq!(out, 14u8);
+
+    let out: u8 = rune!(
+        pub fn main() {
+            12u8 << 2
+        }
+    );
+    assert_eq!(out, 48u8);
+
+    let out: u8 = rune!(
+        pub fn main() {
+            12u8 >> 2
+        }
+    );
+    assert_eq!(out, 3u8);
+}
+
+#[test]
 fn test_bit_ops() {
     op_tests!(0b1100 & 0b0110 = 0b1100 & 0b0110);
     op_tests!(0b1100 ^ 0b0110 = 0b1100 ^ 0b0110);
