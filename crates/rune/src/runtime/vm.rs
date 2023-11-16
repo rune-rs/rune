@@ -1421,7 +1421,7 @@ impl Vm {
         protocol: Protocol,
         error: fn() -> VmErrorKind,
         integer_op: fn(i64, i64) -> Option<i64>,
-        byte_op: fn(u8, u8) -> Option<u8>,
+        byte_op: fn(u8, i64) -> Option<u8>,
         lhs: InstAddress,
         rhs: InstAddress,
     ) -> VmResult<()> {
@@ -1434,7 +1434,7 @@ impl Vm {
                 vm_try!(self.stack.push(Value::from(integer)));
                 return VmResult::Ok(());
             }
-            (Value::Byte(lhs), Value::Byte(rhs)) => {
+            (Value::Byte(lhs), Value::Integer(rhs)) => {
                 let byte = vm_try!(byte_op(lhs, rhs).ok_or_else(error));
                 vm_try!(self.stack.push(Value::from(byte)));
                 return VmResult::Ok(());
