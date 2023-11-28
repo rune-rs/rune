@@ -141,7 +141,7 @@
 #![allow(clippy::type_complexity)]
 #![allow(clippy::module_inception)]
 #![allow(clippy::self_named_constructors)]
-#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(rune_docsrs, feature(doc_cfg))]
 
 #[cfg(feature = "std")]
 #[macro_use]

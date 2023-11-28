@@ -75,7 +75,7 @@ macro_rules! cfg_emit {
     ($($item:item)*) => {
         $(
             #[cfg(feature = "emit")]
-            #[cfg_attr(docsrs, doc(cfg(feature = "emit")))]
+            #[cfg_attr(rune_docsrs, doc(cfg(feature = "emit")))]
             $item
         )*
     }
@@ -85,7 +85,7 @@ macro_rules! cfg_workspace {
     ($($item:item)*) => {
         $(
             #[cfg(feature = "workspace")]
-            #[cfg_attr(docsrs, doc(cfg(feature = "workspace")))]
+            #[cfg_attr(rune_docsrs, doc(cfg(feature = "workspace")))]
             $item
         )*
     }
@@ -95,7 +95,7 @@ macro_rules! cfg_cli {
     ($($item:item)*) => {
         $(
             #[cfg(feature = "cli")]
-            #[cfg_attr(docsrs, doc(cfg(feature = "cli")))]
+            #[cfg_attr(rune_docsrs, doc(cfg(feature = "cli")))]
             $item
         )*
     }
@@ -105,7 +105,7 @@ macro_rules! cfg_doc {
     ($($item:item)*) => {
         $(
             #[cfg(feature = "doc")]
-            #[cfg_attr(docsrs, doc(cfg(feature = "doc")))]
+            #[cfg_attr(rune_docsrs, doc(cfg(feature = "doc")))]
             $item
         )*
     }
@@ -115,7 +115,7 @@ macro_rules! cfg_std {
     ($($item:item)*) => {
         $(
             #[cfg(feature = "std")]
-            #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
+            #[cfg_attr(rune_docsrs, doc(cfg(feature = "std")))]
             $item
         )*
     }
