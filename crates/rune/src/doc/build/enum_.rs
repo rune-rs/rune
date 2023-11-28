@@ -3,8 +3,8 @@ use serde::Serialize;
 
 use crate::alloc::{String, Vec};
 use crate::compile::{ComponentRef, Item};
-use crate::doc::context::Meta;
 use crate::doc::build::{self, Builder, Ctxt, IndexEntry};
+use crate::doc::context::Meta;
 
 #[derive(Serialize)]
 struct Params<'a> {
@@ -23,7 +23,10 @@ struct Params<'a> {
 
 /// Build an enumeration.
 #[tracing::instrument(skip_all)]
-pub(crate) fn build<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<(Builder<'m>, Vec<IndexEntry<'m>>)> {
+pub(crate) fn build<'m>(
+    cx: &mut Ctxt<'_, 'm>,
+    meta: Meta<'m>,
+) -> Result<(Builder<'m>, Vec<IndexEntry<'m>>)> {
     let module = cx.module_path_html(meta, false)?;
 
     let (protocols, methods, variants, index) = build::type_::build_assoc_fns(cx, meta)?;

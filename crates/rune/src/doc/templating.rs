@@ -1,11 +1,12 @@
-use crate::std::sync::Mutex;
-use ::rust_alloc::sync::Arc;
-use crate::alloc::{self, String, HashMap};
 use crate::alloc::borrow::Cow;
 use crate::alloc::prelude::*;
+use crate::alloc::{self, HashMap, String};
+use crate::std::sync::Mutex;
+use ::rust_alloc::sync::Arc;
 
 use handlebars::{
-    Context, Handlebars, Helper, HelperResult, Output, RenderContext, Renderable, StringOutput, HelperDef,
+    Context, Handlebars, Helper, HelperDef, HelperResult, Output, RenderContext, Renderable,
+    StringOutput,
 };
 use serde::Serialize;
 
@@ -40,7 +41,10 @@ pub(crate) struct Paths {
 impl Paths {
     /// Insert a path redirect.
     pub(crate) fn insert(&self, from: &str, to: &str) -> alloc::Result<()> {
-        self.inner.lock().unwrap().try_insert(from.try_to_owned()?, to.try_to_owned()?)?;
+        self.inner
+            .lock()
+            .unwrap()
+            .try_insert(from.try_to_owned()?, to.try_to_owned()?)?;
         Ok(())
     }
 }
@@ -52,7 +56,10 @@ pub(crate) struct Templating {
 
 impl Templating {
     /// Set up a new templating engine.
-    pub(crate) fn new<'a, I>(partials: I, paths: Paths) -> Result<Templating> where I: IntoIterator<Item = (&'a str, Cow<'a, str>)> {
+    pub(crate) fn new<'a, I>(partials: I, paths: Paths) -> Result<Templating>
+    where
+        I: IntoIterator<Item = (&'a str, Cow<'a, str>)>,
+    {
         let mut handlebars = Handlebars::new();
         handlebars.register_helper("literal", ::rust_alloc::boxed::Box::new(literal));
         handlebars.register_helper("path", ::rust_alloc::boxed::Box::new(path(paths)));
@@ -90,7 +97,12 @@ fn literal(
 }
 
 fn path(paths: Paths) -> impl HelperDef + Send + Sync + 'static {
-    move |h: &Helper<'_, '_>, _: &Handlebars<'_>, _: &Context, _: &mut RenderContext<'_, '_>, out: &mut dyn Output| -> HelperResult {
+    move |h: &Helper<'_, '_>,
+          _: &Handlebars<'_>,
+          _: &Context,
+          _: &mut RenderContext<'_, '_>,
+          out: &mut dyn Output|
+          -> HelperResult {
         let param = h.param(0).and_then(|v| v.value().as_str()).unwrap_or("");
         let inner = paths.inner.lock().unwrap();
         let path = inner.get(param).map(String::as_str).unwrap_or(param);

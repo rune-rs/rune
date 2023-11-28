@@ -1,7 +1,7 @@
 use crate::alloc::prelude::*;
 use crate::alloc::Vec;
 use crate::compile::meta;
-use crate::compile::{MetaError, CompileVisitor, ItemBuf, MetaRef};
+use crate::compile::{CompileVisitor, ItemBuf, MetaError, MetaRef};
 use crate::Hash;
 
 /// Attribute to collect.
@@ -43,7 +43,8 @@ impl CompileVisitor for FunctionVisitor {
             _ => return Ok(()),
         };
 
-        self.functions.try_push((type_hash, meta.item.try_to_owned()?))?;
+        self.functions
+            .try_push((type_hash, meta.item.try_to_owned()?))?;
         Ok(())
     }
 }

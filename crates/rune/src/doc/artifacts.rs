@@ -1,20 +1,20 @@
 use rust_alloc::string::ToString;
 
-use std::io;
 use std::fs;
+use std::io;
 
 use rust_alloc::borrow::ToOwned;
 use std::path::Path;
 
 use crate::alloc::borrow::Cow;
-use crate::compile::ItemBuf;
 use crate::alloc::{String, Vec};
+use crate::compile::ItemBuf;
 
+use anyhow::{Context as _, Error, Result};
 use base64::display::Base64Display;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use relative_path::{RelativePath, RelativePathBuf};
-use sha2::{Sha256, Digest};
-use anyhow::{Context as _, Error, Result};
+use sha2::{Digest, Sha256};
 
 /// Test parameters.
 #[derive(Debug, Default, Clone, Copy)]
@@ -90,9 +90,13 @@ impl Artifacts {
         hash: bool,
         path: &P,
         content: F,
-    ) -> Result<RelativePathBuf> where P: ?Sized + AsRef<RelativePath>, F: FnOnce() -> Result<Cow<'static, [u8]>> {
+    ) -> Result<RelativePathBuf>
+    where
+        P: ?Sized + AsRef<RelativePath>,
+        F: FnOnce() -> Result<Cow<'static, [u8]>>,
+    {
         if !self.enabled {
-            return Ok(path.as_ref().to_owned())
+            return Ok(path.as_ref().to_owned());
         }
 
         let content = content().context("Building asset content")?;

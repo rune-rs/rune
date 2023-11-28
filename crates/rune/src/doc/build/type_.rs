@@ -1,12 +1,12 @@
 use anyhow::{Context, Result};
 use serde::Serialize;
 
-use crate::alloc::{Vec, String};
 use crate::alloc::borrow::Cow;
 use crate::alloc::prelude::*;
+use crate::alloc::{String, Vec};
 use crate::compile::{ComponentRef, Item};
+use crate::doc::build::{Builder, Ctxt, IndexEntry, IndexKind};
 use crate::doc::context::{Assoc, AssocFnKind, Meta};
-use crate::doc::build::{Ctxt, IndexEntry, IndexKind, Builder};
 
 #[derive(Serialize)]
 pub(super) struct Protocol<'a> {
@@ -38,7 +38,12 @@ pub(super) struct Variant<'a> {
 pub(super) fn build_assoc_fns<'m>(
     cx: &mut Ctxt<'_, 'm>,
     meta: Meta<'m>,
-) -> Result<(Vec<Protocol<'m>>, Vec<Method<'m>>, Vec<Variant<'m>>, Vec<IndexEntry<'m>>)> {
+) -> Result<(
+    Vec<Protocol<'m>>,
+    Vec<Method<'m>>,
+    Vec<Variant<'m>>,
+    Vec<IndexEntry<'m>>,
+)> {
     let mut protocols = Vec::new();
     let mut methods = Vec::new();
     let mut variants = Vec::new();
@@ -48,7 +53,8 @@ pub(super) fn build_assoc_fns<'m>(
     for assoc in cx.context.associated(meta.hash) {
         match assoc {
             Assoc::Variant(variant) => {
-                let line_doc = cx.render_line_docs(meta, variant.docs.get(..1).unwrap_or_default())?;
+                let line_doc =
+                    cx.render_line_docs(meta, variant.docs.get(..1).unwrap_or_default())?;
                 let doc = cx.render_docs(meta, variant.docs, true)?;
 
                 variants.try_push(Variant {
@@ -71,14 +77,15 @@ pub(super) fn build_assoc_fns<'m>(
                         (protocol, value.as_str())
                     }
                     AssocFnKind::Method(name, args, sig) => {
-                        let line_doc = cx.render_line_docs(meta, assoc.docs.get(..1).unwrap_or_default())?;
+                        let line_doc =
+                            cx.render_line_docs(meta, assoc.docs.get(..1).unwrap_or_default())?;
 
                         cx.state.item.push(name)?;
                         let doc = cx.render_docs(meta, assoc.docs, true)?;
                         cx.state.item.pop()?;
 
                         let mut list = Vec::new();
-        
+
                         for &hash in assoc.parameter_types {
                             if let Some(link) = cx.link(hash, None)? {
                                 list.try_push(link)?;
@@ -87,7 +94,9 @@ pub(super) fn build_assoc_fns<'m>(
                             }
                         }
 
-                        let parameters = (!list.is_empty()).then(|| list.iter().try_join(", ")).transpose()?;
+                        let parameters = (!list.is_empty())
+                            .then(|| list.iter().try_join(", "))
+                            .transpose()?;
 
                         methods.try_push(Method {
                             is_async: assoc.is_async,
@@ -107,7 +116,7 @@ pub(super) fn build_assoc_fns<'m>(
                             line_doc,
                             doc,
                         })?;
-        
+
                         continue;
                     }
                 };
@@ -144,7 +153,10 @@ pub(super) fn build_assoc_fns<'m>(
 
         for m in &methods {
             index.try_push(IndexEntry {
-                path: cx.state.path.with_file_name(format!("{name}#method.{}", m.name)),
+                path: cx
+                    .state
+                    .path
+                    .with_file_name(format!("{name}#method.{}", m.name)),
                 item: Cow::Owned(meta_item.join([m.name])?),
                 kind: IndexKind::Method,
                 doc: m.line_doc.try_clone()?,
@@ -153,7 +165,10 @@ pub(super) fn build_assoc_fns<'m>(
 
         for m in &variants {
             index.try_push(IndexEntry {
-                path: cx.state.path.with_file_name(format!("{name}#variant.{}", m.name)),
+                path: cx
+                    .state
+                    .path
+                    .with_file_name(format!("{name}#variant.{}", m.name)),
                 item: Cow::Owned(meta_item.join([m.name])?),
                 kind: IndexKind::Variant,
                 doc: m.line_doc.try_clone()?,
@@ -182,7 +197,12 @@ struct Params<'a> {
 
 /// Build an unknown type.
 #[tracing::instrument(skip_all)]
-pub(crate) fn build<'m>(cx: &mut Ctxt<'_, 'm>, what: &'static str, what_class: &'static str, meta: Meta<'m>) -> Result<(Builder<'m>, Vec<IndexEntry<'m>>)> {
+pub(crate) fn build<'m>(
+    cx: &mut Ctxt<'_, 'm>,
+    what: &'static str,
+    what_class: &'static str,
+    meta: Meta<'m>,
+) -> Result<(Builder<'m>, Vec<IndexEntry<'m>>)> {
     let module = cx.module_path_html(meta, false)?;
 
     let (protocols, methods, _, index) = build_assoc_fns(cx, meta)?;

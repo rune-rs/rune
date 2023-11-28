@@ -1,9 +1,9 @@
 use std::path::Path;
 
 use crate::ast::Span;
-use crate::Source;
-use crate::workspace::WorkspaceError;
 use crate::compile::WithSpan;
+use crate::workspace::WorkspaceError;
+use crate::Source;
 
 use super::WorkspaceErrorKind;
 

@@ -1,6 +1,6 @@
 use crate::alloc::{self, Vec};
-use crate::SourceId;
 use crate::workspace::WorkspaceError;
+use crate::SourceId;
 
 /// A fatal diagnostic in a workspace.
 #[derive(Debug)]
@@ -43,7 +43,9 @@ impl Diagnostics {
 
     /// Test if diagnostics has errors.
     pub fn has_errors(&self) -> bool {
-        self.diagnostics.iter().any(|e| matches!(e, Diagnostic::Fatal(..)))
+        self.diagnostics
+            .iter()
+            .any(|e| matches!(e, Diagnostic::Fatal(..)))
     }
 
     /// Test if diagnostics is empty.
@@ -52,11 +54,13 @@ impl Diagnostics {
     }
 
     /// Report a single workspace error.
-    pub(crate) fn fatal(&mut self, source_id: SourceId, error: WorkspaceError) -> alloc::Result<()> {
-        self.diagnostics.try_push(Diagnostic::Fatal(FatalDiagnostic {
-            source_id,
-            error,
-        }))
+    pub(crate) fn fatal(
+        &mut self,
+        source_id: SourceId,
+        error: WorkspaceError,
+    ) -> alloc::Result<()> {
+        self.diagnostics
+            .try_push(Diagnostic::Fatal(FatalDiagnostic { source_id, error }))
     }
 }
 

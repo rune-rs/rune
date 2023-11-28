@@ -1,7 +1,7 @@
 mod enum_;
-mod type_;
-mod markdown;
 mod js;
+mod markdown;
+mod type_;
 
 use core::fmt;
 use core::str;
@@ -16,18 +16,18 @@ use syntect::html::{self, ClassStyle, ClassedHTMLGenerator};
 use syntect::parsing::{SyntaxReference, SyntaxSet};
 
 use crate as rune;
+use crate::alloc::borrow::Cow;
+use crate::alloc::fmt::TryWrite;
+use crate::alloc::prelude::*;
+use crate::alloc::try_format;
+use crate::alloc::{self, String, Vec, VecDeque};
+use crate::compile::{ComponentRef, Item, ItemBuf};
+use crate::doc::artifacts::Test;
+use crate::doc::context::{Function, Kind, Meta, Signature};
+use crate::doc::templating;
+use crate::doc::{Artifacts, Context, Visitor};
 use crate::std;
 use crate::std::borrow::ToOwned;
-use crate::alloc::{self, String, VecDeque, Vec};
-use crate::alloc::prelude::*;
-use crate::alloc::fmt::TryWrite;
-use crate::alloc::borrow::Cow;
-use crate::alloc::try_format;
-use crate::compile::{ComponentRef, Item, ItemBuf};
-use crate::doc::context::{Function, Kind, Signature, Meta};
-use crate::doc::templating;
-use crate::doc::artifacts::Test;
-use crate::doc::{Context, Visitor, Artifacts};
 use crate::Hash;
 
 // InspiredGitHub
@@ -46,7 +46,10 @@ pub(crate) struct Builder<'m> {
 }
 
 impl<'m> Builder<'m> {
-    fn new<B>(cx: &Ctxt<'_, '_>, builder: B) -> alloc::Result<Self> where B: FnOnce(&Ctxt<'_, '_>) -> Result<String> + 'm {
+    fn new<B>(cx: &Ctxt<'_, '_>, builder: B) -> alloc::Result<Self>
+    where
+        B: FnOnce(&Ctxt<'_, '_>) -> Result<String> + 'm,
+    {
         Ok(Self {
             state: cx.state.try_clone()?,
             builder: rust_alloc::boxed::Box::new(builder),
@@ -55,8 +58,8 @@ impl<'m> Builder<'m> {
 }
 
 mod embed {
-    use rust_alloc::string::String;
     use rust_alloc::boxed::Box;
+    use rust_alloc::string::String;
 
     use rust_embed::RustEmbed;
 
@@ -76,9 +79,7 @@ pub(crate) fn build(
 
     let paths = templating::Paths::default();
 
-    let partials = [
-        ("layout", asset_str("layout.html.hbs")?),
-    ];
+    let partials = [("layout", asset_str("layout.html.hbs")?)];
 
     let templating = templating::Templating::new(partials, paths.clone())?;
 
@@ -109,7 +110,10 @@ pub(crate) fn build(
     let theme = theme_set.themes.get(THEME).context("missing theme")?;
 
     let syntax_css = artifacts.asset(true, "syntax.css", || {
-        let content = String::try_from(html::css_for_theme_with_class_style(theme, html::ClassStyle::Spaced)?)?;
+        let content = String::try_from(html::css_for_theme_with_class_style(
+            theme,
+            html::ClassStyle::Spaced,
+        )?)?;
         Ok(content.into_bytes().into())
     })?;
 
@@ -130,7 +134,11 @@ pub(crate) fn build(
 
     for item in context.iter_modules() {
         let item = item?;
-        let meta = context.meta(&item)?.into_iter().find(|m| matches!(&m.kind, Kind::Module)).with_context(|| anyhow!("Missing meta for {item}"))?;
+        let meta = context
+            .meta(&item)?
+            .into_iter()
+            .find(|m| matches!(&m.kind, Kind::Module))
+            .with_context(|| anyhow!("Missing meta for {item}"))?;
         initial.try_push_back(Build::Module(meta))?;
     }
 
@@ -209,7 +217,9 @@ pub(crate) fn build(
 
     for builder in builders {
         cx.state = builder.state;
-        artifacts.asset(false, &cx.state.path, || Ok((builder.builder)(&cx)?.into_bytes().try_into()?))?;
+        artifacts.asset(false, &cx.state.path, || {
+            Ok((builder.builder)(&cx)?.into_bytes().try_into()?)
+        })?;
     }
 
     artifacts.set_tests(cx.tests);
@@ -221,7 +231,13 @@ fn build_search_index(cx: &Ctxt) -> Result<String> {
     write!(s, "window.INDEX = [")?;
     let mut it = cx.index.iter();
 
-    while let Some(IndexEntry { path, item, kind, doc }) = it.next() {
+    while let Some(IndexEntry {
+        path,
+        item,
+        kind,
+        doc,
+    }) = it.next()
+    {
         write!(s, "[\"{path}\",\"{item}\",\"{kind}\",\"")?;
 
         if let Some(doc) = doc {
@@ -376,7 +392,10 @@ impl<'m> Ctxt<'_, 'm> {
         I: IntoIterator,
         I::Item: AsRef<str>,
     {
-        let syntax = match self.syntax_set.find_syntax_by_token(self::markdown::RUST_TOKEN) {
+        let syntax = match self
+            .syntax_set
+            .find_syntax_by_token(self::markdown::RUST_TOKEN)
+        {
             Some(syntax) => syntax,
             None => self.syntax_set.find_syntax_plain_text(),
         };
@@ -396,11 +415,16 @@ impl<'m> Ctxt<'_, 'm> {
     }
 
     /// Render documentation.
-    fn render_docs<S>(&mut self, meta: Meta<'_>, docs: &[S], capture_tests: bool) -> Result<Option<String>>
+    fn render_docs<S>(
+        &mut self,
+        meta: Meta<'_>,
+        docs: &[S],
+        capture_tests: bool,
+    ) -> Result<Option<String>>
     where
         S: AsRef<str>,
     {
-        use pulldown_cmark::{Options, Parser, BrokenLink};
+        use pulldown_cmark::{BrokenLink, Options, Parser};
 
         if docs.is_empty() {
             return Ok(None);
@@ -438,7 +462,12 @@ impl<'m> Ctxt<'_, 'm> {
 
         let mut tests = Vec::new();
 
-        markdown::push_html(&self.syntax_set, &mut o, iter, capture_tests.then_some(&mut tests))?;
+        markdown::push_html(
+            &self.syntax_set,
+            &mut o,
+            iter,
+            capture_tests.then_some(&mut tests),
+        )?;
 
         if let Some(error) = link_error {
             return Err(error);
@@ -517,7 +546,11 @@ impl<'m> Ctxt<'_, 'm> {
             }
         }
 
-        let mut it = self.context.meta_by_hash(hash)?.into_iter().flat_map(|m| Some((m, into_item_kind(m)?)));
+        let mut it = self
+            .context
+            .meta_by_hash(hash)?
+            .into_iter()
+            .flat_map(|m| Some((m, into_item_kind(m)?)));
 
         let Some((meta, kind)) = it.next() else {
             tracing::warn!(?hash, "No link for hash");
@@ -526,7 +559,7 @@ impl<'m> Ctxt<'_, 'm> {
                 tracing::warn!("Candidate: {:?}", meta.kind);
             }
 
-            return Ok(Some(try_format!("{hash}")))
+            return Ok(Some(try_format!("{hash}")));
         };
 
         let item = meta.item.context("Missing item link meta")?;
@@ -540,7 +573,9 @@ impl<'m> Ctxt<'_, 'm> {
         };
 
         let path = self.item_path(item, kind)?;
-        Ok(Some(try_format!("<a class=\"{kind}\" href=\"{path}\">{name}</a>")))
+        Ok(Some(try_format!(
+            "<a class=\"{kind}\" href=\"{path}\">{name}</a>"
+        )))
     }
 
     /// Coerce args into string.
@@ -642,7 +677,11 @@ impl<'m> Ctxt<'_, 'm> {
         Ok(string)
     }
 
-    fn link_callback(&self, meta: Meta<'_>, link: &str) -> Result<Option<(RelativePathBuf, String)>> {
+    fn link_callback(
+        &self,
+        meta: Meta<'_>,
+        link: &str,
+    ) -> Result<Option<(RelativePathBuf, String)>> {
         enum Flavor {
             Any,
             Macro,
@@ -707,7 +746,7 @@ impl<'m> Ctxt<'_, 'm> {
                     Kind::Function(_) if flavor.is_function() => ItemKind::Function,
                     _ => {
                         continue;
-                    },
+                    }
                 })?;
             }
 
@@ -744,8 +783,12 @@ fn asset_str(path: &str) -> Result<Cow<'static, str>> {
     let asset = embed::Assets::get(path).with_context(|| anyhow!("{path}: missing asset"))?;
 
     let data = match asset.data {
-        rust_alloc::borrow::Cow::Borrowed(data) => Cow::Borrowed(str::from_utf8(data).with_context(|| anyhow!("{path}: not utf-8"))?),
-        rust_alloc::borrow::Cow::Owned(data) => Cow::Owned(String::from_utf8(data.try_into()?).with_context(|| anyhow!("{path}: not utf-8"))?),
+        rust_alloc::borrow::Cow::Borrowed(data) => {
+            Cow::Borrowed(str::from_utf8(data).with_context(|| anyhow!("{path}: not utf-8"))?)
+        }
+        rust_alloc::borrow::Cow::Owned(data) => Cow::Owned(
+            String::from_utf8(data.try_into()?).with_context(|| anyhow!("{path}: not utf-8"))?,
+        ),
     };
 
     Ok(data)
@@ -758,7 +801,10 @@ fn compile(templating: &templating::Templating, path: &str) -> Result<templating
 }
 
 #[tracing::instrument(skip_all)]
-fn build_index<'m>(cx: &Ctxt<'_, 'm>, mods: Vec<(&'m Item, RelativePathBuf)>) -> Result<Builder<'m>> {
+fn build_index<'m>(
+    cx: &Ctxt<'_, 'm>,
+    mods: Vec<(&'m Item, RelativePathBuf)>,
+) -> Result<Builder<'m>> {
     #[derive(Serialize)]
     struct Params<'a> {
         #[serde(flatten)]
@@ -779,7 +825,7 @@ fn build_index<'m>(cx: &Ctxt<'_, 'm>, mods: Vec<(&'m Item, RelativePathBuf)>) ->
         let mut c = item.iter();
 
         match c.next() {
-            None => {},
+            None => {}
             Some(ComponentRef::Crate(..)) => {}
             _ => continue,
         }
@@ -801,7 +847,11 @@ fn build_index<'m>(cx: &Ctxt<'_, 'm>, mods: Vec<(&'m Item, RelativePathBuf)>) ->
 
 /// Build a single module.
 #[tracing::instrument(skip_all)]
-fn module<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<'m>>) -> Result<Builder<'m>> {
+fn module<'m>(
+    cx: &mut Ctxt<'_, 'm>,
+    meta: Meta<'m>,
+    queue: &mut VecDeque<Build<'m>>,
+) -> Result<Builder<'m>> {
     #[derive(Serialize)]
     struct Params<'a> {
         #[serde(flatten)]
@@ -950,7 +1000,12 @@ fn module<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<
                         path: cx.item_path(&item, ItemKind::Function)?,
                         item: item.try_clone()?,
                         name,
-                        args: cx.args_to_string(f.arg_names, f.args, f.signature, f.argument_types)?,
+                        args: cx.args_to_string(
+                            f.arg_names,
+                            f.args,
+                            f.signature,
+                            f.argument_types,
+                        )?,
                         doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
                     })?;
                 }
@@ -966,7 +1021,9 @@ fn module<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<
                     let path = cx.item_path(item, ItemKind::Module)?;
                     let name = item.last().context("missing name of module")?;
                     modules.try_push(Module {
-                        item, name, path,
+                        item,
+                        name,
+                        path,
                         doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
                     })?;
                 }
@@ -1045,10 +1102,12 @@ fn build_function<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'
     }
 
     let f = match meta.kind {
-        Kind::Function(f @ Function {
-            signature: Signature::Function { .. },
-            ..
-        }) => f,
+        Kind::Function(
+            f @ Function {
+                signature: Signature::Function { .. },
+                ..
+            },
+        ) => f,
         _ => bail!("found meta, but not a function"),
     };
 
@@ -1095,7 +1154,12 @@ where
 }
 
 /// Helper for building an item path.
-fn build_item_path(name: &str, item: &Item, kind: ItemKind, path: &mut RelativePathBuf) -> Result<()> {
+fn build_item_path(
+    name: &str,
+    item: &Item,
+    kind: ItemKind,
+    path: &mut RelativePathBuf,
+) -> Result<()> {
     if item.is_empty() {
         path.push(name);
     } else {
@@ -1123,18 +1187,20 @@ fn build_item_path(name: &str, item: &Item, kind: ItemKind, path: &mut RelativeP
 }
 
 /// Render documentation.
-fn render_code_by_syntax<I>(syntax_set: &SyntaxSet, lines: I, syntax: &SyntaxReference, mut out: Option<&mut String>) -> Result<String>
+fn render_code_by_syntax<I>(
+    syntax_set: &SyntaxSet,
+    lines: I,
+    syntax: &SyntaxReference,
+    mut out: Option<&mut String>,
+) -> Result<String>
 where
     I: IntoIterator,
     I::Item: AsRef<str>,
 {
     let mut buf = String::new();
 
-    let mut gen = ClassedHTMLGenerator::new_with_class_style(
-        syntax,
-        syntax_set,
-        ClassStyle::Spaced,
-    );
+    let mut gen =
+        ClassedHTMLGenerator::new_with_class_style(syntax, syntax_set, ClassStyle::Spaced);
 
     for line in lines {
         let line = line.as_ref();

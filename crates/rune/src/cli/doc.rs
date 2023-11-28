@@ -6,10 +6,10 @@ use crate::doc::Artifacts;
 use anyhow::{Context, Result};
 use clap::Parser;
 
-use crate::alloc::Vec;
 use crate::alloc::prelude::*;
-use crate::cli::{Config, Entry, EntryPoint, ExitCode, Io, SharedFlags, CommandBase, AssetKind};
+use crate::alloc::Vec;
 use crate::cli::naming::Naming;
+use crate::cli::{AssetKind, CommandBase, Config, Entry, EntryPoint, ExitCode, Io, SharedFlags};
 use crate::compile::{FileSourceLoader, ItemBuf};
 use crate::{Diagnostics, Options, Source, Sources};
 

@@ -5,8 +5,8 @@ use std::time::Instant;
 use anyhow::{anyhow, Result};
 use clap::Parser;
 
-use crate::cli::{Config, ExitCode, Io, CommandBase, AssetKind, SharedFlags};
-use crate::runtime::{VmError, VmExecution, VmResult, UnitStorage};
+use crate::cli::{AssetKind, CommandBase, Config, ExitCode, Io, SharedFlags};
+use crate::runtime::{UnitStorage, VmError, VmExecution, VmResult};
 use crate::{Context, Sources, Unit, Value, Vm};
 
 #[derive(Parser, Debug)]
@@ -145,7 +145,11 @@ pub(super) async fn run(
     }
 
     if args.dump_unit() {
-        writeln!(io.stdout, "Unit size: {} bytes", unit.instructions().bytes())?;
+        writeln!(
+            io.stdout,
+            "Unit size: {} bytes",
+            unit.instructions().bytes()
+        )?;
 
         if args.emit_instructions() {
             let mut o = io.stdout.lock();
@@ -328,8 +332,10 @@ where
             let vm = execution.vm();
             let mut o = io.stdout.lock();
 
-            if let Some((hash, signature)) =
-                vm.unit().debug_info().and_then(|d| d.function_at(vm.last_ip()))
+            if let Some((hash, signature)) = vm
+                .unit()
+                .debug_info()
+                .and_then(|d| d.function_at(vm.last_ip()))
             {
                 writeln!(o, "fn {} ({}):", signature, hash)?;
             }
@@ -350,7 +356,11 @@ where
                 writeln!(o, "{}:", label)?;
             }
 
-            if let Some((inst, _)) = vm.unit().instruction_at(vm.last_ip()).map_err(VmError::from)? {
+            if let Some((inst, _)) = vm
+                .unit()
+                .instruction_at(vm.last_ip())
+                .map_err(VmError::from)?
+            {
                 write!(o, "  {:04} = {}", vm.last_ip(), inst)?;
             } else {
                 write!(o, "  {:04} = *out of bounds*", vm.last_ip())?;

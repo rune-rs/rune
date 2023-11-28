@@ -1,14 +1,14 @@
 use core::fmt;
 use std::io;
 
-use crate::doc::artifacts::TestParams;
-use crate::alloc::{try_vec, String, Vec, HashMap};
 use crate::alloc::fmt::TryWrite;
+use crate::alloc::{try_vec, HashMap, String, Vec};
+use crate::doc::artifacts::TestParams;
 
-use syntect::parsing::{SyntaxReference, SyntaxSet};
-use pulldown_cmark::escape::{escape_href, escape_html, StrWrite};
-use pulldown_cmark::{CowStr, Alignment, CodeBlockKind, LinkType, Tag, Event};
 use anyhow::Result;
+use pulldown_cmark::escape::{escape_href, escape_html, StrWrite};
+use pulldown_cmark::{Alignment, CodeBlockKind, CowStr, Event, LinkType, Tag};
+use syntect::parsing::{SyntaxReference, SyntaxSet};
 
 pub(crate) const RUST_TOKEN: &str = "rust";
 pub(crate) const RUNE_TOKEN: &str = "rune";
@@ -26,11 +26,14 @@ struct StringWriter<'a> {
 
 impl StrWrite for StringWriter<'_> {
     fn write_str(&mut self, s: &str) -> io::Result<()> {
-        self.string.try_push_str(s).map_err(|error| io::Error::new(io::ErrorKind::Other, error))
+        self.string
+            .try_push_str(s)
+            .map_err(|error| io::Error::new(io::ErrorKind::Other, error))
     }
 
     fn write_fmt(&mut self, args: fmt::Arguments) -> io::Result<()> {
-        TryWrite::write_fmt(self.string, args).map_err(|error| io::Error::new(io::ErrorKind::Other, error))
+        TryWrite::write_fmt(self.string, args)
+            .map_err(|error| io::Error::new(io::ErrorKind::Other, error))
     }
 }
 
@@ -70,7 +73,8 @@ where
                         let mut string = String::new();
 
                         let s = (self.tests.is_some() && params.is_some()).then_some(&mut string);
-                        let html = super::render_code_by_syntax(self.syntax_set, text.lines(), syntax, s)?;
+                        let html =
+                            super::render_code_by_syntax(self.syntax_set, text.lines(), syntax, s)?;
 
                         if let Some(params) = params {
                             if let Some(tests) = self.tests.as_mut() {
@@ -215,13 +219,13 @@ where
             }
             Tag::Emphasis => {
                 self.write("<em>")?;
-            },
+            }
             Tag::Strong => {
                 self.write("<strong>")?;
-            },
+            }
             Tag::Strikethrough => {
                 self.write("<del>")?;
-            },
+            }
             Tag::Link(LinkType::Email, dest, title) => {
                 self.write("<a href=\"mailto:")?;
                 escape_href(&mut self.out, &dest)?;
@@ -267,7 +271,10 @@ where
         Ok(())
     }
 
-    fn find_syntax<'input>(&mut self, kind: &'input CodeBlockKind<'input>) -> (&'input str, &'a SyntaxReference, Option<TestParams>) {
+    fn find_syntax<'input>(
+        &mut self,
+        kind: &'input CodeBlockKind<'input>,
+    ) -> (&'input str, &'a SyntaxReference, Option<TestParams>) {
         let mut syntax = None;
         let mut params = TestParams::default();
 
@@ -286,15 +293,12 @@ where
                         params.ignore = true;
                         continue;
                     }
-                    RUNE_TOKEN => {
-                        (RUNE_TOKEN, RUST_TOKEN, true)
-                    }
+                    RUNE_TOKEN => (RUNE_TOKEN, RUST_TOKEN, true),
                     token => (token, token, false),
                 };
 
                 if syntax.is_none() {
-                    if let Some(s) = self.syntax_set.find_syntax_by_token(lookup)
-                    {
+                    if let Some(s) = self.syntax_set.find_syntax_by_token(lookup) {
                         syntax = Some((token, s, is_rune));
                     }
                 }
@@ -306,7 +310,11 @@ where
         }
 
         let Some(syntax) = self.syntax_set.find_syntax_by_token(RUST_TOKEN) else {
-            return ("text", self.syntax_set.find_syntax_plain_text(), Some(params));
+            return (
+                "text",
+                self.syntax_set.find_syntax_plain_text(),
+                Some(params),
+            );
         };
 
         (RUNE_TOKEN, syntax, Some(params))
@@ -412,7 +420,12 @@ where
 }
 
 /// Process markdown html and captures tests.
-pub(super) fn push_html<'a, I>(syntax_set: &'a SyntaxSet, string: &'a mut String, iter: I, tests: Option<&'a mut Vec<(String, TestParams)>>) -> Result<()>
+pub(super) fn push_html<'a, I>(
+    syntax_set: &'a SyntaxSet,
+    string: &'a mut String,
+    iter: I,
+    tests: Option<&'a mut Vec<(String, TestParams)>>,
+) -> Result<()>
 where
     I: Iterator<Item = Event<'a>>,
 {

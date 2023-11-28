@@ -6,13 +6,13 @@ use std::time::Instant;
 use clap::Parser;
 
 use crate::alloc::Vec;
-use crate::cli::{ExitCode, Io, CommandBase, AssetKind, Config, SharedFlags};
+use crate::cli::{AssetKind, CommandBase, Config, ExitCode, Io, SharedFlags};
 use crate::compile::{Item, ItemBuf};
 use crate::modules::capture_io::CaptureIo;
-use crate::runtime::{Function, Unit, Value};
-use crate::{Context, Hash, Sources, Vm};
 use crate::modules::test::Bencher;
+use crate::runtime::{Function, Unit, Value};
 use crate::support::Result;
+use crate::{Context, Hash, Sources, Vm};
 
 #[derive(Parser, Debug)]
 pub(super) struct Flags {

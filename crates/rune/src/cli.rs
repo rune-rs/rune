@@ -12,16 +12,16 @@ mod doc;
 mod format;
 mod languageserver;
 mod loader;
+mod naming;
 mod run;
 mod tests;
 mod visitor;
-mod naming;
 
+use rust_alloc::string::String;
+use rust_alloc::vec::Vec;
 use std::fmt;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
-use rust_alloc::string::String;
-use rust_alloc::vec::Vec;
 
 use crate::alloc;
 use crate::alloc::prelude::*;
@@ -34,7 +34,7 @@ use tracing_subscriber::filter::EnvFilter;
 use crate::compile::{ItemBuf, ParseOptionError};
 use crate::modules::capture_io::CaptureIo;
 use crate::termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
-use crate::{Context, ContextError, Options, Hash};
+use crate::{Context, ContextError, Hash, Options};
 
 /// Default about splash.
 const DEFAULT_ABOUT: &str = "The Rune Language Interpreter";
@@ -83,7 +83,11 @@ impl<'a> Entry<'a> {
     ///     .run();
     ///```
     pub fn about(mut self, about: impl fmt::Display) -> Self {
-        self.about = Some(about.try_to_string().expect("Failed to format about string"));
+        self.about = Some(
+            about
+                .try_to_string()
+                .expect("Failed to format about string"),
+        );
         self
     }
 
@@ -266,7 +270,10 @@ where
     command: T,
 }
 
-impl<T> CommandShared<T> where T: CommandBase + clap::Args {
+impl<T> CommandShared<T>
+where
+    T: CommandBase + clap::Args,
+{
     /// Construct compiler options from arguments.
     fn options(&self) -> Result<Options, ParseOptionError> {
         let mut options = Options::default();
@@ -379,8 +386,7 @@ trait CommandBase {
 
     /// Propagate related flags from command and config.
     #[inline]
-    fn propagate(&mut self, _: &mut Config, _: &mut SharedFlags) {
-    }
+    fn propagate(&mut self, _: &mut Config, _: &mut SharedFlags) {}
 }
 
 #[derive(Subcommand, Debug)]
@@ -442,10 +448,7 @@ impl Command {
             Command::Hash(..) => return None,
         };
 
-        Some(CommandSharedRef {
-            shared,
-            command,
-        })
+        Some(CommandSharedRef { shared, command })
     }
 }
 
@@ -488,25 +491,25 @@ impl Config {
                 build_paths.try_push(BuildPath::Package(p))?;
             }
         }
-    
+
         if let Some(test) = cmd.find_tests() {
             for p in self.manifest.find_tests(test)? {
                 build_paths.try_push(BuildPath::Package(p))?;
             }
         }
-    
+
         if let Some(example) = cmd.find_examples() {
             for p in self.manifest.find_examples(example)? {
                 build_paths.try_push(BuildPath::Package(p))?;
             }
         }
-    
+
         if let Some(bench) = cmd.find_benches() {
             for p in self.manifest.find_benches(bench)? {
                 build_paths.try_push(BuildPath::Package(p))?;
             }
         }
-    
+
         Ok(build_paths)
     }
 }
@@ -525,7 +528,11 @@ impl SharedFlags {
             test: c.test,
         };
 
-        let mut context = entry.context.as_mut().context("Context builder not configured with Entry::context")?(opts)?;
+        let mut context =
+            entry
+                .context
+                .as_mut()
+                .context("Context builder not configured with Entry::context")?(opts)?;
 
         if let Some(capture) = capture {
             context.install(crate::modules::capture_io::module(capture)?)?;
@@ -681,12 +688,8 @@ fn find_manifest() -> Option<(PathBuf, PathBuf)> {
 }
 
 fn populate_config(io: &mut Io<'_>, c: &mut Config, cmd: CommandSharedRef<'_>) -> Result<()> {
-    c.found_paths.try_extend(
-        cmd.shared
-            .paths
-            .iter()
-            .map(|p| p.as_path().into()),
-    )?;
+    c.found_paths
+        .try_extend(cmd.shared.paths.iter().map(|p| p.as_path().into()))?;
 
     if !c.found_paths.is_empty() && !cmd.shared.workspace {
         return Ok(());
@@ -744,18 +747,18 @@ async fn main_with_out(io: &mut Io<'_>, entry: &mut Entry<'_>, mut args: Args) -
             return Ok(ExitCode::Failure);
         }
     };
-    
+
     let mut entrys = alloc::Vec::new();
 
     if let Some(cmd) = cmd.as_command_shared_ref() {
         populate_config(io, &mut c, cmd)?;
 
         let build_paths = c.build_paths(cmd)?;
-    
+
         let what = cmd.command.describe();
         let verbose = c.verbose;
         let recursive = cmd.shared.recursive;
-    
+
         for build_path in build_paths {
             match build_path {
                 BuildPath::Path(path) => {
@@ -771,9 +774,15 @@ async fn main_with_out(io: &mut Io<'_>, entry: &mut Entry<'_>, mut args: Args) -
                         o.set_color(&ColorSpec::new())?;
                         o.flush()?;
                         result?;
-                        writeln!(o, " {} `{}` (from {})", p.found.kind, p.found.path.display(), p.package.name)?;
+                        writeln!(
+                            o,
+                            " {} `{}` (from {})",
+                            p.found.kind,
+                            p.found.path.display(),
+                            p.package.name
+                        )?;
                     }
-    
+
                     entrys.try_push(EntryPoint::Package(p))?;
                 }
             }
@@ -823,17 +832,7 @@ where
         Command::Test(f) => {
             let options = f.options()?;
 
-            match tests::run(
-                io,
-                c,
-                &f.command,
-                &f.shared,
-                &options,
-                entry,
-                entries,
-            )
-            .await?
-            {
+            match tests::run(io, c, &f.command, &f.shared, &options, entry, entries).await? {
                 ExitCode::Success => (),
                 other => return Ok(other),
             }

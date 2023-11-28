@@ -1,12 +1,12 @@
-use crate::alloc::prelude::*;
-use crate::alloc::{Box, Vec, String};
-use crate::alloc::hash_map::{self, HashMap};
-use crate::compile::{
-    MetaError, CompileVisitor, IntoComponent, Item, ItemBuf, MetaRef, Names, Located,
-};
-use crate::compile::meta;
-use crate::hash::Hash;
 use crate::alloc;
+use crate::alloc::hash_map::{self, HashMap};
+use crate::alloc::prelude::*;
+use crate::alloc::{Box, String, Vec};
+use crate::compile::meta;
+use crate::compile::{
+    CompileVisitor, IntoComponent, Item, ItemBuf, Located, MetaError, MetaRef, Names,
+};
+use crate::hash::Hash;
 
 pub(crate) struct VisitorData {
     pub(crate) item: ItemBuf,
@@ -57,7 +57,10 @@ impl Visitor {
 
         let hash = Hash::type_hash(&this.base);
         this.names.insert(&this.base)?;
-        this.data.try_insert(hash, VisitorData::new(this.base.try_clone()?, hash, Some(meta::Kind::Module)))?;
+        this.data.try_insert(
+            hash,
+            VisitorData::new(this.base.try_clone()?, hash, Some(meta::Kind::Module)),
+        )?;
         this.item_to_hash.try_insert(this.base.try_clone()?, hash)?;
         Ok(this)
     }
@@ -85,14 +88,19 @@ impl CompileVisitor for Visitor {
         tracing::trace!(base = ?self.base, meta = ?meta.item, ?item, "register meta");
 
         self.names.insert(&item)?;
-        self.item_to_hash.try_insert(item.try_to_owned()?, meta.hash)?;
+        self.item_to_hash
+            .try_insert(item.try_to_owned()?, meta.hash)?;
 
         match self.data.entry(meta.hash) {
             hash_map::Entry::Occupied(e) => {
                 e.into_mut().kind = Some(meta.kind.try_clone()?);
             }
             hash_map::Entry::Vacant(e) => {
-                e.try_insert(VisitorData::new(item, meta.hash, Some(meta.kind.try_clone()?)))?;
+                e.try_insert(VisitorData::new(
+                    item,
+                    meta.hash,
+                    Some(meta.kind.try_clone()?),
+                ))?;
             }
         }
 
@@ -106,7 +114,13 @@ impl CompileVisitor for Visitor {
         Ok(())
     }
 
-    fn visit_doc_comment(&mut self, _location: &dyn Located, item: &Item, hash: Hash, string: &str) -> Result<(), MetaError> {
+    fn visit_doc_comment(
+        &mut self,
+        _location: &dyn Located,
+        item: &Item,
+        hash: Hash,
+        string: &str,
+    ) -> Result<(), MetaError> {
         // Documentation comments are literal source lines, so they're newline
         // terminated. Since we perform our own internal newlines conversion
         // these need to be trimmed - at least between each doc item.
@@ -119,10 +133,13 @@ impl CompileVisitor for Visitor {
 
         let data = match self.data.entry(hash) {
             hash_map::Entry::Occupied(e) => e.into_mut(),
-            hash_map::Entry::Vacant(e) => e.try_insert(VisitorData::new(item.try_to_owned()?, hash, None))?,
+            hash_map::Entry::Vacant(e) => {
+                e.try_insert(VisitorData::new(item.try_to_owned()?, hash, None))?
+            }
         };
 
-        data.docs.try_push(string.trim_end_matches(newlines).try_to_owned()?)?;
+        data.docs
+            .try_push(string.trim_end_matches(newlines).try_to_owned()?)?;
         Ok(())
     }
 
@@ -139,7 +156,9 @@ impl CompileVisitor for Visitor {
 
         let data = match self.data.entry(hash) {
             hash_map::Entry::Occupied(e) => e.into_mut(),
-            hash_map::Entry::Vacant(e) => e.try_insert(VisitorData::new(item.try_to_owned()?, hash, None))?,
+            hash_map::Entry::Vacant(e) => {
+                e.try_insert(VisitorData::new(item.try_to_owned()?, hash, None))?
+            }
         };
 
         data.field_docs
