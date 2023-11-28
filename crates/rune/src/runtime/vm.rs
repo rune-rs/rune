@@ -1460,7 +1460,7 @@ impl Vm {
         protocol: Protocol,
         error: fn() -> VmErrorKind,
         integer_op: fn(i64, i64) -> Option<i64>,
-        byte_op: fn(u8, u8) -> Option<u8>,
+        byte_op: fn(u8, i64) -> Option<u8>,
     ) -> VmResult<()> {
         let lhs;
         let mut guard;
@@ -1472,7 +1472,7 @@ impl Vm {
                     *lhs = out;
                     return VmResult::Ok(());
                 }
-                (Value::Byte(lhs), Value::Byte(rhs)) => {
+                (Value::Byte(lhs), Value::Integer(rhs)) => {
                     let out = vm_try!(byte_op(*lhs, rhs).ok_or_else(error));
                     *lhs = out;
                     return VmResult::Ok(());
