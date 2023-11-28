@@ -10,7 +10,7 @@ fn test_small_programs() {
         }
     );
     assert_eq!(out, 42u64);
-    let _: () = rune!(
+    rune!(
         pub fn main() {}
     );
 
@@ -146,7 +146,7 @@ fn test_shadowing() {
 
 #[test]
 fn test_vectors() {
-    let _: () = rune!(
+    rune!(
         pub fn main() {
             let v = [1, 2, 3, 4, 5];
         }

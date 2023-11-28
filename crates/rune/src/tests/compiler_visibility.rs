@@ -96,7 +96,7 @@ fn test_indirect_access() {
 // Test borrowed from: https://doc.rust-lang.org/reference/visibility-and-privacy.html
 #[test]
 fn test_rust_example() {
-    let _: () = rune! {
+    rune! {
         mod crate_helper_module {
             pub fn crate_helper() {}
 

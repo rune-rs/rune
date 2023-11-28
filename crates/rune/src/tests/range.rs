@@ -5,7 +5,7 @@ use VmErrorKind::*;
 
 #[test]
 fn range_accessors() {
-    let _: () = rune! {
+    rune! {
         pub fn main() {
             assert_eq!((1..10).start, 1);
             assert_eq!((1..10).end, 10);
@@ -21,7 +21,7 @@ fn range_accessors() {
 
 #[test]
 fn range_iter() {
-    let _: () = rune! {
+    rune! {
         pub fn main() {
             assert_eq!((1..4).iter().collect::<Vec>(), [1, 2, 3]);
             assert_eq!((1..4).iter().rev().collect::<Vec>(), [3, 2, 1]);
@@ -38,7 +38,7 @@ fn range_iter() {
 
 #[test]
 fn range_match() {
-    let _: () = rune! {
+    rune! {
         pub fn main() {
             use std::ops::{RangeFrom, RangeFull, RangeInclusive, RangeToInclusive, RangeTo, Range};
 
@@ -60,13 +60,13 @@ fn range_match() {
 
 #[test]
 fn test_non_numeric_ranges() {
-    let _: () = rune! {
+    rune! {
         pub fn main() {
             assert_eq!((#{}..=10).start, #{});
         }
     };
 
-    let _: () = rune! {
+    rune! {
         pub fn main() {
             let a = ..=(1, 2, 3);
             assert_eq!(a.end, (1, 2, 3));
@@ -76,7 +76,7 @@ fn test_non_numeric_ranges() {
 
 #[test]
 fn test_range_into_iter() {
-    let _: () = rune! {
+    rune! {
         pub fn main() {
             let d = [];
 
@@ -88,7 +88,7 @@ fn test_range_into_iter() {
         }
     };
 
-    let _: () = rune! {
+    rune! {
         pub fn main() {
             fn end() {
                 4
