@@ -2,7 +2,7 @@ prelude!();
 
 #[test]
 fn test_hash_map_tile() {
-    let _: () = rune! {
+    rune! {
         pub fn main() {
             use std::collections::HashMap;
 
@@ -24,7 +24,7 @@ fn test_hash_map_tile() {
 
 #[test]
 fn test_hash_set_tuple() {
-    let _: () = rune! {
+    rune! {
         pub fn main() {
             use std::collections::HashSet;
 

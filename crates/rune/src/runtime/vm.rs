@@ -1343,10 +1343,12 @@ impl Vm {
     }
 
     /// Internal impl of a numeric operation.
-    fn internal_infallible_bitwise(
+    fn internal_infallible_bitwise_bool(
         &mut self,
         protocol: Protocol,
         integer_op: fn(i64, i64) -> i64,
+        byte_op: fn(u8, u8) -> u8,
+        bool_op: fn(bool, bool) -> bool,
         lhs: InstAddress,
         rhs: InstAddress,
     ) -> VmResult<()> {
@@ -1358,36 +1360,8 @@ impl Vm {
                 vm_try!(self.stack.push(Value::from(integer_op(lhs, rhs))));
                 return VmResult::Ok(());
             }
-            (lhs, rhs) => (lhs, rhs),
-        };
-
-        if let CallResult::Unsupported(lhs) = vm_try!(self.call_instance_fn(lhs, protocol, (&rhs,)))
-        {
-            return err(VmErrorKind::UnsupportedBinaryOperation {
-                op: protocol.name,
-                lhs: vm_try!(lhs.type_info()),
-                rhs: vm_try!(rhs.type_info()),
-            });
-        }
-
-        VmResult::Ok(())
-    }
-
-    /// Internal impl of a numeric operation.
-    fn internal_infallible_bitwise_bool(
-        &mut self,
-        protocol: Protocol,
-        integer_op: fn(i64, i64) -> i64,
-        bool_op: fn(bool, bool) -> bool,
-        lhs: InstAddress,
-        rhs: InstAddress,
-    ) -> VmResult<()> {
-        let rhs = vm_try!(self.stack.address(rhs));
-        let lhs = vm_try!(self.stack.address(lhs));
-
-        let (lhs, rhs) = match (lhs, rhs) {
-            (Value::Integer(lhs), Value::Integer(rhs)) => {
-                vm_try!(self.stack.push(Value::from(integer_op(lhs, rhs))));
+            (Value::Byte(lhs), Value::Byte(rhs)) => {
+                vm_try!(self.stack.push(Value::from(byte_op(lhs, rhs))));
                 return VmResult::Ok(());
             }
             (Value::Bool(lhs), Value::Bool(rhs)) => {
@@ -1414,6 +1388,8 @@ impl Vm {
         target: InstTarget,
         protocol: Protocol,
         integer_op: fn(&mut i64, i64),
+        byte_op: fn(&mut u8, u8),
+        bool_op: fn(&mut bool, bool),
     ) -> VmResult<()> {
         let lhs;
         let mut guard;
@@ -1422,6 +1398,14 @@ impl Vm {
             TargetValue::Value(lhs, rhs) => match (lhs, rhs) {
                 (Value::Integer(lhs), Value::Integer(rhs)) => {
                     integer_op(lhs, rhs);
+                    return VmResult::Ok(());
+                }
+                (Value::Byte(lhs), Value::Byte(rhs)) => {
+                    byte_op(lhs, rhs);
+                    return VmResult::Ok(());
+                }
+                (Value::Bool(lhs), Value::Bool(rhs)) => {
+                    bool_op(lhs, rhs);
                     return VmResult::Ok(());
                 }
                 (lhs, rhs) => TargetFallback::Value(lhs.clone(), rhs),
@@ -1437,6 +1421,7 @@ impl Vm {
         protocol: Protocol,
         error: fn() -> VmErrorKind,
         integer_op: fn(i64, i64) -> Option<i64>,
+        byte_op: fn(u8, i64) -> Option<u8>,
         lhs: InstAddress,
         rhs: InstAddress,
     ) -> VmResult<()> {
@@ -1447,6 +1432,11 @@ impl Vm {
             (Value::Integer(lhs), Value::Integer(rhs)) => {
                 let integer = vm_try!(integer_op(lhs, rhs).ok_or_else(error));
                 vm_try!(self.stack.push(Value::from(integer)));
+                return VmResult::Ok(());
+            }
+            (Value::Byte(lhs), Value::Integer(rhs)) => {
+                let byte = vm_try!(byte_op(lhs, rhs).ok_or_else(error));
+                vm_try!(self.stack.push(Value::from(byte)));
                 return VmResult::Ok(());
             }
             (lhs, rhs) => (lhs, rhs),
@@ -1470,6 +1460,7 @@ impl Vm {
         protocol: Protocol,
         error: fn() -> VmErrorKind,
         integer_op: fn(i64, i64) -> Option<i64>,
+        byte_op: fn(u8, i64) -> Option<u8>,
     ) -> VmResult<()> {
         let lhs;
         let mut guard;
@@ -1478,6 +1469,11 @@ impl Vm {
             TargetValue::Value(lhs, rhs) => match (lhs, rhs) {
                 (Value::Integer(lhs), Value::Integer(rhs)) => {
                     let out = vm_try!(integer_op(*lhs, rhs).ok_or_else(error));
+                    *lhs = out;
+                    return VmResult::Ok(());
+                }
+                (Value::Byte(lhs), Value::Integer(rhs)) => {
+                    let out = vm_try!(byte_op(*lhs, rhs).ok_or_else(error));
                     *lhs = out;
                     return VmResult::Ok(());
                 }
@@ -1712,6 +1708,7 @@ impl Vm {
         let value = match value {
             Value::Bool(value) => Value::from(!value),
             Value::Integer(value) => Value::from(!value),
+            Value::Byte(value) => Value::from(!value),
             other => {
                 let operand = vm_try!(other.type_info());
                 return err(VmErrorKind::UnsupportedUnaryOperation { op: "!", operand });
@@ -1797,6 +1794,7 @@ impl Vm {
                 vm_try!(self.internal_infallible_bitwise_bool(
                     Protocol::BIT_AND,
                     i64::bitand,
+                    u8::bitand,
                     bool::bitand,
                     lhs,
                     rhs,
@@ -1807,6 +1805,7 @@ impl Vm {
                 vm_try!(self.internal_infallible_bitwise_bool(
                     Protocol::BIT_XOR,
                     i64::bitxor,
+                    u8::bitxor,
                     bool::bitxor,
                     lhs,
                     rhs,
@@ -1817,6 +1816,7 @@ impl Vm {
                 vm_try!(self.internal_infallible_bitwise_bool(
                     Protocol::BIT_OR,
                     i64::bitor,
+                    u8::bitor,
                     bool::bitor,
                     lhs,
                     rhs,
@@ -1827,12 +1827,20 @@ impl Vm {
                     Protocol::SHL,
                     || VmErrorKind::Overflow,
                     |a, b| a.checked_shl(u32::try_from(b).ok()?),
+                    |a, b| a.checked_shl(u32::try_from(b).ok()?),
                     lhs,
                     rhs,
                 ));
             }
             InstOp::Shr => {
-                vm_try!(self.internal_infallible_bitwise(Protocol::SHR, ops::Shr::shr, lhs, rhs));
+                vm_try!(self.internal_bitwise(
+                    Protocol::SHR,
+                    || VmErrorKind::Underflow,
+                    |a, b| a.checked_shr(u32::try_from(b).ok()?),
+                    |a, b| a.checked_shr(u32::try_from(b).ok()?),
+                    lhs,
+                    rhs
+                ));
             }
             InstOp::Gt => {
                 vm_try!(self.internal_boolean_ops(
@@ -1958,6 +1966,8 @@ impl Vm {
                     target,
                     Protocol::BIT_AND_ASSIGN,
                     ops::BitAndAssign::bitand_assign,
+                    ops::BitAndAssign::bitand_assign,
+                    ops::BitAndAssign::bitand_assign,
                 ));
             }
             InstAssignOp::BitXor => {
@@ -1965,12 +1975,16 @@ impl Vm {
                     target,
                     Protocol::BIT_XOR_ASSIGN,
                     ops::BitXorAssign::bitxor_assign,
+                    ops::BitXorAssign::bitxor_assign,
+                    ops::BitXorAssign::bitxor_assign,
                 ));
             }
             InstAssignOp::BitOr => {
                 vm_try!(self.internal_infallible_bitwise_assign(
                     target,
                     Protocol::BIT_OR_ASSIGN,
+                    ops::BitOrAssign::bitor_assign,
+                    ops::BitOrAssign::bitor_assign,
                     ops::BitOrAssign::bitor_assign,
                 ));
             }
@@ -1980,13 +1994,16 @@ impl Vm {
                     Protocol::SHL_ASSIGN,
                     || VmErrorKind::Overflow,
                     |a, b| a.checked_shl(u32::try_from(b).ok()?),
+                    |a, b| a.checked_shl(u32::try_from(b).ok()?),
                 ));
             }
             InstAssignOp::Shr => {
-                vm_try!(self.internal_infallible_bitwise_assign(
+                vm_try!(self.internal_bitwise_assign(
                     target,
                     Protocol::SHR_ASSIGN,
-                    ops::ShrAssign::shr_assign,
+                    || VmErrorKind::Underflow,
+                    |a, b| a.checked_shr(u32::try_from(b).ok()?),
+                    |a, b| a.checked_shr(u32::try_from(b).ok()?),
                 ));
             }
         }

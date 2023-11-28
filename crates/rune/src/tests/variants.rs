@@ -4,7 +4,7 @@ prelude!();
 /// See: https://github.com/rune-rs/rune/pull/215
 #[test]
 fn assert_variant_comparisons() {
-    let _: () = rune! {
+    rune! {
         enum Foo { A, B }
 
         pub fn main() {
@@ -13,7 +13,7 @@ fn assert_variant_comparisons() {
         }
     };
 
-    let _: () = rune! {
+    rune! {
         enum Foo { A(a), B }
 
         pub fn main() {
@@ -22,7 +22,7 @@ fn assert_variant_comparisons() {
         }
     };
 
-    let _: () = rune! {
+    rune! {
         enum Foo { A { a }, B }
 
         pub fn main() {

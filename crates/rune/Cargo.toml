@@ -81,4 +81,4 @@ trybuild = "1.0.80"
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "docsrs"]
+rustdoc-args = ["--cfg", "rune_docsrs"]

@@ -3,7 +3,7 @@ prelude!();
 /// See https://github.com/rune-rs/rune/issues/454
 #[test]
 pub fn test_bug_454() {
-    let (): () = rune! {
+    rune! {
         struct Test;
 
         fn call(a, b) {

@@ -112,7 +112,7 @@ fn test_vec_patterns() {
     );
     assert_eq!(out, true);
 
-    let _: () = rune!(
+    rune!(
         pub fn main() {
             match [] {
                 [a, b] => a + 1 == b,

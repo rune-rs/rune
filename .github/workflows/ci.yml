@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - uses: dtolnay/rust-toolchain@1.71
+    - uses: dtolnay/rust-toolchain@1.74
       with:
         components: clippy
     - uses: Swatinem/rust-cache@v2
@@ -41,8 +41,8 @@ jobs:
     - uses: Swatinem/rust-cache@v2
     - run: cargo doc -p rune --all-features
       env:
-        RUSTFLAGS: --cfg docsrs
-        RUSTDOCFLAGS: --cfg docsrs
+        RUSTFLAGS: --cfg rune_docsrs
+        RUSTDOCFLAGS: --cfg rune_docsrs
 
   basics:
     runs-on: ubuntu-latest

@@ -201,7 +201,17 @@ macro_rules! expected {
             "Did not match expected {}\nExpected: {}\n  Actual: {:?}",
             $name,
             stringify!($expected),
-            $actual
+            $actual,
+        )
+    };
+
+    ($name:literal, $expected:pat, $actual:expr, $extra:expr) => {
+        panic!(
+            "Did not match expected {}\nExpected: {}\n  Actual: {:?}\n{}",
+            $name,
+            stringify!($expected),
+            $actual,
+            $extra,
         )
     };
 }
@@ -211,7 +221,13 @@ macro_rules! expected {
 macro_rules! rune {
     ($($tt:tt)*) => {{
         let context = $crate::Context::with_default_modules().expect("Failed to build context");
-        $crate::tests::run(&context, stringify!($($tt)*), ["main"], ()).expect("Program ran unsuccessfully")
+
+        match $crate::tests::run(&context, stringify!($($tt)*), ["main"], ()) {
+            Ok(output) => output,
+            Err(error) => {
+                panic!("Program failed to run:\n{}\n{}", error, stringify!($source));
+            }
+        }
     }};
 }
 
@@ -219,7 +235,13 @@ macro_rules! rune {
 macro_rules! rune_s {
     ($source:expr) => {{
         let context = $crate::Context::with_default_modules().expect("Failed to build context");
-        $crate::tests::run(&context, $source, ["main"], ()).expect("Program ran unsuccessfully")
+
+        match $crate::tests::run(&context, $source, ["main"], ()) {
+            Ok(output) => output,
+            Err(error) => {
+                panic!("Program failed to run:\n{}\n{}", error, $source);
+            }
+        }
     }};
 }
 
@@ -250,21 +272,21 @@ macro_rules! assert_vm_error {
         let e = match $crate::tests::run_helper::<_, _, $ty>(&context, &mut sources, &mut diagnostics, ["main"], ()) {
             Err(e) => e,
             actual => {
-                expected!("program error", Err(e), actual)
+                expected!("program error", Err(e), actual, $source)
             }
         };
 
         let e = match e {
             $crate::tests::TestError::VmError(e) => e,
             actual => {
-                expected!("vm error", VmError(e), actual)
+                expected!("vm error", VmError(e), actual, $source)
             }
         };
 
         match e.into_kind() {
             $pat => $cond,
             actual => {
-                expected!("error", $pat, actual)
+                expected!("error", $pat, actual, $source)
             }
         }
     }};
