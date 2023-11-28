@@ -6,7 +6,7 @@ use std::{path::Path, sync::Arc};
 
 use anyhow::{anyhow, Context as _, Result};
 
-use crate::alloc::{VecDeque, Vec};
+use crate::alloc::{Vec, VecDeque};
 use crate::cli::{visitor, Io, SharedFlags};
 use crate::compile::{FileSourceLoader, ItemBuf};
 use crate::Diagnostics;

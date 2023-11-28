@@ -21,10 +21,10 @@ pub use self::error::WorkspaceError;
 pub(crate) use self::error::WorkspaceErrorKind;
 
 mod manifest;
-pub use self::manifest::{Manifest, WorkspaceFilter, Package, FoundKind, Found, FoundPackage};
+pub use self::manifest::{Found, FoundKind, FoundPackage, Manifest, Package, WorkspaceFilter};
 
 mod diagnostics;
-pub use self::diagnostics::{Diagnostics, Diagnostic, FatalDiagnostic};
+pub use self::diagnostics::{Diagnostic, Diagnostics, FatalDiagnostic};
 
 mod source_loader;
 pub use self::source_loader::{FileSourceLoader, SourceLoader};

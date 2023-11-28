@@ -5,12 +5,12 @@ use std::io::Write;
 use clap::Parser;
 use similar::{ChangeTag, TextDiff};
 
-use crate::support::{Context, Result};
-use crate::alloc::BTreeSet;
 use crate::alloc::prelude::*;
-use crate::cli::{Entry, ExitCode, Io, EntryPoint, SharedFlags, Config, CommandBase, AssetKind};
-use crate::termcolor::{WriteColor, ColorSpec, Color};
-use crate::{Source, Sources, Options, Diagnostics};
+use crate::alloc::BTreeSet;
+use crate::cli::{AssetKind, CommandBase, Config, Entry, EntryPoint, ExitCode, Io, SharedFlags};
+use crate::support::{Context, Result};
+use crate::termcolor::{Color, ColorSpec, WriteColor};
+use crate::{Diagnostics, Options, Source, Sources};
 
 #[derive(Parser, Debug)]
 pub(super) struct Flags {
@@ -35,7 +35,18 @@ impl CommandBase for Flags {
     }
 }
 
-pub(super) fn run<'m, I>(io: &mut Io<'_>, entry: &mut Entry<'_>, c: &Config, entrys: I, flags: &Flags, shared: &SharedFlags, options: &Options) -> Result<ExitCode> where I: IntoIterator<Item = EntryPoint<'m>> {
+pub(super) fn run<'m, I>(
+    io: &mut Io<'_>,
+    entry: &mut Entry<'_>,
+    c: &Config,
+    entrys: I,
+    flags: &Flags,
+    shared: &SharedFlags,
+    options: &Options,
+) -> Result<ExitCode>
+where
+    I: IntoIterator<Item = EntryPoint<'m>>,
+{
     let col = Colors::new();
 
     let mut changed = 0;
@@ -192,18 +203,18 @@ fn diff(io: &mut Io, source: &Source, val: &[u8], col: &Colors) -> Result<(), an
                     ChangeTag::Insert => ("+", &col.green),
                     ChangeTag::Equal => (" ", &col.dim),
                 };
-    
+
                 io.stdout.set_color(color)?;
-    
-                write!(io.stdout,"{}", Line(change.old_index()))?;
-                write!(io.stdout,"{sign}")?;
-    
+
+                write!(io.stdout, "{}", Line(change.old_index()))?;
+                write!(io.stdout, "{sign}")?;
+
                 for (_, value) in change.iter_strings_lossy() {
                     write!(io.stdout, "{value}")?;
                 }
-    
+
                 io.stdout.reset()?;
-    
+
                 if change.missing_newline() {
                     writeln!(io.stdout)?;
                 }

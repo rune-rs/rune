@@ -2,24 +2,26 @@ use std::io::Write;
 use std::sync::Arc;
 use std::time::Instant;
 
-use anyhow::{bail, Result, Context};
+use anyhow::{bail, Context, Result};
 
 use crate::alloc::prelude::*;
 use crate::alloc::Vec;
-use crate::cli::{ExitCode, Io, CommandBase, AssetKind, Config, SharedFlags, EntryPoint, Entry, Options};
-use crate::cli::visitor;
 use crate::cli::naming::Naming;
-use crate::compile::{ItemBuf, FileSourceLoader};
-use crate::modules::capture_io::CaptureIo;
-use crate::runtime::{Value, Vm, VmError, VmResult, UnitFn};
+use crate::cli::visitor;
+use crate::cli::{
+    AssetKind, CommandBase, Config, Entry, EntryPoint, ExitCode, Io, Options, SharedFlags,
+};
+use crate::compile::{FileSourceLoader, ItemBuf};
 use crate::doc::TestParams;
-use crate::{Hash, Sources, Unit, Diagnostics, Source};
-use crate::termcolor::{WriteColor, ColorSpec, Color};
+use crate::modules::capture_io::CaptureIo;
+use crate::runtime::{UnitFn, Value, Vm, VmError, VmResult};
+use crate::termcolor::{Color, ColorSpec, WriteColor};
+use crate::{Diagnostics, Hash, Source, Sources, Unit};
 
 mod cli {
-    use clap::Parser;
-    use ::rust_alloc::vec::Vec;
     use ::rust_alloc::string::String;
+    use ::rust_alloc::vec::Vec;
+    use clap::Parser;
 
     #[derive(Parser, Debug, Clone)]
     pub struct Flags {
@@ -147,7 +149,13 @@ where
         doc_visitors.try_push(doc_visitor)?;
 
         for (hash, item) in functions.into_functions() {
-            cases.try_push(TestCase::new(hash, item, unit.clone(), sources.clone(), TestParams::default()))?;
+            cases.try_push(TestCase::new(
+                hash,
+                item,
+                unit.clone(),
+                sources.clone(),
+                TestParams::default(),
+            ))?;
         }
     }
 
@@ -193,11 +201,26 @@ where
             let unit = Arc::new(unit?);
             let sources = Arc::new(sources);
 
-            let Some((hash, _)) = unit.iter_functions().find(|(_, f)| matches!(f, UnitFn::Offset { args: 0, offset: 0, .. })) else {
+            let Some((hash, _)) = unit.iter_functions().find(|(_, f)| {
+                matches!(
+                    f,
+                    UnitFn::Offset {
+                        args: 0,
+                        offset: 0,
+                        ..
+                    }
+                )
+            }) else {
                 bail!("Compiling source did not result in a function at offset 0");
             };
 
-            cases.try_push(TestCase::new(hash, test.item.try_clone()?, unit.clone(), sources.clone(), test.params))?;
+            cases.try_push(TestCase::new(
+                hash,
+                test.item.try_clone()?,
+                unit.clone(),
+                sources.clone(),
+                test.params,
+            ))?;
         }
     }
 
@@ -288,7 +311,13 @@ struct TestCase {
 }
 
 impl TestCase {
-    fn new(hash: Hash, item: ItemBuf, unit: Arc<Unit>, sources: Arc<Sources>, params: TestParams) -> Self {
+    fn new(
+        hash: Hash,
+        item: ItemBuf,
+        unit: Arc<Unit>,
+        sources: Arc<Sources>,
+        params: TestParams,
+    ) -> Self {
         Self {
             hash,
             item,
@@ -300,11 +329,7 @@ impl TestCase {
         }
     }
 
-    async fn execute(
-        &mut self,
-        vm: &mut Vm,
-        capture_io: &CaptureIo,
-    ) -> Result<()> {
+    async fn execute(&mut self, vm: &mut Vm, capture_io: &CaptureIo) -> Result<()> {
         let result = match vm.execute(self.hash, ()) {
             Ok(mut execution) => execution.async_complete().await,
             Err(err) => VmResult::Err(err),
@@ -324,9 +349,7 @@ impl TestCase {
                 },
                 _ => Outcome::Ok,
             },
-            VmResult::Err(e) => {
-                Outcome::Panic(e)
-            }
+            VmResult::Err(e) => Outcome::Panic(e),
         };
 
         if self.params.should_panic {
@@ -353,7 +376,10 @@ impl TestCase {
             }
             Outcome::ExpectedPanic => {
                 io.stdout.set_color(&colors.error)?;
-                writeln!(io.stdout, "expected panic because of `should_panic`, but ran without issue")?;
+                writeln!(
+                    io.stdout,
+                    "expected panic because of `should_panic`, but ran without issue"
+                )?;
                 io.stdout.reset()?;
             }
             Outcome::Err(error) => {

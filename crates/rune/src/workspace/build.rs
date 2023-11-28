@@ -1,10 +1,10 @@
 use core::fmt;
 
-use crate::Sources;
-use crate::ast::Span;
 use crate::alloc;
-use crate::workspace::{SourceLoader, Diagnostics, FileSourceLoader, WorkspaceError};
+use crate::ast::Span;
 use crate::workspace::manifest::{Loader, Manifest};
+use crate::workspace::{Diagnostics, FileSourceLoader, SourceLoader, WorkspaceError};
+use crate::Sources;
 
 /// Failed to build workspace.
 #[derive(Debug)]
@@ -38,7 +38,7 @@ impl fmt::Display for BuildError {
         match &self.kind {
             BuildErrorKind::Default => {
                 write!(f, "Failed to load workspace (see diagnostics for details)")
-            },
+            }
             BuildErrorKind::Alloc(error) => error.fmt(f),
         }
     }
@@ -108,7 +108,8 @@ impl<'a> Build<'a> {
         let mut manifest = Manifest::default();
 
         for id in self.sources.source_ids() {
-            let mut loader = Loader::new(id, self.sources, diagnostics, source_loader, &mut manifest);
+            let mut loader =
+                Loader::new(id, self.sources, diagnostics, source_loader, &mut manifest);
 
             if let Err(error) = loader.load_manifest() {
                 diagnostics.fatal(id, WorkspaceError::new(Span::empty(), error))?;
@@ -118,7 +119,7 @@ impl<'a> Build<'a> {
         if diagnostics.has_errors() {
             return Err(BuildError::DEFAULT);
         }
-    
+
         Ok(manifest)
     }
 }

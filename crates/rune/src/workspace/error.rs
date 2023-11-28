@@ -3,11 +3,11 @@ use core::fmt;
 use std::path::Path;
 
 use crate::alloc::{self, Box, String};
-use crate::SourceId;
-use crate::compile::HasSpan;
 use crate::ast::{Span, Spanned};
-use crate::workspace::glob;
+use crate::compile::HasSpan;
 use crate::source;
+use crate::workspace::glob;
+use crate::SourceId;
 
 /// An error raised when interacting with workspaces.
 #[derive(Debug)]
@@ -36,7 +36,12 @@ impl WorkspaceError {
         S: Spanned,
         M: fmt::Display + fmt::Debug + Send + Sync + 'static,
     {
-        Self::new(spanned, WorkspaceErrorKind::Custom { error: anyhow::Error::msg(message) })
+        Self::new(
+            spanned,
+            WorkspaceErrorKind::Custom {
+                error: anyhow::Error::msg(message),
+            },
+        )
     }
 }
 
@@ -87,7 +92,9 @@ where
 #[allow(missing_docs)]
 #[non_exhaustive]
 pub(crate) enum WorkspaceErrorKind {
-    Custom { error: anyhow::Error },
+    Custom {
+        error: anyhow::Error,
+    },
     GlobError {
         path: Box<Path>,
         error: glob::GlobError,
@@ -96,15 +103,27 @@ pub(crate) enum WorkspaceErrorKind {
         path: Box<Path>,
         error: source::FromPathError,
     },
-    Toml { error: toml::de::Error },
-    Key { error: serde_hashkey::Error },
-    MissingSourceId { source_id: SourceId },
-    MissingField { field: &'static str },
+    Toml {
+        error: toml::de::Error,
+    },
+    Key {
+        error: serde_hashkey::Error,
+    },
+    MissingSourceId {
+        source_id: SourceId,
+    },
+    MissingField {
+        field: &'static str,
+    },
     ExpectedArray,
     MissingManifestPath,
     ExpectedTable,
-    UnsupportedKey { key: String },
-    AllocError { error: alloc::Error },
+    UnsupportedKey {
+        key: String,
+    },
+    AllocError {
+        error: alloc::Error,
+    },
 }
 
 cfg_std! {
@@ -132,44 +151,36 @@ cfg_std! {
 impl fmt::Display for WorkspaceErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            WorkspaceErrorKind::Custom { error } => {
-                error.fmt(f)
-            }
+            WorkspaceErrorKind::Custom { error } => error.fmt(f),
             WorkspaceErrorKind::GlobError { path, error } => write!(
                 f,
-                "Failed to glob at `{path}`: {error}", path = path.display()
+                "Failed to glob at `{path}`: {error}",
+                path = path.display()
             ),
             WorkspaceErrorKind::Source { path, error } => write!(
                 f,
-                "Failed to load source at `{path}`: {error}", path = path.display()
+                "Failed to load source at `{path}`: {error}",
+                path = path.display()
             ),
-            WorkspaceErrorKind::Toml { error } => write!(
-                f,
-                "Failed to deserialize manifest: {error}",
-            ),
-            WorkspaceErrorKind::Key { error } => write!(
-                f,
-                "Failed to deserialize: {error}",
-                error = error
-            ),
-            WorkspaceErrorKind::MissingSourceId { source_id } => write!(
-                f,
-                "Missing source id `{source_id}`",
-            ),
-            WorkspaceErrorKind::MissingField { field } => write!(
-                f,
-                "Missing required field `{field}`",
-            ),
+            WorkspaceErrorKind::Toml { error } => {
+                write!(f, "Failed to deserialize manifest: {error}",)
+            }
+            WorkspaceErrorKind::Key { error } => {
+                write!(f, "Failed to deserialize: {error}", error = error)
+            }
+            WorkspaceErrorKind::MissingSourceId { source_id } => {
+                write!(f, "Missing source id `{source_id}`",)
+            }
+            WorkspaceErrorKind::MissingField { field } => {
+                write!(f, "Missing required field `{field}`",)
+            }
             WorkspaceErrorKind::ExpectedArray {} => write!(f, "Expected array"),
             WorkspaceErrorKind::MissingManifestPath {} => write!(
                 f,
                 "Element `[workspace]` can only be used in manifests with a valid path"
             ),
             WorkspaceErrorKind::ExpectedTable {} => write!(f, "Expected table"),
-            WorkspaceErrorKind::UnsupportedKey { key } => write!(
-                f,
-                "Key `{key}` not supported",
-            ),
+            WorkspaceErrorKind::UnsupportedKey { key } => write!(f, "Key `{key}` not supported",),
             WorkspaceErrorKind::AllocError { error } => error.fmt(f),
         }
     }

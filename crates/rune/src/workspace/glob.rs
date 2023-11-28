@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 use crate as rune;
 use crate::alloc::prelude::*;
-use crate::alloc::{self, VecDeque, Vec, Box};
+use crate::alloc::{self, Box, Vec, VecDeque};
 
 use relative_path::RelativePath;
 

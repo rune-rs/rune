@@ -9,17 +9,17 @@ use codespan_reporting::term;
 pub use codespan_reporting::term::termcolor;
 use codespan_reporting::term::termcolor::WriteColor;
 
-use crate::alloc::{self, String};
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
-use crate::compile::{ErrorKind, Location, LinkerError};
+use crate::alloc::{self, String};
+use crate::ast::{Span, Spanned};
+use crate::compile::{ErrorKind, LinkerError, Location};
 use crate::diagnostics::{
     Diagnostic, FatalDiagnostic, FatalDiagnosticKind, WarningDiagnostic, WarningDiagnosticKind,
 };
-use crate::runtime::{Unit, VmErrorKind, VmError, DebugInst, VmErrorAt, Protocol};
-use crate::{Source, Diagnostics, SourceId, Sources};
-use crate::ast::{Span, Spanned};
 use crate::hash::Hash;
+use crate::runtime::{DebugInst, Protocol, Unit, VmError, VmErrorAt, VmErrorKind};
+use crate::{Diagnostics, Source, SourceId, Sources};
 
 struct StackFrame {
     source_id: SourceId,
@@ -84,11 +84,7 @@ impl Diagnostics {
     /// hints.
     ///
     /// See [prepare][crate::prepare] for how to use.
-    pub fn emit<O>(
-        &self,
-        out: &mut O,
-        sources: &Sources,
-    ) -> Result<(), EmitError>
+    pub fn emit<O>(&self, out: &mut O, sources: &Sources) -> Result<(), EmitError>
     where
         O: WriteColor,
     {
@@ -118,11 +114,7 @@ impl VmError {
     /// hints.
     ///
     /// See [prepare][crate::prepare] for how to use.
-    pub fn emit<O>(
-        &self,
-        out: &mut O,
-        sources: &Sources,
-    ) -> Result<(), EmitError>
+    pub fn emit<O>(&self, out: &mut O, sources: &Sources) -> Result<(), EmitError>
     where
         O: WriteColor,
     {
@@ -138,7 +130,10 @@ impl VmError {
                 None => continue,
             };
 
-            for ip in [l.ip].into_iter().chain(l.frames.iter().rev().map(|v| v.ip)) {
+            for ip in [l.ip]
+                .into_iter()
+                .chain(l.frames.iter().rev().map(|v| v.ip))
+            {
                 let debug_inst = match debug_info.instruction_at(ip) {
                     Some(debug_inst) => debug_inst,
                     None => continue,
@@ -185,15 +180,20 @@ impl VmError {
                 _ => {}
             };
 
-            if let Some(&DebugInst { source_id, span, .. }) = get(at) {
+            if let Some(&DebugInst {
+                source_id, span, ..
+            }) = get(at)
+            {
                 labels.push(
-                    d::Label::primary(source_id, span.range())
-                        .with_message(at.try_to_string()?),
+                    d::Label::primary(source_id, span.range()).with_message(at.try_to_string()?),
                 );
             }
         }
 
-        if let Some(&DebugInst { source_id, span, .. }) = get(&self.inner.error) {
+        if let Some(&DebugInst {
+            source_id, span, ..
+        }) = get(&self.inner.error)
+        {
             labels.push(
                 d::Label::primary(source_id, span.range())
                     .with_message(self.inner.error.try_to_string()?),
@@ -209,14 +209,18 @@ impl VmError {
                 // the values together with an associated function seed. But
                 // this is not guaranteed to work everywhere.
 
-                if let Some(&DebugInst { source_id, span, .. }) = get(at) {
+                if let Some(&DebugInst {
+                    source_id, span, ..
+                }) = get(at)
+                {
                     let instance_hash = Hash::associated_function(instance.type_hash(), *hash);
 
                     if let Some(ident) = get_ident(at, instance_hash) {
-                        labels.push(
-                            d::Label::secondary(source_id, span.range())
-                                .with_message(format!("This corresponds to the `{instance}::{ident}` instance function")),
-                        );
+                        labels.push(d::Label::secondary(source_id, span.range()).with_message(
+                            format!(
+                                "This corresponds to the `{instance}::{ident}` instance function"
+                            ),
+                        ));
                     }
 
                     if let Some(protocol) = Protocol::from_hash(instance_hash) {
@@ -229,7 +233,8 @@ impl VmError {
             };
         }
 
-        let diagnostic = d::Diagnostic::error().with_message(self.inner.error.try_to_string()?)
+        let diagnostic = d::Diagnostic::error()
+            .with_message(self.inner.error.try_to_string()?)
             .with_labels(labels)
             .with_notes(notes);
 
@@ -244,11 +249,9 @@ impl VmError {
                 };
 
                 let (line, line_count, [prefix, mid, suffix]) = match source.line(frame.span) {
-                    Some((line, line_count, text)) => (
-                        line.saturating_add(1),
-                        line_count.saturating_add(1),
-                        text,
-                    ),
+                    Some((line, line_count, text)) => {
+                        (line.saturating_add(1), line_count.saturating_add(1), text)
+                    }
                     None => continue,
                 };
 
@@ -257,7 +260,11 @@ impl VmError {
                 out.set_color(&red)?;
                 write!(out, "{mid}")?;
                 out.reset()?;
-                writeln!(out, "{}", suffix.trim_end_matches(|c| matches!(c, '\n' | '\r')))?;
+                writeln!(
+                    out,
+                    "{}",
+                    suffix.trim_end_matches(|c| matches!(c, '\n' | '\r'))
+                )?;
             }
         }
 
@@ -270,11 +277,7 @@ impl FatalDiagnostic {
     /// hints.
     ///
     /// See [prepare][crate::prepare] for how to use.
-    pub fn emit<O>(
-        &self,
-        out: &mut O,
-        sources: &Sources,
-    ) -> Result<(), EmitError>
+    pub fn emit<O>(&self, out: &mut O, sources: &Sources) -> Result<(), EmitError>
     where
         O: WriteColor,
     {
@@ -412,7 +415,10 @@ where
     let mut notes = ::rust_alloc::vec::Vec::new();
     let mut labels = ::rust_alloc::vec::Vec::new();
 
-    labels.push(d::Label::primary(this.source_id(), this.span().range()).with_message(this.try_to_string()?));
+    labels.push(
+        d::Label::primary(this.source_id(), this.span().range())
+            .with_message(this.try_to_string()?),
+    );
 
     match this.kind() {
         WarningDiagnosticKind::LetPatternMightPanic { span, .. } => {
@@ -425,10 +431,7 @@ where
                 notes.push(note.into_std());
             }
         }
-        WarningDiagnosticKind::RemoveTupleCallParams {
-            variant,
-            ..
-        } => {
+        WarningDiagnosticKind::RemoveTupleCallParams { variant, .. } => {
             if let Some(variant) = sources.source(this.source_id(), *variant) {
                 let mut note = String::new();
                 writeln!(note, "Hint: Rewrite to `{}`", variant)?;
@@ -467,7 +470,10 @@ where
     let mut notes = ::rust_alloc::vec::Vec::new();
 
     if let Some(span) = this.span() {
-        labels.push(d::Label::primary(this.source_id(), span.range()).with_message(this.kind().try_to_string()?));
+        labels.push(
+            d::Label::primary(this.source_id(), span.range())
+                .with_message(this.kind().try_to_string()?),
+        );
     }
 
     match this.kind() {
@@ -648,11 +654,7 @@ where
                 );
             }
             ErrorKind::PatternMissingFields { fields, .. } => {
-                let pl = if fields.len() == 1 {
-                    "field"
-                } else {
-                    "fields"
-                };
+                let pl = if fields.len() == 1 { "field" } else { "fields" };
 
                 let fields = fields.join(", ");
 
@@ -661,7 +663,11 @@ where
                         .with_message(format!("Missing {}: {}", pl, fields)),
                 );
 
-                notes.push("You can also make the pattern non-exhaustive by adding `..`".try_to_string()?.into_std());
+                notes.push(
+                    "You can also make the pattern non-exhaustive by adding `..`"
+                        .try_to_string()?
+                        .into_std(),
+                );
             }
             _ => (),
         }

@@ -1,23 +1,25 @@
-use std::fmt;
-use std::path::{PathBuf, Path};
-use std::iter;
-use std::io;
-use std::fs;
 use std::ffi::OsStr;
+use std::fmt;
+use std::fs;
+use std::io;
+use std::iter;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use relative_path::{RelativePathBuf, RelativePath};
+use relative_path::{RelativePath, RelativePathBuf};
 use semver::Version;
 use serde::de::IntoDeserializer;
 use serde::Deserialize;
 use serde_hashkey as key;
 
-use crate::alloc::{self, Vec, String};
 use crate::alloc::prelude::*;
-use crate::{Sources, SourceId};
+use crate::alloc::{self, String, Vec};
 use crate::ast::{Span, Spanned};
-use crate::workspace::{MANIFEST_FILE, WorkspaceErrorKind, Diagnostics, WorkspaceError, SourceLoader, glob};
-use crate::workspace::spanned_value::{Array, SpannedValue, Value, Table};
+use crate::workspace::spanned_value::{Array, SpannedValue, Table, Value};
+use crate::workspace::{
+    glob, Diagnostics, SourceLoader, WorkspaceError, WorkspaceErrorKind, MANIFEST_FILE,
+};
+use crate::{SourceId, Sources};
 
 const BIN: &str = "bin";
 const TESTS: &str = "tests";
@@ -110,7 +112,13 @@ pub struct Manifest {
 }
 
 impl Manifest {
-    fn find_paths<'m>(&'m self, m: WorkspaceFilter<'_>, kind: FoundKind, auto_path: &Path, auto_find: fn(&Package) -> bool) -> Result<Vec<FoundPackage<'m>>> {
+    fn find_paths<'m>(
+        &'m self,
+        m: WorkspaceFilter<'_>,
+        kind: FoundKind,
+        auto_path: &Path,
+        auto_find: fn(&Package) -> bool,
+    ) -> Result<Vec<FoundPackage<'m>>> {
         let mut output = Vec::new();
 
         for package in self.packages.iter() {
@@ -144,7 +152,9 @@ impl Manifest {
 
     /// Find all examples matching the given name in the workspace.
     pub fn find_examples(&self, m: WorkspaceFilter<'_>) -> Result<Vec<FoundPackage<'_>>> {
-        self.find_paths(m, FoundKind::Example, Path::new(EXAMPLES), |p| p.auto_examples)
+        self.find_paths(m, FoundKind::Example, Path::new(EXAMPLES), |p| {
+            p.auto_examples
+        })
     }
 
     /// Find all benches matching the given name in the workspace.
@@ -174,7 +184,13 @@ pub struct Package {
 }
 
 impl Package {
-    fn find_paths(&self, m: WorkspaceFilter<'_>, kind: FoundKind, auto_path: &Path, auto_find: fn(&Package) -> bool) -> Result<Vec<Found>> {
+    fn find_paths(
+        &self,
+        m: WorkspaceFilter<'_>,
+        kind: FoundKind,
+        auto_path: &Path,
+        auto_find: fn(&Package) -> bool,
+    ) -> Result<Vec<Found>> {
         let mut output = Vec::new();
 
         if let (Some(path), true) = (&self.root, auto_find(self)) {
@@ -215,7 +231,9 @@ impl Package {
 
     /// Find all examples matching the given name in the workspace.
     pub fn find_examples(&self, m: WorkspaceFilter<'_>) -> Result<Vec<Found>> {
-        self.find_paths(m, FoundKind::Example, Path::new(EXAMPLES), |p| p.auto_examples)
+        self.find_paths(m, FoundKind::Example, Path::new(EXAMPLES), |p| {
+            p.auto_examples
+        })
     }
 
     /// Find all benches matching the given name in the workspace.
@@ -233,9 +251,13 @@ pub(crate) struct Loader<'a> {
 }
 
 impl<'a> Loader<'a> {
-    pub(crate) fn new(id: SourceId, sources: &'a mut Sources, diagnostics: &'a mut Diagnostics, 
-    source_loader: &'a mut dyn SourceLoader,
-    manifest: &'a mut Manifest) -> Self {
+    pub(crate) fn new(
+        id: SourceId,
+        sources: &'a mut Sources,
+        diagnostics: &'a mut Diagnostics,
+        source_loader: &'a mut dyn SourceLoader,
+        manifest: &'a mut Manifest,
+    ) -> Self {
         Self {
             id,
             sources,
@@ -248,7 +270,10 @@ impl<'a> Loader<'a> {
     /// Load a manifest.
     pub(crate) fn load_manifest(&mut self) -> Result<()> {
         let Some(source) = self.sources.get(self.id) else {
-            self.fatal(WorkspaceError::new(Span::empty(), WorkspaceErrorKind::MissingSourceId { source_id: self.id }))?;
+            self.fatal(WorkspaceError::new(
+                Span::empty(),
+                WorkspaceErrorKind::MissingSourceId { source_id: self.id },
+            ))?;
             return Ok(());
         };
 
@@ -265,7 +290,10 @@ impl<'a> Loader<'a> {
             }
         };
 
-        let root = source.path().and_then(|p| p.parent().map(TryToOwned::try_to_owned)).transpose()?;
+        let root = source
+            .path()
+            .and_then(|p| p.parent().map(TryToOwned::try_to_owned))
+            .transpose()?;
         let root = root.as_deref();
 
         let Some((mut table, _)) = self.ensure_table(value)? else {
@@ -273,14 +301,24 @@ impl<'a> Loader<'a> {
         };
 
         // If manifest is a package, add it here.
-        if let Some((package, span)) = table.remove("package").map(|value| self.ensure_table(value)).transpose()?.flatten() {
+        if let Some((package, span)) = table
+            .remove("package")
+            .map(|value| self.ensure_table(value))
+            .transpose()?
+            .flatten()
+        {
             if let Some(package) = self.load_package(package, span, root)? {
                 self.manifest.packages.try_push(package)?;
             }
         }
 
         // Load the [workspace] section.
-        if let Some((mut table, span)) = table.remove("workspace").map(|value| self.ensure_table(value)).transpose()?.flatten() {
+        if let Some((mut table, span)) = table
+            .remove("workspace")
+            .map(|value| self.ensure_table(value))
+            .transpose()?
+            .flatten()
+        {
             match &root {
                 Some(root) => {
                     if let Some(members) = self.load_members(&mut table, root)? {
@@ -288,9 +326,12 @@ impl<'a> Loader<'a> {
                             self.load_member(span, &path)?;
                         }
                     }
-                },
+                }
                 None => {
-                    self.fatal(WorkspaceError::new(span, WorkspaceErrorKind::MissingManifestPath))?;
+                    self.fatal(WorkspaceError::new(
+                        span,
+                        WorkspaceErrorKind::MissingManifestPath,
+                    ))?;
                 }
             }
 
@@ -302,7 +343,11 @@ impl<'a> Loader<'a> {
     }
 
     /// Load members from the given workspace configuration.
-    fn load_members(&mut self, table: &mut Table, root: &Path) -> Result<Option<Vec<(Span, PathBuf)>>> {
+    fn load_members(
+        &mut self,
+        table: &mut Table,
+        root: &Path,
+    ) -> Result<Option<Vec<(Span, PathBuf)>>> {
         let Some(members) = table.remove("members") else {
             return Ok(None);
         };
@@ -333,7 +378,13 @@ impl<'a> Loader<'a> {
     ///
     /// Currently only supports expanding `*` and required interacting with the
     /// filesystem.
-    fn glob_relative_path(&mut self, output: &mut Vec<(Span, PathBuf)>, span: Span, member: &RelativePath, root: &Path) -> Result<()> {
+    fn glob_relative_path(
+        &mut self,
+        output: &mut Vec<(Span, PathBuf)>,
+        span: Span,
+        member: &RelativePath,
+        root: &Path,
+    ) -> Result<()> {
         let glob = glob::Glob::new(root, member)?;
 
         for m in glob.matcher()? {
@@ -354,14 +405,22 @@ impl<'a> Loader<'a> {
     }
 
     /// Helper to convert an [io::Error] into a [WorkspaceErrorKind::SourceError].
-    fn glob_error<T>(&mut self, span: Span, path: &Path, result: Result<T, glob::GlobError>) -> alloc::Result<Option<T>> {
+    fn glob_error<T>(
+        &mut self,
+        span: Span,
+        path: &Path,
+        result: Result<T, glob::GlobError>,
+    ) -> alloc::Result<Option<T>> {
         Ok(match result {
             Ok(result) => Some(result),
             Err(error) => {
-                self.fatal(WorkspaceError::new(span, WorkspaceErrorKind::GlobError {
-                    path: path.try_into()?,
-                    error,
-                }))?;
+                self.fatal(WorkspaceError::new(
+                    span,
+                    WorkspaceErrorKind::GlobError {
+                        path: path.try_into()?,
+                        error,
+                    },
+                ))?;
 
                 None
             }
@@ -386,7 +445,12 @@ impl<'a> Loader<'a> {
     }
 
     /// Load a package from a value.
-    fn load_package(&mut self, mut table: Table, span: Span, root: Option<&Path>) -> alloc::Result<Option<Package>> {
+    fn load_package(
+        &mut self,
+        mut table: Table,
+        span: Span,
+        root: Option<&Path>,
+    ) -> alloc::Result<Option<Package>> {
         let name = self.field(&mut table, span, "name")?;
         let version = self.field(&mut table, span, "version")?;
         self.ensure_empty(table)?;
@@ -410,7 +474,12 @@ impl<'a> Loader<'a> {
     fn ensure_empty(&mut self, table: Table) -> alloc::Result<()> {
         for (key, _) in table {
             let span = Spanned::span(&key);
-            self.fatal(WorkspaceError::new(span, WorkspaceErrorKind::UnsupportedKey { key: key.get_ref().as_str().try_into()? }))?;
+            self.fatal(WorkspaceError::new(
+                span,
+                WorkspaceErrorKind::UnsupportedKey {
+                    key: key.get_ref().as_str().try_into()?,
+                },
+            ))?;
         }
 
         Ok(())
@@ -445,15 +514,21 @@ impl<'a> Loader<'a> {
     }
 
     /// Helper to load a single field.
-    fn field<T>(&mut self, table: &mut Table, span: Span, field: &'static str) -> alloc::Result<Option<T>> where T: for<'de> Deserialize<'de> {
+    fn field<T>(
+        &mut self,
+        table: &mut Table,
+        span: Span,
+        field: &'static str,
+    ) -> alloc::Result<Option<T>>
+    where
+        T: for<'de> Deserialize<'de>,
+    {
         Ok(match table.remove(field) {
-            Some(value) => {
-                match deserialize(value) {
-                    Ok(value) => Some(value),
-                    Err(error) => {
-                        self.fatal(error)?;
-                        None
-                    }
+            Some(value) => match deserialize(value) {
+                Ok(value) => Some(value),
+                Err(error) => {
+                    self.fatal(error)?;
+                    None
                 }
             },
             None => {
@@ -471,7 +546,10 @@ impl<'a> Loader<'a> {
 }
 
 /// Helper to load a single field.
-fn deserialize<T>(value: SpannedValue) -> Result<T, WorkspaceError> where T: for<'de> Deserialize<'de> {
+fn deserialize<T>(value: SpannedValue) -> Result<T, WorkspaceError>
+where
+    T: for<'de> Deserialize<'de>,
+{
     let span = Spanned::span(&value);
     let f = key::to_key(value.get_ref()).map_err(|e| WorkspaceError::new(span, e))?;
     let deserializer = f.into_deserializer();
@@ -487,40 +565,39 @@ fn find_rune_files(path: &Path) -> Result<impl Iterator<Item = Result<(PathBuf, 
         Err(e) => return Err(e.into()),
     };
 
-    Ok(iter::from_fn(move || {
-        loop {
-            let e = dir.as_mut()?.next()?;
+    Ok(iter::from_fn(move || loop {
+        let e = dir.as_mut()?.next()?;
 
-            let e = match e {
-                Ok(e) => e,
-                Err(err) => return Some(Err(err.into())),
-            };
+        let e = match e {
+            Ok(e) => e,
+            Err(err) => return Some(Err(err.into())),
+        };
 
-            let m = match e.metadata() {
-                Ok(m) => m,
-                Err(err) => return Some(Err(err.into())),
-            };
+        let m = match e.metadata() {
+            Ok(m) => m,
+            Err(err) => return Some(Err(err.into())),
+        };
 
-            if !m.is_file() {
-                continue;
-            }
-
-            let path = e.path();
-
-            let (Some(name), Some(ext)) = (path.file_stem().and_then(OsStr::to_str), path.extension()) else {
-                continue;
-            };
-
-            if ext != OsStr::new("rn") {
-                continue;
-            }
-
-            let name = match String::try_from(name) {
-                Ok(name) => name,
-                Err(error) => return Some(Err(error.into())),
-            };
-
-            return Some(Ok((path, name)));
+        if !m.is_file() {
+            continue;
         }
+
+        let path = e.path();
+
+        let (Some(name), Some(ext)) = (path.file_stem().and_then(OsStr::to_str), path.extension())
+        else {
+            continue;
+        };
+
+        if ext != OsStr::new("rn") {
+            continue;
+        }
+
+        let name = match String::try_from(name) {
+            Ok(name) => name,
+            Err(error) => return Some(Err(error.into())),
+        };
+
+        return Some(Ok((path, name)));
     }))
 }

@@ -4,7 +4,7 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use clap::Parser;
 
-use crate::cli::{visitor, Config, Entry, ExitCode, Io, SharedFlags, CommandBase, AssetKind};
+use crate::cli::{visitor, AssetKind, CommandBase, Config, Entry, ExitCode, Io, SharedFlags};
 use crate::compile::FileSourceLoader;
 use crate::{Diagnostics, Options, Source, Sources};
 

@@ -4,7 +4,7 @@ mod context;
 use self::context::Context;
 
 mod artifacts;
-pub(crate) use self::artifacts::{TestParams, Artifacts};
+pub(crate) use self::artifacts::{Artifacts, TestParams};
 
 mod templating;
 

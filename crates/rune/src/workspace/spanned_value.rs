@@ -254,7 +254,10 @@ impl From<&str> for Value {
     }
 }
 
-impl<V> From<Vec<V>> for Value where V: Into<SpannedValue> {
+impl<V> From<Vec<V>> for Value
+where
+    V: Into<SpannedValue>,
+{
     fn from(val: Vec<V>) -> Value {
         Value::Array(val.into_iter().map(|v| v.into()).collect())
     }
@@ -447,7 +450,10 @@ impl<'de> de::Deserialize<'de> for Value {
                 Ok(Value::Integer(value))
             }
 
-            fn visit_u64<E>(self, value: u64) -> Result<Value, E> where E: de::Error {
+            fn visit_u64<E>(self, value: u64) -> Result<Value, E>
+            where
+                E: de::Error,
+            {
                 if value <= i64::max_value() as u64 {
                     Ok(Value::Integer(value as i64))
                 } else {
@@ -467,11 +473,17 @@ impl<'de> de::Deserialize<'de> for Value {
                 Ok(Value::Float(value))
             }
 
-            fn visit_str<E>(self, value: &str) -> Result<Value, E> where E: de::Error {
+            fn visit_str<E>(self, value: &str) -> Result<Value, E>
+            where
+                E: de::Error,
+            {
                 Ok(Value::String(value.to_string()))
             }
 
-            fn visit_string<E>(self, value: String) -> Result<Value, E> where E: de::Error {
+            fn visit_string<E>(self, value: String) -> Result<Value, E>
+            where
+                E: de::Error,
+            {
                 Ok(Value::String(value))
             }
 
@@ -577,24 +589,26 @@ impl<E: de::Error> de::Error for OptError<E> {
     }
 }
 
-struct LayerDeserializer<'de, D: de::Deserializer<'de>>(D, std::marker::PhantomData<&'de()>);
+struct LayerDeserializer<'de, D: de::Deserializer<'de>>(D, std::marker::PhantomData<&'de ()>);
 
 impl<'de, D: de::Deserializer<'de>> de::Deserializer<'de> for LayerDeserializer<'de, D> {
     type Error = OptError<D::Error>;
     fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
-        V: de::Visitor<'de>
+        V: de::Visitor<'de>,
     {
-        self.0.deserialize_any(visitor).map_err(|e| OptError(Some(e)))
+        self.0
+            .deserialize_any(visitor)
+            .map_err(|e| OptError(Some(e)))
     }
     fn deserialize_struct<V>(
         self,
         name: &'static str,
         fields: &'static [&'static str],
-        visitor: V
+        visitor: V,
     ) -> Result<V::Value, Self::Error>
     where
-        V: de::Visitor<'de>
+        V: de::Visitor<'de>,
     {
         let wrapped_visitor = DatetimeOrTableWrapper(visitor);
         match self.0.deserialize_struct(name, fields, wrapped_visitor) {
@@ -620,7 +634,7 @@ impl<'de> de::DeserializeSeed<'de> for DatetimeOrTable {
         D: de::Deserializer<'de>,
     {
         let deserializer = LayerDeserializer(deserializer, std::marker::PhantomData);
-        let res = <Spanned::<String> as de::Deserialize<'_>>::deserialize(deserializer);
+        let res = <Spanned<String> as de::Deserialize<'_>>::deserialize(deserializer);
         match res {
             Ok(v) => Ok(Some(v)),
             Err(OptError(None)) => Ok(None),
