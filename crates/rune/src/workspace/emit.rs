@@ -6,7 +6,6 @@ use std::io;
 use codespan_reporting::diagnostic as d;
 use codespan_reporting::term;
 use codespan_reporting::term::termcolor::WriteColor;
-pub use codespan_reporting::term::termcolor;
 
 use crate::alloc::prelude::*;
 use crate::alloc;

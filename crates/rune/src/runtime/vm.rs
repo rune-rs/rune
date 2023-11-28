@@ -1708,6 +1708,7 @@ impl Vm {
         let value = match value {
             Value::Bool(value) => Value::from(!value),
             Value::Integer(value) => Value::from(!value),
+            Value::Byte(value) => Value::from(!value),
             other => {
                 let operand = vm_try!(other.type_info());
                 return err(VmErrorKind::UnsupportedUnaryOperation { op: "!", operand });

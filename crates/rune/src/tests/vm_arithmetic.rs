@@ -137,6 +137,7 @@ fn test_bit_ops_i64() {
     op_tests!(i64, 0b1100 << 2 = 0b1100 << 2);
     op_tests!(i64, 0b1100 >> 2 = 0b1100 >> 2);
     error_test!(0b1 << 64 = Overflow);
+    error_test!(0b1 >> 64 = Underflow);
 }
 
 #[test]
