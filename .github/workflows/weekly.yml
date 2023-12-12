@@ -2,7 +2,7 @@ name: Weekly
 
 on:
   schedule:
-    - cron: "0 6 * * 6"
+    - cron: '48 17 * * 6'
 
 jobs:
   weekly:
