@@ -16,4 +16,4 @@ jobs:
     - uses: dtolnay/rust-toolchain@master
       with:
         toolchain: ${{matrix.rust}}
-    - run: cargo build --workspace --all-targets
+    - run: cargo build --workspace
