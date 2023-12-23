@@ -12,10 +12,14 @@ on:
         type: choice
         options:
         - nightly
-        - release
+        - "%date"
   push:
     branches:
       - release
+
+env:
+  KICK_VERSION: "${{github.event.inputs.version}} || nightly"
+  RUST_LOG: kick=trace
 
 jobs:
   test:
@@ -37,13 +41,13 @@ jobs:
         os: [macos-latest, windows-latest, ubuntu-latest]
     steps:
     - uses: actions/checkout@v3
-    - uses: udoprog/github-release@channel
-      id: release
-      with:
-        channel: ${{github.event.inputs.channel}}
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
-    - run: cargo run -p builder -- --channel ${{steps.release.outputs.channel}}
+    - uses: udoprog/kick@nightly
+    - run: kick define --github-action
+      id: release
+    - run: cargo build --release
+    - run: cargo run -p builder -- --channel ${{steps.release.outputs.version}}
     - uses: actions/upload-artifact@v1
       with:
         name: dist-${{matrix.os}}
@@ -66,13 +70,7 @@ jobs:
       with: {name: dist-windows-latest, path: dist}
     - uses: actions/download-artifact@v1
       with: {name: dist-ubuntu-latest, path: dist}
-    - uses: udoprog/github-release@channel
-      id: release
-      with:
-        channel: ${{github.event.inputs.channel}}
-    - uses: udoprog/github-release@v1
-      with:
-        files: "dist/*"
-        name: ${{steps.release.outputs.channel}}
-        token: ${{secrets.GITHUB_TOKEN}}
-        prerelease: true
+    - uses: udoprog/kick@nightly
+    - run: kick github-release --upload "dist/*" --github-action
+      env:
+        GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
