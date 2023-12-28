@@ -1,9 +1,8 @@
+use ::rust_alloc::sync::Arc;
 use core::cmp::Ordering;
 use core::mem::{replace, swap};
 use core::ops;
 use core::slice;
-
-use ::rust_alloc::sync::Arc;
 
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
@@ -144,7 +143,7 @@ impl Vm {
         Arc::ptr_eq(&self.unit, unit)
     }
 
-    /// Set  the current instruction pointer.
+    /// Set the current instruction pointer.
     #[inline]
     pub fn set_ip(&mut self, ip: usize) {
         self.ip = ip;
@@ -966,18 +965,47 @@ impl Vm {
                 }
             }
             target => {
+                let index = index.clone();
+
+                let CallResult::Unsupported(target) =
+                    vm_try!(self.dynamic_field_get(target, &index))
+                else {
+                    let Some(value) =
+                        vm_try!(<Option<Value>>::from_value(vm_try!(self.stack.pop())))
+                    else {
+                        return err(VmErrorKind::ObjectIndexMissing { slot: string_slot });
+                    };
+
+                    return VmResult::Ok(CallResult::Ok(value));
+                };
+
                 let hash = index.hash();
 
-                return VmResult::Ok(
-                    match vm_try!(self.call_field_fn(Protocol::GET, target, hash, ())) {
-                        CallResult::Ok(()) => CallResult::Ok(vm_try!(self.stack.pop())),
-                        CallResult::Unsupported(target) => CallResult::Unsupported(target),
-                    },
-                );
+                let CallResult::Unsupported(_) =
+                    vm_try!(self.call_field_fn(Protocol::GET, target, hash, ()))
+                else {
+                    return VmResult::Ok(CallResult::Ok(vm_try!(self.stack.pop())));
+                };
             }
         }
 
         err(VmErrorKind::ObjectIndexMissing { slot: string_slot })
+    }
+
+    #[cfg(not(feature = "dynamic_fields"))]
+    fn dynamic_field_get(&mut self, target: Value, _: &str) -> VmResult<CallResult<Value>> {
+        VmResult::Ok(CallResult::Unsupported(target))
+    }
+
+    #[cfg(feature = "dynamic_fields")]
+    fn dynamic_field_get(&mut self, target: Value, field: &str) -> VmResult<CallResult<()>> {
+        if let CallResult::Unsupported(target) =
+            vm_try!(self.call_instance_fn(target.clone(), Protocol::DYNAMIC_FIELD_GET, (field,),))
+        {
+            return VmResult::Ok(CallResult::Unsupported(target));
+        }
+
+        VmResult::Ok(CallResult::Ok(()))
     }
 
     fn try_object_slot_index_set(
@@ -988,7 +1016,7 @@ impl Vm {
     ) -> VmResult<CallResult<()>> {
         let field = vm_try!(self.unit.lookup_string(string_slot));
 
-        VmResult::Ok(match target {
+        match target {
             Value::Object(object) => {
                 let mut object = vm_try!(object.borrow_mut());
                 let key = vm_try!(field.as_str().try_to_owned());
@@ -1024,17 +1052,58 @@ impl Vm {
                 });
             }
             target => {
+                let field = field.clone();
+
+                let CallResult::Unsupported(target) =
+                    vm_try!(self.dynamic_field_set(target, &field, &value))
+                else {
+                    vm_try!(<()>::from_value(vm_try!(self.stack.pop())));
+                    return VmResult::Ok(CallResult::Ok(()));
+                };
+
                 let hash = field.hash();
 
-                match vm_try!(self.call_field_fn(Protocol::SET, target, hash, (value,))) {
-                    CallResult::Ok(()) => {
-                        vm_try!(<()>::from_value(vm_try!(self.stack.pop())));
-                        CallResult::Ok(())
-                    }
-                    result => result,
-                }
+                let CallResult::Unsupported(target) =
+                    vm_try!(self.call_field_fn(Protocol::SET, target, hash, (value,)))
+                else {
+                    vm_try!(<()>::from_value(vm_try!(self.stack.pop())));
+                    return VmResult::Ok(CallResult::Ok(()));
+                };
+
+                return err(VmErrorKind::MissingField {
+                    target: vm_try!(target.type_info()),
+                    field: vm_try!(field.as_str().try_to_owned()),
+                });
             }
-        })
+        }
+    }
+
+    #[cfg(not(feature = "dynamic_fields"))]
+    fn dynamic_field_set(
+        &mut self,
+        target: Value,
+        _: &str,
+        value: &Value,
+    ) -> VmResult<CallResult<Value>> {
+        VmResult::Ok(CallResult::Unsupported(target))
+    }
+
+    #[cfg(feature = "dynamic_fields")]
+    fn dynamic_field_set(
+        &mut self,
+        target: Value,
+        field: &str,
+        value: &Value,
+    ) -> VmResult<CallResult<()>> {
+        if let CallResult::Unsupported(target) = vm_try!(self.call_instance_fn(
+            target.clone(),
+            Protocol::DYNAMIC_FIELD_SET,
+            (field, value.clone()),
+        )) {
+            return VmResult::Ok(CallResult::Unsupported(target));
+        }
+
+        VmResult::Ok(CallResult::Ok(()))
     }
 
     fn on_tuple<F, O>(&mut self, ty: TypeCheck, value: &Value, f: F) -> VmResult<Option<O>>

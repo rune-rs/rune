@@ -1,5 +1,4 @@
-mod serde;
-
+use ::rust_alloc::sync::Arc;
 use core::any;
 use core::borrow::Borrow;
 use core::cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd};
@@ -7,7 +6,7 @@ use core::fmt;
 use core::hash;
 use core::ptr;
 
-use ::rust_alloc::sync::Arc;
+use ::serde::{Deserialize, Serialize};
 
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
@@ -25,7 +24,7 @@ use crate::runtime::{
 use crate::runtime::{Hasher, Tuple};
 use crate::{Any, Hash};
 
-use ::serde::{Deserialize, Serialize};
+mod serde;
 
 // Small helper function to build errors.
 fn err<T, E>(error: E) -> VmResult<T>

@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 
-use crate::internals::*;
 use proc_macro2::Span;
 use proc_macro2::TokenStream;
 use quote::quote_spanned;
@@ -9,6 +8,8 @@ use syn::parse::ParseStream;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned as _;
 use syn::Token;
+
+use crate::internals::*;
 
 /// Parsed `#[rune(..)]` field attributes.
 #[derive(Default)]

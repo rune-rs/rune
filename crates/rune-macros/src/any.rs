@@ -2,10 +2,11 @@ use std::collections::BTreeMap;
 
 use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned, ToTokens};
-use rune_core::Hash;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::Token;
+
+use rune_core::Hash;
 
 use crate::context::{Context, Generate, GenerateTarget, Tokens, TypeAttr};
 

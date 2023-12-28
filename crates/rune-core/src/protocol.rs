@@ -177,6 +177,22 @@ define! {
         doc: ["Allows an indexing set operation to work."],
     };
 
+    /// The function to access a field dynamically.
+    pub const [DYNAMIC_FIELD_GET, DYNAMIC_FIELD_GET_HASH]: Protocol = Protocol {
+        name: "dynamic_get",
+        hash: 0x6dda58b140dfeaf9,
+        repr: Some("let output = $value"),
+        doc: ["Allows a dynamic get operation to work."],
+    };
+
+    /// The function to set a field dynamically.
+    pub const [DYNAMIC_FIELD_SET, DYNAMIC_FIELD_SET_HASH]: Protocol = Protocol {
+        name: "dynamic_set",
+        hash: 0xbe28c02896ca0b64,
+        repr: Some("$value = input"),
+        doc: ["Allows a dynamic set operation to work."],
+    };
+
     /// Check two types for partial equality.
     pub const [PARTIAL_EQ, PARTIAL_EQ_HASH]: Protocol = Protocol {
         name: "partial_eq",

@@ -7,10 +7,10 @@
 //!
 //! See: https://github.com/rune-rs/rune/issues/344
 
-prelude!();
-
 use std::cell::Cell;
 use std::rc::Rc;
+
+prelude!();
 
 #[test]
 fn bug_344_function() -> Result<()> {
