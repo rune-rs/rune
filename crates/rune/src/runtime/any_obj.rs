@@ -79,6 +79,7 @@ impl AnyObj {
                 kind: AnyObjKind::Owned,
                 drop: drop_impl::<T>,
                 as_ptr: as_ptr_impl::<T>,
+                as_ptr_mut: as_ptr_mut_impl::<T>,
                 debug: debug_impl::<T>,
                 type_name: type_name_impl::<T>,
                 type_hash: type_hash_impl::<T>,
@@ -137,6 +138,7 @@ impl AnyObj {
                 kind: AnyObjKind::RefPtr,
                 drop: noop_drop_impl::<T>,
                 as_ptr: as_ptr_impl::<T>,
+                as_ptr_mut: as_ptr_mut_impl::<T>,
                 debug: debug_ref_impl::<T>,
                 type_name: type_name_impl::<T>,
                 type_hash: type_hash_impl::<T>,
@@ -175,6 +177,7 @@ impl AnyObj {
     pub unsafe fn from_deref<T>(data: T) -> alloc::Result<Self>
     where
         T: Deref,
+        T: DerefMut,
         T::Target: Any,
     {
         let data = {
@@ -187,6 +190,7 @@ impl AnyObj {
                 kind: AnyObjKind::RefPtr,
                 drop: drop_impl::<T>,
                 as_ptr: as_ptr_deref_impl::<T>,
+                as_ptr_mut: as_ptr_deref_mut_impl::<T>,
                 debug: debug_ref_impl::<T::Target>,
                 type_name: type_name_impl::<T::Target>,
                 type_hash: type_hash_impl::<T::Target>,
@@ -251,6 +255,7 @@ impl AnyObj {
                 kind: AnyObjKind::MutPtr,
                 drop: noop_drop_impl::<T>,
                 as_ptr: as_ptr_impl::<T>,
+                as_ptr_mut: as_ptr_mut_impl::<T>,
                 debug: debug_mut_impl::<T>,
                 type_name: type_name_impl::<T>,
                 type_hash: type_hash_impl::<T>,
@@ -300,7 +305,8 @@ impl AnyObj {
             vtable: &AnyObjVtable {
                 kind: AnyObjKind::MutPtr,
                 drop: drop_impl::<T>,
-                as_ptr: as_ptr_deref_mut_impl::<T>,
+                as_ptr: as_ptr_deref_impl::<T>,
+                as_ptr_mut: as_ptr_deref_mut_impl::<T>,
                 debug: debug_mut_impl::<T::Target>,
                 type_name: type_name_impl::<T::Target>,
                 type_hash: type_hash_impl::<T::Target>,
@@ -403,7 +409,8 @@ impl AnyObj {
         T: Any,
     {
         unsafe {
-            (self.vtable.as_ptr)(self.data.as_ptr(), TypeId::of::<T>()).map(|v| &mut *(v as *mut _))
+            (self.vtable.as_ptr_mut)(self.data.as_ptr(), TypeId::of::<T>())
+                .map(|v| &mut *(v as *mut _))
         }
     }
 
@@ -431,8 +438,8 @@ impl AnyObj {
         // Safety: invariants are checked at construction time.
         // We have mutable access to the inner value because we have mutable
         // access to the `Any`.
-        match unsafe { (self.vtable.as_ptr)(self.data.as_ptr(), expected) } {
-            Some(ptr) => Ok(ptr as *mut ()),
+        match unsafe { (self.vtable.as_ptr_mut)(self.data.as_ptr(), expected) } {
+            Some(ptr) => Ok(ptr),
             None => Err(AnyObjError::Cast),
         }
     }
@@ -470,8 +477,8 @@ impl AnyObj {
         // We have mutable access to the inner value because we have mutable
         // access to the `Any`.
         unsafe {
-            match (this.vtable.as_ptr)(this.data.as_ptr(), expected) {
-                Some(data) => Ok(data as *mut ()),
+            match (this.vtable.as_ptr_mut)(this.data.as_ptr(), expected) {
+                Some(data) => Ok(data),
                 None => {
                     let this = ManuallyDrop::into_inner(this);
                     Err((AnyObjError::Cast, this))
@@ -526,6 +533,9 @@ pub type DropFn = unsafe fn(*mut ());
 /// The signature of a pointer coercion function.
 pub type AsPtrFn = unsafe fn(this: *const (), expected: TypeId) -> Option<*const ()>;
 
+/// The signature of a pointer coercion function, but mutably.
+pub type AsPtrMutFn = unsafe fn(this: *mut (), expected: TypeId) -> Option<*mut ()>;
+
 /// The signature of a descriptive type name function.
 pub type DebugFn = fn(&mut fmt::Formatter<'_>) -> fmt::Result;
 
@@ -536,7 +546,7 @@ pub type TypeNameFn = fn() -> RawStr;
 pub type TypeHashFn = fn() -> Hash;
 
 /// The kind of the stored value in the `AnyObj`.
-enum AnyObjKind {
+pub enum AnyObjKind {
     /// A boxed value that is owned.
     Owned,
     /// A pointer (`*const T`).
@@ -553,17 +563,19 @@ enum AnyObjKind {
 #[repr(C)]
 pub struct AnyObjVtable {
     /// The kind of the object being stored. Determines how it can be accessed.
-    kind: AnyObjKind,
+    pub kind: AnyObjKind,
     /// The underlying drop implementation for the stored type.
-    drop: DropFn,
+    pub drop: DropFn,
     /// Punt the inner pointer to the type corresponding to the type hash.
-    as_ptr: AsPtrFn,
+    pub as_ptr: AsPtrFn,
+    /// Punt the inner pointer to the type corresponding to the type hash, but mutably,
+    pub as_ptr_mut: AsPtrMutFn,
     /// Type information for diagnostics.
-    debug: DebugFn,
+    pub debug: DebugFn,
     /// Type name accessor.
-    type_name: TypeNameFn,
+    pub type_name: TypeNameFn,
     /// Get the type hash of the stored type.
-    type_hash: TypeHashFn,
+    pub type_hash: TypeHashFn,
 }
 
 unsafe fn drop_impl<T>(this: *mut ()) {
@@ -571,6 +583,17 @@ unsafe fn drop_impl<T>(this: *mut ()) {
 }
 
 fn as_ptr_impl<T>(this: *const (), expected: TypeId) -> Option<*const ()>
+where
+    T: Any,
+{
+    if expected == TypeId::of::<T>() {
+        Some(this)
+    } else {
+        None
+    }
+}
+
+fn as_ptr_mut_impl<T>(this: *mut (), expected: TypeId) -> Option<*mut ()>
 where
     T: Any,
 {
@@ -593,18 +616,17 @@ where
     }
 }
 
-fn as_ptr_deref_mut_impl<T: DerefMut>(this: *const (), expected: TypeId) -> Option<*const ()>
+fn as_ptr_deref_mut_impl<T: DerefMut>(this: *mut (), expected: TypeId) -> Option<*mut ()>
 where
     T::Target: Any,
 {
     if expected == TypeId::of::<T::Target>() {
         let guard = this as *mut T;
-        unsafe { Some((*guard).deref_mut() as *const _ as *const ()) }
+        unsafe { Some((*guard).deref_mut() as *mut _ as *mut ()) }
     } else {
         None
     }
 }
-
 fn noop_drop_impl<T>(_: *mut ()) {}
 
 fn debug_impl<T>(f: &mut fmt::Formatter<'_>) -> fmt::Result

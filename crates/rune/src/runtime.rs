@@ -10,7 +10,7 @@ pub use self::access::{
 };
 
 mod any_obj;
-pub use self::any_obj::{AnyObj, AnyObjError, AnyObjVtable};
+pub use self::any_obj::{AnyObj, AnyObjError, AnyObjKind, AnyObjVtable};
 
 mod args;
 pub use self::args::Args;

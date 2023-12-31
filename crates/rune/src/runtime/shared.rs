@@ -456,7 +456,9 @@ impl Shared<AnyObj> {
     /// # Safety
     ///
     /// The reference must be valid for the duration of the guard.
-    unsafe fn unsafe_from_any_pointer(any: AnyObj) -> alloc::Result<(Self, SharedPointerGuard)> {
+    pub(crate) unsafe fn unsafe_from_any_pointer(
+        any: AnyObj,
+    ) -> alloc::Result<(Self, SharedPointerGuard)> {
         let shared = SharedBox {
             access: Access::new(true),
             count: Cell::new(2),
