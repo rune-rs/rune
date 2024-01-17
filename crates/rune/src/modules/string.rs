@@ -54,6 +54,8 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(get)?;
     module.function_meta(parse_int)?;
     module.function_meta(parse_char)?;
+    module.function_meta(to_lowercase)?;
+    module.function_meta(to_uppercase)?;
 
     module.function_meta(add)?;
     module.function_meta(add_assign)?;
@@ -1101,6 +1103,88 @@ fn parse_float(s: &str) -> Result<f64, ParseFloatError> {
 #[rune::function(instance, path = parse::<char>)]
 fn parse_char(s: &str) -> Result<char, char::ParseCharError> {
     str::parse::<char>(s)
+}
+
+/// Returns the lowercase equivalent of this string slice, as a new [`String`].
+///
+/// 'Lowercase' is defined according to the terms of the Unicode Derived Core Property
+/// `Lowercase`.
+///
+/// Since some characters can expand into multiple characters when changing
+/// the case, this function returns a [`String`] instead of modifying the
+/// parameter in-place.
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```
+/// let s = "HELLO";
+///
+/// assert_eq!("hello", s.to_lowercase());
+/// ```
+///
+/// A tricky example, with sigma:
+///
+/// ```
+/// let sigma = "Σ";
+///
+/// assert_eq!("σ", sigma.to_lowercase());
+///
+/// // but at the end of a word, it's ς, not σ:
+/// let odysseus = "ὈΔΥΣΣΕΎΣ";
+///
+/// assert_eq!("ὀδυσσεύς", odysseus.to_lowercase());
+/// ```
+///
+/// Languages without case are not changed:
+///
+/// ```
+/// let new_year = "农历新年";
+///
+/// assert_eq!(new_year, new_year.to_lowercase());
+/// ```
+#[rune::function(instance)]
+fn to_lowercase(s: &str) -> VmResult<String> {
+    VmResult::Ok(vm_try!(String::try_from(s.to_lowercase())))
+}
+
+/// Returns the uppercase equivalent of this string slice, as a new [`String`].
+///
+/// 'Uppercase' is defined according to the terms of the Unicode Derived Core Property
+/// `Uppercase`.
+///
+/// Since some characters can expand into multiple characters when changing
+/// the case, this function returns a [`String`] instead of modifying the
+/// parameter in-place.
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```
+/// let s = "hello";
+///
+/// assert_eq!("HELLO", s.to_uppercase());
+/// ```
+///
+/// Scripts without case are not changed:
+///
+/// ```
+/// let new_year = "农历新年";
+///
+/// assert_eq!(new_year, new_year.to_uppercase());
+/// ```
+///
+/// One character can become multiple:
+/// ```
+/// let s = "tschüß";
+///
+/// assert_eq!("TSCHÜSS", s.to_uppercase());
+/// ```
+#[rune::function(instance)]
+fn to_uppercase(s: &str) -> VmResult<String> {
+    VmResult::Ok(vm_try!(String::try_from(s.to_uppercase())))
 }
 
 crate::__internal_impl_any!(::std::string, FromUtf8Error);
