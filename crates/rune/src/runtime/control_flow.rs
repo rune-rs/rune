@@ -80,7 +80,12 @@ impl ControlFlow {
     }
 }
 
-from_value!(ControlFlow, into_control_flow);
+from_value2!(
+    ControlFlow,
+    into_control_flow_ref,
+    into_control_flow_mut,
+    into_control_flow
+);
 
 impl<B, C> ToValue for ops::ControlFlow<B, C>
 where
@@ -107,9 +112,7 @@ where
 {
     #[inline]
     fn from_value(value: Value) -> VmResult<Self> {
-        let value = vm_try!(value.into_control_flow());
-
-        VmResult::Ok(match vm_try!(value.take()) {
+        VmResult::Ok(match vm_try!(value.into_control_flow()) {
             ControlFlow::Continue(value) => {
                 ops::ControlFlow::Continue(vm_try!(C::from_value(value)))
             }

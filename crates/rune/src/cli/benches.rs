@@ -115,7 +115,7 @@ fn bench_fn(
     multiple: bool,
 ) -> Result<()> {
     for _ in 0..args.warmup {
-        let value = f.call::<_, Value>(()).into_result()?;
+        let value = f.call::<Value>(()).into_result()?;
         drop(value);
     }
 
@@ -124,7 +124,7 @@ fn bench_fn(
 
     for _ in 0..args.iterations {
         let start = Instant::now();
-        let value = f.call::<_, Value>(()).into_result()?;
+        let value = f.call::<Value>(()).into_result()?;
         let duration = Instant::now().duration_since(start);
         collected.try_push(duration.as_nanos() as i128)?;
         drop(value);

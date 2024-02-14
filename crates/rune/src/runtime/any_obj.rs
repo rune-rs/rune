@@ -13,7 +13,7 @@ use crate::hash::Hash;
 use crate::runtime::{AnyTypeInfo, FullTypeOf, MaybeTypeOf, RawStr, TypeInfo};
 
 /// Errors raised during casting operations.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 #[allow(missing_docs)]
 #[non_exhaustive]
 pub enum AnyObjError {
@@ -223,7 +223,7 @@ impl AnyObj {
     ///
     /// ```
     /// use rune::Any;
-    /// use rune::runtime::AnyObj;
+    /// use rune::runtime::{AnyObj, VmResult};
     ///
     /// #[derive(Any)]
     /// struct Foo(u32);
@@ -233,9 +233,11 @@ impl AnyObj {
     /// {
     ///     let mut any = unsafe { AnyObj::from_mut(&mut v) };
     ///
-    ///     if let Some(v) = any.downcast_borrow_mut::<Foo>() {
-    ///         v.0 += 1;
-    ///     }
+    ///     let Ok(v) = any.downcast_borrow_mut::<Foo>() else {
+    ///         panic!("Conversion failed");
+    ///     };
+    ///
+    ///     v.0 += 1;
     /// }
     ///
     /// assert_eq!(v.0, 2);
@@ -350,8 +352,7 @@ impl AnyObj {
         self.raw_as_ptr(TypeId::of::<T>()).is_ok()
     }
 
-    /// Returns some reference to the boxed value if it is of type `T`, or
-    /// `None` if it isn't.
+    /// Returns stored value if it is of type `T`, or `None` if it isn't.
     ///
     /// # Examples
     ///
@@ -362,21 +363,83 @@ impl AnyObj {
     /// #[derive(Debug, PartialEq, Eq, Any)]
     /// struct Thing(u32);
     ///
+    /// let any = AnyObj::new(Thing(1u32))?;
+    ///
+    /// let Ok(thing) = any.downcast::<Thing>() else {
+    ///     panic!("Conversion failed");
+    /// };
+    ///
+    /// assert_eq!(thing, Thing(1));
+    /// # Ok::<_, rune::support::Error>(())
+    /// ```
+    #[inline]
+    pub fn downcast<T>(self) -> Result<T, (AnyObjError, Self)>
+    where
+        T: Any,
+    {
+        match self.vtable.kind {
+            // Only owned things can be taken.
+            AnyObjKind::Owned => (),
+            AnyObjKind::RefPtr => {
+                let error = AnyObjError::RefAsOwned {
+                    name: self.type_name(),
+                };
+                return Err((error, self));
+            }
+            AnyObjKind::MutPtr => {
+                let error = AnyObjError::MutAsOwned {
+                    name: self.type_name(),
+                };
+                return Err((error, self));
+            }
+        };
+
+        let this = ManuallyDrop::new(self);
+
+        unsafe {
+            let Some(ptr) = (this.vtable.as_ptr)(this.data.as_ptr(), TypeId::of::<T>()) else {
+                let this = ManuallyDrop::into_inner(this);
+                return Err((AnyObjError::Cast, this));
+            };
+
+            Ok(Box::into_inner(Box::from_raw_in(
+                ptr.cast_mut().cast(),
+                rune_alloc::alloc::Global,
+            )))
+        }
+    }
+
+    /// Returns some reference to the boxed value if it is of type `T`, or
+    /// `None` if it isn't.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::Any;
+    /// use rune::runtime::{AnyObj, AnyObjError};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Any)]
+    /// struct Thing(u32);
+    ///
     /// #[derive(Debug, PartialEq, Eq, Any)]
     /// struct Other;
     ///
     /// let any = AnyObj::new(Thing(1u32))?;
-    /// assert_eq!(Some(&Thing(1u32)), any.downcast_borrow_ref::<Thing>());
-    /// assert_eq!(None, any.downcast_borrow_ref::<Other>());
+    /// assert_eq!(Ok(&Thing(1u32)), any.downcast_borrow_ref::<Thing>());
+    /// assert_eq!(Err(AnyObjError::Cast), any.downcast_borrow_ref::<Other>());
     /// # Ok::<_, rune::support::Error>(())
     /// ```
     #[inline]
-    pub fn downcast_borrow_ref<T>(&self) -> Option<&T>
+    pub fn downcast_borrow_ref<T>(&self) -> Result<&T, AnyObjError>
     where
         T: Any,
     {
         unsafe {
-            (self.vtable.as_ptr)(self.data.as_ptr(), TypeId::of::<T>()).map(|v| &*(v as *const _))
+            let Some(ptr) = (self.vtable.as_ptr)(self.data.as_ptr(), TypeId::of::<T>()) else {
+                return Err(AnyObjError::Cast);
+            };
+
+            Ok(&*ptr.cast())
         }
     }
 
@@ -394,16 +457,26 @@ impl AnyObj {
     ///
     /// let mut any = AnyObj::new(Thing(1u32))?;
     /// any.downcast_borrow_mut::<Thing>().unwrap().0 = 2;
-    /// assert_eq!(Some(&Thing(2u32)), any.downcast_borrow_ref::<Thing>());
+    /// assert_eq!(Ok(&Thing(2u32)), any.downcast_borrow_ref::<Thing>());
     /// # Ok::<_, rune::support::Error>(())
     /// ```
     #[inline]
-    pub fn downcast_borrow_mut<T>(&mut self) -> Option<&mut T>
+    pub fn downcast_borrow_mut<T>(&mut self) -> Result<&mut T, AnyObjError>
     where
         T: Any,
     {
+        if let AnyObjKind::RefPtr = self.vtable.kind {
+            return Err(AnyObjError::RefAsMut {
+                name: self.type_name(),
+            });
+        }
+
         unsafe {
-            (self.vtable.as_ptr)(self.data.as_ptr(), TypeId::of::<T>()).map(|v| &mut *(v as *mut _))
+            let Some(ptr) = (self.vtable.as_ptr)(self.data.as_ptr(), TypeId::of::<T>()) else {
+                return Err(AnyObjError::Cast);
+            };
+
+            Ok(&mut *ptr.cast_mut().cast())
         }
     }
 
@@ -413,70 +486,6 @@ impl AnyObj {
         match unsafe { (self.vtable.as_ptr)(self.data.as_ptr(), expected) } {
             Some(ptr) => Ok(ptr),
             None => Err(AnyObjError::Cast),
-        }
-    }
-
-    /// Attempt to perform a conversion to a raw mutable pointer.
-    pub(crate) fn raw_as_mut(&mut self, expected: TypeId) -> Result<*mut (), AnyObjError> {
-        match self.vtable.kind {
-            // Only owned and mutable pointers can be treated as mutable.
-            AnyObjKind::Owned | AnyObjKind::MutPtr => (),
-            _ => {
-                return Err(AnyObjError::RefAsMut {
-                    name: self.type_name(),
-                })
-            }
-        }
-
-        // Safety: invariants are checked at construction time.
-        // We have mutable access to the inner value because we have mutable
-        // access to the `Any`.
-        match unsafe { (self.vtable.as_ptr)(self.data.as_ptr(), expected) } {
-            Some(ptr) => Ok(ptr as *mut ()),
-            None => Err(AnyObjError::Cast),
-        }
-    }
-
-    /// Attempt to perform a conversion to a raw mutable pointer with the intent
-    /// of taking it.
-    ///
-    /// If the conversion is not possible, we return a reconstructed `Any` as
-    /// the error variant.
-    pub(crate) fn raw_take(self, expected: TypeId) -> Result<*mut (), (AnyObjError, Self)> {
-        match self.vtable.kind {
-            // Only owned things can be taken.
-            AnyObjKind::Owned => (),
-            AnyObjKind::RefPtr => {
-                return Err((
-                    AnyObjError::RefAsOwned {
-                        name: self.type_name(),
-                    },
-                    self,
-                ))
-            }
-            AnyObjKind::MutPtr => {
-                return Err((
-                    AnyObjError::MutAsOwned {
-                        name: self.type_name(),
-                    },
-                    self,
-                ))
-            }
-        };
-
-        let this = ManuallyDrop::new(self);
-
-        // Safety: invariants are checked at construction time.
-        // We have mutable access to the inner value because we have mutable
-        // access to the `Any`.
-        unsafe {
-            match (this.vtable.as_ptr)(this.data.as_ptr(), expected) {
-                Some(data) => Ok(data as *mut ()),
-                None => {
-                    let this = ManuallyDrop::into_inner(this);
-                    Err((AnyObjError::Cast, this))
-                }
-            }
         }
     }
 

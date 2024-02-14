@@ -4,7 +4,8 @@ use core::ops;
 
 use crate as rune;
 use crate::runtime::{
-    EnvProtocolCaller, FromValue, Iterator, ProtocolCaller, ToValue, Value, VmErrorKind, VmResult,
+    EnvProtocolCaller, FromValue, Iterator, ProtocolCaller, ToValue, Value, ValueKind, VmErrorKind,
+    VmResult,
 };
 use crate::Any;
 
@@ -49,7 +50,8 @@ use crate::Any;
 /// # Ok::<_, rune::support::Error>(())
 /// ```
 #[derive(Any, Clone)]
-#[rune(builtin, constructor, from_value = Value::into_range_from, static_type = RANGE_FROM_TYPE)]
+#[rune(builtin, constructor, static_type = RANGE_FROM_TYPE)]
+#[rune(from_value = Value::into_range_from, from_value_ref = Value::into_range_from_ref, from_value_mut = Value::into_range_from_mut)]
 pub struct RangeFrom {
     /// The start value of the range.
     #[rune(get, set)]
@@ -85,12 +87,12 @@ impl RangeFrom {
     pub fn iter(&self) -> VmResult<Iterator> {
         const NAME: &str = "std::ops::RangeFrom";
 
-        match &self.start {
-            Value::Byte(start) => VmResult::Ok(Iterator::from(NAME, *start..)),
-            Value::Char(start) => VmResult::Ok(Iterator::from(NAME, *start..)),
-            Value::Integer(start) => VmResult::Ok(Iterator::from(NAME, *start..)),
-            start => VmResult::err(VmErrorKind::UnsupportedIterRangeFrom {
-                start: vm_try!(start.type_info()),
+        match *vm_try!(self.start.borrow_kind_ref()) {
+            ValueKind::Byte(start) => VmResult::Ok(Iterator::from(NAME, start..)),
+            ValueKind::Char(start) => VmResult::Ok(Iterator::from(NAME, start..)),
+            ValueKind::Integer(start) => VmResult::Ok(Iterator::from(NAME, start..)),
+            ref start => VmResult::err(VmErrorKind::UnsupportedIterRangeFrom {
+                start: start.type_info(),
             }),
         }
     }
@@ -280,7 +282,7 @@ where
 {
     #[inline]
     fn from_value(value: Value) -> VmResult<Self> {
-        let range = vm_try!(vm_try!(value.into_range_from()).take());
+        let range = vm_try!(value.into_range_from());
         let start = vm_try!(Idx::from_value(range.start));
         VmResult::Ok(ops::RangeFrom { start })
     }

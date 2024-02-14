@@ -30,7 +30,8 @@
 //! ```
 
 use rune::{Any, Module, ContextError, vm_try};
-use rune::runtime::{Bytes, Shared, Value, VmResult, Formatter};
+use rune::runtime::{Bytes, Value, VmResult, Formatter};
+use rune::alloc::clone::TryClone;
 use rune::alloc::fmt::TryWrite;
 use rune::alloc::Vec;
 
@@ -74,14 +75,7 @@ impl Command {
     #[rune::function(instance)]
     fn args(&mut self, args: &[Value]) -> VmResult<()> {
         for arg in args {
-            match arg {
-                Value::String(s) => {
-                    self.inner.arg(&*vm_try!(s.borrow_ref()));
-                }
-                actual => {
-                    return VmResult::expected::<String>(vm_try!(actual.type_info()));
-                }
-            }
+            self.inner.arg(&*vm_try!(arg.as_string()));
         }
 
         VmResult::Ok(())
@@ -128,8 +122,8 @@ impl Child {
 
         Ok(Output {
             status: ExitStatus { status: output.status },
-            stdout: Shared::new(Bytes::from_vec(Vec::try_from(output.stdout).vm?)).vm?,
-            stderr: Shared::new(Bytes::from_vec(Vec::try_from(output.stderr).vm?)).vm?,
+            stdout: Bytes::from_vec(Vec::try_from(output.stdout).vm?),
+            stderr: Bytes::from_vec(Vec::try_from(output.stderr).vm?),
         })
     }
 }
@@ -140,12 +134,12 @@ struct Output {
     #[rune(get)]
     status: ExitStatus,
     #[rune(get)]
-    stdout: Shared<Bytes>,
+    stdout: Bytes,
     #[rune(get)]
-    stderr: Shared<Bytes>,
+    stderr: Bytes,
 }
 
-#[derive(Clone, Copy, Any)]
+#[derive(TryClone, Clone, Copy, Any)]
 #[rune(item = ::process)]
 struct ExitStatus {
     status: std::process::ExitStatus,

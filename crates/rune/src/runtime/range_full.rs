@@ -30,7 +30,8 @@ use crate::Any;
 /// # Ok::<_, rune::support::Error>(())
 /// ```
 #[derive(Any, Default, Clone)]
-#[rune(builtin, constructor, from_value = Value::into_range_full, static_type = RANGE_FULL_TYPE)]
+#[rune(builtin, constructor, static_type = RANGE_FULL_TYPE)]
+#[rune(from_value = Value::into_range_full, from_value_ref = Value::into_range_full_ref, from_value_mut = Value::into_range_full_mut)]
 pub struct RangeFull;
 
 impl RangeFull {
@@ -101,7 +102,7 @@ impl ToValue for ops::RangeFull {
 impl FromValue for ops::RangeFull {
     #[inline]
     fn from_value(value: Value) -> VmResult<Self> {
-        let RangeFull = vm_try!(vm_try!(value.into_range_full()).take());
+        let RangeFull = vm_try!(value.into_range_full());
         VmResult::Ok(ops::RangeFull)
     }
 }

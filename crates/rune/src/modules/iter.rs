@@ -8,7 +8,7 @@ use crate::modules::collections::{HashMap, HashSet};
 #[cfg(feature = "alloc")]
 use crate::runtime::EnvProtocolCaller;
 use crate::runtime::{
-    FromValue, Function, Iterator, Object, OwnedTuple, Protocol, Value, Vec, VmResult,
+    FromValue, Function, Iterator, Object, OwnedTuple, Protocol, Value, ValueKind, Vec, VmResult,
 };
 use crate::{ContextError, Module};
 
@@ -1140,16 +1140,15 @@ fn collect_string(mut it: Iterator) -> VmResult<String> {
     let mut string = String::new();
 
     while let Some(value) = vm_try!(it.next()) {
-        match value {
-            Value::Char(c) => {
-                vm_try!(string.try_push(c));
+        match &*vm_try!(value.borrow_kind_ref()) {
+            ValueKind::Char(c) => {
+                vm_try!(string.try_push(*c));
             }
-            Value::String(s) => {
-                let s = vm_try!(s.into_ref());
-                vm_try!(string.try_push_str(s.as_str()));
+            ValueKind::String(s) => {
+                vm_try!(string.try_push_str(s));
             }
             value => {
-                return VmResult::expected::<String>(vm_try!(value.type_info()));
+                return VmResult::expected::<String>(value.type_info());
             }
         }
     }

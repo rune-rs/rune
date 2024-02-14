@@ -60,42 +60,7 @@ fn panic(message: &str) -> VmResult<()> {
 /// ```
 #[rune::function]
 fn is_readable(value: Value) -> bool {
-    match value {
-        Value::EmptyTuple => true,
-        Value::Bool(_) => true,
-        Value::Byte(_) => true,
-        Value::Char(_) => true,
-        Value::Integer(_) => true,
-        Value::Float(_) => true,
-        Value::Type(_) => true,
-        Value::Ordering(_) => true,
-        Value::String(value) => value.is_readable(),
-        Value::Bytes(value) => value.is_readable(),
-        Value::Vec(value) => value.is_readable(),
-        Value::Tuple(value) => value.is_readable(),
-        Value::Object(value) => value.is_readable(),
-        Value::RangeFrom(value) => value.is_readable(),
-        Value::RangeFull(value) => value.is_readable(),
-        Value::RangeInclusive(value) => value.is_readable(),
-        Value::RangeToInclusive(value) => value.is_readable(),
-        Value::RangeTo(value) => value.is_readable(),
-        Value::Range(value) => value.is_readable(),
-        Value::ControlFlow(value) => value.is_readable(),
-        Value::Future(value) => value.is_readable(),
-        Value::Stream(value) => value.is_readable(),
-        Value::Generator(value) => value.is_readable(),
-        Value::GeneratorState(value) => value.is_readable(),
-        Value::Option(value) => value.is_readable(),
-        Value::Result(value) => value.is_readable(),
-        Value::EmptyStruct(value) => value.is_readable(),
-        Value::TupleStruct(value) => value.is_readable(),
-        Value::Struct(value) => value.is_readable(),
-        Value::Variant(value) => value.is_readable(),
-        Value::Function(value) => value.is_readable(),
-        Value::Format(_) => true,
-        Value::Iterator(value) => value.is_readable(),
-        Value::Any(value) => value.is_readable(),
-    }
+    value.is_readable()
 }
 
 /// Test if the given `value` is writable.
@@ -114,42 +79,7 @@ fn is_readable(value: Value) -> bool {
 /// ```
 #[rune::function]
 fn is_writable(value: Value) -> bool {
-    match value {
-        Value::EmptyTuple => true,
-        Value::Bool(_) => true,
-        Value::Byte(_) => true,
-        Value::Char(_) => true,
-        Value::Integer(_) => true,
-        Value::Float(_) => true,
-        Value::Type(_) => true,
-        Value::Ordering(_) => true,
-        Value::String(value) => value.is_writable(),
-        Value::Bytes(value) => value.is_writable(),
-        Value::Vec(value) => value.is_writable(),
-        Value::Tuple(value) => value.is_writable(),
-        Value::Object(value) => value.is_writable(),
-        Value::RangeFrom(value) => value.is_writable(),
-        Value::RangeFull(value) => value.is_writable(),
-        Value::RangeInclusive(value) => value.is_writable(),
-        Value::RangeToInclusive(value) => value.is_writable(),
-        Value::RangeTo(value) => value.is_writable(),
-        Value::Range(value) => value.is_writable(),
-        Value::ControlFlow(value) => value.is_writable(),
-        Value::Future(value) => value.is_writable(),
-        Value::Stream(value) => value.is_writable(),
-        Value::Generator(value) => value.is_writable(),
-        Value::GeneratorState(value) => value.is_writable(),
-        Value::Option(value) => value.is_writable(),
-        Value::Result(value) => value.is_writable(),
-        Value::EmptyStruct(value) => value.is_writable(),
-        Value::TupleStruct(value) => value.is_writable(),
-        Value::Struct(value) => value.is_writable(),
-        Value::Variant(value) => value.is_writable(),
-        Value::Function(value) => value.is_writable(),
-        Value::Format(_) => false,
-        Value::Iterator(value) => value.is_writable(),
-        Value::Any(value) => value.is_writable(),
-    }
+    value.is_writable()
 }
 
 /// Stringify the given argument, causing it to expand to its underlying token

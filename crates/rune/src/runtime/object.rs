@@ -506,7 +506,7 @@ impl fmt::Debug for Object {
     }
 }
 
-from_value!(Object, into_object);
+from_value2!(Object, into_object_ref, into_object_mut, into_object);
 
 pub struct DebugStruct<'a> {
     item: &'a ItemBuf,

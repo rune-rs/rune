@@ -18,7 +18,7 @@ fn test_get_const() -> Result<()> {
             .try_clone()?
             .into_value()
             .expect("could not allocate value")
-            .into_integer()
+            .as_integer()
             .expect("the inner value"),
         1337
     );
@@ -47,7 +47,7 @@ fn test_get_const_re_export() -> Result<()> {
             .try_clone()?
             .into_value()
             .expect("could not allocate value")
-            .into_integer()
+            .as_integer()
             .expect("the inner value"),
         1337
     );
@@ -74,7 +74,7 @@ fn test_get_const_nested() -> Result<()> {
             .try_clone()?
             .into_value()
             .expect("could not allocate value")
-            .into_integer()
+            .as_integer()
             .expect("the inner value"),
         1337
     );

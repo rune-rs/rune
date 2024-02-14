@@ -218,7 +218,7 @@ pub(crate) fn build(
     for builder in builders {
         cx.state = builder.state;
         artifacts.asset(false, &cx.state.path, || {
-            Ok((builder.builder)(&cx)?.into_bytes().try_into()?)
+            Ok((builder.builder)(&cx)?.into_bytes().into())
         })?;
     }
 

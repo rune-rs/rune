@@ -1,12 +1,13 @@
 use core::fmt;
 
 use crate as rune;
-use crate::runtime::{GeneratorState, Shared, Value, Vm, VmErrorKind, VmExecution, VmResult};
+use crate::runtime::{GeneratorState, Mut, Value, Vm, VmErrorKind, VmExecution, VmResult};
 use crate::Any;
 
 /// A stream with a stored virtual machine.
 #[derive(Any)]
-#[rune(builtin, static_type = STREAM_TYPE, from_value = Value::into_stream, from_value_params = [Vm])]
+#[rune(builtin, static_type = STREAM_TYPE, from_value_params = [Vm])]
+#[rune(from_value = Value::into_stream, from_value_ref = Value::into_stream_ref, from_value_mut = Value::into_stream_mut)]
 pub struct Stream<T>
 where
     T: AsRef<Vm> + AsMut<Vm>,
@@ -34,14 +35,14 @@ where
 
     /// Get the next value produced by this stream.
     pub async fn next(&mut self) -> VmResult<Option<Value>> {
-        VmResult::Ok(match vm_try!(self.resume(Value::EmptyTuple).await) {
+        VmResult::Ok(match vm_try!(self.resume(vm_try!(Value::empty())).await) {
             GeneratorState::Yielded(value) => Some(value),
             GeneratorState::Complete(_) => None,
         })
     }
 
-    pub(crate) async fn next_shared(this: Shared<Stream<T>>) -> VmResult<Option<Value>> {
-        vm_try!(this.borrow_mut()).next().await
+    pub(crate) async fn next_shared(mut this: Mut<Stream<T>>) -> VmResult<Option<Value>> {
+        this.next().await
     }
 
     /// Get the next value produced by this stream.
@@ -65,10 +66,10 @@ where
     }
 
     pub(crate) async fn resume_shared(
-        this: Shared<Stream<T>>,
+        mut this: Mut<Stream<T>>,
         value: Value,
     ) -> VmResult<GeneratorState> {
-        vm_try!(this.borrow_mut()).resume(value).await
+        this.resume(value).await
     }
 }
 

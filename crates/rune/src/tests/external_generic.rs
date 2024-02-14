@@ -15,7 +15,7 @@ use rune::{Any, Context, ContextError, Diagnostics, Module, Sources, Vm};
 #[rune(item = ::native_crate)]
 struct Generic<T>
 where
-    T: 'static + Clone + Named + FromValue + ToValue + MaybeTypeOf + TypeOf,
+    T: 'static + TryClone + Named + FromValue + ToValue + MaybeTypeOf + TypeOf,
 {
     #[rune(get, set)]
     data: T,
@@ -23,7 +23,7 @@ where
 
 impl<T> Generic<T>
 where
-    T: 'static + Clone + Copy + Named + FromValue + ToValue + MaybeTypeOf + TypeOf,
+    T: 'static + TryClone + Copy + Named + FromValue + ToValue + MaybeTypeOf + TypeOf,
 {
     fn get_value(&self) -> T {
         self.data

@@ -23,6 +23,7 @@
 //! This is part of the [Rune Language](https://rune-rs.github.io).
 
 #![allow(clippy::manual_map)]
+#![allow(clippy::enum_variant_names)]
 
 extern crate proc_macro;
 

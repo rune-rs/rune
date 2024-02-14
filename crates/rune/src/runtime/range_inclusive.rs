@@ -4,7 +4,8 @@ use core::ops;
 
 use crate as rune;
 use crate::runtime::{
-    EnvProtocolCaller, FromValue, Iterator, ProtocolCaller, ToValue, Value, VmErrorKind, VmResult,
+    EnvProtocolCaller, FromValue, Iterator, ProtocolCaller, ToValue, Value, ValueKind, VmErrorKind,
+    VmResult,
 };
 use crate::Any;
 
@@ -53,7 +54,8 @@ use crate::Any;
 /// # Ok::<_, rune::support::Error>(())
 /// ```
 #[derive(Any, Clone)]
-#[rune(builtin, constructor, from_value = Value::into_range_inclusive, static_type = RANGE_INCLUSIVE_TYPE)]
+#[rune(builtin, constructor, static_type = RANGE_INCLUSIVE_TYPE)]
+#[rune(from_value = Value::into_range_inclusive, from_value_ref = Value::into_range_inclusive_ref, from_value_mut = Value::into_range_inclusive_mut)]
 pub struct RangeInclusive {
     /// The start value of the range.
     #[rune(get, set)]
@@ -92,19 +94,22 @@ impl RangeInclusive {
     pub fn iter(&self) -> VmResult<Iterator> {
         const NAME: &str = "std::ops::RangeInclusive";
 
-        match (&self.start, &self.end) {
-            (Value::Byte(start), Value::Byte(end)) => {
+        match (
+            &*vm_try!(self.start.borrow_kind_ref()),
+            &*vm_try!(self.end.borrow_kind_ref()),
+        ) {
+            (ValueKind::Byte(start), ValueKind::Byte(end)) => {
                 VmResult::Ok(Iterator::from_double_ended(NAME, *start..=*end))
             }
-            (Value::Char(start), Value::Char(end)) => {
+            (ValueKind::Char(start), ValueKind::Char(end)) => {
                 VmResult::Ok(Iterator::from_double_ended(NAME, *start..=*end))
             }
-            (Value::Integer(start), Value::Integer(end)) => {
+            (ValueKind::Integer(start), ValueKind::Integer(end)) => {
                 VmResult::Ok(Iterator::from_double_ended(NAME, *start..=*end))
             }
             (start, end) => VmResult::err(VmErrorKind::UnsupportedIterRangeInclusive {
-                start: vm_try!(start.type_info()),
-                end: vm_try!(end.type_info()),
+                start: start.type_info(),
+                end: end.type_info(),
             }),
         }
     }
@@ -312,7 +317,7 @@ where
 {
     #[inline]
     fn from_value(value: Value) -> VmResult<Self> {
-        let range = vm_try!(vm_try!(value.into_range_inclusive()).take());
+        let range = vm_try!(value.into_range_inclusive());
         let start = vm_try!(Idx::from_value(range.start));
         let end = vm_try!(Idx::from_value(range.end));
         VmResult::Ok(start..=end)

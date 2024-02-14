@@ -3,7 +3,7 @@
 use crate as rune;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
-use crate::runtime::{ControlFlow, Formatter, Function, Panic, Shared, Value, VmResult};
+use crate::runtime::{ControlFlow, Formatter, Function, Panic, Value, VmResult};
 use crate::{ContextError, Module};
 
 /// Construct the `std::result` module.
@@ -159,7 +159,7 @@ fn unwrap_or(this: Result<Value, Value>, default: Value) -> Value {
 fn unwrap_or_else(this: Result<Value, Value>, default: Function) -> VmResult<Value> {
     match this {
         Ok(value) => VmResult::Ok(value),
-        Err(error) => default.call::<_, Value>((error,)),
+        Err(error) => default.call((error,)),
     }
 }
 
@@ -224,7 +224,7 @@ fn expect(result: Result<Value, Value>, message: Value) -> VmResult<Value> {
 #[rune::function(instance)]
 fn and_then(this: &Result<Value, Value>, op: Function) -> VmResult<Result<Value, Value>> {
     match this {
-        Ok(v) => VmResult::Ok(vm_try!(op.call::<_, _>((v,)))),
+        Ok(v) => VmResult::Ok(vm_try!(op.call((v,)))),
         Err(e) => VmResult::Ok(Err(e.clone())),
     }
 }
@@ -251,7 +251,7 @@ fn and_then(this: &Result<Value, Value>, op: Function) -> VmResult<Result<Value,
 #[rune::function(instance)]
 fn map(this: &Result<Value, Value>, then: Function) -> VmResult<Result<Value, Value>> {
     match this {
-        Ok(v) => VmResult::Ok(Ok(vm_try!(then.call::<_, _>((v,))))),
+        Ok(v) => VmResult::Ok(Ok(vm_try!(then.call((v,))))),
         Err(e) => VmResult::Ok(Err(e.clone())),
     }
 }
@@ -269,9 +269,9 @@ fn map(this: &Result<Value, Value>, then: Function) -> VmResult<Result<Value, Va
 /// assert_eq!(maybe_add_one(Err("not a number")), Err("not a number"));
 /// ```
 #[rune::function(keep, instance, protocol = TRY)]
-pub(crate) fn result_try(this: Result<Value, Value>) -> VmResult<ControlFlow> {
+pub(crate) fn result_try(this: &Result<Value, Value>) -> VmResult<ControlFlow> {
     VmResult::Ok(match this {
-        Ok(value) => ControlFlow::Continue(value),
-        Err(error) => ControlFlow::Break(Value::Result(vm_try!(Shared::new(Err(error))))),
+        Ok(value) => ControlFlow::Continue(value.clone()),
+        Err(error) => ControlFlow::Break(vm_try!(Value::try_from(Err(error.clone())))),
     })
 }

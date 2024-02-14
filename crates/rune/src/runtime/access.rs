@@ -1,6 +1,7 @@
 use core::cell::Cell;
 use core::fmt;
 use core::future::Future;
+use core::marker::PhantomData;
 use core::mem::ManuallyDrop;
 use core::ops;
 use core::pin::Pin;
@@ -9,14 +10,12 @@ use core::task::{Context, Poll};
 
 use crate::runtime::{AnyObjError, RawStr};
 
-/// Bitflag which if set indicates that the accessed value is an external
-/// reference (exclusive or not).
-const IS_REF_MASK: isize = 1isize;
 /// Sentinel value to indicate that access is taken.
-const TAKEN: isize = (isize::max_value() ^ IS_REF_MASK) >> 1;
+const MOVED: isize = isize::MAX;
+
 /// Panic if we reach this number of shared accesses and we try to add one more,
 /// since it's the largest we can support.
-const MAX_USES: isize = 0b11isize.rotate_right(2);
+const MAX_USES: isize = isize::MIN;
 
 /// An error raised while downcasting.
 #[derive(Debug)]
@@ -137,15 +136,6 @@ cfg_std! {
     impl std::error::Error for NotAccessibleTake {}
 }
 
-/// The kind of access to perform.
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum AccessKind {
-    /// Access a reference.
-    Any,
-    /// Access something owned.
-    Owned,
-}
-
 /// Snapshot that can be used to indicate how the value was being accessed at
 /// the time of an error.
 #[derive(Debug)]
@@ -157,13 +147,9 @@ impl fmt::Display for Snapshot {
         match self.0 >> 1 {
             0 => write!(f, "fully accessible")?,
             1 => write!(f, "exclusively accessed")?,
-            TAKEN => write!(f, "moved")?,
+            MOVED => write!(f, "moved")?,
             n if n < 0 => write!(f, "shared by {}", -n)?,
             n => write!(f, "invalidly marked ({})", n)?,
-        }
-
-        if self.0 & IS_REF_MASK == 1 {
-            write!(f, " (ref)")?;
         }
 
         Ok(())
@@ -200,15 +186,8 @@ pub(crate) struct Access(Cell<isize>);
 
 impl Access {
     /// Construct a new default access.
-    pub(crate) const fn new(is_ref: bool) -> Self {
-        let initial = if is_ref { 1 } else { 0 };
-        Self(Cell::new(initial))
-    }
-
-    /// Test if access is guarding a reference.
-    #[inline]
-    pub(crate) fn is_ref(&self) -> bool {
-        self.0.get() & IS_REF_MASK != 0
+    pub(crate) const fn new() -> Self {
+        Self(Cell::new(0))
     }
 
     /// Test if we can have shared access without modifying the internal count.
@@ -227,7 +206,7 @@ impl Access {
     /// Test if the data has been taken.
     #[inline]
     pub(crate) fn is_taken(&self) -> bool {
-        self.get() == TAKEN
+        self.get() == MOVED
     }
 
     /// Mark that we want shared access to the given access token.
@@ -236,16 +215,7 @@ impl Access {
     ///
     /// The returned guard must not outlive the access token that created it.
     #[inline]
-    pub(crate) unsafe fn shared(
-        &self,
-        kind: AccessKind,
-    ) -> Result<AccessGuard<'_>, NotAccessibleRef> {
-        if let AccessKind::Owned = kind {
-            if self.is_ref() {
-                return Err(NotAccessibleRef(Snapshot(self.0.get())));
-            }
-        }
-
+    pub(crate) unsafe fn shared(&self) -> Result<AccessGuard<'_>, NotAccessibleRef> {
         let state = self.get();
 
         if state == MAX_USES {
@@ -268,16 +238,7 @@ impl Access {
     ///
     /// The returned guard must not outlive the access token that created it.
     #[inline]
-    pub(crate) unsafe fn exclusive(
-        &self,
-        kind: AccessKind,
-    ) -> Result<AccessGuard<'_>, NotAccessibleMut> {
-        if let AccessKind::Owned = kind {
-            if self.is_ref() {
-                return Err(NotAccessibleMut(Snapshot(self.0.get())));
-            }
-        }
-
+    pub(crate) unsafe fn exclusive(&self) -> Result<AccessGuard<'_>, NotAccessibleMut> {
         let n = self.get();
 
         if n != 0 {
@@ -296,20 +257,14 @@ impl Access {
     ///
     /// The returned guard must not outlive the access token that created it.
     #[inline]
-    pub(crate) unsafe fn take(&self, kind: AccessKind) -> Result<RawTakeGuard, NotAccessibleTake> {
-        if let AccessKind::Owned = kind {
-            if self.is_ref() {
-                return Err(NotAccessibleTake(Snapshot(self.0.get())));
-            }
-        }
-
+    pub(crate) unsafe fn take(&self) -> Result<RawTakeGuard, NotAccessibleTake> {
         let state = self.get();
 
         if state != 0 {
             return Err(NotAccessibleTake(Snapshot(self.0.get())));
         }
 
-        self.set(TAKEN);
+        self.set(MOVED);
         Ok(RawTakeGuard { access: self })
     }
 
@@ -333,20 +288,20 @@ impl Access {
     #[inline]
     fn release_take(&self) {
         let b = self.get();
-        debug_assert_eq!(b, TAKEN, "borrow value should be TAKEN ({})", TAKEN);
+        debug_assert_eq!(b, MOVED, "borrow value should be TAKEN ({})", MOVED);
         self.set(0);
     }
 
     /// Get the current value of the flag.
     #[inline]
     fn get(&self) -> isize {
-        self.0.get() >> 1
+        self.0.get()
     }
 
     /// Set the current value of the flag.
     #[inline]
     fn set(&self, value: isize) {
-        self.0.set(self.0.get() & IS_REF_MASK | value << 1);
+        self.0.set(value);
     }
 }
 
@@ -386,19 +341,18 @@ impl<'a, T: ?Sized> BorrowRef<'a, T> {
     /// # Examples
     ///
     /// ```
-    /// use rune::runtime::{BorrowRef, Shared};
+    /// use rune::runtime::{BorrowRef, Bytes};
+    /// use rune::alloc::try_vec;
     ///
-    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4])?;
-    /// let vec = vec.borrow_ref()?;
-    /// let value: BorrowRef<[u32]> = BorrowRef::map(vec, |vec| &vec[0..2]);
+    /// let bytes = rune::to_value(Bytes::from_vec(try_vec![1, 2, 3, 4]))?;
+    /// let bytes = bytes.borrow_bytes_ref().into_result()?;
     ///
-    /// assert_eq!(&*value, &[1u32, 2u32][..]);
+    /// let bytes: BorrowRef<[u8]> = BorrowRef::map(bytes, |bytes| &bytes[0..2]);
+    ///
+    /// assert_eq!(&bytes[..], &[1u8, 2u8][..]);
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn map<M, U: ?Sized>(this: Self, m: M) -> BorrowRef<'a, U>
-    where
-        M: FnOnce(&T) -> &U,
-    {
+    pub fn map<U: ?Sized>(this: Self, m: impl FnOnce(&T) -> &U) -> BorrowRef<'a, U> {
         BorrowRef {
             data: m(this.data),
             guard: this.guard,
@@ -410,21 +364,32 @@ impl<'a, T: ?Sized> BorrowRef<'a, T> {
     /// # Examples
     ///
     /// ```
-    /// use rune::runtime::{BorrowRef, Shared};
+    /// use rune::runtime::{BorrowRef, Bytes};
+    /// use rune::alloc::try_vec;
     ///
-    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4])?;
-    /// let vec = vec.borrow_ref()?;
-    /// let mut value: Option<BorrowRef<[u32]>> = BorrowRef::try_map(vec, |vec| vec.get(0..2));
+    /// let bytes = rune::to_value(Bytes::from_vec(try_vec![1, 2, 3, 4]))?;
+    /// let bytes = bytes.borrow_bytes_ref().into_result()?;
     ///
-    /// assert_eq!(value.as_deref(), Some(&[1u32, 2u32][..]));
+    /// let Ok(bytes) = BorrowRef::try_map(bytes, |bytes| bytes.get(0..2)) else {
+    ///     panic!("Conversion failed");
+    /// };
+    ///
+    /// assert_eq!(&bytes[..], &[1u8, 2u8][..]);
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn try_map<M, U: ?Sized>(this: Self, m: M) -> Option<BorrowRef<'a, U>>
-    where
-        M: FnOnce(&T) -> Option<&U>,
-    {
-        Some(BorrowRef {
-            data: m(this.data)?,
+    pub fn try_map<U: ?Sized>(
+        this: Self,
+        m: impl FnOnce(&T) -> Option<&U>,
+    ) -> Result<BorrowRef<'a, U>, Self> {
+        let Some(data) = m(this.data) else {
+            return Err(BorrowRef {
+                data: this.data,
+                guard: this.guard,
+            });
+        };
+
+        Ok(BorrowRef {
+            data,
             guard: this.guard,
         })
     }
@@ -499,8 +464,9 @@ impl Drop for RawTakeGuard {
 /// These guards are necessary, since we need to guarantee certain forms of
 /// access depending on what we do. Releasing the guard releases the access.
 pub struct BorrowMut<'a, T: ?Sized> {
-    data: &'a mut T,
+    data: ptr::NonNull<T>,
     guard: AccessGuard<'a>,
+    _marker: PhantomData<&'a mut T>,
 }
 
 impl<'a, T: ?Sized> BorrowMut<'a, T> {
@@ -514,8 +480,9 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
     /// this guard is dropped.
     pub(crate) unsafe fn new(data: &'a mut T, access: &'a Access) -> Self {
         Self {
-            data,
+            data: ptr::NonNull::from(data),
             guard: AccessGuard(access),
+            _marker: PhantomData,
         }
     }
 
@@ -524,22 +491,25 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
     /// # Examples
     ///
     /// ```
-    /// use rune::runtime::{BorrowMut, Shared};
+    /// use rune::runtime::{BorrowMut, Bytes};
+    /// use rune::alloc::try_vec;
     ///
-    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4])?;
-    /// let vec = vec.borrow_mut()?;
-    /// let value: BorrowMut<[u32]> = BorrowMut::map(vec, |vec| &mut vec[0..2]);
+    /// let bytes = rune::to_value(Bytes::from_vec(try_vec![1, 2, 3, 4]))?;
+    /// let bytes = bytes.borrow_bytes_mut().into_result()?;
     ///
-    /// assert_eq!(&*value, &mut [1u32, 2u32][..]);
+    /// let mut bytes: BorrowMut<[u8]> = BorrowMut::map(bytes, |bytes| &mut bytes[0..2]);
+    ///
+    /// assert_eq!(&mut bytes[..], &mut [1u8, 2u8][..]);
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn map<M, U: ?Sized>(this: Self, m: M) -> BorrowMut<'a, U>
-    where
-        M: FnOnce(&mut T) -> &mut U,
-    {
-        BorrowMut {
-            data: m(this.data),
-            guard: this.guard,
+    pub fn map<U: ?Sized>(mut this: Self, m: impl FnOnce(&mut T) -> &mut U) -> BorrowMut<'a, U> {
+        // SAFETY: This is safe per construction.
+        unsafe {
+            BorrowMut {
+                data: ptr::NonNull::from(m(this.data.as_mut())),
+                guard: this.guard,
+                _marker: PhantomData,
+            }
         }
     }
 
@@ -548,23 +518,38 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
     /// # Examples
     ///
     /// ```
-    /// use rune::runtime::{BorrowMut, Shared};
+    /// use rune::runtime::{BorrowMut, Bytes};
+    /// use rune::alloc::try_vec;
     ///
-    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4])?;
-    /// let vec = vec.borrow_mut()?;
-    /// let mut value: Option<BorrowMut<[u32]>> = BorrowMut::try_map(vec, |vec| vec.get_mut(0..2));
+    /// let bytes = rune::to_value(Bytes::from_vec(try_vec![1, 2, 3, 4]))?;
+    /// let bytes = bytes.borrow_bytes_mut().into_result()?;
     ///
-    /// assert_eq!(value.as_deref_mut(), Some(&mut [1u32, 2u32][..]));
+    /// let Ok(mut bytes) = BorrowMut::try_map(bytes, |bytes| bytes.get_mut(0..2)) else {
+    ///     panic!("Conversion failed");
+    /// };
+    ///
+    /// assert_eq!(&mut bytes[..], &mut [1u8, 2u8][..]);
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn try_map<M, U: ?Sized>(this: Self, m: M) -> Option<BorrowMut<'a, U>>
-    where
-        M: FnOnce(&mut T) -> Option<&mut U>,
-    {
-        Some(BorrowMut {
-            data: m(this.data)?,
-            guard: this.guard,
-        })
+    pub fn try_map<U: ?Sized>(
+        mut this: Self,
+        m: impl FnOnce(&mut T) -> Option<&mut U>,
+    ) -> Result<BorrowMut<'a, U>, Self> {
+        unsafe {
+            let Some(data) = m(this.data.as_mut()) else {
+                return Err(BorrowMut {
+                    data: this.data,
+                    guard: this.guard,
+                    _marker: PhantomData,
+                });
+            };
+
+            Ok(BorrowMut {
+                data: ptr::NonNull::from(data),
+                guard: this.guard,
+                _marker: PhantomData,
+            })
+        }
     }
 }
 
@@ -572,13 +557,15 @@ impl<T: ?Sized> ops::Deref for BorrowMut<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        self.data
+        // SAFETY: This is correct per construction.
+        unsafe { self.data.as_ref() }
     }
 }
 
 impl<T: ?Sized> ops::DerefMut for BorrowMut<'_, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.data
+        // SAFETY: This is correct per construction.
+        unsafe { self.data.as_mut() }
     }
 }
 
@@ -606,38 +593,33 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{Access, AccessKind};
+    use super::Access;
 
     #[test]
     fn test_non_ref() {
         unsafe {
-            let access = Access::new(false);
+            let access = Access::new();
 
-            assert!(!access.is_ref());
             assert!(access.is_shared());
             assert!(access.is_exclusive());
 
-            let guard = access.shared(AccessKind::Any).unwrap();
+            let guard = access.shared().unwrap();
 
-            assert!(!access.is_ref());
             assert!(access.is_shared());
             assert!(!access.is_exclusive());
 
             drop(guard);
 
-            assert!(!access.is_ref());
             assert!(access.is_shared());
             assert!(access.is_exclusive());
 
-            let guard = access.exclusive(AccessKind::Any).unwrap();
+            let guard = access.exclusive().unwrap();
 
-            assert!(!access.is_ref());
             assert!(!access.is_shared());
             assert!(!access.is_exclusive());
 
             drop(guard);
 
-            assert!(!access.is_ref());
             assert!(access.is_shared());
             assert!(access.is_exclusive());
         }
@@ -646,33 +628,28 @@ mod tests {
     #[test]
     fn test_ref() {
         unsafe {
-            let access = Access::new(true);
+            let access = Access::new();
 
-            assert!(access.is_ref());
             assert!(access.is_shared());
             assert!(access.is_exclusive());
 
-            let guard = access.shared(AccessKind::Any).unwrap();
+            let guard = access.shared().unwrap();
 
-            assert!(access.is_ref());
             assert!(access.is_shared());
             assert!(!access.is_exclusive());
 
             drop(guard);
 
-            assert!(access.is_ref());
             assert!(access.is_shared());
             assert!(access.is_exclusive());
 
-            let guard = access.exclusive(AccessKind::Any).unwrap();
+            let guard = access.exclusive().unwrap();
 
-            assert!(access.is_ref());
             assert!(!access.is_shared());
             assert!(!access.is_exclusive());
 
             drop(guard);
 
-            assert!(access.is_ref());
             assert!(access.is_shared());
             assert!(access.is_exclusive());
         }

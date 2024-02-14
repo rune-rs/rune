@@ -510,7 +510,6 @@ where
             raw_into_mut,
             raw_into_ref,
             raw_str,
-            shared,
             type_info,
             any_type_info,
             type_of,
@@ -658,7 +657,8 @@ where
                     type Guard = #raw_into_ref;
 
                     unsafe fn unsafe_to_ref<'a>(value: #value) -> #vm_result<(&'a Self, Self::Guard)> {
-                        let (value, guard) = #vm_try!(value.into_any_ptr());
+                        let value = #vm_try!(#value::into_any_ref(value));
+                        let (value, guard) = #ref_::into_raw(value);
                         #vm_result::Ok((#non_null::as_ref(&value), guard))
                     }
                 }
@@ -668,7 +668,8 @@ where
                     type Guard = #raw_into_mut;
 
                     unsafe fn unsafe_to_mut<'a>(value: #value) -> #vm_result<(&'a mut Self, Self::Guard)> {
-                        let (mut value, guard) = #vm_try!(value.into_any_mut());
+                        let value = #vm_try!(#value::into_any_mut(value));
+                        let (mut value, guard) = #mut_::into_raw(value);
                         #vm_result::Ok((#non_null::as_mut(&mut value), guard))
                     }
                 }
@@ -678,8 +679,8 @@ where
                     type Guard = #pointer_guard;
 
                     unsafe fn unsafe_to_value(self) -> #vm_result<(#value, Self::Guard)> {
-                        let (shared, guard) = #vm_try!(#shared::from_ref(self));
-                        #vm_result::Ok((#value::from(shared), guard))
+                        let (shared, guard) = #vm_try!(#value::from_ref(self));
+                        #vm_result::Ok((shared, guard))
                     }
                 }
 
@@ -688,8 +689,8 @@ where
                     type Guard = #pointer_guard;
 
                     unsafe fn unsafe_to_value(self) -> #vm_result<(#value, Self::Guard)> {
-                        let (shared, guard) = #vm_try!(#shared::from_mut(self));
-                        #vm_result::Ok((#value::from(shared), guard))
+                        let (shared, guard) = #vm_try!(#value::from_mut(self));
+                        #vm_result::Ok((shared, guard))
                     }
                 }
             })
@@ -709,52 +710,68 @@ where
                     impl #from_value for #ty {
                         fn from_value(value: Value) -> #vm_result<Self> {
                             let value = #vm_try!(#path(value));
-                            let value = #vm_try!(#shared::take(value));
                             #vm_result::Ok(value)
                         }
                     }
+                })
+            } else {
+                None
+            }
+        };
 
+        let impl_from_value_ref = 'out: {
+            if let Some(path) = attr.from_value_ref {
+                let ty = match &attr.from_value_params {
+                    Some(params) => quote!(#ident<#params>),
+                    None if generics.params.is_empty() => quote!(#ident),
+                    _ => break 'out None,
+                };
+
+                Some(quote! {
                     impl #unsafe_to_ref for #ty {
                         type Guard = #raw_ref;
 
                         unsafe fn unsafe_to_ref<'a>(value: #value) -> #vm_result<(&'a Self, Self::Guard)> {
                             let value = #vm_try!(#path(value));
-                            let value = #vm_try!(#shared::into_ref(value));
                             let (value, guard) = #ref_::into_raw(value);
                             #vm_result::Ok((value.as_ref(), guard))
-                        }
-                    }
-
-                    impl #unsafe_to_mut for #ty {
-                        type Guard = #raw_mut;
-
-                        unsafe fn unsafe_to_mut<'a>(value: #value) -> #vm_result<(&'a mut Self, Self::Guard)> {
-                            let value = #vm_try!(#path(value));
-                            let value = #vm_try!(#shared::into_mut(value));
-                            let (mut value, guard) = #mut_::into_raw(value);
-                            #vm_result::Ok((value.as_mut(), guard))
-                        }
-                    }
-
-                    impl #from_value for #shared<#ty> {
-                        #[inline]
-                        fn from_value(value: #value) -> #vm_result<Self> {
-                            #path(value)
                         }
                     }
 
                     impl #from_value for #ref_<#ty> {
                         fn from_value(value: Value) -> #vm_result<Self> {
                             let value = #vm_try!(#path(value));
-                            let value = #vm_try!(#shared::into_ref(value));
                             #vm_result::Ok(value)
+                        }
+                    }
+                })
+            } else {
+                None
+            }
+        };
+
+        let impl_from_value_mut = 'out: {
+            if let Some(path) = attr.from_value_mut {
+                let ty = match &attr.from_value_params {
+                    Some(params) => quote!(#ident<#params>),
+                    None if generics.params.is_empty() => quote!(#ident),
+                    _ => break 'out None,
+                };
+
+                Some(quote! {
+                    impl #unsafe_to_mut for #ty {
+                        type Guard = #raw_mut;
+
+                        unsafe fn unsafe_to_mut<'a>(value: #value) -> #vm_result<(&'a mut Self, Self::Guard)> {
+                            let value = #vm_try!(#path(value));
+                            let (mut value, guard) = #mut_::into_raw(value);
+                            #vm_result::Ok((value.as_mut(), guard))
                         }
                     }
 
                     impl #from_value for #mut_<#ty> {
                         fn from_value(value: Value) -> #vm_result<Self> {
                             let value = #vm_try!(#path(value));
-                            let value = #vm_try!(#shared::into_mut(value));
                             #vm_result::Ok(value)
                         }
                     }
@@ -769,6 +786,8 @@ where
             #impl_named
             #impl_type_of
             #impl_from_value
+            #impl_from_value_ref
+            #impl_from_value_mut
             #any
         }
     }

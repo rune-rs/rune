@@ -1,7 +1,7 @@
 //! The `std::option` module.
 
 use crate as rune;
-use crate::runtime::{ControlFlow, Formatter, Function, Iterator, Panic, Shared, Value, VmResult};
+use crate::runtime::{ControlFlow, Formatter, Function, Iterator, Panic, Value, VmResult};
 use crate::{ContextError, Module};
 
 /// Construct the `std::option` module.
@@ -182,7 +182,7 @@ fn into_iter(option: Option<Value>) -> Iterator {
 fn and_then(option: Option<Value>, then: Function) -> VmResult<Option<Value>> {
     match option {
         // no need to clone v, passing the same reference forward
-        Some(v) => VmResult::Ok(vm_try!(then.call::<_, _>((v,)))),
+        Some(v) => VmResult::Ok(vm_try!(then.call((v,)))),
         None => VmResult::Ok(None),
     }
 }
@@ -210,7 +210,7 @@ fn and_then(option: Option<Value>, then: Function) -> VmResult<Option<Value>> {
 fn map(option: Option<Value>, then: Function) -> VmResult<Option<Value>> {
     match option {
         // no need to clone v, passing the same reference forward
-        Some(v) => VmResult::Ok(Some(vm_try!(then.call::<_, _>((v,))))),
+        Some(v) => VmResult::Ok(Some(vm_try!(then.call((v,))))),
         None => VmResult::Ok(None),
     }
 }
@@ -253,24 +253,20 @@ fn transpose(this: Option<Value>) -> VmResult<Value> {
     let value = match this {
         Some(value) => value,
         None => {
-            let none = Value::from(vm_try!(Shared::new(Option::<Value>::None)));
-            let result = Value::from(vm_try!(Shared::new(Result::<Value, Value>::Ok(none))));
+            let none = vm_try!(Value::try_from(Option::<Value>::None));
+            let result = vm_try!(Value::try_from(Result::<Value, Value>::Ok(none)));
             return VmResult::Ok(result);
         }
     };
 
-    let result = vm_try!(vm_try!(value.into_result()).take());
-
-    match result {
+    match &*vm_try!(value.into_result_ref()) {
         Ok(ok) => {
-            let some = Value::from(vm_try!(Shared::new(Option::<Value>::Some(ok.clone()))));
-            let result = Value::from(vm_try!(Shared::new(Result::<Value, Value>::Ok(some))));
+            let some = vm_try!(Value::try_from(Some(ok.clone())));
+            let result = vm_try!(Value::try_from(Ok(some)));
             VmResult::Ok(result)
         }
         Err(err) => {
-            let result = Value::from(vm_try!(Shared::new(Result::<Value, Value>::Err(
-                err.clone()
-            ))));
+            let result = vm_try!(Value::try_from(Err(err.clone())));
             VmResult::Ok(result)
         }
     }
@@ -408,9 +404,9 @@ fn ok_or_else(this: Option<Value>, err: Function) -> VmResult<Result<Value, Valu
 /// assert_eq!(maybe_add_one(None), None);
 /// ```
 #[rune::function(keep, instance, protocol = TRY)]
-pub(crate) fn option_try(this: Option<Value>) -> VmResult<ControlFlow> {
+pub(crate) fn option_try(this: &Option<Value>) -> VmResult<ControlFlow> {
     VmResult::Ok(match this {
-        Some(value) => ControlFlow::Continue(value),
-        None => ControlFlow::Break(Value::Option(vm_try!(Shared::new(None)))),
+        Some(value) => ControlFlow::Continue(value.clone()),
+        None => ControlFlow::Break(vm_try!(Value::try_from(None))),
     })
 }

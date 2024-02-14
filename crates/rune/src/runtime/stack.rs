@@ -46,7 +46,9 @@ impl Stack {
     /// let mut stack = Stack::new();
     /// assert!(stack.pop().is_err());
     /// stack.push(rune::to_value(String::from("Hello World"))?);
-    /// assert!(matches!(stack.pop()?, Value::String(..)));
+    /// let value = stack.pop()?;
+    /// let value: String = rune::from_value(value)?;
+    /// assert_eq!(value, "Hello World");
     /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub const fn new() -> Self {
@@ -65,7 +67,9 @@ impl Stack {
     /// let mut stack = Stack::with_capacity(16)?;
     /// assert!(stack.pop().is_err());
     /// stack.push(rune::to_value(String::from("Hello World"))?);
-    /// assert!(matches!(stack.pop()?, Value::String(..)));
+    /// let value = stack.pop()?;
+    /// let value: String = rune::from_value(value)?;
+    /// assert_eq!(value, "Hello World");
     /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn with_capacity(capacity: usize) -> alloc::Result<Self> {
@@ -145,11 +149,15 @@ impl Stack {
     /// let mut stack = Stack::new();
     /// assert!(stack.pop().is_err());
     /// stack.push(rune::to_value(String::from("Hello World"))?);
-    /// assert!(matches!(stack.pop()?, Value::String(..)));
+    /// assert_eq!(rune::from_value::<String>(stack.pop()?)?, "Hello World");
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn push(&mut self, value: Value) -> alloc::Result<()> {
-        self.stack.try_push(value)?;
+    pub fn push<T>(&mut self, value: T) -> alloc::Result<()>
+    where
+        Value: TryFrom<T>,
+        alloc::Error: From<<Value as TryFrom<T>>::Error>,
+    {
+        self.stack.try_push(Value::try_from(value)?)?;
         Ok(())
     }
 
@@ -162,7 +170,9 @@ impl Stack {
     /// let mut stack = Stack::new();
     /// assert!(stack.pop().is_err());
     /// stack.push(rune::to_value(String::from("Hello World"))?);
-    /// assert!(matches!(stack.pop()?, Value::String(..)));
+    /// let value = stack.pop()?;
+    /// let value: String = rune::from_value(value)?;
+    /// assert_eq!(value, "Hello World");
     /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn pop(&mut self) -> Result<Value, StackError> {
@@ -186,11 +196,11 @@ impl Stack {
     /// stack.push(rune::to_value(String::from("foo"))?);
     /// stack.push(rune::to_value(())?);
     ///
-    /// let mut it = stack.drain(2)?;
+    /// let values = stack.drain(2)?.collect::<Vec<_>>();
     ///
-    /// assert!(matches!(it.next(), Some(Value::String(..))));
-    /// assert!(matches!(it.next(), Some(Value::EmptyTuple)));
-    /// assert!(matches!(it.next(), None));
+    /// assert_eq!(values.len(), 2);
+    /// assert_eq!(rune::from_value::<String>(&values[0])?, "foo");
+    /// assert_eq!(rune::from_value(&values[1])?, ());
     /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn drain(
@@ -221,13 +231,17 @@ impl Stack {
     ///
     /// let mut stack = Stack::new();
     ///
-    /// stack.extend([Value::from(42i64), Value::try_from(String::try_from("foo")?)?, Value::EmptyTuple]);
+    /// stack.extend([
+    ///     rune::to_value(42i64)?,
+    ///     rune::to_value(String::try_from("foo")?)?,
+    ///     rune::to_value(())?
+    /// ]);
     ///
-    /// let mut it = stack.drain(2)?;
+    /// let values = stack.drain(2)?.collect::<Vec<_>>();
     ///
-    /// assert!(matches!(it.next(), Some(Value::String(..))));
-    /// assert!(matches!(it.next(), Some(Value::EmptyTuple)));
-    /// assert!(matches!(it.next(), None));
+    /// assert_eq!(values.len(), 2);
+    /// assert_eq!(rune::from_value::<String>(&values[0])?, "foo");
+    /// assert_eq!(rune::from_value(&values[1])?, ());
     /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn extend<I>(&mut self, iter: I) -> alloc::Result<()>

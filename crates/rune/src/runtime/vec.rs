@@ -14,8 +14,8 @@ use crate::alloc::prelude::*;
 #[cfg(feature = "alloc")]
 use crate::runtime::Hasher;
 use crate::runtime::{
-    Formatter, FromValue, Iterator, ProtocolCaller, RawRef, Ref, Shared, ToValue, UnsafeToRef,
-    Value, VmErrorKind, VmResult,
+    Formatter, FromValue, Iterator, ProtocolCaller, RawRef, Ref, ToValue, UnsafeToRef, Value,
+    ValueKind, VmErrorKind, VmResult,
 };
 use crate::Any;
 
@@ -40,7 +40,8 @@ use self::iter::Iter;
 /// ```
 #[derive(Any)]
 #[repr(transparent)]
-#[rune(builtin, static_type = VEC_TYPE, from_value = Value::into_vec)]
+#[rune(builtin, static_type = VEC_TYPE)]
+#[rune(from_value = Value::into_vec, from_value_ref = Value::into_vec_ref, from_value_mut = Value::into_vec_mut)]
 pub struct Vec {
     inner: alloc::Vec<Value>,
 }
@@ -94,8 +95,9 @@ impl Vec {
     /// let mut v = Vec::new();
     /// assert!(v.is_empty());
     ///
-    /// v.push(Value::Integer(1));
+    /// v.push(rune::to_value(1u32)?);
     /// assert!(!v.is_empty());
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
@@ -334,44 +336,41 @@ impl Vec {
     /// This is a common get implementation that can be used across linear
     /// types, such as vectors and tuples.
     pub(crate) fn index_get(this: &[Value], index: Value) -> VmResult<Option<Value>> {
-        let slice = match index {
-            Value::RangeFrom(range) => {
-                let range = vm_try!(range.borrow_ref());
-                let start = vm_try!(range.start.as_usize());
-                this.get(start..)
-            }
-            Value::RangeFull(..) => this.get(..),
-            Value::RangeInclusive(range) => {
-                let range = vm_try!(range.borrow_ref());
-                let start = vm_try!(range.start.as_usize());
-                let end = vm_try!(range.end.as_usize());
-                this.get(start..=end)
-            }
-            Value::RangeToInclusive(range) => {
-                let range = vm_try!(range.borrow_ref());
-                let end = vm_try!(range.end.as_usize());
-                this.get(..=end)
-            }
-            Value::RangeTo(range) => {
-                let range = vm_try!(range.borrow_ref());
-                let end = vm_try!(range.end.as_usize());
-                this.get(..end)
-            }
-            Value::Range(range) => {
-                let range = vm_try!(range.borrow_ref());
-                let start = vm_try!(range.start.as_usize());
-                let end = vm_try!(range.end.as_usize());
-                this.get(start..end)
-            }
-            value => {
-                let index = vm_try!(usize::from_value(value));
+        let slice: Option<&[Value]> = 'out: {
+            match &*vm_try!(index.borrow_kind_ref()) {
+                ValueKind::RangeFrom(range) => {
+                    let start = vm_try!(range.start.as_usize());
+                    break 'out this.get(start..);
+                }
+                ValueKind::RangeFull(..) => break 'out this.get(..),
+                ValueKind::RangeInclusive(range) => {
+                    let start = vm_try!(range.start.as_usize());
+                    let end = vm_try!(range.end.as_usize());
+                    break 'out this.get(start..=end);
+                }
+                ValueKind::RangeToInclusive(range) => {
+                    let end = vm_try!(range.end.as_usize());
+                    break 'out this.get(..=end);
+                }
+                ValueKind::RangeTo(range) => {
+                    let end = vm_try!(range.end.as_usize());
+                    break 'out this.get(..end);
+                }
+                ValueKind::Range(range) => {
+                    let start = vm_try!(range.start.as_usize());
+                    let end = vm_try!(range.end.as_usize());
+                    break 'out this.get(start..end);
+                }
+                _ => {}
+            };
 
-                let Some(value) = this.get(index) else {
-                    return VmResult::Ok(None);
-                };
+            let index = vm_try!(usize::from_value(index));
 
-                return VmResult::Ok(Some(value.clone()));
-            }
+            let Some(value) = this.get(index) else {
+                return VmResult::Ok(None);
+            };
+
+            return VmResult::Ok(Some(value.clone()));
         };
 
         let Some(values) = slice else {
@@ -496,7 +495,6 @@ where
 {
     fn from_value(value: Value) -> VmResult<Self> {
         let vec = vm_try!(value.into_vec());
-        let vec = vm_try!(vec.take());
 
         let mut output = ::rust_alloc::vec::Vec::with_capacity(vec.len());
 
@@ -514,7 +512,6 @@ where
 {
     fn from_value(value: Value) -> VmResult<Self> {
         let vec = vm_try!(value.into_vec());
-        let vec = vm_try!(vec.take());
 
         let mut output = vm_try!(alloc::Vec::try_with_capacity(vec.len()));
 
@@ -530,8 +527,8 @@ impl UnsafeToRef for [Value] {
     type Guard = RawRef;
 
     unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
-        let vec = vm_try!(value.into_vec());
-        let (vec, guard) = Ref::into_raw(vm_try!(vec.into_ref()));
+        let vec = vm_try!(value.into_vec_ref());
+        let (vec, guard) = Ref::into_raw(vec);
         // SAFETY: we're holding onto the guard for the vector here, so it is
         // live.
         VmResult::Ok((vec.as_ref().as_slice(), guard))
@@ -549,7 +546,7 @@ where
             vm_try!(inner.try_push(vm_try!(value.to_value())));
         }
 
-        VmResult::Ok(Value::from(vm_try!(Shared::new(Vec { inner }))))
+        VmResult::Ok(vm_try!(Value::try_from(Vec { inner })))
     }
 }
 
@@ -565,6 +562,6 @@ where
             vm_try!(inner.try_push(vm_try!(value.to_value())));
         }
 
-        VmResult::Ok(Value::from(vm_try!(Shared::new(Vec { inner }))))
+        VmResult::Ok(vm_try!(Value::try_from(Vec { inner })))
     }
 }

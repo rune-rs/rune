@@ -39,7 +39,8 @@ use crate::Any;
 /// # Ok::<_, rune::support::Error>(())
 /// ```
 #[derive(Any, Clone)]
-#[rune(builtin, constructor, from_value = Value::into_range_to_inclusive, static_type = RANGE_TO_INCLUSIVE_TYPE)]
+#[rune(builtin, constructor, static_type = RANGE_TO_INCLUSIVE_TYPE)]
+#[rune(from_value = Value::into_range_to_inclusive, from_value_ref = Value::into_range_to_inclusive_ref, from_value_mut = Value::into_range_to_inclusive_mut)]
 pub struct RangeToInclusive {
     /// The end value of the range.
     #[rune(get, set)]
@@ -201,7 +202,7 @@ where
 {
     #[inline]
     fn from_value(value: Value) -> VmResult<Self> {
-        let range = vm_try!(vm_try!(value.into_range_to_inclusive()).take());
+        let range = vm_try!(value.into_range_to_inclusive());
         let end = vm_try!(Idx::from_value(range.end));
         VmResult::Ok(ops::RangeToInclusive { end })
     }

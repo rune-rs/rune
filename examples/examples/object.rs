@@ -1,7 +1,7 @@
 use rune::alloc;
 use rune::runtime::Object;
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{Diagnostics, Value, Vm};
+use rune::{Diagnostics, Vm};
 
 use std::sync::Arc;
 
@@ -36,7 +36,7 @@ fn main() -> rune::support::Result<()> {
     let mut vm = Vm::new(runtime, Arc::new(unit));
 
     let mut object = Object::new();
-    object.insert(alloc::String::try_from("key")?, Value::from(42i64))?;
+    object.insert(alloc::String::try_from("key")?, rune::to_value(42i64)?)?;
 
     let output = vm.call(["calc"], (object,))?;
     let output: Object = rune::from_value(output)?;

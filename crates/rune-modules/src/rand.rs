@@ -33,7 +33,6 @@
 
 use nanorand::Rng;
 use rune::{Any, ContextError, Module};
-use rune::runtime::Value;
 
 /// Construct the `rand` module.
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
@@ -78,13 +77,13 @@ impl WyRand {
     }
 
     /// Generate a random integer
-    fn int(&mut self) -> Value {
-        Value::Integer(self.inner.generate::<u64>() as i64)
+    fn int(&mut self) -> i64 {
+        self.inner.generate::<u64>() as i64
     }
 
     /// Generate a random integer within the specified range
-    fn int_range(&mut self, lower: i64, upper: i64) -> Value {
-        Value::Integer(self.inner.generate_range(0..(upper - lower) as u64) as i64 + lower)
+    fn int_range(&mut self, lower: i64, upper: i64) -> i64 {
+        self.inner.generate_range(0..(upper - lower) as u64) as i64 + lower
     }
 }
 
@@ -110,26 +109,26 @@ impl Pcg64 {
     }
 
     /// Generate a random integer
-    fn int(&mut self) -> Value {
-        Value::Integer(self.inner.generate::<u64>() as i64)
+    fn int(&mut self) -> i64 {
+        self.inner.generate::<u64>() as i64
     }
 
     /// Generate a random integer within the specified range
-    fn int_range(&mut self, lower: i64, upper: i64) -> Value {
-        Value::Integer(self.inner.generate_range(0..(upper - lower) as u64) as i64 + lower)
+    fn int_range(&mut self, lower: i64, upper: i64) -> i64 {
+        self.inner.generate_range(0..(upper - lower) as u64) as i64 + lower
     }
 }
 
-fn int() -> rune::support::Result<Value> {
-    Ok(Value::Integer(
+fn int() -> rune::support::Result<i64> {
+    Ok(
         nanorand::WyRand::new().generate::<u64>() as i64
-    ))
+    )
 }
 
-fn int_range(lower: i64, upper: i64) -> rune::support::Result<Value> {
-    Ok(Value::Integer(
+fn int_range(lower: i64, upper: i64) -> rune::support::Result<i64> {
+    Ok(
         nanorand::WyRand::new().generate_range(0..(upper - lower) as u64) as i64 + lower,
-    ))
+    )
 }
 
 #[cfg(test)]
@@ -139,14 +138,14 @@ mod tests {
     #[test]
     fn test_range_is_exclusive() {
         for _ in 0..100 {
-            assert_eq!(rune::from_value::<i64>(int_range(0, 1).unwrap()).unwrap(), 0);
+            assert_eq!(int_range(0, 1).unwrap(), 0);
         }
     }
 
     #[test]
     fn test_range_can_be_negative() {
         for _ in 0..100 {
-            assert_eq!(rune::from_value::<i64>(int_range(-2, -1).unwrap()).unwrap(), -2);
+            assert_eq!(int_range(-2, -1).unwrap(), -2);
         }
     }
 
@@ -156,7 +155,7 @@ mod tests {
         let mut any_positive = false;
 
         for _ in 0..100 {
-            let v: i64 = rune::from_value(int().unwrap()).unwrap();
+            let v: i64 = int().unwrap();
             any_negative = any_negative || v < 0;
             any_positive = any_positive || v > 0;
         }

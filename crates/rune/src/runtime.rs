@@ -4,7 +4,7 @@
 mod tests;
 
 mod access;
-pub(crate) use self::access::{Access, AccessKind};
+pub(crate) use self::access::Access;
 pub use self::access::{
     AccessError, BorrowMut, BorrowRef, NotAccessibleMut, NotAccessibleRef, RawAccessGuard,
 };
@@ -115,7 +115,8 @@ mod select;
 pub(crate) use self::select::Select;
 
 mod shared;
-pub use self::shared::{Mut, RawMut, RawRef, Ref, Shared, SharedPointerGuard};
+pub(crate) use self::shared::Shared;
+pub use self::shared::{Mut, RawMut, RawRef, Ref, SharedPointerGuard};
 
 mod stack;
 pub use self::stack::{Stack, StackError};
@@ -146,7 +147,8 @@ pub(crate) use self::unit::UnitFn;
 pub use self::unit::{Unit, UnitStorage};
 
 mod value;
-pub use self::value::{EmptyStruct, Rtti, Struct, TupleStruct, Value, VariantRtti};
+pub(crate) use self::value::ValueKind;
+pub use self::value::{EmptyStruct, Rtti, Struct, TupleStruct, TypeValue, Value, VariantRtti};
 
 mod variant;
 pub use self::variant::{Variant, VariantData};

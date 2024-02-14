@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, HashMap, String, Vec};
 use crate::runtime::{
-    self, Bytes, FromValue, Object, OwnedTuple, Shared, ToValue, TypeInfo, Value, VmErrorKind,
+    self, Bytes, FromValue, Object, OwnedTuple, ToValue, TypeInfo, Value, ValueKind, VmErrorKind,
     VmResult,
 };
 
@@ -44,17 +44,17 @@ impl ConstValue {
     /// otherwise.
     pub fn into_value(self) -> alloc::Result<Value> {
         Ok(match self {
-            Self::Byte(b) => Value::Byte(b),
-            Self::Char(c) => Value::Char(c),
-            Self::Bool(b) => Value::Bool(b),
-            Self::Integer(n) => Value::Integer(n),
-            Self::Float(n) => Value::Float(n),
-            Self::String(string) => Value::String(Shared::new(string)?),
-            Self::Bytes(b) => Value::Bytes(Shared::new(b)?),
-            Self::Option(option) => Value::Option(Shared::new(match option {
+            Self::Byte(b) => Value::try_from(b)?,
+            Self::Char(c) => Value::try_from(c)?,
+            Self::Bool(b) => Value::try_from(b)?,
+            Self::Integer(n) => Value::try_from(n)?,
+            Self::Float(n) => Value::try_from(n)?,
+            Self::String(string) => Value::try_from(string)?,
+            Self::Bytes(b) => Value::try_from(b)?,
+            Self::Option(option) => Value::try_from(match option {
                 Some(some) => Some(Box::into_inner(some).into_value()?),
                 None => None,
-            })?),
+            })?,
             Self::Vec(vec) => {
                 let mut v = runtime::Vec::with_capacity(vec.len())?;
 
@@ -62,9 +62,9 @@ impl ConstValue {
                     v.push(value.into_value()?)?;
                 }
 
-                Value::Vec(Shared::new(v)?)
+                Value::try_from(v)?
             }
-            Self::EmptyTuple => Value::EmptyTuple,
+            Self::EmptyTuple => Value::empty()?,
             Self::Tuple(tuple) => {
                 let mut t = Vec::try_with_capacity(tuple.len())?;
 
@@ -72,7 +72,7 @@ impl ConstValue {
                     t.try_push(value.into_value()?)?;
                 }
 
-                Value::Tuple(Shared::new(OwnedTuple::try_from(t)?)?)
+                Value::try_from(OwnedTuple::try_from(t)?)?
             }
             Self::Object(object) => {
                 let mut o = Object::with_capacity(object.len())?;
@@ -81,7 +81,7 @@ impl ConstValue {
                     o.insert(key, value.into_value()?)?;
                 }
 
-                Value::Object(Shared::new(o)?)
+                Value::try_from(o)?
             }
         })
     }
@@ -134,24 +134,20 @@ impl TryClone for ConstValue {
 
 impl FromValue for ConstValue {
     fn from_value(value: Value) -> VmResult<Self> {
-        VmResult::Ok(match value {
-            Value::EmptyTuple => Self::EmptyTuple,
-            Value::Byte(b) => Self::Byte(b),
-            Value::Char(c) => Self::Char(c),
-            Value::Bool(b) => Self::Bool(b),
-            Value::Integer(n) => Self::Integer(n),
-            Value::Float(f) => Self::Float(f),
-            Value::String(s) => Self::String(vm_try!(s.take())),
-            Value::Option(option) => Self::Option(match vm_try!(option.take()) {
+        VmResult::Ok(match vm_try!(value.take_kind()) {
+            ValueKind::EmptyTuple => Self::EmptyTuple,
+            ValueKind::Byte(b) => Self::Byte(b),
+            ValueKind::Char(c) => Self::Char(c),
+            ValueKind::Bool(b) => Self::Bool(b),
+            ValueKind::Integer(n) => Self::Integer(n),
+            ValueKind::Float(f) => Self::Float(f),
+            ValueKind::String(s) => Self::String(s),
+            ValueKind::Option(option) => Self::Option(match option {
                 Some(some) => Some(vm_try!(Box::try_new(vm_try!(Self::from_value(some))))),
                 None => None,
             }),
-            Value::Bytes(b) => {
-                let b = vm_try!(b.take());
-                Self::Bytes(b)
-            }
-            Value::Vec(vec) => {
-                let vec = vm_try!(vec.take());
+            ValueKind::Bytes(b) => Self::Bytes(b),
+            ValueKind::Vec(vec) => {
                 let mut const_vec = vm_try!(Vec::try_with_capacity(vec.len()));
 
                 for value in vec {
@@ -160,8 +156,7 @@ impl FromValue for ConstValue {
 
                 Self::Vec(const_vec)
             }
-            Value::Tuple(tuple) => {
-                let tuple = vm_try!(tuple.take());
+            ValueKind::Tuple(tuple) => {
                 let mut const_tuple = vm_try!(Vec::try_with_capacity(tuple.len()));
 
                 for value in Vec::from(tuple.into_inner()) {
@@ -170,8 +165,7 @@ impl FromValue for ConstValue {
 
                 Self::Tuple(vm_try!(const_tuple.try_into_boxed_slice()))
             }
-            Value::Object(object) => {
-                let object = vm_try!(object.take());
+            ValueKind::Object(object) => {
                 let mut const_object = vm_try!(HashMap::try_with_capacity(object.len()));
 
                 for (key, value) in object {
@@ -180,9 +174,9 @@ impl FromValue for ConstValue {
 
                 Self::Object(const_object)
             }
-            value => {
+            actual => {
                 return VmResult::err(VmErrorKind::ConstNotSupported {
-                    actual: vm_try!(value.type_info()),
+                    actual: actual.type_info(),
                 })
             }
         })

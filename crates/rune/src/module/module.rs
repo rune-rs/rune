@@ -1686,7 +1686,7 @@ impl Module {
     ///     let mut number = 0;
     ///
     ///     for _ in 0..args {
-    ///         number += vm_try!(vm_try!(stack.pop()).into_integer());
+    ///         number += vm_try!(vm_try!(stack.pop()).as_integer());
     ///     }
     ///
     ///     stack.push(vm_try!(number.to_value()));
