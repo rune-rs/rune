@@ -5,11 +5,11 @@ use core::fmt;
 use crate::alloc;
 use crate::ast;
 use crate::ast::Span;
-use crate::compile::ir;
 use crate::compile::{self, ErrorKind, ItemMeta};
 use crate::indexing::Indexer;
 use crate::macros::{IntoLit, ToTokens, TokenStream};
 use crate::parse::{Parse, Resolve};
+use crate::runtime::Value;
 use crate::{Source, SourceId};
 
 cfg_std! {
@@ -142,13 +142,13 @@ impl<'a, 'b, 'arena> MacroContext<'a, 'b, 'arena> {
     ///     let expr = p.parse_all::<ast::Expr>()?;
     ///     let value = cx.eval(&expr)?;
     ///
-    ///     let integer = value.into_integer::<u32>().context("Expected integer")?;
+    ///     let integer = value.try_as_integer::<u32>().context("Expected integer")?;
     ///     assert_eq!(3, integer);
     ///     Ok(())
     /// })?;
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn eval(&mut self, target: &ast::Expr) -> compile::Result<ir::Value> {
+    pub fn eval(&mut self, target: &ast::Expr) -> compile::Result<Value> {
         target.eval(self)
     }
 

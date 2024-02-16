@@ -21,12 +21,12 @@ use crate::indexing::index;
 use crate::macros::MacroContext;
 use crate::parse::NonZeroId;
 use crate::query::Used;
+use crate::runtime::{Value, ValueKind};
 
 pub(crate) use self::compiler::Ctxt;
 pub(crate) use self::eval::{eval_ir, EvalOutcome};
 pub(crate) use self::interpreter::{Budget, Interpreter};
 pub(crate) use self::scopes::Scopes;
-pub(crate) use crate::runtime::{Value, ValueKind};
 
 impl ast::Expr {
     pub(crate) fn eval(&self, cx: &mut MacroContext<'_, '_, '_>) -> compile::Result<Value> {

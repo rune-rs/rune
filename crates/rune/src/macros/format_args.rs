@@ -4,11 +4,11 @@ use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, BTreeMap, BTreeSet, Box, HashMap, String, Vec};
 use crate::ast::{self, Span, Spanned};
-use crate::compile::ir;
 use crate::compile::{self, WithSpan};
 use crate::macros::{quote, MacroContext, Quote};
 use crate::parse::{Parse, Parser, Peek, Peeker};
 use crate::runtime::format;
+use crate::runtime::ValueKind;
 
 /// A format specification: A format string followed by arguments to be
 /// formatted in accordance with that string.
@@ -50,7 +50,7 @@ impl FormatArgs {
         }
 
         let format = match format.take_kind().with_span(&self.format)? {
-            ir::ValueKind::String(string) => string,
+            ValueKind::String(string) => string,
             _ => {
                 return Err(compile::Error::msg(
                     &self.format,
@@ -548,7 +548,7 @@ fn expand_format_spec<'a>(
             let value = cx.eval(expr)?;
 
             let number = match *value.borrow_kind_ref().with_span(expr)? {
-                ir::ValueKind::Integer(n) => n.to_usize(),
+                ValueKind::Integer(n) => n.to_usize(),
                 _ => None,
             };
 
