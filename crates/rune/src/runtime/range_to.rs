@@ -3,6 +3,7 @@ use core::fmt;
 use core::ops;
 
 use crate as rune;
+use crate::alloc::clone::TryClone;
 use crate::runtime::{EnvProtocolCaller, FromValue, ProtocolCaller, ToValue, Value, VmResult};
 use crate::Any;
 
@@ -38,7 +39,9 @@ use crate::Any;
 /// let _ = RangeTo::new(end);
 /// # Ok::<_, rune::support::Error>(())
 /// ```
-#[derive(Any, Clone)]
+#[derive(Any, Clone, TryClone)]
+#[try_clone(crate)]
+#[rune(crate)]
 #[rune(builtin, constructor, static_type = RANGE_TO_TYPE)]
 #[rune(from_value = Value::into_range_to, from_value_ref = Value::into_range_to_ref, from_value_mut = Value::into_range_to_mut)]
 pub struct RangeTo {

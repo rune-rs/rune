@@ -10,6 +10,7 @@ use musli::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 use crate as rune;
+use crate::alloc::clone::TryClone;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::String;
 use crate::runtime::{Formatter, ProtocolCaller, Value, ValueKind, VmErrorKind, VmResult};
@@ -39,7 +40,7 @@ impl fmt::Display for AlignmentFromStrError {
 }
 
 /// A format specification, wrapping an inner value.
-#[derive(Any, Debug, Clone)]
+#[derive(Any, Debug, Clone, TryClone)]
 #[rune(builtin, static_type = FORMAT_TYPE)]
 pub struct Format {
     /// The value being formatted.
@@ -51,7 +52,8 @@ pub struct Format {
 from_value2!(Format, into_format_ref, into_format_mut, into_format);
 
 /// A format specification.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
+#[derive(Debug, Clone, Copy, TryClone, Serialize, Deserialize, Decode, Encode)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct FormatSpec {
     /// Formatting flags.
@@ -441,7 +443,8 @@ impl fmt::Display for Type {
 }
 
 /// The alignment requested.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Decode, Encode)]
+#[derive(Debug, Clone, Copy, TryClone, PartialEq, Eq, Serialize, Deserialize, Decode, Encode)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub enum Alignment {
     /// Left alignment.
@@ -505,9 +508,10 @@ pub enum Flag {
 }
 
 /// Format specification flags.
-#[derive(Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, Decode, Encode)]
+#[derive(Clone, Copy, TryClone, Default, PartialEq, Eq, Serialize, Deserialize, Decode, Encode)]
 #[repr(transparent)]
 #[musli(transparent)]
+#[try_clone(copy)]
 pub struct Flags(u32);
 
 impl Flags {

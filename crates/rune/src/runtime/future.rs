@@ -3,7 +3,6 @@ use core::future;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
-use crate as rune;
 use crate::alloc::{self, Box};
 use crate::runtime::{ToValue, Value, VmErrorKind, VmResult};
 use crate::Any;
@@ -16,6 +15,7 @@ type DynFuture = dyn future::Future<Output = VmResult<Value>> + 'static;
 /// A type-erased future that can only be unsafely polled in combination with
 /// the virtual machine that created it.
 #[derive(Any)]
+#[rune(crate)]
 #[rune(builtin, static_type = FUTURE_TYPE)]
 #[rune(from_value = Value::into_future)]
 pub struct Future {

@@ -40,7 +40,7 @@ use crate::Hash;
 /// let build_some = build;
 /// assert_eq!(build_some(42), Some(42));
 /// ```
-#[derive(Any)]
+#[derive(Any, TryClone)]
 #[repr(transparent)]
 #[rune(builtin, static_type = FUNCTION_TYPE)]
 pub struct Function(FunctionImpl<Value>);
@@ -839,7 +839,7 @@ where
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, TryClone)]
 struct FnHandler {
     /// The function handler.
     handler: Arc<FunctionHandler>,
@@ -853,7 +853,7 @@ impl fmt::Debug for FnHandler {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, TryClone)]
 struct FnOffset {
     context: Arc<RuntimeContext>,
     /// The unit where the function resides.
@@ -949,13 +949,13 @@ where
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, TryClone)]
 struct FnUnitStruct {
     /// The type of the empty.
     rtti: Arc<Rtti>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, TryClone)]
 struct FnTupleStruct {
     /// The type of the tuple.
     rtti: Arc<Rtti>,
@@ -963,13 +963,13 @@ struct FnTupleStruct {
     args: usize,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, TryClone)]
 struct FnUnitVariant {
     /// Runtime information fo variant.
     rtti: Arc<VariantRtti>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, TryClone)]
 struct FnTupleVariant {
     /// Runtime information fo variant.
     rtti: Arc<VariantRtti>,

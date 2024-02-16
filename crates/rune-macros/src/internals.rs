@@ -18,6 +18,7 @@ pub const PARSE: Symbol = Symbol("parse");
 pub const NAME: Symbol = Symbol("name");
 pub const ITEM: Symbol = Symbol("item");
 pub const MODULE: Symbol = Symbol("module");
+pub const CRATE: Symbol = Symbol("crate");
 pub const INSTALL_WITH: Symbol = Symbol("install_with");
 
 pub const CONSTRUCTOR: Symbol = Symbol("constructor");

@@ -58,7 +58,9 @@ impl<'m> Builder<'m> {
 }
 
 mod embed {
+    #[cfg(debug_assertions)]
     use rust_alloc::boxed::Box;
+    #[cfg(debug_assertions)]
     use rust_alloc::string::String;
 
     use rust_embed::RustEmbed;

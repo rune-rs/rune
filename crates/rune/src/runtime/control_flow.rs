@@ -1,6 +1,6 @@
 use core::ops;
 
-use crate as rune;
+use crate::alloc::clone::TryClone;
 use crate::alloc::fmt::TryWrite;
 use crate::runtime::{Formatter, FromValue, ProtocolCaller, ToValue, Value, VmResult};
 use crate::Any;
@@ -20,7 +20,9 @@ use crate::Any;
 /// assert_eq!(c.0, 42);
 /// assert_eq!(c, ControlFlow::Continue(42));
 /// ```
-#[derive(Debug, Clone, Any)]
+#[derive(Debug, Clone, TryClone, Any)]
+#[rune(crate)]
+#[try_clone(crate)]
 #[rune(builtin, static_type = CONTROL_FLOW_TYPE)]
 pub enum ControlFlow {
     /// Move on to the next phase of the operation as normal.

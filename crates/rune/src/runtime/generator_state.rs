@@ -1,4 +1,5 @@
 use crate as rune;
+use crate::alloc::clone::TryClone;
 use crate::runtime::{ProtocolCaller, Value, VmResult};
 use crate::Any;
 
@@ -48,7 +49,7 @@ use crate::Any;
 /// assert_eq!(ret, 42);
 /// # Ok::<_, rune::support::Error>(())
 /// ```
-#[derive(Any, Debug)]
+#[derive(Any, Debug, TryClone)]
 #[rune(builtin, static_type = GENERATOR_STATE_TYPE)]
 pub enum GeneratorState {
     /// The generator yielded.

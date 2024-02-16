@@ -3,6 +3,7 @@ use core::fmt;
 use core::ops;
 
 use crate as rune;
+use crate::alloc::clone::TryClone;
 use crate::runtime::{
     EnvProtocolCaller, FromValue, Iterator, ProtocolCaller, ToValue, Value, ValueKind, VmErrorKind,
     VmResult,
@@ -53,7 +54,8 @@ use crate::Any;
 /// let _ = RangeInclusive::new(start, end);
 /// # Ok::<_, rune::support::Error>(())
 /// ```
-#[derive(Any, Clone)]
+#[derive(Any, Clone, TryClone)]
+#[try_clone(crate)]
 #[rune(builtin, constructor, static_type = RANGE_INCLUSIVE_TYPE)]
 #[rune(from_value = Value::into_range_inclusive, from_value_ref = Value::into_range_inclusive_ref, from_value_mut = Value::into_range_inclusive_mut)]
 pub struct RangeInclusive {

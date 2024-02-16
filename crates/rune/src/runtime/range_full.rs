@@ -3,6 +3,7 @@ use core::fmt;
 use core::ops;
 
 use crate as rune;
+use crate::alloc::clone::TryClone;
 use crate::runtime::{FromValue, ProtocolCaller, ToValue, Value, VmResult};
 use crate::Any;
 
@@ -29,7 +30,8 @@ use crate::Any;
 /// let _ = RangeFull::new();
 /// # Ok::<_, rune::support::Error>(())
 /// ```
-#[derive(Any, Default, Clone)]
+#[derive(Any, Default, Clone, TryClone)]
+#[try_clone(crate)]
 #[rune(builtin, constructor, static_type = RANGE_FULL_TYPE)]
 #[rune(from_value = Value::into_range_full, from_value_ref = Value::into_range_full_ref, from_value_mut = Value::into_range_full_mut)]
 pub struct RangeFull;

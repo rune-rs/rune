@@ -8,6 +8,7 @@ use core::hash;
 
 use ::rust_alloc::sync::Arc;
 
+use crate as rune;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
@@ -226,6 +227,8 @@ where
 }
 
 /// A empty with a well-defined type.
+#[derive(TryClone)]
+#[try_clone(crate)]
 pub struct EmptyStruct {
     /// The type hash of the empty.
     pub(crate) rtti: Arc<Rtti>,
@@ -250,6 +253,7 @@ impl fmt::Debug for EmptyStruct {
 }
 
 /// A tuple with a well-defined type.
+#[derive(TryClone)]
 pub struct TupleStruct {
     /// The type hash of the tuple.
     pub(crate) rtti: Arc<Rtti>,
@@ -296,6 +300,7 @@ impl fmt::Debug for TupleStruct {
 }
 
 /// An object with a well-defined type.
+#[derive(TryClone)]
 pub struct Struct {
     /// The type hash of the object.
     pub(crate) rtti: Arc<Rtti>,
@@ -651,6 +656,77 @@ impl Value {
         VmResult::Ok(())
     }
 
+    /// Perform a shallow clone of the value using the [`CLONE`] protocol.
+    ///
+    /// This requires read access to the underlying value.
+    ///
+    /// You must use [Vm::with] to specify which virtual machine this function
+    /// is called inside.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if called outside of a virtual machine.
+    ///
+    /// [`CLONE`]: Protocol::CLONE
+    pub fn clone_(&self) -> VmResult<Self> {
+        self.clone_with(&mut EnvProtocolCaller)
+    }
+
+    pub(crate) fn clone_with(&self, caller: &mut impl ProtocolCaller) -> VmResult<Value> {
+        let inner = match &*vm_try!(self.inner.borrow_ref()) {
+            ValueKind::EmptyTuple => ValueKind::EmptyTuple,
+            ValueKind::Bool(value) => ValueKind::Bool(*value),
+            ValueKind::Byte(value) => ValueKind::Byte(*value),
+            ValueKind::Char(value) => ValueKind::Char(*value),
+            ValueKind::Integer(value) => ValueKind::Integer(*value),
+            ValueKind::Float(value) => ValueKind::Float(*value),
+            ValueKind::Type(value) => ValueKind::Type(*value),
+            ValueKind::Ordering(value) => ValueKind::Ordering(*value),
+            ValueKind::String(value) => ValueKind::String(vm_try!(value.try_clone())),
+            ValueKind::Bytes(value) => ValueKind::Bytes(vm_try!(value.try_clone())),
+            ValueKind::Vec(value) => ValueKind::Vec(vm_try!(value.try_clone())),
+            ValueKind::Tuple(value) => ValueKind::Tuple(vm_try!(value.try_clone())),
+            ValueKind::Object(value) => ValueKind::Object(vm_try!(value.try_clone())),
+            ValueKind::RangeFrom(value) => ValueKind::RangeFrom(vm_try!(value.try_clone())),
+            ValueKind::RangeFull(value) => ValueKind::RangeFull(vm_try!(value.try_clone())),
+            ValueKind::RangeInclusive(value) => {
+                ValueKind::RangeInclusive(vm_try!(value.try_clone()))
+            }
+            ValueKind::RangeToInclusive(value) => {
+                ValueKind::RangeToInclusive(vm_try!(value.try_clone()))
+            }
+            ValueKind::RangeTo(value) => ValueKind::RangeTo(vm_try!(value.try_clone())),
+            ValueKind::Range(value) => ValueKind::Range(vm_try!(value.try_clone())),
+            ValueKind::ControlFlow(value) => ValueKind::ControlFlow(vm_try!(value.try_clone())),
+            ValueKind::Future(..) => return VmResult::panic("Cannot clone Future"),
+            ValueKind::Stream(value) => ValueKind::Stream(vm_try!(value.try_clone())),
+            ValueKind::Generator(value) => ValueKind::Generator(vm_try!(value.try_clone())),
+            ValueKind::GeneratorState(value) => {
+                ValueKind::GeneratorState(vm_try!(value.try_clone()))
+            }
+            ValueKind::Option(value) => ValueKind::Option(vm_try!(value.try_clone())),
+            ValueKind::Result(value) => ValueKind::Result(vm_try!(value.try_clone())),
+            ValueKind::EmptyStruct(value) => ValueKind::EmptyStruct(vm_try!(value.try_clone())),
+            ValueKind::TupleStruct(value) => ValueKind::TupleStruct(vm_try!(value.try_clone())),
+            ValueKind::Struct(value) => ValueKind::Struct(vm_try!(value.try_clone())),
+            ValueKind::Variant(value) => ValueKind::Variant(vm_try!(value.try_clone())),
+            ValueKind::Function(value) => ValueKind::Function(vm_try!(value.try_clone())),
+            ValueKind::Format(value) => ValueKind::Format(vm_try!(value.try_clone())),
+            ValueKind::Iterator(..) => return VmResult::panic("Cannot clone Iterator"),
+            ValueKind::Any(..) => {
+                return VmResult::Ok(vm_try!(caller.call_protocol_fn(
+                    Protocol::CLONE,
+                    self.clone(),
+                    ()
+                )));
+            }
+        };
+
+        VmResult::Ok(Self {
+            inner: vm_try!(Shared::new(inner)),
+        })
+    }
+
     /// Debug format the value using the [`STRING_DEBUG`] protocol.
     ///
     /// You must use [Vm::with] to specify which virtual machine this function
@@ -770,7 +846,7 @@ impl Value {
             }
             _ => {
                 let result =
-                    vm_try!(caller.call_protocol_fn(Protocol::STRING_DEBUG, self.clone(), (f,),));
+                    vm_try!(caller.call_protocol_fn(Protocol::STRING_DEBUG, self.clone(), (f,)));
 
                 vm_try!(<()>::from_value(result));
                 return VmResult::Ok(());

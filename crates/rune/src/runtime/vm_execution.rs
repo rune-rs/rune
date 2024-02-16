@@ -4,6 +4,7 @@ use core::mem::{replace, take};
 
 use ::rust_alloc::sync::Arc;
 
+use crate::alloc::clone::TryClone;
 use crate::alloc::Vec;
 use crate::runtime::budget;
 use crate::runtime::{
@@ -35,6 +36,8 @@ impl fmt::Display for ExecutionState {
     }
 }
 
+#[derive(TryClone)]
+#[try_clone(crate)]
 pub(crate) struct VmExecutionState {
     pub(crate) context: Option<Arc<RuntimeContext>>,
     pub(crate) unit: Option<Arc<Unit>>,
@@ -455,5 +458,19 @@ impl VmSendExecution {
         // Safety: we wrap all APIs around the [VmExecution], preventing values
         // from escaping from contained virtual machine.
         unsafe { AssertSend::new(future) }
+    }
+}
+
+impl<T> TryClone for VmExecution<T>
+where
+    T: AsRef<Vm> + AsMut<Vm> + TryClone,
+{
+    #[inline]
+    fn try_clone(&self) -> Result<Self, rune_alloc::Error> {
+        Ok(Self {
+            head: self.head.try_clone()?,
+            state: self.state,
+            states: self.states.try_clone()?,
+        })
     }
 }

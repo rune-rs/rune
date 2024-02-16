@@ -460,10 +460,13 @@ impl Context {
                         // Parse `#[rune(name = "..")]`
                         meta.input.parse::<Token![=]>()?;
                         attr.name = Some(meta.input.parse()?);
-                    } else if meta.path == MODULE {
-                        // Parse `#[rune(module = <path>)]`
-                        meta.input.parse::<Token![=]>()?;
-                        attr.module = Some(parse_path_compat(meta.input)?);
+                    } else if meta.path == MODULE || meta.path == CRATE {
+                        // Parse `#[rune(crate [= <path>])]`
+                        if meta.input.parse::<Option<Token![=]>>()?.is_some() {
+                            attr.module = Some(parse_path_compat(meta.input)?);
+                        } else {
+                            attr.module = Some(syn::parse_quote!(crate));
+                        }
                     } else if meta.path == INSTALL_WITH {
                         // Parse `#[rune(install_with = <path>)]`
                         meta.input.parse::<Token![=]>()?;

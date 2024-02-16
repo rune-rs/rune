@@ -1,12 +1,16 @@
 use core::cmp::Ordering;
 use core::fmt;
 
+use ::rust_alloc::sync::Arc;
+
+use crate as rune;
+use crate::alloc::clone::TryClone;
 use crate::runtime::{
     Object, OwnedTuple, ProtocolCaller, TypeInfo, Value, VariantRtti, Vec, VmResult,
 };
-use ::rust_alloc::sync::Arc;
 
 /// The variant of a type.
+#[derive(TryClone)]
 pub struct Variant {
     pub(crate) rtti: Arc<VariantRtti>,
     pub(crate) data: VariantData,
@@ -155,6 +159,7 @@ impl Variant {
 }
 
 /// The data of the variant.
+#[derive(TryClone)]
 pub enum VariantData {
     /// A unit variant.
     Empty,

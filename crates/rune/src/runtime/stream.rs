@@ -1,11 +1,12 @@
 use core::fmt;
 
-use crate as rune;
+use crate::alloc::clone::TryClone;
 use crate::runtime::{GeneratorState, Mut, Value, Vm, VmErrorKind, VmExecution, VmResult};
 use crate::Any;
 
 /// A stream with a stored virtual machine.
 #[derive(Any)]
+#[rune(crate)]
 #[rune(builtin, static_type = STREAM_TYPE, from_value_params = [Vm])]
 #[rune(from_value = Value::into_stream, from_value_ref = Value::into_stream_ref, from_value_mut = Value::into_stream_mut)]
 pub struct Stream<T>
@@ -90,5 +91,16 @@ where
         f.debug_struct("Stream")
             .field("completed", &self.execution.is_none())
             .finish()
+    }
+}
+
+impl<T> TryClone for Stream<T>
+where
+    T: TryClone + AsRef<Vm> + AsMut<Vm>,
+{
+    fn try_clone(&self) -> crate::alloc::Result<Self> {
+        Ok(Self {
+            execution: self.execution.try_clone()?,
+        })
     }
 }
