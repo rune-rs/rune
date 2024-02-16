@@ -698,7 +698,6 @@ impl Value {
             ValueKind::RangeTo(value) => ValueKind::RangeTo(vm_try!(value.try_clone())),
             ValueKind::Range(value) => ValueKind::Range(vm_try!(value.try_clone())),
             ValueKind::ControlFlow(value) => ValueKind::ControlFlow(vm_try!(value.try_clone())),
-            ValueKind::Future(..) => return VmResult::panic("Cannot clone Future"),
             ValueKind::Stream(value) => ValueKind::Stream(vm_try!(value.try_clone())),
             ValueKind::Generator(value) => ValueKind::Generator(vm_try!(value.try_clone())),
             ValueKind::GeneratorState(value) => {
@@ -712,8 +711,7 @@ impl Value {
             ValueKind::Variant(value) => ValueKind::Variant(vm_try!(value.try_clone())),
             ValueKind::Function(value) => ValueKind::Function(vm_try!(value.try_clone())),
             ValueKind::Format(value) => ValueKind::Format(vm_try!(value.try_clone())),
-            ValueKind::Iterator(..) => return VmResult::panic("Cannot clone Iterator"),
-            ValueKind::Any(..) => {
+            _ => {
                 return VmResult::Ok(vm_try!(caller.call_protocol_fn(
                     Protocol::CLONE,
                     self.clone(),

@@ -11,8 +11,8 @@ use crate::compile::ItemBuf;
 use crate::hash::Hash;
 use crate::runtime::unit::{BadInstruction, BadJump};
 use crate::runtime::{
-    AccessError, BoxedPanic, CallFrame, ExecutionState, FullTypeOf, MaybeTypeOf, Panic, StackError,
-    TypeInfo, TypeOf, Unit, Vm, VmHaltInfo,
+    AccessError, BoxedPanic, CallFrame, ExecutionState, FullTypeOf, MaybeTypeOf, Panic, Protocol,
+    StackError, TypeInfo, TypeOf, Unit, Vm, VmHaltInfo,
 };
 
 /// Trait used to convert result types to [`VmResult`].
@@ -486,6 +486,10 @@ pub(crate) enum VmErrorKind {
     MissingContextFunction {
         hash: Hash,
     },
+    MissingProtocolFunction {
+        protocol: Protocol,
+        instance: TypeInfo,
+    },
     MissingInstanceFunction {
         hash: Hash,
         instance: TypeInfo,
@@ -687,6 +691,9 @@ impl fmt::Display for VmErrorKind {
             }
             VmErrorKind::MissingContextFunction { hash } => {
                 write!(f, "Missing context function with hash `{hash}`",)
+            }
+            VmErrorKind::MissingProtocolFunction { protocol, instance } => {
+                write!(f, "Missing protocol function `{protocol}` for `{instance}`",)
             }
             VmErrorKind::MissingInstanceFunction { hash, instance } => {
                 write!(f, "Missing instance function `{hash}` for `{instance}`",)
