@@ -49,8 +49,8 @@ impl FormatArgs {
             }
         }
 
-        let format = match format.into_kind() {
-            ir::ValueKind::String(string) => string.take().with_span(&self.format)?,
+        let format = match format.take_kind().with_span(&self.format)? {
+            ir::ValueKind::String(string) => string,
             _ => {
                 return Err(compile::Error::msg(
                     &self.format,
@@ -529,7 +529,7 @@ fn expand_format_spec<'a>(
         }
 
         let precision = if input_precision {
-            let expr = match pos.get(*count) {
+            let &expr = match pos.get(*count) {
                 Some(expr) => expr,
                 None => {
                     return Err(compile::Error::msg(
@@ -547,7 +547,7 @@ fn expand_format_spec<'a>(
 
             let value = cx.eval(expr)?;
 
-            let number = match value.kind() {
+            let number = match *value.borrow_kind_ref().with_span(expr)? {
                 ir::ValueKind::Integer(n) => n.to_usize(),
                 _ => None,
             };
@@ -555,14 +555,16 @@ fn expand_format_spec<'a>(
             let precision = if let Some(number) = number {
                 number
             } else {
+                let span = expr.span();
+
                 return Err(compile::Error::msg(
-                    expr.span(),
+                    span,
                     format!(
                         "expected position argument #{} \
                         to be a positive number in use as precision, \
                         but got `{}`",
                         count,
-                        value.type_info()
+                        value.type_info().with_span(span)?
                     ),
                 ));
             };

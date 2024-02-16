@@ -233,8 +233,8 @@ impl TryFrom<alloc::Box<[ConstValue]>> for OwnedTuple {
 
         let mut out = alloc::Vec::try_with_capacity(inner.len())?;
 
-        for value in alloc::Vec::from(inner) {
-            out.try_push(value.into_value()?)?;
+        for value in inner.iter() {
+            out.try_push(value.as_value()?)?;
         }
 
         Ok(Self {
@@ -266,8 +266,8 @@ impl TryFrom<::rust_alloc::boxed::Box<[ConstValue]>> for OwnedTuple {
 
         let mut out = alloc::Vec::try_with_capacity(inner.len())?;
 
-        for value in inner.into_vec() {
-            out.try_push(value.into_value()?)?;
+        for value in inner.iter() {
+            out.try_push(value.as_value()?)?;
         }
 
         Ok(Self {

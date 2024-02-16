@@ -19,7 +19,7 @@ use crate::runtime::{
     EnvProtocolCaller, Format, Formatter, FromValue, FullTypeOf, Function, Future, Generator,
     GeneratorState, Iterator, MaybeTypeOf, Mut, Object, OwnedTuple, Protocol, ProtocolCaller,
     Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Ref, Shared,
-    SharedPointerGuard, Stream, ToValue, Type, TypeInfo, Variant, Vec, Vm, VmError, VmErrorKind,
+    SharedPointerGuard, Stream, ToValue, Type, TypeInfo, Variant, Vec, Vm, VmErrorKind,
     VmIntegerRepr, VmResult,
 };
 #[cfg(feature = "alloc")]
@@ -1398,13 +1398,13 @@ impl Value {
     ///
     /// One notable feature is that the type of a variant is its container
     /// *enum*, and not the type hash of the variant itself.
-    pub fn type_hash(&self) -> Result<Hash, VmError> {
-        self.inner.borrow_ref()?.type_hash()
+    pub fn type_hash(&self) -> Result<Hash, AccessError> {
+        Ok(self.inner.borrow_ref()?.type_hash())
     }
 
     /// Get the type information for the current value.
-    pub fn type_info(&self) -> VmResult<TypeInfo> {
-        VmResult::Ok(vm_try!(self.inner.borrow_ref()).type_info())
+    pub fn type_info(&self) -> Result<TypeInfo, AccessError> {
+        Ok(self.inner.borrow_ref()?.type_info())
     }
 
     /// Perform a partial equality test between two values.
@@ -2296,8 +2296,8 @@ impl ValueKind {
     ///
     /// One notable feature is that the type of a variant is its container
     /// *enum*, and not the type hash of the variant itself.
-    pub(crate) fn type_hash(&self) -> Result<Hash, VmError> {
-        Ok(match self {
+    pub(crate) fn type_hash(&self) -> Hash {
+        match self {
             ValueKind::Bool(..) => crate::runtime::static_type::BOOL_TYPE.hash,
             ValueKind::Byte(..) => crate::runtime::static_type::BYTE_TYPE.hash,
             ValueKind::Char(..) => crate::runtime::static_type::CHAR_TYPE.hash,
@@ -2334,7 +2334,7 @@ impl ValueKind {
             ValueKind::Struct(object) => object.rtti.hash,
             ValueKind::Variant(variant) => variant.rtti().enum_hash,
             ValueKind::Any(any) => any.type_hash(),
-        })
+        }
     }
 }
 

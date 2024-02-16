@@ -7,7 +7,6 @@ pub(crate) mod compiler;
 mod eval;
 mod interpreter;
 pub(crate) mod scopes;
-mod value;
 
 use core::ops::{AddAssign, MulAssign, ShlAssign, ShrAssign, SubAssign};
 
@@ -27,7 +26,7 @@ pub(crate) use self::compiler::Ctxt;
 pub(crate) use self::eval::{eval_ir, EvalOutcome};
 pub(crate) use self::interpreter::{Budget, Interpreter};
 pub(crate) use self::scopes::Scopes;
-pub(crate) use self::value::{Value, ValueKind};
+pub(crate) use crate::runtime::{Value, ValueKind};
 
 impl ast::Expr {
     pub(crate) fn eval(&self, cx: &mut MacroContext<'_, '_, '_>) -> compile::Result<Value> {
@@ -534,9 +533,9 @@ impl IrAssignOp {
     where
         S: Copy + Spanned,
     {
-        if let ValueKind::Integer(target) = target.kind_mut() {
-            if let ValueKind::Integer(operand) = operand.kind() {
-                return self.assign_int(spanned, target, *operand);
+        if let ValueKind::Integer(target) = &mut *target.borrow_kind_mut().with_span(spanned)? {
+            if let ValueKind::Integer(operand) = *operand.borrow_kind_ref().with_span(spanned)? {
+                return self.assign_int(spanned, target, operand);
             }
         }
 

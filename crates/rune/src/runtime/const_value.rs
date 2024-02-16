@@ -42,34 +42,34 @@ impl ConstValue {
     /// We provide this associated method since a constant value can be
     /// converted into a value infallibly, which is not captured by the trait
     /// otherwise.
-    pub fn into_value(self) -> alloc::Result<Value> {
+    pub fn as_value(&self) -> alloc::Result<Value> {
         Ok(match self {
-            Self::Byte(b) => Value::try_from(b)?,
-            Self::Char(c) => Value::try_from(c)?,
-            Self::Bool(b) => Value::try_from(b)?,
-            Self::Integer(n) => Value::try_from(n)?,
-            Self::Float(n) => Value::try_from(n)?,
-            Self::String(string) => Value::try_from(string)?,
-            Self::Bytes(b) => Value::try_from(b)?,
+            Self::EmptyTuple => Value::empty()?,
+            Self::Byte(b) => Value::try_from(*b)?,
+            Self::Char(c) => Value::try_from(*c)?,
+            Self::Bool(b) => Value::try_from(*b)?,
+            Self::Integer(n) => Value::try_from(*n)?,
+            Self::Float(n) => Value::try_from(*n)?,
+            Self::String(string) => Value::try_from(string.try_clone()?)?,
+            Self::Bytes(b) => Value::try_from(b.try_clone()?)?,
             Self::Option(option) => Value::try_from(match option {
-                Some(some) => Some(Box::into_inner(some).into_value()?),
+                Some(some) => Some(some.as_value()?),
                 None => None,
             })?,
             Self::Vec(vec) => {
                 let mut v = runtime::Vec::with_capacity(vec.len())?;
 
                 for value in vec {
-                    v.push(value.into_value()?)?;
+                    v.push(value.as_value()?)?;
                 }
 
                 Value::try_from(v)?
             }
-            Self::EmptyTuple => Value::empty()?,
             Self::Tuple(tuple) => {
                 let mut t = Vec::try_with_capacity(tuple.len())?;
 
-                for value in Vec::from(tuple) {
-                    t.try_push(value.into_value()?)?;
+                for value in tuple.iter() {
+                    t.try_push(value.as_value()?)?;
                 }
 
                 Value::try_from(OwnedTuple::try_from(t)?)?
@@ -78,7 +78,8 @@ impl ConstValue {
                 let mut o = Object::with_capacity(object.len())?;
 
                 for (key, value) in object {
-                    o.insert(key, value.into_value()?)?;
+                    let key = key.try_clone()?;
+                    o.insert(key, value.as_value()?)?;
                 }
 
                 Value::try_from(o)?
@@ -185,6 +186,6 @@ impl FromValue for ConstValue {
 
 impl ToValue for ConstValue {
     fn to_value(self) -> VmResult<Value> {
-        VmResult::Ok(vm_try!(ConstValue::into_value(self)))
+        VmResult::Ok(vm_try!(ConstValue::as_value(&self)))
     }
 }
