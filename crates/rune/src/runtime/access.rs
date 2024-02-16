@@ -10,8 +10,12 @@ use core::task::{Context, Poll};
 
 use crate::runtime::{AnyObjError, RawStr};
 
+/// Test if exclusively held.
+const EXCLUSIVE: usize = 1usize.rotate_right(2);
 /// Sentinel value to indicate that access is taken.
-const MOVED: isize = isize::MAX;
+const MOVED: usize = 1usize.rotate_right(1);
+/// Mask indicating if the value is exclusively set or moved.
+const MASK: usize = EXCLUSIVE | MOVED;
 
 /// An error raised while downcasting.
 #[derive(Debug, PartialEq)]
@@ -155,16 +159,15 @@ cfg_std! {
 /// the time of an error.
 #[derive(PartialEq)]
 #[repr(transparent)]
-pub struct Snapshot(isize);
+pub struct Snapshot(usize);
 
 impl fmt::Display for Snapshot {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.0 >> 1 {
             0 => write!(f, "fully accessible")?,
-            1 => write!(f, "exclusively accessed")?,
+            EXCLUSIVE => write!(f, "exclusively accessed")?,
             MOVED => write!(f, "moved")?,
-            n if n < 0 => write!(f, "shared by {}", -n)?,
-            n => write!(f, "invalidly marked ({})", n)?,
+            n => write!(f, "shared by {}", n)?,
         }
 
         Ok(())
@@ -181,30 +184,11 @@ impl fmt::Debug for Snapshot {
 /// Access flags.
 ///
 /// These accomplish the following things:
-/// * Indicates if a value is a reference.
 /// * Indicates if a value is exclusively held.
+/// * Indicates if a value is taken .
 /// * Indicates if a value is shared, and if so by how many.
-///
-/// It has the following bit-pattern (assume isize is 16 bits for simplicity):
-///
-/// ```text
-/// S0000000_00000000_00000000_0000000F
-/// |                                ||
-/// '-- Sign bit and number base ----'|
-///                   Reference Flag -'
-///
-/// The reference flag is the LSB, and the rest is treated as a signed number
-/// with the following properties:
-/// * If the value is `0`, it is not being accessed.
-/// * If the value is `1`, it is being exclusively accessed.
-/// * If the value is negative `n`, it is being shared accessed by `-n` uses.
-///
-/// This means that the maximum number of accesses for a 64-bit `isize` is
-/// `(1 << 62) - 1` uses.
-///
-/// ```
 #[repr(transparent)]
-pub(crate) struct Access(Cell<isize>);
+pub(crate) struct Access(Cell<usize>);
 
 impl Access {
     /// Construct a new default access.
@@ -213,71 +197,59 @@ impl Access {
     }
 
     /// Test if we can have shared access without modifying the internal count.
-    #[inline]
+    #[inline(always)]
     pub(crate) fn is_shared(&self) -> bool {
-        self.0.get() <= 0
+        self.0.get() & MASK == 0
     }
 
     /// Test if we can have exclusive access without modifying the internal
     /// count.
-    #[inline]
+    #[inline(always)]
     pub(crate) fn is_exclusive(&self) -> bool {
         self.0.get() == 0
     }
 
     /// Test if the data has been taken.
-    #[inline]
+    #[inline(always)]
     pub(crate) fn is_taken(&self) -> bool {
-        self.0.get() == MOVED
+        self.0.get() & MOVED != 0
     }
 
     /// Mark that we want shared access to the given access token.
-    ///
-    /// # Safety
-    ///
-    /// The returned guard must not outlive the access token that created it.
-    #[inline]
-    pub(crate) unsafe fn shared(&self) -> Result<AccessGuard<'_>, NotAccessibleRef> {
+    #[inline(always)]
+    pub(crate) fn shared(&self) -> Result<AccessGuard<'_>, NotAccessibleRef> {
         let state = self.0.get();
 
-        if state == isize::MIN {
+        if state == MASK {
             crate::alloc::abort();
         }
 
-        if state > 0 {
+        if state & MASK != 0 {
             return Err(NotAccessibleRef(Snapshot(state)));
-        }
-
-        self.0.set(state - 1);
-        Ok(AccessGuard(self))
-    }
-
-    /// Mark that we want exclusive access to the given access token.
-    ///
-    /// # Safety
-    ///
-    /// The returned guard must not outlive the access token that created it.
-    #[inline]
-    pub(crate) unsafe fn exclusive(&self) -> Result<AccessGuard<'_>, NotAccessibleMut> {
-        let state = self.0.get();
-
-        if state != 0 {
-            return Err(NotAccessibleMut(Snapshot(state)));
         }
 
         self.0.set(state + 1);
         Ok(AccessGuard(self))
     }
 
+    /// Mark that we want exclusive access to the given access token.
+    #[inline(always)]
+    pub(crate) fn exclusive(&self) -> Result<AccessGuard<'_>, NotAccessibleMut> {
+        let state = self.0.get();
+
+        if state != 0 {
+            return Err(NotAccessibleMut(Snapshot(state)));
+        }
+
+        self.0.set(EXCLUSIVE);
+        Ok(AccessGuard(self))
+    }
+
     /// Mark that we want to mark the given access as "taken".
     ///
     /// I.e. whatever guarded data is no longer available.
-    ///
-    /// # Safety
-    ///
-    /// The returned guard must not outlive the access token that created it.
-    #[inline]
-    pub(crate) unsafe fn take(&self) -> Result<RawTakeGuard, NotAccessibleTake> {
+    #[inline(always)]
+    pub(crate) fn take(&self) -> Result<RawAccessGuard, NotAccessibleTake> {
         let state = self.0.get();
 
         if state != 0 {
@@ -285,37 +257,21 @@ impl Access {
         }
 
         self.0.set(MOVED);
-        Ok(RawTakeGuard { access: self })
+        Ok(RawAccessGuard(self.into()))
     }
 
-    /// Release the current access level.
-    #[inline]
+    /// Release the current access, unless it's moved.
+    #[inline(always)]
     fn release(&self) {
         let b = self.0.get();
 
-        let b = if b < 0 {
-            b + 1
-        } else {
-            debug_assert_eq!(b, 1, "Borrow value should be exclusive (0)");
-            b - 1
-        };
+        let b = if b & MASK == 0 { b - 1 } else { 0 };
 
         self.0.set(b);
     }
 
-    /// Untake the current access.
-    #[inline]
-    fn release_take(&self) {
-        debug_assert_eq!(
-            self.0.get(),
-            MOVED,
-            "Borrow value should be TAKEN ({})",
-            MOVED
-        );
-        self.0.set(0);
-    }
-
     /// Get a snapshot of current access.
+    #[inline(always)]
     pub(super) fn snapshot(&self) -> Snapshot {
         Snapshot(self.0.get())
     }
@@ -430,7 +386,7 @@ where
 
 /// A guard around some specific access access.
 #[repr(transparent)]
-pub struct AccessGuard<'a>(&'a Access);
+pub(crate) struct AccessGuard<'a>(&'a Access);
 
 impl AccessGuard<'_> {
     /// Convert into a raw guard which does not have a lifetime associated with
@@ -440,7 +396,7 @@ impl AccessGuard<'_> {
     ///
     /// Since we're losing track of the lifetime, caller must ensure that the
     /// access outlives the guard.
-    pub unsafe fn into_raw(self) -> RawAccessGuard {
+    pub(crate) unsafe fn into_raw(self) -> RawAccessGuard {
         RawAccessGuard(ptr::NonNull::from(ManuallyDrop::new(self).0))
     }
 }
@@ -451,27 +407,13 @@ impl Drop for AccessGuard<'_> {
     }
 }
 
-/// A raw guard around some level of access.
+/// A raw guard around some level of access which will be released once the guard is dropped.
 #[repr(transparent)]
-pub struct RawAccessGuard(ptr::NonNull<Access>);
+pub(crate) struct RawAccessGuard(ptr::NonNull<Access>);
 
 impl Drop for RawAccessGuard {
     fn drop(&mut self) {
         unsafe { self.0.as_ref().release() }
-    }
-}
-
-/// A taken access guard.
-///
-/// This is created with [Access::take], and must not outlive the [Access]
-/// instance it was created from.
-pub(crate) struct RawTakeGuard {
-    access: *const Access,
-}
-
-impl Drop for RawTakeGuard {
-    fn drop(&mut self) {
-        unsafe { (*self.access).release_take() }
     }
 }
 
@@ -612,62 +554,69 @@ mod tests {
     use super::Access;
 
     #[test]
-    fn test_non_ref() {
-        unsafe {
-            let access = Access::new();
+    fn access_shared() {
+        let access = Access::new();
 
-            assert!(access.is_shared());
-            assert!(access.is_exclusive());
+        assert!(access.is_shared());
+        assert!(access.is_exclusive());
+        assert!(!access.is_taken());
 
-            let guard = access.shared().unwrap();
+        let g1 = access.shared().unwrap();
+        let g2 = access.shared().unwrap();
 
-            assert!(access.is_shared());
-            assert!(!access.is_exclusive());
+        assert!(access.is_shared());
+        assert!(!access.is_exclusive());
+        assert!(!access.is_taken());
 
-            drop(guard);
+        drop(g1);
 
-            assert!(access.is_shared());
-            assert!(access.is_exclusive());
+        assert!(access.is_shared());
+        assert!(!access.is_exclusive());
+        assert!(!access.is_taken());
 
-            let guard = access.exclusive().unwrap();
+        drop(g2);
 
-            assert!(!access.is_shared());
-            assert!(!access.is_exclusive());
-
-            drop(guard);
-
-            assert!(access.is_shared());
-            assert!(access.is_exclusive());
-        }
+        assert!(access.is_shared());
+        assert!(access.is_exclusive());
+        assert!(!access.is_taken());
     }
 
     #[test]
-    fn test_ref() {
-        unsafe {
-            let access = Access::new();
+    fn access_exclusive() {
+        let access = Access::new();
 
-            assert!(access.is_shared());
-            assert!(access.is_exclusive());
+        let guard = access.exclusive().unwrap();
+        assert!(access.exclusive().is_err());
 
-            let guard = access.shared().unwrap();
+        assert!(!access.is_shared());
+        assert!(!access.is_exclusive());
+        assert!(!access.is_taken());
 
-            assert!(access.is_shared());
-            assert!(!access.is_exclusive());
+        drop(guard);
 
-            drop(guard);
+        assert!(access.is_shared());
+        assert!(access.is_exclusive());
+        assert!(!access.is_taken());
+    }
 
-            assert!(access.is_shared());
-            assert!(access.is_exclusive());
+    #[test]
+    fn access_take() {
+        let access = Access::new();
 
-            let guard = access.exclusive().unwrap();
+        let guard = access.exclusive().unwrap();
+        assert!(access.take().is_err());
+        drop(guard);
 
-            assert!(!access.is_shared());
-            assert!(!access.is_exclusive());
+        let g = access.take().unwrap();
 
-            drop(guard);
+        assert!(!access.is_shared());
+        assert!(!access.is_exclusive());
+        assert!(access.is_taken());
 
-            assert!(access.is_shared());
-            assert!(access.is_exclusive());
-        }
+        drop(g);
+
+        assert!(access.is_shared());
+        assert!(access.is_exclusive());
+        assert!(!access.is_taken());
     }
 }
