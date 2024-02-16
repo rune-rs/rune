@@ -1,5 +1,7 @@
 //! The `std::iter` module.
 
+use core::convert::identity;
+
 use crate as rune;
 use crate::alloc::String;
 use crate::modules::collections::VecDeque;
@@ -43,7 +45,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(take)?;
     module.function_meta(count)?;
     module.associated_function(Protocol::NEXT, Iterator::next)?;
-    module.associated_function(Protocol::INTO_ITER, <Iterator as From<Iterator>>::from)?;
+    module.associated_function(Protocol::INTO_ITER, identity::<Iterator>)?;
 
     module.function_meta(range)?;
     module.function_meta(empty)?;

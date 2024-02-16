@@ -2957,7 +2957,7 @@ impl Vm {
     /// vm.with(|| output.string_display(&mut f)).into_result()?;
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn with<F, T>(&mut self, f: F) -> T
+    pub fn with<F, T>(&self, f: F) -> T
     where
         F: FnOnce() -> T,
     {

@@ -55,6 +55,7 @@ fn panic(message: &str) -> VmResult<()> {
 /// let value = Some(42);
 /// assert!(is_readable(value));
 /// let value2 = value.map(|v| v + 1);
+/// drop(value);
 /// assert!(!is_readable(value));
 /// assert_eq!(value2, Some(43));
 /// ```
@@ -74,6 +75,7 @@ fn is_readable(value: Value) -> bool {
 /// let value = Some(42);
 /// assert!(is_writable(value));
 /// let value2 = value.map(|v| v + 1);
+/// drop(value);
 /// assert!(!is_writable(value));
 /// assert_eq!(value2, Some(43));
 /// ```
