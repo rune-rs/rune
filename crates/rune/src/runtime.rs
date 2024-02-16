@@ -5,7 +5,7 @@ mod tests;
 
 mod access;
 pub(crate) use self::access::{Access, AccessErrorKind};
-pub use self::access::{AccessError, BorrowMut, BorrowRef, RawAccessGuard};
+pub use self::access::{AccessError, BorrowMut, BorrowRef, RawAccessGuard, Snapshot};
 
 mod any_obj;
 pub use self::any_obj::{AnyObj, AnyObjError, AnyObjVtable};

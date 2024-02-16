@@ -19,8 +19,8 @@ use crate::runtime::{
     ControlFlow, EnvProtocolCaller, Format, Formatter, FromValue, FullTypeOf, Function, Future,
     Generator, GeneratorState, Iterator, MaybeTypeOf, Mut, Object, OwnedTuple, Protocol,
     ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Ref,
-    RuntimeError, Shared, SharedPointerGuard, Stream, ToValue, Type, TypeInfo, Variant, Vec, Vm,
-    VmErrorKind, VmIntegerRepr, VmResult,
+    RuntimeError, Shared, SharedPointerGuard, Snapshot, Stream, ToValue, Type, TypeInfo, Variant,
+    Vec, Vm, VmErrorKind, VmIntegerRepr, VmResult,
 };
 #[cfg(feature = "alloc")]
 use crate::runtime::{Hasher, Tuple};
@@ -559,6 +559,14 @@ impl Value {
     /// Test if the value is readable.
     pub fn is_readable(&self) -> bool {
         self.inner.is_readable()
+    }
+
+    /// Get snapshot of value.
+    ///
+    /// The snapshot details how the value is currently being access.
+    #[allow(unused)]
+    pub fn snapshot(&self) -> Snapshot {
+        self.inner.snapshot()
     }
 
     /// Construct an empty value.
@@ -1431,107 +1439,109 @@ impl Value {
     ///
     /// This is the basis for the eq operation (`partial_eq` / '==').
     pub(crate) fn partial_eq_with(
-        a: &Value,
+        &self,
         b: &Value,
         caller: &mut impl ProtocolCaller,
     ) -> VmResult<bool> {
-        match (
-            &*vm_try!(a.borrow_kind_ref()),
-            &*vm_try!(b.borrow_kind_ref()),
-        ) {
-            (ValueKind::EmptyTuple, ValueKind::EmptyTuple) => return VmResult::Ok(true),
-            (ValueKind::Bool(a), ValueKind::Bool(b)) => return VmResult::Ok(*a == *b),
-            (ValueKind::Byte(a), ValueKind::Byte(b)) => return VmResult::Ok(*a == *b),
-            (ValueKind::Char(a), ValueKind::Char(b)) => return VmResult::Ok(*a == *b),
-            (ValueKind::Integer(a), ValueKind::Integer(b)) => return VmResult::Ok(*a == *b),
-            (ValueKind::Float(a), ValueKind::Float(b)) => return VmResult::Ok(*a == *b),
-            (ValueKind::Type(a), ValueKind::Type(b)) => return VmResult::Ok(*a == *b),
-            (ValueKind::Bytes(a), ValueKind::Bytes(b)) => {
-                return VmResult::Ok(*a == *b);
-            }
-            (ValueKind::Vec(a), _) => {
-                return Vec::partial_eq_with(a, b.clone(), caller);
-            }
-            (ValueKind::Tuple(a), _) => {
-                return Vec::partial_eq_with(a, b.clone(), caller);
-            }
-            (ValueKind::Object(a), _) => {
-                return Object::partial_eq_with(a, b.clone(), caller);
-            }
-            (ValueKind::RangeFrom(a), ValueKind::RangeFrom(b)) => {
-                return RangeFrom::partial_eq_with(a, b, caller);
-            }
-            (ValueKind::RangeFull(a), ValueKind::RangeFull(b)) => {
-                return RangeFull::partial_eq_with(a, b, caller);
-            }
-            (ValueKind::RangeInclusive(a), ValueKind::RangeInclusive(b)) => {
-                return RangeInclusive::partial_eq_with(a, b, caller);
-            }
-            (ValueKind::RangeToInclusive(a), ValueKind::RangeToInclusive(b)) => {
-                return RangeToInclusive::partial_eq_with(a, b, caller);
-            }
-            (ValueKind::RangeTo(a), ValueKind::RangeTo(b)) => {
-                return RangeTo::partial_eq_with(a, b, caller);
-            }
-            (ValueKind::Range(a), ValueKind::Range(b)) => {
-                return Range::partial_eq_with(a, b, caller);
-            }
-            (ValueKind::ControlFlow(a), ValueKind::ControlFlow(b)) => {
-                return ControlFlow::partial_eq_with(a, b, caller);
-            }
-            (ValueKind::EmptyStruct(a), ValueKind::EmptyStruct(b)) => {
-                if a.rtti.hash == b.rtti.hash {
-                    // NB: don't get any future ideas, this must fall through to
-                    // the VmError below since it's otherwise a comparison
-                    // between two incompatible types.
-                    //
-                    // Other than that, all units are equal.
-                    return VmResult::Ok(true);
+        {
+            let a = vm_try!(self.borrow_kind_ref());
+
+            match (&*a, &*vm_try!(b.borrow_kind_ref())) {
+                (ValueKind::EmptyTuple, ValueKind::EmptyTuple) => return VmResult::Ok(true),
+                (ValueKind::Bool(a), ValueKind::Bool(b)) => return VmResult::Ok(*a == *b),
+                (ValueKind::Byte(a), ValueKind::Byte(b)) => return VmResult::Ok(*a == *b),
+                (ValueKind::Char(a), ValueKind::Char(b)) => return VmResult::Ok(*a == *b),
+                (ValueKind::Integer(a), ValueKind::Integer(b)) => return VmResult::Ok(*a == *b),
+                (ValueKind::Float(a), ValueKind::Float(b)) => return VmResult::Ok(*a == *b),
+                (ValueKind::Type(a), ValueKind::Type(b)) => return VmResult::Ok(*a == *b),
+                (ValueKind::Bytes(a), ValueKind::Bytes(b)) => {
+                    return VmResult::Ok(*a == *b);
                 }
-            }
-            (ValueKind::TupleStruct(a), ValueKind::TupleStruct(b)) => {
-                if a.rtti.hash == b.rtti.hash {
-                    return Vec::eq_with(&a.data, &b.data, Value::partial_eq_with, caller);
+                (ValueKind::RangeFrom(a), ValueKind::RangeFrom(b)) => {
+                    return RangeFrom::partial_eq_with(a, b, caller);
                 }
-            }
-            (ValueKind::Struct(a), ValueKind::Struct(b)) => {
-                if a.rtti.hash == b.rtti.hash {
-                    return Object::eq_with(&a.data, &b.data, Value::partial_eq_with, caller);
+                (ValueKind::RangeFull(a), ValueKind::RangeFull(b)) => {
+                    return RangeFull::partial_eq_with(a, b, caller);
                 }
-            }
-            (ValueKind::Variant(a), ValueKind::Variant(b)) => {
-                if a.rtti().enum_hash == b.rtti().enum_hash {
-                    return Variant::partial_eq_with(a, b, caller);
+                (ValueKind::RangeInclusive(a), ValueKind::RangeInclusive(b)) => {
+                    return RangeInclusive::partial_eq_with(a, b, caller);
                 }
-            }
-            (ValueKind::String(a), ValueKind::String(b)) => {
-                return VmResult::Ok(*a == *b);
-            }
-            (ValueKind::Option(a), ValueKind::Option(b)) => match (a, b) {
-                (Some(a), Some(b)) => return Value::partial_eq_with(a, b, caller),
-                (None, None) => return VmResult::Ok(true),
-                _ => return VmResult::Ok(false),
-            },
-            (ValueKind::Result(a), ValueKind::Result(b)) => match (a, b) {
-                (Ok(a), Ok(b)) => return Value::partial_eq_with(a, b, caller),
-                (Err(a), Err(b)) => return Value::partial_eq_with(a, b, caller),
-                _ => return VmResult::Ok(false),
-            },
-            _ => {
-                match vm_try!(caller.try_call_protocol_fn(
-                    Protocol::PARTIAL_EQ,
-                    a.clone(),
-                    (b.clone(),)
-                )) {
-                    CallResult::Ok(value) => return bool::from_value(value),
-                    CallResult::Unsupported(..) => {}
+                (ValueKind::RangeToInclusive(a), ValueKind::RangeToInclusive(b)) => {
+                    return RangeToInclusive::partial_eq_with(a, b, caller);
                 }
+                (ValueKind::RangeTo(a), ValueKind::RangeTo(b)) => {
+                    return RangeTo::partial_eq_with(a, b, caller);
+                }
+                (ValueKind::Range(a), ValueKind::Range(b)) => {
+                    return Range::partial_eq_with(a, b, caller);
+                }
+                (ValueKind::ControlFlow(a), ValueKind::ControlFlow(b)) => {
+                    return ControlFlow::partial_eq_with(a, b, caller);
+                }
+                (ValueKind::EmptyStruct(a), ValueKind::EmptyStruct(b)) => {
+                    if a.rtti.hash == b.rtti.hash {
+                        // NB: don't get any future ideas, this must fall through to
+                        // the VmError below since it's otherwise a comparison
+                        // between two incompatible types.
+                        //
+                        // Other than that, all units are equal.
+                        return VmResult::Ok(true);
+                    }
+                }
+                (ValueKind::TupleStruct(a), ValueKind::TupleStruct(b)) => {
+                    if a.rtti.hash == b.rtti.hash {
+                        return Vec::eq_with(&a.data, &b.data, Value::partial_eq_with, caller);
+                    }
+                }
+                (ValueKind::Struct(a), ValueKind::Struct(b)) => {
+                    if a.rtti.hash == b.rtti.hash {
+                        return Object::eq_with(&a.data, &b.data, Value::partial_eq_with, caller);
+                    }
+                }
+                (ValueKind::Variant(a), ValueKind::Variant(b)) => {
+                    if a.rtti().enum_hash == b.rtti().enum_hash {
+                        return Variant::partial_eq_with(a, b, caller);
+                    }
+                }
+                (ValueKind::String(a), ValueKind::String(b)) => {
+                    return VmResult::Ok(*a == *b);
+                }
+                (ValueKind::Option(a), ValueKind::Option(b)) => match (a, b) {
+                    (Some(a), Some(b)) => return Value::partial_eq_with(a, b, caller),
+                    (None, None) => return VmResult::Ok(true),
+                    _ => return VmResult::Ok(false),
+                },
+                (ValueKind::Result(a), ValueKind::Result(b)) => match (a, b) {
+                    (Ok(a), Ok(b)) => return Value::partial_eq_with(a, b, caller),
+                    (Err(a), Err(b)) => return Value::partial_eq_with(a, b, caller),
+                    _ => return VmResult::Ok(false),
+                },
+                _ => {}
             }
+
+            match &*a {
+                ValueKind::Vec(a) => {
+                    return Vec::partial_eq_with(a, b.clone(), caller);
+                }
+                ValueKind::Tuple(a) => {
+                    return Vec::partial_eq_with(a, b.clone(), caller);
+                }
+                ValueKind::Object(a) => {
+                    return Object::partial_eq_with(a, b.clone(), caller);
+                }
+                _ => {}
+            }
+        }
+
+        if let CallResult::Ok(value) =
+            vm_try!(caller.try_call_protocol_fn(Protocol::PARTIAL_EQ, self.clone(), (b.clone(),)))
+        {
+            return <_>::from_value(value);
         }
 
         err(VmErrorKind::UnsupportedBinaryOperation {
             op: "partial_eq",
-            lhs: vm_try!(a.type_info()),
+            lhs: vm_try!(self.type_info()),
             rhs: vm_try!(b.type_info()),
         })
     }
@@ -1583,13 +1593,13 @@ impl Value {
             ValueKind::Vec(vec) => {
                 return Vec::hash_with(vec, hasher, caller);
             }
-            _ => {
-                match vm_try!(caller.try_call_protocol_fn(Protocol::HASH, self.clone(), (hasher,)))
-                {
-                    CallResult::Ok(value) => return <()>::from_value(value),
-                    CallResult::Unsupported(..) => {}
-                }
-            }
+            _ => {}
+        }
+
+        if let CallResult::Ok(value) =
+            vm_try!(caller.try_call_protocol_fn(Protocol::HASH, self.clone(), (hasher,)))
+        {
+            return <_>::from_value(value);
         }
 
         err(VmErrorKind::UnsupportedUnaryOperation {
@@ -1704,13 +1714,13 @@ impl Value {
                 (Err(a), Err(b)) => return Value::eq_with(a, b, caller),
                 _ => return VmResult::Ok(false),
             },
-            _ => {
-                match vm_try!(caller.try_call_protocol_fn(Protocol::EQ, self.clone(), (b.clone(),)))
-                {
-                    CallResult::Ok(value) => return bool::from_value(value),
-                    CallResult::Unsupported(..) => {}
-                }
-            }
+            _ => {}
+        }
+
+        if let CallResult::Ok(value) =
+            vm_try!(caller.try_call_protocol_fn(Protocol::EQ, self.clone(), (b.clone(),)))
+        {
+            return <_>::from_value(value);
         }
 
         err(VmErrorKind::UnsupportedBinaryOperation {
@@ -1738,12 +1748,12 @@ impl Value {
     ///
     /// This is the basis for the comparison operation.
     pub(crate) fn partial_cmp_with(
-        a: &Value,
+        &self,
         b: &Value,
         caller: &mut impl ProtocolCaller,
     ) -> VmResult<Option<Ordering>> {
         match (
-            &*vm_try!(a.borrow_kind_ref()),
+            &*vm_try!(self.borrow_kind_ref()),
             &*vm_try!(b.borrow_kind_ref()),
         ) {
             (ValueKind::EmptyTuple, ValueKind::EmptyTuple) => {
@@ -1827,21 +1837,18 @@ impl Value {
                 (Ok(..), Err(..)) => return VmResult::Ok(Some(Ordering::Greater)),
                 (Err(..), Ok(..)) => return VmResult::Ok(Some(Ordering::Less)),
             },
-            _ => {
-                match vm_try!(caller.try_call_protocol_fn(
-                    Protocol::PARTIAL_CMP,
-                    a.clone(),
-                    (b.clone(),)
-                )) {
-                    CallResult::Ok(value) => return <Option<Ordering>>::from_value(value),
-                    CallResult::Unsupported(..) => {}
-                }
-            }
+            _ => {}
+        }
+
+        if let CallResult::Ok(value) =
+            vm_try!(caller.try_call_protocol_fn(Protocol::PARTIAL_CMP, self.clone(), (b.clone(),)))
+        {
+            return <_>::from_value(value);
         }
 
         err(VmErrorKind::UnsupportedBinaryOperation {
             op: "partial_cmp",
-            lhs: vm_try!(a.type_info()),
+            lhs: vm_try!(self.type_info()),
             rhs: vm_try!(b.type_info()),
         })
     }
@@ -1864,12 +1871,12 @@ impl Value {
     ///
     /// This is the basis for the comparison operation (`cmp`).
     pub(crate) fn cmp_with(
-        a: &Value,
+        &self,
         b: &Value,
         caller: &mut impl ProtocolCaller,
     ) -> VmResult<Ordering> {
         match (
-            &*vm_try!(a.borrow_kind_ref()),
+            &*vm_try!(self.borrow_kind_ref()),
             &*vm_try!(b.borrow_kind_ref()),
         ) {
             (ValueKind::EmptyTuple, ValueKind::EmptyTuple) => return VmResult::Ok(Ordering::Equal),
@@ -1955,17 +1962,18 @@ impl Value {
                 (Ok(..), Err(..)) => return VmResult::Ok(Ordering::Greater),
                 (Err(..), Ok(..)) => return VmResult::Ok(Ordering::Less),
             },
-            _ => {
-                match vm_try!(caller.try_call_protocol_fn(Protocol::CMP, a.clone(), (b.clone(),))) {
-                    CallResult::Ok(value) => return Ordering::from_value(value),
-                    CallResult::Unsupported(..) => {}
-                }
-            }
+            _ => {}
+        }
+
+        if let CallResult::Ok(value) =
+            vm_try!(caller.try_call_protocol_fn(Protocol::CMP, self.clone(), (b.clone(),)))
+        {
+            return <_>::from_value(value);
         }
 
         err(VmErrorKind::UnsupportedBinaryOperation {
             op: "cmp",
-            lhs: vm_try!(a.type_info()),
+            lhs: vm_try!(self.type_info()),
             rhs: vm_try!(b.type_info()),
         })
     }

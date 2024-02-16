@@ -13,10 +13,6 @@ use crate::runtime::{AnyObjError, RawStr};
 /// Sentinel value to indicate that access is taken.
 const MOVED: isize = isize::MAX;
 
-/// Panic if we reach this number of shared accesses and we try to add one more,
-/// since it's the largest we can support.
-const MAX_USES: isize = isize::MIN;
-
 /// An error raised while downcasting.
 #[derive(Debug, PartialEq)]
 #[allow(missing_docs)]
@@ -157,9 +153,9 @@ cfg_std! {
 
 /// Snapshot that can be used to indicate how the value was being accessed at
 /// the time of an error.
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 #[repr(transparent)]
-struct Snapshot(isize);
+pub struct Snapshot(isize);
 
 impl fmt::Display for Snapshot {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -172,6 +168,13 @@ impl fmt::Display for Snapshot {
         }
 
         Ok(())
+    }
+}
+
+impl fmt::Debug for Snapshot {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Snapshot({})", self)
     }
 }
 
@@ -212,20 +215,20 @@ impl Access {
     /// Test if we can have shared access without modifying the internal count.
     #[inline]
     pub(crate) fn is_shared(&self) -> bool {
-        self.get() <= 0
+        self.0.get() <= 0
     }
 
     /// Test if we can have exclusive access without modifying the internal
     /// count.
     #[inline]
     pub(crate) fn is_exclusive(&self) -> bool {
-        self.get() == 0
+        self.0.get() == 0
     }
 
     /// Test if the data has been taken.
     #[inline]
     pub(crate) fn is_taken(&self) -> bool {
-        self.get() == MOVED
+        self.0.get() == MOVED
     }
 
     /// Mark that we want shared access to the given access token.
@@ -235,19 +238,17 @@ impl Access {
     /// The returned guard must not outlive the access token that created it.
     #[inline]
     pub(crate) unsafe fn shared(&self) -> Result<AccessGuard<'_>, NotAccessibleRef> {
-        let state = self.get();
+        let state = self.0.get();
 
-        if state == MAX_USES {
+        if state == isize::MIN {
             crate::alloc::abort();
         }
 
-        let n = state.wrapping_sub(1);
-
-        if n >= 0 {
-            return Err(NotAccessibleRef(Snapshot(self.0.get())));
+        if state > 0 {
+            return Err(NotAccessibleRef(Snapshot(state)));
         }
 
-        self.set(n);
+        self.0.set(state - 1);
         Ok(AccessGuard(self))
     }
 
@@ -258,13 +259,13 @@ impl Access {
     /// The returned guard must not outlive the access token that created it.
     #[inline]
     pub(crate) unsafe fn exclusive(&self) -> Result<AccessGuard<'_>, NotAccessibleMut> {
-        let n = self.get();
+        let state = self.0.get();
 
-        if n != 0 {
-            return Err(NotAccessibleMut(Snapshot(self.0.get())));
+        if state != 0 {
+            return Err(NotAccessibleMut(Snapshot(state)));
         }
 
-        self.set(n.wrapping_add(1));
+        self.0.set(state + 1);
         Ok(AccessGuard(self))
     }
 
@@ -277,56 +278,52 @@ impl Access {
     /// The returned guard must not outlive the access token that created it.
     #[inline]
     pub(crate) unsafe fn take(&self) -> Result<RawTakeGuard, NotAccessibleTake> {
-        let state = self.get();
+        let state = self.0.get();
 
         if state != 0 {
-            return Err(NotAccessibleTake(Snapshot(self.0.get())));
+            return Err(NotAccessibleTake(Snapshot(state)));
         }
 
-        self.set(MOVED);
+        self.0.set(MOVED);
         Ok(RawTakeGuard { access: self })
     }
 
     /// Release the current access level.
     #[inline]
     fn release(&self) {
-        let b = self.get();
+        let b = self.0.get();
 
         let b = if b < 0 {
-            debug_assert!(b < 0);
-            b.wrapping_add(1)
+            b + 1
         } else {
-            debug_assert_eq!(b, 1, "borrow value should be exclusive (0)");
-            b.wrapping_sub(1)
+            debug_assert_eq!(b, 1, "Borrow value should be exclusive (0)");
+            b - 1
         };
 
-        self.set(b);
+        self.0.set(b);
     }
 
     /// Untake the current access.
     #[inline]
     fn release_take(&self) {
-        let b = self.get();
-        debug_assert_eq!(b, MOVED, "borrow value should be TAKEN ({})", MOVED);
-        self.set(0);
+        debug_assert_eq!(
+            self.0.get(),
+            MOVED,
+            "Borrow value should be TAKEN ({})",
+            MOVED
+        );
+        self.0.set(0);
     }
 
-    /// Get the current value of the flag.
-    #[inline]
-    fn get(&self) -> isize {
-        self.0.get()
-    }
-
-    /// Set the current value of the flag.
-    #[inline]
-    fn set(&self, value: isize) {
-        self.0.set(value);
+    /// Get a snapshot of current access.
+    pub(super) fn snapshot(&self) -> Snapshot {
+        Snapshot(self.0.get())
     }
 }
 
 impl fmt::Debug for Access {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", Snapshot(self.get()))
+        write!(f, "{}", Snapshot(self.0.get()))
     }
 }
 

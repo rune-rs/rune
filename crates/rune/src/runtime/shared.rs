@@ -14,7 +14,7 @@ use ::rust_alloc::sync::Arc;
 
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Box};
-use crate::runtime::{Access, AccessError, BorrowMut, BorrowRef, RawAccessGuard};
+use crate::runtime::{Access, AccessError, BorrowMut, BorrowRef, RawAccessGuard, Snapshot};
 
 /// A shared value.
 pub(crate) struct Shared<T: ?Sized> {
@@ -49,6 +49,11 @@ impl<T> Shared<T> {
         // Safety: Since we have a reference to this shared, we know that the
         // inner is available.
         unsafe { self.inner.as_ref().access.is_exclusive() }
+    }
+
+    /// Get access snapshot of shared value.
+    pub(crate) fn snapshot(&self) -> Snapshot {
+        unsafe { self.inner.as_ref().access.snapshot() }
     }
 
     /// Take the interior value, if we have exlusive access to it and there
