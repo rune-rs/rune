@@ -197,8 +197,8 @@ impl ir::Scopes {
             ir::IrTargetKind::Field(ir_target, field) => {
                 let value = self.get_target(ir_target)?;
 
-                match value {
-                    ir::Value::Object(object) => {
+                match value.kind() {
+                    ir::ValueKind::Object(object) => {
                         let object = object.borrow_ref().with_span(ir_target)?;
 
                         if let Some(value) = object.get(field.as_ref()).try_cloned()? {
@@ -207,7 +207,7 @@ impl ir::Scopes {
                     }
                     actual => {
                         return Err(compile::Error::expected_type::<_, OwnedTuple>(
-                            ir_target, &actual,
+                            ir_target, actual,
                         ))
                     }
                 };
@@ -222,15 +222,15 @@ impl ir::Scopes {
             ir::IrTargetKind::Index(target, index) => {
                 let value = self.get_target(target)?;
 
-                match value {
-                    ir::Value::Vec(vec) => {
+                match value.kind() {
+                    ir::ValueKind::Vec(vec) => {
                         let vec = vec.borrow_ref().with_span(ir_target)?;
 
                         if let Some(value) = vec.get(*index).try_cloned()? {
                             return Ok(value);
                         }
                     }
-                    ir::Value::Tuple(tuple) => {
+                    ir::ValueKind::Tuple(tuple) => {
                         let tuple = tuple.borrow_ref().with_span(ir_target)?;
 
                         if let Some(value) = tuple.get(*index).try_cloned()? {
@@ -239,7 +239,7 @@ impl ir::Scopes {
                     }
                     actual => {
                         return Err(compile::Error::expected_type::<_, OwnedTuple>(
-                            ir_target, &actual,
+                            ir_target, actual,
                         ))
                     }
                 };
@@ -266,14 +266,14 @@ impl ir::Scopes {
             ir::IrTargetKind::Field(target, field) => {
                 let current = self.get_target(target)?;
 
-                match current {
-                    ir::Value::Object(object) => {
+                match current.kind() {
+                    ir::ValueKind::Object(object) => {
                         let mut object = object.borrow_mut().with_span(ir_target)?;
                         object.try_insert(field.as_ref().try_to_owned()?, value)?;
                     }
                     actual => {
                         return Err(compile::Error::expected_type::<_, Object>(
-                            ir_target, &actual,
+                            ir_target, actual,
                         ));
                     }
                 }
@@ -283,8 +283,8 @@ impl ir::Scopes {
             ir::IrTargetKind::Index(target, index) => {
                 let current = self.get_target(target)?;
 
-                match current {
-                    ir::Value::Vec(vec) => {
+                match current.kind() {
+                    ir::ValueKind::Vec(vec) => {
                         let mut vec = vec.borrow_mut().with_span(ir_target)?;
 
                         if let Some(current) = vec.get_mut(*index) {
@@ -292,7 +292,7 @@ impl ir::Scopes {
                             return Ok(());
                         }
                     }
-                    ir::Value::Tuple(tuple) => {
+                    ir::ValueKind::Tuple(tuple) => {
                         let mut tuple = tuple.borrow_mut().with_span(ir_target)?;
 
                         if let Some(current) = tuple.get_mut(*index) {
@@ -302,7 +302,7 @@ impl ir::Scopes {
                     }
                     actual => {
                         return Err(compile::Error::expected_type::<_, OwnedTuple>(
-                            ir_target, &actual,
+                            ir_target, actual,
                         ));
                     }
                 };
@@ -326,8 +326,8 @@ impl ir::Scopes {
             ir::IrTargetKind::Field(target, field) => {
                 let current = self.get_target(target)?;
 
-                match current {
-                    ir::Value::Object(object) => {
+                match current.kind() {
+                    ir::ValueKind::Object(object) => {
                         let mut object = object.borrow_mut().with_span(ir_target)?;
 
                         let Some(value) = object.get_mut(field.as_ref()) else {
@@ -342,15 +342,15 @@ impl ir::Scopes {
                         op(value)
                     }
                     actual => Err(compile::Error::expected_type::<_, Object>(
-                        ir_target, &actual,
+                        ir_target, actual,
                     )),
                 }
             }
             ir::IrTargetKind::Index(target, index) => {
                 let current = self.get_target(target)?;
 
-                match current {
-                    ir::Value::Vec(vec) => {
+                match current.kind() {
+                    ir::ValueKind::Vec(vec) => {
                         let mut vec = vec.borrow_mut().with_span(ir_target)?;
 
                         let value = vec.get_mut(*index).ok_or_else(|| {
@@ -362,7 +362,7 @@ impl ir::Scopes {
 
                         op(value)
                     }
-                    ir::Value::Tuple(tuple) => {
+                    ir::ValueKind::Tuple(tuple) => {
                         let mut tuple = tuple.borrow_mut().with_span(ir_target)?;
 
                         let value = tuple.get_mut(*index).ok_or_else(|| {
@@ -375,7 +375,7 @@ impl ir::Scopes {
                         op(value)
                     }
                     actual => Err(compile::Error::expected_type::<_, OwnedTuple>(
-                        ir_target, &actual,
+                        ir_target, actual,
                     )),
                 }
             }

@@ -202,28 +202,30 @@ fn expr_binary(
 #[instrument(span = span)]
 fn lit(c: &mut Ctxt<'_, '_>, span: Span, hir: hir::Lit<'_>) -> compile::Result<ir::Ir> {
     Ok(match hir {
-        hir::Lit::Bool(boolean) => ir::Ir::new(span, ir::Value::Bool(boolean)),
+        hir::Lit::Bool(boolean) => ir::Ir::new(span, ir::Value::new(ir::ValueKind::Bool(boolean))),
         hir::Lit::Str(string) => ir::Ir::new(
             span,
-            ir::Value::String(Shared::new(string.try_to_owned()?).with_span(span)?),
+            ir::Value::new(ir::ValueKind::String(
+                Shared::new(string.try_to_owned()?).with_span(span)?,
+            )),
         ),
-        hir::Lit::Integer(n) => ir::Ir::new(span, ir::Value::Integer(n)),
-        hir::Lit::Float(n) => ir::Ir::new(span, ir::Value::Float(n)),
-        hir::Lit::Byte(b) => ir::Ir::new(span, ir::Value::Byte(b)),
+        hir::Lit::Integer(n) => ir::Ir::new(span, ir::Value::new(ir::ValueKind::Integer(n))),
+        hir::Lit::Float(n) => ir::Ir::new(span, ir::Value::new(ir::ValueKind::Float(n))),
+        hir::Lit::Byte(b) => ir::Ir::new(span, ir::Value::new(ir::ValueKind::Byte(b))),
         hir::Lit::ByteStr(byte_str) => {
-            let value = ir::Value::Bytes(
+            let value = ir::Value::new(ir::ValueKind::Bytes(
                 Shared::new(Bytes::from_vec(Vec::try_from(byte_str)?)).with_span(span)?,
-            );
+            ));
             ir::Ir::new(span, value)
         }
-        hir::Lit::Char(c) => ir::Ir::new(span, ir::Value::Char(c)),
+        hir::Lit::Char(c) => ir::Ir::new(span, ir::Value::new(ir::ValueKind::Char(c))),
     })
 }
 
 #[instrument(span = span)]
 fn expr_tuple(c: &mut Ctxt<'_, '_>, span: Span, hir: &hir::ExprSeq<'_>) -> compile::Result<ir::Ir> {
     if hir.items.is_empty() {
-        return Ok(ir::Ir::new(span, ir::Value::EmptyTuple));
+        return Ok(ir::Ir::new(span, ir::Value::new(ir::ValueKind::EmptyTuple)));
     }
 
     let mut items = Vec::new();

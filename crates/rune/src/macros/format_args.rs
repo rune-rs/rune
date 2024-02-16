@@ -49,8 +49,8 @@ impl FormatArgs {
             }
         }
 
-        let format = match format {
-            ir::Value::String(string) => string.take().with_span(&self.format)?,
+        let format = match format.into_kind() {
+            ir::ValueKind::String(string) => string.take().with_span(&self.format)?,
             _ => {
                 return Err(compile::Error::msg(
                     &self.format,
@@ -547,8 +547,8 @@ fn expand_format_spec<'a>(
 
             let value = cx.eval(expr)?;
 
-            let number = match &value {
-                ir::Value::Integer(n) => n.to_usize(),
+            let number = match value.kind() {
+                ir::ValueKind::Integer(n) => n.to_usize(),
                 _ => None,
             };
 

@@ -190,7 +190,7 @@ impl Error {
     }
 
     /// An error raised when we expect a certain constant value but get another.
-    pub(crate) fn expected_type<S, E>(spanned: S, actual: &ir::Value) -> Self
+    pub(crate) fn expected_type<S, E>(spanned: S, actual: &ir::ValueKind) -> Self
     where
         S: Spanned,
         E: TypeOf,

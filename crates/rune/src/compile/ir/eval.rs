@@ -13,7 +13,7 @@ use crate::runtime::Shared;
 fn as_bool(span: Span, value: ir::Value) -> compile::Result<bool> {
     value
         .into_bool()
-        .map_err(|actual| compile::Error::expected_type::<_, bool>(span, &actual))
+        .map_err(|actual| compile::Error::expected_type::<_, bool>(span, actual.kind()))
 }
 
 /// The outcome of a constant evaluation.
@@ -57,7 +57,7 @@ fn eval_ir_assign(
         .scopes
         .mut_target(&ir.target, move |t| ir.op.assign(ir, t, value))?;
 
-    Ok(ir::Value::EmptyTuple)
+    Ok(ir::Value::new(ir::ValueKind::EmptyTuple))
 }
 
 fn eval_ir_binary(
@@ -71,63 +71,65 @@ fn eval_ir_binary(
     let a = eval_ir(&ir.lhs, interp, used)?;
     let b = eval_ir(&ir.rhs, interp, used)?;
 
-    match (a, b) {
-        (ir::Value::Integer(a), ir::Value::Integer(b)) => match ir.op {
+    match (a.kind(), b.kind()) {
+        (ir::ValueKind::Integer(a), ir::ValueKind::Integer(b)) => match ir.op {
             ir::IrBinaryOp::Add => {
-                return Ok(ir::Value::Integer(a.add(&b)));
+                return Ok(ir::Value::new(ir::ValueKind::Integer(a.add(b))));
             }
             ir::IrBinaryOp::Sub => {
-                return Ok(ir::Value::Integer(a.sub(&b)));
+                return Ok(ir::Value::new(ir::ValueKind::Integer(a.sub(b))));
             }
             ir::IrBinaryOp::Mul => {
-                return Ok(ir::Value::Integer(a.mul(&b)));
+                return Ok(ir::Value::new(ir::ValueKind::Integer(a.mul(b))));
             }
             ir::IrBinaryOp::Div => {
                 let number = a
-                    .checked_div(b)
+                    .checked_div(*b)
                     .ok_or_else(|| compile::Error::msg(span, "division by zero"))?;
-                return Ok(ir::Value::Integer(number));
+                return Ok(ir::Value::new(ir::ValueKind::Integer(number)));
             }
             ir::IrBinaryOp::Shl => {
-                let b = u32::try_from(b).map_err(|_| {
+                let b = u32::try_from(*b).map_err(|_| {
                     compile::Error::msg(&ir.rhs, "cannot be converted to shift operand")
                 })?;
 
                 let n = a.shl(b);
-                return Ok(ir::Value::Integer(n));
+                return Ok(ir::Value::new(ir::ValueKind::Integer(n)));
             }
             ir::IrBinaryOp::Shr => {
-                let b = u32::try_from(b).map_err(|_| {
+                let b = u32::try_from(*b).map_err(|_| {
                     compile::Error::msg(&ir.rhs, "cannot be converted to shift operand")
                 })?;
 
                 let n = a.shr(b);
-                return Ok(ir::Value::Integer(n));
+                return Ok(ir::Value::new(ir::ValueKind::Integer(n)));
             }
-            ir::IrBinaryOp::Lt => return Ok(ir::Value::Bool(a < b)),
-            ir::IrBinaryOp::Lte => return Ok(ir::Value::Bool(a <= b)),
-            ir::IrBinaryOp::Eq => return Ok(ir::Value::Bool(a == b)),
-            ir::IrBinaryOp::Gt => return Ok(ir::Value::Bool(a > b)),
-            ir::IrBinaryOp::Gte => return Ok(ir::Value::Bool(a >= b)),
+            ir::IrBinaryOp::Lt => return Ok(ir::Value::new(ir::ValueKind::Bool(a < b))),
+            ir::IrBinaryOp::Lte => return Ok(ir::Value::new(ir::ValueKind::Bool(a <= b))),
+            ir::IrBinaryOp::Eq => return Ok(ir::Value::new(ir::ValueKind::Bool(a == b))),
+            ir::IrBinaryOp::Gt => return Ok(ir::Value::new(ir::ValueKind::Bool(a > b))),
+            ir::IrBinaryOp::Gte => return Ok(ir::Value::new(ir::ValueKind::Bool(a >= b))),
         },
-        (ir::Value::Float(a), ir::Value::Float(b)) => {
+        (ir::ValueKind::Float(a), ir::ValueKind::Float(b)) => {
             #[allow(clippy::float_cmp)]
             match ir.op {
-                ir::IrBinaryOp::Add => return Ok(ir::Value::Float(a + b)),
-                ir::IrBinaryOp::Sub => return Ok(ir::Value::Float(a - b)),
-                ir::IrBinaryOp::Mul => return Ok(ir::Value::Float(a * b)),
-                ir::IrBinaryOp::Div => return Ok(ir::Value::Float(a / b)),
-                ir::IrBinaryOp::Lt => return Ok(ir::Value::Bool(a < b)),
-                ir::IrBinaryOp::Lte => return Ok(ir::Value::Bool(a <= b)),
-                ir::IrBinaryOp::Eq => return Ok(ir::Value::Bool(a == b)),
-                ir::IrBinaryOp::Gt => return Ok(ir::Value::Bool(a > b)),
-                ir::IrBinaryOp::Gte => return Ok(ir::Value::Bool(a >= b)),
+                ir::IrBinaryOp::Add => return Ok(ir::Value::new(ir::ValueKind::Float(a + b))),
+                ir::IrBinaryOp::Sub => return Ok(ir::Value::new(ir::ValueKind::Float(a - b))),
+                ir::IrBinaryOp::Mul => return Ok(ir::Value::new(ir::ValueKind::Float(a * b))),
+                ir::IrBinaryOp::Div => return Ok(ir::Value::new(ir::ValueKind::Float(a / b))),
+                ir::IrBinaryOp::Lt => return Ok(ir::Value::new(ir::ValueKind::Bool(a < b))),
+                ir::IrBinaryOp::Lte => return Ok(ir::Value::new(ir::ValueKind::Bool(a <= b))),
+                ir::IrBinaryOp::Eq => return Ok(ir::Value::new(ir::ValueKind::Bool(a == b))),
+                ir::IrBinaryOp::Gt => return Ok(ir::Value::new(ir::ValueKind::Bool(a > b))),
+                ir::IrBinaryOp::Gte => return Ok(ir::Value::new(ir::ValueKind::Bool(a >= b))),
                 _ => (),
             };
         }
-        (ir::Value::String(a), ir::Value::String(b)) => {
+        (ir::ValueKind::String(a), ir::ValueKind::String(b)) => {
             if let ir::IrBinaryOp::Add = ir.op {
-                return Ok(ir::Value::String(add_strings(span, &a, &b)?));
+                return Ok(ir::Value::new(ir::ValueKind::String(add_strings(
+                    span, a, b,
+                )?)));
             }
         }
         _ => (),
@@ -175,7 +177,7 @@ fn eval_ir_branches(
         return eval_ir_scope(branch, interp, used);
     }
 
-    Ok(ir::Value::EmptyTuple)
+    Ok(ir::Value::new(ir::ValueKind::EmptyTuple))
 }
 
 fn eval_ir_call(
@@ -197,7 +199,7 @@ fn eval_ir_condition(
     interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
 ) -> Result<ir::Value, EvalOutcome> {
-    Ok(ir::Value::Bool(match ir {
+    Ok(ir::Value::new(ir::ValueKind::Bool(match ir {
         ir::IrCondition::Ir(ir) => {
             let value = eval_ir(ir, interp, used)?;
             as_bool(ir.span(), value)?
@@ -206,7 +208,7 @@ fn eval_ir_condition(
             let value = eval_ir(&ir_let.ir, interp, used)?;
             ir_let.pat.matches(interp, value, ir)?
         }
-    }))
+    })))
 }
 
 fn eval_ir_decl(
@@ -217,7 +219,7 @@ fn eval_ir_decl(
     interp.budget.take(ir)?;
     let value = eval_ir(&ir.value, interp, used)?;
     interp.scopes.decl(&ir.name, value).with_span(ir)?;
-    Ok(ir::Value::EmptyTuple)
+    Ok(ir::Value::new(ir::ValueKind::EmptyTuple))
 }
 
 fn eval_ir_loop(
@@ -268,7 +270,7 @@ fn eval_ir_loop(
 
         Ok(value)
     } else {
-        Ok(ir::Value::EmptyTuple)
+        Ok(ir::Value::new(ir::ValueKind::EmptyTuple))
     }
 }
 
@@ -283,7 +285,9 @@ fn eval_ir_object(
         object.try_insert(key.as_ref().try_to_owned()?, eval_ir(value, interp, used)?)?;
     }
 
-    Ok(ir::Value::Object(Shared::new(object).with_span(ir)?))
+    Ok(ir::Value::new(ir::ValueKind::Object(
+        Shared::new(object).with_span(ir)?,
+    )))
 }
 
 fn eval_ir_scope(
@@ -301,7 +305,7 @@ fn eval_ir_scope(
     let value = if let Some(last) = &ir.last {
         eval_ir(last, interp, used)?
     } else {
-        ir::Value::EmptyTuple
+        ir::Value::new(ir::ValueKind::EmptyTuple)
     };
 
     interp.scopes.pop(guard).with_span(ir)?;
@@ -316,7 +320,7 @@ fn eval_ir_set(
     interp.budget.take(ir)?;
     let value = eval_ir(&ir.value, interp, used)?;
     interp.scopes.set_target(&ir.target, value)?;
-    Ok(ir::Value::EmptyTuple)
+    Ok(ir::Value::new(ir::ValueKind::EmptyTuple))
 }
 
 fn eval_ir_template(
@@ -336,18 +340,18 @@ fn eval_ir_template(
             ir::IrTemplateComponent::Ir(ir) => {
                 let const_value = eval_ir(ir, interp, used)?;
 
-                match const_value {
-                    ir::Value::Integer(integer) => {
-                        write!(buf, "{}", integer)?;
+                match const_value.kind() {
+                    ir::ValueKind::Integer(integer) => {
+                        write!(buf, "{integer}")?;
                     }
-                    ir::Value::Float(float) => {
+                    ir::ValueKind::Float(float) => {
                         let mut buffer = ryu::Buffer::new();
-                        buf.try_push_str(buffer.format(float))?;
+                        buf.try_push_str(buffer.format(*float))?;
                     }
-                    ir::Value::Bool(b) => {
+                    ir::ValueKind::Bool(b) => {
                         write!(buf, "{}", b)?;
                     }
-                    ir::Value::String(s) => {
+                    ir::ValueKind::String(s) => {
                         let s = s.borrow_ref().with_span(ir)?;
                         buf.try_push_str(&s)?;
                     }
@@ -359,7 +363,9 @@ fn eval_ir_template(
         }
     }
 
-    Ok(ir::Value::String(Shared::new(buf).with_span(ir)?))
+    Ok(ir::Value::new(ir::ValueKind::String(
+        Shared::new(buf).with_span(ir)?,
+    )))
 }
 
 fn eval_ir_tuple(
@@ -373,9 +379,9 @@ fn eval_ir_tuple(
         items.try_push(eval_ir(item, interp, used)?)?;
     }
 
-    Ok(ir::Value::Tuple(
+    Ok(ir::Value::new(ir::ValueKind::Tuple(
         Shared::new(items.try_into_boxed_slice()?).with_span(ir)?,
-    ))
+    )))
 }
 
 fn eval_ir_vec(
@@ -389,7 +395,9 @@ fn eval_ir_vec(
         vec.try_push(eval_ir(item, interp, used)?)?;
     }
 
-    Ok(ir::Value::Vec(Shared::new(vec).with_span(ir)?))
+    Ok(ir::Value::new(ir::ValueKind::Vec(
+        Shared::new(vec).with_span(ir)?,
+    )))
 }
 
 /// IrEval the interior expression.
