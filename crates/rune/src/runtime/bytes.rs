@@ -452,7 +452,7 @@ mod tests {
         let shared = Value::try_from(Bytes::new())?;
 
         let _ = {
-            let shared = shared.into_bytes_ref().into_result()?;
+            let shared = shared.into_bytes_ref()?;
             let out = shared.try_clone()?;
             out
         };

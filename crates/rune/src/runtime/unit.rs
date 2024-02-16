@@ -23,9 +23,8 @@ use crate::runtime::{
 };
 use crate::Hash;
 
-pub use self::storage::{
-    ArrayUnit, BadInstruction, BadJump, EncodeError, UnitEncoder, UnitStorage,
-};
+pub use self::storage::{ArrayUnit, EncodeError, UnitEncoder, UnitStorage};
+pub(crate) use self::storage::{BadInstruction, BadJump};
 
 #[cfg(feature = "byte-code")]
 pub use self::byte_code::ByteCodeUnit;

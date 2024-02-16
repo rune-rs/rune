@@ -4,10 +4,8 @@
 mod tests;
 
 mod access;
-pub(crate) use self::access::Access;
-pub use self::access::{
-    AccessError, BorrowMut, BorrowRef, NotAccessibleMut, NotAccessibleRef, RawAccessGuard,
-};
+pub(crate) use self::access::{Access, AccessErrorKind};
+pub use self::access::{AccessError, BorrowMut, BorrowRef, RawAccessGuard};
 
 mod any_obj;
 pub use self::any_obj::{AnyObj, AnyObjError, AnyObjVtable};
@@ -169,14 +167,16 @@ mod vm_error;
 #[cfg(feature = "emit")]
 pub(crate) use self::vm_error::VmErrorAt;
 pub(crate) use self::vm_error::VmErrorKind;
-pub use self::vm_error::{try_result, TryFromResult, VmError, VmIntegerRepr, VmResult};
+pub use self::vm_error::{
+    try_result, RuntimeError, TryFromResult, VmError, VmIntegerRepr, VmResult,
+};
 
 mod vm_execution;
-pub use self::vm_execution::{ExecutionState, VmExecution, VmSendExecution};
+pub(crate) use self::vm_execution::ExecutionState;
+pub use self::vm_execution::{VmExecution, VmSendExecution};
 
 mod vm_halt;
-pub(crate) use self::vm_halt::VmHalt;
-pub use self::vm_halt::VmHaltInfo;
+pub(crate) use self::vm_halt::{VmHalt, VmHaltInfo};
 
 mod fmt;
 pub use self::fmt::Formatter;

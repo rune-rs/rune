@@ -230,7 +230,7 @@ where
 
 impl FromValue for AnyObj {
     fn from_value(value: Value) -> VmResult<Self> {
-        value.into_any_obj()
+        VmResult::Ok(vm_try!(value.into_any_obj()))
     }
 }
 
@@ -481,7 +481,7 @@ macro_rules! impl_number {
         impl FromValue for $ty {
             #[inline]
             fn from_value(value: Value) -> VmResult<Self> {
-                value.try_as_integer()
+                VmResult::Ok(vm_try!(value.try_as_integer()))
             }
         }
     };
@@ -501,7 +501,7 @@ impl_number!(isize);
 impl FromValue for f64 {
     #[inline]
     fn from_value(value: Value) -> VmResult<Self> {
-        value.as_float()
+        VmResult::Ok(vm_try!(value.as_float()))
     }
 }
 
@@ -570,6 +570,6 @@ impl_try_map!(alloc::HashMap<::rust_alloc::string::String, T>, ::rust_alloc::str
 impl FromValue for Ordering {
     #[inline]
     fn from_value(value: Value) -> VmResult<Self> {
-        value.as_ordering()
+        VmResult::Ok(vm_try!(value.as_ordering()))
     }
 }

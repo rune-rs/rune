@@ -18,42 +18,45 @@ const MOVED: isize = isize::MAX;
 const MAX_USES: isize = isize::MIN;
 
 /// An error raised while downcasting.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 #[allow(missing_docs)]
 #[non_exhaustive]
-pub enum AccessError {
-    UnexpectedType { expected: RawStr, actual: RawStr },
-    NotAccessibleRef { error: NotAccessibleRef },
-    NotAccessibleMut { error: NotAccessibleMut },
-    NotAccessibleTake { error: NotAccessibleTake },
-    AnyObjError { error: AnyObjError },
+pub struct AccessError {
+    kind: AccessErrorKind,
 }
 
-cfg_std! {
-    impl std::error::Error for AccessError {
-        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-            match self {
-                AccessError::NotAccessibleRef { error, .. } => Some(error),
-                AccessError::NotAccessibleMut { error, .. } => Some(error),
-                AccessError::NotAccessibleTake { error, .. } => Some(error),
-                AccessError::AnyObjError { error, .. } => Some(error),
-                _ => None,
-            }
-        }
+impl AccessError {
+    #[inline]
+    pub(crate) fn new(kind: AccessErrorKind) -> Self {
+        Self { kind }
     }
 }
 
 impl fmt::Display for AccessError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            AccessError::UnexpectedType { expected, actual } => write!(
+        match &self.kind {
+            AccessErrorKind::UnexpectedType { expected, actual } => write!(
                 f,
                 "Expected data of type `{expected}`, but found `{actual}`",
             ),
-            AccessError::NotAccessibleRef { error } => error.fmt(f),
-            AccessError::NotAccessibleMut { error } => error.fmt(f),
-            AccessError::NotAccessibleTake { error } => error.fmt(f),
-            AccessError::AnyObjError { error } => error.fmt(f),
+            AccessErrorKind::NotAccessibleRef { error } => error.fmt(f),
+            AccessErrorKind::NotAccessibleMut { error } => error.fmt(f),
+            AccessErrorKind::NotAccessibleTake { error } => error.fmt(f),
+            AccessErrorKind::AnyObjError { error } => error.fmt(f),
+        }
+    }
+}
+
+cfg_std! {
+    impl std::error::Error for AccessError {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            match &self.kind {
+                AccessErrorKind::NotAccessibleRef { error, .. } => Some(error),
+                AccessErrorKind::NotAccessibleMut { error, .. } => Some(error),
+                AccessErrorKind::NotAccessibleTake { error, .. } => Some(error),
+                AccessErrorKind::AnyObjError { error, .. } => Some(error),
+                _ => None,
+            }
         }
     }
 }
@@ -61,35 +64,51 @@ impl fmt::Display for AccessError {
 impl From<NotAccessibleRef> for AccessError {
     #[inline]
     fn from(error: NotAccessibleRef) -> Self {
-        AccessError::NotAccessibleRef { error }
+        AccessError::new(AccessErrorKind::NotAccessibleRef { error })
     }
 }
 
 impl From<NotAccessibleMut> for AccessError {
     #[inline]
     fn from(error: NotAccessibleMut) -> Self {
-        AccessError::NotAccessibleMut { error }
+        AccessError::new(AccessErrorKind::NotAccessibleMut { error })
     }
 }
 
 impl From<NotAccessibleTake> for AccessError {
     #[inline]
     fn from(error: NotAccessibleTake) -> Self {
-        AccessError::NotAccessibleTake { error }
+        AccessError::new(AccessErrorKind::NotAccessibleTake { error })
     }
 }
 
 impl From<AnyObjError> for AccessError {
     #[inline]
     fn from(source: AnyObjError) -> Self {
-        AccessError::AnyObjError { error: source }
+        AccessError::new(AccessErrorKind::AnyObjError { error: source })
     }
+}
+
+impl From<AccessErrorKind> for AccessError {
+    #[inline]
+    fn from(kind: AccessErrorKind) -> Self {
+        AccessError::new(kind)
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub(crate) enum AccessErrorKind {
+    UnexpectedType { expected: RawStr, actual: RawStr },
+    NotAccessibleRef { error: NotAccessibleRef },
+    NotAccessibleMut { error: NotAccessibleMut },
+    NotAccessibleTake { error: NotAccessibleTake },
+    AnyObjError { error: AnyObjError },
 }
 
 /// Error raised when tried to access for shared access but it was not
 /// accessible.
-#[derive(Debug)]
-pub struct NotAccessibleRef(Snapshot);
+#[derive(Debug, PartialEq)]
+pub(crate) struct NotAccessibleRef(Snapshot);
 
 impl fmt::Display for NotAccessibleRef {
     #[inline]
@@ -104,8 +123,8 @@ cfg_std! {
 
 /// Error raised when tried to access for exclusive access but it was not
 /// accessible.
-#[derive(Debug)]
-pub struct NotAccessibleMut(Snapshot);
+#[derive(Debug, PartialEq)]
+pub(crate) struct NotAccessibleMut(Snapshot);
 
 impl fmt::Display for NotAccessibleMut {
     #[inline]
@@ -122,8 +141,8 @@ cfg_std! {
 ///
 /// This requires exclusive access, but it's a scenario we structure separately
 /// for diagnostics purposes.
-#[derive(Debug)]
-pub struct NotAccessibleTake(Snapshot);
+#[derive(Debug, PartialEq)]
+pub(crate) struct NotAccessibleTake(Snapshot);
 
 impl fmt::Display for NotAccessibleTake {
     #[inline]
@@ -138,7 +157,7 @@ cfg_std! {
 
 /// Snapshot that can be used to indicate how the value was being accessed at
 /// the time of an error.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 #[repr(transparent)]
 struct Snapshot(isize);
 
@@ -345,7 +364,7 @@ impl<'a, T: ?Sized> BorrowRef<'a, T> {
     /// use rune::alloc::try_vec;
     ///
     /// let bytes = rune::to_value(Bytes::from_vec(try_vec![1, 2, 3, 4]))?;
-    /// let bytes = bytes.borrow_bytes_ref().into_result()?;
+    /// let bytes = bytes.borrow_bytes_ref()?;
     ///
     /// let bytes: BorrowRef<[u8]> = BorrowRef::map(bytes, |bytes| &bytes[0..2]);
     ///
@@ -368,7 +387,7 @@ impl<'a, T: ?Sized> BorrowRef<'a, T> {
     /// use rune::alloc::try_vec;
     ///
     /// let bytes = rune::to_value(Bytes::from_vec(try_vec![1, 2, 3, 4]))?;
-    /// let bytes = bytes.borrow_bytes_ref().into_result()?;
+    /// let bytes = bytes.borrow_bytes_ref()?;
     ///
     /// let Ok(bytes) = BorrowRef::try_map(bytes, |bytes| bytes.get(0..2)) else {
     ///     panic!("Conversion failed");
@@ -495,7 +514,7 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
     /// use rune::alloc::try_vec;
     ///
     /// let bytes = rune::to_value(Bytes::from_vec(try_vec![1, 2, 3, 4]))?;
-    /// let bytes = bytes.borrow_bytes_mut().into_result()?;
+    /// let bytes = bytes.borrow_bytes_mut()?;
     ///
     /// let mut bytes: BorrowMut<[u8]> = BorrowMut::map(bytes, |bytes| &mut bytes[0..2]);
     ///
@@ -522,7 +541,7 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
     /// use rune::alloc::try_vec;
     ///
     /// let bytes = rune::to_value(Bytes::from_vec(try_vec![1, 2, 3, 4]))?;
-    /// let bytes = bytes.borrow_bytes_mut().into_result()?;
+    /// let bytes = bytes.borrow_bytes_mut()?;
     ///
     /// let Ok(mut bytes) = BorrowMut::try_map(bytes, |bytes| bytes.get_mut(0..2)) else {
     ///     panic!("Conversion failed");

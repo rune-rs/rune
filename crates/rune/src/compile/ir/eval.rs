@@ -153,7 +153,7 @@ fn eval_ir_branches(
 
         let value = eval_ir_condition(ir_condition, interp, used)?;
 
-        let output = if value.as_bool().into_result().with_span(ir_condition)? {
+        let output = if value.as_bool().with_span(ir_condition)? {
             Some(eval_ir_scope(branch, interp, used)?)
         } else {
             None
@@ -195,7 +195,7 @@ fn eval_ir_condition(
     let value = match ir {
         ir::IrCondition::Ir(ir) => {
             let value = eval_ir(ir, interp, used)?;
-            value.as_bool().into_result().with_span(ir)?
+            value.as_bool().with_span(ir)?
         }
         ir::IrCondition::Let(ir_let) => {
             let value = eval_ir(&ir_let.ir, interp, used)?;
@@ -233,7 +233,7 @@ fn eval_ir_loop(
 
             let value = eval_ir_condition(condition, interp, used)?;
 
-            if !value.as_bool().into_result().with_span(condition)? {
+            if !value.as_bool().with_span(condition)? {
                 break None;
             }
         }

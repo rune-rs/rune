@@ -17,7 +17,7 @@ use crate::parse::{Expectation, IntoExpectation, LexerMode};
 use crate::query::MissingId;
 use crate::runtime::debug::DebugSignature;
 use crate::runtime::unit::EncodeError;
-use crate::runtime::{AccessError, TypeInfo, TypeOf, ValueKind, VmError};
+use crate::runtime::{AccessError, RuntimeError, TypeInfo, TypeOf, ValueKind, VmError};
 #[cfg(feature = "std")]
 use crate::source;
 use crate::{Hash, SourceId};
@@ -1091,6 +1091,13 @@ impl From<VmError> for ErrorKind {
     #[inline]
     fn from(error: VmError) -> Self {
         ErrorKind::VmError(error)
+    }
+}
+
+impl From<RuntimeError> for ErrorKind {
+    #[inline]
+    fn from(error: RuntimeError) -> Self {
+        ErrorKind::VmError(VmError::new(error.into_vm_error_kind()))
     }
 }
 

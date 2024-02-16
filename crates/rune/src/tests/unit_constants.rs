@@ -16,8 +16,7 @@ fn test_get_const() -> Result<()> {
         unit.constant(Hash::type_hash(["LEET"]))
             .context("missing constant")?
             .as_value()?
-            .as_integer()
-            .into_result()?,
+            .as_integer()?,
         1337
     );
     Ok(())
@@ -43,8 +42,7 @@ fn test_get_const_re_export() -> Result<()> {
         unit.constant(Hash::type_hash(["LEET"]))
             .context("missing constant")?
             .as_value()?
-            .as_integer()
-            .into_result()?,
+            .as_integer()?,
         1337
     );
     Ok(())

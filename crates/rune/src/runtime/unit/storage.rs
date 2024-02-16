@@ -48,24 +48,30 @@ pub trait UnitEncoder: self::sealed::Sealed {
 /// Instruction storage used by a [`Unit`][super::Unit].
 pub trait UnitStorage: self::sealed::Sealed + fmt::Debug + Default {
     /// Iterator over instructions and their corresponding instruction offsets.
+    #[doc(hidden)]
     type Iter<'this>: Iterator<Item = (usize, Inst)>
     where
         Self: 'this;
 
     /// Size of unit storage. This can be seen as the instruction pointer which
     /// is just beyond the last instruction.
+    #[doc(hidden)]
     fn end(&self) -> usize;
 
     /// Get the number of bytes which is used to store unit bytecode.
+    #[doc(hidden)]
     fn bytes(&self) -> usize;
 
     /// Iterate over all instructions.
+    #[doc(hidden)]
     fn iter(&self) -> Self::Iter<'_>;
 
     /// Get the instruction at the given instruction pointer.
+    #[doc(hidden)]
     fn get(&self, ip: usize) -> Result<Option<(Inst, usize)>, BadInstruction>;
 
     /// Translate the given jump offset.
+    #[doc(hidden)]
     fn translate(&self, jump: usize) -> Result<usize, BadJump>;
 }
 
@@ -191,7 +197,7 @@ enum EncodeErrorKind {
 
 /// Error indicating that a bad instruction was located at the given instruction
 /// pointer.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct BadInstruction {
     pub(crate) ip: usize,
 }
@@ -209,7 +215,7 @@ cfg_std! {
 
 /// Error indicating that a bad instruction was located at the given instruction
 /// pointer.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct BadJump {
     pub(crate) jump: usize,
 }

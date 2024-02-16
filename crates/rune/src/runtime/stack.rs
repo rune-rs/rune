@@ -10,7 +10,7 @@ use crate::alloc::{self, Vec};
 use crate::runtime::{InstAddress, Value};
 
 /// An error raised when interacting with the stack.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 #[non_exhaustive]
 pub struct StackError;
 

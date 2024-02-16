@@ -11,8 +11,8 @@ use crate::compile::ItemBuf;
 use crate::hash::Hash;
 use crate::runtime::unit::{BadInstruction, BadJump};
 use crate::runtime::{
-    AccessError, BoxedPanic, CallFrame, ExecutionState, FullTypeOf, MaybeTypeOf, Panic, Protocol,
-    StackError, TypeInfo, TypeOf, Unit, Vm, VmHaltInfo,
+    AccessError, AccessErrorKind, BoxedPanic, CallFrame, ExecutionState, FullTypeOf, MaybeTypeOf,
+    Panic, Protocol, StackError, TypeInfo, TypeOf, Unit, Vm, VmHaltInfo,
 };
 
 /// Trait used to convert result types to [`VmResult`].
@@ -446,11 +446,103 @@ impl From<Panic> for VmErrorKind {
     }
 }
 
+/// An opaque simple runtime error.
+#[derive(Debug, PartialEq)]
+pub struct RuntimeError {
+    error: VmErrorKind,
+}
+
+impl RuntimeError {
+    pub(crate) fn new(error: VmErrorKind) -> Self {
+        Self { error }
+    }
+
+    pub(crate) fn into_vm_error_kind(self) -> VmErrorKind {
+        self.error
+    }
+
+    /// Construct an expected error.
+    pub(crate) fn expected<T>(actual: TypeInfo) -> Self
+    where
+        T: ?Sized + TypeOf,
+    {
+        Self::new(VmErrorKind::Expected {
+            expected: T::type_info(),
+            actual,
+        })
+    }
+
+    /// Construct an expected any error.
+    pub(crate) fn expected_any(actual: TypeInfo) -> Self {
+        Self::new(VmErrorKind::ExpectedAny { actual })
+    }
+}
+
+impl From<AccessError> for RuntimeError {
+    #[inline]
+    fn from(error: AccessError) -> Self {
+        Self {
+            error: VmErrorKind::from(error),
+        }
+    }
+}
+
+impl From<AccessErrorKind> for RuntimeError {
+    #[inline]
+    fn from(error: AccessErrorKind) -> Self {
+        Self {
+            error: VmErrorKind::from(AccessError::from(error)),
+        }
+    }
+}
+
+impl From<VmErrorKind> for RuntimeError {
+    #[inline]
+    fn from(error: VmErrorKind) -> Self {
+        Self { error }
+    }
+}
+
+impl fmt::Display for RuntimeError {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.error.fmt(f)
+    }
+}
+
+cfg_std! {
+    impl std::error::Error for RuntimeError {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            match &self.error {
+                VmErrorKind::AllocError {
+                    error,
+                } => Some(error),
+                VmErrorKind::AccessError {
+                    error,
+                } => Some(error),
+                VmErrorKind::StackError {
+                    error,
+                } => Some(error),
+                VmErrorKind::BadInstruction {
+                    error,
+                } => Some(error),
+                VmErrorKind::BadJump {
+                    error,
+                } => Some(error),
+                _ => None,
+            }
+        }
+    }
+}
+
 /// The kind of error encountered.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 #[non_exhaustive]
 #[doc(hidden)]
 pub(crate) enum VmErrorKind {
+    AllocError {
+        error: alloc::Error,
+    },
     AccessError {
         error: AccessError,
     },
@@ -656,27 +748,25 @@ pub(crate) enum VmErrorKind {
     },
     MissingCallFrame,
     IllegalFormat,
-    AllocError {
-        error: alloc::Error,
-    },
 }
 
 impl fmt::Display for VmErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            VmErrorKind::AllocError { error } => error.fmt(f),
             VmErrorKind::AccessError { error } => {
                 write!(f, "{error}")
             }
-            VmErrorKind::StackError { error } => write!(f, "Stack error: {error}",),
+            VmErrorKind::StackError { error } => write!(f, "{error}"),
             VmErrorKind::BadInstruction { error } => {
                 write!(f, "{error}")
             }
             VmErrorKind::BadJump { error } => {
                 write!(f, "{error}")
             }
-            VmErrorKind::Panic { reason } => write!(f, "Panicked: {reason}",),
+            VmErrorKind::Panic { reason } => write!(f, "Panicked: {reason}"),
             VmErrorKind::NoRunningVm {} => write!(f, "No running virtual machines"),
-            VmErrorKind::Halted { halt } => write!(f, "Halted for unexpected reason `{halt}`",),
+            VmErrorKind::Halted { halt } => write!(f, "Halted for unexpected reason `{halt}`"),
             VmErrorKind::Overflow {} => write!(f, "Numerical overflow"),
             VmErrorKind::Underflow {} => write!(f, "Numerical underflow"),
             VmErrorKind::DivideByZero {} => write!(f, "Division by zero"),
@@ -826,7 +916,7 @@ impl fmt::Display for VmErrorKind {
                 write!(f, "Cannot resume a generator that has completed")
             }
             VmErrorKind::FutureCompleted {} => write!(f, "Future already completed"),
-            VmErrorKind::MissingVariant { name } => write!(f, "No variant matching `{name}`",),
+            VmErrorKind::MissingVariant { name } => write!(f, "No variant matching `{name}`"),
             VmErrorKind::MissingField { target, field } => {
                 write!(f, "Missing field `{field}` on `{target}`",)
             }
@@ -864,8 +954,14 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::IllegalFormat => {
                 write!(f, "Value cannot be formatted")
             }
-            VmErrorKind::AllocError { error } => error.fmt(f),
         }
+    }
+}
+
+impl From<RuntimeError> for VmErrorKind {
+    #[inline(always)]
+    fn from(value: RuntimeError) -> Self {
+        value.into_vm_error_kind()
     }
 }
 
@@ -922,12 +1018,12 @@ impl From<alloc::alloc::AllocError> for VmErrorKind {
 
 impl VmErrorKind {
     /// Bad argument.
-    pub fn bad_argument(arg: usize) -> Self {
+    pub(crate) fn bad_argument(arg: usize) -> Self {
         Self::BadArgument { arg }
     }
 
     /// Construct an expected error.
-    pub fn expected<T>(actual: TypeInfo) -> Self
+    pub(crate) fn expected<T>(actual: TypeInfo) -> Self
     where
         T: ?Sized + TypeOf,
     {
@@ -936,15 +1032,10 @@ impl VmErrorKind {
             actual,
         }
     }
-
-    /// Construct an expected any error.
-    pub fn expected_any(actual: TypeInfo) -> Self {
-        Self::ExpectedAny { actual }
-    }
 }
 
 /// A type-erased rust number.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct VmIntegerRepr(num::BigInt);
 
 impl<T> From<T> for VmIntegerRepr

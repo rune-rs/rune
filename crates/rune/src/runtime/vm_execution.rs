@@ -17,9 +17,9 @@ use crate::shared::AssertSend;
 /// correctly interact with functions that yield (like generators and streams)
 /// by initially just calling the function, then by providing a value pushed
 /// onto the stack.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[non_exhaustive]
-pub enum ExecutionState {
+pub(crate) enum ExecutionState {
     /// The initial state of an execution.
     Initial,
     /// The resumed state of an execution. This expects a value to be pushed

@@ -10,7 +10,7 @@ struct Foo(isize);
 #[test]
 fn test_take() -> Result<()> {
     let thing = Value::try_from(AnyObj::new(Foo(0))?)?;
-    let _ = thing.into_any_obj().into_result()?;
+    let _ = thing.into_any_obj()?;
     Ok(())
 }
 
@@ -18,7 +18,7 @@ fn test_take() -> Result<()> {
 fn test_clone_take() -> Result<()> {
     let thing = Value::try_from(AnyObj::new(Foo(0))?)?;
     let thing2 = thing.clone();
-    assert_eq!(Foo(0), thing2.into_any::<Foo>().into_result()?);
+    assert_eq!(Foo(0), thing2.into_any::<Foo>()?);
     assert!(thing.into_any_obj().is_err());
     Ok(())
 }
@@ -33,10 +33,7 @@ fn test_from_ref() -> Result<()> {
     unsafe {
         let (value, guard) = Value::from_ref(&value)?;
         assert!(value.clone().into_any_mut::<Thing>().is_err());
-        assert_eq!(
-            10u32,
-            value.clone().into_any_ref::<Thing>().into_result()?.0
-        );
+        assert_eq!(10u32, value.clone().into_any_ref::<Thing>()?.0);
 
         drop(guard);
 
@@ -56,16 +53,10 @@ fn test_from_mut() -> Result<()> {
 
     unsafe {
         let (value, guard) = Value::from_mut(&mut value)?;
-        value.clone().into_any_mut::<Thing>().into_result()?.0 = 20;
+        value.clone().into_any_mut::<Thing>()?.0 = 20;
 
-        assert_eq!(
-            20u32,
-            value.clone().into_any_mut::<Thing>().into_result()?.0
-        );
-        assert_eq!(
-            20u32,
-            value.clone().into_any_ref::<Thing>().into_result()?.0
-        );
+        assert_eq!(20u32, value.clone().into_any_mut::<Thing>()?.0);
+        assert_eq!(20u32, value.clone().into_any_ref::<Thing>()?.0);
 
         drop(guard);
 

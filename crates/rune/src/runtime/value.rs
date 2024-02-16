@@ -15,12 +15,12 @@ use crate::alloc::{self, String};
 use crate::compile::ItemBuf;
 use crate::runtime::vm::CallResult;
 use crate::runtime::{
-    AccessError, AnyObj, AnyObjError, BorrowMut, BorrowRef, Bytes, ConstValue, ControlFlow,
-    EnvProtocolCaller, Format, Formatter, FromValue, FullTypeOf, Function, Future, Generator,
-    GeneratorState, Iterator, MaybeTypeOf, Mut, Object, OwnedTuple, Protocol, ProtocolCaller,
-    Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Ref, Shared,
-    SharedPointerGuard, Stream, ToValue, Type, TypeInfo, Variant, Vec, Vm, VmErrorKind,
-    VmIntegerRepr, VmResult,
+    AccessError, AccessErrorKind, AnyObj, AnyObjError, BorrowMut, BorrowRef, Bytes, ConstValue,
+    ControlFlow, EnvProtocolCaller, Format, Formatter, FromValue, FullTypeOf, Function, Future,
+    Generator, GeneratorState, Iterator, MaybeTypeOf, Mut, Object, OwnedTuple, Protocol,
+    ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Ref,
+    RuntimeError, Shared, SharedPointerGuard, Stream, ToValue, Type, TypeInfo, Variant, Vec, Vm,
+    VmErrorKind, VmIntegerRepr, VmResult,
 };
 #[cfg(feature = "alloc")]
 use crate::runtime::{Hasher, Tuple};
@@ -43,16 +43,16 @@ macro_rules! into_base {
         /// This ensures that the value has read access to the underlying value
         /// and does not consume it.
         #[inline]
-        pub fn $into_ref(self) -> VmResult<Ref<$ty>> {
-            let result = Ref::try_map(vm_try!(self.into_kind_ref()), |kind| match kind {
+        pub fn $into_ref(self) -> Result<Ref<$ty>, RuntimeError> {
+            let result = Ref::try_map(self.into_kind_ref()?, |kind| match kind {
                 ValueKind::$kind(bytes) => Some(bytes),
                 _ => None,
             });
 
             match result {
-                Ok(bytes) => VmResult::Ok(bytes),
+                Ok(bytes) => Ok(bytes),
                 Err(actual) => {
-                    VmResult::err(VmErrorKind::expected::<$ty>(actual.type_info()))
+                    Err(RuntimeError::expected::<$ty>(actual.type_info()))
                 }
             }
         }
@@ -62,16 +62,16 @@ macro_rules! into_base {
         /// This ensures that the value has write access to the underlying value
         /// and does not consume it.
         #[inline]
-        pub fn $into_mut(self) -> VmResult<Mut<$ty>> {
-            let result = Mut::try_map(vm_try!(self.into_kind_mut()), |kind| match kind {
+        pub fn $into_mut(self) -> Result<Mut<$ty>, RuntimeError> {
+            let result = Mut::try_map(self.into_kind_mut()?, |kind| match kind {
                 ValueKind::$kind(bytes) => Some(bytes),
                 _ => None,
             });
 
             match result {
-                Ok(bytes) => VmResult::Ok(bytes),
+                Ok(bytes) => Ok(bytes),
                 Err(actual) => {
-                    VmResult::err(VmErrorKind::expected::<$ty>(actual.type_info()))
+                    Err(RuntimeError::expected::<$ty>(actual.type_info()))
                 }
             }
         }
@@ -81,16 +81,16 @@ macro_rules! into_base {
         /// This ensures that the value has read access to the underlying value
         /// and does not consume it.
         #[inline]
-        pub fn $borrow_ref(&self) -> VmResult<BorrowRef<'_, $ty>> {
-            let result = BorrowRef::try_map(vm_try!(self.borrow_kind_ref()), |kind| match kind {
+        pub fn $borrow_ref(&self) -> Result<BorrowRef<'_, $ty>, RuntimeError> {
+            let result = BorrowRef::try_map(self.borrow_kind_ref()?, |kind| match kind {
                 ValueKind::$kind(bytes) => Some(bytes),
                 _ => None,
             });
 
             match result {
-                Ok(bytes) => VmResult::Ok(bytes),
+                Ok(bytes) => Ok(bytes),
                 Err(actual) => {
-                    VmResult::err(VmErrorKind::expected::<$ty>(actual.type_info()))
+                    Err(RuntimeError::expected::<$ty>(actual.type_info()))
                 }
             }
         }
@@ -100,16 +100,16 @@ macro_rules! into_base {
         /// This ensures that the value has write access to the underlying value
         /// and does not consume it.
         #[inline]
-        pub fn $borrow_mut(&self) -> VmResult<BorrowMut<'_, $ty>> {
-            let result = BorrowMut::try_map(vm_try!(self.borrow_kind_mut()), |kind| match kind {
+        pub fn $borrow_mut(&self) -> Result<BorrowMut<'_, $ty>, RuntimeError> {
+            let result = BorrowMut::try_map(self.borrow_kind_mut()?, |kind| match kind {
                 ValueKind::$kind(bytes) => Some(bytes),
                 _ => None,
             });
 
             match result {
-                Ok(bytes) => VmResult::Ok(bytes),
+                Ok(bytes) => Ok(bytes),
                 Err(actual) => {
-                    VmResult::err(VmErrorKind::expected::<$ty>(actual.type_info()))
+                    Err(RuntimeError::expected::<$ty>(actual.type_info()))
                 }
             }
         }
@@ -139,11 +139,11 @@ macro_rules! into {
         ///
         /// This consumes the underlying value.
         #[inline]
-        pub fn $into(self) -> VmResult<$ty> {
-            match vm_try!(self.take_kind()) {
-                ValueKind::$kind(value) => VmResult::Ok(value),
-                ref actual => {
-                    VmResult::err(VmErrorKind::expected::<$ty>(actual.type_info()))
+        pub fn $into(self) -> Result<$ty, RuntimeError> {
+            match self.take_kind()? {
+                ValueKind::$kind(value) => Ok(value),
+                actual => {
+                    Err(RuntimeError::expected::<$ty>(actual.type_info()))
                 }
             }
         }
@@ -173,11 +173,11 @@ macro_rules! copy_into {
         ///
         /// This copied the underlying value.
         #[inline]
-        pub fn $as(&self) -> VmResult<$ty> {
-            match *vm_try!(self.borrow_kind_ref()) {
-                ValueKind::$kind(value) => VmResult::Ok(value),
+        pub fn $as(&self) -> Result<$ty, RuntimeError> {
+            match *self.borrow_kind_ref()? {
+                ValueKind::$kind(value) => Ok(value),
                 ref actual => {
-                    VmResult::err(VmErrorKind::expected::<$ty>(actual.type_info()))
+                    Err(RuntimeError::expected::<$ty>(actual.type_info()))
                 }
             }
         }
@@ -207,11 +207,11 @@ macro_rules! clone_into {
         ///
         /// This clones the underlying value.
         #[inline]
-        pub fn $as(&self) -> VmResult<$ty> {
-            match &*vm_try!(self.borrow_kind_ref()) {
-                ValueKind::$kind(value) => VmResult::Ok(value.clone()),
+        pub fn $as(&self) -> Result<$ty, RuntimeError> {
+            match &*self.borrow_kind_ref()? {
+                ValueKind::$kind(value) => Ok(value.clone()),
                 actual => {
-                    VmResult::err(VmErrorKind::expected::<$ty>(actual.type_info()))
+                    Err(RuntimeError::expected::<$ty>(actual.type_info()))
                 }
             }
         }
@@ -533,7 +533,7 @@ impl Value {
     /// unsafe {
     ///     let (mut any, guard) = Value::from_mut(&mut v)?;
     ///
-    ///     if let VmResult::Ok(mut v) = any.into_any_mut::<Foo>() {
+    ///     if let Ok(mut v) = any.into_any_mut::<Foo>() {
     ///         v.0 += 1;
     ///     }
     /// }
@@ -963,55 +963,55 @@ impl Value {
 
     /// Try to coerce value into a usize.
     #[inline]
-    pub fn as_usize(&self) -> VmResult<usize> {
+    pub fn as_usize(&self) -> Result<usize, RuntimeError> {
         self.try_as_integer()
     }
 
     /// Get the value as a string.
     #[inline]
-    pub fn as_string(&self) -> VmResult<BorrowRef<'_, str>> {
-        let result = BorrowRef::try_map(vm_try!(self.inner.borrow_ref()), |kind| match kind {
+    pub fn as_string(&self) -> Result<BorrowRef<'_, str>, RuntimeError> {
+        let result = BorrowRef::try_map(self.inner.borrow_ref()?, |kind| match kind {
             ValueKind::String(string) => Some(string.as_str()),
             _ => None,
         });
 
         match result {
-            Ok(s) => VmResult::Ok(s),
-            Err(actual) => VmResult::expected::<String>(actual.type_info()),
+            Ok(s) => Ok(s),
+            Err(actual) => Err(RuntimeError::expected::<String>(actual.type_info())),
         }
     }
 
     /// Take the current value as a string.
     #[inline]
-    pub fn into_string(self) -> VmResult<String> {
-        match vm_try!(self.inner.take()) {
-            ValueKind::String(string) => VmResult::Ok(string),
-            actual => err(VmErrorKind::expected::<String>(actual.type_info())),
+    pub fn into_string(self) -> Result<String, RuntimeError> {
+        match self.inner.take()? {
+            ValueKind::String(string) => Ok(string),
+            actual => Err(RuntimeError::expected::<String>(actual.type_info())),
         }
     }
 
     /// Coerce into type value.
     #[doc(hidden)]
     #[inline]
-    pub fn into_type_value(self) -> VmResult<TypeValue> {
-        match vm_try!(self.inner.take()) {
-            ValueKind::EmptyTuple => VmResult::Ok(TypeValue::EmptyTuple),
-            ValueKind::Tuple(tuple) => VmResult::Ok(TypeValue::Tuple(tuple)),
-            ValueKind::Object(object) => VmResult::Ok(TypeValue::Object(object)),
-            ValueKind::EmptyStruct(empty) => VmResult::Ok(TypeValue::EmptyStruct(empty)),
-            ValueKind::TupleStruct(tuple) => VmResult::Ok(TypeValue::TupleStruct(tuple)),
-            ValueKind::Struct(object) => VmResult::Ok(TypeValue::Struct(object)),
-            ValueKind::Variant(object) => VmResult::Ok(TypeValue::Variant(object)),
-            kind => VmResult::Ok(TypeValue::NotTyped(NotTypedValueKind(kind))),
+    pub fn into_type_value(self) -> Result<TypeValue, RuntimeError> {
+        match self.inner.take()? {
+            ValueKind::EmptyTuple => Ok(TypeValue::EmptyTuple),
+            ValueKind::Tuple(tuple) => Ok(TypeValue::Tuple(tuple)),
+            ValueKind::Object(object) => Ok(TypeValue::Object(object)),
+            ValueKind::EmptyStruct(empty) => Ok(TypeValue::EmptyStruct(empty)),
+            ValueKind::TupleStruct(tuple) => Ok(TypeValue::TupleStruct(tuple)),
+            ValueKind::Struct(object) => Ok(TypeValue::Struct(object)),
+            ValueKind::Variant(object) => Ok(TypeValue::Variant(object)),
+            kind => Ok(TypeValue::NotTyped(NotTypedValueKind(kind))),
         }
     }
 
     /// Coerce into a unit.
     #[inline]
-    pub fn into_unit(&self) -> VmResult<()> {
-        match *vm_try!(self.inner.borrow_ref()) {
-            ValueKind::EmptyTuple => VmResult::Ok(()),
-            ref actual => err(VmErrorKind::expected::<()>(actual.type_info())),
+    pub fn into_unit(&self) -> Result<(), RuntimeError> {
+        match *self.inner.borrow_ref()? {
+            ValueKind::EmptyTuple => Ok(()),
+            ref actual => Err(RuntimeError::expected::<()>(actual.type_info())),
         }
     }
 
@@ -1288,10 +1288,10 @@ impl Value {
     ///
     /// This consumes the underlying value.
     #[inline]
-    pub fn into_any_obj(self) -> VmResult<AnyObj> {
-        match vm_try!(self.take_kind()) {
-            ValueKind::Any(value) => VmResult::Ok(value),
-            ref actual => VmResult::err(VmErrorKind::expected_any(actual.type_info())),
+    pub fn into_any_obj(self) -> Result<AnyObj, RuntimeError> {
+        match self.take_kind()? {
+            ValueKind::Any(value) => Ok(value),
+            ref actual => Err(RuntimeError::expected_any(actual.type_info())),
         }
     }
 
@@ -1319,78 +1319,84 @@ impl Value {
 
     /// Try to coerce value into a typed value.
     #[inline]
-    pub fn into_any<T>(self) -> VmResult<T>
+    pub fn into_any<T>(self) -> Result<T, RuntimeError>
     where
         T: Any,
     {
-        let any = match vm_try!(self.inner.take()) {
+        let any = match self.inner.take()? {
             ValueKind::Any(any) => any,
-            actual => return err(VmErrorKind::expected_any(actual.type_info())),
+            actual => return Err(RuntimeError::expected_any(actual.type_info())),
         };
 
         match any.downcast::<T>() {
-            Ok(any) => VmResult::Ok(any),
-            Err((AnyObjError::Cast, any)) => VmResult::err(AccessError::UnexpectedType {
-                expected: any::type_name::<T>().into(),
-                actual: any.type_name(),
-            }),
-            Err((error, _)) => VmResult::err(AccessError::from(error)),
+            Ok(any) => Ok(any),
+            Err((AnyObjError::Cast, any)) => {
+                Err(RuntimeError::from(AccessErrorKind::UnexpectedType {
+                    expected: any::type_name::<T>().into(),
+                    actual: any.type_name(),
+                }))
+            }
+            Err((error, _)) => Err(RuntimeError::from(AccessError::from(error))),
         }
     }
 
     /// Try to coerce value into a typed reference.
     #[inline]
-    pub fn into_any_ref<T>(self) -> VmResult<Ref<T>>
+    pub fn into_any_ref<T>(self) -> Result<Ref<T>, RuntimeError>
     where
         T: Any,
     {
-        let result = Ref::try_map(vm_try!(self.into_kind_ref()), |kind| match kind {
+        let result = Ref::try_map(self.into_kind_ref()?, |kind| match kind {
             ValueKind::Any(any) => Some(any),
             _ => None,
         });
 
         let any = match result {
             Ok(any) => any,
-            Err(actual) => return err(VmErrorKind::expected_any(actual.type_info())),
+            Err(actual) => return Err(RuntimeError::expected_any(actual.type_info())),
         };
 
         let result = Ref::result_map(any, |any| any.downcast_borrow_ref());
 
         match result {
-            Ok(value) => VmResult::Ok(value),
-            Err((AnyObjError::Cast, any)) => VmResult::err(AccessError::UnexpectedType {
-                expected: any::type_name::<T>().into(),
-                actual: any.type_name(),
-            }),
-            Err((error, _)) => VmResult::err(AccessError::from(error)),
+            Ok(value) => Ok(value),
+            Err((AnyObjError::Cast, any)) => {
+                Err(RuntimeError::from(AccessErrorKind::UnexpectedType {
+                    expected: any::type_name::<T>().into(),
+                    actual: any.type_name(),
+                }))
+            }
+            Err((error, _)) => Err(RuntimeError::from(AccessError::from(error))),
         }
     }
 
     /// Try to coerce value into a typed mutable reference.
     #[inline]
-    pub fn into_any_mut<T>(self) -> VmResult<Mut<T>>
+    pub fn into_any_mut<T>(self) -> Result<Mut<T>, RuntimeError>
     where
         T: Any,
     {
-        let result = Mut::try_map(vm_try!(self.into_kind_mut()), |kind| match kind {
+        let result = Mut::try_map(self.into_kind_mut()?, |kind| match kind {
             ValueKind::Any(any) => Some(any),
             _ => None,
         });
 
         let any = match result {
             Ok(any) => any,
-            Err(actual) => return err(VmErrorKind::expected_any(actual.type_info())),
+            Err(actual) => return Err(RuntimeError::expected_any(actual.type_info())),
         };
 
         let result = Mut::result_map(any, |any| any.downcast_borrow_mut());
 
         match result {
-            Ok(value) => VmResult::Ok(value),
-            Err((AnyObjError::Cast, any)) => VmResult::err(AccessError::UnexpectedType {
-                expected: any::type_name::<T>().into(),
-                actual: any.type_name(),
-            }),
-            Err((error, _)) => VmResult::err(AccessError::from(error)),
+            Ok(value) => Ok(value),
+            Err((AnyObjError::Cast, any)) => {
+                Err(RuntimeError::from(AccessErrorKind::UnexpectedType {
+                    expected: any::type_name::<T>().into(),
+                    actual: any.type_name(),
+                }))
+            }
+            Err((error, _)) => Err(RuntimeError::from(AccessError::from(error))),
         }
     }
 
@@ -1964,19 +1970,35 @@ impl Value {
         })
     }
 
-    pub(crate) fn try_as_integer<T>(&self) -> VmResult<T>
+    /// Try to coerce the current value as the specified integer `T`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::runtime::{Value, VmResult};
+    ///
+    /// let value = rune::to_value(u32::MAX)?;
+    ///
+    /// assert_eq!(value.try_as_integer::<u64>(), Ok(u32::MAX as u64));
+    /// assert!(value.try_as_integer::<i32>().is_err());
+    ///
+    /// # Ok::<(), rune::support::Error>(())
+    /// ```
+    pub fn try_as_integer<T>(&self) -> Result<T, RuntimeError>
     where
         T: TryFrom<i64>,
         VmIntegerRepr: From<i64>,
     {
-        let integer = vm_try!(self.as_integer());
+        let integer = self.as_integer()?;
 
         match integer.try_into() {
-            Ok(number) => VmResult::Ok(number),
-            Err(..) => VmResult::err(VmErrorKind::ValueToIntegerCoercionError {
-                from: VmIntegerRepr::from(integer),
-                to: any::type_name::<T>(),
-            }),
+            Ok(number) => Ok(number),
+            Err(..) => Err(RuntimeError::new(
+                VmErrorKind::ValueToIntegerCoercionError {
+                    from: VmIntegerRepr::from(integer),
+                    to: any::type_name::<T>(),
+                },
+            )),
         }
     }
 }

@@ -41,3 +41,10 @@ impl From<PanicReason> for Panic {
         }
     }
 }
+
+impl PartialEq for Panic {
+    #[inline]
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
