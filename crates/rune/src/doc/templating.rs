@@ -85,7 +85,7 @@ impl Templating {
 }
 
 fn literal(
-    h: &Helper<'_, '_>,
+    h: &Helper<'_>,
     _: &Handlebars<'_>,
     _: &Context,
     _: &mut RenderContext<'_, '_>,
@@ -97,7 +97,7 @@ fn literal(
 }
 
 fn path(paths: Paths) -> impl HelperDef + Send + Sync + 'static {
-    move |h: &Helper<'_, '_>,
+    move |h: &Helper<'_>,
           _: &Handlebars<'_>,
           _: &Context,
           _: &mut RenderContext<'_, '_>,
