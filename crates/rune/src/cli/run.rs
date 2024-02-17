@@ -14,6 +14,9 @@ pub(super) struct Flags {
     /// Provide detailed tracing for each instruction executed.
     #[arg(short, long)]
     trace: bool,
+    /// Time how long the script took to execute.
+    #[arg(long)]
+    time: bool,
     /// Perform a default dump.
     #[arg(short, long)]
     dump: bool,
@@ -228,18 +231,16 @@ pub(super) async fn run(
 
     let errored = match result {
         VmResult::Ok(result) => {
-            let duration = Instant::now().duration_since(last);
-
-            if c.verbose {
+            if c.verbose || args.time {
+                let duration = Instant::now().saturating_duration_since(last);
                 writeln!(io.stderr, "== {:?} ({:?})", result, duration)?;
             }
 
             None
         }
         VmResult::Err(error) => {
-            let duration = Instant::now().duration_since(last);
-
-            if c.verbose {
+            if c.verbose || args.time {
+                let duration = Instant::now().saturating_duration_since(last);
                 writeln!(io.stderr, "== ! ({}) ({:?})", error, duration)?;
             }
 

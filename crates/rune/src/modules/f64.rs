@@ -21,6 +21,8 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(max)?;
     m.function_meta(min)?;
     #[cfg(feature = "std")]
+    m.function_meta(sqrt)?;
+    #[cfg(feature = "std")]
     m.function_meta(abs)?;
     #[cfg(feature = "std")]
     m.function_meta(powf)?;
@@ -214,6 +216,29 @@ fn max(this: f64, other: f64) -> f64 {
 #[rune::function(instance)]
 fn min(this: f64, other: f64) -> f64 {
     this.min(other)
+}
+
+/// Returns the square root of a number.
+///
+/// Returns NaN if `self` is a negative number other than `-0.0`.
+///
+/// # Examples
+///
+/// ```rune
+/// let positive = 4.0_f64;
+/// let negative = -4.0_f64;
+/// let negative_zero = -0.0_f64;
+///
+/// let abs_difference = (positive.sqrt() - 2.0).abs();
+///
+/// assert!(abs_difference < 1e-10);
+/// assert!(negative.sqrt().is_nan());
+/// assert!(negative_zero.sqrt() == negative_zero);
+/// ```
+#[rune::function(instance)]
+#[cfg(feature = "std")]
+fn sqrt(this: f64) -> f64 {
+    this.sqrt()
 }
 
 /// Computes the absolute value of `self`.
