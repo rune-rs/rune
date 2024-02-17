@@ -74,7 +74,8 @@ macro_rules! maybe {
 
 /// An owning iterator.
 #[derive(Any)]
-#[rune(builtin, static_type = ITERATOR_TYPE, from_value = Value::into_iterator)]
+#[rune(builtin, static_type = ITERATOR_TYPE)]
+#[rune(from_value = Value::into_iterator, from_value_ref = Value::into_iterator_ref, from_value_mut = Value::into_iterator_mut)]
 pub struct Iterator {
     iter: IterRepr,
 }
@@ -181,7 +182,7 @@ impl Iterator {
     #[inline]
     pub(crate) fn find(&mut self, find: Function) -> VmResult<Option<Value>> {
         while let Some(value) = vm_try!(self.next()) {
-            if vm_try!(find.call::<_, bool>((value.clone(),))) {
+            if vm_try!(find.call::<bool>((value.clone(),))) {
                 return VmResult::Ok(Some(value));
             }
         }
@@ -192,7 +193,7 @@ impl Iterator {
     #[inline]
     pub(crate) fn all(&mut self, find: Function) -> VmResult<bool> {
         while let Some(value) = vm_try!(self.next()) {
-            let result = vm_try!(find.call::<_, bool>((value.clone(),)));
+            let result = vm_try!(find.call::<bool>((value.clone(),)));
 
             if !result {
                 return VmResult::Ok(false);
@@ -205,7 +206,7 @@ impl Iterator {
     #[inline]
     pub(crate) fn any(&mut self, find: Function) -> VmResult<bool> {
         while let Some(value) = vm_try!(self.next()) {
-            if vm_try!(find.call::<_, bool>((value.clone(),))) {
+            if vm_try!(find.call::<bool>((value.clone(),))) {
                 return VmResult::Ok(true);
             }
         }
@@ -306,7 +307,7 @@ impl Iterator {
     #[inline]
     pub(crate) fn fold(mut self, mut accumulator: Value, f: Function) -> VmResult<Value> {
         while let Some(value) = vm_try!(self.next()) {
-            accumulator = vm_try!(f.call::<_, Value>((accumulator, value.clone())));
+            accumulator = vm_try!(f.call((accumulator, value.clone())));
         }
 
         VmResult::Ok(accumulator)
@@ -319,7 +320,7 @@ impl Iterator {
         };
 
         while let Some(value) = vm_try!(self.next()) {
-            accumulator = vm_try!(f.call::<_, Value>((accumulator, value.clone())));
+            accumulator = vm_try!(f.call((accumulator, value.clone())));
         }
 
         VmResult::Ok(Some(accumulator))
@@ -519,7 +520,7 @@ where
 
     fn next(&mut self) -> VmResult<Option<Value>> {
         if let Some(value) = vm_try!(self.iter.next()) {
-            let out = vm_try!(self.map.call::<_, Value>((value,)));
+            let out = vm_try!(self.map.call::<Value>((value,)));
             return VmResult::Ok(Some(out));
         }
 
@@ -528,7 +529,7 @@ where
 
     fn next_back(&mut self) -> VmResult<Option<Value>> {
         if let Some(value) = vm_try!(self.iter.next_back()) {
-            let out = vm_try!(self.map.call::<_, Value>((value,)));
+            let out = vm_try!(self.map.call::<Value>((value,)));
             return VmResult::Ok(Some(out));
         }
 
@@ -653,7 +654,7 @@ where
 
     fn next(&mut self) -> VmResult<Option<Value>> {
         while let Some(value) = vm_try!(self.iter.next()) {
-            if vm_try!(self.filter.call::<_, bool>((value.clone(),))) {
+            if vm_try!(self.filter.call::<bool>((value.clone(),))) {
                 return VmResult::Ok(Some(value));
             }
         }
@@ -663,7 +664,7 @@ where
 
     fn next_back(&mut self) -> VmResult<Option<Value>> {
         while let Some(value) = vm_try!(self.iter.next_back()) {
-            if vm_try!(self.filter.call::<_, bool>((value.clone(),))) {
+            if vm_try!(self.filter.call::<bool>((value.clone(),))) {
                 return VmResult::Ok(Some(value));
             }
         }

@@ -1,11 +1,8 @@
 use core::any;
-use core::cmp::Ordering;
 
 use crate::alloc::prelude::*;
 use crate::alloc::{self, HashMap};
-use crate::runtime::{
-    AnyObj, Object, Shared, Value, VmError, VmErrorKind, VmIntegerRepr, VmResult,
-};
+use crate::runtime::{AnyObj, Object, Value, VmError, VmErrorKind, VmIntegerRepr, VmResult};
 use crate::Any;
 
 /// Derive macro for the [`ToValue`] trait for converting types into the dynamic
@@ -161,10 +158,12 @@ where
     T: ToValue,
 {
     fn to_value(self) -> VmResult<Value> {
-        VmResult::Ok(Value::from(vm_try!(Shared::new(match self {
+        let option = match self {
             Some(some) => Some(vm_try!(some.to_value())),
             None => None,
-        }))))
+        };
+
+        VmResult::Ok(vm_try!(Value::try_from(option)))
     }
 }
 
@@ -173,14 +172,14 @@ where
 impl ToValue for alloc::Box<str> {
     fn to_value(self) -> VmResult<Value> {
         let this = alloc::String::from(self);
-        VmResult::Ok(Value::from(vm_try!(Shared::new(this))))
+        VmResult::Ok(vm_try!(Value::try_from(this)))
     }
 }
 
 impl ToValue for &str {
     fn to_value(self) -> VmResult<Value> {
         let this = vm_try!(alloc::String::try_from(self));
-        VmResult::Ok(Value::from(vm_try!(Shared::new(this))))
+        VmResult::Ok(vm_try!(Value::try_from(this)))
     }
 }
 
@@ -188,7 +187,7 @@ impl ToValue for &str {
 impl ToValue for ::rust_alloc::boxed::Box<str> {
     fn to_value(self) -> VmResult<Value> {
         let this = vm_try!(self.try_to_string());
-        VmResult::Ok(Value::from(vm_try!(Shared::new(this))))
+        VmResult::Ok(vm_try!(Value::try_from(this)))
     }
 }
 
@@ -196,7 +195,8 @@ impl ToValue for ::rust_alloc::boxed::Box<str> {
 impl ToValue for ::rust_alloc::string::String {
     fn to_value(self) -> VmResult<Value> {
         let string = vm_try!(alloc::String::try_from(self));
-        VmResult::Ok(Value::from(vm_try!(Shared::new(string))))
+        let value = vm_try!(Value::try_from(string));
+        VmResult::Ok(value)
     }
 }
 
@@ -219,16 +219,12 @@ where
     E: ToValue,
 {
     fn to_value(self) -> VmResult<Value> {
-        VmResult::Ok(match self {
-            Ok(ok) => {
-                let ok = vm_try!(ok.to_value());
-                Value::from(vm_try!(Shared::new(Ok(ok))))
-            }
-            Err(err) => {
-                let err = vm_try!(err.to_value());
-                Value::from(vm_try!(Shared::new(Err(err))))
-            }
-        })
+        let result = match self {
+            Ok(ok) => Ok(vm_try!(ok.to_value())),
+            Err(err) => Err(vm_try!(err.to_value())),
+        };
+
+        VmResult::Ok(vm_try!(Value::try_from(result)))
     }
 }
 
@@ -238,8 +234,8 @@ macro_rules! number_value_trait {
     ($ty:ty) => {
         impl ToValue for $ty {
             fn to_value(self) -> VmResult<Value> {
-                match self.try_into() {
-                    Ok(number) => VmResult::Ok(Value::Integer(number)),
+                match <i64>::try_from(self) {
+                    Ok(number) => VmResult::Ok(vm_try!(Value::try_from(number))),
                     Err(..) => VmResult::err(VmErrorKind::IntegerToValueCoercionError {
                         from: VmIntegerRepr::from(self),
                         to: any::type_name::<i64>(),
@@ -264,7 +260,7 @@ number_value_trait!(isize);
 impl ToValue for f32 {
     #[inline]
     fn to_value(self) -> VmResult<Value> {
-        VmResult::Ok(Value::Float(self as f64))
+        VmResult::Ok(vm_try!(Value::try_from(self as f64)))
     }
 }
 
@@ -284,7 +280,7 @@ macro_rules! impl_map {
                     vm_try!(output.insert(key, vm_try!(value.to_value())));
                 }
 
-                VmResult::Ok(Value::from(vm_try!(Shared::new(output))))
+                VmResult::Ok(vm_try!(Value::try_from(output)))
             }
         }
     };
@@ -296,11 +292,4 @@ impl_map!(HashMap<alloc::String, T>);
 cfg_std! {
     impl_map!(::std::collections::HashMap<::rust_alloc::string::String, T>);
     impl_map!(::std::collections::HashMap<alloc::String, T>);
-}
-
-impl ToValue for Ordering {
-    #[inline]
-    fn to_value(self) -> VmResult<Value> {
-        VmResult::Ok(Value::Ordering(self))
-    }
 }

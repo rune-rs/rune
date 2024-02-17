@@ -1,7 +1,7 @@
 //! The `std::future` module.
 
 use crate::alloc::Vec;
-use crate::runtime::{Future, SelectFuture, Shared, Stack, Value, VmErrorKind, VmResult};
+use crate::runtime::{Future, Mut, SelectFuture, Stack, Value, ValueKind, VmErrorKind, VmResult};
 use crate::{ContextError, Module};
 
 /// Construct the `std::future` module.
@@ -60,18 +60,25 @@ where
     let mut results = vm_try!(Vec::try_with_capacity(len));
 
     for (index, value) in values.into_iter().enumerate() {
-        let future = match value {
-            Value::Future(future) => vm_try!(future.clone().into_mut()),
-            value => {
+        let value = vm_try!(value.clone().into_kind_mut());
+
+        let future = Mut::try_map(value, |kind| match kind {
+            ValueKind::Future(future) => Some(future),
+            _ => None,
+        });
+
+        let future = match future {
+            Ok(future) => future,
+            Err(actual) => {
                 return VmResult::err([
-                    VmErrorKind::expected::<Future>(vm_try!(value.type_info())),
+                    VmErrorKind::expected::<Future>(actual.type_info()),
                     VmErrorKind::bad_argument(index),
-                ])
+                ]);
             }
         };
 
         futures.push(SelectFuture::new(index, future));
-        vm_try!(results.try_push(Value::EmptyTuple));
+        vm_try!(results.try_push(vm_try!(Value::empty())));
     }
 
     while !futures.is_empty() {
@@ -83,26 +90,20 @@ where
 }
 
 async fn join(value: Value) -> VmResult<Value> {
-    match value {
-        Value::EmptyTuple => VmResult::Ok(Value::EmptyTuple),
-        Value::Tuple(tuple) => {
-            let tuple = vm_try!(tuple.borrow_ref());
-            VmResult::Ok(vm_try!(
-                try_join_impl(tuple.iter(), tuple.len(), |vec| VmResult::Ok(vm_try!(
-                    Value::tuple(vec)
-                )))
-                .await
-            ))
-        }
-        Value::Vec(vec) => {
-            let vec = vm_try!(vec.borrow_ref());
-            VmResult::Ok(vm_try!(
-                try_join_impl(vec.iter(), vec.len(), Value::vec).await
-            ))
-        }
-        actual => VmResult::err([
+    match &*vm_try!(value.borrow_kind_ref()) {
+        ValueKind::EmptyTuple => VmResult::Ok(vm_try!(Value::empty())),
+        ValueKind::Tuple(tuple) => VmResult::Ok(vm_try!(
+            try_join_impl(tuple.iter(), tuple.len(), |vec| VmResult::Ok(vm_try!(
+                Value::tuple(vec)
+            )))
+            .await
+        )),
+        ValueKind::Vec(vec) => VmResult::Ok(vm_try!(
+            try_join_impl(vec.iter(), vec.len(), Value::vec).await
+        )),
+        _ => VmResult::err([
             VmErrorKind::bad_argument(0),
-            VmErrorKind::expected::<crate::runtime::Vec>(vm_try!(actual.type_info())),
+            VmErrorKind::expected::<crate::runtime::Vec>(vm_try!(value.type_info())),
         ]),
     }
 }
@@ -117,7 +118,7 @@ fn raw_join(stack: &mut Stack, args: usize) -> VmResult<()> {
     }
 
     let value = vm_try!(stack.pop());
-    let value = Value::Future(vm_try!(Shared::new(vm_try!(Future::new(join(value))))));
-    vm_try!(stack.push(value));
+    let future = vm_try!(Future::new(join(value)));
+    vm_try!(stack.push(future));
     VmResult::Ok(())
 }

@@ -9,7 +9,7 @@ use crate::alloc::{self, Box, Vec};
 use crate::module;
 use crate::runtime::{
     Args, Call, ConstValue, FromValue, FunctionHandler, OwnedTuple, Rtti, RuntimeContext, Stack,
-    Unit, Value, VariantRtti, Vm, VmCall, VmErrorKind, VmHalt, VmResult,
+    Unit, Value, ValueKind, VariantRtti, Vm, VmCall, VmErrorKind, VmHalt, VmResult,
 };
 use crate::shared::AssertSend;
 use crate::Any;
@@ -40,7 +40,7 @@ use crate::Hash;
 /// let build_some = build;
 /// assert_eq!(build_some(42), Some(42));
 /// ```
-#[derive(Any)]
+#[derive(Any, TryClone)]
 #[repr(transparent)]
 #[rune(builtin, static_type = FUNCTION_TYPE)]
 pub struct Function(FunctionImpl<Value>);
@@ -172,12 +172,11 @@ impl Function {
     /// let value = vm.call(["main"], ())?;
     ///
     /// let value: Function = rune::from_value(value)?;
-    /// assert_eq!(value.call::<_, u32>((1, 2)).into_result()?, 3);
+    /// assert_eq!(value.call::<u32>((1, 2)).into_result()?, 3);
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn call<A, T>(&self, args: A) -> VmResult<T>
+    pub fn call<T>(&self, args: impl Args) -> VmResult<T>
     where
-        A: Args,
         T: FromValue,
     {
         self.0.call(args)
@@ -388,15 +387,14 @@ impl SyncFunction {
     /// let add = vm.call(["main"], ())?;
     /// let add: SyncFunction = rune::from_value(add)?;
     ///
-    /// let value = add.async_send_call::<_, u32>((1, 2)).await.into_result()?;
+    /// let value = add.async_send_call::<u32>((1, 2)).await.into_result()?;
     /// assert_eq!(value, 3);
     /// # Ok::<_, rune::support::Error>(())
     /// # })?;
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub async fn async_send_call<A, T>(&self, args: A) -> VmResult<T>
+    pub async fn async_send_call<T>(&self, args: impl Args + Send) -> VmResult<T>
     where
-        A: Send + Args,
         T: Send + FromValue,
     {
         self.0.async_send_call(args).await
@@ -426,12 +424,11 @@ impl SyncFunction {
     /// let add = vm.call(["main"], ())?;
     /// let add: SyncFunction = rune::from_value(add)?;
     ///
-    /// assert_eq!(add.call::<_, u32>((1, 2)).into_result()?, 3);
+    /// assert_eq!(add.call::<u32>((1, 2)).into_result()?, 3);
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn call<A, T>(&self, args: A) -> VmResult<T>
+    pub fn call<T>(&self, args: impl Args) -> VmResult<T>
     where
-        A: Args,
         T: FromValue,
     {
         self.0.call(args)
@@ -499,9 +496,8 @@ where
     OwnedTuple: TryFrom<Box<[V]>>,
     VmErrorKind: From<<OwnedTuple as TryFrom<Box<[V]>>>::Error>,
 {
-    fn call<A, T>(&self, args: A) -> VmResult<T>
+    fn call<T>(&self, args: impl Args) -> VmResult<T>
     where
-        A: Args,
         T: FromValue,
     {
         let value = match &self.inner {
@@ -551,14 +547,14 @@ where
         T: 'a + Send + FromValue,
     {
         let future = async move {
-            let value = vm_try!(self.call(args));
+            let value: Value = vm_try!(self.call(args));
 
-            let value = match value {
-                Value::Future(future) => {
-                    let future = vm_try!(future.take());
-                    vm_try!(future.await)
+            let value = 'out: {
+                if let ValueKind::Future(future) = &mut *vm_try!(value.borrow_kind_mut()) {
+                    break 'out vm_try!(future.await);
                 }
-                other => other,
+
+                value
             };
 
             T::from_value(value)
@@ -843,7 +839,7 @@ where
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, TryClone)]
 struct FnHandler {
     /// The function handler.
     handler: Arc<FunctionHandler>,
@@ -857,7 +853,7 @@ impl fmt::Debug for FnHandler {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, TryClone)]
 struct FnOffset {
     context: Arc<RuntimeContext>,
     /// The unit where the function resides.
@@ -874,11 +870,7 @@ struct FnOffset {
 
 impl FnOffset {
     /// Perform a call into the specified offset and return the produced value.
-    fn call<A, E>(&self, args: A, extra: E) -> VmResult<Value>
-    where
-        A: Args,
-        E: Args,
-    {
+    fn call(&self, args: impl Args, extra: impl Args) -> VmResult<Value> {
         vm_try!(check_args(args.count(), self.args));
 
         let mut vm = Vm::new(self.context.clone(), self.unit.clone());
@@ -957,13 +949,13 @@ where
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, TryClone)]
 struct FnUnitStruct {
     /// The type of the empty.
     rtti: Arc<Rtti>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, TryClone)]
 struct FnTupleStruct {
     /// The type of the tuple.
     rtti: Arc<Rtti>,
@@ -971,13 +963,13 @@ struct FnTupleStruct {
     args: usize,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, TryClone)]
 struct FnUnitVariant {
     /// Runtime information fo variant.
     rtti: Arc<VariantRtti>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, TryClone)]
 struct FnTupleVariant {
     /// Runtime information fo variant.
     rtti: Arc<VariantRtti>,
@@ -986,14 +978,18 @@ struct FnTupleVariant {
 }
 
 impl FromValue for SyncFunction {
+    #[inline]
     fn from_value(value: Value) -> VmResult<Self> {
-        let function = vm_try!(value.into_function());
-        let function = vm_try!(function.take());
-        function.into_sync()
+        vm_try!(value.into_function()).into_sync()
     }
 }
 
-from_value!(Function, into_function);
+from_value2!(
+    Function,
+    into_function_ref,
+    into_function_mut,
+    into_function
+);
 
 fn check_args(actual: usize, expected: usize) -> VmResult<()> {
     if actual != expected {

@@ -2,10 +2,10 @@ use core::fmt;
 
 use crate::alloc;
 use crate::alloc::prelude::*;
-use crate::runtime::{Bytes, Object, Shared, Vec};
+use crate::runtime::{Bytes, Object, ValueKind, Vec};
 
-use serde::de::{self, Deserialize as _, Error};
-use serde::ser::{self, SerializeMap as _, SerializeSeq as _};
+use serde::de::{self, Deserialize as _, Error as _};
+use serde::ser::{self, Error as _, SerializeMap as _, SerializeSeq as _};
 
 use super::Value;
 
@@ -25,35 +25,27 @@ impl ser::Serialize for Value {
     where
         S: ser::Serializer,
     {
-        match self {
-            Value::Bool(b) => serializer.serialize_bool(*b),
-            Value::Char(c) => serializer.serialize_char(*c),
-            Value::Byte(c) => serializer.serialize_u8(*c),
-            Value::Integer(integer) => serializer.serialize_i64(*integer),
-            Value::Float(float) => serializer.serialize_f64(*float),
-            Value::Type(..) => Err(ser::Error::custom("cannot serialize types")),
-            Value::Ordering(..) => Err(ser::Error::custom("cannot serialize orderings")),
-            Value::String(string) => {
-                let string = string.borrow_ref().map_err(ser::Error::custom)?;
-                serializer.serialize_str(&string)
-            }
-            Value::Bytes(bytes) => {
-                let bytes = bytes.borrow_ref().map_err(ser::Error::custom)?;
-                serializer.serialize_bytes(&bytes)
-            }
-            Value::Vec(vec) => {
-                let vec = vec.borrow_ref().map_err(ser::Error::custom)?;
+        match &*self.borrow_kind_ref().map_err(S::Error::custom)? {
+            ValueKind::EmptyTuple => serializer.serialize_unit(),
+            ValueKind::Bool(b) => serializer.serialize_bool(*b),
+            ValueKind::Char(c) => serializer.serialize_char(*c),
+            ValueKind::Byte(c) => serializer.serialize_u8(*c),
+            ValueKind::Integer(integer) => serializer.serialize_i64(*integer),
+            ValueKind::Float(float) => serializer.serialize_f64(*float),
+            ValueKind::Type(..) => Err(ser::Error::custom("cannot serialize types")),
+            ValueKind::Ordering(..) => Err(ser::Error::custom("cannot serialize orderings")),
+            ValueKind::String(string) => serializer.serialize_str(string),
+            ValueKind::Bytes(bytes) => serializer.serialize_bytes(bytes),
+            ValueKind::Vec(vec) => {
                 let mut serializer = serializer.serialize_seq(Some(vec.len()))?;
 
-                for value in &*vec {
+                for value in vec {
                     serializer.serialize_element(value)?;
                 }
 
                 serializer.end()
             }
-            Value::EmptyTuple => serializer.serialize_unit(),
-            Value::Tuple(tuple) => {
-                let tuple = tuple.borrow_ref().map_err(ser::Error::custom)?;
+            ValueKind::Tuple(tuple) => {
                 let mut serializer = serializer.serialize_seq(Some(tuple.len()))?;
 
                 for value in tuple.iter() {
@@ -62,48 +54,50 @@ impl ser::Serialize for Value {
 
                 serializer.end()
             }
-            Value::Object(object) => {
-                let object = object.borrow_ref().map_err(ser::Error::custom)?;
+            ValueKind::Object(object) => {
                 let mut serializer = serializer.serialize_map(Some(object.len()))?;
 
-                for (key, value) in &*object {
+                for (key, value) in object {
                     serializer.serialize_entry(key, value)?;
                 }
 
                 serializer.end()
             }
-            Value::Option(option) => {
-                let option = option.borrow_ref().map_err(ser::Error::custom)?;
-                <Option<Value>>::serialize(&*option, serializer)
-            }
-            Value::EmptyStruct(..) => serializer.serialize_unit(),
-            Value::TupleStruct(..) => Err(ser::Error::custom("cannot serialize tuple structs")),
-            Value::Struct(..) => Err(ser::Error::custom("cannot serialize objects structs")),
-            Value::Variant(..) => Err(ser::Error::custom("cannot serialize variants")),
-            Value::Result(..) => Err(ser::Error::custom("cannot serialize results")),
-            Value::Future(..) => Err(ser::Error::custom("cannot serialize futures")),
-            Value::Stream(..) => Err(ser::Error::custom("cannot serialize streams")),
-            Value::Generator(..) => Err(ser::Error::custom("cannot serialize generators")),
-            Value::GeneratorState(..) => {
+            ValueKind::Option(option) => <Option<Value>>::serialize(option, serializer),
+            ValueKind::EmptyStruct(..) => Err(ser::Error::custom("cannot serialize empty structs")),
+            ValueKind::TupleStruct(..) => Err(ser::Error::custom("cannot serialize tuple structs")),
+            ValueKind::Struct(..) => Err(ser::Error::custom("cannot serialize objects structs")),
+            ValueKind::Variant(..) => Err(ser::Error::custom("cannot serialize variants")),
+            ValueKind::Result(..) => Err(ser::Error::custom("cannot serialize results")),
+            ValueKind::Future(..) => Err(ser::Error::custom("cannot serialize futures")),
+            ValueKind::Stream(..) => Err(ser::Error::custom("cannot serialize streams")),
+            ValueKind::Generator(..) => Err(ser::Error::custom("cannot serialize generators")),
+            ValueKind::GeneratorState(..) => {
                 Err(ser::Error::custom("cannot serialize generator states"))
             }
-            Value::Function(..) => Err(ser::Error::custom("cannot serialize function pointers")),
-            Value::Format(..) => Err(ser::Error::custom("cannot serialize format specifications")),
-            Value::Iterator(..) => Err(ser::Error::custom("cannot serialize iterators")),
-            Value::RangeFrom(..) => Err(ser::Error::custom("cannot serialize `start..` ranges")),
-            Value::RangeFull(..) => Err(ser::Error::custom("cannot serialize `..` ranges")),
-            Value::RangeInclusive(..) => {
+            ValueKind::Function(..) => {
+                Err(ser::Error::custom("cannot serialize function pointers"))
+            }
+            ValueKind::Format(..) => {
+                Err(ser::Error::custom("cannot serialize format specifications"))
+            }
+            ValueKind::Iterator(..) => Err(ser::Error::custom("cannot serialize iterators")),
+            ValueKind::RangeFrom(..) => {
+                Err(ser::Error::custom("cannot serialize `start..` ranges"))
+            }
+            ValueKind::RangeFull(..) => Err(ser::Error::custom("cannot serialize `..` ranges")),
+            ValueKind::RangeInclusive(..) => {
                 Err(ser::Error::custom("cannot serialize `start..=end` ranges"))
             }
-            Value::RangeToInclusive(..) => {
+            ValueKind::RangeToInclusive(..) => {
                 Err(ser::Error::custom("cannot serialize `..=end` ranges"))
             }
-            Value::RangeTo(..) => Err(ser::Error::custom("cannot serialize `..end` ranges")),
-            Value::Range(..) => Err(ser::Error::custom("cannot serialize `start..end` ranges")),
-            Value::ControlFlow(..) => {
+            ValueKind::RangeTo(..) => Err(ser::Error::custom("cannot serialize `..end` ranges")),
+            ValueKind::Range(..) => Err(ser::Error::custom("cannot serialize `start..end` ranges")),
+            ValueKind::ControlFlow(..) => {
                 Err(ser::Error::custom("cannot serialize `start..end` ranges"))
             }
-            Value::Any(..) => Err(ser::Error::custom("cannot serialize external objects")),
+            ValueKind::Any(..) => Err(ser::Error::custom("cannot serialize external objects")),
         }
     }
 }
@@ -119,21 +113,21 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     }
 
     #[inline]
-    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
     where
         E: de::Error,
     {
-        let value = value.try_to_owned().map_err(E::custom)?;
-        Ok(Value::String(Shared::new(value).map_err(E::custom)?))
+        let v = v.try_to_owned().map_err(E::custom)?;
+        Value::try_from(v).map_err(E::custom)
     }
 
     #[inline]
-    fn visit_string<E>(self, value: ::rust_alloc::string::String) -> Result<Self::Value, E>
+    fn visit_string<E>(self, v: ::rust_alloc::string::String) -> Result<Self::Value, E>
     where
         E: de::Error,
     {
-        let value = alloc::String::try_from(value).map_err(E::custom)?;
-        Ok(Value::String(Shared::new(value).map_err(E::custom)?))
+        let v = alloc::String::try_from(v).map_err(E::custom)?;
+        Value::try_from(v).map_err(E::custom)
     }
 
     #[inline]
@@ -142,9 +136,8 @@ impl<'de> de::Visitor<'de> for VmVisitor {
         E: de::Error,
     {
         let v = alloc::Vec::try_from(v).map_err(E::custom)?;
-        Ok(Value::Bytes(
-            Shared::new(Bytes::from_vec(v)).map_err(E::custom)?,
-        ))
+        let v = Bytes::from_vec(v);
+        Value::try_from(v).map_err(E::custom)
     }
 
     #[inline]
@@ -153,9 +146,8 @@ impl<'de> de::Visitor<'de> for VmVisitor {
         E: de::Error,
     {
         let v = alloc::Vec::try_from(v).map_err(E::custom)?;
-        Ok(Value::Bytes(
-            Shared::new(Bytes::from_vec(v)).map_err(E::custom)?,
-        ))
+        let v = Bytes::from_vec(v);
+        Value::try_from(v).map_err(E::custom)
     }
 
     #[inline]
@@ -163,7 +155,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(Value::Integer(v as i64))
+        Value::try_from(v as i64).map_err(E::custom)
     }
 
     #[inline]
@@ -171,7 +163,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(Value::Integer(v as i64))
+        Value::try_from(v as i64).map_err(E::custom)
     }
 
     #[inline]
@@ -179,7 +171,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(Value::Integer(v as i64))
+        Value::try_from(v as i64).map_err(E::custom)
     }
 
     #[inline]
@@ -187,7 +179,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(Value::Integer(v))
+        Value::try_from(v).map_err(E::custom)
     }
 
     #[inline]
@@ -195,7 +187,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(Value::Integer(v as i64))
+        Value::try_from(v as i64).map_err(E::custom)
     }
 
     #[inline]
@@ -203,7 +195,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(Value::Integer(v as i64))
+        Value::try_from(v as i64).map_err(E::custom)
     }
 
     #[inline]
@@ -211,7 +203,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(Value::Integer(v as i64))
+        Value::try_from(v as i64).map_err(E::custom)
     }
 
     #[inline]
@@ -219,7 +211,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(Value::Integer(v as i64))
+        Value::try_from(v as i64).map_err(E::custom)
     }
 
     #[inline]
@@ -227,7 +219,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(Value::Integer(v as i64))
+        Value::try_from(v as i64).map_err(E::custom)
     }
 
     #[inline]
@@ -235,7 +227,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(Value::Integer(v as i64))
+        Value::try_from(v as i64).map_err(E::custom)
     }
 
     #[inline]
@@ -243,7 +235,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(Value::Float(v as f64))
+        Value::try_from(v as f64).map_err(E::custom)
     }
 
     #[inline]
@@ -251,7 +243,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(Value::Float(v))
+        Value::try_from(v).map_err(E::custom)
     }
 
     #[inline]
@@ -259,7 +251,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(Value::Bool(v))
+        Value::try_from(v).map_err(E::custom)
     }
 
     #[inline]
@@ -267,9 +259,8 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         D: serde::Deserializer<'de>,
     {
-        let option =
-            Shared::new(Some(Value::deserialize(deserializer)?)).map_err(D::Error::custom)?;
-        Ok(Value::Option(option))
+        let some = Some(Value::deserialize(deserializer)?);
+        Value::try_from(some).map_err(D::Error::custom)
     }
 
     #[inline]
@@ -277,7 +268,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(Value::Option(Shared::new(None).map_err(E::custom)?))
+        Value::try_from(None).map_err(E::custom)
     }
 
     #[inline]
@@ -285,7 +276,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(Value::EmptyTuple)
+        Value::empty().map_err(E::custom)
     }
 
     #[inline]
@@ -303,9 +294,8 @@ impl<'de> de::Visitor<'de> for VmVisitor {
             vec.try_push(elem).map_err(V::Error::custom)?;
         }
 
-        Ok(Value::Vec(
-            Shared::new(Vec::from(vec)).map_err(V::Error::custom)?,
-        ))
+        let vec = Vec::from(vec);
+        Value::try_from(vec).map_err(V::Error::custom)
     }
 
     #[inline]
@@ -319,8 +309,6 @@ impl<'de> de::Visitor<'de> for VmVisitor {
             object.insert(key, value).map_err(V::Error::custom)?;
         }
 
-        Ok(Value::Object(
-            Shared::new(object).map_err(V::Error::custom)?,
-        ))
+        Value::try_from(object).map_err(V::Error::custom)
     }
 }

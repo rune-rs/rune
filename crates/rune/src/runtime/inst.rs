@@ -5,6 +5,7 @@ use rune_macros::InstDisplay;
 use serde::{Deserialize, Serialize};
 
 use crate as rune;
+use crate::alloc;
 use crate::alloc::prelude::*;
 use crate::runtime::{Call, FormatSpec, Type, Value};
 use crate::Hash;
@@ -1485,15 +1486,15 @@ pub enum InstValue {
 
 impl InstValue {
     /// Convert into a value that can be pushed onto the stack.
-    pub fn into_value(self) -> Value {
+    pub fn into_value(self) -> alloc::Result<Value> {
         match self {
-            Self::EmptyTuple => Value::EmptyTuple,
-            Self::Bool(v) => Value::Bool(v),
-            Self::Byte(v) => Value::Byte(v),
-            Self::Char(v) => Value::Char(v),
-            Self::Integer(v) => Value::Integer(v),
-            Self::Float(v) => Value::Float(v),
-            Self::Type(v) => Value::Type(v),
+            Self::EmptyTuple => Value::empty(),
+            Self::Bool(v) => Value::try_from(v),
+            Self::Byte(v) => Value::try_from(v),
+            Self::Char(v) => Value::try_from(v),
+            Self::Integer(v) => Value::try_from(v),
+            Self::Float(v) => Value::try_from(v),
+            Self::Type(v) => Value::try_from(v),
         }
     }
 }

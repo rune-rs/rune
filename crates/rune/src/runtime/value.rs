@@ -5,27 +5,218 @@ use core::borrow::Borrow;
 use core::cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd};
 use core::fmt;
 use core::hash;
-use core::ptr;
 
 use ::rust_alloc::sync::Arc;
 
+use crate as rune;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
 use crate::compile::ItemBuf;
 use crate::runtime::vm::CallResult;
 use crate::runtime::{
-    AccessKind, AnyObj, Bytes, ConstValue, ControlFlow, EnvProtocolCaller, Format, Formatter,
-    FromValue, FullTypeOf, Function, Future, Generator, GeneratorState, Iterator, MaybeTypeOf, Mut,
-    Object, OwnedTuple, Protocol, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive,
-    RangeTo, RangeToInclusive, RawMut, RawRef, Ref, Shared, Stream, ToValue, Type, TypeInfo,
-    Variant, Vec, Vm, VmError, VmErrorKind, VmIntegerRepr, VmResult,
+    AccessError, AccessErrorKind, AnyObj, AnyObjError, BorrowMut, BorrowRef, Bytes, ConstValue,
+    ControlFlow, EnvProtocolCaller, Format, Formatter, FromValue, FullTypeOf, Function, Future,
+    Generator, GeneratorState, Iterator, MaybeTypeOf, Mut, Object, OwnedTuple, Protocol,
+    ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Ref,
+    RuntimeError, Shared, SharedPointerGuard, Snapshot, Stream, ToValue, Type, TypeInfo, Variant,
+    Vec, Vm, VmErrorKind, VmIntegerRepr, VmResult,
 };
 #[cfg(feature = "alloc")]
 use crate::runtime::{Hasher, Tuple};
 use crate::{Any, Hash};
 
 use ::serde::{Deserialize, Serialize};
+
+/// Macro used to generate coersions for [`Value`].
+macro_rules! into_base {
+    (
+        $(#[$($meta:meta)*])*
+        $kind:ident($ty:ty),
+        $into_ref:ident,
+        $into_mut:ident,
+        $borrow_ref:ident,
+        $borrow_mut:ident,
+    ) => {
+        $(#[$($meta)*])*
+        ///
+        /// This ensures that the value has read access to the underlying value
+        /// and does not consume it.
+        #[inline]
+        pub fn $into_ref(self) -> Result<Ref<$ty>, RuntimeError> {
+            let result = Ref::try_map(self.into_kind_ref()?, |kind| match kind {
+                ValueKind::$kind(bytes) => Some(bytes),
+                _ => None,
+            });
+
+            match result {
+                Ok(bytes) => Ok(bytes),
+                Err(actual) => {
+                    Err(RuntimeError::expected::<$ty>(actual.type_info()))
+                }
+            }
+        }
+
+        $(#[$($meta)*])*
+        ///
+        /// This ensures that the value has write access to the underlying value
+        /// and does not consume it.
+        #[inline]
+        pub fn $into_mut(self) -> Result<Mut<$ty>, RuntimeError> {
+            let result = Mut::try_map(self.into_kind_mut()?, |kind| match kind {
+                ValueKind::$kind(bytes) => Some(bytes),
+                _ => None,
+            });
+
+            match result {
+                Ok(bytes) => Ok(bytes),
+                Err(actual) => {
+                    Err(RuntimeError::expected::<$ty>(actual.type_info()))
+                }
+            }
+        }
+
+        $(#[$($meta)*])*
+        ///
+        /// This ensures that the value has read access to the underlying value
+        /// and does not consume it.
+        #[inline]
+        pub fn $borrow_ref(&self) -> Result<BorrowRef<'_, $ty>, RuntimeError> {
+            let result = BorrowRef::try_map(self.borrow_kind_ref()?, |kind| match kind {
+                ValueKind::$kind(bytes) => Some(bytes),
+                _ => None,
+            });
+
+            match result {
+                Ok(bytes) => Ok(bytes),
+                Err(actual) => {
+                    Err(RuntimeError::expected::<$ty>(actual.type_info()))
+                }
+            }
+        }
+
+        $(#[$($meta)*])*
+        ///
+        /// This ensures that the value has write access to the underlying value
+        /// and does not consume it.
+        #[inline]
+        pub fn $borrow_mut(&self) -> Result<BorrowMut<'_, $ty>, RuntimeError> {
+            let result = BorrowMut::try_map(self.borrow_kind_mut()?, |kind| match kind {
+                ValueKind::$kind(bytes) => Some(bytes),
+                _ => None,
+            });
+
+            match result {
+                Ok(bytes) => Ok(bytes),
+                Err(actual) => {
+                    Err(RuntimeError::expected::<$ty>(actual.type_info()))
+                }
+            }
+        }
+    }
+}
+
+macro_rules! into {
+    (
+        $(#[$($meta:meta)*])*
+        $kind:ident($ty:ty),
+        $into_ref:ident,
+        $into_mut:ident,
+        $borrow_ref:ident,
+        $borrow_mut:ident,
+        $into:ident,
+    ) => {
+        into_base! {
+            $(#[$($meta)*])*
+            $kind($ty),
+            $into_ref,
+            $into_mut,
+            $borrow_ref,
+            $borrow_mut,
+        }
+
+        $(#[$($meta)*])*
+        ///
+        /// This consumes the underlying value.
+        #[inline]
+        pub fn $into(self) -> Result<$ty, RuntimeError> {
+            match self.take_kind()? {
+                ValueKind::$kind(value) => Ok(value),
+                actual => {
+                    Err(RuntimeError::expected::<$ty>(actual.type_info()))
+                }
+            }
+        }
+    }
+}
+
+macro_rules! copy_into {
+    (
+        $(#[$($meta:meta)*])*
+        $kind:ident($ty:ty),
+        $into_ref:ident,
+        $into_mut:ident,
+        $borrow_ref:ident,
+        $borrow_mut:ident,
+        $as:ident,
+    ) => {
+        into_base! {
+            $(#[$($meta)*])*
+            $kind($ty),
+            $into_ref,
+            $into_mut,
+            $borrow_ref,
+            $borrow_mut,
+        }
+
+        $(#[$($meta)*])*
+        ///
+        /// This copied the underlying value.
+        #[inline]
+        pub fn $as(&self) -> Result<$ty, RuntimeError> {
+            match *self.borrow_kind_ref()? {
+                ValueKind::$kind(value) => Ok(value),
+                ref actual => {
+                    Err(RuntimeError::expected::<$ty>(actual.type_info()))
+                }
+            }
+        }
+    }
+}
+
+macro_rules! clone_into {
+    (
+        $(#[$($meta:meta)*])*
+        $kind:ident($ty:ty),
+        $into_ref:ident,
+        $into_mut:ident,
+        $borrow_ref:ident,
+        $borrow_mut:ident,
+        $as:ident,
+    ) => {
+        into_base! {
+            $(#[$($meta)*])*
+            $kind($ty),
+            $into_ref,
+            $into_mut,
+            $borrow_ref,
+            $borrow_mut,
+        }
+
+        $(#[$($meta)*])*
+        ///
+        /// This clones the underlying value.
+        #[inline]
+        pub fn $as(&self) -> Result<$ty, RuntimeError> {
+            match &*self.borrow_kind_ref()? {
+                ValueKind::$kind(value) => Ok(value.clone()),
+                actual => {
+                    Err(RuntimeError::expected::<$ty>(actual.type_info()))
+                }
+            }
+        }
+    }
+}
 
 // Small helper function to build errors.
 fn err<T, E>(error: E) -> VmResult<T>
@@ -36,6 +227,8 @@ where
 }
 
 /// A empty with a well-defined type.
+#[derive(TryClone)]
+#[try_clone(crate)]
 pub struct EmptyStruct {
     /// The type hash of the empty.
     pub(crate) rtti: Arc<Rtti>,
@@ -60,6 +253,7 @@ impl fmt::Debug for EmptyStruct {
 }
 
 /// A tuple with a well-defined type.
+#[derive(TryClone)]
 pub struct TupleStruct {
     /// The type hash of the tuple.
     pub(crate) rtti: Arc<Rtti>,
@@ -106,6 +300,7 @@ impl fmt::Debug for TupleStruct {
 }
 
 /// An object with a well-defined type.
+#[derive(TryClone)]
 pub struct Struct {
     /// The type hash of the object.
     pub(crate) rtti: Arc<Rtti>,
@@ -241,78 +436,176 @@ impl Ord for Rtti {
 
 /// An entry on the stack.
 #[derive(Clone)]
-pub enum Value {
-    /// A boolean.
-    Bool(bool),
-    /// A single byte.
-    Byte(u8),
-    /// A character.
-    Char(char),
-    /// A number.
-    Integer(i64),
-    /// A float.
-    Float(f64),
-    /// A type hash. Describes a type in the virtual machine.
-    Type(Type),
-    /// Ordering.
-    Ordering(Ordering),
-    /// A UTF-8 string.
-    String(Shared<String>),
-    /// A byte string.
-    Bytes(Shared<Bytes>),
-    /// A vector containing any values.
-    Vec(Shared<Vec>),
-    /// The unit value.
-    EmptyTuple,
-    /// A tuple.
-    Tuple(Shared<OwnedTuple>),
-    /// An object.
-    Object(Shared<Object>),
-    /// A range `start..`
-    RangeFrom(Shared<RangeFrom>),
-    /// A full range `..`
-    RangeFull(Shared<RangeFull>),
-    /// A full range `start..=end`
-    RangeInclusive(Shared<RangeInclusive>),
-    /// A full range `..=end`
-    RangeToInclusive(Shared<RangeToInclusive>),
-    /// A full range `..end`
-    RangeTo(Shared<RangeTo>),
-    /// A range `start..end`.
-    Range(Shared<Range>),
-    /// A control flow indicator.
-    ControlFlow(Shared<ControlFlow>),
-    /// A stored future.
-    Future(Shared<Future>),
-    /// A Stream.
-    Stream(Shared<Stream<Vm>>),
-    /// A stored generator.
-    Generator(Shared<Generator<Vm>>),
-    /// Generator state.
-    GeneratorState(Shared<GeneratorState>),
-    /// An empty value indicating nothing.
-    Option(Shared<Option<Value>>),
-    /// A stored result in a slot.
-    Result(Shared<Result<Value, Value>>),
-    /// An struct with a well-defined type.
-    EmptyStruct(Shared<EmptyStruct>),
-    /// A tuple with a well-defined type.
-    TupleStruct(Shared<TupleStruct>),
-    /// An struct with a well-defined type.
-    Struct(Shared<Struct>),
-    /// The variant of an enum.
-    Variant(Shared<Variant>),
-    /// A stored function pointer.
-    Function(Shared<Function>),
-    /// A value being formatted.
-    Format(Shared<Format>),
-    /// An iterator.
-    Iterator(Shared<Iterator>),
-    /// An opaque value that can be downcasted.
-    Any(Shared<AnyObj>),
+pub struct Value {
+    inner: Shared<ValueKind>,
 }
 
 impl Value {
+    /// Construct an Any that wraps a pointer.
+    ///
+    /// # Safety
+    ///
+    /// Caller must ensure that the returned `Value` doesn't outlive the
+    /// reference it is wrapping.
+    ///
+    /// This would be an example of incorrect use:
+    ///
+    /// ```no_run
+    /// use rune::Any;
+    /// use rune::runtime::Value;
+    ///
+    /// #[derive(Any)]
+    /// struct Foo(u32);
+    ///
+    /// let mut v = Foo(1u32);
+    ///
+    /// unsafe {
+    ///     let (any, guard) = unsafe { Value::from_ref(&v)? };
+    ///     drop(v);
+    ///     // any use of `any` beyond here is undefined behavior.
+    /// }
+    /// # Ok::<_, rune::support::Error>(())
+    /// ```
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::Any;
+    /// use rune::runtime::Value;
+    ///
+    /// #[derive(Any)]
+    /// struct Foo(u32);
+    ///
+    /// let mut v = Foo(1u32);
+    ///
+    /// unsafe {
+    ///     let (any, guard) = Value::from_ref(&mut v)?;
+    ///     let b = any.into_any_ref::<Foo>().unwrap();
+    ///     assert_eq!(b.0, 1u32);
+    /// }
+    /// # Ok::<_, rune::support::Error>(())
+    /// ```
+    pub unsafe fn from_ref<T>(data: &T) -> alloc::Result<(Self, SharedPointerGuard)>
+    where
+        T: Any,
+    {
+        let value = Shared::new(ValueKind::Any(AnyObj::from_ref(data)))?;
+        let (inner, guard) = Shared::into_drop_guard(value);
+        Ok((Self { inner }, guard))
+    }
+
+    /// Construct a value that wraps a mutable pointer.
+    ///
+    /// # Safety
+    ///
+    /// Caller must ensure that the returned `Value` doesn't outlive the
+    /// reference it is wrapping.
+    ///
+    /// This would be an example of incorrect use:
+    ///
+    /// ```no_run
+    /// use rune::Any;
+    /// use rune::runtime::Value;
+    ///
+    /// #[derive(Any)]
+    /// struct Foo(u32);
+    ///
+    /// let mut v = Foo(1u32);
+    /// unsafe {
+    ///     let (any, guard) = Value::from_mut(&mut v)?;
+    ///     drop(v);
+    ///     // any use of value beyond here is undefined behavior.
+    /// }
+    /// # Ok::<_, rune::support::Error>(())
+    /// ```
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::Any;
+    /// use rune::runtime::{Value, VmResult};
+    ///
+    /// #[derive(Any)]
+    /// struct Foo(u32);
+    ///
+    /// let mut v = Foo(1u32);
+    ///
+    /// unsafe {
+    ///     let (mut any, guard) = Value::from_mut(&mut v)?;
+    ///
+    ///     if let Ok(mut v) = any.into_any_mut::<Foo>() {
+    ///         v.0 += 1;
+    ///     }
+    /// }
+    ///
+    /// assert_eq!(v.0, 2);
+    /// # Ok::<_, rune::support::Error>(())
+    /// ```
+    pub unsafe fn from_mut<T>(data: &mut T) -> alloc::Result<(Self, SharedPointerGuard)>
+    where
+        T: Any,
+    {
+        let obj = AnyObj::from_mut(data);
+        let value = Shared::new(ValueKind::Any(obj))?;
+        let (inner, guard) = Shared::into_drop_guard(value);
+        Ok((Self { inner }, guard))
+    }
+
+    /// Test if the value is writable.
+    pub fn is_writable(&self) -> bool {
+        self.inner.is_writable()
+    }
+
+    /// Test if the value is readable.
+    pub fn is_readable(&self) -> bool {
+        self.inner.is_readable()
+    }
+
+    /// Get snapshot of value.
+    ///
+    /// The snapshot details how the value is currently being access.
+    #[allow(unused)]
+    pub fn snapshot(&self) -> Snapshot {
+        self.inner.snapshot()
+    }
+
+    /// Construct an empty value.
+    pub(crate) fn empty() -> alloc::Result<Self> {
+        Ok(Self {
+            inner: Shared::new(ValueKind::EmptyTuple)?,
+        })
+    }
+
+    /// Test if the value is empty.
+    pub(crate) fn is_empty(&self) -> Result<bool, AccessError> {
+        Ok(matches!(&*self.inner.borrow_ref()?, ValueKind::EmptyTuple))
+    }
+
+    /// Take the kind of the value.
+    pub(crate) fn take_kind(self) -> Result<ValueKind, AccessError> {
+        self.inner.take()
+    }
+
+    /// Borrow the kind of the value as a mutable reference.
+    pub(crate) fn borrow_kind_mut(&self) -> Result<BorrowMut<'_, ValueKind>, AccessError> {
+        self.inner.borrow_mut()
+    }
+
+    /// Take the kind of the value as an owned mutable reference.
+    pub(crate) fn into_kind_mut(self) -> Result<Mut<ValueKind>, AccessError> {
+        self.inner.into_mut()
+    }
+
+    /// Borrow the kind of the value as a reference.
+    pub(crate) fn borrow_kind_ref(&self) -> Result<BorrowRef<'_, ValueKind>, AccessError> {
+        self.inner.borrow_ref()
+    }
+
+    /// Take the kind of the value as an owned reference.
+    pub(crate) fn into_kind_ref(self) -> Result<Ref<ValueKind>, AccessError> {
+        self.inner.into_ref()
+    }
+
     /// Format the value using the [Protocol::STRING_DISPLAY] protocol.
     ///
     /// Requires a work buffer `buf` which will be used in case the value
@@ -335,44 +628,109 @@ impl Value {
         f: &mut Formatter,
         caller: &mut impl ProtocolCaller,
     ) -> VmResult<()> {
-        match self {
-            Value::Format(format) => {
-                let format = vm_try!(format.borrow_ref());
-                vm_try!(format.spec.format(&format.value, f, caller));
-            }
-            Value::Char(c) => {
+        match &*vm_try!(self.borrow_kind_ref()) {
+            ValueKind::Char(c) => {
                 vm_try!(f.push(*c));
             }
-            Value::String(string) => {
-                vm_try!(f.push_str(&vm_try!(string.borrow_ref())));
+            ValueKind::Format(format) => {
+                vm_try!(format.spec.format(&format.value, f, caller));
             }
-            Value::Integer(integer) => {
+            ValueKind::Integer(integer) => {
                 let mut buffer = itoa::Buffer::new();
                 vm_try!(f.push_str(buffer.format(*integer)));
             }
-            Value::Float(float) => {
+            ValueKind::Float(float) => {
                 let mut buffer = ryu::Buffer::new();
                 vm_try!(f.push_str(buffer.format(*float)));
             }
-            Value::Bool(bool) => {
-                return VmResult::Ok(vm_write!(f, "{}", bool));
+            ValueKind::Bool(bool) => {
+                vm_write!(f, "{bool}");
             }
-            Value::Byte(byte) => {
+            ValueKind::Byte(byte) => {
                 let mut buffer = itoa::Buffer::new();
                 vm_try!(f.push_str(buffer.format(*byte)));
             }
-            value => {
-                let result = vm_try!(caller.call_protocol_fn(
-                    Protocol::STRING_DISPLAY,
-                    value.clone(),
-                    (f,),
-                ));
+            ValueKind::String(string) => {
+                vm_try!(f.push_str(string));
+            }
+            _ => {
+                let result =
+                    vm_try!(caller.call_protocol_fn(Protocol::STRING_DISPLAY, self.clone(), (f,),));
 
                 return VmResult::Ok(vm_try!(<()>::from_value(result)));
             }
         }
 
         VmResult::Ok(())
+    }
+
+    /// Perform a shallow clone of the value using the [`CLONE`] protocol.
+    ///
+    /// This requires read access to the underlying value.
+    ///
+    /// You must use [Vm::with] to specify which virtual machine this function
+    /// is called inside.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if called outside of a virtual machine.
+    ///
+    /// [`CLONE`]: Protocol::CLONE
+    pub fn clone_(&self) -> VmResult<Self> {
+        self.clone_with(&mut EnvProtocolCaller)
+    }
+
+    pub(crate) fn clone_with(&self, caller: &mut impl ProtocolCaller) -> VmResult<Value> {
+        let inner = match &*vm_try!(self.inner.borrow_ref()) {
+            ValueKind::EmptyTuple => ValueKind::EmptyTuple,
+            ValueKind::Bool(value) => ValueKind::Bool(*value),
+            ValueKind::Byte(value) => ValueKind::Byte(*value),
+            ValueKind::Char(value) => ValueKind::Char(*value),
+            ValueKind::Integer(value) => ValueKind::Integer(*value),
+            ValueKind::Float(value) => ValueKind::Float(*value),
+            ValueKind::Type(value) => ValueKind::Type(*value),
+            ValueKind::Ordering(value) => ValueKind::Ordering(*value),
+            ValueKind::String(value) => ValueKind::String(vm_try!(value.try_clone())),
+            ValueKind::Bytes(value) => ValueKind::Bytes(vm_try!(value.try_clone())),
+            ValueKind::Vec(value) => ValueKind::Vec(vm_try!(value.try_clone())),
+            ValueKind::Tuple(value) => ValueKind::Tuple(vm_try!(value.try_clone())),
+            ValueKind::Object(value) => ValueKind::Object(vm_try!(value.try_clone())),
+            ValueKind::RangeFrom(value) => ValueKind::RangeFrom(vm_try!(value.try_clone())),
+            ValueKind::RangeFull(value) => ValueKind::RangeFull(vm_try!(value.try_clone())),
+            ValueKind::RangeInclusive(value) => {
+                ValueKind::RangeInclusive(vm_try!(value.try_clone()))
+            }
+            ValueKind::RangeToInclusive(value) => {
+                ValueKind::RangeToInclusive(vm_try!(value.try_clone()))
+            }
+            ValueKind::RangeTo(value) => ValueKind::RangeTo(vm_try!(value.try_clone())),
+            ValueKind::Range(value) => ValueKind::Range(vm_try!(value.try_clone())),
+            ValueKind::ControlFlow(value) => ValueKind::ControlFlow(vm_try!(value.try_clone())),
+            ValueKind::Stream(value) => ValueKind::Stream(vm_try!(value.try_clone())),
+            ValueKind::Generator(value) => ValueKind::Generator(vm_try!(value.try_clone())),
+            ValueKind::GeneratorState(value) => {
+                ValueKind::GeneratorState(vm_try!(value.try_clone()))
+            }
+            ValueKind::Option(value) => ValueKind::Option(vm_try!(value.try_clone())),
+            ValueKind::Result(value) => ValueKind::Result(vm_try!(value.try_clone())),
+            ValueKind::EmptyStruct(value) => ValueKind::EmptyStruct(vm_try!(value.try_clone())),
+            ValueKind::TupleStruct(value) => ValueKind::TupleStruct(vm_try!(value.try_clone())),
+            ValueKind::Struct(value) => ValueKind::Struct(vm_try!(value.try_clone())),
+            ValueKind::Variant(value) => ValueKind::Variant(vm_try!(value.try_clone())),
+            ValueKind::Function(value) => ValueKind::Function(vm_try!(value.try_clone())),
+            ValueKind::Format(value) => ValueKind::Format(vm_try!(value.try_clone())),
+            _ => {
+                return VmResult::Ok(vm_try!(caller.call_protocol_fn(
+                    Protocol::CLONE,
+                    self.clone(),
+                    ()
+                )));
+            }
+        };
+
+        VmResult::Ok(Self {
+            inner: vm_try!(Shared::new(inner)),
+        })
     }
 
     /// Debug format the value using the [`STRING_DEBUG`] protocol.
@@ -395,108 +753,106 @@ impl Value {
         f: &mut Formatter,
         caller: &mut impl ProtocolCaller,
     ) -> VmResult<()> {
-        match self {
-            Value::Bool(value) => {
-                vm_write!(f, "{:?}", value);
-            }
-            Value::Byte(value) => {
-                vm_write!(f, "{:?}", value);
-            }
-            Value::Char(value) => {
-                vm_write!(f, "{:?}", value);
-            }
-            Value::Integer(value) => {
-                vm_write!(f, "{:?}", value);
-            }
-            Value::Float(value) => {
-                vm_write!(f, "{:?}", value);
-            }
-            Value::Type(value) => {
-                vm_write!(f, "{:?}", value);
-            }
-            Value::String(value) => {
-                vm_write!(f, "{:?}", value);
-            }
-            Value::Bytes(value) => {
-                vm_write!(f, "{:?}", value);
-            }
-            Value::Vec(value) => {
-                let value = vm_try!(value.borrow_ref());
-                vm_try!(Vec::string_debug_with(&value, f, caller));
-            }
-            Value::EmptyTuple => {
+        match &*vm_try!(self.inner.borrow_ref()) {
+            ValueKind::EmptyTuple => {
                 vm_write!(f, "()");
             }
-            Value::Tuple(value) => {
+            ValueKind::Bool(value) => {
                 vm_write!(f, "{:?}", value);
             }
-            Value::Object(value) => {
+            ValueKind::Byte(value) => {
                 vm_write!(f, "{:?}", value);
             }
-            Value::RangeFrom(value) => {
+            ValueKind::Char(value) => {
                 vm_write!(f, "{:?}", value);
             }
-            Value::RangeFull(value) => {
+            ValueKind::Integer(value) => {
                 vm_write!(f, "{:?}", value);
             }
-            Value::RangeInclusive(value) => {
+            ValueKind::Float(value) => {
                 vm_write!(f, "{:?}", value);
             }
-            Value::RangeToInclusive(value) => {
+            ValueKind::Type(value) => {
                 vm_write!(f, "{:?}", value);
             }
-            Value::RangeTo(value) => {
+            ValueKind::String(value) => {
                 vm_write!(f, "{:?}", value);
             }
-            Value::Range(value) => {
+            ValueKind::Bytes(value) => {
                 vm_write!(f, "{:?}", value);
             }
-            Value::ControlFlow(value) => {
-                let value = vm_try!(value.borrow_ref());
-                vm_try!(ControlFlow::string_debug_with(&value, f, caller));
+            ValueKind::Vec(value) => {
+                vm_try!(Vec::string_debug_with(value, f, caller));
             }
-            Value::Future(value) => {
+            ValueKind::Tuple(value) => {
                 vm_write!(f, "{:?}", value);
             }
-            Value::Stream(value) => {
+            ValueKind::Object(value) => {
                 vm_write!(f, "{:?}", value);
             }
-            Value::Generator(value) => {
+            ValueKind::RangeFrom(value) => {
                 vm_write!(f, "{:?}", value);
             }
-            Value::GeneratorState(value) => {
+            ValueKind::RangeFull(value) => {
                 vm_write!(f, "{:?}", value);
             }
-            Value::Option(value) => {
+            ValueKind::RangeInclusive(value) => {
                 vm_write!(f, "{:?}", value);
             }
-            Value::Result(value) => {
+            ValueKind::RangeToInclusive(value) => {
                 vm_write!(f, "{:?}", value);
             }
-            Value::EmptyStruct(value) => {
+            ValueKind::RangeTo(value) => {
                 vm_write!(f, "{:?}", value);
             }
-            Value::TupleStruct(value) => {
+            ValueKind::Range(value) => {
                 vm_write!(f, "{:?}", value);
             }
-            Value::Struct(value) => {
+            ValueKind::ControlFlow(value) => {
+                vm_try!(ControlFlow::string_debug_with(value, f, caller));
+            }
+            ValueKind::Future(value) => {
                 vm_write!(f, "{:?}", value);
             }
-            Value::Variant(value) => {
+            ValueKind::Stream(value) => {
                 vm_write!(f, "{:?}", value);
             }
-            Value::Function(value) => {
+            ValueKind::Generator(value) => {
                 vm_write!(f, "{:?}", value);
             }
-            Value::Format(value) => {
+            ValueKind::GeneratorState(value) => {
                 vm_write!(f, "{:?}", value);
             }
-            Value::Iterator(value) => {
+            ValueKind::Option(value) => {
                 vm_write!(f, "{:?}", value);
             }
-            value => {
+            ValueKind::Result(value) => {
+                vm_write!(f, "{:?}", value);
+            }
+            ValueKind::EmptyStruct(value) => {
+                vm_write!(f, "{:?}", value);
+            }
+            ValueKind::TupleStruct(value) => {
+                vm_write!(f, "{:?}", value);
+            }
+            ValueKind::Struct(value) => {
+                vm_write!(f, "{:?}", value);
+            }
+            ValueKind::Variant(value) => {
+                vm_write!(f, "{:?}", value);
+            }
+            ValueKind::Function(value) => {
+                vm_write!(f, "{:?}", value);
+            }
+            ValueKind::Format(value) => {
+                vm_write!(f, "{:?}", value);
+            }
+            ValueKind::Iterator(value) => {
+                vm_write!(f, "{:?}", value);
+            }
+            _ => {
                 let result =
-                    vm_try!(caller.call_protocol_fn(Protocol::STRING_DEBUG, value.clone(), (f,),));
+                    vm_try!(caller.call_protocol_fn(Protocol::STRING_DEBUG, self.clone(), (f,)));
 
                 vm_try!(<()>::from_value(result));
                 return VmResult::Ok(());
@@ -520,43 +876,8 @@ impl Value {
     }
 
     pub(crate) fn into_iter_with(self, caller: &mut impl ProtocolCaller) -> VmResult<Iterator> {
-        let target = match self {
-            Value::Iterator(iterator) => return VmResult::Ok(vm_try!(iterator.take())),
-            Value::Vec(vec) => {
-                return VmResult::Ok(Vec::iter_ref(Ref::map(vm_try!(vec.into_ref()), |vec| {
-                    &**vec
-                })))
-            }
-            Value::Object(object) => {
-                return VmResult::Ok(Object::rune_iter(vm_try!(object.into_ref())))
-            }
-            target => target,
-        };
-
-        let value = vm_try!(caller.call_protocol_fn(Protocol::INTO_ITER, target, ()));
+        let value = vm_try!(caller.call_protocol_fn(Protocol::INTO_ITER, self, ()));
         Iterator::from_value(value)
-    }
-
-    /// Coerce into a future, or convert into a future using the
-    /// [Protocol::INTO_FUTURE] protocol.
-    ///
-    /// You must use [Vm::with] to specify which virtual machine this function
-    /// is called inside.
-    ///
-    /// # Errors
-    ///
-    /// This function errors in case the provided type cannot be converted into
-    /// a future without the use of a [`Vm`] and one is not provided through the
-    /// environment.
-    #[inline]
-    pub fn into_future(self) -> VmResult<Shared<Future>> {
-        let target = match self {
-            Value::Future(future) => return VmResult::Ok(future),
-            target => target,
-        };
-
-        let value = vm_try!(EnvProtocolCaller.call_protocol_fn(Protocol::INTO_FUTURE, target, ()));
-        VmResult::Ok(vm_try!(Shared::new(vm_try!(Future::from_value(value)))))
     }
 
     /// Retrieves a human readable type name for the current value.
@@ -597,521 +918,493 @@ impl Value {
 
     /// Construct a vector.
     pub fn vec(vec: alloc::Vec<Value>) -> VmResult<Self> {
-        VmResult::Ok(Self::Vec(vm_try!(Shared::new(Vec::from(vec)))))
+        let data = Vec::from(vec);
+
+        VmResult::Ok(vm_try!(Value::try_from(data)))
     }
 
     /// Construct a tuple.
     pub fn tuple(vec: alloc::Vec<Value>) -> VmResult<Self> {
-        VmResult::Ok(Self::Tuple(vm_try!(Shared::new(vm_try!(
-            OwnedTuple::try_from(vec)
-        )))))
+        let data = vm_try!(OwnedTuple::try_from(vec));
+
+        VmResult::Ok(vm_try!(Value::try_from(data)))
     }
 
     /// Construct an empty.
     pub fn empty_struct(rtti: Arc<Rtti>) -> VmResult<Self> {
-        VmResult::Ok(Self::EmptyStruct(vm_try!(Shared::new(EmptyStruct {
-            rtti
-        }))))
+        VmResult::Ok(vm_try!(Value::try_from(EmptyStruct { rtti })))
     }
 
     /// Construct a typed tuple.
     pub fn tuple_struct(rtti: Arc<Rtti>, vec: alloc::Vec<Value>) -> VmResult<Self> {
-        VmResult::Ok(Self::TupleStruct(vm_try!(Shared::new(TupleStruct {
-            rtti,
-            data: vm_try!(OwnedTuple::try_from(vec)),
-        }))))
+        let data = vm_try!(OwnedTuple::try_from(vec));
+
+        VmResult::Ok(vm_try!(Value::try_from(TupleStruct { rtti, data })))
     }
 
     /// Construct an empty variant.
     pub fn unit_variant(rtti: Arc<VariantRtti>) -> VmResult<Self> {
-        VmResult::Ok(Self::Variant(vm_try!(Shared::new(Variant::unit(rtti)))))
+        VmResult::Ok(vm_try!(Value::try_from(Variant::unit(rtti))))
     }
 
     /// Construct a tuple variant.
     pub fn tuple_variant(rtti: Arc<VariantRtti>, vec: alloc::Vec<Value>) -> VmResult<Self> {
-        VmResult::Ok(Self::Variant(vm_try!(Shared::new(Variant::tuple(
-            rtti,
-            vm_try!(OwnedTuple::try_from(vec))
-        )))))
+        let data = vm_try!(OwnedTuple::try_from(vec));
+
+        VmResult::Ok(vm_try!(Value::try_from(Variant::tuple(rtti, data))))
     }
 
-    /// Take the interior value.
-    pub fn take(self) -> VmResult<Self> {
-        VmResult::Ok(match self {
-            Self::Bool(value) => Self::Bool(value),
-            Self::Byte(value) => Self::Byte(value),
-            Self::Char(value) => Self::Char(value),
-            Self::Integer(value) => Self::Integer(value),
-            Self::Float(value) => Self::Float(value),
-            Self::Type(value) => Self::Type(value),
-            Self::Ordering(value) => Self::Ordering(value),
-            Self::String(value) => Self::String(vm_try!(Shared::new(vm_try!(value.take())))),
-            Self::Bytes(value) => Self::Bytes(vm_try!(Shared::new(vm_try!(value.take())))),
-            Self::Vec(value) => Self::Vec(vm_try!(Shared::new(vm_try!(value.take())))),
-            Self::EmptyTuple => Self::EmptyTuple,
-            Self::Tuple(value) => Self::Tuple(vm_try!(Shared::new(vm_try!(value.take())))),
-            Self::Object(value) => Self::Object(vm_try!(Shared::new(vm_try!(value.take())))),
-            Self::RangeFrom(value) => Self::RangeFrom(vm_try!(Shared::new(vm_try!(value.take())))),
-            Self::RangeFull(value) => Self::RangeFull(vm_try!(Shared::new(vm_try!(value.take())))),
-            Self::RangeInclusive(value) => {
-                Self::RangeInclusive(vm_try!(Shared::new(vm_try!(value.take()))))
-            }
-            Self::RangeToInclusive(value) => {
-                Self::RangeToInclusive(vm_try!(Shared::new(vm_try!(value.take()))))
-            }
-            Self::RangeTo(value) => Self::RangeTo(vm_try!(Shared::new(vm_try!(value.take())))),
-            Self::Range(value) => Self::Range(vm_try!(Shared::new(vm_try!(value.take())))),
-            Self::ControlFlow(value) => {
-                Self::ControlFlow(vm_try!(Shared::new(vm_try!(value.take()))))
-            }
-            Self::Future(value) => Self::Future(vm_try!(Shared::new(vm_try!(value.take())))),
-            Self::Stream(value) => Self::Stream(vm_try!(Shared::new(vm_try!(value.take())))),
-            Self::Generator(value) => Self::Generator(vm_try!(Shared::new(vm_try!(value.take())))),
-            Self::GeneratorState(value) => {
-                Self::GeneratorState(vm_try!(Shared::new(vm_try!(value.take()))))
-            }
-            Self::Option(value) => Self::Option(vm_try!(Shared::new(vm_try!(value.take())))),
-            Self::Result(value) => Self::Result(vm_try!(Shared::new(vm_try!(value.take())))),
-            Self::EmptyStruct(value) => {
-                Self::EmptyStruct(vm_try!(Shared::new(vm_try!(value.take()))))
-            }
-            Self::TupleStruct(value) => {
-                Self::TupleStruct(vm_try!(Shared::new(vm_try!(value.take()))))
-            }
-            Self::Struct(value) => Self::Struct(vm_try!(Shared::new(vm_try!(value.take())))),
-            Self::Variant(value) => Self::Variant(vm_try!(Shared::new(vm_try!(value.take())))),
-            Self::Function(value) => Self::Function(vm_try!(Shared::new(vm_try!(value.take())))),
-            Self::Format(value) => Self::Format(value),
-            Self::Iterator(value) => Self::Iterator(value),
-            Self::Any(value) => Self::Any(vm_try!(Shared::new(vm_try!(value.take())))),
+    /// Drop the interior value.
+    pub(crate) fn drop(self) -> VmResult<()> {
+        drop(vm_try!(self.inner.take()));
+        VmResult::Ok(())
+    }
+
+    /// Move the interior value.
+    pub(crate) fn move_(self) -> VmResult<Self> {
+        let inner = vm_try!(self.inner.take());
+
+        VmResult::Ok(Value {
+            inner: vm_try!(Shared::new(inner)),
         })
     }
 
-    /// Try to coerce value into a unit.
-    #[inline]
-    pub fn into_unit(self) -> VmResult<()> {
-        match self {
-            Value::EmptyTuple => VmResult::Ok(()),
-            actual => err(VmErrorKind::expected::<()>(vm_try!(actual.type_info()))),
-        }
-    }
-
-    /// Try to coerce value into a boolean.
-    #[inline]
-    pub fn as_bool(&self) -> VmResult<bool> {
-        match self {
-            Self::Bool(b) => VmResult::Ok(*b),
-            actual => err(VmErrorKind::expected::<bool>(vm_try!(actual.type_info()))),
-        }
-    }
-
-    /// Try to coerce value into a boolean.
-    #[inline]
-    pub fn into_bool(self) -> VmResult<bool> {
-        match self {
-            Self::Bool(b) => VmResult::Ok(b),
-            actual => err(VmErrorKind::expected::<bool>(vm_try!(actual.type_info()))),
-        }
-    }
-
-    /// Try to coerce value into a byte.
-    #[inline]
-    pub fn as_byte(&self) -> VmResult<u8> {
-        match self {
-            Self::Byte(b) => VmResult::Ok(*b),
-            actual => err(VmErrorKind::expected::<u8>(vm_try!(actual.type_info()))),
-        }
-    }
-
-    /// Try to coerce value into a byte.
-    #[inline]
-    pub fn into_byte(self) -> VmResult<u8> {
-        match self {
-            Self::Byte(b) => VmResult::Ok(b),
-            actual => err(VmErrorKind::expected::<u8>(vm_try!(actual.type_info()))),
-        }
-    }
-
-    /// Try to coerce value into a character.
-    #[inline]
-    pub fn as_char(&self) -> VmResult<char> {
-        match self {
-            Self::Char(c) => VmResult::Ok(*c),
-            actual => err(VmErrorKind::expected::<char>(vm_try!(actual.type_info()))),
-        }
-    }
-
-    /// Try to coerce value into a character.
-    #[inline]
-    pub fn into_char(self) -> VmResult<char> {
-        match self {
-            Self::Char(c) => VmResult::Ok(c),
-            actual => err(VmErrorKind::expected::<char>(vm_try!(actual.type_info()))),
-        }
-    }
-
-    /// Try to coerce value into an integer.
-    #[inline]
-    pub fn as_integer(&self) -> VmResult<i64> {
-        match self {
-            Self::Integer(integer) => VmResult::Ok(*integer),
-            actual => err(VmErrorKind::expected::<i64>(vm_try!(actual.type_info()))),
-        }
-    }
-
-    /// Try to coerce value into an integer.
-    #[inline]
-    pub fn into_integer(self) -> VmResult<i64> {
-        match self {
-            Self::Integer(integer) => VmResult::Ok(integer),
-            actual => err(VmErrorKind::expected::<i64>(vm_try!(actual.type_info()))),
-        }
-    }
-
-    /// Try to coerce value into a float.
-    #[inline]
-    pub fn as_float(&self) -> VmResult<f64> {
-        match self {
-            Self::Float(float) => VmResult::Ok(*float),
-            actual => err(VmErrorKind::expected::<f64>(vm_try!(actual.type_info()))),
-        }
-    }
-
-    /// Try to coerce value into a float.
-    #[inline]
-    pub fn into_float(self) -> VmResult<f64> {
-        match self {
-            Self::Float(float) => VmResult::Ok(float),
-            actual => err(VmErrorKind::expected::<f64>(vm_try!(actual.type_info()))),
-        }
-    }
-
-    /// Try to coerce value into a type.
-    #[inline]
-    pub fn as_type(&self) -> VmResult<Type> {
-        match self {
-            Self::Type(ty) => VmResult::Ok(*ty),
-            actual => err(VmErrorKind::expected::<Type>(vm_try!(actual.type_info()))),
-        }
-    }
-
-    /// Try to coerce value into a type.
-    #[inline]
-    pub fn into_type(self) -> VmResult<Type> {
-        match self {
-            Self::Type(ty) => VmResult::Ok(ty),
-            actual => err(VmErrorKind::expected::<Type>(vm_try!(actual.type_info()))),
-        }
-    }
-
     /// Try to coerce value into a usize.
     #[inline]
-    pub fn as_usize(&self) -> VmResult<usize> {
+    pub fn as_usize(&self) -> Result<usize, RuntimeError> {
         self.try_as_integer()
     }
 
-    /// Try to coerce value into a usize.
+    /// Get the value as a string.
     #[inline]
-    pub fn into_usize(self) -> VmResult<usize> {
-        self.try_into_integer()
-    }
+    pub fn as_string(&self) -> Result<BorrowRef<'_, str>, RuntimeError> {
+        let result = BorrowRef::try_map(self.inner.borrow_ref()?, |kind| match kind {
+            ValueKind::String(string) => Some(string.as_str()),
+            _ => None,
+        });
 
-    /// Try to coerce value into an [Ordering].
-    #[inline]
-    pub fn as_ordering(&self) -> VmResult<Ordering> {
-        match self {
-            Self::Ordering(ty) => VmResult::Ok(*ty),
-            actual => err(VmErrorKind::expected::<Ordering>(vm_try!(
-                actual.type_info()
-            ))),
+        match result {
+            Ok(s) => Ok(s),
+            Err(actual) => Err(RuntimeError::expected::<String>(actual.type_info())),
         }
     }
 
-    /// Try to coerce value into an [Ordering].
+    /// Take the current value as a string.
     #[inline]
-    pub fn into_ordering(self) -> VmResult<Ordering> {
-        match self {
-            Self::Ordering(ty) => VmResult::Ok(ty),
-            actual => err(VmErrorKind::expected::<Ordering>(vm_try!(
-                actual.type_info()
-            ))),
+    pub fn into_string(self) -> Result<String, RuntimeError> {
+        match self.inner.take()? {
+            ValueKind::String(string) => Ok(string),
+            actual => Err(RuntimeError::expected::<String>(actual.type_info())),
         }
     }
 
-    /// Try to coerce value into a result.
+    /// Coerce into type value.
+    #[doc(hidden)]
     #[inline]
-    pub fn into_result(self) -> VmResult<Shared<Result<Value, Value>>> {
-        match self {
-            Self::Result(result) => VmResult::Ok(result),
-            actual => err(VmErrorKind::expected::<Result<Value, Value>>(vm_try!(
-                actual.type_info()
-            ))),
+    pub fn into_type_value(self) -> Result<TypeValue, RuntimeError> {
+        match self.inner.take()? {
+            ValueKind::EmptyTuple => Ok(TypeValue::EmptyTuple),
+            ValueKind::Tuple(tuple) => Ok(TypeValue::Tuple(tuple)),
+            ValueKind::Object(object) => Ok(TypeValue::Object(object)),
+            ValueKind::EmptyStruct(empty) => Ok(TypeValue::EmptyStruct(empty)),
+            ValueKind::TupleStruct(tuple) => Ok(TypeValue::TupleStruct(tuple)),
+            ValueKind::Struct(object) => Ok(TypeValue::Struct(object)),
+            ValueKind::Variant(object) => Ok(TypeValue::Variant(object)),
+            kind => Ok(TypeValue::NotTyped(NotTypedValueKind(kind))),
         }
     }
 
-    /// Try to coerce value into a result.
+    /// Coerce into a unit.
     #[inline]
-    pub fn as_result(&self) -> VmResult<&Shared<Result<Value, Value>>> {
-        match self {
-            Self::Result(result) => VmResult::Ok(result),
-            actual => err(VmErrorKind::expected::<Result<Value, Value>>(vm_try!(
-                actual.type_info()
-            ))),
+    pub fn into_unit(&self) -> Result<(), RuntimeError> {
+        match *self.inner.borrow_ref()? {
+            ValueKind::EmptyTuple => Ok(()),
+            ref actual => Err(RuntimeError::expected::<()>(actual.type_info())),
         }
     }
 
-    /// Try to coerce value into a generator.
-    #[inline]
-    pub fn into_generator(self) -> VmResult<Shared<Generator<Vm>>> {
-        match self {
-            Value::Generator(generator) => VmResult::Ok(generator),
-            actual => err(VmErrorKind::expected::<Generator<Vm>>(vm_try!(
-                actual.type_info()
-            ))),
-        }
+    copy_into! {
+        /// Coerce into [`Ordering`].
+        Ordering(Ordering),
+        into_ordering_ref,
+        into_ordering_mut,
+        borrow_ordering_ref,
+        borrow_ordering_mut,
+        as_ordering,
     }
 
-    /// Try to coerce value into a stream.
-    #[inline]
-    pub fn into_stream(self) -> VmResult<Shared<Stream<Vm>>> {
-        match self {
-            Value::Stream(stream) => VmResult::Ok(stream),
-            actual => err(VmErrorKind::expected::<Stream<Vm>>(vm_try!(
-                actual.type_info()
-            ))),
-        }
+    copy_into! {
+        /// Coerce into [`bool`].
+        Bool(bool),
+        into_bool_ref,
+        into_bool_mut,
+        borrow_bool_ref,
+        borrow_bool_mut,
+        as_bool,
     }
 
-    /// Try to coerce value into a future.
-    #[inline]
-    pub fn into_generator_state(self) -> VmResult<Shared<GeneratorState>> {
-        match self {
-            Value::GeneratorState(state) => VmResult::Ok(state),
-            actual => err(VmErrorKind::expected::<GeneratorState>(vm_try!(
-                actual.type_info()
-            ))),
-        }
+    copy_into! {
+        /// Coerce into [`u8`] byte.
+        Byte(u8),
+        into_byte_ref,
+        into_byte_mut,
+        borrow_byte_ref,
+        borrow_byte_mut,
+        as_byte,
     }
 
-    /// Try to coerce value into an option.
-    #[inline]
-    pub fn into_option(self) -> VmResult<Shared<Option<Value>>> {
-        match self {
-            Self::Option(option) => VmResult::Ok(option),
-            actual => err(VmErrorKind::expected::<Option<Value>>(vm_try!(
-                actual.type_info()
-            ))),
-        }
+    copy_into! {
+        /// Coerce into [`char`].
+        Char(char),
+        into_char_ref,
+        into_char_mut,
+        borrow_char_ref,
+        borrow_char_mut,
+        as_char,
     }
 
-    /// Try to coerce value into a string.
-    #[inline]
-    pub fn into_string(self) -> VmResult<Shared<String>> {
-        match self {
-            Self::String(string) => VmResult::Ok(string),
-            actual => err(VmErrorKind::expected::<String>(vm_try!(actual.type_info()))),
-        }
+    copy_into! {
+        /// Coerce into [`i64`] integer.
+        Integer(i64),
+        into_integer_ref,
+        into_integer_mut,
+        borrow_integer_ref,
+        borrow_integer_mut,
+        as_integer,
     }
 
-    /// Try to coerce value into bytes.
-    #[inline]
-    pub fn into_bytes(self) -> VmResult<Shared<Bytes>> {
-        match self {
-            Self::Bytes(bytes) => VmResult::Ok(bytes),
-            actual => err(VmErrorKind::expected::<Bytes>(vm_try!(actual.type_info()))),
-        }
+    copy_into! {
+        /// Coerce into [`f64`] float.
+        Float(f64),
+        into_float_ref,
+        into_float_mut,
+        borrow_float_ref,
+        borrow_float_mut,
+        as_float,
     }
 
-    /// Try to coerce value into a vector.
-    #[inline]
-    pub fn into_vec(self) -> VmResult<Shared<Vec>> {
-        match self {
-            Self::Vec(vec) => VmResult::Ok(vec),
-            actual => err(VmErrorKind::expected::<Vec>(vm_try!(actual.type_info()))),
-        }
+    copy_into! {
+        /// Coerce into [`Type`].
+        Type(Type),
+        into_type_ref,
+        into_type_mut,
+        borrow_type_ref,
+        borrow_type_mut,
+        as_type,
     }
 
-    /// Try to coerce value into a tuple.
-    #[inline]
-    pub fn into_tuple(self) -> VmResult<Shared<OwnedTuple>> {
-        match self {
-            Self::EmptyTuple => VmResult::Ok(vm_try!(Shared::new(OwnedTuple::new()))),
-            Self::Tuple(tuple) => VmResult::Ok(tuple),
-            actual => err(VmErrorKind::expected::<OwnedTuple>(vm_try!(
-                actual.type_info()
-            ))),
-        }
+    clone_into! {
+        /// Coerce into [`Option`].
+        Option(Option<Value>),
+        into_option_ref,
+        into_option_mut,
+        borrow_option_ref,
+        borrow_option_mut,
+        as_option,
     }
 
-    /// Try to coerce value into an object.
-    #[inline]
-    pub fn into_object(self) -> VmResult<Shared<Object>> {
-        match self {
-            Self::Object(object) => VmResult::Ok(object),
-            actual => err(VmErrorKind::expected::<Object>(vm_try!(actual.type_info()))),
-        }
+    clone_into! {
+        /// Coerce into [`Result`].
+        Result(Result<Value, Value>),
+        into_result_ref,
+        into_result_mut,
+        borrow_result_ref,
+        borrow_result_mut,
+        as_result,
     }
 
-    /// Try to coerce value into a [`RangeFrom`].
-    #[inline]
-    pub fn into_range_from(self) -> VmResult<Shared<RangeFrom>> {
-        match self {
-            Self::RangeFrom(object) => VmResult::Ok(object),
-            actual => err(VmErrorKind::expected::<RangeFrom>(vm_try!(
-                actual.type_info()
-            ))),
-        }
+    into! {
+        /// Coerce into [`Vec`].
+        Vec(Vec),
+        into_vec_ref,
+        into_vec_mut,
+        borrow_vec_ref,
+        borrow_vec_mut,
+        into_vec,
     }
 
-    /// Try to coerce value into a [`RangeFull`].
-    #[inline]
-    pub fn into_range_full(self) -> VmResult<Shared<RangeFull>> {
-        match self {
-            Self::RangeFull(object) => VmResult::Ok(object),
-            actual => err(VmErrorKind::expected::<RangeFull>(vm_try!(
-                actual.type_info()
-            ))),
-        }
+    into! {
+        /// Coerce into [`Bytes`].
+        Bytes(Bytes),
+        into_bytes_ref,
+        into_bytes_mut,
+        borrow_bytes_ref,
+        borrow_bytes_mut,
+        into_bytes,
     }
 
-    /// Try to coerce value into a [`RangeToInclusive`].
-    #[inline]
-    pub fn into_range_to_inclusive(self) -> VmResult<Shared<RangeToInclusive>> {
-        match self {
-            Self::RangeToInclusive(object) => VmResult::Ok(object),
-            actual => err(VmErrorKind::expected::<RangeToInclusive>(vm_try!(
-                actual.type_info()
-            ))),
-        }
+    into! {
+        /// Coerce into a [`ControlFlow`].
+        ControlFlow(ControlFlow),
+        into_control_flow_ref,
+        into_control_flow_mut,
+        borrow_control_flow_ref,
+        borrow_control_flow_mut,
+        into_control_flow,
     }
 
-    /// Try to coerce value into a [`RangeInclusive`].
-    #[inline]
-    pub fn into_range_inclusive(self) -> VmResult<Shared<RangeInclusive>> {
-        match self {
-            Self::RangeInclusive(object) => VmResult::Ok(object),
-            actual => err(VmErrorKind::expected::<RangeInclusive>(vm_try!(
-                actual.type_info()
-            ))),
-        }
+    into! {
+        /// Coerce into a [`Function`].
+        Function(Function),
+        into_function_ref,
+        into_function_mut,
+        borrow_function_ref,
+        borrow_function_mut,
+        into_function,
     }
 
-    /// Try to coerce value into a [`RangeTo`].
-    #[inline]
-    pub fn into_range_to(self) -> VmResult<Shared<RangeTo>> {
-        match self {
-            Self::RangeTo(object) => VmResult::Ok(object),
-            actual => err(VmErrorKind::expected::<RangeTo>(
-                vm_try!(actual.type_info()),
-            )),
-        }
+    into! {
+        /// Coerce into a [`GeneratorState`].
+        GeneratorState(GeneratorState),
+        into_generator_state_ref,
+        into_generator_state_mut,
+        borrow_generator_state_ref,
+        borrow_generator_state_mut,
+        into_generator_state,
     }
 
-    /// Try to coerce value into a [`Range`].
-    #[inline]
-    pub fn into_range(self) -> VmResult<Shared<Range>> {
-        match self {
-            Self::Range(object) => VmResult::Ok(object),
-            actual => err(VmErrorKind::expected::<Range>(vm_try!(actual.type_info()))),
-        }
+    into! {
+        /// Coerce into a [`Generator`].
+        Generator(Generator<Vm>),
+        into_generator_ref,
+        into_generator_mut,
+        borrow_generator_ref,
+        borrow_generator_mut,
+        into_generator,
     }
 
-    /// Try to coerce value into a [`ControlFlow`].
-    #[inline]
-    pub fn into_control_flow(self) -> VmResult<Shared<ControlFlow>> {
-        match self {
-            Self::ControlFlow(object) => VmResult::Ok(object),
-            actual => err(VmErrorKind::expected::<ControlFlow>(vm_try!(
-                actual.type_info()
-            ))),
-        }
+    into! {
+        /// Coerce into a [`Iterator`].
+        Iterator(Iterator),
+        into_iterator_ref,
+        into_iterator_mut,
+        borrow_iterator_ref,
+        borrow_iterator_mut,
+        into_iterator,
     }
 
-    /// Try to coerce value into a function pointer.
-    #[inline]
-    pub fn into_function(self) -> VmResult<Shared<Function>> {
-        match self {
-            Self::Function(function) => VmResult::Ok(function),
-            actual => err(VmErrorKind::expected::<Function>(vm_try!(
-                actual.type_info()
-            ))),
-        }
+    into! {
+        /// Coerce into a [`Format`].
+        Format(Format),
+        into_format_ref,
+        into_format_mut,
+        borrow_format_ref,
+        borrow_format_mut,
+        into_format,
     }
 
-    /// Try to coerce value into a format spec.
-    #[inline]
-    pub fn into_format(self) -> VmResult<Shared<Format>> {
-        match self {
-            Value::Format(format) => VmResult::Ok(format),
-            actual => err(VmErrorKind::expected::<Format>(vm_try!(actual.type_info()))),
-        }
+    into! {
+        /// Coerce into [`Tuple`].
+        Tuple(OwnedTuple),
+        into_tuple_ref,
+        into_tuple_mut,
+        borrow_tuple_ref,
+        borrow_tuple_mut,
+        into_tuple,
     }
 
-    /// Try to coerce value into an iterator.
-    #[inline]
-    pub fn into_iterator(self) -> VmResult<Shared<Iterator>> {
-        match self {
-            Value::Iterator(format) => VmResult::Ok(format),
-            actual => err(VmErrorKind::expected::<Iterator>(vm_try!(
-                actual.type_info()
-            ))),
-        }
+    into! {
+        /// Coerce into a [`Object`].
+        Object(Object),
+        into_object_ref,
+        into_object_mut,
+        borrow_object_ref,
+        borrow_object_mut,
+        into_object,
     }
 
-    /// Try to coerce value into an opaque value.
-    #[inline]
-    pub fn into_any(self) -> VmResult<Shared<AnyObj>> {
-        match self {
-            Self::Any(any) => VmResult::Ok(any),
-            actual => err(VmErrorKind::expected_any(vm_try!(actual.type_info()))),
-        }
+    into! {
+        /// Coerce into a [`RangeFrom`].
+        RangeFrom(RangeFrom),
+        into_range_from_ref,
+        into_range_from_mut,
+        borrow_range_from_ref,
+        borrow_range_from_mut,
+        into_range_from,
     }
 
-    /// Try to coerce value into a ref and an associated guard.
+    into! {
+        /// Coerce into a [`RangeFull`].
+        RangeFull(RangeFull),
+        into_range_full_ref,
+        into_range_full_mut,
+        borrow_range_full_ref,
+        borrow_range_full_mut,
+        into_range_full,
+    }
+
+    into! {
+        /// Coerce into a [`RangeToInclusive`].
+        RangeToInclusive(RangeToInclusive),
+        into_range_to_inclusive_ref,
+        into_range_to_inclusive_mut,
+        borrow_range_to_inclusive_ref,
+        borrow_range_to_inclusive_mut,
+        into_range_to_inclusive,
+    }
+
+    into! {
+        /// Coerce into a [`RangeInclusive`].
+        RangeInclusive(RangeInclusive),
+        into_range_inclusive_ref,
+        into_range_inclusive_mut,
+        borrow_range_inclusive_ref,
+        borrow_range_inclusive_mut,
+        into_range_inclusive,
+    }
+
+    into! {
+        /// Coerce into a [`RangeTo`].
+        RangeTo(RangeTo),
+        into_range_to_ref,
+        into_range_to_mut,
+        borrow_range_to_ref,
+        borrow_range_to_mut,
+        into_range_to,
+    }
+
+    into! {
+        /// Coerce into a [`Range`].
+        Range(Range),
+        into_range_ref,
+        into_range_mut,
+        borrow_range_ref,
+        borrow_range_mut,
+        into_range,
+    }
+
+    into! {
+        /// Coerce into a [`Stream`].
+        Stream(Stream<Vm>),
+        into_stream_ref,
+        into_stream_mut,
+        borrow_stream_ref,
+        borrow_stream_mut,
+        into_stream,
+    }
+
+    into_base! {
+        /// Coerce into a [`Future`].
+        Future(Future),
+        into_future_ref,
+        into_future_mut,
+        borrow_future_ref,
+        borrow_future_mut,
+    }
+
+    /// Coerce into an [`AnyObj`].
     ///
-    /// # Safety
-    ///
-    /// This coerces a strong guard to the value into its raw components.
-    ///
-    /// It is up to the caller to ensure that the returned pointer does not
-    /// outlive the returned guard, not the virtual machine the value belongs
-    /// to.
+    /// This consumes the underlying value.
     #[inline]
-    pub fn into_any_ptr<T>(self) -> VmResult<(ptr::NonNull<T>, RawRef)>
+    pub fn into_any_obj(self) -> Result<AnyObj, RuntimeError> {
+        match self.take_kind()? {
+            ValueKind::Any(value) => Ok(value),
+            ref actual => Err(RuntimeError::expected_any(actual.type_info())),
+        }
+    }
+
+    /// Coerce into a future, or convert into a future using the
+    /// [Protocol::INTO_FUTURE] protocol.
+    ///
+    /// You must use [Vm::with] to specify which virtual machine this function
+    /// is called inside.
+    ///
+    /// # Errors
+    ///
+    /// This function errors in case the provided type cannot be converted into
+    /// a future without the use of a [`Vm`] and one is not provided through the
+    /// environment.
+    #[inline]
+    pub fn into_future(self) -> VmResult<Future> {
+        let target = match vm_try!(self.inner.take()) {
+            ValueKind::Future(future) => return VmResult::Ok(future),
+            target => vm_try!(Value::try_from(target)),
+        };
+
+        let value = vm_try!(EnvProtocolCaller.call_protocol_fn(Protocol::INTO_FUTURE, target, ()));
+        VmResult::Ok(vm_try!(Future::from_value(value)))
+    }
+
+    /// Try to coerce value into a typed value.
+    #[inline]
+    pub fn into_any<T>(self) -> Result<T, RuntimeError>
     where
         T: Any,
     {
-        match self {
-            Self::Any(any) => {
-                let any = vm_try!(any.internal_downcast_into_ref::<T>(AccessKind::Any));
-                let (data, guard) = Ref::into_raw(any);
-                VmResult::Ok((data, guard))
+        let any = match self.inner.take()? {
+            ValueKind::Any(any) => any,
+            actual => return Err(RuntimeError::expected_any(actual.type_info())),
+        };
+
+        match any.downcast::<T>() {
+            Ok(any) => Ok(any),
+            Err((AnyObjError::Cast, any)) => {
+                Err(RuntimeError::from(AccessErrorKind::UnexpectedType {
+                    expected: any::type_name::<T>().into(),
+                    actual: any.type_name(),
+                }))
             }
-            actual => err(VmErrorKind::expected_any(vm_try!(actual.type_info()))),
+            Err((error, _)) => Err(RuntimeError::from(AccessError::from(error))),
         }
     }
 
-    /// Try to coerce value into a ref and an associated guard.
-    ///
-    /// # Safety
-    ///
-    /// This coerces a strong guard to the value into its raw components.
-    ///
-    /// It is up to the caller to ensure that the returned pointer does not
-    /// outlive the returned guard, not the virtual machine the value belongs
-    /// to.
+    /// Try to coerce value into a typed reference.
     #[inline]
-    pub fn into_any_mut<T>(self) -> VmResult<(ptr::NonNull<T>, RawMut)>
+    pub fn into_any_ref<T>(self) -> Result<Ref<T>, RuntimeError>
     where
         T: Any,
     {
-        match self {
-            Self::Any(any) => {
-                let any = vm_try!(any.internal_downcast_into_mut::<T>(AccessKind::Any));
-                let (data, guard) = Mut::into_raw(any);
-                VmResult::Ok((data, guard))
+        let result = Ref::try_map(self.into_kind_ref()?, |kind| match kind {
+            ValueKind::Any(any) => Some(any),
+            _ => None,
+        });
+
+        let any = match result {
+            Ok(any) => any,
+            Err(actual) => return Err(RuntimeError::expected_any(actual.type_info())),
+        };
+
+        let result = Ref::result_map(any, |any| any.downcast_borrow_ref());
+
+        match result {
+            Ok(value) => Ok(value),
+            Err((AnyObjError::Cast, any)) => {
+                Err(RuntimeError::from(AccessErrorKind::UnexpectedType {
+                    expected: any::type_name::<T>().into(),
+                    actual: any.type_name(),
+                }))
             }
-            actual => err(VmErrorKind::expected_any(vm_try!(actual.type_info()))),
+            Err((error, _)) => Err(RuntimeError::from(AccessError::from(error))),
+        }
+    }
+
+    /// Try to coerce value into a typed mutable reference.
+    #[inline]
+    pub fn into_any_mut<T>(self) -> Result<Mut<T>, RuntimeError>
+    where
+        T: Any,
+    {
+        let result = Mut::try_map(self.into_kind_mut()?, |kind| match kind {
+            ValueKind::Any(any) => Some(any),
+            _ => None,
+        });
+
+        let any = match result {
+            Ok(any) => any,
+            Err(actual) => return Err(RuntimeError::expected_any(actual.type_info())),
+        };
+
+        let result = Mut::result_map(any, |any| any.downcast_borrow_mut());
+
+        match result {
+            Ok(value) => Ok(value),
+            Err((AnyObjError::Cast, any)) => {
+                Err(RuntimeError::from(AccessErrorKind::UnexpectedType {
+                    expected: any::type_name::<T>().into(),
+                    actual: any.type_name(),
+                }))
+            }
+            Err((error, _)) => Err(RuntimeError::from(AccessError::from(error))),
         }
     }
 
@@ -1119,97 +1412,13 @@ impl Value {
     ///
     /// One notable feature is that the type of a variant is its container
     /// *enum*, and not the type hash of the variant itself.
-    pub fn type_hash(&self) -> Result<Hash, VmError> {
-        Ok(match self {
-            Self::Bool(..) => crate::runtime::static_type::BOOL_TYPE.hash,
-            Self::Byte(..) => crate::runtime::static_type::BYTE_TYPE.hash,
-            Self::Char(..) => crate::runtime::static_type::CHAR_TYPE.hash,
-            Self::Integer(..) => crate::runtime::static_type::INTEGER_TYPE.hash,
-            Self::Float(..) => crate::runtime::static_type::FLOAT_TYPE.hash,
-            Self::Type(..) => crate::runtime::static_type::TYPE.hash,
-            Self::Ordering(..) => crate::runtime::static_type::ORDERING_TYPE.hash,
-            Self::String(..) => crate::runtime::static_type::STRING_TYPE.hash,
-            Self::Bytes(..) => crate::runtime::static_type::BYTES_TYPE.hash,
-            Self::Vec(..) => crate::runtime::static_type::VEC_TYPE.hash,
-            Self::EmptyTuple => crate::runtime::static_type::TUPLE_TYPE.hash,
-            Self::Tuple(..) => crate::runtime::static_type::TUPLE_TYPE.hash,
-            Self::Object(..) => crate::runtime::static_type::OBJECT_TYPE.hash,
-            Self::RangeFrom(..) => crate::runtime::static_type::RANGE_FROM_TYPE.hash,
-            Self::RangeFull(..) => crate::runtime::static_type::RANGE_FULL_TYPE.hash,
-            Self::RangeInclusive(..) => crate::runtime::static_type::RANGE_INCLUSIVE_TYPE.hash,
-            Self::RangeToInclusive(..) => crate::runtime::static_type::RANGE_TO_INCLUSIVE_TYPE.hash,
-            Self::RangeTo(..) => crate::runtime::static_type::RANGE_TO_TYPE.hash,
-            Self::Range(..) => crate::runtime::static_type::RANGE_TYPE.hash,
-            Self::ControlFlow(..) => crate::runtime::static_type::CONTROL_FLOW_TYPE.hash,
-            Self::Future(..) => crate::runtime::static_type::FUTURE_TYPE.hash,
-            Self::Stream(..) => crate::runtime::static_type::STREAM_TYPE.hash,
-            Self::Generator(..) => crate::runtime::static_type::GENERATOR_TYPE.hash,
-            Self::GeneratorState(..) => crate::runtime::static_type::GENERATOR_STATE_TYPE.hash,
-            Self::Result(..) => crate::runtime::static_type::RESULT_TYPE.hash,
-            Self::Option(..) => crate::runtime::static_type::OPTION_TYPE.hash,
-            Self::Function(..) => crate::runtime::static_type::FUNCTION_TYPE.hash,
-            Self::Format(..) => crate::runtime::static_type::FORMAT_TYPE.hash,
-            Self::Iterator(..) => crate::runtime::static_type::ITERATOR_TYPE.hash,
-            Self::EmptyStruct(empty) => empty.borrow_ref()?.rtti.hash,
-            Self::TupleStruct(tuple) => tuple.borrow_ref()?.rtti.hash,
-            Self::Struct(object) => object.borrow_ref()?.rtti.hash,
-            Self::Variant(variant) => variant.borrow_ref()?.rtti().enum_hash,
-            Self::Any(any) => any.borrow_ref()?.type_hash(),
-        })
+    pub fn type_hash(&self) -> Result<Hash, AccessError> {
+        Ok(self.inner.borrow_ref()?.type_hash())
     }
 
     /// Get the type information for the current value.
-    pub fn type_info(&self) -> VmResult<TypeInfo> {
-        VmResult::Ok(match self {
-            Self::Bool(..) => TypeInfo::StaticType(crate::runtime::static_type::BOOL_TYPE),
-            Self::Byte(..) => TypeInfo::StaticType(crate::runtime::static_type::BYTE_TYPE),
-            Self::Char(..) => TypeInfo::StaticType(crate::runtime::static_type::CHAR_TYPE),
-            Self::Integer(..) => TypeInfo::StaticType(crate::runtime::static_type::INTEGER_TYPE),
-            Self::Float(..) => TypeInfo::StaticType(crate::runtime::static_type::FLOAT_TYPE),
-            Self::Type(..) => TypeInfo::StaticType(crate::runtime::static_type::TYPE),
-            Self::Ordering(..) => TypeInfo::StaticType(crate::runtime::static_type::ORDERING_TYPE),
-            Self::String(..) => TypeInfo::StaticType(crate::runtime::static_type::STRING_TYPE),
-            Self::Bytes(..) => TypeInfo::StaticType(crate::runtime::static_type::BYTES_TYPE),
-            Self::Vec(..) => TypeInfo::StaticType(crate::runtime::static_type::VEC_TYPE),
-            Self::EmptyTuple => TypeInfo::StaticType(crate::runtime::static_type::TUPLE_TYPE),
-            Self::Tuple(..) => TypeInfo::StaticType(crate::runtime::static_type::TUPLE_TYPE),
-            Self::Object(..) => TypeInfo::StaticType(crate::runtime::static_type::OBJECT_TYPE),
-            Self::RangeFrom(..) => {
-                TypeInfo::StaticType(crate::runtime::static_type::RANGE_FROM_TYPE)
-            }
-            Self::RangeFull(..) => {
-                TypeInfo::StaticType(crate::runtime::static_type::RANGE_FULL_TYPE)
-            }
-            Self::RangeInclusive(..) => {
-                TypeInfo::StaticType(crate::runtime::static_type::RANGE_INCLUSIVE_TYPE)
-            }
-            Self::RangeToInclusive(..) => {
-                TypeInfo::StaticType(crate::runtime::static_type::RANGE_TO_INCLUSIVE_TYPE)
-            }
-            Self::RangeTo(..) => TypeInfo::StaticType(crate::runtime::static_type::RANGE_TO_TYPE),
-            Self::Range(..) => TypeInfo::StaticType(crate::runtime::static_type::RANGE_TYPE),
-            Self::ControlFlow(..) => {
-                TypeInfo::StaticType(crate::runtime::static_type::CONTROL_FLOW_TYPE)
-            }
-            Self::Future(..) => TypeInfo::StaticType(crate::runtime::static_type::FUTURE_TYPE),
-            Self::Stream(..) => TypeInfo::StaticType(crate::runtime::static_type::STREAM_TYPE),
-            Self::Generator(..) => {
-                TypeInfo::StaticType(crate::runtime::static_type::GENERATOR_TYPE)
-            }
-            Self::GeneratorState(..) => {
-                TypeInfo::StaticType(crate::runtime::static_type::GENERATOR_STATE_TYPE)
-            }
-            Self::Option(..) => TypeInfo::StaticType(crate::runtime::static_type::OPTION_TYPE),
-            Self::Result(..) => TypeInfo::StaticType(crate::runtime::static_type::RESULT_TYPE),
-            Self::Function(..) => TypeInfo::StaticType(crate::runtime::static_type::FUNCTION_TYPE),
-            Self::Format(..) => TypeInfo::StaticType(crate::runtime::static_type::FORMAT_TYPE),
-            Self::Iterator(..) => TypeInfo::StaticType(crate::runtime::static_type::ITERATOR_TYPE),
-            Self::EmptyStruct(empty) => vm_try!(empty.borrow_ref()).type_info(),
-            Self::TupleStruct(tuple) => vm_try!(tuple.borrow_ref()).type_info(),
-            Self::Struct(object) => vm_try!(object.borrow_ref()).type_info(),
-            Self::Variant(empty) => vm_try!(empty.borrow_ref()).type_info(),
-            Self::Any(any) => vm_try!(any.borrow_ref()).type_info(),
-        })
+    pub fn type_info(&self) -> Result<TypeInfo, AccessError> {
+        Ok(self.inner.borrow_ref()?.type_info())
     }
 
     /// Perform a partial equality test between two values.
@@ -1223,143 +1432,116 @@ impl Value {
     ///
     /// This function will error if called outside of a virtual machine context.
     pub fn partial_eq(a: &Value, b: &Value) -> VmResult<bool> {
-        Value::partial_eq_with(a, b, &mut EnvProtocolCaller)
+        Self::partial_eq_with(a, b, &mut EnvProtocolCaller)
     }
 
     /// Perform a total equality test between two values.
     ///
     /// This is the basis for the eq operation (`partial_eq` / '==').
     pub(crate) fn partial_eq_with(
-        a: &Value,
+        &self,
         b: &Value,
         caller: &mut impl ProtocolCaller,
     ) -> VmResult<bool> {
-        match (a, b) {
-            (Self::Bool(a), Self::Bool(b)) => return VmResult::Ok(a == b),
-            (Self::Byte(a), Self::Byte(b)) => return VmResult::Ok(a == b),
-            (Self::Char(a), Self::Char(b)) => return VmResult::Ok(a == b),
-            (Self::Integer(a), Self::Integer(b)) => return VmResult::Ok(a == b),
-            (Self::Float(a), Self::Float(b)) => return VmResult::Ok(a == b),
-            (Self::Type(a), Self::Type(b)) => return VmResult::Ok(a == b),
-            (Self::Bytes(a), Self::Bytes(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return VmResult::Ok(*a == *b);
-            }
-            (Self::Vec(a), b) => {
-                let a = vm_try!(a.borrow_ref());
-                return Vec::partial_eq_with(&a, b.clone(), caller);
-            }
-            (Self::EmptyTuple, Self::EmptyTuple) => return VmResult::Ok(true),
-            (Self::Tuple(a), b) => {
-                let a = vm_try!(a.borrow_ref());
-                return Vec::partial_eq_with(&a, b.clone(), caller);
-            }
-            (Self::Object(a), b) => {
-                let a = vm_try!(a.borrow_ref());
-                return Object::partial_eq_with(&a, b.clone(), caller);
-            }
-            (Self::RangeFrom(a), Self::RangeFrom(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return RangeFrom::partial_eq_with(&a, &b, caller);
-            }
-            (Self::RangeFull(a), Self::RangeFull(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return RangeFull::partial_eq_with(&a, &b, caller);
-            }
-            (Self::RangeInclusive(a), Self::RangeInclusive(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return RangeInclusive::partial_eq_with(&a, &b, caller);
-            }
-            (Self::RangeToInclusive(a), Self::RangeToInclusive(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return RangeToInclusive::partial_eq_with(&a, &b, caller);
-            }
-            (Self::RangeTo(a), Self::RangeTo(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return RangeTo::partial_eq_with(&a, &b, caller);
-            }
-            (Self::Range(a), Self::Range(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return Range::partial_eq_with(&a, &b, caller);
-            }
-            (Self::ControlFlow(a), Self::ControlFlow(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return ControlFlow::partial_eq_with(&a, &b, caller);
-            }
-            (Self::EmptyStruct(a), Self::EmptyStruct(b)) => {
-                if vm_try!(a.borrow_ref()).rtti.hash == vm_try!(b.borrow_ref()).rtti.hash {
-                    // NB: don't get any future ideas, this must fall through to
-                    // the VmError below since it's otherwise a comparison
-                    // between two incompatible types.
-                    //
-                    // Other than that, all units are equal.
-                    return VmResult::Ok(true);
-                }
-            }
-            (Self::TupleStruct(a), Self::TupleStruct(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
+        {
+            let a = vm_try!(self.borrow_kind_ref());
 
-                if a.rtti.hash == b.rtti.hash {
-                    return Vec::eq_with(&a.data, &b.data, Value::partial_eq_with, caller);
+            match (&*a, &*vm_try!(b.borrow_kind_ref())) {
+                (ValueKind::EmptyTuple, ValueKind::EmptyTuple) => return VmResult::Ok(true),
+                (ValueKind::Bool(a), ValueKind::Bool(b)) => return VmResult::Ok(*a == *b),
+                (ValueKind::Byte(a), ValueKind::Byte(b)) => return VmResult::Ok(*a == *b),
+                (ValueKind::Char(a), ValueKind::Char(b)) => return VmResult::Ok(*a == *b),
+                (ValueKind::Integer(a), ValueKind::Integer(b)) => return VmResult::Ok(*a == *b),
+                (ValueKind::Float(a), ValueKind::Float(b)) => return VmResult::Ok(*a == *b),
+                (ValueKind::Type(a), ValueKind::Type(b)) => return VmResult::Ok(*a == *b),
+                (ValueKind::Bytes(a), ValueKind::Bytes(b)) => {
+                    return VmResult::Ok(*a == *b);
                 }
-            }
-            (Self::Struct(a), Self::Struct(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-
-                if a.rtti.hash == b.rtti.hash {
-                    return Object::eq_with(&a.data, &b.data, Value::partial_eq_with, caller);
+                (ValueKind::RangeFrom(a), ValueKind::RangeFrom(b)) => {
+                    return RangeFrom::partial_eq_with(a, b, caller);
                 }
-            }
-            (Self::Variant(a), Self::Variant(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-
-                if a.rtti().enum_hash == b.rtti().enum_hash {
-                    return Variant::partial_eq_with(&a, &b, caller);
+                (ValueKind::RangeFull(a), ValueKind::RangeFull(b)) => {
+                    return RangeFull::partial_eq_with(a, b, caller);
                 }
-            }
-            (Self::String(a), Self::String(b)) => {
-                return VmResult::Ok(*vm_try!(a.borrow_ref()) == *vm_try!(b.borrow_ref()));
-            }
-            (Self::Option(a), Self::Option(b)) => {
-                match (&*vm_try!(a.borrow_ref()), &*vm_try!(b.borrow_ref())) {
-                    (Some(a), Some(b)) => return Self::partial_eq_with(a, b, caller),
+                (ValueKind::RangeInclusive(a), ValueKind::RangeInclusive(b)) => {
+                    return RangeInclusive::partial_eq_with(a, b, caller);
+                }
+                (ValueKind::RangeToInclusive(a), ValueKind::RangeToInclusive(b)) => {
+                    return RangeToInclusive::partial_eq_with(a, b, caller);
+                }
+                (ValueKind::RangeTo(a), ValueKind::RangeTo(b)) => {
+                    return RangeTo::partial_eq_with(a, b, caller);
+                }
+                (ValueKind::Range(a), ValueKind::Range(b)) => {
+                    return Range::partial_eq_with(a, b, caller);
+                }
+                (ValueKind::ControlFlow(a), ValueKind::ControlFlow(b)) => {
+                    return ControlFlow::partial_eq_with(a, b, caller);
+                }
+                (ValueKind::EmptyStruct(a), ValueKind::EmptyStruct(b)) => {
+                    if a.rtti.hash == b.rtti.hash {
+                        // NB: don't get any future ideas, this must fall through to
+                        // the VmError below since it's otherwise a comparison
+                        // between two incompatible types.
+                        //
+                        // Other than that, all units are equal.
+                        return VmResult::Ok(true);
+                    }
+                }
+                (ValueKind::TupleStruct(a), ValueKind::TupleStruct(b)) => {
+                    if a.rtti.hash == b.rtti.hash {
+                        return Vec::eq_with(&a.data, &b.data, Value::partial_eq_with, caller);
+                    }
+                }
+                (ValueKind::Struct(a), ValueKind::Struct(b)) => {
+                    if a.rtti.hash == b.rtti.hash {
+                        return Object::eq_with(&a.data, &b.data, Value::partial_eq_with, caller);
+                    }
+                }
+                (ValueKind::Variant(a), ValueKind::Variant(b)) => {
+                    if a.rtti().enum_hash == b.rtti().enum_hash {
+                        return Variant::partial_eq_with(a, b, caller);
+                    }
+                }
+                (ValueKind::String(a), ValueKind::String(b)) => {
+                    return VmResult::Ok(*a == *b);
+                }
+                (ValueKind::Option(a), ValueKind::Option(b)) => match (a, b) {
+                    (Some(a), Some(b)) => return Value::partial_eq_with(a, b, caller),
                     (None, None) => return VmResult::Ok(true),
                     _ => return VmResult::Ok(false),
-                }
-            }
-            (Self::Result(a), Self::Result(b)) => {
-                match (&*vm_try!(a.borrow_ref()), &*vm_try!(b.borrow_ref())) {
-                    (Ok(a), Ok(b)) => return Self::partial_eq_with(a, b, caller),
-                    (Err(a), Err(b)) => return Self::partial_eq_with(a, b, caller),
+                },
+                (ValueKind::Result(a), ValueKind::Result(b)) => match (a, b) {
+                    (Ok(a), Ok(b)) => return Value::partial_eq_with(a, b, caller),
+                    (Err(a), Err(b)) => return Value::partial_eq_with(a, b, caller),
                     _ => return VmResult::Ok(false),
-                }
+                },
+                _ => {}
             }
-            (a, b) => {
-                match vm_try!(caller.try_call_protocol_fn(
-                    Protocol::PARTIAL_EQ,
-                    a.clone(),
-                    (b.clone(),)
-                )) {
-                    CallResult::Ok(value) => return bool::from_value(value),
-                    CallResult::Unsupported(..) => {}
+
+            match &*a {
+                ValueKind::Vec(a) => {
+                    return Vec::partial_eq_with(a, b.clone(), caller);
                 }
+                ValueKind::Tuple(a) => {
+                    return Vec::partial_eq_with(a, b.clone(), caller);
+                }
+                ValueKind::Object(a) => {
+                    return Object::partial_eq_with(a, b.clone(), caller);
+                }
+                _ => {}
             }
+        }
+
+        if let CallResult::Ok(value) =
+            vm_try!(caller.try_call_protocol_fn(Protocol::PARTIAL_EQ, self.clone(), (b.clone(),)))
+        {
+            return <_>::from_value(value);
         }
 
         err(VmErrorKind::UnsupportedBinaryOperation {
             op: "partial_eq",
-            lhs: vm_try!(a.type_info()),
+            lhs: vm_try!(self.type_info()),
             rhs: vm_try!(b.type_info()),
         })
     }
@@ -1376,19 +1558,19 @@ impl Value {
         hasher: &mut Hasher,
         caller: &mut impl ProtocolCaller,
     ) -> VmResult<()> {
-        match self {
-            Value::Integer(value) => {
+        match &*vm_try!(self.borrow_kind_ref()) {
+            ValueKind::Integer(value) => {
                 hasher.write_i64(*value);
                 return VmResult::Ok(());
             }
-            Value::Byte(value) => {
+            ValueKind::Byte(value) => {
                 hasher.write_u8(*value);
                 return VmResult::Ok(());
             }
             // Care must be taken whan hashing floats, to ensure that `hash(v1)
             // === hash(v2)` if `eq(v1) === eq(v2)`. Hopefully we accomplish
             // this by rejecting NaNs and rectifying subnormal values of zero.
-            Value::Float(value) => {
+            ValueKind::Float(value) => {
                 if value.is_nan() {
                     return VmResult::err(VmErrorKind::IllegalFloatOperation { value: *value });
                 }
@@ -1397,31 +1579,27 @@ impl Value {
                 hasher.write_f64((zero as u8 as f64) * 0.0 + (!zero as u8 as f64) * *value);
                 return VmResult::Ok(());
             }
-            Value::String(string) => {
-                let string = vm_try!(string.borrow_ref());
-                hasher.write_str(&string);
+            ValueKind::String(string) => {
+                hasher.write_str(string);
                 return VmResult::Ok(());
             }
-            Value::Bytes(bytes) => {
-                let bytes = vm_try!(bytes.borrow_ref());
-                hasher.write(&bytes);
+            ValueKind::Bytes(bytes) => {
+                hasher.write(bytes);
                 return VmResult::Ok(());
             }
-            Value::Tuple(tuple) => {
-                let tuple = vm_try!(tuple.borrow_ref());
-                return Tuple::hash_with(&tuple, hasher, caller);
+            ValueKind::Tuple(tuple) => {
+                return Tuple::hash_with(tuple, hasher, caller);
             }
-            Value::Vec(vec) => {
-                let vec = vm_try!(vec.borrow_ref());
-                return Vec::hash_with(&vec, hasher, caller);
+            ValueKind::Vec(vec) => {
+                return Vec::hash_with(vec, hasher, caller);
             }
-            value => {
-                match vm_try!(caller.try_call_protocol_fn(Protocol::HASH, value.clone(), (hasher,)))
-                {
-                    CallResult::Ok(value) => return <()>::from_value(value),
-                    CallResult::Unsupported(..) => {}
-                }
-            }
+            _ => {}
+        }
+
+        if let CallResult::Ok(value) =
+            vm_try!(caller.try_call_protocol_fn(Protocol::HASH, self.clone(), (hasher,)))
+        {
+            return <_>::from_value(value);
         }
 
         err(VmErrorKind::UnsupportedUnaryOperation {
@@ -1448,77 +1626,58 @@ impl Value {
     ///
     /// This is the basis for the eq operation (`==`).
     pub(crate) fn eq_with(&self, b: &Value, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
-        match (self, b) {
-            (Self::Bool(a), Self::Bool(b)) => return VmResult::Ok(a == b),
-            (Self::Byte(a), Self::Byte(b)) => return VmResult::Ok(a == b),
-            (Self::Char(a), Self::Char(b)) => return VmResult::Ok(a == b),
-            (Self::Float(a), Self::Float(b)) => {
-                if let Some(ordering) = a.partial_cmp(b) {
-                    return VmResult::Ok(matches!(ordering, Ordering::Equal));
-                }
+        match (
+            &*vm_try!(self.borrow_kind_ref()),
+            &*vm_try!(b.borrow_kind_ref()),
+        ) {
+            (ValueKind::Bool(a), ValueKind::Bool(b)) => return VmResult::Ok(*a == *b),
+            (ValueKind::Byte(a), ValueKind::Byte(b)) => return VmResult::Ok(*a == *b),
+            (ValueKind::Char(a), ValueKind::Char(b)) => return VmResult::Ok(*a == *b),
+            (ValueKind::Float(a), ValueKind::Float(b)) => {
+                let Some(ordering) = a.partial_cmp(b) else {
+                    return VmResult::err(VmErrorKind::IllegalFloatComparison { lhs: *a, rhs: *b });
+                };
 
-                return VmResult::err(VmErrorKind::IllegalFloatComparison { lhs: *a, rhs: *b });
+                return VmResult::Ok(matches!(ordering, Ordering::Equal));
             }
-            (Self::Integer(a), Self::Integer(b)) => return VmResult::Ok(a == b),
-            (Self::Type(a), Self::Type(b)) => return VmResult::Ok(a == b),
-            (Self::Bytes(a), Self::Bytes(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
+            (ValueKind::Integer(a), ValueKind::Integer(b)) => return VmResult::Ok(*a == *b),
+            (ValueKind::Type(a), ValueKind::Type(b)) => return VmResult::Ok(*a == *b),
+            (ValueKind::Bytes(a), ValueKind::Bytes(b)) => {
                 return VmResult::Ok(*a == *b);
             }
-            (Self::Vec(a), Self::Vec(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return Vec::eq_with(&a, &b, Value::eq_with, caller);
+            (ValueKind::Vec(a), ValueKind::Vec(b)) => {
+                return Vec::eq_with(a, b, Value::eq_with, caller);
             }
-            (Self::EmptyTuple, Self::EmptyTuple) => return VmResult::Ok(true),
-            (Self::Tuple(a), Self::Tuple(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return Vec::eq_with(&a, &b, Value::eq_with, caller);
+            (ValueKind::EmptyTuple, ValueKind::EmptyTuple) => return VmResult::Ok(true),
+            (ValueKind::Tuple(a), ValueKind::Tuple(b)) => {
+                return Vec::eq_with(a, b, Value::eq_with, caller);
             }
-            (Self::Object(a), Self::Object(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return Object::eq_with(&a, &b, Value::eq_with, caller);
+            (ValueKind::Object(a), ValueKind::Object(b)) => {
+                return Object::eq_with(a, b, Value::eq_with, caller);
             }
-            (Self::RangeFrom(a), Self::RangeFrom(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return RangeFrom::eq_with(&a, &b, caller);
+            (ValueKind::RangeFrom(a), ValueKind::RangeFrom(b)) => {
+                return RangeFrom::eq_with(a, b, caller);
             }
-            (Self::RangeFull(a), Self::RangeFull(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return RangeFull::eq_with(&a, &b, caller);
+            (ValueKind::RangeFull(a), ValueKind::RangeFull(b)) => {
+                return RangeFull::eq_with(a, b, caller);
             }
-            (Self::RangeInclusive(a), Self::RangeInclusive(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return RangeInclusive::eq_with(&a, &b, caller);
+            (ValueKind::RangeInclusive(a), ValueKind::RangeInclusive(b)) => {
+                return RangeInclusive::eq_with(a, b, caller);
             }
-            (Self::RangeToInclusive(a), Self::RangeToInclusive(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return RangeToInclusive::eq_with(&a, &b, caller);
+            (ValueKind::RangeToInclusive(a), ValueKind::RangeToInclusive(b)) => {
+                return RangeToInclusive::eq_with(a, b, caller);
             }
-            (Self::RangeTo(a), Self::RangeTo(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return RangeTo::eq_with(&a, &b, caller);
+            (ValueKind::RangeTo(a), ValueKind::RangeTo(b)) => {
+                return RangeTo::eq_with(a, b, caller);
             }
-            (Self::Range(a), Self::Range(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return Range::eq_with(&a, &b, caller);
+            (ValueKind::Range(a), ValueKind::Range(b)) => {
+                return Range::eq_with(a, b, caller);
             }
-            (Self::ControlFlow(a), Self::ControlFlow(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return ControlFlow::eq_with(&a, &b, caller);
+            (ValueKind::ControlFlow(a), ValueKind::ControlFlow(b)) => {
+                return ControlFlow::eq_with(a, b, caller);
             }
-            (Self::EmptyStruct(a), Self::EmptyStruct(b)) => {
-                if vm_try!(a.borrow_ref()).rtti.hash == vm_try!(b.borrow_ref()).rtti.hash {
+            (ValueKind::EmptyStruct(a), ValueKind::EmptyStruct(b)) => {
+                if a.rtti.hash == b.rtti.hash {
                     // NB: don't get any future ideas, this must fall through to
                     // the VmError below since it's otherwise a comparison
                     // between two incompatible types.
@@ -1527,54 +1686,41 @@ impl Value {
                     return VmResult::Ok(true);
                 }
             }
-            (Self::TupleStruct(a), Self::TupleStruct(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-
+            (ValueKind::TupleStruct(a), ValueKind::TupleStruct(b)) => {
                 if a.rtti.hash == b.rtti.hash {
                     return Vec::eq_with(&a.data, &b.data, Value::eq_with, caller);
                 }
             }
-            (Self::Struct(a), Self::Struct(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-
+            (ValueKind::Struct(a), ValueKind::Struct(b)) => {
                 if a.rtti.hash == b.rtti.hash {
                     return Object::eq_with(&a.data, &b.data, Value::eq_with, caller);
                 }
             }
-            (Self::Variant(a), Self::Variant(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-
+            (ValueKind::Variant(a), ValueKind::Variant(b)) => {
                 if a.rtti().enum_hash == b.rtti().enum_hash {
-                    return Variant::eq_with(&a, &b, caller);
+                    return Variant::eq_with(a, b, caller);
                 }
             }
-            (Self::String(a), Self::String(b)) => {
-                return VmResult::Ok(*vm_try!(a.borrow_ref()) == *vm_try!(b.borrow_ref()));
+            (ValueKind::String(a), ValueKind::String(b)) => {
+                return VmResult::Ok(*a == *b);
             }
-            (Self::Option(a), Self::Option(b)) => {
-                match (&*vm_try!(a.borrow_ref()), &*vm_try!(b.borrow_ref())) {
-                    (Some(a), Some(b)) => return Self::eq_with(a, b, caller),
-                    (None, None) => return VmResult::Ok(true),
-                    _ => return VmResult::Ok(false),
-                }
-            }
-            (Self::Result(a), Self::Result(b)) => {
-                match (&*vm_try!(a.borrow_ref()), &*vm_try!(b.borrow_ref())) {
-                    (Ok(a), Ok(b)) => return Self::eq_with(a, b, caller),
-                    (Err(a), Err(b)) => return Self::eq_with(a, b, caller),
-                    _ => return VmResult::Ok(false),
-                }
-            }
-            _ => {
-                match vm_try!(caller.try_call_protocol_fn(Protocol::EQ, self.clone(), (b.clone(),)))
-                {
-                    CallResult::Ok(value) => return bool::from_value(value),
-                    CallResult::Unsupported(..) => {}
-                }
-            }
+            (ValueKind::Option(a), ValueKind::Option(b)) => match (a, b) {
+                (Some(a), Some(b)) => return Value::eq_with(a, b, caller),
+                (None, None) => return VmResult::Ok(true),
+                _ => return VmResult::Ok(false),
+            },
+            (ValueKind::Result(a), ValueKind::Result(b)) => match (a, b) {
+                (Ok(a), Ok(b)) => return Value::eq_with(a, b, caller),
+                (Err(a), Err(b)) => return Value::eq_with(a, b, caller),
+                _ => return VmResult::Ok(false),
+            },
+            _ => {}
+        }
+
+        if let CallResult::Ok(value) =
+            vm_try!(caller.try_call_protocol_fn(Protocol::EQ, self.clone(), (b.clone(),)))
+        {
+            return <_>::from_value(value);
         }
 
         err(VmErrorKind::UnsupportedBinaryOperation {
@@ -1602,70 +1748,57 @@ impl Value {
     ///
     /// This is the basis for the comparison operation.
     pub(crate) fn partial_cmp_with(
-        a: &Value,
+        &self,
         b: &Value,
         caller: &mut impl ProtocolCaller,
     ) -> VmResult<Option<Ordering>> {
-        match (a, b) {
-            (Self::Bool(a), Self::Bool(b)) => return VmResult::Ok(a.partial_cmp(b)),
-            (Self::Byte(a), Self::Byte(b)) => return VmResult::Ok(a.partial_cmp(b)),
-            (Self::Char(a), Self::Char(b)) => return VmResult::Ok(a.partial_cmp(b)),
-            (Self::Float(a), Self::Float(b)) => return VmResult::Ok(a.partial_cmp(b)),
-            (Self::Integer(a), Self::Integer(b)) => return VmResult::Ok(a.partial_cmp(b)),
-            (Self::Type(a), Self::Type(b)) => return VmResult::Ok(a.partial_cmp(b)),
-            (Self::Bytes(a), Self::Bytes(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return VmResult::Ok(a.partial_cmp(&b));
+        match (
+            &*vm_try!(self.borrow_kind_ref()),
+            &*vm_try!(b.borrow_kind_ref()),
+        ) {
+            (ValueKind::EmptyTuple, ValueKind::EmptyTuple) => {
+                return VmResult::Ok(Some(Ordering::Equal))
             }
-            (Self::Vec(a), Self::Vec(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return Vec::partial_cmp_with(&a, &b, caller);
+            (ValueKind::Bool(a), ValueKind::Bool(b)) => return VmResult::Ok(a.partial_cmp(b)),
+            (ValueKind::Byte(a), ValueKind::Byte(b)) => return VmResult::Ok(a.partial_cmp(b)),
+            (ValueKind::Char(a), ValueKind::Char(b)) => return VmResult::Ok(a.partial_cmp(b)),
+            (ValueKind::Float(a), ValueKind::Float(b)) => return VmResult::Ok(a.partial_cmp(b)),
+            (ValueKind::Integer(a), ValueKind::Integer(b)) => {
+                return VmResult::Ok(a.partial_cmp(b));
             }
-            (Self::EmptyTuple, Self::EmptyTuple) => return VmResult::Ok(Some(Ordering::Equal)),
-            (Self::Tuple(a), Self::Tuple(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return Vec::partial_cmp_with(&a, &b, caller);
+            (ValueKind::Type(a), ValueKind::Type(b)) => return VmResult::Ok(a.partial_cmp(b)),
+            (ValueKind::Bytes(a), ValueKind::Bytes(b)) => {
+                return VmResult::Ok(a.partial_cmp(b));
             }
-            (Self::Object(a), Self::Object(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return Object::partial_cmp_with(&a, &b, caller);
+            (ValueKind::Vec(a), ValueKind::Vec(b)) => {
+                return Vec::partial_cmp_with(a, b, caller);
             }
-            (Self::RangeFrom(a), Self::RangeFrom(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return RangeFrom::partial_cmp_with(&a, &b, caller);
+            (ValueKind::Tuple(a), ValueKind::Tuple(b)) => {
+                return Vec::partial_cmp_with(a, b, caller);
             }
-            (Self::RangeFull(a), Self::RangeFull(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return RangeFull::partial_cmp_with(&a, &b, caller);
+            (ValueKind::Object(a), ValueKind::Object(b)) => {
+                return Object::partial_cmp_with(a, b, caller);
             }
-            (Self::RangeInclusive(a), Self::RangeInclusive(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return RangeInclusive::partial_cmp_with(&a, &b, caller);
+            (ValueKind::RangeFrom(a), ValueKind::RangeFrom(b)) => {
+                return RangeFrom::partial_cmp_with(a, b, caller);
             }
-            (Self::RangeToInclusive(a), Self::RangeToInclusive(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return RangeToInclusive::partial_cmp_with(&a, &b, caller);
+            (ValueKind::RangeFull(a), ValueKind::RangeFull(b)) => {
+                return RangeFull::partial_cmp_with(a, b, caller);
             }
-            (Self::RangeTo(a), Self::RangeTo(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return RangeTo::partial_cmp_with(&a, &b, caller);
+            (ValueKind::RangeInclusive(a), ValueKind::RangeInclusive(b)) => {
+                return RangeInclusive::partial_cmp_with(a, b, caller);
             }
-            (Self::Range(a), Self::Range(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return Range::partial_cmp_with(&a, &b, caller);
+            (ValueKind::RangeToInclusive(a), ValueKind::RangeToInclusive(b)) => {
+                return RangeToInclusive::partial_cmp_with(a, b, caller);
             }
-            (Self::EmptyStruct(a), Self::EmptyStruct(b)) => {
-                if vm_try!(a.borrow_ref()).rtti.hash == vm_try!(b.borrow_ref()).rtti.hash {
+            (ValueKind::RangeTo(a), ValueKind::RangeTo(b)) => {
+                return RangeTo::partial_cmp_with(a, b, caller);
+            }
+            (ValueKind::Range(a), ValueKind::Range(b)) => {
+                return Range::partial_cmp_with(a, b, caller);
+            }
+            (ValueKind::EmptyStruct(a), ValueKind::EmptyStruct(b)) => {
+                if a.rtti.hash == b.rtti.hash {
                     // NB: don't get any future ideas, this must fall through to
                     // the VmError below since it's otherwise a comparison
                     // between two incompatible types.
@@ -1674,66 +1807,48 @@ impl Value {
                     return VmResult::Ok(Some(Ordering::Equal));
                 }
             }
-            (Self::TupleStruct(a), Self::TupleStruct(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-
+            (ValueKind::TupleStruct(a), ValueKind::TupleStruct(b)) => {
                 if a.rtti.hash == b.rtti.hash {
                     return Vec::partial_cmp_with(&a.data, &b.data, caller);
                 }
             }
-            (Self::Struct(a), Self::Struct(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-
+            (ValueKind::Struct(a), ValueKind::Struct(b)) => {
                 if a.rtti.hash == b.rtti.hash {
                     return Object::partial_cmp_with(&a.data, &b.data, caller);
                 }
             }
-            (Self::Variant(a), Self::Variant(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-
+            (ValueKind::Variant(a), ValueKind::Variant(b)) => {
                 if a.rtti().enum_hash == b.rtti().enum_hash {
-                    return Variant::partial_cmp_with(&a, &b, caller);
+                    return Variant::partial_cmp_with(a, b, caller);
                 }
             }
-            (Self::String(a), Self::String(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return VmResult::Ok((*a).partial_cmp(&*b));
+            (ValueKind::String(a), ValueKind::String(b)) => {
+                return VmResult::Ok(a.partial_cmp(b));
             }
-            (Self::Option(a), Self::Option(b)) => {
-                match (&*vm_try!(a.borrow_ref()), &*vm_try!(b.borrow_ref())) {
-                    (Some(a), Some(b)) => return Self::partial_cmp_with(a, b, caller),
-                    (None, None) => return VmResult::Ok(Some(Ordering::Equal)),
-                    (Some(..), None) => return VmResult::Ok(Some(Ordering::Greater)),
-                    (None, Some(..)) => return VmResult::Ok(Some(Ordering::Less)),
-                }
-            }
-            (Self::Result(a), Self::Result(b)) => {
-                match (&*vm_try!(a.borrow_ref()), &*vm_try!(b.borrow_ref())) {
-                    (Ok(a), Ok(b)) => return Self::partial_cmp_with(a, b, caller),
-                    (Err(a), Err(b)) => return Self::partial_cmp_with(a, b, caller),
-                    (Ok(..), Err(..)) => return VmResult::Ok(Some(Ordering::Greater)),
-                    (Err(..), Ok(..)) => return VmResult::Ok(Some(Ordering::Less)),
-                }
-            }
-            (a, b) => {
-                match vm_try!(caller.try_call_protocol_fn(
-                    Protocol::PARTIAL_CMP,
-                    a.clone(),
-                    (b.clone(),)
-                )) {
-                    CallResult::Ok(value) => return <Option<Ordering>>::from_value(value),
-                    CallResult::Unsupported(..) => {}
-                }
-            }
+            (ValueKind::Option(a), ValueKind::Option(b)) => match (a, b) {
+                (Some(a), Some(b)) => return Value::partial_cmp_with(a, b, caller),
+                (None, None) => return VmResult::Ok(Some(Ordering::Equal)),
+                (Some(..), None) => return VmResult::Ok(Some(Ordering::Greater)),
+                (None, Some(..)) => return VmResult::Ok(Some(Ordering::Less)),
+            },
+            (ValueKind::Result(a), ValueKind::Result(b)) => match (a, b) {
+                (Ok(a), Ok(b)) => return Value::partial_cmp_with(a, b, caller),
+                (Err(a), Err(b)) => return Value::partial_cmp_with(a, b, caller),
+                (Ok(..), Err(..)) => return VmResult::Ok(Some(Ordering::Greater)),
+                (Err(..), Ok(..)) => return VmResult::Ok(Some(Ordering::Less)),
+            },
+            _ => {}
+        }
+
+        if let CallResult::Ok(value) =
+            vm_try!(caller.try_call_protocol_fn(Protocol::PARTIAL_CMP, self.clone(), (b.clone(),)))
+        {
+            return <_>::from_value(value);
         }
 
         err(VmErrorKind::UnsupportedBinaryOperation {
             op: "partial_cmp",
-            lhs: vm_try!(a.type_info()),
+            lhs: vm_try!(self.type_info()),
             rhs: vm_try!(b.type_info()),
         })
     }
@@ -1756,76 +1871,59 @@ impl Value {
     ///
     /// This is the basis for the comparison operation (`cmp`).
     pub(crate) fn cmp_with(
-        a: &Value,
+        &self,
         b: &Value,
         caller: &mut impl ProtocolCaller,
     ) -> VmResult<Ordering> {
-        match (a, b) {
-            (Self::Bool(a), Self::Bool(b)) => return VmResult::Ok(a.cmp(b)),
-            (Self::Byte(a), Self::Byte(b)) => return VmResult::Ok(a.cmp(b)),
-            (Self::Char(a), Self::Char(b)) => return VmResult::Ok(a.cmp(b)),
-            (Self::Float(a), Self::Float(b)) => {
-                if let Some(ordering) = a.partial_cmp(b) {
-                    return VmResult::Ok(ordering);
-                }
+        match (
+            &*vm_try!(self.borrow_kind_ref()),
+            &*vm_try!(b.borrow_kind_ref()),
+        ) {
+            (ValueKind::EmptyTuple, ValueKind::EmptyTuple) => return VmResult::Ok(Ordering::Equal),
+            (ValueKind::Bool(a), ValueKind::Bool(b)) => return VmResult::Ok(a.cmp(b)),
+            (ValueKind::Byte(a), ValueKind::Byte(b)) => return VmResult::Ok(a.cmp(b)),
+            (ValueKind::Char(a), ValueKind::Char(b)) => return VmResult::Ok(a.cmp(b)),
+            (ValueKind::Float(a), ValueKind::Float(b)) => {
+                let Some(ordering) = a.partial_cmp(b) else {
+                    return VmResult::err(VmErrorKind::IllegalFloatComparison { lhs: *a, rhs: *b });
+                };
 
-                return VmResult::err(VmErrorKind::IllegalFloatComparison { lhs: *a, rhs: *b });
+                return VmResult::Ok(ordering);
             }
-            (Self::Integer(a), Self::Integer(b)) => return VmResult::Ok(a.cmp(b)),
-            (Self::Type(a), Self::Type(b)) => return VmResult::Ok(a.cmp(b)),
-            (Self::Bytes(a), Self::Bytes(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return VmResult::Ok(a.cmp(&b));
+            (ValueKind::Integer(a), ValueKind::Integer(b)) => return VmResult::Ok(a.cmp(b)),
+            (ValueKind::Type(a), ValueKind::Type(b)) => return VmResult::Ok(a.cmp(b)),
+            (ValueKind::Bytes(a), ValueKind::Bytes(b)) => {
+                return VmResult::Ok(a.cmp(b));
             }
-            (Self::Vec(a), Self::Vec(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return Vec::cmp_with(&a, &b, caller);
+            (ValueKind::Vec(a), ValueKind::Vec(b)) => {
+                return Vec::cmp_with(a, b, caller);
             }
-            (Self::EmptyTuple, Self::EmptyTuple) => return VmResult::Ok(Ordering::Equal),
-            (Self::Tuple(a), Self::Tuple(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return Vec::cmp_with(&a, &b, caller);
+            (ValueKind::Tuple(a), ValueKind::Tuple(b)) => {
+                return Vec::cmp_with(a, b, caller);
             }
-            (Self::Object(a), Self::Object(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return Object::cmp_with(&a, &b, caller);
+            (ValueKind::Object(a), ValueKind::Object(b)) => {
+                return Object::cmp_with(a, b, caller);
             }
-            (Self::RangeFrom(a), Self::RangeFrom(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return RangeFrom::cmp_with(&a, &b, caller);
+            (ValueKind::RangeFrom(a), ValueKind::RangeFrom(b)) => {
+                return RangeFrom::cmp_with(a, b, caller);
             }
-            (Self::RangeFull(a), Self::RangeFull(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return RangeFull::cmp_with(&a, &b, caller);
+            (ValueKind::RangeFull(a), ValueKind::RangeFull(b)) => {
+                return RangeFull::cmp_with(a, b, caller);
             }
-            (Self::RangeInclusive(a), Self::RangeInclusive(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return RangeInclusive::cmp_with(&a, &b, caller);
+            (ValueKind::RangeInclusive(a), ValueKind::RangeInclusive(b)) => {
+                return RangeInclusive::cmp_with(a, b, caller);
             }
-            (Self::RangeToInclusive(a), Self::RangeToInclusive(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return RangeToInclusive::cmp_with(&a, &b, caller);
+            (ValueKind::RangeToInclusive(a), ValueKind::RangeToInclusive(b)) => {
+                return RangeToInclusive::cmp_with(a, b, caller);
             }
-            (Self::RangeTo(a), Self::RangeTo(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return RangeTo::cmp_with(&a, &b, caller);
+            (ValueKind::RangeTo(a), ValueKind::RangeTo(b)) => {
+                return RangeTo::cmp_with(a, b, caller);
             }
-            (Self::Range(a), Self::Range(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return Range::cmp_with(&a, &b, caller);
+            (ValueKind::Range(a), ValueKind::Range(b)) => {
+                return Range::cmp_with(a, b, caller);
             }
-            (Self::EmptyStruct(a), Self::EmptyStruct(b)) => {
-                if vm_try!(a.borrow_ref()).rtti.hash == vm_try!(b.borrow_ref()).rtti.hash {
+            (ValueKind::EmptyStruct(a), ValueKind::EmptyStruct(b)) => {
+                if a.rtti.hash == b.rtti.hash {
                     // NB: don't get any future ideas, this must fall through to
                     // the VmError below since it's otherwise a comparison
                     // between two incompatible types.
@@ -1834,226 +1932,120 @@ impl Value {
                     return VmResult::Ok(Ordering::Equal);
                 }
             }
-            (Self::TupleStruct(a), Self::TupleStruct(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-
+            (ValueKind::TupleStruct(a), ValueKind::TupleStruct(b)) => {
                 if a.rtti.hash == b.rtti.hash {
                     return Vec::cmp_with(&a.data, &b.data, caller);
                 }
             }
-            (Self::Struct(a), Self::Struct(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-
+            (ValueKind::Struct(a), ValueKind::Struct(b)) => {
                 if a.rtti.hash == b.rtti.hash {
                     return Object::cmp_with(&a.data, &b.data, caller);
                 }
             }
-            (Self::Variant(a), Self::Variant(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-
+            (ValueKind::Variant(a), ValueKind::Variant(b)) => {
                 if a.rtti().enum_hash == b.rtti().enum_hash {
-                    return Variant::cmp_with(&a, &b, caller);
+                    return Variant::cmp_with(a, b, caller);
                 }
             }
-            (Self::String(a), Self::String(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-                return VmResult::Ok(a.cmp(&b));
+            (ValueKind::String(a), ValueKind::String(b)) => {
+                return VmResult::Ok(a.cmp(b));
             }
-            (Self::Option(a), Self::Option(b)) => {
-                match (&*vm_try!(a.borrow_ref()), &*vm_try!(b.borrow_ref())) {
-                    (Some(a), Some(b)) => return Self::cmp_with(a, b, caller),
-                    (None, None) => return VmResult::Ok(Ordering::Equal),
-                    (Some(..), None) => return VmResult::Ok(Ordering::Greater),
-                    (None, Some(..)) => return VmResult::Ok(Ordering::Less),
-                }
-            }
-            (Self::Result(a), Self::Result(b)) => {
-                match (&*vm_try!(a.borrow_ref()), &*vm_try!(b.borrow_ref())) {
-                    (Ok(a), Ok(b)) => return Self::cmp_with(a, b, caller),
-                    (Err(a), Err(b)) => return Self::cmp_with(a, b, caller),
-                    (Ok(..), Err(..)) => return VmResult::Ok(Ordering::Greater),
-                    (Err(..), Ok(..)) => return VmResult::Ok(Ordering::Less),
-                }
-            }
-            (a, b) => {
-                match vm_try!(caller.try_call_protocol_fn(Protocol::CMP, a.clone(), (b.clone(),))) {
-                    CallResult::Ok(value) => return Ordering::from_value(value),
-                    CallResult::Unsupported(..) => {}
-                }
-            }
+            (ValueKind::Option(a), ValueKind::Option(b)) => match (a, b) {
+                (Some(a), Some(b)) => return Value::cmp_with(a, b, caller),
+                (None, None) => return VmResult::Ok(Ordering::Equal),
+                (Some(..), None) => return VmResult::Ok(Ordering::Greater),
+                (None, Some(..)) => return VmResult::Ok(Ordering::Less),
+            },
+            (ValueKind::Result(a), ValueKind::Result(b)) => match (a, b) {
+                (Ok(a), Ok(b)) => return Value::cmp_with(a, b, caller),
+                (Err(a), Err(b)) => return Value::cmp_with(a, b, caller),
+                (Ok(..), Err(..)) => return VmResult::Ok(Ordering::Greater),
+                (Err(..), Ok(..)) => return VmResult::Ok(Ordering::Less),
+            },
+            _ => {}
+        }
+
+        if let CallResult::Ok(value) =
+            vm_try!(caller.try_call_protocol_fn(Protocol::CMP, self.clone(), (b.clone(),)))
+        {
+            return <_>::from_value(value);
         }
 
         err(VmErrorKind::UnsupportedBinaryOperation {
             op: "cmp",
-            lhs: vm_try!(a.type_info()),
+            lhs: vm_try!(self.type_info()),
             rhs: vm_try!(b.type_info()),
         })
     }
 
-    pub(crate) fn try_into_integer<T>(self) -> VmResult<T>
+    /// Try to coerce the current value as the specified integer `T`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::runtime::{Value, VmResult};
+    ///
+    /// let value = rune::to_value(u32::MAX)?;
+    ///
+    /// assert_eq!(value.try_as_integer::<u64>(), Ok(u32::MAX as u64));
+    /// assert!(value.try_as_integer::<i32>().is_err());
+    ///
+    /// # Ok::<(), rune::support::Error>(())
+    /// ```
+    pub fn try_as_integer<T>(&self) -> Result<T, RuntimeError>
     where
         T: TryFrom<i64>,
         VmIntegerRepr: From<i64>,
     {
-        let integer = vm_try!(self.into_integer());
+        let integer = self.as_integer()?;
 
         match integer.try_into() {
-            Ok(number) => VmResult::Ok(number),
-            Err(..) => VmResult::err(VmErrorKind::ValueToIntegerCoercionError {
-                from: VmIntegerRepr::from(integer),
-                to: any::type_name::<T>(),
-            }),
-        }
-    }
-
-    pub(crate) fn try_as_integer<T>(&self) -> VmResult<T>
-    where
-        T: TryFrom<i64>,
-        VmIntegerRepr: From<i64>,
-    {
-        let integer = vm_try!(self.as_integer());
-
-        match integer.try_into() {
-            Ok(number) => VmResult::Ok(number),
-            Err(..) => VmResult::err(VmErrorKind::ValueToIntegerCoercionError {
-                from: VmIntegerRepr::from(integer),
-                to: any::type_name::<T>(),
-            }),
+            Ok(number) => Ok(number),
+            Err(..) => Err(RuntimeError::new(
+                VmErrorKind::ValueToIntegerCoercionError {
+                    from: VmIntegerRepr::from(integer),
+                    to: any::type_name::<T>(),
+                },
+            )),
         }
     }
 }
 
 impl fmt::Debug for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Value::Bool(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::Byte(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::Char(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::Integer(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::Float(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::Type(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::String(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::Bytes(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::Vec(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::EmptyTuple => {
-                write!(f, "()")?;
-            }
-            Value::Tuple(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::Object(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::RangeFrom(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::RangeFull(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::RangeInclusive(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::RangeToInclusive(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::RangeTo(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::Range(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::ControlFlow(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::Future(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::Stream(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::Generator(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::GeneratorState(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::Option(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::Result(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::EmptyStruct(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::TupleStruct(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::Struct(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::Variant(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::Function(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::Format(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::Iterator(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            value => {
-                let mut o = Formatter::new();
+        let mut o = Formatter::new();
 
-                if value.string_debug(&mut o).is_err() {
-                    return Err(fmt::Error);
-                }
-
-                f.write_str(o.as_str())?;
-            }
+        if self.string_debug(&mut o).is_err() {
+            return Err(fmt::Error);
         }
 
+        f.write_str(o.as_str())?;
         Ok(())
     }
 }
 
-impl Default for Value {
-    fn default() -> Self {
-        Self::EmptyTuple
+impl TryFrom<()> for Value {
+    type Error = rune_alloc::Error;
+
+    #[inline]
+    fn try_from((): ()) -> Result<Self, Self::Error> {
+        Value::try_from(ValueKind::EmptyTuple)
     }
 }
 
-impl From<()> for Value {
-    fn from((): ()) -> Self {
-        Self::EmptyTuple
+impl TryFrom<ValueKind> for Value {
+    type Error = rune_alloc::Error;
+
+    #[inline]
+    fn try_from(kind: ValueKind) -> Result<Self, Self::Error> {
+        Ok(Self {
+            inner: Shared::new(kind)?,
+        })
     }
 }
 
 impl ToValue for Value {
+    #[inline]
     fn to_value(self) -> VmResult<Value> {
         VmResult::Ok(self)
     }
@@ -2062,34 +2054,12 @@ impl ToValue for Value {
 macro_rules! impl_from {
     ($($variant:ident => $ty:ty),* $(,)*) => {
         $(
-            impl From<$ty> for Value {
-                #[inline]
-                fn from(value: $ty) -> Self {
-                    Self::$variant(value)
-                }
-            }
-
-            impl ToValue for $ty {
-                #[inline]
-                fn to_value(self) -> VmResult<Value> {
-                    VmResult::Ok(Value::from(self))
-                }
-            }
-        )*
-    };
-}
-
-macro_rules! impl_from_wrapper {
-    ($($variant:ident => $wrapper:ident<$ty:ty>),* $(,)?) => {
-        impl_from!($($variant => $wrapper<$ty>),*);
-
-        $(
             impl TryFrom<$ty> for Value {
                 type Error = rune_alloc::Error;
 
                 #[inline]
-                fn try_from(value: $ty) -> Result<Self, rune_alloc::Error> {
-                    Ok(Self::$variant($wrapper::new(value)?))
+                fn try_from(value: $ty) -> Result<Self, Self::Error> {
+                    Value::try_from(ValueKind::$variant(value))
                 }
             }
 
@@ -2103,6 +2073,21 @@ macro_rules! impl_from_wrapper {
     };
 }
 
+macro_rules! impl_custom_from_wrapper {
+    ($($variant:ident => $ty:ty),* $(,)?) => {
+        $(
+            impl TryFrom<$ty> for Value {
+                type Error = rune_alloc::Error;
+
+                #[inline]
+                fn try_from(value: $ty) -> Result<Self, rune_alloc::Error> {
+                    Value::try_from(ValueKind::$variant(value))
+                }
+            }
+        )*
+    };
+}
+
 impl_from! {
     Byte => u8,
     Bool => bool,
@@ -2110,35 +2095,36 @@ impl_from! {
     Integer => i64,
     Float => f64,
     Type => Type,
-    Option => Shared<Option<Value>>,
-    Result => Shared<Result<Value, Value>>,
+    Ordering => Ordering,
+    String => String,
+    Bytes => Bytes,
+    ControlFlow => ControlFlow,
+    Function => Function,
+    Iterator => Iterator,
+    GeneratorState => GeneratorState,
+    Vec => Vec,
+    EmptyStruct => EmptyStruct,
+    TupleStruct => TupleStruct,
+    Struct => Struct,
+    Variant => Variant,
+    Object => Object,
+    Tuple => OwnedTuple,
+    Generator => Generator<Vm>,
+    Format => Format,
+    RangeFrom => RangeFrom,
+    RangeFull => RangeFull,
+    RangeInclusive => RangeInclusive,
+    RangeToInclusive => RangeToInclusive,
+    RangeTo => RangeTo,
+    Range => Range,
+    Future => Future,
+    Stream => Stream<Vm>,
+    Any => AnyObj,
 }
 
-impl_from_wrapper! {
-    Format => Shared<Format>,
-    Iterator => Shared<Iterator>,
-    Bytes => Shared<Bytes>,
-    String => Shared<String>,
-    Vec => Shared<Vec>,
-    Tuple => Shared<OwnedTuple>,
-    Object => Shared<Object>,
-    RangeFrom => Shared<RangeFrom>,
-    RangeFull => Shared<RangeFull>,
-    RangeInclusive => Shared<RangeInclusive>,
-    RangeToInclusive => Shared<RangeToInclusive>,
-    RangeTo => Shared<RangeTo>,
-    Range => Shared<Range>,
-    ControlFlow => Shared<ControlFlow>,
-    Future => Shared<Future>,
-    Stream => Shared<Stream<Vm>>,
-    Generator => Shared<Generator<Vm>>,
-    GeneratorState => Shared<GeneratorState>,
-    EmptyStruct => Shared<EmptyStruct>,
-    TupleStruct => Shared<TupleStruct>,
-    Struct => Shared<Struct>,
-    Variant => Shared<Variant>,
-    Function => Shared<Function>,
-    Any => Shared<AnyObj>,
+impl_custom_from_wrapper! {
+    Option => Option<Value>,
+    Result => Result<Value, Value>,
 }
 
 impl MaybeTypeOf for Value {
@@ -2155,16 +2141,242 @@ impl TryClone for Value {
     }
 }
 
+/// Wrapper for a value kind.
+#[doc(hidden)]
+pub struct NotTypedValueKind(ValueKind);
+
+/// The coersion of a value into a typed value.
+#[doc(hidden)]
+#[non_exhaustive]
+pub enum TypeValue {
+    /// The unit value.
+    EmptyTuple,
+    /// A tuple.
+    Tuple(OwnedTuple),
+    /// An object.
+    Object(Object),
+    /// An struct with a well-defined type.
+    EmptyStruct(EmptyStruct),
+    /// A tuple with a well-defined type.
+    TupleStruct(TupleStruct),
+    /// An struct with a well-defined type.
+    Struct(Struct),
+    /// The variant of an enum.
+    Variant(Variant),
+    /// Not a typed value.
+    #[doc(hidden)]
+    NotTyped(NotTypedValueKind),
+}
+
+impl TypeValue {
+    /// Get the type info of the current value.
+    #[doc(hidden)]
+    pub fn type_info(&self) -> TypeInfo {
+        match self {
+            TypeValue::EmptyTuple => TypeInfo::StaticType(crate::runtime::static_type::TUPLE_TYPE),
+            TypeValue::Tuple(..) => TypeInfo::StaticType(crate::runtime::static_type::TUPLE_TYPE),
+            TypeValue::Object(..) => TypeInfo::StaticType(crate::runtime::static_type::OBJECT_TYPE),
+            TypeValue::EmptyStruct(empty) => empty.type_info(),
+            TypeValue::TupleStruct(tuple) => tuple.type_info(),
+            TypeValue::Struct(object) => object.type_info(),
+            TypeValue::Variant(empty) => empty.type_info(),
+            TypeValue::NotTyped(kind) => kind.0.type_info(),
+        }
+    }
+}
+
+#[doc(hidden)]
+#[non_exhaustive]
+pub(crate) enum ValueKind {
+    /// The unit value.
+    EmptyTuple,
+    /// A boolean.
+    Bool(bool),
+    /// A single byte.
+    Byte(u8),
+    /// A character.
+    Char(char),
+    /// A number.
+    Integer(i64),
+    /// A float.
+    Float(f64),
+    /// A type hash. Describes a type in the virtual machine.
+    Type(Type),
+    /// Ordering.
+    Ordering(Ordering),
+    /// A UTF-8 string.
+    String(String),
+    /// A byte string.
+    Bytes(Bytes),
+    /// A vector containing any values.
+    Vec(Vec),
+    /// A tuple.
+    Tuple(OwnedTuple),
+    /// An object.
+    Object(Object),
+    /// A range `start..`
+    RangeFrom(RangeFrom),
+    /// A full range `..`
+    RangeFull(RangeFull),
+    /// A full range `start..=end`
+    RangeInclusive(RangeInclusive),
+    /// A full range `..=end`
+    RangeToInclusive(RangeToInclusive),
+    /// A full range `..end`
+    RangeTo(RangeTo),
+    /// A range `start..end`.
+    Range(Range),
+    /// A control flow indicator.
+    ControlFlow(ControlFlow),
+    /// A stored future.
+    Future(Future),
+    /// A Stream.
+    Stream(Stream<Vm>),
+    /// A stored generator.
+    Generator(Generator<Vm>),
+    /// Generator state.
+    GeneratorState(GeneratorState),
+    /// An empty value indicating nothing.
+    Option(Option<Value>),
+    /// A stored result in a slot.
+    Result(Result<Value, Value>),
+    /// An struct with a well-defined type.
+    EmptyStruct(EmptyStruct),
+    /// A tuple with a well-defined type.
+    TupleStruct(TupleStruct),
+    /// An struct with a well-defined type.
+    Struct(Struct),
+    /// The variant of an enum.
+    Variant(Variant),
+    /// A stored function pointer.
+    Function(Function),
+    /// A value being formatted.
+    Format(Format),
+    /// An iterator.
+    Iterator(Iterator),
+    /// An opaque value that can be downcasted.
+    Any(AnyObj),
+}
+
+impl ValueKind {
+    pub(crate) fn type_info(&self) -> TypeInfo {
+        match self {
+            ValueKind::Bool(..) => TypeInfo::StaticType(crate::runtime::static_type::BOOL_TYPE),
+            ValueKind::Byte(..) => TypeInfo::StaticType(crate::runtime::static_type::BYTE_TYPE),
+            ValueKind::Char(..) => TypeInfo::StaticType(crate::runtime::static_type::CHAR_TYPE),
+            ValueKind::Integer(..) => {
+                TypeInfo::StaticType(crate::runtime::static_type::INTEGER_TYPE)
+            }
+            ValueKind::Float(..) => TypeInfo::StaticType(crate::runtime::static_type::FLOAT_TYPE),
+            ValueKind::Type(..) => TypeInfo::StaticType(crate::runtime::static_type::TYPE),
+            ValueKind::Ordering(..) => {
+                TypeInfo::StaticType(crate::runtime::static_type::ORDERING_TYPE)
+            }
+            ValueKind::String(..) => TypeInfo::StaticType(crate::runtime::static_type::STRING_TYPE),
+            ValueKind::Bytes(..) => TypeInfo::StaticType(crate::runtime::static_type::BYTES_TYPE),
+            ValueKind::Vec(..) => TypeInfo::StaticType(crate::runtime::static_type::VEC_TYPE),
+            ValueKind::EmptyTuple => TypeInfo::StaticType(crate::runtime::static_type::TUPLE_TYPE),
+            ValueKind::Tuple(..) => TypeInfo::StaticType(crate::runtime::static_type::TUPLE_TYPE),
+            ValueKind::Object(..) => TypeInfo::StaticType(crate::runtime::static_type::OBJECT_TYPE),
+            ValueKind::RangeFrom(..) => {
+                TypeInfo::StaticType(crate::runtime::static_type::RANGE_FROM_TYPE)
+            }
+            ValueKind::RangeFull(..) => {
+                TypeInfo::StaticType(crate::runtime::static_type::RANGE_FULL_TYPE)
+            }
+            ValueKind::RangeInclusive(..) => {
+                TypeInfo::StaticType(crate::runtime::static_type::RANGE_INCLUSIVE_TYPE)
+            }
+            ValueKind::RangeToInclusive(..) => {
+                TypeInfo::StaticType(crate::runtime::static_type::RANGE_TO_INCLUSIVE_TYPE)
+            }
+            ValueKind::RangeTo(..) => {
+                TypeInfo::StaticType(crate::runtime::static_type::RANGE_TO_TYPE)
+            }
+            ValueKind::Range(..) => TypeInfo::StaticType(crate::runtime::static_type::RANGE_TYPE),
+            ValueKind::ControlFlow(..) => {
+                TypeInfo::StaticType(crate::runtime::static_type::CONTROL_FLOW_TYPE)
+            }
+            ValueKind::Future(..) => TypeInfo::StaticType(crate::runtime::static_type::FUTURE_TYPE),
+            ValueKind::Stream(..) => TypeInfo::StaticType(crate::runtime::static_type::STREAM_TYPE),
+            ValueKind::Generator(..) => {
+                TypeInfo::StaticType(crate::runtime::static_type::GENERATOR_TYPE)
+            }
+            ValueKind::GeneratorState(..) => {
+                TypeInfo::StaticType(crate::runtime::static_type::GENERATOR_STATE_TYPE)
+            }
+            ValueKind::Option(..) => TypeInfo::StaticType(crate::runtime::static_type::OPTION_TYPE),
+            ValueKind::Result(..) => TypeInfo::StaticType(crate::runtime::static_type::RESULT_TYPE),
+            ValueKind::Function(..) => {
+                TypeInfo::StaticType(crate::runtime::static_type::FUNCTION_TYPE)
+            }
+            ValueKind::Format(..) => TypeInfo::StaticType(crate::runtime::static_type::FORMAT_TYPE),
+            ValueKind::Iterator(..) => {
+                TypeInfo::StaticType(crate::runtime::static_type::ITERATOR_TYPE)
+            }
+            ValueKind::EmptyStruct(empty) => empty.type_info(),
+            ValueKind::TupleStruct(tuple) => tuple.type_info(),
+            ValueKind::Struct(object) => object.type_info(),
+            ValueKind::Variant(empty) => empty.type_info(),
+            ValueKind::Any(any) => any.type_info(),
+        }
+    }
+
+    /// Get the type hash for the current value.
+    ///
+    /// One notable feature is that the type of a variant is its container
+    /// *enum*, and not the type hash of the variant itself.
+    pub(crate) fn type_hash(&self) -> Hash {
+        match self {
+            ValueKind::Bool(..) => crate::runtime::static_type::BOOL_TYPE.hash,
+            ValueKind::Byte(..) => crate::runtime::static_type::BYTE_TYPE.hash,
+            ValueKind::Char(..) => crate::runtime::static_type::CHAR_TYPE.hash,
+            ValueKind::Integer(..) => crate::runtime::static_type::INTEGER_TYPE.hash,
+            ValueKind::Float(..) => crate::runtime::static_type::FLOAT_TYPE.hash,
+            ValueKind::Type(..) => crate::runtime::static_type::TYPE.hash,
+            ValueKind::Ordering(..) => crate::runtime::static_type::ORDERING_TYPE.hash,
+            ValueKind::String(..) => crate::runtime::static_type::STRING_TYPE.hash,
+            ValueKind::Bytes(..) => crate::runtime::static_type::BYTES_TYPE.hash,
+            ValueKind::Vec(..) => crate::runtime::static_type::VEC_TYPE.hash,
+            ValueKind::EmptyTuple => crate::runtime::static_type::TUPLE_TYPE.hash,
+            ValueKind::Tuple(..) => crate::runtime::static_type::TUPLE_TYPE.hash,
+            ValueKind::Object(..) => crate::runtime::static_type::OBJECT_TYPE.hash,
+            ValueKind::RangeFrom(..) => crate::runtime::static_type::RANGE_FROM_TYPE.hash,
+            ValueKind::RangeFull(..) => crate::runtime::static_type::RANGE_FULL_TYPE.hash,
+            ValueKind::RangeInclusive(..) => crate::runtime::static_type::RANGE_INCLUSIVE_TYPE.hash,
+            ValueKind::RangeToInclusive(..) => {
+                crate::runtime::static_type::RANGE_TO_INCLUSIVE_TYPE.hash
+            }
+            ValueKind::RangeTo(..) => crate::runtime::static_type::RANGE_TO_TYPE.hash,
+            ValueKind::Range(..) => crate::runtime::static_type::RANGE_TYPE.hash,
+            ValueKind::ControlFlow(..) => crate::runtime::static_type::CONTROL_FLOW_TYPE.hash,
+            ValueKind::Future(..) => crate::runtime::static_type::FUTURE_TYPE.hash,
+            ValueKind::Stream(..) => crate::runtime::static_type::STREAM_TYPE.hash,
+            ValueKind::Generator(..) => crate::runtime::static_type::GENERATOR_TYPE.hash,
+            ValueKind::GeneratorState(..) => crate::runtime::static_type::GENERATOR_STATE_TYPE.hash,
+            ValueKind::Result(..) => crate::runtime::static_type::RESULT_TYPE.hash,
+            ValueKind::Option(..) => crate::runtime::static_type::OPTION_TYPE.hash,
+            ValueKind::Function(..) => crate::runtime::static_type::FUNCTION_TYPE.hash,
+            ValueKind::Format(..) => crate::runtime::static_type::FORMAT_TYPE.hash,
+            ValueKind::Iterator(..) => crate::runtime::static_type::ITERATOR_TYPE.hash,
+            ValueKind::EmptyStruct(empty) => empty.rtti.hash,
+            ValueKind::TupleStruct(tuple) => tuple.rtti.hash,
+            ValueKind::Struct(object) => object.rtti.hash,
+            ValueKind::Variant(variant) => variant.rtti().enum_hash,
+            ValueKind::Any(any) => any.type_hash(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::Value;
 
     #[test]
     fn test_size() {
-        // :( - make this 16 bytes again by reducing the size of the Rc.
         assert_eq! {
             std::mem::size_of::<Value>(),
-            16,
+            std::mem::size_of::<usize>(),
         };
     }
 }

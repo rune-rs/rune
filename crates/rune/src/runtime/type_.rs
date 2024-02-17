@@ -33,7 +33,7 @@ impl InstallWith for Type {}
 impl FromValue for Type {
     #[inline]
     fn from_value(value: Value) -> VmResult<Self> {
-        VmResult::Ok(vm_try!(value.into_type()))
+        VmResult::Ok(vm_try!(value.as_type()))
     }
 }
 

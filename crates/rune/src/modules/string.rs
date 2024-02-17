@@ -10,7 +10,7 @@ use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::string::FromUtf8Error;
 use crate::alloc::{String, Vec};
-use crate::runtime::{Bytes, Formatter, Iterator, Panic, Value, VmErrorKind, VmResult};
+use crate::runtime::{Bytes, Formatter, Iterator, Panic, Value, ValueKind, VmErrorKind, VmResult};
 use crate::{Any, ContextError, Module};
 
 /// Construct the `std::string` module.
@@ -743,18 +743,18 @@ fn shrink_to_fit(s: &mut String) -> VmResult<()> {
 fn split(this: &str, value: Value) -> VmResult<Iterator> {
     const NAME: &str = "std::str::Split";
 
-    let lines = match value {
-        Value::String(s) => {
+    let lines = match *vm_try!(value.borrow_kind_ref()) {
+        ValueKind::String(ref s) => {
             let mut out = Vec::new();
 
-            for value in this.split(vm_try!(s.borrow_ref()).as_str()) {
+            for value in this.split(s.as_str()) {
                 let value = vm_try!(String::try_from(value));
                 vm_try!(out.try_push(value));
             }
 
             out
         }
-        Value::Char(pat) => {
+        ValueKind::Char(pat) => {
             let mut out = Vec::new();
 
             for value in this.split(pat) {
@@ -764,11 +764,10 @@ fn split(this: &str, value: Value) -> VmResult<Iterator> {
 
             out
         }
-        Value::Function(f) => {
-            let f = vm_try!(f.borrow_ref());
+        ValueKind::Function(ref f) => {
             let mut err = None;
 
-            let iter = this.split(|c: char| match f.call::<_, bool>((c,)) {
+            let iter = this.split(|c: char| match f.call::<bool>((c,)) {
                 VmResult::Ok(b) => b,
                 VmResult::Err(e) => {
                     if err.is_none() {
@@ -792,9 +791,9 @@ fn split(this: &str, value: Value) -> VmResult<Iterator> {
 
             out
         }
-        actual => {
+        ref actual => {
             return VmResult::err([
-                VmErrorKind::expected::<String>(vm_try!(actual.type_info())),
+                VmErrorKind::expected::<String>(actual.type_info()),
                 VmErrorKind::bad_argument(0),
             ])
         }
@@ -980,31 +979,26 @@ fn chars(s: &str) -> VmResult<Iterator> {
 fn get(this: &str, key: Value) -> VmResult<Option<String>> {
     use crate::runtime::TypeOf;
 
-    let slice = match key {
-        Value::RangeFrom(range) => {
-            let range = vm_try!(range.borrow_ref());
+    let slice = match &*vm_try!(key.borrow_kind_ref()) {
+        ValueKind::RangeFrom(range) => {
             let start = vm_try!(range.start.as_usize());
             this.get(start..)
         }
-        Value::RangeFull(..) => this.get(..),
-        Value::RangeInclusive(range) => {
-            let range = vm_try!(range.borrow_ref());
+        ValueKind::RangeFull(..) => this.get(..),
+        ValueKind::RangeInclusive(range) => {
             let start = vm_try!(range.start.as_usize());
             let end = vm_try!(range.end.as_usize());
             this.get(start..=end)
         }
-        Value::RangeToInclusive(range) => {
-            let range = vm_try!(range.borrow_ref());
+        ValueKind::RangeToInclusive(range) => {
             let end = vm_try!(range.end.as_usize());
             this.get(..=end)
         }
-        Value::RangeTo(range) => {
-            let range = vm_try!(range.borrow_ref());
+        ValueKind::RangeTo(range) => {
             let end = vm_try!(range.end.as_usize());
             this.get(..end)
         }
-        Value::Range(range) => {
-            let range = vm_try!(range.borrow_ref());
+        ValueKind::Range(range) => {
             let start = vm_try!(range.start.as_usize());
             let end = vm_try!(range.end.as_usize());
             this.get(start..end)
@@ -1012,7 +1006,7 @@ fn get(this: &str, key: Value) -> VmResult<Option<String>> {
         index => {
             return VmResult::err(VmErrorKind::UnsupportedIndexGet {
                 target: String::type_info(),
-                index: vm_try!(index.type_info()),
+                index: index.type_info(),
             })
         }
     };

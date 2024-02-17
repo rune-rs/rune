@@ -1,4 +1,5 @@
 use crate as rune;
+use crate::alloc::clone::TryClone;
 use crate::runtime::{ProtocolCaller, Value, VmResult};
 use crate::Any;
 
@@ -33,14 +34,14 @@ use crate::Any;
 /// assert_eq!(first, 1);
 ///
 /// // Additional resumes require a value.
-/// let second = match execution.resume_with(Value::from(2i64)).into_result()? {
+/// let second = match execution.resume_with(rune::to_value(2i64)?).into_result()? {
 ///     GeneratorState::Yielded(second) => rune::from_value::<i64>(second)?,
 ///     GeneratorState::Complete(..) => panic!("generator completed"),
 /// };
 ///
 /// assert_eq!(second, 3);
 ///
-/// let ret = match execution.resume_with(Value::from(42i64)).into_result()? {
+/// let ret = match execution.resume_with(rune::to_value(42i64)?).into_result()? {
 ///     GeneratorState::Complete(ret) => rune::from_value::<i64>(ret)?,
 ///     GeneratorState::Yielded(..) => panic!("generator yielded"),
 /// };
@@ -48,7 +49,7 @@ use crate::Any;
 /// assert_eq!(ret, 42);
 /// # Ok::<_, rune::support::Error>(())
 /// ```
-#[derive(Any, Debug)]
+#[derive(Any, Debug, TryClone)]
 #[rune(builtin, static_type = GENERATOR_STATE_TYPE)]
 pub enum GeneratorState {
     /// The generator yielded.
@@ -97,4 +98,9 @@ impl GeneratorState {
     }
 }
 
-from_value!(GeneratorState, into_generator_state);
+from_value2!(
+    GeneratorState,
+    into_generator_state_ref,
+    into_generator_state_mut,
+    into_generator_state
+);

@@ -4,11 +4,11 @@ use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, BTreeMap, BTreeSet, Box, HashMap, String, Vec};
 use crate::ast::{self, Span, Spanned};
-use crate::compile::ir;
 use crate::compile::{self, WithSpan};
 use crate::macros::{quote, MacroContext, Quote};
 use crate::parse::{Parse, Parser, Peek, Peeker};
 use crate::runtime::format;
+use crate::runtime::ValueKind;
 
 /// A format specification: A format string followed by arguments to be
 /// formatted in accordance with that string.
@@ -49,8 +49,8 @@ impl FormatArgs {
             }
         }
 
-        let format = match format {
-            ir::Value::String(string) => string.take().with_span(&self.format)?,
+        let format = match format.take_kind().with_span(&self.format)? {
+            ValueKind::String(string) => string,
             _ => {
                 return Err(compile::Error::msg(
                     &self.format,
@@ -529,7 +529,7 @@ fn expand_format_spec<'a>(
         }
 
         let precision = if input_precision {
-            let expr = match pos.get(*count) {
+            let &expr = match pos.get(*count) {
                 Some(expr) => expr,
                 None => {
                     return Err(compile::Error::msg(
@@ -547,22 +547,24 @@ fn expand_format_spec<'a>(
 
             let value = cx.eval(expr)?;
 
-            let number = match &value {
-                ir::Value::Integer(n) => n.to_usize(),
+            let number = match *value.borrow_kind_ref().with_span(expr)? {
+                ValueKind::Integer(n) => n.to_usize(),
                 _ => None,
             };
 
             let precision = if let Some(number) = number {
                 number
             } else {
+                let span = expr.span();
+
                 return Err(compile::Error::msg(
-                    expr.span(),
+                    span,
                     format!(
                         "expected position argument #{} \
                         to be a positive number in use as precision, \
                         but got `{}`",
                         count,
-                        value.type_info()
+                        value.type_info().with_span(span)?
                     ),
                 ));
             };

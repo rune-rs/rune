@@ -131,6 +131,9 @@ impl_copy!(::core::num::NonZeroI32);
 impl_copy!(::core::num::NonZeroI64);
 impl_copy!(::core::num::NonZeroI128);
 
+#[cfg(feature = "std")]
+impl_copy!(::std::process::ExitStatus);
+
 impl<T, E> TryClone for ::core::result::Result<T, E>
 where
     T: TryClone,

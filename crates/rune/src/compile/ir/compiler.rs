@@ -7,7 +7,7 @@ use crate::compile::ir;
 use crate::compile::{self, ErrorKind, WithSpan};
 use crate::hir;
 use crate::query::Query;
-use crate::runtime::{Bytes, Shared};
+use crate::runtime::{Bytes, Value};
 use crate::SourceId;
 
 use rune_macros::instrument;
@@ -50,7 +50,8 @@ pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut Ctxt<'_, '_>) -> compile::Result
                 ));
             };
 
-            ir::Ir::new(span, ir::Value::from_const(value).with_span(span)?)
+            let value = value.as_value().with_span(span)?;
+            ir::Ir::new(span, value)
         }
         hir::ExprKind::Variable(name) => {
             return Ok(ir::Ir::new(span, name.into_owned()?));
@@ -202,28 +203,44 @@ fn expr_binary(
 #[instrument(span = span)]
 fn lit(c: &mut Ctxt<'_, '_>, span: Span, hir: hir::Lit<'_>) -> compile::Result<ir::Ir> {
     Ok(match hir {
-        hir::Lit::Bool(boolean) => ir::Ir::new(span, ir::Value::Bool(boolean)),
-        hir::Lit::Str(string) => ir::Ir::new(
-            span,
-            ir::Value::String(Shared::new(string.try_to_owned()?).with_span(span)?),
-        ),
-        hir::Lit::Integer(n) => ir::Ir::new(span, ir::Value::Integer(n)),
-        hir::Lit::Float(n) => ir::Ir::new(span, ir::Value::Float(n)),
-        hir::Lit::Byte(b) => ir::Ir::new(span, ir::Value::Byte(b)),
-        hir::Lit::ByteStr(byte_str) => {
-            let value = ir::Value::Bytes(
-                Shared::new(Bytes::from_vec(Vec::try_from(byte_str)?)).with_span(span)?,
-            );
+        hir::Lit::Bool(boolean) => {
+            let value = Value::try_from(boolean).with_span(span)?;
             ir::Ir::new(span, value)
         }
-        hir::Lit::Char(c) => ir::Ir::new(span, ir::Value::Char(c)),
+        hir::Lit::Str(string) => {
+            let string = string.try_to_owned().with_span(span)?;
+            let value = Value::try_from(string).with_span(span)?;
+            ir::Ir::new(span, value)
+        }
+        hir::Lit::Integer(n) => {
+            let value = Value::try_from(n).with_span(span)?;
+            ir::Ir::new(span, value)
+        }
+        hir::Lit::Float(n) => {
+            let value = Value::try_from(n).with_span(span)?;
+            ir::Ir::new(span, value)
+        }
+        hir::Lit::Byte(b) => {
+            let value = Value::try_from(b).with_span(span)?;
+            ir::Ir::new(span, value)
+        }
+        hir::Lit::ByteStr(byte_str) => {
+            let value = Bytes::from_vec(Vec::try_from(byte_str).with_span(span)?);
+            let value = Value::try_from(value).with_span(span)?;
+            ir::Ir::new(span, value)
+        }
+        hir::Lit::Char(c) => {
+            let value = Value::try_from(c).with_span(span)?;
+            ir::Ir::new(span, value)
+        }
     })
 }
 
 #[instrument(span = span)]
 fn expr_tuple(c: &mut Ctxt<'_, '_>, span: Span, hir: &hir::ExprSeq<'_>) -> compile::Result<ir::Ir> {
     if hir.items.is_empty() {
-        return Ok(ir::Ir::new(span, ir::Value::EmptyTuple));
+        let value = Value::empty().with_span(span)?;
+        return Ok(ir::Ir::new(span, value));
     }
 
     let mut items = Vec::new();

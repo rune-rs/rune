@@ -4,6 +4,7 @@ use core::mem::{replace, take};
 
 use ::rust_alloc::sync::Arc;
 
+use crate::alloc::clone::TryClone;
 use crate::alloc::Vec;
 use crate::runtime::budget;
 use crate::runtime::{
@@ -16,9 +17,9 @@ use crate::shared::AssertSend;
 /// correctly interact with functions that yield (like generators and streams)
 /// by initially just calling the function, then by providing a value pushed
 /// onto the stack.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[non_exhaustive]
-pub enum ExecutionState {
+pub(crate) enum ExecutionState {
     /// The initial state of an execution.
     Initial,
     /// The resumed state of an execution. This expects a value to be pushed
@@ -35,6 +36,8 @@ impl fmt::Display for ExecutionState {
     }
 }
 
+#[derive(TryClone)]
+#[try_clone(crate)]
 pub(crate) struct VmExecutionState {
     pub(crate) context: Option<Arc<RuntimeContext>>,
     pub(crate) unit: Option<Arc<Unit>>,
@@ -198,7 +201,7 @@ where
     /// it while returning a unit from the current `yield`.
     pub async fn async_resume(&mut self) -> VmResult<GeneratorState> {
         if matches!(self.state, ExecutionState::Resumed) {
-            vm_try!(self.head.as_mut().stack_mut().push(Value::EmptyTuple));
+            vm_try!(self.head.as_mut().stack_mut().push(vm_try!(Value::empty())));
         } else {
             self.state = ExecutionState::Resumed;
         }
@@ -264,7 +267,7 @@ where
     #[tracing::instrument(skip_all)]
     pub fn resume(&mut self) -> VmResult<GeneratorState> {
         if matches!(self.state, ExecutionState::Resumed) {
-            vm_try!(self.head.as_mut().stack_mut().push(Value::EmptyTuple));
+            vm_try!(self.head.as_mut().stack_mut().push(vm_try!(Value::empty())));
         } else {
             self.state = ExecutionState::Resumed;
         }
@@ -455,5 +458,19 @@ impl VmSendExecution {
         // Safety: we wrap all APIs around the [VmExecution], preventing values
         // from escaping from contained virtual machine.
         unsafe { AssertSend::new(future) }
+    }
+}
+
+impl<T> TryClone for VmExecution<T>
+where
+    T: AsRef<Vm> + AsMut<Vm> + TryClone,
+{
+    #[inline]
+    fn try_clone(&self) -> Result<Self, rune_alloc::Error> {
+        Ok(Self {
+            head: self.head.try_clone()?,
+            state: self.state,
+            states: self.states.try_clone()?,
+        })
     }
 }

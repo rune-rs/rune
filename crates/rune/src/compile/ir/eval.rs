@@ -2,19 +2,12 @@ use core::ops::{Add, Mul, Shl, Shr, Sub};
 
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
-use crate::alloc::{Box, HashMap, String, Vec};
+use crate::alloc::{Box, String, Vec};
 use crate::ast::{Span, Spanned};
-use crate::compile::ir;
+use crate::compile::ir::{self};
 use crate::compile::{self, WithSpan};
 use crate::query::Used;
-use crate::runtime::Shared;
-
-/// Process an ir value as a boolean.
-fn as_bool(span: Span, value: ir::Value) -> compile::Result<bool> {
-    value
-        .into_bool()
-        .map_err(|actual| compile::Error::expected_type::<_, bool>(span, &actual))
-}
+use crate::runtime::{Object, OwnedTuple, Value, ValueKind};
 
 /// The outcome of a constant evaluation.
 pub enum EvalOutcome {
@@ -23,7 +16,7 @@ pub enum EvalOutcome {
     /// A compile error.
     Error(compile::Error),
     /// Break until the next loop, or the optional label.
-    Break(Span, Option<Box<str>>, Option<ir::Value>),
+    Break(Span, Option<Box<str>>, Option<Value>),
 }
 
 impl EvalOutcome {
@@ -49,7 +42,7 @@ fn eval_ir_assign(
     ir: &ir::IrAssign,
     interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
-) -> Result<ir::Value, EvalOutcome> {
+) -> Result<Value, EvalOutcome> {
     interp.budget.take(ir)?;
     let value = eval_ir(&ir.value, interp, used)?;
 
@@ -57,108 +50,110 @@ fn eval_ir_assign(
         .scopes
         .mut_target(&ir.target, move |t| ir.op.assign(ir, t, value))?;
 
-    Ok(ir::Value::EmptyTuple)
+    Ok(Value::empty().with_span(ir)?)
 }
 
 fn eval_ir_binary(
     ir: &ir::IrBinary,
     interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
-) -> Result<ir::Value, EvalOutcome> {
+) -> Result<Value, EvalOutcome> {
+    fn add_strings(a: &str, b: &str) -> crate::alloc::Result<String> {
+        let mut out = String::try_with_capacity(a.len() + b.len())?;
+        out.try_push_str(a)?;
+        out.try_push_str(b)?;
+        Ok(out)
+    }
+
     let span = ir.span();
     interp.budget.take(span)?;
 
     let a = eval_ir(&ir.lhs, interp, used)?;
     let b = eval_ir(&ir.rhs, interp, used)?;
 
-    match (a, b) {
-        (ir::Value::Integer(a), ir::Value::Integer(b)) => match ir.op {
-            ir::IrBinaryOp::Add => {
-                return Ok(ir::Value::Integer(a.add(&b)));
-            }
-            ir::IrBinaryOp::Sub => {
-                return Ok(ir::Value::Integer(a.sub(&b)));
-            }
-            ir::IrBinaryOp::Mul => {
-                return Ok(ir::Value::Integer(a.mul(&b)));
-            }
-            ir::IrBinaryOp::Div => {
-                let number = a
-                    .checked_div(b)
-                    .ok_or_else(|| compile::Error::msg(span, "division by zero"))?;
-                return Ok(ir::Value::Integer(number));
-            }
-            ir::IrBinaryOp::Shl => {
-                let b = u32::try_from(b).map_err(|_| {
-                    compile::Error::msg(&ir.rhs, "cannot be converted to shift operand")
-                })?;
+    let a = a.borrow_kind_ref().with_span(ir)?;
+    let b = b.borrow_kind_ref().with_span(ir)?;
 
-                let n = a.shl(b);
-                return Ok(ir::Value::Integer(n));
-            }
-            ir::IrBinaryOp::Shr => {
-                let b = u32::try_from(b).map_err(|_| {
-                    compile::Error::msg(&ir.rhs, "cannot be converted to shift operand")
-                })?;
+    let kind = 'out: {
+        match (&*a, &*b) {
+            (ValueKind::Integer(a), ValueKind::Integer(b)) => match ir.op {
+                ir::IrBinaryOp::Add => {
+                    break 'out ValueKind::Integer(a.add(b));
+                }
+                ir::IrBinaryOp::Sub => {
+                    break 'out ValueKind::Integer(a.sub(b));
+                }
+                ir::IrBinaryOp::Mul => {
+                    break 'out ValueKind::Integer(a.mul(b));
+                }
+                ir::IrBinaryOp::Div => {
+                    let number = a
+                        .checked_div(*b)
+                        .ok_or_else(|| compile::Error::msg(span, "division by zero"))?;
+                    break 'out ValueKind::Integer(number);
+                }
+                ir::IrBinaryOp::Shl => {
+                    let b = u32::try_from(*b).map_err(|_| {
+                        compile::Error::msg(&ir.rhs, "cannot be converted to shift operand")
+                    })?;
 
-                let n = a.shr(b);
-                return Ok(ir::Value::Integer(n));
+                    let n = a.shl(b);
+                    break 'out ValueKind::Integer(n);
+                }
+                ir::IrBinaryOp::Shr => {
+                    let b = u32::try_from(*b).map_err(|_| {
+                        compile::Error::msg(&ir.rhs, "cannot be converted to shift operand")
+                    })?;
+
+                    let n = a.shr(b);
+                    break 'out ValueKind::Integer(n);
+                }
+                ir::IrBinaryOp::Lt => break 'out ValueKind::Bool(a < b),
+                ir::IrBinaryOp::Lte => break 'out ValueKind::Bool(a <= b),
+                ir::IrBinaryOp::Eq => break 'out ValueKind::Bool(a == b),
+                ir::IrBinaryOp::Gt => break 'out ValueKind::Bool(a > b),
+                ir::IrBinaryOp::Gte => break 'out ValueKind::Bool(a >= b),
+            },
+            (ValueKind::Float(a), ValueKind::Float(b)) => {
+                #[allow(clippy::float_cmp)]
+                match ir.op {
+                    ir::IrBinaryOp::Add => break 'out ValueKind::Float(a + b),
+                    ir::IrBinaryOp::Sub => break 'out ValueKind::Float(a - b),
+                    ir::IrBinaryOp::Mul => break 'out ValueKind::Float(a * b),
+                    ir::IrBinaryOp::Div => break 'out ValueKind::Float(a / b),
+                    ir::IrBinaryOp::Lt => break 'out ValueKind::Bool(a < b),
+                    ir::IrBinaryOp::Lte => break 'out ValueKind::Bool(a <= b),
+                    ir::IrBinaryOp::Eq => break 'out ValueKind::Bool(a == b),
+                    ir::IrBinaryOp::Gt => break 'out ValueKind::Bool(a > b),
+                    ir::IrBinaryOp::Gte => break 'out ValueKind::Bool(a >= b),
+                    _ => (),
+                };
             }
-            ir::IrBinaryOp::Lt => return Ok(ir::Value::Bool(a < b)),
-            ir::IrBinaryOp::Lte => return Ok(ir::Value::Bool(a <= b)),
-            ir::IrBinaryOp::Eq => return Ok(ir::Value::Bool(a == b)),
-            ir::IrBinaryOp::Gt => return Ok(ir::Value::Bool(a > b)),
-            ir::IrBinaryOp::Gte => return Ok(ir::Value::Bool(a >= b)),
-        },
-        (ir::Value::Float(a), ir::Value::Float(b)) => {
-            #[allow(clippy::float_cmp)]
-            match ir.op {
-                ir::IrBinaryOp::Add => return Ok(ir::Value::Float(a + b)),
-                ir::IrBinaryOp::Sub => return Ok(ir::Value::Float(a - b)),
-                ir::IrBinaryOp::Mul => return Ok(ir::Value::Float(a * b)),
-                ir::IrBinaryOp::Div => return Ok(ir::Value::Float(a / b)),
-                ir::IrBinaryOp::Lt => return Ok(ir::Value::Bool(a < b)),
-                ir::IrBinaryOp::Lte => return Ok(ir::Value::Bool(a <= b)),
-                ir::IrBinaryOp::Eq => return Ok(ir::Value::Bool(a == b)),
-                ir::IrBinaryOp::Gt => return Ok(ir::Value::Bool(a > b)),
-                ir::IrBinaryOp::Gte => return Ok(ir::Value::Bool(a >= b)),
-                _ => (),
-            };
+            (ValueKind::String(a), ValueKind::String(b)) => {
+                if let ir::IrBinaryOp::Add = ir.op {
+                    break 'out ValueKind::String(add_strings(a, b).with_span(span)?);
+                }
+            }
+            _ => (),
         }
-        (ir::Value::String(a), ir::Value::String(b)) => {
-            if let ir::IrBinaryOp::Add = ir.op {
-                return Ok(ir::Value::String(add_strings(span, &a, &b)?));
-            }
-        }
-        _ => (),
-    }
 
-    return Err(EvalOutcome::not_const(span));
+        return Err(EvalOutcome::not_const(span));
+    };
 
-    fn add_strings(
-        span: Span,
-        a: &Shared<String>,
-        b: &Shared<String>,
-    ) -> compile::Result<Shared<String>> {
-        let a = a.borrow_ref().with_span(span)?;
-        let b = b.borrow_ref().with_span(span)?;
-        let mut a = (*a).try_clone()?;
-        a.try_push_str(&b)?;
-        Ok(Shared::new(a).with_span(span)?)
-    }
+    Ok(Value::try_from(kind).with_span(span)?)
 }
 
 fn eval_ir_branches(
     ir: &ir::IrBranches,
     interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
-) -> Result<ir::Value, EvalOutcome> {
+) -> Result<Value, EvalOutcome> {
     for (ir_condition, branch) in &ir.branches {
         let guard = interp.scopes.push()?;
 
         let value = eval_ir_condition(ir_condition, interp, used)?;
 
-        let output = if as_bool(ir_condition.span(), value)? {
+        let output = if value.as_bool().with_span(ir_condition)? {
             Some(eval_ir_scope(branch, interp, used)?)
         } else {
             None
@@ -175,14 +170,14 @@ fn eval_ir_branches(
         return eval_ir_scope(branch, interp, used);
     }
 
-    Ok(ir::Value::EmptyTuple)
+    Ok(Value::empty().with_span(ir)?)
 }
 
 fn eval_ir_call(
     ir: &ir::IrCall,
     interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
-) -> Result<ir::Value, EvalOutcome> {
+) -> Result<Value, EvalOutcome> {
     let mut args = Vec::new();
 
     for arg in &ir.args {
@@ -196,35 +191,37 @@ fn eval_ir_condition(
     ir: &ir::IrCondition,
     interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
-) -> Result<ir::Value, EvalOutcome> {
-    Ok(ir::Value::Bool(match ir {
+) -> Result<Value, EvalOutcome> {
+    let value = match ir {
         ir::IrCondition::Ir(ir) => {
             let value = eval_ir(ir, interp, used)?;
-            as_bool(ir.span(), value)?
+            value.as_bool().with_span(ir)?
         }
         ir::IrCondition::Let(ir_let) => {
             let value = eval_ir(&ir_let.ir, interp, used)?;
             ir_let.pat.matches(interp, value, ir)?
         }
-    }))
+    };
+
+    Ok(Value::try_from(value).with_span(ir)?)
 }
 
 fn eval_ir_decl(
     ir: &ir::IrDecl,
     interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
-) -> Result<ir::Value, EvalOutcome> {
+) -> Result<Value, EvalOutcome> {
     interp.budget.take(ir)?;
     let value = eval_ir(&ir.value, interp, used)?;
     interp.scopes.decl(&ir.name, value).with_span(ir)?;
-    Ok(ir::Value::EmptyTuple)
+    Ok(Value::empty().with_span(ir)?)
 }
 
 fn eval_ir_loop(
     ir: &ir::IrLoop,
     interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
-) -> Result<ir::Value, EvalOutcome> {
+) -> Result<Value, EvalOutcome> {
     let span = ir.span();
     interp.budget.take(span)?;
 
@@ -236,7 +233,7 @@ fn eval_ir_loop(
 
             let value = eval_ir_condition(condition, interp, used)?;
 
-            if !as_bool(condition.span(), value)? {
+            if !value.as_bool().with_span(condition)? {
                 break None;
             }
         }
@@ -268,7 +265,7 @@ fn eval_ir_loop(
 
         Ok(value)
     } else {
-        Ok(ir::Value::EmptyTuple)
+        Ok(Value::empty().with_span(ir)?)
     }
 }
 
@@ -276,21 +273,22 @@ fn eval_ir_object(
     ir: &ir::IrObject,
     interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
-) -> Result<ir::Value, EvalOutcome> {
-    let mut object = HashMap::try_with_capacity(ir.assignments.len())?;
+) -> Result<Value, EvalOutcome> {
+    let mut object = Object::with_capacity(ir.assignments.len())?;
 
     for (key, value) in ir.assignments.iter() {
-        object.try_insert(key.as_ref().try_to_owned()?, eval_ir(value, interp, used)?)?;
+        let key = key.as_ref().try_to_owned()?;
+        object.insert(key, eval_ir(value, interp, used)?)?;
     }
 
-    Ok(ir::Value::Object(Shared::new(object).with_span(ir)?))
+    Ok(Value::try_from(object).with_span(ir)?)
 }
 
 fn eval_ir_scope(
     ir: &ir::IrScope,
     interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
-) -> Result<ir::Value, EvalOutcome> {
+) -> Result<Value, EvalOutcome> {
     interp.budget.take(ir)?;
     let guard = interp.scopes.push()?;
 
@@ -301,7 +299,7 @@ fn eval_ir_scope(
     let value = if let Some(last) = &ir.last {
         eval_ir(last, interp, used)?
     } else {
-        ir::Value::EmptyTuple
+        Value::empty().with_span(ir)?
     };
 
     interp.scopes.pop(guard).with_span(ir)?;
@@ -312,18 +310,18 @@ fn eval_ir_set(
     ir: &ir::IrSet,
     interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
-) -> Result<ir::Value, EvalOutcome> {
+) -> Result<Value, EvalOutcome> {
     interp.budget.take(ir)?;
     let value = eval_ir(&ir.value, interp, used)?;
     interp.scopes.set_target(&ir.target, value)?;
-    Ok(ir::Value::EmptyTuple)
+    Ok(Value::empty().with_span(ir)?)
 }
 
 fn eval_ir_template(
     ir: &ir::IrTemplate,
     interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
-) -> Result<ir::Value, EvalOutcome> {
+) -> Result<Value, EvalOutcome> {
     interp.budget.take(ir)?;
 
     let mut buf = String::new();
@@ -335,21 +333,21 @@ fn eval_ir_template(
             }
             ir::IrTemplateComponent::Ir(ir) => {
                 let const_value = eval_ir(ir, interp, used)?;
+                let kind = const_value.borrow_kind_ref().with_span(ir)?;
 
-                match const_value {
-                    ir::Value::Integer(integer) => {
-                        write!(buf, "{}", integer)?;
+                match &*kind {
+                    ValueKind::Integer(integer) => {
+                        write!(buf, "{integer}")?;
                     }
-                    ir::Value::Float(float) => {
+                    ValueKind::Float(float) => {
                         let mut buffer = ryu::Buffer::new();
-                        buf.try_push_str(buffer.format(float))?;
+                        buf.try_push_str(buffer.format(*float))?;
                     }
-                    ir::Value::Bool(b) => {
-                        write!(buf, "{}", b)?;
+                    ValueKind::Bool(b) => {
+                        write!(buf, "{b}")?;
                     }
-                    ir::Value::String(s) => {
-                        let s = s.borrow_ref().with_span(ir)?;
-                        buf.try_push_str(&s)?;
+                    ValueKind::String(s) => {
+                        buf.try_push_str(s)?;
                     }
                     _ => {
                         return Err(EvalOutcome::not_const(ir));
@@ -359,37 +357,37 @@ fn eval_ir_template(
         }
     }
 
-    Ok(ir::Value::String(Shared::new(buf).with_span(ir)?))
+    Ok(Value::try_from(buf).with_span(ir)?)
 }
 
 fn eval_ir_tuple(
     ir: &ir::Tuple,
     interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
-) -> Result<ir::Value, EvalOutcome> {
+) -> Result<Value, EvalOutcome> {
     let mut items = Vec::try_with_capacity(ir.items.len())?;
 
     for item in ir.items.iter() {
         items.try_push(eval_ir(item, interp, used)?)?;
     }
 
-    Ok(ir::Value::Tuple(
-        Shared::new(items.try_into_boxed_slice()?).with_span(ir)?,
-    ))
+    let tuple = OwnedTuple::try_from(items).with_span(ir)?;
+    Ok(Value::try_from(tuple).with_span(ir)?)
 }
 
 fn eval_ir_vec(
     ir: &ir::IrVec,
     interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
-) -> Result<ir::Value, EvalOutcome> {
+) -> Result<Value, EvalOutcome> {
     let mut vec = Vec::try_with_capacity(ir.items.len())?;
 
     for item in ir.items.iter() {
         vec.try_push(eval_ir(item, interp, used)?)?;
     }
 
-    Ok(ir::Value::Vec(Shared::new(vec).with_span(ir)?))
+    let vec = crate::runtime::Vec::from(vec);
+    Ok(Value::try_from(vec).with_span(ir)?)
 }
 
 /// IrEval the interior expression.
@@ -397,7 +395,7 @@ pub(crate) fn eval_ir(
     ir: &ir::Ir,
     interp: &mut ir::Interpreter<'_, '_>,
     used: Used,
-) -> Result<ir::Value, EvalOutcome> {
+) -> Result<Value, EvalOutcome> {
     interp.budget.take(ir)?;
 
     match &ir.kind {

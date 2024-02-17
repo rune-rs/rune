@@ -97,7 +97,7 @@ fn construct_struct() -> rune::support::Result<()> {
         headers: Headers,
     }
 
-    #[derive(Debug, Any, Clone, PartialEq, Eq)]
+    #[derive(Debug, Any, TryClone, PartialEq, Eq)]
     #[rune(constructor)]
     struct Headers {
         #[rune(get, set)]

@@ -9,9 +9,8 @@ fn test_reference_error() -> Result<()> {
         value: i64,
     }
 
-    fn take_it(this: Shared<AnyObj>) -> VmResult<()> {
-        // NB: this will error, since this is a reference.
-        let _ = vm_try!(this.into_ref());
+    // NB: Calling this should error, since it's a mutable reference.
+    fn take_it(_: Ref<Foo>) -> VmResult<()> {
         VmResult::Ok(())
     }
 

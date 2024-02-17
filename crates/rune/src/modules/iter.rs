@@ -1,5 +1,7 @@
 //! The `std::iter` module.
 
+use core::convert::identity;
+
 use crate as rune;
 use crate::alloc::String;
 use crate::modules::collections::VecDeque;
@@ -8,7 +10,7 @@ use crate::modules::collections::{HashMap, HashSet};
 #[cfg(feature = "alloc")]
 use crate::runtime::EnvProtocolCaller;
 use crate::runtime::{
-    FromValue, Function, Iterator, Object, OwnedTuple, Protocol, Value, Vec, VmResult,
+    FromValue, Function, Iterator, Object, OwnedTuple, Protocol, Value, ValueKind, Vec, VmResult,
 };
 use crate::{ContextError, Module};
 
@@ -43,7 +45,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(take)?;
     module.function_meta(count)?;
     module.associated_function(Protocol::NEXT, Iterator::next)?;
-    module.associated_function(Protocol::INTO_ITER, <Iterator as From<Iterator>>::from)?;
+    module.associated_function(Protocol::INTO_ITER, identity::<Iterator>)?;
 
     module.function_meta(range)?;
     module.function_meta(empty)?;
@@ -1140,16 +1142,15 @@ fn collect_string(mut it: Iterator) -> VmResult<String> {
     let mut string = String::new();
 
     while let Some(value) = vm_try!(it.next()) {
-        match value {
-            Value::Char(c) => {
-                vm_try!(string.try_push(c));
+        match &*vm_try!(value.borrow_kind_ref()) {
+            ValueKind::Char(c) => {
+                vm_try!(string.try_push(*c));
             }
-            Value::String(s) => {
-                let s = vm_try!(s.into_ref());
-                vm_try!(string.try_push_str(s.as_str()));
+            ValueKind::String(s) => {
+                vm_try!(string.try_push_str(s));
             }
             value => {
-                return VmResult::expected::<String>(vm_try!(value.type_info()));
+                return VmResult::expected::<String>(value.type_info());
             }
         }
     }

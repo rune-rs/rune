@@ -12,7 +12,7 @@ use serde::ser;
 use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, Vec};
-use crate::runtime::{RawRef, Ref, UnsafeToRef, Value, VmResult};
+use crate::runtime::{RawRef, Ref, UnsafeToRef, Value, ValueKind, VmErrorKind, VmResult};
 use crate::Any;
 
 /// A vector of bytes.
@@ -341,18 +341,24 @@ impl AsRef<[u8]> for Bytes {
     }
 }
 
-from_value!(Bytes, into_bytes);
+from_value2!(Bytes, into_bytes_ref, into_bytes_mut, into_bytes);
 
 impl UnsafeToRef for [u8] {
     type Guard = RawRef;
 
     unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
-        let bytes = vm_try!(value.into_bytes());
-        let bytes = vm_try!(bytes.into_ref());
-        let (value, guard) = Ref::into_raw(bytes);
-        // Safety: we're holding onto the guard for the slice here, so it is
-        // live.
-        VmResult::Ok((value.as_ref().as_slice(), guard))
+        let result = Ref::try_map(vm_try!(value.into_kind_ref()), |kind| match kind {
+            ValueKind::Bytes(bytes) => Some(bytes.as_slice()),
+            _ => None,
+        });
+
+        match result {
+            Ok(bytes) => {
+                let (value, guard) = Ref::into_raw(bytes);
+                VmResult::Ok((value.as_ref(), guard))
+            }
+            Err(actual) => VmResult::err(VmErrorKind::expected::<Bytes>(actual.type_info())),
+        }
     }
 }
 
@@ -437,17 +443,17 @@ impl<'de> de::Deserialize<'de> for Bytes {
 
 #[cfg(test)]
 mod tests {
-    use crate::runtime::{Bytes, Shared, Value};
+    use crate::runtime::{Bytes, Value};
     use crate::tests::prelude::*;
 
     #[test]
     #[allow(clippy::let_and_return)]
     fn test_clone_issue() -> Result<(), Box<dyn std::error::Error>> {
-        let shared = Value::Bytes(Shared::new(Bytes::new())?);
+        let shared = Value::try_from(Bytes::new())?;
 
         let _ = {
-            let shared = shared.into_bytes().into_result()?;
-            let out = shared.borrow_ref()?.try_clone()?;
+            let shared = shared.into_bytes_ref()?;
+            let out = shared.try_clone()?;
             out
         };
 

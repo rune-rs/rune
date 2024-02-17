@@ -83,6 +83,10 @@ pub(crate) struct TypeAttr {
     pub(crate) static_type: Option<syn::Ident>,
     /// Method to use to convert from value.
     pub(crate) from_value: Option<syn::Path>,
+    /// Method to use to convert from value ref.
+    pub(crate) from_value_ref: Option<syn::Path>,
+    /// Method to use to convert from value mut.
+    pub(crate) from_value_mut: Option<syn::Path>,
     /// Method to use to convert from value.
     pub(crate) from_value_params: Option<syn::punctuated::Punctuated<syn::Type, Token![,]>>,
 }
@@ -276,31 +280,38 @@ impl Context {
                                 ..
                             } = g;
 
+                            let Tokens {
+                                try_clone,
+                                vm_try,
+                                vm_result,
+                                ..
+                            } = g.tokens;
+
                             match target {
                                 GenerateTarget::Named { field_ident, field_name } => {
                                     let access = if g.attrs.copy {
                                         quote!(s.#field_ident)
                                     } else {
-                                        quote!(Clone::clone(&s.#field_ident))
+                                        quote!(#vm_try!(#try_clone::try_clone(&s.#field_ident)))
                                     };
 
                                     let protocol = g.tokens.protocol(PROTOCOL_GET);
 
                                     quote_spanned! { g.field.span() =>
-                                        module.field_function(#protocol, #field_name, |s: &Self| #access)?;
+                                        module.field_function(#protocol, #field_name, |s: &Self| #vm_result::Ok(#access))?;
                                     }
                                 }
                                 GenerateTarget::Numbered { field_index } => {
                                     let access = if g.attrs.copy {
                                         quote!(s.#field_index)
                                     } else {
-                                        quote!(Clone::clone(&s.#field_index))
+                                        quote!(#vm_try!(#try_clone::try_clone(&s.#field_index)))
                                     };
 
                                     let protocol = g.tokens.protocol(PROTOCOL_GET);
 
                                     quote_spanned! { g.field.span() =>
-                                        module.index_function(#protocol, #field_index, |s: &Self| #access)?;
+                                        module.index_function(#protocol, #field_index, |s: &Self| #vm_result::Ok(#access))?;
                                     }
                                 }
                             }
@@ -449,10 +460,13 @@ impl Context {
                         // Parse `#[rune(name = "..")]`
                         meta.input.parse::<Token![=]>()?;
                         attr.name = Some(meta.input.parse()?);
-                    } else if meta.path == MODULE {
-                        // Parse `#[rune(module = <path>)]`
-                        meta.input.parse::<Token![=]>()?;
-                        attr.module = Some(parse_path_compat(meta.input)?);
+                    } else if meta.path == MODULE || meta.path == CRATE {
+                        // Parse `#[rune(crate [= <path>])]`
+                        if meta.input.parse::<Option<Token![=]>>()?.is_some() {
+                            attr.module = Some(parse_path_compat(meta.input)?);
+                        } else {
+                            attr.module = Some(syn::parse_quote!(crate));
+                        }
                     } else if meta.path == INSTALL_WITH {
                         // Parse `#[rune(install_with = <path>)]`
                         meta.input.parse::<Token![=]>()?;
@@ -467,6 +481,12 @@ impl Context {
                     } else if meta.path == FROM_VALUE {
                         meta.input.parse::<Token![=]>()?;
                         attr.from_value = Some(meta.input.parse()?);
+                    } else if meta.path == FROM_VALUE_REF {
+                        meta.input.parse::<Token![=]>()?;
+                        attr.from_value_ref = Some(meta.input.parse()?);
+                    } else if meta.path == FROM_VALUE_MUT {
+                        meta.input.parse::<Token![=]>()?;
+                        attr.from_value_mut = Some(meta.input.parse()?);
                     } else if meta.path == FROM_VALUE_PARAMS {
                         meta.input.parse::<Token![=]>()?;
                         let content;
@@ -596,7 +616,7 @@ impl Context {
             any: path(m, ["Any"]),
             box_: path(m, ["__private", "Box"]),
             vec: path(m, ["alloc", "Vec"]),
-            clone: path(&core, ["clone", "Clone"]),
+            try_clone: path(m, ["alloc", "clone", "TryClone"]),
             compile_error: path(m, ["compile", "Error"]),
             context_error: path(m, ["compile", "ContextError"]),
             double_ended_iterator: path(&core, ["iter", "DoubleEndedIterator"]),
@@ -629,7 +649,6 @@ impl Context {
             raw_str: path(m, ["runtime", "RawStr"]),
             ref_: path(m, ["runtime", "Ref"]),
             result: path(&core, ["result", "Result"]),
-            shared: path(m, ["runtime", "Shared"]),
             span: path(m, ["ast", "Span"]),
             spanned: path(m, ["ast", "Spanned"]),
             static_type_mod: path(m, ["runtime", "static_type"]),
@@ -646,6 +665,7 @@ impl Context {
             unsafe_to_ref: path(m, ["runtime", "UnsafeToRef"]),
             unsafe_to_value: path(m, ["runtime", "UnsafeToValue"]),
             value: path(m, ["runtime", "Value"]),
+            type_value: path(m, ["runtime", "TypeValue"]),
             variant_data: path(m, ["runtime", "VariantData"]),
             vm_result: path(m, ["runtime", "VmResult"]),
             vm_try: path(m, ["vm_try"]),
@@ -688,7 +708,7 @@ pub(crate) struct Tokens {
     pub(crate) any: syn::Path,
     pub(crate) box_: syn::Path,
     pub(crate) vec: syn::Path,
-    pub(crate) clone: syn::Path,
+    pub(crate) try_clone: syn::Path,
     pub(crate) compile_error: syn::Path,
     pub(crate) context_error: syn::Path,
     pub(crate) double_ended_iterator: syn::Path,
@@ -721,7 +741,6 @@ pub(crate) struct Tokens {
     pub(crate) raw_str: syn::Path,
     pub(crate) ref_: syn::Path,
     pub(crate) result: syn::Path,
-    pub(crate) shared: syn::Path,
     pub(crate) span: syn::Path,
     pub(crate) spanned: syn::Path,
     pub(crate) static_type_mod: syn::Path,
@@ -738,6 +757,7 @@ pub(crate) struct Tokens {
     pub(crate) unsafe_to_ref: syn::Path,
     pub(crate) unsafe_to_value: syn::Path,
     pub(crate) value: syn::Path,
+    pub(crate) type_value: syn::Path,
     pub(crate) variant_data: syn::Path,
     pub(crate) vm_result: syn::Path,
     pub(crate) vm_try: syn::Path,

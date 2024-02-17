@@ -273,9 +273,13 @@ pub(super) async fn run(
                 writeln!(io.stdout, "    *empty*")?;
             }
 
-            for (n, value) in stack.iter().enumerate() {
-                writeln!(io.stdout, "{}+{} = {:?}", frame.stack_bottom, n, value)?;
-            }
+            vm.with(|| {
+                for (n, value) in stack.iter().enumerate() {
+                    writeln!(io.stdout, "{}+{} = {:?}", frame.stack_bottom, n, value)?;
+                }
+
+                Ok::<_, crate::support::Error>(())
+            })?;
         }
 
         // NB: print final frame
@@ -292,15 +296,19 @@ pub(super) async fn run(
             writeln!(io.stdout, "    *empty*")?;
         }
 
-        for (n, value) in values.iter().enumerate() {
-            writeln!(
-                io.stdout,
-                "    {}+{} = {:?}",
-                stack.stack_bottom(),
-                n,
-                value
-            )?;
-        }
+        vm.with(|| {
+            for (n, value) in values.iter().enumerate() {
+                writeln!(
+                    io.stdout,
+                    "    {}+{} = {:?}",
+                    stack.stack_bottom(),
+                    n,
+                    value
+                )?;
+            }
+
+            Ok::<_, crate::support::Error>(())
+        })?;
     }
 
     if let Some(error) = errored {
@@ -402,9 +410,13 @@ where
                 writeln!(o, "    *empty*")?;
             }
 
-            for (n, value) in values.iter().enumerate() {
-                writeln!(o, "    {}+{} = {:?}", stack.stack_bottom(), n, value)?;
-            }
+            vm.with(|| {
+                for (n, value) in values.iter().enumerate() {
+                    writeln!(o, "    {}+{} = {:?}", stack.stack_bottom(), n, value)?;
+                }
+
+                Ok::<_, TraceError>(())
+            })?;
         }
 
         if let Some(result) = result {

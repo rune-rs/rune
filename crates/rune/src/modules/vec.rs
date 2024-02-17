@@ -205,7 +205,7 @@ fn get(this: &Vec, index: Value) -> VmResult<Option<Value>> {
 fn sort_by(vec: &mut Vec, comparator: &Function) -> VmResult<()> {
     let mut error = None;
 
-    vec.sort_by(|a, b| match comparator.call::<_, Ordering>((a, b)) {
+    vec.sort_by(|a, b| match comparator.call::<Ordering>((a, b)) {
         VmResult::Ok(ordering) => ordering,
         VmResult::Err(e) => {
             if error.is_none() {

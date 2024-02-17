@@ -7,7 +7,7 @@ use crate::alloc::clone::TryClone;
 use crate::alloc::{self, Box};
 use crate::runtime::{
     ConstValue, FromValue, Mut, RawMut, RawRef, Ref, ToValue, UnsafeToMut, UnsafeToRef, Value,
-    VmErrorKind, VmResult,
+    ValueKind, VmErrorKind, VmResult,
 };
 #[cfg(feature = "alloc")]
 use crate::runtime::{Hasher, ProtocolCaller};
@@ -233,8 +233,8 @@ impl TryFrom<alloc::Box<[ConstValue]>> for OwnedTuple {
 
         let mut out = alloc::Vec::try_with_capacity(inner.len())?;
 
-        for value in alloc::Vec::from(inner) {
-            out.try_push(value.into_value()?)?;
+        for value in inner.iter() {
+            out.try_push(value.as_value()?)?;
         }
 
         Ok(Self {
@@ -266,8 +266,8 @@ impl TryFrom<::rust_alloc::boxed::Box<[ConstValue]>> for OwnedTuple {
 
         let mut out = alloc::Vec::try_with_capacity(inner.len())?;
 
-        for value in inner.into_vec() {
-            out.try_push(value.into_value()?)?;
+        for value in inner.iter() {
+            out.try_push(value.as_value()?)?;
         }
 
         Ok(Self {
@@ -278,10 +278,10 @@ impl TryFrom<::rust_alloc::boxed::Box<[ConstValue]>> for OwnedTuple {
 
 impl FromValue for OwnedTuple {
     fn from_value(value: Value) -> VmResult<Self> {
-        match value {
-            Value::EmptyTuple => VmResult::Ok(Self::new()),
-            Value::Tuple(tuple) => VmResult::Ok(vm_try!(tuple.take())),
-            actual => VmResult::err(VmErrorKind::expected::<Self>(vm_try!(actual.type_info()))),
+        match vm_try!(value.take_kind()) {
+            ValueKind::EmptyTuple => VmResult::Ok(Self::new()),
+            ValueKind::Tuple(tuple) => VmResult::Ok(tuple),
+            actual => VmResult::err(VmErrorKind::expected::<Self>(actual.type_info())),
         }
     }
 }
@@ -299,7 +299,7 @@ macro_rules! impl_tuple {
 
         impl ToValue for () {
             fn to_value(self) -> VmResult<Value> {
-                VmResult::Ok(Value::from(()))
+                VmResult::Ok(vm_try!(Value::empty()))
             }
         }
     };
@@ -312,7 +312,7 @@ macro_rules! impl_tuple {
             $($ty: FromValue,)*
         {
             fn from_value(value: Value) -> VmResult<Self> {
-                let tuple = vm_try!(vm_try!(value.into_tuple()).into_ref());
+                let tuple = vm_try!(value.into_tuple_ref());
 
                 let [$($var,)*] = &tuple[..] else {
                     return VmResult::err(VmErrorKind::ExpectedTupleLength {
@@ -342,62 +342,50 @@ macro_rules! impl_tuple {
 
 repeat_macro!(impl_tuple);
 
-impl FromValue for Mut<Tuple> {
+impl FromValue for Ref<Tuple> {
     fn from_value(value: Value) -> VmResult<Self> {
-        match value {
-            Value::EmptyTuple => VmResult::Ok(Mut::from_static(Tuple::new_mut(&mut []))),
-            Value::Tuple(tuple) => {
-                let tuple = vm_try!(tuple.into_mut());
-                let tuple = Mut::map(tuple, |this| &mut **this);
-                VmResult::Ok(tuple)
-            }
-            actual => VmResult::err(VmErrorKind::expected::<Self>(vm_try!(actual.type_info()))),
+        let result = Ref::try_map(vm_try!(value.into_kind_ref()), |kind| match kind {
+            ValueKind::EmptyTuple => Some(Tuple::new(&[])),
+            ValueKind::Tuple(tuple) => Some(&**tuple),
+            _ => None,
+        });
+
+        match result {
+            Ok(tuple) => VmResult::Ok(tuple),
+            Err(actual) => VmResult::err(VmErrorKind::expected::<Self>(actual.type_info())),
         }
     }
 }
 
-impl FromValue for Ref<Tuple> {
+impl FromValue for Mut<Tuple> {
     fn from_value(value: Value) -> VmResult<Self> {
-        match value {
-            Value::EmptyTuple => VmResult::Ok(Ref::from_static(Tuple::new(&[]))),
-            Value::Tuple(tuple) => {
-                let tuple = vm_try!(tuple.into_ref());
-                let tuple = Ref::map(tuple, |this| &**this);
-                VmResult::Ok(tuple)
-            }
-            actual => VmResult::err(VmErrorKind::expected::<Self>(vm_try!(actual.type_info()))),
+        let result = Mut::try_map(vm_try!(value.into_kind_mut()), |kind| match kind {
+            ValueKind::EmptyTuple => Some(Tuple::new_mut(&mut [])),
+            ValueKind::Tuple(tuple) => Some(&mut **tuple),
+            _ => None,
+        });
+
+        match result {
+            Ok(tuple) => VmResult::Ok(tuple),
+            Err(actual) => VmResult::err(VmErrorKind::expected::<Self>(actual.type_info())),
         }
     }
 }
 
 impl UnsafeToRef for Tuple {
-    type Guard = Option<RawRef>;
+    type Guard = RawRef;
 
     unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
-        match value {
-            Value::EmptyTuple => VmResult::Ok((Tuple::new(&[]), None)),
-            Value::Tuple(tuple) => {
-                let tuple = Ref::map(vm_try!(tuple.into_ref()), |tuple| &**tuple);
-                let (value, guard) = Ref::into_raw(tuple);
-                VmResult::Ok((value.as_ref(), Some(guard)))
-            }
-            actual => VmResult::err(VmErrorKind::expected::<Self>(vm_try!(actual.type_info()))),
-        }
+        let (value, guard) = Ref::into_raw(vm_try!(Ref::from_value(value)));
+        VmResult::Ok((value.as_ref(), guard))
     }
 }
 
 impl UnsafeToMut for Tuple {
-    type Guard = Option<RawMut>;
+    type Guard = RawMut;
 
     unsafe fn unsafe_to_mut<'a>(value: Value) -> VmResult<(&'a mut Self, Self::Guard)> {
-        match value {
-            Value::EmptyTuple => VmResult::Ok((Tuple::new_mut(&mut []), None)),
-            Value::Tuple(tuple) => {
-                let tuple = Mut::map(vm_try!(tuple.into_mut()), |tuple| &mut **tuple);
-                let (mut value, guard) = Mut::into_raw(tuple);
-                VmResult::Ok((value.as_mut(), Some(guard)))
-            }
-            actual => VmResult::err(VmErrorKind::expected::<Self>(vm_try!(actual.type_info()))),
-        }
+        let (mut value, guard) = Mut::into_raw(vm_try!(Mut::from_value(value)));
+        VmResult::Ok((value.as_mut(), guard))
     }
 }

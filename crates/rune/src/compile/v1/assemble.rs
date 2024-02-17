@@ -163,7 +163,7 @@ impl<'a, 'hir, 'arena> Ctxt<'a, 'hir, 'arena> {
         interpreter.module = query_const_fn.item_meta.module;
         interpreter.item = query_const_fn.item_meta.item;
         let value = interpreter.eval_value(&query_const_fn.ir_fn.ir, Used::Used)?;
-        value.into_const(span)
+        Ok(crate::from_value(value).with_span(span)?)
     }
 }
 

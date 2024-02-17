@@ -67,8 +67,8 @@ impl ProtocolCaller for EnvProtocolCaller {
             }
 
             let Some(handler) = context.function(hash) else {
-                return VmResult::err(VmErrorKind::MissingInstanceFunction {
-                    hash,
+                return VmResult::err(VmErrorKind::MissingProtocolFunction {
+                    protocol,
                     instance: vm_try!(target.type_info()),
                 });
             };

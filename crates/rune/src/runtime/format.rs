@@ -10,9 +10,10 @@ use musli::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 use crate as rune;
+use crate::alloc::clone::TryClone;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::String;
-use crate::runtime::{Formatter, ProtocolCaller, Value, VmErrorKind, VmResult};
+use crate::runtime::{Formatter, ProtocolCaller, Value, ValueKind, VmErrorKind, VmResult};
 use crate::Any;
 
 /// Error raised when trying to parse a type string and it fails.
@@ -39,7 +40,7 @@ impl fmt::Display for AlignmentFromStrError {
 }
 
 /// A format specification, wrapping an inner value.
-#[derive(Any, Debug, Clone)]
+#[derive(Any, Debug, Clone, TryClone)]
 #[rune(builtin, static_type = FORMAT_TYPE)]
 pub struct Format {
     /// The value being formatted.
@@ -48,10 +49,11 @@ pub struct Format {
     pub(crate) spec: FormatSpec,
 }
 
-from_value!(Format, into_format);
+from_value2!(Format, into_format_ref, into_format_mut, into_format);
 
 /// A format specification.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
+#[derive(Debug, Clone, Copy, TryClone, Serialize, Deserialize, Decode, Encode)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub struct FormatSpec {
     /// Formatting flags.
@@ -206,22 +208,22 @@ impl FormatSpec {
         f: &mut Formatter,
         caller: &mut impl ProtocolCaller,
     ) -> VmResult<()> {
-        match value {
-            Value::Char(c) => {
-                vm_try!(f.buf_mut().try_push(*c));
+        match *vm_try!(value.borrow_kind_ref()) {
+            ValueKind::Char(c) => {
+                vm_try!(f.buf_mut().try_push(c));
                 vm_try!(self.format_fill(f, self.align, self.fill, None));
             }
-            Value::String(s) => {
-                vm_try!(f.buf_mut().try_push_str(&vm_try!(s.borrow_ref())));
+            ValueKind::String(ref s) => {
+                vm_try!(f.buf_mut().try_push_str(s));
                 vm_try!(self.format_fill(f, self.align, self.fill, None));
             }
-            Value::Integer(n) => {
-                let (n, align, fill, sign) = self.int_traits(*n);
+            ValueKind::Integer(n) => {
+                let (n, align, fill, sign) = self.int_traits(n);
                 vm_try!(self.format_number(f.buf_mut(), n));
                 vm_try!(self.format_fill(f, align, fill, sign));
             }
-            Value::Float(n) => {
-                let (n, align, fill, sign) = self.float_traits(*n);
+            ValueKind::Float(n) => {
+                let (n, align, fill, sign) = self.float_traits(n);
                 vm_try!(self.format_float(f.buf_mut(), n));
                 vm_try!(self.format_fill(f, align, fill, sign));
             }
@@ -239,22 +241,21 @@ impl FormatSpec {
         f: &mut Formatter,
         caller: &mut impl ProtocolCaller,
     ) -> VmResult<()> {
-        match value {
-            Value::String(s) => {
-                let s = vm_try!(s.borrow_ref());
-                vm_write!(f, "{:?}", &*s);
+        match *vm_try!(value.borrow_kind_ref()) {
+            ValueKind::String(ref s) => {
+                vm_write!(f, "{s:?}");
             }
-            Value::Integer(n) => {
-                let (n, align, fill, sign) = self.int_traits(*n);
+            ValueKind::Integer(n) => {
+                let (n, align, fill, sign) = self.int_traits(n);
                 vm_try!(self.format_number(f.buf_mut(), n));
                 vm_try!(self.format_fill(f, align, fill, sign));
             }
-            Value::Float(n) => {
-                let (n, align, fill, sign) = self.float_traits(*n);
+            ValueKind::Float(n) => {
+                let (n, align, fill, sign) = self.float_traits(n);
                 vm_try!(self.format_float(f.buf_mut(), n));
                 vm_try!(self.format_fill(f, align, fill, sign));
             }
-            value => {
+            _ => {
                 vm_try!(value.string_debug_with(f, caller));
             }
         }
@@ -263,9 +264,9 @@ impl FormatSpec {
     }
 
     fn format_upper_hex(&self, value: &Value, f: &mut Formatter) -> VmResult<()> {
-        match value {
-            Value::Integer(n) => {
-                let (n, align, fill, sign) = self.int_traits(*n);
+        match *vm_try!(value.borrow_kind_ref()) {
+            ValueKind::Integer(n) => {
+                let (n, align, fill, sign) = self.int_traits(n);
                 vm_write!(f.buf_mut(), "{:X}", n);
                 vm_try!(self.format_fill(f, align, fill, sign));
             }
@@ -278,9 +279,9 @@ impl FormatSpec {
     }
 
     fn format_lower_hex(&self, value: &Value, f: &mut Formatter) -> VmResult<()> {
-        match value {
-            Value::Integer(n) => {
-                let (n, align, fill, sign) = self.int_traits(*n);
+        match *vm_try!(value.borrow_kind_ref()) {
+            ValueKind::Integer(n) => {
+                let (n, align, fill, sign) = self.int_traits(n);
                 vm_write!(f.buf_mut(), "{:x}", n);
                 vm_try!(self.format_fill(f, align, fill, sign));
             }
@@ -293,9 +294,9 @@ impl FormatSpec {
     }
 
     fn format_binary(&self, value: &Value, f: &mut Formatter) -> VmResult<()> {
-        match value {
-            Value::Integer(n) => {
-                let (n, align, fill, sign) = self.int_traits(*n);
+        match *vm_try!(value.borrow_kind_ref()) {
+            ValueKind::Integer(n) => {
+                let (n, align, fill, sign) = self.int_traits(n);
                 vm_write!(f.buf_mut(), "{:b}", n);
                 vm_try!(self.format_fill(f, align, fill, sign));
             }
@@ -308,9 +309,9 @@ impl FormatSpec {
     }
 
     fn format_pointer(&self, value: &Value, f: &mut Formatter) -> VmResult<()> {
-        match value {
-            Value::Integer(n) => {
-                let (n, align, fill, sign) = self.int_traits(*n);
+        match *vm_try!(value.borrow_kind_ref()) {
+            ValueKind::Integer(n) => {
+                let (n, align, fill, sign) = self.int_traits(n);
                 vm_write!(f.buf_mut(), "{:p}", n as *const ());
                 vm_try!(self.format_fill(f, align, fill, sign));
             }
@@ -442,7 +443,8 @@ impl fmt::Display for Type {
 }
 
 /// The alignment requested.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Decode, Encode)]
+#[derive(Debug, Clone, Copy, TryClone, PartialEq, Eq, Serialize, Deserialize, Decode, Encode)]
+#[try_clone(copy)]
 #[non_exhaustive]
 pub enum Alignment {
     /// Left alignment.
@@ -506,9 +508,10 @@ pub enum Flag {
 }
 
 /// Format specification flags.
-#[derive(Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, Decode, Encode)]
+#[derive(Clone, Copy, TryClone, Default, PartialEq, Eq, Serialize, Deserialize, Decode, Encode)]
 #[repr(transparent)]
 #[musli(transparent)]
+#[try_clone(copy)]
 pub struct Flags(u32);
 
 impl Flags {

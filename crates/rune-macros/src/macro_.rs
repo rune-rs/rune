@@ -1,4 +1,4 @@
-use proc_macro2::{Ident, Span, TokenStream};
+use proc_macro2::{Ident, TokenStream};
 use quote::{quote, ToTokens};
 use syn::parse::ParseStream;
 use syn::punctuated::Punctuated;
@@ -8,7 +8,7 @@ use syn::spanned::Spanned;
 enum Path {
     #[default]
     None,
-    Path(Span, syn::Path),
+    Path(syn::Path),
 }
 
 #[derive(Default)]
@@ -19,18 +19,17 @@ pub(crate) struct Config {
 impl Config {
     /// Parse the given parse stream.
     pub(crate) fn parse(input: ParseStream) -> syn::Result<Self> {
-        let span = input.span();
         let mut out = Self::default();
 
         while !input.is_empty() {
             let ident = input.parse::<syn::Ident>()?;
 
-            if ident == "path" {
-                input.parse::<syn::Token![=]>()?;
-                out.path = Path::Path(span, input.parse()?);
-            } else {
+            if ident != "path" {
                 return Err(syn::Error::new_spanned(ident, "Unsupported option"));
             }
+
+            input.parse::<syn::Token![=]>()?;
+            out.path = Path::Path(input.parse()?);
 
             if input.parse::<Option<syn::Token![,]>>()?.is_none() {
                 break;
@@ -140,7 +139,7 @@ impl Macro {
                         lit: syn::Lit::Str(self.name_string.clone()),
                     }));
                 }
-                Path::Path(_, path) => {
+                Path::Path(path) => {
                     for s in &path.segments {
                         let syn::PathArguments::None = s.arguments else {
                             return Err(syn::Error::new_spanned(

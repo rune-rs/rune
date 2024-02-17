@@ -1,6 +1,6 @@
 use crate::context::{Context, Tokens};
 use proc_macro2::TokenStream;
-use quote::quote_spanned;
+use quote::{quote, quote_spanned};
 use syn::spanned::Spanned as _;
 
 struct Expander {
@@ -19,6 +19,7 @@ impl Expander {
 
         let Tokens {
             value,
+            type_value,
             from_value,
             vm_result,
             tuple,
@@ -28,12 +29,11 @@ impl Expander {
 
         let (expanded, expected) = match &st.fields {
             syn::Fields::Unit => {
-                let expanded = quote_spanned! {
-                    input.span() =>
-                    #value::EmptyTuple => {
+                let expanded = quote! {
+                    #type_value::EmptyTuple => {
                         #vm_result::Ok(Self)
                     }
-                    #value::EmptyStruct(..) => {
+                    #type_value::EmptyStruct(..) => {
                         #vm_result::Ok(Self)
                     }
                 };
@@ -43,18 +43,15 @@ impl Expander {
             syn::Fields::Unnamed(f) => {
                 let expanded = self.expand_unnamed(f)?;
 
-                let expanded = quote_spanned! {
-                    f.span() =>
-                    #value::EmptyTuple => {
+                let expanded = quote! {
+                    #type_value::EmptyTuple => {
                         let tuple = #tuple::new(&[]);
                         #vm_result::Ok(Self(#expanded))
                     }
-                    #value::Tuple(tuple) => {
-                        let tuple = #vm_try!(tuple.borrow_ref());
+                    #type_value::Tuple(tuple) => {
                         #vm_result::Ok(Self(#expanded))
                     }
-                    #value::TupleStruct(tuple) => {
-                        let tuple = #vm_try!(tuple.borrow_ref());
+                    #type_value::TupleStruct(tuple) => {
                         #vm_result::Ok(Self(#expanded))
                     }
                 };
@@ -64,14 +61,11 @@ impl Expander {
             syn::Fields::Named(f) => {
                 let expanded = self.expand_named(f)?;
 
-                let expanded = quote_spanned! {
-                    f.span() =>
-                    #value::Object(object) => {
-                        let object = #vm_try!(object.borrow_ref());
+                let expanded = quote! {
+                    #type_value::Object(object) => {
                         #vm_result::Ok(Self { #expanded })
                     }
-                    #value::Struct(object) => {
-                        let object = #vm_try!(object.borrow_ref());
+                    #type_value::Struct(object) => {
                         #vm_result::Ok(Self { #expanded })
                     }
                 };
@@ -80,14 +74,14 @@ impl Expander {
             }
         };
 
-        Ok(quote_spanned! { input.span() =>
+        Ok(quote! {
             #[automatically_derived]
             impl #from_value for #ident {
                 fn from_value(value: #value) -> #vm_result<Self> {
-                    match value {
+                    match #vm_try!(#value::into_type_value(value)) {
                         #expanded
                         actual => {
-                            #vm_result::expected::<#expected>(#vm_try!(actual.type_info()))
+                            #vm_result::expected::<#expected>(#type_value::type_info(&actual))
                         }
                     }
                 }
@@ -108,6 +102,7 @@ impl Expander {
         let ident = &input.ident;
 
         let Tokens {
+            type_value,
             from_value,
             variant_data,
             value,
@@ -122,34 +117,33 @@ impl Expander {
 
             match &variant.fields {
                 syn::Fields::Unit => {
-                    unit_matches.push(quote_spanned! { variant.span() =>
+                    unit_matches.push(quote! {
                         #lit_str => #vm_result::Ok(Self::#ident)
                     });
                 }
                 syn::Fields::Unnamed(named) => {
                     let expanded = self.expand_unnamed(named)?;
 
-                    unnamed_matches.push(quote_spanned! { variant.span() =>
+                    unnamed_matches.push(quote! {
                         #lit_str => #vm_result::Ok(Self::#ident ( #expanded ))
                     });
                 }
                 syn::Fields::Named(named) => {
                     let expanded = self.expand_named(named)?;
 
-                    named_matches.push(quote_spanned! { variant.span() =>
+                    named_matches.push(quote! {
                         #lit_str => #vm_result::Ok(Self::#ident { #expanded })
                     });
                 }
             }
         }
 
-        let missing = quote_spanned! { input.span() =>
+        let missing = quote! {
             name => #vm_try!(#vm_result::__rune_macros__missing_variant(name))
         };
 
-        let variant = quote_spanned! { input.span() =>
-            #value::Variant(variant) => {
-                let variant = #vm_try!(variant.borrow_ref());
+        let variant = quote! {
+            #type_value::Variant(variant) => {
                 let mut it = variant.rtti().item.iter();
 
                 let name = match it.next_back_str() {
@@ -171,14 +165,14 @@ impl Expander {
             }
         };
 
-        Ok(quote_spanned! { input.span() =>
+        Ok(quote! {
             #[automatically_derived]
             impl #from_value for #ident {
                 fn from_value(value: #value) -> #vm_result<Self> {
-                    match value {
+                    match #vm_try!(#value::into_type_value(value)) {
                         #variant,
                         actual => {
-                            #vm_result::__rune_macros__expected_variant(#vm_try!(actual.type_info()))
+                            #vm_result::__rune_macros__expected_variant(#type_value::type_info(&actual))
                         }
                     }
                 }
@@ -209,17 +203,19 @@ impl Expander {
             vm_result,
             type_name,
             vm_try,
-            clone,
+            try_clone,
             ..
         } = &self.tokens;
 
         for (index, field) in unnamed.unnamed.iter().enumerate() {
             let _ = self.cx.field_attrs(&field.attrs)?;
 
-            from_values.push(quote_spanned! {
-                field.span() =>
+            from_values.push(quote! {
                 match tuple.get(#index) {
-                    Some(value) => #vm_try!(#from_value::from_value(#clone::clone(value))),
+                    Some(value) => {
+                        let value = #vm_try!(#try_clone::try_clone(value));
+                        #vm_try!(#from_value::from_value(value))
+                    }
                     None => {
                         return #vm_result::__rune_macros__missing_tuple_index(#type_name::<Self>(), #index);
                     }

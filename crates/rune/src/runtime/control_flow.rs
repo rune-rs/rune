@@ -1,6 +1,6 @@
 use core::ops;
 
-use crate as rune;
+use crate::alloc::clone::TryClone;
 use crate::alloc::fmt::TryWrite;
 use crate::runtime::{Formatter, FromValue, ProtocolCaller, ToValue, Value, VmResult};
 use crate::Any;
@@ -20,7 +20,9 @@ use crate::Any;
 /// assert_eq!(c.0, 42);
 /// assert_eq!(c, ControlFlow::Continue(42));
 /// ```
-#[derive(Debug, Clone, Any)]
+#[derive(Debug, Clone, TryClone, Any)]
+#[rune(crate)]
+#[try_clone(crate)]
 #[rune(builtin, static_type = CONTROL_FLOW_TYPE)]
 pub enum ControlFlow {
     /// Move on to the next phase of the operation as normal.
@@ -80,7 +82,12 @@ impl ControlFlow {
     }
 }
 
-from_value!(ControlFlow, into_control_flow);
+from_value2!(
+    ControlFlow,
+    into_control_flow_ref,
+    into_control_flow_mut,
+    into_control_flow
+);
 
 impl<B, C> ToValue for ops::ControlFlow<B, C>
 where
@@ -107,9 +114,7 @@ where
 {
     #[inline]
     fn from_value(value: Value) -> VmResult<Self> {
-        let value = vm_try!(value.into_control_flow());
-
-        VmResult::Ok(match vm_try!(value.take()) {
+        VmResult::Ok(match vm_try!(value.into_control_flow()) {
             ControlFlow::Continue(value) => {
                 ops::ControlFlow::Continue(vm_try!(C::from_value(value)))
             }

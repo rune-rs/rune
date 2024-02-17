@@ -166,7 +166,7 @@ fn aoc_2020_19b(b: &mut Criterion) {
             fn clone(self) {
                 Self {
                     string: self.string,
-                    position: self.position
+                    position: clone(self.position)
                 }
             }
 
@@ -178,7 +178,6 @@ fn aoc_2020_19b(b: &mut Criterion) {
             fn completed(self) {
                 self.position == self.string.len()
             }
-
         }
 
         enum Rule {
@@ -186,7 +185,6 @@ fn aoc_2020_19b(b: &mut Criterion) {
             Or(r, r),
             Seq(vs),
         }
-
 
         impl Rule {
             fn validate(self, rules, str) {
@@ -216,7 +214,6 @@ fn aoc_2020_19b(b: &mut Criterion) {
             let root = rules[0];
             messages.iter().filter(|v| root.validate(rules, v)).count()
         }
-
 
         pub fn main(n) {
             let r = get_rules();

@@ -14,12 +14,9 @@ fn test_get_const() -> Result<()> {
 
     assert_eq!(
         unit.constant(Hash::type_hash(["LEET"]))
-            .expect("successful lookup")
-            .try_clone()?
-            .into_value()
-            .expect("could not allocate value")
-            .into_integer()
-            .expect("the inner value"),
+            .context("missing constant")?
+            .as_value()?
+            .as_integer()?,
         1337
     );
     Ok(())
@@ -43,12 +40,9 @@ fn test_get_const_re_export() -> Result<()> {
 
     assert_eq!(
         unit.constant(Hash::type_hash(["LEET"]))
-            .expect("successful lookup")
-            .try_clone()?
-            .into_value()
-            .expect("could not allocate value")
-            .into_integer()
-            .expect("the inner value"),
+            .context("missing constant")?
+            .as_value()?
+            .as_integer()?,
         1337
     );
     Ok(())
@@ -71,10 +65,9 @@ fn test_get_const_nested() -> Result<()> {
     assert_eq!(
         unit.constant(Hash::type_hash(["inner", "LEET"]))
             .expect("successful lookup")
-            .try_clone()?
-            .into_value()
+            .as_value()
             .expect("could not allocate value")
-            .into_integer()
+            .as_integer()
             .expect("the inner value"),
         1337
     );

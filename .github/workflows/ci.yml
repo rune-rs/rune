@@ -62,7 +62,7 @@ jobs:
     needs: basics
     steps:
     - uses: actions/checkout@v3
-    - uses: dtolnay/rust-toolchain@1.70
+    - uses: dtolnay/rust-toolchain@1.74
     - uses: Swatinem/rust-cache@v2
     - run: cargo build --workspace
 

@@ -24,6 +24,7 @@ impl Prelude {
         this.add_prelude("char", ["char"])?;
         this.add_prelude("dbg", ["io", "dbg"])?;
         this.add_prelude("drop", ["mem", "drop"])?;
+        this.add_prelude("clone", ["clone", "clone"])?;
         this.add_prelude("Err", ["result", "Result", "Err"])?;
         this.add_prelude("file", ["macros", "builtin", "file"])?;
         this.add_prelude("format", ["fmt", "format"])?;

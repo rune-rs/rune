@@ -31,8 +31,8 @@ impl VmHalt {
 }
 
 /// The reason why the virtual machine execution stopped.
-#[derive(Debug, Clone, Copy)]
-pub enum VmHaltInfo {
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum VmHaltInfo {
     /// The virtual machine exited by running out of call frames.
     Exited,
     /// The virtual machine exited because it ran out of execution quota.

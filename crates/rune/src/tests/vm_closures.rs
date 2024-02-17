@@ -187,8 +187,8 @@ fn test_closure_in_lit_vec() -> VmResult<()> {
 
     let (start, first, second, end) = ret.0;
     assert_eq!(0, start);
-    assert_eq!(2, vm_try!(first.call::<_, i64>(())));
-    assert_eq!(4, vm_try!(second.call::<_, i64>(())));
+    assert_eq!(2, vm_try!(first.call::<i64>(())));
+    assert_eq!(4, vm_try!(second.call::<i64>(())));
     assert_eq!(3, end);
     VmResult::Ok(())
 }
@@ -201,8 +201,8 @@ fn test_closure_in_lit_tuple() -> VmResult<()> {
 
     let (start, first, second, end) = ret;
     assert_eq!(0, start);
-    assert_eq!(2, vm_try!(first.call::<_, i64>(())));
-    assert_eq!(4, vm_try!(second.call::<_, i64>(())));
+    assert_eq!(2, vm_try!(first.call::<i64>(())));
+    assert_eq!(4, vm_try!(second.call::<i64>(())));
     assert_eq!(3, end);
     VmResult::Ok(())
 }
@@ -222,8 +222,8 @@ fn test_closure_in_lit_object() -> Result<()> {
     };
 
     assert_eq!(0, proxy.a);
-    assert_eq!(2, proxy.b.call::<_, i64>(()).into_result()?);
-    assert_eq!(4, proxy.c.call::<_, i64>(()).into_result()?);
+    assert_eq!(2, proxy.b.call::<i64>(()).into_result()?);
+    assert_eq!(4, proxy.c.call::<i64>(()).into_result()?);
     assert_eq!(3, proxy.d);
     Ok(())
 }

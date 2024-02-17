@@ -1,7 +1,7 @@
 use core::fmt;
 use core::iter;
 
-use crate as rune;
+use crate::alloc::clone::TryClone;
 use crate::runtime::{GeneratorState, Iterator, Value, Vm, VmErrorKind, VmExecution, VmResult};
 use crate::Any;
 
@@ -23,7 +23,9 @@ use crate::Any;
 /// assert!(g is Generator)
 /// ```
 #[derive(Any)]
-#[rune(builtin, static_type = GENERATOR_TYPE, from_value = Value::into_generator, from_value_params = [Vm])]
+#[rune(crate)]
+#[rune(builtin, static_type = GENERATOR_TYPE, from_value_params = [Vm])]
+#[rune(from_value = Value::into_generator, from_value_ref = Value::into_generator_ref, from_value_mut = Value::into_generator_mut)]
 pub struct Generator<T>
 where
     T: AsRef<Vm> + AsMut<Vm>,
@@ -52,7 +54,7 @@ where
     /// Get the next value produced by this stream.
     #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> VmResult<Option<Value>> {
-        VmResult::Ok(match vm_try!(self.resume(Value::EmptyTuple)) {
+        VmResult::Ok(match vm_try!(self.resume(vm_try!(Value::empty()))) {
             GeneratorState::Yielded(value) => Some(value),
             GeneratorState::Complete(_) => None,
         })
@@ -130,5 +132,17 @@ where
         f.debug_struct("Generator")
             .field("completed", &self.execution.is_none())
             .finish()
+    }
+}
+
+impl<T> TryClone for Generator<T>
+where
+    T: TryClone + AsRef<Vm> + AsMut<Vm>,
+{
+    #[inline]
+    fn try_clone(&self) -> Result<Self, rune_alloc::Error> {
+        Ok(Self {
+            execution: self.execution.try_clone()?,
+        })
     }
 }

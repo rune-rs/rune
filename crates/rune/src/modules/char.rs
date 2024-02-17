@@ -40,7 +40,11 @@ fn from_i64(value: i64) -> VmResult<Option<Value>> {
     } else if value > u32::MAX as i64 {
         VmResult::err(VmErrorKind::Overflow)
     } else {
-        VmResult::Ok(core::char::from_u32(value as u32).map(|v| v.into()))
+        let Some(c) = core::char::from_u32(value as u32) else {
+            return VmResult::Ok(None);
+        };
+
+        VmResult::Ok(Some(vm_try!(Value::try_from(c))))
     }
 }
 
@@ -53,8 +57,8 @@ fn from_i64(value: i64) -> VmResult<Option<Value>> {
 /// assert_eq!(c.to_i64(), 80);
 /// ```
 #[rune::function(instance)]
-fn to_i64(value: char) -> Value {
-    (value as i64).into()
+fn to_i64(value: char) -> VmResult<Value> {
+    VmResult::Ok(vm_try!(Value::try_from(value as i64)))
 }
 
 /// Returns `true` if this `char` has the `Alphabetic` property.

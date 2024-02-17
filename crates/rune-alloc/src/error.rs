@@ -1,5 +1,6 @@
 //! Error types used by rune alloc.
 
+use core::convert::Infallible;
 use core::fmt;
 
 use crate::alloc::AllocError;
@@ -54,6 +55,13 @@ impl From<AllocError> for Error {
     #[inline]
     fn from(error: AllocError) -> Self {
         Error::AllocError { error }
+    }
+}
+
+impl From<Infallible> for Error {
+    #[inline(always)]
+    fn from(value: Infallible) -> Self {
+        match value {}
     }
 }
 

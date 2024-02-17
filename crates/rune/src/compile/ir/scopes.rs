@@ -1,9 +1,9 @@
 use crate::alloc::prelude::*;
 use crate::alloc::{self, try_vec, Box, HashMap, Vec};
 use crate::ast::Spanned;
-use crate::compile::ir;
 use crate::compile::{self, ErrorKind};
 use crate::hir;
+use crate::runtime::Value;
 
 /// Error indicating that a local variable is missing.
 pub(crate) struct MissingLocal(pub(crate) Box<str>);
@@ -33,11 +33,7 @@ impl Scopes {
     }
 
     /// Declare a value in the scope.
-    pub(crate) fn decl(
-        &mut self,
-        name: &hir::OwnedName,
-        value: ir::Value,
-    ) -> Result<(), ErrorKind> {
+    pub(crate) fn decl(&mut self, name: &hir::OwnedName, value: Value) -> Result<(), ErrorKind> {
         let last = self
             .last_mut()
             .ok_or_else(|| ErrorKind::msg("Expected at least one scope"))?;
@@ -46,7 +42,7 @@ impl Scopes {
     }
 
     /// Try to get the value out from the scopes.
-    pub(crate) fn try_get(&self, name: &hir::OwnedName) -> Option<&ir::Value> {
+    pub(crate) fn try_get(&self, name: &hir::OwnedName) -> Option<&Value> {
         for scope in self.scopes.iter().rev() {
             if let Some(current) = scope.locals.get(name) {
                 return Some(current);
@@ -66,7 +62,7 @@ impl Scopes {
         &self,
         name: &hir::OwnedName,
         span: &dyn Spanned,
-    ) -> compile::Result<&ir::Value> {
+    ) -> compile::Result<&Value> {
         for scope in self.scopes.iter().rev() {
             if let Some(current) = scope.locals.get(name) {
                 return Ok(current);
@@ -89,7 +85,7 @@ impl Scopes {
         &mut self,
         name: &hir::OwnedName,
         span: &dyn Spanned,
-    ) -> compile::Result<&mut ir::Value> {
+    ) -> compile::Result<&mut Value> {
         for scope in self.scopes.iter_mut().rev() {
             if let Some(current) = scope.locals.get_mut(name) {
                 return Ok(current);
@@ -157,7 +153,7 @@ enum ScopeKind {
 pub(crate) struct Scope {
     kind: ScopeKind,
     /// Locals in the current scope.
-    locals: HashMap<hir::OwnedName, ir::Value>,
+    locals: HashMap<hir::OwnedName, Value>,
 }
 
 impl Default for Scope {

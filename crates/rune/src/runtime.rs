@@ -4,10 +4,8 @@
 mod tests;
 
 mod access;
-pub(crate) use self::access::{Access, AccessKind};
-pub use self::access::{
-    AccessError, BorrowMut, BorrowRef, NotAccessibleMut, NotAccessibleRef, RawAccessGuard,
-};
+pub(crate) use self::access::{Access, AccessErrorKind, RawAccessGuard};
+pub use self::access::{AccessError, BorrowMut, BorrowRef, Snapshot};
 
 mod any_obj;
 pub use self::any_obj::{AnyObj, AnyObjError, AnyObjVtable};
@@ -115,7 +113,8 @@ mod select;
 pub(crate) use self::select::Select;
 
 mod shared;
-pub use self::shared::{Mut, RawMut, RawRef, Ref, Shared, SharedPointerGuard};
+pub(crate) use self::shared::Shared;
+pub use self::shared::{Mut, RawMut, RawRef, Ref, SharedPointerGuard};
 
 mod stack;
 pub use self::stack::{Stack, StackError};
@@ -146,7 +145,8 @@ pub(crate) use self::unit::UnitFn;
 pub use self::unit::{Unit, UnitStorage};
 
 mod value;
-pub use self::value::{EmptyStruct, Rtti, Struct, TupleStruct, Value, VariantRtti};
+pub(crate) use self::value::ValueKind;
+pub use self::value::{EmptyStruct, Rtti, Struct, TupleStruct, TypeValue, Value, VariantRtti};
 
 mod variant;
 pub use self::variant::{Variant, VariantData};
@@ -167,14 +167,16 @@ mod vm_error;
 #[cfg(feature = "emit")]
 pub(crate) use self::vm_error::VmErrorAt;
 pub(crate) use self::vm_error::VmErrorKind;
-pub use self::vm_error::{try_result, TryFromResult, VmError, VmIntegerRepr, VmResult};
+pub use self::vm_error::{
+    try_result, RuntimeError, TryFromResult, VmError, VmIntegerRepr, VmResult,
+};
 
 mod vm_execution;
-pub use self::vm_execution::{ExecutionState, VmExecution, VmSendExecution};
+pub(crate) use self::vm_execution::ExecutionState;
+pub use self::vm_execution::{VmExecution, VmSendExecution};
 
 mod vm_halt;
-pub(crate) use self::vm_halt::VmHalt;
-pub use self::vm_halt::VmHaltInfo;
+pub(crate) use self::vm_halt::{VmHalt, VmHaltInfo};
 
 mod fmt;
 pub use self::fmt::Formatter;

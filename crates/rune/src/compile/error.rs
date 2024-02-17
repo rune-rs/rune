@@ -17,7 +17,7 @@ use crate::parse::{Expectation, IntoExpectation, LexerMode};
 use crate::query::MissingId;
 use crate::runtime::debug::DebugSignature;
 use crate::runtime::unit::EncodeError;
-use crate::runtime::{AccessError, TypeInfo, TypeOf};
+use crate::runtime::{AccessError, RuntimeError, TypeInfo, TypeOf, ValueKind, VmError};
 #[cfg(feature = "std")]
 use crate::source;
 use crate::{Hash, SourceId};
@@ -190,7 +190,7 @@ impl Error {
     }
 
     /// An error raised when we expect a certain constant value but get another.
-    pub(crate) fn expected_type<S, E>(spanned: S, actual: &ir::Value) -> Self
+    pub(crate) fn expected_type<S, E>(spanned: S, actual: &ValueKind) -> Self
     where
         S: Spanned,
         E: TypeOf,
@@ -225,6 +225,7 @@ pub(crate) enum ErrorKind {
     IrError(IrErrorKind),
     MetaError(MetaError),
     AccessError(AccessError),
+    VmError(VmError),
     EncodeError(EncodeError),
     MissingLastId(MissingLastId),
     GuardMismatch(GuardMismatch),
@@ -528,6 +529,7 @@ cfg_std! {
                 ErrorKind::IrError(source) => Some(source),
                 ErrorKind::MetaError(source) => Some(source),
                 ErrorKind::AccessError(source) => Some(source),
+                ErrorKind::VmError(source) => Some(source),
                 ErrorKind::EncodeError(source) => Some(source),
                 ErrorKind::MissingLastId(source) => Some(source),
                 ErrorKind::GuardMismatch(source) => Some(source),
@@ -564,6 +566,9 @@ impl fmt::Display for ErrorKind {
                 error.fmt(f)?;
             }
             ErrorKind::AccessError(error) => {
+                error.fmt(f)?;
+            }
+            ErrorKind::VmError(error) => {
                 error.fmt(f)?;
             }
             ErrorKind::EncodeError(error) => {
@@ -1079,6 +1084,20 @@ impl From<AccessError> for ErrorKind {
     #[inline]
     fn from(error: AccessError) -> Self {
         ErrorKind::AccessError(error)
+    }
+}
+
+impl From<VmError> for ErrorKind {
+    #[inline]
+    fn from(error: VmError) -> Self {
+        ErrorKind::VmError(error)
+    }
+}
+
+impl From<RuntimeError> for ErrorKind {
+    #[inline]
+    fn from(error: RuntimeError) -> Self {
+        ErrorKind::VmError(VmError::new(error.into_vm_error_kind()))
     }
 }
 

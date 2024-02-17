@@ -26,6 +26,6 @@ pub fn module() -> Result<Module, ContextError> {
 /// ```
 #[rune::function]
 fn drop(value: Value) -> VmResult<()> {
-    vm_try!(value.take());
+    vm_try!(value.drop());
     VmResult::Ok(())
 }

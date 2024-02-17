@@ -6,9 +6,10 @@ use crate::context::{Context, Tokens};
 
 pub(super) fn expand(mut input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::Error>> {
     let cx = Context::new();
-    let tokens = cx.tokens_with_module(None);
 
     let attr = parse_type_attr(&cx, &input.attrs);
+
+    let tokens = cx.tokens_with_module(attr.module.as_ref());
 
     if !attr.predicates.is_empty() {
         input
@@ -161,6 +162,7 @@ pub(super) fn expand(mut input: syn::DeriveInput) -> Result<TokenStream, Vec<syn
 struct TypeAttr {
     predicates: syn::punctuated::Punctuated<syn::WherePredicate, syn::Token![,]>,
     copy: bool,
+    module: Option<syn::Path>,
 }
 
 fn parse_type_attr(cx: &Context, input: &[syn::Attribute]) -> TypeAttr {
@@ -183,6 +185,16 @@ fn parse_type_attr(cx: &Context, input: &[syn::Attribute]) -> TypeAttr {
 
             if parser.path.is_ident("copy") {
                 attr.copy = true;
+                return Ok(());
+            }
+
+            if parser.path.is_ident("crate") {
+                if parser.input.parse::<Option<syn::Token![=]>>()?.is_some() {
+                    attr.module = Some(parser.input.parse::<syn::Path>()?);
+                } else {
+                    attr.module = Some(syn::parse_quote!(crate));
+                }
+
                 return Ok(());
             }
 

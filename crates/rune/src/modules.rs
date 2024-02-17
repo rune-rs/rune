@@ -9,6 +9,7 @@ pub mod bytes;
 #[cfg(feature = "capture-io")]
 pub mod capture_io;
 pub mod char;
+pub mod clone;
 pub mod cmp;
 pub mod collections;
 pub mod core;

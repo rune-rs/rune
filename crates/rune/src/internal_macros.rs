@@ -121,25 +121,15 @@ macro_rules! cfg_std {
     }
 }
 
-/// Implements a set of common value conversions.
-macro_rules! from_value {
-    ($ty:ty, $into:ident) => {
-        impl $crate::runtime::FromValue for $ty {
-            fn from_value(value: Value) -> $crate::runtime::VmResult<Self> {
-                let value = vm_try!(value.$into());
-                let value = vm_try!(value.take());
-                $crate::runtime::VmResult::Ok(value)
-            }
-        }
-
+macro_rules! from_value_ref {
+    ($ty:ty, $into_ref:ident, $into_mut:ident, $into:ident) => {
         impl $crate::runtime::UnsafeToRef for $ty {
             type Guard = $crate::runtime::RawRef;
 
             unsafe fn unsafe_to_ref<'a>(
                 value: $crate::runtime::Value,
             ) -> $crate::runtime::VmResult<(&'a Self, Self::Guard)> {
-                let value = vm_try!(value.$into());
-                let value = vm_try!(value.into_ref());
+                let value = vm_try!(value.$into_ref());
                 let (value, guard) = $crate::runtime::Ref::into_raw(value);
                 $crate::runtime::VmResult::Ok((value.as_ref(), guard))
             }
@@ -151,34 +141,38 @@ macro_rules! from_value {
             unsafe fn unsafe_to_mut<'a>(
                 value: $crate::runtime::Value,
             ) -> $crate::runtime::VmResult<(&'a mut Self, Self::Guard)> {
-                let value = vm_try!(value.$into());
-                let value = vm_try!(value.into_mut());
+                let value = vm_try!(value.$into_mut());
                 let (mut value, guard) = $crate::runtime::Mut::into_raw(value);
                 $crate::runtime::VmResult::Ok((value.as_mut(), guard))
             }
         }
 
-        impl $crate::runtime::FromValue for $crate::runtime::Shared<$ty> {
-            #[inline]
-            fn from_value(value: $crate::runtime::Value) -> $crate::runtime::VmResult<Self> {
-                value.$into()
-            }
-        }
-
         impl $crate::runtime::FromValue for $crate::runtime::Ref<$ty> {
             fn from_value(value: Value) -> $crate::runtime::VmResult<Self> {
-                let value = vm_try!(value.$into());
-                let value = vm_try!(value.into_ref());
+                let value = vm_try!(value.$into_ref());
                 $crate::runtime::VmResult::Ok(value)
             }
         }
 
         impl $crate::runtime::FromValue for $crate::runtime::Mut<$ty> {
             fn from_value(value: Value) -> VmResult<Self> {
-                let value = vm_try!(value.$into());
-                let value = vm_try!(value.into_mut());
+                let value = vm_try!(value.$into_mut());
                 $crate::runtime::VmResult::Ok(value)
             }
         }
+    };
+}
+
+/// Implements a set of common value conversions.
+macro_rules! from_value2 {
+    ($ty:ty, $into_ref:ident, $into_mut:ident, $into:ident) => {
+        impl $crate::runtime::FromValue for $ty {
+            fn from_value(value: Value) -> $crate::runtime::VmResult<Self> {
+                let value = vm_try!(value.$into());
+                $crate::runtime::VmResult::Ok(value)
+            }
+        }
+
+        from_value_ref!($ty, $into_ref, $into_mut, $into);
     };
 }

@@ -3,7 +3,7 @@ name = "rune-alloc"
 version = "0.13.1"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
-rust-version = "1.70"
+rust-version = "1.74"
 description = "The Rune Language, an embeddable dynamic programming language for Rust."
 documentation = "https://docs.rs/rune"
 readme = "README.md"
@@ -22,7 +22,7 @@ alloc = []
 rune-alloc-macros = { version = "=0.13.1", path = "../rune-alloc-macros" }
 
 serde = { version = "1.0", default-features = false, features = ["derive"], optional = true }
-ahash = { version = "0.8.3", default-features = false }
+ahash = { version = "0.8.8", default-features = false }
 pin-project = "1.1.0"
 
 [dev-dependencies]
