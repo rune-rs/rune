@@ -41,9 +41,9 @@ jobs:
         os: [macos-latest, windows-latest, ubuntu-latest]
     steps:
     - uses: actions/checkout@v3
+    - uses: udoprog/kick@nightly
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
-    - uses: udoprog/kick@nightly
     - run: kick define --github-action
       id: release
     - run: cargo build --release
@@ -58,19 +58,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - run: echo "HEAD_SHA=$(git rev-parse HEAD)" >> $GITHUB_ENV
-    - run: 'echo "HEAD_SHA: $HEAD_SHA"'
+    - uses: udoprog/kick@nightly
     - uses: actions/setup-node@v3
       with:
         node-version: 16
-    - run: 'echo "TAG: ${{needs.tag.outputs.tag}}"'
     - uses: actions/download-artifact@v1
       with: {name: dist-macos-latest, path: dist}
     - uses: actions/download-artifact@v1
       with: {name: dist-windows-latest, path: dist}
     - uses: actions/download-artifact@v1
       with: {name: dist-ubuntu-latest, path: dist}
-    - uses: udoprog/kick@nightly
     - run: kick github-release --upload "dist/*" --github-action
       env:
         GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
