@@ -5,9 +5,10 @@ use core::fmt;
 use core::hash;
 use core::iter;
 
+use crate::alloc::hashbrown::raw::RawIter;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
-use crate::alloc::{btree_map, BTreeMap};
+use crate::alloc::{hash_map, HashMap};
 
 use crate as rune;
 use crate::compile::ItemBuf;
@@ -21,7 +22,7 @@ use crate::Any;
 ///
 /// [`into_iter`]: struct.Object.html#method.into_iter
 /// [`Object`]: struct.Object.html
-pub type IntoIter = btree_map::IntoIter<String, Value>;
+pub type IntoIter = hash_map::IntoIter<String, Value>;
 
 /// A mutable iterator over the entries of a `Object`.
 ///
@@ -30,7 +31,7 @@ pub type IntoIter = btree_map::IntoIter<String, Value>;
 ///
 /// [`iter_mut`]: struct.Object.html#method.iter_mut
 /// [`Object`]: struct.Object.html
-pub type IterMut<'a> = btree_map::IterMut<'a, String, Value>;
+pub type IterMut<'a> = hash_map::IterMut<'a, String, Value>;
 
 /// An iterator over the entries of a `Object`.
 ///
@@ -39,7 +40,7 @@ pub type IterMut<'a> = btree_map::IterMut<'a, String, Value>;
 ///
 /// [`iter`]: struct.Object.html#method.iter
 /// [`Object`]: struct.Object.html
-pub type Iter<'a> = btree_map::Iter<'a, String, Value>;
+pub type Iter<'a> = hash_map::Iter<'a, String, Value>;
 
 /// An iterator over the keys of a `HashMap`.
 ///
@@ -48,7 +49,7 @@ pub type Iter<'a> = btree_map::Iter<'a, String, Value>;
 ///
 /// [`keys`]: struct.Object.html#method.keys
 /// [`Object`]: struct.Object.html
-pub type Keys<'a> = btree_map::Keys<'a, String, Value>;
+pub type Keys<'a> = hash_map::Keys<'a, String, Value>;
 
 /// An iterator over the values of a `HashMap`.
 ///
@@ -57,7 +58,7 @@ pub type Keys<'a> = btree_map::Keys<'a, String, Value>;
 ///
 /// [`values`]: struct.Object.html#method.values
 /// [`Object`]: struct.Object.html
-pub type Values<'a> = btree_map::Values<'a, String, Value>;
+pub type Values<'a> = hash_map::Values<'a, String, Value>;
 
 /// Struct representing a dynamic anonymous object.
 ///
@@ -82,7 +83,7 @@ pub type Values<'a> = btree_map::Values<'a, String, Value>;
 #[repr(transparent)]
 #[rune(builtin, static_type = OBJECT_TYPE)]
 pub struct Object {
-    inner: BTreeMap<String, Value>,
+    inner: HashMap<String, Value>,
 }
 
 impl Object {
@@ -98,7 +99,7 @@ impl Object {
     #[rune::function(keep, path = Self::new)]
     pub fn new() -> Self {
         Self {
-            inner: BTreeMap::new(),
+            inner: HashMap::new(),
         }
     }
 
@@ -117,11 +118,11 @@ impl Object {
     }
 
     /// Construct a new object with the given capacity.
-    pub fn with_capacity(#[allow(unused)] capacity: usize) -> alloc::Result<Self> {
+    pub fn with_capacity(capacity: usize) -> alloc::Result<Self> {
         // BTreeMap doesn't support setting capacity on creation but we keep
         // this here in case we want to switch store later.
         Ok(Self {
-            inner: BTreeMap::new(),
+            inner: HashMap::try_with_capacity(capacity)?,
         })
     }
 
@@ -248,7 +249,7 @@ impl Object {
     ///
     /// If the map did not have this key present, `None` is returned.
     pub fn insert(&mut self, k: String, v: Value) -> alloc::Result<Option<Value>> {
-        Ok(self.inner.try_insert(k, v)?)
+        self.inner.try_insert(k, v)
     }
 
     /// Clears the object, removing all key-value pairs. Keeps the allocated
@@ -260,7 +261,7 @@ impl Object {
     }
 
     /// Convert into inner.
-    pub fn into_inner(self) -> BTreeMap<String, Value> {
+    pub fn into_inner(self) -> HashMap<String, Value> {
         self.inner
     }
 
@@ -308,7 +309,7 @@ impl Object {
     #[rune::function(keep, path = Self::iter)]
     pub fn rune_iter(this: Ref<Self>) -> Iterator {
         struct Iter {
-            iter: btree_map::IterRaw<String, Value>,
+            iter: RawIter<(String, Value)>,
             _guard: RawRef,
         }
 
@@ -316,22 +317,23 @@ impl Object {
             type Item = VmResult<(String, Value)>;
 
             fn next(&mut self) -> Option<Self::Item> {
-                let (key, value) = self.iter.next()?;
-
                 unsafe {
-                    let key = match (*key).try_clone() {
+                    let bucket = self.iter.next()?;
+                    let (key, value) = bucket.as_ref();
+
+                    let key = match key.try_clone() {
                         Ok(key) => key,
                         Err(err) => return Some(VmResult::err(err)),
                     };
 
-                    Some(VmResult::Ok((key, (*value).clone())))
+                    Some(VmResult::Ok((key, value.clone())))
                 }
             }
         }
 
         // SAFETY: we're holding onto the related reference guard, and making
         // sure that it's dropped after the iterator.
-        let iter = unsafe { this.inner.iter_raw() };
+        let iter = unsafe { this.inner.raw_table().iter() };
         let (_, _guard) = Ref::into_raw(this);
 
         let iter = Iter { iter, _guard };
