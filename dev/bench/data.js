@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1708131495274,
+  "lastUpdate": 1708218146858,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -23845,6 +23845,94 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 568,
             "range": "± 1",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "b5776188f3521b3db58921cd15d3adbcce7becfb",
+          "message": "Add f64::sqrt, avoid a bit of cleaning during assembly, parse numerical values correctly (#664)\n\n* Add f64::sqrt, avoid a bit of cleaning during assembly, parse numerical values correctly\r\n* Add ability to show time when running scripts",
+          "timestamp": "2024-02-17T02:46:34Z",
+          "url": "https://github.com/rune-rs/rune/commit/b5776188f3521b3db58921cd15d3adbcce7becfb"
+        },
+        "date": 1708218146246,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 206296,
+            "range": "± 2896",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 729748,
+            "range": "± 2744",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 307712154,
+            "range": "± 8082815",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 175886977,
+            "range": "± 810815",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 867314,
+            "range": "± 4667",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 8954133,
+            "range": "± 74895",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 48590771,
+            "range": "± 392729",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 7646528,
+            "range": "± 28774",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 484664,
+            "range": "± 1797",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 5551605,
+            "range": "± 14431",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 561,
+            "range": "± 2",
             "unit": "ns/iter"
           }
         ]
