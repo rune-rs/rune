@@ -26,3 +26,10 @@ pub(crate) fn layout_source(source: &str) -> Result<Vec<u8>, FormattingError> {
     printer.visit_file(&ast)?;
     printer.commit()
 }
+
+/// Format the given source.
+#[cfg(feature = "anyhow")]
+pub fn format_source(source: &str) -> anyhow::Result<String> {
+    let formatted = layout_source(source)?;
+    Ok(String::from_utf8(formatted).unwrap())
+}
