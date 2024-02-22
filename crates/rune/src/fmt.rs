@@ -9,6 +9,7 @@ mod indent_writer;
 mod printer;
 mod whitespace;
 
+use crate::alloc::String;
 use crate::alloc::Vec;
 use crate::ast;
 use crate::parse::{Parse, Parser};
@@ -25,4 +26,10 @@ pub(crate) fn layout_source(source: &str) -> Result<Vec<u8>, FormattingError> {
     let mut printer: Printer = Printer::new(source)?;
     printer.visit_file(&ast)?;
     printer.commit()
+}
+
+/// Format the given source.
+pub fn format_source(source: &str) -> Result<String, impl std::error::Error> {
+    let formatted = layout_source(source)?;
+    Ok(String::from_utf8(formatted).unwrap())
 }
