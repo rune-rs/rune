@@ -29,8 +29,7 @@ pub(crate) fn layout_source(source: &str) -> Result<Vec<u8>, FormattingError> {
 }
 
 /// Format the given source.
-#[cfg(feature = "anyhow")]
-pub fn format_source(source: &str) -> anyhow::Result<String> {
+pub fn format_source(source: &str) -> Result<String, impl std::error::Error> {
     let formatted = layout_source(source)?;
     Ok(String::from_utf8(formatted).unwrap())
 }
