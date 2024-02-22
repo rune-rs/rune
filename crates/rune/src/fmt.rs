@@ -31,5 +31,5 @@ pub(crate) fn layout_source(source: &str) -> Result<Vec<u8>, FormattingError> {
 /// Format the given source.
 pub fn format_source(source: &str) -> Result<String, impl std::error::Error> {
     let formatted = layout_source(source)?;
-    Ok(String::from_utf8(formatted).unwrap())
+    Ok::<String, FormattingError>(String::from_utf8(formatted).unwrap())
 }
