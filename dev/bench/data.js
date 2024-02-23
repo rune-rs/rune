@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1708218146858,
+  "lastUpdate": 1708649884360,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -23932,6 +23932,94 @@ window.BENCHMARK_DATA = {
           {
             "name": "external_functions",
             "value": 561,
+            "range": "± 2",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "cocuh",
+            "username": "cocuh",
+            "email": "cocuh@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "f91941f54cc39bb50536b39ccb6ed91dc2c8d3cb",
+          "message": "Fix build error caused by #665 (#666)",
+          "timestamp": "2024-02-22T15:24:26Z",
+          "url": "https://github.com/rune-rs/rune/commit/f91941f54cc39bb50536b39ccb6ed91dc2c8d3cb"
+        },
+        "date": 1708649883089,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 209319,
+            "range": "± 905",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 715556,
+            "range": "± 30325",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 306187099,
+            "range": "± 2555936",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 176411734,
+            "range": "± 648077",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 875261,
+            "range": "± 3080",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 9027829,
+            "range": "± 63531",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 48672509,
+            "range": "± 180596",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 7855010,
+            "range": "± 47398",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 496827,
+            "range": "± 1707",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 5530727,
+            "range": "± 29388",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 595,
             "range": "± 2",
             "unit": "ns/iter"
           }
