@@ -28,6 +28,12 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(powf)?;
     #[cfg(feature = "std")]
     m.function_meta(powi)?;
+    #[cfg(feature = "std")]
+    m.function_meta(floor)?;
+    #[cfg(feature = "std")]
+    m.function_meta(ceil)?;
+    #[cfg(feature = "std")]
+    m.function_meta(round)?;
     m.function_meta(to_integer)?;
     m.function_meta(partial_eq)?;
     m.function_meta(eq)?;
@@ -297,6 +303,66 @@ fn powf(this: f64, other: f64) -> f64 {
 #[cfg(feature = "std")]
 fn powi(this: f64, other: i32) -> f64 {
     this.powi(other)
+}
+
+/// Returns the largest integer less than or equal to `self`.
+///
+/// # Examples
+///
+/// ```rune
+/// let f = 3.7_f64;
+/// let g = 3.0_f64;
+/// let h = -3.7_f64;
+///
+/// assert!(f.floor() == 3.0);
+/// assert!(g.floor() == 3.0);
+/// assert!(h.floor() == -4.0);
+/// ```
+#[rune::function(instance)]
+#[cfg(feature = "std")]
+fn floor(this: f64) -> f64 {
+    this.floor()
+}
+
+/// Returns the smallest integer greater than or equal to `self`.
+///
+/// # Examples
+///
+/// ```rune
+/// let f = 3.01_f64;
+/// let g = 4.0_f64;
+///
+/// assert_eq!(f.ceil(), 4.0);
+/// assert_eq!(g.ceil(), 4.0);
+/// ```
+#[rune::function(instance)]
+#[cfg(feature = "std")]
+fn ceil(this: f64) -> f64 {
+    this.ceil()
+}
+
+/// Returns the nearest integer to `self`. If a value is half-way between two
+/// integers, round away from `0.0`.
+///
+/// # Examples
+///
+/// ```rune
+/// let f = 3.3_f64;
+/// let g = -3.3_f64;
+/// let h = -3.7_f64;
+/// let i = 3.5_f64;
+/// let j = 4.5_f64;
+///
+/// assert_eq!(f.round(), 3.0);
+/// assert_eq!(g.round(), -3.0);
+/// assert_eq!(h.round(), -4.0);
+/// assert_eq!(i.round(), 4.0);
+/// assert_eq!(j.round(), 5.0);
+/// ```
+#[rune::function(instance)]
+#[cfg(feature = "std")]
+fn round(this: f64) -> f64 {
+    this.round()
 }
 
 /// Test two floats for partial equality.
