@@ -30,7 +30,9 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(powi)?;
     #[cfg(feature = "std")]
     m.function_meta(floor)?;
+    #[cfg(feature = "std")]
     m.function_meta(ceil)?;
+    #[cfg(feature = "std")]
     m.function_meta(round)?;
     m.function_meta(to_integer)?;
     m.function_meta(partial_eq)?;
