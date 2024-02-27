@@ -291,11 +291,7 @@ impl WarningDiagnostic {
     /// hints.
     ///
     /// See [prepare][crate::prepare] for how to use.
-    pub fn emit<O>(
-        &self,
-        out: &mut O,
-        sources: &Sources,
-    ) -> Result<(), EmitError>
+    pub fn emit<O>(&self, out: &mut O, sources: &Sources) -> Result<(), EmitError>
     where
         O: WriteColor,
     {
