@@ -346,7 +346,7 @@ fn ceil(this: f64) -> f64 {
 ///
 /// # Examples
 ///
-/// ```
+/// ```rune
 /// let f = 3.3_f64;
 /// let g = -3.3_f64;
 /// let h = -3.7_f64;
