@@ -1335,6 +1335,23 @@ impl Value {
         VmResult::Ok(vm_try!(Future::from_value(value)))
     }
 
+    /// Get the value as a typed value.
+    #[inline]
+    pub fn as_any<T>(&self) -> Result<BorrowRef<'_, T>, RuntimeError>
+    where
+        T: Any,
+    {
+        let result = BorrowRef::try_map(self.inner.borrow_ref()?, |kind| match kind {
+            ValueKind::Any(any) => any.downcast_borrow_ref().ok(),
+            _ => None,
+        });
+
+        match result {
+            Ok(s) => Ok(s),
+            Err(actual) => Err(RuntimeError::expected::<String>(actual.type_info())),
+        }
+    }
+
     /// Try to coerce value into a typed value.
     #[inline]
     pub fn into_any<T>(self) -> Result<T, RuntimeError>
