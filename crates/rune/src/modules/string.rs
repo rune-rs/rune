@@ -1118,7 +1118,7 @@ fn parse_char(s: &str) -> Result<char, char::ParseCharError> {
 ///
 /// Basic usage:
 ///
-/// ```
+/// ```rune
 /// let s = "HELLO";
 ///
 /// assert_eq!("hello", s.to_lowercase());
@@ -1126,7 +1126,7 @@ fn parse_char(s: &str) -> Result<char, char::ParseCharError> {
 ///
 /// A tricky example, with sigma:
 ///
-/// ```
+/// ```rune
 /// let sigma = "Σ";
 ///
 /// assert_eq!("σ", sigma.to_lowercase());
@@ -1139,7 +1139,7 @@ fn parse_char(s: &str) -> Result<char, char::ParseCharError> {
 ///
 /// Languages without case are not changed:
 ///
-/// ```
+/// ```rune
 /// let new_year = "农历新年";
 ///
 /// assert_eq!(new_year, new_year.to_lowercase());
@@ -1162,7 +1162,7 @@ fn to_lowercase(s: &str) -> VmResult<String> {
 ///
 /// Basic usage:
 ///
-/// ```
+/// ```rune
 /// let s = "hello";
 ///
 /// assert_eq!("HELLO", s.to_uppercase());
@@ -1170,14 +1170,14 @@ fn to_lowercase(s: &str) -> VmResult<String> {
 ///
 /// Scripts without case are not changed:
 ///
-/// ```
+/// ```rune
 /// let new_year = "农历新年";
 ///
 /// assert_eq!(new_year, new_year.to_uppercase());
 /// ```
 ///
 /// One character can become multiple:
-/// ```
+/// ```rune
 /// let s = "tschüß";
 ///
 /// assert_eq!("TSCHÜSS", s.to_uppercase());
