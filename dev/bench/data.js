@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1708649884360,
+  "lastUpdate": 1709081893275,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -24021,6 +24021,94 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 595,
             "range": "± 2",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Dan Stoza",
+            "username": "dstoza",
+            "email": "dstoza@gmail.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "d3b93c155313a8d8697bbfb1fe7c3b99059eb5f6",
+          "message": "Add floor/ceil/round to f64 module (#667)",
+          "timestamp": "2024-02-27T20:29:19Z",
+          "url": "https://github.com/rune-rs/rune/commit/d3b93c155313a8d8697bbfb1fe7c3b99059eb5f6"
+        },
+        "date": 1709081892638,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 219258,
+            "range": "± 2486",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 714772,
+            "range": "± 5610",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 315318397,
+            "range": "± 8479226",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 180123929,
+            "range": "± 2317821",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 916467,
+            "range": "± 6858",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 9841583,
+            "range": "± 119174",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 51656274,
+            "range": "± 1497361",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 8294614,
+            "range": "± 80796",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 514312,
+            "range": "± 14414",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 5705834,
+            "range": "± 39425",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 585,
+            "range": "± 3",
             "unit": "ns/iter"
           }
         ]
