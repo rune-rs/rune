@@ -1173,7 +1173,7 @@ fn to_lowercase(s: &str) -> VmResult<String> {
         }
     }
 
-    fn case_ignorable_then_cased<I: std::iter::Iterator<Item = char>>(mut iter: I) -> bool {
+    fn case_ignorable_then_cased<I: core::iter::Iterator<Item = char>>(mut iter: I) -> bool {
         match iter.find(|&c| !unicode::case_ignorable::lookup(c)) {
             Some(c) => unicode::cased::lookup(c),
             None => false,
