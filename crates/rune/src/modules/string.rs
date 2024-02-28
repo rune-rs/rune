@@ -1146,7 +1146,9 @@ fn parse_char(s: &str) -> Result<char, char::ParseCharError> {
 /// ```
 #[rune::function(instance)]
 fn to_lowercase(s: &str) -> VmResult<String> {
-    VmResult::Ok(vm_try!(String::try_from(s.to_lowercase())))
+    let mut lowercase = vm_try!(String::try_with_capacity(s.len()));
+    vm_try!(lowercase.try_extend(s.chars().flat_map(|c| c.to_lowercase())));
+    VmResult::Ok(lowercase)
 }
 
 /// Returns the uppercase equivalent of this string slice, as a new [`String`].
@@ -1184,7 +1186,9 @@ fn to_lowercase(s: &str) -> VmResult<String> {
 /// ```
 #[rune::function(instance)]
 fn to_uppercase(s: &str) -> VmResult<String> {
-    VmResult::Ok(vm_try!(String::try_from(s.to_uppercase())))
+    let mut uppercase = vm_try!(String::try_with_capacity(s.len()));
+    vm_try!(uppercase.try_extend(s.chars().flat_map(|c| c.to_uppercase())));
+    VmResult::Ok(uppercase)
 }
 
 crate::__internal_impl_any!(::std::string, FromUtf8Error);
