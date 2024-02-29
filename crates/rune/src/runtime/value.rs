@@ -1204,6 +1204,16 @@ impl Value {
     }
 
     into! {
+        /// Coerce into [`Struct`]
+        Struct(Struct),
+        into_struct_ref,
+        into_struct_mut,
+        borrow_struct_ref,
+        borrow_struct_mut,
+        into_struct,
+    }
+
+    into! {
         /// Coerce into a [`Object`].
         Object(Object),
         into_object_ref,
