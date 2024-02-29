@@ -1348,7 +1348,7 @@ impl Value {
 
         match result {
             Ok(s) => Ok(s),
-            Err(actual) => Err(RuntimeError::expected::<String>(actual.type_info())),
+            Err(actual) => Err(RuntimeError::expected_any(actual.type_info())),
         }
     }
 
