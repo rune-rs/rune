@@ -976,8 +976,17 @@ impl Value {
     }
 
     /// Get the value as a string.
+    #[deprecated(
+        note = "For consistency with other methods, this has been renamed Value::borrow_string_ref"
+    )]
     #[inline]
     pub fn as_string(&self) -> Result<BorrowRef<'_, str>, RuntimeError> {
+        self.borrow_string_ref()
+    }
+
+    /// Borrow the value of a string as a reference.
+    #[inline]
+    pub fn borrow_string_ref(&self) -> Result<BorrowRef<'_, str>, RuntimeError> {
         let result = BorrowRef::try_map(self.inner.borrow_ref()?, |kind| match kind {
             ValueKind::String(string) => Some(string.as_str()),
             _ => None,
@@ -1335,29 +1344,6 @@ impl Value {
         VmResult::Ok(vm_try!(Future::from_value(value)))
     }
 
-    /// Try to coerce value into a typed value.
-    #[inline]
-    pub fn into_any<T>(self) -> Result<T, RuntimeError>
-    where
-        T: Any,
-    {
-        let any = match self.inner.take()? {
-            ValueKind::Any(any) => any,
-            actual => return Err(RuntimeError::expected_any(actual.type_info())),
-        };
-
-        match any.downcast::<T>() {
-            Ok(any) => Ok(any),
-            Err((AnyObjError::Cast, any)) => {
-                Err(RuntimeError::from(AccessErrorKind::UnexpectedType {
-                    expected: any::type_name::<T>().into(),
-                    actual: any.type_name(),
-                }))
-            }
-            Err((error, _)) => Err(RuntimeError::from(AccessError::from(error))),
-        }
-    }
-
     /// Try to coerce value into a typed reference.
     #[inline]
     pub fn into_any_ref<T>(self) -> Result<Ref<T>, RuntimeError>
@@ -1408,6 +1394,63 @@ impl Value {
 
         match result {
             Ok(value) => Ok(value),
+            Err((AnyObjError::Cast, any)) => {
+                Err(RuntimeError::from(AccessErrorKind::UnexpectedType {
+                    expected: any::type_name::<T>().into(),
+                    actual: any.type_name(),
+                }))
+            }
+            Err((error, _)) => Err(RuntimeError::from(AccessError::from(error))),
+        }
+    }
+
+    /// Borrow the value as a typed reference.
+    #[inline]
+    pub fn borrow_any_ref<T>(&self) -> Result<BorrowRef<'_, T>, RuntimeError>
+    where
+        T: Any,
+    {
+        let result = BorrowRef::try_map(self.inner.borrow_ref()?, |kind| match kind {
+            ValueKind::Any(any) => any.downcast_borrow_ref().ok(),
+            _ => None,
+        });
+
+        match result {
+            Ok(s) => Ok(s),
+            Err(actual) => Err(RuntimeError::expected_any(actual.type_info())),
+        }
+    }
+
+    /// Borrow the value as a mutable typed reference.
+    #[inline]
+    pub fn borrow_any_mut<T>(&self) -> Result<BorrowMut<'_, T>, RuntimeError>
+    where
+        T: Any,
+    {
+        let result = BorrowMut::try_map(self.inner.borrow_mut()?, |kind| match kind {
+            ValueKind::Any(any) => any.downcast_borrow_mut().ok(),
+            _ => None,
+        });
+
+        match result {
+            Ok(s) => Ok(s),
+            Err(actual) => Err(RuntimeError::expected_any(actual.type_info())),
+        }
+    }
+
+    /// Try to coerce value into a typed value.
+    #[inline]
+    pub fn into_any<T>(self) -> Result<T, RuntimeError>
+    where
+        T: Any,
+    {
+        let any = match self.inner.take()? {
+            ValueKind::Any(any) => any,
+            actual => return Err(RuntimeError::expected_any(actual.type_info())),
+        };
+
+        match any.downcast::<T>() {
+            Ok(any) => Ok(any),
             Err((AnyObjError::Cast, any)) => {
                 Err(RuntimeError::from(AccessErrorKind::UnexpectedType {
                     expected: any::type_name::<T>().into(),
