@@ -75,7 +75,7 @@ impl Command {
     #[rune::function(instance)]
     fn args(&mut self, args: &[Value]) -> VmResult<()> {
         for arg in args {
-            self.inner.arg(&*vm_try!(arg.as_string()));
+            self.inner.arg(&*vm_try!(arg.borrow_string_ref()));
         }
 
         VmResult::Ok(())
