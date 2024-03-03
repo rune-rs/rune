@@ -62,8 +62,8 @@ pub use self::inst::{
     PanicReason, TypeCheck,
 };
 
-mod iterator;
-pub use self::iterator::{Iterator, IteratorTrait};
+pub mod iter;
+pub use self::iter::{Iterator, DoubleEndedIterator};
 
 mod type_;
 pub use self::type_::Type;

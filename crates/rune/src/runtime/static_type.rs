@@ -228,11 +228,6 @@ pub(crate) static FORMAT_TYPE: &StaticType = &StaticType {
     hash: ::rune_macros::hash!(::std::fmt::Format),
 };
 
-pub(crate) static ITERATOR_TYPE: &StaticType = &StaticType {
-    name: RawStr::from_str("Iterator"),
-    hash: ::rune_macros::hash!(::std::iter::Iterator),
-};
-
 pub(crate) static ORDERING_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Ordering"),
     hash: ::rune_macros::hash!(::std::cmp::Ordering),

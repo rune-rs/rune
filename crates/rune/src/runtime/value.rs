@@ -20,7 +20,7 @@ use crate::runtime::{
     Generator, GeneratorState, Iterator, MaybeTypeOf, Mut, Object, OwnedTuple, Protocol,
     ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Ref,
     RuntimeError, Shared, SharedPointerGuard, Snapshot, Stream, ToValue, Type, TypeInfo, Variant,
-    Vec, Vm, VmErrorKind, VmIntegerRepr, VmResult,
+    Vec, Vm, VmErrorKind, VmIntegerRepr, VmResult, GuardedArgs,
 };
 #[cfg(feature = "alloc")]
 use crate::runtime::{Hasher, Tuple};
@@ -606,6 +606,23 @@ impl Value {
         self.inner.into_ref()
     }
 
+    /// Call a protocol function with the specified arguments.
+    pub(crate) fn call_protocol<T>(&self, protocol: Protocol, args: impl GuardedArgs) -> VmResult<T>
+    where
+        T: FromValue,
+    {
+        self.call_protocol_with(protocol, args, &mut EnvProtocolCaller)
+    }
+
+    /// Call a protocol function with the specified arguments and caller.
+    pub(crate) fn call_protocol_with<T>(&self, protocol: Protocol, args: impl GuardedArgs, caller: &mut impl ProtocolCaller) -> VmResult<T>
+    where
+        T: FromValue,
+    {
+        let value = vm_try!(caller.call_protocol_fn(protocol, self.clone(), args));
+        T::from_value(value)
+    }
+
     /// Format the value using the [Protocol::STRING_DISPLAY] protocol.
     ///
     /// Requires a work buffer `buf` which will be used in case the value
@@ -631,37 +648,42 @@ impl Value {
         match &*vm_try!(self.borrow_kind_ref()) {
             ValueKind::Char(c) => {
                 vm_try!(f.push(*c));
+                return VmResult::Ok(());
             }
             ValueKind::Format(format) => {
                 vm_try!(format.spec.format(&format.value, f, caller));
+                return VmResult::Ok(());
             }
             ValueKind::Integer(integer) => {
                 let mut buffer = itoa::Buffer::new();
                 vm_try!(f.push_str(buffer.format(*integer)));
+                return VmResult::Ok(());
             }
             ValueKind::Float(float) => {
                 let mut buffer = ryu::Buffer::new();
                 vm_try!(f.push_str(buffer.format(*float)));
+                return VmResult::Ok(());
             }
             ValueKind::Bool(bool) => {
                 vm_write!(f, "{bool}");
+                return VmResult::Ok(());
             }
             ValueKind::Byte(byte) => {
                 let mut buffer = itoa::Buffer::new();
                 vm_try!(f.push_str(buffer.format(*byte)));
+                return VmResult::Ok(());
             }
             ValueKind::String(string) => {
                 vm_try!(f.push_str(string));
+                return VmResult::Ok(());
             }
             _ => {
-                let result =
-                    vm_try!(caller.call_protocol_fn(Protocol::STRING_DISPLAY, self.clone(), (f,),));
-
-                return VmResult::Ok(vm_try!(<()>::from_value(result)));
             }
         }
 
-        VmResult::Ok(())
+        let result =
+        vm_try!(caller.call_protocol_fn(Protocol::STRING_DISPLAY, self.clone(), (f,)));
+        VmResult::Ok(vm_try!(<()>::from_value(result)))
     }
 
     /// Perform a shallow clone of the value using the [`CLONE`] protocol.
@@ -845,9 +867,6 @@ impl Value {
                 vm_write!(f, "{:?}", value);
             }
             ValueKind::Format(value) => {
-                vm_write!(f, "{:?}", value);
-            }
-            ValueKind::Iterator(value) => {
                 vm_write!(f, "{:?}", value);
             }
             _ => {
@@ -2252,8 +2271,6 @@ pub(crate) enum ValueKind {
     Function(Function),
     /// A value being formatted.
     Format(Format),
-    /// An iterator.
-    Iterator(Iterator),
     /// An opaque value that can be downcasted.
     Any(AnyObj),
 }
@@ -2311,9 +2328,6 @@ impl ValueKind {
                 TypeInfo::StaticType(crate::runtime::static_type::FUNCTION_TYPE)
             }
             ValueKind::Format(..) => TypeInfo::StaticType(crate::runtime::static_type::FORMAT_TYPE),
-            ValueKind::Iterator(..) => {
-                TypeInfo::StaticType(crate::runtime::static_type::ITERATOR_TYPE)
-            }
             ValueKind::EmptyStruct(empty) => empty.type_info(),
             ValueKind::TupleStruct(tuple) => tuple.type_info(),
             ValueKind::Struct(object) => object.type_info(),
@@ -2358,7 +2372,6 @@ impl ValueKind {
             ValueKind::Option(..) => crate::runtime::static_type::OPTION_TYPE.hash,
             ValueKind::Function(..) => crate::runtime::static_type::FUNCTION_TYPE.hash,
             ValueKind::Format(..) => crate::runtime::static_type::FORMAT_TYPE.hash,
-            ValueKind::Iterator(..) => crate::runtime::static_type::ITERATOR_TYPE.hash,
             ValueKind::EmptyStruct(empty) => empty.rtti.hash,
             ValueKind::TupleStruct(tuple) => tuple.rtti.hash,
             ValueKind::Struct(object) => object.rtti.hash,
