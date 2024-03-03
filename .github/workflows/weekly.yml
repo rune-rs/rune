@@ -12,7 +12,7 @@ jobs:
       matrix:
         rust: ['1.74', stable]
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@master
       with:
         toolchain: ${{matrix.rust}}

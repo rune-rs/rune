@@ -25,7 +25,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
     - run: cargo test --workspace --exclude no-std-examples --all-targets
@@ -40,7 +40,7 @@ jobs:
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: udoprog/kick@nightly
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
@@ -48,7 +48,7 @@ jobs:
       id: release
     - run: cargo build --release
     - run: cargo run -p builder -- --channel ${{steps.release.outputs.version}}
-    - uses: actions/upload-artifact@v1
+    - uses: actions/upload-artifact@v4
       with:
         name: dist-${{matrix.os}}
         path: dist
@@ -57,16 +57,16 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: udoprog/kick@nightly
     - uses: actions/setup-node@v3
       with:
         node-version: 16
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v4
       with: {name: dist-macos-latest, path: dist}
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v4
       with: {name: dist-windows-latest, path: dist}
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v4
       with: {name: dist-ubuntu-latest, path: dist}
     - run: kick github-release --upload "dist/*" --github-action
       env:

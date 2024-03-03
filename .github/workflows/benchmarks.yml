@@ -12,7 +12,7 @@ jobs:
     outputs:
       should_run: ${{steps.should_run.outputs.should_run}}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: print latest_commit
         run: echo ${{github.sha}}
       - id: should_run
@@ -26,7 +26,7 @@ jobs:
     if: ${{needs.check_changes.outputs.should_run != 'false'}}
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
     - run: cargo bench --package rune-benches -- --output-format bencher | tee output.txt
     - uses: actions/cache@v1
