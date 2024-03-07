@@ -7,7 +7,7 @@
 //! Add the following to your `Cargo.toml`:
 //!
 //! ```toml
-//! rune-modules = { version = "0.13.1", features = ["signal"] }
+//! rune-modules = { version = "0.13.2", features = ["signal"] }
 //! ```
 //!
 //! Install it into your context:
