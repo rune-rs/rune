@@ -41,8 +41,8 @@ jobs:
     - uses: Swatinem/rust-cache@v2
     - run: cargo doc -p rune --all-features
       env:
-        RUSTFLAGS: --cfg docsrs
-        RUSTDOCFLAGS: --cfg docsrs
+        RUSTFLAGS: --cfg rune_docsrs
+        RUSTDOCFLAGS: --cfg rune_docsrs
 
   basics:
     runs-on: ubuntu-latest

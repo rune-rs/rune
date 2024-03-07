@@ -32,8 +32,8 @@ jobs:
     - run: cargo +nightly doc -p rune --all-features
       env:
         RUST_LOG: rune=info
-        RUSTFLAGS: --cfg docsrs
-        RUSTDOCFLAGS: --cfg docsrs
+        RUSTFLAGS: --cfg rune_docsrs
+        RUSTDOCFLAGS: --cfg rune_docsrs
     - run: mv target/doc target/site/api
     - uses: peaceiris/actions-gh-pages@v3
       with:
