@@ -1,0 +1,8 @@
+[variables]
+branch = "0.13.x"
+
+[workflows.ci]
+branch = "0.13.x"
+
+[workflows.weekly]
+disable = true

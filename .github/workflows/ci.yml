@@ -10,7 +10,7 @@ jobs:
   rustfmt:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
       with:
         components: rustfmt
@@ -19,14 +19,14 @@ jobs:
   runefmt:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
     - run: cargo run --bin rune -- fmt --experimental --recursive --verbose --workspace --check tools scripts
 
   clippy:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@1.71
       with:
         components: clippy
@@ -36,7 +36,7 @@ jobs:
   docs:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
     - uses: Swatinem/rust-cache@v2
     - run: cargo doc -p rune --all-features
@@ -57,7 +57,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: basics
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@1.70
     - uses: Swatinem/rust-cache@v2
     - run: cargo build --workspace
@@ -66,7 +66,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: basics
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
       with:
         components: miri
@@ -77,7 +77,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: basics
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
       with:
         components: miri
@@ -88,7 +88,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: basics
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
     - run: cargo build -p rune --no-default-features --features alloc
@@ -101,7 +101,7 @@ jobs:
       matrix:
         feature: [capture-io, "cli,doc", "cli,fmt", cli, workspace, byte-code]
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
     - run: cargo build -p rune --no-default-features --features ${{matrix.feature}}
@@ -110,7 +110,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: basics
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
       with:
         targets: wasm32-unknown-unknown
@@ -121,7 +121,7 @@ jobs:
     runs-on: windows-latest
     needs: basics
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
     - uses: Swatinem/rust-cache@v2
     - run: cargo run --manifest-path=no-std-examples/Cargo.toml --profile unix --example no_std_minimal
@@ -130,7 +130,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [no_default_features, build_feature, docs, msrv, miri_rune, miri_rune_alloc, no_std_minimal, wasm]
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
     - run: cargo build -p rune --no-default-features --features alloc

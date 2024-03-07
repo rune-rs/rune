@@ -21,7 +21,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
     - run: cargo test --workspace --exclude no-std-examples --all-targets
@@ -36,7 +36,7 @@ jobs:
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: udoprog/github-release@channel
       id: release
       with:
@@ -44,7 +44,7 @@ jobs:
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
     - run: cargo run -p builder -- --channel ${{steps.release.outputs.channel}}
-    - uses: actions/upload-artifact@v1
+    - uses: actions/upload-artifact@v4
       with:
         name: dist-${{matrix.os}}
         path: dist
@@ -53,18 +53,18 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - run: echo "HEAD_SHA=$(git rev-parse HEAD)" >> $GITHUB_ENV
     - run: 'echo "HEAD_SHA: $HEAD_SHA"'
     - uses: actions/setup-node@v3
       with:
         node-version: 16
     - run: 'echo "TAG: ${{needs.tag.outputs.tag}}"'
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v4
       with: {name: dist-macos-latest, path: dist}
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v4
       with: {name: dist-windows-latest, path: dist}
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v4
       with: {name: dist-ubuntu-latest, path: dist}
     - uses: udoprog/github-release@channel
       id: release
