@@ -280,10 +280,7 @@ where
     Q: Hash,
     S: BuildHasher,
 {
-    use core::hash::Hasher;
-    let mut state = hash_builder.build_hasher();
-    val.hash(&mut state);
-    state.finish()
+    hash_builder.hash_one(val)
 }
 
 #[cfg(rune_nightly)]
