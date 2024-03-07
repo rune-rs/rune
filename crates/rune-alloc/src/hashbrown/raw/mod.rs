@@ -4041,7 +4041,6 @@ mod test_map {
     use super::*;
 
     use crate::alloc::into_ok;
-    use crate::alloc::Global;
     use core::convert::Infallible;
 
     fn rehash_in_place<T>(
