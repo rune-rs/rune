@@ -1,4 +1,3 @@
-use core::convert::From;
 use core::fmt;
 use core::marker::PhantomData;
 

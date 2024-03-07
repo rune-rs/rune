@@ -3,9 +3,6 @@
 #![allow(clippy::redundant_closure)]
 #![allow(clippy::useless_vec)]
 
-use core::cmp::Ordering;
-use core::fmt;
-use core::hash::{Hash, Hasher};
 use core::ops::Bound::{Excluded, Included};
 
 use rust_alloc::format;

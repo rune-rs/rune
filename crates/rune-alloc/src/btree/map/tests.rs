@@ -8,23 +8,18 @@ use core::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 use rust_alloc::boxed::Box;
 use rust_alloc::rc::Rc;
 
-use std::cmp::Ordering;
 use std::iter;
-use std::mem;
-use std::ops::Bound::{self, Excluded, Included, Unbounded};
-use std::ops::RangeBounds;
+use std::ops::Bound::{Excluded, Included, Unbounded};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
 use rust_alloc::vec;
 
-use crate::clone::TryClone;
 use crate::string::{String, TryToString};
 use crate::testing::crash_test::{CrashTestDummy, Panic};
 use crate::testing::ord_chaos::{Cyclic3, Governed, Governor};
 use crate::testing::rng::DeterministicRng;
 use crate::vec::Vec;
 
-use super::Entry::{Occupied, Vacant};
 use super::*;
 
 macro_rules! assert_matches {

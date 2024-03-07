@@ -7,7 +7,6 @@ mod macros;
 
 use core::fmt;
 use core::iter::FusedIterator;
-use core::marker::{Send, Sized, Sync};
 use core::slice::{from_raw_parts, from_raw_parts_mut};
 
 use crate::alloc::SizedTypeProperties;
