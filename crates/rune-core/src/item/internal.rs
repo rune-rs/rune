@@ -31,7 +31,7 @@ pub(super) struct Tag(pub(super) u8);
 /// Panics if the byte is not available.
 pub(super) fn read_tag(content: &[u8]) -> (Tag, usize) {
     let n = NativeEndian::read_u16(content);
-    let n = usize::try_from(n).unwrap();
+    let n = usize::from(n);
     (Tag((n & TYPE_MASK) as u8), n >> TYPE_BITS)
 }
 
@@ -45,7 +45,7 @@ pub(super) fn write_tag<A: Allocator>(
     Tag(tag): Tag,
     n: usize,
 ) -> alloc::Result<()> {
-    let tag = usize::try_from(tag).expect("tag out of bounds");
+    let tag = usize::from(tag);
     debug_assert!(tag <= TYPE_MASK);
     assert!(
         n < MAX_DATA,

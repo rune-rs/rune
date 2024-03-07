@@ -1656,12 +1656,8 @@ impl Vm {
     /// Construct a new vec.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_vec(&mut self, count: usize) -> VmResult<()> {
-        let vec = vm_try!(Vec::try_from(vm_try!(vm_try!(self
-            .stack
-            .pop_sequence(count)))));
-        vm_try!(self
-            .stack
-            .push(vm_try!(Value::try_from(vm_try!(Shared::new(vec))))));
+        let vec = Vec::from(vm_try!(vm_try!(self.stack.pop_sequence(count))));
+        vm_try!(self.stack.push(Value::from(vm_try!(Shared::new(vec)))));
         VmResult::Ok(())
     }
 
@@ -2344,9 +2340,7 @@ impl Vm {
             vm_try!(object.insert(key, value));
         }
 
-        vm_try!(self
-            .stack
-            .push(vm_try!(Value::try_from(vm_try!(Shared::new(object))))));
+        vm_try!(self.stack.push(Value::from(vm_try!(Shared::new(object)))));
         VmResult::Ok(())
     }
 
