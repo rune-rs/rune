@@ -1,6 +1,4 @@
-//! `std::test` module for the [Rune Language].
-//!
-//! [Rune Language]: https://rune-rs.github.io
+//! Testing and benchmarking.
 
 use crate as rune;
 use crate::alloc::{try_format, Vec};
@@ -10,6 +8,24 @@ use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
 use crate::runtime::Function;
 use crate::{Any, ContextError, Module, T};
+
+/// Testing and benchmarking.
+#[rune::module(::std::test)]
+pub fn module() -> Result<Module, ContextError> {
+    let mut module = Module::from_meta(self::module_meta)?.with_unique("std::test");
+
+    module.macro_meta(assert)?;
+    module.macro_meta(assert_eq)?;
+    module.macro_meta(assert_ne)?;
+
+    module.ty::<Bencher>()?.docs([
+        "A type to perform benchmarks.",
+        "",
+        "This is the type of the argument to any function which is annotated with `#[bench]`",
+    ])?;
+    module.function_meta(Bencher::iter)?;
+    Ok(module)
+}
 
 /// A helper type to capture benchmarks.
 #[derive(Default, Any)]
@@ -29,21 +45,6 @@ impl Bencher {
     fn iter(&mut self, f: Function) {
         self.fns.try_push(f).vm?;
     }
-}
-
-/// Construct the `std::test` module.
-pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["test"])?.with_unique("std::test");
-    module.macro_meta(assert)?;
-    module.macro_meta(assert_eq)?;
-    module.macro_meta(assert_ne)?;
-    module.ty::<Bencher>()?.docs([
-        "A type to perform benchmarks.",
-        "",
-        "This is the type of the argument to any function which is annotated with `#[bench]`",
-    ])?;
-    module.function_meta(Bencher::iter)?;
-    Ok(module)
 }
 
 /// Assert that the expression provided as an argument is true, or cause a vm

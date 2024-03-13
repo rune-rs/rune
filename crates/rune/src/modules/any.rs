@@ -1,4 +1,4 @@
-//! The `std::any` rune module.
+//! Dynamic typing and type reflection.
 
 use crate as rune;
 use crate::alloc::fmt::TryWrite;
@@ -6,7 +6,7 @@ use crate::alloc::String;
 use crate::runtime::{Formatter, Type, Value, VmResult};
 use crate::{ContextError, Module};
 
-/// Utilities for dynamic typing or type reflection.
+/// Dynamic typing and type reflection.
 ///
 /// # `Type`
 ///

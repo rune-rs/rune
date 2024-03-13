@@ -1,13 +1,17 @@
-//! The `std::option` module.
+//! The [`Option`] type.
 
 use crate as rune;
 use crate::runtime::{ControlFlow, Formatter, Function, Iterator, Panic, Value, VmResult};
 use crate::{ContextError, Module};
 
-/// Construct the `std::option` module.
+/// The [`Option`] type.
+///
+/// This module deals with the fundamental [`Option`] type in rune.
+#[rune::module(::std::option)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["option"])?;
+    let mut module = Module::from_meta(self::module_meta)?;
     module.option(["Option"])?;
+
     // Sorted for ease of finding
     module.function_meta(expect)?;
     module.function_meta(unwrap)?;

@@ -1,4 +1,4 @@
-//! The `std::iter` module.
+//! Iterators.
 
 use core::convert::identity;
 
@@ -14,9 +14,13 @@ use crate::runtime::{
 };
 use crate::{ContextError, Module};
 
-/// Construct the `std::iter` module.
+/// Iterators.
+///
+/// This module contains types and methods for working with iterators in Rune.
+#[rune::module(::std::iter)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["iter"])?;
+    let mut module = Module::from_meta(self::module_meta)?;
+
     module.ty::<Iterator>()?;
 
     module.function_meta(next)?;

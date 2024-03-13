@@ -1,4 +1,4 @@
-//! The `std::bytes` module.
+//! The bytes module.
 
 use crate as rune;
 use crate::alloc::prelude::*;
@@ -6,9 +6,10 @@ use crate::alloc::Vec;
 use crate::runtime::{Bytes, VmResult};
 use crate::{ContextError, Module};
 
-/// Construct the `std::bytes` module.
+/// The bytes module.
+#[rune::module(::std::bytes)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["bytes"])?;
+    let mut module = Module::from_meta(self::module_meta)?;
 
     module.ty::<Bytes>()?;
     module.function_meta(new)?;

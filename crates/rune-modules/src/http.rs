@@ -52,9 +52,18 @@ use rune::{Any, Module, Value, ContextError};
 use rune::runtime::{Bytes, Ref, Formatter, VmResult};
 use rune::alloc::fmt::TryWrite;
 
-/// Construct the `http` module.
+/// A simple HTTP module for Rune.
+///
+/// # Examples
+///
+/// ```rune,no_run
+/// let res = http::get("https://httpstat.us/200?sleep=100").await;
+///
+/// dbg!(res.text().await?);
+/// ```
+#[rune::module(::http)]
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
-    let mut module = Module::with_crate("http")?;
+    let mut module = Module::from_meta(self::module_meta)?;
 
     module.ty::<Client>()?;
     module.ty::<Response>()?;
@@ -81,6 +90,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     Ok(module)
 }
 
+/// An error returned by methods in the `http` module.
 #[derive(Debug, Any)]
 #[rune(item = ::http)]
 pub struct Error {
@@ -138,6 +148,7 @@ impl Response {
     }
 }
 
+/// An HTTP status code.
 #[derive(Debug, Any)]
 #[rune(item = ::http)]
 pub struct StatusCode {

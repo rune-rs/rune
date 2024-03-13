@@ -1,5 +1,7 @@
 //! I/O module capable of capturing what's been written to a buffer.
 //!
+//! # Examples
+//!
 //! ```
 //! use rune::{Context, ContextError};
 //! use rune::modules::capture_io::{self, CaptureIo};
@@ -17,15 +19,17 @@ use ::rust_alloc::sync::Arc;
 
 use parking_lot::Mutex;
 
+use crate as rune;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::string::FromUtf8Error;
 use crate::alloc::{String, Vec};
 use crate::runtime::{Stack, VmError, VmResult};
 use crate::{ContextError, Module, Value};
 
-/// Provide a bunch of `std` functions that can be used during tests to capture output.
+/// I/O module capable of capturing what's been written to a buffer.
+#[rune::module(::std::io)]
 pub fn module(io: &CaptureIo) -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["io"])?;
+    let mut module = Module::from_meta(self::module_meta)?;
 
     let o = io.clone();
 

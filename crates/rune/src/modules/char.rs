@@ -1,4 +1,4 @@
-//! The `std::char` module.
+//! The character module for Rune.
 
 use core::char::ParseCharError;
 
@@ -7,11 +7,12 @@ use crate::{ContextError, Module};
 
 use crate as rune;
 
-/// Construct the `std::char` module.
+/// The character module for Rune.
+#[rune::module(::std::char)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["char"])?;
-    module.ty::<ParseCharError>()?;
+    let mut module = Module::from_meta(self::module_meta)?;
 
+    module.ty::<ParseCharError>()?;
     module.function_meta(from_i64)?;
     module.function_meta(to_i64)?;
     module.function_meta(is_alphabetic)?;

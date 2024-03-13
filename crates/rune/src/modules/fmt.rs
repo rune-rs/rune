@@ -1,4 +1,4 @@
-//! The `std::fmt` module.
+//! Formatting text.
 
 use core::fmt;
 
@@ -10,9 +10,21 @@ use crate::parse::Parser;
 use crate::runtime::{Format, Formatter, VmResult};
 use crate::{ContextError, Module};
 
-/// Construct the `std::fmt` module.
+/// Formatting text.
+///
+/// This includes types, macros, and functions used to format text.
+///
+/// # Examples
+///
+/// ```rune
+/// let who = "World";
+/// let string = format!("Hello {}", who);
+/// assert_eq!(string, "Hello World");
+/// ```
+#[rune::module(::std::fmt)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["fmt"])?.with_unique("std::fmt");
+    let mut module = Module::from_meta(self::module_meta)?.with_unique("std::fmt");
+
     module.ty::<Format>()?;
     module.ty::<Formatter>()?;
     module.ty::<fmt::Error>()?;

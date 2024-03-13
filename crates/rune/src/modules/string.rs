@@ -1,4 +1,4 @@
-//! The `std::string` module.
+//! Strings.
 
 use core::char;
 use core::cmp::Ordering;
@@ -13,9 +13,21 @@ use crate::alloc::{String, Vec};
 use crate::runtime::{Bytes, Formatter, Iterator, Panic, Value, ValueKind, VmErrorKind, VmResult};
 use crate::{Any, ContextError, Module};
 
-/// Construct the `std::string` module.
+/// Strings.
+///
+/// Strings in Rune are declared with the literal `"string"` syntax, but can also be
+/// interacted with through the fundamental [`String`] type.
+///
+/// ```rune
+/// let string1 = "Hello";
+/// let string2 = String::new();
+/// string2.push_str("Hello");
+///
+/// assert_eq!(string1, string2);
+/// ```
+#[rune::module(::std::string)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["string"])?;
+    let mut module = Module::from_meta(self::module_meta)?;
 
     module.ty::<String>()?;
 

@@ -1,4 +1,4 @@
-//! The `std::vec` module.
+//! The [`Vec`] dynamic vector.
 
 use core::cmp::Ordering;
 
@@ -10,9 +10,40 @@ use crate::runtime::{
 };
 use crate::{ContextError, Module};
 
-/// Construct the `std::vec` module.
+/// The [`Vec`] dynamic vector.
+///
+/// The vector type is a growable dynamic array that can hold an ordered
+/// collection of values.
+///
+/// Tuples in Rune are declared with the special `[a]` syntax, but can also be
+/// interacted with through the fundamental [`Vec`] type.
+///
+/// The vector type has support for native pattern matching:
+///
+/// ```rune
+/// let value = [1, 2];
+///
+/// if let [a, b] = value {
+///     assert_eq!(a, 1);
+///     assert_eq!(b, 2);
+/// }
+/// ```
+///
+/// # Examples
+///
+/// ```rune
+/// let empty = [];
+/// let one = [10];
+/// let two = [10, 20];
+///
+/// assert!(empty.is_empty());
+/// assert_eq!(one.0, 10);
+/// assert_eq!(two.0, 10);
+/// assert_eq!(two.1, 20);
+/// ```
+#[rune::module(::std::vec)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::with_crate_item("std", ["vec"])?;
+    let mut m = Module::from_meta(self::module_meta)?;
 
     m.ty::<Vec>()?.docs([
         "A dynamic vector.",
