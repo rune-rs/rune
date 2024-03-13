@@ -1033,6 +1033,12 @@ fn module<'m>(
                     queue.try_push_front(Build::Module(m))?;
                     let path = cx.item_path(item, ItemKind::Module)?;
                     let name = item.last().context("missing name of module")?;
+
+                    // Prevent multiple entries of a module, with no documentation
+                    modules.retain(|module: &Module<'_>| {
+                        !(module.name == name && module.doc.is_none())
+                    });
+
                     modules.try_push(Module {
                         item,
                         name,
