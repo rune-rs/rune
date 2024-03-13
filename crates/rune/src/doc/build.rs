@@ -153,7 +153,7 @@ pub(crate) fn build(
         name,
         context: &context,
         search_index: Some(search_index),
-        root_index: root_index,
+        root_index,
         fonts: &fonts,
         css: &css,
         js: &js,
