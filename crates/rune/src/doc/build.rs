@@ -145,6 +145,7 @@ pub(crate) fn build(
     }
 
     let search_index = RelativePath::new("index.js");
+    let root_index = RelativePath::new("index.html");
 
     let mut cx = Ctxt {
         state: State::default(),
@@ -152,6 +153,7 @@ pub(crate) fn build(
         name,
         context: &context,
         search_index: Some(search_index),
+        root_index: root_index,
         fonts: &fonts,
         css: &css,
         js: &js,
@@ -262,6 +264,7 @@ fn build_search_index(cx: &Ctxt) -> Result<String> {
 struct Shared<'a> {
     data_path: Option<&'a RelativePath>,
     search_index: Option<RelativePathBuf>,
+    root_index: RelativePathBuf,
     fonts: Vec<RelativePathBuf>,
     css: Vec<RelativePathBuf>,
     js: Vec<RelativePathBuf>,
@@ -328,6 +331,7 @@ pub(crate) struct Ctxt<'a, 'm> {
     name: &'a str,
     context: &'a Context<'m>,
     search_index: Option<&'a RelativePath>,
+    root_index: &'a RelativePath,
     fonts: &'a [RelativePathBuf],
     css: &'a [RelativePathBuf],
     js: &'a [RelativePathBuf],
@@ -382,6 +386,7 @@ impl<'m> Ctxt<'_, 'm> {
         Ok(Shared {
             data_path: self.state.path.parent(),
             search_index: self.search_index.map(|p| dir.relative(p)),
+            root_index: dir.relative(self.root_index),
             fonts: self.fonts.iter().map(|f| dir.relative(f)).try_collect()?,
             css: self.css.iter().map(|f| dir.relative(f)).try_collect()?,
             js: self.js.iter().map(|f| dir.relative(f)).try_collect()?,
@@ -496,7 +501,7 @@ impl<'m> Ctxt<'_, 'm> {
         Ok(self.dir().relative(path))
     }
 
-    /// Build banklinks for the current item.
+    /// Build backlinks for the current item.
     fn module_path_html(&self, meta: Meta<'_>, is_module: bool) -> Result<String> {
         let mut module = Vec::new();
         let item = meta.item.context("Missing module item")?;
