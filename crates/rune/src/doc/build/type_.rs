@@ -11,6 +11,7 @@ use crate::doc::context::{Assoc, AssocFnKind, Meta};
 #[derive(Serialize)]
 pub(super) struct Protocol<'a> {
     name: &'a str,
+    field: Option<&'a str>,
     repr: Option<String>,
     return_type: Option<String>,
     doc: Option<String>,
@@ -66,15 +67,15 @@ pub(super) fn build_assoc_fns<'m>(
             Assoc::Fn(assoc) => {
                 let value;
 
-                let (protocol, value) = match assoc.kind {
-                    AssocFnKind::Protocol(protocol) => (protocol, "value"),
+                let (protocol, value, field) = match assoc.kind {
+                    AssocFnKind::Protocol(protocol) => (protocol, "value", None),
                     AssocFnKind::FieldFn(protocol, field) => {
                         value = format!("value.{field}");
-                        (protocol, value.as_str())
+                        (protocol, value.as_str(), Some(field))
                     }
                     AssocFnKind::IndexFn(protocol, index) => {
                         value = format!("value.{index}");
-                        (protocol, value.as_str())
+                        (protocol, value.as_str(), None)
                     }
                     AssocFnKind::Method(name, args, sig) => {
                         let line_doc =
@@ -135,6 +136,7 @@ pub(super) fn build_assoc_fns<'m>(
 
                 protocols.try_push(Protocol {
                     name: protocol.name,
+                    field,
                     repr,
                     return_type: match assoc.return_type {
                         Some(hash) => cx.link(hash, None)?,

@@ -34,7 +34,7 @@
 {{#each protocols}}
     <div class="item item-fn">
         <div id="protocol.{{this.name}}" class="item-title">
-        protocol <a href="#protocol.{{this.name}}" class="protocol">{{this.name}}</a>
+        protocol <a href="#protocol.{{this.name}}" class="protocol">{{this.name}}</a> {{field}}
         </div>
         {{#if this.repr}}{{literal this.repr}}{{/if}}
         {{#if this.doc}}{{literal this.doc}}{{/if}}
