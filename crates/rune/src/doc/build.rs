@@ -845,10 +845,7 @@ fn build_index<'m>(
     }
 
     // sort the modules by name
-    modules.sort_by_key(|module| match module.item.as_crate() {
-        Some(s) => s,
-        None => "",
-    });
+    modules.sort_by_key(|module| module.item.as_crate().unwrap_or(""));
 
     Ok(Builder::new(cx, move |cx| {
         cx.index_template.render(&Params {
