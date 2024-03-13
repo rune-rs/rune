@@ -1,51 +1,16 @@
-//! The `std::future` module.
+//! Asynchronous computations.
 
+use crate as rune;
 use crate::alloc::Vec;
-use crate::runtime::{Future, Mut, SelectFuture, Stack, Value, ValueKind, VmErrorKind, VmResult};
+use crate::runtime::{Future, Mut, SelectFuture, Value, ValueKind, VmErrorKind, VmResult};
 use crate::{ContextError, Module};
 
-/// Construct the `std::future` module.
+/// Asynchronous computations.
+#[rune::module(::std::future)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["future"])?;
+    let mut module = Module::from_meta(self::module_meta)?;
     module.ty::<Future>()?;
-
-    module
-        .raw_function("join", raw_join)
-        .build()?
-        .is_async(true)
-        .args(1)
-        .argument_types([None])?
-        .docs([
-            "Waits for a collection of futures to complete and joins their result.",
-            "",
-            "# Examples",
-            "",
-            "```rune",
-            "let a = async { 1 };",
-            "let b = async { 2 };",
-            "let (a, b) = std::future::join((a, b)).await;",
-            "assert_eq!(1, a);",
-            "assert_eq!(2, b);",
-            "```",
-            "",
-            "Using a vector:",
-            "",
-            "```rune",
-            "let a = async { 1 };",
-            "let b = async { 2 };",
-            "let [a, b] = std::future::join([a, b]).await;",
-            "assert_eq!(1, a);",
-            "assert_eq!(2, b);",
-            "```",
-            "",
-            "Joining an empty collection:",
-            "",
-            "```rune",
-            "let () = std::future::join(()).await;",
-            "let [] = std::future::join([]).await;",
-            "```",
-        ])?;
-
+    module.function_meta(join)?;
     Ok(module)
 }
 
@@ -89,6 +54,35 @@ where
     factory(results)
 }
 
+/// Waits for a collection of futures to complete and joins their result.
+///
+/// # Examples
+///
+/// ```rune
+/// let a = async { 1 };
+/// let b = async { 2 };
+/// let (a, b) = std::future::join((a, b)).await;
+/// assert_eq!(1, a);
+/// assert_eq!(2, b);
+/// ```
+///
+/// Using a vector:
+///
+/// ```rune
+/// let a = async { 1 };
+/// let b = async { 2 };
+/// let [a, b] = std::future::join([a, b]).await;
+/// assert_eq!(1, a);
+/// assert_eq!(2, b);
+/// ```
+///
+/// Joining an empty collection:
+///
+/// ```rune
+/// let () = std::future::join(()).await;
+/// let [] = std::future::join([]).await;
+/// ```
+#[rune::function]
 async fn join(value: Value) -> VmResult<Value> {
     match &*vm_try!(value.borrow_kind_ref()) {
         ValueKind::EmptyTuple => VmResult::Ok(vm_try!(Value::empty())),
@@ -106,19 +100,4 @@ async fn join(value: Value) -> VmResult<Value> {
             VmErrorKind::expected::<crate::runtime::Vec>(vm_try!(value.type_info())),
         ]),
     }
-}
-
-/// The join implementation.
-fn raw_join(stack: &mut Stack, args: usize) -> VmResult<()> {
-    if args != 1 {
-        return VmResult::err(VmErrorKind::BadArgumentCount {
-            actual: args,
-            expected: 1,
-        });
-    }
-
-    let value = vm_try!(stack.pop());
-    let future = vm_try!(Future::new(join(value)));
-    vm_try!(stack.push(future));
-    VmResult::Ok(())
 }

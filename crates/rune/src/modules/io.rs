@@ -1,4 +1,4 @@
-//! The `std::io` module.
+//! I/O functions.
 
 use std::io::{self, Write as _};
 
@@ -10,9 +10,10 @@ use crate::parse::Parser;
 use crate::runtime::{Formatter, Panic, Stack, Value, VmResult};
 use crate::{ContextError, Module};
 
-/// Construct the `std::io` module.
+/// I/O functions.
+#[rune::module(::std::io)]
 pub fn module(stdio: bool) -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["io"])?.with_unique("std::io");
+    let mut module = Module::from_meta(self::module_meta)?.with_unique("std::io");
 
     module.item_mut().docs([
         "The std::io module contains a number of common things",

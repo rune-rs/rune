@@ -1,4 +1,4 @@
-//! The `std::object` module.
+//! The dynamic [`Object`] container.
 
 use core::cmp::Ordering;
 
@@ -8,9 +8,35 @@ use crate::alloc::Vec;
 use crate::runtime::{EnvProtocolCaller, Iterator, Object, Protocol, Value, VmResult};
 use crate::{ContextError, Module};
 
-/// Construct the `std::object` module.
+/// The dynamic [`Object`] container.
+///
+/// This modules contains the [`Object`] type, which is a dynamic type erased
+/// container.
+///
+/// Objects in Rune are declared using the special `#{}` syntax, but can also be
+/// interacted with through the fundamental [`Object`] type.
+///
+/// Fields can be added to objects "on the fly", simply by assigning to them:
+///
+/// ```rune
+/// let object = #{};
+/// object.hello = "World";
+/// assert_eq!(object.hello, "World");
+/// ```
+///
+/// # Examples
+///
+/// ```rune
+/// let object1 = #{hello: "World"};
+///
+/// let object2 = Object::new();
+/// object2.insert("hello", "World");
+///
+/// assert_eq!(object1, object2);
+/// ```
+#[rune::module(::std::object)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::with_crate_item("std", ["object"])?;
+    let mut m = Module::from_meta(self::module_meta)?;
 
     m.ty::<Object>()?;
 

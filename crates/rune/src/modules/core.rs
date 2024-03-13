@@ -1,4 +1,4 @@
-//! The core `std` module.
+//! Core types and methods in Rune.
 
 use crate as rune;
 use crate::alloc::prelude::*;
@@ -9,7 +9,9 @@ use crate::runtime::{Panic, Value, VmResult};
 use crate::{ContextError, Module};
 
 #[rune::module(::std)]
-/// The Rune standard library.
+/// Core types and methods in Rune.
+///
+/// These are types and methods for which Rune as a language would not work without.
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::from_meta(self::module_meta)?.with_unique("std");
 

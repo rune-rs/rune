@@ -1,4 +1,4 @@
-//! The `std::ops` module.
+//! Overloadable operators and associated types.
 
 use core::cmp::Ordering;
 
@@ -14,8 +14,8 @@ use crate::{ContextError, Module};
 
 static STATE: OnceCell<RandomState> = OnceCell::new();
 
+/// Overloadable operators and associated types.
 #[rune::module(::std::ops)]
-/// Overloadable operators.
 pub fn module() -> Result<Module, ContextError> {
     let mut m = Module::from_meta(self::module_meta)?;
 

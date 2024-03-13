@@ -1,4 +1,4 @@
-//! The `std::f64` module.
+//! Floating point numbers.
 
 use core::cmp::Ordering;
 use core::num::ParseFloatError;
@@ -7,9 +7,13 @@ use crate as rune;
 use crate::runtime::{VmErrorKind, VmResult};
 use crate::{ContextError, Module};
 
-/// Install the core package into the given functions namespace.
+/// Floating point numbers.
+///
+/// This provides methods for computing over and parsing 64-bit floating pointer
+/// numbers.
+#[rune::module(::std::f64)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::with_crate_item("std", ["f64"])?;
+    let mut m = Module::from_meta(self::module_meta)?;
 
     m.function_meta(parse)?
         .deprecated("Use std::string::parse::<f64> instead")?;

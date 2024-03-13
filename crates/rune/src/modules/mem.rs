@@ -1,12 +1,13 @@
-//! The `std::mem` module.
+//! Working with memory.
 
 use crate as rune;
 use crate::runtime::{Value, VmResult};
 use crate::{ContextError, Module};
 
-/// Construct the `std` module.
+/// Working with memory.
+#[rune::module(::std::mem)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["mem"])?;
+    let mut module = Module::from_meta(self::module_meta)?;
     module.function_meta(drop)?;
     Ok(module)
 }

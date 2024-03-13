@@ -1,4 +1,6 @@
-//! I/O module ignoring everything written to output.
+//! I/O methods which will cause any output to be ignored.
+//!
+//! # Examples
 //!
 //! ```
 //! use rune::{Context, ContextError};
@@ -9,15 +11,16 @@
 //! # Ok::<_, ContextError>(())
 //! ```
 
+use crate as rune;
 use crate::runtime::{Stack, VmResult};
 use crate::{ContextError, Module};
 
-/// Provide a bunch of `std::io` functions which will cause any output to be ignored.
+/// I/O methods which will cause any output to be ignored.
+#[rune::module(::std::io)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["io"])?;
+    let mut module = Module::from_meta(self::module_meta)?;
 
     module.function("print", move |_: &str| {}).build()?;
-
     module.function("println", move |_: &str| {}).build()?;
 
     module

@@ -1,16 +1,16 @@
-//! The `std::clone` module.
+//! The cloning trait for Rune.
 
 use crate as rune;
 use crate::runtime::{Value, VmResult};
 use crate::{ContextError, Module};
 
-#[rune::module(::std::clone)]
-/// The `std::clone` module.
+/// The cloning trait for Rune.
 ///
 /// This module defines methods and types used when cloning values.
 ///
 /// By default all values in rune are structurally shared, so in order to get a
 /// unique instance of it you must call [`clone`] over it.
+#[rune::module(::std::clone)]
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::from_meta(self::module_meta)?;
     module.function_meta(clone)?;

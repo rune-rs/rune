@@ -1,4 +1,4 @@
-//! The `std::cmp` module.
+//! Comparison and ordering.
 
 use core::cmp::Ordering;
 
@@ -7,9 +7,10 @@ use crate::alloc::fmt::TryWrite;
 use crate::runtime::{Formatter, Value, VmResult};
 use crate::{ContextError, Module};
 
-/// Construct the `std::cmp` module.
+/// Comparison and ordering.
+#[rune::module(::std::cmp)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::with_crate_item("std", ["cmp"])?;
+    let mut m = Module::from_meta(self::module_meta)?;
 
     {
         let ty = m.ty::<Ordering>()?.docs([

@@ -422,6 +422,8 @@ impl Module {
     }
 
     /// Modify the current module to utilise a special identifier.
+    ///
+    /// TODO: Deprecate after next major release.
     #[doc(hidden)]
     pub fn with_unique(self, id: &'static str) -> Self {
         Self {

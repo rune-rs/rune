@@ -1,4 +1,4 @@
-//! `std::collections` module.
+//! Dynamic collections.
 
 #[cfg(feature = "alloc")]
 mod hash_map;
@@ -15,8 +15,8 @@ pub(crate) use self::hash_set::HashSet;
 pub(crate) use self::vec_deque::VecDeque;
 use crate as rune;
 
+/// Dynamic collections.
 #[rune::module(::std::collections)]
-/// The `std::collections` module.
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::from_meta(self::module_meta)?;
     #[cfg(feature = "alloc")]

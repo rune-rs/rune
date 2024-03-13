@@ -1,9 +1,13 @@
-//! The `std::generator` module.
+//! Generators.
 
+use crate as rune;
 use crate::{ContextError, Module};
 
-/// Construct the `std::generator` module.
+/// Generators.
+///
+/// Generator functionality has been moved into [::std::ops].
 #[deprecated = "Generators have been moved into std::ops"]
+#[rune::module(::std::generator)]
 pub fn module() -> Result<Module, ContextError> {
-    Module::with_crate_item("std", ["generator"])
+    Module::from_meta(self::module_meta)
 }

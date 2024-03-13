@@ -1,4 +1,4 @@
-//! The `std::tuple` module.
+//! The [`Tuple`] fixed collection.
 
 use core::cmp::Ordering;
 
@@ -6,7 +6,38 @@ use crate as rune;
 use crate::runtime::{EnvProtocolCaller, Hasher, Iterator, Ref, Tuple, Value, Vec, VmResult};
 use crate::{ContextError, Module};
 
-/// Dynamic tuples.
+/// The [`Tuple`] fixed collection.
+///
+/// Tuples are anonymous types that can hold a fixed number of elements.
+///
+/// Tuples in Rune are declared with the special `(a)` syntax, but can also be
+/// interacted with through the fundamental [`Tuple`] type.
+///
+/// Once a tuple has been declared, its size cannot change.
+///
+/// The tuple type has support for native pattern matching:
+///
+/// ```rune
+/// let value = (1, 2);
+///
+/// if let (a, b) = value {
+///     assert_eq!(a, 1);
+///     assert_eq!(b, 2);
+/// }
+/// ```
+///
+/// # Examples
+///
+/// ```rune
+/// let empty = ();
+/// let one = (10,);
+/// let two = (10, 20);
+///
+/// assert!(empty.is_empty());
+/// assert_eq!(one.0, 10);
+/// assert_eq!(two.0, 10);
+/// assert_eq!(two.1, 20);
+/// ```
 #[rune::module(::std::tuple)]
 pub fn module() -> Result<Module, ContextError> {
     let mut m = Module::from_meta(self::module_meta)?;

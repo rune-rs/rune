@@ -1,4 +1,4 @@
-//! The `std::i64` module.
+//! Integers.
 
 use core::cmp::Ordering;
 use core::num::ParseIntError;
@@ -9,9 +9,12 @@ use crate::alloc::string::TryToString;
 use crate::runtime::{VmErrorKind, VmResult};
 use crate::{ContextError, Module};
 
-/// Construct the `std::i64` module.
+/// Integers.
+///
+/// This provides methods for computing over and parsing 64-bit integers.
+#[rune::module(::std::i64)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["i64"])?;
+    let mut module = Module::from_meta(self::module_meta)?;
 
     module.function("parse", parse).build()?;
     module.function_meta(to_float)?;

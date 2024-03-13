@@ -1,4 +1,4 @@
-//! The `std::result` module.
+//! The [`Result`] type.
 
 use crate as rune;
 use crate::alloc::fmt::TryWrite;
@@ -6,9 +6,13 @@ use crate::alloc::prelude::*;
 use crate::runtime::{ControlFlow, Formatter, Function, Panic, Value, VmResult};
 use crate::{ContextError, Module};
 
-/// Construct the `std::result` module.
+/// The [`Result`] type.
+///
+/// This module deals with the fundamental [`Result`] type in Rune.
+#[rune::module(::std::result)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["result"])?;
+    let mut module = Module::from_meta(self::module_meta)?;
+
     // Sorted for ease of finding
     let mut result = module
         .result("Result")?
