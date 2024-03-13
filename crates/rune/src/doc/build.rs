@@ -165,18 +165,6 @@ pub(crate) fn build(
         tests: Vec::new(),
     };
 
-    // sort the crates by their name
-    initial.make_contiguous().sort_by_key(|item| {
-        if let Build::Module(m) = item {
-            if let Some(item) = m.item {
-                if let Some(name) = item.as_crate() {
-                    return name;
-                }
-            }
-        }
-        ""
-    });
-
     let mut queue = initial.into_iter().try_collect::<VecDeque<_>>()?;
 
     let mut modules = Vec::new();
@@ -850,6 +838,12 @@ fn build_index<'m>(
 
         modules.try_push(Module { item, path })?;
     }
+
+    // sort the modules by name
+    modules.sort_by_key(|module| match module.item.as_crate() {
+        Some(s) => s,
+        None => "",
+    });
 
     Ok(Builder::new(cx, move |cx| {
         cx.index_template.render(&Params {
