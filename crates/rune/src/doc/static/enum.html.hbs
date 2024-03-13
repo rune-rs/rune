@@ -35,6 +35,7 @@
     <div class="item item-fn">
         <div id="protocol.{{this.name}}" class="item-title">
         protocol <a href="#protocol.{{this.name}}" class="protocol">{{this.name}}</a> {{field}}
+        {{#if this.deprecated}}<div class="deprecated"><span class="heading">Deprecated:</span><span class="content">{{this.deprecated}}</span></div>{{/if}}
         </div>
         {{#if this.repr}}{{literal this.repr}}{{/if}}
         {{#if this.doc}}{{literal this.doc}}{{/if}}

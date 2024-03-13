@@ -15,6 +15,7 @@ pub(super) struct Protocol<'a> {
     repr: Option<String>,
     return_type: Option<String>,
     doc: Option<String>,
+    deprecated: Option<&'a str>,
 }
 
 #[derive(Serialize)]
@@ -143,6 +144,7 @@ pub(super) fn build_assoc_fns<'m>(
                         None => None,
                     },
                     doc,
+                    deprecated: assoc.deprecated,
                 })?;
             }
         }
