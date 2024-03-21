@@ -122,7 +122,7 @@ pub(super) fn complete_native_instance_data(
             let docs = meta.docs.lines().join("\n");
             let args = meta.docs.args().unwrap_or_default().join(", ");
 
-            let detail = return_type.map(|r| format!("({args} -> {r}"));
+            let detail = return_type.map(|r| format!("({args}) -> {r}"));
 
             results.try_push(CompletionItem {
                 label: n.try_to_string()?.into_std(),
@@ -146,7 +146,7 @@ pub(super) fn complete_native_instance_data(
                     detail: None,
                     description: Some(prefix.try_to_string()?.into_std()),
                 }),
-                data: Some(serde_json::to_value(meta.hash).unwrap()),
+                data: Some(serde_json::to_value(meta.hash.into_inner() as i64).unwrap()),
                 ..Default::default()
             })?;
         }
@@ -201,7 +201,7 @@ pub(super) fn complete_native_loose_data(
                     },
                     new_text: func_name.into_std(),
                 })),
-                data: Some(serde_json::to_value(meta.hash).unwrap()),
+                data: Some(serde_json::to_value(meta.hash.into_inner() as i64).unwrap()),
                 ..Default::default()
             })?;
         }

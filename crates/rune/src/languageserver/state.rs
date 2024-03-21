@@ -708,7 +708,7 @@ impl Source {
 
         // The set of tokens that delimit symbols.
         let x: &[_] = &[
-            ',', ';', '(', '.', '=', '+', '-', '*', '/', '}', '{', ']', '[', ')', ':',
+            ',', ';', '(', '.', '=', '+', '-', '*', '/', '}', '{', ']', '[', ')',
         ];
 
         let end_search = (offset - start_byte + 1).min(chunk.len());
