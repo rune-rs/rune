@@ -6,6 +6,7 @@
 pub(crate) mod prelude {
     pub(crate) use crate as rune;
     pub(crate) use crate::alloc;
+    pub(crate) use crate::alloc::fmt::TryWrite;
     pub(crate) use crate::alloc::prelude::*;
     pub(crate) use crate::ast;
     pub(crate) use crate::compile::{self, ErrorKind, Item, ItemBuf, Located, Named};
@@ -14,9 +15,9 @@ pub(crate) mod prelude {
     pub(crate) use crate::module::InstallWith;
     pub(crate) use crate::parse;
     pub(crate) use crate::runtime::{
-        self, AnyTypeInfo, Bytes, FullTypeOf, Function, MaybeTypeOf, Mut, Object, OwnedTuple,
-        Protocol, RawRef, RawStr, Ref, Stack, Tuple, TypeInfo, TypeOf, UnsafeToRef, ValueKind,
-        VecTuple, VmErrorKind, VmResult,
+        self, AnyTypeInfo, Bytes, Formatter, FullTypeOf, Function, MaybeTypeOf, Mut, Object,
+        OwnedTuple, Protocol, RawRef, RawStr, Ref, Stack, Tuple, TypeInfo, TypeOf, UnsafeToRef,
+        ValueKind, VecTuple, VmErrorKind, VmResult,
     };
     pub(crate) use crate::support::Result;
     pub(crate) use crate::tests::run;
@@ -450,6 +451,7 @@ mod reference_error;
 mod rename_type;
 mod result;
 mod stmt_reordering;
+mod string_debug;
 mod tuple;
 mod type_name_native;
 mod type_name_rune;
