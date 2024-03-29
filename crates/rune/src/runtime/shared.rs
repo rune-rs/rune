@@ -205,6 +205,12 @@ impl<T: ?Sized> Shared<T> {
     }
 }
 
+impl<T: ?Sized> fmt::Pointer for Shared<T> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Pointer::fmt(&self.inner.as_ptr(), fmt)
+    }
+}
+
 impl<T: ?Sized> TryClone for Shared<T> {
     #[inline]
     fn try_clone(&self) -> alloc::Result<Self> {

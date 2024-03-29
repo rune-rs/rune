@@ -858,7 +858,7 @@ impl Value {
                     vm_try!(<()>::from_value(result));
                 } else {
                     let type_info = vm_try!(self.type_info());
-                    vm_write!(f, "<{} object at {:p}>", type_info, self);
+                    vm_write!(f, "<{} object at {:p}>", type_info, self.inner);
                 }
             }
         };
