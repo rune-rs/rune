@@ -851,8 +851,9 @@ impl Value {
                 vm_write!(f, "{:?}", value);
             }
             _ => {
+                // reborrow f to avoid moving it
                 let result =
-                    caller.call_protocol_fn(Protocol::STRING_DEBUG, self.clone(), (&mut *f,)); // reborrow f to avoid moving it
+                    caller.call_protocol_fn(Protocol::STRING_DEBUG, self.clone(), (&mut *f,));
 
                 if let VmResult::Ok(result) = result {
                     vm_try!(<()>::from_value(result));
