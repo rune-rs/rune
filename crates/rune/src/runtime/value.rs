@@ -851,11 +851,16 @@ impl Value {
                 vm_write!(f, "{:?}", value);
             }
             _ => {
+                // reborrow f to avoid moving it
                 let result =
-                    vm_try!(caller.call_protocol_fn(Protocol::STRING_DEBUG, self.clone(), (f,)));
+                    caller.call_protocol_fn(Protocol::STRING_DEBUG, self.clone(), (&mut *f,));
 
-                vm_try!(<()>::from_value(result));
-                return VmResult::Ok(());
+                if let VmResult::Ok(result) = result {
+                    vm_try!(<()>::from_value(result));
+                } else {
+                    let type_info = vm_try!(self.type_info());
+                    vm_write!(f, "<{} object at {:p}>", type_info, self.inner);
+                }
             }
         };
 
