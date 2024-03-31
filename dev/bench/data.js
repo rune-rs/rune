@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1711069149272,
+  "lastUpdate": 1711847086414,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -24725,6 +24725,94 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 591,
             "range": "± 6",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Tom Solberg",
+            "username": "tgolsson",
+            "email": "me@sbg.dev"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "fea782a7f52e20c38470777b7117a6ec51fe5963",
+          "message": "Fallback to debug-printing generic info (#682)\n\nCo-authored-by: John-John Tedro <udoprog@tedro.se>",
+          "timestamp": "2024-03-30T15:18:33Z",
+          "url": "https://github.com/rune-rs/rune/commit/fea782a7f52e20c38470777b7117a6ec51fe5963"
+        },
+        "date": 1711847085121,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 212839,
+            "range": "± 1667",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 716282,
+            "range": "± 3175",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 315166245,
+            "range": "± 7040472",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 180221699,
+            "range": "± 865106",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 903137,
+            "range": "± 9265",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 9584595,
+            "range": "± 141285",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 50736571,
+            "range": "± 454783",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 8002942,
+            "range": "± 122253",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 585316,
+            "range": "± 4204",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 6397424,
+            "range": "± 19917",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 655,
+            "range": "± 3",
             "unit": "ns/iter"
           }
         ]
