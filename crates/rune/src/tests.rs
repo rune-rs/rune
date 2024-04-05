@@ -428,6 +428,7 @@ mod compiler_warnings;
 mod continue_;
 mod core_macros;
 mod custom_macros;
+mod deprecation;
 mod derive_from_to_value;
 mod destructuring;
 mod esoteric_impls;

@@ -163,6 +163,9 @@ pub use self::vm::{CallFrame, Vm};
 mod vm_call;
 pub(crate) use self::vm_call::VmCall;
 
+pub(crate) mod vm_diagnostics;
+pub(crate) use self::vm_diagnostics::VmDiagnostics;
+
 mod vm_error;
 #[cfg(feature = "emit")]
 pub(crate) use self::vm_error::VmErrorAt;

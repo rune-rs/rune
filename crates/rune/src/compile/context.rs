@@ -4,7 +4,7 @@ use ::rust_alloc::sync::Arc;
 
 use crate as rune;
 use crate::alloc::prelude::*;
-use crate::alloc::{self, BTreeSet, Box, HashMap, HashSet, Vec};
+use crate::alloc::{self, BTreeSet, Box, HashMap, HashSet, String, Vec};
 use crate::compile::meta;
 #[cfg(feature = "doc")]
 use crate::compile::Docs;
@@ -95,6 +95,8 @@ pub struct Context {
     item_to_hash: HashMap<ItemBuf, BTreeSet<Hash>>,
     /// Registered native function handlers.
     functions: hash::Map<Arc<FunctionHandler>>,
+    /// Registered deprecation mesages for native functions.
+    deprecations: hash::Map<String>,
     /// Information on associated types.
     #[cfg(feature = "doc")]
     associated: HashMap<Hash, Vec<Hash>>,
@@ -291,7 +293,6 @@ impl Context {
     }
 
     /// Lookup meta by its hash.
-    #[cfg(feature = "doc")]
     pub(crate) fn lookup_meta_by_hash(
         &self,
         hash: Hash,
@@ -303,6 +304,11 @@ impl Context {
             .unwrap_or_default();
 
         indexes.iter().map(|&i| &self.meta[i])
+    }
+
+    /// Lookup deprecation by function hash.
+    pub fn lookup_deprecation(&self, hash: Hash) -> Option<&str> {
+        self.deprecations.get(&hash).map(|s| s.as_str())
     }
 
     /// Check if unit contains the given name by prefix.
@@ -454,7 +460,7 @@ impl Context {
                                 argument_types: Box::default(),
                             };
 
-                            self.insert_native_fn(hash, c)?;
+                            self.insert_native_fn(hash, c, None)?;
                             Some(signature)
                         }
                         None => None,
@@ -519,7 +525,7 @@ impl Context {
                                 argument_types: Box::default(),
                             };
 
-                            self.insert_native_fn(hash, c)?;
+                            self.insert_native_fn(hash, c, variant.deprecated.as_deref())?;
                             Some(signature)
                         } else {
                             None
@@ -644,7 +650,7 @@ impl Context {
                         .try_collect()?,
                 };
 
-                self.insert_native_fn(hash, &f.handler)?;
+                self.insert_native_fn(hash, &f.handler, module_item.common.deprecated.as_deref())?;
 
                 meta::Kind::Function {
                     associated: None,
@@ -708,7 +714,11 @@ impl Context {
                     })?;
 
                     let constructor = if let Some(constructor) = &variant.constructor {
-                        self.insert_native_fn(variant_hash, constructor)?;
+                        self.insert_native_fn(
+                            variant_hash,
+                            constructor,
+                            variant.deprecated.as_deref(),
+                        )?;
 
                         Some(meta::Signature {
                             #[cfg(feature = "doc")]
@@ -843,10 +853,10 @@ impl Context {
                         ConstValue::String(item.try_to_string()?),
                     )?;
 
-                    self.insert_native_fn(*hash, &f.handler)?;
+                    self.insert_native_fn(*hash, &f.handler, assoc.common.deprecated.as_deref())?;
                 }
 
-                self.insert_native_fn(hash, &f.handler)?;
+                self.insert_native_fn(hash, &f.handler, assoc.common.deprecated.as_deref())?;
 
                 meta::Kind::Function {
                     associated: Some(assoc.name.kind.try_clone()?),
@@ -881,12 +891,16 @@ impl Context {
         &mut self,
         hash: Hash,
         handler: &Arc<FunctionHandler>,
+        deprecation: Option<&str>,
     ) -> Result<(), ContextError> {
         if self.functions.contains_key(&hash) {
             return Err(ContextError::ConflictingFunction { hash });
         }
 
         self.functions.try_insert(hash, handler.clone())?;
+        if let Some(msg) = deprecation {
+            self.deprecations.try_insert(hash, msg.try_to_owned()?)?;
+        }
         Ok(())
     }
 

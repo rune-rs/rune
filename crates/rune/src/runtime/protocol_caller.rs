@@ -43,7 +43,7 @@ impl ProtocolCaller for EnvProtocolCaller {
     where
         A: GuardedArgs,
     {
-        return crate::runtime::env::with(|context, unit| {
+        return crate::runtime::env::with(|context, unit, _| {
             let count = args.count() + 1;
             let hash = Hash::associated_function(vm_try!(target.type_hash()), protocol.hash);
 

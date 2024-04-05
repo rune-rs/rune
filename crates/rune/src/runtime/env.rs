@@ -12,15 +12,20 @@ mod no_std;
 
 use ::rust_alloc::sync::Arc;
 
-use crate::runtime::{RuntimeContext, Unit, VmErrorKind, VmResult};
+use crate::runtime::vm_diagnostics::VmDiagnosticsObj;
+use crate::runtime::{RuntimeContext, Unit, VmDiagnostics, VmErrorKind, VmResult};
 
 /// Call the given closure with access to the checked environment.
 pub(crate) fn with<F, T>(c: F) -> VmResult<T>
 where
-    F: FnOnce(&Arc<RuntimeContext>, &Arc<Unit>) -> VmResult<T>,
+    F: FnOnce(&Arc<RuntimeContext>, &Arc<Unit>, &Option<VmDiagnosticsObj>) -> VmResult<T>,
 {
     let env = self::no_std::rune_env_get();
-    let Env { context, unit } = env;
+    let Env {
+        context,
+        unit,
+        diagnostics,
+    } = env;
 
     if context.is_null() || unit.is_null() {
         return VmResult::err(VmErrorKind::MissingInterfaceEnvironment);
@@ -29,7 +34,7 @@ where
     // Safety: context and unit can only be registered publicly through
     // [Guard], which makes sure that they are live for the duration of
     // the registration.
-    c(unsafe { &*context }, unsafe { &*unit })
+    c(unsafe { &*context }, unsafe { &*unit }, &diagnostics)
 }
 
 pub(crate) struct Guard {
@@ -42,8 +47,16 @@ impl Guard {
     /// # Safety
     ///
     /// The returned guard must be dropped before the pointed to elements are.
-    pub(crate) fn new(context: *const Arc<RuntimeContext>, unit: *const Arc<Unit>) -> Guard {
-        let old = self::no_std::rune_env_replace(Env { context, unit });
+    pub(crate) fn new(
+        context: *const Arc<RuntimeContext>,
+        unit: *const Arc<Unit>,
+        diagnostics: Option<&mut dyn VmDiagnostics>,
+    ) -> Guard {
+        let old = self::no_std::rune_env_replace(Env {
+            context,
+            unit,
+            diagnostics: diagnostics.map(VmDiagnosticsObj::new),
+        });
         Guard { old }
     }
 }
@@ -58,6 +71,7 @@ impl Drop for Guard {
 struct Env {
     context: *const Arc<RuntimeContext>,
     unit: *const Arc<Unit>,
+    diagnostics: Option<VmDiagnosticsObj>,
 }
 
 impl Env {
@@ -66,6 +80,7 @@ impl Env {
         Self {
             context: core::ptr::null(),
             unit: core::ptr::null(),
+            diagnostics: None,
         }
     }
 }

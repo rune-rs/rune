@@ -590,6 +590,7 @@ fn emit_scripts(
             Diagnostic::Warning(e) => {
                 report(build, reporter, e.source_id(), e, to_warning)?;
             }
+            Diagnostic::RuntimeWarning(_) => {}
         }
     }
 

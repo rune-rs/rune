@@ -14,9 +14,7 @@ use ::rust_alloc::sync::Arc;
 
 use crate as rune;
 use crate::alloc::prelude::*;
-#[cfg(feature = "doc")]
-use crate::alloc::Box;
-use crate::alloc::{self, Vec};
+use crate::alloc::{self, Box, Vec};
 use crate::compile::{meta, ContextError, Docs, Item, ItemBuf};
 use crate::runtime::{
     AttributeMacroHandler, ConstValue, FullTypeOf, FunctionHandler, MacroHandler, MaybeTypeOf,
@@ -82,7 +80,6 @@ impl InternalEnum {
             type_check: Some(type_check),
             fields: Some(Fields::Unnamed(C::args())),
             constructor: Some(constructor),
-            #[cfg(feature = "doc")]
             deprecated: None,
             docs: Docs::EMPTY,
         })?;
@@ -138,7 +135,7 @@ pub struct Variant {
     pub(crate) fields: Option<Fields>,
     /// Handler to use if this variant can be constructed through a regular function call.
     pub(crate) constructor: Option<Arc<FunctionHandler>>,
-    #[cfg(feature = "doc")]
+    /// Variant deprecation.
     pub(crate) deprecated: Option<Box<str>>,
     /// Variant documentation.
     pub(crate) docs: Docs,
@@ -151,7 +148,6 @@ impl Variant {
             type_check: None,
             fields: None,
             constructor: None,
-            #[cfg(feature = "doc")]
             deprecated: None,
             docs: Docs::EMPTY,
         }
@@ -232,7 +228,6 @@ pub(crate) struct ModuleItemCommon {
     /// Documentation for the item.
     pub(crate) docs: Docs,
     /// Deprecation marker for the item.
-    #[cfg(feature = "doc")]
     pub(crate) deprecated: Option<Box<str>>,
 }
 

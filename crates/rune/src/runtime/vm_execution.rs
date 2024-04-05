@@ -13,6 +13,8 @@ use crate::runtime::{
 };
 use crate::shared::AssertSend;
 
+use super::VmDiagnostics;
+
 /// The state of an execution. We keep track of this because it's important to
 /// correctly interact with functions that yield (like generators and streams)
 /// by initially just calling the function, then by providing a value pushed
@@ -181,6 +183,22 @@ where
         }
     }
 
+    /// Complete the current execution without support for async instructions.
+    ///
+    /// If any async instructions are encountered, this will error. This will
+    /// also error if the execution is suspended through yielding.
+    pub fn complete_with_diagnostics(
+        &mut self,
+        diagnostics: Option<&mut dyn VmDiagnostics>,
+    ) -> VmResult<Value> {
+        match vm_try!(self.resume_with_diagnostics(diagnostics)) {
+            GeneratorState::Complete(value) => VmResult::Ok(value),
+            GeneratorState::Yielded(..) => VmResult::err(VmErrorKind::Halted {
+                halt: VmHaltInfo::Yielded,
+            }),
+        }
+    }
+
     /// Resume the current execution with the given value and resume
     /// asynchronous execution.
     pub async fn async_resume_with(&mut self, value: Value) -> VmResult<GeneratorState> {
@@ -192,7 +210,7 @@ where
         }
 
         vm_try!(self.head.as_mut().stack_mut().push(value));
-        self.inner_async_resume().await
+        self.inner_async_resume(None).await
     }
 
     /// Resume the current execution with support for async instructions.
@@ -206,14 +224,40 @@ where
             self.state = ExecutionState::Resumed;
         }
 
-        self.inner_async_resume().await
+        self.inner_async_resume(None).await
     }
 
-    async fn inner_async_resume(&mut self) -> VmResult<GeneratorState> {
+    /// Resume the current execution with support for async instructions.
+    ///
+    /// If the function being executed is a generator or stream this will resume
+    /// it while returning a unit from the current `yield`.
+    pub async fn async_resume_with_diagnostics(
+        &mut self,
+        diagnostics: Option<&mut dyn VmDiagnostics>,
+    ) -> VmResult<GeneratorState> {
+        if matches!(self.state, ExecutionState::Resumed) {
+            vm_try!(self.head.as_mut().stack_mut().push(vm_try!(Value::empty())));
+        } else {
+            self.state = ExecutionState::Resumed;
+        }
+
+        self.inner_async_resume(diagnostics).await
+    }
+
+    async fn inner_async_resume(
+        &mut self,
+        mut diagnostics: Option<&mut dyn VmDiagnostics>,
+    ) -> VmResult<GeneratorState> {
         loop {
             let vm = self.head.as_mut();
 
-            match vm_try!(vm.run().with_vm(vm)) {
+            match vm_try!(vm
+                .run(match diagnostics {
+                    Some(ref mut value) => Some(&mut **value),
+                    None => None,
+                })
+                .with_vm(vm))
+            {
                 VmHalt::Exited => (),
                 VmHalt::Awaited(awaited) => {
                     vm_try!(awaited.into_vm(vm).await);
@@ -255,7 +299,7 @@ where
         }
 
         vm_try!(self.head.as_mut().stack_mut().push(value));
-        self.inner_resume()
+        self.inner_resume(None)
     }
 
     /// Resume the current execution without support for async instructions.
@@ -272,15 +316,44 @@ where
             self.state = ExecutionState::Resumed;
         }
 
-        self.inner_resume()
+        self.inner_resume(None)
     }
 
-    fn inner_resume(&mut self) -> VmResult<GeneratorState> {
+    /// Resume the current execution without support for async instructions.
+    ///
+    /// If the function being executed is a generator or stream this will resume
+    /// it while returning a unit from the current `yield`.
+    ///
+    /// If any async instructions are encountered, this will error.
+    #[tracing::instrument(skip_all)]
+    pub fn resume_with_diagnostics(
+        &mut self,
+        diagnostics: Option<&mut dyn VmDiagnostics>,
+    ) -> VmResult<GeneratorState> {
+        if matches!(self.state, ExecutionState::Resumed) {
+            vm_try!(self.head.as_mut().stack_mut().push(vm_try!(Value::empty())));
+        } else {
+            self.state = ExecutionState::Resumed;
+        }
+
+        self.inner_resume(diagnostics)
+    }
+
+    fn inner_resume(
+        &mut self,
+        mut diagnostics: Option<&mut dyn VmDiagnostics>,
+    ) -> VmResult<GeneratorState> {
         loop {
             let len = self.states.len();
             let vm = self.head.as_mut();
 
-            match vm_try!(vm.run().with_vm(vm)) {
+            match vm_try!(vm
+                .run(match diagnostics {
+                    Some(ref mut value) => Some(&mut **value),
+                    None => None,
+                })
+                .with_vm(vm))
+            {
                 VmHalt::Exited => (),
                 VmHalt::VmCall(vm_call) => {
                     vm_try!(vm_call.into_execution(self));
@@ -314,7 +387,7 @@ where
         let len = self.states.len();
         let vm = self.head.as_mut();
 
-        match vm_try!(budget::with(1, || vm.run().with_vm(vm)).call()) {
+        match vm_try!(budget::with(1, || vm.run(None).with_vm(vm)).call()) {
             VmHalt::Exited => (),
             VmHalt::VmCall(vm_call) => {
                 vm_try!(vm_call.into_execution(self));
@@ -342,7 +415,7 @@ where
     pub async fn async_step(&mut self) -> VmResult<Option<Value>> {
         let vm = self.head.as_mut();
 
-        match vm_try!(budget::with(1, || vm.run().with_vm(vm)).call()) {
+        match vm_try!(budget::with(1, || vm.run(None).with_vm(vm)).call()) {
             VmHalt::Exited => (),
             VmHalt::Awaited(awaited) => {
                 vm_try!(awaited.into_vm(vm).await);
@@ -446,6 +519,31 @@ impl VmSendExecution {
     pub fn async_complete(mut self) -> impl Future<Output = VmResult<Value>> + Send + 'static {
         let future = async move {
             let result = vm_try!(self.0.async_resume().await);
+
+            match result {
+                GeneratorState::Complete(value) => VmResult::Ok(value),
+                GeneratorState::Yielded(..) => VmResult::err(VmErrorKind::Halted {
+                    halt: VmHaltInfo::Yielded,
+                }),
+            }
+        };
+
+        // Safety: we wrap all APIs around the [VmExecution], preventing values
+        // from escaping from contained virtual machine.
+        unsafe { AssertSend::new(future) }
+    }
+
+    /// Complete the current execution with support for async instructions.
+    ///
+    /// This requires that the result of the Vm is converted into a
+    /// [crate::FromValue] that also implements [Send],  which prevents non-Send
+    /// values from escaping from the virtual machine.
+    pub fn async_complete_with_diagnostics(
+        mut self,
+        diagnostics: Option<&mut dyn VmDiagnostics>,
+    ) -> impl Future<Output = VmResult<Value>> + Send + '_ {
+        let future = async move {
+            let result = vm_try!(self.0.async_resume_with_diagnostics(diagnostics).await);
 
             match result {
                 GeneratorState::Complete(value) => VmResult::Ok(value),

@@ -1,12 +1,13 @@
 use core::fmt;
 
+use crate::alloc::String;
 use crate::ast::Span;
 use crate::ast::Spanned;
 use crate::SourceId;
 
 /// Warning diagnostic emitted during compilation. Warning diagnostics indicates
 /// an recoverable issues.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct WarningDiagnostic {
     /// The id of the source where the warning happened.
     pub(crate) source_id: SourceId,
@@ -38,6 +39,7 @@ impl WarningDiagnostic {
             WarningDiagnosticKind::LetPatternMightPanic { context, .. }
             | WarningDiagnosticKind::RemoveTupleCallParams { context, .. }
             | WarningDiagnosticKind::NotUsed { context, .. }
+            | WarningDiagnosticKind::UsedDeprecated { context, .. }
             | WarningDiagnosticKind::TemplateWithoutExpansions { context, .. } => *context,
             WarningDiagnosticKind::UnnecessarySemiColon { .. } => None,
         }
@@ -53,6 +55,7 @@ impl Spanned for WarningDiagnostic {
             WarningDiagnosticKind::TemplateWithoutExpansions { span, .. } => *span,
             WarningDiagnosticKind::RemoveTupleCallParams { span, .. } => *span,
             WarningDiagnosticKind::UnnecessarySemiColon { span, .. } => *span,
+            WarningDiagnosticKind::UsedDeprecated { span, .. } => *span,
         }
     }
 }
@@ -74,7 +77,7 @@ cfg_std! {
 }
 
 /// The kind of a [WarningDiagnostic].
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 #[allow(missing_docs)]
 #[non_exhaustive]
 pub enum WarningDiagnosticKind {
@@ -114,6 +117,14 @@ pub enum WarningDiagnosticKind {
         /// Span where the semi-colon is.
         span: Span,
     },
+    UsedDeprecated {
+        /// The span which is deprecated
+        span: Span,
+        /// The context in which it is used.
+        context: Option<Span>,
+        /// The defined deprecation message
+        message: String,
+    },
 }
 
 impl fmt::Display for WarningDiagnosticKind {
@@ -132,6 +143,9 @@ impl fmt::Display for WarningDiagnosticKind {
             }
             WarningDiagnosticKind::UnnecessarySemiColon { .. } => {
                 write!(f, "Unnecessary semicolon")
+            }
+            WarningDiagnosticKind::UsedDeprecated { .. } => {
+                write!(f, "Used deprecated function")
             }
         }
     }

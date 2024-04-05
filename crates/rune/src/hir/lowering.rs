@@ -1803,7 +1803,16 @@ fn expr_call<'hir>(
                             )?;
                         }
                     }
-                    meta::Kind::Function { .. } => (),
+                    meta::Kind::Function { .. } => {
+                        if let Some(message) = cx.q.lookup_deprecation(meta.hash) {
+                            cx.q.diagnostics.used_deprecated(
+                                cx.source_id,
+                                &expr.span,
+                                None,
+                                message.try_into()?,
+                            )?;
+                        };
+                    }
                     meta::Kind::ConstFn { id, .. } => {
                         let id = *id;
                         let from = cx.q.item_for(ast.id).with_span(ast)?;

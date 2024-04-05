@@ -36,11 +36,15 @@ mod fatal;
 pub use self::warning::{WarningDiagnostic, WarningDiagnosticKind};
 mod warning;
 
+pub use self::runtime_warning::{RuntimeWarningDiagnostic, RuntimeWarningDiagnosticKind};
+mod runtime_warning;
+
 use ::rust_alloc::boxed::Box;
+use rune_alloc::String;
 
 use crate::alloc::{self, Vec};
 use crate::ast::{Span, Spanned};
-use crate::SourceId;
+use crate::{Hash, SourceId};
 
 cfg_emit! {
     mod emit;
@@ -56,6 +60,8 @@ pub enum Diagnostic {
     Fatal(FatalDiagnostic),
     /// A warning diagnostic.
     Warning(WarningDiagnostic),
+    /// A runtime warning diagnostic.
+    RuntimeWarning(RuntimeWarningDiagnostic),
 }
 
 /// The diagnostics mode to use.
@@ -278,6 +284,29 @@ impl Diagnostics {
         )
     }
 
+    /// Add a warning about using a deprecated function
+    pub(crate) fn used_deprecated(
+        &mut self,
+        source_id: SourceId,
+        span: &dyn Spanned,
+        context: Option<Span>,
+        message: String,
+    ) -> alloc::Result<()> {
+        self.warning(
+            source_id,
+            WarningDiagnosticKind::UsedDeprecated {
+                span: span.span(),
+                context,
+                message,
+            },
+        )
+    }
+
+    /// Add a warning about using a deprecated function
+    pub(crate) fn runtime_used_deprecated(&mut self, ip: usize, hash: Hash) -> alloc::Result<()> {
+        self.runtime_warning(ip, RuntimeWarningDiagnosticKind::UsedDeprecated { hash })
+    }
+
     /// Push a warning to the collection of diagnostics.
     pub(crate) fn warning<T>(&mut self, source_id: SourceId, kind: T) -> alloc::Result<()>
     where
@@ -290,6 +319,25 @@ impl Diagnostics {
         self.diagnostics
             .try_push(Diagnostic::Warning(WarningDiagnostic {
                 source_id,
+                kind: kind.into(),
+            }))?;
+
+        self.has_warning = true;
+        Ok(())
+    }
+
+    /// Push a runtime warning to the collection of diagnostics.
+    pub(crate) fn runtime_warning<T>(&mut self, ip: usize, kind: T) -> alloc::Result<()>
+    where
+        RuntimeWarningDiagnosticKind: From<T>,
+    {
+        if !self.mode.warnings() {
+            return Ok(());
+        }
+
+        self.diagnostics
+            .try_push(Diagnostic::RuntimeWarning(RuntimeWarningDiagnostic {
+                ip,
                 kind: kind.into(),
             }))?;
 
