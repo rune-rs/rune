@@ -22,6 +22,8 @@ use crate::runtime::{
     VmSendExecution,
 };
 
+use super::VmDiagnostics;
+
 /// Small helper function to build errors.
 fn err<T, E>(error: E) -> VmResult<T>
 where
@@ -442,6 +444,49 @@ impl Vm {
         Ok(value)
     }
 
+    /// Call the given function immediately, returning the produced value.
+    ///
+    /// This function permits for using references since it doesn't defer its
+    /// execution.
+    ///
+    /// # Panics
+    ///
+    /// If any of the arguments passed in are references, and that references is
+    /// captured somewhere in the call as [`Mut<T>`] or [`Ref<T>`]
+    /// this call will panic as we are trying to free the metadata relatedc to
+    /// the reference.
+    ///
+    /// [`Mut<T>`]: crate::runtime::Mut
+    /// [`Ref<T>`]: crate::runtime::Ref
+    pub fn call_with_diagnostics(
+        &mut self,
+        name: impl ToTypeHash,
+        args: impl GuardedArgs,
+        diagnostics: Option<&mut dyn VmDiagnostics>,
+    ) -> Result<Value, VmError> {
+        self.set_entrypoint(name, args.count())?;
+
+        // Safety: We hold onto the guard until the vm has completed and
+        // `VmExecution` will clear the stack before this function returns.
+        // Erronously or not.
+        let guard = unsafe { args.unsafe_into_stack(&mut self.stack).into_result()? };
+
+        let value = {
+            // Clearing the stack here on panics has safety implications - see
+            // above.
+            let vm = ClearStack(self);
+            VmExecution::new(&mut *vm.0)
+                .complete_with_diagnostics(diagnostics)
+                .into_result()?
+        };
+
+        // Note: this might panic if something in the vm is holding on to a
+        // reference of the value. We should prevent it from being possible to
+        // take any owned references to values held by this.
+        drop(guard);
+        Ok(value)
+    }
+
     /// Call the given function immediately asynchronously, returning the
     /// produced value.
     ///
@@ -556,6 +601,7 @@ impl Vm {
         }
 
         if let Some(handler) = self.context.function(hash) {
+            vm_try!(self.called_function_hook(hash));
             vm_try!(self.stack.push(target));
             // Safety: We hold onto the guard for the duration of this call.
             let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut self.stack)) };
@@ -564,6 +610,15 @@ impl Vm {
         }
 
         VmResult::Ok(CallResult::Unsupported(target))
+    }
+
+    fn called_function_hook(&self, hash: Hash) -> VmResult<()> {
+        crate::runtime::env::with(|_, _, diagnostics| {
+            if let Some(mut diagnostics) = diagnostics {
+                vm_try!(diagnostics.function_used(hash, self.ip()))
+            }
+            VmResult::Ok(())
+        })
     }
 
     /// Helper to call a field function.
@@ -583,6 +638,8 @@ impl Vm {
         let hash = Hash::field_function(protocol, vm_try!(target.type_hash()), name);
 
         if let Some(handler) = self.context.function(hash) {
+            #[cfg(feature = "std")]
+            vm_try!(self.called_function_hook(hash));
             vm_try!(self.stack.push(target));
             let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut self.stack)) };
             vm_try!(handler(&mut self.stack, count));
@@ -2919,6 +2976,7 @@ impl Vm {
         }
 
         if let Some(handler) = self.context.function(hash) {
+            vm_try!(self.called_function_hook(hash));
             vm_try!(handler(&mut self.stack, args));
             return VmResult::Ok(());
         }
@@ -3007,15 +3065,15 @@ impl Vm {
     where
         F: FnOnce() -> T,
     {
-        let _guard = crate::runtime::env::Guard::new(&self.context, &self.unit);
+        let _guard = crate::runtime::env::Guard::new(&self.context, &self.unit, None);
         f()
     }
 
     /// Evaluate a single instruction.
-    pub(crate) fn run(&mut self) -> VmResult<VmHalt> {
+    pub(crate) fn run(&mut self, diagnostics: Option<&mut dyn VmDiagnostics>) -> VmResult<VmHalt> {
         // NB: set up environment so that native function can access context and
         // unit.
-        let _guard = crate::runtime::env::Guard::new(&self.context, &self.unit);
+        let _guard = crate::runtime::env::Guard::new(&self.context, &self.unit, diagnostics);
 
         loop {
             if !budget::take() {

@@ -15,10 +15,13 @@ use crate::alloc::{self, String};
 use crate::ast::{Span, Spanned};
 use crate::compile::{ErrorKind, LinkerError, Location};
 use crate::diagnostics::{
-    Diagnostic, FatalDiagnostic, FatalDiagnosticKind, WarningDiagnostic, WarningDiagnosticKind,
+    Diagnostic, FatalDiagnostic, FatalDiagnosticKind, RuntimeWarningDiagnostic,
+    RuntimeWarningDiagnosticKind, WarningDiagnostic, WarningDiagnosticKind,
 };
 use crate::hash::Hash;
+use crate::runtime::DebugInfo;
 use crate::runtime::{DebugInst, Protocol, Unit, VmError, VmErrorAt, VmErrorKind};
+use crate::Context;
 use crate::{Diagnostics, Source, SourceId, Sources};
 
 struct StackFrame {
@@ -101,6 +104,48 @@ impl Diagnostics {
                 }
                 Diagnostic::Warning(w) => {
                     warning_diagnostics_emit(w, out, sources, &config)?;
+                }
+                Diagnostic::RuntimeWarning(w) => {
+                    runtime_warning_diagnostics_emit(w, out, sources, &config, None, None)?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Generate formatted diagnostics capable of referencing source lines and
+    /// hints.
+    ///
+    /// See [prepare][crate::prepare] for how to use.
+    pub fn emit_detailed<O>(
+        &self,
+        out: &mut O,
+        sources: &Sources,
+        debug_info: Option<&DebugInfo>,
+        context: Option<&Context>,
+    ) -> Result<(), EmitError>
+    where
+        O: WriteColor,
+    {
+        if self.is_empty() {
+            return Ok(());
+        }
+
+        let config = term::Config::default();
+
+        for diagnostic in self.diagnostics() {
+            match diagnostic {
+                Diagnostic::Fatal(e) => {
+                    fatal_diagnostics_emit(e, out, sources, &config)?;
+                }
+                Diagnostic::Warning(w) => {
+                    warning_diagnostics_emit(w, out, sources, &config)?;
+                }
+                Diagnostic::RuntimeWarning(w) => {
+                    runtime_warning_diagnostics_emit(
+                        w, out, sources, &config, debug_info, context,
+                    )?;
                 }
             }
         }
@@ -300,6 +345,26 @@ impl WarningDiagnostic {
     }
 }
 
+impl RuntimeWarningDiagnostic {
+    /// Generate formatted diagnostics capable of referencing source lines and
+    /// hints.
+    ///
+    /// See [prepare][crate::prepare] for how to use.
+    pub fn emit<O>(
+        &self,
+        out: &mut O,
+        sources: &Sources,
+        debug_info: Option<&DebugInfo>,
+        context: Option<&Context>,
+    ) -> Result<(), EmitError>
+    where
+        O: WriteColor,
+    {
+        let config = term::Config::default();
+        runtime_warning_diagnostics_emit(self, out, sources, &config, debug_info, context)
+    }
+}
+
 impl Unit {
     /// Dump instructions in a human readable manner.
     pub fn emit_instructions<O>(
@@ -463,6 +528,63 @@ where
 
     let diagnostic = d::Diagnostic::warning()
         .with_message("Warning")
+        .with_labels(labels)
+        .with_notes(notes);
+
+    term::emit(out, config, sources, &diagnostic)?;
+    Ok(())
+}
+
+/// Helper to emit diagnostics for a runtime warning.
+fn runtime_warning_diagnostics_emit<O>(
+    this: &RuntimeWarningDiagnostic,
+    out: &mut O,
+    sources: &Sources,
+    config: &term::Config,
+    debug_info: Option<&DebugInfo>,
+    context: Option<&Context>,
+) -> Result<(), EmitError>
+where
+    O: WriteColor,
+{
+    let mut notes = ::rust_alloc::vec::Vec::new();
+    let mut labels = ::rust_alloc::vec::Vec::new();
+    let mut message = String::new();
+
+    match this.kind {
+        RuntimeWarningDiagnosticKind::UsedDeprecated { hash } => {
+            // try to get the function name - this needs to be improved
+            let name = match context
+                .map(|c| c.lookup_meta_by_hash(hash))
+                .and_then(|m| m.into_iter().next())
+                .and_then(|e| e.item.as_ref())
+            {
+                Some(e) => e.try_to_string()?,
+                None => hash.try_to_string()?,
+            };
+            writeln!(message, "Used deprecated function: {}", name)?;
+
+            // Deprecation message if it's availble
+            if let Some(context) = context {
+                if let Some(deprecation) = context.lookup_deprecation(hash) {
+                    let mut note = String::new();
+                    writeln!(note, "Deprecated: {}", deprecation)?;
+                    notes.push(note.into_std());
+                }
+            }
+
+            // Show the span, where the problem occoured
+            if let Some(inst) = debug_info.and_then(|d| d.instruction_at(this.ip)) {
+                labels.push(
+                    d::Label::primary(inst.source_id, inst.span.range())
+                        .with_message(this.try_to_string()?),
+                );
+            }
+        }
+    };
+
+    let diagnostic = d::Diagnostic::warning()
+        .with_message(message)
         .with_labels(labels)
         .with_notes(notes);
 

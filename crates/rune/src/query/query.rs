@@ -129,7 +129,7 @@ pub(crate) struct Query<'a, 'arena> {
     pub(crate) diagnostics: &'a mut Diagnostics,
     /// Source loader.
     pub(crate) source_loader: &'a mut dyn SourceLoader,
-    /// Build opt8ions.
+    /// Build options.
     pub(crate) options: &'a Options,
     /// Shared id generator.
     pub(crate) gen: &'a Gen,
@@ -415,6 +415,10 @@ impl<'a, 'arena> Query<'a, 'arena> {
         };
 
         Err(compile::Error::new(location.as_spanned(), kind))
+    }
+
+    pub(crate) fn lookup_deprecation(&self, hash: Hash) -> Option<&str> {
+        self.context.lookup_deprecation(hash)
     }
 
     /// Insert path information.

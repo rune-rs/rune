@@ -474,7 +474,6 @@ impl Module {
             types_hash: HashMap::new(),
             common: ModuleItemCommon {
                 docs: Docs::EMPTY,
-                #[cfg(feature = "doc")]
                 deprecated: None,
             },
         }
@@ -554,7 +553,6 @@ impl Module {
             item,
             common: ModuleItemCommon {
                 docs: Docs::EMPTY,
-                #[cfg(feature = "doc")]
                 deprecated: None,
             },
             hash,
@@ -883,7 +881,6 @@ impl Module {
             item,
             common: ModuleItemCommon {
                 docs: Docs::EMPTY,
-                #[cfg(feature = "doc")]
                 deprecated: None,
             },
             kind: ModuleItemKind::Constant(value),
@@ -924,7 +921,6 @@ impl Module {
             name: associated.name,
             common: ModuleItemCommon {
                 docs: Docs::EMPTY,
-                #[cfg(feature = "doc")]
                 deprecated: None,
             },
             kind: ModuleAssociatedKind::Constant(value),
@@ -1001,7 +997,6 @@ impl Module {
                     item: data.item,
                     common: ModuleItemCommon {
                         docs,
-                        #[cfg(feature = "doc")]
                         deprecated: None,
                     },
                     kind: ModuleItemKind::Macro(ModuleMacro {
@@ -1028,7 +1023,6 @@ impl Module {
                     item: data.item,
                     common: ModuleItemCommon {
                         docs,
-                        #[cfg(feature = "doc")]
                         deprecated: None,
                     },
                     kind: ModuleItemKind::AttributeMacro(ModuleAttributeMacro {
@@ -1160,7 +1154,6 @@ impl Module {
             item,
             common: ModuleItemCommon {
                 docs: Docs::EMPTY,
-                #[cfg(feature = "doc")]
                 deprecated: None,
             },
             kind: ModuleItemKind::AttributeMacro(ModuleAttributeMacro { handler }),
@@ -1743,11 +1736,7 @@ impl Module {
 
         self.items.try_push(ModuleItem {
             item: data.item,
-            common: ModuleItemCommon {
-                docs,
-                #[cfg(feature = "doc")]
-                deprecated,
-            },
+            common: ModuleItemCommon { docs, deprecated },
             kind: ModuleItemKind::Function(ModuleFunction {
                 handler: data.handler,
                 #[cfg(feature = "doc")]
@@ -1797,11 +1786,7 @@ impl Module {
             container: data.associated.container,
             container_type_info: data.associated.container_type_info,
             name: data.associated.name,
-            common: ModuleItemCommon {
-                docs,
-                #[cfg(feature = "doc")]
-                deprecated,
-            },
+            common: ModuleItemCommon { docs, deprecated },
             kind: ModuleAssociatedKind::Function(ModuleFunction {
                 handler: data.handler,
                 #[cfg(feature = "doc")]

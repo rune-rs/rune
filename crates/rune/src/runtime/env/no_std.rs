@@ -32,6 +32,7 @@ unsafe fn from_env(env: Env) -> RawEnv {
     RawEnv {
         context: env.context as *const _,
         unit: env.unit as *const _,
+        diagnostics: env.diagnostics,
     }
 }
 
@@ -39,5 +40,6 @@ unsafe fn from_raw_env(env: RawEnv) -> Env {
     Env {
         context: env.context as *const _,
         unit: env.unit as *const _,
+        diagnostics: env.diagnostics,
     }
 }
