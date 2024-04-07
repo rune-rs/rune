@@ -184,7 +184,7 @@ pub mod alloc;
 #[cfg(test)]
 pub(crate) mod testing;
 
-/// Helper prelude for #[no_std] support.
+/// Helper prelude for `#[no_std]` support.
 pub mod no_std;
 
 #[macro_use]
@@ -200,6 +200,7 @@ pub mod ast;
 pub mod fmt;
 
 cfg_emit! {
+    #[doc(inline)]
     pub use ::codespan_reporting::term::termcolor;
 }
 
@@ -243,15 +244,18 @@ pub mod parse;
 pub mod query;
 
 pub mod runtime;
+#[doc(inline)]
 pub use self::runtime::{from_value, to_value, FromValue, ToValue, Unit, Value, Vm};
 
 mod shared;
 
 pub mod source;
+#[doc(inline)]
 pub use self::source::Source;
 
 #[macro_use]
 mod sources;
+#[doc(inline)]
 pub use self::sources::{SourceId, Sources};
 
 mod worker;
