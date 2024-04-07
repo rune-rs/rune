@@ -56,26 +56,62 @@ use crate::hash::Hash;
 /// ```
 pub use rune_macros::Any;
 
-/// A trait which can be stored inside of an [AnyObj](crate::runtime::AnyObj).
+/// Derive for types which can be used inside of Rune.
 ///
-/// We use our own marker trait that must be explicitly derived to prevent other
-/// VM native types (like strings) which also implement `std::any::Any` from
-/// being stored as an `AnyObj`.
+/// Rune only supports two types, *built-in* types [`String`] and *external*
+/// types which derive `Any`. Before they can be used they must be registered in
+/// [`Context::install`] through a [`Module`].
 ///
-/// This means, that only types which derive `Any` can be used inside of the VM:
+/// This is typically used in combination with declarative macros to register
+/// functions and macros, such as:
+///
+/// * [`#[rune::function]`]
+/// * [`#[rune::macro_]`]
+///
+/// [`AnyObj`]: crate::runtime::AnyObj
+/// [`Context::install`]: crate::Context::install
+/// [`Module`]: crate::Module
+/// [`String`]: std::string::String
+/// [`#[rune::function]`]: crate::function
+/// [`#[rune::macro_]`]: crate::macro_
+///
+/// # Examples
 ///
 /// ```
 /// use rune::Any;
 ///
 /// #[derive(Any)]
 /// struct Npc {
-///     name: String,
+///     #[rune(get)]
+///     health: u32,
+/// }
+///
+/// impl Npc {
+///     /// Construct a new NPC.
+///     #[rune::function(path = Self::new)]
+///     fn new(health: u32) -> Self {
+///         Self {
+///             health
+///         }
+///     }
+///
+///     /// Damage the NPC with the given `amount`.
+///     #[rune::function]
+///     fn damage(&mut self, amount: u32) {
+///         self.health -= amount;
+///     }
+/// }
+///
+/// fn install() -> Result<rune::Module, rune::ContextError> {
+///     let mut module = rune::Module::new();
+///     module.ty::<Npc>()?;
+///     module.function_meta(Npc::new)?;
+///     module.function_meta(Npc::damage)?;
+///     Ok(module)
 /// }
 /// ```
 pub trait Any: Named + any::Any {
     /// The type hash of the type.
-    ///
-    /// TODO: make const field when `TypeId::of` is const.
     fn type_hash() -> Hash;
 }
 
