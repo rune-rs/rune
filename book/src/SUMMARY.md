@@ -27,6 +27,8 @@
 - [Closures](./closures.md)
 - [Asynchronous programming](./async.md)
   - [Streams](./streams.md)
+- [Multithreading](./multithreading.md)
+- [Hot reloading](./hot_reloading.md)
 - [Macros](./macros.md)
 - [Advanced](./advanced.md)
   - [Safety](./safety.md)

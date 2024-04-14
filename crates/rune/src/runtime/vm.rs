@@ -106,6 +106,14 @@ pub struct Vm {
 
 impl Vm {
     /// Construct a new virtual machine.
+    ///
+    /// Constructing a virtual machine is a cheap constant-time operation.
+    ///
+    /// See [`unit_mut`] and [`context_mut`] documentation for information on
+    /// how to re-use existing [`Vm`]'s.
+    ///
+    /// [`unit_mut`]: Vm::unit_mut
+    /// [`context_mut`]: Vm::context_mut
     pub const fn new(context: Arc<RuntimeContext>, unit: Arc<Unit>) -> Self {
         Self::with_stack(context, unit, Stack::new())
     }
@@ -169,6 +177,19 @@ impl Vm {
     }
 
     /// Access the context related to the virtual machine mutably.
+    ///
+    /// Note that this can be used to swap out the [`RuntimeContext`] associated
+    /// with the running vm. Note that this is only necessary if the underlying
+    /// [`Context`] is different or has been modified. In contrast to
+    /// constructing a [`new`] vm, this allows for amortised re-use of any
+    /// allocations.
+    ///
+    /// After doing this, it's important to call [`clear`] to clean up any
+    /// residual state.
+    ///
+    /// [`clear`]: Vm::clear
+    /// [`Context`]: crate::Context
+    /// [`new`]: Vm::new
     #[inline]
     pub fn context_mut(&mut self) -> &mut Arc<RuntimeContext> {
         &mut self.context
@@ -180,7 +201,17 @@ impl Vm {
         &self.context
     }
 
-    /// Access the underlying unit of the virtual machine mutablys.
+    /// Access the underlying unit of the virtual machine mutably.
+    ///
+    /// Note that this can be used to swap out the [`Unit`] of execution in the
+    /// running vm. In contrast to constructing a [`new`] vm, this allows for
+    /// amortised re-use of any allocations.
+    ///
+    /// After doing this, it's important to call [`clear`] to clean up any
+    /// residual state.
+    ///
+    /// [`clear`]: Vm::clear
+    /// [`new`]: Vm::new
     #[inline]
     pub fn unit_mut(&mut self) -> &mut Arc<Unit> {
         &mut self.unit
