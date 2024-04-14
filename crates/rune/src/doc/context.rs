@@ -12,7 +12,7 @@ pub(crate) enum MetaSource<'a> {
     /// Meta came from context.
     Context,
     /// Meta came from source.
-    Source(&'a Item),
+    Source(#[allow(unused)] &'a Item),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -94,7 +94,7 @@ pub(crate) enum Kind<'a> {
     Enum,
     Macro,
     Function(Function<'a>),
-    Const(&'a ConstValue),
+    Const(#[allow(unused)] &'a ConstValue),
     Module,
 }
 
