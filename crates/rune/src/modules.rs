@@ -21,7 +21,6 @@ pub mod future;
 pub mod generator;
 pub mod hash;
 pub mod i64;
-#[cfg(feature = "std")]
 pub mod io;
 pub mod iter;
 pub mod macros;

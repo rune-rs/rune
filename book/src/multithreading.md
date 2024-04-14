@@ -14,11 +14,6 @@ used by multiple threads simultaneously through `Arc<Unit>` and
 `Arc<RuntimeContext>`. Constructing a `Vm` with these through `Vm::new` is a
 very cheap operation.
 
-> `Vm`'s do allocate a stack, to avoid this you'd have to employ even more
-> advanced techniques, such as storing the virtual machine in a thread local and
-> using it by swapping out the `Unit` and `RuntimeContext` associated with it
-> through [`Vm::unit_mut`] and [`Vm::context_mut`] respectively.
-
 ```rust
 let unit: Arc<Unit> = /* todo */;
 let context: Arc<RuntimeContext> = /* todo */;
@@ -30,18 +25,24 @@ std::thread::spawn(move || {
 });
 ```
 
+> Virtual machines do allocate memory. To this overhead too you'd have to employ
+> more advanced techniques, such as storing virtual machines in a pool or thread
+> locals. Once a machine has been acquired the `Unit` and `RuntimeContext`
+> associated with it can be swapped out to the ones you need using
+> [`Vm::unit_mut`] and [`Vm::context_mut`] respectively.
+
 Using [`Vm::send_execute`] is a way to assert that a given execution is thread
 safe. And allows you to use Rune in asynchronous multithreaded environments,
 such as Tokio. This is achieved by ensuring that all captured arguments are
 [`ConstValue`]'s, which in contrast to [`Value`]'s are guaranteed to be
 thread-safe:
 
-```
+```rust
 {{#include ../../examples/examples/tokio_spawn.rs}}
 ```
 
 Finally [`Function::into_sync`] exists to coerce a function into a
-[`SyncFunction], which is a thread-safe variant of a regular [`Function`]. This
+[`SyncFunction`], which is a thread-safe variant of a regular [`Function`]. This
 is a fallible operation since all values which are captured in the function-type
 in case its a closure has to be coerced to [`ConstValue`]. If this is not the
 case, the conversion will fail.

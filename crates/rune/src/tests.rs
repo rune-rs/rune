@@ -409,6 +409,7 @@ mod bug_422;
 mod bug_428;
 mod bug_454;
 mod bugfixes;
+mod builtin_macros;
 mod capture;
 mod char;
 mod collections;

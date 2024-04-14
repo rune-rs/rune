@@ -125,7 +125,7 @@ pub trait ToTokens {
     /// Turn the current item into tokens.
     fn to_tokens(
         &self,
-        context: &mut MacroContext<'_, '_, '_>,
+        cx: &mut MacroContext<'_, '_, '_>,
         stream: &mut TokenStream,
     ) -> alloc::Result<()>;
 }

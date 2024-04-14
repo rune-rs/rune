@@ -1,18 +1,25 @@
 //! I/O functions.
 
+#[cfg(feature = "std")]
 use std::io::{self, Write as _};
 
 use crate as rune;
+#[cfg(feature = "std")]
 use crate::alloc::fmt::TryWrite;
 use crate::compile;
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
-use crate::runtime::{Formatter, Panic, Stack, Value, VmResult};
+#[cfg(feature = "std")]
+use crate::runtime::{Formatter, VmResult};
+#[cfg(feature = "std")]
+use crate::runtime::{Panic, Stack, Value};
 use crate::{ContextError, Module};
 
 /// I/O functions.
 #[rune::module(::std::io)]
-pub fn module(stdio: bool) -> Result<Module, ContextError> {
+pub fn module(
+    #[cfg_attr(not(feature = "std"), allow(unused))] stdio: bool,
+) -> Result<Module, ContextError> {
     let mut module = Module::from_meta(self::module_meta)?.with_unique("std::io");
 
     module.item_mut().docs([
@@ -31,9 +38,12 @@ pub fn module(stdio: bool) -> Result<Module, ContextError> {
         "to be hooked up to whatever system you want.",
     ])?;
 
+    #[cfg(feature = "std")]
     module.ty::<io::Error>()?;
+    #[cfg(feature = "std")]
     module.function_meta(io_error_string_display)?;
 
+    #[cfg(feature = "std")]
     if stdio {
         module.function_meta(print_impl)?;
         module.function_meta(println_impl)?;
@@ -68,11 +78,13 @@ pub fn module(stdio: bool) -> Result<Module, ContextError> {
 }
 
 #[rune::function(instance, protocol = STRING_DISPLAY)]
+#[cfg(feature = "std")]
 fn io_error_string_display(error: &io::Error, f: &mut Formatter) -> VmResult<()> {
-    vm_write!(f, "{}", error);
+    vm_write!(f, "{error}");
     VmResult::Ok(())
 }
 
+#[cfg(feature = "std")]
 fn dbg_impl(stack: &mut Stack, args: usize) -> VmResult<()> {
     let stdout = io::stdout();
     let mut stdout = stdout.lock();
@@ -147,6 +159,7 @@ pub(crate) fn print_macro(
 /// print("Hi!");
 /// ```
 #[rune::function(path = print)]
+#[cfg(feature = "std")]
 fn print_impl(m: &str) -> VmResult<()> {
     let stdout = io::stdout();
     let mut stdout = stdout.lock();
@@ -192,6 +205,7 @@ pub(crate) fn println_macro(
 /// println("Hi!");
 /// ```
 #[rune::function(path = println)]
+#[cfg(feature = "std")]
 fn println_impl(message: &str) -> VmResult<()> {
     let stdout = io::stdout();
     let mut stdout = stdout.lock();

@@ -5,7 +5,7 @@ use crate::alloc::prelude::*;
 use crate::alloc::{self, BTreeMap, BTreeSet, Box, HashMap, String, Vec};
 use crate::ast::{self, Span, Spanned};
 use crate::compile::{self, WithSpan};
-use crate::macros::{quote, MacroContext, Quote};
+use crate::macros::{quote, MacroContext, Quote, ToTokens, TokenStream};
 use crate::parse::{Parse, Parser, Peek, Peeker};
 use crate::runtime::format;
 use crate::runtime::ValueKind;
@@ -49,14 +49,11 @@ impl FormatArgs {
             }
         }
 
-        let format = match format.take_kind().with_span(&self.format)? {
-            ValueKind::String(string) => string,
-            _ => {
-                return Err(compile::Error::msg(
-                    &self.format,
-                    "format argument must be a string",
-                ));
-            }
+        let ValueKind::String(format) = format.take_kind().with_span(&self.format)? else {
+            return Err(compile::Error::msg(
+                &self.format,
+                "format argument must be a string",
+            ));
         };
 
         let mut unused_pos = (0..pos.len()).try_collect::<BTreeSet<_>>()?;
@@ -65,7 +62,7 @@ impl FormatArgs {
             .map(|(key, n)| Ok::<_, alloc::Error>((key.try_clone()?, n.span())))
             .try_collect::<alloc::Result<BTreeMap<_, _>>>()??;
 
-        let expanded = match expand_format_spec(
+        let result = expand_format_spec(
             cx,
             self.format.span(),
             &format,
@@ -73,11 +70,11 @@ impl FormatArgs {
             &mut unused_pos,
             &named,
             &mut unused_named,
-        ) {
+        );
+
+        let expanded = match result {
             Ok(expanded) => expanded,
-            Err(message) => {
-                return Err(compile::Error::msg(self.format.span(), message));
-            }
+            Err(message) => return Err(compile::Error::msg(self.format.span(), message)),
         };
 
         if let Some(expr) = unused_pos.into_iter().flat_map(|n| pos.get(n)).next() {
@@ -174,18 +171,27 @@ fn expand_format_spec<'a>(
     let mut name = String::new();
     let mut width = String::new();
     let mut precision = String::new();
-    let mut buf = String::new();
 
+    let mut buf = String::new();
     let mut components = Vec::new();
     let mut count = 0;
+    let mut start = Some(0);
 
-    while let Some(value) = iter.next() {
-        match value {
+    while let Some((at, a, b)) = iter.next() {
+        match (a, b) {
             ('}', '}') => {
+                if let Some(start) = start.take() {
+                    buf.try_push_str(&input[start..at])?;
+                }
+
                 buf.try_push('}')?;
                 iter.next();
             }
             ('{', '{') => {
+                if let Some(start) = start.take() {
+                    buf.try_push_str(&input[start..at])?;
+                }
+
                 buf.try_push('{')?;
                 iter.next();
             }
@@ -196,8 +202,12 @@ fn expand_format_spec<'a>(
                 ));
             }
             ('{', _) => {
+                if let Some(start) = start.take() {
+                    buf.try_push_str(&input[start..at])?;
+                }
+
                 if !buf.is_empty() {
-                    components.try_push(C::Literal(buf.try_clone()?.try_into_boxed_str()?))?;
+                    components.try_push(C::Literal(Box::try_from(&buf[..])?))?;
                     buf.clear();
                 }
 
@@ -215,14 +225,20 @@ fn expand_format_spec<'a>(
                     unused_named,
                 )?)?;
             }
-            (a, _) => {
-                buf.try_push(a)?;
+            _ => {
+                if start.is_none() {
+                    start = Some(at);
+                }
             }
         }
     }
 
+    if let Some(start) = start.take() {
+        buf.try_push_str(&input[start..])?;
+    }
+
     if !buf.is_empty() {
-        components.try_push(C::Literal(buf.try_clone()?.try_into_boxed_str()?))?;
+        components.try_push(C::Literal(Box::try_from(&buf[..])?))?;
         buf.clear();
     }
 
@@ -235,7 +251,7 @@ fn expand_format_spec<'a>(
     for c in components {
         match c {
             C::Literal(literal) => {
-                let lit = cx.lit(&*literal)?;
+                let lit = cx.lit(literal.as_ref())?;
                 args.try_push(quote!(#lit))?;
             }
             C::Format {
@@ -314,10 +330,28 @@ fn expand_format_spec<'a>(
         #[builtin] template!(#(args),*)
     });
 
+    enum ExprOrIdent<'a> {
+        Expr(&'a ast::Expr),
+        Ident(ast::Ident),
+    }
+
+    impl ToTokens for ExprOrIdent<'_> {
+        fn to_tokens(
+            &self,
+            cx: &mut MacroContext<'_, '_, '_>,
+            stream: &mut TokenStream,
+        ) -> alloc::Result<()> {
+            match self {
+                Self::Expr(expr) => expr.to_tokens(cx, stream),
+                Self::Ident(ident) => ident.to_tokens(cx, stream),
+            }
+        }
+    }
+
     enum C<'a> {
         Literal(Box<str>),
         Format {
-            expr: &'a ast::Expr,
+            expr: ExprOrIdent<'a>,
             fill: Option<char>,
             align: Option<format::Alignment>,
             width: Option<usize>,
@@ -384,11 +418,8 @@ fn expand_format_spec<'a>(
         let mut mode = Mode::Start;
 
         loop {
-            let (a, b) = match iter.current() {
-                Some(item) => item,
-                _ => {
-                    return Err(compile::Error::msg(span, "unexpected end of format string"));
-                }
+            let Some((_, a, b)) = iter.current() else {
+                return Err(compile::Error::msg(span, "unexpected end of format string"));
             };
 
             match mode {
@@ -577,7 +608,20 @@ fn expand_format_spec<'a>(
             None
         };
 
-        let expr = if !name.is_empty() {
+        let expr = 'expr: {
+            if name.is_empty() {
+                let Some(expr) = pos.get(*count) else {
+                    return Err(compile::Error::msg(
+                        span,
+                        format!("missing positional argument #{count}"),
+                    ));
+                };
+
+                unused_pos.remove(count);
+                *count += 1;
+                break 'expr ExprOrIdent::Expr(expr);
+            };
+
             if let Ok(n) = str::parse::<usize>(name) {
                 let expr = match pos.get(n) {
                     Some(expr) => *expr,
@@ -590,35 +634,17 @@ fn expand_format_spec<'a>(
                 };
 
                 unused_pos.remove(&n);
-                expr
-            } else {
-                let expr = match named.get(name.as_str()) {
-                    Some(n) => &n.expr,
-                    None => {
-                        return Err(compile::Error::msg(
-                            span,
-                            format!("missing named argument `{}`", name),
-                        ));
-                    }
-                };
-
-                unused_named.remove(name.as_str());
-                expr
+                break 'expr ExprOrIdent::Expr(expr);
             }
-        } else {
-            let expr = match pos.get(*count) {
-                Some(expr) => *expr,
-                None => {
-                    return Err(compile::Error::msg(
-                        span,
-                        format!("missing positional argument #{}", count),
-                    ));
-                }
-            };
 
-            unused_pos.remove(count);
-            *count += 1;
-            expr
+            if let Some(n) = named.get(name.as_str()) {
+                unused_named.remove(name.as_str());
+                break 'expr ExprOrIdent::Expr(&n.expr);
+            }
+
+            let mut ident = cx.ident(name.as_str())?;
+            ident.span = span;
+            ExprOrIdent::Ident(ident)
         };
 
         let width = if !width.is_empty() {
@@ -648,30 +674,28 @@ fn expand_format_spec<'a>(
 }
 
 struct Iter<'a> {
-    iter: str::Chars<'a>,
-    a: Option<char>,
-    b: Option<char>,
+    iter: str::CharIndices<'a>,
+    a: Option<(usize, char)>,
+    b: Option<(usize, char)>,
 }
 
 impl<'a> Iter<'a> {
     fn new(input: &'a str) -> Self {
-        let mut iter = input.chars();
-
+        let mut iter = input.char_indices();
         let a = iter.next();
         let b = iter.next();
-
         Self { iter, a, b }
     }
 
-    fn current(&self) -> Option<(char, char)> {
-        let a = self.a?;
-        let b = self.b.unwrap_or_default();
-        Some((a, b))
+    fn current(&self) -> Option<(usize, char, char)> {
+        let (pos, a) = self.a?;
+        let (_, b) = self.b.unwrap_or_default();
+        Some((pos, a, b))
     }
 }
 
 impl Iterator for Iter<'_> {
-    type Item = (char, char);
+    type Item = (usize, char, char);
 
     fn next(&mut self) -> Option<Self::Item> {
         let value = self.current()?;
