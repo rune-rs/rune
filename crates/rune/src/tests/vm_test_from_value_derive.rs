@@ -67,6 +67,7 @@ fn test_missing_dynamic_field() {
     );
 
     #[derive(Debug, FromValue)]
+    #[allow(unused)]
     struct ProxyTuple(u32, u32);
 
     assert_vm_error!(

@@ -7057,7 +7057,7 @@ mod test_map {
     use crate::iter::TryExtend;
     use crate::testing::*;
 
-    std::thread_local!(static DROP_VECTOR: RefCell<Vec<i32>> = RefCell::new(Vec::new()));
+    std::thread_local!(static DROP_VECTOR: RefCell<Vec<i32>> = const { RefCell::new(Vec::new()) });
 
     #[test]
     fn test_zero_capacities() {

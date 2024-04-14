@@ -36,17 +36,15 @@ async fn main() -> Result<()> {
         }
 
         for event in events.drain(..) {
-            match event {
-                path_reloader::PathEvent::Added(path, unit) => {
-                    let mut vm = Vm::new(context.clone(), unit);
+            let mut vm = Vm::new(context.clone(), event.unit);
 
+            match event.kind {
+                path_reloader::EventKind::Added => {
                     if let Err(error) = vm.call(["hello"], ()) {
                         println!("Error: {}", error);
                     }
                 }
-                path_reloader::PathEvent::Removed(path, unit) => {
-                    let mut vm = Vm::new(context.clone(), unit);
-
+                path_reloader::EventKind::Removed => {
                     if let Err(error) = vm.call(["goodbye"], ()) {
                         println!("Error: {}", error);
                     }

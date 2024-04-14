@@ -1,6 +1,6 @@
 use core::cell::Cell;
 
-std::thread_local!(static MEMORY: Cell<usize> = Cell::new(usize::MAX));
+std::thread_local!(static MEMORY: Cell<usize> = const { Cell::new(usize::MAX) });
 
 pub(super) fn rune_memory_take(amount: usize) -> bool {
     MEMORY.with(|tls| {

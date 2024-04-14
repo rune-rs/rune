@@ -153,7 +153,7 @@ impl Parse for AttrStyle {
 }
 
 /// Helper struct to only parse inner attributes.
-pub(crate) struct InnerAttribute(pub(crate) Attribute);
+pub(crate) struct InnerAttribute(#[allow(unused)] pub(crate) Attribute);
 
 impl Parse for InnerAttribute {
     fn parse(p: &mut Parser) -> Result<Self> {

@@ -1,6 +1,6 @@
 use core::cell::Cell;
 
-std::thread_local!(static BUDGET: Cell<usize> = Cell::new(usize::MAX));
+std::thread_local!(static BUDGET: Cell<usize> = const { Cell::new(usize::MAX) });
 
 pub(super) fn rune_budget_take() -> bool {
     BUDGET.with(|tls| {

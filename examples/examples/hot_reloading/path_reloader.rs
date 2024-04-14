@@ -20,18 +20,45 @@ use std::sync::{Arc, Mutex};
 use anyhow::{anyhow, Result};
 use notify::Watcher;
 use pin_project::pin_project;
-use rune::runtime::RuntimeContext;
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{Context, Diagnostics, Source, Sources, Unit};
 use tokio::sync::mpsc;
 use tokio::time::{Duration, Instant, Sleep};
 
-/// A path update event.
-pub enum PathEvent {
+/// The kind of path event emitted.
+pub enum EventKind {
     /// The specified unit has been added.
-    Added(PathBuf, Arc<Unit>),
+    Added,
     /// The specified unit has been removed.
-    Removed(PathBuf, Arc<Unit>),
+    Removed,
+}
+
+/// A path update event.
+pub struct Event {
+    /// The path that was modified.
+    pub path: PathBuf,
+    /// The unit that was constructed from the path.
+    pub unit: Arc<Unit>,
+    /// The kind of event emitted.
+    pub kind: EventKind,
+}
+
+impl Event {
+    fn removed(path: PathBuf, unit: Arc<Unit>) -> Self {
+        Self {
+            path,
+            unit,
+            kind: EventKind::Removed,
+        }
+    }
+
+    fn added(path: PathBuf, unit: Arc<Unit>) -> Self {
+        Self {
+            path,
+            unit,
+            kind: EventKind::Added,
+        }
+    }
 }
 
 enum Update {
@@ -55,8 +82,6 @@ impl<'a> PathReloader<'a> {
     where
         P: AsRef<Path>,
     {
-        let runtime_context = Arc::new(context.runtime()?);
-
         let (tx, rx) = mpsc::unbounded_channel();
 
         let mut watcher = notify::recommended_watcher(move |res| {
@@ -69,7 +94,6 @@ impl<'a> PathReloader<'a> {
             inner: Inner {
                 context,
                 path: path.as_ref().into(),
-                runtime_context,
                 scripts: Mutex::new(HashMap::new()),
                 updates: HashMap::new(),
             },
@@ -98,7 +122,7 @@ impl<'a> PathReloader<'a> {
     }
 
     /// Watch the current path for changes.
-    pub async fn watch(self: Pin<&mut Self>, events: &mut Vec<PathEvent>) -> Result<()> {
+    pub async fn watch(self: Pin<&mut Self>, events: &mut Vec<Event>) -> Result<()> {
         let mut this = self.project();
 
         tokio::select! {
@@ -134,13 +158,12 @@ impl<'a> PathReloader<'a> {
 struct Inner<'a> {
     context: &'a Context,
     path: Box<Path>,
-    runtime_context: Arc<RuntimeContext>,
     scripts: Mutex<HashMap<PathBuf, Arc<Unit>>>,
     updates: HashMap<PathBuf, Update>,
 }
 
 impl<'a> Inner<'a> {
-    fn reload(&mut self, events: &mut Vec<PathEvent>) -> Result<()> {
+    fn reload(&mut self, events: &mut Vec<Event>) -> Result<()> {
         fn compile(context: &Context, path: &Path) -> Result<Unit> {
             let mut sources = Sources::new();
             sources.insert(Source::from_path(path)?)?;
@@ -154,7 +177,7 @@ impl<'a> Inner<'a> {
 
             if !diagnostics.is_empty() {
                 let mut writer = StandardStream::stderr(ColorChoice::Always);
-                diagnostics.emit(&mut writer, &mut sources)?;
+                diagnostics.emit(&mut writer, &sources)?;
             }
 
             Ok(unit?)
@@ -169,7 +192,7 @@ impl<'a> Inner<'a> {
                             println!("{}: Failed to compile: {error}", path.display());
 
                             if let Some(old) = self.scripts.lock().unwrap().remove(&path) {
-                                events.push(PathEvent::Removed(path.clone(), old));
+                                events.push(Event::removed(path.clone(), old));
                             }
 
                             continue;
@@ -184,14 +207,14 @@ impl<'a> Inner<'a> {
                         .unwrap()
                         .insert(path.clone(), new.clone())
                     {
-                        events.push(PathEvent::Removed(path.clone(), old));
+                        events.push(Event::removed(path.clone(), old));
                     }
 
-                    events.push(PathEvent::Added(path, new));
+                    events.push(Event::added(path, new));
                 }
                 Update::Removed => {
                     if let Some(unit) = self.scripts.lock().unwrap().remove(&path) {
-                        events.push(PathEvent::Removed(path, unit));
+                        events.push(Event::removed(path, unit));
                     }
                 }
             }
