@@ -1,0 +1,7 @@
+pub fn hello() {
+    println!("{}: Hello world!", file!());
+}
+
+pub fn goodbye() {
+    println!("{}: Goodbye world!", file!());
+}
