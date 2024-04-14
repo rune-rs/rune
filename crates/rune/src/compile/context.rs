@@ -152,7 +152,6 @@ impl Context {
         this.install(crate::modules::fmt::module()?)?;
         this.install(crate::modules::future::module()?)?;
         this.install(crate::modules::i64::module()?)?;
-        #[cfg(feature = "std")]
         this.install(crate::modules::io::module(stdio)?)?;
         this.install(crate::modules::iter::module()?)?;
         this.install(crate::modules::macros::module()?)?;

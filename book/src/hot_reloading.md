@@ -11,7 +11,7 @@ A typical way to accomplish this is to watch a scripts directory using the
 to the directory are detected. See the [`hot_reloading` example] and in
 particular the [`PathReloader`] type.
 
-```
+```rust
 {{#include ../../examples/examples/hot_reloading.rs}}
 ```
 

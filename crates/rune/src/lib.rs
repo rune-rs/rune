@@ -29,18 +29,17 @@
 //! * Runs a compact representation of the language on top of an efficient
 //!   [stack-based virtual machine][support-virtual-machine].
 //! * Clean [Rust integration 💻][support-rust-integration].
+//! * [Multithreaded 📖][support-multithreading] execution.
+//! * [Hot reloading 📖][support-hot-reloading].
 //! * Memory safe through [reference counting 📖][support-reference-counted].
-//! * [Awesome macros 📖][support-macros].
-//! * [Template literals 📖][support-templates].
-//! * [Try operators 📖][support-try].
-//! * [Pattern matching 📖][support-patterns].
+//! * [Awesome macros 📖][support-macros] and [Template literals 📖][support-templates].
+//! * [Try operators 📖][support-try] and [Pattern matching 📖][support-patterns].
 //! * [Structs and enums 📖][support-structs] with associated data and
 //!   functions.
-//! * Dynamic [vectors 📖][support-dynamic-vectors], [objects
-//!   📖][support-anon-objects], and [tuples 📖][support-anon-tuples] with
+//! * Dynamic containers like [vectors 📖][support-dynamic-vectors], [objects
+//!   📖][support-anon-objects], and [tuples 📖][support-anon-tuples] all with
 //!   out-of-the-box [serde support 💻][support-serde].
-//! * First-class [async support 📖][support-async].
-//! * [Generators 📖][support-generators].
+//! * First-class [async support 📖][support-async] with [Generators 📖][support-generators].
 //! * Dynamic [instance functions 📖][support-instance-functions].
 //! * [Stack isolation 📖][support-stack-isolation] between function calls.
 //!
@@ -114,8 +113,10 @@
 //! [support-async]: https://rune-rs.github.io/book/async.html
 //! [support-dynamic-vectors]: https://rune-rs.github.io/book/vectors.html
 //! [support-generators]: https://rune-rs.github.io/book/generators.html
+//! [support-hot-reloading]: https://rune-rs.github.io/book/hot_reloading.html
 //! [support-instance-functions]: https://rune-rs.github.io/book/instance_functions.html
 //! [support-macros]: https://rune-rs.github.io/book/macros.html
+//! [support-multithreading]: https://rune-rs.github.io/book/multithreading.html
 //! [support-patterns]: https://rune-rs.github.io/book/pattern_matching.html
 //! [support-reference-counted]: https://rune-rs.github.io/book/variables.html
 //! [support-rust-integration]: https://github.com/rune-rs/rune/tree/main/crates/rune-modules
