@@ -25,11 +25,11 @@ std::thread::spawn(move || {
 });
 ```
 
-> Virtual machines do allocate memory. To this overhead too you'd have to employ
-> more advanced techniques, such as storing virtual machines in a pool or thread
-> locals. Once a machine has been acquired the `Unit` and `RuntimeContext`
-> associated with it can be swapped out to the ones you need using
-> [`Vm::unit_mut`] and [`Vm::context_mut`] respectively.
+> Virtual machines do allocate memory. To avoide this overhead you'd have to
+> employ more advanced techniques, such as storing virtual machines in a pool or
+> [thread locals]. Once a machine has been acquired the `Unit` and
+> `RuntimeContext` associated with it can be swapped out to the ones you need
+> using [`Vm::unit_mut`] and [`Vm::context_mut`] respectively.
 
 Using [`Vm::send_execute`] is a way to assert that a given execution is thread
 safe. And allows you to use Rune in asynchronous multithreaded environments,
@@ -60,3 +60,4 @@ case, the conversion will fail.
 [`Vm::unit_mut`]: https://docs.rs/rune/latest/rune/runtime/struct.Vm.html#method.unit_mut
 [`Vm`]: https://docs.rs/rune/latest/rune/runtime/struct.Vm.html
 [Hot reloading]: ./hot_reloading.md
+[thread locals]: https://doc.rust-lang.org/std/macro.thread_local.html
