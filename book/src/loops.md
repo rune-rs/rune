@@ -42,13 +42,11 @@ Hello forever!
 
 > Hint: If you want this one to end, you're gonna have to kill it with `CTRL+C`.
 
-We're also using an asynchronous function called `delay_for` above to avoid
-spamming our terminals too much.
-Well talk more about these in a later section.
+We're also using an asynchronous function called `sleep` above to avoid spamming
+our terminals too much. Well talk more about these in a later section.
 
 When broken out of, loops produce the value provided as an argument to the
-`break` keyword.
-By default, this is simply a unit `()`.
+`break` keyword. By default, this is simply a unit `()`.
 
 ```rune
 {{#include ../../scripts/book/loops/loop_break.rn}}
