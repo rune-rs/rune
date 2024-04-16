@@ -1,4 +1,4 @@
 /// Hook used to construct an async sleep function.
-export function sleep(ms) {
+export function js_sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
