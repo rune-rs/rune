@@ -22,7 +22,7 @@ const SITE = "https://httpstat.us";
 
 async fn request(timeout) {
     let request = http::get(`${SITE}/200?sleep=${timeout}`);
-    let timeout = time::delay_for(time::Duration::from_secs(1));
+    let timeout = time::sleep(time::Duration::from_secs(1));
 
     let result = select {
         res = request => res,

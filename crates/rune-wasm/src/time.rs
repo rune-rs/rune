@@ -6,7 +6,7 @@ use wasm_bindgen_futures::JsFuture;
 
 #[wasm_bindgen(module = "/module.js")]
 extern "C" {
-    fn sleep(ms: i32) -> Promise;
+    fn js_sleep(ms: i32) -> Promise;
 }
 
 /// The wasm 'time' module.
@@ -16,7 +16,7 @@ pub fn module() -> Result<Module, ContextError> {
     module
         .function("from_secs", Duration::from_secs)
         .build_associated::<Duration>()?;
-    module.function("delay_for", delay_for).build()?;
+    module.function("sleep", sleep).build()?;
     Ok(module)
 }
 
@@ -30,12 +30,12 @@ impl Duration {
     }
 }
 
-async fn delay_for(duration: Duration) -> VmResult<()> {
-    let promise = sleep(duration.0);
+async fn sleep(duration: Duration) -> VmResult<()> {
+    let promise = js_sleep(duration.0);
     let js_fut = JsFuture::from(promise);
 
     if js_fut.await.is_err() {
-        return VmResult::panic("future errored");
+        return VmResult::panic("Sleep errored");
     }
 
     VmResult::Ok(())

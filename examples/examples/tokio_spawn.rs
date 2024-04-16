@@ -12,7 +12,7 @@ async fn main() -> rune::support::Result<()> {
     let mut sources = rune::sources! {
         entry => {
             async fn main(timeout) {
-                time::delay_for(time::Duration::from_secs(timeout)).await
+                time::sleep(time::Duration::from_secs(timeout)).await
             }
         }
     };
