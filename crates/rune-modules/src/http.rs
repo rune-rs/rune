@@ -48,9 +48,9 @@
 //! }
 //! ```
 
-use rune::{Any, Module, Value, ContextError};
-use rune::runtime::{Bytes, Ref, Formatter, VmResult};
 use rune::alloc::fmt::TryWrite;
+use rune::runtime::{Bytes, Formatter, Ref, VmResult};
+use rune::{Any, ContextError, Module, Value};
 
 /// A simple HTTP module for Rune.
 ///
@@ -140,6 +140,14 @@ impl Response {
         Ok(text)
     }
 
+    /// Get the response as bytes.
+    #[rune::function(vm_result)]
+    async fn bytes(self) -> Result<Bytes, Error> {
+        let bytes = self.response.bytes().await?.to_vec().into_boxed_slice();
+        let bytes = Bytes::from_slice(bytes).vm?;
+        Ok(bytes)
+    }
+
     /// Get the status code of the response.
     #[rune::function]
     fn status(&self) -> StatusCode {
@@ -185,6 +193,20 @@ impl RequestBuilder {
     fn header(self, key: &str, value: &str) -> Self {
         Self {
             request: self.request.header(key, value),
+        }
+    }
+
+    /// Disable CORS on fetching the request.
+    ///
+    /// This option is only effective with WebAssembly target.
+    ///
+    /// The [request mode][mdn] will be set to 'no-cors'.
+    ///
+    /// [mdn]: https://developer.mozilla.org/en-US/docs/Web/API/Request/mode
+    #[rune::function]
+    fn fetch_mode_no_cors(self) -> Self {
+        Self {
+            request: self.request.fetch_mode_no_cors(),
         }
     }
 
@@ -240,7 +262,9 @@ impl Client {
     /// ```
     #[rune::function]
     fn get(&self, url: &str) -> RequestBuilder {
-        RequestBuilder { request: self.client.get(url) }
+        RequestBuilder {
+            request: self.client.get(url),
+        }
     }
 
     /// Construct a builder to POST to the given `url`.
@@ -271,7 +295,7 @@ impl Client {
 /// ```rune,no_run
 /// let response = http::get("http://worldtimeapi.org/api/ip").await?;
 /// let json = response.json().await?;
-/// 
+///
 /// let timezone = json["timezone"];
 /// ```
 #[rune::function]
