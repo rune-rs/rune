@@ -48,9 +48,9 @@
 //! }
 //! ```
 
-use rune::{Any, Module, Value, ContextError};
-use rune::runtime::{Bytes, Ref, Formatter, VmResult};
 use rune::alloc::fmt::TryWrite;
+use rune::runtime::{Bytes, Formatter, Ref, VmResult};
+use rune::{Any, ContextError, Module, Value};
 
 /// A simple HTTP module for Rune.
 ///
@@ -79,11 +79,13 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
 
     module.function_meta(Response::text)?;
     module.function_meta(Response::json)?;
+    module.function_meta(Response::bytes)?;
     module.function_meta(Response::status)?;
 
     module.function_meta(RequestBuilder::send)?;
     module.function_meta(RequestBuilder::header)?;
     module.function_meta(RequestBuilder::body_bytes)?;
+    module.function_meta(RequestBuilder::fetch_mode_no_cors)?;
 
     module.function_meta(Error::string_display)?;
     module.function_meta(StatusCode::string_display)?;
@@ -127,6 +129,17 @@ pub struct Response {
 
 impl Response {
     /// Get the response as text.
+    ///
+    /// ```rune,no_run
+    /// let client = http::Client::new();
+    ///
+    /// let response = client.get("http://example.com")
+    ///     .body_bytes(b"Hello World")
+    ///     .send()
+    ///     .await?;
+    ///
+    /// let response = response.text().await?;
+    /// ```
     #[rune::function]
     async fn text(self) -> Result<String, Error> {
         let text = self.response.text().await?;
@@ -138,6 +151,24 @@ impl Response {
     async fn json(self) -> Result<Value, Error> {
         let text = self.response.json().await?;
         Ok(text)
+    }
+
+    /// Get the response as bytes.
+    ///
+    /// ```rune,no_run
+    /// let client = http::Client::new();
+    ///
+    /// let response = client.get("http://example.com")
+    ///     .send()
+    ///     .await?;
+    ///
+    /// let response = response.bytes().await?;
+    /// ```
+    #[rune::function(vm_result)]
+    async fn bytes(self) -> Result<Bytes, Error> {
+        let bytes = self.response.bytes().await?.to_vec().into_boxed_slice();
+        let bytes = Bytes::from_slice(bytes).vm?;
+        Ok(bytes)
     }
 
     /// Get the status code of the response.
@@ -173,7 +204,18 @@ pub struct RequestBuilder {
 }
 
 impl RequestBuilder {
-    /// Send the request being built.
+    /// Send the request and receive an answer from the server.
+    ///
+    /// ```rune,no_run
+    /// let client = http::Client::new();
+    ///
+    /// let response = client.get("http://example.com")
+    ///     .header("Accept", "text/html")
+    ///     .send()
+    ///     .await?;
+    ///
+    /// let response = response.text().await?;
+    /// ```
     #[rune::function]
     async fn send(self) -> Result<Response, Error> {
         let response = self.request.send().await?;
@@ -181,10 +223,44 @@ impl RequestBuilder {
     }
 
     /// Modify a header in the request.
+    ///
+    /// ```rune,no_run
+    /// let client = http::Client::new();
+    ///
+    /// let response = client.get("http://example.com")
+    ///     .header("Accept", "text/html")
+    ///     .send()
+    ///     .await?;
+    ///
+    /// let response = response.text().await?;
+    /// ```
     #[rune::function]
     fn header(self, key: &str, value: &str) -> Self {
         Self {
             request: self.request.header(key, value),
+        }
+    }
+
+    /// Disable CORS on fetching the request.
+    ///
+    /// This option is only effective with WebAssembly target.
+    /// The [request mode][mdn] will be set to 'no-cors'.
+    /// [mdn]: https://developer.mozilla.org/en-US/docs/Web/API/Request/mode
+    ///
+    /// ```rune,no_run
+    /// let client = http::Client::new();
+    ///
+    /// let response = client.get("http://example.com")
+    ///     .fetch_mode_no_cors()
+    ///     .send()
+    ///     .await?;
+    ///
+    /// let response = response.text().await?;
+    /// ```
+    #[rune::function]
+    fn fetch_mode_no_cors(self) -> Self {
+        Self {
+            request: self.request.fetch_mode_no_cors(),
         }
     }
 
@@ -240,7 +316,9 @@ impl Client {
     /// ```
     #[rune::function]
     fn get(&self, url: &str) -> RequestBuilder {
-        RequestBuilder { request: self.client.get(url) }
+        RequestBuilder {
+            request: self.client.get(url),
+        }
     }
 
     /// Construct a builder to POST to the given `url`.
@@ -271,7 +349,7 @@ impl Client {
 /// ```rune,no_run
 /// let response = http::get("http://worldtimeapi.org/api/ip").await?;
 /// let json = response.json().await?;
-/// 
+///
 /// let timezone = json["timezone"];
 /// ```
 #[rune::function]
