@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1713315659741,
+  "lastUpdate": 1713488435503,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -25077,6 +25077,94 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 560,
             "range": "± 4",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Robert Schütte",
+            "username": "Roba1993",
+            "email": "schuetterobert@gmail.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "f2e299423a77e895e95da585e5a7d75f1f6929c6",
+          "message": "Added bytes support for http (#691)",
+          "timestamp": "2024-04-18T16:30:25Z",
+          "url": "https://github.com/rune-rs/rune/commit/f2e299423a77e895e95da585e5a7d75f1f6929c6"
+        },
+        "date": 1713488434617,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 210717,
+            "range": "± 4761",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 716765,
+            "range": "± 10198",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 310308715,
+            "range": "± 6362293",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 179337956,
+            "range": "± 1360315",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 963085,
+            "range": "± 4304",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 9595162,
+            "range": "± 124965",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 50372296,
+            "range": "± 402076",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 8276082,
+            "range": "± 102651",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 556647,
+            "range": "± 32391",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 6240060,
+            "range": "± 44233",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 572,
+            "range": "± 2",
             "unit": "ns/iter"
           }
         ]
