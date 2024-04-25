@@ -30,6 +30,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(all)?;
     module.function_meta(chain)?;
     module.function_meta(filter)?;
+    module.function_meta(filter_map)?;
     module.function_meta(map)?;
     module.function_meta(flat_map)?;
     module.function_meta(enumerate)?;
@@ -383,6 +384,47 @@ pub fn chain(this: Iterator, other: Value) -> VmResult<Iterator> {
 #[inline]
 fn filter(this: Iterator, filter: Function) -> Iterator {
     this.filter(filter)
+}
+
+/// Creates an iterator that both filters and maps.
+///
+/// The returned iterator yields only the `value`s for which the supplied
+/// closure returns `Some(value)`.
+///
+/// `filter_map` can be used to make chains of [`filter`] and [`map`] more
+/// concise. The example below shows how a `map().filter().map()` can be
+/// shortened to a single call to `filter_map`.
+///
+/// [`filter`]: Iterator::filter
+/// [`map`]: Iterator::map
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```rune
+/// let a = ["1", "two", "NaN", "four", "5"];
+///
+/// let iter = a.iter().filter_map(|s| s.parse::<i64>().ok());
+///
+/// assert_eq!(iter.next(), Some(1));
+/// assert_eq!(iter.next(), Some(5));
+/// assert_eq!(iter.next(), None);
+/// ```
+///
+/// Here's the same example, but with [`filter`] and [`map`]:
+///
+/// ```rune
+/// let a = ["1", "two", "NaN", "four", "5"];
+/// let iter = a.iter().map(|s| s.parse::<i64>()).filter(|s| s.is_ok()).map(|s| s.unwrap());
+/// assert_eq!(iter.next(), Some(1));
+/// assert_eq!(iter.next(), Some(5));
+/// assert_eq!(iter.next(), None);
+/// ```
+#[rune::function(instance)]
+#[inline]
+fn filter_map(this: Iterator, filter: Function) -> Iterator {
+    this.filter_map(filter)
 }
 
 /// Takes a closure and creates an iterator which calls that closure on each

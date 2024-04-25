@@ -156,6 +156,16 @@ impl Iterator {
     }
 
     #[inline]
+    pub(crate) fn filter_map(self, filter_map: Function) -> Self {
+        Self {
+            iter: IterRepr::FilterMap(Box::new(FilterMap {
+                iter: self.iter,
+                filter_map,
+            })),
+        }
+    }
+
+    #[inline]
     pub(crate) fn map(self, map: Function) -> Self {
         Self {
             iter: IterRepr::Map(Box::new(Map {
@@ -387,6 +397,7 @@ enum IterRepr {
     Map(Box<Map<Self>>),
     FlatMap(Box<FlatMap<Map<Self>>>),
     Filter(Box<Filter<Self>>),
+    FilterMap(Box<FilterMap<Self>>),
     Rev(Box<Rev<Self>>),
     Chain(Box<Chain<Self, Self>>),
     Enumerate(Box<Enumerate<Self>>),
@@ -406,6 +417,7 @@ impl RuneIterator for IterRepr {
             Self::Map(iter) => iter.is_double_ended(),
             Self::FlatMap(iter) => iter.is_double_ended(),
             Self::Filter(iter) => iter.is_double_ended(),
+            Self::FilterMap(iter) => iter.is_double_ended(),
             Self::Rev(..) => true,
             Self::Chain(iter) => iter.is_double_ended(),
             Self::Enumerate(iter) => iter.is_double_ended(),
@@ -425,6 +437,7 @@ impl RuneIterator for IterRepr {
             Self::Map(iter) => iter.size_hint(),
             Self::FlatMap(iter) => iter.size_hint(),
             Self::Filter(iter) => iter.size_hint(),
+            Self::FilterMap(iter) => iter.size_hint(),
             Self::Rev(iter) => iter.size_hint(),
             Self::Chain(iter) => iter.size_hint(),
             Self::Enumerate(iter) => iter.size_hint(),
@@ -443,6 +456,7 @@ impl RuneIterator for IterRepr {
             Self::Map(iter) => iter.next(),
             Self::FlatMap(iter) => iter.next(),
             Self::Filter(iter) => iter.next(),
+            Self::FilterMap(iter) => iter.next(),
             Self::Rev(iter) => iter.next(),
             Self::Chain(iter) => iter.next(),
             Self::Enumerate(iter) => iter.next(),
@@ -468,6 +482,7 @@ impl RuneIterator for IterRepr {
             Self::Map(iter) => iter.next_back(),
             Self::FlatMap(iter) => iter.next_back(),
             Self::Filter(iter) => iter.next_back(),
+            Self::FilterMap(iter) => iter.next_back(),
             Self::Rev(iter) => iter.next_back(),
             Self::Chain(iter) => iter.next_back(),
             Self::Enumerate(iter) => iter.next_back(),
@@ -488,6 +503,7 @@ impl fmt::Debug for IterRepr {
             Self::Map(iter) => write!(f, "{:?}", iter),
             Self::FlatMap(iter) => write!(f, "{:?}", iter),
             Self::Filter(iter) => write!(f, "{:?}", iter),
+            Self::FilterMap(iter) => write!(f, "{:?}", iter),
             Self::Rev(iter) => write!(f, "{:?}", iter),
             Self::Chain(iter) => write!(f, "{:?}", iter),
             Self::Enumerate(iter) => write!(f, "{:?}", iter),
@@ -666,6 +682,46 @@ where
         while let Some(value) = vm_try!(self.iter.next_back()) {
             if vm_try!(self.filter.call::<bool>((value.clone(),))) {
                 return VmResult::Ok(Some(value));
+            }
+        }
+
+        VmResult::Ok(None)
+    }
+}
+
+#[derive(Debug)]
+struct FilterMap<I> {
+    iter: I,
+    filter_map: Function,
+}
+
+impl<I> RuneIterator for FilterMap<I>
+where
+    I: RuneIterator,
+{
+    fn is_double_ended(&self) -> bool {
+        self.iter.is_double_ended()
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let (_, upper) = self.iter.size_hint();
+        (0, upper)
+    }
+
+    fn next(&mut self) -> VmResult<Option<Value>> {
+        while let Some(value) = vm_try!(self.iter.next()) {
+            if let Some(mapped) = vm_try!(self.filter_map.call::<Option<Value>>((value.clone(),))) {
+                return VmResult::Ok(Some(mapped));
+            }
+        }
+
+        VmResult::Ok(None)
+    }
+
+    fn next_back(&mut self) -> VmResult<Option<Value>> {
+        while let Some(value) = vm_try!(self.iter.next_back()) {
+            if let Some(mapped) = vm_try!(self.filter_map.call::<Option<Value>>((value.clone(),))) {
+                return VmResult::Ok(Some(mapped));
             }
         }
 
