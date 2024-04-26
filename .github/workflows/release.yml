@@ -38,7 +38,7 @@ jobs:
     runs-on: ${{matrix.os}}
     strategy:
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
+        os: [macos-12, macos-14, windows-latest, ubuntu-latest]
     steps:
     - uses: actions/checkout@v4
     - uses: udoprog/kick@nightly
@@ -59,11 +59,10 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - uses: udoprog/kick@nightly
-    - uses: actions/setup-node@v3
-      with:
-        node-version: 16
     - uses: actions/download-artifact@v4
-      with: {name: dist-macos-latest, path: dist}
+      with: {name: dist-macos-12, path: dist}
+    - uses: actions/download-artifact@v4
+      with: {name: dist-macos-14, path: dist}
     - uses: actions/download-artifact@v4
       with: {name: dist-windows-latest, path: dist}
     - uses: actions/download-artifact@v4
