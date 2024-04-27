@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        rust: ['1.74', stable]
+        rust: ['1.76', stable]
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@master
