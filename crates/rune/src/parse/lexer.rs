@@ -957,19 +957,6 @@ impl Iterator for SourceIter<'_> {
     }
 }
 
-struct WithCharIndex<'s, 'a> {
-    iter: &'s mut SourceIter<'a>,
-}
-
-impl Iterator for WithCharIndex<'_, '_> {
-    type Item = (usize, char);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let pos = self.iter.pos();
-        Some((pos, self.iter.next()?))
-    }
-}
-
 #[derive(Debug, Default)]
 struct LexerModes {
     modes: Vec<LexerMode>,
