@@ -8,7 +8,7 @@ use crate::alloc::prelude::*;
 use crate::alloc::{self, Vec};
 
 #[cfg(feature = "byte-code")]
-use musli_storage::error::BufferError;
+use musli::storage;
 use serde::{Deserialize, Serialize};
 
 use crate::runtime::Inst;
@@ -148,11 +148,11 @@ pub struct EncodeError {
 }
 
 #[cfg(feature = "byte-code")]
-impl From<BufferError> for EncodeError {
+impl From<storage::Error> for EncodeError {
     #[inline]
-    fn from(error: BufferError) -> Self {
+    fn from(error: storage::Error) -> Self {
         Self {
-            kind: EncodeErrorKind::BufferError { error },
+            kind: EncodeErrorKind::StorageError { error },
         }
     }
 }
@@ -174,21 +174,30 @@ impl fmt::Display for EncodeError {
     ) -> fmt::Result {
         match &self.kind {
             #[cfg(feature = "byte-code")]
-            EncodeErrorKind::BufferError { error } => error.fmt(f),
+            EncodeErrorKind::StorageError { .. } => write!(f, "Storage error"),
             EncodeErrorKind::AllocError { error } => error.fmt(f),
         }
     }
 }
 
 cfg_std! {
-    impl std::error::Error for EncodeError {}
+    impl std::error::Error for EncodeError {
+        #[inline]
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            match &self.kind {
+                #[cfg(feature = "byte-code")]
+                EncodeErrorKind::StorageError { error } => Some(error),
+                EncodeErrorKind::AllocError { error } => Some(error),
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
 enum EncodeErrorKind {
     #[cfg(feature = "byte-code")]
-    BufferError {
-        error: BufferError,
+    StorageError {
+        error: storage::Error,
     },
     AllocError {
         error: alloc::Error,
