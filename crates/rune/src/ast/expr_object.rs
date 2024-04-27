@@ -112,18 +112,6 @@ impl Parse for ObjectKey {
     }
 }
 
-/// A tag object to help peeking for anonymous object case to help
-/// differentiate anonymous objects and attributes when parsing block
-/// expressions.
-#[non_exhaustive]
-pub(crate) struct AnonExprObject;
-
-impl Peek for AnonExprObject {
-    fn peek(p: &mut Peeker<'_>) -> bool {
-        matches!((p.nth(0), p.nth(1)), (K![#], K!['{']))
-    }
-}
-
 impl<'a> Resolve<'a> for ObjectKey {
     type Output = Cow<'a, str>;
 

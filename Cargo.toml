@@ -6,6 +6,7 @@ members = [
     "examples",
     "benches",
     "tools/*",
+    "no-std",
 ]
 
 default-members = [
@@ -15,7 +16,6 @@ default-members = [
     "tools/site",
     "tools/builder",
 ]
-exclude = ["no-std-examples"]
 
 [profile.bench]
 lto = false
