@@ -582,7 +582,6 @@ pub enum Inst {
     #[musli(packed)]
     Tuple1 {
         /// First element of the tuple.
-        #[musli(with = self::array::<_, 1>)]
         #[inst_display(display_with = display_array)]
         args: [InstAddress; 1],
     },
@@ -596,7 +595,6 @@ pub enum Inst {
     #[musli(packed)]
     Tuple2 {
         /// Tuple arguments.
-        #[musli(with = self::array::<_, 2>)]
         #[inst_display(display_with = display_array)]
         args: [InstAddress; 2],
     },
@@ -610,7 +608,6 @@ pub enum Inst {
     #[musli(packed)]
     Tuple3 {
         /// Tuple arguments.
-        #[musli(with = self::array::<_, 3>)]
         #[inst_display(display_with = display_array)]
         args: [InstAddress; 3],
     },
@@ -624,7 +621,6 @@ pub enum Inst {
     #[musli(packed)]
     Tuple4 {
         /// Tuple arguments.
-        #[musli(with = self::array::<_, 4>)]
         #[inst_display(display_with = display_array)]
         args: [InstAddress; 4],
     },
@@ -1546,50 +1542,6 @@ impl fmt::Display for InstVariant {
         }
 
         Ok(())
-    }
-}
-
-mod array {
-    use musli::de::SequenceDecoder;
-    use musli::en::SequenceEncoder;
-    use musli::{Decode, Decoder, Encode, Encoder, Mode};
-
-    #[inline]
-    pub(super) fn encode<M, E, T, const N: usize>(
-        this: &[T; N],
-        encoder: E,
-    ) -> Result<E::Ok, E::Error>
-    where
-        T: Encode<M>,
-        M: Mode,
-        E: Encoder,
-    {
-        let mut seq = encoder.encode_sequence(N)?;
-
-        for value in this {
-            value.encode(seq.next()?)?;
-        }
-
-        seq.end()
-    }
-
-    #[inline]
-    pub(super) fn decode<'de, M, D, T, const N: usize>(decoder: D) -> Result<[T; N], D::Error>
-    where
-        T: Copy + Default + Decode<'de, M>,
-        M: Mode,
-        D: Decoder<'de>,
-    {
-        let mut seq = decoder.decode_sequence()?;
-        let mut array = [T::default(); N];
-
-        for o in array.iter_mut() {
-            if let Some(value) = seq.next()? {
-                *o = T::decode(value)?;
-            }
-        }
-
-        Ok(array)
     }
 }
 

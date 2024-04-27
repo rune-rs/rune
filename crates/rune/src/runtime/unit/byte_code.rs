@@ -36,7 +36,7 @@ impl<'a> Iterator for ByteCodeUnitIter<'a> {
         }
 
         let ip = self.len.checked_sub(self.address.len())?;
-        let inst = musli_storage::decode(&mut self.address).ok()?;
+        let inst = musli::storage::decode(&mut self.address).ok()?;
         Some((ip, inst))
     }
 }
@@ -49,7 +49,7 @@ impl UnitEncoder for ByteCodeUnit {
 
     #[inline]
     fn encode(&mut self, inst: Inst) -> Result<(), EncodeError> {
-        musli_storage::encode(&mut self.bytes, &inst)?;
+        musli::storage::encode(&mut self.bytes, &inst)?;
         Ok(())
     }
 
@@ -102,7 +102,7 @@ impl UnitStorage for ByteCodeUnit {
         };
 
         let start = bytes.as_ptr();
-        let inst: Inst = musli_storage::decode(&mut bytes).map_err(|_| BadInstruction { ip })?;
+        let inst: Inst = musli::storage::decode(&mut bytes).map_err(|_| BadInstruction { ip })?;
         let len = (bytes.as_ptr() as usize).wrapping_sub(start as usize);
         Ok(Some((inst, len)))
     }
