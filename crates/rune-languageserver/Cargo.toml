@@ -1,6 +1,6 @@
 [package]
 name = "rune-languageserver"
-version = "0.13.1"
+version = "0.14.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
 rust-version = "1.76"
@@ -20,8 +20,8 @@ tracing = "0.1.37"
 tracing-appender = "0.2.2"
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 
-rune = { version = "0.13.1", path = "../rune", features = ["languageserver"] }
-rune-modules = { version = "0.13.1", path = "../rune-modules", features = ["full", "experiments"] }
+rune = { version = "0.14.0", path = "../rune", features = ["languageserver"] }
+rune-modules = { version = "0.14.0", path = "../rune-modules", features = ["full", "experiments"] }
 
 [build-dependencies]
 anyhow = "1.0.71"
