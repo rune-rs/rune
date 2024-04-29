@@ -1,6 +1,6 @@
 [package]
 name = "rune-core"
-version = "0.13.1"
+version = "0.14.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
 rust-version = "1.76"
@@ -20,12 +20,12 @@ std = ["alloc", "rune-alloc/std"]
 alloc = ["serde/alloc", "rune-alloc/alloc"]
 
 [dependencies]
-rune-alloc = { version = "0.13.1", path = "../rune-alloc", default-features = false, features = ["serde"] }
+rune-alloc = { version = "0.14.0", path = "../rune-alloc", default-features = false, features = ["serde"] }
 
 twox-hash = { version = "1.6.3", default-features = false }
 serde = { version = "1.0.163", default-features = false, features = ["derive"] }
 byteorder = { version = "1.4.3", default-features = false }
-musli = { version = "0.0.120", default-features = false, optional = true }
+musli = { version = "0.0.121", default-features = false, optional = true }
 
 [dev-dependencies]
 rune = { package = "rune-shim", path = "../rune-shim", features = ["core", "alloc"] }

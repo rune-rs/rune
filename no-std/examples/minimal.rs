@@ -33,11 +33,6 @@ extern "C" fn eh_personality() {}
 #[no_mangle]
 pub extern "C" fn _Unwind_Resume() {}
 
-#[no_mangle]
-extern "C" fn __musli_abort() -> ! {
-    core::intrinsics::abort();
-}
-
 use alloc::sync::Arc;
 
 use rune::{Diagnostics, Vm};

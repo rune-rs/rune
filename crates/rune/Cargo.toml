@@ -1,6 +1,6 @@
 [package]
 name = "rune"
-version = "0.13.1"
+version = "0.14.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
 rust-version = "1.76"
@@ -29,9 +29,9 @@ std = ["alloc", "num/std", "serde/std", "rune-core/std", "rune-alloc/std", "musl
 alloc = ["anyhow", "rune-alloc/alloc", "rune-core/alloc", "once_cell/alloc", "serde/alloc"]
 
 [dependencies]
-rune-macros = { version = "=0.13.1", path = "../rune-macros" }
-rune-core = { version = "=0.13.1", path = "../rune-core", features = ["musli"] }
-rune-alloc = { version = "0.13.1", path = "../rune-alloc", features = ["serde"], default-features = false }
+rune-macros = { version = "=0.14.0", path = "../rune-macros" }
+rune-core = { version = "=0.14.0", path = "../rune-core", features = ["musli"] }
+rune-alloc = { version = "0.14.0", path = "../rune-alloc", features = ["serde"], default-features = false }
 
 futures-core = { version = "0.3.28", default-features = false }
 futures-util = { version = "0.3.28", default-features = false, features = ["alloc"] }
@@ -41,7 +41,7 @@ pin-project = "1.1.0"
 ryu = "1.0.13"
 serde = { version = "1.0.163", default-features = false, features = ["derive", "rc"] }
 tracing =  { version = "0.1.37", default-features = false, features = ["attributes"] }
-musli = { version = "0.0.120", default-features = false, features = ["alloc"] }
+musli = { version = "0.0.121", default-features = false, features = ["alloc"] }
 once_cell = { version = "1.18.0", default-features = false, features = ["critical-section"] }
 
 anyhow = { version = "1.0.71", default-features = false, optional = true }
