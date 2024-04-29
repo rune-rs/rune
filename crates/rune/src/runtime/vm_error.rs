@@ -220,6 +220,7 @@ pub enum VmResult<T> {
 
 impl<T> VmResult<T> {
     /// Construct a result containing a panic.
+    #[inline]
     pub fn panic<D>(message: D) -> Self
     where
         D: 'static + BoxedPanic,
@@ -229,11 +230,47 @@ impl<T> VmResult<T> {
 
     /// Construct an expectation error. The actual type received is `actual`,
     /// but we expected `E`.
+    #[inline]
     pub fn expected<E>(actual: TypeInfo) -> Self
     where
         E: ?Sized + TypeOf,
     {
         Self::Err(VmError::expected::<E>(actual))
+    }
+
+    /// Test if the result is an ok.
+    #[inline]
+    pub fn is_ok(&self) -> bool {
+        matches!(self, Self::Ok(..))
+    }
+
+    /// Test if the result is an error.
+    #[inline]
+    pub fn is_err(&self) -> bool {
+        matches!(self, Self::Err(..))
+    }
+
+    /// Expect a value or panic.
+    #[inline]
+    #[track_caller]
+    pub fn expect(self, msg: &str) -> T {
+        self.into_result().expect(msg)
+    }
+
+    /// Unwrap the interior value.
+    #[inline]
+    #[track_caller]
+    pub fn unwrap(self) -> T {
+        self.into_result().unwrap()
+    }
+
+    /// Convert a [`VmResult`] into a [`Result`].
+    #[inline]
+    pub fn into_result(self) -> Result<T, VmError> {
+        match self {
+            Self::Ok(value) => Ok(value),
+            Self::Err(error) => Err(error),
+        }
     }
 
     /// Construct a new error from a type that can be converted into a
@@ -243,15 +280,6 @@ impl<T> VmResult<T> {
         VmError: From<E>,
     {
         Self::Err(VmError::from(error))
-    }
-
-    /// Convert a [`VmResult`] into a [`Result`].
-    #[inline(always)]
-    pub fn into_result(self) -> Result<T, VmError> {
-        match self {
-            Self::Ok(value) => Ok(value),
-            Self::Err(error) => Err(error),
-        }
     }
 
     /// Apply the given frame to the current result.
@@ -292,24 +320,6 @@ impl<T> VmResult<T> {
                 Self::Err(err)
             }
         }
-    }
-
-    /// Expect a value or panic.
-    #[doc(hidden)]
-    pub fn expect(self, msg: &str) -> T {
-        self.into_result().expect(msg)
-    }
-
-    /// Unwrap the interior value.
-    #[doc(hidden)]
-    pub fn unwrap(self) -> T {
-        self.into_result().unwrap()
-    }
-
-    /// Test if it is an error.
-    #[doc(hidden)]
-    pub fn is_err(&self) -> bool {
-        matches!(self, Self::Err(..))
     }
 }
 
