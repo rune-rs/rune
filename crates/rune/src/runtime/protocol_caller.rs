@@ -51,6 +51,7 @@ impl ProtocolCaller for EnvProtocolCaller {
                 offset,
                 args: expected,
                 call,
+                ..
             }) = unit.function(hash)
             {
                 vm_try!(check_args(count, expected));

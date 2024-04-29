@@ -641,8 +641,8 @@ pub enum Inst {
     /// Take the tuple that is on top of the stack and push its content onto the
     /// stack.
     ///
-    /// Note: this is used by closures to "unpack" their environment into local
-    /// variables.
+    /// This is used to unpack an environment for closures - if the closure has
+    /// an environment.
     ///
     /// # Operation
     ///
@@ -650,7 +650,10 @@ pub enum Inst {
     /// <tuple>
     /// => <value...>
     /// ```
-    PushTuple,
+    PushEnvironment {
+        /// The expected size of the tuple.
+        count: usize,
+    },
     /// Construct a push an object onto the stack. The number of elements
     /// in the object are determined the slot of the object keys `slot` and are
     /// popped from the stack.

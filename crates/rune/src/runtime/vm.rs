@@ -544,6 +544,7 @@ impl Vm {
             offset,
             call,
             args: expected,
+            ..
         }) = self.unit.function(hash)
         {
             vm_try!(self.stack.push(target));
@@ -1695,8 +1696,16 @@ impl Vm {
 
     /// Push the tuple that is on top of the stack.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_push_tuple(&mut self) -> VmResult<()> {
+    fn op_push_environment(&mut self, count: usize) -> VmResult<()> {
         let tuple = vm_try!(vm_try!(self.stack.pop()).into_tuple());
+
+        if tuple.len() != count {
+            return err(VmErrorKind::BadEnvironmentCount {
+                expected: count,
+                actual: tuple.len(),
+            });
+        }
+
         vm_try!(self.stack.extend(tuple.iter().cloned()));
         VmResult::Ok(())
     }
@@ -2068,7 +2077,9 @@ impl Vm {
     fn lookup_function_by_hash(&self, hash: Hash) -> Result<Function, VmErrorKind> {
         Ok(match self.unit.function(hash) {
             Some(info) => match info {
-                UnitFn::Offset { offset, call, args } => Function::from_vm_offset(
+                UnitFn::Offset {
+                    offset, call, args, ..
+                } => Function::from_vm_offset(
                     self.context.clone(),
                     self.unit.clone(),
                     offset,
@@ -2766,10 +2777,22 @@ impl Vm {
             .function(hash)
             .ok_or(VmErrorKind::MissingFunction { hash }));
 
-        let (offset, call, args) = match info {
-            UnitFn::Offset { offset, call, args } => (offset, call, args),
-            _ => return err(VmErrorKind::MissingFunction { hash }),
+        let UnitFn::Offset {
+            offset,
+            call,
+            args,
+            captures: Some(captures),
+        } = info
+        else {
+            return err(VmErrorKind::MissingFunction { hash });
         };
+
+        if captures != count {
+            return err(VmErrorKind::BadEnvironmentCount {
+                expected: captures,
+                actual: count,
+            });
+        }
 
         let environment =
             vm_try!(vm_try!(vm_try!(self.stack.pop_sequence(count))).try_into_boxed_slice());
@@ -2791,76 +2814,77 @@ impl Vm {
     /// Implementation of a function call.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_call(&mut self, hash: Hash, args: usize) -> VmResult<()> {
-        match self.unit.function(hash) {
-            Some(info) => match info {
-                UnitFn::Offset {
-                    offset,
-                    call,
-                    args: expected,
-                } => {
-                    vm_try!(check_args(args, expected));
-                    vm_try!(self.call_offset_fn(offset, call, args));
-                }
-                UnitFn::EmptyStruct { hash } => {
-                    vm_try!(check_args(args, 0));
+        let Some(info) = self.unit.function(hash) else {
+            let handler = vm_try!(self
+                .context
+                .function(hash)
+                .ok_or(VmErrorKind::MissingFunction { hash }));
 
-                    let rtti = vm_try!(self
-                        .unit
-                        .lookup_rtti(hash)
-                        .ok_or(VmErrorKind::MissingRtti { hash }));
+            vm_try!(handler(&mut self.stack, args));
+            return VmResult::Ok(());
+        };
 
-                    vm_try!(self.stack.push(vm_try!(Value::empty_struct(rtti.clone()))));
-                }
-                UnitFn::TupleStruct {
-                    hash,
-                    args: expected,
-                } => {
-                    vm_try!(check_args(args, expected));
-                    let tuple = vm_try!(vm_try!(self.stack.pop_sequence(args)));
+        match info {
+            UnitFn::Offset {
+                offset,
+                call,
+                args: expected,
+                ..
+            } => {
+                vm_try!(check_args(args, expected));
+                vm_try!(self.call_offset_fn(offset, call, args));
+            }
+            UnitFn::EmptyStruct { hash } => {
+                vm_try!(check_args(args, 0));
 
-                    let rtti = vm_try!(self
-                        .unit
-                        .lookup_rtti(hash)
-                        .ok_or(VmErrorKind::MissingRtti { hash }));
+                let rtti = vm_try!(self
+                    .unit
+                    .lookup_rtti(hash)
+                    .ok_or(VmErrorKind::MissingRtti { hash }));
 
-                    vm_try!(self
-                        .stack
-                        .push(vm_try!(Value::tuple_struct(rtti.clone(), tuple))));
-                }
-                UnitFn::TupleVariant {
-                    hash,
-                    args: expected,
-                } => {
-                    vm_try!(check_args(args, expected));
+                vm_try!(self.stack.push(vm_try!(Value::empty_struct(rtti.clone()))));
+            }
+            UnitFn::TupleStruct {
+                hash,
+                args: expected,
+            } => {
+                vm_try!(check_args(args, expected));
+                let tuple = vm_try!(vm_try!(self.stack.pop_sequence(args)));
 
-                    let rtti = vm_try!(self
-                        .unit
-                        .lookup_variant_rtti(hash)
-                        .ok_or(VmErrorKind::MissingVariantRtti { hash }));
+                let rtti = vm_try!(self
+                    .unit
+                    .lookup_rtti(hash)
+                    .ok_or(VmErrorKind::MissingRtti { hash }));
 
-                    let tuple = vm_try!(vm_try!(self.stack.pop_sequence(args)));
-                    vm_try!(self
-                        .stack
-                        .push(vm_try!(Value::tuple_variant(rtti.clone(), tuple))));
-                }
-                UnitFn::UnitVariant { hash } => {
-                    vm_try!(check_args(args, 0));
+                vm_try!(self
+                    .stack
+                    .push(vm_try!(Value::tuple_struct(rtti.clone(), tuple))));
+            }
+            UnitFn::TupleVariant {
+                hash,
+                args: expected,
+            } => {
+                vm_try!(check_args(args, expected));
 
-                    let rtti = vm_try!(self
-                        .unit
-                        .lookup_variant_rtti(hash)
-                        .ok_or(VmErrorKind::MissingVariantRtti { hash }));
+                let rtti = vm_try!(self
+                    .unit
+                    .lookup_variant_rtti(hash)
+                    .ok_or(VmErrorKind::MissingVariantRtti { hash }));
 
-                    vm_try!(self.stack.push(vm_try!(Value::unit_variant(rtti.clone()))));
-                }
-            },
-            None => {
-                let handler = vm_try!(self
-                    .context
-                    .function(hash)
-                    .ok_or(VmErrorKind::MissingFunction { hash }));
+                let tuple = vm_try!(vm_try!(self.stack.pop_sequence(args)));
+                vm_try!(self
+                    .stack
+                    .push(vm_try!(Value::tuple_variant(rtti.clone(), tuple))));
+            }
+            UnitFn::UnitVariant { hash } => {
+                vm_try!(check_args(args, 0));
 
-                vm_try!(handler(&mut self.stack, args));
+                let rtti = vm_try!(self
+                    .unit
+                    .lookup_variant_rtti(hash)
+                    .ok_or(VmErrorKind::MissingVariantRtti { hash }));
+
+                vm_try!(self.stack.push(vm_try!(Value::unit_variant(rtti.clone()))));
             }
         }
 
@@ -2886,6 +2910,7 @@ impl Vm {
             offset,
             call,
             args: expected,
+            ..
         }) = self.unit.function(hash)
         {
             vm_try!(check_args(args, expected));
@@ -3145,8 +3170,8 @@ impl Vm {
                 Inst::Tuple4 { args } => {
                     vm_try!(self.op_tuple_n(&args[..]));
                 }
-                Inst::PushTuple => {
-                    vm_try!(self.op_push_tuple());
+                Inst::PushEnvironment { count } => {
+                    vm_try!(self.op_push_environment(count));
                 }
                 Inst::Object { slot } => {
                     vm_try!(self.op_object(slot));

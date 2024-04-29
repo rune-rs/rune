@@ -663,6 +663,7 @@ impl UnitBuilder {
         item: &Item,
         instance: Option<(Hash, &str)>,
         args: usize,
+        captures: Option<usize>,
         assembly: Assembly,
         call: Call,
         debug_args: Box<[Box<str>]>,
@@ -672,7 +673,12 @@ impl UnitBuilder {
 
         let offset = unit_storage.offset();
 
-        let info = UnitFn::Offset { offset, call, args };
+        let info = UnitFn::Offset {
+            offset,
+            call,
+            args,
+            captures,
+        };
         let signature = DebugSignature::new(item.try_to_owned()?, DebugArgs::Named(debug_args));
 
         if let Some((type_hash, name)) = instance {

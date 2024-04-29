@@ -408,6 +408,7 @@ mod bug_417;
 mod bug_422;
 mod bug_428;
 mod bug_454;
+mod bug_700;
 mod bugfixes;
 mod builtin_macros;
 mod capture;
