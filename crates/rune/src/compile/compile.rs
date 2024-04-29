@@ -218,14 +218,15 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                     None
                 };
 
-                let (args, span): (_, &dyn Spanned) = match &f.ast {
+                let (debug_args, span): (_, &dyn Spanned) = match &f.ast {
                     FunctionAst::Item(ast) => {
-                        let args = format_fn_args(
+                        let debug_args = format_fn_args(
                             self.q.sources,
                             location,
+                            false,
                             ast.args.iter().map(|(a, _)| a),
                         )?;
-                        (args, ast)
+                        (debug_args, ast)
                     }
                     FunctionAst::Empty(.., span) => (Box::default(), span),
                 };
@@ -266,9 +267,10 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                         self.q.pool.item(item_meta.item),
                         instance,
                         count,
+                        None,
                         asm,
                         f.call,
-                        args,
+                        debug_args,
                         unit_storage,
                     )?;
                 }
@@ -278,9 +280,10 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
 
                 use self::v1::assemble;
 
-                let args = format_fn_args(
+                let debug_args = format_fn_args(
                     self.q.sources,
                     location,
+                    true,
                     closure.ast.args.as_slice().iter().map(|(a, _)| a),
                 )?;
 
@@ -292,6 +295,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                     self.q.borrow(),
                     item_meta.location.source_id,
                 )?;
+
                 let hir = hir::lowering::expr_closure_secondary(&mut cx, &closure.ast, captures)?;
                 let mut c = self.compiler1(location, &closure.ast, &mut asm)?;
                 assemble::expr_closure_secondary(&mut c, &hir, &closure.ast)?;
@@ -300,14 +304,26 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                     c.q.diagnostics
                         .not_used(location.source_id, &location.span, None)?;
                 } else {
+                    let captures =
+                        c.q.get_captures(captures)
+                            .map(|c| c.len())
+                            .filter(|c| *c > 0);
+
+                    let args = closure
+                        .ast
+                        .args
+                        .len()
+                        .saturating_add(usize::from(captures.is_some()));
+
                     self.q.unit.new_function(
                         location,
                         self.q.pool.item(item_meta.item),
                         None,
-                        closure.ast.args.len(),
+                        args,
+                        captures,
                         asm,
                         closure.call,
-                        args,
+                        debug_args,
                         unit_storage,
                     )?;
                 }
@@ -341,6 +357,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                         self.q.pool.item(item_meta.item),
                         None,
                         args,
+                        None,
                         asm,
                         b.call,
                         Default::default(),
@@ -435,12 +452,17 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
 fn format_fn_args<'a, I>(
     sources: &Sources,
     location: Location,
+    environment: bool,
     arguments: I,
 ) -> compile::Result<Box<[Box<str>]>>
 where
     I: IntoIterator<Item = &'a ast::FnArg>,
 {
     let mut args = Vec::new();
+
+    if environment {
+        args.try_push(Box::try_from("environment")?)?;
+    }
 
     for arg in arguments {
         match arg {

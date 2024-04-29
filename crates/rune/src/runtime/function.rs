@@ -870,8 +870,12 @@ struct FnOffset {
 
 impl FnOffset {
     /// Perform a call into the specified offset and return the produced value.
+    #[tracing::instrument(skip_all, fields(args = args.count(), extra = extra.count(), ?self.offset, ?self.call, ?self.args, ?self.hash))]
     fn call(&self, args: impl Args, extra: impl Args) -> VmResult<Value> {
-        vm_try!(check_args(args.count(), self.args));
+        vm_try!(check_args(
+            args.count().wrapping_add(extra.count()),
+            self.args
+        ));
 
         let mut vm = Vm::new(self.context.clone(), self.unit.clone());
 
@@ -887,13 +891,8 @@ impl FnOffset {
     /// This will cause a halt in case the vm being called into isn't the same
     /// as the context and unit of the function.
     #[tracing::instrument(skip_all, fields(args, extra = extra.count(), ?self.offset, ?self.call, ?self.args, ?self.hash))]
-    fn call_with_vm<E>(&self, vm: &mut Vm, args: usize, extra: E) -> VmResult<Option<VmCall>>
-    where
-        E: Args,
-    {
-        tracing::trace!("calling");
-
-        vm_try!(check_args(args, self.args));
+    fn call_with_vm(&self, vm: &mut Vm, args: usize, extra: impl Args) -> VmResult<Option<VmCall>> {
+        vm_try!(check_args(args.wrapping_add(extra.count()), self.args));
 
         let same_unit = matches!(self.call, Call::Immediate if vm.is_same_unit(&self.unit));
         let same_context =

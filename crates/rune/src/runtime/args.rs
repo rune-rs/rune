@@ -34,6 +34,7 @@ macro_rules! impl_into_args {
                 VmResult::Ok(vec)
             }
 
+            #[inline]
             fn count(&self) -> usize {
                 $count
             }

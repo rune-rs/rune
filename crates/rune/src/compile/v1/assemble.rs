@@ -311,7 +311,12 @@ pub(crate) fn expr_closure_secondary<'hir>(
     }
 
     if !hir.captures.is_empty() {
-        cx.asm.push(Inst::PushTuple, span)?;
+        cx.asm.push(
+            Inst::PushEnvironment {
+                count: hir.captures.len(),
+            },
+            span,
+        )?;
 
         for capture in hir.captures.iter().copied() {
             cx.scopes.define(capture, span)?;

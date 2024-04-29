@@ -244,6 +244,9 @@ pub(crate) enum UnitFn {
         call: Call,
         /// The number of arguments the function takes.
         args: usize,
+        /// If the offset is a closure, this indicates the number of captures in
+        /// the first argument.
+        captures: Option<usize>,
     },
     /// An empty constructor of the type identified by the given hash.
     EmptyStruct {
@@ -281,20 +284,28 @@ impl TryClone for UnitFn {
 impl fmt::Display for UnitFn {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Offset { offset, call, args } => {
-                write!(f, "offset {}, {}, {}", offset, call, args)?;
+            Self::Offset {
+                offset,
+                call,
+                args,
+                captures,
+            } => {
+                write!(
+                    f,
+                    "offset offset={offset}, call={call}, args={args}, captures={captures:?}"
+                )?;
             }
             Self::EmptyStruct { hash } => {
-                write!(f, "unit {}", hash)?;
+                write!(f, "unit hash={hash}")?;
             }
             Self::TupleStruct { hash, args } => {
-                write!(f, "tuple {}, {}", hash, args)?;
+                write!(f, "tuple hash={hash}, args={args}")?;
             }
             Self::UnitVariant { hash } => {
-                write!(f, "empty-variant {}", hash)?;
+                write!(f, "empty-variant hash={hash}")?;
             }
             Self::TupleVariant { hash, args } => {
-                write!(f, "tuple-variant {}, {}", hash, args)?;
+                write!(f, "tuple-variant hash={hash}, args={args}")?;
             }
         }
 

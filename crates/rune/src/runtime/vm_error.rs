@@ -625,6 +625,10 @@ pub(crate) enum VmErrorKind {
         actual: usize,
         expected: usize,
     },
+    BadEnvironmentCount {
+        actual: usize,
+        expected: usize,
+    },
     BadArgument {
         arg: usize,
     },
@@ -827,6 +831,10 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::BadArgumentCount { actual, expected } => write!(
                 f,
                 "Wrong number of arguments `{actual}`, expected `{expected}`",
+            ),
+            VmErrorKind::BadEnvironmentCount { actual, expected } => write!(
+                f,
+                "Wrong environment size `{actual}`, expected `{expected}`",
             ),
             VmErrorKind::BadArgument { arg } => write!(f, "Bad argument #{arg}"),
             VmErrorKind::UnsupportedIndexSet {
