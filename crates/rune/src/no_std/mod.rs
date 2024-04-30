@@ -1,22 +1,22 @@
 //! Public types related to using rune in #[no_std] environments.
 
-use crate::runtime::vm_diagnostics::VmDiagnosticsObj;
+use core::ptr::NonNull;
 
 /// Environment that needs to be stored somewhere.
 #[derive(Clone, Copy)]
 #[repr(C)]
 pub struct RawEnv {
-    pub(crate) context: *const (),
-    pub(crate) unit: *const (),
-    pub(crate) diagnostics: Option<VmDiagnosticsObj>,
+    pub(crate) context: Option<NonNull<()>>,
+    pub(crate) unit: Option<NonNull<()>>,
+    pub(crate) diagnostics: Option<NonNull<()>>,
 }
 
 impl RawEnv {
     /// Initialize an empty raw environment.
     pub const fn null() -> RawEnv {
         RawEnv {
-            context: core::ptr::null(),
-            unit: core::ptr::null(),
+            context: None,
+            unit: None,
             diagnostics: None,
         }
     }

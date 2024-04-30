@@ -1,6 +1,7 @@
 use core::cmp::Ordering;
 use core::mem::{replace, swap};
 use core::ops;
+use core::ptr::NonNull;
 use core::slice;
 
 use ::rust_alloc::sync::Arc;
@@ -613,7 +614,7 @@ impl Vm {
     }
 
     fn called_function_hook(&self, hash: Hash) -> VmResult<()> {
-        crate::runtime::env::with(|_, _, diagnostics| {
+        crate::runtime::env::exclusive(|_, _, diagnostics| {
             if let Some(diagnostics) = diagnostics {
                 vm_try!(diagnostics.function_used(hash, self.ip()));
             }
@@ -3065,17 +3066,33 @@ impl Vm {
     where
         F: FnOnce() -> T,
     {
-        let _guard = crate::runtime::env::Guard::new(&self.context, &self.unit, None);
+        let _guard = crate::runtime::env::Guard::new(
+            NonNull::from(&self.context),
+            NonNull::from(&self.unit),
+            None,
+        );
         f()
     }
 
     /// Evaluate a single instruction.
     pub(crate) fn run(&mut self, diagnostics: Option<&mut dyn VmDiagnostics>) -> VmResult<VmHalt> {
-        let diagnostics = diagnostics.map(VmDiagnosticsObj::new);
+        let mut vm_diagnostics_obj;
+
+        let diagnostics = match diagnostics {
+            Some(diagnostics) => {
+                vm_diagnostics_obj = VmDiagnosticsObj::new(diagnostics);
+                Some(NonNull::from(&mut vm_diagnostics_obj))
+            }
+            None => None,
+        };
 
         // NB: set up environment so that native function can access context and
         // unit.
-        let _guard = crate::runtime::env::Guard::new(&self.context, &self.unit, diagnostics);
+        let _guard = crate::runtime::env::Guard::new(
+            NonNull::from(&self.context),
+            NonNull::from(&self.unit),
+            diagnostics,
+        );
 
         loop {
             if !budget::take() {
