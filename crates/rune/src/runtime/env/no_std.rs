@@ -30,16 +30,16 @@ pub(super) fn rune_env_replace(env: Env) -> Env {
 
 unsafe fn from_env(env: Env) -> RawEnv {
     RawEnv {
-        context: env.context as *const _,
-        unit: env.unit as *const _,
-        diagnostics: env.diagnostics,
+        context: env.context.map(|ptr| ptr.cast()),
+        unit: env.unit.map(|ptr| ptr.cast()),
+        diagnostics: env.diagnostics.map(|ptr| ptr.cast()),
     }
 }
 
 unsafe fn from_raw_env(env: RawEnv) -> Env {
     Env {
-        context: env.context as *const _,
-        unit: env.unit as *const _,
-        diagnostics: env.diagnostics,
+        context: env.context.map(|ptr| ptr.cast()),
+        unit: env.unit.map(|ptr| ptr.cast()),
+        diagnostics: env.diagnostics.map(|ptr| ptr.cast()),
     }
 }

@@ -898,7 +898,7 @@ impl Value {
     pub fn into_type_name(self) -> VmResult<String> {
         let hash = Hash::associated_function(vm_try!(self.type_hash()), Protocol::INTO_TYPE_NAME);
 
-        crate::runtime::env::with(|context, unit, _| {
+        crate::runtime::env::shared(|context, unit| {
             if let Some(name) = context.constant(hash) {
                 match name {
                     ConstValue::String(s) => {
