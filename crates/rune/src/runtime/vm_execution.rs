@@ -175,12 +175,7 @@ where
     /// If any async instructions are encountered, this will error. This will
     /// also error if the execution is suspended through yielding.
     pub fn complete(&mut self) -> VmResult<Value> {
-        match vm_try!(self.resume()) {
-            GeneratorState::Complete(value) => VmResult::Ok(value),
-            GeneratorState::Yielded(..) => VmResult::err(VmErrorKind::Halted {
-                halt: VmHaltInfo::Yielded,
-            }),
-        }
+        self.complete_with_diagnostics(None)
     }
 
     /// Complete the current execution without support for async instructions.
@@ -218,13 +213,7 @@ where
     /// If the function being executed is a generator or stream this will resume
     /// it while returning a unit from the current `yield`.
     pub async fn async_resume(&mut self) -> VmResult<GeneratorState> {
-        if matches!(self.state, ExecutionState::Resumed) {
-            vm_try!(self.head.as_mut().stack_mut().push(vm_try!(Value::empty())));
-        } else {
-            self.state = ExecutionState::Resumed;
-        }
-
-        self.inner_async_resume(None).await
+        self.async_resume_with_diagnostics(None).await
     }
 
     /// Resume the current execution with support for async instructions.
@@ -308,15 +297,8 @@ where
     /// it while returning a unit from the current `yield`.
     ///
     /// If any async instructions are encountered, this will error.
-    #[tracing::instrument(skip_all)]
     pub fn resume(&mut self) -> VmResult<GeneratorState> {
-        if matches!(self.state, ExecutionState::Resumed) {
-            vm_try!(self.head.as_mut().stack_mut().push(vm_try!(Value::empty())));
-        } else {
-            self.state = ExecutionState::Resumed;
-        }
-
-        self.inner_resume(None)
+        self.resume_with_diagnostics(None)
     }
 
     /// Resume the current execution without support for async instructions.
@@ -325,7 +307,7 @@ where
     /// it while returning a unit from the current `yield`.
     ///
     /// If any async instructions are encountered, this will error.
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument(skip_all, fields(diagnostics=diagnostics.is_some()))]
     pub fn resume_with_diagnostics(
         &mut self,
         diagnostics: Option<&mut dyn VmDiagnostics>,

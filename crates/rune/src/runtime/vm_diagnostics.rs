@@ -7,7 +7,7 @@ use crate::Diagnostics;
 pub trait VmDiagnostics {
     fn function_used(&mut self, hash: Hash, at: usize) -> VmResult<()>;
 
-    fn vtable(&mut self) -> &'static VmDiagnosticsObjVtable;
+    fn vtable(&self) -> &'static VmDiagnosticsObjVtable;
 }
 
 impl VmDiagnostics for Diagnostics {
@@ -16,7 +16,7 @@ impl VmDiagnostics for Diagnostics {
         VmResult::Ok(())
     }
 
-    fn vtable(&mut self) -> &'static VmDiagnosticsObjVtable {
+    fn vtable(&self) -> &'static VmDiagnosticsObjVtable {
         fn function_used_impl<T>(ptr: NonNull<()>, hash: Hash, at: usize) -> VmResult<()>
         where
             T: VmDiagnostics,

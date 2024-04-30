@@ -13,18 +13,18 @@ mod no_std;
 use ::rust_alloc::sync::Arc;
 
 use crate::runtime::vm_diagnostics::VmDiagnosticsObj;
-use crate::runtime::{RuntimeContext, Unit, VmDiagnostics, VmErrorKind, VmResult};
+use crate::runtime::{RuntimeContext, Unit, VmErrorKind, VmResult};
 
 /// Call the given closure with access to the checked environment.
 pub(crate) fn with<F, T>(c: F) -> VmResult<T>
 where
-    F: FnOnce(&Arc<RuntimeContext>, &Arc<Unit>, &Option<VmDiagnosticsObj>) -> VmResult<T>,
+    F: FnOnce(&Arc<RuntimeContext>, &Arc<Unit>, Option<&mut VmDiagnosticsObj>) -> VmResult<T>,
 {
     let env = self::no_std::rune_env_get();
     let Env {
         context,
         unit,
-        diagnostics,
+        mut diagnostics,
     } = env;
 
     if context.is_null() || unit.is_null() {
@@ -34,7 +34,11 @@ where
     // Safety: context and unit can only be registered publicly through
     // [Guard], which makes sure that they are live for the duration of
     // the registration.
-    c(unsafe { &*context }, unsafe { &*unit }, &diagnostics)
+    c(
+        unsafe { &*context },
+        unsafe { &*unit },
+        diagnostics.as_mut(),
+    )
 }
 
 pub(crate) struct Guard {
@@ -50,12 +54,12 @@ impl Guard {
     pub(crate) fn new(
         context: *const Arc<RuntimeContext>,
         unit: *const Arc<Unit>,
-        diagnostics: Option<&mut dyn VmDiagnostics>,
+        diagnostics: Option<VmDiagnosticsObj>,
     ) -> Guard {
         let old = self::no_std::rune_env_replace(Env {
             context,
             unit,
-            diagnostics: diagnostics.map(VmDiagnosticsObj::new),
+            diagnostics,
         });
         Guard { old }
     }

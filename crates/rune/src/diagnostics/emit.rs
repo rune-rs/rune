@@ -122,8 +122,8 @@ impl Diagnostics {
         &self,
         out: &mut O,
         sources: &Sources,
-        debug_info: Option<&DebugInfo>,
-        context: Option<&Context>,
+        unit: &Unit,
+        context: &Context,
     ) -> Result<(), EmitError>
     where
         O: WriteColor,
@@ -131,6 +131,8 @@ impl Diagnostics {
         if self.is_empty() {
             return Ok(());
         }
+
+        let debug_info = unit.debug_info();
 
         let config = term::Config::default();
 
@@ -144,7 +146,7 @@ impl Diagnostics {
                 }
                 Diagnostic::RuntimeWarning(w) => {
                     runtime_warning_diagnostics_emit(
-                        w, out, sources, &config, debug_info, context,
+                        w, out, sources, &config, debug_info, Some(context),
                     )?;
                 }
             }
