@@ -61,17 +61,15 @@ fn check_diagnostic(context: &Context, diagnostic: &Diagnostic, msg: &str) {
             WarningDiagnosticKind::UsedDeprecated { message, .. } => {
                 assert_eq!(message, msg);
             }
-            _ => panic!("Expected a UsedDeprecated warning"),
+            kind => panic!("Unexpected warning: {kind:?}"),
         },
         Diagnostic::RuntimeWarning(w) => match w.kind() {
             RuntimeWarningDiagnosticKind::UsedDeprecated { hash, .. } => {
                 let message = context.lookup_deprecation(*hash);
                 assert_eq!(message, Some(msg));
             }
-            #[allow(unreachable_patterns)]
-            _ => panic!("Expected a UsedDeprecated warning"),
         },
-        _ => panic!("Diagnostic need to be of typ warning"),
+        kind => panic!("Unexpected diagnostics: {kind:?}"),
     };
 }
 
@@ -96,8 +94,8 @@ fn test_deprecation_warnings() -> Result<()> {
         diagnostics.emit_detailed(
             &mut StandardStream::stdout(ColorChoice::Auto),
             &sources,
-            unit.debug_info(),
-            Some(&context),
+            &unit,
+            &context,
         )?;
     }
 
@@ -106,7 +104,6 @@ fn test_deprecation_warnings() -> Result<()> {
     check_diagnostic(&context, iter.next().unwrap(), "Deprecated function");
     check_diagnostic(&context, iter.next().unwrap(), "Deprecated associated fn");
     check_diagnostic(&context, iter.next().unwrap(), "Deprecated get field fn");
-
     Ok(())
 }
 

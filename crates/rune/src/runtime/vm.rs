@@ -22,7 +22,7 @@ use crate::runtime::{
     VmSendExecution,
 };
 
-use super::VmDiagnostics;
+use super::{VmDiagnostics, VmDiagnosticsObj};
 
 /// Small helper function to build errors.
 fn err<T, E>(error: E) -> VmResult<T>
@@ -614,9 +614,10 @@ impl Vm {
 
     fn called_function_hook(&self, hash: Hash) -> VmResult<()> {
         crate::runtime::env::with(|_, _, diagnostics| {
-            if let Some(mut diagnostics) = diagnostics {
-                vm_try!(diagnostics.function_used(hash, self.ip()))
+            if let Some(diagnostics) = diagnostics {
+                vm_try!(diagnostics.function_used(hash, self.ip()));
             }
+
             VmResult::Ok(())
         })
     }
@@ -638,7 +639,6 @@ impl Vm {
         let hash = Hash::field_function(protocol, vm_try!(target.type_hash()), name);
 
         if let Some(handler) = self.context.function(hash) {
-            #[cfg(feature = "std")]
             vm_try!(self.called_function_hook(hash));
             vm_try!(self.stack.push(target));
             let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut self.stack)) };
@@ -3071,6 +3071,8 @@ impl Vm {
 
     /// Evaluate a single instruction.
     pub(crate) fn run(&mut self, diagnostics: Option<&mut dyn VmDiagnostics>) -> VmResult<VmHalt> {
+        let diagnostics = diagnostics.map(VmDiagnosticsObj::new);
+
         // NB: set up environment so that native function can access context and
         // unit.
         let _guard = crate::runtime::env::Guard::new(&self.context, &self.unit, diagnostics);
