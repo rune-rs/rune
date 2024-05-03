@@ -336,19 +336,19 @@ impl Struct {
     }
 
     /// Get the given key in the object.
-    pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&Value>
+    pub fn get<Q>(&self, k: &Q) -> Option<&Value>
     where
         String: Borrow<Q>,
-        Q: hash::Hash + Eq + Ord,
+        Q: ?Sized + hash::Hash + Eq + Ord,
     {
         self.data.get(k)
     }
 
     /// Get the given mutable value by key in the object.
-    pub fn get_mut<Q: ?Sized>(&mut self, k: &Q) -> Option<&mut Value>
+    pub fn get_mut<Q>(&mut self, k: &Q) -> Option<&mut Value>
     where
         String: Borrow<Q>,
-        Q: hash::Hash + Eq + Ord,
+        Q: ?Sized + hash::Hash + Eq + Ord,
     {
         self.data.get_mut(k)
     }

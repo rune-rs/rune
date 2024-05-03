@@ -205,18 +205,18 @@ where
     VmResult::Ok((vm_try!(T::from_value(value)), Guard))
 }
 
-fn unsafe_to_ref<'a, T: ?Sized>(value: Value) -> VmResult<(&'a T, T::Guard)>
+fn unsafe_to_ref<'a, T>(value: Value) -> VmResult<(&'a T, T::Guard)>
 where
-    T: UnsafeToRef,
+    T: ?Sized + UnsafeToRef,
 {
     // SAFETY: these are only locally used in this module, and we ensure that
     // the guard requirement is met.
     unsafe { T::unsafe_to_ref(value) }
 }
 
-fn unsafe_to_mut<'a, T: ?Sized>(value: Value) -> VmResult<(&'a mut T, T::Guard)>
+fn unsafe_to_mut<'a, T>(value: Value) -> VmResult<(&'a mut T, T::Guard)>
 where
-    T: UnsafeToMut,
+    T: ?Sized + UnsafeToMut,
 {
     // SAFETY: these are only locally used in this module, and we ensure that
     // the guard requirement is met.

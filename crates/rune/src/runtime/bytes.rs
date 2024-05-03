@@ -16,7 +16,7 @@ use crate::runtime::{RawRef, Ref, UnsafeToRef, Value, ValueKind, VmErrorKind, Vm
 use crate::Any;
 
 /// A vector of bytes.
-#[derive(Any, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Default, Any, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[rune(builtin, static_type = BYTES_TYPE)]
 pub struct Bytes {
     pub(crate) bytes: Vec<u8>,

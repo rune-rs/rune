@@ -261,12 +261,12 @@ impl Context {
     }
 
     /// Iterate over known child components of the given name.
-    pub(crate) fn iter_components<'a, I: 'a>(
+    pub(crate) fn iter_components<'a, I>(
         &'a self,
         iter: I,
     ) -> alloc::Result<impl Iterator<Item = ComponentRef<'a>> + 'a>
     where
-        I: IntoIterator,
+        I: 'a + IntoIterator,
         I::Item: IntoComponent,
     {
         self.names.iter_components(iter)

@@ -159,19 +159,19 @@ impl Object {
 
     /// Returns a reference to the value corresponding to the key.
     #[inline]
-    pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&Value>
+    pub fn get<Q>(&self, k: &Q) -> Option<&Value>
     where
         String: borrow::Borrow<Q>,
-        Q: hash::Hash + cmp::Eq + cmp::Ord,
+        Q: ?Sized + hash::Hash + cmp::Eq + cmp::Ord,
     {
         self.inner.get(k)
     }
 
     /// Get the given value at the given index.
-    pub fn get_value<Q: ?Sized, T>(&self, k: &Q) -> VmResult<Option<T>>
+    pub fn get_value<Q, T>(&self, k: &Q) -> VmResult<Option<T>>
     where
         String: borrow::Borrow<Q>,
-        Q: hash::Hash + cmp::Eq + cmp::Ord,
+        Q: ?Sized + hash::Hash + cmp::Eq + cmp::Ord,
         T: FromValue,
     {
         let value = match self.inner.get(k) {
@@ -184,20 +184,20 @@ impl Object {
 
     /// Returns a mutable reference to the value corresponding to the key.
     #[inline]
-    pub fn get_mut<Q: ?Sized>(&mut self, k: &Q) -> Option<&mut Value>
+    pub fn get_mut<Q>(&mut self, k: &Q) -> Option<&mut Value>
     where
         String: borrow::Borrow<Q>,
-        Q: hash::Hash + cmp::Eq + cmp::Ord,
+        Q: ?Sized + hash::Hash + cmp::Eq + cmp::Ord,
     {
         self.inner.get_mut(k)
     }
 
     /// Returns `true` if the map contains a value for the specified key.
     #[inline]
-    pub fn contains_key<Q: ?Sized>(&self, k: &Q) -> bool
+    pub fn contains_key<Q>(&self, k: &Q) -> bool
     where
         String: borrow::Borrow<Q>,
-        Q: hash::Hash + cmp::Eq + cmp::Ord,
+        Q: ?Sized + hash::Hash + cmp::Eq + cmp::Ord,
     {
         self.inner.contains_key(k)
     }
@@ -205,10 +205,10 @@ impl Object {
     /// Removes a key from the map, returning the value at the key if the key
     /// was previously in the map.
     #[inline]
-    pub fn remove<Q: ?Sized>(&mut self, k: &Q) -> Option<Value>
+    pub fn remove<Q>(&mut self, k: &Q) -> Option<Value>
     where
         String: borrow::Borrow<Q>,
-        Q: hash::Hash + cmp::Eq + cmp::Ord,
+        Q: ?Sized + hash::Hash + cmp::Eq + cmp::Ord,
     {
         self.inner.remove(k)
     }
