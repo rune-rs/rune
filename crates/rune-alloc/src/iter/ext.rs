@@ -86,10 +86,10 @@ pub trait IteratorExt: Iterator + self::sealed::Sealed {
     /// assert_eq!(v_map, [1, 2, 3]);
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
-    fn try_cloned<'a, T: 'a>(self) -> TryCloned<Self>
+    fn try_cloned<'a, T>(self) -> TryCloned<Self>
     where
         Self: Sized + Iterator<Item = &'a T>,
-        T: TryClone,
+        T: 'a + TryClone,
     {
         TryCloned::new(self)
     }

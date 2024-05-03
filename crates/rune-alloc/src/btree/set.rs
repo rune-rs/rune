@@ -413,9 +413,9 @@ impl<T, A: Allocator> BTreeSet<T, A> {
     /// assert_eq!(Some(&5), set.range(4..).next());
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
-    pub fn range<K: ?Sized, R>(&self, range: R) -> Range<'_, T>
+    pub fn range<K, R>(&self, range: R) -> Range<'_, T>
     where
-        K: Ord,
+        K: ?Sized + Ord,
         T: Borrow<K> + Ord,
         R: RangeBounds<K>,
     {
@@ -653,10 +653,10 @@ impl<T, A: Allocator> BTreeSet<T, A> {
     /// assert_eq!(set.contains(&4), false);
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
-    pub fn contains<Q: ?Sized>(&self, value: &Q) -> bool
+    pub fn contains<Q>(&self, value: &Q) -> bool
     where
         T: Borrow<Q> + Ord,
-        Q: Ord,
+        Q: ?Sized + Ord,
     {
         self.map.contains_key(value)
     }
@@ -678,10 +678,10 @@ impl<T, A: Allocator> BTreeSet<T, A> {
     /// assert_eq!(set.get(&4), None);
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
-    pub fn get<Q: ?Sized>(&self, value: &Q) -> Option<&T>
+    pub fn get<Q>(&self, value: &Q) -> Option<&T>
     where
         T: Borrow<Q> + Ord,
-        Q: Ord,
+        Q: ?Sized + Ord,
     {
         into_ok(self.get_with(&mut (), value, infallible_cmp))
     }
@@ -1033,10 +1033,10 @@ impl<T, A: Allocator> BTreeSet<T, A> {
     /// assert_eq!(set.remove(&2), false);
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
-    pub fn remove<Q: ?Sized>(&mut self, value: &Q) -> bool
+    pub fn remove<Q>(&mut self, value: &Q) -> bool
     where
         T: Borrow<Q> + Ord,
-        Q: Ord,
+        Q: ?Sized + Ord,
     {
         self.map.remove(value).is_some()
     }
@@ -1058,10 +1058,10 @@ impl<T, A: Allocator> BTreeSet<T, A> {
     /// assert_eq!(set.take(&2), None);
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
-    pub fn take<Q: ?Sized>(&mut self, value: &Q) -> Option<T>
+    pub fn take<Q>(&mut self, value: &Q) -> Option<T>
     where
         T: Borrow<Q> + Ord,
-        Q: Ord,
+        Q: ?Sized + Ord,
     {
         into_ok(self.take_with(&mut (), value, infallible_cmp))
     }
@@ -1176,8 +1176,9 @@ impl<T, A: Allocator> BTreeSet<T, A> {
     /// assert!(b.contains(&41));
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
-    pub fn try_split_off<Q: ?Sized + Ord>(&mut self, value: &Q) -> Result<Self, Error>
+    pub fn try_split_off<Q>(&mut self, value: &Q) -> Result<Self, Error>
     where
+        Q: ?Sized + Ord,
         T: Borrow<Q> + Ord,
         A: Clone,
     {
@@ -1187,8 +1188,9 @@ impl<T, A: Allocator> BTreeSet<T, A> {
     }
 
     #[cfg(test)]
-    pub(crate) fn split_off<Q: ?Sized + Ord>(&mut self, value: &Q) -> Self
+    pub(crate) fn split_off<Q>(&mut self, value: &Q) -> Self
     where
+        Q: ?Sized + Ord,
         T: Borrow<Q> + Ord,
         A: Clone,
     {

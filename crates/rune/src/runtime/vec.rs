@@ -38,7 +38,7 @@ use self::iter::Iter;
 /// assert_eq!(None::<bool>, vec.get_value(2).into_result()?);
 /// # Ok::<_, rune::support::Error>(())
 /// ```
-#[derive(Any)]
+#[derive(Default, Any)]
 #[repr(transparent)]
 #[rune(builtin, static_type = VEC_TYPE)]
 #[rune(from_value = Value::into_vec, from_value_ref = Value::into_vec_ref, from_value_mut = Value::into_vec_mut)]

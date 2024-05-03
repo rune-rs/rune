@@ -65,9 +65,9 @@ pub(crate) fn into_ok<T>(result: Result<T, Infallible>) -> T {
 }
 
 #[inline(always)]
-pub(crate) fn infallible_cmp<T: ?Sized>(_: &mut (), a: &T, b: &T) -> Result<Ordering, Infallible>
+pub(crate) fn infallible_cmp<T>(_: &mut (), a: &T, b: &T) -> Result<Ordering, Infallible>
 where
-    T: Ord,
+    T: ?Sized + Ord,
 {
     Ok(a.cmp(b))
 }
@@ -253,13 +253,14 @@ where
 
 impl<K: TryClone, V: TryClone, A: Allocator + Clone> TryClone for BTreeMap<K, V, A> {
     fn try_clone(&self) -> Result<BTreeMap<K, V, A>, Error> {
-        fn clone_subtree<'a, K: TryClone, V: TryClone, A: Allocator + Clone>(
+        fn clone_subtree<'a, K, V, A>(
             node: NodeRef<marker::Immut<'a>, K, V, marker::LeafOrInternal>,
             alloc: &A,
         ) -> Result<BTreeMap<K, V, A>, Error>
         where
-            K: 'a,
-            V: 'a,
+            K: 'a + TryClone,
+            V: 'a + TryClone,
+            A: Allocator + Clone,
         {
             match node.force() {
                 Leaf(leaf) => {
@@ -862,21 +863,23 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// assert_eq!(map.get(&2), None);
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
-    pub fn get<Q: ?Sized>(&self, key: &Q) -> Option<&V>
+    pub fn get<Q>(&self, key: &Q) -> Option<&V>
     where
+        Q: ?Sized + Ord,
         K: Borrow<Q> + Ord,
-        Q: Ord,
     {
         into_ok(self.get_with(&mut (), key, infallible_cmp))
     }
 
-    pub(crate) fn get_with<C: ?Sized, Q: ?Sized, E>(
+    pub(crate) fn get_with<C, Q, E>(
         &self,
         cx: &mut C,
         key: &Q,
         cmp: CmpFn<C, Q, E>,
     ) -> Result<Option<&V>, E>
     where
+        C: ?Sized,
+        Q: ?Sized,
         K: Borrow<Q>,
     {
         let Some(root_node) = self.root.as_ref().map(NodeRef::reborrow) else {
@@ -905,10 +908,10 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// assert_eq!(map.get_key_value(&2), None);
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
-    pub fn get_key_value<Q: ?Sized>(&self, k: &Q) -> Option<(&K, &V)>
+    pub fn get_key_value<Q>(&self, k: &Q) -> Option<(&K, &V)>
     where
+        Q: ?Sized + Ord,
         K: Borrow<Q> + Ord,
-        Q: Ord,
     {
         let root_node = self.root.as_ref()?.reborrow();
         match into_ok(root_node.search_tree(&mut (), k, infallible_cmp)) {
@@ -1103,23 +1106,24 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// assert_eq!(map.contains_key(&2), false);
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
-    pub fn contains_key<Q: ?Sized>(&self, key: &Q) -> bool
+    pub fn contains_key<Q>(&self, key: &Q) -> bool
     where
+        Q: ?Sized + Ord,
         K: Borrow<Q> + Ord,
-        Q: Ord,
     {
         into_ok(self.contains_key_with(&mut (), key, infallible_cmp))
     }
 
-    pub(crate) fn contains_key_with<C: ?Sized, Q: ?Sized, E>(
+    pub(crate) fn contains_key_with<C, Q, E>(
         &self,
         cx: &mut C,
         key: &Q,
         cmp: CmpFn<C, Q, E>,
     ) -> Result<bool, E>
     where
+        C: ?Sized,
+        Q: ?Sized + Ord,
         K: Borrow<Q> + Ord,
-        Q: Ord,
     {
         Ok(self.get_with(cx, key, cmp)?.is_some())
     }
@@ -1148,10 +1152,10 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     // See `get` for implementation notes, this is basically a copy-paste with mut's added
-    pub fn get_mut<Q: ?Sized>(&mut self, key: &Q) -> Option<&mut V>
+    pub fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut V>
     where
+        Q: ?Sized + Ord,
         K: Borrow<Q> + Ord,
-        Q: Ord,
     {
         into_ok(self.get_mut_with(&mut (), key, infallible_cmp))
     }
@@ -1296,10 +1300,10 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// assert_eq!(map.remove(&1), None);
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
-    pub fn remove<Q: ?Sized>(&mut self, key: &Q) -> Option<V>
+    pub fn remove<Q>(&mut self, key: &Q) -> Option<V>
     where
+        Q: ?Sized + Ord,
         K: Borrow<Q> + Ord,
-        Q: Ord,
     {
         self.remove_entry(key).map(|(_, v)| v)
     }
@@ -1323,9 +1327,9 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// assert_eq!(map.remove_entry(&1), None);
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
-    pub fn remove_entry<Q: ?Sized>(&mut self, key: &Q) -> Option<(K, V)>
+    pub fn remove_entry<Q>(&mut self, key: &Q) -> Option<(K, V)>
     where
-        Q: Ord,
+        Q: ?Sized + Ord,
         K: Borrow<Q> + Ord,
     {
         into_ok(self.remove_entry_with(&mut (), key, infallible_cmp))
@@ -1485,22 +1489,24 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// assert_eq!(Some((&5, &"b")), map.range(4..).next());
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
-    pub fn range<Q: ?Sized, R>(&self, range: R) -> Range<'_, K, V>
+    pub fn range<Q, R>(&self, range: R) -> Range<'_, K, V>
     where
-        Q: Ord,
+        Q: ?Sized + Ord,
         K: Borrow<Q> + Ord,
         R: RangeBounds<Q>,
     {
         into_ok(self.range_with(&mut (), range, infallible_cmp))
     }
 
-    pub(crate) fn range_with<C: ?Sized, Q: ?Sized, R, E>(
+    pub(crate) fn range_with<C, Q, R, E>(
         &self,
         cx: &mut C,
         range: R,
         cmp: CmpFn<C, Q, E>,
     ) -> Result<Range<'_, K, V>, E>
     where
+        C: ?Sized,
+        Q: ?Sized,
         K: Borrow<Q>,
         R: RangeBounds<Q>,
     {
@@ -1546,9 +1552,9 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// }
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
-    pub fn range_mut<Q: ?Sized, R>(&mut self, range: R) -> RangeMut<'_, K, V>
+    pub fn range_mut<Q, R>(&mut self, range: R) -> RangeMut<'_, K, V>
     where
-        Q: Ord,
+        Q: ?Sized + Ord,
         K: Borrow<Q> + Ord,
         R: RangeBounds<Q>,
     {
@@ -1672,9 +1678,9 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// assert_eq!(b[&41], "e");
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
-    pub fn try_split_off<Q: ?Sized>(&mut self, key: &Q) -> Result<Self, Error>
+    pub fn try_split_off<Q>(&mut self, key: &Q) -> Result<Self, Error>
     where
-        Q: Ord,
+        Q: ?Sized + Ord,
         K: Borrow<Q> + Ord,
         A: Clone,
     {
@@ -1682,9 +1688,9 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     }
 
     #[cfg(test)]
-    pub(crate) fn split_off<Q: ?Sized>(&mut self, key: &Q) -> Self
+    pub(crate) fn split_off<Q>(&mut self, key: &Q) -> Self
     where
-        Q: Ord,
+        Q: ?Sized + Ord,
         K: Borrow<Q> + Ord,
         A: Clone,
     {
@@ -2945,21 +2951,23 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// assert_eq!(cursor.key(), Some(&3));
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
-    pub fn lower_bound_mut<Q: ?Sized>(&mut self, bound: Bound<&Q>) -> CursorMut<'_, K, V, A>
+    pub fn lower_bound_mut<Q>(&mut self, bound: Bound<&Q>) -> CursorMut<'_, K, V, A>
     where
+        Q: ?Sized + Ord,
         K: Borrow<Q> + Ord,
-        Q: Ord,
     {
         into_ok(self.lower_bound_mut_with(&mut (), bound, infallible_cmp))
     }
 
-    pub(crate) fn lower_bound_mut_with<C: ?Sized, Q: ?Sized, E>(
+    pub(crate) fn lower_bound_mut_with<C, Q, E>(
         &mut self,
         cx: &mut C,
         bound: Bound<&Q>,
         cmp: CmpFn<C, Q, E>,
     ) -> Result<CursorMut<'_, K, V, A>, E>
     where
+        C: ?Sized,
+        Q: ?Sized,
         K: Borrow<Q>,
     {
         let (root, dormant_root) = DormantMutRef::new(&mut self.root);
@@ -3067,10 +3075,10 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     /// assert_eq!(cursor.key(), Some(&2));
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
-    pub fn upper_bound_mut<Q: ?Sized>(&mut self, bound: Bound<&Q>) -> CursorMut<'_, K, V, A>
+    pub fn upper_bound_mut<Q>(&mut self, bound: Bound<&Q>) -> CursorMut<'_, K, V, A>
     where
+        Q: ?Sized + Ord,
         K: Borrow<Q>,
-        Q: Ord,
     {
         into_ok(self.upper_bound_mut_with(&mut (), bound, infallible_cmp))
     }
