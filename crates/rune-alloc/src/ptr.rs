@@ -62,21 +62,6 @@ pub const fn invalid_mut<T>(addr: usize) -> *mut T {
 cfg_if! {
     if #[cfg(rune_nightly)] {
         #[inline(always)]
-        pub(crate) const fn wrapping_byte_sub<T>(ptr: *const T, count: usize) -> *const T {
-            ptr.cast::<u8>().wrapping_sub(count).with_metadata_of(ptr)
-        }
-    } else {
-        #[inline(always)]
-        pub(crate) const fn wrapping_byte_sub<T>(ptr: *const T, count: usize) -> *const T {
-            // TODO: We need to use metadata.
-            ptr.cast::<u8>().wrapping_sub(count) as *const T
-        }
-    }
-}
-
-cfg_if! {
-    if #[cfg(rune_nightly)] {
-        #[inline(always)]
         pub(crate) unsafe fn sub_ptr<T>(from: *const T, to: *const T) -> usize {
             from.sub_ptr(to)
         }

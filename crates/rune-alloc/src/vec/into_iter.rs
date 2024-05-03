@@ -110,7 +110,7 @@ impl<T, A: Allocator> Iterator for IntoIter<T, A> {
         } else if T::IS_ZST {
             // `ptr` has to stay where it is to remain aligned, so we reduce the length by 1 by
             // reducing the `end`.
-            self.end = ptr::wrapping_byte_sub(self.end, 1);
+            self.end = self.end.wrapping_byte_sub(1);
 
             // Make up a value of this ZST.
             Some(unsafe { mem::zeroed() })
@@ -145,7 +145,7 @@ impl<T, A: Allocator> DoubleEndedIterator for IntoIter<T, A> {
             None
         } else if T::IS_ZST {
             // See above for why 'ptr.offset' isn't used
-            self.end = ptr::wrapping_byte_sub(self.end, 1);
+            self.end = self.end.wrapping_byte_sub(1);
 
             // Make up a value of this ZST.
             Some(unsafe { mem::zeroed() })
