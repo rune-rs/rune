@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1714525544132,
+  "lastUpdate": 1714871126870,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -25516,6 +25516,94 @@ window.BENCHMARK_DATA = {
           {
             "name": "external_functions",
             "value": 586,
+            "range": "± 2",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "committer": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "id": "878152d70108a743b8122362f743bcb3d87f7381",
+          "message": "Fix new Clippy lint multiple_bound_locations",
+          "timestamp": "2024-05-03T16:05:12Z",
+          "url": "https://github.com/rune-rs/rune/commit/878152d70108a743b8122362f743bcb3d87f7381"
+        },
+        "date": 1714871126277,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 211242,
+            "range": "± 1310",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 718630,
+            "range": "± 29556",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 307928294,
+            "range": "± 4045780",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 177702090,
+            "range": "± 1972454",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 895246,
+            "range": "± 10760",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 9740982,
+            "range": "± 53326",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 49950942,
+            "range": "± 400297",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 8156602,
+            "range": "± 67097",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 517519,
+            "range": "± 7816",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 5887573,
+            "range": "± 31402",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 583,
             "range": "± 2",
             "unit": "ns/iter"
           }
