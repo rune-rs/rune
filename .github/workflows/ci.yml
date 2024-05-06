@@ -88,6 +88,20 @@ jobs:
     - uses: Swatinem/rust-cache@v2
     - run: cargo miri test -p rune-alloc --all-features
 
+  rune_nightly:
+    runs-on: ubuntu-latest
+    needs: basics
+    env:
+      RUSTFLAGS: -D warnings --cfg rune_nightly
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@nightly
+      with:
+        components: miri
+    - uses: Swatinem/rust-cache@v2
+    - run: cargo build --all-features
+    - run: cargo build --tests --all-features
+
   no_default_features:
     runs-on: ubuntu-latest
     needs: basics

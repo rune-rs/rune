@@ -2764,7 +2764,7 @@ mod test_set {
         use core::hash;
 
         #[derive(Debug)]
-        struct Foo(&'static str, i32);
+        struct Foo(&'static str, #[allow(unused)] i32);
 
         impl PartialEq for Foo {
             fn eq(&self, other: &Self) -> bool {

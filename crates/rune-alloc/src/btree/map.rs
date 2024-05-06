@@ -3156,8 +3156,11 @@ impl<K: Debug, V: Debug> Debug for Cursor<'_, K, V> {
 /// methods.
 pub struct CursorMut<'a, K: 'a, V: 'a, A = Global> {
     current: Option<Handle<NodeRef<marker::Mut<'a>, K, V, marker::LeafOrInternal>, marker::KV>>,
+    #[cfg_attr(not(test), allow(unused))]
     root: DormantMutRef<'a, Option<node::Root<K, V>>>,
+    #[cfg_attr(not(test), allow(unused))]
     length: &'a mut usize,
+    #[cfg_attr(not(test), allow(unused))]
     alloc: &'a mut A,
 }
 
@@ -3173,6 +3176,7 @@ impl<'a, K, V> Cursor<'a, K, V> {
     /// If the cursor is pointing to the "ghost" non-element then this will move it to
     /// the first element of the `BTreeMap`. If it is pointing to the last
     /// element of the `BTreeMap` then this will move it to the "ghost" non-element.
+    #[cfg(test)]
     pub(crate) fn move_next(&mut self) {
         match self.current.take() {
             None => {
@@ -3195,6 +3199,7 @@ impl<'a, K, V> Cursor<'a, K, V> {
     /// If the cursor is pointing to the "ghost" non-element then this will move it to
     /// the last element of the `BTreeMap`. If it is pointing to the first
     /// element of the `BTreeMap` then this will move it to the "ghost" non-element.
+    #[cfg(test)]
     pub(crate) fn move_prev(&mut self) {
         match self.current.take() {
             None => {
@@ -3244,6 +3249,7 @@ impl<'a, K, V> Cursor<'a, K, V> {
     /// If the cursor is pointing to the "ghost" non-element then this returns
     /// the first element of the `BTreeMap`. If it is pointing to the last
     /// element of the `BTreeMap` then this returns `None`.
+    #[cfg(test)]
     pub(crate) fn peek_next(&self) -> Option<(&'a K, &'a V)> {
         let mut next = self.clone();
         next.move_next();
@@ -3255,6 +3261,7 @@ impl<'a, K, V> Cursor<'a, K, V> {
     /// If the cursor is pointing to the "ghost" non-element then this returns
     /// the last element of the `BTreeMap`. If it is pointing to the first
     /// element of the `BTreeMap` then this returns `None`.
+    #[cfg(test)]
     pub(crate) fn peek_prev(&self) -> Option<(&'a K, &'a V)> {
         let mut prev = self.clone();
         prev.move_prev();
@@ -3268,6 +3275,7 @@ impl<'a, K, V, A> CursorMut<'a, K, V, A> {
     /// If the cursor is pointing to the "ghost" non-element then this will move it to
     /// the first element of the `BTreeMap`. If it is pointing to the last
     /// element of the `BTreeMap` then this will move it to the "ghost" non-element.
+    #[cfg(test)]
     pub(crate) fn move_next(&mut self) {
         match self.current.take() {
             None => {
@@ -3282,29 +3290,6 @@ impl<'a, K, V, A> CursorMut<'a, K, V, A> {
             }
             Some(current) => {
                 self.current = current.next_leaf_edge().next_kv().ok();
-            }
-        }
-    }
-
-    /// Moves the cursor to the previous element of the `BTreeMap`.
-    ///
-    /// If the cursor is pointing to the "ghost" non-element then this will move it to
-    /// the last element of the `BTreeMap`. If it is pointing to the first
-    /// element of the `BTreeMap` then this will move it to the "ghost" non-element.
-    pub(crate) fn move_prev(&mut self) {
-        match self.current.take() {
-            None => {
-                // SAFETY: The previous borrow of root has ended.
-                self.current = unsafe { self.root.reborrow() }.as_mut().and_then(|root| {
-                    root.borrow_mut()
-                        .last_leaf_edge()
-                        .forget_node_type()
-                        .left_kv()
-                        .ok()
-                });
-            }
-            Some(current) => {
-                self.current = current.next_back_leaf_edge().next_back_kv().ok();
             }
         }
     }
@@ -3363,29 +3348,12 @@ impl<'a, K, V, A> CursorMut<'a, K, V, A> {
         })
     }
 
-    /// Returns a mutable reference to the key of the element that the cursor is
-    /// currently pointing to.
-    ///
-    /// This returns `None` if the cursor is currently pointing to the
-    /// "ghost" non-element.
-    ///
-    /// # Safety
-    ///
-    /// This can be used to modify the key, but you must ensure that the
-    /// `BTreeMap` invariants are maintained. Specifically:
-    ///
-    /// * The key must remain unique within the tree.
-    /// * The key must remain in sorted order with regards to other elements in
-    ///   the tree.
-    pub(crate) unsafe fn key_mut_unchecked(&mut self) -> Option<&mut K> {
-        self.current.as_mut().map(|current| current.kv_mut().0)
-    }
-
     /// Returns a reference to the key and value of the next element.
     ///
     /// If the cursor is pointing to the "ghost" non-element then this returns
     /// the first element of the `BTreeMap`. If it is pointing to the last
     /// element of the `BTreeMap` then this returns `None`.
+    #[cfg(test)]
     pub(crate) fn peek_next(&mut self) -> Option<(&K, &mut V)> {
         let (k, v) = match self.current {
             None => {
@@ -3413,6 +3381,7 @@ impl<'a, K, V, A> CursorMut<'a, K, V, A> {
     /// If the cursor is pointing to the "ghost" non-element then this returns
     /// the last element of the `BTreeMap`. If it is pointing to the first
     /// element of the `BTreeMap` then this returns `None`.
+    #[cfg(test)]
     pub(crate) fn peek_prev(&mut self) -> Option<(&K, &mut V)> {
         let (k, v) = match self.current.as_mut() {
             None => {
@@ -3436,19 +3405,6 @@ impl<'a, K, V, A> CursorMut<'a, K, V, A> {
         };
         Some((k, v))
     }
-
-    /// Returns a read-only cursor pointing to the current element.
-    ///
-    /// The lifetime of the returned `Cursor` is bound to that of the
-    /// `CursorMut`, which means it cannot outlive the `CursorMut` and that the
-    /// `CursorMut` is frozen for the lifetime of the `Cursor`.
-    pub(crate) fn as_cursor(&self) -> Cursor<'_, K, V> {
-        Cursor {
-            // SAFETY: The tree is immutable while the cursor exists.
-            root: unsafe { self.root.reborrow_shared().as_ref() },
-            current: self.current.as_ref().map(|current| current.reborrow()),
-        }
-    }
 }
 
 // Now the tree editing operations
@@ -3465,6 +3421,7 @@ impl<'a, K: Ord, V, A: Allocator> CursorMut<'a, K, V, A> {
     ///
     /// * The key of the newly inserted element must be unique in the tree.
     /// * All keys in the tree must remain in sorted order.
+    #[cfg(test)]
     pub(crate) unsafe fn try_insert_after_unchecked(
         &mut self,
         key: K,
@@ -3514,6 +3471,7 @@ impl<'a, K: Ord, V, A: Allocator> CursorMut<'a, K, V, A> {
     ///
     /// * The key of the newly inserted element must be unique in the tree.
     /// * All keys in the tree must remain in sorted order.
+    #[cfg(test)]
     pub(crate) unsafe fn try_insert_before_unchecked(
         &mut self,
         key: K,
@@ -3563,6 +3521,7 @@ impl<'a, K: Ord, V, A: Allocator> CursorMut<'a, K, V, A> {
     ///   any).
     /// - the given key compares greater than or equal to the next element (if
     ///   any).
+    #[cfg(test)]
     pub(crate) fn try_insert_after(&mut self, key: K, value: V) -> Result<(), AllocError> {
         if let Some(current) = self.key() {
             if &key <= current {
@@ -3597,6 +3556,7 @@ impl<'a, K: Ord, V, A: Allocator> CursorMut<'a, K, V, A> {
     ///   (if any).
     /// - the given key compares less than or equal to the previous element (if
     ///   any).
+    #[cfg(test)]
     pub(crate) fn try_insert_before(&mut self, key: K, value: V) -> Result<(), AllocError> {
         if let Some(current) = self.key() {
             if &key >= current {
@@ -3626,6 +3586,7 @@ impl<'a, K: Ord, V, A: Allocator> CursorMut<'a, K, V, A> {
     ///
     /// If the cursor is currently pointing to the "ghost" non-element then no element
     /// is removed and `None` is returned. The cursor is not moved in this case.
+    #[cfg(test)]
     pub(crate) fn remove_current(&mut self) -> Option<(K, V)> {
         let current = self.current.take()?;
         let mut emptied_internal_root = false;
@@ -3648,6 +3609,7 @@ impl<'a, K: Ord, V, A: Allocator> CursorMut<'a, K, V, A> {
     ///
     /// If the cursor is currently pointing to the "ghost" non-element then no element
     /// is removed and `None` is returned. The cursor is not moved in this case.
+    #[cfg(test)]
     pub(crate) fn remove_current_and_move_back(&mut self) -> Option<(K, V)> {
         let current = self.current.take()?;
         let mut emptied_internal_root = false;

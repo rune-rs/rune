@@ -17,6 +17,8 @@ categories = ["parser-implementations"]
 default = ["std", "serde"]
 std = ["alloc", "ahash/std", "serde?/std"]
 alloc = []
+inline-more = []
+raw = []
 
 [dependencies]
 rune-alloc-macros = { version = "=0.14.0", path = "../rune-alloc-macros" }

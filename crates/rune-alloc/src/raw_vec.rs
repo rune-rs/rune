@@ -13,6 +13,7 @@ enum AllocInit {
     /// The contents of the new memory are uninitialized.
     Uninitialized,
     /// The new memory is guaranteed to be zeroed.
+    #[cfg(rune_nightly)]
     Zeroed,
 }
 
@@ -99,6 +100,7 @@ impl<T, A: Allocator> RawVec<T, A> {
     /// Like `with_capacity_zeroed`, but parameterized over the choice
     /// of allocator for the returned `RawVec`.
     #[inline]
+    #[cfg(rune_nightly)]
     pub(crate) fn try_with_capacity_zeroed_in(capacity: usize, alloc: A) -> Result<Self, Error> {
         Self::try_allocate_in(capacity, AllocInit::Zeroed, alloc)
     }
@@ -146,6 +148,7 @@ impl<T, A: Allocator> RawVec<T, A> {
             }
             let ptr = match init {
                 AllocInit::Uninitialized => alloc.allocate(layout)?,
+                #[cfg(rune_nightly)]
                 AllocInit::Zeroed => alloc.allocate_zeroed(layout)?,
             };
 
