@@ -39,10 +39,6 @@ impl<T, A: Allocator> IntoIter<T, A> {
     pub(super) fn new(inner: VecDeque<T, A>) -> Self {
         IntoIter { inner }
     }
-
-    pub(super) fn into_vecdeque(self) -> VecDeque<T, A> {
-        self.inner
-    }
 }
 
 impl<T: fmt::Debug, A: Allocator> fmt::Debug for IntoIter<T, A> {

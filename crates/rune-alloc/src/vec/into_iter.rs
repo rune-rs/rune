@@ -178,13 +178,6 @@ where
     }
 }
 
-#[doc(hidden)]
-pub trait NonDrop {}
-
-// T: Copy as approximation for !Drop since get_unchecked does not advance self.ptr
-// and thus we can't implement drop-handling
-impl<T: Copy> NonDrop for T {}
-
 #[cfg(rune_nightly)]
 unsafe impl<#[may_dangle] T, A: Allocator> Drop for IntoIter<T, A> {
     fn drop(&mut self) {

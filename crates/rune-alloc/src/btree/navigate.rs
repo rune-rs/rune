@@ -773,7 +773,7 @@ impl<BorrowType: marker::BorrowType, K, V> NodeRef<BorrowType, K, V, marker::Lea
 pub(crate) enum Position<BorrowType, K, V> {
     Leaf(NodeRef<BorrowType, K, V, marker::Leaf>),
     Internal(NodeRef<BorrowType, K, V, marker::Internal>),
-    InternalKV(Handle<NodeRef<BorrowType, K, V, marker::Internal>, marker::KV>),
+    InternalKV(#[allow(unused)] Handle<NodeRef<BorrowType, K, V, marker::Internal>, marker::KV>),
 }
 
 impl<'a, K: 'a, V: 'a> NodeRef<marker::Immut<'a>, K, V, marker::LeafOrInternal> {

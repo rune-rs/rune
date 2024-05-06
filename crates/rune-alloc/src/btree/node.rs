@@ -1285,6 +1285,7 @@ impl<'a, K: 'a, V: 'a, NodeType> Handle<NodeRef<marker::Mut<'a>, K, V, NodeType>
         unsafe { leaf.vals.get_unchecked_mut(self.idx).assume_init_mut() }
     }
 
+    #[cfg(test)]
     pub(crate) fn into_kv_valmut(self) -> (&'a K, &'a mut V) {
         debug_assert!(self.idx < self.node.len());
         let leaf = self.node.into_leaf_mut();

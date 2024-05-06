@@ -320,14 +320,6 @@ impl<T, A: Allocator> Box<T, A> {
         unsafe { Ok(Box::from_raw_in(ptr.as_ptr(), alloc)) }
     }
 
-    /// Converts a `Box<T>` into a `Box<[T]>`
-    ///
-    /// This conversion does not allocate on the heap and happens in place.
-    pub(crate) fn into_boxed_slice(boxed: Self) -> Box<[T], A> {
-        let (raw, alloc) = Box::into_raw_with_allocator(boxed);
-        unsafe { Box::from_raw_in(raw as *mut [T; 1], alloc) }
-    }
-
     /// Consumes the `Box`, returning the wrapped value.
     #[inline]
     pub fn into_inner(boxed: Self) -> T {

@@ -429,25 +429,6 @@ impl<T, A: Allocator> VecDeque<T, A> {
         }
     }
 
-    /// Writes all values from `iter` to `dst`.
-    ///
-    /// # Safety
-    ///
-    /// Assumes no wrapping around happens.
-    /// Assumes capacity is sufficient.
-    #[inline]
-    unsafe fn write_iter(
-        &mut self,
-        dst: usize,
-        iter: impl Iterator<Item = T>,
-        written: &mut usize,
-    ) {
-        iter.enumerate().for_each(|(i, element)| unsafe {
-            self.buffer_write(dst + i, element);
-            *written += 1;
-        });
-    }
-
     /// Frobs the head and tail sections around to handle the fact that we
     /// just reallocated. Unsafe because it trusts old_capacity.
     #[inline]
@@ -567,38 +548,6 @@ impl<T, A: Allocator> VecDeque<T, A> {
             len: 0,
             buf: RawVec::try_with_capacity_in(capacity, alloc)?,
         })
-    }
-
-    /// Creates a `VecDeque` from a raw allocation, when the initialized part of
-    /// that allocation forms a *contiguous* subslice thereof.
-    ///
-    /// For use by `vec::IntoIter::into_vecdeque`
-    ///
-    /// # Safety
-    ///
-    /// All the usual requirements on the allocated memory like in
-    /// `Vec::from_raw_parts_in`, but takes a *range* of elements that are
-    /// initialized rather than only supporting `0..len`.  Requires that
-    /// `initialized.start` ≤ `initialized.end` ≤ `capacity`.
-    #[inline]
-    pub(crate) unsafe fn from_contiguous_raw_parts_in(
-        ptr: *mut T,
-        initialized: Range<usize>,
-        capacity: usize,
-        alloc: A,
-    ) -> Self {
-        debug_assert!(initialized.start <= initialized.end);
-        debug_assert!(initialized.end <= capacity);
-
-        // SAFETY: Our safety precondition guarantees the range length won't wrap,
-        // and that the allocation is valid for use in `RawVec`.
-        unsafe {
-            VecDeque {
-                head: initialized.start,
-                len: initialized.end.wrapping_sub(initialized.start),
-                buf: RawVec::from_raw_parts_in(ptr, capacity, alloc),
-            }
-        }
     }
 
     /// Provides a reference to the element at the given index.
