@@ -37,6 +37,18 @@ fn export_impl() {
         pub fn bar(&self) -> usize {
             self.0 + 1
         }
+
+        pub fn rune_export(
+            mut module: rune::Module,
+        ) -> rune::alloc::Result<Result<rune::Module, rune::ContextError>> {
+            for func in Self::export_rune_api_extension()? {
+                if let Err(e) = module.function_from_meta(func) {
+                    return Ok(Err(e));
+                }
+            }
+
+            Ok(Ok(module))
+        }
     }
 
     assert!(MyStruct(2).foo() + 1 == MyStruct(2).bar());

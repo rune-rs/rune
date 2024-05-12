@@ -25,6 +25,8 @@ use crate::runtime::{
 };
 use crate::Hash;
 
+use super::FunctionMetaData;
+
 /// Function builder as returned by [`Module::function`].
 ///
 /// This allows for building a function regularly with
@@ -1242,7 +1244,14 @@ impl Module {
     #[inline]
     pub fn function_meta(&mut self, meta: FunctionMeta) -> Result<ItemFnMut<'_>, ContextError> {
         let meta = meta()?;
+        self.function_from_meta(meta)
+    }
 
+    /// Register a function handler through its metadata.
+    pub fn function_from_meta(
+        &mut self,
+        meta: FunctionMetaData,
+    ) -> Result<ItemFnMut<'_>, ContextError> {
         match meta.kind {
             FunctionMetaKind::Function(data) => {
                 let mut docs = Docs::EMPTY;
