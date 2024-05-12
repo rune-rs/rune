@@ -17,3 +17,27 @@ fn generic_derive() {
         value: T,
     }
 }
+
+#[test]
+fn export_impl() {
+    #[derive(crate::Any)]
+    struct MyStruct(usize);
+
+    #[crate::impl_item]
+    impl MyStruct {
+        #[export]
+        pub fn foo(&self) -> usize {
+            self.0
+        }
+    }
+
+    #[crate::impl_item(export_rune_api_extension)]
+    impl MyStruct {
+        #[export]
+        pub fn bar(&self) -> usize {
+            self.0 + 1
+        }
+    }
+
+    assert!(MyStruct(2).foo() + 1 == MyStruct(2).bar());
+}

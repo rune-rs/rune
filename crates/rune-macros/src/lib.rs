@@ -37,6 +37,7 @@ mod hash;
 mod inst_display;
 mod instrument;
 mod internals;
+mod item_impl;
 mod macro_;
 mod module;
 mod opaque;
@@ -70,6 +71,22 @@ pub fn function(
     let function = syn::parse_macro_input!(item with crate::function::Function::parse);
 
     let output = match function.expand(attrs) {
+        Ok(output) => output,
+        Err(e) => return proc_macro::TokenStream::from(e.to_compile_error()),
+    };
+
+    output.into()
+}
+
+#[proc_macro_attribute]
+pub fn impl_item(
+    attrs: proc_macro::TokenStream,
+    item: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+    let attrs = syn::parse_macro_input!(attrs with crate::item_impl::ItemImplAttrs::parse);
+    let item = crate::item_impl::ItemImpl(syn::parse_macro_input!(item as syn::ItemImpl));
+
+    let output = match item.expand(attrs) {
         Ok(output) => output,
         Err(e) => return proc_macro::TokenStream::from(e.to_compile_error()),
     };
