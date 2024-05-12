@@ -87,6 +87,6 @@ impl ItemImpl {
 
         block.items.push(syn::parse2(exporter).unwrap());
 
-        Ok(block.to_token_stream().into())
+        Ok(block.to_token_stream())
     }
 }

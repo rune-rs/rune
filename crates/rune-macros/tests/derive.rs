@@ -21,7 +21,7 @@ fn generic_derive() {
 #[test]
 fn export_impl() {
     #[derive(crate::Any)]
-    struct MyStruct(usize);
+    struct MyStruct(#[rune(get)] usize);
 
     #[crate::impl_item]
     impl MyStruct {
