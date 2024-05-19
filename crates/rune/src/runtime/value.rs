@@ -1591,8 +1591,13 @@ impl Value {
             }
         }
 
-        if let CallResult::Ok(value) =
-            vm_try!(caller.try_call_protocol_fn(Protocol::PARTIAL_EQ, self.clone(), (b.clone(),)))
+        let mut result = vm_try!(caller.try_call_protocol_fn(Protocol::PARTIAL_EQ, self.clone(), (b.clone(),)));
+        if let CallResult::Unsupported(_) = result {
+            // If we cannot resolve a == b, we try b == a.
+            result = vm_try!(caller.try_call_protocol_fn(Protocol::PARTIAL_EQ, b.clone(), (self.clone(),)));
+        }
+
+        if let CallResult::Ok(value) = result
         {
             return <_>::from_value(value);
         }
@@ -1775,8 +1780,13 @@ impl Value {
             _ => {}
         }
 
-        if let CallResult::Ok(value) =
-            vm_try!(caller.try_call_protocol_fn(Protocol::EQ, self.clone(), (b.clone(),)))
+        let mut result = vm_try!(caller.try_call_protocol_fn(Protocol::EQ, self.clone(), (b.clone(),)));
+        if let CallResult::Unsupported(_) = result {
+            // If we cannot resolve a == b, we try b == a.
+            result = vm_try!(caller.try_call_protocol_fn(Protocol::EQ, b.clone(), (self.clone(),)));
+        }
+
+        if let CallResult::Ok(value) = result
         {
             return <_>::from_value(value);
         }

@@ -13,8 +13,16 @@ pub(crate) trait ProtocolCaller: Sized {
         target: Value,
         args: A,
     ) -> VmResult<Value>
-    where
-        A: GuardedArgs;
+        where
+            A: GuardedArgs {
+        match vm_try!(self.try_call_protocol_fn(protocol, target, args)) {
+            CallResult::Ok(value) => VmResult::Ok(value),
+            CallResult::Unsupported(instance) => VmResult::err(VmError::from(VmErrorKind::MissingProtocolFunction {
+                protocol,
+                instance: vm_try!(instance.type_info()),
+            })),
+        }
+    }
 
     /// Call the given protocol function.
     fn try_call_protocol_fn<A>(
@@ -23,14 +31,9 @@ pub(crate) trait ProtocolCaller: Sized {
         target: Value,
         args: A,
     ) -> VmResult<CallResult<Value>>
-    where
-        A: GuardedArgs,
-        Self: Sized,
-    {
-        VmResult::Ok(CallResult::Ok(vm_try!(
-            self.call_protocol_fn(protocol, target, args)
-        )))
-    }
+        where
+            A: GuardedArgs,
+            Self: Sized;
 }
 
 /// Use the global environment caller.
@@ -39,20 +42,17 @@ pub(crate) trait ProtocolCaller: Sized {
 pub(crate) struct EnvProtocolCaller;
 
 impl ProtocolCaller for EnvProtocolCaller {
-    fn call_protocol_fn<A>(&mut self, protocol: Protocol, target: Value, args: A) -> VmResult<Value>
-    where
-        A: GuardedArgs,
-    {
+    fn try_call_protocol_fn<A>(&mut self, protocol: Protocol, target: Value, args: A) -> VmResult<CallResult<Value>> where A: GuardedArgs, Self: Sized {
         return crate::runtime::env::shared(|context, unit| {
             let count = args.count() + 1;
             let hash = Hash::associated_function(vm_try!(target.type_hash()), protocol.hash);
 
             if let Some(UnitFn::Offset {
-                offset,
-                args: expected,
-                call,
-                ..
-            }) = unit.function(hash)
+                            offset,
+                            args: expected,
+                            call,
+                            ..
+                        }) = unit.function(hash)
             {
                 vm_try!(check_args(count, expected));
 
@@ -64,14 +64,11 @@ impl ProtocolCaller for EnvProtocolCaller {
 
                 let mut vm = Vm::with_stack(context.clone(), unit.clone(), stack);
                 vm.set_ip(offset);
-                return call.call_with_vm(vm);
+                return VmResult::Ok(CallResult::Ok(vm_try!(call.call_with_vm(vm))));
             }
 
             let Some(handler) = context.function(hash) else {
-                return VmResult::err(VmErrorKind::MissingProtocolFunction {
-                    protocol,
-                    instance: vm_try!(target.type_info()),
-                });
+                return VmResult::Ok(CallResult::Unsupported(target));
             };
 
             let mut stack = vm_try!(Stack::with_capacity(count));
@@ -81,7 +78,7 @@ impl ProtocolCaller for EnvProtocolCaller {
             let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut stack)) };
 
             vm_try!(handler(&mut stack, count));
-            VmResult::Ok(vm_try!(stack.pop()))
+            VmResult::Ok(CallResult::Ok(vm_try!(stack.pop())))
         });
 
         /// Check that arguments matches expected or raise the appropriate error.
@@ -99,17 +96,12 @@ impl ProtocolCaller for EnvProtocolCaller {
 }
 
 impl ProtocolCaller for Vm {
-    fn call_protocol_fn<A>(&mut self, protocol: Protocol, target: Value, args: A) -> VmResult<Value>
-    where
-        A: GuardedArgs,
-    {
-        if let CallResult::Unsupported(..) = vm_try!(self.call_instance_fn(target, protocol, args))
-        {
-            return VmResult::err(VmErrorKind::MissingFunction {
-                hash: protocol.hash,
-            });
+    fn try_call_protocol_fn<A>(&mut self, protocol: Protocol, target: Value, args: A) -> VmResult<CallResult<Value>> where A: GuardedArgs, Self: Sized {
+        match vm_try!(self.call_instance_fn(target, protocol, args)) {
+            CallResult::Ok(_) => {
+                VmResult::Ok(CallResult::Ok(vm_try!(self.stack_mut().pop())))
+            }
+            CallResult::Unsupported(instance) => VmResult::Ok(CallResult::Unsupported(instance)),
         }
-
-        VmResult::Ok(vm_try!(self.stack_mut().pop()))
     }
 }
