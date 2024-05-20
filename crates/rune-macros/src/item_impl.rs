@@ -2,18 +2,51 @@ use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 use syn::parse::ParseStream;
 use syn::punctuated::Punctuated;
+use syn::Token;
 
 pub(crate) struct ItemImplAttrs {
     /// Name of the exporter function
-    name: syn::Ident,
+    list: syn::Ident,
+    exporter: Option<syn::Ident>,
+}
+
+impl Default for ItemImplAttrs {
+    fn default() -> Self {
+        Self {
+            list: syn::Ident::new("rune_api", proc_macro2::Span::call_site()),
+            exporter: None,
+        }
+    }
 }
 
 impl ItemImplAttrs {
+    const LIST_IDENT: &'static str = "list";
+    const EXPORTER_IDENT: &'static str = "exporter";
+
     pub(crate) fn parse(input: ParseStream) -> syn::Result<Self> {
-        let name = input
-            .parse::<syn::Ident>()
-            .unwrap_or_else(|_| syn::Ident::new("export_rune_methods", input.span()));
-        Ok(Self { name })
+        let mut attrs = Self::default();
+
+        while !input.is_empty() {
+            let ident = input.parse::<syn::Ident>()?;
+
+            match ident.to_string().as_str() {
+                Self::LIST_IDENT | Self::EXPORTER_IDENT => {
+                    input.parse::<Token![=]>()?;
+                    if ident == Self::LIST_IDENT {
+                        attrs.list = input.parse()?;
+                    } else {
+                        attrs.exporter = Some(input.parse()?);
+                    }
+                }
+                _ => return Err(syn::Error::new_spanned(ident, "Unsupported option")),
+            }
+
+            if input.parse::<Option<Token![,]>>()?.is_none() {
+                break;
+            }
+        }
+
+        Ok(attrs)
     }
 }
 
@@ -76,16 +109,30 @@ impl ItemImpl {
             }
         }
 
-        let name = attrs.name;
+        let name = attrs.list;
 
         let export_count = export_list.len();
-        let exporter = quote! {
-            fn #name() -> rune::alloc::Result<[rune::__private::FunctionMetaData; #export_count]> {
+        let list_function = quote! {
+            fn #name() -> ::rune::alloc::Result<[::rune::__private::FunctionMetaData; #export_count]> {
                 Ok([ #(#export_list),* ])
             }
         };
+        block.items.push(syn::parse2(list_function).unwrap());
 
-        block.items.push(syn::parse2(exporter).unwrap());
+        if let Some(exporter_name) = attrs.exporter {
+            let exporter_function = quote! {
+                fn #exporter_name(mut module: ::rune::Module) -> ::rune::alloc::Result<Result<::rune::Module, ::rune::ContextError>> {
+                    for meta in Self::#name()? {
+                        if let Err(e) = module.function_from_meta(meta) {
+                            return Ok(Err(e));
+                        }
+                    }
+                    Ok(Ok(module))
+                }
+            };
+
+            block.items.push(syn::parse2(exporter_function).unwrap());
+        }
 
         Ok(block.to_token_stream())
     }

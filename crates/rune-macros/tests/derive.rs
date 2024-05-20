@@ -23,7 +23,7 @@ fn export_impl() {
     #[derive(crate::Any)]
     struct MyStruct(#[rune(get)] usize);
 
-    #[crate::impl_item]
+    #[crate::item_impl(exporter = export_rune_api)]
     impl MyStruct {
         #[export]
         pub fn foo(&self) -> usize {
@@ -31,7 +31,7 @@ fn export_impl() {
         }
     }
 
-    #[crate::impl_item(export_rune_api_extension)]
+    #[crate::item_impl(list = rune_api_extension, exporter = export_rune_api_extension)]
     impl MyStruct {
         #[export]
         pub fn bar(&self) -> usize {
@@ -41,7 +41,10 @@ fn export_impl() {
         pub fn rune_export(
             mut module: rune::Module,
         ) -> rune::alloc::Result<Result<rune::Module, rune::ContextError>> {
-            for func in Self::export_rune_api_extension()? {
+            for func in Self::rune_api()?
+                .into_iter()
+                .chain(Self::rune_api_extension()?.into_iter())
+            {
                 if let Err(e) = module.function_from_meta(func) {
                     return Ok(Err(e));
                 }
@@ -52,4 +55,5 @@ fn export_impl() {
     }
 
     assert!(MyStruct(2).foo() + 1 == MyStruct(2).bar());
+    assert!(MyStruct::rune_export(rune::Module::new()).is_ok());
 }

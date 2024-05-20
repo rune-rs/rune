@@ -78,8 +78,40 @@ pub fn function(
     output.into()
 }
 
+/// Create a function to export all functions marked with the `#[rune(export)]` attribute within a module.
+///
+/// ### Example
+///
+/// ```rs
+/// #[derive(rune::Any)]
+/// struct MyStruct {
+///     field: u32,
+/// }
+///
+/// #[rune::item_impl(exporter = export_rune_api)]
+/// impl MyStruct {
+///     // Exported
+///     #[rune(export)]
+///     fn foo(&self) -> u32 {
+///         self.field + 1
+///     }
+///
+///     // Not exported
+///     fn bar(&self) -> u32 {
+///         self.field + 2
+///     }
+/// }
+///
+/// fn main() {
+///     let mut module = rune::Module::new();
+///     module.ty::<MyStruct>().unwrap();
+///     module = MyStruct::export_rune_api(module)
+///         .expect("Allocation error")
+///         .expect("Context error");
+/// }
+/// ```
 #[proc_macro_attribute]
-pub fn impl_item(
+pub fn item_impl(
     attrs: proc_macro::TokenStream,
     item: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
