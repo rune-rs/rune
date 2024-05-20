@@ -38,6 +38,11 @@ fn export_impl() {
             self.0 + 1
         }
 
+        #[export]
+        pub fn baz() -> usize {
+            42
+        }
+
         pub fn rune_export(
             mut module: rune::Module,
         ) -> rune::alloc::Result<Result<rune::Module, rune::ContextError>> {
@@ -56,4 +61,5 @@ fn export_impl() {
 
     assert!(MyStruct(2).foo() + 1 == MyStruct(2).bar());
     assert!(MyStruct::rune_export(rune::Module::new()).is_ok());
+    assert!(MyStruct::baz() == 42);
 }
