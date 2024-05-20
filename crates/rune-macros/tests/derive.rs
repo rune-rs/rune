@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use rune::T;
 use rune_macros::*;
 
@@ -25,7 +27,7 @@ fn export_impl() {
 
     #[crate::item_impl(exporter = export_rune_api)]
     impl MyStruct {
-        #[export]
+        #[rune(export)]
         pub fn foo(&self) -> usize {
             self.0
         }
@@ -33,12 +35,12 @@ fn export_impl() {
 
     #[crate::item_impl(list = rune_api_extension, exporter = export_rune_api_extension)]
     impl MyStruct {
-        #[export]
+        #[rune(export)]
         pub fn bar(&self) -> usize {
             self.0 + 1
         }
 
-        #[export]
+        #[rune(export)]
         pub fn baz() -> usize {
             42
         }
@@ -59,7 +61,22 @@ fn export_impl() {
         }
     }
 
-    assert!(MyStruct(2).foo() + 1 == MyStruct(2).bar());
-    assert!(MyStruct::rune_export(rune::Module::new()).is_ok());
-    assert!(MyStruct::baz() == 42);
+    let a = MyStruct(2);
+    assert_eq!(a.foo() + 1, a.bar());
+
+    fn test_fn<F, T, E>(f: F)
+    where
+        E: Debug,
+        F: Fn(rune::Module) -> Result<T, E>,
+    {
+        let mut m = rune::Module::new();
+        m.ty::<MyStruct>().unwrap();
+        f(m).unwrap();
+    }
+
+    test_fn(MyStruct::rune_export);
+    test_fn(MyStruct::export_rune_api);
+    test_fn(MyStruct::export_rune_api_extension);
+
+    assert_eq!(MyStruct::baz(), 42);
 }

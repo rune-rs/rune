@@ -59,7 +59,7 @@ impl ItemImpl {
         let Self(mut block) = self;
 
         let mut export_list = Vec::new();
-        let export_attr: syn::Attribute = syn::parse_quote!(#[export]);
+        let export_attr: syn::Attribute = syn::parse_quote!(#[rune(export)]);
 
         for item in block.items.iter_mut() {
             if let syn::ImplItem::Fn(method) = item {
