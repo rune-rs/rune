@@ -23,7 +23,6 @@
 //! **YOU ARE NOT** supposed to depend on this directly. Doing so might cause
 //! dependency errors since its API is not stable.
 
-#![allow(unexpected_cfgs)]
 #![allow(clippy::module_inception)]
 #![deny(rustdoc::broken_intra_doc_links)]
 #![deny(rustdoc::private_doc_tests)]
