@@ -34,7 +34,6 @@
 // may not be copied, modified, or distributed except according to those terms.
 
 #![no_std]
-#![allow(unexpected_cfgs)]
 #![deny(rustdoc::broken_intra_doc_links)]
 #![deny(rustdoc::private_doc_tests)]
 #![cfg_attr(rune_nightly, deny(rustdoc::missing_doc_code_examples))]

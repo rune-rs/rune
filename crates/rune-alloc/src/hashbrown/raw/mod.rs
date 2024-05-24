@@ -3360,50 +3360,6 @@ impl<T> RawIterRange<T> {
         }
     }
 
-    /// Splits a `RawIterRange` into two halves.
-    ///
-    /// Returns `None` if the remaining range is smaller than or equal to the
-    /// group width.
-    #[cfg_attr(feature = "inline-more", inline)]
-    #[cfg(feature = "rayon")]
-    pub(crate) fn split(mut self) -> (Self, Option<RawIterRange<T>>) {
-        unsafe {
-            if self.end <= self.next_ctrl {
-                // Nothing to split if the group that we are current processing
-                // is the last one.
-                (self, None)
-            } else {
-                // len is the remaining number of elements after the group that
-                // we are currently processing. It must be a multiple of the
-                // group size (small tables are caught by the check above).
-                let len = offset_from(self.end, self.next_ctrl);
-                debug_assert_eq!(len % Group::WIDTH, 0);
-
-                // Split the remaining elements into two halves, but round the
-                // midpoint down in case there is an odd number of groups
-                // remaining. This ensures that:
-                // - The tail is at least 1 group long.
-                // - The split is roughly even considering we still have the
-                //   current group to process.
-                let mid = (len / 2) & !(Group::WIDTH - 1);
-
-                let tail = Self::new(
-                    self.next_ctrl.add(mid),
-                    self.data.next_n(Group::WIDTH).next_n(mid),
-                    len - mid,
-                );
-                debug_assert_eq!(
-                    self.data.next_n(Group::WIDTH).next_n(mid).ptr,
-                    tail.data.ptr
-                );
-                debug_assert_eq!(self.end, tail.end);
-                self.end = self.next_ctrl.add(mid);
-                debug_assert_eq!(self.end.add(Group::WIDTH), tail.next_ctrl);
-                (self, Some(tail))
-            }
-        }
-    }
-
     /// # Safety
     /// If DO_CHECK_PTR_RANGE is false, caller must ensure that we never try to iterate
     /// after yielding all elements.

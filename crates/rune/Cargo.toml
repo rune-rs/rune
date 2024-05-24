@@ -13,6 +13,9 @@ license = "MIT OR Apache-2.0"
 keywords = ["language", "scripting", "scripting-language"]
 categories = ["parser-implementations"]
 
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(rune_nightly, rune_docsrs, rune_byte_code)'] }
+
 [features]
 default = ["emit", "std"]
 emit = ["std", "codespan-reporting"]
