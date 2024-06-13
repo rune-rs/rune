@@ -114,7 +114,7 @@ fn parse_block_comment(chars: &mut CharIndices<'_>) -> Option<usize> {
     while let Some((_, c)) = chars.next() {
         if c == '*' {
             if let Some((_, '/')) = chars.clone().next() {
-                return Some(chars.next()?.0);
+                return Some(chars.next()?.0 + 1);
             }
         }
     }
