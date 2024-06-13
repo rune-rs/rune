@@ -1801,7 +1801,7 @@ impl<'a> Printer<'a> {
             }
             ast::Stmt::Item(item, semi) => {
                 self.visit_item(item, *semi)?;
-                if !matches!(item, ast::Item::Fn(_)) {
+                if !matches!(item, ast::Item::Const(_) | ast::Item::Fn(_)) {
                     self.writer.newline()?;
                 }
             }

@@ -38,11 +38,11 @@ fn bug_693() -> Result<()> {
 
 /// https://github.com/rune-rs/rune/issues/703
 #[test]
-#[ignore]
 fn bug_703() -> Result<()> {
     let source = r#"pub fn main() {
     const TEST = 1;
-}"#;
+}
+"#;
 
     assert_format_source(source, None)
 }
@@ -57,6 +57,16 @@ const TEST3 = 1;
 "#;
 
     assert_format_source(source, Some(expected))
+}
+
+#[test]
+fn fmt_len() -> Result<()> {
+    let source = r#"pub fn main() {
+    let var = 1;
+}
+"#;
+
+    assert_format_source(source, None)
 }
 
 #[test]
