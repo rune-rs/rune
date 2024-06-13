@@ -18,20 +18,58 @@ fn bug_684() -> Result<()> {
     /*
     test
     */
-}"#;
+}
+"#;
+
+    assert_format_source(source, None)
+}
+
+#[test]
+fn fmt_block_comment() -> Result<()> {
+    let source = r#"//test1
+/*test2*/"#;
+    let expected = format!("{source}\n");
+
+    assert_format_source(source, Some(&expected))
+}
+
+#[test]
+fn fmt_block_comment_indent() -> Result<()> {
+    let source = r#"struct Test {
+    a, /* test1
+    test2
+test 3*/
+}
+"#;
 
     assert_format_source(source, None)
 }
 
 /// https://github.com/rune-rs/rune/issues/693
 #[test]
-#[ignore]
 fn bug_693() -> Result<()> {
     let source = r#"pub fn main() {
     if true {
         // test
     }
-}"#;
+}
+"#;
+
+    assert_format_source(source, None)
+}
+
+#[test]
+fn fmt_comment_line() -> Result<()> {
+    let source = r#"pub fn main() {
+    // test 1
+    if true {
+        // test 2.1
+        let a = 1;
+        // test 2.2
+    }
+    // test 3
+}
+"#;
 
     assert_format_source(source, None)
 }

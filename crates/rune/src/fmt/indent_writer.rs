@@ -9,7 +9,7 @@ use core::str;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, try_vec, Vec};
-use crate::ast::Span;
+use crate::ast::{ByteIndex, Span};
 
 use super::comments::Comment;
 use super::error::FormattingError;
@@ -195,18 +195,12 @@ impl<'a> SpanInjectionWriter<'a> {
         self.write_spanned(Span::new(0, 0), text, false, false)
     }
 
-    pub(super) fn write_spanned(
-        &mut self,
-        span: Span,
-        text: &str,
-        newline: bool,
-        space: bool,
-    ) -> Result<(), FormattingError> {
+    pub(super) fn write_queued_spans(&mut self, until: ByteIndex) -> Result<(), FormattingError> {
         // The queued recovered spans are ordered so we can pop them from the front if they're before the current span.
         // If the current span is before the first queued span, we need to inject the queued span.
 
         while let Some(queued_span) = self.queued_spans.first() {
-            if queued_span.span().start > span.start {
+            if queued_span.span().start > until {
                 break;
             }
 
@@ -225,6 +219,18 @@ impl<'a> SpanInjectionWriter<'a> {
                 }
             }
         }
+
+        Ok(())
+    }
+
+    pub(super) fn write_spanned(
+        &mut self,
+        span: Span,
+        text: &str,
+        newline: bool,
+        space: bool,
+    ) -> Result<(), FormattingError> {
+        self.write_queued_spans(span.start)?;
 
         write!(self.writer, "{}", text)?;
 

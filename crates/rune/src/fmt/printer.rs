@@ -1787,6 +1787,7 @@ impl<'a> Printer<'a> {
             self.visit_statement(statement)?;
         }
 
+        self.writer.write_queued_spans(close.span.start)?;
         self.writer.dedent();
         self.writer.write_spanned_raw(close.span, false, false)?;
 
