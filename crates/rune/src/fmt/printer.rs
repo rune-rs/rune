@@ -152,7 +152,6 @@ impl<'a> Printer<'a> {
         for attribute in attributes {
             self.visit_attribute(attribute)?;
         }
-        self.writer.newline()?;
 
         self.emit_visibility(visibility)?;
 

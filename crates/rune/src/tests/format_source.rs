@@ -48,6 +48,18 @@ fn bug_703() -> Result<()> {
 }
 
 #[test]
+fn fmt_global_const() -> Result<()> {
+    let source = r#"const TEST1=1;const TEST2=2;
+const TEST3=1;"#;
+    let expected = r#"const TEST1 = 1;
+const TEST2 = 2;
+const TEST3 = 1;
+"#;
+
+    assert_format_source(source, Some(expected))
+}
+
+#[test]
 #[ignore]
 fn fmt_println() -> Result<()> {
     let source = r#"pub fn main(){println!("The value is {}",42);}"#;
