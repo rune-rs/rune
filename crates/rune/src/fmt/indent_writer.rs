@@ -136,19 +136,7 @@ impl<'a> SpanInjectionWriter<'a> {
     pub(super) fn into_inner(mut self) -> Result<Vec<Vec<u8>>, FormattingError> {
         while !self.queued_spans.is_empty() {
             let span = self.queued_spans.remove(0);
-            match span {
-                ResolvedSpan::Empty(_) => {
-                    writeln!(self.writer)?;
-                }
-                ResolvedSpan::Comment(comment) => {
-                    if comment.on_new_line {
-                        writeln!(self.writer, "{}", self.resolve(comment.span)?)?;
-                    } else {
-                        self.extend_previous_line(b" ")?;
-                        self.extend_previous_line(self.resolve(comment.span)?.as_bytes())?;
-                    }
-                }
-            }
+            self.write_span(span)?;
         }
 
         Ok(self.writer.into_inner())
@@ -205,17 +193,32 @@ impl<'a> SpanInjectionWriter<'a> {
             }
 
             let queued_span = self.queued_spans.remove(0);
-            match queued_span {
-                ResolvedSpan::Empty(_) => {
-                    writeln!(self.writer)?;
-                }
-                ResolvedSpan::Comment(comment) => {
+            self.write_span(queued_span)?;
+        }
+
+        Ok(())
+    }
+
+    fn write_span(&mut self, span: ResolvedSpan) -> Result<(), FormattingError> {
+        match span {
+            ResolvedSpan::Empty(_) => {
+                writeln!(self.writer)?;
+            }
+            ResolvedSpan::Comment(comment) => {
+                let mut lines = self.resolve(comment.span)?.lines();
+
+                if let Some(first_line) = lines.next() {
                     if comment.on_new_line {
-                        writeln!(self.writer, "{}", self.resolve(comment.span)?)?;
+                        writeln!(self.writer, "{}", first_line)?;
                     } else {
                         self.extend_previous_line(b" ")?;
-                        self.extend_previous_line(self.resolve(comment.span)?.as_bytes())?;
+                        self.extend_previous_line(first_line.as_bytes())?;
                     }
+                }
+
+                for line in lines {
+                    self.newline()?;
+                    self.extend_previous_line(line.as_bytes())?;
                 }
             }
         }

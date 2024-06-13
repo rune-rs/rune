@@ -12,7 +12,6 @@ fn assert_format_source(source: &str, expected: Option<&str>) -> Result<()> {
 
 /// https://github.com/rune-rs/rune/issues/684
 #[test]
-#[ignore]
 fn bug_684() -> Result<()> {
     let source = r#"pub fn main() {
     /*
@@ -40,6 +39,31 @@ fn fmt_block_comment_indent() -> Result<()> {
     test2
 test 3*/
 }
+"#;
+
+    assert_format_source(source, None)
+}
+
+#[test]
+fn fmt_block_comment_indent2() -> Result<()> {
+    let source = r#"fn test() {
+    /* test1
+       test2 */
+
+    if true {
+        /*
+        if false {
+            // test3
+        }
+        */
+    } /* else {
+        // test 4
+    } */
+}
+/* test 5.1
+    test 5.2
+        test 5.3
+*/
 "#;
 
     assert_format_source(source, None)
