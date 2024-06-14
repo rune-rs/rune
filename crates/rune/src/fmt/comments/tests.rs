@@ -14,7 +14,7 @@ fn test_parse_block_comment() {
     let input = "/* this is a comment */";
     let mut chars = input.char_indices();
     let end = parse_block_comment(&mut chars).unwrap();
-    assert_eq!(end, input.len() - 1);
+    assert_eq!(end, input.len());
 }
 
 #[test]
