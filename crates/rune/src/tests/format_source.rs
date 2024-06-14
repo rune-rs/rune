@@ -4,7 +4,7 @@ use crate::fmt::format_source;
 
 fn assert_format_source(source: &str, expected: Option<&str>) -> Result<()> {
     let formated = format_source(source)?;
-    let expected = expected.as_deref().unwrap_or(source);
+    let expected = expected.unwrap_or(source);
     assert_eq!(formated, expected);
 
     Ok(())
