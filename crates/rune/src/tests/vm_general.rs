@@ -10,7 +10,8 @@ fn test_small_programs() {
         }
     );
     assert_eq!(out, 42u64);
-    rune!(
+
+    let _: () = rune!(
         pub fn main() {}
     );
 
@@ -146,7 +147,7 @@ fn test_shadowing() {
 
 #[test]
 fn test_vectors() {
-    rune!(
+    let _: () = rune!(
         pub fn main() {
             let v = [1, 2, 3, 4, 5];
         }
@@ -442,18 +443,21 @@ fn test_string_concat() {
 
 #[test]
 fn test_template_string() {
-    let out: String = rune_s! { r#"
+    let out: String = eval(
+        r#"
         pub fn main() {
             let name = "John Doe";
             `Hello ${name}, I am ${1 - 10} years old!`
         }
-    "# };
+    "#,
+    );
     assert_eq!(out, "Hello John Doe, I am -9 years old!");
 
     // Contrived expression with an arbitrary sub-expression.
     // This tests that the temporary variables used during calculations do not
     // accidentally clobber the scope.
-    let out: String = rune_s! { r#"
+    let out: String = eval(
+        r#"
         pub fn main() {
             let name = "John Doe";
 
@@ -463,7 +467,8 @@ fn test_template_string() {
                 a
             }} years old!`
         }
-    "# };
+    "#,
+    );
     assert_eq!(out, "Hello John Doe, I am 22 years old!");
 }
 
@@ -541,7 +546,8 @@ fn test_async_fn() {
 
 #[test]
 fn test_complex_field_access() {
-    let out: Option<i64> = rune_s! { r#"
+    let out: Option<i64> = eval(
+        r#"
         fn foo() {
             #{hello: #{world: 42}}
         }
@@ -549,7 +555,8 @@ fn test_complex_field_access() {
         pub fn main() {
             Some((foo()).hello["world"])
         }
-    "# };
+    "#,
+    );
     assert_eq!(out, Some(42));
 }
 

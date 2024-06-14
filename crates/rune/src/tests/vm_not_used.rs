@@ -2,7 +2,7 @@ prelude!();
 
 #[test]
 fn test_not_used() {
-    rune! {
+    let _: () = rune! {
         pub fn main() {
             0;
             4.1;

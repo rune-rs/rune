@@ -9,12 +9,13 @@ macro_rules! test_case {
 
 #[test]
 fn test_asserts() {
-    rune!(
+    let _: () = rune!(
         pub fn main() {
             assert!(true)
         }
     );
-    rune!(
+
+    let _: () = rune!(
         pub fn main() {
             assert_eq!(1 + 1, 2)
         }

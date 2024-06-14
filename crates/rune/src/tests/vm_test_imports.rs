@@ -49,7 +49,7 @@ fn test_reexport() {
 
 #[test]
 fn test_access() {
-    assert!(rune! {
+    rune_assert! {
         mod a { pub struct Foo; }
 
         mod b {
@@ -59,7 +59,7 @@ fn test_access() {
         }
 
         pub fn main() { b::test() }
-    });
+    };
 
     assert_errors! {
         r#"

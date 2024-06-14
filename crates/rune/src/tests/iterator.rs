@@ -42,7 +42,7 @@ fn test_rev() {
 
 #[test]
 fn test_next_back() {
-    rune! {
+    let _: () = rune! {
         const SOURCE = [1, 2, 3, "foo"];
 
         pub fn main() {

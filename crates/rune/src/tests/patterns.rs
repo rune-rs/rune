@@ -113,7 +113,7 @@ fn test_vec_patterns() {
     );
     assert_eq!(out, true);
 
-    rune!(
+    let _: () = rune!(
         pub fn main() {
             match [] {
                 [a, b] => a + 1 == b,
@@ -290,7 +290,7 @@ fn test_const_in_pattern() {
                 pat2 = $pat2,
             };
 
-            let tuple: (i64, i64, i64, i64) = rune_s!(string.as_str());
+            let tuple: (i64, i64, i64, i64) = eval(string);
             assert_eq!(tuple, (1, 6, 7, 4));
         };
     }

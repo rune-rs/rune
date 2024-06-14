@@ -4,7 +4,7 @@ use ErrorKind::*;
 
 #[test]
 fn test_continue_label() {
-    rune! {
+    let _: () = rune! {
         pub fn main() {
             let n = 0;
             let not_used = true;
@@ -32,7 +32,7 @@ fn test_continue_label() {
 
 #[test]
 fn while_continue() {
-    rune! {
+    let _: () = rune! {
         pub fn main() {
             let n = 0;
             let condition = true;
@@ -56,7 +56,7 @@ fn while_continue() {
 
 #[test]
 fn loop_continue() {
-    rune! {
+    let _: () = rune! {
         pub fn main() {
             let n = 0;
             let condition = true;
@@ -85,7 +85,7 @@ fn loop_continue() {
 
 #[test]
 fn for_continue() {
-    rune! {
+    let _: () = rune! {
         pub fn main() {
             let n = 0;
             let condition = true;

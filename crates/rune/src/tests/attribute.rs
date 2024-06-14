@@ -4,7 +4,7 @@ use ErrorKind::*;
 
 #[test]
 fn basic_use() {
-    rune! {
+    let _: () = rune! {
         mod private {
             #[test]
             fn test_case() {

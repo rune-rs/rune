@@ -2,7 +2,7 @@ prelude!();
 
 #[test]
 fn test_basic_self() {
-    rune! {
+    let _: () = rune! {
         struct Foo {
             value,
         }
@@ -24,7 +24,7 @@ fn test_basic_self() {
 
 #[test]
 fn test_chaining() {
-    rune! {
+    let _: () = rune! {
         struct Foo {
             value,
         }

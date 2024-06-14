@@ -20,7 +20,7 @@ pub(crate) mod prelude {
         ValueKind, VecTuple, VmErrorKind, VmResult,
     };
     pub(crate) use crate::support::Result;
-    pub(crate) use crate::tests::run;
+    pub(crate) use crate::tests::{eval, run};
     pub(crate) use crate::{
         from_value, prepare, sources, span, vm_try, Any, Context, ContextError, Diagnostics,
         FromValue, Hash, Module, Source, Sources, ToValue, Value, Vm,
@@ -219,32 +219,35 @@ macro_rules! expected {
     };
 }
 
-/// Same as [rune_s!] macro, except it takes a Rust token tree. This works
-/// fairly well because Rust and Rune has very similar token trees.
-macro_rules! rune {
-    ($($tt:tt)*) => {{
-        let context = $crate::Context::with_default_modules().expect("Failed to build context");
+#[track_caller]
+pub(crate) fn eval<T>(source: impl AsRef<str>) -> T
+where
+    T: FromValue,
+{
+    let source = source.as_ref();
+    let context = Context::with_default_modules().expect("Failed to build context");
 
-        match $crate::tests::run(&context, stringify!($($tt)*), ["main"], ()) {
-            Ok(output) => output,
-            Err(error) => {
-                panic!("Program failed to run:\n{}\n{}", error, stringify!($source));
-            }
+    match run(&context, source, ["main"], ()) {
+        Ok(output) => output,
+        Err(error) => {
+            panic!("Program failed to run:\n{error}\n{source}");
         }
-    }};
+    }
 }
 
-/// Run the given program and return the expected type from it.
-macro_rules! rune_s {
-    ($source:expr) => {{
-        let context = $crate::Context::with_default_modules().expect("Failed to build context");
+/// Evaluate a Rust token tree. This works fairly well because Rust and Rune has
+/// very similar token trees.
+macro_rules! rune {
+    ($($tt:tt)*) => {
+        $crate::tests::eval(stringify!($($tt)*))
+    };
+}
 
-        match $crate::tests::run(&context, $source, ["main"], ()) {
-            Ok(output) => output,
-            Err(error) => {
-                panic!("Program failed to run:\n{}\n{}", error, $source);
-            }
-        }
+/// Assert that the given source evaluates to `true`.
+macro_rules! rune_assert {
+    ($($tt:tt)*) => {{
+        let value: bool = $crate::tests::eval(stringify!($($tt)*));
+        assert!(value, "Rune program is not `true`:\n{}", stringify!($($tt)*));
     }};
 }
 
