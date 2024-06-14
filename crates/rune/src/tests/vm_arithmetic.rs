@@ -7,55 +7,55 @@ macro_rules! op_tests {
         let out: $ty = rune!(pub fn main() { let a = $lhs; let b = $rhs; a $op b});
         assert_eq!(out, $out);
 
-        let out: $ty = rune_s!(&format!(
+        let out: $ty = eval(&format!(
             r#"pub fn main() {{ let a = {lhs}; let b = {rhs}; a {op}= b; a }}"#,
             lhs = stringify!($lhs), rhs = stringify!($rhs), op = stringify!($op),
         ));
         assert_eq!(out, $out);
 
-        let out: $ty = rune_s!(&format!(
+        let out: $ty = eval(&format!(
             r#"struct Foo {{ padding, field }}; pub fn main() {{ let a = Foo{{ padding: 0, field: {lhs} }}; let b = {rhs}; a.field {op}= b; a.field }}"#,
             lhs = stringify!($lhs), rhs = stringify!($rhs), op = stringify!($op),
         ));
         assert_eq!(out, $out);
 
-        let out: $ty = rune_s!(&format!(
+        let out: $ty = eval(&format!(
             r#"enum Enum {{ Foo {{ padding, field }} }}; pub fn main() {{ let a = Enum::Foo {{ padding: 0, field: {lhs} }}; let b = {rhs}; a.field {op}= b; a.field }}"#,
             lhs = stringify!($lhs), rhs = stringify!($rhs), op = stringify!($op),
         ));
         assert_eq!(out, $out);
 
-        let out: $ty = rune_s!(&format!(
+        let out: $ty = eval(&format!(
             r#"pub fn main() {{ let a = #{{ padding: 0, field: {lhs} }}; let b = {rhs}; a.field {op}= b; a.field }}"#,
             lhs = stringify!($lhs), rhs = stringify!($rhs), op = stringify!($op),
         ));
         assert_eq!(out, $out);
 
-        let out: $ty = rune_s!(&format!(
+        let out: $ty = eval(&format!(
             r#"pub fn main() {{ let a = (0, {lhs}); let b = {rhs}; a.1 {op}= b; a.1 }}"#,
             lhs = stringify!($lhs), rhs = stringify!($rhs), op = stringify!($op),
         ));
         assert_eq!(out, $out);
 
-        let out: $ty = rune_s!(&format!(
+        let out: $ty = eval(&format!(
             r#"struct Foo(padding, a); pub fn main() {{ let a = Foo(0, {lhs}); let b = {rhs}; a.1 {op}= b; a.1 }}"#,
             lhs = stringify!($lhs), rhs = stringify!($rhs), op = stringify!($op),
         ));
         assert_eq!(out, $out);
 
-        let out: $ty = rune_s!(&format!(
+        let out: $ty = eval(&format!(
             r#"enum Enum {{ Foo(padding, a) }}; pub fn main() {{ let a = Enum::Foo(0, {lhs}); let b = {rhs}; a.1 {op}= b; a.1 }}"#,
             lhs = stringify!($lhs), rhs = stringify!($rhs), op = stringify!($op),
         ));
         assert_eq!(out, $out);
 
-        let out: $ty = rune_s!(&format!(
+        let out: $ty = eval(&format!(
             r#"pub fn main() {{ let a = Ok({lhs}); let b = {rhs}; a.0 {op}= b; a.0 }}"#,
             lhs = stringify!($lhs), rhs = stringify!($rhs), op = stringify!($op),
         ));
         assert_eq!(out, $out);
 
-        let out: $ty = rune_s!(&format!(
+        let out: $ty = eval(&format!(
             r#"pub fn main() {{ let a = Some({lhs}); let b = {rhs}; a.0 {op}= b; a.0 }}"#,
             lhs = stringify!($lhs), rhs = stringify!($rhs), op = stringify!($op),
         ));
