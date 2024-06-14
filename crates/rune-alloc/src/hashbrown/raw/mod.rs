@@ -1082,7 +1082,9 @@ impl<T, A: Allocator> RawTable<T, A> {
                 &|cx, table, index| hasher.hash(cx, table.bucket::<T>(index).as_ref()),
                 Self::TABLE_LAYOUT,
                 if T::NEEDS_DROP {
-                    Some(mem::transmute(ptr::drop_in_place::<T> as unsafe fn(*mut T)))
+                    Some(mem::transmute::<unsafe fn(*mut T), fn(*mut u8)>(
+                        ptr::drop_in_place::<T> as unsafe fn(*mut T),
+                    ))
                 } else {
                     None
                 },
@@ -4009,7 +4011,9 @@ mod test_map {
                 &move |cx, table, index| hasher(cx, table.bucket::<T>(index).as_ref()),
                 mem::size_of::<T>(),
                 if mem::needs_drop::<T>() {
-                    Some(mem::transmute(ptr::drop_in_place::<T> as unsafe fn(*mut T)))
+                    Some(mem::transmute::<unsafe fn(*mut T), fn(*mut u8)>(
+                        ptr::drop_in_place::<T> as unsafe fn(*mut T),
+                    ))
                 } else {
                     None
                 },
