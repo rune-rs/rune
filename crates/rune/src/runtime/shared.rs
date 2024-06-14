@@ -306,7 +306,10 @@ impl<T: ?Sized> SharedBox<T> {
             // has already been taken (as indicated by `is_taken`).
             //
             // If it has been taken, the shared box contains invalid memory.
-            drop(transmute::<_, Box<SharedBox<ManuallyDrop<T>>>>(this));
+            drop(transmute::<
+                Box<SharedBox<T>>,
+                Box<SharedBox<ManuallyDrop<T>>>,
+            >(this));
         } else {
             // NB: At the point of the final drop, no on else should be using
             // this.

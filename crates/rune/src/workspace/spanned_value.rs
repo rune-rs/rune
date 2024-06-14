@@ -454,11 +454,11 @@ impl<'de> de::Deserialize<'de> for Value {
             where
                 E: de::Error,
             {
-                if value <= i64::max_value() as u64 {
-                    Ok(Value::Integer(value as i64))
-                } else {
-                    Err(de::Error::custom("u64 value was too large"))
+                if let Ok(value) = i64::try_from(value) {
+                    return Ok(Value::Integer(value));
                 }
+
+                Err(de::Error::custom("u64 value was too large"))
             }
 
             fn visit_u32<E>(self, value: u32) -> Result<Value, E> {

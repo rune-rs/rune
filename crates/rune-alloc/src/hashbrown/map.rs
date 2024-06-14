@@ -7039,7 +7039,6 @@ mod test_map {
     use std::collections::hash_map::DefaultHasher;
     use std::ops::AddAssign;
     use std::thread;
-    use std::usize;
     use std::vec::Vec;
     use std::{format, println};
 

@@ -36,6 +36,7 @@ pub enum EventKind {
 /// A path update event.
 pub struct Event {
     /// The path that was modified.
+    #[allow(unused)]
     pub path: PathBuf,
     /// The unit that was constructed from the path.
     pub unit: Arc<Unit>,

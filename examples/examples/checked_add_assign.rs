@@ -49,9 +49,7 @@ fn main() -> rune::support::Result<()> {
 
     let mut vm = Vm::new(runtime, Arc::new(unit));
 
-    let input = External {
-        value: i64::max_value(),
-    };
+    let input = External { value: i64::MAX };
     let err = vm.call(["main"], (input,)).unwrap_err();
     println!("{:?}", err);
     Ok(())
