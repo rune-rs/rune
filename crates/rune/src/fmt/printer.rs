@@ -152,7 +152,6 @@ impl<'a> Printer<'a> {
         for attribute in attributes {
             self.visit_attribute(attribute)?;
         }
-        self.writer.newline()?;
 
         self.emit_visibility(visibility)?;
 
@@ -1788,6 +1787,7 @@ impl<'a> Printer<'a> {
             self.visit_statement(statement)?;
         }
 
+        self.writer.write_queued_spans(close.span.start)?;
         self.writer.dedent();
         self.writer.write_spanned_raw(close.span, false, false)?;
 
@@ -1802,7 +1802,7 @@ impl<'a> Printer<'a> {
             }
             ast::Stmt::Item(item, semi) => {
                 self.visit_item(item, *semi)?;
-                if !matches!(item, ast::Item::Fn(_)) {
+                if !matches!(item, ast::Item::Const(_) | ast::Item::Fn(_)) {
                     self.writer.newline()?;
                 }
             }

@@ -9,7 +9,7 @@ use core::str;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, try_vec, Vec};
-use crate::ast::Span;
+use crate::ast::{ByteIndex, Span};
 
 use super::comments::Comment;
 use super::error::FormattingError;
@@ -136,19 +136,7 @@ impl<'a> SpanInjectionWriter<'a> {
     pub(super) fn into_inner(mut self) -> Result<Vec<Vec<u8>>, FormattingError> {
         while !self.queued_spans.is_empty() {
             let span = self.queued_spans.remove(0);
-            match span {
-                ResolvedSpan::Empty(_) => {
-                    writeln!(self.writer)?;
-                }
-                ResolvedSpan::Comment(comment) => {
-                    if comment.on_new_line {
-                        writeln!(self.writer, "{}", self.resolve(comment.span)?)?;
-                    } else {
-                        self.extend_previous_line(b" ")?;
-                        self.extend_previous_line(self.resolve(comment.span)?.as_bytes())?;
-                    }
-                }
-            }
+            self.write_span(span)?;
         }
 
         Ok(self.writer.into_inner())
@@ -195,6 +183,49 @@ impl<'a> SpanInjectionWriter<'a> {
         self.write_spanned(Span::new(0, 0), text, false, false)
     }
 
+    pub(super) fn write_queued_spans(&mut self, until: ByteIndex) -> Result<(), FormattingError> {
+        // The queued recovered spans are ordered so we can pop them from the front if they're before the current span.
+        // If the current span is before the first queued span, we need to inject the queued span.
+
+        while let Some(queued_span) = self.queued_spans.first() {
+            if queued_span.span().start > until {
+                break;
+            }
+
+            let queued_span = self.queued_spans.remove(0);
+            self.write_span(queued_span)?;
+        }
+
+        Ok(())
+    }
+
+    fn write_span(&mut self, span: ResolvedSpan) -> Result<(), FormattingError> {
+        match span {
+            ResolvedSpan::Empty(_) => {
+                writeln!(self.writer)?;
+            }
+            ResolvedSpan::Comment(comment) => {
+                let mut lines = self.resolve(comment.span)?.lines();
+
+                if let Some(first_line) = lines.next() {
+                    if comment.on_new_line {
+                        writeln!(self.writer, "{}", first_line)?;
+                    } else {
+                        self.extend_previous_line(b" ")?;
+                        self.extend_previous_line(first_line.as_bytes())?;
+                    }
+                }
+
+                for line in lines {
+                    self.newline()?;
+                    self.extend_previous_line(line.as_bytes())?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     pub(super) fn write_spanned(
         &mut self,
         span: Span,
@@ -202,29 +233,7 @@ impl<'a> SpanInjectionWriter<'a> {
         newline: bool,
         space: bool,
     ) -> Result<(), FormattingError> {
-        // The queued recovered spans are ordered so we can pop them from the front if they're before the current span.
-        // If the current span is before the first queued span, we need to inject the queued span.
-
-        while let Some(queued_span) = self.queued_spans.first() {
-            if queued_span.span().start > span.start {
-                break;
-            }
-
-            let queued_span = self.queued_spans.remove(0);
-            match queued_span {
-                ResolvedSpan::Empty(_) => {
-                    writeln!(self.writer)?;
-                }
-                ResolvedSpan::Comment(comment) => {
-                    if comment.on_new_line {
-                        writeln!(self.writer, "{}", self.resolve(comment.span)?)?;
-                    } else {
-                        self.extend_previous_line(b" ")?;
-                        self.extend_previous_line(self.resolve(comment.span)?.as_bytes())?;
-                    }
-                }
-            }
-        }
+        self.write_queued_spans(span.start)?;
 
         write!(self.writer, "{}", text)?;
 
