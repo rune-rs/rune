@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1717031066691,
+  "lastUpdate": 1718413537490,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -25869,6 +25869,94 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 590,
             "range": "± 4",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]",
+            "email": "49699333+dependabot[bot]@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "id": "999eac032df1148baadde61fc412bebd23630b12",
+          "message": "Bump braces from 3.0.2 to 3.0.3 in /editors/code\n\nBumps [braces](https://github.com/micromatch/braces) from 3.0.2 to 3.0.3.\n- [Changelog](https://github.com/micromatch/braces/blob/master/CHANGELOG.md)\n- [Commits](https://github.com/micromatch/braces/compare/3.0.2...3.0.3)\n\n---\nupdated-dependencies:\n- dependency-name: braces\n  dependency-type: indirect\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>",
+          "timestamp": "2024-06-14T19:33:59Z",
+          "url": "https://github.com/rune-rs/rune/commit/999eac032df1148baadde61fc412bebd23630b12"
+        },
+        "date": 1718413536897,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 212192,
+            "range": "± 1610",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 723419,
+            "range": "± 4665",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 325763166,
+            "range": "± 6126777",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 182645150,
+            "range": "± 800552",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 953976,
+            "range": "± 4384",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 10017320,
+            "range": "± 89565",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 53588424,
+            "range": "± 241993",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 8573860,
+            "range": "± 59064",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 525506,
+            "range": "± 2499",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 6718799,
+            "range": "± 36495",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 567,
+            "range": "± 7",
             "unit": "ns/iter"
           }
         ]
