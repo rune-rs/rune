@@ -372,23 +372,17 @@ const runeCompleter = {
   getCompletions: (editor, session, pos, prefix, callback) => {
     if (prefix.length === 0) {
       callback(null, []);
-      return
+      return;
     }
 
-    if (prefix.includes(".")) {
-      callback(null, []);
-      return
-    }
-
-    var token = session.getTokenAt(pos.row, pos.column).value;
+    var token = session.getTokenAt(pos.row, pos.column - 1).value;
 
     if (token.includes(".")) {
       callback(null, instance);
-    }
-    else {
+    } else {
       callback(null, fixed);
     }
-  }
+  },
 };
 export default runeCompleter;
 "#;
