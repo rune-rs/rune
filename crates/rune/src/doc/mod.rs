@@ -3,7 +3,7 @@
 #[cfg(feature = "cli")]
 mod context;
 #[cfg(feature = "cli")]
-use self::context::Context;
+pub(crate) use self::context::Context;
 
 #[cfg(feature = "cli")]
 mod artifacts;
@@ -22,3 +22,6 @@ pub(crate) use self::build::build;
 mod visitor;
 #[cfg(any(feature = "languageserver", feature = "cli"))]
 pub(crate) use self::visitor::{Visitor, VisitorData};
+
+mod autocomplete;
+pub(crate) use self::autocomplete::build as build_autocomplete;
