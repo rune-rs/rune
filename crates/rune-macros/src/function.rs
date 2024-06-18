@@ -116,13 +116,13 @@ impl FunctionAttrs {
 }
 
 pub(crate) struct Function {
-    attributes: Vec<syn::Attribute>,
-    vis: syn::Visibility,
-    sig: syn::Signature,
-    remainder: TokenStream,
-    docs: syn::ExprArray,
-    arguments: syn::ExprArray,
-    takes_self: bool,
+    pub attributes: Vec<syn::Attribute>,
+    pub vis: syn::Visibility,
+    pub sig: syn::Signature,
+    pub remainder: TokenStream,
+    pub docs: syn::ExprArray,
+    pub arguments: syn::ExprArray,
+    pub takes_self: bool,
 }
 
 impl Function {

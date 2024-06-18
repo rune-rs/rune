@@ -37,6 +37,7 @@ mod hash;
 mod inst_display;
 mod instrument;
 mod internals;
+mod item_impl;
 mod macro_;
 mod module;
 mod opaque;
@@ -70,6 +71,54 @@ pub fn function(
     let function = syn::parse_macro_input!(item with crate::function::Function::parse);
 
     let output = match function.expand(attrs) {
+        Ok(output) => output,
+        Err(e) => return proc_macro::TokenStream::from(e.to_compile_error()),
+    };
+
+    output.into()
+}
+
+/// Create a function to export all functions marked with the `#[rune(export)]` attribute within a module.
+///
+/// ### Example
+///
+/// ```rs
+/// #[derive(rune::Any)]
+/// struct MyStruct {
+///     field: u32,
+/// }
+///
+/// #[rune::item_impl(exporter = export_rune_api)]
+/// impl MyStruct {
+///     // Exported
+///     #[rune(export)]
+///     fn foo(&self) -> u32 {
+///         self.field + 1
+///     }
+///
+///     // Not exported
+///     fn bar(&self) -> u32 {
+///         self.field + 2
+///     }
+/// }
+///
+/// fn main() {
+///     let mut module = rune::Module::new();
+///     module.ty::<MyStruct>().unwrap();
+///     module = MyStruct::export_rune_api(module)
+///         .expect("Allocation error")
+///         .expect("Context error");
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn item_impl(
+    attrs: proc_macro::TokenStream,
+    item: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+    let attrs = syn::parse_macro_input!(attrs with crate::item_impl::ItemImplAttrs::parse);
+    let item = crate::item_impl::ItemImpl(syn::parse_macro_input!(item as syn::ItemImpl));
+
+    let output = match item.expand(attrs) {
         Ok(output) => output,
         Err(e) => return proc_macro::TokenStream::from(e.to_compile_error()),
     };
