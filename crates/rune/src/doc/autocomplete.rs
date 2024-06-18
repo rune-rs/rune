@@ -60,7 +60,7 @@ impl<'a> AutoCompleteCtx<'a> {
                     self.fixed.try_insert(item.try_clone()?, meta)?;
                 }
                 Kind::Struct => {
-                    for (_, name) in self.ctx.iter_components(item)?.into_iter() {
+                    for (_, name) in self.ctx.iter_components(item)? {
                         let item = item.join([name])?;
                         self.collect_meta(&item)?;
                     }
@@ -70,7 +70,7 @@ impl<'a> AutoCompleteCtx<'a> {
                     self.fixed.try_insert(item.try_clone()?, meta)?;
                 }
                 Kind::Enum => {
-                    for (_, name) in self.ctx.iter_components(item)?.into_iter() {
+                    for (_, name) in self.ctx.iter_components(item)? {
                         let item = item.join([name])?;
                         self.collect_meta(&item)?;
                     }
@@ -91,7 +91,7 @@ impl<'a> AutoCompleteCtx<'a> {
                     self.fixed.try_insert(item.try_clone()?, meta)?;
                 }
                 Kind::Module => {
-                    for (_, name) in self.ctx.iter_components(item)?.into_iter() {
+                    for (_, name) in self.ctx.iter_components(item)? {
                         let item = item.join([name])?;
                         self.collect_meta(&item)?;
                     }
@@ -134,7 +134,7 @@ impl<'a> AutoCompleteCtx<'a> {
         markdown::push_html(&self.syntax_set, &mut o, iter, None)?;
 
         write!(o, "</div>")?;
-        let o = String::try_from(o.replace("`", "\\`"))?;
+        let o = String::try_from(o.replace('`', "\\`"))?;
 
         Ok(Some(o))
     }
@@ -230,7 +230,7 @@ impl<'a> AutoCompleteCtx<'a> {
         if let Some(doc) = doc {
             write!(f, r#", docHTML: `{}`"#, doc)?;
         }
-        write!(f, "}}\n")?;
+        writeln!(f, "}}")?;
         Ok(())
     }
 
@@ -367,7 +367,7 @@ impl<'a> Display for AutoCompleteCtx<'a> {
     }
 }
 
-static COMPLETER: &'static str = r#"
+static COMPLETER: &str = r#"
 const runeCompleter = {
   getCompletions: (editor, session, pos, prefix, callback) => {
     if (prefix.length === 0) {
