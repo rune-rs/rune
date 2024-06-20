@@ -1,4 +1,5 @@
 use crate::alloc::Vec;
+use crate::runtime::Args;
 use crate::runtime::{Stack, UnsafeToValue, Value, VmResult};
 
 /// Trait for converting arguments onto the stack.
@@ -65,3 +66,42 @@ macro_rules! impl_into_args {
 }
 
 repeat_macro!(impl_into_args);
+
+impl GuardedArgs for Vec<Value> {
+    type Guard = ();
+
+    #[inline]
+    unsafe fn unsafe_into_stack(self, stack: &mut Stack) -> VmResult<Self::Guard> {
+        self.into_stack(stack)
+    }
+
+    #[inline]
+    unsafe fn unsafe_into_vec(self) -> VmResult<(Vec<Value>, Self::Guard)> {
+        VmResult::Ok((vm_try!(self.try_into_vec()), ()))
+    }
+
+    #[inline]
+    fn count(&self) -> usize {
+        (self as &dyn Args).count()
+    }
+}
+
+#[cfg(feature = "alloc")]
+impl GuardedArgs for ::rust_alloc::vec::Vec<Value> {
+    type Guard = ();
+
+    #[inline]
+    unsafe fn unsafe_into_stack(self, stack: &mut Stack) -> VmResult<Self::Guard> {
+        self.into_stack(stack)
+    }
+
+    #[inline]
+    unsafe fn unsafe_into_vec(self) -> VmResult<(Vec<Value>, Self::Guard)> {
+        VmResult::Ok((vm_try!(self.try_into_vec()), ()))
+    }
+
+    #[inline]
+    fn count(&self) -> usize {
+        (self as &dyn Args).count()
+    }
+}
