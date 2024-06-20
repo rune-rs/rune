@@ -1,4 +1,5 @@
-use crate::runtime::{Stack, UnsafeToValue, VmResult};
+use crate::alloc::Vec;
+use crate::runtime::{Stack, UnsafeToValue, Value, VmResult};
 
 /// Trait for converting arguments onto the stack.
 ///
@@ -18,6 +19,9 @@ pub trait GuardedArgs {
     /// invalidated.
     unsafe fn unsafe_into_stack(self, stack: &mut Stack) -> VmResult<Self::Guard>;
 
+    /// Convert arguments into a vector.
+    unsafe fn unsafe_into_vec(self) -> VmResult<(Vec<Value>, Self::Guard)>;
+
     /// The number of arguments.
     fn count(&self) -> usize;
 }
@@ -36,6 +40,15 @@ macro_rules! impl_into_args {
                 $(let $value = vm_try!($value.unsafe_to_value());)*
                 $(vm_try!(stack.push($value.0));)*
                 VmResult::Ok(($($value.1,)*))
+            }
+
+            #[allow(unused)]
+            unsafe fn unsafe_into_vec(self) -> VmResult<(Vec<Value>, Self::Guard)> {
+                let ($($value,)*) = self;
+                let mut vec = vm_try!(Vec::try_with_capacity($count));
+                $(let $value = vm_try!($value.unsafe_to_value());)*
+                $(vm_try!(vec.try_push($value.0));)*
+                VmResult::Ok((vec, ($($value.1,)*)))
             }
 
             fn count(&self) -> usize {
