@@ -20,6 +20,12 @@ pub trait GuardedArgs {
     unsafe fn unsafe_into_stack(self, stack: &mut Stack) -> VmResult<Self::Guard>;
 
     /// Convert arguments into a vector.
+    ///
+    /// # Safety
+    ///
+    /// This is implemented for and allows encoding references on the stack.
+    /// The returned guard must be dropped before any used references are
+    /// invalidated.
     unsafe fn unsafe_into_vec(self) -> VmResult<(Vec<Value>, Self::Guard)>;
 
     /// The number of arguments.
