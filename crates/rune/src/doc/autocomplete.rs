@@ -178,6 +178,20 @@ impl<'a> AutoCompleteCtx<'a> {
 
     fn get_fn_param(f: &Function) -> Result<String> {
         let mut param = String::try_from("(")?;
+
+        // add arguments when no argument names are provided
+        if let Some(args) = f.args {
+            if args != 0 && f.args != f.arg_names.map(|a| a.len()) {
+                for i in 0..args {
+                    if i != 0 {
+                        param.try_push_str(", ")?;
+                    }
+                    param.try_push_str("value")?;
+                }
+            }
+        }
+
+        // add argument names
         for a in f.arg_names.into_iter().flatten() {
             if param.len() != 1 {
                 param.try_push_str(", ")?;
