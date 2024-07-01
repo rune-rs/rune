@@ -1,3 +1,5 @@
+use core::ops::Deref;
+
 use crate::alloc::{self, Box, HashMap};
 use crate::item::{IntoComponent, Item, ItemBuf};
 
@@ -52,6 +54,15 @@ impl Prelude {
     /// Access a value from the prelude.
     pub(crate) fn get<'a>(&'a self, name: &str) -> Option<&'a Item> {
         Some(self.prelude.get(name)?)
+    }
+
+    /// Return the local name of an item
+    #[allow(dead_code)]
+    pub(crate) fn get_local<'a>(&'a self, item: &ItemBuf) -> Option<&'a str> {
+        self.prelude
+            .iter()
+            .find(|(_, i)| i == &item)
+            .map(|(s, _)| s.deref())
     }
 
     /// Define a prelude item.

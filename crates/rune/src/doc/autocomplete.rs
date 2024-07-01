@@ -1,6 +1,9 @@
 use core::fmt::Display;
 
-use crate::doc::{Artifacts, Context, Visitor};
+use crate::{
+    compile::Prelude,
+    doc::{Artifacts, Context, Visitor},
+};
 
 use anyhow::{Context as _, Result};
 use pulldown_cmark::{Options, Parser};
@@ -39,6 +42,7 @@ struct AutoCompleteCtx<'a> {
     syntax_set: SyntaxSet,
     fixed: HashMap<ItemBuf, Meta<'a>>,
     instance: HashMap<ItemBuf, Meta<'a>>,
+    prelude: Prelude,
 }
 
 impl<'a> AutoCompleteCtx<'a> {
@@ -49,6 +53,7 @@ impl<'a> AutoCompleteCtx<'a> {
             syntax_set: SyntaxSet::load_defaults_newlines(),
             fixed: HashMap::new(),
             instance: HashMap::new(),
+            prelude: Prelude::with_default_prelude().unwrap_or_default(),
         }
     }
 
@@ -139,24 +144,18 @@ impl<'a> AutoCompleteCtx<'a> {
         Ok(Some(o))
     }
 
-    fn get_name(item: &ItemBuf) -> Result<String> {
-        let mut name = item.try_to_string()?;
+    fn get_name(&self, item: &ItemBuf) -> Result<String> {
+        // shorten item name with auto prelude when available
+        if let Some(name) = self.prelude.get_local(item) {
+            return Ok(name.try_to_string()?);
+        }
 
-        if name.starts_with("::std::io::print!()") {
-            name.try_replace_range(..12, "")?;
-        }
-        if name.starts_with("::std::io::println!()") {
-            name.try_replace_range(..12, "")?;
-        }
-        if name.starts_with("::std::io::dbg!()") {
-            name.try_replace_range(..12, "")?;
-        }
-        if name.starts_with("::std::vec::") {
-            name.try_replace_range(..12, "")?;
-        }
+        // take default name and remove starting double points
+        let mut name = item.try_to_string()?;
         if name.starts_with("::") {
             name.try_replace_range(..2, "")?;
         }
+
         Ok(name)
     }
 
@@ -310,33 +309,33 @@ impl<'a> AutoCompleteCtx<'a> {
                     no_comma = true;
                 }
                 Kind::Type => {
-                    let name = Self::get_name(item)?;
+                    let name = self.get_name(item)?;
                     let doc = self.doc_to_html(meta).ok().flatten();
                     self.write_hint(f, &name, "Type", 0, None, doc.as_deref())?;
                 }
                 Kind::Struct => {
-                    let name = Self::get_name(item)?;
+                    let name = self.get_name(item)?;
                     let doc = self.doc_to_html(meta).ok().flatten();
                     self.write_hint(f, &name, "Struct", 0, None, doc.as_deref())?;
                 }
                 Kind::Variant => {
-                    let name = Self::get_name(item)?;
+                    let name = self.get_name(item)?;
                     let doc = self.doc_to_html(meta).ok().flatten();
                     self.write_hint(f, &name, "Variant", 0, None, doc.as_deref())?;
                 }
                 Kind::Enum => {
-                    let name = Self::get_name(item)?;
+                    let name = self.get_name(item)?;
                     let doc = self.doc_to_html(meta).ok().flatten();
                     self.write_hint(f, &name, "Enum", 0, None, doc.as_deref())?;
                 }
                 Kind::Macro => {
-                    let mut name = Self::get_name(item)?;
+                    let mut name = self.get_name(item)?;
                     name.try_push_str("!()")?;
                     let doc = self.doc_to_html(meta).ok().flatten();
                     self.write_hint(f, &name, "Type", 0, None, doc.as_deref())?;
                 }
                 Kind::Function(fnc) => {
-                    let mut value = Self::get_name(item)?;
+                    let mut value = self.get_name(item)?;
                     value.try_push_str(&Self::get_fn_param(&fnc)?)?;
                     let mut caption = value.try_clone()?;
                     caption.try_push_str(&self.get_fn_ret_typ(&fnc)?)?;
@@ -350,12 +349,12 @@ impl<'a> AutoCompleteCtx<'a> {
                     self.write_hint(f, &value, info, 0, Some(&caption), doc.as_deref())?;
                 }
                 Kind::Const(_) => {
-                    let name = Self::get_name(item)?;
+                    let name = self.get_name(item)?;
                     let doc = self.doc_to_html(meta).ok().flatten();
                     self.write_hint(f, &name, "Const", 10, None, doc.as_deref())?;
                 }
                 Kind::Module => {
-                    let name = Self::get_name(item)?;
+                    let name = self.get_name(item)?;
                     let doc = self.doc_to_html(meta).ok().flatten();
                     self.write_hint(f, &name, "Module", 9, None, doc.as_deref())?;
                 }
