@@ -501,6 +501,7 @@ pub(crate) enum ErrorKind {
     },
     ArenaWriteSliceOutOfBounds {
         index: usize,
+        len: usize,
     },
     ArenaAllocError {
         requested: usize,
@@ -992,7 +993,7 @@ impl fmt::Display for ErrorKind {
                 write!(f, "Cycle in import")?;
             }
             ErrorKind::ImportRecursionLimit { count, .. } => {
-                write!(f, "Import recursion limit reached ({count})", count = count)?;
+                write!(f, "Import recursion limit reached ({count})")?;
             }
             ErrorKind::LastUseComponent => {
                 write!(f, "Missing last use component")?;
@@ -1004,14 +1005,12 @@ impl fmt::Display for ErrorKind {
                 write!(
                     f,
                     "Tried to insert runtime type information, but conflicted with hash `{hash}`",
-                    hash = hash
                 )?;
             }
-            ErrorKind::ArenaWriteSliceOutOfBounds { index } => {
+            ErrorKind::ArenaWriteSliceOutOfBounds { index, len } => {
                 write!(
                     f,
-                    "Writing arena slice out of bounds for index {index}",
-                    index = index
+                    "Writing arena slice out of bounds 0-{len} for index {index}"
                 )?;
             }
             ErrorKind::ArenaAllocError { requested } => {

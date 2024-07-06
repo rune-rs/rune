@@ -1,5 +1,6 @@
 use core::cell::Cell;
 use core::ops::Neg;
+use core::slice;
 
 use num::ToPrimitive;
 
@@ -329,6 +330,9 @@ fn inner_block<'hir, 'a>(
 
     cx.scopes.push()?;
 
+    let push_at = cx.statements.len();
+    cx.statements.try_push(hir::Stmt::Push(&[]))?;
+
     for ast in statements {
         let stmt = match ast {
             ast::Stmt::Local(ast) => hir::Stmt::Local(alloc!(local(cx, ast)?)),
@@ -338,7 +342,7 @@ fn inner_block<'hir, 'a>(
                 hir::Stmt::Assign(n, alloc!(expr(cx, ast)?))
             }
             ast::Stmt::Semi(ast) => hir::Stmt::Expr(alloc!(expr(cx, &ast.expr)?)),
-            ast::Stmt::Item(..) => hir::Stmt::Item(ast.span()),
+            ast::Stmt::Item(..) => continue,
         };
 
         cx.statements.try_push(stmt)?;
@@ -348,13 +352,13 @@ fn inner_block<'hir, 'a>(
 
     let drop = layer.into_drop_order();
 
-    if drop.len() != 0 {
-        cx.statements
-            .try_push(hir::Stmt::Drop(ast.span(), iter!(drop)))?;
-    }
+    cx.statements.try_push(hir::Stmt::Drop(iter!(drop)))?;
 
     let expr = match name {
-        Some((span, name)) => Some((span, hir::ExprKind::Variable(name))),
+        Some((span, name)) => {
+            cx.statements[push_at] = hir::Stmt::Push(slice::from_ref(alloc!(name)));
+            Some((span, hir::ExprKind::Variable(name)))
+        }
         None => None,
     };
 

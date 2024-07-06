@@ -225,7 +225,7 @@ impl<'hir> Asm<'hir> {
 #[instrument(span = hir)]
 pub(crate) fn fn_from_item_fn<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
-    hir: &hir::ItemFn<'hir>,
+    hir: &'hir hir::ItemFn<'hir>,
     instance_fn: bool,
 ) -> compile::Result<()> {
     let mut patterns = Vec::new();
@@ -329,7 +329,10 @@ fn return_<'hir, T>(
     span: &dyn Spanned,
     hir: T,
     asm: impl FnOnce(&mut Ctxt<'_, 'hir, '_>, T, Needs) -> compile::Result<Asm<'hir>>,
-) -> compile::Result<()> {
+) -> compile::Result<()>
+where
+    T: 'hir,
+{
     let address = asm(cx, hir, Needs::Value)?.apply_targeted(cx)?;
     cx.asm.push(Inst::Return { address }, span)?;
 
@@ -666,16 +669,18 @@ fn pat_object<'hir>(
 #[instrument(span = hir)]
 fn block<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
-    hir: &hir::Block<'hir>,
+    hir: &'hir hir::Block<'hir>,
     needs: Needs,
 ) -> compile::Result<Asm<'hir>> {
     cx.contexts.try_push(hir.span())?;
-    let scopes_count = cx.scopes.child(hir)?;
+    let expected = cx.scopes.child(hir)?;
+
+    let mut guards = Vec::new();
 
     let mut last = None::<(&hir::Expr<'_>, bool)>;
 
     for stmt in hir.statements {
-        match stmt {
+        match *stmt {
             hir::Stmt::Local(l) => {
                 if let Some((e, _)) = take(&mut last) {
                     // NB: terminated expressions do not need to produce a value.
@@ -686,15 +691,31 @@ fn block<'hir>(
             }
             hir::Stmt::Assign(name, e) => {
                 expr(cx, e, Needs::Value)?.apply(cx)?;
-                cx.scopes.define(*name, e)?;
+                cx.scopes.define(name, e)?;
             }
             hir::Stmt::Expr(e) => {
                 // NB: terminated expressions do not need to produce a value.
                 expr(cx, e, Needs::None)?.apply(cx)?;
             }
-            hir::Stmt::Drop(..) => {}
-            hir::Stmt::Item(..) => {}
+            hir::Stmt::Push(names) => {
+                for &name in names {
+                    cx.scopes.define(name, hir)?;
+                }
+
+                guards.try_push(cx.scopes.child(hir)?)?;
+            }
+            hir::Stmt::Drop(..) => {
+                let Some(guard) = guards.pop() else {
+                    return Err(compile::Error::msg(hir, "Missing expected scope"));
+                };
+
+                cx.scopes.pop(guard, hir)?;
+            }
         };
+    }
+
+    if !guards.is_empty() {
+        return Err(compile::Error::msg(hir, "There should be no more scopes"));
     }
 
     let produced = if let Some(e) = hir.value {
@@ -704,7 +725,7 @@ fn block<'hir>(
         false
     };
 
-    let scope = cx.scopes.pop(scopes_count, hir)?;
+    let scope = cx.scopes.pop(expected, hir)?;
 
     if needs.value() {
         if produced {
@@ -2372,7 +2393,7 @@ fn expr_vec<'hir>(
 #[instrument(span = span)]
 fn expr_loop<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
-    hir: &hir::ExprLoop<'hir>,
+    hir: &'hir hir::ExprLoop<'hir>,
     span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm<'hir>> {

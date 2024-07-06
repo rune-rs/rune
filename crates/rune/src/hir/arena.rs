@@ -14,6 +14,7 @@ use crate::alloc::{self, try_vec, Box, HashMap, Vec};
 #[non_exhaustive]
 pub struct ArenaWriteSliceOutOfBounds {
     pub index: usize,
+    pub len: usize,
 }
 
 #[derive(Debug)]
@@ -224,13 +225,17 @@ pub(crate) struct AllocIter<'hir, T> {
 impl<'hir, T> AllocIter<'hir, T> {
     /// Write the next element into the slice.
     pub(crate) fn write(&mut self, object: T) -> Result<(), ArenaWriteSliceOutOfBounds> {
-        let mem = self
-            .mem
-            .ok_or(ArenaWriteSliceOutOfBounds { index: self.index })?;
+        let mem = self.mem.ok_or(ArenaWriteSliceOutOfBounds {
+            index: self.index,
+            len: self.len,
+        })?;
 
         // Sanity check is necessary to ensure memory safety.
         if self.index >= self.len {
-            return Err(ArenaWriteSliceOutOfBounds { index: self.index });
+            return Err(ArenaWriteSliceOutOfBounds {
+                index: self.index,
+                len: self.len,
+            });
         }
 
         unsafe {

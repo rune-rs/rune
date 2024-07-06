@@ -324,7 +324,7 @@ pub(crate) fn block(hir: &hir::Block<'_>, c: &mut Ctxt<'_, '_>) -> compile::Resu
             hir::Stmt::Expr(e) => {
                 instructions.try_push(expr(e, c)?)?;
             }
-            hir::Stmt::Item(..) => {}
+            hir::Stmt::Push(..) => {}
             hir::Stmt::Drop(..) => {}
         };
     }

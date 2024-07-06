@@ -734,20 +734,23 @@ pub(crate) struct AsyncBlock<'hir> {
 }
 
 /// A statement within a block.
-#[derive(Debug, TryClone, Clone, Copy, Spanned)]
+#[derive(Debug, TryClone, Clone, Copy)]
 #[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) enum Stmt<'hir> {
     /// A local declaration.
     Local(&'hir Local<'hir>),
     /// An expresssion assigned to a name.
-    Assign(Name<'hir>, #[rune(span)] &'hir Expr<'hir>),
+    Assign(Name<'hir>, &'hir Expr<'hir>),
     /// An expression which is not being assigned to a name.
     Expr(&'hir Expr<'hir>),
-    /// An ignored item.
-    Item(Span),
-    /// Drop a bunch of names.
-    Drop(#[rune(span)] Span, &'hir [Name<'hir>]),
+    /// Push a scope.
+    ///
+    /// The provided collection are names that should be defined *before* the
+    /// scope is pushed.
+    Push(&'hir [Name<'hir>]),
+    /// Drop a scope.
+    Drop(#[allow(unused)] &'hir [Name<'hir>]),
 }
 
 /// A local variable declaration `let <pattern> = <expr>;`

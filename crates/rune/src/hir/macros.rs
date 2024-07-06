@@ -56,7 +56,7 @@ macro_rules! alloc_with {
             };
 
             ($iter:expr, $it:ident, $len:expr, |$pat:pat_param| $closure:expr) => {{
-                let mut $it = IntoIterator::into_iter($iter);
+                let $it = IntoIterator::into_iter($iter);
 
                 let mut writer = match $cx.arena.alloc_iter($len) {
                     Ok(writer) => writer,
@@ -69,12 +69,12 @@ macro_rules! alloc_with {
                         ));
                     }
                 };
-        
-                while let Some($pat) = $it.next() {
+
+                for $pat in $it {
                     if let Err(e) = writer.write($closure) {
                         return Err(compile::Error::new(
                             $span,
-                            ErrorKind::ArenaWriteSliceOutOfBounds { index: e.index },
+                            ErrorKind::ArenaWriteSliceOutOfBounds { index: e.index, len: e.len },
                         ));
                     }
                 }
