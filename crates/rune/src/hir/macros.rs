@@ -28,6 +28,17 @@ macro_rules! alloc_with {
                     }
                 }
             };
+
+            ($value:expr) => {
+                match $value {
+                    Some(value) => {
+                        Some(&*alloc!(value))
+                    }
+                    None => {
+                        None
+                    }
+                }
+            };
         }
 
         #[allow(unused)]

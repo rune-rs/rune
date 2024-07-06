@@ -1,4 +1,4 @@
-use core::mem::{replace, take};
+use core::mem::take;
 
 use crate as rune;
 use crate::alloc::prelude::*;
@@ -253,23 +253,14 @@ pub(crate) fn fn_from_item_fn<'hir>(
         pat_with_offset(cx, pat, offset)?;
     }
 
-    if hir.body.statements.is_empty() {
+    if hir.body.statements.is_empty() && hir.body.value.is_none() {
         let total_var_count = cx.scopes.total(hir)?;
         cx.locals_pop(total_var_count, hir)?;
         cx.asm.push(Inst::ReturnUnit, hir)?;
         return Ok(());
     }
 
-    if !hir.body.produces_nothing() {
-        return_(cx, hir, &hir.body, block)?;
-    } else {
-        block(cx, &hir.body, Needs::None)?.apply(cx)?;
-
-        let total_var_count = cx.scopes.total(hir)?;
-        cx.locals_pop(total_var_count, hir)?;
-        cx.asm.push(Inst::ReturnUnit, hir)?;
-    }
-
+    return_(cx, hir, &hir.body, block)?;
     cx.scopes.pop_last(hir)?;
     Ok(())
 }
@@ -327,7 +318,7 @@ pub(crate) fn expr_closure_secondary<'hir>(
         pat_with_offset(cx, pat, offset)?;
     }
 
-    return_(cx, span, &hir.body, expr)?;
+    return_(cx, span, &hir.body, block)?;
     cx.scopes.pop_last(span)?;
     Ok(())
 }
@@ -684,7 +675,7 @@ fn block<'hir>(
     let mut last = None::<(&hir::Expr<'_>, bool)>;
 
     for stmt in hir.statements {
-        let (e, semi) = match stmt {
+        match stmt {
             hir::Stmt::Local(l) => {
                 if let Some((e, _)) = take(&mut last) {
                     // NB: terminated expressions do not need to produce a value.
@@ -692,27 +683,23 @@ fn block<'hir>(
                 }
 
                 local(cx, l, Needs::None)?.apply(cx)?;
-                continue;
             }
-            hir::Stmt::Expr(expr) => (expr, false),
-            hir::Stmt::Semi(expr) => (expr, true),
-            hir::Stmt::Item(..) => continue,
+            hir::Stmt::Assign(name, e) => {
+                expr(cx, e, Needs::Value)?.apply(cx)?;
+                cx.scopes.define(*name, e)?;
+            }
+            hir::Stmt::Expr(e) => {
+                // NB: terminated expressions do not need to produce a value.
+                expr(cx, e, Needs::None)?.apply(cx)?;
+            }
+            hir::Stmt::Drop(..) => {}
+            hir::Stmt::Item(..) => {}
         };
-
-        if let Some((e, _)) = replace(&mut last, Some((e, semi))) {
-            // NB: terminated expressions do not need to produce a value.
-            expr(cx, e, Needs::None)?.apply(cx)?;
-        }
     }
 
-    let produced = if let Some((e, semi)) = last {
-        if semi {
-            expr(cx, e, Needs::None)?.apply(cx)?;
-            false
-        } else {
-            expr(cx, e, needs)?.apply(cx)?;
-            true
-        }
+    let produced = if let Some(e) = hir.value {
+        expr(cx, e, needs)?.apply(cx)?;
+        true
     } else {
         false
     };
@@ -947,7 +934,6 @@ fn expr<'hir>(
         hir::ExprKind::Break(hir) => expr_break(cx, hir, span, needs)?,
         hir::ExprKind::Continue(hir) => expr_continue(cx, hir, span, needs)?,
         hir::ExprKind::Yield(hir) => expr_yield(cx, hir, span, needs)?,
-        hir::ExprKind::Block(hir) => block(cx, hir, needs)?,
         hir::ExprKind::Return(hir) => expr_return(cx, hir, span, needs)?,
         hir::ExprKind::Match(hir) => expr_match(cx, hir, span, needs)?,
         hir::ExprKind::Await(hir) => expr_await(cx, hir, span, needs)?,

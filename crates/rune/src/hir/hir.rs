@@ -15,7 +15,7 @@ use crate::Hash;
 pub(crate) enum OwnedName {
     SelfValue,
     Str(String),
-    Id(usize),
+    Id(NonZeroId),
 }
 
 impl OwnedName {
@@ -48,7 +48,7 @@ pub(crate) enum Name<'hir> {
     /// Capture of a named variable.
     Str(&'hir str),
     /// Anonymous variable.
-    Id(usize),
+    Id(NonZeroId),
 }
 
 impl<'hir> Name<'hir> {
@@ -232,7 +232,6 @@ pub(crate) enum ExprKind<'hir> {
     Unary(&'hir ExprUnary<'hir>),
     Index(&'hir ExprIndex<'hir>),
     AsyncBlock(&'hir ExprAsyncBlock<'hir>),
-    Block(&'hir Block<'hir>),
     Break(&'hir ExprBreak<'hir>),
     Continue(&'hir ExprContinue<'hir>),
     Yield(Option<&'hir Expr<'hir>>),
@@ -606,7 +605,7 @@ pub(crate) struct ExprClosure<'hir> {
     /// Arguments to the closure.
     pub(crate) args: &'hir [FnArg<'hir>],
     /// The body of the closure.
-    pub(crate) body: Expr<'hir>,
+    pub(crate) body: Block<'hir>,
     /// Captures in the closure.
     pub(crate) captures: &'hir [Name<'hir>],
 }
@@ -652,6 +651,11 @@ pub(crate) struct FieldAssign<'hir> {
 pub(crate) struct ExprSeq<'hir> {
     /// Items in the vector.
     pub(crate) items: &'hir [Expr<'hir>],
+}
+
+impl<'hir> ExprSeq<'hir> {
+    /// An empty sequence.
+    pub(crate) const EMPTY: ExprSeq<'static> = ExprSeq { items: &[] };
 }
 
 /// A range expression such as `a .. b` or `a ..= b`.
@@ -718,18 +722,8 @@ pub(crate) struct Block<'hir> {
     pub(crate) span: Span,
     /// Statements in the block.
     pub(crate) statements: &'hir [Stmt<'hir>],
-    /// Variables that need to be dropped by the end of this block.
-    #[allow(unused)]
-    pub(crate) drop: &'hir [Name<'hir>],
-}
-
-impl Block<'_> {
-    /// Test if the block doesn't produce anything. Which is when the last
-    /// element is either a non-expression or is an expression terminated by a
-    /// semi.
-    pub(crate) fn produces_nothing(&self) -> bool {
-        matches!(self.statements.last(), Some(Stmt::Semi(..)) | None)
-    }
+    /// The value the block evaluates to by default.
+    pub(crate) value: Option<&'hir Expr<'hir>>,
 }
 
 #[derive(Debug, TryClone, Clone, Copy)]
@@ -746,12 +740,14 @@ pub(crate) struct AsyncBlock<'hir> {
 pub(crate) enum Stmt<'hir> {
     /// A local declaration.
     Local(&'hir Local<'hir>),
-    /// An expression.
+    /// An expresssion assigned to a name.
+    Assign(Name<'hir>, #[rune(span)] &'hir Expr<'hir>),
+    /// An expression which is not being assigned to a name.
     Expr(&'hir Expr<'hir>),
-    /// An expression with a trailing semi-colon.
-    Semi(&'hir Expr<'hir>),
     /// An ignored item.
     Item(Span),
+    /// Drop a bunch of names.
+    Drop(#[rune(span)] Span, &'hir [Name<'hir>]),
 }
 
 /// A local variable declaration `let <pattern> = <expr>;`

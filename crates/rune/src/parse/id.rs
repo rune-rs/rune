@@ -7,7 +7,7 @@ use crate::alloc::prelude::*;
 /// A non-zero [Id] which definitely contains a value. We keep this distinct
 /// from `Id` to allow for safely using this as a key in a hashmap, preventing
 /// us from inadvertently storing an empty identifier.
-#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[try_clone(copy)]
 #[repr(transparent)]
 pub struct NonZeroId(#[try_clone(copy)] NonZeroU32);

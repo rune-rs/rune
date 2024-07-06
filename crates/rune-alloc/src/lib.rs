@@ -143,6 +143,7 @@ pub mod prelude {
     pub use crate::iter::{IteratorExt, TryExtend, TryFromIterator, TryFromIteratorIn};
     pub use crate::option::OptionExt;
     pub use crate::string::TryToString;
+    pub use crate::vec::Vec;
 }
 
 pub mod limit;

@@ -37,9 +37,28 @@ pub(crate) struct Ctxt<'hir, 'a, 'arena> {
     needs: Cell<Needs>,
     scopes: hir::Scopes<'hir>,
     const_eval: bool,
+    statements: Vec<hir::Stmt<'hir>>,
 }
 
 impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
+    /// Take the current set of statements as a block.
+    fn take_block(
+        &mut self,
+        span: &dyn Spanned,
+        value: Option<(&dyn Spanned, hir::ExprKind<'hir>)>,
+    ) -> compile::Result<hir::Block<'hir>> {
+        alloc_with!(self, span);
+
+        Ok(hir::Block {
+            span: span.span(),
+            statements: iter!(self.statements.drain(..)),
+            value: option!(value, |(span, kind)| hir::Expr {
+                span: span.span(),
+                kind,
+            }),
+        })
+    }
+
     #[inline(always)]
     fn in_path<F, O>(&mut self, in_path: bool, f: F) -> O
     where
@@ -86,6 +105,7 @@ impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
             needs: Cell::new(Needs::default()),
             scopes: hir::Scopes::new()?,
             const_eval,
+            statements: Vec::new(),
         })
     }
 
@@ -120,19 +140,8 @@ pub(crate) fn empty_fn<'hir>(
     ast: &ast::EmptyBlock,
     span: &dyn Spanned,
 ) -> compile::Result<hir::ItemFn<'hir>> {
-    alloc_with!(cx, span);
-
-    cx.scopes.push()?;
-
-    let statements = iter!(&ast.statements, |ast| stmt(cx, ast)?);
-
-    let layer = cx.scopes.pop().with_span(span)?;
-
-    let body = hir::Block {
-        span: span.span(),
-        statements,
-        drop: iter!(layer.into_drop_order()),
-    };
+    let value = inner_block(cx, span, &ast.statements)?;
+    let body = cx.take_block(span, value)?;
 
     Ok(hir::ItemFn {
         span: span.span(),
@@ -140,6 +149,7 @@ pub(crate) fn empty_fn<'hir>(
         body,
     })
 }
+
 /// Lower a function item.
 #[instrument(span = ast)]
 pub(crate) fn item_fn<'hir>(
@@ -148,10 +158,13 @@ pub(crate) fn item_fn<'hir>(
 ) -> compile::Result<hir::ItemFn<'hir>> {
     alloc_with!(cx, ast);
 
+    let args = iter!(&ast.args, |(ast, _)| fn_arg(cx, ast)?);
+    let body = block(cx, &ast.body)?;
+
     Ok(hir::ItemFn {
         span: ast.span(),
-        args: iter!(&ast.args, |(ast, _)| fn_arg(cx, ast)?),
-        body: block(cx, &ast.body)?,
+        args,
+        body,
     })
 }
 
@@ -222,7 +235,8 @@ pub(crate) fn expr_closure_secondary<'hir>(
     });
 
     let args = iter!(ast.args.as_slice(), |(ast, _)| fn_arg(cx, ast)?);
-    let body = expr(cx, &ast.body)?;
+    let value = expr(cx, &ast.body)?;
+    let body = cx.take_block(&ast.body, Some((&value.span, value.kind)))?;
 
     Ok(hir::ExprClosure {
         args,
@@ -304,25 +318,56 @@ fn expr_call_closure<'hir>(
 }
 
 #[instrument(span = ast)]
+fn inner_block<'hir, 'a>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    ast: &dyn Spanned,
+    statements: &'a [ast::Stmt],
+) -> compile::Result<Option<(&'a dyn Spanned, hir::ExprKind<'hir>)>> {
+    alloc_with!(cx, ast);
+
+    let mut name: Option<(&'a dyn Spanned, hir::Name<'hir>)> = None;
+
+    cx.scopes.push()?;
+
+    for ast in statements {
+        let stmt = match ast {
+            ast::Stmt::Local(ast) => hir::Stmt::Local(alloc!(local(cx, ast)?)),
+            ast::Stmt::Expr(ast) => {
+                let n = hir::Name::Id(cx.q.gen.next());
+                name = Some((ast, n));
+                hir::Stmt::Assign(n, alloc!(expr(cx, ast)?))
+            }
+            ast::Stmt::Semi(ast) => hir::Stmt::Expr(alloc!(expr(cx, &ast.expr)?)),
+            ast::Stmt::Item(..) => hir::Stmt::Item(ast.span()),
+        };
+
+        cx.statements.try_push(stmt)?;
+    }
+
+    let layer = cx.scopes.pop().with_span(ast)?;
+
+    let drop = layer.into_drop_order();
+
+    if drop.len() != 0 {
+        cx.statements
+            .try_push(hir::Stmt::Drop(ast.span(), iter!(drop)))?;
+    }
+
+    let expr = match name {
+        Some((span, name)) => Some((span, hir::ExprKind::Variable(name))),
+        None => None,
+    };
+
+    Ok(expr)
+}
+
+#[instrument(span = ast)]
 pub(crate) fn block<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::Block,
 ) -> compile::Result<hir::Block<'hir>> {
-    alloc_with!(cx, ast);
-
-    cx.scopes.push()?;
-
-    let statements = iter!(&ast.statements, |ast| stmt(cx, ast)?);
-
-    let layer = cx.scopes.pop().with_span(ast)?;
-
-    let block = hir::Block {
-        span: ast.span(),
-        statements,
-        drop: iter!(layer.into_drop_order()),
-    };
-
-    Ok(block)
+    let value = inner_block(cx, ast, &ast.statements)?;
+    cx.take_block(ast, value)
 }
 
 #[instrument(span = ast)]
@@ -567,7 +612,6 @@ pub(crate) fn expr<'hir>(
             cx.scopes.push_loop(label)?;
             let binding = pat(cx, &ast.binding)?;
             let body = block(cx, &ast.body)?;
-
             let layer = cx.scopes.pop().with_span(ast)?;
 
             hir::ExprKind::For(alloc!(hir::ExprFor {
@@ -635,7 +679,10 @@ pub(crate) fn expr<'hir>(
             target: expr(cx, &ast.target)?,
             index: expr(cx, &ast.index)?,
         })),
-        ast::Expr::Block(ast) => expr_block(cx, ast)?,
+        ast::Expr::Block(ast) => match expr_block(cx, ast)? {
+            Some(kind) => kind,
+            None => hir::ExprKind::Tuple(&hir::ExprSeq::EMPTY),
+        },
         ast::Expr::Break(ast) => hir::ExprKind::Break(alloc!(expr_break(cx, ast)?)),
         ast::Expr::Continue(ast) => hir::ExprKind::Continue(alloc!(expr_continue(cx, ast)?)),
         ast::Expr::Yield(ast) => hir::ExprKind::Yield(option!(&ast.expr, |ast| expr(cx, ast)?)),
@@ -837,7 +884,6 @@ pub(crate) fn expr_if<'hir>(
 
                 let condition = condition(cx, c)?;
                 let block = block(cx, b)?;
-
                 let layer = cx.scopes.pop().with_span(ast)?;
 
                 (
@@ -965,11 +1011,11 @@ pub(crate) fn expr_unary<'hir>(
 pub(crate) fn expr_block<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::ExprBlock,
-) -> compile::Result<hir::ExprKind<'hir>> {
+) -> compile::Result<Option<hir::ExprKind<'hir>>> {
     /// The kind of an [ExprBlock].
     #[derive(Debug, Clone, Copy, PartialEq)]
     #[non_exhaustive]
-    pub(crate) enum ExprBlockKind {
+    enum ExprBlockKind {
         Default,
         Async,
         Const,
@@ -984,7 +1030,7 @@ pub(crate) fn expr_block<'hir>(
     };
 
     if let ExprBlockKind::Default = kind {
-        return Ok(hir::ExprKind::Block(alloc!(block(cx, &ast.block)?)));
+        return Ok(inner_block(cx, &ast.block, &ast.block.statements)?.map(|(_, kind)| kind));
     }
 
     if cx.const_eval {
@@ -998,7 +1044,7 @@ pub(crate) fn expr_block<'hir>(
             ));
         };
 
-        return Ok(hir::ExprKind::Block(alloc!(block(cx, &ast.block)?)));
+        return Ok(inner_block(cx, &ast.block, &ast.block.statements)?.map(|(_, kind)| kind));
     };
 
     let item = cx.q.item_for(&ast.block).with_span(&ast.block)?;
@@ -1036,13 +1082,17 @@ pub(crate) fn expr_block<'hir>(
                 }
             };
 
-            Ok(hir::ExprKind::AsyncBlock(alloc!(hir::ExprAsyncBlock {
-                hash: meta.hash,
-                do_move,
-                captures,
-            })))
+            Ok(Some(hir::ExprKind::AsyncBlock(alloc!(
+                hir::ExprAsyncBlock {
+                    hash: meta.hash,
+                    do_move,
+                    captures,
+                }
+            ))))
         }
-        (ExprBlockKind::Const, meta::Kind::Const { .. }) => Ok(hir::ExprKind::Const(meta.hash)),
+        (ExprBlockKind::Const, meta::Kind::Const { .. }) => {
+            Ok(Some(hir::ExprKind::Const(meta.hash)))
+        }
         _ => Err(compile::Error::expected_meta(
             ast,
             meta.info(cx.q.pool)?,
@@ -1152,18 +1202,6 @@ fn local<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Local) -> compile::Result
         span: ast.span(),
         pat,
         expr,
-    })
-}
-
-/// Lower a statement
-fn stmt<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Stmt) -> compile::Result<hir::Stmt<'hir>> {
-    alloc_with!(cx, ast);
-
-    Ok(match ast {
-        ast::Stmt::Local(ast) => hir::Stmt::Local(alloc!(local(cx, ast)?)),
-        ast::Stmt::Expr(ast) => hir::Stmt::Expr(alloc!(expr(cx, ast)?)),
-        ast::Stmt::Semi(ast) => hir::Stmt::Semi(alloc!(expr(cx, &ast.expr)?)),
-        ast::Stmt::Item(..) => hir::Stmt::Item(ast.span()),
     })
 }
 
