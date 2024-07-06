@@ -20,7 +20,7 @@ mod visitor;
 use rust_alloc::string::String;
 use rust_alloc::vec::Vec;
 use std::fmt;
-use std::io::{self, Write};
+use std::io::{self, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 
 use crate::alloc;
@@ -200,7 +200,7 @@ impl<'a> Entry<'a> {
             "always" => ColorChoice::Always,
             "ansi" => ColorChoice::AlwaysAnsi,
             "auto" => {
-                if atty::is(atty::Stream::Stdout) {
+                if std::io::stdin().is_terminal() {
                     ColorChoice::Auto
                 } else {
                     ColorChoice::Never
