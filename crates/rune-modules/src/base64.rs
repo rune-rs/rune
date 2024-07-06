@@ -23,7 +23,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
 /// ```
 #[rune::function]
 fn decode(inp: &str) -> Result<Vec<u8>, String> {
-    Ok(BASE64_STANDARD.decode(inp).map_err(|e| e.to_string())?)
+    BASE64_STANDARD.decode(inp).map_err(|e| e.to_string())
 }
 
 /// Encode a data into a base64 String.
