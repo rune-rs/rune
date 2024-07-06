@@ -234,9 +234,7 @@ export class Ctx {
                     let artifact = output as CompilerArtifact;
                     this.statusBar.text = `rune: cargo (${artifact.target.name})`;
 
-                    let [id, ...rest] = artifact.package_id.split(" ");
-
-                    if (id === name && artifact.target.kind.includes("bin")) {
+                    if (artifact.target.name === name && artifact.target.kind.includes("bin")) {
                         executable = artifact.executable;
                     }
                 }
