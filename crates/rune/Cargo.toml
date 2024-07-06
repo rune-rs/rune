@@ -22,7 +22,7 @@ emit = ["std", "codespan-reporting"]
 bench = []
 workspace = ["std", "toml", "semver", "relative-path", "serde-hashkey", "linked-hash-map"]
 doc = ["std", "rust-embed", "handlebars", "pulldown-cmark", "syntect", "sha2", "base64", "rune-core/doc", "relative-path"]
-cli = ["std", "emit", "doc", "bincode", "atty", "tracing-subscriber", "clap", "webbrowser", "capture-io", "disable-io", "languageserver", "fmt", "similar", "rand"]
+cli = ["std", "emit", "doc", "bincode", "tracing-subscriber", "clap", "webbrowser", "capture-io", "disable-io", "languageserver", "fmt", "similar", "rand"]
 languageserver = ["std", "lsp", "ropey", "percent-encoding", "url", "serde_json", "tokio", "workspace", "doc", "fmt"]
 byte-code = ["alloc", "musli/storage"]
 capture-io = ["alloc", "parking_lot"]
@@ -48,7 +48,6 @@ musli = { version = "0.0.121", default-features = false, features = ["alloc"] }
 once_cell = { version = "1.18.0", default-features = false, features = ["critical-section"] }
 
 anyhow = { version = "1.0.71", default-features = false, optional = true }
-atty = { version = "0.2.14", optional = true }
 bincode = { version = "1.3.3", optional = true }
 clap = { version = "4.2.7", features = ["derive"], optional = true }
 codespan-reporting = { version = "0.11.1", optional = true }
