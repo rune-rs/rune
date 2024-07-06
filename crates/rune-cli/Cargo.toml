@@ -1,6 +1,6 @@
 [package]
 name = "rune-cli"
-version = "0.13.2"
+version = "0.13.3"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
 rust-version = "1.74"
@@ -14,8 +14,8 @@ keywords = ["language", "scripting", "scripting-language"]
 categories = ["parser-implementations"]
 
 [dependencies]
-rune = { version = "0.13.2", path = "../rune", features = ["cli"] }
-rune-modules = { version = "0.13.2", path = "../rune-modules", features = ["full", "experiments"] }
+rune = { version = "0.13.3", path = "../rune", features = ["cli"] }
+rune-modules = { version = "0.13.3", path = "../rune-modules", features = ["full", "experiments"] }
 
 [build-dependencies]
 anyhow = "1.0.71"
