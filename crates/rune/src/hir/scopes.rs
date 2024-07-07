@@ -159,8 +159,6 @@ impl<'hir> Scopes<'hir> {
         &mut self,
         name: hir::Name<'hir>,
     ) -> alloc::Result<Option<(hir::Name<'hir>, Scope)>> {
-        tracing::trace!("get");
-
         let mut blocks = Vec::new();
         let mut scope = self.scopes.get(self.scope.0);
 
@@ -196,6 +194,7 @@ impl<'hir> Scopes<'hir> {
             layer.captures.try_insert(name)?;
         }
 
+        tracing::trace!(?name, ?scope, "get");
         Ok(Some((name, scope)))
     }
 

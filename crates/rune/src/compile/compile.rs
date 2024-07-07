@@ -244,6 +244,10 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                     FunctionAst::Empty(ast, span) => hir::lowering::empty_fn(&mut cx, ast, &span)?,
                 };
 
+                if tracing::enabled!(tracing::Level::TRACE) {
+                    tracing::trace!(?hir, item = ?self.q.pool.item(item_meta.item), "new function");
+                }
+
                 let count = hir.args.len();
 
                 let mut c = self.compiler1(location, span, &mut asm)?;
@@ -297,6 +301,11 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                 )?;
 
                 let hir = hir::lowering::expr_closure_secondary(&mut cx, &closure.ast, captures)?;
+
+                if tracing::enabled!(tracing::Level::TRACE) {
+                    tracing::trace!(?hir, item = ?self.q.pool.item(item_meta.item), "new closure");
+                }
+
                 let mut c = self.compiler1(location, &closure.ast, &mut asm)?;
                 assemble::expr_closure_secondary(&mut c, &hir, &closure.ast)?;
 
@@ -342,6 +351,11 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                     item_meta.location.source_id,
                 )?;
                 let hir = hir::lowering::async_block_secondary(&mut cx, &b.ast, captures)?;
+
+                if tracing::enabled!(tracing::Level::TRACE) {
+                    tracing::trace!(?hir, item = ?self.q.pool.item(item_meta.item), "new async block");
+                }
+
                 let mut c = self.compiler1(location, &b.ast, &mut asm)?;
                 assemble::async_block_secondary(&mut c, &hir)?;
 

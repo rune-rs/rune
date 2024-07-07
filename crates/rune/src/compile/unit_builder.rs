@@ -657,6 +657,7 @@ impl UnitBuilder {
     }
 
     /// Declare a new instance function at the current instruction pointer.
+    #[tracing::instrument(ret, skip(self, location, assembly, unit_storage))]
     pub(crate) fn new_function(
         &mut self,
         location: Location,
@@ -669,8 +670,6 @@ impl UnitBuilder {
         debug_args: Box<[Box<str>]>,
         unit_storage: &mut dyn UnitEncoder,
     ) -> compile::Result<()> {
-        tracing::trace!("instance fn: {}", item);
-
         let offset = unit_storage.offset();
 
         let info = UnitFn::Offset {

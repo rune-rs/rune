@@ -4,7 +4,6 @@ use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, try_format, try_vec, HashMap, Vec};
 use crate::ast::Spanned;
-use crate::compile::v1::Ctxt;
 use crate::compile::{self, Assembly, ErrorKind, WithSpan};
 use crate::hir;
 use crate::query::Query;
@@ -48,11 +47,11 @@ impl<'hir> Var<'hir> {
     /// Copy the declared variable.
     pub(crate) fn copy(
         &self,
-        cx: &mut Ctxt<'_, '_, '_>,
+        asm: &mut Assembly,
         span: &dyn Spanned,
         comment: &dyn fmt::Display,
     ) -> compile::Result<()> {
-        cx.asm.push_with_comment(
+        asm.push_with_comment(
             Inst::Copy {
                 offset: self.offset,
             },
@@ -130,18 +129,15 @@ impl<'hir> Scopes<'hir> {
     }
 
     /// Get the local with the given name.
-    #[tracing::instrument(skip_all, fields(variable, name, source_id))]
+    #[tracing::instrument(skip(self, q, span))]
     pub(crate) fn get(
         &self,
         q: &mut Query<'_, '_>,
         name: hir::Name<'hir>,
         span: &'hir dyn Spanned,
     ) -> compile::Result<Var<'hir>> {
-        tracing::trace!("get");
-
         for layer in self.layers.iter().rev() {
             if let Some(var) = layer.variables.get(&name) {
-                tracing::trace!(?var, "getting var");
                 q.visitor
                     .visit_variable_use(self.source_id, var.span, span)
                     .with_span(span)?;
@@ -156,6 +152,7 @@ impl<'hir> Scopes<'hir> {
                     ));
                 }
 
+                tracing::trace!(?var);
                 return Ok(*var);
             }
         }
@@ -167,18 +164,15 @@ impl<'hir> Scopes<'hir> {
     }
 
     /// Take the local with the given name.
-    #[tracing::instrument(skip_all, fields(variable, name, source_id))]
+    #[tracing::instrument(skip(self, q, span))]
     pub(crate) fn take(
         &mut self,
         q: &mut Query<'_, '_>,
         name: hir::Name<'hir>,
         span: &'hir dyn Spanned,
     ) -> compile::Result<&Var> {
-        tracing::trace!("take");
-
         for layer in self.layers.iter_mut().rev() {
             if let Some(var) = layer.variables.get_mut(&name) {
-                tracing::trace!(?var, "taking var");
                 q.visitor
                     .visit_variable_use(self.source_id, var.span, span)
                     .with_span(span)?;
@@ -194,6 +188,7 @@ impl<'hir> Scopes<'hir> {
                 }
 
                 var.moved_at = Some(span);
+                tracing::trace!(?var);
                 return Ok(var);
             }
         }
@@ -205,7 +200,7 @@ impl<'hir> Scopes<'hir> {
     }
 
     /// Construct a new variable.
-    #[tracing::instrument(skip_all, fields(variable, name))]
+    #[tracing::instrument(skip(self, span))]
     pub(crate) fn define(
         &mut self,
         name: hir::Name<'hir>,
@@ -214,8 +209,6 @@ impl<'hir> Scopes<'hir> {
         let Some(layer) = self.layers.last_mut() else {
             return Err(compile::Error::msg(span, "Missing head layer"));
         };
-
-        tracing::trace!(?layer);
 
         let offset = layer.total;
 
@@ -229,6 +222,8 @@ impl<'hir> Scopes<'hir> {
         layer.total += 1;
         layer.local += 1;
         layer.variables.try_insert(name, local)?;
+
+        tracing::trace!(layer.total, layer.local, offset);
         Ok(offset)
     }
 
@@ -239,22 +234,20 @@ impl<'hir> Scopes<'hir> {
             return Err(compile::Error::msg(span, "Missing head layer"));
         };
 
-        tracing::trace!(?layer);
-
         let offset = layer.total;
         layer.total += 1;
         layer.local += 1;
+
+        tracing::trace!(layer.total, layer.local, offset);
         Ok(offset)
     }
 
     /// Free a bunch of anonymous slots.
-    #[tracing::instrument(skip_all, fields(n))]
+    #[tracing::instrument(skip(self, span))]
     pub(crate) fn free(&mut self, span: &dyn Spanned, n: usize) -> compile::Result<()> {
         let Some(layer) = self.layers.last_mut() else {
             return Err(compile::Error::msg(span, "Missing head layer"));
         };
-
-        tracing::trace!(?layer);
 
         layer.total = layer
             .total
@@ -268,11 +261,12 @@ impl<'hir> Scopes<'hir> {
             .ok_or("locals out of bounds")
             .with_span(span)?;
 
+        tracing::trace!(layer.total, layer.local);
         Ok(())
     }
 
     /// Pop the last scope and compare with the expected length.
-    #[tracing::instrument(skip_all, fields(expected))]
+    #[tracing::instrument(skip(self, expected, span))]
     pub(crate) fn pop(
         &mut self,
         expected: ScopeGuard,
@@ -295,7 +289,7 @@ impl<'hir> Scopes<'hir> {
             return Err(compile::Error::msg(span, "Missing parent scope"));
         };
 
-        tracing::trace!(?layer, "pop");
+        tracing::trace!(layer.total, layer.local);
         Ok(layer)
     }
 
@@ -311,7 +305,7 @@ impl<'hir> Scopes<'hir> {
             return Err(compile::Error::msg(span, "Missing head layer"));
         };
 
-        tracing::trace!(?layer);
+        tracing::trace!(layer.total, layer.local);
         Ok(self.push(layer.child())?)
     }
 

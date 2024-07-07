@@ -188,17 +188,14 @@ impl<'de> Deserialize<'de> for Span {
 }
 
 impl fmt::Display for Span {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(fmt, "{}:{}", self.start, self.end)
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}:{}", self.start, self.end)
     }
 }
 
 impl fmt::Debug for Span {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("Span")
-            .field(&self.start)
-            .field(&self.end)
-            .finish()
+        write!(f, "{}:{}", self.start, self.end)
     }
 }
 

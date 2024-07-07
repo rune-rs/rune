@@ -40,7 +40,7 @@ impl fmt::Display for OwnedName {
 }
 
 /// A captured variable.
-#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[try_clone(copy)]
 pub(crate) enum Name<'hir> {
     /// Capture of the `self` value.
@@ -74,7 +74,17 @@ impl<'hir> Name<'hir> {
 impl fmt::Display for Name<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Name::SelfValue => "self".fmt(f),
+            Name::SelfValue => f.write_str("self"),
+            Name::Str(name) => name.fmt(f),
+            Name::Id(id) => id.fmt(f),
+        }
+    }
+}
+
+impl fmt::Debug for Name<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Name::SelfValue => f.write_str("self"),
             Name::Str(name) => name.fmt(f),
             Name::Id(id) => id.fmt(f),
         }

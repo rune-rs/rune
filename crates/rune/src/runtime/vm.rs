@@ -724,9 +724,8 @@ impl Vm {
     /// [`CallFrame::isolated`].
     #[tracing::instrument(skip(self), fields(call_frames = self.call_frames.len(), stack_bottom = self.stack.stack_bottom(), stack = self.stack.len(), self.ip))]
     pub(crate) fn pop_call_frame_from_call(&mut self) -> Result<Option<usize>, VmErrorKind> {
-        tracing::trace!("popping call frame from call");
-
         let Some(frame) = self.call_frames.pop() else {
+            tracing::trace!("no call frame");
             return Ok(None);
         };
 
@@ -738,9 +737,8 @@ impl Vm {
     /// Pop a call frame and return it.
     #[tracing::instrument(skip(self), fields(call_frames = self.call_frames.len(), stack_bottom = self.stack.stack_bottom(), stack = self.stack.len(), self.ip))]
     pub(crate) fn pop_call_frame(&mut self) -> Result<bool, VmErrorKind> {
-        tracing::trace!("popping call frame");
-
         let Some(frame) = self.call_frames.pop() else {
+            tracing::trace!("no call frame");
             self.stack.pop_stack_top(0);
             return Ok(true);
         };
@@ -1629,6 +1627,14 @@ impl Vm {
         let value = vm_try!(self.stack.at_offset(offset)).clone();
         let value = vm_try!(value.move_());
         vm_try!(self.stack.push(value));
+        VmResult::Ok(())
+    }
+
+    /// Copy a value from a position to another position.
+    #[cfg_attr(feature = "bench", inline(never))]
+    fn op_copy_address(&mut self, from: InstAddress, to: usize) -> VmResult<()> {
+        let value = vm_try!(self.stack.address(from));
+        *vm_try!(self.stack.at_offset_mut(to)) = value;
         VmResult::Ok(())
     }
 
@@ -3204,6 +3210,9 @@ impl Vm {
                 }
                 Inst::Move { offset } => {
                     vm_try!(self.op_move(offset));
+                }
+                Inst::CopyAddress { from, to } => {
+                    vm_try!(self.op_copy_address(from, to));
                 }
                 Inst::Drop { offset } => {
                     vm_try!(self.op_drop(offset));

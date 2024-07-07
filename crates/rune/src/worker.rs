@@ -69,7 +69,7 @@ impl<'a, 'arena> Worker<'a, 'arena> {
                             };
 
                             let item = self.q.pool.module_item(mod_item);
-                            tracing::trace!("Load file: {}", item);
+                            tracing::trace!(?item, ?kind, "Load file");
 
                             let root = match kind {
                                 LoadFileKind::Root => {

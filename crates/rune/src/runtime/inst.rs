@@ -440,8 +440,18 @@ pub enum Inst {
     /// frame.
     #[musli(packed)]
     Move {
-        /// Offset to move value from.
+        /// Where to move a value from.
         offset: usize,
+    },
+    /// Copy a variable from address `from` to address `to`.
+    ///
+    /// A copy is very cheap. It simply means pushing a reference to the stack.
+    #[musli(packed)]
+    CopyAddress {
+        /// Offset to copy value from.
+        from: InstAddress,
+        /// Offset to copy value to.
+        to: usize,
     },
     /// Drop the value in the given frame offset, cleaning out it's slot in
     /// memory.
