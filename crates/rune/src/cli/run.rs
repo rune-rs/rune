@@ -20,6 +20,9 @@ pub(super) struct Flags {
     /// Perform a default dump.
     #[arg(short, long)]
     dump: bool,
+    /// Dump the return value.
+    #[arg(long)]
+    dump_return: bool,
     /// Dump everything that is available, this is very verbose.
     #[arg(long)]
     dump_all: bool,
@@ -69,6 +72,7 @@ impl CommandBase for Flags {
         if self.dump || self.dump_all {
             self.dump_unit = true;
             self.dump_stack = true;
+            self.dump_return = true;
         }
 
         if self.dump_all {
@@ -231,7 +235,7 @@ pub(super) async fn run(
 
     let errored = match result {
         VmResult::Ok(result) => {
-            if c.verbose || args.time {
+            if args.dump_return || c.verbose || args.time {
                 let duration = Instant::now().saturating_duration_since(last);
                 writeln!(io.stderr, "== {:?} ({:?})", result, duration)?;
             }

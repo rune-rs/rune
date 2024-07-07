@@ -229,7 +229,7 @@ pub(crate) enum ExprKind<'hir> {
     Variable(Name<'hir>),
     Type(Type),
     Fn(Hash),
-    Path,
+    Block(&'hir Block<'hir>),
     Assign(&'hir ExprAssign<'hir>),
     Loop(&'hir ExprLoop<'hir>),
     For(&'hir ExprFor<'hir>),
@@ -259,6 +259,7 @@ pub(crate) enum ExprKind<'hir> {
     Template(&'hir BuiltInTemplate<'hir>),
     Format(&'hir BuiltInFormat<'hir>),
     Const(Hash),
+    Path,
 }
 
 /// An internally resolved template.

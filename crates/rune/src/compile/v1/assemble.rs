@@ -1,5 +1,3 @@
-use core::mem::take;
-
 use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{try_format, Vec};
@@ -201,7 +199,7 @@ impl<'hir> Asm<'hir> {
     /// Assemble into an instruction.
     fn apply(self, cx: &mut Ctxt) -> compile::Result<()> {
         if let AsmKind::Var(var) = self.kind {
-            var.copy(&mut cx.asm, &self.span, &format_args!("var `{}`", var))?;
+            var.copy(&mut cx.asm, &self.span, [""; 0])?;
         }
 
         Ok(())
@@ -685,16 +683,9 @@ fn block<'hir>(
 
     let mut guards = Vec::new();
 
-    let mut last = None::<(&hir::Expr<'_>, bool)>;
-
     for stmt in hir.statements {
         match *stmt {
             hir::Stmt::Local(l) => {
-                if let Some((e, _)) = take(&mut last) {
-                    // NB: terminated expressions do not need to produce a value.
-                    expr(cx, e, Needs::None)?.apply(cx)?;
-                }
-
                 local(cx, l, Needs::None)?.apply(cx)?;
             }
             hir::Stmt::Assign(name, e) => {
@@ -960,6 +951,7 @@ fn expr<'hir>(
             cx.asm.push(Inst::LoadFn { hash }, span)?;
             Asm::top(span)
         }
+        hir::ExprKind::Block(hir) => block(cx, hir, needs)?,
         hir::ExprKind::For(hir) => expr_for(cx, hir, span, needs)?,
         hir::ExprKind::Loop(hir) => expr_loop(cx, hir, span, needs)?,
         hir::ExprKind::Let(hir) => expr_let(cx, hir, needs)?,
@@ -1279,10 +1271,10 @@ fn expr_async_block<'hir>(
     for capture in hir.captures.iter().copied() {
         if hir.do_move {
             let var = cx.scopes.take(&mut cx.q, capture, span)?;
-            var.do_move(&mut cx.asm, span, &"capture")?;
+            var.do_move(&mut cx.asm, span, Some("capture"))?;
         } else {
             let var = cx.scopes.get(&mut cx.q, capture, span)?;
-            var.copy(&mut cx.asm, span, &"capture")?;
+            var.copy(&mut cx.asm, span, Some("capture"))?;
         }
     }
 
@@ -1404,7 +1396,7 @@ fn expr_call<'hir>(
                 cx.scopes.alloc(span)?;
             }
 
-            var.copy(&mut cx.asm, span, &"call")?;
+            var.copy(&mut cx.asm, span, Some("call"))?;
             cx.scopes.alloc(span)?;
 
             cx.asm.push(Inst::CallFn { args }, span)?;
@@ -1483,10 +1475,10 @@ fn expr_call_closure<'hir>(
     for capture in hir.captures.iter().copied() {
         if hir.do_move {
             let var = cx.scopes.take(&mut cx.q, capture, span)?;
-            var.do_move(&mut cx.asm, span, &"capture")?;
+            var.do_move(&mut cx.asm, span, Some("capture"))?;
         } else {
             let var = cx.scopes.get(&mut cx.q, capture, span)?;
-            var.copy(&mut cx.asm, span, &"capture")?;
+            var.copy(&mut cx.asm, span, Some("capture"))?;
         }
     }
 

@@ -22,8 +22,6 @@ pub enum Stmt {
     /// An expression.
     Expr(ast::Expr),
     /// An with a trailing semi-colon.
-    ///
-    /// And absent semicolon indicates that it is synthetic.
     Semi(StmtSemi),
 }
 

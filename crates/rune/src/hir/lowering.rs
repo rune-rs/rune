@@ -1,4 +1,5 @@
 use core::cell::Cell;
+use core::mem::replace;
 use core::ops::Neg;
 use core::slice;
 
@@ -38,6 +39,7 @@ pub(crate) struct Ctxt<'hir, 'a, 'arena> {
     needs: Cell<Needs>,
     scopes: hir::Scopes<'hir>,
     const_eval: bool,
+    expr_block: bool,
     statements: Vec<hir::Stmt<'hir>>,
 }
 
@@ -46,13 +48,14 @@ impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
     fn take_block(
         &mut self,
         span: &dyn Spanned,
+        from: usize,
         value: Option<(&dyn Spanned, hir::ExprKind<'hir>)>,
     ) -> compile::Result<hir::Block<'hir>> {
         alloc_with!(self, span);
 
         Ok(hir::Block {
             span: span.span(),
-            statements: iter!(self.statements.drain(..)),
+            statements: iter!(self.statements.drain(from..)),
             value: option!(value, |(span, kind)| hir::Expr {
                 span: span.span(),
                 kind,
@@ -106,6 +109,7 @@ impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
             needs: Cell::new(Needs::default()),
             scopes: hir::Scopes::new()?,
             const_eval,
+            expr_block: false,
             statements: Vec::new(),
         })
     }
@@ -142,7 +146,7 @@ pub(crate) fn empty_fn<'hir>(
     span: &dyn Spanned,
 ) -> compile::Result<hir::ItemFn<'hir>> {
     let value = inner_block(cx, span, &ast.statements)?;
-    let body = cx.take_block(span, value)?;
+    let body = cx.take_block(span, 0, value)?;
 
     Ok(hir::ItemFn {
         span: span.span(),
@@ -237,7 +241,7 @@ pub(crate) fn expr_closure_secondary<'hir>(
 
     let args = iter!(ast.args.as_slice(), |(ast, _)| fn_arg(cx, ast)?);
     let value = expr(cx, &ast.body)?;
-    let body = cx.take_block(&ast.body, Some((&value.span, value.kind)))?;
+    let body = cx.take_block(&ast.body, 0, Some((&value.span, value.kind)))?;
 
     Ok(hir::ExprClosure {
         args,
@@ -321,25 +325,39 @@ fn expr_call_closure<'hir>(
 #[instrument(span = ast)]
 fn inner_block<'hir, 'a>(
     cx: &mut Ctxt<'hir, '_, '_>,
-    ast: &dyn Spanned,
+    ast: &'a dyn Spanned,
     statements: &'a [ast::Stmt],
 ) -> compile::Result<Option<(&'a dyn Spanned, hir::ExprKind<'hir>)>> {
     alloc_with!(cx, ast);
 
-    let mut name: Option<(&'a dyn Spanned, hir::Name<'hir>)> = None;
+    let mut must_be_last: Option<(&'a dyn Spanned, hir::Name<'hir>)> = None;
 
     cx.scopes.push()?;
 
-    let push_at = cx.statements.len();
+    let from = cx.statements.len();
     cx.statements.try_push(hir::Stmt::Push(&[]))?;
 
     for ast in statements {
+        if let Some((span, _)) = must_be_last {
+            return Err(compile::Error::new(
+                span,
+                ErrorKind::ExpectedBlockSemiColon {
+                    #[cfg(feature = "emit")]
+                    followed_span: ast.span(),
+                },
+            ));
+        }
+
         let stmt = match ast {
             ast::Stmt::Local(ast) => hir::Stmt::Local(alloc!(local(cx, ast)?)),
             ast::Stmt::Expr(ast) => {
-                let n = hir::Name::Id(cx.q.gen.next());
-                name = Some((ast, n));
-                hir::Stmt::Assign(n, alloc!(expr(cx, ast)?))
+                if ast.needs_semi() {
+                    let n = hir::Name::Id(cx.q.gen.next());
+                    must_be_last = Some((ast, n));
+                    hir::Stmt::Assign(n, alloc!(expr_in_block(cx, ast)?))
+                } else {
+                    hir::Stmt::Expr(alloc!(expr_in_block(cx, ast)?))
+                }
             }
             ast::Stmt::Semi(ast) => hir::Stmt::Expr(alloc!(expr(cx, &ast.expr)?)),
             ast::Stmt::Item(..) => continue,
@@ -354,15 +372,20 @@ fn inner_block<'hir, 'a>(
 
     cx.statements.try_push(hir::Stmt::Drop(iter!(drop)))?;
 
-    let expr = match name {
+    let expr = match must_be_last {
         Some((span, name)) => {
-            cx.statements[push_at] = hir::Stmt::Push(slice::from_ref(alloc!(name)));
+            cx.statements[from] = hir::Stmt::Push(slice::from_ref(alloc!(name)));
             Some((span, hir::ExprKind::Variable(name)))
         }
         None => None,
     };
 
-    Ok(expr)
+    if cx.expr_block {
+        let block = cx.take_block(ast, from, expr)?;
+        Ok(Some((ast, hir::ExprKind::Block(alloc!(block)))))
+    } else {
+        Ok(expr)
+    }
 }
 
 #[instrument(span = ast)]
@@ -370,8 +393,9 @@ pub(crate) fn block<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::Block,
 ) -> compile::Result<hir::Block<'hir>> {
+    let from = cx.statements.len();
     let value = inner_block(cx, ast, &ast.statements)?;
-    cx.take_block(ast, value)
+    cx.take_block(ast, from, value)
 }
 
 #[instrument(span = ast)]
@@ -555,6 +579,28 @@ pub(crate) fn expr<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::Expr,
 ) -> compile::Result<hir::Expr<'hir>> {
+    let old = replace(&mut cx.expr_block, true);
+    let result = expr_inner(cx, ast)?;
+    cx.expr_block = old;
+    Ok(result)
+}
+
+/// Lower an expression in a block.
+#[instrument(span = ast)]
+pub(crate) fn expr_in_block<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    ast: &ast::Expr,
+) -> compile::Result<hir::Expr<'hir>> {
+    let old = replace(&mut cx.expr_block, false);
+    let result = expr_inner(cx, ast)?;
+    cx.expr_block = old;
+    Ok(result)
+}
+
+pub(crate) fn expr_inner<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    ast: &ast::Expr,
+) -> compile::Result<hir::Expr<'hir>> {
     alloc_with!(cx, ast);
 
     let in_path = cx.in_path.take();
@@ -562,8 +608,8 @@ pub(crate) fn expr<'hir>(
     let kind = match ast {
         ast::Expr::Path(ast) => expr_path(cx, ast, in_path)?,
         ast::Expr::Assign(ast) => hir::ExprKind::Assign(alloc!(hir::ExprAssign {
-            lhs: expr(cx, &ast.lhs)?,
-            rhs: expr(cx, &ast.rhs)?,
+            lhs: expr_inner(cx, &ast.lhs)?,
+            rhs: expr_inner(cx, &ast.rhs)?,
         })),
         // TODO: lower all of these loop constructs to the same loop-like
         // representation. We only do different ones here right now since it's
