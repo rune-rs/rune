@@ -5,7 +5,7 @@ mod tests;
 
 use core::str::CharIndices;
 
-use crate::alloc::Vec;
+use crate::alloc::prelude::*;
 use crate::ast::Span;
 use crate::fmt::FormattingError;
 

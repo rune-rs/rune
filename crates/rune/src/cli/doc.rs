@@ -7,7 +7,6 @@ use anyhow::{Context, Result};
 use clap::Parser;
 
 use crate::alloc::prelude::*;
-use crate::alloc::Vec;
 use crate::cli::naming::Naming;
 use crate::cli::{AssetKind, CommandBase, Config, Entry, EntryPoint, ExitCode, Io, SharedFlags};
 use crate::compile::{FileSourceLoader, ItemBuf};

@@ -4,7 +4,6 @@ use core::mem::take;
 
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
-use crate::alloc::Vec;
 use crate::ast::{self, Span, Spanned};
 
 use super::error::FormattingError;

@@ -4,7 +4,6 @@ use core::cmp::Ordering;
 
 use crate as rune;
 use crate::alloc::prelude::*;
-use crate::alloc::Vec;
 use crate::runtime::{EnvProtocolCaller, Iterator, Object, Protocol, Value, VmResult};
 use crate::{ContextError, Module};
 

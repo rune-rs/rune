@@ -1,5 +1,5 @@
 use crate::alloc::prelude::*;
-use crate::alloc::{self, try_vec, Box, HashMap, Vec};
+use crate::alloc::{self, HashMap};
 use crate::ast::Spanned;
 use crate::compile::{self, ErrorKind};
 use crate::hir;

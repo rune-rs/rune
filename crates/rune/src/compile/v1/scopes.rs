@@ -2,7 +2,7 @@ use core::fmt;
 
 use crate as rune;
 use crate::alloc::prelude::*;
-use crate::alloc::{self, try_format, try_vec, HashMap, Vec};
+use crate::alloc::{self, HashMap};
 use crate::ast::Spanned;
 use crate::compile::v1::Ctxt;
 use crate::compile::{self, Assembly, ErrorKind, WithSpan};
