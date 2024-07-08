@@ -341,12 +341,6 @@ impl Stack {
         })
     }
 
-    /// Pop the given number of elements from the stack.
-    pub(crate) fn popn(&mut self, count: usize) -> Result<(), StackError> {
-        drop(self.drain(count)?);
-        Ok(())
-    }
-
     /// Pop a sequence of values from the stack.
     pub(crate) fn pop_sequence(
         &mut self,

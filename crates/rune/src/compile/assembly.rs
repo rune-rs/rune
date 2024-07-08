@@ -15,10 +15,8 @@ use crate::{Hash, SourceId};
 pub(crate) enum AssemblyInst {
     Jump { label: Label },
     JumpIf { label: Label },
-    JumpIfOrPop { label: Label },
-    JumpIfNotOrPop { label: Label },
+    JumpIfNot { label: Label },
     JumpIfBranch { branch: i64, label: Label },
-    PopAndJumpIfNot { count: usize, label: Label },
     IterNext { offset: usize, label: Label },
     Raw { raw: Inst },
 }
@@ -103,32 +101,10 @@ impl Assembly {
         Ok(())
     }
 
-    /// Add a conditional jump to the given label. Only pops the top of the
-    /// stack if the jump is not executed.
-    pub(crate) fn jump_if_or_pop(
-        &mut self,
-        label: &Label,
-        span: &dyn Spanned,
-    ) -> compile::Result<()> {
+    /// Add jump-if-not instruction to a label.
+    pub(crate) fn jump_if_not(&mut self, label: &Label, span: &dyn Spanned) -> compile::Result<()> {
         self.inner_push(
-            AssemblyInst::JumpIfOrPop {
-                label: label.try_clone()?,
-            },
-            span,
-        )?;
-
-        Ok(())
-    }
-
-    /// Add a conditional jump to the given label. Only pops the top of the
-    /// stack if the jump is not executed.
-    pub(crate) fn jump_if_not_or_pop(
-        &mut self,
-        label: &Label,
-        span: &dyn Spanned,
-    ) -> compile::Result<()> {
-        self.inner_push(
-            AssemblyInst::JumpIfNotOrPop {
+            AssemblyInst::JumpIfNot {
                 label: label.try_clone()?,
             },
             span,
@@ -147,24 +123,6 @@ impl Assembly {
         self.inner_push(
             AssemblyInst::JumpIfBranch {
                 branch,
-                label: label.try_clone()?,
-            },
-            span,
-        )?;
-
-        Ok(())
-    }
-
-    /// Add a pop-and-jump-if-not instruction to a label.
-    pub(crate) fn pop_and_jump_if_not(
-        &mut self,
-        count: usize,
-        label: &Label,
-        span: &dyn Spanned,
-    ) -> compile::Result<()> {
-        self.inner_push(
-            AssemblyInst::PopAndJumpIfNot {
-                count,
                 label: label.try_clone()?,
             },
             span,

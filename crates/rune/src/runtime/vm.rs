@@ -1641,18 +1641,6 @@ impl Vm {
         VmResult::Ok(())
     }
 
-    /// pop-and-jump-if-not instruction.
-    #[cfg_attr(feature = "bench", inline(never))]
-    fn op_pop_and_jump_if_not(&mut self, count: usize, jump: usize) -> VmResult<()> {
-        if vm_try!(vm_try!(self.stack.pop()).as_bool()) {
-            return VmResult::Ok(());
-        }
-
-        vm_try!(self.stack.popn(count));
-        self.ip = vm_try!(self.unit.translate(jump));
-        VmResult::Ok(())
-    }
-
     /// Copy a value from a position relative to the top of the stack, to the
     /// top of the stack.
     #[cfg_attr(feature = "bench", inline(never))]
@@ -1712,27 +1700,11 @@ impl Vm {
         VmResult::Ok(())
     }
 
-    /// Perform a conditional jump operation. Pops the stack if the jump is
-    /// not performed.
+    /// pop-and-jump-if-not instruction.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_jump_if_or_pop(&mut self, jump: usize) -> VmResult<()> {
-        if vm_try!(vm_try!(self.stack.last()).as_bool()) {
+    fn op_jump_if_not(&mut self, jump: usize) -> VmResult<()> {
+        if !vm_try!(vm_try!(self.stack.pop()).as_bool()) {
             self.ip = vm_try!(self.unit.translate(jump));
-        } else {
-            vm_try!(self.stack.pop());
-        }
-
-        VmResult::Ok(())
-    }
-
-    /// Perform a conditional jump operation. Pops the stack if the jump is
-    /// not performed.
-    #[cfg_attr(feature = "bench", inline(never))]
-    fn op_jump_if_not_or_pop(&mut self, jump: usize) -> VmResult<()> {
-        if !vm_try!(vm_try!(self.stack.last()).as_bool()) {
-            self.ip = vm_try!(self.unit.translate(jump));
-        } else {
-            vm_try!(self.stack.pop());
         }
 
         VmResult::Ok(())
@@ -3316,9 +3288,6 @@ impl Vm {
                 Inst::Push { value } => {
                     vm_try!(self.op_push(value));
                 }
-                Inst::PopAndJumpIfNot { count, jump } => {
-                    vm_try!(self.op_pop_and_jump_if_not(count, jump));
-                }
                 Inst::Copy { offset } => {
                     vm_try!(self.op_copy(offset));
                 }
@@ -3340,11 +3309,8 @@ impl Vm {
                 Inst::JumpIf { jump } => {
                     vm_try!(self.op_jump_if(jump));
                 }
-                Inst::JumpIfOrPop { jump } => {
-                    vm_try!(self.op_jump_if_or_pop(jump));
-                }
-                Inst::JumpIfNotOrPop { jump } => {
-                    vm_try!(self.op_jump_if_not_or_pop(jump));
+                Inst::JumpIfNot { jump } => {
+                    vm_try!(self.op_jump_if_not(jump));
                 }
                 Inst::JumpIfBranch { branch, jump } => {
                     vm_try!(self.op_jump_if_branch(branch, jump));

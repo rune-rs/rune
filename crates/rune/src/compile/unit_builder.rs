@@ -833,7 +833,7 @@ impl UnitBuilder {
 
                     storage.encode(Inst::JumpIf { jump }).with_span(span)?;
                 }
-                AssemblyInst::JumpIfOrPop { label } => {
+                AssemblyInst::JumpIfNot { label } => {
                     let jump = label
                         .jump()
                         .ok_or(ErrorKind::MissingLabelLocation {
@@ -844,22 +844,7 @@ impl UnitBuilder {
 
                     write!(comment, "label:{}", label)?;
 
-                    storage.encode(Inst::JumpIfOrPop { jump }).with_span(span)?;
-                }
-                AssemblyInst::JumpIfNotOrPop { label } => {
-                    let jump = label
-                        .jump()
-                        .ok_or(ErrorKind::MissingLabelLocation {
-                            name: label.name,
-                            index: label.index,
-                        })
-                        .with_span(span)?;
-
-                    write!(comment, "label:{}", label)?;
-
-                    storage
-                        .encode(Inst::JumpIfNotOrPop { jump })
-                        .with_span(span)?;
+                    storage.encode(Inst::JumpIfNot { jump }).with_span(span)?;
                 }
                 AssemblyInst::JumpIfBranch { branch, label } => {
                     let jump = label
@@ -874,21 +859,6 @@ impl UnitBuilder {
 
                     storage
                         .encode(Inst::JumpIfBranch { branch, jump })
-                        .with_span(span)?;
-                }
-                AssemblyInst::PopAndJumpIfNot { count, label } => {
-                    let jump = label
-                        .jump()
-                        .ok_or(ErrorKind::MissingLabelLocation {
-                            name: label.name,
-                            index: label.index,
-                        })
-                        .with_span(span)?;
-
-                    write!(comment, "label:{}", label)?;
-
-                    storage
-                        .encode(Inst::PopAndJumpIfNot { count, jump })
                         .with_span(span)?;
                 }
                 AssemblyInst::IterNext { offset, label } => {

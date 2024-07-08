@@ -400,22 +400,6 @@ pub enum Inst {
         /// The value to push.
         value: InstValue,
     },
-    /// If the stop of the stack is false, will pop the given `count` entries on
-    /// the stack and jump to the given offset.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <bool>
-    /// => *noop*
-    /// ```
-    #[musli(packed)]
-    PopAndJumpIfNot {
-        /// The number of entries to pop of the condition is true.
-        count: usize,
-        /// The offset to jump if the condition is true.
-        jump: usize,
-    },
     /// Copy a variable from a location `offset` relative to the current call
     /// frame.
     ///
@@ -503,32 +487,17 @@ pub enum Inst {
         /// Offset to jump to.
         jump: usize,
     },
-    /// Jump to `offset` relative to the current instruction pointer if the
-    /// condition is `true`. Will only pop the stack is a jump is not performed.
+    /// Jump to the given offset If the top of the stack is false.
     ///
     /// # Operation
     ///
     /// ```text
-    /// <boolean>
-    /// => *nothing*
+    /// <bool>
+    /// => *noop*
     /// ```
     #[musli(packed)]
-    JumpIfOrPop {
-        /// Offset to jump to.
-        jump: usize,
-    },
-    /// Jump to `offset` relative to the current instruction pointer if the
-    /// condition is `false`. Will only pop the stack is a jump is not performed.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <boolean>
-    /// => *nothing*
-    /// ```
-    #[musli(packed)]
-    JumpIfNotOrPop {
-        /// Offset to jump to.
+    JumpIfNot {
+        /// The offset to jump if the condition is true.
         jump: usize,
     },
     /// Compares the `branch` register with the top of the stack, and if they

@@ -102,8 +102,6 @@ pub(crate) struct Layer<'hir> {
     variables: HashMap<hir::Name<'hir>, Var<'hir>>,
     /// The number of variables.
     pub(crate) total: usize,
-    /// The number of variables local to this scope.
-    pub(crate) local: usize,
 }
 
 impl<'hir> Layer<'hir> {
@@ -112,7 +110,6 @@ impl<'hir> Layer<'hir> {
         Self {
             variables: HashMap::new(),
             total: 0,
-            local: 0,
         }
     }
 
@@ -121,7 +118,6 @@ impl<'hir> Layer<'hir> {
         Self {
             variables: HashMap::new(),
             total: self.total,
-            local: 0,
         }
     }
 }
@@ -136,6 +132,7 @@ pub(crate) struct ScopeGuard(usize);
 pub(crate) struct Scopes<'hir> {
     layers: Vec<Layer<'hir>>,
     source_id: SourceId,
+    total: usize,
 }
 
 impl<'hir> Scopes<'hir> {
@@ -144,6 +141,7 @@ impl<'hir> Scopes<'hir> {
         Ok(Self {
             layers: try_vec![Layer::new()],
             source_id,
+            total: 0,
         })
     }
 
@@ -237,16 +235,16 @@ impl<'hir> Scopes<'hir> {
 
         let offset = layer.total;
 
-        let local = Var {
+        let var = Var {
             offset,
             name,
             span,
             moved_at: None,
         };
 
+        layer.variables.try_insert(name, var)?;
         layer.total += 1;
-        layer.local += 1;
-        layer.variables.try_insert(name, local)?;
+        self.total = self.total.max(layer.total);
         Ok(offset)
     }
 
@@ -261,7 +259,7 @@ impl<'hir> Scopes<'hir> {
 
         let offset = layer.total;
         layer.total += 1;
-        layer.local += 1;
+        self.total = self.total.max(layer.total);
         Ok(offset)
     }
 
@@ -280,12 +278,6 @@ impl<'hir> Scopes<'hir> {
             .ok_or("totals out of bounds")
             .with_span(span)?;
 
-        layer.local = layer
-            .local
-            .checked_sub(n)
-            .ok_or("locals out of bounds")
-            .with_span(span)?;
-
         Ok(())
     }
 
@@ -293,8 +285,8 @@ impl<'hir> Scopes<'hir> {
     #[tracing::instrument(skip_all, fields(expected))]
     pub(crate) fn pop(
         &mut self,
-        expected: ScopeGuard,
         span: &dyn Spanned,
+        expected: ScopeGuard,
     ) -> compile::Result<Layer<'hir>> {
         let ScopeGuard(expected) = expected;
 
@@ -319,7 +311,7 @@ impl<'hir> Scopes<'hir> {
 
     /// Pop the last of the scope.
     pub(crate) fn pop_last(&mut self, span: &dyn Spanned) -> compile::Result<Layer<'hir>> {
-        self.pop(ScopeGuard(1), span)
+        self.pop(span, ScopeGuard(1))
     }
 
     /// Construct a new child scope and return its guard.
@@ -340,15 +332,6 @@ impl<'hir> Scopes<'hir> {
         };
 
         Ok(layer.total)
-    }
-
-    /// Get the local var count of the top scope.
-    pub(crate) fn local(&self, span: &dyn Spanned) -> compile::Result<usize> {
-        let Some(layer) = self.layers.last() else {
-            return Err(compile::Error::msg(span, "Missing head layer"));
-        };
-
-        Ok(layer.local)
     }
 
     /// Push a scope and return an index.
