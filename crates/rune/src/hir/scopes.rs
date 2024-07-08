@@ -82,8 +82,8 @@ impl<'hir> Scopes<'hir> {
     }
 
     /// Push a scope.
-    pub(crate) fn push(&mut self) -> alloc::Result<()> {
-        self.push_kind(LayerKind::Default, None)
+    pub(crate) fn push(&mut self, label: Option<&'hir str>) -> alloc::Result<()> {
+        self.push_kind(LayerKind::Default, label)
     }
 
     /// Push an async block.

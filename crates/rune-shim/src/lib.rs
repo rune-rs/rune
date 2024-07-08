@@ -10,3 +10,6 @@ pub mod support {
     pub use anyhow::Error;
     pub use anyhow::Result;
 }
+
+#[cfg(feature = "rune-core")]
+pub use rune_core::{Item, ItemBuf};

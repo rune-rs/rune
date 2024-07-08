@@ -10,14 +10,14 @@ pub(crate) mod prelude {
     pub(crate) use crate::alloc::prelude::*;
     pub(crate) use crate::ast;
     pub(crate) use crate::compile::{self, ErrorKind, Item, ItemBuf, Located, Named};
-    pub(crate) use crate::diagnostics;
+    pub(crate) use crate::diagnostics::{self, WarningDiagnosticKind};
     pub(crate) use crate::macros;
     pub(crate) use crate::module::InstallWith;
     pub(crate) use crate::parse;
     pub(crate) use crate::runtime::{
-        self, AnyTypeInfo, Bytes, Formatter, FullTypeOf, Function, MaybeTypeOf, Mut, Object,
-        OwnedTuple, Protocol, RawRef, RawStr, Ref, Stack, Tuple, TypeInfo, TypeOf, UnsafeToRef,
-        ValueKind, VecTuple, VmErrorKind, VmResult,
+        self, AnyTypeInfo, Bytes, Formatter, FullTypeOf, Function, InstAddress, MaybeTypeOf, Mut,
+        Object, Output, OwnedTuple, Protocol, RawRef, RawStr, Ref, Stack, Tuple, TypeInfo, TypeOf,
+        UnsafeToRef, ValueKind, VecTuple, VmErrorKind, VmResult,
     };
     pub(crate) use crate::support::Result;
     pub(crate) use crate::tests::{eval, run};
@@ -308,7 +308,7 @@ macro_rules! assert_parse {
 
 /// Assert that the given rune program raises a query error.
 macro_rules! assert_errors {
-    ($source:expr, $span:pat, $($pat:pat $(=> $cond:expr)?),+ $(,)?) => {{
+    ($source:expr, $span:pat $(, $pat:pat $(=> $cond:expr)?)+ $(,)?) => {{
         let mut diagnostics = Default::default();
         let _ = $crate::tests::compile_helper($source, &mut diagnostics).unwrap_err();
 
@@ -350,7 +350,7 @@ macro_rules! assert_errors {
 /// Assert that the given rune program parses, but raises the specified set of
 /// warnings.
 macro_rules! assert_warnings {
-    ($source:expr, $span:pat $(, $pat:pat $(=> $cond:expr)?)*) => {{
+    ($source:expr, $span:pat $(, $pat:pat $(=> $cond:expr)?)* $(,)?) => {{
         let mut diagnostics = Default::default();
         let _ = $crate::tests::compile_helper($source, &mut diagnostics).expect("source should compile");
         assert!(diagnostics.has_warning(), "no warnings produced");
@@ -448,6 +448,7 @@ mod instance;
 mod int;
 mod iter;
 mod iterator;
+mod loops;
 mod macros;
 mod moved;
 mod option;
@@ -463,6 +464,7 @@ mod tuple;
 mod type_name_native;
 mod type_name_rune;
 mod unit_constants;
+mod unreachable;
 mod variants;
 mod vm_arithmetic;
 mod vm_assign_exprs;

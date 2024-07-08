@@ -1,0 +1,27 @@
+#[test]
+fn iterator_drop() {
+    let sum = 0;
+    let values = [1, 2, 3, 4];
+
+    for v in values.iter() {
+        break;
+    }
+
+    values.push(5);
+
+    for v in values.iter() {
+        sum += v;
+
+        if v == 2 {
+            break;
+        }
+    }
+
+    values.push(6);
+
+    for v in values.iter() {
+        sum += v;
+    }
+
+    assert_eq!(sum, 24);
+}

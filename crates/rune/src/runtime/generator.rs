@@ -54,9 +54,22 @@ where
     /// Get the next value produced by this stream.
     #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> VmResult<Option<Value>> {
-        VmResult::Ok(match vm_try!(self.resume(vm_try!(Value::empty()))) {
+        let Some(execution) = self.execution.as_mut() else {
+            return VmResult::Ok(None);
+        };
+
+        let state = if execution.is_resumed() {
+            vm_try!(execution.resume_with(vm_try!(Value::empty())))
+        } else {
+            vm_try!(execution.resume())
+        };
+
+        VmResult::Ok(match state {
             GeneratorState::Yielded(value) => Some(value),
-            GeneratorState::Complete(_) => None,
+            GeneratorState::Complete(_) => {
+                self.execution = None;
+                None
+            }
         })
     }
 

@@ -1,38 +1,523 @@
+use core::cell::{Cell, RefCell};
 use core::fmt;
 
-use crate as rune;
 use crate::alloc::prelude::*;
-use crate::alloc::{self, HashMap};
+use crate::alloc::{self, BTreeSet, HashMap};
 use crate::ast::Spanned;
-use crate::compile::v1::Ctxt;
 use crate::compile::{self, Assembly, ErrorKind, WithSpan};
 use crate::hir;
 use crate::query::Query;
-use crate::runtime::Inst;
+use crate::runtime::{Inst, InstAddress, Output};
 use crate::SourceId;
+
+use super::{Address, Any, DisplayNamed, Linear, Slab, Slots};
+
+/// Root scope.
+const ROOT: ScopeId = ScopeId { index: 0, id: 0 };
+
+#[derive(Debug)]
+pub(super) struct Scope<'hir> {
+    /// Parent scope.
+    parent: ScopeId,
+    /// Scope.
+    id: ScopeId,
+    /// Named variables.
+    names: HashMap<hir::Name<'hir>, VarInner<'hir>>,
+    /// Slots owned by this scope.
+    locals: BTreeSet<usize>,
+}
+
+impl<'hir> Scope<'hir> {
+    /// Construct a new locals handlers.
+    fn new(parent: ScopeId, id: ScopeId) -> Self {
+        Self {
+            parent,
+            id,
+            names: HashMap::new(),
+            locals: BTreeSet::new(),
+        }
+    }
+
+    /// Get the parent scope.
+    fn parent(&self) -> Option<ScopeId> {
+        (self.parent != self.id).then_some(self.parent)
+    }
+}
+
+/// A scope handle which does not implement Copy to make it harder to misuse.
+#[must_use = "Scope handles must be handed back to Scopes to be freed"]
+pub(super) struct ScopeHandle {
+    pub(super) id: ScopeId,
+}
+
+/// A scope that has been popped but not freed.
+#[must_use = "Scope handles must be handed back to Scopes to be freed"]
+pub(super) struct DanglingScope {
+    pub(super) id: ScopeId,
+}
+
+/// A guard returned from [push][Scopes::push].
+///
+/// This should be provided to a subsequent [pop][Scopes::pop] to allow it to be
+/// sanity checked.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[must_use]
+pub(super) struct ScopeId {
+    index: usize,
+    id: usize,
+}
+
+impl fmt::Display for ScopeId {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}:{}", self.index, self.id)
+    }
+}
+
+impl fmt::Debug for ScopeId {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
+pub(crate) struct Scopes<'hir> {
+    scopes: RefCell<Slab<Scope<'hir>>>,
+    source_id: SourceId,
+    size: Cell<usize>,
+    slots: RefCell<Slots>,
+    id: Cell<usize>,
+    top: Cell<ScopeId>,
+}
+
+impl<'hir> Scopes<'hir> {
+    /// Construct a new collection of scopes.
+    pub(crate) fn new(source_id: SourceId) -> alloc::Result<Self> {
+        let mut scopes = Slab::new();
+        scopes.insert(Scope::new(ROOT, ROOT))?;
+
+        Ok(Self {
+            scopes: RefCell::new(scopes),
+            source_id,
+            size: Cell::new(0),
+            slots: RefCell::new(Slots::new()),
+            id: Cell::new(1),
+            top: Cell::new(ROOT),
+        })
+    }
+
+    /// Get the maximum total number of variables used in a function.
+    /// Effectively the required stack size.
+    #[inline]
+    pub(crate) fn size(&self) -> usize {
+        self.size.get()
+    }
+
+    /// Get the last scope guard.
+    #[inline]
+    pub(super) fn top_id(&self) -> ScopeId {
+        self.top.get()
+    }
+
+    /// Get the local with the given name.
+    #[tracing::instrument(skip(self, q, span))]
+    pub(super) fn get(
+        &self,
+        q: &mut Query<'_, '_>,
+        span: &dyn Spanned,
+        name: hir::Name<'hir>,
+    ) -> compile::Result<Var<'hir>> {
+        let scopes = self.scopes.borrow();
+        let mut current = Some(self.top.get());
+
+        while let Some(id) = current.take() {
+            let Some(scope) = scopes.get(id.index) else {
+                return Err(compile::Error::msg(span, format!("Missing scope {id}")));
+            };
+
+            current = scope.parent();
+
+            let Some(var) = scope.names.get(&name) else {
+                continue;
+            };
+
+            if let Some(_moved_at) = var.moved_at.get() {
+                return Err(compile::Error::new(
+                    span,
+                    ErrorKind::VariableMoved {
+                        #[cfg(feature = "emit")]
+                        moved_at: _moved_at.span(),
+                    },
+                ));
+            }
+
+            q.visitor
+                .visit_variable_use(self.source_id, var.span, span)
+                .with_span(span)?;
+
+            let var = Var {
+                span: var.span,
+                name: var.name,
+                addr: var.addr,
+            };
+
+            tracing::trace!(?scope, ?var);
+            return Ok(var);
+        }
+
+        Err(compile::Error::msg(
+            span,
+            try_format!("Missing variable `{name}`"),
+        ))
+    }
+
+    /// Take the local with the given name.
+    #[tracing::instrument(skip(self, q, span))]
+    pub(super) fn take(
+        &self,
+        q: &mut Query<'_, '_>,
+        span: &'hir dyn Spanned,
+        name: hir::Name<'hir>,
+    ) -> compile::Result<Var<'hir>> {
+        let scopes = self.scopes.borrow();
+        let mut current = Some(self.top.get());
+
+        while let Some(id) = current.take() {
+            let Some(scope) = scopes.get(id.index) else {
+                return Err(compile::Error::msg(span, format!("Missing scope {id}")));
+            };
+
+            current = scope.parent();
+
+            let Some(var) = scope.names.get(&name) else {
+                continue;
+            };
+
+            if let Some(_moved_at) = var.moved_at.get() {
+                return Err(compile::Error::new(
+                    span,
+                    ErrorKind::VariableMoved {
+                        #[cfg(feature = "emit")]
+                        moved_at: _moved_at.span(),
+                    },
+                ));
+            }
+
+            q.visitor
+                .visit_variable_use(self.source_id, var.span, span)
+                .with_span(span)?;
+
+            var.moved_at.set(Some(span));
+
+            let var = Var {
+                span: var.span,
+                name: var.name,
+                addr: var.addr,
+            };
+
+            tracing::trace!(?scope, ?var);
+            return Ok(var);
+        }
+
+        Err(compile::Error::msg(
+            span,
+            try_format!("Missing variable `{name}` to take"),
+        ))
+    }
+
+    /// Construct a new variable.
+    #[tracing::instrument(skip(self, span))]
+    pub(super) fn define(
+        &self,
+        span: &'hir dyn Spanned,
+        name: hir::Name<'hir>,
+        addr: &Address<'_, 'hir>,
+    ) -> compile::Result<()> {
+        let mut scopes = self.scopes.borrow_mut();
+
+        let Some(scope) = scopes.get_mut(self.top.get().index) else {
+            return Err(compile::Error::msg(span, "Missing top scope"));
+        };
+
+        let var = VarInner {
+            span,
+            name,
+            addr: addr.addr(),
+            moved_at: Cell::new(None),
+        };
+
+        scope.names.try_insert(name, var).with_span(span)?;
+        tracing::trace!(?scope, ?name);
+        Ok(())
+    }
+
+    /// Defer slot allocation.
+    #[tracing::instrument(skip_all)]
+    pub(super) fn defer(&self, span: &'hir dyn Spanned) -> Any<'_, 'hir> {
+        Any::defer(self, self.top.get(), span)
+    }
+
+    /// Explicitly allocate a slot.
+    #[tracing::instrument(skip_all)]
+    pub(super) fn alloc(&self, span: &'hir dyn Spanned) -> compile::Result<Address<'_, 'hir>> {
+        let mut scopes = self.scopes.borrow_mut();
+
+        let Some(scope) = scopes.get_mut(self.top.get().index) else {
+            return Err(compile::Error::msg(span, "Missing top scope"));
+        };
+
+        let offset = self.slots.borrow_mut().insert()?;
+        scope.locals.try_insert(offset).with_span(span)?;
+        self.size.set(self.size.get().max(offset + 1));
+        let addr = InstAddress::new(offset);
+        tracing::trace!(?scope, ?addr, size = self.size.get());
+        Ok(Address::local(span, self, addr))
+    }
+
+    /// Declare an anonymous variable.
+    #[tracing::instrument(skip(self, span))]
+    pub(super) fn alloc_in(&self, span: &dyn Spanned, id: ScopeId) -> compile::Result<InstAddress> {
+        let mut scopes = self.scopes.borrow_mut();
+
+        let Some(s) = scopes.get_mut(id.index) else {
+            return Err(compile::Error::msg(
+                span,
+                format!("Missing scope {id} to allocate in"),
+            ));
+        };
+
+        if s.id != id {
+            return Err(compile::Error::msg(
+                span,
+                try_format!("Scope id mismatch, {} (actual) != {id} (expected)", s.id),
+            ));
+        }
+
+        let offset = self.slots.borrow_mut().insert()?;
+
+        s.locals.try_insert(offset).with_span(span)?;
+        self.size.set(self.size.get().max(offset + 1));
+        let addr = InstAddress::new(offset);
+        tracing::trace!(?s, ?addr, size = self.size.get());
+        Ok(addr)
+    }
+
+    /// Perform a linear allocation.
+    #[tracing::instrument(ret, skip(self, span))]
+    pub(super) fn linear(
+        &self,
+        span: &'hir dyn Spanned,
+        n: usize,
+    ) -> compile::Result<Linear<'_, 'hir>> {
+        let mut scopes = self.scopes.borrow_mut();
+
+        let Some(scope) = scopes.get_mut(self.top.get().index) else {
+            return Err(compile::Error::msg(span, "Missing top scope"));
+        };
+
+        let linear = match n {
+            0 => Linear::empty(),
+            1 => {
+                let offset = self.slots.borrow_mut().insert()?;
+                scope.locals.try_insert(offset).with_span(span)?;
+                self.size.set(self.size.get().max(offset + 1));
+                let addr = InstAddress::new(offset);
+                Linear::single(Address::local(span, self, addr))
+            }
+            n => {
+                let mut slots = self.slots.borrow_mut();
+                let mut addresses = Vec::try_with_capacity(n).with_span(span)?;
+
+                for _ in 0..n {
+                    let offset = slots.push().with_span(span)?;
+                    scope.locals.try_insert(offset).with_span(span)?;
+                    let address = InstAddress::new(offset);
+                    addresses.try_push(Address::dangling(span, self, address))?;
+                    self.size.set(self.size.get().max(offset + 1));
+                }
+
+                Linear::new(addresses)
+            }
+        };
+
+        tracing::trace!(?scope, ?linear, size = self.size.get());
+        Ok(linear)
+    }
+
+    /// Free an address if it's in the specified scope.
+    #[tracing::instrument(skip(self, span))]
+    pub(super) fn free_addr(
+        &self,
+        span: &dyn Spanned,
+        addr: InstAddress,
+        name: Option<&'static str>,
+    ) -> compile::Result<()> {
+        let mut scopes = self.scopes.borrow_mut();
+
+        let Some(scope) = scopes.get_mut(self.top.get().index) else {
+            return Err(compile::Error::msg(
+                span,
+                format!(
+                    "Freed address {} does not have an implicit scope",
+                    DisplayNamed::new(addr, name)
+                ),
+            ));
+        };
+
+        tracing::trace!(?scope);
+
+        if !scope.locals.remove(&addr.offset()) {
+            return Err(compile::Error::msg(
+                span,
+                format!(
+                    "Freed address {} is not defined in scope {}",
+                    DisplayNamed::new(addr, name),
+                    scope.id
+                ),
+            ));
+        }
+
+        let mut slots = self.slots.borrow_mut();
+
+        if !slots.remove(addr.offset()) {
+            return Err(compile::Error::msg(
+                span,
+                format!(
+                    "Freed adddress {} does not have a global slot in scope {}",
+                    DisplayNamed::new(addr, name),
+                    scope.id
+                ),
+            ));
+        }
+
+        Ok(())
+    }
+
+    #[tracing::instrument(skip(self, span, handle), fields(id = ?handle.id))]
+    pub(super) fn pop(&self, span: &dyn Spanned, handle: ScopeHandle) -> compile::Result<()> {
+        let ScopeHandle { id } = handle;
+
+        let Some(mut scope) = self.scopes.borrow_mut().try_remove(id.index) else {
+            return Err(compile::Error::msg(
+                span,
+                format!("Missing scope while expected {id}"),
+            ));
+        };
+
+        if scope.id != id {
+            return Err(compile::Error::msg(
+                span,
+                try_format!(
+                    "Scope id mismatch, {} (actual) != {id} (expected)",
+                    scope.id
+                ),
+            ));
+        }
+
+        tracing::trace!(?scope, "freeing locals");
+
+        let mut slots = self.slots.borrow_mut();
+
+        // Free any locally defined variables associated with the scope.
+        for addr in &scope.locals {
+            if !slots.remove(*addr) {
+                return Err(compile::Error::msg(
+                    span,
+                    format!(
+                        "Address {addr} is not globally allocated in {:?}",
+                        self.slots
+                    ),
+                ));
+            }
+        }
+
+        scope.locals.clear();
+        self.top.set(scope.parent);
+        Ok(())
+    }
+
+    /// Pop the last of the scope.
+    #[tracing::instrument(skip(self, span))]
+    pub(super) fn pop_last(&self, span: &dyn Spanned) -> compile::Result<()> {
+        self.pop(span, ScopeHandle { id: ROOT })?;
+        Ok(())
+    }
+
+    /// Construct a new child scope and return its guard.
+    #[tracing::instrument(skip_all)]
+    pub(super) fn child(&self, span: &dyn Spanned) -> compile::Result<ScopeHandle> {
+        let mut scopes = self.scopes.borrow_mut();
+
+        let id = ScopeId {
+            index: scopes.vacant_key(),
+            id: self.id.replace(self.id.get().wrapping_add(1)),
+        };
+
+        let scope = Scope::new(self.top.replace(id), id);
+        tracing::trace!(?scope);
+        scopes.insert(scope).with_span(span)?;
+        Ok(ScopeHandle { id })
+    }
+
+    #[tracing::instrument(skip(self, span, handle), fields(id = ?handle.id))]
+    pub(super) fn dangle(
+        &self,
+        span: &dyn Spanned,
+        handle: ScopeHandle,
+    ) -> compile::Result<DanglingScope> {
+        let ScopeHandle { id } = handle;
+
+        let scopes = self.scopes.borrow();
+
+        let Some(scope) = scopes.get(id.index) else {
+            return Err(compile::Error::msg(
+                span,
+                format!("Missing scope while expected {id}"),
+            ));
+        };
+
+        if scope.id != id {
+            return Err(compile::Error::msg(
+                span,
+                try_format!(
+                    "Scope id mismatch, {} (actual) != {id} (expected)",
+                    scope.id
+                ),
+            ));
+        }
+
+        self.top.set(scope.parent);
+        tracing::trace!(?scope);
+        Ok(DanglingScope { id })
+    }
+
+    /// Push a dangling scope back onto the stack.
+    #[tracing::instrument(skip_all)]
+    pub(super) fn restore(&self, handle: DanglingScope) -> ScopeHandle {
+        let DanglingScope { id } = handle;
+        tracing::trace!(?id);
+        self.top.set(id);
+        ScopeHandle { id }
+    }
+}
 
 /// A locally declared variable, its calculated stack offset and where it was
 /// declared in its source file.
-#[derive(TryClone, Clone, Copy)]
-#[try_clone(copy)]
-pub struct Var<'hir> {
-    /// Offset from the current stack frame.
-    pub(crate) offset: usize,
+pub(super) struct Var<'hir> {
+    /// The span where the variable was declared.
+    pub(super) span: &'hir dyn Spanned,
     /// The name of the variable.
     name: hir::Name<'hir>,
-    /// Token assocaited with the variable.
-    span: &'hir dyn Spanned,
-    /// Variable has been taken at the given position.
-    moved_at: Option<&'hir dyn Spanned>,
+    /// Address where the variable is currently live.
+    pub(super) addr: InstAddress,
 }
 
-impl<'hir> fmt::Debug for Var<'hir> {
+impl fmt::Debug for Var<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Var")
-            .field("offset", &self.offset)
-            .field("name", &self.name)
             .field("span", &self.span.span())
-            .field("moved_at", &self.moved_at.map(|s| s.span()))
+            .field("name", &self.name)
+            .field("addr", &self.addr)
             .finish()
     }
 }
@@ -46,15 +531,17 @@ impl<'hir> fmt::Display for Var<'hir> {
 
 impl<'hir> Var<'hir> {
     /// Copy the declared variable.
-    pub(crate) fn copy(
+    pub(super) fn copy(
         &self,
-        cx: &mut Ctxt<'_, '_, '_>,
+        asm: &mut Assembly,
         span: &dyn Spanned,
         comment: Option<&dyn fmt::Display>,
+        out: Output,
     ) -> compile::Result<()> {
-        cx.asm.push_with_comment(
+        asm.push_with_comment(
             Inst::Copy {
-                offset: self.offset,
+                addr: self.addr,
+                out,
             },
             span,
             &format_args!("var `{}`{}", self.name, Append("; ", comment)),
@@ -62,15 +549,17 @@ impl<'hir> Var<'hir> {
     }
 
     /// Move the declared variable.
-    pub(crate) fn do_move(
+    pub(super) fn move_(
         &self,
         asm: &mut Assembly,
         span: &dyn Spanned,
         comment: Option<&dyn fmt::Display>,
+        out: Output,
     ) -> compile::Result<()> {
         asm.push_with_comment(
             Inst::Move {
-                offset: self.offset,
+                addr: self.addr,
+                out,
             },
             span,
             &format_args!("var `{}`{}", self.name, Append("; ", comment)),
@@ -96,264 +585,26 @@ where
     }
 }
 
-#[derive(Debug, TryClone)]
-pub(crate) struct Layer<'hir> {
-    /// Named variables.
-    variables: HashMap<hir::Name<'hir>, Var<'hir>>,
-    /// The number of variables.
-    pub(crate) total: usize,
-    /// The number of variables local to this scope.
-    pub(crate) local: usize,
+/// A locally declared variable, its calculated stack offset and where it was
+/// declared in its source file.
+struct VarInner<'hir> {
+    /// Token assocaited with the variable.
+    span: &'hir dyn Spanned,
+    /// The name of the variable.
+    name: hir::Name<'hir>,
+    /// Offset from the current stack frame.
+    addr: InstAddress,
+    /// Variable has been taken at the given position.
+    moved_at: Cell<Option<&'hir dyn Spanned>>,
 }
 
-impl<'hir> Layer<'hir> {
-    /// Construct a new locals handlers.
-    fn new() -> Self {
-        Self {
-            variables: HashMap::new(),
-            total: 0,
-            local: 0,
-        }
-    }
-
-    /// Construct a new child scope.
-    fn child(&self) -> Self {
-        Self {
-            variables: HashMap::new(),
-            total: self.total,
-            local: 0,
-        }
-    }
-}
-
-/// A guard returned from [push][Scopes::push].
-///
-/// This should be provided to a subsequent [pop][Scopes::pop] to allow it to be
-/// sanity checked.
-#[must_use]
-pub(crate) struct ScopeGuard(usize);
-
-pub(crate) struct Scopes<'hir> {
-    layers: Vec<Layer<'hir>>,
-    source_id: SourceId,
-}
-
-impl<'hir> Scopes<'hir> {
-    /// Construct a new collection of scopes.
-    pub(crate) fn new(source_id: SourceId) -> alloc::Result<Self> {
-        Ok(Self {
-            layers: try_vec![Layer::new()],
-            source_id,
-        })
-    }
-
-    /// Get the local with the given name.
-    #[tracing::instrument(skip_all, fields(variable, name, source_id))]
-    pub(crate) fn get(
-        &self,
-        q: &mut Query<'_, '_>,
-        name: hir::Name<'hir>,
-        span: &'hir dyn Spanned,
-    ) -> compile::Result<Var<'hir>> {
-        tracing::trace!("get");
-
-        for layer in self.layers.iter().rev() {
-            if let Some(var) = layer.variables.get(&name) {
-                tracing::trace!(?var, "getting var");
-                q.visitor
-                    .visit_variable_use(self.source_id, var.span, span)
-                    .with_span(span)?;
-
-                if let Some(_moved_at) = var.moved_at {
-                    return Err(compile::Error::new(
-                        span,
-                        ErrorKind::VariableMoved {
-                            #[cfg(feature = "emit")]
-                            moved_at: _moved_at.span(),
-                        },
-                    ));
-                }
-
-                return Ok(*var);
-            }
-        }
-
-        Err(compile::Error::msg(
-            span,
-            try_format!("Missing variable `{name}`"),
-        ))
-    }
-
-    /// Take the local with the given name.
-    #[tracing::instrument(skip_all, fields(variable, name, source_id))]
-    pub(crate) fn take(
-        &mut self,
-        q: &mut Query<'_, '_>,
-        name: hir::Name<'hir>,
-        span: &'hir dyn Spanned,
-    ) -> compile::Result<&Var> {
-        tracing::trace!("take");
-
-        for layer in self.layers.iter_mut().rev() {
-            if let Some(var) = layer.variables.get_mut(&name) {
-                tracing::trace!(?var, "taking var");
-                q.visitor
-                    .visit_variable_use(self.source_id, var.span, span)
-                    .with_span(span)?;
-
-                if let Some(_moved_at) = var.moved_at {
-                    return Err(compile::Error::new(
-                        span,
-                        ErrorKind::VariableMoved {
-                            #[cfg(feature = "emit")]
-                            moved_at: _moved_at.span(),
-                        },
-                    ));
-                }
-
-                var.moved_at = Some(span);
-                return Ok(var);
-            }
-        }
-
-        Err(compile::Error::msg(
-            span,
-            try_format!("Missing variable `{name}` to take"),
-        ))
-    }
-
-    /// Construct a new variable.
-    #[tracing::instrument(skip_all, fields(variable, name))]
-    pub(crate) fn define(
-        &mut self,
-        name: hir::Name<'hir>,
-        span: &'hir dyn Spanned,
-    ) -> compile::Result<usize> {
-        let Some(layer) = self.layers.last_mut() else {
-            return Err(compile::Error::msg(span, "Missing head layer"));
-        };
-
-        tracing::trace!(?layer);
-
-        let offset = layer.total;
-
-        let local = Var {
-            offset,
-            name,
-            span,
-            moved_at: None,
-        };
-
-        layer.total += 1;
-        layer.local += 1;
-        layer.variables.try_insert(name, local)?;
-        Ok(offset)
-    }
-
-    /// Declare an anonymous variable.
-    #[tracing::instrument(skip_all)]
-    pub(crate) fn alloc(&mut self, span: &dyn Spanned) -> compile::Result<usize> {
-        let Some(layer) = self.layers.last_mut() else {
-            return Err(compile::Error::msg(span, "Missing head layer"));
-        };
-
-        tracing::trace!(?layer);
-
-        let offset = layer.total;
-        layer.total += 1;
-        layer.local += 1;
-        Ok(offset)
-    }
-
-    /// Free a bunch of anonymous slots.
-    #[tracing::instrument(skip_all, fields(n))]
-    pub(crate) fn free(&mut self, span: &dyn Spanned, n: usize) -> compile::Result<()> {
-        let Some(layer) = self.layers.last_mut() else {
-            return Err(compile::Error::msg(span, "Missing head layer"));
-        };
-
-        tracing::trace!(?layer);
-
-        layer.total = layer
-            .total
-            .checked_sub(n)
-            .ok_or("totals out of bounds")
-            .with_span(span)?;
-
-        layer.local = layer
-            .local
-            .checked_sub(n)
-            .ok_or("locals out of bounds")
-            .with_span(span)?;
-
-        Ok(())
-    }
-
-    /// Pop the last scope and compare with the expected length.
-    #[tracing::instrument(skip_all, fields(expected))]
-    pub(crate) fn pop(
-        &mut self,
-        expected: ScopeGuard,
-        span: &dyn Spanned,
-    ) -> compile::Result<Layer<'hir>> {
-        let ScopeGuard(expected) = expected;
-
-        if self.layers.len() != expected {
-            return Err(compile::Error::msg(
-                span,
-                try_format!(
-                    "Scope guard mismatch, {} (actual) != {} (expected)",
-                    self.layers.len(),
-                    expected
-                ),
-            ));
-        }
-
-        let Some(layer) = self.layers.pop() else {
-            return Err(compile::Error::msg(span, "Missing parent scope"));
-        };
-
-        tracing::trace!(?layer, "pop");
-        Ok(layer)
-    }
-
-    /// Pop the last of the scope.
-    pub(crate) fn pop_last(&mut self, span: &dyn Spanned) -> compile::Result<Layer<'hir>> {
-        self.pop(ScopeGuard(1), span)
-    }
-
-    /// Construct a new child scope and return its guard.
-    #[tracing::instrument(skip_all)]
-    pub(crate) fn child(&mut self, span: &dyn Spanned) -> compile::Result<ScopeGuard> {
-        let Some(layer) = self.layers.last() else {
-            return Err(compile::Error::msg(span, "Missing head layer"));
-        };
-
-        tracing::trace!(?layer);
-        Ok(self.push(layer.child())?)
-    }
-
-    /// Get the total var count of the top scope.
-    pub(crate) fn total(&self, span: &dyn Spanned) -> compile::Result<usize> {
-        let Some(layer) = self.layers.last() else {
-            return Err(compile::Error::msg(span, "Missing head layer"));
-        };
-
-        Ok(layer.total)
-    }
-
-    /// Get the local var count of the top scope.
-    pub(crate) fn local(&self, span: &dyn Spanned) -> compile::Result<usize> {
-        let Some(layer) = self.layers.last() else {
-            return Err(compile::Error::msg(span, "Missing head layer"));
-        };
-
-        Ok(layer.local)
-    }
-
-    /// Push a scope and return an index.
-    pub(crate) fn push(&mut self, layer: Layer<'hir>) -> alloc::Result<ScopeGuard> {
-        self.layers.try_push(layer)?;
-        Ok(ScopeGuard(self.layers.len()))
+impl fmt::Debug for VarInner<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Var")
+            .field("span", &self.span.span())
+            .field("name", &self.name)
+            .field("addr", &self.addr)
+            .field("moved_at", &self.moved_at.get().map(|s| s.span()))
+            .finish()
     }
 }

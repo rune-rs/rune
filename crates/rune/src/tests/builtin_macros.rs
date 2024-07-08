@@ -1,3 +1,5 @@
+#![cfg(feature = "capture-io")]
+
 prelude!();
 
 use crate::termcolor::{ColorChoice, StandardStream};

@@ -356,7 +356,7 @@ fn builtin_template(
 fn local(hir: &hir::Local<'_>, c: &mut Ctxt<'_, '_>) -> compile::Result<ir::Ir> {
     let span = hir.span();
 
-    let name = match hir.pat.kind {
+    let name = match hir.pat.pat.kind {
         hir::PatKind::Ignore => {
             return expr(&hir.expr, c);
         }
@@ -381,7 +381,7 @@ fn condition(hir: &hir::Condition<'_>, c: &mut Ctxt<'_, '_>) -> compile::Result<
     match hir {
         hir::Condition::Expr(e) => Ok(ir::IrCondition::Ir(expr(e, c)?)),
         hir::Condition::ExprLet(hir) => {
-            let pat = ir::IrPat::compile_ast(&hir.pat)?;
+            let pat = ir::IrPat::compile_ast(&hir.pat.pat)?;
             let ir = expr(&hir.expr, c)?;
 
             Ok(ir::IrCondition::Let(ir::IrLet {
@@ -400,19 +400,17 @@ fn expr_if(
     hir: &hir::Conditional<'_>,
 ) -> compile::Result<ir::IrBranches> {
     let mut branches = Vec::new();
-    let mut default_branch = None;
 
     for hir in hir.branches {
-        let Some(cond) = hir.condition else {
-            let ir = block(&hir.block, c)?;
-            default_branch = Some(ir);
-            continue;
-        };
-
-        let cond = condition(cond, c)?;
+        let cond = condition(hir.condition, c)?;
         let ir = block(&hir.block, c)?;
         branches.try_push((cond, ir))?;
     }
+
+    let default_branch = match hir.fallback {
+        Some(hir) => Some(block(hir, c)?),
+        None => None,
+    };
 
     Ok(ir::IrBranches {
         span,

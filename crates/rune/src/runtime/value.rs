@@ -17,10 +17,10 @@ use crate::runtime::vm::CallResult;
 use crate::runtime::{
     AccessError, AccessErrorKind, AnyObj, AnyObjError, BorrowMut, BorrowRef, Bytes, ConstValue,
     ControlFlow, EnvProtocolCaller, Format, Formatter, FromValue, FullTypeOf, Function, Future,
-    Generator, GeneratorState, Iterator, MaybeTypeOf, Mut, Object, OwnedTuple, Protocol,
-    ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Ref,
-    RuntimeError, Shared, SharedPointerGuard, Snapshot, Stream, ToValue, Type, TypeInfo, Variant,
-    Vec, Vm, VmErrorKind, VmIntegerRepr, VmResult,
+    Generator, GeneratorState, IntoOutput, Iterator, MaybeTypeOf, Mut, Object, OwnedTuple,
+    Protocol, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
+    RangeToInclusive, Ref, RuntimeError, Shared, SharedPointerGuard, Snapshot, Stream, ToValue,
+    Type, TypeInfo, Variant, Vec, Vm, VmErrorKind, VmIntegerRepr, VmResult,
 };
 #[cfg(feature = "alloc")]
 use crate::runtime::{Hasher, Tuple};
@@ -943,7 +943,6 @@ impl Value {
     /// Construct a typed tuple.
     pub fn tuple_struct(rtti: Arc<Rtti>, vec: alloc::Vec<Value>) -> VmResult<Self> {
         let data = vm_try!(OwnedTuple::try_from(vec));
-
         VmResult::Ok(vm_try!(Value::try_from(TupleStruct { rtti, data })))
     }
 
@@ -2071,6 +2070,13 @@ impl Value {
 
 impl fmt::Debug for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let snapshot = self.inner.snapshot();
+
+        if !snapshot.is_readable() {
+            write!(f, "<{snapshot}>")?;
+            return Ok(());
+        }
+
         let mut o = Formatter::new();
 
         if self.string_debug(&mut o).is_err() {
@@ -2083,7 +2089,7 @@ impl fmt::Debug for Value {
 }
 
 impl TryFrom<()> for Value {
-    type Error = rune_alloc::Error;
+    type Error = alloc::Error;
 
     #[inline]
     fn try_from((): ()) -> Result<Self, Self::Error> {
@@ -2091,8 +2097,17 @@ impl TryFrom<()> for Value {
     }
 }
 
+impl IntoOutput for () {
+    type Output = ();
+
+    #[inline]
+    fn into_output(self) -> VmResult<Self::Output> {
+        VmResult::Ok(())
+    }
+}
+
 impl TryFrom<ValueKind> for Value {
-    type Error = rune_alloc::Error;
+    type Error = alloc::Error;
 
     #[inline]
     fn try_from(kind: ValueKind) -> Result<Self, Self::Error> {
@@ -2113,11 +2128,20 @@ macro_rules! impl_from {
     ($($variant:ident => $ty:ty),* $(,)*) => {
         $(
             impl TryFrom<$ty> for Value {
-                type Error = rune_alloc::Error;
+                type Error = alloc::Error;
 
                 #[inline]
                 fn try_from(value: $ty) -> Result<Self, Self::Error> {
                     Value::try_from(ValueKind::$variant(value))
+                }
+            }
+
+            impl IntoOutput for $ty {
+                type Output = $ty;
+
+                #[inline]
+                fn into_output(self) -> VmResult<Self::Output> {
+                    VmResult::Ok(self)
                 }
             }
 
@@ -2135,11 +2159,20 @@ macro_rules! impl_custom_from_wrapper {
     ($($variant:ident => $ty:ty),* $(,)?) => {
         $(
             impl TryFrom<$ty> for Value {
-                type Error = rune_alloc::Error;
+                type Error = alloc::Error;
 
                 #[inline]
-                fn try_from(value: $ty) -> Result<Self, rune_alloc::Error> {
+                fn try_from(value: $ty) -> Result<Self, alloc::Error> {
                     Value::try_from(ValueKind::$variant(value))
+                }
+            }
+
+            impl IntoOutput for $ty {
+                type Output = $ty;
+
+                #[inline]
+                fn into_output(self) -> VmResult<Self::Output> {
+                    VmResult::Ok(self)
                 }
             }
         )*

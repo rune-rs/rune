@@ -668,6 +668,7 @@ impl UnitBuilder {
         call: Call,
         debug_args: Box<[Box<str>]>,
         unit_storage: &mut dyn UnitEncoder,
+        size: usize,
     ) -> compile::Result<()> {
         tracing::trace!("instance fn: {}", item);
 
@@ -728,7 +729,7 @@ impl UnitBuilder {
 
         self.debug_mut()?.functions.try_insert(hash, signature)?;
         self.functions_rev.try_insert(offset, hash)?;
-        self.add_assembly(location, assembly, unit_storage)?;
+        self.add_assembly(location, assembly, unit_storage, size)?;
         Ok(())
     }
 
@@ -771,10 +772,16 @@ impl UnitBuilder {
         location: Location,
         assembly: Assembly,
         storage: &mut dyn UnitEncoder,
+        size: usize,
     ) -> compile::Result<()> {
         self.label_count = assembly.label_count;
 
+        storage
+            .encode(Inst::Allocate { size })
+            .with_span(location.span)?;
+
         let base = storage.extend_offsets(assembly.labels.len())?;
+
         self.required_functions
             .try_extend(assembly.required_functions)?;
 
@@ -820,33 +827,7 @@ impl UnitBuilder {
 
                     storage.encode(Inst::Jump { jump }).with_span(span)?;
                 }
-                AssemblyInst::JumpIf { label } => {
-                    let jump = label
-                        .jump()
-                        .ok_or(ErrorKind::MissingLabelLocation {
-                            name: label.name,
-                            index: label.index,
-                        })
-                        .with_span(span)?;
-
-                    write!(comment, "label:{}", label)?;
-
-                    storage.encode(Inst::JumpIf { jump }).with_span(span)?;
-                }
-                AssemblyInst::JumpIfOrPop { label } => {
-                    let jump = label
-                        .jump()
-                        .ok_or(ErrorKind::MissingLabelLocation {
-                            name: label.name,
-                            index: label.index,
-                        })
-                        .with_span(span)?;
-
-                    write!(comment, "label:{}", label)?;
-
-                    storage.encode(Inst::JumpIfOrPop { jump }).with_span(span)?;
-                }
-                AssemblyInst::JumpIfNotOrPop { label } => {
+                AssemblyInst::JumpIf { addr, label } => {
                     let jump = label
                         .jump()
                         .ok_or(ErrorKind::MissingLabelLocation {
@@ -858,10 +839,10 @@ impl UnitBuilder {
                     write!(comment, "label:{}", label)?;
 
                     storage
-                        .encode(Inst::JumpIfNotOrPop { jump })
+                        .encode(Inst::JumpIf { cond: addr, jump })
                         .with_span(span)?;
                 }
-                AssemblyInst::JumpIfBranch { branch, label } => {
+                AssemblyInst::JumpIfNot { addr, label } => {
                     let jump = label
                         .jump()
                         .ok_or(ErrorKind::MissingLabelLocation {
@@ -873,10 +854,14 @@ impl UnitBuilder {
                     write!(comment, "label:{}", label)?;
 
                     storage
-                        .encode(Inst::JumpIfBranch { branch, jump })
+                        .encode(Inst::JumpIfNot { cond: addr, jump })
                         .with_span(span)?;
                 }
-                AssemblyInst::PopAndJumpIfNot { count, label } => {
+                AssemblyInst::JumpIfBranch {
+                    addr,
+                    branch,
+                    label,
+                } => {
                     let jump = label
                         .jump()
                         .ok_or(ErrorKind::MissingLabelLocation {
@@ -888,10 +873,14 @@ impl UnitBuilder {
                     write!(comment, "label:{}", label)?;
 
                     storage
-                        .encode(Inst::PopAndJumpIfNot { count, jump })
+                        .encode(Inst::JumpIfBranch {
+                            branch: addr,
+                            value: branch,
+                            jump,
+                        })
                         .with_span(span)?;
                 }
-                AssemblyInst::IterNext { offset, label } => {
+                AssemblyInst::IterNext { addr, label, out } => {
                     let jump = label
                         .jump()
                         .ok_or(ErrorKind::MissingLabelLocation {
@@ -903,21 +892,28 @@ impl UnitBuilder {
                     write!(comment, "label:{}", label)?;
 
                     storage
-                        .encode(Inst::IterNext { offset, jump })
+                        .encode(Inst::IterNext { addr, jump, out })
                         .with_span(span)?;
                 }
                 AssemblyInst::Raw { raw } => {
                     // Optimization to avoid performing lookups for recursive
                     // function calls.
                     let inst = match raw {
-                        inst @ Inst::Call { hash, args } => {
+                        inst @ Inst::Call {
+                            hash,
+                            addr,
+                            args,
+                            out,
+                        } => {
                             if let Some(UnitFn::Offset { offset, call, .. }) =
                                 self.functions.get(&hash)
                             {
                                 Inst::CallOffset {
                                     offset: *offset,
                                     call: *call,
+                                    addr,
                                     args,
+                                    out,
                                 }
                             } else {
                                 inst

@@ -31,7 +31,7 @@ impl Item {
     #[inline]
     pub const fn new() -> &'static Self {
         // SAFETY: an empty slice is a valid bit pattern for the root.
-        unsafe { Self::from_raw(&[]) }
+        unsafe { Self::from_bytes(&[]) }
     }
 
     /// Construct an [Item] from an [ItemBuf].
@@ -39,7 +39,20 @@ impl Item {
     /// # Safety
     ///
     /// Caller must ensure that content has a valid [ItemBuf] representation.
-    pub(super) const unsafe fn from_raw(content: &[u8]) -> &Self {
+    /// The easiest way to accomplish this is to use the `rune::item!` macro.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::compile::{Item, ItemBuf};
+    ///
+    /// let item = ItemBuf::with_item(["foo", "bar"])?;
+    ///
+    /// // SAFETY: item is constructed from a valid buffer.
+    /// let item = unsafe { Item::from_bytes(item.as_bytes()) };
+    /// # Ok::<_, rune::alloc::Error>(())
+    /// ```
+    pub const unsafe fn from_bytes(content: &[u8]) -> &Self {
         &*(content as *const _ as *const _)
     }
 

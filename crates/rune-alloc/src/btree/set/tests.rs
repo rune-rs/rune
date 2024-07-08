@@ -2,6 +2,7 @@
 #![allow(clippy::needless_borrow)]
 #![allow(clippy::redundant_closure)]
 #![allow(clippy::useless_vec)]
+#![allow(unused_must_use)]
 
 use core::ops::Bound::{Excluded, Included};
 

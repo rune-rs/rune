@@ -32,14 +32,14 @@ impl<'a> Iter<'a> {
     #[inline]
     pub fn as_item(&self) -> &Item {
         // SAFETY: Iterator ensures that content is valid.
-        unsafe { Item::from_raw(self.content) }
+        unsafe { Item::from_bytes(self.content) }
     }
 
     /// Coerce the iterator into an item with the lifetime of the iterator.
     #[inline]
     pub fn into_item(self) -> &'a Item {
         // SAFETY: Iterator ensures that content is valid.
-        unsafe { Item::from_raw(self.content) }
+        unsafe { Item::from_bytes(self.content) }
     }
 
     /// Get the next component as a string.

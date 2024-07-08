@@ -7,8 +7,8 @@ use ::rust_alloc::sync::Arc;
 use crate::alloc::prelude::*;
 use crate::runtime::budget;
 use crate::runtime::{
-    Generator, GeneratorState, RuntimeContext, Stream, Unit, Value, Vm, VmErrorKind, VmHalt,
-    VmHaltInfo, VmResult,
+    Generator, GeneratorState, InstAddress, Output, RuntimeContext, Stream, Unit, Value, Vm,
+    VmErrorKind, VmHalt, VmHaltInfo, VmResult,
 };
 use crate::shared::AssertSend;
 
@@ -23,16 +23,21 @@ use super::VmDiagnostics;
 pub(crate) enum ExecutionState {
     /// The initial state of an execution.
     Initial,
-    /// The resumed state of an execution. This expects a value to be pushed
-    /// onto the virtual machine before it is continued.
-    Resumed,
+    /// execution is waiting.
+    Resumed(Output),
+    /// Suspended execution.
+    Suspended,
+    /// Execution exited.
+    Exited(Option<InstAddress>),
 }
 
 impl fmt::Display for ExecutionState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ExecutionState::Initial => write!(f, "initial"),
-            ExecutionState::Resumed => write!(f, "resumed"),
+            ExecutionState::Resumed(out) => write!(f, "resumed({out})"),
+            ExecutionState::Suspended => write!(f, "suspended"),
+            ExecutionState::Exited(..) => write!(f, "exited"),
         }
     }
 }
@@ -75,7 +80,7 @@ where
 
     /// Test if the current execution state is resumed.
     pub(crate) fn is_resumed(&self) -> bool {
-        matches!(self.state, ExecutionState::Resumed)
+        matches!(self.state, ExecutionState::Resumed(..))
     }
 
     /// Coerce the current execution into a generator if appropriate.
@@ -196,14 +201,13 @@ where
     /// Resume the current execution with the given value and resume
     /// asynchronous execution.
     pub async fn async_resume_with(&mut self, value: Value) -> VmResult<GeneratorState> {
-        if !matches!(self.state, ExecutionState::Resumed) {
-            return VmResult::err(VmErrorKind::ExpectedExecutionState {
-                expected: ExecutionState::Resumed,
-                actual: self.state,
-            });
-        }
+        let state = replace(&mut self.state, ExecutionState::Suspended);
 
-        vm_try!(self.head.as_mut().stack_mut().push(value));
+        let ExecutionState::Resumed(out) = state else {
+            return VmResult::err(VmErrorKind::ExpectedExecutionState { actual: state });
+        };
+
+        vm_try!(out.store(self.head.as_mut().stack_mut(), || VmResult::Ok(value)));
         self.inner_async_resume(None).await
     }
 
@@ -223,10 +227,8 @@ where
         &mut self,
         diagnostics: Option<&mut dyn VmDiagnostics>,
     ) -> VmResult<GeneratorState> {
-        if matches!(self.state, ExecutionState::Resumed) {
-            vm_try!(self.head.as_mut().stack_mut().push(vm_try!(Value::empty())));
-        } else {
-            self.state = ExecutionState::Resumed;
+        if let ExecutionState::Resumed(out) = self.state {
+            vm_try!(out.store(self.head.as_mut().stack_mut(), Value::empty));
         }
 
         self.inner_async_resume(diagnostics).await
@@ -246,7 +248,9 @@ where
                 })
                 .with_vm(vm))
             {
-                VmHalt::Exited => (),
+                VmHalt::Exited(addr) => {
+                    self.state = ExecutionState::Exited(addr);
+                }
                 VmHalt::Awaited(awaited) => {
                     vm_try!(awaited.into_vm(vm).await);
                     continue;
@@ -255,8 +259,13 @@ where
                     vm_try!(vm_call.into_execution(self));
                     continue;
                 }
-                VmHalt::Yielded => {
-                    let value = vm_try!(vm.stack_mut().pop());
+                VmHalt::Yielded(addr, out) => {
+                    let value = match addr {
+                        Some(addr) => vm_try!(vm.stack().at(addr)).clone(),
+                        None => vm_try!(Value::empty()),
+                    };
+
+                    self.state = ExecutionState::Resumed(out);
                     return VmResult::Ok(GeneratorState::Yielded(value));
                 }
                 halt => {
@@ -279,14 +288,13 @@ where
     /// execution.
     #[tracing::instrument(skip_all, fields(?value))]
     pub fn resume_with(&mut self, value: Value) -> VmResult<GeneratorState> {
-        if !matches!(self.state, ExecutionState::Resumed) {
-            return VmResult::err(VmErrorKind::ExpectedExecutionState {
-                expected: ExecutionState::Resumed,
-                actual: self.state,
-            });
-        }
+        let state = replace(&mut self.state, ExecutionState::Suspended);
 
-        vm_try!(self.head.as_mut().stack_mut().push(value));
+        let ExecutionState::Resumed(out) = state else {
+            return VmResult::err(VmErrorKind::ExpectedExecutionState { actual: state });
+        };
+
+        vm_try!(out.store(self.head.as_mut().stack_mut(), || VmResult::Ok(value)));
         self.inner_resume(None)
     }
 
@@ -311,10 +319,8 @@ where
         &mut self,
         diagnostics: Option<&mut dyn VmDiagnostics>,
     ) -> VmResult<GeneratorState> {
-        if matches!(self.state, ExecutionState::Resumed) {
-            vm_try!(self.head.as_mut().stack_mut().push(vm_try!(Value::empty())));
-        } else {
-            self.state = ExecutionState::Resumed;
+        if let ExecutionState::Resumed(out) = replace(&mut self.state, ExecutionState::Suspended) {
+            vm_try!(out.store(self.head.as_mut().stack_mut(), Value::empty()));
         }
 
         self.inner_resume(diagnostics)
@@ -335,13 +341,20 @@ where
                 })
                 .with_vm(vm))
             {
-                VmHalt::Exited => (),
+                VmHalt::Exited(addr) => {
+                    self.state = ExecutionState::Exited(addr);
+                }
                 VmHalt::VmCall(vm_call) => {
                     vm_try!(vm_call.into_execution(self));
                     continue;
                 }
-                VmHalt::Yielded => {
-                    let value = vm_try!(vm.stack_mut().pop());
+                VmHalt::Yielded(addr, out) => {
+                    let value = match addr {
+                        Some(addr) => vm_try!(vm.stack().at(addr)).clone(),
+                        None => vm_try!(Value::empty()),
+                    };
+
+                    self.state = ExecutionState::Resumed(out);
                     return VmResult::Ok(GeneratorState::Yielded(value));
                 }
                 halt => {
@@ -369,7 +382,9 @@ where
         let vm = self.head.as_mut();
 
         match vm_try!(budget::with(1, || vm.run(None).with_vm(vm)).call()) {
-            VmHalt::Exited => (),
+            VmHalt::Exited(addr) => {
+                self.state = ExecutionState::Exited(addr);
+            }
             VmHalt::VmCall(vm_call) => {
                 vm_try!(vm_call.into_execution(self));
                 return VmResult::Ok(None);
@@ -397,7 +412,9 @@ where
         let vm = self.head.as_mut();
 
         match vm_try!(budget::with(1, || vm.run(None).with_vm(vm)).call()) {
-            VmHalt::Exited => (),
+            VmHalt::Exited(addr) => {
+                self.state = ExecutionState::Exited(addr);
+            }
             VmHalt::Awaited(awaited) => {
                 vm_try!(awaited.into_vm(vm).await);
                 return VmResult::Ok(None);
@@ -425,9 +442,16 @@ where
 
     /// End execution and perform debug checks.
     pub(crate) fn end(&mut self) -> VmResult<Value> {
-        let vm = self.head.as_mut();
-        let value = vm_try!(vm.stack_mut().pop());
-        debug_assert!(self.states.is_empty(), "execution vms should be empty");
+        let ExecutionState::Exited(addr) = self.state else {
+            return VmResult::err(VmErrorKind::ExpectedExitedExecutionState { actual: self.state });
+        };
+
+        let value = match addr {
+            Some(addr) => vm_try!(self.head.as_ref().stack().at(addr)).clone(),
+            None => vm_try!(Value::empty()),
+        };
+
+        debug_assert!(self.states.is_empty(), "Execution states should be empty");
         VmResult::Ok(value)
     }
 

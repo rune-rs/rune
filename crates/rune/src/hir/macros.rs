@@ -18,6 +18,10 @@ macro_rules! alloc_with {
 
         #[allow(unused)]
         macro_rules! option {
+            ($value:expr) => {
+                option!($value, |value| value)
+            };
+
             ($value:expr, |$pat:pat_param| $closure:expr) => {
                 match $value {
                     Some($pat) => {

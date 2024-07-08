@@ -1,6 +1,6 @@
 use crate::runtime::vm::CallResult;
 use crate::runtime::{
-    GuardedArgs, Protocol, Stack, UnitFn, Value, Vm, VmError, VmErrorKind, VmResult,
+    GuardedArgs, Output, Protocol, Stack, UnitFn, Value, Vm, VmError, VmErrorKind, VmResult,
 };
 use crate::Hash;
 
@@ -75,13 +75,12 @@ impl ProtocolCaller for EnvProtocolCaller {
             };
 
             let mut stack = vm_try!(Stack::with_capacity(count));
+            let addr = stack.addr();
             vm_try!(stack.push(target));
-
             // Safety: We hold onto the guard until the vm has completed.
             let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut stack)) };
-
-            vm_try!(handler(&mut stack, count));
-            VmResult::Ok(vm_try!(stack.pop()))
+            vm_try!(handler(&mut stack, addr, count, Output::keep(0)));
+            VmResult::Ok(vm_try!(stack.at(addr)).clone())
         });
 
         /// Check that arguments matches expected or raise the appropriate error.
@@ -103,13 +102,16 @@ impl ProtocolCaller for Vm {
     where
         A: GuardedArgs,
     {
-        if let CallResult::Unsupported(..) = vm_try!(self.call_instance_fn(target, protocol, args))
+        let addr = self.stack().addr();
+
+        if let CallResult::Unsupported(..) =
+            vm_try!(self.call_instance_fn(target, protocol, args, addr.output()))
         {
             return VmResult::err(VmErrorKind::MissingFunction {
                 hash: protocol.hash,
             });
         }
 
-        VmResult::Ok(vm_try!(self.stack_mut().pop()))
+        VmResult::Ok(vm_try!(self.stack().at(addr)).clone())
     }
 }

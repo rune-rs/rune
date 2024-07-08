@@ -18,6 +18,7 @@ use crate::query::MissingId;
 use crate::runtime::debug::DebugSignature;
 use crate::runtime::unit::EncodeError;
 use crate::runtime::{AccessError, RuntimeError, TypeInfo, TypeOf, ValueKind, VmError};
+use crate::shared::CapacityError;
 #[cfg(feature = "std")]
 use crate::source;
 use crate::{Hash, SourceId};
@@ -222,6 +223,9 @@ pub(crate) enum ErrorKind {
     AllocError {
         error: alloc::Error,
     },
+    CapacityError {
+        error: CapacityError,
+    },
     IrError(IrErrorKind),
     MetaError(MetaError),
     AccessError(AccessError),
@@ -295,7 +299,6 @@ pub(crate) enum ErrorKind {
     UnsupportedAssignExpr,
     UnsupportedBinaryExpr,
     UnsupportedRef,
-    UnsupportedSelectPattern,
     UnsupportedArgumentCount {
         expected: usize,
         actual: usize,
@@ -312,8 +315,10 @@ pub(crate) enum ErrorKind {
     UnsupportedTupleIndex {
         number: ast::Number,
     },
-    BreakOutsideOfLoop,
-    ContinueOutsideOfLoop,
+    BreakUnsupported,
+    BreakUnsupportedValue,
+    ContinueUnsupported,
+    ContinueUnsupportedBlock,
     SelectMultipleDefaults,
     ExpectedBlockSemiColon {
         #[cfg(feature = "emit")]
@@ -364,7 +369,7 @@ pub(crate) enum ErrorKind {
         current: Box<[String]>,
         existing: Box<[String]>,
     },
-    MissingLoopLabel {
+    MissingLabel {
         label: Box<str>,
     },
     ExpectedLeadingPathSegment,
@@ -525,7 +530,6 @@ cfg_std! {
     impl std::error::Error for ErrorKind {
         fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
             match self {
-                ErrorKind::AllocError { error, .. } => Some(error),
                 ErrorKind::IrError(source) => Some(source),
                 ErrorKind::MetaError(source) => Some(source),
                 ErrorKind::AccessError(source) => Some(source),
@@ -557,6 +561,9 @@ impl fmt::Display for ErrorKind {
                 write!(f, "Unsupported `{what}`")?;
             }
             ErrorKind::AllocError { error } => {
+                error.fmt(f)?;
+            }
+            ErrorKind::CapacityError { error } => {
                 error.fmt(f)?;
             }
             ErrorKind::IrError(error) => {
@@ -678,9 +685,6 @@ impl fmt::Display for ErrorKind {
             ErrorKind::UnsupportedRef => {
                 write!(f, "Cannot take reference of expression")?;
             }
-            ErrorKind::UnsupportedSelectPattern => {
-                write!(f, "Unsupported select pattern")?;
-            }
             ErrorKind::UnsupportedArgumentCount { expected, actual } => {
                 write!(
                     f,
@@ -702,11 +706,20 @@ impl fmt::Display for ErrorKind {
             ErrorKind::UnsupportedTupleIndex { number } => {
                 write!(f, "Unsupported tuple index `{number}`")?;
             }
-            ErrorKind::BreakOutsideOfLoop => {
+            ErrorKind::BreakUnsupported => {
                 write!(f, "Break outside of loop")?;
             }
-            ErrorKind::ContinueOutsideOfLoop => {
+            ErrorKind::BreakUnsupportedValue => {
+                write!(
+                    f,
+                    "Can only break with a value inside `loop` or breakable block"
+                )?;
+            }
+            ErrorKind::ContinueUnsupported => {
                 write!(f, "Continue outside of loop")?;
+            }
+            ErrorKind::ContinueUnsupportedBlock => {
+                write!(f, "Labeled blocks cannot be `continue`'d")?;
             }
             ErrorKind::SelectMultipleDefaults => {
                 write!(f, "Multiple `default` branches in select")?;
@@ -818,8 +831,8 @@ impl fmt::Display for ErrorKind {
             } => {
                 write!(f,"Conflicting static object keys for hash `{hash}` between `{existing:?}` and `{current:?}`")?;
             }
-            ErrorKind::MissingLoopLabel { label } => {
-                write!(f, "Missing loop label `{label}`")?;
+            ErrorKind::MissingLabel { label } => {
+                write!(f, "Missing label '{label}")?;
             }
             ErrorKind::ExpectedLeadingPathSegment => {
                 write!(f, "Segment is only supported in the first position")?;
@@ -1045,6 +1058,13 @@ impl From<alloc::Error> for ErrorKind {
     #[inline]
     fn from(error: alloc::Error) -> Self {
         ErrorKind::AllocError { error }
+    }
+}
+
+impl From<CapacityError> for ErrorKind {
+    #[inline]
+    fn from(error: CapacityError) -> Self {
+        ErrorKind::CapacityError { error }
     }
 }
 

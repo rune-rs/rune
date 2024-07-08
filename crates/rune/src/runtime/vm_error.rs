@@ -12,115 +12,8 @@ use crate::hash::Hash;
 use crate::runtime::unit::{BadInstruction, BadJump};
 use crate::runtime::{
     AccessError, AccessErrorKind, BoxedPanic, CallFrame, ExecutionState, FullTypeOf, MaybeTypeOf,
-    Panic, Protocol, StackError, TypeInfo, TypeOf, Unit, Vm, VmHaltInfo,
+    Panic, Protocol, SliceError, StackError, TypeInfo, TypeOf, Unit, Vm, VmHaltInfo,
 };
-
-/// Trait used to convert result types to [`VmResult`].
-#[doc(hidden)]
-pub trait TryFromResult {
-    /// The ok type produced by the conversion.
-    type Ok;
-
-    /// The conversion method itself.
-    fn try_from_result(value: Self) -> VmResult<Self::Ok>;
-}
-
-/// Helper to coerce one result type into [`VmResult`].
-///
-/// Despite being public, this is actually private API (`#[doc(hidden)]`). Use
-/// at your own risk.
-#[doc(hidden)]
-pub fn try_result<T>(result: T) -> VmResult<T::Ok>
-where
-    T: TryFromResult,
-{
-    T::try_from_result(result)
-}
-
-impl<T> TryFromResult for VmResult<T> {
-    type Ok = T;
-
-    #[inline]
-    fn try_from_result(value: Self) -> VmResult<T> {
-        value
-    }
-}
-
-impl<T, E> TryFromResult for Result<T, E>
-where
-    VmErrorKind: From<E>,
-{
-    type Ok = T;
-
-    #[inline]
-    fn try_from_result(value: Self) -> VmResult<T> {
-        match value {
-            Ok(ok) => VmResult::Ok(ok),
-            Err(err) => VmResult::err(err),
-        }
-    }
-}
-
-impl<T> TryFromResult for Result<T, VmError> {
-    type Ok = T;
-
-    #[inline]
-    fn try_from_result(value: Self) -> VmResult<T> {
-        match value {
-            Ok(ok) => VmResult::Ok(ok),
-            Err(err) => VmResult::Err(err),
-        }
-    }
-}
-
-/// A single unit producing errors.
-#[derive(Debug)]
-#[non_exhaustive]
-pub struct VmErrorLocation {
-    /// Associated unit.
-    pub unit: Arc<Unit>,
-    /// Frozen instruction pointer.
-    pub ip: usize,
-    /// All lower call frames before the unwind trigger point
-    pub frames: ::rust_alloc::vec::Vec<CallFrame>,
-}
-
-#[derive(Debug)]
-#[non_exhaustive]
-pub struct VmErrorAt {
-    /// Index into the backtrace which contains information of what caused this error.
-    #[cfg(feature = "emit")]
-    index: usize,
-    /// The kind of error.
-    kind: VmErrorKind,
-}
-
-impl VmErrorAt {
-    /// Get the instruction which caused the error.
-    #[cfg(feature = "emit")]
-    pub(crate) fn index(&self) -> usize {
-        self.index
-    }
-
-    #[cfg(feature = "emit")]
-    pub(crate) fn kind(&self) -> &VmErrorKind {
-        &self.kind
-    }
-}
-
-impl fmt::Display for VmErrorAt {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.kind.fmt(f)
-    }
-}
-
-#[non_exhaustive]
-pub(crate) struct VmErrorInner {
-    pub(crate) error: VmErrorAt,
-    pub(crate) chain: ::rust_alloc::vec::Vec<VmErrorAt>,
-    pub(crate) stacktrace: ::rust_alloc::vec::Vec<VmErrorLocation>,
-}
 
 /// A virtual machine error which includes tracing information.
 pub struct VmError {
@@ -207,6 +100,108 @@ impl fmt::Debug for VmError {
 
 cfg_std! {
     impl std::error::Error for VmError {}
+}
+
+pub mod sealed {
+    use crate::runtime::VmResult;
+    pub trait Sealed {}
+    impl<T> Sealed for VmResult<T> {}
+    impl<T, E> Sealed for Result<T, E> {}
+}
+
+/// Trait used to convert result types to [`VmResult`].
+#[doc(hidden)]
+pub trait TryFromResult: self::sealed::Sealed {
+    /// The ok type produced by the conversion.
+    type Ok;
+
+    /// The conversion method itself.
+    fn try_from_result(value: Self) -> VmResult<Self::Ok>;
+}
+
+/// Helper to coerce one result type into [`VmResult`].
+///
+/// Despite being public, this is actually private API (`#[doc(hidden)]`). Use
+/// at your own risk.
+#[doc(hidden)]
+pub fn try_result<T>(result: T) -> VmResult<T::Ok>
+where
+    T: TryFromResult,
+{
+    T::try_from_result(result)
+}
+
+impl<T> TryFromResult for VmResult<T> {
+    type Ok = T;
+
+    #[inline]
+    fn try_from_result(value: Self) -> VmResult<T> {
+        value
+    }
+}
+
+impl<T, E> TryFromResult for Result<T, E>
+where
+    VmError: From<E>,
+{
+    type Ok = T;
+
+    #[inline]
+    fn try_from_result(value: Self) -> VmResult<T> {
+        match value {
+            Ok(ok) => VmResult::Ok(ok),
+            Err(err) => VmResult::Err(VmError::from(err)),
+        }
+    }
+}
+
+/// A single unit producing errors.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct VmErrorLocation {
+    /// Associated unit.
+    pub unit: Arc<Unit>,
+    /// Frozen instruction pointer.
+    pub ip: usize,
+    /// All lower call frames before the unwind trigger point
+    pub frames: ::rust_alloc::vec::Vec<CallFrame>,
+}
+
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct VmErrorAt {
+    /// Index into the backtrace which contains information of what caused this error.
+    #[cfg(feature = "emit")]
+    index: usize,
+    /// The kind of error.
+    kind: VmErrorKind,
+}
+
+impl VmErrorAt {
+    /// Get the instruction which caused the error.
+    #[cfg(feature = "emit")]
+    pub(crate) fn index(&self) -> usize {
+        self.index
+    }
+
+    #[cfg(feature = "emit")]
+    pub(crate) fn kind(&self) -> &VmErrorKind {
+        &self.kind
+    }
+}
+
+impl fmt::Display for VmErrorAt {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.kind.fmt(f)
+    }
+}
+
+#[non_exhaustive]
+pub(crate) struct VmErrorInner {
+    pub(crate) error: VmErrorAt,
+    pub(crate) chain: ::rust_alloc::vec::Vec<VmErrorAt>,
+    pub(crate) stacktrace: ::rust_alloc::vec::Vec<VmErrorLocation>,
 }
 
 /// A result produced by the virtual machine.
@@ -521,28 +516,7 @@ impl fmt::Display for RuntimeError {
 }
 
 cfg_std! {
-    impl std::error::Error for RuntimeError {
-        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-            match &self.error {
-                VmErrorKind::AllocError {
-                    error,
-                } => Some(error),
-                VmErrorKind::AccessError {
-                    error,
-                } => Some(error),
-                VmErrorKind::StackError {
-                    error,
-                } => Some(error),
-                VmErrorKind::BadInstruction {
-                    error,
-                } => Some(error),
-                VmErrorKind::BadJump {
-                    error,
-                } => Some(error),
-                _ => None,
-            }
-        }
-    }
+    impl std::error::Error for RuntimeError {}
 }
 
 /// The kind of error encountered.
@@ -558,6 +532,9 @@ pub(crate) enum VmErrorKind {
     },
     StackError {
         error: StackError,
+    },
+    SliceError {
+        error: SliceError,
     },
     BadInstruction {
         error: BadInstruction,
@@ -724,7 +701,9 @@ pub(crate) enum VmErrorKind {
     },
     MissingInterfaceEnvironment,
     ExpectedExecutionState {
-        expected: ExecutionState,
+        actual: ExecutionState,
+    },
+    ExpectedExitedExecutionState {
         actual: ExecutionState,
     },
     GeneratorComplete,
@@ -768,16 +747,11 @@ impl fmt::Display for VmErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             VmErrorKind::AllocError { error } => error.fmt(f),
-            VmErrorKind::AccessError { error } => {
-                write!(f, "{error}")
-            }
-            VmErrorKind::StackError { error } => write!(f, "{error}"),
-            VmErrorKind::BadInstruction { error } => {
-                write!(f, "{error}")
-            }
-            VmErrorKind::BadJump { error } => {
-                write!(f, "{error}")
-            }
+            VmErrorKind::AccessError { error } => error.fmt(f),
+            VmErrorKind::StackError { error } => error.fmt(f),
+            VmErrorKind::SliceError { error } => error.fmt(f),
+            VmErrorKind::BadInstruction { error } => error.fmt(f),
+            VmErrorKind::BadJump { error } => error.fmt(f),
             VmErrorKind::Panic { reason } => write!(f, "Panicked: {reason}"),
             VmErrorKind::NoRunningVm {} => write!(f, "No running virtual machines"),
             VmErrorKind::Halted { halt } => write!(f, "Halted for unexpected reason `{halt}`"),
@@ -927,8 +901,11 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::MissingInterfaceEnvironment {} => {
                 write!(f, "Missing interface environment")
             }
-            VmErrorKind::ExpectedExecutionState { expected, actual } => {
-                write!(f, "Expected execution to be {expected}, but was {actual}",)
+            VmErrorKind::ExpectedExecutionState { actual } => {
+                write!(f, "Expected resume execution state, but was {actual}")
+            }
+            VmErrorKind::ExpectedExitedExecutionState { actual } => {
+                write!(f, "Expected exited execution state, but was {actual}")
             }
             VmErrorKind::GeneratorComplete {} => {
                 write!(f, "Cannot resume a generator that has completed")
@@ -977,42 +954,49 @@ impl fmt::Display for VmErrorKind {
 }
 
 impl From<RuntimeError> for VmErrorKind {
-    #[inline(always)]
+    #[inline]
     fn from(value: RuntimeError) -> Self {
         value.into_vm_error_kind()
     }
 }
 
 impl From<Infallible> for VmErrorKind {
-    #[inline(always)]
+    #[inline]
     fn from(error: Infallible) -> Self {
         match error {}
     }
 }
 
 impl From<AccessError> for VmErrorKind {
-    #[allow(deprecated)]
+    #[inline]
     fn from(error: AccessError) -> Self {
         VmErrorKind::AccessError { error }
     }
 }
 
 impl From<StackError> for VmErrorKind {
-    #[allow(deprecated)]
+    #[inline]
     fn from(error: StackError) -> Self {
         VmErrorKind::StackError { error }
     }
 }
 
+impl From<SliceError> for VmErrorKind {
+    #[inline]
+    fn from(error: SliceError) -> Self {
+        VmErrorKind::SliceError { error }
+    }
+}
+
 impl From<BadInstruction> for VmErrorKind {
-    #[allow(deprecated)]
+    #[inline]
     fn from(error: BadInstruction) -> Self {
         VmErrorKind::BadInstruction { error }
     }
 }
 
 impl From<BadJump> for VmErrorKind {
-    #[allow(deprecated)]
+    #[inline]
     fn from(error: BadJump) -> Self {
         VmErrorKind::BadJump { error }
     }

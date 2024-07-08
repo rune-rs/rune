@@ -330,6 +330,7 @@ async fn inner_compile(
                         let start = WasmPosition::from(
                             source.pos_to_utf8_linecol(inst.span.start.into_usize()),
                         );
+
                         let end = WasmPosition::from(
                             source.pos_to_utf8_linecol(inst.span.end.into_usize()),
                         );

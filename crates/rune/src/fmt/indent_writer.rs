@@ -136,7 +136,8 @@ impl<'a> SpanInjectionWriter<'a> {
     pub(super) fn into_inner(mut self) -> Result<Vec<Vec<u8>>, FormattingError> {
         while !self.queued_spans.is_empty() {
             let span = self.queued_spans.remove(0);
-            self.write_span(span)?;
+            let mut empties = 0;
+            self.write_span(span, &mut empties, usize::MAX)?;
         }
 
         Ok(self.writer.into_inner())
@@ -183,9 +184,15 @@ impl<'a> SpanInjectionWriter<'a> {
         self.write_spanned(Span::new(0, 0), text, false, false)
     }
 
-    pub(super) fn write_queued_spans(&mut self, until: ByteIndex) -> Result<(), FormattingError> {
+    pub(super) fn write_queued_spans(
+        &mut self,
+        until: ByteIndex,
+        limit: usize,
+    ) -> Result<usize, FormattingError> {
         // The queued recovered spans are ordered so we can pop them from the front if they're before the current span.
         // If the current span is before the first queued span, we need to inject the queued span.
+
+        let mut empties = 0;
 
         while let Some(queued_span) = self.queued_spans.first() {
             if queued_span.span().start > until {
@@ -193,30 +200,43 @@ impl<'a> SpanInjectionWriter<'a> {
             }
 
             let queued_span = self.queued_spans.remove(0);
-            self.write_span(queued_span)?;
+            self.write_span(queued_span, &mut empties, limit)?;
         }
 
-        Ok(())
+        Ok(empties)
     }
 
-    fn write_span(&mut self, span: ResolvedSpan) -> Result<(), FormattingError> {
+    fn write_span(
+        &mut self,
+        span: ResolvedSpan,
+        empties: &mut usize,
+        limit: usize,
+    ) -> Result<(), FormattingError> {
         match span {
             ResolvedSpan::Empty(_) => {
-                writeln!(self.writer)?;
+                if *empties < limit {
+                    writeln!(self.writer)?;
+                }
+
+                *empties += 1;
             }
             ResolvedSpan::Comment(comment) => {
+                *empties = 0;
                 let mut lines = self.resolve(comment.span)?.lines();
 
                 if let Some(first_line) = lines.next() {
+                    let first_line = first_line.trim_end();
+
                     if comment.on_new_line {
-                        writeln!(self.writer, "{}", first_line)?;
-                    } else {
+                        writeln!(self.writer, "{first_line}")?;
+                    } else if !first_line.is_empty() {
                         self.extend_previous_line(b" ")?;
                         self.extend_previous_line(first_line.as_bytes())?;
                     }
                 }
 
                 for line in lines {
+                    let line = line.trim();
                     self.newline()?;
                     self.extend_previous_line(line.as_bytes())?;
                 }
@@ -233,7 +253,7 @@ impl<'a> SpanInjectionWriter<'a> {
         newline: bool,
         space: bool,
     ) -> Result<(), FormattingError> {
-        self.write_queued_spans(span.start)?;
+        self.write_queued_spans(span.start, usize::MAX)?;
 
         write!(self.writer, "{}", text)?;
 

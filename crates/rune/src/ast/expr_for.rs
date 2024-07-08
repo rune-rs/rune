@@ -49,7 +49,7 @@ impl ExprFor {
             binding: parser.parse()?,
             in_: parser.parse()?,
             iter: Box::try_new(ast::Expr::parse_without_eager_brace(parser)?)?,
-            body: parser.parse()?,
+            body: Box::try_new(parser.parse()?)?,
         })
     }
 }

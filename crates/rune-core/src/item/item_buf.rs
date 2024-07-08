@@ -69,7 +69,7 @@ pub struct ItemBuf<A: Allocator = Global> {
 
 impl<A: Allocator> ItemBuf<A> {
     /// Construct a new item buffer inside of the given allocator.
-    pub(crate) fn new_in(alloc: A) -> Self {
+    pub(crate) const fn new_in(alloc: A) -> Self {
         Self {
             content: Vec::new_in(alloc),
         }
@@ -320,7 +320,7 @@ impl<A: Allocator> Deref for ItemBuf<A> {
 
     fn deref(&self) -> &Self::Target {
         // SAFETY: Item ensures that content is valid.
-        unsafe { Item::from_raw(self.content.as_ref()) }
+        unsafe { Item::from_bytes(self.content.as_ref()) }
     }
 }
 

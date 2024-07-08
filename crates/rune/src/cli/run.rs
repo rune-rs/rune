@@ -14,6 +14,10 @@ pub(super) struct Flags {
     /// Provide detailed tracing for each instruction executed.
     #[arg(short, long)]
     trace: bool,
+    /// When tracing is enabled, do not include source references if they are
+    /// available.
+    #[arg(long)]
+    without_source: bool,
     /// Time how long the script took to execute.
     #[arg(long)]
     time: bool,
@@ -52,9 +56,6 @@ pub(super) struct Flags {
     /// Dump native types.
     #[arg(long)]
     dump_native_types: bool,
-    /// Include source code references where appropriate (only available if -O debug-info=true).
-    #[arg(long)]
-    with_source: bool,
     /// When tracing, limit the number of instructions to run with `limit`. This
     /// implies `--trace`.
     #[arg(long)]
@@ -83,25 +84,21 @@ impl CommandBase for Flags {
             self.dump_native_types = true;
         }
 
+        if self.dump_functions
+        || self.dump_native_functions
+        || self.dump_stack
+        || self.dump_types
+        || self.dump_constants {
+            self.dump_unit = true;
+        }
+
+        if self.dump_unit {
+            self.emit_instructions = true;
+        }
+
         if self.trace_limit.is_some() {
             self.trace = true;
         }
-    }
-}
-
-impl Flags {
-    fn emit_instructions(&self) -> bool {
-        self.dump_unit || self.emit_instructions
-    }
-
-    fn dump_unit(&self) -> bool {
-        self.dump_unit
-            || self.dump_functions
-            || self.dump_native_functions
-            || self.dump_stack
-            || self.dump_types
-            || self.dump_constants
-            || self.emit_instructions
     }
 }
 
@@ -151,17 +148,17 @@ pub(super) async fn run(
         }
     }
 
-    if args.dump_unit() {
+    if args.dump_unit {
         writeln!(
             io.stdout,
             "Unit size: {} bytes",
             unit.instructions().bytes()
         )?;
 
-        if args.emit_instructions() {
+        if args.emit_instructions {
             let mut o = io.stdout.lock();
             writeln!(o, "# instructions")?;
-            unit.emit_instructions(&mut o, sources, args.with_source)?;
+            unit.emit_instructions(&mut o, sources, args.without_source)?;
         }
 
         let mut functions = unit.iter_functions().peekable();
@@ -219,7 +216,7 @@ pub(super) async fn run(
             &mut execution,
             sources,
             args.dump_stack,
-            args.with_source,
+            args.without_source,
             args.trace_limit.unwrap_or(usize::MAX),
         )
         .await
@@ -252,6 +249,13 @@ pub(super) async fn run(
         }
     };
 
+    let exit = if let Some(error) = errored {
+        error.emit(io.stdout, sources)?;
+        ExitCode::VmError
+    } else {
+        ExitCode::Success
+    };
+
     if args.dump_stack {
         writeln!(io.stdout, "# full stack dump after halting")?;
 
@@ -264,15 +268,15 @@ pub(super) async fn run(
 
         while let Some((count, frame)) = it.next() {
             let stack_top = match it.peek() {
-                Some((_, next)) => next.stack_bottom,
-                None => stack.stack_bottom(),
+                Some((_, next)) => next.top,
+                None => stack.top(),
             };
 
             let values = stack
-                .get(frame.stack_bottom..stack_top)
+                .get(frame.top..stack_top)
                 .expect("bad stack slice");
 
-            writeln!(io.stdout, "  frame #{} (+{})", count, frame.stack_bottom)?;
+            writeln!(io.stdout, "  frame #{} (+{})", count, frame.top)?;
 
             if values.is_empty() {
                 writeln!(io.stdout, "    *empty*")?;
@@ -280,7 +284,7 @@ pub(super) async fn run(
 
             vm.with(|| {
                 for (n, value) in stack.iter().enumerate() {
-                    writeln!(io.stdout, "{}+{} = {:?}", frame.stack_bottom, n, value)?;
+                    writeln!(io.stdout, "    {}+{n} = {value:?}", frame.top)?;
                 }
 
                 Ok::<_, crate::support::Error>(())
@@ -292,10 +296,10 @@ pub(super) async fn run(
             io.stdout,
             "  frame #{} (+{})",
             frames.len(),
-            stack.stack_bottom()
+            stack.top()
         )?;
 
-        let values = stack.get(stack.stack_bottom()..).expect("bad stack slice");
+        let values = stack.get(stack.top()..).expect("bad stack slice");
 
         if values.is_empty() {
             writeln!(io.stdout, "    *empty*")?;
@@ -303,25 +307,14 @@ pub(super) async fn run(
 
         vm.with(|| {
             for (n, value) in values.iter().enumerate() {
-                writeln!(
-                    io.stdout,
-                    "    {}+{} = {:?}",
-                    stack.stack_bottom(),
-                    n,
-                    value
-                )?;
+                writeln!(io.stdout, "    {}+{n} = {value:?}", stack.top())?;
             }
 
             Ok::<_, crate::support::Error>(())
         })?;
     }
 
-    if let Some(error) = errored {
-        error.emit(io.stdout, sources)?;
-        Ok(ExitCode::VmError)
-    } else {
-        Ok(ExitCode::Success)
-    }
+    Ok(exit)
 }
 
 /// Perform a detailed trace of the program.
@@ -330,103 +323,115 @@ async fn do_trace<T>(
     execution: &mut VmExecution<T>,
     sources: &Sources,
     dump_stack: bool,
-    with_source: bool,
+    without_source: bool,
     mut limit: usize,
 ) -> Result<Value, TraceError>
 where
     T: AsRef<Vm> + AsMut<Vm>,
 {
     let mut current_frame_len = execution.vm().call_frames().len();
+    let mut result = VmResult::Ok(None);
 
     while limit > 0 {
-        limit = limit.wrapping_sub(1);
-
-        {
-            let vm = execution.vm();
-            let mut o = io.stdout.lock();
-
-            if let Some((hash, signature)) = vm
-                .unit()
-                .debug_info()
-                .and_then(|d| d.function_at(vm.last_ip()))
-            {
-                writeln!(o, "fn {} ({}):", signature, hash)?;
-            }
-
-            let debug = vm
-                .unit()
-                .debug_info()
-                .and_then(|d| d.instruction_at(vm.last_ip()));
-
-            if with_source {
-                let debug_info = debug.and_then(|d| sources.get(d.source_id).map(|s| (s, d.span)));
-                if let Some((source, span)) = debug_info {
-                    source.emit_source_line(&mut o, span)?;
-                }
-            }
-
-            for label in debug.map(|d| d.labels.as_slice()).unwrap_or_default() {
-                writeln!(o, "{}:", label)?;
-            }
-
-            if let Some((inst, _)) = vm
-                .unit()
-                .instruction_at(vm.last_ip())
-                .map_err(VmError::from)?
-            {
-                write!(o, "  {:04} = {}", vm.last_ip(), inst)?;
-            } else {
-                write!(o, "  {:04} = *out of bounds*", vm.last_ip())?;
-            }
-
-            if let Some(comment) = debug.and_then(|d| d.comment.as_ref()) {
-                write!(o, " // {}", comment)?;
-            }
-
-            writeln!(o)?;
-        }
-
-        let result = match execution.async_step().await {
-            VmResult::Ok(result) => result,
-            VmResult::Err(e) => return Err(TraceError::VmError(e)),
-        };
-
+        let vm = execution.vm();
+        let ip = vm.ip();
         let mut o = io.stdout.lock();
 
-        if dump_stack {
-            let vm = execution.vm();
-            let frames = vm.call_frames();
+        if let Some((hash, signature)) = vm
+            .unit()
+            .debug_info()
+            .and_then(|d| d.function_at(ip))
+        {
+            writeln!(o, "fn {} ({}):", signature, hash)?;
+        }
 
+        let debug = vm
+            .unit()
+            .debug_info()
+            .and_then(|d| d.instruction_at(ip));
+
+        for label in debug.map(|d| d.labels.as_slice()).unwrap_or_default() {
+            writeln!(o, "{}:", label)?;
+        }
+
+        if !without_source {
+            let debug_info = debug.and_then(|d| sources.get(d.source_id).map(|s| (s, d.span)));
+
+            if let Some(line) = debug_info.and_then(|(s, span)| s.source_line(span)) {
+                write!(o, "  ")?;
+                line.write(&mut o)?;
+                writeln!(o)?;
+            }
+        }
+
+        if dump_stack {
+            let frames = vm.call_frames();
             let stack = vm.stack();
 
             if current_frame_len != frames.len() {
-                if current_frame_len < frames.len() {
-                    writeln!(o, "=> frame {} ({}):", frames.len(), stack.stack_bottom())?;
+                let op = if current_frame_len < frames.len() { "push" } else { "pop" };
+                write!(o, "  {op} frame {} (+{})", frames.len(), stack.top())?;
+
+                if let Some(frame) = frames.last() {
+                    writeln!(o, " {frame:?}")?;
                 } else {
-                    writeln!(o, "<= frame {} ({}):", frames.len(), stack.stack_bottom())?;
+                    writeln!(o, " *root*")?;
                 }
 
                 current_frame_len = frames.len();
             }
+        }
 
-            let values = stack.get(stack.stack_bottom()..).expect("bad stack slice");
+        if let Some((inst, _)) = vm
+            .unit()
+            .instruction_at(ip)
+            .map_err(VmError::from)?
+        {
+            write!(o, "  {:04} = {}", ip, inst)?;
+        } else {
+            write!(o, "  {:04} = *out of bounds*", ip)?;
+        }
 
-            if values.is_empty() {
-                writeln!(o, "    *empty*")?;
-            }
+        if let Some(comment) = debug.and_then(|d| d.comment.as_ref()) {
+            write!(o, " // {}", comment)?;
+        }
+
+        writeln!(o)?;
+
+        if dump_stack {
+            let stack = vm.stack();
+            let values = stack.get(stack.top()..).expect("bad stack slice");
 
             vm.with(|| {
                 for (n, value) in values.iter().enumerate() {
-                    writeln!(o, "    {}+{} = {:?}", stack.stack_bottom(), n, value)?;
+                    writeln!(o, "    {}+{n} = {value:?}", stack.top())?;
                 }
 
                 Ok::<_, TraceError>(())
             })?;
         }
 
-        if let Some(result) = result {
-            return Ok(result);
+        match result {
+            VmResult::Ok(result) => {
+                if let Some(result) = result {
+                    return Ok(result);
+                }
+            }
+            VmResult::Err(error) => {
+                return Err(TraceError::VmError(error));
+            }
         }
+
+        result = execution.async_step().await;
+
+        result = match result {
+            VmResult::Err(error) => {
+                return Err(TraceError::VmError(error));
+            }
+            result => result,
+        };
+
+        limit = limit.wrapping_sub(1);
     }
 
     Err(TraceError::Limited)
