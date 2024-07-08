@@ -1482,8 +1482,6 @@ fn expr_for<'hir>(
     let end_label = cx.asm.new_label("for_end");
     let break_label = cx.asm.new_label("for_break");
 
-    let break_var_count = cx.scopes.total(span)?;
-
     let (iter_offset, loop_scope_expected) = {
         let loop_scope_expected = cx.scopes.child(span)?;
         expr(cx, &hir.iter, Needs::Value)?.apply(cx)?;
@@ -1535,15 +1533,12 @@ fn expr_for<'hir>(
         None
     };
 
-    let continue_var_count = cx.scopes.total(span)?;
     cx.asm.label(&continue_label)?;
 
     cx.loops.push(Loop {
         label: hir.label,
         continue_label: continue_label.try_clone()?,
-        continue_var_count,
         break_label: break_label.try_clone()?,
-        break_var_count,
         needs,
         drop: Some(iter_offset),
     })?;
@@ -2300,14 +2295,10 @@ fn expr_loop<'hir>(
     let end_label = cx.asm.new_label("while_end");
     let break_label = cx.asm.new_label("while_break");
 
-    let var_count = cx.scopes.total(span)?;
-
     cx.loops.push(Loop {
         label: hir.label,
         continue_label: continue_label.try_clone()?,
-        continue_var_count: var_count,
         break_label: break_label.try_clone()?,
-        break_var_count: var_count,
         needs,
         drop: None,
     })?;

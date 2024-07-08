@@ -132,16 +132,22 @@ pub(crate) struct ScopeGuard(usize);
 pub(crate) struct Scopes<'hir> {
     layers: Vec<Layer<'hir>>,
     source_id: SourceId,
-    total: usize,
+    size: usize,
 }
 
 impl<'hir> Scopes<'hir> {
+    /// Get the maximum total number of variables used in a function.
+    /// Effectively the required stack size.
+    pub(crate) fn size(&self) -> usize {
+        self.size
+    }
+
     /// Construct a new collection of scopes.
     pub(crate) fn new(source_id: SourceId) -> alloc::Result<Self> {
         Ok(Self {
             layers: try_vec![Layer::new()],
             source_id,
-            total: 0,
+            size: 0,
         })
     }
 
@@ -244,7 +250,7 @@ impl<'hir> Scopes<'hir> {
 
         layer.variables.try_insert(name, var)?;
         layer.total += 1;
-        self.total = self.total.max(layer.total);
+        self.size = self.size.max(layer.total);
         Ok(offset)
     }
 
@@ -259,7 +265,7 @@ impl<'hir> Scopes<'hir> {
 
         let offset = layer.total;
         layer.total += 1;
-        self.total = self.total.max(layer.total);
+        self.size = self.size.max(layer.total);
         Ok(offset)
     }
 

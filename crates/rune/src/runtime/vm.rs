@@ -1781,6 +1781,12 @@ impl Vm {
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
+    fn op_size(&mut self, size: usize) -> VmResult<()> {
+        vm_try!(self.stack.resize(size));
+        VmResult::Ok(())
+    }
+
+    #[cfg_attr(feature = "bench", inline(never))]
     fn op_not(&mut self, out: Output) -> VmResult<()> {
         let value = vm_try!(self.stack.pop());
 
@@ -3205,6 +3211,9 @@ impl Vm {
             self.last_ip_len = inst_len as u8;
 
             match inst {
+                Inst::Size { size } => {
+                    vm_try!(self.op_size(size));
+                }
                 Inst::Not { out } => {
                     vm_try!(self.op_not(out));
                 }

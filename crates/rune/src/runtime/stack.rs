@@ -58,6 +58,17 @@ impl Stack {
         }
     }
 
+    /// Try to resize the stack with space for the given size.
+    pub(crate) fn resize(&mut self, size: usize) -> alloc::Result<()> {
+        if size == 0 {
+            return Ok(());
+        }
+
+        let empty = Value::empty()?;
+        self.stack.try_resize(self.stack_bottom + size, empty)?;
+        Ok(())
+    }
+
     /// Construct a new stack with the given capacity pre-allocated.
     ///
     /// ```
@@ -366,11 +377,13 @@ impl Stack {
             .checked_add(a)
             .filter(|&n| n < self.stack.len())
             .ok_or(StackError)?;
+
         let b = self
             .stack_bottom
             .checked_add(b)
             .filter(|&n| n < self.stack.len())
             .ok_or(StackError)?;
+
         self.stack.swap(a, b);
         Ok(())
     }

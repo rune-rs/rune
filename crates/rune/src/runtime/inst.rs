@@ -96,6 +96,11 @@ impl fmt::Display for TypeCheck {
 #[derive(Debug, TryClone, Clone, Copy, Serialize, Deserialize, Decode, Encode, InstDisplay)]
 #[try_clone(copy)]
 pub enum Inst {
+    /// Initialize the function-local memory region with space for `size` variables.
+    Size {
+        /// The size of the memory region to allocate.
+        size: usize,
+    },
     /// Not operator. Takes a boolean from the top of the stack  and inverts its
     /// logical value.
     ///

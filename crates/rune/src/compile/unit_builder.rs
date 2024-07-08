@@ -668,6 +668,7 @@ impl UnitBuilder {
         call: Call,
         debug_args: Box<[Box<str>]>,
         unit_storage: &mut dyn UnitEncoder,
+        size: usize,
     ) -> compile::Result<()> {
         tracing::trace!("instance fn: {}", item);
 
@@ -728,7 +729,7 @@ impl UnitBuilder {
 
         self.debug_mut()?.functions.try_insert(hash, signature)?;
         self.functions_rev.try_insert(offset, hash)?;
-        self.add_assembly(location, assembly, unit_storage)?;
+        self.add_assembly(location, assembly, unit_storage, size)?;
         Ok(())
     }
 
@@ -771,6 +772,7 @@ impl UnitBuilder {
         location: Location,
         assembly: Assembly,
         storage: &mut dyn UnitEncoder,
+        size: usize,
     ) -> compile::Result<()> {
         self.label_count = assembly.label_count;
 
@@ -785,6 +787,10 @@ impl UnitBuilder {
                 }
             }
         }
+
+        storage
+            .encode(Inst::Size { size })
+            .with_span(location.span)?;
 
         for (pos, (inst, span)) in assembly.instructions.into_iter().enumerate() {
             let mut comment = String::new();

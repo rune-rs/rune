@@ -248,6 +248,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
 
                 let mut c = self.compiler1(location, span, &mut asm)?;
                 assemble::fn_from_item_fn(&mut c, &hir, f.is_instance)?;
+                let size = c.scopes.size();
 
                 if !self.q.is_used(&item_meta) {
                     self.q
@@ -272,6 +273,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                         f.call,
                         debug_args,
                         unit_storage,
+                        size,
                     )?;
                 }
             }
@@ -299,6 +301,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                 let hir = hir::lowering::expr_closure_secondary(&mut cx, &closure.ast, captures)?;
                 let mut c = self.compiler1(location, &closure.ast, &mut asm)?;
                 assemble::expr_closure_secondary(&mut c, &hir, &closure.ast)?;
+                let size = c.scopes.size();
 
                 if !c.q.is_used(&item_meta) {
                     c.q.diagnostics
@@ -325,6 +328,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                         closure.call,
                         debug_args,
                         unit_storage,
+                        size,
                     )?;
                 }
             }
@@ -344,6 +348,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                 let hir = hir::lowering::async_block_secondary(&mut cx, &b.ast, captures)?;
                 let mut c = self.compiler1(location, &b.ast, &mut asm)?;
                 assemble::async_block_secondary(&mut c, &hir)?;
+                let size = c.scopes.size();
 
                 if !self.q.is_used(&item_meta) {
                     self.q
@@ -362,6 +367,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                         b.call,
                         Default::default(),
                         unit_storage,
+                        size,
                     )?;
                 }
             }

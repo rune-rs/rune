@@ -13,12 +13,8 @@ pub(crate) struct Loop<'hir> {
     pub(crate) label: Option<&'hir str>,
     /// The start label of the loop, used for `continue`.
     pub(crate) continue_label: Label,
-    /// The number of local variables inside the loop.
-    pub(crate) continue_var_count: usize,
     /// The end label of the loop, used for `break`.
     pub(crate) break_label: Label,
-    /// The number of local variables before the loop.
-    pub(crate) break_var_count: usize,
     /// If the loop needs a value.
     pub(crate) needs: Needs,
     /// Locals to drop when breaking.
