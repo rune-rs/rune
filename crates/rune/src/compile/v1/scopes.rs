@@ -50,14 +50,14 @@ impl<'hir> Var<'hir> {
         &self,
         cx: &mut Ctxt<'_, '_, '_>,
         span: &dyn Spanned,
-        comment: &dyn fmt::Display,
+        comment: Option<&dyn fmt::Display>,
     ) -> compile::Result<()> {
         cx.asm.push_with_comment(
             Inst::Copy {
                 offset: self.offset,
             },
             span,
-            &format_args!("var `{}`; {comment}", self.name),
+            &format_args!("var `{}`{}", self.name, Append("; ", comment)),
         )
     }
 
@@ -66,15 +66,33 @@ impl<'hir> Var<'hir> {
         &self,
         asm: &mut Assembly,
         span: &dyn Spanned,
-        comment: &dyn fmt::Display,
+        comment: Option<&dyn fmt::Display>,
     ) -> compile::Result<()> {
         asm.push_with_comment(
             Inst::Move {
                 offset: self.offset,
             },
             span,
-            &format_args!("var `{}`; {comment}", self.name),
+            &format_args!("var `{}`{}", self.name, Append("; ", comment)),
         )
+    }
+}
+
+struct Append<P, T>(P, T);
+
+impl<P, T> fmt::Display for Append<P, T>
+where
+    P: fmt::Display,
+    T: Copy + IntoIterator,
+    T::Item: fmt::Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for item in self.1 {
+            self.0.fmt(f)?;
+            item.fmt(f)?;
+        }
+
+        Ok(())
     }
 }
 

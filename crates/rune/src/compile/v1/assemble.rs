@@ -1,5 +1,3 @@
-use core::mem::{replace, take};
-
 use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{try_format, Vec};
@@ -201,7 +199,7 @@ impl<'hir> Asm<'hir> {
     /// Assemble into an instruction.
     fn apply(self, cx: &mut Ctxt) -> compile::Result<()> {
         if let AsmKind::Var(var) = self.kind {
-            var.copy(cx, &self.span, &format_args!("var `{}`", var))?;
+            var.copy(cx, &self.span, None)?;
         }
 
         Ok(())
@@ -253,14 +251,14 @@ pub(crate) fn fn_from_item_fn<'hir>(
         pat_with_offset(cx, pat, offset)?;
     }
 
-    if hir.body.statements.is_empty() {
+    if hir.body.statements.is_empty() && hir.body.value.is_none() {
         let total_var_count = cx.scopes.total(hir)?;
         cx.locals_pop(total_var_count, hir)?;
         cx.asm.push(Inst::ReturnUnit, hir)?;
         return Ok(());
     }
 
-    if !hir.body.produces_nothing() {
+    if hir.body.value.is_some() {
         return_(cx, hir, &hir.body, block)?;
     } else {
         block(cx, &hir.body, Needs::None)?.apply(cx)?;
@@ -681,38 +679,20 @@ fn block<'hir>(
     cx.contexts.try_push(hir.span())?;
     let scopes_count = cx.scopes.child(hir)?;
 
-    let mut last = None::<(&hir::Expr<'_>, bool)>;
-
     for stmt in hir.statements {
-        let (e, semi) = match stmt {
-            hir::Stmt::Local(l) => {
-                if let Some((e, _)) = take(&mut last) {
-                    // NB: terminated expressions do not need to produce a value.
-                    expr(cx, e, Needs::None)?.apply(cx)?;
-                }
-
-                local(cx, l, Needs::None)?.apply(cx)?;
-                continue;
+        match stmt {
+            hir::Stmt::Local(hir) => {
+                local(cx, hir, Needs::None)?.apply(cx)?;
             }
-            hir::Stmt::Expr(expr) => (expr, false),
-            hir::Stmt::Semi(expr) => (expr, true),
-            hir::Stmt::Item(..) => continue,
-        };
-
-        if let Some((e, _)) = replace(&mut last, Some((e, semi))) {
-            // NB: terminated expressions do not need to produce a value.
-            expr(cx, e, Needs::None)?.apply(cx)?;
+            hir::Stmt::Expr(hir) => {
+                expr(cx, hir, Needs::None)?.apply(cx)?;
+            }
         }
     }
 
-    let produced = if let Some((e, semi)) = last {
-        if semi {
-            expr(cx, e, Needs::None)?.apply(cx)?;
-            false
-        } else {
-            expr(cx, e, needs)?.apply(cx)?;
-            true
-        }
+    let produced = if let Some(e) = hir.value {
+        expr(cx, e, needs)?.apply(cx)?;
+        true
     } else {
         false
     };
@@ -1255,10 +1235,10 @@ fn expr_async_block<'hir>(
     for capture in hir.captures.iter().copied() {
         if hir.do_move {
             let var = cx.scopes.take(&mut cx.q, capture, span)?;
-            var.do_move(cx.asm, span, &"capture")?;
+            var.do_move(cx.asm, span, Some(&"capture"))?;
         } else {
             let var = cx.scopes.get(&mut cx.q, capture, span)?;
-            var.copy(cx, span, &"capture")?;
+            var.copy(cx, span, Some(&"capture"))?;
         }
     }
 
@@ -1380,7 +1360,7 @@ fn expr_call<'hir>(
                 cx.scopes.alloc(span)?;
             }
 
-            var.copy(cx, span, &"call")?;
+            var.copy(cx, span, Some(&"call"))?;
             cx.scopes.alloc(span)?;
 
             cx.asm.push(Inst::CallFn { args }, span)?;
@@ -1459,10 +1439,10 @@ fn expr_call_closure<'hir>(
     for capture in hir.captures.iter().copied() {
         if hir.do_move {
             let var = cx.scopes.take(&mut cx.q, capture, span)?;
-            var.do_move(cx.asm, span, &"capture")?;
+            var.do_move(cx.asm, span, Some(&"capture"))?;
         } else {
             let var = cx.scopes.get(&mut cx.q, capture, span)?;
-            var.copy(cx, span, &"capture")?;
+            var.copy(cx, span, Some(&"capture"))?;
         }
     }
 

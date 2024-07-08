@@ -1,4 +1,4 @@
-use core::mem::{replace, take};
+use core::mem::take;
 
 use crate::alloc::prelude::*;
 use crate::alloc::{try_format, Box, Vec};
@@ -304,32 +304,22 @@ pub(crate) fn block(hir: &hir::Block<'_>, c: &mut Ctxt<'_, '_>) -> compile::Resu
     let mut instructions = Vec::new();
 
     for stmt in hir.statements {
-        let (e, term) = match stmt {
+        match stmt {
             hir::Stmt::Local(l) => {
                 if let Some((e, _)) = take(&mut last) {
                     instructions.try_push(expr(e, c)?)?;
                 }
 
                 instructions.try_push(local(l, c)?)?;
-                continue;
             }
-            hir::Stmt::Expr(e) => (e, false),
-            hir::Stmt::Semi(e) => (e, true),
-            hir::Stmt::Item(..) => continue,
+            hir::Stmt::Expr(e) => {
+                instructions.try_push(expr(e, c)?)?;
+            }
         };
-
-        if let Some((e, _)) = replace(&mut last, Some((e, term))) {
-            instructions.try_push(expr(e, c)?)?;
-        }
     }
 
-    let last = if let Some((e, term)) = last {
-        if term {
-            instructions.try_push(expr(e, c)?)?;
-            None
-        } else {
-            Some(Box::try_new(expr(e, c)?)?)
-        }
+    let last = if let Some(e) = hir.value {
+        Some(Box::try_new(expr(e, c)?)?)
     } else {
         None
     };

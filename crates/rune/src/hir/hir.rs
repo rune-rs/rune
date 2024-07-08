@@ -718,18 +718,11 @@ pub(crate) struct Block<'hir> {
     pub(crate) span: Span,
     /// Statements in the block.
     pub(crate) statements: &'hir [Stmt<'hir>],
+    /// Default value produced by the block.
+    pub(crate) value: Option<&'hir Expr<'hir>>,
     /// Variables that need to be dropped by the end of this block.
     #[allow(unused)]
     pub(crate) drop: &'hir [Name<'hir>],
-}
-
-impl Block<'_> {
-    /// Test if the block doesn't produce anything. Which is when the last
-    /// element is either a non-expression or is an expression terminated by a
-    /// semi.
-    pub(crate) fn produces_nothing(&self) -> bool {
-        matches!(self.statements.last(), Some(Stmt::Semi(..)) | None)
-    }
 }
 
 #[derive(Debug, TryClone, Clone, Copy)]
@@ -748,10 +741,6 @@ pub(crate) enum Stmt<'hir> {
     Local(&'hir Local<'hir>),
     /// An expression.
     Expr(&'hir Expr<'hir>),
-    /// An expression with a trailing semi-colon.
-    Semi(&'hir Expr<'hir>),
-    /// An ignored item.
-    Item(Span),
 }
 
 /// A local variable declaration `let <pattern> = <expr>;`
