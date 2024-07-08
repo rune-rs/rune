@@ -9,7 +9,6 @@
 //! There are multiple ways to create a new [`String`] from a string literal:
 //!
 //! ```
-//! use rune::alloc::String;
 //! use rune::alloc::prelude::*;
 //!
 //! let s = "Hello".try_to_string()?;
@@ -23,7 +22,6 @@
 //! it. You can do the reverse too.
 //!
 //! ```
-//! use rune::alloc::{try_vec, String};
 //! use rune::alloc::prelude::*;
 //!
 //! let sparkle_heart = try_vec![240, 159, 146, 150];
@@ -34,7 +32,7 @@
 //! let bytes = sparkle_heart.into_bytes();
 //!
 //! assert_eq!(bytes, [240, 159, 146, 150]);
-//! # Ok::<_, Box<dyn std::error::Error>>(())
+//! # Ok::<_, std::boxed::Box<dyn std::error::Error>>(())
 //! ```
 
 #[cfg(feature = "serde")]
@@ -2092,6 +2090,16 @@ impl<A: Allocator> From<String<A>> for ::rust_alloc::string::String {
     }
 }
 
+#[cfg(feature = "alloc")]
+impl<A: Allocator> From<&String<A>> for ::rust_alloc::string::String {
+    /// Try to convert a [`String`] reference into a std `String`.
+    ///
+    /// The result is allocated on the heap.
+    fn from(s: &String<A>) -> Self {
+        Self::from(s.as_str())
+    }
+}
+
 impl TryFrom<&str> for String<Global> {
     type Error = Error;
 
@@ -2142,6 +2150,30 @@ impl TryFrom<Cow<'_, str>> for String<Global> {
     }
 }
 
+impl<A: Allocator + Clone> TryFrom<&String<A>> for String<A> {
+    type Error = Error;
+
+    /// Converts the given [`String`] to a boxed `str` slice that is owned.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::alloc::{String, Box};
+    ///
+    /// let s1: String = String::try_from("Hello World")?;
+    /// let s2: String = String::try_from(&s1)?;
+    ///
+    /// assert_eq!(s2, "Hello World");
+    /// # Ok::<_, rune::alloc::Error>(())
+    /// ```
+    #[inline]
+    fn try_from(s: &String<A>) -> Result<Self, Error> {
+        let mut this = String::new_in(s.allocator().clone());
+        this.try_push_str(s.as_str())?;
+        Ok(this)
+    }
+}
+
 impl<A: Allocator> TryFrom<String<A>> for Box<str, A> {
     type Error = Error;
 
@@ -2158,7 +2190,8 @@ impl<A: Allocator> TryFrom<String<A>> for Box<str, A> {
     /// assert_eq!("Hello World", s2.as_ref());
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
-    fn try_from(s: String<A>) -> Result<Box<str, A>, Error> {
+    #[inline]
+    fn try_from(s: String<A>) -> Result<Self, Error> {
         s.try_into_boxed_str()
     }
 }
@@ -2179,6 +2212,7 @@ impl TryFrom<Cow<'_, str>> for Box<str> {
     /// assert_eq!("Hello World", s2.as_ref());
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
+    #[inline]
     fn try_from(s: Cow<'_, str>) -> Result<Self, Error> {
         Self::try_from(s.as_ref())
     }
@@ -2200,6 +2234,7 @@ impl<A: Allocator> From<String<A>> for Vec<u8, A> {
     /// }
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
+    #[inline]
     fn from(string: String<A>) -> Vec<u8, A> {
         string.into_bytes()
     }
