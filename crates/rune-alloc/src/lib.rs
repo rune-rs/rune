@@ -138,11 +138,15 @@ pub mod callable;
 pub mod prelude {
     //! Prelude for common traits used in combination with this crate which
     //! matches the behavior of the std prelude.
+
     pub use crate::borrow::TryToOwned;
+    pub use crate::boxed::Box;
     pub use crate::clone::{TryClone, TryCopy};
     pub use crate::iter::{IteratorExt, TryExtend, TryFromIterator, TryFromIteratorIn};
     pub use crate::option::OptionExt;
-    pub use crate::string::TryToString;
+    pub use crate::string::{String, TryToString};
+    pub use crate::vec::Vec;
+    pub use crate::{try_format, try_vec};
 }
 
 pub mod limit;

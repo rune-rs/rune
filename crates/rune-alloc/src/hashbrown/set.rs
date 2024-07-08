@@ -1632,12 +1632,12 @@ impl<T, S, A: Allocator> IntoIterator for HashSet<T, S, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune::alloc::{HashSet, Vec};
     /// use rune::alloc::prelude::*;
+    /// use rune::alloc::HashSet;
     ///
     /// let mut set = HashSet::new();
-    /// set.try_insert("a".to_string())?;
-    /// set.try_insert("b".to_string())?;
+    /// set.try_insert("a".try_to_string()?)?;
+    /// set.try_insert("b".try_to_string()?)?;
     ///
     /// // Not possible to collect to a Vec<String> with a regular `.iter()`.
     /// let v: Vec<String> = set.into_iter().try_collect()?;

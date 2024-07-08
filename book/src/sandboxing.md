@@ -29,8 +29,8 @@ Memory limiting is performed using the [`with` function] in the
 `rune::alloc::limit` module.
 
 ```rust
+use rune::alloc::prelude::*;
 use rune::alloc::limit;
-use rune::alloc::Vec;
 
 let f = limit::with(1024, || {
     let mut vec = Vec::<u32>::try_with_capacity(256)?;

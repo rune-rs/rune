@@ -7,7 +7,7 @@ use ::rust_alloc::sync::Arc;
 
 use crate::alloc::borrow::Cow;
 use crate::alloc::prelude::*;
-use crate::alloc::{self, try_format, try_vec, BTreeMap, Box, HashSet, Vec, VecDeque};
+use crate::alloc::{self, BTreeMap, HashSet, VecDeque};
 use crate::alloc::{hash_map, HashMap};
 use crate::ast::{Span, Spanned};
 use crate::compile::context::ContextMeta;

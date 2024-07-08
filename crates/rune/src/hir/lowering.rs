@@ -37,6 +37,7 @@ pub(crate) struct Ctxt<'hir, 'a, 'arena> {
     needs: Cell<Needs>,
     scopes: hir::Scopes<'hir>,
     const_eval: bool,
+    statements: Vec<hir::Stmt<'hir>>,
 }
 
 impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
@@ -86,6 +87,7 @@ impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
             needs: Cell::new(Needs::default()),
             scopes: hir::Scopes::new()?,
             const_eval,
+            statements: Vec::new(),
         })
     }
 
@@ -120,24 +122,10 @@ pub(crate) fn empty_fn<'hir>(
     ast: &ast::EmptyBlock,
     span: &dyn Spanned,
 ) -> compile::Result<hir::ItemFn<'hir>> {
-    alloc_with!(cx, span);
-
-    cx.scopes.push()?;
-
-    let statements = iter!(&ast.statements, |ast| stmt(cx, ast)?);
-
-    let layer = cx.scopes.pop().with_span(span)?;
-
-    let body = hir::Block {
-        span: span.span(),
-        statements,
-        drop: iter!(layer.into_drop_order()),
-    };
-
     Ok(hir::ItemFn {
         span: span.span(),
         args: &[],
-        body,
+        body: statements(cx, &ast.statements, span)?,
     })
 }
 /// Lower a function item.
@@ -303,26 +291,66 @@ fn expr_call_closure<'hir>(
     })))
 }
 
-#[instrument(span = ast)]
+#[inline]
 pub(crate) fn block<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::Block,
 ) -> compile::Result<hir::Block<'hir>> {
-    alloc_with!(cx, ast);
+    statements(cx, &ast.statements, ast)
+}
+
+#[instrument(span = span)]
+pub(crate) fn statements<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    statements: &[ast::Stmt],
+    span: &dyn Spanned,
+) -> compile::Result<hir::Block<'hir>> {
+    alloc_with!(cx, span);
 
     cx.scopes.push()?;
 
-    let statements = iter!(&ast.statements, |ast| stmt(cx, ast)?);
+    let at = cx.statements.len();
 
-    let layer = cx.scopes.pop().with_span(ast)?;
+    let mut value = None;
 
-    let block = hir::Block {
-        span: ast.span(),
+    for ast in statements {
+        let (last, stmt) = match ast {
+            ast::Stmt::Local(ast) => (
+                value.take(),
+                Some(hir::Stmt::Local(alloc!(local(cx, ast)?))),
+            ),
+            ast::Stmt::Expr(ast) => (
+                None,
+                value.replace(&*alloc!(expr(cx, ast)?)).map(hir::Stmt::Expr),
+            ),
+            ast::Stmt::Semi(ast) => (
+                value.take(),
+                Some(hir::Stmt::Expr(alloc!(expr(cx, &ast.expr)?))),
+            ),
+            ast::Stmt::Item(..) => continue,
+        };
+
+        if let Some(last) = last {
+            cx.statements
+                .try_push(hir::Stmt::Expr(last))
+                .with_span(span)?;
+        }
+
+        if let Some(stmt) = stmt {
+            cx.statements.try_push(stmt).with_span(span)?;
+        }
+    }
+
+    let statements = iter!(cx.statements.drain(at..));
+
+    let layer = cx.scopes.pop().with_span(span)?;
+
+    Ok(hir::Block {
+        span: span.span(),
         statements,
+        value,
         drop: iter!(layer.into_drop_order()),
-    };
-
-    Ok(block)
+    })
 }
 
 #[instrument(span = ast)]
@@ -1152,18 +1180,6 @@ fn local<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Local) -> compile::Result
         span: ast.span(),
         pat,
         expr,
-    })
-}
-
-/// Lower a statement
-fn stmt<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Stmt) -> compile::Result<hir::Stmt<'hir>> {
-    alloc_with!(cx, ast);
-
-    Ok(match ast {
-        ast::Stmt::Local(ast) => hir::Stmt::Local(alloc!(local(cx, ast)?)),
-        ast::Stmt::Expr(ast) => hir::Stmt::Expr(alloc!(expr(cx, ast)?)),
-        ast::Stmt::Semi(ast) => hir::Stmt::Semi(alloc!(expr(cx, &ast.expr)?)),
-        ast::Stmt::Item(..) => hir::Stmt::Item(ast.span()),
     })
 }
 

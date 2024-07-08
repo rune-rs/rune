@@ -3,11 +3,9 @@ use core::marker::PhantomData;
 use ::rust_alloc::sync::Arc;
 
 use crate as rune;
+use crate::alloc;
 use crate::alloc::borrow::Cow;
 use crate::alloc::prelude::*;
-#[cfg(feature = "doc")]
-use crate::alloc::Vec;
-use crate::alloc::{self, try_vec, Box};
 use crate::compile::{self, meta, IntoComponent, ItemBuf};
 use crate::hash::Hash;
 use crate::macros::{MacroContext, TokenStream};

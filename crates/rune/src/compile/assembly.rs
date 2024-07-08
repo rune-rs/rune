@@ -6,7 +6,6 @@ use crate as rune;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::{hash_map, HashMap};
-use crate::alloc::{try_vec, String, Vec};
 use crate::ast::{Span, Spanned};
 use crate::compile::{self, Location};
 use crate::runtime::{Inst, Label};

@@ -4,8 +4,7 @@ use core::mem::{replace, take};
 
 use ::rust_alloc::sync::Arc;
 
-use crate::alloc::clone::TryClone;
-use crate::alloc::Vec;
+use crate::alloc::prelude::*;
 use crate::runtime::budget;
 use crate::runtime::{
     Generator, GeneratorState, RuntimeContext, Stream, Unit, Value, Vm, VmErrorKind, VmHalt,

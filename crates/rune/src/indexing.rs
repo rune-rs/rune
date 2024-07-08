@@ -4,7 +4,6 @@ mod scopes;
 
 use crate as rune;
 use crate::alloc::prelude::*;
-use crate::alloc::Box;
 use crate::ast::{self, Span, Spanned};
 use crate::compile::meta;
 use crate::compile::{ItemId, ItemMeta};

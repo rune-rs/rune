@@ -9,8 +9,7 @@ mod indent_writer;
 mod printer;
 mod whitespace;
 
-use crate::alloc::String;
-use crate::alloc::Vec;
+use crate::alloc::prelude::*;
 use crate::ast;
 use crate::parse::{Parse, Parser};
 use crate::SourceId;

@@ -5,7 +5,6 @@ use std::time::Instant;
 use anyhow::{bail, Context, Result};
 
 use crate::alloc::prelude::*;
-use crate::alloc::Vec;
 use crate::cli::naming::Naming;
 use crate::cli::visitor;
 use crate::cli::{

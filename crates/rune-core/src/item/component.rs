@@ -1,11 +1,9 @@
 use core::fmt;
 
-use crate::alloc::Box;
-
 use serde::{Deserialize, Serialize};
 
 use crate::alloc;
-use crate::alloc::clone::TryClone;
+use crate::alloc::prelude::*;
 use crate::item::ComponentRef;
 
 /// The component of an item.

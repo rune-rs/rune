@@ -1,5 +1,4 @@
 use crate::alloc::prelude::*;
-use crate::alloc::Vec;
 use crate::compile::{self, ErrorKind, IntoComponent, ItemBuf, Location, ModId, Visibility};
 use crate::query::Query;
 

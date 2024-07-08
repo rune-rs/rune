@@ -6,9 +6,9 @@ mod tests;
 use core::ops::{Deref, DerefMut};
 use core::str;
 
+use crate::alloc;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
-use crate::alloc::{self, try_vec, Vec};
 use crate::ast::{ByteIndex, Span};
 
 use super::comments::Comment;
