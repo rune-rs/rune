@@ -7,11 +7,11 @@ use crate::alloc::prelude::*;
 use crate::compile;
 use crate::hash;
 use crate::macros::{MacroContext, TokenStream};
-use crate::runtime::{ConstValue, Stack, VmResult};
+use crate::runtime::{ConstValue, Output, Stack, VmResult};
 use crate::Hash;
 
 /// A type-reduced function handler.
-pub(crate) type FunctionHandler = dyn Fn(&mut Stack, usize) -> VmResult<()> + Send + Sync;
+pub(crate) type FunctionHandler = dyn Fn(&mut Stack, usize, Output) -> VmResult<()> + Send + Sync;
 
 /// A (type erased) macro handler.
 pub(crate) type MacroHandler =

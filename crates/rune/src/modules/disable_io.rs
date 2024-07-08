@@ -12,7 +12,7 @@
 //! ```
 
 use crate as rune;
-use crate::runtime::{Stack, VmResult};
+use crate::runtime::{Output, Stack, VmResult};
 use crate::{ContextError, Module};
 
 /// I/O methods which will cause any output to be ignored.
@@ -24,10 +24,14 @@ pub fn module() -> Result<Module, ContextError> {
     module.function("println", move |_: &str| {}).build()?;
 
     module
-        .raw_function("dbg", move |stack: &mut Stack, args: usize| {
+        .raw_function("dbg", move |stack: &mut Stack, args: usize, out: Output| {
             // NB: still need to maintain the stack.
             drop(vm_try!(stack.drain(args)));
-            vm_try!(stack.push(()));
+
+            if out.is_keep() {
+                vm_try!(stack.push(()));
+            }
+
             VmResult::Ok(())
         })
         .build()?;

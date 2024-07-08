@@ -1,6 +1,6 @@
 use core::fmt;
 
-use crate::runtime::{Awaited, VmCall};
+use crate::runtime::{Awaited, Output, VmCall};
 
 /// The reason why the virtual machine execution stopped.
 #[derive(Debug)]
@@ -10,9 +10,9 @@ pub(crate) enum VmHalt {
     /// The virtual machine exited because it ran out of execution quota.
     Limited,
     /// The virtual machine yielded.
-    Yielded,
+    Yielded(Output),
     /// The virtual machine awaited on the given future.
-    Awaited(Awaited),
+    Awaited(Awaited, Output),
     /// Call into a new virtual machine.
     VmCall(VmCall),
 }
@@ -23,7 +23,7 @@ impl VmHalt {
         match self {
             Self::Exited => VmHaltInfo::Exited,
             Self::Limited => VmHaltInfo::Limited,
-            Self::Yielded => VmHaltInfo::Yielded,
+            Self::Yielded(..) => VmHaltInfo::Yielded,
             Self::Awaited(..) => VmHaltInfo::Awaited,
             Self::VmCall(..) => VmHaltInfo::VmCall,
         }

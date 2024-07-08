@@ -7,8 +7,8 @@ use ::rust_alloc::sync::Arc;
 use crate::alloc::prelude::*;
 use crate::runtime::budget;
 use crate::runtime::{
-    Generator, GeneratorState, RuntimeContext, Stream, Unit, Value, Vm, VmErrorKind, VmHalt,
-    VmHaltInfo, VmResult,
+    Generator, GeneratorState, Output, RuntimeContext, Stream, Unit, Value, Vm, VmErrorKind,
+    VmHalt, VmHaltInfo, VmResult,
 };
 use crate::shared::AssertSend;
 
@@ -23,16 +23,15 @@ use super::VmDiagnostics;
 pub(crate) enum ExecutionState {
     /// The initial state of an execution.
     Initial,
-    /// The resumed state of an execution. This expects a value to be pushed
-    /// onto the virtual machine before it is continued.
-    Resumed,
+    /// execution is waiting.
+    Resumed(Output),
 }
 
 impl fmt::Display for ExecutionState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ExecutionState::Initial => write!(f, "initial"),
-            ExecutionState::Resumed => write!(f, "resumed"),
+            ExecutionState::Resumed(..) => write!(f, "resumed"),
         }
     }
 }
@@ -75,7 +74,7 @@ where
 
     /// Test if the current execution state is resumed.
     pub(crate) fn is_resumed(&self) -> bool {
-        matches!(self.state, ExecutionState::Resumed)
+        matches!(self.state, ExecutionState::Resumed(..))
     }
 
     /// Coerce the current execution into a generator if appropriate.
@@ -196,14 +195,14 @@ where
     /// Resume the current execution with the given value and resume
     /// asynchronous execution.
     pub async fn async_resume_with(&mut self, value: Value) -> VmResult<GeneratorState> {
-        if !matches!(self.state, ExecutionState::Resumed) {
+        let ExecutionState::Resumed(out) = self.state else {
             return VmResult::err(VmErrorKind::ExpectedExecutionState {
-                expected: ExecutionState::Resumed,
+                expected: ExecutionState::Resumed(Output::keep()),
                 actual: self.state,
             });
-        }
+        };
 
-        vm_try!(self.head.as_mut().stack_mut().push(value));
+        vm_try!(out.store(self.head.as_mut().stack_mut(), || VmResult::Ok(value)));
         self.inner_async_resume(None).await
     }
 
@@ -223,10 +222,10 @@ where
         &mut self,
         diagnostics: Option<&mut dyn VmDiagnostics>,
     ) -> VmResult<GeneratorState> {
-        if matches!(self.state, ExecutionState::Resumed) {
-            vm_try!(self.head.as_mut().stack_mut().push(vm_try!(Value::empty())));
-        } else {
-            self.state = ExecutionState::Resumed;
+        if let ExecutionState::Resumed(out) = self.state {
+            if out.is_keep() {
+                vm_try!(self.head.as_mut().stack_mut().push(vm_try!(Value::empty())));
+            }
         }
 
         self.inner_async_resume(diagnostics).await
@@ -247,16 +246,17 @@ where
                 .with_vm(vm))
             {
                 VmHalt::Exited => (),
-                VmHalt::Awaited(awaited) => {
-                    vm_try!(awaited.into_vm(vm).await);
+                VmHalt::Awaited(awaited, keep) => {
+                    vm_try!(awaited.into_vm(vm, keep).await);
                     continue;
                 }
                 VmHalt::VmCall(vm_call) => {
                     vm_try!(vm_call.into_execution(self));
                     continue;
                 }
-                VmHalt::Yielded => {
+                VmHalt::Yielded(keep) => {
                     let value = vm_try!(vm.stack_mut().pop());
+                    self.state = ExecutionState::Resumed(keep);
                     return VmResult::Ok(GeneratorState::Yielded(value));
                 }
                 halt => {
@@ -279,14 +279,18 @@ where
     /// execution.
     #[tracing::instrument(skip_all, fields(?value))]
     pub fn resume_with(&mut self, value: Value) -> VmResult<GeneratorState> {
-        if !matches!(self.state, ExecutionState::Resumed) {
+        let ExecutionState::Resumed(out) = self.state else {
             return VmResult::err(VmErrorKind::ExpectedExecutionState {
-                expected: ExecutionState::Resumed,
+                expected: ExecutionState::Resumed(Output::keep()),
                 actual: self.state,
             });
+        };
+
+        if out.is_keep() {
+            vm_try!(self.head.as_mut().stack_mut().push(value));
         }
 
-        vm_try!(self.head.as_mut().stack_mut().push(value));
+        self.state = ExecutionState::Resumed(Output::keep());
         self.inner_resume(None)
     }
 
@@ -311,10 +315,10 @@ where
         &mut self,
         diagnostics: Option<&mut dyn VmDiagnostics>,
     ) -> VmResult<GeneratorState> {
-        if matches!(self.state, ExecutionState::Resumed) {
-            vm_try!(self.head.as_mut().stack_mut().push(vm_try!(Value::empty())));
-        } else {
-            self.state = ExecutionState::Resumed;
+        if let ExecutionState::Resumed(out) = self.state {
+            if out.is_keep() {
+                vm_try!(self.head.as_mut().stack_mut().push(vm_try!(Value::empty())));
+            }
         }
 
         self.inner_resume(diagnostics)
@@ -340,8 +344,9 @@ where
                     vm_try!(vm_call.into_execution(self));
                     continue;
                 }
-                VmHalt::Yielded => {
+                VmHalt::Yielded(keep) => {
                     let value = vm_try!(vm.stack_mut().pop());
+                    self.state = ExecutionState::Resumed(keep);
                     return VmResult::Ok(GeneratorState::Yielded(value));
                 }
                 halt => {
@@ -398,8 +403,8 @@ where
 
         match vm_try!(budget::with(1, || vm.run(None).with_vm(vm)).call()) {
             VmHalt::Exited => (),
-            VmHalt::Awaited(awaited) => {
-                vm_try!(awaited.into_vm(vm).await);
+            VmHalt::Awaited(awaited, keep) => {
+                vm_try!(awaited.into_vm(vm, keep).await);
                 return VmResult::Ok(None);
             }
             VmHalt::VmCall(vm_call) => {

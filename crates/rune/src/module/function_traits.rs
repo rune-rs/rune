@@ -5,8 +5,8 @@ use core::future::Future;
 
 use crate::hash::Hash;
 use crate::runtime::{
-    self, FromValue, FullTypeOf, MaybeTypeOf, Stack, ToValue, TypeInfo, TypeOf, UnsafeToMut,
-    UnsafeToRef, Value, VmErrorKind, VmResult,
+    self, FromValue, FullTypeOf, MaybeTypeOf, Output, Stack, ToValue, TypeInfo, TypeOf,
+    UnsafeToMut, UnsafeToRef, Value, VmErrorKind, VmResult,
 };
 
 // Expand to function variable bindings.
@@ -71,7 +71,7 @@ pub trait Function<A, K>: 'static + Send + Sync {
 
     /// Perform the vm call.
     #[doc(hidden)]
-    fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()>;
+    fn fn_call(&self, stack: &mut Stack, args: usize, output: Output) -> VmResult<()>;
 }
 
 /// Trait used to provide the [`associated_function`] function.
@@ -92,7 +92,7 @@ pub trait InstanceFunction<A, K>: 'static + Send + Sync {
 
     /// Perform the vm call.
     #[doc(hidden)]
-    fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()>;
+    fn fn_call(&self, stack: &mut Stack, args: usize, output: Output) -> VmResult<()>;
 }
 
 macro_rules! impl_instance_function_traits {
@@ -110,8 +110,8 @@ macro_rules! impl_instance_function_traits {
                 <T as Function<(Instance, $($ty,)*), Kind>>::args()
             }
 
-            fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
-                Function::fn_call(self, stack, args)
+            fn fn_call(&self, stack: &mut Stack, args: usize, output: Output) -> VmResult<()> {
+                Function::fn_call(self, stack, args, output)
             }
         }
     };
@@ -238,7 +238,7 @@ macro_rules! impl_function_traits {
             }
 
             #[allow(clippy::drop_non_drop)]
-            fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
+            fn fn_call(&self, stack: &mut Stack, args: usize, out: Output) -> VmResult<()> {
                 drain_stack!($count, 0, stack, args, $($from_fn, $var, $num,)*);
 
                 // Safety: We hold a reference to the stack, so we can guarantee
@@ -246,8 +246,7 @@ macro_rules! impl_function_traits {
                 let ret = self($($var.0),*);
                 $(drop($var.1);)*
 
-                let ret = vm_try!(ToValue::to_value(ret));
-                vm_try!(stack.push(ret));
+                vm_try!(out.store(stack, || ToValue::to_value(ret)));
                 VmResult::Ok(())
             }
         }
@@ -266,7 +265,7 @@ macro_rules! impl_function_traits {
             }
 
             #[allow(clippy::drop_non_drop)]
-            fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
+            fn fn_call(&self, stack: &mut Stack, args: usize, out: Output) -> VmResult<()> {
                 drain_stack!($count, 0, stack, args, $($from_fn, $var, $num,)*);
 
                 let fut = self($($var.0),*);
@@ -281,7 +280,7 @@ macro_rules! impl_function_traits {
                     VmResult::Ok(vm_try!(output.to_value()))
                 }));
 
-                vm_try!(stack.push(vm_try!(Value::try_from(ret))));
+                vm_try!(out.store(stack, || VmResult::Ok(vm_try!(Value::try_from(ret)))));
                 VmResult::Ok(())
             }
         }

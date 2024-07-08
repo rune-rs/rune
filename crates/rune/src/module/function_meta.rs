@@ -89,7 +89,7 @@ impl FunctionData {
     {
         Ok(Self {
             item: ItemBuf::with_item([name])?,
-            handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
+            handler: Arc::new(move |stack, args, output| f.fn_call(stack, args, output)),
             #[cfg(feature = "doc")]
             is_async: K::is_async(),
             #[cfg(feature = "doc")]
@@ -297,7 +297,7 @@ impl AssociatedFunctionData {
     {
         Ok(Self {
             associated,
-            handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
+            handler: Arc::new(move |stack, args, output| f.fn_call(stack, args, output)),
             #[cfg(feature = "doc")]
             is_async: K::is_async(),
             #[cfg(feature = "doc")]
@@ -319,7 +319,7 @@ impl AssociatedFunctionData {
     {
         Ok(Self {
             associated: Associated::from_type::<F::Instance>(name)?,
-            handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
+            handler: Arc::new(move |stack, args, output| f.fn_call(stack, args, output)),
             #[cfg(feature = "doc")]
             is_async: K::is_async(),
             #[cfg(feature = "doc")]

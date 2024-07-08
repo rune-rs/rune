@@ -10,9 +10,7 @@ use crate::compile;
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
 #[cfg(feature = "std")]
-use crate::runtime::{Formatter, VmResult};
-#[cfg(feature = "std")]
-use crate::runtime::{Panic, Stack, Value};
+use crate::runtime::{Formatter, Output, Panic, Stack, Value, VmResult};
 use crate::{ContextError, Module};
 
 /// I/O functions.
@@ -85,7 +83,7 @@ fn io_error_string_display(error: &io::Error, f: &mut Formatter) -> VmResult<()>
 }
 
 #[cfg(feature = "std")]
-fn dbg_impl(stack: &mut Stack, args: usize) -> VmResult<()> {
+fn dbg_impl(stack: &mut Stack, args: usize, out: Output) -> VmResult<()> {
     let stdout = io::stdout();
     let mut stdout = stdout.lock();
 
@@ -93,7 +91,10 @@ fn dbg_impl(stack: &mut Stack, args: usize) -> VmResult<()> {
         vm_try!(writeln!(stdout, "{:?}", value).map_err(Panic::custom));
     }
 
-    vm_try!(stack.push(vm_try!(Value::empty())));
+    if out.is_keep() {
+        vm_try!(stack.push(vm_try!(Value::empty())));
+    }
+
     VmResult::Ok(())
 }
 

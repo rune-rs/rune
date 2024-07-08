@@ -58,7 +58,7 @@ pub use self::guarded_args::GuardedArgs;
 
 mod inst;
 pub use self::inst::{
-    Inst, InstAddress, InstAssignOp, InstOp, InstRange, InstTarget, InstValue, InstVariant,
+    Inst, InstAddress, InstAssignOp, InstOp, InstRange, InstTarget, InstValue, InstVariant, Output,
     PanicReason, TypeCheck,
 };
 

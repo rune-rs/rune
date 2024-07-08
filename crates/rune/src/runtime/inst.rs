@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate as rune;
 use crate::alloc;
 use crate::alloc::prelude::*;
-use crate::runtime::{Call, FormatSpec, Type, Value};
+use crate::runtime::{Call, FormatSpec, Stack, Type, Value, VmResult};
 use crate::Hash;
 
 /// Pre-canned panic reasons.
@@ -105,7 +105,10 @@ pub enum Inst {
     /// <bool>
     /// => <bool>
     /// ```
-    Not,
+    Not {
+        /// Whether the produced value from the not should be kept or not.
+        out: Output,
+    },
     /// Negate the numerical value on the stack.
     ///
     /// # Operation
@@ -114,7 +117,10 @@ pub enum Inst {
     /// <number>
     /// => <number>
     /// ```
-    Neg,
+    Neg {
+        /// Whether the produced value from the negation should be kept or not.
+        out: Output,
+    },
     /// Construct a closure that takes the given number of arguments and
     /// captures `count` elements from the top of the stack.
     ///
@@ -143,6 +149,8 @@ pub enum Inst {
         call: Call,
         /// The number of arguments expected on the stack for this call.
         args: usize,
+        /// Whether the return value should be kept or not.
+        out: Output,
     },
     /// Perform a function call.
     ///
@@ -154,6 +162,8 @@ pub enum Inst {
         hash: Hash,
         /// The number of arguments expected on the stack for this call.
         args: usize,
+        /// Whether the return value should be kept or not.
+        out: Output,
     },
     /// Perform a instance function call.
     ///
@@ -165,6 +175,8 @@ pub enum Inst {
         hash: Hash,
         /// The number of arguments expected on the stack for this call.
         args: usize,
+        /// Whether the return value should be kept or not.
+        out: Output,
     },
     /// Lookup the specified instance function and put it on the stack.
     /// This might help in cases where a single instance function is called many
@@ -198,6 +210,9 @@ pub enum Inst {
     CallFn {
         /// The number of arguments expected on the stack for this call.
         args: usize,
+        /// Whether the returned value from calling the function should be kept
+        /// or not.
+        out: Output,
     },
     /// Perform an index get operation. Pushing the result on the stack.
     ///
@@ -214,6 +229,8 @@ pub enum Inst {
         target: InstAddress,
         /// How the index is addressed.
         index: InstAddress,
+        /// Whether the produced value should be kept or not.
+        out: Output,
     },
     /// Get the given index out of a tuple on the top of the stack.
     /// Errors if the item doesn't exist or the item is not a tuple.
@@ -228,6 +245,8 @@ pub enum Inst {
     TupleIndexGet {
         /// The index to fetch.
         index: usize,
+        /// Whether the produced value should be kept or not.
+        out: Output,
     },
     /// Set the given index of the tuple on the stack, with the given value.
     ///
@@ -257,6 +276,8 @@ pub enum Inst {
         offset: usize,
         /// The index to fetch.
         index: usize,
+        /// Whether the produced value should be kept or not.
+        out: Output,
     },
     /// Get the given index out of an object on the top of the stack.
     /// Errors if the item doesn't exist or the item is not an object.
@@ -274,6 +295,8 @@ pub enum Inst {
     ObjectIndexGet {
         /// The static string slot corresponding to the index to fetch.
         slot: usize,
+        /// Whether the produced value should be kept or not.
+        out: Output,
     },
     /// Set the given index out of an object on the top of the stack.
     /// Errors if the item doesn't exist or the item is not an object.
@@ -331,7 +354,10 @@ pub enum Inst {
     /// <future>
     /// => <value>
     /// ```
-    Await,
+    Await {
+        /// Whether the produced value from the await should be kept or not.
+        out: Output,
+    },
     /// Select over `len` futures on the stack. Sets the `branch` register to
     /// the index of the branch that completed. And pushes its value on the
     /// stack.
@@ -374,28 +400,6 @@ pub enum Inst {
         /// The value to push.
         value: InstValue,
     },
-    /// Pop the value on the stack, discarding its result.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// =>
-    /// ```
-    Pop,
-    /// Pop the given number of elements from the stack.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value..>
-    /// => *noop*
-    /// ```
-    #[musli(packed)]
-    PopN {
-        /// The number of elements to pop from the stack.
-        count: usize,
-    },
     /// If the stop of the stack is false, will pop the given `count` entries on
     /// the stack and jump to the given offset.
     ///
@@ -411,21 +415,6 @@ pub enum Inst {
         count: usize,
         /// The offset to jump if the condition is true.
         jump: usize,
-    },
-    /// Clean the stack by keeping the top of it, and popping `count` values
-    /// under it.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <top>
-    /// <value..>
-    /// => <top>
-    /// ```
-    #[musli(packed)]
-    Clean {
-        /// The number of entries in the stack to pop.
-        count: usize,
     },
     /// Copy a variable from a location `offset` relative to the current call
     /// frame.
@@ -996,7 +985,10 @@ pub enum Inst {
     /// <value>
     /// => <value>
     /// ```
-    Yield,
+    Yield {
+        /// Whether the produced value from the yield should be kept or not.
+        out: Output,
+    },
     /// Perform a generator yield with a unit.
     ///
     /// This causes the virtual machine to suspend itself.
@@ -1006,7 +998,10 @@ pub enum Inst {
     /// ```text
     /// => <unit>
     /// ```
-    YieldUnit,
+    YieldUnit {
+        /// Whether the produced value from the yield should be kept or not.
+        out: Output,
+    },
     /// Construct a built-in variant onto the stack.
     ///
     /// The variant will pop as many values of the stack as necessary to
@@ -1039,6 +1034,8 @@ pub enum Inst {
         a: InstAddress,
         /// The address of the second argument.
         b: InstAddress,
+        /// Whether the produced value from the operation should be kept or not.
+        out: Output,
     },
     /// A built-in operation that assigns to the left-hand side operand. Like
     /// `a += b`.
@@ -1118,6 +1115,79 @@ impl Inst {
     pub fn float(v: f64) -> Self {
         Self::Push {
             value: InstValue::Float(v),
+        }
+    }
+}
+
+/// The calling convention of a function.
+#[derive(
+    Debug, TryClone, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Encode, Decode,
+)]
+#[try_clone(copy)]
+#[non_exhaustive]
+enum OutputKind {
+    /// Push the produced value onto the stack.
+    Keep,
+    /// Discard the produced value, leaving the stack unchanged.
+    Discard,
+}
+
+/// The calling convention of a function.
+#[derive(
+    Debug, TryClone, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Encode, Decode,
+)]
+#[try_clone(copy)]
+#[non_exhaustive]
+#[musli(transparent)]
+#[serde(transparent)]
+pub struct Output {
+    kind: OutputKind,
+}
+
+impl Output {
+    /// Construct a keep output kind.
+    #[inline]
+    pub(crate) fn keep() -> Self {
+        Self {
+            kind: OutputKind::Keep,
+        }
+    }
+
+    /// Construct a discard output kind.
+    #[inline]
+    pub(crate) fn discard() -> Self {
+        Self {
+            kind: OutputKind::Discard,
+        }
+    }
+
+    /// Check if the output is a keep.
+    #[inline]
+    pub(crate) fn is_keep(&self) -> bool {
+        matches!(self.kind, OutputKind::Keep)
+    }
+
+    /// Write the current output to the provided stack.
+    #[inline]
+    pub(crate) fn store<O>(self, stack: &mut Stack, f: impl FnOnce() -> VmResult<O>) -> VmResult<()>
+    where
+        Value: TryFrom<O>,
+        alloc::Error: From<<Value as TryFrom<O>>::Error>,
+    {
+        if let OutputKind::Keep = self.kind {
+            let value = vm_try!(f());
+            vm_try!(stack.push(value));
+        }
+
+        VmResult::Ok(())
+    }
+}
+
+impl fmt::Display for Output {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.kind {
+            OutputKind::Keep => write!(f, "keep"),
+            OutputKind::Discard => write!(f, "discard"),
         }
     }
 }

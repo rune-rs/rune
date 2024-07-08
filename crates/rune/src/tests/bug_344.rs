@@ -28,7 +28,7 @@ fn bug_344_function() -> Result<()> {
 
     let mut stack = Stack::new();
     stack.push(rune::to_value(GuardCheck::new())?)?;
-    function(&mut stack, 1).into_result()?;
+    function(&mut stack, 1, Output::keep()).into_result()?;
     assert_eq!(stack.pop()?.as_integer()?, 42);
     return Ok(());
 
@@ -63,7 +63,7 @@ fn bug_344_inst_fn() -> Result<()> {
     let mut stack = Stack::new();
     stack.push(rune::to_value(GuardCheck::new())?)?;
     stack.push(rune::to_value(GuardCheck::new())?)?;
-    function(&mut stack, 2).into_result()?;
+    function(&mut stack, 2, Output::keep()).into_result()?;
 
     assert_eq!(stack.pop()?.as_integer()?, 42);
     Ok(())
@@ -85,7 +85,7 @@ fn bug_344_async_function() -> Result<()> {
 
     let mut stack = Stack::new();
     stack.push(rune::to_value(GuardCheck::new())?)?;
-    function(&mut stack, 1).into_result()?;
+    function(&mut stack, 1, Output::keep()).into_result()?;
     let future = stack.pop()?.into_future().into_result()?;
     assert_eq!(block_on(future).into_result()?.as_integer()?, 42);
     return Ok(());
@@ -121,7 +121,7 @@ fn bug_344_async_inst_fn() -> Result<()> {
     let mut stack = Stack::new();
     stack.push(rune::to_value(GuardCheck::new())?)?;
     stack.push(rune::to_value(GuardCheck::new())?)?;
-    function(&mut stack, 2).into_result()?;
+    function(&mut stack, 2, Output::keep()).into_result()?;
 
     let future = stack.pop()?.into_future().into_result()?;
     assert_eq!(block_on(future).into_result()?.as_integer()?, 42);

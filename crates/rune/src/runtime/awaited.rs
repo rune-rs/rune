@@ -1,4 +1,4 @@
-use crate::runtime::{Future, Select, ToValue, Vm, VmResult};
+use crate::runtime::{Future, Output, Select, ToValue, Vm, VmResult};
 
 /// A stored await task.
 #[derive(Debug)]
@@ -11,15 +11,22 @@ pub(crate) enum Awaited {
 
 impl Awaited {
     /// Wait for the given awaited into the specified virtual machine.
-    pub(crate) async fn into_vm(self, vm: &mut Vm) -> VmResult<()> {
+    pub(crate) async fn into_vm(self, vm: &mut Vm, out: Output) -> VmResult<()> {
         match self {
             Self::Future(future) => {
                 let value = vm_try!(future.await.with_vm(vm));
-                vm_try!(vm.stack_mut().push(value));
+
+                if out.is_keep() {
+                    vm_try!(vm.stack_mut().push(value));
+                }
             }
             Self::Select(select) => {
                 let (branch, value) = vm_try!(select.await.with_vm(vm));
-                vm_try!(vm.stack_mut().push(value));
+
+                if out.is_keep() {
+                    vm_try!(vm.stack_mut().push(value));
+                }
+
                 vm_try!(vm.stack_mut().push(vm_try!(ToValue::to_value(branch))));
             }
         }

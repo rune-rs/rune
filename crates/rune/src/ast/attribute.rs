@@ -152,24 +152,6 @@ impl Parse for AttrStyle {
     }
 }
 
-/// Helper struct to only parse inner attributes.
-#[allow(unused)]
-pub(crate) struct InnerAttribute(pub(crate) Attribute);
-
-impl Parse for InnerAttribute {
-    fn parse(p: &mut Parser) -> Result<Self> {
-        let attribute: Attribute = p.parse()?;
-
-        match attribute.style {
-            AttrStyle::Inner => Ok(Self(attribute)),
-            _ => Err(compile::Error::expected(
-                attribute,
-                "inner attribute like `#![allow(unused)]`",
-            )),
-        }
-    }
-}
-
 /// Tag struct to assist peeking for an outer `#![...]` attributes at the top of
 /// a module/file
 #[non_exhaustive]

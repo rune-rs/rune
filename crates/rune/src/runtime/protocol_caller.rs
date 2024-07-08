@@ -1,6 +1,6 @@
 use crate::runtime::vm::CallResult;
 use crate::runtime::{
-    GuardedArgs, Protocol, Stack, UnitFn, Value, Vm, VmError, VmErrorKind, VmResult,
+    GuardedArgs, Output, Protocol, Stack, UnitFn, Value, Vm, VmError, VmErrorKind, VmResult,
 };
 use crate::Hash;
 
@@ -80,7 +80,7 @@ impl ProtocolCaller for EnvProtocolCaller {
             // Safety: We hold onto the guard until the vm has completed.
             let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut stack)) };
 
-            vm_try!(handler(&mut stack, count));
+            vm_try!(handler(&mut stack, count, Output::keep()));
             VmResult::Ok(vm_try!(stack.pop()))
         });
 
@@ -103,7 +103,8 @@ impl ProtocolCaller for Vm {
     where
         A: GuardedArgs,
     {
-        if let CallResult::Unsupported(..) = vm_try!(self.call_instance_fn(target, protocol, args))
+        if let CallResult::Unsupported(..) =
+            vm_try!(self.call_instance_fn(target, protocol, args, Output::keep()))
         {
             return VmResult::err(VmErrorKind::MissingFunction {
                 hash: protocol.hash,
