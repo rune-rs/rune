@@ -794,14 +794,14 @@ impl fmt::Display for ErrorKind {
                 current,
                 existing,
             } => {
-                write!(f,"Conflicting static string for hash `{hash}`\n        between `{existing:?}` and `{current:?}`")?;
+                write!(f,"Conflicting static string for hash `{hash}` between `{existing:?}` and `{current:?}`")?;
             }
             ErrorKind::StaticBytesHashConflict {
                 hash,
                 current,
                 existing,
             } => {
-                write!(f,"Conflicting static string for hash `{hash}`\n        between `{existing:?}` and `{current:?}`")?;
+                write!(f,"Conflicting static string for hash `{hash}` between `{existing:?}` and `{current:?}`")?;
             }
             ErrorKind::StaticObjectKeysMissing { hash, slot } => {
                 write!(
@@ -816,10 +816,10 @@ impl fmt::Display for ErrorKind {
                 current,
                 existing,
             } => {
-                write!(f,"Conflicting static object keys for hash `{hash}`\n        between `{existing:?}` and `{current:?}`")?;
+                write!(f,"Conflicting static object keys for hash `{hash}` between `{existing:?}` and `{current:?}`")?;
             }
             ErrorKind::MissingLoopLabel { label } => {
-                write!(f, "Missing loop label `{label}`", label = label)?;
+                write!(f, "Missing loop label `{label}`")?;
             }
             ErrorKind::ExpectedLeadingPathSegment => {
                 write!(f, "Segment is only supported in the first position")?;
@@ -846,14 +846,10 @@ impl fmt::Display for ErrorKind {
                 write!(f, "Attribute `#[bench]` is not supported on nested items")?;
             }
             ErrorKind::MissingFunctionHash { hash } => {
-                write!(f, "Missing function with hash `{hash}`", hash = hash)?;
+                write!(f, "Missing function with hash `{hash}`")?;
             }
             ErrorKind::FunctionConflictHash { hash } => {
-                write!(
-                    f,
-                    "Conflicting function already exists `{hash}`",
-                    hash = hash
-                )?;
+                write!(f, "Conflicting function already exists `{hash}`")?;
             }
             ErrorKind::PatternMissingFields { item, .. } => {
                 write!(f, "Non-exhaustive pattern for `{item}`")?;
