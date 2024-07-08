@@ -1,0 +1,96 @@
+#[test]
+fn for_loop_accumulate() {
+    let a = 0;
+
+    for v in 0..10 {
+        a = a + 1;
+    }
+
+    assert_eq!(a, 10);
+}
+
+#[test]
+fn for_loop_condition_break() {
+    let a = 0;
+    let b = ();
+
+    let a = for v in 0..20 {
+        if a >= 10 {
+            b = a;
+            break;
+        }
+
+        a = a + 1;
+    };
+
+    assert!(a is Tuple);
+    assert_eq!(a, ());
+    assert_eq!(b, 10);
+}
+
+#[test]
+fn for_return_inside() {
+    fn function() {
+        for v in 0..20 {
+            if v == 19 {
+                return 10;
+            }
+        }
+
+        77
+    }
+
+    assert_eq!(function(), 10);
+}
+
+#[test]
+fn for_return_iter() {
+    fn function() {
+        for v in { return 10 } {
+            panic!("no");
+        }
+
+        77
+    }
+
+    assert_eq!(function(), 10);
+}
+
+#[test]
+fn for_shadow_local() {
+    let a = 0;
+
+    let a = for v in 0..100 {
+        if a >= 10 {
+            break;
+        }
+
+        a = a + 1;
+    };
+
+    assert_eq!(a, ());
+}
+
+#[test]
+fn for_shadow_local_range() {
+    let a = 0;
+    let it = 0..100;
+
+    let a = for v in it {
+        if a >= 10 {
+            break;
+        }
+
+        a = a + 1;
+    };
+
+    assert_eq!(a, ());
+}
+
+#[test]
+fn for_shadow_simple() {
+    let a = 0;
+    let b = 0..100;
+    let a = for _ in 0.. { break };
+    assert_eq!(a, ());
+}

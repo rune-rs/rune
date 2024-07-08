@@ -187,7 +187,7 @@ pub use self::expr_match::{ExprMatch, ExprMatchBranch};
 pub use self::expr_object::{ExprObject, FieldAssign, ObjectIdent, ObjectKey};
 pub use self::expr_range::{ExprRange, ExprRangeLimits};
 pub use self::expr_return::ExprReturn;
-pub use self::expr_select::{ExprSelect, ExprSelectBranch, ExprSelectPatBranch};
+pub use self::expr_select::{ExprDefaultBranch, ExprSelect, ExprSelectBranch, ExprSelectPatBranch};
 pub use self::expr_try::ExprTry;
 pub use self::expr_tuple::ExprTuple;
 pub use self::expr_unary::{ExprUnary, UnOp};

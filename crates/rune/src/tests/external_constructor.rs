@@ -25,6 +25,8 @@ fn construct_enum() -> rune::support::Result<()> {
         },
         #[rune(constructor)]
         Output(#[rune(get)] u32),
+        #[rune(constructor)]
+        Wrong,
     }
 
     fn make_module() -> Result<Module, ContextError> {
@@ -47,7 +49,7 @@ fn construct_enum() -> rune::support::Result<()> {
                     Enum::Second(value) => Enum::Output(value * 2),
                     Enum::Third => Enum::Output(3),
                     Enum::Fourth { a, b } => Enum::Output((a * b) * 4),
-                    _ => 0,
+                    _ => Enum::Wrong,
                 }
             }
         }

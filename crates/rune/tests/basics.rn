@@ -1,0 +1,59 @@
+#[test]
+fn local_assignments() {
+    let n = 0;
+
+    while n < 10 {
+        n += 1;
+    }
+
+    assert_eq!(n, 10);
+}
+
+#[test]
+fn call_function() {
+    fn foo(v) {
+        v
+    }
+
+    assert_eq!(foo(42), 42);
+    assert_ne!(foo(42), 43);
+}
+
+#[test]
+fn instance() {
+    struct Foo {
+        n,
+    }
+
+    impl Foo {
+        fn test(self, n) {
+            self.n + n
+        }
+    }
+
+    let foo = Foo { n: 42 };
+    assert_eq!(foo.test(10), 52);
+}
+
+#[test]
+fn generator() {
+    fn foo() {
+        yield 10;
+        yield 20;
+    }
+
+    let n = 0;
+
+    for v in foo() {
+        n += v;
+    }
+
+    assert_eq!(n, 30);
+}
+
+#[test]
+fn stack_allocations() {
+    let a = [1, 2].iter().collect::<Vec>();
+    let b = [1, 2];
+    assert_eq!(a, b);
+}

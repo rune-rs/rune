@@ -1,0 +1,53 @@
+#[test]
+fn loop_break_value() {
+    let value = 0;
+
+    let out = 'loop1: loop {
+        value = 1;
+
+        loop {
+            value = 2;
+            break 'loop1 3;
+        }
+    };
+
+    assert_eq!(out, 3);
+    assert_eq!(value, 2);
+}
+
+#[test]
+fn loop_break_without_value() {
+    let value = 0;
+
+    let out = 'loop1: loop {
+        value = 1;
+
+        loop {
+            value = 2;
+            break 'loop1;
+        }
+    };
+
+    assert_eq!(out, ());
+    assert_eq!(value, 2);
+}
+
+#[test]
+fn loop_break_without_label() {
+    let value = 0;
+
+    let out = 'loop1: loop {
+        value = 1;
+
+        loop {
+            value = 2;
+            break;
+        }
+
+        value = 3;
+        break;
+    };
+
+    assert_eq!(out, ());
+    assert_eq!(value, 3);
+}

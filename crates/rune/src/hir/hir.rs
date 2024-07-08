@@ -40,7 +40,7 @@ impl fmt::Display for OwnedName {
 }
 
 /// A captured variable.
-#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[try_clone(copy)]
 pub(crate) enum Name<'hir> {
     /// Capture of the `self` value.
@@ -74,7 +74,17 @@ impl<'hir> Name<'hir> {
 impl fmt::Display for Name<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Name::SelfValue => "self".fmt(f),
+            Name::SelfValue => write!(f, "self"),
+            Name::Str(name) => name.fmt(f),
+            Name::Id(id) => id.fmt(f),
+        }
+    }
+}
+
+impl fmt::Debug for Name<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Name::SelfValue => write!(f, "self"),
             Name::Str(name) => name.fmt(f),
             Name::Id(id) => id.fmt(f),
         }
@@ -91,6 +101,18 @@ pub(crate) struct Pat<'hir> {
     pub(crate) span: Span,
     /// The kind of the pattern.
     pub(crate) kind: PatKind<'hir>,
+}
+
+/// A pattern with collected bindings.
+#[derive(Debug, TryClone, Clone, Copy, Spanned)]
+#[try_clone(copy)]
+#[non_exhaustive]
+pub(crate) struct PatBinding<'hir> {
+    /// The kind of the pattern.
+    #[rune(span)]
+    pub(crate) pat: Pat<'hir>,
+    /// Names that will be defined by this pattern.
+    pub(crate) names: &'hir [Name<'hir>],
 }
 
 #[derive(Debug, TryClone, Clone, Copy)]
@@ -323,7 +345,7 @@ pub(crate) struct ExprFor<'hir> {
     pub(crate) label: Option<&'hir str>,
     /// The pattern binding to use.
     /// Non-trivial pattern bindings will panic if the value doesn't match.
-    pub(crate) binding: Pat<'hir>,
+    pub(crate) binding: PatBinding<'hir>,
     /// Expression producing the iterator.
     pub(crate) iter: Expr<'hir>,
     /// The body of the loop.
@@ -339,7 +361,7 @@ pub(crate) struct ExprFor<'hir> {
 #[non_exhaustive]
 pub(crate) struct ExprLet<'hir> {
     /// The name of the binding.
-    pub(crate) pat: Pat<'hir>,
+    pub(crate) pat: PatBinding<'hir>,
     /// The expression the binding is assigned to.
     pub(crate) expr: Expr<'hir>,
 }
@@ -355,8 +377,10 @@ pub(crate) struct ExprLet<'hir> {
 #[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct Conditional<'hir> {
-    /// Else if branches.
+    /// Conditional branches.
     pub(crate) branches: &'hir [ConditionalBranch<'hir>],
+    /// Fallback branches.
+    pub(crate) fallback: Option<&'hir Block<'hir>>,
 }
 
 /// An else branch of an if expression.
@@ -369,7 +393,7 @@ pub(crate) struct ConditionalBranch<'hir> {
     pub(crate) span: Span,
     /// The condition for the branch. Empty condition means that this is the
     /// fallback branch.
-    pub(crate) condition: Option<&'hir Condition<'hir>>,
+    pub(crate) condition: &'hir Condition<'hir>,
     /// The body of the else statement.
     pub(crate) block: Block<'hir>,
     /// Variables that have been defined by the conditional header.
@@ -397,7 +421,7 @@ pub(crate) struct ExprMatchBranch<'hir> {
     #[rune(span)]
     pub(crate) span: Span,
     /// The pattern to match.
-    pub(crate) pat: Pat<'hir>,
+    pub(crate) pat: PatBinding<'hir>,
     /// The branch condition.
     pub(crate) condition: Option<&'hir Expr<'hir>>,
     /// The body of the match.
@@ -557,30 +581,21 @@ pub(crate) struct ExprContinue<'hir> {
 #[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct ExprSelect<'hir> {
+    /// The expressions associated with non-default branches.
+    pub(crate) exprs: &'hir [Expr<'hir>],
     /// The branches of the select.
     pub(crate) branches: &'hir [ExprSelectBranch<'hir>],
+    /// The expresssion associated with the default branch.
+    pub(crate) default: Option<&'hir Expr<'hir>>,
 }
 
 /// A single selection branch.
 #[derive(Debug, TryClone, Clone, Copy)]
 #[try_clone(copy)]
 #[non_exhaustive]
-pub(crate) enum ExprSelectBranch<'hir> {
-    /// A patterned branch.
-    Pat(&'hir ExprSelectPatBranch<'hir>),
-    /// A default branch.
-    Default(&'hir Expr<'hir>),
-}
-
-/// A single selection branch.
-#[derive(Debug, TryClone, Clone, Copy)]
-#[try_clone(copy)]
-#[non_exhaustive]
-pub(crate) struct ExprSelectPatBranch<'hir> {
+pub(crate) struct ExprSelectBranch<'hir> {
     /// The identifier to bind the result to.
-    pub(crate) pat: Pat<'hir>,
-    /// The expression that should evaluate to a future.
-    pub(crate) expr: Expr<'hir>,
+    pub(crate) pat: PatBinding<'hir>,
     /// The body of the expression.
     pub(crate) body: Expr<'hir>,
     /// Variables that need to be dropped by the end of this block.
@@ -684,6 +699,16 @@ pub(crate) enum Condition<'hir> {
     ExprLet(&'hir ExprLet<'hir>),
 }
 
+impl Condition<'_> {
+    /// The number of variables which would be defined by this condition.
+    pub(crate) fn count(&self) -> Option<usize> {
+        match self {
+            Condition::Expr(_) => None,
+            Condition::ExprLet(hir) => Some(hir.pat.names.len()),
+        }
+    }
+}
+
 #[derive(Debug, TryClone, Clone, Copy, Spanned)]
 #[try_clone(copy)]
 #[non_exhaustive]
@@ -705,7 +730,7 @@ pub(crate) enum FnArg<'hir> {
     /// The `self` parameter.
     SelfValue(Span),
     /// Function argument is a pattern binding.
-    Pat(&'hir Pat<'hir>),
+    Pat(&'hir PatBinding<'hir>),
 }
 
 /// A block of statements.
@@ -716,6 +741,8 @@ pub(crate) struct Block<'hir> {
     /// The span of the block.
     #[rune(span)]
     pub(crate) span: Span,
+    /// A label for the block.
+    pub(crate) label: Option<&'hir str>,
     /// Statements in the block.
     pub(crate) statements: &'hir [Stmt<'hir>],
     /// Default value produced by the block.
@@ -752,7 +779,7 @@ pub(crate) struct Local<'hir> {
     #[rune(span)]
     pub(crate) span: Span,
     /// The name of the binding.
-    pub(crate) pat: Pat<'hir>,
+    pub(crate) pat: PatBinding<'hir>,
     /// The expression the binding is assigned to.
     pub(crate) expr: Expr<'hir>,
 }

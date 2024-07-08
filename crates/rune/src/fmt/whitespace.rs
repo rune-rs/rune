@@ -25,6 +25,7 @@ pub(super) fn gather_empty_line_spans(source: &str) -> Result<Vec<EmptyLine>, Fo
                     span: Span::new(line_start, i + 1),
                 })?;
             }
+
             line_start = i + 1;
             line_was_empty = true;
         } else if c.is_whitespace() {

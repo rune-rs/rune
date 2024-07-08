@@ -1,0 +1,48 @@
+#[test]
+fn block_break() {
+    let value = 0;
+
+    let out = 'block1: {
+        if value == 0 {
+            break 'block1 10;
+        }
+
+        77
+    };
+
+    assert_eq!(out, 10);
+}
+
+#[test]
+fn block_inner_break() {
+    let value = 0;
+
+    let out = 'block1: {
+        'block2: {
+            if value == 0 {
+                break 'block1 10;
+            }
+        }
+
+        77
+    };
+
+    assert_eq!(out, 10);
+}
+
+#[test]
+fn block_inner_break2() {
+    let value = 0;
+
+    let out = 'block1: {
+        let value = 'block2: {
+            if value == 0 {
+                break 'block2 10;
+            }
+        };
+
+        77 + value
+    };
+
+    assert_eq!(out, 87);
+}

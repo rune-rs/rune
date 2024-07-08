@@ -1,3 +1,5 @@
+use crate as rune;
+
 use core::cmp::{Eq, Ordering, PartialEq};
 use core::hash;
 use core::ops::ControlFlow;

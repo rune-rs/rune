@@ -213,7 +213,7 @@ pub use self::build::{prepare, Build, BuildError};
 
 pub mod compile;
 #[doc(inline)]
-pub use self::compile::{Context, ContextError, Options};
+pub use self::compile::{Context, ContextError, Item, ItemBuf, Options};
 
 pub mod module;
 #[doc(inline)]
@@ -596,7 +596,13 @@ pub use rune_macros::macro_;
 pub use rune_macros::attribute_macro;
 
 /// Macro used to annotate a module with metadata.
+#[doc(inline)]
 pub use rune_macros::module;
+
+#[doc(inline)]
+pub use rune_macros::hash;
+
+pub use rune_macros::item;
 
 cfg_cli! {
     pub mod cli;

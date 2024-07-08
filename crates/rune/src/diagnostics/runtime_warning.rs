@@ -52,7 +52,7 @@ cfg_std! {
 #[derive(Debug)]
 #[allow(missing_docs)]
 #[non_exhaustive]
-pub enum RuntimeWarningDiagnosticKind {
+pub(crate) enum RuntimeWarningDiagnosticKind {
     UsedDeprecated {
         /// The hash which produced the deprecation
         hash: Hash,

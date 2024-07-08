@@ -12,6 +12,12 @@ use super::indent_writer::SpanInjectionWriter;
 
 type Result<T> = core::result::Result<T, FormattingError>;
 
+enum ItemKind {
+    None,
+    Compact,
+    Group,
+}
+
 pub(super) struct Printer<'a> {
     writer: SpanInjectionWriter<'a>,
     source: &'a str,
@@ -867,14 +873,17 @@ impl<'a> Printer<'a> {
         self.writer.write_spanned_raw(select.span, false, true)?;
         self.writer.write_spanned_raw(open.span, true, false)?;
         self.writer.indent();
+
         for (branch, comma) in branches {
             self.visit_select_branch(branch)?;
+
             if let Some(comma) = comma {
                 self.writer.write_spanned_raw(comma.span, true, false)?;
             } else {
                 self.writer.write_unspanned(",\n")?;
             }
         }
+
         self.writer.dedent();
 
         self.writer.write_spanned_raw(close.span, false, false)?;
@@ -885,7 +894,7 @@ impl<'a> Printer<'a> {
     fn visit_select_branch(&mut self, ast: &ast::ExprSelectBranch) -> Result<()> {
         match ast {
             ast::ExprSelectBranch::Pat(pat) => self.visit_select_pattern(pat)?,
-            ast::ExprSelectBranch::Default(_default) => write!(self.writer, "default")?,
+            ast::ExprSelectBranch::Default(default) => self.visit_select_default(default)?,
         }
 
         Ok(())
@@ -907,7 +916,20 @@ impl<'a> Printer<'a> {
         self.writer.write_unspanned(" ")?;
         self.writer.write_spanned_raw(rocket.span, false, true)?;
         self.visit_expr(body)?;
+        Ok(())
+    }
 
+    fn visit_select_default(&mut self, ast: &ast::ExprDefaultBranch) -> Result<()> {
+        let ast::ExprDefaultBranch {
+            default,
+            rocket,
+            body,
+        } = ast;
+
+        self.writer.write_spanned_raw(default.span, false, true)?;
+        self.writer.write_unspanned(" ")?;
+        self.writer.write_spanned_raw(rocket.span, false, true)?;
+        self.visit_expr(body)?;
         Ok(())
     }
 
@@ -1746,6 +1768,7 @@ impl<'a> Printer<'a> {
             async_token,
             const_token,
             move_token,
+            label,
             block,
         } = ast;
 
@@ -1768,6 +1791,11 @@ impl<'a> Printer<'a> {
                 .write_spanned_raw(move_token.span, false, true)?;
         }
 
+        if let Some((label, colon)) = label {
+            self.writer.write_spanned_raw(label.span, false, false)?;
+            self.writer.write_spanned_raw(colon.span, false, true)?;
+        }
+
         self.visit_block(block)
     }
 
@@ -1780,34 +1808,62 @@ impl<'a> Printer<'a> {
         } = ast;
 
         self.writer.write_spanned_raw(open.span, true, false)?;
-
         self.writer.indent();
+
+        let mut last_item = ItemKind::None;
+        let mut first = true;
+
         for statement in statements {
-            self.visit_statement(statement)?;
+            self.visit_statement(statement, &mut last_item, take(&mut first))?;
         }
 
-        self.writer.write_queued_spans(close.span.start)?;
+        self.writer
+            .write_queued_spans(close.span.start, usize::MAX)?;
         self.writer.dedent();
         self.writer.write_spanned_raw(close.span, false, false)?;
 
         Ok(())
     }
 
-    fn visit_statement(&mut self, ast: &ast::Stmt) -> Result<()> {
+    fn visit_statement(
+        &mut self,
+        ast: &ast::Stmt,
+        last_item: &mut ItemKind,
+        first: bool,
+    ) -> Result<()> {
         match ast {
             ast::Stmt::Local(local) => {
                 self.visit_local(local)?;
                 self.writer.newline()?;
+                *last_item = ItemKind::None;
             }
             ast::Stmt::Item(item, semi) => {
-                self.visit_item(item, *semi)?;
-                if !matches!(item, ast::Item::Const(_) | ast::Item::Fn(_)) {
-                    self.writer.newline()?;
+                let item_kind = match item {
+                    ast::Item::Use(_) | ast::Item::Const(_) => ItemKind::Compact,
+                    _ => ItemKind::Group,
+                };
+
+                if !first
+                    && matches!(
+                        (&*last_item, &item_kind),
+                        (ItemKind::Group, _) | (ItemKind::None, ItemKind::Group)
+                    )
+                {
+                    let span = ast.span();
+                    let empties = self.writer.write_queued_spans(span.start, 1)?;
+
+                    if empties == 0 {
+                        self.writer.newline()?;
+                    }
                 }
+
+                self.visit_item(item, *semi)?;
+                *last_item = item_kind;
             }
             ast::Stmt::Expr(expr) => {
                 self.visit_expr(expr)?;
                 self.writer.newline()?;
+                *last_item = ItemKind::None;
             }
             ast::Stmt::Semi(semi) => {
                 let ast::StmtSemi { expr, semi_token } = semi;
@@ -1816,6 +1872,7 @@ impl<'a> Printer<'a> {
                 self.writer
                     .write_spanned_raw(semi_token.span, false, false)?;
                 self.writer.newline()?;
+                *last_item = ItemKind::None;
             }
         }
 
@@ -1986,6 +2043,7 @@ impl<'a> Printer<'a> {
 
                 for (item, comma) in braced {
                     self.visit_item_use_path(item, *comma)?;
+
                     if let Some(comma) = comma {
                         self.writer.write_spanned_raw(comma.span, false, true)?;
                     } else {

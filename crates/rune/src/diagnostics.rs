@@ -33,10 +33,12 @@
 pub use self::fatal::{FatalDiagnostic, FatalDiagnosticKind};
 mod fatal;
 
-pub use self::warning::{WarningDiagnostic, WarningDiagnosticKind};
+pub use self::warning::WarningDiagnostic;
+pub(crate) use self::warning::WarningDiagnosticKind;
 mod warning;
 
-pub use self::runtime_warning::{RuntimeWarningDiagnostic, RuntimeWarningDiagnosticKind};
+pub use self::runtime_warning::RuntimeWarningDiagnostic;
+pub(crate) use self::runtime_warning::RuntimeWarningDiagnosticKind;
 mod runtime_warning;
 
 use ::rust_alloc::boxed::Box;
@@ -46,11 +48,13 @@ use crate::alloc::{self, Vec};
 use crate::ast::{Span, Spanned};
 use crate::{Hash, SourceId};
 
-cfg_emit! {
-    mod emit;
-    #[doc(inline)]
-    pub use self::emit::EmitError;
-}
+#[cfg(feature = "emit")]
+#[cfg_attr(rune_docsrs, doc(cfg(feature = "emit")))]
+mod emit;
+#[cfg(feature = "emit")]
+#[cfg_attr(rune_docsrs, doc(cfg(feature = "emit")))]
+#[doc(inline)]
+pub use self::emit::EmitError;
 
 /// A single diagnostic.
 #[derive(Debug)]
@@ -210,6 +214,22 @@ impl Diagnostics {
             WarningDiagnosticKind::NotUsed {
                 span: span.span(),
                 context,
+            },
+        )
+    }
+
+    /// Indicate that a value is produced but never used.
+    pub(crate) fn unreachable(
+        &mut self,
+        source_id: SourceId,
+        span: &dyn Spanned,
+        cause: &dyn Spanned,
+    ) -> alloc::Result<()> {
+        self.warning(
+            source_id,
+            WarningDiagnosticKind::Unreachable {
+                span: span.span(),
+                cause: cause.span(),
             },
         )
     }

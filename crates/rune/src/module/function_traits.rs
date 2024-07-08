@@ -5,13 +5,13 @@ use core::future::Future;
 
 use crate::hash::Hash;
 use crate::runtime::{
-    self, FromValue, FullTypeOf, MaybeTypeOf, Stack, ToValue, TypeInfo, TypeOf, UnsafeToMut,
-    UnsafeToRef, Value, VmErrorKind, VmResult,
+    self, FromValue, FullTypeOf, InstAddress, MaybeTypeOf, Output, Stack, ToValue, TypeInfo,
+    TypeOf, UnsafeToMut, UnsafeToRef, Value, VmErrorKind, VmResult,
 };
 
 // Expand to function variable bindings.
-macro_rules! drain_stack {
-    ($count:expr, $add:expr, $stack:ident, $args:ident, $($from_fn:path, $var:ident, $num:expr),* $(,)?) => {
+macro_rules! access_stack {
+    ($count:expr, $add:expr, $stack:ident, $addr:ident, $args:ident, $($from_fn:path, $var:ident, $num:expr),* $(,)?) => {
         if $args != $count + $add {
             return VmResult::err(VmErrorKind::BadArgumentCount {
                 actual: $args,
@@ -19,7 +19,8 @@ macro_rules! drain_stack {
             });
         }
 
-        let [$($var,)*] = vm_try!($stack.drain_vec($count + $add));
+        let [$($var,)*] = vm_try!($stack.array_at($addr));
+        $(let $var = Clone::clone($var);)*
 
         $(
             let $var = vm_try!($from_fn($var).with_error(|| VmErrorKind::BadArgument {
@@ -71,7 +72,13 @@ pub trait Function<A, K>: 'static + Send + Sync {
 
     /// Perform the vm call.
     #[doc(hidden)]
-    fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()>;
+    fn fn_call(
+        &self,
+        stack: &mut Stack,
+        addr: InstAddress,
+        args: usize,
+        out: Output,
+    ) -> VmResult<()>;
 }
 
 /// Trait used to provide the [`associated_function`] function.
@@ -92,7 +99,13 @@ pub trait InstanceFunction<A, K>: 'static + Send + Sync {
 
     /// Perform the vm call.
     #[doc(hidden)]
-    fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()>;
+    fn fn_call(
+        &self,
+        stack: &mut Stack,
+        addr: InstAddress,
+        args: usize,
+        out: Output,
+    ) -> VmResult<()>;
 }
 
 macro_rules! impl_instance_function_traits {
@@ -110,8 +123,9 @@ macro_rules! impl_instance_function_traits {
                 <T as Function<(Instance, $($ty,)*), Kind>>::args()
             }
 
-            fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
-                Function::fn_call(self, stack, args)
+            #[inline]
+            fn fn_call(&self, stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
+                Function::fn_call(self, stack, addr, args, out)
             }
         }
     };
@@ -238,16 +252,16 @@ macro_rules! impl_function_traits {
             }
 
             #[allow(clippy::drop_non_drop)]
-            fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
-                drain_stack!($count, 0, stack, args, $($from_fn, $var, $num,)*);
+            fn fn_call(&self, stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
+                access_stack!($count, 0, stack, addr, args, $($from_fn, $var, $num,)*);
 
                 // Safety: We hold a reference to the stack, so we can guarantee
                 // that it won't be modified.
                 let ret = self($($var.0),*);
                 $(drop($var.1);)*
 
-                let ret = vm_try!(ToValue::to_value(ret));
-                vm_try!(stack.push(ret));
+                let value = vm_try!(ToValue::to_value(ret));
+                vm_try!(out.store(stack, value));
                 VmResult::Ok(())
             }
         }
@@ -266,8 +280,8 @@ macro_rules! impl_function_traits {
             }
 
             #[allow(clippy::drop_non_drop)]
-            fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
-                drain_stack!($count, 0, stack, args, $($from_fn, $var, $num,)*);
+            fn fn_call(&self, stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
+                access_stack!($count, 0, stack, addr, args, $($from_fn, $var, $num,)*);
 
                 let fut = self($($var.0),*);
                 // Note: we may drop any produced reference guard here since the
@@ -281,7 +295,8 @@ macro_rules! impl_function_traits {
                     VmResult::Ok(vm_try!(output.to_value()))
                 }));
 
-                vm_try!(stack.push(vm_try!(Value::try_from(ret))));
+                let value = vm_try!(Value::try_from(ret));
+                vm_try!(out.store(stack, value));
                 VmResult::Ok(())
             }
         }

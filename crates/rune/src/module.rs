@@ -72,8 +72,9 @@ impl InternalEnum {
     where
         C: Function<A, Plain>,
     {
-        let constructor: Arc<FunctionHandler> =
-            Arc::new(move |stack, args| constructor.fn_call(stack, args));
+        let constructor: Arc<FunctionHandler> = Arc::new(move |stack, addr, args, output| {
+            constructor.fn_call(stack, addr, args, output)
+        });
 
         self.variants.try_push(Variant {
             name,
@@ -477,8 +478,8 @@ where
             });
         }
 
-        *self.constructor = Some(Arc::new(move |stack, args| {
-            constructor.fn_call(stack, args)
+        *self.constructor = Some(Arc::new(move |stack, addr, args, output| {
+            constructor.fn_call(stack, addr, args, output)
         }));
 
         Ok(self)
@@ -733,8 +734,8 @@ where
             });
         }
 
-        *self.constructor = Some(Arc::new(move |stack, args| {
-            constructor.fn_call(stack, args)
+        *self.constructor = Some(Arc::new(move |stack, addr, args, output| {
+            constructor.fn_call(stack, addr, args, output)
         }));
 
         Ok(self)

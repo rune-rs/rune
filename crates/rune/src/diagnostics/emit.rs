@@ -146,7 +146,12 @@ impl Diagnostics {
                 }
                 Diagnostic::RuntimeWarning(w) => {
                     runtime_warning_diagnostics_emit(
-                        w, out, sources, &config, debug_info, Some(context),
+                        w,
+                        out,
+                        sources,
+                        &config,
+                        debug_info,
+                        Some(context),
                     )?;
                 }
             }
@@ -373,7 +378,7 @@ impl Unit {
         &self,
         out: &mut O,
         sources: &Sources,
-        with_source: bool,
+        without_source: bool,
     ) -> io::Result<()>
     where
         O: WriteColor,
@@ -391,11 +396,15 @@ impl Unit {
                 writeln!(out, "fn {} ({}):", signature, hash)?;
             }
 
-            if with_source {
+            if !without_source {
                 if let Some((source, span)) =
                     debug.and_then(|d| sources.get(d.source_id).map(|s| (s, d.span)))
                 {
-                    source.emit_source_line(out, span)?;
+                    if let Some(line) = source.source_line(span) {
+                        write!(out, "  ")?;
+                        line.write(out)?;
+                        writeln!(out)?;
+                    }
                 }
             }
 
@@ -418,35 +427,62 @@ impl Unit {
 
 impl Source {
     /// Print formatted diagnostics about a source conveniently.
-    pub fn emit_source_line<O>(&self, out: &mut O, span: Span) -> io::Result<()>
-    where
-        O: WriteColor,
-    {
+    pub fn source_line(&self, span: Span) -> Option<SourceLine<'_>> {
+        let (count, column, line, span) = line_for(self, span)?;
+
+        Some(SourceLine {
+            name: self.name(),
+            count,
+            column,
+            line,
+            span,
+        })
+    }
+}
+
+/// An extracted source line.
+pub struct SourceLine<'a> {
+    name: &'a str,
+    count: usize,
+    column: usize,
+    line: &'a str,
+    span: Span,
+}
+
+impl SourceLine<'_> {
+    /// Write a source line to the given output.
+    pub fn write(&self, o: &mut dyn WriteColor) -> io::Result<()> {
         let mut highlight = termcolor::ColorSpec::new();
-        highlight.set_fg(Some(termcolor::Color::Blue));
+        highlight.set_fg(Some(termcolor::Color::Yellow));
 
-        let diagnostics = line_for(self, span);
+        let mut new_line = termcolor::ColorSpec::new();
+        new_line.set_fg(Some(termcolor::Color::Red));
 
-        if let Some((count, line, span)) = diagnostics {
-            let line = line.trim_end();
-            let end = usize::min(span.end.into_usize(), line.len());
+        let line = self.line.trim_end();
+        let end = self.span.end.into_usize().min(line.len());
 
-            let before = &line[0..span.start.into_usize()];
-            let inner = &line[span.start.into_usize()..end];
-            let after = &line[end..];
+        let before = &line[0..self.span.start.into_usize()].trim_start();
+        let inner = &line[self.span.start.into_usize()..end];
+        let after = &line[end..];
 
-            write!(out, "  {}:{: <3} - {}", self.name(), count + 1, before,)?;
+        {
+            let name = self.name;
+            let column = self.count + 1;
+            let start = self.column + 1;
+            let end = start + inner.chars().count();
+            write!(o, "{name}:{column}:{start}-{end}: ")?;
+        }
 
-            out.set_color(&highlight)?;
-            write!(out, "{}", inner)?;
-            out.reset()?;
-            write!(out, "{}", after)?;
+        write!(o, "{before}")?;
+        o.set_color(&highlight)?;
+        write!(o, "{inner}")?;
+        o.reset()?;
+        write!(o, "{after}")?;
 
-            if span.end != end {
-                write!(out, " .. trimmed")?;
-            }
-
-            writeln!(out)?;
+        if self.span.end != end {
+            o.set_color(&new_line)?;
+            write!(o, "\\n")?;
+            o.reset()?;
         }
 
         Ok(())
@@ -454,7 +490,7 @@ impl Source {
 }
 
 /// Get the line number and source line for the given source and span.
-pub fn line_for(source: &Source, span: Span) -> Option<(usize, &str, Span)> {
+pub fn line_for(source: &Source, span: Span) -> Option<(usize, usize, &str, Span)> {
     let line_starts = source.line_starts();
 
     let line = match line_starts.binary_search(&span.start.into_usize()) {
@@ -471,10 +507,18 @@ pub fn line_for(source: &Source, span: Span) -> Option<(usize, &str, Span)> {
         source.get(start..)?
     };
 
+    let line_end = span.start.into_usize().saturating_sub(start);
+    let column = s
+        .get(..line_end)
+        .into_iter()
+        .flat_map(|s| s.chars())
+        .count();
+
     let start = start.try_into().unwrap();
 
     Some((
         line,
+        column,
         s,
         Span::new(
             span.start.saturating_sub(start),
@@ -518,6 +562,12 @@ where
                 writeln!(note, "Hint: Rewrite to `{}`", variant)?;
                 notes.push(note.into_std());
             }
+        }
+        WarningDiagnosticKind::Unreachable { cause, .. } => {
+            labels.push(
+                d::Label::secondary(this.source_id(), cause.range())
+                    .with_message("This code diverges"),
+            );
         }
         _ => {}
     };

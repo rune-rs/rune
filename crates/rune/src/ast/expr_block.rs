@@ -16,6 +16,10 @@ fn ast_parse() {
     let expr = rt::<ast::ExprBlock>("async { 42 }");
     assert_eq!(expr.block.statements.len(), 1);
 
+    let expr = rt::<ast::ExprBlock>("'foo: { 42 }");
+    assert_eq!(expr.block.statements.len(), 1);
+    assert!(expr.label.is_some());
+
     let expr = rt::<ast::ExprBlock>("#[retry] async { 42 }");
     assert_eq!(expr.block.statements.len(), 1);
     assert_eq!(expr.attributes.len(), 1);
@@ -26,8 +30,7 @@ fn ast_parse() {
 /// * `<block>`.
 /// * `async <block>`.
 /// * `const <block>`.
-#[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned)]
-#[rune(parse = "meta_only")]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprBlock {
     /// The attributes for the block.
@@ -42,6 +45,9 @@ pub struct ExprBlock {
     /// The optional move token.
     #[rune(iter, meta)]
     pub move_token: Option<T![move]>,
+    /// An optional label for the block.
+    #[rune(iter)]
+    pub label: Option<(ast::Label, T![:])>,
     /// The close brace.
     pub block: ast::Block,
 }

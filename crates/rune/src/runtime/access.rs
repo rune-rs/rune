@@ -161,6 +161,13 @@ cfg_std! {
 #[repr(transparent)]
 pub struct Snapshot(usize);
 
+impl Snapshot {
+    /// Test if the snapshot indicates that the value is readable.
+    pub(crate) fn is_readable(&self) -> bool {
+        self.0 & MASK == 0
+    }
+}
+
 impl fmt::Display for Snapshot {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.0 >> 1 {

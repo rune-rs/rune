@@ -225,83 +225,6 @@ fn test_loop() {
 }
 
 #[test]
-fn test_for() {
-    let out: i64 = rune! {
-        use std::iter::range;
-
-        pub fn main() {
-            let a = 0;
-            let it = range(0, 10);
-
-            for v in it {
-                a = a + 1;
-            }
-
-            a
-        }
-    };
-    assert_eq!(out, 10);
-
-    let out: i64 = rune! {
-        use std::iter::range;
-
-        pub fn main() {
-            let a = 0;
-            let it = range(0, 100);
-
-            let a = for v in it {
-                if a >= 10 {
-                    break a;
-                }
-
-                a = a + 1;
-            };
-
-            a
-        }
-    };
-    assert_eq!(out, 10);
-
-    let out: bool = rune! {
-        use std::iter::range;
-
-        pub fn main() {
-            let a = 0;
-            let it = range(0, 100);
-
-            let a = for v in it {
-                if a >= 10 {
-                    break;
-                }
-
-                a = a + 1;
-            };
-
-            a is Tuple
-        }
-    };
-    assert_eq!(out, true);
-}
-
-#[test]
-fn test_return() {
-    let out: i64 = rune! {
-        use std::iter::range;
-
-        pub fn main() {
-            for v in range(0, 20) {
-                if v == 10 {
-                    return v;
-                }
-            }
-
-            0
-        }
-    };
-    assert_eq!(out, 10);
-}
-
-#[test]
 fn test_is() {
     let out: bool = rune!(pub fn main() { {} is Object });
     assert!(!out);
@@ -355,6 +278,7 @@ fn test_destructuring() {
             a + b
         }
     };
+
     assert_eq!(out, 7);
 }
 
@@ -491,39 +415,6 @@ fn test_variants_as_functions() {
         }
     };
     assert_eq!(out, 3);
-}
-
-#[test]
-fn test_iter_drop() {
-    let out: i64 = rune! {
-        pub fn main() {
-            let sum = 0;
-            let values = [1, 2, 3, 4];
-
-            for v in values.iter() {
-                break;
-            }
-
-            values.push(5);
-
-            for v in values.iter() {
-                sum += v;
-
-                if v == 2 {
-                    break;
-                }
-            }
-
-            values.push(6);
-
-            for v in values.iter() {
-                sum += v;
-            }
-
-            sum
-        }
-    };
-    assert_eq!(out, 24);
 }
 
 #[test]

@@ -1448,7 +1448,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
                         self.borrow(),
                         item_meta.location.source_id,
                     )?;
-                    let hir = crate::hir::lowering::block(&mut hir_ctx, &c.ast)?;
+                    let hir = crate::hir::lowering::block(&mut hir_ctx, None, &c.ast)?;
 
                     let mut cx = ir::Ctxt {
                         source_id: item_meta.location.source_id,

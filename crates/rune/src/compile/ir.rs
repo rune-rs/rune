@@ -188,8 +188,12 @@ impl IrFn {
         let mut args = Vec::new();
 
         for arg in hir.args {
-            if let hir::FnArg::Pat(hir::Pat {
-                kind: hir::PatKind::Path(&hir::PatPathKind::Ident(name)),
+            if let hir::FnArg::Pat(hir::PatBinding {
+                pat:
+                    hir::Pat {
+                        kind: hir::PatKind::Path(&hir::PatPathKind::Ident(name)),
+                        ..
+                    },
                 ..
             }) = arg
             {

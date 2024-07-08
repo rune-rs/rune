@@ -279,6 +279,18 @@ impl From<Vec<u8>> for Bytes {
 }
 
 #[cfg(feature = "alloc")]
+impl TryFrom<&[u8]> for Bytes {
+    type Error = alloc::Error;
+
+    #[inline]
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        let mut bytes = Vec::try_with_capacity(value.len())?;
+        bytes.try_extend_from_slice(value)?;
+        Ok(Self { bytes })
+    }
+}
+
+#[cfg(feature = "alloc")]
 impl TryFrom<::rust_alloc::vec::Vec<u8>> for Bytes {
     type Error = alloc::Error;
 

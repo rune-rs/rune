@@ -41,7 +41,7 @@ impl WarningDiagnostic {
             | WarningDiagnosticKind::NotUsed { context, .. }
             | WarningDiagnosticKind::UsedDeprecated { context, .. }
             | WarningDiagnosticKind::TemplateWithoutExpansions { context, .. } => *context,
-            WarningDiagnosticKind::UnnecessarySemiColon { .. } => None,
+            _ => None,
         }
     }
 }
@@ -51,6 +51,7 @@ impl Spanned for WarningDiagnostic {
     fn span(&self) -> Span {
         match &self.kind {
             WarningDiagnosticKind::NotUsed { span, .. } => *span,
+            WarningDiagnosticKind::Unreachable { span, .. } => *span,
             WarningDiagnosticKind::LetPatternMightPanic { span, .. } => *span,
             WarningDiagnosticKind::TemplateWithoutExpansions { span, .. } => *span,
             WarningDiagnosticKind::RemoveTupleCallParams { span, .. } => *span,
@@ -80,13 +81,20 @@ cfg_std! {
 #[derive(Debug)]
 #[allow(missing_docs)]
 #[non_exhaustive]
-pub enum WarningDiagnosticKind {
+pub(crate) enum WarningDiagnosticKind {
     /// Item identified by the span is not used.
     NotUsed {
         /// The span that is not used.
         span: Span,
         /// The context in which the value was not used.
         context: Option<Span>,
+    },
+    /// Unreachable code.
+    Unreachable {
+        /// The span that is not used.
+        span: Span,
+        /// The span which caused the code to be unreachable.
+        cause: Span,
     },
     /// Warning that an unconditional let pattern will panic if it doesn't
     /// match.
@@ -122,7 +130,7 @@ pub enum WarningDiagnosticKind {
         span: Span,
         /// The context in which it is used.
         context: Option<Span>,
-        /// The defined deprecation message
+        /// Deprecated message.
         message: String,
     },
 }
@@ -131,6 +139,7 @@ impl fmt::Display for WarningDiagnosticKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             WarningDiagnosticKind::NotUsed { .. } => write!(f, "Not used"),
+            WarningDiagnosticKind::Unreachable { .. } => write!(f, "Unreachable code"),
             WarningDiagnosticKind::LetPatternMightPanic { .. } => {
                 write!(f, "Pattern might panic")
             }
@@ -144,8 +153,8 @@ impl fmt::Display for WarningDiagnosticKind {
             WarningDiagnosticKind::UnnecessarySemiColon { .. } => {
                 write!(f, "Unnecessary semicolon")
             }
-            WarningDiagnosticKind::UsedDeprecated { .. } => {
-                write!(f, "Used deprecated function")
+            WarningDiagnosticKind::UsedDeprecated { message, .. } => {
+                write!(f, "Used deprecated function: {message}")
             }
         }
     }
