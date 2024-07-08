@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use rune::T;
 use rune_macros::*;
 
