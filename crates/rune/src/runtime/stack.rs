@@ -167,7 +167,7 @@ impl Stack {
     where
         T: TryInto<Value, Error: Into<alloc::Error>>,
     {
-        self.stack.try_push(value.try_into()?)?;
+        self.stack.try_push(value.try_into().map_err(Into::into)?)?;
         Ok(())
     }
 
@@ -221,6 +221,23 @@ impl Stack {
             Some(start) if start >= self.stack_bottom => Ok(self.stack.drain(start..)),
             _ => Err(StackError),
         }
+    }
+
+    /// Get the slice at the given address with the given length.
+    pub(crate) fn slice_at(&self, addr: InstAddress, count: usize) -> Result<&[Value], StackError> {
+        let Some(start) = self.stack_bottom.checked_add(addr.offset()) else {
+            return Err(StackError);
+        };
+
+        let Some(end) = start.checked_add(count) else {
+            return Err(StackError);
+        };
+
+        let Some(slice) = self.stack.get(start..end) else {
+            return Err(StackError);
+        };
+
+        Ok(slice)
     }
 
     /// Drain the top of the stack into a vector.
@@ -342,7 +359,7 @@ impl Stack {
 
     /// Address a value on the stack.
     pub(crate) fn address(&mut self, addr: InstAddress) -> Result<Value, StackError> {
-        Ok(self.at(addr.offset())?.clone())
+        Ok(self.at(addr)?.clone())
     }
 
     /// Address a value on the stack.

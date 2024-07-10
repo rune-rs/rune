@@ -154,7 +154,7 @@ impl<'hir> Asm<'hir> {
     /// Assemble into an instruction.
     fn apply(self, cx: &mut Ctxt) -> compile::Result<()> {
         if let AsmKind::Var(var) = self.kind {
-            var.copy(cx, &self.span, None)?;
+            var.copy(cx, &self.span, None, Output::discard())?;
         }
 
         Ok(())
@@ -290,11 +290,17 @@ fn return_<'hir, T>(
 fn pat_with_offset<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::Pat<'hir>,
-    offset: usize,
+    offset: InstAddress,
 ) -> compile::Result<()> {
     let load = |cx: &mut Ctxt<'_, 'hir, '_>, needs: Needs| {
         if needs.value() {
-            cx.asm.push(Inst::Copy { offset }, hir)?;
+            cx.asm.push(
+                Inst::Copy {
+                    addr: offset,
+                    out: needs.output(),
+                },
+                hir,
+            )?;
         }
 
         Ok(())
@@ -1292,7 +1298,7 @@ fn expr_call<'hir>(
         }
         hir::Call::Associated { target, hash } => {
             expr(cx, target, Needs::Value)?.apply(cx)?;
-            cx.scopes.alloc(target)?;
+            let addr = cx.scopes.alloc(target)?;
 
             for e in hir.args {
                 expr(cx, e, Needs::Value)?.apply(cx)?;
@@ -1302,6 +1308,7 @@ fn expr_call<'hir>(
             cx.asm.push(
                 Inst::CallAssociated {
                     hash,
+                    addr,
                     args,
                     out: needs.output(),
                 },
@@ -1503,6 +1510,7 @@ fn expr_for<'hir>(
 
         cx.asm.push_with_comment(
             Inst::CallAssociated {
+                addr: iter_offset,
                 hash: *Protocol::INTO_ITER,
                 args: 0,
                 out: Output::keep(iter_offset),
@@ -1582,17 +1590,9 @@ fn expr_for<'hir>(
             span,
         )?;
     } else {
-        // call the `next` function to get the next level of iteration, bind the
-        // result to the loop variable in the loop.
-        cx.asm.push(
-            Inst::Copy {
-                offset: iter_offset,
-            },
-            &hir.iter,
-        )?;
-
         cx.asm.push_with_comment(
             Inst::CallAssociated {
+                addr: iter_offset,
                 hash: *Protocol::NEXT,
                 args: 0,
                 out: Output::keep(binding_offset),
@@ -1786,7 +1786,13 @@ fn expr_match<'hir>(
 
         let load = move |this: &mut Ctxt, needs: Needs| {
             if needs.value() {
-                this.asm.push(Inst::Copy { offset }, span)?;
+                this.asm.push(
+                    Inst::Copy {
+                        addr: offset,
+                        out: needs.output(),
+                    },
+                    span,
+                )?;
             }
 
             Ok(())
@@ -2078,7 +2084,7 @@ fn expr_select<'hir>(
         expr(cx, &branch.expr, Needs::Value)?.apply(cx)?;
     }
 
-    let out = Output::keep(cx.scopes.alloc(span)?);
+    let out = Output::keep(cx.scopes.alloc(span)?.offset());
     cx.asm.push(Inst::Select { len, out }, span)?;
 
     for (branch, (label, _)) in branches.iter().enumerate() {

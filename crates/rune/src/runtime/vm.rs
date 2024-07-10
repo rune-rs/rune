@@ -598,7 +598,7 @@ impl Vm {
             // Safety: We hold onto the guard for the duration of this call.
             let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut self.stack)) };
             vm_try!(check_args(count, expected));
-            vm_try!(self.call_offset_fn(offset, call, count, out));
+            vm_try!(self.call_offset_fn(offset, call, InstAddress::ZERO, count, out));
             return VmResult::Ok(CallResult::Ok(()));
         }
 
@@ -705,6 +705,7 @@ impl Vm {
     pub(crate) fn push_call_frame(
         &mut self,
         ip: usize,
+        addr: InstAddress,
         args: usize,
         isolated: bool,
         out: Output,
@@ -748,7 +749,7 @@ impl Vm {
 
         let Some(frame) = self.call_frames.pop() else {
             self.stack.pop_stack_top(0);
-            return Ok((true, Output::keep()));
+            return Ok((true, Output::discard()));
         };
 
         tracing::trace!(?frame);
@@ -1073,19 +1074,8 @@ impl Vm {
 
         let hash = field.hash();
 
-        let value = match vm_try!(self.call_field_fn(
-            Protocol::SET,
-            target,
-            hash,
-            (value,),
-            Output::keep()
-        )) {
-            CallResult::Ok(()) => {
-                vm_try!(<()>::from_value(vm_try!(self.stack.pop())));
-                CallResult::Ok(())
-            }
-            result => result,
-        };
+        let value =
+            vm_try!(self.call_field_fn(Protocol::SET, target, hash, (value,), Output::discard()));
 
         VmResult::Ok(value)
     }
@@ -1217,13 +1207,14 @@ impl Vm {
     fn call_generator_fn(
         &mut self,
         offset: usize,
+        addr: InstAddress,
         args: usize,
         out: Output,
     ) -> Result<(), VmErrorKind> {
-        let iter = self.stack.drain(args)?;
+        let iter = self.stack.slice_at(addr, args)?;
 
         if let Some(at) = out.into_keep() {
-            let stack = iter.try_collect::<Stack>()?;
+            let stack = iter.iter().cloned().try_collect::<Stack>()?;
             let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack);
             vm.ip = offset;
             *self.stack.at_mut(at)? = Value::try_from(Generator::new(vm))?;
@@ -1236,13 +1227,14 @@ impl Vm {
     fn call_stream_fn(
         &mut self,
         offset: usize,
+        addr: InstAddress,
         args: usize,
         out: Output,
     ) -> Result<(), VmErrorKind> {
-        let iter = self.stack.drain(args)?;
+        let stack = self.stack.slice_at(addr, args)?;
 
         if let Some(at) = out.into_keep() {
-            let stack = self.stack.drain(args)?.try_collect::<Stack>()?;
+            let stack = stack.iter().cloned().try_collect::<Stack>()?;
             let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack);
             vm.ip = offset;
             *self.stack.at_mut(at)? = Value::try_from(Stream::new(vm))?;
@@ -1255,13 +1247,14 @@ impl Vm {
     fn call_async_fn(
         &mut self,
         offset: usize,
+        addr: InstAddress,
         args: usize,
         out: Output,
     ) -> Result<(), VmErrorKind> {
-        let iter = self.stack.drain(args)?;
+        let stack = self.stack.slice_at(addr, args)?;
 
         if let Some(at) = out.into_keep() {
-            let stack = iter.try_collect::<Stack>()?;
+            let stack = stack.iter().cloned().try_collect::<Stack>()?;
             let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack);
             vm.ip = offset;
             let mut execution = vm.into_execution();
@@ -1277,24 +1270,25 @@ impl Vm {
         &mut self,
         offset: usize,
         call: Call,
+        addr: InstAddress,
         args: usize,
         out: Output,
     ) -> Result<bool, VmErrorKind> {
         let moved = match call {
             Call::Async => {
-                self.call_async_fn(offset, args, out)?;
+                self.call_async_fn(offset, addr, args, out)?;
                 false
             }
             Call::Immediate => {
-                self.push_call_frame(offset, args, false, out)?;
+                self.push_call_frame(offset, addr, args, false, out)?;
                 true
             }
             Call::Stream => {
-                self.call_stream_fn(offset, args, out)?;
+                self.call_stream_fn(offset, addr, args, out)?;
                 false
             }
             Call::Generator => {
-                self.call_generator_fn(offset, args, out)?;
+                self.call_generator_fn(offset, addr, args, out)?;
                 false
             }
         };
@@ -1412,13 +1406,13 @@ impl Vm {
             &*vm_try!(lhs.borrow_kind_ref()),
             &*vm_try!(rhs.borrow_kind_ref()),
         ) {
-            &(ValueKind::Integer(lhs), ValueKind::Integer(rhs)) => {
-                let value = vm_try!(integer_op(lhs, rhs).ok_or_else(error));
+            (ValueKind::Integer(lhs), ValueKind::Integer(rhs)) => {
+                let value = vm_try!(integer_op(*lhs, *rhs).ok_or_else(error));
                 vm_try!(out.store(&mut self.stack, value));
                 return VmResult::Ok(());
             }
-            &(ValueKind::Float(lhs), ValueKind::Float(rhs)) => {
-                vm_try!(out.store(&mut self.stack, float_op(lhs, rhs)));
+            (ValueKind::Float(lhs), ValueKind::Float(rhs)) => {
+                vm_try!(out.store(&mut self.stack, float_op(*lhs, *rhs)));
                 return VmResult::Ok(());
             }
             _ => {}
@@ -1642,7 +1636,7 @@ impl Vm {
     /// Copy a value from a position relative to the top of the stack, to the
     /// top of the stack.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_copy(&mut self, addr: InstAddress) -> VmResult<()> {
+    fn op_copy(&mut self, addr: InstAddress, out: Output) -> VmResult<()> {
         let value = vm_try!(self.stack.at(addr)).clone();
         vm_try!(out.store(&mut self.stack, value));
         VmResult::Ok(())
@@ -1660,7 +1654,8 @@ impl Vm {
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_drop(&mut self, addr: InstAddress) -> VmResult<()> {
-        vm_try!(vm_try!(self.stack.at(addr)).drop());
+        let value = vm_try!(self.stack.at(addr)).clone();
+        vm_try!(value.drop());
         VmResult::Ok(())
     }
 
@@ -2888,7 +2883,7 @@ impl Vm {
 
     /// Implementation of a function call.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_call(&mut self, hash: Hash, args: usize, out: Output) -> VmResult<()> {
+    fn op_call(&mut self, hash: Hash, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
         let Some(info) = self.unit.function(hash) else {
             let handler = vm_try!(self
                 .context
@@ -2907,7 +2902,7 @@ impl Vm {
                 ..
             } => {
                 vm_try!(check_args(args, expected));
-                vm_try!(self.call_offset_fn(offset, call, args, out));
+                vm_try!(self.call_offset_fn(offset, call, addr, args, out));
             }
             UnitFn::EmptyStruct { hash } => {
                 vm_try!(check_args(args, 0));
@@ -2924,14 +2919,17 @@ impl Vm {
                 args: expected,
             } => {
                 vm_try!(check_args(args, expected));
-                let tuple = vm_try!(vm_try!(self.stack.pop_sequence(args)));
+                let tuple = vm_try!(self.stack.slice_at(addr, args));
 
                 let rtti = vm_try!(self
                     .unit
                     .lookup_rtti(hash)
                     .ok_or(VmErrorKind::MissingRtti { hash }));
 
-                vm_try!(out.store(&mut self.stack, || Value::tuple_struct(rtti.clone(), tuple)));
+                vm_try!(out.store(&mut self.stack, || {
+                    let tuple = vm_try!(tuple.iter().cloned().collect());
+                    Value::tuple_struct(rtti.clone(), tuple)
+                }));
             }
             UnitFn::TupleVariant {
                 hash,
@@ -2972,15 +2970,22 @@ impl Vm {
         &mut self,
         offset: usize,
         call: Call,
+        addr: InstAddress,
         args: usize,
         out: Output,
     ) -> VmResult<()> {
-        vm_try!(self.call_offset_fn(offset, call, args, out));
+        vm_try!(self.call_offset_fn(offset, call, addr, args, out));
         VmResult::Ok(())
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_call_associated(&mut self, hash: Hash, args: usize, out: Output) -> VmResult<()> {
+    fn op_call_associated(
+        &mut self,
+        hash: Hash,
+        addr: InstAddress,
+        args: usize,
+        out: Output,
+    ) -> VmResult<()> {
         // NB: +1 to include the instance itself.
         let args = args + 1;
         let instance = vm_try!(self.stack.at_offset_from_top(args));
@@ -2995,7 +3000,7 @@ impl Vm {
         }) = self.unit.function(hash)
         {
             vm_try!(check_args(args, expected));
-            vm_try!(self.call_offset_fn(offset, call, args, out));
+            vm_try!(self.call_offset_fn(offset, call, addr, args, out));
             return VmResult::Ok(());
         }
 
@@ -3153,13 +3158,19 @@ impl Vm {
                 Inst::CallOffset {
                     offset,
                     call,
+                    addr,
                     args,
                     out,
                 } => {
-                    vm_try!(self.op_call_offset(offset, call, args, out));
+                    vm_try!(self.op_call_offset(offset, call, addr, args, out));
                 }
-                Inst::CallAssociated { hash, args, out } => {
-                    vm_try!(self.op_call_associated(hash, args, out));
+                Inst::CallAssociated {
+                    hash,
+                    addr,
+                    args,
+                    out,
+                } => {
+                    vm_try!(self.op_call_associated(hash, addr, args, out));
                 }
                 Inst::CallFn { args, out } => {
                     if let Some(reason) = vm_try!(self.op_call_fn(args, out)) {

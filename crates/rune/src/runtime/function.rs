@@ -8,8 +8,9 @@ use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, Vec};
 use crate::module;
 use crate::runtime::{
-    Args, Call, ConstValue, FromValue, FunctionHandler, Output, OwnedTuple, Rtti, RuntimeContext,
-    Stack, Unit, Value, ValueKind, VariantRtti, Vm, VmCall, VmErrorKind, VmHalt, VmResult,
+    Args, Call, ConstValue, FromValue, FunctionHandler, InstAddress, Output, OwnedTuple, Rtti,
+    RuntimeContext, Stack, Unit, Value, ValueKind, VariantRtti, Vm, VmCall, VmErrorKind, VmHalt,
+    VmResult,
 };
 use crate::shared::AssertSend;
 use crate::Any;
@@ -632,12 +633,10 @@ where
             Inner::FnTupleVariant(tuple) => {
                 vm_try!(check_args(args, tuple.args));
                 let seq = vm_try!(vm_try!(vm.stack_mut().pop_sequence(args)));
-
-                if out.is_keep() {
-                    let value = vm_try!(Value::tuple_variant(tuple.rtti.clone(), seq,));
-                    vm_try!(vm.stack_mut().push(value));
-                }
-
+                vm_try!(out.store(vm.stack_mut(), || Value::tuple_variant(
+                    tuple.rtti.clone(),
+                    seq
+                )));
                 None
             }
         };
@@ -900,6 +899,7 @@ impl FnOffset {
     fn call_with_vm(
         &self,
         vm: &mut Vm,
+        addr: InstAddress,
         args: usize,
         extra: impl Args,
         out: Output,
@@ -910,7 +910,7 @@ impl FnOffset {
         let same_context =
             matches!(self.call, Call::Immediate if vm.is_same_context(&self.context));
 
-        vm_try!(vm.push_call_frame(self.offset, args, !same_context, out));
+        vm_try!(vm.push_call_frame(self.offset, addr, args, !same_context, out));
         vm_try!(extra.into_stack(vm.stack_mut()));
 
         // Fast path, just allocate a call frame and keep running.

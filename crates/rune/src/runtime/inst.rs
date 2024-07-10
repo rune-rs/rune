@@ -155,6 +155,8 @@ pub enum Inst {
         offset: usize,
         /// The calling convention to use.
         call: Call,
+        /// The address where the arguments are stored.
+        addr: InstAddress,
         /// The number of arguments expected on the stack for this call.
         args: usize,
         /// Whether the return value should be kept or not.
@@ -168,6 +170,8 @@ pub enum Inst {
     Call {
         /// The hash of the function to call.
         hash: Hash,
+        /// The address of the arguments being passed.
+        addr: InstAddress,
         /// The number of arguments expected on the stack for this call.
         args: usize,
         /// Whether the return value should be kept or not.
@@ -181,6 +185,8 @@ pub enum Inst {
     CallAssociated {
         /// The hash of the name of the function to call.
         hash: Hash,
+        /// The address of arguments being passed.
+        addr: InstAddress,
         /// The number of arguments expected on the stack for this call.
         args: usize,
         /// Whether the return value should be kept or not.
@@ -1117,9 +1123,9 @@ impl Output {
 
     /// Check if the output is a keep.
     #[inline]
-    pub(crate) fn into_keep(&self) -> Option<usize> {
+    pub(crate) fn into_keep(&self) -> Option<InstAddress> {
         match self.kind {
-            OutputKind::Keep(index) => Some(index.get() ^ usize::MAX),
+            OutputKind::Keep(index) => Some(InstAddress::new(index.get() ^ usize::MAX)),
             OutputKind::Discard => None,
         }
     }
@@ -1132,7 +1138,7 @@ impl Output {
     {
         if let Some(index) = self.into_keep() {
             let value = vm_try!(o.into_result());
-            *vm_try!(stack.at_mut(index)) = vm_try!(value.try_into());
+            *vm_try!(stack.at_mut(index)) = vm_try!(value.try_into().map_err(Into::into));
         }
 
         VmResult::Ok(())
@@ -1251,6 +1257,8 @@ pub struct InstAddress {
 }
 
 impl InstAddress {
+    pub(crate) const ZERO: InstAddress = InstAddress { offset: 0 };
+
     /// Construct a new instruction address.
     #[inline]
     pub(crate) fn new(offset: usize) -> Self {

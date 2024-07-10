@@ -8,8 +8,7 @@ use crate::compile::v1::Ctxt;
 use crate::compile::{self, Assembly, ErrorKind, WithSpan};
 use crate::hir;
 use crate::query::Query;
-use crate::runtime::{Inst, InstAddress};
-use crate::tests::prelude::Output;
+use crate::runtime::{Inst, InstAddress, Output};
 use crate::SourceId;
 
 /// A locally declared variable, its calculated stack offset and where it was
@@ -106,7 +105,7 @@ pub(crate) struct Layer<'hir> {
     /// Named variables.
     variables: HashMap<hir::Name<'hir>, Var<'hir>>,
     /// The number of variables.
-    pub(crate) total: usize,
+    pub(crate) size: usize,
 }
 
 impl<'hir> Layer<'hir> {
@@ -114,7 +113,7 @@ impl<'hir> Layer<'hir> {
     fn new() -> Self {
         Self {
             variables: HashMap::new(),
-            total: 0,
+            size: 0,
         }
     }
 
@@ -122,7 +121,7 @@ impl<'hir> Layer<'hir> {
     fn child(&self) -> Self {
         Self {
             variables: HashMap::new(),
-            total: self.total,
+            size: self.size,
         }
     }
 }
@@ -244,7 +243,7 @@ impl<'hir> Scopes<'hir> {
 
         tracing::trace!(?layer);
 
-        let offset = layer.total;
+        let offset = layer.size;
 
         let var = Var {
             offset,
@@ -254,24 +253,24 @@ impl<'hir> Scopes<'hir> {
         };
 
         layer.variables.try_insert(name, var)?;
-        layer.total += 1;
-        self.size = self.size.max(layer.total);
+        layer.size += 1;
+        self.size = self.size.max(layer.size);
         Ok(offset)
     }
 
     /// Declare an anonymous variable.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn alloc(&mut self, span: &dyn Spanned) -> compile::Result<usize> {
+    pub(crate) fn alloc(&mut self, span: &dyn Spanned) -> compile::Result<InstAddress> {
         let Some(layer) = self.layers.last_mut() else {
             return Err(compile::Error::msg(span, "Missing head layer"));
         };
 
         tracing::trace!(?layer);
 
-        let offset = layer.total;
-        layer.total += 1;
-        self.size = self.size.max(layer.total);
-        Ok(offset)
+        let offset = layer.size;
+        layer.size += 1;
+        self.size = self.size.max(layer.size);
+        Ok(InstAddress::new(offset))
     }
 
     /// Free a bunch of anonymous slots.
@@ -283,8 +282,8 @@ impl<'hir> Scopes<'hir> {
 
         tracing::trace!(?layer);
 
-        layer.total = layer
-            .total
+        layer.size = layer
+            .size
             .checked_sub(n)
             .ok_or("totals out of bounds")
             .with_span(span)?;
@@ -342,7 +341,7 @@ impl<'hir> Scopes<'hir> {
             return Err(compile::Error::msg(span, "Missing head layer"));
         };
 
-        Ok(layer.total)
+        Ok(layer.size)
     }
 
     /// Push a scope and return an index.

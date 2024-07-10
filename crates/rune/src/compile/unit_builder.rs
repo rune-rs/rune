@@ -886,13 +886,19 @@ impl UnitBuilder {
                     // Optimization to avoid performing lookups for recursive
                     // function calls.
                     let inst = match raw {
-                        inst @ Inst::Call { hash, args, out } => {
+                        inst @ Inst::Call {
+                            hash,
+                            addr,
+                            args,
+                            out,
+                        } => {
                             if let Some(UnitFn::Offset { offset, call, .. }) =
                                 self.functions.get(&hash)
                             {
                                 Inst::CallOffset {
                                     offset: *offset,
                                     call: *call,
+                                    addr,
                                     args,
                                     out,
                                 }
