@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate as rune;
 use crate::alloc;
 use crate::alloc::prelude::*;
-use crate::runtime::{Call, FormatSpec, Stack, Type, Value, VmErrorKind, VmResult};
+use crate::runtime::{Call, FormatSpec, Stack, Type, Value, ValueKind, VmErrorKind, VmResult};
 use crate::Hash;
 
 /// Pre-canned panic reasons.
@@ -208,8 +208,12 @@ pub enum Inst {
     /// ```
     #[musli(packed)]
     LoadInstanceFn {
+        /// The address of the instance for which the function is being loaded.
+        addr: InstAddress,
         /// The name hash of the instance function.
         hash: Hash,
+        /// Where to store the loaded instance function.
+        out: Output,
     },
     /// Perform a function call on a function pointer stored on the stack.
     ///
@@ -222,6 +226,10 @@ pub enum Inst {
     /// ```
     #[musli(packed)]
     CallFn {
+        /// The address of the function being called.
+        function: InstAddress,
+        /// The address of the arguments being passed.
+        addr: InstAddress,
         /// The number of arguments expected on the stack for this call.
         args: usize,
         /// Whether the returned value from calling the function should be kept
@@ -1132,7 +1140,7 @@ impl Output {
 
     /// Write the current output to the provided stack.
     #[inline]
-    pub(crate) fn store<O>(self, stack: &mut Stack, o: O) -> VmResult<()>
+    pub fn store<O>(self, stack: &mut Stack, o: O) -> VmResult<()>
     where
         O: IntoResult<Output: TryInto<Value, Error: Into<VmErrorKind>>>,
     {
@@ -1145,7 +1153,9 @@ impl Output {
     }
 }
 
-trait IntoResult {
+/// Trait used to store a value.
+pub trait IntoResult {
+    #[doc(hidden)]
     type Output;
 
     /// Coerce into result.
@@ -1240,6 +1250,15 @@ impl IntoResult for () {
     }
 }
 
+impl IntoResult for ValueKind {
+    type Output = ValueKind;
+
+    #[inline]
+    fn into_result(self) -> VmResult<Self::Output> {
+        VmResult::Ok(self)
+    }
+}
+
 impl fmt::Display for Output {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.kind {
@@ -1257,11 +1276,12 @@ pub struct InstAddress {
 }
 
 impl InstAddress {
-    pub(crate) const ZERO: InstAddress = InstAddress { offset: 0 };
+    /// The first possible address.
+    pub(crate) const FIRST: InstAddress = InstAddress { offset: 0 };
 
     /// Construct a new instruction address.
     #[inline]
-    pub(crate) fn new(offset: usize) -> Self {
+    pub(crate) const fn new(offset: usize) -> Self {
         Self { offset }
     }
 

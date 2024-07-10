@@ -58,6 +58,12 @@ impl Stack {
         }
     }
 
+    /// The current top address of the stack.
+    #[inline]
+    pub const fn addr(&self) -> InstAddress {
+        InstAddress::new(self.stack.len().saturating_sub(self.stack_bottom))
+    }
+
     /// Try to resize the stack with space for the given size.
     pub(crate) fn resize(&mut self, size: usize) -> alloc::Result<()> {
         if size == 0 {
@@ -224,7 +230,7 @@ impl Stack {
     }
 
     /// Get the slice at the given address with the given length.
-    pub(crate) fn slice_at(&self, addr: InstAddress, count: usize) -> Result<&[Value], StackError> {
+    pub fn slice_at(&self, addr: InstAddress, count: usize) -> Result<&[Value], StackError> {
         let Some(start) = self.stack_bottom.checked_add(addr.offset()) else {
             return Err(StackError);
         };
@@ -238,6 +244,12 @@ impl Stack {
         };
 
         Ok(slice)
+    }
+
+    /// Get the slice at the given address with the given static length.
+    pub fn array_at<const N: usize>(&self, addr: InstAddress) -> Result<[&Value; N], StackError> {
+        let slice = self.slice_at(addr, N)?;
+        array::from_fn(|i| &slice[i])
     }
 
     /// Drain the top of the stack into a vector.

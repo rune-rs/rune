@@ -8,17 +8,32 @@ use crate::alloc::prelude::*;
 use crate::alloc::{hash_map, HashMap};
 use crate::ast::{Span, Spanned};
 use crate::compile::{self, Location};
-use crate::runtime::{Inst, Label};
+use crate::runtime::{Inst, InstAddress, Label, Output};
 use crate::{Hash, SourceId};
 
 #[derive(Debug, TryClone)]
 pub(crate) enum AssemblyInst {
-    Jump { label: Label },
-    JumpIf { label: Label },
-    JumpIfNot { label: Label },
-    JumpIfBranch { branch: i64, label: Label },
-    IterNext { offset: usize, label: Label },
-    Raw { raw: Inst },
+    Jump {
+        label: Label,
+    },
+    JumpIf {
+        label: Label,
+    },
+    JumpIfNot {
+        label: Label,
+    },
+    JumpIfBranch {
+        branch: i64,
+        label: Label,
+    },
+    IterNext {
+        addr: InstAddress,
+        label: Label,
+        out: Output,
+    },
+    Raw {
+        raw: Inst,
+    },
 }
 
 /// Helper structure to build instructions and maintain certain invariants.
@@ -134,14 +149,16 @@ impl Assembly {
     /// Add an instruction that advanced an iterator.
     pub(crate) fn iter_next(
         &mut self,
-        offset: usize,
+        addr: InstAddress,
         label: &Label,
         span: &dyn Spanned,
+        out: Output,
     ) -> compile::Result<()> {
         self.inner_push(
             AssemblyInst::IterNext {
-                offset,
+                addr,
                 label: label.try_clone()?,
+                out,
             },
             span,
         )?;

@@ -20,8 +20,8 @@ use crate::module::{
 };
 use crate::runtime::{
     AttributeMacroHandler, ConstValue, FromValue, FullTypeOf, FunctionHandler, GeneratorState,
-    MacroHandler, MaybeTypeOf, Output, Protocol, Stack, ToValue, TypeCheck, TypeInfo, TypeOf,
-    Value, VmResult,
+    InstAddress, MacroHandler, MaybeTypeOf, Output, Protocol, Stack, ToValue, TypeCheck, TypeInfo,
+    TypeOf, Value, VmResult,
 };
 use crate::Hash;
 
@@ -1674,20 +1674,17 @@ impl Module {
     ///
     /// ```
     /// use rune::Module;
-    /// use rune::runtime::{Output, Stack, ToValue, VmResult};
+    /// use rune::runtime::{Output, Stack, ToValue, VmResult, InstAddress};
     /// use rune::vm_try;
     ///
-    /// fn sum(stack: &mut Stack, args: usize, out: Output) -> VmResult<()> {
+    /// fn sum(stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
     ///     let mut number = 0;
     ///
-    ///     for _ in 0..args {
-    ///         number += vm_try!(vm_try!(stack.pop()).as_integer());
+    ///     for value in vm_try!(stack.slice_at(addr, args)) {
+    ///         number += vm_try!(value.as_integer());
     ///     }
     ///
-    ///     if out.is_keep() {
-    ///         stack.push(vm_try!(number.to_value()));
-    ///     }
-    ///
+    ///     out.store(stack, || vm_try!(number.to_value()));
     ///     VmResult::Ok(())
     /// }
     ///
@@ -1703,12 +1700,12 @@ impl Module {
     /// ```
     pub fn raw_function<F, N>(&mut self, name: N, f: F) -> ModuleRawFunctionBuilder<'_, N>
     where
-        F: 'static + Fn(&mut Stack, usize, Output) -> VmResult<()> + Send + Sync,
+        F: 'static + Fn(&mut Stack, InstAddress, usize, Output) -> VmResult<()> + Send + Sync,
     {
         ModuleRawFunctionBuilder {
             module: self,
             name,
-            handler: Arc::new(move |stack, args, output| f(stack, args, output)),
+            handler: Arc::new(move |stack, addr, args, output| f(stack, addr, args, output)),
         }
     }
 
@@ -1716,7 +1713,7 @@ impl Module {
     #[deprecated = "Use `raw_function` builder instead"]
     pub fn raw_fn<F, N>(&mut self, name: N, f: F) -> Result<ItemFnMut<'_>, ContextError>
     where
-        F: 'static + Fn(&mut Stack, usize, Output) -> VmResult<()> + Send + Sync,
+        F: 'static + Fn(&mut Stack, InstAddress, usize, Output) -> VmResult<()> + Send + Sync,
         N: IntoComponent,
     {
         self.raw_function(name, f).build()

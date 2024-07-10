@@ -114,7 +114,9 @@ impl Function {
     {
         Self(FunctionImpl {
             inner: Inner::FnHandler(FnHandler {
-                handler: Arc::new(move |stack, args, output| f.fn_call(stack, args, output)),
+                handler: Arc::new(move |stack, addr, args, output| {
+                    f.fn_call(stack, addr, args, output)
+                }),
                 hash: Hash::EMPTY,
             }),
         })
@@ -192,10 +194,11 @@ impl Function {
     pub(crate) fn call_with_vm(
         &self,
         vm: &mut Vm,
+        addr: InstAddress,
         args: usize,
         out: Output,
     ) -> VmResult<Option<VmHalt>> {
-        self.0.call_with_vm(vm, args, out)
+        self.0.call_with_vm(vm, addr, args, out)
     }
 
     /// Create a function pointer from a handler.
@@ -511,8 +514,13 @@ where
                 let arg_count = args.count();
                 let mut stack = vm_try!(Stack::with_capacity(arg_count));
                 vm_try!(args.into_stack(&mut stack));
-                vm_try!((handler.handler)(&mut stack, arg_count, Output::keep()));
-                vm_try!(stack.pop())
+                vm_try!((handler.handler)(
+                    &mut stack,
+                    InstAddress::FIRST,
+                    arg_count,
+                    Output::keep(0)
+                ));
+                vm_try!(stack.at(0)).clone()
             }
             Inner::FnOffset(fn_offset) => vm_try!(fn_offset.call(args, ())),
             Inner::FnClosureOffset(closure) => {
@@ -582,16 +590,17 @@ where
     pub(crate) fn call_with_vm(
         &self,
         vm: &mut Vm,
+        addr: InstAddress,
         args: usize,
         out: Output,
     ) -> VmResult<Option<VmHalt>> {
         let reason = match &self.inner {
             Inner::FnHandler(handler) => {
-                vm_try!((handler.handler)(vm.stack_mut(), args, out));
+                vm_try!((handler.handler)(vm.stack_mut(), addr, args, out));
                 None
             }
             Inner::FnOffset(fn_offset) => {
-                if let Some(vm_call) = vm_try!(fn_offset.call_with_vm(vm, args, (), out)) {
+                if let Some(vm_call) = vm_try!(fn_offset.call_with_vm(vm, addr, args, (), out)) {
                     return VmResult::Ok(Some(VmHalt::VmCall(vm_call)));
                 }
 
@@ -604,7 +613,7 @@ where
                 if let Some(vm_call) =
                     vm_try!(closure
                         .fn_offset
-                        .call_with_vm(vm, args, (environment,), out))
+                        .call_with_vm(vm, addr, args, (environment,), out))
                 {
                     return VmResult::Ok(Some(VmHalt::VmCall(vm_call)));
                 }

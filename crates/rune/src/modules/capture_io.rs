@@ -23,7 +23,7 @@ use crate as rune;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::string::FromUtf8Error;
 use crate::alloc::{String, Vec};
-use crate::runtime::{Output, Stack, VmError, VmResult};
+use crate::runtime::{InstAddress, Output, Stack, VmError, VmResult};
 use crate::{ContextError, Module, Value};
 
 /// I/O module capable of capturing what's been written to a buffer.
@@ -56,9 +56,9 @@ pub fn module(io: &CaptureIo) -> Result<Module, ContextError> {
     let o = io.clone();
 
     module
-        .raw_function("dbg", move |stack, args, output| {
+        .raw_function("dbg", move |stack, addr, args, output| {
             let mut o = o.inner.lock();
-            dbg_impl(&mut o, stack, args, output)
+            dbg_impl(&mut o, stack, addr, args, output)
         })
         .build()?;
 
@@ -106,8 +106,14 @@ impl CaptureIo {
     }
 }
 
-fn dbg_impl(o: &mut Vec<u8>, stack: &mut Stack, args: usize, out: Output) -> VmResult<()> {
-    for value in vm_try!(stack.drain(args)) {
+fn dbg_impl(
+    o: &mut Vec<u8>,
+    stack: &mut Stack,
+    addr: InstAddress,
+    args: usize,
+    out: Output,
+) -> VmResult<()> {
+    for value in vm_try!(stack.slice_at(addr, args)) {
         vm_try!(writeln!(o, "{:?}", value).map_err(VmError::panic));
     }
 

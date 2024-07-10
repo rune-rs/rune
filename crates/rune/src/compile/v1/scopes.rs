@@ -273,6 +273,17 @@ impl<'hir> Scopes<'hir> {
         Ok(InstAddress::new(offset))
     }
 
+    /// Peek the next address.
+    #[tracing::instrument(skip_all)]
+    pub(crate) fn peek(&mut self, span: &dyn Spanned) -> compile::Result<InstAddress> {
+        let Some(layer) = self.layers.last_mut() else {
+            return Err(compile::Error::msg(span, "Missing head layer"));
+        };
+
+        tracing::trace!(?layer);
+        Ok(InstAddress::new(layer.size))
+    }
+
     /// Free a bunch of anonymous slots.
     #[tracing::instrument(skip_all, fields(n))]
     pub(crate) fn free(&mut self, span: &dyn Spanned, n: usize) -> compile::Result<()> {

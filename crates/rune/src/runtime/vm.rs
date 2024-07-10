@@ -594,20 +594,22 @@ impl Vm {
             ..
         }) = self.unit.function(hash)
         {
+            let addr = self.stack.addr();
             vm_try!(self.stack.push(target));
             // Safety: We hold onto the guard for the duration of this call.
             let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut self.stack)) };
             vm_try!(check_args(count, expected));
-            vm_try!(self.call_offset_fn(offset, call, InstAddress::ZERO, count, out));
+            vm_try!(self.call_offset_fn(offset, call, addr, count, out));
             return VmResult::Ok(CallResult::Ok(()));
         }
 
         if let Some(handler) = self.context.function(hash) {
+            let addr = self.stack.addr();
             vm_try!(self.called_function_hook(hash));
             vm_try!(self.stack.push(target));
             // Safety: We hold onto the guard for the duration of this call.
             let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut self.stack)) };
-            vm_try!(handler(&mut self.stack, count, out));
+            vm_try!(handler(&mut self.stack, addr, count, out));
             return VmResult::Ok(CallResult::Ok(()));
         }
 
@@ -642,10 +644,11 @@ impl Vm {
         let hash = Hash::field_function(protocol, vm_try!(target.type_hash()), name);
 
         if let Some(handler) = self.context.function(hash) {
+            let addr = self.stack.addr();
             vm_try!(self.called_function_hook(hash));
             vm_try!(self.stack.push(target));
             let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut self.stack)) };
-            vm_try!(handler(&mut self.stack, count, out));
+            vm_try!(handler(&mut self.stack, addr, count, out));
             return VmResult::Ok(CallResult::Ok(()));
         }
 
@@ -2240,12 +2243,12 @@ impl Vm {
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_load_instance_fn(&mut self, hash: Hash) -> Result<(), VmError> {
-        let instance = self.stack.pop()?;
-        let ty = instance.type_hash()?;
+    fn op_load_instance_fn(&mut self, addr: InstAddress, hash: Hash, out: Output) -> VmResult<()> {
+        let instance = vm_try!(self.stack.at(addr));
+        let ty = vm_try!(instance.type_hash());
         let hash = Hash::associated_function(ty, hash);
-        self.stack.push(ValueKind::Type(Type::new(hash)))?;
-        Ok(())
+        vm_try!(out.store(&mut self.stack, || ValueKind::Type(Type::new(hash))));
+        VmResult::Ok(())
     }
 
     /// Perform an index get operation.
@@ -2321,7 +2324,7 @@ impl Vm {
         index: usize,
         out: Output,
     ) -> VmResult<()> {
-        let value = vm_try!(self.stack.at(addr)).clone();
+        let value = vm_try!(self.stack.at(addr));
 
         if let Some(value) = vm_try!(Self::try_tuple_like_index_get(value, index)) {
             vm_try!(out.store(&mut self.stack, value));
@@ -2890,7 +2893,7 @@ impl Vm {
                 .function(hash)
                 .ok_or(VmErrorKind::MissingFunction { hash }));
 
-            vm_try!(handler(&mut self.stack, args, out));
+            vm_try!(handler(&mut self.stack, addr, args, out));
             return VmResult::Ok(());
         };
 
@@ -2919,15 +2922,16 @@ impl Vm {
                 args: expected,
             } => {
                 vm_try!(check_args(args, expected));
-                let tuple = vm_try!(self.stack.slice_at(addr, args));
 
                 let rtti = vm_try!(self
                     .unit
                     .lookup_rtti(hash)
                     .ok_or(VmErrorKind::MissingRtti { hash }));
 
+                let tuple = vm_try!(self.stack.slice_at(addr, args));
+                let tuple = vm_try!(tuple.iter().cloned().try_collect());
+
                 vm_try!(out.store(&mut self.stack, || {
-                    let tuple = vm_try!(tuple.iter().cloned().collect());
                     Value::tuple_struct(rtti.clone(), tuple)
                 }));
             }
@@ -3006,7 +3010,7 @@ impl Vm {
 
         if let Some(handler) = self.context.function(hash) {
             vm_try!(self.called_function_hook(hash));
-            vm_try!(handler(&mut self.stack, args, out));
+            vm_try!(handler(&mut self.stack, addr, args, out));
             return VmResult::Ok(());
         }
 
@@ -3018,13 +3022,19 @@ impl Vm {
 
     #[cfg_attr(feature = "bench", inline(never))]
     #[tracing::instrument(skip(self))]
-    fn op_call_fn(&mut self, args: usize, out: Output) -> VmResult<Option<VmHalt>> {
-        let function = vm_try!(self.stack.pop());
+    fn op_call_fn(
+        &mut self,
+        function: InstAddress,
+        addr: InstAddress,
+        args: usize,
+        out: Output,
+    ) -> VmResult<Option<VmHalt>> {
+        let function = vm_try!(self.stack.at(function)).clone();
 
         let ty = match *vm_try!(function.borrow_kind_ref()) {
             ValueKind::Type(ty) => ty,
             ValueKind::Function(ref function) => {
-                return function.call_with_vm(self, args, out);
+                return function.call_with_vm(self, addr, args, out);
             }
             ref actual => {
                 let actual = actual.type_info();
@@ -3032,7 +3042,7 @@ impl Vm {
             }
         };
 
-        vm_try!(self.op_call(ty.into_hash(), args, out));
+        vm_try!(self.op_call(ty.into_hash(), addr, args, out));
         VmResult::Ok(None)
     }
 
@@ -3152,8 +3162,13 @@ impl Vm {
                 Inst::Closure { hash, count } => {
                     vm_try!(self.op_closure(hash, count));
                 }
-                Inst::Call { hash, args, out } => {
-                    vm_try!(self.op_call(hash, args, out));
+                Inst::Call {
+                    hash,
+                    addr,
+                    args,
+                    out,
+                } => {
+                    vm_try!(self.op_call(hash, addr, args, out));
                 }
                 Inst::CallOffset {
                     offset,
@@ -3172,13 +3187,18 @@ impl Vm {
                 } => {
                     vm_try!(self.op_call_associated(hash, addr, args, out));
                 }
-                Inst::CallFn { args, out } => {
-                    if let Some(reason) = vm_try!(self.op_call_fn(args, out)) {
+                Inst::CallFn {
+                    function,
+                    addr,
+                    args,
+                    out,
+                } => {
+                    if let Some(reason) = vm_try!(self.op_call_fn(function, addr, args, out)) {
                         return VmResult::Ok(reason);
                     }
                 }
-                Inst::LoadInstanceFn { hash } => {
-                    vm_try!(self.op_load_instance_fn(hash));
+                Inst::LoadInstanceFn { addr, hash, out } => {
+                    vm_try!(self.op_load_instance_fn(addr, hash, out));
                 }
                 Inst::IndexGet { target, index, out } => {
                     vm_try!(self.op_index_get(target, index, out));

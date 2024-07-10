@@ -1998,7 +1998,7 @@ impl<T, A: Allocator> Vec<T, A> {
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.len
     }
 

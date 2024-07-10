@@ -75,12 +75,11 @@ impl ProtocolCaller for EnvProtocolCaller {
             };
 
             let mut stack = vm_try!(Stack::with_capacity(count));
+            let addr = stack.addr();
             vm_try!(stack.push(target));
-
             // Safety: We hold onto the guard until the vm has completed.
             let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut stack)) };
-
-            vm_try!(handler(&mut stack, count, Output::keep(0)));
+            vm_try!(handler(&mut stack, addr, count, Output::keep(0)));
             VmResult::Ok(vm_try!(stack.pop()))
         });
 

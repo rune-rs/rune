@@ -493,7 +493,7 @@ fn pat_sequence<'hir>(
         let load = move |cx: &mut Ctxt<'_, 'hir, '_>, needs: Needs| {
             cx.asm.push(
                 Inst::TupleIndexGetAt {
-                    offset,
+                    addr: offset,
                     index,
                     out: needs.output(),
                 },
@@ -1279,16 +1279,17 @@ fn expr_call<'hir>(
         hir::Call::Var { name, .. } => {
             let var = cx.scopes.get(&mut cx.q, name, span)?;
 
+            let addr = cx.scopes.peek(span)?;
+
             for e in hir.args {
                 expr(cx, e, Needs::Value)?.apply(cx)?;
                 cx.scopes.alloc(span)?;
             }
 
-            var.copy(cx, span, Some(&"call"))?;
-            cx.scopes.alloc(span)?;
-
             cx.asm.push(
                 Inst::CallFn {
+                    function: InstAddress::new(var.offset),
+                    addr,
                     args,
                     out: needs.output(),
                 },
@@ -1317,6 +1318,8 @@ fn expr_call<'hir>(
             cx.scopes.free(span, hir.args.len() + 1)?;
         }
         hir::Call::Meta { hash } => {
+            let addr = cx.scopes.peek(span)?;
+
             for e in hir.args {
                 expr(cx, e, Needs::Value)?.apply(cx)?;
                 cx.scopes.alloc(span)?;
@@ -1325,6 +1328,7 @@ fn expr_call<'hir>(
             cx.asm.push(
                 Inst::Call {
                     hash,
+                    addr,
                     args,
                     out: needs.output(),
                 },
@@ -1513,7 +1517,7 @@ fn expr_for<'hir>(
                 addr: iter_offset,
                 hash: *Protocol::INTO_ITER,
                 args: 0,
-                out: Output::keep(iter_offset),
+                out: Output::keep(iter_offset.offset()),
             },
             &hir.iter,
             &format_args!("into_iter (offset: {})", iter_offset),
@@ -1532,18 +1536,11 @@ fn expr_for<'hir>(
     let next_offset = if cx.options.memoize_instance_fn {
         let offset = cx.scopes.alloc(&hir.iter)?;
 
-        // Declare the named loop variable and put it in the scope.
-        cx.asm.push_with_comment(
-            Inst::Copy {
-                offset: iter_offset,
-            },
-            &hir.iter,
-            &"copy iterator (memoize)",
-        )?;
-
         cx.asm.push_with_comment(
             Inst::LoadInstanceFn {
+                addr: iter_offset,
                 hash: *Protocol::NEXT,
+                out: Output::keep(offset.offset()),
             },
             &hir.iter,
             &"load instance fn (memoize)",
@@ -1566,26 +1563,12 @@ fn expr_for<'hir>(
 
     // Use the memoized loop variable.
     if let Some(next_offset) = next_offset {
-        cx.asm.push_with_comment(
-            Inst::Copy {
-                offset: iter_offset,
-            },
-            &hir.iter,
-            &"copy iterator",
-        )?;
-
-        cx.asm.push_with_comment(
-            Inst::Copy {
-                offset: next_offset,
-            },
-            &hir.iter,
-            &"copy next",
-        )?;
-
         cx.asm.push(
             Inst::CallFn {
+                function: iter_offset,
+                addr: next_offset,
                 args: 1,
-                out: Output::keep(binding_offset),
+                out: Output::keep(binding_offset.offset()),
             },
             span,
         )?;
@@ -1595,7 +1578,7 @@ fn expr_for<'hir>(
                 addr: iter_offset,
                 hash: *Protocol::NEXT,
                 args: 0,
-                out: Output::keep(binding_offset),
+                out: Output::keep(binding_offset.offset()),
             },
             span,
             &"next",
@@ -1616,12 +1599,7 @@ fn expr_for<'hir>(
     cx.asm.label(&end_label)?;
 
     // Drop the iterator.
-    cx.asm.push(
-        Inst::Drop {
-            addr: InstAddress::new(iter_offset),
-        },
-        span,
-    )?;
+    cx.asm.push(Inst::Drop { addr: iter_offset }, span)?;
 
     cx.scopes.pop(span, loop_scope_expected)?;
 
@@ -1892,10 +1870,13 @@ fn expr_object<'hir>(
             }
         }
         hir::ExprObjectKind::ExternalType { hash, args } => {
+            let addr = cx.scopes.alloc(span)?;
             reorder_field_assignments(cx, hir, base, span)?;
+
             cx.asm.push(
                 Inst::Call {
                     hash,
+                    addr,
                     args,
                     out: needs.output(),
                 },

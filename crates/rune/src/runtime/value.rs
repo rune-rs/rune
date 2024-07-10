@@ -943,7 +943,6 @@ impl Value {
     /// Construct a typed tuple.
     pub fn tuple_struct(rtti: Arc<Rtti>, vec: alloc::Vec<Value>) -> VmResult<Self> {
         let data = vm_try!(OwnedTuple::try_from(vec));
-
         VmResult::Ok(vm_try!(Value::try_from(TupleStruct { rtti, data })))
     }
 
