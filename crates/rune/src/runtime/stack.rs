@@ -165,10 +165,9 @@ impl Stack {
     /// ```
     pub fn push<T>(&mut self, value: T) -> alloc::Result<()>
     where
-        Value: TryFrom<T>,
-        alloc::Error: From<<Value as TryFrom<T>>::Error>,
+        T: TryInto<Value, Error: Into<alloc::Error>>,
     {
-        self.stack.try_push(Value::try_from(value)?)?;
+        self.stack.try_push(value.try_into()?)?;
         Ok(())
     }
 
@@ -299,10 +298,18 @@ impl Stack {
     }
 
     /// Access the value at the given frame offset.
-    pub(crate) fn at_offset(&self, offset: usize) -> Result<&Value, StackError> {
+    pub(crate) fn at(&self, addr: InstAddress) -> Result<&Value, StackError> {
         self.stack_bottom
-            .checked_add(offset)
+            .checked_add(addr.offset())
             .and_then(|n| self.stack.get(n))
+            .ok_or(StackError)
+    }
+
+    /// Get a value mutable at the given index from the stack bottom.
+    pub(crate) fn at_mut(&mut self, addr: InstAddress) -> Result<&mut Value, StackError> {
+        self.stack_bottom
+            .checked_add(addr.offset())
+            .and_then(|n| self.stack.get_mut(n))
             .ok_or(StackError)
     }
 
@@ -334,22 +341,13 @@ impl Stack {
     }
 
     /// Address a value on the stack.
-    pub(crate) fn address(&mut self, address: InstAddress) -> Result<Value, StackError> {
-        Ok(match address {
-            InstAddress::Top => self.pop()?,
-            InstAddress::Offset(offset) => self.at_offset(offset)?.clone(),
-        })
+    pub(crate) fn address(&mut self, addr: InstAddress) -> Result<Value, StackError> {
+        Ok(self.at(addr.offset())?.clone())
     }
 
     /// Address a value on the stack.
-    pub(crate) fn address_ref(
-        &mut self,
-        address: InstAddress,
-    ) -> Result<Cow<'_, Value>, StackError> {
-        Ok(match address {
-            InstAddress::Top => Cow::Owned(self.pop()?),
-            InstAddress::Offset(offset) => Cow::Borrowed(self.at_offset(offset)?),
-        })
+    pub(crate) fn address_ref(&mut self, addr: InstAddress) -> Result<Cow<'_, Value>, StackError> {
+        Ok(Cow::Borrowed(self.at(addr)?))
     }
 
     /// Pop a sequence of values from the stack.

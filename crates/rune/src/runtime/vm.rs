@@ -984,20 +984,23 @@ impl Vm {
     fn try_object_slot_index_get(
         &mut self,
         target: Value,
-        string_slot: usize,
-    ) -> VmResult<CallResult<Value>> {
-        let index = vm_try!(self.unit.lookup_string(string_slot));
+        slot: usize,
+        out: Output,
+    ) -> VmResult<CallResult<()>> {
+        let index = vm_try!(self.unit.lookup_string(slot));
 
         'out: {
             match &*vm_try!(target.borrow_kind_ref()) {
                 ValueKind::Object(object) => {
                     if let Some(value) = object.get(index.as_str()) {
-                        return VmResult::Ok(CallResult::Ok(value.clone()));
+                        out.store(&mut self.stack, || value.clone());
+                        return VmResult::Ok(CallResult::Ok(()));
                     }
                 }
                 ValueKind::Struct(typed_object) => {
                     if let Some(value) = typed_object.get(index.as_str()) {
-                        return VmResult::Ok(CallResult::Ok(value.clone()));
+                        out.store(&mut self.stack, || value.clone());
+                        return VmResult::Ok(CallResult::Ok(()));
                     }
                 }
                 ValueKind::Variant(Variant {
@@ -1005,7 +1008,8 @@ impl Vm {
                     ..
                 }) => {
                     if let Some(value) = data.get(index.as_str()) {
-                        return VmResult::Ok(CallResult::Ok(value.clone()));
+                        out.store(&mut self.stack, || value.clone());
+                        return VmResult::Ok(CallResult::Ok(()));
                     }
                 }
                 _ => {
@@ -1013,14 +1017,14 @@ impl Vm {
                 }
             }
 
-            return err(VmErrorKind::ObjectIndexMissing { slot: string_slot });
+            return err(VmErrorKind::ObjectIndexMissing { slot });
         };
 
         let hash = index.hash();
 
         VmResult::Ok(
-            match vm_try!(self.call_field_fn(Protocol::GET, target, hash, (), Output::keep())) {
-                CallResult::Ok(()) => CallResult::Ok(vm_try!(self.stack.pop())),
+            match vm_try!(self.call_field_fn(Protocol::GET, target, hash, (), out)) {
+                CallResult::Ok(()) => CallResult::Ok(()),
                 CallResult::Unsupported(target) => CallResult::Unsupported(target),
             },
         )
@@ -1210,31 +1214,61 @@ impl Vm {
     }
 
     /// Construct a future from calling an async function.
-    fn call_generator_fn(&mut self, offset: usize, args: usize) -> Result<(), VmErrorKind> {
-        let stack = self.stack.drain(args)?.try_collect::<Stack>()?;
-        let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack);
-        vm.ip = offset;
-        self.stack.push(Generator::new(vm))?;
+    fn call_generator_fn(
+        &mut self,
+        offset: usize,
+        args: usize,
+        out: Output,
+    ) -> Result<(), VmErrorKind> {
+        let iter = self.stack.drain(args)?;
+
+        if let Some(at) = out.into_keep() {
+            let stack = iter.try_collect::<Stack>()?;
+            let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack);
+            vm.ip = offset;
+            *self.stack.at_mut(at)? = Value::try_from(Generator::new(vm))?;
+        }
+
         Ok(())
     }
 
     /// Construct a stream from calling a function.
-    fn call_stream_fn(&mut self, offset: usize, args: usize) -> Result<(), VmErrorKind> {
-        let stack = self.stack.drain(args)?.try_collect::<Stack>()?;
-        let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack);
-        vm.ip = offset;
-        self.stack.push(Stream::new(vm))?;
+    fn call_stream_fn(
+        &mut self,
+        offset: usize,
+        args: usize,
+        out: Output,
+    ) -> Result<(), VmErrorKind> {
+        let iter = self.stack.drain(args)?;
+
+        if let Some(at) = out.into_keep() {
+            let stack = self.stack.drain(args)?.try_collect::<Stack>()?;
+            let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack);
+            vm.ip = offset;
+            *self.stack.at_mut(at)? = Value::try_from(Stream::new(vm))?;
+        }
+
         Ok(())
     }
 
     /// Construct a future from calling a function.
-    fn call_async_fn(&mut self, offset: usize, args: usize) -> Result<(), VmErrorKind> {
-        let stack = self.stack.drain(args)?.try_collect::<Stack>()?;
-        let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack);
-        vm.ip = offset;
-        let mut execution = vm.into_execution();
-        let future = Future::new(async move { execution.async_complete().await })?;
-        self.stack.push(future)?;
+    fn call_async_fn(
+        &mut self,
+        offset: usize,
+        args: usize,
+        out: Output,
+    ) -> Result<(), VmErrorKind> {
+        let iter = self.stack.drain(args)?;
+
+        if let Some(at) = out.into_keep() {
+            let stack = iter.try_collect::<Stack>()?;
+            let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack);
+            vm.ip = offset;
+            let mut execution = vm.into_execution();
+            let future = Future::new(async move { execution.async_complete().await })?;
+            *self.stack.at_mut(at)? = Value::try_from(future)?;
+        }
+
         Ok(())
     }
 
@@ -1248,12 +1282,7 @@ impl Vm {
     ) -> Result<bool, VmErrorKind> {
         let moved = match call {
             Call::Async => {
-                if out.is_keep() {
-                    self.call_async_fn(offset, args)?;
-                } else {
-                    drop(self.stack.drain(args)?);
-                }
-
+                self.call_async_fn(offset, args, out)?;
                 false
             }
             Call::Immediate => {
@@ -1261,21 +1290,11 @@ impl Vm {
                 true
             }
             Call::Stream => {
-                if out.is_keep() {
-                    self.call_stream_fn(offset, args)?;
-                } else {
-                    drop(self.stack.drain(args)?);
-                }
-
+                self.call_stream_fn(offset, args, out)?;
                 false
             }
             Call::Generator => {
-                if out.is_keep() {
-                    self.call_generator_fn(offset, args)?;
-                } else {
-                    drop(self.stack.drain(args)?);
-                }
-
+                self.call_generator_fn(offset, args, out)?;
                 false
             }
         };
@@ -1386,31 +1405,27 @@ impl Vm {
         rhs: InstAddress,
         out: Output,
     ) -> VmResult<()> {
-        let rhs = vm_try!(self.stack.address(rhs));
-        let lhs = vm_try!(self.stack.address(lhs));
+        let rhs = vm_try!(self.stack.at(rhs)).clone();
+        let lhs = vm_try!(self.stack.at(lhs)).clone();
 
         match (
             &*vm_try!(lhs.borrow_kind_ref()),
             &*vm_try!(rhs.borrow_kind_ref()),
         ) {
-            (ValueKind::Integer(lhs), ValueKind::Integer(rhs)) => {
-                let value = vm_try!(integer_op(*lhs, *rhs).ok_or_else(error));
-
-                if out.is_keep() {
-                    vm_try!(self.stack.push(value));
-                }
-
+            &(ValueKind::Integer(lhs), ValueKind::Integer(rhs)) => {
+                let value = vm_try!(integer_op(lhs, rhs).ok_or_else(error));
+                vm_try!(out.store(&mut self.stack, value));
                 return VmResult::Ok(());
             }
-            (ValueKind::Float(lhs), ValueKind::Float(rhs)) => {
-                if out.is_keep() {
-                    vm_try!(self.stack.push(float_op(*lhs, *rhs)));
-                }
-
+            &(ValueKind::Float(lhs), ValueKind::Float(rhs)) => {
+                vm_try!(out.store(&mut self.stack, float_op(lhs, rhs)));
                 return VmResult::Ok(());
             }
             _ => {}
         };
+
+        let lhs = lhs.clone();
+        let rhs = rhs.clone();
 
         if let CallResult::Unsupported(lhs) =
             vm_try!(self.call_instance_fn(lhs, protocol, (&rhs,), out))
@@ -1444,24 +1459,15 @@ impl Vm {
             &*vm_try!(rhs.borrow_kind_ref()),
         ) {
             (ValueKind::Integer(lhs), ValueKind::Integer(rhs)) => {
-                if out.is_keep() {
-                    vm_try!(self.stack.push(integer_op(*lhs, *rhs)));
-                }
-
+                vm_try!(out.store(&mut self.stack, integer_op(*lhs, *rhs)));
                 return VmResult::Ok(());
             }
             (ValueKind::Byte(lhs), ValueKind::Byte(rhs)) => {
-                if out.is_keep() {
-                    vm_try!(self.stack.push(byte_op(*lhs, *rhs)));
-                }
-
+                vm_try!(out.store(&mut self.stack, byte_op(*lhs, *rhs)));
                 return VmResult::Ok(());
             }
             (ValueKind::Bool(lhs), ValueKind::Bool(rhs)) => {
-                if out.is_keep() {
-                    vm_try!(self.stack.push(bool_op(*lhs, *rhs)));
-                }
-
+                vm_try!(out.store(&mut self.stack, bool_op(*lhs, *rhs)));
                 return VmResult::Ok(());
             }
             _ => {}
@@ -1539,20 +1545,12 @@ impl Vm {
         ) {
             (ValueKind::Integer(lhs), ValueKind::Integer(rhs)) => {
                 let integer = vm_try!(integer_op(*lhs, *rhs).ok_or_else(error));
-
-                if out.is_keep() {
-                    vm_try!(self.stack.push(integer));
-                }
-
+                vm_try!(out.store(&mut self.stack, integer));
                 return VmResult::Ok(());
             }
             (ValueKind::Byte(lhs), ValueKind::Integer(rhs)) => {
                 let byte = vm_try!(byte_op(*lhs, *rhs).ok_or_else(error));
-
-                if out.is_keep() {
-                    vm_try!(self.stack.push(byte));
-                }
-
+                vm_try!(out.store(&mut self.stack, byte));
                 return VmResult::Ok(());
             }
             _ => {}
@@ -1644,25 +1642,25 @@ impl Vm {
     /// Copy a value from a position relative to the top of the stack, to the
     /// top of the stack.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_copy(&mut self, offset: usize) -> VmResult<()> {
-        let value = vm_try!(self.stack.at_offset(offset)).clone();
-        vm_try!(self.stack.push(value));
+    fn op_copy(&mut self, addr: InstAddress) -> VmResult<()> {
+        let value = vm_try!(self.stack.at(addr)).clone();
+        vm_try!(out.store(&mut self.stack, value));
         VmResult::Ok(())
     }
 
     /// Move a value from a position relative to the top of the stack, to the
     /// top of the stack.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_move(&mut self, offset: usize) -> VmResult<()> {
-        let value = vm_try!(self.stack.at_offset(offset)).clone();
+    fn op_move(&mut self, addr: InstAddress, out: Output) -> VmResult<()> {
+        let value = vm_try!(self.stack.at(addr)).clone();
         let value = vm_try!(value.move_());
-        vm_try!(self.stack.push(value));
+        vm_try!(out.store(&mut self.stack, value));
         VmResult::Ok(())
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_drop(&mut self, offset: usize) -> VmResult<()> {
-        let _ = vm_try!(self.stack.at_offset(offset));
+    fn op_drop(&mut self, addr: InstAddress) -> VmResult<()> {
+        vm_try!(vm_try!(self.stack.at(addr)).drop());
         VmResult::Ok(())
     }
 
@@ -1787,8 +1785,8 @@ impl Vm {
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_not(&mut self, out: Output) -> VmResult<()> {
-        let value = vm_try!(self.stack.pop());
+    fn op_not(&mut self, operand: InstAddress, out: Output) -> VmResult<()> {
+        let value = vm_try!(self.stack.at(operand));
 
         let value = match *vm_try!(value.borrow_kind_ref()) {
             ValueKind::Bool(value) => vm_try!(Value::try_from(!value)),
@@ -1800,10 +1798,7 @@ impl Vm {
             }
         };
 
-        if out.is_keep() {
-            vm_try!(self.stack.push(value));
-        }
-
+        vm_try!(out.store(&mut self.stack, value));
         VmResult::Ok(())
     }
 
@@ -1820,10 +1815,7 @@ impl Vm {
             }
         };
 
-        if out.is_keep() {
-            vm_try!(self.stack.push(value));
-        }
-
+        vm_try!(out.store(&mut self.stack, || value));
         VmResult::Ok(())
     }
 
@@ -1980,19 +1972,13 @@ impl Vm {
                 let rhs = vm_try!(self.stack.address(rhs));
                 let lhs = vm_try!(self.stack.address(lhs));
                 let test = vm_try!(Value::partial_eq_with(&lhs, &rhs, self));
-
-                if out.is_keep() {
-                    vm_try!(self.stack.push(test));
-                }
+                vm_try!(out.store(&mut self.stack, test));
             }
             InstOp::Neq => {
                 let rhs = vm_try!(self.stack.address(rhs));
                 let lhs = vm_try!(self.stack.address(lhs));
                 let test = vm_try!(Value::partial_eq_with(&lhs, &rhs, self));
-
-                if out.is_keep() {
-                    vm_try!(self.stack.push(!test));
-                }
+                vm_try!(out.store(&mut self.stack, !test));
             }
             InstOp::And => {
                 vm_try!(self.internal_boolean_op(|a, b| a && b, "&&", lhs, rhs, out));
@@ -2001,10 +1987,8 @@ impl Vm {
                 vm_try!(self.internal_boolean_op(|a, b| a || b, "||", lhs, rhs, out));
             }
             InstOp::As => {
-                if out.is_keep() {
-                    let value = vm_try!(self.as_op(lhs, rhs));
-                    vm_try!(self.stack.push(value));
-                }
+                let value = vm_try!(self.as_op(lhs, rhs));
+                vm_try!(out.store(&mut self.stack, value));
             }
             InstOp::Is => {
                 let is_instance = vm_try!(self.test_is_instance(lhs, rhs));
@@ -2183,14 +2167,10 @@ impl Vm {
 
     #[inline]
     #[tracing::instrument(skip(self))]
-    fn op_return_internal(&mut self, return_value: Value) -> Result<bool, VmErrorKind> {
-        let (exit, out) = self.pop_call_frame()?;
-
-        if out.is_keep() {
-            self.stack.push(return_value)?;
-        }
-
-        Ok(exit)
+    fn op_return_internal(&mut self, return_value: Value) -> VmResult<bool> {
+        let (exit, out) = vm_try!(self.pop_call_frame());
+        vm_try!(out.store(&mut self.stack, return_value));
+        VmResult::Ok(exit)
     }
 
     fn lookup_function_by_hash(&self, hash: Hash) -> Result<Function, VmErrorKind> {
@@ -2251,21 +2231,17 @@ impl Vm {
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_return(&mut self, address: InstAddress) -> Result<bool, VmErrorKind> {
-        let return_value = self.stack.address(address)?;
+    fn op_return(&mut self, address: InstAddress) -> VmResult<bool> {
+        let return_value = vm_try!(self.stack.address(address));
         self.op_return_internal(return_value)
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
     #[tracing::instrument(skip(self))]
-    fn op_return_unit(&mut self) -> Result<bool, VmErrorKind> {
-        let (exit, out) = self.pop_call_frame()?;
-
-        if out.is_keep() {
-            self.stack.push(())?;
-        }
-
-        Ok(exit)
+    fn op_return_unit(&mut self) -> VmResult<bool> {
+        let (exit, out) = vm_try!(self.pop_call_frame());
+        vm_try!(out.store(&mut self.stack, ()));
+        VmResult::Ok(exit)
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
@@ -2293,10 +2269,7 @@ impl Vm {
                 if let Some(value) =
                     vm_try!(Self::try_object_like_index_get(&target, index.as_str()))
                 {
-                    if out.is_keep() {
-                        vm_try!(self.stack.push(value));
-                    }
-
+                    vm_try!(out.store(&mut self.stack, value));
                     return VmResult::Ok(());
                 }
             }
@@ -2309,10 +2282,7 @@ impl Vm {
                 };
 
                 if let Some(value) = vm_try!(Self::try_tuple_like_index_get(&target, index)) {
-                    if out.is_keep() {
-                        vm_try!(self.stack.push(value));
-                    }
-
+                    vm_try!(out.store(&mut self.stack, value));
                     return VmResult::Ok(());
                 }
             }
@@ -2327,28 +2297,6 @@ impl Vm {
             return err(VmErrorKind::UnsupportedIndexGet {
                 target: vm_try!(target.type_info()),
                 index: vm_try!(index.type_info()),
-            });
-        }
-
-        VmResult::Ok(())
-    }
-
-    /// Perform an index get operation specialized for tuples.
-    #[cfg_attr(feature = "bench", inline(never))]
-    fn op_tuple_index_get(&mut self, index: usize, out: Output) -> VmResult<()> {
-        let value = vm_try!(self.stack.pop());
-
-        if let Some(value) = vm_try!(Self::try_tuple_like_index_get(&value, index)) {
-            vm_try!(self.stack.push(value));
-            return VmResult::Ok(());
-        }
-
-        if let CallResult::Unsupported(value) =
-            vm_try!(self.call_index_fn(Protocol::GET, value, index, (), out))
-        {
-            return err(VmErrorKind::UnsupportedTupleIndexGet {
-                target: vm_try!(value.type_info()),
-                index,
             });
         }
 
@@ -2372,14 +2320,16 @@ impl Vm {
 
     /// Perform an index get operation specialized for tuples.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_tuple_index_get_at(&mut self, offset: usize, index: usize, out: Output) -> VmResult<()> {
-        let value = vm_try!(self.stack.at_offset(offset));
+    fn op_tuple_index_get_at(
+        &mut self,
+        addr: InstAddress,
+        index: usize,
+        out: Output,
+    ) -> VmResult<()> {
+        let value = vm_try!(self.stack.at(addr)).clone();
 
         if let Some(value) = vm_try!(Self::try_tuple_like_index_get(value, index)) {
-            if out.is_keep() {
-                vm_try!(self.stack.push(value));
-            }
-
+            vm_try!(out.store(&mut self.stack, value));
             return VmResult::Ok(());
         }
 
@@ -2409,25 +2359,6 @@ impl Vm {
         VmResult::Ok(())
     }
 
-    /// Perform a specialized index get operation on an object.
-    #[cfg_attr(feature = "bench", inline(never))]
-    fn op_object_index_get(&mut self, string_slot: usize, out: Output) -> VmResult<()> {
-        let target = vm_try!(self.stack.pop());
-
-        match vm_try!(self.try_object_slot_index_get(target, string_slot)) {
-            CallResult::Ok(value) => {
-                if out.is_keep() {
-                    vm_try!(self.stack.push(value));
-                }
-
-                VmResult::Ok(())
-            }
-            CallResult::Unsupported(target) => err(VmErrorKind::UnsupportedObjectSlotIndexGet {
-                target: vm_try!(target.type_info()),
-            }),
-        }
-    }
-
     /// Perform a specialized index set operation on an object.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_object_index_set(&mut self, string_slot: usize) -> VmResult<()> {
@@ -2447,14 +2378,16 @@ impl Vm {
 
     /// Perform a specialized index get operation on an object.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_object_index_get_at(&mut self, offset: usize, string_slot: usize) -> VmResult<()> {
-        let target = vm_try!(self.stack.at_offset(offset)).clone();
+    fn op_object_index_get_at(
+        &mut self,
+        addr: InstAddress,
+        slot: usize,
+        out: Output,
+    ) -> VmResult<()> {
+        let target = vm_try!(self.stack.at(addr)).clone();
 
-        match vm_try!(self.try_object_slot_index_get(target, string_slot)) {
-            CallResult::Ok(value) => {
-                vm_try!(self.stack.push(value));
-                VmResult::Ok(())
-            }
+        match vm_try!(self.try_object_slot_index_get(target, slot, out)) {
+            CallResult::Ok(()) => VmResult::Ok(()),
             CallResult::Unsupported(target) => err(VmErrorKind::UnsupportedObjectSlotIndexGet {
                 target: vm_try!(target.type_info()),
             }),
@@ -2653,7 +2586,7 @@ impl Vm {
             }
 
             if let CallResult::Unsupported(target) =
-                vm_try!(self.call_instance_fn(value, Protocol::TRY, (), Output::keep()))
+                vm_try!(self.call_instance_fn(value, Protocol::TRY, (), Output::keep(0)))
             {
                 return err(VmErrorKind::UnsupportedTryOperand {
                     actual: vm_try!(target.type_info()),
@@ -2798,7 +2731,7 @@ impl Vm {
                 value,
                 Protocol::IS_VARIANT,
                 (index,),
-                Output::keep()
+                Output::keep(0)
             )) {
                 CallResult::Ok(()) => vm_try!(vm_try!(self.stack.pop()).as_bool()),
                 CallResult::Unsupported(..) => false,
@@ -2984,9 +2917,7 @@ impl Vm {
                     .lookup_rtti(hash)
                     .ok_or(VmErrorKind::MissingRtti { hash }));
 
-                if out.is_keep() {
-                    vm_try!(self.stack.push(vm_try!(Value::empty_struct(rtti.clone()))));
-                }
+                vm_try!(out.store(&mut self.stack, || Value::empty_struct(rtti.clone())));
             }
             UnitFn::TupleStruct {
                 hash,
@@ -3000,11 +2931,7 @@ impl Vm {
                     .lookup_rtti(hash)
                     .ok_or(VmErrorKind::MissingRtti { hash }));
 
-                if out.is_keep() {
-                    vm_try!(self
-                        .stack
-                        .push(vm_try!(Value::tuple_struct(rtti.clone(), tuple))));
-                }
+                vm_try!(out.store(&mut self.stack, || Value::tuple_struct(rtti.clone(), tuple)));
             }
             UnitFn::TupleVariant {
                 hash,
@@ -3019,11 +2946,10 @@ impl Vm {
 
                 let tuple = vm_try!(vm_try!(self.stack.pop_sequence(args)));
 
-                if out.is_keep() {
-                    vm_try!(self
-                        .stack
-                        .push(vm_try!(Value::tuple_variant(rtti.clone(), tuple))));
-                }
+                vm_try!(out.store(&mut self.stack, || Value::tuple_variant(
+                    rtti.clone(),
+                    tuple
+                )));
             }
             UnitFn::UnitVariant { hash } => {
                 vm_try!(check_args(args, 0));
@@ -3033,9 +2959,7 @@ impl Vm {
                     .lookup_variant_rtti(hash)
                     .ok_or(VmErrorKind::MissingVariantRtti { hash }));
 
-                if out.is_keep() {
-                    vm_try!(self.stack.push(vm_try!(Value::unit_variant(rtti.clone()))));
-                }
+                vm_try!(out.store(&mut self.stack, || Value::unit_variant(rtti.clone())));
             }
         }
 
@@ -3214,8 +3138,8 @@ impl Vm {
                 Inst::Size { size } => {
                     vm_try!(self.op_size(size));
                 }
-                Inst::Not { out } => {
-                    vm_try!(self.op_not(out));
+                Inst::Not { operand, out } => {
+                    vm_try!(self.op_not(operand, out));
                 }
                 Inst::Neg { out } => {
                     vm_try!(self.op_neg(out));
@@ -3248,23 +3172,17 @@ impl Vm {
                 Inst::IndexGet { target, index, out } => {
                     vm_try!(self.op_index_get(target, index, out));
                 }
-                Inst::TupleIndexGet { index, out } => {
-                    vm_try!(self.op_tuple_index_get(index, out));
-                }
                 Inst::TupleIndexSet { index } => {
                     vm_try!(self.op_tuple_index_set(index));
                 }
-                Inst::TupleIndexGetAt { offset, index, out } => {
-                    vm_try!(self.op_tuple_index_get_at(offset, index, out));
-                }
-                Inst::ObjectIndexGet { slot, out } => {
-                    vm_try!(self.op_object_index_get(slot, out));
+                Inst::TupleIndexGetAt { addr, index, out } => {
+                    vm_try!(self.op_tuple_index_get_at(addr, index, out));
                 }
                 Inst::ObjectIndexSet { slot } => {
                     vm_try!(self.op_object_index_set(slot));
                 }
-                Inst::ObjectIndexGetAt { offset, slot } => {
-                    vm_try!(self.op_object_index_get_at(offset, slot));
+                Inst::ObjectIndexGetAt { addr, slot, out } => {
+                    vm_try!(self.op_object_index_get_at(addr, slot, out));
                 }
                 Inst::IndexSet => {
                     vm_try!(self.op_index_set());
@@ -3283,12 +3201,9 @@ impl Vm {
                     let future = vm_try!(self.op_await());
                     return VmResult::Ok(VmHalt::Awaited(Awaited::Future(future), out));
                 }
-                Inst::Select { len } => {
+                Inst::Select { len, out } => {
                     if let Some(select) = vm_try!(self.op_select(len)) {
-                        return VmResult::Ok(VmHalt::Awaited(
-                            Awaited::Select(select),
-                            Output::keep(),
-                        ));
+                        return VmResult::Ok(VmHalt::Awaited(Awaited::Select(select), out));
                     }
                 }
                 Inst::LoadFn { hash } => {
@@ -3297,14 +3212,14 @@ impl Vm {
                 Inst::Push { value } => {
                     vm_try!(self.op_push(value));
                 }
-                Inst::Copy { offset } => {
-                    vm_try!(self.op_copy(offset));
+                Inst::Copy { addr, out } => {
+                    vm_try!(self.op_copy(addr, out));
                 }
-                Inst::Move { offset } => {
-                    vm_try!(self.op_move(offset));
+                Inst::Move { addr, out } => {
+                    vm_try!(self.op_move(addr, out));
                 }
-                Inst::Drop { offset } => {
-                    vm_try!(self.op_drop(offset));
+                Inst::Drop { addr } => {
+                    vm_try!(self.op_drop(addr));
                 }
                 Inst::Swap { a, b } => {
                     vm_try!(self.op_swap(a, b));

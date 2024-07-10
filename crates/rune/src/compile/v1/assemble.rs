@@ -36,7 +36,7 @@ impl Needs {
     #[inline(always)]
     pub(crate) fn output(self) -> Output {
         match self {
-            Needs::Value => Output::keep(),
+            Needs::Value => todo!(),
             Needs::None => Output::discard(),
         }
     }
@@ -160,17 +160,12 @@ impl<'hir> Asm<'hir> {
         Ok(())
     }
 
-    /// Assemble into an instruction declaring an anonymous variable if appropriate.
-    fn apply_targeted(self, cx: &mut Ctxt) -> compile::Result<InstAddress> {
-        let address = match self.kind {
-            AsmKind::Top => {
-                cx.scopes.alloc(&self.span)?;
-                InstAddress::Top
-            }
-            AsmKind::Var(var) => InstAddress::Offset(var.offset),
-        };
-
-        Ok(address)
+    /// Assemble into an instruction declaring a variable if appropriate.
+    fn address(self, cx: &mut Ctxt) -> compile::Result<InstAddress> {
+        match self.kind {
+            AsmKind::Top => todo!(),
+            AsmKind::Var(var) => Ok(InstAddress::new(var.offset)),
+        }
     }
 }
 
@@ -285,15 +280,8 @@ fn return_<'hir, T>(
     hir: T,
     asm: impl FnOnce(&mut Ctxt<'_, 'hir, '_>, T, Needs) -> compile::Result<Asm<'hir>>,
 ) -> compile::Result<()> {
-    let address = asm(cx, hir, Needs::Value)?.apply_targeted(cx)?;
+    let address = asm(cx, hir, Needs::Value)?.address(cx)?;
     cx.asm.push(Inst::Return { address }, span)?;
-
-    // Top address produces an anonymous variable, which is consumed by the
-    // return statement.
-    if let InstAddress::Top = address {
-        cx.scopes.free(span, 1)?;
-    }
-
     Ok(())
 }
 
@@ -595,20 +583,30 @@ fn pat_object<'hir>(
         match *binding {
             hir::Binding::Binding(span, _, p) => {
                 let load = move |cx: &mut Ctxt<'_, 'hir, '_>, needs: Needs| {
-                    if needs.value() {
-                        cx.asm
-                            .push(Inst::ObjectIndexGetAt { offset, slot }, &span)?;
-                    }
-
+                    cx.asm.push(
+                        Inst::ObjectIndexGetAt {
+                            addr: InstAddress::new(offset),
+                            slot,
+                            out: needs.output(),
+                        },
+                        &span,
+                    )?;
                     Ok(())
                 };
 
                 pat(cx, p, false_label, &load)?;
             }
             hir::Binding::Ident(span, name) => {
-                cx.asm
-                    .push(Inst::ObjectIndexGetAt { offset, slot }, &span)?;
-                cx.scopes.define(hir::Name::Str(name), binding)?;
+                let out = Output::keep(cx.scopes.define(hir::Name::Str(name), binding)?);
+
+                cx.asm.push(
+                    Inst::ObjectIndexGetAt {
+                        addr: InstAddress::new(offset),
+                        slot,
+                        out,
+                    },
+                    &span,
+                )?;
             }
         }
     }
@@ -1010,8 +1008,8 @@ fn expr_binary<'hir>(
 
     // NB: need to declare these as anonymous local variables so that they
     // get cleaned up in case there is an early break (return, try, ...).
-    let a = expr(cx, &hir.lhs, Needs::Value)?.apply_targeted(cx)?;
-    let b = expr(cx, &hir.rhs, Needs::Value)?.apply_targeted(cx)?;
+    let a = expr(cx, &hir.lhs, Needs::Value)?.address(cx)?;
+    let b = expr(cx, &hir.rhs, Needs::Value)?.address(cx)?;
 
     let op = match hir.op {
         ast::BinOp::Eq(..) => InstOp::Eq,
@@ -1162,14 +1160,18 @@ fn expr_async_block<'hir>(
     needs: Needs,
 ) -> compile::Result<Asm<'hir>> {
     for capture in hir.captures.iter().copied() {
+        let out = Output::keep(cx.scopes.alloc(span)?);
+
         if hir.do_move {
             let var = cx.scopes.take(&mut cx.q, capture, span)?;
-            var.do_move(cx.asm, span, Some(&"capture"))?;
+            var.do_move(cx.asm, span, Some(&"capture"), out)?;
         } else {
             let var = cx.scopes.get(&mut cx.q, capture, span)?;
-            var.copy(cx, span, Some(&"capture"))?;
+            var.copy(cx, span, Some(&"capture"), out)?;
         }
     }
+
+    cx.scopes.free(span, hir.captures.len())?;
 
     cx.asm.push_with_comment(
         Inst::Call {
@@ -1240,8 +1242,13 @@ fn expr_break<'hir>(
     };
 
     // Drop loop temporaries. Typically an iterator.
-    for offset in to_drop {
-        cx.asm.push(Inst::Drop { offset }, span)?;
+    for addr in to_drop {
+        cx.asm.push(
+            Inst::Drop {
+                addr: InstAddress::new(addr),
+            },
+            span,
+        )?;
     }
 
     if last_loop.needs.value() && !has_value {
@@ -1368,14 +1375,18 @@ fn expr_call_closure<'hir>(
 
     // Construct a closure environment.
     for capture in hir.captures.iter().copied() {
+        let out = Output::keep(cx.scopes.alloc(span)?);
+
         if hir.do_move {
             let var = cx.scopes.take(&mut cx.q, capture, span)?;
-            var.do_move(cx.asm, span, Some(&"capture"))?;
+            var.do_move(cx.asm, span, Some(&"capture"), out)?;
         } else {
             let var = cx.scopes.get(&mut cx.q, capture, span)?;
-            var.copy(cx, span, Some(&"capture"))?;
+            var.copy(cx, span, Some(&"capture"), out)?;
         }
     }
+
+    cx.scopes.free(span, hir.captures.len())?;
 
     cx.asm.push(
         Inst::Closure {
@@ -1431,7 +1442,7 @@ fn expr_field_access<'hir>(
 
         cx.asm.push_with_comment(
             Inst::TupleIndexGetAt {
-                offset: var.offset,
+                addr: InstAddress::new(var.offset),
                 index,
                 out: needs.output(),
             },
@@ -1442,12 +1453,13 @@ fn expr_field_access<'hir>(
         return Ok(Asm::top(span));
     }
 
-    expr(cx, &hir.expr, Needs::Value)?.apply(cx)?;
+    let addr = expr(cx, &hir.expr, Needs::Value)?.address(cx)?;
 
     match hir.expr_field {
         hir::ExprField::Index(index) => {
             cx.asm.push(
-                Inst::TupleIndexGet {
+                Inst::TupleIndexGetAt {
+                    addr,
                     index,
                     out: needs.output(),
                 },
@@ -1458,7 +1470,8 @@ fn expr_field_access<'hir>(
         hir::ExprField::Ident(field) => {
             let slot = cx.q.unit.new_static_string(span, field)?;
             cx.asm.push(
-                Inst::ObjectIndexGet {
+                Inst::ObjectIndexGetAt {
+                    addr,
                     slot,
                     out: needs.output(),
                 },
@@ -1492,7 +1505,7 @@ fn expr_for<'hir>(
             Inst::CallAssociated {
                 hash: *Protocol::INTO_ITER,
                 args: 0,
-                out: Output::keep(),
+                out: Output::keep(iter_offset),
             },
             &hir.iter,
             &format_args!("into_iter (offset: {})", iter_offset),
@@ -1564,16 +1577,9 @@ fn expr_for<'hir>(
         cx.asm.push(
             Inst::CallFn {
                 args: 1,
-                out: Output::keep(),
+                out: Output::keep(binding_offset),
             },
             span,
-        )?;
-
-        cx.asm.push(
-            Inst::Replace {
-                offset: binding_offset,
-            },
-            &hir.binding,
         )?;
     } else {
         // call the `next` function to get the next level of iteration, bind the
@@ -1589,17 +1595,10 @@ fn expr_for<'hir>(
             Inst::CallAssociated {
                 hash: *Protocol::NEXT,
                 args: 0,
-                out: Output::keep(),
+                out: Output::keep(binding_offset),
             },
             span,
             &"next",
-        )?;
-
-        cx.asm.push(
-            Inst::Replace {
-                offset: binding_offset,
-            },
-            &hir.binding,
         )?;
     }
 
@@ -1619,7 +1618,7 @@ fn expr_for<'hir>(
     // Drop the iterator.
     cx.asm.push(
         Inst::Drop {
-            offset: iter_offset,
+            addr: InstAddress::new(iter_offset),
         },
         span,
     )?;
@@ -1706,8 +1705,8 @@ fn expr_index<'hir>(
 ) -> compile::Result<Asm<'hir>> {
     let guard = cx.scopes.child(span)?;
 
-    let target = expr(cx, &hir.target, Needs::Value)?.apply_targeted(cx)?;
-    let index = expr(cx, &hir.index, Needs::Value)?.apply_targeted(cx)?;
+    let target = expr(cx, &hir.target, Needs::Value)?.address(cx)?;
+    let index = expr(cx, &hir.index, Needs::Value)?.address(cx)?;
 
     cx.asm.push(
         Inst::IndexGet {
@@ -2023,8 +2022,13 @@ fn expr_return<'hir>(
 ) -> compile::Result<Asm<'hir>> {
     // NB: drop any loop temporaries.
     for l in cx.loops.iter() {
-        if let Some(offset) = l.drop {
-            cx.asm.push(Inst::Drop { offset }, span)?;
+        if let Some(addr) = l.drop {
+            cx.asm.push(
+                Inst::Drop {
+                    addr: InstAddress::new(addr),
+                },
+                span,
+            )?;
         }
     }
 
@@ -2074,7 +2078,8 @@ fn expr_select<'hir>(
         expr(cx, &branch.expr, Needs::Value)?.apply(cx)?;
     }
 
-    cx.asm.push(Inst::Select { len }, span)?;
+    let out = Output::keep(cx.scopes.alloc(span)?);
+    cx.asm.push(Inst::Select { len, out }, span)?;
 
     for (branch, (label, _)) in branches.iter().enumerate() {
         cx.asm.jump_if_branch(branch as i64, label, span)?;
@@ -2134,7 +2139,7 @@ fn expr_try<'hir>(
     span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm<'hir>> {
-    let address = expr(cx, hir, Needs::Value)?.apply_targeted(cx)?;
+    let address = expr(cx, hir, Needs::Value)?.address(cx)?;
 
     cx.asm.push(
         Inst::Try {
@@ -2144,17 +2149,7 @@ fn expr_try<'hir>(
         span,
     )?;
 
-    if let InstAddress::Top = address {
-        cx.scopes.free(span, 1)?;
-    }
-
-    // Why no needs.value() check here to declare another anonymous
-    // variable? Because when these assembling functions were initially
-    // implemented it was decided that the caller that indicates
-    // Needs::Value is responsible for declaring any anonymous variables.
-    //
-    // TODO: This should probably change!
-
+    cx.scopes.free(span, 1)?;
     Ok(Asm::top(span))
 }
 
@@ -2174,7 +2169,7 @@ fn expr_tuple<'hir>(
 
             $(
             let $var = it.next().ok_or_else(|| compile::Error::msg(span, "items ended unexpectedly"))?;
-            let $var = expr(cx, $var, needs)?.apply_targeted(cx)?;
+            let $var = expr(cx, $var, needs)?.address(cx)?;
             )*
 
             if needs.value() {
@@ -2229,12 +2224,13 @@ fn expr_unary<'hir>(
     span: &dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm<'hir>> {
-    expr(cx, &hir.expr, Needs::Value)?.apply(cx)?;
+    let operand = expr(cx, &hir.expr, Needs::Value)?.address(cx)?;
 
     match hir.op {
         ast::UnOp::Not(..) => {
             cx.asm.push(
                 Inst::Not {
+                    operand,
                     out: needs.output(),
                 },
                 span,

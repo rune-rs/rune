@@ -1,4 +1,5 @@
 use core::fmt;
+use core::num::NonZeroUsize;
 
 use musli::{Decode, Encode};
 use rune_macros::InstDisplay;
@@ -7,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate as rune;
 use crate::alloc;
 use crate::alloc::prelude::*;
-use crate::runtime::{Call, FormatSpec, Stack, Type, Value, VmResult};
+use crate::runtime::{Call, FormatSpec, Stack, Type, Value, VmErrorKind, VmResult};
 use crate::Hash;
 
 /// Pre-canned panic reasons.
@@ -111,6 +112,8 @@ pub enum Inst {
     /// => <bool>
     /// ```
     Not {
+        /// The operand to negate.
+        operand: InstAddress,
         /// Whether the produced value from the not should be kept or not.
         out: Output,
     },
@@ -237,22 +240,6 @@ pub enum Inst {
         /// Whether the produced value should be kept or not.
         out: Output,
     },
-    /// Get the given index out of a tuple on the top of the stack.
-    /// Errors if the item doesn't exist or the item is not a tuple.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <tuple>
-    /// => <value>
-    /// ```
-    #[musli(packed)]
-    TupleIndexGet {
-        /// The index to fetch.
-        index: usize,
-        /// Whether the produced value should be kept or not.
-        out: Output,
-    },
     /// Set the given index of the tuple on the stack, with the given value.
     ///
     /// # Operation
@@ -277,29 +264,10 @@ pub enum Inst {
     /// ```
     #[musli(packed)]
     TupleIndexGetAt {
-        /// The slot offset to load the tuple from.
-        offset: usize,
+        /// The address where the tuple we are getting from is stored.
+        addr: InstAddress,
         /// The index to fetch.
         index: usize,
-        /// Whether the produced value should be kept or not.
-        out: Output,
-    },
-    /// Get the given index out of an object on the top of the stack.
-    /// Errors if the item doesn't exist or the item is not an object.
-    ///
-    /// The index is identifier by a static string slot, which is provided as an
-    /// argument.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <object>
-    /// => <value>
-    /// ```
-    #[musli(packed)]
-    ObjectIndexGet {
-        /// The static string slot corresponding to the index to fetch.
-        slot: usize,
         /// Whether the produced value should be kept or not.
         out: Output,
     },
@@ -334,10 +302,12 @@ pub enum Inst {
     /// ```
     #[musli(packed)]
     ObjectIndexGetAt {
-        /// The slot offset to get the value to load from.
-        offset: usize,
+        /// The address where the object is stored.
+        addr: InstAddress,
         /// The static string slot corresponding to the index to fetch.
         slot: usize,
+        /// Where to store the fetched value.
+        out: Output,
     },
     /// Perform an index set operation.
     ///
@@ -380,6 +350,8 @@ pub enum Inst {
     Select {
         /// The number of futures to poll.
         len: usize,
+        /// Where the produced value should be stored.
+        out: Output,
     },
     /// Load the given function by hash and push onto the stack.
     ///
@@ -411,15 +383,19 @@ pub enum Inst {
     /// A copy is very cheap. It simply means pushing a reference to the stack.
     #[musli(packed)]
     Copy {
-        /// Offset to copy value from.
-        offset: usize,
+        /// Address of the value being copied.
+        addr: InstAddress,
+        /// Where the value is being copied to.
+        out: Output,
     },
     /// Move a variable from a location `offset` relative to the current call
     /// frame.
     #[musli(packed)]
     Move {
-        /// Offset to move value from.
-        offset: usize,
+        /// Address of the value being moved.
+        addr: InstAddress,
+        /// Where the value is being moved to.
+        out: Output,
     },
     /// Drop the value in the given frame offset, cleaning out it's slot in
     /// memory.
@@ -431,8 +407,8 @@ pub enum Inst {
     /// ```
     #[musli(packed)]
     Drop {
-        /// Frame offset to drop.
-        offset: usize,
+        /// Address of the value being dropped.
+        addr: InstAddress,
     },
     /// Replace a value at the offset relative from the top of the stack, with
     /// the top of the stack.
@@ -1101,7 +1077,7 @@ impl Inst {
 #[non_exhaustive]
 enum OutputKind {
     /// Push the produced value onto the stack.
-    Keep,
+    Keep(NonZeroUsize),
     /// Discard the produced value, leaving the stack unchanged.
     Discard,
 }
@@ -1121,9 +1097,13 @@ pub struct Output {
 impl Output {
     /// Construct a keep output kind.
     #[inline]
-    pub(crate) fn keep() -> Self {
+    pub(crate) fn keep(index: usize) -> Self {
+        let Some(index) = NonZeroUsize::new(index ^ usize::MAX) else {
+            panic!("Index {index} is out of bounds")
+        };
+
         Self {
-            kind: OutputKind::Keep,
+            kind: OutputKind::Keep(index),
         }
     }
 
@@ -1137,30 +1117,127 @@ impl Output {
 
     /// Check if the output is a keep.
     #[inline]
-    pub(crate) fn is_keep(&self) -> bool {
-        matches!(self.kind, OutputKind::Keep)
+    pub(crate) fn into_keep(&self) -> Option<usize> {
+        match self.kind {
+            OutputKind::Keep(index) => Some(index.get() ^ usize::MAX),
+            OutputKind::Discard => None,
+        }
     }
 
     /// Write the current output to the provided stack.
     #[inline]
-    pub(crate) fn store<O>(self, stack: &mut Stack, f: impl FnOnce() -> VmResult<O>) -> VmResult<()>
+    pub(crate) fn store<O>(self, stack: &mut Stack, o: O) -> VmResult<()>
     where
-        Value: TryFrom<O>,
-        alloc::Error: From<<Value as TryFrom<O>>::Error>,
+        O: IntoResult<Output: TryInto<Value, Error: Into<VmErrorKind>>>,
     {
-        if let OutputKind::Keep = self.kind {
-            let value = vm_try!(f());
-            vm_try!(stack.push(value));
+        if let Some(index) = self.into_keep() {
+            let value = vm_try!(o.into_result());
+            *vm_try!(stack.at_mut(index)) = vm_try!(value.try_into());
         }
 
         VmResult::Ok(())
     }
 }
 
+trait IntoResult {
+    type Output;
+
+    /// Coerce into result.
+    fn into_result(self) -> VmResult<Self::Output>;
+}
+
+impl<F, O> IntoResult for F
+where
+    F: FnOnce() -> O,
+    O: IntoResult,
+{
+    type Output = O::Output;
+
+    #[inline]
+    fn into_result(self) -> VmResult<Self::Output> {
+        self().into_result()
+    }
+}
+
+impl<T, E> IntoResult for Result<T, E>
+where
+    VmErrorKind: From<E>,
+{
+    type Output = T;
+
+    #[inline]
+    fn into_result(self) -> VmResult<Self::Output> {
+        VmResult::Ok(vm_try!(self))
+    }
+}
+
+impl<T> IntoResult for VmResult<T> {
+    type Output = T;
+
+    #[inline]
+    fn into_result(self) -> VmResult<Self::Output> {
+        self
+    }
+}
+
+impl IntoResult for Value {
+    type Output = Value;
+
+    #[inline]
+    fn into_result(self) -> VmResult<Self::Output> {
+        VmResult::Ok(self)
+    }
+}
+
+impl IntoResult for bool {
+    type Output = bool;
+
+    #[inline]
+    fn into_result(self) -> VmResult<Self::Output> {
+        VmResult::Ok(self)
+    }
+}
+
+impl IntoResult for u8 {
+    type Output = u8;
+
+    #[inline]
+    fn into_result(self) -> VmResult<Self::Output> {
+        VmResult::Ok(self)
+    }
+}
+
+impl IntoResult for i64 {
+    type Output = i64;
+
+    #[inline]
+    fn into_result(self) -> VmResult<Self::Output> {
+        VmResult::Ok(self)
+    }
+}
+
+impl IntoResult for f64 {
+    type Output = f64;
+
+    #[inline]
+    fn into_result(self) -> VmResult<Self::Output> {
+        VmResult::Ok(self)
+    }
+}
+
+impl IntoResult for () {
+    type Output = ();
+
+    #[inline]
+    fn into_result(self) -> VmResult<Self::Output> {
+        VmResult::Ok(self)
+    }
+}
+
 impl fmt::Display for Output {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.kind {
-            OutputKind::Keep => write!(f, "keep"),
+            OutputKind::Keep(index) => write!(f, "keep({})", index.get() ^ usize::MAX),
             OutputKind::Discard => write!(f, "discard"),
         }
     }
@@ -1169,21 +1246,28 @@ impl fmt::Display for Output {
 /// How an instruction addresses a value.
 #[derive(Default, Debug, TryClone, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
 #[try_clone(copy)]
-pub enum InstAddress {
-    /// Addressed from the top of the stack.
-    #[default]
-    Top,
-    /// Value addressed at the given offset.
-    #[musli(packed)]
-    Offset(usize),
+pub struct InstAddress {
+    offset: usize,
+}
+
+impl InstAddress {
+    /// Construct a new instruction address.
+    #[inline]
+    pub(crate) fn new(offset: usize) -> Self {
+        Self { offset }
+    }
+
+    /// Get the offset of the address.
+    #[inline]
+    pub(crate) fn offset(self) -> usize {
+        self.offset
+    }
 }
 
 impl fmt::Display for InstAddress {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Top => write!(f, "top"),
-            Self::Offset(offset) => write!(f, "offset({offset})"),
-        }
+        self.offset.fmt(f)
     }
 }
 

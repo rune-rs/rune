@@ -91,10 +91,7 @@ fn dbg_impl(stack: &mut Stack, args: usize, out: Output) -> VmResult<()> {
         vm_try!(writeln!(stdout, "{:?}", value).map_err(Panic::custom));
     }
 
-    if out.is_keep() {
-        vm_try!(stack.push(vm_try!(Value::empty())));
-    }
-
+    vm_try!(out.store(stack, Value::empty));
     VmResult::Ok(())
 }
 

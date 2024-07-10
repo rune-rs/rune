@@ -724,7 +724,6 @@ pub(crate) enum VmErrorKind {
     },
     MissingInterfaceEnvironment,
     ExpectedExecutionState {
-        expected: ExecutionState,
         actual: ExecutionState,
     },
     GeneratorComplete,
@@ -927,8 +926,8 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::MissingInterfaceEnvironment {} => {
                 write!(f, "Missing interface environment")
             }
-            VmErrorKind::ExpectedExecutionState { expected, actual } => {
-                write!(f, "Expected execution to be {expected}, but was {actual}",)
+            VmErrorKind::ExpectedExecutionState { actual } => {
+                write!(f, "Expected resume execution state, but was {actual}",)
             }
             VmErrorKind::GeneratorComplete {} => {
                 write!(f, "Cannot resume a generator that has completed")

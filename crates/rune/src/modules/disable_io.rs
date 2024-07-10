@@ -27,11 +27,7 @@ pub fn module() -> Result<Module, ContextError> {
         .raw_function("dbg", move |stack: &mut Stack, args: usize, out: Output| {
             // NB: still need to maintain the stack.
             drop(vm_try!(stack.drain(args)));
-
-            if out.is_keep() {
-                vm_try!(stack.push(()));
-            }
-
+            vm_try!(out.store(stack, ()));
             VmResult::Ok(())
         })
         .build()?;

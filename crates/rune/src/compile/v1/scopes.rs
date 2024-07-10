@@ -8,7 +8,8 @@ use crate::compile::v1::Ctxt;
 use crate::compile::{self, Assembly, ErrorKind, WithSpan};
 use crate::hir;
 use crate::query::Query;
-use crate::runtime::Inst;
+use crate::runtime::{Inst, InstAddress};
+use crate::tests::prelude::Output;
 use crate::SourceId;
 
 /// A locally declared variable, its calculated stack offset and where it was
@@ -51,10 +52,12 @@ impl<'hir> Var<'hir> {
         cx: &mut Ctxt<'_, '_, '_>,
         span: &dyn Spanned,
         comment: Option<&dyn fmt::Display>,
+        out: Output,
     ) -> compile::Result<()> {
         cx.asm.push_with_comment(
             Inst::Copy {
-                offset: self.offset,
+                addr: InstAddress::new(self.offset),
+                out,
             },
             span,
             &format_args!("var `{}`{}", self.name, Append("; ", comment)),
@@ -67,10 +70,12 @@ impl<'hir> Var<'hir> {
         asm: &mut Assembly,
         span: &dyn Spanned,
         comment: Option<&dyn fmt::Display>,
+        out: Output,
     ) -> compile::Result<()> {
         asm.push_with_comment(
             Inst::Move {
-                offset: self.offset,
+                addr: InstAddress::new(self.offset),
+                out,
             },
             span,
             &format_args!("var `{}`{}", self.name, Append("; ", comment)),

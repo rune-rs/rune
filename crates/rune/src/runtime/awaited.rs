@@ -15,18 +15,11 @@ impl Awaited {
         match self {
             Self::Future(future) => {
                 let value = vm_try!(future.await.with_vm(vm));
-
-                if out.is_keep() {
-                    vm_try!(vm.stack_mut().push(value));
-                }
+                vm_try!(out.store(vm.stack_mut(), || value));
             }
             Self::Select(select) => {
                 let (branch, value) = vm_try!(select.await.with_vm(vm));
-
-                if out.is_keep() {
-                    vm_try!(vm.stack_mut().push(value));
-                }
-
+                vm_try!(out.store(vm.stack_mut(), || value));
                 vm_try!(vm.stack_mut().push(vm_try!(ToValue::to_value(branch))));
             }
         }

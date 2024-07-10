@@ -25,13 +25,16 @@ pub(crate) enum ExecutionState {
     Initial,
     /// execution is waiting.
     Resumed(Output),
+    /// Suspended execution.
+    Suspended,
 }
 
 impl fmt::Display for ExecutionState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ExecutionState::Initial => write!(f, "initial"),
-            ExecutionState::Resumed(..) => write!(f, "resumed"),
+            ExecutionState::Resumed(out) => write!(f, "resumed({out})"),
+            ExecutionState::Suspended => write!(f, "suspended"),
         }
     }
 }
@@ -195,11 +198,10 @@ where
     /// Resume the current execution with the given value and resume
     /// asynchronous execution.
     pub async fn async_resume_with(&mut self, value: Value) -> VmResult<GeneratorState> {
-        let ExecutionState::Resumed(out) = self.state else {
-            return VmResult::err(VmErrorKind::ExpectedExecutionState {
-                expected: ExecutionState::Resumed(Output::keep()),
-                actual: self.state,
-            });
+        let state = replace(&mut self.state, ExecutionState::Suspended);
+
+        let ExecutionState::Resumed(out) = state else {
+            return VmResult::err(VmErrorKind::ExpectedExecutionState { actual: state });
         };
 
         vm_try!(out.store(self.head.as_mut().stack_mut(), || VmResult::Ok(value)));
@@ -223,9 +225,7 @@ where
         diagnostics: Option<&mut dyn VmDiagnostics>,
     ) -> VmResult<GeneratorState> {
         if let ExecutionState::Resumed(out) = self.state {
-            if out.is_keep() {
-                vm_try!(self.head.as_mut().stack_mut().push(vm_try!(Value::empty())));
-            }
+            vm_try!(out.store(self.head.as_mut().stack_mut(), Value::empty));
         }
 
         self.inner_async_resume(diagnostics).await
@@ -254,9 +254,9 @@ where
                     vm_try!(vm_call.into_execution(self));
                     continue;
                 }
-                VmHalt::Yielded(keep) => {
+                VmHalt::Yielded(out) => {
                     let value = vm_try!(vm.stack_mut().pop());
-                    self.state = ExecutionState::Resumed(keep);
+                    self.state = ExecutionState::Resumed(out);
                     return VmResult::Ok(GeneratorState::Yielded(value));
                 }
                 halt => {
@@ -279,18 +279,13 @@ where
     /// execution.
     #[tracing::instrument(skip_all, fields(?value))]
     pub fn resume_with(&mut self, value: Value) -> VmResult<GeneratorState> {
-        let ExecutionState::Resumed(out) = self.state else {
-            return VmResult::err(VmErrorKind::ExpectedExecutionState {
-                expected: ExecutionState::Resumed(Output::keep()),
-                actual: self.state,
-            });
+        let state = replace(&mut self.state, ExecutionState::Suspended);
+
+        let ExecutionState::Resumed(out) = state else {
+            return VmResult::err(VmErrorKind::ExpectedExecutionState { actual: state });
         };
 
-        if out.is_keep() {
-            vm_try!(self.head.as_mut().stack_mut().push(value));
-        }
-
-        self.state = ExecutionState::Resumed(Output::keep());
+        vm_try!(out.store(self.head.as_mut().stack_mut(), || VmResult::Ok(value)));
         self.inner_resume(None)
     }
 
@@ -315,10 +310,8 @@ where
         &mut self,
         diagnostics: Option<&mut dyn VmDiagnostics>,
     ) -> VmResult<GeneratorState> {
-        if let ExecutionState::Resumed(out) = self.state {
-            if out.is_keep() {
-                vm_try!(self.head.as_mut().stack_mut().push(vm_try!(Value::empty())));
-            }
+        if let ExecutionState::Resumed(out) = replace(&mut self.state, ExecutionState::Suspended) {
+            vm_try!(out.store(self.head.as_mut().stack_mut(), || Value::empty()));
         }
 
         self.inner_resume(diagnostics)
@@ -344,9 +337,9 @@ where
                     vm_try!(vm_call.into_execution(self));
                     continue;
                 }
-                VmHalt::Yielded(keep) => {
+                VmHalt::Yielded(out) => {
                     let value = vm_try!(vm.stack_mut().pop());
-                    self.state = ExecutionState::Resumed(keep);
+                    self.state = ExecutionState::Resumed(out);
                     return VmResult::Ok(GeneratorState::Yielded(value));
                 }
                 halt => {

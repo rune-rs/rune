@@ -612,35 +612,21 @@ where
             }
             Inner::FnUnitStruct(empty) => {
                 vm_try!(check_args(args, 0));
-
-                if out.is_keep() {
-                    let value = vm_try!(Value::empty_struct(empty.rtti.clone()));
-                    vm_try!(vm.stack_mut().push(value));
-                }
-
+                vm_try!(out.store(vm.stack_mut(), || Value::empty_struct(empty.rtti.clone())));
                 None
             }
             Inner::FnTupleStruct(tuple) => {
                 vm_try!(check_args(args, tuple.args));
-
+                // TODO: Avoid allocation if output is discarded.
                 let seq = vm_try!(vm_try!(vm.stack_mut().pop_sequence(args)));
-
-                if out.is_keep() {
-                    let value = vm_try!(Value::tuple_struct(tuple.rtti.clone(), seq,));
-
-                    vm_try!(vm.stack_mut().push(value));
-                }
-
+                out.store(vm.stack_mut(), || {
+                    Value::tuple_struct(tuple.rtti.clone(), seq)
+                });
                 None
             }
             Inner::FnUnitVariant(tuple) => {
                 vm_try!(check_args(args, 0));
-
-                if out.is_keep() {
-                    let value = vm_try!(Value::unit_variant(tuple.rtti.clone()));
-                    vm_try!(vm.stack_mut().push(value));
-                }
-
+                vm_try!(out.store(vm.stack_mut(), || Value::unit_variant(tuple.rtti.clone())));
                 None
             }
             Inner::FnTupleVariant(tuple) => {

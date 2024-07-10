@@ -111,9 +111,6 @@ fn dbg_impl(o: &mut Vec<u8>, stack: &mut Stack, args: usize, out: Output) -> VmR
         vm_try!(writeln!(o, "{:?}", value).map_err(VmError::panic));
     }
 
-    if out.is_keep() {
-        vm_try!(stack.push(vm_try!(Value::empty())));
-    }
-
+    vm_try!(out.store(stack, Value::empty));
     VmResult::Ok(())
 }
