@@ -1,8 +1,10 @@
 use core::fmt;
+use core::iter;
+use core::slice;
 
 use crate as rune;
 use crate::alloc::prelude::*;
-use crate::alloc::{self, HashMap};
+use crate::alloc::{self, HashMap, HashSet};
 use crate::ast::Spanned;
 use crate::compile::v1::Ctxt;
 use crate::compile::{self, Assembly, ErrorKind, WithSpan};
@@ -11,13 +13,15 @@ use crate::query::Query;
 use crate::runtime::{Inst, InstAddress, Output};
 use crate::SourceId;
 
+use super::Slab;
+
 /// A locally declared variable, its calculated stack offset and where it was
 /// declared in its source file.
 #[derive(TryClone, Clone, Copy)]
 #[try_clone(copy)]
 pub struct Var<'hir> {
     /// Offset from the current stack frame.
-    pub(crate) offset: usize,
+    pub(crate) addr: InstAddress,
     /// The name of the variable.
     name: hir::Name<'hir>,
     /// Token assocaited with the variable.
@@ -29,7 +33,7 @@ pub struct Var<'hir> {
 impl<'hir> fmt::Debug for Var<'hir> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Var")
-            .field("offset", &self.offset)
+            .field("addr", &self.addr)
             .field("name", &self.name)
             .field("span", &self.span.span())
             .field("moved_at", &self.moved_at.map(|s| s.span()))
@@ -55,7 +59,7 @@ impl<'hir> Var<'hir> {
     ) -> compile::Result<()> {
         cx.asm.push_with_comment(
             Inst::Copy {
-                addr: InstAddress::new(self.offset),
+                addr: self.addr,
                 out,
             },
             span,
@@ -73,7 +77,7 @@ impl<'hir> Var<'hir> {
     ) -> compile::Result<()> {
         asm.push_with_comment(
             Inst::Move {
-                addr: InstAddress::new(self.offset),
+                addr: self.addr,
                 out,
             },
             span,
@@ -103,25 +107,25 @@ where
 #[derive(Debug, TryClone)]
 pub(crate) struct Layer<'hir> {
     /// Named variables.
-    variables: HashMap<hir::Name<'hir>, Var<'hir>>,
-    /// The number of variables.
-    pub(crate) size: usize,
+    names: HashMap<hir::Name<'hir>, Var<'hir>>,
+    /// Slots owned by this layer.
+    owned: HashSet<usize>,
 }
 
 impl<'hir> Layer<'hir> {
     /// Construct a new locals handlers.
     fn new() -> Self {
         Self {
-            variables: HashMap::new(),
-            size: 0,
+            names: HashMap::new(),
+            owned: HashSet::new(),
         }
     }
 
     /// Construct a new child scope.
     fn child(&self) -> Self {
         Self {
-            variables: HashMap::new(),
-            size: self.size,
+            names: HashMap::new(),
+            owned: HashSet::new(),
         }
     }
 }
@@ -137,6 +141,7 @@ pub(crate) struct Scopes<'hir> {
     layers: Vec<Layer<'hir>>,
     source_id: SourceId,
     size: usize,
+    slots: Slab,
 }
 
 impl<'hir> Scopes<'hir> {
@@ -152,6 +157,7 @@ impl<'hir> Scopes<'hir> {
             layers: try_vec![Layer::new()],
             source_id,
             size: 0,
+            slots: Slab::new(),
         })
     }
 
@@ -166,7 +172,7 @@ impl<'hir> Scopes<'hir> {
         tracing::trace!("get");
 
         for layer in self.layers.iter().rev() {
-            if let Some(var) = layer.variables.get(&name) {
+            if let Some(var) = layer.names.get(&name) {
                 tracing::trace!(?var, "getting var");
                 q.visitor
                     .visit_variable_use(self.source_id, var.span, span)
@@ -203,7 +209,7 @@ impl<'hir> Scopes<'hir> {
         tracing::trace!("take");
 
         for layer in self.layers.iter_mut().rev() {
-            if let Some(var) = layer.variables.get_mut(&name) {
+            if let Some(var) = layer.names.get_mut(&name) {
                 tracing::trace!(?var, "taking var");
                 q.visitor
                     .visit_variable_use(self.source_id, var.span, span)
@@ -236,26 +242,24 @@ impl<'hir> Scopes<'hir> {
         &mut self,
         name: hir::Name<'hir>,
         span: &'hir dyn Spanned,
-    ) -> compile::Result<usize> {
+        addr: InstAddress,
+    ) -> compile::Result<()> {
         let Some(layer) = self.layers.last_mut() else {
             return Err(compile::Error::msg(span, "Missing head layer"));
         };
 
         tracing::trace!(?layer);
 
-        let offset = layer.size;
-
         let var = Var {
-            offset,
+            addr,
             name,
             span,
             moved_at: None,
         };
 
-        layer.variables.try_insert(name, var)?;
-        layer.size += 1;
-        self.size = self.size.max(layer.size);
-        Ok(offset)
+        layer.names.try_insert(name, var).with_span(span)?;
+        layer.owned.try_insert(addr.offset()).with_span(span)?;
+        Ok(())
     }
 
     /// Declare an anonymous variable.
@@ -265,11 +269,14 @@ impl<'hir> Scopes<'hir> {
             return Err(compile::Error::msg(span, "Missing head layer"));
         };
 
+        let Some(offset) = self.slots.insert()? else {
+            return Err(compile::Error::msg(span, "Ran out of slots"));
+        };
+
         tracing::trace!(?layer);
 
-        let offset = layer.size;
-        layer.size += 1;
-        self.size = self.size.max(layer.size);
+        layer.owned.try_insert(offset).with_span(span)?;
+        self.size = self.size.max(self.slots.len());
         Ok(InstAddress::new(offset))
     }
 
@@ -281,23 +288,83 @@ impl<'hir> Scopes<'hir> {
         };
 
         tracing::trace!(?layer);
-        Ok(InstAddress::new(layer.size))
+        Ok(InstAddress::new(self.size))
+    }
+
+    /// Perform a linear allocation.
+    #[tracing::instrument(skip_all)]
+    pub(crate) fn linear(&mut self, span: &dyn Spanned, n: usize) -> compile::Result<Linear> {
+        let Some(layer) = self.layers.last_mut() else {
+            return Err(compile::Error::msg(span, "Missing head layer"));
+        };
+
+        let mut addresses = Vec::try_with_capacity(n).with_span(span)?;
+
+        let base = InstAddress::new(self.slots.len());
+
+        for _ in 0..n {
+            let addr = self.slots.push().with_span(span)?;
+            let address = InstAddress::new(addr);
+            addresses.try_push(address)?;
+            layer.owned.try_insert(addr).with_span(span)?;
+        }
+
+        self.size = self.size.max(self.slots.len());
+        Ok(Linear { base, addresses })
     }
 
     /// Free a bunch of anonymous slots.
     #[tracing::instrument(skip_all, fields(n))]
-    pub(crate) fn free(&mut self, span: &dyn Spanned, n: usize) -> compile::Result<()> {
+    pub(crate) fn free(&mut self, span: &dyn Spanned, addr: InstAddress) -> compile::Result<()> {
         let Some(layer) = self.layers.last_mut() else {
             return Err(compile::Error::msg(span, "Missing head layer"));
         };
 
         tracing::trace!(?layer);
 
-        layer.size = layer
-            .size
-            .checked_sub(n)
-            .ok_or("totals out of bounds")
-            .with_span(span)?;
+        if !layer.owned.remove(&addr.offset()) {
+            return Err(compile::Error::msg(
+                span,
+                format!("Address {addr} is not owned by layer"),
+            ));
+        }
+
+        if !self.slots.try_remove(addr.offset()) {
+            return Err(compile::Error::msg(
+                span,
+                format!("Address {addr} is not globally allocated"),
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// Free a bunch of linear variables.
+    #[tracing::instrument(skip_all, fields(n))]
+    pub(crate) fn free_linear(
+        &mut self,
+        span: &dyn Spanned,
+        linear: Linear,
+    ) -> compile::Result<()> {
+        let Some(layer) = self.layers.last_mut() else {
+            return Err(compile::Error::msg(span, "Missing head layer"));
+        };
+
+        for addr in linear.iter().rev() {
+            if !layer.owned.remove(&addr.offset()) {
+                return Err(compile::Error::msg(
+                    span,
+                    format!("Address {addr} is not owned by layer"),
+                ));
+            }
+
+            if !self.slots.try_remove(addr.offset()) {
+                return Err(compile::Error::msg(
+                    span,
+                    format!("Address {addr} is not globally allocated"),
+                ));
+            }
+        }
 
         Ok(())
     }
@@ -327,6 +394,18 @@ impl<'hir> Scopes<'hir> {
         };
 
         tracing::trace!(?layer, "pop");
+
+        for address in &layer.owned {
+            if !self.slots.try_remove(*address) {
+                return Err(compile::Error::msg(
+                    span,
+                    format!(
+                        "Address {address} owned by layer {expected} is not globally allocated"
+                    ),
+                ));
+            }
+        }
+
         Ok(layer)
     }
 
@@ -346,18 +425,35 @@ impl<'hir> Scopes<'hir> {
         Ok(self.push(layer.child())?)
     }
 
-    /// Get the total var count of the top scope.
-    pub(crate) fn total(&self, span: &dyn Spanned) -> compile::Result<usize> {
-        let Some(layer) = self.layers.last() else {
-            return Err(compile::Error::msg(span, "Missing head layer"));
-        };
-
-        Ok(layer.size)
-    }
-
     /// Push a scope and return an index.
     pub(crate) fn push(&mut self, layer: Layer<'hir>) -> alloc::Result<ScopeGuard> {
         self.layers.try_push(layer)?;
         Ok(ScopeGuard(self.layers.len()))
+    }
+}
+
+pub(super) struct Linear {
+    base: InstAddress,
+    addresses: Vec<InstAddress>,
+}
+
+impl Linear {
+    #[inline]
+    pub(super) fn addr(&self) -> InstAddress {
+        self.base
+    }
+
+    fn iter(&self) -> impl DoubleEndedIterator<Item = InstAddress> + '_ {
+        self.addresses.iter().copied()
+    }
+}
+
+impl<'a> IntoIterator for &'a Linear {
+    type Item = InstAddress;
+    type IntoIter = iter::Copied<slice::Iter<'a, InstAddress>>;
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        self.addresses.iter().copied()
     }
 }

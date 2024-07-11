@@ -80,7 +80,7 @@ impl ProtocolCaller for EnvProtocolCaller {
             // Safety: We hold onto the guard until the vm has completed.
             let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut stack)) };
             vm_try!(handler(&mut stack, addr, count, Output::keep(0)));
-            VmResult::Ok(vm_try!(stack.pop()))
+            VmResult::Ok(vm_try!(stack.at(addr)).clone())
         });
 
         /// Check that arguments matches expected or raise the appropriate error.
@@ -102,14 +102,16 @@ impl ProtocolCaller for Vm {
     where
         A: GuardedArgs,
     {
+        let addr = self.stack().addr();
+
         if let CallResult::Unsupported(..) =
-            vm_try!(self.call_instance_fn(target, protocol, args, Output::keep(0)))
+            vm_try!(self.call_instance_fn(target, protocol, args, addr.output()))
         {
             return VmResult::err(VmErrorKind::MissingFunction {
                 hash: protocol.hash,
             });
         }
 
-        VmResult::Ok(vm_try!(self.stack_mut().pop()))
+        VmResult::Ok(vm_try!(self.stack().at(addr)).clone())
     }
 }

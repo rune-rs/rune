@@ -4,7 +4,7 @@ use crate::alloc::{self, Vec};
 use crate::ast::Spanned;
 use crate::compile::v1::Needs;
 use crate::compile::{self, ErrorKind};
-use crate::runtime::Label;
+use crate::runtime::{InstAddress, Label};
 
 /// Loops we are inside.
 #[derive(TryClone)]
@@ -18,7 +18,7 @@ pub(crate) struct Loop<'hir> {
     /// If the loop needs a value.
     pub(crate) needs: Needs,
     /// Locals to drop when breaking.
-    pub(crate) drop: Option<usize>,
+    pub(crate) drop: Option<InstAddress>,
 }
 
 pub(crate) struct Loops<'hir> {
@@ -52,7 +52,7 @@ impl<'hir> Loops<'hir> {
         &self,
         expected: &str,
         span: &dyn Spanned,
-    ) -> compile::Result<(&Loop<'hir>, Vec<usize>)> {
+    ) -> compile::Result<(&Loop<'hir>, Vec<InstAddress>)> {
         let mut to_drop = Vec::new();
 
         for l in self.loops.iter().rev() {

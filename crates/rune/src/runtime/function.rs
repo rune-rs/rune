@@ -518,9 +518,9 @@ where
                     &mut stack,
                     InstAddress::FIRST,
                     arg_count,
-                    Output::keep(0)
+                    InstAddress::FIRST.output()
                 ));
-                vm_try!(stack.at(0)).clone()
+                vm_try!(stack.at(InstAddress::FIRST)).clone()
             }
             Inner::FnOffset(fn_offset) => vm_try!(fn_offset.call(args, ())),
             Inner::FnClosureOffset(closure) => {
@@ -627,11 +627,14 @@ where
             }
             Inner::FnTupleStruct(tuple) => {
                 vm_try!(check_args(args, tuple.args));
-                // TODO: Avoid allocation if output is discarded.
-                let seq = vm_try!(vm_try!(vm.stack_mut().pop_sequence(args)));
-                out.store(vm.stack_mut(), || {
+
+                let seq = vm_try!(vm.stack().slice_at(addr, args));
+                let seq = vm_try!(seq.iter().cloned().try_collect());
+
+                vm_try!(out.store(vm.stack_mut(), || {
                     Value::tuple_struct(tuple.rtti.clone(), seq)
-                });
+                }));
+
                 None
             }
             Inner::FnUnitVariant(tuple) => {
@@ -641,11 +644,15 @@ where
             }
             Inner::FnTupleVariant(tuple) => {
                 vm_try!(check_args(args, tuple.args));
-                let seq = vm_try!(vm_try!(vm.stack_mut().pop_sequence(args)));
+
+                let seq = vm_try!(vm.stack().slice_at(addr, args));
+                let seq = vm_try!(seq.iter().cloned().try_collect());
+
                 vm_try!(out.store(vm.stack_mut(), || Value::tuple_variant(
                     tuple.rtti.clone(),
                     seq
                 )));
+
                 None
             }
         };

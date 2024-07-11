@@ -4,7 +4,6 @@ use core::mem::replace;
 use core::slice;
 
 use crate::alloc::alloc::Global;
-use crate::alloc::borrow::Cow;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Vec};
 use crate::runtime::{InstAddress, Value};
@@ -177,28 +176,6 @@ impl Stack {
         Ok(())
     }
 
-    /// Pop a value from the stack.
-    ///
-    /// ```
-    /// use rune::runtime::Stack;
-    /// use rune::Value;
-    ///
-    /// let mut stack = Stack::new();
-    /// assert!(stack.pop().is_err());
-    /// stack.push(rune::to_value(String::from("Hello World"))?);
-    /// let value = stack.pop()?;
-    /// let value: String = rune::from_value(value)?;
-    /// assert_eq!(value, "Hello World");
-    /// # Ok::<_, rune::support::Error>(())
-    /// ```
-    pub fn pop(&mut self) -> Result<Value, StackError> {
-        if self.stack.len() == self.stack_bottom {
-            return Err(StackError);
-        }
-
-        self.stack.pop().ok_or(StackError)
-    }
-
     /// Drain the top `count` elements of the stack in the order that they were
     /// pushed, from bottom to top.
     ///
@@ -246,19 +223,31 @@ impl Stack {
         Ok(slice)
     }
 
+    /// Get the mutable slice at the given address with the given length.
+    pub fn slice_at_mut(
+        &mut self,
+        addr: InstAddress,
+        count: usize,
+    ) -> Result<&mut [Value], StackError> {
+        let Some(start) = self.stack_bottom.checked_add(addr.offset()) else {
+            return Err(StackError);
+        };
+
+        let Some(end) = start.checked_add(count) else {
+            return Err(StackError);
+        };
+
+        let Some(slice) = self.stack.get_mut(start..end) else {
+            return Err(StackError);
+        };
+
+        Ok(slice)
+    }
+
     /// Get the slice at the given address with the given static length.
     pub fn array_at<const N: usize>(&self, addr: InstAddress) -> Result<[&Value; N], StackError> {
         let slice = self.slice_at(addr, N)?;
-        array::from_fn(|i| &slice[i])
-    }
-
-    /// Drain the top of the stack into a vector.
-    pub(crate) fn drain_vec<const N: usize>(
-        &mut self,
-        count: usize,
-    ) -> Result<[Value; N], StackError> {
-        let mut it = self.drain(count)?;
-        Ok(array::from_fn(move |_| it.next().unwrap()))
+        Ok(array::from_fn(|i| &slice[i]))
     }
 
     /// Extend the current stack with an iterator.
@@ -306,12 +295,6 @@ impl Stack {
         self.stack.last().ok_or(StackError)
     }
 
-    /// Get the last position on the stack.
-    #[inline]
-    pub(crate) fn peek(&self) -> Option<&Value> {
-        self.stack.last()
-    }
-
     /// Iterate over the stack.
     pub fn iter(&self) -> impl Iterator<Item = &Value> + '_ {
         self.stack.iter()
@@ -342,72 +325,21 @@ impl Stack {
             .ok_or(StackError)
     }
 
-    /// Peek the value at the given offset from the top.
-    pub(crate) fn at_offset_from_top(&self, offset: usize) -> Result<&Value, StackError> {
-        match self
-            .stack
-            .len()
-            .checked_sub(offset)
-            .filter(|n| *n >= self.stack_bottom)
-            .and_then(|n| self.stack.get(n))
-        {
-            Some(value) => Ok(value),
-            None => Err(StackError),
-        }
-    }
-
-    /// Get the offset at the given location.
-    pub(crate) fn at_offset_mut(&mut self, offset: usize) -> Result<&mut Value, StackError> {
-        let n = match self.stack_bottom.checked_add(offset) {
-            Some(n) => n,
-            None => return Err(StackError),
-        };
-
-        match self.stack.get_mut(n) {
-            Some(value) => Ok(value),
-            None => Err(StackError),
-        }
-    }
-
-    /// Address a value on the stack.
-    pub(crate) fn address(&mut self, addr: InstAddress) -> Result<Value, StackError> {
-        Ok(self.at(addr)?.clone())
-    }
-
-    /// Address a value on the stack.
-    pub(crate) fn address_ref(&mut self, addr: InstAddress) -> Result<Cow<'_, Value>, StackError> {
-        Ok(Cow::Borrowed(self.at(addr)?))
-    }
-
-    /// Pop a sequence of values from the stack.
-    pub(crate) fn pop_sequence(
-        &mut self,
-        count: usize,
-    ) -> alloc::Result<Result<Vec<Value>, StackError>> {
-        let Ok(iter) = self.drain(count) else {
-            return Ok(Err(StackError));
-        };
-
-        let mut vec = Vec::try_with_capacity(iter.size_hint().0)?;
-
-        for value in iter {
-            vec.try_push(value)?;
-        }
-
-        Ok(Ok(vec))
-    }
-
     /// Swap the value at position a with the value at position b.
-    pub(crate) fn swap(&mut self, a: usize, b: usize) -> Result<(), StackError> {
+    pub(crate) fn swap(&mut self, a: InstAddress, b: InstAddress) -> Result<(), StackError> {
+        if a == b {
+            return Ok(());
+        }
+
         let a = self
             .stack_bottom
-            .checked_add(a)
+            .checked_add(a.offset())
             .filter(|&n| n < self.stack.len())
             .ok_or(StackError)?;
 
         let b = self
             .stack_bottom
-            .checked_add(b)
+            .checked_add(b.offset())
             .filter(|&n| n < self.stack.len())
             .ok_or(StackError)?;
 

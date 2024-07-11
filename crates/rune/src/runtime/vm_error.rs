@@ -726,6 +726,9 @@ pub(crate) enum VmErrorKind {
     ExpectedExecutionState {
         actual: ExecutionState,
     },
+    ExpectedExitedExecutionState {
+        actual: ExecutionState,
+    },
     GeneratorComplete,
     FutureCompleted,
     // Used in rune-macros.
@@ -927,7 +930,10 @@ impl fmt::Display for VmErrorKind {
                 write!(f, "Missing interface environment")
             }
             VmErrorKind::ExpectedExecutionState { actual } => {
-                write!(f, "Expected resume execution state, but was {actual}",)
+                write!(f, "Expected resume execution state, but was {actual}")
+            }
+            VmErrorKind::ExpectedExitedExecutionState { actual } => {
+                write!(f, "Expected exited execution state, but was {actual}")
             }
             VmErrorKind::GeneratorComplete {} => {
                 write!(f, "Cannot resume a generator that has completed")
