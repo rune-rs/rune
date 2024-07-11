@@ -1,5 +1,6 @@
 pub(crate) mod assemble;
 pub(crate) use self::assemble::Ctxt;
+use self::assemble::Needs;
 
 mod loops;
 pub(crate) use self::loops::{Loop, Loops};

@@ -1,6 +1,5 @@
 use core::cell::Cell;
 use core::fmt;
-use core::iter;
 use core::slice;
 
 use crate::alloc::prelude::*;
@@ -13,7 +12,7 @@ use crate::query::Query;
 use crate::runtime::{Inst, InstAddress, Output};
 use crate::SourceId;
 
-use super::Slab;
+use super::{Needs, Slab};
 
 #[derive(Debug)]
 pub(crate) struct Scope<'hir> {
@@ -202,7 +201,7 @@ impl<'hir> Scopes<'hir> {
 
     /// Declare an anonymous variable.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn alloc(&mut self, span: &dyn Spanned) -> compile::Result<InstAddress> {
+    pub(crate) fn alloc(&mut self, span: &dyn Spanned) -> compile::Result<Needs> {
         let Some(scope) = self.scopes.last_mut() else {
             return Err(compile::Error::msg(span, "Missing head scope"));
         };
@@ -213,7 +212,7 @@ impl<'hir> Scopes<'hir> {
         self.size = self.size.max(self.slots.len());
         let addr = InstAddress::new(offset);
         tracing::trace!(?scope, ?addr, self.size);
-        Ok(addr)
+        Ok(Needs::Value(addr))
     }
 
     /// Declare an anonymous variable.
@@ -255,7 +254,7 @@ impl<'hir> Scopes<'hir> {
         for _ in 0..n {
             let addr = self.slots.push().with_span(span)?;
             let address = InstAddress::new(addr);
-            addresses.try_push(address)?;
+            addresses.try_push(Needs::Value(address))?;
             scope.owned.try_insert(addr).with_span(span)?;
         }
 
@@ -266,11 +265,25 @@ impl<'hir> Scopes<'hir> {
 
     /// Free an address if it's in the specified scope.
     #[tracing::instrument(skip(self, span))]
-    pub(crate) fn free(&mut self, span: &dyn Spanned, addr: InstAddress) -> compile::Result<()> {
+    pub(crate) fn free(&mut self, span: &dyn Spanned, needs: Needs) -> compile::Result<()> {
+        if let Needs::Value(addr) = needs {
+            self.free_addr(span, addr)?;
+        }
+
+        Ok(())
+    }
+
+    /// Free an address if it's in the specified scope.
+    #[tracing::instrument(skip(self, span))]
+    pub(crate) fn free_addr(
+        &mut self,
+        span: &dyn Spanned,
+        addr: InstAddress,
+    ) -> compile::Result<()> {
         let Some(scope) = self.scopes.last_mut() else {
             return Err(compile::Error::msg(
                 span,
-                format!("Missing scope when freeing address {addr}"),
+                format!("Missing scope when freeing address {addr:?}"),
             ));
         };
 
@@ -297,29 +310,10 @@ impl<'hir> Scopes<'hir> {
     pub(crate) fn free_linear(
         &mut self,
         span: &dyn Spanned,
-        linear: Linear,
+        mut linear: Linear,
     ) -> compile::Result<()> {
-        let Some(scope) = self.scopes.last_mut() else {
-            return Err(compile::Error::msg(span, "Missing head scope"));
-        };
-
-        for addr in linear.iter().rev() {
-            if !scope.owned.remove(&addr.offset()) {
-                return Err(compile::Error::msg(
-                    span,
-                    format!(
-                        "Linear address {addr} is not owned by scope {:?}",
-                        self.top_id()
-                    ),
-                ));
-            }
-
-            if !self.slots.remove(addr.offset()) {
-                return Err(compile::Error::msg(
-                    span,
-                    format!("Address {addr} is not globally allocated"),
-                ));
-            }
+        for needs in linear.iter_mut().rev() {
+            needs.free(span, self)?;
         }
 
         Ok(())
@@ -392,9 +386,10 @@ impl<'hir> Scopes<'hir> {
 }
 
 #[derive(Debug)]
+#[must_use = "This should be freed with a call to Scopes::free_linear"]
 pub(super) struct Linear {
     base: InstAddress,
-    addresses: Vec<InstAddress>,
+    addresses: Vec<Needs>,
 }
 
 impl Linear {
@@ -403,18 +398,34 @@ impl Linear {
         self.base
     }
 
-    fn iter(&self) -> impl DoubleEndedIterator<Item = InstAddress> + '_ {
-        self.addresses.iter().copied()
+    #[inline]
+    fn iter(&self) -> slice::Iter<'_, Needs> {
+        self.addresses.iter()
+    }
+
+    #[inline]
+    fn iter_mut(&mut self) -> slice::IterMut<'_, Needs> {
+        self.addresses.iter_mut()
     }
 }
 
 impl<'a> IntoIterator for &'a Linear {
-    type Item = InstAddress;
-    type IntoIter = iter::Copied<slice::Iter<'a, InstAddress>>;
+    type Item = &'a Needs;
+    type IntoIter = slice::Iter<'a, Needs>;
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
-        self.addresses.iter().copied()
+        self.iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a mut Linear {
+    type Item = &'a mut Needs;
+    type IntoIter = slice::IterMut<'a, Needs>;
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter_mut()
     }
 }
 

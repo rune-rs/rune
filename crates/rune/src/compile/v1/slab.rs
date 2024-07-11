@@ -26,12 +26,14 @@ impl Slab {
         }
     }
 
+    #[tracing::instrument(ret(level = tracing::Level::TRACE), skip(self))]
     pub(super) fn insert(&mut self) -> alloc::Result<usize> {
         let key = self.next;
         self.insert_at(key)?;
         Ok(key)
     }
 
+    #[tracing::instrument(ret(level = tracing::Level::TRACE), skip(self))]
     pub(super) fn push(&mut self) -> alloc::Result<usize> {
         let key = self.entries.len();
         self.entries.try_push(Entry::Occupied)?;
@@ -48,6 +50,7 @@ impl Slab {
         self.len
     }
 
+    #[tracing::instrument(ret(level = tracing::Level::TRACE), skip(self))]
     pub(super) fn remove(&mut self, index: usize) -> bool {
         // Remove tail entries so that pushing new entries always results in the
         // most compact linear slab possible.
@@ -81,16 +84,11 @@ impl Slab {
     }
 
     /// Pop the last element in the slab.
+    #[tracing::instrument(ret(level = tracing::Level::TRACE), skip(self))]
     pub(crate) fn pop(&mut self) -> Option<usize> {
-        let next_is_last = self.next == self.entries.len();
-
         match self.entries.pop()? {
             Entry::Occupied => {
                 self.len -= 1;
-
-                if next_is_last {
-                    self.next = self.entries.len();
-                }
             }
             Entry::Vacant(last) => {
                 debug_assert!(false, "This should not be possible");
@@ -105,10 +103,12 @@ impl Slab {
             self.entries.pop();
         }
 
+        self.next = self.next.min(self.entries.len());
         Some(index)
     }
 
     /// Insert a value at the given location.
+    #[tracing::instrument(ret(level = tracing::Level::TRACE), skip(self))]
     pub(crate) fn insert_at(&mut self, key: usize) -> alloc::Result<()> {
         self.len += 1;
 
@@ -118,10 +118,10 @@ impl Slab {
         } else {
             let next = match self.entries.get(key) {
                 Some(&Entry::Vacant(next)) => from_index(next),
-                entry => unreachable!("{key} => {entry:?}"),
+                entry => unreachable!("key={key}, entry={entry:?}, len={}", self.len),
             };
 
-            self.next = next;
+            self.next = next.min(self.entries.len());
             self.entries[key] = Entry::Occupied;
         }
 
@@ -226,5 +226,19 @@ mod tests {
         assert_eq!(slab.pop(), Some(0));
         assert_eq!(slab.pop(), None);
         assert_eq!(slab.len(), 0);
+    }
+
+    #[test]
+    fn bad_test() {
+        let mut slab = Slab::new();
+        assert_eq!(slab.insert(), Ok(0));
+        assert_eq!(slab.insert(), Ok(1));
+        assert_eq!(slab.insert(), Ok(2));
+        assert_eq!(slab.insert(), Ok(3));
+
+        assert_eq!(slab.remove(2), true);
+        assert_eq!(slab.remove(3), true);
+
+        assert_eq!(slab.insert(), Ok(2));
     }
 }

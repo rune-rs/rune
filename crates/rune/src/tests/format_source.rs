@@ -1,3 +1,5 @@
+#![cfg(feature = "fmt")]
+
 prelude!();
 
 use crate::fmt::format_source;
