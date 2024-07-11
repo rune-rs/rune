@@ -466,7 +466,7 @@ impl<'hir> Var<'hir> {
     }
 
     /// Move the declared variable.
-    pub(crate) fn do_move(
+    pub(crate) fn move_(
         &self,
         asm: &mut Assembly,
         span: &dyn Spanned,
