@@ -1397,9 +1397,7 @@ impl fmt::Display for Output {
 }
 
 /// How an instruction addresses a value.
-#[derive(
-    Default, Debug, TryClone, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Decode, Encode,
-)]
+#[derive(Default, TryClone, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Decode, Encode)]
 #[try_clone(copy)]
 pub struct InstAddress {
     offset: usize,
@@ -1429,6 +1427,13 @@ impl InstAddress {
 }
 
 impl fmt::Display for InstAddress {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.offset.fmt(f)
+    }
+}
+
+impl fmt::Debug for InstAddress {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.offset.fmt(f)

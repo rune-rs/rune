@@ -2,9 +2,8 @@ use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Vec};
 use crate::ast::Spanned;
-use crate::compile::v1::Needs;
 use crate::compile::{self, ErrorKind};
-use crate::runtime::{InstAddress, Label};
+use crate::runtime::{InstAddress, Label, Output};
 
 /// Loops we are inside.
 #[derive(TryClone)]
@@ -16,7 +15,7 @@ pub(crate) struct Loop<'hir> {
     /// The end label of the loop, used for `break`.
     pub(crate) break_label: Label,
     /// If the loop needs a value.
-    pub(crate) needs: Needs,
+    pub(crate) output: Output,
     /// Locals to drop when breaking.
     pub(crate) drop: Option<InstAddress>,
 }

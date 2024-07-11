@@ -15,8 +15,8 @@ pub(crate) mod prelude {
     pub(crate) use crate::module::InstallWith;
     pub(crate) use crate::parse;
     pub(crate) use crate::runtime::{
-        self, AnyTypeInfo, Bytes, Formatter, FullTypeOf, Function, MaybeTypeOf, Mut, Object,
-        Output, OwnedTuple, Protocol, RawRef, RawStr, Ref, Stack, Tuple, TypeInfo, TypeOf,
+        self, AnyTypeInfo, Bytes, Formatter, FullTypeOf, Function, InstAddress, MaybeTypeOf, Mut,
+        Object, Output, OwnedTuple, Protocol, RawRef, RawStr, Ref, Stack, Tuple, TypeInfo, TypeOf,
         UnsafeToRef, ValueKind, VecTuple, VmErrorKind, VmResult,
     };
     pub(crate) use crate::support::Result;

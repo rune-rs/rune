@@ -1,9 +1,8 @@
-use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{try_format, Vec};
 use crate::ast::{self, Span, Spanned};
 use crate::compile::ir;
-use crate::compile::v1::{Layer, Loop, Loops, Scopes, Var};
+use crate::compile::v1::{Loop, Loops, Scope, ScopeId, Scopes, Var};
 use crate::compile::{self, Assembly, ErrorKind, ItemId, ModId, Options, WithSpan};
 use crate::hir;
 use crate::query::{ConstFn, Query, Used};
@@ -18,35 +17,80 @@ use rune_macros::instrument;
 /// A needs hint for an expression.
 /// This is used to contextually determine what an expression is expected to
 /// produce.
-#[derive(Debug, TryClone, Clone, Copy)]
-#[try_clone(copy)]
 pub(crate) enum Needs {
+    Alloc(ScopeId),
     Value(InstAddress),
+    ValueIn(ScopeId, InstAddress),
     None,
 }
 
 impl Needs {
+    fn alloc(cx: &mut Ctxt<'_, '_, '_>, span: &dyn Spanned) -> compile::Result<Self> {
+        let Some(id) = cx.scopes.top_id() else {
+            return Err(compile::Error::msg(span, "Expected top scope"));
+        };
+
+        Ok(Self::Alloc(id))
+    }
+
     /// Test if any sort of value is needed.
     #[inline(always)]
-    pub(crate) fn value(self) -> bool {
-        matches!(self, Self::Value(..))
+    fn value(&self) -> bool {
+        matches!(self, Self::Alloc(..) | Self::Value(..) | Self::ValueIn(..))
+    }
+
+    /// Test if any sort of value is needed.
+    fn free(&mut self, span: &dyn Spanned, scopes: &mut Scopes<'_>) -> compile::Result<()> {
+        if let Needs::ValueIn(scope, addr) = *self {
+            if scopes.top_id() == Some(scope) {
+                scopes.free(span, addr)?;
+                *self = Needs::None;
+            }
+        }
+
+        Ok(())
     }
 
     /// Coerce into a value.
     #[inline]
-    pub(crate) fn as_addr(self) -> Option<InstAddress> {
-        match self {
-            Self::Value(addr) => Some(addr),
-            Self::None => None,
+    fn as_addr(&mut self, scopes: &mut Scopes<'_>) -> compile::Result<Option<InstAddress>> {
+        match *self {
+            Needs::Alloc(scope) => {
+                let span = Span::empty();
+                let addr = scopes.alloc_in(&span, scope)?;
+                *self = Needs::ValueIn(scope, addr);
+                Ok(Some(addr))
+            }
+            Needs::Value(addr) | Needs::ValueIn(_, addr) => Ok(Some(addr)),
+            Needs::None => Ok(None),
         }
+    }
+
+    /// Coerce into a value.
+    #[inline]
+    fn addr(&mut self, span: &dyn Spanned) -> compile::Result<InstAddress> {
+        if let Needs::Value(addr) | Needs::ValueIn(_, addr) = *self {
+            return Ok(addr);
+        };
+
+        Err(compile::Error::msg(
+            span,
+            "Address has not been initialized",
+        ))
     }
 
     /// Test if any sort of value is needed.
     #[inline(always)]
-    pub(crate) fn output(self) -> Output {
-        match self {
-            Needs::Value(addr) => Output::keep(addr.offset()),
-            Needs::None => Output::discard(),
+    fn output(&mut self, scopes: &mut Scopes<'_>) -> compile::Result<Output> {
+        match *self {
+            Needs::Alloc(scope) => {
+                let span = Span::empty();
+                let addr = scopes.alloc_in(&span, scope)?;
+                *self = Needs::ValueIn(scope, addr);
+                Ok(addr.output())
+            }
+            Needs::Value(addr) | Needs::ValueIn(_, addr) => Ok(Output::keep(addr.offset())),
+            Needs::None => Ok(Output::discard()),
         }
     }
 }
@@ -144,13 +188,6 @@ impl<'hir> Asm<'hir> {
             kind: AsmKind::Top,
         }
     }
-
-    fn var(span: &dyn Spanned, var: Var<'hir>) -> Self {
-        Self {
-            span: span.span(),
-            kind: AsmKind::Var(var),
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -187,7 +224,7 @@ pub(crate) fn fn_from_item_fn<'hir>(
                     return Err(compile::Error::new(*span, ErrorKind::UnsupportedSelf));
                 }
 
-                cx.scopes.define(hir::Name::SelfValue, span, addr)?;
+                cx.scopes.define(span, hir::Name::SelfValue, addr)?;
             }
             hir::FnArg::Pat(pat) => {
                 pat_with_addr(cx, pat, addr)?;
@@ -201,7 +238,7 @@ pub(crate) fn fn_from_item_fn<'hir>(
         return_(cx, hir, &hir.body, block)?;
     } else {
         if !hir.body.statements.is_empty() {
-            block(cx, &hir.body, Needs::None)?.apply(cx)?;
+            block(cx, &hir.body, &mut Needs::None)?.apply(cx)?;
         }
 
         cx.asm.push(Inst::ReturnUnit, hir)?;
@@ -220,7 +257,7 @@ pub(crate) fn async_block_secondary<'hir>(
     let linear = cx.scopes.linear(&hir.block, hir.captures.len())?;
 
     for (name, addr) in hir.captures.iter().copied().zip(&linear) {
-        cx.scopes.define(name, &hir.block, addr)?;
+        cx.scopes.define(&hir.block, name, addr)?;
     }
 
     return_(cx, &hir.block, &hir.block, block)?;
@@ -249,7 +286,7 @@ pub(crate) fn expr_closure_secondary<'hir>(
         )?;
 
         for (capture, addr) in hir.captures.iter().copied().zip(&environment) {
-            cx.scopes.define(capture, span, addr)?;
+            cx.scopes.define(span, capture, addr)?;
         }
     }
 
@@ -274,11 +311,19 @@ fn return_<'hir, T>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     span: &dyn Spanned,
     hir: T,
-    asm: impl FnOnce(&mut Ctxt<'_, 'hir, '_>, T, Needs) -> compile::Result<Asm<'hir>>,
+    asm: impl FnOnce(&mut Ctxt<'_, 'hir, '_>, T, &mut Needs) -> compile::Result<Asm<'hir>>,
 ) -> compile::Result<()> {
-    let addr = cx.scopes.alloc(span)?;
-    asm(cx, hir, Needs::Value(addr))?.apply(cx)?;
-    cx.asm.push(Inst::Return { addr }, span)?;
+    let mut needs = Needs::alloc(cx, span)?;
+    asm(cx, hir, &mut needs)?.apply(cx)?;
+
+    cx.asm.push(
+        Inst::Return {
+            addr: needs.addr(span)?,
+        },
+        span,
+    )?;
+
+    needs.free(span, &mut cx.scopes)?;
     Ok(())
 }
 
@@ -289,12 +334,12 @@ fn pat_with_addr<'hir>(
     hir: &'hir hir::Pat<'hir>,
     offset: InstAddress,
 ) -> compile::Result<()> {
-    let load = |cx: &mut Ctxt<'_, 'hir, '_>, needs: Needs| {
+    let load = |cx: &mut Ctxt<'_, 'hir, '_>, needs: &mut Needs| {
         if needs.value() {
             cx.asm.push(
                 Inst::Copy {
                     addr: offset,
-                    out: needs.output(),
+                    out: needs.output(&mut cx.scopes)?,
                 },
                 hir,
             )?;
@@ -333,7 +378,7 @@ fn pat<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::Pat<'hir>,
     false_label: &Label,
-    load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, Needs) -> compile::Result<()>,
+    load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, &mut Needs) -> compile::Result<()>,
 ) -> compile::Result<bool> {
     let span = hir;
 
@@ -341,13 +386,13 @@ fn pat<'hir>(
         hir::PatKind::Ignore => {
             // ignore binding, but might still have side effects, so must
             // call the load generator.
-            load(cx, Needs::None)?;
+            load(cx, &mut Needs::None)?;
             Ok(false)
         }
         hir::PatKind::Path(kind) => match *kind {
             hir::PatPathKind::Kind(kind) => {
                 let addr = cx.scopes.alloc(span)?;
-                load(cx, Needs::Value(addr))?;
+                load(cx, &mut Needs::Value(addr))?;
                 cx.asm
                     .push(pat_sequence_kind_to_inst(*kind, addr, addr.output()), hir)?;
                 cx.asm.jump_if_not(addr, false_label, hir)?;
@@ -355,8 +400,8 @@ fn pat<'hir>(
             }
             hir::PatPathKind::Ident(name) => {
                 let addr = cx.scopes.alloc(span)?;
-                load(cx, Needs::Value(addr))?;
-                cx.scopes.define(hir::Name::Str(name), hir, addr)?;
+                load(cx, &mut Needs::Value(addr))?;
+                cx.scopes.define(hir, hir::Name::Str(name), addr)?;
                 Ok(false)
             }
         },
@@ -378,7 +423,7 @@ fn pat_lit<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::Expr<'_>,
     false_label: &Label,
-    load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, Needs) -> compile::Result<()>,
+    load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, &mut Needs) -> compile::Result<()>,
 ) -> compile::Result<bool> {
     let addr = cx.scopes.alloc(hir)?;
 
@@ -386,7 +431,7 @@ fn pat_lit<'hir>(
         return Err(compile::Error::new(hir, ErrorKind::UnsupportedPatternExpr));
     };
 
-    load(cx, Needs::Value(addr))?;
+    load(cx, &mut Needs::Value(addr))?;
     cx.asm.push(inst, hir)?;
     cx.asm.jump_if_not(addr, false_label, hir)?;
     cx.scopes.free(hir, addr)?;
@@ -432,12 +477,12 @@ fn condition<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     condition: &hir::Condition<'hir>,
     then_label: &Label,
-) -> compile::Result<Layer<'hir>> {
+) -> compile::Result<Scope<'hir>> {
     match *condition {
         hir::Condition::Expr(e) => {
             let guard = cx.scopes.child(e)?;
             let addr = cx.scopes.alloc(e)?;
-            expr(cx, e, Needs::Value(addr))?.apply(cx)?;
+            expr(cx, e, &mut Needs::Value(addr))?.apply(cx)?;
             cx.asm.jump_if(addr, then_label, e)?;
             Ok(cx.scopes.pop(e, guard)?)
         }
@@ -448,7 +493,7 @@ fn condition<'hir>(
 
             let expected = cx.scopes.child(span)?;
 
-            let load = |cx: &mut Ctxt<'_, 'hir, '_>, needs: Needs| {
+            let load = |cx: &mut Ctxt<'_, 'hir, '_>, needs: &mut Needs| {
                 expr(cx, &expr_let.expr, needs)?.apply(cx)?;
                 Ok(())
             };
@@ -472,10 +517,10 @@ fn pat_sequence<'hir>(
     hir: &hir::PatSequence<'hir>,
     span: &dyn Spanned,
     false_label: &Label,
-    load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, Needs) -> compile::Result<()>,
+    load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, &mut Needs) -> compile::Result<()>,
 ) -> compile::Result<()> {
     let addr = cx.scopes.alloc(span)?;
-    load(cx, Needs::Value(addr))?;
+    load(cx, &mut Needs::Value(addr))?;
 
     if matches!(
         hir.kind,
@@ -503,12 +548,12 @@ fn pat_sequence<'hir>(
     cx.scopes.free(span, cond)?;
 
     for (index, p) in hir.items.iter().enumerate() {
-        let load = move |cx: &mut Ctxt<'_, 'hir, '_>, needs: Needs| {
+        let load = move |cx: &mut Ctxt<'_, 'hir, '_>, needs: &mut Needs| {
             cx.asm.push(
                 Inst::TupleIndexGetAt {
                     addr,
                     index,
-                    out: needs.output(),
+                    out: needs.output(&mut cx.scopes)?,
                 },
                 p,
             )?;
@@ -561,13 +606,13 @@ fn pat_object<'hir>(
     hir: &hir::PatObject<'hir>,
     span: &dyn Spanned,
     false_label: &Label,
-    load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, Needs) -> compile::Result<()>,
+    load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, &mut Needs) -> compile::Result<()>,
 ) -> compile::Result<()> {
     // NB: bind the loaded variable (once) to an anonymous var.
     // We reduce the number of copy operations by having specialized
     // operations perform the load from the given offset.
     let offset = cx.scopes.alloc(span)?;
-    load(cx, Needs::Value(offset))?;
+    load(cx, &mut Needs::Value(offset))?;
 
     let mut string_slots = Vec::new();
 
@@ -621,12 +666,12 @@ fn pat_object<'hir>(
     for (binding, slot) in hir.bindings.iter().zip(string_slots) {
         match *binding {
             hir::Binding::Binding(span, _, p) => {
-                let load = move |cx: &mut Ctxt<'_, 'hir, '_>, needs: Needs| {
+                let load = move |cx: &mut Ctxt<'_, 'hir, '_>, needs: &mut Needs| {
                     cx.asm.push(
                         Inst::ObjectIndexGetAt {
                             addr: offset,
                             slot,
-                            out: needs.output(),
+                            out: needs.output(&mut cx.scopes)?,
                         },
                         &span,
                     )?;
@@ -637,7 +682,7 @@ fn pat_object<'hir>(
             }
             hir::Binding::Ident(span, name) => {
                 let addr = cx.scopes.alloc(&span)?;
-                cx.scopes.define(hir::Name::Str(name), binding, addr)?;
+                cx.scopes.define(binding, hir::Name::Str(name), addr)?;
 
                 cx.asm.push(
                     Inst::ObjectIndexGetAt {
@@ -659,7 +704,7 @@ fn pat_object<'hir>(
 fn block<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::Block<'hir>,
-    needs: Needs,
+    needs: &mut Needs,
 ) -> compile::Result<Asm<'hir>> {
     cx.contexts.try_push(hir.span())?;
     let scopes_count = cx.scopes.child(hir)?;
@@ -667,10 +712,10 @@ fn block<'hir>(
     for stmt in hir.statements {
         match stmt {
             hir::Stmt::Local(hir) => {
-                local(cx, hir, Needs::None)?.apply(cx)?;
+                local(cx, hir, &mut Needs::None)?.apply(cx)?;
             }
             hir::Stmt::Expr(hir) => {
-                expr(cx, hir, Needs::None)?.apply(cx)?;
+                expr(cx, hir, &mut Needs::None)?.apply(cx)?;
             }
         }
     }
@@ -678,7 +723,8 @@ fn block<'hir>(
     if let Some(e) = hir.value {
         expr(cx, e, needs)?.apply(cx)?;
     } else if needs.value() {
-        cx.asm.push(Inst::unit(needs.output()), hir)?;
+        cx.asm
+            .push(Inst::unit(needs.output(&mut cx.scopes)?), hir)?;
     }
 
     cx.scopes.pop(hir, scopes_count)?;
@@ -696,7 +742,7 @@ fn block<'hir>(
 fn builtin_format<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     format: &'hir hir::BuiltInFormat<'hir>,
-    needs: Needs,
+    needs: &mut Needs,
 ) -> compile::Result<Asm<'hir>> {
     use crate::runtime::format;
 
@@ -711,12 +757,12 @@ fn builtin_format<'hir>(
 
     expr(cx, &format.value, needs)?.apply(cx)?;
 
-    if let Some(addr) = needs.as_addr() {
+    if let Some(addr) = needs.as_addr(&mut cx.scopes)? {
         cx.asm.push(
             Inst::Format {
                 addr,
                 spec,
-                out: needs.output(),
+                out: needs.output(&mut cx.scopes)?,
             },
             format,
         )?;
@@ -730,7 +776,7 @@ fn builtin_format<'hir>(
 fn builtin_template<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     template: &hir::BuiltInTemplate<'hir>,
-    needs: Needs,
+    needs: &mut Needs,
 ) -> compile::Result<Asm<'hir>> {
     let span = template;
 
@@ -758,7 +804,7 @@ fn builtin_template<'hir>(
         }
 
         expansions += 1;
-        expr(cx, hir, Needs::Value(addr))?.apply(cx)?;
+        expr(cx, hir, &mut Needs::Value(addr))?.apply(cx)?;
     }
 
     if template.from_literal && expansions == 0 {
@@ -772,7 +818,7 @@ fn builtin_template<'hir>(
                 addr: linear.addr(),
                 len: template.exprs.len(),
                 size_hint,
-                out: needs.output(),
+                out: needs.output(&mut cx.scopes)?,
             },
             span,
         )?;
@@ -788,9 +834,9 @@ fn const_<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     value: &ConstValue,
     span: &dyn Spanned,
-    needs: Needs,
+    needs: &mut Needs,
 ) -> compile::Result<()> {
-    let Some(addr) = needs.as_addr() else {
+    let Some(addr) = needs.as_addr(&mut cx.scopes)? else {
         cx.q.diagnostics
             .not_used(cx.source_id, span, cx.context())?;
         return Ok(());
@@ -827,7 +873,7 @@ fn const_<'hir>(
         }
         ConstValue::Option(ref option) => match option {
             Some(value) => {
-                const_(cx, value, span, Needs::Value(addr))?;
+                const_(cx, value, span, &mut Needs::Value(addr))?;
                 cx.asm.push(
                     Inst::Variant {
                         variant: InstVariant::Some,
@@ -852,7 +898,7 @@ fn const_<'hir>(
             let linear = cx.scopes.linear(span, vec.len())?;
 
             for (value, addr) in vec.iter().zip(&linear) {
-                const_(cx, value, span, Needs::Value(addr))?;
+                const_(cx, value, span, &mut Needs::Value(addr))?;
             }
 
             cx.asm.push(
@@ -870,7 +916,7 @@ fn const_<'hir>(
             let linear = cx.scopes.linear(span, tuple.len())?;
 
             for (value, addr) in tuple.iter().zip(&linear) {
-                const_(cx, value, span, Needs::Value(addr))?;
+                const_(cx, value, span, &mut Needs::Value(addr))?;
             }
 
             cx.asm.push(
@@ -891,7 +937,7 @@ fn const_<'hir>(
             entries.sort_by_key(|k| k.0);
 
             for ((_, value), addr) in entries.iter().copied().zip(&linear) {
-                const_(cx, value, span, Needs::Value(addr))?;
+                const_(cx, value, span, &mut Needs::Value(addr))?;
             }
 
             let slot =
@@ -919,31 +965,21 @@ fn const_<'hir>(
 fn expr<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::Expr<'hir>,
-    needs: Needs,
+    needs: &mut Needs,
 ) -> compile::Result<Asm<'hir>> {
     let span = hir;
 
     let asm = match hir.kind {
         hir::ExprKind::Variable(name) => {
-            let var = cx.scopes.get(&mut cx.q, name, span)?;
-
-            if let Some(addr) = needs.as_addr() {
-                cx.asm.push(
-                    Inst::Copy {
-                        addr: var.addr,
-                        out: addr.output(),
-                    },
-                    span,
-                )?;
-            }
-
-            Asm::var(span, var)
+            let var = cx.scopes.get(&mut cx.q, span, name)?;
+            *needs = Needs::Value(var.addr);
+            Asm::top(span)
         }
         hir::ExprKind::Type(ty) => {
             cx.asm.push(
                 Inst::Store {
                     value: InstValue::Type(ty),
-                    out: needs.output(),
+                    out: needs.output(&mut cx.scopes)?,
                 },
                 span,
             )?;
@@ -954,7 +990,7 @@ fn expr<'hir>(
             cx.asm.push(
                 Inst::LoadFn {
                     hash,
-                    out: needs.output(),
+                    out: needs.output(&mut cx.scopes)?,
                 },
                 span,
             )?;
@@ -1008,13 +1044,13 @@ fn expr_assign<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::ExprAssign<'hir>,
     span: &'hir dyn Spanned,
-    needs: Needs,
+    needs: &mut Needs,
 ) -> compile::Result<Asm<'hir>> {
     let supported = match hir.lhs.kind {
         // <var> = <value>
         hir::ExprKind::Variable(name) => {
-            let var = cx.scopes.get(&mut cx.q, name, span)?;
-            expr(cx, &hir.rhs, Needs::Value(var.addr))?.apply(cx)?;
+            let var = cx.scopes.get(&mut cx.q, span, name)?;
+            expr(cx, &hir.rhs, &mut Needs::Value(var.addr))?.apply(cx)?;
             true
         }
         // <expr>.<field> = <value>
@@ -1027,8 +1063,8 @@ fn expr_assign<'hir>(
                     let target = cx.scopes.alloc(span)?;
                     let value = cx.scopes.alloc(&hir.rhs)?;
 
-                    expr(cx, &field_access.expr, Needs::Value(target))?.apply(cx)?;
-                    expr(cx, &hir.rhs, Needs::Value(value))?.apply(cx)?;
+                    expr(cx, &field_access.expr, &mut Needs::Value(target))?.apply(cx)?;
+                    expr(cx, &hir.rhs, &mut Needs::Value(value))?.apply(cx)?;
 
                     cx.asm.push(
                         Inst::ObjectIndexSet {
@@ -1047,8 +1083,8 @@ fn expr_assign<'hir>(
                     let target = cx.scopes.alloc(span)?;
                     let value = cx.scopes.alloc(&hir.rhs)?;
 
-                    expr(cx, &field_access.expr, Needs::Value(target))?.apply(cx)?;
-                    expr(cx, &hir.rhs, Needs::Value(value))?.apply(cx)?;
+                    expr(cx, &field_access.expr, &mut Needs::Value(target))?.apply(cx)?;
+                    expr(cx, &hir.rhs, &mut Needs::Value(value))?.apply(cx)?;
 
                     cx.asm.push(
                         Inst::TupleIndexSet {
@@ -1073,9 +1109,9 @@ fn expr_assign<'hir>(
             let index = cx.scopes.alloc(span)?;
             let value = cx.scopes.alloc(span)?;
 
-            expr(cx, &expr_index_get.target, Needs::Value(target))?.apply(cx)?;
-            expr(cx, &expr_index_get.index, Needs::Value(index))?.apply(cx)?;
-            expr(cx, &hir.rhs, Needs::Value(value))?.apply(cx)?;
+            expr(cx, &expr_index_get.target, &mut Needs::Value(target))?.apply(cx)?;
+            expr(cx, &expr_index_get.index, &mut Needs::Value(index))?.apply(cx)?;
+            expr(cx, &hir.rhs, &mut Needs::Value(value))?.apply(cx)?;
 
             cx.asm.push(
                 Inst::IndexSet {
@@ -1099,7 +1135,8 @@ fn expr_assign<'hir>(
     }
 
     if needs.value() {
-        cx.asm.push(Inst::unit(needs.output()), span)?;
+        cx.asm
+            .push(Inst::unit(needs.output(&mut cx.scopes)?), span)?;
     }
 
     Ok(Asm::top(span))
@@ -1111,15 +1148,15 @@ fn expr_await<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::Expr<'hir>,
     span: &dyn Spanned,
-    needs: Needs,
+    needs: &mut Needs,
 ) -> compile::Result<Asm<'hir>> {
     let addr = cx.scopes.alloc(span)?;
-    expr(cx, hir, Needs::Value(addr))?.apply(cx)?;
+    expr(cx, hir, &mut Needs::Value(addr))?.apply(cx)?;
 
     cx.asm.push(
         Inst::Await {
             addr,
-            out: needs.output(),
+            out: needs.output(&mut cx.scopes)?,
         },
         span,
     )?;
@@ -1134,7 +1171,7 @@ fn expr_binary<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::ExprBinary<'hir>,
     span: &dyn Spanned,
-    needs: Needs,
+    needs: &mut Needs,
 ) -> compile::Result<Asm<'hir>> {
     // Special expressions which operates on the stack in special ways.
     if hir.op.is_assign() {
@@ -1149,13 +1186,13 @@ fn expr_binary<'hir>(
 
     let guard = cx.scopes.child(span)?;
 
-    let a = cx.scopes.alloc(span)?;
-    let b = cx.scopes.alloc(span)?;
+    let mut a = Needs::Alloc(guard);
+    let mut b = Needs::Alloc(guard);
 
     // NB: need to declare these as anonymous local variables so that they
     // get cleaned up in case there is an early break (return, try, ...).
-    expr(cx, &hir.lhs, Needs::Value(a))?.apply(cx)?;
-    expr(cx, &hir.rhs, Needs::Value(b))?.apply(cx)?;
+    expr(cx, &hir.lhs, &mut a)?.apply(cx)?;
+    expr(cx, &hir.rhs, &mut b)?.apply(cx)?;
 
     let op = match hir.op {
         ast::BinOp::Eq(..) => InstOp::Eq,
@@ -1191,12 +1228,15 @@ fn expr_binary<'hir>(
     cx.asm.push(
         Inst::Op {
             op,
-            a,
-            b,
-            out: needs.output(),
+            a: a.addr(span)?,
+            b: b.addr(span)?,
+            out: needs.output(&mut cx.scopes)?,
         },
         span,
     )?;
+
+    a.free(span, &mut cx.scopes)?;
+    b.free(span, &mut cx.scopes)?;
     cx.scopes.pop(span, guard)?;
     return Ok(Asm::top(span));
 
@@ -1206,12 +1246,12 @@ fn expr_binary<'hir>(
         rhs: &'hir hir::Expr<'hir>,
         bin_op: &ast::BinOp,
         span: &dyn Spanned,
-        needs: Needs,
+        needs: &mut Needs,
     ) -> compile::Result<()> {
         let end_label = cx.asm.new_label("conditional_end");
 
         let cond = cx.scopes.alloc(span)?;
-        expr(cx, lhs, Needs::Value(cond))?.apply(cx)?;
+        expr(cx, lhs, &mut Needs::Value(cond))?.apply(cx)?;
 
         match bin_op {
             ast::BinOp::And(..) => {
@@ -1241,18 +1281,18 @@ fn expr_binary<'hir>(
         rhs: &'hir hir::Expr<'hir>,
         bin_op: &ast::BinOp,
         span: &dyn Spanned,
-        needs: Needs,
+        needs: &mut Needs,
     ) -> compile::Result<()> {
         let supported = match lhs.kind {
             // <var> <op> <expr>
             hir::ExprKind::Variable(name) => {
-                let var = cx.scopes.get(&mut cx.q, name, lhs)?;
+                let var = cx.scopes.get(&mut cx.q, lhs, name)?;
                 Some(InstTarget::Address(var.addr))
             }
             // <expr>.<field> <op> <value>
             hir::ExprKind::FieldAccess(field_access) => {
                 let field = cx.scopes.alloc(&field_access.expr)?;
-                expr(cx, &field_access.expr, Needs::Value(field))?.apply(cx)?;
+                expr(cx, &field_access.expr, &mut Needs::Value(field))?.apply(cx)?;
 
                 // field assignment
                 match field_access.expr_field {
@@ -1290,12 +1330,13 @@ fn expr_binary<'hir>(
         };
 
         let value = cx.scopes.alloc(rhs)?;
-        expr(cx, rhs, Needs::Value(value))?.apply(cx)?;
+        expr(cx, rhs, &mut Needs::Value(value))?.apply(cx)?;
 
         cx.asm.push(Inst::Assign { target, op, value }, span)?;
 
         if needs.value() {
-            cx.asm.push(Inst::unit(needs.output()), span)?;
+            cx.asm
+                .push(Inst::unit(needs.output(&mut cx.scopes)?), span)?;
         }
 
         Ok(())
@@ -1308,7 +1349,7 @@ fn expr_async_block<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::ExprAsyncBlock<'hir>,
     span: &'hir dyn Spanned,
-    needs: Needs,
+    needs: &mut Needs,
 ) -> compile::Result<Asm<'hir>> {
     let linear = cx.scopes.linear(span, hir.captures.len())?;
 
@@ -1316,10 +1357,10 @@ fn expr_async_block<'hir>(
         let out = addr.output();
 
         if hir.do_move {
-            let var = cx.scopes.take(&mut cx.q, capture, span)?;
+            let var = cx.scopes.take(&mut cx.q, span, capture)?;
             var.do_move(cx.asm, span, Some(&"capture"), out)?;
         } else {
-            let var = cx.scopes.get(&mut cx.q, capture, span)?;
+            let var = cx.scopes.get(&mut cx.q, span, capture)?;
             var.copy(cx, span, Some(&"capture"), out)?;
         }
     }
@@ -1329,7 +1370,7 @@ fn expr_async_block<'hir>(
             hash: hir.hash,
             addr: linear.addr(),
             args: hir.captures.len(),
-            out: needs.output(),
+            out: needs.output(&mut cx.scopes)?,
         },
         span,
         &"async block",
@@ -1345,7 +1386,7 @@ fn const_item<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hash: Hash,
     span: &dyn Spanned,
-    needs: Needs,
+    needs: &mut Needs,
 ) -> compile::Result<Asm<'hir>> {
     let Some(const_value) = cx.q.get_const_value(hash) else {
         return Err(compile::Error::msg(
@@ -1367,7 +1408,7 @@ fn expr_break<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::ExprBreak<'hir>,
     span: &dyn Spanned,
-    _: Needs,
+    _: &mut Needs,
 ) -> compile::Result<Asm<'hir>> {
     let Some(current_loop) = cx.loops.last().try_cloned()? else {
         return Err(compile::Error::new(span, ErrorKind::BreakOutsideOfLoop));
@@ -1375,7 +1416,12 @@ fn expr_break<'hir>(
 
     let (last_loop, to_drop, has_value) = match (hir.label, hir.expr) {
         (None, Some(e)) => {
-            expr(cx, e, current_loop.needs)?.apply(cx)?;
+            let mut needs = match current_loop.output.as_addr() {
+                Some(addr) => Needs::Value(addr),
+                None => Needs::None,
+            };
+
+            expr(cx, e, &mut needs)?.apply(cx)?;
             let to_drop = current_loop.drop.into_iter().try_collect()?;
             (current_loop, to_drop, true)
         }
@@ -1384,7 +1430,12 @@ fn expr_break<'hir>(
             (last_loop.try_clone()?, to_drop, false)
         }
         (Some(label), Some(e)) => {
-            expr(cx, e, current_loop.needs)?.apply(cx)?;
+            let mut needs = match current_loop.output.as_addr() {
+                Some(addr) => Needs::Value(addr),
+                None => Needs::None,
+            };
+
+            expr(cx, e, &mut needs)?.apply(cx)?;
             let (last_loop, to_drop) = cx.loops.walk_until_label(label, span)?;
             (last_loop.try_clone()?, to_drop, true)
         }
@@ -1399,7 +1450,7 @@ fn expr_break<'hir>(
         cx.asm.push(Inst::Drop { addr }, span)?;
     }
 
-    if let Some(addr) = last_loop.needs.as_addr() {
+    if let Some(addr) = last_loop.output.as_addr() {
         if !has_value {
             cx.asm.push(Inst::unit(addr.output()), span)?;
         }
@@ -1415,17 +1466,17 @@ fn expr_call<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::ExprCall<'hir>,
     span: &dyn Spanned,
-    needs: Needs,
+    needs: &mut Needs,
 ) -> compile::Result<Asm<'hir>> {
     let args = hir.args.len();
 
     match hir.call {
         hir::Call::Var { name, .. } => {
-            let var = cx.scopes.get(&mut cx.q, name, span)?;
+            let var = cx.scopes.get(&mut cx.q, span, name)?;
             let linear = cx.scopes.linear(span, args)?;
 
             for (e, addr) in hir.args.iter().zip(&linear) {
-                expr(cx, e, Needs::Value(addr))?.apply(cx)?;
+                expr(cx, e, &mut Needs::Value(addr))?.apply(cx)?;
             }
 
             cx.asm.push(
@@ -1433,7 +1484,7 @@ fn expr_call<'hir>(
                     function: var.addr,
                     addr: linear.addr(),
                     args,
-                    out: needs.output(),
+                    out: needs.output(&mut cx.scopes)?,
                 },
                 span,
             )?;
@@ -1444,7 +1495,7 @@ fn expr_call<'hir>(
             let linear = cx.scopes.linear(span, args + 1)?;
 
             for (e, addr) in [target].into_iter().chain(hir.args.iter()).zip(&linear) {
-                expr(cx, e, Needs::Value(addr))?.apply(cx)?;
+                expr(cx, e, &mut Needs::Value(addr))?.apply(cx)?;
             }
 
             cx.asm.push(
@@ -1452,7 +1503,7 @@ fn expr_call<'hir>(
                     hash,
                     addr: linear.addr(),
                     args,
-                    out: needs.output(),
+                    out: needs.output(&mut cx.scopes)?,
                 },
                 span,
             )?;
@@ -1463,7 +1514,7 @@ fn expr_call<'hir>(
             let linear = cx.scopes.linear(span, args)?;
 
             for (e, addr) in hir.args.iter().zip(&linear) {
-                expr(cx, e, Needs::Value(addr))?.apply(cx)?;
+                expr(cx, e, &mut Needs::Value(addr))?.apply(cx)?;
             }
 
             cx.asm.push(
@@ -1471,7 +1522,7 @@ fn expr_call<'hir>(
                     hash,
                     addr: linear.addr(),
                     args,
-                    out: needs.output(),
+                    out: needs.output(&mut cx.scopes)?,
                 },
                 span,
             )?;
@@ -1480,12 +1531,12 @@ fn expr_call<'hir>(
         }
         hir::Call::Expr { expr: e } => {
             let function = cx.scopes.alloc(span)?;
-            expr(cx, e, Needs::Value(function))?.apply(cx)?;
+            expr(cx, e, &mut Needs::Value(function))?.apply(cx)?;
 
             let linear = cx.scopes.linear(span, args)?;
 
             for (e, addr) in hir.args.iter().zip(&linear) {
-                expr(cx, e, Needs::Value(addr))?.apply(cx)?;
+                expr(cx, e, &mut Needs::Value(addr))?.apply(cx)?;
             }
 
             cx.asm.push(
@@ -1493,7 +1544,7 @@ fn expr_call<'hir>(
                     function,
                     addr: linear.addr(),
                     args,
-                    out: needs.output(),
+                    out: needs.output(&mut cx.scopes)?,
                 },
                 span,
             )?;
@@ -1521,7 +1572,7 @@ fn expr_call_closure<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::ExprCallClosure<'hir>,
     span: &'hir dyn Spanned,
-    needs: Needs,
+    needs: &mut Needs,
 ) -> compile::Result<Asm<'hir>> {
     if !needs.value() {
         cx.q.diagnostics
@@ -1538,10 +1589,10 @@ fn expr_call_closure<'hir>(
         let out = addr.output();
 
         if hir.do_move {
-            let var = cx.scopes.take(&mut cx.q, capture, span)?;
+            let var = cx.scopes.take(&mut cx.q, span, capture)?;
             var.do_move(cx.asm, span, Some(&"capture"), out)?;
         } else {
-            let var = cx.scopes.get(&mut cx.q, capture, span)?;
+            let var = cx.scopes.get(&mut cx.q, span, capture)?;
             var.copy(cx, span, Some(&"capture"), out)?;
         }
     }
@@ -1551,7 +1602,7 @@ fn expr_call_closure<'hir>(
             hash: hir.hash,
             addr: linear.addr(),
             count: hir.captures.len(),
-            out: needs.output(),
+            out: needs.output(&mut cx.scopes)?,
         },
         span,
     )?;
@@ -1565,7 +1616,7 @@ fn expr_continue<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::ExprContinue<'hir>,
     span: &dyn Spanned,
-    _: Needs,
+    _: &mut Needs,
 ) -> compile::Result<Asm<'hir>> {
     let Some(current_loop) = cx.loops.last().try_cloned()? else {
         return Err(compile::Error::new(span, ErrorKind::ContinueOutsideOfLoop));
@@ -1588,7 +1639,7 @@ fn expr_field_access<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::ExprFieldAccess<'hir>,
     span: &dyn Spanned,
-    needs: Needs,
+    needs: &mut Needs,
 ) -> compile::Result<Asm<'hir>> {
     // Optimizations!
     //
@@ -1598,13 +1649,13 @@ fn expr_field_access<'hir>(
     if let (hir::ExprKind::Variable(name), hir::ExprField::Index(index)) =
         (hir.expr.kind, hir.expr_field)
     {
-        let var = cx.scopes.get(&mut cx.q, name, span)?;
+        let var = cx.scopes.get(&mut cx.q, span, name)?;
 
         cx.asm.push_with_comment(
             Inst::TupleIndexGetAt {
                 addr: var.addr,
                 index,
-                out: needs.output(),
+                out: needs.output(&mut cx.scopes)?,
             },
             span,
             &var,
@@ -1613,35 +1664,36 @@ fn expr_field_access<'hir>(
         return Ok(Asm::top(span));
     }
 
-    let addr = cx.scopes.alloc(span)?;
-    expr(cx, &hir.expr, Needs::Value(addr))?.apply(cx)?;
+    let mut addr = Needs::alloc(cx, span)?;
+    expr(cx, &hir.expr, &mut addr)?.apply(cx)?;
 
     match hir.expr_field {
         hir::ExprField::Index(index) => {
             cx.asm.push(
                 Inst::TupleIndexGetAt {
-                    addr,
+                    addr: addr.addr(span)?,
                     index,
-                    out: needs.output(),
+                    out: needs.output(&mut cx.scopes)?,
                 },
                 span,
             )?;
-            Ok(Asm::top(span))
         }
         hir::ExprField::Ident(field) => {
             let slot = cx.q.unit.new_static_string(span, field)?;
             cx.asm.push(
                 Inst::ObjectIndexGetAt {
-                    addr,
+                    addr: addr.addr(span)?,
                     slot,
-                    out: needs.output(),
+                    out: needs.output(&mut cx.scopes)?,
                 },
                 span,
             )?;
-            Ok(Asm::top(span))
         }
-        _ => Err(compile::Error::new(span, ErrorKind::BadFieldAccess)),
+        _ => return Err(compile::Error::new(span, ErrorKind::BadFieldAccess)),
     }
+
+    addr.free(span, &mut cx.scopes)?;
+    Ok(Asm::top(span))
 }
 
 /// Assemble an expression for loop.
@@ -1650,7 +1702,7 @@ fn expr_for<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::ExprFor<'hir>,
     span: &dyn Spanned,
-    needs: Needs,
+    needs: &mut Needs,
 ) -> compile::Result<Asm<'hir>> {
     let continue_label = cx.asm.new_label("for_continue");
     let end_label = cx.asm.new_label("for_end");
@@ -1660,7 +1712,7 @@ fn expr_for<'hir>(
         let loop_scope_expected = cx.scopes.child(span)?;
         let iter_offset = cx.scopes.alloc(span)?;
 
-        expr(cx, &hir.iter, Needs::Value(iter_offset))?.apply(cx)?;
+        expr(cx, &hir.iter, &mut Needs::Value(iter_offset))?.apply(cx)?;
 
         cx.asm.push_with_comment(
             Inst::CallAssociated {
@@ -1704,7 +1756,7 @@ fn expr_for<'hir>(
         label: hir.label,
         continue_label: continue_label.try_clone()?,
         break_label: break_label.try_clone()?,
-        needs,
+        output: needs.output(&mut cx.scopes)?,
         drop: Some(iter_offset),
     })?;
 
@@ -1744,7 +1796,7 @@ fn expr_for<'hir>(
 
     pat_with_addr(cx, &hir.binding, binding_offset)?;
 
-    block(cx, &hir.body, Needs::None)?.apply(cx)?;
+    block(cx, &hir.body, &mut Needs::None)?.apply(cx)?;
     cx.scopes.pop(span, guard)?;
 
     cx.asm.jump(&continue_label, span)?;
@@ -1755,7 +1807,7 @@ fn expr_for<'hir>(
 
     cx.scopes.pop(span, loop_scope_expected)?;
 
-    if let Some(out) = needs.as_addr() {
+    if let Some(out) = needs.as_addr(&mut cx.scopes)? {
         cx.asm.push(Inst::unit(out.output()), span)?;
     }
 
@@ -1771,7 +1823,7 @@ fn expr_if<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::Conditional<'hir>,
     span: &dyn Spanned,
-    needs: Needs,
+    needs: &mut Needs,
 ) -> compile::Result<Asm<'hir>> {
     let end_label = cx.asm.new_label("if_end");
 
@@ -1799,7 +1851,7 @@ fn expr_if<'hir>(
     } else {
         // NB: if we must produce a value and there is no fallback branch,
         // encode the result of the statement as a unit.
-        if let Some(out) = needs.as_addr() {
+        if let Some(out) = needs.as_addr(&mut cx.scopes)? {
             cx.asm.push(Inst::unit(out.output()), span)?;
         }
     }
@@ -1830,21 +1882,21 @@ fn expr_index<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::ExprIndex<'hir>,
     span: &dyn Spanned,
-    needs: Needs,
+    needs: &mut Needs,
 ) -> compile::Result<Asm<'hir>> {
     let guard = cx.scopes.child(span)?;
 
     let target = cx.scopes.alloc(span)?;
     let index = cx.scopes.alloc(span)?;
 
-    expr(cx, &hir.target, Needs::Value(target))?.apply(cx)?;
-    expr(cx, &hir.index, Needs::Value(index))?.apply(cx)?;
+    expr(cx, &hir.target, &mut Needs::Value(target))?.apply(cx)?;
+    expr(cx, &hir.index, &mut Needs::Value(index))?.apply(cx)?;
 
     cx.asm.push(
         Inst::IndexGet {
             index,
             target,
-            out: needs.output(),
+            out: needs.output(&mut cx.scopes)?,
         },
         span,
     )?;
@@ -1858,9 +1910,9 @@ fn expr_index<'hir>(
 fn expr_let<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::ExprLet<'hir>,
-    needs: Needs,
+    needs: &mut Needs,
 ) -> compile::Result<Asm<'hir>> {
-    let load = |cx: &mut Ctxt<'_, 'hir, '_>, needs: Needs| {
+    let load = |cx: &mut Ctxt<'_, 'hir, '_>, needs: &mut Needs| {
         // NB: assignments "move" the value being assigned.
         expr(cx, &hir.expr, needs)?.apply(cx)?;
         Ok(())
@@ -1886,7 +1938,7 @@ fn expr_let<'hir>(
     }
 
     // If a value is needed for a let expression, it is evaluated as a unit.
-    if let Some(out) = needs.as_addr() {
+    if let Some(out) = needs.as_addr(&mut cx.scopes)? {
         cx.asm.push(Inst::unit(out.output()), hir)?;
     }
 
@@ -1898,12 +1950,12 @@ fn expr_match<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::ExprMatch<'hir>,
     span: &dyn Spanned,
-    needs: Needs,
+    needs: &mut Needs,
 ) -> compile::Result<Asm<'hir>> {
     let expected_scopes = cx.scopes.child(span)?;
 
     let offset = cx.scopes.alloc(span)?;
-    expr(cx, &hir.expr, Needs::Value(offset))?.apply(cx)?;
+    expr(cx, &hir.expr, &mut Needs::Value(offset))?.apply(cx)?;
 
     let end_label = cx.asm.new_label("match_end");
     let mut branches = Vec::new();
@@ -1916,9 +1968,9 @@ fn expr_match<'hir>(
 
         let parent_guard = cx.scopes.child(span)?;
 
-        let load = move |this: &mut Ctxt, needs: Needs| {
-            if let Some(out) = needs.as_addr() {
-                this.asm.push(
+        let load = move |cx: &mut Ctxt, needs: &mut Needs| {
+            if let Some(out) = needs.as_addr(&mut cx.scopes)? {
+                cx.asm.push(
                     Inst::Copy {
                         addr: offset,
                         out: out.output(),
@@ -1937,11 +1989,10 @@ fn expr_match<'hir>(
             let cond = cx.scopes.alloc(condition)?;
 
             let guard = cx.scopes.child(span)?;
-            expr(cx, condition, Needs::Value(cond))?.apply(cx)?;
+            expr(cx, condition, &mut Needs::Value(cond))?.apply(cx)?;
             cx.scopes.pop(span, guard)?;
 
             let scope = cx.scopes.pop(span, parent_guard)?;
-
             cx.asm.jump_if_not(cond, &match_false, span)?;
             cx.asm.jump(&branch_label, span)?;
             scope
@@ -1957,20 +2008,20 @@ fn expr_match<'hir>(
 
     // what to do in case nothing matches and the pattern doesn't have any
     // default match branch.
-    if let Some(addr) = needs.as_addr() {
+    if let Some(addr) = needs.as_addr(&mut cx.scopes)? {
         cx.asm.push(Inst::unit(addr.output()), span)?;
     }
 
     cx.asm.jump(&end_label, span)?;
 
-    let mut it = hir.branches.iter().zip(&branches).peekable();
+    let mut it = hir.branches.iter().zip(branches).peekable();
 
     while let Some((branch, (label, scope))) = it.next() {
         let span = branch;
 
-        cx.asm.label(label)?;
+        cx.asm.label(&label)?;
 
-        let expected = cx.scopes.push(scope.try_clone()?)?;
+        let expected = cx.scopes.push(scope)?;
         expr(cx, &branch.body, needs)?.apply(cx)?;
         cx.scopes.pop(span, expected)?;
 
@@ -1992,14 +2043,14 @@ fn expr_object<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::ExprObject<'hir>,
     span: &dyn Spanned,
-    needs: Needs,
+    needs: &mut Needs,
 ) -> compile::Result<Asm<'hir>> {
     let guard = cx.scopes.child(span)?;
 
     let linear = cx.scopes.linear(span, hir.assignments.len())?;
 
     for (assign, addr) in hir.assignments.iter().zip(&linear) {
-        expr(cx, &assign.assign, Needs::Value(addr))?.apply(cx)?;
+        expr(cx, &assign.assign, &mut Needs::Value(addr))?.apply(cx)?;
     }
 
     let slot =
@@ -2012,7 +2063,7 @@ fn expr_object<'hir>(
                 cx.asm.push(
                     Inst::EmptyStruct {
                         hash,
-                        out: needs.output(),
+                        out: needs.output(&mut cx.scopes)?,
                     },
                     span,
                 )?;
@@ -2024,7 +2075,7 @@ fn expr_object<'hir>(
                     addr: linear.addr(),
                     hash,
                     slot,
-                    out: needs.output(),
+                    out: needs.output(&mut cx.scopes)?,
                 },
                 span,
             )?;
@@ -2035,7 +2086,7 @@ fn expr_object<'hir>(
                     addr: linear.addr(),
                     hash,
                     slot,
-                    out: needs.output(),
+                    out: needs.output(&mut cx.scopes)?,
                 },
                 span,
             )?;
@@ -2048,7 +2099,7 @@ fn expr_object<'hir>(
                     hash,
                     addr: linear.addr(),
                     args,
-                    out: needs.output(),
+                    out: needs.output(&mut cx.scopes)?,
                 },
                 span,
             )?;
@@ -2058,7 +2109,7 @@ fn expr_object<'hir>(
                 Inst::Object {
                     addr: linear.addr(),
                     slot,
-                    out: needs.output(),
+                    out: needs.output(&mut cx.scopes)?,
                 },
                 span,
             )?;
@@ -2132,7 +2183,7 @@ fn expr_range<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::ExprRange<'hir>,
     span: &dyn Spanned,
-    needs: Needs,
+    needs: &mut Needs,
 ) -> compile::Result<Asm<'hir>> {
     let guard = cx.scopes.child(span)?;
 
@@ -2166,7 +2217,7 @@ fn expr_range<'hir>(
     let linear = cx.scopes.linear(span, values.len())?;
 
     for (e, addr) in values.iter().zip(&linear) {
-        expr(cx, e, Needs::Value(addr))?.apply(cx)?;
+        expr(cx, e, &mut Needs::Value(addr))?.apply(cx)?;
     }
 
     if needs.value() {
@@ -2174,7 +2225,7 @@ fn expr_range<'hir>(
             Inst::Range {
                 addr: linear.addr(),
                 range,
-                out: needs.output(),
+                out: needs.output(&mut cx.scopes)?,
             },
             span,
         )?;
@@ -2190,7 +2241,7 @@ fn expr_return<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: Option<&'hir hir::Expr<'hir>>,
     span: &dyn Spanned,
-    _: Needs,
+    _: &mut Needs,
 ) -> compile::Result<Asm<'hir>> {
     // NB: drop any loop temporaries.
     for l in cx.loops.iter() {
@@ -2214,7 +2265,7 @@ fn expr_select<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::ExprSelect<'hir>,
     span: &dyn Spanned,
-    needs: Needs,
+    needs: &mut Needs,
 ) -> compile::Result<Asm<'hir>> {
     cx.contexts.try_push(span.span())?;
 
@@ -2271,10 +2322,10 @@ fn expr_select<'hir>(
 
         let expected = cx.scopes.child(&branch.body)?;
 
-        let needs = match branch.pat.kind {
+        let mut needs = match branch.pat.kind {
             hir::PatKind::Path(&hir::PatPathKind::Ident(name)) => {
                 let addr = cx.scopes.alloc(&branch.pat)?;
-                cx.scopes.define(hir::Name::Str(name), &branch.pat, addr)?;
+                cx.scopes.define(&branch.pat, hir::Name::Str(name), addr)?;
                 Needs::Value(addr)
             }
             hir::PatKind::Ignore => Needs::None,
@@ -2287,7 +2338,7 @@ fn expr_select<'hir>(
         };
 
         // Set up a new scope with the binding.
-        expr(cx, &branch.body, needs)?.apply(cx)?;
+        expr(cx, &branch.body, &mut needs)?.apply(cx)?;
         cx.scopes.pop(&branch.body, expected)?;
         cx.asm.jump(&end_label, span)?;
     }
@@ -2313,15 +2364,15 @@ fn expr_try<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::Expr<'hir>,
     span: &dyn Spanned,
-    needs: Needs,
+    needs: &mut Needs,
 ) -> compile::Result<Asm<'hir>> {
     let addr = cx.scopes.alloc(span)?;
-    expr(cx, hir, Needs::Value(addr))?.apply(cx)?;
+    expr(cx, hir, &mut Needs::Value(addr))?.apply(cx)?;
 
     cx.asm.push(
         Inst::Try {
             addr,
-            out: needs.output(),
+            out: needs.output(&mut cx.scopes)?,
         },
         span,
     )?;
@@ -2336,7 +2387,7 @@ fn expr_tuple<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::ExprSeq<'hir>,
     span: &dyn Spanned,
-    needs: Needs,
+    needs: &mut Needs,
 ) -> compile::Result<Asm<'hir>> {
     macro_rules! tuple {
         ($variant:ident, $($var:ident),*) => {{
@@ -2345,12 +2396,12 @@ fn expr_tuple<'hir>(
             $(
             let $var = {
                 let addr = cx.scopes.alloc($var)?;
-                expr(cx, $var, Needs::Value(addr))?.apply(cx)?;
+                expr(cx, $var, &mut Needs::Value(addr))?.apply(cx)?;
                 addr
             };
             )*
 
-            if let Some(addr) = needs.as_addr() {
+            if let Some(addr) = needs.as_addr(&mut cx.scopes)? {
                 cx.asm.push(
                     Inst::$variant {
                         args: [$($var,)*],
@@ -2366,7 +2417,8 @@ fn expr_tuple<'hir>(
 
     match hir.items {
         [] => {
-            cx.asm.push(Inst::unit(needs.output()), span)?;
+            cx.asm
+                .push(Inst::unit(needs.output(&mut cx.scopes)?), span)?;
         }
         [e1] => tuple!(Tuple1, e1),
         [e1, e2] => tuple!(Tuple2, e1, e2),
@@ -2376,7 +2428,7 @@ fn expr_tuple<'hir>(
             let linear = cx.scopes.linear(span, hir.items.len())?;
 
             for (e, addr) in hir.items.iter().zip(&linear) {
-                expr(cx, e, Needs::Value(addr))?.apply(cx)?;
+                expr(cx, e, &mut Needs::Value(addr))?.apply(cx)?;
             }
 
             if needs.value() {
@@ -2384,7 +2436,7 @@ fn expr_tuple<'hir>(
                     Inst::Tuple {
                         addr: linear.addr(),
                         count: hir.items.len(),
-                        out: needs.output(),
+                        out: needs.output(&mut cx.scopes)?,
                     },
                     span,
                 )?;
@@ -2403,17 +2455,16 @@ fn expr_unary<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::ExprUnary<'hir>,
     span: &dyn Spanned,
-    needs: Needs,
+    needs: &mut Needs,
 ) -> compile::Result<Asm<'hir>> {
-    let addr = cx.scopes.alloc(span)?;
-    expr(cx, &hir.expr, Needs::Value(addr))?.apply(cx)?;
+    expr(cx, &hir.expr, needs)?.apply(cx)?;
 
     match hir.op {
         ast::UnOp::Not(..) => {
             cx.asm.push(
                 Inst::Not {
-                    addr,
-                    out: needs.output(),
+                    addr: needs.addr(span)?,
+                    out: needs.output(&mut cx.scopes)?,
                 },
                 span,
             )?;
@@ -2421,8 +2472,8 @@ fn expr_unary<'hir>(
         ast::UnOp::Neg(..) => {
             cx.asm.push(
                 Inst::Neg {
-                    addr,
-                    out: needs.output(),
+                    addr: needs.addr(span)?,
+                    out: needs.output(&mut cx.scopes)?,
                 },
                 span,
             )?;
@@ -2435,7 +2486,6 @@ fn expr_unary<'hir>(
         }
     }
 
-    cx.scopes.free(span, addr)?;
     Ok(Asm::top(span))
 }
 
@@ -2445,16 +2495,16 @@ fn expr_vec<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::ExprSeq<'hir>,
     span: &dyn Spanned,
-    needs: Needs,
+    needs: &mut Needs,
 ) -> compile::Result<Asm<'hir>> {
     let linear = cx.scopes.linear(span, hir.items.len())?;
     let count = hir.items.len();
 
     for (e, addr) in hir.items.iter().zip(&linear) {
-        expr(cx, e, Needs::Value(addr))?.apply(cx)?;
+        expr(cx, e, &mut Needs::Value(addr))?.apply(cx)?;
     }
 
-    if let Some(out) = needs.as_addr() {
+    if let Some(out) = needs.as_addr(&mut cx.scopes)? {
         cx.asm.push(
             Inst::Vec {
                 addr: linear.addr(),
@@ -2475,7 +2525,7 @@ fn expr_loop<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::ExprLoop<'hir>,
     span: &dyn Spanned,
-    needs: Needs,
+    needs: &mut Needs,
 ) -> compile::Result<Asm<'hir>> {
     let continue_label = cx.asm.new_label("while_continue");
     let then_label = cx.asm.new_label("while_then");
@@ -2486,7 +2536,7 @@ fn expr_loop<'hir>(
         label: hir.label,
         continue_label: continue_label.try_clone()?,
         break_label: break_label.try_clone()?,
-        needs,
+        output: needs.output(&mut cx.scopes)?,
         drop: None,
     })?;
 
@@ -2503,7 +2553,7 @@ fn expr_loop<'hir>(
         None
     };
 
-    block(cx, &hir.body, Needs::None)?.apply(cx)?;
+    block(cx, &hir.body, &mut Needs::None)?.apply(cx)?;
 
     if let Some(expected) = expected {
         cx.scopes.pop(span, expected)?;
@@ -2512,7 +2562,7 @@ fn expr_loop<'hir>(
     cx.asm.jump(&continue_label, span)?;
     cx.asm.label(&end_label)?;
 
-    if let Some(out) = needs.as_addr() {
+    if let Some(out) = needs.as_addr(&mut cx.scopes)? {
         cx.asm.push(Inst::unit(out.output()), span)?;
     }
 
@@ -2528,23 +2578,23 @@ fn expr_yield<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: Option<&'hir hir::Expr<'hir>>,
     span: &dyn Spanned,
-    needs: Needs,
+    needs: &mut Needs,
 ) -> compile::Result<Asm<'hir>> {
     if let Some(e) = hir {
         let addr = cx.scopes.alloc(span)?;
-        expr(cx, e, Needs::Value(addr))?.apply(cx)?;
+        expr(cx, e, &mut Needs::Value(addr))?.apply(cx)?;
 
         cx.asm.push(
             Inst::Yield {
                 addr,
-                out: needs.output(),
+                out: needs.output(&mut cx.scopes)?,
             },
             span,
         )?;
     } else {
         cx.asm.push(
             Inst::YieldUnit {
-                out: needs.output(),
+                out: needs.output(&mut cx.scopes)?,
             },
             span,
         )?;
@@ -2559,10 +2609,10 @@ fn lit<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: hir::Lit<'_>,
     span: &dyn Spanned,
-    needs: Needs,
+    needs: &mut Needs,
 ) -> compile::Result<Asm<'hir>> {
     // Elide the entire literal if it's not needed.
-    let Some(addr) = needs.as_addr() else {
+    let Some(addr) = needs.as_addr(&mut cx.scopes)? else {
         cx.q.diagnostics
             .not_used(cx.source_id, span, cx.context())?;
         return Ok(Asm::top(span));
@@ -2604,9 +2654,9 @@ fn lit<'hir>(
 fn local<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::Local<'hir>,
-    needs: Needs,
+    needs: &mut Needs,
 ) -> compile::Result<Asm<'hir>> {
-    let load = |cx: &mut Ctxt<'_, 'hir, '_>, needs: Needs| {
+    let load = |cx: &mut Ctxt<'_, 'hir, '_>, needs: &mut Needs| {
         // NB: assignments "move" the value being assigned.
         expr(cx, &hir.expr, needs)?.apply(cx)?;
         Ok(())
@@ -2633,7 +2683,8 @@ fn local<'hir>(
 
     // If a value is needed for a let expression, it is evaluated as a unit.
     if needs.value() {
-        cx.asm.push(Inst::unit(needs.output()), hir)?;
+        cx.asm
+            .push(Inst::unit(needs.output(&mut cx.scopes)?), hir)?;
     }
 
     Ok(Asm::top(hir))

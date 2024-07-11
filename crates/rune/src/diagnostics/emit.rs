@@ -427,7 +427,7 @@ impl Source {
 
         let diagnostics = line_for(self, span);
 
-        if let Some((count, line, span)) = diagnostics {
+        if let Some((count, column, line, span)) = diagnostics {
             let line = line.trim_end();
             let end = usize::min(span.end.into_usize(), line.len());
 
@@ -435,7 +435,10 @@ impl Source {
             let inner = &line[span.start.into_usize()..end];
             let after = &line[end..];
 
-            write!(out, "  {}:{: <3} - {}", self.name(), count + 1, before,)?;
+            let column_start = column + 1;
+            let column_end = column_start + inner.chars().count();
+
+            write!(out, "  {}:{}:{}-{}: - {}", self.name(), count + 1, column_start, column_end, before)?;
 
             out.set_color(&highlight)?;
             write!(out, "{}", inner)?;
@@ -454,7 +457,7 @@ impl Source {
 }
 
 /// Get the line number and source line for the given source and span.
-pub fn line_for(source: &Source, span: Span) -> Option<(usize, &str, Span)> {
+pub fn line_for(source: &Source, span: Span) -> Option<(usize, usize, &str, Span)> {
     let line_starts = source.line_starts();
 
     let line = match line_starts.binary_search(&span.start.into_usize()) {
@@ -471,10 +474,14 @@ pub fn line_for(source: &Source, span: Span) -> Option<(usize, &str, Span)> {
         source.get(start..)?
     };
 
+    let line_end = span.start.into_usize().saturating_sub(start);
+    let column = s.get(..line_end).into_iter().flat_map(|s| s.chars()).count();
+
     let start = start.try_into().unwrap();
 
     Some((
         line,
+        column,
         s,
         Span::new(
             span.start.saturating_sub(start),

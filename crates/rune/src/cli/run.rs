@@ -339,64 +339,53 @@ where
     let mut current_frame_len = execution.vm().call_frames().len();
 
     while limit > 0 {
-        limit = limit.wrapping_sub(1);
+        let result = execution.async_step().await;
 
-        {
-            let vm = execution.vm();
-            let mut o = io.stdout.lock();
-
-            if let Some((hash, signature)) = vm
-                .unit()
-                .debug_info()
-                .and_then(|d| d.function_at(vm.last_ip()))
-            {
-                writeln!(o, "fn {} ({}):", signature, hash)?;
-            }
-
-            let debug = vm
-                .unit()
-                .debug_info()
-                .and_then(|d| d.instruction_at(vm.last_ip()));
-
-            if with_source {
-                let debug_info = debug.and_then(|d| sources.get(d.source_id).map(|s| (s, d.span)));
-                if let Some((source, span)) = debug_info {
-                    source.emit_source_line(&mut o, span)?;
-                }
-            }
-
-            for label in debug.map(|d| d.labels.as_slice()).unwrap_or_default() {
-                writeln!(o, "{}:", label)?;
-            }
-
-            if let Some((inst, _)) = vm
-                .unit()
-                .instruction_at(vm.last_ip())
-                .map_err(VmError::from)?
-            {
-                write!(o, "  {:04} = {}", vm.last_ip(), inst)?;
-            } else {
-                write!(o, "  {:04} = *out of bounds*", vm.last_ip())?;
-            }
-
-            if let Some(comment) = debug.and_then(|d| d.comment.as_ref()) {
-                write!(o, " // {}", comment)?;
-            }
-
-            writeln!(o)?;
-        }
-
-        let result = match execution.async_step().await {
-            VmResult::Ok(result) => result,
-            VmResult::Err(e) => return Err(TraceError::VmError(e)),
-        };
-
+        let vm = execution.vm();
         let mut o = io.stdout.lock();
 
-        if dump_stack {
-            let vm = execution.vm();
-            let frames = vm.call_frames();
+        if let Some((hash, signature)) = vm
+            .unit()
+            .debug_info()
+            .and_then(|d| d.function_at(vm.last_ip()))
+        {
+            writeln!(o, "fn {} ({}):", signature, hash)?;
+        }
 
+        let debug = vm
+            .unit()
+            .debug_info()
+            .and_then(|d| d.instruction_at(vm.last_ip()));
+
+        if with_source {
+            let debug_info = debug.and_then(|d| sources.get(d.source_id).map(|s| (s, d.span)));
+            if let Some((source, span)) = debug_info {
+                source.emit_source_line(&mut o, span)?;
+            }
+        }
+
+        for label in debug.map(|d| d.labels.as_slice()).unwrap_or_default() {
+            writeln!(o, "{}:", label)?;
+        }
+
+        if let Some((inst, _)) = vm
+            .unit()
+            .instruction_at(vm.last_ip())
+            .map_err(VmError::from)?
+        {
+            write!(o, "  {:04} = {}", vm.last_ip(), inst)?;
+        } else {
+            write!(o, "  {:04} = *out of bounds*", vm.last_ip())?;
+        }
+
+        if let Some(comment) = debug.and_then(|d| d.comment.as_ref()) {
+            write!(o, " // {}", comment)?;
+        }
+
+        writeln!(o)?;
+
+        if dump_stack {
+            let frames = vm.call_frames();
             let stack = vm.stack();
 
             if current_frame_len != frames.len() {
@@ -411,22 +400,27 @@ where
 
             let values = stack.get(stack.stack_bottom()..).expect("bad stack slice");
 
-            if values.is_empty() {
-                writeln!(o, "    *empty*")?;
-            }
-
             vm.with(|| {
                 for (n, value) in values.iter().enumerate() {
-                    writeln!(o, "    {}+{} = {:?}", stack.stack_bottom(), n, value)?;
+                    writeln!(o, "    {}+{n} = {value:?}", stack.stack_bottom())?;
                 }
 
                 Ok::<_, TraceError>(())
             })?;
         }
 
-        if let Some(result) = result {
-            return Ok(result);
+        match result {
+            VmResult::Ok(result) => {
+                if let Some(result) = result {
+                    return Ok(result);
+                }
+            }
+            VmResult::Err(error) => {
+                return Err(TraceError::VmError(error));
+            }
         }
+
+        limit = limit.wrapping_sub(1);
     }
 
     Err(TraceError::Limited)
