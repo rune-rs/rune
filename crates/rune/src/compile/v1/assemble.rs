@@ -21,7 +21,7 @@ use rune_macros::instrument;
 #[derive(Debug, TryClone, Clone, Copy)]
 #[try_clone(copy)]
 pub(crate) enum Needs {
-    Value,
+    Value(InstAddress),
     None,
 }
 
@@ -29,14 +29,14 @@ impl Needs {
     /// Test if any sort of value is needed.
     #[inline(always)]
     pub(crate) fn value(self) -> bool {
-        matches!(self, Self::Value)
+        matches!(self, Self::Value(..))
     }
 
     /// Test if any sort of value is needed.
     #[inline(always)]
     pub(crate) fn output(self) -> Output {
         match self {
-            Needs::Value => todo!(),
+            Needs::Value(addr) => Output::keep(addr.offset()),
             Needs::None => Output::discard(),
         }
     }
@@ -153,10 +153,6 @@ pub(crate) enum AsmKind<'hir> {
 impl<'hir> Asm<'hir> {
     /// Assemble into an instruction.
     fn apply(self, cx: &mut Ctxt) -> compile::Result<()> {
-        if let AsmKind::Var(var) = self.kind {
-            var.copy(cx, &self.span, None, Output::discard())?;
-        }
-
         Ok(())
     }
 
@@ -463,7 +459,8 @@ fn pat_sequence<'hir>(
     false_label: &Label,
     load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, Needs) -> compile::Result<()>,
 ) -> compile::Result<()> {
-    load(cx, Needs::Value)?;
+    let addr = cx.scopes.alloc(span)?;
+    load(cx, Needs::Value(addr))?;
 
     if matches!(
         hir.kind,
@@ -473,27 +470,28 @@ fn pat_sequence<'hir>(
             is_open: false
         }
     ) {
-        cx.asm.push(Inst::IsUnit, span)?;
-        cx.asm.jump_if_not(false_label, span)?;
+        cx.asm.push(
+            Inst::IsUnit {
+                addr,
+                out: addr.output(),
+            },
+            span,
+        )?;
+        cx.asm.jump_if_not(addr, false_label, span)?;
         return Ok(());
     }
 
-    // Assign the yet-to-be-verified tuple to an anonymous slot, so we can
-    // interact with it multiple times.
-    let offset = cx.scopes.alloc(span)?;
-
-    let inst = pat_sequence_kind_to_inst(hir.kind);
-
-    cx.asm.push(Inst::Copy { offset }, span)?;
+    let cond = cx.scopes.alloc(span)?;
+    let inst = pat_sequence_kind_to_inst(hir.kind, addr, cond.output());
     cx.asm.push(inst, span)?;
-
-    cx.asm.jump_if_not(false_label, span)?;
+    cx.asm.jump_if_not(cond, false_label, span)?;
+    cx.scopes.free(span, 1)?;
 
     for (index, p) in hir.items.iter().enumerate() {
         let load = move |cx: &mut Ctxt<'_, 'hir, '_>, needs: Needs| {
             cx.asm.push(
                 Inst::TupleIndexGetAt {
-                    addr: offset,
+                    addr,
                     index,
                     out: needs.output(),
                 },
@@ -508,10 +506,14 @@ fn pat_sequence<'hir>(
     Ok(())
 }
 
-fn pat_sequence_kind_to_inst(kind: hir::PatSequenceKind) -> Inst {
+fn pat_sequence_kind_to_inst(kind: hir::PatSequenceKind, addr: InstAddress, out: Output) -> Inst {
     match kind {
-        hir::PatSequenceKind::Type { hash } => Inst::MatchType { hash },
-        hir::PatSequenceKind::BuiltInVariant { type_check } => Inst::MatchBuiltIn { type_check },
+        hir::PatSequenceKind::Type { hash } => Inst::MatchType { hash, addr, out },
+        hir::PatSequenceKind::BuiltInVariant { type_check } => Inst::MatchBuiltIn {
+            type_check,
+            addr,
+            out,
+        },
         hir::PatSequenceKind::Variant {
             variant_hash,
             enum_hash,
@@ -520,6 +522,8 @@ fn pat_sequence_kind_to_inst(kind: hir::PatSequenceKind) -> Inst {
             variant_hash,
             enum_hash,
             index,
+            addr,
+            out,
         },
         hir::PatSequenceKind::Anonymous {
             type_check,
@@ -529,6 +533,8 @@ fn pat_sequence_kind_to_inst(kind: hir::PatSequenceKind) -> Inst {
             type_check,
             len: count,
             exact: !is_open,
+            addr,
+            out,
         },
     }
 }
@@ -545,8 +551,8 @@ fn pat_object<'hir>(
     // NB: bind the loaded variable (once) to an anonymous var.
     // We reduce the number of copy operations by having specialized
     // operations perform the load from the given offset.
-    load(cx, Needs::Value)?;
     let offset = cx.scopes.alloc(span)?;
+    load(cx, Needs::Value(offset))?;
 
     let mut string_slots = Vec::new();
 
@@ -554,9 +560,19 @@ fn pat_object<'hir>(
         string_slots.try_push(cx.q.unit.new_static_string(span, binding.key())?)?;
     }
 
+    let cond = cx.scopes.alloc(span)?;
+
     let inst = match hir.kind {
-        hir::PatSequenceKind::Type { hash } => Inst::MatchType { hash },
-        hir::PatSequenceKind::BuiltInVariant { type_check } => Inst::MatchBuiltIn { type_check },
+        hir::PatSequenceKind::Type { hash } => Inst::MatchType {
+            hash,
+            addr: offset,
+            out: Output::keep(cond.offset()),
+        },
+        hir::PatSequenceKind::BuiltInVariant { type_check } => Inst::MatchBuiltIn {
+            type_check,
+            addr: offset,
+            out: Output::keep(cond.offset()),
+        },
         hir::PatSequenceKind::Variant {
             variant_hash,
             enum_hash,
@@ -565,6 +581,8 @@ fn pat_object<'hir>(
             variant_hash,
             enum_hash,
             index,
+            addr: offset,
+            out: Output::keep(cond.offset()),
         },
         hir::PatSequenceKind::Anonymous { is_open, .. } => {
             let keys =
@@ -574,16 +592,16 @@ fn pat_object<'hir>(
             Inst::MatchObject {
                 slot: keys,
                 exact: !is_open,
+                addr: offset,
+                out: Output::keep(cond.offset()),
             }
         }
     };
 
     // Copy the temporary and check that its length matches the pattern and
     // that it is indeed a vector.
-    cx.asm.push(Inst::Copy { offset }, span)?;
     cx.asm.push(inst, span)?;
-
-    cx.asm.jump_if_not(false_label, span)?;
+    cx.asm.jump_if_not(cond, false_label, span)?;
 
     for (binding, slot) in hir.bindings.iter().zip(string_slots) {
         match *binding {
@@ -1070,14 +1088,14 @@ fn expr_binary<'hir>(
     ) -> compile::Result<()> {
         let end_label = cx.asm.new_label("conditional_end");
 
-        expr(cx, lhs, needs)?.apply(cx)?;
+        let cond = expr(cx, lhs, needs)?.address(cx)?;
 
         match bin_op {
             ast::BinOp::And(..) => {
-                cx.asm.jump_if_not(&end_label, lhs)?;
+                cx.asm.jump_if_not(cond, &end_label, lhs)?;
             }
             ast::BinOp::Or(..) => {
-                cx.asm.jump_if(&end_label, lhs)?;
+                cx.asm.jump_if(cond, &end_label, lhs)?;
             }
             op => {
                 return Err(compile::Error::new(
@@ -1165,8 +1183,10 @@ fn expr_async_block<'hir>(
     span: &'hir dyn Spanned,
     needs: Needs,
 ) -> compile::Result<Asm<'hir>> {
+    let addr = cx.scopes.peek(span)?;
+
     for capture in hir.captures.iter().copied() {
-        let out = Output::keep(cx.scopes.alloc(span)?);
+        let out = Output::keep(cx.scopes.alloc(span)?.offset());
 
         if hir.do_move {
             let var = cx.scopes.take(&mut cx.q, capture, span)?;
@@ -1177,11 +1197,10 @@ fn expr_async_block<'hir>(
         }
     }
 
-    cx.scopes.free(span, hir.captures.len())?;
-
     cx.asm.push_with_comment(
         Inst::Call {
             hash: hir.hash,
+            addr,
             args: hir.captures.len(),
             out: needs.output(),
         },
@@ -1189,6 +1208,7 @@ fn expr_async_block<'hir>(
         &"async block",
     )?;
 
+    cx.scopes.free(span, hir.captures.len())?;
     Ok(Asm::top(span))
 }
 
@@ -1337,16 +1357,20 @@ fn expr_call<'hir>(
             cx.scopes.free(span, args)?;
         }
         hir::Call::Expr { expr: e } => {
+            expr(cx, e, Needs::Value)?.apply(cx)?;
+            let function = cx.scopes.alloc(span)?;
+
+            let addr = cx.scopes.peek(span)?;
+
             for e in hir.args {
                 expr(cx, e, Needs::Value)?.apply(cx)?;
                 cx.scopes.alloc(span)?;
             }
 
-            expr(cx, e, Needs::Value)?.apply(cx)?;
-            cx.scopes.alloc(span)?;
-
             cx.asm.push(
                 Inst::CallFn {
+                    function,
+                    addr,
                     args,
                     out: needs.output(),
                 },

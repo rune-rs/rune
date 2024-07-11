@@ -1083,7 +1083,7 @@ impl Vm {
         VmResult::Ok(value)
     }
 
-    fn on_tuple<F, O>(&mut self, ty: TypeCheck, value: &Value, f: F) -> VmResult<Option<O>>
+    fn on_tuple<F, O>(&self, ty: TypeCheck, value: &Value, f: F) -> VmResult<Option<O>>
     where
         F: FnOnce(&[Value]) -> O,
     {
@@ -2565,16 +2565,17 @@ impl Vm {
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_is_unit(&mut self) -> VmResult<()> {
-        let value = vm_try!(self.stack.pop());
-        vm_try!(self.stack.push(vm_try!(value.is_empty())));
+    fn op_is_unit(&mut self, addr: InstAddress, out: Output) -> VmResult<()> {
+        let value = vm_try!(self.stack.at(addr));
+        let is_unit = vm_try!(value.is_empty());
+        vm_try!(out.store(&mut self.stack, is_unit));
         VmResult::Ok(())
     }
 
     /// Perform the try operation on the given stack location.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_try(&mut self, address: InstAddress, preserve: bool) -> VmResult<bool> {
-        let value = vm_try!(self.stack.address(address));
+    fn op_try(&mut self, addr: InstAddress, preserve: bool) -> VmResult<bool> {
+        let value = vm_try!(self.stack.address(addr));
 
         let result = 'out: {
             match &*vm_try!(value.borrow_kind_ref()) {
@@ -2680,10 +2681,17 @@ impl Vm {
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_match_sequence(&mut self, ty: TypeCheck, len: usize, exact: bool) -> VmResult<()> {
-        let value = vm_try!(self.stack.pop());
+    fn op_match_sequence(
+        &mut self,
+        ty: TypeCheck,
+        len: usize,
+        exact: bool,
+        addr: InstAddress,
+        out: Output,
+    ) -> VmResult<()> {
+        let value = vm_try!(self.stack.at(addr));
 
-        let result = vm_try!(self.on_tuple(ty, &value, move |tuple| {
+        let result = vm_try!(self.on_tuple(ty, value, move |tuple| {
             if exact {
                 tuple.len() == len
             } else {
@@ -2691,15 +2699,15 @@ impl Vm {
             }
         }));
 
-        vm_try!(self.stack.push(result.unwrap_or_default()));
+        vm_try!(out.store(&mut self.stack, result.unwrap_or_default()));
         VmResult::Ok(())
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_match_type(&mut self, hash: Hash) -> VmResult<()> {
-        let value = vm_try!(self.stack.pop());
+    fn op_match_type(&mut self, hash: Hash, addr: InstAddress, out: Output) -> VmResult<()> {
+        let value = vm_try!(self.stack.at(addr));
         let is_match = vm_try!(value.type_hash()) == hash;
-        vm_try!(self.stack.push(is_match));
+        vm_try!(out.store(&mut self.stack, is_match));
         VmResult::Ok(())
     }
 
@@ -2709,8 +2717,10 @@ impl Vm {
         enum_hash: Hash,
         variant_hash: Hash,
         index: usize,
+        addr: InstAddress,
+        out: Output,
     ) -> VmResult<()> {
-        let value = vm_try!(self.stack.pop());
+        let value = vm_try!(self.stack.at(addr));
 
         let is_match = 'out: {
             match &*vm_try!(value.borrow_kind_ref()) {
@@ -2725,26 +2735,31 @@ impl Vm {
                 _ => break 'out false,
             }
 
-            match vm_try!(self.call_instance_fn(
-                value,
-                Protocol::IS_VARIANT,
-                (index,),
-                Output::keep(0)
-            )) {
-                CallResult::Ok(()) => vm_try!(vm_try!(self.stack.pop()).as_bool()),
-                CallResult::Unsupported(..) => false,
-            }
+            let value = value.clone();
+
+            let VmResult::Ok(CallResult::Ok(())) =
+                vm_try!(self.call_instance_fn(value, Protocol::IS_VARIANT, (index,), out))
+            else {
+                break 'out false;
+            };
+
+            return VmResult::Ok(());
         };
 
-        vm_try!(self.stack.push(is_match));
+        vm_try!(out.store(&mut self.stack, is_match));
         VmResult::Ok(())
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_match_builtin(&mut self, type_check: TypeCheck) -> VmResult<()> {
+    fn op_match_builtin(
+        &mut self,
+        type_check: TypeCheck,
+        addr: InstAddress,
+        out: Output,
+    ) -> VmResult<()> {
         use crate::runtime::GeneratorState::*;
 
-        let value = vm_try!(self.stack.pop());
+        let value = vm_try!(self.stack.at(addr));
 
         let is_match = match (type_check, &*vm_try!(value.borrow_kind_ref())) {
             (TypeCheck::EmptyTuple, ValueKind::EmptyTuple) => true,
@@ -2768,12 +2783,18 @@ impl Vm {
             _ => false,
         };
 
-        vm_try!(self.stack.push(is_match));
+        vm_try!(out.store(&mut self.stack, is_match));
         VmResult::Ok(())
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_match_object(&mut self, slot: usize, exact: bool) -> VmResult<()> {
+    fn op_match_object(
+        &mut self,
+        slot: usize,
+        exact: bool,
+        addr: InstAddress,
+        out: Output,
+    ) -> VmResult<()> {
         fn test(object: &Object, keys: &[alloc::String], exact: bool) -> bool {
             if exact {
                 if object.len() != keys.len() {
@@ -2792,7 +2813,7 @@ impl Vm {
             true
         }
 
-        let value = vm_try!(self.stack.pop());
+        let value = vm_try!(self.stack.at(addr));
 
         let is_match = match &*vm_try!(value.borrow_kind_ref()) {
             ValueKind::Object(object) => {
@@ -2806,7 +2827,7 @@ impl Vm {
             _ => false,
         };
 
-        vm_try!(self.stack.push(is_match));
+        vm_try!(out.store(&mut self.stack, is_match));
         VmResult::Ok(())
     }
 
@@ -3321,8 +3342,8 @@ impl Vm {
                 Inst::Format { spec } => {
                     vm_try!(self.op_format(spec));
                 }
-                Inst::IsUnit => {
-                    vm_try!(self.op_is_unit());
+                Inst::IsUnit { addr, out } => {
+                    vm_try!(self.op_is_unit(addr, out));
                 }
                 Inst::Try { address, preserve } => {
                     if vm_try!(self.op_try(address, preserve)) {
@@ -3351,24 +3372,37 @@ impl Vm {
                     type_check,
                     len,
                     exact,
+                    addr,
+                    out,
                 } => {
-                    vm_try!(self.op_match_sequence(type_check, len, exact));
+                    vm_try!(self.op_match_sequence(type_check, len, exact, addr, out));
                 }
-                Inst::MatchType { hash } => {
-                    vm_try!(self.op_match_type(hash));
+                Inst::MatchType { hash, addr, out } => {
+                    vm_try!(self.op_match_type(hash, addr, out));
                 }
                 Inst::MatchVariant {
                     enum_hash,
                     variant_hash,
                     index,
+                    addr,
+                    out,
                 } => {
-                    vm_try!(self.op_match_variant(enum_hash, variant_hash, index));
+                    vm_try!(self.op_match_variant(enum_hash, variant_hash, index, addr, out));
                 }
-                Inst::MatchBuiltIn { type_check } => {
-                    vm_try!(self.op_match_builtin(type_check));
+                Inst::MatchBuiltIn {
+                    type_check,
+                    addr,
+                    out,
+                } => {
+                    vm_try!(self.op_match_builtin(type_check, addr, out));
                 }
-                Inst::MatchObject { slot, exact } => {
-                    vm_try!(self.op_match_object(slot, exact));
+                Inst::MatchObject {
+                    slot,
+                    exact,
+                    addr,
+                    out,
+                } => {
+                    vm_try!(self.op_match_object(slot, exact, addr, out));
                 }
                 Inst::Yield { out } => {
                     return VmResult::Ok(VmHalt::Yielded(out));

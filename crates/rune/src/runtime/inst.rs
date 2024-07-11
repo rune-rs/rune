@@ -760,7 +760,12 @@ pub enum Inst {
     /// <value>
     /// => <boolean>
     /// ```
-    IsUnit,
+    IsUnit {
+        /// The address of the value to test.
+        addr: InstAddress,
+        /// Where to store the output.
+        out: Output,
+    },
     /// Perform the try operation which takes the value at the given `address`
     /// and tries to unwrap it or return from the current call frame.
     ///
@@ -868,6 +873,10 @@ pub enum Inst {
     MatchType {
         /// The type hash to match against.
         hash: Hash,
+        /// The address of the value to test.
+        addr: InstAddress,
+        /// Where to store the output.
+        out: Output,
     },
     /// Test if the specified variant matches. This is distinct from
     /// [Inst::MatchType] because it will match immediately on the variant type
@@ -888,6 +897,10 @@ pub enum Inst {
         enum_hash: Hash,
         /// The index of the variant.
         index: usize,
+        /// The address of the value to test.
+        addr: InstAddress,
+        /// Where to store the output.
+        out: Output,
     },
     /// Test if the top of the stack is the given builtin type or variant.
     ///
@@ -901,6 +914,10 @@ pub enum Inst {
     MatchBuiltIn {
         /// The type to check for.
         type_check: TypeCheck,
+        /// The address of the value to test.
+        addr: InstAddress,
+        /// Where to store the output.
+        out: Output,
     },
     /// Test that the top of the stack is a tuple with the given length
     /// requirements.
@@ -920,6 +937,10 @@ pub enum Inst {
         /// Whether the operation should check exact `true` or minimum length
         /// `false`.
         exact: bool,
+        /// The address of the value to test.
+        addr: InstAddress,
+        /// Where to store the output.
+        out: Output,
     },
     /// Test that the top of the stack is an object matching the given slot of
     /// object keys.
@@ -937,6 +958,10 @@ pub enum Inst {
         /// Whether the operation should check exact `true` or minimum length
         /// `false`.
         exact: bool,
+        /// The address of the value to test.
+        addr: InstAddress,
+        /// Where to store the output.
+        out: Output,
     },
     /// Perform a generator yield where the value yielded is expected to be
     /// found at the top of the stack.
@@ -1289,6 +1314,12 @@ impl InstAddress {
     #[inline]
     pub(crate) fn offset(self) -> usize {
         self.offset
+    }
+
+    /// Get the address as an output.
+    #[inline]
+    pub(crate) fn output(self) -> Output {
+        Output::keep(self.offset)
     }
 }
 

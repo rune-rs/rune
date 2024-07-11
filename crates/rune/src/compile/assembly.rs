@@ -17,12 +17,15 @@ pub(crate) enum AssemblyInst {
         label: Label,
     },
     JumpIf {
+        addr: InstAddress,
         label: Label,
     },
     JumpIfNot {
+        addr: InstAddress,
         label: Label,
     },
     JumpIfBranch {
+        addr: InstAddress,
         branch: i64,
         label: Label,
     },
@@ -105,9 +108,15 @@ impl Assembly {
     }
 
     /// Add a conditional jump to the given label.
-    pub(crate) fn jump_if(&mut self, label: &Label, span: &dyn Spanned) -> compile::Result<()> {
+    pub(crate) fn jump_if(
+        &mut self,
+        addr: InstAddress,
+        label: &Label,
+        span: &dyn Spanned,
+    ) -> compile::Result<()> {
         self.inner_push(
             AssemblyInst::JumpIf {
+                addr,
                 label: label.try_clone()?,
             },
             span,
@@ -117,9 +126,15 @@ impl Assembly {
     }
 
     /// Add jump-if-not instruction to a label.
-    pub(crate) fn jump_if_not(&mut self, label: &Label, span: &dyn Spanned) -> compile::Result<()> {
+    pub(crate) fn jump_if_not(
+        &mut self,
+        addr: InstAddress,
+        label: &Label,
+        span: &dyn Spanned,
+    ) -> compile::Result<()> {
         self.inner_push(
             AssemblyInst::JumpIfNot {
+                addr,
                 label: label.try_clone()?,
             },
             span,
@@ -131,12 +146,14 @@ impl Assembly {
     /// Add a conditional jump-if-branch instruction.
     pub(crate) fn jump_if_branch(
         &mut self,
+        addr: InstAddress,
         branch: i64,
         label: &Label,
         span: &dyn Spanned,
     ) -> compile::Result<()> {
         self.inner_push(
             AssemblyInst::JumpIfBranch {
+                addr,
                 branch,
                 label: label.try_clone()?,
             },
