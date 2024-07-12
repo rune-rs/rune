@@ -530,9 +530,6 @@ cfg_std! {
                 VmErrorKind::AccessError {
                     error,
                 } => Some(error),
-                VmErrorKind::StackError {
-                    error,
-                } => Some(error),
                 VmErrorKind::BadInstruction {
                     error,
                 } => Some(error),
@@ -556,9 +553,7 @@ pub(crate) enum VmErrorKind {
     AccessError {
         error: AccessError,
     },
-    StackError {
-        error: StackError,
-    },
+    StackError,
     BadInstruction {
         error: BadInstruction,
     },
@@ -773,7 +768,7 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::AccessError { error } => {
                 write!(f, "{error}")
             }
-            VmErrorKind::StackError { error } => write!(f, "{error}"),
+            VmErrorKind::StackError => write!(f, "{}", StackError),
             VmErrorKind::BadInstruction { error } => {
                 write!(f, "{error}")
             }
@@ -982,42 +977,42 @@ impl fmt::Display for VmErrorKind {
 }
 
 impl From<RuntimeError> for VmErrorKind {
-    #[inline(always)]
+    #[inline]
     fn from(value: RuntimeError) -> Self {
         value.into_vm_error_kind()
     }
 }
 
 impl From<Infallible> for VmErrorKind {
-    #[inline(always)]
+    #[inline]
     fn from(error: Infallible) -> Self {
         match error {}
     }
 }
 
 impl From<AccessError> for VmErrorKind {
-    #[allow(deprecated)]
+    #[inline]
     fn from(error: AccessError) -> Self {
         VmErrorKind::AccessError { error }
     }
 }
 
 impl From<StackError> for VmErrorKind {
-    #[allow(deprecated)]
-    fn from(error: StackError) -> Self {
-        VmErrorKind::StackError { error }
+    #[inline]
+    fn from(_: StackError) -> Self {
+        VmErrorKind::StackError
     }
 }
 
 impl From<BadInstruction> for VmErrorKind {
-    #[allow(deprecated)]
+    #[inline]
     fn from(error: BadInstruction) -> Self {
         VmErrorKind::BadInstruction { error }
     }
 }
 
 impl From<BadJump> for VmErrorKind {
-    #[allow(deprecated)]
+    #[inline]
     fn from(error: BadJump) -> Self {
         VmErrorKind::BadJump { error }
     }

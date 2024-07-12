@@ -6,7 +6,7 @@ use core::slice;
 use crate::alloc::alloc::Global;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Vec};
-use crate::runtime::{InstAddress, Value};
+use crate::runtime::{InstAddress, Value, VmErrorKind};
 
 /// An error raised when interacting with the stack.
 #[derive(Debug, PartialEq)]
@@ -135,14 +135,6 @@ impl Stack {
         self.stack.len()
     }
 
-    pub(crate) fn stack_size(&self) -> Result<usize, StackError> {
-        let Some(size) = self.stack.len().checked_sub(self.stack_bottom) else {
-            return Err(StackError);
-        };
-
-        Ok(size)
-    }
-
     /// Perform a raw access over the stack.
     ///
     /// This ignores [stack_bottom] and will just check that the given slice
@@ -157,6 +149,8 @@ impl Stack {
     }
 
     /// Push a value onto the stack.
+    ///
+    /// # Examples
     ///
     /// ```
     /// use rune::runtime::Stack;
@@ -176,37 +170,27 @@ impl Stack {
         Ok(())
     }
 
-    /// Drain the top `count` elements of the stack in the order that they were
-    /// pushed, from bottom to top.
-    ///
-    /// ```
-    /// use rune::runtime::Stack;
-    /// use rune::Value;
-    ///
-    /// let mut stack = Stack::new();
-    ///
-    /// stack.push(rune::to_value(42i64)?);
-    /// stack.push(rune::to_value(String::from("foo"))?);
-    /// stack.push(rune::to_value(())?);
-    ///
-    /// let values = stack.drain(2)?.collect::<Vec<_>>();
-    ///
-    /// assert_eq!(values.len(), 2);
-    /// assert_eq!(rune::from_value::<String>(&values[0])?, "foo");
-    /// assert_eq!(rune::from_value(&values[1])?, ());
-    /// # Ok::<_, rune::support::Error>(())
-    /// ```
-    pub fn drain(
-        &mut self,
-        count: usize,
-    ) -> Result<impl DoubleEndedIterator<Item = Value> + '_, StackError> {
-        match self.stack.len().checked_sub(count) {
-            Some(start) if start >= self.stack_bottom => Ok(self.stack.drain(start..)),
-            _ => Err(StackError),
-        }
+    /// Drain the current stack down to the current stack bottom.
+    pub(crate) fn drain(&mut self) -> impl DoubleEndedIterator<Item = Value> + '_ {
+        self.stack.drain(self.stack_bottom..)
     }
 
     /// Get the slice at the given address with the given length.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::runtime::{Stack, InstAddress};
+    ///
+    /// let mut stack = Stack::new();
+    /// stack.push(rune::to_value(1i64)?);
+    /// stack.push(rune::to_value(1i64)?);
+    /// stack.push(rune::to_value(1i64)?);
+    ///
+    /// let values = stack.slice_at(InstAddress::ZERO, 2)?;
+    /// assert_eq!(values.len(), 2);
+    /// # Ok::<_, rune::support::Error>(())
+    /// ```
     pub fn slice_at(&self, addr: InstAddress, count: usize) -> Result<&[Value], StackError> {
         let Some(start) = self.stack_bottom.checked_add(addr.offset()) else {
             return Err(StackError);
@@ -358,17 +342,37 @@ impl Stack {
         &mut self,
         addr: InstAddress,
         len: usize,
-    ) -> Result<usize, StackError> {
+    ) -> Result<usize, VmErrorKind> {
         let Some(start) = self.stack_bottom.checked_add(addr.offset()) else {
-            return Err(StackError);
+            return Err(VmErrorKind::StackError);
         };
 
-        let Some(new_len) = start.checked_add(len) else {
-            return Err(StackError);
+        let old_len = self.stack.len();
+
+        let Some(new_len) = old_len.checked_add(len) else {
+            return Err(VmErrorKind::StackError);
         };
 
-        self.stack.truncate(new_len);
-        Ok(replace(&mut self.stack_bottom, start))
+        if old_len < start + len {
+            return Err(VmErrorKind::StackError);
+        }
+
+        self.stack.try_reserve(len)?;
+
+        // SAFETY: We've ensured that the collection has space for the new
+        // values. It is also guaranteed to be non-overlapping.
+        unsafe {
+            let ptr = self.stack.as_mut_ptr();
+            let from = slice::from_raw_parts(ptr.add(start), len);
+
+            for (value, n) in from.iter().zip(old_len..) {
+                ptr.add(n).write(value.clone());
+            }
+
+            self.stack.set_len(new_len);
+        }
+
+        Ok(replace(&mut self.stack_bottom, old_len))
     }
 
     /// Pop the current stack top and modify it to a different one.
@@ -376,12 +380,10 @@ impl Stack {
     /// This asserts that the size of the current stack frame is exactly zero
     /// before restoring it.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn pop_stack_top(&mut self, stack_bottom: usize, size: usize) -> alloc::Result<()> {
+    pub(crate) fn pop_stack_top(&mut self, stack_bottom: usize) -> alloc::Result<()> {
         tracing::trace!(stack = self.stack.len(), self.stack_bottom);
         self.stack.truncate(self.stack_bottom);
         self.stack_bottom = stack_bottom;
-        let empty = Value::empty()?;
-        self.stack.try_resize(self.stack_bottom + size, empty)?;
         Ok(())
     }
 }

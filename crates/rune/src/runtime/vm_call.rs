@@ -11,6 +11,7 @@ use crate::runtime::{
 #[derive(Debug)]
 #[must_use = "The construction of a vm call leaves the virtual machine stack in an intermediate state, VmCall::into_execution must be called to fix it"]
 pub(crate) struct VmCall {
+    /// The calling convention to use for the call.
     call: Call,
     /// Is set if the context differs for the call for the current virtual machine.
     context: Option<Arc<RuntimeContext>>,
@@ -73,11 +74,8 @@ impl VmCall {
         T: AsRef<Vm> + AsMut<Vm>,
     {
         let vm = execution.vm_mut();
-        let args = vm_try!(vm.stack_mut().stack_size());
 
-        tracing::trace!(args);
-
-        let new_stack = vm_try!(vm_try!(vm.stack_mut().drain(args)).try_collect::<Stack>());
+        let new_stack = vm_try!(vm.stack_mut().drain().try_collect::<Stack>());
 
         let Some(ip) = vm_try!(vm.pop_call_frame_from_call()) else {
             return VmResult::err(VmErrorKind::MissingCallFrame);

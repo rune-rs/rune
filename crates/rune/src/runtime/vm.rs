@@ -714,7 +714,6 @@ impl Vm {
     ) -> Result<(), VmErrorKind> {
         tracing::trace!("pushing call frame");
 
-        let size = self.stack.stack_size()?;
         let stack_bottom = self.stack.swap_stack_bottom(addr, args)?;
         let ip = replace(&mut self.ip, ip);
 
@@ -723,7 +722,6 @@ impl Vm {
             stack_bottom,
             isolated,
             out,
-            size,
         };
 
         self.call_frames.try_push(frame)?;
@@ -742,7 +740,7 @@ impl Vm {
         };
 
         tracing::trace!(?frame);
-        self.stack.pop_stack_top(frame.stack_bottom, frame.size)?;
+        self.stack.pop_stack_top(frame.stack_bottom)?;
         Ok(Some(replace(&mut self.ip, frame.ip)))
     }
 
@@ -752,12 +750,13 @@ impl Vm {
         tracing::trace!("popping call frame");
 
         let Some(frame) = self.call_frames.pop() else {
-            self.stack.pop_stack_top(0, 1)?;
+            self.stack.pop_stack_top(0)?;
+            self.stack.push(())?;
             return Ok((true, Output::keep(0)));
         };
 
         tracing::trace!(?frame);
-        self.stack.pop_stack_top(frame.stack_bottom, frame.size)?;
+        self.stack.pop_stack_top(frame.stack_bottom)?;
         self.ip = frame.ip;
         Ok((frame.isolated, frame.out))
     }
@@ -3595,8 +3594,6 @@ pub struct CallFrame {
     pub isolated: bool,
     /// Keep the value produced from the call frame.
     pub out: Output,
-    /// The size of the stack.
-    pub size: usize,
 }
 
 impl TryClone for CallFrame {
