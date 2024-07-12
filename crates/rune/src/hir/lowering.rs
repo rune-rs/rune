@@ -672,8 +672,12 @@ pub(crate) fn expr<'hir>(
         ast::Expr::Return(ast) => hir::ExprKind::Return(option!(&ast.expr, |ast| expr(cx, ast)?)),
         ast::Expr::Await(ast) => hir::ExprKind::Await(alloc!(expr(cx, &ast.expr)?)),
         ast::Expr::Try(ast) => hir::ExprKind::Try(alloc!(expr(cx, &ast.expr)?)),
-        ast::Expr::Select(ast) => hir::ExprKind::Select(alloc!(hir::ExprSelect {
-            branches: iter!(&ast.branches, |(ast, _)| {
+        ast::Expr::Select(ast) => {
+            let mut default = None;
+            let mut branches = Vec::new();
+            let mut exprs = Vec::new();
+
+            for (ast, _) in &ast.branches {
                 match ast {
                     ast::ExprSelectBranch::Pat(ast) => {
                         cx.scopes.push()?;
@@ -681,21 +685,35 @@ pub(crate) fn expr<'hir>(
                         let pat = pat_binding(cx, &ast.pat)?;
                         let body = expr(cx, &ast.body)?;
 
-                        let layer = cx.scopes.pop().with_span(ast)?;
+                        let layer = cx.scopes.pop().with_span(&ast)?;
 
-                        hir::ExprSelectBranch::Pat(alloc!(hir::ExprSelectPatBranch {
+                        exprs.try_push(expr(cx, &ast.expr)?).with_span(&ast.expr)?;
+
+                        branches.try_push(hir::ExprSelectBranch {
                             pat,
-                            expr: expr(cx, &ast.expr)?,
                             body,
                             drop: iter!(layer.into_drop_order()),
-                        }))
+                        })?;
                     }
                     ast::ExprSelectBranch::Default(ast) => {
-                        hir::ExprSelectBranch::Default(alloc!(expr(cx, &ast.body)?))
+                        if default.is_some() {
+                            return Err(compile::Error::new(
+                                ast,
+                                ErrorKind::SelectMultipleDefaults,
+                            ));
+                        }
+
+                        default = Some(alloc!(expr(cx, &ast.body)?));
                     }
                 }
-            })
-        })),
+            }
+
+            hir::ExprKind::Select(alloc!(hir::ExprSelect {
+                branches: iter!(branches),
+                exprs: iter!(exprs),
+                default: option!(default),
+            }))
+        }
         ast::Expr::Closure(ast) => expr_call_closure(cx, ast)?,
         ast::Expr::Lit(ast) => hir::ExprKind::Lit(lit(cx, &ast.lit)?),
         ast::Expr::Object(ast) => expr_object(cx, ast)?,

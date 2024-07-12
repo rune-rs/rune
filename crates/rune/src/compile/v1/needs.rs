@@ -102,13 +102,15 @@ impl<'a> Needs<'a> {
                 });
             }
             NeedsKind::Address(addr) => {
-                cx.asm.push(
-                    Inst::Copy {
-                        addr: from,
-                        out: addr.addr.output(),
-                    },
-                    self.span,
-                )?;
+                if from != addr.addr {
+                    cx.asm.push(
+                        Inst::Copy {
+                            addr: from,
+                            out: addr.addr.output(),
+                        },
+                        self.span,
+                    )?;
+                }
             }
             _ => {}
         }

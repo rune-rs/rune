@@ -202,7 +202,7 @@ impl<'hir> Scopes<'hir> {
 
     /// Declare an anonymous variable.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn alloc<'a>(&mut self, span: &'a dyn Spanned) -> compile::Result<Needs<'a>> {
+    pub(crate) fn alloc(&mut self, span: &'hir dyn Spanned) -> compile::Result<Needs<'hir>> {
         let Some(scope) = self.scopes.last_mut() else {
             return Err(compile::Error::msg(span, "Missing head scope"));
         };
@@ -419,6 +419,16 @@ pub(super) struct Linear<'a> {
 }
 
 impl<'a> Linear<'a> {
+    /// Construct an empty linear allocation.
+    ///
+    /// In practice, the exact address should not matter.
+    pub(super) fn empty(base: InstAddress) -> Self {
+        Self {
+            base,
+            addresses: Vec::new(),
+        }
+    }
+
     #[inline]
     pub(super) fn addr(&self) -> InstAddress {
         self.base

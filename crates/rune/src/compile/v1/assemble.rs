@@ -15,7 +15,7 @@ use crate::runtime::{
 };
 use crate::{Hash, SourceId};
 
-use super::Needs;
+use super::{Linear, Needs};
 
 use rune_macros::instrument;
 
@@ -123,20 +123,22 @@ pub(crate) fn fn_from_item_fn<'hir>(
 ) -> compile::Result<()> {
     let mut first = true;
 
-    let arguments = cx.scopes.linear(hir, hir.args.len())?;
+    let mut arguments = cx.scopes.linear(hir, hir.args.len())?;
 
-    for (arg, needs) in hir.args.iter().zip(&arguments) {
+    for (arg, needs) in hir.args.iter().zip(&mut arguments) {
         match arg {
             hir::FnArg::SelfValue(span) => {
                 if !instance_fn || !first {
-                    return Err(compile::Error::new(*span, ErrorKind::UnsupportedSelf));
+                    return Err(compile::Error::new(span, ErrorKind::UnsupportedSelf));
                 }
 
                 cx.scopes
                     .define(span, hir::Name::SelfValue, needs.addr()?)?;
             }
             hir::FnArg::Pat(pat) => {
-                pat_binding_with_addr(cx, pat, needs.addr()?)?;
+                pattern_panic(cx, pat, move |cx, false_label| {
+                    fn_arg_pat(cx, *pat, needs, false_label)
+                })?;
             }
         }
 
@@ -187,7 +189,7 @@ pub(crate) fn expr_closure_secondary<'hir>(
 
     if !hir.captures.is_empty() {
         cx.asm.push(
-            Inst::PushEnvironment {
+            Inst::Environment {
                 addr: environment.addr(),
                 count: hir.captures.len(),
                 out: environment.addr().output(),
@@ -202,31 +204,12 @@ pub(crate) fn expr_closure_secondary<'hir>(
 
     for (arg, needs) in hir.args.iter().zip(&mut arguments) {
         match arg {
-            hir::FnArg::SelfValue(..) => {
-                return Err(compile::Error::new(arg, ErrorKind::UnsupportedSelf))
+            hir::FnArg::SelfValue(span) => {
+                return Err(compile::Error::new(span, ErrorKind::UnsupportedSelf))
             }
             hir::FnArg::Pat(pat) => {
-                let addr = needs.addr()?;
-
-                let load = move |cx: &mut Ctxt<'_, 'hir, '_>, needs: &mut Needs<'_>| {
-                    needs.assign_addr(cx, addr)?;
-                    Ok(())
-                };
-
                 pattern_panic(cx, pat, move |cx, false_label| {
-                    if pat.names.len() > 1 {
-                        pat_binding(cx, pat, &false_label, &load)
-                    } else {
-                        pat_binding_with(
-                            cx,
-                            pat,
-                            &pat.pat,
-                            pat.names,
-                            false_label,
-                            &load,
-                            slice::from_mut(needs),
-                        )
-                    }
+                    fn_arg_pat(cx, *pat, needs, false_label)
                 })?;
             }
         }
@@ -235,6 +218,37 @@ pub(crate) fn expr_closure_secondary<'hir>(
     return_(cx, span, &hir.body, expr)?;
     cx.scopes.pop_last(span)?;
     Ok(())
+}
+
+#[instrument(span = pat)]
+fn fn_arg_pat<'hir>(
+    cx: &mut Ctxt<'_, 'hir, '_>,
+    pat: &'hir hir::PatBinding<'hir>,
+    needs: &mut Needs<'hir>,
+    false_label: &Label,
+) -> compile::Result<bool> {
+    let addr = needs.addr()?;
+
+    let load = move |cx: &mut Ctxt<'_, 'hir, '_>, needs: &mut Needs<'_>| {
+        needs.assign_addr(cx, addr)?;
+        Ok(())
+    };
+
+    let out = if pat.names.len() > 1 {
+        pat_binding(cx, pat, &false_label, &load)?
+    } else {
+        pat_binding_with(
+            cx,
+            pat,
+            &pat.pat,
+            pat.names,
+            false_label,
+            &load,
+            slice::from_mut(needs),
+        )?
+    };
+
+    Ok(out)
 }
 
 /// Assemble a return statement from the given Assemble.
@@ -525,7 +539,7 @@ fn condition<'hir>(
 fn pat_sequence<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::PatSequence<'hir>,
-    span: &dyn Spanned,
+    span: &'hir dyn Spanned,
     false_label: &Label,
     load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, &mut Needs<'_>) -> compile::Result<()>,
     bindings: &mut BTreeMap<hir::Name<'hir>, &mut Needs<'_>>,
@@ -620,7 +634,7 @@ fn pat_sequence_kind_to_inst(kind: hir::PatSequenceKind, addr: InstAddress, out:
 fn pat_object<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::PatObject<'hir>,
-    span: &dyn Spanned,
+    span: &'hir dyn Spanned,
     false_label: &Label,
     load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, &mut Needs<'_>) -> compile::Result<()>,
     bindings: &mut BTreeMap<hir::Name<'hir>, &mut Needs<'_>>,
@@ -1503,17 +1517,13 @@ fn expr_call<'hir>(
     match hir.call {
         hir::Call::Var { name, .. } => {
             let var = cx.scopes.get(&mut cx.q, span, name)?;
-            let mut linear = cx.scopes.linear(span, args)?;
-
-            for (e, needs) in hir.args.iter().zip(&mut linear) {
-                expr(cx, e, needs)?;
-            }
+            let linear = exprs(cx, span, hir.args)?;
 
             cx.asm.push(
                 Inst::CallFn {
                     function: var.addr,
                     addr: linear.addr(),
-                    args,
+                    args: hir.args.len(),
                     out: needs.alloc_output(&mut cx.scopes)?,
                 },
                 span,
@@ -1522,17 +1532,13 @@ fn expr_call<'hir>(
             cx.scopes.free_linear(linear)?;
         }
         hir::Call::Associated { target, hash } => {
-            let mut linear = cx.scopes.linear(span, args + 1)?;
-
-            for (e, needs) in [target].into_iter().chain(hir.args.iter()).zip(&mut linear) {
-                expr(cx, e, needs)?;
-            }
+            let linear = exprs_2(cx, span, slice::from_ref(target), hir.args)?;
 
             cx.asm.push(
                 Inst::CallAssociated {
                     hash,
                     addr: linear.addr(),
-                    args,
+                    args: args + 1,
                     out: needs.alloc_output(&mut cx.scopes)?,
                 },
                 span,
@@ -1541,17 +1547,13 @@ fn expr_call<'hir>(
             cx.scopes.free_linear(linear)?;
         }
         hir::Call::Meta { hash } => {
-            let mut linear = cx.scopes.linear(span, args)?;
-
-            for (e, needs) in hir.args.iter().zip(&mut linear) {
-                expr(cx, e, needs)?;
-            }
+            let linear = exprs(cx, span, hir.args)?;
 
             cx.asm.push(
                 Inst::Call {
                     hash,
                     addr: linear.addr(),
-                    args,
+                    args: hir.args.len(),
                     out: needs.alloc_output(&mut cx.scopes)?,
                 },
                 span,
@@ -1560,20 +1562,16 @@ fn expr_call<'hir>(
             cx.scopes.free_linear(linear)?;
         }
         hir::Call::Expr { expr: e } => {
-            let mut function = cx.scopes.alloc(span)?;
+            let mut function = Needs::alloc(cx, span)?;
             expr(cx, e, &mut function)?;
 
-            let mut linear = cx.scopes.linear(span, args)?;
-
-            for (e, needs) in hir.args.iter().zip(&mut linear) {
-                expr(cx, e, needs)?;
-            }
+            let linear = exprs(cx, span, hir.args)?;
 
             cx.asm.push(
                 Inst::CallFn {
                     function: function.addr()?,
                     addr: linear.addr(),
-                    args,
+                    args: hir.args.len(),
                     out: needs.alloc_output(&mut cx.scopes)?,
                 },
                 span,
@@ -1594,6 +1592,47 @@ fn expr_call<'hir>(
     }
 
     Ok(Asm::new(span))
+}
+
+#[instrument(span = span)]
+fn exprs<'hir>(
+    cx: &mut Ctxt<'_, 'hir, '_>,
+    span: &'hir dyn Spanned,
+    args: &'hir [hir::Expr<'hir>],
+) -> compile::Result<Linear<'hir>> {
+    exprs_2(cx, span, args, &[])
+}
+
+/// Assemble a linear sequence of expressions.
+#[instrument(span = span)]
+fn exprs_2<'hir>(
+    cx: &mut Ctxt<'_, 'hir, '_>,
+    span: &'hir dyn Spanned,
+    a: &'hir [hir::Expr<'hir>],
+    b: &'hir [hir::Expr<'hir>],
+) -> compile::Result<Linear<'hir>> {
+    let mut linear;
+
+    match (a, b) {
+        ([], []) => {
+            linear = Linear::empty(InstAddress::ZERO);
+        }
+        ([e], []) | ([], [e]) => {
+            let mut needs = Needs::alloc(cx, e)?;
+            expr(cx, e, &mut needs)?;
+            linear = Linear::empty(needs.addr()?);
+        }
+        _ => {
+            let len = a.len() + b.len();
+            linear = cx.scopes.linear(span, len)?;
+
+            for (e, needs) in a.iter().chain(b.iter()).zip(&mut linear) {
+                expr(cx, e, needs)?;
+            }
+        }
+    }
+
+    Ok(linear)
 }
 
 /// Assemble a closure expression.
@@ -2310,39 +2349,35 @@ fn expr_select<'hir>(
 ) -> compile::Result<Asm<'hir>> {
     cx.contexts.try_push(span.span())?;
 
-    let len = hir.branches.len();
     let mut default_branch = None;
     let mut branches = Vec::new();
 
     let end_label = cx.asm.new_label("select_end");
 
     for branch in hir.branches {
-        match *branch {
-            hir::ExprSelectBranch::Pat(pat) => {
-                let label = cx.asm.new_label("select_branch");
-                branches.try_push((label, pat))?;
-            }
-            hir::ExprSelectBranch::Default(def) => {
-                if default_branch.is_some() {
-                    return Err(compile::Error::new(span, ErrorKind::SelectMultipleDefaults));
-                }
-
-                let label = cx.asm.new_label("select_default");
-                default_branch = Some((def, label));
-            }
-        }
+        let label = cx.asm.new_label("select_branch");
+        branches.try_push((label, branch))?;
     }
 
-    for (_, branch) in &branches {
-        expr(cx, &branch.expr, needs)?;
+    if let Some(def) = hir.default {
+        let label = cx.asm.new_label("select_default");
+        default_branch = Some((def, label));
     }
 
+    let linear = exprs(cx, span, hir.exprs)?;
     let branch_addr = cx.scopes.alloc(span)?;
+    let mut value_addr = cx.scopes.alloc(span)?;
+
+    let select_label = cx.asm.new_label("select");
+
+    cx.asm.label(&select_label)?;
 
     cx.asm.push(
         Inst::Select {
-            len,
-            out: branch_addr.output()?,
+            addr: linear.addr(),
+            len: hir.exprs.len(),
+            branch: branch_addr.output()?,
+            value: value_addr.output()?,
         },
         span,
     )?;
@@ -2352,38 +2387,30 @@ fn expr_select<'hir>(
             .jump_if_branch(branch_addr.addr()?, branch as i64, label, span)?;
     }
 
+    cx.scopes.free(branch_addr)?;
+
     if let Some((_, label)) = &default_branch {
         cx.asm.jump(label, span)?;
     }
 
     cx.asm.jump(&end_label, span)?;
 
-    for (label, branch) in branches {
+    for (label, branch) in &branches {
         cx.asm.label(&label)?;
 
-        let expected = cx.scopes.child(&branch.body)?;
+        let scope = cx.scopes.child(&branch.body)?;
 
-        let mut needs = match branch.pat.pat.kind {
-            hir::PatKind::Path(&hir::PatPathKind::Ident(name)) => {
-                let needs = cx.scopes.alloc(&branch.pat)?;
-                cx.scopes
-                    .define(&branch.pat, hir::Name::Str(name), needs.addr()?)?;
-                needs
-            }
-            hir::PatKind::Ignore => Needs::none(&branch.pat),
-            _ => {
-                return Err(compile::Error::new(
-                    &branch.pat,
-                    ErrorKind::UnsupportedSelectPattern,
-                ));
-            }
-        };
+        fn_arg_pat(cx, &branch.pat, &mut value_addr, &select_label)?;
 
         // Set up a new scope with the binding.
-        expr(cx, &branch.body, &mut needs)?;
-        cx.scopes.pop(&branch.body, expected)?;
+        expr(cx, &branch.body, needs)?;
+
+        cx.scopes.pop(&branch.body, scope)?;
         cx.asm.jump(&end_label, span)?;
     }
+
+    cx.scopes.free_linear(linear)?;
+    cx.scopes.free(value_addr)?;
 
     if let Some((branch, label)) = default_branch {
         cx.asm.label(&label)?;

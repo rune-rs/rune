@@ -251,8 +251,8 @@ where
                 VmHalt::Exited(addr) => {
                     self.state = ExecutionState::Exited(addr);
                 }
-                VmHalt::Awaited(awaited, keep) => {
-                    vm_try!(awaited.into_vm(vm, keep).await);
+                VmHalt::Awaited(awaited) => {
+                    vm_try!(awaited.into_vm(vm).await);
                     continue;
                 }
                 VmHalt::VmCall(vm_call) => {
@@ -415,8 +415,8 @@ where
             VmHalt::Exited(addr) => {
                 self.state = ExecutionState::Exited(addr);
             }
-            VmHalt::Awaited(awaited, keep) => {
-                vm_try!(awaited.into_vm(vm, keep).await);
+            VmHalt::Awaited(awaited) => {
+                vm_try!(awaited.into_vm(vm).await);
                 return VmResult::Ok(None);
             }
             VmHalt::VmCall(vm_call) => {

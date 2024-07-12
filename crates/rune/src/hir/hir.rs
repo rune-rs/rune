@@ -581,30 +581,21 @@ pub(crate) struct ExprContinue<'hir> {
 #[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct ExprSelect<'hir> {
+    /// The expressions associated with non-default branches.
+    pub(crate) exprs: &'hir [Expr<'hir>],
     /// The branches of the select.
     pub(crate) branches: &'hir [ExprSelectBranch<'hir>],
+    /// The expresssion associated with the default branch.
+    pub(crate) default: Option<&'hir Expr<'hir>>,
 }
 
 /// A single selection branch.
 #[derive(Debug, TryClone, Clone, Copy)]
 #[try_clone(copy)]
 #[non_exhaustive]
-pub(crate) enum ExprSelectBranch<'hir> {
-    /// A patterned branch.
-    Pat(&'hir ExprSelectPatBranch<'hir>),
-    /// A default branch.
-    Default(&'hir Expr<'hir>),
-}
-
-/// A single selection branch.
-#[derive(Debug, TryClone, Clone, Copy)]
-#[try_clone(copy)]
-#[non_exhaustive]
-pub(crate) struct ExprSelectPatBranch<'hir> {
+pub(crate) struct ExprSelectBranch<'hir> {
     /// The identifier to bind the result to.
     pub(crate) pat: PatBinding<'hir>,
-    /// The expression that should evaluate to a future.
-    pub(crate) expr: Expr<'hir>,
     /// The body of the expression.
     pub(crate) body: Expr<'hir>,
     /// Variables that need to be dropped by the end of this block.

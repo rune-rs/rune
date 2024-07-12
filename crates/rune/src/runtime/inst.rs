@@ -385,10 +385,14 @@ pub enum Inst {
     /// ```
     #[musli(packed)]
     Select {
+        /// The base address of futures being waited on.
+        addr: InstAddress,
         /// The number of futures to poll.
         len: usize,
-        /// Where the produced value should be stored.
-        out: Output,
+        /// Where to store the branch value.
+        branch: Output,
+        /// Where to store the value produced by the future that completed.
+        value: Output,
     },
     /// Load the given function by hash and push onto the stack.
     ///
@@ -645,7 +649,7 @@ pub enum Inst {
     /// <tuple>
     /// => <value...>
     /// ```
-    PushEnvironment {
+    Environment {
         /// The tuple to push.
         addr: InstAddress,
         /// The expected size of the tuple.
@@ -1410,7 +1414,7 @@ pub struct InstAddress {
 
 impl InstAddress {
     /// The first possible address.
-    pub(crate) const FIRST: InstAddress = InstAddress { offset: 0 };
+    pub(crate) const ZERO: InstAddress = InstAddress { offset: 0 };
 
     /// Construct a new instruction address.
     #[inline]

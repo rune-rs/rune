@@ -516,11 +516,11 @@ where
                 vm_try!(args.into_stack(&mut stack));
                 vm_try!((handler.handler)(
                     &mut stack,
-                    InstAddress::FIRST,
+                    InstAddress::ZERO,
                     arg_count,
-                    InstAddress::FIRST.output()
+                    InstAddress::ZERO.output()
                 ));
-                vm_try!(stack.at(InstAddress::FIRST)).clone()
+                vm_try!(stack.at(InstAddress::ZERO)).clone()
             }
             Inner::FnOffset(fn_offset) => vm_try!(fn_offset.call(args, ())),
             Inner::FnClosureOffset(closure) => {

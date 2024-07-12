@@ -12,7 +12,7 @@ pub(crate) enum VmHalt {
     /// The virtual machine yielded.
     Yielded(Option<InstAddress>, Output),
     /// The virtual machine awaited on the given future.
-    Awaited(Awaited, Output),
+    Awaited(Awaited),
     /// Call into a new virtual machine.
     VmCall(VmCall),
 }

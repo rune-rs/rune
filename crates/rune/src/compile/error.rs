@@ -295,7 +295,6 @@ pub(crate) enum ErrorKind {
     UnsupportedAssignExpr,
     UnsupportedBinaryExpr,
     UnsupportedRef,
-    UnsupportedSelectPattern,
     UnsupportedArgumentCount {
         expected: usize,
         actual: usize,
@@ -677,9 +676,6 @@ impl fmt::Display for ErrorKind {
             }
             ErrorKind::UnsupportedRef => {
                 write!(f, "Cannot take reference of expression")?;
-            }
-            ErrorKind::UnsupportedSelectPattern => {
-                write!(f, "Unsupported select pattern")?;
             }
             ErrorKind::UnsupportedArgumentCount { expected, actual } => {
                 write!(

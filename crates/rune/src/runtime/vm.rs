@@ -1614,20 +1614,25 @@ impl Vm {
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_select(&mut self, len: usize, out: Output) -> VmResult<Option<Select>> {
+    fn op_select(
+        &mut self,
+        addr: InstAddress,
+        len: usize,
+        branch: Output,
+    ) -> VmResult<Option<Select>> {
         let futures = futures_util::stream::FuturesUnordered::new();
 
-        for (branch, value) in vm_try!(self.stack.drain(len)).enumerate() {
-            let future = vm_try!(value.into_future_mut());
+        for (branch, value) in vm_try!(self.stack.slice_at(addr, len)).iter().enumerate() {
+            let future = vm_try!(value.clone().into_future_mut());
 
             if !future.is_completed() {
-                futures.push(SelectFuture::new(branch, future));
+                futures.push(SelectFuture::new(branch as i64, future));
             }
         }
 
         // NB: nothing to poll.
         if futures.is_empty() {
-            vm_try!(out.store(&mut self.stack, ()));
+            vm_try!(branch.store(&mut self.stack, ()));
             return VmResult::Ok(None);
         }
 
@@ -1758,12 +1763,7 @@ impl Vm {
 
     /// Push the tuple that is on top of the stack.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_push_environment(
-        &mut self,
-        addr: InstAddress,
-        count: usize,
-        out: Output,
-    ) -> VmResult<()> {
+    fn op_environment(&mut self, addr: InstAddress, count: usize, out: Output) -> VmResult<()> {
         let tuple = vm_try!(self.stack.at(addr)).clone();
         let tuple = vm_try!(tuple.borrow_tuple_ref());
 
@@ -3344,11 +3344,18 @@ impl Vm {
                 }
                 Inst::Await { addr, out } => {
                     let future = vm_try!(self.op_await(addr));
-                    return VmResult::Ok(VmHalt::Awaited(Awaited::Future(future), out));
+                    return VmResult::Ok(VmHalt::Awaited(Awaited::Future(future, out)));
                 }
-                Inst::Select { len, out } => {
-                    if let Some(select) = vm_try!(self.op_select(len, out)) {
-                        return VmResult::Ok(VmHalt::Awaited(Awaited::Select(select), out));
+                Inst::Select {
+                    addr,
+                    len,
+                    branch,
+                    value,
+                } => {
+                    if let Some(select) = vm_try!(self.op_select(addr, len, branch)) {
+                        return VmResult::Ok(VmHalt::Awaited(Awaited::Select(
+                            select, branch, value,
+                        )));
                     }
                 }
                 Inst::LoadFn { hash, out } => {
@@ -3403,8 +3410,8 @@ impl Vm {
                 Inst::Tuple4 { args, out } => {
                     vm_try!(self.op_tuple_n(&args[..], out));
                 }
-                Inst::PushEnvironment { addr, count, out } => {
-                    vm_try!(self.op_push_environment(addr, count, out));
+                Inst::Environment { addr, count, out } => {
+                    vm_try!(self.op_environment(addr, count, out));
                 }
                 Inst::Object { addr, slot, out } => {
                     vm_try!(self.op_object(addr, slot, out));
