@@ -837,11 +837,11 @@ pub(crate) fn expr_if<'hir>(
 ) -> compile::Result<hir::Conditional<'hir>> {
     alloc_with!(cx, ast);
 
-    let length = 1 + ast.expr_else_ifs.len() + usize::from(ast.expr_else.is_some());
+    let length = 1 + ast.expr_else_ifs.len();
 
     let then = [(
         ast.if_.span().join(ast.block.span()),
-        Some(&ast.condition),
+        &ast.condition,
         &ast.block,
     )]
     .into_iter();
@@ -849,36 +849,18 @@ pub(crate) fn expr_if<'hir>(
     let else_ifs = ast
         .expr_else_ifs
         .iter()
-        .map(|ast| (ast.span(), Some(&ast.condition), &ast.block));
+        .map(|ast| (ast.span(), &ast.condition, &ast.block));
 
-    let fallback = ast
-        .expr_else
-        .iter()
-        .map(|ast| (ast.span(), None, &ast.block));
+    let branches = iter!(then.chain(else_ifs), length, |(span, c, b)| {
+        cx.scopes.push()?;
 
-    let branches = then.chain(else_ifs).chain(fallback);
+        let condition = condition(cx, c)?;
+        let block = block(cx, b)?;
 
-    let branches = iter!(branches, length, |(span, c, b)| {
-        let (condition, block, drop) = match c {
-            Some(c) => {
-                cx.scopes.push()?;
+        let layer = cx.scopes.pop().with_span(ast)?;
 
-                let condition = condition(cx, c)?;
-                let block = block(cx, b)?;
-
-                let layer = cx.scopes.pop().with_span(ast)?;
-
-                (
-                    Some(&*alloc!(condition)),
-                    block,
-                    &*iter!(layer.into_drop_order()),
-                )
-            }
-            None => {
-                let block = block(cx, b)?;
-                (None, block, &[][..])
-            }
-        };
+        let condition = &*alloc!(condition);
+        let drop = &*iter!(layer.into_drop_order());
 
         hir::ConditionalBranch {
             span,
@@ -888,7 +870,12 @@ pub(crate) fn expr_if<'hir>(
         }
     });
 
-    Ok(hir::Conditional { branches })
+    let fallback = match &ast.expr_else {
+        Some(ast) => Some(&*alloc!(block(cx, &ast.block)?)),
+        None => None,
+    };
+
+    Ok(hir::Conditional { branches, fallback })
 }
 
 #[instrument(span = ast)]

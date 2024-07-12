@@ -5,7 +5,7 @@ mod loops;
 pub(crate) use self::loops::{Loop, Loops};
 
 mod scopes;
-pub(crate) use self::scopes::{Scope, ScopeId, Scopes, Var};
+pub(crate) use self::scopes::{Scope, ScopeId, Scopes};
 
 mod slab;
 use self::slab::Slab;

@@ -365,8 +365,10 @@ pub(crate) struct ExprLet<'hir> {
 #[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct Conditional<'hir> {
-    /// Else if branches.
+    /// Conditional branches.
     pub(crate) branches: &'hir [ConditionalBranch<'hir>],
+    /// Fallback branches.
+    pub(crate) fallback: Option<&'hir Block<'hir>>,
 }
 
 /// An else branch of an if expression.
@@ -379,7 +381,7 @@ pub(crate) struct ConditionalBranch<'hir> {
     pub(crate) span: Span,
     /// The condition for the branch. Empty condition means that this is the
     /// fallback branch.
-    pub(crate) condition: Option<&'hir Condition<'hir>>,
+    pub(crate) condition: &'hir Condition<'hir>,
     /// The body of the else statement.
     pub(crate) block: Block<'hir>,
     /// Variables that have been defined by the conditional header.

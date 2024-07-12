@@ -400,19 +400,17 @@ fn expr_if(
     hir: &hir::Conditional<'_>,
 ) -> compile::Result<ir::IrBranches> {
     let mut branches = Vec::new();
-    let mut default_branch = None;
 
     for hir in hir.branches {
-        let Some(cond) = hir.condition else {
-            let ir = block(&hir.block, c)?;
-            default_branch = Some(ir);
-            continue;
-        };
-
-        let cond = condition(cond, c)?;
+        let cond = condition(hir.condition, c)?;
         let ir = block(&hir.block, c)?;
         branches.try_push((cond, ir))?;
     }
+
+    let default_branch = match hir.fallback {
+        Some(hir) => Some(block(hir, c)?),
+        None => None,
+    };
 
     Ok(ir::IrBranches {
         span,
