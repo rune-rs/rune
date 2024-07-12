@@ -1801,7 +1801,7 @@ fn expr_if<'hir>(
     while let Some((branch, label, scope)) = it.next() {
         cx.asm.label(&label)?;
 
-        let scopes = cx.scopes.push(scope)?;
+        let scopes = cx.scopes.push(branch, scope)?;
         block(cx, &branch.block, needs)?.apply(cx)?;
         cx.scopes.pop(branch, scopes)?;
 
@@ -1950,7 +1950,7 @@ fn expr_match<'hir>(
 
         cx.asm.label(&label)?;
 
-        let expected = cx.scopes.push(scope)?;
+        let expected = cx.scopes.push(span, scope)?;
         expr(cx, &branch.body, needs)?.apply(cx)?;
         cx.scopes.pop(span, expected)?;
 
@@ -2475,7 +2475,7 @@ fn expr_loop<'hir>(
 
     let expected = if let Some(hir) = hir.condition {
         let then_scope = condition(cx, hir, &then_label)?;
-        let expected = cx.scopes.push(then_scope)?;
+        let expected = cx.scopes.push(hir, then_scope)?;
 
         cx.asm.jump(&end_label, span)?;
         cx.asm.label(&then_label)?;

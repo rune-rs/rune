@@ -109,23 +109,22 @@ impl Slab {
 
     /// Insert a value at the given location.
     #[tracing::instrument(ret(level = tracing::Level::TRACE), skip(self))]
-    pub(crate) fn insert_at(&mut self, key: usize) -> alloc::Result<()> {
+    pub(crate) fn insert_at(&mut self, key: usize) -> alloc::Result<bool> {
         self.len += 1;
 
         if key == self.entries.len() {
             self.entries.try_push(Entry::Occupied)?;
             self.next = key + 1;
         } else {
-            let next = match self.entries.get(key) {
-                Some(&Entry::Vacant(next)) => from_index(next),
-                entry => unreachable!("key={key}, entry={entry:?}, len={}", self.len),
+            let Some(Entry::Vacant(next)) = self.entries.get(key) else {
+                return Ok(false);
             };
 
-            self.next = next.min(self.entries.len());
+            self.next = from_index(*next).min(self.entries.len());
             self.entries[key] = Entry::Occupied;
         }
 
-        Ok(())
+        Ok(true)
     }
 }
 
@@ -240,5 +239,19 @@ mod tests {
         assert_eq!(slab.remove(3), true);
 
         assert_eq!(slab.insert(), Ok(2));
+    }
+
+    #[test]
+    fn bug1() {
+        let mut slab = Slab::new();
+        assert_eq!(slab.insert(), Ok(0));
+        assert_eq!(slab.insert(), Ok(1));
+        assert_eq!(slab.insert(), Ok(2));
+
+        assert_eq!(slab.remove(2), true);
+        assert_eq!(slab.remove(1), true);
+
+        assert_eq!(slab.insert(), Ok(1));
+        assert_eq!(slab.insert_at(2), Ok(true));
     }
 }

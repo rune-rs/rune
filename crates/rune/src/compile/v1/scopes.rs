@@ -390,13 +390,22 @@ impl<'hir> Scopes<'hir> {
 
     /// Push a scope again.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn push(&mut self, scope: Scope<'hir>) -> alloc::Result<ScopeId> {
+    pub(crate) fn push(
+        &mut self,
+        span: &dyn Spanned,
+        scope: Scope<'hir>,
+    ) -> compile::Result<ScopeId> {
         tracing::trace!(?scope);
 
         let id = scope.id;
 
         for &address in &scope.owned {
-            self.slots.insert_at(address)?;
+            if !self.slots.insert_at(address)? {
+                return Err(compile::Error::msg(
+                    span,
+                    format!("Address {address} is already present"),
+                ));
+            }
         }
 
         self.scopes.try_push(scope)?;
