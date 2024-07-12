@@ -14,6 +14,7 @@ use crate::runtime::{
 };
 use crate::{Hash, SourceId};
 
+use super::scopes::Linear;
 use super::Needs;
 
 use rune_macros::instrument;
@@ -281,12 +282,24 @@ fn pat_binding<'hir>(
     load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, &mut Needs<'_>) -> compile::Result<()>,
 ) -> compile::Result<bool> {
     let mut linear = cx.scopes.linear(hir, hir.names.len())?;
+    let out = pat_binding_with(cx, hir, false_label, load, &mut linear)?;
+    Ok(out)
+}
+
+#[instrument(span = hir)]
+fn pat_binding_with<'hir>(
+    cx: &mut Ctxt<'_, 'hir, '_>,
+    hir: &'hir hir::PatBinding<'hir>,
+    false_label: &Label,
+    load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, &mut Needs<'_>) -> compile::Result<()>,
+    linear: &mut Linear<'hir>,
+) -> compile::Result<bool> {
     let bound;
 
     {
         let mut bindings = BTreeMap::new();
 
-        for (name, needs) in hir.names.iter().copied().zip(&mut linear) {
+        for (name, needs) in hir.names.iter().copied().zip(linear.iter_mut()) {
             bindings.try_insert(name, needs).with_span(hir)?;
         }
 
@@ -302,7 +315,7 @@ fn pat_binding<'hir>(
         }
     }
 
-    for (name, needs) in hir.names.iter().copied().zip(&linear) {
+    for (name, needs) in hir.names.iter().copied().zip(linear.iter()) {
         cx.scopes.define(needs.span, name, needs.addr()?)?;
     }
 
@@ -345,11 +358,11 @@ fn pat<'hir>(
             hir::PatPathKind::Ident(name) => {
                 let name = hir::Name::Str(name);
 
-                let Some(needs) = bindings.remove(&name) else {
+                let Some(binding) = bindings.remove(&name) else {
                     return Err(compile::Error::msg(hir, format!("No binding for {name:?}")));
                 };
 
-                load(cx, needs)?;
+                load(cx, binding)?;
                 Ok(false)
             }
         },
@@ -422,33 +435,34 @@ fn pat_lit_inst<'hir>(
 }
 
 /// Assemble an [hir::Condition<'_>].
-#[instrument(span = condition)]
+#[instrument(span = hir)]
 fn condition<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
-    condition: &hir::Condition<'hir>,
+    hir: &hir::Condition<'hir>,
     then_label: &Label,
+    linear: &mut Linear<'hir>,
 ) -> compile::Result<Scope<'hir>> {
-    match *condition {
-        hir::Condition::Expr(e) => {
-            let guard = cx.scopes.child(e)?;
-            let mut addr = cx.scopes.alloc(e)?;
-            expr(cx, e, &mut addr)?;
-            cx.asm.jump_if(addr.addr()?, then_label, e)?;
-            Ok(cx.scopes.pop(e, guard)?)
+    match *hir {
+        hir::Condition::Expr(hir) => {
+            let guard = cx.scopes.child(hir)?;
+            let mut addr = cx.scopes.alloc(hir)?;
+            expr(cx, hir, &mut addr)?;
+            cx.asm.jump_if(addr.addr()?, then_label, hir)?;
+            Ok(cx.scopes.pop(hir, guard)?)
         }
-        hir::Condition::ExprLet(expr_let) => {
-            let span = expr_let;
+        hir::Condition::ExprLet(hir) => {
+            let span = hir;
 
             let false_label = cx.asm.new_label("if_condition_false");
 
             let expected = cx.scopes.child(span)?;
 
             let load = |cx: &mut Ctxt<'_, 'hir, '_>, needs: &mut Needs<'_>| {
-                expr(cx, &expr_let.expr, needs)?;
+                expr(cx, &hir.expr, needs)?;
                 Ok(())
             };
 
-            if pat_binding(cx, &expr_let.pat, &false_label, &load)? {
+            if pat_binding_with(cx, &hir.pat, &false_label, &load, linear)? {
                 cx.asm.jump(then_label, span)?;
                 cx.asm.label(&false_label)?;
             } else {
@@ -509,7 +523,7 @@ fn pat_sequence<'hir>(
                 Inst::TupleIndexGetAt {
                     addr,
                     index,
-                    out: n.output()?,
+                    out: n.alloc_output(&mut cx.scopes)?,
                 },
                 p,
             )?;
@@ -621,12 +635,14 @@ fn pat_object<'hir>(
     for (binding, slot) in hir.bindings.iter().zip(string_slots) {
         match *binding {
             hir::Binding::Binding(span, _, p) => {
-                let load = |cx: &mut Ctxt<'_, 'hir, '_>, needs: &mut Needs<'_>| {
+                let addr = needs.addr()?;
+
+                let load = move |cx: &mut Ctxt<'_, 'hir, '_>, n: &mut Needs<'_>| {
                     cx.asm.push(
                         Inst::ObjectIndexGetAt {
-                            addr: needs.addr()?,
+                            addr,
                             slot,
-                            out: needs.output()?,
+                            out: n.alloc_output(&mut cx.scopes)?,
                         },
                         &span,
                     )?;
@@ -636,9 +652,10 @@ fn pat_object<'hir>(
                 pat(cx, p, false_label, &load, bindings)?;
             }
             hir::Binding::Ident(span, name) => {
+                let addr = needs.addr()?;
                 let name = hir::Name::Str(name);
 
-                let Some(needs) = bindings.remove(&name) else {
+                let Some(binding) = bindings.remove(&name) else {
                     return Err(compile::Error::msg(
                         binding,
                         format!("No binding for {name:?}"),
@@ -647,9 +664,9 @@ fn pat_object<'hir>(
 
                 cx.asm.push(
                     Inst::ObjectIndexGetAt {
-                        addr: needs.addr()?,
+                        addr,
                         slot,
-                        out: needs.output()?,
+                        out: binding.output()?,
                     },
                     &span,
                 )?;
@@ -1805,11 +1822,19 @@ fn expr_if<'a, 'hir>(
 
     let end_label = cx.asm.new_label("if_end");
 
+    let values = hir
+        .branches
+        .iter()
+        .flat_map(|c| c.condition.count())
+        .max()
+        .unwrap_or(0);
+
+    let mut linear = cx.scopes.linear(span, values)?;
     let mut branches = Vec::new();
 
     for branch in hir.branches {
         let label = cx.asm.new_label("if_branch");
-        let scope = condition(cx, branch.condition, &label)?;
+        let scope = condition(cx, branch.condition, &label, &mut linear)?;
         branches.try_push((branch, label, scope))?;
     }
 
@@ -1827,7 +1852,7 @@ fn expr_if<'a, 'hir>(
     while let Some((branch, label, scope)) = it.next() {
         cx.asm.label(&label)?;
 
-        let scopes = cx.scopes.push(branch, scope)?;
+        let scopes = cx.scopes.push(scope)?;
 
         if hir.fallback.is_none() {
             block(cx, &branch.block, &mut Needs::none(branch))?;
@@ -1847,6 +1872,7 @@ fn expr_if<'a, 'hir>(
     }
 
     cx.asm.label(&end_label)?;
+    cx.scopes.free_linear(linear)?;
     Ok(Asm::new(span))
 }
 
@@ -1926,13 +1952,22 @@ fn expr_match<'hir>(
     span: &'hir dyn Spanned,
     needs: &mut Needs<'_>,
 ) -> compile::Result<Asm<'hir>> {
-    let expected_scopes = cx.scopes.child(span)?;
+    let match_scope = cx.scopes.child(span)?;
 
     let mut offset = cx.scopes.alloc(span)?;
     expr(cx, &hir.expr, &mut offset)?;
 
     let end_label = cx.asm.new_label("match_end");
     let mut branches = Vec::new();
+
+    let count = hir
+        .branches
+        .iter()
+        .map(|b| b.pat.names.len())
+        .max()
+        .unwrap_or_default();
+
+    let mut linear = cx.scopes.linear(span, count)?;
 
     for branch in hir.branches {
         let span = branch;
@@ -1947,7 +1982,7 @@ fn expr_match<'hir>(
             Ok(())
         };
 
-        pat_binding(cx, &branch.pat, &match_false, &load)?;
+        pat_binding_with(cx, &branch.pat, &match_false, &load, &mut linear)?;
 
         let scope = if let Some(condition) = branch.condition {
             let span = condition;
@@ -1986,7 +2021,7 @@ fn expr_match<'hir>(
 
         cx.asm.label(&label)?;
 
-        let expected = cx.scopes.push(span, scope)?;
+        let expected = cx.scopes.push(scope)?;
         expr(cx, &branch.body, needs)?;
         cx.scopes.pop(span, expected)?;
 
@@ -1997,8 +2032,9 @@ fn expr_match<'hir>(
 
     cx.asm.label(&end_label)?;
 
+    cx.scopes.free_linear(linear)?;
     // pop the implicit scope where we store the anonymous match variable.
-    cx.scopes.pop(span, expected_scopes)?;
+    cx.scopes.pop(span, match_scope)?;
     Ok(Asm::new(span))
 }
 
@@ -2509,10 +2545,12 @@ fn expr_loop<'hir>(
 
     cx.asm.label(&continue_label)?;
 
-    let expected = if let Some(hir) = hir.condition {
-        let then_scope = condition(cx, hir, &then_label)?;
-        let expected = cx.scopes.push(hir, then_scope)?;
+    let count = hir.condition.and_then(|c| c.count()).unwrap_or_default();
+    let mut linear = cx.scopes.linear(span, count)?;
 
+    let expected = if let Some(hir) = hir.condition {
+        let then_scope = condition(cx, hir, &then_label, &mut linear)?;
+        let expected = cx.scopes.push(then_scope)?;
         cx.asm.jump(&end_label, span)?;
         cx.asm.label(&then_label)?;
         Some(expected)
@@ -2535,6 +2573,7 @@ fn expr_loop<'hir>(
 
     // NB: breaks produce their own value / perform their own cleanup.
     cx.asm.label(&break_label)?;
+    cx.scopes.free_linear(linear)?;
     cx.loops.pop();
     Ok(Asm::new(span))
 }

@@ -708,6 +708,16 @@ pub(crate) enum Condition<'hir> {
     ExprLet(&'hir ExprLet<'hir>),
 }
 
+impl Condition<'_> {
+    /// The number of variables which would be defined by this condition.
+    pub(crate) fn count(&self) -> Option<usize> {
+        match self {
+            Condition::Expr(_) => None,
+            Condition::ExprLet(hir) => Some(hir.pat.names.len()),
+        }
+    }
+}
+
 #[derive(Debug, TryClone, Clone, Copy, Spanned)]
 #[try_clone(copy)]
 #[non_exhaustive]

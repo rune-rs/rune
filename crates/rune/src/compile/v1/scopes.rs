@@ -20,7 +20,7 @@ pub(crate) struct Scope<'hir> {
     /// Named variables.
     names: HashMap<hir::Name<'hir>, VarInner<'hir>>,
     /// Slots owned by this scope.
-    owned: BTreeSet<usize>,
+    locals: BTreeSet<usize>,
 }
 
 impl<'hir> Scope<'hir> {
@@ -29,7 +29,7 @@ impl<'hir> Scope<'hir> {
         Self {
             id,
             names: HashMap::new(),
-            owned: BTreeSet::new(),
+            locals: BTreeSet::new(),
         }
     }
 }
@@ -208,7 +208,7 @@ impl<'hir> Scopes<'hir> {
 
         let offset = self.slots.insert()?;
 
-        scope.owned.try_insert(offset).with_span(span)?;
+        scope.locals.try_insert(offset).with_span(span)?;
         self.size = self.size.max(self.slots.len());
         let addr = InstAddress::new(offset);
         tracing::trace!(?scope, ?addr, self.size);
@@ -240,7 +240,7 @@ impl<'hir> Scopes<'hir> {
 
         let offset = self.slots.insert()?;
 
-        s.owned.try_insert(offset).with_span(span)?;
+        s.locals.try_insert(offset).with_span(span)?;
         self.size = self.size.max(self.slots.len());
         let addr = InstAddress::new(offset);
         tracing::trace!(?s, ?addr, self.size);
@@ -258,15 +258,22 @@ impl<'hir> Scopes<'hir> {
             return Err(compile::Error::msg(span, "Missing head scope"));
         };
 
-        let mut addresses = Vec::try_with_capacity(n).with_span(span)?;
-
         let base = InstAddress::new(self.slots.len());
+
+        if n == 0 {
+            return Ok(Linear {
+                base: InstAddress::new(self.slots.len()),
+                addresses: Vec::new(),
+            });
+        }
+
+        let mut addresses = Vec::try_with_capacity(n).with_span(span)?;
 
         for _ in 0..n {
             let addr = self.slots.push().with_span(span)?;
             let address = InstAddress::new(addr);
             addresses.try_push(Needs::with_addr(span, address))?;
-            scope.owned.try_insert(addr).with_span(span)?;
+            scope.locals.try_insert(addr).with_span(span)?;
         }
 
         self.size = self.size.max(self.slots.len());
@@ -310,17 +317,20 @@ impl<'hir> Scopes<'hir> {
             ));
         };
 
-        if !scope.owned.remove(&addr.offset()) {
+        if !scope.locals.remove(&addr.offset()) {
             return Err(compile::Error::msg(
                 span,
-                format!("Address {addr} is not owned by scope {:?}", self.top_id()),
+                format!("Address {addr} is not defined in scope {}", scope.id),
             ));
         }
 
         if !self.slots.remove(addr.offset()) {
             return Err(compile::Error::msg(
                 span,
-                format!("Address {addr} is not globally allocated"),
+                format!(
+                    "Address {addr} is not globally allocated in scope {}",
+                    scope.id
+                ),
             ));
         }
 
@@ -344,7 +354,7 @@ impl<'hir> Scopes<'hir> {
         span: &dyn Spanned,
         scope: ScopeId,
     ) -> compile::Result<Scope<'hir>> {
-        let Some(s) = self.scopes.pop() else {
+        let Some(mut s) = self.scopes.pop() else {
             return Err(compile::Error::msg(
                 span,
                 format!("Missing scope while expected {scope}"),
@@ -358,7 +368,8 @@ impl<'hir> Scopes<'hir> {
             ));
         }
 
-        for address in &s.owned {
+        // Free any locally defined variables associated with the scope.
+        for address in &s.locals {
             if !self.slots.remove(*address) {
                 return Err(compile::Error::msg(
                     span,
@@ -368,6 +379,7 @@ impl<'hir> Scopes<'hir> {
         }
 
         tracing::trace!(?s);
+        s.locals.clear();
         Ok(s)
     }
 
@@ -390,24 +402,9 @@ impl<'hir> Scopes<'hir> {
 
     /// Push a scope again.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn push(
-        &mut self,
-        span: &dyn Spanned,
-        scope: Scope<'hir>,
-    ) -> compile::Result<ScopeId> {
+    pub(crate) fn push(&mut self, scope: Scope<'hir>) -> compile::Result<ScopeId> {
         tracing::trace!(?scope);
-
         let id = scope.id;
-
-        for &address in &scope.owned {
-            if !self.slots.insert_at(address)? {
-                return Err(compile::Error::msg(
-                    span,
-                    format!("Address {address} is already present"),
-                ));
-            }
-        }
-
         self.scopes.try_push(scope)?;
         Ok(id)
     }
@@ -427,12 +424,12 @@ impl<'a> Linear<'a> {
     }
 
     #[inline]
-    fn iter(&self) -> slice::Iter<'_, Needs<'a>> {
+    pub(crate) fn iter(&self) -> slice::Iter<'_, Needs<'a>> {
         self.addresses.iter()
     }
 
     #[inline]
-    fn iter_mut(&mut self) -> slice::IterMut<'_, Needs<'a>> {
+    pub(crate) fn iter_mut(&mut self) -> slice::IterMut<'_, Needs<'a>> {
         self.addresses.iter_mut()
     }
 }

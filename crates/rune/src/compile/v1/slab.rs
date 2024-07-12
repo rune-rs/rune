@@ -29,7 +29,8 @@ impl Slab {
     #[tracing::instrument(ret(level = tracing::Level::TRACE), skip(self))]
     pub(super) fn insert(&mut self) -> alloc::Result<usize> {
         let key = self.next;
-        self.insert_at(key)?;
+        let ok = self.insert_at(key)?;
+        debug_assert!(ok, "inserting {key} failed");
         Ok(key)
     }
 
@@ -109,7 +110,7 @@ impl Slab {
 
     /// Insert a value at the given location.
     #[tracing::instrument(ret(level = tracing::Level::TRACE), skip(self))]
-    pub(crate) fn insert_at(&mut self, key: usize) -> alloc::Result<bool> {
+    fn insert_at(&mut self, key: usize) -> alloc::Result<bool> {
         self.len += 1;
 
         if key == self.entries.len() {
