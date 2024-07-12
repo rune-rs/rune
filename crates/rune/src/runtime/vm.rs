@@ -97,7 +97,7 @@ pub struct Vm {
     unit: Arc<Unit>,
     /// The current instruction pointer.
     ip: usize,
-    /// The length of the last executed instruction.
+    /// The length of the last instruction pointer.
     last_ip_len: u8,
     /// The current stack.
     stack: Stack,
@@ -714,7 +714,8 @@ impl Vm {
     ) -> Result<(), VmErrorKind> {
         tracing::trace!("pushing call frame");
 
-        let stack_bottom = self.stack.swap_stack_bottom(args)?;
+        let size = self.stack.stack_size()?;
+        let stack_bottom = self.stack.swap_stack_bottom(addr, args)?;
         let ip = replace(&mut self.ip, ip);
 
         let frame = CallFrame {
@@ -722,6 +723,7 @@ impl Vm {
             stack_bottom,
             isolated,
             out,
+            size,
         };
 
         self.call_frames.try_push(frame)?;
@@ -740,7 +742,7 @@ impl Vm {
         };
 
         tracing::trace!(?frame);
-        self.stack.pop_stack_top(frame.stack_bottom);
+        self.stack.pop_stack_top(frame.stack_bottom, frame.size)?;
         Ok(Some(replace(&mut self.ip, frame.ip)))
     }
 
@@ -750,13 +752,12 @@ impl Vm {
         tracing::trace!("popping call frame");
 
         let Some(frame) = self.call_frames.pop() else {
-            self.stack.pop_stack_top(0);
-            self.stack.push(())?;
+            self.stack.pop_stack_top(0, 1)?;
             return Ok((true, Output::keep(0)));
         };
 
         tracing::trace!(?frame);
-        self.stack.pop_stack_top(frame.stack_bottom);
+        self.stack.pop_stack_top(frame.stack_bottom, frame.size)?;
         self.ip = frame.ip;
         Ok((frame.isolated, frame.out))
     }
@@ -1764,7 +1765,7 @@ impl Vm {
         out: Output,
     ) -> VmResult<()> {
         let tuple = vm_try!(self.stack.at(addr)).clone();
-        let tuple = vm_try!(tuple.into_tuple());
+        let tuple = vm_try!(tuple.borrow_tuple_ref());
 
         if tuple.len() != count {
             return err(VmErrorKind::BadEnvironmentCount {
@@ -3587,6 +3588,8 @@ pub struct CallFrame {
     pub isolated: bool,
     /// Keep the value produced from the call frame.
     pub out: Output,
+    /// The size of the stack.
+    pub size: usize,
 }
 
 impl TryClone for CallFrame {

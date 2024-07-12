@@ -1225,9 +1225,7 @@ enum OutputKind {
 }
 
 /// The calling convention of a function.
-#[derive(
-    Debug, TryClone, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Encode, Decode,
-)]
+#[derive(TryClone, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Encode, Decode)]
 #[try_clone(copy)]
 #[non_exhaustive]
 #[musli(transparent)]
@@ -1278,6 +1276,22 @@ impl Output {
         }
 
         VmResult::Ok(())
+    }
+}
+
+impl fmt::Display for Output {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.kind {
+            OutputKind::Keep(index) => write!(f, "keep({})", index.get() ^ usize::MAX),
+            OutputKind::Discard => write!(f, "discard"),
+        }
+    }
+}
+
+impl fmt::Debug for Output {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
     }
 }
 
@@ -1384,15 +1398,6 @@ impl IntoResult for ValueKind {
     #[inline]
     fn into_result(self) -> VmResult<Self::Output> {
         VmResult::Ok(self)
-    }
-}
-
-impl fmt::Display for Output {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.kind {
-            OutputKind::Keep(index) => write!(f, "keep({})", index.get() ^ usize::MAX),
-            OutputKind::Discard => write!(f, "discard"),
-        }
     }
 }
 

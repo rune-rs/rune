@@ -2070,6 +2070,13 @@ impl Value {
 
 impl fmt::Debug for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let snapshot = self.inner.snapshot();
+
+        if !snapshot.is_readable() {
+            write!(f, "<{snapshot}>")?;
+            return Ok(());
+        }
+
         let mut o = Formatter::new();
 
         if self.string_debug(&mut o).is_err() {

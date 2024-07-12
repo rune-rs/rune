@@ -1,4 +1,5 @@
 use core::fmt;
+use core::slice;
 
 use crate::alloc::prelude::*;
 use crate::alloc::BTreeMap;
@@ -14,7 +15,6 @@ use crate::runtime::{
 };
 use crate::{Hash, SourceId};
 
-use super::scopes::Linear;
 use super::Needs;
 
 use rune_macros::instrument;
@@ -182,8 +182,8 @@ pub(crate) fn expr_closure_secondary<'hir>(
     hir: &'hir hir::ExprClosure<'hir>,
     span: &'hir dyn Spanned,
 ) -> compile::Result<()> {
+    let mut arguments = cx.scopes.linear(span, hir.args.len())?;
     let environment = cx.scopes.linear(span, hir.captures.len())?;
-    let arguments = cx.scopes.linear(span, hir.args.len())?;
 
     if !hir.captures.is_empty() {
         cx.asm.push(
@@ -200,13 +200,34 @@ pub(crate) fn expr_closure_secondary<'hir>(
         }
     }
 
-    for (arg, needs) in hir.args.iter().zip(&arguments) {
+    for (arg, needs) in hir.args.iter().zip(&mut arguments) {
         match arg {
             hir::FnArg::SelfValue(..) => {
                 return Err(compile::Error::new(arg, ErrorKind::UnsupportedSelf))
             }
             hir::FnArg::Pat(pat) => {
-                pat_binding_with_addr(cx, pat, needs.addr()?)?;
+                let addr = needs.addr()?;
+
+                let load = move |cx: &mut Ctxt<'_, 'hir, '_>, needs: &mut Needs<'_>| {
+                    needs.assign_addr(cx, addr)?;
+                    Ok(())
+                };
+
+                pattern_panic(cx, pat, move |cx, false_label| {
+                    if pat.names.len() > 1 {
+                        pat_binding(cx, pat, &false_label, &load)
+                    } else {
+                        pat_binding_with(
+                            cx,
+                            pat,
+                            &pat.pat,
+                            pat.names,
+                            false_label,
+                            &load,
+                            slice::from_mut(needs),
+                        )
+                    }
+                })?;
             }
         }
     }
@@ -237,6 +258,37 @@ fn return_<'hir, T>(
     Ok(())
 }
 
+fn pattern_panic<'a, 'hir, 'arena, F>(
+    cx: &mut Ctxt<'a, 'hir, 'arena>,
+    span: &dyn Spanned,
+    f: F,
+) -> compile::Result<()>
+where
+    F: FnOnce(&mut Ctxt<'a, 'hir, 'arena>, &Label) -> compile::Result<bool>,
+{
+    let false_label = cx.asm.new_label("pattern_panic");
+
+    if f(cx, &false_label)? {
+        cx.q.diagnostics
+            .let_pattern_might_panic(cx.source_id, span, cx.context())?;
+
+        let match_label = cx.asm.new_label("patter_match");
+
+        cx.asm.jump(&match_label, span)?;
+        cx.asm.label(&false_label)?;
+        cx.asm.push(
+            Inst::Panic {
+                reason: PanicReason::UnmatchedPattern,
+            },
+            span,
+        )?;
+
+        cx.asm.label(&match_label)?;
+    }
+
+    Ok(())
+}
+
 /// Compile a pattern with bindings based on the given offset.
 #[instrument(span = hir)]
 fn pat_binding_with_addr<'hir>(
@@ -249,24 +301,9 @@ fn pat_binding_with_addr<'hir>(
         Ok(())
     };
 
-    let false_label = cx.asm.new_label("let_panic");
-
-    if pat_binding(cx, hir, &false_label, &load)? {
-        cx.q.diagnostics
-            .let_pattern_might_panic(cx.source_id, hir, cx.context())?;
-
-        let ok_label = cx.asm.new_label("let_ok");
-        cx.asm.jump(&ok_label, hir)?;
-        cx.asm.label(&false_label)?;
-        cx.asm.push(
-            Inst::Panic {
-                reason: PanicReason::UnmatchedPattern,
-            },
-            hir,
-        )?;
-
-        cx.asm.label(&ok_label)?;
-    }
+    pattern_panic(cx, hir, |cx, false_label| {
+        pat_binding(cx, hir, &false_label, &load)
+    })?;
 
     Ok(())
 }
@@ -282,40 +319,41 @@ fn pat_binding<'hir>(
     load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, &mut Needs<'_>) -> compile::Result<()>,
 ) -> compile::Result<bool> {
     let mut linear = cx.scopes.linear(hir, hir.names.len())?;
-    let out = pat_binding_with(cx, hir, false_label, load, &mut linear)?;
-    Ok(out)
+    pat_binding_with(cx, hir, &hir.pat, hir.names, false_label, load, &mut linear)
 }
 
-#[instrument(span = hir)]
+#[instrument(span = span)]
 fn pat_binding_with<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
-    hir: &'hir hir::PatBinding<'hir>,
+    span: &'hir dyn Spanned,
+    pat: &'hir hir::Pat<'hir>,
+    names: &[hir::Name<'hir>],
     false_label: &Label,
     load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, &mut Needs<'_>) -> compile::Result<()>,
-    linear: &mut Linear<'hir>,
+    linear: &mut [Needs<'hir>],
 ) -> compile::Result<bool> {
     let bound;
 
     {
         let mut bindings = BTreeMap::new();
 
-        for (name, needs) in hir.names.iter().copied().zip(linear.iter_mut()) {
-            bindings.try_insert(name, needs).with_span(hir)?;
+        for (name, needs) in names.iter().copied().zip(linear.iter_mut()) {
+            bindings.try_insert(name, needs).with_span(span)?;
         }
 
-        bound = pat(cx, &hir.pat, false_label, load, &mut bindings)?;
+        bound = self::pat(cx, pat, false_label, load, &mut bindings)?;
 
         if !bindings.is_empty() {
             let names = bindings.keys().try_collect::<Vec<_>>()?;
 
             return Err(compile::Error::msg(
-                hir,
+                span,
                 format!("Unbound names in pattern: {names:?}"),
             ));
         }
     }
 
-    for (name, needs) in hir.names.iter().copied().zip(linear.iter()) {
+    for (name, needs) in names.iter().copied().zip(linear.iter()) {
         cx.scopes.define(needs.span, name, needs.addr()?)?;
     }
 
@@ -440,7 +478,7 @@ fn condition<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::Condition<'hir>,
     then_label: &Label,
-    linear: &mut Linear<'hir>,
+    linear: &mut [Needs<'hir>],
 ) -> compile::Result<Scope<'hir>> {
     match *hir {
         hir::Condition::Expr(hir) => {
@@ -462,7 +500,15 @@ fn condition<'hir>(
                 Ok(())
             };
 
-            if pat_binding_with(cx, &hir.pat, &false_label, &load, linear)? {
+            if pat_binding_with(
+                cx,
+                &hir.pat,
+                &hir.pat.pat,
+                &hir.pat.names,
+                &false_label,
+                &load,
+                linear,
+            )? {
                 cx.asm.jump(then_label, span)?;
                 cx.asm.label(&false_label)?;
             } else {
@@ -530,7 +576,7 @@ fn pat_sequence<'hir>(
             Ok(())
         };
 
-        pat(cx, p, false_label, &load, bindings)?;
+        self::pat(cx, p, false_label, &load, bindings)?;
     }
 
     Ok(())
@@ -649,7 +695,7 @@ fn pat_object<'hir>(
                     Ok(())
                 };
 
-                pat(cx, p, false_label, &load, bindings)?;
+                self::pat(cx, p, false_label, &load, bindings)?;
             }
             hir::Binding::Ident(span, name) => {
                 let addr = needs.addr()?;
@@ -1918,24 +1964,9 @@ fn expr_let<'hir>(
         Ok(())
     };
 
-    let false_label = cx.asm.new_label("let_panic");
-
-    if pat_binding(cx, &hir.pat, &false_label, &load)? {
-        cx.q.diagnostics
-            .let_pattern_might_panic(cx.source_id, hir, cx.context())?;
-
-        let ok_label = cx.asm.new_label("let_ok");
-        cx.asm.jump(&ok_label, hir)?;
-        cx.asm.label(&false_label)?;
-        cx.asm.push(
-            Inst::Panic {
-                reason: PanicReason::UnmatchedPattern,
-            },
-            hir,
-        )?;
-
-        cx.asm.label(&ok_label)?;
-    }
+    pattern_panic(cx, &hir.pat, move |cx, false_label| {
+        pat_binding(cx, &hir.pat, &false_label, &load)
+    })?;
 
     // If a value is needed for a let expression, it is evaluated as a unit.
     if let Some(out) = needs.try_alloc_addr(&mut cx.scopes)? {
@@ -1982,7 +2013,15 @@ fn expr_match<'hir>(
             Ok(())
         };
 
-        pat_binding_with(cx, &branch.pat, &match_false, &load, &mut linear)?;
+        pat_binding_with(
+            cx,
+            &branch.pat,
+            &branch.pat.pat,
+            branch.pat.names,
+            &match_false,
+            &load,
+            &mut linear,
+        )?;
 
         let scope = if let Some(condition) = branch.condition {
             let span = condition;
@@ -2664,24 +2703,9 @@ fn local<'hir>(
         Ok(())
     };
 
-    let false_label = cx.asm.new_label("let_panic");
-
-    if pat_binding(cx, &hir.pat, &false_label, &load)? {
-        cx.q.diagnostics
-            .let_pattern_might_panic(cx.source_id, hir, cx.context())?;
-
-        let ok_label = cx.asm.new_label("let_ok");
-        cx.asm.jump(&ok_label, hir)?;
-        cx.asm.label(&false_label)?;
-        cx.asm.push(
-            Inst::Panic {
-                reason: PanicReason::UnmatchedPattern,
-            },
-            hir,
-        )?;
-
-        cx.asm.label(&ok_label)?;
-    }
+    pattern_panic(cx, &hir.pat, |cx, false_label| {
+        pat_binding(cx, &hir.pat, &false_label, &load)
+    })?;
 
     // If a value is needed for a let expression, it is evaluated as a unit.
     if needs.value() {

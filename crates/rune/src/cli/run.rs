@@ -280,7 +280,7 @@ pub(super) async fn run(
 
             vm.with(|| {
                 for (n, value) in stack.iter().enumerate() {
-                    writeln!(io.stdout, "{}+{} = {:?}", frame.stack_bottom, n, value)?;
+                    writeln!(io.stdout, "    {}+{n} = {value:?}", frame.stack_bottom)?;
                 }
 
                 Ok::<_, crate::support::Error>(())
@@ -303,13 +303,7 @@ pub(super) async fn run(
 
         vm.with(|| {
             for (n, value) in values.iter().enumerate() {
-                writeln!(
-                    io.stdout,
-                    "    {}+{} = {:?}",
-                    stack.stack_bottom(),
-                    n,
-                    value
-                )?;
+                write!(io.stdout, "    {}+{n} = {value:?}", stack.stack_bottom())?;
             }
 
             Ok::<_, crate::support::Error>(())
@@ -337,17 +331,17 @@ where
     T: AsRef<Vm> + AsMut<Vm>,
 {
     let mut current_frame_len = execution.vm().call_frames().len();
+    let mut result = VmResult::Ok(None);
 
     while limit > 0 {
-        let result = execution.async_step().await;
-
         let vm = execution.vm();
+        let ip = vm.ip();
         let mut o = io.stdout.lock();
 
         if let Some((hash, signature)) = vm
             .unit()
             .debug_info()
-            .and_then(|d| d.function_at(vm.last_ip()))
+            .and_then(|d| d.function_at(ip))
         {
             writeln!(o, "fn {} ({}):", signature, hash)?;
         }
@@ -355,7 +349,7 @@ where
         let debug = vm
             .unit()
             .debug_info()
-            .and_then(|d| d.instruction_at(vm.last_ip()));
+            .and_then(|d| d.instruction_at(ip));
 
         if with_source {
             let debug_info = debug.and_then(|d| sources.get(d.source_id).map(|s| (s, d.span)));
@@ -368,14 +362,32 @@ where
             writeln!(o, "{}:", label)?;
         }
 
+        if dump_stack {
+            let frames = vm.call_frames();
+            let stack = vm.stack();
+
+            if current_frame_len != frames.len() {
+                let op = if current_frame_len < frames.len() { "push" } else { "pop" };
+                write!(o, "  {op} frame {} (+{})", frames.len(), stack.stack_bottom())?;
+
+                if let Some(frame) = frames.last() {
+                    writeln!(o, " {frame:?}")?;
+                } else {
+                    writeln!(o, " *root*")?;
+                }
+
+                current_frame_len = frames.len();
+            }
+        }
+
         if let Some((inst, _)) = vm
             .unit()
-            .instruction_at(vm.last_ip())
+            .instruction_at(ip)
             .map_err(VmError::from)?
         {
-            write!(o, "  {:04} = {}", vm.last_ip(), inst)?;
+            write!(o, "  {:04} = {}", ip, inst)?;
         } else {
-            write!(o, "  {:04} = *out of bounds*", vm.last_ip())?;
+            write!(o, "  {:04} = *out of bounds*", ip)?;
         }
 
         if let Some(comment) = debug.and_then(|d| d.comment.as_ref()) {
@@ -385,19 +397,7 @@ where
         writeln!(o)?;
 
         if dump_stack {
-            let frames = vm.call_frames();
             let stack = vm.stack();
-
-            if current_frame_len != frames.len() {
-                if current_frame_len < frames.len() {
-                    writeln!(o, "=> frame {} ({}):", frames.len(), stack.stack_bottom())?;
-                } else {
-                    writeln!(o, "<= frame {} ({}):", frames.len(), stack.stack_bottom())?;
-                }
-
-                current_frame_len = frames.len();
-            }
-
             let values = stack.get(stack.stack_bottom()..).expect("bad stack slice");
 
             vm.with(|| {
@@ -420,6 +420,7 @@ where
             }
         }
 
+        result = execution.async_step().await;
         limit = limit.wrapping_sub(1);
     }
 

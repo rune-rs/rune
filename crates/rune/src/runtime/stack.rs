@@ -354,13 +354,21 @@ impl Stack {
     ///
     /// Returns the old stack top.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn swap_stack_bottom(&mut self, count: usize) -> Result<usize, StackError> {
-        tracing::trace!(stack = ?self.stack.len(), self.stack_bottom, count);
+    pub(crate) fn swap_stack_bottom(
+        &mut self,
+        addr: InstAddress,
+        len: usize,
+    ) -> Result<usize, StackError> {
+        let Some(start) = self.stack_bottom.checked_add(addr.offset()) else {
+            return Err(StackError);
+        };
 
-        match self.stack.len().checked_sub(count) {
-            Some(new_top) => Ok(replace(&mut self.stack_bottom, new_top)),
-            None => Err(StackError),
-        }
+        let Some(new_len) = start.checked_add(len) else {
+            return Err(StackError);
+        };
+
+        self.stack.truncate(new_len);
+        Ok(replace(&mut self.stack_bottom, start))
     }
 
     /// Pop the current stack top and modify it to a different one.
@@ -368,10 +376,13 @@ impl Stack {
     /// This asserts that the size of the current stack frame is exactly zero
     /// before restoring it.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn pop_stack_top(&mut self, stack_bottom: usize) {
+    pub(crate) fn pop_stack_top(&mut self, stack_bottom: usize, size: usize) -> alloc::Result<()> {
         tracing::trace!(stack = self.stack.len(), self.stack_bottom);
         self.stack.truncate(self.stack_bottom);
         self.stack_bottom = stack_bottom;
+        let empty = Value::empty()?;
+        self.stack.try_resize(self.stack_bottom + size, empty)?;
+        Ok(())
     }
 }
 

@@ -1,5 +1,6 @@
 use core::cell::Cell;
 use core::fmt;
+use core::ops::{Deref, DerefMut};
 use core::slice;
 
 use crate::alloc::prelude::*;
@@ -451,6 +452,22 @@ impl<'a, 'b> IntoIterator for &'a mut Linear<'b> {
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.iter_mut()
+    }
+}
+
+impl<'hir> Deref for Linear<'hir> {
+    type Target = [Needs<'hir>];
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.addresses
+    }
+}
+
+impl<'hir> DerefMut for Linear<'hir> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.addresses
     }
 }
 
