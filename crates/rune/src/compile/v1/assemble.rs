@@ -135,7 +135,7 @@ pub(crate) fn fn_from_item_fn<'hir>(
                     .define(span, hir::Name::SelfValue, needs.addr()?)?;
             }
             hir::FnArg::Pat(pat) => {
-                pat_with_addr(cx, pat, needs.addr()?)?;
+                pat_binding_with_addr(cx, pat, needs.addr()?)?;
             }
         }
 
@@ -205,7 +205,7 @@ pub(crate) fn expr_closure_secondary<'hir>(
                 return Err(compile::Error::new(arg, ErrorKind::UnsupportedSelf))
             }
             hir::FnArg::Pat(pat) => {
-                pat_with_addr(cx, pat, needs.addr()?)?;
+                pat_binding_with_addr(cx, pat, needs.addr()?)?;
             }
         }
     }
@@ -234,6 +234,16 @@ fn return_<'hir, T>(
 
     cx.scopes.free(needs)?;
     Ok(())
+}
+
+/// Compile a pattern with bindings based on the given offset.
+#[instrument(span = hir)]
+fn pat_binding_with_addr<'hir>(
+    cx: &mut Ctxt<'_, 'hir, '_>,
+    hir: &'hir hir::PatBinding<'hir>,
+    addr: InstAddress,
+) -> compile::Result<()> {
+    pat_with_addr(cx, &hir.pat, addr)
 }
 
 /// Compile a pattern based on the given offset.
@@ -268,6 +278,19 @@ fn pat_with_addr<'hir>(
     }
 
     Ok(())
+}
+
+/// Encode a pattern from a known set of bindings.
+///
+/// Returns a boolean indicating if the label was used.
+#[instrument(span = hir)]
+fn pat_binding<'hir>(
+    cx: &mut Ctxt<'_, 'hir, '_>,
+    hir: &'hir hir::PatBinding<'hir>,
+    false_label: &Label,
+    load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, &mut Needs<'_>) -> compile::Result<()>,
+) -> compile::Result<bool> {
+    pat(cx, &hir.pat, false_label, load)
 }
 
 /// Encode a pattern.
@@ -406,7 +429,7 @@ fn condition<'hir>(
                 Ok(())
             };
 
-            if pat(cx, &expr_let.pat, &false_label, &load)? {
+            if pat_binding(cx, &expr_let.pat, &false_label, &load)? {
                 cx.asm.jump(then_label, span)?;
                 cx.asm.label(&false_label)?;
             } else {
@@ -1713,7 +1736,7 @@ fn expr_for<'hir>(
 
     let guard = cx.scopes.child(&hir.body)?;
 
-    pat_with_addr(cx, &hir.binding, binding_offset.addr()?)?;
+    pat_binding_with_addr(cx, &hir.binding, binding_offset.addr()?)?;
 
     block(cx, &hir.body, &mut Needs::none(span))?;
     cx.scopes.pop(span, guard)?;
@@ -1846,7 +1869,7 @@ fn expr_let<'hir>(
 
     let false_label = cx.asm.new_label("let_panic");
 
-    if pat(cx, &hir.pat, &false_label, &load)? {
+    if pat_binding(cx, &hir.pat, &false_label, &load)? {
         cx.q.diagnostics
             .let_pattern_might_panic(cx.source_id, hir, cx.context())?;
 
@@ -1899,7 +1922,7 @@ fn expr_match<'hir>(
             Ok(())
         };
 
-        pat(cx, &branch.pat, &match_false, &load)?;
+        pat_binding(cx, &branch.pat, &match_false, &load)?;
 
         let scope = if let Some(condition) = branch.condition {
             let span = condition;
@@ -2240,7 +2263,7 @@ fn expr_select<'hir>(
 
         let expected = cx.scopes.child(&branch.body)?;
 
-        let mut needs = match branch.pat.kind {
+        let mut needs = match branch.pat.pat.kind {
             hir::PatKind::Path(&hir::PatPathKind::Ident(name)) => {
                 let needs = cx.scopes.alloc(&branch.pat)?;
                 cx.scopes
@@ -2250,7 +2273,7 @@ fn expr_select<'hir>(
             hir::PatKind::Ignore => Needs::none(&branch.pat),
             _ => {
                 return Err(compile::Error::new(
-                    branch.pat.span,
+                    &branch.pat,
                     ErrorKind::UnsupportedSelectPattern,
                 ));
             }
@@ -2579,7 +2602,7 @@ fn local<'hir>(
 
     let false_label = cx.asm.new_label("let_panic");
 
-    if pat(cx, &hir.pat, &false_label, &load)? {
+    if pat_binding(cx, &hir.pat, &false_label, &load)? {
         cx.q.diagnostics
             .let_pattern_might_panic(cx.source_id, hir, cx.context())?;
 

@@ -38,6 +38,7 @@ pub(crate) struct Ctxt<'hir, 'a, 'arena> {
     scopes: hir::Scopes<'hir>,
     const_eval: bool,
     statements: Vec<hir::Stmt<'hir>>,
+    pattern_bindings: Vec<hir::Name<'hir>>,
 }
 
 impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
@@ -88,6 +89,7 @@ impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
             scopes: hir::Scopes::new()?,
             const_eval,
             statements: Vec::new(),
+            pattern_bindings: Vec::new(),
         })
     }
 
@@ -593,7 +595,7 @@ pub(crate) fn expr<'hir>(
             };
 
             cx.scopes.push_loop(label)?;
-            let binding = pat(cx, &ast.binding)?;
+            let binding = pat_binding(cx, &ast.binding)?;
             let body = block(cx, &ast.body)?;
 
             let layer = cx.scopes.pop().with_span(ast)?;
@@ -607,7 +609,7 @@ pub(crate) fn expr<'hir>(
             }))
         }
         ast::Expr::Let(ast) => hir::ExprKind::Let(alloc!(hir::ExprLet {
-            pat: pat(cx, &ast.pat)?,
+            pat: pat_binding(cx, &ast.pat)?,
             expr: expr(cx, &ast.expr)?,
         })),
         ast::Expr::If(ast) => hir::ExprKind::If(alloc!(expr_if(cx, ast)?)),
@@ -616,7 +618,7 @@ pub(crate) fn expr<'hir>(
             branches: iter!(&ast.branches, |(ast, _)| {
                 cx.scopes.push()?;
 
-                let pat = pat(cx, &ast.pat)?;
+                let pat = pat_binding(cx, &ast.pat)?;
                 let condition = option!(&ast.condition, |(_, ast)| expr(cx, ast)?);
                 let body = expr(cx, &ast.body)?;
 
@@ -676,7 +678,7 @@ pub(crate) fn expr<'hir>(
                     ast::ExprSelectBranch::Pat(ast) => {
                         cx.scopes.push()?;
 
-                        let pat = pat(cx, &ast.pat)?;
+                        let pat = pat_binding(cx, &ast.pat)?;
                         let body = expr(cx, &ast.body)?;
 
                         let layer = cx.scopes.pop().with_span(ast)?;
@@ -1152,7 +1154,7 @@ fn fn_arg<'hir>(
             cx.scopes.define(hir::Name::SelfValue, ast)?;
             hir::FnArg::SelfValue(ast.span())
         }
-        ast::FnArg::Pat(ast) => hir::FnArg::Pat(alloc!(pat(cx, ast)?)),
+        ast::FnArg::Pat(ast) => hir::FnArg::Pat(alloc!(pat_binding(cx, ast)?)),
     })
 }
 
@@ -1161,13 +1163,25 @@ fn local<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Local) -> compile::Result
     // Note: expression needs to be assembled before pattern, otherwise the
     // expression will see declarations in the pattern.
     let expr = expr(cx, &ast.expr)?;
-    let pat = pat(cx, &ast.pat)?;
+    let pat = pat_binding(cx, &ast.pat)?;
 
     Ok(hir::Local {
         span: ast.span(),
         pat,
         expr,
     })
+}
+
+fn pat_binding<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    ast: &ast::Pat,
+) -> compile::Result<hir::PatBinding<'hir>> {
+    alloc_with!(cx, ast);
+
+    let pat = pat(cx, ast)?;
+    let names = iter!(cx.pattern_bindings.drain(..));
+
+    Ok(hir::PatBinding { pat, names })
 }
 
 fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir::Pat<'hir>> {
@@ -1213,6 +1227,7 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                     if let Some(ident) = ast.path.try_as_ident() {
                         let name = alloc_str!(ident.resolve(resolve_context!(cx.q))?);
                         cx.scopes.define(hir::Name::Str(name), ast)?;
+                        cx.pattern_bindings.try_push(hir::Name::Str(name))?;
                         break 'path hir::PatPathKind::Ident(name);
                     }
 
@@ -1311,6 +1326,7 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
 
                             let key = alloc_str!(ident.resolve(resolve_context!(cx.q))?);
                             cx.scopes.define(hir::Name::Str(key), ident)?;
+                            cx.pattern_bindings.try_push(hir::Name::Str(key))?;
                             (key, hir::Binding::Ident(path.span(), key))
                         }
                         _ => {
@@ -1567,7 +1583,7 @@ fn condition<'hir>(
     Ok(match ast {
         ast::Condition::Expr(ast) => hir::Condition::Expr(alloc!(expr(cx, ast)?)),
         ast::Condition::ExprLet(ast) => hir::Condition::ExprLet(alloc!(hir::ExprLet {
-            pat: pat(cx, &ast.pat)?,
+            pat: pat_binding(cx, &ast.pat)?,
             expr: expr(cx, &ast.expr)?,
         })),
     })

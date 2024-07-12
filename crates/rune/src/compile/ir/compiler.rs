@@ -356,7 +356,7 @@ fn builtin_template(
 fn local(hir: &hir::Local<'_>, c: &mut Ctxt<'_, '_>) -> compile::Result<ir::Ir> {
     let span = hir.span();
 
-    let name = match hir.pat.kind {
+    let name = match hir.pat.pat.kind {
         hir::PatKind::Ignore => {
             return expr(&hir.expr, c);
         }
@@ -381,7 +381,7 @@ fn condition(hir: &hir::Condition<'_>, c: &mut Ctxt<'_, '_>) -> compile::Result<
     match hir {
         hir::Condition::Expr(e) => Ok(ir::IrCondition::Ir(expr(e, c)?)),
         hir::Condition::ExprLet(hir) => {
-            let pat = ir::IrPat::compile_ast(&hir.pat)?;
+            let pat = ir::IrPat::compile_ast(&hir.pat.pat)?;
             let ir = expr(&hir.expr, c)?;
 
             Ok(ir::IrCondition::Let(ir::IrLet {

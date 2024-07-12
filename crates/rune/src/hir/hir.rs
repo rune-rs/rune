@@ -103,6 +103,18 @@ pub(crate) struct Pat<'hir> {
     pub(crate) kind: PatKind<'hir>,
 }
 
+/// A pattern with collected bindings.
+#[derive(Debug, TryClone, Clone, Copy, Spanned)]
+#[try_clone(copy)]
+#[non_exhaustive]
+pub(crate) struct PatBinding<'hir> {
+    /// The kind of the pattern.
+    #[rune(span)]
+    pub(crate) pat: Pat<'hir>,
+    /// Names that will be defined by this pattern.
+    pub(crate) names: &'hir [Name<'hir>],
+}
+
 #[derive(Debug, TryClone, Clone, Copy)]
 #[try_clone(copy)]
 pub(crate) enum PatPathKind<'hir> {
@@ -333,7 +345,7 @@ pub(crate) struct ExprFor<'hir> {
     pub(crate) label: Option<&'hir str>,
     /// The pattern binding to use.
     /// Non-trivial pattern bindings will panic if the value doesn't match.
-    pub(crate) binding: Pat<'hir>,
+    pub(crate) binding: PatBinding<'hir>,
     /// Expression producing the iterator.
     pub(crate) iter: Expr<'hir>,
     /// The body of the loop.
@@ -349,7 +361,7 @@ pub(crate) struct ExprFor<'hir> {
 #[non_exhaustive]
 pub(crate) struct ExprLet<'hir> {
     /// The name of the binding.
-    pub(crate) pat: Pat<'hir>,
+    pub(crate) pat: PatBinding<'hir>,
     /// The expression the binding is assigned to.
     pub(crate) expr: Expr<'hir>,
 }
@@ -409,7 +421,7 @@ pub(crate) struct ExprMatchBranch<'hir> {
     #[rune(span)]
     pub(crate) span: Span,
     /// The pattern to match.
-    pub(crate) pat: Pat<'hir>,
+    pub(crate) pat: PatBinding<'hir>,
     /// The branch condition.
     pub(crate) condition: Option<&'hir Expr<'hir>>,
     /// The body of the match.
@@ -590,7 +602,7 @@ pub(crate) enum ExprSelectBranch<'hir> {
 #[non_exhaustive]
 pub(crate) struct ExprSelectPatBranch<'hir> {
     /// The identifier to bind the result to.
-    pub(crate) pat: Pat<'hir>,
+    pub(crate) pat: PatBinding<'hir>,
     /// The expression that should evaluate to a future.
     pub(crate) expr: Expr<'hir>,
     /// The body of the expression.
@@ -717,7 +729,7 @@ pub(crate) enum FnArg<'hir> {
     /// The `self` parameter.
     SelfValue(Span),
     /// Function argument is a pattern binding.
-    Pat(&'hir Pat<'hir>),
+    Pat(&'hir PatBinding<'hir>),
 }
 
 /// A block of statements.
@@ -764,7 +776,7 @@ pub(crate) struct Local<'hir> {
     #[rune(span)]
     pub(crate) span: Span,
     /// The name of the binding.
-    pub(crate) pat: Pat<'hir>,
+    pub(crate) pat: PatBinding<'hir>,
     /// The expression the binding is assigned to.
     pub(crate) expr: Expr<'hir>,
 }
