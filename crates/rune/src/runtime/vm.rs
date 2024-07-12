@@ -1785,7 +1785,7 @@ impl Vm {
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_size(&mut self, size: usize) -> VmResult<()> {
+    fn op_allocate(&mut self, size: usize) -> VmResult<()> {
         vm_try!(self.stack.resize(size));
         VmResult::Ok(())
     }
@@ -3246,8 +3246,8 @@ impl Vm {
             self.last_ip_len = inst_len as u8;
 
             match inst {
-                Inst::Size { size } => {
-                    vm_try!(self.op_size(size));
+                Inst::Allocate { size } => {
+                    vm_try!(self.op_allocate(size));
                 }
                 Inst::Not { addr, out } => {
                     vm_try!(self.op_not(addr, out));

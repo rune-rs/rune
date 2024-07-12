@@ -776,7 +776,12 @@ impl UnitBuilder {
     ) -> compile::Result<()> {
         self.label_count = assembly.label_count;
 
+        storage
+            .encode(Inst::Allocate { size })
+            .with_span(location.span)?;
+
         let base = storage.extend_offsets(assembly.labels.len())?;
+
         self.required_functions
             .try_extend(assembly.required_functions)?;
 
@@ -787,10 +792,6 @@ impl UnitBuilder {
                 }
             }
         }
-
-        storage
-            .encode(Inst::Size { size })
-            .with_span(location.span)?;
 
         for (pos, (inst, span)) in assembly.instructions.into_iter().enumerate() {
             let mut comment = String::new();

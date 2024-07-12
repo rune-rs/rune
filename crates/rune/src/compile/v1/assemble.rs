@@ -1,7 +1,7 @@
 use core::fmt;
 
 use crate::alloc::prelude::*;
-use crate::alloc::{try_format, Vec};
+use crate::alloc::BTreeMap;
 use crate::ast::{self, Span, Spanned};
 use crate::compile::ir;
 use crate::compile::v1::{Loop, Loops, Scope, Scopes};
@@ -243,16 +243,6 @@ fn pat_binding_with_addr<'hir>(
     hir: &'hir hir::PatBinding<'hir>,
     addr: InstAddress,
 ) -> compile::Result<()> {
-    pat_with_addr(cx, &hir.pat, addr)
-}
-
-/// Compile a pattern based on the given offset.
-#[instrument(span = hir)]
-fn pat_with_addr<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
-    hir: &'hir hir::Pat<'hir>,
-    addr: InstAddress,
-) -> compile::Result<()> {
     let load = |cx: &mut Ctxt<'_, 'hir, '_>, needs: &mut Needs<'_>| {
         needs.assign_addr(cx, addr)?;
         Ok(())
@@ -260,7 +250,7 @@ fn pat_with_addr<'hir>(
 
     let false_label = cx.asm.new_label("let_panic");
 
-    if pat(cx, hir, &false_label, &load)? {
+    if pat_binding(cx, hir, &false_label, &load)? {
         cx.q.diagnostics
             .let_pattern_might_panic(cx.source_id, hir, cx.context())?;
 
@@ -290,7 +280,33 @@ fn pat_binding<'hir>(
     false_label: &Label,
     load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, &mut Needs<'_>) -> compile::Result<()>,
 ) -> compile::Result<bool> {
-    pat(cx, &hir.pat, false_label, load)
+    let mut linear = cx.scopes.linear(hir, hir.names.len())?;
+    let bound;
+
+    {
+        let mut bindings = BTreeMap::new();
+
+        for (name, needs) in hir.names.iter().copied().zip(&mut linear) {
+            bindings.try_insert(name, needs).with_span(hir)?;
+        }
+
+        bound = pat(cx, &hir.pat, false_label, load, &mut bindings)?;
+
+        if !bindings.is_empty() {
+            let names = bindings.keys().try_collect::<Vec<_>>()?;
+
+            return Err(compile::Error::msg(
+                hir,
+                format!("Unbound names in pattern: {names:?}"),
+            ));
+        }
+    }
+
+    for (name, needs) in hir.names.iter().copied().zip(&linear) {
+        cx.scopes.define(needs.span, name, needs.addr()?)?;
+    }
+
+    Ok(bound)
 }
 
 /// Encode a pattern.
@@ -302,6 +318,7 @@ fn pat<'hir>(
     hir: &'hir hir::Pat<'hir>,
     false_label: &Label,
     load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, &mut Needs<'_>) -> compile::Result<()>,
+    bindings: &mut BTreeMap<hir::Name<'hir>, &mut Needs<'_>>,
 ) -> compile::Result<bool> {
     let span = hir;
 
@@ -315,7 +332,6 @@ fn pat<'hir>(
         hir::PatKind::Path(kind) => match *kind {
             hir::PatPathKind::Kind(kind) => {
                 let mut needs = Needs::alloc(cx, hir)?;
-
                 load(cx, &mut needs)?;
 
                 cx.asm.push(
@@ -327,20 +343,23 @@ fn pat<'hir>(
                 Ok(true)
             }
             hir::PatPathKind::Ident(name) => {
-                let mut needs = Needs::alloc(cx, hir)?;
-                load(cx, &mut needs)?;
-                let addr = needs.addr()?;
-                cx.scopes.define(hir, hir::Name::Str(name), addr)?;
+                let name = hir::Name::Str(name);
+
+                let Some(needs) = bindings.remove(&name) else {
+                    return Err(compile::Error::msg(hir, format!("No binding for {name:?}")));
+                };
+
+                load(cx, needs)?;
                 Ok(false)
             }
         },
         hir::PatKind::Lit(hir) => Ok(pat_lit(cx, hir, false_label, load)?),
         hir::PatKind::Sequence(hir) => {
-            pat_sequence(cx, hir, span, false_label, &load)?;
+            pat_sequence(cx, hir, span, false_label, &load, bindings)?;
             Ok(true)
         }
         hir::PatKind::Object(hir) => {
-            pat_object(cx, hir, span, false_label, &load)?;
+            pat_object(cx, hir, span, false_label, &load, bindings)?;
             Ok(true)
         }
     }
@@ -449,6 +468,7 @@ fn pat_sequence<'hir>(
     span: &dyn Spanned,
     false_label: &Label,
     load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, &mut Needs<'_>) -> compile::Result<()>,
+    bindings: &mut BTreeMap<hir::Name<'hir>, &mut Needs<'_>>,
 ) -> compile::Result<()> {
     let mut needs = Needs::alloc(cx, span)?;
 
@@ -496,7 +516,7 @@ fn pat_sequence<'hir>(
             Ok(())
         };
 
-        pat(cx, p, false_label, &load)?;
+        pat(cx, p, false_label, &load, bindings)?;
     }
 
     Ok(())
@@ -543,6 +563,7 @@ fn pat_object<'hir>(
     span: &dyn Spanned,
     false_label: &Label,
     load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, &mut Needs<'_>) -> compile::Result<()>,
+    bindings: &mut BTreeMap<hir::Name<'hir>, &mut Needs<'_>>,
 ) -> compile::Result<()> {
     let mut needs = Needs::alloc(cx, span)?;
 
@@ -612,19 +633,23 @@ fn pat_object<'hir>(
                     Ok(())
                 };
 
-                pat(cx, p, false_label, &load)?;
+                pat(cx, p, false_label, &load, bindings)?;
             }
             hir::Binding::Ident(span, name) => {
-                let addr = cx.scopes.alloc(&span)?;
+                let name = hir::Name::Str(name);
 
-                cx.scopes
-                    .define(binding, hir::Name::Str(name), addr.addr()?)?;
+                let Some(needs) = bindings.remove(&name) else {
+                    return Err(compile::Error::msg(
+                        binding,
+                        format!("No binding for {name:?}"),
+                    ));
+                };
 
                 cx.asm.push(
                     Inst::ObjectIndexGetAt {
                         addr: needs.addr()?,
                         slot,
-                        out: addr.output()?,
+                        out: needs.output()?,
                     },
                     &span,
                 )?;

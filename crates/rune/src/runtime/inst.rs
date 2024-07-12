@@ -97,8 +97,8 @@ impl fmt::Display for TypeCheck {
 #[derive(Debug, TryClone, Clone, Copy, Serialize, Deserialize, Decode, Encode, InstDisplay)]
 #[try_clone(copy)]
 pub enum Inst {
-    /// Initialize the function-local memory region with space for `size` variables.
-    Size {
+    /// Make sure that the memory region has `size` slots of memory available.
+    Allocate {
         /// The size of the memory region to allocate.
         size: usize,
     },
