@@ -12,4 +12,4 @@ mod slab;
 use self::slab::Slab;
 
 mod needs;
-use self::needs::{Needs, NeedsAddressKind, NeedsKind};
+use self::needs::{Needs, NeedsAddress, NeedsAddressKind};
