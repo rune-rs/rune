@@ -404,6 +404,7 @@ macro_rules! prelude {
 }
 
 mod attribute;
+mod basics;
 mod binary;
 mod bug_326;
 mod bug_344;
@@ -448,6 +449,7 @@ mod instance;
 mod int;
 mod iter;
 mod iterator;
+mod loops;
 mod macros;
 mod moved;
 mod option;

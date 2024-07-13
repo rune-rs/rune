@@ -3087,7 +3087,6 @@ impl Vm {
         args: usize,
         out: Output,
     ) -> VmResult<()> {
-        let args = args + 1;
         let instance = vm_try!(self.stack.at(addr));
         let type_hash = vm_try!(instance.type_hash());
         let hash = Hash::associated_function(type_hash, hash);

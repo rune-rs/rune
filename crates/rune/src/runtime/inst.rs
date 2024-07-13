@@ -163,55 +163,49 @@ pub enum Inst {
         call: Call,
         /// The address where the arguments are stored.
         addr: InstAddress,
-        /// The number of arguments expected on the stack for this call.
+        /// The number of arguments passed in at `addr`.
         args: usize,
         /// Whether the return value should be kept or not.
         out: Output,
     },
-    /// Perform a function call.
+    /// Call a function by hash.
     ///
-    /// It will construct a new stack frame which includes the last `args`
-    /// number of entries.
+    /// The function will be looked up in the unit and context. The arguments
+    /// passed to the function call are stored at `addr`, where `size`
+    /// determines the number of arguments.
+    ///
+    /// The return value of the function call will be written to `out`.
     #[musli(packed)]
     Call {
         /// The hash of the function to call.
         hash: Hash,
         /// The address of the arguments being passed.
         addr: InstAddress,
-        /// The number of arguments expected on the stack for this call.
+        /// The number of arguments passed in at `addr`.
         args: usize,
         /// Whether the return value should be kept or not.
         out: Output,
     },
-    /// Perform a instance function call.
+    /// Call an associated function.
     ///
-    /// The instance being called on should be on top of the stack, followed by
-    /// `args` number of arguments.
+    /// The instance being called should be the the object at address `addr`.
+    /// The number of arguments specified should include this object.
+    ///
+    /// The return value of the function call will be written to `out`.
     #[musli(packed)]
     CallAssociated {
         /// The hash of the name of the function to call.
         hash: Hash,
         /// The address of arguments being passed.
         addr: InstAddress,
-        /// The number of arguments expected on the stack for this call.
+        /// The number of arguments passed in at `addr`.
         args: usize,
         /// Whether the return value should be kept or not.
         out: Output,
     },
-    /// Lookup the specified instance function and put it on the stack.
-    /// This might help in cases where a single instance function is called many
-    /// times (like in a loop) since it avoids calculating its full hash on
-    /// every iteration.
+    /// Look up an instance function.
     ///
-    /// Note that this does not resolve that the instance function exists, only
-    /// that the instance does.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// => <fn>
-    /// ```
+    /// The instance being used is stored at `addr`, and the function hash to look up is `hash`.
     #[musli(packed)]
     LoadInstanceFn {
         /// The address of the instance for which the function is being loaded.
@@ -236,7 +230,7 @@ pub enum Inst {
         function: InstAddress,
         /// The address of the arguments being passed.
         addr: InstAddress,
-        /// The number of arguments expected on the stack for this call.
+        /// The number of arguments passed in at `addr`.
         args: usize,
         /// Whether the returned value from calling the function should be kept
         /// or not.
