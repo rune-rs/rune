@@ -609,15 +609,21 @@ fn pat_lit<'hir>(
     load(cx, &mut needs)?;
 
     let Some(addr) = needs.as_addr() else {
-        return Ok(false);
+        return Err(compile::Error::new(
+            hir,
+            "Missing address when loading binding",
+        ));
     };
 
-    let Some(inst) = pat_lit_inst(cx, hir, addr.addr())? else {
+    let cond = cx.scopes.alloc(hir)?;
+
+    let Some(inst) = pat_lit_inst(cx, hir, addr.addr(), cond.addr())? else {
         return Err(compile::Error::new(hir, ErrorKind::UnsupportedPatternExpr));
     };
 
     cx.asm.push(inst, hir)?;
-    cx.asm.jump_if_not(addr.addr(), false_label, hir)?;
+    cx.asm.jump_if_not(cond.addr(), false_label, hir)?;
+    cx.scopes.free(cond)?;
     Ok(true)
 }
 
@@ -626,12 +632,13 @@ fn pat_lit_inst<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::Expr<'_>,
     addr: InstAddress,
+    cond: InstAddress,
 ) -> compile::Result<Option<Inst>> {
     let hir::ExprKind::Lit(lit) = hir.kind else {
         return Ok(None);
     };
 
-    let out = addr.output();
+    let out = cond.output();
 
     let inst = match lit {
         hir::Lit::Byte(value) => Inst::EqByte { addr, value, out },

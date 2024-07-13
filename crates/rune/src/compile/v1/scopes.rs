@@ -288,7 +288,7 @@ impl<'hir> Scopes<'hir> {
 
     /// Free an address if it's in the specified scope.
     #[tracing::instrument(skip(self))]
-    pub(crate) fn free(&mut self, addr: NeedsAddress) -> compile::Result<()> {
+    pub(crate) fn free(&mut self, addr: NeedsAddress<'hir>) -> compile::Result<()> {
         match &addr.kind {
             NeedsAddressKind::Local | NeedsAddressKind::Dangling => {
                 self.free_addr(addr.span, addr.addr())?;
@@ -342,7 +342,7 @@ impl<'hir> Scopes<'hir> {
 
     /// Free a bunch of linear variables.
     #[tracing::instrument(skip(self, linear), fields(linear.base, len = linear.len()))]
-    pub(crate) fn free_linear(&mut self, linear: Linear<'_>) -> compile::Result<()> {
+    pub(crate) fn free_linear(&mut self, linear: Linear<'hir>) -> compile::Result<()> {
         for addr in linear.addresses.into_iter().rev() {
             self.free(addr)?;
         }

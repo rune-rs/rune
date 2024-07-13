@@ -154,25 +154,41 @@ impl Iterator for Iter<'_> {
 mod tests {
     use super::Slab;
 
+    macro_rules! slab_eq {
+        ($slab:expr, $expected:expr) => {{
+            let expected: &[usize] = &$expected[..];
+
+            if !$slab.iter().eq(expected.iter().copied()) {
+                panic!("{:?} != {:?}", $slab, expected);
+            }
+        }};
+    }
+
     #[test]
     fn iter() {
         let mut slab = Slab::new();
+
         assert_eq!(slab.insert(), Ok(0));
         assert_eq!(slab.insert(), Ok(1));
         assert_eq!(slab.insert(), Ok(2));
         assert_eq!(slab.insert(), Ok(3));
         assert_eq!(slab.insert(), Ok(4));
-        assert_eq!(slab.remove(2), true);
+        slab_eq!(slab, [0, 1, 2, 3, 4]);
 
-        assert!(slab.iter().eq([0, 1, 3, 4]), "{slab:?}");
+        assert_eq!(slab.remove(2), true);
+        slab_eq!(slab, [0, 1, 3, 4]);
+
         assert_eq!(slab.remove(3), true);
-        assert!(slab.iter().eq([0, 1, 4]), "{slab:?}");
+        slab_eq!(slab, [0, 1, 4]);
+
         assert_eq!(slab.remove(0), true);
-        assert!(slab.iter().eq([1, 4]), "{slab:?}");
+        slab_eq!(slab, [1, 4]);
+
         assert_eq!(slab.remove(1), true);
-        assert!(slab.iter().eq([4]), "{slab:?}");
+        slab_eq!(slab, [4]);
+
         assert_eq!(slab.remove(4), true);
-        assert!(slab.iter().eq([]), "{slab:?}");
+        slab_eq!(slab, []);
 
         assert_eq!(slab.insert(), Ok(0));
     }

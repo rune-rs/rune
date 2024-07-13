@@ -563,7 +563,7 @@ pub enum Inst {
     #[musli(packed)]
     Tuple1 {
         /// First element of the tuple.
-        #[inst_display(display_with = display_array)]
+        #[inst_display(display_with = DisplayArray::new)]
         args: [InstAddress; 1],
         /// Where to store the produced tuple.
         out: Output,
@@ -578,7 +578,7 @@ pub enum Inst {
     #[musli(packed)]
     Tuple2 {
         /// Tuple arguments.
-        #[inst_display(display_with = display_array)]
+        #[inst_display(display_with = DisplayArray::new)]
         args: [InstAddress; 2],
         /// Where to store the produced tuple.
         out: Output,
@@ -593,7 +593,7 @@ pub enum Inst {
     #[musli(packed)]
     Tuple3 {
         /// Tuple arguments.
-        #[inst_display(display_with = display_array)]
+        #[inst_display(display_with = DisplayArray::new)]
         args: [InstAddress; 3],
         /// Where to store the produced tuple.
         out: Output,
@@ -608,7 +608,7 @@ pub enum Inst {
     #[musli(packed)]
     Tuple4 {
         /// Tuple arguments.
-        #[inst_display(display_with = display_array)]
+        #[inst_display(display_with = DisplayArray::new)]
         args: [InstAddress; 4],
         /// Where to store the produced tuple.
         out: Output,
@@ -856,6 +856,7 @@ pub enum Inst {
         /// Address of the value to compare.
         addr: InstAddress,
         /// The byte to test against.
+        #[inst_display(display_with = DisplayDebug::new)]
         value: u8,
         /// Where to store the result of the comparison.
         out: Output,
@@ -873,6 +874,7 @@ pub enum Inst {
         /// Address of the value to compare.
         addr: InstAddress,
         /// The character to test against.
+        #[inst_display(display_with = DisplayDebug::new)]
         value: char,
         /// Where to store the result of the comparison.
         out: Output,
@@ -1855,16 +1857,21 @@ impl fmt::Display for InstVariant {
     }
 }
 
-fn display_array<T>(array: &[T]) -> impl fmt::Display + '_
+#[repr(transparent)]
+struct DisplayArray<T>(T)
 where
-    T: fmt::Display,
-{
-    DisplayArray(array)
+    T: ?Sized;
+
+impl<T> DisplayArray<[T]> {
+    #[inline]
+    fn new(value: &[T]) -> &Self {
+        // SAFETY: The `DisplayArray` struct is a transparent wrapper around the
+        // value.
+        unsafe { &*(value as *const [T] as *const Self) }
+    }
 }
 
-struct DisplayArray<'a, T>(&'a [T]);
-
-impl<T> fmt::Display for DisplayArray<'_, T>
+impl<T> fmt::Display for DisplayArray<[T]>
 where
     T: fmt::Display,
 {
@@ -1884,5 +1891,32 @@ where
 
         write!(f, "]")?;
         Ok(())
+    }
+}
+
+#[repr(transparent)]
+struct DisplayDebug<T>(T)
+where
+    T: ?Sized;
+
+impl<T> DisplayDebug<T>
+where
+    T: ?Sized,
+{
+    #[inline]
+    fn new(value: &T) -> &Self {
+        // SAFETY: The `DisplayDebug` struct is a transparent wrapper around the
+        // value.
+        unsafe { &*(value as *const T as *const Self) }
+    }
+}
+
+impl<T> fmt::Display for DisplayDebug<T>
+where
+    T: ?Sized + fmt::Debug,
+{
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&self.0, f)
     }
 }
