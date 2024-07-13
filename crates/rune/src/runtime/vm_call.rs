@@ -3,7 +3,7 @@ use ::rust_alloc::sync::Arc;
 use crate::alloc::prelude::*;
 use crate::runtime::vm_execution::VmExecutionState;
 use crate::runtime::{
-    Call, Future, Generator, RuntimeContext, Stack, Stream, Unit, Value, Vm, VmErrorKind,
+    Call, Future, Generator, Output, RuntimeContext, Stack, Stream, Unit, Value, Vm, VmErrorKind,
     VmExecution, VmResult,
 };
 
@@ -17,6 +17,8 @@ pub(crate) struct VmCall {
     context: Option<Arc<RuntimeContext>>,
     /// Is set if the unit differs for the call for the current virtual machine.
     unit: Option<Arc<Unit>>,
+    /// The output to store the result of the call into.
+    out: Output,
 }
 
 impl VmCall {
@@ -24,11 +26,13 @@ impl VmCall {
         call: Call,
         context: Option<Arc<RuntimeContext>>,
         unit: Option<Arc<Unit>>,
+        out: Output,
     ) -> Self {
         Self {
             call,
             context,
             unit,
+            out,
         }
     }
 
@@ -38,6 +42,8 @@ impl VmCall {
     where
         T: AsRef<Vm> + AsMut<Vm>,
     {
+        let out = self.out;
+
         let value = match self.call {
             Call::Async => {
                 let vm = vm_try!(self.build_vm(execution));
@@ -64,7 +70,7 @@ impl VmCall {
             }
         };
 
-        vm_try!(execution.vm_mut().stack_mut().push(value));
+        vm_try!(out.store(execution.vm_mut().stack_mut(), value));
         VmResult::Ok(())
     }
 

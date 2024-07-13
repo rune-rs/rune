@@ -791,7 +791,7 @@ impl fmt::Debug for Function {
                 write!(f, "native function ({:p})", handler.handler.as_ref())?;
             }
             Inner::FnOffset(offset) => {
-                write!(f, "dynamic function (at: 0x{:x})", offset.offset)?;
+                write!(f, "{} function (at: 0x{:x})", offset.call, offset.offset)?;
             }
             Inner::FnClosureOffset(closure) => {
                 write!(
@@ -939,6 +939,7 @@ impl FnOffset {
             self.call,
             (!same_context).then(|| self.context.clone()),
             (!same_unit).then(|| self.unit.clone()),
+            out,
         )))
     }
 }

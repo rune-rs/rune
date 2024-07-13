@@ -746,19 +746,18 @@ impl Vm {
 
     /// Pop a call frame and return it.
     #[tracing::instrument(skip(self), fields(call_frames = self.call_frames.len(), stack_bottom = self.stack.stack_bottom(), stack = self.stack.len(), self.ip))]
-    pub(crate) fn pop_call_frame(&mut self) -> Result<(bool, Output), VmErrorKind> {
+    pub(crate) fn pop_call_frame(&mut self) -> Result<(bool, Option<Output>), VmErrorKind> {
         tracing::trace!("popping call frame");
 
         let Some(frame) = self.call_frames.pop() else {
             self.stack.pop_stack_top(0)?;
-            self.stack.push(())?;
-            return Ok((true, Output::keep(0)));
+            return Ok((true, None));
         };
 
         tracing::trace!(?frame);
         self.stack.pop_stack_top(frame.stack_bottom)?;
         self.ip = frame.ip;
-        Ok((frame.isolated, frame.out))
+        Ok((frame.isolated, Some(frame.out)))
     }
 
     /// Implementation of getting a string index on an object-like type.
@@ -2199,7 +2198,16 @@ impl Vm {
     #[tracing::instrument(skip(self))]
     fn op_return_internal(&mut self, return_value: Value) -> VmResult<Option<Output>> {
         let (exit, out) = vm_try!(self.pop_call_frame());
-        vm_try!(out.store(&mut self.stack, return_value));
+
+        let out = if let Some(out) = out {
+            vm_try!(out.store(&mut self.stack, return_value));
+            out
+        } else {
+            let addr = self.stack.addr();
+            vm_try!(self.stack.push(return_value));
+            addr.output()
+        };
+
         VmResult::Ok(exit.then_some(out))
     }
 
@@ -2268,10 +2276,19 @@ impl Vm {
 
     #[cfg_attr(feature = "bench", inline(never))]
     #[tracing::instrument(skip(self))]
-    fn op_return_unit(&mut self) -> VmResult<bool> {
+    fn op_return_unit(&mut self) -> VmResult<Option<Output>> {
         let (exit, out) = vm_try!(self.pop_call_frame());
-        vm_try!(out.store(&mut self.stack, ()));
-        VmResult::Ok(exit)
+
+        let out = if let Some(out) = out {
+            vm_try!(out.store(&mut self.stack, ()));
+            out
+        } else {
+            let addr = self.stack.addr();
+            vm_try!(self.stack.push(()));
+            addr.output()
+        };
+
+        VmResult::Ok(exit.then_some(out))
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
@@ -3338,8 +3355,8 @@ impl Vm {
                     }
                 }
                 Inst::ReturnUnit => {
-                    if vm_try!(self.op_return_unit()) {
-                        return VmResult::Ok(VmHalt::Exited(None));
+                    if let Some(out) = vm_try!(self.op_return_unit()) {
+                        return VmResult::Ok(VmHalt::Exited(out.as_addr()));
                     }
                 }
                 Inst::Await { addr, out } => {
