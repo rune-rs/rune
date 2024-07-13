@@ -1664,8 +1664,7 @@ impl Vm {
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_drop(&mut self, addr: InstAddress) -> VmResult<()> {
-        let value = vm_try!(self.stack.at(addr)).clone();
-        vm_try!(value.drop());
+        *vm_try!(self.stack.at_mut(addr)) = vm_try!(Value::empty());
         VmResult::Ok(())
     }
 

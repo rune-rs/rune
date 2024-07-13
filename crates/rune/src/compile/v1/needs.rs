@@ -1,7 +1,7 @@
 use core::fmt;
 
 use crate::ast::Spanned;
-use crate::compile;
+use crate::compile::{self, Assembly};
 use crate::runtime::{Inst, InstAddress, Output};
 
 use super::{Ctxt, ScopeId, Scopes};
@@ -296,9 +296,9 @@ impl<'hir> Needs<'hir> {
     }
 
     /// Free the current needs.
-    pub(super) fn free(self, scopes: &mut Scopes<'hir>) -> compile::Result<()> {
+    pub(super) fn free(self, asm: &mut Assembly, scopes: &mut Scopes<'hir>) -> compile::Result<()> {
         if let NeedsKind::Address(addr) = self.kind {
-            scopes.free(addr)?;
+            scopes.free(asm, addr)?;
         }
 
         Ok(())
