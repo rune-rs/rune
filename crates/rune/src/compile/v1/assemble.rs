@@ -390,7 +390,7 @@ fn return_<'hir, T>(
     hir: T,
     asm: impl FnOnce(&mut Ctxt<'_, 'hir, '_>, T, &mut dyn NeedsLike<'hir>) -> compile::Result<Asm<'hir>>,
 ) -> compile::Result<()> {
-    let mut needs = Needs::alloc(cx, span)?;
+    let mut needs = Needs::alloc(cx, span);
     asm(cx, hir, &mut needs)?;
 
     if let Some(addr) = needs.as_addr() {
@@ -564,7 +564,7 @@ fn pat<'hir>(
         }
         hir::PatKind::Path(kind) => match *kind {
             hir::PatPathKind::Kind(kind) => {
-                let mut needs = Needs::alloc(cx, hir)?;
+                let mut needs = Needs::alloc(cx, hir);
                 load(cx, &mut needs)?;
 
                 let Some(addr) = needs.as_addr() else {
@@ -604,7 +604,7 @@ fn pat_lit<'hir>(
     false_label: &Label,
     load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, &mut dyn NeedsLike<'hir>) -> compile::Result<()>,
 ) -> compile::Result<bool> {
-    let mut needs = Needs::alloc(cx, hir)?;
+    let mut needs = Needs::alloc(cx, hir);
     load(cx, &mut needs)?;
 
     let Some(addr) = needs.as_addr() else {
@@ -718,7 +718,7 @@ fn pat_sequence<'hir>(
     load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, &mut dyn NeedsLike<'hir>) -> compile::Result<()>,
     bindings: &mut BTreeMap<hir::Name<'hir>, &mut dyn NeedsLike<'hir>>,
 ) -> compile::Result<bool> {
-    let mut needs = Needs::alloc(cx, span)?;
+    let mut needs = Needs::alloc(cx, span);
 
     load(cx, &mut needs)?;
 
@@ -815,7 +815,7 @@ fn pat_object<'hir>(
     load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, &mut dyn NeedsLike<'hir>) -> compile::Result<()>,
     bindings: &mut BTreeMap<hir::Name<'hir>, &mut dyn NeedsLike<'hir>>,
 ) -> compile::Result<bool> {
-    let mut needs = Needs::alloc(cx, span)?;
+    let mut needs = Needs::alloc(cx, span);
     load(cx, &mut needs)?;
 
     let Some(addr) = needs.as_addr() else {
@@ -1295,8 +1295,8 @@ fn expr_assign<'hir>(
                 hir::ExprField::Ident(ident) => {
                     let slot = cx.q.unit.new_static_string(span, ident)?;
 
-                    let mut target = Needs::alloc(cx, &field_access.expr)?;
-                    let mut value = Needs::alloc(cx, &hir.rhs)?;
+                    let mut target = Needs::alloc(cx, &field_access.expr);
+                    let mut value = Needs::alloc(cx, &hir.rhs);
 
                     if let Some([target, value]) = expr_array(
                         cx,
@@ -1767,7 +1767,7 @@ fn expr_call<'hir>(
             cx.scopes.free_linear(&mut cx.asm, linear)?;
         }
         hir::Call::Expr { expr: e } => {
-            let mut function = Needs::alloc(cx, span)?;
+            let mut function = Needs::alloc(cx, span);
             expr(cx, e, &mut function)?;
 
             if let Some(function) = function.as_addr() {
@@ -1853,7 +1853,7 @@ fn exprs_2<'hir>(
             linear = Linear::empty(InstAddress::INVALID);
         }
         ([e], []) | ([], [e]) => {
-            let mut needs = Needs::alloc(cx, e)?;
+            let mut needs = Needs::alloc(cx, e);
 
             if expr(cx, e, &mut needs)?.diverge {
                 return Ok(None);
@@ -1981,7 +1981,7 @@ fn expr_field_access<'hir>(
         return Ok(Asm::new(span));
     }
 
-    let mut addr = Needs::alloc(cx, span)?;
+    let mut addr = Needs::alloc(cx, span);
     expr(cx, &hir.expr, &mut addr)?;
 
     if let Some(addr) = addr.as_addr() {
@@ -2028,7 +2028,7 @@ fn expr_for<'hir>(
     let break_label = cx.asm.new_label("for_break");
 
     let loop_scope = cx.scopes.child(span)?;
-    let mut iter = Needs::alloc(cx, span)?;
+    let mut iter = Needs::alloc(cx, span);
 
     expr(cx, &hir.iter, &mut iter)?;
 

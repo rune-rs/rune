@@ -155,16 +155,13 @@ impl<'hir> Needs<'hir> {
     }
 
     /// Allocate on demand.
-    pub(super) fn alloc(
-        cx: &mut Ctxt<'_, 'hir, '_>,
-        span: &'hir dyn Spanned,
-    ) -> compile::Result<Self> {
-        Ok(Self {
+    pub(super) fn alloc(cx: &mut Ctxt<'_, 'hir, '_>, span: &'hir dyn Spanned) -> Self {
+        Self {
             span,
             kind: NeedsKind::Alloc {
                 scope: cx.scopes.top_id(),
             },
-        })
+        }
     }
 
     /// A provided address.
