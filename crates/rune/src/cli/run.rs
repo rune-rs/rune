@@ -303,7 +303,7 @@ pub(super) async fn run(
 
         vm.with(|| {
             for (n, value) in values.iter().enumerate() {
-                write!(io.stdout, "    {}+{n} = {value:?}", stack.stack_bottom())?;
+                writeln!(io.stdout, "    {}+{n} = {value:?}", stack.stack_bottom())?;
             }
 
             Ok::<_, crate::support::Error>(())

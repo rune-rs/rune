@@ -14,3 +14,18 @@ fn while_loop() {
         }
     };
 }
+
+#[test]
+fn for_loop() {
+    let _: () = rune! {
+        pub fn main() {
+            let n = 0;
+
+            for i in 0..10 {
+                n += i;
+            }
+
+            assert_eq!(n, 45);
+        }
+    };
+}

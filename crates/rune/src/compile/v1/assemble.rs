@@ -1777,28 +1777,24 @@ fn expr_for<'hir>(
     let end_label = cx.asm.new_label("for_end");
     let break_label = cx.asm.new_label("for_break");
 
-    let (iter_offset, loop_scope_expected) = {
-        let loop_scope_expected = cx.scopes.child(span)?;
-        let mut iter_offset = cx.scopes.alloc(span)?;
+    let loop_scope = cx.scopes.child(span)?;
+    let mut iter = Needs::alloc(cx, span)?;
 
-        expr(cx, &hir.iter, &mut iter_offset)?;
+    expr(cx, &hir.iter, &mut iter)?;
 
-        cx.asm.push_with_comment(
-            Inst::CallAssociated {
-                addr: iter_offset.addr()?,
-                hash: *Protocol::INTO_ITER,
-                args: 0,
-                out: iter_offset.output()?,
-            },
-            &hir.iter,
-            &"Protocol::INTO_ITER",
-        )?;
+    cx.asm.push_with_comment(
+        Inst::CallAssociated {
+            addr: iter.addr()?,
+            hash: *Protocol::INTO_ITER,
+            args: 1,
+            out: iter.output()?,
+        },
+        &hir.iter,
+        &"Protocol::INTO_ITER",
+    )?;
 
-        (iter_offset, loop_scope_expected)
-    };
-
-    // Declare named loop variable.
-    let binding_offset = cx.scopes.alloc(&hir.binding)?;
+    // Declare needed loop variables.
+    let binding = cx.scopes.alloc(&hir.binding)?;
 
     // Declare storage for memoized `next` instance fn.
     let next_offset = if cx.options.memoize_instance_fn {
@@ -1806,7 +1802,7 @@ fn expr_for<'hir>(
 
         cx.asm.push_with_comment(
             Inst::LoadInstanceFn {
-                addr: iter_offset.addr()?,
+                addr: iter.addr()?,
                 hash: *Protocol::NEXT,
                 out: offset.output()?,
             },
@@ -1826,27 +1822,27 @@ fn expr_for<'hir>(
         continue_label: continue_label.try_clone()?,
         break_label: break_label.try_clone()?,
         output: needs.alloc_output(&mut cx.scopes)?,
-        drop: Some(iter_offset.addr()?),
+        drop: Some(iter.addr()?),
     })?;
 
     // Use the memoized loop variable.
     if let Some(next_offset) = next_offset {
         cx.asm.push(
             Inst::CallFn {
-                function: iter_offset.addr()?,
-                addr: next_offset.addr()?,
+                function: next_offset.addr()?,
+                addr: iter.addr()?,
                 args: 1,
-                out: binding_offset.output()?,
+                out: binding.output()?,
             },
             span,
         )?;
     } else {
         cx.asm.push_with_comment(
             Inst::CallAssociated {
-                addr: iter_offset.addr()?,
+                addr: iter.addr()?,
                 hash: *Protocol::NEXT,
-                args: 0,
-                out: binding_offset.output()?,
+                args: 1,
+                out: binding.output()?,
             },
             span,
             &"Protocol::NEXT",
@@ -1854,16 +1850,30 @@ fn expr_for<'hir>(
     }
 
     // Test loop condition and unwrap the option, or jump to `end_label` if the current value is `None`.
-    cx.asm.iter_next(
-        binding_offset.addr()?,
-        &end_label,
-        &hir.binding,
-        binding_offset.output()?,
-    )?;
+    cx.asm
+        .iter_next(binding.addr()?, &end_label, &hir.binding, binding.output()?)?;
 
     let guard = cx.scopes.child(&hir.body)?;
+    let mut bindings = cx.scopes.linear(&hir.binding, hir.binding.names.len())?;
 
-    pat_binding_with_addr(cx, &hir.binding, binding_offset.addr()?)?;
+    pattern_panic(cx, &hir.binding, move |cx, false_label| {
+        let addr = binding.addr()?;
+
+        let load = move |cx: &mut Ctxt<'_, 'hir, '_>, needs: &mut Needs<'_>| {
+            needs.assign_addr(cx, addr)?;
+            Ok(())
+        };
+
+        pat_binding_with(
+            cx,
+            &hir.binding,
+            &hir.binding.pat,
+            hir.binding.names,
+            false_label,
+            &load,
+            &mut bindings,
+        )
+    })?;
 
     block(cx, &hir.body, &mut Needs::none(span))?;
     cx.scopes.pop(span, guard)?;
@@ -1872,20 +1882,14 @@ fn expr_for<'hir>(
     cx.asm.label(&end_label)?;
 
     // Drop the iterator.
-    cx.asm.push(
-        Inst::Drop {
-            addr: iter_offset.addr()?,
-        },
-        span,
-    )?;
+    cx.asm.push(Inst::Drop { addr: iter.addr()? }, span)?;
 
-    cx.scopes.pop(span, loop_scope_expected)?;
+    cx.scopes.pop(span, loop_scope)?;
 
     if let Some(out) = needs.try_alloc_addr(&mut cx.scopes)? {
         cx.asm.push(Inst::unit(out.output()), span)?;
     }
 
-    // NB: breaks produce their own value.
     cx.asm.label(&break_label)?;
     cx.loops.pop();
     Ok(Asm::new(span))
@@ -2310,8 +2314,8 @@ fn expr_range<'hir>(
         )?;
     }
 
-    cx.scopes.pop(span, guard)?;
     cx.scopes.free_linear(linear)?;
+    cx.scopes.pop(span, guard)?;
     Ok(Asm::new(span))
 }
 

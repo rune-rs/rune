@@ -314,14 +314,16 @@ impl<'hir> Scopes<'hir> {
         let Some(scope) = self.scopes.last_mut() else {
             return Err(compile::Error::msg(
                 span,
-                format!("Missing scope when freeing address {addr:?}"),
+                format!("Freed address {addr} does not have an implicit scope"),
             ));
         };
+
+        tracing::trace!(?scope);
 
         if !scope.locals.remove(&addr.offset()) {
             return Err(compile::Error::msg(
                 span,
-                format!("Address {addr} is not defined in scope {}", scope.id),
+                format!("Freed address {addr} is not defined in scope {}", scope.id),
             ));
         }
 
@@ -329,18 +331,17 @@ impl<'hir> Scopes<'hir> {
             return Err(compile::Error::msg(
                 span,
                 format!(
-                    "Address {addr} is not globally allocated in scope {}",
+                    "Freed adddress {addr} does not have a global slot in scope {}",
                     scope.id
                 ),
             ));
         }
 
-        tracing::trace!(?scope);
         Ok(())
     }
 
     /// Free a bunch of linear variables.
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(skip(self, linear), fields(linear.base, len = linear.len()))]
     pub(crate) fn free_linear(&mut self, linear: Linear<'_>) -> compile::Result<()> {
         for needs in linear.addresses.into_iter().rev() {
             self.free(needs)?;
@@ -350,27 +351,28 @@ impl<'hir> Scopes<'hir> {
     }
 
     #[tracing::instrument(skip(self, span))]
-    pub(crate) fn pop(
-        &mut self,
-        span: &dyn Spanned,
-        scope: ScopeId,
-    ) -> compile::Result<Scope<'hir>> {
-        let Some(mut s) = self.scopes.pop() else {
+    pub(crate) fn pop(&mut self, span: &dyn Spanned, id: ScopeId) -> compile::Result<Scope<'hir>> {
+        let Some(mut scope) = self.scopes.pop() else {
             return Err(compile::Error::msg(
                 span,
-                format!("Missing scope while expected {scope}"),
+                format!("Missing scope while expected {id}"),
             ));
         };
 
-        if s.id != scope {
+        if scope.id != id {
             return Err(compile::Error::msg(
                 span,
-                try_format!("Scope id mismatch, {} (actual) != {scope} (expected)", s.id),
+                try_format!(
+                    "Scope id mismatch, {} (actual) != {id} (expected)",
+                    scope.id
+                ),
             ));
         }
 
+        tracing::trace!(?scope, "freeing locals");
+
         // Free any locally defined variables associated with the scope.
-        for address in &s.locals {
+        for address in &scope.locals {
             if !self.slots.remove(*address) {
                 return Err(compile::Error::msg(
                     span,
@@ -379,9 +381,8 @@ impl<'hir> Scopes<'hir> {
             }
         }
 
-        tracing::trace!(?s);
-        s.locals.clear();
-        Ok(s)
+        scope.locals.clear();
+        Ok(scope)
     }
 
     /// Pop the last of the scope.

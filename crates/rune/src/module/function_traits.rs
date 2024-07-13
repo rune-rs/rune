@@ -77,7 +77,7 @@ pub trait Function<A, K>: 'static + Send + Sync {
         stack: &mut Stack,
         addr: InstAddress,
         args: usize,
-        output: Output,
+        out: Output,
     ) -> VmResult<()>;
 }
 
@@ -104,7 +104,7 @@ pub trait InstanceFunction<A, K>: 'static + Send + Sync {
         stack: &mut Stack,
         addr: InstAddress,
         args: usize,
-        output: Output,
+        out: Output,
     ) -> VmResult<()>;
 }
 
@@ -123,8 +123,9 @@ macro_rules! impl_instance_function_traits {
                 <T as Function<(Instance, $($ty,)*), Kind>>::args()
             }
 
-            fn fn_call(&self, stack: &mut Stack, addr: InstAddress, args: usize, output: Output) -> VmResult<()> {
-                Function::fn_call(self, stack, addr, args, output)
+            #[inline]
+            fn fn_call(&self, stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
+                Function::fn_call(self, stack, addr, args, out)
             }
         }
     };
@@ -259,7 +260,8 @@ macro_rules! impl_function_traits {
                 let ret = self($($var.0),*);
                 $(drop($var.1);)*
 
-                vm_try!(out.store(stack, || ToValue::to_value(ret)));
+                let value = vm_try!(ToValue::to_value(ret));
+                vm_try!(out.store(stack, value));
                 VmResult::Ok(())
             }
         }
@@ -293,7 +295,8 @@ macro_rules! impl_function_traits {
                     VmResult::Ok(vm_try!(output.to_value()))
                 }));
 
-                vm_try!(out.store(stack, || VmResult::Ok(vm_try!(Value::try_from(ret)))));
+                let value = vm_try!(Value::try_from(ret));
+                vm_try!(out.store(stack, value));
                 VmResult::Ok(())
             }
         }
