@@ -159,13 +159,11 @@ impl<'hir> Needs<'hir> {
         cx: &mut Ctxt<'_, 'hir, '_>,
         span: &'hir dyn Spanned,
     ) -> compile::Result<Self> {
-        let Some(scope) = cx.scopes.top_id() else {
-            return Err(compile::Error::msg(span, "Expected top scope"));
-        };
-
         Ok(Self {
             span,
-            kind: NeedsKind::Alloc { scope },
+            kind: NeedsKind::Alloc {
+                scope: cx.scopes.top_id(),
+            },
         })
     }
 

@@ -5,7 +5,6 @@ use crate::alloc::prelude::*;
 use crate::alloc::BTreeMap;
 use crate::ast::{self, Span, Spanned};
 use crate::compile::ir;
-use crate::compile::v1::{Loop, Loops, Scope, Scopes};
 use crate::compile::{self, Assembly, ErrorKind, ItemId, ModId, Options, WithSpan};
 use crate::hir;
 use crate::query::{ConstFn, Query, Used};
@@ -15,7 +14,7 @@ use crate::runtime::{
 };
 use crate::{Hash, SourceId};
 
-use super::{Linear, Needs, NeedsAddress};
+use super::{Linear, Loop, Loops, Needs, NeedsAddress, ScopeId, Scopes};
 
 use rune_macros::instrument;
 
@@ -668,21 +667,21 @@ fn condition<'hir>(
     hir: &hir::Condition<'hir>,
     then_label: &Label,
     linear: &mut [NeedsAddress<'hir>],
-) -> compile::Result<Scope<'hir>> {
+) -> compile::Result<ScopeId> {
     match *hir {
         hir::Condition::Expr(hir) => {
-            let guard = cx.scopes.child(hir)?;
+            let scope = cx.scopes.child(hir)?;
             let mut addr = cx.scopes.alloc(hir)?;
             expr(cx, hir, &mut addr)?;
             cx.asm.jump_if(addr.addr(), then_label, hir)?;
-            Ok(cx.scopes.pop(hir, None, guard)?)
+            Ok(scope)
         }
         hir::Condition::ExprLet(hir) => {
             let span = hir;
 
             let false_label = cx.asm.new_label("if_condition_false");
 
-            let expected = cx.scopes.child(span)?;
+            let scope = cx.scopes.child(span)?;
 
             let load = |cx: &mut Ctxt<'_, 'hir, '_>, needs: &mut dyn NeedsLike<'hir>| {
                 expr(cx, &hir.expr, needs)?;
@@ -704,7 +703,7 @@ fn condition<'hir>(
                 cx.asm.jump(then_label, span)?;
             };
 
-            Ok(cx.scopes.pop(span, None, expected)?)
+            Ok(scope)
         }
     }
 }
@@ -2181,6 +2180,7 @@ fn expr_if<'a, 'hir>(
     for branch in hir.branches {
         let label = cx.asm.new_label("if_branch");
         let scope = condition(cx, branch.condition, &label, &mut linear)?;
+        cx.scopes.pop_id(branch, scope)?;
         branches.try_push((branch, label, scope))?;
     }
 
@@ -2198,7 +2198,7 @@ fn expr_if<'a, 'hir>(
     while let Some((branch, label, scope)) = it.next() {
         cx.asm.label(&label)?;
 
-        let scopes = cx.scopes.push(scope)?;
+        cx.scopes.push(scope);
 
         if hir.fallback.is_none() {
             block(cx, &branch.block, &mut Needs::none(branch))?;
@@ -2210,7 +2210,7 @@ fn expr_if<'a, 'hir>(
             block(cx, &branch.block, needs)?;
         }
 
-        cx.scopes.pop(branch, Some(&mut cx.asm), scopes)?;
+        cx.scopes.pop(branch, Some(&mut cx.asm), scope)?;
 
         if it.peek().is_some() {
             cx.asm.jump(&end_label, branch)?;
@@ -2306,7 +2306,7 @@ fn expr_match<'hir>(
         let branch_label = cx.asm.new_label("match_branch");
         let match_false = cx.asm.new_label("match_false");
 
-        let parent_guard = cx.scopes.child(span)?;
+        let pattern_scope = cx.scopes.child(span)?;
 
         let load = |cx: &mut Ctxt<'_, 'hir, '_>, needs: &mut dyn NeedsLike<'hir>| {
             needs.assign_addr(cx, offset.addr())?;
@@ -2323,26 +2323,22 @@ fn expr_match<'hir>(
             &mut linear,
         )?;
 
-        let scope = if let Some(condition) = branch.condition {
+        if let Some(condition) = branch.condition {
             let span = condition;
             let mut cond = cx.scopes.alloc(condition)?;
 
             let guard = cx.scopes.child(span)?;
             expr(cx, condition, &mut cond)?;
             cx.scopes.pop(span, Some(&mut cx.asm), guard)?;
-
-            let scope = cx.scopes.pop(span, Some(&mut cx.asm), parent_guard)?;
             cx.asm.jump_if_not(cond.addr(), &match_false, span)?;
             cx.asm.jump(&branch_label, span)?;
-            scope
-        } else {
-            cx.scopes.pop(span, Some(&mut cx.asm), parent_guard)?
         };
 
         cx.asm.jump(&branch_label, span)?;
         cx.asm.label(&match_false)?;
 
-        branches.try_push((branch_label, scope))?;
+        cx.scopes.pop_id(span, pattern_scope)?;
+        branches.try_push((branch_label, pattern_scope))?;
     }
 
     if let Some(out) = needs.try_alloc_output(cx)? {
@@ -2358,9 +2354,9 @@ fn expr_match<'hir>(
 
         cx.asm.label(&label)?;
 
-        let expected = cx.scopes.push(scope)?;
+        cx.scopes.push(scope);
         expr(cx, &branch.body, needs)?;
-        cx.scopes.pop(span, Some(&mut cx.asm), expected)?;
+        cx.scopes.pop(span, Some(&mut cx.asm), scope)?;
 
         if it.peek().is_some() {
             cx.asm.jump(&end_label, span)?;
@@ -2877,20 +2873,19 @@ fn expr_loop<'hir>(
     let count = hir.condition.and_then(|c| c.count()).unwrap_or_default();
     let mut linear = cx.scopes.linear(span, count)?;
 
-    let expected = if let Some(hir) = hir.condition {
-        let then_scope = condition(cx, hir, &then_label, &mut linear)?;
-        let expected = cx.scopes.push(then_scope)?;
+    let condition_scope = if let Some(hir) = hir.condition {
+        let condition_scope = condition(cx, hir, &then_label, &mut linear)?;
         cx.asm.jump(&end_label, span)?;
         cx.asm.label(&then_label)?;
-        Some(expected)
+        Some(condition_scope)
     } else {
         None
     };
 
     block(cx, &hir.body, &mut Needs::none(span))?;
 
-    if let Some(expected) = expected {
-        cx.scopes.pop(span, Some(&mut cx.asm), expected)?;
+    if let Some(scope) = condition_scope {
+        cx.scopes.pop(span, Some(&mut cx.asm), scope)?;
     }
 
     cx.asm.jump(&continue_label, span)?;

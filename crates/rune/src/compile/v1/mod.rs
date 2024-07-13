@@ -5,11 +5,14 @@ mod loops;
 pub(crate) use self::loops::{Loop, Loops};
 
 mod scopes;
-use self::scopes::Linear;
-pub(crate) use self::scopes::{Scope, ScopeId, Scopes};
+pub(crate) use self::scopes::Scopes;
+use self::scopes::{Linear, ScopeId};
 
 mod slots;
 use self::slots::Slots;
 
 mod needs;
 use self::needs::{Needs, NeedsAddress, NeedsAddressKind};
+
+mod slab;
+use self::slab::Slab;
