@@ -1,143 +1,103 @@
 //! This is a specialized slab used to allocate slots of memory for the compiler.
 
-use core::mem::replace;
-use core::num::NonZeroUsize;
-
 use crate::alloc::{self, Vec};
 
-#[derive(Debug, Clone, Copy)]
-enum Entry {
-    Vacant(NonZeroUsize),
-    Occupied,
-}
-
+#[derive(Debug)]
 pub(super) struct Slab {
-    entries: Vec<Entry>,
-    len: usize,
-    next: usize,
+    storage: Vec<u128>,
+    head: usize,
 }
 
 impl Slab {
+    /// Construct a new empty slab.
     pub(super) const fn new() -> Self {
         Self {
-            entries: Vec::new(),
-            len: 0,
-            next: 0,
+            storage: Vec::new(),
+            head: 0,
         }
     }
 
+    /// Allocate the first free variable.
     #[tracing::instrument(ret(level = tracing::Level::TRACE), skip(self))]
     pub(super) fn insert(&mut self) -> alloc::Result<usize> {
-        let key = self.next;
-        let ok = self.insert_at(key)?;
-        debug_assert!(ok, "inserting {key} failed");
+        let mut key = (u128::BITS as usize) * self.head;
+
+        for bits in self
+            .storage
+            .get_mut(self.head..)
+            .unwrap_or_default()
+            .iter_mut()
+        {
+            if *bits == u128::MAX {
+                key += u128::BITS as usize;
+                self.head += 1;
+                continue;
+            }
+
+            let o = bits.trailing_ones();
+            key += o as usize;
+            *bits |= 1 << o;
+            return Ok(key);
+        }
+
+        self.head = self.storage.len();
+        self.storage.try_push(1)?;
         Ok(key)
     }
 
     #[tracing::instrument(ret(level = tracing::Level::TRACE), skip(self))]
     pub(super) fn push(&mut self) -> alloc::Result<usize> {
-        let key = self.entries.len();
-        self.entries.try_push(Entry::Occupied)?;
+        let mut last = None;
 
-        if key == self.next {
-            self.next += 1;
-        }
+        let key = 'key: {
+            for (n, bits) in self.storage.iter_mut().enumerate().rev() {
+                let o = bits.leading_zeros();
 
-        self.len += 1;
+                // Whole segment is free, skip over it.
+                if o == u128::BITS {
+                    last = Some(bits);
+                    continue;
+                }
+
+                let key = (u128::BITS as usize) * n;
+
+                // There is no space in this segment, so use the one we found
+                // previously.
+                if o == 0 {
+                    let Some(last) = last else {
+                        break 'key key + u128::BITS as usize;
+                    };
+
+                    *last = 1;
+                    return Ok(key + u128::BITS as usize);
+                }
+
+                let o = u128::BITS - o;
+                *bits |= 1 << o;
+                return Ok(key + o as usize);
+            }
+
+            0
+        };
+
+        self.storage.try_push(1)?;
         Ok(key)
     }
 
-    #[cfg(test)]
-    fn len(&self) -> usize {
-        self.len
-    }
-
     #[tracing::instrument(ret(level = tracing::Level::TRACE), skip(self))]
-    pub(super) fn remove(&mut self, index: usize) -> bool {
-        // Remove tail entries so that pushing new entries always results in the
-        // most compact linear slab possible.
-        //
-        // Note that the length is already correct.
-        if index + 1 == self.entries.len() {
-            return self.pop().is_some();
-        }
+    pub(super) fn remove(&mut self, key: usize) -> bool {
+        let index = key / (u128::BITS as usize);
 
-        let Some(entry) = self.entries.get_mut(index) else {
+        let Some(bits) = self.storage.get_mut(index) else {
             return false;
         };
 
-        let Some(next) = to_index(self.next) else {
-            return false;
-        };
-
-        let prev = replace(entry, Entry::Vacant(next));
-
-        match prev {
-            Entry::Occupied => {
-                self.len -= 1;
-                self.next = index;
-                true
-            }
-            _ => {
-                *entry = prev;
-                false
-            }
-        }
+        self.head = index;
+        let o = key % (u128::BITS as usize);
+        let existed = *bits & (1 << o) != 0;
+        *bits &= !(1 << o);
+        existed
     }
-
-    /// Pop the last element in the slab.
-    #[tracing::instrument(ret(level = tracing::Level::TRACE), skip(self))]
-    pub(crate) fn pop(&mut self) -> Option<usize> {
-        match self.entries.pop()? {
-            Entry::Occupied => {
-                self.len -= 1;
-            }
-            Entry::Vacant(last) => {
-                debug_assert!(false, "This should not be possible");
-                self.next = from_index(last);
-            }
-        }
-
-        let index = self.entries.len();
-
-        while let Some(Entry::Vacant(last)) = self.entries.last() {
-            self.next = from_index(*last);
-            self.entries.pop();
-        }
-
-        self.next = self.next.min(self.entries.len());
-        Some(index)
-    }
-
-    /// Insert a value at the given location.
-    #[tracing::instrument(ret(level = tracing::Level::TRACE), skip(self))]
-    fn insert_at(&mut self, key: usize) -> alloc::Result<bool> {
-        self.len += 1;
-
-        if key == self.entries.len() {
-            self.entries.try_push(Entry::Occupied)?;
-            self.next = key + 1;
-        } else {
-            let Some(Entry::Vacant(next)) = self.entries.get(key) else {
-                return Ok(false);
-            };
-
-            self.next = from_index(*next).min(self.entries.len());
-            self.entries[key] = Entry::Occupied;
-        }
-
-        Ok(true)
-    }
-}
-
-#[inline]
-fn to_index(index: usize) -> Option<NonZeroUsize> {
-    NonZeroUsize::new(index ^ usize::MAX)
-}
-
-#[inline]
-fn from_index(index: NonZeroUsize) -> usize {
-    index.get() ^ usize::MAX
 }
 
 #[cfg(test)]
@@ -145,42 +105,72 @@ mod tests {
     use super::Slab;
 
     #[test]
+    fn insert() {
+        let mut slab = Slab::new();
+        assert_eq!(slab.insert(), Ok(0));
+        assert_eq!(slab.insert(), Ok(1));
+        assert_eq!(slab.insert(), Ok(2));
+        assert_eq!(slab.remove(1), true);
+        assert_eq!(slab.remove(1), false);
+        assert_eq!(slab.insert(), Ok(1));
+        assert_eq!(slab.insert(), Ok(3));
+        assert_eq!(slab.insert(), Ok(4));
+    }
+
+    #[test]
+    fn insert_boundary() {
+        let mut slab = Slab::new();
+
+        for n in 0..167 {
+            assert_eq!(slab.push(), Ok(n));
+        }
+
+        for n in 167..1024 {
+            assert_eq!(slab.insert(), Ok(n));
+        }
+
+        for n in 128..256 {
+            assert!(slab.remove(n));
+        }
+
+        assert_eq!(slab.push(), Ok(1024));
+        assert_eq!(slab.push(), Ok(1025));
+
+        for n in (128..256).chain(1026..2047) {
+            assert_eq!(slab.insert(), Ok(n));
+        }
+
+        for n in 2047..3000 {
+            assert_eq!(slab.push(), Ok(n));
+        }
+    }
+
+    #[test]
     fn push() {
         let mut slab = Slab::new();
         assert_eq!(slab.insert(), Ok(0));
         assert_eq!(slab.push(), Ok(1));
         assert_eq!(slab.push(), Ok(2));
-        assert_eq!(slab.len(), 3);
 
         assert_eq!(slab.remove(0), true);
-        assert_eq!(slab.len(), 2);
 
         assert_eq!(slab.remove(0), false);
-        assert_eq!(slab.len(), 2);
 
         assert_eq!(slab.insert(), Ok(0));
-        assert_eq!(slab.len(), 3);
 
         assert_eq!(slab.insert(), Ok(3));
-        assert_eq!(slab.len(), 4);
 
         assert_eq!(slab.remove(2), true);
-        assert_eq!(slab.len(), 3);
 
         assert_eq!(slab.remove(0), true);
-        assert_eq!(slab.len(), 2);
 
         assert_eq!(slab.insert(), Ok(0));
-        assert_eq!(slab.len(), 3);
 
         assert_eq!(slab.insert(), Ok(2));
-        assert_eq!(slab.len(), 4);
 
         assert_eq!(slab.insert(), Ok(4));
-        assert_eq!(slab.len(), 5);
 
         assert_eq!(slab.push(), Ok(5));
-        assert_eq!(slab.len(), 6);
     }
 
     #[test]
@@ -189,17 +179,13 @@ mod tests {
         assert_eq!(slab.insert(), Ok(0));
         assert_eq!(slab.insert(), Ok(1));
         assert_eq!(slab.insert(), Ok(2));
-        assert_eq!(slab.len(), 3);
 
         assert_eq!(slab.remove(1), true);
         assert_eq!(slab.remove(2), true);
         assert_eq!(slab.remove(2), false);
-        assert_eq!(slab.len(), 1);
 
         assert_eq!(slab.push(), Ok(1));
         assert_eq!(slab.push(), Ok(2));
-
-        assert_eq!(slab.len(), 3);
     }
 
     #[test]
@@ -209,24 +195,20 @@ mod tests {
         assert_eq!(slab.insert(), Ok(1));
         assert_eq!(slab.insert(), Ok(2));
         assert_eq!(slab.remove(1), true);
-        assert_eq!(slab.len(), 2);
 
         assert_eq!(slab.push(), Ok(3));
         assert_eq!(slab.push(), Ok(4));
         assert_eq!(slab.push(), Ok(5));
         assert_eq!(slab.insert(), Ok(1));
-        assert_eq!(slab.len(), 6);
 
         assert_eq!(slab.remove(2), true);
-        assert_eq!(slab.len(), 5);
 
-        assert_eq!(slab.pop(), Some(5));
-        assert_eq!(slab.pop(), Some(4));
-        assert_eq!(slab.pop(), Some(3));
-        assert_eq!(slab.pop(), Some(1));
-        assert_eq!(slab.pop(), Some(0));
-        assert_eq!(slab.pop(), None);
-        assert_eq!(slab.len(), 0);
+        assert_eq!(slab.remove(5), true);
+        assert_eq!(slab.remove(4), true);
+        assert_eq!(slab.remove(3), true);
+        assert_eq!(slab.remove(1), true);
+        assert_eq!(slab.remove(0), true);
+        assert_eq!(slab.remove(0), false);
     }
 
     #[test]
@@ -254,6 +236,5 @@ mod tests {
         assert_eq!(slab.remove(1), true);
 
         assert_eq!(slab.insert(), Ok(1));
-        assert_eq!(slab.insert_at(2), Ok(true));
     }
 }

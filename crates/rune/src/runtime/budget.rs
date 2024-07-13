@@ -87,15 +87,35 @@ pub fn with<T>(budget: usize, value: T) -> Budget<T> {
     Budget { budget, value }
 }
 
-/// Take a ticket from the budget, returning `true` if we were still within the
-/// budget before the ticket was taken, `false` otherwise.
+/// Acquire the current budget.
+///
+/// Use [`BudgetGuard::take`] to take permites from the returned budget.
 #[inline(never)]
-pub fn take() -> bool {
-    self::no_std::rune_budget_take()
+pub fn acquire() -> BudgetGuard {
+    BudgetGuard(self::no_std::rune_budget_replace(usize::MAX))
 }
 
+/// A locally acquired budget.
+///
+/// This guard is acquired by calling [`take`] and can be used to take permits.
 #[repr(transparent)]
-struct BudgetGuard(usize);
+pub struct BudgetGuard(usize);
+
+impl BudgetGuard {
+    /// Take a ticker from the budget.
+    pub fn take(&mut self) -> bool {
+        if self.0 == usize::MAX {
+            return true;
+        }
+
+        let Some(new) = self.0.checked_sub(1) else {
+            return false;
+        };
+
+        self.0 = new;
+        true
+    }
+}
 
 impl Drop for BudgetGuard {
     fn drop(&mut self) {

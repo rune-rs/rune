@@ -48,3 +48,23 @@ fn instance() {
         }
     };
 }
+
+#[test]
+fn generator() {
+    let _: () = rune! {
+        fn foo() {
+            yield 10;
+            yield 20;
+        }
+
+        pub fn main() {
+            let n = 0;
+
+            for v in foo() {
+                n += v;
+            }
+
+            assert_eq!(n, 30);
+        }
+    };
+}

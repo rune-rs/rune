@@ -3227,8 +3227,10 @@ impl Vm {
             diagnostics,
         );
 
+        let mut budget = budget::acquire();
+
         loop {
-            if !budget::take() {
+            if !budget.take() {
                 return VmResult::Ok(VmHalt::Limited);
             }
 
