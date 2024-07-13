@@ -47,7 +47,8 @@ impl Slab {
         Ok(key)
     }
 
-    pub(super) fn len(&self) -> usize {
+    #[cfg(test)]
+    fn len(&self) -> usize {
         self.len
     }
 

@@ -135,12 +135,12 @@ impl<'hir> NeedsLike<'hir> for NeedsAddress<'hir> {
 
     #[inline]
     fn alloc_output(&mut self, _: &mut Scopes<'hir>) -> compile::Result<Output> {
-        Ok(NeedsAddress::output(self))
+        NeedsAddress::alloc_output(self)
     }
 
     #[inline]
     fn try_alloc_addr(&mut self, _: &mut Scopes<'hir>) -> compile::Result<Option<InstAddress>> {
-        Ok(Some(NeedsAddress::addr(self)))
+        Ok(Some(NeedsAddress::alloc_addr(self)?))
     }
 
     #[inline]
@@ -1688,7 +1688,10 @@ fn expr_call<'hir>(
     match hir.call {
         hir::Call::Var { name, .. } => {
             let var = cx.scopes.get(&mut cx.q, span, name)?;
-            let linear = exprs(cx, span, hir.args)?;
+
+            let Some(linear) = exprs(cx, span, hir.args)? else {
+                return Ok(Asm::new(span));
+            };
 
             cx.asm.push(
                 Inst::CallFn {
@@ -1703,7 +1706,9 @@ fn expr_call<'hir>(
             cx.scopes.free_linear(linear)?;
         }
         hir::Call::Associated { target, hash } => {
-            let linear = exprs_2(cx, span, slice::from_ref(target), hir.args)?;
+            let Some(linear) = exprs_2(cx, span, slice::from_ref(target), hir.args)? else {
+                return Ok(Asm::new(span));
+            };
 
             cx.asm.push(
                 Inst::CallAssociated {
@@ -1718,7 +1723,9 @@ fn expr_call<'hir>(
             cx.scopes.free_linear(linear)?;
         }
         hir::Call::Meta { hash } => {
-            let linear = exprs(cx, span, hir.args)?;
+            let Some(linear) = exprs(cx, span, hir.args)? else {
+                return Ok(Asm::new(span));
+            };
 
             cx.asm.push(
                 Inst::Call {
@@ -1737,19 +1744,19 @@ fn expr_call<'hir>(
             expr(cx, e, &mut function)?;
 
             if let Some(function) = function.as_addr() {
-                let linear = exprs(cx, span, hir.args)?;
+                if let Some(linear) = exprs(cx, span, hir.args)? {
+                    cx.asm.push(
+                        Inst::CallFn {
+                            function: function.addr(),
+                            addr: linear.addr(),
+                            args: hir.args.len(),
+                            out: needs.alloc_output(&mut cx.scopes)?,
+                        },
+                        span,
+                    )?;
 
-                cx.asm.push(
-                    Inst::CallFn {
-                        function: function.addr(),
-                        addr: linear.addr(),
-                        args: hir.args.len(),
-                        out: needs.alloc_output(&mut cx.scopes)?,
-                    },
-                    span,
-                )?;
-
-                cx.scopes.free_linear(linear)?;
+                    cx.scopes.free_linear(linear)?;
+                }
             }
 
             function.free(&mut cx.scopes)?;
@@ -1795,7 +1802,7 @@ fn exprs<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     span: &'hir dyn Spanned,
     args: &'hir [hir::Expr<'hir>],
-) -> compile::Result<Linear<'hir>> {
+) -> compile::Result<Option<Linear<'hir>>> {
     exprs_2(cx, span, args, &[])
 }
 
@@ -1806,17 +1813,22 @@ fn exprs_2<'hir>(
     span: &'hir dyn Spanned,
     a: &'hir [hir::Expr<'hir>],
     b: &'hir [hir::Expr<'hir>],
-) -> compile::Result<Linear<'hir>> {
+) -> compile::Result<Option<Linear<'hir>>> {
     let mut linear;
 
     match (a, b) {
         ([], []) => {
-            linear = Linear::empty(InstAddress::ZERO);
+            linear = Linear::empty(InstAddress::INVALID);
         }
         ([e], []) | ([], [e]) => {
             let mut needs = Needs::alloc(cx, e)?;
             expr(cx, e, &mut needs)?;
-            linear = Linear::empty(needs.addr()?);
+
+            let Some(addr) = needs.as_addr() else {
+                return Ok(None);
+            };
+
+            linear = Linear::empty(addr.addr());
         }
         _ => {
             let len = a.len() + b.len();
@@ -1824,11 +1836,17 @@ fn exprs_2<'hir>(
 
             for (e, needs) in a.iter().chain(b.iter()).zip(&mut linear) {
                 expr(cx, e, needs)?;
+
+                // No need to continue assembling if the expressions do not
+                // evaluate to a value.
+                if needs.as_addr().is_none() {
+                    return Ok(None);
+                };
             }
         }
     }
 
-    Ok(linear)
+    Ok(Some(linear))
 }
 
 /// Assemble a closure expression.
@@ -2568,60 +2586,61 @@ fn expr_select<'hir>(
         default_branch = Some((def, label));
     }
 
-    let linear = exprs(cx, span, hir.exprs)?;
-    let branch_addr = cx.scopes.alloc(span)?;
-    let mut value_addr = cx.scopes.alloc(span)?;
+    if let Some(linear) = exprs(cx, span, hir.exprs)? {
+        let branch_addr = cx.scopes.alloc(span)?;
+        let mut value_addr = cx.scopes.alloc(span)?;
 
-    let select_label = cx.asm.new_label("select");
+        let select_label = cx.asm.new_label("select");
 
-    cx.asm.label(&select_label)?;
+        cx.asm.label(&select_label)?;
 
-    cx.asm.push(
-        Inst::Select {
-            addr: linear.addr(),
-            len: hir.exprs.len(),
-            branch: branch_addr.output(),
-            value: value_addr.output(),
-        },
-        span,
-    )?;
+        cx.asm.push(
+            Inst::Select {
+                addr: linear.addr(),
+                len: hir.exprs.len(),
+                branch: branch_addr.output(),
+                value: value_addr.output(),
+            },
+            span,
+        )?;
 
-    for (branch, (label, _)) in branches.iter().enumerate() {
-        cx.asm
-            .jump_if_branch(branch_addr.addr(), branch as i64, label, span)?;
-    }
+        for (branch, (label, _)) in branches.iter().enumerate() {
+            cx.asm
+                .jump_if_branch(branch_addr.addr(), branch as i64, label, span)?;
+        }
 
-    cx.scopes.free(branch_addr)?;
+        cx.scopes.free(branch_addr)?;
 
-    if let Some((_, label)) = &default_branch {
-        cx.asm.jump(label, span)?;
-    }
+        if let Some((_, label)) = &default_branch {
+            cx.asm.jump(label, span)?;
+        }
 
-    cx.asm.jump(&end_label, span)?;
-
-    for (label, branch) in &branches {
-        cx.asm.label(&label)?;
-
-        let scope = cx.scopes.child(&branch.body)?;
-
-        fn_arg_pat(cx, &branch.pat, &mut value_addr, &select_label)?;
-
-        // Set up a new scope with the binding.
-        expr(cx, &branch.body, needs)?;
-
-        cx.scopes.pop(&branch.body, scope)?;
         cx.asm.jump(&end_label, span)?;
+
+        for (label, branch) in &branches {
+            cx.asm.label(&label)?;
+
+            let scope = cx.scopes.child(&branch.body)?;
+
+            fn_arg_pat(cx, &branch.pat, &mut value_addr, &select_label)?;
+
+            // Set up a new scope with the binding.
+            expr(cx, &branch.body, needs)?;
+
+            cx.scopes.pop(&branch.body, scope)?;
+            cx.asm.jump(&end_label, span)?;
+        }
+
+        cx.scopes.free_linear(linear)?;
+        cx.scopes.free(value_addr)?;
+
+        if let Some((branch, label)) = default_branch {
+            cx.asm.label(&label)?;
+            expr(cx, branch, needs)?;
+        }
+
+        cx.asm.label(&end_label)?;
     }
-
-    cx.scopes.free_linear(linear)?;
-    cx.scopes.free(value_addr)?;
-
-    if let Some((branch, label)) = default_branch {
-        cx.asm.label(&label)?;
-        expr(cx, branch, needs)?;
-    }
-
-    cx.asm.label(&end_label)?;
 
     cx.contexts
         .pop()

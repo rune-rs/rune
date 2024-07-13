@@ -210,7 +210,7 @@ impl<'hir> Scopes<'hir> {
         let offset = self.slots.insert()?;
 
         scope.locals.try_insert(offset).with_span(span)?;
-        self.size = self.size.max(self.slots.len());
+        self.size = self.size.max(offset + 1);
         let addr = InstAddress::new(offset);
         tracing::trace!(?scope, ?addr, self.size);
         Ok(NeedsAddress::with_local(span, addr))
@@ -242,14 +242,14 @@ impl<'hir> Scopes<'hir> {
         let offset = self.slots.insert()?;
 
         s.locals.try_insert(offset).with_span(span)?;
-        self.size = self.size.max(self.slots.len());
+        self.size = self.size.max(offset + 1);
         let addr = InstAddress::new(offset);
         tracing::trace!(?s, ?addr, self.size);
         Ok(addr)
     }
 
     /// Perform a linear allocation.
-    #[tracing::instrument(skip(self, span))]
+    #[tracing::instrument(ret, skip(self, span))]
     pub(crate) fn linear<'a>(
         &mut self,
         span: &'a dyn Spanned,
@@ -259,11 +259,9 @@ impl<'hir> Scopes<'hir> {
             return Err(compile::Error::msg(span, "Missing head scope"));
         };
 
-        let base = InstAddress::new(self.slots.len());
-
         if n == 0 {
             return Ok(Linear {
-                base: InstAddress::new(self.slots.len()),
+                base: InstAddress::INVALID,
                 addresses: Vec::new(),
             });
         }
@@ -271,27 +269,33 @@ impl<'hir> Scopes<'hir> {
         let mut addresses = Vec::try_with_capacity(n).with_span(span)?;
 
         for _ in 0..n {
-            let addr = self.slots.push().with_span(span)?;
-            let address = InstAddress::new(addr);
-            addresses.try_push(NeedsAddress::with_local(span, address))?;
-            scope.locals.try_insert(addr).with_span(span)?;
+            let offset = self.slots.push().with_span(span)?;
+            let address = InstAddress::new(offset);
+            addresses.try_push(NeedsAddress::with_reserved(span, address))?;
+            scope.locals.try_insert(offset).with_span(span)?;
+            self.size = self.size.max(offset + 1);
         }
 
-        self.size = self.size.max(self.slots.len());
-        tracing::trace!(?scope, ?base, ?addresses, self.size);
-        Ok(Linear { base, addresses })
+        let base = addresses
+            .first()
+            .map(|a| a.addr())
+            .unwrap_or(InstAddress::INVALID);
+
+        let linear = Linear { base, addresses };
+        tracing::trace!(?scope, ?linear, self.size);
+        Ok(linear)
     }
 
     /// Free an address if it's in the specified scope.
     #[tracing::instrument(skip(self))]
     pub(crate) fn free(&mut self, addr: NeedsAddress) -> compile::Result<()> {
         match &addr.kind {
-            NeedsAddressKind::Local => {
-                self.free_addr(addr.span, addr.addr)?;
+            NeedsAddressKind::Local | NeedsAddressKind::Reserved => {
+                self.free_addr(addr.span, addr.addr())?;
             }
             NeedsAddressKind::Scope(scope) => {
                 if self.top_id() == Some(*scope) {
-                    self.free_addr(addr.span, addr.addr)?;
+                    self.free_addr(addr.span, addr.addr())?;
                 }
             }
             _ => {}

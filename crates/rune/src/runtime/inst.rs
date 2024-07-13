@@ -1410,6 +1410,9 @@ impl InstAddress {
     /// The first possible address.
     pub(crate) const ZERO: InstAddress = InstAddress { offset: 0 };
 
+    /// An invalid address.
+    pub(crate) const INVALID: InstAddress = InstAddress { offset: usize::MAX };
+
     /// Construct a new instruction address.
     #[inline]
     pub(crate) const fn new(offset: usize) -> Self {
@@ -1432,14 +1435,18 @@ impl InstAddress {
 impl fmt::Display for InstAddress {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.offset.fmt(f)
+        if self.offset == usize::MAX {
+            write!(f, "invalid")
+        } else {
+            self.offset.fmt(f)
+        }
     }
 }
 
 impl fmt::Debug for InstAddress {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.offset.fmt(f)
+        fmt::Display::fmt(self, f)
     }
 }
 

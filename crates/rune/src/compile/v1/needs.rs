@@ -8,8 +8,11 @@ use super::{Ctxt, ScopeId, Scopes};
 
 #[derive(Debug, Clone, Copy)]
 pub(super) enum NeedsAddressKind {
-    /// The value is locally allocated and should be freed in the immediate scope.
+    /// The value is locally allocated and should be freed in the immediate
+    /// scope.
     Local,
+    /// The value is reserved, but does not have an instruction using it.
+    Reserved,
     /// The address is assigned from elsewhere and *should not* be touched.
     Assigned,
     /// The address is allocated on behalf of the given scope, and we should
@@ -20,7 +23,7 @@ pub(super) enum NeedsAddressKind {
 #[derive(Clone, Copy)]
 pub(super) struct NeedsAddress<'hir> {
     pub(super) span: &'hir dyn Spanned,
-    pub(super) addr: InstAddress,
+    addr: InstAddress,
     pub(super) kind: NeedsAddressKind,
 }
 
@@ -44,9 +47,33 @@ impl<'hir> NeedsAddress<'hir> {
         }
     }
 
+    /// A locally reserved address.
+    #[inline]
+    pub(super) fn with_reserved(span: &'hir dyn Spanned, addr: InstAddress) -> Self {
+        Self {
+            span,
+            addr,
+            kind: NeedsAddressKind::Reserved,
+        }
+    }
+
     #[inline]
     pub(super) fn addr(&self) -> InstAddress {
         self.addr
+    }
+
+    #[inline]
+    pub(super) fn alloc_addr(&mut self) -> compile::Result<InstAddress> {
+        if matches!(self.kind, NeedsAddressKind::Reserved) {
+            self.kind = NeedsAddressKind::Local;
+        }
+
+        Ok(self.addr)
+    }
+
+    #[inline]
+    pub(super) fn alloc_output(&mut self) -> compile::Result<Output> {
+        Ok(self.alloc_addr()?.output())
     }
 
     #[inline]
@@ -200,7 +227,7 @@ impl<'hir> Needs<'hir> {
         &mut self,
         scopes: &mut Scopes<'_>,
     ) -> compile::Result<Option<InstAddress>> {
-        match &self.kind {
+        match &mut self.kind {
             NeedsKind::Alloc(scope) => {
                 let addr = scopes.alloc_in(self.span, *scope)?;
 
@@ -212,7 +239,7 @@ impl<'hir> Needs<'hir> {
 
                 Ok(Some(addr))
             }
-            NeedsKind::Address(addr) => Ok(Some(addr.addr)),
+            NeedsKind::Address(addr) => Ok(Some(addr.alloc_addr()?)),
             NeedsKind::None => Ok(None),
         }
     }
@@ -258,7 +285,13 @@ impl<'hir> Needs<'hir> {
     #[inline]
     pub(super) fn as_addr(&self) -> Option<&NeedsAddress<'hir>> {
         match &self.kind {
-            NeedsKind::Address(addr) => Some(addr),
+            NeedsKind::Address(addr) => {
+                if matches!(addr.kind, NeedsAddressKind::Reserved) {
+                    return None;
+                }
+
+                Some(addr)
+            }
             _ => None,
         }
     }

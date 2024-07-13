@@ -192,6 +192,10 @@ impl Stack {
     /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn slice_at(&self, addr: InstAddress, count: usize) -> Result<&[Value], StackError> {
+        if count == 0 {
+            return Ok(&[]);
+        }
+
         let Some(start) = self.stack_bottom.checked_add(addr.offset()) else {
             return Err(StackError);
         };
@@ -213,6 +217,10 @@ impl Stack {
         addr: InstAddress,
         count: usize,
     ) -> Result<&mut [Value], StackError> {
+        if count == 0 {
+            return Ok(&mut []);
+        }
+
         let Some(start) = self.stack_bottom.checked_add(addr.offset()) else {
             return Err(StackError);
         };
@@ -343,11 +351,15 @@ impl Stack {
         addr: InstAddress,
         len: usize,
     ) -> Result<usize, VmErrorKind> {
+        let old_len = self.stack.len();
+
+        if len == 0 {
+            return Ok(replace(&mut self.stack_bottom, old_len));
+        }
+
         let Some(start) = self.stack_bottom.checked_add(addr.offset()) else {
             return Err(VmErrorKind::StackError);
         };
-
-        let old_len = self.stack.len();
 
         let Some(new_len) = old_len.checked_add(len) else {
             return Err(VmErrorKind::StackError);
