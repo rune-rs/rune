@@ -1,8 +1,10 @@
 //! This is a specialized slab used to allocate slots of memory for the compiler.
 
+use core::fmt;
+use core::slice;
+
 use crate::alloc::{self, Vec};
 
-#[derive(Debug)]
 pub(super) struct Slab {
     storage: Vec<u128>,
     head: usize,
@@ -55,21 +57,15 @@ impl Slab {
 
                 // Whole segment is free, skip over it.
                 if o == u128::BITS {
-                    last = Some(bits);
+                    last = Some((n, bits));
                     continue;
                 }
 
                 let key = (u128::BITS as usize) * n;
 
-                // There is no space in this segment, so use the one we found
-                // previously.
+                // There is no space in this segment.
                 if o == 0 {
-                    let Some(last) = last else {
-                        break 'key key + u128::BITS as usize;
-                    };
-
-                    *last = 1;
-                    return Ok(key + u128::BITS as usize);
+                    break 'key key + u128::BITS as usize;
                 }
 
                 let o = u128::BITS - o;
@@ -80,7 +76,13 @@ impl Slab {
             0
         };
 
-        self.storage.try_push(1)?;
+        if let Some((n, bits)) = last {
+            *bits = 1;
+            self.storage.truncate(n + 1);
+        } else {
+            self.storage.try_push(1)?;
+        }
+
         Ok(key)
     }
 
@@ -98,11 +100,82 @@ impl Slab {
         *bits &= !(1 << o);
         existed
     }
+
+    fn iter(&self) -> Iter<'_> {
+        let (current, rest) = match &self.storage[..] {
+            [first, rest @ ..] => (*first, rest),
+            [] => (0, &[][..]),
+        };
+
+        Iter {
+            storage: rest.iter(),
+            current,
+            key: 0,
+        }
+    }
+}
+
+impl fmt::Debug for Slab {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_set().entries(self.iter()).finish()
+    }
+}
+
+struct Iter<'a> {
+    storage: slice::Iter<'a, u128>,
+    current: u128,
+    key: usize,
+}
+
+impl Iterator for Iter<'_> {
+    type Item = usize;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let o = self.current.trailing_zeros();
+
+            if o != u128::BITS {
+                self.current ^= 1 << o;
+                return Some(self.key + o as usize);
+            }
+
+            self.current = match self.storage.next() {
+                Some(current) => *current,
+                None => return None,
+            };
+
+            self.key += u128::BITS as usize;
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::Slab;
+
+    #[test]
+    fn iter() {
+        let mut slab = Slab::new();
+        assert_eq!(slab.insert(), Ok(0));
+        assert_eq!(slab.insert(), Ok(1));
+        assert_eq!(slab.insert(), Ok(2));
+        assert_eq!(slab.insert(), Ok(3));
+        assert_eq!(slab.insert(), Ok(4));
+        assert_eq!(slab.remove(2), true);
+
+        assert!(slab.iter().eq([0, 1, 3, 4]), "{slab:?}");
+        assert_eq!(slab.remove(3), true);
+        assert!(slab.iter().eq([0, 1, 4]), "{slab:?}");
+        assert_eq!(slab.remove(0), true);
+        assert!(slab.iter().eq([1, 4]), "{slab:?}");
+        assert_eq!(slab.remove(1), true);
+        assert!(slab.iter().eq([4]), "{slab:?}");
+        assert_eq!(slab.remove(4), true);
+        assert!(slab.iter().eq([]), "{slab:?}");
+
+        assert_eq!(slab.insert(), Ok(0));
+    }
 
     #[test]
     fn insert() {
@@ -151,25 +224,15 @@ mod tests {
         assert_eq!(slab.insert(), Ok(0));
         assert_eq!(slab.push(), Ok(1));
         assert_eq!(slab.push(), Ok(2));
-
         assert_eq!(slab.remove(0), true);
-
         assert_eq!(slab.remove(0), false);
-
         assert_eq!(slab.insert(), Ok(0));
-
         assert_eq!(slab.insert(), Ok(3));
-
         assert_eq!(slab.remove(2), true);
-
         assert_eq!(slab.remove(0), true);
-
         assert_eq!(slab.insert(), Ok(0));
-
         assert_eq!(slab.insert(), Ok(2));
-
         assert_eq!(slab.insert(), Ok(4));
-
         assert_eq!(slab.push(), Ok(5));
     }
 
@@ -236,5 +299,28 @@ mod tests {
         assert_eq!(slab.remove(1), true);
 
         assert_eq!(slab.insert(), Ok(1));
+    }
+
+    #[test]
+    fn push_first() {
+        let mut slab = Slab::new();
+        assert_eq!(slab.push(), Ok(0));
+        assert_eq!(slab.insert(), Ok(1));
+        assert_eq!(slab.push(), Ok(2));
+    }
+
+    #[test]
+    fn test_bug() {
+        let mut slab = Slab::new();
+        assert_eq!(slab.insert(), Ok(0));
+        assert_eq!(slab.remove(0), true);
+        assert_eq!(slab.push(), Ok(0));
+        assert_eq!(slab.insert(), Ok(1));
+        assert_eq!(slab.push(), Ok(2));
+        assert_eq!(slab.remove(2), true);
+        assert_eq!(slab.insert(), Ok(2));
+        assert_eq!(slab.remove(2), true);
+        assert_eq!(slab.remove(0), true);
+        assert_eq!(slab.remove(0), false);
     }
 }

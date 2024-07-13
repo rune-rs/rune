@@ -68,3 +68,14 @@ fn generator() {
         }
     };
 }
+
+#[test]
+fn stack_allocations() {
+    let _: () = rune! {
+        pub fn main() {
+            let a = [1, 2].iter().collect::<Vec>();
+            let b = [1, 2];
+            assert_eq!(a, b);
+        }
+    };
+}

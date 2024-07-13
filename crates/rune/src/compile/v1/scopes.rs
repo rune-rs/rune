@@ -376,7 +376,10 @@ impl<'hir> Scopes<'hir> {
             if !self.slots.remove(*address) {
                 return Err(compile::Error::msg(
                     span,
-                    format!("Address {address} is not globally allocated"),
+                    format!(
+                        "Address {address} is not globally allocated in {:?}",
+                        self.slots
+                    ),
                 ));
             }
         }
