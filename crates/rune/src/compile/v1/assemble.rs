@@ -27,7 +27,7 @@ trait NeedsLike<'hir> {
     fn output(&self) -> compile::Result<Output>;
 
     /// Get the need as an output.
-    fn as_output(&self) -> Option<Output>;
+    fn try_alloc_output(&mut self, cx: &mut Ctxt<'_, 'hir, '_>) -> compile::Result<Option<Output>>;
 
     fn assign_addr(
         &mut self,
@@ -39,8 +39,10 @@ trait NeedsLike<'hir> {
     fn alloc_output(&mut self, scopes: &mut Scopes<'hir>) -> compile::Result<Output>;
 
     /// Try to allocate an address from this needs.
-    fn try_alloc_addr(&mut self, scopes: &mut Scopes<'hir>)
-        -> compile::Result<Option<InstAddress>>;
+    fn try_alloc_addr(
+        &mut self,
+        cx: &mut Ctxt<'_, 'hir, '_>,
+    ) -> compile::Result<Option<InstAddress>>;
 
     /// Get the need as an address.
     fn as_addr(&self) -> Option<&NeedsAddress<'hir>>;
@@ -61,11 +63,6 @@ impl<'hir> NeedsLike<'hir> for Needs<'hir> {
     }
 
     #[inline]
-    fn as_output(&self) -> Option<Output> {
-        Needs::as_output(self)
-    }
-
-    #[inline]
     fn assign_addr(
         &mut self,
         cx: &mut Ctxt<'_, 'hir, '_>,
@@ -80,11 +77,16 @@ impl<'hir> NeedsLike<'hir> for Needs<'hir> {
     }
 
     #[inline]
+    fn try_alloc_output(&mut self, cx: &mut Ctxt<'_, 'hir, '_>) -> compile::Result<Option<Output>> {
+        Needs::try_alloc_output(self, &mut cx.scopes)
+    }
+
+    #[inline]
     fn try_alloc_addr(
         &mut self,
-        scopes: &mut Scopes<'hir>,
+        cx: &mut Ctxt<'_, 'hir, '_>,
     ) -> compile::Result<Option<InstAddress>> {
-        Needs::try_alloc_addr(self, scopes)
+        Needs::try_alloc_addr(self, &mut cx.scopes)
     }
 
     #[inline]
@@ -110,11 +112,6 @@ impl<'hir> NeedsLike<'hir> for NeedsAddress<'hir> {
     }
 
     #[inline]
-    fn as_output(&self) -> Option<Output> {
-        Some(NeedsAddress::output(self))
-    }
-
-    #[inline]
     fn assign_addr(
         &mut self,
         cx: &mut Ctxt<'_, 'hir, '_>,
@@ -129,7 +126,15 @@ impl<'hir> NeedsLike<'hir> for NeedsAddress<'hir> {
     }
 
     #[inline]
-    fn try_alloc_addr(&mut self, _: &mut Scopes<'hir>) -> compile::Result<Option<InstAddress>> {
+    fn try_alloc_output(&mut self, _: &mut Ctxt<'_, 'hir, '_>) -> compile::Result<Option<Output>> {
+        Ok(Some(NeedsAddress::alloc_output(self)?))
+    }
+
+    #[inline]
+    fn try_alloc_addr(
+        &mut self,
+        _: &mut Ctxt<'_, 'hir, '_>,
+    ) -> compile::Result<Option<InstAddress>> {
         Ok(Some(NeedsAddress::alloc_addr(self)?))
     }
 
@@ -865,12 +870,12 @@ fn pat_object<'hir>(
             hir::Binding::Binding(span, _, p) => {
                 let addr = addr.addr();
 
-                let load = move |cx: &mut Ctxt<'_, 'hir, '_>, n: &mut dyn NeedsLike<'hir>| {
+                let load = move |cx: &mut Ctxt<'_, 'hir, '_>, needs: &mut dyn NeedsLike<'hir>| {
                     cx.asm.push(
                         Inst::ObjectIndexGetAt {
                             addr,
                             slot,
-                            out: n.alloc_output(&mut cx.scopes)?,
+                            out: needs.alloc_output(&mut cx.scopes)?,
                         },
                         &span,
                     )?;
@@ -941,7 +946,7 @@ fn block<'hir>(
         } else {
             expr(cx, e, needs)?;
         }
-    } else if let Some(out) = needs.as_output() {
+    } else if let Some(out) = needs.try_alloc_output(cx)? {
         cx.asm.push(Inst::unit(out), hir)?;
     }
 
@@ -975,7 +980,7 @@ fn builtin_format<'hir>(
 
     expr(cx, &format.value, needs)?;
 
-    if let Some(addr) = needs.try_alloc_addr(&mut cx.scopes)? {
+    if let Some(addr) = needs.try_alloc_addr(cx)? {
         cx.asm.push(
             Inst::Format {
                 addr,
@@ -1030,17 +1035,15 @@ fn builtin_template<'hir>(
             .template_without_expansions(cx.source_id, span, cx.context())?;
     }
 
-    if needs.value() {
-        cx.asm.push(
-            Inst::StringConcat {
-                addr: linear.addr(),
-                len: template.exprs.len(),
-                size_hint,
-                out: needs.alloc_output(&mut cx.scopes)?,
-            },
-            span,
-        )?;
-    }
+    cx.asm.push(
+        Inst::StringConcat {
+            addr: linear.addr(),
+            len: template.exprs.len(),
+            size_hint,
+            out: needs.alloc_output(&mut cx.scopes)?,
+        },
+        span,
+    )?;
 
     cx.scopes.pop(span, expected)?;
     Ok(Asm::new(span))
@@ -1054,7 +1057,7 @@ fn const_<'hir>(
     span: &'hir dyn Spanned,
     needs: &mut dyn NeedsLike<'hir>,
 ) -> compile::Result<()> {
-    let Some(addr) = needs.try_alloc_addr(&mut cx.scopes)? else {
+    let Some(addr) = needs.try_alloc_addr(cx)? else {
         cx.q.diagnostics
             .not_used(cx.source_id, span, cx.context())?;
         return Ok(());
@@ -1194,24 +1197,22 @@ fn expr<'hir>(
             Asm::new(span)
         }
         hir::ExprKind::Type(ty) => {
-            cx.asm.push(
-                Inst::Store {
-                    value: InstValue::Type(ty),
-                    out: needs.alloc_output(&mut cx.scopes)?,
-                },
-                span,
-            )?;
+            if let Some(out) = needs.try_alloc_output(cx)? {
+                cx.asm.push(
+                    Inst::Store {
+                        value: InstValue::Type(ty),
+                        out,
+                    },
+                    span,
+                )?;
+            }
 
             Asm::new(span)
         }
         hir::ExprKind::Fn(hash) => {
-            cx.asm.push(
-                Inst::LoadFn {
-                    hash,
-                    out: needs.alloc_output(&mut cx.scopes)?,
-                },
-                span,
-            )?;
+            if let Some(out) = needs.try_alloc_output(cx)? {
+                cx.asm.push(Inst::LoadFn { hash, out }, span)?;
+            }
 
             Asm::new(span)
         }
@@ -1356,7 +1357,7 @@ fn expr_assign<'hir>(
         return Err(compile::Error::new(span, ErrorKind::UnsupportedAssignExpr));
     }
 
-    if let Some(out) = needs.as_output() {
+    if let Some(out) = needs.try_alloc_output(cx)? {
         cx.asm.push(Inst::unit(out), span)?;
     }
 
@@ -1562,7 +1563,7 @@ fn expr_binary<'hir>(
             span,
         )?;
 
-        if let Some(out) = needs.as_output() {
+        if let Some(out) = needs.try_alloc_output(cx)? {
             cx.asm.push(Inst::unit(out), span)?;
         }
 
@@ -2121,7 +2122,7 @@ fn expr_for<'hir>(
 
     cx.scopes.pop(span, loop_scope)?;
 
-    if let Some(out) = needs.as_output() {
+    if let Some(out) = needs.try_alloc_output(cx)? {
         cx.asm.push(Inst::unit(out), span)?;
     }
 
@@ -2140,7 +2141,7 @@ fn expr_if<'a, 'hir>(
     needs: &mut dyn NeedsLike<'hir>,
 ) -> compile::Result<Asm<'hir>> {
     let output_addr = if hir.fallback.is_none() {
-        needs.as_output()
+        needs.try_alloc_output(cx)?
     } else {
         None
     };
@@ -2248,7 +2249,7 @@ fn expr_let<'hir>(
     })?;
 
     // If a value is needed for a let expression, it is evaluated as a unit.
-    if let Some(out) = needs.as_output() {
+    if let Some(out) = needs.try_alloc_output(cx)? {
         cx.asm.push(Inst::unit(out), hir)?;
     }
 
@@ -2324,7 +2325,7 @@ fn expr_match<'hir>(
         branches.try_push((branch_label, scope))?;
     }
 
-    if let Some(out) = needs.as_output() {
+    if let Some(out) = needs.try_alloc_output(cx)? {
         cx.asm.push(Inst::unit(out), span)?;
     }
 
@@ -2708,7 +2709,7 @@ fn expr_tuple<'hir>(
             };
             )*
 
-            if let Some(addr) = needs.try_alloc_addr(&mut cx.scopes)? {
+            if let Some(addr) = needs.try_alloc_addr(cx)? {
                 cx.asm.push(
                     Inst::$variant {
                         args: [$($var.addr(),)*],
@@ -2815,7 +2816,7 @@ fn expr_vec<'hir>(
         expr(cx, e, needs)?;
     }
 
-    if let Some(out) = needs.try_alloc_addr(&mut cx.scopes)? {
+    if let Some(out) = needs.try_alloc_addr(cx)? {
         cx.asm.push(
             Inst::Vec {
                 addr: linear.addr(),
@@ -2875,7 +2876,7 @@ fn expr_loop<'hir>(
     cx.asm.jump(&continue_label, span)?;
     cx.asm.label(&end_label)?;
 
-    if let Some(out) = needs.as_output() {
+    if let Some(out) = needs.try_alloc_output(cx)? {
         cx.asm.push(Inst::unit(out), span)?;
     }
 
@@ -2923,7 +2924,7 @@ fn lit<'hir>(
     needs: &mut dyn NeedsLike<'hir>,
 ) -> compile::Result<Asm<'hir>> {
     // Elide the entire literal if it's not needed.
-    let Some(addr) = needs.try_alloc_addr(&mut cx.scopes)? else {
+    let Some(addr) = needs.try_alloc_addr(cx)? else {
         cx.q.diagnostics
             .not_used(cx.source_id, span, cx.context())?;
         return Ok(Asm::new(span));
@@ -2977,7 +2978,7 @@ fn local<'hir>(
     })?;
 
     // If a value is needed for a let expression, it is evaluated as a unit.
-    if let Some(out) = needs.as_output() {
+    if let Some(out) = needs.try_alloc_output(cx)? {
         cx.asm.push(Inst::unit(out), hir)?;
     }
 

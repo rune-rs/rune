@@ -290,7 +290,7 @@ impl<'hir> Scopes<'hir> {
     #[tracing::instrument(skip(self))]
     pub(crate) fn free(&mut self, addr: NeedsAddress) -> compile::Result<()> {
         match &addr.kind {
-            NeedsAddressKind::Local | NeedsAddressKind::Reserved => {
+            NeedsAddressKind::Local | NeedsAddressKind::Dangling => {
                 self.free_addr(addr.span, addr.addr())?;
             }
             NeedsAddressKind::Scope(scope) => {

@@ -11,8 +11,8 @@ pub(super) enum NeedsAddressKind {
     /// The value is locally allocated and should be freed in the immediate
     /// scope.
     Local,
-    /// The value is reserved, but does not have an instruction using it.
-    Reserved,
+    /// The slot has been reserved, but has not been assigned to anything yet.
+    Dangling,
     /// The address is assigned from elsewhere and *should not* be touched.
     Assigned,
     /// The address is allocated on behalf of the given scope, and we should
@@ -53,7 +53,7 @@ impl<'hir> NeedsAddress<'hir> {
         Self {
             span,
             addr,
-            kind: NeedsAddressKind::Reserved,
+            kind: NeedsAddressKind::Dangling,
         }
     }
 
@@ -64,7 +64,7 @@ impl<'hir> NeedsAddress<'hir> {
 
     #[inline]
     pub(super) fn alloc_addr(&mut self) -> compile::Result<InstAddress> {
-        if matches!(self.kind, NeedsAddressKind::Reserved) {
+        if matches!(self.kind, NeedsAddressKind::Dangling) {
             self.kind = NeedsAddressKind::Local;
         }
 
@@ -221,6 +221,29 @@ impl<'hir> Needs<'hir> {
         matches!(self.kind, NeedsKind::Alloc { .. } | NeedsKind::Address(..))
     }
 
+    /// Test if any sort of value is needed.
+    #[inline(always)]
+    pub(super) fn alloc_output(&mut self, scopes: &mut Scopes<'_>) -> compile::Result<Output> {
+        let Some(addr) = self.try_alloc_addr(scopes)? else {
+            return Ok(Output::discard());
+        };
+
+        Ok(addr.output())
+    }
+
+    /// Get the needs as an output.
+    #[inline]
+    pub(super) fn try_alloc_output(
+        &mut self,
+        scopes: &mut Scopes<'hir>,
+    ) -> compile::Result<Option<Output>> {
+        let Some(addr) = self.try_alloc_addr(scopes)? else {
+            return Ok(None);
+        };
+
+        Ok(Some(addr.output()))
+    }
+
     /// Coerce into a value.
     #[inline]
     pub(super) fn try_alloc_addr(
@@ -244,16 +267,6 @@ impl<'hir> Needs<'hir> {
         }
     }
 
-    /// Test if any sort of value is needed.
-    #[inline(always)]
-    pub(super) fn alloc_output(&mut self, scopes: &mut Scopes<'_>) -> compile::Result<Output> {
-        let Some(addr) = self.try_alloc_addr(scopes)? else {
-            return Ok(Output::discard());
-        };
-
-        Ok(addr.output())
-    }
-
     /// Coerce into a output.
     #[inline]
     pub(super) fn output(&self) -> compile::Result<Output> {
@@ -272,21 +285,12 @@ impl<'hir> Needs<'hir> {
     pub(super) fn as_addr(&self) -> Option<&NeedsAddress<'hir>> {
         match &self.kind {
             NeedsKind::Address(addr) => {
-                if matches!(addr.kind, NeedsAddressKind::Reserved) {
+                if matches!(addr.kind, NeedsAddressKind::Dangling) {
                     return None;
                 }
 
                 Some(addr)
             }
-            _ => None,
-        }
-    }
-
-    /// Get the needs as an output.
-    #[inline]
-    pub(super) fn as_output(&self) -> Option<Output> {
-        match &self.kind {
-            NeedsKind::Address(addr) => Some(addr.output()),
             _ => None,
         }
     }
