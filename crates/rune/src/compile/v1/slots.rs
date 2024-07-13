@@ -5,12 +5,12 @@ use core::slice;
 
 use crate::alloc::{self, Vec};
 
-pub(super) struct Slab {
+pub(super) struct Slots {
     storage: Vec<u128>,
     head: usize,
 }
 
-impl Slab {
+impl Slots {
     /// Construct a new empty slab.
     pub(super) const fn new() -> Self {
         Self {
@@ -115,7 +115,7 @@ impl Slab {
     }
 }
 
-impl fmt::Debug for Slab {
+impl fmt::Debug for Slots {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_set().entries(self.iter()).finish()
@@ -152,7 +152,7 @@ impl Iterator for Iter<'_> {
 
 #[cfg(test)]
 mod tests {
-    use super::Slab;
+    use super::Slots;
 
     macro_rules! slab_eq {
         ($slab:expr, $expected:expr) => {{
@@ -166,7 +166,7 @@ mod tests {
 
     #[test]
     fn iter() {
-        let mut slab = Slab::new();
+        let mut slab = Slots::new();
 
         assert_eq!(slab.insert(), Ok(0));
         assert_eq!(slab.insert(), Ok(1));
@@ -195,7 +195,7 @@ mod tests {
 
     #[test]
     fn insert() {
-        let mut slab = Slab::new();
+        let mut slab = Slots::new();
         assert_eq!(slab.insert(), Ok(0));
         assert_eq!(slab.insert(), Ok(1));
         assert_eq!(slab.insert(), Ok(2));
@@ -208,7 +208,7 @@ mod tests {
 
     #[test]
     fn insert_boundary() {
-        let mut slab = Slab::new();
+        let mut slab = Slots::new();
 
         for n in 0..167 {
             assert_eq!(slab.push(), Ok(n));
@@ -236,7 +236,7 @@ mod tests {
 
     #[test]
     fn push() {
-        let mut slab = Slab::new();
+        let mut slab = Slots::new();
         assert_eq!(slab.insert(), Ok(0));
         assert_eq!(slab.push(), Ok(1));
         assert_eq!(slab.push(), Ok(2));
@@ -254,7 +254,7 @@ mod tests {
 
     #[test]
     fn push_tail_hole() {
-        let mut slab = Slab::new();
+        let mut slab = Slots::new();
         assert_eq!(slab.insert(), Ok(0));
         assert_eq!(slab.insert(), Ok(1));
         assert_eq!(slab.insert(), Ok(2));
@@ -269,7 +269,7 @@ mod tests {
 
     #[test]
     fn push_pop() {
-        let mut slab = Slab::new();
+        let mut slab = Slots::new();
         assert_eq!(slab.insert(), Ok(0));
         assert_eq!(slab.insert(), Ok(1));
         assert_eq!(slab.insert(), Ok(2));
@@ -292,7 +292,7 @@ mod tests {
 
     #[test]
     fn bad_test() {
-        let mut slab = Slab::new();
+        let mut slab = Slots::new();
         assert_eq!(slab.insert(), Ok(0));
         assert_eq!(slab.insert(), Ok(1));
         assert_eq!(slab.insert(), Ok(2));
@@ -306,7 +306,7 @@ mod tests {
 
     #[test]
     fn bug1() {
-        let mut slab = Slab::new();
+        let mut slab = Slots::new();
         assert_eq!(slab.insert(), Ok(0));
         assert_eq!(slab.insert(), Ok(1));
         assert_eq!(slab.insert(), Ok(2));
@@ -319,7 +319,7 @@ mod tests {
 
     #[test]
     fn push_first() {
-        let mut slab = Slab::new();
+        let mut slab = Slots::new();
         assert_eq!(slab.push(), Ok(0));
         assert_eq!(slab.insert(), Ok(1));
         assert_eq!(slab.push(), Ok(2));
@@ -327,7 +327,7 @@ mod tests {
 
     #[test]
     fn test_bug() {
-        let mut slab = Slab::new();
+        let mut slab = Slots::new();
         assert_eq!(slab.insert(), Ok(0));
         assert_eq!(slab.remove(0), true);
         assert_eq!(slab.push(), Ok(0));

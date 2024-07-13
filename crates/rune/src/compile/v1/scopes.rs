@@ -13,7 +13,7 @@ use crate::query::Query;
 use crate::runtime::{Inst, InstAddress, Output};
 use crate::SourceId;
 
-use super::{NeedsAddress, NeedsAddressKind, Slab};
+use super::{NeedsAddress, NeedsAddressKind, Slots};
 
 #[derive(Debug)]
 pub(crate) struct Scope<'hir> {
@@ -61,7 +61,7 @@ pub(crate) struct Scopes<'hir> {
     scopes: Vec<Scope<'hir>>,
     source_id: SourceId,
     size: usize,
-    slots: Slab,
+    slots: Slots,
     id: usize,
 }
 
@@ -72,7 +72,7 @@ impl<'hir> Scopes<'hir> {
             scopes: try_vec![Scope::new(ScopeId(0, 0))],
             source_id,
             size: 0,
-            slots: Slab::new(),
+            slots: Slots::new(),
             id: 1,
         })
     }
@@ -401,12 +401,12 @@ impl<'hir> Scopes<'hir> {
                 }
 
                 // TODO: Drop values when they go out of scope.
-                asm.push(
+                /*asm.push(
                     Inst::Drop {
                         addr: InstAddress::new(*addr),
                     },
                     span,
-                )?;
+                )?;*/
             }
 
             scope.locals.clear();
