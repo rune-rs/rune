@@ -114,7 +114,7 @@ impl fmt::Debug for NeedsAddress<'_> {
 /// The kind of a needs.
 #[derive(Debug)]
 pub(super) enum NeedsKind<'hir> {
-    Alloc(ScopeId),
+    Alloc { scope: ScopeId },
     Address(NeedsAddress<'hir>),
     None,
 }
@@ -150,7 +150,7 @@ impl<'hir> Needs<'hir> {
     pub(super) fn alloc_in(scope: ScopeId, span: &'hir dyn Spanned) -> compile::Result<Self> {
         Ok(Self {
             span,
-            kind: NeedsKind::Alloc(scope),
+            kind: NeedsKind::Alloc { scope },
         })
     }
 
@@ -165,7 +165,7 @@ impl<'hir> Needs<'hir> {
 
         Ok(Self {
             span,
-            kind: NeedsKind::Alloc(scope),
+            kind: NeedsKind::Alloc { scope },
         })
     }
 
@@ -199,7 +199,7 @@ impl<'hir> Needs<'hir> {
         from: InstAddress,
     ) -> compile::Result<()> {
         match &self.kind {
-            NeedsKind::Alloc(..) => {
+            NeedsKind::Alloc { .. } => {
                 self.kind = NeedsKind::Address(NeedsAddress {
                     span: self.span,
                     addr: from,
@@ -218,7 +218,7 @@ impl<'hir> Needs<'hir> {
     /// Test if any sort of value is needed.
     #[inline(always)]
     pub(super) fn value(&self) -> bool {
-        matches!(self.kind, NeedsKind::Alloc(..) | NeedsKind::Address(..))
+        matches!(self.kind, NeedsKind::Alloc { .. } | NeedsKind::Address(..))
     }
 
     /// Coerce into a value.
@@ -228,7 +228,7 @@ impl<'hir> Needs<'hir> {
         scopes: &mut Scopes<'_>,
     ) -> compile::Result<Option<InstAddress>> {
         match &mut self.kind {
-            NeedsKind::Alloc(scope) => {
+            NeedsKind::Alloc { scope } => {
                 let addr = scopes.alloc_in(self.span, *scope)?;
 
                 self.kind = NeedsKind::Address(NeedsAddress {
@@ -240,7 +240,7 @@ impl<'hir> Needs<'hir> {
                 Ok(Some(addr))
             }
             NeedsKind::Address(addr) => Ok(Some(addr.alloc_addr()?)),
-            NeedsKind::None => Ok(None),
+            NeedsKind::None { .. } => Ok(None),
         }
     }
 
@@ -254,30 +254,16 @@ impl<'hir> Needs<'hir> {
         Ok(addr.output())
     }
 
-    /// Coerce into a value.
-    #[inline]
-    #[deprecated = "Use as_addr instead to check that the address has been initialized"]
-    pub(super) fn addr(&self) -> compile::Result<InstAddress> {
-        if let NeedsKind::Address(addr) = &self.kind {
-            return Ok(addr.addr);
-        };
-
-        Err(compile::Error::msg(
-            self.span,
-            "Address has not been initialized",
-        ))
-    }
-
     /// Coerce into a output.
     #[inline]
     pub(super) fn output(&self) -> compile::Result<Output> {
         match &self.kind {
-            NeedsKind::Alloc(..) => Err(compile::Error::msg(
+            NeedsKind::Alloc { .. } => Err(compile::Error::msg(
                 self.span,
                 "Needs has not been initialized for output",
             )),
             NeedsKind::Address(addr) => Ok(Output::keep(addr.addr.offset())),
-            NeedsKind::None => Ok(Output::discard()),
+            NeedsKind::None { .. } => Ok(Output::discard()),
         }
     }
 

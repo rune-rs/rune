@@ -23,12 +23,11 @@ trait NeedsLike<'hir> {
     /// Access the span for the needs.
     fn span(&self) -> &'hir dyn Spanned;
 
-    /// Get address of the needs or error.
-    #[deprecated = "Use checked addresses instead to avoid errors"]
-    fn addr(&self) -> compile::Result<InstAddress>;
-
     /// Get output of the needs or error.
     fn output(&self) -> compile::Result<Output>;
+
+    /// Get the need as an output.
+    fn as_output(&self) -> Option<Output>;
 
     fn assign_addr(
         &mut self,
@@ -46,9 +45,6 @@ trait NeedsLike<'hir> {
     /// Get the need as an address.
     fn as_addr(&self) -> Option<&NeedsAddress<'hir>>;
 
-    /// Get the need as an output.
-    fn as_output(&self) -> Option<Output>;
-
     /// If the needs has a value.
     fn value(&self) -> bool;
 }
@@ -60,14 +56,13 @@ impl<'hir> NeedsLike<'hir> for Needs<'hir> {
     }
 
     #[inline]
-    #[allow(deprecated)]
-    fn addr(&self) -> compile::Result<InstAddress> {
-        Needs::addr(self)
+    fn output(&self) -> compile::Result<Output> {
+        Needs::output(self)
     }
 
     #[inline]
-    fn output(&self) -> compile::Result<Output> {
-        Needs::output(self)
+    fn as_output(&self) -> Option<Output> {
+        Needs::as_output(self)
     }
 
     #[inline]
@@ -98,11 +93,6 @@ impl<'hir> NeedsLike<'hir> for Needs<'hir> {
     }
 
     #[inline]
-    fn as_output(&self) -> Option<Output> {
-        Needs::as_output(self)
-    }
-
-    #[inline]
     fn value(&self) -> bool {
         Needs::value(self)
     }
@@ -115,13 +105,13 @@ impl<'hir> NeedsLike<'hir> for NeedsAddress<'hir> {
     }
 
     #[inline]
-    fn addr(&self) -> compile::Result<InstAddress> {
-        Ok(NeedsAddress::addr(self))
+    fn output(&self) -> compile::Result<Output> {
+        Ok(NeedsAddress::output(self))
     }
 
     #[inline]
-    fn output(&self) -> compile::Result<Output> {
-        Ok(NeedsAddress::output(self))
+    fn as_output(&self) -> Option<Output> {
+        Some(NeedsAddress::output(self))
     }
 
     #[inline]
@@ -146,11 +136,6 @@ impl<'hir> NeedsLike<'hir> for NeedsAddress<'hir> {
     #[inline]
     fn as_addr(&self) -> Option<&NeedsAddress<'hir>> {
         Some(self)
-    }
-
-    #[inline]
-    fn as_output(&self) -> Option<Output> {
-        Some(NeedsAddress::output(self))
     }
 
     #[inline]
@@ -236,13 +221,22 @@ impl<'a, 'hir, 'arena> Ctxt<'a, 'hir, 'arena> {
 
 struct Asm<'hir> {
     span: &'hir dyn Spanned,
+    diverge: bool,
 }
 
 impl<'hir> Asm<'hir> {
     /// Construct an assembly result that leaves the value on the top of the
     /// stack.
     fn new(span: &'hir dyn Spanned) -> Self {
-        Self { span }
+        Self {
+            span,
+            diverge: false,
+        }
+    }
+
+    #[inline]
+    fn with_diverge(span: &'hir dyn Spanned, diverge: bool) -> Self {
+        Self { span, diverge }
     }
 }
 
@@ -533,7 +527,14 @@ fn pat_binding_with_single<'hir>(
         }
     }
 
-    cx.scopes.define(needs.span(), name, needs.addr()?)?;
+    let Some(addr) = needs.as_addr() else {
+        return Err(compile::Error::msg(
+            needs.span(),
+            "Expected need to be populated by pattern",
+        ));
+    };
+
+    cx.scopes.define(needs.span(), name, addr.addr())?;
     Ok(bound)
 }
 
@@ -911,24 +912,37 @@ fn block<'hir>(
     hir: &'hir hir::Block<'hir>,
     needs: &mut dyn NeedsLike<'hir>,
 ) -> compile::Result<Asm<'hir>> {
+    let mut diverge = false;
+
     cx.contexts.try_push(hir.span())?;
     let scopes_count = cx.scopes.child(hir)?;
 
     for stmt in hir.statements {
+        let mut needs = Needs::none(hir);
+
+        if diverge {
+            // TODO: Mark dead code.
+            continue;
+        }
+
         match stmt {
             hir::Stmt::Local(hir) => {
-                local(cx, hir, &mut Needs::none(hir))?;
+                local(cx, hir, &mut needs)?;
             }
             hir::Stmt::Expr(hir) => {
-                expr(cx, hir, &mut Needs::none(hir))?;
+                diverge |= expr(cx, hir, &mut needs)?.diverge;
             }
         }
     }
 
     if let Some(e) = hir.value {
-        expr(cx, e, needs)?;
-    } else if let Some(addr) = needs.try_alloc_addr(&mut cx.scopes)? {
-        cx.asm.push(Inst::unit(addr.output()), hir)?;
+        if diverge {
+            // TODO: mark dead code.
+        } else {
+            expr(cx, e, needs)?;
+        }
+    } else if let Some(out) = needs.as_output() {
+        cx.asm.push(Inst::unit(out), hir)?;
     }
 
     cx.scopes.pop(hir, scopes_count)?;
@@ -938,7 +952,7 @@ fn block<'hir>(
         .ok_or("Missing parent context")
         .with_span(hir)?;
 
-    Ok(Asm::new(hir))
+    Ok(Asm::with_diverge(hir, diverge))
 }
 
 /// Assemble #[builtin] format_args!(...) macro.
@@ -1210,11 +1224,11 @@ fn expr<'hir>(
         hir::ExprKind::Binary(hir) => expr_binary(cx, hir, span, needs)?,
         hir::ExprKind::If(hir) => expr_if(cx, hir, span, needs)?,
         hir::ExprKind::Index(hir) => expr_index(cx, hir, span, needs)?,
-        hir::ExprKind::Break(hir) => expr_break(cx, hir, span, needs)?,
+        hir::ExprKind::Break(hir) => expr_break(cx, hir, span)?,
         hir::ExprKind::Continue(hir) => expr_continue(cx, hir, span, needs)?,
         hir::ExprKind::Yield(hir) => expr_yield(cx, hir, span, needs)?,
         hir::ExprKind::Block(hir) => block(cx, hir, needs)?,
-        hir::ExprKind::Return(hir) => expr_return(cx, hir, span, needs)?,
+        hir::ExprKind::Return(hir) => expr_return(cx, hir, span)?,
         hir::ExprKind::Match(hir) => expr_match(cx, hir, span, needs)?,
         hir::ExprKind::Await(hir) => expr_await(cx, hir, span, needs)?,
         hir::ExprKind::Try(hir) => expr_try(cx, hir, span, needs)?,
@@ -1342,9 +1356,8 @@ fn expr_assign<'hir>(
         return Err(compile::Error::new(span, ErrorKind::UnsupportedAssignExpr));
     }
 
-    if needs.value() {
-        cx.asm
-            .push(Inst::unit(needs.alloc_output(&mut cx.scopes)?), span)?;
+    if let Some(out) = needs.as_output() {
+        cx.asm.push(Inst::unit(out), span)?;
     }
 
     Ok(Asm::new(span))
@@ -1549,9 +1562,8 @@ fn expr_binary<'hir>(
             span,
         )?;
 
-        if needs.value() {
-            cx.asm
-                .push(Inst::unit(needs.alloc_output(&mut cx.scopes)?), span)?;
+        if let Some(out) = needs.as_output() {
+            cx.asm.push(Inst::unit(out), span)?;
         }
 
         Ok(())
@@ -1623,7 +1635,6 @@ fn expr_break<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::ExprBreak<'hir>,
     span: &'hir dyn Spanned,
-    _: &mut dyn NeedsLike<'hir>,
 ) -> compile::Result<Asm<'hir>> {
     let Some(current_loop) = cx.loops.last().try_cloned()? else {
         return Err(compile::Error::new(span, ErrorKind::BreakOutsideOfLoop));
@@ -1672,7 +1683,7 @@ fn expr_break<'hir>(
     }
 
     cx.asm.jump(&last_loop.break_label, span)?;
-    Ok(Asm::new(span))
+    Ok(Asm::with_diverge(span, true))
 }
 
 /// Assemble a call expression.
@@ -1785,10 +1796,15 @@ fn expr_array<'hir, const N: usize>(
     let mut out = [NeedsAddress::empty(span); N];
 
     for ((expr, needs), o) in array.into_iter().zip(&mut out) {
-        self::expr(cx, expr, needs)?;
+        if self::expr(cx, expr, needs)?.diverge {
+            return Ok(None);
+        }
 
         let Some(addr) = needs.as_addr() else {
-            return Ok(None);
+            return Err(compile::Error::msg(
+                expr,
+                "Expected expression to populate address",
+            ));
         };
 
         *o = *addr;
@@ -1822,10 +1838,16 @@ fn exprs_2<'hir>(
         }
         ([e], []) | ([], [e]) => {
             let mut needs = Needs::alloc(cx, e)?;
-            expr(cx, e, &mut needs)?;
+
+            if expr(cx, e, &mut needs)?.diverge {
+                return Ok(None);
+            }
 
             let Some(addr) = needs.as_addr() else {
-                return Ok(None);
+                return Err(compile::Error::msg(
+                    e,
+                    "Expected expression to populate address",
+                ));
             };
 
             linear = Linear::empty(addr.addr());
@@ -1835,13 +1857,9 @@ fn exprs_2<'hir>(
             linear = cx.scopes.linear(span, len)?;
 
             for (e, needs) in a.iter().chain(b.iter()).zip(&mut linear) {
-                expr(cx, e, needs)?;
-
-                // No need to continue assembling if the expressions do not
-                // evaluate to a value.
-                if needs.as_addr().is_none() {
+                if expr(cx, e, needs)?.diverge {
                     return Ok(None);
-                };
+                }
             }
         }
     }
@@ -2103,8 +2121,8 @@ fn expr_for<'hir>(
 
     cx.scopes.pop(span, loop_scope)?;
 
-    if let Some(out) = needs.try_alloc_addr(&mut cx.scopes)? {
-        cx.asm.push(Inst::unit(out.output()), span)?;
+    if let Some(out) = needs.as_output() {
+        cx.asm.push(Inst::unit(out), span)?;
     }
 
     cx.asm.label(&break_label)?;
@@ -2122,7 +2140,7 @@ fn expr_if<'a, 'hir>(
     needs: &mut dyn NeedsLike<'hir>,
 ) -> compile::Result<Asm<'hir>> {
     let output_addr = if hir.fallback.is_none() {
-        needs.try_alloc_addr(&mut cx.scopes)?
+        needs.as_output()
     } else {
         None
     };
@@ -2149,7 +2167,7 @@ fn expr_if<'a, 'hir>(
     if let Some(b) = hir.fallback {
         block(cx, b, needs)?;
     } else if let Some(out) = output_addr {
-        cx.asm.push(Inst::unit(out.output()), span)?;
+        cx.asm.push(Inst::unit(out), span)?;
     }
 
     cx.asm.jump(&end_label, span)?;
@@ -2165,7 +2183,7 @@ fn expr_if<'a, 'hir>(
             block(cx, &branch.block, &mut Needs::none(branch))?;
 
             if let Some(out) = output_addr {
-                cx.asm.push(Inst::unit(out.output()), span)?;
+                cx.asm.push(Inst::unit(out), span)?;
             }
         } else {
             block(cx, &branch.block, needs)?;
@@ -2230,8 +2248,8 @@ fn expr_let<'hir>(
     })?;
 
     // If a value is needed for a let expression, it is evaluated as a unit.
-    if let Some(out) = needs.try_alloc_addr(&mut cx.scopes)? {
-        cx.asm.push(Inst::unit(out.output()), hir)?;
+    if let Some(out) = needs.as_output() {
+        cx.asm.push(Inst::unit(out), hir)?;
     }
 
     Ok(Asm::new(hir))
@@ -2306,10 +2324,8 @@ fn expr_match<'hir>(
         branches.try_push((branch_label, scope))?;
     }
 
-    // what to do in case nothing matches and the pattern doesn't have any
-    // default match branch.
-    if let Some(addr) = needs.try_alloc_addr(&mut cx.scopes)? {
-        cx.asm.push(Inst::unit(addr.output()), span)?;
+    if let Some(out) = needs.as_output() {
+        cx.asm.push(Inst::unit(out), span)?;
     }
 
     cx.asm.jump(&end_label, span)?;
@@ -2543,7 +2559,6 @@ fn expr_return<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: Option<&'hir hir::Expr<'hir>>,
     span: &'hir dyn Spanned,
-    _: &mut dyn NeedsLike<'hir>,
 ) -> compile::Result<Asm<'hir>> {
     // NB: drop any loop temporaries.
     for l in cx.loops.iter() {
@@ -2558,7 +2573,7 @@ fn expr_return<'hir>(
         cx.asm.push(Inst::ReturnUnit, span)?;
     }
 
-    Ok(Asm::new(span))
+    Ok(Asm::with_diverge(span, true))
 }
 
 /// Assemble a select expression.
@@ -2860,8 +2875,8 @@ fn expr_loop<'hir>(
     cx.asm.jump(&continue_label, span)?;
     cx.asm.label(&end_label)?;
 
-    if let Some(out) = needs.try_alloc_addr(&mut cx.scopes)? {
-        cx.asm.push(Inst::unit(out.output()), span)?;
+    if let Some(out) = needs.as_output() {
+        cx.asm.push(Inst::unit(out), span)?;
     }
 
     // NB: breaks produce their own value / perform their own cleanup.
