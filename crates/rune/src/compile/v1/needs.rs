@@ -98,6 +98,11 @@ impl<'hir> NeedsAddress<'hir> {
 
         Ok(())
     }
+
+    /// Free the current needs address.
+    pub(super) fn free(self, scopes: &mut Scopes<'hir>) -> compile::Result<()> {
+        scopes.free(self)
+    }
 }
 
 impl fmt::Debug for NeedsAddress<'_> {
@@ -262,13 +267,29 @@ impl<'hir> Needs<'hir> {
         }
     }
 
+    /// Coerce into an address.
+    #[inline]
+    pub(super) fn addr(self) -> compile::Result<NeedsAddress<'hir>> {
+        match self.kind {
+            NeedsKind::Alloc { .. } => Err(compile::Error::msg(
+                self.span,
+                "Needs has not been allocated for address",
+            )),
+            NeedsKind::Address(addr) => Ok(addr),
+            NeedsKind::None { .. } => Err(compile::Error::msg(
+                self.span,
+                "Needs did not request address",
+            )),
+        }
+    }
+
     /// Coerce into a output.
     #[inline]
     pub(super) fn output(&self) -> compile::Result<Output> {
         match &self.kind {
             NeedsKind::Alloc { .. } => Err(compile::Error::msg(
                 self.span,
-                "Needs has not been initialized for output",
+                "Needs has not been allocated for output",
             )),
             NeedsKind::Address(addr) => Ok(Output::keep(addr.addr.offset())),
             NeedsKind::None { .. } => Ok(Output::discard()),
