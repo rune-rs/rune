@@ -1613,6 +1613,7 @@ impl Vm {
         addr: InstAddress,
         len: usize,
         branch: Output,
+        value: Output,
     ) -> VmResult<Option<Select>> {
         let futures = futures_util::stream::FuturesUnordered::new();
 
@@ -1624,9 +1625,9 @@ impl Vm {
             }
         }
 
-        // NB: nothing to poll.
         if futures.is_empty() {
-            vm_try!(branch.store(&mut self.stack, ()));
+            vm_try!(value.store(&mut self.stack, ()));
+            vm_try!(branch.store(&mut self.stack, -1i64));
             return VmResult::Ok(None);
         }
 
@@ -3366,7 +3367,7 @@ impl Vm {
                     branch,
                     value,
                 } => {
-                    if let Some(select) = vm_try!(self.op_select(addr, len, branch)) {
+                    if let Some(select) = vm_try!(self.op_select(addr, len, branch, value)) {
                         return VmResult::Ok(VmHalt::Awaited(Awaited::Select(
                             select, branch, value,
                         )));

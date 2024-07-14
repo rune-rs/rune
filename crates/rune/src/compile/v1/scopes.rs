@@ -231,7 +231,7 @@ impl<'hir> Scopes<'hir> {
         &self,
         span: &'hir dyn Spanned,
         name: hir::Name<'hir>,
-        addr: InstAddress,
+        addr: NeedsAddress<'hir>,
     ) -> compile::Result<()> {
         let mut scopes = self.scopes.borrow_mut();
 
@@ -605,7 +605,7 @@ pub struct Var<'hir> {
     /// The name of the variable.
     name: hir::Name<'hir>,
     /// Offset from the current stack frame.
-    pub(super) addr: InstAddress,
+    pub(super) addr: NeedsAddress<'hir>,
 }
 
 impl<'hir> fmt::Display for Var<'hir> {
@@ -626,7 +626,7 @@ impl<'hir> Var<'hir> {
     ) -> compile::Result<()> {
         asm.push_with_comment(
             Inst::Copy {
-                addr: self.addr,
+                addr: self.addr.addr(),
                 out,
             },
             span,
@@ -644,7 +644,7 @@ impl<'hir> Var<'hir> {
     ) -> compile::Result<()> {
         asm.push_with_comment(
             Inst::Move {
-                addr: self.addr,
+                addr: self.addr.addr(),
                 out,
             },
             span,
@@ -677,7 +677,7 @@ struct VarInner<'hir> {
     /// The name of the variable.
     name: hir::Name<'hir>,
     /// Offset from the current stack frame.
-    addr: InstAddress,
+    addr: NeedsAddress<'hir>,
     /// Token assocaited with the variable.
     span: &'hir dyn Spanned,
     /// Variable has been taken at the given position.

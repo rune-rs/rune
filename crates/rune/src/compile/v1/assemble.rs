@@ -63,17 +63,21 @@ trait NeedsLike<'hir> {
     fn assign_addr(
         &mut self,
         cx: &mut Ctxt<'_, 'hir, '_>,
-        from: InstAddress,
+        from: &NeedsAddress<'hir>,
     ) -> compile::Result<()>;
 
     /// Forcibly allocate as an output, if possible.
     fn alloc_output(&mut self, scopes: &Scopes<'hir>) -> compile::Result<Output>;
 
+    /// Alloc a needs address, even if it's a local temporary one.
+    #[allow(unused)]
+    fn alloc_addr(&mut self, scopes: &Scopes<'hir>) -> compile::Result<NeedsAddress<'hir>>;
+
     /// Try to allocate an address from this needs.
     fn try_alloc_addr(
         &mut self,
         cx: &mut Ctxt<'_, 'hir, '_>,
-    ) -> compile::Result<Option<InstAddress>>;
+    ) -> compile::Result<Option<NeedsAddress<'hir>>>;
 
     /// Get the need as an address.
     fn as_addr(&self) -> Option<&NeedsAddress<'hir>>;
@@ -97,7 +101,7 @@ impl<'hir> NeedsLike<'hir> for Needs<'hir> {
     fn assign_addr(
         &mut self,
         cx: &mut Ctxt<'_, 'hir, '_>,
-        from: InstAddress,
+        from: &NeedsAddress<'hir>,
     ) -> compile::Result<()> {
         Needs::assign_addr(self, cx, from)
     }
@@ -105,6 +109,11 @@ impl<'hir> NeedsLike<'hir> for Needs<'hir> {
     #[inline]
     fn alloc_output(&mut self, scopes: &Scopes<'hir>) -> compile::Result<Output> {
         Needs::alloc_output(self, scopes)
+    }
+
+    #[inline]
+    fn alloc_addr(&mut self, scopes: &Scopes<'hir>) -> compile::Result<NeedsAddress<'hir>> {
+        Needs::alloc_addr(self, scopes)
     }
 
     #[inline]
@@ -116,7 +125,7 @@ impl<'hir> NeedsLike<'hir> for Needs<'hir> {
     fn try_alloc_addr(
         &mut self,
         cx: &mut Ctxt<'_, 'hir, '_>,
-    ) -> compile::Result<Option<InstAddress>> {
+    ) -> compile::Result<Option<NeedsAddress<'hir>>> {
         Needs::try_alloc_addr(self, cx.scopes)
     }
 
@@ -146,7 +155,7 @@ impl<'hir> NeedsLike<'hir> for NeedsAddress<'hir> {
     fn assign_addr(
         &mut self,
         cx: &mut Ctxt<'_, 'hir, '_>,
-        from: InstAddress,
+        from: &NeedsAddress<'hir>,
     ) -> compile::Result<()> {
         NeedsAddress::assign_addr(self, cx, from)
     }
@@ -154,6 +163,11 @@ impl<'hir> NeedsLike<'hir> for NeedsAddress<'hir> {
     #[inline]
     fn alloc_output(&mut self, _: &Scopes<'hir>) -> compile::Result<Output> {
         NeedsAddress::alloc_output(self)
+    }
+
+    #[inline]
+    fn alloc_addr(&mut self, _: &Scopes<'hir>) -> compile::Result<NeedsAddress<'hir>> {
+        NeedsAddress::alloc_addr(self)
     }
 
     #[inline]
@@ -165,7 +179,7 @@ impl<'hir> NeedsLike<'hir> for NeedsAddress<'hir> {
     fn try_alloc_addr(
         &mut self,
         _: &mut Ctxt<'_, 'hir, '_>,
-    ) -> compile::Result<Option<InstAddress>> {
+    ) -> compile::Result<Option<NeedsAddress<'hir>>> {
         Ok(Some(NeedsAddress::alloc_addr(self)?))
     }
 
@@ -339,12 +353,14 @@ pub(crate) fn fn_from_item_fn<'a, 'hir>(
                     return Err(compile::Error::new(span, ErrorKind::UnsupportedSelf));
                 }
 
-                cx.scopes.define(span, hir::Name::SelfValue, needs.addr())?;
+                cx.scopes.define(span, hir::Name::SelfValue, *needs)?;
             }
             hir::FnArg::Pat(pat) => {
-                pattern_panic(cx, pat, move |cx, false_label| {
+                let asm = pattern_panic(cx, pat, move |cx, false_label| {
                     fn_arg_pat(cx, *pat, needs, false_label)
                 })?;
+
+                asm.ignore();
             }
         }
 
@@ -375,10 +391,10 @@ pub(crate) fn async_block_secondary<'a, 'hir>(
     let linear = cx.scopes.linear(&hir.block, hir.captures.len())?;
 
     for (name, needs) in hir.captures.iter().copied().zip(&linear) {
-        cx.scopes.define(&hir.block, name, needs.addr())?;
+        cx.scopes.define(&hir.block, name, *needs)?;
     }
 
-    return_(cx, &hir.block, &hir.block, block_without_scope)?;
+    return_(cx, &hir.block, &hir.block, block_without_scope)?.ignore();
     cx.scopes.pop_last(&hir.block)?;
     Ok(())
 }
@@ -404,7 +420,7 @@ pub(crate) fn expr_closure_secondary<'a, 'hir>(
         )?;
 
         for (capture, needs) in hir.captures.iter().copied().zip(&environment) {
-            cx.scopes.define(span, capture, needs.addr())?;
+            cx.scopes.define(span, capture, *needs)?;
         }
     }
 
@@ -414,14 +430,16 @@ pub(crate) fn expr_closure_secondary<'a, 'hir>(
                 return Err(compile::Error::new(span, ErrorKind::UnsupportedSelf))
             }
             hir::FnArg::Pat(pat) => {
-                pattern_panic(cx, pat, move |cx, false_label| {
+                let asm = pattern_panic(cx, pat, move |cx, false_label| {
                     fn_arg_pat(cx, *pat, needs, false_label)
                 })?;
+
+                asm.ignore();
             }
         }
     }
 
-    return_(cx, span, &hir.body, expr)?;
+    return_(cx, span, &hir.body, expr)?.ignore();
     cx.scopes.pop_last(span)?;
     Ok(())
 }
@@ -440,10 +458,10 @@ fn fn_arg_pat<'a, 'hir>(
         ));
     };
 
-    let addr = addr.addr();
+    let addr = *addr;
 
     let load = move |cx: &mut Ctxt<'a, 'hir, '_>, needs: &mut dyn NeedsLike<'hir>| {
-        needs.assign_addr(cx, addr)?;
+        needs.assign_addr(cx, &addr)?;
         Ok(Asm::new(pat, ()))
     };
 
@@ -504,25 +522,6 @@ where
     Ok(Asm::new(span, ()))
 }
 
-/// Compile a pattern with bindings based on the given offset.
-#[instrument(span = hir)]
-fn pat_binding_with_addr<'a, 'hir>(
-    cx: &mut Ctxt<'a, 'hir, '_>,
-    hir: &'hir hir::PatBinding<'hir>,
-    addr: InstAddress,
-) -> compile::Result<()> {
-    let load = |cx: &mut Ctxt<'a, 'hir, '_>, needs: &mut dyn NeedsLike<'hir>| {
-        needs.assign_addr(cx, addr)?;
-        Ok(Asm::new(hir, ()))
-    };
-
-    pattern_panic(cx, hir, |cx, false_label| {
-        pat_binding(cx, hir, &false_label, &load)
-    })?;
-
-    Ok(())
-}
-
 /// Encode a pattern from a known set of bindings.
 ///
 /// Returns a boolean indicating if the label was used.
@@ -569,7 +568,7 @@ fn pat_binding_with<'a, 'hir>(
     }
 
     for (name, needs) in names.iter().copied().zip(linear.iter()) {
-        cx.scopes.define(needs.span, name, needs.addr())?;
+        cx.scopes.define(needs.span, name, *needs)?;
     }
 
     Ok(bound)
@@ -610,7 +609,7 @@ fn pat_binding_with_single<'a, 'hir>(
         ));
     };
 
-    cx.scopes.define(needs.span(), name, addr.addr())?;
+    cx.scopes.define(needs.span(), name, *addr)?;
     Ok(asm)
 }
 
@@ -1070,7 +1069,7 @@ fn builtin_format<'a, 'hir>(
     if let Some(addr) = needs.try_alloc_addr(cx)? {
         cx.asm.push(
             Inst::Format {
-                addr,
+                addr: addr.addr(),
                 spec,
                 out: addr.output(),
             },
@@ -1144,7 +1143,7 @@ fn const_<'a, 'hir>(
     span: &'hir dyn Spanned,
     needs: &mut dyn NeedsLike<'hir>,
 ) -> compile::Result<()> {
-    let Some(addr) = needs.try_alloc_addr(cx)? else {
+    let Some(mut addr) = needs.try_alloc_addr(cx)? else {
         cx.q.diagnostics
             .not_used(cx.source_id, span, cx.context())?;
         return Ok(());
@@ -1173,19 +1172,20 @@ fn const_<'a, 'hir>(
         }
         ConstValue::String(ref s) => {
             let slot = cx.q.unit.new_static_string(span, s)?;
-            cx.asm.push(Inst::String { slot, out: out }, span)?;
+            cx.asm.push(Inst::String { slot, out }, span)?;
         }
         ConstValue::Bytes(ref b) => {
             let slot = cx.q.unit.new_static_bytes(span, b)?;
-            cx.asm.push(Inst::Bytes { slot, out: out }, span)?;
+            cx.asm.push(Inst::Bytes { slot, out }, span)?;
         }
         ConstValue::Option(ref option) => match option {
             Some(value) => {
-                const_(cx, value, span, &mut Needs::with_local(span, addr))?;
+                const_(cx, value, span, &mut addr)?;
+
                 cx.asm.push(
                     Inst::Variant {
                         variant: InstVariant::Some,
-                        addr,
+                        addr: addr.addr(),
                         out,
                     },
                     span,
@@ -1195,7 +1195,7 @@ fn const_<'a, 'hir>(
                 cx.asm.push(
                     Inst::Variant {
                         variant: InstVariant::None,
-                        addr,
+                        addr: addr.addr(),
                         out,
                     },
                     span,
@@ -1280,7 +1280,7 @@ fn expr<'a, 'hir>(
     let asm = match hir.kind {
         hir::ExprKind::Variable(name) => {
             let var = cx.scopes.get(&mut cx.q, span, name)?;
-            needs.assign_addr(cx, var.addr)?;
+            needs.assign_addr(cx, &var.addr)?;
             Asm::new(span, ())
         }
         hir::ExprKind::Type(ty) => {
@@ -1356,7 +1356,7 @@ fn expr_assign<'a, 'hir>(
         // <var> = <value>
         hir::ExprKind::Variable(name) => {
             let var = cx.scopes.get(&mut cx.q, span, name)?;
-            let mut needs = NeedsAddress::with_local(span, var.addr);
+            let mut needs = NeedsAddress::with_local(span, var.addr.addr());
             expr(cx, &hir.rhs, &mut needs)?;
             true
         }
@@ -1598,7 +1598,7 @@ fn expr_binary<'a, 'hir>(
             // <var> <op> <expr>
             hir::ExprKind::Variable(name) => {
                 let var = cx.scopes.get(&mut cx.q, lhs, name)?;
-                Some(InstTarget::Address(var.addr))
+                Some(InstTarget::Address(var.addr.addr()))
             }
             // <expr>.<field> <op> <value>
             hir::ExprKind::FieldAccess(field_access) => {
@@ -1795,7 +1795,7 @@ fn expr_call<'a, 'hir>(
 
             cx.asm.push(
                 Inst::CallFn {
-                    function: var.addr,
+                    function: var.addr.addr(),
                     addr: linear.addr(),
                     args: hir.args.len(),
                     out: needs.alloc_output(cx.scopes)?,
@@ -2055,7 +2055,7 @@ fn expr_field_access<'a, 'hir>(
 
         cx.asm.push_with_comment(
             Inst::TupleIndexGetAt {
-                addr: var.addr,
+                addr: var.addr.addr(),
                 index,
                 out: needs.alloc_output(cx.scopes)?,
             },
@@ -2121,6 +2121,8 @@ fn expr_for<'a, 'hir>(
     };
 
     let into_iter = cx.scopes.alloc(span)?.with_name("into_iter");
+    // Declare needed loop variables.
+    let binding = cx.scopes.alloc(&hir.binding)?.with_name("binding");
 
     cx.asm.push_with_comment(
         Inst::CallAssociated {
@@ -2132,9 +2134,6 @@ fn expr_for<'a, 'hir>(
         &hir.iter,
         &"Protocol::INTO_ITER",
     )?;
-
-    // Declare needed loop variables.
-    let binding = cx.scopes.alloc(&hir.binding)?;
 
     // Declare storage for memoized `next` instance fn.
     let next_offset = if cx.options.memoize_instance_fn {
@@ -2197,10 +2196,8 @@ fn expr_for<'a, 'hir>(
     let mut bindings = cx.scopes.linear(&hir.binding, hir.binding.names.len())?;
 
     pattern_panic(cx, &hir.binding, move |cx, false_label| {
-        let addr = binding.addr();
-
         let load = move |cx: &mut Ctxt<'a, 'hir, '_>, needs: &mut dyn NeedsLike<'hir>| {
-            needs.assign_addr(cx, addr)?;
+            needs.assign_addr(cx, &binding)?;
             Ok(Asm::new(&hir.binding, ()))
         };
 
@@ -2231,6 +2228,7 @@ fn expr_for<'a, 'hir>(
         span,
     )?;
 
+    binding.free(cx.scopes);
     into_iter.free(cx.scopes)?;
     iter.free(cx.scopes)?;
 
@@ -2364,9 +2362,9 @@ fn expr_let<'a, 'hir>(
     let load =
         |cx: &mut Ctxt<'a, 'hir, '_>, needs: &mut dyn NeedsLike<'hir>| expr(cx, &hir.expr, needs);
 
-    pattern_panic(cx, &hir.pat, move |cx, false_label| {
+    converge!(pattern_panic(cx, &hir.pat, move |cx, false_label| {
         pat_binding(cx, &hir.pat, &false_label, &load)
-    })?;
+    })?);
 
     // If a value is needed for a let expression, it is evaluated as a unit.
     if let Some(out) = needs.try_alloc_output(cx)? {
@@ -2409,7 +2407,7 @@ fn expr_match<'a, 'hir>(
         let pattern_scope = cx.scopes.child(span)?;
 
         let load = |cx: &mut Ctxt<'a, 'hir, '_>, needs: &mut dyn NeedsLike<'hir>| {
-            needs.assign_addr(cx, value.addr())?;
+            needs.assign_addr(cx, &value)?;
             Ok(Asm::new(branch, ()))
         };
 
@@ -2756,9 +2754,19 @@ fn expr_select_inner<'a, 'hir>(
 
     if let Some((_, label)) = &default_branch {
         cx.asm.jump(label, span)?;
-    }
+    } else {
+        if let Some(out) = needs.try_alloc_output(cx)? {
+            cx.asm.push(
+                Inst::Copy {
+                    addr: value_addr.addr(),
+                    out,
+                },
+                span,
+            )?;
+        }
 
-    cx.asm.jump(&end_label, span)?;
+        cx.asm.jump(&end_label, span)?;
+    }
 
     let mut branches = core::mem::take(&mut cx.select_branches);
 
@@ -2779,13 +2787,13 @@ fn expr_select_inner<'a, 'hir>(
     cx.select_branches = branches;
 
     cx.scopes.free_linear(linear)?;
-    cx.scopes.free(value_addr)?;
 
     if let Some((branch, label)) = default_branch {
         cx.asm.label(&label)?;
         expr(cx, branch, needs)?.ignore();
     }
 
+    cx.scopes.free(value_addr)?;
     cx.asm.label(&end_label)?;
     Ok(Asm::new(span, ()))
 }

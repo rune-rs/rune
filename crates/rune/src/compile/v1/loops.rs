@@ -73,9 +73,4 @@ impl<'hir> Loops<'hir> {
             },
         ))
     }
-
-    /// Construct an iterator over all available scopes.
-    pub(crate) fn iter(&self) -> impl Iterator<Item = &Loop<'hir>> {
-        self.loops.iter()
-    }
 }

@@ -76,12 +76,12 @@ impl<'hir> NeedsAddress<'hir> {
     }
 
     #[inline]
-    pub(super) fn alloc_addr(&mut self) -> compile::Result<InstAddress> {
+    pub(super) fn alloc_addr(&mut self) -> compile::Result<Self> {
         if matches!(self.kind, NeedsAddressKind::Dangling) {
             self.kind = NeedsAddressKind::Local;
         }
 
-        Ok(self.addr)
+        Ok(*self)
     }
 
     #[inline]
@@ -97,12 +97,12 @@ impl<'hir> NeedsAddress<'hir> {
     pub(super) fn assign_addr(
         &self,
         cx: &mut Ctxt<'_, '_, '_>,
-        from: InstAddress,
+        from: &NeedsAddress<'hir>,
     ) -> compile::Result<()> {
-        if from != self.addr {
+        if from.addr != self.addr {
             cx.asm.push(
                 Inst::Copy {
-                    addr: from,
+                    addr: from.addr(),
                     out: self.addr.output(),
                 },
                 self.span,
@@ -235,13 +235,13 @@ impl<'hir> Needs<'hir> {
     pub(super) fn assign_addr(
         &mut self,
         cx: &mut Ctxt<'_, 'hir, '_>,
-        from: InstAddress,
+        from: &NeedsAddress<'hir>,
     ) -> compile::Result<()> {
         match &self.kind {
             NeedsKind::Alloc { name, .. } => {
                 self.kind = NeedsKind::Address(NeedsAddress {
                     span: self.span,
-                    addr: from,
+                    addr: from.addr,
                     kind: NeedsAddressKind::Assigned,
                     name: name.clone(),
                 });
@@ -261,14 +261,27 @@ impl<'hir> Needs<'hir> {
         matches!(self.kind, NeedsKind::Alloc { .. } | NeedsKind::Address(..))
     }
 
-    /// Test if any sort of value is needed.
-    #[inline(always)]
-    pub(super) fn alloc_output(&mut self, scopes: &Scopes<'_>) -> compile::Result<Output> {
-        let Some(addr) = self.try_alloc_addr(scopes)? else {
-            return Ok(Output::discard());
-        };
+    /// Allocate an address even if it's a locally allocated one.
+    #[inline]
+    pub(super) fn try_alloc_addr(
+        &mut self,
+        scopes: &Scopes<'_>,
+    ) -> compile::Result<Option<NeedsAddress<'hir>>> {
+        match &mut self.kind {
+            NeedsKind::Alloc { scope, name } => {
+                let addr = NeedsAddress {
+                    span: self.span,
+                    addr: scopes.alloc_in(self.span, *scope)?,
+                    kind: NeedsAddressKind::Scope(*scope),
+                    name: name.clone(),
+                };
 
-        Ok(addr.output())
+                self.kind = NeedsKind::Address(addr);
+                Ok(Some(addr))
+            }
+            NeedsKind::Address(addr) => Ok(Some(addr.alloc_addr()?)),
+            NeedsKind::None { .. } => Ok(None),
+        }
     }
 
     /// Get the needs as an output.
@@ -284,28 +297,27 @@ impl<'hir> Needs<'hir> {
         Ok(Some(addr.output()))
     }
 
-    /// Coerce into a value.
-    #[inline]
-    pub(super) fn try_alloc_addr(
+    /// Test if any sort of value is needed.
+    #[inline(always)]
+    pub(super) fn alloc_addr(
         &mut self,
-        scopes: &Scopes<'_>,
-    ) -> compile::Result<Option<InstAddress>> {
-        match &mut self.kind {
-            NeedsKind::Alloc { scope, name } => {
-                let addr = scopes.alloc_in(self.span, *scope)?;
-
-                self.kind = NeedsKind::Address(NeedsAddress {
-                    span: self.span,
-                    addr,
-                    kind: NeedsAddressKind::Scope(*scope),
-                    name: name.clone(),
-                });
-
-                Ok(Some(addr))
-            }
-            NeedsKind::Address(addr) => Ok(Some(addr.alloc_addr()?)),
-            NeedsKind::None { .. } => Ok(None),
+        scopes: &Scopes<'hir>,
+    ) -> compile::Result<NeedsAddress<'hir>> {
+        if let Some(addr) = self.try_alloc_addr(scopes)? {
+            return Ok(addr);
         }
+
+        scopes.alloc(self.span)
+    }
+
+    /// Test if any sort of value is needed.
+    #[inline(always)]
+    pub(super) fn alloc_output(&mut self, scopes: &Scopes<'_>) -> compile::Result<Output> {
+        let Some(addr) = self.try_alloc_addr(scopes)? else {
+            return Ok(Output::discard());
+        };
+
+        Ok(addr.output())
     }
 
     /// Coerce into an address.
