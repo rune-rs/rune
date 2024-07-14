@@ -44,8 +44,8 @@ macro_rules! converge {
 }
 
 enum Pattern {
-    None,
-    Jumps,
+    Irrefutable,
+    Refutable,
 }
 
 trait NeedsLike<'hir> {
@@ -302,8 +302,14 @@ impl<'hir, T> Asm<'hir, T> {
 
     /// Test if the assembly diverges.
     #[inline]
-    fn is_diverge(self) -> bool {
+    fn is_diverging(self) -> bool {
         matches!(self.outcome, Outcome::Diverge)
+    }
+
+    /// Test if the assembly converges.
+    #[inline]
+    fn is_converging(self) -> bool {
+        matches!(self.outcome, Outcome::Converge(..))
     }
 }
 
@@ -426,7 +432,7 @@ fn fn_arg_pat<'a, 'hir>(
     pat: &'hir hir::PatBinding<'hir>,
     needs: &mut dyn NeedsLike<'hir>,
     false_label: &Label,
-) -> compile::Result<Asm<'hir, bool>> {
+) -> compile::Result<Asm<'hir, Pattern>> {
     let Some(addr) = needs.as_addr() else {
         return Err(compile::Error::msg(
             needs.span(),
@@ -473,11 +479,11 @@ fn pattern_panic<'a, 'hir, 'arena, F>(
     f: F,
 ) -> compile::Result<Asm<'hir>>
 where
-    F: FnOnce(&mut Ctxt<'a, 'hir, 'arena>, &Label) -> compile::Result<Asm<'hir, bool>>,
+    F: FnOnce(&mut Ctxt<'a, 'hir, 'arena>, &Label) -> compile::Result<Asm<'hir, Pattern>>,
 {
     let false_label = cx.asm.new_label("pattern_panic");
 
-    if converge!(f(cx, &false_label)?) {
+    if matches!(converge!(f(cx, &false_label)?), Pattern::Refutable) {
         cx.q.diagnostics
             .let_pattern_might_panic(cx.source_id, span, cx.context())?;
 
@@ -526,7 +532,7 @@ fn pat_binding<'a, 'hir>(
     hir: &'hir hir::PatBinding<'hir>,
     false_label: &Label,
     load: &dyn Fn(&mut Ctxt<'a, 'hir, '_>, &mut dyn NeedsLike<'hir>) -> compile::Result<Asm<'hir>>,
-) -> compile::Result<Asm<'hir, bool>> {
+) -> compile::Result<Asm<'hir, Pattern>> {
     let mut linear = cx.scopes.linear(hir, hir.names.len())?;
     pat_binding_with(cx, hir, &hir.pat, hir.names, false_label, load, &mut linear)
 }
@@ -540,7 +546,7 @@ fn pat_binding_with<'a, 'hir>(
     false_label: &Label,
     load: &dyn Fn(&mut Ctxt<'a, 'hir, '_>, &mut dyn NeedsLike<'hir>) -> compile::Result<Asm<'hir>>,
     linear: &mut [NeedsAddress<'hir>],
-) -> compile::Result<Asm<'hir, bool>> {
+) -> compile::Result<Asm<'hir, Pattern>> {
     let bound;
 
     {
@@ -578,7 +584,7 @@ fn pat_binding_with_single<'a, 'hir>(
     false_label: &Label,
     load: &dyn Fn(&mut Ctxt<'a, 'hir, '_>, &mut dyn NeedsLike<'hir>) -> compile::Result<Asm<'hir>>,
     needs: &mut dyn NeedsLike<'hir>,
-) -> compile::Result<Asm<'hir, bool>> {
+) -> compile::Result<Asm<'hir, Pattern>> {
     let asm;
 
     {
@@ -618,14 +624,14 @@ fn pat<'a, 'hir>(
     false_label: &Label,
     load: &dyn Fn(&mut Ctxt<'a, 'hir, '_>, &mut dyn NeedsLike<'hir>) -> compile::Result<Asm<'hir>>,
     bindings: &mut BTreeMap<hir::Name<'hir>, &mut dyn NeedsLike<'hir>>,
-) -> compile::Result<Asm<'hir, bool>> {
+) -> compile::Result<Asm<'hir, Pattern>> {
     let span = hir;
 
     match hir.kind {
         hir::PatKind::Ignore => {
             // ignore binding, but might still have effects, so must call load.
             converge!(load(cx, &mut Needs::none(hir))?);
-            Ok(Asm::new(span, false))
+            Ok(Asm::new(span, Pattern::Irrefutable))
         }
         hir::PatKind::Path(kind) => match *kind {
             hir::PatPathKind::Kind(kind) => {
@@ -643,7 +649,7 @@ fn pat<'a, 'hir>(
                 cx.asm.jump_if_not(cond.addr(), false_label, hir)?;
                 cx.scopes.free(cond)?;
                 addr.free(cx.scopes)?;
-                Ok(Asm::new(span, true))
+                Ok(Asm::new(span, Pattern::Refutable))
             }
             hir::PatPathKind::Ident(name) => {
                 let name = hir::Name::Str(name);
@@ -653,7 +659,7 @@ fn pat<'a, 'hir>(
                 };
 
                 converge!(load(cx, binding)?);
-                Ok(Asm::new(span, false))
+                Ok(Asm::new(span, Pattern::Irrefutable))
             }
         },
         hir::PatKind::Lit(hir) => Ok(pat_lit(cx, hir, false_label, load)?),
@@ -669,7 +675,7 @@ fn pat_lit<'a, 'hir>(
     hir: &'hir hir::Expr<'_>,
     false_label: &Label,
     load: &dyn Fn(&mut Ctxt<'a, 'hir, '_>, &mut dyn NeedsLike<'hir>) -> compile::Result<Asm<'hir>>,
-) -> compile::Result<Asm<'hir, bool>> {
+) -> compile::Result<Asm<'hir, Pattern>> {
     let mut needs = Needs::alloc(cx, hir);
     converge!(load(cx, &mut needs)?, free(cx, needs));
 
@@ -684,7 +690,7 @@ fn pat_lit<'a, 'hir>(
     cx.asm.jump_if_not(cond.addr(), false_label, hir)?;
     cx.scopes.free(cond)?;
     addr.free(cx.scopes)?;
-    Ok(Asm::new(hir, true))
+    Ok(Asm::new(hir, Pattern::Refutable))
 }
 
 #[instrument(span = hir)]
@@ -727,8 +733,9 @@ fn condition<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &hir::Condition<'hir>,
     then_label: &Label,
+    false_label: &Label,
     linear: &mut [NeedsAddress<'hir>],
-) -> compile::Result<Asm<'hir, ScopeId>> {
+) -> compile::Result<Asm<'hir, (ScopeId, Pattern)>> {
     match *hir {
         hir::Condition::Expr(hir) => {
             let scope = cx.scopes.child(hir)?;
@@ -736,7 +743,7 @@ fn condition<'a, 'hir>(
 
             if let Some(()) = expr(cx, hir, &mut addr)?.converge() {
                 cx.asm.jump_if(addr.addr(), then_label, hir)?;
-                Ok(Asm::new(hir, scope))
+                Ok(Asm::new(hir, (scope, Pattern::Irrefutable)))
             } else {
                 cx.scopes.pop(hir, scope)?;
                 Ok(Asm::diverge(hir))
@@ -744,8 +751,6 @@ fn condition<'a, 'hir>(
         }
         hir::Condition::ExprLet(hir) => {
             let span = hir;
-
-            let false_label = cx.asm.new_label("if_condition_false");
 
             let scope = cx.scopes.child(span)?;
 
@@ -764,14 +769,8 @@ fn condition<'a, 'hir>(
             )?;
 
             if let Some(pat) = asm.converge() {
-                if pat {
-                    cx.asm.jump(then_label, span)?;
-                    cx.asm.label(&false_label)?;
-                } else {
-                    cx.asm.jump(then_label, span)?;
-                };
-
-                Ok(Asm::new(span, scope))
+                cx.asm.jump(then_label, span)?;
+                Ok(Asm::new(span, (scope, pat)))
             } else {
                 cx.scopes.pop(span, scope)?;
                 Ok(Asm::diverge(span))
@@ -789,7 +788,7 @@ fn pat_sequence<'a, 'hir>(
     false_label: &Label,
     load: &dyn Fn(&mut Ctxt<'a, 'hir, '_>, &mut dyn NeedsLike<'hir>) -> compile::Result<Asm<'hir>>,
     bindings: &mut BTreeMap<hir::Name<'hir>, &mut dyn NeedsLike<'hir>>,
-) -> compile::Result<Asm<'hir, bool>> {
+) -> compile::Result<Asm<'hir, Pattern>> {
     let mut needs = Needs::alloc(cx, span);
     converge!(load(cx, &mut needs)?, free(cx, needs));
 
@@ -813,7 +812,7 @@ fn pat_sequence<'a, 'hir>(
         )?;
 
         cx.asm.jump_if_not(cond.addr(), false_label, span)?;
-        return Ok(Asm::new(span, true));
+        return Ok(Asm::new(span, Pattern::Refutable));
     }
 
     let inst = pat_sequence_kind_to_inst(hir.kind, addr.addr(), cond.output());
@@ -841,7 +840,7 @@ fn pat_sequence<'a, 'hir>(
 
     cond.free(cx.scopes)?;
     addr.free(cx.scopes)?;
-    Ok(Asm::new(span, true))
+    Ok(Asm::new(span, Pattern::Refutable))
 }
 
 fn pat_sequence_kind_to_inst(kind: hir::PatSequenceKind, addr: InstAddress, out: Output) -> Inst {
@@ -886,7 +885,7 @@ fn pat_object<'a, 'hir>(
     false_label: &Label,
     load: &dyn Fn(&mut Ctxt<'a, 'hir, '_>, &mut dyn NeedsLike<'hir>) -> compile::Result<Asm<'hir>>,
     bindings: &mut BTreeMap<hir::Name<'hir>, &mut dyn NeedsLike<'hir>>,
-) -> compile::Result<Asm<'hir, bool>> {
+) -> compile::Result<Asm<'hir, Pattern>> {
     let mut needs = Needs::alloc(cx, span);
     converge!(load(cx, &mut needs)?, free(cx, needs));
 
@@ -986,7 +985,7 @@ fn pat_object<'a, 'hir>(
     }
 
     addr.free(cx.scopes)?;
-    Ok(Asm::new(span, true))
+    Ok(Asm::new(span, Pattern::Refutable))
 }
 
 /// Call a block.
@@ -1025,12 +1024,12 @@ fn block_without_scope<'a, 'hir>(
             hir::Stmt::Expr(hir) => expr(cx, hir, &mut needs)?,
         };
 
-        diverge |= asm.is_diverge();
+        diverge |= asm.is_diverging();
     }
 
     if !diverge {
         if let Some(e) = hir.value {
-            diverge |= expr(cx, e, needs)?.is_diverge();
+            diverge |= expr(cx, e, needs)?.is_diverging();
         } else if let Some(out) = needs.try_alloc_output(cx)? {
             cx.asm.push(Inst::unit(out), hir)?;
         }
@@ -1904,6 +1903,16 @@ fn exprs<'a, 'hir>(
     exprs_2(cx, span, args, &[])
 }
 
+#[instrument(span = span)]
+fn exprs_with<'a, 'hir, T>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
+    span: &'hir dyn Spanned,
+    args: &'hir [T],
+    map: fn(&'hir T) -> &'hir hir::Expr,
+) -> compile::Result<Asm<'hir, Linear<'hir>>> {
+    exprs_2_with(cx, span, args, &[], map)
+}
+
 /// Assemble a linear sequence of expressions.
 #[instrument(span = span)]
 fn exprs_2<'a, 'hir>(
@@ -1912,6 +1921,16 @@ fn exprs_2<'a, 'hir>(
     a: &'hir [hir::Expr<'hir>],
     b: &'hir [hir::Expr<'hir>],
 ) -> compile::Result<Asm<'hir, Linear<'hir>>> {
+    exprs_2_with(cx, span, a, b, |e| e)
+}
+
+fn exprs_2_with<'a, 'hir, T>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
+    span: &'hir dyn Spanned,
+    a: &'hir [T],
+    b: &'hir [T],
+    map: fn(&'hir T) -> &'hir hir::Expr,
+) -> compile::Result<Asm<'hir, Linear<'hir>>> {
     let mut linear;
 
     match (a, b) {
@@ -1919,9 +1938,10 @@ fn exprs_2<'a, 'hir>(
             linear = Linear::empty(InstAddress::INVALID);
         }
         ([e], []) | ([], [e]) => {
+            let e = map(e);
             let mut needs = Needs::alloc(cx, e);
 
-            converge!(expr(cx, e, &mut needs)?);
+            converge!(expr(cx, e, &mut needs)?, free(cx, needs));
 
             let Some(addr) = needs.as_addr() else {
                 return Err(compile::Error::msg(
@@ -1937,7 +1957,10 @@ fn exprs_2<'a, 'hir>(
             linear = cx.scopes.linear(span, len)?;
 
             for (e, needs) in a.iter().chain(b.iter()).zip(&mut linear) {
-                converge!(expr(cx, e, needs)?);
+                let Some(()) = expr(cx, map(e), needs)?.converge() else {
+                    cx.scopes.free_linear(linear);
+                    return Ok(Asm::diverge(span));
+                };
             }
         }
     }
@@ -2240,11 +2263,18 @@ fn expr_if<'a, 'hir>(
     let mut branches = Vec::new();
 
     for branch in hir.branches {
-        let label = cx.asm.new_label("if_branch");
+        let then_label = cx.asm.new_label("if_branch");
+        let false_label = cx.asm.new_label("if_false");
 
-        if let Some(scope) = condition(cx, branch.condition, &label, &mut linear)?.converge() {
+        if let Some((scope, pat)) =
+            condition(cx, branch.condition, &then_label, &false_label, &mut linear)?.converge()
+        {
+            if matches!(pat, Pattern::Refutable) {
+                cx.asm.label(&false_label);
+            }
+
             cx.scopes.pop_id(branch, scope)?;
-            branches.try_push((branch, label, scope))?;
+            branches.try_push((branch, then_label, scope))?;
         }
     }
 
@@ -2344,10 +2374,9 @@ fn expr_match<'a, 'hir>(
     span: &'hir dyn Spanned,
     needs: &mut dyn NeedsLike<'hir>,
 ) -> compile::Result<Asm<'hir>> {
-    let match_scope = cx.scopes.child(span)?;
-
-    let mut offset = cx.scopes.alloc(span)?;
-    expr(cx, &hir.expr, &mut offset)?;
+    let mut offset = Needs::alloc(cx, span);
+    converge!(expr(cx, &hir.expr, &mut offset)?, free(cx, offset));
+    let value = offset.addr()?;
 
     let end_label = cx.asm.new_label("match_end");
     let mut branches = Vec::new();
@@ -2360,6 +2389,7 @@ fn expr_match<'a, 'hir>(
         .unwrap_or_default();
 
     let mut linear = cx.scopes.linear(span, count)?;
+    let mut is_irrefutable = false;
 
     for branch in hir.branches {
         let span = branch;
@@ -2370,11 +2400,11 @@ fn expr_match<'a, 'hir>(
         let pattern_scope = cx.scopes.child(span)?;
 
         let load = |cx: &mut Ctxt<'a, 'hir, '_>, needs: &mut dyn NeedsLike<'hir>| {
-            needs.assign_addr(cx, offset.addr())?;
+            needs.assign_addr(cx, value.addr())?;
             Ok(Asm::new(branch, ()))
         };
 
-        pat_binding_with(
+        let asm = pat_binding_with(
             cx,
             &branch.pat,
             &branch.pat.pat,
@@ -2384,29 +2414,56 @@ fn expr_match<'a, 'hir>(
             &mut linear,
         )?;
 
-        if let Some(condition) = branch.condition {
-            let span = condition;
-            let mut cond = cx.scopes.alloc(condition)?;
+        if let Some(pat) = asm.converge() {
+            let mut converges = true;
 
-            let guard = cx.scopes.child(span)?;
-            expr(cx, condition, &mut cond)?;
-            cx.scopes.pop(span, guard)?;
-            cx.asm.jump_if_not(cond.addr(), &match_false, span)?;
-            cx.asm.jump(&branch_label, span)?;
-        };
+            if let Some(condition) = branch.condition {
+                let span = condition;
+                let mut cond = cx.scopes.alloc(condition)?;
 
-        cx.asm.jump(&branch_label, span)?;
+                let scope = cx.scopes.child(span)?;
+
+                if expr(cx, condition, &mut cond)?.is_converging() {
+                    cx.asm.jump_if_not(cond.addr(), &match_false, span)?;
+                    cx.asm.jump(&branch_label, span)?;
+                } else {
+                    converges = false;
+                }
+
+                cx.scopes.pop(span, scope)?;
+            } else {
+                // If there is no branch condition, and the branch is
+                // irrefutable, there is no point in assembling the additional
+                // branches.
+                is_irrefutable = matches!(pat, Pattern::Irrefutable);
+            }
+
+            if converges {
+                cx.asm.jump(&branch_label, span)?;
+                cx.scopes.pop_id(span, pattern_scope)?;
+                branches.try_push((branch_label, pattern_scope))?;
+            } else {
+                // If the branch condition diverges, there is no reason to
+                // assemble the other branches if this one is irrefutable.
+                is_irrefutable = matches!(pat, Pattern::Irrefutable);
+                cx.scopes.pop(span, pattern_scope)?;
+            }
+        }
+
+        if is_irrefutable {
+            break;
+        }
+
         cx.asm.label(&match_false)?;
-
-        cx.scopes.pop_id(span, pattern_scope)?;
-        branches.try_push((branch_label, pattern_scope))?;
     }
 
-    if let Some(out) = needs.try_alloc_output(cx)? {
-        cx.asm.push(Inst::unit(out), span)?;
-    }
+    if !is_irrefutable {
+        if let Some(out) = needs.try_alloc_output(cx)? {
+            cx.asm.push(Inst::unit(out), span)?;
+        }
 
-    cx.asm.jump(&end_label, span)?;
+        cx.asm.jump(&end_label, span)?;
+    }
 
     let mut it = hir.branches.iter().zip(branches).peekable();
 
@@ -2414,21 +2471,19 @@ fn expr_match<'a, 'hir>(
         let span = branch;
 
         cx.asm.label(&label)?;
-
         cx.scopes.push(scope);
-        expr(cx, &branch.body, needs)?;
-        cx.scopes.pop(span, scope)?;
 
-        if it.peek().is_some() {
+        if expr(cx, &branch.body, needs)?.is_converging() && it.peek().is_some() {
             cx.asm.jump(&end_label, span)?;
         }
+
+        cx.scopes.pop(span, scope)?;
     }
 
     cx.asm.label(&end_label)?;
 
+    value.free(cx.scopes)?;
     cx.scopes.free_linear(linear)?;
-    // pop the implicit scope where we store the anonymous match variable.
-    cx.scopes.pop(span, match_scope)?;
     Ok(Asm::new(span, ()))
 }
 
@@ -2442,19 +2497,13 @@ fn expr_object<'a, 'hir>(
 ) -> compile::Result<Asm<'hir>> {
     let guard = cx.scopes.child(span)?;
 
-    let mut linear = cx.scopes.linear(span, hir.assignments.len())?;
+    if let Some(linear) = exprs_with(cx, span, hir.assignments, |hir| &hir.assign)?.converge() {
+        let slot =
+            cx.q.unit
+                .new_static_object_keys_iter(span, hir.assignments.iter().map(|a| a.key.1))?;
 
-    for (assign, needs) in hir.assignments.iter().zip(&mut linear) {
-        expr(cx, &assign.assign, needs)?;
-    }
-
-    let slot =
-        cx.q.unit
-            .new_static_object_keys_iter(span, hir.assignments.iter().map(|a| a.key.1))?;
-
-    match hir.kind {
-        hir::ExprObjectKind::EmptyStruct { hash } => {
-            if needs.value() {
+        match hir.kind {
+            hir::ExprObjectKind::EmptyStruct { hash } => {
                 cx.asm.push(
                     Inst::EmptyStruct {
                         hash,
@@ -2463,58 +2512,54 @@ fn expr_object<'a, 'hir>(
                     span,
                 )?;
             }
-        }
-        hir::ExprObjectKind::Struct { hash } => {
-            cx.asm.push(
-                Inst::Struct {
-                    addr: linear.addr(),
-                    hash,
-                    slot,
-                    out: needs.alloc_output(cx.scopes)?,
-                },
-                span,
-            )?;
-        }
-        hir::ExprObjectKind::StructVariant { hash } => {
-            cx.asm.push(
-                Inst::StructVariant {
-                    addr: linear.addr(),
-                    hash,
-                    slot,
-                    out: needs.alloc_output(cx.scopes)?,
-                },
-                span,
-            )?;
-        }
-        hir::ExprObjectKind::ExternalType { hash, args } => {
-            reorder_field_assignments(cx, hir, linear.addr(), span)?;
+            hir::ExprObjectKind::Struct { hash } => {
+                cx.asm.push(
+                    Inst::Struct {
+                        addr: linear.addr(),
+                        hash,
+                        slot,
+                        out: needs.alloc_output(cx.scopes)?,
+                    },
+                    span,
+                )?;
+            }
+            hir::ExprObjectKind::StructVariant { hash } => {
+                cx.asm.push(
+                    Inst::StructVariant {
+                        addr: linear.addr(),
+                        hash,
+                        slot,
+                        out: needs.alloc_output(cx.scopes)?,
+                    },
+                    span,
+                )?;
+            }
+            hir::ExprObjectKind::ExternalType { hash, args } => {
+                reorder_field_assignments(cx, hir, linear.addr(), span)?;
 
-            cx.asm.push(
-                Inst::Call {
-                    hash,
-                    addr: linear.addr(),
-                    args,
-                    out: needs.alloc_output(cx.scopes)?,
-                },
-                span,
-            )?;
+                cx.asm.push(
+                    Inst::Call {
+                        hash,
+                        addr: linear.addr(),
+                        args,
+                        out: needs.alloc_output(cx.scopes)?,
+                    },
+                    span,
+                )?;
+            }
+            hir::ExprObjectKind::Anonymous => {
+                cx.asm.push(
+                    Inst::Object {
+                        addr: linear.addr(),
+                        slot,
+                        out: needs.alloc_output(cx.scopes)?,
+                    },
+                    span,
+                )?;
+            }
         }
-        hir::ExprObjectKind::Anonymous => {
-            cx.asm.push(
-                Inst::Object {
-                    addr: linear.addr(),
-                    slot,
-                    out: needs.alloc_output(cx.scopes)?,
-                },
-                span,
-            )?;
-        }
-    }
 
-    // No need to encode an object since the value is not needed.
-    if !needs.value() {
-        cx.q.diagnostics
-            .not_used(cx.source_id, span, cx.context())?;
+        cx.scopes.free_linear(linear)?;
     }
 
     cx.scopes.pop(span, guard)?;
@@ -2949,13 +2994,14 @@ fn expr_loop<'a, 'hir>(
     let mut linear = cx.scopes.linear(span, count)?;
 
     let condition_scope = if let Some(hir) = hir.condition {
-        match condition(cx, hir, &then_label, &mut linear)?.converge() {
-            Some(condition) => {
-                cx.asm.jump(&end_label, span)?;
-                cx.asm.label(&then_label)?;
-                Some(condition)
-            }
-            None => None,
+        if let Some((scope, _)) =
+            condition(cx, hir, &then_label, &end_label, &mut linear)?.converge()
+        {
+            cx.asm.jump(&end_label, span)?;
+            cx.asm.label(&then_label)?;
+            Some(scope)
+        } else {
+            None
         }
     } else {
         None
