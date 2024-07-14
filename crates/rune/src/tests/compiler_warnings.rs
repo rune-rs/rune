@@ -6,7 +6,7 @@ use diagnostics::WarningDiagnosticKind::*;
 fn test_let_pattern_might_panic() {
     assert_warnings! {
         r#"pub fn main() { let [0, 1, 3] = []; }"#,
-        span!(16, 35), LetPatternMightPanic { context: Some(span!(14, 37)), .. }
+        span!(20, 29), LetPatternMightPanic { context: Some(span!(14, 37)), .. }
     };
 }
 
