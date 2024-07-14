@@ -2108,138 +2108,137 @@ fn expr_for<'a, 'hir>(
     span: &'hir dyn Spanned,
     needs: &mut dyn NeedsLike<'hir>,
 ) -> compile::Result<Asm<'hir>> {
-    let continue_label = cx.asm.new_label("for_continue");
-    let end_label = cx.asm.new_label("for_end");
-    let break_label = cx.asm.new_label("for_break");
-
     let loop_scope = cx.scopes.child(span)?;
     let mut iter = Needs::alloc(cx, span).with_name("iter");
-    expr(cx, &hir.iter, &mut iter)?;
 
-    let Some(iter) = iter.as_addr() else {
-        return Ok(Asm::new(span, ()));
-    };
+    if let Some(()) = expr(cx, &hir.iter, &mut iter)?.converge() {
+        let continue_label = cx.asm.new_label("for_continue");
+        let end_label = cx.asm.new_label("for_end");
+        let break_label = cx.asm.new_label("for_break");
 
-    let into_iter = cx.scopes.alloc(span)?.with_name("into_iter");
-    // Declare needed loop variables.
-    let binding = cx.scopes.alloc(&hir.binding)?.with_name("binding");
+        let iter = iter.addr()?;
+        let into_iter = cx.scopes.alloc(span)?.with_name("into_iter");
+        // Declare needed loop variables.
+        let binding = cx.scopes.alloc(&hir.binding)?.with_name("binding");
 
-    cx.asm.push_with_comment(
-        Inst::CallAssociated {
-            addr: iter.addr(),
-            hash: *Protocol::INTO_ITER,
-            args: 1,
-            out: into_iter.output(),
-        },
-        &hir.iter,
-        &"Protocol::INTO_ITER",
-    )?;
-
-    // Declare storage for memoized `next` instance fn.
-    let next_offset = if cx.options.memoize_instance_fn {
-        let offset = cx.scopes.alloc(&hir.iter)?;
-
-        cx.asm.push_with_comment(
-            Inst::LoadInstanceFn {
-                addr: into_iter.addr(),
-                hash: *Protocol::NEXT,
-                out: offset.output(),
-            },
-            &hir.iter,
-            &"Protocol::NEXT",
-        )?;
-
-        Some(offset)
-    } else {
-        None
-    };
-
-    cx.asm.label(&continue_label)?;
-
-    cx.loops.push(Loop {
-        label: hir.label,
-        continue_label: continue_label.try_clone()?,
-        break_label: break_label.try_clone()?,
-        output: needs.alloc_output(cx.scopes)?,
-        drop: Some(into_iter.addr()),
-    })?;
-
-    // Use the memoized loop variable.
-    if let Some(next_offset) = next_offset {
-        cx.asm.push(
-            Inst::CallFn {
-                function: next_offset.addr(),
-                addr: into_iter.addr(),
-                args: 1,
-                out: binding.output(),
-            },
-            span,
-        )?;
-    } else {
         cx.asm.push_with_comment(
             Inst::CallAssociated {
-                addr: into_iter.addr(),
-                hash: *Protocol::NEXT,
+                addr: iter.addr(),
+                hash: *Protocol::INTO_ITER,
                 args: 1,
-                out: binding.output(),
+                out: into_iter.output(),
             },
-            span,
-            &"Protocol::NEXT",
+            &hir.iter,
+            &"Protocol::INTO_ITER",
         )?;
-    }
 
-    // Test loop condition and unwrap the option, or jump to `end_label` if the current value is `None`.
-    cx.asm
-        .iter_next(binding.addr(), &end_label, &hir.binding, binding.output())?;
+        // Declare storage for memoized `next` instance fn.
+        let next_offset = if cx.options.memoize_instance_fn {
+            let offset = cx.scopes.alloc(&hir.iter)?;
 
-    let inner_loop_scope = cx.scopes.child(&hir.body)?;
-    let mut bindings = cx.scopes.linear(&hir.binding, hir.binding.names.len())?;
+            cx.asm.push_with_comment(
+                Inst::LoadInstanceFn {
+                    addr: into_iter.addr(),
+                    hash: *Protocol::NEXT,
+                    out: offset.output(),
+                },
+                &hir.iter,
+                &"Protocol::NEXT",
+            )?;
 
-    pattern_panic(cx, &hir.binding, move |cx, false_label| {
-        let load = move |cx: &mut Ctxt<'a, 'hir, '_>, needs: &mut dyn NeedsLike<'hir>| {
-            needs.assign_addr(cx, &binding)?;
-            Ok(Asm::new(&hir.binding, ()))
+            Some(offset)
+        } else {
+            None
         };
 
-        pat_binding_with(
-            cx,
-            &hir.binding,
-            &hir.binding.pat,
-            hir.binding.names,
-            false_label,
-            &load,
-            &mut bindings,
-        )
-    })?;
+        cx.asm.label(&continue_label)?;
 
-    block(cx, &hir.body, &mut Needs::none(span))?;
-    cx.scopes.pop(span, inner_loop_scope)?;
+        cx.loops.push(Loop {
+            label: hir.label,
+            continue_label: continue_label.try_clone()?,
+            break_label: break_label.try_clone()?,
+            output: needs.alloc_output(cx.scopes)?,
+            drop: Some(into_iter.addr()),
+        })?;
 
-    cx.asm.jump(&continue_label, span)?;
-    cx.asm.label(&end_label)?;
+        // Use the memoized loop variable.
+        if let Some(next_offset) = next_offset {
+            cx.asm.push(
+                Inst::CallFn {
+                    function: next_offset.addr(),
+                    addr: into_iter.addr(),
+                    args: 1,
+                    out: binding.output(),
+                },
+                span,
+            )?;
+        } else {
+            cx.asm.push_with_comment(
+                Inst::CallAssociated {
+                    addr: into_iter.addr(),
+                    hash: *Protocol::NEXT,
+                    args: 1,
+                    out: binding.output(),
+                },
+                span,
+                &"Protocol::NEXT",
+            )?;
+        }
 
-    // NB: Dropping has to happen before the break label. When breaking, the
-    // break statement is responsible for ensuring that active iterators are
-    // dropped.
-    cx.asm.push(
-        Inst::Drop {
-            addr: into_iter.addr(),
-        },
-        span,
-    )?;
+        // Test loop condition and unwrap the option, or jump to `end_label` if the current value is `None`.
+        cx.asm
+            .iter_next(binding.addr(), &end_label, &hir.binding, binding.output())?;
 
-    binding.free(cx.scopes);
-    into_iter.free(cx.scopes)?;
-    iter.free(cx.scopes)?;
+        let inner_loop_scope = cx.scopes.child(&hir.body)?;
+        let mut bindings = cx.scopes.linear(&hir.binding, hir.binding.names.len())?;
 
-    cx.scopes.pop(span, loop_scope)?;
+        pattern_panic(cx, &hir.binding, move |cx, false_label| {
+            let load = move |cx: &mut Ctxt<'a, 'hir, '_>, needs: &mut dyn NeedsLike<'hir>| {
+                needs.assign_addr(cx, &binding)?;
+                Ok(Asm::new(&hir.binding, ()))
+            };
 
-    if let Some(out) = needs.try_alloc_output(cx)? {
-        cx.asm.push(Inst::unit(out), span)?;
+            pat_binding_with(
+                cx,
+                &hir.binding,
+                &hir.binding.pat,
+                hir.binding.names,
+                false_label,
+                &load,
+                &mut bindings,
+            )
+        })?;
+
+        block(cx, &hir.body, &mut Needs::none(span))?;
+        cx.scopes.pop(span, inner_loop_scope)?;
+
+        cx.asm.jump(&continue_label, span)?;
+        cx.asm.label(&end_label)?;
+
+        // NB: Dropping has to happen before the break label. When breaking, the
+        // break statement is responsible for ensuring that active iterators are
+        // dropped.
+        cx.asm.push(
+            Inst::Drop {
+                addr: into_iter.addr(),
+            },
+            span,
+        )?;
+
+        if let Some(out) = needs.try_alloc_output(cx)? {
+            cx.asm.push(Inst::unit(out), span)?;
+        }
+
+        cx.asm.label(&break_label)?;
+
+        binding.free(cx.scopes)?;
+        into_iter.free(cx.scopes)?;
+
+        cx.loops.pop();
     }
 
-    cx.asm.label(&break_label)?;
-    cx.loops.pop();
+    iter.free(cx.scopes)?;
+    cx.scopes.pop(span, loop_scope)?;
     Ok(Asm::new(span, ()))
 }
 
@@ -2277,7 +2276,7 @@ fn expr_if<'a, 'hir>(
             condition(cx, branch.condition, &then_label, &false_label, &mut linear)?.converge()
         {
             if matches!(pat, Pattern::Refutable) {
-                cx.asm.label(&false_label);
+                cx.asm.label(&false_label)?;
             }
 
             let scope = cx.scopes.dangle(branch, scope)?;
