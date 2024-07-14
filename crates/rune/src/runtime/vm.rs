@@ -248,8 +248,7 @@ impl Vm {
     /// # Examples
     ///
     /// ```
-    /// use rune::{Context, Vm, Unit};
-    /// use rune::compile::ItemBuf;
+    /// use rune::{Context, Unit, Vm};
     ///
     /// use std::sync::Arc;
     ///
@@ -276,17 +275,14 @@ impl Vm {
     /// // Looking up an item from the source.
     /// let dynamic_max = vm.lookup_function(["max"])?;
     ///
-    /// let value: i64 = dynamic_max.call::<i64>((10, 20)).into_result()?;
+    /// let value = dynamic_max.call::<i64>((10, 20)).into_result()?;
     /// assert_eq!(value, 20);
     ///
     /// // Building an item buffer to lookup an `::std` item.
-    /// let mut item = ItemBuf::with_crate("std")?;
-    /// item.push("i64")?;
-    /// item.push("max")?;
-    ///
+    /// let item = rune::item!(::std::i64::max);
     /// let max = vm.lookup_function(&item)?;
     ///
-    /// let value: i64 = max.call::<i64>((10, 20)).into_result()?;
+    /// let value = max.call::<i64>((10, 20)).into_result()?;
     /// assert_eq!(value, 20);
     /// # Ok::<_, rune::support::Error>(())
     /// ```
@@ -608,7 +604,6 @@ impl Vm {
             // Safety: We hold onto the guard for the duration of this call.
             let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut self.stack)) };
             vm_try!(handler(&mut self.stack, addr, count, out));
-            // vm_try!(self.stack.truncate(addr));
             return VmResult::Ok(CallResult::Ok(()));
         }
 
@@ -704,7 +699,7 @@ impl Vm {
     ///
     /// This will cause the `args` number of elements on the stack to be
     /// associated and accessible to the new call frame.
-    #[tracing::instrument(skip(self), fields(call_frames = self.call_frames.len(), stack_bottom = self.stack.stack_bottom(), stack = self.stack.len(), self.ip))]
+    #[tracing::instrument(skip(self), fields(call_frames = self.call_frames.len(), top = self.stack.top(), stack = self.stack.len(), self.ip))]
     pub(crate) fn push_call_frame(
         &mut self,
         ip: usize,
@@ -715,12 +710,12 @@ impl Vm {
     ) -> Result<(), VmErrorKind> {
         tracing::trace!("pushing call frame");
 
-        let stack_bottom = self.stack.swap_stack_bottom(addr, args)?;
+        let top = self.stack.swap_top(addr, args)?;
         let ip = replace(&mut self.ip, ip);
 
         let frame = CallFrame {
             ip,
-            stack_bottom,
+            top,
             isolated,
             out,
         };
@@ -732,7 +727,7 @@ impl Vm {
     /// Pop a call frame from an internal call, which needs the current stack
     /// pointer to be returned and does not check for context isolation through
     /// [`CallFrame::isolated`].
-    #[tracing::instrument(skip(self), fields(call_frames = self.call_frames.len(), stack_bottom = self.stack.stack_bottom(), stack = self.stack.len(), self.ip))]
+    #[tracing::instrument(skip(self), fields(call_frames = self.call_frames.len(), top = self.stack.top(), stack = self.stack.len(), self.ip))]
     pub(crate) fn pop_call_frame_from_call(&mut self) -> Result<Option<usize>, VmErrorKind> {
         tracing::trace!("popping call frame from call");
 
@@ -741,12 +736,12 @@ impl Vm {
         };
 
         tracing::trace!(?frame);
-        self.stack.pop_stack_top(frame.stack_bottom)?;
+        self.stack.pop_stack_top(frame.top)?;
         Ok(Some(replace(&mut self.ip, frame.ip)))
     }
 
     /// Pop a call frame and return it.
-    #[tracing::instrument(skip(self), fields(call_frames = self.call_frames.len(), stack_bottom = self.stack.stack_bottom(), stack = self.stack.len(), self.ip))]
+    #[tracing::instrument(skip(self), fields(call_frames = self.call_frames.len(), top = self.stack.top(), stack = self.stack.len(), self.ip))]
     pub(crate) fn pop_call_frame(&mut self) -> Result<(bool, Option<Output>), VmErrorKind> {
         tracing::trace!("popping call frame");
 
@@ -756,7 +751,7 @@ impl Vm {
         };
 
         tracing::trace!(?frame);
-        self.stack.pop_stack_top(frame.stack_bottom)?;
+        self.stack.pop_stack_top(frame.top)?;
         self.ip = frame.ip;
         Ok((frame.isolated, Some(frame.out)))
     }
@@ -3608,7 +3603,7 @@ pub struct CallFrame {
     ///
     /// I.e. a function should not be able to manipulate the size of any other
     /// stack than its own.
-    pub stack_bottom: usize,
+    pub top: usize,
     /// Indicates that the call frame is isolated and should force an exit into
     /// the vm execution context.
     pub isolated: bool,

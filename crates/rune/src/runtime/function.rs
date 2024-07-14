@@ -512,10 +512,11 @@ where
         let value = match &self.inner {
             Inner::FnHandler(handler) => {
                 let count = args.count();
+                let size = count.max(1);
                 // Ensure we have space for the return value.
-                let mut stack = vm_try!(Stack::with_capacity(count.max(1)));
+                let mut stack = vm_try!(Stack::with_capacity(size));
                 vm_try!(args.into_stack(&mut stack));
-                vm_try!(stack.resize(1));
+                vm_try!(stack.resize(size));
                 vm_try!((handler.handler)(
                     &mut stack,
                     InstAddress::ZERO,

@@ -8,20 +8,45 @@ use crate::alloc::prelude::*;
 use crate::alloc::{self, Vec};
 use crate::runtime::{InstAddress, Value, VmErrorKind};
 
-/// An error raised when interacting with the stack.
+/// An error raised when accessing an address on the stack.
 #[derive(Debug, PartialEq)]
 #[non_exhaustive]
-pub struct StackError;
+pub struct StackError {
+    addr: InstAddress,
+}
 
 impl fmt::Display for StackError {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Tried to access out-of-bounds stack entry")
+        write!(f, "Tried to access out-of-bounds stack entry {}", self.addr)
+    }
+}
+
+/// An error raised when accessing a slice on the stack.
+#[derive(Debug, PartialEq)]
+#[non_exhaustive]
+pub struct SliceError {
+    addr: InstAddress,
+    len: usize,
+    stack: usize,
+}
+
+impl fmt::Display for SliceError {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Tried to access out-of-bounds stack slice {}-{} in 0-{}",
+            self.addr,
+            self.addr.offset() + self.len,
+            self.stack
+        )
     }
 }
 
 cfg_std! {
     impl std::error::Error for StackError {}
+    impl std::error::Error for SliceError {}
 }
 
 /// The stack of the virtual machine, where all values are stored.
@@ -32,7 +57,7 @@ pub struct Stack {
     /// The top of the current stack frame.
     ///
     /// It is not possible to interact with values below this stack frame.
-    stack_bottom: usize,
+    top: usize,
 }
 
 impl Stack {
@@ -51,14 +76,14 @@ impl Stack {
     pub const fn new() -> Self {
         Self {
             stack: Vec::new(),
-            stack_bottom: 0,
+            top: 0,
         }
     }
 
     /// The current top address of the stack.
     #[inline]
     pub const fn addr(&self) -> InstAddress {
-        InstAddress::new(self.stack.len().saturating_sub(self.stack_bottom))
+        InstAddress::new(self.stack.len().saturating_sub(self.top))
     }
 
     /// Try to resize the stack with space for the given size.
@@ -68,17 +93,7 @@ impl Stack {
         }
 
         let empty = Value::empty()?;
-        self.stack.try_resize(self.stack_bottom + size, empty)?;
-        Ok(())
-    }
-
-    /// Truncat the stack to the given address.
-    pub(crate) fn truncate(&mut self, addr: InstAddress) -> Result<(), StackError> {
-        let Some(len) = self.stack_bottom.checked_add(addr.offset()) else {
-            return Err(StackError);
-        };
-
-        self.stack.truncate(len);
+        self.stack.try_resize(self.top + size, empty)?;
         Ok(())
     }
 
@@ -97,13 +112,13 @@ impl Stack {
     pub fn with_capacity(capacity: usize) -> alloc::Result<Self> {
         Ok(Self {
             stack: Vec::try_with_capacity(capacity)?,
-            stack_bottom: 0,
+            top: 0,
         })
     }
 
     /// Check if the stack is empty.
     ///
-    /// This ignores [stack_bottom] and will just check if the full stack is
+    /// This ignores [top] and will just check if the full stack is
     /// empty.
     ///
     /// ```
@@ -116,14 +131,14 @@ impl Stack {
     /// # Ok::<_, rune::support::Error>(())
     /// ```
     ///
-    /// [stack_bottom]: Self::stack_bottom()
+    /// [top]: Self::top()
     pub fn is_empty(&self) -> bool {
         self.stack.is_empty()
     }
 
     /// Get the length of the stack.
     ///
-    /// This ignores [stack_bottom] and will just return the total length of
+    /// This ignores [top] and will just return the total length of
     /// the stack.
     ///
     /// ```
@@ -136,17 +151,17 @@ impl Stack {
     /// # Ok::<_, rune::support::Error>(())
     /// ```
     ///
-    /// [stack_bottom]: Self::stack_bottom()
+    /// [top]: Self::top()
     pub fn len(&self) -> usize {
         self.stack.len()
     }
 
     /// Perform a raw access over the stack.
     ///
-    /// This ignores [stack_bottom] and will just check that the given slice
+    /// This ignores [top] and will just check that the given slice
     /// index is within range.
     ///
-    /// [stack_bottom]: Self::stack_bottom()
+    /// [top]: Self::top()
     pub fn get<I>(&self, index: I) -> Option<&<I as slice::SliceIndex<[Value]>>::Output>
     where
         I: slice::SliceIndex<[Value]>,
@@ -177,7 +192,7 @@ impl Stack {
 
     /// Drain the current stack down to the current stack bottom.
     pub(crate) fn drain(&mut self) -> impl DoubleEndedIterator<Item = Value> + '_ {
-        self.stack.drain(self.stack_bottom..)
+        self.stack.drain(self.top..)
     }
 
     /// Get the slice at the given address with the given length.
@@ -196,53 +211,33 @@ impl Stack {
     /// assert_eq!(values.len(), 2);
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn slice_at(&self, addr: InstAddress, count: usize) -> Result<&[Value], StackError> {
-        if count == 0 {
-            return Ok(&[]);
+    pub fn slice_at(&self, addr: InstAddress, len: usize) -> Result<&[Value], SliceError> {
+        let stack_len = self.stack.len();
+
+        if let Some(slice) = inner_slice_at(&self.stack, self.top, addr, len) {
+            return Ok(slice);
         }
 
-        let Some(start) = self.stack_bottom.checked_add(addr.offset()) else {
-            return Err(StackError);
-        };
-
-        let Some(end) = start.checked_add(count) else {
-            return Err(StackError);
-        };
-
-        let Some(slice) = self.stack.get(start..end) else {
-            return Err(StackError);
-        };
-
-        Ok(slice)
+        Err(slice_error(stack_len, self.top, addr, len))
     }
 
     /// Get the mutable slice at the given address with the given length.
     pub fn slice_at_mut(
         &mut self,
         addr: InstAddress,
-        count: usize,
-    ) -> Result<&mut [Value], StackError> {
-        if count == 0 {
-            return Ok(&mut []);
+        len: usize,
+    ) -> Result<&mut [Value], SliceError> {
+        let stack_len = self.stack.len();
+
+        if let Some(slice) = inner_slice_at_mut(&mut self.stack, self.top, addr, len) {
+            return Ok(slice);
         }
 
-        let Some(start) = self.stack_bottom.checked_add(addr.offset()) else {
-            return Err(StackError);
-        };
-
-        let Some(end) = start.checked_add(count) else {
-            return Err(StackError);
-        };
-
-        let Some(slice) = self.stack.get_mut(start..end) else {
-            return Err(StackError);
-        };
-
-        Ok(slice)
+        Err(slice_error(stack_len, self.top, addr, len))
     }
 
     /// Get the slice at the given address with the given static length.
-    pub fn array_at<const N: usize>(&self, addr: InstAddress) -> Result<[&Value; N], StackError> {
+    pub fn array_at<const N: usize>(&self, addr: InstAddress) -> Result<[&Value; N], SliceError> {
         let slice = self.slice_at(addr, N)?;
         Ok(array::from_fn(|i| &slice[i]))
     }
@@ -250,13 +245,7 @@ impl Stack {
     /// Clear the current stack.
     pub fn clear(&mut self) {
         self.stack.clear();
-        self.stack_bottom = 0;
-    }
-
-    /// Get the last position on the stack.
-    #[inline]
-    pub fn last(&self) -> Result<&Value, StackError> {
-        self.stack.last().ok_or(StackError)
+        self.top = 0;
     }
 
     /// Iterate over the stack.
@@ -269,8 +258,8 @@ impl Stack {
     /// The stack is partitioned into call frames, and once we enter a call
     /// frame the bottom of the stack corresponds to the bottom of the current
     /// call frame.
-    pub fn stack_bottom(&self) -> usize {
-        self.stack_bottom
+    pub fn top(&self) -> usize {
+        self.top
     }
 
     /// Access the value at the given frame offset.
@@ -288,10 +277,10 @@ impl Stack {
     /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn at(&self, addr: InstAddress) -> Result<&Value, StackError> {
-        self.stack_bottom
+        self.top
             .checked_add(addr.offset())
             .and_then(|n| self.stack.get(n))
-            .ok_or(StackError)
+            .ok_or(StackError { addr })
     }
 
     /// Get a value mutable at the given index from the stack bottom.
@@ -314,10 +303,10 @@ impl Stack {
     /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn at_mut(&mut self, addr: InstAddress) -> Result<&mut Value, StackError> {
-        self.stack_bottom
+        self.top
             .checked_add(addr.offset())
             .and_then(|n| self.stack.get_mut(n))
-            .ok_or(StackError)
+            .ok_or(StackError { addr })
     }
 
     /// Swap the value at position a with the value at position b.
@@ -327,16 +316,16 @@ impl Stack {
         }
 
         let a = self
-            .stack_bottom
+            .top
             .checked_add(a.offset())
             .filter(|&n| n < self.stack.len())
-            .ok_or(StackError)?;
+            .ok_or(StackError { addr: a })?;
 
         let b = self
-            .stack_bottom
+            .top
             .checked_add(b.offset())
             .filter(|&n| n < self.stack.len())
-            .ok_or(StackError)?;
+            .ok_or(StackError { addr: b })?;
 
         self.stack.swap(a, b);
         Ok(())
@@ -349,27 +338,29 @@ impl Stack {
     ///
     /// Returns the old stack top.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn swap_stack_bottom(
-        &mut self,
-        addr: InstAddress,
-        len: usize,
-    ) -> Result<usize, VmErrorKind> {
+    pub(crate) fn swap_top(&mut self, addr: InstAddress, len: usize) -> Result<usize, VmErrorKind> {
         let old_len = self.stack.len();
 
         if len == 0 {
-            return Ok(replace(&mut self.stack_bottom, old_len));
+            return Ok(replace(&mut self.top, old_len));
         }
 
-        let Some(start) = self.stack_bottom.checked_add(addr.offset()) else {
-            return Err(VmErrorKind::StackError);
+        let Some(start) = self.top.checked_add(addr.offset()) else {
+            return Err(VmErrorKind::StackError {
+                error: StackError { addr },
+            });
         };
 
         let Some(new_len) = old_len.checked_add(len) else {
-            return Err(VmErrorKind::StackError);
+            return Err(VmErrorKind::StackError {
+                error: StackError { addr },
+            });
         };
 
         if old_len < start + len {
-            return Err(VmErrorKind::StackError);
+            return Err(VmErrorKind::StackError {
+                error: StackError { addr },
+            });
         }
 
         self.stack.try_reserve(len)?;
@@ -387,7 +378,7 @@ impl Stack {
             self.stack.set_len(new_len);
         }
 
-        Ok(replace(&mut self.stack_bottom, old_len))
+        Ok(replace(&mut self.top, old_len))
     }
 
     /// Pop the current stack top and modify it to a different one.
@@ -395,11 +386,47 @@ impl Stack {
     /// This asserts that the size of the current stack frame is exactly zero
     /// before restoring it.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn pop_stack_top(&mut self, stack_bottom: usize) -> alloc::Result<()> {
-        tracing::trace!(stack = self.stack.len(), self.stack_bottom);
-        self.stack.truncate(self.stack_bottom);
-        self.stack_bottom = stack_bottom;
+    pub(crate) fn pop_stack_top(&mut self, top: usize) -> alloc::Result<()> {
+        tracing::trace!(stack = self.stack.len(), self.top);
+        self.stack.truncate(self.top);
+        self.top = top;
         Ok(())
+    }
+}
+
+#[inline(always)]
+fn inner_slice_at(values: &[Value], top: usize, addr: InstAddress, len: usize) -> Option<&[Value]> {
+    if len == 0 {
+        return Some(&mut []);
+    }
+
+    let start = top.checked_add(addr.offset())?;
+    let end = start.checked_add(len)?;
+    values.get(start..end)
+}
+
+#[inline(always)]
+fn inner_slice_at_mut(
+    values: &mut [Value],
+    top: usize,
+    addr: InstAddress,
+    len: usize,
+) -> Option<&mut [Value]> {
+    if len == 0 {
+        return Some(&mut []);
+    }
+
+    let start = top.checked_add(addr.offset())?;
+    let end = start.checked_add(len)?;
+    values.get_mut(start..end)
+}
+
+#[inline(always)]
+fn slice_error(stack: usize, bottom: usize, addr: InstAddress, len: usize) -> SliceError {
+    SliceError {
+        addr,
+        len,
+        stack: stack.saturating_sub(bottom),
     }
 }
 
@@ -407,7 +434,7 @@ impl TryClone for Stack {
     fn try_clone(&self) -> alloc::Result<Self> {
         Ok(Self {
             stack: self.stack.try_clone()?,
-            stack_bottom: self.stack_bottom,
+            top: self.top,
         })
     }
 }
@@ -419,16 +446,13 @@ impl TryFromIteratorIn<Value, Global> for Stack {
     ) -> alloc::Result<Self> {
         Ok(Self {
             stack: iter.into_iter().try_collect_in(alloc)?,
-            stack_bottom: 0,
+            top: 0,
         })
     }
 }
 
 impl From<Vec<Value>> for Stack {
     fn from(stack: Vec<Value>) -> Self {
-        Self {
-            stack,
-            stack_bottom: 0,
-        }
+        Self { stack, top: 0 }
     }
 }

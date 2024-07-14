@@ -261,15 +261,15 @@ pub(super) async fn run(
 
         while let Some((count, frame)) = it.next() {
             let stack_top = match it.peek() {
-                Some((_, next)) => next.stack_bottom,
-                None => stack.stack_bottom(),
+                Some((_, next)) => next.top,
+                None => stack.top(),
             };
 
             let values = stack
-                .get(frame.stack_bottom..stack_top)
+                .get(frame.top..stack_top)
                 .expect("bad stack slice");
 
-            writeln!(io.stdout, "  frame #{} (+{})", count, frame.stack_bottom)?;
+            writeln!(io.stdout, "  frame #{} (+{})", count, frame.top)?;
 
             if values.is_empty() {
                 writeln!(io.stdout, "    *empty*")?;
@@ -277,7 +277,7 @@ pub(super) async fn run(
 
             vm.with(|| {
                 for (n, value) in stack.iter().enumerate() {
-                    writeln!(io.stdout, "    {}+{n} = {value:?}", frame.stack_bottom)?;
+                    writeln!(io.stdout, "    {}+{n} = {value:?}", frame.top)?;
                 }
 
                 Ok::<_, crate::support::Error>(())
@@ -289,10 +289,10 @@ pub(super) async fn run(
             io.stdout,
             "  frame #{} (+{})",
             frames.len(),
-            stack.stack_bottom()
+            stack.top()
         )?;
 
-        let values = stack.get(stack.stack_bottom()..).expect("bad stack slice");
+        let values = stack.get(stack.top()..).expect("bad stack slice");
 
         if values.is_empty() {
             writeln!(io.stdout, "    *empty*")?;
@@ -300,7 +300,7 @@ pub(super) async fn run(
 
         vm.with(|| {
             for (n, value) in values.iter().enumerate() {
-                writeln!(io.stdout, "    {}+{n} = {value:?}", stack.stack_bottom())?;
+                writeln!(io.stdout, "    {}+{n} = {value:?}", stack.top())?;
             }
 
             Ok::<_, crate::support::Error>(())
@@ -368,7 +368,7 @@ where
 
             if current_frame_len != frames.len() {
                 let op = if current_frame_len < frames.len() { "push" } else { "pop" };
-                write!(o, "  {op} frame {} (+{})", frames.len(), stack.stack_bottom())?;
+                write!(o, "  {op} frame {} (+{})", frames.len(), stack.top())?;
 
                 if let Some(frame) = frames.last() {
                     writeln!(o, " {frame:?}")?;
@@ -398,11 +398,11 @@ where
 
         if dump_stack {
             let stack = vm.stack();
-            let values = stack.get(stack.stack_bottom()..).expect("bad stack slice");
+            let values = stack.get(stack.top()..).expect("bad stack slice");
 
             vm.with(|| {
                 for (n, value) in values.iter().enumerate() {
-                    writeln!(o, "    {}+{n} = {value:?}", stack.stack_bottom())?;
+                    writeln!(o, "    {}+{n} = {value:?}", stack.top())?;
                 }
 
                 Ok::<_, TraceError>(())

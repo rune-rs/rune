@@ -37,6 +37,7 @@ mod hash;
 mod inst_display;
 mod instrument;
 mod internals;
+mod item;
 mod macro_;
 mod module;
 mod opaque;
@@ -191,14 +192,14 @@ pub fn any(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     builder.expand().into()
 }
 
-/// Calculate a type hash.
+/// Calculate a type hash at compile time.
 ///
 /// # Examples
 ///
 /// ```
-/// use rune_core::Hash;
+/// use rune::Hash;
 ///
-/// let hash: Hash = rune_macros::hash!(::std::ops::Generator);
+/// let hash: Hash = rune::hash!(::std::ops::Generator);
 /// ```
 #[proc_macro]
 pub fn hash(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -207,7 +208,30 @@ pub fn hash(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let stream = match self::hash::build_type_hash(&path) {
         Ok(hash) => {
             let hash = hash.into_inner();
-            ::quote::quote!(Hash::new(#hash))
+            ::quote::quote!(rune::Hash::new(#hash))
+        }
+        Err(error) => to_compile_errors([error]),
+    };
+
+    stream.into()
+}
+
+/// Calculate an item reference at compile time.
+///
+/// # Examples
+///
+/// ```
+/// use rune::Item;
+///
+/// let item: Item = rune::item!(::std::ops::Generator);
+/// ```
+#[proc_macro]
+pub fn item(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let path = syn::parse_macro_input!(input as syn::Path);
+
+    let stream = match self::item::build_item(&path) {
+        Ok(hash) => {
+            ::quote::quote!(unsafe { rune::Item::from_bytes(&#hash) })
         }
         Err(error) => to_compile_errors([error]),
     };

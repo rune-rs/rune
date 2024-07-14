@@ -117,7 +117,7 @@ pub(crate) use self::shared::Shared;
 pub use self::shared::{Mut, RawMut, RawRef, Ref, SharedPointerGuard};
 
 mod stack;
-pub use self::stack::{Stack, StackError};
+pub use self::stack::{SliceError, Stack, StackError};
 
 mod static_string;
 pub use self::static_string::StaticString;
