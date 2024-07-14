@@ -30,16 +30,6 @@ pub(super) struct NeedsAddress<'hir> {
 }
 
 impl<'hir> NeedsAddress<'hir> {
-    /// Construct an empty address.
-    pub(super) const fn empty(span: &'hir dyn Spanned) -> Self {
-        Self {
-            span,
-            addr: InstAddress::ZERO,
-            kind: NeedsAddressKind::Assigned,
-            name: None,
-        }
-    }
-
     /// A locally allocated address.
     #[inline]
     pub(super) fn with_local(span: &'hir dyn Spanned, addr: InstAddress) -> Self {
@@ -139,6 +129,7 @@ pub(super) enum NeedsKind<'hir> {
     },
     Address(NeedsAddress<'hir>),
     None {
+        #[allow(unused)]
         name: Option<&'static str>,
     },
 }

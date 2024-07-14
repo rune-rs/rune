@@ -113,6 +113,7 @@ pub(super) struct SpanInjectionWriter<'a> {
     writer: IndentedWriter,
     queued_spans: Vec<ResolvedSpan>,
     source: &'a str,
+    pub(super) empties: usize,
 }
 
 impl<'a> SpanInjectionWriter<'a> {
@@ -130,13 +131,15 @@ impl<'a> SpanInjectionWriter<'a> {
             writer,
             queued_spans,
             source,
+            empties: 0,
         })
     }
 
     pub(super) fn into_inner(mut self) -> Result<Vec<Vec<u8>>, FormattingError> {
         while !self.queued_spans.is_empty() {
             let span = self.queued_spans.remove(0);
-            self.write_span(span)?;
+            let mut empties = 0;
+            self.write_span(span, &mut empties)?;
         }
 
         Ok(self.writer.into_inner())
@@ -183,9 +186,14 @@ impl<'a> SpanInjectionWriter<'a> {
         self.write_spanned(Span::new(0, 0), text, false, false)
     }
 
-    pub(super) fn write_queued_spans(&mut self, until: ByteIndex) -> Result<(), FormattingError> {
+    pub(super) fn write_queued_spans(
+        &mut self,
+        until: ByteIndex,
+    ) -> Result<usize, FormattingError> {
         // The queued recovered spans are ordered so we can pop them from the front if they're before the current span.
         // If the current span is before the first queued span, we need to inject the queued span.
+
+        let mut empties = 0;
 
         while let Some(queued_span) = self.queued_spans.first() {
             if queued_span.span().start > until {
@@ -193,18 +201,27 @@ impl<'a> SpanInjectionWriter<'a> {
             }
 
             let queued_span = self.queued_spans.remove(0);
-            self.write_span(queued_span)?;
+            self.write_span(queued_span, &mut empties)?;
         }
 
-        Ok(())
+        Ok(empties)
     }
 
-    fn write_span(&mut self, span: ResolvedSpan) -> Result<(), FormattingError> {
+    fn write_span(
+        &mut self,
+        span: ResolvedSpan,
+        empties: &mut usize,
+    ) -> Result<(), FormattingError> {
         match span {
             ResolvedSpan::Empty(_) => {
-                writeln!(self.writer)?;
+                if *empties == 0 {
+                    writeln!(self.writer)?;
+                }
+
+                *empties += 1;
             }
             ResolvedSpan::Comment(comment) => {
+                *empties = 0;
                 let mut lines = self.resolve(comment.span)?.lines();
 
                 if let Some(first_line) = lines.next() {
