@@ -871,6 +871,8 @@ fn pat_object<'hir>(
     cx.asm.push(inst, span)?;
     cx.asm.jump_if_not(cond.addr(), false_label, span)?;
 
+    cx.scopes.free(cond)?;
+
     for (binding, slot) in hir.bindings.iter().zip(string_slots) {
         match *binding {
             hir::Binding::Binding(span, _, p) => {

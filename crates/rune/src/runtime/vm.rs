@@ -608,7 +608,7 @@ impl Vm {
             // Safety: We hold onto the guard for the duration of this call.
             let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut self.stack)) };
             vm_try!(handler(&mut self.stack, addr, count, out));
-            vm_try!(self.stack.truncate(addr));
+            // vm_try!(self.stack.truncate(addr));
             return VmResult::Ok(CallResult::Ok(()));
         }
 
@@ -2814,7 +2814,9 @@ impl Vm {
                         break 'out false;
                     }
                 }
-                _ => break 'out false,
+                _ => {
+                    break 'out false;
+                }
             }
 
             let value = value.clone();

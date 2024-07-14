@@ -152,4 +152,24 @@ fn match_enums() {
             assert_eq!(foo(Enum::Fourth { a: 4, b: 5 }), Enum::Output(4 * 5 * 4));
         }
     };
+
+    let _: () = rune! {
+        enum Enum {
+            First,
+            Second,
+            Right,
+            Wrong1,
+            Wrong2,
+        }
+
+        pub fn main() {
+            let out = match Enum::Second {
+                Enum::First => Enum::Wrong1,
+                Enum::Second => Enum::Right,
+                _ => Enum::Wrong2,
+            };
+
+            assert_eq!(out, Enum::Right);
+        }
+    };
 }

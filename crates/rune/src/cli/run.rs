@@ -84,21 +84,20 @@ impl CommandBase for Flags {
             self.dump_native_types = true;
         }
 
+        if self.dump_functions
+        || self.dump_native_functions
+        || self.dump_stack
+        || self.dump_types
+        || self.dump_constants {
+            self.dump_unit = true;
+        }
+
         if self.dump_unit {
             self.emit_instructions = true;
         }
 
         if self.trace_limit.is_some() {
             self.trace = true;
-        }
-
-        if self.dump_functions
-        || self.dump_native_functions
-        || self.dump_stack
-        || self.dump_types
-        || self.dump_constants
-        || self.emit_instructions {
-            self.dump_unit = true;
         }
     }
 }
