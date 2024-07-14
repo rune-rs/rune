@@ -12,7 +12,7 @@ use crate::query::Query;
 use crate::runtime::{Inst, InstAddress, Output};
 use crate::SourceId;
 
-use super::{Ctxt, NeedsAddress, NeedsAddressKind, Slab, Slots};
+use super::{NeedsAddress, NeedsAddressKind, Slab, Slots};
 
 /// Root scope.
 const ROOT: ScopeId = ScopeId { index: 0, id: 0 };
@@ -320,19 +320,15 @@ impl<'hir> Scopes<'hir> {
     }
 
     /// Free an address if it's in the specified scope.
-    #[tracing::instrument(skip(self, asm))]
-    pub(crate) fn free(
-        &mut self,
-        asm: &mut Assembly,
-        addr: NeedsAddress<'hir>,
-    ) -> compile::Result<()> {
+    #[tracing::instrument(skip(self))]
+    pub(crate) fn free(&mut self, addr: NeedsAddress<'hir>) -> compile::Result<()> {
         match &addr.kind {
             NeedsAddressKind::Local | NeedsAddressKind::Dangling => {
-                self.free_addr(addr.span, asm, addr.addr())?;
+                self.free_addr(addr.span, addr.addr())?;
             }
             NeedsAddressKind::Scope(scope) => {
                 if self.top_id() == *scope {
-                    self.free_addr(addr.span, asm, addr.addr())?;
+                    self.free_addr(addr.span, addr.addr())?;
                 }
             }
             _ => {}
@@ -342,11 +338,10 @@ impl<'hir> Scopes<'hir> {
     }
 
     /// Free an address if it's in the specified scope.
-    #[tracing::instrument(skip(self, span, asm))]
+    #[tracing::instrument(skip(self, span))]
     pub(crate) fn free_addr(
         &mut self,
         span: &dyn Spanned,
-        asm: &mut Assembly,
         addr: InstAddress,
     ) -> compile::Result<()> {
         let Some(scope) = self.scopes.get_mut(self.top.index) else {
@@ -375,32 +370,21 @@ impl<'hir> Scopes<'hir> {
             ));
         }
 
-        // TODO: Drop values when they go out of scope.
-        // asm.push(Inst::Drop { addr }, span)?;
         Ok(())
     }
 
     /// Free a bunch of linear variables.
-    #[tracing::instrument(skip(self, asm, linear), fields(linear.base, len = linear.len()))]
-    pub(crate) fn free_linear(
-        &mut self,
-        asm: &mut Assembly,
-        linear: Linear<'hir>,
-    ) -> compile::Result<()> {
+    #[tracing::instrument(skip(self, linear), fields(linear.base, len = linear.len()))]
+    pub(crate) fn free_linear(&mut self, linear: Linear<'hir>) -> compile::Result<()> {
         for addr in linear.addresses.into_iter().rev() {
-            self.free(asm, addr)?;
+            self.free(addr)?;
         }
 
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, asm, span))]
-    pub(crate) fn pop(
-        &mut self,
-        span: &dyn Spanned,
-        asm: Option<&mut Assembly>,
-        id: ScopeId,
-    ) -> compile::Result<()> {
+    #[tracing::instrument(skip(self, span))]
+    pub(crate) fn pop(&mut self, span: &dyn Spanned, id: ScopeId) -> compile::Result<()> {
         let Some(mut scope) = self.scopes.try_remove(id.index) else {
             return Err(compile::Error::msg(
                 span,
@@ -420,30 +404,20 @@ impl<'hir> Scopes<'hir> {
 
         tracing::trace!(?scope, "freeing locals");
 
-        if let Some(asm) = asm {
-            // Free any locally defined variables associated with the scope.
-            for addr in &scope.locals {
-                if !self.slots.remove(*addr) {
-                    return Err(compile::Error::msg(
-                        span,
-                        format!(
-                            "Address {addr} is not globally allocated in {:?}",
-                            self.slots
-                        ),
-                    ));
-                }
-
-                // TODO: Drop values when they go out of scope.
-                /*asm.push(
-                    Inst::Drop {
-                        addr: InstAddress::new(*addr),
-                    },
+        // Free any locally defined variables associated with the scope.
+        for addr in &scope.locals {
+            if !self.slots.remove(*addr) {
+                return Err(compile::Error::msg(
                     span,
-                )?;*/
+                    format!(
+                        "Address {addr} is not globally allocated in {:?}",
+                        self.slots
+                    ),
+                ));
             }
-
-            scope.locals.clear();
         }
+
+        scope.locals.clear();
 
         self.top = scope.parent;
         Ok(())
@@ -452,7 +426,7 @@ impl<'hir> Scopes<'hir> {
     /// Pop the last of the scope.
     #[tracing::instrument(skip(self, span))]
     pub(crate) fn pop_last(&mut self, span: &dyn Spanned) -> compile::Result<()> {
-        self.pop(span, None, ROOT)?;
+        self.pop(span, ROOT)?;
         Ok(())
     }
 
@@ -594,12 +568,12 @@ impl<'hir> Var<'hir> {
     /// Copy the declared variable.
     pub(crate) fn copy(
         &self,
-        cx: &mut Ctxt<'_, '_, '_>,
+        asm: &mut Assembly,
         span: &dyn Spanned,
         comment: Option<&dyn fmt::Display>,
         out: Output,
     ) -> compile::Result<()> {
-        cx.asm.push_with_comment(
+        asm.push_with_comment(
             Inst::Copy {
                 addr: self.addr,
                 out,

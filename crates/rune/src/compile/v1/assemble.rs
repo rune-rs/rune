@@ -292,7 +292,7 @@ pub(crate) fn fn_from_item_fn<'hir>(
         cx.asm.push(Inst::ReturnUnit, hir)?;
     }
 
-    cx.scopes.free_linear(&mut cx.asm, arguments)?;
+    cx.scopes.free_linear(arguments)?;
     cx.scopes.pop_last(hir)?;
     Ok(())
 }
@@ -397,7 +397,7 @@ fn return_<'hir, T>(
         cx.asm.push(Inst::Return { addr: addr.addr() }, span)?;
     };
 
-    needs.free(&mut cx.asm, &mut cx.scopes)?;
+    needs.free(&mut cx.scopes)?;
     Ok(())
 }
 
@@ -622,7 +622,7 @@ fn pat_lit<'hir>(
 
     cx.asm.push(inst, hir)?;
     cx.asm.jump_if_not(cond.addr(), false_label, hir)?;
-    cx.scopes.free(&mut cx.asm, cond)?;
+    cx.scopes.free(cond)?;
     Ok(true)
 }
 
@@ -749,7 +749,7 @@ fn pat_sequence<'hir>(
     let inst = pat_sequence_kind_to_inst(hir.kind, addr.addr(), cond.output());
     cx.asm.push(inst, span)?;
     cx.asm.jump_if_not(cond.addr(), false_label, span)?;
-    cx.scopes.free(&mut cx.asm, cond)?;
+    cx.scopes.free(cond)?;
 
     for (index, p) in hir.items.iter().enumerate() {
         let addr = addr.addr();
@@ -925,7 +925,7 @@ fn block<'hir>(
 ) -> compile::Result<Asm<'hir>> {
     let scope = cx.scopes.child(hir)?;
     let out = block_without_scope(cx, hir, needs)?;
-    cx.scopes.pop(hir, Some(&mut cx.asm), scope)?;
+    cx.scopes.pop(hir, scope)?;
     Ok(out)
 }
 
@@ -1060,7 +1060,7 @@ fn builtin_template<'hir>(
         span,
     )?;
 
-    cx.scopes.pop(span, Some(&mut cx.asm), expected)?;
+    cx.scopes.pop(span, expected)?;
     Ok(Asm::new(span))
 }
 
@@ -1146,7 +1146,7 @@ fn const_<'hir>(
                 span,
             )?;
 
-            cx.scopes.free_linear(&mut cx.asm, linear)?;
+            cx.scopes.free_linear(linear)?;
         }
         ConstValue::Tuple(ref tuple) => {
             let mut linear = cx.scopes.linear(span, tuple.len())?;
@@ -1164,7 +1164,7 @@ fn const_<'hir>(
                 span,
             )?;
 
-            cx.scopes.free_linear(&mut cx.asm, linear)?;
+            cx.scopes.free_linear(linear)?;
         }
         ConstValue::Object(ref object) => {
             let mut linear = cx.scopes.linear(span, object.len())?;
@@ -1189,7 +1189,7 @@ fn const_<'hir>(
                 span,
             )?;
 
-            cx.scopes.free_linear(&mut cx.asm, linear)?;
+            cx.scopes.free_linear(linear)?;
         }
     }
 
@@ -1313,8 +1313,8 @@ fn expr_assign<'hir>(
                         )?;
                     }
 
-                    target.free(&mut cx.asm, &mut cx.scopes)?;
-                    value.free(&mut cx.asm, &mut cx.scopes)?;
+                    target.free(&mut cx.scopes)?;
+                    value.free(&mut cx.scopes)?;
                     true
                 }
                 hir::ExprField::Index(index) => {
@@ -1333,8 +1333,8 @@ fn expr_assign<'hir>(
                         span,
                     )?;
 
-                    cx.scopes.free(&mut cx.asm, target)?;
-                    cx.scopes.free(&mut cx.asm, value)?;
+                    cx.scopes.free(target)?;
+                    cx.scopes.free(value)?;
                     true
                 }
                 _ => {
@@ -1360,9 +1360,9 @@ fn expr_assign<'hir>(
                 span,
             )?;
 
-            cx.scopes.free(&mut cx.asm, value)?;
-            cx.scopes.free(&mut cx.asm, index)?;
-            cx.scopes.free(&mut cx.asm, target)?;
+            cx.scopes.free(value)?;
+            cx.scopes.free(index)?;
+            cx.scopes.free(target)?;
             true
         }
         _ => false,
@@ -1398,7 +1398,7 @@ fn expr_await<'hir>(
         span,
     )?;
 
-    cx.scopes.free(&mut cx.asm, addr)?;
+    cx.scopes.free(addr)?;
     Ok(Asm::new(span))
 }
 
@@ -1469,9 +1469,9 @@ fn expr_binary<'hir>(
         )?;
     }
 
-    a.free(&mut cx.asm, &mut cx.scopes)?;
-    b.free(&mut cx.asm, &mut cx.scopes)?;
-    cx.scopes.pop(span, Some(&mut cx.asm), guard)?;
+    a.free(&mut cx.scopes)?;
+    b.free(&mut cx.scopes)?;
+    cx.scopes.pop(span, guard)?;
     return Ok(Asm::new(span));
 
     fn compile_conditional_binop<'hir>(
@@ -1604,7 +1604,7 @@ fn expr_async_block<'hir>(
             var.move_(cx.asm, span, Some(&"capture"), out)?;
         } else {
             let var = cx.scopes.get(&mut cx.q, span, capture)?;
-            var.copy(cx, span, Some(&"capture"), out)?;
+            var.copy(cx.asm, span, Some(&"capture"), out)?;
         }
     }
 
@@ -1619,7 +1619,7 @@ fn expr_async_block<'hir>(
         &"async block",
     )?;
 
-    cx.scopes.free_linear(&mut cx.asm, linear)?;
+    cx.scopes.free_linear(linear)?;
     Ok(Asm::new(span))
 }
 
@@ -1730,7 +1730,7 @@ fn expr_call<'hir>(
                 span,
             )?;
 
-            cx.scopes.free_linear(&mut cx.asm, linear)?;
+            cx.scopes.free_linear(linear)?;
         }
         hir::Call::Associated { target, hash } => {
             let Some(linear) = exprs_2(cx, span, slice::from_ref(target), hir.args)? else {
@@ -1747,7 +1747,7 @@ fn expr_call<'hir>(
                 span,
             )?;
 
-            cx.scopes.free_linear(&mut cx.asm, linear)?;
+            cx.scopes.free_linear(linear)?;
         }
         hir::Call::Meta { hash } => {
             let Some(linear) = exprs(cx, span, hir.args)? else {
@@ -1764,7 +1764,7 @@ fn expr_call<'hir>(
                 span,
             )?;
 
-            cx.scopes.free_linear(&mut cx.asm, linear)?;
+            cx.scopes.free_linear(linear)?;
         }
         hir::Call::Expr { expr: e } => {
             let mut function = Needs::alloc(cx, span);
@@ -1782,11 +1782,11 @@ fn expr_call<'hir>(
                         span,
                     )?;
 
-                    cx.scopes.free_linear(&mut cx.asm, linear)?;
+                    cx.scopes.free_linear(linear)?;
                 }
             }
 
-            function.free(&mut cx.asm, &mut cx.scopes)?;
+            function.free(&mut cx.scopes)?;
         }
         hir::Call::ConstFn {
             from_module,
@@ -1910,7 +1910,7 @@ fn expr_call_closure<'hir>(
             var.move_(cx.asm, span, Some(&"capture"), out)?;
         } else {
             let var = cx.scopes.get(&mut cx.q, span, capture)?;
-            var.copy(cx, span, Some(&"capture"), out)?;
+            var.copy(cx.asm, span, Some(&"capture"), out)?;
         }
     }
 
@@ -2011,7 +2011,7 @@ fn expr_field_access<'hir>(
         }
     }
 
-    addr.free(&mut cx.asm, &mut cx.scopes)?;
+    addr.free(&mut cx.scopes)?;
     Ok(Asm::new(span))
 }
 
@@ -2130,7 +2130,7 @@ fn expr_for<'hir>(
     })?;
 
     block(cx, &hir.body, &mut Needs::none(span))?;
-    cx.scopes.pop(span, Some(&mut cx.asm), guard)?;
+    cx.scopes.pop(span, guard)?;
 
     cx.asm.jump(&continue_label, span)?;
     cx.asm.label(&end_label)?;
@@ -2140,7 +2140,7 @@ fn expr_for<'hir>(
     // dropped.
     cx.asm.push(Inst::Drop { addr: iter.addr() }, span)?;
 
-    cx.scopes.pop(span, Some(&mut cx.asm), loop_scope)?;
+    cx.scopes.pop(span, loop_scope)?;
 
     if let Some(out) = needs.try_alloc_output(cx)? {
         cx.asm.push(Inst::unit(out), span)?;
@@ -2210,7 +2210,7 @@ fn expr_if<'a, 'hir>(
             block(cx, &branch.block, needs)?;
         }
 
-        cx.scopes.pop(branch, Some(&mut cx.asm), scope)?;
+        cx.scopes.pop(branch, scope)?;
 
         if it.peek().is_some() {
             cx.asm.jump(&end_label, branch)?;
@@ -2218,7 +2218,7 @@ fn expr_if<'a, 'hir>(
     }
 
     cx.asm.label(&end_label)?;
-    cx.scopes.free_linear(&mut cx.asm, linear)?;
+    cx.scopes.free_linear(linear)?;
     Ok(Asm::new(span))
 }
 
@@ -2247,7 +2247,7 @@ fn expr_index<'hir>(
         span,
     )?;
 
-    cx.scopes.pop(span, Some(&mut cx.asm), guard)?;
+    cx.scopes.pop(span, guard)?;
     Ok(Asm::new(span))
 }
 
@@ -2329,7 +2329,7 @@ fn expr_match<'hir>(
 
             let guard = cx.scopes.child(span)?;
             expr(cx, condition, &mut cond)?;
-            cx.scopes.pop(span, Some(&mut cx.asm), guard)?;
+            cx.scopes.pop(span, guard)?;
             cx.asm.jump_if_not(cond.addr(), &match_false, span)?;
             cx.asm.jump(&branch_label, span)?;
         };
@@ -2356,7 +2356,7 @@ fn expr_match<'hir>(
 
         cx.scopes.push(scope);
         expr(cx, &branch.body, needs)?;
-        cx.scopes.pop(span, Some(&mut cx.asm), scope)?;
+        cx.scopes.pop(span, scope)?;
 
         if it.peek().is_some() {
             cx.asm.jump(&end_label, span)?;
@@ -2365,9 +2365,9 @@ fn expr_match<'hir>(
 
     cx.asm.label(&end_label)?;
 
-    cx.scopes.free_linear(&mut cx.asm, linear)?;
+    cx.scopes.free_linear(linear)?;
     // pop the implicit scope where we store the anonymous match variable.
-    cx.scopes.pop(span, Some(&mut cx.asm), match_scope)?;
+    cx.scopes.pop(span, match_scope)?;
     Ok(Asm::new(span))
 }
 
@@ -2456,7 +2456,7 @@ fn expr_object<'hir>(
             .not_used(cx.source_id, span, cx.context())?;
     }
 
-    cx.scopes.pop(span, Some(&mut cx.asm), guard)?;
+    cx.scopes.pop(span, guard)?;
     Ok(Asm::new(span))
 }
 
@@ -2565,8 +2565,8 @@ fn expr_range<'hir>(
         )?;
     }
 
-    cx.scopes.free_linear(&mut cx.asm, linear)?;
-    cx.scopes.pop(span, Some(&mut cx.asm), guard)?;
+    cx.scopes.free_linear(linear)?;
+    cx.scopes.pop(span, guard)?;
     Ok(Asm::new(span))
 }
 
@@ -2641,7 +2641,7 @@ fn expr_select<'hir>(
                 .jump_if_branch(branch_addr.addr(), branch as i64, label, span)?;
         }
 
-        cx.scopes.free(&mut cx.asm, branch_addr)?;
+        cx.scopes.free(branch_addr)?;
 
         if let Some((_, label)) = &default_branch {
             cx.asm.jump(label, span)?;
@@ -2659,12 +2659,12 @@ fn expr_select<'hir>(
             // Set up a new scope with the binding.
             expr(cx, &branch.body, needs)?;
 
-            cx.scopes.pop(&branch.body, Some(&mut cx.asm), scope)?;
+            cx.scopes.pop(&branch.body, scope)?;
             cx.asm.jump(&end_label, span)?;
         }
 
-        cx.scopes.free_linear(&mut cx.asm, linear)?;
-        cx.scopes.free(&mut cx.asm, value_addr)?;
+        cx.scopes.free_linear(linear)?;
+        cx.scopes.free(value_addr)?;
 
         if let Some((branch, label)) = default_branch {
             cx.asm.label(&label)?;
@@ -2701,7 +2701,7 @@ fn expr_try<'hir>(
         span,
     )?;
 
-    cx.scopes.free(&mut cx.asm, addr)?;
+    cx.scopes.free(addr)?;
     Ok(Asm::new(span))
 }
 
@@ -2735,7 +2735,7 @@ fn expr_tuple<'hir>(
                 )?;
             }
 
-            cx.scopes.pop(span, Some(&mut cx.asm), guard)?;
+            cx.scopes.pop(span, guard)?;
         }};
     }
 
@@ -2766,7 +2766,7 @@ fn expr_tuple<'hir>(
                 )?;
             }
 
-            cx.scopes.free_linear(&mut cx.asm, linear)?;
+            cx.scopes.free_linear(linear)?;
         }
     }
 
@@ -2843,7 +2843,7 @@ fn expr_vec<'hir>(
         )?;
     }
 
-    cx.scopes.free_linear(&mut cx.asm, linear)?;
+    cx.scopes.free_linear(linear)?;
     Ok(Asm::new(span))
 }
 
@@ -2885,7 +2885,7 @@ fn expr_loop<'hir>(
     block(cx, &hir.body, &mut Needs::none(span))?;
 
     if let Some(scope) = condition_scope {
-        cx.scopes.pop(span, Some(&mut cx.asm), scope)?;
+        cx.scopes.pop(span, scope)?;
     }
 
     cx.asm.jump(&continue_label, span)?;
@@ -2897,7 +2897,7 @@ fn expr_loop<'hir>(
 
     // NB: breaks produce their own value / perform their own cleanup.
     cx.asm.label(&break_label)?;
-    cx.scopes.free_linear(&mut cx.asm, linear)?;
+    cx.scopes.free_linear(linear)?;
     cx.loops.pop();
     Ok(Asm::new(span))
 }
