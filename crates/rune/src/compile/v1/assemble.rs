@@ -2753,8 +2753,10 @@ fn expr_try<'a, 'hir>(
     span: &'hir dyn Spanned,
     needs: &mut dyn NeedsLike<'hir>,
 ) -> compile::Result<Asm<'hir>> {
-    let mut addr = cx.scopes.alloc(span)?;
-    expr(cx, hir, &mut addr)?;
+    let mut addr = Needs::alloc(cx, span);
+    converge!(expr(cx, hir, &mut addr)?);
+
+    let addr = addr.addr()?;
 
     cx.asm.push(
         Inst::Try {
@@ -2764,7 +2766,7 @@ fn expr_try<'a, 'hir>(
         span,
     )?;
 
-    cx.scopes.free(addr)?;
+    addr.free(cx.scopes)?;
     Ok(Asm::new(span, ()))
 }
 
@@ -2777,28 +2779,31 @@ fn expr_tuple<'a, 'hir>(
     needs: &mut dyn NeedsLike<'hir>,
 ) -> compile::Result<Asm<'hir>> {
     macro_rules! tuple {
-        ($variant:ident, $($var:ident),*) => {{
-            let guard = cx.scopes.child(span)?;
+        ($variant:ident $(, $var:ident, $expr:ident)* $(,)?) => {{
+            $(let mut $var = Needs::alloc(cx, span);)*
 
-            $(
-            let $var = {
-                let mut addr = cx.scopes.alloc($var)?;
-                expr(cx, $var, &mut addr)?;
-                addr
-            };
-            )*
+            let asm = expr_array(
+                cx,
+                span,
+                [$(($expr, &mut $var)),*],
+            )?;
 
-            if let Some(addr) = needs.try_alloc_addr(cx)? {
+            let asm = if let Some([$($var),*]) = asm.converge() {
                 cx.asm.push(
                     Inst::$variant {
                         args: [$($var.addr(),)*],
-                        out: addr.output(),
+                        out: needs.alloc_output(cx.scopes)?,
                     },
                     span,
                 )?;
-            }
 
-            cx.scopes.pop(span, guard)?;
+                Asm::new(span, ())
+            } else {
+                Asm::diverge(span)
+            };
+
+            $($var.free(cx.scopes)?;)*
+            return Ok(asm);
         }};
     }
 
@@ -2807,16 +2812,12 @@ fn expr_tuple<'a, 'hir>(
             cx.asm
                 .push(Inst::unit(needs.alloc_output(cx.scopes)?), span)?;
         }
-        [e1] => tuple!(Tuple1, e1),
-        [e1, e2] => tuple!(Tuple2, e1, e2),
-        [e1, e2, e3] => tuple!(Tuple3, e1, e2, e3),
-        [e1, e2, e3, e4] => tuple!(Tuple4, e1, e2, e3, e4),
+        [e1] => tuple!(Tuple1, v1, e1),
+        [e1, e2] => tuple!(Tuple2, v1, e1, v2, e2),
+        [e1, e2, e3] => tuple!(Tuple3, v1, e1, v2, e2, v3, e3),
+        [e1, e2, e3, e4] => tuple!(Tuple4, v1, e1, v2, e2, v3, e3, v4, e4),
         _ => {
-            let mut linear = cx.scopes.linear(span, hir.items.len())?;
-
-            for (e, needs) in hir.items.iter().zip(&mut linear) {
-                expr(cx, e, needs)?;
-            }
+            let linear = converge!(exprs(cx, span, hir.items)?);
 
             if needs.value() {
                 cx.asm.push(
