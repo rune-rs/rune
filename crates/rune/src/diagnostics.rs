@@ -46,11 +46,11 @@ use crate::alloc::{self, Vec};
 use crate::ast::{Span, Spanned};
 use crate::{Hash, SourceId};
 
-cfg_emit! {
-    mod emit;
-    #[doc(inline)]
-    pub use self::emit::EmitError;
-}
+#[cfg(feature = "emit")]
+#[cfg_attr(rune_docsrs, doc(cfg(feature = "emit")))]
+mod emit;
+#[doc(inline)]
+pub use self::emit::EmitError;
 
 /// A single diagnostic.
 #[derive(Debug)]

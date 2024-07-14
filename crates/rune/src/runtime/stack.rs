@@ -74,6 +74,16 @@ impl Stack {
         Ok(())
     }
 
+    /// Truncat the stack to the given address.
+    pub(crate) fn truncate(&mut self, addr: InstAddress) -> Result<(), StackError> {
+        let Some(len) = self.stack_bottom.checked_add(addr.offset()) else {
+            return Err(StackError);
+        };
+
+        self.stack.truncate(len);
+        Ok(())
+    }
+
     /// Construct a new stack with the given capacity pre-allocated.
     ///
     /// ```
