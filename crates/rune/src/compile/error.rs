@@ -18,6 +18,7 @@ use crate::query::MissingId;
 use crate::runtime::debug::DebugSignature;
 use crate::runtime::unit::EncodeError;
 use crate::runtime::{AccessError, RuntimeError, TypeInfo, TypeOf, ValueKind, VmError};
+use crate::shared::CapacityError;
 #[cfg(feature = "std")]
 use crate::source;
 use crate::{Hash, SourceId};
@@ -221,6 +222,9 @@ pub(crate) enum ErrorKind {
     },
     AllocError {
         error: alloc::Error,
+    },
+    CapacityError {
+        error: CapacityError,
     },
     IrError(IrErrorKind),
     MetaError(MetaError),
@@ -524,7 +528,6 @@ cfg_std! {
     impl std::error::Error for ErrorKind {
         fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
             match self {
-                ErrorKind::AllocError { error, .. } => Some(error),
                 ErrorKind::IrError(source) => Some(source),
                 ErrorKind::MetaError(source) => Some(source),
                 ErrorKind::AccessError(source) => Some(source),
@@ -556,6 +559,9 @@ impl fmt::Display for ErrorKind {
                 write!(f, "Unsupported `{what}`")?;
             }
             ErrorKind::AllocError { error } => {
+                error.fmt(f)?;
+            }
+            ErrorKind::CapacityError { error } => {
                 error.fmt(f)?;
             }
             ErrorKind::IrError(error) => {
@@ -1041,6 +1047,13 @@ impl From<alloc::Error> for ErrorKind {
     #[inline]
     fn from(error: alloc::Error) -> Self {
         ErrorKind::AllocError { error }
+    }
+}
+
+impl From<CapacityError> for ErrorKind {
+    #[inline]
+    fn from(error: CapacityError) -> Self {
+        ErrorKind::CapacityError { error }
     }
 }
 

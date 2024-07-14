@@ -12,6 +12,7 @@ use crate::runtime::{
     ConstValue, Inst, InstAddress, InstAssignOp, InstOp, InstRange, InstTarget, InstValue,
     InstVariant, Label, Output, PanicReason, Protocol, TypeCheck,
 };
+use crate::shared::FixedVec;
 use crate::{Hash, SourceId};
 
 use super::{Linear, Loop, Loops, Needs, NeedsAddress, ScopeId, Scopes};
@@ -257,7 +258,7 @@ enum Outcome<T> {
     Diverge,
 }
 
-#[must_use = "Assembly must be checked for convergence"]
+#[must_use = "Assembly should be checked for convergence to reduce code generation"]
 struct Asm<'hir, T = ()> {
     span: &'hir dyn Spanned,
     outcome: Outcome<T>,
@@ -1871,9 +1872,9 @@ fn expr_array<'a, 'hir, const N: usize>(
     span: &'hir dyn Spanned,
     array: [(&'hir hir::Expr<'hir>, &mut dyn NeedsLike<'hir>); N],
 ) -> compile::Result<Asm<'hir, [NeedsAddress<'hir>; N]>> {
-    let mut out = [NeedsAddress::empty(span); N];
+    let mut out = FixedVec::new();
 
-    for ((expr, needs), o) in array.into_iter().zip(&mut out) {
+    for (expr, needs) in array {
         converge!(self::expr(cx, expr, needs)?);
 
         let Some(addr) = needs.as_addr() else {
@@ -1883,10 +1884,10 @@ fn expr_array<'a, 'hir, const N: usize>(
             ));
         };
 
-        *o = *addr;
+        out.try_push(*addr).with_span(span)?;
     }
 
-    Ok(Asm::new(span, out))
+    Ok(Asm::new(span, out.into_inner()))
 }
 
 #[instrument(span = span)]
