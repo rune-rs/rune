@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate as rune;
 use crate::alloc;
 use crate::alloc::prelude::*;
-use crate::runtime::{Call, FormatSpec, Stack, Type, Value, ValueKind, VmErrorKind, VmResult};
+use crate::runtime::{Call, FormatSpec, Stack, Type, Value, ValueKind, VmError, VmResult};
 use crate::Hash;
 
 /// Pre-canned panic reasons.
@@ -1224,7 +1224,7 @@ enum OutputKind {
     Discard,
 }
 
-/// The calling convention of a function.
+/// What to do with the output of an instruction.
 #[derive(TryClone, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Encode, Decode)]
 #[try_clone(copy)]
 #[non_exhaustive]
@@ -1264,14 +1264,37 @@ impl Output {
         }
     }
 
-    /// Write the current output to the provided stack.
+    /// Write output using the provided [`IntoOutput`] implementation onto the
+    /// stack.
+    ///
+    /// The [`IntoOutput`] trait primarily allows for deferring a computation
+    /// since it's implemented by [`FnOnce`]. However, you must take care that
+    /// any side effects calling a function may have are executed outside of the
+    /// call to `store`. Like if the function would error.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::runtime::{Output, Stack, ToValue, VmResult, InstAddress};
+    /// use rune::vm_try;
+    ///
+    /// fn sum(stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
+    ///     let mut number = 0;
+    ///
+    ///     for value in vm_try!(stack.slice_at(addr, args)) {
+    ///         number += vm_try!(value.as_integer());
+    ///     }
+    ///
+    ///     out.store(stack, number);
+    ///     VmResult::Ok(())
+    /// }
     #[inline]
-    pub(crate) fn store<O>(self, stack: &mut Stack, o: O) -> VmResult<()>
+    pub fn store<O>(self, stack: &mut Stack, o: O) -> VmResult<()>
     where
-        O: IntoResult<Output: TryInto<Value, Error: Into<VmErrorKind>>>,
+        O: IntoOutput<Output: TryInto<Value, Error: Into<VmError>>>,
     {
         if let Some(index) = self.as_addr() {
-            let value = vm_try!(o.into_result());
+            let value = vm_try!(o.into_output());
             *vm_try!(stack.at_mut(index)) = vm_try!(value.try_into().map_err(Into::into));
         }
 
@@ -1295,108 +1318,63 @@ impl fmt::Debug for Output {
     }
 }
 
-/// Trait used to store a value.
-pub trait IntoResult {
+/// Trait used to coerce values into outputs.
+pub trait IntoOutput {
     #[doc(hidden)]
     type Output;
 
-    /// Coerce into result.
-    fn into_result(self) -> VmResult<Self::Output>;
+    /// Coerce the current value into an output.
+    fn into_output(self) -> VmResult<Self::Output>;
 }
 
-impl<F, O> IntoResult for F
+impl<F, O> IntoOutput for F
 where
     F: FnOnce() -> O,
-    O: IntoResult,
+    O: IntoOutput,
 {
     type Output = O::Output;
 
     #[inline]
-    fn into_result(self) -> VmResult<Self::Output> {
-        self().into_result()
+    fn into_output(self) -> VmResult<Self::Output> {
+        self().into_output()
     }
 }
 
-impl<T, E> IntoResult for Result<T, E>
+impl<T, E> IntoOutput for Result<T, E>
 where
-    VmErrorKind: From<E>,
+    VmError: From<E>,
 {
     type Output = T;
 
     #[inline]
-    fn into_result(self) -> VmResult<Self::Output> {
+    fn into_output(self) -> VmResult<Self::Output> {
         VmResult::Ok(vm_try!(self))
     }
 }
 
-impl<T> IntoResult for VmResult<T> {
+impl<T> IntoOutput for VmResult<T> {
     type Output = T;
 
     #[inline]
-    fn into_result(self) -> VmResult<Self::Output> {
+    fn into_output(self) -> VmResult<Self::Output> {
         self
     }
 }
 
-impl IntoResult for Value {
+impl IntoOutput for Value {
     type Output = Value;
 
     #[inline]
-    fn into_result(self) -> VmResult<Self::Output> {
+    fn into_output(self) -> VmResult<Self::Output> {
         VmResult::Ok(self)
     }
 }
 
-impl IntoResult for bool {
-    type Output = bool;
-
-    #[inline]
-    fn into_result(self) -> VmResult<Self::Output> {
-        VmResult::Ok(self)
-    }
-}
-
-impl IntoResult for u8 {
-    type Output = u8;
-
-    #[inline]
-    fn into_result(self) -> VmResult<Self::Output> {
-        VmResult::Ok(self)
-    }
-}
-
-impl IntoResult for i64 {
-    type Output = i64;
-
-    #[inline]
-    fn into_result(self) -> VmResult<Self::Output> {
-        VmResult::Ok(self)
-    }
-}
-
-impl IntoResult for f64 {
-    type Output = f64;
-
-    #[inline]
-    fn into_result(self) -> VmResult<Self::Output> {
-        VmResult::Ok(self)
-    }
-}
-
-impl IntoResult for () {
-    type Output = ();
-
-    #[inline]
-    fn into_result(self) -> VmResult<Self::Output> {
-        VmResult::Ok(self)
-    }
-}
-
-impl IntoResult for ValueKind {
+impl IntoOutput for ValueKind {
     type Output = ValueKind;
 
     #[inline]
-    fn into_result(self) -> VmResult<Self::Output> {
+    fn into_output(self) -> VmResult<Self::Output> {
         VmResult::Ok(self)
     }
 }
@@ -1410,12 +1388,12 @@ pub struct InstAddress {
 
 impl InstAddress {
     /// The first possible address.
-    pub(crate) const ZERO: InstAddress = InstAddress { offset: 0 };
+    pub const ZERO: InstAddress = InstAddress { offset: 0 };
 
     /// An invalid address.
-    pub(crate) const INVALID: InstAddress = InstAddress { offset: usize::MAX };
+    pub const INVALID: InstAddress = InstAddress { offset: usize::MAX };
 
-    /// Construct a new instruction address.
+    /// Construct a new address.
     #[inline]
     pub(crate) const fn new(offset: usize) -> Self {
         Self { offset }

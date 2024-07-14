@@ -48,7 +48,7 @@ impl<T> TryFromResult for VmResult<T> {
 
 impl<T, E> TryFromResult for Result<T, E>
 where
-    VmErrorKind: From<E>,
+    VmError: From<E>,
 {
     type Ok = T;
 
@@ -56,19 +56,7 @@ where
     fn try_from_result(value: Self) -> VmResult<T> {
         match value {
             Ok(ok) => VmResult::Ok(ok),
-            Err(err) => VmResult::err(err),
-        }
-    }
-}
-
-impl<T> TryFromResult for Result<T, VmError> {
-    type Ok = T;
-
-    #[inline]
-    fn try_from_result(value: Self) -> VmResult<T> {
-        match value {
-            Ok(ok) => VmResult::Ok(ok),
-            Err(err) => VmResult::Err(err),
+            Err(err) => VmResult::Err(VmError::from(err)),
         }
     }
 }

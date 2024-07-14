@@ -39,13 +39,11 @@ impl Stack {
     /// Construct a new stack.
     ///
     /// ```
-    /// use rune::runtime::Stack;
-    /// use rune::Value;
+    /// use rune::runtime::{Stack, InstAddress};
     ///
     /// let mut stack = Stack::new();
-    /// assert!(stack.pop().is_err());
     /// stack.push(rune::to_value(String::from("Hello World"))?);
-    /// let value = stack.pop()?;
+    /// let value = stack.at(InstAddress::ZERO)?;
     /// let value: String = rune::from_value(value)?;
     /// assert_eq!(value, "Hello World");
     /// # Ok::<_, rune::support::Error>(())
@@ -87,13 +85,11 @@ impl Stack {
     /// Construct a new stack with the given capacity pre-allocated.
     ///
     /// ```
-    /// use rune::runtime::Stack;
-    /// use rune::Value;
+    /// use rune::runtime::{Stack, InstAddress};
     ///
     /// let mut stack = Stack::with_capacity(16)?;
-    /// assert!(stack.pop().is_err());
     /// stack.push(rune::to_value(String::from("Hello World"))?);
-    /// let value = stack.pop()?;
+    /// let value = stack.at(InstAddress::ZERO)?;
     /// let value: String = rune::from_value(value)?;
     /// assert_eq!(value, "Hello World");
     /// # Ok::<_, rune::support::Error>(())
@@ -163,13 +159,12 @@ impl Stack {
     /// # Examples
     ///
     /// ```
-    /// use rune::runtime::Stack;
-    /// use rune::Value;
+    /// use rune::runtime::{Stack, InstAddress};
     ///
     /// let mut stack = Stack::new();
-    /// assert!(stack.pop().is_err());
     /// stack.push(rune::to_value(String::from("Hello World"))?);
-    /// assert_eq!(rune::from_value::<String>(stack.pop()?)?, "Hello World");
+    /// let value = stack.at(InstAddress::ZERO)?;
+    /// assert_eq!(rune::from_value::<String>(value)?, "Hello World");
     /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn push<T>(&mut self, value: T) -> alloc::Result<()>
@@ -252,39 +247,6 @@ impl Stack {
         Ok(array::from_fn(|i| &slice[i]))
     }
 
-    /// Extend the current stack with an iterator.
-    ///
-    /// ```
-    /// use rune::runtime::Stack;
-    /// use rune::alloc::String;
-    /// use rune::Value;
-    ///
-    /// let mut stack = Stack::new();
-    ///
-    /// stack.extend([
-    ///     rune::to_value(42i64)?,
-    ///     rune::to_value(String::try_from("foo")?)?,
-    ///     rune::to_value(())?
-    /// ]);
-    ///
-    /// let values = stack.drain(2)?.collect::<Vec<_>>();
-    ///
-    /// assert_eq!(values.len(), 2);
-    /// assert_eq!(rune::from_value::<String>(&values[0])?, "foo");
-    /// assert_eq!(rune::from_value(&values[1])?, ());
-    /// # Ok::<_, rune::support::Error>(())
-    /// ```
-    pub fn extend<I>(&mut self, iter: I) -> alloc::Result<()>
-    where
-        I: IntoIterator<Item = Value>,
-    {
-        for value in iter {
-            self.stack.try_push(value)?;
-        }
-
-        Ok(())
-    }
-
     /// Clear the current stack.
     pub fn clear(&mut self) {
         self.stack.clear();
@@ -312,7 +274,20 @@ impl Stack {
     }
 
     /// Access the value at the given frame offset.
-    pub(crate) fn at(&self, addr: InstAddress) -> Result<&Value, StackError> {
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::runtime::{Stack, InstAddress};
+    ///
+    /// let mut stack = Stack::new();
+    /// stack.push(rune::to_value(String::from("Hello World"))?);
+    /// let value = stack.at(InstAddress::ZERO)?;
+    /// let value: String = rune::from_value(value)?;
+    /// assert_eq!(value, "Hello World");
+    /// # Ok::<_, rune::support::Error>(())
+    /// ```
+    pub fn at(&self, addr: InstAddress) -> Result<&Value, StackError> {
         self.stack_bottom
             .checked_add(addr.offset())
             .and_then(|n| self.stack.get(n))
@@ -320,7 +295,25 @@ impl Stack {
     }
 
     /// Get a value mutable at the given index from the stack bottom.
-    pub(crate) fn at_mut(&mut self, addr: InstAddress) -> Result<&mut Value, StackError> {
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::runtime::{Stack, InstAddress};
+    ///
+    /// let mut stack = Stack::new();
+    /// stack.push(rune::to_value(String::from("Hello World"))?);
+    /// let value = stack.at(InstAddress::ZERO)?;
+    /// let value: String = rune::from_value(value)?;
+    /// assert_eq!(value, "Hello World");
+    ///
+    /// *stack.at_mut(InstAddress::ZERO)? = rune::to_value(42i64)?;
+    /// let value = stack.at(InstAddress::ZERO)?;
+    /// let value: i64 = rune::from_value(value)?;
+    /// assert_eq!(value, 42);
+    /// # Ok::<_, rune::support::Error>(())
+    /// ```
+    pub fn at_mut(&mut self, addr: InstAddress) -> Result<&mut Value, StackError> {
         self.stack_bottom
             .checked_add(addr.offset())
             .and_then(|n| self.stack.get_mut(n))

@@ -11,7 +11,7 @@ macro_rules! vm_try {
         match $crate::runtime::try_result($expr) {
             $crate::runtime::VmResult::Ok(value) => value,
             $crate::runtime::VmResult::Err(err) => {
-                return $crate::runtime::VmResult::Err($crate::runtime::VmError::from(err));
+                return $crate::runtime::VmResult::Err(err);
             }
         }
     };

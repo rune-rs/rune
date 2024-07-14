@@ -1,3 +1,5 @@
+#![cfg(feature = "doc")]
+
 prelude!();
 
 use std::sync::Arc;

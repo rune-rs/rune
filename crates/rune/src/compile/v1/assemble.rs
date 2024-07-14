@@ -571,12 +571,16 @@ fn pat<'hir>(
                     return Ok(false);
                 };
 
+                let cond = cx.scopes.alloc(hir)?;
+
                 cx.asm.push(
-                    pat_sequence_kind_to_inst(*kind, addr.addr(), addr.output()),
+                    pat_sequence_kind_to_inst(*kind, addr.addr(), cond.output()),
                     hir,
                 )?;
 
-                cx.asm.jump_if_not(addr.addr(), false_label, hir)?;
+                cx.asm.jump_if_not(cond.addr(), false_label, hir)?;
+                cx.scopes.free(cond)?;
+                needs.free(&mut cx.scopes)?;
                 Ok(true)
             }
             hir::PatPathKind::Ident(name) => {
@@ -623,6 +627,7 @@ fn pat_lit<'hir>(
     cx.asm.push(inst, hir)?;
     cx.asm.jump_if_not(cond.addr(), false_label, hir)?;
     cx.scopes.free(cond)?;
+    needs.free(&mut cx.scopes)?;
     Ok(true)
 }
 
@@ -719,57 +724,62 @@ fn pat_sequence<'hir>(
     bindings: &mut BTreeMap<hir::Name<'hir>, &mut dyn NeedsLike<'hir>>,
 ) -> compile::Result<bool> {
     let mut needs = Needs::alloc(cx, span);
-
     load(cx, &mut needs)?;
 
     let Some(addr) = needs.as_addr() else {
         return Ok(false);
     };
 
-    if matches!(
-        hir.kind,
-        hir::PatSequenceKind::Anonymous {
-            type_check: TypeCheck::Tuple,
-            count: 0,
-            is_open: false
-        }
-    ) {
-        cx.asm.push(
-            Inst::IsUnit {
-                addr: addr.addr(),
-                out: addr.output(),
-            },
-            span,
-        )?;
-        cx.asm.jump_if_not(addr.addr(), false_label, span)?;
-        return Ok(true);
-    }
-
     let cond = cx.scopes.alloc(span)?;
-    let inst = pat_sequence_kind_to_inst(hir.kind, addr.addr(), cond.output());
-    cx.asm.push(inst, span)?;
-    cx.asm.jump_if_not(cond.addr(), false_label, span)?;
-    cx.scopes.free(cond)?;
 
-    for (index, p) in hir.items.iter().enumerate() {
-        let addr = addr.addr();
-
-        let load = move |cx: &mut Ctxt<'_, 'hir, '_>, n: &mut dyn NeedsLike<'hir>| {
+    let out = 'out: {
+        if matches!(
+            hir.kind,
+            hir::PatSequenceKind::Anonymous {
+                type_check: TypeCheck::Tuple,
+                count: 0,
+                is_open: false
+            }
+        ) {
             cx.asm.push(
-                Inst::TupleIndexGetAt {
-                    addr,
-                    index,
-                    out: n.alloc_output(&mut cx.scopes)?,
+                Inst::IsUnit {
+                    addr: addr.addr(),
+                    out: cond.output(),
                 },
-                p,
+                span,
             )?;
-            Ok(())
-        };
+            cx.asm.jump_if_not(cond.addr(), false_label, span)?;
+            break 'out true;
+        }
 
-        self::pat(cx, p, false_label, &load, bindings)?;
-    }
+        let inst = pat_sequence_kind_to_inst(hir.kind, addr.addr(), cond.output());
+        cx.asm.push(inst, span)?;
+        cx.asm.jump_if_not(cond.addr(), false_label, span)?;
 
-    Ok(true)
+        for (index, p) in hir.items.iter().enumerate() {
+            let addr = addr.addr();
+
+            let load = move |cx: &mut Ctxt<'_, 'hir, '_>, n: &mut dyn NeedsLike<'hir>| {
+                cx.asm.push(
+                    Inst::TupleIndexGetAt {
+                        addr,
+                        index,
+                        out: n.alloc_output(&mut cx.scopes)?,
+                    },
+                    p,
+                )?;
+                Ok(())
+            };
+
+            self::pat(cx, p, false_label, &load, bindings)?;
+        }
+
+        true
+    };
+
+    cx.scopes.free(cond)?;
+    needs.free(&mut cx.scopes)?;
+    Ok(out)
 }
 
 fn pat_sequence_kind_to_inst(kind: hir::PatSequenceKind, addr: InstAddress, out: Output) -> Inst {
@@ -822,13 +832,13 @@ fn pat_object<'hir>(
         return Ok(false);
     };
 
+    let cond = cx.scopes.alloc(span)?;
+
     let mut string_slots = Vec::new();
 
     for binding in hir.bindings {
         string_slots.try_push(cx.q.unit.new_static_string(span, binding.key())?)?;
     }
-
-    let cond = cx.scopes.alloc(span)?;
 
     let inst = match hir.kind {
         hir::PatSequenceKind::Type { hash } => Inst::MatchType {
@@ -870,7 +880,6 @@ fn pat_object<'hir>(
     // that it is indeed a vector.
     cx.asm.push(inst, span)?;
     cx.asm.jump_if_not(cond.addr(), false_label, span)?;
-
     cx.scopes.free(cond)?;
 
     for (binding, slot) in hir.bindings.iter().zip(string_slots) {
@@ -915,6 +924,7 @@ fn pat_object<'hir>(
         }
     }
 
+    needs.free(&mut cx.scopes)?;
     Ok(true)
 }
 

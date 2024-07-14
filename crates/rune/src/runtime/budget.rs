@@ -72,8 +72,9 @@ pub struct Budget<T> {
 ///
 /// // Limit the given closure to run one instruction and allocate 1024 bytes.
 /// let f = budget::with(1, limit::with(1024, || {
-///     assert!(budget::take());
-///     assert!(!budget::take());
+///     let mut budget = budget::acquire();
+///     assert!(budget.take());
+///     assert!(!budget.take());
 ///     assert!(Vec::<u8>::try_with_capacity(1).is_ok());
 ///     assert!(Vec::<u8>::try_with_capacity(1024).is_ok());
 ///     assert!(Vec::<u8>::try_with_capacity(1025).is_err());
