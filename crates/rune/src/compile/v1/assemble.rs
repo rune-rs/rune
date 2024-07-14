@@ -280,6 +280,10 @@ impl<'hir, T> Asm<'hir, T> {
             outcome: Outcome::Diverge,
         }
     }
+
+    /// Used as to ignore divergence.
+    #[inline]
+    fn ignore(self) {}
 }
 
 impl<'hir, T> Asm<'hir, T> {
@@ -2888,7 +2892,7 @@ fn expr_vec<'a, 'hir>(
     let count = hir.items.len();
 
     for (e, needs) in hir.items.iter().zip(&mut linear) {
-        expr(cx, e, needs)?;
+        converge!(expr(cx, e, needs)?, free(cx, linear));
     }
 
     if let Some(out) = needs.try_alloc_addr(cx)? {
@@ -2945,7 +2949,8 @@ fn expr_loop<'a, 'hir>(
         None
     };
 
-    block(cx, &hir.body, &mut Needs::none(span))?;
+    // Divergence should be ignored, since there are labels which might jump over it.
+    block(cx, &hir.body, &mut Needs::none(span))?.ignore();
 
     if let Some(scope) = condition_scope {
         cx.scopes.pop(span, scope)?;

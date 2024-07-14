@@ -221,9 +221,16 @@ pub fn hash(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 /// # Examples
 ///
 /// ```
-/// use rune::Item;
+/// use rune::{Item, ItemBuf};
 ///
-/// let item: Item = rune::item!(::std::ops::Generator);
+/// static ITEM: &Item = rune::item!(::std::ops::Generator);
+///
+/// let mut item = ItemBuf::with_crate("std")?;
+/// item.push("ops")?;
+/// item.push("Generator")?;
+///
+/// assert_eq!(item, ITEM);
+/// # Ok::<_, rune::alloc::Error>(())
 /// ```
 #[proc_macro]
 pub fn item(input: proc_macro::TokenStream) -> proc_macro::TokenStream {

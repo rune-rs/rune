@@ -10,3 +10,5 @@ pub mod support {
     pub use anyhow::Error;
     pub use anyhow::Result;
 }
+
+pub use rune_core::{Item, ItemBuf};

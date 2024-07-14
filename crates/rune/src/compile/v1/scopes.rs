@@ -512,13 +512,18 @@ impl<'hir> Linear<'hir> {
     }
 
     #[inline]
-    pub(crate) fn iter(&self) -> slice::Iter<'_, NeedsAddress<'hir>> {
+    pub(super) fn iter(&self) -> slice::Iter<'_, NeedsAddress<'hir>> {
         self.addresses.iter()
     }
 
     #[inline]
-    pub(crate) fn iter_mut(&mut self) -> slice::IterMut<'_, NeedsAddress<'hir>> {
+    pub(super) fn iter_mut(&mut self) -> slice::IterMut<'_, NeedsAddress<'hir>> {
         self.addresses.iter_mut()
+    }
+
+    #[inline]
+    pub(super) fn free(self, scopes: &Scopes<'hir>) -> compile::Result<()> {
+        scopes.free_linear(self)
     }
 }
 

@@ -117,7 +117,7 @@ impl Item {
     /// # Examples
     ///
     /// ```
-    /// use rune::ItemBuf;
+    /// use rune::compile::ItemBuf;
     ///
     /// let item = ItemBuf::new();
     /// assert!(item.is_empty());

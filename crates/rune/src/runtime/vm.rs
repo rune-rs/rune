@@ -280,7 +280,7 @@ impl Vm {
     ///
     /// // Building an item buffer to lookup an `::std` item.
     /// let item = rune::item!(::std::i64::max);
-    /// let max = vm.lookup_function(&item)?;
+    /// let max = vm.lookup_function(item)?;
     ///
     /// let value = max.call::<i64>((10, 20)).into_result()?;
     /// assert_eq!(value, 20);
