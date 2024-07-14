@@ -100,7 +100,7 @@ impl<'hir> NeedsAddress<'hir> {
     }
 
     /// Free the current needs address.
-    pub(super) fn free(self, scopes: &mut Scopes<'hir>) -> compile::Result<()> {
+    pub(super) fn free(self, scopes: &Scopes<'hir>) -> compile::Result<()> {
         scopes.free(self)
     }
 }
@@ -223,7 +223,7 @@ impl<'hir> Needs<'hir> {
 
     /// Test if any sort of value is needed.
     #[inline(always)]
-    pub(super) fn alloc_output(&mut self, scopes: &mut Scopes<'_>) -> compile::Result<Output> {
+    pub(super) fn alloc_output(&mut self, scopes: &Scopes<'_>) -> compile::Result<Output> {
         let Some(addr) = self.try_alloc_addr(scopes)? else {
             return Ok(Output::discard());
         };
@@ -235,7 +235,7 @@ impl<'hir> Needs<'hir> {
     #[inline]
     pub(super) fn try_alloc_output(
         &mut self,
-        scopes: &mut Scopes<'hir>,
+        scopes: &Scopes<'hir>,
     ) -> compile::Result<Option<Output>> {
         let Some(addr) = self.try_alloc_addr(scopes)? else {
             return Ok(None);
@@ -248,7 +248,7 @@ impl<'hir> Needs<'hir> {
     #[inline]
     pub(super) fn try_alloc_addr(
         &mut self,
-        scopes: &mut Scopes<'_>,
+        scopes: &Scopes<'_>,
     ) -> compile::Result<Option<InstAddress>> {
         match &mut self.kind {
             NeedsKind::Alloc { scope } => {
@@ -312,7 +312,7 @@ impl<'hir> Needs<'hir> {
     }
 
     /// Free the current needs.
-    pub(super) fn free(self, scopes: &mut Scopes<'hir>) -> compile::Result<()> {
+    pub(super) fn free(self, scopes: &Scopes<'hir>) -> compile::Result<()> {
         if let NeedsKind::Address(addr) = self.kind {
             scopes.free(addr)?;
         }

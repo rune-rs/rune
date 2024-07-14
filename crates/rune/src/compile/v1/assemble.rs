@@ -30,7 +30,7 @@ macro_rules! converge {
                 outcome: Outcome::Diverge,
             } => {
                 $(
-                    $($needs.$method(&mut $cx.scopes)?;)*
+                    $($needs.$method($cx.scopes)?;)*
                 )*
 
                 return Ok(Asm {
@@ -64,7 +64,7 @@ trait NeedsLike<'hir> {
     ) -> compile::Result<()>;
 
     /// Forcibly allocate as an output, if possible.
-    fn alloc_output(&mut self, scopes: &mut Scopes<'hir>) -> compile::Result<Output>;
+    fn alloc_output(&mut self, scopes: &Scopes<'hir>) -> compile::Result<Output>;
 
     /// Try to allocate an address from this needs.
     fn try_alloc_addr(
@@ -100,7 +100,7 @@ impl<'hir> NeedsLike<'hir> for Needs<'hir> {
     }
 
     #[inline]
-    fn alloc_output(&mut self, scopes: &mut Scopes<'hir>) -> compile::Result<Output> {
+    fn alloc_output(&mut self, scopes: &Scopes<'hir>) -> compile::Result<Output> {
         Needs::alloc_output(self, scopes)
     }
 
@@ -149,7 +149,7 @@ impl<'hir> NeedsLike<'hir> for NeedsAddress<'hir> {
     }
 
     #[inline]
-    fn alloc_output(&mut self, _: &mut Scopes<'hir>) -> compile::Result<Output> {
+    fn alloc_output(&mut self, _: &Scopes<'hir>) -> compile::Result<Output> {
         NeedsAddress::alloc_output(self)
     }
 
@@ -186,7 +186,7 @@ pub(crate) struct Ctxt<'a, 'hir, 'arena> {
     /// The assembly we are generating.
     pub(crate) asm: &'a mut Assembly,
     /// Scopes defined in the compiler.
-    pub(crate) scopes: &'a mut Scopes<'hir>,
+    pub(crate) scopes: &'a Scopes<'hir>,
     /// Context for which to emit warnings.
     pub(crate) contexts: Vec<Span>,
     /// The nesting of loop we are currently in.

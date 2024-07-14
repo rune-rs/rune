@@ -1,4 +1,4 @@
-use core::cell::Cell;
+use core::cell::{Cell, RefCell};
 use core::fmt;
 use core::ops::{Deref, DerefMut};
 use core::slice;
@@ -72,12 +72,12 @@ impl fmt::Debug for ScopeId {
 }
 
 pub(crate) struct Scopes<'hir> {
-    scopes: Slab<Scope<'hir>>,
+    scopes: RefCell<Slab<Scope<'hir>>>,
     source_id: SourceId,
-    size: usize,
-    slots: Slots,
-    id: usize,
-    top: ScopeId,
+    size: Cell<usize>,
+    slots: RefCell<Slots>,
+    id: Cell<usize>,
+    top: Cell<ScopeId>,
 }
 
 impl<'hir> Scopes<'hir> {
@@ -87,12 +87,12 @@ impl<'hir> Scopes<'hir> {
         scopes.insert(Scope::new(ROOT, ROOT))?;
 
         Ok(Self {
-            scopes,
+            scopes: RefCell::new(scopes),
             source_id,
-            size: 0,
-            slots: Slots::new(),
-            id: 1,
-            top: ROOT,
+            size: Cell::new(0),
+            slots: RefCell::new(Slots::new()),
+            id: Cell::new(1),
+            top: Cell::new(ROOT),
         })
     }
 
@@ -100,13 +100,13 @@ impl<'hir> Scopes<'hir> {
     /// Effectively the required stack size.
     #[inline]
     pub(crate) fn size(&self) -> usize {
-        self.size
+        self.size.get()
     }
 
     /// Get the last scope guard.
     #[inline]
     pub(crate) fn top_id(&self) -> ScopeId {
-        self.top
+        self.top.get()
     }
 
     /// Get the local with the given name.
@@ -117,10 +117,11 @@ impl<'hir> Scopes<'hir> {
         span: &dyn Spanned,
         name: hir::Name<'hir>,
     ) -> compile::Result<Var<'hir>> {
-        let mut current = Some(self.top);
+        let scopes = self.scopes.borrow();
+        let mut current = Some(self.top.get());
 
         while let Some(id) = current.take() {
-            let Some(scope) = self.scopes.get(id.index) else {
+            let Some(scope) = scopes.get(id.index) else {
                 return Err(compile::Error::msg(span, format!("Missing scope {id}")));
             };
 
@@ -167,10 +168,11 @@ impl<'hir> Scopes<'hir> {
         span: &'hir dyn Spanned,
         name: hir::Name<'hir>,
     ) -> compile::Result<Var<'hir>> {
-        let mut current = Some(self.top);
+        let scopes = self.scopes.borrow();
+        let mut current = Some(self.top.get());
 
         while let Some(id) = current.take() {
-            let Some(scope) = self.scopes.get(id.index) else {
+            let Some(scope) = scopes.get(id.index) else {
                 return Err(compile::Error::msg(span, format!("Missing scope {id}")));
             };
 
@@ -214,12 +216,14 @@ impl<'hir> Scopes<'hir> {
     /// Construct a new variable.
     #[tracing::instrument(skip(self, span))]
     pub(crate) fn define(
-        &mut self,
+        &self,
         span: &'hir dyn Spanned,
         name: hir::Name<'hir>,
         addr: InstAddress,
     ) -> compile::Result<()> {
-        let Some(scope) = self.scopes.get_mut(self.top.index) else {
+        let mut scopes = self.scopes.borrow_mut();
+
+        let Some(scope) = scopes.get_mut(self.top.get().index) else {
             return Err(compile::Error::msg(span, "Missing top scope"));
         };
 
@@ -237,28 +241,28 @@ impl<'hir> Scopes<'hir> {
 
     /// Declare an anonymous variable.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn alloc(&mut self, span: &'hir dyn Spanned) -> compile::Result<NeedsAddress<'hir>> {
-        let Some(scope) = self.scopes.get_mut(self.top.index) else {
+    pub(crate) fn alloc(&self, span: &'hir dyn Spanned) -> compile::Result<NeedsAddress<'hir>> {
+        let mut scopes = self.scopes.borrow_mut();
+
+        let Some(scope) = scopes.get_mut(self.top.get().index) else {
             return Err(compile::Error::msg(span, "Missing top scope"));
         };
 
-        let offset = self.slots.insert()?;
+        let offset = self.slots.borrow_mut().insert()?;
 
         scope.locals.try_insert(offset).with_span(span)?;
-        self.size = self.size.max(offset + 1);
+        self.size.set(self.size.get().max(offset + 1));
         let addr = InstAddress::new(offset);
-        tracing::trace!(?scope, ?addr, self.size);
+        tracing::trace!(?scope, ?addr, size = self.size.get());
         Ok(NeedsAddress::with_local(span, addr))
     }
 
     /// Declare an anonymous variable.
     #[tracing::instrument(skip(self, span))]
-    pub(crate) fn alloc_in(
-        &mut self,
-        span: &dyn Spanned,
-        id: ScopeId,
-    ) -> compile::Result<InstAddress> {
-        let Some(s) = self.scopes.get_mut(id.index) else {
+    pub(crate) fn alloc_in(&self, span: &dyn Spanned, id: ScopeId) -> compile::Result<InstAddress> {
+        let mut scopes = self.scopes.borrow_mut();
+
+        let Some(s) = scopes.get_mut(id.index) else {
             return Err(compile::Error::msg(
                 span,
                 format!("Missing scope {id} to allocate in"),
@@ -272,23 +276,25 @@ impl<'hir> Scopes<'hir> {
             ));
         }
 
-        let offset = self.slots.insert()?;
+        let offset = self.slots.borrow_mut().insert()?;
 
         s.locals.try_insert(offset).with_span(span)?;
-        self.size = self.size.max(offset + 1);
+        self.size.set(self.size.get().max(offset + 1));
         let addr = InstAddress::new(offset);
-        tracing::trace!(?s, ?addr, self.size);
+        tracing::trace!(?s, ?addr, size = self.size.get());
         Ok(addr)
     }
 
     /// Perform a linear allocation.
     #[tracing::instrument(ret, skip(self, span))]
     pub(crate) fn linear<'a>(
-        &mut self,
+        &self,
         span: &'a dyn Spanned,
         n: usize,
     ) -> compile::Result<Linear<'a>> {
-        let Some(scope) = self.scopes.get_mut(self.top.index) else {
+        let mut scopes = self.scopes.borrow_mut();
+
+        let Some(scope) = scopes.get_mut(self.top.get().index) else {
             return Err(compile::Error::msg(span, "Missing top scope"));
         };
 
@@ -299,14 +305,15 @@ impl<'hir> Scopes<'hir> {
             });
         }
 
+        let mut slots = self.slots.borrow_mut();
         let mut addresses = Vec::try_with_capacity(n).with_span(span)?;
 
         for _ in 0..n {
-            let offset = self.slots.push().with_span(span)?;
+            let offset = slots.push().with_span(span)?;
             let address = InstAddress::new(offset);
             addresses.try_push(NeedsAddress::with_reserved(span, address))?;
             scope.locals.try_insert(offset).with_span(span)?;
-            self.size = self.size.max(offset + 1);
+            self.size.set(self.size.get().max(offset + 1));
         }
 
         let base = addresses
@@ -315,13 +322,13 @@ impl<'hir> Scopes<'hir> {
             .unwrap_or(InstAddress::INVALID);
 
         let linear = Linear { base, addresses };
-        tracing::trace!(?scope, ?linear, self.size);
+        tracing::trace!(?scope, ?linear, size = self.size.get());
         Ok(linear)
     }
 
     /// Free an address if it's in the specified scope.
     #[tracing::instrument(skip(self))]
-    pub(crate) fn free(&mut self, addr: NeedsAddress<'hir>) -> compile::Result<()> {
+    pub(crate) fn free(&self, addr: NeedsAddress<'hir>) -> compile::Result<()> {
         match &addr.kind {
             NeedsAddressKind::Local | NeedsAddressKind::Dangling => {
                 self.free_addr(addr.span, addr.addr())?;
@@ -339,12 +346,10 @@ impl<'hir> Scopes<'hir> {
 
     /// Free an address if it's in the specified scope.
     #[tracing::instrument(skip(self, span))]
-    pub(crate) fn free_addr(
-        &mut self,
-        span: &dyn Spanned,
-        addr: InstAddress,
-    ) -> compile::Result<()> {
-        let Some(scope) = self.scopes.get_mut(self.top.index) else {
+    pub(crate) fn free_addr(&self, span: &dyn Spanned, addr: InstAddress) -> compile::Result<()> {
+        let mut scopes = self.scopes.borrow_mut();
+
+        let Some(scope) = scopes.get_mut(self.top.get().index) else {
             return Err(compile::Error::msg(
                 span,
                 format!("Freed address {addr} does not have an implicit scope"),
@@ -360,7 +365,9 @@ impl<'hir> Scopes<'hir> {
             ));
         }
 
-        if !self.slots.remove(addr.offset()) {
+        let mut slots = self.slots.borrow_mut();
+
+        if !slots.remove(addr.offset()) {
             return Err(compile::Error::msg(
                 span,
                 format!(
@@ -375,7 +382,7 @@ impl<'hir> Scopes<'hir> {
 
     /// Free a bunch of linear variables.
     #[tracing::instrument(skip(self, linear), fields(linear.base, len = linear.len()))]
-    pub(crate) fn free_linear(&mut self, linear: Linear<'hir>) -> compile::Result<()> {
+    pub(crate) fn free_linear(&self, linear: Linear<'hir>) -> compile::Result<()> {
         for addr in linear.addresses.into_iter().rev() {
             self.free(addr)?;
         }
@@ -384,8 +391,8 @@ impl<'hir> Scopes<'hir> {
     }
 
     #[tracing::instrument(skip(self, span))]
-    pub(crate) fn pop(&mut self, span: &dyn Spanned, id: ScopeId) -> compile::Result<()> {
-        let Some(mut scope) = self.scopes.try_remove(id.index) else {
+    pub(crate) fn pop(&self, span: &dyn Spanned, id: ScopeId) -> compile::Result<()> {
+        let Some(mut scope) = self.scopes.borrow_mut().try_remove(id.index) else {
             return Err(compile::Error::msg(
                 span,
                 format!("Missing scope while expected {id}"),
@@ -404,9 +411,11 @@ impl<'hir> Scopes<'hir> {
 
         tracing::trace!(?scope, "freeing locals");
 
+        let mut slots = self.slots.borrow_mut();
+
         // Free any locally defined variables associated with the scope.
         for addr in &scope.locals {
-            if !self.slots.remove(*addr) {
+            if !slots.remove(*addr) {
                 return Err(compile::Error::msg(
                     span,
                     format!(
@@ -418,36 +427,38 @@ impl<'hir> Scopes<'hir> {
         }
 
         scope.locals.clear();
-
-        self.top = scope.parent;
+        self.top.set(scope.parent);
         Ok(())
     }
 
     /// Pop the last of the scope.
     #[tracing::instrument(skip(self, span))]
-    pub(crate) fn pop_last(&mut self, span: &dyn Spanned) -> compile::Result<()> {
+    pub(crate) fn pop_last(&self, span: &dyn Spanned) -> compile::Result<()> {
         self.pop(span, ROOT)?;
         Ok(())
     }
 
     /// Construct a new child scope and return its guard.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn child(&mut self, span: &dyn Spanned) -> compile::Result<ScopeId> {
+    pub(crate) fn child(&self, span: &dyn Spanned) -> compile::Result<ScopeId> {
+        let mut scopes = self.scopes.borrow_mut();
+
         let id = ScopeId {
-            index: self.scopes.vacant_key(),
-            id: self.id,
+            index: scopes.vacant_key(),
+            id: self.id.replace(self.id.get().wrapping_add(1)),
         };
-        self.id += 1;
-        let scope = Scope::new(self.top, id);
+
+        let scope = Scope::new(self.top.replace(id), id);
         tracing::trace!(?scope);
-        self.scopes.insert(scope).with_span(span)?;
-        self.top = id;
+        scopes.insert(scope).with_span(span)?;
         Ok(id)
     }
 
     #[tracing::instrument(skip(self, span))]
-    pub(crate) fn pop_id(&mut self, span: &dyn Spanned, id: ScopeId) -> compile::Result<()> {
-        let Some(scope) = self.scopes.get(id.index) else {
+    pub(crate) fn pop_id(&self, span: &dyn Spanned, id: ScopeId) -> compile::Result<()> {
+        let scopes = self.scopes.borrow();
+
+        let Some(scope) = scopes.get(id.index) else {
             return Err(compile::Error::msg(
                 span,
                 format!("Missing scope while expected {id}"),
@@ -464,16 +475,16 @@ impl<'hir> Scopes<'hir> {
             ));
         }
 
-        self.top = scope.parent;
+        self.top.set(scope.parent);
         tracing::trace!(?scope);
         Ok(())
     }
 
     /// Push a scope again.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn push(&mut self, id: ScopeId) {
+    pub(crate) fn push(&self, id: ScopeId) {
         tracing::trace!(?id);
-        self.top = id;
+        self.top.set(id);
     }
 }
 
