@@ -144,6 +144,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
             contexts: try_vec![span.span()],
             loops: self::v1::Loops::new(),
             options: self.options,
+            select_branches: Vec::new(),
         })
     }
 

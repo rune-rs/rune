@@ -56,6 +56,8 @@ trait NeedsLike<'hir> {
     fn output(&self) -> compile::Result<Output>;
 
     /// Get the need as an output.
+    ///
+    /// Returns `None` if `Needs::None` is set.
     fn try_alloc_output(&mut self, cx: &mut Ctxt<'_, 'hir, '_>) -> compile::Result<Option<Output>>;
 
     fn assign_addr(
@@ -194,6 +196,8 @@ pub(crate) struct Ctxt<'a, 'hir, 'arena> {
     pub(crate) loops: Loops<'hir>,
     /// Enabled optimizations.
     pub(crate) options: &'a Options,
+    /// Work buffer for select branches.
+    pub(crate) select_branches: Vec<(Label, &'hir hir::ExprSelectBranch<'hir>)>,
 }
 
 impl<'a, 'hir, 'arena> Ctxt<'a, 'hir, 'arena> {
@@ -288,6 +292,7 @@ impl<'hir, T> Asm<'hir, T> {
 
 impl<'hir, T> Asm<'hir, T> {
     /// Test if the assembly converges and return the data associated with it.
+    #[inline]
     fn converge(self) -> Option<T> {
         match self.outcome {
             Outcome::Converge(data) => Some(data),
@@ -341,13 +346,13 @@ pub(crate) fn fn_from_item_fn<'a, 'hir>(
     }
 
     if hir.body.value.is_some() {
-        return_(cx, hir, &hir.body, block)?;
+        return_(cx, hir, &hir.body, block)?.ignore();
     } else {
-        if !hir.body.statements.is_empty() {
-            block_without_scope(cx, &hir.body, &mut Needs::none(&hir.body))?;
-        }
+        let mut needs = Needs::none(&hir.body);
 
-        cx.asm.push(Inst::ReturnUnit, hir)?;
+        if let Some(()) = block_without_scope(cx, &hir.body, &mut needs)?.converge() {
+            cx.asm.push(Inst::ReturnUnit, hir)?;
+        }
     }
 
     cx.scopes.free_linear(arguments)?;
@@ -450,16 +455,16 @@ fn return_<'a, 'hir, T>(
     span: &'hir dyn Spanned,
     hir: T,
     asm: impl FnOnce(&mut Ctxt<'a, 'hir, '_>, T, &mut dyn NeedsLike<'hir>) -> compile::Result<Asm<'hir>>,
-) -> compile::Result<()> {
+) -> compile::Result<Asm<'hir>> {
     let mut needs = Needs::alloc(cx, span);
-    asm(cx, hir, &mut needs)?;
+    converge!(asm(cx, hir, &mut needs)?, free(cx, needs));
 
     if let Some(addr) = needs.as_addr() {
         cx.asm.push(Inst::Return { addr: addr.addr() }, span)?;
     };
 
     needs.free(cx.scopes)?;
-    Ok(())
+    Ok(Asm::new(span, ()))
 }
 
 fn pattern_panic<'a, 'hir, 'arena, F>(
@@ -992,9 +997,9 @@ fn block<'a, 'hir>(
     needs: &mut dyn NeedsLike<'hir>,
 ) -> compile::Result<Asm<'hir>> {
     let scope = cx.scopes.child(hir)?;
-    let out = block_without_scope(cx, hir, needs)?;
+    let asm = block_without_scope(cx, hir, needs)?;
     cx.scopes.pop(hir, scope)?;
-    Ok(out)
+    Ok(asm)
 }
 
 /// Call a block.
@@ -1015,24 +1020,20 @@ fn block_without_scope<'a, 'hir>(
             continue;
         }
 
-        match stmt {
-            hir::Stmt::Local(hir) => {
-                local(cx, hir, &mut needs)?;
-            }
-            hir::Stmt::Expr(hir) => {
-                diverge |= expr(cx, hir, &mut needs)?.is_diverge();
-            }
-        }
+        let asm = match stmt {
+            hir::Stmt::Local(hir) => local(cx, hir, &mut needs)?,
+            hir::Stmt::Expr(hir) => expr(cx, hir, &mut needs)?,
+        };
+
+        diverge |= asm.is_diverge();
     }
 
-    if let Some(e) = hir.value {
-        if diverge {
-            // TODO: mark dead code.
-        } else {
+    if !diverge {
+        if let Some(e) = hir.value {
             diverge |= expr(cx, e, needs)?.is_diverge();
+        } else if let Some(out) = needs.try_alloc_output(cx)? {
+            cx.asm.push(Inst::unit(out), hir)?;
         }
-    } else if let Some(out) = needs.try_alloc_output(cx)? {
-        cx.asm.push(Inst::unit(out), hir)?;
     }
 
     cx.contexts
@@ -2579,54 +2580,60 @@ fn expr_range<'a, 'hir>(
     span: &'hir dyn Spanned,
     needs: &mut dyn NeedsLike<'hir>,
 ) -> compile::Result<Asm<'hir>> {
-    let guard = cx.scopes.child(span)?;
+    let a: Option<&hir::Expr<'hir>>;
+    let b: Option<&hir::Expr<'hir>>;
 
-    let one: [&hir::Expr<'hir>; 1];
-    let two: [&hir::Expr<'hir>; 2];
-
-    let (range, values) = match hir {
+    let range = match hir {
         hir::ExprRange::RangeFrom { start } => {
-            one = [start];
-            (InstRange::RangeFrom, &one[..])
+            a = Some(start);
+            b = None;
+            InstRange::RangeFrom
         }
-        hir::ExprRange::RangeFull => (InstRange::RangeFull, &[][..]),
+        hir::ExprRange::RangeFull => {
+            a = None;
+            b = None;
+            InstRange::RangeFull
+        }
         hir::ExprRange::RangeInclusive { start, end } => {
-            two = [start, end];
-            (InstRange::RangeInclusive, &two[..])
+            a = Some(start);
+            b = Some(end);
+            InstRange::RangeInclusive
         }
         hir::ExprRange::RangeToInclusive { end } => {
-            one = [end];
-            (InstRange::RangeToInclusive, &one[..])
+            a = Some(end);
+            b = None;
+            InstRange::RangeToInclusive
         }
         hir::ExprRange::RangeTo { end } => {
-            one = [end];
-            (InstRange::RangeTo, &one[..])
+            a = Some(end);
+            b = None;
+            InstRange::RangeTo
         }
         hir::ExprRange::Range { start, end } => {
-            two = [start, end];
-            (InstRange::Range, &two[..])
+            a = Some(start);
+            b = Some(end);
+            InstRange::Range
         }
     };
 
-    let mut linear = cx.scopes.linear(span, values.len())?;
+    let a = a.map(slice::from_ref).unwrap_or_default();
+    let b = b.map(slice::from_ref).unwrap_or_default();
 
-    for (e, needs) in values.iter().zip(&mut linear) {
-        expr(cx, e, needs)?;
+    if let Some(linear) = exprs_2(cx, span, a, b)?.converge() {
+        if let Some(out) = needs.try_alloc_output(cx)? {
+            cx.asm.push(
+                Inst::Range {
+                    addr: linear.addr(),
+                    range,
+                    out,
+                },
+                span,
+            )?;
+        }
+
+        cx.scopes.free_linear(linear)?;
     }
 
-    if needs.value() {
-        cx.asm.push(
-            Inst::Range {
-                addr: linear.addr(),
-                range,
-                out: needs.alloc_output(cx.scopes)?,
-            },
-            span,
-        )?;
-    }
-
-    cx.scopes.free_linear(linear)?;
-    cx.scopes.pop(span, guard)?;
     Ok(Asm::new(span, ()))
 }
 
@@ -2637,15 +2644,8 @@ fn expr_return<'a, 'hir>(
     hir: Option<&'hir hir::Expr<'hir>>,
     span: &'hir dyn Spanned,
 ) -> compile::Result<Asm<'hir>> {
-    // NB: drop any loop temporaries.
-    for l in cx.loops.iter() {
-        if let Some(addr) = l.drop {
-            cx.asm.push(Inst::Drop { addr }, span)?;
-        }
-    }
-
     if let Some(e) = hir {
-        return_(cx, span, e, expr)?;
+        converge!(return_(cx, span, e, expr)?);
     } else {
         cx.asm.push(Inst::ReturnUnit, span)?;
     }
@@ -2654,6 +2654,88 @@ fn expr_return<'a, 'hir>(
 }
 
 /// Assemble a select expression.
+fn expr_select_inner<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
+    hir: &hir::ExprSelect<'hir>,
+    span: &'hir dyn Spanned,
+    needs: &mut dyn NeedsLike<'hir>,
+) -> compile::Result<Asm<'hir>> {
+    let mut default_branch = None;
+
+    let end_label = cx.asm.new_label("select_end");
+
+    for branch in hir.branches {
+        let label = cx.asm.new_label("select_branch");
+        cx.select_branches.try_push((label, branch))?;
+    }
+
+    if let Some(def) = hir.default {
+        let label = cx.asm.new_label("select_default");
+        default_branch = Some((def, label));
+    }
+
+    let linear = converge!(exprs(cx, span, hir.exprs)?);
+
+    let branch_addr = cx.scopes.alloc(span)?;
+    let mut value_addr = cx.scopes.alloc(span)?;
+
+    let select_label = cx.asm.new_label("select");
+
+    cx.asm.label(&select_label)?;
+
+    cx.asm.push(
+        Inst::Select {
+            addr: linear.addr(),
+            len: hir.exprs.len(),
+            branch: branch_addr.output(),
+            value: value_addr.output(),
+        },
+        span,
+    )?;
+
+    for (branch, (label, _)) in cx.select_branches.iter().enumerate() {
+        cx.asm
+            .jump_if_branch(branch_addr.addr(), branch as i64, label, span)?;
+    }
+
+    cx.scopes.free(branch_addr)?;
+
+    if let Some((_, label)) = &default_branch {
+        cx.asm.jump(label, span)?;
+    }
+
+    cx.asm.jump(&end_label, span)?;
+
+    let mut branches = core::mem::take(&mut cx.select_branches);
+
+    for (label, branch) in branches.drain(..) {
+        cx.asm.label(&label)?;
+
+        let scope = cx.scopes.child(&branch.body)?;
+
+        if let Some(..) = fn_arg_pat(cx, &branch.pat, &mut value_addr, &select_label)?.converge() {
+            if let Some(()) = expr(cx, &branch.body, needs)?.converge() {
+                cx.asm.jump(&end_label, span)?;
+            }
+        }
+
+        cx.scopes.pop(&branch.body, scope)?;
+    }
+
+    cx.select_branches = branches;
+
+    cx.scopes.free_linear(linear)?;
+    cx.scopes.free(value_addr)?;
+
+    if let Some((branch, label)) = default_branch {
+        cx.asm.label(&label)?;
+        expr(cx, branch, needs)?.ignore();
+    }
+
+    cx.asm.label(&end_label)?;
+    Ok(Asm::new(span, ()))
+}
+
 #[instrument(span = span)]
 fn expr_select<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
@@ -2662,80 +2744,9 @@ fn expr_select<'a, 'hir>(
     needs: &mut dyn NeedsLike<'hir>,
 ) -> compile::Result<Asm<'hir>> {
     cx.contexts.try_push(span.span())?;
+    cx.select_branches.clear();
 
-    let mut default_branch = None;
-    let mut branches = Vec::new();
-
-    let end_label = cx.asm.new_label("select_end");
-
-    for branch in hir.branches {
-        let label = cx.asm.new_label("select_branch");
-        branches.try_push((label, branch))?;
-    }
-
-    if let Some(def) = hir.default {
-        let label = cx.asm.new_label("select_default");
-        default_branch = Some((def, label));
-    }
-
-    let asm = if let Some(linear) = exprs(cx, span, hir.exprs)?.converge() {
-        let branch_addr = cx.scopes.alloc(span)?;
-        let mut value_addr = cx.scopes.alloc(span)?;
-
-        let select_label = cx.asm.new_label("select");
-
-        cx.asm.label(&select_label)?;
-
-        cx.asm.push(
-            Inst::Select {
-                addr: linear.addr(),
-                len: hir.exprs.len(),
-                branch: branch_addr.output(),
-                value: value_addr.output(),
-            },
-            span,
-        )?;
-
-        for (branch, (label, _)) in branches.iter().enumerate() {
-            cx.asm
-                .jump_if_branch(branch_addr.addr(), branch as i64, label, span)?;
-        }
-
-        cx.scopes.free(branch_addr)?;
-
-        if let Some((_, label)) = &default_branch {
-            cx.asm.jump(label, span)?;
-        }
-
-        cx.asm.jump(&end_label, span)?;
-
-        for (label, branch) in &branches {
-            cx.asm.label(&label)?;
-
-            let scope = cx.scopes.child(&branch.body)?;
-
-            fn_arg_pat(cx, &branch.pat, &mut value_addr, &select_label)?;
-
-            // Set up a new scope with the binding.
-            expr(cx, &branch.body, needs)?;
-
-            cx.scopes.pop(&branch.body, scope)?;
-            cx.asm.jump(&end_label, span)?;
-        }
-
-        cx.scopes.free_linear(linear)?;
-        cx.scopes.free(value_addr)?;
-
-        if let Some((branch, label)) = default_branch {
-            cx.asm.label(&label)?;
-            expr(cx, branch, needs)?;
-        }
-
-        cx.asm.label(&end_label)?;
-        Asm::new(span, ())
-    } else {
-        Asm::diverge(span)
-    };
+    let asm = expr_select_inner(cx, hir, span, needs)?;
 
     cx.contexts
         .pop()
