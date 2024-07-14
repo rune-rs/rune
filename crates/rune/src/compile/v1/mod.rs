@@ -6,7 +6,7 @@ pub(crate) use self::loops::{Loop, Loops};
 
 mod scopes;
 pub(crate) use self::scopes::Scopes;
-use self::scopes::{Linear, ScopeId};
+use self::scopes::{Linear, ScopeHandle, ScopeId};
 
 mod slots;
 use self::slots::Slots;

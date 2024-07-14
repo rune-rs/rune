@@ -18,7 +18,7 @@ use super::{NeedsAddress, NeedsAddressKind, Slab, Slots};
 const ROOT: ScopeId = ScopeId { index: 0, id: 0 };
 
 #[derive(Debug)]
-pub(crate) struct Scope<'hir> {
+pub(super) struct Scope<'hir> {
     /// Parent scope.
     parent: ScopeId,
     /// Scope.
@@ -46,13 +46,25 @@ impl<'hir> Scope<'hir> {
     }
 }
 
+/// A scope handle which does not implement Copy to make it harder to misuse.
+#[must_use = "Scope handles must be handed back to Scopes to be freed"]
+pub(super) struct ScopeHandle {
+    pub(super) id: ScopeId,
+}
+
+/// A scope that has been popped but not freed.
+#[must_use = "Scope handles must be handed back to Scopes to be freed"]
+pub(super) struct DanglingScope {
+    pub(super) id: ScopeId,
+}
+
 /// A guard returned from [push][Scopes::push].
 ///
 /// This should be provided to a subsequent [pop][Scopes::pop] to allow it to be
 /// sanity checked.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[must_use]
-pub(crate) struct ScopeId {
+pub(super) struct ScopeId {
     index: usize,
     id: usize,
 }
@@ -105,13 +117,13 @@ impl<'hir> Scopes<'hir> {
 
     /// Get the last scope guard.
     #[inline]
-    pub(crate) fn top_id(&self) -> ScopeId {
+    pub(super) fn top_id(&self) -> ScopeId {
         self.top.get()
     }
 
     /// Get the local with the given name.
     #[tracing::instrument(skip(self, q, span))]
-    pub(crate) fn get(
+    pub(super) fn get(
         &self,
         q: &mut Query<'_, '_>,
         span: &dyn Spanned,
@@ -162,7 +174,7 @@ impl<'hir> Scopes<'hir> {
 
     /// Take the local with the given name.
     #[tracing::instrument(skip(self, q, span))]
-    pub(crate) fn take(
+    pub(super) fn take(
         &self,
         q: &mut Query<'_, '_>,
         span: &'hir dyn Spanned,
@@ -215,7 +227,7 @@ impl<'hir> Scopes<'hir> {
 
     /// Construct a new variable.
     #[tracing::instrument(skip(self, span))]
-    pub(crate) fn define(
+    pub(super) fn define(
         &self,
         span: &'hir dyn Spanned,
         name: hir::Name<'hir>,
@@ -241,7 +253,7 @@ impl<'hir> Scopes<'hir> {
 
     /// Declare an anonymous variable.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn alloc(&self, span: &'hir dyn Spanned) -> compile::Result<NeedsAddress<'hir>> {
+    pub(super) fn alloc(&self, span: &'hir dyn Spanned) -> compile::Result<NeedsAddress<'hir>> {
         let mut scopes = self.scopes.borrow_mut();
 
         let Some(scope) = scopes.get_mut(self.top.get().index) else {
@@ -259,7 +271,7 @@ impl<'hir> Scopes<'hir> {
 
     /// Declare an anonymous variable.
     #[tracing::instrument(skip(self, span))]
-    pub(crate) fn alloc_in(&self, span: &dyn Spanned, id: ScopeId) -> compile::Result<InstAddress> {
+    pub(super) fn alloc_in(&self, span: &dyn Spanned, id: ScopeId) -> compile::Result<InstAddress> {
         let mut scopes = self.scopes.borrow_mut();
 
         let Some(s) = scopes.get_mut(id.index) else {
@@ -287,7 +299,7 @@ impl<'hir> Scopes<'hir> {
 
     /// Perform a linear allocation.
     #[tracing::instrument(ret, skip(self, span))]
-    pub(crate) fn linear<'a>(
+    pub(super) fn linear<'a>(
         &self,
         span: &'a dyn Spanned,
         n: usize,
@@ -328,14 +340,14 @@ impl<'hir> Scopes<'hir> {
 
     /// Free an address if it's in the specified scope.
     #[tracing::instrument(skip(self))]
-    pub(crate) fn free(&self, addr: NeedsAddress<'hir>) -> compile::Result<()> {
+    pub(super) fn free(&self, addr: NeedsAddress<'hir>) -> compile::Result<()> {
         match &addr.kind {
             NeedsAddressKind::Local | NeedsAddressKind::Dangling => {
-                self.free_addr(addr.span, addr.addr())?;
+                self.free_addr(addr.span, addr.addr(), addr.name)?;
             }
             NeedsAddressKind::Scope(scope) => {
                 if self.top_id() == *scope {
-                    self.free_addr(addr.span, addr.addr())?;
+                    self.free_addr(addr.span, addr.addr(), addr.name)?;
                 }
             }
             _ => {}
@@ -346,13 +358,21 @@ impl<'hir> Scopes<'hir> {
 
     /// Free an address if it's in the specified scope.
     #[tracing::instrument(skip(self, span))]
-    pub(crate) fn free_addr(&self, span: &dyn Spanned, addr: InstAddress) -> compile::Result<()> {
+    pub(super) fn free_addr(
+        &self,
+        span: &dyn Spanned,
+        addr: InstAddress,
+        name: Option<&'static str>,
+    ) -> compile::Result<()> {
         let mut scopes = self.scopes.borrow_mut();
 
         let Some(scope) = scopes.get_mut(self.top.get().index) else {
             return Err(compile::Error::msg(
                 span,
-                format!("Freed address {addr} does not have an implicit scope"),
+                format!(
+                    "Freed address {} does not have an implicit scope",
+                    DisplayAddr(addr, name)
+                ),
             ));
         };
 
@@ -361,7 +381,11 @@ impl<'hir> Scopes<'hir> {
         if !scope.locals.remove(&addr.offset()) {
             return Err(compile::Error::msg(
                 span,
-                format!("Freed address {addr} is not defined in scope {}", scope.id),
+                format!(
+                    "Freed address {} is not defined in scope {}",
+                    DisplayAddr(addr, name),
+                    scope.id
+                ),
             ));
         }
 
@@ -371,7 +395,8 @@ impl<'hir> Scopes<'hir> {
             return Err(compile::Error::msg(
                 span,
                 format!(
-                    "Freed adddress {addr} does not have a global slot in scope {}",
+                    "Freed adddress {} does not have a global slot in scope {}",
+                    DisplayAddr(addr, name),
                     scope.id
                 ),
             ));
@@ -382,7 +407,7 @@ impl<'hir> Scopes<'hir> {
 
     /// Free a bunch of linear variables.
     #[tracing::instrument(skip(self, linear), fields(linear.base, len = linear.len()))]
-    pub(crate) fn free_linear(&self, linear: Linear<'hir>) -> compile::Result<()> {
+    pub(super) fn free_linear(&self, linear: Linear<'hir>) -> compile::Result<()> {
         for addr in linear.addresses.into_iter().rev() {
             self.free(addr)?;
         }
@@ -390,8 +415,10 @@ impl<'hir> Scopes<'hir> {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, span))]
-    pub(crate) fn pop(&self, span: &dyn Spanned, id: ScopeId) -> compile::Result<()> {
+    #[tracing::instrument(skip(self, span, handle), fields(id = ?handle.id))]
+    pub(super) fn pop(&self, span: &dyn Spanned, handle: ScopeHandle) -> compile::Result<()> {
+        let ScopeHandle { id } = handle;
+
         let Some(mut scope) = self.scopes.borrow_mut().try_remove(id.index) else {
             return Err(compile::Error::msg(
                 span,
@@ -433,14 +460,14 @@ impl<'hir> Scopes<'hir> {
 
     /// Pop the last of the scope.
     #[tracing::instrument(skip(self, span))]
-    pub(crate) fn pop_last(&self, span: &dyn Spanned) -> compile::Result<()> {
-        self.pop(span, ROOT)?;
+    pub(super) fn pop_last(&self, span: &dyn Spanned) -> compile::Result<()> {
+        self.pop(span, ScopeHandle { id: ROOT })?;
         Ok(())
     }
 
     /// Construct a new child scope and return its guard.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn child(&self, span: &dyn Spanned) -> compile::Result<ScopeId> {
+    pub(super) fn child(&self, span: &dyn Spanned) -> compile::Result<ScopeHandle> {
         let mut scopes = self.scopes.borrow_mut();
 
         let id = ScopeId {
@@ -451,11 +478,17 @@ impl<'hir> Scopes<'hir> {
         let scope = Scope::new(self.top.replace(id), id);
         tracing::trace!(?scope);
         scopes.insert(scope).with_span(span)?;
-        Ok(id)
+        Ok(ScopeHandle { id })
     }
 
-    #[tracing::instrument(skip(self, span))]
-    pub(crate) fn pop_id(&self, span: &dyn Spanned, id: ScopeId) -> compile::Result<()> {
+    #[tracing::instrument(skip(self, span, handle), fields(id = ?handle.id))]
+    pub(super) fn dangle(
+        &self,
+        span: &dyn Spanned,
+        handle: ScopeHandle,
+    ) -> compile::Result<DanglingScope> {
+        let ScopeHandle { id } = handle;
+
         let scopes = self.scopes.borrow();
 
         let Some(scope) = scopes.get(id.index) else {
@@ -477,14 +510,16 @@ impl<'hir> Scopes<'hir> {
 
         self.top.set(scope.parent);
         tracing::trace!(?scope);
-        Ok(())
+        Ok(DanglingScope { id })
     }
 
-    /// Push a scope again.
+    /// Push a dangling scope back onto the stack.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn push(&self, id: ScopeId) {
+    pub(super) fn restore(&self, handle: DanglingScope) -> ScopeHandle {
+        let DanglingScope { id } = handle;
         tracing::trace!(?id);
         self.top.set(id);
+        ScopeHandle { id }
     }
 }
 
@@ -570,7 +605,7 @@ pub struct Var<'hir> {
     /// The name of the variable.
     name: hir::Name<'hir>,
     /// Offset from the current stack frame.
-    pub(crate) addr: InstAddress,
+    pub(super) addr: InstAddress,
 }
 
 impl<'hir> fmt::Display for Var<'hir> {
@@ -582,7 +617,7 @@ impl<'hir> fmt::Display for Var<'hir> {
 
 impl<'hir> Var<'hir> {
     /// Copy the declared variable.
-    pub(crate) fn copy(
+    pub(super) fn copy(
         &self,
         asm: &mut Assembly,
         span: &dyn Spanned,
@@ -600,7 +635,7 @@ impl<'hir> Var<'hir> {
     }
 
     /// Move the declared variable.
-    pub(crate) fn move_(
+    pub(super) fn move_(
         &self,
         asm: &mut Assembly,
         span: &dyn Spanned,
@@ -657,5 +692,16 @@ impl fmt::Debug for VarInner<'_> {
             .field("span", &self.span.span())
             .field("moved_at", &self.moved_at.get().map(|s| s.span()))
             .finish()
+    }
+}
+
+struct DisplayAddr(InstAddress, Option<&'static str>);
+
+impl fmt::Display for DisplayAddr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.1 {
+            Some(name) => write!(f, "{} ({})", self.0, name),
+            None => self.0.fmt(f),
+        }
     }
 }

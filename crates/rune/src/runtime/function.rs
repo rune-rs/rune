@@ -525,7 +525,9 @@ where
                 ));
                 vm_try!(stack.at(InstAddress::ZERO)).clone()
             }
-            Inner::FnOffset(fn_offset) => vm_try!(fn_offset.call(args, ())),
+            Inner::FnOffset(fn_offset) => {
+                vm_try!(fn_offset.call(args, ()))
+            }
             Inner::FnClosureOffset(closure) => {
                 let environment = vm_try!(closure.environment.try_clone());
                 let environment = vm_try!(OwnedTuple::try_from(environment));

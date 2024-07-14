@@ -15,7 +15,7 @@ use crate::runtime::{
 use crate::shared::FixedVec;
 use crate::{Hash, SourceId};
 
-use super::{Linear, Loop, Loops, Needs, NeedsAddress, ScopeId, Scopes};
+use super::{Linear, Loop, Loops, Needs, NeedsAddress, ScopeHandle, Scopes};
 
 use rune_macros::instrument;
 
@@ -735,7 +735,7 @@ fn condition<'a, 'hir>(
     then_label: &Label,
     false_label: &Label,
     linear: &mut [NeedsAddress<'hir>],
-) -> compile::Result<Asm<'hir, (ScopeId, Pattern)>> {
+) -> compile::Result<Asm<'hir, (ScopeHandle, Pattern)>> {
     match *hir {
         hir::Condition::Expr(hir) => {
             let scope = cx.scopes.child(hir)?;
@@ -1528,8 +1528,8 @@ fn expr_binary<'a, 'hir>(
 
     let guard = cx.scopes.child(span)?;
 
-    let mut a = Needs::alloc_in(guard, span)?;
-    let mut b = Needs::alloc_in(guard, span)?;
+    let mut a = Needs::alloc_in(&guard, span)?;
+    let mut b = Needs::alloc_in(&guard, span)?;
 
     let asm = expr_array(cx, span, [(&hir.lhs, &mut a), (&hir.rhs, &mut b)])?;
 
@@ -2113,20 +2113,21 @@ fn expr_for<'a, 'hir>(
     let break_label = cx.asm.new_label("for_break");
 
     let loop_scope = cx.scopes.child(span)?;
-    let mut iter = Needs::alloc(cx, span);
-
+    let mut iter = Needs::alloc(cx, span).with_name("iter");
     expr(cx, &hir.iter, &mut iter)?;
 
     let Some(iter) = iter.as_addr() else {
         return Ok(Asm::new(span, ()));
     };
 
+    let into_iter = cx.scopes.alloc(span)?.with_name("into_iter");
+
     cx.asm.push_with_comment(
         Inst::CallAssociated {
             addr: iter.addr(),
             hash: *Protocol::INTO_ITER,
             args: 1,
-            out: iter.output(),
+            out: into_iter.output(),
         },
         &hir.iter,
         &"Protocol::INTO_ITER",
@@ -2141,7 +2142,7 @@ fn expr_for<'a, 'hir>(
 
         cx.asm.push_with_comment(
             Inst::LoadInstanceFn {
-                addr: iter.addr(),
+                addr: into_iter.addr(),
                 hash: *Protocol::NEXT,
                 out: offset.output(),
             },
@@ -2161,7 +2162,7 @@ fn expr_for<'a, 'hir>(
         continue_label: continue_label.try_clone()?,
         break_label: break_label.try_clone()?,
         output: needs.alloc_output(cx.scopes)?,
-        drop: Some(iter.addr()),
+        drop: Some(into_iter.addr()),
     })?;
 
     // Use the memoized loop variable.
@@ -2169,7 +2170,7 @@ fn expr_for<'a, 'hir>(
         cx.asm.push(
             Inst::CallFn {
                 function: next_offset.addr(),
-                addr: iter.addr(),
+                addr: into_iter.addr(),
                 args: 1,
                 out: binding.output(),
             },
@@ -2178,7 +2179,7 @@ fn expr_for<'a, 'hir>(
     } else {
         cx.asm.push_with_comment(
             Inst::CallAssociated {
-                addr: iter.addr(),
+                addr: into_iter.addr(),
                 hash: *Protocol::NEXT,
                 args: 1,
                 out: binding.output(),
@@ -2192,7 +2193,7 @@ fn expr_for<'a, 'hir>(
     cx.asm
         .iter_next(binding.addr(), &end_label, &hir.binding, binding.output())?;
 
-    let guard = cx.scopes.child(&hir.body)?;
+    let inner_loop_scope = cx.scopes.child(&hir.body)?;
     let mut bindings = cx.scopes.linear(&hir.binding, hir.binding.names.len())?;
 
     pattern_panic(cx, &hir.binding, move |cx, false_label| {
@@ -2215,7 +2216,7 @@ fn expr_for<'a, 'hir>(
     })?;
 
     block(cx, &hir.body, &mut Needs::none(span))?;
-    cx.scopes.pop(span, guard)?;
+    cx.scopes.pop(span, inner_loop_scope)?;
 
     cx.asm.jump(&continue_label, span)?;
     cx.asm.label(&end_label)?;
@@ -2223,7 +2224,15 @@ fn expr_for<'a, 'hir>(
     // NB: Dropping has to happen before the break label. When breaking, the
     // break statement is responsible for ensuring that active iterators are
     // dropped.
-    cx.asm.push(Inst::Drop { addr: iter.addr() }, span)?;
+    cx.asm.push(
+        Inst::Drop {
+            addr: into_iter.addr(),
+        },
+        span,
+    )?;
+
+    into_iter.free(cx.scopes)?;
+    iter.free(cx.scopes)?;
 
     cx.scopes.pop(span, loop_scope)?;
 
@@ -2273,7 +2282,7 @@ fn expr_if<'a, 'hir>(
                 cx.asm.label(&false_label);
             }
 
-            cx.scopes.pop_id(branch, scope)?;
+            let scope = cx.scopes.dangle(branch, scope)?;
             branches.try_push((branch, then_label, scope))?;
         }
     }
@@ -2292,7 +2301,7 @@ fn expr_if<'a, 'hir>(
     while let Some((branch, label, scope)) = it.next() {
         cx.asm.label(&label)?;
 
-        cx.scopes.push(scope);
+        let scope = cx.scopes.restore(scope);
 
         if hir.fallback.is_none() {
             block(cx, &branch.block, &mut Needs::none(branch))?;
@@ -2440,7 +2449,7 @@ fn expr_match<'a, 'hir>(
 
             if converges {
                 cx.asm.jump(&branch_label, span)?;
-                cx.scopes.pop_id(span, pattern_scope)?;
+                let pattern_scope = cx.scopes.dangle(span, pattern_scope)?;
                 branches.try_push((branch_label, pattern_scope))?;
             } else {
                 // If the branch condition diverges, there is no reason to
@@ -2471,7 +2480,7 @@ fn expr_match<'a, 'hir>(
         let span = branch;
 
         cx.asm.label(&label)?;
-        cx.scopes.push(scope);
+        let scope = cx.scopes.restore(scope);
 
         if expr(cx, &branch.body, needs)?.is_converging() && it.peek().is_some() {
             cx.asm.jump(&end_label, span)?;

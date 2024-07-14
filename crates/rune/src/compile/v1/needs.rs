@@ -4,7 +4,7 @@ use crate::ast::Spanned;
 use crate::compile;
 use crate::runtime::{Inst, InstAddress, Output};
 
-use super::{Ctxt, ScopeId, Scopes};
+use super::{Ctxt, ScopeHandle, ScopeId, Scopes};
 
 #[derive(Debug, Clone, Copy)]
 pub(super) enum NeedsAddressKind {
@@ -25,6 +25,8 @@ pub(super) struct NeedsAddress<'hir> {
     pub(super) span: &'hir dyn Spanned,
     addr: InstAddress,
     pub(super) kind: NeedsAddressKind,
+    /// A diagnostical name for the address.
+    pub(super) name: Option<&'static str>,
 }
 
 impl<'hir> NeedsAddress<'hir> {
@@ -34,6 +36,7 @@ impl<'hir> NeedsAddress<'hir> {
             span,
             addr: InstAddress::ZERO,
             kind: NeedsAddressKind::Assigned,
+            name: None,
         }
     }
 
@@ -44,6 +47,7 @@ impl<'hir> NeedsAddress<'hir> {
             span,
             addr,
             kind: NeedsAddressKind::Local,
+            name: None,
         }
     }
 
@@ -54,6 +58,15 @@ impl<'hir> NeedsAddress<'hir> {
             span,
             addr,
             kind: NeedsAddressKind::Dangling,
+            name: None,
+        }
+    }
+
+    /// Assign a name to the address.
+    pub(super) fn with_name(self, name: &'static str) -> Self {
+        Self {
+            name: Some(name),
+            ..self
         }
     }
 
@@ -112,6 +125,7 @@ impl fmt::Debug for NeedsAddress<'_> {
             .field("span", &self.span.span())
             .field("addr", &self.addr)
             .field("kind", &self.kind)
+            .field("name", &self.name)
             .finish()
     }
 }
@@ -119,9 +133,14 @@ impl fmt::Debug for NeedsAddress<'_> {
 /// The kind of a needs.
 #[derive(Debug)]
 pub(super) enum NeedsKind<'hir> {
-    Alloc { scope: ScopeId },
+    Alloc {
+        scope: ScopeId,
+        name: Option<&'static str>,
+    },
     Address(NeedsAddress<'hir>),
-    None,
+    None {
+        name: Option<&'static str>,
+    },
 }
 
 /// A needs hint for an expression.
@@ -147,15 +166,18 @@ impl<'hir> Needs<'hir> {
     pub(super) fn none(span: &'hir dyn Spanned) -> Self {
         Self {
             span,
-            kind: NeedsKind::None,
+            kind: NeedsKind::None { name: None },
         }
     }
 
     /// Allocate on demand inside of a specific scope.
-    pub(super) fn alloc_in(scope: ScopeId, span: &'hir dyn Spanned) -> compile::Result<Self> {
+    pub(super) fn alloc_in(handle: &ScopeHandle, span: &'hir dyn Spanned) -> compile::Result<Self> {
         Ok(Self {
             span,
-            kind: NeedsKind::Alloc { scope },
+            kind: NeedsKind::Alloc {
+                scope: handle.id,
+                name: None,
+            },
         })
     }
 
@@ -165,6 +187,7 @@ impl<'hir> Needs<'hir> {
             span,
             kind: NeedsKind::Alloc {
                 scope: cx.scopes.top_id(),
+                name: None,
             },
         }
     }
@@ -177,6 +200,7 @@ impl<'hir> Needs<'hir> {
                 span,
                 addr,
                 kind: NeedsAddressKind::Local,
+                name: None,
             }),
         }
     }
@@ -189,8 +213,23 @@ impl<'hir> Needs<'hir> {
                 span,
                 addr,
                 kind: NeedsAddressKind::Assigned,
+                name: None,
             }),
         }
+    }
+
+    /// Assign a name to the request.
+    pub(super) fn with_name(mut self, name: &'static str) -> Self {
+        self.kind = match self.kind {
+            NeedsKind::Alloc { scope, .. } => NeedsKind::Alloc {
+                scope,
+                name: Some(name),
+            },
+            NeedsKind::Address(addr) => NeedsKind::Address(addr.with_name(name)),
+            NeedsKind::None { .. } => NeedsKind::None { name: Some(name) },
+        };
+
+        self
     }
 
     pub(super) fn assign_addr(
@@ -199,11 +238,12 @@ impl<'hir> Needs<'hir> {
         from: InstAddress,
     ) -> compile::Result<()> {
         match &self.kind {
-            NeedsKind::Alloc { .. } => {
+            NeedsKind::Alloc { name, .. } => {
                 self.kind = NeedsKind::Address(NeedsAddress {
                     span: self.span,
                     addr: from,
                     kind: NeedsAddressKind::Assigned,
+                    name: name.clone(),
                 });
             }
             NeedsKind::Address(addr) => {
@@ -251,13 +291,14 @@ impl<'hir> Needs<'hir> {
         scopes: &Scopes<'_>,
     ) -> compile::Result<Option<InstAddress>> {
         match &mut self.kind {
-            NeedsKind::Alloc { scope } => {
+            NeedsKind::Alloc { scope, name } => {
                 let addr = scopes.alloc_in(self.span, *scope)?;
 
                 self.kind = NeedsKind::Address(NeedsAddress {
                     span: self.span,
                     addr,
                     kind: NeedsAddressKind::Scope(*scope),
+                    name: name.clone(),
                 });
 
                 Ok(Some(addr))
