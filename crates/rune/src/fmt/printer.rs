@@ -867,14 +867,17 @@ impl<'a> Printer<'a> {
         self.writer.write_spanned_raw(select.span, false, true)?;
         self.writer.write_spanned_raw(open.span, true, false)?;
         self.writer.indent();
+
         for (branch, comma) in branches {
             self.visit_select_branch(branch)?;
+
             if let Some(comma) = comma {
                 self.writer.write_spanned_raw(comma.span, true, false)?;
             } else {
                 self.writer.write_unspanned(",\n")?;
             }
         }
+
         self.writer.dedent();
 
         self.writer.write_spanned_raw(close.span, false, false)?;
@@ -885,7 +888,7 @@ impl<'a> Printer<'a> {
     fn visit_select_branch(&mut self, ast: &ast::ExprSelectBranch) -> Result<()> {
         match ast {
             ast::ExprSelectBranch::Pat(pat) => self.visit_select_pattern(pat)?,
-            ast::ExprSelectBranch::Default(_default) => write!(self.writer, "default")?,
+            ast::ExprSelectBranch::Default(default) => self.visit_select_default(default)?,
         }
 
         Ok(())
@@ -907,7 +910,20 @@ impl<'a> Printer<'a> {
         self.writer.write_unspanned(" ")?;
         self.writer.write_spanned_raw(rocket.span, false, true)?;
         self.visit_expr(body)?;
+        Ok(())
+    }
 
+    fn visit_select_default(&mut self, ast: &ast::ExprDefaultBranch) -> Result<()> {
+        let ast::ExprDefaultBranch {
+            default,
+            rocket,
+            body,
+        } = ast;
+
+        self.writer.write_spanned_raw(default.span, false, true)?;
+        self.writer.write_unspanned(" ")?;
+        self.writer.write_spanned_raw(rocket.span, false, true)?;
+        self.visit_expr(body)?;
         Ok(())
     }
 

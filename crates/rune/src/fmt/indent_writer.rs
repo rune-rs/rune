@@ -208,15 +208,18 @@ impl<'a> SpanInjectionWriter<'a> {
                 let mut lines = self.resolve(comment.span)?.lines();
 
                 if let Some(first_line) = lines.next() {
+                    let first_line = first_line.trim_end();
+
                     if comment.on_new_line {
-                        writeln!(self.writer, "{}", first_line)?;
-                    } else {
+                        writeln!(self.writer, "{first_line}")?;
+                    } else if !first_line.is_empty() {
                         self.extend_previous_line(b" ")?;
                         self.extend_previous_line(first_line.as_bytes())?;
                     }
                 }
 
                 for line in lines {
+                    let line = line.trim();
                     self.newline()?;
                     self.extend_previous_line(line.as_bytes())?;
                 }

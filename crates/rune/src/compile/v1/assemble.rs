@@ -2233,11 +2233,13 @@ fn expr_for<'a, 'hir>(
 
         binding.free(cx.scopes)?;
         into_iter.free(cx.scopes)?;
+        iter.free(cx.scopes)?;
 
         cx.loops.pop();
+    } else {
+        iter.free(cx.scopes)?;
     }
 
-    iter.free(cx.scopes)?;
     cx.scopes.pop(span, loop_scope)?;
     Ok(Asm::new(span, ()))
 }

@@ -1,0 +1,31 @@
+#[test]
+async fn break_into_loops() {
+    let v = 0;
+
+    'loop1: loop {
+        v = 1;
+
+        loop {
+            v = 2;
+            break 'loop1;
+        }
+    }
+
+    assert_eq!(v, 2);
+}
+
+#[test]
+async fn break_with_value() {
+    let v = 0;
+
+    let v = 'loop1: loop {
+        v = 1;
+
+        loop {
+            v = 2;
+            break 'loop1 3;
+        }
+    };
+
+    // assert_eq!(v, 2);
+}

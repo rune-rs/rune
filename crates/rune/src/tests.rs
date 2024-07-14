@@ -404,7 +404,6 @@ macro_rules! prelude {
 }
 
 mod attribute;
-mod basics;
 mod binary;
 mod bug_326;
 mod bug_344;
