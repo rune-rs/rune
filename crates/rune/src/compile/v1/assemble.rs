@@ -106,7 +106,7 @@ impl<'hir> NeedsLike<'hir> for Needs<'hir> {
 
     #[inline]
     fn try_alloc_output(&mut self, cx: &mut Ctxt<'_, 'hir, '_>) -> compile::Result<Option<Output>> {
-        Needs::try_alloc_output(self, &mut cx.scopes)
+        Needs::try_alloc_output(self, cx.scopes)
     }
 
     #[inline]
@@ -114,7 +114,7 @@ impl<'hir> NeedsLike<'hir> for Needs<'hir> {
         &mut self,
         cx: &mut Ctxt<'_, 'hir, '_>,
     ) -> compile::Result<Option<InstAddress>> {
-        Needs::try_alloc_addr(self, &mut cx.scopes)
+        Needs::try_alloc_addr(self, cx.scopes)
     }
 
     #[inline]
@@ -186,7 +186,7 @@ pub(crate) struct Ctxt<'a, 'hir, 'arena> {
     /// The assembly we are generating.
     pub(crate) asm: &'a mut Assembly,
     /// Scopes defined in the compiler.
-    pub(crate) scopes: Scopes<'hir>,
+    pub(crate) scopes: &'a mut Scopes<'hir>,
     /// Context for which to emit warnings.
     pub(crate) contexts: Vec<Span>,
     /// The nesting of loop we are currently in.
@@ -307,8 +307,8 @@ impl fmt::Debug for Asm<'_> {
 
 /// Assemble a function from an [hir::ItemFn<'_>].
 #[instrument(span = hir)]
-pub(crate) fn fn_from_item_fn<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+pub(crate) fn fn_from_item_fn<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::ItemFn<'hir>,
     instance_fn: bool,
 ) -> compile::Result<()> {
@@ -352,8 +352,8 @@ pub(crate) fn fn_from_item_fn<'hir>(
 
 /// Assemble an async block.
 #[instrument(span = hir.block.span)]
-pub(crate) fn async_block_secondary<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+pub(crate) fn async_block_secondary<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::AsyncBlock<'hir>,
 ) -> compile::Result<()> {
     let linear = cx.scopes.linear(&hir.block, hir.captures.len())?;
@@ -369,8 +369,8 @@ pub(crate) fn async_block_secondary<'hir>(
 
 /// Assemble the body of a closure function.
 #[instrument(span = span)]
-pub(crate) fn expr_closure_secondary<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+pub(crate) fn expr_closure_secondary<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::ExprClosure<'hir>,
     span: &'hir dyn Spanned,
 ) -> compile::Result<()> {
@@ -411,8 +411,8 @@ pub(crate) fn expr_closure_secondary<'hir>(
 }
 
 #[instrument(span = pat)]
-fn fn_arg_pat<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn fn_arg_pat<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     pat: &'hir hir::PatBinding<'hir>,
     needs: &mut dyn NeedsLike<'hir>,
     false_label: &Label,
@@ -426,7 +426,7 @@ fn fn_arg_pat<'hir>(
 
     let addr = addr.addr();
 
-    let load = move |cx: &mut Ctxt<'_, 'hir, '_>, needs: &mut dyn NeedsLike<'hir>| {
+    let load = move |cx: &mut Ctxt<'a, 'hir, '_>, needs: &mut dyn NeedsLike<'hir>| {
         needs.assign_addr(cx, addr)?;
         Ok(Asm::new(pat, ()))
     };
@@ -440,11 +440,11 @@ fn fn_arg_pat<'hir>(
 }
 
 /// Assemble a return statement from the given Assemble.
-fn return_<'hir, T>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn return_<'a, 'hir, T>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     span: &'hir dyn Spanned,
     hir: T,
-    asm: impl FnOnce(&mut Ctxt<'_, 'hir, '_>, T, &mut dyn NeedsLike<'hir>) -> compile::Result<Asm<'hir>>,
+    asm: impl FnOnce(&mut Ctxt<'a, 'hir, '_>, T, &mut dyn NeedsLike<'hir>) -> compile::Result<Asm<'hir>>,
 ) -> compile::Result<()> {
     let mut needs = Needs::alloc(cx, span);
     asm(cx, hir, &mut needs)?;
@@ -453,7 +453,7 @@ fn return_<'hir, T>(
         cx.asm.push(Inst::Return { addr: addr.addr() }, span)?;
     };
 
-    needs.free(&mut cx.scopes)?;
+    needs.free(cx.scopes)?;
     Ok(())
 }
 
@@ -490,12 +490,12 @@ where
 
 /// Compile a pattern with bindings based on the given offset.
 #[instrument(span = hir)]
-fn pat_binding_with_addr<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn pat_binding_with_addr<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::PatBinding<'hir>,
     addr: InstAddress,
 ) -> compile::Result<()> {
-    let load = |cx: &mut Ctxt<'_, 'hir, '_>, needs: &mut dyn NeedsLike<'hir>| {
+    let load = |cx: &mut Ctxt<'a, 'hir, '_>, needs: &mut dyn NeedsLike<'hir>| {
         needs.assign_addr(cx, addr)?;
         Ok(Asm::new(hir, ()))
     };
@@ -511,24 +511,24 @@ fn pat_binding_with_addr<'hir>(
 ///
 /// Returns a boolean indicating if the label was used.
 #[instrument(span = hir)]
-fn pat_binding<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn pat_binding<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::PatBinding<'hir>,
     false_label: &Label,
-    load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, &mut dyn NeedsLike<'hir>) -> compile::Result<Asm<'hir>>,
+    load: &dyn Fn(&mut Ctxt<'a, 'hir, '_>, &mut dyn NeedsLike<'hir>) -> compile::Result<Asm<'hir>>,
 ) -> compile::Result<Asm<'hir, bool>> {
     let mut linear = cx.scopes.linear(hir, hir.names.len())?;
     pat_binding_with(cx, hir, &hir.pat, hir.names, false_label, load, &mut linear)
 }
 
 #[instrument(span = span)]
-fn pat_binding_with<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn pat_binding_with<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     span: &'hir dyn Spanned,
     pat: &'hir hir::Pat<'hir>,
     names: &[hir::Name<'hir>],
     false_label: &Label,
-    load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, &mut dyn NeedsLike<'hir>) -> compile::Result<Asm<'hir>>,
+    load: &dyn Fn(&mut Ctxt<'a, 'hir, '_>, &mut dyn NeedsLike<'hir>) -> compile::Result<Asm<'hir>>,
     linear: &mut [NeedsAddress<'hir>],
 ) -> compile::Result<Asm<'hir, bool>> {
     let bound;
@@ -560,13 +560,13 @@ fn pat_binding_with<'hir>(
 }
 
 #[instrument(span = span)]
-fn pat_binding_with_single<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn pat_binding_with_single<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     span: &'hir dyn Spanned,
     pat: &'hir hir::Pat<'hir>,
     name: hir::Name<'hir>,
     false_label: &Label,
-    load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, &mut dyn NeedsLike<'hir>) -> compile::Result<Asm<'hir>>,
+    load: &dyn Fn(&mut Ctxt<'a, 'hir, '_>, &mut dyn NeedsLike<'hir>) -> compile::Result<Asm<'hir>>,
     needs: &mut dyn NeedsLike<'hir>,
 ) -> compile::Result<Asm<'hir, bool>> {
     let asm;
@@ -602,11 +602,11 @@ fn pat_binding_with_single<'hir>(
 ///
 /// Returns a boolean indicating if the label was used.
 #[instrument(span = hir)]
-fn pat<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn pat<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::Pat<'hir>,
     false_label: &Label,
-    load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, &mut dyn NeedsLike<'hir>) -> compile::Result<Asm<'hir>>,
+    load: &dyn Fn(&mut Ctxt<'a, 'hir, '_>, &mut dyn NeedsLike<'hir>) -> compile::Result<Asm<'hir>>,
     bindings: &mut BTreeMap<hir::Name<'hir>, &mut dyn NeedsLike<'hir>>,
 ) -> compile::Result<Asm<'hir, bool>> {
     let span = hir;
@@ -632,7 +632,7 @@ fn pat<'hir>(
 
                 cx.asm.jump_if_not(cond.addr(), false_label, hir)?;
                 cx.scopes.free(cond)?;
-                addr.free(&mut cx.scopes)?;
+                addr.free(cx.scopes)?;
                 Ok(Asm::new(span, true))
             }
             hir::PatPathKind::Ident(name) => {
@@ -654,11 +654,11 @@ fn pat<'hir>(
 
 /// Assemble a pattern literal.
 #[instrument(span = hir)]
-fn pat_lit<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn pat_lit<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::Expr<'_>,
     false_label: &Label,
-    load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, &mut dyn NeedsLike<'hir>) -> compile::Result<Asm<'hir>>,
+    load: &dyn Fn(&mut Ctxt<'a, 'hir, '_>, &mut dyn NeedsLike<'hir>) -> compile::Result<Asm<'hir>>,
 ) -> compile::Result<Asm<'hir, bool>> {
     let mut needs = Needs::alloc(cx, hir);
     converge!(load(cx, &mut needs)?, free(cx, needs));
@@ -673,13 +673,13 @@ fn pat_lit<'hir>(
     cx.asm.push(inst, hir)?;
     cx.asm.jump_if_not(cond.addr(), false_label, hir)?;
     cx.scopes.free(cond)?;
-    addr.free(&mut cx.scopes)?;
+    addr.free(cx.scopes)?;
     Ok(Asm::new(hir, true))
 }
 
 #[instrument(span = hir)]
-fn pat_lit_inst<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn pat_lit_inst<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &hir::Expr<'_>,
     addr: InstAddress,
     cond: InstAddress,
@@ -713,8 +713,8 @@ fn pat_lit_inst<'hir>(
 
 /// Assemble an [hir::Condition<'_>].
 #[instrument(span = hir)]
-fn condition<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn condition<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &hir::Condition<'hir>,
     then_label: &Label,
     linear: &mut [NeedsAddress<'hir>],
@@ -739,7 +739,7 @@ fn condition<'hir>(
 
             let scope = cx.scopes.child(span)?;
 
-            let load = |cx: &mut Ctxt<'_, 'hir, '_>, needs: &mut dyn NeedsLike<'hir>| {
+            let load = |cx: &mut Ctxt<'a, 'hir, '_>, needs: &mut dyn NeedsLike<'hir>| {
                 expr(cx, &hir.expr, needs)
             };
 
@@ -772,12 +772,12 @@ fn condition<'hir>(
 
 /// Encode a vector pattern match.
 #[instrument(span = span)]
-fn pat_sequence<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn pat_sequence<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &hir::PatSequence<'hir>,
     span: &'hir dyn Spanned,
     false_label: &Label,
-    load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, &mut dyn NeedsLike<'hir>) -> compile::Result<Asm<'hir>>,
+    load: &dyn Fn(&mut Ctxt<'a, 'hir, '_>, &mut dyn NeedsLike<'hir>) -> compile::Result<Asm<'hir>>,
     bindings: &mut BTreeMap<hir::Name<'hir>, &mut dyn NeedsLike<'hir>>,
 ) -> compile::Result<Asm<'hir, bool>> {
     let mut needs = Needs::alloc(cx, span);
@@ -811,12 +811,12 @@ fn pat_sequence<'hir>(
     cx.asm.jump_if_not(cond.addr(), false_label, span)?;
 
     for (index, p) in hir.items.iter().enumerate() {
-        let load = move |cx: &mut Ctxt<'_, 'hir, '_>, n: &mut dyn NeedsLike<'hir>| {
+        let load = move |cx: &mut Ctxt<'a, 'hir, '_>, n: &mut dyn NeedsLike<'hir>| {
             cx.asm.push(
                 Inst::TupleIndexGetAt {
                     addr: addr.addr(),
                     index,
-                    out: n.alloc_output(&mut cx.scopes)?,
+                    out: n.alloc_output(cx.scopes)?,
                 },
                 p,
             )?;
@@ -829,8 +829,8 @@ fn pat_sequence<'hir>(
         );
     }
 
-    cond.free(&mut cx.scopes)?;
-    addr.free(&mut cx.scopes)?;
+    cond.free(cx.scopes)?;
+    addr.free(cx.scopes)?;
     Ok(Asm::new(span, true))
 }
 
@@ -869,12 +869,12 @@ fn pat_sequence_kind_to_inst(kind: hir::PatSequenceKind, addr: InstAddress, out:
 
 /// Assemble an object pattern.
 #[instrument(span = span)]
-fn pat_object<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn pat_object<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &hir::PatObject<'hir>,
     span: &'hir dyn Spanned,
     false_label: &Label,
-    load: &dyn Fn(&mut Ctxt<'_, 'hir, '_>, &mut dyn NeedsLike<'hir>) -> compile::Result<Asm<'hir>>,
+    load: &dyn Fn(&mut Ctxt<'a, 'hir, '_>, &mut dyn NeedsLike<'hir>) -> compile::Result<Asm<'hir>>,
     bindings: &mut BTreeMap<hir::Name<'hir>, &mut dyn NeedsLike<'hir>>,
 ) -> compile::Result<Asm<'hir, bool>> {
     let mut needs = Needs::alloc(cx, span);
@@ -935,12 +935,12 @@ fn pat_object<'hir>(
     for (binding, slot) in hir.bindings.iter().zip(string_slots) {
         match binding {
             hir::Binding::Binding(span, _, p) => {
-                let load = move |cx: &mut Ctxt<'_, 'hir, '_>, needs: &mut dyn NeedsLike<'hir>| {
+                let load = move |cx: &mut Ctxt<'a, 'hir, '_>, needs: &mut dyn NeedsLike<'hir>| {
                     cx.asm.push(
                         Inst::ObjectIndexGetAt {
                             addr: addr.addr(),
                             slot,
-                            out: needs.alloc_output(&mut cx.scopes)?,
+                            out: needs.alloc_output(cx.scopes)?,
                         },
                         span,
                     )?;
@@ -975,14 +975,14 @@ fn pat_object<'hir>(
         }
     }
 
-    addr.free(&mut cx.scopes)?;
+    addr.free(cx.scopes)?;
     Ok(Asm::new(span, true))
 }
 
 /// Call a block.
 #[instrument(span = hir)]
-fn block<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn block<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::Block<'hir>,
     needs: &mut dyn NeedsLike<'hir>,
 ) -> compile::Result<Asm<'hir>> {
@@ -994,8 +994,8 @@ fn block<'hir>(
 
 /// Call a block.
 #[instrument(span = hir)]
-fn block_without_scope<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn block_without_scope<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::Block<'hir>,
     needs: &mut dyn NeedsLike<'hir>,
 ) -> compile::Result<Asm<'hir>> {
@@ -1044,8 +1044,8 @@ fn block_without_scope<'hir>(
 
 /// Assemble #[builtin] format_args!(...) macro.
 #[instrument(span = format)]
-fn builtin_format<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn builtin_format<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     format: &'hir hir::BuiltInFormat<'hir>,
     needs: &mut dyn NeedsLike<'hir>,
 ) -> compile::Result<Asm<'hir>> {
@@ -1078,8 +1078,8 @@ fn builtin_format<'hir>(
 
 /// Assemble #[builtin] template!(...) macro.
 #[instrument(span = template)]
-fn builtin_template<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn builtin_template<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     template: &'hir hir::BuiltInTemplate<'hir>,
     needs: &mut dyn NeedsLike<'hir>,
 ) -> compile::Result<Asm<'hir>> {
@@ -1122,7 +1122,7 @@ fn builtin_template<'hir>(
             addr: linear.addr(),
             len: template.exprs.len(),
             size_hint,
-            out: needs.alloc_output(&mut cx.scopes)?,
+            out: needs.alloc_output(cx.scopes)?,
         },
         span,
     )?;
@@ -1133,8 +1133,8 @@ fn builtin_template<'hir>(
 
 /// Assemble a constant value.
 #[instrument(span = span)]
-fn const_<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn const_<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     value: &ConstValue,
     span: &'hir dyn Spanned,
     needs: &mut dyn NeedsLike<'hir>,
@@ -1265,8 +1265,8 @@ fn const_<'hir>(
 
 /// Assemble an expression.
 #[instrument(span = hir)]
-fn expr<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn expr<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::Expr<'hir>,
     needs: &mut dyn NeedsLike<'hir>,
 ) -> compile::Result<Asm<'hir>> {
@@ -1341,8 +1341,8 @@ fn expr<'hir>(
 
 /// Assemble an assign expression.
 #[instrument(span = span)]
-fn expr_assign<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn expr_assign<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::ExprAssign<'hir>,
     span: &'hir dyn Spanned,
     needs: &mut dyn NeedsLike<'hir>,
@@ -1382,8 +1382,8 @@ fn expr_assign<'hir>(
                         )?;
                     }
 
-                    target.free(&mut cx.scopes)?;
-                    value.free(&mut cx.scopes)?;
+                    target.free(cx.scopes)?;
+                    value.free(cx.scopes)?;
                     true
                 }
                 hir::ExprField::Index(index) => {
@@ -1450,8 +1450,8 @@ fn expr_assign<'hir>(
 
 /// Assemble an `.await` expression.
 #[instrument(span = hir)]
-fn expr_await<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn expr_await<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::Expr<'hir>,
     span: &'hir dyn Spanned,
     needs: &mut dyn NeedsLike<'hir>,
@@ -1462,7 +1462,7 @@ fn expr_await<'hir>(
     cx.asm.push(
         Inst::Await {
             addr: addr.addr(),
-            out: needs.alloc_output(&mut cx.scopes)?,
+            out: needs.alloc_output(cx.scopes)?,
         },
         span,
     )?;
@@ -1473,8 +1473,8 @@ fn expr_await<'hir>(
 
 /// Assemble a binary expression.
 #[instrument(span = span)]
-fn expr_binary<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn expr_binary<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::ExprBinary<'hir>,
     span: &'hir dyn Spanned,
     needs: &mut dyn NeedsLike<'hir>,
@@ -1534,19 +1534,19 @@ fn expr_binary<'hir>(
                 op,
                 a: a.addr(),
                 b: b.addr(),
-                out: needs.alloc_output(&mut cx.scopes)?,
+                out: needs.alloc_output(cx.scopes)?,
             },
             span,
         )?;
     }
 
-    a.free(&mut cx.scopes)?;
-    b.free(&mut cx.scopes)?;
+    a.free(cx.scopes)?;
+    b.free(cx.scopes)?;
     cx.scopes.pop(span, guard)?;
     return Ok(Asm::new(span, ()));
 
-    fn compile_conditional_binop<'hir>(
-        cx: &mut Ctxt<'_, 'hir, '_>,
+    fn compile_conditional_binop<'a, 'hir>(
+        cx: &mut Ctxt<'a, 'hir, '_>,
         lhs: &'hir hir::Expr<'hir>,
         rhs: &'hir hir::Expr<'hir>,
         bin_op: &ast::BinOp,
@@ -1581,8 +1581,8 @@ fn expr_binary<'hir>(
         Ok(())
     }
 
-    fn compile_assign_binop<'hir>(
-        cx: &mut Ctxt<'_, 'hir, '_>,
+    fn compile_assign_binop<'a, 'hir>(
+        cx: &mut Ctxt<'a, 'hir, '_>,
         lhs: &'hir hir::Expr<'hir>,
         rhs: &'hir hir::Expr<'hir>,
         bin_op: &ast::BinOp,
@@ -1659,8 +1659,8 @@ fn expr_binary<'hir>(
 
 /// Assemble a block expression.
 #[instrument(span = span)]
-fn expr_async_block<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn expr_async_block<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &hir::ExprAsyncBlock<'hir>,
     span: &'hir dyn Spanned,
     needs: &mut dyn NeedsLike<'hir>,
@@ -1684,7 +1684,7 @@ fn expr_async_block<'hir>(
             hash: hir.hash,
             addr: linear.addr(),
             args: hir.captures.len(),
-            out: needs.alloc_output(&mut cx.scopes)?,
+            out: needs.alloc_output(cx.scopes)?,
         },
         span,
         &"async block",
@@ -1696,8 +1696,8 @@ fn expr_async_block<'hir>(
 
 /// Assemble a constant item.
 #[instrument(span = span)]
-fn const_item<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn const_item<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hash: Hash,
     span: &'hir dyn Spanned,
     needs: &mut dyn NeedsLike<'hir>,
@@ -1718,8 +1718,8 @@ fn const_item<'hir>(
 ///
 /// NB: loops are expected to produce a value at the end of their expression.
 #[instrument(span = span)]
-fn expr_break<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn expr_break<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &hir::ExprBreak<'hir>,
     span: &'hir dyn Spanned,
 ) -> compile::Result<Asm<'hir>> {
@@ -1775,8 +1775,8 @@ fn expr_break<'hir>(
 
 /// Assemble a call expression.
 #[instrument(span = span)]
-fn expr_call<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn expr_call<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &hir::ExprCall<'hir>,
     span: &'hir dyn Spanned,
     needs: &mut dyn NeedsLike<'hir>,
@@ -1793,7 +1793,7 @@ fn expr_call<'hir>(
                     function: var.addr,
                     addr: linear.addr(),
                     args: hir.args.len(),
-                    out: needs.alloc_output(&mut cx.scopes)?,
+                    out: needs.alloc_output(cx.scopes)?,
                 },
                 span,
             )?;
@@ -1808,7 +1808,7 @@ fn expr_call<'hir>(
                     hash,
                     addr: linear.addr(),
                     args: args + 1,
-                    out: needs.alloc_output(&mut cx.scopes)?,
+                    out: needs.alloc_output(cx.scopes)?,
                 },
                 span,
             )?;
@@ -1823,7 +1823,7 @@ fn expr_call<'hir>(
                     hash,
                     addr: linear.addr(),
                     args: hir.args.len(),
-                    out: needs.alloc_output(&mut cx.scopes)?,
+                    out: needs.alloc_output(cx.scopes)?,
                 },
                 span,
             )?;
@@ -1842,7 +1842,7 @@ fn expr_call<'hir>(
                     function: function.addr(),
                     addr: linear.addr(),
                     args: hir.args.len(),
-                    out: needs.alloc_output(&mut cx.scopes)?,
+                    out: needs.alloc_output(cx.scopes)?,
                 },
                 span,
             )?;
@@ -1866,8 +1866,8 @@ fn expr_call<'hir>(
 
 /// Assemble an array of expressions.
 #[instrument(span = span)]
-fn expr_array<'hir, const N: usize>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn expr_array<'a, 'hir, const N: usize>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     span: &'hir dyn Spanned,
     array: [(&'hir hir::Expr<'hir>, &mut dyn NeedsLike<'hir>); N],
 ) -> compile::Result<Asm<'hir, [NeedsAddress<'hir>; N]>> {
@@ -1890,8 +1890,8 @@ fn expr_array<'hir, const N: usize>(
 }
 
 #[instrument(span = span)]
-fn exprs<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn exprs<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     span: &'hir dyn Spanned,
     args: &'hir [hir::Expr<'hir>],
 ) -> compile::Result<Asm<'hir, Linear<'hir>>> {
@@ -1900,8 +1900,8 @@ fn exprs<'hir>(
 
 /// Assemble a linear sequence of expressions.
 #[instrument(span = span)]
-fn exprs_2<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn exprs_2<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     span: &'hir dyn Spanned,
     a: &'hir [hir::Expr<'hir>],
     b: &'hir [hir::Expr<'hir>],
@@ -1941,8 +1941,8 @@ fn exprs_2<'hir>(
 
 /// Assemble a closure expression.
 #[instrument(span = span)]
-fn expr_call_closure<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn expr_call_closure<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &hir::ExprCallClosure<'hir>,
     span: &'hir dyn Spanned,
     needs: &mut dyn NeedsLike<'hir>,
@@ -1975,7 +1975,7 @@ fn expr_call_closure<'hir>(
             hash: hir.hash,
             addr: linear.addr(),
             count: hir.captures.len(),
-            out: needs.alloc_output(&mut cx.scopes)?,
+            out: needs.alloc_output(cx.scopes)?,
         },
         span,
     )?;
@@ -1985,8 +1985,8 @@ fn expr_call_closure<'hir>(
 
 /// Assemble a continue expression.
 #[instrument(span = span)]
-fn expr_continue<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn expr_continue<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &hir::ExprContinue<'hir>,
     span: &'hir dyn Spanned,
     _: &mut dyn NeedsLike<'hir>,
@@ -2008,8 +2008,8 @@ fn expr_continue<'hir>(
 
 /// Assemble an expr field access, like `<value>.<field>`.
 #[instrument(span = span)]
-fn expr_field_access<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn expr_field_access<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::ExprFieldAccess<'hir>,
     span: &'hir dyn Spanned,
     needs: &mut dyn NeedsLike<'hir>,
@@ -2028,7 +2028,7 @@ fn expr_field_access<'hir>(
             Inst::TupleIndexGetAt {
                 addr: var.addr,
                 index,
-                out: needs.alloc_output(&mut cx.scopes)?,
+                out: needs.alloc_output(cx.scopes)?,
             },
             span,
             &var,
@@ -2047,7 +2047,7 @@ fn expr_field_access<'hir>(
                     Inst::TupleIndexGetAt {
                         addr: addr.addr(),
                         index,
-                        out: needs.alloc_output(&mut cx.scopes)?,
+                        out: needs.alloc_output(cx.scopes)?,
                     },
                     span,
                 )?;
@@ -2058,7 +2058,7 @@ fn expr_field_access<'hir>(
                     Inst::ObjectIndexGetAt {
                         addr: addr.addr(),
                         slot,
-                        out: needs.alloc_output(&mut cx.scopes)?,
+                        out: needs.alloc_output(cx.scopes)?,
                     },
                     span,
                 )?;
@@ -2067,14 +2067,14 @@ fn expr_field_access<'hir>(
         }
     }
 
-    addr.free(&mut cx.scopes)?;
+    addr.free(cx.scopes)?;
     Ok(Asm::new(span, ()))
 }
 
 /// Assemble an expression for loop.
 #[instrument(span = span)]
-fn expr_for<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn expr_for<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::ExprFor<'hir>,
     span: &'hir dyn Spanned,
     needs: &mut dyn NeedsLike<'hir>,
@@ -2131,7 +2131,7 @@ fn expr_for<'hir>(
         label: hir.label,
         continue_label: continue_label.try_clone()?,
         break_label: break_label.try_clone()?,
-        output: needs.alloc_output(&mut cx.scopes)?,
+        output: needs.alloc_output(cx.scopes)?,
         drop: Some(iter.addr()),
     })?;
 
@@ -2169,7 +2169,7 @@ fn expr_for<'hir>(
     pattern_panic(cx, &hir.binding, move |cx, false_label| {
         let addr = binding.addr();
 
-        let load = move |cx: &mut Ctxt<'_, 'hir, '_>, needs: &mut dyn NeedsLike<'hir>| {
+        let load = move |cx: &mut Ctxt<'a, 'hir, '_>, needs: &mut dyn NeedsLike<'hir>| {
             needs.assign_addr(cx, addr)?;
             Ok(Asm::new(&hir.binding, ()))
         };
@@ -2210,7 +2210,7 @@ fn expr_for<'hir>(
 /// Assemble an if expression.
 #[instrument(span = span)]
 fn expr_if<'a, 'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &hir::Conditional<'hir>,
     span: &'hir dyn Spanned,
     needs: &mut dyn NeedsLike<'hir>,
@@ -2282,8 +2282,8 @@ fn expr_if<'a, 'hir>(
 
 /// Assemble an expression.
 #[instrument(span = span)]
-fn expr_index<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn expr_index<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::ExprIndex<'hir>,
     span: &'hir dyn Spanned,
     needs: &mut dyn NeedsLike<'hir>,
@@ -2300,7 +2300,7 @@ fn expr_index<'hir>(
         Inst::IndexGet {
             index: index.addr(),
             target: target.addr(),
-            out: needs.alloc_output(&mut cx.scopes)?,
+            out: needs.alloc_output(cx.scopes)?,
         },
         span,
     )?;
@@ -2311,13 +2311,13 @@ fn expr_index<'hir>(
 
 /// Assemble a let expression.
 #[instrument(span = hir)]
-fn expr_let<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn expr_let<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::ExprLet<'hir>,
     needs: &mut dyn NeedsLike<'hir>,
 ) -> compile::Result<Asm<'hir>> {
     let load =
-        |cx: &mut Ctxt<'_, 'hir, '_>, needs: &mut dyn NeedsLike<'hir>| expr(cx, &hir.expr, needs);
+        |cx: &mut Ctxt<'a, 'hir, '_>, needs: &mut dyn NeedsLike<'hir>| expr(cx, &hir.expr, needs);
 
     pattern_panic(cx, &hir.pat, move |cx, false_label| {
         pat_binding(cx, &hir.pat, &false_label, &load)
@@ -2332,8 +2332,8 @@ fn expr_let<'hir>(
 }
 
 #[instrument(span = span)]
-fn expr_match<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn expr_match<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::ExprMatch<'hir>,
     span: &'hir dyn Spanned,
     needs: &mut dyn NeedsLike<'hir>,
@@ -2363,7 +2363,7 @@ fn expr_match<'hir>(
 
         let pattern_scope = cx.scopes.child(span)?;
 
-        let load = |cx: &mut Ctxt<'_, 'hir, '_>, needs: &mut dyn NeedsLike<'hir>| {
+        let load = |cx: &mut Ctxt<'a, 'hir, '_>, needs: &mut dyn NeedsLike<'hir>| {
             needs.assign_addr(cx, offset.addr())?;
             Ok(Asm::new(branch, ()))
         };
@@ -2428,8 +2428,8 @@ fn expr_match<'hir>(
 
 /// Compile a literal object.
 #[instrument(span = span)]
-fn expr_object<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn expr_object<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &hir::ExprObject<'hir>,
     span: &'hir dyn Spanned,
     needs: &mut dyn NeedsLike<'hir>,
@@ -2452,7 +2452,7 @@ fn expr_object<'hir>(
                 cx.asm.push(
                     Inst::EmptyStruct {
                         hash,
-                        out: needs.alloc_output(&mut cx.scopes)?,
+                        out: needs.alloc_output(cx.scopes)?,
                     },
                     span,
                 )?;
@@ -2464,7 +2464,7 @@ fn expr_object<'hir>(
                     addr: linear.addr(),
                     hash,
                     slot,
-                    out: needs.alloc_output(&mut cx.scopes)?,
+                    out: needs.alloc_output(cx.scopes)?,
                 },
                 span,
             )?;
@@ -2475,7 +2475,7 @@ fn expr_object<'hir>(
                     addr: linear.addr(),
                     hash,
                     slot,
-                    out: needs.alloc_output(&mut cx.scopes)?,
+                    out: needs.alloc_output(cx.scopes)?,
                 },
                 span,
             )?;
@@ -2488,7 +2488,7 @@ fn expr_object<'hir>(
                     hash,
                     addr: linear.addr(),
                     args,
-                    out: needs.alloc_output(&mut cx.scopes)?,
+                    out: needs.alloc_output(cx.scopes)?,
                 },
                 span,
             )?;
@@ -2498,7 +2498,7 @@ fn expr_object<'hir>(
                 Inst::Object {
                     addr: linear.addr(),
                     slot,
-                    out: needs.alloc_output(&mut cx.scopes)?,
+                    out: needs.alloc_output(cx.scopes)?,
                 },
                 span,
             )?;
@@ -2517,8 +2517,8 @@ fn expr_object<'hir>(
 
 /// Reorder the position of the field assignments on the stack so that they
 /// match the expected argument order when invoking the constructor function.
-fn reorder_field_assignments<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn reorder_field_assignments<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &hir::ExprObject<'hir>,
     base: InstAddress,
     span: &dyn Spanned,
@@ -2568,8 +2568,8 @@ fn reorder_field_assignments<'hir>(
 
 /// Assemble a range expression.
 #[instrument(span = span)]
-fn expr_range<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn expr_range<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::ExprRange<'hir>,
     span: &'hir dyn Spanned,
     needs: &mut dyn NeedsLike<'hir>,
@@ -2614,7 +2614,7 @@ fn expr_range<'hir>(
             Inst::Range {
                 addr: linear.addr(),
                 range,
-                out: needs.alloc_output(&mut cx.scopes)?,
+                out: needs.alloc_output(cx.scopes)?,
             },
             span,
         )?;
@@ -2627,8 +2627,8 @@ fn expr_range<'hir>(
 
 /// Assemble a return expression.
 #[instrument(span = span)]
-fn expr_return<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn expr_return<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: Option<&'hir hir::Expr<'hir>>,
     span: &'hir dyn Spanned,
 ) -> compile::Result<Asm<'hir>> {
@@ -2650,8 +2650,8 @@ fn expr_return<'hir>(
 
 /// Assemble a select expression.
 #[instrument(span = span)]
-fn expr_select<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn expr_select<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &hir::ExprSelect<'hir>,
     span: &'hir dyn Spanned,
     needs: &mut dyn NeedsLike<'hir>,
@@ -2742,8 +2742,8 @@ fn expr_select<'hir>(
 
 /// Assemble a try expression.
 #[instrument(span = span)]
-fn expr_try<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn expr_try<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::Expr<'hir>,
     span: &'hir dyn Spanned,
     needs: &mut dyn NeedsLike<'hir>,
@@ -2754,7 +2754,7 @@ fn expr_try<'hir>(
     cx.asm.push(
         Inst::Try {
             addr: addr.addr(),
-            out: needs.alloc_output(&mut cx.scopes)?,
+            out: needs.alloc_output(cx.scopes)?,
         },
         span,
     )?;
@@ -2765,8 +2765,8 @@ fn expr_try<'hir>(
 
 /// Assemble a literal tuple.
 #[instrument(span = span)]
-fn expr_tuple<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn expr_tuple<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &hir::ExprSeq<'hir>,
     span: &'hir dyn Spanned,
     needs: &mut dyn NeedsLike<'hir>,
@@ -2800,7 +2800,7 @@ fn expr_tuple<'hir>(
     match hir.items {
         [] => {
             cx.asm
-                .push(Inst::unit(needs.alloc_output(&mut cx.scopes)?), span)?;
+                .push(Inst::unit(needs.alloc_output(cx.scopes)?), span)?;
         }
         [e1] => tuple!(Tuple1, e1),
         [e1, e2] => tuple!(Tuple2, e1, e2),
@@ -2818,7 +2818,7 @@ fn expr_tuple<'hir>(
                     Inst::Tuple {
                         addr: linear.addr(),
                         count: hir.items.len(),
-                        out: needs.alloc_output(&mut cx.scopes)?,
+                        out: needs.alloc_output(cx.scopes)?,
                     },
                     span,
                 )?;
@@ -2833,8 +2833,8 @@ fn expr_tuple<'hir>(
 
 /// Assemble a unary expression.
 #[instrument(span = span)]
-fn expr_unary<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn expr_unary<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::ExprUnary<'hir>,
     span: &'hir dyn Spanned,
     needs: &mut dyn NeedsLike<'hir>,
@@ -2877,8 +2877,8 @@ fn expr_unary<'hir>(
 
 /// Assemble a literal vector.
 #[instrument(span = span)]
-fn expr_vec<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn expr_vec<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &hir::ExprSeq<'hir>,
     span: &'hir dyn Spanned,
     needs: &mut dyn NeedsLike<'hir>,
@@ -2907,8 +2907,8 @@ fn expr_vec<'hir>(
 
 /// Assemble a while loop.
 #[instrument(span = span)]
-fn expr_loop<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn expr_loop<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::ExprLoop<'hir>,
     span: &'hir dyn Spanned,
     needs: &mut dyn NeedsLike<'hir>,
@@ -2922,7 +2922,7 @@ fn expr_loop<'hir>(
         label: hir.label,
         continue_label: continue_label.try_clone()?,
         break_label: break_label.try_clone()?,
-        output: needs.alloc_output(&mut cx.scopes)?,
+        output: needs.alloc_output(cx.scopes)?,
         drop: None,
     })?;
 
@@ -2966,13 +2966,13 @@ fn expr_loop<'hir>(
 
 /// Assemble a `yield` expression.
 #[instrument(span = span)]
-fn expr_yield<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn expr_yield<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: Option<&'hir hir::Expr<'hir>>,
     span: &'hir dyn Spanned,
     needs: &mut dyn NeedsLike<'hir>,
 ) -> compile::Result<Asm<'hir>> {
-    let out = needs.alloc_output(&mut cx.scopes)?;
+    let out = needs.alloc_output(cx.scopes)?;
 
     if let Some(e) = hir {
         let mut addr = cx.scopes.alloc(span)?;
@@ -2994,8 +2994,8 @@ fn expr_yield<'hir>(
 
 /// Assemble a literal value.
 #[instrument(span = span)]
-fn lit<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn lit<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: hir::Lit<'_>,
     span: &'hir dyn Spanned,
     needs: &mut dyn NeedsLike<'hir>,
@@ -3040,13 +3040,13 @@ fn lit<'hir>(
 
 /// Assemble a local expression.
 #[instrument(span = hir)]
-fn local<'hir>(
-    cx: &mut Ctxt<'_, 'hir, '_>,
+fn local<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::Local<'hir>,
     needs: &mut dyn NeedsLike<'hir>,
 ) -> compile::Result<Asm<'hir>> {
     let load =
-        |cx: &mut Ctxt<'_, 'hir, '_>, needs: &mut dyn NeedsLike<'hir>| expr(cx, &hir.expr, needs);
+        |cx: &mut Ctxt<'a, 'hir, '_>, needs: &mut dyn NeedsLike<'hir>| expr(cx, &hir.expr, needs);
 
     converge!(pattern_panic(cx, &hir.pat, |cx, false_label| {
         pat_binding(cx, &hir.pat, &false_label, &load)

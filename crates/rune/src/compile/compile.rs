@@ -134,12 +134,13 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
         location: Location,
         span: &dyn Spanned,
         asm: &'a mut Assembly,
+        scopes: &'a mut v1::Scopes<'hir>,
     ) -> alloc::Result<v1::Ctxt<'a, 'hir, 'arena>> {
         Ok(v1::Ctxt {
             source_id: location.source_id,
             q: self.q.borrow(),
             asm,
-            scopes: self::v1::Scopes::new(location.source_id)?,
+            scopes,
             contexts: try_vec![span.span()],
             loops: self::v1::Loops::new(),
             options: self.options,
@@ -246,7 +247,8 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
 
                 let count = hir.args.len();
 
-                let mut c = self.compiler1(location, span, &mut asm)?;
+                let mut scopes = self::v1::Scopes::new(location.source_id)?;
+                let mut c = self.compiler1(location, span, &mut asm, &mut scopes)?;
                 assemble::fn_from_item_fn(&mut c, &hir, f.is_instance)?;
                 let size = c.scopes.size();
 
@@ -299,7 +301,8 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                 )?;
 
                 let hir = hir::lowering::expr_closure_secondary(&mut cx, &closure.ast, captures)?;
-                let mut c = self.compiler1(location, &closure.ast, &mut asm)?;
+                let mut scopes = self::v1::Scopes::new(location.source_id)?;
+                let mut c = self.compiler1(location, &closure.ast, &mut asm, &mut scopes)?;
                 assemble::expr_closure_secondary(&mut c, &hir, &closure.ast)?;
                 let size = c.scopes.size();
 
@@ -346,7 +349,8 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                     item_meta.location.source_id,
                 )?;
                 let hir = hir::lowering::async_block_secondary(&mut cx, &b.ast, captures)?;
-                let mut c = self.compiler1(location, &b.ast, &mut asm)?;
+                let mut scopes = self::v1::Scopes::new(location.source_id)?;
+                let mut c = self.compiler1(location, &b.ast, &mut asm, &mut scopes)?;
                 assemble::async_block_secondary(&mut c, &hir)?;
                 let size = c.scopes.size();
 
