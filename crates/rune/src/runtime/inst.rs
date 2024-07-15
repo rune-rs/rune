@@ -364,27 +364,20 @@ pub enum Inst {
         /// Whether the produced value from the await should be kept or not.
         out: Output,
     },
-    /// Select over `len` futures on the stack. Sets the `branch` register to
-    /// the index of the branch that completed. And pushes its value on the
-    /// stack.
+    /// Select over `len` futures stored at address `addr`.
     ///
-    /// This operation will block the VM until at least one of the underlying
-    /// futures complete.
+    /// Once a branch has been matched, will store the branch that matched in
+    /// the branch register and perform a jump by the index of the branch that
+    /// matched.
     ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <future...>
-    /// => <value>
-    /// ```
+    /// Will also store the output if the future into `value`. If no branch
+    /// matched, the empty value will be stored.
     #[musli(packed)]
     Select {
         /// The base address of futures being waited on.
         addr: InstAddress,
         /// The number of futures to poll.
         len: usize,
-        /// Where to store the branch value.
-        branch: Output,
         /// Where to store the value produced by the future that completed.
         value: Output,
     },
@@ -515,24 +508,6 @@ pub enum Inst {
         /// The address of the condition for the jump.
         cond: InstAddress,
         /// The offset to jump if the condition is true.
-        jump: usize,
-    },
-    /// Compares the `branch` register with the top of the stack, and if they
-    /// match pops the top of the stack and performs the jump to offset.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <integer>
-    /// => *nothing*
-    /// ```
-    #[musli(packed)]
-    JumpIfBranch {
-        /// Where the branch value is stored.
-        branch: InstAddress,
-        /// The branch value to compare against.
-        value: i64,
-        /// The offset to jump.
         jump: usize,
     },
     /// Construct a push a vector value onto the stack. The number of elements
