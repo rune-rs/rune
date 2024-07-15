@@ -313,8 +313,8 @@ impl<'hir> Needs<'hir> {
 
     /// Coerce into an address.
     #[inline]
-    pub(super) fn addr(self) -> compile::Result<NeedsAddress<'hir>> {
-        match self.kind {
+    pub(super) fn addr(&self) -> compile::Result<&NeedsAddress<'hir>> {
+        match &self.kind {
             NeedsKind::Alloc { .. } => Err(compile::Error::msg(
                 self.span,
                 "Needs has not been allocated for address",

@@ -113,7 +113,6 @@ pub(super) struct SpanInjectionWriter<'a> {
     writer: IndentedWriter,
     queued_spans: Vec<ResolvedSpan>,
     source: &'a str,
-    pub(super) empties: usize,
 }
 
 impl<'a> SpanInjectionWriter<'a> {
@@ -131,7 +130,6 @@ impl<'a> SpanInjectionWriter<'a> {
             writer,
             queued_spans,
             source,
-            empties: 0,
         })
     }
 
@@ -139,7 +137,7 @@ impl<'a> SpanInjectionWriter<'a> {
         while !self.queued_spans.is_empty() {
             let span = self.queued_spans.remove(0);
             let mut empties = 0;
-            self.write_span(span, &mut empties)?;
+            self.write_span(span, &mut empties, usize::MAX)?;
         }
 
         Ok(self.writer.into_inner())
@@ -189,6 +187,7 @@ impl<'a> SpanInjectionWriter<'a> {
     pub(super) fn write_queued_spans(
         &mut self,
         until: ByteIndex,
+        limit: usize,
     ) -> Result<usize, FormattingError> {
         // The queued recovered spans are ordered so we can pop them from the front if they're before the current span.
         // If the current span is before the first queued span, we need to inject the queued span.
@@ -201,7 +200,7 @@ impl<'a> SpanInjectionWriter<'a> {
             }
 
             let queued_span = self.queued_spans.remove(0);
-            self.write_span(queued_span, &mut empties)?;
+            self.write_span(queued_span, &mut empties, limit)?;
         }
 
         Ok(empties)
@@ -211,10 +210,11 @@ impl<'a> SpanInjectionWriter<'a> {
         &mut self,
         span: ResolvedSpan,
         empties: &mut usize,
+        limit: usize,
     ) -> Result<(), FormattingError> {
         match span {
             ResolvedSpan::Empty(_) => {
-                if *empties == 0 {
+                if *empties < limit {
                     writeln!(self.writer)?;
                 }
 
@@ -253,7 +253,7 @@ impl<'a> SpanInjectionWriter<'a> {
         newline: bool,
         space: bool,
     ) -> Result<(), FormattingError> {
-        self.write_queued_spans(span.start)?;
+        self.write_queued_spans(span.start, usize::MAX)?;
 
         write!(self.writer, "{}", text)?;
 

@@ -82,6 +82,18 @@ trait NeedsLike<'hir> {
     /// Get the need as an address.
     fn as_addr(&self) -> Option<&NeedsAddress<'hir>>;
 
+    /// Get the populated address of the need.
+    fn addr(&self) -> compile::Result<&NeedsAddress<'hir>> {
+        let Some(addr) = self.as_addr() else {
+            return Err(compile::Error::msg(
+                self.span(),
+                "Expected need to be populated",
+            ));
+        };
+
+        Ok(addr)
+    }
+
     /// If the needs has a value.
     fn value(&self) -> bool;
 }
@@ -1064,7 +1076,7 @@ fn builtin_format<'a, 'hir>(
 
     let spec = format::FormatSpec::new(flags, fill, align, width, precision, format_type);
 
-    expr(cx, &format.value, needs)?;
+    converge!(expr(cx, &format.value, needs)?);
 
     if let Some(addr) = needs.try_alloc_addr(cx)? {
         cx.asm.push(
@@ -1081,21 +1093,24 @@ fn builtin_format<'a, 'hir>(
 }
 
 /// Assemble #[builtin] template!(...) macro.
-#[instrument(span = template)]
+#[instrument(span = hir)]
 fn builtin_template<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
-    template: &'hir hir::BuiltInTemplate<'hir>,
+    hir: &'hir hir::BuiltInTemplate<'hir>,
     needs: &mut dyn NeedsLike<'hir>,
 ) -> compile::Result<Asm<'hir>> {
-    let span = template;
+    let span = hir;
 
-    let expected = cx.scopes.child(span)?;
+    let scope = cx.scopes.child(span)?;
+
     let mut size_hint = 0;
     let mut expansions = 0;
 
-    let mut linear = cx.scopes.linear(template, template.exprs.len())?;
+    let mut linear = cx.scopes.linear(hir, hir.exprs.len())?;
 
-    for (hir, addr) in template.exprs.iter().zip(&mut linear) {
+    let mut converge = true;
+
+    for (hir, addr) in hir.exprs.iter().zip(&mut linear) {
         if let hir::ExprKind::Lit(hir::Lit::Str(s)) = hir.kind {
             if needs.value() {
                 size_hint += s.len();
@@ -1113,26 +1128,38 @@ fn builtin_template<'a, 'hir>(
         }
 
         expansions += 1;
-        expr(cx, hir, addr)?;
+
+        if expr(cx, hir, addr)?.is_diverging() {
+            converge = false;
+            break;
+        }
     }
 
-    if template.from_literal && expansions == 0 {
+    if hir.from_literal && expansions == 0 {
         cx.q.diagnostics
             .template_without_expansions(cx.source_id, span, cx.context())?;
     }
 
-    cx.asm.push(
-        Inst::StringConcat {
-            addr: linear.addr(),
-            len: template.exprs.len(),
-            size_hint,
-            out: needs.alloc_output(cx.scopes)?,
-        },
-        span,
-    )?;
+    if converge {
+        cx.asm.push(
+            Inst::StringConcat {
+                addr: linear.addr(),
+                len: hir.exprs.len(),
+                size_hint,
+                out: needs.alloc_output(cx.scopes)?,
+            },
+            span,
+        )?;
+    }
 
-    cx.scopes.pop(span, expected)?;
-    Ok(Asm::new(span, ()))
+    linear.free(cx.scopes)?;
+    cx.scopes.pop(span, scope)?;
+
+    if converge {
+        Ok(Asm::new(span, ()))
+    } else {
+        Ok(Asm::diverge(span))
+    }
 }
 
 /// Assemble a constant value.
@@ -1357,26 +1384,26 @@ fn expr_assign<'a, 'hir>(
         hir::ExprKind::Variable(name) => {
             let var = cx.scopes.get(&mut cx.q, span, name)?;
             let mut needs = NeedsAddress::with_local(span, var.addr.addr());
-            expr(cx, &hir.rhs, &mut needs)?;
+            converge!(expr(cx, &hir.rhs, &mut needs)?);
             true
         }
         // <expr>.<field> = <value>
         hir::ExprKind::FieldAccess(field_access) => {
+            let mut target = Needs::alloc(cx, &field_access.expr);
+            let mut value = Needs::alloc(cx, &hir.rhs);
+
+            let asm = expr_array(
+                cx,
+                span,
+                [(&field_access.expr, &mut target), (&hir.rhs, &mut value)],
+            )?;
+
             // field assignment
             match field_access.expr_field {
                 hir::ExprField::Ident(ident) => {
-                    let slot = cx.q.unit.new_static_string(span, ident)?;
-
-                    let mut target = Needs::alloc(cx, &field_access.expr);
-                    let mut value = Needs::alloc(cx, &hir.rhs);
-
-                    let asm = expr_array(
-                        cx,
-                        span,
-                        [(&field_access.expr, &mut target), (&hir.rhs, &mut value)],
-                    )?;
-
                     if let Some([target, value]) = asm.converge() {
+                        let slot = cx.q.unit.new_static_string(span, ident)?;
+
                         cx.asm.push(
                             Inst::ObjectIndexSet {
                                 target: target.addr(),
@@ -1386,57 +1413,57 @@ fn expr_assign<'a, 'hir>(
                             span,
                         )?;
                     }
-
-                    target.free(cx.scopes)?;
-                    value.free(cx.scopes)?;
-                    true
                 }
                 hir::ExprField::Index(index) => {
-                    let mut target = cx.scopes.alloc(span)?;
-                    let mut value = cx.scopes.alloc(&hir.rhs)?;
-
-                    expr(cx, &field_access.expr, &mut target)?;
-                    expr(cx, &hir.rhs, &mut value)?;
-
-                    cx.asm.push(
-                        Inst::TupleIndexSet {
-                            target: target.addr(),
-                            index,
-                            value: value.addr(),
-                        },
-                        span,
-                    )?;
-
-                    cx.scopes.free(target)?;
-                    cx.scopes.free(value)?;
-                    true
+                    if let Some([target, value]) = asm.converge() {
+                        cx.asm.push(
+                            Inst::TupleIndexSet {
+                                target: target.addr(),
+                                index,
+                                value: value.addr(),
+                            },
+                            span,
+                        )?;
+                    }
                 }
                 _ => {
                     return Err(compile::Error::new(span, ErrorKind::BadFieldAccess));
                 }
-            }
+            };
+
+            target.free(cx.scopes)?;
+            value.free(cx.scopes)?;
+            true
         }
         hir::ExprKind::Index(expr_index_get) => {
-            let mut target = cx.scopes.alloc(span)?;
-            let mut index = cx.scopes.alloc(span)?;
-            let mut value = cx.scopes.alloc(span)?;
+            let mut target = Needs::alloc(cx, &expr_index_get.target);
+            let mut index = Needs::alloc(cx, &expr_index_get.index);
+            let mut value = Needs::alloc(cx, &hir.rhs);
 
-            expr(cx, &expr_index_get.target, &mut target)?;
-            expr(cx, &expr_index_get.index, &mut index)?;
-            expr(cx, &hir.rhs, &mut value)?;
-
-            cx.asm.push(
-                Inst::IndexSet {
-                    target: target.addr(),
-                    index: index.addr(),
-                    value: value.addr(),
-                },
+            let asm = expr_array(
+                cx,
                 span,
+                [
+                    (&expr_index_get.target, &mut target),
+                    (&expr_index_get.index, &mut index),
+                    (&hir.rhs, &mut value),
+                ],
             )?;
 
-            cx.scopes.free(value)?;
-            cx.scopes.free(index)?;
-            cx.scopes.free(target)?;
+            if let Some([target, index, value]) = asm.converge() {
+                cx.asm.push(
+                    Inst::IndexSet {
+                        target: target.addr(),
+                        index: index.addr(),
+                        value: value.addr(),
+                    },
+                    span,
+                )?;
+            }
+
+            value.free(cx.scopes)?;
+            index.free(cx.scopes)?;
+            target.free(cx.scopes)?;
             true
         }
         _ => false,
@@ -1461,18 +1488,18 @@ fn expr_await<'a, 'hir>(
     span: &'hir dyn Spanned,
     needs: &mut dyn NeedsLike<'hir>,
 ) -> compile::Result<Asm<'hir>> {
-    let mut addr = cx.scopes.alloc(span)?;
-    expr(cx, hir, &mut addr)?;
+    let mut addr = Needs::alloc(cx, span);
+    converge!(expr(cx, hir, &mut addr)?, free(cx, addr));
 
     cx.asm.push(
         Inst::Await {
-            addr: addr.addr(),
+            addr: addr.addr()?.addr(),
             out: needs.alloc_output(cx.scopes)?,
         },
         span,
     )?;
 
-    cx.scopes.free(addr)?;
+    addr.free(cx.scopes)?;
     Ok(Asm::new(span, ()))
 }
 
@@ -1486,13 +1513,11 @@ fn expr_binary<'a, 'hir>(
 ) -> compile::Result<Asm<'hir>> {
     // Special expressions which operates on the stack in special ways.
     if hir.op.is_assign() {
-        compile_assign_binop(cx, &hir.lhs, &hir.rhs, &hir.op, span, needs)?;
-        return Ok(Asm::new(span, ()));
+        return compile_assign_binop(cx, &hir.lhs, &hir.rhs, &hir.op, span, needs);
     }
 
     if hir.op.is_conditional() {
-        compile_conditional_binop(cx, &hir.lhs, &hir.rhs, &hir.op, span, needs)?;
-        return Ok(Asm::new(span, ()));
+        return compile_conditional_binop(cx, &hir.lhs, &hir.rhs, &hir.op, span, needs);
     }
 
     let op = match hir.op {
@@ -1555,16 +1580,12 @@ fn expr_binary<'a, 'hir>(
         lhs: &'hir hir::Expr<'hir>,
         rhs: &'hir hir::Expr<'hir>,
         bin_op: &ast::BinOp,
-        span: &dyn Spanned,
+        span: &'hir dyn Spanned,
         needs: &mut dyn NeedsLike<'hir>,
-    ) -> compile::Result<()> {
+    ) -> compile::Result<Asm<'hir>> {
         let end_label = cx.asm.new_label("conditional_end");
-
-        expr(cx, lhs, needs)?;
-
-        let Some(addr) = needs.as_addr() else {
-            return Ok(());
-        };
+        converge!(expr(cx, lhs, needs)?);
+        let addr = needs.addr()?;
 
         match bin_op {
             ast::BinOp::And(..) => {
@@ -1581,9 +1602,10 @@ fn expr_binary<'a, 'hir>(
             }
         }
 
-        expr(cx, rhs, needs)?;
+        // rhs needs to be ignored since it might be jumped over.
+        expr(cx, rhs, needs)?.ignore();
         cx.asm.label(&end_label)?;
-        Ok(())
+        Ok(Asm::new(span, ()))
     }
 
     fn compile_assign_binop<'a, 'hir>(
@@ -1591,9 +1613,9 @@ fn expr_binary<'a, 'hir>(
         lhs: &'hir hir::Expr<'hir>,
         rhs: &'hir hir::Expr<'hir>,
         bin_op: &ast::BinOp,
-        span: &dyn Spanned,
+        span: &'hir dyn Spanned,
         needs: &mut dyn NeedsLike<'hir>,
-    ) -> compile::Result<()> {
+    ) -> compile::Result<Asm<'hir>> {
         let supported = match lhs.kind {
             // <var> <op> <expr>
             hir::ExprKind::Variable(name) => {
@@ -1602,8 +1624,9 @@ fn expr_binary<'a, 'hir>(
             }
             // <expr>.<field> <op> <value>
             hir::ExprKind::FieldAccess(field_access) => {
-                let mut field = cx.scopes.alloc(&field_access.expr)?;
-                expr(cx, &field_access.expr, &mut field)?;
+                let mut field = Needs::alloc(cx, &field_access.expr);
+                converge!(expr(cx, &field_access.expr, &mut field)?, free(cx, field));
+                let field = field.addr()?;
 
                 // field assignment
                 match field_access.expr_field {
@@ -1642,23 +1665,25 @@ fn expr_binary<'a, 'hir>(
             }
         };
 
-        let mut value = cx.scopes.alloc(rhs)?;
-        expr(cx, rhs, &mut value)?;
+        let mut value = Needs::alloc(cx, rhs);
 
-        cx.asm.push(
-            Inst::Assign {
-                target,
-                op,
-                value: value.addr(),
-            },
-            span,
-        )?;
+        if expr(cx, rhs, &mut value)?.is_converging() {
+            cx.asm.push(
+                Inst::Assign {
+                    target,
+                    op,
+                    value: value.addr()?.addr(),
+                },
+                span,
+            )?;
 
-        if let Some(out) = needs.try_alloc_output(cx)? {
-            cx.asm.push(Inst::unit(out), span)?;
+            if let Some(out) = needs.try_alloc_output(cx)? {
+                cx.asm.push(Inst::unit(out), span)?;
+            }
         }
 
-        Ok(())
+        value.free(cx.scopes)?;
+        Ok(Asm::new(span, ()))
     }
 }
 
@@ -1739,7 +1764,7 @@ fn expr_break<'a, 'hir>(
                 None => Needs::none(e),
             };
 
-            expr(cx, e, &mut needs)?;
+            converge!(expr(cx, e, &mut needs)?, free(cx, needs));
             let to_drop = current_loop.drop.into_iter().try_collect()?;
             (current_loop, to_drop, true)
         }
@@ -1753,7 +1778,7 @@ fn expr_break<'a, 'hir>(
                 None => Needs::none(span),
             };
 
-            expr(cx, e, &mut needs)?;
+            converge!(expr(cx, e, &mut needs)?, free(cx, needs));
             let (last_loop, to_drop) = cx.loops.walk_until_label(label, span)?;
             (last_loop.try_clone()?, to_drop, true)
         }
@@ -1838,13 +1863,11 @@ fn expr_call<'a, 'hir>(
         hir::Call::Expr { expr: e } => {
             let mut function = Needs::alloc(cx, span);
             converge!(expr(cx, e, &mut function)?);
-            let function = function.addr()?;
-
             let linear = converge!(exprs(cx, span, hir.args)?, free(cx, function));
 
             cx.asm.push(
                 Inst::CallFn {
-                    function: function.addr(),
+                    function: function.addr()?.addr(),
                     addr: linear.addr(),
                     args: hir.args.len(),
                     out: needs.alloc_output(cx.scopes)?,
@@ -1853,7 +1876,7 @@ fn expr_call<'a, 'hir>(
             )?;
 
             cx.scopes.free_linear(linear)?;
-            cx.scopes.free(function)?;
+            function.free(cx.scopes)?;
         }
         hir::Call::ConstFn {
             from_module,
@@ -1880,14 +1903,7 @@ fn expr_array<'a, 'hir, const N: usize>(
 
     for (expr, needs) in array {
         converge!(self::expr(cx, expr, needs)?);
-
-        let Some(addr) = needs.as_addr() else {
-            return Err(compile::Error::msg(
-                expr,
-                "Expected expression to populate address",
-            ));
-        };
-
+        let addr = needs.addr()?;
         out.try_push(*addr).with_span(span)?;
     }
 
@@ -1956,11 +1972,18 @@ fn exprs_2_with<'a, 'hir, T>(
             let len = a.len() + b.len();
             linear = cx.scopes.linear(span, len)?;
 
+            let mut diverge = false;
+
             for (e, needs) in a.iter().chain(b.iter()).zip(&mut linear) {
-                let Some(()) = expr(cx, map(e), needs)?.converge() else {
-                    cx.scopes.free_linear(linear);
-                    return Ok(Asm::diverge(span));
+                if expr(cx, map(e), needs)?.is_diverging() {
+                    diverge = true;
+                    break;
                 };
+            }
+
+            if diverge {
+                linear.free(cx.scopes)?;
+                return Ok(Asm::diverge(span));
             }
         }
     }
@@ -2067,9 +2090,10 @@ fn expr_field_access<'a, 'hir>(
     }
 
     let mut addr = Needs::alloc(cx, span);
-    expr(cx, &hir.expr, &mut addr)?;
 
-    if let Some(addr) = addr.as_addr() {
+    if let Some(()) = expr(cx, &hir.expr, &mut addr)?.converge() {
+        let addr = addr.addr()?;
+
         match hir.expr_field {
             hir::ExprField::Index(index) => {
                 cx.asm.push(
@@ -2083,6 +2107,7 @@ fn expr_field_access<'a, 'hir>(
             }
             hir::ExprField::Ident(field) => {
                 let slot = cx.q.unit.new_static_string(span, field)?;
+
                 cx.asm.push(
                     Inst::ObjectIndexGetAt {
                         addr: addr.addr(),
@@ -2192,7 +2217,7 @@ fn expr_for<'a, 'hir>(
         let inner_loop_scope = cx.scopes.child(&hir.body)?;
         let mut bindings = cx.scopes.linear(&hir.binding, hir.binding.names.len())?;
 
-        pattern_panic(cx, &hir.binding, move |cx, false_label| {
+        let asm = pattern_panic(cx, &hir.binding, move |cx, false_label| {
             let load = move |cx: &mut Ctxt<'a, 'hir, '_>, needs: &mut dyn NeedsLike<'hir>| {
                 needs.assign_addr(cx, &binding)?;
                 Ok(Asm::new(&hir.binding, ()))
@@ -2209,15 +2234,20 @@ fn expr_for<'a, 'hir>(
             )
         })?;
 
-        block(cx, &hir.body, &mut Needs::none(span))?;
+        asm.ignore();
+
+        let asm = block(cx, &hir.body, &mut Needs::none(span))?;
         cx.scopes.pop(span, inner_loop_scope)?;
 
-        cx.asm.jump(&continue_label, span)?;
+        if asm.is_converging() {
+            cx.asm.jump(&continue_label, span)?;
+        }
+
         cx.asm.label(&end_label)?;
 
-        // NB: Dropping has to happen before the break label. When breaking, the
-        // break statement is responsible for ensuring that active iterators are
-        // dropped.
+        // NB: Dropping has to happen before the break label. When breaking,
+        // the break statement is responsible for ensuring that active
+        // iterators are dropped.
         cx.asm.push(
             Inst::Drop {
                 addr: into_iter.addr(),
@@ -2287,13 +2317,18 @@ fn expr_if<'a, 'hir>(
     }
 
     // use fallback as fall through.
-    if let Some(b) = hir.fallback {
-        block(cx, b, needs)?;
+    let asm = if let Some(b) = hir.fallback {
+        block(cx, b, needs)?
     } else if let Some(out) = output_addr {
         cx.asm.push(Inst::unit(out), span)?;
-    }
+        Asm::new(span, ())
+    } else {
+        Asm::new(span, ())
+    };
 
-    cx.asm.jump(&end_label, span)?;
+    if asm.is_converging() {
+        cx.asm.jump(&end_label, span)?;
+    }
 
     let mut it = branches.into_iter().peekable();
 
@@ -2302,20 +2337,28 @@ fn expr_if<'a, 'hir>(
 
         let scope = cx.scopes.restore(scope);
 
-        if hir.fallback.is_none() {
-            block(cx, &branch.block, &mut Needs::none(branch))?;
+        let asm = if hir.fallback.is_none() {
+            let asm = block(cx, &branch.block, &mut Needs::none(branch))?;
 
-            if let Some(out) = output_addr {
-                cx.asm.push(Inst::unit(out), span)?;
+            if asm.is_converging() {
+                if let Some(out) = output_addr {
+                    cx.asm.push(Inst::unit(out), span)?;
+                }
+
+                Asm::new(span, ())
+            } else {
+                Asm::diverge(span)
             }
         } else {
-            block(cx, &branch.block, needs)?;
-        }
+            block(cx, &branch.block, needs)?
+        };
 
         cx.scopes.pop(branch, scope)?;
 
-        if it.peek().is_some() {
-            cx.asm.jump(&end_label, branch)?;
+        if !asm.is_converging() {
+            if it.peek().is_some() {
+                cx.asm.jump(&end_label, branch)?;
+            }
         }
     }
 
@@ -2332,24 +2375,28 @@ fn expr_index<'a, 'hir>(
     span: &'hir dyn Spanned,
     needs: &mut dyn NeedsLike<'hir>,
 ) -> compile::Result<Asm<'hir>> {
-    let guard = cx.scopes.child(span)?;
+    let mut target = Needs::alloc(cx, span);
+    let mut index = Needs::alloc(cx, span);
 
-    let mut target = cx.scopes.alloc(span)?;
-    let mut index = cx.scopes.alloc(span)?;
-
-    expr(cx, &hir.target, &mut target)?;
-    expr(cx, &hir.index, &mut index)?;
-
-    cx.asm.push(
-        Inst::IndexGet {
-            index: index.addr(),
-            target: target.addr(),
-            out: needs.alloc_output(cx.scopes)?,
-        },
+    if let Some([target, index]) = expr_array(
+        cx,
         span,
-    )?;
+        [(&hir.target, &mut target), (&hir.index, &mut index)],
+    )?
+    .converge()
+    {
+        cx.asm.push(
+            Inst::IndexGet {
+                index: index.addr(),
+                target: target.addr(),
+                out: needs.alloc_output(cx.scopes)?,
+            },
+            span,
+        )?;
+    }
 
-    cx.scopes.pop(span, guard)?;
+    index.free(cx.scopes)?;
+    target.free(cx.scopes)?;
     Ok(Asm::new(span, ()))
 }
 

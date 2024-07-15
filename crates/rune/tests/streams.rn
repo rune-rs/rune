@@ -1,0 +1,31 @@
+async fn foo(n) {
+    yield n;
+    yield n + 1;
+    yield n + 2;
+}
+
+#[test]
+async fn select_streams() {
+    let count = 0;
+    let sum = 0;
+
+    let a = foo(42);
+    let b = foo(43);
+
+    for _ in 0..4 {
+        let value = select {
+            value = a.next() => value,
+            value = b.next() => value,
+        };
+
+        if let () = value {
+            break;
+        }
+
+        count += 1;
+        sum += value;
+    }
+
+    assert_eq!(count, 2);
+    assert_eq!(sum, 85);
+}

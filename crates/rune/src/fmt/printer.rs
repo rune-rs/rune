@@ -1811,7 +1811,8 @@ impl<'a> Printer<'a> {
             self.visit_statement(statement, &mut last_item, take(&mut first))?;
         }
 
-        self.writer.write_queued_spans(close.span.start)?;
+        self.writer
+            .write_queued_spans(close.span.start, usize::MAX)?;
         self.writer.dedent();
         self.writer.write_spanned_raw(close.span, false, false)?;
 
@@ -1843,7 +1844,7 @@ impl<'a> Printer<'a> {
                     )
                 {
                     let span = ast.span();
-                    let empties = self.writer.write_queued_spans(span.start)?;
+                    let empties = self.writer.write_queued_spans(span.start, 1)?;
 
                     if empties == 0 {
                         self.writer.newline()?;

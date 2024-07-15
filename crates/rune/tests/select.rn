@@ -1,9 +1,9 @@
+async fn foo(n) {
+    n
+}
+
 #[test]
 async fn select_branches() {
-    async fn foo(n) {
-        n
-    }
-
     let count = 0;
     let sum = 0;
 
@@ -30,10 +30,6 @@ async fn select_branches() {
 
 #[test]
 async fn select_with_defaults() {
-    async fn foo(n) {
-        n
-    }
-
     let count = 0;
     let sum = 0;
 
