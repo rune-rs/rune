@@ -532,7 +532,7 @@ fn pat<'a, 'hir>(
                 let mut needs = cx.scopes.defer(hir);
                 converge!(load(cx, &mut needs)?, free(needs));
 
-                let inst = pat_sequence_kind_to_inst(*kind, needs.addr()?.addr(), &false_label)?;
+                let inst = pat_sequence_kind_to_inst(*kind, needs.addr()?.addr(), false_label)?;
                 cx.asm.push_asm_inst(inst, hir)?;
 
                 needs.free()?;
@@ -719,7 +719,7 @@ fn pat_sequence<'a, 'hir>(
 
         cx.asm.jump_if_not(cond.addr(), false_label, span)?;
     } else {
-        let inst = pat_sequence_kind_to_inst(hir.kind, addr.addr(), &false_label)?;
+        let inst = pat_sequence_kind_to_inst(hir.kind, addr.addr(), false_label)?;
         cx.asm.push_asm_inst(inst, span)?;
 
         for (index, p) in hir.items.iter().enumerate() {
