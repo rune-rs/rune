@@ -190,6 +190,15 @@ impl Stack {
         Ok(())
     }
 
+    pub(crate) fn truncate(&mut self, addr: InstAddress) -> Result<(), StackError> {
+        let addr = self
+            .top
+            .checked_add(addr.offset())
+            .ok_or(StackError { addr })?;
+        self.stack.truncate(addr);
+        Ok(())
+    }
+
     /// Drain the current stack down to the current stack bottom.
     pub(crate) fn drain(&mut self) -> impl DoubleEndedIterator<Item = Value> + '_ {
         self.stack.drain(self.top..)

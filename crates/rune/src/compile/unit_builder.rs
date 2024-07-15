@@ -18,8 +18,8 @@ use crate::query::QueryInner;
 use crate::runtime::debug::{DebugArgs, DebugSignature};
 use crate::runtime::unit::UnitEncoder;
 use crate::runtime::{
-    Call, ConstValue, DebugInfo, DebugInst, Inst, Protocol, Rtti, StaticString, Unit, UnitFn,
-    VariantRtti,
+    Call, ConstValue, DebugInfo, DebugInst, Inst, Label, Protocol, Rtti, StaticString, Unit,
+    UnitFn, VariantRtti,
 };
 use crate::{Context, Diagnostics, Hash, SourceId};
 
@@ -794,6 +794,16 @@ impl UnitBuilder {
         }
 
         for (pos, (inst, span)) in assembly.instructions.into_iter().enumerate() {
+            let build_label = |label: Label| {
+                label
+                    .jump()
+                    .ok_or(ErrorKind::MissingLabelLocation {
+                        name: label.name,
+                        index: label.index,
+                    })
+                    .with_span(span)
+            };
+
             let mut comment = String::new();
 
             let at = storage.offset();
@@ -813,69 +823,156 @@ impl UnitBuilder {
                 labels.try_push(label.to_debug_label())?;
             }
 
-            match inst {
+            let inst = match inst {
                 AssemblyInst::Jump { label } => {
-                    let jump = label
-                        .jump()
-                        .ok_or(ErrorKind::MissingLabelLocation {
-                            name: label.name,
-                            index: label.index,
-                        })
-                        .with_span(span)?;
-
                     write!(comment, "label:{}", label)?;
-
-                    storage.encode(Inst::Jump { jump }).with_span(span)?;
+                    let jump = build_label(label)?;
+                    Inst::Jump { jump }
                 }
                 AssemblyInst::JumpIf { addr, label } => {
-                    let jump = label
-                        .jump()
-                        .ok_or(ErrorKind::MissingLabelLocation {
-                            name: label.name,
-                            index: label.index,
-                        })
-                        .with_span(span)?;
-
                     write!(comment, "label:{}", label)?;
-
-                    storage
-                        .encode(Inst::JumpIf { cond: addr, jump })
-                        .with_span(span)?;
+                    let jump = build_label(label)?;
+                    Inst::JumpIf { cond: addr, jump }
                 }
                 AssemblyInst::JumpIfNot { addr, label } => {
-                    let jump = label
-                        .jump()
-                        .ok_or(ErrorKind::MissingLabelLocation {
-                            name: label.name,
-                            index: label.index,
-                        })
-                        .with_span(span)?;
-
                     write!(comment, "label:{}", label)?;
-
-                    storage
-                        .encode(Inst::JumpIfNot { cond: addr, jump })
-                        .with_span(span)?;
+                    let jump = build_label(label)?;
+                    Inst::JumpIfNot { cond: addr, jump }
                 }
                 AssemblyInst::IterNext { addr, label, out } => {
-                    let jump = label
-                        .jump()
-                        .ok_or(ErrorKind::MissingLabelLocation {
-                            name: label.name,
-                            index: label.index,
-                        })
-                        .with_span(span)?;
-
                     write!(comment, "label:{}", label)?;
-
-                    storage
-                        .encode(Inst::IterNext { addr, jump, out })
-                        .with_span(span)?;
+                    let jump = build_label(label)?;
+                    Inst::IterNext { addr, jump, out }
+                }
+                AssemblyInst::EqByte { addr, value, else_ } => {
+                    write!(comment, "label:{else_}")?;
+                    let jump_else = build_label(else_)?;
+                    Inst::EqByte {
+                        addr,
+                        value,
+                        jump_else,
+                    }
+                }
+                AssemblyInst::EqChar { addr, value, else_ } => {
+                    write!(comment, "label:{else_}")?;
+                    let jump_else = build_label(else_)?;
+                    Inst::EqChar {
+                        addr,
+                        value,
+                        jump_else,
+                    }
+                }
+                AssemblyInst::EqInteger { addr, value, else_ } => {
+                    write!(comment, "label:{else_}")?;
+                    let jump_else = build_label(else_)?;
+                    Inst::EqInteger {
+                        addr,
+                        value,
+                        jump_else,
+                    }
+                }
+                AssemblyInst::EqBool { addr, value, else_ } => {
+                    write!(comment, "label:{else_}")?;
+                    let jump_else = build_label(else_)?;
+                    Inst::EqBool {
+                        addr,
+                        value,
+                        jump_else,
+                    }
+                }
+                AssemblyInst::EqString { addr, slot, else_ } => {
+                    write!(comment, "label:{else_}")?;
+                    let jump_else = build_label(else_)?;
+                    Inst::EqString {
+                        addr,
+                        slot,
+                        jump_else,
+                    }
+                }
+                AssemblyInst::EqBytes { addr, slot, else_ } => {
+                    write!(comment, "label:{else_}")?;
+                    let jump_else = build_label(else_)?;
+                    Inst::EqBytes {
+                        addr,
+                        slot,
+                        jump_else,
+                    }
+                }
+                AssemblyInst::MatchType { hash, addr, else_ } => {
+                    write!(comment, "label:{else_}")?;
+                    let jump_else = build_label(else_)?;
+                    Inst::MatchType {
+                        hash,
+                        addr,
+                        jump_else,
+                    }
+                }
+                AssemblyInst::MatchVariant {
+                    variant_hash,
+                    enum_hash,
+                    index,
+                    addr,
+                    else_,
+                } => {
+                    write!(comment, "label:{else_}")?;
+                    let jump_else = build_label(else_)?;
+                    Inst::MatchVariant {
+                        variant_hash,
+                        enum_hash,
+                        index,
+                        addr,
+                        jump_else,
+                    }
+                }
+                AssemblyInst::MatchBuiltIn {
+                    type_check,
+                    addr,
+                    else_,
+                } => {
+                    write!(comment, "label:{else_}")?;
+                    let jump_else = build_label(else_)?;
+                    Inst::MatchBuiltIn {
+                        type_check,
+                        addr,
+                        jump_else,
+                    }
+                }
+                AssemblyInst::MatchSequence {
+                    type_check,
+                    len,
+                    exact,
+                    addr,
+                    else_,
+                } => {
+                    write!(comment, "label:{else_}")?;
+                    let jump_else = build_label(else_)?;
+                    Inst::MatchSequence {
+                        type_check,
+                        len,
+                        exact,
+                        addr,
+                        jump_else,
+                    }
+                }
+                AssemblyInst::MatchObject {
+                    slot,
+                    exact,
+                    addr,
+                    else_,
+                } => {
+                    write!(comment, "label:{else_}")?;
+                    let jump_else = build_label(else_)?;
+                    Inst::MatchObject {
+                        slot,
+                        exact,
+                        addr,
+                        jump_else,
+                    }
                 }
                 AssemblyInst::Raw { raw } => {
                     // Optimization to avoid performing lookups for recursive
                     // function calls.
-                    let inst = match raw {
+                    match raw {
                         inst @ Inst::Call {
                             hash,
                             addr,
@@ -897,11 +994,11 @@ impl UnitBuilder {
                             }
                         }
                         inst => inst,
-                    };
-
-                    storage.encode(inst).with_span(span)?;
+                    }
                 }
-            }
+            };
+
+            storage.encode(inst).with_span(span)?;
 
             if let Some(c) = assembly.comments.get(&pos) {
                 if !comment.is_empty() {

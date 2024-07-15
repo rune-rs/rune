@@ -6,12 +6,12 @@ use crate::alloc::prelude::*;
 use crate::alloc::BTreeMap;
 use crate::ast::{self, Span, Spanned};
 use crate::compile::ir;
-use crate::compile::{self, Assembly, ErrorKind, ItemId, ModId, Options, WithSpan};
+use crate::compile::{self, Assembly, AssemblyInst, ErrorKind, ItemId, ModId, Options, WithSpan};
 use crate::hir;
 use crate::query::{ConstFn, Query, Used};
 use crate::runtime::{
     ConstValue, Inst, InstAddress, InstAssignOp, InstOp, InstRange, InstTarget, InstValue,
-    InstVariant, Label, Output, PanicReason, Protocol, TypeCheck,
+    InstVariant, Label, PanicReason, Protocol, TypeCheck,
 };
 use crate::shared::FixedVec;
 use crate::{Hash, SourceId};
@@ -532,16 +532,9 @@ fn pat<'a, 'hir>(
                 let mut needs = cx.scopes.defer(hir);
                 converge!(load(cx, &mut needs)?, free(needs));
 
-                let cond = cx.scopes.alloc(hir)?;
+                let inst = pat_sequence_kind_to_inst(*kind, needs.addr()?.addr(), &false_label)?;
+                cx.asm.push_asm_inst(inst, hir)?;
 
-                cx.asm.push(
-                    pat_sequence_kind_to_inst(*kind, needs.addr()?.addr(), cond.output()),
-                    hir,
-                )?;
-
-                cx.asm.jump_if_not(cond.addr(), false_label, hir)?;
-
-                cond.free()?;
                 needs.free()?;
                 Ok(Asm::new(span, Pattern::Refutable))
             }
@@ -575,15 +568,13 @@ fn pat_lit<'a, 'hir>(
 ) -> compile::Result<Asm<'hir, Pattern>> {
     let mut needs = cx.scopes.defer(hir);
     converge!(load(cx, &mut needs)?, free(needs));
-    let cond = cx.scopes.alloc(hir)?;
 
-    let Some(inst) = pat_lit_inst(cx, hir, needs.addr()?.addr(), cond.addr())? else {
+    let Some(inst) = pat_lit_inst(cx, hir, needs.addr()?.addr(), false_label)? else {
         return Err(compile::Error::new(hir, ErrorKind::UnsupportedPatternExpr));
     };
 
-    cx.asm.push(inst, hir)?;
-    cx.asm.jump_if_not(cond.addr(), false_label, hir)?;
-    cond.free()?;
+    cx.asm.push_asm_inst(inst, hir)?;
+
     needs.free()?;
     Ok(Asm::new(hir, Pattern::Refutable))
 }
@@ -593,29 +584,43 @@ fn pat_lit_inst<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &hir::Expr<'_>,
     addr: InstAddress,
-    cond: InstAddress,
-) -> compile::Result<Option<Inst>> {
+    false_label: &Label,
+) -> compile::Result<Option<AssemblyInst>> {
     let hir::ExprKind::Lit(lit) = hir.kind else {
         return Ok(None);
     };
 
-    let out = cond.output();
-
     let inst = match lit {
-        hir::Lit::Byte(value) => Inst::EqByte { addr, value, out },
-        hir::Lit::Char(value) => Inst::EqChar { addr, value, out },
-        hir::Lit::Str(string) => Inst::EqString {
+        hir::Lit::Byte(value) => AssemblyInst::EqByte {
+            addr,
+            value,
+            else_: false_label.try_clone()?,
+        },
+        hir::Lit::Char(value) => AssemblyInst::EqChar {
+            addr,
+            value,
+            else_: false_label.try_clone()?,
+        },
+        hir::Lit::Str(string) => AssemblyInst::EqString {
             addr,
             slot: cx.q.unit.new_static_string(hir, string)?,
-            out,
+            else_: false_label.try_clone()?,
         },
-        hir::Lit::ByteStr(bytes) => Inst::EqBytes {
+        hir::Lit::ByteStr(bytes) => AssemblyInst::EqBytes {
             addr,
             slot: cx.q.unit.new_static_bytes(hir, bytes)?,
-            out,
+            else_: false_label.try_clone()?,
         },
-        hir::Lit::Integer(value) => Inst::EqInteger { addr, value, out },
-        hir::Lit::Bool(value) => Inst::EqBool { addr, value, out },
+        hir::Lit::Integer(value) => AssemblyInst::EqInteger {
+            addr,
+            value,
+            else_: false_label.try_clone()?,
+        },
+        hir::Lit::Bool(value) => AssemblyInst::EqBool {
+            addr,
+            value,
+            else_: false_label.try_clone()?,
+        },
         _ => return Ok(None),
     };
 
@@ -714,9 +719,8 @@ fn pat_sequence<'a, 'hir>(
 
         cx.asm.jump_if_not(cond.addr(), false_label, span)?;
     } else {
-        let inst = pat_sequence_kind_to_inst(hir.kind, addr.addr(), cond.output());
-        cx.asm.push(inst, span)?;
-        cx.asm.jump_if_not(cond.addr(), false_label, span)?;
+        let inst = pat_sequence_kind_to_inst(hir.kind, addr.addr(), &false_label)?;
+        cx.asm.push_asm_inst(inst, span)?;
 
         for (index, p) in hir.items.iter().enumerate() {
             let mut load = |cx: &mut Ctxt<'a, 'hir, '_>, needs: &mut dyn Needs<'a, 'hir>| {
@@ -743,37 +747,45 @@ fn pat_sequence<'a, 'hir>(
     Ok(Asm::new(span, Pattern::Refutable))
 }
 
-fn pat_sequence_kind_to_inst(kind: hir::PatSequenceKind, addr: InstAddress, out: Output) -> Inst {
-    match kind {
-        hir::PatSequenceKind::Type { hash } => Inst::MatchType { hash, addr, out },
-        hir::PatSequenceKind::BuiltInVariant { type_check } => Inst::MatchBuiltIn {
+fn pat_sequence_kind_to_inst(
+    kind: hir::PatSequenceKind,
+    addr: InstAddress,
+    false_label: &Label,
+) -> compile::Result<AssemblyInst> {
+    Ok(match kind {
+        hir::PatSequenceKind::Type { hash } => AssemblyInst::MatchType {
+            hash,
+            addr,
+            else_: false_label.try_clone()?,
+        },
+        hir::PatSequenceKind::BuiltInVariant { type_check } => AssemblyInst::MatchBuiltIn {
             type_check,
             addr,
-            out,
+            else_: false_label.try_clone()?,
         },
         hir::PatSequenceKind::Variant {
             variant_hash,
             enum_hash,
             index,
-        } => Inst::MatchVariant {
+        } => AssemblyInst::MatchVariant {
             variant_hash,
             enum_hash,
             index,
             addr,
-            out,
+            else_: false_label.try_clone()?,
         },
         hir::PatSequenceKind::Anonymous {
             type_check,
             count,
             is_open,
-        } => Inst::MatchSequence {
+        } => AssemblyInst::MatchSequence {
             type_check,
             len: count,
             exact: !is_open,
             addr,
-            out,
+            else_: false_label.try_clone()?,
         },
-    }
+    })
 }
 
 /// Assemble an object pattern.
@@ -793,8 +805,6 @@ fn pat_object<'a, 'hir>(
     converge!(load(cx, &mut needs)?, free(needs));
     let addr = needs.addr()?;
 
-    let cond = cx.scopes.alloc(span)?;
-
     let mut string_slots = Vec::new();
 
     for binding in hir.bindings {
@@ -802,46 +812,44 @@ fn pat_object<'a, 'hir>(
     }
 
     let inst = match hir.kind {
-        hir::PatSequenceKind::Type { hash } => Inst::MatchType {
+        hir::PatSequenceKind::Type { hash } => AssemblyInst::MatchType {
             hash,
             addr: addr.addr(),
-            out: cond.output(),
+            else_: false_label.try_clone()?,
         },
-        hir::PatSequenceKind::BuiltInVariant { type_check } => Inst::MatchBuiltIn {
+        hir::PatSequenceKind::BuiltInVariant { type_check } => AssemblyInst::MatchBuiltIn {
             type_check,
             addr: addr.addr(),
-            out: cond.output(),
+            else_: false_label.try_clone()?,
         },
         hir::PatSequenceKind::Variant {
             variant_hash,
             enum_hash,
             index,
-        } => Inst::MatchVariant {
+        } => AssemblyInst::MatchVariant {
             variant_hash,
             enum_hash,
             index,
             addr: addr.addr(),
-            out: cond.output(),
+            else_: false_label.try_clone()?,
         },
         hir::PatSequenceKind::Anonymous { is_open, .. } => {
             let keys =
                 cx.q.unit
                     .new_static_object_keys_iter(span, hir.bindings.iter().map(|b| b.key()))?;
 
-            Inst::MatchObject {
+            AssemblyInst::MatchObject {
                 slot: keys,
                 exact: !is_open,
                 addr: addr.addr(),
-                out: cond.output(),
+                else_: false_label.try_clone()?,
             }
         }
     };
 
     // Copy the temporary and check that its length matches the pattern and
     // that it is indeed a vector.
-    cx.asm.push(inst, span)?;
-    cx.asm.jump_if_not(cond.addr(), false_label, span)?;
-    cond.free()?;
+    cx.asm.push_asm_inst(inst, span)?;
 
     for (binding, slot) in hir.bindings.iter().zip(string_slots) {
         match binding {

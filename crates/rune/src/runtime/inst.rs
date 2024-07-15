@@ -820,12 +820,7 @@ pub enum Inst {
     },
     /// Test if the top of the stack is a specific byte.
     ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// => <boolean>
-    /// ```
+    /// Will match to `jump_else` if the comparison fails.
     #[musli(packed)]
     EqByte {
         /// Address of the value to compare.
@@ -833,17 +828,12 @@ pub enum Inst {
         /// The byte to test against.
         #[inst_display(display_with = DisplayDebug::new)]
         value: u8,
-        /// Where to store the result of the comparison.
-        out: Output,
+        /// Where to jump if the comparison fails.
+        jump_else: usize,
     },
     /// Test if the top of the stack is a specific character.
     ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// => <boolean>
-    /// ```
+    /// Will match to `jump_else` if the comparison fails.
     #[musli(packed)]
     EqChar {
         /// Address of the value to compare.
@@ -851,106 +841,75 @@ pub enum Inst {
         /// The character to test against.
         #[inst_display(display_with = DisplayDebug::new)]
         value: char,
-        /// Where to store the result of the comparison.
-        out: Output,
+        /// Where to jump if the comparison fails.
+        jump_else: usize,
     },
     /// Test if the top of the stack is a specific integer.
     ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// => <boolean>
-    /// ```
+    /// Will match to `jump_else` if the comparison fails.
     #[musli(packed)]
     EqInteger {
         /// Address of the value to compare.
         addr: InstAddress,
         /// The value to test against.
         value: i64,
-        /// Where to store the result of the comparison.
-        out: Output,
+        /// Where to jump if the comparison fails.
+        jump_else: usize,
     },
-
     /// Test if the top of the stack is a specific boolean.
     ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// => <boolean>
-    /// ```
+    /// Will match to `jump_else` if the comparison fails.
     #[musli(packed)]
     EqBool {
         /// Address of the value to compare.
         addr: InstAddress,
         /// The value to test against.
         value: bool,
-        /// Where to store the result of the comparison.
-        out: Output,
+        /// Where to jump if the comparison fails.
+        jump_else: usize,
     },
     /// Compare the top of the stack against a static string slot.
     ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// => <boolean>
-    /// ```
+    /// Will match to `jump_else` if the comparison fails.
     #[musli(packed)]
     EqString {
         /// Address of the value to compare.
         addr: InstAddress,
         /// The slot to test against.
         slot: usize,
-        /// Where to store the result of the comparison.
-        out: Output,
+        /// Where to jump if the comparison fails.
+        jump_else: usize,
     },
     /// Compare the top of the stack against a static bytes slot.
     ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// => <boolean>
-    /// ```
+    /// Will match to `jump_else` if the comparison fails.
     #[musli(packed)]
     EqBytes {
         /// Address of the value to compare.
         addr: InstAddress,
         /// The slot to test against.
         slot: usize,
-        /// Where to store the result of the comparison.
-        out: Output,
+        /// Where to jump if the comparison fails.
+        jump_else: usize,
     },
     /// Test that the top of the stack has the given type.
     ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// => <boolean>
-    /// ```
+    /// Will match to `jump_else` if the comparison fails.
     #[musli(packed)]
     MatchType {
         /// The type hash to match against.
         hash: Hash,
         /// The address of the value to test.
         addr: InstAddress,
-        /// Where to store the output.
-        out: Output,
+        /// Where to jump if the comparison fails.
+        jump_else: usize,
     },
     /// Test if the specified variant matches. This is distinct from
     /// [Inst::MatchType] because it will match immediately on the variant type
     /// if appropriate which is possible for internal types, but external types
     /// will require an additional runtime check for matching.
     ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// => <boolean>
-    /// ```
+    /// Will match to `jump_else` if the comparison fails.
     #[musli(packed)]
     MatchVariant {
         /// The exact type hash of the variant.
@@ -961,35 +920,25 @@ pub enum Inst {
         index: usize,
         /// The address of the value to test.
         addr: InstAddress,
-        /// Where to store the output.
-        out: Output,
+        /// Where to jump if the comparison fails.
+        jump_else: usize,
     },
     /// Test if the top of the stack is the given builtin type or variant.
     ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// => <boolean>
-    /// ```
+    /// Will match to `jump_else` if the comparison fails.
     #[musli(packed)]
     MatchBuiltIn {
         /// The type to check for.
         type_check: TypeCheck,
         /// The address of the value to test.
         addr: InstAddress,
-        /// Where to store the output.
-        out: Output,
+        /// Where to jump if the comparison fails.
+        jump_else: usize,
     },
     /// Test that the top of the stack is a tuple with the given length
     /// requirements.
     ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// => <boolean>
-    /// ```
+    /// Will match to `jump_else` if the comparison fails.
     #[musli(packed)]
     MatchSequence {
         /// Type constraints that the sequence must match.
@@ -1001,18 +950,13 @@ pub enum Inst {
         exact: bool,
         /// The address of the value to test.
         addr: InstAddress,
-        /// Where to store the output.
-        out: Output,
+        /// Where to jump if the comparison fails.
+        jump_else: usize,
     },
     /// Test that the top of the stack is an object matching the given slot of
     /// object keys.
     ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <object>
-    /// => <boolean>
-    /// ```
+    /// Will match to `jump_else` if the comparison fails.
     #[musli(packed)]
     MatchObject {
         /// The slot of object keys to use.
@@ -1022,8 +966,8 @@ pub enum Inst {
         exact: bool,
         /// The address of the value to test.
         addr: InstAddress,
-        /// Where to store the output.
-        out: Output,
+        /// Where to jump if the comparison fails.
+        jump_else: usize,
     },
     /// Perform a generator yield where the value yielded is expected to be
     /// found at the top of the stack.

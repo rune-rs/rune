@@ -2657,7 +2657,7 @@ impl Vm {
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_eq_byte(&mut self, addr: InstAddress, value: u8, out: Output) -> VmResult<()> {
+    fn op_eq_byte(&mut self, addr: InstAddress, value: u8, jump_else: usize) -> VmResult<()> {
         let v = vm_try!(self.stack.at(addr));
 
         let is_match = match *vm_try!(v.borrow_kind_ref()) {
@@ -2665,12 +2665,20 @@ impl Vm {
             _ => false,
         };
 
-        vm_try!(out.store(&mut self.stack, is_match));
+        if !is_match {
+            self.ip = jump_else;
+        }
+
         VmResult::Ok(())
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_eq_character(&mut self, addr: InstAddress, value: char, out: Output) -> VmResult<()> {
+    fn op_eq_character(
+        &mut self,
+        addr: InstAddress,
+        value: char,
+        jump_else: usize,
+    ) -> VmResult<()> {
         let v = vm_try!(self.stack.at(addr));
 
         let is_match = match *vm_try!(v.borrow_kind_ref()) {
@@ -2678,12 +2686,15 @@ impl Vm {
             _ => false,
         };
 
-        vm_try!(out.store(&mut self.stack, is_match));
+        if !is_match {
+            self.ip = jump_else;
+        }
+
         VmResult::Ok(())
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_eq_integer(&mut self, addr: InstAddress, value: i64, out: Output) -> VmResult<()> {
+    fn op_eq_integer(&mut self, addr: InstAddress, value: i64, jump_else: usize) -> VmResult<()> {
         let v = vm_try!(self.stack.at(addr));
 
         let is_match = match *vm_try!(v.borrow_kind_ref()) {
@@ -2691,12 +2702,15 @@ impl Vm {
             _ => false,
         };
 
-        vm_try!(out.store(&mut self.stack, is_match));
+        if !is_match {
+            self.ip = jump_else;
+        }
+
         VmResult::Ok(())
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_eq_bool(&mut self, addr: InstAddress, value: bool, out: Output) -> VmResult<()> {
+    fn op_eq_bool(&mut self, addr: InstAddress, value: bool, jump_else: usize) -> VmResult<()> {
         let v = vm_try!(self.stack.at(addr));
 
         let is_match = match *vm_try!(v.borrow_kind_ref()) {
@@ -2704,14 +2718,17 @@ impl Vm {
             _ => false,
         };
 
-        vm_try!(out.store(&mut self.stack, is_match));
+        if !is_match {
+            self.ip = jump_else;
+        }
+
         VmResult::Ok(())
     }
 
     /// Test if the top of stack is equal to the string at the given static
     /// string slot.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_eq_string(&mut self, addr: InstAddress, slot: usize, out: Output) -> VmResult<()> {
+    fn op_eq_string(&mut self, addr: InstAddress, slot: usize, jump_else: usize) -> VmResult<()> {
         let v = vm_try!(self.stack.at(addr));
 
         let is_match = match *vm_try!(v.borrow_kind_ref()) {
@@ -2722,14 +2739,17 @@ impl Vm {
             _ => false,
         };
 
-        vm_try!(out.store(&mut self.stack, is_match));
+        if !is_match {
+            self.ip = jump_else;
+        }
+
         VmResult::Ok(())
     }
 
     /// Test if the top of stack is equal to the string at the given static
     /// bytes slot.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_eq_bytes(&mut self, addr: InstAddress, slot: usize, out: Output) -> VmResult<()> {
+    fn op_eq_bytes(&mut self, addr: InstAddress, slot: usize, jump_else: usize) -> VmResult<()> {
         let v = vm_try!(self.stack.at(addr));
 
         let is_match = match *vm_try!(v.borrow_kind_ref()) {
@@ -2740,7 +2760,10 @@ impl Vm {
             _ => false,
         };
 
-        vm_try!(out.store(&mut self.stack, is_match));
+        if !is_match {
+            self.ip = jump_else;
+        }
+
         VmResult::Ok(())
     }
 
@@ -2751,7 +2774,7 @@ impl Vm {
         len: usize,
         exact: bool,
         addr: InstAddress,
-        out: Output,
+        jump_else: usize,
     ) -> VmResult<()> {
         let value = vm_try!(self.stack.at(addr));
 
@@ -2763,15 +2786,21 @@ impl Vm {
             }
         }));
 
-        vm_try!(out.store(&mut self.stack, result.unwrap_or_default()));
+        if !result.unwrap_or_default() {
+            self.ip = jump_else;
+        }
+
         VmResult::Ok(())
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_match_type(&mut self, hash: Hash, addr: InstAddress, out: Output) -> VmResult<()> {
+    fn op_match_type(&mut self, hash: Hash, addr: InstAddress, jump_else: usize) -> VmResult<()> {
         let value = vm_try!(self.stack.at(addr));
-        let is_match = vm_try!(value.type_hash()) == hash;
-        vm_try!(out.store(&mut self.stack, is_match));
+
+        if vm_try!(value.type_hash()) != hash {
+            self.ip = jump_else;
+        }
+
         VmResult::Ok(())
     }
 
@@ -2782,11 +2811,11 @@ impl Vm {
         variant_hash: Hash,
         index: usize,
         addr: InstAddress,
-        out: Output,
+        jump_else: usize,
     ) -> VmResult<()> {
-        let value = vm_try!(self.stack.at(addr));
-
         let is_match = 'out: {
+            let value = vm_try!(self.stack.at(addr));
+
             match &*vm_try!(value.borrow_kind_ref()) {
                 ValueKind::Variant(variant) => {
                     break 'out variant.rtti().hash == variant_hash;
@@ -2803,16 +2832,29 @@ impl Vm {
 
             let value = value.clone();
 
-            let CallResult::Ok(()) =
-                vm_try!(self.call_instance_fn(value, Protocol::IS_VARIANT, (index,), out))
-            else {
-                break 'out false;
+            let addr = self.stack.addr();
+            vm_try!(self.stack.push(()));
+
+            let is_match = match vm_try!(self.call_instance_fn(
+                value,
+                Protocol::IS_VARIANT,
+                (index,),
+                addr.output()
+            )) {
+                CallResult::Ok(()) => {
+                    vm_try!(vm_try!(self.stack.at(addr)).as_bool())
+                }
+                CallResult::Unsupported(..) => false,
             };
 
-            return VmResult::Ok(());
+            vm_try!(self.stack.truncate(addr));
+            is_match
         };
 
-        vm_try!(out.store(&mut self.stack, is_match));
+        if !is_match {
+            self.ip = jump_else;
+        }
+
         VmResult::Ok(())
     }
 
@@ -2821,7 +2863,7 @@ impl Vm {
         &mut self,
         type_check: TypeCheck,
         addr: InstAddress,
-        out: Output,
+        jump_else: usize,
     ) -> VmResult<()> {
         use crate::runtime::GeneratorState::*;
 
@@ -2849,7 +2891,10 @@ impl Vm {
             _ => false,
         };
 
-        vm_try!(out.store(&mut self.stack, is_match));
+        if !is_match {
+            self.ip = jump_else;
+        }
+
         VmResult::Ok(())
     }
 
@@ -2859,7 +2904,7 @@ impl Vm {
         slot: usize,
         exact: bool,
         addr: InstAddress,
-        out: Output,
+        jump_else: usize,
     ) -> VmResult<()> {
         fn test(object: &Object, keys: &[alloc::String], exact: bool) -> bool {
             if exact {
@@ -2893,7 +2938,10 @@ impl Vm {
             _ => false,
         };
 
-        vm_try!(out.store(&mut self.stack, is_match));
+        if !is_match {
+            self.ip = jump_else;
+        }
+
         VmResult::Ok(())
     }
 
@@ -3450,63 +3498,87 @@ impl Vm {
                         return VmResult::Ok(VmHalt::Exited(out.as_addr()));
                     }
                 }
-                Inst::EqByte { addr, value, out } => {
-                    vm_try!(self.op_eq_byte(addr, value, out));
+                Inst::EqByte {
+                    addr,
+                    value,
+                    jump_else,
+                } => {
+                    vm_try!(self.op_eq_byte(addr, value, jump_else));
                 }
-                Inst::EqChar { addr, value, out } => {
-                    vm_try!(self.op_eq_character(addr, value, out));
+                Inst::EqChar {
+                    addr,
+                    value,
+                    jump_else,
+                } => {
+                    vm_try!(self.op_eq_character(addr, value, jump_else));
                 }
-                Inst::EqInteger { addr, value, out } => {
-                    vm_try!(self.op_eq_integer(addr, value, out));
+                Inst::EqInteger {
+                    addr,
+                    value,
+                    jump_else,
+                } => {
+                    vm_try!(self.op_eq_integer(addr, value, jump_else));
                 }
                 Inst::EqBool {
                     addr,
                     value: boolean,
-                    out,
+                    jump_else,
                 } => {
-                    vm_try!(self.op_eq_bool(addr, boolean, out));
+                    vm_try!(self.op_eq_bool(addr, boolean, jump_else));
                 }
-                Inst::EqString { addr, slot, out } => {
-                    vm_try!(self.op_eq_string(addr, slot, out));
+                Inst::EqString {
+                    addr,
+                    slot,
+                    jump_else,
+                } => {
+                    vm_try!(self.op_eq_string(addr, slot, jump_else));
                 }
-                Inst::EqBytes { addr, slot, out } => {
-                    vm_try!(self.op_eq_bytes(addr, slot, out));
+                Inst::EqBytes {
+                    addr,
+                    slot,
+                    jump_else,
+                } => {
+                    vm_try!(self.op_eq_bytes(addr, slot, jump_else));
                 }
                 Inst::MatchSequence {
                     type_check,
                     len,
                     exact,
                     addr,
-                    out,
+                    jump_else,
                 } => {
-                    vm_try!(self.op_match_sequence(type_check, len, exact, addr, out));
+                    vm_try!(self.op_match_sequence(type_check, len, exact, addr, jump_else));
                 }
-                Inst::MatchType { hash, addr, out } => {
-                    vm_try!(self.op_match_type(hash, addr, out));
+                Inst::MatchType {
+                    hash,
+                    addr,
+                    jump_else,
+                } => {
+                    vm_try!(self.op_match_type(hash, addr, jump_else));
                 }
                 Inst::MatchVariant {
                     enum_hash,
                     variant_hash,
                     index,
                     addr,
-                    out,
+                    jump_else,
                 } => {
-                    vm_try!(self.op_match_variant(enum_hash, variant_hash, index, addr, out));
+                    vm_try!(self.op_match_variant(enum_hash, variant_hash, index, addr, jump_else));
                 }
                 Inst::MatchBuiltIn {
                     type_check,
                     addr,
-                    out,
+                    jump_else,
                 } => {
-                    vm_try!(self.op_match_builtin(type_check, addr, out));
+                    vm_try!(self.op_match_builtin(type_check, addr, jump_else));
                 }
                 Inst::MatchObject {
                     slot,
                     exact,
                     addr,
-                    out,
+                    jump_else,
                 } => {
-                    vm_try!(self.op_match_object(slot, exact, addr, out));
+                    vm_try!(self.op_match_object(slot, exact, addr, jump_else));
                 }
                 Inst::Yield { addr, out } => {
                     return VmResult::Ok(VmHalt::Yielded(Some(addr), out));

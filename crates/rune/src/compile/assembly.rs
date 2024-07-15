@@ -8,7 +8,7 @@ use crate::alloc::prelude::*;
 use crate::alloc::{hash_map, HashMap};
 use crate::ast::{Span, Spanned};
 use crate::compile::{self, Location};
-use crate::runtime::{Inst, InstAddress, Label, Output};
+use crate::runtime::{Inst, InstAddress, Label, Output, TypeCheck};
 use crate::{Hash, SourceId};
 
 #[derive(Debug, TryClone)]
@@ -28,6 +28,66 @@ pub(crate) enum AssemblyInst {
         addr: InstAddress,
         label: Label,
         out: Output,
+    },
+    EqByte {
+        addr: InstAddress,
+        value: u8,
+        else_: Label,
+    },
+    EqChar {
+        addr: InstAddress,
+        value: char,
+        else_: Label,
+    },
+    EqInteger {
+        addr: InstAddress,
+        value: i64,
+        else_: Label,
+    },
+    EqBool {
+        addr: InstAddress,
+        value: bool,
+        else_: Label,
+    },
+    EqString {
+        addr: InstAddress,
+        slot: usize,
+        else_: Label,
+    },
+    EqBytes {
+        addr: InstAddress,
+        slot: usize,
+        else_: Label,
+    },
+    MatchType {
+        hash: Hash,
+        addr: InstAddress,
+        else_: Label,
+    },
+    MatchVariant {
+        variant_hash: Hash,
+        enum_hash: Hash,
+        index: usize,
+        addr: InstAddress,
+        else_: Label,
+    },
+    MatchBuiltIn {
+        type_check: TypeCheck,
+        addr: InstAddress,
+        else_: Label,
+    },
+    MatchSequence {
+        type_check: TypeCheck,
+        len: usize,
+        exact: bool,
+        addr: InstAddress,
+        else_: Label,
+    },
+    MatchObject {
+        slot: usize,
+        exact: bool,
+        addr: InstAddress,
+        else_: Label,
     },
     Raw {
         raw: Inst,
@@ -92,7 +152,7 @@ impl Assembly {
 
     /// Add a jump to the given label.
     pub(crate) fn jump(&mut self, label: &Label, span: &dyn Spanned) -> compile::Result<()> {
-        self.inner_push(
+        self.push_asm_inst(
             AssemblyInst::Jump {
                 label: label.try_clone()?,
             },
@@ -109,7 +169,7 @@ impl Assembly {
         label: &Label,
         span: &dyn Spanned,
     ) -> compile::Result<()> {
-        self.inner_push(
+        self.push_asm_inst(
             AssemblyInst::JumpIf {
                 addr,
                 label: label.try_clone()?,
@@ -127,7 +187,7 @@ impl Assembly {
         label: &Label,
         span: &dyn Spanned,
     ) -> compile::Result<()> {
-        self.inner_push(
+        self.push_asm_inst(
             AssemblyInst::JumpIfNot {
                 addr,
                 label: label.try_clone()?,
@@ -146,7 +206,7 @@ impl Assembly {
         span: &dyn Spanned,
         out: Output,
     ) -> compile::Result<()> {
-        self.inner_push(
+        self.push_asm_inst(
             AssemblyInst::IterNext {
                 addr,
                 label: label.try_clone()?,
@@ -167,7 +227,7 @@ impl Assembly {
                 .try_push((span.span(), self.location.source_id))?;
         }
 
-        self.inner_push(AssemblyInst::Raw { raw }, span)?;
+        self.push_asm_inst(AssemblyInst::Raw { raw }, span)?;
         Ok(())
     }
 
@@ -191,7 +251,11 @@ impl Assembly {
         Ok(())
     }
 
-    fn inner_push(&mut self, inst: AssemblyInst, span: &dyn Spanned) -> compile::Result<()> {
+    pub(crate) fn push_asm_inst(
+        &mut self,
+        inst: AssemblyInst,
+        span: &dyn Spanned,
+    ) -> compile::Result<()> {
         self.instructions.try_push((inst, span.span()))?;
         Ok(())
     }
