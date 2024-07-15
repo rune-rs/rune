@@ -533,12 +533,9 @@ fn pat<'a, 'hir>(
                 converge!(load(cx, &mut needs)?, free(needs));
 
                 let cond = cx.scopes.alloc(hir)?;
+                let inst = pat_sequence_kind_to_inst(*kind, needs.addr()?.addr(), cond.output());
 
-                cx.asm.push(
-                    pat_sequence_kind_to_inst(*kind, needs.addr()?.addr(), cond.output()),
-                    hir,
-                )?;
-
+                cx.asm.push(inst, hir)?;
                 cx.asm.jump_if_not(cond.addr(), false_label, hir)?;
 
                 cond.free()?;

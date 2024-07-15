@@ -160,13 +160,6 @@ impl Assembly {
 
     /// Push a raw instruction.
     pub(crate) fn push(&mut self, raw: Inst, span: &dyn Spanned) -> compile::Result<()> {
-        if let Inst::Call { hash, .. } = raw {
-            self.required_functions
-                .entry(hash)
-                .or_try_default()?
-                .try_push((span.span(), self.location.source_id))?;
-        }
-
         self.inner_push(AssemblyInst::Raw { raw }, span)?;
         Ok(())
     }
@@ -192,6 +185,16 @@ impl Assembly {
     }
 
     fn inner_push(&mut self, inst: AssemblyInst, span: &dyn Spanned) -> compile::Result<()> {
+        if let AssemblyInst::Raw {
+            raw: Inst::Call { hash, .. },
+        } = &inst
+        {
+            self.required_functions
+                .entry(*hash)
+                .or_try_default()?
+                .try_push((span.span(), self.location.source_id))?;
+        }
+
         self.instructions.try_push((inst, span.span()))?;
         Ok(())
     }

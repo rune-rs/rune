@@ -18,8 +18,8 @@ use crate::query::QueryInner;
 use crate::runtime::debug::{DebugArgs, DebugSignature};
 use crate::runtime::unit::UnitEncoder;
 use crate::runtime::{
-    Call, ConstValue, DebugInfo, DebugInst, Inst, Protocol, Rtti, StaticString, Unit, UnitFn,
-    VariantRtti,
+    Call, ConstValue, DebugInfo, DebugInst, Inst, Label, Protocol, Rtti, StaticString, Unit,
+    UnitFn, VariantRtti,
 };
 use crate::{Context, Diagnostics, Hash, SourceId};
 
@@ -813,61 +813,39 @@ impl UnitBuilder {
                 labels.try_push(label.to_debug_label())?;
             }
 
+            let build_label = |label: Label| {
+                label
+                    .jump()
+                    .ok_or(ErrorKind::MissingLabelLocation {
+                        name: label.name,
+                        index: label.index,
+                    })
+                    .with_span(span)
+            };
+
             match inst {
                 AssemblyInst::Jump { label } => {
-                    let jump = label
-                        .jump()
-                        .ok_or(ErrorKind::MissingLabelLocation {
-                            name: label.name,
-                            index: label.index,
-                        })
-                        .with_span(span)?;
-
                     write!(comment, "label:{}", label)?;
-
+                    let jump = build_label(label)?;
                     storage.encode(Inst::Jump { jump }).with_span(span)?;
                 }
                 AssemblyInst::JumpIf { addr, label } => {
-                    let jump = label
-                        .jump()
-                        .ok_or(ErrorKind::MissingLabelLocation {
-                            name: label.name,
-                            index: label.index,
-                        })
-                        .with_span(span)?;
-
                     write!(comment, "label:{}", label)?;
-
+                    let jump = build_label(label)?;
                     storage
                         .encode(Inst::JumpIf { cond: addr, jump })
                         .with_span(span)?;
                 }
                 AssemblyInst::JumpIfNot { addr, label } => {
-                    let jump = label
-                        .jump()
-                        .ok_or(ErrorKind::MissingLabelLocation {
-                            name: label.name,
-                            index: label.index,
-                        })
-                        .with_span(span)?;
-
                     write!(comment, "label:{}", label)?;
-
+                    let jump = build_label(label)?;
                     storage
                         .encode(Inst::JumpIfNot { cond: addr, jump })
                         .with_span(span)?;
                 }
                 AssemblyInst::IterNext { addr, label, out } => {
-                    let jump = label
-                        .jump()
-                        .ok_or(ErrorKind::MissingLabelLocation {
-                            name: label.name,
-                            index: label.index,
-                        })
-                        .with_span(span)?;
-
                     write!(comment, "label:{}", label)?;
-
+                    let jump = build_label(label)?;
                     storage
                         .encode(Inst::IterNext { addr, jump, out })
                         .with_span(span)?;
