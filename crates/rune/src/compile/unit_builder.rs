@@ -857,29 +857,6 @@ impl UnitBuilder {
                         .encode(Inst::JumpIfNot { cond: addr, jump })
                         .with_span(span)?;
                 }
-                AssemblyInst::JumpIfBranch {
-                    addr,
-                    branch,
-                    label,
-                } => {
-                    let jump = label
-                        .jump()
-                        .ok_or(ErrorKind::MissingLabelLocation {
-                            name: label.name,
-                            index: label.index,
-                        })
-                        .with_span(span)?;
-
-                    write!(comment, "label:{}", label)?;
-
-                    storage
-                        .encode(Inst::JumpIfBranch {
-                            branch: addr,
-                            value: branch,
-                            jump,
-                        })
-                        .with_span(span)?;
-                }
                 AssemblyInst::IterNext { addr, label, out } => {
                     let jump = label
                         .jump()

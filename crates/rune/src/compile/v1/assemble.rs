@@ -1,4 +1,5 @@
 use core::fmt;
+use core::mem::take;
 use core::slice;
 
 use crate::alloc::prelude::*;
@@ -2683,7 +2684,6 @@ fn expr_select_inner<'a, 'hir>(
 
     let linear = converge!(exprs(cx, span, hir.exprs)?);
 
-    let branch_addr = cx.scopes.alloc(span)?;
     let mut value_addr = cx.scopes.alloc(span)?;
 
     let select_label = cx.asm.new_label("select");
@@ -2693,18 +2693,14 @@ fn expr_select_inner<'a, 'hir>(
         Inst::Select {
             addr: linear.addr(),
             len: hir.exprs.len(),
-            branch: branch_addr.output(),
             value: value_addr.output(),
         },
         span,
     )?;
 
-    for (branch, (label, _)) in cx.select_branches.iter().enumerate() {
-        cx.asm
-            .jump_if_branch(branch_addr.addr(), branch as i64, label, span)?;
+    for (label, _) in &cx.select_branches {
+        cx.asm.jump(label, span)?;
     }
-
-    branch_addr.free()?;
 
     if let Some((_, label)) = &default_branch {
         cx.asm.jump(label, span)?;
@@ -2719,10 +2715,12 @@ fn expr_select_inner<'a, 'hir>(
             )?;
         }
 
-        cx.asm.jump(&end_label, span)?;
+        if !cx.select_branches.is_empty() || default_branch.is_some() {
+            cx.asm.jump(&end_label, span)?;
+        }
     }
 
-    let mut branches = core::mem::take(&mut cx.select_branches);
+    let mut branches = take(&mut cx.select_branches);
 
     for (label, branch) in branches.drain(..) {
         cx.asm.label(&label)?;

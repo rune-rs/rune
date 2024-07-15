@@ -1612,7 +1612,6 @@ impl Vm {
         &mut self,
         addr: InstAddress,
         len: usize,
-        branch: Output,
         value: Output,
     ) -> VmResult<Option<Select>> {
         let futures = futures_util::stream::FuturesUnordered::new();
@@ -1621,13 +1620,13 @@ impl Vm {
             let future = vm_try!(value.clone().into_future_mut());
 
             if !future.is_completed() {
-                futures.push(SelectFuture::new(branch as i64, future));
+                futures.push(SelectFuture::new(self.ip + branch, future));
             }
         }
 
         if futures.is_empty() {
             vm_try!(value.store(&mut self.stack, ()));
-            vm_try!(branch.store(&mut self.stack, -1i64));
+            self.ip = self.ip.wrapping_add(len);
             return VmResult::Ok(None);
         }
 
@@ -1693,19 +1692,6 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_jump_if_not(&mut self, cond: InstAddress, jump: usize) -> VmResult<()> {
         if !vm_try!(vm_try!(self.stack.at(cond)).as_bool()) {
-            self.ip = vm_try!(self.unit.translate(jump));
-        }
-
-        VmResult::Ok(())
-    }
-
-    /// Perform a branch-conditional jump operation.
-    #[cfg_attr(feature = "bench", inline(never))]
-    fn op_jump_if_branch(&mut self, branch: InstAddress, value: i64, jump: usize) -> VmResult<()> {
-        let branch = vm_try!(self.stack.at(branch));
-
-        if matches!(*vm_try!(branch.borrow_kind_ref()), ValueKind::Integer(branch) if branch == value)
-        {
             self.ip = vm_try!(self.unit.translate(jump));
         }
 
@@ -3361,16 +3347,9 @@ impl Vm {
                     let future = vm_try!(self.op_await(addr));
                     return VmResult::Ok(VmHalt::Awaited(Awaited::Future(future, out)));
                 }
-                Inst::Select {
-                    addr,
-                    len,
-                    branch,
-                    value,
-                } => {
-                    if let Some(select) = vm_try!(self.op_select(addr, len, branch, value)) {
-                        return VmResult::Ok(VmHalt::Awaited(Awaited::Select(
-                            select, branch, value,
-                        )));
+                Inst::Select { addr, len, value } => {
+                    if let Some(select) = vm_try!(self.op_select(addr, len, value)) {
+                        return VmResult::Ok(VmHalt::Awaited(Awaited::Select(select, value)));
                     }
                 }
                 Inst::LoadFn { hash, out } => {
@@ -3399,13 +3378,6 @@ impl Vm {
                 }
                 Inst::JumpIfNot { cond, jump } => {
                     vm_try!(self.op_jump_if_not(cond, jump));
-                }
-                Inst::JumpIfBranch {
-                    branch,
-                    value,
-                    jump,
-                } => {
-                    vm_try!(self.op_jump_if_branch(branch, value, jump));
                 }
                 Inst::Vec { addr, count, out } => {
                     vm_try!(self.op_vec(addr, count, out));

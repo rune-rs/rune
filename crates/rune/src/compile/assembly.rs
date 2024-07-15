@@ -24,11 +24,6 @@ pub(crate) enum AssemblyInst {
         addr: InstAddress,
         label: Label,
     },
-    JumpIfBranch {
-        addr: InstAddress,
-        branch: i64,
-        label: Label,
-    },
     IterNext {
         addr: InstAddress,
         label: Label,
@@ -135,26 +130,6 @@ impl Assembly {
         self.inner_push(
             AssemblyInst::JumpIfNot {
                 addr,
-                label: label.try_clone()?,
-            },
-            span,
-        )?;
-
-        Ok(())
-    }
-
-    /// Add a conditional jump-if-branch instruction.
-    pub(crate) fn jump_if_branch(
-        &mut self,
-        addr: InstAddress,
-        branch: i64,
-        label: &Label,
-        span: &dyn Spanned,
-    ) -> compile::Result<()> {
-        self.inner_push(
-            AssemblyInst::JumpIfBranch {
-                addr,
-                branch,
                 label: label.try_clone()?,
             },
             span,

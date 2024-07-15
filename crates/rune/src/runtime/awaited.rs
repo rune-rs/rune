@@ -6,7 +6,7 @@ pub(crate) enum Awaited {
     /// A future to be awaited.
     Future(Future, Output),
     /// A select to be awaited.
-    Select(Select, Output, Output),
+    Select(Select, Output),
 }
 
 impl Awaited {
@@ -17,9 +17,9 @@ impl Awaited {
                 let value = vm_try!(future.await.with_vm(vm));
                 vm_try!(out.store(vm.stack_mut(), value));
             }
-            Self::Select(select, branch_addr, value_addr) => {
-                let (branch, value) = vm_try!(select.await.with_vm(vm));
-                vm_try!(branch_addr.store(vm.stack_mut(), || branch));
+            Self::Select(select, value_addr) => {
+                let (ip, value) = vm_try!(select.await.with_vm(vm));
+                vm.set_ip(ip);
                 vm_try!(value_addr.store(vm.stack_mut(), || value));
             }
         }
