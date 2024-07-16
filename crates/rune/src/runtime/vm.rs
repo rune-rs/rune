@@ -26,6 +26,22 @@ use crate::runtime::{budget, ProtocolCaller};
 
 use super::{VmDiagnostics, VmDiagnosticsObj};
 
+macro_rules! populate {
+    ($populate:ident, $args:expr) => {
+        let mut args = Some($args);
+        let mut _guard = None;
+
+        let $populate = &mut |stack: &mut Stack| {
+            if let Some(args) = args.take() {
+                // Safety: We hold onto the guard for the duration of this call.
+                _guard = Some(unsafe { vm_try!(args.unsafe_into_stack(stack)) });
+            }
+
+            VmResult::Ok(())
+        };
+    };
+}
+
 /// Indicating the kind of isolation that is present for a frame.
 #[derive(Debug, Clone, Copy)]
 pub enum Isolated {
@@ -618,60 +634,49 @@ impl Vm {
     }
 
     /// Helper function to call an instance function.
-    #[inline(always)]
-    pub(crate) fn call_instance_fn<H, A>(
+    pub(crate) fn call_instance_fn(
         &mut self,
         isolated: Isolated,
         target: Value,
-        hash: H,
-        args: A,
+        hash: impl ToTypeHash,
+        args: impl GuardedArgs,
         out: Output,
-    ) -> VmResult<CallResult<()>>
-    where
-        H: ToTypeHash,
-        A: GuardedArgs,
-    {
+    ) -> VmResult<CallResult<()>> {
         let count = args.count().wrapping_add(1);
         let type_hash = vm_try!(target.type_hash());
         let hash = Hash::associated_function(type_hash, hash.to_type_hash());
-        self.call_hash_with(isolated, hash, target, args, count, out)
+        populate!(populate, args);
+        self.call_hash_with(isolated, hash, target, populate, count, out)
     }
 
     /// Helper to call a field function.
-    #[inline(always)]
-    fn call_field_fn<N, A>(
+    fn call_field_fn(
         &mut self,
         protocol: Protocol,
         target: Value,
-        name: N,
-        args: A,
+        name: impl IntoHash,
+        args: impl GuardedArgs,
         out: Output,
-    ) -> VmResult<CallResult<()>>
-    where
-        N: IntoHash,
-        A: GuardedArgs,
-    {
+    ) -> VmResult<CallResult<()>> {
         let count = args.count().wrapping_add(1);
         let hash = Hash::field_function(protocol, vm_try!(target.type_hash()), name);
-        self.call_hash_with(Isolated::None, hash, target, args, count, out)
+        populate!(populate, args);
+        self.call_hash_with(Isolated::None, hash, target, populate, count, out)
     }
 
     /// Helper to call an index function.
-    #[inline(always)]
-    fn call_index_fn<A>(
+    fn call_index_fn(
         &mut self,
         protocol: Protocol,
         target: Value,
         index: usize,
-        args: A,
+        args: impl GuardedArgs,
         out: Output,
-    ) -> VmResult<CallResult<()>>
-    where
-        A: GuardedArgs,
-    {
+    ) -> VmResult<CallResult<()>> {
         let count = args.count().wrapping_add(1);
         let hash = Hash::index_function(protocol, vm_try!(target.type_hash()), Hash::index(index));
-        self.call_hash_with(Isolated::None, hash, target, args, count, out)
+        populate!(populate, args);
+        self.call_hash_with(Isolated::None, hash, target, populate, count, out)
     }
 
     fn called_function_hook(&self, hash: Hash) -> VmResult<()> {
@@ -684,18 +689,15 @@ impl Vm {
         })
     }
 
-    fn call_hash_with<A>(
+    fn call_hash_with(
         &mut self,
         isolated: Isolated,
         hash: Hash,
         target: Value,
-        args: A,
+        populate: &mut dyn FnMut(&mut Stack) -> VmResult<()>,
         count: usize,
         out: Output,
-    ) -> VmResult<CallResult<()>>
-    where
-        A: GuardedArgs,
-    {
+    ) -> VmResult<CallResult<()>> {
         if let Some(UnitFn::Offset {
             offset,
             call,
@@ -708,13 +710,12 @@ impl Vm {
             let addr = self.stack.addr();
             vm_try!(self.called_function_hook(hash));
             vm_try!(self.stack.push(target));
-            // Safety: We hold onto the guard for the duration of this call.
-            let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut self.stack)) };
+            vm_try!(populate(&mut self.stack));
 
             let result = self.call_offset_fn(offset, call, addr, count, isolated, out);
-            self.stack.truncate(addr);
 
             if vm_try!(result) {
+                self.stack.truncate(addr);
                 return VmResult::Ok(CallResult::Frame);
             } else {
                 return VmResult::Ok(CallResult::Ok(()));
@@ -725,8 +726,8 @@ impl Vm {
             let addr = self.stack.addr();
             vm_try!(self.called_function_hook(hash));
             vm_try!(self.stack.push(target));
-            // Safety: We hold onto the guard for the duration of this call.
-            let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut self.stack)) };
+            vm_try!(populate(&mut self.stack));
+
             let result = handler(&mut self.stack, addr, count, out);
             self.stack.truncate(addr);
             vm_try!(result);

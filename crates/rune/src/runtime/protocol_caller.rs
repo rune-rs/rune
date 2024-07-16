@@ -30,8 +30,7 @@ pub(crate) trait ProtocolCaller: Sized {
         args: A,
     ) -> VmResult<CallResultOnly<Value>>
     where
-        A: GuardedArgs,
-        Self: Sized;
+        A: GuardedArgs;
 }
 
 /// Use the global environment caller.
@@ -93,7 +92,6 @@ impl ProtocolCaller for EnvProtocolCaller {
                 let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut stack)) };
                 vm_try!(handler(&mut stack, addr, count, addr.output()));
                 let value = vm_try!(stack.at(addr)).clone();
-                stack.truncate(addr);
                 return VmResult::Ok(CallResultOnly::Ok(value));
             }
 
