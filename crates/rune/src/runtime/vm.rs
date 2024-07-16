@@ -1,4 +1,5 @@
 use core::cmp::Ordering;
+use core::fmt;
 use core::mem::replace;
 use core::ops;
 use core::ptr::NonNull;
@@ -10,7 +11,6 @@ use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
 use crate::hash::{Hash, IntoHash, ToTypeHash};
 use crate::modules::{option, result};
-use crate::runtime::budget;
 use crate::runtime::future::SelectFuture;
 use crate::runtime::unit::{UnitFn, UnitStorage};
 use crate::runtime::{
@@ -22,8 +22,47 @@ use crate::runtime::{
     Value, ValueKind, Variant, VariantData, Vec, VmError, VmErrorKind, VmExecution, VmHalt,
     VmIntegerRepr, VmResult, VmSendExecution,
 };
+use crate::runtime::{budget, ProtocolCaller};
 
 use super::{VmDiagnostics, VmDiagnosticsObj};
+
+/// Indicating the kind of isolation that is present for a frame.
+#[derive(Debug, Clone, Copy)]
+pub enum Isolated {
+    /// The frame is isolated, once pop it will cause the execution to complete.
+    Isolated,
+    /// No isolation is present, the vm will continue executing.
+    None,
+}
+
+impl Isolated {
+    #[inline]
+    pub(crate) fn new(value: bool) -> Self {
+        if value {
+            Self::Isolated
+        } else {
+            Self::None
+        }
+    }
+
+    #[inline]
+    pub(crate) fn then_some<T>(self, value: T) -> Option<T> {
+        match self {
+            Self::Isolated => Some(value),
+            Self::None => None,
+        }
+    }
+}
+
+impl fmt::Display for Isolated {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Isolated => write!(f, "isolated"),
+            Self::None => write!(f, "none"),
+        }
+    }
+}
 
 /// Small helper function to build errors.
 fn err<T, E>(error: E) -> VmResult<T>
@@ -36,9 +75,23 @@ where
 /// The result from a dynamic call. Indicates if the attempted operation is
 /// supported.
 #[derive(Debug)]
+pub(crate) enum CallResultOnly<T> {
+    /// Call successful. Return value is on the stack.
+    Ok(T),
+    /// Call failed because function was missing so the method is unsupported.
+    /// Contains target value.
+    Unsupported(Value),
+}
+
+/// The result from a dynamic call. Indicates if the attempted operation is
+/// supported.
+#[derive(Debug)]
 pub(crate) enum CallResult<T> {
     /// Call successful. Return value is on the stack.
     Ok(T),
+    /// A call frame was pushed onto the virtual machine, which needs to be
+    /// advanced to produce the result.
+    Frame,
     /// Call failed because function was missing so the method is unsupported.
     /// Contains target value.
     Unsupported(Value),
@@ -568,6 +621,7 @@ impl Vm {
     #[inline(always)]
     pub(crate) fn call_instance_fn<H, A>(
         &mut self,
+        isolated: Isolated,
         target: Value,
         hash: H,
         args: A,
@@ -580,44 +634,7 @@ impl Vm {
         let count = args.count().wrapping_add(1);
         let type_hash = vm_try!(target.type_hash());
         let hash = Hash::associated_function(type_hash, hash.to_type_hash());
-
-        if let Some(UnitFn::Offset {
-            offset,
-            call,
-            args: expected,
-            ..
-        }) = self.unit.function(hash)
-        {
-            let addr = self.stack.addr();
-            vm_try!(self.stack.push(target));
-            // Safety: We hold onto the guard for the duration of this call.
-            let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut self.stack)) };
-            vm_try!(check_args(count, expected));
-            vm_try!(self.call_offset_fn(offset, call, addr, count, out));
-            return VmResult::Ok(CallResult::Ok(()));
-        }
-
-        if let Some(handler) = self.context.function(hash) {
-            let addr = self.stack.addr();
-            vm_try!(self.called_function_hook(hash));
-            vm_try!(self.stack.push(target));
-            // Safety: We hold onto the guard for the duration of this call.
-            let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut self.stack)) };
-            vm_try!(handler(&mut self.stack, addr, count, out));
-            return VmResult::Ok(CallResult::Ok(()));
-        }
-
-        VmResult::Ok(CallResult::Unsupported(target))
-    }
-
-    fn called_function_hook(&self, hash: Hash) -> VmResult<()> {
-        crate::runtime::env::exclusive(|_, _, diagnostics| {
-            if let Some(diagnostics) = diagnostics {
-                vm_try!(diagnostics.function_used(hash, self.ip()));
-            }
-
-            VmResult::Ok(())
-        })
+        self.call_hash_with(isolated, hash, target, args, count, out)
     }
 
     /// Helper to call a field function.
@@ -636,17 +653,7 @@ impl Vm {
     {
         let count = args.count().wrapping_add(1);
         let hash = Hash::field_function(protocol, vm_try!(target.type_hash()), name);
-
-        if let Some(handler) = self.context.function(hash) {
-            let addr = self.stack.addr();
-            vm_try!(self.called_function_hook(hash));
-            vm_try!(self.stack.push(target));
-            let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut self.stack)) };
-            vm_try!(handler(&mut self.stack, addr, count, out));
-            return VmResult::Ok(CallResult::Ok(()));
-        }
-
-        VmResult::Ok(CallResult::Unsupported(target))
+        self.call_hash_with(Isolated::None, hash, target, args, count, out)
     }
 
     /// Helper to call an index function.
@@ -664,12 +671,65 @@ impl Vm {
     {
         let count = args.count().wrapping_add(1);
         let hash = Hash::index_function(protocol, vm_try!(target.type_hash()), Hash::index(index));
+        self.call_hash_with(Isolated::None, hash, target, args, count, out)
+    }
+
+    fn called_function_hook(&self, hash: Hash) -> VmResult<()> {
+        crate::runtime::env::exclusive(|_, _, diagnostics| {
+            if let Some(diagnostics) = diagnostics {
+                vm_try!(diagnostics.function_used(hash, self.ip()));
+            }
+
+            VmResult::Ok(())
+        })
+    }
+
+    fn call_hash_with<A>(
+        &mut self,
+        isolated: Isolated,
+        hash: Hash,
+        target: Value,
+        args: A,
+        count: usize,
+        out: Output,
+    ) -> VmResult<CallResult<()>>
+    where
+        A: GuardedArgs,
+    {
+        if let Some(UnitFn::Offset {
+            offset,
+            call,
+            args: expected,
+            ..
+        }) = self.unit.function(hash)
+        {
+            vm_try!(check_args(count, expected));
+
+            let addr = self.stack.addr();
+            vm_try!(self.called_function_hook(hash));
+            vm_try!(self.stack.push(target));
+            // Safety: We hold onto the guard for the duration of this call.
+            let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut self.stack)) };
+
+            let result = self.call_offset_fn(offset, call, addr, count, isolated, out);
+            self.stack.truncate(addr);
+
+            if vm_try!(result) {
+                return VmResult::Ok(CallResult::Frame);
+            } else {
+                return VmResult::Ok(CallResult::Ok(()));
+            }
+        }
 
         if let Some(handler) = self.context.function(hash) {
             let addr = self.stack.addr();
+            vm_try!(self.called_function_hook(hash));
             vm_try!(self.stack.push(target));
+            // Safety: We hold onto the guard for the duration of this call.
             let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut self.stack)) };
-            vm_try!(handler(&mut self.stack, addr, count, out));
+            let result = handler(&mut self.stack, addr, count, out);
+            self.stack.truncate(addr);
+            vm_try!(result);
             return VmResult::Ok(CallResult::Ok(()));
         }
 
@@ -705,7 +765,7 @@ impl Vm {
         ip: usize,
         addr: InstAddress,
         args: usize,
-        isolated: bool,
+        isolated: Isolated,
         out: Output,
     ) -> Result<(), VmErrorKind> {
         tracing::trace!("pushing call frame");
@@ -742,12 +802,12 @@ impl Vm {
 
     /// Pop a call frame and return it.
     #[tracing::instrument(skip(self), fields(call_frames = self.call_frames.len(), top = self.stack.top(), stack = self.stack.len(), self.ip))]
-    pub(crate) fn pop_call_frame(&mut self) -> Result<(bool, Option<Output>), VmErrorKind> {
+    pub(crate) fn pop_call_frame(&mut self) -> Result<(Isolated, Option<Output>), VmErrorKind> {
         tracing::trace!("popping call frame");
 
         let Some(frame) = self.call_frames.pop() else {
             self.stack.pop_stack_top(0)?;
-            return Ok((true, None));
+            return Ok((Isolated::Isolated, None));
         };
 
         tracing::trace!(?frame);
@@ -1021,12 +1081,9 @@ impl Vm {
 
         let hash = index.hash();
 
-        VmResult::Ok(
-            match vm_try!(self.call_field_fn(Protocol::GET, target, hash, (), out)) {
-                CallResult::Ok(()) => CallResult::Ok(()),
-                CallResult::Unsupported(target) => CallResult::Unsupported(target),
-            },
-        )
+        let result = vm_try!(self.call_field_fn(Protocol::GET, target, hash, (), out));
+
+        VmResult::Ok(result)
     }
 
     fn try_object_slot_index_set(
@@ -1071,11 +1128,9 @@ impl Vm {
         }
 
         let hash = field.hash();
-
-        let value =
+        let result =
             vm_try!(self.call_field_fn(Protocol::SET, target, hash, (value,), Output::discard()));
-
-        VmResult::Ok(value)
+        VmResult::Ok(result)
     }
 
     fn on_tuple<F, O>(&self, ty: TypeCheck, value: &Value, f: F) -> VmResult<Option<O>>
@@ -1270,6 +1325,7 @@ impl Vm {
         call: Call,
         addr: InstAddress,
         args: usize,
+        isolated: Isolated,
         out: Output,
     ) -> Result<bool, VmErrorKind> {
         let moved = match call {
@@ -1278,7 +1334,7 @@ impl Vm {
                 false
             }
             Call::Immediate => {
-                self.push_call_frame(offset, addr, args, false, out)?;
+                self.push_call_frame(offset, addr, args, isolated, out)?;
                 true
             }
             Call::Stream => {
@@ -1341,9 +1397,13 @@ impl Vm {
     ) -> VmResult<()> {
         match fallback {
             TargetFallback::Value(lhs, rhs) => {
-                if let CallResult::Unsupported(lhs) =
-                    vm_try!(self.call_instance_fn(lhs, protocol, (&rhs,), Output::discard()))
-                {
+                if let CallResult::Unsupported(lhs) = vm_try!(self.call_instance_fn(
+                    Isolated::None,
+                    lhs,
+                    protocol,
+                    (&rhs,),
+                    Output::discard()
+                )) {
                     return err(VmErrorKind::UnsupportedBinaryOperation {
                         op: protocol.name,
                         lhs: vm_try!(lhs.type_info()),
@@ -1421,7 +1481,7 @@ impl Vm {
         let rhs = rhs.clone();
 
         if let CallResult::Unsupported(lhs) =
-            vm_try!(self.call_instance_fn(lhs, protocol, (&rhs,), out))
+            vm_try!(self.call_instance_fn(Isolated::None, lhs, protocol, (&rhs,), out))
         {
             return err(VmErrorKind::UnsupportedBinaryOperation {
                 op: protocol.name,
@@ -1467,7 +1527,7 @@ impl Vm {
         };
 
         if let CallResult::Unsupported(lhs) =
-            vm_try!(self.call_instance_fn(lhs, protocol, (&rhs,), out))
+            vm_try!(self.call_instance_fn(Isolated::None, lhs, protocol, (&rhs,), out))
         {
             return err(VmErrorKind::UnsupportedBinaryOperation {
                 op: protocol.name,
@@ -1551,7 +1611,7 @@ impl Vm {
         }
 
         if let CallResult::Unsupported(lhs) =
-            vm_try!(self.call_instance_fn(lhs, protocol, (&rhs,), out))
+            vm_try!(self.call_instance_fn(Isolated::None, lhs, protocol, (&rhs,), out))
         {
             return err(VmErrorKind::UnsupportedBinaryOperation {
                 op: protocol.name,
@@ -2161,6 +2221,7 @@ impl Vm {
         let value = value.clone();
 
         if let CallResult::Unsupported(target) = vm_try!(self.call_instance_fn(
+            Isolated::None,
             target,
             Protocol::INDEX_SET,
             (&index, &value),
@@ -2320,9 +2381,13 @@ impl Vm {
             let target = target.clone();
             let index = index.clone();
 
-            if let CallResult::Unsupported(target) =
-                vm_try!(self.call_instance_fn(target, Protocol::INDEX_GET, (&index,), out))
-            {
+            if let CallResult::Unsupported(target) = vm_try!(self.call_instance_fn(
+                Isolated::None,
+                target,
+                Protocol::INDEX_GET,
+                (&index,),
+                out
+            )) {
                 return err(VmErrorKind::UnsupportedIndexGet {
                     target: vm_try!(target.type_info()),
                     index: vm_try!(index.type_info()),
@@ -2417,12 +2482,15 @@ impl Vm {
     ) -> VmResult<()> {
         let target = vm_try!(self.stack.at(addr)).clone();
 
-        match vm_try!(self.try_object_slot_index_get(target, slot, out)) {
-            CallResult::Ok(()) => VmResult::Ok(()),
-            CallResult::Unsupported(target) => err(VmErrorKind::UnsupportedObjectSlotIndexGet {
+        if let CallResult::Unsupported(target) =
+            vm_try!(self.try_object_slot_index_get(target, slot, out))
+        {
+            return err(VmErrorKind::UnsupportedObjectSlotIndexGet {
                 target: vm_try!(target.type_info()),
-            }),
+            });
         }
+
+        VmResult::Ok(())
     }
 
     /// Operation to allocate an object.
@@ -2624,27 +2692,27 @@ impl Vm {
     /// Perform the try operation on the given stack location.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_try(&mut self, addr: InstAddress, out: Output) -> VmResult<Option<Output>> {
-        let value = vm_try!(self.stack.at(addr)).clone();
-
         let result = 'out: {
-            match &*vm_try!(value.borrow_kind_ref()) {
-                ValueKind::Result(result) => break 'out vm_try!(result::result_try(result)),
-                ValueKind::Option(option) => break 'out vm_try!(option::option_try(option)),
-                _ => {}
+            let value = {
+                let value = vm_try!(self.stack.at(addr));
+
+                match &*vm_try!(value.borrow_kind_ref()) {
+                    ValueKind::Result(result) => break 'out vm_try!(result::result_try(result)),
+                    ValueKind::Option(option) => break 'out vm_try!(option::option_try(option)),
+                    _ => {}
+                }
+
+                value.clone()
+            };
+
+            match vm_try!(self.try_call_protocol_fn(Protocol::TRY, value, ())) {
+                CallResultOnly::Ok(value) => vm_try!(ControlFlow::from_value(value)),
+                CallResultOnly::Unsupported(target) => {
+                    return err(VmErrorKind::UnsupportedTryOperand {
+                        actual: vm_try!(target.type_info()),
+                    })
+                }
             }
-
-            let addr = self.stack.addr();
-
-            if let CallResult::Unsupported(target) =
-                vm_try!(self.call_instance_fn(value, Protocol::TRY, (), addr.output()))
-            {
-                return err(VmErrorKind::UnsupportedTryOperand {
-                    actual: vm_try!(target.type_info()),
-                });
-            }
-
-            let value = vm_try!(self.stack.at(addr)).clone();
-            vm_try!(ControlFlow::from_value(value))
         };
 
         match result {
@@ -2803,13 +2871,10 @@ impl Vm {
 
             let value = value.clone();
 
-            let CallResult::Ok(()) =
-                vm_try!(self.call_instance_fn(value, Protocol::IS_VARIANT, (index,), out))
-            else {
-                break 'out false;
-            };
-
-            return VmResult::Ok(());
+            match vm_try!(self.try_call_protocol_fn(Protocol::IS_VARIANT, value, (index,))) {
+                CallResultOnly::Ok(value) => vm_try!(bool::from_value(value)),
+                CallResultOnly::Unsupported(..) => false,
+            }
         };
 
         vm_try!(out.store(&mut self.stack, is_match));
@@ -3002,7 +3067,7 @@ impl Vm {
                 ..
             } => {
                 vm_try!(check_args(args, expected));
-                vm_try!(self.call_offset_fn(offset, call, addr, args, out));
+                vm_try!(self.call_offset_fn(offset, call, addr, args, Isolated::None, out));
             }
             UnitFn::EmptyStruct { hash } => {
                 vm_try!(check_args(args, 0));
@@ -3076,7 +3141,7 @@ impl Vm {
         args: usize,
         out: Output,
     ) -> VmResult<()> {
-        vm_try!(self.call_offset_fn(offset, call, addr, args, out));
+        vm_try!(self.call_offset_fn(offset, call, addr, args, Isolated::None, out));
         VmResult::Ok(())
     }
 
@@ -3099,8 +3164,9 @@ impl Vm {
             ..
         }) = self.unit.function(hash)
         {
+            vm_try!(self.called_function_hook(hash));
             vm_try!(check_args(args, expected));
-            vm_try!(self.call_offset_fn(offset, call, addr, args, out));
+            vm_try!(self.call_offset_fn(offset, call, addr, args, Isolated::None, out));
             return VmResult::Ok(());
         }
 
@@ -3579,7 +3645,7 @@ pub struct CallFrame {
     pub top: usize,
     /// Indicates that the call frame is isolated and should force an exit into
     /// the vm execution context.
-    pub isolated: bool,
+    pub isolated: Isolated,
     /// Keep the value produced from the call frame.
     pub out: Output,
 }

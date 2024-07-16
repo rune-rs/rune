@@ -71,46 +71,6 @@ macro_rules! repeat_macro {
     };
 }
 
-macro_rules! cfg_emit {
-    ($($item:item)*) => {
-        $(
-            #[cfg(feature = "emit")]
-            #[cfg_attr(rune_docsrs, doc(cfg(feature = "emit")))]
-            $item
-        )*
-    }
-}
-
-macro_rules! cfg_workspace {
-    ($($item:item)*) => {
-        $(
-            #[cfg(feature = "workspace")]
-            #[cfg_attr(rune_docsrs, doc(cfg(feature = "workspace")))]
-            $item
-        )*
-    }
-}
-
-macro_rules! cfg_cli {
-    ($($item:item)*) => {
-        $(
-            #[cfg(feature = "cli")]
-            #[cfg_attr(rune_docsrs, doc(cfg(feature = "cli")))]
-            $item
-        )*
-    }
-}
-
-macro_rules! cfg_doc {
-    ($($item:item)*) => {
-        $(
-            #[cfg(feature = "doc")]
-            #[cfg_attr(rune_docsrs, doc(cfg(feature = "doc")))]
-            $item
-        )*
-    }
-}
-
 macro_rules! cfg_std {
     ($($item:item)*) => {
         $(

@@ -13,7 +13,7 @@ use crate::cli::{
 use crate::compile::{FileSourceLoader, ItemBuf};
 use crate::doc::TestParams;
 use crate::modules::capture_io::CaptureIo;
-use crate::runtime::{UnitFn, Value, Vm, VmError, VmResult, ValueKind};
+use crate::runtime::{UnitFn, Value, ValueKind, Vm, VmError, VmResult};
 use crate::termcolor::{Color, ColorSpec, WriteColor};
 use crate::{Diagnostics, Hash, Source, Sources, Unit};
 

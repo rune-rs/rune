@@ -13,7 +13,7 @@ use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
 use crate::compile::ItemBuf;
-use crate::runtime::vm::CallResult;
+use crate::runtime::vm::CallResultOnly;
 use crate::runtime::{
     AccessError, AccessErrorKind, AnyObj, AnyObjError, BorrowMut, BorrowRef, Bytes, ConstValue,
     ControlFlow, EnvProtocolCaller, Format, Formatter, FromValue, FullTypeOf, Function, Future,
@@ -1590,7 +1590,7 @@ impl Value {
             }
         }
 
-        if let CallResult::Ok(value) =
+        if let CallResultOnly::Ok(value) =
             vm_try!(caller.try_call_protocol_fn(Protocol::PARTIAL_EQ, self.clone(), (b.clone(),)))
         {
             return <_>::from_value(value);
@@ -1653,7 +1653,7 @@ impl Value {
             _ => {}
         }
 
-        if let CallResult::Ok(value) =
+        if let CallResultOnly::Ok(value) =
             vm_try!(caller.try_call_protocol_fn(Protocol::HASH, self.clone(), (hasher,)))
         {
             return <_>::from_value(value);
@@ -1774,7 +1774,7 @@ impl Value {
             _ => {}
         }
 
-        if let CallResult::Ok(value) =
+        if let CallResultOnly::Ok(value) =
             vm_try!(caller.try_call_protocol_fn(Protocol::EQ, self.clone(), (b.clone(),)))
         {
             return <_>::from_value(value);
@@ -1897,7 +1897,7 @@ impl Value {
             _ => {}
         }
 
-        if let CallResult::Ok(value) =
+        if let CallResultOnly::Ok(value) =
             vm_try!(caller.try_call_protocol_fn(Protocol::PARTIAL_CMP, self.clone(), (b.clone(),)))
         {
             return <_>::from_value(value);
@@ -2022,7 +2022,7 @@ impl Value {
             _ => {}
         }
 
-        if let CallResult::Ok(value) =
+        if let CallResultOnly::Ok(value) =
             vm_try!(caller.try_call_protocol_fn(Protocol::CMP, self.clone(), (b.clone(),)))
         {
             return <_>::from_value(value);
