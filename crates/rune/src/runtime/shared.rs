@@ -17,6 +17,7 @@ use crate::alloc::{self, Box};
 use crate::runtime::{Access, AccessError, BorrowMut, BorrowRef, RawAccessGuard, Snapshot};
 
 /// A shared value.
+#[repr(transparent)]
 pub(crate) struct Shared<T: ?Sized> {
     inner: ptr::NonNull<SharedBox<T>>,
 }

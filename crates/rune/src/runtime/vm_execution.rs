@@ -207,7 +207,7 @@ where
             return VmResult::err(VmErrorKind::ExpectedExecutionState { actual: state });
         };
 
-        vm_try!(out.store(self.head.as_mut().stack_mut(), || VmResult::Ok(value)));
+        vm_try!(out.store(self.head.as_mut().stack_mut(), value));
         self.inner_async_resume(None).await
     }
 
@@ -228,7 +228,7 @@ where
         diagnostics: Option<&mut dyn VmDiagnostics>,
     ) -> VmResult<GeneratorState> {
         if let ExecutionState::Resumed(out) = self.state {
-            vm_try!(out.store(self.head.as_mut().stack_mut(), Value::empty));
+            vm_try!(out.store(self.head.as_mut().stack_mut(), Value::unit));
         }
 
         self.inner_async_resume(diagnostics).await
@@ -262,7 +262,7 @@ where
                 VmHalt::Yielded(addr, out) => {
                     let value = match addr {
                         Some(addr) => vm_try!(vm.stack().at(addr)).clone(),
-                        None => vm_try!(Value::empty()),
+                        None => vm_try!(Value::unit()),
                     };
 
                     self.state = ExecutionState::Resumed(out);
@@ -294,7 +294,7 @@ where
             return VmResult::err(VmErrorKind::ExpectedExecutionState { actual: state });
         };
 
-        vm_try!(out.store(self.head.as_mut().stack_mut(), || VmResult::Ok(value)));
+        vm_try!(out.store(self.head.as_mut().stack_mut(), value));
         self.inner_resume(None)
     }
 
@@ -320,7 +320,7 @@ where
         diagnostics: Option<&mut dyn VmDiagnostics>,
     ) -> VmResult<GeneratorState> {
         if let ExecutionState::Resumed(out) = replace(&mut self.state, ExecutionState::Suspended) {
-            vm_try!(out.store(self.head.as_mut().stack_mut(), Value::empty()));
+            vm_try!(out.store(self.head.as_mut().stack_mut(), Value::unit()));
         }
 
         self.inner_resume(diagnostics)
@@ -351,7 +351,7 @@ where
                 VmHalt::Yielded(addr, out) => {
                     let value = match addr {
                         Some(addr) => vm_try!(vm.stack().at(addr)).clone(),
-                        None => vm_try!(Value::empty()),
+                        None => vm_try!(Value::unit()),
                     };
 
                     self.state = ExecutionState::Resumed(out);
@@ -448,7 +448,7 @@ where
 
         let value = match addr {
             Some(addr) => vm_try!(self.head.as_ref().stack().at(addr)).clone(),
-            None => vm_try!(Value::empty()),
+            None => vm_try!(Value::unit()),
         };
 
         debug_assert!(self.states.is_empty(), "Execution states should be empty");

@@ -276,7 +276,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Value::empty().map_err(E::custom)
+        Value::unit().map_err(E::custom)
     }
 
     #[inline]

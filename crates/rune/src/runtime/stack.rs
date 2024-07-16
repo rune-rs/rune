@@ -190,8 +190,7 @@ impl Stack {
             return Ok(());
         }
 
-        let empty = Value::empty()?;
-        self.stack.try_resize(self.top + size, empty)?;
+        self.stack.try_resize_with(self.top + size, Value::empty)?;
         Ok(())
     }
 

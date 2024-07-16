@@ -41,7 +41,7 @@ where
         };
 
         let state = if execution.is_resumed() {
-            vm_try!(execution.async_resume_with(vm_try!(Value::empty())).await)
+            vm_try!(execution.async_resume_with(Value::empty()).await)
         } else {
             vm_try!(execution.async_resume().await)
         };
