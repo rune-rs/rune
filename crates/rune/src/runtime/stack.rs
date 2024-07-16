@@ -62,27 +62,125 @@ pub struct Stack {
 
 impl Stack {
     /// Construct a new stack.
-    ///
-    /// ```
-    /// use rune::runtime::{Stack, InstAddress};
-    ///
-    /// let mut stack = Stack::new();
-    /// stack.push(rune::to_value(String::from("Hello World"))?);
-    /// let value = stack.at(InstAddress::ZERO)?;
-    /// let value: String = rune::from_value(value)?;
-    /// assert_eq!(value, "Hello World");
-    /// # Ok::<_, rune::support::Error>(())
-    /// ```
-    pub const fn new() -> Self {
+    pub(crate) const fn new() -> Self {
         Self {
             stack: Vec::new(),
             top: 0,
         }
     }
 
+    /// Access the value at the given frame offset.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::vm_try;
+    /// use rune::Module;
+    /// use rune::runtime::{Output, Stack, VmResult, InstAddress};
+    ///
+    /// fn add_one(stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
+    ///     let value = vm_try!(vm_try!(stack.at(addr)).as_integer());
+    ///     out.store(stack, value + 1);
+    ///     VmResult::Ok(())
+    /// }
+    /// ```
+    pub fn at(&self, addr: InstAddress) -> Result<&Value, StackError> {
+        self.top
+            .checked_add(addr.offset())
+            .and_then(|n| self.stack.get(n))
+            .ok_or(StackError { addr })
+    }
+
+    /// Get a value mutable at the given index from the stack bottom.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::vm_try;
+    /// use rune::Module;
+    /// use rune::runtime::{Output, Stack, VmResult, InstAddress};
+    ///
+    /// fn add_one(stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
+    ///     let mut value = vm_try!(stack.at_mut(addr));
+    ///     let number = vm_try!(value.as_integer());
+    ///     *value = vm_try!(rune::to_value(number + 1));
+    ///     out.store(stack, ());
+    ///     VmResult::Ok(())
+    /// }
+    /// ```
+    pub fn at_mut(&mut self, addr: InstAddress) -> Result<&mut Value, StackError> {
+        self.top
+            .checked_add(addr.offset())
+            .and_then(|n| self.stack.get_mut(n))
+            .ok_or(StackError { addr })
+    }
+
+    /// Get the slice at the given address with the given length.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::vm_try;
+    /// use rune::Module;
+    /// use rune::runtime::{Output, Stack, ToValue, VmResult, InstAddress};
+    ///
+    /// fn sum(stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
+    ///     let mut number = 0;
+    ///
+    ///     for value in vm_try!(stack.slice_at(addr, args)) {
+    ///         number += vm_try!(value.as_integer());
+    ///     }
+    ///
+    ///     out.store(stack, number);
+    ///     VmResult::Ok(())
+    /// }
+    /// ```
+    pub fn slice_at(&self, addr: InstAddress, len: usize) -> Result<&[Value], SliceError> {
+        let stack_len = self.stack.len();
+
+        if let Some(slice) = inner_slice_at(&self.stack, self.top, addr, len) {
+            return Ok(slice);
+        }
+
+        Err(slice_error(stack_len, self.top, addr, len))
+    }
+
+    /// Get the mutable slice at the given address with the given length.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::vm_try;
+    /// use rune::Module;
+    /// use rune::runtime::{Output, Stack, VmResult, InstAddress};
+    ///
+    /// fn sum(stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
+    ///     for value in vm_try!(stack.slice_at_mut(addr, args)) {
+    ///         let number = value.as_integer();
+    ///         *value = vm_try!(Value::try_from(number + 1));
+    ///     }
+    ///
+    ///     out.store(stack, ());
+    ///     VmResult::Ok(())
+    /// }
+    /// ```
+    pub fn slice_at_mut(
+        &mut self,
+        addr: InstAddress,
+        len: usize,
+    ) -> Result<&mut [Value], SliceError> {
+        let stack_len = self.stack.len();
+
+        if let Some(slice) = inner_slice_at_mut(&mut self.stack, self.top, addr, len) {
+            return Ok(slice);
+        }
+
+        Err(slice_error(stack_len, self.top, addr, len))
+    }
+
     /// The current top address of the stack.
     #[inline]
-    pub const fn addr(&self) -> InstAddress {
+    pub(crate) const fn addr(&self) -> InstAddress {
         InstAddress::new(self.stack.len().saturating_sub(self.top))
     }
 
@@ -98,62 +196,11 @@ impl Stack {
     }
 
     /// Construct a new stack with the given capacity pre-allocated.
-    ///
-    /// ```
-    /// use rune::runtime::{Stack, InstAddress};
-    ///
-    /// let mut stack = Stack::with_capacity(16)?;
-    /// stack.push(rune::to_value(String::from("Hello World"))?);
-    /// let value = stack.at(InstAddress::ZERO)?;
-    /// let value: String = rune::from_value(value)?;
-    /// assert_eq!(value, "Hello World");
-    /// # Ok::<_, rune::support::Error>(())
-    /// ```
-    pub fn with_capacity(capacity: usize) -> alloc::Result<Self> {
+    pub(crate) fn with_capacity(capacity: usize) -> alloc::Result<Self> {
         Ok(Self {
             stack: Vec::try_with_capacity(capacity)?,
             top: 0,
         })
-    }
-
-    /// Check if the stack is empty.
-    ///
-    /// This ignores [top] and will just check if the full stack is
-    /// empty.
-    ///
-    /// ```
-    /// use rune::runtime::Stack;
-    ///
-    /// let mut stack = Stack::new();
-    /// assert!(stack.is_empty());
-    /// stack.push(rune::to_value(String::from("Hello World"))?);
-    /// assert!(!stack.is_empty());
-    /// # Ok::<_, rune::support::Error>(())
-    /// ```
-    ///
-    /// [top]: Self::top()
-    pub fn is_empty(&self) -> bool {
-        self.stack.is_empty()
-    }
-
-    /// Get the length of the stack.
-    ///
-    /// This ignores [top] and will just return the total length of
-    /// the stack.
-    ///
-    /// ```
-    /// use rune::runtime::Stack;
-    ///
-    /// let mut stack = Stack::new();
-    /// assert_eq!(stack.len(), 0);
-    /// stack.push(rune::to_value(String::from("Hello World"))?);
-    /// assert_eq!(stack.len(), 1);
-    /// # Ok::<_, rune::support::Error>(())
-    /// ```
-    ///
-    /// [top]: Self::top()
-    pub fn len(&self) -> usize {
-        self.stack.len()
     }
 
     /// Perform a raw access over the stack.
@@ -162,7 +209,8 @@ impl Stack {
     /// index is within range.
     ///
     /// [top]: Self::top()
-    pub fn get<I>(&self, index: I) -> Option<&<I as slice::SliceIndex<[Value]>>::Output>
+    #[cfg(feature = "cli")]
+    pub(crate) fn get<I>(&self, index: I) -> Option<&<I as slice::SliceIndex<[Value]>>::Output>
     where
         I: slice::SliceIndex<[Value]>,
     {
@@ -170,19 +218,7 @@ impl Stack {
     }
 
     /// Push a value onto the stack.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rune::runtime::{Stack, InstAddress};
-    ///
-    /// let mut stack = Stack::new();
-    /// stack.push(rune::to_value(String::from("Hello World"))?);
-    /// let value = stack.at(InstAddress::ZERO)?;
-    /// assert_eq!(rune::from_value::<String>(value)?, "Hello World");
-    /// # Ok::<_, rune::support::Error>(())
-    /// ```
-    pub fn push<T>(&mut self, value: T) -> alloc::Result<()>
+    pub(crate) fn push<T>(&mut self, value: T) -> alloc::Result<()>
     where
         T: TryInto<Value, Error: Into<alloc::Error>>,
     {
@@ -190,66 +226,36 @@ impl Stack {
         Ok(())
     }
 
+    /// Truncate the stack at the given address.
+    pub(crate) fn truncate(&mut self, addr: InstAddress) {
+        if let Some(len) = self.top.checked_add(addr.offset()) {
+            self.stack.truncate(len);
+        }
+    }
+
     /// Drain the current stack down to the current stack bottom.
     pub(crate) fn drain(&mut self) -> impl DoubleEndedIterator<Item = Value> + '_ {
         self.stack.drain(self.top..)
     }
 
-    /// Get the slice at the given address with the given length.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rune::runtime::{Stack, InstAddress};
-    ///
-    /// let mut stack = Stack::new();
-    /// stack.push(rune::to_value(1i64)?);
-    /// stack.push(rune::to_value(1i64)?);
-    /// stack.push(rune::to_value(1i64)?);
-    ///
-    /// let values = stack.slice_at(InstAddress::ZERO, 2)?;
-    /// assert_eq!(values.len(), 2);
-    /// # Ok::<_, rune::support::Error>(())
-    /// ```
-    pub fn slice_at(&self, addr: InstAddress, len: usize) -> Result<&[Value], SliceError> {
-        let stack_len = self.stack.len();
-
-        if let Some(slice) = inner_slice_at(&self.stack, self.top, addr, len) {
-            return Ok(slice);
-        }
-
-        Err(slice_error(stack_len, self.top, addr, len))
-    }
-
-    /// Get the mutable slice at the given address with the given length.
-    pub fn slice_at_mut(
-        &mut self,
-        addr: InstAddress,
-        len: usize,
-    ) -> Result<&mut [Value], SliceError> {
-        let stack_len = self.stack.len();
-
-        if let Some(slice) = inner_slice_at_mut(&mut self.stack, self.top, addr, len) {
-            return Ok(slice);
-        }
-
-        Err(slice_error(stack_len, self.top, addr, len))
-    }
-
     /// Get the slice at the given address with the given static length.
-    pub fn array_at<const N: usize>(&self, addr: InstAddress) -> Result<[&Value; N], SliceError> {
+    pub(crate) fn array_at<const N: usize>(
+        &self,
+        addr: InstAddress,
+    ) -> Result<[&Value; N], SliceError> {
         let slice = self.slice_at(addr, N)?;
         Ok(array::from_fn(|i| &slice[i]))
     }
 
     /// Clear the current stack.
-    pub fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         self.stack.clear();
         self.top = 0;
     }
 
     /// Iterate over the stack.
-    pub fn iter(&self) -> impl Iterator<Item = &Value> + '_ {
+    #[cfg(feature = "cli")]
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &Value> + '_ {
         self.stack.iter()
     }
 
@@ -258,55 +264,13 @@ impl Stack {
     /// The stack is partitioned into call frames, and once we enter a call
     /// frame the bottom of the stack corresponds to the bottom of the current
     /// call frame.
-    pub fn top(&self) -> usize {
+    pub(crate) const fn top(&self) -> usize {
         self.top
     }
 
-    /// Access the value at the given frame offset.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rune::runtime::{Stack, InstAddress};
-    ///
-    /// let mut stack = Stack::new();
-    /// stack.push(rune::to_value(String::from("Hello World"))?);
-    /// let value = stack.at(InstAddress::ZERO)?;
-    /// let value: String = rune::from_value(value)?;
-    /// assert_eq!(value, "Hello World");
-    /// # Ok::<_, rune::support::Error>(())
-    /// ```
-    pub fn at(&self, addr: InstAddress) -> Result<&Value, StackError> {
-        self.top
-            .checked_add(addr.offset())
-            .and_then(|n| self.stack.get(n))
-            .ok_or(StackError { addr })
-    }
-
-    /// Get a value mutable at the given index from the stack bottom.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rune::runtime::{Stack, InstAddress};
-    ///
-    /// let mut stack = Stack::new();
-    /// stack.push(rune::to_value(String::from("Hello World"))?);
-    /// let value = stack.at(InstAddress::ZERO)?;
-    /// let value: String = rune::from_value(value)?;
-    /// assert_eq!(value, "Hello World");
-    ///
-    /// *stack.at_mut(InstAddress::ZERO)? = rune::to_value(42i64)?;
-    /// let value = stack.at(InstAddress::ZERO)?;
-    /// let value: i64 = rune::from_value(value)?;
-    /// assert_eq!(value, 42);
-    /// # Ok::<_, rune::support::Error>(())
-    /// ```
-    pub fn at_mut(&mut self, addr: InstAddress) -> Result<&mut Value, StackError> {
-        self.top
-            .checked_add(addr.offset())
-            .and_then(|n| self.stack.get_mut(n))
-            .ok_or(StackError { addr })
+    /// Get the length of the stack.
+    pub(crate) const fn len(&self) -> usize {
+        self.stack.len()
     }
 
     /// Swap the value at position a with the value at position b.

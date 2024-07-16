@@ -1,20 +1,26 @@
-use crate::runtime::vm::CallResult;
+use crate::runtime::vm::{CallResult, CallResultOnly, Isolated};
 use crate::runtime::{
-    GuardedArgs, Output, Protocol, Stack, UnitFn, Value, Vm, VmError, VmErrorKind, VmResult,
+    GuardedArgs, Protocol, Stack, UnitFn, Value, Vm, VmError, VmErrorKind, VmExecution, VmResult,
 };
 use crate::Hash;
 
 /// Trait used for integrating an instance function call.
 pub(crate) trait ProtocolCaller: Sized {
     /// Call the given protocol function.
-    fn call_protocol_fn<A>(
-        &mut self,
-        protocol: Protocol,
-        target: Value,
-        args: A,
-    ) -> VmResult<Value>
+    fn call_protocol_fn<A>(&mut self, protocol: Protocol, target: Value, args: A) -> VmResult<Value>
     where
-        A: GuardedArgs;
+        A: GuardedArgs,
+    {
+        match vm_try!(self.try_call_protocol_fn(protocol, target, args)) {
+            CallResultOnly::Ok(value) => VmResult::Ok(value),
+            CallResultOnly::Unsupported(value) => {
+                VmResult::err(VmErrorKind::MissingProtocolFunction {
+                    protocol,
+                    instance: vm_try!(value.type_info()),
+                })
+            }
+        }
+    }
 
     /// Call the given protocol function.
     fn try_call_protocol_fn<A>(
@@ -22,15 +28,10 @@ pub(crate) trait ProtocolCaller: Sized {
         protocol: Protocol,
         target: Value,
         args: A,
-    ) -> VmResult<CallResult<Value>>
+    ) -> VmResult<CallResultOnly<Value>>
     where
         A: GuardedArgs,
-        Self: Sized,
-    {
-        VmResult::Ok(CallResult::Ok(vm_try!(
-            self.call_protocol_fn(protocol, target, args)
-        )))
-    }
+        Self: Sized;
 }
 
 /// Use the global environment caller.
@@ -39,11 +40,28 @@ pub(crate) trait ProtocolCaller: Sized {
 pub(crate) struct EnvProtocolCaller;
 
 impl ProtocolCaller for EnvProtocolCaller {
-    fn call_protocol_fn<A>(&mut self, protocol: Protocol, target: Value, args: A) -> VmResult<Value>
+    fn try_call_protocol_fn<A>(
+        &mut self,
+        protocol: Protocol,
+        target: Value,
+        args: A,
+    ) -> VmResult<CallResultOnly<Value>>
     where
         A: GuardedArgs,
     {
-        return crate::runtime::env::shared(|context, unit| {
+        /// Check that arguments matches expected or raise the appropriate error.
+        fn check_args(args: usize, expected: usize) -> Result<(), VmError> {
+            if args != expected {
+                return Err(VmError::from(VmErrorKind::BadArgumentCount {
+                    actual: args,
+                    expected,
+                }));
+            }
+
+            Ok(())
+        }
+
+        crate::runtime::env::shared(|context, unit| {
             let count = args.count() + 1;
             let hash = Hash::associated_function(vm_try!(target.type_hash()), protocol.hash);
 
@@ -64,54 +82,58 @@ impl ProtocolCaller for EnvProtocolCaller {
 
                 let mut vm = Vm::with_stack(context.clone(), unit.clone(), stack);
                 vm.set_ip(offset);
-                return call.call_with_vm(vm);
+                return VmResult::Ok(CallResultOnly::Ok(vm_try!(call.call_with_vm(vm))));
             }
 
-            let Some(handler) = context.function(hash) else {
-                return VmResult::err(VmErrorKind::MissingProtocolFunction {
-                    protocol,
-                    instance: vm_try!(target.type_info()),
-                });
-            };
-
-            let mut stack = vm_try!(Stack::with_capacity(count));
-            let addr = stack.addr();
-            vm_try!(stack.push(target));
-            // Safety: We hold onto the guard until the vm has completed.
-            let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut stack)) };
-            vm_try!(handler(&mut stack, addr, count, Output::keep(0)));
-            VmResult::Ok(vm_try!(stack.at(addr)).clone())
-        });
-
-        /// Check that arguments matches expected or raise the appropriate error.
-        fn check_args(args: usize, expected: usize) -> Result<(), VmError> {
-            if args != expected {
-                return Err(VmError::from(VmErrorKind::BadArgumentCount {
-                    actual: args,
-                    expected,
-                }));
+            if let Some(handler) = context.function(hash) {
+                let mut stack = vm_try!(Stack::with_capacity(count));
+                let addr = stack.addr();
+                vm_try!(stack.push(target));
+                // Safety: We hold onto the guard until the vm has completed.
+                let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut stack)) };
+                vm_try!(handler(&mut stack, addr, count, addr.output()));
+                let value = vm_try!(stack.at(addr)).clone();
+                stack.truncate(addr);
+                return VmResult::Ok(CallResultOnly::Ok(value));
             }
 
-            Ok(())
-        }
+            VmResult::Ok(CallResultOnly::Unsupported(target))
+        })
     }
 }
 
 impl ProtocolCaller for Vm {
-    fn call_protocol_fn<A>(&mut self, protocol: Protocol, target: Value, args: A) -> VmResult<Value>
+    fn try_call_protocol_fn<A>(
+        &mut self,
+        protocol: Protocol,
+        target: Value,
+        args: A,
+    ) -> VmResult<CallResultOnly<Value>>
     where
         A: GuardedArgs,
     {
         let addr = self.stack().addr();
+        vm_try!(self.stack_mut().push(()));
 
-        if let CallResult::Unsupported(..) =
-            vm_try!(self.call_instance_fn(target, protocol, args, addr.output()))
-        {
-            return VmResult::err(VmErrorKind::MissingFunction {
-                hash: protocol.hash,
-            });
+        match vm_try!(self.call_instance_fn(
+            Isolated::Isolated,
+            target,
+            protocol,
+            args,
+            addr.output()
+        )) {
+            CallResult::Unsupported(value) => VmResult::Ok(CallResultOnly::Unsupported(value)),
+            CallResult::Ok(()) => {
+                let value = vm_try!(self.stack().at(addr)).clone();
+                self.stack_mut().truncate(addr);
+                VmResult::Ok(CallResultOnly::Ok(value))
+            }
+            CallResult::Frame => {
+                let mut execution = VmExecution::new(self);
+                let value = vm_try!(execution.complete());
+                execution.vm_mut().stack_mut().truncate(addr);
+                VmResult::Ok(CallResultOnly::Ok(value))
+            }
         }
-
-        VmResult::Ok(vm_try!(self.stack().at(addr)).clone())
     }
 }

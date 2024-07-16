@@ -10,11 +10,13 @@ mod spanned_value;
 mod build;
 pub use self::build::{prepare, Build, BuildError};
 
-cfg_emit! {
-    mod emit;
-    #[doc(inline)]
-    pub use self::emit::EmitError;
-}
+#[cfg(feature = "emit")]
+#[cfg_attr(rune_docsrs, doc(cfg(feature = "emit")))]
+mod emit;
+#[cfg(feature = "emit")]
+#[cfg_attr(rune_docsrs, doc(cfg(feature = "emit")))]
+#[doc(inline)]
+pub use self::emit::EmitError;
 
 mod error;
 pub use self::error::WorkspaceError;

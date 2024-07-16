@@ -759,22 +759,22 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::Underflow {} => write!(f, "Numerical underflow"),
             VmErrorKind::DivideByZero {} => write!(f, "Division by zero"),
             VmErrorKind::MissingEntry { item, hash } => {
-                write!(f, "Missing entry `{item}` with hash `{hash}`",)
+                write!(f, "Missing entry `{item}` with hash `{hash}`")
             }
             VmErrorKind::MissingEntryHash { hash } => {
-                write!(f, "Missing entry with hash `{hash}`",)
+                write!(f, "Missing entry with hash `{hash}`")
             }
             VmErrorKind::MissingFunction { hash } => {
-                write!(f, "Missing function with hash `{hash}`",)
+                write!(f, "Missing function with hash `{hash}`")
             }
             VmErrorKind::MissingContextFunction { hash } => {
-                write!(f, "Missing context function with hash `{hash}`",)
+                write!(f, "Missing context function with hash `{hash}`")
             }
             VmErrorKind::MissingProtocolFunction { protocol, instance } => {
-                write!(f, "Missing protocol function `{protocol}` for `{instance}`",)
+                write!(f, "Missing protocol function `{protocol}` for `{instance}`")
             }
             VmErrorKind::MissingInstanceFunction { hash, instance } => {
-                write!(f, "Missing instance function `{hash}` for `{instance}`",)
+                write!(f, "Missing instance function `{hash}` for `{instance}`")
             }
             VmErrorKind::IpOutOfBounds { ip, length } => write!(
                 f,
@@ -787,20 +787,20 @@ impl fmt::Display for VmErrorKind {
                 )
             }
             VmErrorKind::UnsupportedUnaryOperation { op, operand } => {
-                write!(f, "Unsupported unary operation `{op}` on {operand}",)
+                write!(f, "Unsupported unary operation `{op}` on {operand}")
             }
             VmErrorKind::MissingStaticString { slot } => {
-                write!(f, "Static string slot `{slot}` does not exist",)
+                write!(f, "Static string slot `{slot}` does not exist")
             }
             VmErrorKind::MissingStaticObjectKeys { slot } => {
-                write!(f, "Static object keys slot `{slot}` does not exist",)
+                write!(f, "Static object keys slot `{slot}` does not exist")
             }
             VmErrorKind::MissingVariantRtti { hash } => write!(
                 f,
                 "Missing runtime information for variant with hash `{hash}`",
             ),
             VmErrorKind::MissingRtti { hash } => {
-                write!(f, "Missing runtime information for type with hash `{hash}`",)
+                write!(f, "Missing runtime information for type with hash `{hash}`")
             }
             VmErrorKind::BadArgumentCount { actual, expected } => write!(
                 f,
@@ -832,40 +832,40 @@ impl fmt::Display for VmErrorKind {
                 "The tuple index set operation is not supported on `{target}`",
             ),
             VmErrorKind::UnsupportedObjectSlotIndexGet { target } => {
-                write!(f, "Field not available to get on `{target}`",)
+                write!(f, "Field not available to get on `{target}`")
             }
             VmErrorKind::UnsupportedObjectSlotIndexSet { target } => {
-                write!(f, "Field not available to set on `{target}`",)
+                write!(f, "Field not available to set on `{target}`")
             }
             VmErrorKind::UnsupportedIs { value, test_type } => {
-                write!(f, "Operation `{value} is {test_type}` is not supported",)
+                write!(f, "Operation `{value} is {test_type}` is not supported")
             }
             VmErrorKind::UnsupportedAs { value, type_hash } => {
-                write!(f, "Operation `{value} as {type_hash}` is not supported",)
+                write!(f, "Operation `{value} as {type_hash}` is not supported")
             }
             VmErrorKind::UnsupportedCallFn { actual } => write!(
                 f,
                 "Type `{actual}` cannot be called since it's not a function",
             ),
             VmErrorKind::ObjectIndexMissing { slot } => {
-                write!(f, "Missing index by static string slot `{slot}`",)
+                write!(f, "Missing index by static string slot `{slot}`")
             }
             VmErrorKind::MissingIndex { target } => {
-                write!(f, "Type `{target}` missing index",)
+                write!(f, "Type `{target}` missing index")
             }
             VmErrorKind::MissingIndexInteger { target, index } => {
-                write!(f, "Type `{target}` missing integer index `{index}`",)
+                write!(f, "Type `{target}` missing integer index `{index}`")
             }
             #[cfg(feature = "alloc")]
             VmErrorKind::MissingIndexKey { target } => {
-                write!(f, "Type `{target}` missing index",)
+                write!(f, "Type `{target}` missing index")
             }
             VmErrorKind::OutOfRange { index, length } => write!(
                 f,
                 "Index out of bounds, the length is `{length}` but the index is `{index}`",
             ),
             VmErrorKind::UnsupportedTryOperand { actual } => {
-                write!(f, "Type `{actual}` is not supported as try operand",)
+                write!(f, "Type `{actual}` is not supported as try operand")
             }
             VmErrorKind::UnsupportedIterRangeInclusive { start, end } => {
                 write!(f, "Cannot build an iterator out of {start}..={end}")
@@ -877,26 +877,26 @@ impl fmt::Display for VmErrorKind {
                 write!(f, "Cannot build an iterator out of {start}..{end}")
             }
             VmErrorKind::UnsupportedIterNextOperand { actual } => {
-                write!(f, "Type `{actual}` is not supported as iter-next operand",)
+                write!(f, "Type `{actual}` is not supported as iter-next operand")
             }
             VmErrorKind::Expected { expected, actual } => {
-                write!(f, "Expected type `{expected}` but found `{actual}`",)
+                write!(f, "Expected type `{expected}` but found `{actual}`")
             }
             VmErrorKind::ExpectedAny { actual } => {
-                write!(f, "Expected `Any` type, but found `{actual}`",)
+                write!(f, "Expected `Any` type, but found `{actual}`")
             }
             VmErrorKind::ValueToIntegerCoercionError { from, to } => {
-                write!(f, "Failed to convert value `{from}` to integer `{to}`",)
+                write!(f, "Failed to convert value `{from}` to integer `{to}`")
             }
             VmErrorKind::IntegerToValueCoercionError { from, to } => {
-                write!(f, "Failed to convert integer `{from}` to value `{to}`",)
+                write!(f, "Failed to convert integer `{from}` to value `{to}`")
             }
             VmErrorKind::ExpectedTupleLength { actual, expected } => write!(
                 f,
                 "Expected a tuple of length `{expected}`, but found one with length `{actual}`",
             ),
             VmErrorKind::ConstNotSupported { actual } => {
-                write!(f, "Type `{actual}` can't be converted to a constant value",)
+                write!(f, "Type `{actual}` can't be converted to a constant value")
             }
             VmErrorKind::MissingInterfaceEnvironment {} => {
                 write!(f, "Missing interface environment")
@@ -913,7 +913,7 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::FutureCompleted {} => write!(f, "Future already completed"),
             VmErrorKind::MissingVariant { name } => write!(f, "No variant matching `{name}`"),
             VmErrorKind::MissingField { target, field } => {
-                write!(f, "Missing field `{field}` on `{target}`",)
+                write!(f, "Missing field `{field}` on `{target}`")
             }
             VmErrorKind::MissingVariantName {} => {
                 write!(f, "missing variant name in runtime information")
@@ -927,7 +927,7 @@ impl fmt::Display for VmErrorKind {
                 "missing dynamic index #{index} in tuple struct `{target}`",
             ),
             VmErrorKind::ExpectedVariant { actual } => {
-                write!(f, "Expected an enum variant, but got `{actual}`",)
+                write!(f, "Expected an enum variant, but got `{actual}`")
             }
             VmErrorKind::UnsupportedObjectFieldGet { target } => write!(
                 f,
@@ -941,7 +941,7 @@ impl fmt::Display for VmErrorKind {
             }
             #[cfg(feature = "alloc")]
             VmErrorKind::IllegalFloatOperation { value } => {
-                write!(f, "Cannot perform operation on float `{value}`",)
+                write!(f, "Cannot perform operation on float `{value}`")
             }
             VmErrorKind::MissingCallFrame => {
                 write!(f, "Missing call frame for internal vm call")

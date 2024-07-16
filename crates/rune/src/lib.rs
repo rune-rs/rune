@@ -200,10 +200,10 @@ pub mod ast;
 #[cfg(feature = "fmt")]
 pub mod fmt;
 
-cfg_emit! {
-    #[doc(inline)]
-    pub use ::codespan_reporting::term::termcolor;
-}
+#[cfg(feature = "emit")]
+#[cfg_attr(rune_docsrs, doc(cfg(feature = "emit")))]
+#[doc(inline)]
+pub use ::codespan_reporting::term::termcolor;
 
 mod any;
 pub use self::any::Any;
@@ -264,9 +264,9 @@ mod worker;
 #[doc(hidden)]
 pub mod support;
 
-cfg_workspace! {
-    pub mod workspace;
-}
+#[cfg(feature = "workspace")]
+#[cfg_attr(rune_docsrs, doc(cfg(feature = "workspace")))]
+pub mod workspace;
 
 // Macros used internally and re-exported.
 pub(crate) use rune_macros::__internal_impl_any;
@@ -604,16 +604,16 @@ pub use rune_macros::hash;
 
 pub use rune_macros::item;
 
-cfg_cli! {
-    pub mod cli;
-}
+#[cfg(feature = "cli")]
+#[cfg_attr(rune_docsrs, doc(cfg(feature = "cli")))]
+pub mod cli;
 
 #[cfg(feature = "languageserver")]
 pub mod languageserver;
 
-cfg_doc! {
-    pub mod doc;
-}
+#[cfg(feature = "doc")]
+#[cfg_attr(rune_docsrs, doc(cfg(feature = "doc")))]
+pub mod doc;
 
 /// Privately exported details.
 #[doc(hidden)]

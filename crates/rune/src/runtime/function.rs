@@ -7,6 +7,7 @@ use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, Vec};
 use crate::module;
+use crate::runtime::vm::Isolated;
 use crate::runtime::{
     Args, Call, ConstValue, FromValue, FunctionHandler, InstAddress, Output, OwnedTuple, Rtti,
     RuntimeContext, Stack, Unit, Value, ValueKind, VariantRtti, Vm, VmCall, VmErrorKind, VmHalt,
@@ -931,7 +932,7 @@ impl FnOffset {
         let same_context =
             matches!(self.call, Call::Immediate if vm.is_same_context(&self.context));
 
-        vm_try!(vm.push_call_frame(self.offset, addr, args, !same_context, out));
+        vm_try!(vm.push_call_frame(self.offset, addr, args, Isolated::new(!same_context), out));
         vm_try!(extra.into_stack(vm.stack_mut()));
 
         // Fast path, just allocate a call frame and keep running.

@@ -158,7 +158,7 @@ mod vec_tuple;
 pub use self::vec_tuple::VecTuple;
 
 mod vm;
-pub use self::vm::{CallFrame, Vm};
+pub use self::vm::{CallFrame, Isolated, Vm};
 
 mod vm_call;
 pub(crate) use self::vm_call::VmCall;

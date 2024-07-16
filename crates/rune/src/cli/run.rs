@@ -85,10 +85,11 @@ impl CommandBase for Flags {
         }
 
         if self.dump_functions
-        || self.dump_native_functions
-        || self.dump_stack
-        || self.dump_types
-        || self.dump_constants {
+            || self.dump_native_functions
+            || self.dump_stack
+            || self.dump_types
+            || self.dump_constants
+        {
             self.dump_unit = true;
         }
 
@@ -257,7 +258,7 @@ pub(super) async fn run(
     };
 
     if args.dump_stack {
-        writeln!(io.stdout, "# full stack dump after halting")?;
+        writeln!(io.stdout, "# call frames after halting")?;
 
         let vm = execution.vm();
 
@@ -272,9 +273,7 @@ pub(super) async fn run(
                 None => stack.top(),
             };
 
-            let values = stack
-                .get(frame.top..stack_top)
-                .expect("bad stack slice");
+            let values = stack.get(frame.top..stack_top).expect("bad stack slice");
 
             writeln!(io.stdout, "  frame #{} (+{})", count, frame.top)?;
 
@@ -283,7 +282,7 @@ pub(super) async fn run(
             }
 
             vm.with(|| {
-                for (n, value) in stack.iter().enumerate() {
+                for (n, value) in values.iter().enumerate() {
                     writeln!(io.stdout, "    {}+{n} = {value:?}", frame.top)?;
                 }
 
@@ -292,12 +291,7 @@ pub(super) async fn run(
         }
 
         // NB: print final frame
-        writeln!(
-            io.stdout,
-            "  frame #{} (+{})",
-            frames.len(),
-            stack.top()
-        )?;
+        writeln!(io.stdout, "  frame #{} (+{})", frames.len(), stack.top())?;
 
         let values = stack.get(stack.top()..).expect("bad stack slice");
 
@@ -337,18 +331,11 @@ where
         let ip = vm.ip();
         let mut o = io.stdout.lock();
 
-        if let Some((hash, signature)) = vm
-            .unit()
-            .debug_info()
-            .and_then(|d| d.function_at(ip))
-        {
+        if let Some((hash, signature)) = vm.unit().debug_info().and_then(|d| d.function_at(ip)) {
             writeln!(o, "fn {} ({}):", signature, hash)?;
         }
 
-        let debug = vm
-            .unit()
-            .debug_info()
-            .and_then(|d| d.instruction_at(ip));
+        let debug = vm.unit().debug_info().and_then(|d| d.instruction_at(ip));
 
         for label in debug.map(|d| d.labels.as_slice()).unwrap_or_default() {
             writeln!(o, "{}:", label)?;
@@ -369,7 +356,11 @@ where
             let stack = vm.stack();
 
             if current_frame_len != frames.len() {
-                let op = if current_frame_len < frames.len() { "push" } else { "pop" };
+                let op = if current_frame_len < frames.len() {
+                    "push"
+                } else {
+                    "pop"
+                };
                 write!(o, "  {op} frame {} (+{})", frames.len(), stack.top())?;
 
                 if let Some(frame) = frames.last() {
@@ -382,11 +373,7 @@ where
             }
         }
 
-        if let Some((inst, _)) = vm
-            .unit()
-            .instruction_at(ip)
-            .map_err(VmError::from)?
-        {
+        if let Some((inst, _)) = vm.unit().instruction_at(ip).map_err(VmError::from)? {
             write!(o, "  {:04} = {}", ip, inst)?;
         } else {
             write!(o, "  {:04} = *out of bounds*", ip)?;

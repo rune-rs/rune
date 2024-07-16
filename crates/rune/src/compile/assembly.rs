@@ -171,15 +171,14 @@ impl Assembly {
         span: &dyn Spanned,
         comment: &dyn fmt::Display,
     ) -> compile::Result<()> {
-        let pos = self.instructions.len();
-
-        let c = self.comments.entry(pos).or_try_default()?;
+        let index = self.instructions.len();
+        let c = self.comments.entry(index).or_try_default()?;
 
         if !c.is_empty() {
             c.try_push_str("; ")?;
         }
 
-        write!(c, "{}", comment)?;
+        write!(c, "{comment}")?;
         self.push(raw, span)?;
         Ok(())
     }
