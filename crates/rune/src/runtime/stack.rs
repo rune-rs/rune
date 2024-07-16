@@ -156,8 +156,8 @@ impl Stack {
     ///
     /// fn sum(stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
     ///     for value in vm_try!(stack.slice_at_mut(addr, args)) {
-    ///         let number = value.as_integer();
-    ///         *value = vm_try!(Value::try_from(number + 1));
+    ///         let number = vm_try!(value.as_integer());
+    ///         *value = vm_try!(rune::to_value(number + 1));
     ///     }
     ///
     ///     out.store(stack, ());
@@ -251,12 +251,6 @@ impl Stack {
     pub(crate) fn clear(&mut self) {
         self.stack.clear();
         self.top = 0;
-    }
-
-    /// Iterate over the stack.
-    #[cfg(feature = "cli")]
-    pub(crate) fn iter(&self) -> impl Iterator<Item = &Value> + '_ {
-        self.stack.iter()
     }
 
     /// Get the offset that corresponds to the bottom of the stack right now.
