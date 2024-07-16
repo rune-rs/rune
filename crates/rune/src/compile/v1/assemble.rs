@@ -1691,6 +1691,8 @@ fn expr_break<'a, 'hir>(
 
         converge!(expr(cx, hir, &mut needs)?, free(needs));
         needs.free()?;
+    } else if let Some(out) = output {
+        cx.asm.push(Inst::unit(out), span)?;
     }
 
     // Drop loop temporaries.
@@ -2980,8 +2982,8 @@ fn expr_loop<'a, 'hir>(
         cx.asm.push(Inst::unit(out), span)?;
     }
 
-    // NB: breaks produce their own value / perform their own cleanup.
     cx.asm.label(&break_label)?;
+
     linear.free()?;
     cx.breaks.pop();
     Ok(Asm::new(span, ()))

@@ -43,7 +43,7 @@ where
         };
 
         futures.push(SelectFuture::new(index, future));
-        vm_try!(results.try_push(vm_try!(Value::empty())));
+        vm_try!(results.try_push(Value::empty()));
     }
 
     while !futures.is_empty() {
@@ -85,7 +85,7 @@ where
 #[rune::function]
 async fn join(value: Value) -> VmResult<Value> {
     match &*vm_try!(value.borrow_kind_ref()) {
-        ValueKind::EmptyTuple => VmResult::Ok(vm_try!(Value::empty())),
+        ValueKind::EmptyTuple => VmResult::Ok(vm_try!(Value::unit())),
         ValueKind::Tuple(tuple) => VmResult::Ok(vm_try!(
             try_join_impl(tuple.iter(), tuple.len(), |vec| VmResult::Ok(vm_try!(
                 Value::tuple(vec)

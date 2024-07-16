@@ -1742,7 +1742,7 @@ impl InstValue {
     /// Convert into a value that can be pushed onto the stack.
     pub fn into_value(self) -> alloc::Result<Value> {
         match self {
-            Self::EmptyTuple => Value::empty(),
+            Self::EmptyTuple => Value::unit(),
             Self::Bool(v) => Value::try_from(v),
             Self::Byte(v) => Value::try_from(v),
             Self::Char(v) => Value::try_from(v),

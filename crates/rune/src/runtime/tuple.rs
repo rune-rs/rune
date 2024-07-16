@@ -299,7 +299,7 @@ macro_rules! impl_tuple {
 
         impl ToValue for () {
             fn to_value(self) -> VmResult<Value> {
-                VmResult::Ok(vm_try!(Value::empty()))
+                VmResult::Ok(vm_try!(Value::unit()))
             }
         }
     };

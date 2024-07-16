@@ -27,6 +27,13 @@ pub struct AccessError {
 
 impl AccessError {
     #[inline]
+    pub(crate) const fn empty() -> Self {
+        Self {
+            kind: AccessErrorKind::Empty,
+        }
+    }
+
+    #[inline]
     pub(crate) fn new(kind: AccessErrorKind) -> Self {
         Self { kind }
     }
@@ -35,6 +42,7 @@ impl AccessError {
 impl fmt::Display for AccessError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.kind {
+            AccessErrorKind::Empty => write!(f, "Empty value"),
             AccessErrorKind::UnexpectedType { expected, actual } => write!(
                 f,
                 "Expected data of type `{expected}`, but found `{actual}`",
@@ -98,6 +106,7 @@ impl From<AccessErrorKind> for AccessError {
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum AccessErrorKind {
+    Empty,
     UnexpectedType { expected: RawStr, actual: RawStr },
     NotAccessibleRef { error: NotAccessibleRef },
     NotAccessibleMut { error: NotAccessibleMut },

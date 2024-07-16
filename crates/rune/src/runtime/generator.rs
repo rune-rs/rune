@@ -59,7 +59,7 @@ where
         };
 
         let state = if execution.is_resumed() {
-            vm_try!(execution.resume_with(vm_try!(Value::empty())))
+            vm_try!(execution.resume_with(Value::empty()))
         } else {
             vm_try!(execution.resume())
         };

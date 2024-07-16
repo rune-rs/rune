@@ -1721,7 +1721,7 @@ impl Vm {
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_drop(&mut self, addr: InstAddress) -> VmResult<()> {
-        *vm_try!(self.stack.at_mut(addr)) = vm_try!(Value::empty());
+        *vm_try!(self.stack.at_mut(addr)) = Value::empty();
         VmResult::Ok(())
     }
 
@@ -2685,7 +2685,7 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_is_unit(&mut self, addr: InstAddress, out: Output) -> VmResult<()> {
         let value = vm_try!(self.stack.at(addr));
-        let is_unit = vm_try!(value.is_empty());
+        let is_unit = matches!(&*vm_try!(value.borrow_kind_ref()), ValueKind::EmptyTuple);
         vm_try!(out.store(&mut self.stack, is_unit));
         VmResult::Ok(())
     }

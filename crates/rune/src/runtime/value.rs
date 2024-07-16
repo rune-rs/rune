@@ -434,10 +434,16 @@ impl Ord for Rtti {
     }
 }
 
+#[derive(Clone)]
+enum ValueRepr {
+    Empty,
+    Value(Shared<ValueKind>),
+}
+
 /// An entry on the stack.
 #[derive(Clone)]
 pub struct Value {
-    inner: Shared<ValueKind>,
+    repr: ValueRepr,
 }
 
 impl Value {
@@ -490,8 +496,13 @@ impl Value {
         T: Any,
     {
         let value = Shared::new(ValueKind::Any(AnyObj::from_ref(data)))?;
-        let (inner, guard) = Shared::into_drop_guard(value);
-        Ok((Self { inner }, guard))
+        let (value, guard) = Shared::into_drop_guard(value);
+        Ok((
+            Self {
+                repr: ValueRepr::Value(value),
+            },
+            guard,
+        ))
     }
 
     /// Construct a value that wraps a mutable pointer.
@@ -547,63 +558,75 @@ impl Value {
     {
         let obj = AnyObj::from_mut(data);
         let value = Shared::new(ValueKind::Any(obj))?;
-        let (inner, guard) = Shared::into_drop_guard(value);
-        Ok((Self { inner }, guard))
+        let (value, guard) = Shared::into_drop_guard(value);
+        Ok((
+            Self {
+                repr: ValueRepr::Value(value),
+            },
+            guard,
+        ))
     }
 
     /// Test if the value is writable.
     pub fn is_writable(&self) -> bool {
-        self.inner.is_writable()
+        match self.repr {
+            ValueRepr::Empty => false,
+            ValueRepr::Value(ref value) => value.is_writable(),
+        }
     }
 
     /// Test if the value is readable.
     pub fn is_readable(&self) -> bool {
-        self.inner.is_readable()
+        match self.repr {
+            ValueRepr::Empty => false,
+            ValueRepr::Value(ref value) => value.is_readable(),
+        }
     }
 
     /// Get snapshot of value.
     ///
     /// The snapshot details how the value is currently being access.
-    #[allow(unused)]
-    pub fn snapshot(&self) -> Snapshot {
-        self.inner.snapshot()
+    pub fn snapshot(&self) -> Result<Snapshot, AccessError> {
+        Ok(self.as_value_kind()?.snapshot())
     }
 
-    /// Construct an empty value.
-    pub(crate) fn empty() -> alloc::Result<Self> {
+    /// Construct a unit value.
+    pub(crate) fn unit() -> alloc::Result<Self> {
         Ok(Self {
-            inner: Shared::new(ValueKind::EmptyTuple)?,
+            repr: ValueRepr::Value(Shared::new(ValueKind::EmptyTuple)?),
         })
     }
 
-    /// Test if the value is empty.
-    pub(crate) fn is_empty(&self) -> Result<bool, AccessError> {
-        Ok(matches!(&*self.inner.borrow_ref()?, ValueKind::EmptyTuple))
+    /// Construct an empty value.
+    pub(crate) const fn empty() -> Self {
+        Self {
+            repr: ValueRepr::Empty,
+        }
     }
 
     /// Take the kind of the value.
     pub(crate) fn take_kind(self) -> Result<ValueKind, AccessError> {
-        self.inner.take()
+        self.into_value_kind()?.take()
     }
 
     /// Borrow the kind of the value as a mutable reference.
     pub(crate) fn borrow_kind_mut(&self) -> Result<BorrowMut<'_, ValueKind>, AccessError> {
-        self.inner.borrow_mut()
+        self.as_value_kind()?.borrow_mut()
     }
 
     /// Take the kind of the value as an owned mutable reference.
     pub(crate) fn into_kind_mut(self) -> Result<Mut<ValueKind>, AccessError> {
-        self.inner.into_mut()
+        self.into_value_kind()?.into_mut()
     }
 
     /// Borrow the kind of the value as a reference.
     pub(crate) fn borrow_kind_ref(&self) -> Result<BorrowRef<'_, ValueKind>, AccessError> {
-        self.inner.borrow_ref()
+        self.as_value_kind()?.borrow_ref()
     }
 
     /// Take the kind of the value as an owned reference.
     pub(crate) fn into_kind_ref(self) -> Result<Ref<ValueKind>, AccessError> {
-        self.inner.into_ref()
+        self.into_value_kind()?.into_ref()
     }
 
     /// Format the value using the [Protocol::STRING_DISPLAY] protocol.
@@ -681,7 +704,7 @@ impl Value {
     }
 
     pub(crate) fn clone_with(&self, caller: &mut impl ProtocolCaller) -> VmResult<Value> {
-        let inner = match &*vm_try!(self.inner.borrow_ref()) {
+        let kind = match &*vm_try!(self.borrow_kind_ref()) {
             ValueKind::EmptyTuple => ValueKind::EmptyTuple,
             ValueKind::Bool(value) => ValueKind::Bool(*value),
             ValueKind::Byte(value) => ValueKind::Byte(*value),
@@ -729,7 +752,7 @@ impl Value {
         };
 
         VmResult::Ok(Self {
-            inner: vm_try!(Shared::new(inner)),
+            repr: ValueRepr::Value(vm_try!(Shared::new(kind))),
         })
     }
 
@@ -753,7 +776,15 @@ impl Value {
         f: &mut Formatter,
         caller: &mut impl ProtocolCaller,
     ) -> VmResult<()> {
-        match &*vm_try!(self.inner.borrow_ref()) {
+        let value = match self.repr {
+            ValueRepr::Empty => {
+                vm_write!(f, "<empty>");
+                return VmResult::Ok(());
+            }
+            ValueRepr::Value(ref value) => value,
+        };
+
+        match &*vm_try!(value.borrow_ref()) {
             ValueKind::EmptyTuple => {
                 vm_write!(f, "()");
             }
@@ -858,8 +889,8 @@ impl Value {
                 if let VmResult::Ok(result) = result {
                     vm_try!(<()>::from_value(result));
                 } else {
-                    let type_info = vm_try!(self.type_info());
-                    vm_write!(f, "<{} object at {:p}>", type_info, self.inner);
+                    let type_info = vm_try!(value.borrow_ref()).type_info();
+                    vm_write!(f, "<{} object at {:p}>", type_info, value);
                 }
             }
         };
@@ -960,17 +991,21 @@ impl Value {
 
     /// Drop the interior value.
     pub(crate) fn drop(self) -> VmResult<()> {
-        drop(vm_try!(self.inner.take()));
+        if let ValueRepr::Value(value) = self.repr {
+            drop(vm_try!(value.take()));
+        }
+
         VmResult::Ok(())
     }
 
     /// Move the interior value.
     pub(crate) fn move_(self) -> VmResult<Self> {
-        let inner = vm_try!(self.inner.take());
-
-        VmResult::Ok(Value {
-            inner: vm_try!(Shared::new(inner)),
-        })
+        match self.repr {
+            ValueRepr::Empty => VmResult::Ok(Self::empty()),
+            ValueRepr::Value(value) => VmResult::Ok(Value {
+                repr: ValueRepr::Value(vm_try!(Shared::new(vm_try!(value.take())))),
+            }),
+        }
     }
 
     /// Try to coerce value into a usize.
@@ -991,7 +1026,7 @@ impl Value {
     /// Borrow the value of a string as a reference.
     #[inline]
     pub fn borrow_string_ref(&self) -> Result<BorrowRef<'_, str>, RuntimeError> {
-        let result = BorrowRef::try_map(self.inner.borrow_ref()?, |kind| match kind {
+        let result = BorrowRef::try_map(self.borrow_kind_ref()?, |kind| match kind {
             ValueKind::String(string) => Some(string.as_str()),
             _ => None,
         });
@@ -1005,7 +1040,7 @@ impl Value {
     /// Take the current value as a string.
     #[inline]
     pub fn into_string(self) -> Result<String, RuntimeError> {
-        match self.inner.take()? {
+        match self.take_kind()? {
             ValueKind::String(string) => Ok(string),
             actual => Err(RuntimeError::expected::<String>(actual.type_info())),
         }
@@ -1015,7 +1050,7 @@ impl Value {
     #[doc(hidden)]
     #[inline]
     pub fn into_type_value(self) -> Result<TypeValue, RuntimeError> {
-        match self.inner.take()? {
+        match self.take_kind()? {
             ValueKind::EmptyTuple => Ok(TypeValue::EmptyTuple),
             ValueKind::Tuple(tuple) => Ok(TypeValue::Tuple(tuple)),
             ValueKind::Object(object) => Ok(TypeValue::Object(object)),
@@ -1030,7 +1065,7 @@ impl Value {
     /// Coerce into a unit.
     #[inline]
     pub fn into_unit(&self) -> Result<(), RuntimeError> {
-        match *self.inner.borrow_ref()? {
+        match *self.borrow_kind_ref()? {
             ValueKind::EmptyTuple => Ok(()),
             ref actual => Err(RuntimeError::expected::<()>(actual.type_info())),
         }
@@ -1339,7 +1374,7 @@ impl Value {
     /// environment.
     #[inline]
     pub fn into_future(self) -> VmResult<Future> {
-        let target = match vm_try!(self.inner.take()) {
+        let target = match vm_try!(self.take_kind()) {
             ValueKind::Future(future) => return VmResult::Ok(future),
             target => vm_try!(Value::try_from(target)),
         };
@@ -1414,7 +1449,7 @@ impl Value {
     where
         T: Any,
     {
-        let result = BorrowRef::try_map(self.inner.borrow_ref()?, |kind| match kind {
+        let result = BorrowRef::try_map(self.borrow_kind_ref()?, |kind| match kind {
             ValueKind::Any(any) => any.downcast_borrow_ref().ok(),
             _ => None,
         });
@@ -1431,7 +1466,7 @@ impl Value {
     where
         T: Any,
     {
-        let result = BorrowMut::try_map(self.inner.borrow_mut()?, |kind| match kind {
+        let result = BorrowMut::try_map(self.borrow_kind_mut()?, |kind| match kind {
             ValueKind::Any(any) => any.downcast_borrow_mut().ok(),
             _ => None,
         });
@@ -1448,7 +1483,9 @@ impl Value {
     where
         T: Any,
     {
-        let any = match self.inner.take()? {
+        let value = self.into_value_kind()?;
+
+        let any = match value.take()? {
             ValueKind::Any(any) => any,
             actual => return Err(RuntimeError::expected_any(actual.type_info())),
         };
@@ -1470,12 +1507,12 @@ impl Value {
     /// One notable feature is that the type of a variant is its container
     /// *enum*, and not the type hash of the variant itself.
     pub fn type_hash(&self) -> Result<Hash, AccessError> {
-        Ok(self.inner.borrow_ref()?.type_hash())
+        Ok(self.borrow_kind_ref()?.type_hash())
     }
 
     /// Get the type information for the current value.
     pub fn type_info(&self) -> Result<TypeInfo, AccessError> {
-        Ok(self.inner.borrow_ref()?.type_info())
+        Ok(self.borrow_kind_ref()?.type_info())
     }
 
     /// Perform a partial equality test between two values.
@@ -2066,11 +2103,31 @@ impl Value {
             )),
         }
     }
+
+    fn into_value_kind(self) -> Result<Shared<ValueKind>, AccessError> {
+        match self.repr {
+            ValueRepr::Value(value) => Ok(value),
+            ValueRepr::Empty => Err(AccessError::empty()),
+        }
+    }
+
+    fn as_value_kind(&self) -> Result<&Shared<ValueKind>, AccessError> {
+        match &self.repr {
+            ValueRepr::Value(value) => Ok(value),
+            ValueRepr::Empty => Err(AccessError::empty()),
+        }
+    }
 }
 
 impl fmt::Debug for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let snapshot = self.inner.snapshot();
+        let snapshot = match &self.repr {
+            ValueRepr::Empty => {
+                write!(f, "<empty>")?;
+                return Ok(());
+            }
+            ValueRepr::Value(value) => value.snapshot(),
+        };
 
         if !snapshot.is_readable() {
             write!(f, "<{snapshot}>")?;
@@ -2112,7 +2169,7 @@ impl TryFrom<ValueKind> for Value {
     #[inline]
     fn try_from(kind: ValueKind) -> Result<Self, Self::Error> {
         Ok(Self {
-            inner: Shared::new(kind)?,
+            repr: ValueRepr::Value(Shared::new(kind)?),
         })
     }
 }

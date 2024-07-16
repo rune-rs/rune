@@ -239,7 +239,7 @@ fn lit(c: &mut Ctxt<'_, '_>, span: Span, hir: hir::Lit<'_>) -> compile::Result<i
 #[instrument(span = span)]
 fn expr_tuple(c: &mut Ctxt<'_, '_>, span: Span, hir: &hir::ExprSeq<'_>) -> compile::Result<ir::Ir> {
     if hir.items.is_empty() {
-        let value = Value::empty().with_span(span)?;
+        let value = Value::unit().with_span(span)?;
         return Ok(ir::Ir::new(span, value));
     }
 

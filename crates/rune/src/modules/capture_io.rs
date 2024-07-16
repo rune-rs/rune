@@ -117,6 +117,6 @@ fn dbg_impl(
         vm_try!(writeln!(o, "{:?}", value).map_err(VmError::panic));
     }
 
-    vm_try!(out.store(stack, Value::empty));
+    vm_try!(out.store(stack, Value::unit));
     VmResult::Ok(())
 }

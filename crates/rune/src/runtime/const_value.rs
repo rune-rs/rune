@@ -44,7 +44,7 @@ impl ConstValue {
     /// otherwise.
     pub fn as_value(&self) -> alloc::Result<Value> {
         Ok(match self {
-            Self::EmptyTuple => Value::empty()?,
+            Self::EmptyTuple => Value::unit()?,
             Self::Byte(b) => Value::try_from(*b)?,
             Self::Char(c) => Value::try_from(*c)?,
             Self::Bool(b) => Value::try_from(*b)?,
