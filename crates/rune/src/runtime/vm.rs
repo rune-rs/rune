@@ -2239,7 +2239,7 @@ impl Vm {
     }
 
     #[inline]
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(skip(self, return_value))]
     fn op_return_internal(&mut self, return_value: Value) -> VmResult<Option<Output>> {
         let (exit, out) = vm_try!(self.pop_call_frame());
 

@@ -2137,7 +2137,15 @@ impl fmt::Debug for Value {
         let mut o = Formatter::new();
 
         if self.string_debug(&mut o).is_err() {
-            return Err(fmt::Error);
+            match self.type_info() {
+                Ok(type_info) => {
+                    write!(f, "<{} object at {:p}>", type_info, self)?;
+                }
+                Err(e) => {
+                    write!(f, "<unknown object at {:p}: {}>", self, e)?;
+                }
+            }
+            return Ok(());
         }
 
         f.write_str(o.as_str())?;
