@@ -495,11 +495,16 @@ impl Value {
                 vm_write!(f, "{:?}", value);
             }
             value => {
+                // reborrow f to avoid moving it
                 let result =
-                    vm_try!(caller.call_protocol_fn(Protocol::STRING_DEBUG, value.clone(), (f,),));
+                    caller.call_protocol_fn(Protocol::STRING_DEBUG, self.clone(), (&mut *f,));
 
-                vm_try!(<()>::from_value(result));
-                return VmResult::Ok(());
+                if let VmResult::Ok(result) = result {
+                    vm_try!(<()>::from_value(result));
+                } else {
+                    let type_info = vm_try!(value.type_info());
+                    vm_write!(f, "<{} object at {:p}>", type_info, value);
+                }
             }
         };
 
@@ -2030,7 +2035,15 @@ impl fmt::Debug for Value {
                 let mut o = Formatter::new();
 
                 if value.string_debug(&mut o).is_err() {
-                    return Err(fmt::Error);
+                    match value.type_info() {
+                        VmResult::Ok(type_info) => {
+                            write!(f, "<{} object at {:p}>", type_info, value)?;
+                        }
+                        VmResult::Err(e) => {
+                            write!(f, "<unknown object at {:p}: {}>", value, e)?;
+                        }
+                    }
+                    return Ok(());
                 }
 
                 f.write_str(o.as_str())?;
