@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1721178498962,
+  "lastUpdate": 1721264817289,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -26396,6 +26396,94 @@ window.BENCHMARK_DATA = {
           {
             "name": "external_functions",
             "value": 580,
+            "range": "± 3",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Arvid Norlander",
+            "username": "VorpalBlade",
+            "email": "VorpalBlade@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "e3ca8abf8737b19bf201370ffaa68e502a06af94",
+          "message": "rune: Do not trace return value (causes panic on Result:Err) (#748)\n\nDo not trace return value (causes panic on Result:Err)\n\nInstead attempt to print *something*",
+          "timestamp": "2024-07-17T12:27:27Z",
+          "url": "https://github.com/rune-rs/rune/commit/e3ca8abf8737b19bf201370ffaa68e502a06af94"
+        },
+        "date": 1721264816148,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 186055,
+            "range": "± 5710",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 618801,
+            "range": "± 5559",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 279263044,
+            "range": "± 2345774",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 178783675,
+            "range": "± 7572536",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 794596,
+            "range": "± 38799",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 7946771,
+            "range": "± 61870",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 41873724,
+            "range": "± 278278",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 6793655,
+            "range": "± 48189",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 566891,
+            "range": "± 3108",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 6238233,
+            "range": "± 45735",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 552,
             "range": "± 3",
             "unit": "ns/iter"
           }
