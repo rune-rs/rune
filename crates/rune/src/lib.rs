@@ -577,6 +577,34 @@ pub(crate) use rune_macros::__internal_impl_any;
 /// }
 /// ```
 ///
+/// # Using `keep` to keep the name
+///
+/// By default, the name of the function is mangled and the metadata is given
+/// the original name. This means you can't easily call the function from both
+/// Rune and Rust. This behaviour can be changed by using the `keep` option, in
+/// which case you must  refer to the meta object by a managled name
+/// (specifically the function name with `__meta` appended).:
+///
+/// ```
+/// use rune::{Module, ContextError};
+///
+/// /// Don't mangle the name of the function
+/// #[rune::function(keep)]
+/// fn to_uppercase(string: &str) -> String {
+///     string.to_uppercase()
+/// }
+///
+/// fn module() -> Result<Module, ContextError> {
+///     let mut m = Module::new();
+///     m.function_meta(to_uppercase__meta)?;
+///     Ok(m)
+/// }
+///
+/// fn call_from_rust() {
+///    assert_eq!(to_uppercase("hello"), "HELLO");
+/// }
+/// ```
+///
 /// [`VmResult`]: crate::runtime::VmResult
 /// [`vm_try!`]: crate::vm_try!
 pub use rune_macros::function;
