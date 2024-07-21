@@ -29,6 +29,11 @@ pub trait TypeOf {
 pub trait MaybeTypeOf {
     /// Type information for the given type.
     fn maybe_type_of() -> Option<FullTypeOf>;
+
+    /// Visit generic parameters.
+    fn maybe_visit_generics<F, E>(f: &mut F) -> Result<(), E>
+    where
+        F: FnMut(Option<FullTypeOf>) -> Result<(), E>;
 }
 
 impl<T> MaybeTypeOf for &T
@@ -38,6 +43,14 @@ where
     #[inline]
     fn maybe_type_of() -> Option<FullTypeOf> {
         T::maybe_type_of()
+    }
+
+    #[inline]
+    fn maybe_visit_generics<F, E>(f: &mut F) -> Result<(), E>
+    where
+        F: FnMut(Option<FullTypeOf>) -> Result<(), E>,
+    {
+        T::maybe_visit_generics(f)
     }
 }
 
@@ -49,6 +62,14 @@ where
     fn maybe_type_of() -> Option<FullTypeOf> {
         T::maybe_type_of()
     }
+
+    #[inline]
+    fn maybe_visit_generics<F, E>(f: &mut F) -> Result<(), E>
+    where
+        F: FnMut(Option<FullTypeOf>) -> Result<(), E>,
+    {
+        T::maybe_visit_generics(f)
+    }
 }
 
 impl<T> MaybeTypeOf for Ref<T>
@@ -58,6 +79,14 @@ where
     #[inline]
     fn maybe_type_of() -> Option<FullTypeOf> {
         T::maybe_type_of()
+    }
+
+    #[inline]
+    fn maybe_visit_generics<F, E>(f: &mut F) -> Result<(), E>
+    where
+        F: FnMut(Option<FullTypeOf>) -> Result<(), E>,
+    {
+        T::maybe_visit_generics(f)
     }
 }
 
@@ -69,6 +98,14 @@ where
     fn maybe_type_of() -> Option<FullTypeOf> {
         T::maybe_type_of()
     }
+
+    #[inline]
+    fn maybe_visit_generics<F, E>(f: &mut F) -> Result<(), E>
+    where
+        F: FnMut(Option<FullTypeOf>) -> Result<(), E>,
+    {
+        T::maybe_visit_generics(f)
+    }
 }
 
 impl<T> MaybeTypeOf for Shared<T>
@@ -78,6 +115,14 @@ where
     #[inline]
     fn maybe_type_of() -> Option<FullTypeOf> {
         T::maybe_type_of()
+    }
+
+    #[inline]
+    fn maybe_visit_generics<F, E>(f: &mut F) -> Result<(), E>
+    where
+        F: FnMut(Option<FullTypeOf>) -> Result<(), E>,
+    {
+        T::maybe_visit_generics(f)
     }
 }
 

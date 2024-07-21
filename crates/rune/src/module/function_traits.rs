@@ -144,6 +144,14 @@ where
     fn maybe_type_of() -> Option<FullTypeOf> {
         T::maybe_type_of()
     }
+
+    #[inline]
+    fn maybe_visit_generics<F, E>(f: &mut F) -> Result<(), E>
+    where
+        F: FnMut(Option<FullTypeOf>) -> Result<(), E>,
+    {
+        T::maybe_visit_generics(f)
+    }
 }
 
 impl<T> TypeOf for Ref<T>
@@ -181,6 +189,14 @@ where
     #[inline]
     fn maybe_type_of() -> Option<FullTypeOf> {
         T::maybe_type_of()
+    }
+
+    #[inline]
+    fn maybe_visit_generics<F, E>(f: &mut F) -> Result<(), E>
+    where
+        F: FnMut(Option<FullTypeOf>) -> Result<(), E>,
+    {
+        T::maybe_visit_generics(f)
     }
 }
 

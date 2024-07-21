@@ -198,6 +198,14 @@ impl MaybeTypeOf for GuardCheck {
     fn maybe_type_of() -> Option<FullTypeOf> {
         Some(Self::type_of())
     }
+
+    #[inline]
+    fn maybe_visit_generics<F, E>(_: &mut F) -> Result<(), E>
+    where
+        F: FnMut(Option<FullTypeOf>) -> Result<(), E>,
+    {
+        Ok(())
+    }
 }
 
 impl InstallWith for GuardCheck {}

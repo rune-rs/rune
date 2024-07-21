@@ -57,9 +57,9 @@ pub struct FunctionData {
     #[cfg(feature = "doc")]
     pub(crate) args: Option<usize>,
     #[cfg(feature = "doc")]
-    pub(crate) return_type: Option<FullTypeOf>,
+    pub(crate) argument_types: Box<[meta::DocType]>,
     #[cfg(feature = "doc")]
-    pub(crate) argument_types: Box<[Option<FullTypeOf>]>,
+    pub(crate) return_type: meta::DocType,
 }
 
 impl FunctionData {
@@ -72,9 +72,9 @@ impl FunctionData {
             #[cfg(feature = "doc")]
             args: None,
             #[cfg(feature = "doc")]
-            return_type: None,
-            #[cfg(feature = "doc")]
             argument_types: Box::default(),
+            #[cfg(feature = "doc")]
+            return_type: meta::DocType::empty(),
         }
     }
 
@@ -97,9 +97,9 @@ impl FunctionData {
             #[cfg(feature = "doc")]
             args: Some(F::args()),
             #[cfg(feature = "doc")]
-            return_type: F::Return::maybe_type_of(),
-            #[cfg(feature = "doc")]
             argument_types: A::into_box()?,
+            #[cfg(feature = "doc")]
+            return_type: meta::DocType::from_maybe_type_of::<F::Return>()?,
         })
     }
 }
@@ -268,9 +268,9 @@ pub struct AssociatedFunctionData {
     #[cfg(feature = "doc")]
     pub(crate) args: Option<usize>,
     #[cfg(feature = "doc")]
-    pub(crate) return_type: Option<FullTypeOf>,
+    pub(crate) argument_types: Box<[meta::DocType]>,
     #[cfg(feature = "doc")]
-    pub(crate) argument_types: Box<[Option<FullTypeOf>]>,
+    pub(crate) return_type: meta::DocType,
 }
 
 impl AssociatedFunctionData {
@@ -283,9 +283,9 @@ impl AssociatedFunctionData {
             #[cfg(feature = "doc")]
             args: None,
             #[cfg(feature = "doc")]
-            return_type: None,
-            #[cfg(feature = "doc")]
             argument_types: Box::default(),
+            #[cfg(feature = "doc")]
+            return_type: meta::DocType::empty(),
         }
     }
 
@@ -307,9 +307,9 @@ impl AssociatedFunctionData {
             #[cfg(feature = "doc")]
             args: Some(F::args()),
             #[cfg(feature = "doc")]
-            return_type: F::Return::maybe_type_of(),
-            #[cfg(feature = "doc")]
             argument_types: A::into_box()?,
+            #[cfg(feature = "doc")]
+            return_type: meta::DocType::from_maybe_type_of::<F::Return>()?,
         })
     }
 
@@ -331,9 +331,9 @@ impl AssociatedFunctionData {
             #[cfg(feature = "doc")]
             args: Some(F::args()),
             #[cfg(feature = "doc")]
-            return_type: F::Return::maybe_type_of(),
-            #[cfg(feature = "doc")]
             argument_types: A::into_box()?,
+            #[cfg(feature = "doc")]
+            return_type: meta::DocType::from_maybe_type_of::<F::Return>()?,
         })
     }
 }
@@ -529,7 +529,7 @@ pub struct FunctionMetaData {
 #[doc(hidden)]
 pub trait FunctionArgs {
     #[doc(hidden)]
-    fn into_box() -> alloc::Result<Box<[Option<FullTypeOf>]>>;
+    fn into_box() -> alloc::Result<Box<[meta::DocType]>>;
 }
 
 macro_rules! iter_function_args {
@@ -540,8 +540,8 @@ macro_rules! iter_function_args {
         {
             #[inline]
             #[doc(hidden)]
-            fn into_box() -> alloc::Result<Box<[Option<FullTypeOf>]>> {
-                try_vec![$(<$ty>::maybe_type_of()),*].try_into_boxed_slice()
+            fn into_box() -> alloc::Result<Box<[meta::DocType]>> {
+                try_vec![$(meta::DocType::from_maybe_type_of::<$ty>()?),*].try_into_boxed_slice()
             }
         }
     }

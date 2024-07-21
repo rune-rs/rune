@@ -2320,6 +2320,14 @@ impl MaybeTypeOf for Value {
     fn maybe_type_of() -> Option<FullTypeOf> {
         None
     }
+
+    #[inline]
+    fn maybe_visit_generics<F, E>(_: &mut F) -> Result<(), E>
+    where
+        F: FnMut(Option<FullTypeOf>) -> Result<(), E>,
+    {
+        Ok(())
+    }
 }
 
 impl TryClone for Value {

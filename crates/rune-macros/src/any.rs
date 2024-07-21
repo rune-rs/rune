@@ -606,6 +606,15 @@ where
                     fn maybe_type_of() -> Option<#full_type_of> {
                         Some(<Self as #type_of>::type_of())
                     }
+
+                    #[inline]
+                    fn maybe_visit_generics<F, E>(f: &mut F) -> Result<(), E>
+                    where
+                        F: FnMut(Option<#full_type_of>) -> Result<(), E>
+                    {
+                        #(f(<#generic_names as #maybe_type_of>::maybe_type_of())?;)*
+                        Ok(())
+                    }
                 }
             })
         } else if let Some(ty) = attr.static_type {
@@ -628,6 +637,15 @@ where
                     #[inline]
                     fn maybe_type_of() -> Option<#full_type_of> {
                         Some(<Self as #type_of>::type_of())
+                    }
+
+                    #[inline]
+                    fn maybe_visit_generics<F, E>(f: &mut F) -> Result<(), E>
+                    where
+                        F: FnMut(Option<#full_type_of>) -> Result<(), E>
+                    {
+                        #(f(<#generic_names as #maybe_type_of>::maybe_type_of())?;)*
+                        Ok(())
                     }
                 }
             })

@@ -16,8 +16,6 @@ use crate::module::{
     Fields, Module, ModuleAssociated, ModuleAssociatedKind, ModuleItem, ModuleType,
     TypeSpecification,
 };
-#[cfg(feature = "doc")]
-use crate::runtime::FullTypeOf;
 use crate::runtime::{
     AttributeMacroHandler, ConstValue, FunctionHandler, MacroHandler, Protocol, RuntimeContext,
     StaticType, TypeCheck, TypeInfo, VariantRtti,
@@ -635,7 +633,7 @@ impl Context {
                         module_item.common.docs.args(),
                     )?,
                     #[cfg(feature = "doc")]
-                    return_type: meta::DocType::new(f.return_type.as_ref().map(|f| f.hash)),
+                    return_type: f.return_type.try_clone()?,
                 };
 
                 self.insert_native_fn(hash, &f.handler, module_item.common.deprecated.as_deref())?;
@@ -824,7 +822,7 @@ impl Context {
                         assoc.common.docs.args(),
                     )?,
                     #[cfg(feature = "doc")]
-                    return_type: meta::DocType::new(f.return_type.as_ref().map(|f| f.hash)),
+                    return_type: f.return_type.try_clone()?,
                 };
 
                 if let Some((hash, item)) = &item {
@@ -932,7 +930,7 @@ fn fields_to_arguments(fields: &Fields) -> alloc::Result<Box<[meta::DocArgument]
 #[cfg(feature = "doc")]
 fn context_to_arguments(
     args: Option<usize>,
-    types: &[Option<FullTypeOf>],
+    types: &[meta::DocType],
     names: &[String],
 ) -> alloc::Result<Option<Box<[meta::DocArgument]>>> {
     use core::iter;
@@ -944,23 +942,31 @@ fn context_to_arguments(
     let len = args.max(types.len()).max(names.len()).max(names.len());
     let mut out = Vec::try_with_capacity(len)?;
 
-    let types = types
-        .iter()
-        .map(|f| f.as_ref().map(|f| f.hash))
-        .chain(iter::repeat(None));
+    let mut types = types.iter();
+
     let names = names
         .iter()
         .map(|name| Some(name.as_str()))
         .chain(iter::repeat(None));
 
-    for ((n, base), name) in (0..len).zip(types).zip(names) {
+    for (n, name) in (0..len).zip(names) {
+        let empty;
+
+        let ty = match types.next() {
+            Some(ty) => ty,
+            None => {
+                empty = meta::DocType::empty();
+                &empty
+            }
+        };
+
         out.try_push(meta::DocArgument {
             name: match name {
                 Some(name) => meta::DocName::Name(Box::try_from(name)?),
                 None => meta::DocName::Index(n),
             },
-            base,
-            generics: Box::default(),
+            base: ty.base,
+            generics: ty.generics.try_clone()?,
         })?;
     }
 

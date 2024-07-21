@@ -646,11 +646,19 @@ impl<'m> Ctxt<'_, 'm> {
         let mut it = arguments.iter().peekable();
 
         while let Some(arg) = it.next() {
-            write!(string, "{}", arg.name)?;
+            if matches!(sig, Signature::Instance) && arg.name.is_self() {
+                if let Some(hash) = arg.base {
+                    self.write_link(&mut string, hash, Some("self"), &[])?;
+                } else {
+                    write!(string, "self")?;
+                }
+            } else {
+                write!(string, "{}", arg.name)?;
 
-            if let Some(hash) = arg.base {
-                string.try_push_str(": ")?;
-                self.write_link(&mut string, hash, None, &arg.generics)?;
+                if let Some(hash) = arg.base {
+                    string.try_push_str(": ")?;
+                    self.write_link(&mut string, hash, None, &arg.generics)?;
+                }
             }
 
             if it.peek().is_some() {
