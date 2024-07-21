@@ -320,15 +320,72 @@ pub struct Signature {
     /// An asynchronous function.
     #[cfg(feature = "doc")]
     pub(crate) is_async: bool,
-    /// Arguments.
+    /// Arguments to the function.
     #[cfg(feature = "doc")]
-    pub(crate) args: Option<usize>,
+    pub(crate) arguments: Option<Box<[DocArgument]>>,
     /// Return type of the function.
     #[cfg(feature = "doc")]
-    pub(crate) return_type: Option<Hash>,
-    /// Argument types to the function.
-    #[cfg(feature = "doc")]
-    pub(crate) argument_types: Box<[Option<Hash>]>,
+    pub(crate) return_type: DocType,
+}
+
+/// A name inside of a document.
+#[derive(Debug, TryClone)]
+#[cfg(feature = "doc")]
+pub(crate) enum DocName {
+    /// A string name.
+    Name(Box<str>),
+    /// A numbered name.
+    Index(#[try_clone(copy)] usize),
+}
+
+#[cfg(feature = "doc")]
+impl fmt::Display for DocName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DocName::Name(name) => write!(f, "{name}"),
+            DocName::Index(index) if *index == 0 => write!(f, "value"),
+            DocName::Index(index) => write!(f, "value{index}"),
+        }
+    }
+}
+
+/// A description of a type.
+#[derive(Debug, TryClone)]
+#[cfg(feature = "doc")]
+pub(crate) struct DocArgument {
+    /// The name of an argument.
+    pub(crate) name: DocName,
+    /// The base type.
+    pub(crate) base: Option<Hash>,
+    /// Generic parameters.
+    pub(crate) generics: Box<[DocType]>,
+}
+
+/// A description of a type.
+#[derive(Debug, TryClone)]
+#[cfg(feature = "doc")]
+pub(crate) struct DocType {
+    /// The base type.
+    pub(crate) base: Option<Hash>,
+    /// Generic parameters.
+    pub(crate) generics: Box<[DocType]>,
+}
+
+#[cfg(feature = "doc")]
+impl DocType {
+    pub(crate) fn new(base: Option<Hash>) -> Self {
+        Self {
+            base,
+            generics: Box::default(),
+        }
+    }
+
+    pub(crate) fn empty() -> Self {
+        Self {
+            base: None,
+            generics: Box::default(),
+        }
+    }
 }
 
 /// The kind of an associated function.

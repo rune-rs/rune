@@ -1318,6 +1318,35 @@ impl<'a, 'arena> Query<'a, 'arena> {
             })
         }
 
+        #[cfg(feature = "doc")]
+        fn to_doc_names<'a>(
+            sources: &Sources,
+            source_id: SourceId,
+            iter: impl ExactSizeIterator<Item = &'a dyn Spanned>,
+        ) -> alloc::Result<Box<[meta::DocArgument]>> {
+            let mut out = Vec::try_with_capacity(iter.len())?;
+
+            for (n, span) in iter.enumerate() {
+                let name = match sources.get(source_id) {
+                    Some(source) => source.get(span.span().range()),
+                    None => None,
+                };
+
+                let name = match name {
+                    Some(name) => meta::DocName::Name(name.try_into()?),
+                    None => meta::DocName::Index(n),
+                };
+
+                out.try_push(meta::DocArgument {
+                    name,
+                    base: None,
+                    generics: Box::default(),
+                })?;
+            }
+
+            Box::try_from(out)
+        }
+
         let indexing::Entry { item_meta, indexed } = entry;
 
         if let Used::Used = used {
@@ -1367,11 +1396,13 @@ impl<'a, 'arena> Query<'a, 'arena> {
                         #[cfg(feature = "doc")]
                         is_async: matches!(f.call, Call::Async | Call::Stream),
                         #[cfg(feature = "doc")]
-                        args: Some(f.ast.args()),
+                        arguments: Some(to_doc_names(
+                            self.sources,
+                            item_meta.location.source_id,
+                            f.ast.args(),
+                        )?),
                         #[cfg(feature = "doc")]
-                        return_type: None,
-                        #[cfg(feature = "doc")]
-                        argument_types: Box::default(),
+                        return_type: meta::DocType::empty(),
                     },
                     parameters: Hash::EMPTY,
                     #[cfg(feature = "doc")]

@@ -4,7 +4,7 @@ use serde::Serialize;
 use crate::alloc::borrow::Cow;
 use crate::alloc::prelude::*;
 use crate::alloc::{String, Vec};
-use crate::compile::{ComponentRef, Item};
+use crate::compile::{meta, ComponentRef, Item};
 use crate::doc::build::{Builder, Ctxt, IndexEntry, IndexKind};
 use crate::doc::context::{Assoc, AssocFnKind, Meta};
 
@@ -78,7 +78,7 @@ pub(super) fn build_assoc_fns<'m>(
                         value = format!("value.{index}");
                         (protocol, value.as_str(), None)
                     }
-                    AssocFnKind::Method(name, args, sig) => {
+                    AssocFnKind::Method(name, sig) => {
                         let line_doc =
                             cx.render_line_docs(meta, assoc.docs.get(..1).unwrap_or_default())?;
 
@@ -104,16 +104,13 @@ pub(super) fn build_assoc_fns<'m>(
                             is_async: assoc.is_async,
                             deprecated: assoc.deprecated,
                             name,
-                            args: cx.args_to_string(
-                                assoc.arg_names,
-                                args,
-                                sig,
-                                assoc.argument_types,
-                            )?,
+                            args: cx.args_to_string(sig, assoc.arguments)?,
                             parameters,
                             return_type: match assoc.return_type {
-                                Some(hash) => cx.link(hash, None)?,
-                                None => None,
+                                meta::DocType {
+                                    base: Some(hash), ..
+                                } => cx.link(*hash, None)?,
+                                _ => None,
                             },
                             line_doc,
                             doc,
@@ -140,8 +137,10 @@ pub(super) fn build_assoc_fns<'m>(
                     field,
                     repr,
                     return_type: match assoc.return_type {
-                        Some(hash) => cx.link(hash, None)?,
-                        None => None,
+                        meta::DocType {
+                            base: Some(hash), ..
+                        } => cx.link(*hash, None)?,
+                        _ => None,
                     },
                     doc,
                     deprecated: assoc.deprecated,

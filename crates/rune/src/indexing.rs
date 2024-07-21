@@ -67,11 +67,13 @@ pub(crate) enum FunctionAst {
 impl FunctionAst {
     /// Get the number of arguments for the function ast.
     #[cfg(feature = "doc")]
-    pub(crate) fn args(&self) -> usize {
-        match self {
-            FunctionAst::Empty(..) => 0,
-            FunctionAst::Item(ast) => ast.args.len(),
-        }
+    pub(crate) fn args(&self) -> impl ExactSizeIterator<Item = &dyn Spanned> {
+        let args = match self {
+            FunctionAst::Item(ast) => ast.args.as_slice(),
+            FunctionAst::Empty(..) => &[],
+        };
+
+        args.iter().map(|(arg, _)| -> &dyn Spanned { arg })
     }
 }
 
