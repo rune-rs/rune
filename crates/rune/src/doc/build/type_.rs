@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use serde::Serialize;
 
 use crate::alloc::borrow::Cow;
+use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::{String, Vec};
 use crate::compile::{meta, ComponentRef, Item};
@@ -86,19 +87,22 @@ pub(super) fn build_assoc_fns<'m>(
                         let doc = cx.render_docs(meta, assoc.docs, true)?;
                         cx.state.item.pop()?;
 
-                        let mut list = Vec::new();
+                        let parameters = if !assoc.parameter_types.is_empty() {
+                            let mut s = String::new();
+                            let mut it = assoc.parameter_types.iter().peekable();
 
-                        for &hash in assoc.parameter_types {
-                            if let Some(link) = cx.link(hash, None)? {
-                                list.try_push(link)?;
-                            } else {
-                                list.try_push(hash.try_to_string()?)?;
+                            while let Some(hash) = it.next() {
+                                cx.write_link(&mut s, *hash, None, &[])?;
+
+                                if it.peek().is_some() {
+                                    write!(s, ", ")?;
+                                }
                             }
-                        }
 
-                        let parameters = (!list.is_empty())
-                            .then(|| list.iter().try_join(", "))
-                            .transpose()?;
+                            Some(s)
+                        } else {
+                            None
+                        };
 
                         methods.try_push(Method {
                             is_async: assoc.is_async,
@@ -108,8 +112,10 @@ pub(super) fn build_assoc_fns<'m>(
                             parameters,
                             return_type: match assoc.return_type {
                                 meta::DocType {
-                                    base: Some(hash), ..
-                                } => cx.link(*hash, None)?,
+                                    base: Some(hash),
+                                    generics,
+                                    ..
+                                } => Some(cx.link(*hash, None, generics)?),
                                 _ => None,
                             },
                             line_doc,
@@ -138,8 +144,10 @@ pub(super) fn build_assoc_fns<'m>(
                     repr,
                     return_type: match assoc.return_type {
                         meta::DocType {
-                            base: Some(hash), ..
-                        } => cx.link(*hash, None)?,
+                            base: Some(hash),
+                            generics,
+                            ..
+                        } => Some(cx.link(*hash, None, generics)?),
                         _ => None,
                     },
                     doc,

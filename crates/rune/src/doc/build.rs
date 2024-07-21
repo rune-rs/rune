@@ -19,8 +19,7 @@ use crate as rune;
 use crate::alloc::borrow::Cow;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
-use crate::alloc::try_format;
-use crate::alloc::{self, String, Vec, VecDeque};
+use crate::alloc::{self, VecDeque};
 use crate::compile::{meta, ComponentRef, Item, ItemBuf};
 use crate::doc::artifacts::Test;
 use crate::doc::context::{Function, Kind, Meta, Signature};
@@ -541,7 +540,20 @@ impl<'m> Ctxt<'_, 'm> {
     }
 
     /// Convert a hash into a link.
-    fn link(&self, hash: Hash, text: Option<&str>) -> Result<Option<String>> {
+    fn link(&self, hash: Hash, text: Option<&str>, generics: &[meta::DocType]) -> Result<String> {
+        let mut s = String::new();
+        self.write_link(&mut s, hash, text, generics)?;
+        Ok(s)
+    }
+
+    /// Convert a hash into a link.
+    fn write_link(
+        &self,
+        o: &mut dyn TryWrite,
+        hash: Hash,
+        text: Option<&str>,
+        generics: &[meta::DocType],
+    ) -> Result<()> {
         fn into_item_kind(meta: Meta<'_>) -> Option<ItemKind> {
             match &meta.kind {
                 Kind::Type => Some(ItemKind::Type),
@@ -565,7 +577,8 @@ impl<'m> Ctxt<'_, 'm> {
                 tracing::warn!("Candidate: {:?}", meta.kind);
             }
 
-            return Ok(Some(try_format!("{hash}")));
+            write!(o, "{hash}")?;
+            return Ok(());
         };
 
         let item = meta.item.context("Missing item link meta")?;
@@ -579,9 +592,32 @@ impl<'m> Ctxt<'_, 'm> {
         };
 
         let path = self.item_path(item, kind)?;
-        Ok(Some(try_format!(
-            "<a class=\"{kind}\" href=\"{path}\">{name}</a>"
-        )))
+
+        write!(o, "<a class=\"{kind}\" href=\"{path}\">{name}</a>")?;
+
+        if !generics.is_empty() {
+            let mut it = generics.iter().peekable();
+            write!(o, "<")?;
+
+            while let Some(ty) = it.next() {
+                match ty.base {
+                    Some(hash) => {
+                        self.write_link(o, hash, None, &ty.generics)?;
+                    }
+                    None => {
+                        write!(o, "?")?;
+                    }
+                }
+
+                if it.peek().is_some() {
+                    write!(o, ", ")?;
+                }
+            }
+
+            write!(o, ">")?;
+        }
+
+        Ok(())
     }
 
     /// Coerce args into string.
@@ -613,10 +649,8 @@ impl<'m> Ctxt<'_, 'm> {
             write!(string, "{}", arg.name)?;
 
             if let Some(hash) = arg.base {
-                if let Some(link) = self.link(hash, None)? {
-                    string.try_push_str(": ")?;
-                    string.try_push_str(&link)?;
-                }
+                string.try_push_str(": ")?;
+                self.write_link(&mut string, hash, None, &arg.generics)?;
             }
 
             if it.peek().is_some() {
@@ -1069,8 +1103,10 @@ fn build_function<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'
 
     let return_type = match f.return_type {
         meta::DocType {
-            base: Some(hash), ..
-        } => cx.link(*hash, None)?,
+            base: Some(hash),
+            generics,
+            ..
+        } => Some(cx.link(*hash, None, generics)?),
         _ => None,
     };
 
