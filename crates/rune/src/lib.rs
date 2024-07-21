@@ -583,7 +583,7 @@ pub(crate) use rune_macros::__internal_impl_any;
 /// the original name. This means you can't easily call the function from both
 /// Rune and Rust. This behaviour can be changed by using the `keep` option, in
 /// which case you must refer to the meta object by a mangled name
-/// (specifically the function name with `__meta` appended).:
+/// (specifically the function name with `__meta` appended):
 ///
 /// ```
 /// use rune::{Module, ContextError};
