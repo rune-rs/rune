@@ -166,7 +166,7 @@ impl Range {
     pub(crate) fn partial_eq_with(
         &self,
         b: &Self,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<bool> {
         if !vm_try!(Value::partial_eq_with(&self.start, &b.start, caller)) {
             return VmResult::Ok(false);
@@ -191,7 +191,7 @@ impl Range {
         self.eq_with(other, &mut EnvProtocolCaller)
     }
 
-    pub(crate) fn eq_with(&self, b: &Self, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
+    pub(crate) fn eq_with(&self, b: &Self, caller: &mut dyn ProtocolCaller) -> VmResult<bool> {
         if !vm_try!(Value::eq_with(&self.start, &b.start, caller)) {
             return VmResult::Ok(false);
         }
@@ -217,7 +217,7 @@ impl Range {
     pub(crate) fn partial_cmp_with(
         &self,
         b: &Self,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<Option<Ordering>> {
         match vm_try!(Value::partial_cmp_with(&self.start, &b.start, caller)) {
             Some(Ordering::Equal) => (),
@@ -243,11 +243,7 @@ impl Range {
         self.cmp_with(other, &mut EnvProtocolCaller)
     }
 
-    pub(crate) fn cmp_with(
-        &self,
-        b: &Self,
-        caller: &mut impl ProtocolCaller,
-    ) -> VmResult<Ordering> {
+    pub(crate) fn cmp_with(&self, b: &Self, caller: &mut dyn ProtocolCaller) -> VmResult<Ordering> {
         match vm_try!(Value::cmp_with(&self.start, &b.start, caller)) {
             Ordering::Equal => (),
             other => return VmResult::Ok(other),
@@ -280,7 +276,7 @@ impl Range {
     pub(crate) fn contains_with(
         &self,
         value: Value,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<bool> {
         match vm_try!(Value::partial_cmp_with(&self.start, &value, caller)) {
             Some(Ordering::Less | Ordering::Equal) => {}

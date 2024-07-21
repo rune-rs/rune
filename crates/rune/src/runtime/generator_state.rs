@@ -72,7 +72,7 @@ impl GeneratorState {
     pub(crate) fn partial_eq_with(
         &self,
         other: &Self,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<bool> {
         match (self, other) {
             (GeneratorState::Yielded(a), GeneratorState::Yielded(b)) => {
@@ -85,7 +85,7 @@ impl GeneratorState {
         }
     }
 
-    pub(crate) fn eq_with(&self, other: &Self, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
+    pub(crate) fn eq_with(&self, other: &Self, caller: &mut dyn ProtocolCaller) -> VmResult<bool> {
         match (self, other) {
             (GeneratorState::Yielded(a), GeneratorState::Yielded(b)) => {
                 Value::eq_with(a, b, caller)

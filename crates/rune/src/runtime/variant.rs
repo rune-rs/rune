@@ -64,7 +64,7 @@ impl Variant {
     pub(crate) fn partial_eq_with(
         a: &Self,
         b: &Self,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<bool> {
         debug_assert_eq!(
             a.rtti.enum_hash, b.rtti.enum_hash,
@@ -87,7 +87,7 @@ impl Variant {
         }
     }
 
-    pub(crate) fn eq_with(a: &Self, b: &Self, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
+    pub(crate) fn eq_with(a: &Self, b: &Self, caller: &mut dyn ProtocolCaller) -> VmResult<bool> {
         debug_assert_eq!(
             a.rtti.enum_hash, b.rtti.enum_hash,
             "comparison only makes sense if enum hashes match"
@@ -112,7 +112,7 @@ impl Variant {
     pub(crate) fn partial_cmp_with(
         a: &Self,
         b: &Self,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<Option<Ordering>> {
         debug_assert_eq!(
             a.rtti.enum_hash, b.rtti.enum_hash,
@@ -137,7 +137,7 @@ impl Variant {
     pub(crate) fn cmp_with(
         a: &Self,
         b: &Self,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<Ordering> {
         debug_assert_eq!(
             a.rtti.enum_hash, b.rtti.enum_hash,

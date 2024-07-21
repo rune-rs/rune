@@ -16,9 +16,9 @@ use crate::compile::ItemBuf;
 use crate::runtime::vm::CallResultOnly;
 use crate::runtime::{
     AccessError, AccessErrorKind, AnyObj, AnyObjError, BorrowMut, BorrowRef, Bytes, ConstValue,
-    ControlFlow, EnvProtocolCaller, Format, Formatter, FromValue, FullTypeOf, Function, Future,
-    Generator, GeneratorState, IntoOutput, Iterator, MaybeTypeOf, Mut, Object, OwnedTuple,
-    Protocol, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
+    ControlFlow, DynGuardedArgs, EnvProtocolCaller, Format, Formatter, FromValue, FullTypeOf,
+    Function, Future, Generator, GeneratorState, IntoOutput, Iterator, MaybeTypeOf, Mut, Object,
+    OwnedTuple, Protocol, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
     RangeToInclusive, Ref, RuntimeError, Shared, SharedPointerGuard, Snapshot, Stream, ToValue,
     Type, TypeInfo, Variant, Vec, Vm, VmErrorKind, VmIntegerRepr, VmResult,
 };
@@ -440,6 +440,15 @@ enum ValueRepr {
     Value(Shared<ValueKind>),
 }
 
+impl fmt::Pointer for ValueRepr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Empty => write!(f, "0x0"),
+            Self::Value(value) => write!(f, "{:p}", value),
+        }
+    }
+}
+
 /// An entry on the stack.
 #[derive(Clone)]
 pub struct Value {
@@ -649,7 +658,7 @@ impl Value {
     pub(crate) fn string_display_with(
         &self,
         f: &mut Formatter,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
         match &*vm_try!(self.borrow_kind_ref()) {
             ValueKind::Char(c) => {
@@ -677,10 +686,15 @@ impl Value {
                 vm_try!(f.push_str(string));
             }
             _ => {
-                let result =
-                    vm_try!(caller.call_protocol_fn(Protocol::STRING_DISPLAY, self.clone(), (f,),));
+                let mut args = DynGuardedArgs::new((f,));
 
-                return VmResult::Ok(vm_try!(<()>::from_value(result)));
+                let result = vm_try!(caller.call_protocol_fn(
+                    Protocol::STRING_DISPLAY,
+                    self.clone(),
+                    &mut args
+                ));
+
+                return <()>::from_value(result);
             }
         }
 
@@ -703,7 +717,7 @@ impl Value {
         self.clone_with(&mut EnvProtocolCaller)
     }
 
-    pub(crate) fn clone_with(&self, caller: &mut impl ProtocolCaller) -> VmResult<Value> {
+    pub(crate) fn clone_with(&self, caller: &mut dyn ProtocolCaller) -> VmResult<Value> {
         let kind = match &*vm_try!(self.borrow_kind_ref()) {
             ValueKind::EmptyTuple => ValueKind::EmptyTuple,
             ValueKind::Bool(value) => ValueKind::Bool(*value),
@@ -746,7 +760,7 @@ impl Value {
                 return VmResult::Ok(vm_try!(caller.call_protocol_fn(
                     Protocol::CLONE,
                     self.clone(),
-                    ()
+                    &mut ()
                 )));
             }
         };
@@ -774,7 +788,7 @@ impl Value {
     pub(crate) fn string_debug_with(
         &self,
         f: &mut Formatter,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
         let value = match self.repr {
             ValueRepr::Empty => {
@@ -883,14 +897,20 @@ impl Value {
             }
             _ => {
                 // reborrow f to avoid moving it
-                let result =
-                    caller.call_protocol_fn(Protocol::STRING_DEBUG, self.clone(), (&mut *f,));
+                let mut args = DynGuardedArgs::new((&mut *f,));
 
-                if let VmResult::Ok(result) = result {
-                    vm_try!(<()>::from_value(result));
-                } else {
-                    let type_info = vm_try!(value.borrow_ref()).type_info();
-                    vm_write!(f, "<{} object at {:p}>", type_info, value);
+                match vm_try!(caller.try_call_protocol_fn(
+                    Protocol::STRING_DEBUG,
+                    self.clone(),
+                    &mut args
+                )) {
+                    CallResultOnly::Ok(value) => {
+                        vm_try!(<()>::from_value(value));
+                    }
+                    CallResultOnly::Unsupported(value) => {
+                        let type_info = vm_try!(value.borrow_kind_ref()).type_info();
+                        vm_write!(f, "<{} object at {:p}>", type_info, value.repr);
+                    }
                 }
             }
         };
@@ -911,8 +931,8 @@ impl Value {
         self.into_iter_with(&mut EnvProtocolCaller)
     }
 
-    pub(crate) fn into_iter_with(self, caller: &mut impl ProtocolCaller) -> VmResult<Iterator> {
-        let value = vm_try!(caller.call_protocol_fn(Protocol::INTO_ITER, self, ()));
+    pub(crate) fn into_iter_with(self, caller: &mut dyn ProtocolCaller) -> VmResult<Iterator> {
+        let value = vm_try!(caller.call_protocol_fn(Protocol::INTO_ITER, self, &mut ()));
         Iterator::from_value(value)
     }
 
@@ -1379,7 +1399,8 @@ impl Value {
             target => vm_try!(Value::try_from(target)),
         };
 
-        let value = vm_try!(EnvProtocolCaller.call_protocol_fn(Protocol::INTO_FUTURE, target, ()));
+        let value =
+            vm_try!(EnvProtocolCaller.call_protocol_fn(Protocol::INTO_FUTURE, target, &mut ()));
         VmResult::Ok(vm_try!(Future::from_value(value)))
     }
 
@@ -1535,7 +1556,7 @@ impl Value {
     pub(crate) fn partial_eq_with(
         &self,
         b: &Value,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<bool> {
         {
             let a = vm_try!(self.borrow_kind_ref());
@@ -1627,9 +1648,11 @@ impl Value {
             }
         }
 
-        if let CallResultOnly::Ok(value) =
-            vm_try!(caller.try_call_protocol_fn(Protocol::PARTIAL_EQ, self.clone(), (b.clone(),)))
-        {
+        if let CallResultOnly::Ok(value) = vm_try!(caller.try_call_protocol_fn(
+            Protocol::PARTIAL_EQ,
+            self.clone(),
+            &mut Some((b.clone(),))
+        )) {
             return <_>::from_value(value);
         }
 
@@ -1650,7 +1673,7 @@ impl Value {
     pub(crate) fn hash_with(
         &self,
         hasher: &mut Hasher,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
         match &*vm_try!(self.borrow_kind_ref()) {
             ValueKind::Integer(value) => {
@@ -1690,8 +1713,10 @@ impl Value {
             _ => {}
         }
 
+        let mut args = DynGuardedArgs::new((hasher,));
+
         if let CallResultOnly::Ok(value) =
-            vm_try!(caller.try_call_protocol_fn(Protocol::HASH, self.clone(), (hasher,)))
+            vm_try!(caller.try_call_protocol_fn(Protocol::HASH, self.clone(), &mut args))
         {
             return <_>::from_value(value);
         }
@@ -1719,7 +1744,7 @@ impl Value {
     /// Perform a total equality test between two values.
     ///
     /// This is the basis for the eq operation (`==`).
-    pub(crate) fn eq_with(&self, b: &Value, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
+    pub(crate) fn eq_with(&self, b: &Value, caller: &mut dyn ProtocolCaller) -> VmResult<bool> {
         match (
             &*vm_try!(self.borrow_kind_ref()),
             &*vm_try!(b.borrow_kind_ref()),
@@ -1811,9 +1836,11 @@ impl Value {
             _ => {}
         }
 
-        if let CallResultOnly::Ok(value) =
-            vm_try!(caller.try_call_protocol_fn(Protocol::EQ, self.clone(), (b.clone(),)))
-        {
+        if let CallResultOnly::Ok(value) = vm_try!(caller.try_call_protocol_fn(
+            Protocol::EQ,
+            self.clone(),
+            &mut Some((b.clone(),))
+        )) {
             return <_>::from_value(value);
         }
 
@@ -1844,7 +1871,7 @@ impl Value {
     pub(crate) fn partial_cmp_with(
         &self,
         b: &Value,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<Option<Ordering>> {
         match (
             &*vm_try!(self.borrow_kind_ref()),
@@ -1934,9 +1961,11 @@ impl Value {
             _ => {}
         }
 
-        if let CallResultOnly::Ok(value) =
-            vm_try!(caller.try_call_protocol_fn(Protocol::PARTIAL_CMP, self.clone(), (b.clone(),)))
-        {
+        if let CallResultOnly::Ok(value) = vm_try!(caller.try_call_protocol_fn(
+            Protocol::PARTIAL_CMP,
+            self.clone(),
+            &mut Some((b.clone(),))
+        )) {
             return <_>::from_value(value);
         }
 
@@ -1967,7 +1996,7 @@ impl Value {
     pub(crate) fn cmp_with(
         &self,
         b: &Value,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<Ordering> {
         match (
             &*vm_try!(self.borrow_kind_ref()),
@@ -2059,9 +2088,11 @@ impl Value {
             _ => {}
         }
 
-        if let CallResultOnly::Ok(value) =
-            vm_try!(caller.try_call_protocol_fn(Protocol::CMP, self.clone(), (b.clone(),)))
-        {
+        if let CallResultOnly::Ok(value) = vm_try!(caller.try_call_protocol_fn(
+            Protocol::CMP,
+            self.clone(),
+            &mut Some((b.clone(),))
+        )) {
             return <_>::from_value(value);
         }
 
@@ -2139,12 +2170,13 @@ impl fmt::Debug for Value {
         if self.string_debug(&mut o).is_err() {
             match self.type_info() {
                 Ok(type_info) => {
-                    write!(f, "<{} object at {:p}>", type_info, self)?;
+                    write!(f, "<{} object at {:p}>", type_info, self.repr)?;
                 }
                 Err(e) => {
-                    write!(f, "<unknown object at {:p}: {}>", self, e)?;
+                    write!(f, "<unknown object at {:p}: {}>", self.repr, e)?;
                 }
             }
+
             return Ok(());
         }
 

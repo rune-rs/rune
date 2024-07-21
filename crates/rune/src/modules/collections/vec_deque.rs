@@ -558,7 +558,7 @@ impl VecDeque {
     fn string_debug_with(
         &self,
         f: &mut Formatter,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
         let mut it = self.inner.iter().peekable();
 
@@ -597,7 +597,7 @@ impl VecDeque {
         self.partial_eq_with(b, &mut EnvProtocolCaller)
     }
 
-    fn partial_eq_with(&self, b: Value, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
+    fn partial_eq_with(&self, b: Value, caller: &mut dyn ProtocolCaller) -> VmResult<bool> {
         let mut b = vm_try!(b.into_iter_with(caller));
 
         for a in &self.inner {
@@ -635,7 +635,7 @@ impl VecDeque {
         self.eq_with(b, &mut EnvProtocolCaller)
     }
 
-    fn eq_with(&self, b: &VecDeque, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
+    fn eq_with(&self, b: &VecDeque, caller: &mut dyn ProtocolCaller) -> VmResult<bool> {
         let mut b = b.inner.iter();
 
         for a in &self.inner {
@@ -675,7 +675,7 @@ impl VecDeque {
     fn partial_cmp_with(
         &self,
         b: &VecDeque,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<Option<Ordering>> {
         let mut b = b.inner.iter();
 
@@ -716,7 +716,7 @@ impl VecDeque {
         self.cmp_with(b, &mut EnvProtocolCaller)
     }
 
-    fn cmp_with(&self, other: &VecDeque, caller: &mut impl ProtocolCaller) -> VmResult<Ordering> {
+    fn cmp_with(&self, other: &VecDeque, caller: &mut dyn ProtocolCaller) -> VmResult<Ordering> {
         let mut b = other.inner.iter();
 
         for a in self.inner.iter() {

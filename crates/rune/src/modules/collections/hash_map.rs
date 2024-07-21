@@ -377,10 +377,7 @@ impl HashMap {
         })
     }
 
-    pub(crate) fn from_iter<P>(mut it: Iterator, caller: &mut P) -> VmResult<Self>
-    where
-        P: ?Sized + ProtocolCaller,
-    {
+    pub(crate) fn from_iter(mut it: Iterator, caller: &mut dyn ProtocolCaller) -> VmResult<Self> {
         let mut map = Self::new();
 
         while let Some(value) = vm_try!(it.next()) {
@@ -472,7 +469,7 @@ impl HashMap {
     pub(crate) fn string_debug_with(
         &self,
         f: &mut Formatter,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
         vm_write!(f, "{{");
 
@@ -523,7 +520,7 @@ impl HashMap {
         self.partial_eq_with(other, &mut EnvProtocolCaller)
     }
 
-    fn partial_eq_with(&self, other: &Self, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
+    fn partial_eq_with(&self, other: &Self, caller: &mut dyn ProtocolCaller) -> VmResult<bool> {
         if self.table.len() != other.table.len() {
             return VmResult::Ok(false);
         }

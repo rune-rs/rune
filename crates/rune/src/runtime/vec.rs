@@ -220,7 +220,7 @@ impl Vec {
     pub(crate) fn string_debug_with(
         this: &[Value],
         f: &mut Formatter,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
         let mut it = this.iter().peekable();
         vm_write!(f, "[");
@@ -240,7 +240,7 @@ impl Vec {
     pub(crate) fn partial_eq_with(
         a: &[Value],
         b: Value,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<bool> {
         let mut b = vm_try!(b.into_iter_with(caller));
 
@@ -261,15 +261,12 @@ impl Vec {
         VmResult::Ok(true)
     }
 
-    pub(crate) fn eq_with<P>(
+    pub(crate) fn eq_with(
         a: &[Value],
         b: &[Value],
-        eq: fn(&Value, &Value, &mut P) -> VmResult<bool>,
-        caller: &mut P,
-    ) -> VmResult<bool>
-    where
-        P: ProtocolCaller,
-    {
+        eq: fn(&Value, &Value, &mut dyn ProtocolCaller) -> VmResult<bool>,
+        caller: &mut dyn ProtocolCaller,
+    ) -> VmResult<bool> {
         if a.len() != b.len() {
             return VmResult::Ok(false);
         }
@@ -286,7 +283,7 @@ impl Vec {
     pub(crate) fn partial_cmp_with(
         a: &[Value],
         b: &[Value],
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<Option<Ordering>> {
         let mut b = b.iter();
 
@@ -311,7 +308,7 @@ impl Vec {
     pub(crate) fn cmp_with(
         a: &[Value],
         b: &[Value],
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<Ordering> {
         let mut b = b.iter();
 
@@ -385,7 +382,7 @@ impl Vec {
     pub(crate) fn hash_with(
         &self,
         hasher: &mut Hasher,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
         for value in self.inner.iter() {
             vm_try!(value.hash_with(hasher, caller));

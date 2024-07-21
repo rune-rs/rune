@@ -1,5 +1,93 @@
+use core::fmt;
+
 use crate::alloc::Vec;
-use crate::runtime::{Stack, ToValue, Value, VmResult};
+use crate::runtime::{GuardedArgs, Stack, ToValue, Value, VmResult};
+
+#[derive(Debug, PartialEq)]
+pub(crate) struct DynArgsUsed;
+
+impl fmt::Display for DynArgsUsed {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Dynamic arguments have already been used")
+    }
+}
+
+/// Object safe variant of args which errors instead of consumed itself.
+pub(crate) trait DynArgs {
+    /// Encode arguments onto a stack.
+    fn push_to_stack(&mut self, stack: &mut Stack) -> VmResult<()>;
+
+    /// Get the number of arguments.
+    fn count(&self) -> usize;
+}
+
+impl DynArgs for () {
+    fn push_to_stack(&mut self, _: &mut Stack) -> VmResult<()> {
+        VmResult::Ok(())
+    }
+
+    fn count(&self) -> usize {
+        0
+    }
+}
+
+impl<T> DynArgs for Option<T>
+where
+    T: Args,
+{
+    fn push_to_stack(&mut self, stack: &mut Stack) -> VmResult<()> {
+        let Some(args) = self.take() else {
+            return VmResult::err(DynArgsUsed);
+        };
+
+        vm_try!(args.into_stack(stack));
+        VmResult::Ok(())
+    }
+
+    fn count(&self) -> usize {
+        self.as_ref().map_or(0, Args::count)
+    }
+}
+
+pub(crate) struct DynGuardedArgs<T>
+where
+    T: GuardedArgs,
+{
+    value: Option<T>,
+    guard: Option<T::Guard>,
+}
+
+impl<T> DynGuardedArgs<T>
+where
+    T: GuardedArgs,
+{
+    pub(crate) fn new(value: T) -> Self {
+        Self {
+            value: Some(value),
+            guard: None,
+        }
+    }
+}
+
+impl<T> DynArgs for DynGuardedArgs<T>
+where
+    T: GuardedArgs,
+{
+    fn push_to_stack(&mut self, stack: &mut Stack) -> VmResult<()> {
+        let Some(value) = self.value.take() else {
+            return VmResult::err(DynArgsUsed);
+        };
+
+        // SAFETY: We've setup the type so that the caller cannot ignore the guard.
+        self.guard = unsafe { Some(vm_try!(GuardedArgs::unsafe_into_stack(value, stack))) };
+
+        VmResult::Ok(())
+    }
+
+    fn count(&self) -> usize {
+        self.value.as_ref().map_or(0, GuardedArgs::count)
+    }
+}
 
 /// Trait for converting arguments onto the stack.
 pub trait Args {

@@ -14,10 +14,10 @@ use crate::modules::{option, result};
 use crate::runtime::future::SelectFuture;
 use crate::runtime::unit::{UnitFn, UnitStorage};
 use crate::runtime::{
-    self, Args, Awaited, BorrowMut, Bytes, Call, ControlFlow, EmptyStruct, Format, FormatSpec,
-    Formatter, FromValue, Function, Future, Generator, GuardedArgs, Inst, InstAddress,
-    InstAssignOp, InstOp, InstRange, InstTarget, InstValue, InstVariant, Object, Output,
-    OwnedTuple, Panic, Protocol, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
+    self, Args, Awaited, BorrowMut, Bytes, Call, ControlFlow, DynArgs, DynGuardedArgs, EmptyStruct,
+    Format, FormatSpec, Formatter, FromValue, Function, Future, Generator, GuardedArgs, Inst,
+    InstAddress, InstAssignOp, InstOp, InstRange, InstTarget, InstValue, InstVariant, Object,
+    Output, OwnedTuple, Panic, Protocol, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
     RangeToInclusive, RuntimeContext, Select, Stack, Stream, Struct, Type, TypeCheck, TypeOf, Unit,
     Value, ValueKind, Variant, VariantData, Vec, VmError, VmErrorKind, VmExecution, VmHalt,
     VmIntegerRepr, VmResult, VmSendExecution,
@@ -25,22 +25,6 @@ use crate::runtime::{
 use crate::runtime::{budget, ProtocolCaller};
 
 use super::{VmDiagnostics, VmDiagnosticsObj};
-
-macro_rules! populate {
-    ($populate:ident, $args:expr) => {
-        let mut args = Some($args);
-        let mut _guard = None;
-
-        let $populate = &mut |stack: &mut Stack| {
-            if let Some(args) = args.take() {
-                // Safety: We hold onto the guard for the duration of this call.
-                _guard = Some(unsafe { vm_try!(args.unsafe_into_stack(stack)) });
-            }
-
-            VmResult::Ok(())
-        };
-    };
-}
 
 /// Indicating the kind of isolation that is present for a frame.
 #[derive(Debug, Clone, Copy)]
@@ -639,14 +623,13 @@ impl Vm {
         isolated: Isolated,
         target: Value,
         hash: impl ToTypeHash,
-        args: impl GuardedArgs,
+        args: &mut dyn DynArgs,
         out: Output,
     ) -> VmResult<CallResult<()>> {
         let count = args.count().wrapping_add(1);
         let type_hash = vm_try!(target.type_hash());
         let hash = Hash::associated_function(type_hash, hash.to_type_hash());
-        populate!(populate, args);
-        self.call_hash_with(isolated, hash, target, populate, count, out)
+        self.call_hash_with(isolated, hash, target, args, count, out)
     }
 
     /// Helper to call a field function.
@@ -655,13 +638,12 @@ impl Vm {
         protocol: Protocol,
         target: Value,
         name: impl IntoHash,
-        args: impl GuardedArgs,
+        args: &mut dyn DynArgs,
         out: Output,
     ) -> VmResult<CallResult<()>> {
         let count = args.count().wrapping_add(1);
         let hash = Hash::field_function(protocol, vm_try!(target.type_hash()), name);
-        populate!(populate, args);
-        self.call_hash_with(Isolated::None, hash, target, populate, count, out)
+        self.call_hash_with(Isolated::None, hash, target, args, count, out)
     }
 
     /// Helper to call an index function.
@@ -670,13 +652,12 @@ impl Vm {
         protocol: Protocol,
         target: Value,
         index: usize,
-        args: impl GuardedArgs,
+        args: &mut dyn DynArgs,
         out: Output,
     ) -> VmResult<CallResult<()>> {
         let count = args.count().wrapping_add(1);
         let hash = Hash::index_function(protocol, vm_try!(target.type_hash()), Hash::index(index));
-        populate!(populate, args);
-        self.call_hash_with(Isolated::None, hash, target, populate, count, out)
+        self.call_hash_with(Isolated::None, hash, target, args, count, out)
     }
 
     fn called_function_hook(&self, hash: Hash) -> VmResult<()> {
@@ -694,7 +675,7 @@ impl Vm {
         isolated: Isolated,
         hash: Hash,
         target: Value,
-        populate: &mut dyn FnMut(&mut Stack) -> VmResult<()>,
+        args: &mut dyn DynArgs,
         count: usize,
         out: Output,
     ) -> VmResult<CallResult<()>> {
@@ -710,7 +691,7 @@ impl Vm {
             let addr = self.stack.addr();
             vm_try!(self.called_function_hook(hash));
             vm_try!(self.stack.push(target));
-            vm_try!(populate(&mut self.stack));
+            vm_try!(args.push_to_stack(&mut self.stack));
 
             let result = self.call_offset_fn(offset, call, addr, count, isolated, out);
 
@@ -726,7 +707,7 @@ impl Vm {
             let addr = self.stack.addr();
             vm_try!(self.called_function_hook(hash));
             vm_try!(self.stack.push(target));
-            vm_try!(populate(&mut self.stack));
+            vm_try!(args.push_to_stack(&mut self.stack));
 
             let result = handler(&mut self.stack, addr, count, out);
             self.stack.truncate(addr);
@@ -1082,7 +1063,7 @@ impl Vm {
 
         let hash = index.hash();
 
-        let result = vm_try!(self.call_field_fn(Protocol::GET, target, hash, (), out));
+        let result = vm_try!(self.call_field_fn(Protocol::GET, target, hash, &mut (), out));
 
         VmResult::Ok(result)
     }
@@ -1129,8 +1110,9 @@ impl Vm {
         }
 
         let hash = field.hash();
+        let mut args = DynGuardedArgs::new((value,));
         let result =
-            vm_try!(self.call_field_fn(Protocol::SET, target, hash, (value,), Output::discard()));
+            vm_try!(self.call_field_fn(Protocol::SET, target, hash, &mut args, Output::discard()));
         VmResult::Ok(result)
     }
 
@@ -1398,11 +1380,13 @@ impl Vm {
     ) -> VmResult<()> {
         match fallback {
             TargetFallback::Value(lhs, rhs) => {
+                let mut args = DynGuardedArgs::new((&rhs,));
+
                 if let CallResult::Unsupported(lhs) = vm_try!(self.call_instance_fn(
                     Isolated::None,
                     lhs,
                     protocol,
-                    (&rhs,),
+                    &mut args,
                     Output::discard()
                 )) {
                     return err(VmErrorKind::UnsupportedBinaryOperation {
@@ -1415,11 +1399,13 @@ impl Vm {
                 VmResult::Ok(())
             }
             TargetFallback::Field(lhs, hash, rhs) => {
+                let mut args = DynGuardedArgs::new((&rhs,));
+
                 if let CallResult::Unsupported(lhs) = vm_try!(self.call_field_fn(
                     protocol,
                     lhs.clone(),
                     hash,
-                    (rhs,),
+                    &mut args,
                     Output::discard()
                 )) {
                     return err(VmErrorKind::UnsupportedObjectSlotIndexGet {
@@ -1430,11 +1416,13 @@ impl Vm {
                 VmResult::Ok(())
             }
             TargetFallback::Index(lhs, index, rhs) => {
+                let mut args = DynGuardedArgs::new((&rhs,));
+
                 if let CallResult::Unsupported(lhs) = vm_try!(self.call_index_fn(
                     protocol,
                     lhs.clone(),
                     index,
-                    (&rhs,),
+                    &mut args,
                     Output::discard()
                 )) {
                     return err(VmErrorKind::UnsupportedTupleIndexGet {
@@ -1481,8 +1469,10 @@ impl Vm {
         let lhs = lhs.clone();
         let rhs = rhs.clone();
 
+        let mut args = DynGuardedArgs::new((&rhs,));
+
         if let CallResult::Unsupported(lhs) =
-            vm_try!(self.call_instance_fn(Isolated::None, lhs, protocol, (&rhs,), out))
+            vm_try!(self.call_instance_fn(Isolated::None, lhs, protocol, &mut args, out))
         {
             return err(VmErrorKind::UnsupportedBinaryOperation {
                 op: protocol.name,
@@ -1527,8 +1517,10 @@ impl Vm {
             _ => {}
         };
 
+        let mut args = DynGuardedArgs::new((&rhs,));
+
         if let CallResult::Unsupported(lhs) =
-            vm_try!(self.call_instance_fn(Isolated::None, lhs, protocol, (&rhs,), out))
+            vm_try!(self.call_instance_fn(Isolated::None, lhs, protocol, &mut args, out))
         {
             return err(VmErrorKind::UnsupportedBinaryOperation {
                 op: protocol.name,
@@ -1611,8 +1603,10 @@ impl Vm {
             _ => {}
         }
 
+        let mut args = DynGuardedArgs::new((&rhs,));
+
         if let CallResult::Unsupported(lhs) =
-            vm_try!(self.call_instance_fn(Isolated::None, lhs, protocol, (&rhs,), out))
+            vm_try!(self.call_instance_fn(Isolated::None, lhs, protocol, &mut args, out))
         {
             return err(VmErrorKind::UnsupportedBinaryOperation {
                 op: protocol.name,
@@ -2221,11 +2215,13 @@ impl Vm {
         let index = index.clone();
         let value = value.clone();
 
+        let mut args = DynGuardedArgs::new((&index, &value));
+
         if let CallResult::Unsupported(target) = vm_try!(self.call_instance_fn(
             Isolated::None,
             target,
             Protocol::INDEX_SET,
-            (&index, &value),
+            &mut args,
             Output::discard()
         )) {
             return err(VmErrorKind::UnsupportedIndexSet {
@@ -2382,11 +2378,13 @@ impl Vm {
             let target = target.clone();
             let index = index.clone();
 
+            let mut args = DynGuardedArgs::new((&index,));
+
             if let CallResult::Unsupported(target) = vm_try!(self.call_instance_fn(
                 Isolated::None,
                 target,
                 Protocol::INDEX_GET,
-                (&index,),
+                &mut args,
                 out
             )) {
                 return err(VmErrorKind::UnsupportedIndexGet {
@@ -2440,7 +2438,7 @@ impl Vm {
         let value = value.clone();
 
         if let CallResult::Unsupported(value) =
-            vm_try!(self.call_index_fn(Protocol::GET, value, index, (), out))
+            vm_try!(self.call_index_fn(Protocol::GET, value, index, &mut (), out))
         {
             return err(VmErrorKind::UnsupportedTupleIndexGet {
                 target: vm_try!(value.type_info()),
@@ -2706,7 +2704,7 @@ impl Vm {
                 value.clone()
             };
 
-            match vm_try!(self.try_call_protocol_fn(Protocol::TRY, value, ())) {
+            match vm_try!(self.try_call_protocol_fn(Protocol::TRY, value, &mut ())) {
                 CallResultOnly::Ok(value) => vm_try!(ControlFlow::from_value(value)),
                 CallResultOnly::Unsupported(target) => {
                     return err(VmErrorKind::UnsupportedTryOperand {
@@ -2872,7 +2870,11 @@ impl Vm {
 
             let value = value.clone();
 
-            match vm_try!(self.try_call_protocol_fn(Protocol::IS_VARIANT, value, (index,))) {
+            match vm_try!(self.try_call_protocol_fn(
+                Protocol::IS_VARIANT,
+                value,
+                &mut Some((index,))
+            )) {
                 CallResultOnly::Ok(value) => vm_try!(bool::from_value(value)),
                 CallResultOnly::Unsupported(..) => false,
             }

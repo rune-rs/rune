@@ -403,7 +403,7 @@ impl HashSet {
         self.string_debug_with(f, &mut EnvProtocolCaller)
     }
 
-    fn string_debug_with(&self, f: &mut Formatter, _: &mut impl ProtocolCaller) -> VmResult<()> {
+    fn string_debug_with(&self, f: &mut Formatter, _: &mut dyn ProtocolCaller) -> VmResult<()> {
         vm_write!(f, "{{");
 
         let mut it = self.table.iter().peekable();
@@ -420,10 +420,7 @@ impl HashSet {
         VmResult::Ok(())
     }
 
-    pub(crate) fn from_iter<P>(mut it: Iterator, caller: &mut P) -> VmResult<Self>
-    where
-        P: ?Sized + ProtocolCaller,
-    {
+    pub(crate) fn from_iter(mut it: Iterator, caller: &mut dyn ProtocolCaller) -> VmResult<Self> {
         let mut set = vm_try!(Table::try_with_capacity(it.size_hint().0));
 
         while let Some(key) = vm_try!(it.next()) {

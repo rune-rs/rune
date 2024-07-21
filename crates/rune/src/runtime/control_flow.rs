@@ -37,7 +37,7 @@ impl ControlFlow {
     pub(crate) fn string_debug_with(
         &self,
         f: &mut Formatter,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
         match self {
             ControlFlow::Continue(value) => {
@@ -58,7 +58,7 @@ impl ControlFlow {
     pub(crate) fn partial_eq_with(
         &self,
         other: &Self,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<bool> {
         match (self, other) {
             (ControlFlow::Continue(a), ControlFlow::Continue(b)) => {
@@ -72,7 +72,7 @@ impl ControlFlow {
     pub(crate) fn eq_with(
         &self,
         other: &ControlFlow,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<bool> {
         match (self, other) {
             (ControlFlow::Continue(a), ControlFlow::Continue(b)) => Value::eq_with(a, b, caller),
