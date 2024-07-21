@@ -27,8 +27,8 @@ impl Docs {
 
     /// Get arguments associated with documentation.
     #[cfg(feature = "doc")]
-    pub(crate) fn args(&self) -> Option<&[String]> {
-        self.arguments.as_deref()
+    pub(crate) fn args(&self) -> &[String] {
+        self.arguments.as_deref().unwrap_or_default()
     }
 
     /// Get lines of documentation.

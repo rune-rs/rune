@@ -21,12 +21,11 @@ use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::try_format;
 use crate::alloc::{self, String, Vec, VecDeque};
-use crate::compile::{ComponentRef, Item, ItemBuf};
+use crate::compile::{meta, ComponentRef, Item, ItemBuf};
 use crate::doc::artifacts::Test;
 use crate::doc::context::{Function, Kind, Meta, Signature};
 use crate::doc::templating;
 use crate::doc::{Artifacts, Context, Visitor};
-use crate::std;
 use crate::std::borrow::ToOwned;
 use crate::Hash;
 
@@ -588,91 +587,35 @@ impl<'m> Ctxt<'_, 'm> {
     /// Coerce args into string.
     fn args_to_string(
         &self,
-        arg_names: Option<&[String]>,
-        args: Option<usize>,
         sig: Signature,
-        argument_types: &[Option<Hash>],
+        arguments: Option<&[meta::DocArgument]>,
     ) -> Result<String> {
-        use std::borrow::Cow;
-
         let mut string = String::new();
-        let mut types = argument_types.iter();
 
-        let mut args_iter;
-        let mut function_iter;
-        let mut instance_iter;
-
-        let it: &mut dyn Iterator<Item = Cow<'_, str>> = if let Some(arg_names) = arg_names {
-            args_iter = arg_names.iter().map(|s| Cow::Borrowed(s.as_str()));
-            &mut args_iter
-        } else {
+        let Some(arguments) = arguments else {
             match sig {
                 Signature::Function => {
                     let mut string = String::new();
-
-                    let Some(count) = args else {
-                        write!(string, "..")?;
-                        return Ok(string);
-                    };
-
-                    function_iter = (0..count).map(|n| {
-                        if n == 0 {
-                            Cow::Borrowed("value")
-                        } else {
-                            Cow::Owned(format!("value{}", n))
-                        }
-                    });
-
-                    &mut function_iter
+                    write!(string, "..")?;
+                    return Ok(string);
                 }
                 Signature::Instance => {
-                    let s = [Cow::Borrowed("self")];
-
-                    let (n, f): (usize, fn(usize) -> Cow<'static, str>) = match args {
-                        Some(n) => {
-                            let f = move |n| {
-                                if n != 1 {
-                                    Cow::Owned(format!("value{n}"))
-                                } else {
-                                    Cow::Borrowed("value")
-                                }
-                            };
-
-                            (n, f)
-                        }
-                        None => {
-                            let f = move |_| Cow::Borrowed("..");
-                            (2, f)
-                        }
-                    };
-
-                    instance_iter = s.into_iter().chain((1..n).map(f));
-                    &mut instance_iter
+                    let mut string = String::new();
+                    write!(string, "self, ..")?;
+                    return Ok(string);
                 }
             }
         };
 
-        let mut it = it.peekable();
+        let mut it = arguments.iter().peekable();
 
         while let Some(arg) = it.next() {
-            if arg == "self" {
-                if let Some(Some(hash)) = types.next() {
-                    if let Some(link) = self.link(*hash, Some("self"))? {
-                        string.try_push_str(&link)?;
-                    } else {
-                        string.try_push_str("self")?;
-                    }
-                } else {
-                    string.try_push_str("self")?;
-                }
-            } else {
-                string.try_push_str(arg.as_ref())?;
+            write!(string, "{}", arg.name)?;
 
-                if let Some(Some(hash)) = types.next() {
-                    if let Some(link) = self.link(*hash, None)? {
-                        string.try_push_str(": ")?;
-                        string.try_push_str(&link)?;
-                    }
+            if let Some(hash) = arg.base {
+                if let Some(link) = self.link(hash, None)? {
+                    string.try_push_str(": ")?;
+                    string.try_push_str(&link)?;
                 }
             }
 
@@ -1010,12 +953,7 @@ fn module<'m>(
                         path: cx.item_path(&item, ItemKind::Function)?,
                         item: item.try_clone()?,
                         name,
-                        args: cx.args_to_string(
-                            f.arg_names,
-                            f.args,
-                            f.signature,
-                            f.argument_types,
-                        )?,
+                        args: cx.args_to_string(f.signature, f.arguments)?,
                         doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
                     })?;
                 }
@@ -1130,8 +1068,10 @@ fn build_function<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'
     let doc = cx.render_docs(meta, meta.docs, true)?;
 
     let return_type = match f.return_type {
-        Some(hash) => cx.link(hash, None)?,
-        None => None,
+        meta::DocType {
+            base: Some(hash), ..
+        } => cx.link(*hash, None)?,
+        _ => None,
     };
 
     let item = meta.item.context("Missing item")?;
@@ -1146,7 +1086,7 @@ fn build_function<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'
             deprecated,
             item,
             name,
-            args: cx.args_to_string(f.arg_names, f.args, f.signature, f.argument_types)?,
+            args: cx.args_to_string(f.signature, f.arguments)?,
             doc,
             return_type,
         })

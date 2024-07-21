@@ -16,6 +16,8 @@ use crate::module::{
     Fields, Module, ModuleAssociated, ModuleAssociatedKind, ModuleItem, ModuleType,
     TypeSpecification,
 };
+#[cfg(feature = "doc")]
+use crate::runtime::FullTypeOf;
 use crate::runtime::{
     AttributeMacroHandler, ConstValue, FunctionHandler, MacroHandler, Protocol, RuntimeContext,
     StaticType, TypeCheck, TypeInfo, VariantRtti,
@@ -449,15 +451,9 @@ impl Context {
                                 #[cfg(feature = "doc")]
                                 is_async: false,
                                 #[cfg(feature = "doc")]
-                                args: Some(match fields {
-                                    Fields::Named(names) => names.len(),
-                                    Fields::Unnamed(args) => *args,
-                                    Fields::Empty => 0,
-                                }),
+                                arguments: Some(fields_to_arguments(fields)?),
                                 #[cfg(feature = "doc")]
-                                return_type: Some(ty.hash),
-                                #[cfg(feature = "doc")]
-                                argument_types: Box::default(),
+                                return_type: meta::DocType::new(Some(ty.hash)),
                             };
 
                             self.insert_native_fn(hash, c, None)?;
@@ -514,15 +510,9 @@ impl Context {
                                 #[cfg(feature = "doc")]
                                 is_async: false,
                                 #[cfg(feature = "doc")]
-                                args: Some(match fields {
-                                    Fields::Named(names) => names.len(),
-                                    Fields::Unnamed(args) => *args,
-                                    Fields::Empty => 0,
-                                }),
+                                arguments: Some(fields_to_arguments(fields)?),
                                 #[cfg(feature = "doc")]
-                                return_type: Some(ty.hash),
-                                #[cfg(feature = "doc")]
-                                argument_types: Box::default(),
+                                return_type: meta::DocType::new(Some(ty.hash)),
                             };
 
                             self.insert_native_fn(hash, c, variant.deprecated.as_deref())?;
@@ -639,15 +629,13 @@ impl Context {
                     #[cfg(feature = "doc")]
                     is_async: f.is_async,
                     #[cfg(feature = "doc")]
-                    args: f.args,
+                    arguments: context_to_arguments(
+                        f.args,
+                        f.argument_types.as_ref(),
+                        module_item.common.docs.args(),
+                    )?,
                     #[cfg(feature = "doc")]
-                    return_type: f.return_type.as_ref().map(|f| f.hash),
-                    #[cfg(feature = "doc")]
-                    argument_types: f
-                        .argument_types
-                        .iter()
-                        .map(|f| f.as_ref().map(|f| f.hash))
-                        .try_collect()?,
+                    return_type: meta::DocType::new(f.return_type.as_ref().map(|f| f.hash)),
                 };
 
                 self.insert_native_fn(hash, &f.handler, module_item.common.deprecated.as_deref())?;
@@ -724,15 +712,9 @@ impl Context {
                             #[cfg(feature = "doc")]
                             is_async: false,
                             #[cfg(feature = "doc")]
-                            args: Some(match fields {
-                                Fields::Named(names) => names.len(),
-                                Fields::Unnamed(args) => *args,
-                                Fields::Empty => 0,
-                            }),
+                            arguments: Some(fields_to_arguments(fields)?),
                             #[cfg(feature = "doc")]
-                            return_type: Some(hash),
-                            #[cfg(feature = "doc")]
-                            argument_types: Box::default(),
+                            return_type: meta::DocType::new(Some(hash)),
                         })
                     } else {
                         None
@@ -836,15 +818,13 @@ impl Context {
                     #[cfg(feature = "doc")]
                     is_async: f.is_async,
                     #[cfg(feature = "doc")]
-                    args: f.args,
+                    arguments: context_to_arguments(
+                        f.args,
+                        f.argument_types.as_ref(),
+                        assoc.common.docs.args(),
+                    )?,
                     #[cfg(feature = "doc")]
-                    return_type: f.return_type.as_ref().map(|f| f.hash),
-                    #[cfg(feature = "doc")]
-                    argument_types: f
-                        .argument_types
-                        .iter()
-                        .map(|f| f.as_ref().map(|f| f.hash))
-                        .try_collect()?,
+                    return_type: meta::DocType::new(f.return_type.as_ref().map(|f| f.hash)),
                 };
 
                 if let Some((hash, item)) = &item {
@@ -914,6 +894,77 @@ impl fmt::Debug for Context {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Context")
     }
+}
+
+#[cfg(feature = "doc")]
+fn fields_to_arguments(fields: &Fields) -> alloc::Result<Box<[meta::DocArgument]>> {
+    match *fields {
+        Fields::Named(fields) => {
+            let mut out = Vec::try_with_capacity(fields.len())?;
+
+            for &name in fields {
+                out.try_push(meta::DocArgument {
+                    name: meta::DocName::Name(Box::try_from(name)?),
+                    base: None,
+                    generics: Box::default(),
+                })?;
+            }
+
+            Box::try_from(out)
+        }
+        Fields::Unnamed(args) => {
+            let mut out = Vec::try_with_capacity(args)?;
+
+            for n in 0..args {
+                out.try_push(meta::DocArgument {
+                    name: meta::DocName::Index(n),
+                    base: None,
+                    generics: Box::default(),
+                })?;
+            }
+
+            Box::try_from(out)
+        }
+        Fields::Empty => Ok(Box::default()),
+    }
+}
+
+#[cfg(feature = "doc")]
+fn context_to_arguments(
+    args: Option<usize>,
+    types: &[Option<FullTypeOf>],
+    names: &[String],
+) -> alloc::Result<Option<Box<[meta::DocArgument]>>> {
+    use core::iter;
+
+    let Some(args) = args else {
+        return Ok(None);
+    };
+
+    let len = args.max(types.len()).max(names.len()).max(names.len());
+    let mut out = Vec::try_with_capacity(len)?;
+
+    let types = types
+        .iter()
+        .map(|f| f.as_ref().map(|f| f.hash))
+        .chain(iter::repeat(None));
+    let names = names
+        .iter()
+        .map(|name| Some(name.as_str()))
+        .chain(iter::repeat(None));
+
+    for ((n, base), name) in (0..len).zip(types).zip(names) {
+        out.try_push(meta::DocArgument {
+            name: match name {
+                Some(name) => meta::DocName::Name(Box::try_from(name)?),
+                None => meta::DocName::Index(n),
+            },
+            base,
+            generics: Box::default(),
+        })?;
+    }
+
+    Ok(Some(Box::try_from(out)?))
 }
 
 #[cfg(test)]
