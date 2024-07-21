@@ -12,6 +12,7 @@ pub use self::any_obj::{AnyObj, AnyObjError, AnyObjVtable};
 
 mod args;
 pub use self::args::Args;
+pub(crate) use self::args::{DynArgs, DynArgsUsed, DynGuardedArgs};
 
 mod awaited;
 pub(crate) use self::awaited::Awaited;

@@ -11,8 +11,8 @@ use crate::compile::ItemBuf;
 use crate::hash::Hash;
 use crate::runtime::unit::{BadInstruction, BadJump};
 use crate::runtime::{
-    AccessError, AccessErrorKind, BoxedPanic, CallFrame, ExecutionState, FullTypeOf, MaybeTypeOf,
-    Panic, Protocol, SliceError, StackError, TypeInfo, TypeOf, Unit, Vm, VmHaltInfo,
+    AccessError, AccessErrorKind, BoxedPanic, CallFrame, DynArgsUsed, ExecutionState, FullTypeOf,
+    MaybeTypeOf, Panic, Protocol, SliceError, StackError, TypeInfo, TypeOf, Unit, Vm, VmHaltInfo,
 };
 
 /// A virtual machine error which includes tracing information.
@@ -542,6 +542,9 @@ pub(crate) enum VmErrorKind {
     BadJump {
         error: BadJump,
     },
+    DynArgsUsed {
+        error: DynArgsUsed,
+    },
     Panic {
         reason: Panic,
     },
@@ -752,6 +755,7 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::SliceError { error } => error.fmt(f),
             VmErrorKind::BadInstruction { error } => error.fmt(f),
             VmErrorKind::BadJump { error } => error.fmt(f),
+            VmErrorKind::DynArgsUsed { error } => error.fmt(f),
             VmErrorKind::Panic { reason } => write!(f, "Panicked: {reason}"),
             VmErrorKind::NoRunningVm {} => write!(f, "No running virtual machines"),
             VmErrorKind::Halted { halt } => write!(f, "Halted for unexpected reason `{halt}`"),
@@ -999,6 +1003,13 @@ impl From<BadJump> for VmErrorKind {
     #[inline]
     fn from(error: BadJump) -> Self {
         VmErrorKind::BadJump { error }
+    }
+}
+
+impl From<DynArgsUsed> for VmErrorKind {
+    #[inline]
+    fn from(error: DynArgsUsed) -> Self {
+        VmErrorKind::DynArgsUsed { error }
     }
 }
 

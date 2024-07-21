@@ -50,7 +50,7 @@ impl Tuple {
     pub(crate) fn hash_with(
         &self,
         hasher: &mut Hasher,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
         for value in self.values.iter() {
             vm_try!(value.hash_with(hasher, caller));

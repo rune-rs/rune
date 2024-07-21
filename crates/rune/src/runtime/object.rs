@@ -344,7 +344,7 @@ impl Object {
     pub(crate) fn partial_eq_with(
         a: &Self,
         b: Value,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<bool> {
         let mut b = vm_try!(b.into_iter());
 
@@ -371,15 +371,12 @@ impl Object {
         VmResult::Ok(true)
     }
 
-    pub(crate) fn eq_with<P>(
+    pub(crate) fn eq_with(
         a: &Self,
         b: &Self,
-        eq: fn(&Value, &Value, &mut P) -> VmResult<bool>,
-        caller: &mut P,
-    ) -> VmResult<bool>
-    where
-        P: ProtocolCaller,
-    {
+        eq: fn(&Value, &Value, &mut dyn ProtocolCaller) -> VmResult<bool>,
+        caller: &mut dyn ProtocolCaller,
+    ) -> VmResult<bool> {
         if a.inner.len() != b.inner.len() {
             return VmResult::Ok(false);
         }
@@ -400,7 +397,7 @@ impl Object {
     pub(crate) fn partial_cmp_with(
         a: &Self,
         b: &Self,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<Option<Ordering>> {
         let mut b = b.inner.iter();
 
@@ -430,7 +427,7 @@ impl Object {
     pub(crate) fn cmp_with(
         a: &Self,
         b: &Self,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<Ordering> {
         let mut b = b.inner.iter();
 

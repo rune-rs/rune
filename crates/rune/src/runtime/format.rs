@@ -206,7 +206,7 @@ impl FormatSpec {
         &self,
         value: &Value,
         f: &mut Formatter,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
         match *vm_try!(value.borrow_kind_ref()) {
             ValueKind::Char(c) => {
@@ -239,7 +239,7 @@ impl FormatSpec {
         &self,
         value: &Value,
         f: &mut Formatter,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
         match *vm_try!(value.borrow_kind_ref()) {
             ValueKind::String(ref s) => {
@@ -329,7 +329,7 @@ impl FormatSpec {
         &self,
         value: &Value,
         f: &mut Formatter,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
         f.buf_mut().clear();
 

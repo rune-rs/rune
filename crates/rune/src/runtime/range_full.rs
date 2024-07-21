@@ -45,24 +45,24 @@ impl RangeFull {
     pub(crate) fn partial_eq_with(
         _: &Self,
         _: &Self,
-        _: &mut impl ProtocolCaller,
+        _: &mut dyn ProtocolCaller,
     ) -> VmResult<bool> {
         VmResult::Ok(true)
     }
 
-    pub(crate) fn eq_with(_: &Self, _: &Self, _: &mut impl ProtocolCaller) -> VmResult<bool> {
+    pub(crate) fn eq_with(_: &Self, _: &Self, _: &mut dyn ProtocolCaller) -> VmResult<bool> {
         VmResult::Ok(true)
     }
 
     pub(crate) fn partial_cmp_with(
         _: &Self,
         _: &Self,
-        _: &mut impl ProtocolCaller,
+        _: &mut dyn ProtocolCaller,
     ) -> VmResult<Option<Ordering>> {
         VmResult::Ok(Some(Ordering::Equal))
     }
 
-    pub(crate) fn cmp_with(_: &Self, _: &Self, _: &mut impl ProtocolCaller) -> VmResult<Ordering> {
+    pub(crate) fn cmp_with(_: &Self, _: &Self, _: &mut dyn ProtocolCaller) -> VmResult<Ordering> {
         VmResult::Ok(Ordering::Equal)
     }
 
