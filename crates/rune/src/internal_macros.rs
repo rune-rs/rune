@@ -10,8 +10,11 @@ macro_rules! resolve_context {
 
 /// Build an implementation of `TypeOf` basic of a static type.
 macro_rules! impl_static_type {
-    (impl <$($p:ident),*> $ty:ty => $static_type:expr $(, where $($where:tt)+)?) => {
-        impl<$($p,)*> $crate::runtime::TypeOf for $ty $(where $($where)+)* {
+    (impl <$($p:ident),*> $ty:ty => $static_type:expr) => {
+        impl<$($p,)*> $crate::runtime::TypeOf for $ty
+        where
+            $($p: $crate::runtime::MaybeTypeOf,)*
+        {
             #[inline]
             fn type_hash() -> $crate::Hash {
                 $static_type.hash
@@ -23,10 +26,22 @@ macro_rules! impl_static_type {
             }
         }
 
-        impl<$($p,)*> $crate::runtime::MaybeTypeOf for $ty $(where $($where)+)* {
+        impl<$($p,)*> $crate::runtime::MaybeTypeOf for $ty
+        where
+            $($p: $crate::runtime::MaybeTypeOf,)*
+        {
             #[inline]
             fn maybe_type_of() -> Option<$crate::runtime::FullTypeOf> {
                 Some(<$ty as $crate::runtime::TypeOf>::type_of())
+            }
+
+            #[inline]
+            fn maybe_visit_generics<__F, __E>(#[allow(unused)] f: &mut __F) -> Result<(), __E>
+            where
+                __F: FnMut(Option<$crate::runtime::FullTypeOf>) -> Result<(), __E>
+            {
+                $(f(<$p as $crate::runtime::MaybeTypeOf>::maybe_type_of())?;)*
+                Ok(())
             }
         }
     };

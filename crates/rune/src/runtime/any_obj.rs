@@ -514,8 +514,17 @@ impl AnyObj {
 }
 
 impl MaybeTypeOf for AnyObj {
+    #[inline]
     fn maybe_type_of() -> Option<FullTypeOf> {
         None
+    }
+
+    #[inline]
+    fn maybe_visit_generics<F, E>(_f: &mut F) -> Result<(), E>
+    where
+        F: FnMut(Option<FullTypeOf>) -> Result<(), E>,
+    {
+        Ok(())
     }
 }
 

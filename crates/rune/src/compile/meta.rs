@@ -13,6 +13,8 @@ use crate::compile::attrs::Parser;
 use crate::compile::{self, Item, ItemId, Location, MetaInfo, ModId, Pool, Visibility};
 use crate::hash::Hash;
 use crate::parse::{NonZeroId, ResolveContext};
+#[cfg(feature = "doc")]
+use crate::runtime::MaybeTypeOf;
 use crate::runtime::{Call, Protocol};
 
 /// A meta reference to an item being compiled.
@@ -339,6 +341,16 @@ pub(crate) enum DocName {
 }
 
 #[cfg(feature = "doc")]
+impl DocName {
+    pub(crate) fn is_self(&self) -> bool {
+        match self {
+            DocName::Name(name) => name.as_ref() == "self",
+            DocName::Index(..) => false,
+        }
+    }
+}
+
+#[cfg(feature = "doc")]
 impl fmt::Display for DocName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -363,16 +375,17 @@ pub(crate) struct DocArgument {
 
 /// A description of a type.
 #[derive(Debug, TryClone)]
-#[cfg(feature = "doc")]
-pub(crate) struct DocType {
+pub struct DocType {
     /// The base type.
+    #[cfg(feature = "doc")]
     pub(crate) base: Option<Hash>,
     /// Generic parameters.
+    #[cfg(feature = "doc")]
     pub(crate) generics: Box<[DocType]>,
 }
 
-#[cfg(feature = "doc")]
 impl DocType {
+    #[cfg(feature = "doc")]
     pub(crate) fn new(base: Option<Hash>) -> Self {
         Self {
             base,
@@ -380,11 +393,37 @@ impl DocType {
         }
     }
 
+    #[cfg(feature = "doc")]
     pub(crate) fn empty() -> Self {
         Self {
             base: None,
             generics: Box::default(),
         }
+    }
+
+    #[cfg(feature = "doc")]
+    pub(crate) fn from_maybe_type_of<T>() -> alloc::Result<Self>
+    where
+        T: MaybeTypeOf,
+    {
+        let mut generics = Vec::new();
+
+        T::maybe_visit_generics(&mut |ty| {
+            generics.try_push(DocType::new(ty.map(|ty| ty.hash)))?;
+            Ok::<_, alloc::Error>(())
+        })?;
+
+        Ok(Self {
+            base: T::maybe_type_of().map(|ty| ty.hash),
+            generics: Box::try_from(generics)?,
+        })
+    }
+
+    #[cfg(not(feature = "doc"))]
+    #[inline]
+    #[allow(clippy::extra_unused_type_parameters)]
+    pub(crate) fn from_maybe_type_of<T>() -> alloc::Result<Self> {
+        Ok(Self {})
     }
 }
 

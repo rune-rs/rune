@@ -213,9 +213,9 @@ pub(crate) struct ModuleFunction {
     #[cfg(feature = "doc")]
     pub(crate) args: Option<usize>,
     #[cfg(feature = "doc")]
-    pub(crate) return_type: Option<FullTypeOf>,
+    pub(crate) argument_types: Box<[meta::DocType]>,
     #[cfg(feature = "doc")]
-    pub(crate) argument_types: Box<[Option<FullTypeOf>]>,
+    pub(crate) return_type: meta::DocType,
 }
 
 #[derive(TryClone)]
@@ -326,9 +326,9 @@ pub struct ItemFnMut<'a> {
     #[cfg(feature = "doc")]
     args: &'a mut Option<usize>,
     #[cfg(feature = "doc")]
-    return_type: &'a mut Option<FullTypeOf>,
+    argument_types: &'a mut Box<[meta::DocType]>,
     #[cfg(feature = "doc")]
-    argument_types: &'a mut Box<[Option<FullTypeOf>]>,
+    return_type: &'a mut meta::DocType,
 }
 
 impl ItemFnMut<'_> {
@@ -381,16 +381,16 @@ impl ItemFnMut<'_> {
     }
 
     /// Set the kind of return type.
-    pub fn return_type<T>(self) -> Self
+    pub fn return_type<T>(self) -> Result<Self, ContextError>
     where
         T: MaybeTypeOf,
     {
         #[cfg(feature = "doc")]
         {
-            *self.return_type = T::maybe_type_of();
+            *self.return_type = meta::DocType::from_maybe_type_of::<T>()?;
         }
 
-        self
+        Ok(self)
     }
 
     /// Set argument types.
@@ -400,7 +400,10 @@ impl ItemFnMut<'_> {
     ) -> Result<Self, ContextError> {
         #[cfg(feature = "doc")]
         {
-            *self.argument_types = arguments.into_iter().try_collect::<Box<[_]>>()?;
+            *self.argument_types = arguments
+                .into_iter()
+                .map(|ty| meta::DocType::new(ty.map(|ty| ty.hash)))
+                .try_collect::<Box<[_]>>()?;
         }
 
         Ok(self)
