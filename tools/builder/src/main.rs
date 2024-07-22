@@ -1,15 +1,16 @@
 //! A utility project for building and packaging Rune binaries.
 
-use anyhow::{anyhow, bail, Context as _, Result};
-use regex::Regex;
 use std::env;
-use std::env::consts;
+use std::env::consts::{self, EXE_EXTENSION};
 use std::ffi::OsStr;
 use std::fmt;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+use anyhow::{anyhow, bail, Context as _, Result};
+use regex::Regex;
 
 fn main() -> Result<()> {
     let mut it = env::args();
@@ -39,16 +40,7 @@ fn main() -> Result<()> {
         Build::Version(version)
     };
 
-    if cfg!(target_os = "windows") {
-        do_build(build, "windows", ".exe")?;
-    } else if cfg!(target_os = "linux") {
-        do_build(build, "linux", "")?;
-    } else if cfg!(target_os = "macos") {
-        do_build(build, "macos", "")?;
-    } else {
-        bail!("unsupported operating system: {}", consts::OS);
-    }
-
+    do_build(build)?;
     Ok(())
 }
 
@@ -197,9 +189,12 @@ where
     Ok(())
 }
 
-fn create_gz(output: &Path, input: &Path) -> Result<()> {
+fn create_gz(output: impl AsRef<Path>, input: impl AsRef<Path>) -> Result<()> {
     use flate2::write::GzEncoder;
     use flate2::Compression;
+
+    let output = output.as_ref();
+    let input = input.as_ref();
 
     println!("building: {}", output.display());
 
@@ -214,24 +209,7 @@ fn create_gz(output: &Path, input: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Copy an iterator of files to the given directory.
-fn copy_files<I, S, N>(dest: &Path, sources: I) -> Result<()>
-where
-    I: IntoIterator<Item = (S, N)>,
-    S: AsRef<Path>,
-    N: AsRef<str>,
-{
-    for (s, name) in sources {
-        let s = s.as_ref();
-        let name = name.as_ref();
-
-        fs::copy(s, dest.join(name))?;
-    }
-
-    Ok(())
-}
-
-fn do_build(build: Build, suffix: &str, ext: &str) -> Result<()> {
+fn do_build(build: Build) -> Result<()> {
     let readme = PathBuf::from("README.md");
     let release_dir = PathBuf::from("target").join("release");
     let upload = Path::new("dist");
@@ -240,8 +218,8 @@ fn do_build(build: Build, suffix: &str, ext: &str) -> Result<()> {
         fs::create_dir_all(upload).context("creating upload directory")?;
     }
 
-    let rune = release_dir.join(format!("rune{}", ext));
-    let rune_languageserver = release_dir.join(format!("rune-languageserver{}", ext));
+    let rune = release_dir.join(format!("rune{EXE_EXTENSION}"));
+    let rune_languageserver = release_dir.join(format!("rune-languageserver{EXE_EXTENSION}"));
 
     if !rune.is_file() {
         println!("building: {}", rune.display());
@@ -259,22 +237,24 @@ fn do_build(build: Build, suffix: &str, ext: &str) -> Result<()> {
         .context("building .zip")?;
 
     if build.is_channel() {
-        // Create rune-languageserver gzip.
+        // Create rune-languageserver gzips.
         create_gz(
-            &upload.join(format!("rune-languageserver-{}.gz", consts::OS)),
+            upload.join(format!(
+                "rune-languageserver-{os}-{arch}.gz",
+                os = consts::OS,
+                arch = consts::ARCH
+            )),
             &rune_languageserver,
         )
         .context("building rune-languageserver .gz")?;
 
-        // Copy files to be uploaded.
-        copy_files(
-            upload,
-            vec![(
-                rune_languageserver,
-                format!("rune-languageserver-{}{}", suffix, ext),
-            )],
-        )
-        .context("copying raw files to upload")?;
+        if consts::ARCH == "x86_64" {
+            create_gz(
+                upload.join(format!("rune-languageserver-{os}.gz", os = consts::OS)),
+                &rune_languageserver,
+            )
+            .context("building rune-languageserver .gz")?;
+        }
     }
 
     Ok(())

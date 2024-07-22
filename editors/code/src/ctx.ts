@@ -25,19 +25,19 @@ interface LastClientError {
 export class Ctx {
     readonly context: vscode.ExtensionContext;
     readonly config: Config;
-    readonly state: PersistentState; 
+    readonly state: PersistentState;
     readonly statusBar: vscode.StatusBarItem;
-    
+
     // Stored initialization error. Cleared when reloaded.
     lastClientError: LastClientError | null;
     client: lc.LanguageClient | null;
-    commands: {[key:string]: lc.Disposable};
+    commands: { [key: string]: lc.Disposable };
     stopped: boolean;
 
     constructor(context: vscode.ExtensionContext) {
         this.context = context;
         this.config = new Config(context);
-        this.state = new PersistentState(context.globalState);    
+        this.state = new PersistentState(context.globalState);
         this.statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
         this.lastClientError = null;
         this.client = null;
@@ -75,7 +75,7 @@ export class Ctx {
         }
 
         this.setupStatusBar();
-	}
+    }
 
     command(name: string, callback: (...args: any[]) => any) {
         if (!this.commands[name]) {
@@ -152,11 +152,11 @@ export class Ctx {
         let [code, out, err]: [number | null, string, string] = await new Promise((resolve, _) => {
             let stdout = "";
             let stderr = "";
-    
+
             cargoVersion.stdout.on("data", (chunk) => {
                 stdout += chunk;
             });
-    
+
             cargoVersion.stderr.on("data", (chunk) => {
                 stderr += chunk;
             });
@@ -211,7 +211,7 @@ export class Ctx {
         child.stderr.setEncoding('utf8');
         child.stdout.setEncoding('utf8');
         let out = rl.createInterface(child.stdout, child.stdin);
-    
+
         this.statusBar.text = `rune: cargo build -p ${name}`;
         this.statusBar.tooltip = `rune: building package ${name}, to use as rune language server`;
         this.statusBar.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
@@ -273,10 +273,10 @@ export class Ctx {
 
         if (explicitPath) {
             if (explicitPath.startsWith("~/")) {
-                return { kind: "languageserver", path: os.homedir() + explicitPath.slice("~".length) };
+                return { kind: "cli", path: os.homedir() + explicitPath.slice("~".length) };
             }
 
-            return { kind: "languageserver", path: explicitPath };
+            return { kind: "cli", path: explicitPath };
         }
 
         const cargoPackage = this.config.serverCargoPackage;
@@ -297,24 +297,25 @@ export class Ctx {
             return null;
         }
 
-        return { kind: "languageserver", path };
+        return { kind: "cli", path };
     }
-    
-    async downloadServer(): Promise<string | null> {
-        // unknown platform => no download available
-        const platform = detectPlatform();
 
-        if (!platform) {
+    async downloadServer(): Promise<string | null> {
+        const platformArch = detectPlatform();
+
+        if (!platformArch) {
             return null;
         }
-    
+
+        const [platform, arch] = platformArch;
+
         // platform specific binary name / path
         const ext = platform === "windows" ? ".exe" : "";
         const bin = `rune-languageserver-${platform}${ext}`;
         const serverDir = vscode.Uri.joinPath(this.context.extensionUri, "server");
         const dest = vscode.Uri.joinPath(serverDir, bin);
         const destExists = await uriExists(dest);
-    
+
         // Only check for updates once every two hours.
         let now = (new Date()).getTime() / 1000;
         let lastCheck = this.state.lastCheck;
@@ -324,19 +325,27 @@ export class Ctx {
         if (destExists && !timedOut) {
             return dest.fsPath;
         }
-    
+
         // fetch new release info
         await this.state.updateLastCheck(now);
 
         const release = await fetchRelease("nightly", null);
-        const artifact = release.assets.find(artifact => artifact.name === `rune-languageserver-${platform}.gz`);
-        assert(!!artifact, `Bad release: ${JSON.stringify(release)}`);
-    
+
+        const platform_only = `rune-languageserver-${platform}.gz`;
+        const platform_arch = `rune-languageserver-${platform}-${arch}.gz`;
+
+        const artifact = release.assets.find(artifact => artifact.name === platform_only || artifact.name === platform_arch);
+
+        if (!artifact) {
+            log.warn(`Bad release: ${JSON.stringify(release)}`);
+            return null;
+        }
+
         // no new release
         if (destExists && this.state.releaseId === artifact.id) {
             return dest.fsPath;
         }
-    
+
         // ask for update
         if (this.config.updatesAskBeforeDownload) {
             const userResponse = await vscode.window.showInformationMessage(
@@ -347,20 +356,20 @@ export class Ctx {
                 return dest.fsPath;
             }
         }
-    
+
         // delete old server version
         try {
             await vscode.workspace.fs.delete(dest);
         } catch (exception) {
             log.debug("Delete of old server binary failed", exception);
         }
-    
+
         // create server dir if missing
         if (!await uriExists(serverDir)) {
             log.debug(`Creating server dir: ${serverDir}`);
             await vscode.workspace.fs.createDirectory(serverDir);
         }
-    
+
         // download new version
         await download({
             url: artifact.browser_download_url,
@@ -372,11 +381,11 @@ export class Ctx {
 
         await this.state.updateReleaseId(release.id);
         return dest.fsPath;
-    }   
- 
+    }
+
     serverPath(): string | null {
         return process.env.__RUNE_LSP_SERVER_DEBUG ?? this.config.serverPath;
-    } 
+    }
 
     setupStatusBar() {
         this.statusBar.text = "rune";
@@ -455,22 +464,35 @@ export class Ctx {
 /**
  * Function used to detect the platform we are on.
  */
-function detectPlatform(): String | undefined {
-	if (process.arch === "x64") {
-		switch (process.platform) {
-			case "win32":
-				return "windows";
-			case "linux":
-				return "linux";
-			case "darwin":
-				return "macos";
-		}
-	}
+function detectPlatform(): [String, String] | undefined {
+    let platform = null;
+    let arch = null;
 
-	vscode.window.showErrorMessage(
-		`Unfortunately we don't support your platform yet.
-            You can open an issue about that [here](https://github.com/rune-rs/rune/issues).
-            Please include (platform: ${process.platform}, arch: ${process.arch}).`
-	);
-	return undefined;
+    switch (process.platform) {
+        case "win32":
+            platform = "windows";
+        case "linux":
+            platform = "linux";
+        case "darwin":
+            platform = "macos";
+    }
+
+    switch (process.arch) {
+        case "x64":
+            arch = "x86_64";
+        case "arm64":
+            arch = "aarch64";
+    }
+
+    if (!platform || !arch) {
+        vscode.window.showErrorMessage(
+            `Unfortunately we don't support your platform yet.
+                You can open an issue about that [here](https://github.com/rune-rs/rune/issues).
+                Please include (platform: ${process.platform}, arch: ${process.arch}).`
+        );
+
+        return undefined;
+    }
+
+    return [platform, arch];
 }
