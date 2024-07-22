@@ -591,17 +591,20 @@ impl<'m> Ctxt<'_, 'm> {
             return Ok(());
         };
 
-        if hash == static_type::TUPLE_TYPE.hash {
+        if hash == static_type::TUPLE_TYPE.hash && text.is_none() {
             write!(o, "(")?;
             self.write_generics(o, generics)?;
             write!(o, ")")?;
-        } else {
-            let mut it = self
-                .context
-                .meta_by_hash(hash)?
-                .into_iter()
-                .flat_map(|m| Some((m, into_item_kind(m)?)));
+            return Ok(());
+        }
 
+        let mut it = self
+            .context
+            .meta_by_hash(hash)?
+            .into_iter()
+            .flat_map(|m| Some((m, into_item_kind(m)?)));
+
+        let outcome = 'out: {
             let Some((meta, kind)) = it.next() else {
                 tracing::warn!(?hash, "No link for hash");
 
@@ -609,29 +612,38 @@ impl<'m> Ctxt<'_, 'm> {
                     tracing::warn!("Candidate: {:?}", meta.kind);
                 }
 
-                write!(o, "{hash}")?;
-                return Ok(());
+                break 'out (None, None, text);
             };
 
-            let item = meta.item.context("Missing item link meta")?;
-
-            let name = match text {
-                Some(text) => text,
-                None => item
-                    .last()
-                    .and_then(|c| c.as_str())
-                    .context("missing name")?,
+            let Some(item) = meta.item else {
+                break 'out (None, Some(kind), text);
             };
 
-            let path = self.item_path(item, kind)?;
+            let text = match text {
+                Some(text) => Some(text),
+                None => item.last().and_then(|c| c.as_str()),
+            };
 
-            write!(o, "<a class=\"{kind}\" href=\"{path}\">{name}</a>")?;
+            (Some(self.item_path(item, kind)?), Some(kind), text)
+        };
 
-            if !generics.is_empty() {
-                write!(o, "&lt;")?;
-                self.write_generics(o, generics)?;
-                write!(o, "&gt;")?;
-            }
+        let (path, kind, text) = outcome;
+
+        let text: &dyn fmt::Display = match &text {
+            Some(text) => text,
+            None => &hash,
+        };
+
+        if let (Some(kind), Some(path)) = (kind, path) {
+            write!(o, "<a class=\"{kind}\" href=\"{path}\">{text}</a>")?;
+        } else {
+            write!(o, "{text}")?;
+        }
+
+        if !generics.is_empty() {
+            write!(o, "&lt;")?;
+            self.write_generics(o, generics)?;
+            write!(o, "&gt;")?;
         }
 
         Ok(())
