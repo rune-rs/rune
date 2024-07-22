@@ -600,7 +600,7 @@ impl<'m> Ctxt<'_, 'm> {
             write!(o, "<")?;
 
             while let Some(ty) = it.next() {
-                match ty.base {
+                match ty.base.as_non_empty() {
                     Some(hash) => {
                         self.write_link(o, hash, None, &ty.generics)?;
                     }
@@ -647,7 +647,7 @@ impl<'m> Ctxt<'_, 'm> {
 
         while let Some(arg) = it.next() {
             if matches!(sig, Signature::Instance) && arg.name.is_self() {
-                if let Some(hash) = arg.base {
+                if let Some(hash) = arg.base.as_non_empty() {
                     self.write_link(&mut string, hash, Some("self"), &[])?;
                 } else {
                     write!(string, "self")?;
@@ -655,7 +655,7 @@ impl<'m> Ctxt<'_, 'm> {
             } else {
                 write!(string, "{}", arg.name)?;
 
-                if let Some(hash) = arg.base {
+                if let Some(hash) = arg.base.as_non_empty() {
                     string.try_push_str(": ")?;
                     self.write_link(&mut string, hash, None, &arg.generics)?;
                 }
@@ -1110,11 +1110,9 @@ fn build_function<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'
     let doc = cx.render_docs(meta, meta.docs, true)?;
 
     let return_type = match f.return_type {
-        meta::DocType {
-            base: Some(hash),
-            generics,
-            ..
-        } => Some(cx.link(*hash, None, generics)?),
+        meta::DocType { base, generics, .. } if !base.is_empty() => {
+            Some(cx.link(*base, None, generics)?)
+        }
         _ => None,
     };
 

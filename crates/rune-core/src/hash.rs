@@ -54,6 +54,16 @@ impl Hash {
         Self(hash).with_type_parameters(parameters)
     }
 
+    /// Return the current hash if it is non-empty.
+    #[inline]
+    pub fn as_non_empty(&self) -> Option<Self> {
+        if self.is_empty() {
+            None
+        } else {
+            Some(*self)
+        }
+    }
+
     /// Coerce a hash into its inner numerical value.
     #[doc(hidden)]
     pub const fn into_inner(self) -> u64 {

@@ -451,7 +451,7 @@ impl Context {
                                 #[cfg(feature = "doc")]
                                 arguments: Some(fields_to_arguments(fields)?),
                                 #[cfg(feature = "doc")]
-                                return_type: meta::DocType::new(Some(ty.hash)),
+                                return_type: meta::DocType::new(ty.hash),
                             };
 
                             self.insert_native_fn(hash, c, None)?;
@@ -510,7 +510,7 @@ impl Context {
                                 #[cfg(feature = "doc")]
                                 arguments: Some(fields_to_arguments(fields)?),
                                 #[cfg(feature = "doc")]
-                                return_type: meta::DocType::new(Some(ty.hash)),
+                                return_type: meta::DocType::new(ty.hash),
                             };
 
                             self.insert_native_fn(hash, c, variant.deprecated.as_deref())?;
@@ -712,7 +712,7 @@ impl Context {
                             #[cfg(feature = "doc")]
                             arguments: Some(fields_to_arguments(fields)?),
                             #[cfg(feature = "doc")]
-                            return_type: meta::DocType::new(Some(hash)),
+                            return_type: meta::DocType::new(hash),
                         })
                     } else {
                         None
@@ -903,7 +903,7 @@ fn fields_to_arguments(fields: &Fields) -> alloc::Result<Box<[meta::DocArgument]
             for &name in fields {
                 out.try_push(meta::DocArgument {
                     name: meta::DocName::Name(Box::try_from(name)?),
-                    base: None,
+                    base: Hash::EMPTY,
                     generics: Box::default(),
                 })?;
             }
@@ -916,7 +916,7 @@ fn fields_to_arguments(fields: &Fields) -> alloc::Result<Box<[meta::DocArgument]
             for n in 0..args {
                 out.try_push(meta::DocArgument {
                     name: meta::DocName::Index(n),
-                    base: None,
+                    base: Hash::EMPTY,
                     generics: Box::default(),
                 })?;
             }

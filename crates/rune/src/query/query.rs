@@ -1339,7 +1339,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
 
                 out.try_push(meta::DocArgument {
                     name,
-                    base: None,
+                    base: Hash::EMPTY,
                     generics: Box::default(),
                 })?;
             }

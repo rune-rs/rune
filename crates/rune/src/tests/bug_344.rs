@@ -198,7 +198,7 @@ impl TypeOf for GuardCheck {
 impl MaybeTypeOf for GuardCheck {
     #[inline]
     fn maybe_type_of() -> alloc::Result<meta::DocType> {
-        Ok(meta::DocType::new(Some(<Self as TypeOf>::type_hash())))
+        Ok(meta::DocType::new(<Self as TypeOf>::type_hash()))
     }
 }
 

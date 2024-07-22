@@ -33,7 +33,7 @@ macro_rules! impl_static_type {
             #[inline]
             fn maybe_type_of() -> $crate::alloc::Result<$crate::compile::meta::DocType> {
                 $crate::compile::meta::DocType::with_generics(
-                    Some(<$ty as $crate::runtime::TypeOf>::type_hash()),
+                    <$ty as $crate::runtime::TypeOf>::type_hash(),
                     [$(<$p as $crate::runtime::MaybeTypeOf>::maybe_type_of()?),*]
                 )
             }
