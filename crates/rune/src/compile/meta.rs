@@ -366,7 +366,7 @@ pub(crate) struct DocArgument {
     /// The name of an argument.
     pub(crate) name: DocName,
     /// The base type.
-    pub(crate) base: Option<Hash>,
+    pub(crate) base: Hash,
     /// Generic parameters.
     pub(crate) generics: Box<[DocType]>,
 }
@@ -376,7 +376,7 @@ pub(crate) struct DocArgument {
 pub struct DocType {
     /// The base type.
     #[cfg(feature = "doc")]
-    pub(crate) base: Option<Hash>,
+    pub(crate) base: Hash,
     /// Generic parameters.
     #[cfg(feature = "doc")]
     pub(crate) generics: Box<[DocType]>,
@@ -386,7 +386,7 @@ impl DocType {
     /// Construct type documentation.
     #[cfg_attr(not(feature = "doc"), allow(unused_variables))]
     pub fn with_generics<const N: usize>(
-        base: Option<Hash>,
+        base: Hash,
         generics: [DocType; N],
     ) -> alloc::Result<Self> {
         Ok(Self {
@@ -398,7 +398,7 @@ impl DocType {
     }
 
     #[cfg(feature = "doc")]
-    pub(crate) fn new(base: Option<Hash>) -> Self {
+    pub(crate) fn new(base: Hash) -> Self {
         Self {
             base,
             generics: Box::default(),
@@ -408,7 +408,7 @@ impl DocType {
     pub(crate) fn empty() -> Self {
         Self {
             #[cfg(feature = "doc")]
-            base: None,
+            base: Hash::EMPTY,
             #[cfg(feature = "doc")]
             generics: Box::default(),
         }

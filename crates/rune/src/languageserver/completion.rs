@@ -117,6 +117,7 @@ pub(super) fn complete_native_instance_data(
             let return_type = signature
                 .return_type
                 .base
+                .as_non_empty()
                 .and_then(|hash| context.lookup_meta_by_hash(hash).next())
                 .and_then(|r| r.item.as_deref());
 
@@ -177,6 +178,7 @@ pub(super) fn complete_native_loose_data(
             let return_type = signature
                 .return_type
                 .base
+                .as_non_empty()
                 .and_then(|hash| context.lookup_meta_by_hash(hash).next())
                 .and_then(|r| r.item.as_deref());
 

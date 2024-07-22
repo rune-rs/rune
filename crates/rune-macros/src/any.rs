@@ -606,7 +606,7 @@ where
                     #[inline]
                     fn maybe_type_of() -> #alloc::Result<#meta::DocType> {
                         #meta::DocType::with_generics(
-                            Some(<Self as #type_of>::type_hash()),
+                            <Self as #type_of>::type_hash(),
                             [#(<#generic_names as #maybe_type_of>::maybe_type_of()?),*]
                         )
                     }
@@ -632,7 +632,7 @@ where
                     #[inline]
                     fn maybe_type_of() -> #alloc::Result<#meta::DocType> {
                         #meta::DocType::with_generics(
-                            Some(<Self as #type_of>::type_hash()),
+                            <Self as #type_of>::type_hash(),
                             [#(<#generic_names as #maybe_type_of>::maybe_type_of()),*]
                         )
                     }

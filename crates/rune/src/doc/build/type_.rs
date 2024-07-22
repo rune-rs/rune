@@ -111,11 +111,9 @@ pub(super) fn build_assoc_fns<'m>(
                             args: cx.args_to_string(sig, assoc.arguments)?,
                             parameters,
                             return_type: match assoc.return_type {
-                                meta::DocType {
-                                    base: Some(hash),
-                                    generics,
-                                    ..
-                                } => Some(cx.link(*hash, None, generics)?),
+                                meta::DocType { base, generics, .. } if !base.is_empty() => {
+                                    Some(cx.link(*base, None, generics)?)
+                                }
                                 _ => None,
                             },
                             line_doc,
@@ -143,11 +141,9 @@ pub(super) fn build_assoc_fns<'m>(
                     field,
                     repr,
                     return_type: match assoc.return_type {
-                        meta::DocType {
-                            base: Some(hash),
-                            generics,
-                            ..
-                        } => Some(cx.link(*hash, None, generics)?),
+                        meta::DocType { base, generics, .. } if !base.is_empty() => {
+                            Some(cx.link(*base, None, generics)?)
+                        }
                         _ => None,
                     },
                     doc,
