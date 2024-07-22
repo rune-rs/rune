@@ -55,6 +55,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(shrink_to_fit)?;
     module.function_meta(char_at)?;
     module.function_meta(split)?;
+    module.function_meta(split_once)?;
     module
         .associated_function("split_str", __rune_fn__split)?
         .deprecated("Use String::split instead")?;
@@ -814,6 +815,57 @@ fn split(this: &str, value: Value) -> VmResult<Iterator> {
     };
 
     VmResult::Ok(Iterator::from_double_ended(NAME, lines.into_iter()))
+}
+
+/// Splits the string on the first occurrence of the specified delimiter and
+/// returns prefix before delimiter and suffix after delimiter.
+///
+/// # Examples
+///
+/// ```rune
+/// assert_eq!("cfg".split_once('='), None);
+/// assert_eq!("cfg=".split_once('='), Some(("cfg", "")));
+/// assert_eq!("cfg=foo".split_once('='), Some(("cfg", "foo")));
+/// assert_eq!("cfg=foo=bar".split_once('='), Some(("cfg", "foo=bar")));
+/// ```
+#[rune::function(instance)]
+fn split_once(this: &str, value: Value) -> VmResult<Option<(String, String)>> {
+    let outcome = match *vm_try!(value.borrow_kind_ref()) {
+        ValueKind::String(ref s) => this.split_once(s.as_str()),
+        ValueKind::Char(pat) => this.split_once(pat),
+        ValueKind::Function(ref f) => {
+            let mut err = None;
+
+            let outcome = this.split_once(|c: char| match f.call::<bool>((c,)) {
+                VmResult::Ok(b) => b,
+                VmResult::Err(e) => {
+                    if err.is_none() {
+                        err = Some(e);
+                    }
+
+                    false
+                }
+            });
+
+            if let Some(e) = err.take() {
+                return VmResult::Err(e);
+            }
+
+            outcome
+        }
+        ref actual => {
+            return VmResult::err([
+                VmErrorKind::expected::<String>(actual.type_info()),
+                VmErrorKind::bad_argument(0),
+            ])
+        }
+    };
+
+    let Some((a, b)) = outcome else {
+        return VmResult::Ok(None);
+    };
+
+    VmResult::Ok(Some((vm_try!(a.try_to_owned()), vm_try!(b.try_to_owned()))))
 }
 
 /// Returns a string slice with leading and trailing whitespace removed.
