@@ -42,7 +42,7 @@ use crate::Any;
 #[derive(Any, Clone, TryClone)]
 #[try_clone(crate)]
 #[rune(crate)]
-#[rune(builtin, constructor, static_type = RANGE_TO_TYPE)]
+#[rune(builtin, constructor, static_type = RANGE_TO)]
 #[rune(from_value = Value::into_range_to, from_value_ref = Value::into_range_to_ref, from_value_mut = Value::into_range_to_mut)]
 pub struct RangeTo {
     /// The end value of the range.

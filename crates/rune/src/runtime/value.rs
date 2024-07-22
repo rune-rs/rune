@@ -2361,9 +2361,9 @@ impl TypeValue {
     #[doc(hidden)]
     pub fn type_info(&self) -> TypeInfo {
         match self {
-            TypeValue::EmptyTuple => TypeInfo::StaticType(crate::runtime::static_type::TUPLE_TYPE),
-            TypeValue::Tuple(..) => TypeInfo::StaticType(crate::runtime::static_type::TUPLE_TYPE),
-            TypeValue::Object(..) => TypeInfo::StaticType(crate::runtime::static_type::OBJECT_TYPE),
+            TypeValue::EmptyTuple => TypeInfo::StaticType(crate::runtime::static_type::TUPLE),
+            TypeValue::Tuple(..) => TypeInfo::StaticType(crate::runtime::static_type::TUPLE),
+            TypeValue::Object(..) => TypeInfo::StaticType(crate::runtime::static_type::OBJECT),
             TypeValue::EmptyStruct(empty) => empty.type_info(),
             TypeValue::TupleStruct(tuple) => tuple.type_info(),
             TypeValue::Struct(object) => object.type_info(),
@@ -2449,59 +2449,49 @@ pub(crate) enum ValueKind {
 impl ValueKind {
     pub(crate) fn type_info(&self) -> TypeInfo {
         match self {
-            ValueKind::Bool(..) => TypeInfo::StaticType(crate::runtime::static_type::BOOL_TYPE),
-            ValueKind::Byte(..) => TypeInfo::StaticType(crate::runtime::static_type::BYTE_TYPE),
-            ValueKind::Char(..) => TypeInfo::StaticType(crate::runtime::static_type::CHAR_TYPE),
-            ValueKind::Integer(..) => {
-                TypeInfo::StaticType(crate::runtime::static_type::INTEGER_TYPE)
-            }
-            ValueKind::Float(..) => TypeInfo::StaticType(crate::runtime::static_type::FLOAT_TYPE),
+            ValueKind::Bool(..) => TypeInfo::StaticType(crate::runtime::static_type::BOOL),
+            ValueKind::Byte(..) => TypeInfo::StaticType(crate::runtime::static_type::BYTE),
+            ValueKind::Char(..) => TypeInfo::StaticType(crate::runtime::static_type::CHAR),
+            ValueKind::Integer(..) => TypeInfo::StaticType(crate::runtime::static_type::INTEGER),
+            ValueKind::Float(..) => TypeInfo::StaticType(crate::runtime::static_type::FLOAT),
             ValueKind::Type(..) => TypeInfo::StaticType(crate::runtime::static_type::TYPE),
-            ValueKind::Ordering(..) => {
-                TypeInfo::StaticType(crate::runtime::static_type::ORDERING_TYPE)
-            }
-            ValueKind::String(..) => TypeInfo::StaticType(crate::runtime::static_type::STRING_TYPE),
-            ValueKind::Bytes(..) => TypeInfo::StaticType(crate::runtime::static_type::BYTES_TYPE),
-            ValueKind::Vec(..) => TypeInfo::StaticType(crate::runtime::static_type::VEC_TYPE),
-            ValueKind::EmptyTuple => TypeInfo::StaticType(crate::runtime::static_type::TUPLE_TYPE),
-            ValueKind::Tuple(..) => TypeInfo::StaticType(crate::runtime::static_type::TUPLE_TYPE),
-            ValueKind::Object(..) => TypeInfo::StaticType(crate::runtime::static_type::OBJECT_TYPE),
+            ValueKind::Ordering(..) => TypeInfo::StaticType(crate::runtime::static_type::ORDERING),
+            ValueKind::String(..) => TypeInfo::StaticType(crate::runtime::static_type::STRING),
+            ValueKind::Bytes(..) => TypeInfo::StaticType(crate::runtime::static_type::BYTES),
+            ValueKind::Vec(..) => TypeInfo::StaticType(crate::runtime::static_type::VEC),
+            ValueKind::EmptyTuple => TypeInfo::StaticType(crate::runtime::static_type::TUPLE),
+            ValueKind::Tuple(..) => TypeInfo::StaticType(crate::runtime::static_type::TUPLE),
+            ValueKind::Object(..) => TypeInfo::StaticType(crate::runtime::static_type::OBJECT),
             ValueKind::RangeFrom(..) => {
-                TypeInfo::StaticType(crate::runtime::static_type::RANGE_FROM_TYPE)
+                TypeInfo::StaticType(crate::runtime::static_type::RANGE_FROM)
             }
             ValueKind::RangeFull(..) => {
-                TypeInfo::StaticType(crate::runtime::static_type::RANGE_FULL_TYPE)
+                TypeInfo::StaticType(crate::runtime::static_type::RANGE_FULL)
             }
             ValueKind::RangeInclusive(..) => {
-                TypeInfo::StaticType(crate::runtime::static_type::RANGE_INCLUSIVE_TYPE)
+                TypeInfo::StaticType(crate::runtime::static_type::RANGE_INCLUSIVE)
             }
             ValueKind::RangeToInclusive(..) => {
-                TypeInfo::StaticType(crate::runtime::static_type::RANGE_TO_INCLUSIVE_TYPE)
+                TypeInfo::StaticType(crate::runtime::static_type::RANGE_TO_INCLUSIVE)
             }
-            ValueKind::RangeTo(..) => {
-                TypeInfo::StaticType(crate::runtime::static_type::RANGE_TO_TYPE)
-            }
-            ValueKind::Range(..) => TypeInfo::StaticType(crate::runtime::static_type::RANGE_TYPE),
+            ValueKind::RangeTo(..) => TypeInfo::StaticType(crate::runtime::static_type::RANGE_TO),
+            ValueKind::Range(..) => TypeInfo::StaticType(crate::runtime::static_type::RANGE),
             ValueKind::ControlFlow(..) => {
-                TypeInfo::StaticType(crate::runtime::static_type::CONTROL_FLOW_TYPE)
+                TypeInfo::StaticType(crate::runtime::static_type::CONTROL_FLOW)
             }
-            ValueKind::Future(..) => TypeInfo::StaticType(crate::runtime::static_type::FUTURE_TYPE),
-            ValueKind::Stream(..) => TypeInfo::StaticType(crate::runtime::static_type::STREAM_TYPE),
+            ValueKind::Future(..) => TypeInfo::StaticType(crate::runtime::static_type::FUTURE),
+            ValueKind::Stream(..) => TypeInfo::StaticType(crate::runtime::static_type::STREAM),
             ValueKind::Generator(..) => {
-                TypeInfo::StaticType(crate::runtime::static_type::GENERATOR_TYPE)
+                TypeInfo::StaticType(crate::runtime::static_type::GENERATOR)
             }
             ValueKind::GeneratorState(..) => {
-                TypeInfo::StaticType(crate::runtime::static_type::GENERATOR_STATE_TYPE)
+                TypeInfo::StaticType(crate::runtime::static_type::GENERATOR_STATE)
             }
-            ValueKind::Option(..) => TypeInfo::StaticType(crate::runtime::static_type::OPTION_TYPE),
-            ValueKind::Result(..) => TypeInfo::StaticType(crate::runtime::static_type::RESULT_TYPE),
-            ValueKind::Function(..) => {
-                TypeInfo::StaticType(crate::runtime::static_type::FUNCTION_TYPE)
-            }
-            ValueKind::Format(..) => TypeInfo::StaticType(crate::runtime::static_type::FORMAT_TYPE),
-            ValueKind::Iterator(..) => {
-                TypeInfo::StaticType(crate::runtime::static_type::ITERATOR_TYPE)
-            }
+            ValueKind::Option(..) => TypeInfo::StaticType(crate::runtime::static_type::OPTION),
+            ValueKind::Result(..) => TypeInfo::StaticType(crate::runtime::static_type::RESULT),
+            ValueKind::Function(..) => TypeInfo::StaticType(crate::runtime::static_type::FUNCTION),
+            ValueKind::Format(..) => TypeInfo::StaticType(crate::runtime::static_type::FORMAT),
+            ValueKind::Iterator(..) => TypeInfo::StaticType(crate::runtime::static_type::ITERATOR),
             ValueKind::EmptyStruct(empty) => empty.type_info(),
             ValueKind::TupleStruct(tuple) => tuple.type_info(),
             ValueKind::Struct(object) => object.type_info(),
@@ -2516,37 +2506,35 @@ impl ValueKind {
     /// *enum*, and not the type hash of the variant itself.
     pub(crate) fn type_hash(&self) -> Hash {
         match self {
-            ValueKind::Bool(..) => crate::runtime::static_type::BOOL_TYPE.hash,
-            ValueKind::Byte(..) => crate::runtime::static_type::BYTE_TYPE.hash,
-            ValueKind::Char(..) => crate::runtime::static_type::CHAR_TYPE.hash,
-            ValueKind::Integer(..) => crate::runtime::static_type::INTEGER_TYPE.hash,
-            ValueKind::Float(..) => crate::runtime::static_type::FLOAT_TYPE.hash,
+            ValueKind::Bool(..) => crate::runtime::static_type::BOOL.hash,
+            ValueKind::Byte(..) => crate::runtime::static_type::BYTE.hash,
+            ValueKind::Char(..) => crate::runtime::static_type::CHAR.hash,
+            ValueKind::Integer(..) => crate::runtime::static_type::INTEGER.hash,
+            ValueKind::Float(..) => crate::runtime::static_type::FLOAT.hash,
             ValueKind::Type(..) => crate::runtime::static_type::TYPE.hash,
-            ValueKind::Ordering(..) => crate::runtime::static_type::ORDERING_TYPE.hash,
-            ValueKind::String(..) => crate::runtime::static_type::STRING_TYPE.hash,
-            ValueKind::Bytes(..) => crate::runtime::static_type::BYTES_TYPE.hash,
-            ValueKind::Vec(..) => crate::runtime::static_type::VEC_TYPE.hash,
-            ValueKind::EmptyTuple => crate::runtime::static_type::TUPLE_TYPE.hash,
-            ValueKind::Tuple(..) => crate::runtime::static_type::TUPLE_TYPE.hash,
-            ValueKind::Object(..) => crate::runtime::static_type::OBJECT_TYPE.hash,
-            ValueKind::RangeFrom(..) => crate::runtime::static_type::RANGE_FROM_TYPE.hash,
-            ValueKind::RangeFull(..) => crate::runtime::static_type::RANGE_FULL_TYPE.hash,
-            ValueKind::RangeInclusive(..) => crate::runtime::static_type::RANGE_INCLUSIVE_TYPE.hash,
-            ValueKind::RangeToInclusive(..) => {
-                crate::runtime::static_type::RANGE_TO_INCLUSIVE_TYPE.hash
-            }
-            ValueKind::RangeTo(..) => crate::runtime::static_type::RANGE_TO_TYPE.hash,
-            ValueKind::Range(..) => crate::runtime::static_type::RANGE_TYPE.hash,
-            ValueKind::ControlFlow(..) => crate::runtime::static_type::CONTROL_FLOW_TYPE.hash,
-            ValueKind::Future(..) => crate::runtime::static_type::FUTURE_TYPE.hash,
-            ValueKind::Stream(..) => crate::runtime::static_type::STREAM_TYPE.hash,
-            ValueKind::Generator(..) => crate::runtime::static_type::GENERATOR_TYPE.hash,
-            ValueKind::GeneratorState(..) => crate::runtime::static_type::GENERATOR_STATE_TYPE.hash,
-            ValueKind::Result(..) => crate::runtime::static_type::RESULT_TYPE.hash,
-            ValueKind::Option(..) => crate::runtime::static_type::OPTION_TYPE.hash,
-            ValueKind::Function(..) => crate::runtime::static_type::FUNCTION_TYPE.hash,
-            ValueKind::Format(..) => crate::runtime::static_type::FORMAT_TYPE.hash,
-            ValueKind::Iterator(..) => crate::runtime::static_type::ITERATOR_TYPE.hash,
+            ValueKind::Ordering(..) => crate::runtime::static_type::ORDERING.hash,
+            ValueKind::String(..) => crate::runtime::static_type::STRING.hash,
+            ValueKind::Bytes(..) => crate::runtime::static_type::BYTES.hash,
+            ValueKind::Vec(..) => crate::runtime::static_type::VEC.hash,
+            ValueKind::EmptyTuple => crate::runtime::static_type::TUPLE.hash,
+            ValueKind::Tuple(..) => crate::runtime::static_type::TUPLE.hash,
+            ValueKind::Object(..) => crate::runtime::static_type::OBJECT.hash,
+            ValueKind::RangeFrom(..) => crate::runtime::static_type::RANGE_FROM.hash,
+            ValueKind::RangeFull(..) => crate::runtime::static_type::RANGE_FULL.hash,
+            ValueKind::RangeInclusive(..) => crate::runtime::static_type::RANGE_INCLUSIVE.hash,
+            ValueKind::RangeToInclusive(..) => crate::runtime::static_type::RANGE_TO_INCLUSIVE.hash,
+            ValueKind::RangeTo(..) => crate::runtime::static_type::RANGE_TO.hash,
+            ValueKind::Range(..) => crate::runtime::static_type::RANGE.hash,
+            ValueKind::ControlFlow(..) => crate::runtime::static_type::CONTROL_FLOW.hash,
+            ValueKind::Future(..) => crate::runtime::static_type::FUTURE.hash,
+            ValueKind::Stream(..) => crate::runtime::static_type::STREAM.hash,
+            ValueKind::Generator(..) => crate::runtime::static_type::GENERATOR.hash,
+            ValueKind::GeneratorState(..) => crate::runtime::static_type::GENERATOR_STATE.hash,
+            ValueKind::Result(..) => crate::runtime::static_type::RESULT.hash,
+            ValueKind::Option(..) => crate::runtime::static_type::OPTION.hash,
+            ValueKind::Function(..) => crate::runtime::static_type::FUNCTION.hash,
+            ValueKind::Format(..) => crate::runtime::static_type::FORMAT.hash,
+            ValueKind::Iterator(..) => crate::runtime::static_type::ITERATOR.hash,
             ValueKind::EmptyStruct(empty) => empty.rtti.hash,
             ValueKind::TupleStruct(tuple) => tuple.rtti.hash,
             ValueKind::Struct(object) => object.rtti.hash,

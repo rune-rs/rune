@@ -40,7 +40,7 @@ use crate::Any;
 /// # Ok::<_, rune::support::Error>(())
 /// ```
 #[derive(Any, Clone, TryClone)]
-#[rune(builtin, constructor, static_type = RANGE_TO_INCLUSIVE_TYPE)]
+#[rune(builtin, constructor, static_type = RANGE_TO_INCLUSIVE)]
 #[rune(from_value = Value::into_range_to_inclusive, from_value_ref = Value::into_range_to_inclusive_ref, from_value_mut = Value::into_range_to_inclusive_mut)]
 pub struct RangeToInclusive {
     /// The end value of the range.

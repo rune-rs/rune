@@ -74,7 +74,7 @@ macro_rules! maybe {
 
 /// An owning iterator.
 #[derive(Any)]
-#[rune(builtin, static_type = ITERATOR_TYPE)]
+#[rune(builtin, static_type = ITERATOR)]
 #[rune(from_value = Value::into_iterator, from_value_ref = Value::into_iterator_ref, from_value_mut = Value::into_iterator_mut)]
 pub struct Iterator {
     iter: IterRepr,

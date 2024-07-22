@@ -32,7 +32,7 @@ use crate::Any;
 /// ```
 #[derive(Any, Default, Clone, TryClone)]
 #[try_clone(crate)]
-#[rune(builtin, constructor, static_type = RANGE_FULL_TYPE)]
+#[rune(builtin, constructor, static_type = RANGE_FULL)]
 #[rune(from_value = Value::into_range_full, from_value_ref = Value::into_range_full_ref, from_value_mut = Value::into_range_full_mut)]
 pub struct RangeFull;
 

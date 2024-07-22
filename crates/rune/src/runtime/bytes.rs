@@ -17,7 +17,7 @@ use crate::Any;
 
 /// A vector of bytes.
 #[derive(Default, Any, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[rune(builtin, static_type = BYTES_TYPE)]
+#[rune(builtin, static_type = BYTES)]
 pub struct Bytes {
     pub(crate) bytes: Vec<u8>,
 }

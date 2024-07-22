@@ -16,7 +16,7 @@ type DynFuture = dyn future::Future<Output = VmResult<Value>> + 'static;
 /// the virtual machine that created it.
 #[derive(Any)]
 #[rune(crate)]
-#[rune(builtin, static_type = FUTURE_TYPE)]
+#[rune(builtin, static_type = FUTURE)]
 #[rune(from_value = Value::into_future)]
 pub struct Future {
     future: Option<Pin<Box<DynFuture>>>,

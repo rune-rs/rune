@@ -23,7 +23,7 @@ use crate::Any;
 #[derive(Debug, Clone, TryClone, Any)]
 #[rune(crate)]
 #[try_clone(crate)]
-#[rune(builtin, static_type = CONTROL_FLOW_TYPE)]
+#[rune(builtin, static_type = CONTROL_FLOW)]
 pub enum ControlFlow {
     /// Move on to the next phase of the operation as normal.
     #[rune(constructor)]

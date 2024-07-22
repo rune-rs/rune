@@ -40,7 +40,7 @@ use self::iter::Iter;
 /// ```
 #[derive(Default, Any)]
 #[repr(transparent)]
-#[rune(builtin, static_type = VEC_TYPE)]
+#[rune(builtin, static_type = VEC)]
 #[rune(from_value = Value::into_vec, from_value_ref = Value::into_vec_ref, from_value_mut = Value::into_vec_mut)]
 pub struct Vec {
     inner: alloc::Vec<Value>,
