@@ -55,7 +55,7 @@ use crate::Any;
 /// ```
 #[derive(Any, Clone, TryClone)]
 #[try_clone(crate)]
-#[rune(builtin, constructor, static_type = RANGE_TYPE)]
+#[rune(builtin, constructor, static_type = RANGE)]
 #[rune(from_value = Value::into_range, from_value_ref = Value::into_range_ref, from_value_mut = Value::into_range_mut)]
 pub struct Range {
     /// The start value of the range.

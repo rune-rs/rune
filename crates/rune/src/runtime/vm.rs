@@ -1162,11 +1162,11 @@ impl Vm {
         macro_rules! convert {
             ($from:ty, $value:expr, $ty:expr) => {
                 match $ty.into_hash() {
-                    runtime::static_type::FLOAT_TYPE_HASH => {
+                    runtime::static_type::FLOAT_HASH => {
                         vm_try!(Value::try_from($value as f64))
                     }
-                    runtime::static_type::BYTE_TYPE_HASH => vm_try!(Value::try_from($value as u8)),
-                    runtime::static_type::INTEGER_TYPE_HASH => {
+                    runtime::static_type::BYTE_HASH => vm_try!(Value::try_from($value as u8)),
+                    runtime::static_type::INTEGER_HASH => {
                         vm_try!(Value::try_from($value as i64))
                     }
                     ty => {

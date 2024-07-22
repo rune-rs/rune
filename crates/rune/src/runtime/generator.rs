@@ -24,7 +24,7 @@ use crate::Any;
 /// ```
 #[derive(Any)]
 #[rune(crate)]
-#[rune(builtin, static_type = GENERATOR_TYPE, from_value_params = [Vm])]
+#[rune(builtin, static_type = GENERATOR, from_value_params = [Vm])]
 #[rune(from_value = Value::into_generator, from_value_ref = Value::into_generator_ref, from_value_mut = Value::into_generator_mut)]
 pub struct Generator<T>
 where

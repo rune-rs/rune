@@ -716,7 +716,7 @@ impl Module {
     {
         let mut enum_ = InternalEnum::new(
             "GeneratorState",
-            crate::runtime::static_type::GENERATOR_STATE_TYPE,
+            crate::runtime::static_type::GENERATOR_STATE,
         );
 
         // Note: these numeric variants are magic, and must simply match up with
@@ -756,7 +756,7 @@ impl Module {
     where
         N: IntoComponent,
     {
-        let mut enum_ = InternalEnum::new("Option", crate::runtime::static_type::OPTION_TYPE);
+        let mut enum_ = InternalEnum::new("Option", crate::runtime::static_type::OPTION);
 
         // Note: these numeric variants are magic, and must simply match up with
         // what's being used in the virtual machine implementation for these
@@ -790,7 +790,7 @@ impl Module {
     where
         N: IntoComponent,
     {
-        let mut enum_ = InternalEnum::new("Result", crate::runtime::static_type::RESULT_TYPE);
+        let mut enum_ = InternalEnum::new("Result", crate::runtime::static_type::RESULT);
 
         // Note: these numeric variants are magic, and must simply match up with
         // what's being used in the virtual machine implementation for these

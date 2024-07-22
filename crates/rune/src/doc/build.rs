@@ -420,7 +420,7 @@ impl<'m> Ctxt<'_, 'm> {
         match *ty {
             meta::DocType {
                 base, ref generics, ..
-            } if base == static_type::TUPLE_TYPE.hash && generics.is_empty() => Ok(None),
+            } if static_type::TUPLE == base && generics.is_empty() => Ok(None),
             meta::DocType {
                 base, ref generics, ..
             } => Ok(Some(self.link(base, None, generics)?)),
@@ -591,7 +591,7 @@ impl<'m> Ctxt<'_, 'm> {
             return Ok(());
         };
 
-        if hash == static_type::TUPLE_TYPE.hash && text.is_none() {
+        if static_type::TUPLE == hash && text.is_none() {
             write!(o, "(")?;
             self.write_generics(o, generics)?;
             write!(o, ")")?;

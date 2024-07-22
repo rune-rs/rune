@@ -56,7 +56,7 @@ use crate::Any;
 /// ```
 #[derive(Any, Clone, TryClone)]
 #[try_clone(crate)]
-#[rune(builtin, constructor, static_type = RANGE_INCLUSIVE_TYPE)]
+#[rune(builtin, constructor, static_type = RANGE_INCLUSIVE)]
 #[rune(from_value = Value::into_range_inclusive, from_value_ref = Value::into_range_inclusive_ref, from_value_mut = Value::into_range_inclusive_mut)]
 pub struct RangeInclusive {
     /// The start value of the range.

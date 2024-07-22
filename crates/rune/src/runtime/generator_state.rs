@@ -50,7 +50,7 @@ use crate::Any;
 /// # Ok::<_, rune::support::Error>(())
 /// ```
 #[derive(Any, Debug, TryClone)]
-#[rune(builtin, static_type = GENERATOR_STATE_TYPE)]
+#[rune(builtin, static_type = GENERATOR_STATE)]
 pub enum GeneratorState {
     /// The generator yielded.
     Yielded(Value),
