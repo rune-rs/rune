@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1721264817289,
+  "lastUpdate": 1721610614601,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -26484,6 +26484,94 @@ window.BENCHMARK_DATA = {
           {
             "name": "external_functions",
             "value": 552,
+            "range": "± 3",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "committer": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "id": "421c749c1ab15a63982278219c3841477444275e",
+          "message": "rune: Collect generics for static types (relates #757)",
+          "timestamp": "2024-07-21T22:55:40Z",
+          "url": "https://github.com/rune-rs/rune/commit/421c749c1ab15a63982278219c3841477444275e"
+        },
+        "date": 1721610614104,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 186318,
+            "range": "± 1614",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 609080,
+            "range": "± 15026",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 295943867,
+            "range": "± 1740823",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 175414399,
+            "range": "± 850985",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 808894,
+            "range": "± 5661",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 8746676,
+            "range": "± 50676",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 46582980,
+            "range": "± 217312",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 7426150,
+            "range": "± 90073",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 672987,
+            "range": "± 12022",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 7435468,
+            "range": "± 22586",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 674,
             "range": "± 3",
             "unit": "ns/iter"
           }
