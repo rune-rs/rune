@@ -5,7 +5,7 @@ use crate::alloc::borrow::Cow;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::{String, Vec};
-use crate::compile::{meta, ComponentRef, Item};
+use crate::compile::{ComponentRef, Item};
 use crate::doc::build::{Builder, Ctxt, IndexEntry, IndexKind};
 use crate::doc::context::{Assoc, AssocFnKind, Meta};
 
@@ -110,12 +110,7 @@ pub(super) fn build_assoc_fns<'m>(
                             name,
                             args: cx.args_to_string(sig, assoc.arguments)?,
                             parameters,
-                            return_type: match assoc.return_type {
-                                meta::DocType { base, generics, .. } if !base.is_empty() => {
-                                    Some(cx.link(*base, None, generics)?)
-                                }
-                                _ => None,
-                            },
+                            return_type: cx.return_type(assoc.return_type)?,
                             line_doc,
                             doc,
                         })?;
@@ -140,12 +135,7 @@ pub(super) fn build_assoc_fns<'m>(
                     name: protocol.name,
                     field,
                     repr,
-                    return_type: match assoc.return_type {
-                        meta::DocType { base, generics, .. } if !base.is_empty() => {
-                            Some(cx.link(*base, None, generics)?)
-                        }
-                        _ => None,
-                    },
+                    return_type: cx.return_type(assoc.return_type)?,
                     doc,
                     deprecated: assoc.deprecated,
                 })?;

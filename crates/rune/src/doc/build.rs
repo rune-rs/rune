@@ -25,6 +25,7 @@ use crate::doc::artifacts::Test;
 use crate::doc::context::{Function, Kind, Meta, Signature};
 use crate::doc::templating;
 use crate::doc::{Artifacts, Context, Visitor};
+use crate::runtime::static_type;
 use crate::std::borrow::ToOwned;
 use crate::Hash;
 
@@ -411,6 +412,22 @@ impl<'m> Ctxt<'_, 'm> {
         ))
     }
 
+    /// Render an optional return type parameter.
+    ///
+    /// Returning `None` indicates that the return type is the default return
+    /// type, which is `()`.
+    fn return_type(&self, ty: &meta::DocType) -> Result<Option<String>> {
+        match *ty {
+            meta::DocType {
+                base, ref generics, ..
+            } if base == static_type::TUPLE_TYPE.hash && generics.is_empty() => Ok(None),
+            meta::DocType {
+                base, ref generics, ..
+            } if !base.is_empty() => Ok(Some(self.link(base, None, generics)?)),
+            _ => Ok(None),
+        }
+    }
+
     /// Render line docs.
     fn render_line_docs<S>(&mut self, meta: Meta<'_>, docs: &[S]) -> Result<Option<String>>
     where
@@ -564,57 +581,68 @@ impl<'m> Ctxt<'_, 'm> {
             }
         }
 
-        let mut it = self
-            .context
-            .meta_by_hash(hash)?
-            .into_iter()
-            .flat_map(|m| Some((m, into_item_kind(m)?)));
+        if hash == static_type::TUPLE_TYPE.hash {
+            write!(o, "(")?;
+            self.write_generics(o, generics)?;
+            write!(o, ")")?;
+        } else {
+            let mut it = self
+                .context
+                .meta_by_hash(hash)?
+                .into_iter()
+                .flat_map(|m| Some((m, into_item_kind(m)?)));
 
-        let Some((meta, kind)) = it.next() else {
-            tracing::warn!(?hash, "No link for hash");
+            let Some((meta, kind)) = it.next() else {
+                tracing::warn!(?hash, "No link for hash");
 
-            for meta in self.context.meta_by_hash(hash)? {
-                tracing::warn!("Candidate: {:?}", meta.kind);
-            }
-
-            write!(o, "{hash}")?;
-            return Ok(());
-        };
-
-        let item = meta.item.context("Missing item link meta")?;
-
-        let name = match text {
-            Some(text) => text,
-            None => item
-                .last()
-                .and_then(|c| c.as_str())
-                .context("missing name")?,
-        };
-
-        let path = self.item_path(item, kind)?;
-
-        write!(o, "<a class=\"{kind}\" href=\"{path}\">{name}</a>")?;
-
-        if !generics.is_empty() {
-            let mut it = generics.iter().peekable();
-            write!(o, "<")?;
-
-            while let Some(ty) = it.next() {
-                match ty.base.as_non_empty() {
-                    Some(hash) => {
-                        self.write_link(o, hash, None, &ty.generics)?;
-                    }
-                    None => {
-                        write!(o, "?")?;
-                    }
+                for meta in self.context.meta_by_hash(hash)? {
+                    tracing::warn!("Candidate: {:?}", meta.kind);
                 }
 
-                if it.peek().is_some() {
-                    write!(o, ", ")?;
+                write!(o, "{hash}")?;
+                return Ok(());
+            };
+
+            let item = meta.item.context("Missing item link meta")?;
+
+            let name = match text {
+                Some(text) => text,
+                None => item
+                    .last()
+                    .and_then(|c| c.as_str())
+                    .context("missing name")?,
+            };
+
+            let path = self.item_path(item, kind)?;
+
+            write!(o, "<a class=\"{kind}\" href=\"{path}\">{name}</a>")?;
+
+            if !generics.is_empty() {
+                write!(o, "<")?;
+                self.write_generics(o, generics)?;
+                write!(o, ">")?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn write_generics(&self, o: &mut dyn TryWrite, generics: &[meta::DocType]) -> Result<()> {
+        let mut it = generics.iter().peekable();
+
+        while let Some(ty) = it.next() {
+            match ty.base.as_non_empty() {
+                Some(hash) => {
+                    self.write_link(o, hash, None, &ty.generics)?;
+                }
+                None => {
+                    write!(o, "any")?;
                 }
             }
 
-            write!(o, ">")?;
+            if it.peek().is_some() {
+                write!(o, ", ")?;
+            }
         }
 
         Ok(())
@@ -1109,12 +1137,7 @@ fn build_function<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'
 
     let doc = cx.render_docs(meta, meta.docs, true)?;
 
-    let return_type = match f.return_type {
-        meta::DocType { base, generics, .. } if !base.is_empty() => {
-            Some(cx.link(*base, None, generics)?)
-        }
-        _ => None,
-    };
+    let return_type = cx.return_type(f.return_type)?;
 
     let item = meta.item.context("Missing item")?;
     let deprecated = meta.deprecated;
