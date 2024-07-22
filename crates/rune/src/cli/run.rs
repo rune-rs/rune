@@ -1,66 +1,78 @@
 use std::io::Write;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
 use anyhow::{anyhow, Result};
-use clap::Parser;
 
 use crate::cli::{AssetKind, CommandBase, Config, ExitCode, Io, SharedFlags};
 use crate::runtime::{UnitStorage, VmError, VmExecution, VmResult};
 use crate::{Context, Sources, Unit, Value, Vm};
 
-#[derive(Parser, Debug)]
-pub(super) struct Flags {
-    /// Provide detailed tracing for each instruction executed.
-    #[arg(short, long)]
-    trace: bool,
-    /// When tracing is enabled, do not include source references if they are
-    /// available.
-    #[arg(long)]
-    without_source: bool,
-    /// Time how long the script took to execute.
-    #[arg(long)]
-    time: bool,
-    /// Perform a default dump.
-    #[arg(short, long)]
-    dump: bool,
-    /// Dump return value.
-    #[arg(long)]
-    dump_return: bool,
-    /// Dump everything that is available, this is very verbose.
-    #[arg(long)]
-    dump_all: bool,
-    /// Dump default information about unit.
-    #[arg(long)]
-    dump_unit: bool,
-    /// Dump constants from the unit.
-    #[arg(long)]
-    dump_constants: bool,
-    /// Dump unit instructions.
-    #[arg(long)]
-    emit_instructions: bool,
-    /// Dump the state of the stack after completion.
-    ///
-    /// If compiled with `--trace` will dump it after each instruction.
-    #[arg(long)]
-    dump_stack: bool,
-    /// Dump dynamic functions.
-    #[arg(long)]
-    dump_functions: bool,
-    /// Dump dynamic types.
-    #[arg(long)]
-    dump_types: bool,
-    /// Dump native functions.
-    #[arg(long)]
-    dump_native_functions: bool,
-    /// Dump native types.
-    #[arg(long)]
-    dump_native_types: bool,
-    /// When tracing, limit the number of instructions to run with `limit`. This
-    /// implies `--trace`.
-    #[arg(long)]
-    trace_limit: Option<usize>,
+mod cli {
+    use std::path::PathBuf;
+    use std::vec::Vec;
+
+    use clap::Parser;
+
+    #[derive(Parser, Debug)]
+    #[command(rename_all = "kebab-case")]
+    pub(crate) struct Flags {
+        /// Provide detailed tracing for each instruction executed.
+        #[arg(short, long)]
+        pub(super) trace: bool,
+        /// When tracing is enabled, do not include source references if they are
+        /// available.
+        #[arg(long)]
+        pub(super) without_source: bool,
+        /// Time how long the script took to execute.
+        #[arg(long)]
+        pub(super) time: bool,
+        /// Perform a default dump.
+        #[arg(short, long)]
+        pub(super) dump: bool,
+        /// Dump return value.
+        #[arg(long)]
+        pub(super) dump_return: bool,
+        /// Dump everything that is available, this is very verbose.
+        #[arg(long)]
+        pub(super) dump_all: bool,
+        /// Dump default information about unit.
+        #[arg(long)]
+        pub(super) dump_unit: bool,
+        /// Dump constants from the unit.
+        #[arg(long)]
+        pub(super) dump_constants: bool,
+        /// Dump unit instructions.
+        #[arg(long)]
+        pub(super) emit_instructions: bool,
+        /// Dump the state of the stack after completion.
+        ///
+        /// If compiled with `--trace` will dump it after each instruction.
+        #[arg(long)]
+        pub(super) dump_stack: bool,
+        /// Dump dynamic functions.
+        #[arg(long)]
+        pub(super) dump_functions: bool,
+        /// Dump dynamic types.
+        #[arg(long)]
+        pub(super) dump_types: bool,
+        /// Dump native functions.
+        #[arg(long)]
+        pub(super) dump_native_functions: bool,
+        /// Dump native types.
+        #[arg(long)]
+        pub(super) dump_native_types: bool,
+        /// When tracing, limit the number of instructions to run with `limit`. This
+        /// implies `--trace`.
+        #[arg(long)]
+        pub(super) trace_limit: Option<usize>,
+        /// Explicit paths to run.
+        pub(super) run_path: Vec<PathBuf>,
+    }
 }
+
+pub(super) use cli::Flags;
 
 impl CommandBase for Flags {
     #[inline]
@@ -100,6 +112,10 @@ impl CommandBase for Flags {
         if self.trace_limit.is_some() {
             self.trace = true;
         }
+    }
+
+    fn paths(&self) -> &[PathBuf] {
+        &self.run_path
     }
 }
 

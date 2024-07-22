@@ -23,12 +23,13 @@ use std::fmt;
 use std::io::{self, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 
+use crate as rune;
 use crate::alloc;
 use crate::alloc::prelude::*;
 use crate::workspace::{self, WorkspaceFilter};
 
 use anyhow::{bail, Context as _, Error, Result};
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use tracing_subscriber::filter::EnvFilter;
 
 use crate::compile::{ItemBuf, ParseOptionError};
@@ -196,18 +197,17 @@ impl<'a> Entry<'a> {
             return Ok(ExitCode::Success);
         }
 
-        let choice = match args.color.as_str() {
-            "always" => ColorChoice::Always,
-            "ansi" => ColorChoice::AlwaysAnsi,
-            "auto" => {
+        let choice = match args.color {
+            ColorArgument::Always => ColorChoice::Always,
+            ColorArgument::Ansi => ColorChoice::AlwaysAnsi,
+            ColorArgument::Auto => {
                 if std::io::stdin().is_terminal() {
                     ColorChoice::Auto
                 } else {
                     ColorChoice::Never
                 }
             }
-            "never" => ColorChoice::Never,
-            _ => ColorChoice::Auto,
+            ColorArgument::Never => ColorChoice::Never,
         };
 
         let mut stdout = StandardStream::stdout(choice);
@@ -237,6 +237,7 @@ impl<'a> Entry<'a> {
 }
 
 /// A single entrypoint that can be built or processed.
+#[derive(TryClone)]
 pub(crate) enum EntryPoint<'a> {
     /// A plain path entrypoint.
     Path(PathBuf),
@@ -254,12 +255,32 @@ impl EntryPoint<'_> {
     }
 }
 
+impl fmt::Display for EntryPoint<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            EntryPoint::Path(path) => {
+                write!(f, "path in {}", path.display())
+            }
+            EntryPoint::Package(package) => {
+                write!(
+                    f,
+                    "package `{}` in {} ({})",
+                    package.package.name,
+                    package.found.path.display(),
+                    package.found.kind
+                )
+            }
+        }
+    }
+}
+
 struct Io<'a> {
     stdout: &'a mut StandardStream,
     stderr: &'a mut StandardStream,
 }
 
 #[derive(Parser, Debug, Clone)]
+#[command(rename_all = "kebab-case")]
 struct CommandShared<T>
 where
     T: clap::Args,
@@ -285,7 +306,7 @@ where
             options.bytecode(false);
         }
 
-        for option in &self.shared.compiler_options {
+        for option in &self.shared.compiler_option {
             options.parse_option(option)?;
         }
 
@@ -350,12 +371,12 @@ impl CommandSharedRef<'_> {
 }
 
 #[derive(Parser, Debug)]
+#[command(rename_all = "kebab-case")]
 struct HashFlags {
     /// Generate a random hash.
     #[arg(long)]
     random: bool,
     /// Items to generate hashes for.
-    #[arg(name = "item")]
     item: Vec<String>,
 }
 
@@ -387,6 +408,12 @@ trait CommandBase {
     /// Propagate related flags from command and config.
     #[inline]
     fn propagate(&mut self, _: &mut Config, _: &mut SharedFlags) {}
+
+    /// Extra paths to run.
+    #[inline]
+    fn paths(&self) -> &[PathBuf] {
+        &[]
+    }
 }
 
 #[derive(Subcommand, Debug)]
@@ -542,6 +569,19 @@ impl SharedFlags {
     }
 }
 
+#[derive(Default, Debug, Clone, Copy, ValueEnum)]
+enum ColorArgument {
+    #[default]
+    /// Automatically enable coloring if the output is a terminal.
+    Auto,
+    /// Force ANSI coloring.
+    Ansi,
+    /// Always color using the platform-specific coloring implementation.
+    Always,
+    /// Never color output.
+    Never,
+}
+
 #[derive(Parser, Debug)]
 #[command(name = "rune", about = None)]
 struct Args {
@@ -550,15 +590,8 @@ struct Args {
     version: bool,
 
     /// Control if output is colored or not.
-    ///
-    /// Valid options are:
-    /// * `auto` - try to detect automatically.
-    /// * `ansi` - unconditionally emit ansi control codes.
-    /// * `always` - always enabled.
-    ///
-    /// Anything else will disable coloring.
     #[arg(short = 'C', long, default_value = "auto")]
-    color: String,
+    color: ColorArgument,
 
     /// The command to execute
     #[command(subcommand)]
@@ -566,6 +599,7 @@ struct Args {
 }
 
 #[derive(Parser, Debug, Clone)]
+#[command(rename_all = "kebab-case")]
 struct SharedFlags {
     /// Enable experimental features.
     ///
@@ -603,38 +637,40 @@ struct SharedFlags {
     /// macros[=<true/false>] - Enable or disable macros (experimental).
     ///
     /// bytecode[=<true/false>] - Enable or disable bytecode caching (experimental).
-    #[arg(name = "option", short = 'O', number_of_values = 1)]
-    compiler_options: Vec<String>,
+    #[arg(short = 'O', number_of_values = 1)]
+    compiler_option: Vec<String>,
 
     /// Run with the following binary from a loaded manifest. This requires a
     /// `Rune.toml` manifest.
-    #[arg(long = "bin")]
+    #[arg(long)]
     bin: Option<String>,
 
     /// Run with the following test from a loaded manifest. This requires a
     /// `Rune.toml` manifest.
-    #[arg(long = "test")]
+    #[arg(long)]
     test: Option<String>,
 
     /// Run with the following example from a loaded manifest. This requires a
     /// `Rune.toml` manifest.
-    #[arg(long = "example")]
+    #[arg(long)]
     example: Option<String>,
 
     /// Run with the following benchmark by name from a loaded manifest. This
     /// requires a `Rune.toml` manifest.
-    #[arg(long = "bench")]
+    #[arg(long)]
     bench: Option<String>,
 
     /// Build paths to include in the command.
     ///
     /// By default, the tool searches for:
+    ///
     /// * A `Rune.toml` file in a parent directory, in which case this treated
     ///   as a workspace.
+    ///
     /// * In order: `main.rn`, `lib.rn`, `src/main.rn`, `src/lib.rn`,
     ///   `script/main.rn`, and `script/lib.rn`.
-    #[arg(name = "paths")]
-    paths: Vec<PathBuf>,
+    #[arg(long)]
+    path: Vec<PathBuf>,
 }
 
 const SPECIAL_FILES: &[&str] = &[
@@ -688,8 +724,13 @@ fn find_manifest() -> Option<(PathBuf, PathBuf)> {
 }
 
 fn populate_config(io: &mut Io<'_>, c: &mut Config, cmd: CommandSharedRef<'_>) -> Result<()> {
-    c.found_paths
-        .try_extend(cmd.shared.paths.iter().map(|p| p.as_path().into()))?;
+    c.found_paths.try_extend(
+        cmd.shared
+            .path
+            .iter()
+            .map(|p| p.as_path().into())
+            .chain(cmd.command.paths().iter().cloned()),
+    )?;
 
     if !c.found_paths.is_empty() && !cmd.shared.workspace {
         return Ok(());

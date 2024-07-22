@@ -73,7 +73,7 @@ mod embed {
 pub(crate) fn build(
     name: &str,
     artifacts: &mut Artifacts,
-    context: &crate::Context,
+    context: Option<&crate::Context>,
     visitors: &[Visitor],
 ) -> Result<()> {
     let context = Context::new(context, visitors);

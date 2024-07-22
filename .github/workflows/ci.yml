@@ -68,27 +68,23 @@ jobs:
     - uses: Swatinem/rust-cache@v2
     - run: cargo build
 
-  miri_rune:
+  miri:
     runs-on: ubuntu-latest
     needs: basics
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - crate: rune
+            target: "runtime:: hir::arena:: --skip runtime::vm:: --skip runtime::vm_execution::"
+          - crate: rune-alloc
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
       with:
         components: miri
     - uses: Swatinem/rust-cache@v2
-    - run: cargo miri test -p rune --all-features -- runtime hir::arena
-
-  miri_rune_alloc:
-    runs-on: ubuntu-latest
-    needs: basics
-    steps:
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@nightly
-      with:
-        components: miri
-    - uses: Swatinem/rust-cache@v2
-    - run: cargo miri test -p rune-alloc --all-features
+    - run: cargo miri test -p ${{matrix.crate}} --all-features -- ${{matrix.target}}
 
   nightly:
     runs-on: ubuntu-latest
@@ -152,7 +148,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    needs: [no_default_features, build_feature, docs, msrv, miri_rune, miri_rune_alloc, no_std, wasm]
+    needs: [no_default_features, build_feature, docs, msrv, miri, no_std, wasm]
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable

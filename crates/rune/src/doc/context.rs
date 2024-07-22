@@ -103,12 +103,12 @@ pub(crate) enum Signature {
 ///
 /// Provides a unified API for querying information about known types.
 pub(crate) struct Context<'a> {
-    context: &'a crate::Context,
+    context: Option<&'a crate::Context>,
     visitors: &'a [Visitor],
 }
 
 impl<'a> Context<'a> {
-    pub(crate) fn new(context: &'a crate::Context, visitors: &'a [Visitor]) -> Self {
+    pub(crate) fn new(context: Option<&'a crate::Context>, visitors: &'a [Visitor]) -> Self {
         Self { context, visitors }
     }
 
@@ -237,8 +237,8 @@ impl<'a> Context<'a> {
 
         let context = self
             .context
-            .associated(hash)
-            .flat_map(|a| context_to_associated(self.context, a));
+            .into_iter()
+            .flat_map(move |c| c.associated(hash).flat_map(|a| context_to_associated(c, a)));
 
         visitors.chain(context)
     }
@@ -254,8 +254,10 @@ impl<'a> Context<'a> {
     {
         let mut out = Vec::new();
 
-        for c in self.context.iter_components(iter.clone())? {
-            out.try_push((MetaSource::Context, c))?;
+        if let Some(context) = self.context {
+            for c in context.iter_components(iter.clone())? {
+                out.try_push((MetaSource::Context, c))?;
+            }
         }
 
         for v in self.visitors {
@@ -277,8 +279,10 @@ impl<'a> Context<'a> {
             }
         }
 
-        for meta in self.context.lookup_meta_by_hash(hash) {
-            out.try_extend(self.context_meta_to_meta(meta))?;
+        if let Some(context) = self.context {
+            for meta in context.lookup_meta_by_hash(hash) {
+                out.try_extend(self.context_meta_to_meta(meta))?;
+            }
         }
 
         Ok(out)
@@ -294,8 +298,10 @@ impl<'a> Context<'a> {
             }
         }
 
-        for meta in self.context.lookup_meta(item).into_iter().flatten() {
-            out.try_extend(self.context_meta_to_meta(meta))?;
+        if let Some(context) = self.context {
+            for meta in context.lookup_meta(item).into_iter().flatten() {
+                out.try_extend(self.context_meta_to_meta(meta))?;
+            }
         }
 
         Ok(out)
@@ -328,7 +334,7 @@ impl<'a> Context<'a> {
                 return_type: &f.return_type,
             }),
             meta::Kind::Const { .. } => {
-                let const_value = self.context.get_const_value(meta.hash)?;
+                let const_value = self.context?.get_const_value(meta.hash)?;
                 Kind::Const(const_value)
             }
             meta::Kind::Macro => Kind::Macro,
@@ -348,10 +354,11 @@ impl<'a> Context<'a> {
 
     /// Iterate over known modules.
     pub(crate) fn iter_modules(&self) -> impl IntoIterator<Item = alloc::Result<ItemBuf>> + '_ {
-        self.visitors
-            .iter()
-            .map(|v| v.base.try_clone())
-            .chain(self.context.iter_crates().map(ItemBuf::with_crate))
+        self.visitors.iter().map(|v| v.base.try_clone()).chain(
+            self.context
+                .into_iter()
+                .flat_map(|c| c.iter_crates().map(ItemBuf::with_crate)),
+        )
     }
 }
 

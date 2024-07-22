@@ -4,7 +4,6 @@ use std::path::PathBuf;
 use crate::doc::Artifacts;
 
 use anyhow::{Context, Result};
-use clap::Parser;
 
 use crate::alloc::prelude::*;
 use crate::cli::naming::Naming;
@@ -12,18 +11,30 @@ use crate::cli::{AssetKind, CommandBase, Config, Entry, EntryPoint, ExitCode, Io
 use crate::compile::{FileSourceLoader, ItemBuf};
 use crate::{Diagnostics, Options, Source, Sources};
 
-#[derive(Parser, Debug)]
-pub(super) struct Flags {
-    /// Exit with a non-zero exit-code even for warnings
-    #[arg(long)]
-    warnings_are_errors: bool,
-    /// Output directory to write documentation to.
-    #[arg(long)]
-    output: Option<PathBuf>,
-    /// Open the generated documentation in a browser.
-    #[arg(long)]
-    open: bool,
+mod cli {
+    use std::path::PathBuf;
+    use std::vec::Vec;
+
+    use clap::Parser;
+
+    #[derive(Parser, Debug)]
+    #[command(rename_all = "kebab-case")]
+    pub(crate) struct Flags {
+        /// Exit with a non-zero exit-code even for warnings
+        #[arg(long)]
+        pub(super) warnings_are_errors: bool,
+        /// Output directory to write documentation to.
+        #[arg(long)]
+        pub(super) output: Option<PathBuf>,
+        /// Open the generated documentation in a browser.
+        #[arg(long)]
+        pub(super) open: bool,
+        /// Explicit paths to format.
+        pub(super) doc_path: Vec<PathBuf>,
+    }
 }
+
+pub(super) use cli::Flags;
 
 impl CommandBase for Flags {
     #[inline]
@@ -34,6 +45,11 @@ impl CommandBase for Flags {
     #[inline]
     fn describe(&self) -> &str {
         "Documenting"
+    }
+
+    #[inline]
+    fn paths(&self) -> &[PathBuf] {
+        &self.doc_path
     }
 }
 
@@ -118,7 +134,7 @@ where
 
     let mut artifacts = Artifacts::new();
 
-    crate::doc::build("root", &mut artifacts, &context, &visitors)?;
+    crate::doc::build("root", &mut artifacts, Some(&context), &visitors)?;
 
     for asset in artifacts.assets() {
         asset.build(&root)?;
