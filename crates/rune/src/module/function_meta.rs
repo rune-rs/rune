@@ -11,8 +11,7 @@ use crate::hash::Hash;
 use crate::macros::{MacroContext, TokenStream};
 use crate::module::{AssociatedKey, Function, FunctionKind, InstanceFunction};
 use crate::runtime::{
-    AttributeMacroHandler, FullTypeOf, FunctionHandler, MacroHandler, MaybeTypeOf, Protocol,
-    TypeInfo, TypeOf,
+    AttributeMacroHandler, FunctionHandler, MacroHandler, MaybeTypeOf, Protocol, TypeInfo, TypeOf,
 };
 
 mod sealed {
@@ -99,7 +98,7 @@ impl FunctionData {
             #[cfg(feature = "doc")]
             argument_types: A::into_box()?,
             #[cfg(feature = "doc")]
-            return_type: meta::DocType::from_maybe_type_of::<F::Return>()?,
+            return_type: F::Return::maybe_type_of()?,
         })
     }
 }
@@ -222,14 +221,14 @@ pub struct Associated {
     /// The name of the associated item.
     pub(crate) name: AssociatedName,
     /// The container the associated item is associated with.
-    pub(crate) container: FullTypeOf,
+    pub(crate) container: Hash,
     /// Type info for the container the associated item is associated with.
     pub(crate) container_type_info: TypeInfo,
 }
 
 impl Associated {
     /// Construct a raw associated name.
-    pub fn new(name: AssociatedName, container: FullTypeOf, container_type_info: TypeInfo) -> Self {
+    pub fn new(name: AssociatedName, container: Hash, container_type_info: TypeInfo) -> Self {
         Self {
             name,
             container,
@@ -244,7 +243,7 @@ impl Associated {
     {
         Ok(Self {
             name,
-            container: T::type_of(),
+            container: T::type_hash(),
             container_type_info: T::type_info(),
         })
     }
@@ -252,7 +251,7 @@ impl Associated {
     /// Get unique key for the associated item.
     pub(crate) fn as_key(&self) -> alloc::Result<AssociatedKey> {
         Ok(AssociatedKey {
-            type_hash: self.container.hash,
+            type_hash: self.container,
             kind: self.name.kind.try_clone()?,
             parameters: self.name.function_parameters,
         })
@@ -309,7 +308,7 @@ impl AssociatedFunctionData {
             #[cfg(feature = "doc")]
             argument_types: A::into_box()?,
             #[cfg(feature = "doc")]
-            return_type: meta::DocType::from_maybe_type_of::<F::Return>()?,
+            return_type: F::Return::maybe_type_of()?,
         })
     }
 
@@ -333,7 +332,7 @@ impl AssociatedFunctionData {
             #[cfg(feature = "doc")]
             argument_types: A::into_box()?,
             #[cfg(feature = "doc")]
-            return_type: meta::DocType::from_maybe_type_of::<F::Return>()?,
+            return_type: F::Return::maybe_type_of()?,
         })
     }
 }
@@ -432,7 +431,7 @@ where
     #[inline]
     pub fn build_associated_with(
         self,
-        container: FullTypeOf,
+        container: Hash,
         container_type_info: TypeInfo,
     ) -> alloc::Result<FunctionMetaKind>
     where
@@ -541,7 +540,7 @@ macro_rules! iter_function_args {
             #[inline]
             #[doc(hidden)]
             fn into_box() -> alloc::Result<Box<[meta::DocType]>> {
-                try_vec![$(meta::DocType::from_maybe_type_of::<$ty>()?),*].try_into_boxed_slice()
+                try_vec![$(<$ty as MaybeTypeOf>::maybe_type_of()?),*].try_into_boxed_slice()
             }
         }
     }

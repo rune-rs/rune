@@ -1,17 +1,10 @@
+use crate::alloc;
+use crate::compile::meta;
 use crate::runtime::{Mut, Ref, Shared, TypeInfo};
 use crate::Hash;
 
-#[doc(inline)]
-pub use rune_core::FullTypeOf;
-
 /// Trait used for Rust types for which we can determine the runtime type of.
 pub trait TypeOf {
-    /// Type information for the given type.
-    #[inline]
-    fn type_of() -> FullTypeOf {
-        FullTypeOf::new(Self::type_hash())
-    }
-
     /// Hash of type parameters.
     #[inline]
     fn type_parameters() -> Hash {
@@ -28,12 +21,7 @@ pub trait TypeOf {
 /// A type that might or might not have a concrete type.
 pub trait MaybeTypeOf {
     /// Type information for the given type.
-    fn maybe_type_of() -> Option<FullTypeOf>;
-
-    /// Visit generic parameters.
-    fn maybe_visit_generics<F, E>(f: &mut F) -> Result<(), E>
-    where
-        F: FnMut(Option<FullTypeOf>) -> Result<(), E>;
+    fn maybe_type_of() -> alloc::Result<meta::DocType>;
 }
 
 impl<T> MaybeTypeOf for &T
@@ -41,16 +29,8 @@ where
     T: ?Sized + MaybeTypeOf,
 {
     #[inline]
-    fn maybe_type_of() -> Option<FullTypeOf> {
+    fn maybe_type_of() -> alloc::Result<meta::DocType> {
         T::maybe_type_of()
-    }
-
-    #[inline]
-    fn maybe_visit_generics<F, E>(f: &mut F) -> Result<(), E>
-    where
-        F: FnMut(Option<FullTypeOf>) -> Result<(), E>,
-    {
-        T::maybe_visit_generics(f)
     }
 }
 
@@ -59,16 +39,8 @@ where
     T: ?Sized + MaybeTypeOf,
 {
     #[inline]
-    fn maybe_type_of() -> Option<FullTypeOf> {
+    fn maybe_type_of() -> alloc::Result<meta::DocType> {
         T::maybe_type_of()
-    }
-
-    #[inline]
-    fn maybe_visit_generics<F, E>(f: &mut F) -> Result<(), E>
-    where
-        F: FnMut(Option<FullTypeOf>) -> Result<(), E>,
-    {
-        T::maybe_visit_generics(f)
     }
 }
 
@@ -77,16 +49,8 @@ where
     T: ?Sized + MaybeTypeOf,
 {
     #[inline]
-    fn maybe_type_of() -> Option<FullTypeOf> {
+    fn maybe_type_of() -> alloc::Result<meta::DocType> {
         T::maybe_type_of()
-    }
-
-    #[inline]
-    fn maybe_visit_generics<F, E>(f: &mut F) -> Result<(), E>
-    where
-        F: FnMut(Option<FullTypeOf>) -> Result<(), E>,
-    {
-        T::maybe_visit_generics(f)
     }
 }
 
@@ -95,16 +59,8 @@ where
     T: ?Sized + MaybeTypeOf,
 {
     #[inline]
-    fn maybe_type_of() -> Option<FullTypeOf> {
+    fn maybe_type_of() -> alloc::Result<meta::DocType> {
         T::maybe_type_of()
-    }
-
-    #[inline]
-    fn maybe_visit_generics<F, E>(f: &mut F) -> Result<(), E>
-    where
-        F: FnMut(Option<FullTypeOf>) -> Result<(), E>,
-    {
-        T::maybe_visit_generics(f)
     }
 }
 
@@ -113,16 +69,8 @@ where
     T: ?Sized + MaybeTypeOf,
 {
     #[inline]
-    fn maybe_type_of() -> Option<FullTypeOf> {
+    fn maybe_type_of() -> alloc::Result<meta::DocType> {
         T::maybe_type_of()
-    }
-
-    #[inline]
-    fn maybe_visit_generics<F, E>(f: &mut F) -> Result<(), E>
-    where
-        F: FnMut(Option<FullTypeOf>) -> Result<(), E>,
-    {
-        T::maybe_visit_generics(f)
     }
 }
 
@@ -131,11 +79,6 @@ impl<T> TypeOf for &T
 where
     T: ?Sized + TypeOf,
 {
-    #[inline]
-    fn type_of() -> FullTypeOf {
-        T::type_of()
-    }
-
     #[inline]
     fn type_parameters() -> Hash {
         T::type_parameters()
@@ -158,11 +101,6 @@ where
     T: ?Sized + TypeOf,
 {
     #[inline]
-    fn type_of() -> FullTypeOf {
-        T::type_of()
-    }
-
-    #[inline]
     fn type_parameters() -> Hash {
         T::type_parameters()
     }
@@ -183,11 +121,6 @@ impl<T> TypeOf for Ref<T>
 where
     T: ?Sized + TypeOf,
 {
-    #[inline]
-    fn type_of() -> FullTypeOf {
-        T::type_of()
-    }
-
     #[inline]
     fn type_parameters() -> Hash {
         T::type_parameters()
@@ -210,11 +143,6 @@ where
     T: ?Sized + TypeOf,
 {
     #[inline]
-    fn type_of() -> FullTypeOf {
-        T::type_of()
-    }
-
-    #[inline]
     fn type_parameters() -> Hash {
         T::type_parameters()
     }
@@ -235,11 +163,6 @@ impl<T> TypeOf for Shared<T>
 where
     T: ?Sized + TypeOf,
 {
-    #[inline]
-    fn type_of() -> FullTypeOf {
-        T::type_of()
-    }
-
     #[inline]
     fn type_parameters() -> Hash {
         T::type_parameters()

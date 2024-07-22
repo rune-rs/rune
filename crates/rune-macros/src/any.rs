@@ -501,34 +501,35 @@ where
         } = self;
 
         let Tokens {
+            alloc,
+            any_type_info,
             any,
+            box_,
             context_error,
+            from_value,
             hash,
+            install_with,
+            maybe_type_of,
+            meta,
             module,
+            mut_,
             named,
+            non_null,
             pointer_guard,
             raw_into_mut,
             raw_into_ref,
+            raw_mut,
+            raw_ref,
             raw_str,
+            ref_,
+            static_type_mod,
             type_info,
-            any_type_info,
             type_of,
-            maybe_type_of,
-            full_type_of,
-            unsafe_to_value,
-            unsafe_to_ref,
             unsafe_to_mut,
+            unsafe_to_ref,
+            unsafe_to_value,
             value,
             vm_result,
-            install_with,
-            non_null,
-            box_,
-            static_type_mod,
-            from_value,
-            raw_ref,
-            raw_mut,
-            mut_,
-            ref_,
             vm_try,
             ..
         } = &tokens;
@@ -603,17 +604,11 @@ where
                 #[automatically_derived]
                 impl #impl_generics #maybe_type_of for #ident #type_generics #where_clause {
                     #[inline]
-                    fn maybe_type_of() -> Option<#full_type_of> {
-                        Some(<Self as #type_of>::type_of())
-                    }
-
-                    #[inline]
-                    fn maybe_visit_generics<F, E>(f: &mut F) -> Result<(), E>
-                    where
-                        F: FnMut(Option<#full_type_of>) -> Result<(), E>
-                    {
-                        #(f(<#generic_names as #maybe_type_of>::maybe_type_of())?;)*
-                        Ok(())
+                    fn maybe_type_of() -> #alloc::Result<#meta::DocType> {
+                        #meta::DocType::with_generics(
+                            Some(<Self as #type_of>::type_hash()),
+                            [#(<#generic_names as #maybe_type_of>::maybe_type_of()?),*]
+                        )
                     }
                 }
             })
@@ -635,17 +630,11 @@ where
                 #[automatically_derived]
                 impl #impl_generics #maybe_type_of for #ident #type_generics #where_clause {
                     #[inline]
-                    fn maybe_type_of() -> Option<#full_type_of> {
-                        Some(<Self as #type_of>::type_of())
-                    }
-
-                    #[inline]
-                    fn maybe_visit_generics<F, E>(f: &mut F) -> Result<(), E>
-                    where
-                        F: FnMut(Option<#full_type_of>) -> Result<(), E>
-                    {
-                        #(f(<#generic_names as #maybe_type_of>::maybe_type_of())?;)*
-                        Ok(())
+                    fn maybe_type_of() -> #alloc::Result<#meta::DocType> {
+                        #meta::DocType::with_generics(
+                            Some(<Self as #type_of>::type_hash()),
+                            [#(<#generic_names as #maybe_type_of>::maybe_type_of()),*]
+                        )
                     }
                 }
             })

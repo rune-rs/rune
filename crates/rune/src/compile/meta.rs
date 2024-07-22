@@ -13,8 +13,6 @@ use crate::compile::attrs::Parser;
 use crate::compile::{self, Item, ItemId, Location, MetaInfo, ModId, Pool, Visibility};
 use crate::hash::Hash;
 use crate::parse::{NonZeroId, ResolveContext};
-#[cfg(feature = "doc")]
-use crate::runtime::MaybeTypeOf;
 use crate::runtime::{Call, Protocol};
 
 /// A meta reference to an item being compiled.
@@ -385,6 +383,20 @@ pub struct DocType {
 }
 
 impl DocType {
+    /// Construct type documentation.
+    #[cfg_attr(not(feature = "doc"), allow(unused_variables))]
+    pub fn with_generics<const N: usize>(
+        base: Option<Hash>,
+        generics: [DocType; N],
+    ) -> alloc::Result<Self> {
+        Ok(Self {
+            #[cfg(feature = "doc")]
+            base,
+            #[cfg(feature = "doc")]
+            generics: Box::try_from(generics)?,
+        })
+    }
+
     #[cfg(feature = "doc")]
     pub(crate) fn new(base: Option<Hash>) -> Self {
         Self {
@@ -393,37 +405,13 @@ impl DocType {
         }
     }
 
-    #[cfg(feature = "doc")]
     pub(crate) fn empty() -> Self {
         Self {
+            #[cfg(feature = "doc")]
             base: None,
+            #[cfg(feature = "doc")]
             generics: Box::default(),
         }
-    }
-
-    #[cfg(feature = "doc")]
-    pub(crate) fn from_maybe_type_of<T>() -> alloc::Result<Self>
-    where
-        T: MaybeTypeOf,
-    {
-        let mut generics = Vec::new();
-
-        T::maybe_visit_generics(&mut |ty| {
-            generics.try_push(DocType::new(ty.map(|ty| ty.hash)))?;
-            Ok::<_, alloc::Error>(())
-        })?;
-
-        Ok(Self {
-            base: T::maybe_type_of().map(|ty| ty.hash),
-            generics: Box::try_from(generics)?,
-        })
-    }
-
-    #[cfg(not(feature = "doc"))]
-    #[inline]
-    #[allow(clippy::extra_unused_type_parameters)]
-    pub(crate) fn from_maybe_type_of<T>() -> alloc::Result<Self> {
-        Ok(Self {})
     }
 }
 

@@ -12,13 +12,13 @@ use crate as rune;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
-use crate::compile::ItemBuf;
+use crate::compile::{meta, ItemBuf};
 use crate::runtime::vm::CallResultOnly;
 use crate::runtime::{
     AccessError, AccessErrorKind, AnyObj, AnyObjError, BorrowMut, BorrowRef, Bytes, ConstValue,
-    ControlFlow, DynGuardedArgs, EnvProtocolCaller, Format, Formatter, FromValue, FullTypeOf,
-    Function, Future, Generator, GeneratorState, IntoOutput, Iterator, MaybeTypeOf, Mut, Object,
-    OwnedTuple, Protocol, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
+    ControlFlow, DynGuardedArgs, EnvProtocolCaller, Format, Formatter, FromValue, Function, Future,
+    Generator, GeneratorState, IntoOutput, Iterator, MaybeTypeOf, Mut, Object, OwnedTuple,
+    Protocol, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
     RangeToInclusive, Ref, RuntimeError, Shared, SharedPointerGuard, Snapshot, Stream, ToValue,
     Type, TypeInfo, Variant, Vec, Vm, VmErrorKind, VmIntegerRepr, VmResult,
 };
@@ -2317,16 +2317,8 @@ impl_custom_from_wrapper! {
 
 impl MaybeTypeOf for Value {
     #[inline]
-    fn maybe_type_of() -> Option<FullTypeOf> {
-        None
-    }
-
-    #[inline]
-    fn maybe_visit_generics<F, E>(_: &mut F) -> Result<(), E>
-    where
-        F: FnMut(Option<FullTypeOf>) -> Result<(), E>,
-    {
-        Ok(())
+    fn maybe_type_of() -> alloc::Result<meta::DocType> {
+        Ok(meta::DocType::empty())
     }
 }
 

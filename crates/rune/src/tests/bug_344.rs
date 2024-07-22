@@ -12,6 +12,8 @@ prelude!();
 use std::cell::Cell;
 use std::rc::Rc;
 
+use rune::compile::meta;
+
 #[test]
 fn bug_344_function() -> Result<()> {
     let mut context = Context::new();
@@ -195,16 +197,8 @@ impl TypeOf for GuardCheck {
 
 impl MaybeTypeOf for GuardCheck {
     #[inline]
-    fn maybe_type_of() -> Option<FullTypeOf> {
-        Some(Self::type_of())
-    }
-
-    #[inline]
-    fn maybe_visit_generics<F, E>(_: &mut F) -> Result<(), E>
-    where
-        F: FnMut(Option<FullTypeOf>) -> Result<(), E>,
-    {
-        Ok(())
+    fn maybe_type_of() -> alloc::Result<meta::DocType> {
+        Ok(meta::DocType::new(Some(<Self as TypeOf>::type_hash())))
     }
 }
 

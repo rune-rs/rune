@@ -139,7 +139,7 @@ mod type_info;
 pub use self::type_info::{AnyTypeInfo, TypeInfo};
 
 mod type_of;
-pub use self::type_of::{FullTypeOf, MaybeTypeOf, TypeOf};
+pub use self::type_of::{MaybeTypeOf, TypeOf};
 
 pub mod unit;
 pub(crate) use self::unit::UnitFn;

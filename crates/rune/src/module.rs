@@ -17,8 +17,8 @@ use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, Vec};
 use crate::compile::{meta, ContextError, Docs, Item, ItemBuf};
 use crate::runtime::{
-    AttributeMacroHandler, ConstValue, FullTypeOf, FunctionHandler, MacroHandler, MaybeTypeOf,
-    StaticType, TypeCheck, TypeInfo, TypeOf,
+    AttributeMacroHandler, ConstValue, FunctionHandler, MacroHandler, MaybeTypeOf, StaticType,
+    TypeCheck, TypeInfo, TypeOf,
 };
 use crate::Hash;
 
@@ -234,7 +234,7 @@ pub(crate) struct ModuleItemCommon {
 
 #[derive(TryClone)]
 pub(crate) struct ModuleAssociated {
-    pub(crate) container: FullTypeOf,
+    pub(crate) container: Hash,
     pub(crate) container_type_info: TypeInfo,
     pub(crate) name: AssociatedName,
     pub(crate) common: ModuleItemCommon,
@@ -387,7 +387,7 @@ impl ItemFnMut<'_> {
     {
         #[cfg(feature = "doc")]
         {
-            *self.return_type = meta::DocType::from_maybe_type_of::<T>()?;
+            *self.return_type = T::maybe_type_of()?;
         }
 
         Ok(self)
@@ -396,14 +396,11 @@ impl ItemFnMut<'_> {
     /// Set argument types.
     pub fn argument_types<const N: usize>(
         self,
-        #[cfg_attr(not(feature = "doc"), allow(unused))] arguments: [Option<FullTypeOf>; N],
+        #[cfg_attr(not(feature = "doc"), allow(unused))] arguments: [meta::DocType; N],
     ) -> Result<Self, ContextError> {
         #[cfg(feature = "doc")]
         {
-            *self.argument_types = arguments
-                .into_iter()
-                .map(|ty| meta::DocType::new(ty.map(|ty| ty.hash)))
-                .try_collect::<Box<[_]>>()?;
+            *self.argument_types = Box::try_from(arguments)?;
         }
 
         Ok(self)

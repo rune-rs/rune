@@ -19,9 +19,9 @@ use crate::module::{
     ModuleMacro, ModuleType, Plain, TypeMut, TypeSpecification, VariantMut,
 };
 use crate::runtime::{
-    AttributeMacroHandler, ConstValue, FromValue, FullTypeOf, FunctionHandler, GeneratorState,
-    InstAddress, MacroHandler, MaybeTypeOf, Output, Protocol, Stack, ToValue, TypeCheck, TypeInfo,
-    TypeOf, Value, VmResult,
+    AttributeMacroHandler, ConstValue, FromValue, FunctionHandler, GeneratorState, InstAddress,
+    MacroHandler, MaybeTypeOf, Output, Protocol, Stack, ToValue, TypeCheck, TypeInfo, TypeOf,
+    Value, VmResult,
 };
 use crate::Hash;
 
@@ -122,7 +122,7 @@ where
     /// This registers the function as an assocaited function, which can only be
     /// used through the specified type.
     ///
-    /// [`FullTypeOf`] and [`TypeInfo`] are usually constructed through the
+    /// [`Hash`] and [`TypeInfo`] are usually constructed through the
     /// [`TypeOf`] trait. But that requires access to a static type, for which
     /// you should use [`build_associated`] instead.
     ///
@@ -135,7 +135,7 @@ where
     #[inline]
     pub fn build_associated_with(
         self,
-        container: FullTypeOf,
+        container: Hash,
         container_type_info: TypeInfo,
     ) -> Result<ItemFnMut<'a>, ContextError>
     where
@@ -250,7 +250,7 @@ impl<'a, N> ModuleRawFunctionBuilder<'a, N> {
     /// This registers the function as an assocaited function, which can only be
     /// used through the specified type.
     ///
-    /// [`FullTypeOf`] and [`TypeInfo`] are usually constructed through the
+    /// [`Hash`] and [`TypeInfo`] are usually constructed through the
     /// [`TypeOf`] trait. But that requires access to a static type, for which
     /// you should use [`build_associated`] instead.
     ///
@@ -263,7 +263,7 @@ impl<'a, N> ModuleRawFunctionBuilder<'a, N> {
     #[inline]
     pub fn build_associated_with(
         self,
-        container: FullTypeOf,
+        container: Hash,
         container_type_info: TypeInfo,
     ) -> Result<ItemFnMut<'a>, ContextError>
     where
