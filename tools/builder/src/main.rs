@@ -1,7 +1,7 @@
 //! A utility project for building and packaging Rune binaries.
 
 use std::env;
-use std::env::consts::{self, EXE_EXTENSION};
+use std::env::consts::{self, EXE_SUFFIX};
 use std::ffi::OsStr;
 use std::fmt;
 use std::fs;
@@ -218,8 +218,8 @@ fn do_build(build: Build) -> Result<()> {
         fs::create_dir_all(upload).context("creating upload directory")?;
     }
 
-    let rune = release_dir.join(format!("rune{EXE_EXTENSION}"));
-    let rune_languageserver = release_dir.join(format!("rune-languageserver{EXE_EXTENSION}"));
+    let rune = release_dir.join(format!("rune{EXE_SUFFIX}"));
+    let rune_languageserver = release_dir.join(format!("rune-languageserver{EXE_SUFFIX}"));
 
     if !rune.is_file() {
         println!("building: {}", rune.display());
