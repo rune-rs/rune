@@ -7,12 +7,12 @@ use ::rust_alloc::sync::Arc;
 use crate::alloc::error::CustomError;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
-use crate::compile::ItemBuf;
+use crate::compile::{meta, ItemBuf};
 use crate::hash::Hash;
 use crate::runtime::unit::{BadInstruction, BadJump};
 use crate::runtime::{
-    AccessError, AccessErrorKind, BoxedPanic, CallFrame, DynArgsUsed, ExecutionState, FullTypeOf,
-    MaybeTypeOf, Panic, Protocol, SliceError, StackError, TypeInfo, TypeOf, Unit, Vm, VmHaltInfo,
+    AccessError, AccessErrorKind, BoxedPanic, CallFrame, DynArgsUsed, ExecutionState, MaybeTypeOf,
+    Panic, Protocol, SliceError, StackError, TypeInfo, TypeOf, Unit, Vm, VmHaltInfo,
 };
 
 /// A virtual machine error which includes tracing information.
@@ -370,16 +370,8 @@ where
     T: MaybeTypeOf,
 {
     #[inline]
-    fn maybe_type_of() -> Option<FullTypeOf> {
+    fn maybe_type_of() -> alloc::Result<meta::DocType> {
         T::maybe_type_of()
-    }
-
-    #[inline]
-    fn maybe_visit_generics<F, E>(f: &mut F) -> Result<(), E>
-    where
-        F: FnMut(Option<FullTypeOf>) -> Result<(), E>,
-    {
-        T::maybe_visit_generics(f)
     }
 }
 

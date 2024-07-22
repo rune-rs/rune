@@ -56,6 +56,3 @@ pub use self::protocol::Protocol;
 
 mod params;
 pub use self::params::Params;
-
-mod type_of;
-pub use self::type_of::FullTypeOf;

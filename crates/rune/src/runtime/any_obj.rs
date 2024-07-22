@@ -9,8 +9,9 @@ use core::ptr;
 use crate::alloc::alloc::Global;
 use crate::alloc::{self, Box};
 use crate::any::Any;
+use crate::compile::meta;
 use crate::hash::Hash;
-use crate::runtime::{AnyTypeInfo, FullTypeOf, MaybeTypeOf, RawStr, TypeInfo};
+use crate::runtime::{AnyTypeInfo, MaybeTypeOf, RawStr, TypeInfo};
 
 /// Errors raised during casting operations.
 #[derive(Debug, PartialEq)]
@@ -515,16 +516,8 @@ impl AnyObj {
 
 impl MaybeTypeOf for AnyObj {
     #[inline]
-    fn maybe_type_of() -> Option<FullTypeOf> {
-        None
-    }
-
-    #[inline]
-    fn maybe_visit_generics<F, E>(_f: &mut F) -> Result<(), E>
-    where
-        F: FnMut(Option<FullTypeOf>) -> Result<(), E>,
-    {
-        Ok(())
+    fn maybe_type_of() -> alloc::Result<meta::DocType> {
+        Ok(meta::DocType::empty())
     }
 }
 

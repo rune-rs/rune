@@ -18,9 +18,9 @@ where
 
         Ok(AssociatedName {
             kind: info.kind,
-            function_parameters: Hash::parameters(self.parameters.iter().map(|t| t.hash)),
+            function_parameters: Hash::parameters(self.parameters.iter().copied()),
             #[cfg(feature = "doc")]
-            parameter_types: self.parameters.iter().map(|t| t.hash).try_collect()?,
+            parameter_types: self.parameters.iter().copied().try_collect()?,
         })
     }
 }
@@ -35,9 +35,9 @@ where
 
         Ok(AssociatedName {
             kind: info.kind,
-            function_parameters: Hash::parameters(self.parameters.iter().map(|p| p.hash)),
+            function_parameters: Hash::parameters(self.parameters.iter().copied()),
             #[cfg(feature = "doc")]
-            parameter_types: self.parameters.iter().map(|p| p.hash).try_collect()?,
+            parameter_types: self.parameters.iter().copied().try_collect()?,
         })
     }
 }

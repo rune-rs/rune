@@ -770,7 +770,7 @@ impl Context {
     }
 
     fn install_associated(&mut self, assoc: &ModuleAssociated) -> Result<(), ContextError> {
-        let Some(info) = self.types.get(&assoc.container.hash).try_cloned()? else {
+        let Some(info) = self.types.get(&assoc.container).try_cloned()? else {
             return Err(ContextError::MissingContainer {
                 container: assoc.container_type_info.try_clone()?,
             });
@@ -781,7 +781,7 @@ impl Context {
         let hash = assoc
             .name
             .kind
-            .hash(assoc.container.hash)
+            .hash(assoc.container)
             .with_function_parameters(assoc.name.function_parameters);
 
         // If the associated function is a named instance function - register it
@@ -845,7 +845,7 @@ impl Context {
                         .with_type_parameters(info.type_parameters)
                         .with_function_parameters(assoc.name.function_parameters),
                     #[cfg(feature = "doc")]
-                    container: Some(assoc.container.hash),
+                    container: Some(assoc.container),
                     #[cfg(feature = "doc")]
                     parameter_types: assoc.name.parameter_types.try_clone()?,
                 }

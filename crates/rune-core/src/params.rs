@@ -1,5 +1,4 @@
 use crate::hash::{Hash, IntoHash};
-use crate::type_of::FullTypeOf;
 
 /// Helper to register a parameterized function.
 ///
@@ -11,12 +10,12 @@ pub struct Params<T, const N: usize> {
     #[doc(hidden)]
     pub name: T,
     #[doc(hidden)]
-    pub parameters: [FullTypeOf; N],
+    pub parameters: [Hash; N],
 }
 
 impl<T, const N: usize> Params<T, N> {
     /// Construct a new parameters wrapper.
-    pub const fn new(name: T, parameters: [FullTypeOf; N]) -> Self {
+    pub const fn new(name: T, parameters: [Hash; N]) -> Self {
         Self { name, parameters }
     }
 }

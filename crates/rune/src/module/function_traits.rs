@@ -3,10 +3,12 @@ mod macros;
 
 use core::future::Future;
 
+use crate::alloc;
+use crate::compile::meta;
 use crate::hash::Hash;
 use crate::runtime::{
-    self, FromValue, FullTypeOf, InstAddress, MaybeTypeOf, Output, Stack, ToValue, TypeInfo,
-    TypeOf, UnsafeToMut, UnsafeToRef, Value, VmErrorKind, VmResult,
+    self, FromValue, InstAddress, MaybeTypeOf, Output, Stack, ToValue, TypeInfo, TypeOf,
+    UnsafeToMut, UnsafeToRef, Value, VmErrorKind, VmResult,
 };
 
 // Expand to function variable bindings.
@@ -141,16 +143,8 @@ where
     T: ?Sized + MaybeTypeOf,
 {
     #[inline]
-    fn maybe_type_of() -> Option<FullTypeOf> {
+    fn maybe_type_of() -> alloc::Result<meta::DocType> {
         T::maybe_type_of()
-    }
-
-    #[inline]
-    fn maybe_visit_generics<F, E>(f: &mut F) -> Result<(), E>
-    where
-        F: FnMut(Option<FullTypeOf>) -> Result<(), E>,
-    {
-        T::maybe_visit_generics(f)
     }
 }
 
@@ -158,11 +152,6 @@ impl<T> TypeOf for Ref<T>
 where
     T: ?Sized + TypeOf,
 {
-    #[inline]
-    fn type_of() -> FullTypeOf {
-        T::type_of()
-    }
-
     #[inline]
     fn type_parameters() -> Hash {
         T::type_parameters()
@@ -187,16 +176,8 @@ where
     T: ?Sized + MaybeTypeOf,
 {
     #[inline]
-    fn maybe_type_of() -> Option<FullTypeOf> {
+    fn maybe_type_of() -> alloc::Result<meta::DocType> {
         T::maybe_type_of()
-    }
-
-    #[inline]
-    fn maybe_visit_generics<F, E>(f: &mut F) -> Result<(), E>
-    where
-        F: FnMut(Option<FullTypeOf>) -> Result<(), E>,
-    {
-        T::maybe_visit_generics(f)
     }
 }
 
@@ -204,11 +185,6 @@ impl<T> TypeOf for Mut<T>
 where
     T: ?Sized + TypeOf,
 {
-    #[inline]
-    fn type_of() -> FullTypeOf {
-        T::type_of()
-    }
-
     #[inline]
     fn type_parameters() -> Hash {
         T::type_parameters()

@@ -31,17 +31,11 @@ macro_rules! impl_static_type {
             $($p: $crate::runtime::MaybeTypeOf,)*
         {
             #[inline]
-            fn maybe_type_of() -> Option<$crate::runtime::FullTypeOf> {
-                Some(<$ty as $crate::runtime::TypeOf>::type_of())
-            }
-
-            #[inline]
-            fn maybe_visit_generics<__F, __E>(#[allow(unused)] f: &mut __F) -> Result<(), __E>
-            where
-                __F: FnMut(Option<$crate::runtime::FullTypeOf>) -> Result<(), __E>
-            {
-                $(f(<$p as $crate::runtime::MaybeTypeOf>::maybe_type_of())?;)*
-                Ok(())
+            fn maybe_type_of() -> $crate::alloc::Result<$crate::compile::meta::DocType> {
+                $crate::compile::meta::DocType::with_generics(
+                    Some(<$ty as $crate::runtime::TypeOf>::type_hash()),
+                    [$(<$p as $crate::runtime::MaybeTypeOf>::maybe_type_of()?),*]
+                )
             }
         }
     };
