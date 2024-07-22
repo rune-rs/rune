@@ -383,6 +383,11 @@ pub struct DocType {
 }
 
 impl DocType {
+    /// Construct an empty type documentation.
+    pub(crate) fn empty() -> Self {
+        Self::new(Hash::EMPTY)
+    }
+
     /// Construct type documentation.
     #[cfg_attr(not(feature = "doc"), allow(unused_variables))]
     pub fn with_generics<const N: usize>(
@@ -397,18 +402,12 @@ impl DocType {
         })
     }
 
-    #[cfg(feature = "doc")]
+    /// Construct type with the specified base type.
+    #[cfg_attr(not(feature = "doc"), allow(unused_variables))]
     pub(crate) fn new(base: Hash) -> Self {
         Self {
-            base,
-            generics: Box::default(),
-        }
-    }
-
-    pub(crate) fn empty() -> Self {
-        Self {
             #[cfg(feature = "doc")]
-            base: Hash::EMPTY,
+            base,
             #[cfg(feature = "doc")]
             generics: Box::default(),
         }

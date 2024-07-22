@@ -12,6 +12,7 @@ use serde::de::IntoDeserializer;
 use serde::Deserialize;
 use serde_hashkey as key;
 
+use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String, Vec};
 use crate::ast::{Span, Spanned};
@@ -65,10 +66,11 @@ impl fmt::Display for FoundKind {
 }
 
 /// A found item in the workspace.
-#[derive(Debug)]
+#[derive(Debug, TryClone)]
 #[non_exhaustive]
 pub struct Found {
     /// The kind found.
+    #[try_clone(copy)]
     pub kind: FoundKind,
     /// A found path that can be built.
     pub path: PathBuf,
@@ -77,7 +79,7 @@ pub struct Found {
 }
 
 /// A found item in the workspace associated with a package.
-#[derive(Debug)]
+#[derive(Debug, TryClone)]
 #[non_exhaustive]
 pub struct FoundPackage<'a> {
     /// A found path that can be built.

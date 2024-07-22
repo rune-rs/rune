@@ -1,16 +1,19 @@
+use std::fmt;
 use std::io::Write;
+use std::slice;
 use std::sync::Arc;
 use std::time::Instant;
 
 use anyhow::{bail, Context, Result};
 
+use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::cli::naming::Naming;
 use crate::cli::visitor;
 use crate::cli::{
     AssetKind, CommandBase, Config, Entry, EntryPoint, ExitCode, Io, Options, SharedFlags,
 };
-use crate::compile::{FileSourceLoader, ItemBuf};
+use crate::compile::{FileSourceLoader, Item, ItemBuf};
 use crate::doc::TestParams;
 use crate::modules::capture_io::CaptureIo;
 use crate::runtime::{UnitFn, Value, ValueKind, Vm, VmError, VmResult};
@@ -18,11 +21,13 @@ use crate::termcolor::{Color, ColorSpec, WriteColor};
 use crate::{Diagnostics, Hash, Source, Sources, Unit};
 
 mod cli {
-    use ::rust_alloc::string::String;
-    use ::rust_alloc::vec::Vec;
+    use std::string::String;
+    use std::vec::Vec;
+
     use clap::Parser;
 
     #[derive(Parser, Debug, Clone)]
+    #[command(rename_all = "kebab-case")]
     pub struct Flags {
         /// Exit with a non-zero exit-code even for warnings
         #[arg(long)]
@@ -30,12 +35,17 @@ mod cli {
         /// Display one character per test instead of one line
         #[arg(long, short = 'q')]
         pub quiet: bool,
-        /// Also run tests for `::std`.
+        /// Add custom test options.
+        ///
+        /// Supported options:
+        /// - `include-std`: Include tests from the `::std` crate.
         #[arg(long, long = "opt")]
-        pub options: Vec<String>,
+        pub option: Vec<String>,
         /// Break on the first test failed.
         #[arg(long)]
         pub fail_fast: bool,
+        /// Filter tests by name.
+        pub filters: Vec<String>,
     }
 }
 
@@ -63,6 +73,28 @@ impl CommandBase for Flags {
     }
 }
 
+enum BatchKind {
+    LibTests,
+    DocTests,
+    ContextDocTests,
+}
+
+impl fmt::Display for BatchKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::LibTests => write!(f, "lib tests"),
+            Self::DocTests => write!(f, "doc tests"),
+            Self::ContextDocTests => write!(f, "context doc tests"),
+        }
+    }
+}
+
+struct Batch<'a> {
+    kind: BatchKind,
+    entry: Option<EntryPoint<'a>>,
+    cases: Vec<TestCase>,
+}
+
 /// Run all tests that can be found.
 pub(super) async fn run<'p, I>(
     io: &mut Io<'_>,
@@ -80,19 +112,19 @@ where
 
     let start = Instant::now();
 
-    let mut build_errors = 0usize;
     let mut executed = 0usize;
+    let mut skipped = 0usize;
+    let mut build_errors = 0usize;
 
     let capture = crate::modules::capture_io::CaptureIo::new();
     let context = shared.context(entry, c, Some(&capture))?;
 
-    let mut doc_visitors = Vec::new();
-    let mut cases = Vec::new();
+    let mut batches = Vec::new();
     let mut naming = Naming::default();
 
     let mut include_std = false;
 
-    for opt in &flags.options {
+    for opt in &flags.option {
         match opt.as_str() {
             "include-std" => {
                 include_std = true;
@@ -103,15 +135,33 @@ where
         }
     }
 
-    for e in entries {
-        let name = naming.name(&e)?;
+    let mut name = String::new();
+
+    let mut filter = |item: &Item| -> Result<bool> {
+        if flags.filters.is_empty() {
+            return Ok(false);
+        }
+
+        name.clear();
+
+        write!(name, "{item}")?;
+
+        if !flags.filters.iter().any(|f| name.contains(f.as_str())) {
+            return Ok(true);
+        }
+
+        Ok(false)
+    };
+
+    for entry in entries {
+        let name = naming.name(&entry)?;
         let item = ItemBuf::with_crate(&name)?;
 
         let mut sources = Sources::new();
 
-        let source = match Source::from_path(e.path()) {
+        let source = match Source::from_path(entry.path()) {
             Ok(source) => source,
-            Err(error) => return Err(error).context(e.path().display().try_to_string()?),
+            Err(error) => return Err(error).context(entry.path().display().try_to_string()?),
         };
 
         sources.insert(source)?;
@@ -145,21 +195,179 @@ where
         let unit = Arc::new(unit?);
         let sources = Arc::new(sources);
 
-        doc_visitors.try_push(doc_visitor)?;
+        let mut cases = Vec::new();
 
         for (hash, item) in functions.into_functions() {
+            let filtered = filter(&item)?;
+
             cases.try_push(TestCase::new(
                 hash,
                 item,
                 unit.clone(),
                 sources.clone(),
                 TestParams::default(),
+                filtered,
             ))?;
         }
+
+        batches.try_push(Batch {
+            kind: BatchKind::LibTests,
+            entry: Some(entry.try_clone()?),
+            cases,
+        })?;
+
+        let mut artifacts = crate::doc::Artifacts::without_assets();
+
+        crate::doc::build("root", &mut artifacts, None, slice::from_ref(&doc_visitor))?;
+
+        let cases = populate_doc_tests(
+            io,
+            artifacts,
+            include_std,
+            shared,
+            flags,
+            options,
+            &context,
+            &mut build_errors,
+            &mut filter,
+        )?;
+
+        batches.try_push(Batch {
+            kind: BatchKind::DocTests,
+            entry: Some(entry),
+            cases,
+        })?;
     }
 
     let mut artifacts = crate::doc::Artifacts::without_assets();
-    crate::doc::build("root", &mut artifacts, &context, &doc_visitors)?;
+    crate::doc::build("root", &mut artifacts, Some(&context), &[])?;
+
+    let cases = populate_doc_tests(
+        io,
+        artifacts,
+        include_std,
+        shared,
+        flags,
+        options,
+        &context,
+        &mut build_errors,
+        &mut filter,
+    )?;
+
+    batches.try_push(Batch {
+        kind: BatchKind::ContextDocTests,
+        entry: None,
+        cases,
+    })?;
+
+    let runtime = Arc::new(context.runtime()?);
+    let mut failed = Vec::new();
+
+    for batch in batches {
+        if batch.cases.is_empty() {
+            continue;
+        }
+
+        if !flags.quiet {
+            let all_ignored = batch
+                .cases
+                .iter()
+                .all(|case| case.filtered || case.params.no_run);
+
+            if all_ignored {
+                io.stdout.set_color(&colors.ignored)?;
+                write!(io.stdout, "{:>12}", "Ignoring")?;
+                io.stdout.reset()?;
+            } else {
+                io.stdout.set_color(&colors.highlight)?;
+                write!(io.stdout, "{:>12}", "Running")?;
+                io.stdout.reset()?;
+            }
+
+            write!(io.stdout, " {} {}", batch.cases.len(), batch.kind)?;
+
+            if let Some(entry) = batch.entry {
+                write!(io.stdout, " from {entry}")?;
+            }
+
+            writeln!(io.stdout)?;
+        }
+
+        for mut case in batch.cases {
+            if case.filtered || case.params.no_run {
+                skipped = skipped.wrapping_add(1);
+                continue;
+            }
+
+            executed = executed.wrapping_add(1);
+
+            let mut vm = Vm::new(runtime.clone(), case.unit.clone());
+            case.execute(&mut vm, &capture).await?;
+
+            if case.outcome.is_ok() {
+                if flags.quiet {
+                    write!(io.stdout, ".")?;
+                } else {
+                    case.emit(io, &colors)?;
+                }
+
+                continue;
+            }
+
+            if flags.quiet {
+                write!(io.stdout, "f")?;
+            }
+
+            failed.try_push(case)?;
+
+            if flags.fail_fast {
+                break;
+            }
+        }
+    }
+
+    if flags.quiet {
+        writeln!(io.stdout)?;
+    }
+
+    let failures = failed.len();
+
+    for case in failed {
+        case.emit(io, &colors)?;
+    }
+
+    let elapsed = start.elapsed();
+
+    io.stdout.set_color(&colors.highlight)?;
+    write!(io.stdout, "{:>12}", "Executed")?;
+    io.stdout.reset()?;
+
+    writeln!(
+        io.stdout,
+        " {executed} tests with {failures} failures \
+        ({skipped} skipped, {build_errors} build errors) in {:.3} seconds",
+        elapsed.as_secs_f64()
+    )?;
+
+    if build_errors == 0 && failures == 0 {
+        Ok(ExitCode::Success)
+    } else {
+        Ok(ExitCode::Failure)
+    }
+}
+
+fn populate_doc_tests(
+    io: &mut Io,
+    artifacts: crate::doc::Artifacts,
+    include_std: bool,
+    shared: &SharedFlags,
+    flags: &Flags,
+    options: &Options,
+    context: &crate::Context,
+    build_errors: &mut usize,
+    filter: &mut dyn FnMut(&Item) -> Result<bool>,
+) -> Result<Vec<TestCase>> {
+    let mut cases = Vec::new();
 
     for test in artifacts.tests() {
         if test.item.as_crate() == Some("std") && !include_std || test.params.ignore {
@@ -183,7 +391,7 @@ where
         options.function_body = true;
 
         let unit = crate::prepare(&mut sources)
-            .with_context(&context)
+            .with_context(context)
             .with_diagnostics(&mut diagnostics)
             .with_options(&options)
             .with_source_loader(&mut source_loader)
@@ -192,7 +400,7 @@ where
         diagnostics.emit(&mut io.stdout.lock(), &sources)?;
 
         if diagnostics.has_error() || flags.warnings_are_errors && diagnostics.has_warning() {
-            build_errors = build_errors.wrapping_add(1);
+            *build_errors = build_errors.wrapping_add(1);
             continue;
         }
 
@@ -219,69 +427,11 @@ where
                 unit.clone(),
                 sources.clone(),
                 test.params,
+                filter(&test.item)?,
             ))?;
         }
     }
-
-    let runtime = Arc::new(context.runtime()?);
-    let mut failed = Vec::new();
-
-    let total = cases.len();
-
-    for mut case in cases {
-        executed = executed.wrapping_add(1);
-
-        let mut vm = Vm::new(runtime.clone(), case.unit.clone());
-        case.execute(&mut vm, &capture).await?;
-
-        if case.outcome.is_ok() {
-            if flags.quiet {
-                write!(io.stdout, ".")?;
-            } else {
-                case.emit(io, &colors)?;
-            }
-
-            continue;
-        }
-
-        if flags.quiet {
-            write!(io.stdout, "f")?;
-        }
-
-        failed.try_push(case)?;
-
-        if flags.fail_fast {
-            break;
-        }
-    }
-
-    if flags.quiet {
-        writeln!(io.stdout)?;
-    }
-
-    let failures = failed.len();
-
-    for case in failed {
-        case.emit(io, &colors)?;
-    }
-
-    let elapsed = start.elapsed();
-
-    writeln!(
-        io.stdout,
-        "Executed {} tests with {} failures ({} skipped, {} build errors) in {:.3} seconds",
-        executed,
-        failures,
-        total - executed,
-        build_errors,
-        elapsed.as_secs_f64()
-    )?;
-
-    if build_errors == 0 && failures == 0 {
-        Ok(ExitCode::Success)
-    } else {
-        Ok(ExitCode::Failure)
-    }
+    Ok(cases)
 }
 
 #[derive(Debug)]
@@ -307,6 +457,7 @@ struct TestCase {
     params: TestParams,
     outcome: Outcome,
     output: Vec<u8>,
+    filtered: bool,
 }
 
 impl TestCase {
@@ -316,6 +467,7 @@ impl TestCase {
         unit: Arc<Unit>,
         sources: Arc<Sources>,
         params: TestParams,
+        filtered: bool,
     ) -> Self {
         Self {
             hash,
@@ -325,6 +477,7 @@ impl TestCase {
             params,
             outcome: Outcome::Ok,
             output: Vec::new(),
+            filtered,
         }
     }
 
@@ -363,7 +516,11 @@ impl TestCase {
     }
 
     fn emit(self, io: &mut Io<'_>, colors: &Colors) -> Result<()> {
-        write!(io.stdout, "Test {}: ", self.item)?;
+        io.stdout.set_color(&colors.highlight)?;
+        write!(io.stdout, "{:>12}", "Test")?;
+        io.stdout.reset()?;
+
+        write!(io.stdout, " {}: ", self.item)?;
 
         match &self.outcome {
             Outcome::Panic(error) => {
@@ -412,6 +569,8 @@ impl TestCase {
 struct Colors {
     error: ColorSpec,
     passed: ColorSpec,
+    highlight: ColorSpec,
+    ignored: ColorSpec,
 }
 
 impl Colors {
@@ -419,10 +578,16 @@ impl Colors {
         let mut this = Self {
             error: ColorSpec::new(),
             passed: ColorSpec::new(),
+            highlight: ColorSpec::new(),
+            ignored: ColorSpec::new(),
         };
 
         this.error.set_fg(Some(Color::Red));
         this.passed.set_fg(Some(Color::Green));
+        this.highlight.set_fg(Some(Color::Green));
+        this.highlight.set_bold(true);
+        this.ignored.set_fg(Some(Color::Yellow));
+        this.ignored.set_bold(true);
         this
     }
 }

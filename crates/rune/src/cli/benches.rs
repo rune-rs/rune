@@ -1,9 +1,8 @@
 use std::fmt;
 use std::io::Write;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
-
-use clap::Parser;
 
 use crate::alloc::Vec;
 use crate::cli::{AssetKind, CommandBase, Config, ExitCode, Io, SharedFlags};
@@ -14,16 +13,27 @@ use crate::runtime::{Function, Unit, Value};
 use crate::support::Result;
 use crate::{Context, Hash, Sources, Vm};
 
-#[derive(Parser, Debug)]
-pub(super) struct Flags {
-    /// Rounds of warmup to perform
-    #[arg(long, default_value = "100")]
-    warmup: u32,
+mod cli {
+    use std::path::PathBuf;
+    use std::vec::Vec;
 
-    /// Iterations to run of the benchmark
-    #[arg(long, default_value = "100")]
-    iterations: u32,
+    use clap::Parser;
+
+    #[derive(Parser, Debug)]
+    #[command(rename_all = "kebab-case")]
+    pub(crate) struct Flags {
+        /// Rounds of warmup to perform
+        #[arg(long, default_value = "100")]
+        pub(super) warmup: u32,
+        /// Iterations to run of the benchmark
+        #[arg(long, default_value = "100")]
+        pub(super) iterations: u32,
+        /// Explicit paths to benchmark.
+        pub(super) bench_path: Vec<PathBuf>,
+    }
 }
+
+pub(super) use cli::Flags;
 
 impl CommandBase for Flags {
     #[inline]
@@ -39,6 +49,11 @@ impl CommandBase for Flags {
     #[inline]
     fn propagate(&mut self, c: &mut Config, _: &mut SharedFlags) {
         c.test = true;
+    }
+
+    #[inline]
+    fn paths(&self) -> &[PathBuf] {
+        &self.bench_path
     }
 }
 

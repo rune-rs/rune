@@ -1,19 +1,31 @@
 use std::io::Write;
 use std::path::Path;
+use std::path::PathBuf;
 
 use anyhow::{Context, Result};
-use clap::Parser;
 
 use crate::cli::{visitor, AssetKind, CommandBase, Config, Entry, ExitCode, Io, SharedFlags};
 use crate::compile::FileSourceLoader;
 use crate::{Diagnostics, Options, Source, Sources};
 
-#[derive(Parser, Debug)]
-pub(super) struct Flags {
-    /// Exit with a non-zero exit-code even for warnings
-    #[arg(long)]
-    warnings_are_errors: bool,
+mod cli {
+    use std::path::PathBuf;
+    use std::vec::Vec;
+
+    use clap::Parser;
+
+    #[derive(Parser, Debug)]
+    #[command(rename_all = "kebab-case")]
+    pub(crate) struct Flags {
+        /// Exit with a non-zero exit-code even for warnings
+        #[arg(long)]
+        pub(super) warnings_are_errors: bool,
+        /// Explicit paths to check.
+        pub(super) check_path: Vec<PathBuf>,
+    }
 }
+
+pub(super) use cli::Flags;
 
 impl CommandBase for Flags {
     #[inline]
@@ -29,6 +41,11 @@ impl CommandBase for Flags {
     #[inline]
     fn describe(&self) -> &str {
         "Checking"
+    }
+
+    #[inline]
+    fn paths(&self) -> &[PathBuf] {
+        &self.check_path
     }
 }
 

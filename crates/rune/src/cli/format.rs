@@ -1,8 +1,7 @@
-use core::fmt;
-
+use std::fmt;
 use std::io::Write;
+use std::path::PathBuf;
 
-use clap::Parser;
 use similar::{ChangeTag, TextDiff};
 
 use crate::alloc::prelude::*;
@@ -12,16 +11,28 @@ use crate::support::{Context, Result};
 use crate::termcolor::{Color, ColorSpec, WriteColor};
 use crate::{Diagnostics, Options, Source, Sources};
 
-#[derive(Parser, Debug)]
-pub(super) struct Flags {
-    /// Exit with a non-zero exit-code even for warnings
-    #[arg(long)]
-    warnings_are_errors: bool,
-    /// Perform format checking. If there's any files which needs to be changed
-    /// returns a non-successful exitcode.
-    #[arg(long)]
-    check: bool,
+mod cli {
+    use std::path::PathBuf;
+    use std::vec::Vec;
+
+    use clap::Parser;
+
+    #[derive(Parser, Debug)]
+    #[command(rename_all = "kebab-case")]
+    pub(crate) struct Flags {
+        /// Exit with a non-zero exit-code even for warnings
+        #[arg(long)]
+        pub(super) warnings_are_errors: bool,
+        /// Perform format checking. If there's any files which needs to be changed
+        /// returns a non-successful exitcode.
+        #[arg(long)]
+        pub(super) check: bool,
+        /// Explicit paths to format.
+        pub(super) fmt_path: Vec<PathBuf>,
+    }
 }
+
+pub(super) use cli::Flags;
 
 impl CommandBase for Flags {
     #[inline]
@@ -32,6 +43,12 @@ impl CommandBase for Flags {
     #[inline]
     fn describe(&self) -> &str {
         "Formatting"
+    }
+
+    /// Extra paths to run.
+    #[inline]
+    fn paths(&self) -> &[PathBuf] {
+        &self.fmt_path
     }
 }
 
