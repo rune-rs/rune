@@ -39,6 +39,8 @@ pub struct Options {
     pub(crate) v2: bool,
     /// Build sources as function bodies.
     pub(crate) function_body: bool,
+    /// When running tests, include std tests.
+    pub(crate) test_std: bool,
 }
 
 impl Options {
@@ -49,32 +51,39 @@ impl Options {
     /// It can be used to consistenly parse a collection of options by other
     /// programs as well.
     pub fn parse_option(&mut self, option: &str) -> Result<(), ParseOptionError> {
-        let mut it = option.split('=');
+        let Some((head, tail)) = option.split_once('=') else {
+            return Err(ParseOptionError {
+                option: option.into(),
+            });
+        };
 
-        match it.next() {
-            Some("memoize-instance-fn") => {
-                self.memoize_instance_fn = it.next() == Some("true");
+        match head {
+            "memoize-instance-fn" => {
+                self.memoize_instance_fn = tail == "true";
             }
-            Some("debug-info") => {
-                self.debug_info = it.next() == Some("true");
+            "debug-info" => {
+                self.debug_info = tail == "true";
             }
-            Some("link-checks") => {
-                self.link_checks = it.next() == Some("true");
+            "link-checks" => {
+                self.link_checks = tail == "true";
             }
-            Some("macros") => {
-                self.macros = it.next() == Some("true");
+            "macros" => {
+                self.macros = tail == "true";
             }
-            Some("bytecode") => {
-                self.bytecode = it.next() == Some("true");
+            "bytecode" => {
+                self.bytecode = tail == "true";
             }
-            Some("test") => {
-                self.cfg_test = it.next() == Some("true");
+            "test" => {
+                self.cfg_test = tail == "true";
             }
-            Some("v2") => {
-                self.v2 = it.next() == Some("true");
+            "v2" => {
+                self.v2 = tail == "true";
             }
-            Some("function-body") => {
-                self.function_body = it.next() == Some("true");
+            "function-body" => {
+                self.function_body = tail == "true";
+            }
+            "test-std" => {
+                self.test_std = tail == "true";
             }
             _ => {
                 return Err(ParseOptionError {
@@ -130,6 +139,7 @@ impl Default for Options {
             cfg_test: false,
             v2: false,
             function_body: false,
+            test_std: false,
         }
     }
 }
