@@ -156,6 +156,6 @@ jobs:
     - run: cargo build -p rune --no-default-features --features alloc
     - run: cargo test --all-targets
     - run: cargo test --doc
-    - run: cargo run --bin rune -- check --recursive --experimental scripts
-    - run: cargo run --bin rune -- test --recursive --experimental scripts --opt include-std
-    - run: cargo run --bin rune -- test
+    - run: cargo run --bin rune -- check --recursive --experimental --path scripts
+    - run: cargo run --bin rune -- test --recursive --experimental --path scripts
+    - run: cargo run --bin rune -- test --opt include-std
