@@ -423,8 +423,7 @@ impl<'m> Ctxt<'_, 'm> {
             } if base == static_type::TUPLE_TYPE.hash && generics.is_empty() => Ok(None),
             meta::DocType {
                 base, ref generics, ..
-            } if !base.is_empty() => Ok(Some(self.link(base, None, generics)?)),
-            _ => Ok(None),
+            } => Ok(Some(self.link(base, None, generics)?)),
         }
     }
 
@@ -563,6 +562,12 @@ impl<'m> Ctxt<'_, 'm> {
         Ok(s)
     }
 
+    /// Write a placeholder for the `any` type.
+    fn write_any(&self, o: &mut dyn TryWrite) -> Result<()> {
+        write!(o, "<span class=\"any\">any</span>")?;
+        Ok(())
+    }
+
     /// Convert a hash into a link.
     fn write_link(
         &self,
@@ -580,6 +585,11 @@ impl<'m> Ctxt<'_, 'm> {
                 _ => None,
             }
         }
+
+        let Some(hash) = hash.as_non_empty() else {
+            self.write_any(o)?;
+            return Ok(());
+        };
 
         if hash == static_type::TUPLE_TYPE.hash {
             write!(o, "(")?;
@@ -618,9 +628,9 @@ impl<'m> Ctxt<'_, 'm> {
             write!(o, "<a class=\"{kind}\" href=\"{path}\">{name}</a>")?;
 
             if !generics.is_empty() {
-                write!(o, "<")?;
+                write!(o, "&lt;")?;
                 self.write_generics(o, generics)?;
-                write!(o, ">")?;
+                write!(o, "&gt;")?;
             }
         }
 
@@ -631,14 +641,7 @@ impl<'m> Ctxt<'_, 'm> {
         let mut it = generics.iter().peekable();
 
         while let Some(ty) = it.next() {
-            match ty.base.as_non_empty() {
-                Some(hash) => {
-                    self.write_link(o, hash, None, &ty.generics)?;
-                }
-                None => {
-                    write!(o, "any")?;
-                }
-            }
+            self.write_link(o, ty.base, None, &ty.generics)?;
 
             if it.peek().is_some() {
                 write!(o, ", ")?;
@@ -682,11 +685,8 @@ impl<'m> Ctxt<'_, 'm> {
                 }
             } else {
                 write!(string, "{}", arg.name)?;
-
-                if let Some(hash) = arg.base.as_non_empty() {
-                    string.try_push_str(": ")?;
-                    self.write_link(&mut string, hash, None, &arg.generics)?;
-                }
+                string.try_push_str(": ")?;
+                self.write_link(&mut string, arg.base, None, &arg.generics)?;
             }
 
             if it.peek().is_some() {
