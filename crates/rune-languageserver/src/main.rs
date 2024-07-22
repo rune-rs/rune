@@ -63,6 +63,9 @@ fn main() -> Result<()> {
                 println!("Rune language server {}", VERSION);
                 return Ok(());
             }
+            "language-server" => {
+                // ignore
+            }
             other => {
                 bail!("Unsupported option: {}", other);
             }
