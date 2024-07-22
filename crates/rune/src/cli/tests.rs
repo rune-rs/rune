@@ -35,12 +35,6 @@ mod cli {
         /// Display one character per test instead of one line
         #[arg(long, short = 'q')]
         pub quiet: bool,
-        /// Add custom test options.
-        ///
-        /// Supported options:
-        /// - `include-std`: Include tests from the `::std` crate.
-        #[arg(long, long = "opt")]
-        pub option: Vec<String>,
         /// Break on the first test failed.
         #[arg(long)]
         pub fail_fast: bool,
@@ -121,20 +115,6 @@ where
 
     let mut batches = Vec::new();
     let mut naming = Naming::default();
-
-    let mut include_std = false;
-
-    for opt in &flags.option {
-        match opt.as_str() {
-            "include-std" => {
-                include_std = true;
-            }
-            other => {
-                bail!("Unsupported option: {other}")
-            }
-        }
-    }
-
     let mut name = String::new();
 
     let mut filter = |item: &Item| -> Result<bool> {
@@ -223,7 +203,6 @@ where
         let cases = populate_doc_tests(
             io,
             artifacts,
-            include_std,
             shared,
             flags,
             options,
@@ -245,7 +224,6 @@ where
     let cases = populate_doc_tests(
         io,
         artifacts,
-        include_std,
         shared,
         flags,
         options,
@@ -359,7 +337,6 @@ where
 fn populate_doc_tests(
     io: &mut Io,
     artifacts: crate::doc::Artifacts,
-    include_std: bool,
     shared: &SharedFlags,
     flags: &Flags,
     options: &Options,
@@ -370,7 +347,7 @@ fn populate_doc_tests(
     let mut cases = Vec::new();
 
     for test in artifacts.tests() {
-        if test.item.as_crate() == Some("std") && !include_std || test.params.ignore {
+        if !options.test_std && test.item.as_crate() == Some("std") || test.params.ignore {
             continue;
         }
 

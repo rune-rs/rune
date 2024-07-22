@@ -158,4 +158,4 @@ jobs:
     - run: cargo test --doc
     - run: cargo run --bin rune -- check --recursive --experimental --path scripts
     - run: cargo run --bin rune -- test --recursive --experimental --path scripts
-    - run: cargo run --bin rune -- test --opt include-std
+    - run: cargo run --bin rune -- test -O test-std=true
