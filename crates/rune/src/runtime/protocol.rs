@@ -2,7 +2,7 @@ use crate::alloc;
 #[cfg(feature = "doc")]
 use crate::alloc::Vec;
 use crate::compile::meta;
-use crate::module::{AssociatedName, ToInstance};
+use crate::function_meta::{AssociatedName, ToInstance};
 use crate::Hash;
 
 #[doc(inline)]

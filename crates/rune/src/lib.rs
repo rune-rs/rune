@@ -215,6 +215,9 @@ pub mod item;
 #[doc(inline)]
 pub use self::item::{Item, ItemBuf};
 
+#[doc(hidden)]
+pub mod function_meta;
+
 pub mod module;
 #[doc(inline)]
 pub use self::module::module::Module;
@@ -646,12 +649,11 @@ pub mod doc;
 /// Privately exported details.
 #[doc(hidden)]
 pub mod __private {
-    pub use crate::item::ItemBuf;
-    pub use crate::module::module::Module;
-    pub use crate::module::{
-        FunctionMetaData, FunctionMetaKind, InstallWith, MacroMetaData, MacroMetaKind,
-        ModuleMetaData,
+    pub use crate::function_meta::{
+        FunctionMetaData, FunctionMetaKind, FunctionMetaStatics, MacroMetaData, MacroMetaKind,
     };
+    pub use crate::item::ItemBuf;
+    pub use crate::module::{InstallWith, Module, ModuleMetaData};
     pub use crate::params::Params;
     pub use crate::runtime::TypeOf;
     pub use rust_alloc::boxed::Box;
