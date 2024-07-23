@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::ExprWhile>("while x {}");
     rt::<ast::ExprWhile>("'label: while x {}");
     rt::<ast::ExprWhile>("#[attr] 'label: while x {}");

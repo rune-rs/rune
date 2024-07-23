@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     let expr = rt::<ast::ExprBlock>("async {}");
     assert_eq!(expr.block.statements.len(), 0);
 

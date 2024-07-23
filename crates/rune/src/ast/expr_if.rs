@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::ExprIf>("if 0 {  }");
     rt::<ast::ExprIf>("if 0 {  } else {  }");
     rt::<ast::ExprIf>("if 0 {  } else if 0 {  } else {  }");

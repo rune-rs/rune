@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::ExprRange>("0..42");
     rt::<ast::ExprRange>("0..=42");
     rt::<ast::ExprRange>("0..=a + 2");

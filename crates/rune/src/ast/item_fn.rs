@@ -2,9 +2,8 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
+    use crate::parse;
     use crate::SourceId;
-    use crate::{ast, parse};
 
     rt::<ast::ItemFn>("async fn hello() {}");
     assert!(

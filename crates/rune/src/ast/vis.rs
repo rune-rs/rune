@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     assert!(matches! {
         rt::<ast::Visibility>("pub"),
         ast::Visibility::Public(_)

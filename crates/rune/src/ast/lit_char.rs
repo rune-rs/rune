@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::LitChar>("'a'");
     rt::<ast::LitChar>("'\\0'");
     rt::<ast::LitChar>("'\\n'");

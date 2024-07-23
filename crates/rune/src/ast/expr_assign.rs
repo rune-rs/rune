@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::ExprAssign>("a = 2");
     rt::<ast::ExprAssign>("a = b = 3");
 }

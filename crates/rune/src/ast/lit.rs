@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::Lit>("true");
     rt::<ast::Lit>("false");
     rt::<ast::Lit>("'🔥'");

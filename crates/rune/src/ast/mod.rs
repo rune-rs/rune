@@ -60,6 +60,9 @@ use crate::alloc::prelude::*;
 use crate::macros::{MacroContext, ToTokens, TokenStream};
 use crate::parse::{Parse, Parser, Peek};
 
+#[cfg(test)]
+mod testing;
+
 #[macro_use]
 /// Generated modules.
 mod generated;

@@ -13,3 +13,6 @@ pub(crate) use crate::parse::{
 };
 
 pub(crate) type Result<T, E = compile::Error> = core::result::Result<T, E>;
+
+#[cfg(test)]
+pub(crate) use crate::ast::testing::{rt, rt_with};

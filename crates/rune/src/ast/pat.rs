@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::Pat>("()");
     rt::<ast::Pat>("42");
     rt::<ast::Pat>("-42");
