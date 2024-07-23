@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::Ident>("foo");
     rt::<ast::Ident>("a42");
     rt::<ast::Ident>("_ignored");

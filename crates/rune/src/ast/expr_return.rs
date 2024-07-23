@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::ExprReturn>("return");
     rt::<ast::ExprReturn>("return 42");
     rt::<ast::ExprReturn>("#[attr] return 42");

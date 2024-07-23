@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::ExprLet>("let x = 1");
     rt::<ast::ExprLet>("#[attr] let a = f()");
 }

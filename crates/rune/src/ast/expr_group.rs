@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::ExprGroup>("(for i in x {})");
     rt::<ast::ExprGroup>("(1 + 2)");
 }

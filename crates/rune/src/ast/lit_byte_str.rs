@@ -3,8 +3,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::LitByteStr>("b\"hello world\"");
     rt::<ast::LitByteStr>("b\"hello\\nworld\"");
 }

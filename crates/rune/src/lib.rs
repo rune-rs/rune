@@ -181,10 +181,6 @@ macro_rules! span {
 
 pub mod alloc;
 
-#[macro_use]
-#[cfg(test)]
-pub(crate) mod testing;
-
 /// Helper prelude for `#[no_std]` support.
 pub mod no_std;
 

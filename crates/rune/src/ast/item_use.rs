@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::ItemUse>("use foo");
     rt::<ast::ItemUse>("use foo::bar");
     rt::<ast::ItemUse>("use foo::bar::baz");

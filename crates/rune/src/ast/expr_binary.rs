@@ -4,8 +4,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::ExprBinary>("42 + b");
     rt::<ast::ExprBinary>("b << 10");
 }

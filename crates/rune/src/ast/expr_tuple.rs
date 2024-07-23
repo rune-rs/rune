@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::ExprTuple>("()");
     rt::<ast::ExprTuple>("(1,)");
     rt::<ast::ExprTuple>("(1, \"two\")");

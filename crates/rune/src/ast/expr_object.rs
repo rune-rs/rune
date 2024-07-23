@@ -3,8 +3,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::ExprObject>("Foo {\"foo\": 42}");
     rt::<ast::ExprObject>("#{\"foo\": 42}");
     rt::<ast::ExprObject>("#{\"foo\": 42,}");

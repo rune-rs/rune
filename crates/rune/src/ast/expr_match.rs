@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::ExprMatch>("match 0 { _ => 1, }");
     let expr = rt::<ast::ExprMatch>("#[jit(always)] match 0 { _ => 1, }");
     assert_eq!(expr.attributes.len(), 1);

@@ -4,10 +4,9 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::Stmt>("let x = 1;");
     rt::<ast::Stmt>("#[attr] let a = f();");
+    rt::<ast::Stmt>("line!().bar()");
 }
 
 /// A statement within a block.
@@ -167,22 +166,5 @@ impl StmtSemi {
     /// Test if the statement requires a semi-colon or not.
     pub(crate) fn needs_semi(&self) -> bool {
         self.expr.needs_semi()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::ast;
-    use crate::testing::rt;
-
-    #[test]
-    fn test_stmt_local() {
-        rt::<ast::Stmt>("let x = 1;");
-        rt::<ast::Stmt>("#[attr] let a = f();");
-    }
-
-    #[test]
-    fn test_macro_call_chain() {
-        rt::<ast::Stmt>("line!().bar()");
     }
 }

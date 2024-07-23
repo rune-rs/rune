@@ -5,8 +5,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::Parenthesized<ast::Expr, T![,]>>("(1, \"two\")");
     rt::<ast::Parenthesized<ast::Expr, T![,]>>("(1, 2,)");
     rt::<ast::Parenthesized<ast::Expr, T![,]>>("(1, 2, foo())");

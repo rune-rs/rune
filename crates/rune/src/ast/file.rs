@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::File>(
         r#"
         use foo;
@@ -41,7 +39,7 @@ fn ast_parse() {
         "#,
     );
 
-    let file = crate::testing::rt_with::<ast::File>(
+    let file = rt_with::<ast::File>(
         r#"#!rune run
 
         fn main() {}

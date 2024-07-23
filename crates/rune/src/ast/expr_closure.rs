@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::ExprClosure>("async || 42");
     rt::<ast::ExprClosure>("|| 42");
     rt::<ast::ExprClosure>("|| { 42 }");
