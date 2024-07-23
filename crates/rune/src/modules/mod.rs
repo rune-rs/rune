@@ -30,6 +30,7 @@ pub mod object;
 pub mod ops;
 pub mod option;
 pub mod result;
+pub mod slice;
 pub mod stream;
 pub mod string;
 pub mod test;

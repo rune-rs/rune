@@ -380,7 +380,6 @@ impl fmt::Debug for Iterator {
 /// The inner representation of an [Iterator]. It handles all the necessary
 /// dynamic dispatch to support dynamic iterators.
 enum IterRepr {
-    Iterator(Box<IteratorObj<dyn IteratorTrait>>),
     DoubleEndedIterator(Box<IteratorObj<dyn DoubleEndedIteratorTrait>>),
     Map(Box<Map<Self>>),
     FlatMap(Box<FlatMap<Map<Self>>>),
@@ -400,7 +399,6 @@ impl RuneIterator for IterRepr {
     /// Test if this iterator is double-ended.
     fn is_double_ended(&self) -> bool {
         match self {
-            Self::Iterator(..) => false,
             Self::DoubleEndedIterator(..) => true,
             Self::Map(iter) => iter.is_double_ended(),
             Self::FlatMap(iter) => iter.is_double_ended(),
@@ -420,7 +418,6 @@ impl RuneIterator for IterRepr {
     /// The length of the remaining iterator.
     fn size_hint(&self) -> (usize, Option<usize>) {
         match self {
-            Self::Iterator(iter) => iter.iter.size_hint(),
             Self::DoubleEndedIterator(iter) => iter.iter.size_hint(),
             Self::Map(iter) => iter.size_hint(),
             Self::FlatMap(iter) => iter.size_hint(),
@@ -439,7 +436,6 @@ impl RuneIterator for IterRepr {
 
     fn next(&mut self) -> VmResult<Option<Value>> {
         match self {
-            Self::Iterator(iter) => iter.iter.next(),
             Self::DoubleEndedIterator(iter) => iter.iter.next(),
             Self::Map(iter) => iter.next(),
             Self::FlatMap(iter) => iter.next(),
@@ -458,14 +454,6 @@ impl RuneIterator for IterRepr {
 
     fn next_back(&mut self) -> VmResult<Option<Value>> {
         match self {
-            Self::Iterator(iter) => {
-                let message = vm_try!(format_args!(
-                    "`{}` is not a double-ended iterator",
-                    iter.name
-                )
-                .try_to_string());
-                VmResult::err(Panic::custom(message))
-            }
             Self::DoubleEndedIterator(iter) => iter.iter.next_back(),
             Self::Map(iter) => iter.next_back(),
             Self::FlatMap(iter) => iter.next_back(),
@@ -486,7 +474,6 @@ impl RuneIterator for IterRepr {
 impl fmt::Debug for IterRepr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Iterator(iter) => write!(f, "{}", iter.name),
             Self::DoubleEndedIterator(iter) => write!(f, "{}", iter.name),
             Self::Map(iter) => write!(f, "{:?}", iter),
             Self::FlatMap(iter) => write!(f, "{:?}", iter),

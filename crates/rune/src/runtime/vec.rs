@@ -1,5 +1,3 @@
-mod iter;
-
 use core::cmp;
 use core::cmp::Ordering;
 use core::fmt;
@@ -11,6 +9,7 @@ use crate as rune;
 use crate::alloc;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
+use crate::runtime::slice::Iter;
 #[cfg(feature = "alloc")]
 use crate::runtime::Hasher;
 use crate::runtime::{
@@ -18,8 +17,6 @@ use crate::runtime::{
     ValueKind, VmErrorKind, VmResult,
 };
 use crate::Any;
-
-use self::iter::Iter;
 
 /// Struct representing a dynamic vector.
 ///

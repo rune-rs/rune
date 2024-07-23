@@ -1,6 +1,10 @@
+use crate as rune;
 use crate::runtime::{Ref, Value};
+use crate::Any;
 
 /// An efficient reference counter iterator over a vector.
+#[derive(Any)]
+#[rune(item = ::std::slice)]
 pub(crate) struct Iter {
     vec: Ref<[Value]>,
     front: usize,
@@ -16,13 +20,10 @@ impl Iter {
             back,
         }
     }
-}
 
-impl Iterator for Iter {
-    type Item = Value;
-
+    #[rune::function(instance, keep, protocol = NEXT)]
     #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
+    fn next(&mut self) -> Option<Value> {
         if self.front == self.back {
             return None;
         }
@@ -32,8 +33,9 @@ impl Iterator for Iter {
         Some(value.clone())
     }
 
+    #[rune::function(instance, keep, protocol = NTH)]
     #[inline]
-    fn nth(&mut self, n: usize) -> Option<Self::Item> {
+    fn nth(&mut self, n: usize) -> Option<Value> {
         let n = self.front.wrapping_add(n);
 
         if n >= self.back || n < self.front {
@@ -45,16 +47,16 @@ impl Iterator for Iter {
         Some(value.clone())
     }
 
+    #[rune::function(instance, keep, protocol = SIZE_HINT)]
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
         let len = self.back.wrapping_sub(self.front);
         (len, Some(len))
     }
-}
 
-impl DoubleEndedIterator for Iter {
+    #[rune::function(instance, keep, protocol = NEXT_BACK)]
     #[inline]
-    fn next_back(&mut self) -> Option<Self::Item> {
+    fn next_back(&mut self) -> Option<Value> {
         if self.front == self.back {
             return None;
         }
@@ -62,5 +64,31 @@ impl DoubleEndedIterator for Iter {
         self.back = self.back.wrapping_sub(1);
         let value = self.vec.get(self.back)?;
         Some(value.clone())
+    }
+}
+
+impl Iterator for Iter {
+    type Item = Value;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        Iter::next(self)
+    }
+
+    #[inline]
+    fn nth(&mut self, n: usize) -> Option<Self::Item> {
+        Iter::nth(self, n)
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        Iter::size_hint(self)
+    }
+}
+
+impl DoubleEndedIterator for Iter {
+    #[inline]
+    fn next_back(&mut self) -> Option<Self::Item> {
+        Iter::next_back(self)
     }
 }

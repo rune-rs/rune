@@ -152,6 +152,8 @@ pub use self::value::{EmptyStruct, Rtti, Struct, TupleStruct, TypeValue, Value, 
 mod variant;
 pub use self::variant::{Variant, VariantData};
 
+pub mod slice;
+
 mod vec;
 pub use self::vec::Vec;
 

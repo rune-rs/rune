@@ -173,6 +173,7 @@ impl Context {
         this.install(crate::modules::string::module()?)?;
         this.install(crate::modules::test::module()?)?;
         this.install(crate::modules::vec::module()?)?;
+        this.install(crate::modules::slice::module()?)?;
         this.has_default_modules = true;
         Ok(this)
     }
