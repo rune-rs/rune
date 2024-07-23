@@ -4,10 +4,8 @@ use core::ops;
 
 use crate as rune;
 use crate::alloc::clone::TryClone;
-use crate::compile::Named;
 use crate::runtime::{
-    EnvProtocolCaller, FromValue, MaybeTypeOf, ProtocolCaller, ToValue, TypeOf, Value, ValueKind,
-    VmErrorKind, VmResult,
+    EnvProtocolCaller, FromValue, ProtocolCaller, ToValue, Value, ValueKind, VmErrorKind, VmResult,
 };
 use crate::Any;
 
@@ -289,41 +287,4 @@ where
     }
 }
 
-#[derive(Any)]
-#[rune(item = ::std::ops)]
-pub(crate) struct RangeFromIter<T>
-where
-    T: 'static + TryClone + Named + FromValue + ToValue + MaybeTypeOf + TypeOf,
-{
-    iter: ops::RangeFrom<T>,
-}
-
-impl<T> RangeFromIter<T>
-where
-    T: 'static + TryClone + Named + FromValue + ToValue + MaybeTypeOf + TypeOf,
-    ops::RangeFrom<T>: Iterator<Item = T>,
-{
-    #[inline]
-    pub(crate) fn new(iter: ops::RangeFrom<T>) -> Self {
-        Self { iter }
-    }
-
-    #[rune::function(instance, keep, protocol = NEXT)]
-    #[inline]
-    pub(crate) fn next(&mut self) -> Option<T> {
-        self.iter.next()
-    }
-}
-
-impl<T> Iterator for RangeFromIter<T>
-where
-    T: 'static + TryClone + Named + FromValue + ToValue + MaybeTypeOf + TypeOf,
-    ops::RangeFrom<T>: Iterator<Item = T>,
-{
-    type Item = T;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next()
-    }
-}
+range_iter!(RangeFrom, RangeFromIter);

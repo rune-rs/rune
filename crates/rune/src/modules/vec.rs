@@ -4,9 +4,9 @@ use core::cmp::Ordering;
 
 use crate as rune;
 use crate::alloc::prelude::*;
+use crate::runtime::slice::Iter;
 use crate::runtime::{
-    EnvProtocolCaller, Formatter, Function, Hasher, Iterator, Ref, TypeOf, Value, Vec, VmErrorKind,
-    VmResult,
+    EnvProtocolCaller, Formatter, Function, Hasher, Ref, TypeOf, Value, Vec, VmErrorKind, VmResult,
 };
 use crate::{ContextError, Module};
 
@@ -69,7 +69,7 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(get)?;
     m.function_meta(clear)?;
     m.function_meta(extend)?;
-    m.function_meta(iter)?;
+    m.function_meta(Vec::rune_iter__meta)?;
     m.function_meta(pop)?;
     m.function_meta(push)?;
     m.function_meta(remove)?;
@@ -348,22 +348,6 @@ fn extend(this: &mut Vec, value: Value) -> VmResult<()> {
     this.extend(value)
 }
 
-/// Iterate over the collection.
-///
-/// # Examples
-///
-/// ```rune
-/// let vec = [1, 2, 3, 4];
-/// let it = vec.iter();
-///
-/// assert_eq!(Some(1), it.next());
-/// assert_eq!(Some(4), it.next_back());
-/// ```
-#[rune::function(instance)]
-fn iter(this: Ref<Vec>) -> Iterator {
-    Vec::iter_ref(Ref::map(this, |vec| &**vec))
-}
-
 /// Removes the last element from a vector and returns it, or [`None`] if it is
 /// empty.
 ///
@@ -506,8 +490,8 @@ fn clone(this: &Vec) -> VmResult<Vec> {
 /// assert_eq!(out, [1, 2, 3]);
 /// ```
 #[rune::function(instance, protocol = INTO_ITER)]
-fn into_iter(this: Ref<Vec>) -> Iterator {
-    Vec::iter_ref(Ref::map(this, |vec| &**vec))
+fn into_iter(this: Ref<Vec>) -> Iter {
+    Vec::rune_iter(this)
 }
 
 /// Returns a reference to an element or subslice depending on the type of

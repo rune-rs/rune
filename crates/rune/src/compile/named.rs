@@ -1,6 +1,6 @@
 use core::cmp::Ordering;
 
-use crate::alloc::String;
+use crate::alloc::{Box, String};
 use crate::module::InstallWith;
 use crate::runtime::RawStr;
 
@@ -20,6 +20,10 @@ impl Named for String {
 }
 
 impl Named for &str {
+    const BASE_NAME: RawStr = RawStr::from_str("String");
+}
+
+impl Named for Box<str> {
     const BASE_NAME: RawStr = RawStr::from_str("String");
 }
 

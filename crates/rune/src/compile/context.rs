@@ -167,6 +167,7 @@ impl Context {
         this.install(crate::modules::mem::module()?)?;
         this.install(crate::modules::object::module()?)?;
         this.install(crate::modules::ops::module()?)?;
+        this.install(crate::modules::ops::generator::module()?)?;
         this.install(crate::modules::option::module()?)?;
         this.install(crate::modules::result::module()?)?;
         this.install(crate::modules::stream::module()?)?;

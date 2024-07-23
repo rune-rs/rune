@@ -3,9 +3,8 @@
 use core::cmp::Ordering;
 
 use crate as rune;
-use crate::alloc::prelude::*;
-use crate::runtime::object::RuneIter;
-use crate::runtime::{EnvProtocolCaller, Iterator, Object, Protocol, Value, VmResult};
+use crate::runtime::object::{RuneIter, RuneIterKeys, RuneValues};
+use crate::runtime::{EnvProtocolCaller, Object, Protocol, Value, VmResult};
 use crate::{ContextError, Module};
 
 /// The dynamic [`Object`] container.
@@ -51,8 +50,8 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(get)?;
 
     m.function_meta(Object::rune_iter__meta)?;
-    m.function_meta(keys)?;
-    m.function_meta(values)?;
+    m.function_meta(Object::rune_keys__meta)?;
+    m.function_meta(Object::rune_values__meta)?;
     m.associated_function(Protocol::INTO_ITER, Object::rune_iter)?;
     m.function_meta(partial_eq)?;
     m.function_meta(eq)?;
@@ -61,6 +60,15 @@ pub fn module() -> Result<Module, ContextError> {
 
     m.ty::<RuneIter>()?;
     m.function_meta(RuneIter::next__meta)?;
+    m.function_meta(RuneIter::into_iter__meta)?;
+
+    m.ty::<RuneIterKeys>()?;
+    m.function_meta(RuneIterKeys::next__meta)?;
+    m.function_meta(RuneIterKeys::into_iter__meta)?;
+
+    m.ty::<RuneValues>()?;
+    m.function_meta(RuneValues::next__meta)?;
+    m.function_meta(RuneValues::into_iter__meta)?;
     Ok(m)
 }
 
@@ -107,62 +115,6 @@ fn remove(object: &mut Object, key: &str) -> Option<Value> {
 #[inline]
 fn get(object: &Object, key: &str) -> Option<Value> {
     object.get(key).cloned()
-}
-
-/// An iterator visiting all keys in arbitrary order.
-///
-/// # Examples
-///
-/// ```rune
-/// let object = #{a: 1, b: 2, c: 3};
-/// let vec = [];
-///
-/// for key in object.keys() {
-///     vec.push(key);
-/// }
-///
-/// vec.sort();
-/// assert_eq!(vec, ["a", "b", "c"]);
-/// ```
-#[inline]
-#[rune::function(vm_result, instance)]
-fn keys(object: &Object) -> Iterator {
-    // TODO: implement as lazy iteration.
-    let mut keys = Vec::new();
-
-    for key in object.keys() {
-        keys.try_push(key.try_clone().vm?).vm?;
-    }
-
-    Iterator::from_double_ended("std::object::Keys", keys.into_iter())
-}
-
-/// An iterator visiting all values in arbitrary order.
-///
-/// # Examples
-///
-/// ```rune
-/// let object = #{a: 1, b: 2, c: 3};
-/// let vec = [];
-///
-/// for key in object.values() {
-///     vec.push(key);
-/// }
-///
-/// vec.sort();
-/// assert_eq!(vec, [1, 2, 3]);
-/// ```
-#[inline]
-#[rune::function(vm_result, instance)]
-fn values(object: &Object) -> Iterator {
-    // TODO: implement as lazy iteration.
-    let iter = object
-        .values()
-        .cloned()
-        .try_collect::<Vec<_>>()
-        .vm?
-        .into_iter();
-    Iterator::from_double_ended("std::object::Values", iter)
 }
 
 #[rune::function(instance, protocol = PARTIAL_EQ)]

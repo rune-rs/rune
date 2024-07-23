@@ -3,6 +3,9 @@
 #[cfg(test)]
 mod tests;
 
+#[macro_use]
+mod macros;
+
 mod access;
 pub(crate) use self::access::{Access, AccessErrorKind, RawAccessGuard};
 pub use self::access::{AccessError, BorrowMut, BorrowRef, Snapshot};
@@ -64,7 +67,7 @@ pub use self::inst::{
 };
 
 mod iterator;
-pub use self::iterator::{Iterator, IteratorTrait};
+pub use self::iterator::Iterator;
 
 mod type_;
 pub use self::type_::Type;
@@ -97,10 +100,10 @@ pub use self::range_to_inclusive::RangeToInclusive;
 mod range_to;
 pub use self::range_to::RangeTo;
 
-mod range_inclusive;
+pub(crate) mod range_inclusive;
 pub use self::range_inclusive::RangeInclusive;
 
-mod range;
+pub(crate) mod range;
 pub use self::range::Range;
 
 #[doc(inline)]

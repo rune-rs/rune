@@ -12,7 +12,7 @@ use crate::runtime::{
 use crate::{Any, ContextError, Module};
 
 /// A dynamic vec deque.
-#[rune::module(::std::collections::hash_set)]
+#[rune::module(::std::collections::vec_deque)]
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::from_meta(self::module_meta)?;
 
@@ -66,6 +66,10 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(VecDeque::eq)?;
     module.function_meta(VecDeque::partial_cmp)?;
     module.function_meta(VecDeque::cmp)?;
+
+    module.ty::<Iter>()?;
+    module.function_meta(Iter::next__meta)?;
+    module.function_meta(Iter::next_back__meta)?;
     Ok(module)
 }
 
@@ -476,35 +480,11 @@ impl VecDeque {
     /// ```
     #[inline]
     #[rune::function(instance, path = Self::iter)]
-    fn iter(this: Ref<Self>) -> Iterator {
-        struct Iter {
-            iter: alloc::vec_deque::RawIter<Value>,
-            // Drop must happen after the raw iterator.
-            _guard: RawRef,
-        }
-
-        impl iter::Iterator for Iter {
-            type Item = Value;
-
-            #[inline]
-            fn next(&mut self) -> Option<Self::Item> {
-                // SAFETY: We're holding onto the reference guard.
-                unsafe { Some((*self.iter.next()?).clone()) }
-            }
-        }
-
-        impl iter::DoubleEndedIterator for Iter {
-            fn next_back(&mut self) -> Option<Self::Item> {
-                // SAFETY: We're holding onto the reference guard.
-                unsafe { Some((*self.iter.next_back()?).clone()) }
-            }
-        }
-
+    fn iter(this: Ref<Self>) -> Iter {
         // SAFETY: We're holding onto the reference guard.
         let iter = unsafe { this.inner.raw_iter() };
         let (_, _guard) = Ref::into_raw(this);
-        let iter = Iter { iter, _guard };
-        Iterator::from_double_ended("std::collections::vec_deque::Iter", iter)
+        Iter { iter, _guard }
     }
 
     pub(crate) fn from_iter(mut it: Iterator) -> VmResult<Self> {
@@ -768,4 +748,41 @@ impl TryClone for VecDeque {
 #[rune::function(free, path = VecDeque::from)]
 fn from(value: Value) -> VmResult<VecDeque> {
     VecDeque::from_iter(vm_try!(value.into_iter()))
+}
+
+#[derive(Any)]
+#[rune(item = ::std::collections::vec_deque)]
+pub(crate) struct Iter {
+    iter: alloc::vec_deque::RawIter<Value>,
+    // Drop must happen after the raw iterator.
+    _guard: RawRef,
+}
+
+impl Iter {
+    #[rune::function(keep, protocol = NEXT)]
+    fn next(&mut self) -> Option<Value> {
+        // SAFETY: We're holding onto the reference guard.
+        unsafe { Some((*self.iter.next()?).clone()) }
+    }
+
+    #[rune::function(keep, protocol = NEXT_BACK)]
+    fn next_back(&mut self) -> Option<Value> {
+        // SAFETY: We're holding onto the reference guard.
+        unsafe { Some((*self.iter.next_back()?).clone()) }
+    }
+}
+
+impl iter::Iterator for Iter {
+    type Item = Value;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        Iter::next(self)
+    }
+}
+
+impl iter::DoubleEndedIterator for Iter {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        Iter::next_back(self)
+    }
 }

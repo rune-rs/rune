@@ -1,6 +1,5 @@
 use core::cmp;
 use core::fmt;
-use core::iter;
 
 use rust_alloc::boxed::Box;
 
@@ -81,19 +80,6 @@ pub struct Iterator {
 }
 
 impl Iterator {
-    /// Construct a new double-ended owning iterator, with a human-readable
-    /// name.
-    ///
-    /// The name is only intended to identify the iterator in case of errors.
-    pub fn from_double_ended<T>(name: &'static str, iter: T) -> Self
-    where
-        T: DoubleEndedIteratorTrait,
-    {
-        Self {
-            iter: IterRepr::DoubleEndedIterator(Box::new(IteratorObj { name, iter })),
-        }
-    }
-
     #[inline]
     pub(crate) fn empty() -> Self {
         Self {
@@ -380,7 +366,6 @@ impl fmt::Debug for Iterator {
 /// The inner representation of an [Iterator]. It handles all the necessary
 /// dynamic dispatch to support dynamic iterators.
 enum IterRepr {
-    DoubleEndedIterator(Box<IteratorObj<dyn DoubleEndedIteratorTrait>>),
     Map(Box<Map<Self>>),
     FlatMap(Box<FlatMap<Map<Self>>>),
     Filter(Box<Filter<Self>>),
@@ -399,7 +384,6 @@ impl RuneIterator for IterRepr {
     /// Test if this iterator is double-ended.
     fn is_double_ended(&self) -> bool {
         match self {
-            Self::DoubleEndedIterator(..) => true,
             Self::Map(iter) => iter.is_double_ended(),
             Self::FlatMap(iter) => iter.is_double_ended(),
             Self::Filter(iter) => iter.is_double_ended(),
@@ -418,7 +402,6 @@ impl RuneIterator for IterRepr {
     /// The length of the remaining iterator.
     fn size_hint(&self) -> (usize, Option<usize>) {
         match self {
-            Self::DoubleEndedIterator(iter) => iter.iter.size_hint(),
             Self::Map(iter) => iter.size_hint(),
             Self::FlatMap(iter) => iter.size_hint(),
             Self::Filter(iter) => iter.size_hint(),
@@ -436,7 +419,6 @@ impl RuneIterator for IterRepr {
 
     fn next(&mut self) -> VmResult<Option<Value>> {
         match self {
-            Self::DoubleEndedIterator(iter) => iter.iter.next(),
             Self::Map(iter) => iter.next(),
             Self::FlatMap(iter) => iter.next(),
             Self::Filter(iter) => iter.next(),
@@ -454,7 +436,6 @@ impl RuneIterator for IterRepr {
 
     fn next_back(&mut self) -> VmResult<Option<Value>> {
         match self {
-            Self::DoubleEndedIterator(iter) => iter.iter.next_back(),
             Self::Map(iter) => iter.next_back(),
             Self::FlatMap(iter) => iter.next_back(),
             Self::Filter(iter) => iter.next_back(),
@@ -474,7 +455,6 @@ impl RuneIterator for IterRepr {
 impl fmt::Debug for IterRepr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::DoubleEndedIterator(iter) => write!(f, "{}", iter.name),
             Self::Map(iter) => write!(f, "{:?}", iter),
             Self::FlatMap(iter) => write!(f, "{:?}", iter),
             Self::Filter(iter) => write!(f, "{:?}", iter),
@@ -702,72 +682,6 @@ where
 
         VmResult::Ok(None)
     }
-}
-
-/// The trait for interacting with an iterator.
-///
-/// This has a blanket implementation, and is primarily used to restrict the
-/// arguments that can be used in [Iterator::from].
-pub trait IteratorTrait: 'static {
-    /// Size hint of the iterator.
-    fn size_hint(&self) -> (usize, Option<usize>);
-
-    /// Get the next value out of the iterator.
-    fn next(&mut self) -> VmResult<Option<Value>>;
-}
-
-impl<T> IteratorTrait for T
-where
-    T: 'static,
-    T: iter::Iterator,
-    T::Item: ToValue,
-{
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        iter::Iterator::size_hint(self)
-    }
-
-    fn next(&mut self) -> VmResult<Option<Value>> {
-        let value = match iter::Iterator::next(self) {
-            Some(value) => value,
-            None => return VmResult::Ok(None),
-        };
-
-        VmResult::Ok(Some(vm_try!(value.to_value())))
-    }
-}
-
-/// The trait for interacting with an iterator.
-///
-/// This has a blanket implementation, and is primarily used to restrict the
-/// arguments that can be used in [Iterator::from_double_ended].
-pub trait DoubleEndedIteratorTrait: IteratorTrait {
-    /// Get the next back value out of the iterator.
-    fn next_back(&mut self) -> VmResult<Option<Value>>;
-}
-
-impl<T> DoubleEndedIteratorTrait for T
-where
-    T: 'static,
-    T: iter::DoubleEndedIterator,
-    T::Item: ToValue,
-{
-    fn next_back(&mut self) -> VmResult<Option<Value>> {
-        let value = match iter::DoubleEndedIterator::next_back(self) {
-            Some(value) => value,
-            None => return VmResult::Ok(None),
-        };
-
-        VmResult::Ok(Some(vm_try!(value.to_value())))
-    }
-}
-
-struct IteratorObj<T>
-where
-    T: ?Sized,
-{
-    name: &'static str,
-    iter: T,
 }
 
 #[derive(Debug)]

@@ -13,8 +13,8 @@ use crate::runtime::slice::Iter;
 #[cfg(feature = "alloc")]
 use crate::runtime::Hasher;
 use crate::runtime::{
-    Formatter, FromValue, Iterator, ProtocolCaller, RawRef, Ref, ToValue, UnsafeToRef, Value,
-    ValueKind, VmErrorKind, VmResult,
+    Formatter, FromValue, ProtocolCaller, RawRef, Ref, ToValue, UnsafeToRef, Value, ValueKind,
+    VmErrorKind, VmResult,
 };
 use crate::Any;
 
@@ -204,9 +204,20 @@ impl Vec {
         VmResult::Ok(())
     }
 
-    /// Convert into a rune iterator.
-    pub fn iter_ref(this: Ref<[Value]>) -> Iterator {
-        Iterator::from_double_ended("std::slice::Iter", Iter::new(this))
+    /// Iterate over the vector.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// let vec = [1, 2, 3, 4];
+    /// let it = vec.iter();
+    ///
+    /// assert_eq!(it.next(), Some(1));
+    /// assert_eq!(it.next_back(), Some(4));
+    /// ```
+    #[rune::function(keep, path = Self::iter)]
+    pub fn rune_iter(this: Ref<Self>) -> Iter {
+        Iter::new(Ref::map(this, |vec| &**vec))
     }
 
     /// Access the inner values as a slice.

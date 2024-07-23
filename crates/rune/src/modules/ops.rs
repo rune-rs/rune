@@ -1,16 +1,19 @@
 //! Overloadable operators and associated types.
 
+pub mod generator;
+
 use core::cmp::Ordering;
 
 use once_cell::sync::OnceCell;
 use rune_alloc::hash_map::RandomState;
 
 use crate as rune;
-use crate::runtime::generator;
+use crate::runtime::range::RangeIter;
 use crate::runtime::range_from::RangeFromIter;
+use crate::runtime::range_inclusive::RangeInclusiveIter;
 use crate::runtime::{
-    ControlFlow, EnvProtocolCaller, Function, Generator, GeneratorState, Hasher, Range, RangeFrom,
-    RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Value, Vm, VmResult,
+    ControlFlow, EnvProtocolCaller, Function, Hasher, Range, RangeFrom, RangeFull, RangeInclusive,
+    RangeTo, RangeToInclusive, Value, VmResult,
 };
 use crate::{ContextError, Module};
 
@@ -20,6 +23,31 @@ static STATE: OnceCell<RandomState> = OnceCell::new();
 #[rune::module(::std::ops)]
 pub fn module() -> Result<Module, ContextError> {
     let mut m = Module::from_meta(self::module_meta)?;
+
+    macro_rules! iter {
+        ($ty:ident) => {
+            m.ty::<$ty<u8>>()?;
+            m.function_meta($ty::<u8>::next__meta)?;
+            m.function_meta($ty::<u8>::into_iter__meta)?;
+
+            m.ty::<$ty<i64>>()?;
+            m.function_meta($ty::<i64>::next__meta)?;
+            m.function_meta($ty::<i64>::into_iter__meta)?;
+
+            m.ty::<$ty<char>>()?;
+            m.function_meta($ty::<char>::next__meta)?;
+            m.function_meta($ty::<char>::into_iter__meta)?;
+        };
+    }
+
+    macro_rules! double_ended {
+        ($ty:ident) => {
+            iter!($ty);
+            m.function_meta($ty::<u8>::next_back__meta)?;
+            m.function_meta($ty::<i64>::next_back__meta)?;
+            m.function_meta($ty::<char>::next_back__meta)?;
+        };
+    }
 
     {
         m.ty::<RangeFrom>()?;
@@ -31,14 +59,7 @@ pub fn module() -> Result<Module, ContextError> {
         m.function_meta(RangeFrom::partial_cmp__meta)?;
         m.function_meta(RangeFrom::cmp__meta)?;
 
-        m.ty::<RangeFromIter<u8>>()?;
-        m.function_meta(RangeFromIter::<u8>::next__meta)?;
-
-        m.ty::<RangeFromIter<i64>>()?;
-        m.function_meta(RangeFromIter::<i64>::next__meta)?;
-
-        m.ty::<RangeFromIter<char>>()?;
-        m.function_meta(RangeFromIter::<char>::next__meta)?;
+        iter!(RangeFromIter);
     }
 
     {
@@ -55,6 +76,8 @@ pub fn module() -> Result<Module, ContextError> {
         m.function_meta(RangeInclusive::eq__meta)?;
         m.function_meta(RangeInclusive::partial_cmp__meta)?;
         m.function_meta(RangeInclusive::cmp__meta)?;
+
+        double_ended!(RangeInclusiveIter);
     }
 
     {
@@ -84,6 +107,8 @@ pub fn module() -> Result<Module, ContextError> {
         m.function_meta(Range::eq__meta)?;
         m.function_meta(Range::partial_cmp__meta)?;
         m.function_meta(Range::cmp__meta)?;
+
+        double_ended!(RangeIter);
     }
 
     {
@@ -91,25 +116,6 @@ pub fn module() -> Result<Module, ContextError> {
     }
 
     m.ty::<Function>()?;
-
-    {
-        m.ty::<Generator<Vm>>()?;
-        m.function_meta(generator_next)?;
-        m.function_meta(generator_resume)?;
-        m.function_meta(generator_iter)?;
-        m.function_meta(generator_into_iter)?;
-
-        m.ty::<generator::Iter>()?;
-        m.function_meta(generator::Iter::next__meta)?;
-    }
-
-    {
-        m.generator_state(["GeneratorState"])?
-            .docs(["Enum indicating the state of a generator."])?;
-
-        m.function_meta(generator_state_partial_eq)?;
-        m.function_meta(generator_state_eq)?;
-    }
 
     m.function_meta(partial_eq)?;
     m.function_meta(eq)?;
@@ -255,111 +261,4 @@ fn hash(value: Value) -> VmResult<i64> {
     ));
 
     VmResult::Ok(hasher.finish() as i64)
-}
-
-/// Advance a generator producing the next value yielded.
-///
-/// Unlike [`Generator::resume`], this can only consume the yielded values.
-///
-/// # Examples
-///
-/// ```rune
-/// use std::ops::{Generator, GeneratorState};
-///
-/// fn generate() {
-///     yield 1;
-///     yield 2;
-/// }
-///
-/// let g = generate();
-///
-/// assert_eq!(g.next(), Some(1));
-/// assert_eq!(g.next(), Some(2));
-/// assert_eq!(g.next(), None);
-/// ``
-#[rune::function(instance, path = next)]
-fn generator_next(this: &mut Generator<Vm>) -> VmResult<Option<Value>> {
-    this.next()
-}
-
-/// Advance a generator producing the next [`GeneratorState`].
-///
-/// # Examples
-///
-/// ```rune
-/// use std::ops::{Generator, GeneratorState};
-///
-/// fn generate() {
-///     let n = yield 1;
-///     yield 2 + n;
-/// }
-///
-/// let g = generate();
-///
-/// assert_eq!(g.resume(()), GeneratorState::Yielded(1));
-/// assert_eq!(g.resume(1), GeneratorState::Yielded(3));
-/// assert_eq!(g.resume(()), GeneratorState::Complete(()));
-/// ``
-#[rune::function(instance, path = resume)]
-fn generator_resume(this: &mut Generator<Vm>, value: Value) -> VmResult<GeneratorState> {
-    this.resume(value)
-}
-
-#[rune::function(instance, path = iter)]
-#[inline]
-fn generator_iter(this: Generator<Vm>) -> generator::Iter {
-    this.rune_iter()
-}
-
-#[rune::function(instance, protocol = INTO_ITER)]
-#[inline]
-fn generator_into_iter(this: Generator<Vm>) -> generator::Iter {
-    this.rune_iter()
-}
-
-/// Test for partial equality over a generator state.
-///
-/// # Examples
-///
-/// ```rune
-/// use std::ops::{Generator, GeneratorState};
-///
-/// fn generate() {
-///     let n = yield 1;
-///     yield 2 + n;
-/// }
-///
-/// let g = generate();
-///
-/// assert_eq!(g.resume(()), GeneratorState::Yielded(1));
-/// assert_eq!(g.resume(1), GeneratorState::Yielded(3));
-/// assert_eq!(g.resume(()), GeneratorState::Complete(()));
-/// ``
-#[rune::function(instance, protocol = PARTIAL_EQ)]
-fn generator_state_partial_eq(this: &GeneratorState, other: &GeneratorState) -> VmResult<bool> {
-    this.partial_eq_with(other, &mut EnvProtocolCaller)
-}
-
-/// Test for total equality over a generator state.
-///
-/// # Examples
-///
-/// ```rune
-/// use std::ops::{Generator, GeneratorState};
-/// use std::ops::eq;
-///
-/// fn generate() {
-///     let n = yield 1;
-///     yield 2 + n;
-/// }
-///
-/// let g = generate();
-///
-/// assert!(eq(g.resume(()), GeneratorState::Yielded(1)));
-/// assert!(eq(g.resume(1), GeneratorState::Yielded(3)));
-/// assert!(eq(g.resume(()), GeneratorState::Complete(())));
-/// ``
-#[rune::function(instance, protocol = EQ)]
-fn generator_state_eq(this: &GeneratorState, other: &GeneratorState) -> VmResult<bool> {
-    this.eq_with(other, &mut EnvProtocolCaller)
 }

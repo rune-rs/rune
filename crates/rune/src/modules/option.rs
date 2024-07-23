@@ -1,7 +1,8 @@
 //! The [`Option`] type.
 
 use crate as rune;
-use crate::runtime::{ControlFlow, Formatter, Function, Iterator, Panic, Value, VmResult};
+use crate::runtime::{ControlFlow, Formatter, Function, Panic, Value, VmResult};
+use crate::Any;
 use crate::{ContextError, Module};
 
 /// The [`Option`] type.
@@ -28,6 +29,13 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(ok_or_else)?;
     module.function_meta(into_iter)?;
     module.function_meta(option_try__meta)?;
+
+    module.ty::<Iter>()?;
+    module.function_meta(Iter::next__meta)?;
+    module.function_meta(Iter::size_hint__meta)?;
+    module.function_meta(Iter::next_back__meta)?;
+    module.function_meta(Iter::into_iter__meta)?;
+
     Ok(module)
 }
 
@@ -130,8 +138,8 @@ fn is_none(this: &Option<Value>) -> bool {
 /// assert_eq!(None, it.next());
 /// ```
 #[rune::function(instance)]
-fn iter(option: Option<Value>) -> Iterator {
-    Iterator::from_double_ended("std::option::Iter", option.into_iter())
+fn iter(value: Option<Value>) -> Iter {
+    Iter { value: value }
 }
 
 /// Construct an iterator over an optional value.
@@ -150,8 +158,8 @@ fn iter(option: Option<Value>) -> Iterator {
 /// assert_eq!(out, [1]);
 /// ```
 #[rune::function(instance, protocol = INTO_ITER)]
-fn into_iter(option: Option<Value>) -> Iterator {
-    __rune_fn__iter(option)
+fn into_iter(this: Option<Value>) -> Iter {
+    Iter::new(this)
 }
 
 /// Returns [`None`] if the option is [`None`], otherwise calls `f` with the
@@ -413,4 +421,42 @@ pub(crate) fn option_try(this: &Option<Value>) -> VmResult<ControlFlow> {
         Some(value) => ControlFlow::Continue(value.clone()),
         None => ControlFlow::Break(vm_try!(Value::try_from(None))),
     })
+}
+
+#[derive(Any)]
+#[rune(item = ::std::option)]
+pub(crate) struct Iter {
+    value: Option<Value>,
+}
+
+impl Iter {
+    /// Construct a new iterator.
+    fn new(value: Option<Value>) -> Self {
+        Self { value }
+    }
+
+    /// Get the next value in the iterator.
+    #[rune::function(keep, protocol = NEXT)]
+    fn next(&mut self) -> Option<Value> {
+        self.value.take()
+    }
+
+    /// Get the next back value in the iterator.
+    #[rune::function(keep, protocol = NEXT_BACK)]
+    fn next_back(&mut self) -> Option<Value> {
+        self.value.take()
+    }
+
+    /// Get the size hint.
+    #[rune::function(keep, protocol = SIZE_HINT)]
+    fn size_hint(&mut self) -> (usize, Option<usize>) {
+        let len = usize::from(self.value.is_some());
+        (len, Some(len))
+    }
+
+    /// Convert into an iterator.
+    #[rune::function(keep, protocol = INTO_ITER)]
+    fn into_iter(self) -> Self {
+        self
+    }
 }

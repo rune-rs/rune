@@ -199,7 +199,7 @@ pub fn any(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 /// ```
 /// use rune::Hash;
 ///
-/// let hash: Hash = rune::hash!(::std::ops::Generator);
+/// let hash: Hash = rune::hash!(::std::ops::generator::Generator);
 /// ```
 #[proc_macro]
 pub fn hash(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -223,10 +223,11 @@ pub fn hash(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 /// ```
 /// use rune::{Item, ItemBuf};
 ///
-/// static ITEM: &Item = rune::item!(::std::ops::Generator);
+/// static ITEM: &Item = rune::item!(::std::ops::generator::Generator);
 ///
 /// let mut item = ItemBuf::with_crate("std")?;
 /// item.push("ops")?;
+/// item.push("generator")?;
 /// item.push("Generator")?;
 ///
 /// assert_eq!(item, ITEM);

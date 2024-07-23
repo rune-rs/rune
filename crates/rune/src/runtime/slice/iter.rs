@@ -5,7 +5,7 @@ use crate::Any;
 /// An efficient reference counter iterator over a vector.
 #[derive(Any)]
 #[rune(item = ::std::slice)]
-pub(crate) struct Iter {
+pub struct Iter {
     vec: Ref<[Value]>,
     front: usize,
     back: usize,
@@ -14,6 +14,7 @@ pub(crate) struct Iter {
 impl Iter {
     pub(crate) fn new(vec: Ref<[Value]>) -> Self {
         let back = vec.len();
+
         Self {
             vec,
             front: 0,

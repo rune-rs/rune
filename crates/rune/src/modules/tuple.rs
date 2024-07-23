@@ -3,7 +3,8 @@
 use core::cmp::Ordering;
 
 use crate as rune;
-use crate::runtime::{EnvProtocolCaller, Hasher, Iterator, Ref, Tuple, Value, Vec, VmResult};
+use crate::runtime::slice::Iter;
+use crate::runtime::{EnvProtocolCaller, Hasher, Ref, Tuple, Value, Vec, VmResult};
 use crate::{ContextError, Module};
 
 /// The [`Tuple`] fixed collection.
@@ -115,8 +116,8 @@ fn get(this: &Tuple, index: Value) -> VmResult<Option<Value>> {
 /// assert_eq!(tuple.iter().collect::<Vec>(), [1, 2, 3]);
 /// ```
 #[rune::function(instance)]
-fn iter(this: Ref<Tuple>) -> Iterator {
-    Vec::iter_ref(Ref::map(this, |tuple| &**tuple))
+fn iter(this: Ref<Tuple>) -> Iter {
+    Iter::new(Ref::map(this, |tuple| &**tuple))
 }
 
 /// Construct an iterator over the tuple.
@@ -134,8 +135,8 @@ fn iter(this: Ref<Tuple>) -> Iterator {
 /// assert_eq!(out, [1, 2, 3]);
 /// ```
 #[rune::function(instance, protocol = INTO_ITER)]
-fn into_iter(this: Ref<Tuple>) -> Iterator {
-    Vec::iter_ref(Ref::map(this, |tuple| &**tuple))
+fn into_iter(this: Ref<Tuple>) -> Iter {
+    Iter::new(Ref::map(this, |tuple| &**tuple))
 }
 
 /// Perform a partial equality check with this tuple.

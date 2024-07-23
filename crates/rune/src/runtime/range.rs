@@ -5,8 +5,7 @@ use core::ops;
 use crate as rune;
 use crate::alloc::clone::TryClone;
 use crate::runtime::{
-    EnvProtocolCaller, FromValue, Iterator, ProtocolCaller, ToValue, Value, ValueKind, VmErrorKind,
-    VmResult,
+    EnvProtocolCaller, FromValue, ProtocolCaller, ToValue, Value, ValueKind, VmErrorKind, VmResult,
 };
 use crate::Any;
 
@@ -92,27 +91,29 @@ impl Range {
     /// range.iter()
     /// ```
     #[rune::function(keep)]
-    pub fn iter(&self) -> VmResult<Iterator> {
-        const NAME: &str = "std::ops::Range";
-
-        match (
+    pub fn iter(&self) -> VmResult<Value> {
+        let value = match (
             &*vm_try!(self.start.borrow_kind_ref()),
             &*vm_try!(self.end.borrow_kind_ref()),
         ) {
             (ValueKind::Byte(start), ValueKind::Byte(end)) => {
-                VmResult::Ok(Iterator::from_double_ended(NAME, *start..*end))
+                vm_try!(rune::to_value(RangeIter::new(*start..*end)))
             }
             (ValueKind::Char(start), ValueKind::Char(end)) => {
-                VmResult::Ok(Iterator::from_double_ended(NAME, *start..*end))
+                vm_try!(rune::to_value(RangeIter::new(*start..*end)))
             }
             (ValueKind::Integer(start), ValueKind::Integer(end)) => {
-                VmResult::Ok(Iterator::from_double_ended(NAME, *start..*end))
+                vm_try!(rune::to_value(RangeIter::new(*start..*end)))
             }
-            (start, end) => VmResult::err(VmErrorKind::UnsupportedIterRange {
-                start: start.type_info(),
-                end: end.type_info(),
-            }),
-        }
+            (start, end) => {
+                return VmResult::err(VmErrorKind::UnsupportedIterRange {
+                    start: start.type_info(),
+                    end: end.type_info(),
+                })
+            }
+        };
+
+        VmResult::Ok(value)
     }
 
     /// Iterate over the range.
@@ -140,7 +141,7 @@ impl Range {
     /// }
     /// ```
     #[rune::function(keep, protocol = INTO_ITER)]
-    pub fn into_iter(&self) -> VmResult<Iterator> {
+    pub fn into_iter(&self) -> VmResult<Value> {
         self.iter()
     }
 
@@ -320,3 +321,5 @@ where
         VmResult::Ok(ops::Range { start, end })
     }
 }
+
+double_ended_range_iter!(Range, RangeIter);

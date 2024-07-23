@@ -7,6 +7,7 @@ use crate::alloc::String;
 use crate::modules::collections::VecDeque;
 #[cfg(feature = "alloc")]
 use crate::modules::collections::{HashMap, HashSet};
+use crate::runtime::range::RangeIter;
 #[cfg(feature = "alloc")]
 use crate::runtime::EnvProtocolCaller;
 use crate::runtime::{
@@ -108,8 +109,8 @@ fn once(value: Value) -> Iterator {
 /// assert_eq!(range(0, 3).collect::<Vec>(), [0, 1, 2]);
 /// ```
 #[rune::function]
-fn range(start: i64, end: i64) -> Iterator {
-    Iterator::from_double_ended("std::iter::Range", start..end)
+fn range(start: i64, end: i64) -> RangeIter<i64> {
+    RangeIter::new(start..end)
 }
 
 /// Advances the iterator and returns the next value.

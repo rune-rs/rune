@@ -52,7 +52,7 @@ pub fn module() -> Result<Module, ContextError> {
 }
 
 #[derive(Any)]
-#[rune(item = ::std::collections::hash_set)]
+#[rune(item = ::std::collections::hash_map)]
 pub(crate) struct HashMap {
     table: Table<Value>,
 }
