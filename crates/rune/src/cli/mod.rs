@@ -32,10 +32,10 @@ use anyhow::{bail, Context as _, Error, Result};
 use clap::{Parser, Subcommand, ValueEnum};
 use tracing_subscriber::filter::EnvFilter;
 
-use crate::compile::{ItemBuf, ParseOptionError};
+use crate::compile::ParseOptionError;
 use crate::modules::capture_io::CaptureIo;
 use crate::termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
-use crate::{Context, ContextError, Hash, Options};
+use crate::{Context, ContextError, Hash, ItemBuf, Options};
 
 /// Default about splash.
 const DEFAULT_ABOUT: &str = "The Rune Language Interpreter";

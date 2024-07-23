@@ -6,7 +6,7 @@ use crate::module::{AssociatedName, ToInstance};
 use crate::Hash;
 
 #[doc(inline)]
-pub use rune_core::Protocol;
+pub use rune_core::protocol::Protocol;
 
 impl ToInstance for Protocol {
     #[inline]

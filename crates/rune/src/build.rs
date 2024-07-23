@@ -12,7 +12,7 @@ use crate::compile::NoopSourceLoader as DefaultSourceLoader;
 use crate::compile::{CompileVisitor, Located, MetaError, Options, Pool, SourceLoader};
 use crate::runtime::unit::{DefaultStorage, UnitEncoder};
 use crate::runtime::Unit;
-use crate::{Context, Diagnostics, SourceId, Sources};
+use crate::{Context, Diagnostics, Item, SourceId, Sources};
 
 /// Error raised when we failed to load sources.
 ///
@@ -185,7 +185,7 @@ impl<'a> compile::CompileVisitor for CompileVisitorGroup<'a> {
     fn visit_doc_comment(
         &mut self,
         location: &dyn Located,
-        item: &compile::Item,
+        item: &Item,
         hash: crate::Hash,
         doc: &str,
     ) -> Result<(), MetaError> {
@@ -199,7 +199,7 @@ impl<'a> compile::CompileVisitor for CompileVisitorGroup<'a> {
     fn visit_field_doc_comment(
         &mut self,
         location: &dyn Located,
-        item: &compile::Item,
+        item: &Item,
         hash: crate::Hash,
         field: &str,
         doc: &str,

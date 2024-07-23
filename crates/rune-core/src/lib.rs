@@ -37,22 +37,8 @@ extern crate std as rust_std;
 extern crate alloc as rust_alloc;
 
 pub use rune_alloc as alloc;
-
-mod hash;
-#[doc(hidden)]
-pub use hash::ParametersBuilder;
-pub use hash::{Hash, IntoHash, ToTypeHash};
-
-mod item;
-#[cfg(feature = "alloc")]
-pub use self::item::Component;
-pub use self::item::{ComponentRef, IntoComponent, Item, ItemBuf};
-
-mod raw_str;
-pub use self::raw_str::RawStr;
-
-mod protocol;
-pub use self::protocol::Protocol;
-
-mod params;
-pub use self::params::Params;
+pub mod hash;
+pub mod item;
+pub mod params;
+pub mod protocol;
+pub mod raw_str;

@@ -1,11 +1,12 @@
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String, Vec};
 use crate::compile::context::ContextMeta;
-use crate::compile::{meta, ComponentRef, IntoComponent, Item, ItemBuf};
+use crate::compile::meta;
 use crate::doc::{Visitor, VisitorData};
+use crate::item::{ComponentRef, IntoComponent};
 use crate::runtime::ConstValue;
 use crate::runtime::Protocol;
-use crate::Hash;
+use crate::{Hash, Item, ItemBuf};
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum MetaSource<'a> {

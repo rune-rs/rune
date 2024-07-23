@@ -2,9 +2,10 @@ use anyhow::{Context, Result};
 use serde::Serialize;
 
 use crate::alloc::{String, Vec};
-use crate::compile::{ComponentRef, Item};
 use crate::doc::build::{self, Builder, Ctxt, IndexEntry};
 use crate::doc::context::Meta;
+use crate::item::ComponentRef;
+use crate::Item;
 
 #[derive(Serialize)]
 struct Params<'a> {

@@ -5,7 +5,8 @@ use ::rust_alloc::sync::Arc;
 use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, HashMap, HashSet, String, Vec};
-use crate::compile::{self, meta, ContextError, Docs, IntoComponent, ItemBuf, Named};
+use crate::compile::{self, meta, ContextError, Docs, Named};
+use crate::item::IntoComponent;
 use crate::macros::{MacroContext, TokenStream};
 use crate::module::function_meta::{
     Associated, AssociatedFunctionData, AssociatedName, FunctionArgs, FunctionBuilder,
@@ -23,7 +24,7 @@ use crate::runtime::{
     MacroHandler, MaybeTypeOf, Output, Protocol, Stack, ToValue, TypeCheck, TypeInfo, TypeOf,
     Value, VmResult,
 };
-use crate::Hash;
+use crate::{Hash, ItemBuf};
 
 /// Function builder as returned by [`Module::function`].
 ///

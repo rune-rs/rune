@@ -9,7 +9,7 @@ pub(crate) mod prelude {
     pub(crate) use crate::alloc::fmt::TryWrite;
     pub(crate) use crate::alloc::prelude::*;
     pub(crate) use crate::ast;
-    pub(crate) use crate::compile::{self, ErrorKind, Item, ItemBuf, Located, Named};
+    pub(crate) use crate::compile::{self, ErrorKind, Located, Named};
     pub(crate) use crate::diagnostics::{self, WarningDiagnosticKind};
     pub(crate) use crate::macros;
     pub(crate) use crate::module::InstallWith;
@@ -23,7 +23,7 @@ pub(crate) mod prelude {
     pub(crate) use crate::tests::{eval, run};
     pub(crate) use crate::{
         from_value, prepare, sources, span, vm_try, Any, Context, ContextError, Diagnostics,
-        FromValue, Hash, Module, Source, Sources, ToValue, Value, Vm,
+        FromValue, Hash, Item, ItemBuf, Module, Source, Sources, ToValue, Value, Vm,
     };
     pub(crate) use futures_executor::block_on;
 
@@ -44,9 +44,11 @@ use ::rust_alloc::sync::Arc;
 use anyhow::{Context as _, Error, Result};
 
 use crate::alloc;
-use crate::compile::{IntoComponent, ItemBuf};
+use crate::item::IntoComponent;
 use crate::runtime::{Args, VmError};
-use crate::{termcolor, BuildError, Context, Diagnostics, FromValue, Source, Sources, Unit, Vm};
+use crate::{
+    termcolor, BuildError, Context, Diagnostics, FromValue, ItemBuf, Source, Sources, Unit, Vm,
+};
 
 /// An error that can be raised during testing.
 #[derive(Debug)]

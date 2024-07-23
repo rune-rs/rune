@@ -209,7 +209,11 @@ pub use self::build::{prepare, Build, BuildError};
 
 pub mod compile;
 #[doc(inline)]
-pub use self::compile::{Context, ContextError, Item, ItemBuf, Options};
+pub use self::compile::{Context, ContextError, Options};
+
+pub mod item;
+#[doc(inline)]
+pub use self::item::{Item, ItemBuf};
 
 pub mod module;
 #[doc(inline)]
@@ -642,7 +646,7 @@ pub mod doc;
 /// Privately exported details.
 #[doc(hidden)]
 pub mod __private {
-    pub use crate::compile::ItemBuf;
+    pub use crate::item::ItemBuf;
     pub use crate::module::module::Module;
     pub use crate::module::{
         FunctionMetaData, FunctionMetaKind, InstallWith, MacroMetaData, MacroMetaKind,

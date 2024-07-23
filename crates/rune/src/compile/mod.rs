@@ -34,8 +34,6 @@ pub(crate) use self::prelude::Prelude;
 
 pub(crate) mod ir;
 
-pub use rune_core::{Component, ComponentRef, IntoComponent, Item, ItemBuf};
-
 mod source_loader;
 #[cfg(feature = "std")]
 pub use self::source_loader::FileSourceLoader;

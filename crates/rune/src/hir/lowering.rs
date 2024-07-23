@@ -8,15 +8,15 @@ use crate::alloc::try_format;
 use crate::alloc::{self, Box, HashMap, HashSet};
 use crate::ast::{self, Spanned};
 use crate::compile::meta;
-use crate::compile::{self, DynLocation, ErrorKind, Item, ItemId, WithSpan};
-use crate::hash::{Hash, ParametersBuilder};
+use crate::compile::{self, DynLocation, ErrorKind, ItemId, WithSpan};
+use crate::hash::ParametersBuilder;
 use crate::hir;
 use crate::indexing;
 use crate::parse::Resolve;
 use crate::query::{self, Build, BuildEntry, GenericsParameters, Named, Query};
 use crate::runtime::ConstValue;
 use crate::runtime::{Type, TypeCheck};
-use crate::SourceId;
+use crate::{Hash, Item, SourceId};
 
 use rune_macros::instrument;
 

@@ -2,10 +2,12 @@ use crate::alloc::path::Path;
 #[cfg(feature = "std")]
 use crate::alloc::prelude::*;
 use crate::ast::Spanned;
-use crate::compile::{self, Item};
+use crate::compile;
 #[cfg(feature = "std")]
-use crate::compile::{ComponentRef, ErrorKind};
-use crate::Source;
+use crate::compile::ErrorKind;
+#[cfg(feature = "std")]
+use crate::item::ComponentRef;
+use crate::{Item, Source};
 
 /// A source loader.
 pub trait SourceLoader {

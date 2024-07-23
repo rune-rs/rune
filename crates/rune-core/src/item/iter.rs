@@ -46,6 +46,8 @@ impl<'a> Iter<'a> {
     ///
     /// Will consume the next component in the iterator, but will only indicate
     /// if the next component was present, and was a [Component::Str].
+    ///
+    /// [Component::Str]: super::Component::Str
     pub fn next_str(&mut self) -> Option<&'a str> {
         match self.next()? {
             ComponentRef::Str(s) => Some(s),
@@ -57,6 +59,8 @@ impl<'a> Iter<'a> {
     ///
     /// Will consume the next component in the iterator, but will only indicate
     /// if the next component was present, and was a [Component::Str].
+    ///
+    /// [Component::Str]: super::Component::Str
     pub fn next_back_str(&mut self) -> Option<&'a str> {
         match self.next_back()? {
             ComponentRef::Str(s) => Some(s),

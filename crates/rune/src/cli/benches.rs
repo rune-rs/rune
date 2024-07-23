@@ -6,12 +6,11 @@ use std::time::Instant;
 
 use crate::alloc::Vec;
 use crate::cli::{AssetKind, CommandBase, Config, ExitCode, Io, SharedFlags};
-use crate::compile::{Item, ItemBuf};
 use crate::modules::capture_io::CaptureIo;
 use crate::modules::test::Bencher;
 use crate::runtime::{Function, Unit, Value};
 use crate::support::Result;
-use crate::{Context, Hash, Sources, Vm};
+use crate::{Context, Hash, Item, ItemBuf, Sources, Vm};
 
 mod cli {
     use std::path::PathBuf;

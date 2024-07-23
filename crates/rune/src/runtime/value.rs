@@ -12,7 +12,7 @@ use crate as rune;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
-use crate::compile::{meta, ItemBuf};
+use crate::compile::meta;
 use crate::runtime::vm::CallResultOnly;
 use crate::runtime::{
     AccessError, AccessErrorKind, AnyObj, AnyObjError, BorrowMut, BorrowRef, Bytes, ConstValue,
@@ -24,7 +24,7 @@ use crate::runtime::{
 };
 #[cfg(feature = "alloc")]
 use crate::runtime::{Hasher, Tuple};
-use crate::{Any, Hash};
+use crate::{Any, Hash, ItemBuf};
 
 use ::serde::{Deserialize, Serialize};
 

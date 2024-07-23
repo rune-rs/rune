@@ -15,12 +15,12 @@ use ::rust_alloc::sync::Arc;
 use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, Vec};
-use crate::compile::{meta, ContextError, Docs, Item, ItemBuf};
+use crate::compile::{meta, ContextError, Docs};
 use crate::runtime::{
     AttributeMacroHandler, ConstValue, FunctionHandler, MacroHandler, MaybeTypeOf, StaticType,
     TypeCheck, TypeInfo, TypeOf,
 };
-use crate::Hash;
+use crate::{Hash, Item, ItemBuf};
 
 pub(crate) use self::function_meta::{AssociatedName, ToFieldFunction, ToInstance};
 

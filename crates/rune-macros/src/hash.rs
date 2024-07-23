@@ -1,6 +1,7 @@
 use core::mem::take;
 
-use rune_core::{ComponentRef, Hash, ItemBuf};
+use rune_core::hash::Hash;
+use rune_core::item::{ComponentRef, ItemBuf};
 
 /// Construct a type hash from a Rust path.
 pub(crate) fn build_type_hash(path: &syn::Path) -> syn::Result<Hash> {

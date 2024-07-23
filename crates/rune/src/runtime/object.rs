@@ -11,9 +11,8 @@ use crate::alloc::{self, String};
 use crate::alloc::{hash_map, HashMap};
 
 use crate as rune;
-use crate::compile::ItemBuf;
 use crate::runtime::{FromValue, Iterator, ProtocolCaller, RawRef, Ref, ToValue, Value, VmResult};
-use crate::Any;
+use crate::{Any, ItemBuf};
 
 /// An owning iterator over the entries of a `Object`.
 ///

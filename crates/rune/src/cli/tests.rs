@@ -13,12 +13,12 @@ use crate::cli::visitor;
 use crate::cli::{
     AssetKind, CommandBase, Config, Entry, EntryPoint, ExitCode, Io, Options, SharedFlags,
 };
-use crate::compile::{FileSourceLoader, Item, ItemBuf};
+use crate::compile::FileSourceLoader;
 use crate::doc::TestParams;
 use crate::modules::capture_io::CaptureIo;
 use crate::runtime::{UnitFn, Value, ValueKind, Vm, VmError, VmResult};
 use crate::termcolor::{Color, ColorSpec, WriteColor};
-use crate::{Diagnostics, Hash, Source, Sources, Unit};
+use crate::{Diagnostics, Hash, Item, ItemBuf, Source, Sources, Unit};
 
 mod cli {
     use std::string::String;

@@ -1,7 +1,7 @@
 use core::mem::take;
 
 use proc_macro2::Span;
-use rune_core::{ComponentRef, ItemBuf};
+use rune_core::item::{ComponentRef, ItemBuf};
 
 /// Construct a static item from a path.
 pub(crate) fn build_item(path: &syn::Path) -> syn::Result<syn::ExprArray> {

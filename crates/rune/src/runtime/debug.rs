@@ -8,10 +8,8 @@ use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{Box, HashMap, Vec};
 use crate::ast::Span;
-use crate::compile::ItemBuf;
-use crate::hash::Hash;
 use crate::runtime::DebugLabel;
-use crate::SourceId;
+use crate::{Hash, ItemBuf, SourceId};
 
 /// Debug information about a unit.
 #[derive(Debug, TryClone, Default, Serialize, Deserialize)]

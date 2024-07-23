@@ -6,8 +6,8 @@ use crate::alloc::try_vec;
 use crate::alloc::{self, HashMap, Vec};
 #[cfg(feature = "emit")]
 use crate::compile::Location;
-use crate::compile::{Item, ItemBuf, Visibility};
-use crate::hash::Hash;
+use crate::compile::Visibility;
+use crate::{Hash, Item, ItemBuf};
 
 /// The identifier of a module.
 #[derive(Default, Debug, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

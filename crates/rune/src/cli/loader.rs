@@ -8,9 +8,9 @@ use anyhow::{anyhow, Context as _, Result};
 
 use crate::alloc::{Vec, VecDeque};
 use crate::cli::{visitor, Io, SharedFlags};
-use crate::compile::{FileSourceLoader, ItemBuf};
+use crate::compile::FileSourceLoader;
 use crate::Diagnostics;
-use crate::{Context, Hash, Options, Source, Sources, Unit};
+use crate::{Context, Hash, ItemBuf, Options, Source, Sources, Unit};
 
 pub(super) struct Load {
     pub(super) unit: Arc<Unit>,

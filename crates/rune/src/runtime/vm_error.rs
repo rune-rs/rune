@@ -7,13 +7,13 @@ use ::rust_alloc::sync::Arc;
 use crate::alloc::error::CustomError;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
-use crate::compile::{meta, ItemBuf};
-use crate::hash::Hash;
+use crate::compile::meta;
 use crate::runtime::unit::{BadInstruction, BadJump};
 use crate::runtime::{
     AccessError, AccessErrorKind, BoxedPanic, CallFrame, DynArgsUsed, ExecutionState, MaybeTypeOf,
     Panic, Protocol, SliceError, StackError, TypeInfo, TypeOf, Unit, Vm, VmHaltInfo,
 };
+use crate::{Hash, ItemBuf};
 
 /// A virtual machine error which includes tracing information.
 pub struct VmError {
