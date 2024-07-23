@@ -3,7 +3,6 @@
 //! A native module is one that provides rune with functions and types through
 //! native Rust-based code.
 
-mod function_meta;
 mod function_traits;
 pub(crate) mod module;
 
@@ -16,16 +15,13 @@ use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, Vec};
 use crate::compile::{meta, ContextError, Docs};
+use crate::function_meta::AssociatedName;
 use crate::runtime::{
     AttributeMacroHandler, ConstValue, FunctionHandler, MacroHandler, MaybeTypeOf, StaticType,
     TypeCheck, TypeInfo, TypeOf,
 };
 use crate::{Hash, Item, ItemBuf};
 
-pub(crate) use self::function_meta::{AssociatedName, ToFieldFunction, ToInstance};
-
-#[doc(hidden)]
-pub use self::function_meta::{FunctionMetaData, FunctionMetaKind, MacroMetaData, MacroMetaKind};
 pub use self::function_traits::{Async, Function, FunctionKind, InstanceFunction, Plain};
 #[doc(hidden)]
 pub use self::module::{

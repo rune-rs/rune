@@ -1,8 +1,8 @@
 use crate::alloc;
 #[cfg(feature = "doc")]
 use crate::alloc::prelude::*;
+use crate::function_meta::{AssociatedName, ToFieldFunction, ToInstance};
 use crate::hash::Hash;
-use crate::module::{AssociatedName, ToFieldFunction, ToInstance};
 use crate::runtime::Protocol;
 
 #[doc(inline)]

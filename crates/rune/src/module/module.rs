@@ -6,13 +6,13 @@ use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, HashMap, HashSet, String, Vec};
 use crate::compile::{self, meta, ContextError, Docs, Named};
-use crate::item::IntoComponent;
-use crate::macros::{MacroContext, TokenStream};
-use crate::module::function_meta::{
+use crate::function_meta::{
     Associated, AssociatedFunctionData, AssociatedName, FunctionArgs, FunctionBuilder,
     FunctionData, FunctionMeta, FunctionMetaKind, MacroMeta, MacroMetaKind, ToFieldFunction,
     ToInstance,
 };
+use crate::item::IntoComponent;
+use crate::macros::{MacroContext, TokenStream};
 use crate::module::{
     AssociatedKey, Async, EnumMut, Function, FunctionKind, InstallWith, InstanceFunction,
     InternalEnum, InternalEnumMut, ItemFnMut, ItemMut, ModuleAssociated, ModuleAssociatedKind,
@@ -1244,19 +1244,14 @@ impl Module {
     pub fn function_meta(&mut self, meta: FunctionMeta) -> Result<ItemFnMut<'_>, ContextError> {
         let meta = meta()?;
 
+        let mut docs = Docs::EMPTY;
+        docs.set_docs(meta.statics.docs)?;
+        docs.set_arguments(meta.statics.arguments)?;
+        let deprecated = meta.statics.deprecated.map(TryInto::try_into).transpose()?;
+
         match meta.kind {
-            FunctionMetaKind::Function(data) => {
-                let mut docs = Docs::EMPTY;
-                docs.set_docs(meta.docs)?;
-                docs.set_arguments(meta.arguments)?;
-                let deprecated = meta.deprecated.map(TryInto::try_into).transpose()?;
-                self.function_inner(data, docs, deprecated)
-            }
+            FunctionMetaKind::Function(data) => self.function_inner(data, docs, deprecated),
             FunctionMetaKind::AssociatedFunction(data) => {
-                let mut docs = Docs::EMPTY;
-                docs.set_docs(meta.docs)?;
-                docs.set_arguments(meta.arguments)?;
-                let deprecated = meta.deprecated.map(TryInto::try_into).transpose()?;
                 self.insert_associated_function(data, docs, deprecated)
             }
         }

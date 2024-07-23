@@ -507,6 +507,19 @@ pub struct MacroMetaData {
     pub docs: &'static [&'static str],
 }
 
+/// Function metadata statics.
+#[doc(hidden)]
+pub struct FunctionMetaStatics {
+    #[doc(hidden)]
+    pub name: &'static str,
+    #[doc(hidden)]
+    pub deprecated: Option<&'static str>,
+    #[doc(hidden)]
+    pub docs: &'static [&'static str],
+    #[doc(hidden)]
+    pub arguments: &'static [&'static str],
+}
+
 /// The data of a [`FunctionMeta`].
 ///
 /// Even though this is marked as `pub`, this is private API. If you use this it
@@ -516,13 +529,7 @@ pub struct FunctionMetaData {
     #[doc(hidden)]
     pub kind: FunctionMetaKind,
     #[doc(hidden)]
-    pub name: &'static str,
-    #[doc(hidden)]
-    pub deprecated: Option<&'static str>,
-    #[doc(hidden)]
-    pub docs: &'static [&'static str],
-    #[doc(hidden)]
-    pub arguments: &'static [&'static str],
+    pub statics: FunctionMetaStatics,
 }
 
 /// Trait implement allowing the collection of function argument types.
