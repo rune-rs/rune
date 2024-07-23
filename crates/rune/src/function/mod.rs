@@ -89,6 +89,9 @@ pub trait Function<A, K>: 'static + Send + Sync {
 /// Trait used to provide the [`associated_function`] function.
 ///
 /// [`associated_function`]: crate::module::Module::associated_function
+#[diagnostic::on_unimplemented(
+    label = "#[derive(Any)] could be missing on the arguments or return value of `{Self}`"
+)]
 pub trait InstanceFunction<A, K>: 'static + Send + Sync {
     /// The type of the instance.
     #[doc(hidden)]

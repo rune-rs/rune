@@ -81,18 +81,6 @@ pub struct Iterator {
 }
 
 impl Iterator {
-    /// Construct a new owning iterator.
-    ///
-    /// The name is only intended to identify the iterator in case of errors.
-    pub fn from<T>(name: &'static str, iter: T) -> Self
-    where
-        T: IteratorTrait,
-    {
-        Self {
-            iter: IterRepr::Iterator(Box::new(IteratorObj { name, iter })),
-        }
-    }
-
     /// Construct a new double-ended owning iterator, with a human-readable
     /// name.
     ///

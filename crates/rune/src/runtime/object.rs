@@ -5,13 +5,12 @@ use core::fmt;
 use core::hash;
 use core::iter;
 
+use crate as rune;
 use crate::alloc::hashbrown::raw::RawIter;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
 use crate::alloc::{hash_map, HashMap};
-
-use crate as rune;
-use crate::runtime::{FromValue, Iterator, ProtocolCaller, RawRef, Ref, ToValue, Value, VmResult};
+use crate::runtime::{FromValue, ProtocolCaller, RawRef, Ref, ToValue, Value, VmResult};
 use crate::{Any, ItemBuf};
 
 /// An owning iterator over the entries of a `Object`.
@@ -306,38 +305,12 @@ impl Object {
     /// assert_eq!(vec, [("a", 1), ("b", 2), ("c", 3)]);
     /// ```
     #[rune::function(keep, path = Self::iter)]
-    pub fn rune_iter(this: Ref<Self>) -> Iterator {
-        struct Iter {
-            iter: RawIter<(String, Value)>,
-            _guard: RawRef,
-        }
-
-        impl iter::Iterator for Iter {
-            type Item = VmResult<(String, Value)>;
-
-            fn next(&mut self) -> Option<Self::Item> {
-                unsafe {
-                    let bucket = self.iter.next()?;
-                    let (key, value) = bucket.as_ref();
-
-                    let key = match key.try_clone() {
-                        Ok(key) => key,
-                        Err(err) => return Some(VmResult::err(err)),
-                    };
-
-                    Some(VmResult::Ok((key, value.clone())))
-                }
-            }
-        }
-
+    pub fn rune_iter(this: Ref<Self>) -> RuneIter {
         // SAFETY: we're holding onto the related reference guard, and making
         // sure that it's dropped after the iterator.
         let iter = unsafe { this.inner.raw_table().iter() };
         let (_, _guard) = Ref::into_raw(this);
-
-        let iter = Iter { iter, _guard };
-
-        Iterator::from("std::object::Iter", iter)
+        RuneIter { iter, _guard }
     }
 
     pub(crate) fn partial_eq_with(
@@ -522,5 +495,38 @@ impl fmt::Display for DebugStruct<'_> {
         }
 
         d.finish()
+    }
+}
+
+#[derive(Any)]
+#[rune(item = ::std::object, name = Iter)]
+pub struct RuneIter {
+    iter: RawIter<(String, Value)>,
+    _guard: RawRef,
+}
+
+impl RuneIter {
+    #[rune::function(instance, keep, protocol = NEXT)]
+    pub fn next(&mut self) -> Option<VmResult<(String, Value)>> {
+        unsafe {
+            let bucket = self.iter.next()?;
+            let (key, value) = bucket.as_ref();
+
+            let key = match key.try_clone() {
+                Ok(key) => key,
+                Err(err) => return Some(VmResult::err(err)),
+            };
+
+            Some(VmResult::Ok((key, value.clone())))
+        }
+    }
+}
+
+impl iter::Iterator for RuneIter {
+    type Item = VmResult<(String, Value)>;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        RuneIter::next(self)
     }
 }

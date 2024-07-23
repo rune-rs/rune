@@ -4,6 +4,7 @@ use core::cmp::Ordering;
 
 use crate as rune;
 use crate::alloc::prelude::*;
+use crate::runtime::object::RuneIter;
 use crate::runtime::{EnvProtocolCaller, Iterator, Object, Protocol, Value, VmResult};
 use crate::{ContextError, Module};
 
@@ -57,6 +58,9 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(eq)?;
     m.function_meta(partial_cmp)?;
     m.function_meta(cmp)?;
+
+    m.ty::<RuneIter>()?;
+    m.function_meta(RuneIter::next__meta)?;
     Ok(m)
 }
 

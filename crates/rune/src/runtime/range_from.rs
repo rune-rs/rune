@@ -4,9 +4,10 @@ use core::ops;
 
 use crate as rune;
 use crate::alloc::clone::TryClone;
+use crate::compile::Named;
 use crate::runtime::{
-    EnvProtocolCaller, FromValue, Iterator, ProtocolCaller, ToValue, Value, ValueKind, VmErrorKind,
-    VmResult,
+    EnvProtocolCaller, FromValue, MaybeTypeOf, ProtocolCaller, ToValue, TypeOf, Value, ValueKind,
+    VmErrorKind, VmResult,
 };
 use crate::Any;
 
@@ -86,17 +87,19 @@ impl RangeFrom {
     /// range.iter()
     /// ```
     #[rune::function(keep)]
-    pub fn iter(&self) -> VmResult<Iterator> {
-        const NAME: &str = "std::ops::RangeFrom";
+    pub fn iter(&self) -> VmResult<Value> {
+        let value = match *vm_try!(self.start.borrow_kind_ref()) {
+            ValueKind::Byte(start) => vm_try!(crate::to_value(RangeFromIter::new(start..))),
+            ValueKind::Char(start) => vm_try!(crate::to_value(RangeFromIter::new(start..))),
+            ValueKind::Integer(start) => vm_try!(crate::to_value(RangeFromIter::new(start..))),
+            ref start => {
+                return VmResult::err(VmErrorKind::UnsupportedIterRangeFrom {
+                    start: start.type_info(),
+                })
+            }
+        };
 
-        match *vm_try!(self.start.borrow_kind_ref()) {
-            ValueKind::Byte(start) => VmResult::Ok(Iterator::from(NAME, start..)),
-            ValueKind::Char(start) => VmResult::Ok(Iterator::from(NAME, start..)),
-            ValueKind::Integer(start) => VmResult::Ok(Iterator::from(NAME, start..)),
-            ref start => VmResult::err(VmErrorKind::UnsupportedIterRangeFrom {
-                start: start.type_info(),
-            }),
-        }
+        VmResult::Ok(value)
     }
 
     /// Build an iterator over the range.
@@ -130,7 +133,7 @@ impl RangeFrom {
     /// }
     /// ```
     #[rune::function(keep, protocol = INTO_ITER)]
-    pub fn into_iter(&self) -> VmResult<Iterator> {
+    pub fn into_iter(&self) -> VmResult<Value> {
         self.iter()
     }
 
@@ -283,5 +286,44 @@ where
         let range = vm_try!(value.into_range_from());
         let start = vm_try!(Idx::from_value(range.start));
         VmResult::Ok(ops::RangeFrom { start })
+    }
+}
+
+#[derive(Any)]
+#[rune(item = ::std::ops)]
+pub(crate) struct RangeFromIter<T>
+where
+    T: 'static + TryClone + Named + FromValue + ToValue + MaybeTypeOf + TypeOf,
+{
+    iter: ops::RangeFrom<T>,
+}
+
+impl<T> RangeFromIter<T>
+where
+    T: 'static + TryClone + Named + FromValue + ToValue + MaybeTypeOf + TypeOf,
+    ops::RangeFrom<T>: Iterator<Item = T>,
+{
+    #[inline]
+    pub(crate) fn new(iter: ops::RangeFrom<T>) -> Self {
+        Self { iter }
+    }
+
+    #[rune::function(instance, keep, protocol = NEXT)]
+    #[inline]
+    pub(crate) fn next(&mut self) -> Option<T> {
+        self.iter.next()
+    }
+}
+
+impl<T> Iterator for RangeFromIter<T>
+where
+    T: 'static + TryClone + Named + FromValue + ToValue + MaybeTypeOf + TypeOf,
+    ops::RangeFrom<T>: Iterator<Item = T>,
+{
+    type Item = T;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next()
     }
 }

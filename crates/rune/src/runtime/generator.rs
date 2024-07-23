@@ -1,8 +1,9 @@
 use core::fmt;
 use core::iter;
 
+use crate as rune;
 use crate::alloc::clone::TryClone;
-use crate::runtime::{GeneratorState, Iterator, Value, Vm, VmErrorKind, VmExecution, VmResult};
+use crate::runtime::{GeneratorState, Value, Vm, VmErrorKind, VmExecution, VmResult};
 use crate::Any;
 
 /// The return value of a function producing a generator.
@@ -105,8 +106,8 @@ impl Generator<&mut Vm> {
 
 impl Generator<Vm> {
     /// Convert into iterator
-    pub fn rune_iter(self) -> Iterator {
-        Iterator::from("std::ops::generator::Iter", self.into_iter())
+    pub fn rune_iter(self) -> Iter {
+        self.into_iter()
     }
 }
 
@@ -120,8 +121,21 @@ impl IntoIterator for Generator<Vm> {
     }
 }
 
+#[derive(Any)]
+#[rune(item = ::std::ops::generator)]
 pub struct Iter {
     generator: Generator<Vm>,
+}
+
+impl Iter {
+    #[rune::function(instance, keep, protocol = NEXT)]
+    pub(crate) fn next(&mut self) -> Option<VmResult<Value>> {
+        match self.generator.next() {
+            VmResult::Ok(Some(value)) => Some(VmResult::Ok(value)),
+            VmResult::Ok(None) => None,
+            VmResult::Err(error) => Some(VmResult::Err(error)),
+        }
+    }
 }
 
 impl iter::Iterator for Iter {
@@ -129,11 +143,7 @@ impl iter::Iterator for Iter {
 
     #[inline]
     fn next(&mut self) -> Option<VmResult<Value>> {
-        match self.generator.next() {
-            VmResult::Ok(Some(value)) => Some(VmResult::Ok(value)),
-            VmResult::Ok(None) => None,
-            VmResult::Err(error) => Some(VmResult::Err(error)),
-        }
+        Iter::next(self)
     }
 }
 

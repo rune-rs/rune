@@ -48,7 +48,7 @@ mod future;
 pub use self::future::Future;
 pub(crate) use self::future::SelectFuture;
 
-mod generator;
+pub(crate) mod generator;
 pub use self::generator::Generator;
 
 mod generator_state;
@@ -73,7 +73,7 @@ mod label;
 pub use self::label::DebugLabel;
 pub(crate) use self::label::Label;
 
-mod object;
+pub(crate) mod object;
 pub use self::object::Object;
 
 mod panic;
@@ -85,7 +85,7 @@ pub use self::protocol::Protocol;
 mod protocol_caller;
 pub(crate) use self::protocol_caller::{EnvProtocolCaller, ProtocolCaller};
 
-mod range_from;
+pub(crate) mod range_from;
 pub use self::range_from::RangeFrom;
 
 mod range_full;

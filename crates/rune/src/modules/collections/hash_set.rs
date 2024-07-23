@@ -1,9 +1,7 @@
-use crate::alloc::fmt::TryWrite;
-use core::iter;
 use core::ptr;
 
 use crate as rune;
-
+use crate::alloc::fmt::TryWrite;
 use crate::alloc::hashbrown::raw::RawIter;
 use crate::alloc::prelude::*;
 use crate::hashbrown::{IterRef, Table};
@@ -12,7 +10,11 @@ use crate::runtime::{
 };
 use crate::{Any, ContextError, Module};
 
-pub(super) fn setup(module: &mut Module) -> Result<(), ContextError> {
+/// A dynamic hash set.
+#[rune::module(::std::collections::hash_set)]
+pub fn module() -> Result<Module, ContextError> {
+    let mut module = Module::from_meta(self::module_meta)?;
+
     module.ty::<HashSet>()?;
     module.function_meta(HashSet::new__meta)?;
     module.function_meta(HashSet::with_capacity__meta)?;
@@ -34,11 +36,26 @@ pub(super) fn setup(module: &mut Module) -> Result<(), ContextError> {
     module.function_meta(HashSet::eq__meta)?;
     module.function_meta(HashSet::clone__meta)?;
     module.function_meta(HashSet::from__meta)?;
-    Ok(())
+
+    module.ty::<Iter>()?;
+    module.function_meta(Iter::next)?;
+    module.function_meta(Iter::size_hint)?;
+
+    module.ty::<Difference>()?;
+    module.function_meta(Difference::next)?;
+    module.function_meta(Difference::size_hint)?;
+
+    module.ty::<Intersection>()?;
+    module.function_meta(Intersection::next)?;
+    module.function_meta(Intersection::size_hint)?;
+
+    module.ty::<Union>()?;
+    module.function_meta(Union::next)?;
+    Ok(module)
 }
 
 #[derive(Any)]
-#[rune(module = crate, item = ::std::collections)]
+#[rune(module = crate, item = ::std::collections::hash_set)]
 pub(crate) struct HashSet {
     table: Table<()>,
 }
@@ -231,9 +248,8 @@ impl HashSet {
     /// assert_eq!(diff, [4].iter().collect::<HashSet>());
     /// ```
     #[rune::function(keep, instance, path = Self::difference)]
-    fn difference(this: Ref<Self>, other: Ref<Self>) -> Iterator {
-        let iter = Self::difference_inner(this, other);
-        Iterator::from("std::collections::hash_set::Difference", iter)
+    fn difference(this: Ref<Self>, other: Ref<Self>) -> Difference {
+        Self::difference_inner(this, other)
     }
 
     fn difference_inner(this: Ref<Self>, other: Ref<Self>) -> Difference {
@@ -261,9 +277,9 @@ impl HashSet {
     /// assert_eq!(values, [2, 3].iter().collect::<HashSet>());
     /// ```
     #[rune::function(keep, instance, path = Self::intersection)]
-    fn intersection(this: Ref<Self>, other: Ref<Self>) -> Iterator {
+    fn intersection(this: Ref<Self>, other: Ref<Self>) -> Intersection {
         // use shortest iterator as driver for intersections
-        let iter = if this.table.len() <= other.table.len() {
+        if this.table.len() <= other.table.len() {
             Intersection {
                 this: Table::iter_ref(Ref::map(this, |this| &this.table)),
                 other: Some(other),
@@ -273,9 +289,7 @@ impl HashSet {
                 this: Table::iter_ref(Ref::map(other, |this| &this.table)),
                 other: Some(this),
             }
-        };
-
-        Iterator::from("std::collections::hash_set::Intersection", iter)
+        }
     }
 
     /// Visits the values representing the union, i.e., all the values in `self`
@@ -296,7 +310,7 @@ impl HashSet {
     /// assert_eq!(union, HashSet::from([1, 2, 3, 4]));
     /// ```
     #[rune::function(keep, instance, path = Self::union)]
-    fn union(this: Ref<Self>, other: Ref<Self>) -> VmResult<Iterator> {
+    fn union(this: Ref<Self>, other: Ref<Self>) -> VmResult<Union> {
         unsafe {
             let (this, this_guard) = Ref::into_raw(Ref::map(this, |this| &this.table));
             let (other, other_guard) = Ref::into_raw(Ref::map(other, |this| &this.table));
@@ -324,7 +338,7 @@ impl HashSet {
                 }
             };
 
-            VmResult::Ok(Iterator::from("std::collections::hash_set::Union", iter))
+            VmResult::Ok(iter)
         }
     }
 
@@ -341,13 +355,10 @@ impl HashSet {
     /// assert_eq!(vec, [1, 2, 3]);
     /// ```
     #[rune::function(keep, instance, path = Self::iter)]
-    fn iter(this: Ref<Self>) -> VmResult<Iterator> {
-        let iter = Self::iter_inner(this);
-        VmResult::Ok(Iterator::from("std::collections::hash_set::Iter", iter))
-    }
+    fn iter(this: Ref<Self>) -> Iter {
+        let iter = Table::iter_ref(Ref::map(this, |this| &this.table));
 
-    fn iter_inner(this: Ref<Self>) -> impl iter::Iterator<Item = Value> {
-        Table::iter_ref(Ref::map(this, |this| &this.table)).map(|(key, ())| key)
+        Iter { iter }
     }
 
     /// Extend this set from an iterator.
@@ -381,7 +392,7 @@ impl HashSet {
     /// assert_eq!(vec, [1, 2, 3]);
     /// ```
     #[rune::function(keep, instance, protocol = INTO_ITER, path = Self)]
-    fn into_iter(this: Ref<Self>) -> VmResult<Iterator> {
+    fn into_iter(this: Ref<Self>) -> Iter {
         Self::iter(this)
     }
 
@@ -493,74 +504,97 @@ impl HashSet {
     }
 }
 
+#[derive(Any)]
+#[rune(item = ::std::collections::hash_set)]
+struct Iter {
+    iter: IterRef<()>,
+}
+
+impl Iter {
+    #[rune::function(instance, protocol = NEXT)]
+    pub(crate) fn next(&mut self) -> Option<Value> {
+        let (value, ()) = self.iter.next()?;
+        Some(value)
+    }
+
+    #[rune::function(instance, protocol = SIZE_HINT)]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
+}
+
+#[derive(Any)]
+#[rune(item = ::std::collections::hash_set)]
 struct Intersection {
     this: IterRef<()>,
     other: Option<Ref<HashSet>>,
 }
 
-impl iter::Iterator for Intersection {
-    type Item = VmResult<Value>;
-
-    fn next(&mut self) -> Option<Self::Item> {
+impl Intersection {
+    #[rune::function(instance, protocol = NEXT)]
+    pub(crate) fn next(&mut self) -> VmResult<Option<Value>> {
         let mut caller = EnvProtocolCaller;
-        let other = self.other.as_ref()?;
+
+        let Some(other) = &self.other else {
+            return VmResult::Ok(None);
+        };
 
         for (key, ()) in self.this.by_ref() {
-            let c = match other.table.get(&key, &mut caller) {
-                VmResult::Ok(c) => c.is_some(),
-                VmResult::Err(e) => return Some(VmResult::Err(e)),
-            };
+            let c = vm_try!(other.table.get(&key, &mut caller)).is_some();
 
             if c {
-                return Some(VmResult::Ok(key));
+                return VmResult::Ok(Some(key));
             }
         }
 
         self.other = None;
-        None
+        VmResult::Ok(None)
     }
 
-    #[inline]
+    #[rune::function(instance, protocol = SIZE_HINT)]
     fn size_hint(&self) -> (usize, Option<usize>) {
         let (_, upper) = self.this.size_hint();
         (0, upper)
     }
 }
 
+#[derive(Any)]
+#[rune(item = ::std::collections::hash_set)]
 struct Difference {
     this: IterRef<()>,
     other: Option<Ref<HashSet>>,
 }
 
-impl iter::Iterator for Difference {
-    type Item = VmResult<Value>;
-
-    fn next(&mut self) -> Option<Self::Item> {
+impl Difference {
+    #[rune::function(instance, protocol = NEXT)]
+    pub(crate) fn next(&mut self) -> VmResult<Option<Value>> {
         let mut caller = EnvProtocolCaller;
-        let other = self.other.as_ref()?;
+
+        let Some(other) = &self.other else {
+            return VmResult::Ok(None);
+        };
 
         for (key, ()) in self.this.by_ref() {
-            let c = match other.table.get(&key, &mut caller) {
-                VmResult::Ok(c) => c.is_some(),
-                VmResult::Err(e) => return Some(VmResult::Err(e)),
-            };
+            let c = vm_try!(other.table.get(&key, &mut caller)).is_some();
 
             if !c {
-                return Some(VmResult::Ok(key));
+                return VmResult::Ok(Some(key));
             }
         }
 
         self.other = None;
-        None
+        VmResult::Ok(None)
     }
 
-    #[inline]
+    #[rune::function(instance, protocol = SIZE_HINT)]
     fn size_hint(&self) -> (usize, Option<usize>) {
         let (_, upper) = self.this.size_hint();
         (0, upper)
     }
 }
 
+#[derive(Any)]
+#[rune(item = ::std::collections::hash_set)]
 struct Union {
     this: ptr::NonNull<Table<()>>,
     this_iter: RawIter<(Value, ())>,
@@ -568,16 +602,15 @@ struct Union {
     _guards: (RawRef, RawRef),
 }
 
-impl iter::Iterator for Union {
-    type Item = VmResult<Value>;
-
-    fn next(&mut self) -> Option<Self::Item> {
+impl Union {
+    #[rune::function(instance, protocol = NEXT)]
+    fn next(&mut self) -> VmResult<Option<Value>> {
         // SAFETY: we're holding onto the ref guards for both collections during
         // iteration, so this is valid for the lifetime of the iterator.
         unsafe {
             if let Some(bucket) = self.this_iter.next() {
                 let (value, ()) = bucket.as_ref();
-                return Some(VmResult::Ok(value.clone()));
+                return VmResult::Ok(Some(value.clone()));
             }
 
             let mut caller = EnvProtocolCaller;
@@ -585,14 +618,12 @@ impl iter::Iterator for Union {
             for bucket in self.other_iter.by_ref() {
                 let (key, ()) = bucket.as_ref();
 
-                match self.this.as_ref().get(key, &mut caller) {
-                    VmResult::Ok(None) => return Some(VmResult::Ok(key.clone())),
-                    VmResult::Ok(..) => {}
-                    VmResult::Err(e) => return Some(VmResult::Err(e)),
+                if vm_try!(self.this.as_ref().get(key, &mut caller)).is_none() {
+                    return VmResult::Ok(Some(key.clone()));
                 }
             }
 
-            None
+            VmResult::Ok(None)
         }
     }
 }

@@ -6,9 +6,11 @@ use once_cell::sync::OnceCell;
 use rune_alloc::hash_map::RandomState;
 
 use crate as rune;
+use crate::runtime::generator;
+use crate::runtime::range_from::RangeFromIter;
 use crate::runtime::{
-    ControlFlow, EnvProtocolCaller, Function, Generator, GeneratorState, Hasher, Iterator, Range,
-    RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Value, Vm, VmResult,
+    ControlFlow, EnvProtocolCaller, Function, Generator, GeneratorState, Hasher, Range, RangeFrom,
+    RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Value, Vm, VmResult,
 };
 use crate::{ContextError, Module};
 
@@ -28,6 +30,15 @@ pub fn module() -> Result<Module, ContextError> {
         m.function_meta(RangeFrom::eq__meta)?;
         m.function_meta(RangeFrom::partial_cmp__meta)?;
         m.function_meta(RangeFrom::cmp__meta)?;
+
+        m.ty::<RangeFromIter<u8>>()?;
+        m.function_meta(RangeFromIter::<u8>::next__meta)?;
+
+        m.ty::<RangeFromIter<i64>>()?;
+        m.function_meta(RangeFromIter::<i64>::next__meta)?;
+
+        m.ty::<RangeFromIter<char>>()?;
+        m.function_meta(RangeFromIter::<char>::next__meta)?;
     }
 
     {
@@ -87,6 +98,9 @@ pub fn module() -> Result<Module, ContextError> {
         m.function_meta(generator_resume)?;
         m.function_meta(generator_iter)?;
         m.function_meta(generator_into_iter)?;
+
+        m.ty::<generator::Iter>()?;
+        m.function_meta(generator::Iter::next__meta)?;
     }
 
     {
@@ -292,12 +306,14 @@ fn generator_resume(this: &mut Generator<Vm>, value: Value) -> VmResult<Generato
 }
 
 #[rune::function(instance, path = iter)]
-fn generator_iter(this: Generator<Vm>) -> Iterator {
+#[inline]
+fn generator_iter(this: Generator<Vm>) -> generator::Iter {
     this.rune_iter()
 }
 
 #[rune::function(instance, protocol = INTO_ITER)]
-fn generator_into_iter(this: Generator<Vm>) -> Iterator {
+#[inline]
+fn generator_into_iter(this: Generator<Vm>) -> generator::Iter {
     this.rune_iter()
 }
 

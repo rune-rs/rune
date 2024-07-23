@@ -1,28 +1,16 @@
 //! Dynamic collections.
 
 #[cfg(feature = "alloc")]
-mod hash_map;
+pub(crate) mod hash_map;
 #[cfg(feature = "alloc")]
-mod hash_set;
-mod vec_deque;
-
-use crate::{ContextError, Module};
+pub(crate) use hash_map::HashMap;
 
 #[cfg(feature = "alloc")]
-pub(crate) use self::hash_map::HashMap;
+pub(crate) mod hash_set;
 #[cfg(feature = "alloc")]
-pub(crate) use self::hash_set::HashSet;
-pub(crate) use self::vec_deque::VecDeque;
-use crate as rune;
+pub(crate) use hash_set::HashSet;
 
-/// Dynamic collections.
-#[rune::module(::std::collections)]
-pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::from_meta(self::module_meta)?;
-    #[cfg(feature = "alloc")]
-    hash_map::setup(&mut module)?;
-    #[cfg(feature = "alloc")]
-    hash_set::setup(&mut module)?;
-    vec_deque::setup(&mut module)?;
-    Ok(module)
-}
+#[cfg(feature = "alloc")]
+pub(crate) mod vec_deque;
+#[cfg(feature = "alloc")]
+pub(crate) use vec_deque::VecDeque;

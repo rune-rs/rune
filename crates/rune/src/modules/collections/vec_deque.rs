@@ -11,8 +11,12 @@ use crate::runtime::{
 };
 use crate::{Any, ContextError, Module};
 
-pub(super) fn setup(m: &mut Module) -> Result<(), ContextError> {
-    m.ty::<VecDeque>()?.docs([
+/// A dynamic vec deque.
+#[rune::module(::std::collections::hash_set)]
+pub fn module() -> Result<Module, ContextError> {
+    let mut module = Module::from_meta(self::module_meta)?;
+
+    module.ty::<VecDeque>()?.docs([
         "A double-ended queue implemented with a growable ring buffer.",
         "",
         "The \"default\" usage of this type as a queue is to use [`push_back`] to add to",
@@ -34,39 +38,39 @@ pub(super) fn setup(m: &mut Module) -> Result<(), ContextError> {
         "[`append`]: VecDeque::append",
     ])?;
 
-    m.function_meta(VecDeque::new)?;
-    m.function_meta(VecDeque::with_capacity)?;
-    m.function_meta(from)?;
+    module.function_meta(VecDeque::new)?;
+    module.function_meta(VecDeque::with_capacity)?;
+    module.function_meta(from)?;
 
-    m.function_meta(VecDeque::extend)?;
-    m.function_meta(VecDeque::insert)?;
-    m.function_meta(VecDeque::iter)?;
-    m.function_meta(VecDeque::reserve)?;
-    m.function_meta(VecDeque::len)?;
-    m.function_meta(VecDeque::capacity)?;
-    m.function_meta(VecDeque::front)?;
-    m.function_meta(VecDeque::back)?;
-    m.function_meta(VecDeque::push_back)?;
-    m.function_meta(VecDeque::push_front)?;
-    m.function_meta(VecDeque::pop_front)?;
-    m.function_meta(VecDeque::pop_back)?;
-    m.function_meta(VecDeque::remove)?;
-    m.function_meta(VecDeque::rotate_left)?;
-    m.function_meta(VecDeque::rotate_right)?;
+    module.function_meta(VecDeque::extend)?;
+    module.function_meta(VecDeque::insert)?;
+    module.function_meta(VecDeque::iter)?;
+    module.function_meta(VecDeque::reserve)?;
+    module.function_meta(VecDeque::len)?;
+    module.function_meta(VecDeque::capacity)?;
+    module.function_meta(VecDeque::front)?;
+    module.function_meta(VecDeque::back)?;
+    module.function_meta(VecDeque::push_back)?;
+    module.function_meta(VecDeque::push_front)?;
+    module.function_meta(VecDeque::pop_front)?;
+    module.function_meta(VecDeque::pop_back)?;
+    module.function_meta(VecDeque::remove)?;
+    module.function_meta(VecDeque::rotate_left)?;
+    module.function_meta(VecDeque::rotate_right)?;
 
-    m.associated_function(Protocol::INDEX_GET, VecDeque::get)?;
-    m.associated_function(Protocol::INDEX_SET, VecDeque::set)?;
-    m.associated_function(Protocol::INTO_ITER, VecDeque::__rune_fn__iter)?;
-    m.function_meta(VecDeque::string_debug)?;
-    m.function_meta(VecDeque::partial_eq)?;
-    m.function_meta(VecDeque::eq)?;
-    m.function_meta(VecDeque::partial_cmp)?;
-    m.function_meta(VecDeque::cmp)?;
-    Ok(())
+    module.associated_function(Protocol::INDEX_GET, VecDeque::get)?;
+    module.associated_function(Protocol::INDEX_SET, VecDeque::set)?;
+    module.associated_function(Protocol::INTO_ITER, VecDeque::__rune_fn__iter)?;
+    module.function_meta(VecDeque::string_debug)?;
+    module.function_meta(VecDeque::partial_eq)?;
+    module.function_meta(VecDeque::eq)?;
+    module.function_meta(VecDeque::partial_cmp)?;
+    module.function_meta(VecDeque::cmp)?;
+    Ok(module)
 }
 
 #[derive(Any, Default)]
-#[rune(module = crate, item = ::std::collections)]
+#[rune(module = crate, item = ::std::collections::vec_deque)]
 pub(crate) struct VecDeque {
     inner: alloc::VecDeque<Value>,
 }
