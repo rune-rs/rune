@@ -10,8 +10,9 @@ use crate::compile::meta;
 use crate::compile::Docs;
 #[cfg(feature = "emit")]
 use crate::compile::MetaInfo;
-use crate::compile::{ComponentRef, ContextError, IntoComponent, Item, ItemBuf, Names};
+use crate::compile::{ContextError, Names};
 use crate::hash;
+use crate::item::{ComponentRef, IntoComponent};
 use crate::module::{
     Fields, Module, ModuleAssociated, ModuleAssociatedKind, ModuleItem, ModuleType,
     TypeSpecification,
@@ -20,7 +21,7 @@ use crate::runtime::{
     AttributeMacroHandler, ConstValue, FunctionHandler, MacroHandler, Protocol, RuntimeContext,
     StaticType, TypeCheck, TypeInfo, VariantRtti,
 };
-use crate::Hash;
+use crate::{Hash, Item, ItemBuf};
 
 /// Context metadata.
 #[derive(Debug)]

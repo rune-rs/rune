@@ -10,10 +10,10 @@ use crate::alloc::{self, Box, HashMap, Vec};
 use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::compile::attrs::Parser;
-use crate::compile::{self, Item, ItemId, Location, MetaInfo, ModId, Pool, Visibility};
-use crate::hash::Hash;
+use crate::compile::{self, ItemId, Location, MetaInfo, ModId, Pool, Visibility};
 use crate::parse::{NonZeroId, ResolveContext};
 use crate::runtime::{Call, Protocol};
+use crate::{Hash, Item};
 
 /// A meta reference to an item being compiled.
 #[derive(Debug, TryClone, Clone, Copy)]

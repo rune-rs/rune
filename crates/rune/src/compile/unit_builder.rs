@@ -12,7 +12,7 @@ use crate::alloc::prelude::*;
 use crate::alloc::{self, try_format, Box, HashMap, String, Vec};
 use crate::ast::{Span, Spanned};
 use crate::compile::meta;
-use crate::compile::{self, Assembly, AssemblyInst, ErrorKind, Item, Location, Pool, WithSpan};
+use crate::compile::{self, Assembly, AssemblyInst, ErrorKind, Location, Pool, WithSpan};
 use crate::hash;
 use crate::query::QueryInner;
 use crate::runtime::debug::{DebugArgs, DebugSignature};
@@ -21,7 +21,7 @@ use crate::runtime::{
     Call, ConstValue, DebugInfo, DebugInst, Inst, Label, Protocol, Rtti, StaticString, Unit,
     UnitFn, VariantRtti,
 };
-use crate::{Context, Diagnostics, Hash, SourceId};
+use crate::{Context, Diagnostics, Hash, Item, SourceId};
 
 /// Errors that can be raised when linking units.
 #[derive(Debug)]

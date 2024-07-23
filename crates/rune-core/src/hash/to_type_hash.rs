@@ -2,7 +2,8 @@ use core::hash::{self, Hash as _, Hasher as _};
 
 #[cfg(feature = "alloc")]
 use crate::alloc;
-use crate::hash::{Hash, TYPE};
+use crate::hash::Hash;
+use crate::hash::TYPE;
 use crate::item::{IntoComponent, ItemBuf};
 
 /// Helper trait used to convert a type into a type hash.

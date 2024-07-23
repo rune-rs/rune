@@ -2,8 +2,8 @@ use core::fmt;
 
 use crate::alloc;
 use crate::alloc::prelude::*;
-use crate::compile::{meta, Item, ItemBuf};
-use crate::Hash;
+use crate::compile::meta;
+use crate::{Hash, Item, ItemBuf};
 
 /// Provides an owned human-readable description of a meta item.
 #[derive(Debug)]

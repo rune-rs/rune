@@ -1,9 +1,8 @@
 use core::fmt;
 
 use crate::alloc::{self, Box};
-use crate::compile::ItemBuf;
 use crate::runtime::{TypeInfo, VmError};
-use crate::Hash;
+use crate::{Hash, ItemBuf};
 
 /// An error raised when building the context.
 #[derive(Debug)]

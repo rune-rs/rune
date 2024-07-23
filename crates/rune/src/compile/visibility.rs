@@ -1,6 +1,6 @@
 use core::fmt;
 
-use crate::compile::Item;
+use crate::Item;
 
 /// Information on the visibility of an item.
 #[derive(Debug, Clone, Copy)]

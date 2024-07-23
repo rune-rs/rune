@@ -20,14 +20,15 @@ use crate::alloc::borrow::Cow;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, VecDeque};
-use crate::compile::{meta, ComponentRef, Item, ItemBuf};
+use crate::compile::meta;
 use crate::doc::artifacts::Test;
 use crate::doc::context::{Function, Kind, Meta, Signature};
 use crate::doc::templating;
 use crate::doc::{Artifacts, Context, Visitor};
+use crate::item::ComponentRef;
 use crate::runtime::static_type;
 use crate::std::borrow::ToOwned;
-use crate::Hash;
+use crate::{Hash, Item, ItemBuf};
 
 // InspiredGitHub
 // Solarized (dark)

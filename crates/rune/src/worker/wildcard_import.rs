@@ -1,6 +1,8 @@
 use crate::alloc::prelude::*;
-use crate::compile::{self, ErrorKind, IntoComponent, ItemBuf, Location, ModId, Visibility};
+use crate::compile::{self, ErrorKind, Location, ModId, Visibility};
+use crate::item::IntoComponent;
 use crate::query::Query;
+use crate::ItemBuf;
 
 pub(crate) struct WildcardImport {
     pub(crate) visibility: Visibility,

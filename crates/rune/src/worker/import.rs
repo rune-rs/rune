@@ -4,11 +4,11 @@ use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, VecDeque};
 use crate::ast;
 use crate::ast::Spanned;
-use crate::compile::{self, DynLocation, ErrorKind, ItemBuf, Location, ModId, Visibility};
+use crate::compile::{self, DynLocation, ErrorKind, Location, ModId, Visibility};
 use crate::parse::Resolve;
 use crate::query::Query;
 use crate::worker::{ImportKind, Task, WildcardImport};
-use crate::SourceId;
+use crate::{ItemBuf, SourceId};
 
 /// Import to process.
 #[derive(Debug)]

@@ -8,7 +8,7 @@ use std::path::Path;
 
 use crate::alloc::borrow::Cow;
 use crate::alloc::{String, Vec};
-use crate::compile::ItemBuf;
+use crate::ItemBuf;
 
 use anyhow::{Context as _, Error, Result};
 use base64::display::Base64Display;

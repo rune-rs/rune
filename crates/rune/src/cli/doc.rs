@@ -8,8 +8,8 @@ use anyhow::{Context, Result};
 use crate::alloc::prelude::*;
 use crate::cli::naming::Naming;
 use crate::cli::{AssetKind, CommandBase, Config, Entry, EntryPoint, ExitCode, Io, SharedFlags};
-use crate::compile::{FileSourceLoader, ItemBuf};
-use crate::{Diagnostics, Options, Source, Sources};
+use crate::compile::FileSourceLoader;
+use crate::{Diagnostics, ItemBuf, Options, Source, Sources};
 
 mod cli {
     use std::path::PathBuf;

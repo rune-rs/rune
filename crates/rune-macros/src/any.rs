@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned, ToTokens};
-use rune_core::Hash;
+use rune_core::hash::Hash;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::Token;

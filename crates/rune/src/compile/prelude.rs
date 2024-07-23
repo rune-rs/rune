@@ -1,5 +1,5 @@
 use crate::alloc::{self, Box, HashMap};
-use crate::compile::{IntoComponent, Item, ItemBuf};
+use crate::item::{IntoComponent, Item, ItemBuf};
 
 /// The contents of a prelude.
 #[derive(Default)]

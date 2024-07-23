@@ -9,17 +9,20 @@ use crate::alloc::borrow::Cow;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, BTreeMap, HashSet, VecDeque};
 use crate::alloc::{hash_map, HashMap};
+use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::compile::context::ContextMeta;
 use crate::compile::ir;
 use crate::compile::meta::{self, FieldMeta};
 use crate::compile::{
-    self, CompileVisitor, ComponentRef, Doc, DynLocation, ErrorKind, ImportStep, IntoComponent,
-    Item, ItemBuf, ItemId, ItemMeta, Located, Location, MetaError, ModId, ModMeta, Names, Pool,
-    Prelude, SourceLoader, SourceMeta, UnitBuilder, Visibility, WithSpan,
+    self, CompileVisitor, Doc, DynLocation, ErrorKind, ImportStep, ItemId, ItemMeta, Located,
+    Location, MetaError, ModId, ModMeta, Names, Pool, Prelude, SourceLoader, SourceMeta,
+    UnitBuilder, Visibility, WithSpan,
 };
 use crate::hir;
 use crate::indexing::{self, FunctionAst, Indexed, Items};
+use crate::item::ComponentRef;
+use crate::item::IntoComponent;
 use crate::macros::Storage;
 use crate::parse::{Id, NonZeroId, Opaque, Resolve, ResolveContext};
 use crate::query::{
@@ -30,8 +33,7 @@ use crate::query::{
 use crate::runtime::Call;
 use crate::runtime::ConstValue;
 use crate::shared::{Consts, Gen};
-use crate::{ast, Options};
-use crate::{Context, Diagnostics, Hash, SourceId, Sources};
+use crate::{Context, Diagnostics, Hash, Item, ItemBuf, Options, SourceId, Sources};
 
 #[derive(Debug)]
 pub(crate) struct MissingId {

@@ -5,9 +5,10 @@ use crate::alloc::borrow::Cow;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::{String, Vec};
-use crate::compile::{ComponentRef, Item};
 use crate::doc::build::{Builder, Ctxt, IndexEntry, IndexKind};
 use crate::doc::context::{Assoc, AssocFnKind, Meta};
+use crate::item::ComponentRef;
+use crate::Item;
 
 #[derive(Serialize)]
 pub(super) struct Protocol<'a> {

@@ -3,10 +3,9 @@ use crate::alloc::hash_map::{self, HashMap};
 use crate::alloc::prelude::*;
 use crate::alloc::{Box, String, Vec};
 use crate::compile::meta;
-use crate::compile::{
-    CompileVisitor, IntoComponent, Item, ItemBuf, Located, MetaError, MetaRef, Names,
-};
-use crate::hash::Hash;
+use crate::compile::{CompileVisitor, Located, MetaError, MetaRef, Names};
+use crate::item::IntoComponent;
+use crate::{Hash, Item, ItemBuf};
 
 pub(crate) struct VisitorData {
     pub(crate) item: ItemBuf,

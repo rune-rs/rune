@@ -6,7 +6,7 @@ use crate::module::{AssociatedName, ToFieldFunction, ToInstance};
 use crate::runtime::Protocol;
 
 #[doc(inline)]
-pub use rune_core::Params;
+pub use rune_core::params::Params;
 
 impl<T, const N: usize> ToInstance for Params<T, N>
 where

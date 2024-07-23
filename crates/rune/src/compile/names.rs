@@ -3,7 +3,7 @@ use core::mem::replace;
 use crate::alloc;
 use crate::alloc::btree_map::{self, BTreeMap};
 use crate::alloc::prelude::*;
-use crate::compile::{Component, ComponentRef, IntoComponent};
+use crate::item::{Component, ComponentRef, IntoComponent};
 
 /// A tree of names.
 #[derive(Default, Debug)]

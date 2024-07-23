@@ -1,7 +1,6 @@
 use crate::ast::Spanned;
-use crate::compile::{Item, Located, MetaError, MetaRef};
-use crate::hash::Hash;
-use crate::SourceId;
+use crate::compile::{Located, MetaError, MetaRef};
+use crate::{Hash, Item, SourceId};
 
 /// A visitor that will be called for every language item compiled.
 pub trait CompileVisitor {

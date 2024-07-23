@@ -104,7 +104,7 @@ mod range;
 pub use self::range::Range;
 
 #[doc(inline)]
-pub use rune_core::RawStr;
+pub use rune_core::raw_str::RawStr;
 
 mod runtime_context;
 pub use self::runtime_context::RuntimeContext;

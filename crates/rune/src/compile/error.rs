@@ -10,7 +10,7 @@ use crate::ast;
 use crate::ast::unescape;
 use crate::ast::{Span, Spanned};
 use crate::compile::ir;
-use crate::compile::{HasSpan, ItemBuf, Location, MetaInfo, Visibility};
+use crate::compile::{HasSpan, Location, MetaInfo, Visibility};
 use crate::indexing::items::{GuardMismatch, MissingLastId};
 use crate::macros::{SyntheticId, SyntheticKind};
 use crate::parse::{Expectation, IntoExpectation, LexerMode};
@@ -21,7 +21,7 @@ use crate::runtime::{AccessError, RuntimeError, TypeInfo, TypeOf, ValueKind, VmE
 use crate::shared::CapacityError;
 #[cfg(feature = "std")]
 use crate::source;
-use crate::{Hash, SourceId};
+use crate::{Hash, ItemBuf, SourceId};
 
 /// An error raised by the compiler.
 #[derive(Debug)]

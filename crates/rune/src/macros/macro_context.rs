@@ -33,13 +33,13 @@ cfg_std! {
         F: FnOnce(&mut MacroContext<'_, '_, '_>) -> crate::support::Result<O>,
     {
         use crate::support::Context as _;
-        use crate::compile::{Item, NoopCompileVisitor, NoopSourceLoader, Pool, Prelude, UnitBuilder};
+        use crate::compile::{NoopCompileVisitor, NoopSourceLoader, Pool, Prelude, UnitBuilder};
         use crate::hir;
         use crate::indexing::{IndexItem, Items, Scopes};
         use crate::macros::Storage;
         use crate::query::Query;
         use crate::shared::{Consts, Gen};
-        use crate::{Context, Diagnostics, Options, Sources};
+        use crate::{Context, Diagnostics, Options, Sources, Item};
 
         let mut unit = UnitBuilder::default();
         let prelude = Prelude::default();

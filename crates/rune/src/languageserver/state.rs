@@ -14,15 +14,15 @@ use crate::alloc::{self, HashMap, String, Vec};
 use crate::ast::{Span, Spanned};
 use crate::compile::meta;
 use crate::compile::{
-    self, CompileVisitor, ComponentRef, Item, LinkerError, Located, Location, MetaError, MetaRef,
-    SourceMeta, WithSpan,
+    self, CompileVisitor, LinkerError, Located, Location, MetaError, MetaRef, SourceMeta, WithSpan,
 };
 use crate::diagnostics::{Diagnostic, FatalDiagnosticKind};
 use crate::doc::VisitorData;
+use crate::item::ComponentRef;
 use crate::languageserver::connection::Output;
 use crate::languageserver::Language;
 use crate::workspace::{self, WorkspaceError};
-use crate::{BuildError, Context, Options, SourceId, Unit};
+use crate::{BuildError, Context, Item, Options, SourceId, Unit};
 
 #[derive(Default)]
 struct Reporter {
