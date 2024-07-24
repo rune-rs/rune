@@ -3,16 +3,41 @@ use crate::compile::meta;
 use crate::runtime::{Mut, Ref, Shared, TypeInfo};
 use crate::Hash;
 
+/// Core type of trait.
+pub trait CoreTypeOf {
+    /// Get full type hash, including type parameters.
+    fn type_hash() -> Hash;
+}
+
+/// Blanket implementation for references.
+impl<T> CoreTypeOf for &T
+where
+    T: ?Sized + CoreTypeOf,
+{
+    #[inline]
+    fn type_hash() -> Hash {
+        T::type_hash()
+    }
+}
+
+/// Blanket implementation for mutable references.
+impl<T> CoreTypeOf for &mut T
+where
+    T: ?Sized + CoreTypeOf,
+{
+    #[inline]
+    fn type_hash() -> Hash {
+        T::type_hash()
+    }
+}
+
 /// Trait used for Rust types for which we can determine the runtime type of.
-pub trait TypeOf {
+pub trait TypeOf: CoreTypeOf {
     /// Hash of type parameters.
     #[inline]
     fn type_parameters() -> Hash {
         Hash::EMPTY
     }
-
-    /// Get full type hash, including type parameters.
-    fn type_hash() -> Hash;
 
     /// Access diagnostical information on the value type.
     fn type_info() -> TypeInfo;
@@ -85,11 +110,6 @@ where
     }
 
     #[inline]
-    fn type_hash() -> Hash {
-        T::type_hash()
-    }
-
-    #[inline]
     fn type_info() -> TypeInfo {
         T::type_info()
     }
@@ -106,13 +126,19 @@ where
     }
 
     #[inline]
-    fn type_hash() -> Hash {
-        T::type_hash()
-    }
-
-    #[inline]
     fn type_info() -> TypeInfo {
         T::type_info()
+    }
+}
+
+/// Blanket implementation for owned references.
+impl<T> CoreTypeOf for Ref<T>
+where
+    T: ?Sized + CoreTypeOf,
+{
+    #[inline]
+    fn type_hash() -> Hash {
+        T::type_hash()
     }
 }
 
@@ -127,13 +153,19 @@ where
     }
 
     #[inline]
-    fn type_hash() -> Hash {
-        T::type_hash()
-    }
-
-    #[inline]
     fn type_info() -> TypeInfo {
         T::type_info()
+    }
+}
+
+/// Blanket implementation for owned mutable references.
+impl<T> CoreTypeOf for Mut<T>
+where
+    T: ?Sized + CoreTypeOf,
+{
+    #[inline]
+    fn type_hash() -> Hash {
+        T::type_hash()
     }
 }
 
@@ -148,13 +180,19 @@ where
     }
 
     #[inline]
-    fn type_hash() -> Hash {
-        T::type_hash()
-    }
-
-    #[inline]
     fn type_info() -> TypeInfo {
         T::type_info()
+    }
+}
+
+/// Blanket implementation for owned shared values.
+impl<T> CoreTypeOf for Shared<T>
+where
+    T: ?Sized + CoreTypeOf,
+{
+    #[inline]
+    fn type_hash() -> Hash {
+        T::type_hash()
     }
 }
 
@@ -166,11 +204,6 @@ where
     #[inline]
     fn type_parameters() -> Hash {
         T::type_parameters()
-    }
-
-    #[inline]
-    fn type_hash() -> Hash {
-        T::type_hash()
     }
 
     #[inline]

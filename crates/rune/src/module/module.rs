@@ -4,8 +4,10 @@ use ::rust_alloc::sync::Arc;
 
 use crate as rune;
 use crate::alloc::prelude::*;
-use crate::alloc::{self, Box, HashMap, HashSet, String, Vec};
+use crate::alloc::{Box, HashMap, HashSet, String, Vec};
+use crate::compile::context::{AttributeMacroHandler, MacroHandler};
 use crate::compile::{self, meta, ContextError, Docs, Named};
+use crate::function::{Async, Function, FunctionKind, InstanceFunction, Plain};
 use crate::function_meta::{
     Associated, AssociatedFunctionData, AssociatedName, FunctionArgs, FunctionBuilder,
     FunctionData, FunctionMeta, FunctionMetaKind, MacroMeta, MacroMetaKind, ToFieldFunction,
@@ -13,372 +15,20 @@ use crate::function_meta::{
 };
 use crate::item::IntoComponent;
 use crate::macros::{MacroContext, TokenStream};
-use crate::module::{
-    AssociatedKey, Async, EnumMut, Function, FunctionKind, InstallWith, InstanceFunction,
-    InternalEnum, InternalEnumMut, ItemFnMut, ItemMut, ModuleAssociated, ModuleAssociatedKind,
-    ModuleAttributeMacro, ModuleFunction, ModuleItem, ModuleItemCommon, ModuleItemKind,
-    ModuleMacro, ModuleType, Plain, TypeMut, TypeSpecification, VariantMut,
-};
+use crate::module::DocFunction;
 use crate::runtime::{
-    AttributeMacroHandler, ConstValue, FromValue, FunctionHandler, GeneratorState, InstAddress,
-    MacroHandler, MaybeTypeOf, Output, Protocol, Stack, ToValue, TypeCheck, TypeInfo, TypeOf,
-    Value, VmResult,
+    ConstValue, FromValue, GeneratorState, InstAddress, MaybeTypeOf, Memory, Output, Protocol,
+    ToValue, TypeCheck, TypeOf, Value, VmResult,
 };
-use crate::{Hash, ItemBuf};
+use crate::{Hash, Item, ItemBuf};
 
-/// Function builder as returned by [`Module::function`].
-///
-/// This allows for building a function regularly with
-/// [`ModuleFunctionBuilder::build`] or statically associate the function with a
-/// type through [`ModuleFunctionBuilder::build_associated::<T>`].
-#[must_use = "Must call one of the build functions, like `build` or `build_associated`"]
-pub struct ModuleFunctionBuilder<'a, F, A, N, K> {
-    module: &'a mut Module,
-    inner: FunctionBuilder<N, F, A, K>,
-}
-
-impl<'a, F, A, N, K> ModuleFunctionBuilder<'a, F, A, N, K>
-where
-    F: Function<A, K>,
-    F::Return: MaybeTypeOf,
-    A: FunctionArgs,
-    K: FunctionKind,
-{
-    /// Construct a regular function.
-    ///
-    /// This register the function as a free function in the module it's
-    /// associated with, who's full name is the name of the module extended by
-    /// the name of the function.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rune::{Any, Module};
-    ///
-    /// let mut m = Module::with_item(["module"])?;
-    /// m.function("floob", || ()).build()?;
-    /// # Ok::<_, rune::support::Error>(())
-    /// ```
-    #[inline]
-    pub fn build(self) -> Result<ItemFnMut<'a>, ContextError>
-    where
-        N: IntoComponent,
-    {
-        let meta = self.inner.build()?;
-        self.module.function_from_meta_kind(meta)
-    }
-
-    /// Construct a function that is associated with `T`.
-    ///
-    /// This registers the function as an assocaited function, which can only be
-    /// used through the type `T`.
-    ///
-    /// # Errors
-    ///
-    /// This function call will cause an error in [`Context::install`] if the
-    /// type we're associating it with has not been registered.
-    ///
-    /// [`Context::install`]: crate::Context::install
-    ///
-    /// ```
-    /// use rune::{Any, Context, Module};
-    ///
-    /// #[derive(Any)]
-    /// struct Thing;
-    ///
-    /// let mut m = Module::default();
-    /// m.function("floob", || ()).build_associated::<Thing>()?;
-    ///
-    /// let mut c = Context::default();
-    /// assert!(c.install(m).is_err());
-    /// # Ok::<_, rune::support::Error>(())
-    /// ```
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rune::{Any, Module};
-    ///
-    /// #[derive(Any)]
-    /// struct Thing;
-    ///
-    /// let mut m = Module::default();
-    /// m.ty::<Thing>()?;
-    /// m.function("floob", || ()).build_associated::<Thing>()?;
-    /// # Ok::<_, rune::support::Error>(())
-    /// ```
-    #[inline]
-    pub fn build_associated<T>(self) -> Result<ItemFnMut<'a>, ContextError>
-    where
-        N: ToInstance,
-        T: TypeOf,
-    {
-        let meta = self.inner.build_associated::<T>()?;
-        self.module.function_from_meta_kind(meta)
-    }
-
-    /// Construct a function that is associated with a custom dynamically
-    /// specified container.
-    ///
-    /// This registers the function as an assocaited function, which can only be
-    /// used through the specified type.
-    ///
-    /// [`Hash`] and [`TypeInfo`] are usually constructed through the
-    /// [`TypeOf`] trait. But that requires access to a static type, for which
-    /// you should use [`build_associated`] instead.
-    ///
-    /// # Errors
-    ///
-    /// The function call will error if the specified type is not already
-    /// registered in the module.
-    ///
-    /// [`build_associated`]: ModuleFunctionBuilder::build_associated
-    #[inline]
-    pub fn build_associated_with(
-        self,
-        container: Hash,
-        container_type_info: TypeInfo,
-    ) -> Result<ItemFnMut<'a>, ContextError>
-    where
-        N: ToInstance,
-    {
-        let meta = self
-            .inner
-            .build_associated_with(container, container_type_info)?;
-        self.module.function_from_meta_kind(meta)
-    }
-}
-
-/// Raw function builder as returned by [`Module::raw_function`].
-///
-/// This allows for building a function regularly with
-/// [`ModuleRawFunctionBuilder::build`] or statically associate the function
-/// with a type through [`ModuleRawFunctionBuilder::build_associated::<T>`].
-#[must_use = "Must call one of the build functions, like `build` or `build_associated`"]
-pub struct ModuleRawFunctionBuilder<'a, N> {
-    module: &'a mut Module,
-    name: N,
-    handler: Arc<FunctionHandler>,
-}
-
-impl<'a, N> ModuleRawFunctionBuilder<'a, N> {
-    /// Construct a regular function.
-    ///
-    /// This register the function as a free function in the module it's
-    /// associated with, who's full name is the name of the module extended by
-    /// the name of the function.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rune::{Any, Module};
-    /// use rune::runtime::VmResult;
-    ///
-    /// let mut m = Module::with_item(["module"])?;
-    /// m.raw_function("floob", |_, _, _, _| VmResult::Ok(())).build()?;
-    /// # Ok::<_, rune::support::Error>(())
-    /// ```
-    #[inline]
-    pub fn build(self) -> Result<ItemFnMut<'a>, ContextError>
-    where
-        N: IntoComponent,
-    {
-        let item = ItemBuf::with_item([self.name])?;
-        self.module
-            .function_from_meta_kind(FunctionMetaKind::Function(FunctionData::from_raw(
-                item,
-                self.handler,
-            )))
-    }
-
-    /// Construct a function that is associated with `T`.
-    ///
-    /// This registers the function as an assocaited function, which can only be
-    /// used through the type `T`.
-    ///
-    /// # Errors
-    ///
-    /// This function call will cause an error in [`Context::install`] if the
-    /// type we're associating it with has not been registered.
-    ///
-    /// [`Context::install`]: crate::Context::install
-    ///
-    /// ```
-    /// use rune::{Any, Module, Context};
-    ///
-    /// #[derive(Any)]
-    /// struct Thing;
-    ///
-    /// let mut m = Module::default();
-    /// m.function("floob", || ()).build_associated::<Thing>()?;
-    ///
-    /// let mut c = Context::default();
-    /// assert!(c.install(m).is_err());
-    /// # Ok::<_, rune::support::Error>(())
-    /// ```
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rune::{Any, Module};
-    /// use rune::runtime::VmResult;
-    ///
-    /// #[derive(Any)]
-    /// struct Thing;
-    ///
-    /// let mut m = Module::default();
-    /// m.ty::<Thing>()?;
-    /// m.raw_function("floob", |_, _, _, _| VmResult::Ok(())).build_associated::<Thing>()?;
-    /// # Ok::<_, rune::support::Error>(())
-    /// ```
-    #[inline]
-    pub fn build_associated<T>(self) -> Result<ItemFnMut<'a>, ContextError>
-    where
-        N: ToInstance,
-        T: TypeOf,
-    {
-        let associated = Associated::from_type::<T>(self.name.to_instance()?)?;
-
-        self.module
-            .function_from_meta_kind(FunctionMetaKind::AssociatedFunction(
-                AssociatedFunctionData::from_raw(associated, self.handler),
-            ))
-    }
-
-    /// Construct a function that is associated with a custom dynamically
-    /// specified container.
-    ///
-    /// This registers the function as an assocaited function, which can only be
-    /// used through the specified type.
-    ///
-    /// [`Hash`] and [`TypeInfo`] are usually constructed through the
-    /// [`TypeOf`] trait. But that requires access to a static type, for which
-    /// you should use [`build_associated`] instead.
-    ///
-    /// # Errors
-    ///
-    /// The function call will error if the specified type is not already
-    /// registered in the module.
-    ///
-    /// [`build_associated`]: ModuleFunctionBuilder::build_associated
-    #[inline]
-    pub fn build_associated_with(
-        self,
-        container: Hash,
-        container_type_info: TypeInfo,
-    ) -> Result<ItemFnMut<'a>, ContextError>
-    where
-        N: ToInstance,
-    {
-        let associated = Associated::new(self.name.to_instance()?, container, container_type_info);
-        self.module
-            .function_from_meta_kind(FunctionMetaKind::AssociatedFunction(
-                AssociatedFunctionData::from_raw(associated, self.handler),
-            ))
-    }
-}
-
-/// Raw function builder as returned by [`Module::raw_function`].
-///
-/// This allows for building a function regularly with
-/// [`ModuleConstantBuilder::build`] or statically associate the function with a
-/// type through [`ModuleConstantBuilder::build_associated::<T>`].
-#[must_use = "Must call one of the build functions, like `build` or `build_associated`"]
-pub struct ModuleConstantBuilder<'a, N, V> {
-    module: &'a mut Module,
-    name: N,
-    value: V,
-}
-
-impl<'a, N, V> ModuleConstantBuilder<'a, N, V>
-where
-    V: ToValue,
-{
-    /// Add the free constant directly to the module.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rune::{Any, Module};
-    /// use rune::runtime::VmResult;
-    ///
-    /// let mut m = Module::with_item(["module"])?;
-    /// m.constant("NAME", "Hello World").build()?;
-    /// # Ok::<_, rune::support::Error>(())
-    /// ```
-    pub fn build(self) -> Result<ItemMut<'a>, ContextError>
-    where
-        N: IntoComponent,
-    {
-        let item = ItemBuf::with_item([self.name])?;
-        self.module.insert_constant(item, self.value)
-    }
-
-    /// Build a constant that is associated with the static type `T`.
-    ///
-    /// # Errors
-    ///
-    /// This function call will cause an error in [`Context::install`] if the
-    /// type we're associating it with has not been registered.
-    ///
-    /// [`Context::install`]: crate::Context::install
-    ///
-    /// ```
-    /// use rune::{Any, Context, Module};
-    ///
-    /// #[derive(Any)]
-    /// struct Thing;
-    ///
-    /// let mut m = Module::default();
-    /// m.constant("CONSTANT", "Hello World").build_associated::<Thing>()?;
-    ///
-    /// let mut c = Context::default();
-    /// assert!(c.install(m).is_err());
-    /// # Ok::<_, rune::support::Error>(())
-    /// ```
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rune::{Any, Module};
-    ///
-    /// let mut module = Module::default();
-    ///
-    /// #[derive(Any)]
-    /// struct Thing;
-    ///
-    /// module.constant("TEN", 10).build_associated::<Thing>()?.docs(["Ten which is an associated constant."]);
-    /// # Ok::<_, rune::support::Error>(())
-    /// ```
-    pub fn build_associated<T>(self) -> Result<ItemMut<'a>, ContextError>
-    where
-        T: TypeOf,
-        N: ToInstance,
-    {
-        let name = self.name.to_instance()?;
-        let associated = Associated::from_type::<T>(name)?;
-        self.module
-            .insert_associated_constant(associated, self.value)
-    }
-}
-
-#[doc(hidden)]
-pub struct ModuleMetaData {
-    #[doc(hidden)]
-    pub item: ItemBuf,
-    #[doc(hidden)]
-    pub docs: &'static [&'static str],
-}
-
-/// Type used to collect and store module metadata through the `#[rune::module]`
-/// macro.
-///
-/// This is the argument type for [`Module::from_meta`], and is from a public
-/// API perspective completely opaque and might change for any release.
-///
-/// Calling and making use of `ModuleMeta` manually despite this warning might
-/// lead to future breakage.
-pub type ModuleMeta = fn() -> alloc::Result<ModuleMetaData>;
+use super::{
+    AssociatedKey, EnumMut, InstallWith, InternalEnum, InternalEnumMut, ItemFnMut, ItemMut,
+    ModuleAssociated, ModuleAssociatedKind, ModuleAttributeMacro, ModuleConstantBuilder,
+    ModuleFunction, ModuleFunctionBuilder, ModuleItem, ModuleItemCommon, ModuleItemKind,
+    ModuleMacro, ModuleMeta, ModuleRawFunctionBuilder, ModuleReexport, ModuleTrait,
+    ModuleTraitImpl, ModuleType, TraitMut, TypeMut, TypeSpecification, VariantMut,
+};
 
 #[derive(Debug, TryClone, PartialEq, Eq, Hash)]
 enum Name {
@@ -390,6 +40,8 @@ enum Name {
     Macro(Hash),
     /// An attribute macro.
     AttributeMacro(Hash),
+    /// A conflicting trait implementation.
+    TraitImpl(Hash, Hash),
 }
 
 /// A [Module] that is a collection of native functions and types.
@@ -412,6 +64,12 @@ pub struct Module {
     pub(crate) types: Vec<ModuleType>,
     /// Type hash to types mapping.
     pub(crate) types_hash: HashMap<Hash, usize>,
+    /// A trait registered in the current module.
+    pub(crate) traits: Vec<ModuleTrait>,
+    /// A trait implementation registered in the current module.
+    pub(crate) trait_impls: Vec<ModuleTraitImpl>,
+    /// A re-export in the current module.
+    pub(crate) reexports: Vec<ModuleReexport>,
     /// Module level metadata.
     pub(crate) common: ModuleItemCommon,
 }
@@ -434,11 +92,7 @@ impl Module {
     }
 
     /// Construct a new module for the given item.
-    pub fn with_item<I>(iter: I) -> Result<Self, ContextError>
-    where
-        I: IntoIterator,
-        I::Item: IntoComponent,
-    {
+    pub fn with_item(iter: impl IntoIterator<Item: IntoComponent>) -> Result<Self, ContextError> {
         Ok(Self::inner_new(ItemBuf::with_item(iter)?))
     }
 
@@ -448,11 +102,10 @@ impl Module {
     }
 
     /// Construct a new module for the given crate.
-    pub fn with_crate_item<I>(name: &str, iter: I) -> Result<Self, ContextError>
-    where
-        I: IntoIterator,
-        I::Item: IntoComponent,
-    {
+    pub fn with_crate_item(
+        name: &str,
+        iter: impl IntoIterator<Item: IntoComponent>,
+    ) -> Result<Self, ContextError> {
         Ok(Self::inner_new(ItemBuf::with_crate_item(name, iter)?))
     }
 
@@ -472,7 +125,10 @@ impl Module {
             items: Vec::new(),
             associated: Vec::new(),
             types: Vec::new(),
+            traits: Vec::new(),
+            trait_impls: Vec::new(),
             types_hash: HashMap::new(),
+            reexports: Vec::new(),
             common: ModuleItemCommon {
                 docs: Docs::EMPTY,
                 deprecated: None,
@@ -552,11 +208,11 @@ impl Module {
 
         self.types.try_push(ModuleType {
             item,
+            hash,
             common: ModuleItemCommon {
                 docs: Docs::EMPTY,
                 deprecated: None,
             },
-            hash,
             type_parameters,
             type_info,
             spec: None,
@@ -737,6 +393,7 @@ impl Module {
 
         self.install_internal_enum(name, enum_)
     }
+
     /// Construct type information for the `Option` type.
     ///
     /// Registering this allows the given type to be used in Rune scripts when
@@ -844,7 +501,9 @@ impl Module {
     /// struct MyType;
     ///
     /// module.constant("TEN", 10).build()?.docs(["A global ten value."]);
-    /// module.constant("TEN", 10).build_associated::<MyType>()?.docs(["Ten which looks like an associated constant."]);
+    /// module.constant("TEN", 10).build_associated::<MyType>()?.docs(rune::docstring! {
+    ///     /// Ten which looks like an associated constant.
+    /// });
     /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn constant<N, V>(&mut self, name: N, value: V) -> ModuleConstantBuilder<'_, N, V>
@@ -858,7 +517,11 @@ impl Module {
         }
     }
 
-    fn insert_constant<V>(&mut self, item: ItemBuf, value: V) -> Result<ItemMut<'_>, ContextError>
+    pub(super) fn insert_constant<V>(
+        &mut self,
+        item: ItemBuf,
+        value: V,
+    ) -> Result<ItemMut<'_>, ContextError>
     where
         V: ToValue,
     {
@@ -896,7 +559,7 @@ impl Module {
         })
     }
 
-    fn insert_associated_constant<V>(
+    pub(super) fn insert_associated_constant<V>(
         &mut self,
         associated: Associated,
         value: V,
@@ -1172,7 +835,7 @@ impl Module {
     /// Register a function handler through its meta.
     ///
     /// The metadata must be provided by annotating the function with
-    /// [`#[rune::function]`][crate::function].
+    /// [`#[rune::function]`][macro@crate::function].
     ///
     /// This has the benefit that it captures documentation comments which can
     /// be used when generating documentation or referencing the function
@@ -1257,7 +920,7 @@ impl Module {
         }
     }
 
-    fn function_from_meta_kind(
+    pub(super) fn function_from_meta_kind(
         &mut self,
         kind: FunctionMetaKind,
     ) -> Result<ItemFnMut<'_>, ContextError> {
@@ -1670,10 +1333,10 @@ impl Module {
     ///
     /// ```
     /// use rune::Module;
-    /// use rune::runtime::{Output, Stack, ToValue, VmResult, InstAddress};
+    /// use rune::runtime::{Output, Memory, ToValue, VmResult, InstAddress};
     /// use rune::vm_try;
     ///
-    /// fn sum(stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
+    /// fn sum(stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
     ///     let mut number = 0;
     ///
     ///     for value in vm_try!(stack.slice_at(addr, args)) {
@@ -1696,7 +1359,7 @@ impl Module {
     /// ```
     pub fn raw_function<F, N>(&mut self, name: N, f: F) -> ModuleRawFunctionBuilder<'_, N>
     where
-        F: 'static + Fn(&mut Stack, InstAddress, usize, Output) -> VmResult<()> + Send + Sync,
+        F: 'static + Fn(&mut dyn Memory, InstAddress, usize, Output) -> VmResult<()> + Send + Sync,
     {
         ModuleRawFunctionBuilder {
             module: self,
@@ -1709,7 +1372,7 @@ impl Module {
     #[deprecated = "Use `raw_function` builder instead"]
     pub fn raw_fn<F, N>(&mut self, name: N, f: F) -> Result<ItemFnMut<'_>, ContextError>
     where
-        F: 'static + Fn(&mut Stack, InstAddress, usize, Output) -> VmResult<()> + Send + Sync,
+        F: 'static + Fn(&mut dyn Memory, InstAddress, usize, Output) -> VmResult<()> + Send + Sync,
         N: IntoComponent,
     {
         self.raw_function(name, f).build()
@@ -1735,14 +1398,17 @@ impl Module {
             common: ModuleItemCommon { docs, deprecated },
             kind: ModuleItemKind::Function(ModuleFunction {
                 handler: data.handler,
-                #[cfg(feature = "doc")]
-                is_async: data.is_async,
-                #[cfg(feature = "doc")]
-                args: data.args,
-                #[cfg(feature = "doc")]
-                return_type: data.return_type,
-                #[cfg(feature = "doc")]
-                argument_types: data.argument_types,
+                trait_hash: None,
+                doc: DocFunction {
+                    #[cfg(feature = "doc")]
+                    is_async: data.is_async,
+                    #[cfg(feature = "doc")]
+                    args: data.args,
+                    #[cfg(feature = "doc")]
+                    return_type: data.return_type,
+                    #[cfg(feature = "doc")]
+                    argument_types: data.argument_types,
+                },
             }),
         })?;
 
@@ -1759,13 +1425,13 @@ impl Module {
             #[cfg(feature = "doc")]
             deprecated: &mut last.common.deprecated,
             #[cfg(feature = "doc")]
-            is_async: &mut last_fn.is_async,
+            is_async: &mut last_fn.doc.is_async,
             #[cfg(feature = "doc")]
-            args: &mut last_fn.args,
+            args: &mut last_fn.doc.args,
             #[cfg(feature = "doc")]
-            return_type: &mut last_fn.return_type,
+            return_type: &mut last_fn.doc.return_type,
             #[cfg(feature = "doc")]
-            argument_types: &mut last_fn.argument_types,
+            argument_types: &mut last_fn.doc.argument_types,
         })
     }
 
@@ -1785,14 +1451,17 @@ impl Module {
             common: ModuleItemCommon { docs, deprecated },
             kind: ModuleAssociatedKind::Function(ModuleFunction {
                 handler: data.handler,
-                #[cfg(feature = "doc")]
-                is_async: data.is_async,
-                #[cfg(feature = "doc")]
-                args: data.args,
-                #[cfg(feature = "doc")]
-                return_type: data.return_type,
-                #[cfg(feature = "doc")]
-                argument_types: data.argument_types,
+                trait_hash: None,
+                doc: DocFunction {
+                    #[cfg(feature = "doc")]
+                    is_async: data.is_async,
+                    #[cfg(feature = "doc")]
+                    args: data.args,
+                    #[cfg(feature = "doc")]
+                    return_type: data.return_type,
+                    #[cfg(feature = "doc")]
+                    argument_types: data.argument_types,
+                },
             }),
         })?;
 
@@ -1809,13 +1478,13 @@ impl Module {
             #[cfg(feature = "doc")]
             deprecated: &mut last.common.deprecated,
             #[cfg(feature = "doc")]
-            is_async: &mut last_fn.is_async,
+            is_async: &mut last_fn.doc.is_async,
             #[cfg(feature = "doc")]
-            args: &mut last_fn.args,
+            args: &mut last_fn.doc.args,
             #[cfg(feature = "doc")]
-            return_type: &mut last_fn.return_type,
+            return_type: &mut last_fn.doc.return_type,
             #[cfg(feature = "doc")]
-            argument_types: &mut last_fn.argument_types,
+            argument_types: &mut last_fn.doc.argument_types,
         })
     }
 
@@ -1851,6 +1520,93 @@ impl Module {
                 },
             });
         }
+
+        Ok(())
+    }
+
+    /// Define a new trait.
+    pub fn define_trait(
+        &mut self,
+        item: impl IntoIterator<Item: IntoComponent>,
+    ) -> Result<TraitMut<'_>, ContextError> {
+        let item = self.item.join(item)?;
+        let hash = Hash::type_hash(&item);
+
+        if !self.names.try_insert(Name::Item(hash))? {
+            return Err(ContextError::ConflictingTrait { item, hash });
+        }
+
+        self.traits.try_push(ModuleTrait {
+            item,
+            hash,
+            common: ModuleItemCommon::default(),
+            handler: None,
+            functions: Vec::new(),
+        })?;
+
+        let t = self.traits.last_mut().unwrap();
+
+        Ok(TraitMut {
+            docs: &mut t.common.docs,
+            #[cfg(feature = "doc")]
+            deprecated: &mut t.common.deprecated,
+            handler: &mut t.handler,
+            functions: &mut t.functions,
+        })
+    }
+
+    /// Implement the trait `trait_item` for the type `T`.
+    pub fn implement_trait<T>(&mut self, trait_item: &Item) -> Result<(), ContextError>
+    where
+        T: ?Sized + TypeOf + Named,
+    {
+        let item = ItemBuf::with_item([T::BASE_NAME])?;
+        let hash = T::type_hash();
+        let type_info = T::type_info();
+        let trait_hash = Hash::type_hash(trait_item);
+
+        if !self.names.try_insert(Name::TraitImpl(hash, trait_hash))? {
+            return Err(ContextError::ConflictingTraitImpl {
+                trait_item: trait_item.try_to_owned()?,
+                trait_hash,
+                item,
+                hash,
+            });
+        }
+
+        self.trait_impls.try_push(ModuleTraitImpl {
+            item,
+            hash,
+            type_info,
+            trait_item: trait_item.try_to_owned()?,
+            trait_hash,
+        })?;
+
+        Ok(())
+    }
+
+    /// Define a re-export.
+    pub fn reexport(
+        &mut self,
+        item: impl IntoIterator<Item: IntoComponent>,
+        to: &Item,
+    ) -> Result<(), ContextError> {
+        let item = self.item.join(item)?;
+        let hash = Hash::type_hash(&item);
+
+        if !self.names.try_insert(Name::Item(hash))? {
+            return Err(ContextError::ConflictingReexport {
+                item,
+                hash,
+                to: to.try_to_owned()?,
+            });
+        }
+
+        self.reexports.try_push(ModuleReexport {
+            item,
+            hash,
+            to: to.try_to_owned()?,
+        })?;
 
         Ok(())
     }

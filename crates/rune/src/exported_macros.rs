@@ -3,7 +3,7 @@
 /// This can be used through [`rune::function`] by enabling the `vm_result`
 /// option and suffixing an expression with `<expr>.vm?`.
 ///
-/// [`rune::function`]: crate::function
+/// [`rune::function`]: macro@crate::function
 /// [`VmResult`]: crate::runtime::VmResult
 #[macro_export]
 macro_rules! vm_try {
@@ -23,7 +23,7 @@ macro_rules! vm_try {
 /// with [`rune::function`], since a regular return would otherwise be
 /// transformed.
 ///
-/// [`rune::function`]: crate::function
+/// [`rune::function`]: macro@crate::function
 /// [`VmResult`]: crate::runtime::VmResult
 ///
 /// # Examples
@@ -58,5 +58,24 @@ macro_rules! vm_write {
                 return $crate::runtime::VmResult::Err($crate::runtime::VmError::from(err));
             }
         }
+    };
+}
+
+/// Convenience macro for extracting a documentation string from documentation
+/// comments.
+///
+/// # Examples
+///
+/// ```
+/// let docs: [&'static str; 3] = rune::docstring! {
+///     /// Hi, this is some documentation.
+///     ///
+///     /// I hope you like it!
+/// };
+/// ```
+#[macro_export]
+macro_rules! docstring {
+    ($(#[doc = $doc:expr])*) => {
+        [$($doc),*]
     };
 }

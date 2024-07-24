@@ -15,9 +15,10 @@
 //! <br>
 //!
 //! The Rune Language, an embeddable dynamic programming language for Rust.
+
 // Quite a few parts copied from the Rust Project under the MIT license.
 //
-// Copyright 2014-2023 The Rust Project Developers
+// Copyright 2014-2024 The Rust Project Developers
 //
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // https://www.apache.org/licenses/LICENSE-2.0> or the MIT license <LICENSE-MIT

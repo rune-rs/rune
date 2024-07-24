@@ -89,6 +89,12 @@ where
     }
 }
 
+/// Trait for converting arguments into an array.
+pub trait FixedArgs<const N: usize> {
+    /// Encode arguments as array.
+    fn into_array(self) -> VmResult<[Value; N]>;
+}
+
 /// Trait for converting arguments onto the stack.
 pub trait Args {
     /// Encode arguments onto a stack.
@@ -103,6 +109,18 @@ pub trait Args {
 
 macro_rules! impl_into_args {
     ($count:expr $(, $ty:ident $value:ident $_:expr)*) => {
+        impl<$($ty,)*> FixedArgs<$count> for ($($ty,)*)
+        where
+            $($ty: ToValue,)*
+        {
+            #[allow(unused)]
+            fn into_array(self) -> VmResult<[Value; $count]> {
+                let ($($value,)*) = self;
+                $(let $value = vm_try!($value.to_value());)*
+                VmResult::Ok([$($value),*])
+            }
+        }
+
         impl<$($ty,)*> Args for ($($ty,)*)
         where
             $($ty: ToValue,)*

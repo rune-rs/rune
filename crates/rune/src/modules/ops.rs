@@ -1,14 +1,19 @@
 //! Overloadable operators and associated types.
 
+pub mod generator;
+
 use core::cmp::Ordering;
 
 use once_cell::sync::OnceCell;
 use rune_alloc::hash_map::RandomState;
 
 use crate as rune;
+use crate::runtime::range::RangeIter;
+use crate::runtime::range_from::RangeFromIter;
+use crate::runtime::range_inclusive::RangeInclusiveIter;
 use crate::runtime::{
-    ControlFlow, EnvProtocolCaller, Function, Generator, GeneratorState, Hasher, Iterator, Range,
-    RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Value, Vm, VmResult,
+    ControlFlow, EnvProtocolCaller, Function, Hasher, Range, RangeFrom, RangeFull, RangeInclusive,
+    RangeTo, RangeToInclusive, Value, VmResult,
 };
 use crate::{ContextError, Module};
 
@@ -19,15 +24,64 @@ static STATE: OnceCell<RandomState> = OnceCell::new();
 pub fn module() -> Result<Module, ContextError> {
     let mut m = Module::from_meta(self::module_meta)?;
 
+    macro_rules! iter {
+        ($ty:ident) => {
+            m.ty::<$ty<u8>>()?;
+            m.function_meta($ty::<u8>::next__meta)?;
+            m.function_meta($ty::<u8>::size_hint__meta)?;
+            m.implement_trait::<$ty<u8>>(rune::item!(::std::iter::Iterator))?;
+
+            m.ty::<$ty<i64>>()?;
+            m.function_meta($ty::<i64>::next__meta)?;
+            m.function_meta($ty::<i64>::size_hint__meta)?;
+            m.implement_trait::<$ty<i64>>(rune::item!(::std::iter::Iterator))?;
+
+            m.ty::<$ty<char>>()?;
+            m.function_meta($ty::<char>::next__meta)?;
+            m.function_meta($ty::<char>::size_hint__meta)?;
+            m.implement_trait::<$ty<char>>(rune::item!(::std::iter::Iterator))?;
+        };
+    }
+
+    macro_rules! double_ended {
+        ($ty:ident) => {
+            iter!($ty);
+            m.function_meta($ty::<u8>::next_back__meta)?;
+            m.implement_trait::<$ty<u8>>(rune::item!(::std::iter::DoubleEndedIterator))?;
+
+            m.function_meta($ty::<u8>::len__meta)?;
+            m.implement_trait::<$ty<u8>>(rune::item!(::std::iter::ExactSizeIterator))?;
+
+            m.function_meta($ty::<i64>::next_back__meta)?;
+            m.implement_trait::<$ty<i64>>(rune::item!(::std::iter::DoubleEndedIterator))?;
+
+            m.function_meta($ty::<i64>::len__meta)?;
+            m.implement_trait::<$ty<i64>>(rune::item!(::std::iter::ExactSizeIterator))?;
+
+            m.function_meta($ty::<char>::next_back__meta)?;
+            m.implement_trait::<$ty<char>>(rune::item!(::std::iter::DoubleEndedIterator))?;
+        };
+    }
+
     {
         m.ty::<RangeFrom>()?;
         m.function_meta(RangeFrom::iter__meta)?;
-        m.function_meta(RangeFrom::contains__meta)?;
         m.function_meta(RangeFrom::into_iter__meta)?;
+        m.function_meta(RangeFrom::contains__meta)?;
+
         m.function_meta(RangeFrom::partial_eq__meta)?;
+        m.implement_trait::<RangeFrom>(rune::item!(::std::cmp::PartialEq))?;
+
         m.function_meta(RangeFrom::eq__meta)?;
+        m.implement_trait::<RangeFrom>(rune::item!(::std::cmp::Eq))?;
+
         m.function_meta(RangeFrom::partial_cmp__meta)?;
+        m.implement_trait::<RangeFrom>(rune::item!(::std::cmp::PartialOrd))?;
+
         m.function_meta(RangeFrom::cmp__meta)?;
+        m.implement_trait::<RangeFrom>(rune::item!(::std::cmp::Ord))?;
+
+        iter!(RangeFromIter);
     }
 
     {
@@ -38,30 +92,56 @@ pub fn module() -> Result<Module, ContextError> {
     {
         m.ty::<RangeInclusive>()?;
         m.function_meta(RangeInclusive::iter__meta)?;
-        m.function_meta(RangeInclusive::contains__meta)?;
         m.function_meta(RangeInclusive::into_iter__meta)?;
+        m.function_meta(RangeInclusive::contains__meta)?;
+
         m.function_meta(RangeInclusive::partial_eq__meta)?;
+        m.implement_trait::<RangeInclusive>(rune::item!(::std::cmp::PartialEq))?;
+
         m.function_meta(RangeInclusive::eq__meta)?;
+        m.implement_trait::<RangeInclusive>(rune::item!(::std::cmp::Eq))?;
+
         m.function_meta(RangeInclusive::partial_cmp__meta)?;
+        m.implement_trait::<RangeInclusive>(rune::item!(::std::cmp::PartialOrd))?;
+
         m.function_meta(RangeInclusive::cmp__meta)?;
+        m.implement_trait::<RangeInclusive>(rune::item!(::std::cmp::Ord))?;
+
+        double_ended!(RangeInclusiveIter);
     }
 
     {
         m.ty::<RangeToInclusive>()?;
         m.function_meta(RangeToInclusive::contains__meta)?;
+
         m.function_meta(RangeToInclusive::partial_eq__meta)?;
+        m.implement_trait::<RangeToInclusive>(rune::item!(::std::cmp::PartialEq))?;
+
         m.function_meta(RangeToInclusive::eq__meta)?;
+        m.implement_trait::<RangeToInclusive>(rune::item!(::std::cmp::Eq))?;
+
         m.function_meta(RangeToInclusive::partial_cmp__meta)?;
+        m.implement_trait::<RangeToInclusive>(rune::item!(::std::cmp::PartialOrd))?;
+
         m.function_meta(RangeToInclusive::cmp__meta)?;
+        m.implement_trait::<RangeToInclusive>(rune::item!(::std::cmp::Ord))?;
     }
 
     {
         m.ty::<RangeTo>()?;
         m.function_meta(RangeTo::contains__meta)?;
+
         m.function_meta(RangeTo::partial_eq__meta)?;
+        m.implement_trait::<RangeTo>(rune::item!(::std::cmp::PartialEq))?;
+
         m.function_meta(RangeTo::eq__meta)?;
+        m.implement_trait::<RangeTo>(rune::item!(::std::cmp::Eq))?;
+
         m.function_meta(RangeTo::partial_cmp__meta)?;
+        m.implement_trait::<RangeTo>(rune::item!(::std::cmp::PartialOrd))?;
+
         m.function_meta(RangeTo::cmp__meta)?;
+        m.implement_trait::<RangeTo>(rune::item!(::std::cmp::Ord))?;
     }
 
     {
@@ -69,10 +149,20 @@ pub fn module() -> Result<Module, ContextError> {
         m.function_meta(Range::iter__meta)?;
         m.function_meta(Range::into_iter__meta)?;
         m.function_meta(Range::contains__meta)?;
+
         m.function_meta(Range::partial_eq__meta)?;
+        m.implement_trait::<Range>(rune::item!(::std::cmp::PartialEq))?;
+
         m.function_meta(Range::eq__meta)?;
+        m.implement_trait::<Range>(rune::item!(::std::cmp::Eq))?;
+
         m.function_meta(Range::partial_cmp__meta)?;
+        m.implement_trait::<Range>(rune::item!(::std::cmp::PartialOrd))?;
+
         m.function_meta(Range::cmp__meta)?;
+        m.implement_trait::<Range>(rune::item!(::std::cmp::Ord))?;
+
+        double_ended!(RangeIter);
     }
 
     {
@@ -81,27 +171,17 @@ pub fn module() -> Result<Module, ContextError> {
 
     m.ty::<Function>()?;
 
-    {
-        m.ty::<Generator<Vm>>()?;
-        m.function_meta(generator_next)?;
-        m.function_meta(generator_resume)?;
-        m.function_meta(generator_iter)?;
-        m.function_meta(generator_into_iter)?;
-    }
-
-    {
-        m.generator_state(["GeneratorState"])?
-            .docs(["Enum indicating the state of a generator."])?;
-
-        m.function_meta(generator_state_partial_eq)?;
-        m.function_meta(generator_state_eq)?;
-    }
-
     m.function_meta(partial_eq)?;
     m.function_meta(eq)?;
     m.function_meta(partial_cmp)?;
     m.function_meta(cmp)?;
     m.function_meta(hash)?;
+
+    m.reexport(["Generator"], rune::item!(::std::ops::generator::Generator))?;
+    m.reexport(
+        ["GeneratorState"],
+        rune::item!(::std::ops::generator::GeneratorState),
+    )?;
     Ok(m)
 }
 
@@ -241,109 +321,4 @@ fn hash(value: Value) -> VmResult<i64> {
     ));
 
     VmResult::Ok(hasher.finish() as i64)
-}
-
-/// Advance a generator producing the next value yielded.
-///
-/// Unlike [`Generator::resume`], this can only consume the yielded values.
-///
-/// # Examples
-///
-/// ```rune
-/// use std::ops::{Generator, GeneratorState};
-///
-/// fn generate() {
-///     yield 1;
-///     yield 2;
-/// }
-///
-/// let g = generate();
-///
-/// assert_eq!(g.next(), Some(1));
-/// assert_eq!(g.next(), Some(2));
-/// assert_eq!(g.next(), None);
-/// ``
-#[rune::function(instance, path = next)]
-fn generator_next(this: &mut Generator<Vm>) -> VmResult<Option<Value>> {
-    this.next()
-}
-
-/// Advance a generator producing the next [`GeneratorState`].
-///
-/// # Examples
-///
-/// ```rune
-/// use std::ops::{Generator, GeneratorState};
-///
-/// fn generate() {
-///     let n = yield 1;
-///     yield 2 + n;
-/// }
-///
-/// let g = generate();
-///
-/// assert_eq!(g.resume(()), GeneratorState::Yielded(1));
-/// assert_eq!(g.resume(1), GeneratorState::Yielded(3));
-/// assert_eq!(g.resume(()), GeneratorState::Complete(()));
-/// ``
-#[rune::function(instance, path = resume)]
-fn generator_resume(this: &mut Generator<Vm>, value: Value) -> VmResult<GeneratorState> {
-    this.resume(value)
-}
-
-#[rune::function(instance, path = iter)]
-fn generator_iter(this: Generator<Vm>) -> Iterator {
-    this.rune_iter()
-}
-
-#[rune::function(instance, protocol = INTO_ITER)]
-fn generator_into_iter(this: Generator<Vm>) -> Iterator {
-    this.rune_iter()
-}
-
-/// Test for partial equality over a generator state.
-///
-/// # Examples
-///
-/// ```rune
-/// use std::ops::{Generator, GeneratorState};
-///
-/// fn generate() {
-///     let n = yield 1;
-///     yield 2 + n;
-/// }
-///
-/// let g = generate();
-///
-/// assert_eq!(g.resume(()), GeneratorState::Yielded(1));
-/// assert_eq!(g.resume(1), GeneratorState::Yielded(3));
-/// assert_eq!(g.resume(()), GeneratorState::Complete(()));
-/// ``
-#[rune::function(instance, protocol = PARTIAL_EQ)]
-fn generator_state_partial_eq(this: &GeneratorState, other: &GeneratorState) -> VmResult<bool> {
-    this.partial_eq_with(other, &mut EnvProtocolCaller)
-}
-
-/// Test for total equality over a generator state.
-///
-/// # Examples
-///
-/// ```rune
-/// use std::ops::{Generator, GeneratorState};
-/// use std::ops::eq;
-///
-/// fn generate() {
-///     let n = yield 1;
-///     yield 2 + n;
-/// }
-///
-/// let g = generate();
-///
-/// assert!(eq(g.resume(()), GeneratorState::Yielded(1)));
-/// assert!(eq(g.resume(1), GeneratorState::Yielded(3)));
-/// assert!(eq(g.resume(()), GeneratorState::Complete(())));
-/// ``
-#[rune::function(instance, protocol = EQ)]
-fn generator_state_eq(this: &GeneratorState, other: &GeneratorState) -> VmResult<bool> {
-    this.eq_with(other, &mut EnvProtocolCaller)
 }

@@ -84,8 +84,14 @@ impl fmt::Display for MetaInfo {
             MetaInfoKind::Import => {
                 write!(fmt, "import {name}")?;
             }
+            MetaInfoKind::Alias => {
+                write!(fmt, "import {name}")?;
+            }
             MetaInfoKind::Module => {
                 write!(fmt, "module {name}")?;
+            }
+            MetaInfoKind::Trait => {
+                write!(fmt, "trait {name}")?;
             }
         }
 
@@ -108,7 +114,9 @@ pub(crate) enum MetaInfoKind {
     Const,
     ConstFn,
     Import,
+    Alias,
     Module,
+    Trait,
 }
 
 impl MetaInfoKind {
@@ -132,7 +140,9 @@ impl MetaInfoKind {
             meta::Kind::Const { .. } => MetaInfoKind::Const,
             meta::Kind::ConstFn { .. } => MetaInfoKind::ConstFn,
             meta::Kind::Import { .. } => MetaInfoKind::Import,
+            meta::Kind::Alias { .. } => MetaInfoKind::Alias,
             meta::Kind::Module { .. } => MetaInfoKind::Module,
+            meta::Kind::Trait { .. } => MetaInfoKind::Trait,
         }
     }
 }

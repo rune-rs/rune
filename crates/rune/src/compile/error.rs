@@ -21,7 +21,7 @@ use crate::runtime::{AccessError, RuntimeError, TypeInfo, TypeOf, ValueKind, VmE
 use crate::shared::CapacityError;
 #[cfg(feature = "std")]
 use crate::source;
-use crate::{Hash, ItemBuf, SourceId};
+use crate::{Hash, Item, ItemBuf, SourceId};
 
 /// An error raised by the compiler.
 #[derive(Debug)]
@@ -266,7 +266,7 @@ pub(crate) enum ErrorKind {
     },
     MissingItemParameters {
         item: ItemBuf,
-        parameters: Box<[Option<Hash>]>,
+        parameters: [Option<Hash>; 2],
     },
     UnsupportedGlobal,
     UnsupportedModuleSource,
@@ -619,14 +619,14 @@ impl fmt::Display for ErrorKind {
                 write!(f, "Module `{item}` has already been loaded")?;
             }
             ErrorKind::MissingMacro { item } => {
-                write!(f, "Missing macro `{item}`")?;
+                write!(f, "Missing macro {item}")?;
             }
             ErrorKind::MissingSelf => write!(f, "No `self` in current context")?,
             ErrorKind::MissingLocal { name } => {
                 write!(f, "No local variable `{name}`")?;
             }
             ErrorKind::MissingItem { item } => {
-                write!(f, "Missing item `{item}`")?;
+                write!(f, "Missing item {item}")?;
             }
             ErrorKind::MissingItemHash { hash } => {
                 write!(
@@ -635,7 +635,7 @@ impl fmt::Display for ErrorKind {
                 )?;
             }
             ErrorKind::MissingItemParameters { item, parameters } => {
-                write!(f, "Missing item `{item} {parameters:?}`",)?;
+                write!(f, "Missing item {}", ParameterizedItem(item, parameters))?;
             }
             ErrorKind::UnsupportedGlobal => {
                 write!(f, "Unsupported crate prefix `::`")?;
@@ -1041,6 +1041,38 @@ impl fmt::Display for ErrorKind {
                     "Unsupported suffix, expected one of `u8`, `i64`, or `f64`"
                 )?;
             }
+        }
+
+        Ok(())
+    }
+}
+
+struct ParameterizedItem<'a>(&'a Item, &'a [Option<Hash>; 2]);
+
+impl fmt::Display for ParameterizedItem<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut it = self.0.iter();
+
+        let (Some(item), Some(ty)) = (it.next_back(), it.next_back()) else {
+            return self.0.fmt(f);
+        };
+
+        let base = it.as_item();
+
+        let [ty_param, item_param] = self.1;
+
+        write!(f, "{base}")?;
+
+        if let Some(ty_param) = ty_param {
+            write!(f, "::{ty}<{ty_param}>")?;
+        } else {
+            write!(f, "::{ty}")?;
+        }
+
+        if let Some(item_param) = item_param {
+            write!(f, "::{item}<{item_param}>")?;
+        } else {
+            write!(f, "::{item}")?;
         }
 
         Ok(())

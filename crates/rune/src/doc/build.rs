@@ -1,4 +1,3 @@
-mod enum_;
 mod js;
 mod markdown;
 mod type_;
@@ -19,7 +18,7 @@ use crate as rune;
 use crate::alloc::borrow::Cow;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
-use crate::alloc::{self, VecDeque};
+use crate::alloc::{self, HashSet, VecDeque};
 use crate::compile::meta;
 use crate::doc::artifacts::Test;
 use crate::doc::context::{Function, Kind, Meta, Signature};
@@ -141,7 +140,7 @@ pub(crate) fn build(
             .into_iter()
             .find(|m| matches!(&m.kind, Kind::Module))
             .with_context(|| anyhow!("Missing meta for {item}"))?;
-        initial.try_push_back(Build::Module(meta))?;
+        initial.try_push_back((Build::Module, meta))?;
     }
 
     let search_index = RelativePath::new("index.js");
@@ -162,7 +161,6 @@ pub(crate) fn build(
         type_template: compile(&templating, "type.html.hbs")?,
         macro_template: compile(&templating, "macro.html.hbs")?,
         function_template: compile(&templating, "function.html.hbs")?,
-        enum_template: compile(&templating, "enum.html.hbs")?,
         syntax_set,
         tests: Vec::new(),
     };
@@ -172,35 +170,47 @@ pub(crate) fn build(
     let mut modules = Vec::new();
     let mut builders = Vec::new();
 
-    while let Some(build) = queue.pop_front() {
+    let mut visited = HashSet::new();
+
+    while let Some((build, meta)) = queue.pop_front() {
+        if !visited.try_insert(meta.hash)? {
+            continue;
+        }
+
         match build {
-            Build::Type(meta) => {
+            Build::Type => {
                 cx.set_path(meta)?;
                 let (builder, items) = self::type_::build(&mut cx, "Type", "type", meta)?;
                 builders.try_push(builder)?;
                 cx.index.try_extend(items)?;
             }
-            Build::Struct(meta) => {
+            Build::Trait => {
+                cx.set_path(meta)?;
+                let (builder, items) = self::type_::build(&mut cx, "Trait", "trait", meta)?;
+                builders.try_push(builder)?;
+                cx.index.try_extend(items)?;
+            }
+            Build::Struct => {
                 cx.set_path(meta)?;
                 let (builder, index) = self::type_::build(&mut cx, "Struct", "struct", meta)?;
                 builders.try_push(builder)?;
                 cx.index.try_extend(index)?;
             }
-            Build::Enum(meta) => {
+            Build::Enum => {
                 cx.set_path(meta)?;
-                let (builder, index) = self::enum_::build(&mut cx, meta)?;
+                let (builder, index) = self::type_::build(&mut cx, "Enum", "enum", meta)?;
                 builders.try_push(builder)?;
                 cx.index.try_extend(index)?;
             }
-            Build::Macro(meta) => {
+            Build::Macro => {
                 cx.set_path(meta)?;
                 builders.try_push(build_macro(&mut cx, meta)?)?;
             }
-            Build::Function(meta) => {
+            Build::Function => {
                 cx.set_path(meta)?;
                 builders.try_push(build_function(&mut cx, meta)?)?;
             }
-            Build::Module(meta) => {
+            Build::Module => {
                 cx.set_path(meta)?;
                 builders.try_push(module(&mut cx, meta, &mut queue)?)?;
                 let item = meta.item.context("Missing item")?;
@@ -270,15 +280,15 @@ struct Shared<'a> {
     js: Vec<RelativePathBuf>,
 }
 
-#[derive(Default, Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) enum ItemKind {
     Type,
     Struct,
     Enum,
-    #[default]
     Module,
     Macro,
     Function,
+    Trait,
 }
 
 impl fmt::Display for ItemKind {
@@ -290,6 +300,7 @@ impl fmt::Display for ItemKind {
             ItemKind::Module => "module".fmt(f),
             ItemKind::Macro => "macro".fmt(f),
             ItemKind::Function => "function".fmt(f),
+            ItemKind::Trait => "trait".fmt(f),
         }
     }
 }
@@ -340,7 +351,6 @@ pub(crate) struct Ctxt<'a, 'm> {
     type_template: templating::Template,
     macro_template: templating::Template,
     function_template: templating::Template,
-    enum_template: templating::Template,
     syntax_set: SyntaxSet,
     tests: Vec<Test>,
 }
@@ -354,6 +364,7 @@ impl<'m> Ctxt<'_, 'm> {
             Kind::Macro => ItemKind::Macro,
             Kind::Function(..) => ItemKind::Function,
             Kind::Module => ItemKind::Module,
+            Kind::Trait => ItemKind::Trait,
             kind => bail!("Cannot set path for {kind:?}"),
         };
 
@@ -495,14 +506,12 @@ impl<'m> Ctxt<'_, 'm> {
             return Err(error);
         }
 
-        if capture_tests && !tests.is_empty() {
-            for (content, params) in tests {
-                self.tests.try_push(Test {
-                    item: self.state.item.try_clone()?,
-                    content,
-                    params,
-                })?;
-            }
+        for (content, params) in tests {
+            self.tests.try_push(Test {
+                item: self.state.item.try_clone()?,
+                content,
+                params,
+            })?;
         }
 
         write!(o, "</div>")?;
@@ -802,13 +811,14 @@ impl<'m> Ctxt<'_, 'm> {
     }
 }
 
-enum Build<'a> {
-    Type(Meta<'a>),
-    Struct(Meta<'a>),
-    Enum(Meta<'a>),
-    Macro(Meta<'a>),
-    Function(Meta<'a>),
-    Module(Meta<'a>),
+enum Build {
+    Type,
+    Struct,
+    Enum,
+    Macro,
+    Function,
+    Module,
+    Trait,
 }
 
 /// Get an asset as a string.
@@ -886,7 +896,7 @@ fn build_index<'m>(
 fn module<'m>(
     cx: &mut Ctxt<'_, 'm>,
     meta: Meta<'m>,
-    queue: &mut VecDeque<Build<'m>>,
+    queue: &mut VecDeque<(Build, Meta<'m>)>,
 ) -> Result<Builder<'m>> {
     #[derive(Serialize)]
     struct Params<'a> {
@@ -902,6 +912,7 @@ fn module<'m>(
         macros: Vec<Macro<'a>>,
         functions: Vec<Function<'a>>,
         modules: Vec<Module<'a>>,
+        traits: Vec<Trait<'a>>,
     }
 
     #[derive(Serialize)]
@@ -967,6 +978,16 @@ fn module<'m>(
         doc: Option<String>,
     }
 
+    #[derive(Serialize)]
+    struct Trait<'a> {
+        #[serde(serialize_with = "serialize_item")]
+        item: ItemBuf,
+        #[serde(serialize_with = "serialize_component_ref")]
+        name: ComponentRef<'a>,
+        path: RelativePathBuf,
+        doc: Option<String>,
+    }
+
     let meta_item = meta.item.context("Missing item")?;
 
     let mut types = Vec::new();
@@ -975,6 +996,7 @@ fn module<'m>(
     let mut macros = Vec::new();
     let mut functions = Vec::new();
     let mut modules = Vec::new();
+    let mut traits = Vec::new();
 
     for (_, name) in cx.context.iter_components(meta_item)? {
         let item = meta_item.join([name])?;
@@ -982,8 +1004,10 @@ fn module<'m>(
         for m in cx.context.meta(&item)? {
             match m.kind {
                 Kind::Type { .. } => {
-                    queue.try_push_front(Build::Type(m))?;
+                    queue.try_push_front((Build::Type, m))?;
+
                     let path = cx.item_path(&item, ItemKind::Type)?;
+
                     types.try_push(Type {
                         item: item.try_clone()?,
                         path,
@@ -992,8 +1016,10 @@ fn module<'m>(
                     })?;
                 }
                 Kind::Struct { .. } => {
-                    queue.try_push_front(Build::Struct(m))?;
+                    queue.try_push_front((Build::Struct, m))?;
+
                     let path = cx.item_path(&item, ItemKind::Struct)?;
+
                     structs.try_push(Struct {
                         item: item.try_clone()?,
                         path,
@@ -1002,8 +1028,10 @@ fn module<'m>(
                     })?;
                 }
                 Kind::Enum { .. } => {
-                    queue.try_push_front(Build::Enum(m))?;
+                    queue.try_push_front((Build::Enum, m))?;
+
                     let path = cx.item_path(&item, ItemKind::Enum)?;
+
                     enums.try_push(Enum {
                         item: item.try_clone()?,
                         path,
@@ -1014,7 +1042,7 @@ fn module<'m>(
                 Kind::Macro => {
                     let item = m.item.context("Missing macro item")?;
 
-                    queue.try_push_front(Build::Macro(m))?;
+                    queue.try_push_front((Build::Macro, m))?;
 
                     macros.try_push(Macro {
                         path: cx.item_path(item, ItemKind::Macro)?,
@@ -1028,7 +1056,7 @@ fn module<'m>(
                         continue;
                     }
 
-                    queue.try_push_front(Build::Function(m))?;
+                    queue.try_push_front((Build::Function, m))?;
 
                     functions.try_push(Function {
                         is_async: f.is_async,
@@ -1048,7 +1076,8 @@ fn module<'m>(
                         continue;
                     }
 
-                    queue.try_push_front(Build::Module(m))?;
+                    queue.try_push_front((Build::Module, m))?;
+
                     let path = cx.item_path(item, ItemKind::Module)?;
                     let name = item.last().context("missing name of module")?;
 
@@ -1061,6 +1090,18 @@ fn module<'m>(
                         item,
                         name,
                         path,
+                        doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
+                    })?;
+                }
+                Kind::Trait { .. } => {
+                    queue.try_push_front((Build::Trait, m))?;
+
+                    let path = cx.item_path(&item, ItemKind::Trait)?;
+
+                    traits.try_push(Trait {
+                        item: item.try_clone()?,
+                        path,
+                        name,
                         doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
                     })?;
                 }
@@ -1085,6 +1126,7 @@ fn module<'m>(
             macros,
             functions,
             modules,
+            traits,
         })
     })?)
 }
@@ -1215,6 +1257,7 @@ fn build_item_path(
         ItemKind::Module => "module.html",
         ItemKind::Macro => "macro.html",
         ItemKind::Function => "fn.html",
+        ItemKind::Trait => "trait.html",
     });
 
     Ok(())

@@ -7,8 +7,8 @@ use crate::alloc;
 use crate::compile::meta;
 use crate::hash::Hash;
 use crate::runtime::{
-    self, FromValue, InstAddress, MaybeTypeOf, Output, Stack, ToValue, TypeInfo, TypeOf,
-    UnsafeToMut, UnsafeToRef, Value, VmErrorKind, VmResult,
+    self, CoreTypeOf, FromValue, InstAddress, MaybeTypeOf, Memory, Output, ToValue, TypeInfo,
+    TypeOf, UnsafeToMut, UnsafeToRef, Value, VmErrorKind, VmResult,
 };
 
 // Expand to function variable bindings.
@@ -63,6 +63,9 @@ impl FunctionKind for Async {
 
 /// Trait used to provide the [function][crate::module::Module::function]
 /// function.
+#[diagnostic::on_unimplemented(
+    label = "#[derive(Any)] could be missing on the arguments or return value of `{Self}`"
+)]
 pub trait Function<A, K>: 'static + Send + Sync {
     /// The return type of the function.
     #[doc(hidden)]
@@ -76,7 +79,7 @@ pub trait Function<A, K>: 'static + Send + Sync {
     #[doc(hidden)]
     fn fn_call(
         &self,
-        stack: &mut Stack,
+        stack: &mut dyn Memory,
         addr: InstAddress,
         args: usize,
         out: Output,
@@ -86,6 +89,9 @@ pub trait Function<A, K>: 'static + Send + Sync {
 /// Trait used to provide the [`associated_function`] function.
 ///
 /// [`associated_function`]: crate::module::Module::associated_function
+#[diagnostic::on_unimplemented(
+    label = "#[derive(Any)] could be missing on the arguments or return value of `{Self}`"
+)]
 pub trait InstanceFunction<A, K>: 'static + Send + Sync {
     /// The type of the instance.
     #[doc(hidden)]
@@ -103,7 +109,7 @@ pub trait InstanceFunction<A, K>: 'static + Send + Sync {
     #[doc(hidden)]
     fn fn_call(
         &self,
-        stack: &mut Stack,
+        stack: &mut dyn Memory,
         addr: InstAddress,
         args: usize,
         out: Output,
@@ -126,7 +132,7 @@ macro_rules! impl_instance_function_traits {
             }
 
             #[inline]
-            fn fn_call(&self, stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
+            fn fn_call(&self, stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
                 Function::fn_call(self, stack, addr, args, out)
             }
         }
@@ -148,6 +154,16 @@ where
     }
 }
 
+impl<T> CoreTypeOf for Ref<T>
+where
+    T: ?Sized + CoreTypeOf,
+{
+    #[inline]
+    fn type_hash() -> Hash {
+        T::type_hash()
+    }
+}
+
 impl<T> TypeOf for Ref<T>
 where
     T: ?Sized + TypeOf,
@@ -155,11 +171,6 @@ where
     #[inline]
     fn type_parameters() -> Hash {
         T::type_parameters()
-    }
-
-    #[inline]
-    fn type_hash() -> Hash {
-        T::type_hash()
     }
 
     #[inline]
@@ -181,6 +192,16 @@ where
     }
 }
 
+impl<T> CoreTypeOf for Mut<T>
+where
+    T: ?Sized + CoreTypeOf,
+{
+    #[inline]
+    fn type_hash() -> Hash {
+        T::type_hash()
+    }
+}
+
 impl<T> TypeOf for Mut<T>
 where
     T: ?Sized + TypeOf,
@@ -188,11 +209,6 @@ where
     #[inline]
     fn type_parameters() -> Hash {
         T::type_parameters()
-    }
-
-    #[inline]
-    fn type_hash() -> Hash {
-        T::type_hash()
     }
 
     #[inline]
@@ -244,7 +260,7 @@ macro_rules! impl_function_traits {
             }
 
             #[allow(clippy::drop_non_drop)]
-            fn fn_call(&self, stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
+            fn fn_call(&self, stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
                 access_stack!($count, 0, stack, addr, args, $($from_fn, $var, $num,)*);
 
                 // Safety: We hold a reference to the stack, so we can guarantee
@@ -272,7 +288,7 @@ macro_rules! impl_function_traits {
             }
 
             #[allow(clippy::drop_non_drop)]
-            fn fn_call(&self, stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
+            fn fn_call(&self, stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
                 access_stack!($count, 0, stack, addr, args, $($from_fn, $var, $num,)*);
 
                 let fut = self($($var.0),*);

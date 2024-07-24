@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate as rune;
 use crate::alloc;
 use crate::alloc::prelude::*;
-use crate::runtime::{Call, FormatSpec, Stack, Type, Value, ValueKind, VmError, VmResult};
+use crate::runtime::{Call, FormatSpec, Memory, Type, Value, ValueKind, VmError, VmResult};
 use crate::Hash;
 
 /// Pre-canned panic reasons.
@@ -1250,10 +1250,10 @@ impl Output {
     /// # Examples
     ///
     /// ```
-    /// use rune::runtime::{Output, Stack, ToValue, VmResult, InstAddress};
+    /// use rune::runtime::{Output, Memory, ToValue, VmResult, InstAddress};
     /// use rune::vm_try;
     ///
-    /// fn sum(stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
+    /// fn sum(stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
     ///     let mut number = 0;
     ///
     ///     for value in vm_try!(stack.slice_at(addr, args)) {
@@ -1264,13 +1264,13 @@ impl Output {
     ///     VmResult::Ok(())
     /// }
     #[inline]
-    pub fn store<O>(self, stack: &mut Stack, o: O) -> VmResult<()>
+    pub fn store<O>(self, stack: &mut dyn Memory, o: O) -> VmResult<()>
     where
         O: IntoOutput<Output: TryInto<Value, Error: Into<VmError>>>,
     {
-        if let Some(index) = self.as_addr() {
+        if let Some(addr) = self.as_addr() {
             let value = vm_try!(o.into_output());
-            *vm_try!(stack.at_mut(index)) = vm_try!(value.try_into().map_err(Into::into));
+            *vm_try!(stack.at_mut(addr)) = vm_try!(value.try_into().map_err(Into::into));
         }
 
         VmResult::Ok(())

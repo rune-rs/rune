@@ -81,7 +81,6 @@ impl ser::Serialize for Value {
             ValueKind::Format(..) => {
                 Err(ser::Error::custom("cannot serialize format specifications"))
             }
-            ValueKind::Iterator(..) => Err(ser::Error::custom("cannot serialize iterators")),
             ValueKind::RangeFrom(..) => {
                 Err(ser::Error::custom("cannot serialize `start..` ranges"))
             }

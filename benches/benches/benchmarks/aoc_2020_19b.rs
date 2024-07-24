@@ -16,7 +16,7 @@ fn aoc_2020_19b(b: &mut Criterion) {
     let mut vm = rune_vm! {
         use std::collections::HashMap;
         fn get_rules() {
-            HashMap::from([
+            HashMap::from_iter([
                 (118, Rule::Or(Rule::Seq([29, 95]), Rule::Seq([106, 58]))),
                 (64, Rule::Or(Rule::Seq([29, 63]), Rule::Seq([106, 89]))),
                 (112, Rule::Or(Rule::Seq([106, 98]), Rule::Seq([29, 60]))),

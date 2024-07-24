@@ -441,6 +441,46 @@ define! {
         doc: ["Allows iteration to be advanced for the type, this is used for iterators."],
     };
 
+    /// The function to call to continue iteration at the nth element.
+    pub const [NTH, NTH_HASH]: Protocol = Protocol {
+        name: "nth",
+        hash: 0x6704550736c82a58u64,
+        repr: None,
+        doc: ["Allows iteration to be advanced for the type to the nth element, this is used for iterators."],
+    };
+
+    /// The function to call to continue iteration at the nth element form the back.
+    pub const [NTH_BACK, NTH_BACK_HASH]: Protocol = Protocol {
+        name: "nth_back",
+        hash: 0x4885ca2fd53a08c8u64,
+        repr: None,
+        doc: ["Allows iteration to be advanced for the type to the nth element from the back, this is used for iterators."],
+    };
+
+    /// Protocol used when getting the size hint of an iterator.
+    pub const [SIZE_HINT, SIZE_HINT_HASH]: Protocol = Protocol {
+        name: "size_hint",
+        hash: 0x1a7b50baabc6e094u64,
+        repr: Some("let output = $value.size_hint()"),
+        doc: ["Get the size hint of an iterator."],
+    };
+
+    /// Protocol used when getting the exact length of an iterator.
+    pub const [LEN, LEN_HASH]: Protocol = Protocol {
+        name: "len",
+        hash: 0x52dd3b9489d39c42u64,
+        repr: Some("let output = $value.len()"),
+        doc: ["Get the length of an iterator."],
+    };
+
+    /// Protocol used when cloning a value.
+    pub const [NEXT_BACK, NEXT_BACK_HASH]: Protocol = Protocol {
+        name: "next_back",
+        hash: 0x91149fef42c0a8aeu64,
+        repr: Some("let output = $value.next_back()"),
+        doc: ["Get the next value from the back of the iterator."],
+    };
+
     /// Function used to convert an argument into a future.
     ///
     /// Signature: `fn(Value) -> Future`.
@@ -492,7 +532,7 @@ define! {
         name: "hash",
         hash: 0xf6cf2d9f416cef08u64,
         repr: Some("let output = hash($value)"),
-        doc: ["Hash the given value."],
+        doc: ["Hash a value."],
     };
 
     /// Protocol used when cloning a value.
@@ -500,22 +540,6 @@ define! {
         name: "clone",
         hash: 0x2af2c875e36971eu64,
         repr: Some("let output = clone($value)"),
-        doc: ["Clone the given value."],
-    };
-
-    /// Protocol used when cloning a value.
-    pub const [SIZE_HINT, SIZE_HINT_HASH]: Protocol = Protocol {
-        name: "size_hint",
-        hash: 0x3de0975a7000dau64,
-        repr: Some("let output = $value.size_hint()"),
-        doc: ["Get the size hint of the given iterator."],
-    };
-
-    /// Protocol used when cloning a value.
-    pub const [NEXT_BACK, NEXT_BACK_HASH]: Protocol = Protocol {
-        name: "next_back",
-        hash: 0x91149fef42c0a8aeu64,
-        repr: Some("let output = $value.next_back()"),
-        doc: ["Get the next value from the back of the iterator."],
+        doc: ["Clone a value."],
     };
 }

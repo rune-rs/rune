@@ -26,17 +26,17 @@ const IDENT: u64 = 0x1a095090689d4647;
 const INDEX: u64 = 0xe1b2378d7a937035;
 
 // Salt for type parameters.
-const TYPE_PARAMETERS: u64 = 0x9d30e58b77e4599;
+const TYPE_PARAMETERS: u32 = 16;
 // Salt for function parameters.
-const FUNCTION_PARAMETERS: u64 = 0x6052c152243a6eb3;
+const FUNCTION_PARAMETERS: u32 = 48;
 
 /// The primitive hash that among other things is used to reference items,
 /// types, and native functions.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[cfg_attr(feature = "musli", derive(Decode, Encode))]
 #[repr(transparent)]
 #[cfg_attr(feature = "musli", musli(transparent))]
-pub struct Hash(u64);
+pub struct Hash(#[doc(hidden)] pub u64);
 
 impl Hash {
     /// The empty hash.
@@ -158,20 +158,12 @@ impl Hash {
 
     /// Mix the current hash with type parameters.
     pub const fn with_type_parameters(self, ty: Self) -> Self {
-        if !ty.is_empty() {
-            Self(self.0 ^ (ty.0 ^ TYPE_PARAMETERS))
-        } else {
-            self
-        }
+        Self(self.0 ^ ty.0.wrapping_shl(TYPE_PARAMETERS))
     }
 
     /// Mix the current hash with function parameters.
     pub const fn with_function_parameters(self, f: Self) -> Self {
-        if !f.is_empty() {
-            Self(self.0 ^ (f.0 ^ FUNCTION_PARAMETERS))
-        } else {
-            self
-        }
+        Self(self.0 ^ f.0.wrapping_shl(FUNCTION_PARAMETERS))
     }
 
     /// Hash type parameters.

@@ -625,7 +625,9 @@ impl UnitBuilder {
             meta::Kind::AsyncBlock { .. } => (),
             meta::Kind::ConstFn { .. } => (),
             meta::Kind::Import { .. } => (),
+            meta::Kind::Alias { .. } => (),
             meta::Kind::Module { .. } => (),
+            meta::Kind::Trait { .. } => (),
         }
 
         Ok(())

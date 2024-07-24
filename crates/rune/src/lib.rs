@@ -216,7 +216,9 @@ pub mod item;
 pub use self::item::{Item, ItemBuf};
 
 #[doc(hidden)]
-pub mod function_meta;
+mod function_meta;
+
+mod function;
 
 pub mod module;
 #[doc(inline)]
@@ -627,6 +629,10 @@ pub use rune_macros::macro_;
 pub use rune_macros::attribute_macro;
 
 /// Macro used to annotate a module with metadata.
+///
+/// ThIs defines a local function `module_meta` which can be used in conjunction
+/// with [`Module::from_meta`] to construct a module with a given item and
+/// captured documentation.
 #[doc(inline)]
 pub use rune_macros::module;
 
@@ -655,7 +661,7 @@ pub mod __private {
     pub use crate::item::ItemBuf;
     pub use crate::module::{InstallWith, Module, ModuleMetaData};
     pub use crate::params::Params;
-    pub use crate::runtime::TypeOf;
+    pub use crate::runtime::{CoreTypeOf, TypeOf};
     pub use rust_alloc::boxed::Box;
 }
 
