@@ -72,7 +72,7 @@ pub use rune_macros::Any;
 /// [`Context::install`]: crate::Context::install
 /// [`Module`]: crate::Module
 /// [`String`]: std::string::String
-/// [`#[rune::function]`]: crate::function
+/// [`#[rune::function]`]: macro@crate::function
 /// [`#[rune::macro_]`]: crate::macro_
 ///
 /// # Examples

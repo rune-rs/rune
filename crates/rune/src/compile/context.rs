@@ -10,18 +10,28 @@ use crate::compile::meta;
 use crate::compile::Docs;
 #[cfg(feature = "emit")]
 use crate::compile::MetaInfo;
-use crate::compile::{ContextError, Names};
+use crate::compile::{self, ContextError, Names};
 use crate::hash;
 use crate::item::{ComponentRef, IntoComponent};
+use crate::macros::{MacroContext, TokenStream};
 use crate::module::{
     Fields, Module, ModuleAssociated, ModuleAssociatedKind, ModuleItem, ModuleType,
     TypeSpecification,
 };
 use crate::runtime::{
-    AttributeMacroHandler, ConstValue, FunctionHandler, MacroHandler, Protocol, RuntimeContext,
-    StaticType, TypeCheck, TypeInfo, VariantRtti,
+    ConstValue, FunctionHandler, Protocol, RuntimeContext, StaticType, TypeCheck, TypeInfo,
+    VariantRtti,
 };
 use crate::{Hash, Item, ItemBuf};
+
+/// A (type erased) macro handler.
+pub(crate) type MacroHandler =
+    dyn Fn(&mut MacroContext, &TokenStream) -> compile::Result<TokenStream> + Send + Sync;
+
+/// A (type erased) attribute macro handler.
+pub(crate) type AttributeMacroHandler = dyn Fn(&mut MacroContext, &TokenStream, &TokenStream) -> compile::Result<TokenStream>
+    + Send
+    + Sync;
 
 /// Context metadata.
 #[derive(Debug)]
@@ -91,7 +101,7 @@ pub struct Context {
     /// Registered metadata, in the order that it was registered.
     meta: Vec<ContextMeta>,
     /// Item metadata in the context.
-    hash_to_meta: HashMap<Hash, Vec<usize>>,
+    hash_to_meta: hash::Map<Vec<usize>>,
     /// Store item to hash mapping.
     item_to_hash: HashMap<ItemBuf, BTreeSet<Hash>>,
     /// Registered native function handlers.
@@ -100,13 +110,13 @@ pub struct Context {
     deprecations: hash::Map<String>,
     /// Information on associated types.
     #[cfg(feature = "doc")]
-    associated: HashMap<Hash, Vec<Hash>>,
+    associated: hash::Map<Vec<Hash>>,
     /// Registered native macro handlers.
-    macros: HashMap<Hash, Arc<MacroHandler>>,
+    macros: hash::Map<Arc<MacroHandler>>,
     /// Registered native attribute macro handlers.
-    attribute_macros: HashMap<Hash, Arc<AttributeMacroHandler>>,
+    attribute_macros: hash::Map<Arc<AttributeMacroHandler>>,
     /// Registered types.
-    types: HashMap<Hash, ContextType>,
+    types: hash::Map<ContextType>,
     /// Registered internal enums.
     internal_enums: HashSet<&'static StaticType>,
     /// All available names in the context.

@@ -216,7 +216,9 @@ pub mod item;
 pub use self::item::{Item, ItemBuf};
 
 #[doc(hidden)]
-pub mod function_meta;
+mod function_meta;
+
+mod function;
 
 pub mod module;
 #[doc(inline)]

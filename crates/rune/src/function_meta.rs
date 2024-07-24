@@ -6,13 +6,13 @@ use crate as rune;
 use crate::alloc;
 use crate::alloc::borrow::Cow;
 use crate::alloc::prelude::*;
+use crate::compile::context::{AttributeMacroHandler, MacroHandler};
 use crate::compile::{self, meta};
+use crate::function::{Function, FunctionKind, InstanceFunction};
 use crate::item::IntoComponent;
 use crate::macros::{MacroContext, TokenStream};
-use crate::module::{AssociatedKey, Function, FunctionKind, InstanceFunction};
-use crate::runtime::{
-    AttributeMacroHandler, FunctionHandler, MacroHandler, MaybeTypeOf, Protocol, TypeInfo, TypeOf,
-};
+use crate::module::AssociatedKey;
+use crate::runtime::{FunctionHandler, MaybeTypeOf, Protocol, TypeInfo, TypeOf};
 use crate::{Hash, ItemBuf};
 
 mod sealed {

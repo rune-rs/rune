@@ -107,8 +107,8 @@ pub use self::range::Range;
 pub use rune_core::raw_str::RawStr;
 
 mod runtime_context;
+pub(crate) use self::runtime_context::FunctionHandler;
 pub use self::runtime_context::RuntimeContext;
-pub(crate) use self::runtime_context::{AttributeMacroHandler, FunctionHandler, MacroHandler};
 
 mod select;
 pub(crate) use self::select::Select;

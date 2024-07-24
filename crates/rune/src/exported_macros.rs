@@ -3,7 +3,7 @@
 /// This can be used through [`rune::function`] by enabling the `vm_result`
 /// option and suffixing an expression with `<expr>.vm?`.
 ///
-/// [`rune::function`]: crate::function
+/// [`rune::function`]: macro@crate::function
 /// [`VmResult`]: crate::runtime::VmResult
 #[macro_export]
 macro_rules! vm_try {
@@ -23,7 +23,7 @@ macro_rules! vm_try {
 /// with [`rune::function`], since a regular return would otherwise be
 /// transformed.
 ///
-/// [`rune::function`]: crate::function
+/// [`rune::function`]: macro@crate::function
 /// [`VmResult`]: crate::runtime::VmResult
 ///
 /// # Examples

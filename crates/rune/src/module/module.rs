@@ -4,8 +4,10 @@ use ::rust_alloc::sync::Arc;
 
 use crate as rune;
 use crate::alloc::prelude::*;
-use crate::alloc::{self, Box, HashMap, HashSet, String, Vec};
+use crate::alloc::{Box, HashMap, HashSet, String, Vec};
+use crate::compile::context::{AttributeMacroHandler, MacroHandler};
 use crate::compile::{self, meta, ContextError, Docs, Named};
+use crate::function::{Async, Function, FunctionKind, InstanceFunction, Plain};
 use crate::function_meta::{
     Associated, AssociatedFunctionData, AssociatedName, FunctionArgs, FunctionBuilder,
     FunctionData, FunctionMeta, FunctionMetaKind, MacroMeta, MacroMetaKind, ToFieldFunction,
@@ -14,371 +16,20 @@ use crate::function_meta::{
 use crate::item::IntoComponent;
 use crate::macros::{MacroContext, TokenStream};
 use crate::module::{
-    AssociatedKey, Async, EnumMut, Function, FunctionKind, InstallWith, InstanceFunction,
-    InternalEnum, InternalEnumMut, ItemFnMut, ItemMut, ModuleAssociated, ModuleAssociatedKind,
-    ModuleAttributeMacro, ModuleFunction, ModuleItem, ModuleItemCommon, ModuleItemKind,
-    ModuleMacro, ModuleType, Plain, TypeMut, TypeSpecification, VariantMut,
+    AssociatedKey, EnumMut, InstallWith, InternalEnumMut, ItemFnMut, ItemMut, ModuleAssociated,
+    ModuleAssociatedKind, ModuleAttributeMacro, ModuleFunction, ModuleItem, ModuleItemCommon,
+    ModuleItemKind, ModuleMacro, ModuleType, TypeMut, TypeSpecification, VariantMut,
 };
 use crate::runtime::{
-    AttributeMacroHandler, ConstValue, FromValue, FunctionHandler, GeneratorState, InstAddress,
-    MacroHandler, MaybeTypeOf, Output, Protocol, Stack, ToValue, TypeCheck, TypeInfo, TypeOf,
-    Value, VmResult,
+    ConstValue, FromValue, GeneratorState, InstAddress, MaybeTypeOf, Output, Protocol, Stack,
+    ToValue, TypeCheck, TypeOf, Value, VmResult,
 };
 use crate::{Hash, ItemBuf};
 
-/// Function builder as returned by [`Module::function`].
-///
-/// This allows for building a function regularly with
-/// [`ModuleFunctionBuilder::build`] or statically associate the function with a
-/// type through [`ModuleFunctionBuilder::build_associated::<T>`].
-#[must_use = "Must call one of the build functions, like `build` or `build_associated`"]
-pub struct ModuleFunctionBuilder<'a, F, A, N, K> {
-    module: &'a mut Module,
-    inner: FunctionBuilder<N, F, A, K>,
-}
-
-impl<'a, F, A, N, K> ModuleFunctionBuilder<'a, F, A, N, K>
-where
-    F: Function<A, K>,
-    F::Return: MaybeTypeOf,
-    A: FunctionArgs,
-    K: FunctionKind,
-{
-    /// Construct a regular function.
-    ///
-    /// This register the function as a free function in the module it's
-    /// associated with, who's full name is the name of the module extended by
-    /// the name of the function.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rune::{Any, Module};
-    ///
-    /// let mut m = Module::with_item(["module"])?;
-    /// m.function("floob", || ()).build()?;
-    /// # Ok::<_, rune::support::Error>(())
-    /// ```
-    #[inline]
-    pub fn build(self) -> Result<ItemFnMut<'a>, ContextError>
-    where
-        N: IntoComponent,
-    {
-        let meta = self.inner.build()?;
-        self.module.function_from_meta_kind(meta)
-    }
-
-    /// Construct a function that is associated with `T`.
-    ///
-    /// This registers the function as an assocaited function, which can only be
-    /// used through the type `T`.
-    ///
-    /// # Errors
-    ///
-    /// This function call will cause an error in [`Context::install`] if the
-    /// type we're associating it with has not been registered.
-    ///
-    /// [`Context::install`]: crate::Context::install
-    ///
-    /// ```
-    /// use rune::{Any, Context, Module};
-    ///
-    /// #[derive(Any)]
-    /// struct Thing;
-    ///
-    /// let mut m = Module::default();
-    /// m.function("floob", || ()).build_associated::<Thing>()?;
-    ///
-    /// let mut c = Context::default();
-    /// assert!(c.install(m).is_err());
-    /// # Ok::<_, rune::support::Error>(())
-    /// ```
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rune::{Any, Module};
-    ///
-    /// #[derive(Any)]
-    /// struct Thing;
-    ///
-    /// let mut m = Module::default();
-    /// m.ty::<Thing>()?;
-    /// m.function("floob", || ()).build_associated::<Thing>()?;
-    /// # Ok::<_, rune::support::Error>(())
-    /// ```
-    #[inline]
-    pub fn build_associated<T>(self) -> Result<ItemFnMut<'a>, ContextError>
-    where
-        N: ToInstance,
-        T: TypeOf,
-    {
-        let meta = self.inner.build_associated::<T>()?;
-        self.module.function_from_meta_kind(meta)
-    }
-
-    /// Construct a function that is associated with a custom dynamically
-    /// specified container.
-    ///
-    /// This registers the function as an assocaited function, which can only be
-    /// used through the specified type.
-    ///
-    /// [`Hash`] and [`TypeInfo`] are usually constructed through the
-    /// [`TypeOf`] trait. But that requires access to a static type, for which
-    /// you should use [`build_associated`] instead.
-    ///
-    /// # Errors
-    ///
-    /// The function call will error if the specified type is not already
-    /// registered in the module.
-    ///
-    /// [`build_associated`]: ModuleFunctionBuilder::build_associated
-    #[inline]
-    pub fn build_associated_with(
-        self,
-        container: Hash,
-        container_type_info: TypeInfo,
-    ) -> Result<ItemFnMut<'a>, ContextError>
-    where
-        N: ToInstance,
-    {
-        let meta = self
-            .inner
-            .build_associated_with(container, container_type_info)?;
-        self.module.function_from_meta_kind(meta)
-    }
-}
-
-/// Raw function builder as returned by [`Module::raw_function`].
-///
-/// This allows for building a function regularly with
-/// [`ModuleRawFunctionBuilder::build`] or statically associate the function
-/// with a type through [`ModuleRawFunctionBuilder::build_associated::<T>`].
-#[must_use = "Must call one of the build functions, like `build` or `build_associated`"]
-pub struct ModuleRawFunctionBuilder<'a, N> {
-    module: &'a mut Module,
-    name: N,
-    handler: Arc<FunctionHandler>,
-}
-
-impl<'a, N> ModuleRawFunctionBuilder<'a, N> {
-    /// Construct a regular function.
-    ///
-    /// This register the function as a free function in the module it's
-    /// associated with, who's full name is the name of the module extended by
-    /// the name of the function.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rune::{Any, Module};
-    /// use rune::runtime::VmResult;
-    ///
-    /// let mut m = Module::with_item(["module"])?;
-    /// m.raw_function("floob", |_, _, _, _| VmResult::Ok(())).build()?;
-    /// # Ok::<_, rune::support::Error>(())
-    /// ```
-    #[inline]
-    pub fn build(self) -> Result<ItemFnMut<'a>, ContextError>
-    where
-        N: IntoComponent,
-    {
-        let item = ItemBuf::with_item([self.name])?;
-        self.module
-            .function_from_meta_kind(FunctionMetaKind::Function(FunctionData::from_raw(
-                item,
-                self.handler,
-            )))
-    }
-
-    /// Construct a function that is associated with `T`.
-    ///
-    /// This registers the function as an assocaited function, which can only be
-    /// used through the type `T`.
-    ///
-    /// # Errors
-    ///
-    /// This function call will cause an error in [`Context::install`] if the
-    /// type we're associating it with has not been registered.
-    ///
-    /// [`Context::install`]: crate::Context::install
-    ///
-    /// ```
-    /// use rune::{Any, Module, Context};
-    ///
-    /// #[derive(Any)]
-    /// struct Thing;
-    ///
-    /// let mut m = Module::default();
-    /// m.function("floob", || ()).build_associated::<Thing>()?;
-    ///
-    /// let mut c = Context::default();
-    /// assert!(c.install(m).is_err());
-    /// # Ok::<_, rune::support::Error>(())
-    /// ```
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rune::{Any, Module};
-    /// use rune::runtime::VmResult;
-    ///
-    /// #[derive(Any)]
-    /// struct Thing;
-    ///
-    /// let mut m = Module::default();
-    /// m.ty::<Thing>()?;
-    /// m.raw_function("floob", |_, _, _, _| VmResult::Ok(())).build_associated::<Thing>()?;
-    /// # Ok::<_, rune::support::Error>(())
-    /// ```
-    #[inline]
-    pub fn build_associated<T>(self) -> Result<ItemFnMut<'a>, ContextError>
-    where
-        N: ToInstance,
-        T: TypeOf,
-    {
-        let associated = Associated::from_type::<T>(self.name.to_instance()?)?;
-
-        self.module
-            .function_from_meta_kind(FunctionMetaKind::AssociatedFunction(
-                AssociatedFunctionData::from_raw(associated, self.handler),
-            ))
-    }
-
-    /// Construct a function that is associated with a custom dynamically
-    /// specified container.
-    ///
-    /// This registers the function as an assocaited function, which can only be
-    /// used through the specified type.
-    ///
-    /// [`Hash`] and [`TypeInfo`] are usually constructed through the
-    /// [`TypeOf`] trait. But that requires access to a static type, for which
-    /// you should use [`build_associated`] instead.
-    ///
-    /// # Errors
-    ///
-    /// The function call will error if the specified type is not already
-    /// registered in the module.
-    ///
-    /// [`build_associated`]: ModuleFunctionBuilder::build_associated
-    #[inline]
-    pub fn build_associated_with(
-        self,
-        container: Hash,
-        container_type_info: TypeInfo,
-    ) -> Result<ItemFnMut<'a>, ContextError>
-    where
-        N: ToInstance,
-    {
-        let associated = Associated::new(self.name.to_instance()?, container, container_type_info);
-        self.module
-            .function_from_meta_kind(FunctionMetaKind::AssociatedFunction(
-                AssociatedFunctionData::from_raw(associated, self.handler),
-            ))
-    }
-}
-
-/// Raw function builder as returned by [`Module::raw_function`].
-///
-/// This allows for building a function regularly with
-/// [`ModuleConstantBuilder::build`] or statically associate the function with a
-/// type through [`ModuleConstantBuilder::build_associated::<T>`].
-#[must_use = "Must call one of the build functions, like `build` or `build_associated`"]
-pub struct ModuleConstantBuilder<'a, N, V> {
-    module: &'a mut Module,
-    name: N,
-    value: V,
-}
-
-impl<'a, N, V> ModuleConstantBuilder<'a, N, V>
-where
-    V: ToValue,
-{
-    /// Add the free constant directly to the module.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rune::{Any, Module};
-    /// use rune::runtime::VmResult;
-    ///
-    /// let mut m = Module::with_item(["module"])?;
-    /// m.constant("NAME", "Hello World").build()?;
-    /// # Ok::<_, rune::support::Error>(())
-    /// ```
-    pub fn build(self) -> Result<ItemMut<'a>, ContextError>
-    where
-        N: IntoComponent,
-    {
-        let item = ItemBuf::with_item([self.name])?;
-        self.module.insert_constant(item, self.value)
-    }
-
-    /// Build a constant that is associated with the static type `T`.
-    ///
-    /// # Errors
-    ///
-    /// This function call will cause an error in [`Context::install`] if the
-    /// type we're associating it with has not been registered.
-    ///
-    /// [`Context::install`]: crate::Context::install
-    ///
-    /// ```
-    /// use rune::{Any, Context, Module};
-    ///
-    /// #[derive(Any)]
-    /// struct Thing;
-    ///
-    /// let mut m = Module::default();
-    /// m.constant("CONSTANT", "Hello World").build_associated::<Thing>()?;
-    ///
-    /// let mut c = Context::default();
-    /// assert!(c.install(m).is_err());
-    /// # Ok::<_, rune::support::Error>(())
-    /// ```
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rune::{Any, Module};
-    ///
-    /// let mut module = Module::default();
-    ///
-    /// #[derive(Any)]
-    /// struct Thing;
-    ///
-    /// module.constant("TEN", 10).build_associated::<Thing>()?.docs(["Ten which is an associated constant."]);
-    /// # Ok::<_, rune::support::Error>(())
-    /// ```
-    pub fn build_associated<T>(self) -> Result<ItemMut<'a>, ContextError>
-    where
-        T: TypeOf,
-        N: ToInstance,
-    {
-        let name = self.name.to_instance()?;
-        let associated = Associated::from_type::<T>(name)?;
-        self.module
-            .insert_associated_constant(associated, self.value)
-    }
-}
-
-#[doc(hidden)]
-pub struct ModuleMetaData {
-    #[doc(hidden)]
-    pub item: ItemBuf,
-    #[doc(hidden)]
-    pub docs: &'static [&'static str],
-}
-
-/// Type used to collect and store module metadata through the `#[rune::module]`
-/// macro.
-///
-/// This is the argument type for [`Module::from_meta`], and is from a public
-/// API perspective completely opaque and might change for any release.
-///
-/// Calling and making use of `ModuleMeta` manually despite this warning might
-/// lead to future breakage.
-pub type ModuleMeta = fn() -> alloc::Result<ModuleMetaData>;
+use super::{
+    InternalEnum, ModuleConstantBuilder, ModuleFunctionBuilder, ModuleMeta,
+    ModuleRawFunctionBuilder,
+};
 
 #[derive(Debug, TryClone, PartialEq, Eq, Hash)]
 enum Name {
@@ -737,6 +388,7 @@ impl Module {
 
         self.install_internal_enum(name, enum_)
     }
+
     /// Construct type information for the `Option` type.
     ///
     /// Registering this allows the given type to be used in Rune scripts when
@@ -858,7 +510,11 @@ impl Module {
         }
     }
 
-    fn insert_constant<V>(&mut self, item: ItemBuf, value: V) -> Result<ItemMut<'_>, ContextError>
+    pub(super) fn insert_constant<V>(
+        &mut self,
+        item: ItemBuf,
+        value: V,
+    ) -> Result<ItemMut<'_>, ContextError>
     where
         V: ToValue,
     {
@@ -896,7 +552,7 @@ impl Module {
         })
     }
 
-    fn insert_associated_constant<V>(
+    pub(super) fn insert_associated_constant<V>(
         &mut self,
         associated: Associated,
         value: V,
@@ -1172,7 +828,7 @@ impl Module {
     /// Register a function handler through its meta.
     ///
     /// The metadata must be provided by annotating the function with
-    /// [`#[rune::function]`][crate::function].
+    /// [`#[rune::function]`][macro@crate::function].
     ///
     /// This has the benefit that it captures documentation comments which can
     /// be used when generating documentation or referencing the function
@@ -1257,7 +913,7 @@ impl Module {
         }
     }
 
-    fn function_from_meta_kind(
+    pub(super) fn function_from_meta_kind(
         &mut self,
         kind: FunctionMetaKind,
     ) -> Result<ItemFnMut<'_>, ContextError> {

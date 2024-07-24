@@ -63,6 +63,9 @@ impl FunctionKind for Async {
 
 /// Trait used to provide the [function][crate::module::Module::function]
 /// function.
+#[diagnostic::on_unimplemented(
+    label = "#[derive(Any)] could be missing on the arguments or return value of `{Self}`"
+)]
 pub trait Function<A, K>: 'static + Send + Sync {
     /// The return type of the function.
     #[doc(hidden)]
