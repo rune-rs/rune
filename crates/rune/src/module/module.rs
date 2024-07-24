@@ -14,17 +14,20 @@ use crate::function_meta::{
 use crate::item::IntoComponent;
 use crate::macros::{MacroContext, TokenStream};
 use crate::module::{
-    AssociatedKey, Async, EnumMut, Function, FunctionKind, InstallWith, InstanceFunction,
-    InternalEnum, InternalEnumMut, ItemFnMut, ItemMut, ModuleAssociated, ModuleAssociatedKind,
-    ModuleAttributeMacro, ModuleFunction, ModuleItem, ModuleItemCommon, ModuleItemKind,
-    ModuleMacro, ModuleType, Plain, TypeMut, TypeSpecification, VariantMut,
+    AssociatedKey, EnumMut, InstallWith, InternalEnumMut, ItemFnMut, ItemMut, ModuleAssociated,
+    ModuleAssociatedKind, ModuleAttributeMacro, ModuleFunction, ModuleItem, ModuleItemCommon,
+    ModuleItemKind, ModuleMacro, ModuleType, TypeMut, TypeSpecification, VariantMut,
 };
+
+use crate::function::{Async, Function, FunctionKind, InstanceFunction, Plain};
 use crate::runtime::{
     AttributeMacroHandler, ConstValue, FromValue, FunctionHandler, GeneratorState, InstAddress,
     MacroHandler, MaybeTypeOf, Output, Protocol, Stack, ToValue, TypeCheck, TypeInfo, TypeOf,
     Value, VmResult,
 };
 use crate::{Hash, ItemBuf};
+
+use super::InternalEnum;
 
 /// Function builder as returned by [`Module::function`].
 ///
@@ -737,6 +740,7 @@ impl Module {
 
         self.install_internal_enum(name, enum_)
     }
+
     /// Construct type information for the `Option` type.
     ///
     /// Registering this allows the given type to be used in Rune scripts when
