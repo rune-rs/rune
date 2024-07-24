@@ -12,19 +12,20 @@ use crate::{Any, ContextError, Module, T};
 /// Testing and benchmarking.
 #[rune::module(::std::test)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::from_meta(self::module_meta)?.with_unique("std::test");
+    let mut m = Module::from_meta(self::module_meta)?.with_unique("std::test");
 
-    module.macro_meta(assert)?;
-    module.macro_meta(assert_eq)?;
-    module.macro_meta(assert_ne)?;
+    m.macro_meta(assert)?;
+    m.macro_meta(assert_eq)?;
+    m.macro_meta(assert_ne)?;
 
-    module.ty::<Bencher>()?.docs([
-        "A type to perform benchmarks.",
-        "",
-        "This is the type of the argument to any function which is annotated with `#[bench]`",
-    ])?;
-    module.function_meta(Bencher::iter)?;
-    Ok(module)
+    m.ty::<Bencher>()?.docs(docstring! {
+        /// A type to perform benchmarks.
+        ///
+        /// This is the type of the argument to any function which is annotated with `#[bench]`
+    })?;
+
+    m.function_meta(Bencher::iter)?;
+    Ok(m)
 }
 
 /// A helper type to capture benchmarks.

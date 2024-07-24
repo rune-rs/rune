@@ -13,21 +13,21 @@ fn test_collect_vec() {
     assert_eq!(values, vec![4, 3, 2, 1]);
 
     let values: Vec<i64> = rune! {
-        use std::iter::Iterator;
+        use std::slice::Iter;
 
         pub fn main() {
             let it = [4, 3, 2, 1].iter();
-            Iterator::collect::<Vec>(it)
+            Iter::collect::<Vec>(it)
         }
     };
     assert_eq!(values, vec![4, 3, 2, 1]);
 
     let values: Vec<i64> = rune! {
-        use std::iter::Iterator;
+        use std::slice::Iter;
 
         pub fn main() {
             let it = [4, 3, 2, 1].iter();
-            let c = Iterator::collect::<Vec>;
+            let c = Iter::collect::<Vec>;
             c(it)
         }
     };
@@ -53,11 +53,11 @@ fn test_collect_object() {
     assert_eq!(values, expected);
 
     let values: HashMap<String, i64> = rune! {
-        use std::iter::Iterator;
+        use std::slice::Iter;
 
         pub fn main() {
             let it = [("a", 4), ("b", 3), ("c", 2), ("d", 1)].iter();
-            Iterator::collect::<Object>(it)
+            Iter::collect::<Object>(it)
         }
     };
     let expected = [
@@ -71,11 +71,11 @@ fn test_collect_object() {
     assert_eq!(values, expected);
 
     let values: HashMap<String, i64> = rune! {
-        use std::iter::Iterator;
+        use std::slice::Iter;
 
         pub fn main() {
             let it = [("a", 4), ("b", 3), ("c", 2), ("d", 1)].iter();
-            let c = Iterator::collect::<Object>;
+            let c = Iter::collect::<Object>;
             c(it)
         }
     };

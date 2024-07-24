@@ -365,16 +365,12 @@ impl<'a, 'arena> Query<'a, 'arena> {
             ));
         };
 
+        let item = self.pool.alloc_item(item)?;
+
         let meta = meta::Meta {
             context: true,
             hash: meta.hash,
-            item_meta: ItemMeta {
-                id: self.gen.next(),
-                location: Default::default(),
-                item: self.pool.alloc_item(item)?,
-                visibility: Default::default(),
-                module: Default::default(),
-            },
+            item_meta: self.context_item_meta(item),
             kind: meta.kind.try_clone()?,
             source: None,
             parameters,
@@ -408,7 +404,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         let kind = if !parameters.parameters.is_empty() {
             ErrorKind::MissingItemParameters {
                 item: self.pool.item(item).try_to_owned()?,
-                parameters: parameters.as_boxed()?,
+                parameters: parameters.parameters,
             }
         } else {
             ErrorKind::MissingItem {
@@ -1196,7 +1192,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
                     &mut path,
                 )?;
 
-                let Some((item_meta, update)) = update else {
+                let Some(FoundImportStep { item_meta, import }) = update else {
                     continue;
                 };
 
@@ -1206,8 +1202,8 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 }
 
                 path.try_push(ImportStep {
-                    location: update.location,
-                    item: self.pool.item(update.target).try_to_owned()?,
+                    location: import.location,
+                    item: self.pool.item(import.target).try_to_owned()?,
                 })?;
 
                 if !visited.try_insert(self.pool.alloc_item(&item)?)? {
@@ -1220,8 +1216,8 @@ impl<'a, 'arena> Query<'a, 'arena> {
                     ));
                 }
 
-                module = update.module;
-                item = self.pool.item(update.target).join(it)?;
+                module = import.module;
+                item = self.pool.item(import.target).join(it)?;
                 any_matched = true;
                 continue 'outer;
             }
@@ -1245,13 +1241,46 @@ impl<'a, 'arena> Query<'a, 'arena> {
         item: ItemId,
         used: Used,
         #[cfg(feature = "emit")] path: &mut Vec<ImportStep>,
-    ) -> compile::Result<Option<(ItemMeta, meta::Import)>> {
+    ) -> compile::Result<Option<FoundImportStep>> {
         // already resolved query.
         if let Some(meta) = self.inner.meta.get(&(item, Hash::EMPTY)) {
             return Ok(match meta.kind {
-                meta::Kind::Import(import) => Some((meta.item_meta, import)),
+                meta::Kind::Import(import) => Some(FoundImportStep {
+                    item_meta: meta.item_meta,
+                    import,
+                }),
                 _ => None,
             });
+        }
+
+        if let Some(metas) = self.context.lookup_meta(self.pool.item(item)) {
+            for m in metas {
+                if let meta::Kind::Alias(alias) = &m.kind {
+                    let target = self.pool.alloc_item(&alias.to)?;
+
+                    let import = meta::Import {
+                        location: Default::default(),
+                        target,
+                        module,
+                    };
+
+                    let meta = meta::Meta {
+                        context: true,
+                        hash: self.pool.item_type_hash(item),
+                        item_meta: self.context_item_meta(item),
+                        kind: meta::Kind::Import(import),
+                        source: None,
+                        parameters: Hash::EMPTY,
+                    };
+
+                    let item_meta = self.insert_meta(meta).with_span(span)?;
+
+                    return Ok(Some(FoundImportStep {
+                        item_meta: *item_meta,
+                        import,
+                    }));
+                }
+            }
         }
 
         // resolve query.
@@ -1289,7 +1318,21 @@ impl<'a, 'arena> Query<'a, 'arena> {
         };
 
         let item_meta = self.insert_meta(meta).with_span(span)?;
-        Ok(Some((*item_meta, import)))
+
+        Ok(Some(FoundImportStep {
+            item_meta: *item_meta,
+            import,
+        }))
+    }
+
+    fn context_item_meta(&self, item: ItemId) -> ItemMeta {
+        ItemMeta {
+            id: self.gen.next(),
+            location: Default::default(),
+            item,
+            visibility: Default::default(),
+            module: Default::default(),
+        }
     }
 
     /// Build a single, indexed entry and return its metadata.
@@ -1392,6 +1435,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
                         }
                         _ => None,
                     },
+                    trait_hash: None,
                     is_test: f.is_test,
                     is_bench: f.is_bench,
                     signature: meta::Signature {
@@ -1833,4 +1877,9 @@ impl<'a, 'arena> Query<'a, 'arena> {
     pub(crate) fn get_captures(&self, hash: Hash) -> Option<&[hir::OwnedName]> {
         Some(self.inner.captures.get(&hash)?)
     }
+}
+
+struct FoundImportStep {
+    item_meta: ItemMeta,
+    import: meta::Import,
 }

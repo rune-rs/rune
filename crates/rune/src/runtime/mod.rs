@@ -3,6 +3,12 @@
 #[cfg(test)]
 mod tests;
 
+#[macro_use]
+mod macros;
+
+mod steps_between;
+use self::steps_between::StepsBetween;
+
 mod access;
 pub(crate) use self::access::{Access, AccessErrorKind, RawAccessGuard};
 pub use self::access::{AccessError, BorrowMut, BorrowRef, Snapshot};
@@ -11,7 +17,7 @@ mod any_obj;
 pub use self::any_obj::{AnyObj, AnyObjError, AnyObjVtable};
 
 mod args;
-pub use self::args::Args;
+pub use self::args::{Args, FixedArgs};
 pub(crate) use self::args::{DynArgs, DynArgsUsed, DynGuardedArgs};
 
 mod awaited;
@@ -48,7 +54,7 @@ mod future;
 pub use self::future::Future;
 pub(crate) use self::future::SelectFuture;
 
-mod generator;
+pub(crate) mod generator;
 pub use self::generator::Generator;
 
 mod generator_state;
@@ -64,7 +70,7 @@ pub use self::inst::{
 };
 
 mod iterator;
-pub use self::iterator::{Iterator, IteratorTrait};
+pub use self::iterator::Iterator;
 
 mod type_;
 pub use self::type_::Type;
@@ -73,7 +79,7 @@ mod label;
 pub use self::label::DebugLabel;
 pub(crate) use self::label::Label;
 
-mod object;
+pub(crate) mod object;
 pub use self::object::Object;
 
 mod panic;
@@ -85,7 +91,7 @@ pub use self::protocol::Protocol;
 mod protocol_caller;
 pub(crate) use self::protocol_caller::{EnvProtocolCaller, ProtocolCaller};
 
-mod range_from;
+pub(crate) mod range_from;
 pub use self::range_from::RangeFrom;
 
 mod range_full;
@@ -97,18 +103,18 @@ pub use self::range_to_inclusive::RangeToInclusive;
 mod range_to;
 pub use self::range_to::RangeTo;
 
-mod range_inclusive;
+pub(crate) mod range_inclusive;
 pub use self::range_inclusive::RangeInclusive;
 
-mod range;
+pub(crate) mod range;
 pub use self::range::Range;
 
 #[doc(inline)]
 pub use rune_core::raw_str::RawStr;
 
 mod runtime_context;
+pub(crate) use self::runtime_context::FunctionHandler;
 pub use self::runtime_context::RuntimeContext;
-pub(crate) use self::runtime_context::{AttributeMacroHandler, FunctionHandler, MacroHandler};
 
 mod select;
 pub(crate) use self::select::Select;
@@ -118,7 +124,7 @@ pub(crate) use self::shared::Shared;
 pub use self::shared::{Mut, RawMut, RawRef, Ref, SharedPointerGuard};
 
 mod stack;
-pub use self::stack::{SliceError, Stack, StackError};
+pub use self::stack::{Memory, SliceError, Stack, StackError};
 
 mod static_string;
 pub use self::static_string::StaticString;
@@ -139,7 +145,7 @@ mod type_info;
 pub use self::type_info::{AnyTypeInfo, TypeInfo};
 
 mod type_of;
-pub use self::type_of::{MaybeTypeOf, TypeOf};
+pub use self::type_of::{CoreTypeOf, MaybeTypeOf, TypeOf};
 
 pub mod unit;
 pub(crate) use self::unit::UnitFn;
@@ -151,6 +157,8 @@ pub use self::value::{EmptyStruct, Rtti, Struct, TupleStruct, TypeValue, Value, 
 
 mod variant;
 pub use self::variant::{Variant, VariantData};
+
+pub mod slice;
 
 mod vec;
 pub use self::vec::Vec;

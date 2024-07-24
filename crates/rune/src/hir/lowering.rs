@@ -1543,7 +1543,7 @@ pub(crate) fn expr_path<'hir>(
     let kind = if !parameters.parameters.is_empty() {
         ErrorKind::MissingItemParameters {
             item: cx.q.pool.item(named.item).try_to_owned()?,
-            parameters: parameters.parameters.into_iter().try_collect()?,
+            parameters: parameters.parameters,
         }
     } else {
         ErrorKind::MissingItem {

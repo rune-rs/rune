@@ -85,11 +85,10 @@ impl<A: Allocator> ItemBuf<A> {
     }
 
     /// Construct a new item with the given path in the given allocator.
-    pub(crate) fn with_item_in<I>(iter: I, alloc: A) -> alloc::Result<Self>
-    where
-        I: IntoIterator,
-        I::Item: IntoComponent,
-    {
+    pub(crate) fn with_item_in(
+        iter: impl IntoIterator<Item: IntoComponent>,
+        alloc: A,
+    ) -> alloc::Result<Self> {
         let mut content = Vec::new_in(alloc);
 
         for c in iter {
@@ -184,11 +183,7 @@ impl ItemBuf {
     /// assert_eq!(it.next(), None);
     /// # Ok::<(), rune::support::Error>(())
     /// ```
-    pub fn with_item<I>(iter: I) -> alloc::Result<Self>
-    where
-        I: IntoIterator,
-        I::Item: IntoComponent,
-    {
+    pub fn with_item(iter: impl IntoIterator<Item: IntoComponent>) -> alloc::Result<Self> {
         Self::with_item_in(iter, Global)
     }
 

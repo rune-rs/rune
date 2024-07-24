@@ -86,25 +86,6 @@ fn is_writable(value: Value) -> bool {
     value.is_writable()
 }
 
-/// Clone the specified `value`.
-///
-/// # Examples
-///
-/// ```rune
-/// let a = 42;
-/// let b = a;
-/// let c = clone(a);
-///
-/// a += 1;
-/// assert_eq!(a, 43);
-/// assert_eq!(b, 43);
-/// assert_eq!(c, 42);
-/// ```
-#[rune::function]
-fn clone(value: Value) -> Value {
-    value.clone()
-}
-
 /// Stringify the given argument, causing it to expand to its underlying token
 /// stream.
 ///

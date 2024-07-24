@@ -114,6 +114,7 @@ pub(crate) static STRING: &StaticType = &StaticType {
 #[cfg(feature = "alloc")]
 impl_static_type!(::rust_alloc::string::String => STRING);
 impl_static_type!(alloc::String => STRING);
+impl_static_type!(alloc::Box<str> => STRING);
 impl_static_type!(str => STRING);
 
 pub(crate) static BYTES: &StaticType = &StaticType {
@@ -199,12 +200,12 @@ pub(crate) static FUTURE: &StaticType = &StaticType {
 
 pub(crate) static GENERATOR: &StaticType = &StaticType {
     name: RawStr::from_str("Generator"),
-    hash: ::rune_macros::hash!(::std::ops::Generator),
+    hash: ::rune_macros::hash!(::std::ops::generator::Generator),
 };
 
 pub(crate) static GENERATOR_STATE: &StaticType = &StaticType {
     name: RawStr::from_str("GeneratorState"),
-    hash: ::rune_macros::hash!(::std::ops::GeneratorState),
+    hash: ::rune_macros::hash!(::std::ops::generator::GeneratorState),
 };
 
 pub(crate) static STREAM: &StaticType = &StaticType {
@@ -234,11 +235,6 @@ pub(crate) static FUNCTION: &StaticType = &StaticType {
 pub(crate) static FORMAT: &StaticType = &StaticType {
     name: RawStr::from_str("Format"),
     hash: ::rune_macros::hash!(::std::fmt::Format),
-};
-
-pub(crate) static ITERATOR: &StaticType = &StaticType {
-    name: RawStr::from_str("Iterator"),
-    hash: ::rune_macros::hash!(::std::iter::Iterator),
 };
 
 pub(crate) static ORDERING: &StaticType = &StaticType {

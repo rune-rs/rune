@@ -6,13 +6,13 @@ use crate as rune;
 use crate::alloc;
 use crate::alloc::borrow::Cow;
 use crate::alloc::prelude::*;
+use crate::compile::context::{AttributeMacroHandler, MacroHandler};
 use crate::compile::{self, meta};
+use crate::function::{Function, FunctionKind, InstanceFunction};
 use crate::item::IntoComponent;
 use crate::macros::{MacroContext, TokenStream};
-use crate::module::{AssociatedKey, Function, FunctionKind, InstanceFunction};
-use crate::runtime::{
-    AttributeMacroHandler, FunctionHandler, MacroHandler, MaybeTypeOf, Protocol, TypeInfo, TypeOf,
-};
+use crate::module::AssociatedKey;
+use crate::runtime::{FunctionHandler, MaybeTypeOf, Protocol, TypeInfo, TypeOf};
 use crate::{Hash, ItemBuf};
 
 mod sealed {
@@ -537,6 +537,9 @@ pub struct FunctionMetaData {
 pub trait FunctionArgs {
     #[doc(hidden)]
     fn into_box() -> alloc::Result<Box<[meta::DocType]>>;
+
+    #[doc(hidden)]
+    fn len() -> usize;
 }
 
 macro_rules! iter_function_args {
@@ -546,9 +549,13 @@ macro_rules! iter_function_args {
             $($ty: MaybeTypeOf,)*
         {
             #[inline]
-            #[doc(hidden)]
             fn into_box() -> alloc::Result<Box<[meta::DocType]>> {
                 try_vec![$(<$ty as MaybeTypeOf>::maybe_type_of()?),*].try_into_boxed_slice()
+            }
+
+            #[inline]
+            fn len() -> usize {
+                $count
             }
         }
     }

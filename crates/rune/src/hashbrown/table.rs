@@ -216,6 +216,16 @@ where
     }
 }
 
+impl<V> iter::ExactSizeIterator for IterRef<V>
+where
+    V: Clone,
+{
+    #[inline]
+    fn len(&self) -> usize {
+        self.iter.len()
+    }
+}
+
 pub(crate) struct KeysRef<V> {
     iter: RawIter<(Value, V)>,
     _guard: RawRef,

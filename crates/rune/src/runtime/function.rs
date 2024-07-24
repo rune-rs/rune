@@ -6,7 +6,7 @@ use ::rust_alloc::sync::Arc;
 use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, Vec};
-use crate::module;
+use crate::function;
 use crate::runtime::vm::Isolated;
 use crate::runtime::{
     Args, Call, ConstValue, FromValue, FunctionHandler, InstAddress, Output, OwnedTuple, Rtti,
@@ -110,8 +110,8 @@ impl Function {
     /// ```
     pub fn new<F, A, K>(f: F) -> Self
     where
-        F: module::Function<A, K>,
-        K: module::FunctionKind,
+        F: function::Function<A, K>,
+        K: function::FunctionKind,
     {
         Self(FunctionImpl {
             inner: Inner::FnHandler(FnHandler {
@@ -127,8 +127,8 @@ impl Function {
     #[deprecated = "Use Function::new() instead"]
     pub fn function<F, A, K>(f: F) -> Self
     where
-        F: module::Function<A, K>,
-        K: module::FunctionKind,
+        F: function::Function<A, K>,
+        K: function::FunctionKind,
     {
         Self::new(f)
     }
@@ -137,7 +137,7 @@ impl Function {
     #[deprecated = "Use Function::new() instead"]
     pub fn async_function<F, A>(f: F) -> Self
     where
-        F: module::Function<A, module::Async>,
+        F: function::Function<A, function::Async>,
     {
         Self::new(f)
     }

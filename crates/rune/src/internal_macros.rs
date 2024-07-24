@@ -11,15 +11,17 @@ macro_rules! resolve_context {
 /// Build an implementation of `TypeOf` basic of a static type.
 macro_rules! impl_static_type {
     (impl <$($p:ident),*> $ty:ty => $static_type:expr) => {
-        impl<$($p,)*> $crate::runtime::TypeOf for $ty
-        where
-            $($p: $crate::runtime::MaybeTypeOf,)*
-        {
+        impl<$($p,)*> $crate::runtime::CoreTypeOf for $ty {
             #[inline]
             fn type_hash() -> $crate::Hash {
                 $static_type.hash
             }
+        }
 
+        impl<$($p,)*> $crate::runtime::TypeOf for $ty
+        where
+            $($p: $crate::runtime::MaybeTypeOf,)*
+        {
             #[inline]
             fn type_info() -> $crate::runtime::TypeInfo {
                 $crate::runtime::TypeInfo::StaticType($static_type)
@@ -33,7 +35,7 @@ macro_rules! impl_static_type {
             #[inline]
             fn maybe_type_of() -> $crate::alloc::Result<$crate::compile::meta::DocType> {
                 $crate::compile::meta::DocType::with_generics(
-                    <$ty as $crate::runtime::TypeOf>::type_hash(),
+                    <$ty as $crate::runtime::CoreTypeOf>::type_hash(),
                     [$(<$p as $crate::runtime::MaybeTypeOf>::maybe_type_of()?),*]
                 )
             }

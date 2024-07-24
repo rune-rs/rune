@@ -58,7 +58,7 @@ fn bug_344_inst_fn() -> Result<()> {
     context.install(module)?;
     let runtime = context.runtime()?;
 
-    let hash = Hash::associated_function(<GuardCheck as Any>::type_hash(), "function");
+    let hash = Hash::associated_function(GuardCheck::type_hash(), "function");
 
     let function = runtime.function(hash).expect("expect function");
 
@@ -120,7 +120,7 @@ fn bug_344_async_inst_fn() -> Result<()> {
     context.install(module)?;
     let runtime = context.runtime()?;
 
-    let hash = Hash::associated_function(<GuardCheck as Any>::type_hash(), "function");
+    let hash = Hash::associated_function(GuardCheck::type_hash(), "function");
 
     let function = runtime.function(hash).expect("expect function");
 
@@ -170,27 +170,24 @@ impl GuardCheck {
     }
 }
 
-impl Any for GuardCheck {
-    fn type_hash() -> Hash {
-        rune_macros::hash!(GuardCheck)
-    }
-}
+impl Any for GuardCheck {}
 
 impl Named for GuardCheck {
     const BASE_NAME: RawStr = RawStr::from_str("GuardCheck");
 }
 
-impl TypeOf for GuardCheck {
-    #[inline]
+impl CoreTypeOf for GuardCheck {
     fn type_hash() -> Hash {
-        <Self as Any>::type_hash()
+        rune_macros::hash!(GuardCheck)
     }
+}
 
+impl TypeOf for GuardCheck {
     #[inline]
     fn type_info() -> TypeInfo {
         TypeInfo::Any(AnyTypeInfo::__private_new(
-            <Self as Named>::BASE_NAME,
-            <Self as TypeOf>::type_hash(),
+            Self::BASE_NAME,
+            Self::type_hash(),
         ))
     }
 }
@@ -198,7 +195,7 @@ impl TypeOf for GuardCheck {
 impl MaybeTypeOf for GuardCheck {
     #[inline]
     fn maybe_type_of() -> alloc::Result<meta::DocType> {
-        Ok(meta::DocType::new(<Self as TypeOf>::type_hash()))
+        Ok(meta::DocType::new(Self::type_hash()))
     }
 }
 

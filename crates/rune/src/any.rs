@@ -1,7 +1,7 @@
 use core::any;
 
 use crate::compile::Named;
-use crate::hash::Hash;
+use crate::runtime::CoreTypeOf;
 
 /// Macro to mark a value as external, which will implement all the appropriate
 /// traits.
@@ -72,7 +72,7 @@ pub use rune_macros::Any;
 /// [`Context::install`]: crate::Context::install
 /// [`Module`]: crate::Module
 /// [`String`]: std::string::String
-/// [`#[rune::function]`]: crate::function
+/// [`#[rune::function]`]: macro@crate::function
 /// [`#[rune::macro_]`]: crate::macro_
 ///
 /// # Examples
@@ -110,10 +110,7 @@ pub use rune_macros::Any;
 ///     Ok(module)
 /// }
 /// ```
-pub trait Any: Named + any::Any {
-    /// The type hash of the type.
-    fn type_hash() -> Hash;
-}
+pub trait Any: CoreTypeOf + Named + any::Any {}
 
 // Internal any impls for useful types in the std library.
 

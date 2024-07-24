@@ -199,16 +199,16 @@ pub fn any(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 /// ```
 /// use rune::Hash;
 ///
-/// let hash: Hash = rune::hash!(::std::ops::Generator);
+/// let hash: Hash = rune::hash!(::std::ops::generator::Generator);
 /// ```
 #[proc_macro]
 pub fn hash(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let path = syn::parse_macro_input!(input as syn::Path);
+    let args = syn::parse_macro_input!(input as self::hash::Arguments);
 
-    let stream = match self::hash::build_type_hash(&path) {
+    let stream = match self::hash::build_type_hash(&args) {
         Ok(hash) => {
             let hash = hash.into_inner();
-            ::quote::quote!(rune::Hash::new(#hash))
+            ::quote::quote!(rune::Hash(#hash))
         }
         Err(error) => to_compile_errors([error]),
     };
@@ -223,10 +223,11 @@ pub fn hash(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 /// ```
 /// use rune::{Item, ItemBuf};
 ///
-/// static ITEM: &Item = rune::item!(::std::ops::Generator);
+/// static ITEM: &Item = rune::item!(::std::ops::generator::Generator);
 ///
 /// let mut item = ItemBuf::with_crate("std")?;
 /// item.push("ops")?;
+/// item.push("generator")?;
 /// item.push("Generator")?;
 ///
 /// assert_eq!(item, ITEM);

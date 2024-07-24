@@ -277,10 +277,9 @@ where
                 continue;
             }
 
-            executed = executed.wrapping_add(1);
-
             let mut vm = Vm::new(runtime.clone(), case.unit.clone());
             case.execute(&mut vm, &capture).await?;
+            executed = executed.wrapping_add(1);
 
             if case.outcome.is_ok() {
                 if flags.quiet {

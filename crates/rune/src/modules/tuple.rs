@@ -3,7 +3,8 @@
 use core::cmp::Ordering;
 
 use crate as rune;
-use crate::runtime::{EnvProtocolCaller, Hasher, Iterator, Ref, Tuple, Value, Vec, VmResult};
+use crate::runtime::slice::Iter;
+use crate::runtime::{EnvProtocolCaller, Hasher, Ref, Tuple, Value, Vec, VmResult};
 use crate::{ContextError, Module};
 
 /// The [`Tuple`] fixed collection.
@@ -47,10 +48,19 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(get)?;
     m.function_meta(iter)?;
     m.function_meta(into_iter)?;
-    m.function_meta(partial_eq)?;
-    m.function_meta(eq)?;
-    m.function_meta(partial_cmp)?;
-    m.function_meta(cmp)?;
+
+    m.function_meta(partial_eq__meta)?;
+    m.implement_trait::<Tuple>(rune::item!(::std::cmp::PartialEq))?;
+
+    m.function_meta(eq__meta)?;
+    m.implement_trait::<Tuple>(rune::item!(::std::cmp::Eq))?;
+
+    m.function_meta(partial_cmp__meta)?;
+    m.implement_trait::<Tuple>(rune::item!(::std::cmp::PartialOrd))?;
+
+    m.function_meta(cmp__meta)?;
+    m.implement_trait::<Tuple>(rune::item!(::std::cmp::Ord))?;
+
     m.function_meta(hash)?;
     Ok(m)
 }
@@ -115,8 +125,8 @@ fn get(this: &Tuple, index: Value) -> VmResult<Option<Value>> {
 /// assert_eq!(tuple.iter().collect::<Vec>(), [1, 2, 3]);
 /// ```
 #[rune::function(instance)]
-fn iter(this: Ref<Tuple>) -> Iterator {
-    Vec::iter_ref(Ref::map(this, |tuple| &**tuple))
+fn iter(this: Ref<Tuple>) -> Iter {
+    Iter::new(Ref::map(this, |tuple| &**tuple))
 }
 
 /// Construct an iterator over the tuple.
@@ -133,9 +143,9 @@ fn iter(this: Ref<Tuple>) -> Iterator {
 ///
 /// assert_eq!(out, [1, 2, 3]);
 /// ```
-#[rune::function(instance, protocol = INTO_ITER)]
-fn into_iter(this: Ref<Tuple>) -> Iterator {
-    Vec::iter_ref(Ref::map(this, |tuple| &**tuple))
+#[rune::function(instance, instance, protocol = INTO_ITER)]
+fn into_iter(this: Ref<Tuple>) -> Iter {
+    Iter::new(Ref::map(this, |tuple| &**tuple))
 }
 
 /// Perform a partial equality check with this tuple.
@@ -152,7 +162,7 @@ fn into_iter(this: Ref<Tuple>) -> Iterator {
 /// assert!(tuple == (1..=3));
 /// assert!(tuple != (2, 3, 4));
 /// ```
-#[rune::function(instance, protocol = PARTIAL_EQ)]
+#[rune::function(keep, instance, protocol = PARTIAL_EQ)]
 fn partial_eq(this: &Tuple, other: Value) -> VmResult<bool> {
     Vec::partial_eq_with(this, other, &mut EnvProtocolCaller)
 }
@@ -169,7 +179,7 @@ fn partial_eq(this: &Tuple, other: Value) -> VmResult<bool> {
 /// assert!(eq(tuple, (1, 2, 3)));
 /// assert!(!eq(tuple, (2, 3, 4)));
 /// ```
-#[rune::function(instance, protocol = EQ)]
+#[rune::function(keep, instance, protocol = EQ)]
 fn eq(this: &Tuple, other: &Tuple) -> VmResult<bool> {
     Vec::eq_with(this, other, Value::eq_with, &mut EnvProtocolCaller)
 }
@@ -184,7 +194,7 @@ fn eq(this: &Tuple, other: &Tuple) -> VmResult<bool> {
 /// assert!(tuple > (0, 2, 3));
 /// assert!(tuple < (2, 2, 3));
 /// ```
-#[rune::function(instance, protocol = PARTIAL_CMP)]
+#[rune::function(keep, instance, protocol = PARTIAL_CMP)]
 fn partial_cmp(this: &Tuple, other: &Tuple) -> VmResult<Option<Ordering>> {
     Vec::partial_cmp_with(this, other, &mut EnvProtocolCaller)
 }
@@ -202,7 +212,7 @@ fn partial_cmp(this: &Tuple, other: &Tuple) -> VmResult<Option<Ordering>> {
 /// assert_eq!(cmp(tuple, (0, 2, 3)), Ordering::Greater);
 /// assert_eq!(cmp(tuple, (2, 2, 3)), Ordering::Less);
 /// ```
-#[rune::function(instance, protocol = CMP)]
+#[rune::function(keep, instance, protocol = CMP)]
 fn cmp(this: &Tuple, other: &Tuple) -> VmResult<Ordering> {
     Vec::cmp_with(this, other, &mut EnvProtocolCaller)
 }

@@ -9,27 +9,30 @@ use crate::{ContextError, Module};
 /// The bytes module.
 #[rune::module(::std::bytes)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::from_meta(self::module_meta)?;
+    let mut m = Module::from_meta(self::module_meta)?;
 
-    module.ty::<Bytes>()?;
-    module.function_meta(new)?;
-    module.function_meta(with_capacity)?;
-    module.function_meta(from_vec)?;
-    module.function_meta(into_vec)?;
-    module.function_meta(as_vec)?;
-    module.function_meta(extend)?;
-    module.function_meta(extend_str)?;
-    module.function_meta(pop)?;
-    module.function_meta(last)?;
-    module.function_meta(len)?;
-    module.function_meta(is_empty)?;
-    module.function_meta(capacity)?;
-    module.function_meta(clear)?;
-    module.function_meta(reserve)?;
-    module.function_meta(reserve_exact)?;
-    module.function_meta(clone)?;
-    module.function_meta(shrink_to_fit)?;
-    Ok(module)
+    m.ty::<Bytes>()?;
+    m.function_meta(new)?;
+    m.function_meta(with_capacity)?;
+    m.function_meta(from_vec)?;
+    m.function_meta(into_vec)?;
+    m.function_meta(as_vec)?;
+    m.function_meta(extend)?;
+    m.function_meta(extend_str)?;
+    m.function_meta(pop)?;
+    m.function_meta(last)?;
+    m.function_meta(len)?;
+    m.function_meta(is_empty)?;
+    m.function_meta(capacity)?;
+    m.function_meta(clear)?;
+    m.function_meta(reserve)?;
+    m.function_meta(reserve_exact)?;
+    m.function_meta(shrink_to_fit)?;
+
+    m.function_meta(clone__meta)?;
+    m.implement_trait::<Bytes>(rune::item!(::std::clone::Clone))?;
+
+    Ok(m)
 }
 
 /// Construct a new byte array.
@@ -309,7 +312,7 @@ fn reserve_exact(this: &mut Bytes, additional: usize) -> VmResult<()> {
 /// assert_eq!(a, b"hello world!");
 /// assert_eq!(b, b"hello world");
 /// ```
-#[rune::function(instance)]
+#[rune::function(keep, instance, protocol = CLONE)]
 fn clone(this: &Bytes) -> VmResult<Bytes> {
     VmResult::Ok(vm_try!(this.try_clone()))
 }

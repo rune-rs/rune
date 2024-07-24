@@ -39,10 +39,21 @@ pub fn module() -> Result<Module, ContextError> {
     #[cfg(feature = "std")]
     m.function_meta(round)?;
     m.function_meta(to_integer)?;
-    m.function_meta(partial_eq)?;
-    m.function_meta(eq)?;
-    m.function_meta(partial_cmp)?;
-    m.function_meta(cmp)?;
+
+    m.function_meta(clone__meta)?;
+    m.implement_trait::<f64>(rune::item!(::std::clone::Clone))?;
+
+    m.function_meta(partial_eq__meta)?;
+    m.implement_trait::<f64>(rune::item!(::std::cmp::PartialEq))?;
+
+    m.function_meta(eq__meta)?;
+    m.implement_trait::<f64>(rune::item!(::std::cmp::Eq))?;
+
+    m.function_meta(partial_cmp__meta)?;
+    m.implement_trait::<f64>(rune::item!(::std::cmp::PartialOrd))?;
+
+    m.function_meta(cmp__meta)?;
+    m.implement_trait::<f64>(rune::item!(::std::cmp::Ord))?;
 
     m.constant("EPSILON", f64::EPSILON).build()?;
     m.constant("MIN", f64::MIN).build()?;
@@ -369,6 +380,27 @@ fn round(this: f64) -> f64 {
     this.round()
 }
 
+/// Test two integers for partial equality.
+///
+/// # Examples
+///
+/// ```rune
+/// let a = 5.0;
+/// let b = a;
+/// let c = a.clone();
+///
+/// a += 1.0;
+///
+/// assert_eq!(a, 6.0);
+/// assert_eq!(b, 6.0);
+/// assert_eq!(c, 5.0);
+/// ```
+#[rune::function(keep, instance, protocol = CLONE)]
+#[inline]
+fn clone(this: f64) -> f64 {
+    this
+}
+
 /// Test two floats for partial equality.
 ///
 /// # Examples
@@ -380,7 +412,7 @@ fn round(this: f64) -> f64 {
 /// assert!(10.0 != f64::NAN);
 /// assert!(f64::NAN != f64::NAN);
 /// ```
-#[rune::function(instance, protocol = PARTIAL_EQ)]
+#[rune::function(keep, instance, protocol = PARTIAL_EQ)]
 #[inline]
 fn partial_eq(this: f64, rhs: f64) -> bool {
     this.eq(&rhs)
@@ -397,7 +429,7 @@ fn partial_eq(this: f64, rhs: f64) -> bool {
 /// assert_eq!(eq(5.0, 10.0), false);
 /// assert_eq!(eq(10.0, 5.0), false);
 /// ```
-#[rune::function(instance, protocol = EQ)]
+#[rune::function(keep, instance, protocol = EQ)]
 #[inline]
 fn eq(this: f64, rhs: f64) -> VmResult<bool> {
     let Some(ordering) = this.partial_cmp(&rhs) else {
@@ -420,7 +452,7 @@ fn eq(this: f64, rhs: f64) -> VmResult<bool> {
 /// assert_eq!(partial_cmp(5.0, 5.0), Some(Ordering::Equal));
 /// assert_eq!(partial_cmp(5.0, f64::NAN), None);
 /// ```
-#[rune::function(instance, protocol = PARTIAL_CMP)]
+#[rune::function(keep, instance, protocol = PARTIAL_CMP)]
 #[inline]
 fn partial_cmp(this: f64, rhs: f64) -> Option<Ordering> {
     this.partial_cmp(&rhs)
@@ -438,7 +470,7 @@ fn partial_cmp(this: f64, rhs: f64) -> Option<Ordering> {
 /// assert_eq!(cmp(10.0, 5.0), Ordering::Greater);
 /// assert_eq!(cmp(5.0, 5.0), Ordering::Equal);
 /// ```
-#[rune::function(instance, protocol = CMP)]
+#[rune::function(keep, instance, protocol = CMP)]
 #[inline]
 fn cmp(this: f64, rhs: f64) -> VmResult<Ordering> {
     let Some(ordering) = this.partial_cmp(&rhs) else {

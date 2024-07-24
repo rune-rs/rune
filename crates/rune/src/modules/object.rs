@@ -3,8 +3,8 @@
 use core::cmp::Ordering;
 
 use crate as rune;
-use crate::alloc::prelude::*;
-use crate::runtime::{EnvProtocolCaller, Iterator, Object, Protocol, Value, VmResult};
+use crate::runtime::object::{RuneIter, RuneIterKeys, RuneValues};
+use crate::runtime::{EnvProtocolCaller, Object, Protocol, Value, VmResult};
 use crate::{ContextError, Module};
 
 /// The dynamic [`Object`] container.
@@ -50,13 +50,42 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(get)?;
 
     m.function_meta(Object::rune_iter__meta)?;
-    m.function_meta(keys)?;
-    m.function_meta(values)?;
+    m.function_meta(Object::rune_keys__meta)?;
+    m.function_meta(Object::rune_values__meta)?;
     m.associated_function(Protocol::INTO_ITER, Object::rune_iter)?;
-    m.function_meta(partial_eq)?;
-    m.function_meta(eq)?;
-    m.function_meta(partial_cmp)?;
-    m.function_meta(cmp)?;
+
+    m.function_meta(partial_eq__meta)?;
+    m.implement_trait::<Object>(rune::item!(::std::cmp::PartialEq))?;
+
+    m.function_meta(eq__meta)?;
+    m.implement_trait::<Object>(rune::item!(::std::cmp::Eq))?;
+
+    m.function_meta(partial_cmp__meta)?;
+    m.implement_trait::<Object>(rune::item!(::std::cmp::PartialOrd))?;
+
+    m.function_meta(cmp__meta)?;
+    m.implement_trait::<Object>(rune::item!(::std::cmp::Ord))?;
+
+    m.ty::<RuneIter>()?;
+    m.function_meta(RuneIter::next__meta)?;
+    m.function_meta(RuneIter::size_hint__meta)?;
+    m.implement_trait::<RuneIter>(rune::item!(::std::iter::Iterator))?;
+    m.function_meta(RuneIter::len__meta)?;
+    m.implement_trait::<RuneIter>(rune::item!(::std::iter::ExactSizeIterator))?;
+
+    m.ty::<RuneIterKeys>()?;
+    m.function_meta(RuneIterKeys::next__meta)?;
+    m.function_meta(RuneIterKeys::size_hint__meta)?;
+    m.implement_trait::<RuneIterKeys>(rune::item!(::std::iter::Iterator))?;
+    m.function_meta(RuneIterKeys::len__meta)?;
+    m.implement_trait::<RuneIterKeys>(rune::item!(::std::iter::ExactSizeIterator))?;
+
+    m.ty::<RuneValues>()?;
+    m.function_meta(RuneValues::next__meta)?;
+    m.function_meta(RuneValues::size_hint__meta)?;
+    m.implement_trait::<RuneValues>(rune::item!(::std::iter::Iterator))?;
+    m.function_meta(RuneValues::len__meta)?;
+    m.implement_trait::<RuneValues>(rune::item!(::std::iter::ExactSizeIterator))?;
     Ok(m)
 }
 
@@ -105,78 +134,22 @@ fn get(object: &Object, key: &str) -> Option<Value> {
     object.get(key).cloned()
 }
 
-/// An iterator visiting all keys in arbitrary order.
-///
-/// # Examples
-///
-/// ```rune
-/// let object = #{a: 1, b: 2, c: 3};
-/// let vec = [];
-///
-/// for key in object.keys() {
-///     vec.push(key);
-/// }
-///
-/// vec.sort();
-/// assert_eq!(vec, ["a", "b", "c"]);
-/// ```
-#[inline]
-#[rune::function(vm_result, instance)]
-fn keys(object: &Object) -> Iterator {
-    // TODO: implement as lazy iteration.
-    let mut keys = Vec::new();
-
-    for key in object.keys() {
-        keys.try_push(key.try_clone().vm?).vm?;
-    }
-
-    Iterator::from_double_ended("std::object::Keys", keys.into_iter())
-}
-
-/// An iterator visiting all values in arbitrary order.
-///
-/// # Examples
-///
-/// ```rune
-/// let object = #{a: 1, b: 2, c: 3};
-/// let vec = [];
-///
-/// for key in object.values() {
-///     vec.push(key);
-/// }
-///
-/// vec.sort();
-/// assert_eq!(vec, [1, 2, 3]);
-/// ```
-#[inline]
-#[rune::function(vm_result, instance)]
-fn values(object: &Object) -> Iterator {
-    // TODO: implement as lazy iteration.
-    let iter = object
-        .values()
-        .cloned()
-        .try_collect::<Vec<_>>()
-        .vm?
-        .into_iter();
-    Iterator::from_double_ended("std::object::Values", iter)
-}
-
-#[rune::function(instance, protocol = PARTIAL_EQ)]
+#[rune::function(keep, instance, protocol = PARTIAL_EQ)]
 fn partial_eq(this: &Object, other: Value) -> VmResult<bool> {
     Object::partial_eq_with(this, other, &mut EnvProtocolCaller)
 }
 
-#[rune::function(instance, protocol = EQ)]
+#[rune::function(keep, instance, protocol = EQ)]
 fn eq(this: &Object, other: &Object) -> VmResult<bool> {
     Object::eq_with(this, other, Value::eq_with, &mut EnvProtocolCaller)
 }
 
-#[rune::function(instance, protocol = PARTIAL_CMP)]
+#[rune::function(keep, instance, protocol = PARTIAL_CMP)]
 fn partial_cmp(this: &Object, other: &Object) -> VmResult<Option<Ordering>> {
     Object::partial_cmp_with(this, other, &mut EnvProtocolCaller)
 }
 
-#[rune::function(instance, protocol = CMP)]
+#[rune::function(keep, instance, protocol = CMP)]
 fn cmp(this: &Object, other: &Object) -> VmResult<Ordering> {
     Object::cmp_with(this, other, &mut EnvProtocolCaller)
 }

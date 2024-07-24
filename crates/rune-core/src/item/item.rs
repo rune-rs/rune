@@ -166,11 +166,7 @@ impl Item {
     /// assert_eq!(item2.last(), Some(ComponentRef::Str("world")));
     /// # Ok::<(), rune::support::Error>(())
     /// ```
-    pub fn join<I>(&self, other: I) -> alloc::Result<ItemBuf>
-    where
-        I: IntoIterator,
-        I::Item: IntoComponent,
-    {
+    pub fn join(&self, other: impl IntoIterator<Item: IntoComponent>) -> alloc::Result<ItemBuf> {
         let mut content = self.content.try_to_owned()?;
 
         for c in other {

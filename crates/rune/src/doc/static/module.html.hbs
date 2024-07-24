@@ -52,6 +52,16 @@
 {{/each}}
 {{/if}}
 
+{{#if traits}}
+<h4 class="section-title">Traits</h4>
+
+{{#each traits}}
+    <div class="item-entry">
+    <a class="type" href="{{literal this.path}}">{{this.name}}</a>{{#if this.doc}}<span class="inline-sep">&dash;</span><span class="inline-docs">{{literal this.doc}}</span>{{/if}}
+    </div>
+{{/each}}
+{{/if}}
+
 {{#if modules}}
 <h4 class="section-title">Modules</h4>
 

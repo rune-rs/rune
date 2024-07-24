@@ -10,7 +10,7 @@ use crate::compile;
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
 #[cfg(feature = "std")]
-use crate::runtime::{Formatter, InstAddress, Output, Panic, Stack, VmResult};
+use crate::runtime::{Formatter, InstAddress, Memory, Output, Panic, VmResult};
 use crate::{ContextError, Module};
 
 /// I/O functions.
@@ -20,21 +20,21 @@ pub fn module(
 ) -> Result<Module, ContextError> {
     let mut module = Module::from_meta(self::module_meta)?.with_unique("std::io");
 
-    module.item_mut().docs([
-        "The std::io module contains a number of common things",
-        "you’ll need when doing input and output.",
-        "The most core parts of this module are the [print()], [println()], ",
-        "and [dbg()] functions which are used to hook up printing for a Rune project.",
-        "",
-        "With complete names:",
-        "* `::std::io::print`",
-        "* `::std::io::println`",
-        "* `::std::io::dbg`",
-        "",
-        "Their definitions can be omitted from the built-in standard library, and",
-        "can then easily be defined by third party modules allowing for printing",
-        "to be hooked up to whatever system you want.",
-    ])?;
+    module.item_mut().docs(docstring! {
+        /// The std::io module contains a number of common things
+        /// you’ll need when doing input and output.
+        /// The most core parts of this module are the [print()], [println()],
+        /// and [dbg()] functions which are used to hook up printing for a Rune project.
+        ///
+        /// With complete names:
+        /// * `::std::io::print`
+        /// * `::std::io::println`
+        /// * `::std::io::dbg`
+        ///
+        /// Their definitions can be omitted from the built-in standard library, and
+        /// can then easily be defined by third party modules allowing for printing
+        /// to be hooked up to whatever system you want.
+    })?;
 
     #[cfg(feature = "std")]
     module.ty::<io::Error>()?;
@@ -46,25 +46,28 @@ pub fn module(
         module.function_meta(print_impl)?;
         module.function_meta(println_impl)?;
 
-        module.raw_function("dbg", dbg_impl).build()?.docs([
-            "Debug to output.",
-            "",
-            "This is the actual output hook, and if you install rune modules without",
-            "`I/O` enabled this will not be defined. It is then up to someone else to",
-            "provide an implementation.",
-            "",
-            "# Examples",
-            "",
-            "```rune",
-            "let number = 10;",
-            "let number = number * 4;",
-            "",
-            "let who = \"World\";",
-            "let string = format!(\"Hello {}\", who);",
-            "",
-            "dbg(number, string);",
-            "```",
-        ])?;
+        module
+            .raw_function("dbg", dbg_impl)
+            .build()?
+            .docs(docstring! {
+                /// Debug to output.
+                ///
+                /// This is the actual output hook, and if you install rune modules without
+                /// `I/O` enabled this will not be defined. It is then up to someone else to
+                /// provide an implementation.
+                ///
+                /// # Examples
+                ///
+                /// ```rune
+                /// let number = 10;
+                /// let number = number * 4;
+                ///
+                /// let who = "World";
+                /// let string = format!("Hello {who}");
+                ///
+                /// dbg(number, string);
+                /// ```
+            })?;
     }
 
     // These are unconditionally included, but using them might cause a
@@ -83,7 +86,7 @@ fn io_error_string_display(error: &io::Error, f: &mut Formatter) -> VmResult<()>
 }
 
 #[cfg(feature = "std")]
-fn dbg_impl(stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
+fn dbg_impl(stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
     let stdout = io::stdout();
     let mut stdout = stdout.lock();
 

@@ -11,7 +11,6 @@ pub(crate) use self::query::{MissingId, Query, QueryInner};
 use crate as rune;
 use crate::alloc::path::PathBuf;
 use crate::alloc::prelude::*;
-use crate::alloc::{self, Box, Vec};
 use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::compile::ir;
@@ -198,10 +197,6 @@ pub(crate) struct GenericsParameters {
 impl GenericsParameters {
     pub(crate) fn is_empty(&self) -> bool {
         self.parameters.iter().all(|p| p.is_none())
-    }
-
-    pub(crate) fn as_boxed(&self) -> alloc::Result<Box<[Option<Hash>]>> {
-        self.parameters.iter().copied().try_collect()
     }
 }
 

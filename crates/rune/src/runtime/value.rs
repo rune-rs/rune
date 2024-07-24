@@ -892,9 +892,6 @@ impl Value {
             ValueKind::Format(value) => {
                 vm_write!(f, "{:?}", value);
             }
-            ValueKind::Iterator(value) => {
-                vm_write!(f, "{:?}", value);
-            }
             _ => {
                 // reborrow f to avoid moving it
                 let mut args = DynGuardedArgs::new((&mut *f,));
@@ -933,7 +930,7 @@ impl Value {
 
     pub(crate) fn into_iter_with(self, caller: &mut dyn ProtocolCaller) -> VmResult<Iterator> {
         let value = vm_try!(caller.call_protocol_fn(Protocol::INTO_ITER, self, &mut ()));
-        Iterator::from_value(value)
+        VmResult::Ok(Iterator::new(value))
     }
 
     /// Retrieves a human readable type name for the current value.
@@ -1239,16 +1236,6 @@ impl Value {
         borrow_generator_ref,
         borrow_generator_mut,
         into_generator,
-    }
-
-    into! {
-        /// Coerce into a [`Iterator`].
-        Iterator(Iterator),
-        into_iterator_ref,
-        into_iterator_mut,
-        borrow_iterator_ref,
-        borrow_iterator_mut,
-        into_iterator,
     }
 
     into! {
@@ -2148,6 +2135,48 @@ impl Value {
             ValueRepr::Empty => Err(AccessError::empty()),
         }
     }
+
+    pub(crate) fn protocol_into_iter(&self) -> VmResult<Value> {
+        EnvProtocolCaller.call_protocol_fn(Protocol::INTO_ITER, self.clone(), &mut ())
+    }
+
+    pub(crate) fn protocol_next(&self) -> VmResult<Option<Value>> {
+        let value =
+            vm_try!(EnvProtocolCaller.call_protocol_fn(Protocol::NEXT, self.clone(), &mut ()));
+
+        FromValue::from_value(value)
+    }
+
+    pub(crate) fn protocol_next_back(&self) -> VmResult<Option<Value>> {
+        let value =
+            vm_try!(EnvProtocolCaller.call_protocol_fn(Protocol::NEXT_BACK, self.clone(), &mut ()));
+
+        FromValue::from_value(value)
+    }
+
+    pub(crate) fn protocol_nth_back(&self, n: usize) -> VmResult<Option<Value>> {
+        let value = vm_try!(EnvProtocolCaller.call_protocol_fn(
+            Protocol::NTH_BACK,
+            self.clone(),
+            &mut Some((n,))
+        ));
+
+        FromValue::from_value(value)
+    }
+
+    pub(crate) fn protocol_len(&self) -> VmResult<usize> {
+        let value =
+            vm_try!(EnvProtocolCaller.call_protocol_fn(Protocol::LEN, self.clone(), &mut ()));
+
+        FromValue::from_value(value)
+    }
+
+    pub(crate) fn protocol_size_hint(&self) -> VmResult<(usize, Option<usize>)> {
+        let value =
+            vm_try!(EnvProtocolCaller.call_protocol_fn(Protocol::SIZE_HINT, self.clone(), &mut ()));
+
+        FromValue::from_value(value)
+    }
 }
 
 impl fmt::Debug for Value {
@@ -2288,7 +2317,6 @@ impl_from! {
     Bytes => Bytes,
     ControlFlow => ControlFlow,
     Function => Function,
-    Iterator => Iterator,
     GeneratorState => GeneratorState,
     Vec => Vec,
     EmptyStruct => EmptyStruct,
@@ -2440,8 +2468,6 @@ pub(crate) enum ValueKind {
     Function(Function),
     /// A value being formatted.
     Format(Format),
-    /// An iterator.
-    Iterator(Iterator),
     /// An opaque value that can be downcasted.
     Any(AnyObj),
 }
@@ -2491,7 +2517,6 @@ impl ValueKind {
             ValueKind::Result(..) => TypeInfo::StaticType(crate::runtime::static_type::RESULT),
             ValueKind::Function(..) => TypeInfo::StaticType(crate::runtime::static_type::FUNCTION),
             ValueKind::Format(..) => TypeInfo::StaticType(crate::runtime::static_type::FORMAT),
-            ValueKind::Iterator(..) => TypeInfo::StaticType(crate::runtime::static_type::ITERATOR),
             ValueKind::EmptyStruct(empty) => empty.type_info(),
             ValueKind::TupleStruct(tuple) => tuple.type_info(),
             ValueKind::Struct(object) => object.type_info(),
@@ -2534,7 +2559,6 @@ impl ValueKind {
             ValueKind::Option(..) => crate::runtime::static_type::OPTION.hash,
             ValueKind::Function(..) => crate::runtime::static_type::FUNCTION.hash,
             ValueKind::Format(..) => crate::runtime::static_type::FORMAT.hash,
-            ValueKind::Iterator(..) => crate::runtime::static_type::ITERATOR.hash,
             ValueKind::EmptyStruct(empty) => empty.rtti.hash,
             ValueKind::TupleStruct(tuple) => tuple.rtti.hash,
             ValueKind::Struct(object) => object.rtti.hash,

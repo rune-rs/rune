@@ -141,6 +141,8 @@ type BoxedNode<K, V> = NonNull<LeafNode<K, V>>;
 ///
 /// This type has a number of parameters that controls how it acts:
 /// - `BorrowType`: A dummy type that describes the kind of borrow and carries a lifetime.
+///   Since any `NodeRef` allows navigating through the tree, `BorrowType`
+///   effectively applies to the entire tree, not just to the node itself.
 ///    - When this is `Immut<'a>`, the `NodeRef` acts roughly like `&'a Node`.
 ///    - When this is `ValMut<'a>`, the `NodeRef` acts roughly like `&'a Node`
 ///      with respect to keys and tree structure, but also allows many
@@ -152,8 +154,6 @@ type BoxedNode<K, V> = NonNull<LeafNode<K, V>>;
 ///    - When this is `Dying`, the `NodeRef` still acts roughly like `Box<Node>`,
 ///      but has methods to destroy the tree bit by bit, and ordinary methods,
 ///      while not marked as unsafe to call, can invoke UB if called incorrectly.
-///   Since any `NodeRef` allows navigating through the tree, `BorrowType`
-///   effectively applies to the entire tree, not just to the node itself.
 /// - `K` and `V`: These are the types of keys and values stored in the nodes.
 /// - `Type`: This can be `Leaf`, `Internal`, or `LeafOrInternal`. When this is
 ///   `Leaf`, the `NodeRef` points to a leaf node, when this is `Internal` the

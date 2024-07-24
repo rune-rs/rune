@@ -49,6 +49,103 @@ cfg_std! {
     impl std::error::Error for SliceError {}
 }
 
+/// Memory access.
+pub trait Memory {
+    /// Get the slice at the given address with the given length.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::vm_try;
+    /// use rune::Module;
+    /// use rune::runtime::{Output, Memory, ToValue, VmResult, InstAddress};
+    ///
+    /// fn sum(stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
+    ///     let mut number = 0;
+    ///
+    ///     for value in vm_try!(stack.slice_at(addr, args)) {
+    ///         number += vm_try!(value.as_integer());
+    ///     }
+    ///
+    ///     out.store(stack, number);
+    ///     VmResult::Ok(())
+    /// }
+    /// ```
+    fn slice_at(&self, addr: InstAddress, len: usize) -> Result<&[Value], SliceError>;
+
+    /// Get a value mutable at the given index from the stack bottom.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::vm_try;
+    /// use rune::Module;
+    /// use rune::runtime::{Output, Memory, VmResult, InstAddress};
+    ///
+    /// fn add_one(stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
+    ///     let mut value = vm_try!(stack.at_mut(addr));
+    ///     let number = vm_try!(value.as_integer());
+    ///     *value = vm_try!(rune::to_value(number + 1));
+    ///     out.store(stack, ());
+    ///     VmResult::Ok(())
+    /// }
+    /// ```
+    fn at_mut(&mut self, addr: InstAddress) -> Result<&mut Value, StackError>;
+
+    /// Get the slice at the given address with the given static length.
+    fn array_at<const N: usize>(&self, addr: InstAddress) -> Result<[&Value; N], SliceError>
+    where
+        Self: Sized,
+    {
+        let slice = self.slice_at(addr, N)?;
+        Ok(array::from_fn(|i| &slice[i]))
+    }
+}
+
+impl<M> Memory for &mut M
+where
+    M: Memory + ?Sized,
+{
+    #[inline]
+    fn slice_at(&self, addr: InstAddress, len: usize) -> Result<&[Value], SliceError> {
+        (**self).slice_at(addr, len)
+    }
+
+    #[inline]
+    fn at_mut(&mut self, addr: InstAddress) -> Result<&mut Value, StackError> {
+        (**self).at_mut(addr)
+    }
+}
+
+impl<const N: usize> Memory for [Value; N] {
+    fn slice_at(&self, addr: InstAddress, len: usize) -> Result<&[Value], SliceError> {
+        if len == 0 {
+            return Ok(&[]);
+        }
+
+        let start = addr.offset();
+
+        let Some(values) = start.checked_add(len).and_then(|end| self.get(start..end)) else {
+            return Err(SliceError {
+                addr,
+                len,
+                stack: N,
+            });
+        };
+
+        Ok(values)
+    }
+
+    #[inline]
+    fn at_mut(&mut self, addr: InstAddress) -> Result<&mut Value, StackError> {
+        let Some(value) = self.get_mut(addr.offset()) else {
+            return Err(StackError { addr });
+        };
+
+        Ok(value)
+    }
+}
+
 /// The stack of the virtual machine, where all values are stored.
 #[derive(Default, Debug)]
 pub struct Stack {
@@ -348,6 +445,18 @@ impl Stack {
         self.stack.truncate(self.top);
         self.top = top;
         Ok(())
+    }
+}
+
+impl Memory for Stack {
+    #[inline]
+    fn slice_at(&self, addr: InstAddress, len: usize) -> Result<&[Value], SliceError> {
+        Stack::slice_at(self, addr, len)
+    }
+
+    #[inline]
+    fn at_mut(&mut self, addr: InstAddress) -> Result<&mut Value, StackError> {
+        Stack::at_mut(self, addr)
     }
 }
 

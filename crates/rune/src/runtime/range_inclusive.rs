@@ -5,10 +5,11 @@ use core::ops;
 use crate as rune;
 use crate::alloc::clone::TryClone;
 use crate::runtime::{
-    EnvProtocolCaller, FromValue, Iterator, ProtocolCaller, ToValue, Value, ValueKind, VmErrorKind,
-    VmResult,
+    EnvProtocolCaller, FromValue, ProtocolCaller, ToValue, Value, ValueKind, VmErrorKind, VmResult,
 };
 use crate::Any;
+
+use super::StepsBetween;
 
 /// Type for an inclusive range expression `start..=end`.
 ///
@@ -93,27 +94,29 @@ impl RangeInclusive {
     /// range.iter()
     /// ```
     #[rune::function(keep)]
-    pub fn iter(&self) -> VmResult<Iterator> {
-        const NAME: &str = "std::ops::RangeInclusive";
-
-        match (
+    pub fn iter(&self) -> VmResult<Value> {
+        let value = match (
             &*vm_try!(self.start.borrow_kind_ref()),
             &*vm_try!(self.end.borrow_kind_ref()),
         ) {
             (ValueKind::Byte(start), ValueKind::Byte(end)) => {
-                VmResult::Ok(Iterator::from_double_ended(NAME, *start..=*end))
+                vm_try!(rune::to_value(RangeInclusiveIter::new(*start..=*end)))
             }
             (ValueKind::Char(start), ValueKind::Char(end)) => {
-                VmResult::Ok(Iterator::from_double_ended(NAME, *start..=*end))
+                vm_try!(rune::to_value(RangeInclusiveIter::new(*start..=*end)))
             }
             (ValueKind::Integer(start), ValueKind::Integer(end)) => {
-                VmResult::Ok(Iterator::from_double_ended(NAME, *start..=*end))
+                vm_try!(rune::to_value(RangeInclusiveIter::new(*start..=*end)))
             }
-            (start, end) => VmResult::err(VmErrorKind::UnsupportedIterRangeInclusive {
-                start: start.type_info(),
-                end: end.type_info(),
-            }),
-        }
+            (start, end) => {
+                return VmResult::err(VmErrorKind::UnsupportedIterRangeInclusive {
+                    start: start.type_info(),
+                    end: end.type_info(),
+                })
+            }
+        };
+
+        VmResult::Ok(value)
     }
 
     /// Iterate over the range.
@@ -141,7 +144,7 @@ impl RangeInclusive {
     /// }
     /// ```
     #[rune::function(keep, protocol = INTO_ITER)]
-    pub fn into_iter(&self) -> VmResult<Iterator> {
+    pub fn into_iter(&self) -> VmResult<Value> {
         self.iter()
     }
 
@@ -321,3 +324,28 @@ where
         VmResult::Ok(start..=end)
     }
 }
+
+double_ended_range_iter!(RangeInclusive, RangeInclusiveIter<T>, {
+    #[rune::function(instance, keep, protocol = SIZE_HINT)]
+    #[inline]
+    pub(crate) fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
+
+    #[rune::function(instance, keep, protocol = LEN)]
+    #[inline]
+    pub(crate) fn len(&self) -> VmResult<usize>
+    where
+        T: Copy + StepsBetween + fmt::Debug,
+    {
+        let Some(result) = T::steps_between(*self.iter.start(), *self.iter.end()) else {
+            return VmResult::panic(format!(
+                "could not calculate length of range {:?}..={:?}",
+                self.iter.start(),
+                self.iter.end()
+            ));
+        };
+
+        VmResult::Ok(result)
+    }
+});

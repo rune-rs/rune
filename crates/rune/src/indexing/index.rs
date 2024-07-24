@@ -932,7 +932,7 @@ fn expr_block(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprBlock) -> compile::R
         let call = validate_call(ast.const_token.as_ref(), ast.async_token.as_ref(), &layer)?;
 
         let Some(call) = call else {
-            return Err(compile::Error::new(&ast, ErrorKind::ClosureKind));
+            return Err(compile::Error::new(ast, ErrorKind::ClosureKind));
         };
 
         idx.q.index_meta(

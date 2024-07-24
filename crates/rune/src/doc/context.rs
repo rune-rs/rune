@@ -42,6 +42,7 @@ pub(crate) struct Function<'a> {
 }
 
 /// The kind of an associated function.
+#[derive(Debug)]
 pub(crate) enum AssocFnKind<'a> {
     /// A protocol function implemented on the type itself.
     Protocol(Protocol),
@@ -54,6 +55,7 @@ pub(crate) enum AssocFnKind<'a> {
 }
 
 /// Information on an associated function.
+#[derive(Debug)]
 pub(crate) struct AssocVariant<'a> {
     /// Name of variant.
     pub(crate) name: &'a str,
@@ -62,8 +64,10 @@ pub(crate) struct AssocVariant<'a> {
 }
 
 /// Information on an associated function.
+#[derive(Debug)]
 pub(crate) struct AssocFn<'a> {
     pub(crate) kind: AssocFnKind<'a>,
+    pub(crate) trait_hash: Option<Hash>,
     pub(crate) is_async: bool,
     pub(crate) arguments: Option<&'a [meta::DocArgument]>,
     pub(crate) return_type: &'a meta::DocType,
@@ -74,6 +78,7 @@ pub(crate) struct AssocFn<'a> {
 }
 
 /// Information on an associated item.
+#[derive(Debug)]
 pub(crate) enum Assoc<'a> {
     /// A variant,
     Variant(AssocVariant<'a>),
@@ -92,6 +97,7 @@ pub(crate) enum Kind<'a> {
     Function(Function<'a>),
     Const(#[allow(unused)] &'a ConstValue),
     Module,
+    Trait,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -115,122 +121,6 @@ impl<'a> Context<'a> {
 
     /// Iterate over all types associated with the given hash.
     pub(crate) fn associated(&self, hash: Hash) -> impl Iterator<Item = Assoc<'a>> {
-        fn visitor_to_associated(
-            hash: Hash,
-            visitor: &Visitor,
-        ) -> Option<impl Iterator<Item = Assoc<'_>>> {
-            let associated = visitor.associated.get(&hash)?;
-
-            Some(associated.iter().flat_map(move |hash| {
-                let data = visitor.data.get(hash)?;
-
-                let (is_async, kind, arguments, return_type) = match &data.kind {
-                    Some(meta::Kind::Function {
-                        associated: None,
-                        signature: f,
-                        ..
-                    }) => (
-                        f.is_async,
-                        AssocFnKind::Method(data.item.last()?.as_str()?, Signature::Function),
-                        f.arguments.as_deref(),
-                        &f.return_type,
-                    ),
-                    Some(meta::Kind::Function {
-                        associated: Some(meta::AssociatedKind::Instance(name)),
-                        signature: f,
-                        ..
-                    }) => (
-                        f.is_async,
-                        AssocFnKind::Method(name.as_ref(), Signature::Instance),
-                        f.arguments.as_deref(),
-                        &f.return_type,
-                    ),
-                    Some(meta::Kind::Variant { .. }) => {
-                        return Some(Assoc::Variant(AssocVariant {
-                            name: data.item.last()?.as_str()?,
-                            docs: &data.docs,
-                        }));
-                    }
-                    _ => return None,
-                };
-
-                Some(Assoc::Fn(AssocFn {
-                    kind,
-                    is_async,
-                    arguments,
-                    return_type,
-                    parameter_types: &[],
-                    deprecated: data.deprecated.as_deref(),
-                    docs: &data.docs,
-                }))
-            }))
-        }
-
-        fn context_to_associated(context: &crate::Context, hash: Hash) -> Option<Assoc<'_>> {
-            let meta = context.lookup_meta_by_hash(hash).next()?;
-
-            match &meta.kind {
-                meta::Kind::Variant { .. } => {
-                    let name = meta.item.as_deref()?.last()?.as_str()?;
-                    Some(Assoc::Variant(AssocVariant {
-                        name,
-                        docs: meta.docs.lines(),
-                    }))
-                }
-                meta::Kind::Function {
-                    associated: Some(associated),
-                    parameter_types,
-                    signature,
-                    ..
-                } => {
-                    let kind = match *associated {
-                        meta::AssociatedKind::Protocol(protocol) => AssocFnKind::Protocol(protocol),
-                        meta::AssociatedKind::FieldFn(protocol, ref field) => {
-                            AssocFnKind::FieldFn(protocol, field)
-                        }
-                        meta::AssociatedKind::IndexFn(protocol, index) => {
-                            AssocFnKind::IndexFn(protocol, index)
-                        }
-                        meta::AssociatedKind::Instance(ref name) => {
-                            AssocFnKind::Method(name, Signature::Instance)
-                        }
-                    };
-
-                    Some(Assoc::Fn(AssocFn {
-                        kind,
-                        is_async: signature.is_async,
-                        arguments: signature.arguments.as_deref(),
-                        return_type: &signature.return_type,
-                        parameter_types: &parameter_types[..],
-                        deprecated: meta.deprecated.as_deref(),
-                        docs: meta.docs.lines(),
-                    }))
-                }
-                meta::Kind::Function {
-                    associated: None,
-                    signature,
-                    ..
-                } => {
-                    let name = meta.item.as_deref()?.last()?.as_str()?;
-                    let kind = AssocFnKind::Method(name, Signature::Function);
-
-                    Some(Assoc::Fn(AssocFn {
-                        kind,
-                        is_async: signature.is_async,
-                        arguments: signature.arguments.as_deref(),
-                        return_type: &signature.return_type,
-                        parameter_types: &[],
-                        deprecated: meta.deprecated.as_deref(),
-                        docs: meta.docs.lines(),
-                    }))
-                }
-                kind => {
-                    tracing::warn!(?kind, "Unsupported associated type");
-                    None
-                }
-            }
-        }
-
         let visitors = self
             .visitors
             .iter()
@@ -242,6 +132,11 @@ impl<'a> Context<'a> {
             .flat_map(move |c| c.associated(hash).flat_map(|a| context_to_associated(c, a)));
 
         visitors.chain(context)
+    }
+
+    /// Iterate over all traits associated with the given hash.
+    pub(crate) fn traits(&self, hash: Hash) -> impl Iterator<Item = Hash> + 'a {
+        self.context.into_iter().flat_map(move |c| c.traits(hash))
     }
 
     /// Iterate over known child components of the given name.
@@ -271,7 +166,7 @@ impl<'a> Context<'a> {
     }
 
     /// Get all matching meta items by hash.
-    pub(crate) fn meta_by_hash(&self, hash: Hash) -> alloc::Result<Vec<Meta<'_>>> {
+    pub(crate) fn meta_by_hash(&self, hash: Hash) -> alloc::Result<Vec<Meta<'a>>> {
         let mut out = Vec::new();
 
         for visitor in self.visitors {
@@ -340,6 +235,7 @@ impl<'a> Context<'a> {
             }
             meta::Kind::Macro => Kind::Macro,
             meta::Kind::Module { .. } => Kind::Module,
+            meta::Kind::Trait { .. } => Kind::Trait,
             _ => Kind::Unsupported,
         };
 
@@ -360,6 +256,118 @@ impl<'a> Context<'a> {
                 .into_iter()
                 .flat_map(|c| c.iter_crates().map(ItemBuf::with_crate)),
         )
+    }
+}
+
+fn visitor_to_associated(hash: Hash, visitor: &Visitor) -> Option<impl Iterator<Item = Assoc<'_>>> {
+    let associated = visitor.associated.get(&hash)?;
+
+    Some(associated.iter().flat_map(move |hash| {
+        let data = visitor.data.get(hash)?;
+
+        let (associated, trait_hash, signature) = match &data.kind {
+            Some(meta::Kind::Function {
+                associated,
+                trait_hash,
+                signature,
+                ..
+            }) => (associated, trait_hash, signature),
+            Some(meta::Kind::Variant { .. }) => {
+                return Some(Assoc::Variant(AssocVariant {
+                    name: data.item.last()?.as_str()?,
+                    docs: &data.docs,
+                }));
+            }
+            _ => return None,
+        };
+
+        let kind = match associated {
+            Some(meta::AssociatedKind::Instance(name)) => {
+                AssocFnKind::Method(name.as_ref(), Signature::Instance)
+            }
+            None => AssocFnKind::Method(data.item.last()?.as_str()?, Signature::Function),
+            _ => return None,
+        };
+
+        Some(Assoc::Fn(AssocFn {
+            kind,
+            trait_hash: *trait_hash,
+            is_async: signature.is_async,
+            arguments: signature.arguments.as_deref(),
+            return_type: &signature.return_type,
+            parameter_types: &[],
+            deprecated: data.deprecated.as_deref(),
+            docs: &data.docs,
+        }))
+    }))
+}
+
+fn context_to_associated(context: &crate::Context, hash: Hash) -> Option<Assoc<'_>> {
+    let meta = context.lookup_meta_by_hash(hash).next()?;
+
+    match &meta.kind {
+        meta::Kind::Variant { .. } => {
+            let name = meta.item.as_deref()?.last()?.as_str()?;
+            Some(Assoc::Variant(AssocVariant {
+                name,
+                docs: meta.docs.lines(),
+            }))
+        }
+        meta::Kind::Function {
+            associated: Some(associated),
+            trait_hash,
+            parameter_types,
+            signature,
+            ..
+        } => {
+            let kind = match *associated {
+                meta::AssociatedKind::Protocol(protocol) => AssocFnKind::Protocol(protocol),
+                meta::AssociatedKind::FieldFn(protocol, ref field) => {
+                    AssocFnKind::FieldFn(protocol, field)
+                }
+                meta::AssociatedKind::IndexFn(protocol, index) => {
+                    AssocFnKind::IndexFn(protocol, index)
+                }
+                meta::AssociatedKind::Instance(ref name) => {
+                    AssocFnKind::Method(name, Signature::Instance)
+                }
+            };
+
+            Some(Assoc::Fn(AssocFn {
+                kind,
+                trait_hash: *trait_hash,
+                is_async: signature.is_async,
+                arguments: signature.arguments.as_deref(),
+                return_type: &signature.return_type,
+                parameter_types: &parameter_types[..],
+                deprecated: meta.deprecated.as_deref(),
+                docs: meta.docs.lines(),
+            }))
+        }
+        meta::Kind::Function {
+            associated: None,
+            trait_hash,
+            signature,
+            ..
+        } => {
+            let name = meta.item.as_deref()?.last()?.as_str()?;
+            let kind = AssocFnKind::Method(name, Signature::Function);
+
+            Some(Assoc::Fn(AssocFn {
+                kind,
+                trait_hash: *trait_hash,
+                is_async: signature.is_async,
+                arguments: signature.arguments.as_deref(),
+                return_type: &signature.return_type,
+                parameter_types: &[],
+                deprecated: meta.deprecated.as_deref(),
+                docs: meta.docs.lines(),
+            }))
+        }
+        kind => {
+            tracing::warn!(?kind, "Unsupported associated type");
+            None
+        }
     }
 }
 

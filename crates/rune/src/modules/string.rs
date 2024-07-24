@@ -10,7 +10,11 @@ use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::string::FromUtf8Error;
 use crate::alloc::{String, Vec};
-use crate::runtime::{Bytes, Formatter, Iterator, Panic, Value, ValueKind, VmErrorKind, VmResult};
+use crate::compile::Named;
+use crate::runtime::{
+    Bytes, Formatter, FromValue, Function, MaybeTypeOf, Panic, Ref, ToValue, TypeOf, Value,
+    ValueKind, VmErrorKind, VmResult,
+};
 use crate::{Any, ContextError, Module};
 
 /// Strings.
@@ -27,53 +31,69 @@ use crate::{Any, ContextError, Module};
 /// ```
 #[rune::module(::std::string)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::from_meta(self::module_meta)?;
+    let mut m = Module::from_meta(self::module_meta)?;
 
-    module.ty::<String>()?;
+    m.ty::<String>()?;
 
-    module.function_meta(string_from)?;
-    module
-        .function_meta(string_from_str)?
-        .deprecated("Use String::from instead")?;
-    module.function_meta(string_new)?;
-    module.function_meta(string_with_capacity)?;
-    module.function_meta(cmp)?;
-    module.function_meta(len)?;
-    module.function_meta(starts_with)?;
-    module.function_meta(ends_with)?;
-    module.function_meta(capacity)?;
-    module.function_meta(clear)?;
-    module.function_meta(contains)?;
-    module.function_meta(push)?;
-    module.function_meta(push_str)?;
-    module.function_meta(reserve)?;
-    module.function_meta(reserve_exact)?;
-    module.function_meta(from_utf8)?;
-    module.function_meta(as_bytes)?;
-    module.function_meta(into_bytes)?;
-    module.function_meta(clone)?;
-    module.function_meta(shrink_to_fit)?;
-    module.function_meta(char_at)?;
-    module.function_meta(split)?;
-    module.function_meta(split_once)?;
-    module
-        .associated_function("split_str", __rune_fn__split)?
-        .deprecated("Use String::split instead")?;
-    module.function_meta(trim)?;
-    module.function_meta(trim_end)?;
-    module.function_meta(replace)?;
-    module.function_meta(is_empty)?;
-    module.function_meta(chars)?;
-    module.function_meta(get)?;
-    module.function_meta(parse_int)?;
-    module.function_meta(parse_char)?;
-    module.function_meta(to_lowercase)?;
-    module.function_meta(to_uppercase)?;
+    m.function_meta(string_from)?;
+    m.function_meta(string_from_str)?;
+    m.function_meta(string_new)?;
+    m.function_meta(string_with_capacity)?;
+    m.function_meta(cmp)?;
+    m.function_meta(len)?;
+    m.function_meta(starts_with)?;
+    m.function_meta(ends_with)?;
+    m.function_meta(capacity)?;
+    m.function_meta(clear)?;
+    m.function_meta(contains)?;
+    m.function_meta(push)?;
+    m.function_meta(push_str)?;
+    m.function_meta(reserve)?;
+    m.function_meta(reserve_exact)?;
+    m.function_meta(from_utf8)?;
+    m.function_meta(as_bytes)?;
+    m.function_meta(into_bytes)?;
+    m.function_meta(shrink_to_fit)?;
+    m.function_meta(char_at)?;
+    m.function_meta(split)?;
+    m.function_meta(split_once)?;
+    m.associated_function("split_str", __rune_fn__split)?;
+    m.function_meta(trim)?;
+    m.function_meta(trim_end)?;
+    m.function_meta(replace)?;
+    m.function_meta(is_empty)?;
+    m.function_meta(chars)?;
+    m.function_meta(get)?;
+    m.function_meta(parse_int)?;
+    m.function_meta(parse_char)?;
+    m.function_meta(to_lowercase)?;
+    m.function_meta(to_uppercase)?;
 
-    module.function_meta(add)?;
-    module.function_meta(add_assign)?;
-    module.function_meta(index_get)?;
-    Ok(module)
+    m.function_meta(add)?;
+    m.function_meta(add_assign)?;
+    m.function_meta(index_get)?;
+
+    m.function_meta(clone__meta)?;
+    m.implement_trait::<String>(rune::item!(::std::clone::Clone))?;
+
+    m.ty::<Chars>()?;
+    m.function_meta(Chars::next__meta)?;
+    m.function_meta(Chars::next_back__meta)?;
+    m.implement_trait::<Chars>(rune::item!(::std::iter::Iterator))?;
+    m.implement_trait::<Chars>(rune::item!(::std::iter::DoubleEndedIterator))?;
+
+    macro_rules! split {
+        ($ty:ty) => {
+            m.ty::<Split<$ty>>()?;
+            m.function_meta(Split::<$ty>::next__meta)?;
+            m.implement_trait::<Split<$ty>>(rune::item!(::std::iter::Iterator))?;
+        };
+    }
+
+    split!(Function);
+    split!(Box<str>);
+    split!(char);
+    Ok(m)
 }
 
 #[derive(Any, Debug, Clone, Copy)]
@@ -185,7 +205,7 @@ fn string_from(value: &str) -> VmResult<String> {
     VmResult::Ok(vm_try!(String::try_from(value)))
 }
 
-#[rune::function(free, path = String::from_str)]
+#[rune::function(free, path = String::from_str, deprecated = "Use String::from instead")]
 fn string_from_str(value: &str) -> VmResult<String> {
     VmResult::Ok(vm_try!(String::try_from(value)))
 }
@@ -621,8 +641,7 @@ fn char_at(s: &str, index: usize) -> Option<char> {
 /// c.push('!');
 /// assert_ne!(a, c);
 /// ```
-#[rune::function(instance)]
-#[allow(clippy::ptr_arg)]
+#[rune::function(keep, instance, protocol = CLONE)]
 fn clone(s: &String) -> VmResult<String> {
     VmResult::Ok(vm_try!(s.try_clone()))
 }
@@ -754,57 +773,20 @@ fn shrink_to_fit(s: &mut String) -> VmResult<()> {
 /// Use [`split_whitespace`] for this behavior.
 ///
 /// [`split_whitespace`]: str::split_whitespace
-#[rune::function(instance)]
-fn split(this: &str, value: Value) -> VmResult<Iterator> {
-    const NAME: &str = "std::str::Split";
-
-    let lines = match *vm_try!(value.borrow_kind_ref()) {
+#[rune::function(instance, deprecated = "Use String::split instead")]
+fn split(this: Ref<str>, value: Value) -> VmResult<Value> {
+    let split = match *vm_try!(value.borrow_kind_ref()) {
         ValueKind::String(ref s) => {
-            let mut out = Vec::new();
-
-            for value in this.split(s.as_str()) {
-                let value = vm_try!(String::try_from(value));
-                vm_try!(out.try_push(value));
-            }
-
-            out
+            vm_try!(rune::to_value(Split::new(
+                this,
+                vm_try!(Box::try_from(s.as_str()))
+            )))
         }
-        ValueKind::Char(pat) => {
-            let mut out = Vec::new();
-
-            for value in this.split(pat) {
-                let value = vm_try!(String::try_from(value));
-                vm_try!(out.try_push(value));
-            }
-
-            out
+        ValueKind::Char(c) => {
+            vm_try!(rune::to_value(Split::new(this, c)))
         }
         ValueKind::Function(ref f) => {
-            let mut err = None;
-
-            let iter = this.split(|c: char| match f.call::<bool>((c,)) {
-                VmResult::Ok(b) => b,
-                VmResult::Err(e) => {
-                    if err.is_none() {
-                        err = Some(e);
-                    }
-
-                    false
-                }
-            });
-
-            let mut out = Vec::new();
-
-            for value in iter {
-                let value = vm_try!(String::try_from(value));
-                vm_try!(out.try_push(value));
-            }
-
-            if let Some(e) = err.take() {
-                return VmResult::Err(e);
-            }
-
-            out
+            vm_try!(rune::to_value(Split::new(this, vm_try!(f.try_clone()))))
         }
         ref actual => {
             return VmResult::err([
@@ -814,7 +796,7 @@ fn split(this: &str, value: Value) -> VmResult<Iterator> {
         }
     };
 
-    VmResult::Ok(Iterator::from_double_ended(NAME, lines.into_iter()))
+    VmResult::Ok(split)
 }
 
 /// Splits the string on the first occurrence of the specified delimiter and
@@ -1016,10 +998,8 @@ fn replace(a: &str, from: &str, to: &str) -> VmResult<String> {
 /// assert_eq!(None, chars.next());
 /// ```
 #[rune::function(instance)]
-fn chars(s: &str) -> VmResult<Iterator> {
-    // TODO: perform lazy iteration.
-    let iter = vm_try!(s.chars().try_collect::<Vec<_>>()).into_iter();
-    VmResult::Ok(Iterator::from_double_ended("std::str::Chars", iter))
+fn chars(s: Ref<str>) -> Chars {
+    Chars::new(s)
 }
 
 /// Returns a subslice of `str`.
@@ -1285,6 +1265,178 @@ fn to_uppercase(s: &str) -> VmResult<String> {
     VmResult::Ok(uppercase)
 }
 
+crate::__internal_impl_any!(::std::string, FromUtf8Error);
+crate::__internal_impl_any!(::std::string, Utf8Error);
+
+#[derive(Any)]
+#[rune(item = ::std::string)]
+struct Chars {
+    string: Ref<str>,
+    start: usize,
+    end: usize,
+}
+
+impl Chars {
+    fn new(string: Ref<str>) -> Self {
+        let end = string.len();
+        Self {
+            string,
+            start: 0,
+            end,
+        }
+    }
+
+    #[rune::function(keep, protocol = NEXT)]
+    fn next(&mut self) -> Option<char> {
+        let string = self.string.get(self.start..self.end)?;
+        let c = string.chars().next()?;
+        self.start += c.len_utf8();
+        Some(c)
+    }
+
+    #[rune::function(keep, protocol = NEXT_BACK)]
+    fn next_back(&mut self) -> Option<char> {
+        let string = self.string.get(self.start..self.end)?;
+        let c = string.chars().next_back()?;
+        self.end -= c.len_utf8();
+        Some(c)
+    }
+}
+
+trait Pattern: 'static + TryClone + Named + FromValue + ToValue + MaybeTypeOf + TypeOf {
+    fn test(&self, tail: &str) -> VmResult<(bool, usize)>;
+
+    fn is_empty(&self) -> bool;
+}
+
+impl Pattern for Box<str> {
+    fn test(&self, tail: &str) -> VmResult<(bool, usize)> {
+        if tail.starts_with(self.as_ref()) {
+            VmResult::Ok((true, self.len()))
+        } else {
+            let Some(c) = tail.chars().next() else {
+                return VmResult::Ok((false, 0));
+            };
+
+            VmResult::Ok((false, c.len_utf8()))
+        }
+    }
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.as_ref().is_empty()
+    }
+}
+
+impl Pattern for char {
+    fn test(&self, tail: &str) -> VmResult<(bool, usize)> {
+        let Some(c) = tail.chars().next() else {
+            return VmResult::Ok((false, 0));
+        };
+
+        VmResult::Ok((c == *self, c.len_utf8()))
+    }
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        false
+    }
+}
+
+impl Pattern for Function {
+    fn test(&self, tail: &str) -> VmResult<(bool, usize)> {
+        let Some(c) = tail.chars().next() else {
+            return VmResult::Ok((false, 0));
+        };
+
+        VmResult::Ok((vm_try!(self.call::<bool>((c,))), c.len_utf8()))
+    }
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        false
+    }
+}
+
+#[derive(Any)]
+#[rune(item = ::std::string)]
+struct Split<T>
+where
+    T: Pattern,
+{
+    string: Option<Ref<str>>,
+    pattern: T,
+    from: usize,
+    to: usize,
+}
+
+impl<T> Split<T>
+where
+    T: Pattern,
+{
+    fn new(string: Ref<str>, pattern: T) -> Self {
+        Self {
+            string: Some(string),
+            pattern,
+            from: 0,
+            to: 0,
+        }
+    }
+
+    #[rune::function(keep, protocol = NEXT)]
+    fn next(&mut self) -> VmResult<Option<String>> {
+        let Some(string) = &self.string else {
+            return VmResult::Ok(None);
+        };
+
+        if self.from == string.len() && self.from == self.to {
+            self.string = None;
+            let out = vm_try!("".try_to_owned());
+            return VmResult::Ok(Some(out));
+        }
+
+        while self.to < string.len() {
+            let Some(tail) = string.get(self.to..) else {
+                return VmResult::Ok(None);
+            };
+
+            let (m, len) = vm_try!(self.pattern.test(tail));
+
+            if m {
+                let head = string.get(self.from..self.to).unwrap_or_default();
+                let out = vm_try!(head.try_to_owned());
+
+                if len == 0 {
+                    self.from = self.to;
+                    self.to += tail.chars().next().map_or(0, |c| c.len_utf8());
+                } else {
+                    self.to += len;
+                    self.from = self.to;
+                }
+
+                return VmResult::Ok(Some(out));
+            } else {
+                self.to += len;
+            }
+        }
+
+        let tail = string.get(self.from..self.to).unwrap_or_default();
+        self.from = self.to;
+        let out = vm_try!(tail.try_to_owned());
+
+        if !self.pattern.is_empty() {
+            self.string = None;
+        }
+
+        VmResult::Ok(Some(out))
+    }
+
+    #[rune::function(keep, protocol = INTO_ITER)]
+    fn into_iter(self) -> Self {
+        self
+    }
+}
+
 // Inlined code from core::unicode, since using it directly is marked as using an
 // unstable library feature
 mod unicode {
@@ -1421,6 +1573,3 @@ mod unicode {
         }
     }
 }
-
-crate::__internal_impl_any!(::std::string, FromUtf8Error);
-crate::__internal_impl_any!(::std::string, Utf8Error);

@@ -14,71 +14,81 @@ use crate::{ContextError, Module};
 /// This provides methods for computing over and parsing 64-bit integers.
 #[rune::module(::std::i64)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::from_meta(self::module_meta)?;
+    let mut m = Module::from_meta(self::module_meta)?;
 
-    module.function("parse", parse).build()?;
-    module.function_meta(to_float)?;
+    m.function("parse", parse).build()?;
+    m.function_meta(to_float)?;
 
-    module.function_meta(max)?;
-    module.function_meta(min)?;
-    module.function_meta(abs)?;
-    module.function_meta(pow)?;
+    m.function_meta(max)?;
+    m.function_meta(min)?;
+    m.function_meta(abs)?;
+    m.function_meta(pow)?;
 
-    module.function_meta(checked_add)?;
-    module.function_meta(checked_sub)?;
-    module.function_meta(checked_div)?;
-    module.function_meta(checked_mul)?;
-    module.function_meta(checked_rem)?;
+    m.function_meta(checked_add)?;
+    m.function_meta(checked_sub)?;
+    m.function_meta(checked_div)?;
+    m.function_meta(checked_mul)?;
+    m.function_meta(checked_rem)?;
 
-    module.function_meta(wrapping_add)?;
-    module.function_meta(wrapping_sub)?;
-    module.function_meta(wrapping_div)?;
-    module.function_meta(wrapping_mul)?;
-    module.function_meta(wrapping_rem)?;
+    m.function_meta(wrapping_add)?;
+    m.function_meta(wrapping_sub)?;
+    m.function_meta(wrapping_div)?;
+    m.function_meta(wrapping_mul)?;
+    m.function_meta(wrapping_rem)?;
 
-    module.function_meta(saturating_add)?;
-    module.function_meta(saturating_sub)?;
-    module.function_meta(saturating_mul)?;
-    module.function_meta(saturating_abs)?;
-    module.function_meta(saturating_pow)?;
+    m.function_meta(saturating_add)?;
+    m.function_meta(saturating_sub)?;
+    m.function_meta(saturating_mul)?;
+    m.function_meta(saturating_abs)?;
+    m.function_meta(saturating_pow)?;
 
-    module.function_meta(signum)?;
-    module.function_meta(is_positive)?;
-    module.function_meta(is_negative)?;
+    m.function_meta(signum)?;
+    m.function_meta(is_positive)?;
+    m.function_meta(is_negative)?;
+    m.function_meta(to_string)?;
 
-    module.function_meta(partial_eq)?;
-    module.function_meta(eq)?;
-    module.function_meta(partial_cmp)?;
-    module.function_meta(cmp)?;
-    module.function_meta(to_string)?;
+    m.function_meta(clone__meta)?;
+    m.implement_trait::<i64>(rune::item!(::std::clone::Clone))?;
 
-    module.constant("MIN", i64::MIN).build()?.docs([
-        "The smallest value that can be represented by this integer type",
-        "(&minus;2<sup>63</sup>).",
-        "",
-        "# Examples",
-        "",
-        "Basic usage:",
-        "",
-        "```rune",
-        "assert_eq!(i64::MIN, -9223372036854775808);",
-        "```",
-    ])?;
+    m.function_meta(partial_eq__meta)?;
+    m.implement_trait::<i64>(rune::item!(::std::cmp::PartialEq))?;
 
-    module.constant("MAX", i64::MAX).build()?.docs([
-        "The largest value that can be represented by this integer type",
-        "(2<sup>63</sup> &minus; 1).",
-        "",
-        "# Examples",
-        "",
-        "Basic usage:",
-        "",
-        "```rune",
-        "assert_eq!(i64::MAX, 9223372036854775807);",
-        "```",
-    ])?;
+    m.function_meta(eq__meta)?;
+    m.implement_trait::<i64>(rune::item!(::std::cmp::Eq))?;
 
-    Ok(module)
+    m.function_meta(partial_cmp__meta)?;
+    m.implement_trait::<i64>(rune::item!(::std::cmp::PartialOrd))?;
+
+    m.function_meta(cmp__meta)?;
+    m.implement_trait::<i64>(rune::item!(::std::cmp::Ord))?;
+
+    m.constant("MIN", i64::MIN).build()?.docs(docstring! {
+        /// The smallest value that can be represented by this integer type
+        /// (&minus;2<sup>63</sup>).
+        ///
+        /// # Examples
+        ///
+        /// Basic usage:
+        ///
+        /// ```rune
+        /// assert_eq!(i64::MIN, -9223372036854775808);
+        /// ```
+    })?;
+
+    m.constant("MAX", i64::MAX).build()?.docs(docstring! {
+        /// The largest value that can be represented by this integer type
+        /// (2<sup>63</sup> &minus; 1).
+        ///
+        /// # Examples
+        ///
+        /// Basic usage:
+        ///
+        /// ```rune
+        /// assert_eq!(i64::MAX, 9223372036854775807);
+        /// ```
+    })?;
+
+    Ok(m)
 }
 
 /// Parse an `int`.
@@ -525,13 +535,34 @@ fn is_negative(this: i64) -> bool {
 /// # Examples
 ///
 /// ```rune
+/// let a = 5;
+/// let b = a;
+/// let c = a.clone();
+///
+/// a += 1;
+///
+/// assert_eq!(a, 6);
+/// assert_eq!(b, 6);
+/// assert_eq!(c, 5);
+/// ```
+#[rune::function(keep, instance, protocol = CLONE)]
+#[inline]
+fn clone(this: i64) -> i64 {
+    this
+}
+
+/// Test two integers for partial equality.
+///
+/// # Examples
+///
+/// ```rune
 /// use std::ops::partial_eq;
 ///
 /// assert_eq!(partial_eq(5, 5), true);
 /// assert_eq!(partial_eq(5, 10), false);
 /// assert_eq!(partial_eq(10, 5), false);
 /// ```
-#[rune::function(instance, protocol = PARTIAL_EQ)]
+#[rune::function(keep, instance, protocol = PARTIAL_EQ)]
 #[inline]
 fn partial_eq(this: i64, rhs: i64) -> bool {
     this.eq(&rhs)
@@ -548,7 +579,7 @@ fn partial_eq(this: i64, rhs: i64) -> bool {
 /// assert_eq!(eq(5, 10), false);
 /// assert_eq!(eq(10, 5), false);
 /// ```
-#[rune::function(instance, protocol = EQ)]
+#[rune::function(keep, instance, protocol = EQ)]
 #[inline]
 fn eq(this: i64, rhs: i64) -> bool {
     this.eq(&rhs)
@@ -566,7 +597,7 @@ fn eq(this: i64, rhs: i64) -> bool {
 /// assert_eq!(partial_cmp(10, 5), Some(Ordering::Greater));
 /// assert_eq!(partial_cmp(5, 5), Some(Ordering::Equal));
 /// ```
-#[rune::function(instance, protocol = PARTIAL_CMP)]
+#[rune::function(keep, instance, protocol = PARTIAL_CMP)]
 #[inline]
 fn partial_cmp(this: i64, rhs: i64) -> Option<Ordering> {
     this.partial_cmp(&rhs)
@@ -584,7 +615,7 @@ fn partial_cmp(this: i64, rhs: i64) -> Option<Ordering> {
 /// assert_eq!(cmp(10, 5), Ordering::Greater);
 /// assert_eq!(cmp(5, 5), Ordering::Equal);
 /// ```
-#[rune::function(instance, protocol = CMP)]
+#[rune::function(keep, instance, protocol = CMP)]
 #[inline]
 fn cmp(this: i64, rhs: i64) -> Ordering {
     this.cmp(&rhs)

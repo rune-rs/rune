@@ -1,6 +1,7 @@
 use core::fmt;
 
-use crate::alloc::{self, Box};
+use crate::alloc;
+use crate::alloc::prelude::*;
 use crate::runtime::{TypeInfo, VmError};
 use crate::{Hash, ItemBuf};
 
@@ -57,6 +58,34 @@ pub enum ContextError {
         item: ItemBuf,
         type_info: TypeInfo,
         hash: Hash,
+    },
+    ConflictingReexport {
+        item: ItemBuf,
+        hash: Hash,
+        to: ItemBuf,
+    },
+    ConflictingTrait {
+        item: ItemBuf,
+        hash: Hash,
+    },
+    ConflictingTraitImpl {
+        trait_item: ItemBuf,
+        trait_hash: Hash,
+        item: ItemBuf,
+        hash: Hash,
+    },
+    MissingTraitFunction {
+        name: String,
+        item: ItemBuf,
+        hash: Hash,
+        trait_item: ItemBuf,
+        trait_hash: Hash,
+    },
+    MissingTrait {
+        item: ItemBuf,
+        hash: Hash,
+        impl_item: ItemBuf,
+        impl_hash: Hash,
     },
     ConflictingTypeMeta {
         item: ItemBuf,
@@ -195,6 +224,52 @@ impl fmt::Display for ContextError {
                 write!(
                     f,
                     "Type `{item}` already exists `{type_info}` with hash `{hash}`"
+                )?;
+            }
+            ContextError::ConflictingReexport { item, hash, to } => {
+                write!(
+                    f,
+                    "Reexport at `{item}` with hash `{hash}` to `{to}` already exists"
+                )?;
+            }
+            ContextError::ConflictingTrait { item, hash } => {
+                write!(
+                    f,
+                    "Trait `{item}` with hash `{hash}` conflicts with other item in module"
+                )?;
+            }
+            ContextError::ConflictingTraitImpl {
+                trait_item,
+                trait_hash,
+                item,
+                hash,
+            } => {
+                write!(
+                    f,
+                    "Trait `{trait_item}` with hash `{trait_hash}` is implemented multiple types for type `{item}` with hash `{hash}`"
+                )?;
+            }
+            ContextError::MissingTraitFunction {
+                name,
+                item,
+                hash,
+                trait_item,
+                trait_hash,
+            } => {
+                write!(
+                    f,
+                    "Missing required associated `{name}` for type `{item}` with hash `{hash}` when implementing trait `{trait_item}` with hash `{trait_hash}`"
+                )?;
+            }
+            ContextError::MissingTrait {
+                item,
+                hash,
+                impl_item,
+                impl_hash,
+            } => {
+                write!(
+                    f,
+                    "Missing trait `{item}` with hash `{hash}` when implementing it for `{impl_item}` with hash `{impl_hash}`"
                 )?;
             }
             ContextError::ConflictingTypeMeta { item, type_info } => {
