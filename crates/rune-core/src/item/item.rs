@@ -381,6 +381,12 @@ impl Item {
         it.next_back()?;
         Some(it.into_item())
     }
+
+    /// Display an unqalified variant of the item which does not include `::` if
+    /// a crate is present.
+    pub fn unqalified(&self) -> Unqalified {
+        Unqalified::new(self)
+    }
 }
 
 impl AsRef<Item> for &Item {
@@ -482,5 +488,44 @@ impl PartialEq<Iter<'_>> for Item {
 impl PartialEq<Iter<'_>> for &Item {
     fn eq(&self, other: &Iter<'_>) -> bool {
         *self == other.as_item()
+    }
+}
+
+/// Display an unqalified path.
+pub struct Unqalified<'a> {
+    item: &'a Item,
+}
+
+impl<'a> Unqalified<'a> {
+    fn new(item: &'a Item) -> Self {
+        Self { item }
+    }
+}
+
+impl fmt::Display for Unqalified<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut it = self.item.iter();
+
+        if let Some(last) = it.next_back() {
+            for c in it {
+                match c {
+                    ComponentRef::Crate(name) => {
+                        write!(f, "{name}::")?;
+                    }
+                    ComponentRef::Str(name) => {
+                        write!(f, "{name}::")?;
+                    }
+                    c => {
+                        write!(f, "{c}::")?;
+                    }
+                }
+            }
+
+            write!(f, "{}", last)?;
+        } else {
+            f.write_str("{root}")?;
+        }
+
+        Ok(())
     }
 }

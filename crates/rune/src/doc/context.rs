@@ -21,12 +21,12 @@ pub(crate) struct Meta<'a> {
     /// Kind of the meta item.
     pub(crate) kind: Kind<'a>,
     /// Item of the meta.
-    pub(crate) item: Option<&'a Item>,
+    pub(crate) item: &'a Item,
+    /// Type hash for the meta item.
+    pub(crate) hash: Hash,
     /// The meta source.
     #[allow(unused)]
     pub(crate) source: MetaSource<'a>,
-    /// Type hash for the meta item.
-    pub(crate) hash: Hash,
     /// Indicates if the item is deprecated.
     pub(crate) deprecated: Option<&'a str>,
     /// Documentation for the meta item.
@@ -36,6 +36,8 @@ pub(crate) struct Meta<'a> {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Function<'a> {
     pub(crate) is_async: bool,
+    pub(crate) is_test: bool,
+    pub(crate) is_bench: bool,
     pub(crate) signature: Signature,
     pub(crate) arguments: Option<&'a [meta::DocArgument]>,
     pub(crate) return_type: &'a meta::DocType,
@@ -51,7 +53,7 @@ pub(crate) enum AssocFnKind<'a> {
     /// An index function with the given protocol.
     IndexFn(Protocol, usize),
     /// The instance function refers to the given named instance fn.
-    Method(&'a str, Signature),
+    Method(&'a Item, &'a str, Signature),
 }
 
 /// Information on an associated function.
@@ -120,16 +122,36 @@ impl<'a> Context<'a> {
     }
 
     /// Iterate over all types associated with the given hash.
-    pub(crate) fn associated(&self, hash: Hash) -> impl Iterator<Item = Assoc<'a>> {
+    pub(crate) fn associated(&self, hash: Hash) -> impl Iterator<Item = Hash> + '_ {
         let visitors = self
             .visitors
             .iter()
-            .flat_map(move |v| visitor_to_associated(hash, v).into_iter().flatten());
+            .flat_map(move |v| {
+                v.associated
+                    .get(&hash)
+                    .map(Vec::as_slice)
+                    .unwrap_or_default()
+            })
+            .copied();
 
         let context = self
             .context
             .into_iter()
-            .flat_map(move |c| c.associated(hash).flat_map(|a| context_to_associated(c, a)));
+            .flat_map(move |c| c.associated(hash));
+
+        visitors.chain(context)
+    }
+
+    pub(crate) fn associated_meta(&self, hash: Hash) -> impl Iterator<Item = Assoc<'a>> + '_ {
+        let visitors = self
+            .visitors
+            .iter()
+            .flat_map(move |v| visitor_to_associated(v, hash));
+
+        let context = self
+            .context
+            .into_iter()
+            .flat_map(move |c| context_to_associated(c, hash));
 
         visitors.chain(context)
     }
@@ -204,6 +226,8 @@ impl<'a> Context<'a> {
     }
 
     fn context_meta_to_meta(&self, meta: &'a ContextMeta) -> Option<Meta<'a>> {
+        let item = meta.item.as_deref()?;
+
         let kind = match &meta.kind {
             meta::Kind::Type { .. } => Kind::Type,
             meta::Kind::Struct { .. } => Kind::Struct,
@@ -212,9 +236,13 @@ impl<'a> Context<'a> {
             meta::Kind::Function {
                 associated: None,
                 signature: f,
+                is_test,
+                is_bench,
                 ..
             } => Kind::Function(Function {
                 is_async: f.is_async,
+                is_test: *is_test,
+                is_bench: *is_bench,
                 signature: Signature::Function,
                 arguments: f.arguments.as_deref(),
                 return_type: &f.return_type,
@@ -222,9 +250,13 @@ impl<'a> Context<'a> {
             meta::Kind::Function {
                 associated: Some(..),
                 signature: f,
+                is_test,
+                is_bench,
                 ..
             } => Kind::Function(Function {
                 is_async: f.is_async,
+                is_test: *is_test,
+                is_bench: *is_bench,
                 signature: Signature::Instance,
                 arguments: f.arguments.as_deref(),
                 return_type: &f.return_type,
@@ -242,7 +274,7 @@ impl<'a> Context<'a> {
         Some(Meta {
             kind,
             source: MetaSource::Context,
-            item: meta.item.as_deref(),
+            item,
             hash: meta.hash,
             deprecated: meta.deprecated.as_deref(),
             docs: meta.docs.lines(),
@@ -251,55 +283,67 @@ impl<'a> Context<'a> {
 
     /// Iterate over known modules.
     pub(crate) fn iter_modules(&self) -> impl IntoIterator<Item = alloc::Result<ItemBuf>> + '_ {
-        self.visitors.iter().map(|v| v.base.try_clone()).chain(
-            self.context
-                .into_iter()
-                .flat_map(|c| c.iter_crates().map(ItemBuf::with_crate)),
-        )
+        let visitors = self
+            .visitors
+            .iter()
+            .flat_map(|v| v.base.as_crate().map(ItemBuf::with_crate));
+
+        let contexts = self
+            .context
+            .into_iter()
+            .flat_map(|c| c.iter_crates().map(ItemBuf::with_crate));
+
+        visitors.chain(contexts)
     }
 }
 
-fn visitor_to_associated(hash: Hash, visitor: &Visitor) -> Option<impl Iterator<Item = Assoc<'_>>> {
-    let associated = visitor.associated.get(&hash)?;
+fn visitor_to_associated(visitor: &Visitor, hash: Hash) -> impl Iterator<Item = Assoc<'_>> + '_ {
+    let associated = visitor.associated.get(&hash).into_iter();
 
-    Some(associated.iter().flat_map(move |hash| {
-        let data = visitor.data.get(hash)?;
+    associated.flat_map(move |a| {
+        a.iter().flat_map(move |hash| {
+            let data = visitor.data.get(hash)?;
 
-        let (associated, trait_hash, signature) = match &data.kind {
-            Some(meta::Kind::Function {
-                associated,
-                trait_hash,
-                signature,
-                ..
-            }) => (associated, trait_hash, signature),
-            Some(meta::Kind::Variant { .. }) => {
-                return Some(Assoc::Variant(AssocVariant {
-                    name: data.item.last()?.as_str()?,
-                    docs: &data.docs,
-                }));
-            }
-            _ => return None,
-        };
+            let (associated, trait_hash, signature) = match &data.kind {
+                Some(meta::Kind::Function {
+                    associated,
+                    trait_hash,
+                    signature,
+                    ..
+                }) => (associated, trait_hash, signature),
+                Some(meta::Kind::Variant { .. }) => {
+                    return Some(Assoc::Variant(AssocVariant {
+                        name: data.item.last()?.as_str()?,
+                        docs: &data.docs,
+                    }));
+                }
+                _ => return None,
+            };
 
-        let kind = match associated {
-            Some(meta::AssociatedKind::Instance(name)) => {
-                AssocFnKind::Method(name.as_ref(), Signature::Instance)
-            }
-            None => AssocFnKind::Method(data.item.last()?.as_str()?, Signature::Function),
-            _ => return None,
-        };
+            let kind = match associated {
+                Some(meta::AssociatedKind::Instance(name)) => {
+                    AssocFnKind::Method(&data.item, name.as_ref(), Signature::Instance)
+                }
+                None => AssocFnKind::Method(
+                    &data.item,
+                    data.item.last()?.as_str()?,
+                    Signature::Function,
+                ),
+                _ => return None,
+            };
 
-        Some(Assoc::Fn(AssocFn {
-            kind,
-            trait_hash: *trait_hash,
-            is_async: signature.is_async,
-            arguments: signature.arguments.as_deref(),
-            return_type: &signature.return_type,
-            parameter_types: &[],
-            deprecated: data.deprecated.as_deref(),
-            docs: &data.docs,
-        }))
-    }))
+            Some(Assoc::Fn(AssocFn {
+                kind,
+                trait_hash: *trait_hash,
+                is_async: signature.is_async,
+                arguments: signature.arguments.as_deref(),
+                return_type: &signature.return_type,
+                parameter_types: &[],
+                deprecated: data.deprecated.as_deref(),
+                docs: &data.docs,
+            }))
+        })
+    })
 }
 
 fn context_to_associated(context: &crate::Context, hash: Hash) -> Option<Assoc<'_>> {
@@ -329,7 +373,7 @@ fn context_to_associated(context: &crate::Context, hash: Hash) -> Option<Assoc<'
                     AssocFnKind::IndexFn(protocol, index)
                 }
                 meta::AssociatedKind::Instance(ref name) => {
-                    AssocFnKind::Method(name, Signature::Instance)
+                    AssocFnKind::Method(meta.item.as_ref()?, name, Signature::Instance)
                 }
             };
 
@@ -350,8 +394,9 @@ fn context_to_associated(context: &crate::Context, hash: Hash) -> Option<Assoc<'
             signature,
             ..
         } => {
-            let name = meta.item.as_deref()?.last()?.as_str()?;
-            let kind = AssocFnKind::Method(name, Signature::Function);
+            let item = meta.item.as_deref()?;
+            let name = item.last()?.as_str()?;
+            let kind = AssocFnKind::Method(item, name, Signature::Function);
 
             Some(Assoc::Fn(AssocFn {
                 kind,
@@ -380,9 +425,13 @@ fn visitor_meta_to_meta<'a>(base: &'a Item, data: &'a VisitorData) -> Meta<'a> {
         Some(meta::Kind::Function {
             associated,
             signature: f,
+            is_test,
+            is_bench,
             ..
         }) => Kind::Function(Function {
             is_async: f.is_async,
+            is_test: *is_test,
+            is_bench: *is_bench,
             signature: match associated {
                 Some(..) => Signature::Instance,
                 None => Signature::Function,
@@ -396,7 +445,7 @@ fn visitor_meta_to_meta<'a>(base: &'a Item, data: &'a VisitorData) -> Meta<'a> {
 
     Meta {
         source: MetaSource::Source(base),
-        item: Some(&data.item),
+        item: &data.item,
         hash: data.hash,
         deprecated: None,
         docs: data.docs.as_slice(),

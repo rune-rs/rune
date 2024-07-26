@@ -1,9 +1,15 @@
 {{#> layout}}
 <body>
-<div class="title-wrapper"><h3 class="title">Function {{literal module}}::<span class="fn">{{name}}</span></h3><a class="overview" href="{{literal root_index}}">Overview</a></div>
+<div class="title-wrapper">
+<h3 class="title">Function {{literal module}}::<span class="fn">{{name}}</span></h3><a class="overview" href="{{literal root_index}}">Overview</a></div>
 <div class="signature">
-{{#if is_async}}<span class="keyword async">async</span> {{/if}} <span class="keyword fn">fn</span> <span class="fn">{{name}}</span>({{literal args}}){{#if this.return_type}} -&gt; {{literal this.return_type}}{{/if}}</h3>
+    {{#if is_test}}<div class="keyword attribute">#[test]</div>{{/if}}
+    {{#if is_bench}}<div class="keyword attribute">#[bench]</div>{{/if}}
+    {{#if is_async}}<span class="keyword async">async</span> {{/if}}
+    <span class="keyword fn">fn</span>
+    <span class="fn">{{name}}</span>({{literal args}}){{#if this.return_type}} -&gt; {{literal this.return_type}}{{/if}}
 </div>
+</h3>
 {{#if deprecated}}<div class="deprecated"><span class="heading">Deprecated:</span><span class="content">{{deprecated}}</span></div>{{/if}}
 {{#if doc}}{{literal doc}}{{/if}}
 {{/layout}}

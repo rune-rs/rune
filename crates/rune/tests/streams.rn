@@ -1,9 +1,13 @@
+//! Test that async streams work.
+
 async fn foo(n) {
     yield n;
     yield n + 1;
     yield n + 2;
 }
 
+/// Select over two async streams and ensure that the expected numerical value
+//matches.
 #[test]
 async fn select_streams() {
     let count = 0;

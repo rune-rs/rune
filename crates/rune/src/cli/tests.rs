@@ -134,8 +134,7 @@ where
     };
 
     for entry in entries {
-        let name = naming.name(&entry)?;
-        let item = ItemBuf::with_crate(&name)?;
+        let item = naming.item(&entry)?;
 
         let mut sources = Sources::new();
 

@@ -34,28 +34,14 @@
 {{/each}}
 {{/if}}
 
-{{#if protocols}}
-<h4 class="section-title">Protocols</h4>
-
-{{#each protocols}}
-    <div class="item item-fn">
-        <div id="protocol.{{this.name}}" class="item-title">
-        protocol <a href="#protocol.{{this.name}}" class="protocol">{{this.name}}</a> {{field}}
-        {{#if this.deprecated}}<div class="deprecated"><span class="heading">Deprecated:</span><span class="content">{{this.deprecated}}</span></div>{{/if}}
-        </div>
-        {{#if this.repr}}{{literal this.repr}}{{/if}}
-        {{#if this.doc}}{{literal this.doc}}{{/if}}
-    </div>
-{{/each}}
-{{/if}}
-
 {{#if traits}}
-<h4 class="section-title">Traits implemented</h4>
+<h4 class="section-title">Trait Implementations</h4>
 
 {{#each traits}}
     <div class="item item-trait">
         <div id="trait.{{this.item}}" class="item-title">
             impl {{literal this.module}}::<a href="{{this.url}}" class="trait">{{this.name}}</a>
+            for <span class="{{../what_class}}">{{../name}}</span>
         </div>
     </div>
 
@@ -79,6 +65,21 @@
             {{#if this.doc}}{{literal this.doc}}{{/if}}
         </div>
     {{/each}}
+{{/each}}
+{{/if}}
+
+{{#if protocols}}
+<h4 class="section-title">Protocols</h4>
+
+{{#each protocols}}
+    <div class="item item-fn">
+        <div id="protocol.{{this.name}}" class="item-title">
+        protocol <a href="#protocol.{{this.name}}" class="protocol">{{this.name}}</a> {{field}}
+        {{#if this.deprecated}}<div class="deprecated"><span class="heading">Deprecated:</span><span class="content">{{this.deprecated}}</span></div>{{/if}}
+        </div>
+        {{#if this.repr}}{{literal this.repr}}{{/if}}
+        {{#if this.doc}}{{literal this.doc}}{{/if}}
+    </div>
 {{/each}}
 {{/if}}
 

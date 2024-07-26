@@ -902,6 +902,7 @@ impl Context {
             .entry(i.hash)
             .or_try_default()?
             .try_push(i.trait_hash)?;
+
         Ok(())
     }
 
