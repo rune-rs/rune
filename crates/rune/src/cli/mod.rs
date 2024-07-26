@@ -26,6 +26,7 @@ use std::path::{Path, PathBuf};
 use crate as rune;
 use crate::alloc;
 use crate::alloc::prelude::*;
+use crate::item::ComponentRef;
 use crate::workspace::{self, WorkspaceFilter};
 
 use anyhow::{bail, Context as _, Error, Result};
@@ -240,7 +241,7 @@ impl<'a> Entry<'a> {
 #[derive(TryClone)]
 pub(crate) enum EntryPoint<'a> {
     /// A plain path entrypoint.
-    Path(PathBuf),
+    Path(PathBuf, bool),
     /// A package entrypoint.
     Package(workspace::FoundPackage<'a>),
 }
@@ -249,8 +250,16 @@ impl EntryPoint<'_> {
     /// Path to entrypoint.
     pub(crate) fn path(&self) -> &Path {
         match self {
-            EntryPoint::Path(path) => path,
+            EntryPoint::Path(path, _) => path,
             EntryPoint::Package(p) => &p.found.path,
+        }
+    }
+
+    /// If a path is an additional argument.
+    pub(crate) fn is_argument(&self) -> bool {
+        match self {
+            EntryPoint::Path(_, explicit) => *explicit,
+            EntryPoint::Package(..) => false,
         }
     }
 }
@@ -258,8 +267,11 @@ impl EntryPoint<'_> {
 impl fmt::Display for EntryPoint<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            EntryPoint::Path(path) => {
+            EntryPoint::Path(path, false) => {
                 write!(f, "path in {}", path.display())
+            }
+            EntryPoint::Path(path, true) => {
+                write!(f, "path in {} (argument)", path.display())
             }
             EntryPoint::Package(package) => {
                 write!(
@@ -481,7 +493,7 @@ impl Command {
 
 enum BuildPath<'a> {
     /// A plain path entry.
-    Path(&'a Path),
+    Path(&'a Path, bool),
     /// An entry from the specified package.
     Package(workspace::FoundPackage<'a>),
 }
@@ -497,7 +509,7 @@ struct Config {
     /// Manifest root directory.
     manifest_root: Option<PathBuf>,
     /// Immediate found paths.
-    found_paths: alloc::Vec<PathBuf>,
+    found_paths: alloc::Vec<(PathBuf, bool)>,
 }
 
 impl Config {
@@ -506,7 +518,7 @@ impl Config {
         let mut build_paths = alloc::Vec::new();
 
         if !self.found_paths.is_empty() {
-            build_paths.try_extend(self.found_paths.iter().map(|p| BuildPath::Path(p)))?;
+            build_paths.try_extend(self.found_paths.iter().map(|(p, e)| BuildPath::Path(p, *e)))?;
 
             if !cmd.shared.workspace {
                 return Ok(build_paths);
@@ -724,13 +736,11 @@ fn find_manifest() -> Option<(PathBuf, PathBuf)> {
 }
 
 fn populate_config(io: &mut Io<'_>, c: &mut Config, cmd: CommandSharedRef<'_>) -> Result<()> {
-    c.found_paths.try_extend(
-        cmd.shared
-            .path
-            .iter()
-            .map(|p| p.as_path().into())
-            .chain(cmd.command.paths().iter().cloned()),
-    )?;
+    c.found_paths
+        .try_extend(cmd.shared.path.iter().map(|p| (p.clone(), false)))?;
+
+    c.found_paths
+        .try_extend(cmd.command.paths().iter().map(|p| (p.clone(), true)))?;
 
     if !c.found_paths.is_empty() && !cmd.shared.workspace {
         return Ok(());
@@ -741,7 +751,7 @@ fn populate_config(io: &mut Io<'_>, c: &mut Config, cmd: CommandSharedRef<'_>) -
             let path = Path::new(file);
 
             if path.is_file() {
-                c.found_paths.try_push(path.into())?;
+                c.found_paths.try_push((path.try_to_owned()?, false))?;
                 return Ok(());
             }
         }
@@ -802,9 +812,9 @@ async fn main_with_out(io: &mut Io<'_>, entry: &mut Entry<'_>, mut args: Args) -
 
         for build_path in build_paths {
             match build_path {
-                BuildPath::Path(path) => {
+                BuildPath::Path(path, explicit) => {
                     for path in loader::recurse_paths(recursive, path.try_to_owned()?) {
-                        entrys.try_push(EntryPoint::Path(path?))?;
+                        entrys.try_push(EntryPoint::Path(path?, explicit))?;
                     }
                 }
                 BuildPath::Package(p) => {
@@ -856,6 +866,12 @@ where
             let options = f.options()?;
 
             for e in entries {
+                let mut options = options.clone();
+
+                if e.is_argument() {
+                    options.function_body = true;
+                }
+
                 match check::run(io, entry, c, &f.command, &f.shared, &options, e.path())? {
                     ExitCode::Success => (),
                     other => return Ok(other),
@@ -882,6 +898,12 @@ where
             let options = f.options()?;
 
             for e in entries {
+                let mut options = options.clone();
+
+                if e.is_argument() {
+                    options.function_body = true;
+                }
+
                 let capture_io = crate::modules::capture_io::CaptureIo::new();
                 let context = f.shared.context(entry, c, Some(&capture_io))?;
 
@@ -915,6 +937,12 @@ where
             let context = f.shared.context(entry, c, None)?;
 
             for e in entries {
+                let mut options = options.clone();
+
+                if e.is_argument() {
+                    options.function_body = true;
+                }
+
                 let load = loader::load(
                     io,
                     &context,
@@ -924,7 +952,14 @@ where
                     visitor::Attribute::None,
                 )?;
 
-                match run::run(io, c, &f.command, &context, load.unit, &load.sources).await? {
+                let entry = if e.is_argument() {
+                    Hash::type_hash([ComponentRef::Id(0)])
+                } else {
+                    Hash::type_hash(["main"])
+                };
+
+                match run::run(io, c, &f.command, &context, load.unit, &load.sources, entry).await?
+                {
                     ExitCode::Success => (),
                     other => return Ok(other),
                 }

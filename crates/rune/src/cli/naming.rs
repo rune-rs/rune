@@ -16,7 +16,7 @@ impl Naming {
     /// Construct a unique crate name for the given entrypoint.
     pub(crate) fn item(&mut self, e: &EntryPoint<'_>) -> alloc::Result<ItemBuf> {
         let mut item = match &e {
-            EntryPoint::Path(path) => match path.file_stem().and_then(OsStr::to_str) {
+            EntryPoint::Path(path, _) => match path.file_stem().and_then(OsStr::to_str) {
                 Some(name) => ItemBuf::with_crate(name)?,
                 None => ItemBuf::with_crate("entry")?,
             },

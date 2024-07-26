@@ -91,10 +91,7 @@ impl Hash {
     }
 
     /// Get the hash of a type.
-    pub fn type_hash<I>(path: I) -> Self
-    where
-        I: ToTypeHash,
-    {
+    pub fn type_hash(path: impl ToTypeHash) -> Self {
         path.to_type_hash()
     }
 

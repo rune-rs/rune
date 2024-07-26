@@ -94,6 +94,12 @@ where
     let mut naming = Naming::default();
 
     for e in entries {
+        let mut options = options.clone();
+
+        if e.is_argument() {
+            options.function_body = true;
+        }
+
         let item = naming.item(&e)?;
 
         let mut visitor = crate::doc::Visitor::new(&item)?;
@@ -117,7 +123,7 @@ where
         let _ = crate::prepare(&mut sources)
             .with_context(&context)
             .with_diagnostics(&mut diagnostics)
-            .with_options(options)
+            .with_options(&options)
             .with_visitor(&mut visitor)?
             .with_source_loader(&mut source_loader)
             .build();

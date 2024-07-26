@@ -38,6 +38,9 @@ pub struct Options {
     /// Use the second version of the compiler in parallel.
     pub(crate) v2: bool,
     /// Build sources as function bodies.
+    ///
+    /// The function to run will be located at `$0`, which can be constructed
+    /// with `Hash::type_hash([ComponentRef::Id(0)])`.
     pub(crate) function_body: bool,
     /// When running tests, include std tests.
     pub(crate) test_std: bool,
