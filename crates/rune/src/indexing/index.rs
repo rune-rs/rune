@@ -505,13 +505,15 @@ pub(crate) fn file(idx: &mut Indexer<'_, '_>, ast: &mut ast::File) -> compile::R
     for doc in p.parse_all::<attrs::Doc>(resolve_context!(idx.q), &ast.attributes)? {
         let (span, doc) = doc?;
 
+        let doc_string = doc.doc_string.resolve(resolve_context!(idx.q))?;
+
         idx.q
             .visitor
             .visit_doc_comment(
                 &DynLocation::new(idx.source_id, &span),
                 idx.q.pool.module_item(idx.item.module),
                 idx.q.pool.module_item_hash(idx.item.module),
-                &doc.doc_string.resolve(resolve_context!(idx.q))?,
+                &doc_string,
             )
             .with_span(span)?;
     }

@@ -27,7 +27,7 @@ use crate::doc::{Artifacts, Context, Visitor};
 use crate::item::ComponentRef;
 use crate::runtime::static_type;
 use crate::std::borrow::ToOwned;
-use crate::{Hash, Item, ItemBuf};
+use crate::{Hash, Item};
 
 // InspiredGitHub
 // Solarized (dark)
@@ -40,12 +40,12 @@ const THEME: &str = "base16-eighties.dark";
 const RUNEDOC_CSS: &str = "runedoc.css";
 
 pub(crate) struct Builder<'m> {
-    state: State,
+    state: State<'m>,
     builder: rust_alloc::boxed::Box<dyn FnOnce(&Ctxt<'_, '_>) -> Result<String> + 'm>,
 }
 
 impl<'m> Builder<'m> {
-    fn new<B>(cx: &Ctxt<'_, '_>, builder: B) -> alloc::Result<Self>
+    fn new<B>(cx: &Ctxt<'_, 'm>, builder: B) -> alloc::Result<Self>
     where
         B: FnOnce(&Ctxt<'_, '_>) -> Result<String> + 'm,
     {
@@ -135,11 +135,13 @@ pub(crate) fn build(
 
     for item in context.iter_modules() {
         let item = item?;
+
         let meta = context
             .meta(&item)?
             .into_iter()
             .find(|m| matches!(&m.kind, Kind::Module))
             .with_context(|| anyhow!("Missing meta for {item}"))?;
+
         initial.try_push_back((Build::Module, meta))?;
     }
 
@@ -213,8 +215,7 @@ pub(crate) fn build(
             Build::Module => {
                 cx.set_path(meta)?;
                 builders.try_push(module(&mut cx, meta, &mut queue)?)?;
-                let item = meta.item.context("Missing item")?;
-                modules.try_push((item, cx.state.path.clone()))?;
+                modules.try_push((meta.item, cx.state.path.clone()))?;
             }
         }
     }
@@ -329,14 +330,15 @@ pub(crate) struct IndexEntry<'m> {
 }
 
 #[derive(Default, TryClone)]
-pub(crate) struct State {
+pub(crate) struct State<'m> {
     #[try_clone(with = RelativePathBuf::clone)]
     path: RelativePathBuf,
-    item: ItemBuf,
+    #[try_clone(copy)]
+    item: &'m Item,
 }
 
 pub(crate) struct Ctxt<'a, 'm> {
-    state: State,
+    state: State<'m>,
     /// A collection of all items visited.
     index: Vec<IndexEntry<'m>>,
     name: &'a str,
@@ -368,18 +370,16 @@ impl<'m> Ctxt<'_, 'm> {
             kind => bail!("Cannot set path for {kind:?}"),
         };
 
-        let item = meta.item.context("Missing meta item")?;
-
         self.state.path = RelativePathBuf::new();
-        self.state.item = item.try_to_owned()?;
+        self.state.item = meta.item;
 
-        build_item_path(self.name, item, item_kind, &mut self.state.path)?;
+        build_item_path(self.name, meta.item, item_kind, &mut self.state.path)?;
 
         let doc = self.render_line_docs(meta, meta.docs.get(..1).unwrap_or_default())?;
 
         self.index.try_push(IndexEntry {
             path: self.state.path.clone(),
-            item: Cow::Borrowed(item),
+            item: Cow::Borrowed(meta.item),
             kind: IndexKind::Item(item_kind),
             doc,
         })?;
@@ -508,7 +508,7 @@ impl<'m> Ctxt<'_, 'm> {
 
         for (content, params) in tests {
             self.tests.try_push(Test {
-                item: self.state.item.try_clone()?,
+                item: self.state.item.try_to_owned()?,
                 content,
                 params,
             })?;
@@ -527,13 +527,21 @@ impl<'m> Ctxt<'_, 'm> {
 
     /// Build backlinks for the current item.
     fn module_path_html(&self, meta: Meta<'_>, is_module: bool) -> Result<String> {
-        let mut module = Vec::new();
-        let item = meta.item.context("Missing module item")?;
+        fn unqualified_component<'a>(c: &'a ComponentRef<'_>) -> &'a dyn fmt::Display {
+            match c {
+                ComponentRef::Crate(name) => name,
+                ComponentRef::Str(name) => name,
+                c => c,
+            }
+        }
 
-        let mut iter = item.iter();
+        let mut module = Vec::new();
+
+        let mut iter = meta.item.iter();
 
         while iter.next_back().is_some() {
-            if let Some(name) = iter.as_item().last() {
+            if let Some(c) = iter.as_item().last() {
+                let name: &dyn fmt::Display = unqualified_component(&c);
                 let url = self.item_path(iter.as_item(), ItemKind::Module)?;
                 module.try_push(try_format!("<a class=\"module\" href=\"{url}\">{name}</a>"))?;
             }
@@ -542,7 +550,8 @@ impl<'m> Ctxt<'_, 'm> {
         module.reverse();
 
         if is_module {
-            if let Some(name) = item.last() {
+            if let Some(c) = meta.item.last() {
+                let name: &dyn fmt::Display = unqualified_component(&c);
                 module.try_push(try_format!("<span class=\"module\">{name}</span>"))?;
             }
         }
@@ -625,16 +634,12 @@ impl<'m> Ctxt<'_, 'm> {
                 break 'out (None, None, text);
             };
 
-            let Some(item) = meta.item else {
-                break 'out (None, Some(kind), text);
-            };
-
             let text = match text {
                 Some(text) => Some(text),
-                None => item.last().and_then(|c| c.as_str()),
+                None => meta.item.last().and_then(|c| c.as_str()),
             };
 
-            (Some(self.item_path(item, kind)?), Some(kind), text)
+            (Some(self.item_path(meta.item, kind)?), Some(kind), text)
         };
 
         let (path, kind, text) = outcome;
@@ -763,14 +768,10 @@ impl<'m> Ctxt<'_, 'm> {
         let link = link.trim_matches(|c| matches!(c, '`'));
         let (link, flavor) = flavor(link);
 
-        let Some(item) = meta.item else {
-            return Ok(None);
-        };
-
         let item = if matches!(meta.kind, Kind::Module) {
-            item.join([link])?
+            meta.item.join([link])?
         } else {
-            let Some(parent) = item.parent() else {
+            let Some(parent) = meta.item.parent() else {
                 return Ok(None);
             };
 
@@ -918,7 +919,7 @@ fn module<'m>(
     #[derive(Serialize)]
     struct Type<'a> {
         #[serde(serialize_with = "serialize_item")]
-        item: ItemBuf,
+        item: &'a Item,
         #[serde(serialize_with = "serialize_component_ref")]
         name: ComponentRef<'a>,
         path: RelativePathBuf,
@@ -929,7 +930,7 @@ fn module<'m>(
     struct Struct<'a> {
         path: RelativePathBuf,
         #[serde(serialize_with = "serialize_item")]
-        item: ItemBuf,
+        item: &'a Item,
         #[serde(serialize_with = "serialize_component_ref")]
         name: ComponentRef<'a>,
         doc: Option<String>,
@@ -939,7 +940,7 @@ fn module<'m>(
     struct Enum<'a> {
         path: RelativePathBuf,
         #[serde(serialize_with = "serialize_item")]
-        item: ItemBuf,
+        item: &'a Item,
         #[serde(serialize_with = "serialize_component_ref")]
         name: ComponentRef<'a>,
         doc: Option<String>,
@@ -961,7 +962,7 @@ fn module<'m>(
         deprecated: Option<&'a str>,
         path: RelativePathBuf,
         #[serde(serialize_with = "serialize_item")]
-        item: ItemBuf,
+        item: &'a Item,
         #[serde(serialize_with = "serialize_component_ref")]
         name: ComponentRef<'a>,
         args: String,
@@ -981,14 +982,12 @@ fn module<'m>(
     #[derive(Serialize)]
     struct Trait<'a> {
         #[serde(serialize_with = "serialize_item")]
-        item: ItemBuf,
+        item: &'a Item,
         #[serde(serialize_with = "serialize_component_ref")]
         name: ComponentRef<'a>,
         path: RelativePathBuf,
         doc: Option<String>,
     }
-
-    let meta_item = meta.item.context("Missing item")?;
 
     let mut types = Vec::new();
     let mut structs = Vec::new();
@@ -998,19 +997,17 @@ fn module<'m>(
     let mut modules = Vec::new();
     let mut traits = Vec::new();
 
-    for (_, name) in cx.context.iter_components(meta_item)? {
-        let item = meta_item.join([name])?;
+    for (_, name) in cx.context.iter_components(meta.item)? {
+        let lookup_item = meta.item.join([name])?;
 
-        for m in cx.context.meta(&item)? {
+        for m in cx.context.meta(&lookup_item)? {
             match m.kind {
                 Kind::Type { .. } => {
                     queue.try_push_front((Build::Type, m))?;
 
-                    let path = cx.item_path(&item, ItemKind::Type)?;
-
                     types.try_push(Type {
-                        item: item.try_clone()?,
-                        path,
+                        path: cx.item_path(m.item, ItemKind::Type)?,
+                        item: m.item,
                         name,
                         doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
                     })?;
@@ -1018,11 +1015,9 @@ fn module<'m>(
                 Kind::Struct { .. } => {
                     queue.try_push_front((Build::Struct, m))?;
 
-                    let path = cx.item_path(&item, ItemKind::Struct)?;
-
                     structs.try_push(Struct {
-                        item: item.try_clone()?,
-                        path,
+                        path: cx.item_path(m.item, ItemKind::Struct)?,
+                        item: m.item,
                         name,
                         doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
                     })?;
@@ -1030,23 +1025,19 @@ fn module<'m>(
                 Kind::Enum { .. } => {
                     queue.try_push_front((Build::Enum, m))?;
 
-                    let path = cx.item_path(&item, ItemKind::Enum)?;
-
                     enums.try_push(Enum {
-                        item: item.try_clone()?,
-                        path,
+                        path: cx.item_path(m.item, ItemKind::Enum)?,
+                        item: m.item,
                         name,
                         doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
                     })?;
                 }
                 Kind::Macro => {
-                    let item = m.item.context("Missing macro item")?;
-
                     queue.try_push_front((Build::Macro, m))?;
 
                     macros.try_push(Macro {
-                        path: cx.item_path(item, ItemKind::Macro)?,
-                        item,
+                        path: cx.item_path(m.item, ItemKind::Macro)?,
+                        item: m.item,
                         name,
                         doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
                     })?;
@@ -1061,25 +1052,23 @@ fn module<'m>(
                     functions.try_push(Function {
                         is_async: f.is_async,
                         deprecated: meta.deprecated,
-                        path: cx.item_path(&item, ItemKind::Function)?,
-                        item: item.try_clone()?,
+                        path: cx.item_path(m.item, ItemKind::Function)?,
+                        item: m.item,
                         name,
                         args: cx.args_to_string(f.signature, f.arguments)?,
                         doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
                     })?;
                 }
                 Kind::Module => {
-                    let item = m.item.context("Missing module item")?;
-
                     // Skip over crate items, since they are added separately.
-                    if meta_item.is_empty() && item.as_crate().is_some() {
+                    if meta.item.is_empty() && m.item.as_crate().is_some() {
                         continue;
                     }
 
                     queue.try_push_front((Build::Module, m))?;
 
-                    let path = cx.item_path(item, ItemKind::Module)?;
-                    let name = item.last().context("missing name of module")?;
+                    let path = cx.item_path(m.item, ItemKind::Module)?;
+                    let name = m.item.last().context("missing name of module")?;
 
                     // Prevent multiple entries of a module, with no documentation
                     modules.retain(|module: &Module<'_>| {
@@ -1087,7 +1076,7 @@ fn module<'m>(
                     });
 
                     modules.try_push(Module {
-                        item,
+                        item: m.item,
                         name,
                         path,
                         doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
@@ -1096,11 +1085,9 @@ fn module<'m>(
                 Kind::Trait { .. } => {
                     queue.try_push_front((Build::Trait, m))?;
 
-                    let path = cx.item_path(&item, ItemKind::Trait)?;
-
                     traits.try_push(Trait {
-                        item: item.try_clone()?,
-                        path,
+                        path: cx.item_path(m.item, ItemKind::Trait)?,
+                        item: m.item,
                         name,
                         doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
                     })?;
@@ -1117,7 +1104,7 @@ fn module<'m>(
     Ok(Builder::new(cx, move |cx| {
         cx.module_template.render(&Params {
             shared: cx.shared()?,
-            item: meta_item,
+            item: meta.item,
             module: cx.module_path_html(meta, true)?,
             doc,
             types,
@@ -1147,14 +1134,13 @@ fn build_macro<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'m>>
     }
 
     let doc = cx.render_docs(meta, meta.docs, true)?;
-    let item = meta.item.context("Missing item")?;
-    let name = item.last().context("Missing macro name")?;
+    let name = meta.item.last().context("Missing macro name")?;
 
     Ok(Builder::new(cx, move |cx| {
         cx.macro_template.render(&Params {
             shared: cx.shared()?,
             module: cx.module_path_html(meta, false)?,
-            item,
+            item: meta.item,
             name,
             doc,
         })
@@ -1170,6 +1156,8 @@ fn build_function<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'
         shared: Shared<'a>,
         module: String,
         is_async: bool,
+        is_test: bool,
+        is_bench: bool,
         deprecated: Option<&'a str>,
         #[serde(serialize_with = "serialize_item")]
         item: &'a Item,
@@ -1194,17 +1182,17 @@ fn build_function<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'
 
     let return_type = cx.return_type(f.return_type)?;
 
-    let item = meta.item.context("Missing item")?;
-    let deprecated = meta.deprecated;
-    let name = item.last().context("Missing item name")?;
+    let name = meta.item.last().context("Missing item name")?;
 
     Ok(Builder::new(cx, move |cx| {
         cx.function_template.render(&Params {
             shared: cx.shared()?,
             module: cx.module_path_html(meta, false)?,
             is_async: f.is_async,
-            deprecated,
-            item,
+            is_test: f.is_test,
+            is_bench: f.is_bench,
+            deprecated: meta.deprecated,
+            item: meta.item,
             name,
             args: cx.args_to_string(f.signature, f.arguments)?,
             doc,
@@ -1218,7 +1206,7 @@ fn serialize_item<S>(item: &Item, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
-    serializer.collect_str(item)
+    serializer.collect_str(&item.unqalified())
 }
 
 /// Helper to serialize a component ref.

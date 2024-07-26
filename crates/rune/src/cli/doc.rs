@@ -9,7 +9,7 @@ use crate::alloc::prelude::*;
 use crate::cli::naming::Naming;
 use crate::cli::{AssetKind, CommandBase, Config, Entry, EntryPoint, ExitCode, Io, SharedFlags};
 use crate::compile::FileSourceLoader;
-use crate::{Diagnostics, ItemBuf, Options, Source, Sources};
+use crate::{Diagnostics, Options, Source, Sources};
 
 mod cli {
     use std::path::PathBuf;
@@ -94,9 +94,8 @@ where
     let mut naming = Naming::default();
 
     for e in entries {
-        let name = naming.name(&e)?;
+        let item = naming.item(&e)?;
 
-        let item = ItemBuf::with_crate(&name)?;
         let mut visitor = crate::doc::Visitor::new(&item)?;
         let mut sources = Sources::new();
 
