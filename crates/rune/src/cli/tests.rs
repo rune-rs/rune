@@ -4,7 +4,7 @@ use std::slice;
 use std::sync::Arc;
 use std::time::Instant;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
@@ -15,8 +15,9 @@ use crate::cli::{
 };
 use crate::compile::FileSourceLoader;
 use crate::doc::TestParams;
+use crate::item::ComponentRef;
 use crate::modules::capture_io::CaptureIo;
-use crate::runtime::{UnitFn, Value, ValueKind, Vm, VmError, VmResult};
+use crate::runtime::{Value, ValueKind, Vm, VmError, VmResult};
 use crate::termcolor::{Color, ColorSpec, WriteColor};
 use crate::{Diagnostics, Hash, Item, ItemBuf, Source, Sources, Unit};
 
@@ -133,14 +134,20 @@ where
         Ok(false)
     };
 
-    for entry in entries {
-        let item = naming.item(&entry)?;
+    for e in entries {
+        let mut options = options.clone();
+
+        if e.is_argument() {
+            options.function_body = true;
+        }
+
+        let item = naming.item(&e)?;
 
         let mut sources = Sources::new();
 
-        let source = match Source::from_path(entry.path()) {
+        let source = match Source::from_path(e.path()) {
             Ok(source) => source,
-            Err(error) => return Err(error).context(entry.path().display().try_to_string()?),
+            Err(error) => return Err(error).context(e.path().display().try_to_string()?),
         };
 
         sources.insert(source)?;
@@ -158,7 +165,7 @@ where
         let unit = crate::prepare(&mut sources)
             .with_context(&context)
             .with_diagnostics(&mut diagnostics)
-            .with_options(options)
+            .with_options(&options)
             .with_visitor(&mut doc_visitor)?
             .with_visitor(&mut functions)?
             .with_source_loader(&mut source_loader)
@@ -191,7 +198,7 @@ where
 
         batches.try_push(Batch {
             kind: BatchKind::LibTests,
-            entry: Some(entry.try_clone()?),
+            entry: Some(e.try_clone()?),
             cases,
         })?;
 
@@ -204,7 +211,7 @@ where
             artifacts,
             shared,
             flags,
-            options,
+            &options,
             &context,
             &mut build_errors,
             &mut filter,
@@ -212,7 +219,7 @@ where
 
         batches.try_push(Batch {
             kind: BatchKind::DocTests,
-            entry: Some(entry),
+            entry: Some(e),
             cases,
         })?;
     }
@@ -383,21 +390,8 @@ fn populate_doc_tests(
             let unit = Arc::new(unit?);
             let sources = Arc::new(sources);
 
-            let Some((hash, _)) = unit.iter_functions().find(|(_, f)| {
-                matches!(
-                    f,
-                    UnitFn::Offset {
-                        args: 0,
-                        offset: 0,
-                        ..
-                    }
-                )
-            }) else {
-                bail!("Compiling source did not result in a function at offset 0");
-            };
-
             cases.try_push(TestCase::new(
-                hash,
+                Hash::type_hash([ComponentRef::Id(0)]),
                 test.item.try_clone()?,
                 unit.clone(),
                 sources.clone(),

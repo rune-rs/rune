@@ -29,8 +29,7 @@ pub trait ToTypeHash {
 
 impl<I> ToTypeHash for I
 where
-    I: Copy + IntoIterator,
-    I::Item: IntoComponent,
+    I: Copy + IntoIterator<Item: IntoComponent>,
 {
     #[inline]
     fn to_type_hash(&self) -> Hash {

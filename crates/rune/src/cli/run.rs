@@ -7,7 +7,7 @@ use anyhow::{anyhow, Result};
 
 use crate::cli::{AssetKind, CommandBase, Config, ExitCode, Io, SharedFlags};
 use crate::runtime::{UnitStorage, VmError, VmExecution, VmResult};
-use crate::{Context, Sources, Unit, Value, Vm};
+use crate::{Context, Hash, Sources, Unit, Value, Vm};
 
 mod cli {
     use std::path::PathBuf;
@@ -146,6 +146,7 @@ pub(super) async fn run(
     context: &Context,
     unit: Arc<Unit>,
     sources: &Sources,
+    entry: Hash,
 ) -> Result<ExitCode> {
     if args.dump_native_functions {
         writeln!(io.stdout, "# functions")?;
@@ -225,7 +226,7 @@ pub(super) async fn run(
     let last = Instant::now();
 
     let mut vm = Vm::new(runtime, unit);
-    let mut execution: VmExecution<_> = vm.execute(["main"], ())?;
+    let mut execution: VmExecution<_> = vm.execute(entry, ())?;
 
     let result = if args.trace {
         match do_trace(
