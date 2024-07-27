@@ -19,7 +19,7 @@ pub struct Location {
 
 impl Location {
     /// Construct a new location.
-    pub const fn new(source_id: SourceId, span: Span) -> Self {
+    pub(crate) const fn new(source_id: SourceId, span: Span) -> Self {
         Self { source_id, span }
     }
 }

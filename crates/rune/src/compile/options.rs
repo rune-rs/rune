@@ -29,9 +29,9 @@ pub struct Options {
     pub(crate) memoize_instance_fn: bool,
     /// Include debug information when compiling.
     pub(crate) debug_info: bool,
-    /// Support (experimental) macros.
+    /// Support macros.
     pub(crate) macros: bool,
-    /// Support (experimental) bytecode caching.
+    /// Support bytecode caching.
     pub(crate) bytecode: bool,
     /// Compile for and enable test features
     pub(crate) cfg_test: bool,

@@ -72,11 +72,9 @@ fn main() -> Result<()> {
         }
     }
 
-    let mut context = rune_modules::default_context()?;
-    context.install(rune_modules::experiments::module(true)?)?;
+    let context = rune_modules::default_context()?;
 
-    let mut options = Options::default();
-    options.macros(true);
+    let options = Options::default();
 
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

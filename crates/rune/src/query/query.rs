@@ -481,7 +481,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         let module = self.pool.alloc_module(ModMeta {
             #[cfg(feature = "emit")]
             location,
-            item: ItemId::default(),
+            item: ItemId::ROOT,
             visibility: Visibility::Public,
             parent: None,
         })?;
@@ -491,13 +491,13 @@ impl<'a, 'arena> Query<'a, 'arena> {
             ItemMeta {
                 id: item_id,
                 location,
-                item: ItemId::default(),
+                item: ItemId::ROOT,
                 visibility: Visibility::Public,
                 module,
             },
         )?;
 
-        self.insert_name(ItemId::default()).with_span(span)?;
+        self.insert_name(ItemId::ROOT).with_span(span)?;
         Ok(module)
     }
 
@@ -975,7 +975,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
                     impl_item.item
                 }
                 ast::PathSegment::SelfValue(..) => self.pool.module(module).item,
-                ast::PathSegment::Crate(..) => ItemId::default(),
+                ast::PathSegment::Crate(..) => ItemId::ROOT,
                 ast::PathSegment::Generics(..) => {
                     return Err(compile::Error::new(
                         segment.span(),

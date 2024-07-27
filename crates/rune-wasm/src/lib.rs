@@ -68,9 +68,6 @@ struct Config {
     /// Compiler options.
     #[serde(default)]
     options: Vec<String>,
-    /// Include the `std::experiments` package.
-    #[serde(default)]
-    experimental: bool,
     /// Show instructions.
     #[serde(default)]
     instructions: bool,
@@ -147,7 +144,7 @@ impl WasmCompileResult {
 }
 
 /// Setup a wasm-compatible context.
-fn setup_context(experimental: bool, io: &CaptureIo) -> Result<Context, ContextError> {
+fn setup_context(io: &CaptureIo) -> Result<Context, ContextError> {
     let mut context = Context::with_config(false)?;
 
     context.install(rune::modules::capture_io::module(io)?)?;
@@ -158,10 +155,6 @@ fn setup_context(experimental: bool, io: &CaptureIo) -> Result<Context, ContextE
     context.install(rune_modules::toml::ser::module(false)?)?;
     context.install(rune_modules::toml::de::module(false)?)?;
     context.install(rune_modules::rand::module(false)?)?;
-
-    if experimental {
-        context.install(rune_modules::experiments::module(false)?)?;
-    }
 
     Ok(context)
 }
@@ -180,7 +173,7 @@ async fn inner_compile(
     let mut sources = rune::Sources::new();
     sources.insert(source)?;
 
-    let context = setup_context(config.experimental, io)?;
+    let context = setup_context(io)?;
 
     let mut options = Options::default();
 

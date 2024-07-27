@@ -47,8 +47,6 @@ pub struct ContextOptions<'a> {
     /// If we need to capture I/O this is set to the capture instance you should
     /// be using to do so.
     pub capture: Option<&'a CaptureIo>,
-    /// If experiments should be enabled or not.
-    pub experimental: bool,
     /// If we're running in a test context.
     pub test: bool,
 }
@@ -563,7 +561,6 @@ impl SharedFlags {
     ) -> Result<Context> {
         let opts = ContextOptions {
             capture,
-            experimental: self.experimental,
             test: c.test,
         };
 
@@ -613,12 +610,6 @@ struct Args {
 #[derive(Parser, Debug, Clone)]
 #[command(rename_all = "kebab-case")]
 struct SharedFlags {
-    /// Enable experimental features.
-    ///
-    /// This makes the `std::experimental` module available to scripts.
-    #[arg(long)]
-    experimental: bool,
-
     /// Recursively load all files if a specified build `<path>` is a directory.
     #[arg(long, short = 'R')]
     recursive: bool,
@@ -640,16 +631,12 @@ struct SharedFlags {
 
     /// Set the given compiler option (see `--help` for available options).
     ///
-    /// memoize-instance-fn[=<true/false>] - Inline the lookup of an instance function where appropriate.
-    ///
-    /// link-checks[=<true/false>] - Perform linker checks which makes sure that called functions exist.
-    ///
-    /// debug-info[=<true/false>] - Enable or disable debug info.
-    ///
-    /// macros[=<true/false>] - Enable or disable macros (experimental).
-    ///
-    /// bytecode[=<true/false>] - Enable or disable bytecode caching (experimental).
-    #[arg(short = 'O', number_of_values = 1)]
+    /// * memoize-instance-fn[=<true/false>] - Inline the lookup of an instance function where appropriate.
+    /// * link-checks[=<true/false>] - Perform linker checks which makes sure that called functions exist.
+    /// * debug-info[=<true/false>] - Enable or disable debug info.
+    /// * macros[=<true/false>] - Enable or disable macros.
+    /// * bytecode[=<true/false>] - Enable or disable bytecode caching.
+    #[arg(short = 'O', num_args = 1)]
     compiler_option: Vec<String>,
 
     /// Run with the following binary from a loaded manifest. This requires a

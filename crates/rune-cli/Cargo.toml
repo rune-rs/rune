@@ -15,7 +15,7 @@ categories = ["parser-implementations"]
 
 [dependencies]
 rune = { version = "0.14.0", path = "../rune", features = ["cli"] }
-rune-modules = { version = "0.14.0", path = "../rune-modules", features = ["full", "experiments"] }
+rune-modules = { version = "0.14.0", path = "../rune-modules", features = ["full"] }
 
 [build-dependencies]
 anyhow = "1.0.71"

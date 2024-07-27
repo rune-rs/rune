@@ -1,11 +1,12 @@
-use rune::ast;
-use rune::compile;
-use rune::macros::{quote, MacroContext, TokenStream};
-use rune::parse::Parser;
+use crate as rune;
+use crate::ast;
+use crate::compile;
+use crate::macros::{quote, MacroContext, TokenStream};
+use crate::parse::Parser;
 
-/// Implementation for the `stringy_math!` macro.
+/// Implementation of the `stringy_math!` macro.
 #[rune::macro_]
-pub(crate) fn stringy_math(
+pub fn stringy_math(
     cx: &mut MacroContext<'_, '_, '_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
