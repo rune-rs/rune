@@ -6,14 +6,13 @@ use core::num::{ParseFloatError, ParseIntError};
 use core::str::Utf8Error;
 
 use crate as rune;
-use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::string::FromUtf8Error;
 use crate::alloc::{String, Vec};
 use crate::compile::Named;
 use crate::runtime::{
-    Bytes, Formatter, FromValue, Function, MaybeTypeOf, Panic, Ref, ToValue, TypeOf, Value,
-    ValueKind, VmErrorKind, VmResult,
+    Bytes, FromValue, Function, MaybeTypeOf, Panic, Ref, ToValue, TypeOf, Value, ValueKind,
+    VmErrorKind, VmResult,
 };
 use crate::{Any, ContextError, Module};
 
@@ -94,23 +93,6 @@ pub fn module() -> Result<Module, ContextError> {
     split!(Box<str>);
     split!(char);
     Ok(m)
-}
-
-#[derive(Any, Debug, Clone, Copy)]
-#[rune(module = crate, item = ::std::string, install_with = NotCharBoundary::install)]
-struct NotCharBoundary(());
-
-impl NotCharBoundary {
-    #[rune::function(instance, protocol = STRING_DISPLAY)]
-    fn string_display(&self, f: &mut Formatter) -> VmResult<()> {
-        vm_write!(f, "index outside of character boundary");
-        VmResult::Ok(())
-    }
-
-    fn install(m: &mut Module) -> Result<(), ContextError> {
-        m.function_meta(Self::string_display)?;
-        Ok(())
-    }
 }
 
 /// Converts a vector of bytes to a `String`.
