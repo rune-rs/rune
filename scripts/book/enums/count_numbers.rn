@@ -1,17 +1,13 @@
-use std::iter::range;
-
 fn count_numbers(limit) {
     let limit = limit.unwrap_or(10);
 
-    for n in range(0, limit) {
+    for n in 0..limit {
         println!("Count: {}", n);
     }
 }
 
-pub fn main() {
-    println("First count!");
-    count_numbers(None);
+println!("First count!");
+count_numbers(None);
 
-    println("Second count!");
-    count_numbers(Some(2));
-}
+println!("Second count!");
+count_numbers(Some(2));

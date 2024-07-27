@@ -46,10 +46,10 @@ Consider the following unit:
 Let's dump all dynamic functions in it:
 
 ```text
-$> cargo run --bin rune -- run scripts/book/compiler_guide/dead_code.rn --dump-functions
+$> cargo run -- run scripts/book/compiler_guide/dead_code.rn --dump-functions --warnings
 # dynamic functions
-0xe7fc1d6083100dcd = main()
-0x20c6d8dd92b51018 = main::$0::foo()
+0x0 = {root}()
+0x481411c4bd0a5f6 = foo()
 ---
 == 2 (59.8µs)
 ```
@@ -106,7 +106,7 @@ script:
 ```
 
 ```text
-$> cargo run --bin rune -- run scripts/book/compiler_guide/closures.rn --emit-instructions --dump-functions
+$> cargo run -- run scripts/book/compiler_guide/closures.rn --emit-instructions --dump-functions
 # instructions
 fn main() (0x1c69d5964e831fc1):
   0000 = load-fn hash=0xbef6d5f6276cd45e // closure `3`

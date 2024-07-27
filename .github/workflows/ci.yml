@@ -27,7 +27,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
-    - run: cargo run --bin rune -- fmt --recursive --verbose --check tools scripts
+    - run: cargo run --bin rune -- fmt --recursive --verbose --check
 
   clippy:
     runs-on: ubuntu-latest
@@ -157,5 +157,4 @@ jobs:
     - run: cargo test --all-targets
     - run: cargo test --doc
     - run: cargo run --bin rune -- check --recursive scripts
-    - run: cargo run --bin rune -- test --recursive scripts
     - run: cargo run --bin rune -- test -O test-std=true

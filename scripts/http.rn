@@ -1,25 +1,23 @@
-pub async fn main() {
-    let response = http::get("http://worldtimeapi.org/api/ip").await?;
-    let json = response.json().await?;
+let response = http::get("http://worldtimeapi.org/api/ip").await?;
+let json = response.json().await?;
 
-    let timezone = json["timezone"];
+let timezone = json["timezone"];
 
-    if timezone != () {
-        dbg(timezone);
-    }
-
-    let body = json::to_bytes(#{ "hello": "world" })?;
-
-    let client = http::Client::new();
-    let response = client.post("https://postman-echo.com/post").body_bytes(body).send().await?;
-
-    let response = response.json().await?;
-
-    let content_length = std::i64::parse(response["headers"]["content-length"])?;
-
-    if content_length is i64 {
-        dbg("it is indeed an integer");
-    }
-
-    dbg(content_length + 20, response);
+if timezone != () {
+    dbg!(timezone);
 }
+
+let body = json::to_bytes(#{ "hello": "world" })?;
+
+let client = http::Client::new();
+let response = client.post("https://postman-echo.com/post").body_bytes(body).send().await?;
+
+let response = response.json().await?;
+
+let content_length = std::i64::parse(response["headers"]["content-length"])?;
+
+if content_length is i64 {
+    dbg!("it is indeed an integer");
+}
+
+dbg!(content_length + 20, response);

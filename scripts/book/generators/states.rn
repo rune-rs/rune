@@ -4,8 +4,6 @@ fn print_once() {
     2
 }
 
-pub fn main() {
-    let printer = print_once();
-    dbg(printer.resume(()));
-    dbg(printer.resume("John"));
-}
+let printer = print_once();
+dbg!(printer.resume(()));
+dbg!(printer.resume("John"));

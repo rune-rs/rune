@@ -4,10 +4,8 @@ fn foo() {
     yield 3;
 }
 
-pub fn main() {
-    let gen = foo();
+let gen = foo();
 
-    while let Some(value) = gen.next() {
-        println!("from generator: {}", value);
-    }
+while let Some(value) = gen.next() {
+    println!("from generator: {}", value);
 }

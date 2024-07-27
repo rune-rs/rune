@@ -1,7 +1,5 @@
-pub fn main() {
-    let a = 1;
-    let b = a;
-    a = 2;
-    println!("{}", a);
-    println!("{}", b);
-}
+let a = 1;
+let b = a;
+a = 2;
+println!("{a}");
+println!("{b}");

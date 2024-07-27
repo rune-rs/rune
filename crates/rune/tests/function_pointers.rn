@@ -1,0 +1,17 @@
+fn do_thing(op) {
+    op(1, 2)
+}
+
+fn add(a, b) {
+    a + b
+}
+
+fn sub(a, b) {
+    a - b
+}
+
+#[test]
+fn test_function_pointer() {
+    assert_eq!(do_thing(add), 3);
+    assert_eq!(do_thing(sub), -1);
+}

@@ -10,17 +10,15 @@ impl User {
 
     fn describe(self) {
         if self.active {
-            println(`${self.username} is active`);
+            println!("{} is active.", self.username);
         } else {
-            println(`${self.username} is inactive`);
+            println!("{} is inactive.", self.username);
         }
     }
 }
 
-pub fn main() {
-    let user = User { username: "setbac", active: false };
+let user = User { username: "setbac", active: false };
 
-    user.describe();
-    user.set_active(true);
-    user.describe();
-}
+user.describe();
+user.set_active(true);
+user.describe();

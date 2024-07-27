@@ -1,0 +1,14 @@
+#[test]
+fn types() {
+    assert!(() is Tuple, "tuples should be tuples");
+    assert!((1, 2) is Tuple, "tuples should be tuples");
+    assert!(true is bool, "bools should be bools");
+    assert!('a' is char, "chars should be chars");
+    assert!(b'a' is u8, "bytes should be bytes");
+    assert!(42 is i64, "integers should be integers");
+    assert!(42.1 is f64, "floats should be floats");
+    assert!("hello" is String, "strings should be strings");
+    assert!("x" is not char, "strings are not chars");
+    assert!(#{"hello": "world"} is Object, "objects should be objects");
+    assert!(["hello", "world"] is Vec, "vectors should be vectors");
+}

@@ -13,6 +13,8 @@ license = "MIT OR Apache-2.0"
 keywords = ["language", "scripting", "scripting-language"]
 categories = ["parser-implementations"]
 
+default-run = "rune"
+
 [dependencies]
 rune = { version = "0.14.0", path = "../rune", features = ["cli"] }
 rune-modules = { version = "0.14.0", path = "../rune-modules", features = ["full"] }

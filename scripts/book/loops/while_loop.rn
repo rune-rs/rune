@@ -1,13 +1,11 @@
-pub fn main() {
-    let value = 0;
+let value = 0;
 
-    while value < 100 {
-        if value >= 50 {
-            break;
-        }
-
-        value = value + 1;
+while value < 100 {
+    if value >= 50 {
+        break;
     }
 
-    println!("The value is {}", value); // => The value is 50
+    value = value + 1;
 }
+
+println!("The value is {}", value); // => The value is 50

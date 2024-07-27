@@ -1,7 +1,5 @@
-pub fn main() {
-    let a = String::from("Hello");
-    let b = a;
-    a.push_str(" World");
-    println(a);
-    println(b);
-}
+let a = String::from("Hello");
+let b = a;
+a.push_str(" World");
+println!("{a}");
+println!("{b}");

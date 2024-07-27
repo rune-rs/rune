@@ -6,7 +6,5 @@ impl Foo {
     }
 }
 
-pub fn main() {
-    let foo = Foo::new();
-    foo.bar();
-}
+let foo = Foo::new();
+foo.bar();

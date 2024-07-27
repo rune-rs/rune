@@ -1,0 +1,30 @@
+#[test]
+fn test_if_else() {
+    let number = 3;
+
+    let out = 0;
+
+    if number < 5 {
+        out = 1;
+    } else if number == 5 {
+        out = 2;
+    } else {
+        out = 3;
+    }
+
+    assert_eq!(out, 1);
+}
+
+#[test]
+fn test_control_flow() {
+    fn foo(n) {
+        if n < 1 {
+            return "less than one";
+        }
+
+        "something else"
+    }
+
+    assert_eq!(foo(0), "less than one");
+    assert_eq!(foo(10), "something else");
+}
