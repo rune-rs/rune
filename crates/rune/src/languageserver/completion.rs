@@ -16,10 +16,10 @@ use crate::runtime::debug::DebugArgs;
 use crate::Context;
 use crate::Unit;
 
-use super::state::Source;
+use super::state::ServerSource;
 
 pub(super) fn complete_for_unit(
-    workspace_source: &Source,
+    workspace_source: &ServerSource,
     unit: &Unit,
     symbol: &str,
     position: lsp::Position,
