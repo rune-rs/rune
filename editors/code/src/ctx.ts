@@ -13,7 +13,6 @@ import { PersistentState } from "./persistent_state";
 const RUNE_PROJECT_CONTEXT_NAME = "inRuneProject";
 
 interface FoundBinary {
-    kind: "languageserver" | "cli",
     path: string
 }
 
@@ -88,16 +87,7 @@ export class Ctx {
 
         try {
             const binary = await this.bootstrap();
-
-            switch (binary.kind) {
-                case "languageserver":
-                    this.client = createClient(binary.path, this.config.serverExtraEnv);
-                    break;
-                case "cli":
-                    this.client = createClient(binary.path, this.config.serverExtraEnv, ["language-server"]);
-                    break;
-            }
-
+            this.client = createClient(binary.path, this.config.serverExtraEnv, ["language-server"]);
             await this.client.start();
             await setContextValue(RUNE_PROJECT_CONTEXT_NAME, true);
         } catch (err: any) {
@@ -181,7 +171,7 @@ export class Ctx {
      * @param name package to build.
      * @returns a string to the path of the built binary.
      */
-    async buildCargoPackage(name: string): Promise<string | null> {
+    async buildCargoPackage(name: string, binary: string): Promise<string | null> {
         interface Target {
             kind: [string],
             name: string,
@@ -232,10 +222,13 @@ export class Ctx {
 
                 if (output.reason === "compiler-artifact") {
                     let artifact = output as CompilerArtifact;
+
                     this.statusBar.text = `rune: cargo (${artifact.target.name})`;
 
-                    if (artifact.target.name === name && artifact.target.kind.includes("bin")) {
-                        executable = artifact.executable;
+                    if (artifact.target.kind.includes("bin")) {
+                        if (binary == "" || artifact.target.name === binary) {
+                            executable = artifact.executable;
+                        }
                     }
                 }
             });
@@ -273,22 +266,22 @@ export class Ctx {
 
         if (explicitPath) {
             if (explicitPath.startsWith("~/")) {
-                return { kind: "cli", path: os.homedir() + explicitPath.slice("~".length) };
+                return { path: os.homedir() + explicitPath.slice("~".length) };
             }
 
-            return { kind: "cli", path: explicitPath };
+            return { path: explicitPath };
         }
 
         const cargoPackage = this.config.serverCargoPackage;
 
         if (cargoPackage) {
-            let path = await this.buildCargoPackage(cargoPackage);
+            let path = await this.buildCargoPackage(cargoPackage, this.config.serverCargoBinary);
 
             if (!path) {
                 return null;
             }
 
-            return { kind: "cli", path };
+            return { path };
         }
 
         let path = await this.downloadServer();
@@ -297,7 +290,7 @@ export class Ctx {
             return null;
         }
 
-        return { kind: "cli", path };
+        return { path };
     }
 
     async downloadServer(): Promise<string | null> {

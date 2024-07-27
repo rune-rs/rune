@@ -152,12 +152,16 @@ export class Config {
         return this.cfg.get<T>(path)!;
     }
 
-    get serverPath() {
+    get serverPath(): null | string {
         return this.get<null | string>("server.path");
     }
 
-    get serverCargoPackage() {
+    get serverCargoPackage(): string {
         return this.get<string>("server.cargoPackage");
+    }
+
+    get serverCargoBinary(): string {
+        return this.get<string>("server.cargoBinary");
     }
 
     get serverExtraEnv(): Env {

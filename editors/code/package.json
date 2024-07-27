@@ -115,6 +115,12 @@
           "type": "string",
           "default": ""
         },
+        "rune.server.cargoBinary": {
+          "title": "Cargo Binary",
+          "markdownDescription": "Set the extension to use the given cargo binary to run the language server. If left empty, the last binary built is used.",
+          "type": "string",
+          "default": ""
+        },
         "rune.server.path": {
           "markdownDescription": "Path to rune-languageserver executable (will be downloaded by default). If this is set, then `#rune.updates.channel#` setting is not used",
           "type": "string",
