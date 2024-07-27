@@ -2277,7 +2277,7 @@ fn expr_if<'a, 'hir>(
 
         cx.scopes.pop(branch, scope)?;
 
-        if !asm.converging() && it.peek().is_some() {
+        if asm.converging() && it.peek().is_some() {
             cx.asm.jump(&end_label, branch)?;
         }
     }
