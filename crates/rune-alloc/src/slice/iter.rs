@@ -13,7 +13,7 @@ use crate::alloc::SizedTypeProperties;
 use crate::hint::assume;
 use crate::ptr::{self, invalid, invalid_mut, NonNull};
 
-/// Immutable slice iterator
+/// Inline slice iterator
 ///
 /// This struct is created by the [`iter`] method on [slices].
 ///

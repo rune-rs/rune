@@ -260,7 +260,7 @@ number_value_trait!(isize);
 impl ToValue for f32 {
     #[inline]
     fn to_value(self) -> VmResult<Value> {
-        VmResult::Ok(vm_try!(Value::try_from(self as f64)))
+        VmResult::Ok(Value::from(self as f64))
     }
 }
 

@@ -175,11 +175,16 @@ impl Snapshot {
     pub(crate) fn is_readable(&self) -> bool {
         self.0 & MASK == 0
     }
+
+    /// The number of times a value is shared.
+    pub(crate) fn shared(&self) -> usize {
+        self.0 & !MASK
+    }
 }
 
 impl fmt::Display for Snapshot {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.0 >> 1 {
+        match self.0 {
             0 => write!(f, "fully accessible")?,
             EXCLUSIVE => write!(f, "exclusively accessed")?,
             MOVED => write!(f, "moved")?,
@@ -386,7 +391,15 @@ impl<'a, T: ?Sized> BorrowRef<'a, T> {
 impl<T: ?Sized> ops::Deref for BorrowRef<'_, T> {
     type Target = T;
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
+        self.data
+    }
+}
+
+impl<T: ?Sized> AsRef<T> for BorrowRef<'_, T> {
+    #[inline]
+    fn as_ref(&self) -> &T {
         self.data
     }
 }

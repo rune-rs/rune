@@ -262,7 +262,7 @@ where
                 VmHalt::Yielded(addr, out) => {
                     let value = match addr {
                         Some(addr) => vm_try!(vm.stack().at(addr)).clone(),
-                        None => vm_try!(Value::unit()),
+                        None => Value::unit(),
                     };
 
                     self.state = ExecutionState::Resumed(out);
@@ -351,7 +351,7 @@ where
                 VmHalt::Yielded(addr, out) => {
                     let value = match addr {
                         Some(addr) => vm_try!(vm.stack().at(addr)).clone(),
-                        None => vm_try!(Value::unit()),
+                        None => Value::unit(),
                     };
 
                     self.state = ExecutionState::Resumed(out);
@@ -448,7 +448,7 @@ where
 
         let value = match addr {
             Some(addr) => vm_try!(self.head.as_ref().stack().at(addr)).clone(),
-            None => vm_try!(Value::unit()),
+            None => Value::unit(),
         };
 
         debug_assert!(self.states.is_empty(), "Execution states should be empty");

@@ -5,7 +5,8 @@ use core::ops;
 use crate as rune;
 use crate::alloc::clone::TryClone;
 use crate::runtime::{
-    EnvProtocolCaller, FromValue, ProtocolCaller, ToValue, Value, ValueKind, VmErrorKind, VmResult,
+    EnvProtocolCaller, FromValue, Inline, ProtocolCaller, ToValue, Value, ValueRef, VmErrorKind,
+    VmResult,
 };
 use crate::Any;
 
@@ -96,22 +97,22 @@ impl RangeInclusive {
     #[rune::function(keep)]
     pub fn iter(&self) -> VmResult<Value> {
         let value = match (
-            &*vm_try!(self.start.borrow_kind_ref()),
-            &*vm_try!(self.end.borrow_kind_ref()),
+            vm_try!(self.start.value_ref()),
+            vm_try!(self.end.value_ref()),
         ) {
-            (ValueKind::Byte(start), ValueKind::Byte(end)) => {
+            (ValueRef::Inline(Inline::Byte(start)), ValueRef::Inline(Inline::Byte(end))) => {
                 vm_try!(rune::to_value(RangeInclusiveIter::new(*start..=*end)))
             }
-            (ValueKind::Char(start), ValueKind::Char(end)) => {
+            (ValueRef::Inline(Inline::Char(start)), ValueRef::Inline(Inline::Char(end))) => {
                 vm_try!(rune::to_value(RangeInclusiveIter::new(*start..=*end)))
             }
-            (ValueKind::Integer(start), ValueKind::Integer(end)) => {
+            (ValueRef::Inline(Inline::Integer(start)), ValueRef::Inline(Inline::Integer(end))) => {
                 vm_try!(rune::to_value(RangeInclusiveIter::new(*start..=*end)))
             }
             (start, end) => {
                 return VmResult::err(VmErrorKind::UnsupportedIterRangeInclusive {
-                    start: start.type_info(),
-                    end: end.type_info(),
+                    start: vm_try!(start.type_info()),
+                    end: vm_try!(end.type_info()),
                 })
             }
         };

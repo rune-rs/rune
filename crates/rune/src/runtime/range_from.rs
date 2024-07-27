@@ -5,7 +5,8 @@ use core::ops;
 use crate as rune;
 use crate::alloc::clone::TryClone;
 use crate::runtime::{
-    EnvProtocolCaller, FromValue, ProtocolCaller, ToValue, Value, ValueKind, VmErrorKind, VmResult,
+    EnvProtocolCaller, FromValue, Inline, ProtocolCaller, ToValue, Value, ValueRef, VmErrorKind,
+    VmResult,
 };
 use crate::Any;
 
@@ -86,13 +87,19 @@ impl RangeFrom {
     /// ```
     #[rune::function(keep)]
     pub fn iter(&self) -> VmResult<Value> {
-        let value = match *vm_try!(self.start.borrow_kind_ref()) {
-            ValueKind::Byte(start) => vm_try!(crate::to_value(RangeFromIter::new(start..))),
-            ValueKind::Char(start) => vm_try!(crate::to_value(RangeFromIter::new(start..))),
-            ValueKind::Integer(start) => vm_try!(crate::to_value(RangeFromIter::new(start..))),
-            ref start => {
+        let value = match vm_try!(self.start.value_ref()) {
+            ValueRef::Inline(Inline::Byte(start)) => {
+                vm_try!(crate::to_value(RangeFromIter::new(*start..)))
+            }
+            ValueRef::Inline(Inline::Char(start)) => {
+                vm_try!(crate::to_value(RangeFromIter::new(*start..)))
+            }
+            ValueRef::Inline(Inline::Integer(start)) => {
+                vm_try!(crate::to_value(RangeFromIter::new(*start..)))
+            }
+            start => {
                 return VmResult::err(VmErrorKind::UnsupportedIterRangeFrom {
-                    start: start.type_info(),
+                    start: vm_try!(start.type_info()),
                 })
             }
         };

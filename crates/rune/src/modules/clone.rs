@@ -52,7 +52,7 @@ pub fn module() -> Result<Module, ContextError> {
             /// a += 1;
             ///
             /// assert_eq!(a, 43);
-            /// assert_eq!(b, 43);
+            /// assert_eq!(b, 42);
             /// assert_eq!(c, 42);
             /// ```
         })?;
@@ -70,8 +70,9 @@ pub fn module() -> Result<Module, ContextError> {
 /// let c = clone(a);
 ///
 /// a += 1;
+///
 /// assert_eq!(a, 43);
-/// assert_eq!(b, 43);
+/// assert_eq!(b, 42);
 /// assert_eq!(c, 42);
 /// ```
 #[rune::function]

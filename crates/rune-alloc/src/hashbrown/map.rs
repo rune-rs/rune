@@ -2163,7 +2163,7 @@ impl<K, V, S, A: Allocator> HashMap<K, V, S, A> {
     /// Unless you are in such a situation, higher-level and more foolproof APIs like
     /// `get` should be preferred.
     ///
-    /// Immutable raw entries have very limited use; you might instead want `raw_entry_mut`.
+    /// Inline raw entries have very limited use; you might instead want `raw_entry_mut`.
     ///
     /// # Examples
     ///

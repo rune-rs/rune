@@ -433,9 +433,9 @@ impl<'de> de::Deserialize<'de> for Value {
     where
         D: de::Deserializer<'de>,
     {
-        struct ValueKindVisitor;
+        struct MutableValueVisitor;
 
-        impl<'de> de::Visitor<'de> for ValueKindVisitor {
+        impl<'de> de::Visitor<'de> for MutableValueVisitor {
             type Value = Value;
 
             fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -532,7 +532,7 @@ impl<'de> de::Deserialize<'de> for Value {
             }
         }
 
-        deserializer.deserialize_any(ValueKindVisitor)
+        deserializer.deserialize_any(MutableValueVisitor)
     }
 }
 

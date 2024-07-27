@@ -7,7 +7,7 @@ use crate::ast::{Span, Spanned};
 use crate::compile::ir::{self};
 use crate::compile::{self, WithSpan};
 use crate::query::Used;
-use crate::runtime::{Object, OwnedTuple, Value, ValueKind};
+use crate::runtime::{Inline, Mutable, Object, OwnedTuple, Value, ValueBorrowRef};
 
 /// The outcome of a constant evaluation.
 pub enum EvalOutcome {
@@ -50,7 +50,7 @@ fn eval_ir_assign(
         .scopes
         .mut_target(&ir.target, move |t| ir.op.assign(ir, t, value))?;
 
-    Ok(Value::unit().with_span(ir)?)
+    Ok(Value::unit())
 }
 
 fn eval_ir_binary(
@@ -71,76 +71,91 @@ fn eval_ir_binary(
     let a = eval_ir(&ir.lhs, interp, used)?;
     let b = eval_ir(&ir.rhs, interp, used)?;
 
-    let a = a.borrow_kind_ref().with_span(ir)?;
-    let b = b.borrow_kind_ref().with_span(ir)?;
+    let a = a.borrow_ref().with_span(ir)?;
+    let b = b.borrow_ref().with_span(ir)?;
 
-    let kind = 'out: {
-        match (&*a, &*b) {
-            (ValueKind::Integer(a), ValueKind::Integer(b)) => match ir.op {
-                ir::IrBinaryOp::Add => {
-                    break 'out ValueKind::Integer(a.add(b));
-                }
-                ir::IrBinaryOp::Sub => {
-                    break 'out ValueKind::Integer(a.sub(b));
-                }
-                ir::IrBinaryOp::Mul => {
-                    break 'out ValueKind::Integer(a.mul(b));
-                }
-                ir::IrBinaryOp::Div => {
-                    let number = a
-                        .checked_div(*b)
-                        .ok_or_else(|| compile::Error::msg(span, "division by zero"))?;
-                    break 'out ValueKind::Integer(number);
-                }
-                ir::IrBinaryOp::Shl => {
-                    let b = u32::try_from(*b).map_err(|_| {
-                        compile::Error::msg(&ir.rhs, "cannot be converted to shift operand")
-                    })?;
+    match (a, b) {
+        (ValueBorrowRef::Inline(a), ValueBorrowRef::Inline(b)) => {
+            let out = 'out: {
+                match (a, b) {
+                    (Inline::Integer(a), Inline::Integer(b)) => match ir.op {
+                        ir::IrBinaryOp::Add => {
+                            break 'out Inline::Integer(a.add(b));
+                        }
+                        ir::IrBinaryOp::Sub => {
+                            break 'out Inline::Integer(a.sub(b));
+                        }
+                        ir::IrBinaryOp::Mul => {
+                            break 'out Inline::Integer(a.mul(b));
+                        }
+                        ir::IrBinaryOp::Div => {
+                            let number = a
+                                .checked_div(*b)
+                                .ok_or_else(|| compile::Error::msg(span, "division by zero"))?;
+                            break 'out Inline::Integer(number);
+                        }
+                        ir::IrBinaryOp::Shl => {
+                            let b = u32::try_from(*b).map_err(|_| {
+                                compile::Error::msg(&ir.rhs, "cannot be converted to shift operand")
+                            })?;
 
-                    let n = a.shl(b);
-                    break 'out ValueKind::Integer(n);
-                }
-                ir::IrBinaryOp::Shr => {
-                    let b = u32::try_from(*b).map_err(|_| {
-                        compile::Error::msg(&ir.rhs, "cannot be converted to shift operand")
-                    })?;
+                            let n = a.shl(b);
+                            break 'out Inline::Integer(n);
+                        }
+                        ir::IrBinaryOp::Shr => {
+                            let b = u32::try_from(*b).map_err(|_| {
+                                compile::Error::msg(&ir.rhs, "cannot be converted to shift operand")
+                            })?;
 
-                    let n = a.shr(b);
-                    break 'out ValueKind::Integer(n);
+                            let n = a.shr(b);
+                            break 'out Inline::Integer(n);
+                        }
+                        ir::IrBinaryOp::Lt => break 'out Inline::Bool(a < b),
+                        ir::IrBinaryOp::Lte => break 'out Inline::Bool(a <= b),
+                        ir::IrBinaryOp::Eq => break 'out Inline::Bool(a == b),
+                        ir::IrBinaryOp::Gt => break 'out Inline::Bool(a > b),
+                        ir::IrBinaryOp::Gte => break 'out Inline::Bool(a >= b),
+                    },
+                    (Inline::Float(a), Inline::Float(b)) => {
+                        #[allow(clippy::float_cmp)]
+                        match ir.op {
+                            ir::IrBinaryOp::Add => break 'out Inline::Float(a + b),
+                            ir::IrBinaryOp::Sub => break 'out Inline::Float(a - b),
+                            ir::IrBinaryOp::Mul => break 'out Inline::Float(a * b),
+                            ir::IrBinaryOp::Div => break 'out Inline::Float(a / b),
+                            ir::IrBinaryOp::Lt => break 'out Inline::Bool(a < b),
+                            ir::IrBinaryOp::Lte => break 'out Inline::Bool(a <= b),
+                            ir::IrBinaryOp::Eq => break 'out Inline::Bool(a == b),
+                            ir::IrBinaryOp::Gt => break 'out Inline::Bool(a > b),
+                            ir::IrBinaryOp::Gte => break 'out Inline::Bool(a >= b),
+                            _ => (),
+                        };
+                    }
+                    _ => {}
                 }
-                ir::IrBinaryOp::Lt => break 'out ValueKind::Bool(a < b),
-                ir::IrBinaryOp::Lte => break 'out ValueKind::Bool(a <= b),
-                ir::IrBinaryOp::Eq => break 'out ValueKind::Bool(a == b),
-                ir::IrBinaryOp::Gt => break 'out ValueKind::Bool(a > b),
-                ir::IrBinaryOp::Gte => break 'out ValueKind::Bool(a >= b),
-            },
-            (ValueKind::Float(a), ValueKind::Float(b)) => {
-                #[allow(clippy::float_cmp)]
-                match ir.op {
-                    ir::IrBinaryOp::Add => break 'out ValueKind::Float(a + b),
-                    ir::IrBinaryOp::Sub => break 'out ValueKind::Float(a - b),
-                    ir::IrBinaryOp::Mul => break 'out ValueKind::Float(a * b),
-                    ir::IrBinaryOp::Div => break 'out ValueKind::Float(a / b),
-                    ir::IrBinaryOp::Lt => break 'out ValueKind::Bool(a < b),
-                    ir::IrBinaryOp::Lte => break 'out ValueKind::Bool(a <= b),
-                    ir::IrBinaryOp::Eq => break 'out ValueKind::Bool(a == b),
-                    ir::IrBinaryOp::Gt => break 'out ValueKind::Bool(a > b),
-                    ir::IrBinaryOp::Gte => break 'out ValueKind::Bool(a >= b),
-                    _ => (),
-                };
-            }
-            (ValueKind::String(a), ValueKind::String(b)) => {
-                if let ir::IrBinaryOp::Add = ir.op {
-                    break 'out ValueKind::String(add_strings(a, b).with_span(span)?);
-                }
-            }
-            _ => (),
+
+                return Err(EvalOutcome::not_const(span));
+            };
+
+            return Ok(Value::from(out));
         }
+        (ValueBorrowRef::Mutable(a), ValueBorrowRef::Mutable(b)) => {
+            let out = 'out: {
+                if let (Mutable::String(a), Mutable::String(b)) = (&*a, &*b) {
+                    if let ir::IrBinaryOp::Add = ir.op {
+                        break 'out Mutable::String(add_strings(a, b).with_span(span)?);
+                    }
+                }
 
-        return Err(EvalOutcome::not_const(span));
-    };
+                return Err(EvalOutcome::not_const(span));
+            };
 
-    Ok(Value::try_from(kind).with_span(span)?)
+            return Ok(Value::try_from(out).with_span(span)?);
+        }
+        _ => (),
+    }
+
+    Err(EvalOutcome::not_const(span))
 }
 
 fn eval_ir_branches(
@@ -170,7 +185,7 @@ fn eval_ir_branches(
         return eval_ir_scope(branch, interp, used);
     }
 
-    Ok(Value::unit().with_span(ir)?)
+    Ok(Value::unit())
 }
 
 fn eval_ir_call(
@@ -203,7 +218,7 @@ fn eval_ir_condition(
         }
     };
 
-    Ok(Value::try_from(value).with_span(ir)?)
+    Ok(Value::from(value))
 }
 
 fn eval_ir_decl(
@@ -214,7 +229,7 @@ fn eval_ir_decl(
     interp.budget.take(ir)?;
     let value = eval_ir(&ir.value, interp, used)?;
     interp.scopes.decl(&ir.name, value).with_span(ir)?;
-    Ok(Value::unit().with_span(ir)?)
+    Ok(Value::unit())
 }
 
 fn eval_ir_loop(
@@ -265,7 +280,7 @@ fn eval_ir_loop(
 
         Ok(value)
     } else {
-        Ok(Value::unit().with_span(ir)?)
+        Ok(Value::unit())
     }
 }
 
@@ -299,7 +314,7 @@ fn eval_ir_scope(
     let value = if let Some(last) = &ir.last {
         eval_ir(last, interp, used)?
     } else {
-        Value::unit().with_span(ir)?
+        Value::unit()
     };
 
     interp.scopes.pop(guard).with_span(ir)?;
@@ -314,7 +329,7 @@ fn eval_ir_set(
     interp.budget.take(ir)?;
     let value = eval_ir(&ir.value, interp, used)?;
     interp.scopes.set_target(&ir.target, value)?;
-    Ok(Value::unit().with_span(ir)?)
+    Ok(Value::unit())
 }
 
 fn eval_ir_template(
@@ -333,25 +348,32 @@ fn eval_ir_template(
             }
             ir::IrTemplateComponent::Ir(ir) => {
                 let const_value = eval_ir(ir, interp, used)?;
-                let kind = const_value.borrow_kind_ref().with_span(ir)?;
+                let value = const_value.borrow_ref().with_span(ir)?;
 
-                match &*kind {
-                    ValueKind::Integer(integer) => {
-                        write!(buf, "{integer}")?;
-                    }
-                    ValueKind::Float(float) => {
-                        let mut buffer = ryu::Buffer::new();
-                        buf.try_push_str(buffer.format(*float))?;
-                    }
-                    ValueKind::Bool(b) => {
-                        write!(buf, "{b}")?;
-                    }
-                    ValueKind::String(s) => {
-                        buf.try_push_str(s)?;
-                    }
-                    _ => {
-                        return Err(EvalOutcome::not_const(ir));
-                    }
+                match value {
+                    ValueBorrowRef::Inline(value) => match value {
+                        Inline::Integer(integer) => {
+                            write!(buf, "{integer}")?;
+                        }
+                        Inline::Float(float) => {
+                            let mut buffer = ryu::Buffer::new();
+                            buf.try_push_str(buffer.format(*float))?;
+                        }
+                        Inline::Bool(b) => {
+                            write!(buf, "{b}")?;
+                        }
+                        _ => {
+                            return Err(EvalOutcome::not_const(ir));
+                        }
+                    },
+                    ValueBorrowRef::Mutable(value) => match &*value {
+                        Mutable::String(s) => {
+                            buf.try_push_str(s)?;
+                        }
+                        _ => {
+                            return Err(EvalOutcome::not_const(ir));
+                        }
+                    },
                 }
             }
         }

@@ -17,7 +17,7 @@ use crate::parse::{Expectation, IntoExpectation, LexerMode};
 use crate::query::MissingId;
 use crate::runtime::debug::DebugSignature;
 use crate::runtime::unit::EncodeError;
-use crate::runtime::{AccessError, RuntimeError, TypeInfo, TypeOf, ValueKind, VmError};
+use crate::runtime::{AccessError, RuntimeError, TypeInfo, TypeOf, VmError};
 use crate::shared::CapacityError;
 #[cfg(feature = "std")]
 use crate::source;
@@ -191,16 +191,15 @@ impl Error {
     }
 
     /// An error raised when we expect a certain constant value but get another.
-    pub(crate) fn expected_type<S, E>(spanned: S, actual: &ValueKind) -> Self
+    pub(crate) fn expected_type<E>(spanned: impl Spanned, actual: TypeInfo) -> Self
     where
-        S: Spanned,
         E: TypeOf,
     {
         Self::new(
             spanned,
             IrErrorKind::Expected {
                 expected: E::type_info(),
-                actual: actual.type_info(),
+                actual,
             },
         )
     }

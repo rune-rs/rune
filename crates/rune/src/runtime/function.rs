@@ -9,9 +9,9 @@ use crate::alloc::{self, Box, Vec};
 use crate::function;
 use crate::runtime::vm::Isolated;
 use crate::runtime::{
-    Args, Call, ConstValue, FromValue, FunctionHandler, InstAddress, Output, OwnedTuple, Rtti,
-    RuntimeContext, Stack, Unit, Value, ValueKind, VariantRtti, Vm, VmCall, VmErrorKind, VmHalt,
-    VmResult,
+    Args, Call, ConstValue, FromValue, FunctionHandler, InstAddress, Mutable, Output, OwnedTuple,
+    Rtti, RuntimeContext, Stack, Unit, Value, ValueRef, VariantRtti, Vm, VmCall, VmErrorKind,
+    VmHalt, VmResult,
 };
 use crate::shared::AssertSend;
 use crate::Any;
@@ -570,8 +570,12 @@ where
             let value: Value = vm_try!(self.call(args));
 
             let value = 'out: {
-                if let ValueKind::Future(future) = &mut *vm_try!(value.borrow_kind_mut()) {
-                    break 'out vm_try!(future.await);
+                if let ValueRef::Mutable(value) = vm_try!(value.value_ref()) {
+                    let mut value = vm_try!(value.borrow_mut());
+
+                    if let Mutable::Future(future) = &mut *value {
+                        break 'out vm_try!(future.await);
+                    }
                 }
 
                 value

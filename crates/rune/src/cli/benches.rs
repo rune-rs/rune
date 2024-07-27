@@ -193,6 +193,14 @@ struct Time(u128);
 
 impl fmt::Display for Time {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}ns", self.0)
+        if self.0 >= 1_000_000_000 {
+            write!(f, "{:.3}s", self.0 as f64 / 1_000_000_000.0)
+        } else if self.0 >= 1_000_000 {
+            write!(f, "{:.3}ms", self.0 as f64 / 1_000_000.0)
+        } else if self.0 >= 1_000 {
+            write!(f, "{:.3}µs", self.0 as f64 / 1_000.0)
+        } else {
+            write!(f, "{}ns", self.0)
+        }
     }
 }

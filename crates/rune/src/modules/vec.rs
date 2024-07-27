@@ -77,8 +77,9 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(sort_by)?;
     m.function_meta(sort)?;
     m.function_meta(into_iter__meta)?;
-    m.function_meta(index_set)?;
     m.function_meta(index_get)?;
+    m.function_meta(index_set)?;
+    m.function_meta(resize)?;
     m.function_meta(string_debug)?;
 
     m.function_meta(clone__meta)?;
@@ -557,6 +558,33 @@ fn index_get(this: &Vec, index: Value) -> VmResult<Value> {
 #[rune::function(instance, protocol = INDEX_SET)]
 fn index_set(this: &mut Vec, index: usize, value: Value) -> VmResult<()> {
     Vec::set(this, index, value)
+}
+
+/// Resizes the `Vec` in-place so that `len` is equal to `new_len`.
+///
+/// If `new_len` is greater than `len`, the `Vec` is extended by the difference,
+/// with each additional slot filled with `value`. If `new_len` is less than
+/// `len`, the `Vec` is simply truncated.
+///
+/// This method requires `T` to implement [`Clone`], in order to be able to
+/// clone the passed value. If you need more flexibility (or want to rely on
+/// [`Default`] instead of [`Clone`]), use [`Vec::resize_with`]. If you only
+/// need to resize to a smaller size, use [`Vec::truncate`].
+///
+/// # Examples
+///
+/// ```rune
+/// let vec = ["hello"];
+/// vec.resize(3, "world");
+/// assert_eq!(vec, ["hello", "world", "world"]);
+///
+/// let vec = [1, 2, 3, 4];
+/// vec.resize(2, 0);
+/// assert_eq!(vec, [1, 2]);
+/// ```
+#[rune::function(instance)]
+fn resize(this: &mut Vec, new_len: usize, value: Value) -> VmResult<()> {
+    Vec::resize(this, new_len, value)
 }
 
 /// Write a debug representation to a string.

@@ -49,6 +49,11 @@ cfg_std! {
     impl std::error::Error for SliceError {}
 }
 
+pub(crate) enum Pair<'a> {
+    Same(&'a mut Value),
+    Pair(&'a mut Value, &'a Value),
+}
+
 /// Memory access.
 pub trait Memory {
     /// Get the slice at the given address with the given length.
@@ -480,6 +485,32 @@ impl Stack {
         self.stack.truncate(self.top);
         self.top = top;
         Ok(())
+    }
+
+    /// Get a pair of addresses.
+    pub(crate) fn pair(&mut self, a: InstAddress, b: InstAddress) -> Result<Pair<'_>, StackError> {
+        if a == b {
+            return Ok(Pair::Same(self.at_mut(a)?));
+        }
+
+        let a = self
+            .top
+            .checked_add(a.offset())
+            .filter(|&n| n < self.stack.len())
+            .ok_or(StackError { addr: a })?;
+
+        let b = self
+            .top
+            .checked_add(b.offset())
+            .filter(|&n| n < self.stack.len())
+            .ok_or(StackError { addr: b })?;
+
+        let pair = unsafe {
+            let ptr = self.stack.as_mut_ptr();
+            Pair::Pair(&mut *ptr.add(a), &*ptr.add(b).cast_const())
+        };
+
+        Ok(pair)
     }
 }
 
