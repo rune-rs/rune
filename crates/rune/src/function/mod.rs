@@ -2,6 +2,7 @@
 mod macros;
 
 use core::future::Future;
+use core::mem::replace;
 
 use crate::alloc;
 use crate::compile::meta;
@@ -12,8 +13,8 @@ use crate::runtime::{
 };
 
 // Expand to function variable bindings.
-macro_rules! access_stack {
-    ($count:expr, $add:expr, $stack:ident, $addr:ident, $args:ident, $($from_fn:path, $var:ident, $num:expr),* $(,)?) => {
+macro_rules! access_memory {
+    ($count:expr, $add:expr, $memory:ident, $addr:ident, $args:ident, $($from_fn:path, $var:ident, $num:expr),* $(,)?) => {
         if $args != $count + $add {
             return VmResult::err(VmErrorKind::BadArgumentCount {
                 actual: $args,
@@ -21,8 +22,11 @@ macro_rules! access_stack {
             });
         }
 
-        let [$($var,)*] = vm_try!($stack.array_at($addr));
-        $(let $var = Clone::clone($var);)*
+        let [$($var,)*] = vm_try!($memory.slice_at_mut($addr, $args)) else {
+            unreachable!();
+        };
+
+        $(let $var = replace($var, Value::empty());)*
 
         $(
             let $var = vm_try!($from_fn($var).with_error(|| VmErrorKind::BadArgument {
@@ -79,7 +83,7 @@ pub trait Function<A, K>: 'static + Send + Sync {
     #[doc(hidden)]
     fn fn_call(
         &self,
-        stack: &mut dyn Memory,
+        memory: &mut dyn Memory,
         addr: InstAddress,
         args: usize,
         out: Output,
@@ -109,7 +113,7 @@ pub trait InstanceFunction<A, K>: 'static + Send + Sync {
     #[doc(hidden)]
     fn fn_call(
         &self,
-        stack: &mut dyn Memory,
+        memory: &mut dyn Memory,
         addr: InstAddress,
         args: usize,
         out: Output,
@@ -132,8 +136,8 @@ macro_rules! impl_instance_function_traits {
             }
 
             #[inline]
-            fn fn_call(&self, stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
-                Function::fn_call(self, stack, addr, args, out)
+            fn fn_call(&self, memory: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
+                Function::fn_call(self, memory, addr, args, out)
             }
         }
     };
@@ -260,16 +264,16 @@ macro_rules! impl_function_traits {
             }
 
             #[allow(clippy::drop_non_drop)]
-            fn fn_call(&self, stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
-                access_stack!($count, 0, stack, addr, args, $($from_fn, $var, $num,)*);
+            fn fn_call(&self, memory: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
+                access_memory!($count, 0, memory, addr, args, $($from_fn, $var, $num,)*);
 
-                // Safety: We hold a reference to the stack, so we can guarantee
+                // Safety: We hold a reference to memory, so we can guarantee
                 // that it won't be modified.
                 let ret = self($($var.0),*);
                 $(drop($var.1);)*
 
                 let value = vm_try!(ToValue::to_value(ret));
-                vm_try!(out.store(stack, value));
+                vm_try!(out.store(memory, value));
                 VmResult::Ok(())
             }
         }
@@ -288,8 +292,8 @@ macro_rules! impl_function_traits {
             }
 
             #[allow(clippy::drop_non_drop)]
-            fn fn_call(&self, stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
-                access_stack!($count, 0, stack, addr, args, $($from_fn, $var, $num,)*);
+            fn fn_call(&self, memory: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
+                access_memory!($count, 0, memory, addr, args, $($from_fn, $var, $num,)*);
 
                 let fut = self($($var.0),*);
                 // Note: we may drop any produced reference guard here since the
@@ -304,7 +308,7 @@ macro_rules! impl_function_traits {
                 }));
 
                 let value = vm_try!(Value::try_from(ret));
-                vm_try!(out.store(stack, value));
+                vm_try!(out.store(memory, value));
                 VmResult::Ok(())
             }
         }

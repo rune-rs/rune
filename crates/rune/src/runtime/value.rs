@@ -607,7 +607,7 @@ impl Value {
     }
 
     /// Construct an empty value.
-    pub(crate) const fn empty() -> Self {
+    pub const fn empty() -> Self {
         Self {
             repr: ValueRepr::Empty,
         }

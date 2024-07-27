@@ -172,7 +172,7 @@ pub enum Inst {
     ///
     /// The function will be looked up in the unit and context. The arguments
     /// passed to the function call are stored at `addr`, where `size`
-    /// determines the number of arguments.
+    /// determines the number of arguments. The arguments will be dropped.
     ///
     /// The return value of the function call will be written to `out`.
     #[musli(packed)]
@@ -510,15 +510,10 @@ pub enum Inst {
         /// The offset to jump if the condition is true.
         jump: usize,
     },
-    /// Construct a push a vector value onto the stack. The number of elements
-    /// in the vector are determined by `count` and are popped from the stack.
+    /// Construct a vector at `out`, populating it with `count` elements from
+    /// `addr`.
     ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value..>
-    /// => <vec>
-    /// ```
+    /// The values at `addr` are dropped.
     #[musli(packed)]
     Vec {
         /// Where the arguments to the vector are stored.
@@ -528,75 +523,58 @@ pub enum Inst {
         /// Where to store the produced vector.
         out: Output,
     },
-    /// Construct a push a one-tuple value onto the stack.
+    /// Construct a one element tuple at `out`, populating it with `count`
+    /// elements from `addr`.
     ///
-    /// # Operation
-    ///
-    /// ```text
-    /// => <tuple>
-    /// ```
+    /// The values at `addr` are not dropped.
     #[musli(packed)]
     Tuple1 {
-        /// First element of the tuple.
+        /// Tuple arguments.
         #[inst_display(display_with = DisplayArray::new)]
-        args: [InstAddress; 1],
+        addr: [InstAddress; 1],
         /// Where to store the produced tuple.
         out: Output,
     },
-    /// Construct a push a two-tuple value onto the stack.
+    /// Construct a two element tuple at `out`, populating it with `count`
+    /// elements from `addr`.
     ///
-    /// # Operation
-    ///
-    /// ```text
-    /// => <tuple>
-    /// ```
+    /// The values at `addr` are not dropped.
     #[musli(packed)]
     Tuple2 {
         /// Tuple arguments.
         #[inst_display(display_with = DisplayArray::new)]
-        args: [InstAddress; 2],
+        addr: [InstAddress; 2],
         /// Where to store the produced tuple.
         out: Output,
     },
-    /// Construct a push a three-tuple value onto the stack.
+    /// Construct a three element tuple at `out`, populating it with `count`
+    /// elements from `addr`.
     ///
-    /// # Operation
-    ///
-    /// ```text
-    /// => <tuple>
-    /// ```
+    /// The values at `addr` are not dropped.
     #[musli(packed)]
     Tuple3 {
         /// Tuple arguments.
         #[inst_display(display_with = DisplayArray::new)]
-        args: [InstAddress; 3],
+        addr: [InstAddress; 3],
         /// Where to store the produced tuple.
         out: Output,
     },
-    /// Construct a push a four-tuple value onto the stack.
+    /// Construct a four element tuple at `out`, populating it with `count`
+    /// elements from `addr`.
     ///
-    /// # Operation
-    ///
-    /// ```text
-    /// => <tuple>
-    /// ```
+    /// The values at `addr` are not dropped.
     #[musli(packed)]
     Tuple4 {
         /// Tuple arguments.
         #[inst_display(display_with = DisplayArray::new)]
-        args: [InstAddress; 4],
+        addr: [InstAddress; 4],
         /// Where to store the produced tuple.
         out: Output,
     },
-    /// Construct a push a tuple value onto the stack. The number of elements
-    /// in the tuple are determined by `count` and are popped from the stack.
+    /// Construct a tuple at `out`, populating it with `count` elements from
+    /// `addr`.
     ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value..>
-    /// => <tuple>
-    /// ```
+    /// Unlike `TupleN` variants, values at `addr` are dropped.
     #[musli(packed)]
     Tuple {
         /// Where the arguments to the tuple are stored.
@@ -647,22 +625,14 @@ pub enum Inst {
         /// Where to store the produced tuple.
         out: Output,
     },
-    /// Construct a range. This will pop the start and end of the range from the
-    /// stack.
+    /// Construct a range.
     ///
-    /// # Operation
-    ///
-    /// ```text
-    /// [start]
-    /// [end]
-    /// => <range>
-    /// ```
+    /// The arguments loaded are determined by the range being constructed.
     #[musli(packed)]
     Range {
-        /// The kind of the range, which determines the number of arguments on the stack.
+        /// The kind of the range, which determines the number arguments on the
+        /// stack.
         range: InstRange,
-        /// Where the arguments of the range are stored.
-        addr: InstAddress,
         /// Where to store the produced range.
         out: Output,
     },
@@ -681,18 +651,11 @@ pub enum Inst {
         /// Where to write the empty struct.
         out: Output,
     },
-    /// Construct a push an object of the given type onto the stack. The number
-    /// of elements in the object are determined the slot of the object keys
-    /// `slot` and are popped from the stack.
+    /// Construct a struct of type `hash` at `out`, populating it with fields
+    /// from `addr`. The number of fields and their names is determined by the
+    /// `slot` being referenced.
     ///
-    /// For each element, a value is popped corresponding to the object key.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value..>
-    /// => <object>
-    /// ```
+    /// The values at `addr` are dropped.
     #[musli(packed)]
     Struct {
         /// The address to load fields from.
@@ -1423,30 +1386,50 @@ impl fmt::Debug for InstAddress {
 /// Range limits of a range expression.
 #[derive(Debug, TryClone, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
 #[try_clone(copy)]
+#[non_exhaustive]
 pub enum InstRange {
     /// `start..`.
-    RangeFrom,
+    RangeFrom {
+        /// The start address of the range.
+        start: InstAddress,
+    },
     /// `..`.
     RangeFull,
     /// `start..=end`.
-    RangeInclusive,
+    RangeInclusive {
+        /// The start address of the range.
+        start: InstAddress,
+        /// The end address of the range.
+        end: InstAddress,
+    },
     /// `..=end`.
-    RangeToInclusive,
+    RangeToInclusive {
+        /// The end address of the range.
+        end: InstAddress,
+    },
     /// `..end`.
-    RangeTo,
+    RangeTo {
+        /// The end address of the range.
+        end: InstAddress,
+    },
     /// `start..end`.
-    Range,
+    Range {
+        /// The start address of the range.
+        start: InstAddress,
+        /// The end address of the range.
+        end: InstAddress,
+    },
 }
 
 impl fmt::Display for InstRange {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            InstRange::RangeFrom => write!(f, "start.."),
+            InstRange::RangeFrom { start } => write!(f, "{start}.."),
             InstRange::RangeFull => write!(f, ".."),
-            InstRange::RangeInclusive => write!(f, "start..=end"),
-            InstRange::RangeToInclusive => write!(f, "..=end"),
-            InstRange::RangeTo => write!(f, "..end"),
-            InstRange::Range => write!(f, "start..end"),
+            InstRange::RangeInclusive { start, end } => write!(f, "{start}..={end}"),
+            InstRange::RangeToInclusive { end } => write!(f, "..={end}"),
+            InstRange::RangeTo { end } => write!(f, "..{end}"),
+            InstRange::Range { start, end } => write!(f, "{start}..{end}"),
         }
     }
 }
