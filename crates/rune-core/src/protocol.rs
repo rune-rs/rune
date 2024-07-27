@@ -1,6 +1,6 @@
 use core::cmp;
 use core::fmt;
-use core::hash::{self, Hash as _};
+use core::hash::Hasher;
 use core::ops;
 
 use crate as rune;
@@ -51,14 +51,6 @@ impl ToTypeHash for Protocol {
     fn to_item(&self) -> alloc::Result<Option<ItemBuf>> {
         Ok(None)
     }
-
-    #[inline]
-    fn hash_type<H>(&self, hasher: &mut H)
-    where
-        H: hash::Hasher,
-    {
-        self.hash.hash(hasher);
-    }
 }
 
 impl ops::Deref for Protocol {
@@ -84,9 +76,9 @@ impl cmp::PartialEq for Protocol {
 
 impl cmp::Eq for Protocol {}
 
-impl hash::Hash for Protocol {
+impl core::hash::Hash for Protocol {
     #[inline]
-    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         self.hash.hash(state)
     }
 }

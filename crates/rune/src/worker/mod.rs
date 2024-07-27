@@ -71,11 +71,11 @@ impl<'a, 'arena> Worker<'a, 'arena> {
                             let item = self.q.pool.module_item(mod_item);
                             tracing::trace!("Load file: {}", item);
 
-                            let root = match kind {
+                            let (root, is_module) = match kind {
                                 LoadFileKind::Root => {
-                                    source.path().map(|p| p.try_to_owned()).transpose()?
+                                    (source.path().map(|p| p.try_to_owned()).transpose()?, false)
                                 }
-                                LoadFileKind::Module { root } => root,
+                                LoadFileKind::Module { root } => (root, true),
                             };
 
                             let items = Items::new(item, mod_item_id, self.q.gen)?;
@@ -97,7 +97,7 @@ impl<'a, 'arena> Worker<'a, 'arena> {
                                 };
                             }
 
-                            if self.q.options.function_body {
+                            if self.q.options.function_body && !is_module {
                                 let ast = crate::parse::parse_all::<ast::EmptyBlock>(
                                     source.as_str(),
                                     source_id,

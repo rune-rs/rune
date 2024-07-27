@@ -39,8 +39,8 @@ pub struct Options {
     pub(crate) v2: bool,
     /// Build sources as function bodies.
     ///
-    /// The function to run will be located at `$0`, which can be constructed
-    /// with `Hash::type_hash([ComponentRef::Id(0)])`.
+    /// The function to run will be named 0, which can be constructed with
+    /// `Hash::EMPTY`.
     pub(crate) function_body: bool,
     /// When running tests, include std tests.
     pub(crate) test_std: bool,
@@ -54,39 +54,39 @@ impl Options {
     /// It can be used to consistenly parse a collection of options by other
     /// programs as well.
     pub fn parse_option(&mut self, option: &str) -> Result<(), ParseOptionError> {
-        let Some((head, tail)) = option.split_once('=') else {
-            return Err(ParseOptionError {
-                option: option.into(),
-            });
+        let (head, tail) = if let Some((head, tail)) = option.split_once('=') {
+            (head, Some(tail))
+        } else {
+            (option, None)
         };
 
         match head {
             "memoize-instance-fn" => {
-                self.memoize_instance_fn = tail == "true";
+                self.memoize_instance_fn = tail.map_or(true, |s| s == "true");
             }
             "debug-info" => {
-                self.debug_info = tail == "true";
+                self.debug_info = tail.map_or(true, |s| s == "true");
             }
             "link-checks" => {
-                self.link_checks = tail == "true";
+                self.link_checks = tail.map_or(true, |s| s == "true");
             }
             "macros" => {
-                self.macros = tail == "true";
+                self.macros = tail.map_or(true, |s| s == "true");
             }
             "bytecode" => {
-                self.bytecode = tail == "true";
+                self.bytecode = tail.map_or(true, |s| s == "true");
             }
             "test" => {
-                self.cfg_test = tail == "true";
+                self.cfg_test = tail.map_or(true, |s| s == "true");
             }
             "v2" => {
-                self.v2 = tail == "true";
+                self.v2 = tail.map_or(true, |s| s == "true");
             }
             "function-body" => {
-                self.function_body = tail == "true";
+                self.function_body = tail.map_or(true, |s| s == "true");
             }
             "test-std" => {
-                self.test_std = tail == "true";
+                self.test_std = tail.map_or(true, |s| s == "true");
             }
             _ => {
                 return Err(ParseOptionError {

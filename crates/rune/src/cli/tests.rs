@@ -15,7 +15,6 @@ use crate::cli::{
 };
 use crate::compile::FileSourceLoader;
 use crate::doc::TestParams;
-use crate::item::ComponentRef;
 use crate::modules::capture_io::CaptureIo;
 use crate::runtime::{Value, ValueKind, Vm, VmError, VmResult};
 use crate::termcolor::{Color, ColorSpec, WriteColor};
@@ -391,7 +390,7 @@ fn populate_doc_tests(
             let sources = Arc::new(sources);
 
             cases.try_push(TestCase::new(
-                Hash::type_hash([ComponentRef::Id(0)]),
+                Hash::EMPTY,
                 test.item.try_clone()?,
                 unit.clone(),
                 sources.clone(),

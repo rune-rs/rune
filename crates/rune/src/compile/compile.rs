@@ -59,13 +59,7 @@ pub(crate) fn compile(
 
     // Queue up the initial sources to be loaded.
     for source_id in worker.q.sources.source_ids() {
-        // Unique identifier for the root module in this source context.
-        let root_item_id = worker.q.gen.next();
-
-        let mod_item = match worker
-            .q
-            .insert_root_mod(root_item_id, source_id, Span::empty())
-        {
+        let (root_item_id, mod_item) = match worker.q.insert_root_mod(source_id, Span::empty()) {
             Ok(result) => result,
             Err(error) => {
                 worker.q.diagnostics.error(source_id, error)?;
@@ -267,9 +261,11 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                         _ => None,
                     };
 
+                    let item = self.q.pool.item(item_meta.item);
+
                     self.q.unit.new_function(
                         location,
-                        self.q.pool.item(item_meta.item),
+                        item,
                         instance,
                         count,
                         None,
