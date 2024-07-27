@@ -32,6 +32,7 @@
 - [Hot reloading](./hot_reloading.md)
 - [Macros](./macros.md)
 - [Advanced](./advanced.md)
+  - [Drop order](./drop_order.md)
   - [Safety](./safety.md)
   - [Sandboxing](./sandboxing.md)
   - [The stack](./the_stack.md)

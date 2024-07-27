@@ -70,6 +70,18 @@ pub(crate) struct Ctxt<'a, 'hir, 'arena> {
 }
 
 impl<'a, 'hir, 'arena> Ctxt<'a, 'hir, 'arena> {
+    fn drop_dangling(&mut self, span: &dyn Spanned) -> compile::Result<()> {
+        self.scopes
+            .drain_dangling_into(&mut self.drop)
+            .with_span(span)?;
+
+        for addr in self.drop.drain(..).rev() {
+            self.asm.push(Inst::Drop { addr }, span)?;
+        }
+
+        Ok(())
+    }
+
     /// Get the latest relevant warning context.
     pub(crate) fn context(&self) -> Option<Span> {
         self.contexts.last().copied()
@@ -913,6 +925,8 @@ fn block<'a, 'hir>(
     let scope = cx.scopes.child(hir)?;
     let asm = block_without_scope(cx, hir, needs)?;
     cx.scopes.pop(hir, scope)?;
+
+    cx.drop_dangling(hir)?;
 
     if let Some(break_label) = break_label {
         cx.asm.label(&break_label)?;

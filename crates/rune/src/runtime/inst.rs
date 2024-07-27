@@ -1355,7 +1355,22 @@ impl IntoOutput for ValueKind {
 }
 
 /// How an instruction addresses a value.
-#[derive(Default, TryClone, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Decode, Encode)]
+#[derive(
+    Default,
+    TryClone,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    Serialize,
+    Deserialize,
+    Decode,
+    Encode,
+)]
+#[repr(transparent)]
 #[try_clone(copy)]
 pub struct InstAddress {
     offset: usize,
