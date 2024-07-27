@@ -34,14 +34,6 @@ pub const VERSION: &str = include_str!(concat!(env!("OUT_DIR"), "/version.txt"))
 fn main() {
     rune::cli::Entry::new()
         .about(format_args!("The Rune Language Interpreter {VERSION}"))
-        .context(&mut |opts| {
-            let mut c = rune_modules::with_config(opts.capture.is_none())?;
-
-            if opts.experimental {
-                c.install(rune_modules::experiments::module(opts.capture.is_none())?)?;
-            }
-
-            Ok(c)
-        })
+        .context(&mut |opts| rune_modules::with_config(opts.capture.is_none()))
         .run();
 }

@@ -16,5 +16,5 @@ fn inline_modules() {
 }
 
 pub fn main() {
-    dbg(foo::number() + bar::number());
+    dbg!(foo::number() + bar::number());
 }

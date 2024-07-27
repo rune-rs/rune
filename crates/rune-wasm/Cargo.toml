@@ -16,7 +16,7 @@ categories = ["parser-implementations"]
 [dependencies]
 rune = { version = "0.14.0", path = "../rune", features = ["capture-io"] }
 rune-macros = { version = "=0.14.0", path = "../rune-macros" }
-rune-modules = { version = "0.14.0", path = "../rune-modules", features = ["core", "test", "json", "toml", "rand", "experiments"] }
+rune-modules = { version = "0.14.0", path = "../rune-modules", features = ["core", "test", "json", "toml", "rand"] }
 
 serde = { version = "1.0.163", features = ["derive"] }
 wasm-bindgen = { version = "0.2.85", features = ["serde-serialize"] }

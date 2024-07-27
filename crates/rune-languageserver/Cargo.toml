@@ -21,7 +21,7 @@ tracing-appender = "0.2.2"
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 
 rune = { version = "0.14.0", path = "../rune", features = ["languageserver"] }
-rune-modules = { version = "0.14.0", path = "../rune-modules", features = ["full", "experiments"] }
+rune-modules = { version = "0.14.0", path = "../rune-modules", features = ["full"] }
 
 [build-dependencies]
 anyhow = "1.0.71"

@@ -26,7 +26,6 @@
 //!
 //! See each module for documentation:
 //! * [core]
-//! * [experiments]
 //! * [fmt]
 //! * [fs]
 //! * [http]
@@ -45,7 +44,6 @@
 //! ## Features
 //!
 //! * `core` for the [core module][toml]
-//! * `experiments` for the [experiments module][experiments]
 //! * `fmt` for the [fmt module][fmt]
 //! * `fs` for the [fs module][fs]
 //! * `full` includes all modules.
@@ -61,7 +59,6 @@
 //! * `toml` for the [toml module][toml]
 //!
 //! [core]: https://docs.rs/rune-modules/0/rune_modules/core/
-//! [experiments]: https://docs.rs/rune-modules/0/rune_modules/experiments/
 //! [fmt]: https://docs.rs/rune-modules/0/rune_modules/fmt/
 //! [fs]: https://docs.rs/rune-modules/0/rune_modules/fs/
 //! [http]: https://docs.rs/rune-modules/0/rune_modules/http/
@@ -78,9 +75,6 @@
 // Note: The above links to docs.rs are needed because cargo-readme does not
 // support intra-doc links (yet):
 // https://github.com/livioribeiro/cargo-readme/issues/55
-
-#[cfg(feature = "experiments")]
-pub mod experiments;
 
 macro_rules! modules {
     ($({$ident:ident, $name:literal $(, $module:ident)*}),* $(,)?) => {

@@ -11,7 +11,6 @@ window.addEventListener("load", () => {
         let updateUrl = rune.getAttribute("rune-update-url") === "true";
         let runOnChange = rune.getAttribute("rune-run-on-change") === "true";
         let options = parseOptions(rune.getAttribute("rune-options") || "");
-        let experimental = rune.getAttribute("rune-experimental") === "true";
         let config = parseConfig(rune.getAttribute("rune-config"));
 
         let opts = {
@@ -21,7 +20,6 @@ window.addEventListener("load", () => {
             updateUrl,
             runOnChange,
             options,
-            experimental,
             config,
         };
 
@@ -175,7 +173,6 @@ function setupEditor(element, opts) {
         let o = {
             budget: opts.budget,
             options: opts.options,
-            experimental: opts.experimental,
             instructions: !!(instructionsCheckbox && instructionsCheckbox.checked),
             ...opts.config,
         };
