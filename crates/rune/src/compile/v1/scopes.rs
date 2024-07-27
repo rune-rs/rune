@@ -2,7 +2,7 @@ use core::cell::{Cell, RefCell};
 use core::fmt;
 
 use crate::alloc::prelude::*;
-use crate::alloc::{self, BTreeSet, HashMap};
+use crate::alloc::{self, HashMap};
 use crate::ast::Spanned;
 use crate::compile::{self, Assembly, ErrorKind, WithSpan};
 use crate::hir;
@@ -24,7 +24,7 @@ pub(super) struct Scope<'hir> {
     /// Named variables.
     names: HashMap<hir::Name<'hir>, VarInner<'hir>>,
     /// Slots owned by this scope.
-    locals: BTreeSet<usize>,
+    locals: Dangling,
 }
 
 impl<'hir> Scope<'hir> {
@@ -34,7 +34,7 @@ impl<'hir> Scope<'hir> {
             parent,
             id,
             names: HashMap::new(),
-            locals: BTreeSet::new(),
+            locals: Dangling::default(),
         }
     }
 
@@ -81,8 +81,59 @@ impl fmt::Debug for ScopeId {
     }
 }
 
+/// Dangling address set which keeps track of addresses used and the order in
+/// which they are inserted.
+#[derive(Default)]
+struct Dangling {
+    addresses: Vec<Option<InstAddress>>,
+    address_to_index: HashMap<InstAddress, usize>,
+}
+
+impl Dangling {
+    fn clear(&mut self) {
+        self.addresses.clear();
+        self.address_to_index.clear();
+    }
+
+    fn insert(&mut self, addr: InstAddress) -> alloc::Result<()> {
+        if self.address_to_index.contains_key(&addr) {
+            return Ok(());
+        }
+
+        self.address_to_index
+            .try_insert(addr, self.addresses.len())?;
+
+        self.addresses.try_push(Some(addr))?;
+        Ok(())
+    }
+
+    fn remove(&mut self, addr: InstAddress) -> bool {
+        if let Some(index) = self.address_to_index.remove(&addr) {
+            self.addresses[index] = None;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Iterate over addresses.
+    #[inline]
+    fn addresses(&self) -> impl Iterator<Item = InstAddress> + '_ {
+        self.addresses.iter().filter_map(|addr| *addr)
+    }
+}
+
+impl fmt::Debug for Dangling {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.addresses.fmt(f)
+    }
+}
+
 pub(crate) struct Scopes<'hir> {
     scopes: RefCell<Slab<Scope<'hir>>>,
+    /// Set of addresses that are dangling.
+    dangling: RefCell<Dangling>,
     source_id: SourceId,
     size: Cell<usize>,
     slots: RefCell<Slots>,
@@ -98,12 +149,25 @@ impl<'hir> Scopes<'hir> {
 
         Ok(Self {
             scopes: RefCell::new(scopes),
+            dangling: RefCell::new(Dangling::default()),
             source_id,
             size: Cell::new(0),
             slots: RefCell::new(Slots::new()),
             id: Cell::new(1),
             top: Cell::new(ROOT),
         })
+    }
+
+    /// Drain dangling addresses into a vector.
+    pub(crate) fn drain_dangling_into(&self, out: &mut Vec<InstAddress>) -> alloc::Result<()> {
+        let mut dangling = self.dangling.borrow_mut();
+
+        for addr in dangling.addresses.drain(..).flatten() {
+            out.try_push(addr)?;
+        }
+
+        dangling.clear();
+        Ok(())
     }
 
     /// Get the maximum total number of variables used in a function.
@@ -266,10 +330,11 @@ impl<'hir> Scopes<'hir> {
             return Err(compile::Error::msg(span, "Missing top scope"));
         };
 
-        let offset = self.slots.borrow_mut().insert()?;
-        scope.locals.try_insert(offset).with_span(span)?;
-        self.size.set(self.size.get().max(offset + 1));
-        let addr = InstAddress::new(offset);
+        let addr = InstAddress::new(self.slots.borrow_mut().insert()?);
+        self.size.set(self.size.get().max(addr.offset() + 1));
+        scope.locals.insert(addr).with_span(span)?;
+        self.dangling.borrow_mut().remove(addr);
+
         tracing::trace!(?scope, ?addr, size = self.size.get());
         Ok(Address::local(span, self, addr))
     }
@@ -279,26 +344,29 @@ impl<'hir> Scopes<'hir> {
     pub(super) fn alloc_in(&self, span: &dyn Spanned, id: ScopeId) -> compile::Result<InstAddress> {
         let mut scopes = self.scopes.borrow_mut();
 
-        let Some(s) = scopes.get_mut(id.index) else {
+        let Some(scope) = scopes.get_mut(id.index) else {
             return Err(compile::Error::msg(
                 span,
                 format!("Missing scope {id} to allocate in"),
             ));
         };
 
-        if s.id != id {
+        if scope.id != id {
             return Err(compile::Error::msg(
                 span,
-                try_format!("Scope id mismatch, {} (actual) != {id} (expected)", s.id),
+                try_format!(
+                    "Scope id mismatch, {} (actual) != {id} (expected)",
+                    scope.id
+                ),
             ));
         }
 
-        let offset = self.slots.borrow_mut().insert()?;
+        let addr = InstAddress::new(self.slots.borrow_mut().insert()?);
+        scope.locals.insert(addr).with_span(span)?;
+        self.size.set(self.size.get().max(addr.offset() + 1));
+        self.dangling.borrow_mut().remove(addr);
 
-        s.locals.try_insert(offset).with_span(span)?;
-        self.size.set(self.size.get().max(offset + 1));
-        let addr = InstAddress::new(offset);
-        tracing::trace!(?s, ?addr, size = self.size.get());
+        tracing::trace!(?scope, ?addr, size = self.size.get());
         Ok(addr)
     }
 
@@ -315,13 +383,15 @@ impl<'hir> Scopes<'hir> {
             return Err(compile::Error::msg(span, "Missing top scope"));
         };
 
+        let mut dangling = self.dangling.borrow_mut();
+
         let linear = match n {
             0 => Linear::empty(),
             1 => {
-                let offset = self.slots.borrow_mut().insert()?;
-                scope.locals.try_insert(offset).with_span(span)?;
-                self.size.set(self.size.get().max(offset + 1));
-                let addr = InstAddress::new(offset);
+                let addr = InstAddress::new(self.slots.borrow_mut().insert()?);
+                scope.locals.insert(addr).with_span(span)?;
+                dangling.remove(addr);
+                self.size.set(self.size.get().max(addr.offset() + 1));
                 Linear::single(Address::local(span, self, addr))
             }
             n => {
@@ -329,11 +399,11 @@ impl<'hir> Scopes<'hir> {
                 let mut addresses = Vec::try_with_capacity(n).with_span(span)?;
 
                 for _ in 0..n {
-                    let offset = slots.push().with_span(span)?;
-                    scope.locals.try_insert(offset).with_span(span)?;
-                    let address = InstAddress::new(offset);
-                    addresses.try_push(Address::dangling(span, self, address))?;
-                    self.size.set(self.size.get().max(offset + 1));
+                    let addr = InstAddress::new(slots.push().with_span(span)?);
+                    scope.locals.insert(addr).with_span(span)?;
+                    dangling.remove(addr);
+                    addresses.try_push(Address::dangling(span, self, addr))?;
+                    self.size.set(self.size.get().max(addr.offset() + 1));
                 }
 
                 Linear::new(addresses)
@@ -366,7 +436,7 @@ impl<'hir> Scopes<'hir> {
 
         tracing::trace!(?scope);
 
-        if !scope.locals.remove(&addr.offset()) {
+        if !scope.locals.remove(addr) {
             return Err(compile::Error::msg(
                 span,
                 format!(
@@ -376,6 +446,8 @@ impl<'hir> Scopes<'hir> {
                 ),
             ));
         }
+
+        self.dangling.borrow_mut().insert(addr).with_span(span)?;
 
         let mut slots = self.slots.borrow_mut();
 
@@ -417,10 +489,11 @@ impl<'hir> Scopes<'hir> {
         tracing::trace!(?scope, "freeing locals");
 
         let mut slots = self.slots.borrow_mut();
+        let mut dangling = self.dangling.borrow_mut();
 
         // Free any locally defined variables associated with the scope.
-        for addr in &scope.locals {
-            if !slots.remove(*addr) {
+        for addr in scope.locals.addresses() {
+            if !slots.remove(addr.offset()) {
                 return Err(compile::Error::msg(
                     span,
                     format!(
@@ -429,6 +502,8 @@ impl<'hir> Scopes<'hir> {
                     ),
                 ));
             }
+
+            dangling.insert(addr).with_span(span)?;
         }
 
         scope.locals.clear();
