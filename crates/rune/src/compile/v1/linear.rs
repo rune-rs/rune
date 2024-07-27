@@ -69,6 +69,15 @@ impl<'a, 'hir> Linear<'a, 'hir> {
     }
 
     #[inline]
+    pub(super) fn free_non_dangling(self) -> compile::Result<()> {
+        for addr in self.into_iter().rev() {
+            addr.free_non_dangling()?;
+        }
+
+        Ok(())
+    }
+
+    #[inline]
     pub(super) fn forget(self) -> compile::Result<()> {
         for var in self {
             var.forget()?;

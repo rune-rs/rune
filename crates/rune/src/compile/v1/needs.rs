@@ -290,15 +290,25 @@ impl<'a, 'hir> Address<'a, 'hir> {
         Ok(())
     }
 
+    pub(super) fn free(self) -> compile::Result<()> {
+        self.free_inner(true)
+    }
+
+    pub(super) fn free_non_dangling(self) -> compile::Result<()> {
+        self.free_inner(false)
+    }
+
     /// Free the current address.
-    pub(super) fn free(mut self) -> compile::Result<()> {
+    fn free_inner(mut self, dangling: bool) -> compile::Result<()> {
         match replace(&mut self.kind, AddressKind::Freed) {
             AddressKind::Local | AddressKind::Dangling => {
-                self.scopes.free_addr(self.span, self.address, self.name)?;
+                self.scopes
+                    .free_addr(self.span, self.address, self.name, dangling)?;
             }
             AddressKind::Scope(scope) => {
                 if self.scopes.top_id() == scope {
-                    self.scopes.free_addr(self.span, self.address, self.name)?;
+                    self.scopes
+                        .free_addr(self.span, self.address, self.name, dangling)?;
                 }
             }
             AddressKind::Freed => {

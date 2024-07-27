@@ -421,6 +421,7 @@ impl<'hir> Scopes<'hir> {
         span: &dyn Spanned,
         addr: InstAddress,
         name: Option<&'static str>,
+        dangling: bool,
     ) -> compile::Result<()> {
         let mut scopes = self.scopes.borrow_mut();
 
@@ -447,7 +448,9 @@ impl<'hir> Scopes<'hir> {
             ));
         }
 
-        self.dangling.borrow_mut().insert(addr).with_span(span)?;
+        if dangling {
+            self.dangling.borrow_mut().insert(addr).with_span(span)?;
+        }
 
         let mut slots = self.slots.borrow_mut();
 

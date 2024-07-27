@@ -26,6 +26,16 @@ use crate::runtime::{budget, ProtocolCaller};
 
 use super::{VmDiagnostics, VmDiagnosticsObj};
 
+/// Helper to take a value, replacing the old one with empty.
+#[inline(always)]
+fn take(value: &mut Value) -> Value {
+    replace(value, Value::empty())
+}
+
+fn consume(value: &mut Value) {
+    *value = Value::empty();
+}
+
 /// Indicating the kind of isolation that is present for a frame.
 #[derive(Debug, Clone, Copy)]
 pub enum Isolated {
@@ -1247,13 +1257,15 @@ impl Vm {
         args: usize,
         out: Output,
     ) -> Result<(), VmErrorKind> {
-        let iter = self.stack.slice_at(addr, args)?;
+        let values = self.stack.slice_at_mut(addr, args)?;
 
         if let Some(at) = out.as_addr() {
-            let stack = iter.iter().cloned().try_collect::<Stack>()?;
+            let stack = values.iter_mut().map(take).try_collect::<Stack>()?;
             let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack);
             vm.ip = offset;
             *self.stack.at_mut(at)? = Value::try_from(Generator::new(vm))?;
+        } else {
+            values.iter_mut().for_each(consume);
         }
 
         Ok(())
@@ -1267,13 +1279,15 @@ impl Vm {
         args: usize,
         out: Output,
     ) -> Result<(), VmErrorKind> {
-        let stack = self.stack.slice_at(addr, args)?;
+        let values = self.stack.slice_at_mut(addr, args)?;
 
         if let Some(at) = out.as_addr() {
-            let stack = stack.iter().cloned().try_collect::<Stack>()?;
+            let stack = values.iter_mut().map(take).try_collect::<Stack>()?;
             let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack);
             vm.ip = offset;
             *self.stack.at_mut(at)? = Value::try_from(Stream::new(vm))?;
+        } else {
+            values.iter_mut().for_each(consume);
         }
 
         Ok(())
@@ -1287,15 +1301,17 @@ impl Vm {
         args: usize,
         out: Output,
     ) -> Result<(), VmErrorKind> {
-        let stack = self.stack.slice_at(addr, args)?;
+        let values = self.stack.slice_at_mut(addr, args)?;
 
         if let Some(at) = out.as_addr() {
-            let stack = stack.iter().cloned().try_collect::<Stack>()?;
+            let stack = values.iter_mut().map(take).try_collect::<Stack>()?;
             let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack);
             vm.ip = offset;
             let mut execution = vm.into_execution();
             let future = Future::new(async move { execution.async_complete().await })?;
             *self.stack.at_mut(at)? = Value::try_from(future)?;
+        } else {
+            values.iter_mut().for_each(consume);
         }
 
         Ok(())
@@ -1756,8 +1772,8 @@ impl Vm {
     /// Construct a new vec.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_vec(&mut self, addr: InstAddress, count: usize, out: Output) -> VmResult<()> {
-        let vec = vm_try!(self.stack.slice_at(addr, count));
-        let vec = vm_try!(vec.iter().cloned().try_collect::<alloc::Vec<Value>>());
+        let vec = vm_try!(self.stack.slice_at_mut(addr, count));
+        let vec = vm_try!(vec.iter_mut().map(take).try_collect::<alloc::Vec<Value>>());
         vm_try!(out.store(&mut self.stack, || ValueKind::Vec(Vec::from(vec))));
         VmResult::Ok(())
     }
@@ -1765,8 +1781,12 @@ impl Vm {
     /// Construct a new tuple.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_tuple(&mut self, addr: InstAddress, count: usize, out: Output) -> VmResult<()> {
-        let tuple = vm_try!(self.stack.slice_at(addr, count));
-        let tuple = vm_try!(tuple.iter().cloned().try_collect::<alloc::Vec<Value>>());
+        let tuple = vm_try!(self.stack.slice_at_mut(addr, count));
+
+        let tuple = vm_try!(tuple
+            .iter_mut()
+            .map(take)
+            .try_collect::<alloc::Vec<Value>>());
 
         vm_try!(
             out.store(&mut self.stack, || VmResult::Ok(ValueKind::Tuple(vm_try!(
@@ -1779,10 +1799,10 @@ impl Vm {
 
     /// Construct a new tuple with a fixed number of arguments.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_tuple_n(&mut self, args: &[InstAddress], out: Output) -> VmResult<()> {
-        let mut tuple = vm_try!(alloc::Vec::<Value>::try_with_capacity(args.len()));
+    fn op_tuple_n(&mut self, addr: &[InstAddress], out: Output) -> VmResult<()> {
+        let mut tuple = vm_try!(alloc::Vec::<Value>::try_with_capacity(addr.len()));
 
-        for &arg in args {
+        for &arg in addr {
             let value = vm_try!(self.stack.at(arg)).clone();
             vm_try!(tuple.try_push(value));
         }
@@ -2501,11 +2521,11 @@ impl Vm {
             .ok_or(VmErrorKind::MissingStaticObjectKeys { slot }));
 
         let mut object = vm_try!(Object::with_capacity(keys.len()));
-        let values = vm_try!(self.stack.slice_at(addr, keys.len()));
+        let values = vm_try!(self.stack.slice_at_mut(addr, keys.len()));
 
         for (key, value) in keys.iter().zip(values) {
             let key = vm_try!(String::try_from(key.as_str()));
-            vm_try!(object.insert(key, value.clone()));
+            vm_try!(object.insert(key, take(value)));
         }
 
         vm_try!(out.store(&mut self.stack, ValueKind::Object(object)));
@@ -2514,29 +2534,31 @@ impl Vm {
 
     /// Operation to allocate an object.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_range(&mut self, addr: InstAddress, range: InstRange, out: Output) -> VmResult<()> {
+    fn op_range(&mut self, range: InstRange, out: Output) -> VmResult<()> {
         let value = match range {
-            InstRange::RangeFrom => {
-                let [s] = vm_try!(self.stack.array_at(addr));
+            InstRange::RangeFrom { start } => {
+                let s = vm_try!(self.stack.at(start)).clone();
                 vm_try!(Value::try_from(RangeFrom::new(s.clone())))
             }
             InstRange::RangeFull => {
                 vm_try!(Value::try_from(RangeFull::new()))
             }
-            InstRange::RangeInclusive => {
-                let [s, e] = vm_try!(self.stack.array_at(addr));
+            InstRange::RangeInclusive { start, end } => {
+                let s = vm_try!(self.stack.at(start)).clone();
+                let e = vm_try!(self.stack.at(end)).clone();
                 vm_try!(Value::try_from(RangeInclusive::new(s.clone(), e.clone())))
             }
-            InstRange::RangeToInclusive => {
-                let [e] = vm_try!(self.stack.array_at(addr));
+            InstRange::RangeToInclusive { end } => {
+                let e = vm_try!(self.stack.at(end)).clone();
                 vm_try!(Value::try_from(RangeToInclusive::new(e.clone())))
             }
-            InstRange::RangeTo => {
-                let [e] = vm_try!(self.stack.array_at(addr));
+            InstRange::RangeTo { end } => {
+                let e = vm_try!(self.stack.at(end)).clone();
                 vm_try!(Value::try_from(RangeTo::new(e.clone())))
             }
-            InstRange::Range => {
-                let [s, e] = vm_try!(self.stack.array_at(addr));
+            InstRange::Range { start, end } => {
+                let s = vm_try!(self.stack.at(start)).clone();
+                let e = vm_try!(self.stack.at(end)).clone();
                 vm_try!(Value::try_from(Range::new(s.clone(), e.clone())))
             }
         };
@@ -2581,12 +2603,12 @@ impl Vm {
             .lookup_rtti(hash)
             .ok_or(VmErrorKind::MissingRtti { hash }));
 
-        let values = vm_try!(self.stack.slice_at(addr, keys.len()));
         let mut data = vm_try!(Object::with_capacity(keys.len()));
+        let values = vm_try!(self.stack.slice_at_mut(addr, keys.len()));
 
         for (key, value) in keys.iter().zip(values) {
             let key = vm_try!(String::try_from(key.as_str()));
-            vm_try!(data.insert(key, value.clone()));
+            vm_try!(data.insert(key, take(value)));
         }
 
         vm_try!(out.store(&mut self.stack, || ValueKind::Struct(Struct {
@@ -2599,7 +2621,7 @@ impl Vm {
 
     /// Operation to allocate an object variant.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_object_variant(
+    fn op_struct_variant(
         &mut self,
         addr: InstAddress,
         hash: Hash,
@@ -2617,11 +2639,11 @@ impl Vm {
             .ok_or(VmErrorKind::MissingVariantRtti { hash }));
 
         let mut data = vm_try!(Object::with_capacity(keys.len()));
-        let values = vm_try!(self.stack.slice_at(addr, keys.len()));
+        let values = vm_try!(self.stack.slice_at_mut(addr, keys.len()));
 
         for (key, value) in keys.iter().zip(values) {
             let key = vm_try!(String::try_from(key.as_str()));
-            vm_try!(data.insert(key, value.clone()));
+            vm_try!(data.insert(key, take(value)));
         }
 
         vm_try!(
@@ -3093,8 +3115,8 @@ impl Vm {
                     .lookup_rtti(hash)
                     .ok_or(VmErrorKind::MissingRtti { hash }));
 
-                let tuple = vm_try!(self.stack.slice_at(addr, args));
-                let tuple = vm_try!(tuple.iter().cloned().try_collect());
+                let tuple = vm_try!(self.stack.slice_at_mut(addr, args));
+                let tuple = vm_try!(tuple.iter_mut().map(take).try_collect());
 
                 vm_try!(out.store(&mut self.stack, || {
                     Value::tuple_struct(rtti.clone(), tuple)
@@ -3111,8 +3133,8 @@ impl Vm {
                     .lookup_variant_rtti(hash)
                     .ok_or(VmErrorKind::MissingVariantRtti { hash }));
 
-                let tuple = vm_try!(self.stack.slice_at(addr, args));
-                let tuple = vm_try!(tuple.iter().cloned().try_collect());
+                let tuple = vm_try!(self.stack.slice_at_mut(addr, args));
+                let tuple = vm_try!(tuple.iter_mut().map(take).try_collect());
 
                 vm_try!(out.store(&mut self.stack, || Value::tuple_variant(
                     rtti.clone(),
@@ -3454,17 +3476,17 @@ impl Vm {
                 Inst::Tuple { addr, count, out } => {
                     vm_try!(self.op_tuple(addr, count, out));
                 }
-                Inst::Tuple1 { args, out } => {
-                    vm_try!(self.op_tuple_n(&args[..], out));
+                Inst::Tuple1 { addr, out } => {
+                    vm_try!(self.op_tuple_n(&addr[..], out));
                 }
-                Inst::Tuple2 { args, out } => {
-                    vm_try!(self.op_tuple_n(&args[..], out));
+                Inst::Tuple2 { addr, out } => {
+                    vm_try!(self.op_tuple_n(&addr[..], out));
                 }
-                Inst::Tuple3 { args, out } => {
-                    vm_try!(self.op_tuple_n(&args[..], out));
+                Inst::Tuple3 { addr, out } => {
+                    vm_try!(self.op_tuple_n(&addr[..], out));
                 }
-                Inst::Tuple4 { args, out } => {
-                    vm_try!(self.op_tuple_n(&args[..], out));
+                Inst::Tuple4 { addr, out } => {
+                    vm_try!(self.op_tuple_n(&addr[..], out));
                 }
                 Inst::Environment { addr, count, out } => {
                     vm_try!(self.op_environment(addr, count, out));
@@ -3472,8 +3494,8 @@ impl Vm {
                 Inst::Object { addr, slot, out } => {
                     vm_try!(self.op_object(addr, slot, out));
                 }
-                Inst::Range { addr, range, out } => {
-                    vm_try!(self.op_range(addr, range, out));
+                Inst::Range { range, out } => {
+                    vm_try!(self.op_range(range, out));
                 }
                 Inst::EmptyStruct { hash, out } => {
                     vm_try!(self.op_empty_struct(hash, out));
@@ -3492,7 +3514,7 @@ impl Vm {
                     slot,
                     out,
                 } => {
-                    vm_try!(self.op_object_variant(addr, hash, slot, out));
+                    vm_try!(self.op_struct_variant(addr, hash, slot, out));
                 }
                 Inst::String { slot, out } => {
                     vm_try!(self.op_string(slot, out));

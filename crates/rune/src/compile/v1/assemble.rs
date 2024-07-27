@@ -1170,7 +1170,7 @@ fn const_<'a, 'hir>(
                 span,
             )?;
 
-            linear.free()?;
+            linear.free_non_dangling()?;
         }
         ConstValue::Tuple(ref tuple) => {
             let mut linear = cx.scopes.linear(span, tuple.len())?;
@@ -1188,7 +1188,7 @@ fn const_<'a, 'hir>(
                 span,
             )?;
 
-            linear.free()?;
+            linear.free_non_dangling()?;
         }
         ConstValue::Object(ref object) => {
             let mut linear = cx.scopes.linear(span, object.len())?;
@@ -1213,7 +1213,7 @@ fn const_<'a, 'hir>(
                 span,
             )?;
 
-            linear.free()?;
+            linear.free_non_dangling()?;
         }
     }
 
@@ -1644,7 +1644,7 @@ fn expr_async_block<'a, 'hir>(
         &"async block",
     )?;
 
-    linear.free()?;
+    linear.free_non_dangling()?;
     Ok(Asm::new(span, ()))
 }
 
@@ -1744,7 +1744,7 @@ fn expr_call<'a, 'hir>(
                 span,
             )?;
 
-            linear.free()?;
+            linear.free_non_dangling()?;
         }
         hir::Call::Associated { target, hash } => {
             let linear = converge!(exprs_2(cx, span, slice::from_ref(target), hir.args)?);
@@ -1759,7 +1759,7 @@ fn expr_call<'a, 'hir>(
                 span,
             )?;
 
-            linear.free()?;
+            linear.free_non_dangling()?;
         }
         hir::Call::Meta { hash } => {
             let linear = converge!(exprs(cx, span, hir.args)?);
@@ -1774,7 +1774,7 @@ fn expr_call<'a, 'hir>(
                 span,
             )?;
 
-            linear.free()?;
+            linear.free_non_dangling()?;
         }
         hir::Call::Expr { expr: e } => {
             let mut function = cx.scopes.defer(span);
@@ -1791,7 +1791,7 @@ fn expr_call<'a, 'hir>(
                 span,
             )?;
 
-            linear.free()?;
+            linear.free_non_dangling()?;
             function.free()?;
         }
         hir::Call::ConstFn {
@@ -1871,9 +1871,9 @@ fn exprs_2_with<'a, 'hir, T>(
         }
         ([e], []) | ([], [e]) => {
             let e = map(e);
-            let mut needs = cx.scopes.defer(e);
+            let mut needs = cx.scopes.alloc(e)?;
             converge!(expr(cx, e, &mut needs)?, free(needs));
-            linear = Linear::single(needs.into_addr()?);
+            linear = Linear::single(needs);
         }
         _ => {
             let len = a.len() + b.len();
@@ -2066,9 +2066,19 @@ fn expr_for<'a, 'hir>(
     let into_iter = cx.scopes.alloc(span)?.with_name("into_iter");
     let binding = cx.scopes.alloc(&hir.binding)?.with_name("binding");
 
+    // Copy the iterator, since CallAssociated will consume it.
+    cx.asm.push_with_comment(
+        Inst::Copy {
+            addr: iter.addr(),
+            out: into_iter.output(),
+        },
+        span,
+        &"Protocol::INTO_ITER",
+    )?;
+
     cx.asm.push_with_comment(
         Inst::CallAssociated {
-            addr: iter.addr(),
+            addr: into_iter.addr(),
             hash: *Protocol::INTO_ITER,
             args: 1,
             out: into_iter.output(),
@@ -2106,12 +2116,22 @@ fn expr_for<'a, 'hir>(
         drop: Some(into_iter.addr()),
     })?;
 
+    let into_iter_copy = cx.scopes.alloc(span)?.with_name("into_iter_copy");
+
+    cx.asm.push(
+        Inst::Copy {
+            addr: into_iter.addr(),
+            out: into_iter_copy.output(),
+        },
+        span,
+    )?;
+
     // Use the memoized loop variable.
     if let Some(next_offset) = &next_offset {
         cx.asm.push(
             Inst::CallFn {
                 function: next_offset.addr(),
-                addr: into_iter.addr(),
+                addr: into_iter_copy.addr(),
                 args: 1,
                 out: binding.output(),
             },
@@ -2120,7 +2140,7 @@ fn expr_for<'a, 'hir>(
     } else {
         cx.asm.push_with_comment(
             Inst::CallAssociated {
-                addr: into_iter.addr(),
+                addr: into_iter_copy.addr(),
                 hash: *Protocol::NEXT,
                 args: 1,
                 out: binding.output(),
@@ -2129,6 +2149,8 @@ fn expr_for<'a, 'hir>(
             &"Protocol::NEXT",
         )?;
     }
+
+    into_iter_copy.free()?;
 
     // Test loop condition and unwrap the option, or jump to `end_label` if the current value is `None`.
     cx.asm
@@ -2534,9 +2556,9 @@ fn expr_object<'a, 'hir>(
                     span,
                 )?;
             }
-        }
+        };
 
-        linear.free()?;
+        linear.free_non_dangling()?;
     }
 
     Ok(Asm::new(span, ()))
@@ -2601,58 +2623,83 @@ fn expr_range<'a, 'hir>(
     span: &'hir dyn Spanned,
     needs: &mut dyn Needs<'a, 'hir>,
 ) -> compile::Result<Asm<'hir>> {
-    let a: Option<&hir::Expr<'hir>>;
-    let b: Option<&hir::Expr<'hir>>;
+    let range;
+    let vars;
 
-    let range = match hir {
+    match hir {
         hir::ExprRange::RangeFrom { start } => {
-            a = Some(start);
-            b = None;
-            InstRange::RangeFrom
+            let mut s = cx.scopes.defer(start);
+            converge!(expr(cx, start, &mut s)?, free(s));
+
+            let start = s.into_addr()?;
+
+            range = InstRange::RangeFrom {
+                start: start.addr(),
+            };
+            vars = [Some(start), None];
         }
         hir::ExprRange::RangeFull => {
-            a = None;
-            b = None;
-            InstRange::RangeFull
+            range = InstRange::RangeFull;
+            vars = [None, None];
         }
         hir::ExprRange::RangeInclusive { start, end } => {
-            a = Some(start);
-            b = Some(end);
-            InstRange::RangeInclusive
+            let mut s = cx.scopes.defer(start);
+            converge!(expr(cx, start, &mut s)?, free(s));
+
+            let mut e = cx.scopes.defer(end);
+            converge!(expr(cx, end, &mut e)?, free(s, e));
+
+            let start = s.into_addr()?;
+            let end = e.into_addr()?;
+
+            range = InstRange::RangeInclusive {
+                start: start.addr(),
+                end: end.addr(),
+            };
+            vars = [Some(start), Some(end)];
         }
         hir::ExprRange::RangeToInclusive { end } => {
-            a = Some(end);
-            b = None;
-            InstRange::RangeToInclusive
+            let mut e = cx.scopes.defer(end);
+            converge!(expr(cx, end, &mut e)?, free(e));
+
+            let end = e.into_addr()?;
+
+            range = InstRange::RangeToInclusive { end: end.addr() };
+            vars = [Some(end), None];
         }
         hir::ExprRange::RangeTo { end } => {
-            a = Some(end);
-            b = None;
-            InstRange::RangeTo
+            let mut e = cx.scopes.defer(end);
+            converge!(expr(cx, end, &mut e)?, free(e));
+
+            let end = e.into_addr()?;
+
+            range = InstRange::RangeTo { end: end.addr() };
+            vars = [Some(end), None];
         }
         hir::ExprRange::Range { start, end } => {
-            a = Some(start);
-            b = Some(end);
-            InstRange::Range
+            let mut s = cx.scopes.defer(start);
+            converge!(expr(cx, start, &mut s)?, free(s));
+
+            let mut e = cx.scopes.defer(end);
+            converge!(expr(cx, end, &mut e)?, free(s, e));
+
+            let start = s.into_addr()?;
+            let end = e.into_addr()?;
+
+            range = InstRange::Range {
+                start: start.addr(),
+                end: end.addr(),
+            };
+            vars = [Some(start), Some(end)];
         }
     };
 
-    let a = a.map(slice::from_ref).unwrap_or_default();
-    let b = b.map(slice::from_ref).unwrap_or_default();
+    if let Some(out) = needs.try_alloc_output()? {
+        cx.asm.push(Inst::Range { range, out }, span)?;
+    }
 
-    if let Some(linear) = exprs_2(cx, span, a, b)?.into_converging() {
-        if let Some(out) = needs.try_alloc_output()? {
-            cx.asm.push(
-                Inst::Range {
-                    addr: linear.addr(),
-                    range,
-                    out,
-                },
-                span,
-            )?;
-        }
-
-        linear.free()?;
+    for var in vars.into_iter().flatten() {
+        var.free()?;
     }
 
     Ok(Asm::new(span, ()))
@@ -2829,7 +2876,7 @@ fn expr_tuple<'a, 'hir>(
 
             cx.asm.push(
                 Inst::$variant {
-                    args: [$($expr.addr(),)*],
+                    addr: [$($expr.addr(),)*],
                     out: needs.alloc_output()?,
                 },
                 span,
@@ -2859,9 +2906,11 @@ fn expr_tuple<'a, 'hir>(
                     },
                     span,
                 )?;
-            }
 
-            linear.free()?;
+                linear.free_non_dangling()?;
+            } else {
+                linear.free()?;
+            }
         }
     }
 
@@ -2936,9 +2985,12 @@ fn expr_vec<'a, 'hir>(
             },
             span,
         )?;
+
+        linear.free_non_dangling()?;
+    } else {
+        linear.free()?;
     }
 
-    linear.free()?;
     Ok(Asm::new(span, ()))
 }
 
