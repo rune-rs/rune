@@ -464,17 +464,22 @@ function detectPlatform(): [String, String] | undefined {
     switch (process.platform) {
         case "win32":
             platform = "windows";
+            break;
         case "linux":
             platform = "linux";
+            break;
         case "darwin":
             platform = "macos";
+            break;
     }
 
     switch (process.arch) {
         case "x64":
             arch = "x86_64";
+            break;
         case "arm64":
             arch = "aarch64";
+            break;
     }
 
     if (!platform || !arch) {
