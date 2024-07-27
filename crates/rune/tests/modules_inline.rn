@@ -10,6 +10,7 @@ mod bar {
     }
 }
 
-pub fn main() {
-    dbg!(foo::number() + bar::number());
+#[test]
+fn inline_modules() {
+    assert_eq!(foo::number() + bar::number(), 3);
 }

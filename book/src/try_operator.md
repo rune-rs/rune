@@ -11,6 +11,6 @@ variant.
 ```
 
 ```text
-$> cargo run --bin rune -- run scripts/book/try_operator/basic_try.rn
+$> cargo run -- run scripts/book/try_operator/basic_try.rn
 Result: 2, 1
 ```

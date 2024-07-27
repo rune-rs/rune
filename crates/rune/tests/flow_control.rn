@@ -54,11 +54,12 @@ fn returns_string() {
     "this is a string"
 }
 
-let a = test(0);
-let b = test2(1);
-let c = test3(2);
-let d = from_loop();
-let e = returns_unit(1);
-let f = returns_string();
-
-dbg!([0, 1, 2, 4, (), "this is a string"] == [a, b, c, d, e, f]);
+#[test]
+fn test_flow_control() {
+    assert_eq!(test(0), 0);
+    assert_eq!(test2(1), 1);
+    assert_eq!(test3(2), 2);
+    assert_eq!(from_loop(), 4);
+    assert_eq!(returns_unit(1), ());
+    assert_eq!(returns_string(), "this is a string");
+}

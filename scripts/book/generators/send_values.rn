@@ -10,9 +10,7 @@ fn printer() {
     assert_eq!(collected, ["John", (1, 2, 3)]);
 }
 
-pub fn main() {
-    let printer = printer();
-    printer.resume(());
-    printer.resume("John");
-    printer.resume((1, 2, 3));
-}
+let printer = printer();
+printer.resume(());
+printer.resume("John");
+printer.resume((1, 2, 3));

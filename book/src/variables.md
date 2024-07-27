@@ -8,7 +8,7 @@ variables in Rune are mutable and can be changed at any time.
 ```
 
 ```text
-$> cargo run --bin rune -- run scripts/book/variables/variables.rn
+$> cargo run -- run scripts/book/variables/variables.rn
 The value of x is: 5
 The value of x is: 6
 ```
@@ -35,7 +35,7 @@ variables:
 ```
 
 ```text
-$> cargo run --bin rune -- run scripts/book/variables/shared_ownership.rn
+$> cargo run -- run scripts/book/variables/shared_ownership.rn
 1
 2
 ```
@@ -53,7 +53,7 @@ raised in the virtual machine.
 ```
 
 ```text
-$> cargo run --bin rune -- run scripts/book/variables/take_argument.rn
+$> cargo run -- run scripts/book/variables/take_argument.rn
 field: 1
 == ! (cannot read, value is moved (at 14)) (469µs)
 error: virtual machine error
@@ -73,7 +73,7 @@ to functions which need to move the value, like `drop`.
 ```
 
 ```text
-$> cargo run --bin rune -- run scripts/book/variables/is_readable.rn
+$> cargo run -- run scripts/book/variables/is_readable.rn
 field: 1
 object is no longer readable 😢
 ```

@@ -1,6 +1,4 @@
-pub fn main() {
-    "hello world";
-    'a';
-    [42, 42];
-    #{ "foo": 42, "bar": [1, 2, 3, 4] };
-}
+"hello world";
+'a';
+[42, 42];
+#{ "foo": 42, "bar": [1, 2, 3, 4] };

@@ -6,6 +6,4 @@ fn fib(n) {
     }
 }
 
-pub fn main() {
-    fib(15)
-}
+dbg!(fib(15));

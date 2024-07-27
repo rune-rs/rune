@@ -21,7 +21,7 @@ simply what the Rune cli looks for when deciding what to execute.
 ```
 
 ```text
-$> cargo run --bin rune -- run scripts/book/functions/main_function.rn
+$> cargo run -- run scripts/book/functions/main_function.rn
 Hello World
 ```
 
@@ -34,7 +34,7 @@ anything, even completely distinct types.
 ```
 
 ```text
-$> cargo run --bin rune -- run scripts/book/functions/return_value.rn
+$> cargo run -- run scripts/book/functions/return_value.rn
 Hello
 1
 ```

@@ -7,19 +7,17 @@ impl User {
     fn describe(self) {
         match self {
             User { username: "setbac", .. } => {
-                println("Yep, it's setbac.");
+                println!("Yep, it's setbac.");
             }
             User { username, .. } => {
-                println(`Other user: ${username}.`);
+                println!("Other user: {username}.");
             }
         }
     }
 }
 
-pub fn main() {
-    let user = User { username: "setbac", active: false };
+let user = User { username: "setbac", active: false };
 
-    user.describe();
-    user.username = "newt";
-    user.describe();
-}
+user.describe();
+user.username = "newt";
+user.describe();

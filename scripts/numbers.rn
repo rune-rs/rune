@@ -1,10 +1,8 @@
-pub fn main() {
-    dbg(0.223e2 + 2.to_f64());
-    dbg((0.223e2).to_integer() + 2);
+dbg!(0.223e2 + 2.to_f64());
+dbg!((0.223e2).to_integer() + 2);
 
-    let a = 42;
+let a = 42;
 
-    if a is i64 {
-        dbg("a is an integer");
-    }
+if a is i64 {
+    dbg!("a is an integer");
 }

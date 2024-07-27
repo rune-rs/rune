@@ -19,6 +19,7 @@ pub fn module() -> Result<Module, ContextError> {
 
         m.ty::<Iter>()?;
         m.function_meta(Iter::next__meta)?;
+        m.implement_trait::<Iter>(rune::item!(::std::iter::Iterator))?;
     }
 
     {
@@ -83,6 +84,20 @@ fn generator_resume(this: &mut Generator<Vm>, value: Value) -> VmResult<Generato
     this.resume(value)
 }
 
+/// Convert a generator into an iterator.
+///
+/// # Examples
+///
+/// ```rune
+/// fn count_numbers(limit) {
+///     for n in 0..limit.unwrap_or(10) {
+///         yield n;
+///     }
+/// }
+///
+/// assert_eq!(count_numbers(None).iter().collect::<Vec>(), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+/// assert_eq!(count_numbers(Some(2)).iter().collect::<Vec>(), [0, 1]);
+/// ```
 #[rune::function(instance, path = iter)]
 #[inline]
 fn generator_iter(this: Generator<Vm>) -> Iter {

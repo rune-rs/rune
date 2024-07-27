@@ -1,11 +1,9 @@
-pub fn main() {
-    return foo();
+return foo();
 
-    fn foo() {
-        2
-    }
+fn foo() {
+    2
+}
 
-    fn bar() {
-        3
-    }
+fn bar() {
+    3
 }

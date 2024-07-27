@@ -1,10 +1,8 @@
-pub fn main() {
-    match ("test", 1) {
-        ("test", n) => {
-            dbg("the first part was a number:", n);
-        }
-        _ => {
-            dbg("matched something we did not understand");
-        }
+match ("test", 1) {
+    ("test", n) => {
+        dbg!("the first part was a number:", n);
+    }
+    _ => {
+        dbg!("matched something we did not understand");
     }
 }

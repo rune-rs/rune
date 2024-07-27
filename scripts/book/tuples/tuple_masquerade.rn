@@ -1,8 +1,6 @@
-pub fn main() {
-    let values = ("Now", "You", "See", "Me");
-    dbg(values);
+let values = ("Now", "You", "See", "Me");
+dbg!(values);
 
-    values.2 = "Don't";
-    values.3 = "!";
-    dbg(values);
-}
+values.2 = "Don't";
+values.3 = "!";
+dbg!(values);

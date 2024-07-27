@@ -10,13 +10,5 @@ fn sub(a, b) {
     a - b
 }
 
-#[test]
-fn test_function_pointer() {
-    assert_eq!(do_thing(add), 3);
-    assert_eq!(do_thing(sub), -1);
-}
-
-pub fn main() {
-    println!("Result: {}", do_thing(add));
-    println!("Result: {}", do_thing(sub));
-}
+println!("Result: {}", do_thing(add));
+println!("Result: {}", do_thing(sub));

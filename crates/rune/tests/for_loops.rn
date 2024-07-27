@@ -46,7 +46,9 @@ fn for_return_inside() {
 #[test]
 fn for_return_iter() {
     fn function() {
-        for v in { return 10 } {
+        for v in {
+            return 10
+        } {
             panic!("no");
         }
 
@@ -91,6 +93,8 @@ fn for_shadow_local_range() {
 fn for_shadow_simple() {
     let a = 0;
     let b = 0..100;
-    let a = for _ in 0.. { break };
+    let a = for _ in 0.. {
+        break
+    };
     assert_eq!(a, ());
 }
