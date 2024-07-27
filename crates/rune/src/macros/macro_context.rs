@@ -73,11 +73,10 @@ cfg_std! {
             &mut inner,
         );
 
-        let root_id = gen.next();
         let source_id = SourceId::empty();
 
-        let root_mod_id = query
-            .insert_root_mod(root_id, source_id, Span::empty())
+        let (root_id, root_mod_id) = query
+            .insert_root_mod(source_id, Span::empty())
             .context("Failed to inserted root module")?;
 
         let item_meta = query

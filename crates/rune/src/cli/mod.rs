@@ -26,7 +26,6 @@ use std::path::{Path, PathBuf};
 use crate as rune;
 use crate::alloc;
 use crate::alloc::prelude::*;
-use crate::item::ComponentRef;
 use crate::workspace::{self, WorkspaceFilter};
 
 use anyhow::{bail, Context as _, Error, Result};
@@ -940,7 +939,7 @@ where
                 )?;
 
                 let entry = if e.is_argument() {
-                    Hash::type_hash([ComponentRef::Id(0)])
+                    Hash::EMPTY
                 } else {
                     Hash::type_hash(["main"])
                 };

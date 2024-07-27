@@ -472,10 +472,11 @@ impl<'a, 'arena> Query<'a, 'arena> {
     /// Insert module and associated metadata.
     pub(crate) fn insert_root_mod(
         &mut self,
-        item_id: NonZeroId,
         source_id: SourceId,
         span: Span,
-    ) -> compile::Result<ModId> {
+    ) -> compile::Result<(NonZeroId, ModId)> {
+        let item_id = self.gen.next();
+
         let location = Location::new(source_id, span);
 
         let module = self.pool.alloc_module(ModMeta {
@@ -498,7 +499,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         )?;
 
         self.insert_name(ItemId::ROOT).with_span(span)?;
-        Ok(module)
+        Ok((item_id, module))
     }
 
     /// Inserts an item that *has* to be unique, else cause an error.

@@ -421,51 +421,45 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
     }
 
     /// Handle a filesystem module.
-    fn handle_file_mod(
-        &mut self,
-        item_mod: &mut ast::ItemMod,
-        docs: &[Doc],
-    ) -> compile::Result<()> {
-        let name = item_mod.name.resolve(resolve_context!(self.q))?;
+    fn handle_file_mod(&mut self, ast: &mut ast::ItemMod, docs: &[Doc]) -> compile::Result<()> {
+        let name = ast.name.resolve(resolve_context!(self.q))?;
 
-        let visibility = ast_to_visibility(&item_mod.visibility)?;
+        let visibility = ast_to_visibility(&ast.visibility)?;
 
         let guard = self.items.push_name(name.as_ref())?;
         let idx_item = self.item.replace();
 
-        let mod_item_id = self.items.id().with_span(&*item_mod)?;
+        let mod_item_id = self.items.id().with_span(&*ast)?;
 
         let mod_item = self.q.insert_mod(
             &self.items,
-            &DynLocation::new(self.source_id, spanned::from_fn(|| item_mod.name_span())),
+            &DynLocation::new(self.source_id, spanned::from_fn(|| ast.name_span())),
             self.item.module,
             visibility,
             docs,
         )?;
 
         self.item = idx_item;
-        self.items.pop(guard).with_span(&*item_mod)?;
+        self.items.pop(guard).with_span(&*ast)?;
 
-        item_mod.id.set(mod_item_id);
+        ast.id.set(mod_item_id);
 
         let Some(root) = &self.root else {
             return Err(compile::Error::new(
-                &*item_mod,
+                &*ast,
                 ErrorKind::UnsupportedModuleSource,
             ));
         };
 
-        let source =
-            self.q
-                .source_loader
-                .load(root, self.q.pool.module_item(mod_item), &*item_mod)?;
+        let source = self
+            .q
+            .source_loader
+            .load(root, self.q.pool.module_item(mod_item), &*ast)?;
 
         if let Some(loaded) = self.loaded.as_mut() {
-            if let Some(_existing) =
-                loaded.try_insert(mod_item, (self.source_id, item_mod.span()))?
-            {
+            if let Some(_existing) = loaded.try_insert(mod_item, (self.source_id, ast.span()))? {
                 return Err(compile::Error::new(
-                    &*item_mod,
+                    &*ast,
                     ErrorKind::ModAlreadyLoaded {
                         item: self.q.pool.module_item(mod_item).try_to_owned()?,
                         #[cfg(feature = "emit")]
@@ -479,8 +473,8 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
 
         self.q
             .visitor
-            .visit_mod(&DynLocation::new(source_id, &*item_mod))
-            .with_span(&*item_mod)?;
+            .visit_mod(&DynLocation::new(source_id, &*ast))
+            .with_span(&*ast)?;
 
         if let Some(queue) = self.queue.as_mut() {
             queue.try_push_back(Task::LoadFile {
@@ -671,7 +665,6 @@ pub(crate) fn empty_block_fn(
     mut ast: ast::EmptyBlock,
     span: &dyn Spanned,
 ) -> compile::Result<()> {
-    let guard = idx.items.push_id()?;
     let idx_item = idx.item.replace();
 
     let item_meta = idx.q.insert_new_item(
@@ -687,7 +680,7 @@ pub(crate) fn empty_block_fn(
     statements(idx, &mut ast.statements)?;
 
     idx.item = idx_item;
-    idx.items.pop(guard).with_span(span)?;
+
     let layer = idx.scopes.pop().with_span(span)?;
 
     let call = match (layer.awaits.is_empty(), layer.yields.is_empty()) {
