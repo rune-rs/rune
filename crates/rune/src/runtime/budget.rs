@@ -111,11 +111,11 @@ impl BudgetGuard {
             return true;
         }
 
-        let Some(new) = self.0.checked_sub(1) else {
+        if self.0 == 0 {
             return false;
-        };
+        }
 
-        self.0 = new;
+        self.0 -= 1;
         true
     }
 }

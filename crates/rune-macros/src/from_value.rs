@@ -30,7 +30,7 @@ impl Expander {
         let (expanded, expected) = match &st.fields {
             syn::Fields::Unit => {
                 let expanded = quote! {
-                    #type_value::EmptyTuple => {
+                    #type_value::Unit => {
                         #vm_result::Ok(Self)
                     }
                     #type_value::EmptyStruct(..) => {
@@ -44,7 +44,7 @@ impl Expander {
                 let expanded = self.expand_unnamed(f)?;
 
                 let expanded = quote! {
-                    #type_value::EmptyTuple => {
+                    #type_value::Unit => {
                         let tuple = #tuple::new(&[]);
                         #vm_result::Ok(Self(#expanded))
                     }

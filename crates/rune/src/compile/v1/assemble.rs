@@ -1104,7 +1104,7 @@ fn const_<'a, 'hir>(
     let out = addr.output();
 
     match *value {
-        ConstValue::EmptyTuple => {
+        ConstValue::Unit => {
             cx.asm.push(Inst::unit(out), span)?;
         }
         ConstValue::Byte(v) => {

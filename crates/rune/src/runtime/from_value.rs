@@ -2,7 +2,7 @@ use core::cmp::Ordering;
 
 use crate::alloc;
 use crate::runtime::{
-    AnyObj, Mut, RawMut, RawRef, Ref, Value, ValueKind, VmError, VmErrorKind, VmResult,
+    AnyObj, Mut, Mutable, RawMut, RawRef, Ref, Value, ValueRepr, VmError, VmResult,
 };
 use crate::Any;
 
@@ -259,89 +259,96 @@ from_value_ref!(Option<Value>, into_option_ref, into_option_mut, into_option);
 
 impl FromValue for alloc::String {
     fn from_value(value: Value) -> VmResult<Self> {
-        match vm_try!(value.take_kind()) {
-            ValueKind::String(string) => VmResult::Ok(string),
-            actual => VmResult::err(VmErrorKind::expected::<alloc::String>(actual.type_info())),
-        }
+        let string = vm_try!(value.borrow_string_ref());
+        let string = string.as_ref();
+        VmResult::Ok(vm_try!(alloc::String::try_from(string)))
     }
 }
 
 impl FromValue for ::rust_alloc::string::String {
     fn from_value(value: Value) -> VmResult<Self> {
-        VmResult::Ok(::rust_alloc::string::String::from(vm_try!(
-            alloc::String::from_value(value)
-        )))
+        let string = vm_try!(alloc::String::from_value(value));
+        let string = ::rust_alloc::string::String::from(string);
+        VmResult::Ok(string)
     }
 }
 
 impl FromValue for alloc::Box<str> {
     fn from_value(value: Value) -> VmResult<Self> {
-        match vm_try!(value.take_kind()) {
-            ValueKind::String(string) => {
-                let string = vm_try!(string.try_into_boxed_str());
-                VmResult::Ok(string)
-            }
-            actual => VmResult::err(VmErrorKind::expected::<alloc::String>(actual.type_info())),
-        }
+        let string = vm_try!(value.borrow_string_ref());
+        let string = vm_try!(alloc::Box::try_from(string.as_ref()));
+        VmResult::Ok(string)
     }
 }
 
 #[cfg(feature = "alloc")]
 impl FromValue for ::rust_alloc::boxed::Box<str> {
     fn from_value(value: Value) -> VmResult<Self> {
-        match vm_try!(value.take_kind()) {
-            ValueKind::String(string) => {
-                VmResult::Ok(::rust_alloc::boxed::Box::<str>::from(string.as_str()))
-            }
-            actual => VmResult::err(VmErrorKind::expected::<alloc::String>(actual.type_info())),
-        }
+        let string = vm_try!(value.borrow_string_ref());
+        let string = ::rust_alloc::boxed::Box::<str>::from(string.as_ref());
+        VmResult::Ok(string)
     }
 }
 
 impl FromValue for Mut<alloc::String> {
     fn from_value(value: Value) -> VmResult<Self> {
-        let result = Mut::try_map(vm_try!(value.into_kind_mut()), |kind| match kind {
-            ValueKind::String(string) => Some(string),
+        let value = match vm_try!(value.into_repr()) {
+            ValueRepr::Mutable(value) => vm_try!(value.into_mut()),
+            ValueRepr::Inline(actual) => {
+                return VmResult::expected::<alloc::String>(actual.type_info());
+            }
+        };
+
+        let result = Mut::try_map(value, |kind| match kind {
+            Mutable::String(string) => Some(string),
             _ => None,
         });
 
         match result {
             Ok(string) => VmResult::Ok(string),
-            Err(actual) => {
-                VmResult::err(VmErrorKind::expected::<alloc::String>(actual.type_info()))
-            }
+            Err(actual) => VmResult::expected::<alloc::String>(actual.type_info()),
         }
     }
 }
 
 impl FromValue for Ref<alloc::String> {
     fn from_value(value: Value) -> VmResult<Self> {
-        let result = Ref::try_map(vm_try!(value.into_kind_ref()), |kind| match kind {
-            ValueKind::String(string) => Some(string),
+        let value = match vm_try!(value.into_repr()) {
+            ValueRepr::Mutable(value) => vm_try!(value.into_ref()),
+            ValueRepr::Inline(actual) => {
+                return VmResult::expected::<alloc::String>(actual.type_info());
+            }
+        };
+
+        let result = Ref::try_map(value, |value| match value {
+            Mutable::String(string) => Some(string),
             _ => None,
         });
 
         match result {
             Ok(string) => VmResult::Ok(string),
-            Err(actual) => {
-                VmResult::err(VmErrorKind::expected::<alloc::String>(actual.type_info()))
-            }
+            Err(actual) => VmResult::expected::<alloc::String>(actual.type_info()),
         }
     }
 }
 
 impl FromValue for Ref<str> {
     fn from_value(value: Value) -> VmResult<Self> {
-        let result = Ref::try_map(vm_try!(value.into_kind_ref()), |kind| match kind {
-            ValueKind::String(string) => Some(string.as_str()),
+        let value = match vm_try!(value.into_repr()) {
+            ValueRepr::Mutable(value) => vm_try!(value.into_ref()),
+            ValueRepr::Inline(actual) => {
+                return VmResult::expected::<str>(actual.type_info());
+            }
+        };
+
+        let result = Ref::try_map(value, |kind| match kind {
+            Mutable::String(string) => Some(string.as_str()),
             _ => None,
         });
 
         match result {
             Ok(string) => VmResult::Ok(string),
-            Err(actual) => {
-                VmResult::err(VmErrorKind::expected::<alloc::String>(actual.type_info()))
-            }
+            Err(actual) => VmResult::expected::<alloc::String>(actual.type_info()),
         }
     }
 }
@@ -350,8 +357,15 @@ impl UnsafeToRef for str {
     type Guard = RawRef;
 
     unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
-        let result = Ref::try_map(vm_try!(value.into_kind_ref()), |kind| match kind {
-            ValueKind::String(string) => Some(string.as_str()),
+        let value = match vm_try!(value.into_repr()) {
+            ValueRepr::Mutable(value) => vm_try!(value.into_ref()),
+            ValueRepr::Inline(actual) => {
+                return VmResult::expected::<str>(actual.type_info());
+            }
+        };
+
+        let result = Ref::try_map(value, |value| match value {
+            Mutable::String(string) => Some(string.as_str()),
             _ => None,
         });
 
@@ -360,9 +374,7 @@ impl UnsafeToRef for str {
                 let (string, guard) = Ref::into_raw(string);
                 VmResult::Ok((string.as_ref(), guard))
             }
-            Err(actual) => {
-                VmResult::err(VmErrorKind::expected::<alloc::String>(actual.type_info()))
-            }
+            Err(actual) => VmResult::expected::<alloc::String>(actual.type_info()),
         }
     }
 }
@@ -371,8 +383,15 @@ impl UnsafeToMut for str {
     type Guard = RawMut;
 
     unsafe fn unsafe_to_mut<'a>(value: Value) -> VmResult<(&'a mut Self, Self::Guard)> {
-        let result = Mut::try_map(vm_try!(value.into_kind_mut()), |kind| match kind {
-            ValueKind::String(string) => Some(string.as_mut_str()),
+        let value = match vm_try!(value.into_repr()) {
+            ValueRepr::Mutable(value) => vm_try!(value.into_mut()),
+            ValueRepr::Inline(actual) => {
+                return VmResult::expected::<str>(actual.type_info());
+            }
+        };
+
+        let result = Mut::try_map(value, |kind| match kind {
+            Mutable::String(string) => Some(string.as_mut_str()),
             _ => None,
         });
 
@@ -381,9 +400,7 @@ impl UnsafeToMut for str {
                 let (mut string, guard) = Mut::into_raw(string);
                 VmResult::Ok((string.as_mut(), guard))
             }
-            Err(actual) => {
-                VmResult::err(VmErrorKind::expected::<alloc::String>(actual.type_info()))
-            }
+            Err(actual) => VmResult::expected::<alloc::String>(actual.type_info()),
         }
     }
 }
@@ -392,8 +409,15 @@ impl UnsafeToRef for alloc::String {
     type Guard = RawRef;
 
     unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
-        let result = Ref::try_map(vm_try!(value.into_kind_ref()), |kind| match kind {
-            ValueKind::String(string) => Some(string),
+        let value = match vm_try!(value.into_repr()) {
+            ValueRepr::Mutable(value) => vm_try!(value.into_ref()),
+            ValueRepr::Inline(actual) => {
+                return VmResult::expected::<str>(actual.type_info());
+            }
+        };
+
+        let result = Ref::try_map(value, |value| match value {
+            Mutable::String(string) => Some(string),
             _ => None,
         });
 
@@ -402,9 +426,7 @@ impl UnsafeToRef for alloc::String {
                 let (string, guard) = Ref::into_raw(string);
                 VmResult::Ok((string.as_ref(), guard))
             }
-            Err(actual) => {
-                VmResult::err(VmErrorKind::expected::<alloc::String>(actual.type_info()))
-            }
+            Err(actual) => VmResult::expected::<alloc::String>(actual.type_info()),
         }
     }
 }
@@ -413,10 +435,15 @@ impl UnsafeToMut for alloc::String {
     type Guard = RawMut;
 
     unsafe fn unsafe_to_mut<'a>(value: Value) -> VmResult<(&'a mut Self, Self::Guard)> {
-        let kind = vm_try!(value.into_kind_mut());
+        let value = match vm_try!(value.into_repr()) {
+            ValueRepr::Mutable(value) => vm_try!(value.into_mut()),
+            ValueRepr::Inline(actual) => {
+                return VmResult::expected::<str>(actual.type_info());
+            }
+        };
 
-        let result = Mut::try_map(kind, |kind| match kind {
-            ValueKind::String(string) => Some(string),
+        let result = Mut::try_map(value, |value| match value {
+            Mutable::String(string) => Some(string),
             _ => None,
         });
 
@@ -425,9 +452,7 @@ impl UnsafeToMut for alloc::String {
                 let (mut string, guard) = Mut::into_raw(string);
                 VmResult::Ok((string.as_mut(), guard))
             }
-            Err(actual) => {
-                VmResult::err(VmErrorKind::expected::<alloc::String>(actual.type_info()))
-            }
+            Err(actual) => VmResult::expected::<str>(actual.type_info()),
         }
     }
 }

@@ -13,8 +13,8 @@ use crate::runtime::slice::Iter;
 #[cfg(feature = "alloc")]
 use crate::runtime::Hasher;
 use crate::runtime::{
-    Formatter, FromValue, ProtocolCaller, RawRef, Ref, ToValue, UnsafeToRef, Value, ValueKind,
-    VmErrorKind, VmResult,
+    Formatter, FromValue, Mutable, ProtocolCaller, RawRef, Ref, ToValue, UnsafeToRef, Value,
+    ValueBorrowRef, VmErrorKind, VmResult,
 };
 use crate::Any;
 
@@ -122,6 +122,16 @@ impl Vec {
         };
 
         *v = value;
+        VmResult::Ok(())
+    }
+
+    /// Resizes the `Vec` in-place so that `len` is equal to `new_len`.
+    ///
+    /// If `new_len` is greater than `len`, the `Vec` is extended by the
+    /// difference, with each additional slot filled with `value`. If `new_len`
+    /// is less than `len`, the `Vec` is simply truncated.
+    pub fn resize(&mut self, new_len: usize, value: Value) -> VmResult<()> {
+        vm_try!(self.inner.try_resize(new_len, value));
         VmResult::Ok(())
     }
 
@@ -342,31 +352,33 @@ impl Vec {
     /// types, such as vectors and tuples.
     pub(crate) fn index_get(this: &[Value], index: Value) -> VmResult<Option<Value>> {
         let slice: Option<&[Value]> = 'out: {
-            match &*vm_try!(index.borrow_kind_ref()) {
-                ValueKind::RangeFrom(range) => {
-                    let start = vm_try!(range.start.as_usize());
-                    break 'out this.get(start..);
+            if let ValueBorrowRef::Mutable(value) = vm_try!(index.borrow_ref()) {
+                match &*value {
+                    Mutable::RangeFrom(range) => {
+                        let start = vm_try!(range.start.as_usize());
+                        break 'out this.get(start..);
+                    }
+                    Mutable::RangeFull(..) => break 'out this.get(..),
+                    Mutable::RangeInclusive(range) => {
+                        let start = vm_try!(range.start.as_usize());
+                        let end = vm_try!(range.end.as_usize());
+                        break 'out this.get(start..=end);
+                    }
+                    Mutable::RangeToInclusive(range) => {
+                        let end = vm_try!(range.end.as_usize());
+                        break 'out this.get(..=end);
+                    }
+                    Mutable::RangeTo(range) => {
+                        let end = vm_try!(range.end.as_usize());
+                        break 'out this.get(..end);
+                    }
+                    Mutable::Range(range) => {
+                        let start = vm_try!(range.start.as_usize());
+                        let end = vm_try!(range.end.as_usize());
+                        break 'out this.get(start..end);
+                    }
+                    _ => {}
                 }
-                ValueKind::RangeFull(..) => break 'out this.get(..),
-                ValueKind::RangeInclusive(range) => {
-                    let start = vm_try!(range.start.as_usize());
-                    let end = vm_try!(range.end.as_usize());
-                    break 'out this.get(start..=end);
-                }
-                ValueKind::RangeToInclusive(range) => {
-                    let end = vm_try!(range.end.as_usize());
-                    break 'out this.get(..=end);
-                }
-                ValueKind::RangeTo(range) => {
-                    let end = vm_try!(range.end.as_usize());
-                    break 'out this.get(..end);
-                }
-                ValueKind::Range(range) => {
-                    let start = vm_try!(range.start.as_usize());
-                    let end = vm_try!(range.end.as_usize());
-                    break 'out this.get(start..end);
-                }
-                _ => {}
             };
 
             let index = vm_try!(usize::from_value(index));

@@ -50,7 +50,7 @@ pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut Ctxt<'_, '_>) -> compile::Result
                 ));
             };
 
-            let value = value.as_value().with_span(span)?;
+            let value = value.to_value().with_span(span)?;
             ir::Ir::new(span, value)
         }
         hir::ExprKind::Variable(name) => {
@@ -204,7 +204,23 @@ fn expr_binary(
 fn lit(c: &mut Ctxt<'_, '_>, span: Span, hir: hir::Lit<'_>) -> compile::Result<ir::Ir> {
     Ok(match hir {
         hir::Lit::Bool(boolean) => {
-            let value = Value::try_from(boolean).with_span(span)?;
+            let value = Value::from(boolean);
+            ir::Ir::new(span, value)
+        }
+        hir::Lit::Integer(n) => {
+            let value = Value::from(n);
+            ir::Ir::new(span, value)
+        }
+        hir::Lit::Float(n) => {
+            let value = Value::from(n);
+            ir::Ir::new(span, value)
+        }
+        hir::Lit::Byte(b) => {
+            let value = Value::from(b);
+            ir::Ir::new(span, value)
+        }
+        hir::Lit::Char(c) => {
+            let value = Value::from(c);
             ir::Ir::new(span, value)
         }
         hir::Lit::Str(string) => {
@@ -212,25 +228,9 @@ fn lit(c: &mut Ctxt<'_, '_>, span: Span, hir: hir::Lit<'_>) -> compile::Result<i
             let value = Value::try_from(string).with_span(span)?;
             ir::Ir::new(span, value)
         }
-        hir::Lit::Integer(n) => {
-            let value = Value::try_from(n).with_span(span)?;
-            ir::Ir::new(span, value)
-        }
-        hir::Lit::Float(n) => {
-            let value = Value::try_from(n).with_span(span)?;
-            ir::Ir::new(span, value)
-        }
-        hir::Lit::Byte(b) => {
-            let value = Value::try_from(b).with_span(span)?;
-            ir::Ir::new(span, value)
-        }
         hir::Lit::ByteStr(byte_str) => {
             let value = Bytes::from_vec(Vec::try_from(byte_str).with_span(span)?);
             let value = Value::try_from(value).with_span(span)?;
-            ir::Ir::new(span, value)
-        }
-        hir::Lit::Char(c) => {
-            let value = Value::try_from(c).with_span(span)?;
             ir::Ir::new(span, value)
         }
     })
@@ -239,7 +239,7 @@ fn lit(c: &mut Ctxt<'_, '_>, span: Span, hir: hir::Lit<'_>) -> compile::Result<i
 #[instrument(span = span)]
 fn expr_tuple(c: &mut Ctxt<'_, '_>, span: Span, hir: &hir::ExprSeq<'_>) -> compile::Result<ir::Ir> {
     if hir.items.is_empty() {
-        let value = Value::unit().with_span(span)?;
+        let value = Value::unit();
         return Ok(ir::Ir::new(span, value));
     }
 

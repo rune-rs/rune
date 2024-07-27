@@ -21,7 +21,7 @@ use crate::indexing::index;
 use crate::macros::MacroContext;
 use crate::parse::NonZeroId;
 use crate::query::Used;
-use crate::runtime::{Value, ValueKind};
+use crate::runtime::{Inline, Value};
 
 pub(crate) use self::compiler::Ctxt;
 pub(crate) use self::eval::{eval_ir, EvalOutcome};
@@ -537,9 +537,9 @@ impl IrAssignOp {
     where
         S: Copy + Spanned,
     {
-        if let ValueKind::Integer(target) = &mut *target.borrow_kind_mut().with_span(spanned)? {
-            if let ValueKind::Integer(operand) = *operand.borrow_kind_ref().with_span(spanned)? {
-                return self.assign_int(spanned, target, operand);
+        if let Some(Inline::Integer(target)) = target.as_inline_mut().with_span(spanned)? {
+            if let Some(Inline::Integer(operand)) = operand.as_inline().with_span(spanned)? {
+                return self.assign_int(spanned, target, *operand);
             }
         }
 

@@ -45,7 +45,7 @@ fn from_i64(value: i64) -> VmResult<Option<Value>> {
             return VmResult::Ok(None);
         };
 
-        VmResult::Ok(Some(vm_try!(Value::try_from(c))))
+        VmResult::Ok(Some(Value::from(c)))
     }
 }
 

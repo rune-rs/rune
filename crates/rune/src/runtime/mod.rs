@@ -124,6 +124,7 @@ pub(crate) use self::shared::Shared;
 pub use self::shared::{Mut, RawMut, RawRef, Ref, SharedPointerGuard};
 
 mod stack;
+pub(crate) use self::stack::Pair;
 pub use self::stack::{Memory, SliceError, Stack, StackError};
 
 mod static_string;
@@ -152,8 +153,10 @@ pub(crate) use self::unit::UnitFn;
 pub use self::unit::{Unit, UnitStorage};
 
 mod value;
-pub(crate) use self::value::ValueKind;
 pub use self::value::{EmptyStruct, Rtti, Struct, TupleStruct, TypeValue, Value, VariantRtti};
+pub(crate) use self::value::{
+    Inline, Mutable, OwnedValue, ValueBorrowRef, ValueMut, ValueRef, ValueRepr, ValueShared,
+};
 
 mod variant;
 pub use self::variant::{Variant, VariantData};

@@ -799,10 +799,10 @@ pub(crate) fn pat_const_value<'hir>(
                     items,
                 }));
             }
-            ConstValue::EmptyTuple => {
+            ConstValue::Unit => {
                 break 'kind hir::PatKind::Sequence(alloc!(hir::PatSequence {
                     kind: hir::PatSequenceKind::Anonymous {
-                        type_check: TypeCheck::EmptyTuple,
+                        type_check: TypeCheck::Unit,
                         count: 0,
                         is_open: false,
                     },

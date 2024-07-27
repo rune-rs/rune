@@ -339,7 +339,13 @@ impl fmt::Display for ContextError {
                 hash,
                 item_hash,
             } => {
-                write!(f,"Type hash mismatch for `{type_info}`, from module is `{hash}` while from item `{item}` is `{item_hash}`. A possibility is that it has the wrong #[rune(item = ..)] setting.")?;
+                let expected = item.parent().unwrap_or_default();
+
+                write! {
+                    f,
+                    "Type hash mismatch for `{type_info}`, from module is `{hash}` while from item `{item}` is `{item_hash}`.\n\
+                    You might not have the #[rune(item = {expected})] attribute set."
+                }?;
             }
             ContextError::StaticTypeHashMismatch {
                 type_info,

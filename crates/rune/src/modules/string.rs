@@ -11,8 +11,8 @@ use crate::alloc::string::FromUtf8Error;
 use crate::alloc::{String, Vec};
 use crate::compile::Named;
 use crate::runtime::{
-    Bytes, FromValue, Function, MaybeTypeOf, Panic, Ref, ToValue, TypeOf, Value, ValueKind,
-    VmErrorKind, VmResult,
+    Bytes, FromValue, Function, Inline, MaybeTypeOf, Mutable, Panic, Ref, ToValue, TypeOf, Value,
+    ValueBorrowRef, VmErrorKind, VmResult,
 };
 use crate::{Any, ContextError, Module};
 
@@ -546,9 +546,8 @@ fn reserve_exact(this: &mut String, additional: usize) -> VmResult<()> {
 ///
 /// ```rune
 /// let s = "hello";
-///
 /// assert_eq!(b"hello", s.into_bytes());
-/// assert!(!is_readable(s));
+/// assert!(is_readable(s));
 /// ```
 #[rune::function(instance)]
 fn into_bytes(s: String) -> Bytes {
@@ -757,20 +756,28 @@ fn shrink_to_fit(s: &mut String) -> VmResult<()> {
 /// [`split_whitespace`]: str::split_whitespace
 #[rune::function(instance, deprecated = "Use String::split instead")]
 fn split(this: Ref<str>, value: Value) -> VmResult<Value> {
-    let split = match *vm_try!(value.borrow_kind_ref()) {
-        ValueKind::String(ref s) => {
-            vm_try!(rune::to_value(Split::new(
-                this,
-                vm_try!(Box::try_from(s.as_str()))
-            )))
+    let split = match vm_try!(value.borrow_ref()) {
+        ValueBorrowRef::Inline(Inline::Char(c)) => {
+            vm_try!(rune::to_value(Split::new(this, *c)))
         }
-        ValueKind::Char(c) => {
-            vm_try!(rune::to_value(Split::new(this, c)))
-        }
-        ValueKind::Function(ref f) => {
-            vm_try!(rune::to_value(Split::new(this, vm_try!(f.try_clone()))))
-        }
-        ref actual => {
+        ValueBorrowRef::Mutable(value) => match &*value {
+            Mutable::String(ref s) => {
+                vm_try!(rune::to_value(Split::new(
+                    this,
+                    vm_try!(Box::try_from(s.as_str()))
+                )))
+            }
+            Mutable::Function(ref f) => {
+                vm_try!(rune::to_value(Split::new(this, vm_try!(f.try_clone()))))
+            }
+            actual => {
+                return VmResult::err([
+                    VmErrorKind::expected::<String>(actual.type_info()),
+                    VmErrorKind::bad_argument(0),
+                ])
+            }
+        },
+        actual => {
             return VmResult::err([
                 VmErrorKind::expected::<String>(actual.type_info()),
                 VmErrorKind::bad_argument(0),
@@ -794,29 +801,37 @@ fn split(this: Ref<str>, value: Value) -> VmResult<Value> {
 /// ```
 #[rune::function(instance)]
 fn split_once(this: &str, value: Value) -> VmResult<Option<(String, String)>> {
-    let outcome = match *vm_try!(value.borrow_kind_ref()) {
-        ValueKind::String(ref s) => this.split_once(s.as_str()),
-        ValueKind::Char(pat) => this.split_once(pat),
-        ValueKind::Function(ref f) => {
-            let mut err = None;
+    let outcome = match vm_try!(value.borrow_ref()) {
+        ValueBorrowRef::Inline(Inline::Char(pat)) => this.split_once(*pat),
+        ValueBorrowRef::Mutable(value) => match &*value {
+            Mutable::String(s) => this.split_once(s.as_str()),
+            Mutable::Function(f) => {
+                let mut err = None;
 
-            let outcome = this.split_once(|c: char| match f.call::<bool>((c,)) {
-                VmResult::Ok(b) => b,
-                VmResult::Err(e) => {
-                    if err.is_none() {
-                        err = Some(e);
+                let outcome = this.split_once(|c: char| match f.call::<bool>((c,)) {
+                    VmResult::Ok(b) => b,
+                    VmResult::Err(e) => {
+                        if err.is_none() {
+                            err = Some(e);
+                        }
+
+                        false
                     }
+                });
 
-                    false
+                if let Some(e) = err.take() {
+                    return VmResult::Err(e);
                 }
-            });
 
-            if let Some(e) = err.take() {
-                return VmResult::Err(e);
+                outcome
             }
-
-            outcome
-        }
+            actual => {
+                return VmResult::err([
+                    VmErrorKind::expected::<String>(actual.type_info()),
+                    VmErrorKind::bad_argument(0),
+                ])
+            }
+        },
         ref actual => {
             return VmResult::err([
                 VmErrorKind::expected::<String>(actual.type_info()),
@@ -1007,30 +1022,38 @@ fn chars(s: Ref<str>) -> Chars {
 fn get(this: &str, key: Value) -> VmResult<Option<String>> {
     use crate::runtime::TypeOf;
 
-    let slice = match &*vm_try!(key.borrow_kind_ref()) {
-        ValueKind::RangeFrom(range) => {
-            let start = vm_try!(range.start.as_usize());
-            this.get(start..)
-        }
-        ValueKind::RangeFull(..) => this.get(..),
-        ValueKind::RangeInclusive(range) => {
-            let start = vm_try!(range.start.as_usize());
-            let end = vm_try!(range.end.as_usize());
-            this.get(start..=end)
-        }
-        ValueKind::RangeToInclusive(range) => {
-            let end = vm_try!(range.end.as_usize());
-            this.get(..=end)
-        }
-        ValueKind::RangeTo(range) => {
-            let end = vm_try!(range.end.as_usize());
-            this.get(..end)
-        }
-        ValueKind::Range(range) => {
-            let start = vm_try!(range.start.as_usize());
-            let end = vm_try!(range.end.as_usize());
-            this.get(start..end)
-        }
+    let slice = match vm_try!(key.borrow_ref()) {
+        ValueBorrowRef::Mutable(value) => match &*value {
+            Mutable::RangeFrom(range) => {
+                let start = vm_try!(range.start.as_usize());
+                this.get(start..)
+            }
+            Mutable::RangeFull(..) => this.get(..),
+            Mutable::RangeInclusive(range) => {
+                let start = vm_try!(range.start.as_usize());
+                let end = vm_try!(range.end.as_usize());
+                this.get(start..=end)
+            }
+            Mutable::RangeToInclusive(range) => {
+                let end = vm_try!(range.end.as_usize());
+                this.get(..=end)
+            }
+            Mutable::RangeTo(range) => {
+                let end = vm_try!(range.end.as_usize());
+                this.get(..end)
+            }
+            Mutable::Range(range) => {
+                let start = vm_try!(range.start.as_usize());
+                let end = vm_try!(range.end.as_usize());
+                this.get(start..end)
+            }
+            index => {
+                return VmResult::err(VmErrorKind::UnsupportedIndexGet {
+                    target: String::type_info(),
+                    index: index.type_info(),
+                })
+            }
+        },
         index => {
             return VmResult::err(VmErrorKind::UnsupportedIndexGet {
                 target: String::type_info(),

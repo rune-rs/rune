@@ -34,7 +34,10 @@ fn test_function() {
 
     assert!(function.call::<Value>(()).into_result().is_err());
     let value: Value = function.call((1i64,)).unwrap();
-    assert!(matches!(value.take_kind().unwrap(), ValueKind::Variant(..)));
+    assert!(matches!(
+        value.take_value().unwrap(),
+        OwnedValue::Mutable(Mutable::Variant(..))
+    ));
 
     // ptr to dynamic function.
     let function: Function = rune! {
@@ -45,8 +48,8 @@ fn test_function() {
     assert!(function.call::<Value>(()).into_result().is_err());
     let value: Value = function.call((1i64,)).unwrap();
     assert!(matches!(
-        value.take_kind().unwrap(),
-        ValueKind::TupleStruct(..)
+        value.take_value().unwrap(),
+        OwnedValue::Mutable(Mutable::TupleStruct(..))
     ));
 
     // non-capturing closure == free function
@@ -56,7 +59,7 @@ fn test_function() {
 
     assert!(function.call::<Value>((1i64,)).into_result().is_err());
     let value: Value = function.call((1i64, 2i64)).unwrap();
-    assert!(matches!(value.take_kind().unwrap(), ValueKind::Integer(3)));
+    assert_eq!(value.as_integer().unwrap(), 3);
 
     // closure with captures
     let function: Function = run(
@@ -69,5 +72,5 @@ fn test_function() {
 
     assert!(function.call::<Value>((1i64,)).into_result().is_err());
     let value: Value = function.call(()).unwrap();
-    assert!(matches!(value.take_kind().unwrap(), ValueKind::Integer(3)));
+    assert_eq!(value.as_integer().unwrap(), 3);
 }

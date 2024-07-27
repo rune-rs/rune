@@ -8,8 +8,8 @@ use crate::modules::collections::VecDeque;
 use crate::modules::collections::{HashMap, HashSet};
 use crate::runtime::range::RangeIter;
 use crate::runtime::{
-    CoreTypeOf, FromValue, Function, InstAddress, Object, Output, OwnedTuple, Protocol, Value,
-    ValueKind, Vec, VmErrorKind, VmResult,
+    CoreTypeOf, FromValue, Function, Inline, InstAddress, Mutable, Object, Output, OwnedTuple,
+    Protocol, Value, ValueBorrowRef, Vec, VmErrorKind, VmResult,
 };
 use crate::shared::Caller;
 use crate::{Any, ContextError, Module, Params};
@@ -239,6 +239,8 @@ pub fn module() -> Result<Module, ContextError> {
             }
 
             cx.function(Protocol::INTO_ITER, |value: Value| value)?;
+
+            cx.function("into_iter", |value: Value| value)?;
 
             {
                 let next = next.clone();
@@ -486,15 +488,20 @@ pub fn module() -> Result<Module, ContextError> {
                         let mut string = String::new();
 
                         while let Some(value) = vm_try!(next.call((&iter,))) {
-                            match &*vm_try!(value.borrow_kind_ref()) {
-                                ValueKind::Char(c) => {
+                            match vm_try!(value.borrow_ref()) {
+                                ValueBorrowRef::Inline(Inline::Char(c)) => {
                                     vm_try!(string.try_push(*c));
                                 }
-                                ValueKind::String(s) => {
-                                    vm_try!(string.try_push_str(s));
-                                }
-                                value => {
-                                    return VmResult::expected::<String>(value.type_info());
+                                ValueBorrowRef::Mutable(value) => match &*value {
+                                    Mutable::String(s) => {
+                                        vm_try!(string.try_push_str(s));
+                                    }
+                                    actual => {
+                                        return VmResult::expected::<String>(actual.type_info());
+                                    }
+                                },
+                                actual => {
+                                    return VmResult::expected::<String>(actual.type_info());
                                 }
                             }
                         }

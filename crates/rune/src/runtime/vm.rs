@@ -15,12 +15,12 @@ use crate::runtime::future::SelectFuture;
 use crate::runtime::unit::{UnitFn, UnitStorage};
 use crate::runtime::{
     self, Args, Awaited, BorrowMut, Bytes, Call, ControlFlow, DynArgs, DynGuardedArgs, EmptyStruct,
-    Format, FormatSpec, Formatter, FromValue, Function, Future, Generator, GuardedArgs, Inst,
-    InstAddress, InstAssignOp, InstOp, InstRange, InstTarget, InstValue, InstVariant, Object,
-    Output, OwnedTuple, Panic, Protocol, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
-    RangeToInclusive, RuntimeContext, Select, Stack, Stream, Struct, Type, TypeCheck, TypeOf, Unit,
-    Value, ValueKind, Variant, VariantData, Vec, VmError, VmErrorKind, VmExecution, VmHalt,
-    VmIntegerRepr, VmResult, VmSendExecution,
+    Format, FormatSpec, Formatter, FromValue, Function, Future, Generator, GuardedArgs, Inline,
+    Inst, InstAddress, InstAssignOp, InstOp, InstRange, InstTarget, InstValue, InstVariant,
+    Mutable, Object, Output, OwnedTuple, Pair, Panic, Protocol, Range, RangeFrom, RangeFull,
+    RangeInclusive, RangeTo, RangeToInclusive, RuntimeContext, Select, Stack, Stream, Struct, Type,
+    TypeCheck, TypeOf, Unit, Value, ValueBorrowRef, ValueMut, ValueRef, Variant, VariantData, Vec,
+    VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmResult, VmSendExecution,
 };
 use crate::runtime::{budget, ProtocolCaller};
 
@@ -115,36 +115,43 @@ enum TargetFallback<'a> {
 
 enum TargetValue<'a, 'b> {
     /// Resolved internal target to mutable value.
-    Value(&'a Value, Value),
+    Same(&'a mut Value),
+    /// Resolved internal target to mutable value.
+    Pair(&'a mut Value, &'a Value),
     /// Fallback to a different kind of operation.
     Fallback(TargetFallback<'b>),
 }
 
 macro_rules! target_value {
     ($vm:ident, $target:expr, $guard:ident, $lhs:ident, $rhs:ident) => {{
-        let rhs = vm_try!($vm.stack.at($rhs)).clone();
-
         match $target {
-            InstTarget::Address(addr) => TargetValue::Value(vm_try!($vm.stack.at(addr)), rhs),
+            InstTarget::Address(addr) => match vm_try!($vm.stack.pair(addr, $rhs)) {
+                Pair::Same(value) => TargetValue::Same(value),
+                Pair::Pair(lhs, rhs) => TargetValue::Pair(lhs, rhs),
+            },
             InstTarget::TupleField(lhs, index) => {
+                let rhs = vm_try!($vm.stack.at($rhs));
+
                 $lhs = vm_try!($vm.stack.at(lhs)).clone();
 
                 if let Some(value) = vm_try!(Vm::try_tuple_like_index_get_mut(&$lhs, index)) {
                     $guard = value;
-                    TargetValue::Value(&mut *$guard, rhs)
+                    TargetValue::Pair(&mut *$guard, rhs)
                 } else {
-                    TargetValue::Fallback(TargetFallback::Index(&$lhs, index, rhs))
+                    TargetValue::Fallback(TargetFallback::Index(&$lhs, index, rhs.clone()))
                 }
             }
             InstTarget::Field(lhs, field) => {
+                let rhs = vm_try!($vm.stack.at($rhs));
+
                 let field = vm_try!($vm.unit.lookup_string(field));
                 $lhs = vm_try!($vm.stack.at(lhs)).clone();
 
                 if let Some(value) = vm_try!(Vm::try_object_like_index_get_mut(&$lhs, field)) {
                     $guard = value;
-                    TargetValue::Value(&mut *$guard, rhs)
+                    TargetValue::Pair(&mut *$guard, rhs)
                 } else {
-                    TargetValue::Fallback(TargetFallback::Field(&$lhs, field.hash(), rhs))
+                    TargetValue::Fallback(TargetFallback::Field(&$lhs, field.hash(), rhs.clone()))
                 }
             }
         }
@@ -628,6 +635,7 @@ impl Vm {
     }
 
     /// Helper function to call an instance function.
+    #[inline]
     pub(crate) fn call_instance_fn(
         &mut self,
         isolated: Isolated,
@@ -643,6 +651,7 @@ impl Vm {
     }
 
     /// Helper to call a field function.
+    #[inline]
     fn call_field_fn(
         &mut self,
         protocol: Protocol,
@@ -657,6 +666,7 @@ impl Vm {
     }
 
     /// Helper to call an index function.
+    #[inline]
     fn call_index_fn(
         &mut self,
         protocol: Protocol,
@@ -680,6 +690,7 @@ impl Vm {
         })
     }
 
+    #[inline(never)]
     fn call_hash_with(
         &mut self,
         isolated: Isolated,
@@ -689,6 +700,19 @@ impl Vm {
         count: usize,
         out: Output,
     ) -> VmResult<CallResult<()>> {
+        if let Some(handler) = self.context.function(hash) {
+            let addr = self.stack.addr();
+
+            vm_try!(self.called_function_hook(hash));
+            vm_try!(self.stack.push(target));
+            vm_try!(args.push_to_stack(&mut self.stack));
+
+            let result = handler(&mut self.stack, addr, count, out);
+            self.stack.truncate(addr);
+            vm_try!(result);
+            return VmResult::Ok(CallResult::Ok(()));
+        }
+
         if let Some(UnitFn::Offset {
             offset,
             call,
@@ -713,21 +737,10 @@ impl Vm {
             }
         }
 
-        if let Some(handler) = self.context.function(hash) {
-            let addr = self.stack.addr();
-            vm_try!(self.called_function_hook(hash));
-            vm_try!(self.stack.push(target));
-            vm_try!(args.push_to_stack(&mut self.stack));
-
-            let result = handler(&mut self.stack, addr, count, out);
-            self.stack.truncate(addr);
-            vm_try!(result);
-            return VmResult::Ok(CallResult::Ok(()));
-        }
-
         VmResult::Ok(CallResult::Unsupported(target))
     }
 
+    #[cfg_attr(feature = "bench", inline(never))]
     fn internal_boolean_ops(
         &mut self,
         match_ordering: fn(Ordering) -> bool,
@@ -735,15 +748,23 @@ impl Vm {
         rhs: InstAddress,
         out: Output,
     ) -> VmResult<()> {
-        let rhs = vm_try!(self.stack.at(rhs)).clone();
-        let lhs = vm_try!(self.stack.at(lhs)).clone();
+        let rhs = vm_try!(self.stack.at(rhs));
+        let lhs = vm_try!(self.stack.at(lhs));
 
-        let value = match vm_try!(Value::partial_cmp_with(&lhs, &rhs, self)) {
-            Some(ordering) => match_ordering(ordering),
-            None => false,
+        let ordering = match (lhs.as_inline_unchecked(), rhs.as_inline_unchecked()) {
+            (Some(lhs), Some(rhs)) => vm_try!(lhs.partial_cmp(rhs)),
+            _ => {
+                let lhs = lhs.clone();
+                let rhs = rhs.clone();
+                vm_try!(Value::partial_cmp_with(&lhs, &rhs, self))
+            }
         };
 
-        vm_try!(out.store(&mut self.stack, || VmResult::Ok(value)));
+        vm_try!(out.store(&mut self.stack, || match ordering {
+            Some(ordering) => match_ordering(ordering),
+            None => false,
+        }));
+
         VmResult::Ok(())
     }
 
@@ -810,12 +831,14 @@ impl Vm {
 
     /// Implementation of getting a string index on an object-like type.
     fn try_object_like_index_get(target: &Value, field: &str) -> VmResult<Option<Value>> {
-        let target = vm_try!(target.borrow_kind_ref());
+        let ValueBorrowRef::Mutable(target) = vm_try!(target.borrow_ref()) else {
+            return VmResult::Ok(None);
+        };
 
         let value = match &*target {
-            ValueKind::Object(ref target) => target.get(field),
-            ValueKind::Struct(ref target) => target.get(field),
-            ValueKind::Variant(ref variant) => match variant.data() {
+            Mutable::Object(target) => target.get(field),
+            Mutable::Struct(target) => target.get(field),
+            Mutable::Variant(variant) => match variant.data() {
                 VariantData::Struct(target) => target.get(field),
                 _ => return VmResult::Ok(None),
             },
@@ -836,42 +859,56 @@ impl Vm {
     fn try_tuple_like_index_get(target: &Value, index: usize) -> VmResult<Option<Value>> {
         use crate::runtime::GeneratorState::*;
 
-        let target = vm_try!(target.borrow_kind_ref());
-
-        let value = match &*target {
-            ValueKind::EmptyTuple => None,
-            ValueKind::Tuple(tuple) => tuple.get(index),
-            ValueKind::Vec(vec) => vec.get(index),
-            ValueKind::Result(result) => match (index, result) {
-                (0, Ok(value)) => Some(value),
-                (0, Err(value)) => Some(value),
-                _ => None,
-            },
-            ValueKind::Option(option) => match (index, option) {
-                (0, Some(value)) => Some(value),
-                _ => None,
-            },
-            ValueKind::GeneratorState(state) => match (index, state) {
-                (0, Yielded(value)) => Some(value),
-                (0, Complete(value)) => Some(value),
-                _ => None,
-            },
-            ValueKind::TupleStruct(tuple_struct) => tuple_struct.data().get(index),
-            ValueKind::Variant(variant) => match variant.data() {
-                VariantData::Tuple(tuple) => tuple.get(index),
+        let result = match vm_try!(target.borrow_ref()) {
+            ValueBorrowRef::Inline(target) => match target {
+                Inline::Unit => Err(target.type_info()),
                 _ => return VmResult::Ok(None),
             },
-            _ => return VmResult::Ok(None),
+            ValueBorrowRef::Mutable(target) => match &*target {
+                Mutable::Tuple(tuple) => match tuple.get(index) {
+                    Some(value) => Ok(value.clone()),
+                    None => Err(target.type_info()),
+                },
+                Mutable::Vec(vec) => match vec.get(index) {
+                    Some(value) => Ok(value.clone()),
+                    None => Err(target.type_info()),
+                },
+                Mutable::Result(result) => match (index, result) {
+                    (0, Ok(value)) => Ok(value.clone()),
+                    (0, Err(value)) => Ok(value.clone()),
+                    _ => Err(target.type_info()),
+                },
+                Mutable::Option(option) => match (index, option) {
+                    (0, Some(value)) => Ok(value.clone()),
+                    _ => Err(target.type_info()),
+                },
+                Mutable::GeneratorState(state) => match (index, state) {
+                    (0, Yielded(value)) => Ok(value.clone()),
+                    (0, Complete(value)) => Ok(value.clone()),
+                    _ => Err(target.type_info()),
+                },
+                Mutable::TupleStruct(tuple_struct) => match tuple_struct.data().get(index) {
+                    Some(value) => Ok(value.clone()),
+                    None => Err(target.type_info()),
+                },
+                Mutable::Variant(variant) => match variant.data() {
+                    VariantData::Tuple(tuple) => match tuple.get(index) {
+                        Some(value) => Ok(value.clone()),
+                        None => Err(target.type_info()),
+                    },
+                    _ => return VmResult::Ok(None),
+                },
+                _ => return VmResult::Ok(None),
+            },
         };
 
-        let Some(value) = value else {
-            return err(VmErrorKind::MissingIndexInteger {
-                target: target.type_info(),
+        match result {
+            Ok(value) => VmResult::Ok(Some(value)),
+            Err(target) => err(VmErrorKind::MissingIndexInteger {
+                target,
                 index: VmIntegerRepr::from(index),
-            });
-        };
-
-        VmResult::Ok(Some(value.clone()))
+            }),
+        }
     }
 
     /// Implementation of getting a mutable value out of a tuple-like value.
@@ -883,38 +920,40 @@ impl Vm {
 
         let mut unsupported = false;
 
-        let result = BorrowMut::try_map(vm_try!(target.borrow_kind_mut()), |kind| {
-            match kind {
-                ValueKind::Tuple(tuple) => return tuple.get_mut(index),
-                ValueKind::Vec(vec) => return vec.get_mut(index),
-                ValueKind::Result(result) => match (index, result) {
-                    (0, Ok(value)) => return Some(value),
-                    (0, Err(value)) => return Some(value),
-                    _ => {}
-                },
-                ValueKind::Option(option) => {
-                    if let (0, Some(value)) = (index, option) {
-                        return Some(value);
+        let result = match vm_try!(target.value_ref()) {
+            ValueRef::Mutable(value) => BorrowMut::try_map(vm_try!(value.borrow_mut()), |kind| {
+                match kind {
+                    Mutable::Tuple(tuple) => return tuple.get_mut(index),
+                    Mutable::Vec(vec) => return vec.get_mut(index),
+                    Mutable::Result(result) => match (index, result) {
+                        (0, Ok(value)) => return Some(value),
+                        (0, Err(value)) => return Some(value),
+                        _ => return None,
+                    },
+                    Mutable::Option(option) => match (index, option) {
+                        (0, Some(value)) => return Some(value),
+                        _ => return None,
+                    },
+                    Mutable::GeneratorState(state) => match (index, state) {
+                        (0, Yielded(value)) => return Some(value),
+                        (0, Complete(value)) => return Some(value),
+                        _ => return None,
+                    },
+                    Mutable::TupleStruct(tuple_struct) => return tuple_struct.get_mut(index),
+                    Mutable::Variant(Variant {
+                        data: VariantData::Tuple(tuple),
+                        ..
+                    }) => {
+                        return tuple.get_mut(index);
                     }
-                }
-                ValueKind::GeneratorState(state) => match (index, state) {
-                    (0, Yielded(value)) => return Some(value),
-                    (0, Complete(value)) => return Some(value),
                     _ => {}
-                },
-                ValueKind::TupleStruct(tuple_struct) => return tuple_struct.get_mut(index),
-                ValueKind::Variant(Variant {
-                    data: VariantData::Tuple(tuple),
-                    ..
-                }) => {
-                    return tuple.get_mut(index);
                 }
-                _ => {}
-            }
 
-            unsupported = true;
-            None
-        });
+                unsupported = true;
+                None
+            }),
+            _ => return VmResult::Ok(None),
+        };
 
         if unsupported {
             return VmResult::Ok(None);
@@ -934,17 +973,27 @@ impl Vm {
         target: &'a Value,
         field: &str,
     ) -> VmResult<Option<BorrowMut<'a, Value>>> {
+        let target = match vm_try!(target.value_ref()) {
+            ValueRef::Mutable(target) => vm_try!(target.borrow_mut()),
+            ValueRef::Inline(actual) => {
+                return err(VmErrorKind::MissingField {
+                    target: actual.type_info(),
+                    field: vm_try!(field.try_to_owned()),
+                });
+            }
+        };
+
         let mut unsupported = false;
 
-        let result = BorrowMut::try_map(vm_try!(target.borrow_kind_mut()), |kind| {
-            match kind {
-                ValueKind::Object(target) => {
+        let result = BorrowMut::try_map(target, |value| {
+            match value {
+                Mutable::Object(target) => {
                     return target.get_mut(field);
                 }
-                ValueKind::Struct(target) => {
+                Mutable::Struct(target) => {
                     return target.get_mut(field);
                 }
-                ValueKind::Variant(Variant {
+                Mutable::Variant(Variant {
                     data: VariantData::Struct(st),
                     ..
                 }) => {
@@ -971,63 +1020,68 @@ impl Vm {
     }
 
     /// Implementation of getting a string index on an object-like type.
-    fn try_tuple_like_index_set(target: &Value, index: usize, value: Value) -> VmResult<bool> {
-        match &mut *vm_try!(target.borrow_kind_mut()) {
-            ValueKind::EmptyTuple => VmResult::Ok(false),
-            ValueKind::Tuple(tuple) => {
-                if let Some(target) = tuple.get_mut(index) {
-                    *target = value;
-                    return VmResult::Ok(true);
-                }
-
-                VmResult::Ok(false)
-            }
-            ValueKind::Vec(vec) => {
-                if let Some(target) = vec.get_mut(index) {
-                    *target = value;
-                    return VmResult::Ok(true);
-                }
-
-                VmResult::Ok(false)
-            }
-            ValueKind::Result(result) => {
-                let target = match result {
-                    Ok(ok) if index == 0 => ok,
-                    Err(err) if index == 1 => err,
-                    _ => return VmResult::Ok(false),
-                };
-
-                *target = value;
-                VmResult::Ok(true)
-            }
-            ValueKind::Option(option) => {
-                let target = match option {
-                    Some(some) if index == 0 => some,
-                    _ => return VmResult::Ok(false),
-                };
-
-                *target = value;
-                VmResult::Ok(true)
-            }
-            ValueKind::TupleStruct(tuple_struct) => {
-                if let Some(target) = tuple_struct.get_mut(index) {
-                    *target = value;
-                    return VmResult::Ok(true);
-                }
-
-                VmResult::Ok(false)
-            }
-            ValueKind::Variant(variant) => {
-                if let VariantData::Tuple(data) = variant.data_mut() {
-                    if let Some(target) = data.get_mut(index) {
+    fn try_tuple_like_index_set(target: &mut Value, index: usize, value: Value) -> VmResult<bool> {
+        match vm_try!(target.value_ref()) {
+            ValueRef::Inline(target) => match target {
+                Inline::Unit => VmResult::Ok(false),
+                _ => VmResult::Ok(false),
+            },
+            ValueRef::Mutable(target) => match &mut *vm_try!(target.borrow_mut()) {
+                Mutable::Tuple(tuple) => {
+                    if let Some(target) = tuple.get_mut(index) {
                         *target = value;
                         return VmResult::Ok(true);
                     }
-                }
 
-                VmResult::Ok(false)
-            }
-            _ => VmResult::Ok(false),
+                    VmResult::Ok(false)
+                }
+                Mutable::Vec(vec) => {
+                    if let Some(target) = vec.get_mut(index) {
+                        *target = value;
+                        return VmResult::Ok(true);
+                    }
+
+                    VmResult::Ok(false)
+                }
+                Mutable::Result(result) => {
+                    let target = match result {
+                        Ok(ok) if index == 0 => ok,
+                        Err(err) if index == 1 => err,
+                        _ => return VmResult::Ok(false),
+                    };
+
+                    *target = value;
+                    VmResult::Ok(true)
+                }
+                Mutable::Option(option) => {
+                    let target = match option {
+                        Some(some) if index == 0 => some,
+                        _ => return VmResult::Ok(false),
+                    };
+
+                    *target = value;
+                    VmResult::Ok(true)
+                }
+                Mutable::TupleStruct(tuple_struct) => {
+                    if let Some(target) = tuple_struct.get_mut(index) {
+                        *target = value;
+                        return VmResult::Ok(true);
+                    }
+
+                    VmResult::Ok(false)
+                }
+                Mutable::Variant(variant) => {
+                    if let VariantData::Tuple(data) = variant.data_mut() {
+                        if let Some(target) = data.get_mut(index) {
+                            *target = value;
+                            return VmResult::Ok(true);
+                        }
+                    }
+
+                    VmResult::Ok(false)
+                }
+                _ => VmResult::Ok(false),
+            },
         }
     }
 
@@ -1040,21 +1094,25 @@ impl Vm {
     ) -> VmResult<CallResult<()>> {
         let index = vm_try!(self.unit.lookup_string(slot));
 
-        'out: {
-            match &*vm_try!(target.borrow_kind_ref()) {
-                ValueKind::Object(object) => {
+        'fallback: {
+            let ValueRef::Mutable(target) = vm_try!(target.value_ref()) else {
+                return VmResult::Ok(CallResult::Unsupported(target.clone()));
+            };
+
+            match &mut *vm_try!(target.borrow_mut()) {
+                Mutable::Object(object) => {
                     if let Some(value) = object.get(index.as_str()) {
                         vm_try!(out.store(&mut self.stack, || value.clone()));
                         return VmResult::Ok(CallResult::Ok(()));
                     }
                 }
-                ValueKind::Struct(typed_object) => {
+                Mutable::Struct(typed_object) => {
                     if let Some(value) = typed_object.get(index.as_str()) {
                         vm_try!(out.store(&mut self.stack, || value.clone()));
                         return VmResult::Ok(CallResult::Ok(()));
                     }
                 }
-                ValueKind::Variant(Variant {
+                Mutable::Variant(Variant {
                     data: VariantData::Struct(data),
                     ..
                 }) => {
@@ -1064,7 +1122,7 @@ impl Vm {
                     }
                 }
                 _ => {
-                    break 'out;
+                    break 'fallback;
                 }
             }
 
@@ -1086,43 +1144,56 @@ impl Vm {
     ) -> VmResult<CallResult<()>> {
         let field = vm_try!(self.unit.lookup_string(string_slot));
 
-        match &mut *vm_try!(target.borrow_kind_mut()) {
-            ValueKind::Object(object) => {
-                let key = vm_try!(field.as_str().try_to_owned());
-                vm_try!(object.insert(key, value));
-                return VmResult::Ok(CallResult::Ok(()));
-            }
-            ValueKind::Struct(typed_object) => {
-                if let Some(v) = typed_object.get_mut(field.as_str()) {
-                    *v = value;
+        'fallback: {
+            let ValueRef::Mutable(target) = vm_try!(target.value_ref()) else {
+                return VmResult::Ok(CallResult::Unsupported(target.clone()));
+            };
+
+            match &mut *vm_try!(target.borrow_mut()) {
+                Mutable::Object(object) => {
+                    let key = vm_try!(field.as_str().try_to_owned());
+                    vm_try!(object.insert(key, value.clone()));
                     return VmResult::Ok(CallResult::Ok(()));
                 }
-
-                return err(VmErrorKind::MissingField {
-                    target: typed_object.type_info(),
-                    field: vm_try!(field.as_str().try_to_owned()),
-                });
-            }
-            ValueKind::Variant(variant) => {
-                if let VariantData::Struct(data) = variant.data_mut() {
-                    if let Some(v) = data.get_mut(field.as_str()) {
-                        *v = value;
+                Mutable::Struct(object) => {
+                    if let Some(v) = object.get_mut(field.as_str()) {
+                        *v = value.clone();
                         return VmResult::Ok(CallResult::Ok(()));
                     }
-                }
 
-                return err(VmErrorKind::MissingField {
-                    target: variant.type_info(),
-                    field: vm_try!(field.as_str().try_to_owned()),
-                });
+                    return err(VmErrorKind::MissingField {
+                        target: object.type_info(),
+                        field: vm_try!(field.as_str().try_to_owned()),
+                    });
+                }
+                Mutable::Variant(variant) => {
+                    if let VariantData::Struct(data) = variant.data_mut() {
+                        if let Some(v) = data.get_mut(field.as_str()) {
+                            *v = value.clone();
+                            return VmResult::Ok(CallResult::Ok(()));
+                        }
+                    }
+
+                    return err(VmErrorKind::MissingField {
+                        target: variant.type_info(),
+                        field: vm_try!(field.as_str().try_to_owned()),
+                    });
+                }
+                _ => {
+                    break 'fallback;
+                }
             }
-            _ => {}
         }
+
+        let target = target.clone();
+        let value = value.clone();
 
         let hash = field.hash();
         let mut args = DynGuardedArgs::new((value,));
+
         let result =
             vm_try!(self.call_field_fn(Protocol::SET, target, hash, &mut args, Output::discard()));
+
         VmResult::Ok(result)
     }
 
@@ -1132,37 +1203,42 @@ impl Vm {
     {
         use crate::runtime::GeneratorState::*;
 
-        VmResult::Ok(match (ty, &*vm_try!(value.borrow_kind_ref())) {
-            (TypeCheck::EmptyTuple, ValueKind::EmptyTuple) => Some(f(&[])),
-            (TypeCheck::Tuple, ValueKind::Tuple(tuple)) => Some(f(tuple)),
-            (TypeCheck::Vec, ValueKind::Vec(vec)) => Some(f(vec)),
-            (TypeCheck::Result(v), ValueKind::Result(result)) => Some(match (v, result) {
-                (0, Ok(ok)) => f(slice::from_ref(ok)),
-                (1, Err(err)) => f(slice::from_ref(err)),
-                _ => return VmResult::Ok(None),
-            }),
-            (TypeCheck::Option(v), ValueKind::Option(option)) => Some(match (v, option) {
-                (0, Some(some)) => f(slice::from_ref(some)),
-                (1, None) => f(&[]),
-                _ => return VmResult::Ok(None),
-            }),
-            (TypeCheck::GeneratorState(v), ValueKind::GeneratorState(state)) => {
-                Some(match (v, state) {
-                    (0, Complete(complete)) => f(slice::from_ref(complete)),
-                    (1, Yielded(yielded)) => f(slice::from_ref(yielded)),
+        VmResult::Ok(match vm_try!(value.borrow_ref()) {
+            ValueBorrowRef::Inline(value) => match (ty, value) {
+                (TypeCheck::Unit, Inline::Unit) => Some(f(&[])),
+                _ => None,
+            },
+            ValueBorrowRef::Mutable(value) => match (ty, &*value) {
+                (TypeCheck::Tuple, Mutable::Tuple(tuple)) => Some(f(tuple)),
+                (TypeCheck::Vec, Mutable::Vec(vec)) => Some(f(vec)),
+                (TypeCheck::Result(v), Mutable::Result(result)) => Some(match (v, result) {
+                    (0, Ok(ok)) => f(slice::from_ref(ok)),
+                    (1, Err(err)) => f(slice::from_ref(err)),
                     _ => return VmResult::Ok(None),
-                })
-            }
-            _ => None,
+                }),
+                (TypeCheck::Option(v), Mutable::Option(option)) => Some(match (v, option) {
+                    (0, Some(some)) => f(slice::from_ref(some)),
+                    (1, None) => f(&[]),
+                    _ => return VmResult::Ok(None),
+                }),
+                (TypeCheck::GeneratorState(v), Mutable::GeneratorState(state)) => {
+                    Some(match (v, state) {
+                        (0, Complete(complete)) => f(slice::from_ref(complete)),
+                        (1, Yielded(yielded)) => f(slice::from_ref(yielded)),
+                        _ => return VmResult::Ok(None),
+                    })
+                }
+                _ => None,
+            },
         })
     }
 
     /// Internal implementation of the instance check.
     fn as_op(&mut self, lhs: InstAddress, rhs: InstAddress) -> VmResult<Value> {
-        let b = vm_try!(self.stack.at(rhs)).clone();
-        let a = vm_try!(self.stack.at(lhs)).clone();
+        let b = vm_try!(self.stack.at(rhs));
+        let a = vm_try!(self.stack.at(lhs));
 
-        let ValueKind::Type(ty) = *vm_try!(b.borrow_kind_ref()) else {
+        let ValueRef::Inline(Inline::Type(ty)) = vm_try!(b.value_ref()) else {
             return err(VmErrorKind::UnsupportedIs {
                 value: vm_try!(a.type_info()),
                 test_type: vm_try!(b.type_info()),
@@ -1170,15 +1246,11 @@ impl Vm {
         };
 
         macro_rules! convert {
-            ($from:ty, $value:expr, $ty:expr) => {
-                match $ty.into_hash() {
-                    runtime::static_type::FLOAT_HASH => {
-                        vm_try!(Value::try_from($value as f64))
-                    }
-                    runtime::static_type::BYTE_HASH => vm_try!(Value::try_from($value as u8)),
-                    runtime::static_type::INTEGER_HASH => {
-                        vm_try!(Value::try_from($value as i64))
-                    }
+            ($from:ty, $value:expr) => {
+                match ty.into_hash() {
+                    runtime::static_type::FLOAT_HASH => Value::from($value as f64),
+                    runtime::static_type::BYTE_HASH => Value::from($value as u8),
+                    runtime::static_type::INTEGER_HASH => Value::from($value as i64),
                     ty => {
                         return err(VmErrorKind::UnsupportedAs {
                             value: <$from as TypeOf>::type_info(),
@@ -1189,13 +1261,13 @@ impl Vm {
             };
         }
 
-        let value = match &*vm_try!(a.borrow_kind_ref()) {
-            ValueKind::Integer(a) => convert!(i64, *a, ty),
-            ValueKind::Float(a) => convert!(f64, *a, ty),
-            ValueKind::Byte(a) => convert!(u8, *a, ty),
-            kind => {
+        let value = match vm_try!(a.value_ref()) {
+            ValueRef::Inline(Inline::Integer(a)) => convert!(i64, *a),
+            ValueRef::Inline(Inline::Float(a)) => convert!(f64, *a),
+            ValueRef::Inline(Inline::Byte(a)) => convert!(u8, *a),
+            value => {
                 return err(VmErrorKind::UnsupportedAs {
-                    value: kind.type_info(),
+                    value: vm_try!(value.type_info()),
                     type_hash: ty.into_hash(),
                 });
             }
@@ -1206,10 +1278,10 @@ impl Vm {
 
     /// Internal implementation of the instance check.
     fn test_is_instance(&mut self, lhs: InstAddress, rhs: InstAddress) -> VmResult<bool> {
-        let b = vm_try!(self.stack.at(rhs)).clone();
-        let a = vm_try!(self.stack.at(lhs)).clone();
+        let b = vm_try!(self.stack.at(rhs));
+        let a = vm_try!(self.stack.at(lhs));
 
-        let ValueKind::Type(ty) = *vm_try!(b.borrow_kind_ref()) else {
+        let Some(Inline::Type(ty)) = vm_try!(b.as_inline()) else {
             return err(VmErrorKind::UnsupportedIs {
                 value: vm_try!(a.type_info()),
                 test_type: vm_try!(b.type_info()),
@@ -1230,18 +1302,24 @@ impl Vm {
         let rhs = vm_try!(self.stack.at(rhs)).clone();
         let lhs = vm_try!(self.stack.at(lhs)).clone();
 
-        match (
-            &*vm_try!(lhs.borrow_kind_ref()),
-            &*vm_try!(rhs.borrow_kind_ref()),
-        ) {
-            (ValueKind::Bool(lhs), ValueKind::Bool(rhs)) => {
-                vm_try!(out.store(&mut self.stack, || VmResult::Ok(bool_op(*lhs, *rhs))));
-            }
+        match (vm_try!(lhs.value_ref()), vm_try!(rhs.value_ref())) {
+            (ValueRef::Inline(lhs), ValueRef::Inline(rhs)) => match (lhs, rhs) {
+                (Inline::Bool(lhs), Inline::Bool(rhs)) => {
+                    vm_try!(out.store(&mut self.stack, || bool_op(*lhs, *rhs)));
+                }
+                (lhs, rhs) => {
+                    return err(VmErrorKind::UnsupportedBinaryOperation {
+                        op,
+                        lhs: lhs.type_info(),
+                        rhs: rhs.type_info(),
+                    });
+                }
+            },
             (lhs, rhs) => {
                 return err(VmErrorKind::UnsupportedBinaryOperation {
                     op,
-                    lhs: lhs.type_info(),
-                    rhs: rhs.type_info(),
+                    lhs: vm_try!(lhs.type_info()),
+                    rhs: vm_try!(rhs.type_info()),
                 });
             }
         };
@@ -1318,6 +1396,7 @@ impl Vm {
     }
 
     /// Helper function to call the function at the given offset.
+    #[cfg_attr(feature = "bench", inline(never))]
     fn call_offset_fn(
         &mut self,
         offset: usize,
@@ -1349,6 +1428,7 @@ impl Vm {
         Ok(moved)
     }
 
+    #[cfg_attr(feature = "bench", inline(never))]
     fn internal_num_assign(
         &mut self,
         target: InstTarget,
@@ -1362,25 +1442,62 @@ impl Vm {
         let mut guard;
 
         let fallback = match target_value!(self, target, guard, lhs, rhs) {
-            TargetValue::Value(lhs, rhs) => {
-                match (
-                    &mut *vm_try!(lhs.borrow_kind_mut()),
-                    &*vm_try!(rhs.borrow_kind_ref()),
-                ) {
-                    (ValueKind::Integer(lhs), ValueKind::Integer(rhs)) => {
-                        let out = vm_try!(integer_op(*lhs, *rhs).ok_or_else(error));
-                        *lhs = out;
+            TargetValue::Same(value) => {
+                match vm_try!(value.value_mut()) {
+                    ValueMut::Inline(Inline::Integer(value)) => {
+                        let out = vm_try!(integer_op(*value, *value).ok_or_else(error));
+                        *value = out;
                         return VmResult::Ok(());
                     }
-                    (ValueKind::Float(lhs), ValueKind::Float(rhs)) => {
-                        let out = float_op(*lhs, *rhs);
-                        *lhs = out;
+                    ValueMut::Inline(Inline::Float(value)) => {
+                        let out = float_op(*value, *value);
+                        *value = out;
                         return VmResult::Ok(());
+                    }
+                    ValueMut::Inline(value) => {
+                        return err(VmErrorKind::UnsupportedBinaryOperation {
+                            op: protocol.name,
+                            lhs: value.type_info(),
+                            rhs: value.type_info(),
+                        });
                     }
                     _ => {}
                 }
 
-                TargetFallback::Value(lhs.clone(), rhs)
+                TargetFallback::Value(value.clone(), value.clone())
+            }
+            TargetValue::Pair(lhs, rhs) => {
+                match (vm_try!(lhs.value_mut()), vm_try!(rhs.value_ref())) {
+                    (ValueMut::Inline(lhs), ValueRef::Inline(rhs)) => match (lhs, rhs) {
+                        (Inline::Integer(lhs), Inline::Integer(rhs)) => {
+                            let out = vm_try!(integer_op(*lhs, *rhs).ok_or_else(error));
+                            *lhs = out;
+                            return VmResult::Ok(());
+                        }
+                        (Inline::Float(lhs), Inline::Float(rhs)) => {
+                            let out = float_op(*lhs, *rhs);
+                            *lhs = out;
+                            return VmResult::Ok(());
+                        }
+                        (lhs, rhs) => {
+                            return err(VmErrorKind::UnsupportedBinaryOperation {
+                                op: protocol.name,
+                                lhs: lhs.type_info(),
+                                rhs: rhs.type_info(),
+                            });
+                        }
+                    },
+                    (ValueMut::Inline(lhs), rhs) => {
+                        return err(VmErrorKind::UnsupportedBinaryOperation {
+                            op: protocol.name,
+                            lhs: lhs.type_info(),
+                            rhs: vm_try!(rhs.type_info()),
+                        });
+                    }
+                    _ => {}
+                }
+
+                TargetFallback::Value(lhs.clone(), rhs.clone())
             }
             TargetValue::Fallback(fallback) => fallback,
         };
@@ -1389,6 +1506,7 @@ impl Vm {
     }
 
     /// Execute a fallback operation.
+    #[cfg_attr(feature = "bench", inline(never))]
     fn target_fallback_assign(
         &mut self,
         fallback: TargetFallback<'_>,
@@ -1453,6 +1571,7 @@ impl Vm {
     }
 
     /// Internal impl of a numeric operation.
+    #[cfg_attr(feature = "bench", inline(never))]
     fn internal_num(
         &mut self,
         protocol: Protocol,
@@ -1466,20 +1585,19 @@ impl Vm {
         let rhs = vm_try!(self.stack.at(rhs)).clone();
         let lhs = vm_try!(self.stack.at(lhs)).clone();
 
-        match (
-            &*vm_try!(lhs.borrow_kind_ref()),
-            &*vm_try!(rhs.borrow_kind_ref()),
-        ) {
-            (ValueKind::Integer(lhs), ValueKind::Integer(rhs)) => {
-                let value = vm_try!(integer_op(*lhs, *rhs).ok_or_else(error));
-                vm_try!(out.store(&mut self.stack, value));
-                return VmResult::Ok(());
+        if let (Some(lhs), Some(rhs)) = (vm_try!(lhs.as_inline()), vm_try!(rhs.as_inline())) {
+            match (lhs, rhs) {
+                (Inline::Integer(lhs), Inline::Integer(rhs)) => {
+                    let value = vm_try!(integer_op(*lhs, *rhs).ok_or_else(error));
+                    vm_try!(out.store(&mut self.stack, value));
+                    return VmResult::Ok(());
+                }
+                (Inline::Float(lhs), Inline::Float(rhs)) => {
+                    vm_try!(out.store(&mut self.stack, float_op(*lhs, *rhs)));
+                    return VmResult::Ok(());
+                }
+                _ => {}
             }
-            (ValueKind::Float(lhs), ValueKind::Float(rhs)) => {
-                vm_try!(out.store(&mut self.stack, float_op(*lhs, *rhs)));
-                return VmResult::Ok(());
-            }
-            _ => {}
         };
 
         let lhs = lhs.clone();
@@ -1501,6 +1619,7 @@ impl Vm {
     }
 
     /// Internal impl of a numeric operation.
+    #[cfg_attr(feature = "bench", inline(never))]
     fn internal_infallible_bitwise_bool(
         &mut self,
         protocol: Protocol,
@@ -1511,24 +1630,37 @@ impl Vm {
         rhs: InstAddress,
         out: Output,
     ) -> VmResult<()> {
-        let rhs = vm_try!(self.stack.at(rhs)).clone();
         let lhs = vm_try!(self.stack.at(lhs)).clone();
+        let rhs = vm_try!(self.stack.at(rhs)).clone();
 
-        match (
-            &*vm_try!(lhs.borrow_kind_ref()),
-            &*vm_try!(rhs.borrow_kind_ref()),
-        ) {
-            (ValueKind::Integer(lhs), ValueKind::Integer(rhs)) => {
-                vm_try!(out.store(&mut self.stack, integer_op(*lhs, *rhs)));
-                return VmResult::Ok(());
-            }
-            (ValueKind::Byte(lhs), ValueKind::Byte(rhs)) => {
-                vm_try!(out.store(&mut self.stack, byte_op(*lhs, *rhs)));
-                return VmResult::Ok(());
-            }
-            (ValueKind::Bool(lhs), ValueKind::Bool(rhs)) => {
-                vm_try!(out.store(&mut self.stack, bool_op(*lhs, *rhs)));
-                return VmResult::Ok(());
+        match (vm_try!(lhs.value_ref()), vm_try!(rhs.value_ref())) {
+            (ValueRef::Inline(lhs), ValueRef::Inline(rhs)) => match (lhs, rhs) {
+                (Inline::Integer(lhs), Inline::Integer(rhs)) => {
+                    vm_try!(out.store(&mut self.stack, integer_op(*lhs, *rhs)));
+                    return VmResult::Ok(());
+                }
+                (Inline::Byte(lhs), Inline::Byte(rhs)) => {
+                    vm_try!(out.store(&mut self.stack, byte_op(*lhs, *rhs)));
+                    return VmResult::Ok(());
+                }
+                (Inline::Bool(lhs), Inline::Bool(rhs)) => {
+                    vm_try!(out.store(&mut self.stack, bool_op(*lhs, *rhs)));
+                    return VmResult::Ok(());
+                }
+                (lhs, rhs) => {
+                    return err(VmErrorKind::UnsupportedBinaryOperation {
+                        op: protocol.name,
+                        lhs: lhs.type_info(),
+                        rhs: rhs.type_info(),
+                    });
+                }
+            },
+            (ValueRef::Inline(lhs), rhs) => {
+                return err(VmErrorKind::UnsupportedBinaryOperation {
+                    op: protocol.name,
+                    lhs: lhs.type_info(),
+                    rhs: vm_try!(rhs.type_info()),
+                });
             }
             _ => {}
         };
@@ -1561,27 +1693,69 @@ impl Vm {
         let mut guard;
 
         let fallback = match target_value!(self, target, guard, lhs, rhs) {
-            TargetValue::Value(lhs, rhs) => {
-                match (
-                    &mut *vm_try!(lhs.borrow_kind_mut()),
-                    &*vm_try!(rhs.borrow_kind_ref()),
-                ) {
-                    (ValueKind::Integer(lhs), ValueKind::Integer(rhs)) => {
-                        integer_op(lhs, *rhs);
+            TargetValue::Same(value) => {
+                match vm_try!(value.value_mut()) {
+                    ValueMut::Inline(Inline::Integer(value)) => {
+                        let rhs = *value;
+                        integer_op(value, rhs);
                         return VmResult::Ok(());
                     }
-                    (ValueKind::Byte(lhs), ValueKind::Byte(rhs)) => {
-                        byte_op(lhs, *rhs);
+                    ValueMut::Inline(Inline::Byte(value)) => {
+                        let rhs = *value;
+                        byte_op(value, rhs);
                         return VmResult::Ok(());
                     }
-                    (ValueKind::Bool(lhs), ValueKind::Bool(rhs)) => {
-                        bool_op(lhs, *rhs);
+                    ValueMut::Inline(Inline::Bool(value)) => {
+                        let rhs = *value;
+                        bool_op(value, rhs);
                         return VmResult::Ok(());
+                    }
+                    ValueMut::Inline(value) => {
+                        return err(VmErrorKind::UnsupportedBinaryOperation {
+                            op: protocol.name,
+                            lhs: value.type_info(),
+                            rhs: value.type_info(),
+                        });
                     }
                     _ => {}
                 }
 
-                TargetFallback::Value(lhs.clone(), rhs)
+                TargetFallback::Value(value.clone(), value.clone())
+            }
+            TargetValue::Pair(lhs, rhs) => {
+                match (vm_try!(lhs.value_mut()), vm_try!(rhs.value_ref())) {
+                    (ValueMut::Inline(lhs), ValueRef::Inline(rhs)) => match (lhs, rhs) {
+                        (Inline::Integer(lhs), Inline::Integer(rhs)) => {
+                            integer_op(lhs, *rhs);
+                            return VmResult::Ok(());
+                        }
+                        (Inline::Byte(lhs), Inline::Byte(rhs)) => {
+                            byte_op(lhs, *rhs);
+                            return VmResult::Ok(());
+                        }
+                        (Inline::Bool(lhs), Inline::Bool(rhs)) => {
+                            bool_op(lhs, *rhs);
+                            return VmResult::Ok(());
+                        }
+                        (lhs, rhs) => {
+                            return err(VmErrorKind::UnsupportedBinaryOperation {
+                                op: protocol.name,
+                                lhs: lhs.type_info(),
+                                rhs: rhs.type_info(),
+                            });
+                        }
+                    },
+                    (ValueMut::Inline(lhs), rhs) => {
+                        return err(VmErrorKind::UnsupportedBinaryOperation {
+                            op: protocol.name,
+                            lhs: lhs.type_info(),
+                            rhs: vm_try!(rhs.type_info()),
+                        });
+                    }
+                    _ => {}
+                }
+
+                TargetFallback::Value(lhs.clone(), rhs.clone())
             }
             TargetValue::Fallback(fallback) => fallback,
         };
@@ -1600,24 +1774,39 @@ impl Vm {
         out: Output,
     ) -> VmResult<()> {
         let rhs = vm_try!(self.stack.at(rhs)).clone();
-        let lhs = vm_try!(self.stack.at(lhs)).clone();
+        let lhs = vm_try!(self.stack.at_mut(lhs));
 
-        match (
-            &*vm_try!(lhs.borrow_kind_ref()),
-            &*vm_try!(rhs.borrow_kind_ref()),
-        ) {
-            (ValueKind::Integer(lhs), ValueKind::Integer(rhs)) => {
-                let integer = vm_try!(integer_op(*lhs, *rhs).ok_or_else(error));
-                vm_try!(out.store(&mut self.stack, integer));
-                return VmResult::Ok(());
-            }
-            (ValueKind::Byte(lhs), ValueKind::Integer(rhs)) => {
-                let byte = vm_try!(byte_op(*lhs, *rhs).ok_or_else(error));
-                vm_try!(out.store(&mut self.stack, byte));
-                return VmResult::Ok(());
+        match (vm_try!(lhs.value_mut()), vm_try!(rhs.value_ref())) {
+            (ValueMut::Inline(lhs), ValueRef::Inline(rhs)) => match (lhs, rhs) {
+                (Inline::Integer(lhs), Inline::Integer(rhs)) => {
+                    let integer = vm_try!(integer_op(*lhs, *rhs).ok_or_else(error));
+                    vm_try!(out.store(&mut self.stack, integer));
+                    return VmResult::Ok(());
+                }
+                (Inline::Byte(lhs), Inline::Integer(rhs)) => {
+                    let byte = vm_try!(byte_op(*lhs, *rhs).ok_or_else(error));
+                    vm_try!(out.store(&mut self.stack, byte));
+                    return VmResult::Ok(());
+                }
+                (lhs, rhs) => {
+                    return err(VmErrorKind::UnsupportedBinaryOperation {
+                        op: protocol.name,
+                        lhs: lhs.type_info(),
+                        rhs: rhs.type_info(),
+                    });
+                }
+            },
+            (ValueMut::Inline(lhs), rhs) => {
+                return err(VmErrorKind::UnsupportedBinaryOperation {
+                    op: protocol.name,
+                    lhs: lhs.type_info(),
+                    rhs: vm_try!(rhs.type_info()),
+                });
             }
             _ => {}
         }
+
+        let lhs = lhs.clone();
 
         let mut args = DynGuardedArgs::new((&rhs,));
 
@@ -1647,25 +1836,57 @@ impl Vm {
         let mut guard;
 
         let fallback = match target_value!(self, target, guard, lhs, rhs) {
-            TargetValue::Value(lhs, rhs) => {
-                match (
-                    &mut *vm_try!(lhs.borrow_kind_mut()),
-                    &*vm_try!(rhs.borrow_kind_ref()),
-                ) {
-                    (ValueKind::Integer(lhs), ValueKind::Integer(rhs)) => {
-                        let out = vm_try!(integer_op(*lhs, *rhs).ok_or_else(error));
-                        *lhs = out;
+            TargetValue::Same(value) => {
+                match vm_try!(value.value_mut()) {
+                    ValueMut::Inline(Inline::Integer(value)) => {
+                        let out = vm_try!(integer_op(*value, *value).ok_or_else(error));
+                        *value = out;
                         return VmResult::Ok(());
                     }
-                    (ValueKind::Byte(lhs), ValueKind::Integer(rhs)) => {
-                        let out = vm_try!(byte_op(*lhs, *rhs).ok_or_else(error));
-                        *lhs = out;
-                        return VmResult::Ok(());
+                    ValueMut::Inline(value) => {
+                        return err(VmErrorKind::UnsupportedBinaryOperation {
+                            op: protocol.name,
+                            lhs: value.type_info(),
+                            rhs: value.type_info(),
+                        });
                     }
                     _ => {}
                 }
 
-                TargetFallback::Value(lhs.clone(), rhs)
+                TargetFallback::Value(value.clone(), value.clone())
+            }
+            TargetValue::Pair(lhs, rhs) => {
+                match (vm_try!(lhs.value_mut()), vm_try!(rhs.value_ref())) {
+                    (ValueMut::Inline(lhs), ValueRef::Inline(rhs)) => match (lhs, rhs) {
+                        (Inline::Integer(lhs), Inline::Integer(rhs)) => {
+                            let out = vm_try!(integer_op(*lhs, *rhs).ok_or_else(error));
+                            *lhs = out;
+                            return VmResult::Ok(());
+                        }
+                        (Inline::Byte(lhs), Inline::Integer(rhs)) => {
+                            let out = vm_try!(byte_op(*lhs, *rhs).ok_or_else(error));
+                            *lhs = out;
+                            return VmResult::Ok(());
+                        }
+                        (lhs, rhs) => {
+                            return err(VmErrorKind::UnsupportedBinaryOperation {
+                                op: protocol.name,
+                                lhs: lhs.type_info(),
+                                rhs: rhs.type_info(),
+                            });
+                        }
+                    },
+                    (ValueMut::Inline(lhs), rhs) => {
+                        return err(VmErrorKind::UnsupportedBinaryOperation {
+                            op: protocol.name,
+                            lhs: lhs.type_info(),
+                            rhs: vm_try!(rhs.type_info()),
+                        });
+                    }
+                    _ => {}
+                }
+
+                TargetFallback::Value(lhs.clone(), rhs.clone())
             }
             TargetValue::Fallback(fallback) => fallback,
         };
@@ -1705,8 +1926,8 @@ impl Vm {
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_push(&mut self, value: InstValue, out: Output) -> VmResult<()> {
-        vm_try!(out.store(&mut self.stack, vm_try!(value.into_value())));
+    fn op_store(&mut self, value: InstValue, out: Output) -> VmResult<()> {
+        vm_try!(out.store(&mut self.stack, value.into_value()));
         VmResult::Ok(())
     }
 
@@ -1774,7 +1995,7 @@ impl Vm {
     fn op_vec(&mut self, addr: InstAddress, count: usize, out: Output) -> VmResult<()> {
         let vec = vm_try!(self.stack.slice_at_mut(addr, count));
         let vec = vm_try!(vec.iter_mut().map(take).try_collect::<alloc::Vec<Value>>());
-        vm_try!(out.store(&mut self.stack, || ValueKind::Vec(Vec::from(vec))));
+        vm_try!(out.store(&mut self.stack, || Mutable::Vec(Vec::from(vec))));
         VmResult::Ok(())
     }
 
@@ -1789,7 +2010,7 @@ impl Vm {
             .try_collect::<alloc::Vec<Value>>());
 
         vm_try!(
-            out.store(&mut self.stack, || VmResult::Ok(ValueKind::Tuple(vm_try!(
+            out.store(&mut self.stack, || VmResult::Ok(Mutable::Tuple(vm_try!(
                 OwnedTuple::try_from(tuple)
             ))))
         );
@@ -1808,7 +2029,7 @@ impl Vm {
         }
 
         vm_try!(
-            out.store(&mut self.stack, || VmResult::Ok(ValueKind::Tuple(vm_try!(
+            out.store(&mut self.stack, || VmResult::Ok(Mutable::Tuple(vm_try!(
                 OwnedTuple::try_from(tuple)
             ))))
         );
@@ -1850,12 +2071,18 @@ impl Vm {
     fn op_not(&mut self, operand: InstAddress, out: Output) -> VmResult<()> {
         let value = vm_try!(self.stack.at(operand));
 
-        let value = match *vm_try!(value.borrow_kind_ref()) {
-            ValueKind::Bool(value) => vm_try!(Value::try_from(!value)),
-            ValueKind::Integer(value) => vm_try!(Value::try_from(!value)),
-            ValueKind::Byte(value) => vm_try!(Value::try_from(!value)),
-            ref other => {
-                let operand = other.type_info();
+        let value = match vm_try!(value.borrow_ref()) {
+            ValueBorrowRef::Inline(value) => match value {
+                Inline::Bool(value) => Value::from(!value),
+                Inline::Integer(value) => Value::from(!value),
+                Inline::Byte(value) => Value::from(!value),
+                actual => {
+                    let operand = actual.type_info();
+                    return err(VmErrorKind::UnsupportedUnaryOperation { op: "!", operand });
+                }
+            },
+            actual => {
+                let operand = actual.type_info();
                 return err(VmErrorKind::UnsupportedUnaryOperation { op: "!", operand });
             }
         };
@@ -1868,11 +2095,17 @@ impl Vm {
     fn op_neg(&mut self, addr: InstAddress, out: Output) -> VmResult<()> {
         let value = vm_try!(self.stack.at(addr));
 
-        let value = match *vm_try!(value.borrow_kind_ref()) {
-            ValueKind::Float(value) => vm_try!(Value::try_from(-value)),
-            ValueKind::Integer(value) => vm_try!(Value::try_from(-value)),
-            ref other => {
-                let operand = other.type_info();
+        let value = match vm_try!(value.borrow_ref()) {
+            ValueBorrowRef::Inline(value) => match value {
+                Inline::Float(value) => Value::from(-value),
+                Inline::Integer(value) => Value::from(-value),
+                actual => {
+                    let operand = actual.type_info();
+                    return err(VmErrorKind::UnsupportedUnaryOperation { op: "-", operand });
+                }
+            },
+            actual => {
+                let operand = actual.type_info();
                 return err(VmErrorKind::UnsupportedUnaryOperation { op: "-", operand });
             }
         };
@@ -2190,45 +2423,63 @@ impl Vm {
         let index = vm_try!(self.stack.at(index));
         let value = vm_try!(self.stack.at(value));
 
-        'out: {
-            let kind = vm_try!(index.borrow_kind_ref());
-
-            let field = match *kind {
-                ValueKind::String(ref string) => string.as_str(),
-                _ => break 'out,
+        'fallback: {
+            let ValueBorrowRef::Mutable(field) = vm_try!(index.borrow_ref()) else {
+                break 'fallback;
             };
 
-            match &mut *vm_try!(target.borrow_kind_mut()) {
-                ValueKind::Object(object) => {
+            let Mutable::String(field) = &*field else {
+                break 'fallback;
+            };
+
+            let mut target = match vm_try!(target.value_ref()) {
+                ValueRef::Mutable(target) => vm_try!(target.borrow_mut()),
+                ValueRef::Inline(target) => {
+                    return err(VmErrorKind::UnsupportedIndexSet {
+                        target: target.type_info(),
+                        index: vm_try!(index.type_info()),
+                        value: vm_try!(value.type_info()),
+                    });
+                }
+            };
+
+            match &mut *target {
+                Mutable::Object(object) => {
                     vm_try!(object.insert(vm_try!(field.try_to_owned()), value.clone()));
-                    return VmResult::Ok(());
                 }
-                ValueKind::Struct(typed_object) => {
-                    if let Some(v) = typed_object.get_mut(field) {
-                        *v = value.clone();
-                        return VmResult::Ok(());
-                    }
+                Mutable::Struct(typed_object) => {
+                    let Some(v) = typed_object.get_mut(field) else {
+                        return err(VmErrorKind::MissingField {
+                            target: typed_object.type_info(),
+                            field: vm_try!(field.try_to_owned()),
+                        });
+                    };
 
-                    return err(VmErrorKind::MissingField {
-                        target: typed_object.type_info(),
-                        field: vm_try!(field.try_to_owned()),
-                    });
+                    *v = value.clone();
                 }
-                ValueKind::Variant(variant) => {
-                    if let VariantData::Struct(st) = variant.data_mut() {
-                        if let Some(v) = st.get_mut(field) {
-                            *v = value.clone();
-                            return VmResult::Ok(());
-                        }
-                    }
+                Mutable::Variant(variant) => {
+                    let VariantData::Struct(st) = variant.data_mut() else {
+                        return err(VmErrorKind::MissingField {
+                            target: variant.type_info(),
+                            field: vm_try!(field.try_to_owned()),
+                        });
+                    };
 
-                    return err(VmErrorKind::MissingField {
-                        target: variant.type_info(),
-                        field: vm_try!(field.try_to_owned()),
-                    });
+                    let Some(v) = st.get_mut(field) else {
+                        return err(VmErrorKind::MissingField {
+                            target: variant.type_info(),
+                            field: vm_try!(field.try_to_owned()),
+                        });
+                    };
+
+                    *v = value.clone();
                 }
-                _ => {}
+                _ => {
+                    break 'fallback;
+                }
             }
+
+            return VmResult::Ok(());
         }
 
         let target = target.clone();
@@ -2356,7 +2607,7 @@ impl Vm {
         let instance = vm_try!(self.stack.at(addr));
         let ty = vm_try!(instance.type_hash());
         let hash = Hash::associated_function(ty, hash);
-        vm_try!(out.store(&mut self.stack, || ValueKind::Type(Type::new(hash))));
+        vm_try!(out.store(&mut self.stack, || Type::new(hash)));
         VmResult::Ok(())
     }
 
@@ -2372,27 +2623,31 @@ impl Vm {
             let index = vm_try!(self.stack.at(index));
             let target = vm_try!(self.stack.at(target));
 
-            match &*vm_try!(index.borrow_kind_ref()) {
-                ValueKind::String(index) => {
-                    if let Some(value) =
-                        vm_try!(Self::try_object_like_index_get(target, index.as_str()))
-                    {
-                        break 'store value;
-                    }
-                }
-                ValueKind::Integer(index) => {
-                    let Ok(index) = usize::try_from(*index) else {
-                        return err(VmErrorKind::MissingIndexInteger {
-                            target: vm_try!(target.type_info()),
-                            index: VmIntegerRepr::from(*index),
-                        });
-                    };
+            match vm_try!(index.borrow_ref()) {
+                ValueBorrowRef::Inline(value) => {
+                    if let Inline::Integer(index) = value {
+                        let Ok(index) = usize::try_from(*index) else {
+                            return err(VmErrorKind::MissingIndexInteger {
+                                target: vm_try!(target.type_info()),
+                                index: VmIntegerRepr::from(*index),
+                            });
+                        };
 
-                    if let Some(value) = vm_try!(Self::try_tuple_like_index_get(target, index)) {
-                        break 'store value;
+                        if let Some(value) = vm_try!(Self::try_tuple_like_index_get(target, index))
+                        {
+                            break 'store value;
+                        }
                     }
                 }
-                _ => (),
+                ValueBorrowRef::Mutable(value) => {
+                    if let Mutable::String(index) = &*value {
+                        if let Some(value) =
+                            vm_try!(Self::try_object_like_index_get(target, index.as_str()))
+                        {
+                            break 'store value;
+                        }
+                    }
+                }
             }
 
             let target = target.clone();
@@ -2428,10 +2683,10 @@ impl Vm {
         index: usize,
         value: InstAddress,
     ) -> VmResult<()> {
-        let target = vm_try!(self.stack.at(target)).clone();
         let value = vm_try!(self.stack.at(value)).clone();
+        let target = vm_try!(self.stack.at_mut(target));
 
-        if vm_try!(Self::try_tuple_like_index_set(&target, index, value)) {
+        if vm_try!(Self::try_tuple_like_index_set(target, index, value)) {
             return VmResult::Ok(());
         }
 
@@ -2528,7 +2783,7 @@ impl Vm {
             vm_try!(object.insert(key, take(value)));
         }
 
-        vm_try!(out.store(&mut self.stack, ValueKind::Object(object)));
+        vm_try!(out.store(&mut self.stack, Mutable::Object(object)));
         VmResult::Ok(())
     }
 
@@ -2576,7 +2831,7 @@ impl Vm {
             .ok_or(VmErrorKind::MissingRtti { hash }));
 
         vm_try!(
-            out.store(&mut self.stack, || ValueKind::EmptyStruct(EmptyStruct {
+            out.store(&mut self.stack, || Mutable::EmptyStruct(EmptyStruct {
                 rtti: rtti.clone()
             }))
         );
@@ -2611,7 +2866,7 @@ impl Vm {
             vm_try!(data.insert(key, take(value)));
         }
 
-        vm_try!(out.store(&mut self.stack, || ValueKind::Struct(Struct {
+        vm_try!(out.store(&mut self.stack, || Mutable::Struct(Struct {
             rtti: rtti.clone(),
             data,
         })));
@@ -2647,7 +2902,7 @@ impl Vm {
         }
 
         vm_try!(
-            out.store(&mut self.stack, || ValueKind::Variant(Variant::struct_(
+            out.store(&mut self.stack, || Mutable::Variant(Variant::struct_(
                 rtti.clone(),
                 data
             )))
@@ -2687,7 +2942,7 @@ impl Vm {
             vm_try!(value.string_display_with(&mut f, &mut *self));
         }
 
-        vm_try!(out.store(&mut self.stack, ValueKind::String(f.string)));
+        vm_try!(out.store(&mut self.stack, Mutable::String(f.string)));
         VmResult::Ok(())
     }
 
@@ -2695,17 +2950,14 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_format(&mut self, addr: InstAddress, spec: FormatSpec, out: Output) -> VmResult<()> {
         let value = vm_try!(self.stack.at(addr)).clone();
-        vm_try!(out.store(&mut self.stack, || ValueKind::Format(Format {
-            value,
-            spec
-        })));
+        vm_try!(out.store(&mut self.stack, || Mutable::Format(Format { value, spec })));
         VmResult::Ok(())
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_is_unit(&mut self, addr: InstAddress, out: Output) -> VmResult<()> {
         let value = vm_try!(self.stack.at(addr));
-        let is_unit = matches!(&*vm_try!(value.borrow_kind_ref()), ValueKind::EmptyTuple);
+        let is_unit = matches!(vm_try!(value.as_inline()), Some(Inline::Unit));
         vm_try!(out.store(&mut self.stack, is_unit));
         VmResult::Ok(())
     }
@@ -2717,10 +2969,12 @@ impl Vm {
             let value = {
                 let value = vm_try!(self.stack.at(addr));
 
-                match &*vm_try!(value.borrow_kind_ref()) {
-                    ValueKind::Result(result) => break 'out vm_try!(result::result_try(result)),
-                    ValueKind::Option(option) => break 'out vm_try!(option::option_try(option)),
-                    _ => {}
+                if let ValueBorrowRef::Mutable(value) = vm_try!(value.borrow_ref()) {
+                    match &*value {
+                        Mutable::Result(result) => break 'out vm_try!(result::result_try(result)),
+                        Mutable::Option(option) => break 'out vm_try!(option::option_try(option)),
+                        _ => {}
+                    }
                 }
 
                 value.clone()
@@ -2749,8 +3003,8 @@ impl Vm {
     fn op_eq_byte(&mut self, addr: InstAddress, value: u8, out: Output) -> VmResult<()> {
         let v = vm_try!(self.stack.at(addr));
 
-        let is_match = match *vm_try!(v.borrow_kind_ref()) {
-            ValueKind::Byte(actual) => actual == value,
+        let is_match = match vm_try!(v.as_inline()) {
+            Some(Inline::Byte(actual)) => *actual == value,
             _ => false,
         };
 
@@ -2762,8 +3016,8 @@ impl Vm {
     fn op_eq_character(&mut self, addr: InstAddress, value: char, out: Output) -> VmResult<()> {
         let v = vm_try!(self.stack.at(addr));
 
-        let is_match = match *vm_try!(v.borrow_kind_ref()) {
-            ValueKind::Char(actual) => actual == value,
+        let is_match = match vm_try!(v.as_inline()) {
+            Some(Inline::Char(actual)) => *actual == value,
             _ => false,
         };
 
@@ -2775,8 +3029,8 @@ impl Vm {
     fn op_eq_integer(&mut self, addr: InstAddress, value: i64, out: Output) -> VmResult<()> {
         let v = vm_try!(self.stack.at(addr));
 
-        let is_match = match *vm_try!(v.borrow_kind_ref()) {
-            ValueKind::Integer(actual) => actual == value,
+        let is_match = match vm_try!(v.as_inline()) {
+            Some(Inline::Integer(actual)) => *actual == value,
             _ => false,
         };
 
@@ -2788,8 +3042,8 @@ impl Vm {
     fn op_eq_bool(&mut self, addr: InstAddress, value: bool, out: Output) -> VmResult<()> {
         let v = vm_try!(self.stack.at(addr));
 
-        let is_match = match *vm_try!(v.borrow_kind_ref()) {
-            ValueKind::Bool(actual) => actual == value,
+        let is_match = match vm_try!(v.as_inline()) {
+            Some(Inline::Bool(actual)) => *actual == value,
             _ => false,
         };
 
@@ -2803,12 +3057,17 @@ impl Vm {
     fn op_eq_string(&mut self, addr: InstAddress, slot: usize, out: Output) -> VmResult<()> {
         let v = vm_try!(self.stack.at(addr));
 
-        let is_match = match *vm_try!(v.borrow_kind_ref()) {
-            ValueKind::String(ref actual) => {
-                let string = vm_try!(self.unit.lookup_string(slot));
-                actual.as_str() == string.as_str()
-            }
-            _ => false,
+        let is_match = 'out: {
+            let ValueBorrowRef::Mutable(value) = vm_try!(v.borrow_ref()) else {
+                break 'out false;
+            };
+
+            let Mutable::String(actual) = &*value else {
+                break 'out false;
+            };
+
+            let string = vm_try!(self.unit.lookup_string(slot));
+            actual.as_str() == string.as_str()
         };
 
         vm_try!(out.store(&mut self.stack, is_match));
@@ -2821,12 +3080,17 @@ impl Vm {
     fn op_eq_bytes(&mut self, addr: InstAddress, slot: usize, out: Output) -> VmResult<()> {
         let v = vm_try!(self.stack.at(addr));
 
-        let is_match = match *vm_try!(v.borrow_kind_ref()) {
-            ValueKind::Bytes(ref actual) => {
-                let bytes = vm_try!(self.unit.lookup_bytes(slot));
-                *actual == *bytes
-            }
-            _ => false,
+        let is_match = 'out: {
+            let ValueBorrowRef::Mutable(value) = vm_try!(v.borrow_ref()) else {
+                break 'out false;
+            };
+
+            let Mutable::Bytes(actual) = &*value else {
+                break 'out false;
+            };
+
+            let bytes = vm_try!(self.unit.lookup_bytes(slot));
+            *actual == *bytes
         };
 
         vm_try!(out.store(&mut self.stack, is_match));
@@ -2876,15 +3140,20 @@ impl Vm {
         let value = vm_try!(self.stack.at(addr));
 
         let is_match = 'out: {
-            match &*vm_try!(value.borrow_kind_ref()) {
-                ValueKind::Variant(variant) => {
-                    break 'out variant.rtti().hash == variant_hash;
-                }
-                ValueKind::Any(any) => {
-                    if any.type_hash() != enum_hash {
+            match vm_try!(value.borrow_ref()) {
+                ValueBorrowRef::Mutable(value) => match &*value {
+                    Mutable::Variant(variant) => {
+                        break 'out variant.rtti().hash == variant_hash;
+                    }
+                    Mutable::Any(any) => {
+                        if any.type_hash() != enum_hash {
+                            break 'out false;
+                        }
+                    }
+                    _ => {
                         break 'out false;
                     }
-                }
+                },
                 _ => {
                     break 'out false;
                 }
@@ -2917,26 +3186,33 @@ impl Vm {
 
         let value = vm_try!(self.stack.at(addr));
 
-        let is_match = match (type_check, &*vm_try!(value.borrow_kind_ref())) {
-            (TypeCheck::EmptyTuple, ValueKind::EmptyTuple) => true,
-            (TypeCheck::Tuple, ValueKind::Tuple(..)) => true,
-            (TypeCheck::Vec, ValueKind::Vec(..)) => true,
-            (TypeCheck::Result(v), ValueKind::Result(result)) => match (v, result) {
-                (0, Ok(..)) => true,
-                (1, Err(..)) => true,
+        let is_match = match vm_try!(value.borrow_ref()) {
+            ValueBorrowRef::Inline(value) => match (type_check, value) {
+                (TypeCheck::Unit, Inline::Unit) => true,
                 _ => false,
             },
-            (TypeCheck::Option(v), ValueKind::Option(option)) => match (v, option) {
-                (0, Some(..)) => true,
-                (1, None) => true,
+            ValueBorrowRef::Mutable(value) => match (type_check, &*value) {
+                (TypeCheck::Tuple, Mutable::Tuple(..)) => true,
+                (TypeCheck::Vec, Mutable::Vec(..)) => true,
+                (TypeCheck::Result(v), Mutable::Result(result)) => match (v, result) {
+                    (0, Ok(..)) => true,
+                    (1, Err(..)) => true,
+                    _ => false,
+                },
+                (TypeCheck::Option(v), Mutable::Option(option)) => match (v, option) {
+                    (0, Some(..)) => true,
+                    (1, None) => true,
+                    _ => false,
+                },
+                (TypeCheck::GeneratorState(v), Mutable::GeneratorState(state)) => {
+                    match (v, state) {
+                        (0, Complete(..)) => true,
+                        (1, Yielded(..)) => true,
+                        _ => false,
+                    }
+                }
                 _ => false,
             },
-            (TypeCheck::GeneratorState(v), ValueKind::GeneratorState(state)) => match (v, state) {
-                (0, Complete(..)) => true,
-                (1, Yielded(..)) => true,
-                _ => false,
-            },
-            _ => false,
         };
 
         vm_try!(out.store(&mut self.stack, is_match));
@@ -2971,15 +3247,18 @@ impl Vm {
 
         let value = vm_try!(self.stack.at(addr));
 
-        let is_match = match &*vm_try!(value.borrow_kind_ref()) {
-            ValueKind::Object(object) => {
-                let keys = vm_try!(self
-                    .unit
-                    .lookup_object_keys(slot)
-                    .ok_or(VmErrorKind::MissingStaticObjectKeys { slot }));
+        let is_match = match vm_try!(value.borrow_ref()) {
+            ValueBorrowRef::Mutable(value) => match &*value {
+                Mutable::Object(object) => {
+                    let keys = vm_try!(self
+                        .unit
+                        .lookup_object_keys(slot)
+                        .ok_or(VmErrorKind::MissingStaticObjectKeys { slot }));
 
-                test(object, keys, exact)
-            }
+                    test(object, keys, exact)
+                }
+                _ => false,
+            },
             _ => false,
         };
 
@@ -3015,7 +3294,7 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_load_fn(&mut self, hash: Hash, out: Output) -> VmResult<()> {
         let function = vm_try!(self.lookup_function_by_hash(hash));
-        vm_try!(out.store(&mut self.stack, || ValueKind::Function(function)));
+        vm_try!(out.store(&mut self.stack, || Mutable::Function(function)));
         VmResult::Ok(())
     }
 
@@ -3067,7 +3346,7 @@ impl Vm {
             hash,
         );
 
-        vm_try!(out.store(&mut self.stack, || ValueKind::Function(function)));
+        vm_try!(out.store(&mut self.stack, || Mutable::Function(function)));
         VmResult::Ok(())
     }
 
@@ -3182,6 +3461,12 @@ impl Vm {
         let type_hash = vm_try!(instance.type_hash());
         let hash = Hash::associated_function(type_hash, hash);
 
+        if let Some(handler) = self.context.function(hash) {
+            vm_try!(self.called_function_hook(hash));
+            vm_try!(handler(&mut self.stack, addr, args, out));
+            return VmResult::Ok(());
+        }
+
         if let Some(UnitFn::Offset {
             offset,
             call,
@@ -3192,12 +3477,6 @@ impl Vm {
             vm_try!(self.called_function_hook(hash));
             vm_try!(check_args(args, expected));
             vm_try!(self.call_offset_fn(offset, call, addr, args, Isolated::None, out));
-            return VmResult::Ok(());
-        }
-
-        if let Some(handler) = self.context.function(hash) {
-            vm_try!(self.called_function_hook(hash));
-            vm_try!(handler(&mut self.stack, addr, args, out));
             return VmResult::Ok(());
         }
 
@@ -3218,15 +3497,25 @@ impl Vm {
     ) -> VmResult<Option<VmHalt>> {
         let function = vm_try!(self.stack.at(function)).clone();
 
-        let ty = match *vm_try!(function.borrow_kind_ref()) {
-            ValueKind::Type(ty) => ty,
-            ValueKind::Function(ref function) => {
-                return function.call_with_vm(self, addr, args, out);
-            }
-            ref actual => {
-                let actual = actual.type_info();
-                return err(VmErrorKind::UnsupportedCallFn { actual });
-            }
+        let ty = match vm_try!(function.borrow_ref()) {
+            ValueBorrowRef::Inline(value) => match value {
+                Inline::Type(ty) => *ty,
+                actual => {
+                    return err(VmErrorKind::UnsupportedCallFn {
+                        actual: actual.type_info(),
+                    });
+                }
+            },
+            ValueBorrowRef::Mutable(value) => match &*value {
+                Mutable::Function(function) => {
+                    return function.call_with_vm(self, addr, args, out);
+                }
+                actual => {
+                    return err(VmErrorKind::UnsupportedCallFn {
+                        actual: actual.type_info(),
+                    });
+                }
+            },
         };
 
         vm_try!(self.op_call(ty.into_hash(), addr, args, out));
@@ -3237,12 +3526,19 @@ impl Vm {
     fn op_iter_next(&mut self, addr: InstAddress, jump: usize, out: Output) -> VmResult<()> {
         let value = vm_try!(self.stack.at(addr));
 
-        let some = match &*vm_try!(value.borrow_kind_ref()) {
-            ValueKind::Option(option) => match option {
-                Some(some) => some.clone(),
-                None => {
-                    self.ip = vm_try!(self.unit.translate(jump));
-                    return VmResult::Ok(());
+        let some = match vm_try!(value.borrow_ref()) {
+            ValueBorrowRef::Mutable(value) => match &*value {
+                Mutable::Option(option) => match option {
+                    Some(some) => some.clone(),
+                    None => {
+                        self.ip = vm_try!(self.unit.translate(jump));
+                        return VmResult::Ok(());
+                    }
+                },
+                actual => {
+                    return err(VmErrorKind::UnsupportedIterNextOperand {
+                        actual: actual.type_info(),
+                    });
                 }
             },
             actual => {
@@ -3447,7 +3743,7 @@ impl Vm {
                     vm_try!(self.op_load_fn(hash, out));
                 }
                 Inst::Store { value, out } => {
-                    vm_try!(self.op_push(value, out));
+                    vm_try!(self.op_store(value, out));
                 }
                 Inst::Copy { addr, out } => {
                     vm_try!(self.op_copy(addr, out));

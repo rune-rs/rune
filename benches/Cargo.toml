@@ -5,6 +5,7 @@ publish = false
 
 [dependencies]
 rune = { path = "../crates/rune", features = ["bench", "capture-io"] }
+rhai = "1.19.0"
 
 tokio = { version = "1.28.1", features = ["macros"] }
 criterion = "0.4.0"
@@ -12,5 +13,9 @@ anyhow = "1.0.71"
 futures-executor = "0.3.28"
 
 [[bench]]
-name    = "bench_main"
+name = "main"
+harness = false
+
+[[bench]]
+name = "comparison"
 harness = false

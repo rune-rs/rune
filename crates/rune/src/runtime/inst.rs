@@ -6,9 +6,8 @@ use rune_macros::InstDisplay;
 use serde::{Deserialize, Serialize};
 
 use crate as rune;
-use crate::alloc;
 use crate::alloc::prelude::*;
-use crate::runtime::{Call, FormatSpec, Memory, Type, Value, ValueKind, VmError, VmResult};
+use crate::runtime::{Call, FormatSpec, Memory, Mutable, Type, Value, VmError, VmResult};
 use crate::Hash;
 
 /// Pre-canned panic reasons.
@@ -58,7 +57,7 @@ impl fmt::Display for PanicReason {
 #[non_exhaustive]
 pub enum TypeCheck {
     /// Matches a unit type.
-    EmptyTuple,
+    Unit,
     /// Matches an anonymous tuple.
     Tuple,
     /// Matches an anonymous object.
@@ -79,7 +78,7 @@ pub enum TypeCheck {
 impl fmt::Display for TypeCheck {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::EmptyTuple => write!(fmt, "Unit"),
+            Self::Unit => write!(fmt, "Unit"),
             Self::Tuple => write!(fmt, "Tuple"),
             Self::Object => write!(fmt, "Object"),
             Self::Vec => write!(fmt, "Vec"),
@@ -1103,7 +1102,7 @@ impl Inst {
     /// Construct an instruction to push a unit.
     pub fn unit(out: Output) -> Self {
         Self::Store {
-            value: InstValue::EmptyTuple,
+            value: InstValue::Unit,
             out,
         }
     }
@@ -1308,8 +1307,8 @@ impl IntoOutput for Value {
     }
 }
 
-impl IntoOutput for ValueKind {
-    type Output = ValueKind;
+impl IntoOutput for Mutable {
+    type Output = Mutable;
 
     #[inline]
     fn into_output(self) -> VmResult<Self::Output> {
@@ -1715,7 +1714,7 @@ impl fmt::Display for InstOp {
 #[non_exhaustive]
 pub enum InstValue {
     /// An empty tuple.
-    EmptyTuple,
+    Unit,
     /// A boolean.
     #[musli(packed)]
     Bool(bool),
@@ -1738,15 +1737,15 @@ pub enum InstValue {
 
 impl InstValue {
     /// Convert into a value that can be pushed onto the stack.
-    pub fn into_value(self) -> alloc::Result<Value> {
+    pub fn into_value(self) -> Value {
         match self {
-            Self::EmptyTuple => Value::unit(),
-            Self::Bool(v) => Value::try_from(v),
-            Self::Byte(v) => Value::try_from(v),
-            Self::Char(v) => Value::try_from(v),
-            Self::Integer(v) => Value::try_from(v),
-            Self::Float(v) => Value::try_from(v),
-            Self::Type(v) => Value::try_from(v),
+            Self::Unit => Value::unit(),
+            Self::Bool(v) => Value::from(v),
+            Self::Byte(v) => Value::from(v),
+            Self::Char(v) => Value::from(v),
+            Self::Integer(v) => Value::from(v),
+            Self::Float(v) => Value::from(v),
+            Self::Type(v) => Value::from(v),
         }
     }
 }
@@ -1754,7 +1753,7 @@ impl InstValue {
 impl fmt::Display for InstValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::EmptyTuple => write!(f, "()")?,
+            Self::Unit => write!(f, "()")?,
             Self::Bool(v) => write!(f, "{}", v)?,
             Self::Byte(v) => {
                 if v.is_ascii_graphic() {
