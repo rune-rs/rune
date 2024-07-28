@@ -128,7 +128,7 @@ impl<'a, 'hir, 'arena> Ctxt<'a, 'hir, 'arena> {
 
         for (ir, name) in compiled {
             let value = interpreter.eval_value(&ir, Used::Used)?;
-            interpreter.scopes.decl(name, value).with_span(span)?;
+            interpreter.scopes.decl(*name, value).with_span(span)?;
         }
 
         interpreter.module = query_const_fn.item_meta.module;
@@ -215,12 +215,12 @@ pub(crate) fn fn_from_item_fn<'a, 'hir>(
 
     for (arg, needs) in hir.args.iter().zip(&mut arguments) {
         match arg {
-            hir::FnArg::SelfValue(span) => {
+            hir::FnArg::SelfValue(span, name) => {
                 if !instance_fn || !first {
                     return Err(compile::Error::new(span, ErrorKind::UnsupportedSelf));
                 }
 
-                cx.scopes.define(span, hir::Name::SelfValue, needs)?;
+                cx.scopes.define(span, *name, needs)?;
             }
             hir::FnArg::Pat(pat) => {
                 let asm = pattern_panic(cx, pat, move |cx, false_label| {
@@ -261,7 +261,7 @@ pub(crate) fn async_block_secondary<'a, 'hir>(
         cx.scopes.define(&hir.block, name, needs)?;
     }
 
-    return_(cx, &hir.block, &hir.block, block_without_scope)?.ignore();
+    return_(cx, &hir.block, hir.block, block_without_scope)?.ignore();
 
     linear.free()?;
     cx.scopes.pop_last(&hir.block)?;
@@ -269,14 +269,13 @@ pub(crate) fn async_block_secondary<'a, 'hir>(
 }
 
 /// Assemble the body of a closure function.
-#[instrument(span = span)]
+#[instrument(span = hir)]
 pub(crate) fn expr_closure_secondary<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::ExprClosure<'hir>,
-    span: &'hir dyn Spanned,
 ) -> compile::Result<()> {
-    let mut arguments = cx.scopes.linear(span, hir.args.len())?;
-    let environment = cx.scopes.linear(span, hir.captures.len())?;
+    let mut arguments = cx.scopes.linear(hir, hir.args.len())?;
+    let environment = cx.scopes.linear(hir, hir.captures.len())?;
 
     if !hir.captures.is_empty() {
         cx.asm.push(
@@ -285,17 +284,17 @@ pub(crate) fn expr_closure_secondary<'a, 'hir>(
                 count: hir.captures.len(),
                 out: environment.addr().output(),
             },
-            span,
+            hir,
         )?;
 
         for (capture, needs) in hir.captures.iter().copied().zip(&environment) {
-            cx.scopes.define(span, capture, needs)?;
+            cx.scopes.define(hir, capture, needs)?;
         }
     }
 
     for (arg, needs) in hir.args.iter().zip(&mut arguments) {
         match arg {
-            hir::FnArg::SelfValue(span) => {
+            hir::FnArg::SelfValue(span, _) => {
                 return Err(compile::Error::new(span, ErrorKind::UnsupportedSelf))
             }
             hir::FnArg::Pat(pat) => {
@@ -308,11 +307,11 @@ pub(crate) fn expr_closure_secondary<'a, 'hir>(
         }
     }
 
-    return_(cx, span, &hir.body, expr)?.ignore();
+    return_(cx, hir, hir.body, expr)?.ignore();
 
     environment.free()?;
     arguments.free()?;
-    cx.scopes.pop_last(span)?;
+    cx.scopes.pop_last(hir)?;
     Ok(())
 }
 
@@ -421,7 +420,7 @@ fn pat_binding_with<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     span: &'hir dyn Spanned,
     pat: &'hir hir::Pat<'hir>,
-    names: &[hir::Name<'hir>],
+    names: &[hir::Variable],
     false_label: &Label,
     load: &mut dyn FnMut(
         &mut Ctxt<'a, 'hir, '_>,
@@ -456,7 +455,7 @@ fn pat_binding_with_single<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     span: &'hir dyn Spanned,
     pat: &'hir hir::Pat<'hir>,
-    name: hir::Name<'hir>,
+    name: hir::Variable,
     false_label: &Label,
     load: &mut dyn FnMut(
         &mut Ctxt<'a, 'hir, '_>,
@@ -529,7 +528,7 @@ fn pat<'a, 'hir>(
         &mut Ctxt<'a, 'hir, '_>,
         &mut dyn Needs<'a, 'hir>,
     ) -> compile::Result<Asm<'hir>>,
-    bindings: &mut dyn Bindings<hir::Name<'hir>, &mut dyn Needs<'a, 'hir>>,
+    bindings: &mut dyn Bindings<hir::Variable, &mut dyn Needs<'a, 'hir>>,
 ) -> compile::Result<Asm<'hir, Pattern>> {
     let span = hir;
 
@@ -555,8 +554,6 @@ fn pat<'a, 'hir>(
                 Ok(Asm::new(span, Pattern::Refutable))
             }
             hir::PatPathKind::Ident(name) => {
-                let name = hir::Name::Str(name);
-
                 let Some(binding) = bindings.remove(&name) else {
                     return Err(compile::Error::msg(hir, format!("No binding for {name:?}")));
                 };
@@ -697,7 +694,7 @@ fn pat_sequence<'a, 'hir>(
         &mut Ctxt<'a, 'hir, '_>,
         &mut dyn Needs<'a, 'hir>,
     ) -> compile::Result<Asm<'hir>>,
-    bindings: &mut dyn Bindings<hir::Name<'hir>, &mut dyn Needs<'a, 'hir>>,
+    bindings: &mut dyn Bindings<hir::Variable, &mut dyn Needs<'a, 'hir>>,
 ) -> compile::Result<Asm<'hir, Pattern>> {
     let mut addr = cx.scopes.defer(span).with_name("loaded pattern sequence");
     converge!(load(cx, &mut addr)?, free(addr));
@@ -796,7 +793,7 @@ fn pat_object<'a, 'hir>(
         &mut Ctxt<'a, 'hir, '_>,
         &mut dyn Needs<'a, 'hir>,
     ) -> compile::Result<Asm<'hir>>,
-    bindings: &mut dyn Bindings<hir::Name<'hir>, &mut dyn Needs<'a, 'hir>>,
+    bindings: &mut dyn Bindings<hir::Variable, &mut dyn Needs<'a, 'hir>>,
 ) -> compile::Result<Asm<'hir, Pattern>> {
     let mut needs = cx.scopes.defer(span);
     converge!(load(cx, &mut needs)?, free(needs));
@@ -873,10 +870,8 @@ fn pat_object<'a, 'hir>(
                     free(needs)
                 );
             }
-            hir::Binding::Ident(span, name) => {
-                let name = hir::Name::Str(name);
-
-                let Some(binding) = bindings.remove(&name) else {
+            hir::Binding::Ident(span, name, id) => {
+                let Some(binding) = bindings.remove(id) else {
                     return Err(compile::Error::msg(
                         binding,
                         format!("No binding for {name:?}"),

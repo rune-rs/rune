@@ -512,6 +512,8 @@ pub(crate) enum ErrorKind {
     UnsupportedPatternRest,
     UnsupportedMut,
     UnsupportedSuffix,
+    ClosureInConst,
+    AsyncBlockInConst,
 }
 
 impl ErrorKind {
@@ -1040,6 +1042,12 @@ impl fmt::Display for ErrorKind {
                     "Unsupported suffix, expected one of `u8`, `i64`, or `f64`"
                 )?;
             }
+            ErrorKind::ClosureInConst => {
+                write!(f, "Closures are not supported in constant contexts")?;
+            }
+            ErrorKind::AsyncBlockInConst => {
+                write!(f, "Async blocks are not supported in constant contexts")?;
+            }
         }
 
         Ok(())
@@ -1230,11 +1238,6 @@ pub(crate) enum IrErrorKind {
         /// The field that was missing.
         field: Box<str>,
     },
-    /// Missing const or local with the given name.
-    MissingConst {
-        /// Name of the missing thing.
-        name: Box<str>,
-    },
     /// Error raised when trying to use a break outside of a loop.
     BreakOutsideOfLoop,
     ArgumentCountMismatch {
@@ -1270,9 +1273,6 @@ impl fmt::Display for IrErrorKind {
             }
             IrErrorKind::MissingField { field } => {
                 write!(f, "Missing field `{field}`",)?;
-            }
-            IrErrorKind::MissingConst { name } => {
-                write!(f, "No constant or local matching `{name}`",)?;
             }
             IrErrorKind::BreakOutsideOfLoop => {
                 write!(f, "Break outside of supported loop")?;

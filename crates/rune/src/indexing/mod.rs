@@ -122,22 +122,6 @@ pub(crate) struct Variant {
 }
 
 #[derive(Debug, TryClone)]
-pub(crate) struct Closure {
-    /// Ast for closure.
-    pub(crate) ast: Box<ast::ExprClosure>,
-    /// Calling convention used for closure.
-    pub(crate) call: Call,
-}
-
-#[derive(Debug, TryClone)]
-pub(crate) struct AsyncBlock {
-    /// Ast for block.
-    pub(crate) ast: ast::Block,
-    /// Calling convention used for async block.
-    pub(crate) call: Call,
-}
-
-#[derive(Debug, TryClone)]
 pub(crate) struct ConstExpr {
     pub(crate) ast: Box<ast::Expr>,
 }

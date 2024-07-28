@@ -121,7 +121,7 @@ pub(crate) struct IrTarget {
 #[derive(Debug, TryClone)]
 pub(crate) enum IrTargetKind {
     /// A variable.
-    Name(hir::OwnedName),
+    Name(hir::Variable),
     /// A field target.
     Field(Box<IrTarget>, Box<str>),
     /// An index target.
@@ -145,7 +145,7 @@ decl_kind! {
         /// A template.
         Template(IrTemplate),
         /// A named value.
-        Name(hir::OwnedName),
+        Name(hir::Variable),
         /// A local name. Could either be a local variable or a reference to
         /// something else, like another const declaration.
         Target(IrTarget),
@@ -175,7 +175,7 @@ pub(crate) struct IrFn {
     #[rune(span)]
     pub(crate) span: Span,
     /// The number of arguments the function takes and their names.
-    pub(crate) args: Vec<hir::OwnedName>,
+    pub(crate) args: Vec<hir::Variable>,
     /// The scope for the function.
     pub(crate) ir: Ir,
 }
@@ -197,7 +197,7 @@ impl IrFn {
                 ..
             }) = arg
             {
-                args.try_push(hir::Name::Str(name).into_owned()?)?;
+                args.try_push(name)?;
                 continue;
             }
 
@@ -247,7 +247,7 @@ pub(crate) struct IrDecl {
     #[rune(span)]
     pub(crate) span: Span,
     /// The name of the variable.
-    pub(crate) name: hir::OwnedName,
+    pub(crate) name: hir::Variable,
     /// The value of the variable.
     pub(crate) value: Box<Ir>,
 }
@@ -336,7 +336,7 @@ pub(crate) enum IrPat {
     /// An ignore pattern `_`.
     Ignore,
     /// A named binding.
-    Binding(hir::OwnedName),
+    Binding(hir::Variable),
 }
 
 impl IrPat {
@@ -344,7 +344,7 @@ impl IrPat {
         match hir.kind {
             hir::PatKind::Ignore => return Ok(ir::IrPat::Ignore),
             hir::PatKind::Path(&hir::PatPathKind::Ident(name)) => {
-                return Ok(ir::IrPat::Binding(hir::Name::Str(name).into_owned()?));
+                return Ok(ir::IrPat::Binding(name));
             }
             _ => (),
         }
@@ -364,7 +364,7 @@ impl IrPat {
         match self {
             IrPat::Ignore => Ok(true),
             IrPat::Binding(name) => {
-                interp.scopes.decl(name, value).with_span(spanned)?;
+                interp.scopes.decl(*name, value).with_span(spanned)?;
                 Ok(true)
             }
         }
