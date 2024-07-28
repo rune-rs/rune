@@ -44,6 +44,8 @@ pub struct Options {
     pub(crate) function_body: bool,
     /// When running tests, include std tests.
     pub(crate) test_std: bool,
+    /// Enable lowering optimizations.
+    pub(crate) lowering: u8,
 }
 
 impl Options {
@@ -87,6 +89,17 @@ impl Options {
             }
             "test-std" => {
                 self.test_std = tail.map_or(true, |s| s == "true");
+            }
+            "lowering" => {
+                self.lowering = match tail {
+                    Some("0") | None => 0,
+                    Some("1") => 1,
+                    _ => {
+                        return Err(ParseOptionError {
+                            option: option.into(),
+                        })
+                    }
+                };
             }
             _ => {
                 return Err(ParseOptionError {
@@ -143,6 +156,7 @@ impl Default for Options {
             v2: false,
             function_body: false,
             test_std: false,
+            lowering: 0,
         }
     }
 }

@@ -39,6 +39,7 @@ pub(crate) struct Ctxt<'hir, 'a, 'arena> {
     needs: Cell<Needs>,
     scopes: hir::Scopes<'hir, 'a>,
     const_eval: bool,
+    statement_buffer: Vec<hir::Stmt<'hir>>,
     statements: Vec<hir::Stmt<'hir>>,
     pattern_bindings: Vec<hir::Variable>,
     secondary_builds: Option<&'a mut Vec<SecondaryBuildEntry<'hir>>>,
@@ -95,6 +96,7 @@ impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
             needs: Cell::new(Needs::default()),
             scopes,
             const_eval,
+            statement_buffer: Vec::new(),
             statements: Vec::new(),
             pattern_bindings: Vec::new(),
             secondary_builds,
@@ -251,19 +253,33 @@ fn statements<'hir>(
     let mut value = None;
 
     for ast in statements {
-        let (last, stmt) = match ast {
-            ast::Stmt::Local(ast) => (
-                value.take(),
-                Some(hir::Stmt::Local(alloc!(local(cx, ast)?))),
-            ),
-            ast::Stmt::Expr(ast) => (
-                None,
-                value.replace(&*alloc!(expr(cx, ast)?)).map(hir::Stmt::Expr),
-            ),
-            ast::Stmt::Semi(ast) => (
-                value.take(),
-                Some(hir::Stmt::Expr(alloc!(expr(cx, &ast.expr)?))),
-            ),
+        let last = match ast {
+            ast::Stmt::Local(ast) => {
+                let depacked = if ast.attributes.is_empty() && cx.q.options.lowering > 0 {
+                    unpack_locals(cx, &ast.pat, &ast.expr)?
+                } else {
+                    false
+                };
+
+                if !depacked {
+                    let stmt = hir::Stmt::Local(alloc!(local(cx, ast)?));
+                    cx.statement_buffer.try_push(stmt)?;
+                }
+
+                value.take()
+            }
+            ast::Stmt::Expr(ast) => {
+                if let Some(stmt) = value.replace(&*alloc!(expr(cx, ast)?)).map(hir::Stmt::Expr) {
+                    cx.statement_buffer.try_push(stmt)?;
+                }
+
+                None
+            }
+            ast::Stmt::Semi(ast) => {
+                let stmt = hir::Stmt::Expr(alloc!(expr(cx, &ast.expr)?));
+                cx.statement_buffer.try_push(stmt)?;
+                value.take()
+            }
             ast::Stmt::Item(..) => continue,
         };
 
@@ -273,7 +289,7 @@ fn statements<'hir>(
                 .with_span(span)?;
         }
 
-        if let Some(stmt) = stmt {
+        for stmt in cx.statement_buffer.drain(..) {
             cx.statements.try_push(stmt).with_span(span)?;
         }
     }
@@ -1131,6 +1147,65 @@ fn local<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Local) -> compile::Result
         pat,
         expr,
     })
+}
+
+/// The is a simple locals optimization which unpacks locals from a tuple and
+/// assigns them directly to local.
+fn unpack_locals(cx: &mut Ctxt<'_, '_, '_>, p: &ast::Pat, e: &ast::Expr) -> compile::Result<bool> {
+    alloc_with!(cx, p);
+
+    match (p, e) {
+        (p @ ast::Pat::Path(inner), e) => {
+            let Some(ast::PathKind::Ident(..)) = inner.path.as_kind() else {
+                return Ok(false);
+            };
+
+            let e = expr(cx, e)?;
+            let p = pat_binding(cx, p)?;
+
+            cx.statement_buffer
+                .try_push(hir::Stmt::Local(alloc!(hir::Local {
+                    span: p.span().join(e.span()),
+                    pat: p,
+                    expr: e,
+                })))?;
+
+            return Ok(true);
+        }
+        (ast::Pat::Tuple(p), ast::Expr::Tuple(e)) => {
+            if p.items.len() != e.items.len() {
+                return Ok(false);
+            }
+
+            for ((_, _), (p, _)) in e.items.iter().zip(&p.items) {
+                if matches!(p, ast::Pat::Rest(..)) {
+                    return Ok(false);
+                }
+            }
+
+            let mut exprs = Vec::new();
+
+            for (e, _) in &e.items {
+                exprs.try_push(expr(cx, e)?)?;
+            }
+
+            for (e, (p, _)) in exprs.into_iter().zip(&p.items) {
+                let p = pat_binding(cx, p)?;
+
+                cx.statement_buffer
+                    .try_push(hir::Stmt::Local(alloc!(hir::Local {
+                        span: p.span().join(e.span()),
+                        pat: p,
+                        expr: e,
+                    })))?;
+            }
+
+            return Ok(true);
+        }
+        _ => {}
+    };
+
+    Ok(false)
 }
 
 fn pat_binding<'hir>(
