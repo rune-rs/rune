@@ -358,16 +358,6 @@ where
             writeln!(o, "{}:", label)?;
         }
 
-        if !without_source {
-            let debug_info = debug.and_then(|d| sources.get(d.source_id).map(|s| (s, d.span)));
-
-            if let Some(line) = debug_info.and_then(|(s, span)| s.source_line(span)) {
-                write!(o, "  ")?;
-                line.write(&mut o)?;
-                writeln!(o)?;
-            }
-        }
-
         if dump_stack {
             let frames = vm.call_frames();
             let stack = vm.stack();
@@ -402,17 +392,29 @@ where
 
         writeln!(o)?;
 
+        if !without_source {
+            let debug_info = debug.and_then(|d| sources.get(d.source_id).map(|s| (s, d.span)));
+
+            if let Some(line) = debug_info.and_then(|(s, span)| s.source_line(span)) {
+                write!(o, "  ")?;
+                line.write(&mut o)?;
+                writeln!(o)?;
+            }
+        }
+
         if dump_stack {
             let stack = vm.stack();
             let values = stack.get(stack.top()..).expect("bad stack slice");
 
-            vm.with(|| {
-                for (n, value) in values.iter().enumerate() {
-                    writeln!(o, "    {}+{n} = {value:?}", stack.top())?;
-                }
+            if !values.is_empty() {
+                vm.with(|| {
+                    for (n, value) in values.iter().enumerate() {
+                        writeln!(o, "    {}+{n} = {value:?}", stack.top())?;
+                    }
 
-                Ok::<_, TraceError>(())
-            })?;
+                    Ok::<_, TraceError>(())
+                })?;
+            }
         }
 
         match result {

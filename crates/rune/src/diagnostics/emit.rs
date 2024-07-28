@@ -396,6 +396,18 @@ impl Unit {
                 writeln!(out, "fn {} ({}):", signature, hash)?;
             }
 
+            for label in debug.map(|d| d.labels.as_slice()).unwrap_or_default() {
+                writeln!(out, "{}:", label)?;
+            }
+
+            write!(out, "  {n:04} = {inst}")?;
+
+            if let Some(comment) = debug.and_then(|d| d.comment.as_ref()) {
+                write!(out, " // {}", comment)?;
+            }
+
+            writeln!(out)?;
+
             if !without_source {
                 if let Some((source, span)) =
                     debug.and_then(|d| sources.get(d.source_id).map(|s| (s, d.span)))
@@ -407,18 +419,6 @@ impl Unit {
                     }
                 }
             }
-
-            for label in debug.map(|d| d.labels.as_slice()).unwrap_or_default() {
-                writeln!(out, "{}:", label)?;
-            }
-
-            write!(out, "  {:04} = {}", n, inst)?;
-
-            if let Some(comment) = debug.and_then(|d| d.comment.as_ref()) {
-                write!(out, " // {}", comment)?;
-            }
-
-            writeln!(out)?;
         }
 
         Ok(())
