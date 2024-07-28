@@ -11,9 +11,11 @@ use crate::compile::meta;
 use crate::compile::{self, DynLocation, ErrorKind, ItemId, WithSpan};
 use crate::hash::ParametersBuilder;
 use crate::hir;
-use crate::indexing;
 use crate::parse::Resolve;
-use crate::query::{self, Build, BuildEntry, GenericsParameters, Named, Query};
+use crate::query::AsyncBlock;
+use crate::query::Closure;
+use crate::query::SecondaryBuildEntry;
+use crate::query::{self, GenericsParameters, Named, Query, SecondaryBuild};
 use crate::runtime::ConstValue;
 use crate::runtime::{Type, TypeCheck};
 use crate::{Hash, Item, SourceId};
@@ -35,10 +37,11 @@ pub(crate) struct Ctxt<'hir, 'a, 'arena> {
     in_template: Cell<bool>,
     in_path: Cell<bool>,
     needs: Cell<Needs>,
-    scopes: hir::Scopes<'hir>,
+    scopes: hir::Scopes<'hir, 'a>,
     const_eval: bool,
     statements: Vec<hir::Stmt<'hir>>,
-    pattern_bindings: Vec<hir::Name<'hir>>,
+    pattern_bindings: Vec<hir::Variable>,
+    secondary_builds: Option<&'a mut Vec<SecondaryBuildEntry<'hir>>>,
 }
 
 impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
@@ -59,8 +62,9 @@ impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
         arena: &'hir hir::arena::Arena,
         q: Query<'a, 'arena>,
         source_id: SourceId,
+        secondary_builds: &'a mut Vec<SecondaryBuildEntry<'hir>>,
     ) -> alloc::Result<Self> {
-        Self::inner(arena, q, source_id, false)
+        Self::inner(arena, q, source_id, false, Some(secondary_builds))
     }
 
     /// Construct a new context used in a constant context where the resulting
@@ -70,7 +74,7 @@ impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
         q: Query<'a, 'arena>,
         source_id: SourceId,
     ) -> alloc::Result<Self> {
-        Self::inner(arena, q, source_id, true)
+        Self::inner(arena, q, source_id, true, None)
     }
 
     fn inner(
@@ -78,7 +82,10 @@ impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
         q: Query<'a, 'arena>,
         source_id: SourceId,
         const_eval: bool,
+        secondary_builds: Option<&'a mut Vec<SecondaryBuildEntry<'hir>>>,
     ) -> alloc::Result<Self> {
+        let scopes = hir::Scopes::new(q.gen)?;
+
         Ok(Self {
             arena,
             q,
@@ -86,16 +93,17 @@ impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
             in_template: Cell::new(false),
             in_path: Cell::new(false),
             needs: Cell::new(Needs::default()),
-            scopes: hir::Scopes::new()?,
+            scopes,
             const_eval,
             statements: Vec::new(),
             pattern_bindings: Vec::new(),
+            secondary_builds,
         })
     }
 
     #[allow(unused)]
     #[instrument(span = ast)]
-    pub(crate) fn try_lookup_meta(
+    fn try_lookup_meta(
         &mut self,
         span: &dyn Spanned,
         item: ItemId,
@@ -106,7 +114,7 @@ impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
     }
 
     #[instrument(span = ast)]
-    pub(crate) fn lookup_meta(
+    fn lookup_meta(
         &mut self,
         span: &dyn Spanned,
         item: ItemId,
@@ -146,82 +154,6 @@ pub(crate) fn item_fn<'hir>(
     })
 }
 
-/// Lower the body of an async block.
-///
-/// This happens *after* it's been lowered as part of a closure expression.
-#[instrument(span = ast)]
-pub(crate) fn async_block_secondary<'hir>(
-    cx: &mut Ctxt<'hir, '_, '_>,
-    ast: &ast::Block,
-    captures: Hash,
-) -> compile::Result<hir::AsyncBlock<'hir>> {
-    alloc_with!(cx, ast);
-
-    let Some(captures) = cx.q.get_captures(captures) else {
-        return Err(compile::Error::msg(
-            ast,
-            try_format!("Missing captures for hash {captures}"),
-        ));
-    };
-
-    let captures = &*iter!(captures, |capture| {
-        match capture {
-            hir::OwnedName::SelfValue => cx.scopes.define(hir::Name::SelfValue, ast)?,
-            hir::OwnedName::Str(name) => {
-                let name = alloc_str!(name.as_str());
-                cx.scopes.define(hir::Name::Str(name), ast)?
-            }
-            hir::OwnedName::Id(id) => cx.scopes.define(hir::Name::Id(*id), ast)?,
-        }
-    });
-
-    Ok(hir::AsyncBlock {
-        block: block(cx, None, ast)?,
-        captures,
-    })
-}
-
-/// Lower the body of a closure.
-///
-/// This happens *after* it's been lowered as part of a closure expression.
-#[instrument(span = ast)]
-pub(crate) fn expr_closure_secondary<'hir>(
-    cx: &mut Ctxt<'hir, '_, '_>,
-    ast: &ast::ExprClosure,
-    captures: Hash,
-) -> compile::Result<hir::ExprClosure<'hir>> {
-    alloc_with!(cx, ast);
-
-    let Some(captures) = cx.q.get_captures(captures) else {
-        return Err(compile::Error::msg(
-            ast,
-            try_format!("Missing captures for hash {captures}"),
-        ));
-    };
-
-    let captures = &*iter!(captures, |capture| match capture {
-        hir::OwnedName::SelfValue => {
-            cx.scopes.define(hir::Name::SelfValue, ast)?
-        }
-        hir::OwnedName::Str(name) => {
-            let name = hir::Name::Str(alloc_str!(name.as_str()));
-            cx.scopes.define(name, ast)?
-        }
-        hir::OwnedName::Id(id) => {
-            cx.scopes.define(hir::Name::Id(*id), ast)?
-        }
-    });
-
-    let args = iter!(ast.args.as_slice(), |(ast, _)| fn_arg(cx, ast)?);
-    let body = expr(cx, &ast.body)?;
-
-    Ok(hir::ExprClosure {
-        args,
-        body,
-        captures,
-    })
-}
-
 /// Assemble a closure expression.
 #[instrument(span = ast)]
 fn expr_call_closure<'hir>(
@@ -249,39 +181,34 @@ fn expr_call_closure<'hir>(
         ));
     };
 
-    let captures = match cx.q.get_captures(meta.hash) {
-        None => {
-            tracing::trace!("queuing closure build entry");
+    tracing::trace!("queuing closure build entry");
 
-            cx.scopes.push_captures()?;
+    cx.scopes.push_captures()?;
 
-            for (arg, _) in ast.args.as_slice() {
-                fn_arg(cx, arg)?;
-            }
+    let args = iter!(ast.args.as_slice(), |(arg, _)| fn_arg(cx, arg)?);
+    let body = alloc!(expr(cx, &ast.body)?);
 
-            expr(cx, &ast.body)?;
-            let layer = cx.scopes.pop().with_span(&ast.body)?;
+    let layer = cx.scopes.pop().with_span(&ast.body)?;
 
-            cx.q.set_used(&meta.item_meta)?;
-            cx.q.inner.queue.try_push_back(BuildEntry {
-                item_meta: meta.item_meta,
-                build: Build::Closure(indexing::Closure {
-                    ast: Box::try_new(ast.try_clone()?)?,
-                    call,
-                }),
-            })?;
+    cx.q.set_used(&meta.item_meta)?;
 
-            cx.q.insert_captures(meta.hash, layer.captures())?;
-            iter!(layer.captures())
-        }
-        Some(captures) => {
-            iter!(captures, |capture| match capture {
-                hir::OwnedName::SelfValue => hir::Name::SelfValue,
-                hir::OwnedName::Str(name) => hir::Name::Str(alloc_str!(name.as_str())),
-                hir::OwnedName::Id(id) => hir::Name::Id(*id),
-            })
-        }
+    let captures = &*iter!(layer.captures().map(|(_, id)| id));
+
+    let Some(queue) = cx.secondary_builds.as_mut() else {
+        return Err(compile::Error::new(ast, ErrorKind::ClosureInConst));
     };
+
+    queue.try_push(SecondaryBuildEntry {
+        item_meta: meta.item_meta,
+        build: SecondaryBuild::Closure(Closure {
+            hir: alloc!(hir::ExprClosure {
+                args,
+                body,
+                captures,
+            }),
+            call,
+        }),
+    })?;
 
     if captures.is_empty() {
         return Ok(hir::ExprKind::Fn(meta.hash));
@@ -304,7 +231,7 @@ pub(crate) fn block<'hir>(
 }
 
 #[instrument(span = span)]
-pub(crate) fn statements<'hir>(
+fn statements<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     label: Option<&(ast::Label, T![:])>,
     statements: &[ast::Stmt],
@@ -365,7 +292,7 @@ pub(crate) fn statements<'hir>(
 }
 
 #[instrument(span = ast)]
-pub(crate) fn expr_range<'hir>(
+fn expr_range<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::ExprRange,
 ) -> compile::Result<hir::ExprRange<'hir>> {
@@ -400,7 +327,7 @@ pub(crate) fn expr_range<'hir>(
 }
 
 #[instrument(span = ast)]
-pub(crate) fn expr_object<'hir>(
+fn expr_object<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::ExprObject,
 ) -> compile::Result<hir::ExprKind<'hir>> {
@@ -770,7 +697,7 @@ pub(crate) fn expr<'hir>(
 
 /// Construct a pattern from a constant value.
 #[instrument(span = span)]
-pub(crate) fn pat_const_value<'hir>(
+fn pat_const_value<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     const_value: &ConstValue,
     span: &dyn Spanned,
@@ -860,7 +787,7 @@ pub(crate) fn pat_const_value<'hir>(
 }
 
 #[instrument(span = ast)]
-pub(crate) fn expr_if<'hir>(
+fn expr_if<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::ExprIf,
 ) -> compile::Result<hir::Conditional<'hir>> {
@@ -908,10 +835,7 @@ pub(crate) fn expr_if<'hir>(
 }
 
 #[instrument(span = ast)]
-pub(crate) fn lit<'hir>(
-    cx: &mut Ctxt<'hir, '_, '_>,
-    ast: &ast::Lit,
-) -> compile::Result<hir::Lit<'hir>> {
+fn lit<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Lit) -> compile::Result<hir::Lit<'hir>> {
     alloc_with!(cx, ast);
 
     match ast {
@@ -962,7 +886,7 @@ pub(crate) fn lit<'hir>(
 }
 
 #[instrument(span = ast)]
-pub(crate) fn expr_unary<'hir>(
+fn expr_unary<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::ExprUnary,
 ) -> compile::Result<hir::ExprKind<'hir>> {
@@ -1006,7 +930,7 @@ pub(crate) fn expr_unary<'hir>(
 
 /// Lower a block expression.
 #[instrument(span = ast)]
-pub(crate) fn expr_block<'hir>(
+fn expr_block<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::ExprBlock,
 ) -> compile::Result<hir::ExprKind<'hir>> {
@@ -1061,42 +985,34 @@ pub(crate) fn expr_block<'hir>(
 
     match (kind, &meta.kind) {
         (ExprBlockKind::Async, &meta::Kind::AsyncBlock { call, do_move, .. }) => {
-            let captures = match cx.q.get_captures(meta.hash) {
-                None => {
-                    tracing::trace!("queuing async block build entry");
+            tracing::trace!("queuing async block build entry");
 
-                    if let Some(label) = &ast.label {
-                        return Err(compile::Error::msg(
-                            label,
-                            "Async blocks cannot be labelled",
-                        ));
-                    };
-
-                    cx.scopes.push_captures()?;
-                    block(cx, None, &ast.block)?;
-                    let layer = cx.scopes.pop().with_span(&ast.block)?;
-
-                    cx.q.insert_captures(meta.hash, layer.captures())?;
-
-                    cx.q.set_used(&meta.item_meta)?;
-                    cx.q.inner.queue.try_push_back(BuildEntry {
-                        item_meta: meta.item_meta,
-                        build: Build::AsyncBlock(indexing::AsyncBlock {
-                            ast: ast.block.try_clone()?,
-                            call,
-                        }),
-                    })?;
-
-                    iter!(layer.captures())
-                }
-                Some(captures) => {
-                    iter!(captures, |capture| match capture {
-                        hir::OwnedName::SelfValue => hir::Name::SelfValue,
-                        hir::OwnedName::Str(name) => hir::Name::Str(alloc_str!(name.as_str())),
-                        hir::OwnedName::Id(id) => hir::Name::Id(*id),
-                    })
-                }
+            if let Some(label) = &ast.label {
+                return Err(compile::Error::msg(
+                    label,
+                    "Async blocks cannot be labelled",
+                ));
             };
+
+            cx.scopes.push_captures()?;
+            let block = alloc!(block(cx, None, &ast.block)?);
+            let layer = cx.scopes.pop().with_span(&ast.block)?;
+
+            cx.q.set_used(&meta.item_meta)?;
+
+            let captures = &*iter!(layer.captures().map(|(_, id)| id));
+
+            let Some(queue) = cx.secondary_builds.as_mut() else {
+                return Err(compile::Error::new(ast, ErrorKind::AsyncBlockInConst));
+            };
+
+            queue.try_push(SecondaryBuildEntry {
+                item_meta: meta.item_meta,
+                build: SecondaryBuild::AsyncBlock(AsyncBlock {
+                    hir: alloc!(hir::AsyncBlock { block, captures }),
+                    call,
+                }),
+            })?;
 
             Ok(hir::ExprKind::AsyncBlock(alloc!(hir::ExprAsyncBlock {
                 hash: meta.hash,
@@ -1196,8 +1112,8 @@ fn fn_arg<'hir>(
 
     Ok(match ast {
         ast::FnArg::SelfValue(ast) => {
-            cx.scopes.define(hir::Name::SelfValue, ast)?;
-            hir::FnArg::SelfValue(ast.span())
+            let id = cx.scopes.define(hir::Name::SelfValue, ast)?;
+            hir::FnArg::SelfValue(ast.span(), id)
         }
         ast::FnArg::Pat(ast) => hir::FnArg::Pat(alloc!(pat_binding(cx, ast)?)),
     })
@@ -1271,8 +1187,8 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
 
                     if let Some(ident) = ast.path.try_as_ident() {
                         let name = alloc_str!(ident.resolve(resolve_context!(cx.q))?);
-                        cx.scopes.define(hir::Name::Str(name), ast)?;
-                        cx.pattern_bindings.try_push(hir::Name::Str(name))?;
+                        let name = cx.scopes.define(hir::Name::Str(name), ast)?;
+                        cx.pattern_bindings.try_push(name)?;
                         break 'path hir::PatPathKind::Ident(name);
                     }
 
@@ -1370,9 +1286,9 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                             };
 
                             let key = alloc_str!(ident.resolve(resolve_context!(cx.q))?);
-                            cx.scopes.define(hir::Name::Str(key), ident)?;
-                            cx.pattern_bindings.try_push(hir::Name::Str(key))?;
-                            (key, hir::Binding::Ident(path.span(), key))
+                            let id = cx.scopes.define(hir::Name::Str(key), ident)?;
+                            cx.pattern_bindings.try_push(id)?;
+                            (key, hir::Binding::Ident(path.span(), key, id))
                         }
                         _ => {
                             return Err(compile::Error::new(
@@ -1487,7 +1403,7 @@ fn object_key<'hir, 'ast>(
 
 /// Lower the given path.
 #[instrument(span = ast)]
-pub(crate) fn expr_path<'hir>(
+fn expr_path<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::Path,
     in_path: bool,
@@ -1495,11 +1411,11 @@ pub(crate) fn expr_path<'hir>(
     alloc_with!(cx, ast);
 
     if let Some(ast::PathKind::SelfValue) = ast.as_kind() {
-        let Some(..) = cx.scopes.get(hir::Name::SelfValue)? else {
+        let Some((id, _)) = cx.scopes.get(hir::Name::SelfValue)? else {
             return Err(compile::Error::new(ast, ErrorKind::MissingSelf));
         };
 
-        return Ok(hir::ExprKind::Variable(hir::Name::SelfValue));
+        return Ok(hir::ExprKind::Variable(id));
     }
 
     if let Needs::Value = cx.needs.get() {
@@ -1786,7 +1702,7 @@ fn expr_call<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::ExprCall,
 ) -> compile::Result<hir::ExprCall<'hir>> {
-    pub(crate) fn find_path(ast: &ast::Expr) -> Option<&ast::Path> {
+    fn find_path(ast: &ast::Expr) -> Option<&ast::Path> {
         let mut current = ast;
 
         loop {

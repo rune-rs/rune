@@ -54,7 +54,7 @@ pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut Ctxt<'_, '_>) -> compile::Result
             ir::Ir::new(span, value)
         }
         hir::ExprKind::Variable(name) => {
-            return Ok(ir::Ir::new(span, name.into_owned()?));
+            return Ok(ir::Ir::new(span, name));
         }
         _ => {
             return Err(compile::Error::msg(
@@ -71,7 +71,7 @@ fn ir_target(expr: &hir::Expr<'_>) -> compile::Result<ir::IrTarget> {
         hir::ExprKind::Variable(name) => {
             return Ok(ir::IrTarget {
                 span: expr.span(),
-                kind: ir::IrTargetKind::Name(name.into_owned()?),
+                kind: ir::IrTargetKind::Name(name),
             });
         }
         hir::ExprKind::FieldAccess(expr_field_access) => {
@@ -370,7 +370,7 @@ fn local(hir: &hir::Local<'_>, c: &mut Ctxt<'_, '_>) -> compile::Result<ir::Ir> 
         span,
         ir::IrDecl {
             span,
-            name: hir::Name::Str(name).into_owned()?,
+            name,
             value: Box::try_new(expr(&hir.expr, c)?)?,
         },
     ))

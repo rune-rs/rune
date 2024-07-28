@@ -5,11 +5,13 @@ use core::fmt;
 use core::num::NonZeroUsize;
 
 use crate::alloc::prelude::*;
-use crate::alloc::{self, BTreeSet, HashSet, Vec};
+use crate::alloc::{self, BTreeSet, HashMap, Vec};
 use crate::ast::Spanned;
 use crate::compile::error::{MissingScope, PopError};
 use crate::compile::{self, HasSpan};
 use crate::hir;
+use crate::parse::NonZeroId;
+use crate::shared::Gen;
 
 use rune_macros::instrument;
 
@@ -35,11 +37,11 @@ pub(crate) struct Layer<'hir> {
     ///  The kind of the layer.
     kind: LayerKind,
     /// Variables defined in this layer.
-    variables: HashSet<hir::Name<'hir>>,
+    variables: HashMap<hir::Name<'hir>, hir::Variable>,
     /// Order of variable definitions.
-    order: Vec<hir::Name<'hir>>,
+    order: Vec<hir::Variable>,
     /// Captures inside of this layer.
-    captures: BTreeSet<hir::Name<'hir>>,
+    captures: BTreeSet<(hir::Name<'hir>, hir::Variable)>,
     /// An optional layer label.
     label: Option<&'hir str>,
 }
@@ -51,33 +53,37 @@ impl<'hir> Layer<'hir> {
 
     /// Convert layer into variable drop order.
     #[inline(always)]
-    pub(crate) fn into_drop_order(self) -> impl ExactSizeIterator<Item = hir::Name<'hir>> {
+    pub(crate) fn into_drop_order(self) -> impl ExactSizeIterator<Item = hir::Variable> {
         self.order.into_iter().rev()
     }
 
     /// Variables captured by the layer.
-    pub(crate) fn captures(&self) -> impl ExactSizeIterator<Item = hir::Name<'hir>> + '_ {
+    pub(crate) fn captures(
+        &self,
+    ) -> impl ExactSizeIterator<Item = (hir::Name<'hir>, hir::Variable)> + '_ {
         self.captures.iter().copied()
     }
 }
 
-pub(crate) struct Scopes<'hir> {
+pub(crate) struct Scopes<'hir, 'a> {
     scope: Scope,
     scopes: Vec<Layer<'hir>>,
+    gen: &'a Gen,
 }
 
-impl<'hir> Scopes<'hir> {
+impl<'hir, 'a> Scopes<'hir, 'a> {
     /// Root scope.
     pub const ROOT: Scope = Scope(0);
 
     #[inline]
-    pub(crate) fn new() -> alloc::Result<Self> {
+    pub(crate) fn new(gen: &'a Gen) -> alloc::Result<Self> {
         let mut scopes = Vec::new();
         scopes.try_push(Layer::default())?;
 
         Ok(Self {
             scope: Scopes::ROOT,
             scopes,
+            gen,
         })
     }
 
@@ -102,7 +108,7 @@ impl<'hir> Scopes<'hir> {
         let layer = Layer {
             scope,
             parent: Some(NonZeroUsize::new(self.scope.0.wrapping_add(1)).expect("ran out of ids")),
-            variables: HashSet::new(),
+            variables: HashMap::new(),
             order: Vec::new(),
             kind,
             captures: BTreeSet::new(),
@@ -135,22 +141,42 @@ impl<'hir> Scopes<'hir> {
         Ok(layer)
     }
 
-    /// Define the given variable.
+    /// Insert a variable with the specified id.
     #[tracing::instrument(skip_all, fields(?self.scope, ?name))]
-    pub(crate) fn define(
+    pub(crate) fn insert(
         &mut self,
         name: hir::Name<'hir>,
+        id: hir::Variable,
         span: &dyn Spanned,
-    ) -> compile::Result<hir::Name<'hir>> {
+    ) -> compile::Result<hir::Variable> {
         tracing::trace!(?self.scope, ?name, "define");
 
         let Some(layer) = self.scopes.get_mut(self.scope.0) else {
             return Err(HasSpan::new(span, MissingScope(self.scope.0)).into());
         };
 
-        layer.variables.try_insert(name)?;
-        layer.order.try_push(name)?;
-        Ok(name)
+        layer.variables.try_insert(name, id)?;
+        layer.order.try_push(id)?;
+        Ok(id)
+    }
+
+    /// Define the given variable.
+    #[tracing::instrument(skip_all, fields(?self.scope, ?name))]
+    pub(crate) fn define(
+        &mut self,
+        name: hir::Name<'hir>,
+        span: &dyn Spanned,
+    ) -> compile::Result<hir::Variable> {
+        tracing::trace!(?self.scope, ?name, "define");
+
+        let Some(layer) = self.scopes.get_mut(self.scope.0) else {
+            return Err(HasSpan::new(span, MissingScope(self.scope.0)).into());
+        };
+
+        let id = hir::Variable(self.gen.next());
+        layer.variables.try_insert(name, id)?;
+        layer.order.try_push(id)?;
+        Ok(id)
     }
 
     /// Try to lookup the given variable.
@@ -158,20 +184,20 @@ impl<'hir> Scopes<'hir> {
     pub(crate) fn get(
         &mut self,
         name: hir::Name<'hir>,
-    ) -> alloc::Result<Option<(hir::Name<'hir>, Scope)>> {
+    ) -> alloc::Result<Option<(hir::Variable, Scope)>> {
         tracing::trace!("get");
 
         let mut blocks = Vec::new();
         let mut scope = self.scopes.get(self.scope.0);
 
-        let scope = 'ok: {
+        let (scope, id) = 'ok: {
             loop {
                 let Some(layer) = scope.take() else {
                     return Ok(None);
                 };
 
-                if layer.variables.contains(&name) {
-                    break 'ok layer.scope;
+                if let Some(id) = layer.variables.get(&name) {
+                    break 'ok (layer.scope, *id);
                 }
 
                 if let LayerKind::Captures { .. } = layer.kind {
@@ -193,10 +219,10 @@ impl<'hir> Scopes<'hir> {
                 continue;
             };
 
-            layer.captures.try_insert(name)?;
+            layer.captures.try_insert((name, id))?;
         }
 
-        Ok(Some((name, scope)))
+        Ok(Some((id, scope)))
     }
 
     /// Walk the loop and construct captures for it.
@@ -204,7 +230,7 @@ impl<'hir> Scopes<'hir> {
     pub(crate) fn loop_drop(
         &self,
         label: Option<&str>,
-    ) -> alloc::Result<Option<Vec<hir::Name<'hir>>>> {
+    ) -> alloc::Result<Option<Vec<hir::Variable>>> {
         let mut captures = Vec::new();
         let mut scope = self.scopes.get(self.scope.0);
 

@@ -228,7 +228,7 @@ fn eval_ir_decl(
 ) -> Result<Value, EvalOutcome> {
     interp.budget.take(ir)?;
     let value = eval_ir(&ir.value, interp, used)?;
-    interp.scopes.decl(&ir.name, value).with_span(ir)?;
+    interp.scopes.decl(ir.name, value).with_span(ir)?;
     Ok(Value::unit())
 }
 

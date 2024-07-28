@@ -90,8 +90,6 @@ pub(crate) struct QueryInner<'arena> {
     pub(crate) items: HashMap<NonZeroId, ItemMeta>,
     /// All available names.
     names: Names,
-    /// Recorded captures.
-    captures: HashMap<Hash, Vec<hir::OwnedName>>,
 }
 
 impl QueryInner<'_> {
@@ -1857,26 +1855,6 @@ impl<'a, 'arena> Query<'a, 'arena> {
         }
 
         self.context.get_const_value(hash)
-    }
-
-    /// Insert captures.
-    pub(crate) fn insert_captures<'hir, C>(&mut self, hash: Hash, captures: C) -> alloc::Result<()>
-    where
-        C: IntoIterator<Item = hir::Name<'hir>>,
-    {
-        let captures = captures
-            .into_iter()
-            .map(hir::Name::into_owned)
-            .try_collect::<alloc::Result<_>>()??;
-
-        self.inner.captures.try_insert(hash, captures)?;
-
-        Ok(())
-    }
-
-    /// Get captures for the given hash.
-    pub(crate) fn get_captures(&self, hash: Hash) -> Option<&[hir::OwnedName]> {
-        Some(self.inner.captures.get(&hash)?)
     }
 }
 

@@ -75,14 +75,6 @@ pub enum ExprClosureArgs {
 }
 
 impl ExprClosureArgs {
-    /// The number of arguments the closure takes.
-    pub(crate) fn len(&self) -> usize {
-        match self {
-            Self::Empty { .. } => 0,
-            Self::List { args, .. } => args.len(),
-        }
-    }
-
     /// Get a slice over all arguments.
     pub(crate) fn as_slice(&self) -> &[(ast::FnArg, Option<T![,]>)] {
         match self {

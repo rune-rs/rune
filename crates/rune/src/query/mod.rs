@@ -20,6 +20,7 @@ use crate::hir;
 use crate::indexing;
 use crate::parse::NonZeroId;
 use crate::runtime::format;
+use crate::runtime::Call;
 
 /// Indication whether a value is being evaluated because it's being used or not.
 #[derive(Debug, TryClone, Clone, Copy)]
@@ -123,12 +124,42 @@ pub(crate) struct BuiltInLine {
     pub(crate) value: ast::Lit,
 }
 
+#[derive(Debug, TryClone)]
+pub(crate) struct Closure<'hir> {
+    /// Ast for closure.
+    pub(crate) hir: &'hir hir::ExprClosure<'hir>,
+    /// Calling convention used for closure.
+    pub(crate) call: Call,
+}
+
+#[derive(Debug, TryClone)]
+pub(crate) struct AsyncBlock<'hir> {
+    /// Ast for block.
+    pub(crate) hir: &'hir hir::AsyncBlock<'hir>,
+    /// Calling convention used for async block.
+    pub(crate) call: Call,
+}
+
+/// An entry in the build queue.
+#[derive(Debug, TryClone)]
+pub(crate) enum SecondaryBuild<'hir> {
+    Closure(Closure<'hir>),
+    AsyncBlock(AsyncBlock<'hir>),
+}
+
+/// An entry in the build queue.
+#[derive(Debug, TryClone)]
+pub(crate) struct SecondaryBuildEntry<'hir> {
+    /// The item of the build entry.
+    pub(crate) item_meta: ItemMeta,
+    /// The build entry.
+    pub(crate) build: SecondaryBuild<'hir>,
+}
+
 /// An entry in the build queue.
 #[derive(Debug, TryClone)]
 pub(crate) enum Build {
     Function(indexing::Function),
-    Closure(indexing::Closure),
-    AsyncBlock(indexing::AsyncBlock),
     Unused,
     Import(indexing::Import),
     /// A public re-export.

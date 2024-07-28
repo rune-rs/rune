@@ -90,7 +90,7 @@ impl Interpreter<'_, '_> {
     pub(crate) fn resolve_var(
         &mut self,
         span: &dyn Spanned,
-        name: &hir::OwnedName,
+        name: &hir::Variable,
         used: Used,
     ) -> compile::Result<Value> {
         if let Some(ir_value) = self.scopes.try_get(name) {
@@ -139,19 +139,10 @@ impl Interpreter<'_, '_> {
             base.pop()?;
         }
 
-        if name.as_ref().starts_with(char::is_lowercase) {
-            Err(compile::Error::new(
-                span,
-                MissingLocal(name.try_to_string()?.try_into_boxed_str()?),
-            ))
-        } else {
-            Err(compile::Error::new(
-                span,
-                IrErrorKind::MissingConst {
-                    name: name.try_to_string()?.try_into()?,
-                },
-            ))
-        }
+        Err(compile::Error::new(
+            span,
+            MissingLocal(name.try_to_string()?.try_into_boxed_str()?),
+        ))
     }
 
     pub(crate) fn call_const_fn<S>(
@@ -180,7 +171,7 @@ impl Interpreter<'_, '_> {
         let guard = self.scopes.isolate()?;
 
         for (name, value) in const_fn.ir_fn.args.iter().zip(args) {
-            self.scopes.decl(name, value).with_span(span)?;
+            self.scopes.decl(*name, value).with_span(span)?;
         }
 
         let value = self.eval_value(&const_fn.ir_fn.ir, used)?;

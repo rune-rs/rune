@@ -22,7 +22,7 @@ pub(super) struct Scope<'hir> {
     /// Scope.
     id: ScopeId,
     /// Named variables.
-    names: HashMap<hir::Name<'hir>, VarInner<'hir>>,
+    names: HashMap<hir::Variable, VarInner<'hir>>,
     /// Slots owned by this scope.
     locals: Dangling,
 }
@@ -189,7 +189,7 @@ impl<'hir> Scopes<'hir> {
         &self,
         q: &mut Query<'_, '_>,
         span: &dyn Spanned,
-        name: hir::Name<'hir>,
+        name: hir::Variable,
     ) -> compile::Result<Var<'hir>> {
         let scopes = self.scopes.borrow();
         let mut current = Some(self.top.get());
@@ -241,7 +241,7 @@ impl<'hir> Scopes<'hir> {
         &self,
         q: &mut Query<'_, '_>,
         span: &'hir dyn Spanned,
-        name: hir::Name<'hir>,
+        name: hir::Variable,
     ) -> compile::Result<Var<'hir>> {
         let scopes = self.scopes.borrow();
         let mut current = Some(self.top.get());
@@ -294,7 +294,7 @@ impl<'hir> Scopes<'hir> {
     pub(super) fn define(
         &self,
         span: &'hir dyn Spanned,
-        name: hir::Name<'hir>,
+        name: hir::Variable,
         addr: &Address<'_, 'hir>,
     ) -> compile::Result<()> {
         let mut scopes = self.scopes.borrow_mut();
@@ -585,7 +585,7 @@ pub(super) struct Var<'hir> {
     /// The span where the variable was declared.
     pub(super) span: &'hir dyn Spanned,
     /// The name of the variable.
-    name: hir::Name<'hir>,
+    name: hir::Variable,
     /// Address where the variable is currently live.
     pub(super) addr: InstAddress,
 }
@@ -669,7 +669,7 @@ struct VarInner<'hir> {
     /// Token assocaited with the variable.
     span: &'hir dyn Spanned,
     /// The name of the variable.
-    name: hir::Name<'hir>,
+    name: hir::Variable,
     /// Offset from the current stack frame.
     addr: InstAddress,
     /// Variable has been taken at the given position.
