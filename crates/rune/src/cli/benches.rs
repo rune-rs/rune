@@ -1,4 +1,5 @@
 use std::fmt;
+use std::hint;
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -26,7 +27,7 @@ mod cli {
         pub(super) warmup: u32,
         /// Iterations to run of the benchmark
         #[arg(long, default_value = "100")]
-        pub(super) iterations: u32,
+        pub(super) iter: u32,
         /// Explicit paths to benchmark.
         pub(super) bench_path: Vec<PathBuf>,
     }
@@ -130,18 +131,18 @@ fn bench_fn(
 ) -> Result<()> {
     for _ in 0..args.warmup {
         let value = f.call::<Value>(()).into_result()?;
-        drop(value);
+        drop(hint::black_box(value));
     }
 
-    let iterations = usize::try_from(args.iterations).expect("iterations out of bounds");
+    let iterations = usize::try_from(args.iter).expect("iterations out of bounds");
     let mut collected = Vec::try_with_capacity(iterations)?;
 
-    for _ in 0..args.iterations {
+    for _ in 0..args.iter {
         let start = Instant::now();
         let value = f.call::<Value>(()).into_result()?;
         let duration = Instant::now().duration_since(start);
         collected.try_push(duration.as_nanos() as i128)?;
-        drop(value);
+        drop(hint::black_box(value));
     }
 
     collected.sort_unstable();

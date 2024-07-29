@@ -363,29 +363,21 @@ impl Object {
 
     pub(crate) fn partial_eq_with(
         a: &Self,
-        b: Value,
+        b: &Self,
         caller: &mut dyn ProtocolCaller,
     ) -> VmResult<bool> {
-        let mut b = vm_try!(b.into_iter());
+        if a.len() != b.len() {
+            return VmResult::Ok(false);
+        }
 
         for (k1, v1) in a.iter() {
-            let Some(value) = vm_try!(b.next()) else {
+            let Some(v2) = b.get(k1) else {
                 return VmResult::Ok(false);
             };
-
-            let (k2, v2) = vm_try!(<(Ref<String>, Value)>::from_value(value));
-
-            if k1 != &*k2 {
-                return VmResult::Ok(false);
-            }
 
             if !vm_try!(Value::partial_eq_with(v1, &v2, caller)) {
                 return VmResult::Ok(false);
             }
-        }
-
-        if vm_try!(b.next()).is_some() {
-            return VmResult::Ok(false);
         }
 
         VmResult::Ok(true)

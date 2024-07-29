@@ -330,8 +330,8 @@ struct CommandSharedRef<'a> {
 }
 
 impl CommandSharedRef<'_> {
-    fn find_bins(&self) -> Option<WorkspaceFilter<'_>> {
-        if !self.command.is_workspace(AssetKind::Bin) {
+    fn find_bins(&self, all_targets: bool) -> Option<WorkspaceFilter<'_>> {
+        if !all_targets && !self.command.is_workspace(AssetKind::Bin) {
             return None;
         }
 
@@ -342,8 +342,8 @@ impl CommandSharedRef<'_> {
         })
     }
 
-    fn find_tests(&self) -> Option<WorkspaceFilter<'_>> {
-        if !self.command.is_workspace(AssetKind::Test) {
+    fn find_tests(&self, all_targets: bool) -> Option<WorkspaceFilter<'_>> {
+        if !all_targets && !self.command.is_workspace(AssetKind::Test) {
             return None;
         }
 
@@ -354,8 +354,8 @@ impl CommandSharedRef<'_> {
         })
     }
 
-    fn find_examples(&self) -> Option<WorkspaceFilter<'_>> {
-        if !self.command.is_workspace(AssetKind::Bin) {
+    fn find_examples(&self, all_targets: bool) -> Option<WorkspaceFilter<'_>> {
+        if !all_targets && !self.command.is_workspace(AssetKind::Bin) {
             return None;
         }
 
@@ -366,8 +366,8 @@ impl CommandSharedRef<'_> {
         })
     }
 
-    fn find_benches(&self) -> Option<WorkspaceFilter<'_>> {
-        if !self.command.is_workspace(AssetKind::Bench) {
+    fn find_benches(&self, all_targets: bool) -> Option<WorkspaceFilter<'_>> {
+        if !all_targets && !self.command.is_workspace(AssetKind::Bench) {
             return None;
         }
 
@@ -503,6 +503,8 @@ struct Config {
     test: bool,
     /// Whether or not to use verbose output.
     verbose: bool,
+    /// Always include all targets.
+    all_targets: bool,
     /// Manifest root directory.
     manifest_root: Option<PathBuf>,
     /// Immediate found paths.
@@ -522,25 +524,25 @@ impl Config {
             }
         }
 
-        if let Some(bin) = cmd.find_bins() {
+        if let Some(bin) = cmd.find_bins(self.all_targets) {
             for p in self.manifest.find_bins(bin)? {
                 build_paths.try_push(BuildPath::Package(p))?;
             }
         }
 
-        if let Some(test) = cmd.find_tests() {
+        if let Some(test) = cmd.find_tests(self.all_targets) {
             for p in self.manifest.find_tests(test)? {
                 build_paths.try_push(BuildPath::Package(p))?;
             }
         }
 
-        if let Some(example) = cmd.find_examples() {
+        if let Some(example) = cmd.find_examples(self.all_targets) {
             for p in self.manifest.find_examples(example)? {
                 build_paths.try_push(BuildPath::Package(p))?;
             }
         }
 
-        if let Some(bench) = cmd.find_benches() {
+        if let Some(bench) = cmd.find_benches(self.all_targets) {
             for p in self.manifest.find_benches(bench)? {
                 build_paths.try_push(BuildPath::Package(p))?;
             }
@@ -658,6 +660,11 @@ struct SharedFlags {
     #[arg(long)]
     bench: Option<String>,
 
+    /// Include all targets, and not just the ones which are default for the
+    /// current command.
+    #[arg(long)]
+    all_targets: bool,
+
     /// Build paths to include in the command.
     ///
     /// By default, the tool searches for:
@@ -722,6 +729,8 @@ fn find_manifest() -> Option<(PathBuf, PathBuf)> {
 }
 
 fn populate_config(io: &mut Io<'_>, c: &mut Config, cmd: CommandSharedRef<'_>) -> Result<()> {
+    c.all_targets = cmd.shared.all_targets;
+
     c.found_paths
         .try_extend(cmd.shared.path.iter().map(|p| (p.clone(), false)))?;
 
@@ -785,7 +794,7 @@ async fn main_with_out(io: &mut Io<'_>, entry: &mut Entry<'_>, mut args: Args) -
         }
     };
 
-    let mut entrys = alloc::Vec::new();
+    let mut entries = alloc::Vec::new();
 
     if let Some(cmd) = cmd.as_command_shared_ref() {
         populate_config(io, &mut c, cmd)?;
@@ -800,7 +809,7 @@ async fn main_with_out(io: &mut Io<'_>, entry: &mut Entry<'_>, mut args: Args) -
             match build_path {
                 BuildPath::Path(path, explicit) => {
                     for path in loader::recurse_paths(recursive, path.try_to_owned()?) {
-                        entrys.try_push(EntryPoint::Path(path?, explicit))?;
+                        entries.try_push(EntryPoint::Path(path?, explicit))?;
                     }
                 }
                 BuildPath::Package(p) => {
@@ -820,13 +829,13 @@ async fn main_with_out(io: &mut Io<'_>, entry: &mut Entry<'_>, mut args: Args) -
                         )?;
                     }
 
-                    entrys.try_push(EntryPoint::Package(p))?;
+                    entries.try_push(EntryPoint::Package(p))?;
                 }
             }
         }
     }
 
-    match run_path(io, &c, cmd, entry, entrys).await? {
+    match run_path(io, &c, cmd, entry, entries).await? {
         ExitCode::Success => (),
         other => {
             return Ok(other);
