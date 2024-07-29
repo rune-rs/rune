@@ -375,7 +375,7 @@ impl Object {
                 return VmResult::Ok(false);
             };
 
-            if !vm_try!(Value::partial_eq_with(v1, &v2, caller)) {
+            if !vm_try!(Value::partial_eq_with(v1, v2, caller)) {
                 return VmResult::Ok(false);
             }
         }

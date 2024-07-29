@@ -6,7 +6,7 @@ use core::slice;
 use crate::alloc::alloc::Global;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Vec};
-use crate::runtime::{InstAddress, Value, VmErrorKind};
+use crate::runtime::{InstAddress, Output, Value, VmErrorKind};
 
 /// An error raised when accessing an address on the stack.
 #[derive(Debug, PartialEq)]
@@ -484,6 +484,35 @@ impl Stack {
         tracing::trace!(stack = self.stack.len(), self.top);
         self.stack.truncate(self.top);
         self.top = top;
+        Ok(())
+    }
+
+    /// Copy the value at the given address to the output.
+    pub(crate) fn copy(&mut self, from: InstAddress, out: Output) -> Result<(), StackError> {
+        let Some(to) = out.as_addr() else {
+            return Ok(());
+        };
+
+        if from == to {
+            return Ok(());
+        }
+
+        let from = self.top.wrapping_add(from.offset());
+        let to = self.top.wrapping_add(to.offset());
+
+        if from.max(to) >= self.stack.len() {
+            return Err(StackError {
+                addr: InstAddress::new(from.max(to).wrapping_sub(self.top)),
+            });
+        }
+
+        // SAFETY: We've checked that both addresses are in-bound and different
+        // just above.
+        unsafe {
+            let ptr = self.stack.as_mut_ptr();
+            (*ptr.add(to)).clone_from(&*ptr.add(from).cast_const());
+        }
+
         Ok(())
     }
 
