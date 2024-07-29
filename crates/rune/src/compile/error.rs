@@ -1,3 +1,4 @@
+use core::convert::Infallible;
 use core::fmt;
 
 #[cfg(feature = "std")]
@@ -92,6 +93,13 @@ impl fmt::Display for Error {
     }
 }
 
+impl From<Infallible> for Error {
+    #[inline]
+    fn from(value: Infallible) -> Self {
+        match value {}
+    }
+}
+
 impl<S, E> From<HasSpan<S, E>> for Error
 where
     S: Spanned,
@@ -99,6 +107,21 @@ where
 {
     fn from(spanned: HasSpan<S, E>) -> Self {
         Self::new(spanned.span(), spanned.into_inner())
+    }
+}
+
+impl From<fmt::Error> for ErrorKind {
+    #[inline]
+    fn from(fmt::Error: fmt::Error) -> Self {
+        ErrorKind::FormatError
+    }
+}
+
+#[cfg(feature = "fmt")]
+impl From<syntree::Error> for ErrorKind {
+    #[inline]
+    fn from(error: syntree::Error) -> Self {
+        ErrorKind::Syntree(error)
     }
 }
 
@@ -236,6 +259,9 @@ pub(crate) enum ErrorKind {
     PopError(PopError),
     MissingId(MissingId),
     UnescapeError(unescape::ErrorKind),
+    #[cfg(feature = "fmt")]
+    Syntree(syntree::Error),
+    FormatError,
     #[cfg(feature = "std")]
     SourceError {
         path: PathBuf,
@@ -514,6 +540,44 @@ pub(crate) enum ErrorKind {
     UnsupportedSuffix,
     ClosureInConst,
     AsyncBlockInConst,
+    #[cfg(feature = "fmt")]
+    BadSpan {
+        len: usize,
+    },
+    #[cfg(feature = "fmt")]
+    UnsupportedToken {
+        actual: ast::Kind,
+        what: &'static str,
+    },
+    #[cfg(feature = "fmt")]
+    UnsupportedSyntax {
+        actual: ast::Kind,
+        what: &'static str,
+    },
+    #[cfg(feature = "fmt")]
+    UnexpectedEndOfSyntax {
+        inside: ast::Kind,
+    },
+    #[cfg(feature = "fmt")]
+    ExpectedSyntaxEnd {
+        inside: ast::Kind,
+        actual: ast::Kind,
+    },
+    #[cfg(feature = "fmt")]
+    BadIndent {
+        level: isize,
+        indent: usize,
+    },
+    #[cfg(feature = "fmt")]
+    ExpectedSyntax {
+        inside: ast::Kind,
+        expected: ast::Kind,
+        actual: ast::Kind,
+    },
+    #[cfg(feature = "fmt")]
+    UnsupportedDelimiter {
+        expectation: Expectation,
+    },
 }
 
 impl ErrorKind {
@@ -599,6 +663,13 @@ impl fmt::Display for ErrorKind {
             }
             ErrorKind::UnescapeError(error) => {
                 error.fmt(f)?;
+            }
+            #[cfg(feature = "fmt")]
+            ErrorKind::Syntree(error) => {
+                error.fmt(f)?;
+            }
+            ErrorKind::FormatError => {
+                write!(f, "Formatting error")?;
             }
             #[cfg(feature = "std")]
             ErrorKind::SourceError { path, error } => {
@@ -1047,6 +1118,48 @@ impl fmt::Display for ErrorKind {
             }
             ErrorKind::AsyncBlockInConst => {
                 write!(f, "Async blocks are not supported in constant contexts")?;
+            }
+            #[cfg(feature = "fmt")]
+            ErrorKind::BadSpan { len } => {
+                write!(f, "Span is outside of source 0-{len}")?;
+            }
+            #[cfg(feature = "fmt")]
+            ErrorKind::UnsupportedToken { actual, what } => {
+                write!(f, "Unsupported {what} {actual:?}")?;
+            }
+            #[cfg(feature = "fmt")]
+            ErrorKind::UnsupportedSyntax { actual, what } => {
+                write!(f, "Unsupported {what} {actual:?}")?;
+            }
+            #[cfg(feature = "fmt")]
+            ErrorKind::UnexpectedEndOfSyntax { inside } => {
+                write!(f, "Unexpected end of syntax while parsing {inside:?}")?;
+            }
+            #[cfg(feature = "fmt")]
+            ErrorKind::ExpectedSyntaxEnd { inside, actual } => {
+                write!(
+                    f,
+                    "Expected end of syntax but got {actual:?} while parsing {inside:?}"
+                )?;
+            }
+            #[cfg(feature = "fmt")]
+            ErrorKind::BadIndent { level, indent } => {
+                write!(f, "Got bad indent {level} with existing {indent}")?;
+            }
+            #[cfg(feature = "fmt")]
+            ErrorKind::ExpectedSyntax {
+                inside,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "Expected syntax {expected:?} but got {actual:?} while parsing {inside:?}"
+                )?;
+            }
+            #[cfg(feature = "fmt")]
+            ErrorKind::UnsupportedDelimiter { expectation } => {
+                write!(f, "Unsupported delimiter {expectation}")?;
             }
         }
 

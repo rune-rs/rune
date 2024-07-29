@@ -18,6 +18,57 @@ cfg_std! {
     impl std::error::Error for ParseOptionError {}
 }
 
+/// Options specific to formatting.
+#[derive(Debug, Clone)]
+pub(crate) struct FmtOptions {
+    /// Print source tree.
+    pub(crate) print_tree: bool,
+    /// Attempt to format even when faced with syntax errors.
+    pub(crate) error_recovery: bool,
+}
+
+impl FmtOptions {
+    /// Parse a rune-fmt option.
+    pub(crate) fn parse_option(&mut self, option: &str) -> Result<(), ParseOptionError> {
+        let (head, tail) = if let Some((head, tail)) = option.trim().split_once('=') {
+            (head.trim(), Some(tail.trim()))
+        } else {
+            (option.trim(), None)
+        };
+
+        match head {
+            "print-tree" => {
+                self.print_tree = tail.map_or(true, |s| s == "true");
+            }
+            "error-recovery" => {
+                self.error_recovery = tail.map_or(true, |s| s == "true");
+            }
+            _ => {
+                return Err(ParseOptionError {
+                    option: option.into(),
+                });
+            }
+        }
+
+        Ok(())
+    }
+}
+
+/// Documentation for a single compiler option.
+#[non_exhaustive]
+pub struct OptionMeta {
+    /// The key.
+    pub key: &'static str,
+    /// Whether the option is unstable or not.
+    pub unstable: bool,
+    /// The documentation for the option.
+    pub doc: &'static [&'static str],
+    /// The default value for the option.
+    pub default: &'static str,
+    /// Available options.
+    pub options: &'static str,
+}
+
 /// Options that can be provided to the compiler.
 ///
 /// See [Build::with_options][crate::Build::with_options].
@@ -33,10 +84,6 @@ pub struct Options {
     pub(crate) macros: bool,
     /// Support bytecode caching.
     pub(crate) bytecode: bool,
-    /// Compile for and enable test features
-    pub(crate) cfg_test: bool,
-    /// Use the second version of the compiler in parallel.
-    pub(crate) v2: bool,
     /// Build sources as function bodies.
     ///
     /// The function to run will be named 0, which can be constructed with
@@ -46,9 +93,144 @@ pub struct Options {
     pub(crate) test_std: bool,
     /// Enable lowering optimizations.
     pub(crate) lowering: u8,
+    /// Rune format options.
+    pub(crate) fmt: FmtOptions,
 }
 
 impl Options {
+    /// The default options.
+    pub(crate) const DEFAULT: Options = Options {
+        link_checks: true,
+        memoize_instance_fn: true,
+        debug_info: true,
+        macros: true,
+        bytecode: false,
+        function_body: false,
+        test_std: false,
+        lowering: 0,
+        fmt: FmtOptions {
+            print_tree: false,
+            error_recovery: false,
+        },
+    };
+
+    /// Get a list and documentation for all available compiler options.
+    pub fn available() -> &'static [OptionMeta] {
+        static BOOL: &str = "true, false";
+        static VALUES: &[OptionMeta] = &[
+            OptionMeta {
+                key: "link-checks",
+                unstable: false,
+                doc: &docstring! {
+                    /// Perform link-time checks to ensure that
+                    /// function hashes which are referenced during
+                    /// compilation exist.
+                },
+                default: "true",
+                options: BOOL,
+            },
+            OptionMeta {
+                key: "memoize-instance-fn",
+                unstable: false,
+                doc: &docstring! {
+                    /// Memoize the instance function in a loop.
+                },
+                default: "true",
+                options: BOOL,
+            },
+            OptionMeta {
+                key: "debug-info",
+                unstable: false,
+                doc: &docstring! {
+                    /// Include debug information when compiling.
+                    ///
+                    /// This provides better diagnostics, but also
+                    /// increases memory usage.
+                },
+                default: "true",
+                options: BOOL,
+            },
+            OptionMeta {
+                key: "macros",
+                unstable: false,
+                doc: &docstring! {
+                    /// Support macro expansion.
+                },
+                default: "true",
+                options: BOOL,
+            },
+            OptionMeta {
+                key: "bytecode",
+                unstable: true,
+                doc: &docstring! {
+                    /// Make use of bytecode, which might make
+                    /// compilation units smaller.
+                },
+                default: "false",
+                options: BOOL,
+            },
+            OptionMeta {
+                key: "function-body",
+                unstable: true,
+                doc: &docstring! {
+                    /// Causes sources to be treated as-if they were
+                    /// function bodies, rather than modules.
+                },
+                default: "false",
+                options: BOOL,
+            },
+            OptionMeta {
+                key: "test-std",
+                unstable: true,
+                doc: &docstring! {
+                    /// When running tests, includes tests found in the
+                    /// standard library.
+                },
+                default: "false",
+                options: BOOL,
+            },
+            OptionMeta {
+                key: "lowering",
+                unstable: true,
+                doc: &docstring! {
+                    /// Enable lowering optimizations.
+                    ///
+                    /// Supports a value of 0-3 with increasingly higher
+                    /// levels of optimizations applied.
+                    ///
+                    /// Enabling a higher level results in better code
+                    /// generation, but contributes to compilation times.
+                },
+                default: "0",
+                options: "0-3",
+            },
+            OptionMeta {
+                key: "fmt.print-tree",
+                unstable: false,
+                doc: &docstring! {
+                    /// Print the parsed source tree when formatting to
+                    /// standard output.
+                },
+                default: "false",
+                options: BOOL,
+            },
+            OptionMeta {
+                key: "fmt.error-recovery",
+                unstable: true,
+                doc: &docstring! {
+                    /// Perform error recovery when formatting.
+                    ///
+                    /// This allows code to be formatted even if it
+                    /// contains invalid syntax.
+                },
+                default: "false",
+                options: BOOL,
+            },
+        ];
+
+        VALUES
+    }
+
     /// Parse a compiler option. This is the function which parses the
     /// `<option>[=<value>]` syntax, which is used by among other things the
     /// Rune CLI with the `-O <option>[=<value>]` option.
@@ -56,10 +238,10 @@ impl Options {
     /// It can be used to consistenly parse a collection of options by other
     /// programs as well.
     pub fn parse_option(&mut self, option: &str) -> Result<(), ParseOptionError> {
-        let (head, tail) = if let Some((head, tail)) = option.split_once('=') {
-            (head, Some(tail))
+        let (head, tail) = if let Some((head, tail)) = option.trim().split_once('=') {
+            (head.trim(), Some(tail.trim()))
         } else {
-            (option, None)
+            (option.trim(), None)
         };
 
         match head {
@@ -78,12 +260,6 @@ impl Options {
             "bytecode" => {
                 self.bytecode = tail.map_or(true, |s| s == "true");
             }
-            "test" => {
-                self.cfg_test = tail.map_or(true, |s| s == "true");
-            }
-            "v2" => {
-                self.v2 = tail.map_or(true, |s| s == "true");
-            }
             "function-body" => {
                 self.function_body = tail.map_or(true, |s| s == "true");
             }
@@ -101,19 +277,35 @@ impl Options {
                     }
                 };
             }
-            _ => {
-                return Err(ParseOptionError {
-                    option: option.into(),
-                });
+            other => {
+                let Some((head, tail)) = other.split_once('.') else {
+                    return Err(ParseOptionError {
+                        option: option.into(),
+                    });
+                };
+
+                let head = head.trim();
+                let tail = tail.trim();
+
+                match head {
+                    "fmt" => {
+                        self.fmt.parse_option(tail)?;
+                    }
+                    _ => {
+                        return Err(ParseOptionError {
+                            option: option.into(),
+                        });
+                    }
+                }
             }
         }
 
         Ok(())
     }
 
-    /// Enable the test configuration flag
-    pub fn test(&mut self, enabled: bool) {
-        self.cfg_test = enabled;
+    /// Enable the test configuration flag.
+    pub fn test(&mut self, _enabled: bool) {
+        // ignored
     }
 
     /// Set if debug info is enabled or not. Defaults to `true`.
@@ -146,17 +338,6 @@ impl Options {
 
 impl Default for Options {
     fn default() -> Self {
-        Self {
-            link_checks: true,
-            memoize_instance_fn: true,
-            debug_info: true,
-            macros: true,
-            bytecode: false,
-            cfg_test: false,
-            v2: false,
-            function_body: false,
-            test_std: false,
-            lowering: 0,
-        }
+        Options::DEFAULT
     }
 }

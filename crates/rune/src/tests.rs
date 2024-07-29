@@ -443,7 +443,6 @@ mod external_match;
 mod external_ops;
 mod float;
 mod for_loop;
-mod format_source;
 mod generics;
 mod getter_setter;
 mod instance;

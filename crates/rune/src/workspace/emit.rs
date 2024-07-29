@@ -105,6 +105,7 @@ where
     let mut labels = rust_alloc::vec::Vec::new();
 
     let span = this.error().span();
+
     labels.push(
         d::Label::primary(this.source_id(), span.range())
             .with_message(this.error().try_to_string()?.into_std()),

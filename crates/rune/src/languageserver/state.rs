@@ -289,8 +289,6 @@ impl<'a> State<'a> {
             return Ok(None);
         };
 
-        let formatted = String::from_utf8(formatted).context("Format produced invalid utf8")?;
-
         // Only modify if changed
         Ok(if source != formatted {
             workspace_source.content = Rope::from_str(&formatted);

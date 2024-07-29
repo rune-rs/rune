@@ -371,7 +371,7 @@ impl<'hir> Scopes<'hir> {
     }
 
     /// Perform a linear allocation.
-    #[tracing::instrument(ret, skip(self, span))]
+    #[tracing::instrument(ret(level = "trace"), skip(self, span))]
     pub(super) fn linear(
         &self,
         span: &'hir dyn Spanned,

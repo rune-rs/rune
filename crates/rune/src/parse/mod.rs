@@ -8,6 +8,7 @@ mod parse;
 mod parser;
 mod peek;
 mod resolve;
+mod traits;
 
 pub use self::expectation::Expectation;
 pub(crate) use self::expectation::IntoExpectation;
@@ -18,6 +19,7 @@ pub use self::parse::Parse;
 pub use self::parser::{Parser, Peeker};
 pub use self::peek::Peek;
 pub(crate) use self::resolve::{Resolve, ResolveContext};
+pub(crate) use self::traits::{Advance, Peekable};
 
 use crate::compile;
 use crate::SourceId;

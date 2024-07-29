@@ -133,7 +133,7 @@ fn bodies() {
             vy: 1.62824170038242295e-03 * DAYS_PER_YEAR,
             vz: -9.51592254519715870e-05 * DAYS_PER_YEAR,
             mass: 5.15138902046611451e-05 * SOLAR_MASS,
-        }
+        },
     ]
 }
 
@@ -166,7 +166,7 @@ pub fn nbodies(b) {
         for i in 0..N {
             advance(bodies, 0.01);
         }
-    
+
         energy(bodies)
     });
 }
