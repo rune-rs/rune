@@ -393,3 +393,84 @@
 - kind: syntax
   variant: Whitespace
   doc: Kind used for whitespace.
+# after this point comes high-level tokens used in grammar
+- {kind: "syntax", variant: "Root", doc: "The root node of a parse tree."}
+- {kind: "syntax", variant: "Local", doc: "`let <pat> = <expr>;`"}
+- {kind: "syntax", variant: "Item", doc: "An item declaration."}
+- {kind: "syntax", variant: "ItemEnum", doc: "An enum declaration."}
+- {kind: "syntax", variant: "ItemStruct", doc: "A struct declaration."}
+- {kind: "syntax", variant: "ItemConst", doc: "A constant item, like `const <ident> = <expr>;."}
+- {kind: "syntax", variant: "ItemFn", doc: "A function declaration."}
+- {kind: "syntax", variant: "ItemImpl", doc: "An impl."}
+- {kind: "syntax", variant: "ItemMod", doc: "An module declaration."}
+- {kind: "syntax", variant: "ItemUse", doc: "A use import."}
+- {kind: "syntax", variant: "ItemUsePath", doc: "A nested use path."}
+- {kind: "syntax", variant: "ItemUseGroup", doc: "A nested use group."}
+- {kind: "syntax", variant: "EnumName", doc: "The name of an enum."}
+- {kind: "syntax", variant: "EnumVariants", doc: "The variants part of an enum."}
+- {kind: "syntax", variant: "Variant", doc: "A variant."}
+- {kind: "syntax", variant: "VariantName", doc: "The name of a variant."}
+- {kind: "syntax", variant: "StructName", doc: "The name of a struct."}
+- {kind: "syntax", variant: "Field", doc: "A field declaration."}
+- {kind: "syntax", variant: "EmptyBody", doc: "An empty type body."}
+- {kind: "syntax", variant: "StructBody", doc: "A struct body."}
+- {kind: "syntax", variant: "TupleBody", doc: "A tuple body."}
+- {kind: "syntax", variant: "FnArgs", doc: "A collection of function arguments."}
+- {kind: "syntax", variant: "Block", doc: "A block."}
+- {kind: "syntax", variant: "BlockBody", doc: "The body of a block."}
+- {kind: "syntax", variant: "Labels", doc: "A label preceeding an expression."}
+- {kind: "syntax", variant: "Expr", doc: "An expression."}
+- {kind: "syntax", variant: "ExprPath", doc: "A plain path expression."}
+- {kind: "syntax", variant: "ExprTuple", doc: "A tuple expression."}
+- {kind: "syntax", variant: "ExprArray", doc: "An array expression."}
+- {kind: "syntax", variant: "ExprUnary", doc: "A unary expression."}
+- {kind: "syntax", variant: "ExprBinary", doc: "A binary expression."}
+- {kind: "syntax", variant: "ExprGroup", doc: "A group expression."}
+- {kind: "syntax", variant: "ExprTry", doc: "A try expression."}
+- {kind: "syntax", variant: "ExprIndex", doc: "An indexing expression."}
+- {kind: "syntax", variant: "ExprCall", doc: "A call expression."}
+- {kind: "syntax", variant: "ExprMacroCall", doc: "A call expression."}
+- {kind: "syntax", variant: "ExprObject", doc: "An anonymous object expression."}
+- {kind: "syntax", variant: "ExprMatch", doc: "A match expression."}
+- {kind: "syntax", variant: "ExprSelect", doc: "A select expression."}
+- {kind: "syntax", variant: "ExprAwait", doc: "A select expression."}
+- {kind: "syntax", variant: "ExprField", doc: "A select expression."}
+- {kind: "syntax", variant: "ExprOperator", doc: "The operator in an expression."}
+- {kind: "syntax", variant: "ExprIf", doc: "An `if` expression."}
+- {kind: "syntax", variant: "ExprElse", doc: "The `else` part of an if-expression."}
+- {kind: "syntax", variant: "ExprElseIf", doc: "The `else if` part of an if-expression."}
+- {kind: "syntax", variant: "ExprWhile", doc: "A `while` expression."}
+- {kind: "syntax", variant: "ExprLoop", doc: "A `loop` expression."}
+- {kind: "syntax", variant: "ExprBreak", doc: "A `break` expression."}
+- {kind: "syntax", variant: "ExprContinue", doc: "A `break` expression."}
+- {kind: "syntax", variant: "ExprReturn", doc: "A `return` expression."}
+- {kind: "syntax", variant: "ExprYield", doc: "A `yield` expression."}
+- {kind: "syntax", variant: "ExprFor", doc: "A `for` expression."}
+- {kind: "syntax", variant: "ExprRange", doc: "A `<start>..<end>` expression."}
+- {kind: "syntax", variant: "ExprRangeInclusive", doc: "A `<start>..=<end>` expression."}
+- {kind: "syntax", variant: "ExprRangeTo", doc: "A `..<end>` expression."}
+- {kind: "syntax", variant: "ExprRangeToInclusive", doc: "A `..=<end>` expression."}
+- {kind: "syntax", variant: "ExprRangeFrom", doc: "A `<start>..` expression."}
+- {kind: "syntax", variant: "ExprRangeFull", doc: "A `..` expression."}
+- {kind: "syntax", variant: "ExprAssign", doc: "An assign expression."}
+- {kind: "syntax", variant: "ExprLit", doc: "A literal expression."}
+- {kind: "syntax", variant: "ExprClosure", doc: "A closure expression."}
+- {kind: "syntax", variant: "Pat", doc: "A pattern."}
+- {kind: "syntax", variant: "PatLit", doc: "A literal pattern."}
+- {kind: "syntax", variant: "PatArray", doc: "An array pattern."}
+- {kind: "syntax", variant: "PatTuple", doc: "A tuple pattern."}
+- {kind: "syntax", variant: "PatObject", doc: "An object pattern."}
+- {kind: "syntax", variant: "PatIgnore", doc: "An ignore pattern."}
+- {kind: "syntax", variant: "PatRest", doc: "A rest pattern."}
+- {kind: "syntax", variant: "Path", doc: "A path."}
+- {kind: "syntax", variant: "PathGenerics", doc: "The generics of a path."}
+- {kind: "syntax", variant: "Condition", doc: "The `let` condition of a loop."}
+- {kind: "syntax", variant: "ClosureArguments", doc: "Closure arguments."}
+- {kind: "syntax", variant: "AnonymousObjectKey", doc: "The `#{` anonymous object key."}
+- {kind: "syntax", variant: "Attributes", doc: "Attributes."}
+- {kind: "syntax", variant: "Attribute", doc: "An attribute."}
+- {kind: "syntax", variant: "Modifiers", doc: "Item modifiers, like `pub const`."}
+- {kind: "syntax", variant: "ModifierCrate", doc: "The `(crate)` modifier."}
+- {kind: "syntax", variant: "ModifierIn", doc: "The `(in <path>)` modifier."}
+- {kind: "syntax", variant: "TokenStream", doc: "A raw token stream."}
+- {kind: "syntax", variant: "TemplateString", doc: "A raw token stream."}

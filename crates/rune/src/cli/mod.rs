@@ -630,15 +630,13 @@ struct SharedFlags {
     #[arg(long)]
     workspace: bool,
 
-    /// Set the given compiler option (see `--help` for available options).
-    ///
-    /// * memoize-instance-fn[=<true/false>] - Inline the lookup of an instance function where appropriate.
-    /// * link-checks[=<true/false>] - Perform linker checks which makes sure that called functions exist.
-    /// * debug-info[=<true/false>] - Enable or disable debug info.
-    /// * macros[=<true/false>] - Enable or disable macros.
-    /// * bytecode[=<true/false>] - Enable or disable bytecode caching.
+    /// Set the given compiler option (see `--list-options` for available options).
     #[arg(short = 'O', num_args = 1)]
     compiler_option: Vec<String>,
+
+    /// List available compiler options.
+    #[arg(long)]
+    list_options: bool,
 
     /// Run with the following binary from a loaded manifest. This requires a
     /// `Rune.toml` manifest.
@@ -797,6 +795,42 @@ async fn main_with_out(io: &mut Io<'_>, entry: &mut Entry<'_>, mut args: Args) -
     let mut entries = alloc::Vec::new();
 
     if let Some(cmd) = cmd.as_command_shared_ref() {
+        if cmd.shared.list_options {
+            writeln!(
+                io.stdout,
+                "Available compiler options (set with -O <option>=<value>):"
+            )?;
+            writeln!(io.stdout)?;
+
+            for option in Options::available() {
+                io.stdout
+                    .set_color(ColorSpec::new().set_fg(Some(Color::Green)))?;
+                write!(io.stdout, "{}", option.key)?;
+                io.stdout.reset()?;
+
+                write!(io.stdout, "={}", option.default)?;
+
+                if option.unstable {
+                    io.stdout
+                        .set_color(ColorSpec::new().set_fg(Some(Color::Red)).set_bold(true))?;
+                    write!(io.stdout, " (unstable)")?;
+                    io.stdout.reset()?;
+                }
+
+                writeln!(io.stdout, ":")?;
+
+                writeln!(io.stdout, "    Options: {}", option.options)?;
+                writeln!(io.stdout)?;
+
+                for &line in option.doc {
+                    let line = line.strip_prefix(' ').unwrap_or(line);
+                    writeln!(io.stdout, "    {line}")?;
+                }
+            }
+
+            return Ok(ExitCode::Success);
+        }
+
         populate_config(io, &mut c, cmd)?;
 
         let build_paths = c.build_paths(cmd)?;

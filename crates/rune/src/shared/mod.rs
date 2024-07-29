@@ -10,52 +10,22 @@ pub(crate) use self::consts::Consts;
 pub(crate) use self::fixed_vec::{CapacityError, FixedVec};
 pub(crate) use self::gen::Gen;
 
-#[cfg(debug_assertions)]
-macro_rules! _rune_diagnose {
-    ($($tt:tt)*) => {
-        if $crate::shared::rune_assert().is_panic() {
-            panic!($($tt)*);
-        } else {
-            tracing::trace!($($tt)*);
-        }
-    };
-}
-
-#[cfg(not(debug_assertions))]
-macro_rules! _rune_diagnose {
-    ($($tt:tt)*) => {
-        tracing::trace!($($tt)*);
-    };
-}
-
-/// A macro for logging or panicking based on the current assertions model.
-///
-/// The assertion model can be changed from logging to panicking by setting
-/// the `RUNE_ASSERT=panic` environment.
-#[doc(inline)]
-pub(crate) use _rune_diagnose as rune_diagnose;
-
-#[cfg(debug_assertions)]
-pub(crate) enum RuneAssert {
-    /// Assert should panic.
-    Panic,
-    /// Assert should log an error.
-    Error,
-}
-
-#[cfg(debug_assertions)]
-impl RuneAssert {
-    /// Test if the assert is a panic.
-    pub(crate) fn is_panic(&self) -> bool {
-        matches!(self, Self::Panic)
-    }
-}
-
 #[cfg(all(debug_assertions, not(feature = "std")))]
 mod r#impl {
     use core::fmt;
 
-    use super::RuneAssert;
+    macro_rules! _rune_diagnose {
+        ($($tt:tt)*) => {
+            tracing::trace!($($tt)*);
+        };
+    }
+
+    macro_rules! _rune_trace {
+        ($at:expr, $tok:expr) => {{
+            _ = $at;
+            _ = $tok;
+        }};
+    }
 
     pub(crate) struct Backtrace;
 
@@ -72,15 +42,25 @@ mod r#impl {
         }
     }
 
-    #[inline]
-    pub(crate) fn rune_assert() -> RuneAssert {
-        RuneAssert::Error
-    }
+    /// A macro for logging or panicking based on the current assertions model.
+    ///
+    /// The assertion model can be changed from logging to panicking by setting
+    /// the `RUNE_ASSERT=panic` environment.
+    #[doc(inline)]
+    pub(crate) use _rune_diagnose as rune_diagnose;
+
+    /// A macro for tracing a specific call site.
+    ///
+    /// Tracing is enabled if `RUNE_ASSERT=trace` is set.
+    #[doc(inline)]
+    pub(crate) use _rune_trace as rune_trace;
 }
 
 /// Test whether current assertions model should panic.
 #[cfg(all(debug_assertions, feature = "std"))]
 mod r#impl {
+    #[cfg(feature = "fmt")]
+    use core::fmt::{self, Write};
     use core::sync::atomic::{AtomicU8, Ordering};
 
     use std::env;
@@ -88,7 +68,28 @@ mod r#impl {
 
     pub(crate) use std::backtrace::Backtrace;
 
-    use super::RuneAssert;
+    pub(crate) enum RuneAssert {
+        /// Assert should panic.
+        Panic,
+        /// Assert should trace.
+        Trace,
+        /// Assert should log an error.
+        Error,
+    }
+
+    impl RuneAssert {
+        /// Test if the assert is a panic.
+        #[allow(unused)]
+        pub(crate) fn is_panic(&self) -> bool {
+            matches!(self, Self::Panic)
+        }
+
+        /// Test if the assert is a trace.
+        #[allow(unused)]
+        pub(crate) fn is_trace(&self) -> bool {
+            matches!(self, Self::Trace)
+        }
+    }
 
     const VAR: &str = "RUNE_ASSERT";
 
@@ -100,7 +101,8 @@ mod r#impl {
         if value == 0 {
             value = match env::var(VAR).as_deref() {
                 Ok("panic") => 1,
-                _ => 2,
+                Ok("trace") => 2,
+                _ => 3,
             };
 
             ENABLED.store(value, Ordering::Relaxed);
@@ -108,9 +110,107 @@ mod r#impl {
 
         match value {
             1 if !panicking() => RuneAssert::Panic,
+            2 if !panicking() => RuneAssert::Trace,
             _ => RuneAssert::Error,
         }
     }
+
+    #[cfg(feature = "fmt")]
+    pub(crate) struct CaptureAt {
+        at: &'static str,
+        done: usize,
+        string: rust_alloc::string::String,
+    }
+
+    #[cfg(feature = "fmt")]
+    impl CaptureAt {
+        pub(crate) fn new(at: &'static str) -> Self {
+            Self {
+                at,
+                done: 0,
+                string: rust_alloc::string::String::default(),
+            }
+        }
+
+        pub(crate) fn as_str(&self) -> Option<&str> {
+            if self.done > 0 {
+                Some(&self.string[self.done..])
+            } else {
+                None
+            }
+        }
+    }
+
+    #[cfg(feature = "fmt")]
+    impl Write for CaptureAt {
+        #[inline]
+        fn write_str(&mut self, mut s: &str) -> fmt::Result {
+            if self.done > 0 {
+                return Ok(());
+            }
+
+            while let Some(n) = s.find('\n') {
+                self.string.push_str(&s[..n]);
+
+                if let Some(n) = self.string.find("at ") {
+                    let at = &self.string[n + 3..];
+
+                    if at.contains(self.at) {
+                        self.done = n + 3;
+                        return Ok(());
+                    }
+                }
+
+                self.string.clear();
+                s = &s[n + 1..];
+            }
+
+            self.string.push_str(s);
+            Ok(())
+        }
+    }
+
+    macro_rules! _rune_diagnose {
+        ($($tt:tt)*) => {
+            if $crate::shared::rune_assert().is_panic() {
+                panic!($($tt)*);
+            } else {
+                tracing::trace!($($tt)*);
+            }
+        };
+    }
+
+    macro_rules! _rune_trace {
+        ($at:expr, $tok:expr) => {{
+            if $crate::shared::rune_assert().is_trace() {
+                use std::backtrace::Backtrace;
+                use std::fmt::Write as _;
+
+                let bt = Backtrace::force_capture();
+                let mut at = $crate::shared::CaptureAt::new($at);
+
+                write!(at, "{bt}").with_span($tok.span)?;
+
+                if let Some(line) = at.as_str() {
+                    tracing::trace!("{line}: {:?}", $tok);
+                }
+            }
+        }};
+    }
+
+    /// A macro for logging or panicking based on the current assertions model.
+    ///
+    /// The assertion model can be changed from logging to panicking by setting
+    /// the `RUNE_ASSERT=panic` environment.
+    #[doc(inline)]
+    pub(crate) use _rune_diagnose as rune_diagnose;
+
+    /// A macro for tracing a specific call site.
+    ///
+    /// Tracing is enabled if `RUNE_ASSERT=trace` is set.
+    #[doc(inline)]
+    #[cfg(feature = "fmt")]
+    pub(crate) use _rune_trace as rune_trace;
 }
 
 #[cfg(debug_assertions)]

@@ -39,6 +39,7 @@ impl compile::CompileVisitor for DocVisitor {
 }
 
 impl DocVisitor {
+    #[track_caller]
     fn assert(&self) {
         for (&item, expected) in &self.expected {
             let against = if let Some(vec) = self.collected.get(item) {
@@ -100,35 +101,35 @@ fn harvest_docs() -> Result<()> {
     let mut diagnostics = Diagnostics::new();
     let mut vis = expect_docs! {
         "{root}" => {
-            " Mod/file doc.\n"
+            " Mod/file doc."
             " Multiline mod/file doc.\n         *  :)\n         "
         }
-        "stuff" => { " Top-level function.\n" }
+        "stuff" => { " Top-level function." }
         "Struct" => {
-            " Top-level struct.\n"
-            " Second line!\n"
+            " Top-level struct."
+            " Second line!"
         }
-        "Struct.a" => { " Struct field A.\n" }
-        "Struct.b" => { " Struct field B.\n" }
+        "Struct.a" => { " Struct field A." }
+        "Struct.b" => { " Struct field B." }
         "Enum" => { "\n         * Top-level enum.\n         " }
-        "Enum::A" => { " Enum variant A.\n" }
-        "Enum::B" => { " Enum variant B.\n" }
-        "Enum::B.a" => { " Enum struct variant B field A.\n" }
-        "Enum::B.b" => { " Enum struct variant B field B.\n" }
-        "CONSTANT" => { " Top-level constant.\n" }
+        "Enum::A" => { " Enum variant A." }
+        "Enum::B" => { " Enum variant B." }
+        "Enum::B.a" => { " Enum struct variant B field A." }
+        "Enum::B.b" => { " Enum struct variant B field B." }
+        "CONSTANT" => { " Top-level constant." }
 
         "module" => {
-            " Top-level module.\n"
-            " Also module doc.\n"
+            " Top-level module."
+            " Also module doc."
         }
-        "module::Enum" => { " Module enum.\n" }
-        "module::Enum::A" => { " Enum variant A.\n" }
-        "module::Enum::B" => { " Enum variant B.\n" }
+        "module::Enum" => { " Module enum." }
+        "module::Enum::A" => { " Enum variant A." }
+        "module::Enum::B" => { " Enum variant B." }
 
-        "module::Module" => { " Module in a module.\n" }
-        "module::Module::Enum" => { " Module enum.\n" }
-        "module::Module::Enum::A" => { " Enum variant A.\n" }
-        "module::Module::Enum::B" => { " Enum variant B.\n" }
+        "module::Module" => { " Module in a module." }
+        "module::Module::Enum" => { " Module enum." }
+        "module::Module::Enum::A" => { " Enum variant A." }
+        "module::Module::Enum::B" => { " Enum variant B." }
     };
 
     let mut sources = crate::tests::sources(
