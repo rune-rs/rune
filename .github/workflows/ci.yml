@@ -157,4 +157,5 @@ jobs:
     - run: cargo test --all-targets
     - run: cargo test --doc
     - run: cargo run --bin rune -- check --recursive scripts
-    - run: cargo run --bin rune -- test -O test-std=true
+    - run: cargo run --bin rune -- check --all-targets
+    - run: cargo run --bin rune -- test --all-targets -O test-std=true

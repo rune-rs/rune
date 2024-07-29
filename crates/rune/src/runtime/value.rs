@@ -1320,9 +1320,6 @@ impl Value {
                 Mutable::Tuple(a) => {
                     return Vec::partial_eq_with(a, b.clone(), caller);
                 }
-                Mutable::Object(a) => {
-                    return Object::partial_eq_with(a, b.clone(), caller);
-                }
                 _ => {}
             }
         }

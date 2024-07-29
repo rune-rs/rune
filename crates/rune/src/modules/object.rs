@@ -135,7 +135,7 @@ fn get(object: &Object, key: &str) -> Option<Value> {
 }
 
 #[rune::function(keep, instance, protocol = PARTIAL_EQ)]
-fn partial_eq(this: &Object, other: Value) -> VmResult<bool> {
+fn partial_eq(this: &Object, other: &Object) -> VmResult<bool> {
     Object::partial_eq_with(this, other, &mut EnvProtocolCaller)
 }
 

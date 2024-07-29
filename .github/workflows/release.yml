@@ -31,7 +31,7 @@ jobs:
     - run: cargo test --all-targets
     - run: cargo test --doc
     - run: cargo run --bin rune -- check --recursive scripts
-    - run: cargo run --bin rune -- test -O test-std
+    - run: cargo run --bin rune -- test --all-targets -O test-std
 
   build:
     runs-on: ${{matrix.os}}
