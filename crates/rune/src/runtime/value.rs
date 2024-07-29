@@ -110,7 +110,6 @@ pub(crate) enum ValueShared {
 }
 
 /// An entry on the stack.
-#[derive(Clone)]
 pub struct Value {
     repr: Repr,
 }
@@ -2001,6 +2000,15 @@ impl From<Inline> for Value {
     }
 }
 
+impl IntoOutput for Inline {
+    type Output = Inline;
+
+    #[inline]
+    fn into_output(self) -> VmResult<Self::Output> {
+        VmResult::Ok(self)
+    }
+}
+
 impl TryFrom<Mutable> for Value {
     type Error = alloc::Error;
 
@@ -2009,6 +2017,15 @@ impl TryFrom<Mutable> for Value {
         Ok(Self {
             repr: Repr::Mutable(Shared::new(value)?),
         })
+    }
+}
+
+impl IntoOutput for Mutable {
+    type Output = Mutable;
+
+    #[inline]
+    fn into_output(self) -> VmResult<Self::Output> {
+        VmResult::Ok(self)
     }
 }
 
@@ -2064,6 +2081,35 @@ impl MaybeTypeOf for Value {
     #[inline]
     fn maybe_type_of() -> alloc::Result<meta::DocType> {
         Ok(meta::DocType::empty())
+    }
+}
+
+impl Clone for Value {
+    #[inline]
+    fn clone(&self) -> Self {
+        let repr = match &self.repr {
+            Repr::Empty => Repr::Empty,
+            Repr::Inline(inline) => Repr::Inline(*inline),
+            Repr::Mutable(mutable) => Repr::Mutable(mutable.clone()),
+        };
+
+        Self { repr }
+    }
+
+    #[inline]
+    fn clone_from(&mut self, source: &Self) {
+        match (&mut self.repr, &source.repr) {
+            (Repr::Empty, Repr::Empty) => {}
+            (Repr::Inline(lhs), Repr::Inline(rhs)) => {
+                *lhs = *rhs;
+            }
+            (Repr::Mutable(lhs), Repr::Mutable(rhs)) => {
+                lhs.clone_from(rhs);
+            }
+            (lhs, rhs) => {
+                *lhs = rhs.clone();
+            }
+        }
     }
 }
 
@@ -2402,10 +2448,14 @@ impl Mutable {
     }
 }
 
+/// Ensures that `Value` and `Repr` is niche-filled when used in common
+/// combinations.
 #[test]
 fn size_of_value() {
     use core::mem::size_of;
+
     assert_eq!(size_of::<Repr>(), size_of::<Inline>());
     assert_eq!(size_of::<Repr>(), size_of::<Value>());
     assert_eq!(size_of::<Option<Value>>(), size_of::<Value>());
+    assert_eq!(size_of::<Option<Repr>>(), size_of::<Repr>());
 }

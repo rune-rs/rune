@@ -220,12 +220,29 @@ impl<T: ?Sized> TryClone for Shared<T> {
 }
 
 impl<T: ?Sized> Clone for Shared<T> {
+    #[inline]
     fn clone(&self) -> Self {
+        // SAFETY: We know that the inner value is live in this instance.
         unsafe {
             SharedBox::inc(self.inner);
         }
 
         Self { inner: self.inner }
+    }
+
+    #[inline]
+    fn clone_from(&mut self, source: &Self) {
+        if ptr::eq(self.inner.as_ptr(), source.inner.as_ptr()) {
+            return;
+        }
+
+        // SAFETY: We know that the inner value is live in both instances.
+        unsafe {
+            SharedBox::dec(self.inner);
+            SharedBox::inc(source.inner);
+        }
+
+        self.inner = source.inner;
     }
 }
 
@@ -274,7 +291,12 @@ impl<T: ?Sized> SharedBox<T> {
         let count_ref = &*ptr::addr_of!((*this.as_ptr()).count);
         let count = count_ref.get();
 
-        if count == 0 || count == usize::MAX {
+        debug_assert_ne!(
+            count, 0,
+            "Reference count of zero should only happen if Shared is incorrectly implemented"
+        );
+
+        if count == usize::MAX {
             crate::alloc::abort();
         }
 
@@ -291,9 +313,10 @@ impl<T: ?Sized> SharedBox<T> {
         let count_ref = &*ptr::addr_of!((*this.as_ptr()).count);
         let count = count_ref.get();
 
-        if count == 0 {
-            crate::alloc::abort();
-        }
+        debug_assert_ne!(
+            count, 0,
+            "Reference count of zero should only happen if Shared is incorrectly implemented"
+        );
 
         let count = count - 1;
         count_ref.set(count);

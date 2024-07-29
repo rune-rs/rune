@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate as rune;
 use crate::alloc::prelude::*;
-use crate::runtime::{Call, FormatSpec, Memory, Mutable, Type, Value, VmError, VmResult};
+use crate::runtime::{Call, FormatSpec, Memory, Type, Value, VmError, VmResult};
 use crate::Hash;
 
 /// Pre-canned panic reasons.
@@ -1300,15 +1300,6 @@ impl<T> IntoOutput for VmResult<T> {
 
 impl IntoOutput for Value {
     type Output = Value;
-
-    #[inline]
-    fn into_output(self) -> VmResult<Self::Output> {
-        VmResult::Ok(self)
-    }
-}
-
-impl IntoOutput for Mutable {
-    type Output = Mutable;
 
     #[inline]
     fn into_output(self) -> VmResult<Self::Output> {
