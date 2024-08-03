@@ -16,7 +16,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         "This module provides functions to encode & decode base64 data.",
     ])?;
 
-    module.ty::<Error>()?;
+    module.ty::<DecodeError>()?;
 
     module.function_meta(decode)?;
     module.function_meta(encode)?;
@@ -29,7 +29,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
 /// assert_eq!(base64::decode("+uwgVQA=")?, b"\xFA\xEC\x20\x55\0");
 /// ```
 #[rune::function(vm_result)]
-fn decode(inp: &str) -> Result<Bytes, Error> {
+fn decode(inp: &str) -> Result<Bytes, DecodeError> {
     Ok(Bytes::try_from(BASE64_STANDARD.decode(inp)?).vm?)
 }
 
@@ -47,17 +47,17 @@ fn encode(bytes: &[u8]) -> String {
 #[derive(Debug, rune::Any)]
 #[rune(item = ::base64)]
 #[allow(dead_code)]
-pub struct Error {
+pub struct DecodeError {
     inner: base64::DecodeError,
 }
 
-impl From<base64::DecodeError> for Error {
+impl From<base64::DecodeError> for DecodeError {
     fn from(inner: base64::DecodeError) -> Self {
         Self { inner }
     }
 }
 
-impl Error {
+impl DecodeError {
     #[rune::function(instance, protocol = STRING_DISPLAY)]
     fn string_display(&self, f: &mut Formatter) -> VmResult<()> {
         rune::vm_write!(f, "{}", self.inner);
