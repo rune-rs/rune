@@ -1,5 +1,7 @@
 use base64::prelude::*;
 use rune::alloc::fmt::TryWrite;
+use rune::alloc::String;
+use rune::runtime::Bytes;
 use rune::{
     runtime::{Formatter, VmResult},
     ContextError, Module,
@@ -26,9 +28,9 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
 /// ```rune
 /// assert_eq!(base64::decode("+uwgVQA=")?, b"\xFA\xEC\x20\x55\0");
 /// ```
-#[rune::function]
-fn decode(inp: &str) -> Result<Vec<u8>, Error> {
-    Ok(BASE64_STANDARD.decode(inp)?)
+#[rune::function(vm_result)]
+fn decode(inp: &str) -> Result<Bytes, Error> {
+    Ok(Bytes::try_from(BASE64_STANDARD.decode(inp)?).vm?)
 }
 
 /// Encode a data into a base64 String.
@@ -36,9 +38,9 @@ fn decode(inp: &str) -> Result<Vec<u8>, Error> {
 /// ```rune
 /// assert_eq!(base64::encode(b"\xFF\xEC\x20\x55\0"), "/+wgVQA=");
 /// ```
-#[rune::function]
+#[rune::function(vm_result)]
 fn encode(bytes: &[u8]) -> String {
-    BASE64_STANDARD.encode(bytes)
+    String::try_from(BASE64_STANDARD.encode(bytes)).vm?
 }
 
 /// An error returned by methods in the `base64` module.
