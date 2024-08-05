@@ -4,12 +4,9 @@ use core::mem::replace;
 use crate::ast::Spanned;
 use crate::compile;
 use crate::runtime::{Inst, InstAddress, Output};
-use crate::shared::rune_diagnose;
+use crate::shared::{rune_diagnose, Backtrace};
 
 use super::{Ctxt, DisplayNamed, ScopeId, Scopes};
-
-#[cfg(debug_assertions)]
-use crate::shared::Backtrace;
 
 /// Trait used to abstract interactions over different needs.
 pub(super) trait Needs<'a, 'hir> {
@@ -171,7 +168,6 @@ pub(super) struct Address<'a, 'hir> {
     kind: AddressKind,
     /// A diagnostical name for the address.
     name: Option<&'static str>,
-    #[cfg(debug_assertions)]
     backtrace: Backtrace,
 }
 
@@ -190,7 +186,6 @@ impl<'a, 'hir> Address<'a, 'hir> {
             address: addr,
             kind: AddressKind::Local,
             name: None,
-            #[cfg(debug_assertions)]
             backtrace: Backtrace::capture(),
         }
     }
@@ -209,7 +204,6 @@ impl<'a, 'hir> Address<'a, 'hir> {
             address: addr,
             kind: AddressKind::Assigned,
             name: None,
-            #[cfg(debug_assertions)]
             backtrace: Backtrace::capture(),
         }
     }
@@ -228,7 +222,6 @@ impl<'a, 'hir> Address<'a, 'hir> {
             address: addr,
             kind: AddressKind::Dangling,
             name: None,
-            #[cfg(debug_assertions)]
             backtrace: Backtrace::capture(),
         }
     }
@@ -349,11 +342,7 @@ impl Drop for Address<'_, '_> {
             return;
         }
 
-        #[cfg(debug_assertions)]
         rune_diagnose!("{self} was not freed:\nallocated at:\n{}", self.backtrace);
-
-        #[cfg(not(debug_assertions))]
-        rune_diagnose!("{self} was not freed");
     }
 }
 
@@ -401,7 +390,6 @@ impl fmt::Debug for AnyKind<'_, '_> {
 pub(super) struct Any<'a, 'hir> {
     span: &'hir dyn Spanned,
     kind: AnyKind<'a, 'hir>,
-    #[cfg(debug_assertions)]
     backtrace: Backtrace,
 }
 
@@ -412,7 +400,6 @@ impl<'a, 'hir> Any<'a, 'hir> {
         Self {
             span,
             kind: AnyKind::Ignore { name: None },
-            #[cfg(debug_assertions)]
             backtrace: Backtrace::capture(),
         }
     }
@@ -427,7 +414,6 @@ impl<'a, 'hir> Any<'a, 'hir> {
                 scope,
                 name: None,
             },
-            #[cfg(debug_assertions)]
             backtrace: Backtrace::capture(),
         }
     }
@@ -444,7 +430,6 @@ impl<'a, 'hir> Any<'a, 'hir> {
             kind: AnyKind::Address {
                 address: Address::assigned(span, scopes, addr),
             },
-            #[cfg(debug_assertions)]
             backtrace: Backtrace::capture(),
         }
     }
@@ -481,7 +466,6 @@ impl<'a, 'hir> Any<'a, 'hir> {
                         address: from,
                         kind: AddressKind::Assigned,
                         name: *name,
-                        #[cfg(debug_assertions)]
                         backtrace: Backtrace::capture(),
                     },
                 };
@@ -510,7 +494,6 @@ impl<'a, 'hir> Any<'a, 'hir> {
                 address: scopes.alloc_in(self.span, scope)?,
                 kind: AddressKind::Scope(scope),
                 name,
-                #[cfg(debug_assertions)]
                 backtrace: Backtrace::capture(),
             };
 
@@ -628,10 +611,6 @@ impl Drop for Any<'_, '_> {
             return;
         }
 
-        #[cfg(debug_assertions)]
         rune_diagnose!("{self} was not freed:\nallocated at:\n{}", self.backtrace);
-
-        #[cfg(not(debug_assertions))]
-        rune_diagnose!("{self} was not freed");
     }
 }

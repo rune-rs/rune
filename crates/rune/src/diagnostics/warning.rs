@@ -87,6 +87,7 @@ pub(crate) enum WarningDiagnosticKind {
         /// The span that is not used.
         span: Span,
         /// The context in which the value was not used.
+        #[cfg_attr(not(feature = "emit"), allow(dead_code))]
         context: Option<Span>,
     },
     /// Unreachable code.
@@ -94,6 +95,7 @@ pub(crate) enum WarningDiagnosticKind {
         /// The span that is not used.
         span: Span,
         /// The span which caused the code to be unreachable.
+        #[cfg_attr(not(feature = "emit"), allow(dead_code))]
         cause: Span,
     },
     /// Warning that an unconditional let pattern will panic if it doesn't
@@ -102,6 +104,7 @@ pub(crate) enum WarningDiagnosticKind {
         /// The span of the pattern.
         span: Span,
         /// The context in which it is used.
+        #[cfg_attr(not(feature = "emit"), allow(dead_code))]
         context: Option<Span>,
     },
     /// Encountered a template string without an expansion.
@@ -109,6 +112,7 @@ pub(crate) enum WarningDiagnosticKind {
         /// Span that caused the error.
         span: Span,
         /// The context in which it is used.
+        #[cfg_attr(not(feature = "emit"), allow(dead_code))]
         context: Option<Span>,
     },
     /// Suggestion that call parameters could be removed.
@@ -116,8 +120,10 @@ pub(crate) enum WarningDiagnosticKind {
         /// The span of the call.
         span: Span,
         /// The span of the variant being built.
+        #[cfg_attr(not(feature = "emit"), allow(dead_code))]
         variant: Span,
         /// The context in which it is used.
+        #[cfg_attr(not(feature = "emit"), allow(dead_code))]
         context: Option<Span>,
     },
     /// An unecessary semi-colon is used.
@@ -129,6 +135,7 @@ pub(crate) enum WarningDiagnosticKind {
         /// The span which is deprecated
         span: Span,
         /// The context in which it is used.
+        #[cfg_attr(not(feature = "emit"), allow(dead_code))]
         context: Option<Span>,
         /// Deprecated message.
         message: String,

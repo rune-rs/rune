@@ -478,6 +478,7 @@ impl Context {
     }
 
     /// Lookup meta by its hash.
+    #[cfg(any(feature = "cli", feature = "languageserver"))]
     pub(crate) fn lookup_meta_by_hash(
         &self,
         hash: Hash,
