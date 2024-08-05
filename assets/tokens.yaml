@@ -420,6 +420,7 @@
 - {kind: "syntax", variant: "BlockBody", doc: "The body of a block."}
 - {kind: "syntax", variant: "Labels", doc: "A label preceeding an expression."}
 - {kind: "syntax", variant: "Expr", doc: "An expression."}
+- {kind: "syntax", variant: "ExprChain", doc: "A chain of expressions."}
 - {kind: "syntax", variant: "ExprPath", doc: "A plain path expression."}
 - {kind: "syntax", variant: "ExprTuple", doc: "A tuple expression."}
 - {kind: "syntax", variant: "ExprArray", doc: "An array expression."}

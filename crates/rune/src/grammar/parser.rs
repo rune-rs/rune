@@ -11,9 +11,17 @@ use super::Tree;
 use Kind::*;
 
 /// A checkpoint during tree construction.
+#[derive(Clone)]
 pub(super) struct Checkpoint {
-    pub(super) span: Span,
+    span: Span,
     inner: syntree::Checkpoint<syntree::pointer::PointerUsize>,
+}
+
+impl Checkpoint {
+    /// Get the span of the checkpoint.
+    pub(super) fn span(&self) -> Span {
+        self.span
+    }
 }
 
 pub(crate) struct Parser<'a> {

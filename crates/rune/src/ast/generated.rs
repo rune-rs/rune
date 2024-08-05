@@ -5732,6 +5732,8 @@ pub enum Kind {
     Labels,
     /// An expression.
     Expr,
+    /// A chain of expressions.
+    ExprChain,
     /// A plain path expression.
     ExprPath,
     /// A tuple expression.
@@ -6177,6 +6179,7 @@ impl parse::IntoExpectation for Kind {
             Self::BlockBody => parse::Expectation::Syntax,
             Self::Labels => parse::Expectation::Syntax,
             Self::Expr => parse::Expectation::Syntax,
+            Self::ExprChain => parse::Expectation::Syntax,
             Self::ExprPath => parse::Expectation::Syntax,
             Self::ExprTuple => parse::Expectation::Syntax,
             Self::ExprArray => parse::Expectation::Syntax,

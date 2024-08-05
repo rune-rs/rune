@@ -591,64 +591,6 @@ fn expr_with_kind<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<Kind> {
         ExprUnary => {
             expr_unary(o, p)?;
         }
-        ExprTry => {
-            p.pump()?.parse(|p| expr(o, p))?;
-            p.one(K![?])?.write(o)?;
-        }
-        ExprAwait => {
-            p.pump()?.parse(|p| expr(o, p))?;
-            p.one(K![.])?.write(o)?;
-            p.one(K![await])?.write(o)?;
-        }
-        ExprField => {
-            p.pump()?.parse(|p| expr(o, p))?;
-            p.one(K![.])?.write(o)?;
-
-            match p.peek() {
-                K![number] => {
-                    o.write(p.pump()?)?;
-                }
-                _ => {
-                    p.expect(Path)?.parse(|p| path(o, p))?;
-                }
-            }
-        }
-        ExprCall => {
-            p.pump()?.parse(|p| expr(o, p))?;
-            o.write(p.expect(K!['('])?)?;
-
-            let mut empty = true;
-
-            while !matches!(p.peek(), K![')'] | Eof) {
-                o.comments(Prefix)?;
-
-                if !empty {
-                    p.remaining(o, K![,])?.write(o)?;
-                    o.ws()?;
-                }
-
-                p.pump()?.parse(|p| expr(o, p))?;
-                empty = false;
-                o.comments(Suffix)?;
-            }
-
-            if empty {
-                o.comments(Infix)?;
-            }
-
-            p.one(K![')'])?.write(o)?;
-        }
-        ExprMacroCall => {
-            expr_macro_call(o, p)?;
-        }
-        ExprIndex => {
-            p.pump()?.parse(|p| expr(o, p))?;
-            o.write(p.expect(K!['['])?)?;
-            o.comments(Prefix)?;
-            p.pump()?.parse(|p| expr(o, p))?;
-            o.comments(Suffix)?;
-            p.one(K![']'])?.write(o)?;
-        }
         ExprGroup => {
             o.write(p.expect(K!['('])?)?;
 
@@ -716,6 +658,9 @@ fn expr_with_kind<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<Kind> {
         ExprClosure => {
             expr_closure(o, p)?;
         }
+        ExprChain => {
+            expr_chain(o, p)?;
+        }
         Error => {
             if o.options.fmt.error_recovery {
                 p.write_remaining_trimmed(o)?;
@@ -729,18 +674,6 @@ fn expr_with_kind<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<Kind> {
     }
 
     Ok(p.kind())
-}
-
-fn expr_macro_call<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
-    p.pump()?.parse(|p| expr(o, p))?;
-    o.write(p.expect(K![!])?)?;
-
-    match p.peek() {
-        K!['{'] => loose_expr_macro_call(o, p)?,
-        _ => compact_expr_macro_call(o, p)?,
-    }
-
-    Ok(())
 }
 
 fn loose_expr_macro_call<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
@@ -1201,6 +1134,100 @@ fn expr_closure<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
         node.parse(|p| expr(o, p))?;
     } else {
         o.lit("{}")?;
+    }
+
+    Ok(())
+}
+
+fn expr_chain<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
+    let expanded = o.source.is_at_least(p.span(), 60)?;
+
+    p.pump()?.parse(|p| expr(o, p))?;
+
+    if expanded {
+        o.indent(1)?;
+    }
+
+    for node in p.by_ref() {
+        node.parse(|p| {
+            match p.kind() {
+                ExprTry => {
+                    p.one(K![?])?.write(o)?;
+                }
+                ExprAwait => {
+                    if expanded {
+                        o.nl(1)?;
+                    }
+
+                    p.one(K![.])?.write(o)?;
+                    p.one(K![await])?.write(o)?;
+                }
+                ExprField => {
+                    if expanded {
+                        o.nl(1)?;
+                    }
+
+                    p.one(K![.])?.write(o)?;
+
+                    match p.peek() {
+                        K![number] => {
+                            o.write(p.pump()?)?;
+                        }
+                        _ => {
+                            p.expect(Path)?.parse(|p| path(o, p))?;
+                        }
+                    }
+                }
+                ExprCall => {
+                    o.write(p.expect(K!['('])?)?;
+
+                    let mut empty = true;
+
+                    while !matches!(p.peek(), K![')'] | Eof) {
+                        o.comments(Prefix)?;
+
+                        if !empty {
+                            p.remaining(o, K![,])?.write(o)?;
+                            o.ws()?;
+                        }
+
+                        p.pump()?.parse(|p| expr(o, p))?;
+                        empty = false;
+                        o.comments(Suffix)?;
+                    }
+
+                    if empty {
+                        o.comments(Infix)?;
+                    }
+
+                    p.one(K![')'])?.write(o)?;
+                }
+                ExprMacroCall => {
+                    o.write(p.expect(K![!])?)?;
+
+                    match p.peek() {
+                        K!['{'] => loose_expr_macro_call(o, p)?,
+                        _ => compact_expr_macro_call(o, p)?,
+                    }
+                }
+                ExprIndex => {
+                    o.write(p.expect(K!['['])?)?;
+                    o.comments(Prefix)?;
+                    p.pump()?.parse(|p| expr(o, p))?;
+                    o.comments(Suffix)?;
+                    p.one(K![']'])?.write(o)?;
+                }
+                _ => {
+                    return Err(p.unsupported("expression chain"));
+                }
+            }
+
+            Ok(())
+        })?;
+    }
+
+    if expanded {
+        o.indent(-1)?;
     }
 
     Ok(())

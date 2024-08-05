@@ -632,7 +632,14 @@ fn outer_expr_with(
         return Ok(kind);
     }
 
-    kind = expr_chain(p, &c, kind, brace, cx)?;
+    kind = expr_chain(p, &c, kind)?;
+
+    if p.peek()? == K![=] {
+        p.bump()?;
+        expr_with(p, brace, Range::Yes, Binary::Yes, cx)?;
+        p.close_at(&c, ExprAssign)?;
+        return Ok(ExprAssign);
+    }
 
     if matches!(binary, Binary::Yes) {
         let lookahead = ast::BinOp::from_peeker(p)?;
@@ -830,13 +837,10 @@ fn kind_is_callable(kind: Kind) -> bool {
 }
 
 #[tracing::instrument(skip_all)]
-fn expr_chain(
-    p: &mut Parser<'_>,
-    c: &Checkpoint,
-    mut kind: Kind,
-    brace: Brace,
-    cx: &dyn ExprCx,
-) -> Result<Kind> {
+fn expr_chain(p: &mut Parser<'_>, c: &Checkpoint, mut kind: Kind) -> Result<Kind> {
+    let mut before = p.checkpoint()?;
+    let mut has_chain = false;
+
     while !p.is_eof()? {
         let is_callable = kind_is_callable(kind);
 
@@ -865,11 +869,6 @@ fn expr_chain(
                 token_stream(p, braces)?;
                 p.bump()?;
                 ExprMacroCall
-            }
-            K![=] => {
-                p.bump()?;
-                expr_with(p, brace, Range::No, Binary::Yes, cx)?;
-                ExprAssign
             }
             K![?] => {
                 p.bump()?;
@@ -902,8 +901,14 @@ fn expr_chain(
             }
         };
 
-        p.close_at(c, k)?;
+        p.close_at(&before, k)?;
         kind = k;
+        before = p.checkpoint()?;
+        has_chain = true;
+    }
+
+    if has_chain {
+        p.close_at(c, ExprChain)?;
     }
 
     Ok(kind)
@@ -1203,7 +1208,7 @@ fn expr_binary(
                 }
                 (lh, rh) if lh == rh => {
                     if !next.is_assoc() {
-                        return Err(p.error(c.span, ErrorKind::PrecedenceGroupRequired)?);
+                        return Err(p.error(c.span(), ErrorKind::PrecedenceGroupRequired)?);
                     }
                 }
                 _ => {}
