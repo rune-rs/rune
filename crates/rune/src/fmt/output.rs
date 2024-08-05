@@ -199,7 +199,10 @@ impl<'a> Output<'a> {
 
     /// Indent the output.
     pub(super) fn indent(&mut self, indent: isize) -> Result<()> {
-        self.indent = self.checked_indent(indent)?;
+        if indent != 0 {
+            self.indent = self.checked_indent(indent)?;
+        }
+
         Ok(())
     }
 
@@ -211,6 +214,10 @@ impl<'a> Output<'a> {
     /// This will write any pending line comments which are on the same line as
     /// the previously written nodes.
     pub(crate) fn nl(&mut self, lines: usize) -> Result<()> {
+        if lines == 0 {
+            return Ok(());
+        }
+
         self.comments_line(true)?;
 
         // If we don't already have line heuristics, adopt the proposed one.

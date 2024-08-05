@@ -298,7 +298,7 @@ fn patterns() {
     );
     assert_format!(
         "let ::a   ::b<::b, ::c    ::d>::c = 42;",
-        "let ::a::b<::b::c::d>::c = 42;"
+        "let ::a::b<::b, ::c::d>::c = 42;"
     );
     assert_format!(
         "for _ in 121/10..=1*2-100{}",
@@ -1151,4 +1151,124 @@ fn expressions_in_group() {
         });
         "#
     )
+}
+
+#[test]
+fn test_expanded_chain() {
+    assert_format!(
+        r#"
+        let graph = HashMap::from_iter(abcd, abcd, abcd, abcd, abcd, abcd, abcd, abcd, abcd, abcd, abcd, abcd, abcd).bar(abcd, abcd, abcd, abcd, abcd, abcd, abcd, abcd, abcd, abcd, abcd, abcd, abcd);
+
+        let var = 10;
+        "#,
+        r#"
+        let graph = HashMap::from_iter(
+                abcd,
+                abcd,
+                abcd,
+                abcd,
+                abcd,
+                abcd,
+                abcd,
+                abcd,
+                abcd,
+                abcd,
+                abcd,
+                abcd,
+                abcd,
+            )
+            .bar(
+                abcd,
+                abcd,
+                abcd,
+                abcd,
+                abcd,
+                abcd,
+                abcd,
+                abcd,
+                abcd,
+                abcd,
+                abcd,
+                abcd,
+                abcd,
+            );
+
+        let var = 10;
+        "#
+    );
+
+    assert_format!(
+        r#"
+        let graph = HashMap::from_iter(abcd, abcd, abcd, abcd, abcd, abcd, abcd, abcd, abcd, abcd, abcd, abcd, abcd);
+
+        let var = 10;
+        "#,
+        r#"
+        let graph = HashMap::from_iter(
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+        );
+
+        let var = 10;
+        "#
+    );
+
+    assert_format!(
+        r#"
+        let graph = value.foo.bar.await?(
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+        );
+
+        let var = 10;
+        "#
+    );
+
+    assert_format!(
+        r#"
+        let graph = value
+            .foo
+            .bar
+            .await?(
+                abcd,
+                abcd,
+                abcd,
+                abcd,
+                abcd,
+                abcd,
+                abcd,
+                abcd,
+                abcd,
+                abcd,
+                abcd,
+                abcd,
+                abcd,
+            )
+            .bar?;
+
+        let var = 10;
+        "#
+    );
 }

@@ -691,10 +691,6 @@ fn expr_primary(p: &mut Parser<'_>, brace: Brace, range: Range, cx: &dyn ExprCx)
                     expr_object(p)?;
                     ExprObject
                 }
-                K!['('] => {
-                    parenthesized(p, is_expr, expr, K![')'])?;
-                    ExprTuple
-                }
                 _ => ExprPath,
             }
         }
