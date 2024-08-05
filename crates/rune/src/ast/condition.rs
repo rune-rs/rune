@@ -20,7 +20,7 @@ pub enum Condition {
 }
 
 impl Parse for Condition {
-    fn parse(p: &mut Parser) -> Result<Self> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         Ok(match p.nth(0)? {
             K![let] => Self::ExprLet(ast::ExprLet::parse_without_eager_brace(p)?),
             _ => Self::Expr(ast::Expr::parse_without_eager_brace(p)?),

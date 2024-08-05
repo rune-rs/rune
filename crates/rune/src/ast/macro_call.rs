@@ -111,7 +111,7 @@ impl MacroCall {
 }
 
 impl Parse for MacroCall {
-    fn parse(parser: &mut Parser) -> Result<Self> {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self> {
         let attributes = parser.parse()?;
         let path = parser.parse()?;
         Self::parse_with_meta_path(parser, attributes, path)

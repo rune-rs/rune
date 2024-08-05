@@ -26,7 +26,7 @@ pub struct Group {
 }
 
 impl Parse for Group {
-    fn parse(parser: &mut Parser) -> compile::Result<Self> {
+    fn parse(parser: &mut Parser<'_>) -> compile::Result<Self> {
         let mut level = 1;
         let open = parser.next()?;
 

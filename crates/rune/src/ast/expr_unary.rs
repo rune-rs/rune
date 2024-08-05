@@ -69,7 +69,7 @@ pub enum UnOp {
 }
 
 impl Parse for UnOp {
-    fn parse(p: &mut Parser) -> Result<Self> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         let token = p.next()?;
 
         match token.kind {

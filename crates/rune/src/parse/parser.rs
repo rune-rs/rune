@@ -219,7 +219,7 @@ impl<'a> Parser<'a> {
 #[derive(Debug)]
 pub struct Peeker<'a> {
     /// The source being processed.
-    pub(crate) source: Source<'a>,
+    source: Source<'a>,
     /// The buffer of tokens seen.
     buf: VecDeque<Token>,
     // NB: parse errors encountered during peeking.
