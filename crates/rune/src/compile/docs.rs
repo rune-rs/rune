@@ -32,7 +32,7 @@ impl Docs {
     }
 
     /// Get lines of documentation.
-    #[cfg(feature = "doc")]
+    #[cfg(all(feature = "doc", any(feature = "languageserver", feature = "cli")))]
     pub(crate) fn lines(&self) -> &[String] {
         &self.docs
     }
