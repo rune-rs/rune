@@ -1,4 +1,5 @@
 pub(crate) mod index;
+mod indexer;
 pub(crate) mod items;
 mod scopes;
 
@@ -10,7 +11,8 @@ use crate::compile::{ItemId, ItemMeta};
 use crate::parse::NonZeroId;
 use crate::runtime::Call;
 
-pub(crate) use self::index::{IndexItem, Indexer};
+use self::indexer::ast_to_visibility;
+pub(crate) use self::indexer::{IndexItem, Indexer};
 pub(crate) use self::items::Items;
 pub(crate) use self::scopes::{Layer, Scopes};
 
