@@ -132,7 +132,7 @@ impl Peek for Shebang {
 }
 
 impl Parse for Shebang {
-    fn parse(p: &mut Parser) -> Result<Self> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         let token = p.next()?;
 
         match token.kind {

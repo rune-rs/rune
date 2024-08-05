@@ -58,7 +58,7 @@ pub enum ItemModBody {
 }
 
 impl Parse for ItemModBody {
-    fn parse(p: &mut Parser) -> Result<Self> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         Ok(match p.nth(0)? {
             K!['{'] => Self::InlineBody(p.parse()?),
             _ => Self::EmptyBody(p.parse()?),

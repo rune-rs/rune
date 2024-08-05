@@ -242,7 +242,7 @@ pub struct PathSegmentExpr {
 }
 
 impl Parse for PathSegmentExpr {
-    fn parse(p: &mut Parser) -> Result<Self> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         let expr = ast::Expr::parse_with(
             p,
             ast::expr::NOT_EAGER_BRACE,

@@ -184,7 +184,7 @@ impl Item {
 }
 
 impl Parse for Item {
-    fn parse(p: &mut Parser) -> Result<Self> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         let attributes = p.parse()?;
         let visibility = p.parse()?;
         let path = p.parse()?;

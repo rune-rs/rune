@@ -22,7 +22,7 @@ pub struct LitBool {
 }
 
 impl Parse for LitBool {
-    fn parse(p: &mut Parser) -> Result<Self> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         let t = p.next()?;
 
         let value = match t.kind {

@@ -150,7 +150,7 @@ pub enum FormatArg {
 }
 
 impl Parse for FormatArg {
-    fn parse(p: &mut Parser) -> compile::Result<Self> {
+    fn parse(p: &mut Parser<'_>) -> compile::Result<Self> {
         Ok(if let (K![ident], K![=]) = (p.nth(0)?, p.nth(1)?) {
             FormatArg::Named(p.parse()?)
         } else {

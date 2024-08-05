@@ -63,7 +63,7 @@ impl From<Vec<ast::Token>> for TokenStream {
 }
 
 impl Parse for TokenStream {
-    fn parse(p: &mut Parser) -> compile::Result<Self> {
+    fn parse(p: &mut Parser<'_>) -> compile::Result<Self> {
         Ok(Self { stream: p.parse()? })
     }
 }

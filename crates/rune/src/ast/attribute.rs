@@ -141,7 +141,7 @@ pub enum AttrStyle {
 }
 
 impl Parse for AttrStyle {
-    fn parse(p: &mut Parser) -> Result<Self> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         Ok(if p.peek::<T![!]>()? {
             Self::Outer(p.parse()?)
         } else {

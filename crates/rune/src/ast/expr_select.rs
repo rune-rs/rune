@@ -106,7 +106,7 @@ impl ExprSelectBranch {
 }
 
 impl Parse for ExprSelectBranch {
-    fn parse(p: &mut Parser) -> Result<Self> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         Ok(if p.peek::<T![default]>()? {
             Self::Default(p.parse()?)
         } else {

@@ -33,7 +33,7 @@ impl Peek for Stmt {
 }
 
 impl Parse for Stmt {
-    fn parse(p: &mut Parser) -> Result<Self> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         let mut attributes = p.parse()?;
         let visibility = p.parse()?;
 
@@ -105,7 +105,7 @@ impl Peek for ItemOrExpr {
 }
 
 impl Parse for ItemOrExpr {
-    fn parse(p: &mut Parser) -> Result<Self> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         let mut attributes = p.parse()?;
         let visibility = p.parse()?;
 

@@ -11,7 +11,7 @@ where
     Self: Sized,
 {
     /// Parse the current item from the parser.
-    fn parse(p: &mut Parser) -> compile::Result<Self>;
+    fn parse(p: &mut Parser<'_>) -> compile::Result<Self>;
 }
 
 impl<A, B> Parse for (A, B)
@@ -20,7 +20,7 @@ where
     B: Parse,
 {
     #[inline]
-    fn parse(parser: &mut Parser) -> compile::Result<Self> {
+    fn parse(parser: &mut Parser<'_>) -> compile::Result<Self> {
         Ok((parser.parse()?, parser.parse()?))
     }
 }
@@ -31,7 +31,7 @@ where
     T: Parse + Peek,
 {
     #[inline]
-    fn parse(parser: &mut Parser) -> compile::Result<Self> {
+    fn parse(parser: &mut Parser<'_>) -> compile::Result<Self> {
         Ok(if parser.peek::<T>()? {
             Some(parser.parse()?)
         } else {
@@ -46,7 +46,7 @@ where
     T: Parse,
 {
     #[inline]
-    fn parse(parser: &mut Parser) -> compile::Result<Self> {
+    fn parse(parser: &mut Parser<'_>) -> compile::Result<Self> {
         Ok(Box::try_new(parser.parse()?)?)
     }
 }
@@ -57,7 +57,7 @@ where
     T: Parse + Peek,
 {
     #[inline]
-    fn parse(parser: &mut Parser) -> compile::Result<Self> {
+    fn parse(parser: &mut Parser<'_>) -> compile::Result<Self> {
         let mut output = Vec::new();
 
         while parser.peek::<T>()? {
