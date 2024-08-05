@@ -241,7 +241,7 @@ pub enum Kind {
 
 impl Kind {
     /// Access the underlying signature of the kind, if available.
-    #[cfg(feature = "doc")]
+    #[cfg(all(feature = "doc", any(feature = "languageserver", feature = "cli")))]
     pub(crate) fn as_signature(&self) -> Option<&Signature> {
         match self {
             Kind::Struct { constructor, .. } => constructor.as_ref(),
@@ -424,7 +424,7 @@ pub(crate) enum DocName {
     Index(#[try_clone(copy)] usize),
 }
 
-#[cfg(feature = "doc")]
+#[cfg(feature = "cli")]
 impl DocName {
     pub(crate) fn is_self(&self) -> bool {
         match self {

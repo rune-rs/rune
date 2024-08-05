@@ -478,7 +478,7 @@ impl Context {
     }
 
     /// Lookup meta by its hash.
-    #[cfg(any(feature = "cli", feature = "languageserver"))]
+    #[cfg(any(feature = "cli", feature = "languageserver", feature = "emit"))]
     pub(crate) fn lookup_meta_by_hash(
         &self,
         hash: Hash,
@@ -508,7 +508,7 @@ impl Context {
     }
 
     /// Get all associated types for the given hash.
-    #[cfg(feature = "doc")]
+    #[cfg(feature = "cli")]
     pub(crate) fn associated(&self, hash: Hash) -> impl Iterator<Item = Hash> + '_ {
         self.associated
             .get(&hash)
@@ -519,7 +519,7 @@ impl Context {
     }
 
     /// Get all traits implemented for the given hash.
-    #[cfg(feature = "doc")]
+    #[cfg(feature = "cli")]
     pub(crate) fn traits(&self, hash: Hash) -> impl Iterator<Item = Hash> + '_ {
         self.implemented_traits
             .get(&hash)
@@ -546,7 +546,7 @@ impl Context {
     }
 
     /// Iterate over available crates.
-    #[cfg(feature = "doc")]
+    #[cfg(feature = "cli")]
     pub(crate) fn iter_crates(&self) -> impl Iterator<Item = &str> {
         self.crates.iter().map(|s| s.as_ref())
     }

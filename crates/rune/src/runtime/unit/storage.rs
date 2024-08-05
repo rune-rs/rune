@@ -197,6 +197,7 @@ cfg_std! {
 enum EncodeErrorKind {
     #[cfg(feature = "byte-code")]
     StorageError {
+        #[cfg_attr(not(feature = "std"), allow(dead_code))]
         error: storage::Error,
     },
     AllocError {

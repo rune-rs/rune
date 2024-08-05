@@ -8,9 +8,12 @@ use crate::item::IntoComponent;
 use crate::{Hash, Item, ItemBuf};
 
 pub(crate) struct VisitorData {
+    #[cfg_attr(not(feature = "cli"), allow(dead_code))]
     pub(crate) item: ItemBuf,
+    #[cfg_attr(not(feature = "cli"), allow(dead_code))]
     pub(crate) hash: Hash,
     pub(crate) kind: Option<meta::Kind>,
+    #[cfg_attr(not(feature = "cli"), allow(dead_code))]
     pub(crate) deprecated: Option<String>,
     pub(crate) docs: Vec<String>,
     pub(crate) field_docs: HashMap<Box<str>, Vec<String>>,
@@ -71,6 +74,7 @@ impl Visitor {
     }
 
     /// Get meta by item.
+    #[cfg(feature = "cli")]
     pub(crate) fn get(&self, item: &Item) -> Option<&VisitorData> {
         let hash = self.item_to_hash.get(item)?;
         self.data.get(hash)
