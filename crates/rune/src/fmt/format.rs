@@ -1,3 +1,5 @@
+use core::mem::take;
+
 use crate::ast::Kind;
 use crate::compile::Result;
 
@@ -281,10 +283,12 @@ fn path<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
 fn path_generics<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
     o.write(p.expect(K![<])?)?;
 
-    let mut last_comma = Remaining::default();
     let mut empty = true;
+    let mut last_comma = Remaining::default();
 
     while let Some(node) = p.try_pump(Path)? {
+        o.comments(Prefix)?;
+
         if !empty {
             last_comma.write(o)?;
             o.ws()?;
@@ -292,7 +296,8 @@ fn path_generics<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
 
         node.parse(|p| path(o, p))?;
         last_comma = p.remaining(o, K![,])?;
-        empty = true;
+        empty = false;
+        o.comments(Suffix)?;
     }
 
     last_comma.ignore(o)?;
@@ -311,7 +316,7 @@ fn pat_array<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
     let mut empty = true;
     let mut last_comma = Remaining::default();
 
-    while !matches!(p.peek(), K![']'] | Eof) {
+    while let Some(node) = p.try_pump(Pat)? {
         o.comments(Prefix)?;
 
         if !empty {
@@ -319,7 +324,7 @@ fn pat_array<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
             o.ws()?;
         }
 
-        p.expect(Pat)?.parse(|p| pat(o, p))?;
+        node.parse(|p| pat(o, p))?;
         last_comma = p.remaining(o, K![,])?;
         empty = false;
         o.comments(Suffix)?;
@@ -347,7 +352,7 @@ fn tuple<'a>(
     let mut count = 0usize;
     let mut last_comma = Remaining::default();
 
-    while p.peek() == kind {
+    while let Some(node) = p.try_pump(kind)? {
         o.comments(Prefix)?;
 
         if count > 0 {
@@ -355,9 +360,9 @@ fn tuple<'a>(
             o.ws()?;
         }
 
-        p.expect(kind)?.parse(|p| parser(o, p))?;
-        count += 1;
+        node.parse(|p| parser(o, p))?;
         last_comma = p.remaining(o, K![,])?;
+        count += 1;
         o.comments(Suffix)?;
     }
 
@@ -570,17 +575,10 @@ fn expr_with_kind<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<Kind> {
             p.expect(Path)?.parse(|p| path(o, p))?;
         }
         ExprArray => {
-            array(o, p)?;
+            exprs(o, p, K!['['], K![']'])?;
         }
         ExprTuple => {
-            let trailing = if let Some(node) = p.try_pump(Path)? {
-                node.parse(|p| path(o, p))?;
-                false
-            } else {
-                true
-            };
-
-            tuple(o, p, Expr, expr, trailing)?;
+            tuple(o, p, Expr, expr, true)?;
         }
         ExprObject => {
             expr_object(o, p)?;
@@ -596,9 +594,9 @@ fn expr_with_kind<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<Kind> {
 
             let mut empty = true;
 
-            if !matches!(p.peek(), K![')'] | Eof) {
+            if let Some(node) = p.try_pump(Expr)? {
                 o.comments(Prefix)?;
-                p.pump()?.parse(|p| expr(o, p))?;
+                node.parse(|p| expr(o, p))?;
                 o.comments(Suffix)?;
                 empty = false;
             }
@@ -770,7 +768,7 @@ fn expr_assign<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
     Ok(())
 }
 
-fn array<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
+fn exprs<'a>(o: &mut Output<'a>, p: &mut Stream<'a>, open: Kind, close: Kind) -> Result<()> {
     let mut count = 0;
     let mut expanded = o.source.is_at_least(p.span(), 80)?;
 
@@ -783,38 +781,39 @@ fn array<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
         expanded |= matches!(node.kind(), Kind::Comment) || count >= 6;
     }
 
+    o.write(p.expect(open)?)?;
+
     if expanded {
-        array_loose(o, p)
+        exprs_loose(o, p)?;
     } else {
-        array_compact(o, p)
+        exprs_compact(o, p)?;
     }
+
+    p.one(close)?.write(o)?;
+    Ok(())
 }
 
-fn array_loose<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
-    o.write(p.expect(K!['['])?)?;
+fn exprs_loose<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
     o.nl(1)?;
     o.indent(1)?;
 
-    while !matches!(p.peek(), K![']'] | Eof) {
+    while let Some(node) = p.try_pump(Expr)? {
         o.comments(Line)?;
-        p.expect(Expr)?.parse(|p| expr(o, p))?;
+        node.parse(|p| expr(o, p))?;
         p.remaining(o, K![,])?.write(o)?;
         o.nl(1)?;
     }
 
     o.nl(1)?;
     o.indent(-1)?;
-    p.one(K![']'])?.write(o)?;
     Ok(())
 }
 
-fn array_compact<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
-    o.write(p.expect(K!['['])?)?;
-
+fn exprs_compact<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
     let mut empty = true;
     let mut last_comma = Remaining::default();
 
-    while !matches!(p.peek(), K![']'] | Eof) {
+    while let Some(node) = p.try_pump(Expr)? {
         o.comments(Prefix)?;
 
         if !empty {
@@ -822,10 +821,9 @@ fn array_compact<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
             o.ws()?;
         }
 
-        o.comments(Line)?;
-        p.expect(Expr)?.parse(|p| expr(o, p))?;
-        empty = false;
+        node.parse(|p| expr(o, p))?;
         last_comma = p.remaining(o, K![,])?;
+        empty = false;
         o.comments(Suffix)?;
     }
 
@@ -835,7 +833,6 @@ fn array_compact<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
         o.comments(Infix)?;
     }
 
-    p.one(K![']'])?.write(o)?;
     Ok(())
 }
 
@@ -997,7 +994,7 @@ fn expr_select<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
     o.indent(1)?;
     o.write(open)?;
 
-    while !matches!(p.peek(), K!['}'] | Eof) {
+    while matches!(p.peek(), K![default] | Pat) {
         o.nl(1)?;
         o.comments(Line)?;
 
@@ -1104,8 +1101,8 @@ fn expr_closure<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
                     }
 
                     node.parse(|p| pat(o, p))?;
-                    empty = false;
                     last_comma = p.remaining(o, K![,])?;
+                    empty = false;
                     o.comments(Suffix)?;
                 }
 
@@ -1140,33 +1137,73 @@ fn expr_closure<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
 }
 
 fn expr_chain<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
-    let expanded = o.source.is_at_least(p.span(), 60)?;
+    let expanded = o.source.is_at_least(p.span(), 80)?;
 
-    p.pump()?.parse(|p| expr(o, p))?;
+    // If the first expression *is* small, and there are no other expressions
+    // that need indentation in the chain, we can keep it all on one line.
+    let head = p.pump()?.parse(|p| {
+        let first = p.span();
+        expr(o, p)?;
+        Ok(first)
+    })?;
 
-    if expanded {
-        o.indent(1)?;
+    let tail = 'tail: {
+        for (n, node) in p.children().enumerate() {
+            if matches!(node.kind(), ExprCall) {
+                break 'tail Some((n, node.span()));
+            }
+        }
+
+        None
+    };
+
+    let first_is_small = if let Some((_, tail)) = tail {
+        !o.source.is_at_least(head.join(tail.head()), 80)?
+    } else {
+        !o.source.is_at_least(head, 80)?
+    };
+
+    let from;
+
+    if expanded && first_is_small {
+        let mut found = false;
+        let first = tail.map(|(n, _)| n).unwrap_or_default();
+
+        for node in p.children().skip(first.wrapping_add(1)) {
+            found |= matches!(node.kind(), ExprField | ExprAwait);
+
+            if found {
+                break;
+            }
+        }
+
+        if found {
+            from = 0;
+        } else {
+            from = first + 1;
+        }
+    } else {
+        from = if expanded { 0 } else { usize::MAX };
     }
 
-    for node in p.by_ref() {
+    let mut unindented = true;
+
+    for (n, node) in p.by_ref().enumerate() {
+        if n >= from {
+            o.indent(isize::from(take(&mut unindented)))?;
+            o.nl(usize::from(matches!(node.kind(), ExprField | ExprAwait)))?;
+        }
+
         node.parse(|p| {
             match p.kind() {
                 ExprTry => {
                     p.one(K![?])?.write(o)?;
                 }
                 ExprAwait => {
-                    if expanded {
-                        o.nl(1)?;
-                    }
-
                     p.one(K![.])?.write(o)?;
                     p.one(K![await])?.write(o)?;
                 }
                 ExprField => {
-                    if expanded {
-                        o.nl(1)?;
-                    }
-
                     p.one(K![.])?.write(o)?;
 
                     match p.peek() {
@@ -1179,28 +1216,7 @@ fn expr_chain<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
                     }
                 }
                 ExprCall => {
-                    o.write(p.expect(K!['('])?)?;
-
-                    let mut empty = true;
-
-                    while !matches!(p.peek(), K![')'] | Eof) {
-                        o.comments(Prefix)?;
-
-                        if !empty {
-                            p.remaining(o, K![,])?.write(o)?;
-                            o.ws()?;
-                        }
-
-                        p.pump()?.parse(|p| expr(o, p))?;
-                        empty = false;
-                        o.comments(Suffix)?;
-                    }
-
-                    if empty {
-                        o.comments(Infix)?;
-                    }
-
-                    p.one(K![')'])?.write(o)?;
+                    exprs(o, p, K!['('], K![')'])?;
                 }
                 ExprMacroCall => {
                     o.write(p.expect(K![!])?)?;
@@ -1226,7 +1242,7 @@ fn expr_chain<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
         })?;
     }
 
-    if expanded {
+    if !unindented {
         o.indent(-1)?;
     }
 
@@ -1375,7 +1391,7 @@ fn tuple_body<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
     let mut empty = true;
     let mut last_comma = Remaining::default();
 
-    while let Some(field) = p.try_pump(Field)? {
+    while let Some(node) = p.try_pump(Field)? {
         o.comments(Prefix)?;
 
         if !empty {
@@ -1383,7 +1399,7 @@ fn tuple_body<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
             o.ws()?;
         }
 
-        field.parse(|p| o.write(p.pump()?))?;
+        node.parse(|p| o.write(p.pump()?))?;
         last_comma = p.remaining(o, K![,])?;
         empty = false;
         o.comments(Suffix)?;
