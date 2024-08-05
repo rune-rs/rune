@@ -10,52 +10,6 @@ pub(crate) use self::consts::Consts;
 pub(crate) use self::fixed_vec::{CapacityError, FixedVec};
 pub(crate) use self::gen::Gen;
 
-#[cfg(all(debug_assertions, not(feature = "std")))]
-mod r#impl {
-    use core::fmt;
-
-    macro_rules! _rune_diagnose {
-        ($($tt:tt)*) => {
-            tracing::trace!($($tt)*);
-        };
-    }
-
-    macro_rules! _rune_trace {
-        ($at:expr, $tok:expr) => {{
-            _ = $at;
-            _ = $tok;
-        }};
-    }
-
-    pub(crate) struct Backtrace;
-
-    impl Backtrace {
-        #[inline]
-        pub(crate) fn capture() -> Self {
-            Self
-        }
-    }
-
-    impl fmt::Display for Backtrace {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(f, "backtrace not available (missing feature `std`)")
-        }
-    }
-
-    /// A macro for logging or panicking based on the current assertions model.
-    ///
-    /// The assertion model can be changed from logging to panicking by setting
-    /// the `RUNE_ASSERT=panic` environment.
-    #[doc(inline)]
-    pub(crate) use _rune_diagnose as rune_diagnose;
-
-    /// A macro for tracing a specific call site.
-    ///
-    /// Tracing is enabled if `RUNE_ASSERT=trace` is set.
-    #[doc(inline)]
-    pub(crate) use _rune_trace as rune_trace;
-}
-
 /// Test whether current assertions model should panic.
 #[cfg(all(debug_assertions, feature = "std"))]
 mod r#impl {
@@ -213,5 +167,55 @@ mod r#impl {
     pub(crate) use _rune_trace as rune_trace;
 }
 
-#[cfg(debug_assertions)]
+#[cfg(not(all(debug_assertions, feature = "std")))]
+mod r#impl {
+    use core::fmt;
+
+    macro_rules! _rune_diagnose {
+        ($($tt:tt)*) => {
+            tracing::trace!($($tt)*);
+        };
+    }
+
+    macro_rules! _rune_trace {
+        ($at:expr, $tok:expr) => {{
+            _ = $at;
+            _ = $tok;
+        }};
+    }
+
+    pub(crate) struct Backtrace;
+
+    impl Backtrace {
+        #[inline(always)]
+        pub(crate) fn capture() -> Self {
+            Self
+        }
+    }
+
+    impl fmt::Display for Backtrace {
+        #[inline(always)]
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(
+                f,
+                "backtrace not available, missing cfg(all(debug_assertions, feature = \"std\"))"
+            )
+        }
+    }
+
+    /// A macro for logging or panicking based on the current assertions model.
+    ///
+    /// The assertion model can be changed from logging to panicking by setting
+    /// the `RUNE_ASSERT=panic` environment.
+    #[doc(inline)]
+    pub(crate) use _rune_diagnose as rune_diagnose;
+
+    /// A macro for tracing a specific call site.
+    ///
+    /// Tracing is enabled if `RUNE_ASSERT=trace` is set.
+    #[doc(inline)]
+    #[cfg(feature = "fmt")]
+    pub(crate) use _rune_trace as rune_trace;
+}
+
 pub(crate) use self::r#impl::*;
