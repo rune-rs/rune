@@ -55,6 +55,7 @@ cfg_std! {
 pub(crate) enum RuntimeWarningDiagnosticKind {
     UsedDeprecated {
         /// The hash which produced the deprecation
+        #[cfg_attr(not(feature = "emit"), allow(dead_code))]
         hash: Hash,
     },
 }
