@@ -117,11 +117,14 @@ jobs:
       fail-fast: false
       matrix:
         feature: [capture-io, "cli,doc", "cli,fmt", cli, workspace, languageserver, byte-code]
+    env:
+      RUSTFLAGS: -D warnings
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
     - run: cargo build -p rune --no-default-features --features ${{matrix.feature}}
+    - run: cargo check --release -p rune --no-default-features --features ${{matrix.feature}}
 
   wasm:
     runs-on: ubuntu-latest
