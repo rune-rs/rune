@@ -2,10 +2,8 @@ use base64::prelude::*;
 use rune::alloc::fmt::TryWrite;
 use rune::alloc::{String, Vec};
 use rune::runtime::Bytes;
-use rune::{
-    ContextError, Module,
-};
 use rune::runtime::{Formatter, VmResult};
+use rune::{vm_panic, ContextError, Module};
 
 #[rune::module(::base64)]
 /// Correct and fast [base64] encoding based on the [`base64`] crate.
@@ -61,25 +59,21 @@ fn decode(inp: &str) -> Result<Bytes, DecodeError> {
 #[rune::function(vm_result)]
 fn encode(bytes: &[u8]) -> String {
     let Some(encoded_size) = base64::encoded_len(bytes.len(), true) else {
-        VmResult::panic("encoded input length overflows usize").vm?
+        vm_panic!("encoded input length overflows usize");
     };
 
     let mut buf = Vec::new();
-    buf
-        .try_resize(encoded_size, 0)
-        .vm?;
+    buf.try_resize(encoded_size, 0).vm?;
 
     // this should never panic
-    if let Err(e) = BASE64_STANDARD
-        .encode_slice(bytes, &mut buf)
-    {
-        VmResult::panic(e).vm?;
+    if let Err(e) = BASE64_STANDARD.encode_slice(bytes, &mut buf) {
+        vm_panic!(e);
     }
 
     // base64 should only return valid utf8 strings
     let string = match String::from_utf8(buf) {
         Ok(s) => s,
-        Err(e) => VmResult::panic(e).vm?,
+        Err(e) => vm_panic!(e),
     };
 
     string
