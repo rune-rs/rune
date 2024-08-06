@@ -290,21 +290,21 @@ impl<'a> State<'a> {
         };
 
         // Only modify if changed
-        Ok(if source != formatted {
-            workspace_source.content = Rope::from_str(&formatted);
-            self.rebuild_interest();
+        if source == formatted {
+            return Ok(None);
+        }
 
-            Some(lsp::TextEdit::new(
-                // Range over full document
-                lsp::Range::new(
-                    lsp::Position::new(0, 0),
-                    lsp::Position::new(u32::MAX, u32::MAX),
-                ),
-                formatted.into_std(),
-            ))
-        } else {
-            None
-        })
+        workspace_source.content = Rope::from_str(&formatted);
+
+        self.rebuild_interest();
+
+        let edit = lsp::TextEdit::new(
+            // Range over full document
+            lsp::Range::new(lsp::Position::new(0, 0), lsp::Position::new(u32::MAX, u32::MAX)),
+            formatted.into_std(),
+        );
+
+        Ok(Some(edit))
     }
 
     /// Rebuild the project.
