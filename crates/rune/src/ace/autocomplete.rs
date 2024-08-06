@@ -1,19 +1,18 @@
-use core::fmt::Display;
+use core::str;
 
 use anyhow::{Context as _, Result};
 use pulldown_cmark::{Options, Parser};
 use syntect::parsing::SyntaxSet;
 
 use crate as rune;
+use crate::alloc::borrow::Cow;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::{HashMap, String};
 use crate::compile::Prelude;
-use crate::doc::{Artifacts, Context, Visitor};
+use crate::doc::markdown;
+use crate::doc::{Artifacts, Context, Function, Kind, Meta, Signature, Visitor};
 use crate::{hash, ItemBuf};
-
-use super::build::markdown;
-use super::context::{Function, Kind, Meta, Signature};
 
 pub(crate) fn build(
     artifacts: &mut Artifacts,
@@ -24,12 +23,13 @@ pub(crate) fn build(
     let context = Context::new(Some(context), visitors);
 
     let mut acx = AutoCompleteCtx::new(&context, extensions);
+
     for item in context.iter_modules() {
         let item = item?;
         acx.collect_meta(&item)?;
     }
-    acx.build(artifacts)?;
 
+    acx.build(artifacts)?;
     Ok(())
 }
 
@@ -105,13 +105,10 @@ impl<'a> AutoCompleteCtx<'a> {
     }
 
     fn build(&mut self, artifacts: &mut Artifacts) -> Result<()> {
-        let mut content = std::string::String::new();
+        let mut content = Vec::new();
         self.write(&mut content)?;
 
-        artifacts.asset(false, "autocomplete.js", || {
-            let string = String::try_from(content)?;
-            Ok(string.into_bytes().into())
-        })?;
+        artifacts.asset(false, "rune-autocomplete.js", || Ok(content.into()))?;
 
         Ok(())
     }
@@ -214,7 +211,7 @@ impl<'a> AutoCompleteCtx<'a> {
 
     fn write_hint(
         &self,
-        f: &mut dyn core::fmt::Write,
+        f: &mut Vec<u8>,
         value: &str,
         meta: &str,
         score: usize,
@@ -223,33 +220,32 @@ impl<'a> AutoCompleteCtx<'a> {
     ) -> Result<()> {
         write!(f, r#"{{"#)?;
         write!(f, r#"value: "{value}""#)?;
+
         if let Some(caption) = caption {
             write!(f, r#", caption: "{caption}""#)?;
         }
+
         write!(f, r#", meta: "{meta}""#)?;
         write!(f, r#", score: {score}"#)?;
+
         if let Some(doc) = doc {
-            write!(f, r#", docHTML: `{}`"#, doc)?;
+            let doc = escape(doc)?;
+            write!(f, r#", docHTML: "{doc}""#)?;
         }
-        writeln!(f, "}}")?;
+
+        write!(f, "}}")?;
         Ok(())
     }
 
-    fn write_instances(&self, f: &mut dyn core::fmt::Write) -> Result<()> {
+    fn write_instances(&self, f: &mut Vec<u8>) -> Result<()> {
         write!(f, r#"var instance = ["#)?;
-
-        let mut no_comma = true;
 
         for (item, meta) in self.instance.iter() {
             let Kind::Function(fnc) = meta.kind else {
                 continue;
             };
 
-            if no_comma {
-                no_comma = false;
-            } else {
-                write!(f, ",")?;
-            }
+            write!(f, "  ")?;
 
             let mut iter = item.iter().rev();
             let mut value = iter
@@ -277,23 +273,22 @@ impl<'a> AutoCompleteCtx<'a> {
             };
 
             self.write_hint(f, &value, info, 0, Some(&typ), doc.as_deref())?;
+            writeln!(f, ",")?;
         }
         write!(f, "];")?;
 
         Ok(())
     }
 
-    fn write_fixed(&self, f: &mut dyn core::fmt::Write) -> Result<()> {
-        write!(f, r#"var fixed = ["#)?;
+    fn write_fixed(&self, f: &mut Vec<u8>) -> Result<()> {
+        writeln!(f, r#"var fixed = ["#)?;
 
-        let mut no_comma = true;
-
-        for (item, meta) in self.fixed.iter() {
-            if no_comma {
-                no_comma = false;
-            } else {
-                write!(f, ",")?;
-            }
+        for (item, meta) in self
+            .fixed
+            .iter()
+            .filter(|(_, m)| !matches!(m.kind, Kind::Unsupported | Kind::Trait))
+        {
+            write!(f, "  ")?;
 
             match meta.kind {
                 Kind::Type => {
@@ -329,11 +324,13 @@ impl<'a> AutoCompleteCtx<'a> {
                     caption.try_push_str(&self.get_fn_ret_typ(&fnc)?)?;
                     value.try_push_str(&Self::get_fn_ext(&fnc)?)?;
                     let doc = self.doc_to_html(meta).ok().flatten();
+
                     let info = if fnc.is_async {
                         "async Function"
                     } else {
                         "Function"
                     };
+
                     self.write_hint(f, &value, info, 0, Some(&caption), doc.as_deref())?;
                 }
                 Kind::Const(_) => {
@@ -346,47 +343,57 @@ impl<'a> AutoCompleteCtx<'a> {
                     let doc = self.doc_to_html(meta).ok().flatten();
                     self.write_hint(f, &name, "Module", 9, None, doc.as_deref())?;
                 }
-                Kind::Unsupported | Kind::Trait => {
-                    no_comma = true;
-                }
+                _ => {}
             }
-        }
-        write!(f, "];")?;
 
+            writeln!(f, ",")?;
+        }
+
+        writeln!(f, "];")?;
         Ok(())
     }
 
-    fn write(&self, f: &mut dyn core::fmt::Write) -> Result<()> {
-        write!(f, "{COMPLETER}\n\n")?;
+    fn write(&self, f: &mut Vec<u8>) -> Result<()> {
+        let completer =
+            super::embed::Assets::get("rune-completer.js").context("missing rune-completer.js")?;
+
+        f.try_extend_from_slice(completer.data.as_ref())?;
         self.write_fixed(f)?;
-        write!(f, "\n\n")?;
         self.write_instances(f)?;
         Ok(())
     }
 }
 
-impl<'a> Display for AutoCompleteCtx<'a> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.write(f).map_err(|_| core::fmt::Error)
+fn escape(s: &str) -> Result<Cow<'_, str>> {
+    let n = 'escape: {
+        for (n, c) in s.char_indices() {
+            match c {
+                '\"' | '\n' => break 'escape n,
+                _ => {}
+            }
+        }
+
+        return Ok(Cow::Borrowed(s));
+    };
+
+    let mut out = String::new();
+
+    let (head, tail) = s.split_at(n);
+    out.try_push_str(head)?;
+
+    for c in tail.chars() {
+        match c {
+            '\"' => {
+                out.try_push_str(r#"\""#)?;
+            }
+            '\n' => {
+                out.try_push_str(r#"\n"#)?;
+            }
+            _ => {
+                out.try_push(c)?;
+            }
+        }
     }
+
+    Ok(Cow::Owned(out))
 }
-
-static COMPLETER: &str = r#"
-const runeCompleter = {
-  getCompletions: (editor, session, pos, prefix, callback) => {
-    if (prefix.length === 0) {
-      callback(null, []);
-      return;
-    }
-
-    var token = session.getTokenAt(pos.row, pos.column - 1).value;
-
-    if (token.includes(".")) {
-      callback(null, instance);
-    } else {
-      callback(null, fixed);
-    }
-  },
-};
-export default runeCompleter;
-"#;

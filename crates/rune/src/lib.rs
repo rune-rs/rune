@@ -645,6 +645,9 @@ pub use rune_macros::hash;
 pub use rune_macros::item;
 
 #[cfg(feature = "cli")]
+mod ace;
+
+#[cfg(feature = "cli")]
 #[cfg_attr(rune_docsrs, doc(cfg(feature = "cli")))]
 pub mod cli;
 
@@ -653,7 +656,7 @@ pub mod languageserver;
 
 #[cfg(feature = "doc")]
 #[cfg_attr(rune_docsrs, doc(cfg(feature = "doc")))]
-pub mod doc;
+pub(crate) mod doc;
 
 /// Privately exported details.
 #[doc(hidden)]
