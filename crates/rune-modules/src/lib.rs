@@ -25,6 +25,7 @@
 //! [Rune Language]: https://rune-rs.github.io
 //!
 //! See each module for documentation:
+//! * [base64]
 //! * [core]
 //! * [fmt]
 //! * [fs]
@@ -110,6 +111,7 @@ macro_rules! modules {
 }
 
 modules! {
+    {base64, "base64"},
     {core, "core"},
     {fmt, "fmt"},
     {fs, "fs"},

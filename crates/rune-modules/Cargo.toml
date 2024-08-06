@@ -15,7 +15,19 @@ categories = ["parser-implementations"]
 
 [features]
 default = ["test", "core", "io", "fmt"]
-full = ["time", "http", "json", "toml", "fs", "process", "signal", "rand", "io", "fmt"]
+full = [
+    "time",
+    "http",
+    "json",
+    "toml",
+    "fs",
+    "process",
+    "signal",
+    "rand",
+    "io",
+    "fmt",
+    "base64",
+]
 time = ["tokio", "tokio?/time"]
 fs = ["tokio", "tokio?/fs"]
 http = ["reqwest"]
@@ -30,7 +42,12 @@ fmt = []
 macros = []
 
 [dependencies]
-reqwest = { version = "0.11.17", optional = true, default-features = false, features = ["rustls-tls", "gzip", "json"] }
+base64 = { version = "0.22.1", optional = true }
+reqwest = { version = "0.11.17", optional = true, default-features = false, features = [
+    "rustls-tls",
+    "gzip",
+    "json",
+] }
 tokio = { version = "1.28.1", optional = true }
 serde_json = { version = "1.0.96", optional = true }
 toml = { version = "0.7.3", optional = true }
