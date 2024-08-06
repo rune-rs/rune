@@ -1,0 +1,45 @@
+#[test]
+fn try_result_err() {
+    fn foo(a, b) {
+        Ok(b / a)
+    }
+
+    fn bar(a, b) {
+        Err(b / a)
+    }
+
+    fn inner() {
+        Ok(foo(2, 4)? + bar(3, 9)?)
+    }
+
+    assert_eq!(inner(), Err(3));
+}
+
+#[test]
+fn try_option_none() {
+    struct Bar {
+        x,
+        y,
+    }
+
+    fn inner() {
+        (Bar { x: Some(1), y: None? }).x
+    }
+
+    assert_eq!(inner(), None);
+}
+
+#[test]
+fn try_ok_err() {
+    fn foo(a, b) {
+        Ok(b / a)
+    }
+
+    fn inner() {
+        Ok(foo(2, 4)? + {
+            Err(6 / 2)
+        }?)
+    }
+
+    assert_eq!(inner(), Err(3));
+}

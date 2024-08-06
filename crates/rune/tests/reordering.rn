@@ -1,0 +1,22 @@
+#[test]
+fn test_stmt_reordering() {
+    let len = 0;
+    let value = String::from("Hello");
+    len = value.len();
+    let value2 = drop(value);
+
+    assert_eq!(len, 5);
+}
+
+#[test]
+fn test_const_stmt_reordering() {
+    const fn foo() {
+        let n = 0;
+        n = 1;
+        let n = 2;
+        n
+    }
+
+    let n = foo();
+    assert_eq!(n, 2);
+}

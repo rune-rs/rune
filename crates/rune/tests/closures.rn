@@ -1,17 +1,182 @@
-fn work(op) {
-    op(1, 2)
-}
-
 #[test]
-fn test_basic_closure() {
+fn closure_basic_closure() {
+    fn work(op) {
+        op(1, 2)
+    }
+
     let n = 1;
     assert_eq!(work(|a, b| n + a + b), 4);
     assert_eq!(work(|a, b| n + a * b), 3);
 }
 
 #[test]
-fn test_lowering() {
+fn closure_lowering() {
     let c = 5;
     let c = |a| |b| || a + b + c;
     assert_eq!(c(1)(2)(), 8);
+}
+
+/// Test that we don't accidentally capture `a` as part of its own declaration.
+#[test]
+fn closure_clobbered_scope() {
+    let a = |b| {
+        let a = 11;
+        a * b
+    };
+
+    let out = a(3);
+    assert_eq!(out, 33);
+}
+
+/// Tests that delcaring `c` doesn't clobber the declaration and that it is
+/// being correctly captured.
+#[test]
+fn closure_self_declaration() {
+    let c = 7;
+
+    let c = |b| {
+        let c = c * 11;
+        c * b
+    };
+
+    let out = c(3);
+    assert_eq!(out, 231);
+}
+
+#[test]
+fn closure_nested_closures() {
+    let var = 1;
+
+    let a = |i| {
+        let b = |j| {
+            var + j
+        };
+
+        b(i + 1)
+    };
+
+    let out = a(2);
+    assert_eq!(out, 4);
+}
+
+#[test]
+fn closure_in_loop_iter() {
+    let out = 1;
+
+    for var in {
+        let a = || [1, 2, 3];
+        a()
+    } {
+        let b = |n| var + n;
+        out += b(1);
+    }
+
+    assert_eq!(out, 10);
+}
+
+#[test]
+fn closure_capture_match() {
+    let n = 1;
+
+    let a = match {
+        let out = || Some(n + 1);
+
+        out()
+    } {
+        Some(n) => |e| n + e,
+        _ => |_| 0,
+    };
+
+    let out = a(1);
+    assert_eq!(out, 3);
+}
+
+#[test]
+fn closure_capture_fn_arg() {
+    fn foo(n) {
+        |a| n + a
+    }
+    let out = foo(1)(2);
+    assert_eq!(out, 3);
+
+    fn foo2(a, b) {
+        b / a + 1
+    }
+
+    let out = {
+        let a = || foo2;
+        a()
+    }({
+        let b = || 2;
+        b()
+    }, {
+        let c = || 6;
+        c()
+    });
+    assert_eq!(out, 4);
+
+    let out = ({
+        let b = || 2;
+
+        b()
+    }, {
+        let c = || 6;
+        c()
+    });
+    assert_eq!(out, (2, 6));
+
+    let out = [{
+        let b = || 2;
+        b()
+    }, {
+        let c = || 6;
+        c()
+    }];
+    assert_eq!(out, [2, 6]);
+}
+
+#[test]
+async fn closure_capture_and_environ() {
+    async fn foo(cb) {
+        cb(1).await
+    }
+
+    let value = 12;
+    let out = foo(async |n| n + value).await;
+    assert_eq!(out, 13);
+}
+
+#[test]
+async fn closure_immediate_call() {
+    let future = (async || {
+        11
+    })();
+
+    let out = future.await;
+    assert_eq!(out, 11);
+}
+
+#[test]
+async fn closure_nested_async_closure() {
+    async fn send_requests(list) {
+        let input = 1;
+
+        let do_request = async |url, n| {
+            Ok(input + n)
+        };
+
+        for url in list {
+            yield do_request(url, 2).await;
+        }
+    }
+
+    let requests = send_requests(["https://google.com", "https://amazon.com"]);
+
+    let output = 0;
+
+    while let Some(input) = requests.next().await {
+        output += input?;
+    }
+
+    assert_eq!(output, 6);
 }

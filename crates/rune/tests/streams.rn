@@ -7,7 +7,7 @@ async fn foo(n) {
 }
 
 /// Select over two async streams and ensure that the expected numerical value
-//matches.
+/// matches.
 #[test]
 async fn select_streams() {
     let count = 0;
@@ -32,4 +32,62 @@ async fn select_streams() {
 
     assert_eq!(count, 6);
     assert_eq!(sum, 1 + 2 + 3 + 5 + 6 + 7);
+}
+
+#[test]
+async fn test_simple_stream() {
+    async fn foo() {
+        let n = 0;
+
+        let give = || {
+            n + 1
+        };
+
+        yield give();
+        yield give();
+        yield give();
+    }
+
+    let gen = foo();
+    let result = 0;
+
+    while let Some(value) = gen.next().await {
+        result += value;
+    }
+
+    assert_eq!(result, 3);
+}
+
+#[test]
+async fn test_resume() {
+    use std::ops::generator::GeneratorState;
+
+    async fn foo() {
+        let a = yield 1;
+        let b = yield a;
+        b
+    }
+
+    let gen = foo();
+    let result = 0;
+
+    if let GeneratorState::Yielded(value) = gen.resume(()).await {
+        result += value;
+    } else {
+        panic("unexpected");
+    }
+
+    if let GeneratorState::Yielded(value) = gen.resume(2).await {
+        result += value;
+    } else {
+        panic("unexpected");
+    }
+
+    if let GeneratorState::Complete(value) = gen.resume(3).await {
+        result += value;
+    } else {
+        panic("unexpected");
+    }
+
+    assert_eq!(result, 6);
 }

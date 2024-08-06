@@ -1,0 +1,39 @@
+#[test]
+fn option_some_some() {
+    let out = match Some("some") {
+        Some("some") => 1,
+        _ => 2,
+    };
+
+    assert_eq!(out, 1);
+}
+
+#[test]
+fn option_some_other() {
+    let out = match Some("some") {
+        Some("other") => 1,
+        _ => 2,
+    };
+
+    assert_eq!(out, 2);
+}
+
+#[test]
+fn option_none() {
+    let out = match None {
+        None => 1,
+        _ => 2,
+    };
+
+    assert_eq!(out, 1);
+}
+
+#[test]
+fn option_none_some() {
+    let out = match None {
+        Some("some") => 1,
+        _ => 2,
+    };
+
+    assert_eq!(out, 2);
+}

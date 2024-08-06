@@ -1,5 +1,7 @@
+//! Test for iterator functions
+
 #[test]
-fn iterator_drop() {
+fn iter_drop() {
     let sum = 0;
     let values = [1, 2, 3, 4];
 
@@ -24,4 +26,40 @@ fn iterator_drop() {
     }
 
     assert_eq!(sum, 24);
+}
+
+#[test]
+fn iter_sum() {
+    let out = [1, 2, 3].iter().sum::<i64>();
+    assert_eq!(out, 6);
+}
+
+#[test]
+fn iter_sum_negative() {
+    let out = [1, -2, 3].iter().sum::<i64>();
+    assert_eq!(out, 2);
+}
+
+#[test]
+fn iter_prod() {
+    let out = [1, 2, 3, 6].iter().product::<i64>();
+    assert_eq!(out, 36);
+}
+
+#[test]
+fn iter_prod_negative() {
+    let out = [-1, 2, 3, 6].iter().product::<i64>();
+    assert_eq!(out, -36);
+}
+
+#[test]
+fn iter_prod_float() {
+    let out = [1.0, 0.5, 2.0, 3.0].iter().product::<f64>();
+    assert_eq!(out, 3.0);
+}
+
+#[test]
+fn iter_prod_float_negative() {
+    let out = [1.0, 0.5, 2.0, 0.0 - 3.0].iter().product::<f64>();
+    assert_eq!(out, -3.0);
 }

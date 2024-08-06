@@ -1,0 +1,23 @@
+#[test]
+fn test_lazy_and_or() {
+    let result = (|| true || return false)();
+    assert_eq!(result, true);
+
+    let result = (|| false && return true)();
+    assert_eq!(result, false);
+
+    let result = (|| (false || false || {
+        return true;
+        false
+    } || false))();
+
+    assert_eq!(result, true);
+
+    let result = (|| {
+        false && false && {
+            return false;
+            false
+        } || true
+    })();
+    assert_eq!(result, true);
+}

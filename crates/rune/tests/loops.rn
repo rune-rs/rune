@@ -1,4 +1,26 @@
 #[test]
+fn while_loop() {
+    let n = 0;
+
+    while n < 10 {
+        n += 1;
+    }
+
+    assert_eq!(n, 10);
+}
+
+#[test]
+fn for_loop() {
+    let n = 0;
+
+    for i in 0..10 {
+        n += i;
+    }
+
+    assert_eq!(n, 45);
+}
+
+#[test]
 fn loop_break_value() {
     let value = 0;
 
@@ -50,4 +72,40 @@ fn loop_break_without_label() {
 
     assert_eq!(out, ());
     assert_eq!(value, 3);
+}
+
+#[test]
+fn for_simple_binding() {
+    let data = [1, 2, 3, 4];
+    let out = 0;
+
+    for v in data {
+        out += v;
+    }
+
+    assert_eq!(out, 1 + 2 + 3 + 4);
+}
+
+#[test]
+fn for_ignore_binding() {
+    let data = [1, 2, 3, 4];
+    let out = 0;
+
+    for _ in data {
+        out += 1;
+    }
+
+    assert_eq!(out, 4);
+}
+
+#[test]
+fn for_binding_pattern() {
+    let data = [(1, 2), (2, 3), (3, 4)];
+    let out = 0;
+
+    for (a, b) in data {
+        out += a * b;
+    }
+
+    assert_eq!(out, 2 + 2 * 3 + 3 * 4);
 }
