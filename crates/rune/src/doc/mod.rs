@@ -23,5 +23,7 @@ mod visitor;
 #[cfg(any(feature = "languageserver", feature = "cli"))]
 pub(crate) use self::visitor::{Visitor, VisitorData};
 
+#[cfg(feature = "cli")]
 mod autocomplete;
+#[cfg(feature = "cli")]
 pub(crate) use self::autocomplete::build as build_autocomplete;
