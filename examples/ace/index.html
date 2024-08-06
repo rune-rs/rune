@@ -1,0 +1,41 @@
+<html>
+    <head>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.35.4/ace.js" integrity="sha512-ADBQV64rzhFIJkiHBan+9UeZRq3DZrP6/S2+FS2EX5icsYw/IQgmFaSmt6UTqZpWXkpCKluztsTpOtxx5GkD2A==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.35.4/ext-language_tools.min.js" integrity="sha512-4l33zsqrqf1PBA3iEZ399Jl9on7It0HngOkI3TG2c6W0wUyTiXRxd9Eh8zFBXNy8fMlgda/u4u1metnbEf5Hzg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+        <style>
+            #editor {
+                position: absolute;
+                top: 0;
+                right: 0;
+                bottom: 0;
+                left: 0;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="editor">
+println!("Hello World!");
+        </div>
+        <script>
+            let init = async () => {
+                let runeCompleter = (await import("./autocomplete.js")).default;
+
+                var editor = ace.edit("editor");
+                editor.setTheme("ace/theme/monokai");
+                editor.getSession().setMode("ace/mode/rust");
+
+                editor.setOptions({
+                    enableBasicAutocompletion: true,
+                    //enableSnippets: true,
+                    enableLiveAutocompletion: true
+                });
+
+                let langTools = ace.require("ace/ext/language_tools");
+                langTools.addCompleter(runeCompleter);
+            };
+
+            init();
+        </script>
+    </body>
+</html>

@@ -420,7 +420,7 @@ where
 }
 
 /// Process markdown html and captures tests.
-pub(super) fn push_html<'a, I>(
+pub(crate) fn push_html<'a, I>(
     syntax_set: &'a SyntaxSet,
     string: &'a mut String,
     iter: I,

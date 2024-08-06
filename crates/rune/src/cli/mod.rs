@@ -6,6 +6,7 @@
 //! * Build a language server, which is aware of things only available in your
 //!   context.
 
+mod ace;
 mod benches;
 mod check;
 mod doc;
@@ -431,6 +432,8 @@ enum Command {
     Check(CommandShared<check::Flags>),
     /// Build documentation.
     Doc(CommandShared<doc::Flags>),
+    /// Build ace autocompletion.
+    Ace(CommandShared<ace::Flags>),
     /// Run all tests but do not execute
     Test(CommandShared<tests::Flags>),
     /// Run the given program as a benchmark
@@ -446,9 +449,10 @@ enum Command {
 }
 
 impl Command {
-    const ALL: [&'static str; 8] = [
+    const ALL: [&'static str; 9] = [
         "check",
         "doc",
+        "ace",
         "test",
         "bench",
         "run",
@@ -461,6 +465,7 @@ impl Command {
         let (shared, command): (_, &mut dyn CommandBase) = match self {
             Command::Check(shared) => (&mut shared.shared, &mut shared.command),
             Command::Doc(shared) => (&mut shared.shared, &mut shared.command),
+            Command::Ace(shared) => (&mut shared.shared, &mut shared.command),
             Command::Test(shared) => (&mut shared.shared, &mut shared.command),
             Command::Bench(shared) => (&mut shared.shared, &mut shared.command),
             Command::Run(shared) => (&mut shared.shared, &mut shared.command),
@@ -476,6 +481,7 @@ impl Command {
         let (shared, command): (_, &dyn CommandBase) = match self {
             Command::Check(shared) => (&shared.shared, &shared.command),
             Command::Doc(shared) => (&shared.shared, &shared.command),
+            Command::Ace(shared) => (&shared.shared, &shared.command),
             Command::Test(shared) => (&shared.shared, &shared.command),
             Command::Bench(shared) => (&shared.shared, &shared.command),
             Command::Run(shared) => (&shared.shared, &shared.command),
@@ -910,6 +916,10 @@ where
         Command::Doc(f) => {
             let options = f.options()?;
             return doc::run(io, entry, c, &f.command, &f.shared, &options, entries);
+        }
+        Command::Ace(f) => {
+            let options = f.options()?;
+            return ace::run(io, entry, c, &f.command, &f.shared, &options, entries);
         }
         Command::Fmt(f) => {
             let options = f.options()?;
