@@ -53,7 +53,7 @@ macro_rules! assert_format_with {
         let input = lines($input).join("\n");
 
         #[allow(unused_mut)]
-        let mut options = $crate::Options::default();
+        let mut options = $crate::compile::FmtOptions::default();
 
         $(options.parse_option($option).unwrap();)*
 

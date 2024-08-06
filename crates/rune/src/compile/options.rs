@@ -25,9 +25,18 @@ pub(crate) struct FmtOptions {
     pub(crate) print_tree: bool,
     /// Attempt to format even when faced with syntax errors.
     pub(crate) error_recovery: bool,
+    /// Force newline at end of document.
+    pub(crate) force_newline: bool,
 }
 
 impl FmtOptions {
+    /// The default format option.
+    pub(crate) const DEFAULT: Self = Self {
+        print_tree: false,
+        error_recovery: false,
+        force_newline: true,
+    };
+
     /// Parse a rune-fmt option.
     pub(crate) fn parse_option(&mut self, option: &str) -> Result<(), ParseOptionError> {
         let (head, tail) = if let Some((head, tail)) = option.trim().split_once('=') {
@@ -43,6 +52,9 @@ impl FmtOptions {
             "error-recovery" => {
                 self.error_recovery = tail.map_or(true, |s| s == "true");
             }
+            "force-newline" => {
+                self.force_newline = tail.map_or(true, |s| s == "true");
+            }
             _ => {
                 return Err(ParseOptionError {
                     option: option.into(),
@@ -51,6 +63,13 @@ impl FmtOptions {
         }
 
         Ok(())
+    }
+}
+
+impl Default for FmtOptions {
+    #[inline]
+    fn default() -> Self {
+        FmtOptions::DEFAULT
     }
 }
 
@@ -108,10 +127,7 @@ impl Options {
         function_body: false,
         test_std: false,
         lowering: 0,
-        fmt: FmtOptions {
-            print_tree: false,
-            error_recovery: false,
-        },
+        fmt: FmtOptions::DEFAULT,
     };
 
     /// Get a list and documentation for all available compiler options.
@@ -224,6 +240,15 @@ impl Options {
                     /// contains invalid syntax.
                 },
                 default: "false",
+                options: BOOL,
+            },
+            OptionMeta {
+                key: "fmt.force-newline",
+                unstable: true,
+                doc: &docstring! {
+                    /// Force newline at end of document.
+                },
+                default: "true",
                 options: BOOL,
             },
         ];

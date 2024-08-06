@@ -3,7 +3,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::{anyhow, Context as _, Result};
+use anyhow::{Context as _, Result};
 use lsp::Url;
 use ropey::Rope;
 use tokio::sync::Notify;
@@ -14,7 +14,8 @@ use crate::alloc::{self, HashMap, String, Vec};
 use crate::ast::{Span, Spanned};
 use crate::compile::meta;
 use crate::compile::{
-    self, CompileVisitor, LinkerError, Located, Location, MetaError, MetaRef, SourceMeta, WithSpan,
+    self, CompileVisitor, FmtOptions, LinkerError, Located, Location, MetaError, MetaRef,
+    SourceMeta, WithSpan,
 };
 use crate::diagnostics::{Diagnostic, FatalDiagnosticKind};
 use crate::doc::VisitorData;
@@ -107,8 +108,69 @@ impl Build {
     }
 }
 
+pub(super) enum StateEncoding {
+    Utf8,
+    Utf16,
+}
+
+impl StateEncoding {
+    /// Get line column out of source.
+    pub(super) fn source_range(&self, source: &Source, span: Span) -> Result<lsp::Range> {
+        let start = self.source_position(source, span.start.into_usize())?;
+        let end = self.source_position(source, span.end.into_usize())?;
+        Ok(lsp::Range { start, end })
+    }
+
+    /// Get line column out of source.
+    pub(super) fn source_position(&self, source: &Source, at: usize) -> Result<lsp::Position> {
+        let (l, c) = match self {
+            StateEncoding::Utf16 => source.pos_to_utf16cu_linecol(at),
+            StateEncoding::Utf8 => source.pos_to_utf8_linecol(at),
+        };
+
+        Ok(lsp::Position {
+            line: u32::try_from(l)?,
+            character: u32::try_from(c)?,
+        })
+    }
+
+    pub(super) fn rope_position(&self, rope: &Rope, pos: lsp::Position) -> Result<usize> {
+        /// Translate the given lsp::Position, which is in UTF-16 because Microsoft.
+        ///
+        /// Please go complain here:
+        /// <https://github.com/microsoft/language-server-protocol/issues/376>
+        fn rope_position_utf16(rope: &Rope, pos: lsp::Position) -> Result<usize> {
+            let line = usize::try_from(pos.line)?;
+            let character = usize::try_from(pos.character)?;
+            let line = rope.try_line_to_char(line)?;
+            Ok(rope.try_utf16_cu_to_char(line + character)?)
+        }
+
+        fn rope_position_utf8(rope: &Rope, pos: lsp::Position) -> Result<usize> {
+            let line = usize::try_from(pos.line)?;
+            let character = usize::try_from(pos.character)?;
+            Ok(rope.try_line_to_char(line)? + character)
+        }
+
+        match self {
+            StateEncoding::Utf16 => rope_position_utf16(rope, pos),
+            StateEncoding::Utf8 => rope_position_utf8(rope, pos),
+        }
+    }
+}
+
+impl fmt::Display for StateEncoding {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            StateEncoding::Utf8 => "utf-8".fmt(f),
+            StateEncoding::Utf16 => "utf-16".fmt(f),
+        }
+    }
+}
+
 /// Shared server state.
 pub(super) struct State<'a> {
+    pub(super) encoding: StateEncoding,
     /// The output abstraction.
     pub(super) output: Output,
     /// Sender to indicate interest in rebuilding the project.
@@ -123,7 +185,7 @@ pub(super) struct State<'a> {
     /// Indicate that the server is stopped.
     stopped: bool,
     /// Sources used in the project.
-    workspace: Workspace,
+    pub(super) workspace: Workspace,
 }
 
 impl<'a> State<'a> {
@@ -135,6 +197,7 @@ impl<'a> State<'a> {
         options: Options,
     ) -> Self {
         Self {
+            encoding: StateEncoding::Utf16,
             output,
             rebuild_notify,
             context,
@@ -165,11 +228,6 @@ impl<'a> State<'a> {
         self.stopped
     }
 
-    /// Get mutable access to the workspace.
-    pub(super) fn workspace_mut(&mut self) -> &mut Workspace {
-        &mut self.workspace
-    }
-
     /// Indicate interest in having the project rebuild.
     ///
     /// Sources that have been modified will be marked as dirty.
@@ -182,36 +240,36 @@ impl<'a> State<'a> {
         &self,
         uri: &Url,
         position: lsp::Position,
-    ) -> Option<lsp::Location> {
-        let source = self.workspace.get(uri)?;
-        let offset = source.lsp_position_to_offset(position);
-        let def = source.find_definition_at(Span::point(offset))?;
+    ) -> Result<Option<lsp::Location>> {
+        let Some(source) = self.workspace.get(uri) else {
+            return Ok(None);
+        };
+
+        let offset = self.encoding.rope_position(&source.content, position)?;
+
+        let Some(def) = source.find_definition_at(Span::point(offset)) else {
+            return Ok(None);
+        };
 
         let url = match def.source.path() {
-            Some(path) => crate::languageserver::url::from_file_path(path).ok()?,
+            Some(path) => crate::languageserver::url::from_file_path(path)?,
             None => uri.clone(),
         };
 
-        let source = source.build_sources.as_ref()?.get(def.source.source_id())?;
-
-        let (l, c) = source.pos_to_utf16cu_linecol(def.source.span().start.into_usize());
-        let start = lsp::Position {
-            line: l as u32,
-            character: c as u32,
+        let Some(source) = source
+            .build_sources
+            .as_ref()
+            .and_then(|s| s.get(def.source.source_id()))
+        else {
+            return Ok(None);
         };
 
-        let (l, c) = source.pos_to_utf16cu_linecol(def.source.span().end.into_usize());
-        let end = lsp::Position {
-            line: l as u32,
-            character: c as u32,
-        };
-
-        let range = lsp::Range { start, end };
+        let range = self.encoding.source_range(source, def.source.span())?;
 
         let location = lsp::Location { uri: url, range };
 
         tracing::trace!("go to location: {:?}", location);
-        Some(location)
+        Ok(Some(location))
     }
 
     /// Find definition at the given uri and LSP position.
@@ -228,7 +286,9 @@ impl<'a> State<'a> {
             return Ok(None);
         };
 
-        let offset = workspace_source.lsp_position_to_offset(position);
+        let offset = self
+            .encoding
+            .rope_position(&workspace_source.content, position)?;
 
         let Some((mut symbol, start)) = workspace_source.looking_back(offset)? else {
             return Ok(None);
@@ -279,13 +339,15 @@ impl<'a> State<'a> {
         let sources = &mut self.workspace.sources;
         tracing::trace!(uri = ?uri.try_to_string()?, uri_exists = sources.get(uri).is_some());
 
-        let Some(workspace_source) = sources.get_mut(uri) else {
+        let Some(s) = sources.get_mut(uri) else {
             return Ok(None);
         };
 
-        let source = workspace_source.content.try_to_string()?;
+        let source = s.content.try_to_string()?;
 
-        let Ok(formatted) = crate::fmt::layout_source(&source) else {
+        let options = FmtOptions::DEFAULT;
+
+        let Ok(formatted) = crate::fmt::layout_source_with(&source, &options) else {
             return Ok(None);
         };
 
@@ -294,16 +356,52 @@ impl<'a> State<'a> {
             return Ok(None);
         }
 
-        workspace_source.content = Rope::from_str(&formatted);
-
-        self.rebuild_interest();
-
         let edit = lsp::TextEdit::new(
             // Range over full document
-            lsp::Range::new(lsp::Position::new(0, 0), lsp::Position::new(u32::MAX, u32::MAX)),
+            lsp::Range::new(
+                lsp::Position::new(0, 0),
+                lsp::Position::new(u32::MAX, u32::MAX),
+            ),
             formatted.into_std(),
         );
 
+        Ok(Some(edit))
+    }
+
+    pub(super) fn range_format(
+        &mut self,
+        uri: &Url,
+        range: &lsp::Range,
+    ) -> Result<Option<lsp::TextEdit>> {
+        let sources = &mut self.workspace.sources;
+        tracing::trace!(uri = ?uri.try_to_string()?, uri_exists = sources.get(uri).is_some());
+
+        let Some(s) = sources.get_mut(uri) else {
+            return Ok(None);
+        };
+
+        let start = self.encoding.rope_position(&s.content, range.start)?;
+        let end = self.encoding.rope_position(&s.content, range.end)?;
+
+        let Some(source) = s.content.get_slice(start..end) else {
+            return Ok(None);
+        };
+
+        let source = source.try_to_string()?;
+
+        let mut options = FmtOptions::DEFAULT;
+        options.force_newline = false;
+
+        let Ok(formatted) = crate::fmt::layout_source_with(&source, &options) else {
+            return Ok(None);
+        };
+
+        // Only modify if changed
+        if source == formatted {
+            return Ok(None);
+        }
+
+        let edit = lsp::TextEdit::new(*range, formatted.into_std());
         Ok(Some(edit))
     }
 
@@ -380,12 +478,12 @@ impl<'a> State<'a> {
 
         for (diagnostics, mut build) in workspace_results {
             build.populate(&mut reporter)?;
-            emit_workspace(diagnostics, &build, &mut reporter)?;
+            self.emit_workspace(diagnostics, &build, &mut reporter)?;
         }
 
         for (diagnostics, mut build, source_visitor, doc_visitor, unit) in script_results {
             build.populate(&mut reporter)?;
-            emit_scripts(diagnostics, &build, &mut reporter)?;
+            self.emit_scripts(diagnostics, &build, &mut reporter)?;
 
             let sources = Arc::new(build.sources);
             let doc_visitor = Arc::new(doc_visitor);
@@ -530,93 +628,122 @@ impl<'a> State<'a> {
 
         Ok((diagnostics, build, source_visitor, doc_visitor, unit))
     }
-}
 
-/// Emit diagnostics workspace.
-fn emit_workspace(
-    diagnostics: workspace::Diagnostics,
-    build: &Build,
-    reporter: &mut Reporter,
-) -> Result<()> {
-    if tracing::enabled!(tracing::Level::TRACE) {
-        let id_to_url = build
-            .id_to_url
-            .iter()
-            .map(|(k, v)| Ok::<_, alloc::Error>((*k, v.try_to_string()?)))
-            .try_collect::<alloc::Result<HashMap<_, _>, _>>()??;
+    /// Emit diagnostics workspace.
+    fn emit_workspace(
+        &self,
+        diagnostics: workspace::Diagnostics,
+        build: &Build,
+        reporter: &mut Reporter,
+    ) -> Result<()> {
+        if tracing::enabled!(tracing::Level::TRACE) {
+            let id_to_url = build
+                .id_to_url
+                .iter()
+                .map(|(k, v)| Ok::<_, alloc::Error>((*k, v.try_to_string()?)))
+                .try_collect::<alloc::Result<HashMap<_, _>, _>>()??;
 
-        tracing::trace!(?id_to_url, "emitting manifest diagnostics");
+            tracing::trace!(?id_to_url, "emitting manifest diagnostics");
+        }
+
+        for diagnostic in diagnostics.diagnostics() {
+            tracing::trace!(?diagnostic, "workspace diagnostic");
+
+            let workspace::Diagnostic::Fatal(f) = diagnostic;
+            self.report(build, reporter, f.source_id(), f.error(), to_error)?;
+        }
+
+        Ok(())
     }
 
-    for diagnostic in diagnostics.diagnostics() {
-        tracing::trace!(?diagnostic, "workspace diagnostic");
+    /// Emit regular compile diagnostics.
+    fn emit_scripts(
+        &self,
+        diagnostics: crate::Diagnostics,
+        build: &Build,
+        reporter: &mut Reporter,
+    ) -> Result<()> {
+        if tracing::enabled!(tracing::Level::TRACE) {
+            let id_to_url = build
+                .id_to_url
+                .iter()
+                .map(|(k, v)| Ok::<_, alloc::Error>((*k, v.try_to_string()?)))
+                .try_collect::<alloc::Result<HashMap<_, _>, _>>()??;
 
-        let workspace::Diagnostic::Fatal(f) = diagnostic;
-        report(build, reporter, f.source_id(), f.error(), to_error)?;
-    }
+            tracing::trace!(?id_to_url, "emitting script diagnostics");
+        }
 
-    Ok(())
-}
+        for diagnostic in diagnostics.diagnostics() {
+            tracing::trace!(?diagnostic, id_to_url = ?build.id_to_url, "script diagnostic");
 
-/// Emit regular compile diagnostics.
-fn emit_scripts(
-    diagnostics: crate::Diagnostics,
-    build: &Build,
-    reporter: &mut Reporter,
-) -> Result<()> {
-    if tracing::enabled!(tracing::Level::TRACE) {
-        let id_to_url = build
-            .id_to_url
-            .iter()
-            .map(|(k, v)| Ok::<_, alloc::Error>((*k, v.try_to_string()?)))
-            .try_collect::<alloc::Result<HashMap<_, _>, _>>()??;
+            match diagnostic {
+                Diagnostic::Fatal(f) => match f.kind() {
+                    FatalDiagnosticKind::CompileError(e) => {
+                        self.report(build, reporter, f.source_id(), e, to_error)?;
+                    }
+                    FatalDiagnosticKind::LinkError(e) => match e {
+                        LinkerError::MissingFunction { hash, spans } => {
+                            for (span, source_id) in spans {
+                                let (Some(url), Some(source)) = (
+                                    build.id_to_url.get(source_id),
+                                    build.sources.get(*source_id),
+                                ) else {
+                                    continue;
+                                };
 
-        tracing::trace!(?id_to_url, "emitting script diagnostics");
-    }
+                                let range = self.encoding.source_range(source, *span)?;
 
-    for diagnostic in diagnostics.diagnostics() {
-        tracing::trace!(?diagnostic, id_to_url = ?build.id_to_url, "script diagnostic");
+                                let diagnostics = reporter.entry(url);
 
-        match diagnostic {
-            Diagnostic::Fatal(f) => match f.kind() {
-                FatalDiagnosticKind::CompileError(e) => {
-                    report(build, reporter, f.source_id(), e, to_error)?;
-                }
-                FatalDiagnosticKind::LinkError(e) => match e {
-                    LinkerError::MissingFunction { hash, spans } => {
-                        for (span, source_id) in spans {
-                            let (Some(url), Some(source)) = (
-                                build.id_to_url.get(source_id),
-                                build.sources.get(*source_id),
-                            ) else {
-                                continue;
-                            };
-
-                            let Some(range) = span_to_lsp_range(source, *span) else {
-                                continue;
-                            };
-
-                            let diagnostics = reporter.entry(url);
-
-                            diagnostics.try_push(to_error(
-                                range,
-                                format_args!("Missing function with hash `{}`", hash),
-                            )?)?;
+                                diagnostics.try_push(to_error(
+                                    range,
+                                    format_args!("Missing function with hash `{}`", hash),
+                                )?)?;
+                            }
                         }
+                    },
+                    FatalDiagnosticKind::Internal(e) => {
+                        report_without_span(build, reporter, f.source_id(), e, to_error)?;
                     }
                 },
-                FatalDiagnosticKind::Internal(e) => {
-                    report_without_span(build, reporter, f.source_id(), e, to_error)?;
+                Diagnostic::Warning(e) => {
+                    self.report(build, reporter, e.source_id(), e, to_warning)?;
                 }
-            },
-            Diagnostic::Warning(e) => {
-                report(build, reporter, e.source_id(), e, to_warning)?;
+                Diagnostic::RuntimeWarning(_) => {}
             }
-            Diagnostic::RuntimeWarning(_) => {}
         }
+
+        Ok(())
     }
 
-    Ok(())
+    /// Convert the given span and error into an error diagnostic.
+    fn report<E, R>(
+        &self,
+        build: &Build,
+        reporter: &mut Reporter,
+        source_id: SourceId,
+        error: E,
+        report: R,
+    ) -> Result<()>
+    where
+        E: fmt::Display,
+        E: Spanned,
+        R: Fn(lsp::Range, E) -> alloc::Result<lsp::Diagnostic>,
+    {
+        let span = error.span();
+
+        let (Some(source), Some(url)) = (
+            build.sources.get(source_id),
+            build.id_to_url.get(&source_id),
+        ) else {
+            return Ok(());
+        };
+
+        let range = self.encoding.source_range(source, span)?;
+
+        reporter.entry(url).try_push(report(range, error)?)?;
+        Ok(())
+    }
 }
 
 /// A collection of open sources.
@@ -701,23 +828,25 @@ impl ServerSource {
     }
 
     /// Modify the given lsp range in the file.
-    pub(super) fn modify_lsp_range(&mut self, range: lsp::Range, content: &str) -> Result<()> {
-        let start = rope_utf16_position(&self.content, range.start)?;
-        let end = rope_utf16_position(&self.content, range.end)?;
-        self.content.remove(start..end);
+    pub(super) fn modify_lsp_range(
+        &mut self,
+        encoding: &StateEncoding,
+        range: lsp::Range,
+        content: &str,
+    ) -> Result<()> {
+        let start = encoding.rope_position(&self.content, range.start)?;
+        let end = encoding.rope_position(&self.content, range.end)?;
+        self.modify_range(start, end, content)
+    }
+
+    fn modify_range(&mut self, start: usize, end: usize, content: &str) -> Result<()> {
+        self.content.try_remove(start..end)?;
 
         if !content.is_empty() {
-            self.content.insert(start, content);
+            self.content.try_insert(start, content)?;
         }
 
         Ok(())
-    }
-
-    /// Offset in the rope to lsp position.
-    fn lsp_position_to_offset(&self, position: lsp::Position) -> usize {
-        let line = self.content.line_to_char(position.line as usize);
-        self.content
-            .utf16_cu_to_char(line + position.character as usize)
     }
 
     /// Iterate over the text chunks in the source.
@@ -755,74 +884,6 @@ impl fmt::Display for ServerSource {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.content)
     }
-}
-
-/// Convert the given span into an lsp range.
-fn span_to_lsp_range(source: &Source, span: Span) -> Option<lsp::Range> {
-    let (line, character) = source.pos_to_utf16cu_linecol(span.start.into_usize());
-    let start = lsp::Position::new(line as u32, character as u32);
-    let (line, character) = source.pos_to_utf16cu_linecol(span.end.into_usize());
-    let end = lsp::Position::new(line as u32, character as u32);
-    Some(lsp::Range::new(start, end))
-}
-
-/// Translate the given lsp::Position, which is in UTF-16 because Microsoft.
-///
-/// Please go complain here:
-/// <https://github.com/microsoft/language-server-protocol/issues/376>
-fn rope_utf16_position(rope: &Rope, position: lsp::Position) -> Result<usize> {
-    let line = rope.line(position.line as usize);
-
-    // encoding target.
-    let character = position.character as usize;
-
-    let mut utf16_offset = 0usize;
-    let mut char_offset = 0usize;
-
-    for c in line.chars() {
-        if utf16_offset == character {
-            break;
-        }
-
-        if utf16_offset > character {
-            return Err(anyhow!("character is not on an offset boundary"));
-        }
-
-        utf16_offset += c.len_utf16();
-        char_offset += 1;
-    }
-
-    Ok(rope.line_to_char(position.line as usize) + char_offset)
-}
-
-/// Convert the given span and error into an error diagnostic.
-fn report<E, R>(
-    build: &Build,
-    reporter: &mut Reporter,
-    source_id: SourceId,
-    error: E,
-    report: R,
-) -> Result<()>
-where
-    E: fmt::Display,
-    E: Spanned,
-    R: Fn(lsp::Range, E) -> alloc::Result<lsp::Diagnostic>,
-{
-    let span = error.span();
-
-    let (Some(source), Some(url)) = (
-        build.sources.get(source_id),
-        build.id_to_url.get(&source_id),
-    ) else {
-        return Ok(());
-    };
-
-    let Some(range) = span_to_lsp_range(source, span) else {
-        return Ok(());
-    };
-
-    reporter.entry(url).try_push(report(range, error)?)?;
-    Ok(())
 }
 
 /// Convert the given span and error into an error diagnostic.

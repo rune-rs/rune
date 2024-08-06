@@ -1033,10 +1033,10 @@ fn runefmt_skip() {
 // Test that we can format syntactically invalid sequences.
 #[test]
 fn test_error_patterns() {
-    assert_format_with!({ "fmt.error-recovery=true" }, "let var = +/-=;",);
+    assert_format_with!({ "error-recovery=true" }, "let var = +/-=;",);
 
     assert_format_with!(
-        { "fmt.error-recovery=true" },
+        { "error-recovery=true" },
         r#"
         let var = +/-=;
 
@@ -1045,7 +1045,7 @@ fn test_error_patterns() {
     );
 
     assert_format_with!(
-        { "fmt.error-recovery=true" },
+        { "error-recovery=true" },
         r#"
         let var = +/-= // Hi Bob
         ;

@@ -221,12 +221,15 @@ impl Source {
     }
 
     /// Convert the given offset to a utf-16 line and character.
+    #[cfg(feature = "languageserver")]
     pub(crate) fn pos_to_utf16cu_linecol(&self, offset: usize) -> (usize, usize) {
         let (line, offset, rest) = self.position(offset);
+
         let col = rest
             .char_indices()
             .flat_map(|(n, c)| (n < offset).then(|| c.encode_utf16(&mut [0u16; 2]).len()))
             .sum();
+
         (line, col)
     }
 
