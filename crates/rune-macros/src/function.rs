@@ -451,9 +451,17 @@ impl VmResult {
                     self.expr(expr)?;
                 }
                 syn::Stmt::Local(local) => {
-                    if let Some(init) = &mut local.init {
-                        self.expr(&mut init.expr)?;
-                    }
+                    let Some(init) = &mut local.init else {
+                        continue;
+                    };
+
+                    self.expr(&mut init.expr)?;
+
+                    let Some((_, expr)) = &mut init.diverge else {
+                        continue;
+                    };
+
+                    self.expr(expr)?;
                 }
                 _ => {}
             };
