@@ -10,6 +10,12 @@ use super::Tree;
 
 use Kind::*;
 
+macro_rules! ws {
+    () => {
+        Whitespace | Comment | MultilineComment(..)
+    };
+}
+
 /// A checkpoint during tree construction.
 #[derive(Clone)]
 pub(super) struct Checkpoint {
@@ -189,15 +195,12 @@ impl<'a> Parser<'a> {
 
             span = tok.span;
 
-            let kind = match tok.kind {
-                Whitespace => Kind::Whitespace,
-                Comment => Kind::Comment,
-                kind @ MultilineComment(..) => kind,
-                _ => return Ok(tok.span),
-            };
+            if !matches!(tok.kind, ws!()) {
+                return Ok(tok.span);
+            }
 
             self.tree
-                .token(kind, tok.span.range().len())
+                .token(tok.kind, tok.span.range().len())
                 .with_span(tok.span)?;
 
             self.buf.pop_front();
@@ -247,6 +250,62 @@ impl<'a> Parser<'a> {
         rune_trace!("grammar.rs", tok);
         Ok(tok)
     }
+
+    fn advance(&mut self, mut n: usize) -> Result<()> {
+        while n > 0 {
+            let tok = 'tok: {
+                if let Some(tok) = self.buf.pop_front() {
+                    break 'tok tok;
+                };
+
+                if let Some(tok) = self.lexer.next()? {
+                    break 'tok tok;
+                };
+
+                return Ok(());
+            };
+
+            self.tree
+                .token(tok.kind, tok.span.range().len())
+                .with_span(tok.span)?;
+
+            n -= usize::from(!matches!(tok.kind, ws!()));
+        }
+
+        Ok(())
+    }
+
+    fn nth_token(&mut self, n: usize) -> Result<Token> {
+        let mut index = 0;
+        let mut remaining = n;
+
+        loop {
+            while self.buf.len() <= index {
+                let Some(tok) = self.lexer.next()? else {
+                    break;
+                };
+
+                self.buf.try_push_back(tok).with_span(tok.span)?;
+            }
+
+            let Some(tok) = self.buf.get(index) else {
+                return Ok(Token {
+                    span: Span::new(self.source.len(), self.source.len()),
+                    kind: Eof,
+                });
+            };
+
+            if !matches!(tok.kind, ws!()) {
+                if remaining == 0 {
+                    return Ok(*tok);
+                }
+
+                remaining -= 1;
+            }
+
+            index += 1;
+        }
+    }
 }
 
 impl<'a> Advance for Parser<'a> {
@@ -254,10 +313,7 @@ impl<'a> Advance for Parser<'a> {
 
     #[inline]
     fn advance(&mut self, n: usize) -> Result<()> {
-        for _ in 0..n {
-            self.bump()?;
-        }
-
+        Parser::advance(self, n)?;
         Ok(())
     }
 }
@@ -268,6 +324,6 @@ impl<'a> Peekable for Parser<'a> {
     #[inline]
     fn nth(&mut self, n: usize) -> Result<Token> {
         self.ws()?;
-        self.glued_token(n)
+        self.nth_token(n)
     }
 }
