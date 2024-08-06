@@ -1,22 +1,19 @@
 use core::fmt::Display;
 
-use crate::{
-    compile::Prelude,
-    doc::{Artifacts, Context, Visitor},
-};
-
 use anyhow::{Context as _, Result};
 use pulldown_cmark::{Options, Parser};
-use rune_alloc::{fmt::TryWrite, HashMap, String};
-use rune_core::{Hash, ItemBuf};
 use syntect::parsing::SyntaxSet;
 
-use super::{
-    build::markdown,
-    context::{Function, Kind, Meta},
-};
-
+use crate as rune;
+use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
+use crate::alloc::{HashMap, String};
+use crate::compile::Prelude;
+use crate::doc::{Artifacts, Context, Visitor};
+use crate::{hash, ItemBuf};
+
+use super::build::markdown;
+use super::context::{Function, Kind, Meta, Signature};
 
 pub(crate) fn build(
     artifacts: &mut Artifacts,
@@ -24,7 +21,7 @@ pub(crate) fn build(
     visitors: &[Visitor],
     extensions: bool,
 ) -> Result<()> {
-    let context = Context::new(context, visitors);
+    let context = Context::new(Some(context), visitors);
 
     let mut acx = AutoCompleteCtx::new(&context, extensions);
     for item in context.iter_modules() {
@@ -60,7 +57,6 @@ impl<'a> AutoCompleteCtx<'a> {
     fn collect_meta(&mut self, item: &ItemBuf) -> Result<()> {
         for meta in self.ctx.meta(item)?.into_iter() {
             match meta.kind {
-                Kind::Unsupported => {}
                 Kind::Type => {
                     self.fixed.try_insert(item.try_clone()?, meta)?;
                 }
@@ -85,8 +81,7 @@ impl<'a> AutoCompleteCtx<'a> {
                     self.fixed.try_insert(item.try_clone()?, meta)?;
                 }
                 Kind::Function(f) => {
-                    if f.arg_names.into_iter().flatten().next().map(|s| s.as_str()) == Some("self")
-                    {
+                    if matches!(f.signature, Signature::Instance) {
                         self.instance.try_insert(item.try_clone()?, meta)?;
                     } else {
                         self.fixed.try_insert(item.try_clone()?, meta)?;
@@ -102,6 +97,7 @@ impl<'a> AutoCompleteCtx<'a> {
                     }
                     self.fixed.try_insert(item.try_clone()?, meta)?;
                 }
+                Kind::Unsupported | Kind::Trait => {}
             }
         }
 
@@ -167,11 +163,13 @@ impl<'a> AutoCompleteCtx<'a> {
         }
 
         // automatic questionmark for result and option
-        if f.return_type == Some(Hash::new(0x1978eae6b50a98ef))
-            || f.return_type == Some(Hash::new(0xc0958f246e193e78))
-        {
+        if matches!(
+            f.return_type.base,
+            hash!(::std::option::Option) | hash!(::std::result::Result)
+        ) {
             ext.try_push_str("?")?;
         }
+
         Ok(ext)
     }
 
@@ -179,43 +177,33 @@ impl<'a> AutoCompleteCtx<'a> {
         let mut param = String::try_from("(")?;
 
         // add arguments when no argument names are provided
-        if let Some(args) = f.args {
-            if args != 0 && f.args != f.arg_names.map(|a| a.len()) {
-                for i in 0..args {
-                    if i != 0 {
-                        param.try_push_str(", ")?;
-                    }
-                    param.try_push_str("value")?;
+        if let Some(args) = f.arguments {
+            for (n, arg) in args.iter().enumerate() {
+                if n > 0 {
+                    param.try_push_str(", ")?;
                 }
+
+                write!(param, "{}", arg.name)?;
             }
         }
 
-        // add argument names
-        for a in f.arg_names.into_iter().flatten() {
-            if param.len() != 1 {
-                param.try_push_str(", ")?;
-            }
-            if param.len() == 1 && a == "self" {
-                continue;
-            }
-            param.try_push_str(a)?;
-        }
         param.try_push(')')?;
         Ok(param)
     }
 
     fn get_fn_ret_typ(&self, f: &Function) -> Result<String> {
         let mut param = String::new();
+
         if !self.extensions {
             return Ok(param);
         }
 
-        if let Some(item) = f
-            .return_type
-            .and_then(|h| self.ctx.meta_by_hash(h).ok())
+        if let Some(item) = self
+            .ctx
+            .meta_by_hash(f.return_type.base)
+            .ok()
             .and_then(|v| v.into_iter().next())
-            .and_then(|m| m.item)
-            .and_then(|i| i.last())
+            .and_then(|m| m.item.last())
         {
             param.try_push_str(" -> ")?;
             param.try_push_str(&item.try_to_string()?)?;
@@ -251,14 +239,16 @@ impl<'a> AutoCompleteCtx<'a> {
         write!(f, r#"var instance = ["#)?;
 
         let mut no_comma = true;
+
         for (item, meta) in self.instance.iter() {
             let Kind::Function(fnc) = meta.kind else {
                 continue;
             };
+
             if no_comma {
                 no_comma = false;
             } else {
-                write!(f, r#","#)?;
+                write!(f, ",")?;
             }
 
             let mut iter = item.iter().rev();
@@ -297,17 +287,15 @@ impl<'a> AutoCompleteCtx<'a> {
         write!(f, r#"var fixed = ["#)?;
 
         let mut no_comma = true;
+
         for (item, meta) in self.fixed.iter() {
             if no_comma {
                 no_comma = false;
             } else {
-                write!(f, r#","#)?;
+                write!(f, ",")?;
             }
 
             match meta.kind {
-                Kind::Unsupported => {
-                    no_comma = true;
-                }
                 Kind::Type => {
                     let name = self.get_name(item)?;
                     let doc = self.doc_to_html(meta).ok().flatten();
@@ -357,6 +345,9 @@ impl<'a> AutoCompleteCtx<'a> {
                     let name = self.get_name(item)?;
                     let doc = self.doc_to_html(meta).ok().flatten();
                     self.write_hint(f, &name, "Module", 9, None, doc.as_deref())?;
+                }
+                Kind::Unsupported | Kind::Trait => {
+                    no_comma = true;
                 }
             }
         }
