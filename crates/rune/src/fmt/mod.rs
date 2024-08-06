@@ -17,7 +17,7 @@ use core::fmt;
 use crate::alloc;
 use crate::alloc::prelude::*;
 use crate::ast::Span;
-use crate::compile::{Result, WithSpan};
+use crate::compile::{FmtOptions, Result, WithSpan};
 use crate::grammar::{Node, Parser, Remaining, Stream, Tree};
 use crate::{Diagnostics, Options, SourceId, Sources};
 
@@ -126,7 +126,7 @@ impl<'a> Prepare<'a> {
                 continue;
             };
 
-            match layout_source_with(source.as_str(), options) {
+            match layout_source_with(source.as_str(), &options.fmt) {
                 Ok(output) => {
                     files.try_push((id, output))?;
                 }
@@ -147,21 +147,14 @@ impl<'a> Prepare<'a> {
     }
 }
 
-/// Format the given source.
-#[cfg(feature = "languageserver")]
-pub(crate) fn layout_source(source: &str) -> Result<String> {
-    let options = Options::default();
-    layout_source_with(source, &options)
-}
-
 /// Format the given source with the specified options.
-pub(crate) fn layout_source_with(source: &str, options: &Options) -> Result<String> {
+pub(crate) fn layout_source_with(source: &str, options: &FmtOptions) -> Result<String> {
     let mut p = Parser::new(source);
     crate::grammar::root(&mut p)?;
 
     let tree = p.build()?;
 
-    if options.fmt.print_tree {
+    if options.print_tree {
         let o = std::io::stdout();
         let mut o = o.lock();
         tree.print_with_source(&mut o, source)?;
@@ -176,7 +169,7 @@ pub(crate) fn layout_source_with(source: &str, options: &Options) -> Result<Stri
         o.comments(Comments::Line)?;
     }
 
-    if !o.ends_with(NL) {
+    if options.force_newline && !o.ends_with(NL) {
         o.try_push_str(NL)
             .with_span(Span::new(source.len(), source.len()))?;
     }

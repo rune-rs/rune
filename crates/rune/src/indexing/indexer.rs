@@ -342,7 +342,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
             .q
             .sources
             .get(self.source_id)
-            .map(|s| s.pos_to_utf16cu_linecol(ast.open.span.start.into_usize()))
+            .map(|s| s.pos_to_utf8_linecol(ast.open.span.start.into_usize()))
             .unwrap_or_default();
 
         // 1-indexed as that is what most editors will use

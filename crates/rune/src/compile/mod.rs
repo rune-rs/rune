@@ -46,6 +46,8 @@ pub(crate) use self::unit_builder::UnitBuilder;
 pub(crate) mod v1;
 
 mod options;
+#[cfg(any(test, feature = "languageserver"))]
+pub(crate) use self::options::FmtOptions;
 pub use self::options::{Options, ParseOptionError};
 
 mod location;

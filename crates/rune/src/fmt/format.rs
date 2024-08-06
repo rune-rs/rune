@@ -660,7 +660,7 @@ fn expr_with_kind<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<Kind> {
             expr_chain(o, p)?;
         }
         Error => {
-            if o.options.fmt.error_recovery {
+            if o.options.error_recovery {
                 p.write_remaining_trimmed(o)?;
             } else {
                 return Err(p.unsupported("expression"));

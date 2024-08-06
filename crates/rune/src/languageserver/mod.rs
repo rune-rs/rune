@@ -22,6 +22,8 @@ use crate::support::Result;
 use crate::workspace::MANIFEST_FILE;
 use crate::{Context, Options};
 
+use self::state::StateEncoding;
+
 enum Language {
     Rune,
     Other,
@@ -101,6 +103,7 @@ pub async fn run(context: Context, options: Options) -> Result<()> {
                     req(lsp::request::GotoDefinition, goto_definition),
                     req(lsp::request::Completion, completion),
                     req(lsp::request::Formatting, formatting),
+                    req(lsp::request::RangeFormatting, range_formatting),
                     notif(lsp::notification::DidOpenTextDocument, did_open_text_document),
                     notif(lsp::notification::DidChangeTextDocument, did_change_text_document),
                     notif(lsp::notification::DidCloseTextDocument, did_close_text_document),
@@ -114,6 +117,24 @@ pub async fn run(context: Context, options: Options) -> Result<()> {
     Ok(())
 }
 
+fn is_utf8(params: &lsp::InitializeParams) -> bool {
+    let Some(general) = &params.capabilities.general else {
+        return false;
+    };
+
+    let Some(encodings) = &general.position_encodings else {
+        return false;
+    };
+
+    for encoding in encodings {
+        if *encoding == lsp::PositionEncodingKind::UTF8 {
+            return true;
+        }
+    }
+
+    false
+}
+
 /// Initialize the language state.
 async fn initialize(
     s: &mut State<'_>,
@@ -125,7 +146,24 @@ async fn initialize(
         .log(lsp::MessageType::INFO, "Starting language server")
         .await?;
 
+    let position_encoding;
+
+    if is_utf8(&params) {
+        s.encoding = StateEncoding::Utf8;
+        position_encoding = Some(lsp::PositionEncodingKind::UTF8);
+    } else {
+        position_encoding = None;
+    }
+
+    s.output
+        .log(
+            lsp::MessageType::INFO,
+            format_args!("Using {} position encoding", s.encoding),
+        )
+        .await?;
+
     let capabilities = lsp::ServerCapabilities {
+        position_encoding,
         text_document_sync: Some(lsp::TextDocumentSyncCapability::Kind(
             lsp::TextDocumentSyncKind::INCREMENTAL,
         )),
@@ -142,6 +180,7 @@ async fn initialize(
             }),
         }),
         document_formatting_provider: Some(lsp::OneOf::Left(true)),
+        document_range_formatting_provider: Some(lsp::OneOf::Left(true)),
         ..Default::default()
     };
 
@@ -162,7 +201,7 @@ async fn initialize(
         if let Ok(manifest_path) = manifest_uri.to_file_path() {
             if fs::is_file(&manifest_path).await? {
                 tracing::trace!(?manifest_uri, ?manifest_path, "Activating workspace");
-                s.workspace_mut().manifest_path = Some((manifest_uri, manifest_path));
+                s.workspace.manifest_path = Some((manifest_uri, manifest_path));
                 rebuild = true;
             }
         }
@@ -199,7 +238,7 @@ async fn goto_definition(
             &params.text_document_position_params.text_document.uri,
             params.text_document_position_params.position,
         )
-        .await;
+        .await?;
 
     Ok(position.map(lsp::GotoDefinitionResponse::Scalar))
 }
@@ -230,6 +269,16 @@ async fn formatting(
         .map(|option| option.map(|formatted| vec![formatted]))
 }
 
+/// Handle formatting request.
+async fn range_formatting(
+    state: &mut State<'_>,
+    params: lsp::DocumentRangeFormattingParams,
+) -> Result<Option<::rust_alloc::vec::Vec<lsp::TextEdit>>> {
+    state
+        .range_format(&params.text_document.uri, &params.range)
+        .map(|option| option.map(|formatted| vec![formatted]))
+}
+
 /// Handle open text document.
 async fn did_open_text_document(
     s: &mut State<'_>,
@@ -240,7 +289,7 @@ async fn did_open_text_document(
         _ => Language::Other,
     };
 
-    if s.workspace_mut()
+    if s.workspace
         .insert_source(
             params.text_document.uri.clone(),
             params.text_document.text.try_into()?,
@@ -265,10 +314,10 @@ async fn did_change_text_document(
 ) -> Result<()> {
     let mut interest = false;
 
-    if let Some(source) = s.workspace_mut().get_mut(&params.text_document.uri) {
+    if let Some(source) = s.workspace.get_mut(&params.text_document.uri) {
         for change in params.content_changes {
             if let Some(range) = change.range {
-                source.modify_lsp_range(range, &change.text)?;
+                source.modify_lsp_range(&s.encoding, range, &change.text)?;
                 interest = true;
             }
         }
@@ -291,7 +340,7 @@ async fn did_close_text_document(
     s: &mut State<'_>,
     params: lsp::DidCloseTextDocumentParams,
 ) -> Result<()> {
-    s.workspace_mut().remove(&params.text_document.uri)?;
+    s.workspace.remove(&params.text_document.uri)?;
     s.rebuild_interest();
     Ok(())
 }

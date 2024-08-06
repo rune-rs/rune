@@ -3,9 +3,8 @@ use core::mem::take;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, VecDeque};
 use crate::ast::{Kind, Span};
-use crate::compile::{Error, ErrorKind, Result, WithSpan};
+use crate::compile::{Error, ErrorKind, FmtOptions, Result, WithSpan};
 use crate::grammar::{Node, Tree};
-use crate::Options;
 
 use super::{INDENT, NL, NL_CHAR, WS};
 
@@ -111,7 +110,7 @@ pub(crate) struct Output<'a> {
     span: Span,
     pub(super) source: &'a Source,
     o: &'a mut Buffer,
-    pub(super) options: &'a Options,
+    pub(super) options: &'a FmtOptions,
     comments: VecDeque<Comment>,
     lines: usize,
     use_lines: bool,
@@ -125,7 +124,7 @@ impl<'a> Output<'a> {
         span: Span,
         source: &'a str,
         o: &'a mut String,
-        options: &'a Options,
+        options: &'a FmtOptions,
     ) -> Self {
         Self {
             span,
