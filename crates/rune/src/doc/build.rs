@@ -1,5 +1,4 @@
 mod js;
-pub(crate) mod markdown;
 mod type_;
 
 use core::fmt;
@@ -11,8 +10,8 @@ use anyhow::{anyhow, bail, Context as _, Result};
 use relative_path::{RelativePath, RelativePathBuf};
 use serde::{Serialize, Serializer};
 use syntect::highlighting::ThemeSet;
-use syntect::html::{self, ClassStyle, ClassedHTMLGenerator};
-use syntect::parsing::{SyntaxReference, SyntaxSet};
+use syntect::html;
+use syntect::parsing::SyntaxSet;
 
 use crate as rune;
 use crate::alloc::borrow::Cow;
@@ -28,6 +27,8 @@ use crate::item::ComponentRef;
 use crate::runtime::static_type;
 use crate::std::borrow::ToOwned;
 use crate::{Hash, Item};
+
+use super::markdown;
 
 // InspiredGitHub
 // Solarized (dark)
@@ -420,7 +421,7 @@ impl<'m> Ctxt<'_, 'm> {
 
         Ok(try_format!(
             "<pre><code class=\"language-rune\">{}</code></pre>",
-            render_code_by_syntax(&self.syntax_set, lines, syntax, None)?
+            markdown::render_code_by_syntax(&self.syntax_set, lines, syntax, None)?
         ))
     }
 
@@ -1249,47 +1250,4 @@ fn build_item_path(
     });
 
     Ok(())
-}
-
-/// Render documentation.
-fn render_code_by_syntax<I>(
-    syntax_set: &SyntaxSet,
-    lines: I,
-    syntax: &SyntaxReference,
-    mut out: Option<&mut String>,
-) -> Result<String>
-where
-    I: IntoIterator,
-    I::Item: AsRef<str>,
-{
-    let mut buf = String::new();
-
-    let mut gen =
-        ClassedHTMLGenerator::new_with_class_style(syntax, syntax_set, ClassStyle::Spaced);
-
-    for line in lines {
-        let line = line.as_ref();
-        let line = line.strip_prefix(' ').unwrap_or(line);
-
-        if line.starts_with('#') {
-            if let Some(o) = out.as_mut() {
-                o.try_push_str(line.trim_start_matches('#'))?;
-                o.try_push('\n')?;
-            }
-
-            continue;
-        }
-
-        if let Some(o) = out.as_mut() {
-            o.try_push_str(line)?;
-            o.try_push('\n')?;
-        }
-
-        buf.clear();
-        buf.try_push_str(line)?;
-        buf.try_push('\n')?;
-        gen.parse_html_for_line_which_includes_newline(&buf)?;
-    }
-
-    Ok(gen.finalize().try_into()?)
 }

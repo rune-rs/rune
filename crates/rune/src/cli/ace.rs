@@ -15,15 +15,18 @@ use crate::{Diagnostics, Options, Source, Sources};
 
 #[derive(Parser, Debug)]
 pub(super) struct Flags {
-    /// Exit with a non-zero exit-code even for warnings
-    #[arg(long)]
-    warnings_are_errors: bool,
-    /// Output directory to write documentation to.
+    /// Output directory to write ace extensions to.
     #[arg(long)]
     output: Option<PathBuf>,
     /// Generate .await and ? extension for functions.
     #[arg(long)]
     extensions: bool,
+    /// Do not include `rune-mode.js`.
+    #[arg(long)]
+    no_mode: bool,
+    /// Exit with a non-zero exit-code even for warnings
+    #[arg(long)]
+    warnings_are_errors: bool,
 }
 
 impl CommandBase for Flags {
@@ -117,7 +120,11 @@ where
     }
 
     let mut artifacts = Artifacts::new();
-    crate::doc::build_autocomplete(&mut artifacts, &context, &visitors, flags.extensions)?;
+    crate::ace::build_autocomplete(&mut artifacts, &context, &visitors, flags.extensions)?;
+
+    if !flags.no_mode {
+        crate::ace::theme(&mut artifacts)?;
+    }
 
     for asset in artifacts.assets() {
         asset.build(&root)?;

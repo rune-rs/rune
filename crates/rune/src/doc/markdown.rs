@@ -3,11 +3,12 @@ use std::io;
 
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::{try_vec, HashMap, String, Vec};
-use crate::doc::artifacts::TestParams;
+use crate::doc::TestParams;
 
 use anyhow::Result;
 use pulldown_cmark::escape::{escape_href, escape_html, StrWrite};
 use pulldown_cmark::{Alignment, CodeBlockKind, CowStr, Event, LinkType, Tag};
+use syntect::html::{ClassStyle, ClassedHTMLGenerator};
 use syntect::parsing::{SyntaxReference, SyntaxSet};
 
 pub(crate) const RUST_TOKEN: &str = "rust";
@@ -73,8 +74,7 @@ where
                         let mut string = String::new();
 
                         let s = (self.tests.is_some() && params.is_some()).then_some(&mut string);
-                        let html =
-                            super::render_code_by_syntax(self.syntax_set, text.lines(), syntax, s)?;
+                        let html = render_code_by_syntax(self.syntax_set, text.lines(), syntax, s)?;
 
                         if let Some(params) = params {
                             if let Some(tests) = self.tests.as_mut() {
@@ -443,4 +443,47 @@ where
 
     writer.run()?;
     Ok(())
+}
+
+/// Render documentation.
+pub(super) fn render_code_by_syntax<I>(
+    syntax_set: &SyntaxSet,
+    lines: I,
+    syntax: &SyntaxReference,
+    mut out: Option<&mut String>,
+) -> Result<String>
+where
+    I: IntoIterator,
+    I::Item: AsRef<str>,
+{
+    let mut buf = String::new();
+
+    let mut gen =
+        ClassedHTMLGenerator::new_with_class_style(syntax, syntax_set, ClassStyle::Spaced);
+
+    for line in lines {
+        let line = line.as_ref();
+        let line = line.strip_prefix(' ').unwrap_or(line);
+
+        if line.starts_with('#') {
+            if let Some(o) = out.as_mut() {
+                o.try_push_str(line.trim_start_matches('#'))?;
+                o.try_push('\n')?;
+            }
+
+            continue;
+        }
+
+        if let Some(o) = out.as_mut() {
+            o.try_push_str(line)?;
+            o.try_push('\n')?;
+        }
+
+        buf.clear();
+        buf.try_push_str(line)?;
+        buf.try_push('\n')?;
+        gen.parse_html_for_line_which_includes_newline(&buf)?;
+    }
+
+    Ok(gen.finalize().try_into()?)
 }

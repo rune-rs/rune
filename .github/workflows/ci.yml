@@ -116,7 +116,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        feature: [capture-io, "cli,doc", "cli,fmt", cli, workspace, languageserver, byte-code, emit]
+        feature: [cli, "cli,doc", "cli,fmt", doc, workspace, languageserver, byte-code, capture-io, emit]
     env:
       RUSTFLAGS: -D warnings
     steps:

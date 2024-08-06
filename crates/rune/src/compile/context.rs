@@ -508,7 +508,7 @@ impl Context {
     }
 
     /// Get all associated types for the given hash.
-    #[cfg(feature = "cli")]
+    #[cfg(all(feature = "doc", feature = "cli"))]
     pub(crate) fn associated(&self, hash: Hash) -> impl Iterator<Item = Hash> + '_ {
         self.associated
             .get(&hash)
@@ -519,7 +519,7 @@ impl Context {
     }
 
     /// Get all traits implemented for the given hash.
-    #[cfg(feature = "cli")]
+    #[cfg(all(feature = "doc", feature = "cli"))]
     pub(crate) fn traits(&self, hash: Hash) -> impl Iterator<Item = Hash> + '_ {
         self.implemented_traits
             .get(&hash)
