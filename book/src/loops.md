@@ -18,7 +18,7 @@ currently in and continue running right after it.
 ```
 
 ```text
-$> cargo run --bin rune -- run scripts/book/loops/while_loop.rn
+$> cargo run -- run scripts/book/loops/while_loop.rn
 The value is 50
 ```
 
@@ -33,7 +33,7 @@ control flow operator like a `break` or a `return`.
 ```
 
 ```text
-$> cargo run --bin rune -- run scripts/book/loops/loop_forever.rn
+$> cargo run -- run scripts/book/loops/loop_forever.rn
 Hello forever!
 Hello forever!
 Hello forever!
@@ -53,6 +53,6 @@ When broken out of, loops produce the value provided as an argument to the
 ```
 
 ```text
-$> cargo run --bin rune -- run scripts/book/loops/loop_break.rn
+$> cargo run -- run scripts/book/loops/loop_break.rn
 The final count is: 11
 ```

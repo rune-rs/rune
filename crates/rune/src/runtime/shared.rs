@@ -17,6 +17,7 @@ use crate::alloc::{self, Box};
 use crate::runtime::{Access, AccessError, BorrowMut, BorrowRef, RawAccessGuard, Snapshot};
 
 /// A shared value.
+#[repr(transparent)]
 pub(crate) struct Shared<T: ?Sized> {
     inner: ptr::NonNull<SharedBox<T>>,
 }
@@ -137,8 +138,8 @@ impl<T> Shared<T> {
         unsafe {
             let guard = self.inner.as_ref().access.exclusive()?.into_raw();
 
-            // NB: we need to prevent the Drop impl for Shared from being called,
-            // since we are deconstructing its internals.
+            // NB: we need to prevent the Drop impl for Shared from being
+            // called, since we are deconstructing its internals.
             let this = ManuallyDrop::new(self);
 
             Ok(Mut {
@@ -149,17 +150,17 @@ impl<T> Shared<T> {
         }
     }
 
-    /// Deconstruct the shader value into a guard and shared box.
+    /// Deconstruct the shared value into a guard and shared box.
     ///
     /// # Safety
     ///
     /// The content of the shared value will be forcibly destructed once the
-    /// returned guard is dropped, use of the shared value after this point will
-    /// lead to undefined behavior.
+    /// returned guard is dropped, unchecked use of the shared value after this
+    /// point will lead to undefined behavior.
     pub(crate) unsafe fn into_drop_guard(self) -> (Self, SharedPointerGuard) {
-        // Increment the reference count by one, to prevent it from every being
-        // dropped.
-        SharedBox::inc(self.inner.as_ptr());
+        // Increment the reference count by one to account for the guard holding
+        // onto it.
+        SharedBox::inc(self.inner);
 
         let guard = SharedPointerGuard {
             _inner: RawDrop::take_shared_box(self.inner),
@@ -219,19 +220,36 @@ impl<T: ?Sized> TryClone for Shared<T> {
 }
 
 impl<T: ?Sized> Clone for Shared<T> {
+    #[inline]
     fn clone(&self) -> Self {
+        // SAFETY: We know that the inner value is live in this instance.
         unsafe {
-            SharedBox::inc(self.inner.as_ptr());
+            SharedBox::inc(self.inner);
         }
 
         Self { inner: self.inner }
+    }
+
+    #[inline]
+    fn clone_from(&mut self, source: &Self) {
+        if ptr::eq(self.inner.as_ptr(), source.inner.as_ptr()) {
+            return;
+        }
+
+        // SAFETY: We know that the inner value is live in both instances.
+        unsafe {
+            SharedBox::dec(self.inner);
+            SharedBox::inc(source.inner);
+        }
+
+        self.inner = source.inner;
     }
 }
 
 impl<T: ?Sized> Drop for Shared<T> {
     fn drop(&mut self) {
         unsafe {
-            SharedBox::dec(self.inner.as_ptr());
+            SharedBox::dec(self.inner);
         }
     }
 }
@@ -269,14 +287,20 @@ struct SharedBox<T: ?Sized> {
 
 impl<T: ?Sized> SharedBox<T> {
     /// Increment the reference count of the inner value.
-    unsafe fn inc(this: *const Self) {
-        let count = (*this).count.get();
+    unsafe fn inc(this: ptr::NonNull<Self>) {
+        let count_ref = &*ptr::addr_of!((*this.as_ptr()).count);
+        let count = count_ref.get();
 
-        if count == 0 || count == usize::MAX {
+        debug_assert_ne!(
+            count, 0,
+            "Reference count of zero should only happen if Shared is incorrectly implemented"
+        );
+
+        if count == usize::MAX {
             crate::alloc::abort();
         }
 
-        (*this).count.set(count + 1);
+        count_ref.set(count + 1);
     }
 
     /// Decrement the reference count in inner, and free the underlying data if
@@ -285,31 +309,31 @@ impl<T: ?Sized> SharedBox<T> {
     /// # Safety
     ///
     /// ProtocolCaller needs to ensure that `this` is a valid pointer.
-    unsafe fn dec(this: *mut Self) -> bool {
-        let count = (*this).count.get();
+    unsafe fn dec(this: ptr::NonNull<Self>) -> bool {
+        let count_ref = &*ptr::addr_of!((*this.as_ptr()).count);
+        let count = count_ref.get();
 
-        if count == 0 {
-            crate::alloc::abort();
-        }
+        debug_assert_ne!(
+            count, 0,
+            "Reference count of zero should only happen if Shared is incorrectly implemented"
+        );
 
         let count = count - 1;
-        (*this).count.set(count);
+        count_ref.set(count);
 
         if count != 0 {
             return false;
         }
 
-        let this = Box::from_raw_in(this, rune_alloc::alloc::Global);
+        let this = Box::from_raw_in(this.as_ptr(), rune_alloc::alloc::Global);
 
         if this.access.is_taken() {
             // NB: This prevents the inner `T` from being dropped in case it
             // has already been taken (as indicated by `is_taken`).
             //
             // If it has been taken, the shared box contains invalid memory.
-            drop(transmute::<
-                Box<SharedBox<T>>,
-                Box<SharedBox<ManuallyDrop<T>>>,
-            >(this));
+            let this = transmute::<Box<SharedBox<T>>, Box<SharedBox<ManuallyDrop<T>>>>(this);
+            drop(this);
         } else {
             // NB: At the point of the final drop, no on else should be using
             // this.
@@ -324,20 +348,20 @@ impl<T: ?Sized> SharedBox<T> {
     }
 }
 
-type DropFn = unsafe fn(*const ());
+type DropFn = unsafe fn(ptr::NonNull<()>);
 
 struct RawDrop {
-    data: *const (),
+    data: ptr::NonNull<()>,
     drop_fn: DropFn,
 }
 
 impl RawDrop {
     /// Construct an empty raw drop function.
     const fn empty() -> Self {
-        fn drop_fn(_: *const ()) {}
+        fn drop_fn(_: ptr::NonNull<()>) {}
 
         Self {
-            data: ptr::null(),
+            data: ptr::NonNull::dangling(),
             drop_fn,
         }
     }
@@ -346,13 +370,13 @@ impl RawDrop {
     ///
     /// The argument must have been produced using `Arc::into_raw`.
     #[cfg(feature = "alloc")]
-    unsafe fn from_rc<T>(data: *const T) -> Self {
-        unsafe fn drop_fn<T>(data: *const ()) {
-            let _ = Rc::from_raw(data as *const T);
+    unsafe fn from_rc<T>(data: ptr::NonNull<T>) -> Self {
+        unsafe fn drop_fn<T>(data: ptr::NonNull<()>) {
+            let _ = Rc::from_raw(data.cast::<T>().as_ptr().cast_const());
         }
 
         Self {
-            data: data as *const (),
+            data: data.cast(),
             drop_fn: drop_fn::<T>,
         }
     }
@@ -361,13 +385,13 @@ impl RawDrop {
     ///
     /// The argument must have been produced using `Arc::into_raw`.
     #[cfg(feature = "alloc")]
-    unsafe fn from_arc<T>(data: *const T) -> Self {
-        unsafe fn drop_fn<T>(data: *const ()) {
-            let _ = Arc::from_raw(data as *const T);
+    unsafe fn from_arc<T>(data: ptr::NonNull<T>) -> Self {
+        unsafe fn drop_fn<T>(data: ptr::NonNull<()>) {
+            let _ = Arc::from_raw(data.cast::<T>().as_ptr().cast_const());
         }
 
         Self {
-            data: data as *const (),
+            data: data.cast(),
             drop_fn: drop_fn::<T>,
         }
     }
@@ -377,14 +401,13 @@ impl RawDrop {
     /// # Safety
     ///
     /// Should only be constructed over a pointer that is lively owned.
-    fn decrement_shared_box<T>(inner: ptr::NonNull<SharedBox<T>>) -> Self {
-        unsafe fn drop_fn_impl<T>(data: *const ()) {
-            let shared = data as *mut () as *mut SharedBox<T>;
-            SharedBox::dec(shared);
+    fn decrement_shared_box<T>(data: ptr::NonNull<SharedBox<T>>) -> Self {
+        unsafe fn drop_fn_impl<T>(data: ptr::NonNull<()>) {
+            SharedBox::dec(data.cast::<SharedBox<T>>());
         }
 
         Self {
-            data: inner.as_ptr() as *const (),
+            data: data.cast(),
             drop_fn: drop_fn_impl::<T>,
         }
     }
@@ -395,27 +418,25 @@ impl RawDrop {
     /// # Safety
     ///
     /// Should only be constructed over a pointer that is lively owned.
-    fn take_shared_box<T>(inner: ptr::NonNull<SharedBox<T>>) -> Self {
-        unsafe fn drop_fn_impl<T>(data: *const ()) {
-            let shared = data as *mut () as *mut SharedBox<T>;
+    fn take_shared_box<T>(data: ptr::NonNull<SharedBox<T>>) -> Self {
+        unsafe fn drop_fn_impl<T>(data: ptr::NonNull<()>) {
+            let shared = data.cast::<SharedBox<T>>();
 
             // Mark the shared box for exclusive access.
             let _ = ManuallyDrop::new(
-                (*shared)
-                    .access
+                (*ptr::addr_of!((*shared.as_ptr()).access))
                     .take()
                     .expect("raw pointers must not be shared"),
             );
 
             // Free the inner `Any` structure, and since we have marked the
             // Shared as taken, this will prevent anyone else from doing it.
-            drop(ptr::read((*shared).data.get()));
-
+            drop(ptr::read((*ptr::addr_of!((*shared.as_ptr()).data)).get()));
             SharedBox::dec(shared);
         }
 
         Self {
-            data: inner.as_ptr() as *const (),
+            data: data.cast(),
             drop_fn: drop_fn_impl::<T>,
         }
     }
@@ -458,9 +479,10 @@ impl<T> From<Rc<T>> for Ref<T> {
     /// ```
     fn from(value: Rc<T>) -> Ref<T> {
         let data = Rc::into_raw(value);
+        let data = unsafe { ptr::NonNull::new_unchecked(data as *mut _) };
 
         Ref {
-            data: unsafe { ptr::NonNull::new_unchecked(data as *mut _) },
+            data,
             guard: None,
             inner: unsafe { RawDrop::from_rc(data) },
         }
@@ -482,9 +504,10 @@ impl<T> From<Arc<T>> for Ref<T> {
     /// ```
     fn from(value: Arc<T>) -> Ref<T> {
         let data = Arc::into_raw(value);
+        let data = unsafe { ptr::NonNull::new_unchecked(data as *mut _) };
 
         Ref {
-            data: unsafe { ptr::NonNull::new_unchecked(data as *mut _) },
+            data,
             guard: None,
             inner: unsafe { RawDrop::from_arc(data) },
         }

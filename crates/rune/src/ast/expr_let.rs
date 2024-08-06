@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::ExprLet>("let x = 1");
     rt::<ast::ExprLet>("#[attr] let a = f()");
 }
@@ -47,7 +45,7 @@ impl ExprLet {
     }
 
     /// Parse a let expression without eager bracing.
-    pub(crate) fn parse_without_eager_brace(parser: &mut Parser) -> Result<Self> {
+    pub(crate) fn parse_without_eager_brace(parser: &mut Parser<'_>) -> Result<Self> {
         Ok(Self {
             attributes: Vec::new(),
             let_token: parser.parse()?,

@@ -1,6 +1,7 @@
 #![allow(clippy::ifs_same_cond)]
 #![allow(clippy::redundant_closure)]
 #![allow(clippy::useless_vec)]
+#![allow(unused_must_use)]
 
 use core::fmt::Debug;
 use core::sync::atomic::{AtomicUsize, Ordering::SeqCst};

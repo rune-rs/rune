@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::Attribute>("#[foo = \"foo\"]");
     rt::<ast::Attribute>("#[foo()]");
     rt::<ast::Attribute>("#![foo]");
@@ -143,29 +141,12 @@ pub enum AttrStyle {
 }
 
 impl Parse for AttrStyle {
-    fn parse(p: &mut Parser) -> Result<Self> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         Ok(if p.peek::<T![!]>()? {
             Self::Outer(p.parse()?)
         } else {
             Self::Inner
         })
-    }
-}
-
-/// Helper struct to only parse inner attributes.
-pub(crate) struct InnerAttribute(#[allow(unused)] pub(crate) Attribute);
-
-impl Parse for InnerAttribute {
-    fn parse(p: &mut Parser) -> Result<Self> {
-        let attribute: Attribute = p.parse()?;
-
-        match attribute.style {
-            AttrStyle::Inner => Ok(Self(attribute)),
-            _ => Err(compile::Error::expected(
-                attribute,
-                "inner attribute like `#![allow(unused)]`",
-            )),
-        }
     }
 }
 

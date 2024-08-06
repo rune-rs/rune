@@ -2,9 +2,9 @@ use core::fmt;
 use core::num;
 
 use crate as rune;
+use crate::alloc;
 use crate::alloc::path::Path;
 use crate::alloc::prelude::*;
-use crate::alloc::{self, Vec};
 use crate::ast::Span;
 use crate::source::Source;
 #[cfg(feature = "codespan-reporting")]

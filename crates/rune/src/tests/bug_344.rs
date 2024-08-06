@@ -12,6 +12,8 @@ prelude!();
 use std::cell::Cell;
 use std::rc::Rc;
 
+use rune::compile::meta;
+
 #[test]
 fn bug_344_function() -> Result<()> {
     let mut context = Context::new();
@@ -28,8 +30,8 @@ fn bug_344_function() -> Result<()> {
 
     let mut stack = Stack::new();
     stack.push(rune::to_value(GuardCheck::new())?)?;
-    function(&mut stack, 1).into_result()?;
-    assert_eq!(stack.pop()?.as_integer()?, 42);
+    function(&mut stack, InstAddress::new(0), 1, Output::keep(0)).into_result()?;
+    assert_eq!(stack.at(InstAddress::new(0))?.as_integer()?, 42);
     return Ok(());
 
     fn function(check: &GuardCheck) -> i64 {
@@ -56,16 +58,16 @@ fn bug_344_inst_fn() -> Result<()> {
     context.install(module)?;
     let runtime = context.runtime()?;
 
-    let hash = Hash::associated_function(<GuardCheck as Any>::type_hash(), "function");
+    let hash = Hash::associated_function(GuardCheck::type_hash(), "function");
 
     let function = runtime.function(hash).expect("expect function");
 
     let mut stack = Stack::new();
     stack.push(rune::to_value(GuardCheck::new())?)?;
     stack.push(rune::to_value(GuardCheck::new())?)?;
-    function(&mut stack, 2).into_result()?;
+    function(&mut stack, InstAddress::new(0), 2, Output::keep(0)).into_result()?;
 
-    assert_eq!(stack.pop()?.as_integer()?, 42);
+    assert_eq!(stack.at(InstAddress::new(0))?.as_integer()?, 42);
     Ok(())
 }
 
@@ -85,8 +87,12 @@ fn bug_344_async_function() -> Result<()> {
 
     let mut stack = Stack::new();
     stack.push(rune::to_value(GuardCheck::new())?)?;
-    function(&mut stack, 1).into_result()?;
-    let future = stack.pop()?.into_future().into_result()?;
+    function(&mut stack, InstAddress::new(0), 1, Output::keep(0)).into_result()?;
+    let future = stack
+        .at(InstAddress::new(0))?
+        .clone()
+        .into_future()
+        .into_result()?;
     assert_eq!(block_on(future).into_result()?.as_integer()?, 42);
     return Ok(());
 
@@ -114,16 +120,20 @@ fn bug_344_async_inst_fn() -> Result<()> {
     context.install(module)?;
     let runtime = context.runtime()?;
 
-    let hash = Hash::associated_function(<GuardCheck as Any>::type_hash(), "function");
+    let hash = Hash::associated_function(GuardCheck::type_hash(), "function");
 
     let function = runtime.function(hash).expect("expect function");
 
     let mut stack = Stack::new();
     stack.push(rune::to_value(GuardCheck::new())?)?;
     stack.push(rune::to_value(GuardCheck::new())?)?;
-    function(&mut stack, 2).into_result()?;
+    function(&mut stack, InstAddress::new(0), 2, Output::keep(0)).into_result()?;
 
-    let future = stack.pop()?.into_future().into_result()?;
+    let future = stack
+        .at(InstAddress::new(0))?
+        .clone()
+        .into_future()
+        .into_result()?;
     assert_eq!(block_on(future).into_result()?.as_integer()?, 42);
 
     Ok(())
@@ -160,35 +170,32 @@ impl GuardCheck {
     }
 }
 
-impl Any for GuardCheck {
-    fn type_hash() -> Hash {
-        rune_macros::hash!(GuardCheck)
-    }
-}
+impl Any for GuardCheck {}
 
 impl Named for GuardCheck {
     const BASE_NAME: RawStr = RawStr::from_str("GuardCheck");
 }
 
-impl TypeOf for GuardCheck {
-    #[inline]
+impl CoreTypeOf for GuardCheck {
     fn type_hash() -> Hash {
-        <Self as Any>::type_hash()
+        rune_macros::hash!(GuardCheck)
     }
+}
 
+impl TypeOf for GuardCheck {
     #[inline]
     fn type_info() -> TypeInfo {
         TypeInfo::Any(AnyTypeInfo::__private_new(
-            <Self as Named>::BASE_NAME,
-            <Self as TypeOf>::type_hash(),
+            Self::BASE_NAME,
+            Self::type_hash(),
         ))
     }
 }
 
 impl MaybeTypeOf for GuardCheck {
     #[inline]
-    fn maybe_type_of() -> Option<FullTypeOf> {
-        Some(Self::type_of())
+    fn maybe_type_of() -> alloc::Result<meta::DocType> {
+        Ok(meta::DocType::new(Self::type_hash()))
     }
 }
 

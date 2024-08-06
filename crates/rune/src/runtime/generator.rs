@@ -1,8 +1,9 @@
 use core::fmt;
 use core::iter;
 
+use crate as rune;
 use crate::alloc::clone::TryClone;
-use crate::runtime::{GeneratorState, Iterator, Value, Vm, VmErrorKind, VmExecution, VmResult};
+use crate::runtime::{GeneratorState, Value, Vm, VmErrorKind, VmExecution, VmResult};
 use crate::Any;
 
 /// The return value of a function producing a generator.
@@ -12,7 +13,7 @@ use crate::Any;
 /// # Examples
 ///
 /// ```rune
-/// use std::ops::Generator;
+/// use std::ops::generator::Generator;
 ///
 /// fn generate() {
 ///     yield 1;
@@ -24,7 +25,7 @@ use crate::Any;
 /// ```
 #[derive(Any)]
 #[rune(crate)]
-#[rune(builtin, static_type = GENERATOR_TYPE, from_value_params = [Vm])]
+#[rune(builtin, static_type = GENERATOR, from_value_params = [Vm])]
 #[rune(from_value = Value::into_generator, from_value_ref = Value::into_generator_ref, from_value_mut = Value::into_generator_mut)]
 pub struct Generator<T>
 where
@@ -54,9 +55,22 @@ where
     /// Get the next value produced by this stream.
     #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> VmResult<Option<Value>> {
-        VmResult::Ok(match vm_try!(self.resume(vm_try!(Value::empty()))) {
+        let Some(execution) = self.execution.as_mut() else {
+            return VmResult::Ok(None);
+        };
+
+        let state = if execution.is_resumed() {
+            vm_try!(execution.resume_with(Value::empty()))
+        } else {
+            vm_try!(execution.resume())
+        };
+
+        VmResult::Ok(match state {
             GeneratorState::Yielded(value) => Some(value),
-            GeneratorState::Complete(_) => None,
+            GeneratorState::Complete(_) => {
+                self.execution = None;
+                None
+            }
         })
     }
 
@@ -92,8 +106,8 @@ impl Generator<&mut Vm> {
 
 impl Generator<Vm> {
     /// Convert into iterator
-    pub fn rune_iter(self) -> Iterator {
-        Iterator::from("std::ops::generator::Iter", self.into_iter())
+    pub fn rune_iter(self) -> Iter {
+        self.into_iter()
     }
 }
 
@@ -107,8 +121,21 @@ impl IntoIterator for Generator<Vm> {
     }
 }
 
+#[derive(Any)]
+#[rune(item = ::std::ops::generator)]
 pub struct Iter {
     generator: Generator<Vm>,
+}
+
+impl Iter {
+    #[rune::function(instance, keep, protocol = NEXT)]
+    pub(crate) fn next(&mut self) -> Option<VmResult<Value>> {
+        match self.generator.next() {
+            VmResult::Ok(Some(value)) => Some(VmResult::Ok(value)),
+            VmResult::Ok(None) => None,
+            VmResult::Err(error) => Some(VmResult::Err(error)),
+        }
+    }
 }
 
 impl iter::Iterator for Iter {
@@ -116,11 +143,7 @@ impl iter::Iterator for Iter {
 
     #[inline]
     fn next(&mut self) -> Option<VmResult<Value>> {
-        match self.generator.next() {
-            VmResult::Ok(Some(value)) => Some(VmResult::Ok(value)),
-            VmResult::Ok(None) => None,
-            VmResult::Err(error) => Some(VmResult::Err(error)),
-        }
+        Iter::next(self)
     }
 }
 

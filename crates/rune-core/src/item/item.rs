@@ -24,14 +24,14 @@ impl Item {
     /// # Examples
     ///
     /// ```
-    /// use rune::compile::{Item, ItemBuf};
+    /// use rune::{Item, ItemBuf};
     ///
     /// assert_eq!(Item::new(), &*ItemBuf::new());
     /// ```
     #[inline]
     pub const fn new() -> &'static Self {
         // SAFETY: an empty slice is a valid bit pattern for the root.
-        unsafe { Self::from_raw(&[]) }
+        unsafe { Self::from_bytes(&[]) }
     }
 
     /// Construct an [Item] from an [ItemBuf].
@@ -39,7 +39,20 @@ impl Item {
     /// # Safety
     ///
     /// Caller must ensure that content has a valid [ItemBuf] representation.
-    pub(super) const unsafe fn from_raw(content: &[u8]) -> &Self {
+    /// The easiest way to accomplish this is to use the `rune::item!` macro.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::{Item, ItemBuf};
+    ///
+    /// let item = ItemBuf::with_item(["foo", "bar"])?;
+    ///
+    /// // SAFETY: item is constructed from a valid buffer.
+    /// let item = unsafe { Item::from_bytes(item.as_bytes()) };
+    /// # Ok::<_, rune::alloc::Error>(())
+    /// ```
+    pub const unsafe fn from_bytes(content: &[u8]) -> &Self {
         &*(content as *const _ as *const _)
     }
 
@@ -48,7 +61,7 @@ impl Item {
     /// # Examples
     ///
     /// ```
-    /// use rune::compile::{Item, ItemBuf};
+    /// use rune::{Item, ItemBuf};
     ///
     /// assert_eq!(Item::new().as_bytes(), b"");
     ///
@@ -66,7 +79,7 @@ impl Item {
     /// # Examples
     ///
     /// ```
-    /// use rune::compile::ItemBuf;
+    /// use rune::ItemBuf;
     ///
     /// let item = ItemBuf::with_crate("std")?;
     /// assert_eq!(item.as_crate(), Some("std"));
@@ -88,7 +101,8 @@ impl Item {
     /// # Examples
     ///
     /// ```
-    /// use rune::compile::{ComponentRef, ItemBuf};
+    /// use rune::ItemBuf;
+    /// use rune::item::ComponentRef;
     ///
     /// let item = ItemBuf::with_item(["foo", "bar"])?;
     /// assert_eq!(item.first(), Some(ComponentRef::Str("foo")));
@@ -104,7 +118,7 @@ impl Item {
     /// # Examples
     ///
     /// ```
-    /// use rune::compile::ItemBuf;
+    /// use rune::ItemBuf;
     ///
     /// let item = ItemBuf::new();
     /// assert!(item.is_empty());
@@ -141,7 +155,8 @@ impl Item {
     /// # Examples
     ///
     /// ```
-    /// use rune::compile::{Item, ComponentRef};
+    /// use rune::Item;
+    /// use rune::item::ComponentRef;
     ///
     /// let item = Item::new();
     /// assert!(item.is_empty());
@@ -151,11 +166,7 @@ impl Item {
     /// assert_eq!(item2.last(), Some(ComponentRef::Str("world")));
     /// # Ok::<(), rune::support::Error>(())
     /// ```
-    pub fn join<I>(&self, other: I) -> alloc::Result<ItemBuf>
-    where
-        I: IntoIterator,
-        I::Item: IntoComponent,
-    {
+    pub fn join(&self, other: impl IntoIterator<Item: IntoComponent>) -> alloc::Result<ItemBuf> {
         let mut content = self.content.try_to_owned()?;
 
         for c in other {
@@ -172,7 +183,8 @@ impl Item {
     /// # Examples
     ///
     /// ```
-    /// use rune::compile::{Item, ComponentRef};
+    /// use rune::Item;
+    /// use rune::item::ComponentRef;
     ///
     /// let item = Item::new();
     /// assert!(item.is_empty());
@@ -204,7 +216,8 @@ impl Item {
     /// # Examples
     ///
     /// ```
-    /// use rune::compile::{ComponentRef, IntoComponent, ItemBuf};
+    /// use rune::ItemBuf;
+    /// use rune::item::{ComponentRef, IntoComponent};
     ///
     /// let mut item = ItemBuf::new();
     ///
@@ -247,7 +260,7 @@ impl Item {
     /// # Examples
     ///
     /// ```
-    /// use rune::compile::{Item, ItemBuf};
+    /// use rune::{Item, ItemBuf};
     ///
     /// assert!(Item::new().is_super_of(Item::new(), 1));
     /// assert!(!ItemBuf::with_item(["a"])?.is_super_of(Item::new(), 1));
@@ -291,7 +304,7 @@ impl Item {
     /// # Examples
     ///
     /// ```
-    /// use rune::compile::{Item, ItemBuf};
+    /// use rune::{Item, ItemBuf};
     ///
     /// assert_eq!(
     ///     (ItemBuf::new(), ItemBuf::new()),
@@ -355,7 +368,7 @@ impl Item {
     /// # Examples
     ///
     /// ```
-    /// use rune::compile::ItemBuf;
+    /// use rune::ItemBuf;
     ///
     /// let item = ItemBuf::with_item(["foo", "bar", "baz"])?;
     /// let item2 = ItemBuf::with_item(["foo", "bar"])?;
@@ -367,6 +380,12 @@ impl Item {
         let mut it = self.iter();
         it.next_back()?;
         Some(it.into_item())
+    }
+
+    /// Display an unqalified variant of the item which does not include `::` if
+    /// a crate is present.
+    pub fn unqalified(&self) -> Unqalified {
+        Unqalified::new(self)
     }
 }
 
@@ -403,8 +422,9 @@ impl TryToOwned for Item {
 /// # Examples
 ///
 /// ```
-/// use rune::compile::{ComponentRef, ItemBuf};
 /// use rune::alloc::prelude::*;
+/// use rune::ItemBuf;
+/// use rune::item::ComponentRef;
 ///
 /// let root = ItemBuf::new().try_to_string()?;
 /// assert_eq!("{root}", root);
@@ -468,5 +488,44 @@ impl PartialEq<Iter<'_>> for Item {
 impl PartialEq<Iter<'_>> for &Item {
     fn eq(&self, other: &Iter<'_>) -> bool {
         *self == other.as_item()
+    }
+}
+
+/// Display an unqalified path.
+pub struct Unqalified<'a> {
+    item: &'a Item,
+}
+
+impl<'a> Unqalified<'a> {
+    fn new(item: &'a Item) -> Self {
+        Self { item }
+    }
+}
+
+impl fmt::Display for Unqalified<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut it = self.item.iter();
+
+        if let Some(last) = it.next_back() {
+            for c in it {
+                match c {
+                    ComponentRef::Crate(name) => {
+                        write!(f, "{name}::")?;
+                    }
+                    ComponentRef::Str(name) => {
+                        write!(f, "{name}::")?;
+                    }
+                    c => {
+                        write!(f, "{c}::")?;
+                    }
+                }
+            }
+
+            write!(f, "{}", last)?;
+        } else {
+            f.write_str("{root}")?;
+        }
+
+        Ok(())
     }
 }

@@ -2,7 +2,5 @@ fn foo(a, b) {
     a + b
 }
 
-pub fn main() {
-    let a = 3;
-    foo(1, 2) + a
-}
+let a = 3;
+foo(1, 2) + a

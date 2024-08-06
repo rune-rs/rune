@@ -3,7 +3,7 @@ name = "rune-languageserver"
 version = "0.14.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
-rust-version = "1.76"
+rust-version = "1.79"
 description = "A language server for the Rune Language, an embeddable dynamic programming language for Rust."
 documentation = "https://docs.rs/rune"
 readme = "README.md"
@@ -21,7 +21,7 @@ tracing-appender = "0.2.2"
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 
 rune = { version = "0.14.0", path = "../rune", features = ["languageserver"] }
-rune-modules = { version = "0.14.0", path = "../rune-modules", features = ["full", "experiments"] }
+rune-modules = { version = "0.14.0", path = "../rune-modules", features = ["full"] }
 
 [build-dependencies]
 anyhow = "1.0.71"

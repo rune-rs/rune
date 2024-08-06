@@ -57,7 +57,7 @@ If you want to see detailed diagnostics of your program while it's running,
 you can use:
 
 ```text
-cargo run --bin rune -- run scripts/hello_world.rn --dump-unit --trace --dump-vm
+cargo run --bin rune -- run scripts/hello_world.rn --dump --trace
 ```
 
 See `--help` for more information.

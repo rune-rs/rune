@@ -1,5 +1,6 @@
-use std::iter::range;
+use std::iter::once;
 
-pub fn main() {
-    dbg!(range(0, 10));
-}
+let it = once(0);
+
+dbg!(it.next());
+dbg!(it.next());

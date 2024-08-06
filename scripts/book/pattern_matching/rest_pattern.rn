@@ -1,13 +1,11 @@
-pub fn main() {
-    let value = #{ a: 0, b: 1 };
+let value = #{ a: 0, b: 1 };
 
-    let matched = match value {
-        // this doesn't match, because a pattern without a rest pattern in it
-        // must match exactly.
-        #{ a } => false,
-        // this matches, because it only requires `a` to be present.
-        #{ a, .. } => true,
-    };
+let matched = match value {
+    // this doesn't match, because a pattern without a rest pattern in it
+    // must match exactly.
+    #{ a } => false,
+    // this matches, because it only requires `a` to be present.
+    #{ a, .. } => true,
+};
 
-    assert!(matched, "rest pattern matched");
-}
+assert!(matched, "rest pattern matched");

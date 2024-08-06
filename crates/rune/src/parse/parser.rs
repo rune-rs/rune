@@ -1,3 +1,4 @@
+use core::convert::Infallible;
 use core::fmt;
 use core::ops;
 
@@ -5,7 +6,7 @@ use crate::alloc::VecDeque;
 use crate::ast::{Kind, OptionSpanned, Span, Token};
 use crate::compile::{self, ErrorKind};
 use crate::macros::{TokenStream, TokenStreamIter};
-use crate::parse::{Lexer, Parse, Peek};
+use crate::parse::{Advance, Lexer, Parse, Peek, Peekable};
 use crate::SourceId;
 
 /// Parser for the rune language.
@@ -219,7 +220,7 @@ impl<'a> Parser<'a> {
 #[derive(Debug)]
 pub struct Peeker<'a> {
     /// The source being processed.
-    pub(crate) source: Source<'a>,
+    source: Source<'a>,
     /// The buffer of tokens seen.
     buf: VecDeque<Token>,
     // NB: parse errors encountered during peeking.
@@ -373,4 +374,26 @@ impl fmt::Debug for Source<'_> {
 enum SourceInner<'a> {
     Lexer(Lexer<'a>),
     TokenStream(TokenStreamIter<'a>),
+}
+
+impl<'a> Advance for Parser<'a> {
+    type Error = compile::Error;
+
+    #[inline]
+    fn advance(&mut self, n: usize) -> Result<(), Self::Error> {
+        for _ in 0..n {
+            self.next()?;
+        }
+
+        Ok(())
+    }
+}
+
+impl<'a> Peekable for Peeker<'a> {
+    type Error = Infallible;
+
+    #[inline]
+    fn nth(&mut self, n: usize) -> Result<Token, Self::Error> {
+        Ok(self.tok_at(n))
+    }
 }

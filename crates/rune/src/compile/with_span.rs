@@ -15,13 +15,13 @@ pub trait WithSpan<T, E> {
 
 impl<T, E> WithSpan<T, E> for Result<T, E> {
     /// Attach the span extracted from `spanned` to the error if it is present.
-    fn with_span<S>(self, span: S) -> Result<T, HasSpan<S, E>>
+    fn with_span<S>(self, spanned: S) -> Result<T, HasSpan<S, E>>
     where
         S: Spanned,
     {
         match self {
             Ok(value) => Ok(value),
-            Err(error) => Err(HasSpan::new(span, error)),
+            Err(error) => Err(HasSpan::new(spanned, error)),
         }
     }
 }

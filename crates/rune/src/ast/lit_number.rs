@@ -4,8 +4,6 @@ use num::Num;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::LitNumber>("42");
     rt::<ast::LitNumber>("42.42");
     rt::<ast::LitNumber>("0.42");

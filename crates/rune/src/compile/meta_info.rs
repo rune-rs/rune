@@ -2,8 +2,8 @@ use core::fmt;
 
 use crate::alloc;
 use crate::alloc::prelude::*;
-use crate::compile::{meta, Item, ItemBuf};
-use crate::Hash;
+use crate::compile::meta;
+use crate::{Hash, Item, ItemBuf};
 
 /// Provides an owned human-readable description of a meta item.
 #[derive(Debug)]
@@ -84,8 +84,14 @@ impl fmt::Display for MetaInfo {
             MetaInfoKind::Import => {
                 write!(fmt, "import {name}")?;
             }
+            MetaInfoKind::Alias => {
+                write!(fmt, "import {name}")?;
+            }
             MetaInfoKind::Module => {
                 write!(fmt, "module {name}")?;
+            }
+            MetaInfoKind::Trait => {
+                write!(fmt, "trait {name}")?;
             }
         }
 
@@ -108,7 +114,9 @@ pub(crate) enum MetaInfoKind {
     Const,
     ConstFn,
     Import,
+    Alias,
     Module,
+    Trait,
 }
 
 impl MetaInfoKind {
@@ -132,7 +140,9 @@ impl MetaInfoKind {
             meta::Kind::Const { .. } => MetaInfoKind::Const,
             meta::Kind::ConstFn { .. } => MetaInfoKind::ConstFn,
             meta::Kind::Import { .. } => MetaInfoKind::Import,
+            meta::Kind::Alias { .. } => MetaInfoKind::Alias,
             meta::Kind::Module { .. } => MetaInfoKind::Module,
+            meta::Kind::Trait { .. } => MetaInfoKind::Trait,
         }
     }
 }

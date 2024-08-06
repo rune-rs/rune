@@ -62,8 +62,7 @@ fn test_next_back() {
 fn test_object_rev_error() {
     assert_vm_error!(
         r#"pub fn main() { #{}.iter().rev() }"#,
-        Panic { reason } => {
-            assert_eq!(reason.to_string(), "`std::object::Iter` is not a double-ended iterator");
+        MissingInstanceFunction { hash: rune::hash!(::std::object::Iter.rev), .. } => {
         }
     );
 }

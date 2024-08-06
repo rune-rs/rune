@@ -10,14 +10,12 @@ fn fib() {
     }
 }
 
-pub fn main() {
-    let g = fib();
+let g = fib();
 
-    while let Some(n) = g.next() {
-        println!("{}", n);
+while let Some(n) = g.next() {
+    println!("{n}");
 
-        if n > 100 {
-            break;
-        }
+    if n > 100 {
+        break;
     }
 }

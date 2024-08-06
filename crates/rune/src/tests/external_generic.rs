@@ -106,7 +106,7 @@ fn test_generic() -> Result<()> {
             $(
                 let value = vm.call([stringify!($function_ty)], ()).with_context(|| anyhow!("{}: {}: Working call", stringify!($ty), stringify!($function_ty)))?;
                 let value: Type = rune::from_value(value).with_context(|| anyhow!("{}: {}: Output value", stringify!($ty), stringify!($function_ty)))?;
-                assert_eq!(<Generic::<$ty> as Any>::type_hash(), value.into_hash());
+                assert_eq!(Generic::<$ty>::type_hash(), value.into_hash());
             )*
         };
     }

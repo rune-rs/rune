@@ -2,7 +2,7 @@ use core::fmt;
 
 use crate::alloc;
 use crate::alloc::prelude::*;
-use crate::runtime::{Bytes, Object, ValueKind, Vec};
+use crate::runtime::{Bytes, Inline, Mutable, Object, ValueBorrowRef, Vec};
 
 use serde::de::{self, Deserialize as _, Error as _};
 use serde::ser::{self, Error as _, SerializeMap as _, SerializeSeq as _};
@@ -25,79 +25,88 @@ impl ser::Serialize for Value {
     where
         S: ser::Serializer,
     {
-        match &*self.borrow_kind_ref().map_err(S::Error::custom)? {
-            ValueKind::EmptyTuple => serializer.serialize_unit(),
-            ValueKind::Bool(b) => serializer.serialize_bool(*b),
-            ValueKind::Char(c) => serializer.serialize_char(*c),
-            ValueKind::Byte(c) => serializer.serialize_u8(*c),
-            ValueKind::Integer(integer) => serializer.serialize_i64(*integer),
-            ValueKind::Float(float) => serializer.serialize_f64(*float),
-            ValueKind::Type(..) => Err(ser::Error::custom("cannot serialize types")),
-            ValueKind::Ordering(..) => Err(ser::Error::custom("cannot serialize orderings")),
-            ValueKind::String(string) => serializer.serialize_str(string),
-            ValueKind::Bytes(bytes) => serializer.serialize_bytes(bytes),
-            ValueKind::Vec(vec) => {
-                let mut serializer = serializer.serialize_seq(Some(vec.len()))?;
+        match self.borrow_ref().map_err(S::Error::custom)? {
+            ValueBorrowRef::Inline(value) => match value {
+                Inline::Unit => serializer.serialize_unit(),
+                Inline::Bool(b) => serializer.serialize_bool(*b),
+                Inline::Char(c) => serializer.serialize_char(*c),
+                Inline::Byte(c) => serializer.serialize_u8(*c),
+                Inline::Integer(integer) => serializer.serialize_i64(*integer),
+                Inline::Float(float) => serializer.serialize_f64(*float),
+                Inline::Type(..) => Err(ser::Error::custom("cannot serialize types")),
+                Inline::Ordering(..) => Err(ser::Error::custom("cannot serialize orderings")),
+            },
+            ValueBorrowRef::Mutable(value) => match &*value {
+                Mutable::String(string) => serializer.serialize_str(string),
+                Mutable::Bytes(bytes) => serializer.serialize_bytes(bytes),
+                Mutable::Vec(vec) => {
+                    let mut serializer = serializer.serialize_seq(Some(vec.len()))?;
 
-                for value in vec {
-                    serializer.serialize_element(value)?;
+                    for value in vec {
+                        serializer.serialize_element(value)?;
+                    }
+
+                    serializer.end()
                 }
+                Mutable::Tuple(tuple) => {
+                    let mut serializer = serializer.serialize_seq(Some(tuple.len()))?;
 
-                serializer.end()
-            }
-            ValueKind::Tuple(tuple) => {
-                let mut serializer = serializer.serialize_seq(Some(tuple.len()))?;
+                    for value in tuple.iter() {
+                        serializer.serialize_element(value)?;
+                    }
 
-                for value in tuple.iter() {
-                    serializer.serialize_element(value)?;
+                    serializer.end()
                 }
+                Mutable::Object(object) => {
+                    let mut serializer = serializer.serialize_map(Some(object.len()))?;
 
-                serializer.end()
-            }
-            ValueKind::Object(object) => {
-                let mut serializer = serializer.serialize_map(Some(object.len()))?;
+                    for (key, value) in object {
+                        serializer.serialize_entry(key, value)?;
+                    }
 
-                for (key, value) in object {
-                    serializer.serialize_entry(key, value)?;
+                    serializer.end()
                 }
-
-                serializer.end()
-            }
-            ValueKind::Option(option) => <Option<Value>>::serialize(option, serializer),
-            ValueKind::EmptyStruct(..) => Err(ser::Error::custom("cannot serialize empty structs")),
-            ValueKind::TupleStruct(..) => Err(ser::Error::custom("cannot serialize tuple structs")),
-            ValueKind::Struct(..) => Err(ser::Error::custom("cannot serialize objects structs")),
-            ValueKind::Variant(..) => Err(ser::Error::custom("cannot serialize variants")),
-            ValueKind::Result(..) => Err(ser::Error::custom("cannot serialize results")),
-            ValueKind::Future(..) => Err(ser::Error::custom("cannot serialize futures")),
-            ValueKind::Stream(..) => Err(ser::Error::custom("cannot serialize streams")),
-            ValueKind::Generator(..) => Err(ser::Error::custom("cannot serialize generators")),
-            ValueKind::GeneratorState(..) => {
-                Err(ser::Error::custom("cannot serialize generator states"))
-            }
-            ValueKind::Function(..) => {
-                Err(ser::Error::custom("cannot serialize function pointers"))
-            }
-            ValueKind::Format(..) => {
-                Err(ser::Error::custom("cannot serialize format specifications"))
-            }
-            ValueKind::Iterator(..) => Err(ser::Error::custom("cannot serialize iterators")),
-            ValueKind::RangeFrom(..) => {
-                Err(ser::Error::custom("cannot serialize `start..` ranges"))
-            }
-            ValueKind::RangeFull(..) => Err(ser::Error::custom("cannot serialize `..` ranges")),
-            ValueKind::RangeInclusive(..) => {
-                Err(ser::Error::custom("cannot serialize `start..=end` ranges"))
-            }
-            ValueKind::RangeToInclusive(..) => {
-                Err(ser::Error::custom("cannot serialize `..=end` ranges"))
-            }
-            ValueKind::RangeTo(..) => Err(ser::Error::custom("cannot serialize `..end` ranges")),
-            ValueKind::Range(..) => Err(ser::Error::custom("cannot serialize `start..end` ranges")),
-            ValueKind::ControlFlow(..) => {
-                Err(ser::Error::custom("cannot serialize `start..end` ranges"))
-            }
-            ValueKind::Any(..) => Err(ser::Error::custom("cannot serialize external objects")),
+                Mutable::Option(option) => <Option<Value>>::serialize(option, serializer),
+                Mutable::EmptyStruct(..) => {
+                    Err(ser::Error::custom("cannot serialize empty structs"))
+                }
+                Mutable::TupleStruct(..) => {
+                    Err(ser::Error::custom("cannot serialize tuple structs"))
+                }
+                Mutable::Struct(..) => Err(ser::Error::custom("cannot serialize objects structs")),
+                Mutable::Variant(..) => Err(ser::Error::custom("cannot serialize variants")),
+                Mutable::Result(..) => Err(ser::Error::custom("cannot serialize results")),
+                Mutable::Future(..) => Err(ser::Error::custom("cannot serialize futures")),
+                Mutable::Stream(..) => Err(ser::Error::custom("cannot serialize streams")),
+                Mutable::Generator(..) => Err(ser::Error::custom("cannot serialize generators")),
+                Mutable::GeneratorState(..) => {
+                    Err(ser::Error::custom("cannot serialize generator states"))
+                }
+                Mutable::Function(..) => {
+                    Err(ser::Error::custom("cannot serialize function pointers"))
+                }
+                Mutable::Format(..) => {
+                    Err(ser::Error::custom("cannot serialize format specifications"))
+                }
+                Mutable::RangeFrom(..) => {
+                    Err(ser::Error::custom("cannot serialize `start..` ranges"))
+                }
+                Mutable::RangeFull(..) => Err(ser::Error::custom("cannot serialize `..` ranges")),
+                Mutable::RangeInclusive(..) => {
+                    Err(ser::Error::custom("cannot serialize `start..=end` ranges"))
+                }
+                Mutable::RangeToInclusive(..) => {
+                    Err(ser::Error::custom("cannot serialize `..=end` ranges"))
+                }
+                Mutable::RangeTo(..) => Err(ser::Error::custom("cannot serialize `..end` ranges")),
+                Mutable::Range(..) => {
+                    Err(ser::Error::custom("cannot serialize `start..end` ranges"))
+                }
+                Mutable::ControlFlow(..) => {
+                    Err(ser::Error::custom("cannot serialize `start..end` ranges"))
+                }
+                Mutable::Any(..) => Err(ser::Error::custom("cannot serialize external objects")),
+            },
         }
     }
 }
@@ -155,7 +164,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Value::try_from(v as i64).map_err(E::custom)
+        Ok(Value::from(v as i64))
     }
 
     #[inline]
@@ -163,7 +172,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Value::try_from(v as i64).map_err(E::custom)
+        Ok(Value::from(v as i64))
     }
 
     #[inline]
@@ -171,7 +180,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Value::try_from(v as i64).map_err(E::custom)
+        Ok(Value::from(v as i64))
     }
 
     #[inline]
@@ -179,7 +188,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Value::try_from(v).map_err(E::custom)
+        Ok(Value::from(v))
     }
 
     #[inline]
@@ -187,7 +196,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Value::try_from(v as i64).map_err(E::custom)
+        Ok(Value::from(v as i64))
     }
 
     #[inline]
@@ -195,7 +204,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Value::try_from(v as i64).map_err(E::custom)
+        Ok(Value::from(v as i64))
     }
 
     #[inline]
@@ -203,7 +212,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Value::try_from(v as i64).map_err(E::custom)
+        Ok(Value::from(v as i64))
     }
 
     #[inline]
@@ -211,7 +220,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Value::try_from(v as i64).map_err(E::custom)
+        Ok(Value::from(v as i64))
     }
 
     #[inline]
@@ -219,7 +228,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Value::try_from(v as i64).map_err(E::custom)
+        Ok(Value::from(v as i64))
     }
 
     #[inline]
@@ -227,7 +236,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Value::try_from(v as i64).map_err(E::custom)
+        Ok(Value::from(v as i64))
     }
 
     #[inline]
@@ -235,7 +244,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Value::try_from(v as f64).map_err(E::custom)
+        Ok(Value::from(v as f64))
     }
 
     #[inline]
@@ -243,7 +252,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Value::try_from(v).map_err(E::custom)
+        Ok(Value::from(v))
     }
 
     #[inline]
@@ -251,7 +260,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Value::try_from(v).map_err(E::custom)
+        Ok(Value::from(v))
     }
 
     #[inline]
@@ -276,7 +285,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Value::empty().map_err(E::custom)
+        Ok(Value::unit())
     }
 
     #[inline]

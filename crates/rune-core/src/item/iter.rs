@@ -32,20 +32,22 @@ impl<'a> Iter<'a> {
     #[inline]
     pub fn as_item(&self) -> &Item {
         // SAFETY: Iterator ensures that content is valid.
-        unsafe { Item::from_raw(self.content) }
+        unsafe { Item::from_bytes(self.content) }
     }
 
     /// Coerce the iterator into an item with the lifetime of the iterator.
     #[inline]
     pub fn into_item(self) -> &'a Item {
         // SAFETY: Iterator ensures that content is valid.
-        unsafe { Item::from_raw(self.content) }
+        unsafe { Item::from_bytes(self.content) }
     }
 
     /// Get the next component as a string.
     ///
     /// Will consume the next component in the iterator, but will only indicate
     /// if the next component was present, and was a [Component::Str].
+    ///
+    /// [Component::Str]: super::Component::Str
     pub fn next_str(&mut self) -> Option<&'a str> {
         match self.next()? {
             ComponentRef::Str(s) => Some(s),
@@ -57,6 +59,8 @@ impl<'a> Iter<'a> {
     ///
     /// Will consume the next component in the iterator, but will only indicate
     /// if the next component was present, and was a [Component::Str].
+    ///
+    /// [Component::Str]: super::Component::Str
     pub fn next_back_str(&mut self) -> Option<&'a str> {
         match self.next_back()? {
             ComponentRef::Str(s) => Some(s),

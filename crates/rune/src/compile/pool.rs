@@ -6,8 +6,8 @@ use crate::alloc::try_vec;
 use crate::alloc::{self, HashMap, Vec};
 #[cfg(feature = "emit")]
 use crate::compile::Location;
-use crate::compile::{Item, ItemBuf, Visibility};
-use crate::hash::Hash;
+use crate::compile::Visibility;
+use crate::{Hash, Item, ItemBuf};
 
 /// The identifier of a module.
 #[derive(Default, Debug, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -22,10 +22,15 @@ impl fmt::Display for ModId {
 }
 
 /// The identifier of an item.
-#[derive(Default, Debug, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[try_clone(copy)]
 #[repr(transparent)]
 pub(crate) struct ItemId(u32);
+
+impl ItemId {
+    /// The item corresponding to the root item.
+    pub(crate) const ROOT: ItemId = ItemId(0);
+}
 
 impl fmt::Display for ItemId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -34,7 +39,7 @@ impl fmt::Display for ItemId {
 }
 
 /// Module, its item and its visibility.
-#[derive(Default, Debug)]
+#[derive(Debug)]
 #[non_exhaustive]
 pub(crate) struct ModMeta {
     /// The location of the module.

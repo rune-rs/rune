@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::ExprRange>("0..42");
     rt::<ast::ExprRange>("0..=42");
     rt::<ast::ExprRange>("0..=a + 2");
@@ -39,7 +37,7 @@ pub enum ExprRangeLimits {
 }
 
 impl Parse for ExprRangeLimits {
-    fn parse(p: &mut Parser) -> Result<Self> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         Ok(match p.nth(0)? {
             K![..] => Self::HalfOpen(p.parse()?),
             K![..=] => Self::Closed(p.parse()?),

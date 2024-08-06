@@ -33,13 +33,13 @@ cfg_std! {
         F: FnOnce(&mut MacroContext<'_, '_, '_>) -> crate::support::Result<O>,
     {
         use crate::support::Context as _;
-        use crate::compile::{Item, NoopCompileVisitor, NoopSourceLoader, Pool, Prelude, UnitBuilder};
+        use crate::compile::{NoopCompileVisitor, NoopSourceLoader, Pool, Prelude, UnitBuilder};
         use crate::hir;
         use crate::indexing::{IndexItem, Items, Scopes};
         use crate::macros::Storage;
         use crate::query::Query;
         use crate::shared::{Consts, Gen};
-        use crate::{Context, Diagnostics, Options, Sources};
+        use crate::{Context, Diagnostics, Options, Sources, Item};
 
         let mut unit = UnitBuilder::default();
         let prelude = Prelude::default();
@@ -73,11 +73,10 @@ cfg_std! {
             &mut inner,
         );
 
-        let root_id = gen.next();
         let source_id = SourceId::empty();
 
-        let root_mod_id = query
-            .insert_root_mod(root_id, source_id, Span::empty())
+        let (root_id, root_mod_id) = query
+            .insert_root_mod(source_id, Span::empty())
             .context("Failed to inserted root module")?;
 
         let item_meta = query

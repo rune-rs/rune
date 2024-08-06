@@ -14,11 +14,4 @@ pub fn number() {
     1
 }
 
-#[test]
-fn item_keywords() {
-    assert_eq!(self::second::number(), 7);
-}
-
-pub fn main() {
-    dbg(self::second::number());
-}
+dbg!(self::second::number());

@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::Path>("foo::bar");
     rt::<ast::Path>("Self::bar");
     rt::<ast::Path>("self::bar");
@@ -244,7 +242,7 @@ pub struct PathSegmentExpr {
 }
 
 impl Parse for PathSegmentExpr {
-    fn parse(p: &mut Parser) -> Result<Self> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         let expr = ast::Expr::parse_with(
             p,
             ast::expr::NOT_EAGER_BRACE,

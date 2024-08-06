@@ -3,7 +3,7 @@ name = "rune-cli"
 version = "0.14.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
-rust-version = "1.76"
+rust-version = "1.79"
 description = "An interpreter for the Rune Language, an embeddable dynamic programming language for Rust."
 documentation = "https://docs.rs/rune"
 readme = "README.md"
@@ -13,9 +13,11 @@ license = "MIT OR Apache-2.0"
 keywords = ["language", "scripting", "scripting-language"]
 categories = ["parser-implementations"]
 
+default-run = "rune"
+
 [dependencies]
 rune = { version = "0.14.0", path = "../rune", features = ["cli"] }
-rune-modules = { version = "0.14.0", path = "../rune-modules", features = ["full", "experiments"] }
+rune-modules = { version = "0.14.0", path = "../rune-modules", features = ["full"] }
 
 [build-dependencies]
 anyhow = "1.0.71"

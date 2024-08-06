@@ -1,0 +1,65 @@
+// Testing a bunch of control flows.
+
+fn test(n) {
+    if n > 1 {
+        2
+    } else {
+        if n < 1 {
+            0
+        } else {
+            1
+        }
+    }
+}
+
+fn test2(n) {
+    if n > 1 {
+        2
+    } else if n < 1 {
+        0
+    } else {
+        1
+    }
+}
+
+fn test3(n) {
+    let out = if n > 1 {
+        2
+    } else if n < 1 {
+        0
+    } else {
+        1
+    };
+
+    out
+}
+
+fn from_loop() {
+    let n = 1;
+
+    while n < 4 {
+        n = n + 1;
+    }
+
+    n
+}
+
+fn returns_unit(n) {
+    if n > 0 {
+        let _ = 100;
+    }
+}
+
+fn returns_string() {
+    "this is a string"
+}
+
+#[test]
+fn test_flow_control() {
+    assert_eq!(test(0), 0);
+    assert_eq!(test2(1), 1);
+    assert_eq!(test3(2), 2);
+    assert_eq!(from_loop(), 4);
+    assert_eq!(returns_unit(1), ());
+    assert_eq!(returns_string(), "this is a string");
+}

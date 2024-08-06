@@ -9,7 +9,8 @@ use core::ptr;
 use core::slice;
 use core::str;
 
-use crate::alloc::{self, try_vec, Box, HashMap, Vec};
+use crate::alloc::prelude::*;
+use crate::alloc::{self, HashMap};
 
 #[non_exhaustive]
 pub struct ArenaWriteSliceOutOfBounds {

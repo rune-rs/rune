@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::ExprCall>("test()");
     rt::<ast::ExprCall>("(foo::bar)()");
 }

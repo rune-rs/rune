@@ -6,16 +6,18 @@ use crate as rune;
 use crate::alloc::clone::TryClone;
 use crate::alloc::{self, Box};
 use crate::runtime::{
-    ConstValue, FromValue, Mut, RawMut, RawRef, Ref, ToValue, UnsafeToMut, UnsafeToRef, Value,
-    ValueKind, VmErrorKind, VmResult,
+    ConstValue, FromValue, Mut, Mutable, OwnedValue, RawMut, RawRef, Ref, ToValue, UnsafeToMut,
+    UnsafeToRef, Value, ValueShared, VmErrorKind, VmResult,
 };
 #[cfg(feature = "alloc")]
 use crate::runtime::{Hasher, ProtocolCaller};
 use crate::Any;
 
+use super::Inline;
+
 /// The type of a tuple slice.
 #[derive(Any)]
-#[rune(builtin, static_type = TUPLE_TYPE)]
+#[rune(builtin, static_type = TUPLE)]
 #[repr(transparent)]
 pub struct Tuple {
     values: [Value],
@@ -50,7 +52,7 @@ impl Tuple {
     pub(crate) fn hash_with(
         &self,
         hasher: &mut Hasher,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
         for value in self.values.iter() {
             vm_try!(value.hash_with(hasher, caller));
@@ -234,7 +236,7 @@ impl TryFrom<alloc::Box<[ConstValue]>> for OwnedTuple {
         let mut out = alloc::Vec::try_with_capacity(inner.len())?;
 
         for value in inner.iter() {
-            out.try_push(value.as_value()?)?;
+            out.try_push(value.to_value()?)?;
         }
 
         Ok(Self {
@@ -267,7 +269,7 @@ impl TryFrom<::rust_alloc::boxed::Box<[ConstValue]>> for OwnedTuple {
         let mut out = alloc::Vec::try_with_capacity(inner.len())?;
 
         for value in inner.iter() {
-            out.try_push(value.as_value()?)?;
+            out.try_push(value.to_value()?)?;
         }
 
         Ok(Self {
@@ -278,10 +280,15 @@ impl TryFrom<::rust_alloc::boxed::Box<[ConstValue]>> for OwnedTuple {
 
 impl FromValue for OwnedTuple {
     fn from_value(value: Value) -> VmResult<Self> {
-        match vm_try!(value.take_kind()) {
-            ValueKind::EmptyTuple => VmResult::Ok(Self::new()),
-            ValueKind::Tuple(tuple) => VmResult::Ok(tuple),
-            actual => VmResult::err(VmErrorKind::expected::<Self>(actual.type_info())),
+        match vm_try!(value.take_value()) {
+            OwnedValue::Inline(value) => match value {
+                Inline::Unit => VmResult::Ok(Self::new()),
+                actual => VmResult::expected::<Self>(actual.type_info()),
+            },
+            OwnedValue::Mutable(value) => match value {
+                Mutable::Tuple(tuple) => VmResult::Ok(tuple),
+                actual => VmResult::expected::<Self>(actual.type_info()),
+            },
         }
     }
 }
@@ -289,7 +296,7 @@ impl FromValue for OwnedTuple {
 macro_rules! impl_tuple {
     // Skip conflicting implementation with `()`.
     (0) => {
-        impl_static_type!(() => crate::runtime::static_type::TUPLE_TYPE);
+        impl_static_type!(() => crate::runtime::static_type::TUPLE);
 
         impl FromValue for () {
             fn from_value(value: Value) -> VmResult<Self> {
@@ -299,13 +306,13 @@ macro_rules! impl_tuple {
 
         impl ToValue for () {
             fn to_value(self) -> VmResult<Value> {
-                VmResult::Ok(vm_try!(Value::empty()))
+                VmResult::Ok(Value::unit())
             }
         }
     };
 
     ($count:expr $(, $ty:ident $var:ident $ignore_count:expr)*) => {
-        impl_static_type!(impl <$($ty),*> ($($ty,)*) => crate::runtime::static_type::TUPLE_TYPE);
+        impl_static_type!(impl <$($ty),*> ($($ty,)*) => crate::runtime::static_type::TUPLE);
 
         impl <$($ty,)*> FromValue for ($($ty,)*)
         where
@@ -344,30 +351,58 @@ repeat_macro!(impl_tuple);
 
 impl FromValue for Ref<Tuple> {
     fn from_value(value: Value) -> VmResult<Self> {
-        let result = Ref::try_map(vm_try!(value.into_kind_ref()), |kind| match kind {
-            ValueKind::EmptyTuple => Some(Tuple::new(&[])),
-            ValueKind::Tuple(tuple) => Some(&**tuple),
-            _ => None,
-        });
+        let result = match vm_try!(value.into_value_shared()) {
+            ValueShared::Inline(value) => match value {
+                Inline::Unit => Ok(Ref::from_static(Tuple::new(&[]))),
+                actual => Err(actual.type_info()),
+            },
+            ValueShared::Mutable(value) => {
+                let value = vm_try!(value.into_ref());
+
+                let result = Ref::try_map(value, |value| match value {
+                    Mutable::Tuple(tuple) => Some(&**tuple),
+                    _ => None,
+                });
+
+                match result {
+                    Ok(tuple) => Ok(tuple),
+                    Err(actual) => Err(actual.type_info()),
+                }
+            }
+        };
 
         match result {
             Ok(tuple) => VmResult::Ok(tuple),
-            Err(actual) => VmResult::err(VmErrorKind::expected::<Self>(actual.type_info())),
+            Err(actual) => VmResult::expected::<Self>(actual),
         }
     }
 }
 
 impl FromValue for Mut<Tuple> {
     fn from_value(value: Value) -> VmResult<Self> {
-        let result = Mut::try_map(vm_try!(value.into_kind_mut()), |kind| match kind {
-            ValueKind::EmptyTuple => Some(Tuple::new_mut(&mut [])),
-            ValueKind::Tuple(tuple) => Some(&mut **tuple),
-            _ => None,
-        });
+        let result = match vm_try!(value.into_value_shared()) {
+            ValueShared::Inline(value) => match value {
+                Inline::Unit => Ok(Mut::from_static(Tuple::new_mut(&mut []))),
+                actual => Err(actual.type_info()),
+            },
+            ValueShared::Mutable(value) => {
+                let value = vm_try!(value.clone().into_mut());
+
+                let result = Mut::try_map(value, |kind| match kind {
+                    Mutable::Tuple(tuple) => Some(&mut **tuple),
+                    _ => None,
+                });
+
+                match result {
+                    Ok(value) => Ok(value),
+                    Err(actual) => Err(actual.type_info()),
+                }
+            }
+        };
 
         match result {
             Ok(tuple) => VmResult::Ok(tuple),
-            Err(actual) => VmResult::err(VmErrorKind::expected::<Self>(actual.type_info())),
+            Err(actual) => VmResult::expected::<Self>(actual),
         }
     }
 }

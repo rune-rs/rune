@@ -5,7 +5,7 @@
   "preview": true,
   "private": true,
   "icon": "assets/logo.png",
-  "version": "0.12.7",
+  "version": "0.13.3",
   "releaseTag": null,
   "publisher": "udoprog",
   "repository": {
@@ -112,6 +112,12 @@
         "rune.server.cargoPackage": {
           "title": "Cargo Package",
           "markdownDescription": "Set the extension to use the given cargo package to run the language server, rather than a downloaded rune-languageserver.",
+          "type": "string",
+          "default": ""
+        },
+        "rune.server.cargoBinary": {
+          "title": "Cargo Binary",
+          "markdownDescription": "Set the extension to use the given cargo binary to run the language server. If left empty, the last binary built is used.",
           "type": "string",
           "default": ""
         },

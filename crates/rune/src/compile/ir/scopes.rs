@@ -1,5 +1,5 @@
 use crate::alloc::prelude::*;
-use crate::alloc::{self, try_vec, Box, HashMap, Vec};
+use crate::alloc::{self, HashMap};
 use crate::ast::Spanned;
 use crate::compile::{self, ErrorKind};
 use crate::hir;
@@ -33,16 +33,16 @@ impl Scopes {
     }
 
     /// Declare a value in the scope.
-    pub(crate) fn decl(&mut self, name: &hir::OwnedName, value: Value) -> Result<(), ErrorKind> {
+    pub(crate) fn decl(&mut self, name: hir::Variable, value: Value) -> Result<(), ErrorKind> {
         let last = self
             .last_mut()
             .ok_or_else(|| ErrorKind::msg("Expected at least one scope"))?;
-        last.locals.try_insert(name.try_clone()?, value)?;
+        last.locals.try_insert(name, value)?;
         Ok(())
     }
 
     /// Try to get the value out from the scopes.
-    pub(crate) fn try_get(&self, name: &hir::OwnedName) -> Option<&Value> {
+    pub(crate) fn try_get(&self, name: &hir::Variable) -> Option<&Value> {
         for scope in self.scopes.iter().rev() {
             if let Some(current) = scope.locals.get(name) {
                 return Some(current);
@@ -60,7 +60,7 @@ impl Scopes {
     /// Get the given variable.
     pub(crate) fn get_name(
         &self,
-        name: &hir::OwnedName,
+        name: &hir::Variable,
         span: &dyn Spanned,
     ) -> compile::Result<&Value> {
         for scope in self.scopes.iter().rev() {
@@ -83,7 +83,7 @@ impl Scopes {
     /// Get the given variable as mutable.
     pub(crate) fn get_name_mut(
         &mut self,
-        name: &hir::OwnedName,
+        name: &hir::Variable,
         span: &dyn Spanned,
     ) -> compile::Result<&mut Value> {
         for scope in self.scopes.iter_mut().rev() {
@@ -153,7 +153,7 @@ enum ScopeKind {
 pub(crate) struct Scope {
     kind: ScopeKind,
     /// Locals in the current scope.
-    locals: HashMap<hir::OwnedName, Value>,
+    locals: HashMap<hir::Variable, Value>,
 }
 
 impl Default for Scope {

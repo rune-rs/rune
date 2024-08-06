@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::ItemUse>("use foo");
     rt::<ast::ItemUse>("use foo::bar");
     rt::<ast::ItemUse>("use foo::bar::baz");
@@ -76,7 +74,7 @@ impl Peek for ItemUseSegment {
 }
 
 impl Parse for ItemUseSegment {
-    fn parse(p: &mut Parser) -> Result<Self> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         Ok(match p.nth(0)? {
             K![*] => Self::Wildcard(p.parse()?),
             K!['{'] => Self::Group(p.parse()?),

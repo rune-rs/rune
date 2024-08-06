@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::ExprLoop>("loop {}");
     rt::<ast::ExprLoop>("loop { 1; }");
     rt::<ast::ExprLoop>("'label: loop {1;}");

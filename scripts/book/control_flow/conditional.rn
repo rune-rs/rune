@@ -1,7 +1,5 @@
-pub fn main() {
-    let number = 3;
+let number = 3;
 
-    if number < 5 {
-        println!("The number is smaller than 5");
-    }
+if number < 5 {
+    println!("The number is smaller than 5");
 }

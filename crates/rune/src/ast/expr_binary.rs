@@ -1,11 +1,10 @@
 use core::fmt;
 
 use crate::ast::prelude::*;
+use crate::parse::{Advance, Peekable};
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::ExprBinary>("42 + b");
     rt::<ast::ExprBinary>("b << 10");
 }
@@ -130,7 +129,7 @@ impl BinOp {
     }
 
     /// Get the precedence for the current operator.
-    pub(super) fn precedence(&self) -> usize {
+    pub(crate) fn precedence(&self) -> usize {
         // NB: Rules from: https://doc.rust-lang.org/reference/expressions.html#expression-precedence
         match self {
             Self::Is(..) | Self::IsNot(..) => 13,
@@ -156,7 +155,7 @@ impl BinOp {
     }
 
     /// Test if operator is left associative.
-    pub(super) fn is_assoc(&self) -> bool {
+    pub(crate) fn is_assoc(&self) -> bool {
         match self {
             Self::Mul(..) => true,
             Self::Div(..) => true,
@@ -175,8 +174,11 @@ impl BinOp {
     }
 
     /// Convert from a token.
-    pub(super) fn from_peeker(p: &mut Peeker<'_>) -> Option<BinOp> {
-        let ast::Token { kind, span } = p.tok_at(0);
+    pub(crate) fn from_peeker<P>(p: &mut P) -> Result<Option<BinOp>, P::Error>
+    where
+        P: ?Sized + Peekable,
+    {
+        let ast::Token { kind, span } = p.nth(0)?;
 
         let out = match kind {
             K![+] => Self::Add(ast::Plus { span }),
@@ -193,7 +195,7 @@ impl BinOp {
             K![as] => Self::As(ast::As { span }),
             K![is] => {
                 let is = ast::Is { span };
-                let ast::Token { kind, span } = p.tok_at(1);
+                let ast::Token { kind, span } = p.nth(1)?;
 
                 match kind {
                     K![not] => Self::IsNot(ast::IsNot {
@@ -222,21 +224,23 @@ impl BinOp {
             K![>>=] => Self::ShrAssign(ast::GtGtEq { span }),
             K![..] => Self::DotDot(ast::DotDot { span }),
             K![..=] => Self::DotDotEq(ast::DotDotEq { span }),
-            _ => return None,
+            _ => return Ok(None),
         };
 
-        Some(out)
+        Ok(Some(out))
     }
 
     /// Get how many tokens to advance for this operator.
-    pub(crate) fn advance(&self, p: &mut Parser<'_>) -> Result<()> {
+    pub(crate) fn advance<A>(&self, p: &mut A) -> Result<(), A::Error>
+    where
+        A: ?Sized + Advance,
+    {
         match self {
             Self::IsNot(..) => {
-                p.next()?;
-                p.next()?;
+                p.advance(2)?;
             }
             _ => {
-                p.next()?;
+                p.advance(1)?;
             }
         }
 
@@ -286,6 +290,9 @@ impl fmt::Display for BinOp {
 
 impl Peek for BinOp {
     fn peek(p: &mut Peeker<'_>) -> bool {
-        Self::from_peeker(p).is_some()
+        match Self::from_peeker(p) {
+            Ok(tok) => tok.is_some(),
+            Err(infallible) => match infallible {},
+        }
     }
 }

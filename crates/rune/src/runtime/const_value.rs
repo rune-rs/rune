@@ -3,15 +3,15 @@ use serde::{Deserialize, Serialize};
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, HashMap, String, Vec};
 use crate::runtime::{
-    self, Bytes, FromValue, Object, OwnedTuple, ToValue, TypeInfo, Value, ValueKind, VmErrorKind,
-    VmResult,
+    self, Bytes, FromValue, Inline, Mutable, Object, OwnedTuple, ToValue, TypeInfo, Value,
+    ValueBorrowRef, VmErrorKind, VmResult,
 };
 
 /// A constant value.
 #[derive(Debug, Deserialize, Serialize)]
 pub enum ConstValue {
     /// A constant unit.
-    EmptyTuple,
+    Unit,
     /// A byte.
     Byte(u8),
     /// A character.
@@ -37,30 +37,91 @@ pub enum ConstValue {
 }
 
 impl ConstValue {
+    /// Construct a constant value from a reference to a value..
+    pub(crate) fn from_value_ref(value: &Value) -> VmResult<ConstValue> {
+        VmResult::Ok(match vm_try!(value.borrow_ref()) {
+            ValueBorrowRef::Inline(value) => match *value {
+                Inline::Unit => Self::Unit,
+                Inline::Byte(value) => Self::Byte(value),
+                Inline::Char(value) => Self::Char(value),
+                Inline::Bool(value) => Self::Bool(value),
+                Inline::Integer(value) => Self::Integer(value),
+                Inline::Float(value) => Self::Float(value),
+                ref actual => {
+                    return VmResult::err(VmErrorKind::ConstNotSupported {
+                        actual: actual.type_info(),
+                    })
+                }
+            },
+            ValueBorrowRef::Mutable(value) => match &*value {
+                Mutable::String(s) => Self::String(vm_try!(s.try_to_owned())),
+                Mutable::Option(option) => Self::Option(match option {
+                    Some(some) => Some(vm_try!(Box::try_new(vm_try!(Self::from_value_ref(some))))),
+                    None => None,
+                }),
+                Mutable::Bytes(ref bytes) => Self::Bytes(vm_try!(bytes.try_clone())),
+                Mutable::Vec(ref vec) => {
+                    let mut const_vec = vm_try!(Vec::try_with_capacity(vec.len()));
+
+                    for value in vec {
+                        vm_try!(const_vec.try_push(vm_try!(Self::from_value_ref(value))));
+                    }
+
+                    Self::Vec(const_vec)
+                }
+                Mutable::Tuple(ref tuple) => {
+                    let mut const_tuple = vm_try!(Vec::try_with_capacity(tuple.len()));
+
+                    for value in tuple.iter() {
+                        vm_try!(const_tuple.try_push(vm_try!(Self::from_value_ref(value))));
+                    }
+
+                    Self::Tuple(vm_try!(const_tuple.try_into_boxed_slice()))
+                }
+                Mutable::Object(ref object) => {
+                    let mut const_object = vm_try!(HashMap::try_with_capacity(object.len()));
+
+                    for (key, value) in object {
+                        let key = vm_try!(key.try_clone());
+                        let value = vm_try!(Self::from_value_ref(value));
+                        vm_try!(const_object.try_insert(key, value));
+                    }
+
+                    Self::Object(const_object)
+                }
+                actual => {
+                    return VmResult::err(VmErrorKind::ConstNotSupported {
+                        actual: actual.type_info(),
+                    })
+                }
+            },
+        })
+    }
+
     /// Convert into virtual machine value.
     ///
     /// We provide this associated method since a constant value can be
     /// converted into a value infallibly, which is not captured by the trait
     /// otherwise.
-    pub fn as_value(&self) -> alloc::Result<Value> {
+    pub(crate) fn to_value(&self) -> alloc::Result<Value> {
         Ok(match self {
-            Self::EmptyTuple => Value::empty()?,
-            Self::Byte(b) => Value::try_from(*b)?,
-            Self::Char(c) => Value::try_from(*c)?,
-            Self::Bool(b) => Value::try_from(*b)?,
-            Self::Integer(n) => Value::try_from(*n)?,
-            Self::Float(n) => Value::try_from(*n)?,
+            Self::Unit => Value::unit(),
+            Self::Byte(b) => Value::from(*b),
+            Self::Char(c) => Value::from(*c),
+            Self::Bool(b) => Value::from(*b),
+            Self::Integer(n) => Value::from(*n),
+            Self::Float(n) => Value::from(*n),
             Self::String(string) => Value::try_from(string.try_clone()?)?,
             Self::Bytes(b) => Value::try_from(b.try_clone()?)?,
             Self::Option(option) => Value::try_from(match option {
-                Some(some) => Some(some.as_value()?),
+                Some(some) => Some(Self::to_value(some)?),
                 None => None,
             })?,
             Self::Vec(vec) => {
                 let mut v = runtime::Vec::with_capacity(vec.len())?;
 
                 for value in vec {
-                    v.push(value.as_value()?)?;
+                    v.push(Self::to_value(value)?)?;
                 }
 
                 Value::try_from(v)?
@@ -69,7 +130,7 @@ impl ConstValue {
                 let mut t = Vec::try_with_capacity(tuple.len())?;
 
                 for value in tuple.iter() {
-                    t.try_push(value.as_value()?)?;
+                    t.try_push(Self::to_value(value)?)?;
                 }
 
                 Value::try_from(OwnedTuple::try_from(t)?)?
@@ -79,7 +140,8 @@ impl ConstValue {
 
                 for (key, value) in object {
                     let key = key.try_clone()?;
-                    o.insert(key, value.as_value()?)?;
+                    let value = Self::to_value(value)?;
+                    o.insert(key, value)?;
                 }
 
                 Value::try_from(o)?
@@ -98,18 +160,18 @@ impl ConstValue {
     /// Get the type information of the value.
     pub fn type_info(&self) -> TypeInfo {
         match self {
-            Self::EmptyTuple => TypeInfo::StaticType(crate::runtime::static_type::TUPLE_TYPE),
-            Self::Byte(..) => TypeInfo::StaticType(crate::runtime::static_type::BYTE_TYPE),
-            Self::Char(..) => TypeInfo::StaticType(crate::runtime::static_type::CHAR_TYPE),
-            Self::Bool(..) => TypeInfo::StaticType(crate::runtime::static_type::BOOL_TYPE),
-            Self::String(..) => TypeInfo::StaticType(crate::runtime::static_type::STRING_TYPE),
-            Self::Bytes(..) => TypeInfo::StaticType(crate::runtime::static_type::BYTES_TYPE),
-            Self::Integer(..) => TypeInfo::StaticType(crate::runtime::static_type::INTEGER_TYPE),
-            Self::Float(..) => TypeInfo::StaticType(crate::runtime::static_type::FLOAT_TYPE),
-            Self::Vec(..) => TypeInfo::StaticType(crate::runtime::static_type::VEC_TYPE),
-            Self::Tuple(..) => TypeInfo::StaticType(crate::runtime::static_type::TUPLE_TYPE),
-            Self::Object(..) => TypeInfo::StaticType(crate::runtime::static_type::OBJECT_TYPE),
-            Self::Option(..) => TypeInfo::StaticType(crate::runtime::static_type::OPTION_TYPE),
+            Self::Unit => TypeInfo::StaticType(crate::runtime::static_type::TUPLE),
+            Self::Byte(..) => TypeInfo::StaticType(crate::runtime::static_type::BYTE),
+            Self::Char(..) => TypeInfo::StaticType(crate::runtime::static_type::CHAR),
+            Self::Bool(..) => TypeInfo::StaticType(crate::runtime::static_type::BOOL),
+            Self::String(..) => TypeInfo::StaticType(crate::runtime::static_type::STRING),
+            Self::Bytes(..) => TypeInfo::StaticType(crate::runtime::static_type::BYTES),
+            Self::Integer(..) => TypeInfo::StaticType(crate::runtime::static_type::INTEGER),
+            Self::Float(..) => TypeInfo::StaticType(crate::runtime::static_type::FLOAT),
+            Self::Vec(..) => TypeInfo::StaticType(crate::runtime::static_type::VEC),
+            Self::Tuple(..) => TypeInfo::StaticType(crate::runtime::static_type::TUPLE),
+            Self::Object(..) => TypeInfo::StaticType(crate::runtime::static_type::OBJECT),
+            Self::Option(..) => TypeInfo::StaticType(crate::runtime::static_type::OPTION),
         }
     }
 }
@@ -117,7 +179,7 @@ impl ConstValue {
 impl TryClone for ConstValue {
     fn try_clone(&self) -> alloc::Result<Self> {
         Ok(match self {
-            ConstValue::EmptyTuple => ConstValue::EmptyTuple,
+            ConstValue::Unit => ConstValue::Unit,
             ConstValue::Byte(byte) => ConstValue::Byte(*byte),
             ConstValue::Char(char) => ConstValue::Char(*char),
             ConstValue::Bool(bool) => ConstValue::Bool(*bool),
@@ -135,57 +197,12 @@ impl TryClone for ConstValue {
 
 impl FromValue for ConstValue {
     fn from_value(value: Value) -> VmResult<Self> {
-        VmResult::Ok(match vm_try!(value.take_kind()) {
-            ValueKind::EmptyTuple => Self::EmptyTuple,
-            ValueKind::Byte(b) => Self::Byte(b),
-            ValueKind::Char(c) => Self::Char(c),
-            ValueKind::Bool(b) => Self::Bool(b),
-            ValueKind::Integer(n) => Self::Integer(n),
-            ValueKind::Float(f) => Self::Float(f),
-            ValueKind::String(s) => Self::String(s),
-            ValueKind::Option(option) => Self::Option(match option {
-                Some(some) => Some(vm_try!(Box::try_new(vm_try!(Self::from_value(some))))),
-                None => None,
-            }),
-            ValueKind::Bytes(b) => Self::Bytes(b),
-            ValueKind::Vec(vec) => {
-                let mut const_vec = vm_try!(Vec::try_with_capacity(vec.len()));
-
-                for value in vec {
-                    vm_try!(const_vec.try_push(vm_try!(Self::from_value(value))));
-                }
-
-                Self::Vec(const_vec)
-            }
-            ValueKind::Tuple(tuple) => {
-                let mut const_tuple = vm_try!(Vec::try_with_capacity(tuple.len()));
-
-                for value in Vec::from(tuple.into_inner()) {
-                    vm_try!(const_tuple.try_push(vm_try!(Self::from_value(value))));
-                }
-
-                Self::Tuple(vm_try!(const_tuple.try_into_boxed_slice()))
-            }
-            ValueKind::Object(object) => {
-                let mut const_object = vm_try!(HashMap::try_with_capacity(object.len()));
-
-                for (key, value) in object {
-                    vm_try!(const_object.try_insert(key, vm_try!(Self::from_value(value))));
-                }
-
-                Self::Object(const_object)
-            }
-            actual => {
-                return VmResult::err(VmErrorKind::ConstNotSupported {
-                    actual: actual.type_info(),
-                })
-            }
-        })
+        ConstValue::from_value_ref(&value)
     }
 }
 
 impl ToValue for ConstValue {
     fn to_value(self) -> VmResult<Value> {
-        VmResult::Ok(vm_try!(ConstValue::as_value(&self)))
+        VmResult::Ok(vm_try!(ConstValue::to_value(&self)))
     }
 }

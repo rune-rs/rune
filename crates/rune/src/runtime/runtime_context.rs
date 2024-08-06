@@ -4,23 +4,13 @@ use ::rust_alloc::sync::Arc;
 
 use crate as rune;
 use crate::alloc::prelude::*;
-use crate::compile;
 use crate::hash;
-use crate::macros::{MacroContext, TokenStream};
-use crate::runtime::{ConstValue, Stack, VmResult};
+use crate::runtime::{ConstValue, InstAddress, Memory, Output, VmResult};
 use crate::Hash;
 
 /// A type-reduced function handler.
-pub(crate) type FunctionHandler = dyn Fn(&mut Stack, usize) -> VmResult<()> + Send + Sync;
-
-/// A (type erased) macro handler.
-pub(crate) type MacroHandler =
-    dyn Fn(&mut MacroContext, &TokenStream) -> compile::Result<TokenStream> + Send + Sync;
-
-/// A (type erased) attribute macro handler.
-pub(crate) type AttributeMacroHandler = dyn Fn(&mut MacroContext, &TokenStream, &TokenStream) -> compile::Result<TokenStream>
-    + Send
-    + Sync;
+pub(crate) type FunctionHandler =
+    dyn Fn(&mut dyn Memory, InstAddress, usize, Output) -> VmResult<()> + Send + Sync;
 
 /// Static run context visible to the virtual machine.
 ///

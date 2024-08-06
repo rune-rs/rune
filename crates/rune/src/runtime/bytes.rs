@@ -12,12 +12,12 @@ use serde::ser;
 use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, Vec};
-use crate::runtime::{RawRef, Ref, UnsafeToRef, Value, ValueKind, VmErrorKind, VmResult};
+use crate::runtime::{Mutable, RawRef, Ref, UnsafeToRef, Value, ValueRepr, VmErrorKind, VmResult};
 use crate::Any;
 
 /// A vector of bytes.
 #[derive(Default, Any, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[rune(builtin, static_type = BYTES_TYPE)]
+#[rune(builtin, static_type = BYTES)]
 pub struct Bytes {
     pub(crate) bytes: Vec<u8>,
 }
@@ -279,6 +279,18 @@ impl From<Vec<u8>> for Bytes {
 }
 
 #[cfg(feature = "alloc")]
+impl TryFrom<&[u8]> for Bytes {
+    type Error = alloc::Error;
+
+    #[inline]
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        let mut bytes = Vec::try_with_capacity(value.len())?;
+        bytes.try_extend_from_slice(value)?;
+        Ok(Self { bytes })
+    }
+}
+
+#[cfg(feature = "alloc")]
 impl TryFrom<::rust_alloc::vec::Vec<u8>> for Bytes {
     type Error = alloc::Error;
 
@@ -347,8 +359,15 @@ impl UnsafeToRef for [u8] {
     type Guard = RawRef;
 
     unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
-        let result = Ref::try_map(vm_try!(value.into_kind_ref()), |kind| match kind {
-            ValueKind::Bytes(bytes) => Some(bytes.as_slice()),
+        let value = match vm_try!(value.into_repr()) {
+            ValueRepr::Mutable(value) => vm_try!(value.into_ref()),
+            ValueRepr::Inline(actual) => {
+                return VmResult::expected::<Bytes>(actual.type_info());
+            }
+        };
+
+        let result = Ref::try_map(value, |value| match value {
+            Mutable::Bytes(bytes) => Some(bytes.as_slice()),
             _ => None,
         });
 

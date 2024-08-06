@@ -18,7 +18,7 @@ on:
       - release
 
 env:
-  KICK_VERSION: "${{github.event.inputs.version}} || nightly"
+  KICK_VERSION: "${{github.event.inputs.channel}} || nightly"
   RUST_LOG: kick=trace
 
 jobs:
@@ -30,11 +30,10 @@ jobs:
     - uses: Swatinem/rust-cache@v2
     - run: cargo test --all-targets
     - run: cargo test --doc
-    - run: cargo run --bin rune -- check --recursive --experimental scripts
-    - run: cargo run --bin rune -- test --recursive --experimental scripts
+    - run: cargo run --bin rune -- check --recursive scripts
+    - run: cargo run --bin rune -- test --all-targets -O test-std
 
   build:
-    needs: test
     runs-on: ${{matrix.os}}
     strategy:
       matrix:
@@ -54,7 +53,7 @@ jobs:
         path: dist
 
   publish:
-    needs: build
+    needs: [test, build]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4

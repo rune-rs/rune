@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::ItemMod>("mod ruins {}");
 
     let item = rt::<ast::ItemMod>("#[cfg(test)] mod tests {}");
@@ -60,7 +58,7 @@ pub enum ItemModBody {
 }
 
 impl Parse for ItemModBody {
-    fn parse(p: &mut Parser) -> Result<Self> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         Ok(match p.nth(0)? {
             K!['{'] => Self::InlineBody(p.parse()?),
             _ => Self::EmptyBody(p.parse()?),

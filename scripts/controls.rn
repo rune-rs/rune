@@ -54,13 +54,11 @@ fn returns_string() {
     "this is a string"
 }
 
-pub fn main() {
-    let a = test(0);
-    let b = test2(1);
-    let c = test3(2);
-    let d = from_loop();
-    let e = returns_unit(1);
-    let f = returns_string();
+let a = test(0);
+let b = test2(1);
+let c = test3(2);
+let d = from_loop();
+let e = returns_unit(1);
+let f = returns_string();
 
-    [0, 1, 2, 4, (), "this is a string"] == [a, b, c, d, e, f]
-}
+dbg!([0, 1, 2, 4, (), "this is a string"] == [a, b, c, d, e, f]);

@@ -5,16 +5,14 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::Expr>("()");
     rt::<ast::Expr>("foo[\"foo\"]");
+    rt::<ast::Expr>("foo[\"bar\"]");
     rt::<ast::Expr>("foo.bar()");
     rt::<ast::Expr>("var()");
     rt::<ast::Expr>("var");
     rt::<ast::Expr>("42");
     rt::<ast::Expr>("1 + 2 / 3 - 4 * 1");
-    rt::<ast::Expr>("foo[\"bar\"]");
     rt::<ast::Expr>("let var = 42");
     rt::<ast::Expr>("let var = \"foo bar\"");
     rt::<ast::Expr>("var[\"foo\"] = \"bar\"");
@@ -45,6 +43,26 @@ fn ast_parse() {
     rt::<ast::Expr>("Disco {\"never_died\": true }");
     rt::<ast::Expr>("(false, 1, 'n')");
     rt::<ast::Expr>("[false, 1, 'b']");
+}
+
+#[test]
+fn expr_if() {
+    let expr = rt::<ast::Expr>(r#"if true {} else {}"#);
+    assert!(matches!(expr, ast::Expr::If(..)));
+
+    let expr = rt::<ast::Expr>("if 1 { } else { if 2 { } else { } }");
+    assert!(matches!(expr, ast::Expr::If(..)));
+}
+
+#[test]
+fn expr_while() {
+    let expr = rt::<ast::Expr>(r#"while true {}"#);
+    assert!(matches!(expr, ast::Expr::While(..)));
+}
+
+#[test]
+fn test_macro_call_chain() {
+    rt::<ast::Expr>("format!(\"{}\", a).bar()");
 }
 
 /// Indicator that an expression should be parsed with an eager brace.
@@ -325,7 +343,7 @@ impl Expr {
         callable: Callable,
     ) -> Result<Self> {
         let lhs = primary(p, attributes, EAGER_BRACE, callable)?;
-        let lookahead = ast::BinOp::from_peeker(p.peeker());
+        let lookahead = ast::BinOp::from_peeker(p.peeker())?;
         binary(p, lhs, lookahead, 0, EAGER_BRACE)
     }
 
@@ -341,7 +359,7 @@ impl Expr {
         let expr = primary(p, &mut attributes, eager_brace, callable)?;
 
         let expr = if *eager_binary {
-            let lookeahead = ast::BinOp::from_peeker(p.peeker());
+            let lookeahead = ast::BinOp::from_peeker(p.peeker())?;
             binary(p, expr, lookeahead, 0, eager_brace)?
         } else {
             expr
@@ -515,13 +533,14 @@ fn base(
         K!['['] => Expr::Vec(ast::ExprVec::parse_with_meta(p, take(attributes))?),
         ast::Kind::Open(ast::Delimiter::Empty) => empty_group(p, take(attributes))?,
         K!['('] => paren_group(p, take(attributes))?,
-        K!['{'] => Expr::Block(ast::ExprBlock::parse_with_meta(
-            p,
-            take(attributes),
-            take(&mut async_token),
-            take(&mut const_token),
-            take(&mut move_token),
-        )?),
+        K!['{'] => Expr::Block(ast::ExprBlock {
+            attributes: take(attributes),
+            async_token: take(&mut async_token),
+            const_token: take(&mut const_token),
+            move_token: take(&mut move_token),
+            label: take(&mut label),
+            block: p.parse()?,
+        }),
         K![break] => Expr::Break(ast::ExprBreak::parse_with_meta(p, take(attributes))?),
         K![continue] => Expr::Continue(ast::ExprContinue::parse_with_meta(p, take(attributes))?),
         K![yield] => Expr::Yield(ast::ExprYield::parse_with_meta(p, take(attributes))?),
@@ -664,7 +683,7 @@ fn binary(
                     ast::ExprRangeLimits::HalfOpen(token),
                     eager_brace,
                 )?;
-                lookahead = ast::BinOp::from_peeker(p.peeker());
+                lookahead = ast::BinOp::from_peeker(p.peeker())?;
                 continue;
             }
             ast::BinOp::DotDotEq(token) => {
@@ -675,21 +694,21 @@ fn binary(
                     ast::ExprRangeLimits::Closed(token),
                     eager_brace,
                 )?;
-                lookahead = ast::BinOp::from_peeker(p.peeker());
+                lookahead = ast::BinOp::from_peeker(p.peeker())?;
                 continue;
             }
             _ => (),
         }
 
         let mut rhs = primary(p, &mut Vec::new(), eager_brace, CALLABLE)?;
-        lookahead = ast::BinOp::from_peeker(p.peeker());
+        lookahead = ast::BinOp::from_peeker(p.peeker())?;
 
         while let Some(next) = lookahead {
             match (precedence, next.precedence()) {
                 (lh, rh) if lh < rh => {
                     // Higher precedence elements require us to recurse.
                     rhs = binary(p, rhs, Some(next), lh + 1, eager_brace)?;
-                    lookahead = ast::BinOp::from_peeker(p.peeker());
+                    lookahead = ast::BinOp::from_peeker(p.peeker())?;
                     continue;
                 }
                 (lh, rh) if lh == rh => {
@@ -783,52 +802,4 @@ fn paren_group(p: &mut Parser<'_>, attributes: Vec<ast::Attribute>) -> Result<Ex
     Ok(Expr::Tuple(ast::ExprTuple::parse_from_first_expr(
         p, attributes, open, expr,
     )?))
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::ast;
-    use crate::testing::rt;
-
-    #[test]
-    fn test_expr_if() {
-        let expr = rt::<ast::Expr>(r#"if true {} else {}"#);
-        assert!(matches!(expr, ast::Expr::If(..)));
-
-        let expr = rt::<ast::Expr>("if 1 { } else { if 2 { } else { } }");
-        assert!(matches!(expr, ast::Expr::If(..)));
-    }
-
-    #[test]
-    fn test_expr_while() {
-        let expr = rt::<ast::Expr>(r#"while true {}"#);
-        assert!(matches!(expr, ast::Expr::While(..)));
-    }
-
-    #[test]
-    fn test_expr() {
-        rt::<ast::Expr>("foo[\"foo\"]");
-        rt::<ast::Expr>("foo.bar()");
-        rt::<ast::Expr>("var()");
-        rt::<ast::Expr>("var");
-        rt::<ast::Expr>("42");
-        rt::<ast::Expr>("1 + 2 / 3 - 4 * 1");
-        rt::<ast::Expr>("foo[\"bar\"]");
-        rt::<ast::Expr>("let var = 42");
-        rt::<ast::Expr>("let var = \"foo bar\"");
-        rt::<ast::Expr>("var[\"foo\"] = \"bar\"");
-        rt::<ast::Expr>("let var = objects[\"foo\"] + 1");
-        rt::<ast::Expr>("var = 42");
-
-        // Chained function calls.
-        rt::<ast::Expr>("foo.bar.baz()");
-        rt::<ast::Expr>("foo[0][1][2]");
-        rt::<ast::Expr>("foo.bar()[0].baz()[1]");
-        rt::<ast::Expr>("42 is i64::i64");
-    }
-
-    #[test]
-    fn test_macro_call_chain() {
-        rt::<ast::Expr>("format!(\"{}\", a).bar()");
-    }
 }

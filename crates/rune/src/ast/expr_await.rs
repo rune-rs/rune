@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::Expr>("(42).await");
     rt::<ast::Expr>("self.await");
     rt::<ast::Expr>("test.await");

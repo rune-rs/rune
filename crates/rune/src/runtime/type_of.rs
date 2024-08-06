@@ -1,25 +1,43 @@
+use crate::alloc;
+use crate::compile::meta;
 use crate::runtime::{Mut, Ref, Shared, TypeInfo};
 use crate::Hash;
 
-#[doc(inline)]
-pub use rune_core::FullTypeOf;
+/// Core type of trait.
+pub trait CoreTypeOf {
+    /// Get full type hash, including type parameters.
+    fn type_hash() -> Hash;
+}
+
+/// Blanket implementation for references.
+impl<T> CoreTypeOf for &T
+where
+    T: ?Sized + CoreTypeOf,
+{
+    #[inline]
+    fn type_hash() -> Hash {
+        T::type_hash()
+    }
+}
+
+/// Blanket implementation for mutable references.
+impl<T> CoreTypeOf for &mut T
+where
+    T: ?Sized + CoreTypeOf,
+{
+    #[inline]
+    fn type_hash() -> Hash {
+        T::type_hash()
+    }
+}
 
 /// Trait used for Rust types for which we can determine the runtime type of.
-pub trait TypeOf {
-    /// Type information for the given type.
-    #[inline]
-    fn type_of() -> FullTypeOf {
-        FullTypeOf::new(Self::type_hash())
-    }
-
+pub trait TypeOf: CoreTypeOf {
     /// Hash of type parameters.
     #[inline]
     fn type_parameters() -> Hash {
         Hash::EMPTY
     }
-
-    /// Get full type hash, including type parameters.
-    fn type_hash() -> Hash;
 
     /// Access diagnostical information on the value type.
     fn type_info() -> TypeInfo;
@@ -28,7 +46,7 @@ pub trait TypeOf {
 /// A type that might or might not have a concrete type.
 pub trait MaybeTypeOf {
     /// Type information for the given type.
-    fn maybe_type_of() -> Option<FullTypeOf>;
+    fn maybe_type_of() -> alloc::Result<meta::DocType>;
 }
 
 impl<T> MaybeTypeOf for &T
@@ -36,7 +54,7 @@ where
     T: ?Sized + MaybeTypeOf,
 {
     #[inline]
-    fn maybe_type_of() -> Option<FullTypeOf> {
+    fn maybe_type_of() -> alloc::Result<meta::DocType> {
         T::maybe_type_of()
     }
 }
@@ -46,7 +64,7 @@ where
     T: ?Sized + MaybeTypeOf,
 {
     #[inline]
-    fn maybe_type_of() -> Option<FullTypeOf> {
+    fn maybe_type_of() -> alloc::Result<meta::DocType> {
         T::maybe_type_of()
     }
 }
@@ -56,7 +74,7 @@ where
     T: ?Sized + MaybeTypeOf,
 {
     #[inline]
-    fn maybe_type_of() -> Option<FullTypeOf> {
+    fn maybe_type_of() -> alloc::Result<meta::DocType> {
         T::maybe_type_of()
     }
 }
@@ -66,7 +84,7 @@ where
     T: ?Sized + MaybeTypeOf,
 {
     #[inline]
-    fn maybe_type_of() -> Option<FullTypeOf> {
+    fn maybe_type_of() -> alloc::Result<meta::DocType> {
         T::maybe_type_of()
     }
 }
@@ -76,7 +94,7 @@ where
     T: ?Sized + MaybeTypeOf,
 {
     #[inline]
-    fn maybe_type_of() -> Option<FullTypeOf> {
+    fn maybe_type_of() -> alloc::Result<meta::DocType> {
         T::maybe_type_of()
     }
 }
@@ -87,18 +105,8 @@ where
     T: ?Sized + TypeOf,
 {
     #[inline]
-    fn type_of() -> FullTypeOf {
-        T::type_of()
-    }
-
-    #[inline]
     fn type_parameters() -> Hash {
         T::type_parameters()
-    }
-
-    #[inline]
-    fn type_hash() -> Hash {
-        T::type_hash()
     }
 
     #[inline]
@@ -113,18 +121,8 @@ where
     T: ?Sized + TypeOf,
 {
     #[inline]
-    fn type_of() -> FullTypeOf {
-        T::type_of()
-    }
-
-    #[inline]
     fn type_parameters() -> Hash {
         T::type_parameters()
-    }
-
-    #[inline]
-    fn type_hash() -> Hash {
-        T::type_hash()
     }
 
     #[inline]
@@ -134,23 +132,24 @@ where
 }
 
 /// Blanket implementation for owned references.
+impl<T> CoreTypeOf for Ref<T>
+where
+    T: ?Sized + CoreTypeOf,
+{
+    #[inline]
+    fn type_hash() -> Hash {
+        T::type_hash()
+    }
+}
+
+/// Blanket implementation for owned references.
 impl<T> TypeOf for Ref<T>
 where
     T: ?Sized + TypeOf,
 {
     #[inline]
-    fn type_of() -> FullTypeOf {
-        T::type_of()
-    }
-
-    #[inline]
     fn type_parameters() -> Hash {
         T::type_parameters()
-    }
-
-    #[inline]
-    fn type_hash() -> Hash {
-        T::type_hash()
     }
 
     #[inline]
@@ -160,23 +159,24 @@ where
 }
 
 /// Blanket implementation for owned mutable references.
+impl<T> CoreTypeOf for Mut<T>
+where
+    T: ?Sized + CoreTypeOf,
+{
+    #[inline]
+    fn type_hash() -> Hash {
+        T::type_hash()
+    }
+}
+
+/// Blanket implementation for owned mutable references.
 impl<T> TypeOf for Mut<T>
 where
     T: ?Sized + TypeOf,
 {
     #[inline]
-    fn type_of() -> FullTypeOf {
-        T::type_of()
-    }
-
-    #[inline]
     fn type_parameters() -> Hash {
         T::type_parameters()
-    }
-
-    #[inline]
-    fn type_hash() -> Hash {
-        T::type_hash()
     }
 
     #[inline]
@@ -186,23 +186,24 @@ where
 }
 
 /// Blanket implementation for owned shared values.
+impl<T> CoreTypeOf for Shared<T>
+where
+    T: ?Sized + CoreTypeOf,
+{
+    #[inline]
+    fn type_hash() -> Hash {
+        T::type_hash()
+    }
+}
+
+/// Blanket implementation for owned shared values.
 impl<T> TypeOf for Shared<T>
 where
     T: ?Sized + TypeOf,
 {
     #[inline]
-    fn type_of() -> FullTypeOf {
-        T::type_of()
-    }
-
-    #[inline]
     fn type_parameters() -> Hash {
         T::type_parameters()
-    }
-
-    #[inline]
-    fn type_hash() -> Hash {
-        T::type_hash()
     }
 
     #[inline]

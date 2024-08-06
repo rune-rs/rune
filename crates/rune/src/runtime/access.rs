@@ -27,6 +27,13 @@ pub struct AccessError {
 
 impl AccessError {
     #[inline]
+    pub(crate) const fn empty() -> Self {
+        Self {
+            kind: AccessErrorKind::Empty,
+        }
+    }
+
+    #[inline]
     pub(crate) fn new(kind: AccessErrorKind) -> Self {
         Self { kind }
     }
@@ -35,6 +42,7 @@ impl AccessError {
 impl fmt::Display for AccessError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.kind {
+            AccessErrorKind::Empty => write!(f, "Empty value"),
             AccessErrorKind::UnexpectedType { expected, actual } => write!(
                 f,
                 "Expected data of type `{expected}`, but found `{actual}`",
@@ -98,6 +106,7 @@ impl From<AccessErrorKind> for AccessError {
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum AccessErrorKind {
+    Empty,
     UnexpectedType { expected: RawStr, actual: RawStr },
     NotAccessibleRef { error: NotAccessibleRef },
     NotAccessibleMut { error: NotAccessibleMut },
@@ -161,9 +170,21 @@ cfg_std! {
 #[repr(transparent)]
 pub struct Snapshot(usize);
 
+impl Snapshot {
+    /// Test if the snapshot indicates that the value is readable.
+    pub(crate) fn is_readable(&self) -> bool {
+        self.0 & MASK == 0
+    }
+
+    /// The number of times a value is shared.
+    pub(crate) fn shared(&self) -> usize {
+        self.0 & !MASK
+    }
+}
+
 impl fmt::Display for Snapshot {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.0 >> 1 {
+        match self.0 {
             0 => write!(f, "fully accessible")?,
             EXCLUSIVE => write!(f, "exclusively accessed")?,
             MOVED => write!(f, "moved")?,
@@ -370,7 +391,15 @@ impl<'a, T: ?Sized> BorrowRef<'a, T> {
 impl<T: ?Sized> ops::Deref for BorrowRef<'_, T> {
     type Target = T;
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
+        self.data
+    }
+}
+
+impl<T: ?Sized> AsRef<T> for BorrowRef<'_, T> {
+    #[inline]
+    fn as_ref(&self) -> &T {
         self.data
     }
 }

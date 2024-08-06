@@ -10,23 +10,34 @@ macro_rules! resolve_context {
 
 /// Build an implementation of `TypeOf` basic of a static type.
 macro_rules! impl_static_type {
-    (impl <$($p:ident),*> $ty:ty => $static_type:expr $(, where $($where:tt)+)?) => {
-        impl<$($p,)*> $crate::runtime::TypeOf for $ty $(where $($where)+)* {
+    (impl <$($p:ident),*> $ty:ty => $static_type:expr) => {
+        impl<$($p,)*> $crate::runtime::CoreTypeOf for $ty {
             #[inline]
             fn type_hash() -> $crate::Hash {
                 $static_type.hash
             }
+        }
 
+        impl<$($p,)*> $crate::runtime::TypeOf for $ty
+        where
+            $($p: $crate::runtime::MaybeTypeOf,)*
+        {
             #[inline]
             fn type_info() -> $crate::runtime::TypeInfo {
                 $crate::runtime::TypeInfo::StaticType($static_type)
             }
         }
 
-        impl<$($p,)*> $crate::runtime::MaybeTypeOf for $ty $(where $($where)+)* {
+        impl<$($p,)*> $crate::runtime::MaybeTypeOf for $ty
+        where
+            $($p: $crate::runtime::MaybeTypeOf,)*
+        {
             #[inline]
-            fn maybe_type_of() -> Option<$crate::runtime::FullTypeOf> {
-                Some(<$ty as $crate::runtime::TypeOf>::type_of())
+            fn maybe_type_of() -> $crate::alloc::Result<$crate::compile::meta::DocType> {
+                $crate::compile::meta::DocType::with_generics(
+                    <$ty as $crate::runtime::CoreTypeOf>::type_hash(),
+                    [$(<$p as $crate::runtime::MaybeTypeOf>::maybe_type_of()?),*]
+                )
             }
         }
     };
@@ -69,46 +80,6 @@ macro_rules! repeat_macro {
         #[cfg(not(test))]
         $macro!(16, A a 0, B b 1, C c 2, D d 3, E e 4, F f 5, G g 6, H h 7, I i 8, J j 9, K k 10, L l 11, M m 12, N n 13, O o 14, P p 15);
     };
-}
-
-macro_rules! cfg_emit {
-    ($($item:item)*) => {
-        $(
-            #[cfg(feature = "emit")]
-            #[cfg_attr(rune_docsrs, doc(cfg(feature = "emit")))]
-            $item
-        )*
-    }
-}
-
-macro_rules! cfg_workspace {
-    ($($item:item)*) => {
-        $(
-            #[cfg(feature = "workspace")]
-            #[cfg_attr(rune_docsrs, doc(cfg(feature = "workspace")))]
-            $item
-        )*
-    }
-}
-
-macro_rules! cfg_cli {
-    ($($item:item)*) => {
-        $(
-            #[cfg(feature = "cli")]
-            #[cfg_attr(rune_docsrs, doc(cfg(feature = "cli")))]
-            $item
-        )*
-    }
-}
-
-macro_rules! cfg_doc {
-    ($($item:item)*) => {
-        $(
-            #[cfg(feature = "doc")]
-            #[cfg_attr(rune_docsrs, doc(cfg(feature = "doc")))]
-            $item
-        )*
-    }
 }
 
 macro_rules! cfg_std {

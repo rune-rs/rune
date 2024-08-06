@@ -5,15 +5,13 @@ use core::fmt;
 use core::hash;
 use core::iter;
 
+use crate as rune;
 use crate::alloc::hashbrown::raw::RawIter;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
 use crate::alloc::{hash_map, HashMap};
-
-use crate as rune;
-use crate::compile::ItemBuf;
-use crate::runtime::{FromValue, Iterator, ProtocolCaller, RawRef, Ref, ToValue, Value, VmResult};
-use crate::Any;
+use crate::runtime::{FromValue, ProtocolCaller, RawRef, Ref, ToValue, Value, VmResult};
+use crate::{Any, ItemBuf};
 
 /// An owning iterator over the entries of a `Object`.
 ///
@@ -81,7 +79,7 @@ pub type Values<'a> = hash_map::Values<'a, String, Value>;
 /// ```
 #[derive(Any, Default)]
 #[repr(transparent)]
-#[rune(builtin, static_type = OBJECT_TYPE)]
+#[rune(builtin, static_type = OBJECT)]
 pub struct Object {
     inner: HashMap<String, Value>,
 }
@@ -307,79 +305,90 @@ impl Object {
     /// assert_eq!(vec, [("a", 1), ("b", 2), ("c", 3)]);
     /// ```
     #[rune::function(keep, path = Self::iter)]
-    pub fn rune_iter(this: Ref<Self>) -> Iterator {
-        struct Iter {
-            iter: RawIter<(String, Value)>,
-            _guard: RawRef,
-        }
-
-        impl iter::Iterator for Iter {
-            type Item = VmResult<(String, Value)>;
-
-            fn next(&mut self) -> Option<Self::Item> {
-                unsafe {
-                    let bucket = self.iter.next()?;
-                    let (key, value) = bucket.as_ref();
-
-                    let key = match key.try_clone() {
-                        Ok(key) => key,
-                        Err(err) => return Some(VmResult::err(err)),
-                    };
-
-                    Some(VmResult::Ok((key, value.clone())))
-                }
-            }
-        }
-
+    pub fn rune_iter(this: Ref<Self>) -> RuneIter {
         // SAFETY: we're holding onto the related reference guard, and making
         // sure that it's dropped after the iterator.
         let iter = unsafe { this.inner.raw_table().iter() };
         let (_, _guard) = Ref::into_raw(this);
+        RuneIter { iter, _guard }
+    }
 
-        let iter = Iter { iter, _guard };
+    /// An iterator visiting all keys in arbitrary order.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// let object = #{a: 1, b: 2, c: 3};
+    /// let vec = [];
+    ///
+    /// for key in object.keys() {
+    ///     vec.push(key);
+    /// }
+    ///
+    /// vec.sort_by(|a, b| a.cmp(b));
+    /// assert_eq!(vec, ["a", "b", "c"]);
+    /// ```
+    #[rune::function(keep, path = Self::keys)]
+    pub fn rune_keys(this: Ref<Self>) -> RuneIterKeys {
+        // SAFETY: we're holding onto the related reference guard, and making
+        // sure that it's dropped after the iterator.
+        let iter = unsafe { this.inner.raw_table().iter() };
+        let (_, _guard) = Ref::into_raw(this);
+        RuneIterKeys { iter, _guard }
+    }
 
-        Iterator::from("std::object::Iter", iter)
+    /// An iterator visiting all values in arbitrary order.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// let object = #{a: 1, b: 2, c: 3};
+    /// let vec = [];
+    ///
+    /// for key in object.values() {
+    ///     vec.push(key);
+    /// }
+    ///
+    /// vec.sort_by(|a, b| a.cmp(b));
+    /// assert_eq!(vec, [1, 2, 3]);
+    /// ```
+    #[rune::function(keep, path = Self::values)]
+    pub fn rune_values(this: Ref<Self>) -> RuneValues {
+        // SAFETY: we're holding onto the related reference guard, and making
+        // sure that it's dropped after the iterator.
+        let iter = unsafe { this.inner.raw_table().iter() };
+        let (_, _guard) = Ref::into_raw(this);
+        RuneValues { iter, _guard }
     }
 
     pub(crate) fn partial_eq_with(
         a: &Self,
-        b: Value,
-        caller: &mut impl ProtocolCaller,
+        b: &Self,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<bool> {
-        let mut b = vm_try!(b.into_iter());
+        if a.len() != b.len() {
+            return VmResult::Ok(false);
+        }
 
         for (k1, v1) in a.iter() {
-            let Some(value) = vm_try!(b.next()) else {
+            let Some(v2) = b.get(k1) else {
                 return VmResult::Ok(false);
             };
 
-            let (k2, v2) = vm_try!(<(Ref<String>, Value)>::from_value(value));
-
-            if k1 != &*k2 {
+            if !vm_try!(Value::partial_eq_with(v1, v2, caller)) {
                 return VmResult::Ok(false);
             }
-
-            if !vm_try!(Value::partial_eq_with(v1, &v2, caller)) {
-                return VmResult::Ok(false);
-            }
-        }
-
-        if vm_try!(b.next()).is_some() {
-            return VmResult::Ok(false);
         }
 
         VmResult::Ok(true)
     }
 
-    pub(crate) fn eq_with<P>(
+    pub(crate) fn eq_with(
         a: &Self,
         b: &Self,
-        eq: fn(&Value, &Value, &mut P) -> VmResult<bool>,
-        caller: &mut P,
-    ) -> VmResult<bool>
-    where
-        P: ProtocolCaller,
-    {
+        eq: fn(&Value, &Value, &mut dyn ProtocolCaller) -> VmResult<bool>,
+        caller: &mut dyn ProtocolCaller,
+    ) -> VmResult<bool> {
         if a.inner.len() != b.inner.len() {
             return VmResult::Ok(false);
         }
@@ -400,7 +409,7 @@ impl Object {
     pub(crate) fn partial_cmp_with(
         a: &Self,
         b: &Self,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<Option<Ordering>> {
         let mut b = b.inner.iter();
 
@@ -430,7 +439,7 @@ impl Object {
     pub(crate) fn cmp_with(
         a: &Self,
         b: &Self,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<Ordering> {
         let mut b = b.inner.iter();
 
@@ -526,5 +535,128 @@ impl fmt::Display for DebugStruct<'_> {
         }
 
         d.finish()
+    }
+}
+
+#[derive(Any)]
+#[rune(item = ::std::object, name = Iter)]
+pub struct RuneIter {
+    iter: RawIter<(String, Value)>,
+    _guard: RawRef,
+}
+
+impl RuneIter {
+    #[rune::function(instance, keep, protocol = NEXT)]
+    pub fn next(&mut self) -> Option<VmResult<(String, Value)>> {
+        unsafe {
+            let bucket = self.iter.next()?;
+            let (key, value) = bucket.as_ref();
+
+            let key = match key.try_clone() {
+                Ok(key) => key,
+                Err(err) => return Some(VmResult::err(err)),
+            };
+
+            Some(VmResult::Ok((key, value.clone())))
+        }
+    }
+
+    #[rune::function(instance, keep, protocol = SIZE_HINT)]
+    pub fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
+
+    #[rune::function(instance, keep, protocol = LEN)]
+    pub fn len(&self) -> usize {
+        self.iter.len()
+    }
+}
+
+impl iter::Iterator for RuneIter {
+    type Item = VmResult<(String, Value)>;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        RuneIter::next(self)
+    }
+}
+
+#[derive(Any)]
+#[rune(item = ::std::object, name = Keys)]
+pub struct RuneIterKeys {
+    iter: RawIter<(String, Value)>,
+    _guard: RawRef,
+}
+
+impl RuneIterKeys {
+    #[rune::function(instance, keep, protocol = NEXT)]
+    pub fn next(&mut self) -> Option<VmResult<String>> {
+        unsafe {
+            let bucket = self.iter.next()?;
+            let (key, _) = bucket.as_ref();
+
+            let key = match key.try_clone() {
+                Ok(key) => key,
+                Err(err) => return Some(VmResult::err(err)),
+            };
+
+            Some(VmResult::Ok(key))
+        }
+    }
+
+    #[rune::function(instance, keep, protocol = SIZE_HINT)]
+    pub fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
+
+    #[rune::function(instance, keep, protocol = LEN)]
+    pub fn len(&self) -> usize {
+        self.iter.len()
+    }
+}
+
+impl iter::Iterator for RuneIterKeys {
+    type Item = VmResult<String>;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        RuneIterKeys::next(self)
+    }
+}
+
+#[derive(Any)]
+#[rune(item = ::std::object, name = Values)]
+pub struct RuneValues {
+    iter: RawIter<(String, Value)>,
+    _guard: RawRef,
+}
+
+impl RuneValues {
+    #[rune::function(instance, keep, protocol = NEXT)]
+    pub fn next(&mut self) -> Option<VmResult<Value>> {
+        unsafe {
+            let bucket = self.iter.next()?;
+            let (_, value) = bucket.as_ref();
+            Some(VmResult::Ok(value.clone()))
+        }
+    }
+
+    #[rune::function(instance, keep, protocol = SIZE_HINT)]
+    pub fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
+
+    #[rune::function(instance, keep, protocol = LEN)]
+    pub fn len(&self) -> usize {
+        self.iter.len()
+    }
+}
+
+impl iter::Iterator for RuneValues {
+    type Item = VmResult<Value>;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        RuneValues::next(self)
     }
 }

@@ -1,8 +1,7 @@
 use crate::alloc::prelude::*;
-use crate::alloc::Vec;
 use crate::compile::meta;
-use crate::compile::{CompileVisitor, ItemBuf, MetaError, MetaRef};
-use crate::Hash;
+use crate::compile::{CompileVisitor, MetaError, MetaRef};
+use crate::{Hash, ItemBuf};
 
 /// Attribute to collect.
 #[derive(Debug, Clone, Copy)]

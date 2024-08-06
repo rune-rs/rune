@@ -41,7 +41,7 @@ impl WarningDiagnostic {
             | WarningDiagnosticKind::NotUsed { context, .. }
             | WarningDiagnosticKind::UsedDeprecated { context, .. }
             | WarningDiagnosticKind::TemplateWithoutExpansions { context, .. } => *context,
-            WarningDiagnosticKind::UnnecessarySemiColon { .. } => None,
+            _ => None,
         }
     }
 }
@@ -51,6 +51,7 @@ impl Spanned for WarningDiagnostic {
     fn span(&self) -> Span {
         match &self.kind {
             WarningDiagnosticKind::NotUsed { span, .. } => *span,
+            WarningDiagnosticKind::Unreachable { span, .. } => *span,
             WarningDiagnosticKind::LetPatternMightPanic { span, .. } => *span,
             WarningDiagnosticKind::TemplateWithoutExpansions { span, .. } => *span,
             WarningDiagnosticKind::RemoveTupleCallParams { span, .. } => *span,
@@ -80,13 +81,22 @@ cfg_std! {
 #[derive(Debug)]
 #[allow(missing_docs)]
 #[non_exhaustive]
-pub enum WarningDiagnosticKind {
+pub(crate) enum WarningDiagnosticKind {
     /// Item identified by the span is not used.
     NotUsed {
         /// The span that is not used.
         span: Span,
         /// The context in which the value was not used.
+        #[cfg_attr(not(feature = "emit"), allow(dead_code))]
         context: Option<Span>,
+    },
+    /// Unreachable code.
+    Unreachable {
+        /// The span that is not used.
+        span: Span,
+        /// The span which caused the code to be unreachable.
+        #[cfg_attr(not(feature = "emit"), allow(dead_code))]
+        cause: Span,
     },
     /// Warning that an unconditional let pattern will panic if it doesn't
     /// match.
@@ -94,6 +104,7 @@ pub enum WarningDiagnosticKind {
         /// The span of the pattern.
         span: Span,
         /// The context in which it is used.
+        #[cfg_attr(not(feature = "emit"), allow(dead_code))]
         context: Option<Span>,
     },
     /// Encountered a template string without an expansion.
@@ -101,6 +112,7 @@ pub enum WarningDiagnosticKind {
         /// Span that caused the error.
         span: Span,
         /// The context in which it is used.
+        #[cfg_attr(not(feature = "emit"), allow(dead_code))]
         context: Option<Span>,
     },
     /// Suggestion that call parameters could be removed.
@@ -108,8 +120,10 @@ pub enum WarningDiagnosticKind {
         /// The span of the call.
         span: Span,
         /// The span of the variant being built.
+        #[cfg_attr(not(feature = "emit"), allow(dead_code))]
         variant: Span,
         /// The context in which it is used.
+        #[cfg_attr(not(feature = "emit"), allow(dead_code))]
         context: Option<Span>,
     },
     /// An unecessary semi-colon is used.
@@ -121,8 +135,9 @@ pub enum WarningDiagnosticKind {
         /// The span which is deprecated
         span: Span,
         /// The context in which it is used.
+        #[cfg_attr(not(feature = "emit"), allow(dead_code))]
         context: Option<Span>,
-        /// The defined deprecation message
+        /// Deprecated message.
         message: String,
     },
 }
@@ -131,6 +146,7 @@ impl fmt::Display for WarningDiagnosticKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             WarningDiagnosticKind::NotUsed { .. } => write!(f, "Not used"),
+            WarningDiagnosticKind::Unreachable { .. } => write!(f, "Unreachable code"),
             WarningDiagnosticKind::LetPatternMightPanic { .. } => {
                 write!(f, "Pattern might panic")
             }
@@ -144,8 +160,8 @@ impl fmt::Display for WarningDiagnosticKind {
             WarningDiagnosticKind::UnnecessarySemiColon { .. } => {
                 write!(f, "Unnecessary semicolon")
             }
-            WarningDiagnosticKind::UsedDeprecated { .. } => {
-                write!(f, "Used deprecated function")
+            WarningDiagnosticKind::UsedDeprecated { message, .. } => {
+                write!(f, "Used deprecated function: {message}")
             }
         }
     }

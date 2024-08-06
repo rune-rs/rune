@@ -1,15 +1,13 @@
-pub fn main() {
-    let a = [1, 2, 3];
-    let b = '今';
-    let closure = || println("Hello");
-
-    dbg(a);
-    dbg(b);
-    dbg(function);
-    dbg(drop);
-    dbg(closure);
-}
-
 fn function() {
     42
 }
+
+let a = [1, 2, 3];
+let b = '今';
+let closure = || println!("Hello");
+
+dbg!(a);
+dbg!(b);
+dbg!(function);
+dbg!(drop);
+dbg!(closure);

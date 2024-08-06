@@ -8,7 +8,7 @@ use crate::compile::{self, WithSpan};
 use crate::macros::{quote, MacroContext, Quote, ToTokens, TokenStream};
 use crate::parse::{Parse, Parser, Peek, Peeker};
 use crate::runtime::format;
-use crate::runtime::ValueKind;
+use crate::runtime::{Inline, Mutable, OwnedValue};
 
 /// A format specification: A format string followed by arguments to be
 /// formatted in accordance with that string.
@@ -49,7 +49,9 @@ impl FormatArgs {
             }
         }
 
-        let ValueKind::String(format) = format.take_kind().with_span(&self.format)? else {
+        let format = format.take_value().with_span(&self.format)?;
+
+        let OwnedValue::Mutable(Mutable::String(format)) = format else {
             return Err(compile::Error::msg(
                 &self.format,
                 "format argument must be a string",
@@ -148,7 +150,7 @@ pub enum FormatArg {
 }
 
 impl Parse for FormatArg {
-    fn parse(p: &mut Parser) -> compile::Result<Self> {
+    fn parse(p: &mut Parser<'_>) -> compile::Result<Self> {
         Ok(if let (K![ident], K![=]) = (p.nth(0)?, p.nth(1)?) {
             FormatArg::Named(p.parse()?)
         } else {
@@ -578,8 +580,8 @@ fn expand_format_spec<'a>(
 
             let value = cx.eval(expr)?;
 
-            let number = match *value.borrow_kind_ref().with_span(expr)? {
-                ValueKind::Integer(n) => n.to_usize(),
+            let number = match value.as_inline().with_span(expr)? {
+                Some(Inline::Integer(n)) => n.to_usize(),
                 _ => None,
             };
 

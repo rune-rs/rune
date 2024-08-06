@@ -27,7 +27,8 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
-    - run: cargo run --bin rune -- fmt --experimental --recursive --verbose --check tools scripts
+    - run: cargo run --bin rune -- fmt --verbose --check
+    - run: cargo run --bin rune -- fmt --recursive scripts
 
   clippy:
     runs-on: ubuntu-latest
@@ -64,31 +65,27 @@ jobs:
     needs: basics
     steps:
     - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@1.76
+    - uses: dtolnay/rust-toolchain@1.79
     - uses: Swatinem/rust-cache@v2
     - run: cargo build
 
-  miri_rune:
+  miri:
     runs-on: ubuntu-latest
     needs: basics
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - crate: rune
+            target: "runtime:: hir::arena:: --skip runtime::vm:: --skip runtime::vm_execution::"
+          - crate: rune-alloc
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
       with:
         components: miri
     - uses: Swatinem/rust-cache@v2
-    - run: cargo miri test -p rune --all-features -- runtime hir::arena
-
-  miri_rune_alloc:
-    runs-on: ubuntu-latest
-    needs: basics
-    steps:
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@nightly
-      with:
-        components: miri
-    - uses: Swatinem/rust-cache@v2
-    - run: cargo miri test -p rune-alloc --all-features
+    - run: cargo miri test -p ${{matrix.crate}} --all-features -- ${{matrix.target}}
 
   nightly:
     runs-on: ubuntu-latest
@@ -119,12 +116,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        feature: [capture-io, "cli,doc", "cli,fmt", cli, workspace, languageserver, byte-code]
+        feature: [capture-io, "cli,doc", "cli,fmt", cli, workspace, languageserver, byte-code, emit]
+    env:
+      RUSTFLAGS: -D warnings
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
     - run: cargo build -p rune --no-default-features --features ${{matrix.feature}}
+    - run: cargo check --release -p rune --no-default-features --features ${{matrix.feature}}
 
   wasm:
     runs-on: ubuntu-latest
@@ -152,7 +152,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    needs: [no_default_features, build_feature, docs, msrv, miri_rune, miri_rune_alloc, no_std, wasm]
+    needs: [no_default_features, build_feature, docs, msrv, miri, no_std, wasm]
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
@@ -160,5 +160,6 @@ jobs:
     - run: cargo build -p rune --no-default-features --features alloc
     - run: cargo test --all-targets
     - run: cargo test --doc
-    - run: cargo run --bin rune -- check --recursive --experimental scripts
-    - run: cargo run --bin rune -- test --recursive --experimental scripts --opt include-std
+    - run: cargo run --bin rune -- check --recursive scripts
+    - run: cargo run --bin rune -- check --all-targets
+    - run: cargo run --bin rune -- test --all-targets -O test-std=true

@@ -1,8 +1,7 @@
-use core::fmt;
-
+use std::fmt;
 use std::io::Write;
+use std::path::PathBuf;
 
-use clap::Parser;
 use similar::{ChangeTag, TextDiff};
 
 use crate::alloc::prelude::*;
@@ -12,16 +11,28 @@ use crate::support::{Context, Result};
 use crate::termcolor::{Color, ColorSpec, WriteColor};
 use crate::{Diagnostics, Options, Source, Sources};
 
-#[derive(Parser, Debug)]
-pub(super) struct Flags {
-    /// Exit with a non-zero exit-code even for warnings
-    #[arg(long)]
-    warnings_are_errors: bool,
-    /// Perform format checking. If there's any files which needs to be changed
-    /// returns a non-successful exitcode.
-    #[arg(long)]
-    check: bool,
+mod cli {
+    use std::path::PathBuf;
+    use std::vec::Vec;
+
+    use clap::Parser;
+
+    #[derive(Parser, Debug)]
+    #[command(rename_all = "kebab-case")]
+    pub(crate) struct Flags {
+        /// Exit with a non-zero exit-code even for warnings
+        #[arg(long)]
+        pub(super) warnings_are_errors: bool,
+        /// Perform format checking. If there's any files which needs to be changed
+        /// returns a non-successful exitcode.
+        #[arg(long)]
+        pub(super) check: bool,
+        /// Explicit paths to format.
+        pub(super) fmt_path: Vec<PathBuf>,
+    }
 }
+
+pub(super) use cli::Flags;
 
 impl CommandBase for Flags {
     #[inline]
@@ -32,6 +43,12 @@ impl CommandBase for Flags {
     #[inline]
     fn describe(&self) -> &str {
         "Formatting"
+    }
+
+    /// Extra paths to run.
+    #[inline]
+    fn paths(&self) -> &[PathBuf] {
+        &self.fmt_path
     }
 }
 
@@ -49,16 +66,23 @@ where
 {
     let col = Colors::new();
 
-    let mut changed = 0;
-    let mut failed = 0;
-    let mut unchanged = 0;
-    let mut failed_builds = 0;
+    let mut changed = 0u32;
+    let mut failed = 0u32;
+    let mut unchanged = 0u32;
+    let mut failed_builds = 0u32;
 
     let context = shared.context(entry, c, None)?;
 
     let mut paths = BTreeSet::new();
 
     for e in entrys {
+        // NB: We don't have to build argument entries to discover all relevant
+        // modules.
+        if e.is_argument() {
+            paths.try_insert(e.path().try_to_owned()?)?;
+            continue;
+        }
+
         let mut diagnostics = if shared.warnings || flags.warnings_are_errors {
             Diagnostics::new()
         } else {
@@ -92,54 +116,65 @@ where
     }
 
     for path in paths {
-        let source = match Source::from_path(&path) {
+        let mut sources = Sources::new();
+
+        sources.insert(match Source::from_path(&path) {
             Ok(source) => source,
             Err(error) => return Err(error).context(path.display().try_to_string()?),
+        })?;
+
+        let mut diagnostics = Diagnostics::new();
+
+        let build = crate::fmt::prepare(&sources)
+            .with_options(options)
+            .with_diagnostics(&mut diagnostics);
+
+        let result = build.format();
+
+        if !diagnostics.is_empty() {
+            diagnostics.emit(io.stdout, &sources)?;
+        }
+
+        let Ok(formatted) = result else {
+            failed += 1;
+            continue;
         };
 
-        let val = match crate::fmt::layout_source(source.as_str()) {
-            Ok(val) => val,
-            Err(err) => {
-                failed += 1;
+        for (id, formatted) in formatted {
+            let Some(source) = sources.get(id) else {
+                continue;
+            };
+
+            let same = source.as_str() == formatted;
+
+            if same {
+                unchanged += 1;
 
                 if shared.verbose {
-                    io.stdout.set_color(&col.red)?;
-                    write!(io.stdout, "!! ")?;
+                    io.stdout.set_color(&col.green)?;
+                    write!(io.stdout, "== ")?;
                     io.stdout.reset()?;
-                    writeln!(io.stdout, "{}: {}", path.display(), err)?;
+                    writeln!(io.stdout, "{}", source.name())?;
                 }
 
                 continue;
             }
-        };
 
-        let same = source.as_str().as_bytes() == val;
+            changed += 1;
 
-        if same {
-            unchanged += 1;
-
-            if shared.verbose {
-                io.stdout.set_color(&col.green)?;
-                write!(io.stdout, "== ")?;
+            if shared.verbose || flags.check {
+                io.stdout.set_color(&col.yellow)?;
+                write!(io.stdout, "++ ")?;
                 io.stdout.reset()?;
-                writeln!(io.stdout, "{}", path.display())?;
+                writeln!(io.stdout, "{}", source.name())?;
+                diff(io, source.as_str(), &formatted, &col)?;
             }
 
-            continue;
-        }
-
-        changed += 1;
-
-        if shared.verbose || flags.check {
-            io.stdout.set_color(&col.yellow)?;
-            write!(io.stdout, "++ ")?;
-            io.stdout.reset()?;
-            writeln!(io.stdout, "{}", path.display())?;
-            diff(io, &source, &val, &col)?;
-        }
-
-        if !flags.check {
-            std::fs::write(path, &val)?;
+            if !flags.check {
+                if let Some(path) = source.path() {
+                    std::fs::write(path, &formatted)?;
+                }
+            }
         }
     }
 
@@ -157,14 +192,14 @@ where
         writeln!(io.stdout, " changed")?;
     }
 
-    if shared.verbose && failed > 0 {
+    if shared.verbose || failed > 0 {
         io.stdout.set_color(&col.red)?;
         write!(io.stdout, "{}", failed)?;
         io.stdout.reset()?;
         writeln!(io.stdout, " failed")?;
     }
 
-    if shared.verbose && failed_builds > 0 {
+    if shared.verbose || failed_builds > 0 {
         io.stdout.set_color(&col.red)?;
         write!(io.stdout, "{}", failed_builds)?;
         io.stdout.reset()?;
@@ -188,8 +223,8 @@ where
     Ok(ExitCode::Success)
 }
 
-fn diff(io: &mut Io, source: &Source, val: &[u8], col: &Colors) -> Result<(), anyhow::Error> {
-    let diff = TextDiff::from_lines(source.as_str().as_bytes(), val);
+fn diff(io: &mut Io, source: &str, val: &str, col: &Colors) -> Result<(), anyhow::Error> {
+    let diff = TextDiff::from_lines(source, val);
 
     for (idx, group) in diff.grouped_ops(3).iter().enumerate() {
         if idx > 0 {

@@ -10,7 +10,7 @@ be provided to it, and it will do its best to describe it.
 > **Note**: by convention Rune uses files ending in .rn.
 
 ```text
-$> cargo run --bin rune -- run scripts/book/getting_started/dbg.rn
+$> cargo run -- run scripts/book/getting_started/dbg.rn
 [1, 2, 3]
 '今'
 dynamic function (at: 0x1a)
@@ -36,7 +36,7 @@ So for a more formal introduction, here is the official Rune `"Hello World"`:
 ```
 
 ```text
-$> cargo run --bin rune -- run scripts/book/getting_started/hello_world.rn
+$> cargo run -- run scripts/book/getting_started/hello_world.rn
 Hello World
 ```
 

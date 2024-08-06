@@ -2,7 +2,10 @@
 
 use crate as rune;
 use crate::alloc::Vec;
-use crate::runtime::{Future, Mut, SelectFuture, Value, ValueKind, VmErrorKind, VmResult};
+use crate::runtime::{
+    Future, Inline, Mut, Mutable, SelectFuture, Value, ValueBorrowRef, ValueRef, VmErrorKind,
+    VmResult,
+};
 use crate::{ContextError, Module};
 
 /// Asynchronous computations.
@@ -25,10 +28,18 @@ where
     let mut results = vm_try!(Vec::try_with_capacity(len));
 
     for (index, value) in values.into_iter().enumerate() {
-        let value = vm_try!(value.clone().into_kind_mut());
+        let value = match vm_try!(value.value_ref()) {
+            ValueRef::Mutable(value) => vm_try!(value.clone().into_mut()),
+            ValueRef::Inline(actual) => {
+                return VmResult::err([
+                    VmErrorKind::expected::<Future>(actual.type_info()),
+                    VmErrorKind::bad_argument(index),
+                ]);
+            }
+        };
 
         let future = Mut::try_map(value, |kind| match kind {
-            ValueKind::Future(future) => Some(future),
+            Mutable::Future(future) => Some(future),
             _ => None,
         });
 
@@ -43,7 +54,7 @@ where
         };
 
         futures.push(SelectFuture::new(index, future));
-        vm_try!(results.try_push(vm_try!(Value::empty())));
+        vm_try!(results.try_push(Value::empty()));
     }
 
     while !futures.is_empty() {
@@ -84,20 +95,28 @@ where
 /// ```
 #[rune::function]
 async fn join(value: Value) -> VmResult<Value> {
-    match &*vm_try!(value.borrow_kind_ref()) {
-        ValueKind::EmptyTuple => VmResult::Ok(vm_try!(Value::empty())),
-        ValueKind::Tuple(tuple) => VmResult::Ok(vm_try!(
-            try_join_impl(tuple.iter(), tuple.len(), |vec| VmResult::Ok(vm_try!(
-                Value::tuple(vec)
-            )))
-            .await
-        )),
-        ValueKind::Vec(vec) => VmResult::Ok(vm_try!(
-            try_join_impl(vec.iter(), vec.len(), Value::vec).await
-        )),
-        _ => VmResult::err([
-            VmErrorKind::bad_argument(0),
-            VmErrorKind::expected::<crate::runtime::Vec>(vm_try!(value.type_info())),
-        ]),
+    match vm_try!(value.borrow_ref()) {
+        ValueBorrowRef::Inline(value) => match value {
+            Inline::Unit => VmResult::Ok(Value::unit()),
+            value => VmResult::err([
+                VmErrorKind::bad_argument(0),
+                VmErrorKind::expected::<crate::runtime::Vec>(value.type_info()),
+            ]),
+        },
+        ValueBorrowRef::Mutable(value) => match *value {
+            Mutable::Tuple(ref tuple) => VmResult::Ok(vm_try!(
+                try_join_impl(tuple.iter(), tuple.len(), |vec| VmResult::Ok(vm_try!(
+                    Value::tuple(vec)
+                )))
+                .await
+            )),
+            Mutable::Vec(ref vec) => VmResult::Ok(vm_try!(
+                try_join_impl(vec.iter(), vec.len(), Value::vec).await
+            )),
+            ref value => VmResult::err([
+                VmErrorKind::bad_argument(0),
+                VmErrorKind::expected::<crate::runtime::Vec>(value.type_info()),
+            ]),
+        },
     }
 }

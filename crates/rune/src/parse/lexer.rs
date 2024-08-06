@@ -20,6 +20,8 @@ pub struct Lexer<'a> {
     buffer: VecDeque<ast::Token>,
     /// If the lexer should try and lex a shebang.
     shebang: bool,
+    /// If we should synthesise doc attributes.
+    process: bool,
 }
 
 impl<'a> Lexer<'a> {
@@ -31,6 +33,16 @@ impl<'a> Lexer<'a> {
             modes: LexerModes::default(),
             buffer: VecDeque::new(),
             shebang,
+            process: true,
+        }
+    }
+
+    /// Disable docs synthesizing.
+    #[cfg(feature = "fmt")]
+    pub(crate) fn without_processing(self) -> Self {
+        Self {
+            process: false,
+            ..self
         }
     }
 
@@ -415,7 +427,9 @@ impl<'a> Lexer<'a> {
 
     /// Consume the entire line.
     fn consume_line(&mut self) {
-        while !matches!(self.iter.next(), Some('\n') | None) {}
+        while !matches!(self.iter.peek(), Some('\n') | None) {
+            self.iter.next();
+        }
     }
 
     /// Consume whitespace.
@@ -663,8 +677,10 @@ impl<'a> Lexer<'a> {
                         ('/', '/') => {
                             self.iter.next();
                             let (doc, inner) = self.check_doc_comment('/');
+
                             self.consume_line();
-                            if doc {
+
+                            if self.process && doc {
                                 // docstring span drops the first 3 characters (/// or //!)
                                 let span = self.iter.span_to_pos(start);
                                 self.emit_doc_attribute(inner, span, span.trim_start(3))?;
@@ -677,11 +693,12 @@ impl<'a> Lexer<'a> {
                             self.iter.next();
                             let (doc, inner) = self.check_doc_comment('*');
                             let term = self.consume_multiline_comment();
+
                             if !term {
                                 break ast::Kind::MultilineComment(false);
                             }
 
-                            if doc {
+                            if self.process && doc {
                                 // docstring span drops the first 3 characters (/** or /*!)
                                 // drop the last two characters to remove */
                                 let span = self.iter.span_to_pos(start);
@@ -839,30 +856,53 @@ impl<'a> Lexer<'a> {
                         );
                     }
                     '`' => {
-                        let span = self.iter.span_to_pos(start);
+                        if self.process {
+                            let span = self.iter.span_to_pos(start);
 
-                        self.buffer.try_push_back(ast::Token {
-                            kind: ast::Kind::Open(ast::Delimiter::Empty),
-                            span,
-                        })?;
+                            self.buffer.try_push_back(ast::Token {
+                                kind: ast::Kind::Open(ast::Delimiter::Empty),
+                                span,
+                            })?;
 
-                        self.emit_builtin_attribute(span)?;
+                            self.emit_builtin_attribute(span)?;
 
-                        self.buffer.try_push_back(ast::Token {
-                            kind: ast::Kind::Ident(ast::LitSource::BuiltIn(ast::BuiltIn::Template)),
-                            span,
-                        })?;
+                            self.buffer.try_push_back(ast::Token {
+                                kind: ast::Kind::Ident(ast::LitSource::BuiltIn(
+                                    ast::BuiltIn::Template,
+                                )),
+                                span,
+                            })?;
 
-                        self.buffer
-                            .try_push_back(ast::Token { kind: K![!], span })?;
+                            self.buffer
+                                .try_push_back(ast::Token { kind: K![!], span })?;
 
-                        self.buffer.try_push_back(ast::Token {
-                            kind: K!['('],
-                            span,
-                        })?;
+                            self.buffer.try_push_back(ast::Token {
+                                kind: K!['('],
+                                span,
+                            })?;
 
-                        self.modes.push(LexerMode::Template(0))?;
-                        continue 'outer;
+                            self.modes.push(LexerMode::Template(0))?;
+                            continue 'outer;
+                        }
+
+                        let mut level = 0u32;
+
+                        while let Some(c) = self.iter.next() {
+                            let n = match c {
+                                '{' => 1i32,
+                                '}' => -1i32,
+                                '\\' => {
+                                    _ = self.next();
+                                    continue;
+                                }
+                                '`' if level == 0 => break,
+                                _ => 0,
+                            };
+
+                            level = level.wrapping_add_signed(n);
+                        }
+
+                        ast::Kind::TemplateString
                     }
                     '\'' => {
                         return self.next_char_or_label(start);
@@ -1263,27 +1303,26 @@ mod tests {
     #[test]
     fn test_doc_strings() {
         test_lexer! {
-            "//! inner\n\
-             /// \"quoted\"",
+            "//! inner\n/// \"quoted\"",
             ast::Token {
                 kind: K![#],
-                span: span!(0, 10)
+                span: span!(0, 9)
             },
             ast::Token {
                 kind: K![!],
-                span: span!(0, 10)
+                span: span!(0, 9)
             },
             ast::Token {
                 kind: K!['['],
-                span: span!(0, 10)
+                span: span!(0, 9)
             },
             ast::Token {
                 kind: ast::Kind::Ident(ast::LitSource::BuiltIn(ast::BuiltIn::Doc)),
-                span: span!(0, 10)
+                span: span!(0, 9)
             },
             ast::Token {
                 kind: K![=],
-                span: span!(0, 10)
+                span: span!(0, 9)
             },
             ast::Token {
                 kind: ast::Kind::Str(ast::StrSource::Text(ast::StrText {
@@ -1291,11 +1330,15 @@ mod tests {
                     escaped: false,
                     wrapped: false,
                 })),
-                span: span!(3, 10)
+                span: span!(3, 9)
             },
             ast::Token {
                 kind: K![']'],
-                span: span!(0, 10)
+                span: span!(0, 9)
+            },
+            ast::Token {
+                kind: ast::Kind::Whitespace,
+                span: span!(9, 10)
             },
             ast::Token {
                 kind: K![#],
@@ -1415,7 +1458,11 @@ mod tests {
             ***********************************/",
             ast::Token {
                 kind: ast::Kind::Comment,
-                span: span!(0, 36)
+                span: span!(0, 35)
+            },
+            ast::Token {
+                kind: ast::Kind::Whitespace,
+                span: span!(35, 36)
             },
             ast::Token {
                 kind: ast::Kind::MultilineComment(true),

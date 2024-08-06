@@ -1,0 +1,35 @@
+//! Test that async streams work.
+
+async fn foo(n) {
+    yield n;
+    yield n + 1;
+    yield n + 2;
+}
+
+/// Select over two async streams and ensure that the expected numerical value
+//matches.
+#[test]
+async fn select_streams() {
+    let count = 0;
+    let sum = 0;
+
+    let a = foo(1);
+    let b = foo(5);
+
+    for _ in 0..7 {
+        let value = select {
+            Some(value) = a.next() => value,
+            Some(value) = b.next() => value,
+        };
+
+        if let () = value {
+            break;
+        }
+
+        count += 1;
+        sum += value;
+    }
+
+    assert_eq!(count, 6);
+    assert_eq!(sum, 1 + 2 + 3 + 5 + 6 + 7);
+}

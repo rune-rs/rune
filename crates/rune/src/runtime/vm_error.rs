@@ -7,120 +7,13 @@ use ::rust_alloc::sync::Arc;
 use crate::alloc::error::CustomError;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
-use crate::compile::ItemBuf;
-use crate::hash::Hash;
+use crate::compile::meta;
 use crate::runtime::unit::{BadInstruction, BadJump};
 use crate::runtime::{
-    AccessError, AccessErrorKind, BoxedPanic, CallFrame, ExecutionState, FullTypeOf, MaybeTypeOf,
-    Panic, Protocol, StackError, TypeInfo, TypeOf, Unit, Vm, VmHaltInfo,
+    AccessError, AccessErrorKind, BoxedPanic, CallFrame, DynArgsUsed, ExecutionState, MaybeTypeOf,
+    Panic, Protocol, SliceError, StackError, TypeInfo, TypeOf, Unit, Vm, VmHaltInfo,
 };
-
-/// Trait used to convert result types to [`VmResult`].
-#[doc(hidden)]
-pub trait TryFromResult {
-    /// The ok type produced by the conversion.
-    type Ok;
-
-    /// The conversion method itself.
-    fn try_from_result(value: Self) -> VmResult<Self::Ok>;
-}
-
-/// Helper to coerce one result type into [`VmResult`].
-///
-/// Despite being public, this is actually private API (`#[doc(hidden)]`). Use
-/// at your own risk.
-#[doc(hidden)]
-pub fn try_result<T>(result: T) -> VmResult<T::Ok>
-where
-    T: TryFromResult,
-{
-    T::try_from_result(result)
-}
-
-impl<T> TryFromResult for VmResult<T> {
-    type Ok = T;
-
-    #[inline]
-    fn try_from_result(value: Self) -> VmResult<T> {
-        value
-    }
-}
-
-impl<T, E> TryFromResult for Result<T, E>
-where
-    VmErrorKind: From<E>,
-{
-    type Ok = T;
-
-    #[inline]
-    fn try_from_result(value: Self) -> VmResult<T> {
-        match value {
-            Ok(ok) => VmResult::Ok(ok),
-            Err(err) => VmResult::err(err),
-        }
-    }
-}
-
-impl<T> TryFromResult for Result<T, VmError> {
-    type Ok = T;
-
-    #[inline]
-    fn try_from_result(value: Self) -> VmResult<T> {
-        match value {
-            Ok(ok) => VmResult::Ok(ok),
-            Err(err) => VmResult::Err(err),
-        }
-    }
-}
-
-/// A single unit producing errors.
-#[derive(Debug)]
-#[non_exhaustive]
-pub struct VmErrorLocation {
-    /// Associated unit.
-    pub unit: Arc<Unit>,
-    /// Frozen instruction pointer.
-    pub ip: usize,
-    /// All lower call frames before the unwind trigger point
-    pub frames: ::rust_alloc::vec::Vec<CallFrame>,
-}
-
-#[derive(Debug)]
-#[non_exhaustive]
-pub struct VmErrorAt {
-    /// Index into the backtrace which contains information of what caused this error.
-    #[cfg(feature = "emit")]
-    index: usize,
-    /// The kind of error.
-    kind: VmErrorKind,
-}
-
-impl VmErrorAt {
-    /// Get the instruction which caused the error.
-    #[cfg(feature = "emit")]
-    pub(crate) fn index(&self) -> usize {
-        self.index
-    }
-
-    #[cfg(feature = "emit")]
-    pub(crate) fn kind(&self) -> &VmErrorKind {
-        &self.kind
-    }
-}
-
-impl fmt::Display for VmErrorAt {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.kind.fmt(f)
-    }
-}
-
-#[non_exhaustive]
-pub(crate) struct VmErrorInner {
-    pub(crate) error: VmErrorAt,
-    pub(crate) chain: ::rust_alloc::vec::Vec<VmErrorAt>,
-    pub(crate) stacktrace: ::rust_alloc::vec::Vec<VmErrorLocation>,
-}
+use crate::{Hash, ItemBuf};
 
 /// A virtual machine error which includes tracing information.
 pub struct VmError {
@@ -207,6 +100,108 @@ impl fmt::Debug for VmError {
 
 cfg_std! {
     impl std::error::Error for VmError {}
+}
+
+pub mod sealed {
+    use crate::runtime::VmResult;
+    pub trait Sealed {}
+    impl<T> Sealed for VmResult<T> {}
+    impl<T, E> Sealed for Result<T, E> {}
+}
+
+/// Trait used to convert result types to [`VmResult`].
+#[doc(hidden)]
+pub trait TryFromResult: self::sealed::Sealed {
+    /// The ok type produced by the conversion.
+    type Ok;
+
+    /// The conversion method itself.
+    fn try_from_result(value: Self) -> VmResult<Self::Ok>;
+}
+
+/// Helper to coerce one result type into [`VmResult`].
+///
+/// Despite being public, this is actually private API (`#[doc(hidden)]`). Use
+/// at your own risk.
+#[doc(hidden)]
+pub fn try_result<T>(result: T) -> VmResult<T::Ok>
+where
+    T: TryFromResult,
+{
+    T::try_from_result(result)
+}
+
+impl<T> TryFromResult for VmResult<T> {
+    type Ok = T;
+
+    #[inline]
+    fn try_from_result(value: Self) -> VmResult<T> {
+        value
+    }
+}
+
+impl<T, E> TryFromResult for Result<T, E>
+where
+    VmError: From<E>,
+{
+    type Ok = T;
+
+    #[inline]
+    fn try_from_result(value: Self) -> VmResult<T> {
+        match value {
+            Ok(ok) => VmResult::Ok(ok),
+            Err(err) => VmResult::Err(VmError::from(err)),
+        }
+    }
+}
+
+/// A single unit producing errors.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct VmErrorLocation {
+    /// Associated unit.
+    pub unit: Arc<Unit>,
+    /// Frozen instruction pointer.
+    pub ip: usize,
+    /// All lower call frames before the unwind trigger point
+    pub frames: ::rust_alloc::vec::Vec<CallFrame>,
+}
+
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct VmErrorAt {
+    /// Index into the backtrace which contains information of what caused this error.
+    #[cfg(feature = "emit")]
+    index: usize,
+    /// The kind of error.
+    kind: VmErrorKind,
+}
+
+impl VmErrorAt {
+    /// Get the instruction which caused the error.
+    #[cfg(feature = "emit")]
+    pub(crate) fn index(&self) -> usize {
+        self.index
+    }
+
+    #[cfg(feature = "emit")]
+    pub(crate) fn kind(&self) -> &VmErrorKind {
+        &self.kind
+    }
+}
+
+impl fmt::Display for VmErrorAt {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.kind.fmt(f)
+    }
+}
+
+#[non_exhaustive]
+pub(crate) struct VmErrorInner {
+    pub(crate) error: VmErrorAt,
+    pub(crate) chain: ::rust_alloc::vec::Vec<VmErrorAt>,
+    pub(crate) stacktrace: ::rust_alloc::vec::Vec<VmErrorLocation>,
 }
 
 /// A result produced by the virtual machine.
@@ -375,7 +370,7 @@ where
     T: MaybeTypeOf,
 {
     #[inline]
-    fn maybe_type_of() -> Option<FullTypeOf> {
+    fn maybe_type_of() -> alloc::Result<meta::DocType> {
         T::maybe_type_of()
     }
 }
@@ -521,28 +516,7 @@ impl fmt::Display for RuntimeError {
 }
 
 cfg_std! {
-    impl std::error::Error for RuntimeError {
-        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-            match &self.error {
-                VmErrorKind::AllocError {
-                    error,
-                } => Some(error),
-                VmErrorKind::AccessError {
-                    error,
-                } => Some(error),
-                VmErrorKind::StackError {
-                    error,
-                } => Some(error),
-                VmErrorKind::BadInstruction {
-                    error,
-                } => Some(error),
-                VmErrorKind::BadJump {
-                    error,
-                } => Some(error),
-                _ => None,
-            }
-        }
-    }
+    impl std::error::Error for RuntimeError {}
 }
 
 /// The kind of error encountered.
@@ -559,11 +533,17 @@ pub(crate) enum VmErrorKind {
     StackError {
         error: StackError,
     },
+    SliceError {
+        error: SliceError,
+    },
     BadInstruction {
         error: BadInstruction,
     },
     BadJump {
         error: BadJump,
+    },
+    DynArgsUsed {
+        error: DynArgsUsed,
     },
     Panic {
         reason: Panic,
@@ -724,7 +704,9 @@ pub(crate) enum VmErrorKind {
     },
     MissingInterfaceEnvironment,
     ExpectedExecutionState {
-        expected: ExecutionState,
+        actual: ExecutionState,
+    },
+    ExpectedExitedExecutionState {
         actual: ExecutionState,
     },
     GeneratorComplete,
@@ -768,16 +750,12 @@ impl fmt::Display for VmErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             VmErrorKind::AllocError { error } => error.fmt(f),
-            VmErrorKind::AccessError { error } => {
-                write!(f, "{error}")
-            }
-            VmErrorKind::StackError { error } => write!(f, "{error}"),
-            VmErrorKind::BadInstruction { error } => {
-                write!(f, "{error}")
-            }
-            VmErrorKind::BadJump { error } => {
-                write!(f, "{error}")
-            }
+            VmErrorKind::AccessError { error } => error.fmt(f),
+            VmErrorKind::StackError { error } => error.fmt(f),
+            VmErrorKind::SliceError { error } => error.fmt(f),
+            VmErrorKind::BadInstruction { error } => error.fmt(f),
+            VmErrorKind::BadJump { error } => error.fmt(f),
+            VmErrorKind::DynArgsUsed { error } => error.fmt(f),
             VmErrorKind::Panic { reason } => write!(f, "Panicked: {reason}"),
             VmErrorKind::NoRunningVm {} => write!(f, "No running virtual machines"),
             VmErrorKind::Halted { halt } => write!(f, "Halted for unexpected reason `{halt}`"),
@@ -785,22 +763,22 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::Underflow {} => write!(f, "Numerical underflow"),
             VmErrorKind::DivideByZero {} => write!(f, "Division by zero"),
             VmErrorKind::MissingEntry { item, hash } => {
-                write!(f, "Missing entry `{item}` with hash `{hash}`",)
+                write!(f, "Missing entry `{item}` with hash `{hash}`")
             }
             VmErrorKind::MissingEntryHash { hash } => {
-                write!(f, "Missing entry with hash `{hash}`",)
+                write!(f, "Missing entry with hash `{hash}`")
             }
             VmErrorKind::MissingFunction { hash } => {
-                write!(f, "Missing function with hash `{hash}`",)
+                write!(f, "Missing function with hash `{hash}`")
             }
             VmErrorKind::MissingContextFunction { hash } => {
-                write!(f, "Missing context function with hash `{hash}`",)
+                write!(f, "Missing context function with hash `{hash}`")
             }
             VmErrorKind::MissingProtocolFunction { protocol, instance } => {
-                write!(f, "Missing protocol function `{protocol}` for `{instance}`",)
+                write!(f, "Missing protocol function `{protocol}` for `{instance}`")
             }
             VmErrorKind::MissingInstanceFunction { hash, instance } => {
-                write!(f, "Missing instance function `{hash}` for `{instance}`",)
+                write!(f, "Missing instance function `{hash}` for `{instance}`")
             }
             VmErrorKind::IpOutOfBounds { ip, length } => write!(
                 f,
@@ -813,20 +791,20 @@ impl fmt::Display for VmErrorKind {
                 )
             }
             VmErrorKind::UnsupportedUnaryOperation { op, operand } => {
-                write!(f, "Unsupported unary operation `{op}` on {operand}",)
+                write!(f, "Unsupported unary operation `{op}` on {operand}")
             }
             VmErrorKind::MissingStaticString { slot } => {
-                write!(f, "Static string slot `{slot}` does not exist",)
+                write!(f, "Static string slot `{slot}` does not exist")
             }
             VmErrorKind::MissingStaticObjectKeys { slot } => {
-                write!(f, "Static object keys slot `{slot}` does not exist",)
+                write!(f, "Static object keys slot `{slot}` does not exist")
             }
             VmErrorKind::MissingVariantRtti { hash } => write!(
                 f,
                 "Missing runtime information for variant with hash `{hash}`",
             ),
             VmErrorKind::MissingRtti { hash } => {
-                write!(f, "Missing runtime information for type with hash `{hash}`",)
+                write!(f, "Missing runtime information for type with hash `{hash}`")
             }
             VmErrorKind::BadArgumentCount { actual, expected } => write!(
                 f,
@@ -858,40 +836,40 @@ impl fmt::Display for VmErrorKind {
                 "The tuple index set operation is not supported on `{target}`",
             ),
             VmErrorKind::UnsupportedObjectSlotIndexGet { target } => {
-                write!(f, "Field not available to get on `{target}`",)
+                write!(f, "Field not available to get on `{target}`")
             }
             VmErrorKind::UnsupportedObjectSlotIndexSet { target } => {
-                write!(f, "Field not available to set on `{target}`",)
+                write!(f, "Field not available to set on `{target}`")
             }
             VmErrorKind::UnsupportedIs { value, test_type } => {
-                write!(f, "Operation `{value} is {test_type}` is not supported",)
+                write!(f, "Operation `{value} is {test_type}` is not supported")
             }
             VmErrorKind::UnsupportedAs { value, type_hash } => {
-                write!(f, "Operation `{value} as {type_hash}` is not supported",)
+                write!(f, "Operation `{value} as {type_hash}` is not supported")
             }
             VmErrorKind::UnsupportedCallFn { actual } => write!(
                 f,
                 "Type `{actual}` cannot be called since it's not a function",
             ),
             VmErrorKind::ObjectIndexMissing { slot } => {
-                write!(f, "Missing index by static string slot `{slot}`",)
+                write!(f, "Missing index by static string slot `{slot}`")
             }
             VmErrorKind::MissingIndex { target } => {
-                write!(f, "Type `{target}` missing index",)
+                write!(f, "Type `{target}` missing index")
             }
             VmErrorKind::MissingIndexInteger { target, index } => {
-                write!(f, "Type `{target}` missing integer index `{index}`",)
+                write!(f, "Type `{target}` missing integer index `{index}`")
             }
             #[cfg(feature = "alloc")]
             VmErrorKind::MissingIndexKey { target } => {
-                write!(f, "Type `{target}` missing index",)
+                write!(f, "Type `{target}` missing index")
             }
             VmErrorKind::OutOfRange { index, length } => write!(
                 f,
                 "Index out of bounds, the length is `{length}` but the index is `{index}`",
             ),
             VmErrorKind::UnsupportedTryOperand { actual } => {
-                write!(f, "Type `{actual}` is not supported as try operand",)
+                write!(f, "Type `{actual}` is not supported as try operand")
             }
             VmErrorKind::UnsupportedIterRangeInclusive { start, end } => {
                 write!(f, "Cannot build an iterator out of {start}..={end}")
@@ -903,32 +881,35 @@ impl fmt::Display for VmErrorKind {
                 write!(f, "Cannot build an iterator out of {start}..{end}")
             }
             VmErrorKind::UnsupportedIterNextOperand { actual } => {
-                write!(f, "Type `{actual}` is not supported as iter-next operand",)
+                write!(f, "Type `{actual}` is not supported as iter-next operand")
             }
             VmErrorKind::Expected { expected, actual } => {
-                write!(f, "Expected type `{expected}` but found `{actual}`",)
+                write!(f, "Expected type `{expected}` but found `{actual}`")
             }
             VmErrorKind::ExpectedAny { actual } => {
-                write!(f, "Expected `Any` type, but found `{actual}`",)
+                write!(f, "Expected `Any` type, but found `{actual}`")
             }
             VmErrorKind::ValueToIntegerCoercionError { from, to } => {
-                write!(f, "Failed to convert value `{from}` to integer `{to}`",)
+                write!(f, "Failed to convert value `{from}` to integer `{to}`")
             }
             VmErrorKind::IntegerToValueCoercionError { from, to } => {
-                write!(f, "Failed to convert integer `{from}` to value `{to}`",)
+                write!(f, "Failed to convert integer `{from}` to value `{to}`")
             }
             VmErrorKind::ExpectedTupleLength { actual, expected } => write!(
                 f,
                 "Expected a tuple of length `{expected}`, but found one with length `{actual}`",
             ),
             VmErrorKind::ConstNotSupported { actual } => {
-                write!(f, "Type `{actual}` can't be converted to a constant value",)
+                write!(f, "Type `{actual}` can't be converted to a constant value")
             }
             VmErrorKind::MissingInterfaceEnvironment {} => {
                 write!(f, "Missing interface environment")
             }
-            VmErrorKind::ExpectedExecutionState { expected, actual } => {
-                write!(f, "Expected execution to be {expected}, but was {actual}",)
+            VmErrorKind::ExpectedExecutionState { actual } => {
+                write!(f, "Expected resume execution state, but was {actual}")
+            }
+            VmErrorKind::ExpectedExitedExecutionState { actual } => {
+                write!(f, "Expected exited execution state, but was {actual}")
             }
             VmErrorKind::GeneratorComplete {} => {
                 write!(f, "Cannot resume a generator that has completed")
@@ -936,7 +917,7 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::FutureCompleted {} => write!(f, "Future already completed"),
             VmErrorKind::MissingVariant { name } => write!(f, "No variant matching `{name}`"),
             VmErrorKind::MissingField { target, field } => {
-                write!(f, "Missing field `{field}` on `{target}`",)
+                write!(f, "Missing field `{field}` on `{target}`")
             }
             VmErrorKind::MissingVariantName {} => {
                 write!(f, "missing variant name in runtime information")
@@ -950,7 +931,7 @@ impl fmt::Display for VmErrorKind {
                 "missing dynamic index #{index} in tuple struct `{target}`",
             ),
             VmErrorKind::ExpectedVariant { actual } => {
-                write!(f, "Expected an enum variant, but got `{actual}`",)
+                write!(f, "Expected an enum variant, but got `{actual}`")
             }
             VmErrorKind::UnsupportedObjectFieldGet { target } => write!(
                 f,
@@ -964,7 +945,7 @@ impl fmt::Display for VmErrorKind {
             }
             #[cfg(feature = "alloc")]
             VmErrorKind::IllegalFloatOperation { value } => {
-                write!(f, "Cannot perform operation on float `{value}`",)
+                write!(f, "Cannot perform operation on float `{value}`")
             }
             VmErrorKind::MissingCallFrame => {
                 write!(f, "Missing call frame for internal vm call")
@@ -977,44 +958,58 @@ impl fmt::Display for VmErrorKind {
 }
 
 impl From<RuntimeError> for VmErrorKind {
-    #[inline(always)]
+    #[inline]
     fn from(value: RuntimeError) -> Self {
         value.into_vm_error_kind()
     }
 }
 
 impl From<Infallible> for VmErrorKind {
-    #[inline(always)]
+    #[inline]
     fn from(error: Infallible) -> Self {
         match error {}
     }
 }
 
 impl From<AccessError> for VmErrorKind {
-    #[allow(deprecated)]
+    #[inline]
     fn from(error: AccessError) -> Self {
         VmErrorKind::AccessError { error }
     }
 }
 
 impl From<StackError> for VmErrorKind {
-    #[allow(deprecated)]
+    #[inline]
     fn from(error: StackError) -> Self {
         VmErrorKind::StackError { error }
     }
 }
 
+impl From<SliceError> for VmErrorKind {
+    #[inline]
+    fn from(error: SliceError) -> Self {
+        VmErrorKind::SliceError { error }
+    }
+}
+
 impl From<BadInstruction> for VmErrorKind {
-    #[allow(deprecated)]
+    #[inline]
     fn from(error: BadInstruction) -> Self {
         VmErrorKind::BadInstruction { error }
     }
 }
 
 impl From<BadJump> for VmErrorKind {
-    #[allow(deprecated)]
+    #[inline]
     fn from(error: BadJump) -> Self {
         VmErrorKind::BadJump { error }
+    }
+}
+
+impl From<DynArgsUsed> for VmErrorKind {
+    #[inline]
+    fn from(error: DynArgsUsed) -> Self {
+        VmErrorKind::DynArgsUsed { error }
     }
 }
 

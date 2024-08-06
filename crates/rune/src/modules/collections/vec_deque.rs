@@ -6,47 +6,54 @@ use crate::alloc;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::runtime::{
-    EnvProtocolCaller, Formatter, Iterator, Protocol, ProtocolCaller, RawRef, Ref, Value,
+    EnvProtocolCaller, Formatter, Iterator, Protocol, ProtocolCaller, RawRef, Ref, Value, Vec,
     VmErrorKind, VmResult,
 };
 use crate::{Any, ContextError, Module};
 
-pub(super) fn setup(m: &mut Module) -> Result<(), ContextError> {
-    m.ty::<VecDeque>()?.docs([
-        "A double-ended queue implemented with a growable ring buffer.",
-        "",
-        "The \"default\" usage of this type as a queue is to use [`push_back`] to add to",
-        "the queue, and [`pop_front`] to remove from the queue. [`extend`] and [`append`]",
-        "push onto the back in this manner, and iterating over `VecDeque` goes front",
-        "to back.",
-        "",
-        "A `VecDeque` with a known list of items can be initialized from an array:",
-        "",
-        "```rune",
-        "use std::collections::VecDeque;",
-        "",
-        "let deq = VecDeque::from([-1, 0, 1]);",
-        "```",
-        "",
-        "[`push_back`]: VecDeque::push_back",
-        "[`pop_front`]: VecDeque::pop_front",
-        "[`extend`]: VecDeque::extend",
-        "[`append`]: VecDeque::append",
-    ])?;
+/// A dynamic vec deque.
+#[rune::module(::std::collections::vec_deque)]
+pub fn module() -> Result<Module, ContextError> {
+    let mut m = Module::from_meta(self::module_meta)?;
+
+    m.ty::<VecDeque>()?.docs(docstring! {
+        /// A double-ended queue implemented with a growable ring buffer.
+        ///
+        /// The "default" usage of this type as a queue is to use [`push_back`]
+        /// to add to the queue, and [`pop_front`] to remove from the queue.
+        /// [`extend`] and [`append`] push onto the back in this manner, and
+        /// iterating over `VecDeque` goes front to back.
+        ///
+        /// A `VecDeque` with a known list of items can be initialized from an
+        /// array:
+        ///
+        /// ```rune
+        /// use std::collections::VecDeque;
+        ///
+        /// let deq = VecDeque::from::<Vec>([-1, 0, 1]);
+        /// ```
+        ///
+        /// [`push_back`]: VecDeque::push_back
+        /// [`pop_front`]: VecDeque::pop_front
+        /// [`extend`]: VecDeque::extend
+        /// [`append`]: VecDeque::append
+    })?;
 
     m.function_meta(VecDeque::new)?;
-    m.function_meta(VecDeque::with_capacity)?;
+    m.function_meta(VecDeque::with_capacity__meta)?;
     m.function_meta(from)?;
 
     m.function_meta(VecDeque::extend)?;
     m.function_meta(VecDeque::insert)?;
-    m.function_meta(VecDeque::iter)?;
+    m.function_meta(VecDeque::iter__meta)?;
+    m.function_meta(VecDeque::into_iter__meta)?;
+    m.function_meta(VecDeque::from_iter__meta)?;
     m.function_meta(VecDeque::reserve)?;
     m.function_meta(VecDeque::len)?;
     m.function_meta(VecDeque::capacity)?;
     m.function_meta(VecDeque::front)?;
     m.function_meta(VecDeque::back)?;
-    m.function_meta(VecDeque::push_back)?;
+    m.function_meta(VecDeque::push_back__meta)?;
     m.function_meta(VecDeque::push_front)?;
     m.function_meta(VecDeque::pop_front)?;
     m.function_meta(VecDeque::pop_back)?;
@@ -56,17 +63,37 @@ pub(super) fn setup(m: &mut Module) -> Result<(), ContextError> {
 
     m.associated_function(Protocol::INDEX_GET, VecDeque::get)?;
     m.associated_function(Protocol::INDEX_SET, VecDeque::set)?;
-    m.associated_function(Protocol::INTO_ITER, VecDeque::__rune_fn__iter)?;
+
     m.function_meta(VecDeque::string_debug)?;
-    m.function_meta(VecDeque::partial_eq)?;
-    m.function_meta(VecDeque::eq)?;
-    m.function_meta(VecDeque::partial_cmp)?;
-    m.function_meta(VecDeque::cmp)?;
-    Ok(())
+
+    m.function_meta(VecDeque::partial_eq__meta)?;
+    m.implement_trait::<VecDeque>(rune::item!(::std::cmp::PartialEq))?;
+
+    m.function_meta(VecDeque::eq__meta)?;
+    m.implement_trait::<VecDeque>(rune::item!(::std::cmp::Eq))?;
+
+    m.function_meta(VecDeque::partial_cmp__meta)?;
+    m.implement_trait::<VecDeque>(rune::item!(::std::cmp::PartialOrd))?;
+
+    m.function_meta(VecDeque::cmp__meta)?;
+    m.implement_trait::<VecDeque>(rune::item!(::std::cmp::Ord))?;
+
+    m.ty::<Iter>()?;
+    m.function_meta(Iter::next__meta)?;
+    m.function_meta(Iter::size_hint__meta)?;
+    m.implement_trait::<Iter>(rune::item!(::std::iter::Iterator))?;
+
+    m.function_meta(Iter::next_back__meta)?;
+    m.implement_trait::<Iter>(rune::item!(::std::iter::DoubleEndedIterator))?;
+
+    m.function_meta(Iter::len__meta)?;
+    m.implement_trait::<Iter>(rune::item!(::std::iter::ExactSizeIterator))?;
+
+    Ok(m)
 }
 
 #[derive(Any, Default)]
-#[rune(module = crate, item = ::std::collections)]
+#[rune(module = crate, item = ::std::collections::vec_deque)]
 pub(crate) struct VecDeque {
     inner: alloc::VecDeque<Value>,
 }
@@ -98,8 +125,8 @@ impl VecDeque {
     /// let deque = VecDeque::with_capacity(10);
     /// assert!(deque.capacity() >= 10);
     /// ```
-    #[rune::function(path = Self::with_capacity)]
-    fn with_capacity(count: usize) -> VmResult<VecDeque> {
+    #[rune::function(keep, path = Self::with_capacity)]
+    pub(crate) fn with_capacity(count: usize) -> VmResult<VecDeque> {
         VmResult::Ok(Self {
             inner: vm_try!(alloc::VecDeque::try_with_capacity(count)),
         })
@@ -182,8 +209,8 @@ impl VecDeque {
     /// buf.push_back(3);
     /// assert_eq!(Some(3), buf.back());
     /// ```
-    #[rune::function]
-    fn push_back(&mut self, value: Value) -> VmResult<()> {
+    #[rune::function(keep)]
+    pub(crate) fn push_back(&mut self, value: Value) -> VmResult<()> {
         vm_try!(self.inner.try_push_back(value));
         VmResult::Ok(())
     }
@@ -259,7 +286,7 @@ impl VecDeque {
     /// ```rune
     /// use std::collections::VecDeque;
     ///
-    /// let buf = VecDeque::from([1]);
+    /// let buf = VecDeque::from::<Vec>([1]);
     /// buf.reserve(10);
     /// assert!(buf.capacity() >= 11);
     /// ```
@@ -282,7 +309,7 @@ impl VecDeque {
     /// assert_eq!(deque.len(), 1);
     /// ```
     #[rune::function]
-    fn len(&mut self) -> usize {
+    fn len(&self) -> usize {
         self.inner.len()
     }
 
@@ -471,40 +498,39 @@ impl VecDeque {
     /// assert_eq!([4, 3, 5], buf.iter().rev());
     /// ```
     #[inline]
-    #[rune::function(instance, path = Self::iter)]
-    fn iter(this: Ref<Self>) -> Iterator {
-        struct Iter {
-            iter: alloc::vec_deque::RawIter<Value>,
-            // Drop must happen after the raw iterator.
-            _guard: RawRef,
-        }
-
-        impl iter::Iterator for Iter {
-            type Item = Value;
-
-            #[inline]
-            fn next(&mut self) -> Option<Self::Item> {
-                // SAFETY: We're holding onto the reference guard.
-                unsafe { Some((*self.iter.next()?).clone()) }
-            }
-        }
-
-        impl iter::DoubleEndedIterator for Iter {
-            fn next_back(&mut self) -> Option<Self::Item> {
-                // SAFETY: We're holding onto the reference guard.
-                unsafe { Some((*self.iter.next_back()?).clone()) }
-            }
-        }
-
+    #[rune::function(keep, instance, path = Self::iter)]
+    fn iter(this: Ref<Self>) -> Iter {
         // SAFETY: We're holding onto the reference guard.
         let iter = unsafe { this.inner.raw_iter() };
         let (_, _guard) = Ref::into_raw(this);
-        let iter = Iter { iter, _guard };
-        Iterator::from_double_ended("std::collections::vec_deque::Iter", iter)
+        Iter { iter, _guard }
     }
 
-    pub(crate) fn from_iter(mut it: Iterator) -> VmResult<Self> {
-        let mut inner = vm_try!(alloc::VecDeque::try_with_capacity(it.size_hint().0,));
+    #[rune::function(keep, instance, protocol = INTO_ITER, path = Self)]
+    fn into_iter(this: Ref<Self>) -> Iter {
+        Self::iter(this)
+    }
+
+    /// Build a [`VecDeque`] from an iterator.
+    ///
+    /// The hashmap can be converted from anything that implements the
+    /// [`INTO_ITER`] protocol, and each item produces should be a tuple pair.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// use std::collections::VecDeque;
+    ///
+    /// let deque = VecDeque::from_iter(["a", "b", "c"]);
+    /// assert_eq!(deque.len(), 3);
+    /// assert_eq!(deque.pop_front(), Some("a"));
+    /// assert_eq!(deque.pop_back(), Some("c"));
+    /// assert_eq!(deque.len(), 1);
+    /// ```
+    #[rune::function(keep, path = Self::from_iter)]
+    fn from_iter(mut it: Iterator) -> VmResult<Self> {
+        let (lo, _) = vm_try!(it.size_hint());
+        let mut inner = vm_try!(alloc::VecDeque::try_with_capacity(lo));
 
         while let Some(value) = vm_try!(it.next()) {
             vm_try!(inner.try_push_back(value));
@@ -546,7 +572,7 @@ impl VecDeque {
     /// ```rune
     /// use std::collections::VecDeque;
     ///
-    /// let deque = VecDeque::from([1, 2, 3]);
+    /// let deque = VecDeque::from::<Vec>([1, 2, 3]);
     /// assert_eq!(format!("{:?}", deque), "[1, 2, 3]");
     /// ```
     #[rune::function(protocol = STRING_DEBUG)]
@@ -558,7 +584,7 @@ impl VecDeque {
     fn string_debug_with(
         &self,
         f: &mut Formatter,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
         let mut it = self.inner.iter().peekable();
 
@@ -586,18 +612,18 @@ impl VecDeque {
     /// ```rune
     /// use std::collections::VecDeque;
     ///
-    /// let deque = VecDeque::from([1, 2, 3]);
+    /// let deque = VecDeque::from::<Vec>([1, 2, 3]);
     ///
     /// assert!(deque == [1, 2, 3]);
     /// assert!(deque == (1..=3));
     /// assert!(deque != [2, 3, 4]);
     /// ```
-    #[rune::function(protocol = PARTIAL_EQ)]
+    #[rune::function(keep, protocol = PARTIAL_EQ)]
     fn partial_eq(&self, b: Value) -> VmResult<bool> {
         self.partial_eq_with(b, &mut EnvProtocolCaller)
     }
 
-    fn partial_eq_with(&self, b: Value, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
+    fn partial_eq_with(&self, b: Value, caller: &mut dyn ProtocolCaller) -> VmResult<bool> {
         let mut b = vm_try!(b.into_iter_with(caller));
 
         for a in &self.inner {
@@ -625,17 +651,17 @@ impl VecDeque {
     /// use std::collections::VecDeque;
     /// use std::ops::eq;
     ///
-    /// let deque = VecDeque::from([1, 2, 3]);
+    /// let deque = VecDeque::from::<Vec>([1, 2, 3]);
     ///
-    /// assert!(eq(deque, VecDeque::from([1, 2, 3])));
-    /// assert!(!eq(deque, VecDeque::from([2, 3, 4])));
+    /// assert!(eq(deque, VecDeque::from::<Vec>([1, 2, 3])));
+    /// assert!(!eq(deque, VecDeque::from::<Vec>([2, 3, 4])));
     /// ```
-    #[rune::function(protocol = EQ)]
+    #[rune::function(keep, protocol = EQ)]
     fn eq(&self, b: &VecDeque) -> VmResult<bool> {
         self.eq_with(b, &mut EnvProtocolCaller)
     }
 
-    fn eq_with(&self, b: &VecDeque, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
+    fn eq_with(&self, b: &VecDeque, caller: &mut dyn ProtocolCaller) -> VmResult<bool> {
         let mut b = b.inner.iter();
 
         for a in &self.inner {
@@ -662,12 +688,12 @@ impl VecDeque {
     /// ```rune
     /// use std::collections::VecDeque;
     ///
-    /// let deque = VecDeque::from([1, 2, 3]);
+    /// let deque = VecDeque::from::<Vec>([1, 2, 3]);
     ///
-    /// assert!(deque > VecDeque::from([0, 2, 3]));
-    /// assert!(deque < VecDeque::from([2, 2, 3]));
+    /// assert!(deque > VecDeque::from::<Vec>([0, 2, 3]));
+    /// assert!(deque < VecDeque::from::<Vec>([2, 2, 3]));
     /// ```
-    #[rune::function(protocol = PARTIAL_CMP)]
+    #[rune::function(keep, protocol = PARTIAL_CMP)]
     fn partial_cmp(&self, b: &VecDeque) -> VmResult<Option<Ordering>> {
         self.partial_cmp_with(b, &mut EnvProtocolCaller)
     }
@@ -675,7 +701,7 @@ impl VecDeque {
     fn partial_cmp_with(
         &self,
         b: &VecDeque,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<Option<Ordering>> {
         let mut b = b.inner.iter();
 
@@ -706,17 +732,17 @@ impl VecDeque {
     /// use std::cmp::Ordering;
     /// use std::ops::cmp;
     ///
-    /// let deque = VecDeque::from([1, 2, 3]);
+    /// let deque = VecDeque::from::<Vec>([1, 2, 3]);
     ///
-    /// assert_eq!(cmp(deque, VecDeque::from([0, 2, 3])), Ordering::Greater);
-    /// assert_eq!(cmp(deque, VecDeque::from([2, 2, 3])), Ordering::Less);
+    /// assert_eq!(cmp(deque, VecDeque::from::<Vec>([0, 2, 3])), Ordering::Greater);
+    /// assert_eq!(cmp(deque, VecDeque::from::<Vec>([2, 2, 3])), Ordering::Less);
     /// ```
-    #[rune::function(protocol = CMP)]
+    #[rune::function(keep, protocol = CMP)]
     fn cmp(&self, b: &VecDeque) -> VmResult<Ordering> {
         self.cmp_with(b, &mut EnvProtocolCaller)
     }
 
-    fn cmp_with(&self, other: &VecDeque, caller: &mut impl ProtocolCaller) -> VmResult<Ordering> {
+    fn cmp_with(&self, other: &VecDeque, caller: &mut dyn ProtocolCaller) -> VmResult<Ordering> {
         let mut b = other.inner.iter();
 
         for a in self.inner.iter() {
@@ -738,6 +764,14 @@ impl VecDeque {
     }
 }
 
+impl From<Vec> for VecDeque {
+    fn from(value: Vec) -> Self {
+        Self {
+            inner: alloc::VecDeque::from(value.into_inner()),
+        }
+    }
+}
+
 impl TryClone for VecDeque {
     #[inline]
     fn try_clone(&self) -> alloc::Result<Self> {
@@ -752,16 +786,65 @@ impl TryClone for VecDeque {
     }
 }
 
-/// Construct a [`VecDeque`] from a value.
+/// Construct a [`VecDeque`] from a [`Vec`].
+///
+/// This is a cheap conversion.
 ///
 /// # Examples
 ///
 /// ```rune
 /// use std::collections::VecDeque;
 ///
-/// let buf = VecDeque::from([1, 2, 3]);
+/// let buf = VecDeque::from::<Vec>([1, 2, 3]);
 /// ```
-#[rune::function(free, path = VecDeque::from)]
-fn from(value: Value) -> VmResult<VecDeque> {
-    VecDeque::from_iter(vm_try!(value.into_iter()))
+#[rune::function(free, path = VecDeque::from::<Vec>)]
+fn from(vec: Vec) -> VmResult<VecDeque> {
+    VmResult::Ok(VecDeque::from(vec))
+}
+
+#[derive(Any)]
+#[rune(item = ::std::collections::vec_deque)]
+pub(crate) struct Iter {
+    iter: alloc::vec_deque::RawIter<Value>,
+    // Drop must happen after the raw iterator.
+    _guard: RawRef,
+}
+
+impl Iter {
+    #[rune::function(keep, protocol = NEXT)]
+    fn next(&mut self) -> Option<Value> {
+        // SAFETY: We're holding onto the reference guard.
+        unsafe { Some((*self.iter.next()?).clone()) }
+    }
+
+    #[rune::function(keep, protocol = SIZE_HINT)]
+    fn size_hint(self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
+
+    #[rune::function(keep, protocol = LEN)]
+    fn len(self) -> usize {
+        self.iter.len()
+    }
+
+    #[rune::function(keep, protocol = NEXT_BACK)]
+    fn next_back(&mut self) -> Option<Value> {
+        // SAFETY: We're holding onto the reference guard.
+        unsafe { Some((*self.iter.next_back()?).clone()) }
+    }
+}
+
+impl iter::Iterator for Iter {
+    type Item = Value;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        Iter::next(self)
+    }
+}
+
+impl iter::DoubleEndedIterator for Iter {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        Iter::next_back(self)
+    }
 }

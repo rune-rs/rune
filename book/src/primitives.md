@@ -23,7 +23,7 @@ variable, because a separate copy of the value will be used automatically.
 ```
 
 ```text
-$> cargo run --bin rune -- run scripts/book/primitives/copy.rn
+$> cargo run -- run scripts/book/primitives/copy.rn
 2
 1
 ```
@@ -37,7 +37,7 @@ same underlying data.
 ```
 
 ```text
-$> cargo run --bin rune -- run scripts/book/primitives/primitives.rn
+$> cargo run -- run scripts/book/primitives/primitives.rn
 Hello World
 Hello World
 ```

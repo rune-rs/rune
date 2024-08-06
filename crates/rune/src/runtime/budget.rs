@@ -72,8 +72,9 @@ pub struct Budget<T> {
 ///
 /// // Limit the given closure to run one instruction and allocate 1024 bytes.
 /// let f = budget::with(1, limit::with(1024, || {
-///     assert!(budget::take());
-///     assert!(!budget::take());
+///     let mut budget = budget::acquire();
+///     assert!(budget.take());
+///     assert!(!budget.take());
 ///     assert!(Vec::<u8>::try_with_capacity(1).is_ok());
 ///     assert!(Vec::<u8>::try_with_capacity(1024).is_ok());
 ///     assert!(Vec::<u8>::try_with_capacity(1025).is_err());
@@ -87,15 +88,37 @@ pub fn with<T>(budget: usize, value: T) -> Budget<T> {
     Budget { budget, value }
 }
 
-/// Take a ticket from the budget, returning `true` if we were still within the
-/// budget before the ticket was taken, `false` otherwise.
+/// Acquire the current budget.
+///
+/// Use [`BudgetGuard::take`] to take permites from the returned budget.
 #[inline(never)]
-pub fn take() -> bool {
-    self::no_std::rune_budget_take()
+pub fn acquire() -> BudgetGuard {
+    BudgetGuard(self::no_std::rune_budget_replace(usize::MAX))
 }
 
+/// A locally acquired budget.
+///
+/// This guard is acquired by calling [`take`] and can be used to take permits.
+///
+/// [`take`]: BudgetGuard::take
 #[repr(transparent)]
-struct BudgetGuard(usize);
+pub struct BudgetGuard(usize);
+
+impl BudgetGuard {
+    /// Take a ticker from the budget.
+    pub fn take(&mut self) -> bool {
+        if self.0 == usize::MAX {
+            return true;
+        }
+
+        if self.0 == 0 {
+            return false;
+        }
+
+        self.0 -= 1;
+        true
+    }
+}
 
 impl Drop for BudgetGuard {
     fn drop(&mut self) {

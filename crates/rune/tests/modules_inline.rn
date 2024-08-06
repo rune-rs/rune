@@ -1,0 +1,16 @@
+mod foo {
+    pub fn number() {
+        1
+    }
+}
+
+mod bar {
+    pub fn number() {
+        2
+    }
+}
+
+#[test]
+fn inline_modules() {
+    assert_eq!(foo::number() + bar::number(), 3);
+}

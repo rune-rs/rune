@@ -3,8 +3,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::ExprObject>("Foo {\"foo\": 42}");
     rt::<ast::ExprObject>("#{\"foo\": 42}");
     rt::<ast::ExprObject>("#{\"foo\": 42,}");
@@ -55,7 +53,7 @@ pub enum ObjectIdent {
 }
 
 impl Parse for ObjectIdent {
-    fn parse(p: &mut Parser) -> Result<Self> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         Ok(match p.nth(0)? {
             K![#] => Self::Anonymous(p.parse()?),
             _ => Self::Named(p.parse()?),
@@ -75,7 +73,7 @@ pub struct FieldAssign {
 }
 
 impl Parse for FieldAssign {
-    fn parse(p: &mut Parser) -> Result<Self> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         let key = p.parse()?;
 
         let assign = if p.peek::<T![:]>()? {
@@ -101,7 +99,7 @@ pub enum ObjectKey {
 }
 
 impl Parse for ObjectKey {
-    fn parse(p: &mut Parser) -> Result<Self> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         Ok(match p.nth(0)? {
             K![str] => Self::LitStr(p.parse()?),
             K![ident] => Self::Path(p.parse()?),

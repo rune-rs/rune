@@ -40,7 +40,7 @@ use crate::Any;
 /// # Ok::<_, rune::support::Error>(())
 /// ```
 #[derive(Any, Clone, TryClone)]
-#[rune(builtin, constructor, static_type = RANGE_TO_INCLUSIVE_TYPE)]
+#[rune(builtin, constructor, static_type = RANGE_TO_INCLUSIVE)]
 #[rune(from_value = Value::into_range_to_inclusive, from_value_ref = Value::into_range_to_inclusive_ref, from_value_mut = Value::into_range_to_inclusive_mut)]
 pub struct RangeToInclusive {
     /// The end value of the range.
@@ -76,7 +76,7 @@ impl RangeToInclusive {
     pub(crate) fn partial_eq_with(
         &self,
         b: &Self,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<bool> {
         Value::partial_eq_with(&self.end, &b.end, caller)
     }
@@ -97,7 +97,7 @@ impl RangeToInclusive {
         self.eq_with(other, &mut EnvProtocolCaller)
     }
 
-    pub(crate) fn eq_with(&self, b: &Self, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
+    pub(crate) fn eq_with(&self, b: &Self, caller: &mut dyn ProtocolCaller) -> VmResult<bool> {
         Value::eq_with(&self.end, &b.end, caller)
     }
 
@@ -119,7 +119,7 @@ impl RangeToInclusive {
     pub(crate) fn partial_cmp_with(
         &self,
         b: &Self,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<Option<Ordering>> {
         Value::partial_cmp_with(&self.end, &b.end, caller)
     }
@@ -140,11 +140,7 @@ impl RangeToInclusive {
         self.cmp_with(other, &mut EnvProtocolCaller)
     }
 
-    pub(crate) fn cmp_with(
-        &self,
-        b: &Self,
-        caller: &mut impl ProtocolCaller,
-    ) -> VmResult<Ordering> {
+    pub(crate) fn cmp_with(&self, b: &Self, caller: &mut dyn ProtocolCaller) -> VmResult<Ordering> {
         Value::cmp_with(&self.end, &b.end, caller)
     }
 
@@ -172,7 +168,7 @@ impl RangeToInclusive {
     pub(crate) fn contains_with(
         &self,
         value: Value,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<bool> {
         VmResult::Ok(matches!(
             vm_try!(Value::partial_cmp_with(&self.end, &value, caller)),

@@ -12,7 +12,7 @@ struct.
 ```
 
 ```text
-$> cargo run --bin rune -- run scripts/book/structs/user_database.rn
+$> cargo run -- run scripts/book/structs/user_database.rn
 setbac is inactive
 setbac is active
 ```
@@ -27,7 +27,7 @@ ensure that you're only using fields which are defined.
 ```
 
 ```text
-$> cargo run --bin rune -- run scripts/book/structs/struct_matching.rn
+$> cargo run -- run scripts/book/structs/struct_matching.rn
 Yep, it's setbac.
 Other user: newt.
 ```

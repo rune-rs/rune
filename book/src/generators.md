@@ -14,7 +14,7 @@ numbers.
 ```
 
 ```text
-$> cargo run --bin rune -- run scripts/book/generators/fib_generator.rn
+$> cargo run -- run scripts/book/generators/fib_generator.rn
 0
 1
 1
@@ -44,7 +44,7 @@ allowing the calling procedure to send values to the generator.
 ```
 
 ```text
-$> cargo run --bin rune -- run scripts/book/generators/send_values.rn
+$> cargo run -- run scripts/book/generators/send_values.rn
 "John"
 (1, 2, 3)
 ```
@@ -61,7 +61,7 @@ instrumenting our code a little.
 ```
 
 ```text
-$> cargo run --bin rune -- run scripts/book/generators/bootup.rn
+$> cargo run -- run scripts/book/generators/bootup.rn
 firing off the printer...
 waiting for value...
 ready to go!
@@ -83,7 +83,7 @@ possible states a generator can suspend itself into.
 ```
 
 ```text
-$> cargo run --bin rune -- run scripts/book/generators/states.rn
+$> cargo run -- run scripts/book/generators/states.rn
 Yielded(1)
 "John"
 Complete(2)
@@ -103,7 +103,7 @@ error.
 ```
 
 ```text
-$> cargo run --bin rune -- run scripts/book/generators/error.rn
+$> cargo run -- run scripts/book/generators/error.rn
 Generator { completed: false }
 Yielded(1)
 Complete("John")
@@ -111,6 +111,6 @@ Generator { completed: true }
 error: virtual machine error
    ┌─ scripts/book/generators/error.rn:11:9
    │
-11 │     dbg(printer.resume(()));
-   │         ^^^^^^^^^^^^^^^^^^ cannot resume a generator that has completed
+11 │     dbg!(printer.resume(()));
+   │          ^^^^^^^^^^^^^^^^^^ cannot resume a generator that has completed
 ```

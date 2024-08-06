@@ -45,7 +45,7 @@ fn from_i64(value: i64) -> VmResult<Option<Value>> {
             return VmResult::Ok(None);
         };
 
-        VmResult::Ok(Some(vm_try!(Value::try_from(c))))
+        VmResult::Ok(Some(Value::from(c)))
     }
 }
 
@@ -58,8 +58,8 @@ fn from_i64(value: i64) -> VmResult<Option<Value>> {
 /// assert_eq!(c.to_i64(), 80);
 /// ```
 #[rune::function(instance)]
-fn to_i64(value: char) -> VmResult<Value> {
-    VmResult::Ok(vm_try!(Value::try_from(value as i64)))
+fn to_i64(value: char) -> VmResult<i64> {
+    VmResult::Ok(value as i64)
 }
 
 /// Returns `true` if this `char` has the `Alphabetic` property.

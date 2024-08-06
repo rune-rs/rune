@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::ExprFieldAccess>("foo.bar");
     rt::<ast::ExprFieldAccess>("foo.bar::<A, B>");
     rt::<ast::ExprFieldAccess>("foo.0.bar");

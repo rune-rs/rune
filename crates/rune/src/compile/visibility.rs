@@ -1,12 +1,13 @@
 use core::fmt;
 
-use crate::compile::Item;
+use crate::Item;
 
 /// Information on the visibility of an item.
-#[derive(Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy)]
 #[non_exhaustive]
 pub enum Visibility {
     /// Inherited, or private visibility.
+    #[default]
     Inherited,
     /// Something that is publicly visible `pub`.
     Public,
@@ -42,12 +43,6 @@ impl Visibility {
             Visibility::Public => true,
             Visibility::Crate => true,
         }
-    }
-}
-
-impl Default for Visibility {
-    fn default() -> Self {
-        Self::Inherited
     }
 }
 

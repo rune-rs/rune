@@ -1,13 +1,11 @@
-pub fn main() {
-    let counter = 0;
+let counter = 0;
 
-    let total = loop {
-        counter = counter + 1;
+let total = loop {
+    counter = counter + 1;
 
-        if counter > 10 {
-            break counter;
-        }
-    };
+    if counter > 10 {
+        break counter;
+    }
+};
 
-    println!("The final count is: {}", total);
-}
+println!("The final count is: {}", total);

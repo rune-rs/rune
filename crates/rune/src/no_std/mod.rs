@@ -110,19 +110,6 @@ macro_rules! __static_env {
             }
 
             #[no_mangle]
-            extern "C" fn __rune_budget_take() -> bool {
-                // SAFETY: this is only ever executed in a singlethreaded environment.
-                unsafe {
-                    if BUDGET == usize::MAX {
-                        return true;
-                    } else {
-                        BUDGET = BUDGET.saturating_sub(1);
-                        BUDGET != 0
-                    }
-                }
-            }
-
-            #[no_mangle]
             extern "C" fn __rune_budget_replace(value: usize) -> usize {
                 // SAFETY: this is only ever executed in a singlethreaded environment.
                 unsafe { core::ptr::replace(core::ptr::addr_of_mut!(BUDGET), value) }

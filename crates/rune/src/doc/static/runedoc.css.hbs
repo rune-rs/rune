@@ -5,6 +5,7 @@
     --link-color: #d2991d;
     --headings-border-bottom-color: #d2d2d2;
     --type-link-color: #2dbfb8;
+    --any-color: #c03bca;
     --fn-link-color: #2bab63;
     --method-link-color: #2bab63;
     --macro-link-color: #09bd00;
@@ -265,6 +266,10 @@ a {
     color: var(--type-link-color);
 }
 
+.trait {
+    color: var(--type-link-color);
+}
+
 .fn {
     color: var(--fn-link-color);
 }
@@ -285,6 +290,10 @@ a {
     color: var(--fn-link-color);
 }
 
+.any {
+    color: var(--any-color);
+}
+
 .item-title {
     font-size: 1.2rem;
     line-height: 1.25;
@@ -296,4 +305,8 @@ a {
 .docs h1, .docs h2, .docs h3, .docs h4, .docs h5, .docs h6 {
     font-size: 1.2rem;
     color: var(--link-color);
+}
+
+.attribute {
+    color: var(--text-color);
 }

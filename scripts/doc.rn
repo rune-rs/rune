@@ -14,8 +14,7 @@ mod module {
     //! Interior comment 2.
 
     /// Bar documentation.
-    struct Bar {
-    }
+    struct Bar {}
 }
 
 mod foo {

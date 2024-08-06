@@ -152,7 +152,7 @@ impl Token {
 }
 
 impl Parse for Token {
-    fn parse(p: &mut Parser) -> compile::Result<Self> {
+    fn parse(p: &mut Parser<'_>) -> compile::Result<Self> {
         p.next()
     }
 }

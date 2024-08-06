@@ -161,11 +161,12 @@ pub trait Equivalent<K: ?Sized> {
     fn equivalent(&self, key: &K) -> bool;
 }
 
-impl<Q: ?Sized, K: ?Sized> Equivalent<K> for Q
+impl<Q, K> Equivalent<K> for Q
 where
-    Q: Eq,
-    K: core::borrow::Borrow<Q>,
+    Q: ?Sized + Eq,
+    K: ?Sized + core::borrow::Borrow<Q>,
 {
+    #[inline]
     fn equivalent(&self, key: &K) -> bool {
         self == key.borrow()
     }

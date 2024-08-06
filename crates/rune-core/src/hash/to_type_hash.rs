@@ -1,8 +1,9 @@
-use core::hash::{self, Hash as _, Hasher as _};
+use core::hash::{Hash as _, Hasher as _};
 
 #[cfg(feature = "alloc")]
 use crate::alloc;
-use crate::hash::{Hash, TYPE};
+use crate::hash::Hash;
+use crate::hash::TYPE;
 use crate::item::{IntoComponent, ItemBuf};
 
 /// Helper trait used to convert a type into a type hash.
@@ -18,23 +19,28 @@ pub trait ToTypeHash {
     #[doc(hidden)]
     #[cfg(feature = "alloc")]
     fn to_item(&self) -> alloc::Result<Option<ItemBuf>>;
-
-    /// Hash the current value in-place.
-    #[doc(hidden)]
-    fn hash_type<H>(&self, hasher: &mut H)
-    where
-        H: hash::Hasher;
 }
 
 impl<I> ToTypeHash for I
 where
-    I: Copy + IntoIterator,
-    I::Item: IntoComponent,
+    I: Copy + IntoIterator<Item: IntoComponent>,
 {
     #[inline]
     fn to_type_hash(&self) -> Hash {
+        let mut it = self.into_iter();
+
+        let Some(first) = it.next() else {
+            return Hash::EMPTY;
+        };
+
         let mut hasher = Hash::new_hasher();
-        self.hash_type(&mut hasher);
+
+        TYPE.hash(&mut hasher);
+
+        for c in [first].into_iter().chain(it) {
+            c.hash_component(&mut hasher);
+        }
+
         Hash::new(hasher.finish())
     }
 
@@ -42,18 +48,6 @@ where
     #[cfg(feature = "alloc")]
     fn to_item(&self) -> alloc::Result<Option<ItemBuf>> {
         Ok(Some(ItemBuf::with_item(*self)?))
-    }
-
-    #[inline]
-    fn hash_type<H>(&self, hasher: &mut H)
-    where
-        H: hash::Hasher,
-    {
-        TYPE.hash(hasher);
-
-        for c in *self {
-            c.hash_component(hasher);
-        }
     }
 }
 
@@ -67,13 +61,5 @@ impl ToTypeHash for Hash {
     #[cfg(feature = "alloc")]
     fn to_item(&self) -> alloc::Result<Option<ItemBuf>> {
         Ok(None)
-    }
-
-    #[inline]
-    fn hash_type<H>(&self, hasher: &mut H)
-    where
-        H: hash::Hasher,
-    {
-        self.hash(hasher);
     }
 }

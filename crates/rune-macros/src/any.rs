@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned, ToTokens};
-use rune_core::Hash;
+use rune_core::hash::Hash;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::Token;
@@ -44,8 +44,9 @@ impl InternalCall {
 
         let mut item = self.item.clone();
         item.segments.push(syn::PathSegment::from(name.clone()));
+        let args = crate::hash::Arguments::new(item);
 
-        let type_hash = match crate::hash::build_type_hash(&item) {
+        let type_hash = match crate::hash::build_type_hash(&args) {
             Ok(type_hash) => type_hash,
             Err(error) => {
                 cx.error(error);
@@ -105,8 +106,9 @@ impl Derive {
         };
 
         item.segments.push(syn::PathSegment::from(name.clone()));
+        let args = crate::hash::Arguments::new(item);
 
-        let type_hash = match crate::hash::build_type_hash(&item) {
+        let type_hash = match crate::hash::build_type_hash(&args) {
             Ok(type_hash) => type_hash,
             Err(error) => {
                 cx.error(error);
@@ -501,34 +503,36 @@ where
         } = self;
 
         let Tokens {
+            alloc,
+            any_type_info,
             any,
+            box_,
             context_error,
+            core_type_of,
+            from_value,
             hash,
+            install_with,
+            maybe_type_of,
+            meta,
             module,
+            mut_,
             named,
+            non_null,
             pointer_guard,
             raw_into_mut,
             raw_into_ref,
+            raw_mut,
+            raw_ref,
             raw_str,
+            ref_,
+            static_type_mod,
             type_info,
-            any_type_info,
             type_of,
-            maybe_type_of,
-            full_type_of,
-            unsafe_to_value,
-            unsafe_to_ref,
             unsafe_to_mut,
+            unsafe_to_ref,
+            unsafe_to_value,
             value,
             vm_result,
-            install_with,
-            non_null,
-            box_,
-            static_type_mod,
-            from_value,
-            raw_ref,
-            raw_mut,
-            mut_,
-            ref_,
             vm_try,
             ..
         } = &tokens;
@@ -572,20 +576,31 @@ where
         };
 
         let impl_type_of = if attr.builtin.is_none() {
+            let type_hash = type_hash.into_inner();
+
+            let make_hash = if !generic_names.is_empty() {
+                quote!(#hash::new_with_type_parameters(#type_hash, #hash::parameters([#(<#generic_names as #core_type_of>::type_hash()),*])))
+            } else {
+                quote!(#hash::new(#type_hash))
+            };
+
             let type_parameters = if !generic_names.is_empty() {
-                quote!(#hash::parameters([#(<#generic_names as #type_of>::type_hash()),*]))
+                quote!(#hash::parameters([#(<#generic_names as #core_type_of>::type_hash()),*]))
             } else {
                 quote!(#hash::EMPTY)
             };
 
             Some(quote! {
                 #[automatically_derived]
-                impl #impl_generics #type_of for #ident #type_generics #where_clause {
+                impl #impl_generics #core_type_of for #ident #type_generics #where_clause {
                     #[inline]
                     fn type_hash() -> #hash {
-                        <Self as #any>::type_hash()
+                        #make_hash
                     }
+                }
 
+                #[automatically_derived]
+                impl #impl_generics #type_of for #ident #type_generics #where_clause {
                     #[inline]
                     fn type_parameters() -> #hash {
                         #type_parameters
@@ -595,7 +610,7 @@ where
                     fn type_info() -> #type_info {
                         #type_info::Any(#any_type_info::__private_new(
                             #raw_str::from_str(core::any::type_name::<Self>()),
-                            <Self as #type_of>::type_hash(),
+                            <Self as #core_type_of>::type_hash(),
                         ))
                     }
                 }
@@ -603,20 +618,26 @@ where
                 #[automatically_derived]
                 impl #impl_generics #maybe_type_of for #ident #type_generics #where_clause {
                     #[inline]
-                    fn maybe_type_of() -> Option<#full_type_of> {
-                        Some(<Self as #type_of>::type_of())
+                    fn maybe_type_of() -> #alloc::Result<#meta::DocType> {
+                        #meta::DocType::with_generics(
+                            <Self as #core_type_of>::type_hash(),
+                            [#(<#generic_names as #maybe_type_of>::maybe_type_of()?),*]
+                        )
                     }
                 }
             })
         } else if let Some(ty) = attr.static_type {
             Some(quote! {
                 #[automatically_derived]
-                impl #impl_generics #type_of for #ident #type_generics #where_clause {
+                impl #impl_generics #core_type_of for #ident #type_generics #where_clause {
                     #[inline]
                     fn type_hash() -> #hash {
                         #static_type_mod::#ty.hash
                     }
+                }
 
+                #[automatically_derived]
+                impl #impl_generics #type_of for #ident #type_generics #where_clause {
                     #[inline]
                     fn type_info() -> #type_info {
                         #type_info::StaticType(#static_type_mod::#ty)
@@ -626,8 +647,11 @@ where
                 #[automatically_derived]
                 impl #impl_generics #maybe_type_of for #ident #type_generics #where_clause {
                     #[inline]
-                    fn maybe_type_of() -> Option<#full_type_of> {
-                        Some(<Self as #type_of>::type_of())
+                    fn maybe_type_of() -> #alloc::Result<#meta::DocType> {
+                        #meta::DocType::with_generics(
+                            <Self as #core_type_of>::type_hash(),
+                            [#(<#generic_names as #maybe_type_of>::maybe_type_of()),*]
+                        )
                     }
                 }
             })
@@ -636,20 +660,9 @@ where
         };
 
         let any = if attr.builtin.is_none() {
-            let type_hash = type_hash.into_inner();
-
-            let make_hash = if !generic_names.is_empty() {
-                quote!(#hash::new_with_type_parameters(#type_hash, #hash::parameters([#(<#generic_names as #type_of>::type_hash()),*])))
-            } else {
-                quote!(#hash::new(#type_hash))
-            };
-
             Some(quote! {
                 #[automatically_derived]
                 impl #impl_generics #any for #ident #type_generics #where_clause {
-                    fn type_hash() -> #hash {
-                        #make_hash
-                    }
                 }
 
                 #[automatically_derived]

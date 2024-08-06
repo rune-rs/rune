@@ -12,7 +12,7 @@ vars = ['A', 'B', 'C', 'D', 'E']
 this = pathlib.Path(__file__)
 
 name = this.parts[-1]
-out = this.parent.parent.joinpath("crates/rune/src/module/function_traits/macros.rs")
+out = this.parent.parent.joinpath("crates/rune/src/function/macros.rs")
 
 with out.open(mode = 'bw') as fd:
     def pr(text):

@@ -5,7 +5,7 @@
 //! <a href="https://docs.rs/rune"><img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-rune-66c2a5?style=for-the-badge&logoColor=white&logo=data:image/svg+xml;base64,PHN2ZyByb2xlPSJpbWciIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveD0iMCAwIDUxMiA1MTIiPjxwYXRoIGZpbGw9IiNmNWY1ZjUiIGQ9Ik00ODguNiAyNTAuMkwzOTIgMjE0VjEwNS41YzAtMTUtOS4zLTI4LjQtMjMuNC0zMy43bC0xMDAtMzcuNWMtOC4xLTMuMS0xNy4xLTMuMS0yNS4zIDBsLTEwMCAzNy41Yy0xNC4xIDUuMy0yMy40IDE4LjctMjMuNCAzMy43VjIxNGwtOTYuNiAzNi4yQzkuMyAyNTUuNSAwIDI2OC45IDAgMjgzLjlWMzk0YzAgMTMuNiA3LjcgMjYuMSAxOS45IDMyLjJsMTAwIDUwYzEwLjEgNS4xIDIyLjEgNS4xIDMyLjIgMGwxMDMuOS01MiAxMDMuOSA1MmMxMC4xIDUuMSAyMi4xIDUuMSAzMi4yIDBsMTAwLTUwYzEyLjItNi4xIDE5LjktMTguNiAxOS45LTMyLjJWMjgzLjljMC0xNS05LjMtMjguNC0yMy40LTMzLjd6TTM1OCAyMTQuOGwtODUgMzEuOXYtNjguMmw4NS0zN3Y3My4zek0xNTQgMTA0LjFsMTAyLTM4LjIgMTAyIDM4LjJ2LjZsLTEwMiA0MS40LTEwMi00MS40di0uNnptODQgMjkxLjFsLTg1IDQyLjV2LTc5LjFsODUtMzguOHY3NS40em0wLTExMmwtMTAyIDQxLjQtMTAyLTQxLjR2LS42bDEwMi0zOC4yIDEwMiAzOC4ydi42em0yNDAgMTEybC04NSA0Mi41di03OS4xbDg1LTM4Ljh2NzUuNHptMC0xMTJsLTEwMiA0MS40LTEwMi00MS40di0uNmwxMDItMzguMiAxMDIgMzguMnYuNnoiPjwvcGF0aD48L3N2Zz4K" height="20"></a>
 //! <a href="https://discord.gg/v5AeNkT"><img alt="chat on discord" src="https://img.shields.io/discord/558644981137670144.svg?logo=discord&style=flat-square" height="20"></a>
 //! <br>
-//! Minimum support: Rust <b>1.76+</b>.
+//! Minimum support: Rust <b>1.79+</b>.
 //! <br>
 //! <br>
 //! <a href="https://rune-rs.github.io"><b>Visit the site 🌐</b></a>
@@ -57,7 +57,7 @@
 //! you can use:
 //!
 //! ```text
-//! cargo run --bin rune -- run scripts/hello_world.rn --dump-unit --trace --dump-vm
+//! cargo run --bin rune -- run scripts/hello_world.rn --dump --trace
 //! ```
 //!
 //! See `--help` for more information.
@@ -181,10 +181,6 @@ macro_rules! span {
 
 pub mod alloc;
 
-#[macro_use]
-#[cfg(test)]
-pub(crate) mod testing;
-
 /// Helper prelude for `#[no_std]` support.
 pub mod no_std;
 
@@ -200,10 +196,10 @@ pub mod ast;
 #[cfg(feature = "fmt")]
 pub mod fmt;
 
-cfg_emit! {
-    #[doc(inline)]
-    pub use ::codespan_reporting::term::termcolor;
-}
+#[cfg(feature = "emit")]
+#[cfg_attr(rune_docsrs, doc(cfg(feature = "emit")))]
+#[doc(inline)]
+pub use ::codespan_reporting::term::termcolor;
 
 mod any;
 pub use self::any::Any;
@@ -214,6 +210,15 @@ pub use self::build::{prepare, Build, BuildError};
 pub mod compile;
 #[doc(inline)]
 pub use self::compile::{Context, ContextError, Options};
+
+pub mod item;
+#[doc(inline)]
+pub use self::item::{Item, ItemBuf};
+
+#[doc(hidden)]
+mod function_meta;
+
+mod function;
 
 pub mod module;
 #[doc(inline)]
@@ -242,6 +247,9 @@ pub mod modules;
 
 pub mod parse;
 
+#[cfg(feature = "fmt")]
+pub(crate) mod grammar;
+
 pub mod query;
 
 pub mod runtime;
@@ -264,9 +272,9 @@ mod worker;
 #[doc(hidden)]
 pub mod support;
 
-cfg_workspace! {
-    pub mod workspace;
-}
+#[cfg(feature = "workspace")]
+#[cfg_attr(rune_docsrs, doc(cfg(feature = "workspace")))]
+pub mod workspace;
 
 // Macros used internally and re-exported.
 pub(crate) use rune_macros::__internal_impl_any;
@@ -577,6 +585,34 @@ pub(crate) use rune_macros::__internal_impl_any;
 /// }
 /// ```
 ///
+/// # Using `keep` to keep the name
+///
+/// By default, the name of the function is mangled and the metadata is given
+/// the original name. This means you can't easily call the function from both
+/// Rune and Rust. This behaviour can be changed by using the `keep` attribute, in
+/// which case you must refer to the meta object by a mangled name
+/// (specifically the function name with `__meta` appended):
+///
+/// ```
+/// use rune::{Module, ContextError};
+///
+/// /// Don't mangle the name of the function
+/// #[rune::function(keep)]
+/// fn to_uppercase(string: &str) -> String {
+///     string.to_uppercase()
+/// }
+///
+/// fn module() -> Result<Module, ContextError> {
+///     let mut m = Module::new();
+///     m.function_meta(to_uppercase__meta)?;
+///     Ok(m)
+/// }
+///
+/// fn call_from_rust() {
+///    assert_eq!(to_uppercase("hello"), "HELLO");
+/// }
+/// ```
+///
 /// [`VmResult`]: crate::runtime::VmResult
 /// [`vm_try!`]: crate::vm_try!
 pub use rune_macros::function;
@@ -596,30 +632,39 @@ pub use rune_macros::macro_;
 pub use rune_macros::attribute_macro;
 
 /// Macro used to annotate a module with metadata.
+///
+/// ThIs defines a local function `module_meta` which can be used in conjunction
+/// with [`Module::from_meta`] to construct a module with a given item and
+/// captured documentation.
+#[doc(inline)]
 pub use rune_macros::module;
 
-cfg_cli! {
-    pub mod cli;
-}
+#[doc(inline)]
+pub use rune_macros::hash;
+
+pub use rune_macros::item;
+
+#[cfg(feature = "cli")]
+#[cfg_attr(rune_docsrs, doc(cfg(feature = "cli")))]
+pub mod cli;
 
 #[cfg(feature = "languageserver")]
 pub mod languageserver;
 
-cfg_doc! {
-    pub mod doc;
-}
+#[cfg(feature = "doc")]
+#[cfg_attr(rune_docsrs, doc(cfg(feature = "doc")))]
+pub mod doc;
 
 /// Privately exported details.
 #[doc(hidden)]
 pub mod __private {
-    pub use crate::compile::ItemBuf;
-    pub use crate::module::module::Module;
-    pub use crate::module::{
-        FunctionMetaData, FunctionMetaKind, InstallWith, MacroMetaData, MacroMetaKind,
-        ModuleMetaData,
+    pub use crate::function_meta::{
+        FunctionMetaData, FunctionMetaKind, FunctionMetaStatics, MacroMetaData, MacroMetaKind,
     };
+    pub use crate::item::ItemBuf;
+    pub use crate::module::{InstallWith, Module, ModuleMetaData};
     pub use crate::params::Params;
-    pub use crate::runtime::TypeOf;
+    pub use crate::runtime::{CoreTypeOf, TypeOf};
     pub use rust_alloc::boxed::Box;
 }
 

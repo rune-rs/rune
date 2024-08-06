@@ -1,42 +1,68 @@
 use crate as rune;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
-use crate::hashbrown::Table;
+use crate::hashbrown::{IterRef, KeysRef, Table, ValuesRef};
 use crate::runtime::{
     EnvProtocolCaller, Formatter, FromValue, Iterator, ProtocolCaller, Ref, Value, VmErrorKind,
     VmResult,
 };
 use crate::{Any, ContextError, Module};
 
-pub(super) fn setup(module: &mut Module) -> Result<(), ContextError> {
-    module.ty::<HashMap>()?;
-    module.function_meta(HashMap::new__meta)?;
-    module.function_meta(HashMap::with_capacity__meta)?;
-    module.function_meta(HashMap::len__meta)?;
-    module.function_meta(HashMap::capacity__meta)?;
-    module.function_meta(HashMap::insert__meta)?;
-    module.function_meta(HashMap::get__meta)?;
-    module.function_meta(HashMap::contains_key__meta)?;
-    module.function_meta(HashMap::remove__meta)?;
-    module.function_meta(HashMap::clear__meta)?;
-    module.function_meta(HashMap::is_empty__meta)?;
-    module.function_meta(HashMap::iter__meta)?;
-    module.function_meta(HashMap::keys__meta)?;
-    module.function_meta(HashMap::values__meta)?;
-    module.function_meta(HashMap::extend__meta)?;
-    module.function_meta(HashMap::from__meta)?;
-    module.function_meta(HashMap::clone__meta)?;
-    module.function_meta(HashMap::index_set__meta)?;
-    module.function_meta(HashMap::index_get__meta)?;
-    module.function_meta(HashMap::string_debug__meta)?;
-    module.function_meta(HashMap::partial_eq__meta)?;
-    module.function_meta(HashMap::eq__meta)?;
-    module.function_meta(HashMap::into_iter__meta)?;
-    Ok(())
+/// A dynamic hash map.
+#[rune::module(::std::collections::hash_map)]
+pub fn module() -> Result<Module, ContextError> {
+    let mut m = Module::from_meta(self::module_meta)?;
+
+    m.ty::<HashMap>()?;
+    m.function_meta(HashMap::new__meta)?;
+    m.function_meta(HashMap::with_capacity__meta)?;
+    m.function_meta(HashMap::len__meta)?;
+    m.function_meta(HashMap::capacity__meta)?;
+    m.function_meta(HashMap::insert__meta)?;
+    m.function_meta(HashMap::get__meta)?;
+    m.function_meta(HashMap::contains_key__meta)?;
+    m.function_meta(HashMap::remove__meta)?;
+    m.function_meta(HashMap::clear__meta)?;
+    m.function_meta(HashMap::is_empty__meta)?;
+    m.function_meta(HashMap::iter__meta)?;
+    m.function_meta(HashMap::into_iter__meta)?;
+    m.function_meta(HashMap::from_iter__meta)?;
+    m.function_meta(HashMap::keys__meta)?;
+    m.function_meta(HashMap::values__meta)?;
+    m.function_meta(HashMap::extend__meta)?;
+    m.function_meta(HashMap::index_set__meta)?;
+    m.function_meta(HashMap::index_get__meta)?;
+    m.function_meta(HashMap::string_debug__meta)?;
+
+    m.function_meta(HashMap::clone__meta)?;
+    m.implement_trait::<HashMap>(rune::item!(::std::clone::Clone))?;
+
+    m.function_meta(HashMap::partial_eq__meta)?;
+    m.implement_trait::<HashMap>(rune::item!(::std::cmp::PartialEq))?;
+
+    m.function_meta(HashMap::eq__meta)?;
+    m.implement_trait::<HashMap>(rune::item!(::std::cmp::Eq))?;
+
+    m.ty::<Iter>()?;
+    m.function_meta(Iter::next)?;
+    m.function_meta(Iter::size_hint)?;
+    m.implement_trait::<Iter>(rune::item!(::std::iter::Iterator))?;
+
+    m.ty::<Keys>()?;
+    m.function_meta(Keys::next)?;
+    m.function_meta(Keys::size_hint)?;
+    m.implement_trait::<Keys>(rune::item!(::std::iter::Iterator))?;
+
+    m.ty::<Values>()?;
+    m.function_meta(Values::next)?;
+    m.function_meta(Values::size_hint)?;
+    m.implement_trait::<Values>(rune::item!(::std::iter::Iterator))?;
+
+    Ok(m)
 }
 
 #[derive(Any)]
-#[rune(item = ::std::collections)]
+#[rune(item = ::std::collections::hash_map)]
 pub(crate) struct HashMap {
     table: Table<Value>,
 }
@@ -73,7 +99,7 @@ impl HashMap {
     /// let map = HashMap::with_capacity(10);
     /// ```
     #[rune::function(keep, path = Self::with_capacity)]
-    fn with_capacity(capacity: usize) -> VmResult<Self> {
+    pub(crate) fn with_capacity(capacity: usize) -> VmResult<Self> {
         VmResult::Ok(Self {
             table: vm_try!(Table::try_with_capacity(capacity)),
         })
@@ -155,7 +181,7 @@ impl HashMap {
     /// assert_eq!(map[37], "c");
     /// ```
     #[rune::function(keep)]
-    fn insert(&mut self, key: Value, value: Value) -> VmResult<Option<Value>> {
+    pub(crate) fn insert(&mut self, key: Value, value: Value) -> VmResult<Option<Value>> {
         let mut caller = EnvProtocolCaller;
         self.table.insert_with(key, value, &mut caller)
     }
@@ -240,7 +266,7 @@ impl HashMap {
     /// ```rune
     /// use std::collections::HashMap;
     ///
-    /// let map = HashMap::from([
+    /// let map = HashMap::from_iter([
     ///     ("a", 1),
     ///     ("b", 2),
     ///     ("c", 3),
@@ -256,9 +282,9 @@ impl HashMap {
     /// In the current implementation, iterating over map takes O(capacity) time
     /// instead of O(len) because it internally visits empty buckets too.
     #[rune::function(keep, instance, path = Self::iter)]
-    fn iter(this: Ref<Self>) -> Iterator {
+    fn iter(this: Ref<Self>) -> Iter {
         let iter = Table::iter_ref(Ref::map(this, |this| &this.table));
-        Iterator::from("std::collections::hash_map::Iter", iter)
+        Iter { iter }
     }
 
     /// An iterator visiting all keys in arbitrary order.
@@ -268,7 +294,7 @@ impl HashMap {
     /// ```rune
     /// use std::collections::HashMap;
     ///
-    /// let map = HashMap::from([
+    /// let map = HashMap::from_iter([
     ///     ("a", 1),
     ///     ("b", 2),
     ///     ("c", 3),
@@ -284,9 +310,10 @@ impl HashMap {
     /// In the current implementation, iterating over keys takes O(capacity)
     /// time instead of O(len) because it internally visits empty buckets too.
     #[rune::function(keep, instance, path = Self::keys)]
-    fn keys(this: Ref<Self>) -> Iterator {
+    fn keys(this: Ref<Self>) -> Keys {
         let iter = Table::keys_ref(Ref::map(this, |this| &this.table));
-        Iterator::from("std::collections::hash_map::Keys", iter)
+
+        Keys { iter }
     }
 
     /// An iterator visiting all values in arbitrary order.
@@ -296,7 +323,7 @@ impl HashMap {
     /// ```rune
     /// use std::collections::HashMap;
     ///
-    /// let map = HashMap::from([
+    /// let map = HashMap::from_iter([
     ///     ("a", 1),
     ///     ("b", 2),
     ///     ("c", 3),
@@ -312,10 +339,10 @@ impl HashMap {
     /// In the current implementation, iterating over values takes O(capacity)
     /// time instead of O(len) because it internally visits empty buckets too.
     #[rune::function(keep, instance, path = Self::values)]
-    fn values(this: Ref<Self>) -> Iterator {
+    fn values(this: Ref<Self>) -> Values {
         let iter = Table::values_ref(Ref::map(this, |this| &this.table));
 
-        Iterator::from("std::collections::hash_map::Values", iter)
+        Values { iter }
     }
 
     /// Extend this map from an iterator.
@@ -345,16 +372,6 @@ impl HashMap {
         VmResult::Ok(())
     }
 
-    /// Convert a hashmap from a `value`.
-    ///
-    /// The hashmap can be converted from anything that implements the [`INTO_ITER`]
-    /// protocol, and each item produces should be a tuple pair.
-    #[rune::function(keep, path = Self::from)]
-    fn from(value: Value) -> VmResult<HashMap> {
-        let mut caller = EnvProtocolCaller;
-        HashMap::from_iter(vm_try!(value.into_iter()), &mut caller)
-    }
-
     /// Clone the map.
     ///
     /// # Examples
@@ -362,7 +379,11 @@ impl HashMap {
     /// ```rune
     /// use std::collections::HashMap;
     ///
-    /// let a = HashMap::from([("a", 1), ("b", 2)]);
+    /// let a = HashMap::from_iter([
+    ///     ("a", 1),
+    ///     ("b", 2),
+    /// ]);
+    ///
     /// let b = a.clone();
     ///
     /// b.insert("c", 3);
@@ -370,17 +391,38 @@ impl HashMap {
     /// assert_eq!(a.len(), 2);
     /// assert_eq!(b.len(), 3);
     /// ```
-    #[rune::function(keep, instance, path = Self::clone)]
+    #[rune::function(keep, instance, path = Self::clone, protocol = CLONE)]
     fn clone(this: &HashMap) -> VmResult<HashMap> {
         VmResult::Ok(Self {
             table: vm_try!(this.table.try_clone()),
         })
     }
 
-    pub(crate) fn from_iter<P>(mut it: Iterator, caller: &mut P) -> VmResult<Self>
-    where
-        P: ?Sized + ProtocolCaller,
-    {
+    /// Convert a hashmap from a value convert into an iterator.
+    ///
+    /// The hashmap can be converted from anything that implements the
+    /// [`INTO_ITER`] protocol, and each item produces should be a tuple pair.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// use std::collections::HashMap;
+    ///
+    /// let map = HashMap::from_iter([("a", 1), ("b", 2)]);
+    /// assert_eq!(map.len(), 2);
+    /// assert_eq!(map.get("a"), Some(1));
+    /// assert_eq!(map.get("b"), Some(2));
+    /// ```
+    #[rune::function(keep, path = Self::from_iter)]
+    fn from_iter(it: Iterator) -> VmResult<HashMap> {
+        let mut caller = EnvProtocolCaller;
+        Self::from_iter_with(it, &mut caller)
+    }
+
+    pub(crate) fn from_iter_with(
+        mut it: Iterator,
+        caller: &mut dyn ProtocolCaller,
+    ) -> VmResult<Self> {
         let mut map = Self::new();
 
         while let Some(value) = vm_try!(it.next()) {
@@ -472,7 +514,7 @@ impl HashMap {
     pub(crate) fn string_debug_with(
         &self,
         f: &mut Formatter,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
         vm_write!(f, "{{");
 
@@ -499,13 +541,13 @@ impl HashMap {
     /// ```rune
     /// use std::collections::HashMap;
     ///
-    /// let map1 = HashMap::from([
+    /// let map1 = HashMap::from_iter([
     ///     ("a", 1.0),
     ///     ("c", 3.0),
     ///     ("b", 2.0),
     /// ]);
     ///
-    /// let map2 = HashMap::from([
+    /// let map2 = HashMap::from_iter([
     ///     ("c", 3.0),
     ///     ("a", 1.0),
     ///     ("b", 2.0),
@@ -523,7 +565,7 @@ impl HashMap {
         self.partial_eq_with(other, &mut EnvProtocolCaller)
     }
 
-    fn partial_eq_with(&self, other: &Self, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
+    fn partial_eq_with(&self, other: &Self, caller: &mut dyn ProtocolCaller) -> VmResult<bool> {
         if self.table.len() != other.table.len() {
             return VmResult::Ok(false);
         }
@@ -549,13 +591,13 @@ impl HashMap {
     /// use std::collections::HashMap;
     /// use std::ops::eq;
     ///
-    /// let map1 = HashMap::from([
+    /// let map1 = HashMap::from_iter([
     ///     ("a", 1),
     ///     ("c", 3),
     ///     ("b", 2),
     /// ]);
     ///
-    /// let map2 = HashMap::from([
+    /// let map2 = HashMap::from_iter([
     ///     ("c", 3),
     ///     ("a", 1),
     ///     ("b", 2),
@@ -593,7 +635,7 @@ impl HashMap {
     /// ```rune
     /// use std::collections::HashMap;
     ///
-    /// let map = HashMap::from([
+    /// let map = HashMap::from_iter([
     ///     ("a", 1),
     ///     ("b", 2),
     ///     ("c", 3),
@@ -614,7 +656,64 @@ impl HashMap {
     /// In the current implementation, iterating over map takes O(capacity) time
     /// instead of O(len) because it internally visits empty buckets too.
     #[rune::function(keep, instance, protocol = INTO_ITER, path = Self)]
-    fn into_iter(this: Ref<Self>) -> Iterator {
+    fn into_iter(this: Ref<Self>) -> Iter {
         Self::iter(this)
+    }
+}
+
+/// An iterator over a hash map.
+#[derive(Any)]
+#[rune(item = ::std::collections::hash_map)]
+pub(crate) struct Iter {
+    iter: IterRef<Value>,
+}
+
+impl Iter {
+    #[rune::function(instance, protocol = NEXT)]
+    fn next(&mut self) -> Option<(Value, Value)> {
+        self.iter.next()
+    }
+
+    #[rune::function(instance, protocol = SIZE_HINT)]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
+}
+
+/// An iterator over a the keys in a hash map.
+#[derive(Any)]
+#[rune(item = ::std::collections::hash_map)]
+pub(crate) struct Keys {
+    iter: KeysRef<Value>,
+}
+
+impl Keys {
+    #[rune::function(instance, protocol = NEXT)]
+    fn next(&mut self) -> Option<Value> {
+        self.iter.next()
+    }
+
+    #[rune::function(instance, protocol = SIZE_HINT)]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
+}
+
+/// An iterator over a the values in a hash map.
+#[derive(Any)]
+#[rune(item = ::std::collections::hash_map)]
+pub(crate) struct Values {
+    iter: ValuesRef<Value>,
+}
+
+impl Values {
+    #[rune::function(instance, protocol = NEXT)]
+    fn next(&mut self) -> Option<Value> {
+        self.iter.next()
+    }
+
+    #[rune::function(instance, protocol = SIZE_HINT)]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
     }
 }

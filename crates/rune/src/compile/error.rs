@@ -1,3 +1,4 @@
+use core::convert::Infallible;
 use core::fmt;
 
 #[cfg(feature = "std")]
@@ -10,17 +11,18 @@ use crate::ast;
 use crate::ast::unescape;
 use crate::ast::{Span, Spanned};
 use crate::compile::ir;
-use crate::compile::{HasSpan, ItemBuf, Location, MetaInfo, Visibility};
+use crate::compile::{HasSpan, Location, MetaInfo, Visibility};
 use crate::indexing::items::{GuardMismatch, MissingLastId};
 use crate::macros::{SyntheticId, SyntheticKind};
 use crate::parse::{Expectation, IntoExpectation, LexerMode};
 use crate::query::MissingId;
 use crate::runtime::debug::DebugSignature;
 use crate::runtime::unit::EncodeError;
-use crate::runtime::{AccessError, RuntimeError, TypeInfo, TypeOf, ValueKind, VmError};
+use crate::runtime::{AccessError, RuntimeError, TypeInfo, TypeOf, VmError};
+use crate::shared::CapacityError;
 #[cfg(feature = "std")]
 use crate::source;
-use crate::{Hash, SourceId};
+use crate::{Hash, Item, ItemBuf, SourceId};
 
 /// An error raised by the compiler.
 #[derive(Debug)]
@@ -91,6 +93,13 @@ impl fmt::Display for Error {
     }
 }
 
+impl From<Infallible> for Error {
+    #[inline]
+    fn from(value: Infallible) -> Self {
+        match value {}
+    }
+}
+
 impl<S, E> From<HasSpan<S, E>> for Error
 where
     S: Spanned,
@@ -98,6 +107,21 @@ where
 {
     fn from(spanned: HasSpan<S, E>) -> Self {
         Self::new(spanned.span(), spanned.into_inner())
+    }
+}
+
+impl From<fmt::Error> for ErrorKind {
+    #[inline]
+    fn from(fmt::Error: fmt::Error) -> Self {
+        ErrorKind::FormatError
+    }
+}
+
+#[cfg(feature = "fmt")]
+impl From<syntree::Error> for ErrorKind {
+    #[inline]
+    fn from(error: syntree::Error) -> Self {
+        ErrorKind::Syntree(error)
     }
 }
 
@@ -190,16 +214,15 @@ impl Error {
     }
 
     /// An error raised when we expect a certain constant value but get another.
-    pub(crate) fn expected_type<S, E>(spanned: S, actual: &ValueKind) -> Self
+    pub(crate) fn expected_type<E>(spanned: impl Spanned, actual: TypeInfo) -> Self
     where
-        S: Spanned,
         E: TypeOf,
     {
         Self::new(
             spanned,
             IrErrorKind::Expected {
                 expected: E::type_info(),
-                actual: actual.type_info(),
+                actual,
             },
         )
     }
@@ -222,6 +245,9 @@ pub(crate) enum ErrorKind {
     AllocError {
         error: alloc::Error,
     },
+    CapacityError {
+        error: CapacityError,
+    },
     IrError(IrErrorKind),
     MetaError(MetaError),
     AccessError(AccessError),
@@ -233,6 +259,9 @@ pub(crate) enum ErrorKind {
     PopError(PopError),
     MissingId(MissingId),
     UnescapeError(unescape::ErrorKind),
+    #[cfg(feature = "fmt")]
+    Syntree(syntree::Error),
+    FormatError,
     #[cfg(feature = "std")]
     SourceError {
         path: PathBuf,
@@ -262,7 +291,7 @@ pub(crate) enum ErrorKind {
     },
     MissingItemParameters {
         item: ItemBuf,
-        parameters: Box<[Option<Hash>]>,
+        parameters: [Option<Hash>; 2],
     },
     UnsupportedGlobal,
     UnsupportedModuleSource,
@@ -295,7 +324,6 @@ pub(crate) enum ErrorKind {
     UnsupportedAssignExpr,
     UnsupportedBinaryExpr,
     UnsupportedRef,
-    UnsupportedSelectPattern,
     UnsupportedArgumentCount {
         expected: usize,
         actual: usize,
@@ -312,8 +340,10 @@ pub(crate) enum ErrorKind {
     UnsupportedTupleIndex {
         number: ast::Number,
     },
-    BreakOutsideOfLoop,
-    ContinueOutsideOfLoop,
+    BreakUnsupported,
+    BreakUnsupportedValue,
+    ContinueUnsupported,
+    ContinueUnsupportedBlock,
     SelectMultipleDefaults,
     ExpectedBlockSemiColon {
         #[cfg(feature = "emit")]
@@ -364,7 +394,7 @@ pub(crate) enum ErrorKind {
         current: Box<[String]>,
         existing: Box<[String]>,
     },
-    MissingLoopLabel {
+    MissingLabel {
         label: Box<str>,
     },
     ExpectedLeadingPathSegment,
@@ -508,6 +538,46 @@ pub(crate) enum ErrorKind {
     UnsupportedPatternRest,
     UnsupportedMut,
     UnsupportedSuffix,
+    ClosureInConst,
+    AsyncBlockInConst,
+    #[cfg(feature = "fmt")]
+    BadSpan {
+        len: usize,
+    },
+    #[cfg(feature = "fmt")]
+    UnsupportedToken {
+        actual: ast::Kind,
+        what: &'static str,
+    },
+    #[cfg(feature = "fmt")]
+    UnsupportedSyntax {
+        actual: ast::Kind,
+        what: &'static str,
+    },
+    #[cfg(feature = "fmt")]
+    UnexpectedEndOfSyntax {
+        inside: ast::Kind,
+    },
+    #[cfg(feature = "fmt")]
+    ExpectedSyntaxEnd {
+        inside: ast::Kind,
+        actual: ast::Kind,
+    },
+    #[cfg(feature = "fmt")]
+    BadIndent {
+        level: isize,
+        indent: usize,
+    },
+    #[cfg(feature = "fmt")]
+    ExpectedSyntax {
+        inside: ast::Kind,
+        expected: ast::Kind,
+        actual: ast::Kind,
+    },
+    #[cfg(feature = "fmt")]
+    UnsupportedDelimiter {
+        expectation: Expectation,
+    },
 }
 
 impl ErrorKind {
@@ -525,7 +595,6 @@ cfg_std! {
     impl std::error::Error for ErrorKind {
         fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
             match self {
-                ErrorKind::AllocError { error, .. } => Some(error),
                 ErrorKind::IrError(source) => Some(source),
                 ErrorKind::MetaError(source) => Some(source),
                 ErrorKind::AccessError(source) => Some(source),
@@ -557,6 +626,9 @@ impl fmt::Display for ErrorKind {
                 write!(f, "Unsupported `{what}`")?;
             }
             ErrorKind::AllocError { error } => {
+                error.fmt(f)?;
+            }
+            ErrorKind::CapacityError { error } => {
                 error.fmt(f)?;
             }
             ErrorKind::IrError(error) => {
@@ -592,6 +664,13 @@ impl fmt::Display for ErrorKind {
             ErrorKind::UnescapeError(error) => {
                 error.fmt(f)?;
             }
+            #[cfg(feature = "fmt")]
+            ErrorKind::Syntree(error) => {
+                error.fmt(f)?;
+            }
+            ErrorKind::FormatError => {
+                write!(f, "Formatting error")?;
+            }
             #[cfg(feature = "std")]
             ErrorKind::SourceError { path, error } => {
                 write!(
@@ -612,14 +691,14 @@ impl fmt::Display for ErrorKind {
                 write!(f, "Module `{item}` has already been loaded")?;
             }
             ErrorKind::MissingMacro { item } => {
-                write!(f, "Missing macro `{item}`")?;
+                write!(f, "Missing macro {item}")?;
             }
             ErrorKind::MissingSelf => write!(f, "No `self` in current context")?,
             ErrorKind::MissingLocal { name } => {
                 write!(f, "No local variable `{name}`")?;
             }
             ErrorKind::MissingItem { item } => {
-                write!(f, "Missing item `{item}`")?;
+                write!(f, "Missing item {item}")?;
             }
             ErrorKind::MissingItemHash { hash } => {
                 write!(
@@ -628,7 +707,7 @@ impl fmt::Display for ErrorKind {
                 )?;
             }
             ErrorKind::MissingItemParameters { item, parameters } => {
-                write!(f, "Missing item `{item} {parameters:?}`",)?;
+                write!(f, "Missing item {}", ParameterizedItem(item, parameters))?;
             }
             ErrorKind::UnsupportedGlobal => {
                 write!(f, "Unsupported crate prefix `::`")?;
@@ -678,9 +757,6 @@ impl fmt::Display for ErrorKind {
             ErrorKind::UnsupportedRef => {
                 write!(f, "Cannot take reference of expression")?;
             }
-            ErrorKind::UnsupportedSelectPattern => {
-                write!(f, "Unsupported select pattern")?;
-            }
             ErrorKind::UnsupportedArgumentCount { expected, actual } => {
                 write!(
                     f,
@@ -702,11 +778,20 @@ impl fmt::Display for ErrorKind {
             ErrorKind::UnsupportedTupleIndex { number } => {
                 write!(f, "Unsupported tuple index `{number}`")?;
             }
-            ErrorKind::BreakOutsideOfLoop => {
+            ErrorKind::BreakUnsupported => {
                 write!(f, "Break outside of loop")?;
             }
-            ErrorKind::ContinueOutsideOfLoop => {
+            ErrorKind::BreakUnsupportedValue => {
+                write!(
+                    f,
+                    "Can only break with a value inside `loop` or breakable block"
+                )?;
+            }
+            ErrorKind::ContinueUnsupported => {
                 write!(f, "Continue outside of loop")?;
+            }
+            ErrorKind::ContinueUnsupportedBlock => {
+                write!(f, "Labeled blocks cannot be `continue`'d")?;
             }
             ErrorKind::SelectMultipleDefaults => {
                 write!(f, "Multiple `default` branches in select")?;
@@ -794,14 +879,14 @@ impl fmt::Display for ErrorKind {
                 current,
                 existing,
             } => {
-                write!(f,"Conflicting static string for hash `{hash}`\n        between `{existing:?}` and `{current:?}`")?;
+                write!(f,"Conflicting static string for hash `{hash}` between `{existing:?}` and `{current:?}`")?;
             }
             ErrorKind::StaticBytesHashConflict {
                 hash,
                 current,
                 existing,
             } => {
-                write!(f,"Conflicting static string for hash `{hash}`\n        between `{existing:?}` and `{current:?}`")?;
+                write!(f,"Conflicting static string for hash `{hash}` between `{existing:?}` and `{current:?}`")?;
             }
             ErrorKind::StaticObjectKeysMissing { hash, slot } => {
                 write!(
@@ -816,10 +901,10 @@ impl fmt::Display for ErrorKind {
                 current,
                 existing,
             } => {
-                write!(f,"Conflicting static object keys for hash `{hash}`\n        between `{existing:?}` and `{current:?}`")?;
+                write!(f,"Conflicting static object keys for hash `{hash}` between `{existing:?}` and `{current:?}`")?;
             }
-            ErrorKind::MissingLoopLabel { label } => {
-                write!(f, "Missing loop label `{label}`", label = label)?;
+            ErrorKind::MissingLabel { label } => {
+                write!(f, "Missing label '{label}")?;
             }
             ErrorKind::ExpectedLeadingPathSegment => {
                 write!(f, "Segment is only supported in the first position")?;
@@ -846,14 +931,10 @@ impl fmt::Display for ErrorKind {
                 write!(f, "Attribute `#[bench]` is not supported on nested items")?;
             }
             ErrorKind::MissingFunctionHash { hash } => {
-                write!(f, "Missing function with hash `{hash}`", hash = hash)?;
+                write!(f, "Missing function with hash `{hash}`")?;
             }
             ErrorKind::FunctionConflictHash { hash } => {
-                write!(
-                    f,
-                    "Conflicting function already exists `{hash}`",
-                    hash = hash
-                )?;
+                write!(f, "Conflicting function already exists `{hash}`")?;
             }
             ErrorKind::PatternMissingFields { item, .. } => {
                 write!(f, "Non-exhaustive pattern for `{item}`")?;
@@ -1032,6 +1113,86 @@ impl fmt::Display for ErrorKind {
                     "Unsupported suffix, expected one of `u8`, `i64`, or `f64`"
                 )?;
             }
+            ErrorKind::ClosureInConst => {
+                write!(f, "Closures are not supported in constant contexts")?;
+            }
+            ErrorKind::AsyncBlockInConst => {
+                write!(f, "Async blocks are not supported in constant contexts")?;
+            }
+            #[cfg(feature = "fmt")]
+            ErrorKind::BadSpan { len } => {
+                write!(f, "Span is outside of source 0-{len}")?;
+            }
+            #[cfg(feature = "fmt")]
+            ErrorKind::UnsupportedToken { actual, what } => {
+                write!(f, "Unsupported {what} {actual:?}")?;
+            }
+            #[cfg(feature = "fmt")]
+            ErrorKind::UnsupportedSyntax { actual, what } => {
+                write!(f, "Unsupported {what} {actual:?}")?;
+            }
+            #[cfg(feature = "fmt")]
+            ErrorKind::UnexpectedEndOfSyntax { inside } => {
+                write!(f, "Unexpected end of syntax while parsing {inside:?}")?;
+            }
+            #[cfg(feature = "fmt")]
+            ErrorKind::ExpectedSyntaxEnd { inside, actual } => {
+                write!(
+                    f,
+                    "Expected end of syntax but got {actual:?} while parsing {inside:?}"
+                )?;
+            }
+            #[cfg(feature = "fmt")]
+            ErrorKind::BadIndent { level, indent } => {
+                write!(f, "Got bad indent {level} with existing {indent}")?;
+            }
+            #[cfg(feature = "fmt")]
+            ErrorKind::ExpectedSyntax {
+                inside,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "Expected syntax {expected:?} but got {actual:?} while parsing {inside:?}"
+                )?;
+            }
+            #[cfg(feature = "fmt")]
+            ErrorKind::UnsupportedDelimiter { expectation } => {
+                write!(f, "Unsupported delimiter {expectation}")?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+struct ParameterizedItem<'a>(&'a Item, &'a [Option<Hash>; 2]);
+
+impl fmt::Display for ParameterizedItem<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut it = self.0.iter();
+
+        let (Some(item), Some(ty)) = (it.next_back(), it.next_back()) else {
+            return self.0.fmt(f);
+        };
+
+        let base = it.as_item();
+
+        let [ty_param, item_param] = self.1;
+
+        write!(f, "{base}")?;
+
+        if let Some(ty_param) = ty_param {
+            write!(f, "::{ty}<{ty_param}>")?;
+        } else {
+            write!(f, "::{ty}")?;
+        }
+
+        if let Some(item_param) = item_param {
+            write!(f, "::{item}<{item_param}>")?;
+        } else {
+            write!(f, "::{item}")?;
         }
 
         Ok(())
@@ -1049,6 +1210,13 @@ impl From<alloc::Error> for ErrorKind {
     #[inline]
     fn from(error: alloc::Error) -> Self {
         ErrorKind::AllocError { error }
+    }
+}
+
+impl From<CapacityError> for ErrorKind {
+    #[inline]
+    fn from(error: CapacityError) -> Self {
+        ErrorKind::CapacityError { error }
     }
 }
 
@@ -1183,11 +1351,6 @@ pub(crate) enum IrErrorKind {
         /// The field that was missing.
         field: Box<str>,
     },
-    /// Missing const or local with the given name.
-    MissingConst {
-        /// Name of the missing thing.
-        name: Box<str>,
-    },
     /// Error raised when trying to use a break outside of a loop.
     BreakOutsideOfLoop,
     ArgumentCountMismatch {
@@ -1223,9 +1386,6 @@ impl fmt::Display for IrErrorKind {
             }
             IrErrorKind::MissingField { field } => {
                 write!(f, "Missing field `{field}`",)?;
-            }
-            IrErrorKind::MissingConst { name } => {
-                write!(f, "No constant or local matching `{name}`",)?;
             }
             IrErrorKind::BreakOutsideOfLoop => {
                 write!(f, "Break outside of supported loop")?;

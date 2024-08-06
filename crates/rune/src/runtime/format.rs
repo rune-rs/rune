@@ -13,7 +13,9 @@ use crate as rune;
 use crate::alloc::clone::TryClone;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::String;
-use crate::runtime::{Formatter, ProtocolCaller, Value, ValueKind, VmErrorKind, VmResult};
+use crate::runtime::{
+    Formatter, Inline, Mutable, ProtocolCaller, Value, ValueRef, VmErrorKind, VmResult,
+};
 use crate::Any;
 
 /// Error raised when trying to parse a type string and it fails.
@@ -41,7 +43,7 @@ impl fmt::Display for AlignmentFromStrError {
 
 /// A format specification, wrapping an inner value.
 #[derive(Any, Debug, Clone, TryClone)]
-#[rune(builtin, static_type = FORMAT_TYPE)]
+#[rune(builtin, static_type = FORMAT)]
 pub struct Format {
     /// The value being formatted.
     pub(crate) value: Value,
@@ -206,67 +208,89 @@ impl FormatSpec {
         &self,
         value: &Value,
         f: &mut Formatter,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
-        match *vm_try!(value.borrow_kind_ref()) {
-            ValueKind::Char(c) => {
-                vm_try!(f.buf_mut().try_push(c));
-                vm_try!(self.format_fill(f, self.align, self.fill, None));
+        'fallback: {
+            match vm_try!(value.value_ref()) {
+                ValueRef::Inline(value) => match value {
+                    Inline::Char(c) => {
+                        vm_try!(f.buf_mut().try_push(*c));
+                        vm_try!(self.format_fill(f, self.align, self.fill, None));
+                    }
+                    Inline::Integer(n) => {
+                        let (n, align, fill, sign) = self.int_traits(*n);
+                        vm_try!(self.format_number(f.buf_mut(), n));
+                        vm_try!(self.format_fill(f, align, fill, sign));
+                    }
+                    Inline::Float(n) => {
+                        let (n, align, fill, sign) = self.float_traits(*n);
+                        vm_try!(self.format_float(f.buf_mut(), n));
+                        vm_try!(self.format_fill(f, align, fill, sign));
+                    }
+                    _ => {
+                        break 'fallback;
+                    }
+                },
+                ValueRef::Mutable(value) => match &*vm_try!(value.borrow_ref()) {
+                    Mutable::String(s) => {
+                        vm_try!(f.buf_mut().try_push_str(s));
+                        vm_try!(self.format_fill(f, self.align, self.fill, None));
+                    }
+                    _ => {
+                        break 'fallback;
+                    }
+                },
             }
-            ValueKind::String(ref s) => {
-                vm_try!(f.buf_mut().try_push_str(s));
-                vm_try!(self.format_fill(f, self.align, self.fill, None));
-            }
-            ValueKind::Integer(n) => {
-                let (n, align, fill, sign) = self.int_traits(n);
-                vm_try!(self.format_number(f.buf_mut(), n));
-                vm_try!(self.format_fill(f, align, fill, sign));
-            }
-            ValueKind::Float(n) => {
-                let (n, align, fill, sign) = self.float_traits(n);
-                vm_try!(self.format_float(f.buf_mut(), n));
-                vm_try!(self.format_fill(f, align, fill, sign));
-            }
-            _ => {
-                vm_try!(value.string_display_with(f, caller));
-            }
+
+            return VmResult::Ok(());
         }
 
-        VmResult::Ok(())
+        value.string_display_with(f, caller)
     }
 
     fn format_debug(
         &self,
         value: &Value,
         f: &mut Formatter,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
-        match *vm_try!(value.borrow_kind_ref()) {
-            ValueKind::String(ref s) => {
-                vm_write!(f, "{s:?}");
+        'fallback: {
+            match vm_try!(value.value_ref()) {
+                ValueRef::Inline(value) => match value {
+                    Inline::Integer(n) => {
+                        let (n, align, fill, sign) = self.int_traits(*n);
+                        vm_try!(self.format_number(f.buf_mut(), n));
+                        vm_try!(self.format_fill(f, align, fill, sign));
+                    }
+                    Inline::Float(n) => {
+                        let (n, align, fill, sign) = self.float_traits(*n);
+                        vm_try!(self.format_float(f.buf_mut(), n));
+                        vm_try!(self.format_fill(f, align, fill, sign));
+                    }
+                    _ => {
+                        break 'fallback;
+                    }
+                },
+                ValueRef::Mutable(value) => match &*vm_try!(value.borrow_ref()) {
+                    Mutable::String(s) => {
+                        vm_write!(f, "{s:?}");
+                    }
+                    _ => {
+                        break 'fallback;
+                    }
+                },
             }
-            ValueKind::Integer(n) => {
-                let (n, align, fill, sign) = self.int_traits(n);
-                vm_try!(self.format_number(f.buf_mut(), n));
-                vm_try!(self.format_fill(f, align, fill, sign));
-            }
-            ValueKind::Float(n) => {
-                let (n, align, fill, sign) = self.float_traits(n);
-                vm_try!(self.format_float(f.buf_mut(), n));
-                vm_try!(self.format_fill(f, align, fill, sign));
-            }
-            _ => {
-                vm_try!(value.string_debug_with(f, caller));
-            }
-        }
 
-        VmResult::Ok(())
+            return VmResult::Ok(());
+        };
+
+        value.string_debug_with(f, caller)
     }
 
     fn format_upper_hex(&self, value: &Value, f: &mut Formatter) -> VmResult<()> {
-        match *vm_try!(value.borrow_kind_ref()) {
-            ValueKind::Integer(n) => {
-                let (n, align, fill, sign) = self.int_traits(n);
+        match vm_try!(value.as_inline()) {
+            Some(Inline::Integer(n)) => {
+                let (n, align, fill, sign) = self.int_traits(*n);
                 vm_write!(f.buf_mut(), "{:X}", n);
                 vm_try!(self.format_fill(f, align, fill, sign));
             }
@@ -279,9 +303,9 @@ impl FormatSpec {
     }
 
     fn format_lower_hex(&self, value: &Value, f: &mut Formatter) -> VmResult<()> {
-        match *vm_try!(value.borrow_kind_ref()) {
-            ValueKind::Integer(n) => {
-                let (n, align, fill, sign) = self.int_traits(n);
+        match vm_try!(value.as_inline()) {
+            Some(Inline::Integer(n)) => {
+                let (n, align, fill, sign) = self.int_traits(*n);
                 vm_write!(f.buf_mut(), "{:x}", n);
                 vm_try!(self.format_fill(f, align, fill, sign));
             }
@@ -294,9 +318,9 @@ impl FormatSpec {
     }
 
     fn format_binary(&self, value: &Value, f: &mut Formatter) -> VmResult<()> {
-        match *vm_try!(value.borrow_kind_ref()) {
-            ValueKind::Integer(n) => {
-                let (n, align, fill, sign) = self.int_traits(n);
+        match vm_try!(value.as_inline()) {
+            Some(Inline::Integer(n)) => {
+                let (n, align, fill, sign) = self.int_traits(*n);
                 vm_write!(f.buf_mut(), "{:b}", n);
                 vm_try!(self.format_fill(f, align, fill, sign));
             }
@@ -309,9 +333,9 @@ impl FormatSpec {
     }
 
     fn format_pointer(&self, value: &Value, f: &mut Formatter) -> VmResult<()> {
-        match *vm_try!(value.borrow_kind_ref()) {
-            ValueKind::Integer(n) => {
-                let (n, align, fill, sign) = self.int_traits(n);
+        match vm_try!(value.as_inline()) {
+            Some(Inline::Integer(n)) => {
+                let (n, align, fill, sign) = self.int_traits(*n);
                 vm_write!(f.buf_mut(), "{:p}", n as *const ());
                 vm_try!(self.format_fill(f, align, fill, sign));
             }
@@ -329,7 +353,7 @@ impl FormatSpec {
         &self,
         value: &Value,
         f: &mut Formatter,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
         f.buf_mut().clear();
 

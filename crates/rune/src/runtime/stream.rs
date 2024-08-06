@@ -7,7 +7,7 @@ use crate::Any;
 /// A stream with a stored virtual machine.
 #[derive(Any)]
 #[rune(crate)]
-#[rune(builtin, static_type = STREAM_TYPE, from_value_params = [Vm])]
+#[rune(builtin, static_type = STREAM, from_value_params = [Vm])]
 #[rune(from_value = Value::into_stream, from_value_ref = Value::into_stream_ref, from_value_mut = Value::into_stream_mut)]
 pub struct Stream<T>
 where
@@ -36,9 +36,22 @@ where
 
     /// Get the next value produced by this stream.
     pub async fn next(&mut self) -> VmResult<Option<Value>> {
-        VmResult::Ok(match vm_try!(self.resume(vm_try!(Value::empty())).await) {
+        let Some(execution) = self.execution.as_mut() else {
+            return VmResult::Ok(None);
+        };
+
+        let state = if execution.is_resumed() {
+            vm_try!(execution.async_resume_with(Value::empty()).await)
+        } else {
+            vm_try!(execution.async_resume().await)
+        };
+
+        VmResult::Ok(match state {
             GeneratorState::Yielded(value) => Some(value),
-            GeneratorState::Complete(_) => None,
+            GeneratorState::Complete(_) => {
+                self.execution = None;
+                None
+            }
         })
     }
 

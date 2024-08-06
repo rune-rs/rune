@@ -14,11 +14,9 @@ async fn request(timeout) {
     Ok(result)
 }
 
-pub async fn main() {
-    for result in future::join([request(1000), request(4000)]).await {
-        match result {
-            Ok(result) => println!("Result: {}", result.status()),
-            Err(Timeout) => println("Request timed out!"),
-        }
+for result in future::join([request(1000), request(4000)]).await {
+    match result {
+        Ok(result) => println!("Result: {}", result.status()),
+        Err(Timeout) => println!("Request timed out!"),
     }
 }

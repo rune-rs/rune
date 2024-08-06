@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::ItemStruct>("struct Foo");
     rt::<ast::ItemStruct>("struct Foo ( a, b, c )");
     rt::<ast::ItemStruct>("struct Foo { a, b, c }");

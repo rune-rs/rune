@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::ExprContinue>("continue");
     rt::<ast::ExprContinue>("continue 'foo");
 }

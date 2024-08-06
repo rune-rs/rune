@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     let select = rt::<ast::ExprSelect>(
         r#"
     select {
@@ -108,7 +106,7 @@ impl ExprSelectBranch {
 }
 
 impl Parse for ExprSelectBranch {
-    fn parse(p: &mut Parser) -> Result<Self> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         Ok(if p.peek::<T![default]>()? {
             Self::Default(p.parse()?)
         } else {

@@ -1,0 +1,7 @@
+#[test]
+fn inline_assign() {
+    let a = 10;
+    let b = 20;
+    let (a, b) = (b, a);
+    assert_eq!(a + b, 30);
+}

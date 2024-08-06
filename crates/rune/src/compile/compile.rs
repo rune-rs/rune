@@ -1,6 +1,4 @@
 use crate::alloc::prelude::*;
-use crate::alloc::{self, try_vec, Box, Vec};
-use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::compile::v1;
 use crate::compile::{
@@ -11,10 +9,11 @@ use crate::hir;
 use crate::indexing::FunctionAst;
 use crate::macros::Storage;
 use crate::parse::Resolve;
-use crate::query::{Build, BuildEntry, GenericsParameters, Query, Used};
+use crate::query::{Build, BuildEntry, GenericsParameters, Query, SecondaryBuild, Used};
 use crate::runtime::unit::UnitEncoder;
 use crate::shared::{Consts, Gen};
 use crate::worker::{LoadFileKind, Task, Worker};
+use crate::{alloc, ast};
 use crate::{Diagnostics, Sources};
 
 /// Encode the given object into a collection of asm.
@@ -59,13 +58,7 @@ pub(crate) fn compile(
 
     // Queue up the initial sources to be loaded.
     for source_id in worker.q.sources.source_ids() {
-        // Unique identifier for the root module in this source context.
-        let root_item_id = worker.q.gen.next();
-
-        let mod_item = match worker
-            .q
-            .insert_root_mod(root_item_id, source_id, Span::empty())
-        {
+        let (root_item_id, mod_item) = match worker.q.insert_root_mod(source_id, Span::empty()) {
             Ok(result) => result,
             Err(error) => {
                 worker.q.diagnostics.error(source_id, error)?;
@@ -134,15 +127,18 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
         location: Location,
         span: &dyn Spanned,
         asm: &'a mut Assembly,
+        scopes: &'a mut v1::Scopes<'hir>,
     ) -> alloc::Result<v1::Ctxt<'a, 'hir, 'arena>> {
         Ok(v1::Ctxt {
             source_id: location.source_id,
             q: self.q.borrow(),
             asm,
-            scopes: self::v1::Scopes::new(location.source_id)?,
+            scopes,
             contexts: try_vec![span.span()],
-            loops: self::v1::Loops::new(),
+            breaks: self::v1::Breaks::new(),
             options: self.options,
+            select_branches: Vec::new(),
+            drop: Vec::new(),
         })
     }
 
@@ -152,11 +148,11 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
         entry: BuildEntry,
         unit_storage: &mut dyn UnitEncoder,
     ) -> compile::Result<()> {
+        use self::v1::assemble;
+
         let BuildEntry { item_meta, build } = entry;
 
         let location = item_meta.location;
-
-        let mut asm = self.q.unit.new_assembly(location);
 
         match build {
             Build::Query => {
@@ -182,9 +178,9 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                 }
             }
             Build::Function(f) => {
-                tracing::trace!("function: {}", self.q.pool.item(item_meta.item));
+                let mut asm = self.q.unit.new_assembly(location);
 
-                use self::v1::assemble;
+                tracing::trace!("function: {}", self.q.pool.item(item_meta.item));
 
                 // For instance functions, we are required to know the type hash
                 // of the type it is associated with to perform the proper
@@ -220,7 +216,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
 
                 let (debug_args, span): (_, &dyn Spanned) = match &f.ast {
                     FunctionAst::Item(ast) => {
-                        let debug_args = format_fn_args(
+                        let debug_args = format_ast_args(
                             self.q.sources,
                             location,
                             false,
@@ -232,11 +228,13 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                 };
 
                 let arena = hir::Arena::new();
+                let mut secondary_builds = Vec::new();
 
                 let mut cx = hir::lowering::Ctxt::with_query(
                     &arena,
                     self.q.borrow(),
                     item_meta.location.source_id,
+                    &mut secondary_builds,
                 )?;
 
                 let hir = match &f.ast {
@@ -246,8 +244,10 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
 
                 let count = hir.args.len();
 
-                let mut c = self.compiler1(location, span, &mut asm)?;
+                let mut scopes = self::v1::Scopes::new(location.source_id)?;
+                let mut c = self.compiler1(location, span, &mut asm, &mut scopes)?;
                 assemble::fn_from_item_fn(&mut c, &hir, f.is_instance)?;
+                let size = c.scopes.size();
 
                 if !self.q.is_used(&item_meta) {
                     self.q
@@ -262,9 +262,11 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                         _ => None,
                     };
 
+                    let item = self.q.pool.item(item_meta.item);
+
                     self.q.unit.new_function(
                         location,
-                        self.q.pool.item(item_meta.item),
+                        item,
                         instance,
                         count,
                         None,
@@ -272,97 +274,89 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                         f.call,
                         debug_args,
                         unit_storage,
+                        size,
                     )?;
                 }
-            }
-            Build::Closure(closure) => {
-                tracing::trace!("closure: {}", self.q.pool.item(item_meta.item));
 
-                use self::v1::assemble;
+                for build in secondary_builds {
+                    let item_meta = build.item_meta;
 
-                let debug_args = format_fn_args(
-                    self.q.sources,
-                    location,
-                    true,
-                    closure.ast.args.as_slice().iter().map(|(a, _)| a),
-                )?;
+                    let mut asm = self.q.unit.new_assembly(item_meta.location);
 
-                let captures = self.q.pool.item_type_hash(item_meta.item);
+                    match build.build {
+                        SecondaryBuild::Closure(c) => {
+                            tracing::trace!("closure: {}", self.q.pool.item(item_meta.item));
 
-                let arena = hir::Arena::new();
-                let mut cx = hir::lowering::Ctxt::with_query(
-                    &arena,
-                    self.q.borrow(),
-                    item_meta.location.source_id,
-                )?;
+                            let debug_args =
+                                format_hir_args(self.q.sources, location, true, c.hir.args.iter())?;
 
-                let hir = hir::lowering::expr_closure_secondary(&mut cx, &closure.ast, captures)?;
-                let mut c = self.compiler1(location, &closure.ast, &mut asm)?;
-                assemble::expr_closure_secondary(&mut c, &hir, &closure.ast)?;
+                            let mut scopes = self::v1::Scopes::new(location.source_id)?;
+                            let mut cx = self.compiler1(location, c.hir, &mut asm, &mut scopes)?;
+                            assemble::expr_closure_secondary(&mut cx, c.hir)?;
+                            let size = cx.scopes.size();
 
-                if !c.q.is_used(&item_meta) {
-                    c.q.diagnostics
-                        .not_used(location.source_id, &location.span, None)?;
-                } else {
-                    let captures =
-                        c.q.get_captures(captures)
-                            .map(|c| c.len())
-                            .filter(|c| *c > 0);
+                            if !self.q.is_used(&item_meta) {
+                                self.q.diagnostics.not_used(
+                                    location.source_id,
+                                    &location.span,
+                                    None,
+                                )?;
+                            } else {
+                                let captures =
+                                    (!c.hir.captures.is_empty()).then_some(c.hir.captures.len());
 
-                    let args = closure
-                        .ast
-                        .args
-                        .len()
-                        .saturating_add(usize::from(captures.is_some()));
+                                let args = c
+                                    .hir
+                                    .args
+                                    .len()
+                                    .saturating_add(usize::from(captures.is_some()));
 
-                    self.q.unit.new_function(
-                        location,
-                        self.q.pool.item(item_meta.item),
-                        None,
-                        args,
-                        captures,
-                        asm,
-                        closure.call,
-                        debug_args,
-                        unit_storage,
-                    )?;
-                }
-            }
-            Build::AsyncBlock(b) => {
-                tracing::trace!("async block: {}", self.q.pool.item(item_meta.item));
+                                self.q.unit.new_function(
+                                    location,
+                                    self.q.pool.item(item_meta.item),
+                                    None,
+                                    args,
+                                    captures,
+                                    asm,
+                                    c.call,
+                                    debug_args,
+                                    unit_storage,
+                                    size,
+                                )?;
+                            }
+                        }
+                        SecondaryBuild::AsyncBlock(b) => {
+                            tracing::trace!("async block: {}", self.q.pool.item(item_meta.item));
 
-                use self::v1::assemble;
+                            let mut scopes = self::v1::Scopes::new(location.source_id)?;
+                            let mut cx = self.compiler1(location, b.hir, &mut asm, &mut scopes)?;
+                            assemble::async_block_secondary(&mut cx, b.hir)?;
+                            let size = cx.scopes.size();
 
-                let captures = self.q.pool.item_type_hash(item_meta.item);
+                            if !self.q.is_used(&item_meta) {
+                                self.q.diagnostics.not_used(
+                                    location.source_id,
+                                    &location.span,
+                                    None,
+                                )?;
+                            } else {
+                                let args = b.hir.captures.len();
 
-                let arena = hir::Arena::new();
-                let mut cx = hir::lowering::Ctxt::with_query(
-                    &arena,
-                    self.q.borrow(),
-                    item_meta.location.source_id,
-                )?;
-                let hir = hir::lowering::async_block_secondary(&mut cx, &b.ast, captures)?;
-                let mut c = self.compiler1(location, &b.ast, &mut asm)?;
-                assemble::async_block_secondary(&mut c, &hir)?;
-
-                if !self.q.is_used(&item_meta) {
-                    self.q
-                        .diagnostics
-                        .not_used(location.source_id, &location.span, None)?;
-                } else {
-                    let args = hir.captures.len();
-
-                    self.q.unit.new_function(
-                        location,
-                        self.q.pool.item(item_meta.item),
-                        None,
-                        args,
-                        None,
-                        asm,
-                        b.call,
-                        Default::default(),
-                        unit_storage,
-                    )?;
+                                self.q.unit.new_function(
+                                    location,
+                                    self.q.pool.item(item_meta.item),
+                                    None,
+                                    args,
+                                    None,
+                                    asm,
+                                    b.call,
+                                    Default::default(),
+                                    unit_storage,
+                                    size,
+                                )?;
+                            }
+                        }
+                    }
                 }
             }
             Build::Unused => {
@@ -449,7 +443,42 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
     }
 }
 
-fn format_fn_args<'a, I>(
+fn format_hir_args<'hir, I>(
+    sources: &Sources,
+    location: Location,
+    environment: bool,
+    arguments: I,
+) -> compile::Result<Box<[Box<str>]>>
+where
+    I: IntoIterator<Item = &'hir hir::FnArg<'hir>>,
+{
+    let mut args = Vec::new();
+
+    for arg in arguments {
+        match arg {
+            hir::FnArg::SelfValue(..) => {
+                args.try_push(Box::try_from("self")?)?;
+            }
+            hir::FnArg::Pat(pat) => {
+                let span = pat.span();
+
+                if let Some(s) = sources.source(location.source_id, span) {
+                    args.try_push(Box::try_from(s)?)?;
+                } else {
+                    args.try_push(Box::try_from("*")?)?;
+                }
+            }
+        }
+    }
+
+    if environment {
+        args.try_push(Box::try_from("environment")?)?;
+    }
+
+    Ok(args.try_into_boxed_slice()?)
+}
+
+fn format_ast_args<'a, I>(
     sources: &Sources,
     location: Location,
     environment: bool,
@@ -459,10 +488,6 @@ where
     I: IntoIterator<Item = &'a ast::FnArg>,
 {
     let mut args = Vec::new();
-
-    if environment {
-        args.try_push(Box::try_from("environment")?)?;
-    }
 
     for arg in arguments {
         match arg {
@@ -479,6 +504,10 @@ where
                 }
             }
         }
+    }
+
+    if environment {
+        args.try_push(Box::try_from("environment")?)?;
     }
 
     Ok(args.try_into_boxed_slice()?)

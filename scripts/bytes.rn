@@ -1,20 +1,18 @@
 use std::bytes::Bytes;
 
-pub fn main() {
-    let bytes = Bytes::new();
-    bytes.extend_str("hello world");
-    bytes.extend_str("hello world");
-    let other = bytes.clone();
-    bytes.extend(other);
+let bytes = Bytes::new();
+bytes.extend_str("hello world");
+bytes.extend_str("hello world");
+let other = bytes.clone();
+bytes.extend(other);
 
-    assert!(bytes is Bytes, "bytes should be bytes");
-    dbg(bytes);
+assert!(bytes is Bytes, "bytes should be bytes");
+dbg!(bytes);
 
-    let vec = bytes.into_vec();
+let vec = bytes.into_vec();
 
-    if let [b'h', b'e', b'l', b'l', b'o', ..] = vec {
-        println("it does start with an 'hello'");
-    }
-
-    Bytes::from_vec(vec)
+if let [b'h', b'e', b'l', b'l', b'o', ..] = vec {
+    println("it does start with an 'hello'");
 }
+
+dbg!(Bytes::from_vec(vec));

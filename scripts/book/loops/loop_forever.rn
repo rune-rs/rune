@@ -1,8 +1,6 @@
 use time::Duration;
 
-pub async fn main() {
-    loop {
-        println("Hello forever!");
-        time::sleep(Duration::from_secs(1)).await;
-    }
+loop {
+    println!("Hello forever!");
+    time::sleep(Duration::from_secs(1)).await;
 }

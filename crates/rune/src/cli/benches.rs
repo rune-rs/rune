@@ -1,29 +1,39 @@
 use std::fmt;
+use std::hint;
 use std::io::Write;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
-use clap::Parser;
-
 use crate::alloc::Vec;
 use crate::cli::{AssetKind, CommandBase, Config, ExitCode, Io, SharedFlags};
-use crate::compile::{Item, ItemBuf};
 use crate::modules::capture_io::CaptureIo;
 use crate::modules::test::Bencher;
 use crate::runtime::{Function, Unit, Value};
 use crate::support::Result;
-use crate::{Context, Hash, Sources, Vm};
+use crate::{Context, Hash, Item, ItemBuf, Sources, Vm};
 
-#[derive(Parser, Debug)]
-pub(super) struct Flags {
-    /// Rounds of warmup to perform
-    #[arg(long, default_value = "100")]
-    warmup: u32,
+mod cli {
+    use std::path::PathBuf;
+    use std::vec::Vec;
 
-    /// Iterations to run of the benchmark
-    #[arg(long, default_value = "100")]
-    iterations: u32,
+    use clap::Parser;
+
+    #[derive(Parser, Debug)]
+    #[command(rename_all = "kebab-case")]
+    pub(crate) struct Flags {
+        /// Rounds of warmup to perform
+        #[arg(long, default_value = "100")]
+        pub(super) warmup: u32,
+        /// Iterations to run of the benchmark
+        #[arg(long, default_value = "100")]
+        pub(super) iter: u32,
+        /// Explicit paths to benchmark.
+        pub(super) bench_path: Vec<PathBuf>,
+    }
 }
+
+pub(super) use cli::Flags;
 
 impl CommandBase for Flags {
     #[inline]
@@ -39,6 +49,11 @@ impl CommandBase for Flags {
     #[inline]
     fn propagate(&mut self, c: &mut Config, _: &mut SharedFlags) {
         c.test = true;
+    }
+
+    #[inline]
+    fn paths(&self) -> &[PathBuf] {
+        &self.bench_path
     }
 }
 
@@ -116,18 +131,18 @@ fn bench_fn(
 ) -> Result<()> {
     for _ in 0..args.warmup {
         let value = f.call::<Value>(()).into_result()?;
-        drop(value);
+        drop(hint::black_box(value));
     }
 
-    let iterations = usize::try_from(args.iterations).expect("iterations out of bounds");
+    let iterations = usize::try_from(args.iter).expect("iterations out of bounds");
     let mut collected = Vec::try_with_capacity(iterations)?;
 
-    for _ in 0..args.iterations {
+    for _ in 0..args.iter {
         let start = Instant::now();
         let value = f.call::<Value>(()).into_result()?;
         let duration = Instant::now().duration_since(start);
         collected.try_push(duration.as_nanos() as i128)?;
-        drop(value);
+        drop(hint::black_box(value));
     }
 
     collected.sort_unstable();
@@ -179,6 +194,14 @@ struct Time(u128);
 
 impl fmt::Display for Time {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}ns", self.0)
+        if self.0 >= 1_000_000_000 {
+            write!(f, "{:.3}s", self.0 as f64 / 1_000_000_000.0)
+        } else if self.0 >= 1_000_000 {
+            write!(f, "{:.3}ms", self.0 as f64 / 1_000_000.0)
+        } else if self.0 >= 1_000 {
+            write!(f, "{:.3}µs", self.0 as f64 / 1_000.0)
+        } else {
+            write!(f, "{}ns", self.0)
+        }
     }
 }

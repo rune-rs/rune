@@ -69,7 +69,7 @@ pub struct ItemBuf<A: Allocator = Global> {
 
 impl<A: Allocator> ItemBuf<A> {
     /// Construct a new item buffer inside of the given allocator.
-    pub(crate) fn new_in(alloc: A) -> Self {
+    pub(crate) const fn new_in(alloc: A) -> Self {
         Self {
             content: Vec::new_in(alloc),
         }
@@ -85,11 +85,10 @@ impl<A: Allocator> ItemBuf<A> {
     }
 
     /// Construct a new item with the given path in the given allocator.
-    pub(crate) fn with_item_in<I>(iter: I, alloc: A) -> alloc::Result<Self>
-    where
-        I: IntoIterator,
-        I::Item: IntoComponent,
-    {
+    pub(crate) fn with_item_in(
+        iter: impl IntoIterator<Item: IntoComponent>,
+        alloc: A,
+    ) -> alloc::Result<Self> {
         let mut content = Vec::new_in(alloc);
 
         for c in iter {
@@ -155,7 +154,7 @@ impl ItemBuf {
     /// # Examples
     ///
     /// ```
-    /// use rune::compile::ItemBuf;
+    /// use rune::ItemBuf;
     ///
     /// let item = ItemBuf::new();
     /// let mut it = item.iter();
@@ -173,7 +172,8 @@ impl ItemBuf {
     /// # Examples
     ///
     /// ```
-    /// use rune::compile::{ComponentRef, ItemBuf};
+    /// use rune::ItemBuf;
+    /// use rune::item::ComponentRef;
     ///
     /// let item = ItemBuf::with_item(["foo", "bar"])?;
     /// let mut it = item.iter();
@@ -183,11 +183,7 @@ impl ItemBuf {
     /// assert_eq!(it.next(), None);
     /// # Ok::<(), rune::support::Error>(())
     /// ```
-    pub fn with_item<I>(iter: I) -> alloc::Result<Self>
-    where
-        I: IntoIterator,
-        I::Item: IntoComponent,
-    {
+    pub fn with_item(iter: impl IntoIterator<Item: IntoComponent>) -> alloc::Result<Self> {
         Self::with_item_in(iter, Global)
     }
 
@@ -196,7 +192,8 @@ impl ItemBuf {
     /// # Examples
     ///
     /// ```
-    /// use rune::compile::{ComponentRef, ItemBuf};
+    /// use rune::ItemBuf;
+    /// use rune::item::ComponentRef;
     ///
     /// let mut item = ItemBuf::with_crate("std")?;
     /// item.push("foo");
@@ -217,7 +214,8 @@ impl ItemBuf {
     /// # Examples
     ///
     /// ```
-    /// use rune::compile::{ComponentRef, ItemBuf};
+    /// use rune::ItemBuf;
+    /// use rune::item::ComponentRef;
     ///
     /// let item = ItemBuf::with_crate_item("std", ["option"])?;
     /// assert_eq!(item.as_crate(), Some("std"));
@@ -320,7 +318,7 @@ impl<A: Allocator> Deref for ItemBuf<A> {
 
     fn deref(&self) -> &Self::Target {
         // SAFETY: Item ensures that content is valid.
-        unsafe { Item::from_raw(self.content.as_ref()) }
+        unsafe { Item::from_bytes(self.content.as_ref()) }
     }
 }
 

@@ -61,7 +61,7 @@ fn struct_match() {
 
 #[test]
 fn enum_match() {
-    #[derive(Any, Clone, Copy)]
+    #[derive(Debug, Any, Clone, Copy)]
     enum Enum {
         Success,
         Failed,

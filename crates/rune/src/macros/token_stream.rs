@@ -4,9 +4,9 @@ use core::slice;
 use crate::compile;
 
 use crate as rune;
+use crate::alloc;
 use crate::alloc::prelude::*;
-use crate::alloc::vec::{self, Vec};
-use crate::alloc::{self, Box};
+use crate::alloc::vec;
 use crate::ast;
 use crate::ast::{OptionSpanned, Span};
 use crate::macros::MacroContext;
@@ -63,7 +63,7 @@ impl From<Vec<ast::Token>> for TokenStream {
 }
 
 impl Parse for TokenStream {
-    fn parse(p: &mut Parser) -> compile::Result<Self> {
+    fn parse(p: &mut Parser<'_>) -> compile::Result<Self> {
         Ok(Self { stream: p.parse()? })
     }
 }

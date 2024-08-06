@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::ExprFor>("for i in x {}");
     rt::<ast::ExprFor>("for (a, _) in x {}");
     rt::<ast::ExprFor>("'label: for i in x {}");
@@ -49,7 +47,7 @@ impl ExprFor {
             binding: parser.parse()?,
             in_: parser.parse()?,
             iter: Box::try_new(ast::Expr::parse_without_eager_brace(parser)?)?,
-            body: parser.parse()?,
+            body: Box::try_new(parser.parse()?)?,
         })
     }
 }

@@ -16,7 +16,15 @@ fn test_use_variant_as_type() {
 fn break_outside_of_loop() {
     assert_errors! {
         r#"pub fn main() { break; }"#,
-        span!(16, 21), BreakOutsideOfLoop
+        span!(16, 21), BreakUnsupported
+    };
+}
+
+#[test]
+fn for_break_with_value() {
+    assert_errors! {
+        r#"pub fn main() { for _ in 0..10 { break 42; } }"#,
+        span!(33, 41), BreakUnsupportedValue
     };
 }
 
@@ -24,7 +32,7 @@ fn break_outside_of_loop() {
 fn continue_outside_of_loop() {
     assert_errors! {
         r#"pub fn main() { continue; }"#,
-        span!(16, 24), ContinueOutsideOfLoop
+        span!(16, 24), ContinueUnsupported
     };
 }
 

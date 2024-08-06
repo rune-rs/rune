@@ -5,22 +5,181 @@ use ::rust_alloc::sync::Arc;
 use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, BTreeSet, Box, HashMap, HashSet, String, Vec};
-use crate::compile::meta;
-#[cfg(feature = "doc")]
-use crate::compile::Docs;
 #[cfg(feature = "emit")]
 use crate::compile::MetaInfo;
-use crate::compile::{ComponentRef, ContextError, IntoComponent, Item, ItemBuf, Names};
+use crate::compile::{self, ContextError, Names};
+use crate::compile::{meta, Docs};
+use crate::function::{Function, Plain};
+use crate::function_meta::{AssociatedName, ToInstance};
 use crate::hash;
+use crate::item::{ComponentRef, IntoComponent};
+use crate::macros::{MacroContext, TokenStream};
 use crate::module::{
-    Fields, Module, ModuleAssociated, ModuleAssociatedKind, ModuleItem, ModuleType,
+    DocFunction, Fields, Module, ModuleAssociated, ModuleAssociatedKind, ModuleFunction,
+    ModuleItem, ModuleItemCommon, ModuleReexport, ModuleTrait, ModuleTraitImpl, ModuleType,
     TypeSpecification,
 };
 use crate::runtime::{
-    AttributeMacroHandler, ConstValue, FunctionHandler, MacroHandler, Protocol, RuntimeContext,
-    StaticType, TypeCheck, TypeInfo, VariantRtti,
+    ConstValue, FunctionHandler, InstAddress, Memory, Output, Protocol, RuntimeContext, StaticType,
+    TypeCheck, TypeInfo, VariantRtti, VmResult,
 };
-use crate::Hash;
+use crate::{Hash, Item, ItemBuf};
+
+/// A (type erased) macro handler.
+pub(crate) type MacroHandler =
+    dyn Fn(&mut MacroContext, &TokenStream) -> compile::Result<TokenStream> + Send + Sync;
+
+/// Invoked when types implement a trait.
+pub(crate) type TraitHandler =
+    dyn Fn(&mut TraitContext<'_>) -> Result<(), ContextError> + Send + Sync;
+
+/// A (type erased) attribute macro handler.
+pub(crate) type AttributeMacroHandler = dyn Fn(&mut MacroContext, &TokenStream, &TokenStream) -> compile::Result<TokenStream>
+    + Send
+    + Sync;
+
+/// Type used to install traits.
+pub struct TraitContext<'a> {
+    /// The context the trait function are being installed into.
+    cx: &'a mut Context,
+    /// The item being installed.
+    item: &'a Item,
+    /// The hash of the item being installed.
+    hash: Hash,
+    /// Type info of the type being installed.
+    type_info: &'a TypeInfo,
+    /// The trait being implemented for.
+    trait_item: &'a Item,
+    /// Hash of the trait being impleemnted.
+    trait_hash: Hash,
+}
+
+impl TraitContext<'_> {
+    /// Return the item the trait is being installed for.
+    pub fn item(&self) -> &Item {
+        self.item
+    }
+
+    /// Return the hash the trait is being installed for.
+    pub fn hash(&self) -> Hash {
+        self.hash
+    }
+
+    /// Find the given protocol function for the current type.
+    ///
+    /// This requires that the function is defined.
+    pub fn find(&self, name: impl ToInstance) -> Result<Arc<FunctionHandler>, ContextError> {
+        let name = name.to_instance()?;
+
+        let hash = name
+            .kind
+            .hash(self.hash)
+            .with_function_parameters(name.function_parameters);
+
+        let Some(handler) = self.cx.functions.get(&hash) else {
+            return Err(ContextError::MissingTraitFunction {
+                name: name.kind.try_to_string()?,
+                item: self.item.try_to_owned()?,
+                hash,
+                trait_item: self.trait_item.try_to_owned()?,
+                trait_hash: self.trait_hash,
+            });
+        };
+
+        Ok(handler.clone())
+    }
+
+    /// Try to find the given associated function.
+    ///
+    /// This does not require that the function is defined.
+    pub fn try_find(
+        &self,
+        name: impl ToInstance,
+    ) -> Result<Option<Arc<FunctionHandler>>, ContextError> {
+        let name = name.to_instance()?;
+
+        let hash = name
+            .kind
+            .hash(self.hash)
+            .with_function_parameters(name.function_parameters);
+
+        Ok(self.cx.functions.get(&hash).cloned())
+    }
+
+    /// Define a new associated function for the current type.
+    pub fn function<F, A>(
+        &mut self,
+        name: impl ToInstance,
+        handler: F,
+    ) -> Result<Arc<FunctionHandler>, ContextError>
+    where
+        F: Function<A, Plain>,
+    {
+        self.raw_function(name, move |memory, addr, len, out| {
+            handler.fn_call(memory, addr, len, out)
+        })
+    }
+
+    /// Define a new associated raw function for the current type.
+    pub fn raw_function<F>(
+        &mut self,
+        name: impl ToInstance,
+        handler: F,
+    ) -> Result<Arc<FunctionHandler>, ContextError>
+    where
+        F: 'static + Fn(&mut dyn Memory, InstAddress, usize, Output) -> VmResult<()> + Send + Sync,
+    {
+        let handler: Arc<FunctionHandler> = Arc::new(handler);
+        self.function_handler(name, &handler)?;
+        Ok(handler)
+    }
+
+    /// Define a new associated function for the current type using a raw
+    /// handler.
+    pub fn function_handler(
+        &mut self,
+        name: impl ToInstance,
+        handler: &Arc<FunctionHandler>,
+    ) -> Result<(), ContextError> {
+        let name = name.to_instance()?;
+        self.function_inner(name, handler)
+    }
+
+    fn function_inner(
+        &mut self,
+        name: AssociatedName,
+        handler: &Arc<FunctionHandler>,
+    ) -> Result<(), ContextError> {
+        let function = ModuleFunction {
+            handler: handler.clone(),
+            trait_hash: Some(self.trait_hash),
+            doc: DocFunction {
+                #[cfg(feature = "doc")]
+                is_async: false,
+                #[cfg(feature = "doc")]
+                args: None,
+                #[cfg(feature = "doc")]
+                argument_types: Box::default(),
+                #[cfg(feature = "doc")]
+                return_type: meta::DocType::empty(),
+            },
+        };
+
+        let assoc = ModuleAssociated {
+            container: self.hash,
+            container_type_info: self.type_info.try_clone()?,
+            name,
+            common: ModuleItemCommon {
+                docs: Docs::EMPTY,
+                deprecated: None,
+            },
+            kind: ModuleAssociatedKind::Function(function),
+        };
+
+        self.cx.install_associated(&assoc)?;
+        Ok(())
+    }
+}
 
 /// Context metadata.
 #[derive(Debug)]
@@ -90,7 +249,7 @@ pub struct Context {
     /// Registered metadata, in the order that it was registered.
     meta: Vec<ContextMeta>,
     /// Item metadata in the context.
-    hash_to_meta: HashMap<Hash, Vec<usize>>,
+    hash_to_meta: hash::Map<Vec<usize>>,
     /// Store item to hash mapping.
     item_to_hash: HashMap<ItemBuf, BTreeSet<Hash>>,
     /// Registered native function handlers.
@@ -99,13 +258,18 @@ pub struct Context {
     deprecations: hash::Map<String>,
     /// Information on associated types.
     #[cfg(feature = "doc")]
-    associated: HashMap<Hash, Vec<Hash>>,
+    associated: hash::Map<Vec<Hash>>,
+    /// Traits implemented by the given hash.
+    #[cfg(feature = "doc")]
+    implemented_traits: hash::Map<Vec<Hash>>,
     /// Registered native macro handlers.
-    macros: HashMap<Hash, Arc<MacroHandler>>,
+    macros: hash::Map<Arc<MacroHandler>>,
+    /// Handlers for realising traits.
+    traits: hash::Map<Option<Arc<TraitHandler>>>,
     /// Registered native attribute macro handlers.
-    attribute_macros: HashMap<Hash, Arc<AttributeMacroHandler>>,
+    attribute_macros: hash::Map<Arc<AttributeMacroHandler>>,
     /// Registered types.
-    types: HashMap<Hash, ContextType>,
+    types: hash::Map<ContextType>,
     /// Registered internal enums.
     internal_enums: HashSet<&'static StaticType>,
     /// All available names in the context.
@@ -138,6 +302,8 @@ impl Context {
     /// * `::std::io::println`
     pub fn with_config(#[allow(unused)] stdio: bool) -> Result<Self, ContextError> {
         let mut this = Self::new();
+
+        this.install(crate::modules::iter::module()?)?;
         // This must go first, because it includes types which are used in other modules.
         this.install(crate::modules::core::module()?)?;
 
@@ -149,24 +315,31 @@ impl Context {
         this.install(crate::modules::hash::module()?)?;
         this.install(crate::modules::cmp::module()?)?;
         this.install(crate::modules::collections::module()?)?;
+        #[cfg(feature = "alloc")]
+        this.install(crate::modules::collections::hash_map::module()?)?;
+        #[cfg(feature = "alloc")]
+        this.install(crate::modules::collections::hash_set::module()?)?;
+        #[cfg(feature = "alloc")]
+        this.install(crate::modules::collections::vec_deque::module()?)?;
         this.install(crate::modules::f64::module()?)?;
         this.install(crate::modules::tuple::module()?)?;
         this.install(crate::modules::fmt::module()?)?;
         this.install(crate::modules::future::module()?)?;
         this.install(crate::modules::i64::module()?)?;
         this.install(crate::modules::io::module(stdio)?)?;
-        this.install(crate::modules::iter::module()?)?;
         this.install(crate::modules::macros::module()?)?;
         this.install(crate::modules::macros::builtin::module()?)?;
         this.install(crate::modules::mem::module()?)?;
         this.install(crate::modules::object::module()?)?;
         this.install(crate::modules::ops::module()?)?;
+        this.install(crate::modules::ops::generator::module()?)?;
         this.install(crate::modules::option::module()?)?;
         this.install(crate::modules::result::module()?)?;
         this.install(crate::modules::stream::module()?)?;
         this.install(crate::modules::string::module()?)?;
         this.install(crate::modules::test::module()?)?;
         this.install(crate::modules::vec::module()?)?;
+        this.install(crate::modules::slice::module()?)?;
         this.has_default_modules = true;
         Ok(this)
     }
@@ -227,12 +400,24 @@ impl Context {
             self.install_type(module, ty)?;
         }
 
+        for t in &module.traits {
+            self.install_trait(t)?;
+        }
+
         for item in &module.items {
             self.install_item(module, item)?;
         }
 
         for assoc in &module.associated {
             self.install_associated(assoc)?;
+        }
+
+        for t in &module.trait_impls {
+            self.install_trait_impl(module, t)?;
+        }
+
+        for r in &module.reexports {
+            self.install_reexport(r)?;
         }
 
         Ok(())
@@ -293,6 +478,7 @@ impl Context {
     }
 
     /// Lookup meta by its hash.
+    #[cfg(any(feature = "cli", feature = "languageserver", feature = "emit"))]
     pub(crate) fn lookup_meta_by_hash(
         &self,
         hash: Hash,
@@ -322,9 +508,20 @@ impl Context {
     }
 
     /// Get all associated types for the given hash.
-    #[cfg(feature = "doc")]
+    #[cfg(feature = "cli")]
     pub(crate) fn associated(&self, hash: Hash) -> impl Iterator<Item = Hash> + '_ {
         self.associated
+            .get(&hash)
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+            .iter()
+            .copied()
+    }
+
+    /// Get all traits implemented for the given hash.
+    #[cfg(feature = "cli")]
+    pub(crate) fn traits(&self, hash: Hash) -> impl Iterator<Item = Hash> + '_ {
+        self.implemented_traits
             .get(&hash)
             .map(Vec::as_slice)
             .unwrap_or_default()
@@ -349,7 +546,7 @@ impl Context {
     }
 
     /// Iterate over available crates.
-    #[cfg(feature = "doc")]
+    #[cfg(feature = "cli")]
     pub(crate) fn iter_crates(&self) -> impl Iterator<Item = &str> {
         self.crates.iter().map(|s| s.as_ref())
     }
@@ -365,6 +562,23 @@ impl Context {
     /// not.
     pub(crate) fn has_default_modules(&self) -> bool {
         self.has_default_modules
+    }
+
+    /// Try to find an existing module.
+    fn find_existing_module(&self, hash: Hash) -> Option<usize> {
+        let indexes = self.hash_to_meta.get(&hash)?;
+
+        for &index in indexes {
+            let Some(m) = self.meta.get(index) else {
+                continue;
+            };
+
+            if matches!(m.kind, meta::Kind::Module) {
+                return Some(index);
+            }
+        }
+
+        None
     }
 
     /// Install the given meta.
@@ -385,12 +599,16 @@ impl Context {
         }
 
         let hash = meta.hash;
+
         let index = self.meta.len();
+
         self.meta.try_push(meta)?;
+
         self.hash_to_meta
             .entry(hash)
             .or_try_default()?
             .try_push(index)?;
+
         Ok(())
     }
 
@@ -402,21 +620,32 @@ impl Context {
 
         #[allow(unused)]
         while let Some((item, common)) = current.take() {
-            self.install_meta(ContextMeta {
-                hash: Hash::type_hash(item),
-                item: Some(item.try_to_owned()?),
-                kind: meta::Kind::Module,
+            let hash = Hash::type_hash(item);
+
+            if let Some(index) = self.find_existing_module(hash) {
                 #[cfg(feature = "doc")]
-                deprecated: common
-                    .map(|c| c.deprecated.as_ref().try_cloned())
-                    .transpose()?
-                    .flatten(),
-                #[cfg(feature = "doc")]
-                docs: common
-                    .map(|c| c.docs.try_clone())
-                    .transpose()?
-                    .unwrap_or_default(),
-            })?;
+                if let Some(common) = common {
+                    let meta = &mut self.meta[index];
+                    meta.deprecated = common.deprecated.try_clone()?;
+                    meta.docs = common.docs.try_clone()?;
+                }
+            } else {
+                self.install_meta(ContextMeta {
+                    hash,
+                    item: Some(item.try_to_owned()?),
+                    kind: meta::Kind::Module,
+                    #[cfg(feature = "doc")]
+                    deprecated: common
+                        .map(|c| c.deprecated.as_ref().try_cloned())
+                        .transpose()?
+                        .flatten(),
+                    #[cfg(feature = "doc")]
+                    docs: common
+                        .map(|c| c.docs.try_clone())
+                        .transpose()?
+                        .unwrap_or_default(),
+                })?;
+            }
 
             current = item.parent().map(|item| (item, None));
         }
@@ -449,15 +678,9 @@ impl Context {
                                 #[cfg(feature = "doc")]
                                 is_async: false,
                                 #[cfg(feature = "doc")]
-                                args: Some(match fields {
-                                    Fields::Named(names) => names.len(),
-                                    Fields::Unnamed(args) => *args,
-                                    Fields::Empty => 0,
-                                }),
+                                arguments: Some(fields_to_arguments(fields)?),
                                 #[cfg(feature = "doc")]
-                                return_type: Some(ty.hash),
-                                #[cfg(feature = "doc")]
-                                argument_types: Box::default(),
+                                return_type: meta::DocType::new(ty.hash),
                             };
 
                             self.insert_native_fn(hash, c, None)?;
@@ -514,15 +737,9 @@ impl Context {
                                 #[cfg(feature = "doc")]
                                 is_async: false,
                                 #[cfg(feature = "doc")]
-                                args: Some(match fields {
-                                    Fields::Named(names) => names.len(),
-                                    Fields::Unnamed(args) => *args,
-                                    Fields::Empty => 0,
-                                }),
+                                arguments: Some(fields_to_arguments(fields)?),
                                 #[cfg(feature = "doc")]
-                                return_type: Some(ty.hash),
-                                #[cfg(feature = "doc")]
-                                argument_types: Box::default(),
+                                return_type: meta::DocType::new(ty.hash),
                             };
 
                             self.insert_native_fn(hash, c, variant.deprecated.as_deref())?;
@@ -585,6 +802,127 @@ impl Context {
         Ok(())
     }
 
+    fn install_trait(&mut self, t: &ModuleTrait) -> Result<(), ContextError> {
+        if self.traits.try_insert(t.hash, t.handler.clone())?.is_some() {
+            return Err(ContextError::ConflictingTrait {
+                item: t.item.try_clone()?,
+                hash: t.hash,
+            });
+        }
+
+        self.install_meta(ContextMeta {
+            hash: t.hash,
+            item: Some(t.item.try_clone()?),
+            kind: meta::Kind::Trait,
+            #[cfg(feature = "doc")]
+            deprecated: t.common.deprecated.try_clone()?,
+            #[cfg(feature = "doc")]
+            docs: t.common.docs.try_clone()?,
+        })?;
+
+        for f in &t.functions {
+            let signature = meta::Signature::from_context(&f.doc, &f.common)?;
+
+            let kind = meta::Kind::Function {
+                associated: Some(f.name.kind.try_clone()?),
+                trait_hash: None,
+                signature,
+                is_test: false,
+                is_bench: false,
+                parameters: Hash::EMPTY.with_function_parameters(f.name.function_parameters),
+                #[cfg(feature = "doc")]
+                container: Some(t.hash),
+                #[cfg(feature = "doc")]
+                parameter_types: f.name.parameter_types.try_clone()?,
+            };
+
+            let hash = f
+                .name
+                .kind
+                .hash(t.hash)
+                .with_function_parameters(f.name.function_parameters);
+
+            let item = if let meta::AssociatedKind::Instance(name) = &f.name.kind {
+                let item = t.item.extended(name.as_ref())?;
+                let hash = Hash::type_hash(&item);
+                Some((hash, item))
+            } else {
+                None
+            };
+
+            self.install_meta(ContextMeta {
+                hash,
+                item: item.map(|(_, item)| item),
+                kind,
+                #[cfg(feature = "doc")]
+                deprecated: f.common.deprecated.try_clone()?,
+                #[cfg(feature = "doc")]
+                docs: f.common.docs.try_clone()?,
+            })?;
+        }
+
+        Ok(())
+    }
+
+    fn install_trait_impl(
+        &mut self,
+        module: &Module,
+        i: &ModuleTraitImpl,
+    ) -> Result<(), ContextError> {
+        let item = module.item.join(&i.item)?;
+
+        if !self.types.contains_key(&i.hash) {
+            return Err(ContextError::MissingType {
+                item,
+                type_info: i.type_info.try_clone()?,
+            });
+        };
+
+        let Some(handler) = self.traits.get(&i.trait_hash).cloned() else {
+            return Err(ContextError::MissingTrait {
+                item: i.trait_item.try_clone()?,
+                hash: i.hash,
+                impl_item: item,
+                impl_hash: i.hash,
+            });
+        };
+
+        if let Some(handler) = handler {
+            handler(&mut TraitContext {
+                cx: self,
+                item: &item,
+                hash: i.hash,
+                type_info: &i.type_info,
+                trait_item: &i.trait_item,
+                trait_hash: i.trait_hash,
+            })?;
+        }
+
+        #[cfg(feature = "doc")]
+        self.implemented_traits
+            .entry(i.hash)
+            .or_try_default()?
+            .try_push(i.trait_hash)?;
+
+        Ok(())
+    }
+
+    fn install_reexport(&mut self, r: &ModuleReexport) -> Result<(), ContextError> {
+        self.install_meta(ContextMeta {
+            hash: r.hash,
+            item: Some(r.item.try_clone()?),
+            kind: meta::Kind::Alias(meta::Alias {
+                to: r.to.try_clone()?,
+            }),
+            #[cfg(feature = "doc")]
+            deprecated: None,
+            #[cfg(feature = "doc")]
+            docs: Docs::EMPTY,
+        })?;
+
+        Ok(())
+    }
+
     fn install_type_info(&mut self, ty: ContextType) -> Result<(), ContextError> {
         let item_hash = Hash::type_hash(&ty.item).with_type_parameters(ty.type_parameters);
 
@@ -635,25 +973,13 @@ impl Context {
                     ConstValue::String(item.try_to_string()?),
                 )?;
 
-                let signature = meta::Signature {
-                    #[cfg(feature = "doc")]
-                    is_async: f.is_async,
-                    #[cfg(feature = "doc")]
-                    args: f.args,
-                    #[cfg(feature = "doc")]
-                    return_type: f.return_type.as_ref().map(|f| f.hash),
-                    #[cfg(feature = "doc")]
-                    argument_types: f
-                        .argument_types
-                        .iter()
-                        .map(|f| f.as_ref().map(|f| f.hash))
-                        .try_collect()?,
-                };
+                let signature = meta::Signature::from_context(&f.doc, &module_item.common)?;
 
                 self.insert_native_fn(hash, &f.handler, module_item.common.deprecated.as_deref())?;
 
                 meta::Kind::Function {
                     associated: None,
+                    trait_hash: f.trait_hash,
                     signature,
                     is_test: false,
                     is_bench: false,
@@ -724,15 +1050,9 @@ impl Context {
                             #[cfg(feature = "doc")]
                             is_async: false,
                             #[cfg(feature = "doc")]
-                            args: Some(match fields {
-                                Fields::Named(names) => names.len(),
-                                Fields::Unnamed(args) => *args,
-                                Fields::Empty => 0,
-                            }),
+                            arguments: Some(fields_to_arguments(fields)?),
                             #[cfg(feature = "doc")]
-                            return_type: Some(hash),
-                            #[cfg(feature = "doc")]
-                            argument_types: Box::default(),
+                            return_type: meta::DocType::new(hash),
                         })
                     } else {
                         None
@@ -790,18 +1110,16 @@ impl Context {
     }
 
     fn install_associated(&mut self, assoc: &ModuleAssociated) -> Result<(), ContextError> {
-        let Some(info) = self.types.get(&assoc.container.hash).try_cloned()? else {
+        let Some(info) = self.types.get(&assoc.container).try_cloned()? else {
             return Err(ContextError::MissingContainer {
                 container: assoc.container_type_info.try_clone()?,
             });
         };
 
-        // NB: `assoc.container.hash` already contains the type hash, so it
-        // should not be mixed in again.
         let hash = assoc
             .name
             .kind
-            .hash(assoc.container.hash)
+            .hash(assoc.container)
             .with_function_parameters(assoc.name.function_parameters);
 
         // If the associated function is a named instance function - register it
@@ -832,20 +1150,7 @@ impl Context {
                 meta::Kind::Const
             }
             ModuleAssociatedKind::Function(f) => {
-                let signature = meta::Signature {
-                    #[cfg(feature = "doc")]
-                    is_async: f.is_async,
-                    #[cfg(feature = "doc")]
-                    args: f.args,
-                    #[cfg(feature = "doc")]
-                    return_type: f.return_type.as_ref().map(|f| f.hash),
-                    #[cfg(feature = "doc")]
-                    argument_types: f
-                        .argument_types
-                        .iter()
-                        .map(|f| f.as_ref().map(|f| f.hash))
-                        .try_collect()?,
-                };
+                let signature = meta::Signature::from_context(&f.doc, &assoc.common)?;
 
                 if let Some((hash, item)) = &item {
                     self.constants.try_insert(
@@ -860,6 +1165,7 @@ impl Context {
 
                 meta::Kind::Function {
                     associated: Some(assoc.name.kind.try_clone()?),
+                    trait_hash: f.trait_hash,
                     signature,
                     is_test: false,
                     is_bench: false,
@@ -867,7 +1173,7 @@ impl Context {
                         .with_type_parameters(info.type_parameters)
                         .with_function_parameters(assoc.name.function_parameters),
                     #[cfg(feature = "doc")]
-                    container: Some(assoc.container.hash),
+                    container: Some(assoc.container),
                     #[cfg(feature = "doc")]
                     parameter_types: assoc.name.parameter_types.try_clone()?,
                 }
@@ -898,9 +1204,11 @@ impl Context {
         }
 
         self.functions.try_insert(hash, handler.clone())?;
+
         if let Some(msg) = deprecation {
             self.deprecations.try_insert(hash, msg.try_to_owned()?)?;
         }
+
         Ok(())
     }
 
@@ -913,6 +1221,39 @@ impl Context {
 impl fmt::Debug for Context {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Context")
+    }
+}
+
+#[cfg(feature = "doc")]
+fn fields_to_arguments(fields: &Fields) -> alloc::Result<Box<[meta::DocArgument]>> {
+    match *fields {
+        Fields::Named(fields) => {
+            let mut out = Vec::try_with_capacity(fields.len())?;
+
+            for &name in fields {
+                out.try_push(meta::DocArgument {
+                    name: meta::DocName::Name(Box::try_from(name)?),
+                    base: Hash::EMPTY,
+                    generics: Box::default(),
+                })?;
+            }
+
+            Box::try_from(out)
+        }
+        Fields::Unnamed(args) => {
+            let mut out = Vec::try_with_capacity(args)?;
+
+            for n in 0..args {
+                out.try_push(meta::DocArgument {
+                    name: meta::DocName::Index(n),
+                    base: Hash::EMPTY,
+                    generics: Box::default(),
+                })?;
+            }
+
+            Box::try_from(out)
+        }
+        Fields::Empty => Ok(Box::default()),
     }
 }
 

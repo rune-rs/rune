@@ -72,16 +72,19 @@ pub trait TryWrite {
 
     #[inline]
     #[doc(hidden)]
-    fn write_fmt(&mut self, args: fmt::Arguments<'_>) -> Result<(), Error>
-    where
-        Self: Sized,
-    {
-        struct Writer<'a> {
-            target: &'a mut dyn TryWrite,
+    fn write_fmt(&mut self, args: fmt::Arguments<'_>) -> Result<(), Error> {
+        struct Writer<'a, T>
+        where
+            T: ?Sized,
+        {
+            target: &'a mut T,
             error: Option<Error>,
         }
 
-        impl fmt::Write for Writer<'_> {
+        impl<T> fmt::Write for Writer<'_, T>
+        where
+            T: ?Sized + TryWrite,
+        {
             #[inline]
             fn write_str(&mut self, s: &str) -> fmt::Result {
                 if let Err(error) = (*self.target).try_write_str(s) {

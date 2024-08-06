@@ -16,10 +16,10 @@ use crate::runtime::debug::DebugArgs;
 use crate::Context;
 use crate::Unit;
 
-use super::state::Source;
+use super::state::ServerSource;
 
 pub(super) fn complete_for_unit(
-    workspace_source: &Source,
+    workspace_source: &ServerSource,
     unit: &Unit,
     symbol: &str,
     position: lsp::Position,
@@ -116,11 +116,13 @@ pub(super) fn complete_native_instance_data(
         if n.starts_with(symbol) {
             let return_type = signature
                 .return_type
+                .base
+                .as_non_empty()
                 .and_then(|hash| context.lookup_meta_by_hash(hash).next())
                 .and_then(|r| r.item.as_deref());
 
             let docs = meta.docs.lines().join("\n");
-            let args = meta.docs.args().unwrap_or_default().join(", ");
+            let args = meta.docs.args().join(", ");
 
             let detail = return_type.map(|r| format!("({args}) -> {r}"));
 
@@ -175,11 +177,13 @@ pub(super) fn complete_native_loose_data(
         if func_name.starts_with(symbol) {
             let return_type = signature
                 .return_type
+                .base
+                .as_non_empty()
                 .and_then(|hash| context.lookup_meta_by_hash(hash).next())
                 .and_then(|r| r.item.as_deref());
 
             let docs = meta.docs.lines().join("\n");
-            let args = meta.docs.args().unwrap_or_default().join(", ");
+            let args = meta.docs.args().join(", ");
 
             let detail = return_type.map(|r| format!("({args}) -> {r}"));
 

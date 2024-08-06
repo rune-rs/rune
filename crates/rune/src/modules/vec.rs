@@ -4,9 +4,9 @@ use core::cmp::Ordering;
 
 use crate as rune;
 use crate::alloc::prelude::*;
+use crate::runtime::slice::Iter;
 use crate::runtime::{
-    EnvProtocolCaller, Formatter, Function, Hasher, Iterator, Ref, TypeOf, Value, Vec, VmErrorKind,
-    VmResult,
+    EnvProtocolCaller, Formatter, Function, Hasher, Ref, TypeOf, Value, Vec, VmErrorKind, VmResult,
 };
 use crate::{ContextError, Module};
 
@@ -45,21 +45,21 @@ use crate::{ContextError, Module};
 pub fn module() -> Result<Module, ContextError> {
     let mut m = Module::from_meta(self::module_meta)?;
 
-    m.ty::<Vec>()?.docs([
-        "A dynamic vector.",
-        "",
-        "This is the type that is constructed in rune when an array expression such as `[1, 2, 3]` is used.",
-        "",
-        "# Comparisons",
-        "",
-        "Shorter sequences are considered smaller than longer ones, and vice versa.",
-        "",
-        "```rune",
-        "assert!([1, 2, 3] < [1, 2, 3, 4]);",
-        "assert!([1, 2, 3] < [1, 2, 4]);",
-        "assert!([1, 2, 4] > [1, 2, 3]);",
-        "```",
-    ])?;
+    m.ty::<Vec>()?.docs(docstring! {
+        /// A dynamic vector.
+        ///
+        /// This is the type that is constructed in rune when an array expression such as `[1, 2, 3]` is used.
+        ///
+        /// # Comparisons
+        ///
+        /// Shorter sequences are considered smaller than longer ones, and vice versa.
+        ///
+        /// ```rune
+        /// assert!([1, 2, 3] < [1, 2, 3, 4]);
+        /// assert!([1, 2, 3] < [1, 2, 4]);
+        /// assert!([1, 2, 4] > [1, 2, 3]);
+        /// ```
+    })?;
 
     m.function_meta(vec_new)?;
     m.function_meta(vec_with_capacity)?;
@@ -69,22 +69,34 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(get)?;
     m.function_meta(clear)?;
     m.function_meta(extend)?;
-    m.function_meta(iter)?;
+    m.function_meta(Vec::rune_iter__meta)?;
     m.function_meta(pop)?;
     m.function_meta(push)?;
     m.function_meta(remove)?;
     m.function_meta(insert)?;
-    m.function_meta(clone)?;
     m.function_meta(sort_by)?;
     m.function_meta(sort)?;
-    m.function_meta(into_iter)?;
-    m.function_meta(index_set)?;
+    m.function_meta(into_iter__meta)?;
     m.function_meta(index_get)?;
+    m.function_meta(index_set)?;
+    m.function_meta(resize)?;
     m.function_meta(string_debug)?;
-    m.function_meta(partial_eq)?;
-    m.function_meta(eq)?;
-    m.function_meta(partial_cmp)?;
-    m.function_meta(cmp)?;
+
+    m.function_meta(clone__meta)?;
+    m.implement_trait::<Vec>(rune::item!(::std::clone::Clone))?;
+
+    m.function_meta(partial_eq__meta)?;
+    m.implement_trait::<Vec>(rune::item!(::std::cmp::PartialEq))?;
+
+    m.function_meta(eq__meta)?;
+    m.implement_trait::<Vec>(rune::item!(::std::cmp::Eq))?;
+
+    m.function_meta(partial_cmp__meta)?;
+    m.implement_trait::<Vec>(rune::item!(::std::cmp::PartialOrd))?;
+
+    m.function_meta(cmp__meta)?;
+    m.implement_trait::<Vec>(rune::item!(::std::cmp::Ord))?;
+
     m.function_meta(hash)?;
     Ok(m)
 }
@@ -348,22 +360,6 @@ fn extend(this: &mut Vec, value: Value) -> VmResult<()> {
     this.extend(value)
 }
 
-/// Iterate over the collection.
-///
-/// # Examples
-///
-/// ```rune
-/// let vec = [1, 2, 3, 4];
-/// let it = vec.iter();
-///
-/// assert_eq!(Some(1), it.next());
-/// assert_eq!(Some(4), it.next_back());
-/// ```
-#[rune::function(instance)]
-fn iter(this: Ref<Vec>) -> Iterator {
-    Vec::iter_ref(Ref::map(this, |vec| &**vec))
-}
-
 /// Removes the last element from a vector and returns it, or [`None`] if it is
 /// empty.
 ///
@@ -486,7 +482,7 @@ fn insert(this: &mut Vec, index: usize, value: Value) -> VmResult<()> {
 /// assert_eq!(a, [1, 2, 3]);
 /// assert_eq!(b, [1, 2, 3, 4]);
 /// ```
-#[rune::function(instance)]
+#[rune::function(keep, instance, protocol = CLONE)]
 fn clone(this: &Vec) -> VmResult<Vec> {
     VmResult::Ok(vm_try!(this.try_clone()))
 }
@@ -505,9 +501,9 @@ fn clone(this: &Vec) -> VmResult<Vec> {
 ///
 /// assert_eq!(out, [1, 2, 3]);
 /// ```
-#[rune::function(instance, protocol = INTO_ITER)]
-fn into_iter(this: Ref<Vec>) -> Iterator {
-    Vec::iter_ref(Ref::map(this, |vec| &**vec))
+#[rune::function(keep, instance, protocol = INTO_ITER)]
+fn into_iter(this: Ref<Vec>) -> Iter {
+    Vec::rune_iter(this)
 }
 
 /// Returns a reference to an element or subslice depending on the type of
@@ -564,6 +560,33 @@ fn index_set(this: &mut Vec, index: usize, value: Value) -> VmResult<()> {
     Vec::set(this, index, value)
 }
 
+/// Resizes the `Vec` in-place so that `len` is equal to `new_len`.
+///
+/// If `new_len` is greater than `len`, the `Vec` is extended by the difference,
+/// with each additional slot filled with `value`. If `new_len` is less than
+/// `len`, the `Vec` is simply truncated.
+///
+/// This method requires `T` to implement [`Clone`], in order to be able to
+/// clone the passed value. If you need more flexibility (or want to rely on
+/// [`Default`] instead of [`Clone`]), use [`Vec::resize_with`]. If you only
+/// need to resize to a smaller size, use [`Vec::truncate`].
+///
+/// # Examples
+///
+/// ```rune
+/// let vec = ["hello"];
+/// vec.resize(3, "world");
+/// assert_eq!(vec, ["hello", "world", "world"]);
+///
+/// let vec = [1, 2, 3, 4];
+/// vec.resize(2, 0);
+/// assert_eq!(vec, [1, 2]);
+/// ```
+#[rune::function(instance)]
+fn resize(this: &mut Vec, new_len: usize, value: Value) -> VmResult<()> {
+    Vec::resize(this, new_len, value)
+}
+
 /// Write a debug representation to a string.
 ///
 /// This calls the [`STRING_DEBUG`] protocol over all elements of the
@@ -594,7 +617,7 @@ fn string_debug(this: &Vec, f: &mut Formatter) -> VmResult<()> {
 /// assert!(vec == (1..=3));
 /// assert!(vec != [2, 3, 4]);
 /// ```
-#[rune::function(instance, protocol = PARTIAL_EQ)]
+#[rune::function(keep, instance, protocol = PARTIAL_EQ)]
 fn partial_eq(this: &Vec, other: Value) -> VmResult<bool> {
     Vec::partial_eq_with(this, other, &mut EnvProtocolCaller)
 }
@@ -611,7 +634,7 @@ fn partial_eq(this: &Vec, other: Value) -> VmResult<bool> {
 /// assert!(eq(vec, [1, 2, 3]));
 /// assert!(!eq(vec, [2, 3, 4]));
 /// ```
-#[rune::function(instance, protocol = EQ)]
+#[rune::function(keep, instance, protocol = EQ)]
 fn eq(this: &Vec, other: &Vec) -> VmResult<bool> {
     Vec::eq_with(this, other, Value::eq_with, &mut EnvProtocolCaller)
 }
@@ -626,7 +649,7 @@ fn eq(this: &Vec, other: &Vec) -> VmResult<bool> {
 /// assert!(vec > [0, 2, 3]);
 /// assert!(vec < [2, 2, 3]);
 /// ```
-#[rune::function(instance, protocol = PARTIAL_CMP)]
+#[rune::function(keep, instance, protocol = PARTIAL_CMP)]
 fn partial_cmp(this: &Vec, other: &Vec) -> VmResult<Option<Ordering>> {
     Vec::partial_cmp_with(this, other, &mut EnvProtocolCaller)
 }
@@ -644,7 +667,7 @@ fn partial_cmp(this: &Vec, other: &Vec) -> VmResult<Option<Ordering>> {
 /// assert_eq!(cmp(vec, [0, 2, 3]), Ordering::Greater);
 /// assert_eq!(cmp(vec, [2, 2, 3]), Ordering::Less);
 /// ```
-#[rune::function(instance, protocol = CMP)]
+#[rune::function(keep, instance, protocol = CMP)]
 fn cmp(this: &Vec, other: &Vec) -> VmResult<Ordering> {
     Vec::cmp_with(this, other, &mut EnvProtocolCaller)
 }

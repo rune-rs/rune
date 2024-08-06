@@ -1,5 +1,3 @@
-mod iter;
-
 use core::cmp;
 use core::cmp::Ordering;
 use core::fmt;
@@ -11,15 +9,14 @@ use crate as rune;
 use crate::alloc;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
+use crate::runtime::slice::Iter;
 #[cfg(feature = "alloc")]
 use crate::runtime::Hasher;
 use crate::runtime::{
-    Formatter, FromValue, Iterator, ProtocolCaller, RawRef, Ref, ToValue, UnsafeToRef, Value,
-    ValueKind, VmErrorKind, VmResult,
+    Formatter, FromValue, Mutable, ProtocolCaller, RawRef, Ref, ToValue, UnsafeToRef, Value,
+    ValueBorrowRef, VmErrorKind, VmResult,
 };
 use crate::Any;
-
-use self::iter::Iter;
 
 /// Struct representing a dynamic vector.
 ///
@@ -40,7 +37,7 @@ use self::iter::Iter;
 /// ```
 #[derive(Default, Any)]
 #[repr(transparent)]
-#[rune(builtin, static_type = VEC_TYPE)]
+#[rune(builtin, static_type = VEC)]
 #[rune(from_value = Value::into_vec, from_value_ref = Value::into_vec_ref, from_value_mut = Value::into_vec_mut)]
 pub struct Vec {
     inner: alloc::Vec<Value>,
@@ -80,7 +77,7 @@ impl Vec {
         })
     }
 
-    /// Convert into inner std vector.
+    /// Convert into inner rune alloc vector.
     pub fn into_inner(self) -> alloc::Vec<Value> {
         self.inner
     }
@@ -125,6 +122,16 @@ impl Vec {
         };
 
         *v = value;
+        VmResult::Ok(())
+    }
+
+    /// Resizes the `Vec` in-place so that `len` is equal to `new_len`.
+    ///
+    /// If `new_len` is greater than `len`, the `Vec` is extended by the
+    /// difference, with each additional slot filled with `value`. If `new_len`
+    /// is less than `len`, the `Vec` is simply truncated.
+    pub fn resize(&mut self, new_len: usize, value: Value) -> VmResult<()> {
+        vm_try!(self.inner.try_resize(new_len, value));
         VmResult::Ok(())
     }
 
@@ -207,9 +214,20 @@ impl Vec {
         VmResult::Ok(())
     }
 
-    /// Convert into a rune iterator.
-    pub fn iter_ref(this: Ref<[Value]>) -> Iterator {
-        Iterator::from_double_ended("std::slice::Iter", Iter::new(this))
+    /// Iterate over the vector.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// let vec = [1, 2, 3, 4];
+    /// let it = vec.iter();
+    ///
+    /// assert_eq!(it.next(), Some(1));
+    /// assert_eq!(it.next_back(), Some(4));
+    /// ```
+    #[rune::function(keep, path = Self::iter)]
+    pub fn rune_iter(this: Ref<Self>) -> Iter {
+        Iter::new(Ref::map(this, |vec| &**vec))
     }
 
     /// Access the inner values as a slice.
@@ -220,7 +238,7 @@ impl Vec {
     pub(crate) fn string_debug_with(
         this: &[Value],
         f: &mut Formatter,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
         let mut it = this.iter().peekable();
         vm_write!(f, "[");
@@ -240,7 +258,7 @@ impl Vec {
     pub(crate) fn partial_eq_with(
         a: &[Value],
         b: Value,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<bool> {
         let mut b = vm_try!(b.into_iter_with(caller));
 
@@ -261,15 +279,12 @@ impl Vec {
         VmResult::Ok(true)
     }
 
-    pub(crate) fn eq_with<P>(
+    pub(crate) fn eq_with(
         a: &[Value],
         b: &[Value],
-        eq: fn(&Value, &Value, &mut P) -> VmResult<bool>,
-        caller: &mut P,
-    ) -> VmResult<bool>
-    where
-        P: ProtocolCaller,
-    {
+        eq: fn(&Value, &Value, &mut dyn ProtocolCaller) -> VmResult<bool>,
+        caller: &mut dyn ProtocolCaller,
+    ) -> VmResult<bool> {
         if a.len() != b.len() {
             return VmResult::Ok(false);
         }
@@ -286,7 +301,7 @@ impl Vec {
     pub(crate) fn partial_cmp_with(
         a: &[Value],
         b: &[Value],
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<Option<Ordering>> {
         let mut b = b.iter();
 
@@ -311,7 +326,7 @@ impl Vec {
     pub(crate) fn cmp_with(
         a: &[Value],
         b: &[Value],
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<Ordering> {
         let mut b = b.iter();
 
@@ -337,31 +352,33 @@ impl Vec {
     /// types, such as vectors and tuples.
     pub(crate) fn index_get(this: &[Value], index: Value) -> VmResult<Option<Value>> {
         let slice: Option<&[Value]> = 'out: {
-            match &*vm_try!(index.borrow_kind_ref()) {
-                ValueKind::RangeFrom(range) => {
-                    let start = vm_try!(range.start.as_usize());
-                    break 'out this.get(start..);
+            if let ValueBorrowRef::Mutable(value) = vm_try!(index.borrow_ref()) {
+                match &*value {
+                    Mutable::RangeFrom(range) => {
+                        let start = vm_try!(range.start.as_usize());
+                        break 'out this.get(start..);
+                    }
+                    Mutable::RangeFull(..) => break 'out this.get(..),
+                    Mutable::RangeInclusive(range) => {
+                        let start = vm_try!(range.start.as_usize());
+                        let end = vm_try!(range.end.as_usize());
+                        break 'out this.get(start..=end);
+                    }
+                    Mutable::RangeToInclusive(range) => {
+                        let end = vm_try!(range.end.as_usize());
+                        break 'out this.get(..=end);
+                    }
+                    Mutable::RangeTo(range) => {
+                        let end = vm_try!(range.end.as_usize());
+                        break 'out this.get(..end);
+                    }
+                    Mutable::Range(range) => {
+                        let start = vm_try!(range.start.as_usize());
+                        let end = vm_try!(range.end.as_usize());
+                        break 'out this.get(start..end);
+                    }
+                    _ => {}
                 }
-                ValueKind::RangeFull(..) => break 'out this.get(..),
-                ValueKind::RangeInclusive(range) => {
-                    let start = vm_try!(range.start.as_usize());
-                    let end = vm_try!(range.end.as_usize());
-                    break 'out this.get(start..=end);
-                }
-                ValueKind::RangeToInclusive(range) => {
-                    let end = vm_try!(range.end.as_usize());
-                    break 'out this.get(..=end);
-                }
-                ValueKind::RangeTo(range) => {
-                    let end = vm_try!(range.end.as_usize());
-                    break 'out this.get(..end);
-                }
-                ValueKind::Range(range) => {
-                    let start = vm_try!(range.start.as_usize());
-                    let end = vm_try!(range.end.as_usize());
-                    break 'out this.get(start..end);
-                }
-                _ => {}
             };
 
             let index = vm_try!(usize::from_value(index));
@@ -385,7 +402,7 @@ impl Vec {
     pub(crate) fn hash_with(
         &self,
         hasher: &mut Hasher,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
         for value in self.inner.iter() {
             vm_try!(value.hash_with(hasher, caller));

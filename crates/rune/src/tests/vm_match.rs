@@ -121,3 +121,55 @@ fn test_struct_matching() {
     };
     assert_eq!(out, 3);
 }
+
+#[test]
+fn match_enums() {
+    let _: () = rune! {
+        enum Enum {
+            First(a),
+            Second(a),
+            Third,
+            Fourth { a, b },
+            Output(a),
+            Wrong,
+        }
+
+        fn foo(v) {
+            match v {
+                Enum::First(value) => Enum::Output(value * 1),
+                Enum::Second(value) => Enum::Output(value * 2),
+                Enum::Third => Enum::Output(3),
+                Enum::Fourth { a, b } => Enum::Output((a * b) * 4),
+                _ => Enum::Wrong,
+            }
+        }
+
+        pub fn main() {
+            assert_eq!(foo(Enum::Output(10)), Enum::Wrong);
+            assert_eq!(foo(Enum::First(1)), Enum::Output(1));
+            assert_eq!(foo(Enum::Second(2)), Enum::Output(4));
+            assert_eq!(foo(Enum::Third), Enum::Output(3));
+            assert_eq!(foo(Enum::Fourth { a: 4, b: 5 }), Enum::Output(4 * 5 * 4));
+        }
+    };
+
+    let _: () = rune! {
+        enum Enum {
+            First,
+            Second,
+            Right,
+            Wrong1,
+            Wrong2,
+        }
+
+        pub fn main() {
+            let out = match Enum::Second {
+                Enum::First => Enum::Wrong1,
+                Enum::Second => Enum::Right,
+                _ => Enum::Wrong2,
+            };
+
+            assert_eq!(out, Enum::Right);
+        }
+    };
+}

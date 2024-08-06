@@ -26,6 +26,8 @@ pub(crate) struct FunctionAttrs {
     self_type: Option<syn::PathSegment>,
     /// Defines a fallible function which can make use of the `?` operator.
     vm_result: bool,
+    /// The function is deprecated.
+    deprecated: Option<syn::LitStr>,
 }
 
 impl FunctionAttrs {
@@ -96,6 +98,9 @@ impl FunctionAttrs {
                 } else {
                     out.path = Path::Rename(first);
                 }
+            } else if ident == "deprecated" {
+                input.parse::<Token![=]>()?;
+                out.deprecated = Some(input.parse()?);
             } else {
                 return Err(syn::Error::new_spanned(ident, "Unsupported option"));
             }
@@ -226,7 +231,7 @@ impl Function {
             }
         }
 
-        let real_fn_path = syn::TypePath { qself: None, path };
+        let real_fn_path = path;
 
         let name_string = syn::LitStr::new(&self.sig.ident.to_string(), self.sig.ident.span());
 
@@ -284,7 +289,7 @@ impl Function {
 
             for argument in arguments {
                 array.elems.push(syn::Expr::Verbatim(quote! {
-                    <#argument as rune::__private::TypeOf>::type_of()
+                    <#argument as rune::__private::CoreTypeOf>::type_hash()
                 }));
             }
 
@@ -340,6 +345,7 @@ impl Function {
             };
         }
 
+        let generics = sig.generics.clone();
         stream.extend(sig.into_token_stream());
 
         if attrs.vm_result {
@@ -361,20 +367,32 @@ impl Function {
             Some(quote!(.build()?))
         };
 
-        let attr = (!real_fn_mangled).then(|| quote!(#[allow(non_snake_case)] #[doc(hidden)]));
+        let attributes = (!real_fn_mangled).then(|| quote!(#[allow(non_snake_case)]));
+
+        let deprecated = match &attrs.deprecated {
+            Some(message) => quote!(Some(#message)),
+            None => quote!(None),
+        };
+
+        let (impl_generics, type_generics, where_clause) = generics.split_for_impl();
+        let type_generics = type_generics.as_turbofish();
 
         stream.extend(quote! {
             /// Get function metadata.
             #[automatically_derived]
-            #attr
+            #attributes
             #[doc(hidden)]
-            pub(crate) fn #meta_fn() -> rune::alloc::Result<rune::__private::FunctionMetaData> {
+            pub(crate) fn #meta_fn #impl_generics() -> rune::alloc::Result<rune::__private::FunctionMetaData>
+            #where_clause
+            {
                 Ok(rune::__private::FunctionMetaData {
-                    kind: rune::__private::FunctionMetaKind::#meta_kind(#name, #real_fn_path)?#build_with,
-                    name: #name_string,
-                    deprecated: None,
-                    docs: &#docs[..],
-                    arguments: &#arguments[..],
+                    kind: rune::__private::FunctionMetaKind::#meta_kind(#name, #real_fn_path #type_generics)?#build_with,
+                    statics: rune::__private::FunctionMetaStatics {
+                        name: #name_string,
+                        deprecated: #deprecated,
+                        docs: &#docs[..],
+                        arguments: &#arguments[..],
+                    },
                 })
             }
         });

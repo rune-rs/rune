@@ -2,11 +2,9 @@ fn print_once() {
     yield 1
 }
 
-pub fn main() {
-    let printer = print_once();
-    dbg(printer);
-    dbg(printer.resume(()));
-    dbg(printer.resume("John"));
-    dbg(printer);
-    dbg(printer.resume(()));
-}
+let printer = print_once();
+dbg!(printer);
+dbg!(printer.resume(()));
+dbg!(printer.resume("John"));
+dbg!(printer);
+dbg!(printer.resume(()));

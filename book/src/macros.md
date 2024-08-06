@@ -1,11 +1,13 @@
 # Macros
 
-Rune has (experimental) support for macros. These are functions which expand
-into code, and can be used by library writers to "extend the compiler".
+Rune has support for macros. These are functions which expand into code, and can
+be used by library writers to "extend the compiler".
 
 For now, the following type of macros are support:
 * Function-like macros expanding to items (functions, type declarations, ..).
-* Function-like macros expanding to expression (statements, blocks, async blocks, ..).
+* Function-like macros expanding to expression (statements, blocks, async
+  blocks, ..).
+* Attribute macros expanding around a function.
 
 Macros can currently only be defined natively. This is to get around the rather
 tricky issue that the code of a macro has to be runnable during compilation.
@@ -31,15 +33,15 @@ that we need to pass in the `MacroContext` when invoking it. This is a detail
 which will be covered in one of the advanced sections.
 
 ```rust,noplaypen
-{{#include ../../crates/rune-modules/src/experiments/stringy_math_macro.rs}}
+{{#include ../../crates/rune/src/tests/macros/stringy_math.rs}}
 ```
 
 A macro is added to a [`Module`] using the [`Module::macro_`] function.
 
 ```rust,noplaypen
 pub fn module() -> Result<rune::Module, rune::ContextError> {
-    let mut module = rune::Module::new(["std", "experiments"]);
-    module.macro_meta(stringy_math_macro::stringy_math)?;
+    let mut module = rune::Module::new(["test", "macros"]);
+    module.macro_meta(stringy_math)?;
     Ok(module)
 }
 ```
@@ -47,16 +49,14 @@ pub fn module() -> Result<rune::Module, rune::ContextError> {
 With this module installed, we can now take `stringy_math!` for a spin.
 
 ```rune
-{{#include ../../scripts/book/macros/stringy_math.rn}}
+use ::test::macros::stringy_math;
+
+pub fn main() {
+    stringy_math!(add 10 sub 2 div 3 mul 100)
+}
 ```
 
-```text
-$> cargo run --bin rune -- run scripts/book/macros/stringy_math.rn -O macros=true --experimental
-200
-```
-
-To access the `std::experimental`, you have to specify the `--experimental`
-option to the Rune CLI.
+Running this would return `200`.
 
 [`quote!` macro]: https://docs.rs/rune/0/rune/macro.quote.html
 [famed counterpart in the Rust world]: https://docs.rs/quote/1/quote/

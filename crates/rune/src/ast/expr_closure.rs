@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::ExprClosure>("async || 42");
     rt::<ast::ExprClosure>("|| 42");
     rt::<ast::ExprClosure>("|| { 42 }");
@@ -77,14 +75,6 @@ pub enum ExprClosureArgs {
 }
 
 impl ExprClosureArgs {
-    /// The number of arguments the closure takes.
-    pub(crate) fn len(&self) -> usize {
-        match self {
-            Self::Empty { .. } => 0,
-            Self::List { args, .. } => args.len(),
-        }
-    }
-
     /// Get a slice over all arguments.
     pub(crate) fn as_slice(&self) -> &[(ast::FnArg, Option<T![,]>)] {
         match self {
@@ -103,7 +93,7 @@ impl ExprClosureArgs {
 }
 
 impl Parse for ExprClosureArgs {
-    fn parse(p: &mut Parser) -> Result<Self> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         if let Some(token) = p.parse::<Option<T![||]>>()? {
             return Ok(ExprClosureArgs::Empty { token });
         }

@@ -5,7 +5,7 @@ use core::ops;
 use crate as rune;
 use crate::alloc::clone::TryClone;
 use crate::runtime::{
-    EnvProtocolCaller, FromValue, Iterator, ProtocolCaller, ToValue, Value, ValueKind, VmErrorKind,
+    EnvProtocolCaller, FromValue, Inline, ProtocolCaller, ToValue, Value, ValueRef, VmErrorKind,
     VmResult,
 };
 use crate::Any;
@@ -52,7 +52,7 @@ use crate::Any;
 /// ```
 #[derive(Any, Clone, TryClone)]
 #[try_clone(crate)]
-#[rune(builtin, constructor, static_type = RANGE_FROM_TYPE)]
+#[rune(builtin, constructor, static_type = RANGE_FROM)]
 #[rune(from_value = Value::into_range_from, from_value_ref = Value::into_range_from_ref, from_value_mut = Value::into_range_from_mut)]
 pub struct RangeFrom {
     /// The start value of the range.
@@ -86,17 +86,25 @@ impl RangeFrom {
     /// range.iter()
     /// ```
     #[rune::function(keep)]
-    pub fn iter(&self) -> VmResult<Iterator> {
-        const NAME: &str = "std::ops::RangeFrom";
+    pub fn iter(&self) -> VmResult<Value> {
+        let value = match vm_try!(self.start.value_ref()) {
+            ValueRef::Inline(Inline::Byte(start)) => {
+                vm_try!(crate::to_value(RangeFromIter::new(*start..)))
+            }
+            ValueRef::Inline(Inline::Char(start)) => {
+                vm_try!(crate::to_value(RangeFromIter::new(*start..)))
+            }
+            ValueRef::Inline(Inline::Integer(start)) => {
+                vm_try!(crate::to_value(RangeFromIter::new(*start..)))
+            }
+            start => {
+                return VmResult::err(VmErrorKind::UnsupportedIterRangeFrom {
+                    start: vm_try!(start.type_info()),
+                })
+            }
+        };
 
-        match *vm_try!(self.start.borrow_kind_ref()) {
-            ValueKind::Byte(start) => VmResult::Ok(Iterator::from(NAME, start..)),
-            ValueKind::Char(start) => VmResult::Ok(Iterator::from(NAME, start..)),
-            ValueKind::Integer(start) => VmResult::Ok(Iterator::from(NAME, start..)),
-            ref start => VmResult::err(VmErrorKind::UnsupportedIterRangeFrom {
-                start: start.type_info(),
-            }),
-        }
+        VmResult::Ok(value)
     }
 
     /// Build an iterator over the range.
@@ -130,7 +138,7 @@ impl RangeFrom {
     /// }
     /// ```
     #[rune::function(keep, protocol = INTO_ITER)]
-    pub fn into_iter(&self) -> VmResult<Iterator> {
+    pub fn into_iter(&self) -> VmResult<Value> {
         self.iter()
     }
 
@@ -156,7 +164,7 @@ impl RangeFrom {
     pub(crate) fn partial_eq_with(
         &self,
         b: &Self,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<bool> {
         Value::partial_eq_with(&self.start, &b.start, caller)
     }
@@ -177,7 +185,7 @@ impl RangeFrom {
         self.eq_with(other, &mut EnvProtocolCaller)
     }
 
-    pub(crate) fn eq_with(&self, b: &Self, caller: &mut impl ProtocolCaller) -> VmResult<bool> {
+    pub(crate) fn eq_with(&self, b: &Self, caller: &mut dyn ProtocolCaller) -> VmResult<bool> {
         Value::eq_with(&self.start, &b.start, caller)
     }
 
@@ -199,7 +207,7 @@ impl RangeFrom {
     pub(crate) fn partial_cmp_with(
         &self,
         b: &Self,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<Option<Ordering>> {
         Value::partial_cmp_with(&self.start, &b.start, caller)
     }
@@ -220,11 +228,7 @@ impl RangeFrom {
         self.cmp_with(other, &mut EnvProtocolCaller)
     }
 
-    pub(crate) fn cmp_with(
-        &self,
-        b: &Self,
-        caller: &mut impl ProtocolCaller,
-    ) -> VmResult<Ordering> {
+    pub(crate) fn cmp_with(&self, b: &Self, caller: &mut dyn ProtocolCaller) -> VmResult<Ordering> {
         Value::cmp_with(&self.start, &b.start, caller)
     }
 
@@ -252,7 +256,7 @@ impl RangeFrom {
     pub(crate) fn contains_with(
         &self,
         value: Value,
-        caller: &mut impl ProtocolCaller,
+        caller: &mut dyn ProtocolCaller,
     ) -> VmResult<bool> {
         VmResult::Ok(matches!(
             vm_try!(Value::partial_cmp_with(&self.start, &value, caller)),
@@ -289,3 +293,11 @@ where
         VmResult::Ok(ops::RangeFrom { start })
     }
 }
+
+range_iter!(RangeFrom, RangeFromIter<T>, {
+    #[rune::function(instance, keep, protocol = SIZE_HINT)]
+    #[inline]
+    pub(crate) fn size_hint(&self) -> (i64, Option<i64>) {
+        (i64::MAX, None)
+    }
+});

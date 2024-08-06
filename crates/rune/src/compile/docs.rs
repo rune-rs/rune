@@ -27,23 +27,22 @@ impl Docs {
 
     /// Get arguments associated with documentation.
     #[cfg(feature = "doc")]
-    pub(crate) fn args(&self) -> Option<&[String]> {
-        self.arguments.as_deref()
+    pub(crate) fn args(&self) -> &[String] {
+        self.arguments.as_deref().unwrap_or_default()
     }
 
     /// Get lines of documentation.
-    #[cfg(feature = "doc")]
+    #[cfg(all(feature = "doc", any(feature = "languageserver", feature = "cli")))]
     pub(crate) fn lines(&self) -> &[String] {
         &self.docs
     }
 
     /// Update documentation.
     #[cfg(feature = "doc")]
-    pub(crate) fn set_docs<S>(&mut self, docs: S) -> alloc::Result<()>
-    where
-        S: IntoIterator,
-        S::Item: AsRef<str>,
-    {
+    pub(crate) fn set_docs(
+        &mut self,
+        docs: impl IntoIterator<Item: AsRef<str>>,
+    ) -> alloc::Result<()> {
         self.docs.clear();
 
         for line in docs {
@@ -54,21 +53,16 @@ impl Docs {
     }
 
     #[cfg(not(feature = "doc"))]
-    pub(crate) fn set_docs<S>(&mut self, _: S) -> alloc::Result<()>
-    where
-        S: IntoIterator,
-        S::Item: AsRef<str>,
-    {
+    pub(crate) fn set_docs(&mut self, _: impl IntoIterator<Item: AsRef<str>>) -> alloc::Result<()> {
         Ok(())
     }
 
     /// Update arguments.
     #[cfg(feature = "doc")]
-    pub(crate) fn set_arguments<S>(&mut self, arguments: S) -> alloc::Result<()>
-    where
-        S: IntoIterator,
-        S::Item: AsRef<str>,
-    {
+    pub(crate) fn set_arguments(
+        &mut self,
+        arguments: impl IntoIterator<Item: AsRef<str>>,
+    ) -> alloc::Result<()> {
         let mut out = self.arguments.take().unwrap_or_default();
         out.clear();
 
@@ -81,11 +75,10 @@ impl Docs {
     }
 
     #[cfg(not(feature = "doc"))]
-    pub(crate) fn set_arguments<S>(&mut self, _: S) -> alloc::Result<()>
-    where
-        S: IntoIterator,
-        S::Item: AsRef<str>,
-    {
+    pub(crate) fn set_arguments(
+        &mut self,
+        _: impl IntoIterator<Item: AsRef<str>>,
+    ) -> alloc::Result<()> {
         Ok(())
     }
 }

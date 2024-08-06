@@ -8,7 +8,7 @@ vector isn't typed, and can store *any* Rune values.
 ```
 
 ```text
-$> cargo run --bin rune -- run scripts/book/vectors/vectors.rn
+$> cargo run -- run scripts/book/vectors/vectors.rn
 Hello
 42
 Hello
@@ -24,7 +24,7 @@ protocol. It is also possible to create and use an iterator manually using
 ```
 
 ```text
-$> cargo run --bin rune -- run scripts/book/vectors/vectors_rev.rn
+$> cargo run -- run scripts/book/vectors/vectors_rev.rn
 42
 Hello
 ```

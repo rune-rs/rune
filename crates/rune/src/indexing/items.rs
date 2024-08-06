@@ -3,9 +3,11 @@ use core::mem::replace;
 
 use crate::alloc;
 use crate::alloc::prelude::*;
-use crate::compile::{ComponentRef, ErrorKind, Item, ItemBuf};
+use crate::compile::ErrorKind;
+use crate::item::ComponentRef;
 use crate::parse::NonZeroId;
 use crate::shared::Gen;
+use crate::{Item, ItemBuf};
 
 #[derive(Debug)]
 #[non_exhaustive]

@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::LitBool>("true");
     rt::<ast::LitBool>("false");
 }
@@ -24,7 +22,7 @@ pub struct LitBool {
 }
 
 impl Parse for LitBool {
-    fn parse(p: &mut Parser) -> Result<Self> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         let t = p.next()?;
 
         let value = match t.kind {

@@ -1,5 +1,4 @@
-use rune::compile::ItemBuf;
-use rune::Hash;
+use rune::{Hash, ItemBuf};
 
 fn main() -> rune::support::Result<()> {
     println!("{}", Hash::type_hash(&ItemBuf::with_item(["Foo", "new"])?));

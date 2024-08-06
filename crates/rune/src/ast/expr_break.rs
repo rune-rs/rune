@@ -2,8 +2,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::ExprBreak>("break");
     rt::<ast::ExprBreak>("break 42");
     rt::<ast::ExprBreak>("#[attr] break 42");

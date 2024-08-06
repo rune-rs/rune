@@ -4,8 +4,6 @@ use crate::ast::prelude::*;
 
 #[test]
 fn ast_parse() {
-    use crate::testing::rt;
-
     rt::<ast::ExprUnary>("!0");
     rt::<ast::ExprUnary>("*foo");
     rt::<ast::ExprUnary>("&foo");
@@ -71,7 +69,7 @@ pub enum UnOp {
 }
 
 impl Parse for UnOp {
-    fn parse(p: &mut Parser) -> Result<Self> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         let token = p.next()?;
 
         match token.kind {

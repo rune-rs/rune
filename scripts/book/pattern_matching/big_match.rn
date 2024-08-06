@@ -8,10 +8,8 @@ fn match_input(n) {
     }
 }
 
-pub fn main() {
-    match_input(1);
-    match_input(2);
-    match_input([1, 2, 42, 84]);
-    match_input("one");
-    match_input(#{ field: 42 });
-}
+match_input(1);
+match_input(2);
+match_input([1, 2, 42, 84]);
+match_input("one");
+match_input(#{ field: 42 });

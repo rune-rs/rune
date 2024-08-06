@@ -1,4 +1,4 @@
-use core::mem::{replace, take};
+use core::mem::take;
 
 use crate::alloc::prelude::*;
 use crate::alloc::{try_format, Box, Vec};
@@ -50,11 +50,11 @@ pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut Ctxt<'_, '_>) -> compile::Result
                 ));
             };
 
-            let value = value.as_value().with_span(span)?;
+            let value = value.to_value().with_span(span)?;
             ir::Ir::new(span, value)
         }
         hir::ExprKind::Variable(name) => {
-            return Ok(ir::Ir::new(span, name.into_owned()?));
+            return Ok(ir::Ir::new(span, name));
         }
         _ => {
             return Err(compile::Error::msg(
@@ -71,7 +71,7 @@ fn ir_target(expr: &hir::Expr<'_>) -> compile::Result<ir::IrTarget> {
         hir::ExprKind::Variable(name) => {
             return Ok(ir::IrTarget {
                 span: expr.span(),
-                kind: ir::IrTargetKind::Name(name.into_owned()?),
+                kind: ir::IrTargetKind::Name(name),
             });
         }
         hir::ExprKind::FieldAccess(expr_field_access) => {
@@ -204,7 +204,23 @@ fn expr_binary(
 fn lit(c: &mut Ctxt<'_, '_>, span: Span, hir: hir::Lit<'_>) -> compile::Result<ir::Ir> {
     Ok(match hir {
         hir::Lit::Bool(boolean) => {
-            let value = Value::try_from(boolean).with_span(span)?;
+            let value = Value::from(boolean);
+            ir::Ir::new(span, value)
+        }
+        hir::Lit::Integer(n) => {
+            let value = Value::from(n);
+            ir::Ir::new(span, value)
+        }
+        hir::Lit::Float(n) => {
+            let value = Value::from(n);
+            ir::Ir::new(span, value)
+        }
+        hir::Lit::Byte(b) => {
+            let value = Value::from(b);
+            ir::Ir::new(span, value)
+        }
+        hir::Lit::Char(c) => {
+            let value = Value::from(c);
             ir::Ir::new(span, value)
         }
         hir::Lit::Str(string) => {
@@ -212,25 +228,9 @@ fn lit(c: &mut Ctxt<'_, '_>, span: Span, hir: hir::Lit<'_>) -> compile::Result<i
             let value = Value::try_from(string).with_span(span)?;
             ir::Ir::new(span, value)
         }
-        hir::Lit::Integer(n) => {
-            let value = Value::try_from(n).with_span(span)?;
-            ir::Ir::new(span, value)
-        }
-        hir::Lit::Float(n) => {
-            let value = Value::try_from(n).with_span(span)?;
-            ir::Ir::new(span, value)
-        }
-        hir::Lit::Byte(b) => {
-            let value = Value::try_from(b).with_span(span)?;
-            ir::Ir::new(span, value)
-        }
         hir::Lit::ByteStr(byte_str) => {
             let value = Bytes::from_vec(Vec::try_from(byte_str).with_span(span)?);
             let value = Value::try_from(value).with_span(span)?;
-            ir::Ir::new(span, value)
-        }
-        hir::Lit::Char(c) => {
-            let value = Value::try_from(c).with_span(span)?;
             ir::Ir::new(span, value)
         }
     })
@@ -239,7 +239,7 @@ fn lit(c: &mut Ctxt<'_, '_>, span: Span, hir: hir::Lit<'_>) -> compile::Result<i
 #[instrument(span = span)]
 fn expr_tuple(c: &mut Ctxt<'_, '_>, span: Span, hir: &hir::ExprSeq<'_>) -> compile::Result<ir::Ir> {
     if hir.items.is_empty() {
-        let value = Value::empty().with_span(span)?;
+        let value = Value::unit();
         return Ok(ir::Ir::new(span, value));
     }
 
@@ -304,32 +304,22 @@ pub(crate) fn block(hir: &hir::Block<'_>, c: &mut Ctxt<'_, '_>) -> compile::Resu
     let mut instructions = Vec::new();
 
     for stmt in hir.statements {
-        let (e, term) = match stmt {
+        match stmt {
             hir::Stmt::Local(l) => {
                 if let Some((e, _)) = take(&mut last) {
                     instructions.try_push(expr(e, c)?)?;
                 }
 
                 instructions.try_push(local(l, c)?)?;
-                continue;
             }
-            hir::Stmt::Expr(e) => (e, false),
-            hir::Stmt::Semi(e) => (e, true),
-            hir::Stmt::Item(..) => continue,
+            hir::Stmt::Expr(e) => {
+                instructions.try_push(expr(e, c)?)?;
+            }
         };
-
-        if let Some((e, _)) = replace(&mut last, Some((e, term))) {
-            instructions.try_push(expr(e, c)?)?;
-        }
     }
 
-    let last = if let Some((e, term)) = last {
-        if term {
-            instructions.try_push(expr(e, c)?)?;
-            None
-        } else {
-            Some(Box::try_new(expr(e, c)?)?)
-        }
+    let last = if let Some(e) = hir.value {
+        Some(Box::try_new(expr(e, c)?)?)
     } else {
         None
     };
@@ -366,7 +356,7 @@ fn builtin_template(
 fn local(hir: &hir::Local<'_>, c: &mut Ctxt<'_, '_>) -> compile::Result<ir::Ir> {
     let span = hir.span();
 
-    let name = match hir.pat.kind {
+    let name = match hir.pat.pat.kind {
         hir::PatKind::Ignore => {
             return expr(&hir.expr, c);
         }
@@ -380,7 +370,7 @@ fn local(hir: &hir::Local<'_>, c: &mut Ctxt<'_, '_>) -> compile::Result<ir::Ir> 
         span,
         ir::IrDecl {
             span,
-            name: hir::Name::Str(name).into_owned()?,
+            name,
             value: Box::try_new(expr(&hir.expr, c)?)?,
         },
     ))
@@ -391,7 +381,7 @@ fn condition(hir: &hir::Condition<'_>, c: &mut Ctxt<'_, '_>) -> compile::Result<
     match hir {
         hir::Condition::Expr(e) => Ok(ir::IrCondition::Ir(expr(e, c)?)),
         hir::Condition::ExprLet(hir) => {
-            let pat = ir::IrPat::compile_ast(&hir.pat)?;
+            let pat = ir::IrPat::compile_ast(&hir.pat.pat)?;
             let ir = expr(&hir.expr, c)?;
 
             Ok(ir::IrCondition::Let(ir::IrLet {
@@ -410,19 +400,17 @@ fn expr_if(
     hir: &hir::Conditional<'_>,
 ) -> compile::Result<ir::IrBranches> {
     let mut branches = Vec::new();
-    let mut default_branch = None;
 
     for hir in hir.branches {
-        let Some(cond) = hir.condition else {
-            let ir = block(&hir.block, c)?;
-            default_branch = Some(ir);
-            continue;
-        };
-
-        let cond = condition(cond, c)?;
+        let cond = condition(hir.condition, c)?;
         let ir = block(&hir.block, c)?;
         branches.try_push((cond, ir))?;
     }
+
+    let default_branch = match hir.fallback {
+        Some(hir) => Some(block(hir, c)?),
+        None => None,
+    };
 
     Ok(ir::IrBranches {
         span,

@@ -1,11 +1,4 @@
 mod foo;
 mod bar;
 
-#[test]
-fn test_modules() {
-    assert_eq!(foo::number() + bar::number(), 3);
-}
-
-pub fn main() {
-    dbg(foo::number() + bar::number());
-}
+dbg!(foo::number() + bar::number());

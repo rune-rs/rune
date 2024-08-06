@@ -6,13 +6,5 @@ fn foo(n) {
     "something else"
 }
 
-#[test]
-fn test_control_flow() {
-    assert_eq!(foo(0), "less than one");
-    assert_eq!(foo(10), "something else");
-}
-
-pub fn main() {
-    println!("{}", foo(0)); // => outputs: "less than one"
-    println!("{}", foo(10)); // => outputs: "something else"
-}
+println!("{}", foo(0)); // => outputs: "less than one"
+println!("{}", foo(10)); // => outputs: "something else"
