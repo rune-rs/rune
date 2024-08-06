@@ -1,0 +1,34 @@
+#[test]
+fn instance_basic_self() {
+    struct Foo {
+        value,
+    }
+
+    impl Foo {
+        fn inc(self) {
+            self.value += 1;
+        }
+    }
+
+    let foo = Foo { value: 42 };
+    assert_eq!(foo.value, 42);
+    foo.inc();
+    assert_eq!(foo.value, 43);
+}
+
+#[test]
+fn instance_chaining() {
+    struct Foo {
+        value,
+    }
+
+    impl Foo {
+        fn inc(self) {
+            self.value += 1;
+            self
+        }
+    }
+
+    let foo = Foo { value: 42 };
+    assert_eq!(foo.inc().inc().inc().value, 45);
+}

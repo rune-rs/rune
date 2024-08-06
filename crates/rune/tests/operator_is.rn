@@ -1,0 +1,53 @@
+#[test]
+fn operator_is() {
+    struct Timeout;
+
+    let timeout = Timeout;
+
+    assert_eq!(timeout is Timeout, true);
+    assert_eq!(timeout is not Timeout, false);
+    assert_eq!(!(timeout is Timeout), false);
+    assert_eq!(!(timeout is not Timeout), true);
+}
+
+#[test]
+fn tupel_is() {
+    let tuple = (1, 2, 3);
+
+    assert_eq!(tuple is Tuple, true);
+    assert_eq!(tuple is not Tuple, false);
+    assert_eq!(!(tuple is Tuple), false);
+    assert_eq!(!(tuple is not Tuple), true);
+}
+
+#[test]
+fn test_variant_typing() {
+    enum Custom {
+        A,
+        B(a),
+    }
+
+    let out = Err(0) is Result;
+    assert_eq!(out, true);
+
+    let out = Ok(0) is Result;
+    assert_eq!(out, true);
+
+    let out = Some(0) is Option;
+    assert_eq!(out, true);
+
+    let out = None is Option;
+    assert_eq!(out, true);
+
+    let out = Custom::A is Custom;
+    assert_eq!(out, true);
+
+    let out = Custom::B(42) is Custom;
+    assert_eq!(out, true);
+
+    let out = Custom::A is Option;
+    assert_eq!(out, false);
+
+    let out = Custom::A is not Option;
+    assert_eq!(out, true);
+}

@@ -1,0 +1,14 @@
+#[test]
+fn int_ops() {
+    assert_eq!(1.min(2), 1);
+    assert_eq!(std::i64::min(1, 2), 1);
+
+    assert_eq!(1.max(2), 2);
+    assert_eq!(std::i64::max(1, 2), 2);
+
+    assert_eq!((-10).abs(), 10);
+    assert_eq!(std::i64::abs(-10), 10);
+
+    assert_eq!((12).pow(3), 1728);
+    assert_eq!(std::i64::pow(12, 3), 1728);
+}

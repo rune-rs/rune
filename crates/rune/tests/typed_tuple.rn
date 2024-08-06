@@ -1,0 +1,44 @@
+
+struct MyType0(a, b);
+
+enum MyType1 {
+    A(a, b),
+    C(c),
+}
+
+enum MyType2 {
+    A(a, b),
+    C(c),
+}
+
+enum MyType3 {
+    A(a, b),
+    C(c),
+}
+
+#[test]
+fn test_defined_tuple() {
+    let out = match MyType0(1, 2) {
+        MyType0(a, b) => a + b,
+        _ => 0,
+    };
+    assert_eq!(out, 3);
+
+    let out = match MyType1::A(1, 2) {
+        MyType1::A(a, b) => a + b,
+        _ => 0,
+    };
+    assert_eq!(out, 3);
+
+    let out = match MyType2::C(4) {
+        MyType2::A(a, b) => a + b,
+        _ => 0,
+    };
+    assert_eq!(out, 0);
+
+    let out = match MyType3::C(4) {
+        MyType3::C(a) => a,
+        _ => 0,
+    };
+    assert_eq!(out, 4);
+}

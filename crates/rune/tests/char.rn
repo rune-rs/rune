@@ -1,0 +1,11 @@
+#[test]
+fn int_conversions() {
+    let a = 'A';
+    let ai = char::to_i64(a);
+    let result = char::from_i64(ai)?;
+    assert_eq!(result, 'A');
+
+    let ai = 0x41;
+    let result = char::from_i64(ai)?;
+    assert_eq!(result, 'A');
+}

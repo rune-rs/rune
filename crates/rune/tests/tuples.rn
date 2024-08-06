@@ -1,0 +1,7 @@
+#[test]
+fn modify_tuple() {
+    let m = ("Now", "You", "See", "Me");
+    m.2 = "Don't";
+    m.3 = "!";
+    assert_eq!(`${m.0} ${m.1} ${m.2}${m.3}`, "Now You Don't!");
+}
