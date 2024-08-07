@@ -224,13 +224,6 @@ impl<'a> Parser<'a> {
         Ok(tok)
     }
 
-    /// Peek the next token skipping over whitespace.
-    #[tracing::instrument(skip_all)]
-    fn peek_inner(&mut self) -> Result<Kind> {
-        self.ws()?;
-        self.glued(0)
-    }
-
     fn glued_token(&mut self, n: usize) -> Result<Token> {
         let mut span = Span::new(self.source.len(), self.source.len());
 
@@ -273,6 +266,11 @@ impl<'a> Parser<'a> {
         }
 
         Ok(())
+    }
+
+    #[inline]
+    pub(super) fn nth(&mut self, n: usize) -> Result<Kind> {
+        self.nth_token(n).map(|tok| tok.kind)
     }
 
     fn nth_token(&mut self, n: usize) -> Result<Token> {

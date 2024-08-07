@@ -8,8 +8,6 @@ use crate::alloc::{self, BTreeSet, HashMap, Vec};
 use crate::ast::Span;
 use crate::compile::error::{MissingScope, PopError};
 
-use rune_macros::instrument;
-
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub(crate) struct Scope(usize);

@@ -394,11 +394,13 @@ impl Stack {
     /// The stack is partitioned into call frames, and once we enter a call
     /// frame the bottom of the stack corresponds to the bottom of the current
     /// call frame.
+    #[cfg_attr(not(feature = "tracing"), allow(unused))]
     pub(crate) const fn top(&self) -> usize {
         self.top
     }
 
     /// Get the length of the stack.
+    #[cfg_attr(not(feature = "tracing"), allow(unused))]
     pub(crate) const fn len(&self) -> usize {
         self.stack.len()
     }

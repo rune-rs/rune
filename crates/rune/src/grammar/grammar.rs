@@ -78,11 +78,10 @@ fn stmt(p: &mut Parser<'_>) -> Result<()> {
     struct StmtCx;
 
     #[tracing::instrument(skip(p))]
-    fn is_stmt_recovering(p: &mut Parser<'_>, brace: Brace, range: Range) -> Result<bool> {
+    fn is_stmt_recovering(p: &mut Parser<'_>) -> Result<bool> {
         let is = match p.peek()? {
             Eof => false,
             K![;] => false,
-            K![#] => false,
             K![let] => false,
             K![use] => false,
             K![struct] => false,
@@ -94,6 +93,7 @@ fn stmt(p: &mut Parser<'_>) -> Result<()> {
             K![pub] => false,
             K![const] => false,
             K![async] => false,
+            K![#] => !matches!(p.nth(1)?, K!['['] | K![!]),
             _ => true,
         };
 
@@ -102,7 +102,7 @@ fn stmt(p: &mut Parser<'_>) -> Result<()> {
 
     impl ExprCx for StmtCx {
         fn recover(&self, p: &mut Parser<'_>) -> Result<()> {
-            while is_stmt_recovering(p, Brace::Yes, Range::Yes)? {
+            while is_stmt_recovering(p)? {
                 p.bump()?;
             }
 
@@ -930,7 +930,7 @@ fn expr_tuple_or_group(p: &mut Parser<'_>) -> Result<Kind> {
 }
 
 #[tracing::instrument(skip_all)]
-fn expr_object<'a>(p: &mut Parser<'a>) -> Result<()> {
+fn expr_object(p: &mut Parser<'_>) -> Result<()> {
     p.bump()?;
 
     while matches!(p.peek()?, object_key!()) {
@@ -948,7 +948,7 @@ fn expr_object<'a>(p: &mut Parser<'a>) -> Result<()> {
 }
 
 #[tracing::instrument(skip_all)]
-fn pat_object<'a>(p: &mut Parser<'a>) -> Result<()> {
+fn pat_object(p: &mut Parser<'_>) -> Result<()> {
     p.bump()?;
 
     loop {

@@ -145,8 +145,8 @@ mod r#impl {
 
                 write!(at, "{bt}").with_span($tok.span)?;
 
-                if let Some(line) = at.as_str() {
-                    tracing::trace!("{line}: {:?}", $tok);
+                if let Some(_line) = at.as_str() {
+                    tracing::trace!("{_line}: {:?}", $tok);
                 }
             }
         }};

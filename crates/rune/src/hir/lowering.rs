@@ -2,6 +2,7 @@ use core::cell::Cell;
 use core::ops::Neg;
 
 use num::ToPrimitive;
+use tracing::instrument_ast;
 
 use crate::alloc::prelude::*;
 use crate::alloc::try_format;
@@ -19,8 +20,6 @@ use crate::query::{self, GenericsParameters, Named, Query, SecondaryBuild};
 use crate::runtime::ConstValue;
 use crate::runtime::{Type, TypeCheck};
 use crate::{Hash, Item, SourceId};
-
-use rune_macros::instrument;
 
 #[derive(Default, Clone, Copy)]
 enum Needs {
@@ -104,7 +103,7 @@ impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
     }
 
     #[allow(unused)]
-    #[instrument(span = ast)]
+    #[instrument_ast(span = ast)]
     fn try_lookup_meta(
         &mut self,
         span: &dyn Spanned,
@@ -115,7 +114,7 @@ impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
             .try_lookup_meta(&DynLocation::new(self.source_id, span), item, parameters)
     }
 
-    #[instrument(span = ast)]
+    #[instrument_ast(span = ast)]
     fn lookup_meta(
         &mut self,
         span: &dyn Spanned,
@@ -128,7 +127,7 @@ impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
 }
 
 /// Lower an empty function.
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 pub(crate) fn empty_fn<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::EmptyBlock,
@@ -142,7 +141,7 @@ pub(crate) fn empty_fn<'hir>(
 }
 
 /// Lower a function item.
-#[instrument(span = ast)]
+#[instrument_ast(span = ast)]
 pub(crate) fn item_fn<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::ItemFn,
@@ -157,7 +156,7 @@ pub(crate) fn item_fn<'hir>(
 }
 
 /// Assemble a closure expression.
-#[instrument(span = ast)]
+#[instrument_ast(span = ast)]
 fn expr_call_closure<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::ExprClosure,
@@ -232,7 +231,7 @@ pub(crate) fn block<'hir>(
     statements(cx, label, &ast.statements, ast)
 }
 
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn statements<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     label: Option<&(ast::Label, T![:])>,
@@ -307,7 +306,7 @@ fn statements<'hir>(
     })
 }
 
-#[instrument(span = ast)]
+#[instrument_ast(span = ast)]
 fn expr_range<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::ExprRange,
@@ -342,7 +341,7 @@ fn expr_range<'hir>(
     }
 }
 
-#[instrument(span = ast)]
+#[instrument_ast(span = ast)]
 fn expr_object<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::ExprObject,
@@ -483,7 +482,7 @@ fn expr_object<'hir>(
 }
 
 /// Lower an expression.
-#[instrument(span = ast)]
+#[instrument_ast(span = ast)]
 pub(crate) fn expr<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::Expr,
@@ -712,7 +711,7 @@ pub(crate) fn expr<'hir>(
 }
 
 /// Construct a pattern from a constant value.
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn pat_const_value<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     const_value: &ConstValue,
@@ -802,7 +801,7 @@ fn pat_const_value<'hir>(
     })
 }
 
-#[instrument(span = ast)]
+#[instrument_ast(span = ast)]
 fn expr_if<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::ExprIf,
@@ -850,7 +849,7 @@ fn expr_if<'hir>(
     Ok(hir::Conditional { branches, fallback })
 }
 
-#[instrument(span = ast)]
+#[instrument_ast(span = ast)]
 fn lit<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Lit) -> compile::Result<hir::Lit<'hir>> {
     alloc_with!(cx, ast);
 
@@ -901,7 +900,7 @@ fn lit<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Lit) -> compile::Result<hir
     }
 }
 
-#[instrument(span = ast)]
+#[instrument_ast(span = ast)]
 fn expr_unary<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::ExprUnary,
@@ -945,7 +944,7 @@ fn expr_unary<'hir>(
 }
 
 /// Lower a block expression.
-#[instrument(span = ast)]
+#[instrument_ast(span = ast)]
 fn expr_block<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::ExprBlock,
@@ -1477,7 +1476,7 @@ fn object_key<'hir, 'ast>(
 }
 
 /// Lower the given path.
-#[instrument(span = ast)]
+#[instrument_ast(span = ast)]
 fn expr_path<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::Path,
@@ -1546,7 +1545,7 @@ fn expr_path<'hir>(
 }
 
 /// Compile an item.
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn expr_path_meta<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     meta: &meta::Meta,
@@ -1772,7 +1771,7 @@ fn generics_parameters(
 }
 
 /// Convert into a call expression.
-#[instrument(span = ast)]
+#[instrument_ast(span = ast)]
 fn expr_call<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::ExprCall,
@@ -1922,7 +1921,7 @@ fn expr_call<'hir>(
     })
 }
 
-#[instrument(span = ast)]
+#[instrument_ast(span = ast)]
 fn expr_field_access<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::ExprFieldAccess,

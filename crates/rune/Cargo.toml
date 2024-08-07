@@ -18,6 +18,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(rune_nightly, rune_docsrs,
 
 [features]
 default = ["emit", "std"]
+tracing = ["tracing/enabled"]
 emit = ["std", "codespan-reporting"]
 bench = []
 workspace = ["std", "toml", "semver", "relative-path", "serde-hashkey", "linked-hash-map"]
@@ -35,6 +36,7 @@ alloc = ["anyhow", "rune-alloc/alloc", "rune-core/alloc", "once_cell/alloc", "se
 rune-macros = { version = "=0.14.0", path = "../rune-macros" }
 rune-core = { version = "=0.14.0", path = "../rune-core", features = ["musli"] }
 rune-alloc = { version = "0.14.0", path = "../rune-alloc", features = ["serde"], default-features = false }
+tracing = { package = "rune-tracing", version = "0.14.0", path = "../rune-tracing" }
 
 futures-core = { version = "0.3.28", default-features = false }
 futures-util = { version = "0.3.28", default-features = false, features = ["alloc"] }
@@ -43,7 +45,6 @@ num = { version = "0.4.0", default-features = false, features = ["alloc"] }
 pin-project = "1.1.0"
 ryu = "1.0.13"
 serde = { version = "1.0.163", default-features = false, features = ["derive", "rc"] }
-tracing =  { version = "0.1.37", default-features = false, features = ["attributes"] }
 musli = { version = "0.0.121", default-features = false, features = ["alloc"] }
 once_cell = { version = "1.18.0", default-features = false, features = ["critical-section"] }
 

@@ -168,6 +168,7 @@ pub(super) struct Address<'a, 'hir> {
     kind: AddressKind,
     /// A diagnostical name for the address.
     name: Option<&'static str>,
+    #[cfg_attr(not(feature = "tracing"), allow(unused))]
     backtrace: Backtrace,
 }
 
@@ -390,6 +391,7 @@ impl fmt::Debug for AnyKind<'_, '_> {
 pub(super) struct Any<'a, 'hir> {
     span: &'hir dyn Spanned,
     kind: AnyKind<'a, 'hir>,
+    #[cfg_attr(not(feature = "tracing"), allow(unused))]
     backtrace: Backtrace,
 }
 

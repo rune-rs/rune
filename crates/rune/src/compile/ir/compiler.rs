@@ -10,17 +10,18 @@ use crate::query::Query;
 use crate::runtime::{Bytes, Value};
 use crate::SourceId;
 
-use rune_macros::instrument;
+use tracing::instrument_ast;
 
 /// A c that compiles AST into Rune IR.
 pub(crate) struct Ctxt<'a, 'arena> {
     /// The source id of the source.
+    #[cfg_attr(not(feature = "tracing"), allow(unused))]
     pub(crate) source_id: SourceId,
     /// Query associated with the compiler.
     pub(crate) q: Query<'a, 'arena>,
 }
 
-#[instrument]
+#[instrument_ast]
 pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut Ctxt<'_, '_>) -> compile::Result<ir::Ir> {
     let span = hir.span();
 
@@ -101,7 +102,7 @@ fn ir_target(expr: &hir::Expr<'_>) -> compile::Result<ir::IrTarget> {
     Err(compile::Error::msg(expr, "Not supported as a target"))
 }
 
-#[instrument]
+#[instrument_ast]
 fn expr_assign(
     span: Span,
     c: &mut Ctxt<'_, '_>,
@@ -119,7 +120,7 @@ fn expr_assign(
     ))
 }
 
-#[instrument]
+#[instrument_ast]
 fn expr_call(
     span: Span,
     c: &mut Ctxt<'_, '_>,
@@ -141,7 +142,7 @@ fn expr_call(
     ))
 }
 
-#[instrument]
+#[instrument_ast]
 fn expr_binary(
     span: Span,
     c: &mut Ctxt<'_, '_>,
@@ -200,8 +201,8 @@ fn expr_binary(
     ))
 }
 
-#[instrument(span = span)]
-fn lit(c: &mut Ctxt<'_, '_>, span: Span, hir: hir::Lit<'_>) -> compile::Result<ir::Ir> {
+#[instrument_ast(span = span)]
+fn lit(_c: &mut Ctxt<'_, '_>, span: Span, hir: hir::Lit<'_>) -> compile::Result<ir::Ir> {
     Ok(match hir {
         hir::Lit::Bool(boolean) => {
             let value = Value::from(boolean);
@@ -236,7 +237,7 @@ fn lit(c: &mut Ctxt<'_, '_>, span: Span, hir: hir::Lit<'_>) -> compile::Result<i
     })
 }
 
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn expr_tuple(c: &mut Ctxt<'_, '_>, span: Span, hir: &hir::ExprSeq<'_>) -> compile::Result<ir::Ir> {
     if hir.items.is_empty() {
         let value = Value::unit();
@@ -258,7 +259,7 @@ fn expr_tuple(c: &mut Ctxt<'_, '_>, span: Span, hir: &hir::ExprSeq<'_>) -> compi
     ))
 }
 
-#[instrument]
+#[instrument_ast]
 fn expr_vec(
     span: Span,
     c: &mut Ctxt<'_, '_>,
@@ -276,7 +277,7 @@ fn expr_vec(
     })
 }
 
-#[instrument]
+#[instrument_ast]
 fn expr_object(
     span: Span,
     c: &mut Ctxt<'_, '_>,
@@ -296,7 +297,7 @@ fn expr_object(
     })
 }
 
-#[instrument]
+#[instrument_ast]
 pub(crate) fn block(hir: &hir::Block<'_>, c: &mut Ctxt<'_, '_>) -> compile::Result<ir::IrScope> {
     let span = hir.span();
 
@@ -331,7 +332,7 @@ pub(crate) fn block(hir: &hir::Block<'_>, c: &mut Ctxt<'_, '_>) -> compile::Resu
     })
 }
 
-#[instrument]
+#[instrument_ast]
 fn builtin_template(
     template: &hir::BuiltInTemplate,
     c: &mut Ctxt<'_, '_>,
@@ -352,7 +353,7 @@ fn builtin_template(
     Ok(ir::IrTemplate { span, components })
 }
 
-#[instrument]
+#[instrument_ast]
 fn local(hir: &hir::Local<'_>, c: &mut Ctxt<'_, '_>) -> compile::Result<ir::Ir> {
     let span = hir.span();
 
@@ -376,7 +377,7 @@ fn local(hir: &hir::Local<'_>, c: &mut Ctxt<'_, '_>) -> compile::Result<ir::Ir> 
     ))
 }
 
-#[instrument]
+#[instrument_ast]
 fn condition(hir: &hir::Condition<'_>, c: &mut Ctxt<'_, '_>) -> compile::Result<ir::IrCondition> {
     match hir {
         hir::Condition::Expr(e) => Ok(ir::IrCondition::Ir(expr(e, c)?)),
@@ -393,7 +394,7 @@ fn condition(hir: &hir::Condition<'_>, c: &mut Ctxt<'_, '_>) -> compile::Result<
     }
 }
 
-#[instrument]
+#[instrument_ast]
 fn expr_if(
     span: Span,
     c: &mut Ctxt<'_, '_>,
@@ -419,7 +420,7 @@ fn expr_if(
     })
 }
 
-#[instrument]
+#[instrument_ast]
 fn expr_loop(
     span: Span,
     c: &mut Ctxt<'_, '_>,

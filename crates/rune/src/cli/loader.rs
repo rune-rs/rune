@@ -9,8 +9,7 @@ use anyhow::{anyhow, Context as _, Result};
 use crate::alloc::{Vec, VecDeque};
 use crate::cli::{visitor, Io, SharedFlags};
 use crate::compile::FileSourceLoader;
-use crate::Diagnostics;
-use crate::{Context, Hash, ItemBuf, Options, Source, Sources, Unit};
+use crate::{Context, Diagnostics, Hash, ItemBuf, Options, Source, Sources, Unit};
 
 pub(super) struct Load {
     pub(super) unit: Arc<Unit>,
@@ -46,8 +45,12 @@ pub(super) fn load(
                 tracing::trace!("Using cache: {}", bytecode_path.display());
                 Some(Arc::new(unit))
             }
-            Err(e) => {
-                tracing::error!("Failed to deserialize: {}: {}", bytecode_path.display(), e);
+            Err(_error) => {
+                tracing::error!(
+                    "Failed to deserialize: {}: {}",
+                    bytecode_path.display(),
+                    _error
+                );
                 None
             }
         }
