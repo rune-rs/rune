@@ -36,17 +36,23 @@ pub struct Ident {
     pub source: ast::LitSource,
 }
 
-impl Parse for Ident {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self> {
-        let t = parser.next()?;
-
-        match t.kind {
+impl ToAst for Ident {
+    fn to_ast(token: Token) -> Result<Self> {
+        match token.kind {
             ast::Kind::Ident(source) => Ok(Self {
-                span: t.span,
+                span: token.span,
                 source,
             }),
-            _ => Err(compile::Error::expected(t, "ident")),
+            _ => Err(compile::Error::expected(token, "ident")),
         }
+    }
+}
+
+impl Parse for Ident {
+    #[inline]
+    fn parse(parser: &mut Parser<'_>) -> Result<Self> {
+        let t = parser.next()?;
+        Ident::to_ast(t)
     }
 }
 

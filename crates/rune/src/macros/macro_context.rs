@@ -2,10 +2,13 @@
 
 use core::fmt;
 
+use rust_alloc::rc::Rc;
+
 use crate::alloc;
 use crate::ast;
 use crate::ast::Span;
 use crate::compile::{self, ErrorKind, ItemMeta};
+use crate::grammar::Tree;
 use crate::indexing::Indexer;
 use crate::macros::{IntoLit, ToTokens, TokenStream};
 use crate::parse::{Parse, Resolve};
@@ -94,6 +97,7 @@ cfg_std! {
             root: None,
             queue: None,
             loaded: None,
+            tree: Rc::new(Tree::default()),
         };
 
         let mut cx = MacroContext {

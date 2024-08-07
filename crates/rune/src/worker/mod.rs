@@ -1,10 +1,14 @@
 //! Worker used by compiler.
 
+use rust_alloc::rc::Rc;
+
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, HashMap, Vec, VecDeque};
 use crate::ast::{self, Span};
 use crate::compile::{self, ModId};
+use crate::grammar::Tree;
 use crate::indexing::index;
+use crate::indexing::index2;
 use crate::indexing::items::Items;
 use crate::indexing::{IndexItem, Indexer, Scopes};
 use crate::query::{GenericsParameters, Query, Used};
@@ -82,6 +86,10 @@ impl<'a, 'arena> Worker<'a, 'arena> {
 
                             macro_rules! indexer {
                                 () => {
+                                    indexer!(Rc::new(Tree::default()))
+                                };
+
+                                ($tree:expr) => {
                                     Indexer {
                                         q: self.q.borrow(),
                                         root,
@@ -93,6 +101,7 @@ impl<'a, 'arena> Worker<'a, 'arena> {
                                         macro_depth: 0,
                                         loaded: Some(&mut self.loaded),
                                         queue: Some(&mut self.queue),
+                                        tree: $tree,
                                     }
                                 };
                             }
@@ -109,15 +118,20 @@ impl<'a, 'arena> Worker<'a, 'arena> {
 
                                 index::empty_block_fn(&mut idx, ast, &span)?;
                             } else {
-                                let mut ast = crate::parse::parse_all::<ast::File>(
-                                    source.as_str(),
-                                    source_id,
-                                    true,
-                                )?;
+                                let tree = Rc::new(
+                                    crate::grammar::prepare_text(source.as_str())
+                                        .with_source_id(source_id)
+                                        .parse()?,
+                                );
 
-                                let mut idx = indexer!();
+                                if self.q.options.print_tree {
+                                    let o = std::io::stdout();
+                                    let mut o = o.lock();
+                                    tree.print_with_source(&mut o, source.as_str())?;
+                                }
 
-                                index::file(&mut idx, &mut ast)?;
+                                let mut idx = indexer!(tree.clone());
+                                tree.parse_all(|p| index2::stmt(&mut idx, p))?;
                             }
 
                             Ok::<_, compile::Error>(())
@@ -214,6 +228,7 @@ impl<'a, 'arena> Worker<'a, 'arena> {
                         macro_depth: entry.macro_depth,
                         loaded: Some(&mut self.loaded),
                         queue: Some(&mut self.queue),
+                        tree: Rc::new(Tree::default()),
                     };
 
                     let removed = idx

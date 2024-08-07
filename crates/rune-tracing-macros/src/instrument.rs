@@ -77,7 +77,7 @@ impl Expander {
                         let _instrument_enter = _instrument_span.enter();
 
                         if ::tracing::enabled!(::tracing::Level::TRACE) {
-                            if let Some(source) = #a.q.sources.source(#a.source_id, Spanned::span(&#span)) {
+                            if let Some(source) = #a.q.sources.source(#a.source_id, crate::ast::Spanned::span(&#span)) {
                                 ::tracing::trace!("{:?}", source);
                             }
                         }

@@ -4,7 +4,7 @@ use crate::alloc::prelude::*;
 use crate::alloc::{self, VecDeque};
 use crate::ast::{Kind, Span};
 use crate::compile::{Error, ErrorKind, FmtOptions, Result, WithSpan};
-use crate::grammar::{Node, Tree};
+use crate::grammar::{Ignore, Node, Tree};
 
 use super::{INDENT, NL, NL_CHAR, WS};
 
@@ -390,5 +390,11 @@ impl<'a> Output<'a> {
         }
 
         Ok(())
+    }
+}
+
+impl<'a> Ignore<'a> for Output<'a> {
+    fn ignore(&mut self, node: Node<'a>) -> Result<()> {
+        Output::ignore(self, node)
     }
 }

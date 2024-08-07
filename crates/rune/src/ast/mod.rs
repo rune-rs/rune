@@ -58,7 +58,7 @@
 use crate as rune;
 use crate::alloc::prelude::*;
 use crate::macros::{MacroContext, ToTokens, TokenStream};
-use crate::parse::{Parse, Parser, Peek};
+use crate::parse::{Parser, Peek};
 
 #[cfg(test)]
 mod testing;
@@ -233,7 +233,7 @@ pub use self::token::{
     BuiltIn, CopySource, Delimiter, LitSource, Number, NumberBase, NumberSource, NumberSuffix,
     NumberText, NumberValue, StrSource, StrText, Token,
 };
-pub use self::vis::Visibility;
+pub use self::vis::{Visibility, VisibilityRestrict};
 
 macro_rules! decl_tokens {
     ($(($parser:ident, $name:expr, $doc:expr, $($kind:tt)*),)*) => {
@@ -258,7 +258,7 @@ macro_rules! decl_tokens {
                 }
             }
 
-            impl Parse for $parser {
+            impl $crate::parse::Parse for $parser {
                 fn parse(parser: &mut Parser<'_>) -> $crate::compile::Result<Self> {
                     let t = parser.next()?;
 

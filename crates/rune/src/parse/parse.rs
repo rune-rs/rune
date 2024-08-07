@@ -1,9 +1,19 @@
 use crate::alloc::{Box, Vec};
-use crate::compile;
+use crate::ast::Token;
+use crate::compile::Result;
 use crate::parse::{Parser, Peek};
 
 /// Helper derive to implement [`Parse`].
 pub use rune_macros::Parse;
+
+/// Helper trait to convert a span and kind into an ast element.
+pub trait ToAst
+where
+    Self: Sized,
+{
+    /// Coerce something into a primitive ast element.
+    fn to_ast(token: Token) -> Result<Self>;
+}
 
 /// The parse trait, implemented by items that can be parsed.
 pub trait Parse
@@ -11,7 +21,7 @@ where
     Self: Sized,
 {
     /// Parse the current item from the parser.
-    fn parse(p: &mut Parser<'_>) -> compile::Result<Self>;
+    fn parse(p: &mut Parser<'_>) -> Result<Self>;
 }
 
 impl<A, B> Parse for (A, B)
@@ -20,7 +30,7 @@ where
     B: Parse,
 {
     #[inline]
-    fn parse(parser: &mut Parser<'_>) -> compile::Result<Self> {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self> {
         Ok((parser.parse()?, parser.parse()?))
     }
 }
@@ -31,7 +41,7 @@ where
     T: Parse + Peek,
 {
     #[inline]
-    fn parse(parser: &mut Parser<'_>) -> compile::Result<Self> {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self> {
         Ok(if parser.peek::<T>()? {
             Some(parser.parse()?)
         } else {
@@ -46,7 +56,7 @@ where
     T: Parse,
 {
     #[inline]
-    fn parse(parser: &mut Parser<'_>) -> compile::Result<Self> {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self> {
         Ok(Box::try_new(parser.parse()?)?)
     }
 }
@@ -57,7 +67,7 @@ where
     T: Parse + Peek,
 {
     #[inline]
-    fn parse(parser: &mut Parser<'_>) -> compile::Result<Self> {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self> {
         let mut output = Vec::new();
 
         while parser.peek::<T>()? {

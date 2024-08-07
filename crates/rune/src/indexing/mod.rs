@@ -1,4 +1,5 @@
 pub(crate) mod index;
+pub(crate) mod index2;
 mod indexer;
 pub(crate) mod items;
 mod scopes;

@@ -1,13 +1,17 @@
 use core::mem::{replace, take};
 use core::num::NonZeroUsize;
 
+use rust_alloc::rc::Rc;
+
 use crate::alloc::path::PathBuf;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, HashMap, Vec, VecDeque};
 use crate::ast::spanned;
 use crate::ast::{self, Span, Spanned};
 use crate::compile::attrs;
-use crate::compile::{self, Doc, DynLocation, ErrorKind, ModId, Visibility, WithSpan};
+use crate::compile::{Doc, DynLocation, Error, ErrorKind, ModId, Result, Visibility, WithSpan};
+use crate::diagnostics::FatalDiagnosticKind;
+use crate::grammar::{Ignore, Node, Tree};
 use crate::indexing::{Items, Scopes};
 use crate::macros::MacroCompiler;
 use crate::parse::{NonZeroId, Parse, Parser, Resolve};
@@ -51,22 +55,49 @@ pub(crate) struct Indexer<'a, 'arena> {
     pub(crate) queue: Option<&'a mut VecDeque<Task>>,
     /// Loaded modules.
     pub(crate) loaded: Option<&'a mut HashMap<ModId, (SourceId, Span)>>,
+    /// The tree being indexed.
+    #[allow(unused)]
+    pub(crate) tree: Rc<Tree>,
 }
 
 impl<'a, 'arena> Indexer<'a, 'arena> {
+    /// Report an error.
+    pub(crate) fn error<T>(&mut self, error: T) -> alloc::Result<()>
+    where
+        FatalDiagnosticKind: From<T>,
+    {
+        self.q.diagnostics.error(self.source_id, error)?;
+        Ok(())
+    }
+
+    /// Report an error if it is captured.
+    pub(crate) fn capture<E>(
+        &mut self,
+        capture: impl FnOnce(&mut Self) -> Result<(), E>,
+    ) -> alloc::Result<()>
+    where
+        FatalDiagnosticKind: From<E>,
+    {
+        if let Err(error) = capture(self) {
+            self.q.diagnostics.error(self.source_id, error)?;
+        }
+
+        Ok(())
+    }
+
     /// Indicate that we've entered an expanded macro context, and ensure that
     /// we don't blow past [`MAX_MACRO_RECURSION`].
     ///
     /// This is used when entering expressions which have been expanded from a
     /// macro - cause those expression might in turn be macros themselves.
-    pub(super) fn enter_macro<S>(&mut self, span: &S) -> compile::Result<()>
+    pub(super) fn enter_macro<S>(&mut self, span: &S) -> Result<()>
     where
         S: Spanned,
     {
         self.macro_depth = self.macro_depth.wrapping_add(1);
 
         if self.macro_depth >= MAX_MACRO_RECURSION {
-            return Err(compile::Error::new(
+            return Err(Error::new(
                 span,
                 ErrorKind::MaxMacroRecursion {
                     depth: self.macro_depth,
@@ -88,7 +119,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
         &mut self,
         p: &mut attrs::Parser,
         ast: &mut ast::MacroCall,
-    ) -> compile::Result<bool> {
+    ) -> Result<bool> {
         let Some((_, builtin)) =
             p.try_parse::<attrs::BuiltIn>(resolve_context!(self.q), &ast.attributes)?
         else {
@@ -99,7 +130,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
 
         // NB: internal macros are
         let Some(ident) = ast.path.try_as_ident() else {
-            return Err(compile::Error::new(
+            return Err(Error::new(
                 &ast.path,
                 ErrorKind::NoSuchBuiltInMacro {
                     name: ast.path.resolve(resolve_context!(self.q))?,
@@ -115,7 +146,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
             "file" => self.expand_file_macro(ast)?,
             "line" => self.expand_line_macro(ast)?,
             _ => {
-                return Err(compile::Error::new(
+                return Err(Error::new(
                     &ast.path,
                     ErrorKind::NoSuchBuiltInMacro {
                         name: ast.path.resolve(resolve_context!(self.q))?,
@@ -147,7 +178,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
         &mut self,
         ast: &ast::MacroCall,
         args: &attrs::BuiltInArgs,
-    ) -> compile::Result<BuiltInMacro> {
+    ) -> Result<BuiltInMacro> {
         let mut p = Parser::from_token_stream(&ast.input, ast.span());
         let mut exprs = Vec::new();
 
@@ -173,7 +204,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
         &mut self,
         ast: &ast::MacroCall,
         _: &attrs::BuiltInArgs,
-    ) -> compile::Result<BuiltInMacro> {
+    ) -> Result<BuiltInMacro> {
         let mut p = Parser::from_token_stream(&ast.input, ast.span());
 
         let value = p.parse::<ast::Expr>()?;
@@ -195,10 +226,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
             match k {
                 "fill" => {
                     if fill.is_some() {
-                        return Err(compile::Error::unsupported(
-                            key,
-                            "Multiple `format!(.., fill = ..)`",
-                        ));
+                        return Err(Error::unsupported(key, "Multiple `format!(.., fill = ..)`"));
                     }
 
                     let arg = p.parse::<ast::LitChar>()?;
@@ -208,7 +236,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
                 }
                 "align" => {
                     if align.is_some() {
-                        return Err(compile::Error::unsupported(
+                        return Err(Error::unsupported(
                             key,
                             "Multiple `format!(.., align = ..)`",
                         ));
@@ -218,17 +246,14 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
                     let a = arg.resolve(resolve_context!(self.q))?;
 
                     let Ok(a) = str::parse::<format::Alignment>(a) else {
-                        return Err(compile::Error::unsupported(
-                            key,
-                            "`format!(.., align = ..)`",
-                        ));
+                        return Err(Error::unsupported(key, "`format!(.., align = ..)`"));
                     };
 
                     align = Some(a);
                 }
                 "flags" => {
                     if flags.is_some() {
-                        return Err(compile::Error::unsupported(
+                        return Err(Error::unsupported(
                             key,
                             "Multiple `format!(.., flags = ..)`",
                         ));
@@ -237,7 +262,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
                     let arg = p.parse::<ast::LitNumber>()?;
 
                     let Some(f) = arg.resolve(resolve_context!(self.q))?.as_u32(false) else {
-                        return Err(compile::Error::msg(arg, "Argument out-of-bounds"));
+                        return Err(Error::msg(arg, "Argument out-of-bounds"));
                     };
 
                     let f = format::Flags::from(f);
@@ -245,7 +270,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
                 }
                 "width" => {
                     if width.is_some() {
-                        return Err(compile::Error::unsupported(
+                        return Err(Error::unsupported(
                             key,
                             "Multiple `format!(.., width = ..)`",
                         ));
@@ -254,14 +279,14 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
                     let arg = p.parse::<ast::LitNumber>()?;
 
                     let Some(f) = arg.resolve(resolve_context!(self.q))?.as_usize(false) else {
-                        return Err(compile::Error::msg(arg, "Argument out-of-bounds"));
+                        return Err(Error::msg(arg, "Argument out-of-bounds"));
                     };
 
                     width = NonZeroUsize::new(f);
                 }
                 "precision" => {
                     if precision.is_some() {
-                        return Err(compile::Error::unsupported(
+                        return Err(Error::unsupported(
                             key,
                             "Multiple `format!(.., precision = ..)`",
                         ));
@@ -270,17 +295,14 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
                     let arg = p.parse::<ast::LitNumber>()?;
 
                     let Some(f) = arg.resolve(resolve_context!(self.q))?.as_usize(false) else {
-                        return Err(compile::Error::msg(arg, "Argument out-of-bounds"));
+                        return Err(Error::msg(arg, "Argument out-of-bounds"));
                     };
 
                     precision = NonZeroUsize::new(f);
                 }
                 "type" => {
                     if format_type.is_some() {
-                        return Err(compile::Error::unsupported(
-                            key,
-                            "Multiple `format!(.., type = ..)`",
-                        ));
+                        return Err(Error::unsupported(key, "Multiple `format!(.., type = ..)`"));
                     }
 
                     let arg = p.parse::<ast::Ident>()?;
@@ -289,15 +311,12 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
                     format_type = Some(match str::parse::<format::Type>(a) {
                         Ok(format_type) => format_type,
                         _ => {
-                            return Err(compile::Error::unsupported(
-                                key,
-                                "`format!(.., type = ..)`",
-                            ));
+                            return Err(Error::unsupported(key, "`format!(.., type = ..)`"));
                         }
                     });
                 }
                 _ => {
-                    return Err(compile::Error::unsupported(key, "`format!(.., <key>)`"));
+                    return Err(Error::unsupported(key, "`format!(.., <key>)`"));
                 }
             }
         }
@@ -317,9 +336,9 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
     }
 
     /// Expand a macro returning the current file
-    fn expand_file_macro(&mut self, ast: &ast::MacroCall) -> compile::Result<BuiltInMacro> {
+    fn expand_file_macro(&mut self, ast: &ast::MacroCall) -> Result<BuiltInMacro> {
         let name = self.q.sources.name(self.source_id).ok_or_else(|| {
-            compile::Error::new(
+            Error::new(
                 ast,
                 ErrorKind::MissingSourceId {
                     source_id: self.source_id,
@@ -337,7 +356,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
     }
 
     /// Expand a macro returning the current line for where the macro invocation begins
-    fn expand_line_macro(&mut self, ast: &ast::MacroCall) -> compile::Result<BuiltInMacro> {
+    fn expand_line_macro(&mut self, ast: &ast::MacroCall) -> Result<BuiltInMacro> {
         let (l, _) = self
             .q
             .sources
@@ -372,7 +391,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
     }
 
     /// Perform a macro expansion.
-    pub(super) fn expand_macro<T>(&mut self, ast: &mut ast::MacroCall) -> compile::Result<T>
+    pub(super) fn expand_macro<T>(&mut self, ast: &mut ast::MacroCall) -> Result<T>
     where
         T: Parse,
     {
@@ -394,7 +413,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
         &mut self,
         attr: &mut ast::Attribute,
         item: &ast::Item,
-    ) -> compile::Result<Option<T>>
+    ) -> Result<Option<T>>
     where
         T: Parse,
     {
@@ -413,11 +432,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
     }
 
     /// Handle a filesystem module.
-    pub(super) fn handle_file_mod(
-        &mut self,
-        ast: &mut ast::ItemMod,
-        docs: &[Doc],
-    ) -> compile::Result<()> {
+    pub(super) fn handle_file_mod(&mut self, ast: &mut ast::ItemMod, docs: &[Doc]) -> Result<()> {
         let name = ast.name.resolve(resolve_context!(self.q))?;
 
         let visibility = ast_to_visibility(&ast.visibility)?;
@@ -441,10 +456,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
         ast.id.set(mod_item_id);
 
         let Some(root) = &self.root else {
-            return Err(compile::Error::new(
-                &*ast,
-                ErrorKind::UnsupportedModuleSource,
-            ));
+            return Err(Error::new(&*ast, ErrorKind::UnsupportedModuleSource));
         };
 
         let source = self
@@ -454,7 +466,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
 
         if let Some(loaded) = self.loaded.as_mut() {
             if let Some(_existing) = loaded.try_insert(mod_item, (self.source_id, ast.span()))? {
-                return Err(compile::Error::new(
+                return Err(Error::new(
                     &*ast,
                     ErrorKind::ModAlreadyLoaded {
                         item: self.q.pool.module_item(mod_item).try_to_owned()?,
@@ -483,6 +495,12 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
             })?;
         }
 
+        Ok(())
+    }
+}
+
+impl<'a> Ignore<'a> for Indexer<'_, '_> {
+    fn ignore(&mut self, _: Node<'a>) -> Result<()> {
         Ok(())
     }
 }
@@ -543,7 +561,7 @@ impl IndexItem {
 }
 
 /// Construct visibility from ast.
-pub(super) fn ast_to_visibility(vis: &ast::Visibility) -> compile::Result<Visibility> {
+pub(super) fn ast_to_visibility(vis: &ast::Visibility) -> Result<Visibility> {
     let span = match vis {
         ast::Visibility::Inherited => return Ok(Visibility::Inherited),
         ast::Visibility::Public(..) => return Ok(Visibility::Public),
@@ -553,5 +571,5 @@ pub(super) fn ast_to_visibility(vis: &ast::Visibility) -> compile::Result<Visibi
         ast::Visibility::In(restrict) => restrict.span(),
     };
 
-    Err(compile::Error::new(span, ErrorKind::UnsupportedVisibility))
+    Err(Error::new(span, ErrorKind::UnsupportedVisibility))
 }

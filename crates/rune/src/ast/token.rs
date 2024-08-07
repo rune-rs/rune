@@ -4,7 +4,7 @@ use core::ops::Neg;
 
 use crate::ast::prelude::*;
 use crate::ast::{Kind, Span, Spanned};
-use crate::compile;
+use crate::compile::Result;
 use crate::macros::{MacroContext, SyntheticId, ToTokens, TokenStream};
 use crate::parse::{Expectation, IntoExpectation, Parse, Parser, Peek};
 use crate::SourceId;
@@ -152,7 +152,7 @@ impl Token {
 }
 
 impl Parse for Token {
-    fn parse(p: &mut Parser<'_>) -> compile::Result<Self> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         p.next()
     }
 }

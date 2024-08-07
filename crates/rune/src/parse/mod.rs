@@ -15,7 +15,7 @@ pub(crate) use self::expectation::IntoExpectation;
 pub use self::id::{Id, NonZeroId};
 pub(crate) use self::lexer::{Lexer, LexerMode};
 pub(crate) use self::opaque::Opaque;
-pub use self::parse::Parse;
+pub use self::parse::{Parse, ToAst};
 pub use self::parser::{Parser, Peeker};
 pub use self::peek::Peek;
 pub(crate) use self::resolve::{Resolve, ResolveContext};

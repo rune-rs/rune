@@ -2,6 +2,7 @@ use core::mem::take;
 
 use crate::ast::Kind;
 use crate::compile::Result;
+use crate::grammar::object_key;
 
 use super::{Comments, Node, Output, Remaining, Stream, Tree};
 
@@ -47,14 +48,14 @@ fn is_runefmt_skip<'a>(o: &Output<'a>, node: Node<'a>) -> bool {
 }
 
 pub(super) fn root<'a>(o: &mut Output<'a>, tree: &'a Tree) -> Result<()> {
-    tree.parse(|p| block_content(o, p))?;
+    tree.parse_all(|p| block_content(o, p))?;
     o.nl(1)?;
     Ok(())
 }
 
 fn expr_labels<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
-    while let Some(label) = p.next() {
-        o.write(label)?;
+    while matches!(p.peek(), K!['label]) {
+        o.write(p.pump()?)?;
         p.remaining(o, K![:])?.write(o)?;
         o.ws()?;
     }
@@ -65,12 +66,10 @@ fn expr_labels<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
 fn attributes<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<Attrs> {
     let mut attrs = Attrs::default();
 
-    if let Some(n) = p.try_pump(Attributes)? {
-        for attr in n.into_stream() {
-            attrs.skip |= is_runefmt_skip(o, attr.clone());
-            o.write(attr)?;
-            o.nl(1)?;
-        }
+    while let Some(attr) = p.try_pump(Attribute)? {
+        attrs.skip |= is_runefmt_skip(o, attr.clone());
+        o.write(attr)?;
+        o.nl(1)?;
     }
 
     Ok(attrs)
@@ -218,12 +217,10 @@ fn local<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
 fn pat<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
     let mut attrs = Attrs::default();
 
-    if let Some(n) = p.try_pump(Attributes)? {
-        for attr in n.into_stream() {
-            attrs.skip |= is_runefmt_skip(o, attr.clone());
-            o.write(attr)?;
-            o.ws()?;
-        }
+    while let Some(attr) = p.try_pump(Attribute)? {
+        attrs.skip |= is_runefmt_skip(o, attr.clone());
+        o.write(attr)?;
+        o.ws()?;
     }
 
     p.pump()?.parse(|p| {
@@ -538,12 +535,10 @@ fn expr_with_kind<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<Kind> {
         Expr => {
             let mut attrs = Attrs::default();
 
-            if let Some(n) = p.try_pump(Attributes)? {
-                for attr in n.into_stream() {
-                    attrs.skip |= is_runefmt_skip(o, attr.clone());
-                    o.write(attr)?;
-                    o.ws()?;
-                }
+            while let Some(attr) = p.try_pump(Attribute)? {
+                attrs.skip |= is_runefmt_skip(o, attr.clone());
+                o.write(attr)?;
+                o.ws()?;
             }
 
             if attrs.skip {
@@ -551,12 +546,17 @@ fn expr_with_kind<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<Kind> {
                 return Ok(Expr);
             } else {
                 modifiers(o, p)?;
-
-                if let Some(label) = p.try_pump(Labels)? {
-                    label.parse(|p| expr_labels(o, p))?;
-                }
-
+                expr_labels(o, p)?;
                 return p.pump()?.parse(|p| expr_with_kind(o, p));
+            }
+        }
+        ExprMacroCall => {
+            p.expect(Path)?.parse(|p| path(o, p))?;
+            o.write(p.expect(K![!])?)?;
+
+            match p.peek() {
+                K!['{'] => loose_expr_macro_call(o, p)?,
+                _ => compact_expr_macro_call(o, p)?,
             }
         }
         TemplateString => {
@@ -932,11 +932,9 @@ fn expr_for<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
 fn expr_break<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
     o.write(p.expect(K![break])?)?;
 
-    if let Some(labels) = p.try_pump(Labels)? {
-        for label in labels.into_stream() {
-            o.ws()?;
-            o.write(label)?;
-        }
+    while matches!(p.peek(), K!['label]) {
+        o.ws()?;
+        o.write(p.pump()?)?;
     }
 
     if let Some(node) = p.try_pump(Expr)? {
@@ -950,11 +948,9 @@ fn expr_break<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
 fn expr_continue<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
     o.write(p.expect(K![continue])?)?;
 
-    if let Some(labels) = p.try_pump(Labels)? {
-        for label in labels.into_stream() {
-            o.ws()?;
-            o.write(label)?;
-        }
+    while matches!(p.peek(), K!['label]) {
+        o.ws()?;
+        o.write(p.pump()?)?;
     }
 
     Ok(())
@@ -1217,14 +1213,6 @@ fn expr_chain<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
                 }
                 ExprCall => {
                     exprs(o, p, K!['('], K![')'])?;
-                }
-                ExprMacroCall => {
-                    o.write(p.expect(K![!])?)?;
-
-                    match p.peek() {
-                        K!['{'] => loose_expr_macro_call(o, p)?,
-                        _ => compact_expr_macro_call(o, p)?,
-                    }
                 }
                 ExprIndex => {
                     o.write(p.expect(K!['['])?)?;
@@ -1629,7 +1617,6 @@ fn block_content<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
 
     while !p.is_eof() {
         let node = p.pump()?;
-
         let kind = kind_to_stmt_kind(node.kind());
 
         if !matches!(last_kind, StmtKind::None) {
