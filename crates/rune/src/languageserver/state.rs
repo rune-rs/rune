@@ -290,11 +290,11 @@ impl<'a> State<'a> {
             .encoding
             .rope_position(&workspace_source.content, position)?;
 
-        let Some((mut symbol, start)) = workspace_source.looking_back(offset)? else {
+        let Some((mut symbol, _start)) = workspace_source.looking_back(offset)? else {
             return Ok(None);
         };
 
-        tracing::trace!(symbol = ?symbol, start = ?start);
+        tracing::trace!(?symbol, start = ?_start);
 
         if symbol.is_empty() {
             return Ok(None);
@@ -432,8 +432,8 @@ impl<'a> State<'a> {
                 Err(error) => {
                     tracing::error!("error loading workspace: {error}");
 
-                    for error in error.chain().skip(1) {
-                        tracing::error!("caused by: {error}");
+                    for _error in error.chain().skip(1) {
+                        tracing::error!("caused by: {_error}");
                     }
                 }
                 Ok(script_builds) => {
@@ -637,13 +637,13 @@ impl<'a> State<'a> {
         reporter: &mut Reporter,
     ) -> Result<()> {
         if tracing::enabled!(tracing::Level::TRACE) {
-            let id_to_url = build
+            let _id_to_url = build
                 .id_to_url
                 .iter()
                 .map(|(k, v)| Ok::<_, alloc::Error>((*k, v.try_to_string()?)))
                 .try_collect::<alloc::Result<HashMap<_, _>, _>>()??;
 
-            tracing::trace!(?id_to_url, "emitting manifest diagnostics");
+            tracing::trace!(id_to_url = ?_id_to_url, "emitting manifest diagnostics");
         }
 
         for diagnostic in diagnostics.diagnostics() {
@@ -664,13 +664,13 @@ impl<'a> State<'a> {
         reporter: &mut Reporter,
     ) -> Result<()> {
         if tracing::enabled!(tracing::Level::TRACE) {
-            let id_to_url = build
+            let _id_to_url = build
                 .id_to_url
                 .iter()
                 .map(|(k, v)| Ok::<_, alloc::Error>((*k, v.try_to_string()?)))
                 .try_collect::<alloc::Result<HashMap<_, _>, _>>()??;
 
-            tracing::trace!(?id_to_url, "emitting script diagnostics");
+            tracing::trace!(id_to_url = ?_id_to_url, "emitting script diagnostics");
         }
 
         for diagnostic in diagnostics.diagnostics() {
@@ -1086,8 +1086,8 @@ impl CompileVisitor for Visitor {
 
         let index = self.indexes.entry(location.source_id).or_try_default()?;
 
-        if let Some(d) = index.definitions.insert(location.span, definition) {
-            tracing::warn!("Replaced definition: {:?}", d.kind)
+        if let Some(_def) = index.definitions.insert(location.span, definition) {
+            tracing::warn!("Replaced definition: {:?}", _def.kind);
         }
 
         Ok(())
@@ -1106,8 +1106,8 @@ impl CompileVisitor for Visitor {
 
         let index = self.indexes.entry(source_id).or_try_default()?;
 
-        if let Some(d) = index.definitions.insert(span.span(), definition) {
-            tracing::warn!("replaced definition: {:?}", d.kind)
+        if let Some(_def) = index.definitions.insert(span.span(), definition) {
+            tracing::warn!("replaced definition: {:?}", _def.kind);
         }
 
         Ok(())
@@ -1123,8 +1123,8 @@ impl CompileVisitor for Visitor {
 
         let index = self.indexes.entry(location.source_id).or_try_default()?;
 
-        if let Some(d) = index.definitions.insert(location.span, definition) {
-            tracing::warn!("replaced definition: {:?}", d.kind)
+        if let Some(_def) = index.definitions.insert(location.span, definition) {
+            tracing::warn!("replaced definition: {:?}", _def.kind);
         }
 
         Ok(())

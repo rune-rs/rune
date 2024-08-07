@@ -628,8 +628,8 @@ impl<'m> Ctxt<'_, 'm> {
             let Some((meta, kind)) = it.next() else {
                 tracing::warn!(?hash, "No link for hash");
 
-                for meta in self.context.meta_by_hash(hash)? {
-                    tracing::warn!("Candidate: {:?}", meta.kind);
+                for _meta in self.context.meta_by_hash(hash)? {
+                    tracing::warn!("Candidate: {:?}", _meta.kind);
                 }
 
                 break 'out (None, None, text);
@@ -799,8 +799,8 @@ impl<'m> Ctxt<'_, 'm> {
                     tracing::warn!(?link, "Bad link, no items found");
                 }
                 [out] => break 'out *out,
-                items => {
-                    tracing::warn!(?link, ?items, "Bad link, got multiple items");
+                _items => {
+                    tracing::warn!(?link, items = ?_items, "Bad link, got multiple items");
                 }
             }
 

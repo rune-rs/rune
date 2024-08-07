@@ -13,8 +13,6 @@ use crate::hir;
 use crate::parse::NonZeroId;
 use crate::shared::Gen;
 
-use rune_macros::instrument;
-
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub(crate) struct Scope(usize);

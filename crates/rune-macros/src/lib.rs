@@ -35,7 +35,6 @@ mod from_value;
 mod function;
 mod hash;
 mod inst_display;
-mod instrument;
 mod internals;
 mod item;
 mod macro_;
@@ -258,21 +257,6 @@ pub fn __internal_impl_any(input: proc_macro::TokenStream) -> proc_macro::TokenS
     };
 
     builder.expand().into()
-}
-
-#[proc_macro_attribute]
-#[doc(hidden)]
-pub fn instrument(
-    attr: proc_macro::TokenStream,
-    item: proc_macro::TokenStream,
-) -> proc_macro::TokenStream {
-    let attr = syn::parse_macro_input!(attr as instrument::Attr);
-    let internal_call = syn::parse_macro_input!(item as instrument::Expander);
-
-    internal_call
-        .expand(&attr)
-        .unwrap_or_else(to_compile_errors)
-        .into()
 }
 
 /// Shim for an ignored `#[stable]` attribute.

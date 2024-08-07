@@ -2027,7 +2027,7 @@ impl Vm {
     fn op_vec(&mut self, addr: InstAddress, count: usize, out: Output) -> VmResult<()> {
         let vec = vm_try!(self.stack.slice_at_mut(addr, count));
         let vec = vm_try!(vec.iter_mut().map(take).try_collect::<alloc::Vec<Value>>());
-        vm_try!(out.store(&mut self.stack, || Mutable::Vec(Vec::from(vec))));
+        vm_try!(out.store(&mut self.stack, Vec::from(vec)));
         VmResult::Ok(())
     }
 
@@ -2895,11 +2895,10 @@ impl Vm {
             .lookup_rtti(hash)
             .ok_or(VmErrorKind::MissingRtti { hash }));
 
-        vm_try!(
-            out.store(&mut self.stack, || Mutable::EmptyStruct(EmptyStruct {
-                rtti: rtti.clone()
-            }))
-        );
+        vm_try!(out.store(
+            &mut self.stack,
+            Mutable::EmptyStruct(EmptyStruct { rtti: rtti.clone() })
+        ));
 
         VmResult::Ok(())
     }
@@ -2931,10 +2930,13 @@ impl Vm {
             vm_try!(data.insert(key, take(value)));
         }
 
-        vm_try!(out.store(&mut self.stack, || Mutable::Struct(Struct {
-            rtti: rtti.clone(),
-            data,
-        })));
+        vm_try!(out.store(
+            &mut self.stack,
+            Mutable::Struct(Struct {
+                rtti: rtti.clone(),
+                data,
+            })
+        ));
 
         VmResult::Ok(())
     }
@@ -2966,12 +2968,10 @@ impl Vm {
             vm_try!(data.insert(key, take(value)));
         }
 
-        vm_try!(
-            out.store(&mut self.stack, || Mutable::Variant(Variant::struct_(
-                rtti.clone(),
-                data
-            )))
-        );
+        vm_try!(out.store(
+            &mut self.stack,
+            Mutable::Variant(Variant::struct_(rtti.clone(), data))
+        ));
         VmResult::Ok(())
     }
 
@@ -3015,7 +3015,7 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_format(&mut self, addr: InstAddress, spec: FormatSpec, out: Output) -> VmResult<()> {
         let value = vm_try!(self.stack.at(addr)).clone();
-        vm_try!(out.store(&mut self.stack, || Mutable::Format(Format { value, spec })));
+        vm_try!(out.store(&mut self.stack, Mutable::Format(Format { value, spec })));
         VmResult::Ok(())
     }
 
@@ -3359,7 +3359,7 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_load_fn(&mut self, hash: Hash, out: Output) -> VmResult<()> {
         let function = vm_try!(self.lookup_function_by_hash(hash));
-        vm_try!(out.store(&mut self.stack, || Mutable::Function(function)));
+        vm_try!(out.store(&mut self.stack, Mutable::Function(function)));
         VmResult::Ok(())
     }
 
@@ -3411,7 +3411,7 @@ impl Vm {
             hash,
         );
 
-        vm_try!(out.store(&mut self.stack, || Mutable::Function(function)));
+        vm_try!(out.store(&mut self.stack, Mutable::Function(function)));
         VmResult::Ok(())
     }
 
@@ -3581,20 +3581,14 @@ impl Vm {
 
         match function {
             ValueBorrowRef::Mutable(value) => match &*value {
-                Mutable::Function(function) => {
-                    return function.call_with_vm(self, addr, args, out);
-                }
-                actual => {
-                    return err(VmErrorKind::UnsupportedCallFn {
-                        actual: actual.type_info(),
-                    });
-                }
-            },
-            actual => {
-                return err(VmErrorKind::UnsupportedCallFn {
+                Mutable::Function(function) => function.call_with_vm(self, addr, args, out),
+                actual => err(VmErrorKind::UnsupportedCallFn {
                     actual: actual.type_info(),
-                });
-            }
+                }),
+            },
+            actual => err(VmErrorKind::UnsupportedCallFn {
+                actual: actual.type_info(),
+            }),
         }
     }
 

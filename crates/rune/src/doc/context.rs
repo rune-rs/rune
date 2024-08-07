@@ -409,8 +409,8 @@ fn context_to_associated(context: &crate::Context, hash: Hash) -> Option<Assoc<'
                 docs: meta.docs.lines(),
             }))
         }
-        kind => {
-            tracing::warn!(?kind, "Unsupported associated type");
+        _kind => {
+            tracing::warn!(kind = ?_kind, "Unsupported associated type");
             None
         }
     }

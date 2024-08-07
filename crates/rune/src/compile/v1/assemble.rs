@@ -2,6 +2,8 @@ use core::fmt;
 use core::mem::take;
 use core::slice;
 
+use tracing::instrument_ast;
+
 use crate::alloc::prelude::*;
 use crate::alloc::BTreeMap;
 use crate::ast::{self, Span, Spanned};
@@ -17,8 +19,6 @@ use crate::shared::FixedVec;
 use crate::{Hash, SourceId};
 
 use super::{Address, Any, Break, Breaks, Linear, Needs, ScopeHandle, Scopes};
-
-use rune_macros::instrument;
 
 macro_rules! converge {
     ($expr:expr $(, $method:ident($($diverge:expr),* $(,)?))?) => {
@@ -203,9 +203,9 @@ impl fmt::Debug for Asm<'_> {
 }
 
 /// Assemble a function from an [hir::ItemFn<'_>].
-#[instrument(span = hir)]
-pub(crate) fn fn_from_item_fn<'a, 'hir>(
-    cx: &mut Ctxt<'a, 'hir, '_>,
+#[instrument_ast(span = hir)]
+pub(crate) fn fn_from_item_fn<'hir>(
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::ItemFn<'hir>,
     instance_fn: bool,
 ) -> compile::Result<()> {
@@ -250,9 +250,9 @@ pub(crate) fn fn_from_item_fn<'a, 'hir>(
 }
 
 /// Assemble an async block.
-#[instrument(span = hir.block.span)]
-pub(crate) fn async_block_secondary<'a, 'hir>(
-    cx: &mut Ctxt<'a, 'hir, '_>,
+#[instrument_ast(span = hir.block.span)]
+pub(crate) fn async_block_secondary<'hir>(
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::AsyncBlock<'hir>,
 ) -> compile::Result<()> {
     let linear = cx.scopes.linear(&hir.block, hir.captures.len())?;
@@ -269,9 +269,9 @@ pub(crate) fn async_block_secondary<'a, 'hir>(
 }
 
 /// Assemble the body of a closure function.
-#[instrument(span = hir)]
-pub(crate) fn expr_closure_secondary<'a, 'hir>(
-    cx: &mut Ctxt<'a, 'hir, '_>,
+#[instrument_ast(span = hir)]
+pub(crate) fn expr_closure_secondary<'hir>(
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &'hir hir::ExprClosure<'hir>,
 ) -> compile::Result<()> {
     let mut arguments = cx.scopes.linear(hir, hir.args.len())?;
@@ -315,7 +315,7 @@ pub(crate) fn expr_closure_secondary<'a, 'hir>(
     Ok(())
 }
 
-#[instrument(span = pat)]
+#[instrument_ast(span = pat)]
 fn fn_arg_pat<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     pat: &'hir hir::PatBinding<'hir>,
@@ -399,7 +399,7 @@ where
 /// Encode a pattern from a known set of bindings.
 ///
 /// Returns a boolean indicating if the label was used.
-#[instrument(span = hir)]
+#[instrument_ast(span = hir)]
 fn pat_binding<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::PatBinding<'hir>,
@@ -415,7 +415,7 @@ fn pat_binding<'a, 'hir>(
     Ok(pat)
 }
 
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn pat_binding_with<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     span: &'hir dyn Spanned,
@@ -450,7 +450,7 @@ fn pat_binding_with<'a, 'hir>(
     Ok(asm)
 }
 
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn pat_binding_with_single<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     span: &'hir dyn Spanned,
@@ -519,7 +519,7 @@ where
 /// Encode a pattern.
 ///
 /// Returns a boolean indicating if the label was used.
-#[instrument(span = hir)]
+#[instrument_ast(span = hir)]
 fn pat<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::Pat<'hir>,
@@ -569,7 +569,7 @@ fn pat<'a, 'hir>(
 }
 
 /// Assemble a pattern literal.
-#[instrument(span = hir)]
+#[instrument_ast(span = hir)]
 fn pat_lit<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::Expr<'_>,
@@ -594,9 +594,9 @@ fn pat_lit<'a, 'hir>(
     Ok(Asm::new(hir, Pattern::Refutable))
 }
 
-#[instrument(span = hir)]
-fn pat_lit_inst<'a, 'hir>(
-    cx: &mut Ctxt<'a, 'hir, '_>,
+#[instrument_ast(span = hir)]
+fn pat_lit_inst(
+    cx: &mut Ctxt<'_, '_, '_>,
     hir: &hir::Expr<'_>,
     addr: InstAddress,
     cond: InstAddress,
@@ -629,7 +629,7 @@ fn pat_lit_inst<'a, 'hir>(
 }
 
 /// Assemble an [hir::Condition<'_>].
-#[instrument(span = hir)]
+#[instrument_ast(span = hir)]
 fn condition<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &hir::Condition<'hir>,
@@ -684,7 +684,7 @@ fn condition<'a, 'hir>(
 }
 
 /// Encode a vector pattern match.
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn pat_sequence<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &hir::PatSequence<'hir>,
@@ -783,7 +783,7 @@ fn pat_sequence_kind_to_inst(kind: hir::PatSequenceKind, addr: InstAddress, out:
 }
 
 /// Assemble an object pattern.
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn pat_object<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &hir::PatObject<'hir>,
@@ -895,7 +895,7 @@ fn pat_object<'a, 'hir>(
 }
 
 /// Call a block.
-#[instrument(span = hir)]
+#[instrument_ast(span = hir)]
 fn block<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::Block<'hir>,
@@ -932,7 +932,7 @@ fn block<'a, 'hir>(
 }
 
 /// Call a block.
-#[instrument(span = hir)]
+#[instrument_ast(span = hir)]
 fn block_without_scope<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::Block<'hir>,
@@ -984,7 +984,7 @@ fn block_without_scope<'a, 'hir>(
 }
 
 /// Assemble #[builtin] format_args!(...) macro.
-#[instrument(span = format)]
+#[instrument_ast(span = format)]
 fn builtin_format<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     format: &'hir hir::BuiltInFormat<'hir>,
@@ -1018,7 +1018,7 @@ fn builtin_format<'a, 'hir>(
 }
 
 /// Assemble #[builtin] template!(...) macro.
-#[instrument(span = hir)]
+#[instrument_ast(span = hir)]
 fn builtin_template<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::BuiltInTemplate<'hir>,
@@ -1083,7 +1083,7 @@ fn builtin_template<'a, 'hir>(
 }
 
 /// Assemble a constant value.
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn const_<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     value: &ConstValue,
@@ -1216,7 +1216,7 @@ fn const_<'a, 'hir>(
 }
 
 /// Assemble an expression.
-#[instrument(span = hir)]
+#[instrument_ast(span = hir)]
 fn expr<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::Expr<'hir>,
@@ -1292,7 +1292,7 @@ fn expr<'a, 'hir>(
 }
 
 /// Assemble an assign expression.
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn expr_assign<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::ExprAssign<'hir>,
@@ -1402,7 +1402,7 @@ fn expr_assign<'a, 'hir>(
 }
 
 /// Assemble an `.await` expression.
-#[instrument(span = hir)]
+#[instrument_ast(span = hir)]
 fn expr_await<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::Expr<'hir>,
@@ -1425,7 +1425,7 @@ fn expr_await<'a, 'hir>(
 }
 
 /// Assemble a binary expression.
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn expr_binary<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::ExprBinary<'hir>,
@@ -1607,7 +1607,7 @@ fn compile_assign_binop<'a, 'hir>(
 }
 
 /// Assemble a block expression.
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn expr_async_block<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &hir::ExprAsyncBlock<'hir>,
@@ -1644,7 +1644,7 @@ fn expr_async_block<'a, 'hir>(
 }
 
 /// Assemble a constant item.
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn const_item<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hash: Hash,
@@ -1666,9 +1666,9 @@ fn const_item<'a, 'hir>(
 /// Assemble a break expression.
 ///
 /// NB: loops are expected to produce a value at the end of their expression.
-#[instrument(span = span)]
-fn expr_break<'a, 'hir>(
-    cx: &mut Ctxt<'a, 'hir, '_>,
+#[instrument_ast(span = span)]
+fn expr_break<'hir>(
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::ExprBreak<'hir>,
     span: &'hir dyn Spanned,
 ) -> compile::Result<Asm<'hir>> {
@@ -1714,7 +1714,7 @@ fn expr_break<'a, 'hir>(
 }
 
 /// Assemble a call expression.
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn expr_call<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &hir::ExprCall<'hir>,
@@ -1804,7 +1804,7 @@ fn expr_call<'a, 'hir>(
 }
 
 /// Assemble an array of expressions.
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn expr_array<'a, 'hir, 'needs, const N: usize>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     span: &'hir dyn Spanned,
@@ -1821,7 +1821,7 @@ fn expr_array<'a, 'hir, 'needs, const N: usize>(
     Ok(Asm::new(span, out.into_inner()))
 }
 
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn exprs<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     span: &'hir dyn Spanned,
@@ -1830,7 +1830,7 @@ fn exprs<'a, 'hir>(
     exprs_2(cx, span, args, &[])
 }
 
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn exprs_with<'a, 'hir, T>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     span: &'hir dyn Spanned,
@@ -1841,7 +1841,7 @@ fn exprs_with<'a, 'hir, T>(
 }
 
 /// Assemble a linear sequence of expressions.
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn exprs_2<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     span: &'hir dyn Spanned,
@@ -1895,7 +1895,7 @@ fn exprs_2_with<'a, 'hir, T>(
 }
 
 /// Assemble a closure expression.
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn expr_call_closure<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &hir::ExprCallClosure<'hir>,
@@ -1940,7 +1940,7 @@ fn expr_call_closure<'a, 'hir>(
 }
 
 /// Assemble a continue expression.
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn expr_continue<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &hir::ExprContinue<'hir>,
@@ -1969,7 +1969,7 @@ fn expr_continue<'a, 'hir>(
 }
 
 /// Assemble an expr field access, like `<value>.<field>`.
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn expr_field_access<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::ExprFieldAccess<'hir>,
@@ -2036,7 +2036,7 @@ fn expr_field_access<'a, 'hir>(
 }
 
 /// Assemble an expression for loop.
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn expr_for<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::ExprFor<'hir>,
@@ -2213,7 +2213,7 @@ fn expr_for<'a, 'hir>(
 }
 
 /// Assemble an if expression.
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn expr_if<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &hir::Conditional<'hir>,
@@ -2305,7 +2305,7 @@ fn expr_if<'a, 'hir>(
 }
 
 /// Assemble an expression.
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn expr_index<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::ExprIndex<'hir>,
@@ -2338,7 +2338,7 @@ fn expr_index<'a, 'hir>(
 }
 
 /// Assemble a let expression.
-#[instrument(span = hir)]
+#[instrument_ast(span = hir)]
 fn expr_let<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::ExprLet<'hir>,
@@ -2359,7 +2359,7 @@ fn expr_let<'a, 'hir>(
     Ok(Asm::new(hir, ()))
 }
 
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn expr_match<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::ExprMatch<'hir>,
@@ -2482,7 +2482,7 @@ fn expr_match<'a, 'hir>(
 }
 
 /// Compile a literal object.
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn expr_object<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &hir::ExprObject<'hir>,
@@ -2611,7 +2611,7 @@ fn reorder_field_assignments<'hir>(
 }
 
 /// Assemble a range expression.
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn expr_range<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::ExprRange<'hir>,
@@ -2701,9 +2701,9 @@ fn expr_range<'a, 'hir>(
 }
 
 /// Assemble a return expression.
-#[instrument(span = span)]
-fn expr_return<'a, 'hir>(
-    cx: &mut Ctxt<'a, 'hir, '_>,
+#[instrument_ast(span = span)]
+fn expr_return<'hir>(
+    cx: &mut Ctxt<'_, 'hir, '_>,
     hir: Option<&'hir hir::Expr<'hir>>,
     span: &'hir dyn Spanned,
 ) -> compile::Result<Asm<'hir>> {
@@ -2810,7 +2810,7 @@ fn expr_select_inner<'a, 'hir>(
     Ok(Asm::new(span, ()))
 }
 
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn expr_select<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &hir::ExprSelect<'hir>,
@@ -2831,7 +2831,7 @@ fn expr_select<'a, 'hir>(
 }
 
 /// Assemble a try expression.
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn expr_try<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::Expr<'hir>,
@@ -2854,7 +2854,7 @@ fn expr_try<'a, 'hir>(
 }
 
 /// Assemble a literal tuple.
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn expr_tuple<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &hir::ExprSeq<'hir>,
@@ -2913,7 +2913,7 @@ fn expr_tuple<'a, 'hir>(
 }
 
 /// Assemble a unary expression.
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn expr_unary<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::ExprUnary<'hir>,
@@ -2957,7 +2957,7 @@ fn expr_unary<'a, 'hir>(
 }
 
 /// Assemble a literal vector.
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn expr_vec<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &hir::ExprSeq<'hir>,
@@ -2990,7 +2990,7 @@ fn expr_vec<'a, 'hir>(
 }
 
 /// Assemble a while loop.
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn expr_loop<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::ExprLoop<'hir>,
@@ -3051,7 +3051,7 @@ fn expr_loop<'a, 'hir>(
 }
 
 /// Assemble a `yield` expression.
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn expr_yield<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: Option<&'hir hir::Expr<'hir>>,
@@ -3081,7 +3081,7 @@ fn expr_yield<'a, 'hir>(
 }
 
 /// Assemble a literal value.
-#[instrument(span = span)]
+#[instrument_ast(span = span)]
 fn lit<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: hir::Lit<'_>,
@@ -3127,7 +3127,7 @@ fn lit<'a, 'hir>(
 }
 
 /// Assemble a local expression.
-#[instrument(span = hir)]
+#[instrument_ast(span = hir)]
 fn local<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     hir: &'hir hir::Local<'hir>,

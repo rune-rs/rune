@@ -1,0 +1,23 @@
+[package]
+name = "rune-tracing"
+version = "0.14.0"
+authors = ["John-John Tedro <udoprog@tedro.se>"]
+edition = "2021"
+rust-version = "1.79"
+description = "Rune tracing shims for the Rune Language, an embeddable dynamic programming language for Rust."
+documentation = "https://docs.rs/rune"
+readme = "README.md"
+homepage = "https://github.com/rune-rs/rune"
+repository = "https://github.com/rune-rs/rune"
+license = "MIT OR Apache-2.0"
+keywords = ["language", "scripting", "scripting-language"]
+categories = ["parser-implementations"]
+
+[features]
+default = []
+enabled = ["dep:tracing"]
+
+[dependencies]
+rune-tracing-macros = { path = "../rune-tracing-macros", version = "=0.14.0", default-features = false }
+
+tracing =  { version = "0.1.37", default-features = false, optional = true, features = ["attributes"] }

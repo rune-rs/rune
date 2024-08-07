@@ -25,6 +25,7 @@ These are modules that can be used with the [Rune language].
 [Rune Language]: https://rune-rs.github.io
 
 See each module for documentation:
+* [base64]
 * [core]
 * [fmt]
 * [fs]
