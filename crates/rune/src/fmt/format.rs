@@ -1419,39 +1419,21 @@ fn tuple_body<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
 fn item_fn<'a>(o: &mut Output<'a>, p: &mut Stream<'a>) -> Result<()> {
     o.write(p.expect(K![fn])?)?;
 
-    let mut has_arguments = false;
-    let mut has_body = false;
-
-    for node in p.by_ref() {
-        match node.kind() {
-            K![ident] => {
-                o.ws()?;
-                o.write(node)?;
-            }
-            FnArgs => {
-                has_arguments = true;
-                node.parse(|p| fn_args(o, p))?;
-            }
-            Block => {
-                if !has_arguments {
-                    o.lit("()")?;
-                    has_arguments = true;
-                }
-
-                has_body = true;
-
-                o.ws()?;
-                node.parse(|p| block(o, p))?;
-            }
-            _ => {}
-        }
+    if matches!(p.peek(), K![ident]) {
+        o.ws()?;
+        o.write(p.pump()?)?;
     }
 
-    if !has_arguments {
+    if let Some(node) = p.try_pump(FnArgs)? {
+        node.parse(|p| fn_args(o, p))?;
+    } else {
         o.lit("()")?;
     }
 
-    if !has_body {
+    if let Some(node) = p.try_pump(Block)? {
+        o.ws()?;
+        node.parse(|p| block(o, p))?;
+    } else {
         o.ws()?;
         o.lit("{")?;
         o.nl(1)?;
