@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1722993012438,
+  "lastUpdate": 1723079386288,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -27325,6 +27325,106 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 520,
             "range": "± 25",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "committer": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "id": "20c7016ff4db2ee4b80345000b75553e0a98a6f7",
+          "message": "tracing: add tracing feature to shim out tracing",
+          "timestamp": "2024-08-07T01:18:55Z",
+          "url": "https://github.com/rune-rs/rune/commit/20c7016ff4db2ee4b80345000b75553e0a98a6f7"
+        },
+        "date": 1723079385742,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "primes/rhai",
+            "value": 11183032,
+            "range": "± 293867",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "primes/rune",
+            "value": 4800002,
+            "range": "± 165569",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 181101,
+            "range": "± 9578",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 941645,
+            "range": "± 31401",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 251081131,
+            "range": "± 2214935",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 229624940,
+            "range": "± 1314516",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 603279,
+            "range": "± 5966",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 6399415,
+            "range": "± 59516",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 36644910,
+            "range": "± 493948",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 5616369,
+            "range": "± 57377",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 238330,
+            "range": "± 3556",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 2630183,
+            "range": "± 48620",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 367,
+            "range": "± 3",
             "unit": "ns/iter"
           }
         ]
