@@ -805,6 +805,7 @@ fn exprs_loose<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     }
 
     fmt.nl(1)?;
+    fmt.comments(Line)?;
     fmt.indent(-1)?;
     Ok(())
 }

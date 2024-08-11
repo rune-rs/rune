@@ -18,32 +18,32 @@ fn test_layout_string() {
 
 #[test]
 fn fmt_comment_line() {
-    const EXPECTED: &str = r#"
-    pub fn main() {
-        // test 1
-        if true {
-            // test 2.1
-            let a = 1;
-            // test 2.2
+    assert_format!(
+        r#"
+        pub fn main() {
+            // test 1
+            if true {
+                // test 2.1
+                let a = 1;
+                // test 2.2
+            }
+            // test 3
         }
-        // test 3
-    }
-    "#;
-
-    assert_format!(EXPECTED, EXPECTED);
+        "#
+    );
 }
 
 #[test]
 fn avoid_block_inject() {
-    const EXPECTED: &str = r#"
-    pub fn main() {
-        if true {
-            let a = 1;
+    assert_format!(
+        r#"
+        pub fn main() {
+            if true {
+                let a = 1;
+            }
         }
-    }
-    "#;
-
-    assert_format!(EXPECTED, EXPECTED);
+        "#
+    );
 }
 
 /// https://github.com/rune-rs/rune/issues/684
@@ -81,6 +81,18 @@ fn keep_trailing_comments() {
         pub fn main() {
             let var = 42; // THIS is really important.
         }
+        "#
+    );
+
+    assert_format!(
+        r#"
+        const DOVECOT_UNCHANGED = [
+            //("dovecot-core", "dovecot-db.conf.ext"),
+            ("dovecot-core", "dovecot-dict-auth.conf.ext"),
+            ("dovecot-core", "dovecot-dict-sql.conf.ext"),
+            ("dovecot-core", "dovecot-sql.conf.ext"),
+            //("dovecot-core", "dovecot.conf"),
+        ];
         "#
     );
 }
