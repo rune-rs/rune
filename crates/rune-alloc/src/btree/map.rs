@@ -60,6 +60,7 @@ macro_rules! into_iter {
 pub(crate) fn into_ok<T>(result: Result<T, Infallible>) -> T {
     match result {
         Ok(value) => value,
+        #[allow(unreachable_patterns)]
         Err(error) => match error {},
     }
 }

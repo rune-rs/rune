@@ -30,6 +30,7 @@ impl<T> TestExt<T> for Result<T, Infallible> {
     fn abort(self) -> T {
         match self {
             Ok(value) => value,
+            #[allow(unreachable_patterns)]
             Err(error) => match error {},
         }
     }
