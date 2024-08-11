@@ -1,12 +1,18 @@
 use std::fmt;
 use std::io;
 
-use crate::ast::{Kind, Span};
+use crate::ast::{Kind, Span, Spanned};
 use crate::compile::{Error, ErrorKind, Result};
 #[cfg(feature = "fmt")]
-use crate::fmt::Output;
+use crate::fmt::Formatter;
+use crate::grammar::ws;
 use crate::parse::{Expectation, IntoExpectation};
 
+pub(crate) trait Ignore<'a> {
+    fn ignore(&mut self, node: Node<'a>) -> Result<()>;
+}
+
+#[derive(Default)]
 pub(crate) struct Tree {
     inner: syntree::Tree<Kind, u32, usize>,
 }
@@ -17,19 +23,21 @@ impl Tree {
     }
 
     /// Iterate over all the children of the tree.
-    pub(crate) fn parse<'a, P, O>(&'a self, parser: P) -> Result<O>
+    pub(crate) fn parse_all<'a, P>(&'a self, mut parser: P) -> Result<()>
     where
-        P: FnOnce(&mut Stream<'a>) -> Result<O>,
+        P: FnMut(&mut Stream<'a>) -> Result<()>,
     {
-        let mut p = Stream {
-            node: None,
-            iter: self.inner.children(),
-            peek: None,
-        };
+        for node in self
+            .inner
+            .children()
+            .filter(|n| !matches!(n.value(), ws!()))
+        {
+            let mut p = Stream::new(node);
+            parser(&mut p)?;
+            p.end()?;
+        }
 
-        let out = parser(&mut p)?;
-        p.end()?;
-        Ok(out)
+        Ok(())
     }
 
     /// Walk the tree.
@@ -53,14 +61,29 @@ impl Tree {
     }
 }
 
+impl Spanned for Stream<'_> {
+    #[inline]
+    fn span(&self) -> Span {
+        self.span()
+    }
+}
+
 /// Iterator over the children of a tree.
 pub(crate) struct Stream<'a> {
-    node: Option<syntree::Node<'a, Kind, u32, usize>>,
-    iter: syntree::node::Children<'a, Kind, u32, usize>,
+    node: syntree::Node<'a, Kind, u32, usize>,
+    iter: Iter<'a>,
     peek: Option<syntree::Node<'a, Kind, u32, usize>>,
 }
 
 impl<'a> Stream<'a> {
+    pub(crate) fn new(node: syntree::Node<'a, Kind, u32, usize>) -> Self {
+        Self {
+            node,
+            iter: Iter::new(node.first()),
+            peek: None,
+        }
+    }
+
     /// Get a clone of the raw current state of children.
     pub(crate) fn children(&self) -> impl Iterator<Item = Node<'a>> + '_ {
         self.iter.clone().map(Node::new)
@@ -68,7 +91,7 @@ impl<'a> Stream<'a> {
 
     /// Get a clone of the raw current state of children.
     #[cfg(feature = "fmt")]
-    pub(crate) fn write_remaining(&mut self, o: &mut Output<'a>) -> Result<()> {
+    pub(crate) fn write_remaining(&mut self, o: &mut Formatter<'a>) -> Result<()> {
         o.flush_whitespace(false)?;
 
         for node in self.peek.take().into_iter().chain(self.iter.by_ref()) {
@@ -80,7 +103,7 @@ impl<'a> Stream<'a> {
 
     /// Get a clone of the raw current state of children.
     #[cfg(feature = "fmt")]
-    pub(crate) fn write_remaining_trimmed(&mut self, o: &mut Output<'a>) -> Result<()> {
+    pub(crate) fn fmt_remaining_trimmed(&mut self, o: &mut Formatter<'a>) -> Result<()> {
         o.flush_whitespace(false)?;
 
         let mut buf = None;
@@ -121,11 +144,7 @@ impl<'a> Stream<'a> {
 
     /// Get the kind of the current node.
     pub(crate) fn kind(&self) -> Kind {
-        let Some(node) = &self.node else {
-            return Kind::Root;
-        };
-
-        node.value()
+        self.node.value()
     }
 
     /// Test if the parser is at the end of input.
@@ -135,25 +154,30 @@ impl<'a> Stream<'a> {
 
     /// Peek the next node.
     pub(crate) fn peek(&mut self) -> Kind {
-        if let Some(node) = &self.peek {
-            return node.value();
-        }
-
-        if let Some(node) = self.next_node() {
-            self.peek = Some(node);
-            return node.value();
+        if let Some(value) = self.peek_node() {
+            return value.value();
         }
 
         Kind::Eof
     }
 
+    fn peek_node(&mut self) -> Option<&syntree::Node<Kind, u32, usize>> {
+        if self.peek.is_none() {
+            if let Some(node) = self.next_node() {
+                self.peek = Some(node);
+            }
+        }
+
+        self.peek.as_ref()
+    }
+
     /// Report an unsupported error for the current tree parser.
-    pub(crate) fn unsupported(&self, what: &'static str) -> Error {
+    pub(crate) fn unsupported(&mut self, what: &'static str) -> Error {
         Error::new(
-            self.span(),
+            self.next_span(),
             ErrorKind::UnsupportedSyntax {
-                actual: self.kind(),
                 what,
+                actual: self.kind().into_expectation(),
             },
         )
     }
@@ -162,9 +186,9 @@ impl<'a> Stream<'a> {
     pub(crate) fn expect(&mut self, expected: Kind) -> Result<Node<'a>> {
         let Some(node) = self.next_node() else {
             return Err(Error::new(
-                self.span(),
+                self.next_span(),
                 ErrorKind::UnexpectedEndOfSyntax {
-                    inside: self.kind(),
+                    inside: self.kind().into_expectation(),
                 },
             ));
         };
@@ -173,9 +197,9 @@ impl<'a> Stream<'a> {
             return Err(Error::new(
                 Span::new(node.span().start, node.span().end),
                 ErrorKind::ExpectedSyntax {
-                    inside: self.kind(),
-                    expected,
-                    actual: node.value(),
+                    inside: self.kind().into_expectation(),
+                    expected: expected.into_expectation(),
+                    actual: node.value().into_expectation(),
                 },
             ));
         }
@@ -187,9 +211,9 @@ impl<'a> Stream<'a> {
     pub(crate) fn pump(&mut self) -> Result<Node<'a>> {
         let Some(node) = self.next_node() else {
             return Err(Error::new(
-                self.span(),
+                self.next_span(),
                 ErrorKind::UnexpectedEndOfSyntax {
-                    inside: self.kind(),
+                    inside: self.kind().into_expectation(),
                 },
             ));
         };
@@ -211,14 +235,12 @@ impl<'a> Stream<'a> {
     }
 
     /// Read remaining nodes equal to the given kind.
-    #[cfg(feature = "fmt")]
     pub(crate) fn remaining(
         &mut self,
-        o: &mut Output<'a>,
+        o: &mut dyn Ignore<'a>,
         expected: Kind,
     ) -> Result<Remaining<'a>> {
-        let lit = self.kind_to_lit(expected)?;
-
+        let mut first = None;
         let mut out = None;
 
         while let Some(node) = self.next_node() {
@@ -230,24 +252,42 @@ impl<'a> Stream<'a> {
                 break;
             }
 
+            if first.is_none() {
+                first = Some(Span::new(node.span().start, node.span().end));
+            }
+
             if let Some(old) = out.replace(node) {
                 o.ignore(Node::new(old))?;
             }
         }
 
+        let node = out.map(Node::new);
+
+        let span = match (first, &node) {
+            (Some(first), Some(last)) => first.join(last.span()),
+            _ => self.next_span(),
+        };
+
         Ok(Remaining {
-            lit,
-            node: out.map(Node::new),
+            expected,
+            span,
+            node,
         })
     }
 
     /// Read one node equal to the given kind.
     pub(crate) fn one(&mut self, expected: Kind) -> Result<Remaining<'a>> {
-        let lit = self.kind_to_lit(expected)?;
+        let node = self.try_pump(expected)?;
+
+        let span = match &node {
+            Some(node) => node.span(),
+            None => self.next_span(),
+        };
 
         Ok(Remaining {
-            lit,
-            node: self.try_pump(expected)?,
+            expected,
+            span,
+            node,
         })
     }
 
@@ -264,8 +304,8 @@ impl<'a> Stream<'a> {
             return Err(Error::new(
                 Span::new(span.start, span.end),
                 ErrorKind::ExpectedSyntaxEnd {
-                    inside,
-                    actual: node.value(),
+                    inside: inside.into_expectation(),
+                    actual: node.value().into_expectation(),
                 },
             ));
         }
@@ -274,12 +314,16 @@ impl<'a> Stream<'a> {
     }
 
     /// Get the current span of the parser.
-    pub(crate) fn span(&self) -> Span {
-        let Some(node) = &self.node else {
-            return Span::point(0);
-        };
+    fn next_span(&mut self) -> Span {
+        if let Some(node) = self.peek_node() {
+            return Span::new(node.span().start, node.span().end);
+        }
 
-        Span::new(node.span().start, node.span().end)
+        Span::point(self.node.span().end)
+    }
+
+    pub(crate) fn span(&self) -> Span {
+        Span::new(self.node.span().start, self.node.span().end)
     }
 
     /// Get the next raw node, including whitespace.
@@ -299,28 +343,9 @@ impl<'a> Stream<'a> {
         // We walk over comments and whitespace separately when writing
         // nodes to ensure that formatting functions do not need to worry
         // about it here.
-        self.iter.by_ref().find(|node| {
-            !matches!(
-                node.value(),
-                Kind::Whitespace | Kind::Comment | Kind::MultilineComment(..)
-            )
-        })
-    }
-
-    fn kind_to_lit(&mut self, expected: Kind) -> Result<&'static str> {
-        let lit = match expected.into_expectation() {
-            Expectation::Keyword(lit) => lit,
-            Expectation::Delimiter(lit) => lit,
-            Expectation::Punctuation(lit) => lit,
-            expectation => {
-                return Err(Error::new(
-                    self.span(),
-                    ErrorKind::UnsupportedDelimiter { expectation },
-                ));
-            }
-        };
-
-        Ok(lit)
+        self.iter
+            .by_ref()
+            .find(|node| !matches!(node.value(), ws!()))
     }
 }
 
@@ -348,19 +373,16 @@ impl<'a> Node<'a> {
         Error::new(
             self.span(),
             ErrorKind::UnsupportedSyntax {
-                actual: self.kind(),
                 what,
+                actual: self.kind().into_expectation(),
             },
         )
     }
 
-    /// Construct a stream over the current node.
-    pub(crate) fn into_stream(self) -> Stream<'a> {
-        Stream {
-            node: Some(self.inner),
-            iter: self.inner.children(),
-            peek: None,
-        }
+    /// Write the remaining token, or fallback to the given literal if unavailable.
+    #[cfg(feature = "fmt")]
+    pub(crate) fn fmt(self, o: &mut Formatter<'a>) -> Result<()> {
+        o.write_owned(self)
     }
 
     /// Walk from the current node.
@@ -373,7 +395,7 @@ impl<'a> Node<'a> {
     where
         P: FnOnce(&mut Stream<'a>) -> Result<O>,
     {
-        let mut p = self.into_stream();
+        let mut p = Stream::new(self.inner);
         let out = parser(&mut p)?;
         p.end()?;
         Ok(out)
@@ -401,6 +423,13 @@ impl<'a> Node<'a> {
     }
 }
 
+impl Spanned for Node<'_> {
+    #[inline]
+    fn span(&self) -> Span {
+        Node::span(self)
+    }
+}
+
 impl fmt::Debug for Node<'_> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -408,10 +437,10 @@ impl fmt::Debug for Node<'_> {
     }
 }
 
-#[derive(Default)]
 #[must_use = "Remaining nodes must be consumed to capture all whitespace and comments"]
 pub(crate) struct Remaining<'a> {
-    lit: &'static str,
+    expected: Kind,
+    span: Span,
     node: Option<Node<'a>>,
 }
 
@@ -424,18 +453,18 @@ impl<'a> Remaining<'a> {
 
     /// Write the remaining token, or fallback to the given literal if unavailable.
     #[cfg(feature = "fmt")]
-    pub(crate) fn write(self, o: &mut Output<'a>) -> Result<()> {
+    pub(crate) fn fmt(self, o: &mut Formatter<'a>) -> Result<()> {
         self.write_if(o, true)
     }
 
     /// Write the remaining token, or fallback to the given literal if
     /// unavailable and needed.
     #[cfg(feature = "fmt")]
-    pub(crate) fn write_if(self, o: &mut Output<'a>, needed: bool) -> Result<()> {
-        if let Some(node) = self.node {
-            o.write(node)?;
+    pub(crate) fn write_if(mut self, o: &mut Formatter<'a>, needed: bool) -> Result<()> {
+        if let Some(node) = self.node.take() {
+            o.write_owned(node)?;
         } else if needed {
-            o.lit(self.lit)?;
+            o.lit(self.lit()?)?;
         }
 
         Ok(())
@@ -444,27 +473,73 @@ impl<'a> Remaining<'a> {
     /// Write the remaining token, or fallback to the given literal if
     /// unavailable and even then only if it's needed.
     #[cfg(feature = "fmt")]
-    pub(crate) fn write_only_if(self, o: &mut Output<'a>, needed: bool) -> Result<()> {
-        if let Some(node) = self.node {
+    pub(crate) fn write_only_if(mut self, o: &mut Formatter<'a>, needed: bool) -> Result<()> {
+        if let Some(node) = self.node.take() {
             if needed {
-                o.write(node)?;
+                o.write_owned(node)?;
             } else {
                 o.ignore(node)?;
             }
         } else if needed {
-            o.lit(self.lit)?;
+            o.lit(self.lit()?)?;
         }
 
         Ok(())
     }
 
     /// Ignore the remaining token.
-    #[cfg(feature = "fmt")]
-    pub(crate) fn ignore(self, o: &mut Output<'a>) -> Result<()> {
+    pub(crate) fn ignore(self, o: &mut dyn Ignore<'a>) -> Result<()> {
         if let Some(node) = self.node {
             o.ignore(node)?;
         }
 
         Ok(())
+    }
+
+    fn lit(&self) -> Result<&'static str> {
+        let lit = match self.expected.into_expectation() {
+            Expectation::Keyword(lit) => lit,
+            Expectation::Delimiter(lit) => lit,
+            Expectation::Punctuation(lit) => lit,
+            expectation => {
+                return Err(Error::new(
+                    self.span,
+                    ErrorKind::UnsupportedDelimiter { expectation },
+                ));
+            }
+        };
+
+        Ok(lit)
+    }
+}
+
+impl<'a> Default for Remaining<'a> {
+    fn default() -> Self {
+        Self {
+            expected: Kind::Eof,
+            span: Span::empty(),
+            node: None,
+        }
+    }
+}
+
+#[derive(Clone)]
+struct Iter<'a> {
+    next: Option<syntree::Node<'a, Kind, u32, usize>>,
+}
+
+impl<'a> Iter<'a> {
+    fn new(next: Option<syntree::Node<'a, Kind, u32, usize>>) -> Self {
+        Self { next }
+    }
+}
+
+impl<'a> Iterator for Iter<'a> {
+    type Item = syntree::Node<'a, Kind, u32, usize>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let node = self.next.take()?;
+        self.next = node.next();
+        Some(node)
     }
 }

@@ -361,7 +361,7 @@ fn main() -> Result<()> {
                         Self::Open(delimiter) => $expectation::Delimiter(delimiter.open()),
                         $(for k in &keywords join ($['\r']) => Self::$(&k.variant) => $expectation::Keyword($(quoted(&k.keyword))),)
                         $(for p in &punctuations join ($['\r']) => Self::$(&p.variant) => $expectation::Punctuation($(quoted(&p.punct))),)
-                        $(for s in &syntax join ($['\r']) => Self::$(&s.variant) => $expectation::Syntax,)
+                        $(for s in &syntax join ($['\r']) => Self::$(&s.variant) => $expectation::Syntax($(quoted(&s.doc))),)
                     }
                 }
             }

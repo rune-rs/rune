@@ -13,7 +13,7 @@ pub enum Expectation {
     /// A punctuation which can be a sequence of characters, like `!=`.
     Punctuation(&'static str),
     /// Expected a specific kind of syntax node.
-    Syntax,
+    Syntax(&'static str),
     /// An open delimiter.
     OpenDelimiter,
     /// A bolean.
@@ -41,7 +41,7 @@ impl fmt::Display for Expectation {
             Expectation::Expression => write!(f, "expression"),
             Expectation::Shebang => write!(f, "shebang"),
             Expectation::Comment => write!(f, "comment"),
-            Expectation::Syntax => write!(f, "syntax"),
+            Expectation::Syntax(s) => s.fmt(f),
         }
     }
 }

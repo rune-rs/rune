@@ -5678,169 +5678,159 @@ pub enum Kind {
     While,
     /// The `yield` keyword.
     Yield,
-    /// Kind used for whitespace.
+    /// whitespace.
     Whitespace,
-    /// The root node of a parse tree.
+    /// the root node of a parse tree
     Root,
-    /// `let <pat> = <expr>;`
+    /// a variable declaration
     Local,
-    /// An item declaration.
+    /// an item declaration
     Item,
-    /// An enum declaration.
+    /// an enum declaration
     ItemEnum,
-    /// A struct declaration.
+    /// a struct declaration
     ItemStruct,
-    /// A constant item, like `const <ident> = <expr>;.
+    /// a constant item
     ItemConst,
-    /// A function declaration.
+    /// a function declaration
     ItemFn,
-    /// An impl.
+    /// an impl
     ItemImpl,
-    /// An module declaration.
+    /// an module declaration
     ItemMod,
-    /// A use import.
+    /// a use import
     ItemUse,
-    /// A nested use path.
+    /// a nested use path
     ItemUsePath,
-    /// A nested use group.
+    /// a nested use group
     ItemUseGroup,
-    /// The name of an enum.
-    EnumName,
-    /// The variants part of an enum.
+    /// the variants part of an enum
     EnumVariants,
-    /// A variant.
+    /// a variant
     Variant,
-    /// The name of a variant.
-    VariantName,
-    /// The name of a struct.
-    StructName,
-    /// A field declaration.
+    /// a field declaration
     Field,
-    /// An empty type body.
+    /// an empty type body
     EmptyBody,
-    /// A struct body.
+    /// a struct body
     StructBody,
-    /// A tuple body.
+    /// a tuple body
     TupleBody,
-    /// A collection of function arguments.
+    /// a collection of function arguments
     FnArgs,
-    /// A block.
+    /// a block
     Block,
-    /// The body of a block.
+    /// the body of a block
     BlockBody,
-    /// A label preceeding an expression.
-    Labels,
-    /// An expression.
+    /// an expression
     Expr,
-    /// A chain of expressions.
+    /// a chain of expressions
     ExprChain,
-    /// A plain path expression.
+    /// a plain path expression
     ExprPath,
-    /// A tuple expression.
+    /// a tuple expression
     ExprTuple,
-    /// An array expression.
+    /// an array expression
     ExprArray,
-    /// A unary expression.
+    /// a unary expression
     ExprUnary,
-    /// A binary expression.
+    /// a binary expression
     ExprBinary,
-    /// A group expression.
+    /// a group expression
     ExprGroup,
-    /// A try expression.
+    /// a try expression
     ExprTry,
-    /// An indexing expression.
+    /// an indexing expression
     ExprIndex,
-    /// A call expression.
+    /// a call expression
     ExprCall,
-    /// A call expression.
+    /// a call expression
     ExprMacroCall,
-    /// An anonymous object expression.
+    /// an anonymous object expression
     ExprObject,
-    /// A match expression.
+    /// a match expression
     ExprMatch,
-    /// A select expression.
+    /// a select expression
     ExprSelect,
-    /// A select expression.
+    /// a select expression
     ExprAwait,
-    /// A select expression.
+    /// a select expression
     ExprField,
-    /// The operator in an expression.
+    /// the operator in an expression
     ExprOperator,
-    /// An `if` expression.
+    /// an `if` expression
     ExprIf,
-    /// The `else` part of an if-expression.
+    /// the `else` part of an if-expression
     ExprElse,
-    /// The `else if` part of an if-expression.
+    /// the `else if` part of an if-expression
     ExprElseIf,
-    /// A `while` expression.
+    /// a `while` expression
     ExprWhile,
-    /// A `loop` expression.
+    /// a `loop` expression
     ExprLoop,
-    /// A `break` expression.
+    /// a `break` expression
     ExprBreak,
-    /// A `break` expression.
+    /// a `break` expression
     ExprContinue,
-    /// A `return` expression.
+    /// a `return` expression
     ExprReturn,
-    /// A `yield` expression.
+    /// a `yield` expression
     ExprYield,
-    /// A `for` expression.
+    /// a `for` expression
     ExprFor,
-    /// A `<start>..<end>` expression.
+    /// a `<start>..<end>` expression
     ExprRange,
-    /// A `<start>..=<end>` expression.
+    /// a `<start>..=<end>` expression
     ExprRangeInclusive,
-    /// A `..<end>` expression.
+    /// a `..<end>` expression
     ExprRangeTo,
-    /// A `..=<end>` expression.
+    /// a `..=<end>` expression
     ExprRangeToInclusive,
-    /// A `<start>..` expression.
+    /// a `<start>..` expression
     ExprRangeFrom,
-    /// A `..` expression.
+    /// a `..` expression
     ExprRangeFull,
-    /// An assign expression.
+    /// an assign expression
     ExprAssign,
-    /// A literal expression.
+    /// a literal expression
     ExprLit,
-    /// A closure expression.
+    /// a closure expression
     ExprClosure,
-    /// A pattern.
+    /// a pattern
     Pat,
-    /// A literal pattern.
+    /// a literal pattern
     PatLit,
-    /// An array pattern.
+    /// an array pattern
     PatArray,
-    /// A tuple pattern.
+    /// a tuple pattern
     PatTuple,
-    /// An object pattern.
+    /// an object pattern
     PatObject,
-    /// An ignore pattern.
+    /// an ignore pattern
     PatIgnore,
-    /// A rest pattern.
+    /// a rest pattern
     PatRest,
-    /// A path.
+    /// a path
     Path,
-    /// The generics of a path.
+    /// the generics of a path
     PathGenerics,
-    /// The `let` condition of a loop.
+    /// the `let` condition of a loop
     Condition,
-    /// Closure arguments.
+    /// closure arguments
     ClosureArguments,
-    /// The `#{` anonymous object key.
+    /// an `#{` anonymous object key
     AnonymousObjectKey,
-    /// Attributes.
-    Attributes,
-    /// An attribute.
+    /// an attribute
     Attribute,
-    /// Item modifiers, like `pub const`.
+    /// item modifiers, like `pub const`
     Modifiers,
-    /// The `(crate)` modifier.
+    /// the `(crate)` modifier
     ModifierCrate,
-    /// The `(in <path>)` modifier.
+    /// the `(in <path>)` modifier
     ModifierIn,
-    /// A raw token stream.
+    /// a raw token stream
     TokenStream,
-    /// A raw token stream.
+    /// a raw token stream
     TemplateString,
 }
 
@@ -6152,88 +6142,87 @@ impl parse::IntoExpectation for Kind {
             Self::StarEq => parse::Expectation::Punctuation("*="),
             Self::Tilde => parse::Expectation::Punctuation("~"),
             Self::Underscore => parse::Expectation::Punctuation("_"),
-            Self::Whitespace => parse::Expectation::Syntax,
-            Self::Root => parse::Expectation::Syntax,
-            Self::Local => parse::Expectation::Syntax,
-            Self::Item => parse::Expectation::Syntax,
-            Self::ItemEnum => parse::Expectation::Syntax,
-            Self::ItemStruct => parse::Expectation::Syntax,
-            Self::ItemConst => parse::Expectation::Syntax,
-            Self::ItemFn => parse::Expectation::Syntax,
-            Self::ItemImpl => parse::Expectation::Syntax,
-            Self::ItemMod => parse::Expectation::Syntax,
-            Self::ItemUse => parse::Expectation::Syntax,
-            Self::ItemUsePath => parse::Expectation::Syntax,
-            Self::ItemUseGroup => parse::Expectation::Syntax,
-            Self::EnumName => parse::Expectation::Syntax,
-            Self::EnumVariants => parse::Expectation::Syntax,
-            Self::Variant => parse::Expectation::Syntax,
-            Self::VariantName => parse::Expectation::Syntax,
-            Self::StructName => parse::Expectation::Syntax,
-            Self::Field => parse::Expectation::Syntax,
-            Self::EmptyBody => parse::Expectation::Syntax,
-            Self::StructBody => parse::Expectation::Syntax,
-            Self::TupleBody => parse::Expectation::Syntax,
-            Self::FnArgs => parse::Expectation::Syntax,
-            Self::Block => parse::Expectation::Syntax,
-            Self::BlockBody => parse::Expectation::Syntax,
-            Self::Labels => parse::Expectation::Syntax,
-            Self::Expr => parse::Expectation::Syntax,
-            Self::ExprChain => parse::Expectation::Syntax,
-            Self::ExprPath => parse::Expectation::Syntax,
-            Self::ExprTuple => parse::Expectation::Syntax,
-            Self::ExprArray => parse::Expectation::Syntax,
-            Self::ExprUnary => parse::Expectation::Syntax,
-            Self::ExprBinary => parse::Expectation::Syntax,
-            Self::ExprGroup => parse::Expectation::Syntax,
-            Self::ExprTry => parse::Expectation::Syntax,
-            Self::ExprIndex => parse::Expectation::Syntax,
-            Self::ExprCall => parse::Expectation::Syntax,
-            Self::ExprMacroCall => parse::Expectation::Syntax,
-            Self::ExprObject => parse::Expectation::Syntax,
-            Self::ExprMatch => parse::Expectation::Syntax,
-            Self::ExprSelect => parse::Expectation::Syntax,
-            Self::ExprAwait => parse::Expectation::Syntax,
-            Self::ExprField => parse::Expectation::Syntax,
-            Self::ExprOperator => parse::Expectation::Syntax,
-            Self::ExprIf => parse::Expectation::Syntax,
-            Self::ExprElse => parse::Expectation::Syntax,
-            Self::ExprElseIf => parse::Expectation::Syntax,
-            Self::ExprWhile => parse::Expectation::Syntax,
-            Self::ExprLoop => parse::Expectation::Syntax,
-            Self::ExprBreak => parse::Expectation::Syntax,
-            Self::ExprContinue => parse::Expectation::Syntax,
-            Self::ExprReturn => parse::Expectation::Syntax,
-            Self::ExprYield => parse::Expectation::Syntax,
-            Self::ExprFor => parse::Expectation::Syntax,
-            Self::ExprRange => parse::Expectation::Syntax,
-            Self::ExprRangeInclusive => parse::Expectation::Syntax,
-            Self::ExprRangeTo => parse::Expectation::Syntax,
-            Self::ExprRangeToInclusive => parse::Expectation::Syntax,
-            Self::ExprRangeFrom => parse::Expectation::Syntax,
-            Self::ExprRangeFull => parse::Expectation::Syntax,
-            Self::ExprAssign => parse::Expectation::Syntax,
-            Self::ExprLit => parse::Expectation::Syntax,
-            Self::ExprClosure => parse::Expectation::Syntax,
-            Self::Pat => parse::Expectation::Syntax,
-            Self::PatLit => parse::Expectation::Syntax,
-            Self::PatArray => parse::Expectation::Syntax,
-            Self::PatTuple => parse::Expectation::Syntax,
-            Self::PatObject => parse::Expectation::Syntax,
-            Self::PatIgnore => parse::Expectation::Syntax,
-            Self::PatRest => parse::Expectation::Syntax,
-            Self::Path => parse::Expectation::Syntax,
-            Self::PathGenerics => parse::Expectation::Syntax,
-            Self::Condition => parse::Expectation::Syntax,
-            Self::ClosureArguments => parse::Expectation::Syntax,
-            Self::AnonymousObjectKey => parse::Expectation::Syntax,
-            Self::Attributes => parse::Expectation::Syntax,
-            Self::Attribute => parse::Expectation::Syntax,
-            Self::Modifiers => parse::Expectation::Syntax,
-            Self::ModifierCrate => parse::Expectation::Syntax,
-            Self::ModifierIn => parse::Expectation::Syntax,
-            Self::TokenStream => parse::Expectation::Syntax,
-            Self::TemplateString => parse::Expectation::Syntax,
+            Self::Whitespace => parse::Expectation::Syntax("whitespace."),
+            Self::Root => parse::Expectation::Syntax("the root node of a parse tree"),
+            Self::Local => parse::Expectation::Syntax("a variable declaration"),
+            Self::Item => parse::Expectation::Syntax("an item declaration"),
+            Self::ItemEnum => parse::Expectation::Syntax("an enum declaration"),
+            Self::ItemStruct => parse::Expectation::Syntax("a struct declaration"),
+            Self::ItemConst => parse::Expectation::Syntax("a constant item"),
+            Self::ItemFn => parse::Expectation::Syntax("a function declaration"),
+            Self::ItemImpl => parse::Expectation::Syntax("an impl"),
+            Self::ItemMod => parse::Expectation::Syntax("an module declaration"),
+            Self::ItemUse => parse::Expectation::Syntax("a use import"),
+            Self::ItemUsePath => parse::Expectation::Syntax("a nested use path"),
+            Self::ItemUseGroup => parse::Expectation::Syntax("a nested use group"),
+            Self::EnumVariants => parse::Expectation::Syntax("the variants part of an enum"),
+            Self::Variant => parse::Expectation::Syntax("a variant"),
+            Self::Field => parse::Expectation::Syntax("a field declaration"),
+            Self::EmptyBody => parse::Expectation::Syntax("an empty type body"),
+            Self::StructBody => parse::Expectation::Syntax("a struct body"),
+            Self::TupleBody => parse::Expectation::Syntax("a tuple body"),
+            Self::FnArgs => parse::Expectation::Syntax("a collection of function arguments"),
+            Self::Block => parse::Expectation::Syntax("a block"),
+            Self::BlockBody => parse::Expectation::Syntax("the body of a block"),
+            Self::Expr => parse::Expectation::Syntax("an expression"),
+            Self::ExprChain => parse::Expectation::Syntax("a chain of expressions"),
+            Self::ExprPath => parse::Expectation::Syntax("a plain path expression"),
+            Self::ExprTuple => parse::Expectation::Syntax("a tuple expression"),
+            Self::ExprArray => parse::Expectation::Syntax("an array expression"),
+            Self::ExprUnary => parse::Expectation::Syntax("a unary expression"),
+            Self::ExprBinary => parse::Expectation::Syntax("a binary expression"),
+            Self::ExprGroup => parse::Expectation::Syntax("a group expression"),
+            Self::ExprTry => parse::Expectation::Syntax("a try expression"),
+            Self::ExprIndex => parse::Expectation::Syntax("an indexing expression"),
+            Self::ExprCall => parse::Expectation::Syntax("a call expression"),
+            Self::ExprMacroCall => parse::Expectation::Syntax("a call expression"),
+            Self::ExprObject => parse::Expectation::Syntax("an anonymous object expression"),
+            Self::ExprMatch => parse::Expectation::Syntax("a match expression"),
+            Self::ExprSelect => parse::Expectation::Syntax("a select expression"),
+            Self::ExprAwait => parse::Expectation::Syntax("a select expression"),
+            Self::ExprField => parse::Expectation::Syntax("a select expression"),
+            Self::ExprOperator => parse::Expectation::Syntax("the operator in an expression"),
+            Self::ExprIf => parse::Expectation::Syntax("an `if` expression"),
+            Self::ExprElse => parse::Expectation::Syntax("the `else` part of an if-expression"),
+            Self::ExprElseIf => {
+                parse::Expectation::Syntax("the `else if` part of an if-expression")
+            }
+            Self::ExprWhile => parse::Expectation::Syntax("a `while` expression"),
+            Self::ExprLoop => parse::Expectation::Syntax("a `loop` expression"),
+            Self::ExprBreak => parse::Expectation::Syntax("a `break` expression"),
+            Self::ExprContinue => parse::Expectation::Syntax("a `break` expression"),
+            Self::ExprReturn => parse::Expectation::Syntax("a `return` expression"),
+            Self::ExprYield => parse::Expectation::Syntax("a `yield` expression"),
+            Self::ExprFor => parse::Expectation::Syntax("a `for` expression"),
+            Self::ExprRange => parse::Expectation::Syntax("a `<start>..<end>` expression"),
+            Self::ExprRangeInclusive => {
+                parse::Expectation::Syntax("a `<start>..=<end>` expression")
+            }
+            Self::ExprRangeTo => parse::Expectation::Syntax("a `..<end>` expression"),
+            Self::ExprRangeToInclusive => parse::Expectation::Syntax("a `..=<end>` expression"),
+            Self::ExprRangeFrom => parse::Expectation::Syntax("a `<start>..` expression"),
+            Self::ExprRangeFull => parse::Expectation::Syntax("a `..` expression"),
+            Self::ExprAssign => parse::Expectation::Syntax("an assign expression"),
+            Self::ExprLit => parse::Expectation::Syntax("a literal expression"),
+            Self::ExprClosure => parse::Expectation::Syntax("a closure expression"),
+            Self::Pat => parse::Expectation::Syntax("a pattern"),
+            Self::PatLit => parse::Expectation::Syntax("a literal pattern"),
+            Self::PatArray => parse::Expectation::Syntax("an array pattern"),
+            Self::PatTuple => parse::Expectation::Syntax("a tuple pattern"),
+            Self::PatObject => parse::Expectation::Syntax("an object pattern"),
+            Self::PatIgnore => parse::Expectation::Syntax("an ignore pattern"),
+            Self::PatRest => parse::Expectation::Syntax("a rest pattern"),
+            Self::Path => parse::Expectation::Syntax("a path"),
+            Self::PathGenerics => parse::Expectation::Syntax("the generics of a path"),
+            Self::Condition => parse::Expectation::Syntax("the `let` condition of a loop"),
+            Self::ClosureArguments => parse::Expectation::Syntax("closure arguments"),
+            Self::AnonymousObjectKey => parse::Expectation::Syntax("an `#{` anonymous object key"),
+            Self::Attribute => parse::Expectation::Syntax("an attribute"),
+            Self::Modifiers => parse::Expectation::Syntax("item modifiers, like `pub const`"),
+            Self::ModifierCrate => parse::Expectation::Syntax("the `(crate)` modifier"),
+            Self::ModifierIn => parse::Expectation::Syntax("the `(in <path>)` modifier"),
+            Self::TokenStream => parse::Expectation::Syntax("a raw token stream"),
+            Self::TemplateString => parse::Expectation::Syntax("a raw token stream"),
         }
     }
 }

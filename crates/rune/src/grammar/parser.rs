@@ -1,20 +1,17 @@
+use core::fmt;
+
 use crate::alloc::VecDeque;
 
-use crate::ast::{Kind, Span, Token};
+use crate::ast::{Kind, OptionSpanned, Span, Token};
 use crate::compile::{Error, ErrorKind, Result, WithSpan};
-use crate::parse::{Advance, Lexer, Peekable};
+use crate::grammar::ws;
+use crate::macros::TokenStreamIter;
+use crate::parse::{Advance, IntoExpectation, Lexer, Peekable};
 use crate::shared::rune_trace;
-use crate::SourceId;
 
 use super::Tree;
 
 use Kind::*;
-
-macro_rules! ws {
-    () => {
-        Whitespace | Comment | MultilineComment(..)
-    };
-}
 
 /// A checkpoint during tree construction.
 #[derive(Clone)]
@@ -30,19 +27,17 @@ impl Checkpoint {
     }
 }
 
-pub(crate) struct Parser<'a> {
-    lexer: Lexer<'a>,
+pub(super) struct Parser<'a> {
+    lexer: Source<'a>,
     buf: VecDeque<Token>,
-    source: &'a str,
     tree: syntree::Builder<Kind, u32, usize>,
 }
 
 impl<'a> Parser<'a> {
-    pub(crate) fn new(source: &'a str) -> Self {
+    pub(super) fn new(source: Source<'a>) -> Self {
         Self {
-            lexer: Lexer::new(source, SourceId::new(0), true).without_processing(),
+            lexer: source,
             buf: VecDeque::new(),
-            source,
             tree: syntree::Builder::new(),
         }
     }
@@ -53,9 +48,9 @@ impl<'a> Parser<'a> {
 
         Ok(Error::new(
             tok.span,
-            ErrorKind::UnsupportedToken {
-                actual: tok.kind,
+            ErrorKind::UnsupportedSyntax {
                 what,
+                actual: tok.kind.into_expectation(),
             },
         ))
     }
@@ -81,7 +76,7 @@ impl<'a> Parser<'a> {
         let tree = self
             .tree
             .build()
-            .with_span(Span::new(0, self.source.len()))?;
+            .with_span(self.lexer.span().unwrap_or_else(Span::empty))?;
 
         Ok(Tree::new(tree))
     }
@@ -97,12 +92,14 @@ impl<'a> Parser<'a> {
     }
 
     #[tracing::instrument(skip_all)]
-    pub(super) fn bump(&mut self) -> Result<()> {
+    pub(super) fn bump(&mut self) -> Result<Token> {
         let tok = self.next()?;
+
         self.tree
             .token(tok.kind, tok.span.range().len())
             .with_span(tok.span)?;
-        Ok(())
+
+        Ok(tok)
     }
 
     /// Bump while the given token matches.
@@ -127,6 +124,18 @@ impl<'a> Parser<'a> {
         } else {
             Ok(false)
         }
+    }
+
+    /// Open a new node.
+    pub(super) fn open(&mut self, kind: Kind) -> Result<()> {
+        self.tree.open(kind).with_span(Span::point(0))?;
+        Ok(())
+    }
+
+    /// Close the last opened node.
+    pub(super) fn close(&mut self) -> Result<()> {
+        self.tree.close().with_span(Span::point(0))?;
+        Ok(())
     }
 
     /// Bump and immediately close a token with the specified kind.
@@ -177,7 +186,7 @@ impl<'a> Parser<'a> {
     /// Eat heading whitespace and comments.
     #[tracing::instrument(skip_all)]
     fn ws(&mut self) -> Result<Span> {
-        let mut span = Span::new(self.source.len(), self.source.len());
+        let mut span = self.lexer.span().unwrap_or_else(Span::empty);
 
         loop {
             let tok = 'tok: {
@@ -214,10 +223,9 @@ impl<'a> Parser<'a> {
         }
 
         let Some(tok) = self.lexer.next()? else {
-            return Ok(Token {
-                span: Span::new(self.source.len(), self.source.len()),
-                kind: Eof,
-            });
+            let span = self.lexer.span().unwrap_or_else(Span::empty);
+
+            return Ok(Token { span, kind: Eof });
         };
 
         rune_trace!("grammar.rs", tok);
@@ -225,7 +233,7 @@ impl<'a> Parser<'a> {
     }
 
     fn glued_token(&mut self, n: usize) -> Result<Token> {
-        let mut span = Span::new(self.source.len(), self.source.len());
+        let mut span = self.lexer.span().unwrap_or_else(Span::empty);
 
         while self.buf.len() <= n {
             let Some(tok) = self.lexer.next()? else {
@@ -287,10 +295,9 @@ impl<'a> Parser<'a> {
             }
 
             let Some(tok) = self.buf.get(index) else {
-                return Ok(Token {
-                    span: Span::new(self.source.len(), self.source.len()),
-                    kind: Eof,
-                });
+                let span = self.lexer.span().unwrap_or_else(Span::empty);
+
+                return Ok(Token { span, kind: Eof });
             };
 
             if !matches!(tok.kind, ws!()) {
@@ -304,6 +311,55 @@ impl<'a> Parser<'a> {
             index += 1;
         }
     }
+}
+
+/// A source adapter.
+pub(super) struct Source<'a> {
+    inner: SourceInner<'a>,
+}
+
+impl<'a> Source<'a> {
+    /// Construct a source based on a lexer.
+    pub(super) fn lexer(lexer: Lexer<'a>) -> Self {
+        Self {
+            inner: SourceInner::Lexer(lexer),
+        }
+    }
+
+    /// Construct a source based on a token stream.
+    pub(super) fn token_stream(iter: TokenStreamIter<'a>) -> Self {
+        Self {
+            inner: SourceInner::TokenStream(iter),
+        }
+    }
+
+    /// Get the span of the source.
+    fn span(&self) -> Option<Span> {
+        match &self.inner {
+            SourceInner::Lexer(lexer) => Some(lexer.span()),
+            SourceInner::TokenStream(token_stream) => token_stream.option_span(),
+        }
+    }
+
+    /// Get the next token in the stream.
+    fn next(&mut self) -> Result<Option<Token>> {
+        match &mut self.inner {
+            SourceInner::Lexer(lexer) => lexer.next(),
+            SourceInner::TokenStream(token_stream) => Ok(token_stream.next()),
+        }
+    }
+}
+
+impl fmt::Debug for Source<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&self.inner, f)
+    }
+}
+
+#[derive(Debug)]
+enum SourceInner<'a> {
+    Lexer(Lexer<'a>),
+    TokenStream(TokenStreamIter<'a>),
 }
 
 impl<'a> Advance for Parser<'a> {

@@ -4,7 +4,7 @@ use crate::alloc::prelude::*;
 use crate::alloc::{self, VecDeque};
 use crate::ast::{Kind, Span};
 use crate::compile::{Error, ErrorKind, FmtOptions, Result, WithSpan};
-use crate::grammar::{Node, Tree};
+use crate::grammar::{Ignore, Node, Tree};
 
 use super::{INDENT, NL, NL_CHAR, WS};
 
@@ -106,7 +106,7 @@ impl Buffer {
 }
 
 /// A constructed syntax tree.
-pub(crate) struct Output<'a> {
+pub(crate) struct Formatter<'a> {
     span: Span,
     pub(super) source: &'a Source,
     o: &'a mut Buffer,
@@ -118,7 +118,7 @@ pub(crate) struct Output<'a> {
     indent: usize,
 }
 
-impl<'a> Output<'a> {
+impl<'a> Formatter<'a> {
     /// Construct a new tree.
     pub(super) fn new(
         span: Span,
@@ -146,7 +146,7 @@ impl<'a> Output<'a> {
     }
 
     /// Write the give node to output.
-    pub(crate) fn write(&mut self, node: Node<'a>) -> Result<()> {
+    pub(crate) fn write_owned(&mut self, node: Node<'a>) -> Result<()> {
         self.flush_whitespace(false)?;
         self.write_node(&node)?;
         self.process_comments(node.walk_from())?;
@@ -390,5 +390,11 @@ impl<'a> Output<'a> {
         }
 
         Ok(())
+    }
+}
+
+impl<'a> Ignore<'a> for Formatter<'a> {
+    fn ignore(&mut self, node: Node<'a>) -> Result<()> {
+        Formatter::ignore(self, node)
     }
 }
