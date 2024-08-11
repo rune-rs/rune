@@ -3,12 +3,6 @@
 #[cfg(test)]
 mod tests;
 
-macro_rules! object_key {
-    () => {
-        K![ident] | K![str]
-    };
-}
-
 mod format;
 mod output;
 
@@ -18,11 +12,11 @@ use crate::alloc;
 use crate::alloc::prelude::*;
 use crate::ast::Span;
 use crate::compile::{FmtOptions, Result, WithSpan};
-use crate::grammar::{Node, Parser, Remaining, Stream, Tree};
+use crate::grammar::{Node, Remaining, Stream, Tree};
 use crate::{Diagnostics, Options, SourceId, Sources};
 
 use self::output::Comments;
-pub(crate) use self::output::Output;
+pub(crate) use self::output::Formatter;
 
 const WS: &str = " ";
 const NL: &str = "\n";
@@ -149,10 +143,9 @@ impl<'a> Prepare<'a> {
 
 /// Format the given source with the specified options.
 pub(crate) fn layout_source_with(source: &str, options: &FmtOptions) -> Result<String> {
-    let mut p = Parser::new(source);
-    crate::grammar::root(&mut p)?;
-
-    let tree = p.build()?;
+    let tree = crate::grammar::prepare_text(source)
+        .without_processing()
+        .parse()?;
 
     if options.print_tree {
         let o = std::io::stdout();
@@ -163,7 +156,7 @@ pub(crate) fn layout_source_with(source: &str, options: &FmtOptions) -> Result<S
     let mut o = String::new();
 
     {
-        let mut o = Output::new(Span::new(0, 0), source, &mut o, options);
+        let mut o = Formatter::new(Span::new(0, 0), source, &mut o, options);
         o.flush_prefix_comments(&tree)?;
         format::root(&mut o, &tree)?;
         o.comments(Comments::Line)?;

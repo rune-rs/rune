@@ -545,23 +545,18 @@ pub(crate) enum ErrorKind {
         len: usize,
     },
     #[cfg(feature = "fmt")]
-    UnsupportedToken {
-        actual: ast::Kind,
-        what: &'static str,
-    },
-    #[cfg(feature = "fmt")]
     UnsupportedSyntax {
-        actual: ast::Kind,
         what: &'static str,
+        actual: Expectation,
     },
     #[cfg(feature = "fmt")]
     UnexpectedEndOfSyntax {
-        inside: ast::Kind,
+        inside: Expectation,
     },
     #[cfg(feature = "fmt")]
     ExpectedSyntaxEnd {
-        inside: ast::Kind,
-        actual: ast::Kind,
+        inside: Expectation,
+        actual: Expectation,
     },
     #[cfg(feature = "fmt")]
     BadIndent {
@@ -570,9 +565,9 @@ pub(crate) enum ErrorKind {
     },
     #[cfg(feature = "fmt")]
     ExpectedSyntax {
-        inside: ast::Kind,
-        expected: ast::Kind,
-        actual: ast::Kind,
+        inside: Expectation,
+        expected: Expectation,
+        actual: Expectation,
     },
     #[cfg(feature = "fmt")]
     UnsupportedDelimiter {
@@ -1124,12 +1119,8 @@ impl fmt::Display for ErrorKind {
                 write!(f, "Span is outside of source 0-{len}")?;
             }
             #[cfg(feature = "fmt")]
-            ErrorKind::UnsupportedToken { actual, what } => {
-                write!(f, "Unsupported {what} {actual:?}")?;
-            }
-            #[cfg(feature = "fmt")]
-            ErrorKind::UnsupportedSyntax { actual, what } => {
-                write!(f, "Unsupported {what} {actual:?}")?;
+            ErrorKind::UnsupportedSyntax { what, actual } => {
+                write!(f, "Unsupported {what}, got {actual}")?;
             }
             #[cfg(feature = "fmt")]
             ErrorKind::UnexpectedEndOfSyntax { inside } => {
@@ -1139,7 +1130,7 @@ impl fmt::Display for ErrorKind {
             ErrorKind::ExpectedSyntaxEnd { inside, actual } => {
                 write!(
                     f,
-                    "Expected end of syntax but got {actual:?} while parsing {inside:?}"
+                    "Expected end of syntax but got {actual} while parsing {inside}"
                 )?;
             }
             #[cfg(feature = "fmt")]
@@ -1154,7 +1145,7 @@ impl fmt::Display for ErrorKind {
             } => {
                 write!(
                     f,
-                    "Expected syntax {expected:?} but got {actual:?} while parsing {inside:?}"
+                    "Expected {expected} but got {actual} while parsing {inside}"
                 )?;
             }
             #[cfg(feature = "fmt")]

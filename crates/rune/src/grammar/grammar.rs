@@ -47,11 +47,22 @@ enum InExpr {
     No,
 }
 
-macro_rules! object_key {
+macro_rules! __ws {
+    () => {
+        $crate::ast::Kind::Whitespace
+            | $crate::ast::Kind::Comment
+            | $crate::ast::Kind::MultilineComment(..)
+    };
+}
+
+macro_rules! __object_key {
     () => {
         K![ident] | K![str]
     };
 }
+
+pub(crate) use __object_key as object_key;
+pub(crate) use __ws as ws;
 
 macro_rules! lit {
     () => {
@@ -65,11 +76,14 @@ macro_rules! path_component {
     }
 }
 
-pub(crate) fn root(p: &mut Parser<'_>) -> Result<()> {
+pub(super) fn root(p: &mut Parser<'_>) -> Result<()> {
+    p.open(Root)?;
+
     while !p.is_eof()? {
         stmt(p)?;
     }
 
+    p.close()?;
     Ok(())
 }
 
@@ -178,10 +192,6 @@ fn item_const(p: &mut Parser<'_>) -> Result<()> {
 
 #[tracing::instrument(skip_all)]
 fn attributes(p: &mut Parser<'_>) -> Result<()> {
-    let c = p.checkpoint()?;
-
-    let mut has_attributes = false;
-
     while matches!((p.peek()?, p.glued(1)?), (K![#], K![!]) | (K![#], K!['['])) {
         let c = p.checkpoint()?;
 
@@ -194,11 +204,6 @@ fn attributes(p: &mut Parser<'_>) -> Result<()> {
         }
 
         p.close_at(&c, Attribute)?;
-        has_attributes = true;
-    }
-
-    if has_attributes {
-        p.close_at(&c, Attributes)?;
     }
 
     Ok(())
@@ -275,7 +280,7 @@ fn item_struct(p: &mut Parser<'_>) -> Result<()> {
     p.bump()?;
 
     if matches!(p.peek()?, K![ident]) {
-        p.push(StructName)?;
+        p.bump()?;
     }
 
     match p.peek()? {
@@ -328,16 +333,14 @@ fn item_enum(p: &mut Parser<'_>) -> Result<()> {
     p.bump()?;
 
     if matches!(p.peek()?, K![ident]) {
-        p.push(EnumName)?;
+        p.bump()?;
     }
-
-    let variants = p.checkpoint()?;
 
     if p.bump_if(K!['{'])? {
         while matches!(p.peek()?, K![ident]) {
             let variant = p.checkpoint()?;
 
-            p.push(VariantName)?;
+            p.bump()?;
 
             match p.peek()? {
                 K!['{'] => {
@@ -356,10 +359,8 @@ fn item_enum(p: &mut Parser<'_>) -> Result<()> {
         }
 
         p.bump_if(K!['}'])?;
-        p.bump_while(K![;])?;
     }
 
-    p.close_at(&variants, EnumVariants)?;
     Ok(())
 }
 
@@ -660,15 +661,9 @@ fn outer_expr_with(
 }
 
 fn labels(p: &mut Parser<'_>) -> Result<()> {
-    if matches!(p.peek()?, K!['label]) {
-        let c = p.checkpoint()?;
-
-        while matches!(p.peek()?, K!['label]) {
-            p.bump()?;
-            p.bump_while(K![:])?;
-        }
-
-        p.close_at(&c, Labels)?;
+    while matches!(p.peek()?, K!['label]) {
+        p.bump()?;
+        p.bump_while(K![:])?;
     }
 
     Ok(())
@@ -690,6 +685,20 @@ fn expr_primary(p: &mut Parser<'_>, brace: Brace, range: Range, cx: &dyn ExprCx)
                 K!['{'] if matches!(brace, Brace::Yes) => {
                     expr_object(p)?;
                     ExprObject
+                }
+                K![!] if matches!(p.glued(1)?, K!['(']) => {
+                    p.bump()?;
+                    p.bump()?;
+                    token_stream(p, parens)?;
+                    p.bump()?;
+                    ExprMacroCall
+                }
+                K![!] if matches!(p.glued(1)?, K!['{']) => {
+                    p.bump()?;
+                    p.bump()?;
+                    token_stream(p, braces)?;
+                    p.bump()?;
+                    ExprMacroCall
                 }
                 _ => ExprPath,
             }
@@ -851,20 +860,6 @@ fn expr_chain(p: &mut Parser<'_>, c: &Checkpoint, mut kind: Kind) -> Result<Kind
             K!['('] if is_callable => {
                 parenthesized(p, is_expr, expr, K![')'])?;
                 ExprCall
-            }
-            K![!] if is_callable && matches!(p.glued(1)?, K!['(']) => {
-                p.bump()?;
-                p.bump()?;
-                token_stream(p, parens)?;
-                p.bump()?;
-                ExprMacroCall
-            }
-            K![!] if is_callable && matches!(p.glued(1)?, K!['{']) => {
-                p.bump()?;
-                p.bump()?;
-                token_stream(p, braces)?;
-                p.bump()?;
-                ExprMacroCall
             }
             K![?] => {
                 p.bump()?;
