@@ -236,6 +236,7 @@ macro_rules! number_value_trait {
             fn to_value(self) -> VmResult<Value> {
                 match <i64>::try_from(self) {
                     Ok(number) => VmResult::Ok(vm_try!(Value::try_from(number))),
+                    #[allow(unreachable_patterns)]
                     Err(..) => VmResult::err(VmErrorKind::IntegerToValueCoercionError {
                         from: VmIntegerRepr::from(self),
                         to: any::type_name::<i64>(),

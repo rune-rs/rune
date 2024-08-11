@@ -42,6 +42,7 @@ impl<T> SizedTypeProperties for T {}
 pub(crate) fn into_ok<T>(result: Result<T, Infallible>) -> T {
     match result {
         Ok(value) => value,
+        #[allow(unreachable_patterns)]
         Err(error) => match error {},
     }
 }
@@ -52,6 +53,7 @@ pub(crate) fn into_ok_try<T>(result: Result<T, CustomError<Infallible>>) -> Resu
         Ok(value) => Ok(value),
         Err(error) => match error {
             CustomError::Error(error) => Err(error),
+            #[allow(unreachable_patterns)]
             CustomError::Custom(error) => match error {},
         },
     }

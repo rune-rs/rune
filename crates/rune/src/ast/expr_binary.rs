@@ -292,6 +292,7 @@ impl Peek for BinOp {
     fn peek(p: &mut Peeker<'_>) -> bool {
         match Self::from_peeker(p) {
             Ok(tok) => tok.is_some(),
+            #[allow(unreachable_patterns)]
             Err(infallible) => match infallible {},
         }
     }

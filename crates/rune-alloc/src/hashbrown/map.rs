@@ -1846,6 +1846,7 @@ where
                 None
             }
             Err(ErrorOrInsertSlot::Error(error)) => match error {
+                #[allow(unreachable_patterns)]
                 CustomError::Custom(error) => match error {},
                 CustomError::Error(error) => return Err(error),
             },

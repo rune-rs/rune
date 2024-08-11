@@ -14,6 +14,7 @@ enum Never {}
 fn into_ok<T>(result: Result<T, Never>) -> T {
     match result {
         Ok(value) => value,
+        #[allow(unreachable_patterns)]
         Err(never) => match never {},
     }
 }
