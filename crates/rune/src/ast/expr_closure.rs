@@ -19,13 +19,10 @@ fn ast_parse() {
 ///
 /// * `|| <expr>`.
 /// * `async || <expr>`.
-#[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned, Opaque)]
+#[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]
 pub struct ExprClosure {
-    /// Opaque identifier for the closure.
-    #[rune(id)]
-    pub(crate) id: Id,
     /// The attributes for the async closure
     #[rune(iter, meta)]
     pub attributes: Vec<ast::Attribute>,
@@ -39,6 +36,9 @@ pub struct ExprClosure {
     pub args: ExprClosureArgs,
     /// The body of the closure.
     pub body: Box<ast::Expr>,
+    /// Opaque identifier for the closure.
+    #[rune(skip)]
+    pub(crate) id: ItemId,
 }
 
 impl ExprClosure {

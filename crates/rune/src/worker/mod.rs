@@ -1,7 +1,7 @@
 //! Worker used by compiler.
 
 use crate::alloc::prelude::*;
-use crate::alloc::{self, Box, HashMap, Vec, VecDeque};
+use crate::alloc::{self, HashMap, Vec, VecDeque};
 use crate::ast::{self, Span};
 use crate::compile::{self, ModId};
 use crate::indexing::index;
@@ -78,7 +78,7 @@ impl<'a, 'arena> Worker<'a, 'arena> {
                                 LoadFileKind::Module { root } => (root, true),
                             };
 
-                            let items = Items::new(item, mod_item_id, self.q.gen)?;
+                            let items = Items::new(item)?;
 
                             macro_rules! indexer {
                                 () => {
@@ -88,7 +88,7 @@ impl<'a, 'arena> Worker<'a, 'arena> {
                                         source_id,
                                         items,
                                         scopes: Scopes::new()?,
-                                        item: IndexItem::new(mod_item),
+                                        item: IndexItem::new(mod_item, mod_item_id),
                                         nested_item: None,
                                         macro_depth: 0,
                                         loaded: Some(&mut self.loaded),
@@ -168,7 +168,7 @@ impl<'a, 'arena> Worker<'a, 'arena> {
 
             // Expand impl items since they might be non-local. We need to look up the metadata associated with the item.
             while let Some(entry) = self.q.next_impl_item_entry() {
-                tracing::trace!(?entry.id, "next impl item entry");
+                tracing::trace!(item = ?self.q.pool.item(entry.path.id), "next impl item entry");
 
                 let process = || {
                     // We conservatively deny `Self` impl since that is what
@@ -198,10 +198,10 @@ impl<'a, 'arena> Worker<'a, 'arena> {
                     self.q
                         .inner
                         .items
-                        .try_insert(meta.item_meta.id, meta.item_meta)?;
+                        .try_insert(meta.item_meta.item, meta.item_meta)?;
 
                     let item = self.q.pool.item(meta.item_meta.item);
-                    let items = Items::new(item, meta.item_meta.id, self.q.gen)?;
+                    let items = Items::new(item)?;
 
                     let mut idx = Indexer {
                         q: self.q.borrow(),
@@ -209,22 +209,19 @@ impl<'a, 'arena> Worker<'a, 'arena> {
                         source_id: entry.location.source_id,
                         items,
                         scopes: Scopes::new()?,
-                        item: IndexItem::with_impl_item(named.module, meta.item_meta.id),
+                        item: IndexItem::with_impl_item(
+                            named.module,
+                            named.item,
+                            meta.item_meta.item,
+                        ),
                         nested_item: entry.nested_item,
                         macro_depth: entry.macro_depth,
                         loaded: Some(&mut self.loaded),
                         queue: Some(&mut self.queue),
                     };
 
-                    let removed = idx
-                        .q
-                        .inner
-                        .impl_functions
-                        .remove(&entry.id)
-                        .unwrap_or_default();
-
-                    for f in removed {
-                        index::item_fn_immediate(&mut idx, Box::into_inner(f.ast))?;
+                    for f in entry.functions {
+                        index::item_fn(&mut idx, f)?;
                     }
 
                     Ok::<_, compile::Error>(())

@@ -13,13 +13,10 @@ fn ast_parse() {
 }
 
 /// A module item.
-#[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned, Opaque)]
+#[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]
 pub struct ItemMod {
-    /// The id of the module item.
-    #[rune(id)]
-    pub(crate) id: Id,
     /// The *inner* attributes are applied to the module  `#[cfg(test)] mod tests {  }`
     #[rune(iter, meta)]
     pub attributes: Vec<ast::Attribute>,
@@ -32,6 +29,9 @@ pub struct ItemMod {
     pub name: ast::Ident,
     /// The optional body of the module declaration.
     pub body: ItemModBody,
+    /// The id of the module item.
+    #[rune(skip)]
+    pub(crate) id: ItemId,
 }
 
 impl ItemMod {

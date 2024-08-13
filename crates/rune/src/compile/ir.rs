@@ -15,11 +15,10 @@ use crate::alloc::prelude::*;
 use crate::alloc::{Box, Vec};
 use crate::ast::{self, Span, Spanned};
 use crate::compile::ir;
-use crate::compile::{self, WithSpan};
+use crate::compile::{self, ItemId, WithSpan};
 use crate::hir;
 use crate::indexing::index;
 use crate::macros::MacroContext;
-use crate::parse::NonZeroId;
 use crate::query::Used;
 use crate::runtime::{Inline, Value};
 
@@ -464,10 +463,10 @@ pub(crate) struct IrCall {
     /// Span of the call.
     #[rune(span)]
     pub(crate) span: Span,
-    /// The target of the call.
-    pub(crate) id: NonZeroId,
     /// Arguments to the call.
     pub(crate) args: Vec<Ir>,
+    /// The target of the call.
+    pub(crate) id: ItemId,
 }
 
 /// Vector expression.

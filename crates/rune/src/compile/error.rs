@@ -11,10 +11,10 @@ use crate::ast;
 use crate::ast::unescape;
 use crate::ast::{Span, Spanned};
 use crate::compile::ir;
-use crate::compile::{HasSpan, Location, MetaInfo, Visibility};
+use crate::compile::{HasSpan, ItemId, Location, MetaInfo, Visibility};
 use crate::indexing::items::{GuardMismatch, MissingLastId};
 use crate::macros::{SyntheticId, SyntheticKind};
-use crate::parse::{Expectation, IntoExpectation, LexerMode};
+use crate::parse::{Expectation, IntoExpectation, LexerMode, NonZeroId};
 use crate::query::MissingId;
 use crate::runtime::debug::DebugSignature;
 use crate::runtime::unit::EncodeError;
@@ -257,7 +257,8 @@ pub(crate) enum ErrorKind {
     GuardMismatch(GuardMismatch),
     MissingScope(MissingScope),
     PopError(PopError),
-    MissingId(MissingId),
+    MissingId(MissingId<ItemId>),
+    MissingNonZeroId(MissingId<NonZeroId>),
     UnescapeError(unescape::ErrorKind),
     #[cfg(feature = "fmt")]
     Syntree(syntree::Error),
@@ -599,7 +600,6 @@ cfg_std! {
                 ErrorKind::GuardMismatch(source) => Some(source),
                 ErrorKind::MissingScope(source) => Some(source),
                 ErrorKind::PopError(source) => Some(source),
-                ErrorKind::MissingId(source) => Some(source),
                 ErrorKind::UnescapeError(source) => Some(source),
                 ErrorKind::SourceError { error, .. } => Some(error),
                 _ => None,
@@ -654,6 +654,9 @@ impl fmt::Display for ErrorKind {
                 error.fmt(f)?;
             }
             ErrorKind::MissingId(error) => {
+                error.fmt(f)?;
+            }
+            ErrorKind::MissingNonZeroId(error) => {
                 error.fmt(f)?;
             }
             ErrorKind::UnescapeError(error) => {
@@ -1262,43 +1265,50 @@ impl From<RuntimeError> for ErrorKind {
 
 impl From<EncodeError> for ErrorKind {
     #[inline]
-    fn from(source: EncodeError) -> Self {
-        ErrorKind::EncodeError(source)
+    fn from(error: EncodeError) -> Self {
+        ErrorKind::EncodeError(error)
     }
 }
 
 impl From<MissingLastId> for ErrorKind {
     #[inline]
-    fn from(source: MissingLastId) -> Self {
-        ErrorKind::MissingLastId(source)
+    fn from(error: MissingLastId) -> Self {
+        ErrorKind::MissingLastId(error)
     }
 }
 
 impl From<GuardMismatch> for ErrorKind {
     #[inline]
-    fn from(source: GuardMismatch) -> Self {
-        ErrorKind::GuardMismatch(source)
+    fn from(error: GuardMismatch) -> Self {
+        ErrorKind::GuardMismatch(error)
     }
 }
 
 impl From<MissingScope> for ErrorKind {
     #[inline]
-    fn from(source: MissingScope) -> Self {
-        ErrorKind::MissingScope(source)
+    fn from(error: MissingScope) -> Self {
+        ErrorKind::MissingScope(error)
     }
 }
 
 impl From<PopError> for ErrorKind {
     #[inline]
-    fn from(source: PopError) -> Self {
-        ErrorKind::PopError(source)
+    fn from(error: PopError) -> Self {
+        ErrorKind::PopError(error)
     }
 }
 
-impl From<MissingId> for ErrorKind {
+impl From<MissingId<ItemId>> for ErrorKind {
     #[inline]
-    fn from(source: MissingId) -> Self {
-        ErrorKind::MissingId(source)
+    fn from(error: MissingId<ItemId>) -> Self {
+        ErrorKind::MissingId(error)
+    }
+}
+
+impl From<MissingId<NonZeroId>> for ErrorKind {
+    #[inline]
+    fn from(error: MissingId<NonZeroId>) -> Self {
+        ErrorKind::MissingNonZeroId(error)
     }
 }
 

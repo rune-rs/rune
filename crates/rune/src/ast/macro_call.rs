@@ -9,13 +9,13 @@ fn ast_parse() {
 /// A macro call.
 ///
 /// * `<expr>!(<args>)`.
-#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned, Opaque)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct MacroCall {
     /// Opaque identifier for macro call. Use to store reference to internally
     /// expanded macros.
-    #[rune(id)]
-    pub(crate) id: Id,
+    #[rune(skip)]
+    pub(crate) id: Option<NonZeroId>,
     /// Attributes associated with macro call.
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,

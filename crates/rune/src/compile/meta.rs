@@ -14,7 +14,7 @@ use crate::compile::attrs::Parser;
 use crate::compile::meta;
 use crate::compile::{self, ItemId, Location, MetaInfo, ModId, Pool, Visibility};
 use crate::module::{DocFunction, ModuleItemCommon};
-use crate::parse::{NonZeroId, ResolveContext};
+use crate::parse::ResolveContext;
 use crate::runtime::{Call, Protocol};
 use crate::{Hash, Item, ItemBuf};
 
@@ -225,10 +225,7 @@ pub enum Kind {
     /// The constant expression.
     Const,
     /// A constant function.
-    ConstFn {
-        /// Opaque identifier for the constant function.
-        id: NonZeroId,
-    },
+    ConstFn,
     /// Purely an import.
     Import(Import),
     /// A re-export.
@@ -313,8 +310,6 @@ pub struct FieldMeta {
 #[try_clone(copy)]
 #[non_exhaustive]
 pub(crate) struct ItemMeta {
-    /// The id of the item.
-    pub(crate) id: NonZeroId,
     /// The location of the item.
     pub(crate) location: Location,
     /// The name of the item.
@@ -323,6 +318,8 @@ pub(crate) struct ItemMeta {
     pub(crate) visibility: Visibility,
     /// The module associated with the item.
     pub(crate) module: ModId,
+    /// The impl item associated with the item.
+    pub(crate) impl_item: Option<ItemId>,
 }
 
 impl ItemMeta {

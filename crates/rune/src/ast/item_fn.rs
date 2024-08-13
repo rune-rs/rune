@@ -38,13 +38,10 @@ fn ast_parse() {
 }
 
 /// A function item.
-#[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned, Opaque)]
+#[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]
 pub struct ItemFn {
-    /// Opaque identifier for fn item.
-    #[rune(id)]
-    pub(crate) id: Id,
     /// The attributes for the fn
     #[rune(iter, meta)]
     pub attributes: Vec<ast::Attribute>,
@@ -65,6 +62,9 @@ pub struct ItemFn {
     pub args: ast::Parenthesized<ast::FnArg, T![,]>,
     /// The body of the function.
     pub body: ast::Block,
+    /// Opaque identifier for fn item.
+    #[rune(skip)]
+    pub(crate) id: ItemId,
 }
 
 impl ItemFn {

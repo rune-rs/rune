@@ -3,7 +3,6 @@
 mod expectation;
 mod id;
 mod lexer;
-mod opaque;
 mod parse;
 mod parser;
 mod peek;
@@ -12,9 +11,8 @@ mod traits;
 
 pub use self::expectation::Expectation;
 pub(crate) use self::expectation::IntoExpectation;
-pub use self::id::{Id, NonZeroId};
+pub(crate) use self::id::NonZeroId;
 pub(crate) use self::lexer::{Lexer, LexerMode};
-pub(crate) use self::opaque::Opaque;
 pub use self::parse::Parse;
 pub use self::parser::{Parser, Peeker};
 pub use self::peek::Peek;

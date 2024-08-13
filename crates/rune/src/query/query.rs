@@ -24,10 +24,9 @@ use crate::indexing::{self, FunctionAst, Indexed, Items};
 use crate::item::ComponentRef;
 use crate::item::IntoComponent;
 use crate::macros::Storage;
-use crate::parse::{Id, NonZeroId, Opaque, Resolve, ResolveContext};
+use crate::parse::{NonZeroId, Resolve, ResolveContext};
 use crate::query::{
-    Build, BuildEntry, BuiltInMacro, ConstFn, GenericsParameters, ItemImplEntry, Named,
-    QueryImplFn, QueryPath, Used,
+    Build, BuildEntry, BuiltInMacro, ConstFn, GenericsParameters, ItemImplEntry, Named, Used,
 };
 #[cfg(feature = "doc")]
 use crate::runtime::Call;
@@ -36,19 +35,22 @@ use crate::shared::{Consts, Gen};
 use crate::{Context, Diagnostics, Hash, Item, ItemBuf, Options, SourceId, Sources};
 
 #[derive(Debug)]
-pub(crate) struct MissingId {
+pub(crate) struct MissingId<T> {
     what: &'static str,
-    id: Id,
+    id: T,
 }
 
-impl fmt::Display for MissingId {
+impl<T> fmt::Display for MissingId<T>
+where
+    T: fmt::Display,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Missing {} for id {:?}", self.what, self.id)
+        write!(f, "Missing {} for id {}", self.what, self.id)
     }
 }
 
 #[cfg(feature = "std")]
-impl std::error::Error for MissingId {}
+impl<T> std::error::Error for MissingId<T> where T: fmt::Debug + fmt::Display {}
 
 enum ContextMatch<'this, 'm> {
     Context(&'m ContextMeta, Hash),
@@ -66,18 +68,14 @@ pub(crate) struct QueryInner<'arena> {
     /// Build queue.
     pub(crate) queue: VecDeque<BuildEntry>,
     /// Set of used items.
-    used: HashSet<NonZeroId>,
+    used: HashSet<ItemId>,
     /// Indexed items that can be queried for, which will queue up for them to
     /// be compiled.
     indexed: BTreeMap<ItemId, Vec<indexing::Entry>>,
     /// Compiled constant functions.
-    const_fns: HashMap<NonZeroId, Rc<ConstFn<'arena>>>,
+    const_fns: HashMap<ItemId, Rc<ConstFn<'arena>>>,
     /// Indexed constant values.
     constants: HashMap<Hash, ConstValue>,
-    /// Query paths.
-    pub(crate) query_paths: HashMap<NonZeroId, QueryPath>,
-    /// Functions associated with impl blocks.
-    pub(crate) impl_functions: HashMap<NonZeroId, Vec<QueryImplFn>>,
     /// Queue of impl items to process.
     pub(crate) impl_item_queue: VecDeque<ItemImplEntry>,
     /// The result of internally resolved macros.
@@ -87,7 +85,7 @@ pub(crate) struct QueryInner<'arena> {
     ///
     /// These items are associated with AST elements, and encodoes the item path
     /// that the AST element was indexed.
-    pub(crate) items: HashMap<NonZeroId, ItemMeta>,
+    pub(crate) items: HashMap<ItemId, ItemMeta>,
     /// All available names.
     names: Names,
 }
@@ -197,12 +195,12 @@ impl<'a, 'arena> Query<'a, 'arena> {
 
     /// Test if the given meta item id is used.
     pub(crate) fn is_used(&self, item_meta: &ItemMeta) -> bool {
-        self.inner.used.contains(&item_meta.id)
+        self.inner.used.contains(&item_meta.item)
     }
 
     /// Set the given meta item as used.
     pub(crate) fn set_used(&mut self, item_meta: &ItemMeta) -> alloc::Result<()> {
-        self.inner.used.try_insert(item_meta.id)?;
+        self.inner.used.try_insert(item_meta.item)?;
         Ok(())
     }
 
@@ -368,7 +366,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         let meta = meta::Meta {
             context: true,
             hash: meta.hash,
-            item_meta: self.context_item_meta(item),
+            item_meta: self.context_item_meta(item, None),
             kind: meta.kind.try_clone()?,
             source: None,
             parameters,
@@ -417,29 +415,6 @@ impl<'a, 'arena> Query<'a, 'arena> {
         self.context.lookup_deprecation(hash)
     }
 
-    /// Insert path information.
-    pub(crate) fn insert_path(
-        &mut self,
-        module: ModId,
-        impl_item: Option<NonZeroId>,
-        item: &Item,
-    ) -> alloc::Result<NonZeroId> {
-        let item = self.pool.alloc_item(item)?;
-        let id = self.gen.next();
-
-        let old = self.inner.query_paths.try_insert(
-            id,
-            QueryPath {
-                module,
-                impl_item,
-                item,
-            },
-        )?;
-
-        debug_assert!(old.is_none(), "should use a unique identifier");
-        Ok(id)
-    }
-
     /// Insert module and associated metadata.
     pub(crate) fn insert_mod(
         &mut self,
@@ -448,23 +423,26 @@ impl<'a, 'arena> Query<'a, 'arena> {
         parent: ModId,
         visibility: Visibility,
         docs: &[Doc],
-    ) -> compile::Result<ModId> {
-        let item = self.insert_new_item(items, location, parent, visibility, docs)?;
+    ) -> compile::Result<(ModId, ItemId)> {
+        let item = self.pool.alloc_item(items.item())?;
 
-        let query_mod = self.pool.alloc_module(ModMeta {
+        let module = self.pool.alloc_module(ModMeta {
             #[cfg(feature = "emit")]
             location: location.location(),
-            item: item.item,
+            item,
             visibility,
             parent: Some(parent),
         })?;
 
+        let item_meta =
+            self.insert_new_item_with(item, location, module, visibility, None, docs)?;
+
         self.index_and_build(indexing::Entry {
-            item_meta: item,
+            item_meta,
             indexed: Indexed::Module,
         })?;
 
-        Ok(query_mod)
+        Ok((module, item))
     }
 
     /// Insert module and associated metadata.
@@ -472,9 +450,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         &mut self,
         source_id: SourceId,
         span: Span,
-    ) -> compile::Result<(NonZeroId, ModId)> {
-        let item_id = self.gen.next();
-
+    ) -> compile::Result<(ItemId, ModId)> {
         let location = Location::new(source_id, span);
 
         let module = self.pool.alloc_module(ModMeta {
@@ -486,18 +462,18 @@ impl<'a, 'arena> Query<'a, 'arena> {
         })?;
 
         self.inner.items.try_insert(
-            item_id,
+            ItemId::ROOT,
             ItemMeta {
-                id: item_id,
                 location,
                 item: ItemId::ROOT,
                 visibility: Visibility::Public,
                 module,
+                impl_item: None,
             },
         )?;
 
         self.insert_name(ItemId::ROOT).with_span(span)?;
-        Ok((item_id, module))
+        Ok((ItemId::ROOT, module))
     }
 
     /// Inserts an item that *has* to be unique, else cause an error.
@@ -510,11 +486,11 @@ impl<'a, 'arena> Query<'a, 'arena> {
         location: &dyn Located,
         module: ModId,
         visibility: Visibility,
+        impl_item: Option<ItemId>,
         docs: &[Doc],
     ) -> compile::Result<ItemMeta> {
-        let id = items.id().with_span(location.as_spanned())?;
         let item = self.pool.alloc_item(items.item())?;
-        self.insert_new_item_with(id, item, location, module, visibility, docs)
+        self.insert_new_item_with(item, location, module, visibility, impl_item, docs)
     }
 
     /// Insert the given compile meta.
@@ -545,11 +521,11 @@ impl<'a, 'arena> Query<'a, 'arena> {
     /// `Item`.
     fn insert_new_item_with(
         &mut self,
-        id: NonZeroId,
         item: ItemId,
         location: &dyn Located,
         module: ModId,
         visibility: Visibility,
+        impl_item: Option<ItemId>,
         docs: &[Doc],
     ) -> compile::Result<ItemMeta> {
         let location = location.location();
@@ -571,14 +547,14 @@ impl<'a, 'arena> Query<'a, 'arena> {
         }
 
         let item_meta = ItemMeta {
-            id,
             location,
             item,
             module,
             visibility,
+            impl_item,
         };
 
-        self.inner.items.try_insert(id, item_meta)?;
+        self.inner.items.try_insert(item, item_meta)?;
         Ok(item_meta)
     }
 
@@ -595,53 +571,42 @@ impl<'a, 'arena> Query<'a, 'arena> {
     }
 
     /// Get the item for the given identifier.
-    pub(crate) fn item_for<T>(&self, ast: T) -> compile::Result<ItemMeta, MissingId>
-    where
-        T: Opaque,
-    {
-        let Some(item_meta) = ast.id().get().and_then(|n| self.inner.items.get(&n)) else {
-            return Err(MissingId {
-                what: "item",
-                id: ast.id(),
-            });
+    pub(crate) fn item_for(&self, id: ItemId) -> compile::Result<ItemMeta, MissingId<ItemId>> {
+        let Some(item_meta) = self.inner.items.get(&id) else {
+            return Err(MissingId { what: "item", id });
         };
 
         Ok(*item_meta)
     }
 
     /// Get the built-in macro matching the given ast.
-    pub(crate) fn builtin_macro_for<T>(
+    pub(crate) fn builtin_macro_for(
         &self,
-        ast: T,
-    ) -> compile::Result<Arc<BuiltInMacro>, MissingId>
-    where
-        T: Opaque,
-    {
-        match ast
-            .id()
-            .get()
-            .and_then(|n| self.inner.internal_macros.get(&n))
-        {
-            Some(internal_macro) => Ok(internal_macro.clone()),
-            None => Err(MissingId {
+        id: NonZeroId,
+    ) -> compile::Result<Arc<BuiltInMacro>, MissingId<NonZeroId>> {
+        let Some(internal_macro) = self.inner.internal_macros.get(&id) else {
+            return Err(MissingId {
                 what: "builtin macro",
-                id: ast.id(),
-            }),
-        }
+                id,
+            });
+        };
+
+        Ok(internal_macro.clone())
     }
 
     /// Get the constant function associated with the opaque.
-    pub(crate) fn const_fn_for<T>(&self, ast: T) -> compile::Result<Rc<ConstFn<'a>>, MissingId>
-    where
-        T: Opaque,
-    {
-        match ast.id().get().and_then(|n| self.inner.const_fns.get(&n)) {
-            Some(const_fn) => Ok(const_fn.clone()),
-            None => Err(MissingId {
+    pub(crate) fn const_fn_for(
+        &self,
+        id: ItemId,
+    ) -> compile::Result<Rc<ConstFn<'a>>, MissingId<ItemId>> {
+        let Some(const_fn) = self.inner.const_fns.get(&id) else {
+            return Err(MissingId {
                 what: "constant function",
-                id: ast.id(),
-            }),
-        }
+                id,
+            });
+        };
+
+        Ok(const_fn.clone())
     }
 
     /// Index the given entry. It is not allowed to overwrite other entries.
@@ -765,7 +730,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
     pub(crate) fn index_variant(
         &mut self,
         item_meta: ItemMeta,
-        enum_id: NonZeroId,
+        enum_id: ItemId,
         ast: ast::ItemVariant,
         index: usize,
     ) -> compile::Result<()> {
@@ -913,19 +878,16 @@ impl<'a, 'arena> Query<'a, 'arena> {
     ) -> compile::Result<Named<'ast>> {
         tracing::trace!("converting path");
 
-        let Some(id) = path.id.get() else {
-            return Err(compile::Error::msg(path, "Tried to use non-indexed path"));
-        };
-
-        let Some(&QueryPath {
+        let Some(&ItemMeta {
             module,
             item,
             impl_item,
-        }) = self.inner.query_paths.get(&id)
+            ..
+        }) = self.inner.items.get(&path.id)
         else {
             return Err(compile::Error::msg(
                 path,
-                try_format!("Missing query path for id {}", id),
+                try_format!("Missing query path for id {}", path.id),
             ));
         };
 
@@ -1109,12 +1071,11 @@ impl<'a, 'arena> Query<'a, 'arena> {
             module,
         };
 
-        let id = self.gen.next();
-        let item_meta = self.insert_new_item_with(id, item, location, module, visibility, &[])?;
+        let item_meta = self.insert_new_item_with(item, location, module, visibility, None, &[])?;
 
         // toplevel public uses are re-exported.
         if item_meta.is_public(self.pool) {
-            self.inner.used.try_insert(item_meta.id)?;
+            self.inner.used.try_insert(item_meta.item)?;
 
             self.inner.queue.try_push_back(BuildEntry {
                 item_meta,
@@ -1266,7 +1227,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
                     let meta = meta::Meta {
                         context: true,
                         hash: self.pool.item_type_hash(item),
-                        item_meta: self.context_item_meta(item),
+                        item_meta: self.context_item_meta(item, None),
                         kind: meta::Kind::Import(import),
                         source: None,
                         parameters: Hash::EMPTY,
@@ -1324,13 +1285,13 @@ impl<'a, 'arena> Query<'a, 'arena> {
         }))
     }
 
-    fn context_item_meta(&self, item: ItemId) -> ItemMeta {
+    fn context_item_meta(&self, item: ItemId, impl_item: Option<ItemId>) -> ItemMeta {
         ItemMeta {
-            id: self.gen.next(),
             location: Default::default(),
             item,
             visibility: Default::default(),
             module: Default::default(),
+            impl_item,
         }
     }
 
@@ -1394,7 +1355,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         let indexing::Entry { item_meta, indexed } = entry;
 
         if let Used::Used = used {
-            self.inner.used.try_insert(item_meta.id)?;
+            self.inner.used.try_insert(item_meta.item)?;
         }
 
         let kind = match indexed {
@@ -1572,10 +1533,8 @@ impl<'a, 'arena> Query<'a, 'arena> {
                     (ir::IrFn::compile_ast(&hir, &mut cx)?, hir)
                 };
 
-                let id = self.gen.next();
-
                 self.inner.const_fns.try_insert(
-                    id,
+                    item_meta.item,
                     Rc::new(ConstFn {
                         item_meta,
                         ir_fn,
@@ -1590,7 +1549,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
                     })?;
                 }
 
-                meta::Kind::ConstFn { id }
+                meta::Kind::ConstFn
             }
             Indexed::Import(import) => {
                 if !import.wildcard {

@@ -676,32 +676,40 @@ pub(crate) fn expr<'hir>(
         })),
         ast::Expr::Range(ast) => hir::ExprKind::Range(alloc!(expr_range(cx, ast)?)),
         ast::Expr::Group(ast) => hir::ExprKind::Group(alloc!(expr(cx, &ast.expr)?)),
-        ast::Expr::MacroCall(ast) => match cx.q.builtin_macro_for(ast).with_span(ast)?.as_ref() {
-            query::BuiltInMacro::Template(ast) => {
-                let old = cx.in_template.replace(true);
+        ast::Expr::MacroCall(ast) => {
+            let Some(id) = ast.id else {
+                return Err(compile::Error::msg(ast, "missing expanded macro id"));
+            };
 
-                let result = hir::ExprKind::Template(alloc!(hir::BuiltInTemplate {
-                    span: ast.span,
-                    from_literal: ast.from_literal,
-                    exprs: iter!(&ast.exprs, |ast| expr(cx, ast)?),
-                }));
+            match cx.q.builtin_macro_for(id).with_span(ast)?.as_ref() {
+                query::BuiltInMacro::Template(ast) => {
+                    let old = cx.in_template.replace(true);
 
-                cx.in_template.set(old);
-                result
+                    let result = hir::ExprKind::Template(alloc!(hir::BuiltInTemplate {
+                        span: ast.span,
+                        from_literal: ast.from_literal,
+                        exprs: iter!(&ast.exprs, |ast| expr(cx, ast)?),
+                    }));
+
+                    cx.in_template.set(old);
+                    result
+                }
+                query::BuiltInMacro::Format(ast) => {
+                    hir::ExprKind::Format(alloc!(hir::BuiltInFormat {
+                        span: ast.span,
+                        fill: ast.fill,
+                        align: ast.align,
+                        width: ast.width,
+                        precision: ast.precision,
+                        flags: ast.flags,
+                        format_type: ast.format_type,
+                        value: expr(cx, &ast.value)?,
+                    }))
+                }
+                query::BuiltInMacro::File(ast) => hir::ExprKind::Lit(lit(cx, &ast.value)?),
+                query::BuiltInMacro::Line(ast) => hir::ExprKind::Lit(lit(cx, &ast.value)?),
             }
-            query::BuiltInMacro::Format(ast) => hir::ExprKind::Format(alloc!(hir::BuiltInFormat {
-                span: ast.span,
-                fill: ast.fill,
-                align: ast.align,
-                width: ast.width,
-                precision: ast.precision,
-                flags: ast.flags,
-                format_type: ast.format_type,
-                value: expr(cx, &ast.value)?,
-            })),
-            query::BuiltInMacro::File(ast) => hir::ExprKind::Lit(lit(cx, &ast.value)?),
-            query::BuiltInMacro::Line(ast) => hir::ExprKind::Lit(lit(cx, &ast.value)?),
-        },
+        }
     };
 
     Ok(hir::Expr {
@@ -995,7 +1003,7 @@ fn expr_block<'hir>(
         return Ok(hir::ExprKind::Block(alloc!(block(cx, None, &ast.block)?)));
     };
 
-    let item = cx.q.item_for(&ast.block).with_span(&ast.block)?;
+    let item = cx.q.item_for(ast.block.id).with_span(&ast.block)?;
     let meta = cx.lookup_meta(ast, item.item, GenericsParameters::default())?;
 
     match (kind, &meta.kind) {
@@ -1867,14 +1875,13 @@ fn expr_call<'hir>(
                             )?;
                         };
                     }
-                    meta::Kind::ConstFn { id, .. } => {
-                        let id = *id;
+                    meta::Kind::ConstFn => {
                         let from = cx.q.item_for(ast.id).with_span(ast)?;
 
                         break 'ok hir::Call::ConstFn {
                             from_module: from.module,
                             from_item: from.item,
-                            id,
+                            id: meta.item_meta.item,
                         };
                     }
                     _ => {

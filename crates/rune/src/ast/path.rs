@@ -12,12 +12,9 @@ fn ast_parse() {
 }
 
 /// A path, where each element is separated by a `::`.
-#[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned, Opaque)]
+#[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct Path {
-    /// Opaque id associated with path.
-    #[rune(id)]
-    pub(crate) id: Id,
     /// The optional leading colon `::` indicating global scope.
     #[rune(iter)]
     pub global: Option<T![::]>,
@@ -29,6 +26,9 @@ pub struct Path {
     /// Trailing scope.
     #[rune(iter)]
     pub trailing: Option<T![::]>,
+    /// Opaque id associated with path.
+    #[rune(skip)]
+    pub(crate) id: ItemId,
 }
 
 impl Path {

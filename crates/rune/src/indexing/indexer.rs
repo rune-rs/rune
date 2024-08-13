@@ -1,16 +1,18 @@
-use core::mem::{replace, take};
+use core::mem::replace;
 use core::num::NonZeroUsize;
 
 use crate::alloc::path::PathBuf;
 use crate::alloc::prelude::*;
-use crate::alloc::{self, HashMap, Vec, VecDeque};
+use crate::alloc::{HashMap, Vec, VecDeque};
 use crate::ast::spanned;
 use crate::ast::{self, Span, Spanned};
 use crate::compile::attrs;
-use crate::compile::{self, Doc, DynLocation, ErrorKind, ModId, Visibility, WithSpan};
+use crate::compile::{
+    self, Doc, DynLocation, ErrorKind, ItemId, ItemMeta, ModId, Visibility, WithSpan,
+};
 use crate::indexing::{Items, Scopes};
 use crate::macros::MacroCompiler;
-use crate::parse::{NonZeroId, Parse, Parser, Resolve};
+use crate::parse::{Parse, Parser, Resolve};
 use crate::query::{BuiltInFile, BuiltInFormat, BuiltInLine, BuiltInMacro, BuiltInTemplate, Query};
 use crate::runtime::format;
 use crate::worker::{LoadFileKind, Task};
@@ -23,7 +25,7 @@ pub(crate) struct Indexer<'a, 'arena> {
     /// Query engine.
     pub(crate) q: Query<'a, 'arena>,
     pub(crate) source_id: SourceId,
-    pub(crate) items: Items<'a>,
+    pub(crate) items: Items,
     /// Helper to calculate details about an indexed scope.
     pub(crate) scopes: Scopes,
     /// The current item state.
@@ -54,6 +56,23 @@ pub(crate) struct Indexer<'a, 'arena> {
 }
 
 impl<'a, 'arena> Indexer<'a, 'arena> {
+    /// Insert a new item at the current indexed location.
+    pub(crate) fn insert_new_item(
+        &mut self,
+        span: &dyn Spanned,
+        visibility: Visibility,
+        docs: &[Doc],
+    ) -> compile::Result<ItemMeta> {
+        self.q.insert_new_item(
+            &self.items,
+            &DynLocation::new(self.source_id, span),
+            self.item.module,
+            visibility,
+            self.item.impl_item,
+            docs,
+        )
+    }
+
     /// Indicate that we've entered an expanded macro context, and ensure that
     /// we don't blow past [`MAX_MACRO_RECURSION`].
     ///
@@ -138,7 +157,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
         }
 
         let id = self.q.insert_new_builtin_macro(internal_macro)?;
-        ast.id.set(id);
+        ast.id = Some(id);
         Ok(true)
     }
 
@@ -357,29 +376,14 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
         }))
     }
 
-    /// Get or insert an item id.
-    pub(super) fn item_id(&mut self) -> alloc::Result<NonZeroId> {
-        if let Some(id) = self.item.id {
-            return Ok(id);
-        }
-
-        let id = self
-            .q
-            .insert_path(self.item.module, self.item.impl_item, self.items.item())?;
-
-        self.item.id = Some(id);
-        Ok(id)
-    }
-
     /// Perform a macro expansion.
     pub(super) fn expand_macro<T>(&mut self, ast: &mut ast::MacroCall) -> compile::Result<T>
     where
         T: Parse,
     {
-        ast.path.id.set(self.item_id()?);
+        ast.path.id = self.item.id;
 
-        let id = self.items.id().with_span(&ast)?;
-        let item = self.q.item_for(id).with_span(&ast)?;
+        let item = self.q.item_for(self.item.id).with_span(&ast)?;
 
         let mut compiler = MacroCompiler {
             item_meta: item,
@@ -398,11 +402,9 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
     where
         T: Parse,
     {
-        attr.path.id.set(self.item_id()?);
+        attr.path.id = self.item.id;
 
-        let id = self.items.id().with_span(&*attr)?;
-
-        let containing = self.q.item_for(id).with_span(&*attr)?;
+        let containing = self.q.item_for(self.item.id).with_span(&*attr)?;
 
         let mut compiler = MacroCompiler {
             item_meta: containing,
@@ -419,15 +421,10 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
         docs: &[Doc],
     ) -> compile::Result<()> {
         let name = ast.name.resolve(resolve_context!(self.q))?;
-
         let visibility = ast_to_visibility(&ast.visibility)?;
-
         let guard = self.items.push_name(name.as_ref())?;
-        let idx_item = self.item.replace();
 
-        let mod_item_id = self.items.id().with_span(&*ast)?;
-
-        let mod_item = self.q.insert_mod(
+        let (mod_item, mod_item_id) = self.q.insert_mod(
             &self.items,
             &DynLocation::new(self.source_id, spanned::from_fn(|| ast.name_span())),
             self.item.module,
@@ -435,10 +432,9 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
             docs,
         )?;
 
-        self.item = idx_item;
         self.items.pop(guard).with_span(&*ast)?;
 
-        ast.id.set(mod_item_id);
+        ast.id = mod_item_id;
 
         let Some(root) = &self.root else {
             return Err(compile::Error::new(
@@ -491,53 +487,44 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
 pub(crate) struct IndexItem {
     /// The current module being indexed.
     pub(crate) module: ModId,
-    /// Set if we are inside of an impl self.
-    pub(crate) impl_item: Option<NonZeroId>,
     /// Whether the item has been inserted or not.
-    pub(crate) id: Option<NonZeroId>,
+    pub(crate) id: ItemId,
+    /// Set if we are inside of an impl self.
+    pub(crate) impl_item: Option<ItemId>,
 }
 
 impl IndexItem {
-    pub(crate) fn new(module: ModId) -> Self {
+    pub(crate) fn new(module: ModId, id: ItemId) -> Self {
         Self {
             module,
+            id,
             impl_item: None,
-            id: None,
         }
     }
 
-    pub(crate) fn with_impl_item(module: ModId, impl_item: NonZeroId) -> Self {
+    pub(crate) fn with_impl_item(module: ModId, id: ItemId, impl_item: ItemId) -> Self {
         Self {
             module,
+            id,
             impl_item: Some(impl_item),
-            id: None,
         }
     }
 
     /// Replace item we're currently in.
-    pub(super) fn replace(&mut self) -> IndexItem {
+    pub(super) fn replace(&mut self, id: ItemId) -> IndexItem {
         IndexItem {
             module: self.module,
+            id: replace(&mut self.id, id),
             impl_item: self.impl_item,
-            id: take(&mut self.id),
         }
     }
 
     /// Replace module id.
-    pub(super) fn replace_module(&mut self, module: ModId) -> IndexItem {
+    pub(super) fn replace_module(&mut self, module: ModId, id: ItemId) -> IndexItem {
         IndexItem {
             module: replace(&mut self.module, module),
+            id: replace(&mut self.id, id),
             impl_item: self.impl_item,
-            id: take(&mut self.id),
-        }
-    }
-
-    /// Replace module id.
-    pub(super) fn replace_impl(&mut self, item: NonZeroId) -> IndexItem {
-        IndexItem {
-            module: self.module,
-            impl_item: replace(&mut self.impl_item, Some(item)),
-            id: take(&mut self.id),
         }
     }
 }

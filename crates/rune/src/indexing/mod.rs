@@ -8,7 +8,6 @@ use crate::alloc::prelude::*;
 use crate::ast::{self, Span, Spanned};
 use crate::compile::meta;
 use crate::compile::{ItemId, ItemMeta};
-use crate::parse::NonZeroId;
 use crate::runtime::Call;
 
 use self::indexer::ast_to_visibility;
@@ -92,8 +91,7 @@ pub(crate) struct Function {
     /// If this is a bench function.
     pub(crate) is_bench: bool,
     /// The impl item this function is registered in.
-    #[allow(unused)]
-    pub(crate) impl_item: Option<NonZeroId>,
+    pub(crate) impl_item: Option<ItemId>,
 }
 
 #[derive(Debug, TryClone, Clone, Copy)]
@@ -116,7 +114,7 @@ pub(crate) struct Struct {
 #[derive(Debug, TryClone)]
 pub(crate) struct Variant {
     /// Id of of the enum type.
-    pub(crate) enum_id: NonZeroId,
+    pub(crate) enum_id: ItemId,
     /// Ast for declaration.
     pub(crate) ast: ast::ItemVariant,
     /// The index of the variant in its source.

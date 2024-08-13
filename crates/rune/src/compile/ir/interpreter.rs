@@ -6,7 +6,6 @@ use crate::compile::ir::scopes::MissingLocal;
 use crate::compile::meta;
 use crate::compile::{self, IrErrorKind, ItemId, ModId, WithSpan};
 use crate::hir;
-use crate::parse::NonZeroId;
 use crate::query::{Query, Used};
 use crate::runtime::{ConstValue, Mutable, Object, OwnedTuple, Value, ValueBorrowRef, ValueRef};
 
@@ -148,7 +147,7 @@ impl Interpreter<'_, '_> {
     pub(crate) fn call_const_fn<S>(
         &mut self,
         spanned: S,
-        id: NonZeroId,
+        id: ItemId,
         args: Vec<Value>,
         used: Used,
     ) -> compile::Result<Value>

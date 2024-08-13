@@ -423,7 +423,7 @@ pub(crate) enum Call<'hir> {
         /// The item the constant function is being called from.
         from_item: ItemId,
         /// The identifier of the constant function.
-        id: NonZeroId,
+        id: ItemId,
     },
 }
 

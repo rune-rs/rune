@@ -18,7 +18,6 @@ use crate::compile::{ItemId, ItemMeta, Location, ModId};
 use crate::hash::Hash;
 use crate::hir;
 use crate::indexing;
-use crate::parse::NonZeroId;
 use crate::runtime::format;
 use crate::runtime::Call;
 
@@ -177,34 +176,19 @@ pub(crate) struct BuildEntry {
     pub(crate) build: Build,
 }
 
-/// An implementation function.
-pub(crate) struct QueryImplFn {
-    /// Ast for declaration.
-    pub(crate) ast: Box<ast::ItemFn>,
-}
-
 pub(crate) struct ItemImplEntry {
     /// Non-expanded ast of the path.
     pub(crate) path: Box<ast::Path>,
     /// Location where the item impl is defined and is being expanded.
     pub(crate) location: Location,
-    /// The item impl being expanded.
-    pub(crate) id: NonZeroId,
     ///See [Indexer][crate::indexing::Indexer].
     pub(crate) root: Option<PathBuf>,
     ///See [Indexer][crate::indexing::Indexer].
     pub(crate) nested_item: Option<Span>,
     /// See [Indexer][crate::indexing::Indexer].
     pub(crate) macro_depth: usize,
-}
-
-/// Query information for a path.
-#[derive(Debug, TryClone, Clone, Copy)]
-#[try_clone(copy)]
-pub(crate) struct QueryPath {
-    pub(crate) module: ModId,
-    pub(crate) impl_item: Option<NonZeroId>,
-    pub(crate) item: ItemId,
+    /// Functions in the impl block.
+    pub(crate) functions: Vec<ast::ItemFn>,
 }
 
 /// A compiled constant function.
