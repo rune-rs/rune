@@ -44,12 +44,9 @@ fn ast_parse() {
 /// A block of statements.
 ///
 /// * `{ (<stmt>)* }`.
-#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned, Opaque)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct Block {
-    /// The unique identifier for the block expression.
-    #[rune(id)]
-    pub(crate) id: Id,
     /// The close brace.
     pub open: T!['{'],
     /// Statements in the block.
@@ -57,6 +54,9 @@ pub struct Block {
     pub statements: Vec<ast::Stmt>,
     /// The close brace.
     pub close: T!['}'],
+    /// The unique identifier for the block expression.
+    #[rune(skip)]
+    pub(crate) id: ItemId,
 }
 
 impl Parse for Block {
@@ -72,10 +72,10 @@ impl Parse for Block {
         let close = parser.parse()?;
 
         Ok(Self {
-            id: Default::default(),
             open,
             statements,
             close,
+            id: ItemId::ROOT,
         })
     }
 }
@@ -83,14 +83,14 @@ impl Parse for Block {
 /// A block of statements.
 ///
 /// * `{ (<stmt>)* }`.
-#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Opaque)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens)]
 #[non_exhaustive]
 pub struct EmptyBlock {
-    /// The unique identifier for the block expression.
-    #[rune(id)]
-    pub(crate) id: Id,
     /// Statements in the block.
     pub statements: Vec<ast::Stmt>,
+    /// The unique identifier for the block expression.
+    #[rune(skip)]
+    pub(crate) id: ItemId,
 }
 
 impl Parse for EmptyBlock {
@@ -102,8 +102,8 @@ impl Parse for EmptyBlock {
         }
 
         Ok(Self {
-            id: Default::default(),
             statements,
+            id: ItemId::ROOT,
         })
     }
 }

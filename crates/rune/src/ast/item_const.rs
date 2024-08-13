@@ -6,13 +6,10 @@ fn ast_parse() {
 }
 
 /// A const declaration.
-#[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned, Opaque)]
+#[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]
 pub struct ItemConst {
-    /// Opaque identifier for the constant.
-    #[rune(id)]
-    pub(crate) id: Id,
     /// The *inner* attributes that are applied to the const declaration.
     #[rune(iter, meta)]
     pub attributes: Vec<ast::Attribute>,
@@ -28,6 +25,9 @@ pub struct ItemConst {
     pub eq: T![=],
     /// The optional body of the module declaration.
     pub expr: ast::Expr,
+    /// Opaque identifier for the constant.
+    #[rune(skip)]
+    pub(crate) id: ItemId,
 }
 
 impl ItemConst {

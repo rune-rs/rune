@@ -6,7 +6,8 @@ use crate::alloc::try_vec;
 use crate::alloc::{self, HashMap, Vec};
 #[cfg(feature = "emit")]
 use crate::compile::Location;
-use crate::compile::Visibility;
+use crate::compile::{self, Visibility};
+use crate::parse::{Parse, Parser};
 use crate::{Hash, Item, ItemBuf};
 
 /// The identifier of a module.
@@ -22,7 +23,7 @@ impl fmt::Display for ModId {
 }
 
 /// The identifier of an item.
-#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Default, Debug, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[try_clone(copy)]
 #[repr(transparent)]
 pub(crate) struct ItemId(u32);
@@ -30,6 +31,13 @@ pub(crate) struct ItemId(u32);
 impl ItemId {
     /// The item corresponding to the root item.
     pub(crate) const ROOT: ItemId = ItemId(0);
+}
+
+impl Parse for ItemId {
+    #[inline]
+    fn parse(_: &mut Parser<'_>) -> compile::Result<Self> {
+        Ok(ItemId::ROOT)
+    }
 }
 
 impl fmt::Display for ItemId {

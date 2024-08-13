@@ -86,9 +86,9 @@ cfg_std! {
         let mut idx = Indexer {
             q: query.borrow(),
             source_id,
-            items: Items::new(Item::new(), root_id, &gen).context("Failed to construct items")?,
+            items: Items::new(Item::new()).context("Failed to construct items")?,
             scopes: Scopes::new().context("Failed to build indexer scopes")?,
-            item: IndexItem::new(root_mod_id),
+            item: IndexItem::new(root_mod_id, root_id),
             nested_item: None,
             macro_depth: 0,
             root: None,

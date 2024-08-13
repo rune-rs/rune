@@ -9,12 +9,9 @@ fn ast_parse() {
 /// A call expression.
 ///
 /// * `<expr>(<args>)`.
-#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned, Opaque)]
+#[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprCall {
-    /// Opaque identifier related with call.
-    #[rune(id)]
-    pub(crate) id: Id,
     /// Attributes associated with expression.
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
@@ -22,6 +19,9 @@ pub struct ExprCall {
     pub expr: Box<ast::Expr>,
     /// The arguments of the function call.
     pub args: ast::Parenthesized<ast::Expr, T![,]>,
+    /// Opaque identifier related with call.
+    #[rune(skip)]
+    pub(crate) id: ItemId,
 }
 
 expr_parse!(Call, ExprCall, "call expression");

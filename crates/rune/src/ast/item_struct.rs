@@ -25,13 +25,10 @@ fn ast_parse() {
 }
 
 /// A struct item.
-#[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned, Opaque)]
+#[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]
 pub struct ItemStruct {
-    /// Opaque identifier of the struct.
-    #[rune(id)]
-    pub(crate) id: Id,
     /// The attributes for the struct
     #[rune(iter, meta)]
     pub attributes: Vec<ast::Attribute>,
@@ -45,6 +42,9 @@ pub struct ItemStruct {
     /// The body of the struct.
     #[rune(iter)]
     pub body: ast::Fields,
+    /// Opaque identifier of the struct.
+    #[rune(skip)]
+    pub(crate) id: ItemId,
 }
 
 impl ItemStruct {

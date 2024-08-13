@@ -1,12 +1,9 @@
 use core::fmt;
-use core::mem::replace;
 
 use crate::alloc;
 use crate::alloc::prelude::*;
 use crate::compile::ErrorKind;
 use crate::item::ComponentRef;
-use crate::parse::NonZeroId;
-use crate::shared::Gen;
 use crate::{Item, ItemBuf};
 
 #[derive(Debug)]
@@ -25,8 +22,8 @@ impl std::error::Error for MissingLastId {}
 #[derive(Debug)]
 #[non_exhaustive]
 pub(crate) struct GuardMismatch {
-    actual: NonZeroId,
-    expected: NonZeroId,
+    actual: usize,
+    expected: usize,
 }
 
 impl fmt::Display for GuardMismatch {
@@ -44,64 +41,49 @@ impl std::error::Error for GuardMismatch {}
 
 /// Guard returned.
 #[must_use]
-pub(crate) struct Guard(NonZeroId, NonZeroId);
+pub(crate) struct Guard(usize);
 
 /// Manage item paths.
 #[derive(Debug)]
-pub(crate) struct Items<'a> {
+pub(crate) struct Items {
     block_index: usize,
     item: ItemBuf,
-    last_id: NonZeroId,
-    gen: &'a Gen,
 }
 
-impl<'a> Items<'a> {
+impl Items {
     /// Construct a new items manager.
-    pub(crate) fn new(item: &Item, id: NonZeroId, gen: &'a Gen) -> alloc::Result<Self> {
+    pub(crate) fn new(item: &Item) -> alloc::Result<Self> {
         Ok(Self {
             block_index: item.last().and_then(ComponentRef::id).unwrap_or_default(),
             item: item.try_to_owned()?,
-            last_id: id,
-            gen,
         })
     }
 
-    /// Access the last added id.
-    pub(crate) fn id(&self) -> Result<NonZeroId, MissingLastId> {
-        Ok(self.last_id)
-    }
-
     /// Get the item for the current state of the path.
-    pub(crate) fn item(&self) -> &ItemBuf {
+    pub(crate) fn item(&self) -> &Item {
         &self.item
     }
 
     /// Push a component and return a guard to it.
     pub(crate) fn push_id(&mut self) -> alloc::Result<Guard> {
-        let id = self.gen.next();
         let next_index = self.block_index;
         self.item.push(ComponentRef::Id(next_index))?;
-        let last_id = replace(&mut self.last_id, id);
-        Ok(Guard(id, last_id))
+        Ok(Guard(self.item.as_bytes().len()))
     }
 
     /// Push a component and return a guard to it.
     pub(crate) fn push_name(&mut self, name: &str) -> alloc::Result<Guard> {
-        let id = self.gen.next();
         self.block_index = 0;
         self.item.push(name)?;
-        let last_id = replace(&mut self.last_id, id);
-        Ok(Guard(id, last_id))
+        Ok(Guard(self.item.as_bytes().len()))
     }
 
     /// Pop the scope associated with the given guard.
-    pub(crate) fn pop(&mut self, guard: Guard) -> Result<(), ErrorKind> {
-        let Guard(expected_id, last_id) = guard;
-
-        if self.last_id != expected_id {
+    pub(crate) fn pop(&mut self, Guard(expected): Guard) -> Result<(), ErrorKind> {
+        if self.item.as_bytes().len() != expected {
             return Err(ErrorKind::from(GuardMismatch {
-                actual: self.last_id,
-                expected: expected_id,
+                actual: self.item.as_bytes().len(),
+                expected,
             }));
         }
 
@@ -112,7 +94,6 @@ impl<'a> Items<'a> {
             .and_then(|n| n.checked_add(1))
             .unwrap_or_default();
 
-        self.last_id = last_id;
         Ok(())
     }
 }

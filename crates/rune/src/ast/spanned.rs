@@ -1,6 +1,6 @@
 use crate::alloc;
 use crate::ast::Span;
-use crate::parse::{Id, NonZeroId};
+use crate::parse::NonZeroId;
 
 /// Helper derive to implement [`Spanned`].
 pub use rune_macros::Spanned;
@@ -89,24 +89,6 @@ where
 {
     fn span(&self) -> Span {
         Spanned::span(*self)
-    }
-}
-
-impl<S> Spanned for (S, Id)
-where
-    S: Spanned,
-{
-    fn span(&self) -> Span {
-        self.0.span()
-    }
-}
-
-impl<S> Spanned for (S, Option<Id>)
-where
-    S: Spanned,
-{
-    fn span(&self) -> Span {
-        self.0.span()
     }
 }
 

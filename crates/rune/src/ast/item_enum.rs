@@ -37,12 +37,9 @@ pub struct ItemEnum {
 item_parse!(Enum, ItemEnum, "enum item");
 
 /// An enum variant.
-#[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned, Opaque)]
+#[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ItemVariant {
-    /// Opaque identifier of variant.
-    #[rune(id)]
-    pub(crate) id: Id,
     /// The attributes associated with the variant.
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
@@ -51,4 +48,7 @@ pub struct ItemVariant {
     /// The body of the variant.
     #[rune(iter)]
     pub body: ast::Fields,
+    /// Opaque identifier of variant.
+    #[rune(skip)]
+    pub(crate) id: ItemId,
 }
