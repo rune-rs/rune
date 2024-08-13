@@ -25,9 +25,9 @@ struct Error;
 
 /// Perform a `get` request.
 async fn get(url: Ref<str>) -> Result<Response, Error> {
-    let mut opts = web_sys::RequestInit::new();
-    opts.method("GET");
-    opts.mode(web_sys::RequestMode::Cors);
+    let opts = web_sys::RequestInit::new();
+    opts.set_method("GET");
+    opts.set_mode(web_sys::RequestMode::Cors);
     let request = web_sys::Request::new_with_str(&url);
     let window = web_sys::window().ok_or(Error)?;
     let request = request.map_err(|_| Error)?;
