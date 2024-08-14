@@ -112,6 +112,8 @@ pub struct Options {
     pub(crate) test_std: bool,
     /// Enable lowering optimizations.
     pub(crate) lowering: u8,
+    /// Print source tree.
+    pub(crate) print_tree: bool,
     /// Rune format options.
     pub(crate) fmt: FmtOptions,
 }
@@ -127,6 +129,7 @@ impl Options {
         function_body: false,
         test_std: false,
         lowering: 0,
+        print_tree: false,
         fmt: FmtOptions::DEFAULT,
     };
 
@@ -221,6 +224,16 @@ impl Options {
                 options: "0-3",
             },
             OptionMeta {
+                key: "print-tree",
+                unstable: false,
+                doc: &docstring! {
+                    /// Print the parsed source tree when formatting to
+                    /// standard output.
+                },
+                default: "false",
+                options: BOOL,
+            },
+            OptionMeta {
                 key: "fmt.print-tree",
                 unstable: false,
                 doc: &docstring! {
@@ -301,6 +314,9 @@ impl Options {
                         })
                     }
                 };
+            }
+            "print-tree" => {
+                self.print_tree = tail.map_or(true, |s| s == "true");
             }
             other => {
                 let Some((head, tail)) = other.split_once('.') else {

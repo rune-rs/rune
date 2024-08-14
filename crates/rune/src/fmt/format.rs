@@ -63,6 +63,15 @@ fn expr_labels<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     Ok(())
 }
 
+fn inner_attributes<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
+    while let Some(attr) = p.try_pump(InnerAttribute)? {
+        attr.fmt(fmt)?;
+        fmt.nl(1)?;
+    }
+
+    Ok(())
+}
+
 fn attributes<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<Attrs> {
     let mut attrs = Attrs::default();
 
@@ -1611,6 +1620,8 @@ enum StmtKind {
 
 /// The contents of a block.
 fn block_content<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
+    inner_attributes(fmt, p)?;
+
     let mut last_kind = StmtKind::None;
 
     while !p.is_eof() {

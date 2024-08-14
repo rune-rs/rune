@@ -95,9 +95,9 @@ impl<'a> Parser<'a> {
     pub(super) fn bump(&mut self) -> Result<Token> {
         let tok = self.next()?;
 
-        self.tree
-            .token(tok.kind, tok.span.range().len())
-            .with_span(tok.span)?;
+        let span = syntree::Span::new(tok.span.start.0, tok.span.end.0);
+
+        self.tree.token_with(tok.kind, span).with_span(tok.span)?;
 
         Ok(tok)
     }
@@ -143,9 +143,11 @@ impl<'a> Parser<'a> {
     pub(super) fn push(&mut self, kind: Kind) -> Result<()> {
         let tok = self.next()?;
         self.tree.open(kind).with_span(tok.span)?;
-        self.tree
-            .token(tok.kind, tok.span.range().len())
-            .with_span(tok.span)?;
+
+        let span = syntree::Span::new(tok.span.start.0, tok.span.end.0);
+
+        self.tree.token_with(tok.kind, span).with_span(tok.span)?;
+
         self.tree.close().with_span(tok.span)?;
         Ok(())
     }

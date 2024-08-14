@@ -5680,7 +5680,7 @@ pub enum Kind {
     Yield,
     /// whitespace.
     Whitespace,
-    /// the root node of a parse tree
+    /// a syntax root
     Root,
     /// a variable declaration
     Local,
@@ -5704,8 +5704,6 @@ pub enum Kind {
     ItemUsePath,
     /// a nested use group
     ItemUseGroup,
-    /// the variants part of an enum
-    EnumVariants,
     /// a variant
     Variant,
     /// a field declaration
@@ -5822,6 +5820,8 @@ pub enum Kind {
     AnonymousObjectKey,
     /// an attribute
     Attribute,
+    /// an inner attribute
+    InnerAttribute,
     /// item modifiers, like `pub const`
     Modifiers,
     /// the `(crate)` modifier
@@ -6143,7 +6143,7 @@ impl parse::IntoExpectation for Kind {
             Self::Tilde => parse::Expectation::Punctuation("~"),
             Self::Underscore => parse::Expectation::Punctuation("_"),
             Self::Whitespace => parse::Expectation::Syntax("whitespace."),
-            Self::Root => parse::Expectation::Syntax("the root node of a parse tree"),
+            Self::Root => parse::Expectation::Syntax("a syntax root"),
             Self::Local => parse::Expectation::Syntax("a variable declaration"),
             Self::Item => parse::Expectation::Syntax("an item declaration"),
             Self::ItemEnum => parse::Expectation::Syntax("an enum declaration"),
@@ -6155,7 +6155,6 @@ impl parse::IntoExpectation for Kind {
             Self::ItemUse => parse::Expectation::Syntax("a use import"),
             Self::ItemUsePath => parse::Expectation::Syntax("a nested use path"),
             Self::ItemUseGroup => parse::Expectation::Syntax("a nested use group"),
-            Self::EnumVariants => parse::Expectation::Syntax("the variants part of an enum"),
             Self::Variant => parse::Expectation::Syntax("a variant"),
             Self::Field => parse::Expectation::Syntax("a field declaration"),
             Self::EmptyBody => parse::Expectation::Syntax("an empty type body"),
@@ -6218,6 +6217,7 @@ impl parse::IntoExpectation for Kind {
             Self::ClosureArguments => parse::Expectation::Syntax("closure arguments"),
             Self::AnonymousObjectKey => parse::Expectation::Syntax("an `#{` anonymous object key"),
             Self::Attribute => parse::Expectation::Syntax("an attribute"),
+            Self::InnerAttribute => parse::Expectation::Syntax("an inner attribute"),
             Self::Modifiers => parse::Expectation::Syntax("item modifiers, like `pub const`"),
             Self::ModifierCrate => parse::Expectation::Syntax("the `(crate)` modifier"),
             Self::ModifierIn => parse::Expectation::Syntax("the `(in <path>)` modifier"),
