@@ -5,16 +5,16 @@ use tracing::instrument_ast;
 use crate::alloc::prelude::*;
 use crate::alloc::{Box, Vec, VecDeque};
 use crate::ast::{self, OptionSpanned, Spanned};
-use crate::compile::attrs;
-use crate::compile::meta;
-use crate::compile::{self, Doc, DynLocation, ErrorKind, Location, Visibility, WithSpan};
-use crate::indexing::{self, Indexed, Layer};
+use crate::compile::{
+    self, attrs, meta, Doc, DynLocation, ErrorKind, ItemMeta, Location, Visibility, WithSpan,
+};
+use crate::indexing::{self, Indexed};
 use crate::parse::Resolve;
 use crate::query::ItemImplEntry;
 use crate::runtime::Call;
 use crate::worker::{Import, ImportKind};
 
-use super::{ast_to_visibility, Indexer};
+use super::{ast_to_visibility, validate_call, Indexer};
 
 /// Macros are only allowed to expand recursively into other macros 64 times.
 const MAX_MACRO_RECURSION: usize = 64;
@@ -237,17 +237,16 @@ pub(crate) fn item_fn(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemFn) -> compil
     let docs = Doc::collect_from(resolve_context!(idx.q), &mut p, &ast.attributes)?;
 
     let guard = idx.items.push_name(name.as_ref())?;
-
     let item_meta = idx.insert_new_item(&ast, visibility, &docs)?;
     let idx_item = idx.item.replace(item_meta.item);
-
-    idx.scopes.push()?;
 
     for (arg, _) in &mut ast.args {
         if let ast::FnArg::Pat(p) = arg {
             pat(idx, p)?;
         }
     }
+
+    idx.scopes.push()?;
 
     // Take and restore item nesting.
     let last = idx.nested_item.replace(ast.descriptive_span());
@@ -266,7 +265,7 @@ pub(crate) fn item_fn(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemFn) -> compil
         ));
     };
 
-    let call = validate_call(ast.const_token.as_ref(), ast.async_token.as_ref(), &layer)?;
+    let call = validate_call(ast.const_token, ast.async_token, &layer)?;
 
     let Some(call) = call else {
         idx.q.index_const_fn(item_meta, Box::try_new(ast)?)?;
@@ -387,15 +386,9 @@ fn expr_block(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprBlock) -> compile::R
             ));
         }
 
-        return block(idx, &mut ast.block);
+        block(idx, &mut ast.block)?;
+        return Ok(());
     }
-
-    let guard = idx.items.push_id()?;
-
-    let item_meta = idx.insert_new_item(&ast, Visibility::default(), &[])?;
-    let idx_item = idx.item.replace(item_meta.item);
-
-    ast.block.id = item_meta.item;
 
     if ast.const_token.is_some() {
         if let Some(async_token) = ast.async_token {
@@ -405,19 +398,21 @@ fn expr_block(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprBlock) -> compile::R
             ));
         }
 
-        block(idx, &mut ast.block)?;
+        let item_meta = block(idx, &mut ast.block)?;
+        ast.block.id = item_meta.item;
         idx.q.index_const_block(item_meta, &ast.block)?;
     } else {
         idx.scopes.push()?;
-        block(idx, &mut ast.block)?;
+        let item_meta = block(idx, &mut ast.block)?;
         let layer = idx.scopes.pop().with_span(&ast)?;
 
-        let call = validate_call(ast.const_token.as_ref(), ast.async_token.as_ref(), &layer)?;
+        let call = validate_call(ast.const_token, ast.async_token, &layer)?;
 
         let Some(call) = call else {
             return Err(compile::Error::new(ast, ErrorKind::ClosureKind));
         };
 
+        ast.block.id = item_meta.item;
         idx.q.index_meta(
             &*ast,
             item_meta,
@@ -428,8 +423,6 @@ fn expr_block(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprBlock) -> compile::R
         )?;
     }
 
-    idx.item = idx_item;
-    idx.items.pop(guard).with_span(&ast)?;
     Ok(())
 }
 
@@ -499,7 +492,7 @@ fn statements(idx: &mut Indexer<'_, '_>, ast: &mut Vec<ast::Stmt>) -> compile::R
 }
 
 #[instrument_ast(span = ast)]
-fn block(idx: &mut Indexer<'_, '_>, ast: &mut ast::Block) -> compile::Result<()> {
+fn block(idx: &mut Indexer<'_, '_>, ast: &mut ast::Block) -> compile::Result<ItemMeta> {
     let guard = idx.items.push_id()?;
 
     let item_meta = idx.insert_new_item(&ast, Visibility::Inherited, &[])?;
@@ -508,7 +501,7 @@ fn block(idx: &mut Indexer<'_, '_>, ast: &mut ast::Block) -> compile::Result<()>
     statements(idx, &mut ast.statements)?;
     idx.item = idx_item;
     idx.items.pop(guard).with_span(&ast)?;
-    Ok(())
+    Ok(item_meta)
 }
 
 #[instrument_ast(span = ast)]
@@ -615,71 +608,80 @@ fn pat_binding(idx: &mut Indexer<'_, '_>, ast: &mut ast::PatBinding) -> compile:
 #[instrument_ast(span = ast)]
 pub(crate) fn expr(idx: &mut Indexer<'_, '_>, ast: &mut ast::Expr) -> compile::Result<()> {
     match ast {
-        ast::Expr::Path(e) => {
-            path(idx, e)?;
+        ast::Expr::Path(ast) => {
+            path(idx, ast)?;
         }
-        ast::Expr::Let(e) => {
-            expr_let(idx, e)?;
+        ast::Expr::Let(ast) => {
+            expr_let(idx, ast)?;
         }
-        ast::Expr::Block(e) => {
-            expr_block(idx, e)?;
+        ast::Expr::Block(ast) => {
+            expr_block(idx, ast)?;
         }
-        ast::Expr::Group(e) => {
-            expr(idx, &mut e.expr)?;
+        ast::Expr::Group(ast) => {
+            expr(idx, &mut ast.expr)?;
         }
-        ast::Expr::Empty(e) => {
-            expr(idx, &mut e.expr)?;
+        ast::Expr::Empty(ast) => {
+            expr(idx, &mut ast.expr)?;
         }
-        ast::Expr::If(e) => {
-            expr_if(idx, e)?;
+        ast::Expr::If(ast) => {
+            expr_if(idx, ast)?;
         }
-        ast::Expr::Assign(e) => {
-            expr_assign(idx, e)?;
+        ast::Expr::Assign(ast) => {
+            expr_assign(idx, ast)?;
         }
-        ast::Expr::Binary(e) => {
-            expr_binary(idx, e)?;
+        ast::Expr::Binary(ast) => {
+            expr_binary(idx, ast)?;
         }
-        ast::Expr::Match(e) => {
-            expr_match(idx, e)?;
+        ast::Expr::Match(ast) => {
+            expr_match(idx, ast)?;
         }
-        ast::Expr::Closure(e) => {
-            expr_closure(idx, e)?;
+        ast::Expr::Closure(ast) => {
+            expr_closure(idx, ast)?;
         }
-        ast::Expr::While(e) => {
-            expr_while(idx, e)?;
+        ast::Expr::While(ast) => {
+            expr_while(idx, ast)?;
         }
-        ast::Expr::Loop(e) => {
-            expr_loop(idx, e)?;
+        ast::Expr::Loop(ast) => {
+            expr_loop(idx, ast)?;
         }
-        ast::Expr::For(e) => {
-            expr_for(idx, e)?;
+        ast::Expr::For(ast) => {
+            expr_for(idx, ast)?;
         }
-        ast::Expr::FieldAccess(e) => {
-            expr_field_access(idx, e)?;
+        ast::Expr::FieldAccess(ast) => {
+            expr_field_access(idx, ast)?;
         }
-        ast::Expr::Unary(e) => {
-            expr_unary(idx, e)?;
+        ast::Expr::Unary(ast) => {
+            expr(idx, &mut ast.expr)?;
         }
-        ast::Expr::Index(e) => {
-            expr_index(idx, e)?;
+        ast::Expr::Index(ast) => {
+            expr(idx, &mut ast.index)?;
+            expr(idx, &mut ast.target)?;
         }
-        ast::Expr::Break(e) => {
-            expr_break(idx, e)?;
+        ast::Expr::Break(ast) => {
+            if let Some(ast) = &mut ast.expr {
+                expr(idx, ast)?;
+            }
         }
-        ast::Expr::Continue(e) => {
-            expr_continue(idx, e)?;
+        ast::Expr::Yield(ast) => {
+            let l = idx.scopes.mark().with_span(&*ast)?;
+            l.yields.try_push(ast.span())?;
+
+            if let Some(e) = &mut ast.expr {
+                expr(idx, e)?;
+            }
         }
-        ast::Expr::Yield(e) => {
-            expr_yield(idx, e)?;
+        ast::Expr::Return(ast) => {
+            if let Some(ast) = &mut ast.expr {
+                expr(idx, ast)?;
+            }
         }
-        ast::Expr::Return(e) => {
-            expr_return(idx, e)?;
+        ast::Expr::Await(ast) => {
+            let l = idx.scopes.mark().with_span(&*ast)?;
+            l.awaits.try_push(ast.span())?;
+            expr(idx, &mut ast.expr)?;
         }
-        ast::Expr::Await(e) => {
-            expr_await(idx, e)?;
-        }
-        ast::Expr::Try(e) => {
-            expr_try(idx, e)?;
+        ast::Expr::Try(ast) => {
+            expr(idx, &mut ast.expr)?;
         }
         ast::Expr::Select(e) => {
             expr_select(idx, e)?;
@@ -689,17 +691,27 @@ pub(crate) fn expr(idx: &mut Indexer<'_, '_>, ast: &mut ast::Expr) -> compile::R
             expr_call(idx, e)?;
         }
         ast::Expr::Lit(..) => {}
-        ast::Expr::Tuple(e) => {
-            expr_tuple(idx, e)?;
+        ast::Expr::Tuple(ast) => {
+            for (ast, _) in &mut ast.items {
+                expr(idx, ast)?;
+            }
         }
-        ast::Expr::Vec(e) => {
-            expr_vec(idx, e)?;
+        ast::Expr::Vec(ast) => {
+            for (ast, _) in &mut ast.items {
+                expr(idx, ast)?;
+            }
         }
-        ast::Expr::Object(e) => {
-            expr_object(idx, e)?;
+        ast::Expr::Object(ast) => {
+            expr_object(idx, ast)?;
         }
-        ast::Expr::Range(e) => {
-            expr_range(idx, e)?;
+        ast::Expr::Range(ast) => {
+            if let Some(from) = &mut ast.start {
+                expr(idx, from)?;
+            }
+
+            if let Some(to) = &mut ast.end {
+                expr(idx, to)?;
+            }
         }
         // NB: macros have nothing to index, they don't export language
         // items.
@@ -733,6 +745,7 @@ pub(crate) fn expr(idx: &mut Indexer<'_, '_>, ast: &mut ast::Expr) -> compile::R
 
             return Ok(());
         }
+        ast::Expr::Continue(..) => {}
     }
 
     if let [first, ..] = ast.attributes() {
@@ -1207,7 +1220,7 @@ fn expr_closure(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprClosure) -> compil
 
     let layer = idx.scopes.pop().with_span(&*ast)?;
 
-    let call = validate_call(None, ast.async_token.as_ref(), &layer)?;
+    let call = validate_call(None, ast.async_token, &layer)?;
 
     let Some(call) = call else {
         return Err(compile::Error::new(&*ast, ErrorKind::ClosureKind));
@@ -1245,69 +1258,6 @@ fn expr_field_access(
 }
 
 #[instrument_ast(span = ast)]
-fn expr_unary(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprUnary) -> compile::Result<()> {
-    expr(idx, &mut ast.expr)?;
-    Ok(())
-}
-
-#[instrument_ast(span = ast)]
-fn expr_index(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprIndex) -> compile::Result<()> {
-    expr(idx, &mut ast.index)?;
-    expr(idx, &mut ast.target)?;
-    Ok(())
-}
-
-#[instrument_ast(span = ast)]
-fn expr_break(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprBreak) -> compile::Result<()> {
-    if let Some(e) = ast.expr.as_deref_mut() {
-        expr(idx, e)?;
-    }
-
-    Ok(())
-}
-
-#[instrument_ast(span = _ast)]
-fn expr_continue(_idx: &mut Indexer<'_, '_>, _ast: &mut ast::ExprContinue) -> compile::Result<()> {
-    Ok(())
-}
-
-#[instrument_ast(span = ast)]
-fn expr_yield(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprYield) -> compile::Result<()> {
-    let l = idx.scopes.mark().with_span(&*ast)?;
-    l.yields.try_push(ast.span())?;
-
-    if let Some(e) = &mut ast.expr {
-        expr(idx, e)?;
-    }
-
-    Ok(())
-}
-
-#[instrument_ast(span = ast)]
-fn expr_return(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprReturn) -> compile::Result<()> {
-    if let Some(e) = &mut ast.expr {
-        expr(idx, e)?;
-    }
-
-    Ok(())
-}
-
-#[instrument_ast(span = ast)]
-fn expr_await(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprAwait) -> compile::Result<()> {
-    let l = idx.scopes.mark().with_span(&*ast)?;
-    l.awaits.try_push(ast.span())?;
-
-    expr(idx, &mut ast.expr)?;
-    Ok(())
-}
-
-#[instrument_ast(span = ast)]
-fn expr_try(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprTry) -> compile::Result<()> {
-    expr(idx, &mut ast.expr)?;
-    Ok(())
-}
-
-#[instrument_ast(span = ast)]
 fn expr_select(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprSelect) -> compile::Result<()> {
     let l = idx.scopes.mark().with_span(&*ast)?;
     l.awaits.try_push(ast.span())?;
@@ -1341,24 +1291,6 @@ fn expr_call(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprCall) -> compile::Res
 }
 
 #[instrument_ast(span = ast)]
-fn expr_tuple(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprTuple) -> compile::Result<()> {
-    for (e, _) in &mut ast.items {
-        expr(idx, e)?;
-    }
-
-    Ok(())
-}
-
-#[instrument_ast(span = ast)]
-fn expr_vec(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprVec) -> compile::Result<()> {
-    for (e, _) in &mut ast.items {
-        expr(idx, e)?;
-    }
-
-    Ok(())
-}
-
-#[instrument_ast(span = ast)]
 fn expr_object(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprObject) -> compile::Result<()> {
     match &mut ast.ident {
         ast::ObjectIdent::Named(p) => {
@@ -1375,51 +1307,4 @@ fn expr_object(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprObject) -> compile:
     }
 
     Ok(())
-}
-
-#[instrument_ast(span = ast)]
-fn expr_range(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprRange) -> compile::Result<()> {
-    if let Some(from) = &mut ast.start {
-        expr(idx, from)?;
-    }
-
-    if let Some(to) = &mut ast.end {
-        expr(idx, to)?;
-    }
-
-    Ok(())
-}
-
-/// Construct the calling convention based on the parameters.
-fn validate_call(
-    const_token: Option<&T![const]>,
-    async_token: Option<&T![async]>,
-    layer: &Layer,
-) -> compile::Result<Option<Call>> {
-    for span in &layer.awaits {
-        if const_token.is_some() {
-            return Err(compile::Error::new(span, ErrorKind::AwaitInConst));
-        }
-
-        if async_token.is_none() {
-            return Err(compile::Error::new(span, ErrorKind::AwaitOutsideAsync));
-        }
-    }
-
-    for span in &layer.yields {
-        if const_token.is_some() {
-            return Err(compile::Error::new(span, ErrorKind::YieldInConst));
-        }
-    }
-
-    if const_token.is_some() {
-        return Ok(None);
-    }
-
-    Ok(match (!layer.yields.is_empty(), async_token) {
-        (true, None) => Some(Call::Generator),
-        (false, None) => Some(Call::Immediate),
-        (true, Some(..)) => Some(Call::Stream),
-        (false, Some(..)) => Some(Call::Async),
-    })
 }

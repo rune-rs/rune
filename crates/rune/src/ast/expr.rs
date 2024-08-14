@@ -589,14 +589,11 @@ fn chain(p: &mut Parser<'_>, mut expr: Expr, callable: Callable) -> Result<Expr>
             }
             // Chained function call.
             K!['('] if is_callable => {
-                let args = p.parse::<ast::Parenthesized<Expr, T![,]>>()?;
-
-                expr = Expr::Call(ast::ExprCall {
-                    id: Default::default(),
-                    attributes: expr.take_attributes(),
-                    expr: Box::try_new(expr)?,
-                    args,
-                });
+                expr = Expr::Call(ast::ExprCall::parse_with_meta(
+                    p,
+                    expr.take_attributes(),
+                    Box::try_new(expr)?,
+                )?);
             }
             K![?] => {
                 expr = Expr::Try(ast::ExprTry {

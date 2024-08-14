@@ -435,7 +435,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         })?;
 
         let item_meta =
-            self.insert_new_item_with(item, location, module, visibility, None, docs)?;
+            self.insert_new_item_with(item, module, None, location, visibility, docs)?;
 
         self.index_and_build(indexing::Entry {
             item_meta,
@@ -483,14 +483,14 @@ impl<'a, 'arena> Query<'a, 'arena> {
     pub(crate) fn insert_new_item(
         &mut self,
         items: &Items,
-        location: &dyn Located,
         module: ModId,
-        visibility: Visibility,
         impl_item: Option<ItemId>,
+        location: &dyn Located,
+        visibility: Visibility,
         docs: &[Doc],
     ) -> compile::Result<ItemMeta> {
         let item = self.pool.alloc_item(items.item())?;
-        self.insert_new_item_with(item, location, module, visibility, impl_item, docs)
+        self.insert_new_item_with(item, module, impl_item, location, visibility, docs)
     }
 
     /// Insert the given compile meta.
@@ -522,10 +522,10 @@ impl<'a, 'arena> Query<'a, 'arena> {
     fn insert_new_item_with(
         &mut self,
         item: ItemId,
-        location: &dyn Located,
         module: ModId,
-        visibility: Visibility,
         impl_item: Option<ItemId>,
+        location: &dyn Located,
+        visibility: Visibility,
         docs: &[Doc],
     ) -> compile::Result<ItemMeta> {
         let location = location.location();
@@ -1071,7 +1071,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
             module,
         };
 
-        let item_meta = self.insert_new_item_with(item, location, module, visibility, None, &[])?;
+        let item_meta = self.insert_new_item_with(item, module, None, location, visibility, &[])?;
 
         // toplevel public uses are re-exported.
         if item_meta.is_public(self.pool) {
