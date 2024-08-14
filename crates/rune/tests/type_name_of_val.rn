@@ -1,0 +1,63 @@
+use std::any::type_name_of_val;
+
+fn foo() {
+}
+
+mod bar {
+    pub fn foo() {
+    }
+}
+
+struct X {}
+
+impl X {
+    fn foo(self) {
+    }
+
+    fn ctor() {
+    }
+}
+
+enum E {
+    A {
+        f,
+    },
+    B(g),
+    C,
+}
+
+#[test]
+fn test_trivial_types() {
+    assert_eq!(type_name_of_val(true), "::std::bool");
+    assert_eq!(type_name_of_val(1), "::std::i64");
+    assert_eq!(type_name_of_val(1.0), "::std::f64");
+    assert_eq!(type_name_of_val('c'), "::std::char");
+    assert_eq!(type_name_of_val("s"), "::std::string::String");
+    assert_eq!(type_name_of_val(Some("s")), "::std::option::Option");
+}
+
+#[test]
+fn test_fn_types() {
+    assert_eq!(type_name_of_val(foo), "::std::ops::Function");
+    assert_eq!(type_name_of_val(bar::foo), "::std::ops::Function");
+}
+
+#[test]
+fn test_struct() {
+    let x = X {};
+
+    assert_eq!(type_name_of_val(x), "X");
+    assert_eq!(type_name_of_val(X::ctor), "::std::ops::Function");
+    assert_eq!(type_name_of_val(X::foo), "::std::ops::Function");
+}
+
+#[test]
+fn test_enum() {
+    let ea = E::A { f: 1 };
+    let eb = E::B(2);
+    let ec = E::C;
+
+    assert_eq!(type_name_of_val(ea), "E");
+    assert_eq!(type_name_of_val(eb), "E");
+    assert_eq!(type_name_of_val(ec), "E");
+}

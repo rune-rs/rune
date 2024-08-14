@@ -31,6 +31,7 @@ enum Brace {
     No,
 }
 
+#[derive(Debug, Clone, Copy)]
 enum Binary {
     Yes,
     No,
@@ -38,11 +39,6 @@ enum Binary {
 
 #[derive(Debug, Clone, Copy)]
 enum Range {
-    Yes,
-    No,
-}
-
-enum InExpr {
     Yes,
     No,
 }
@@ -233,7 +229,7 @@ fn modifiers(p: &mut Parser<'_>) -> Result<Modifiers> {
                         }
                         K![in] => {
                             p.bump()?;
-                            path(p, InExpr::Yes)?;
+                            path(p, Binary::No)?;
                             ModifierIn
                         }
                         _ => Error,
@@ -440,7 +436,7 @@ fn item_impl(p: &mut Parser<'_>) -> Result<()> {
     p.bump()?;
 
     if matches!(p.peek()?, path_component!()) {
-        path(p, InExpr::No)?;
+        path(p, Binary::No)?;
     }
 
     block(p)?;
@@ -500,7 +496,7 @@ fn pat(p: &mut Parser<'_>) -> Result<()> {
         }
         path_component!() => {
             let c = p.checkpoint()?;
-            path(p, InExpr::No)?;
+            path(p, Binary::No)?;
 
             match p.peek()? {
                 K!['{'] => {
@@ -627,13 +623,13 @@ fn outer_expr_with(
     cx: &dyn ExprCx,
 ) -> Result<Kind> {
     let c = p.checkpoint()?;
-    let mut kind = expr_primary(p, brace, range, cx)?;
+    let mut kind = expr_primary(p, brace, range, binary, cx)?;
 
     if is_range(kind) {
         return Ok(kind);
     }
 
-    kind = expr_chain(p, &c, kind)?;
+    kind = expr_chain(p, &c, binary, kind)?;
 
     if p.peek()? == K![=] {
         p.bump()?;
@@ -670,7 +666,13 @@ fn labels(p: &mut Parser<'_>) -> Result<()> {
 }
 
 #[tracing::instrument(skip_all)]
-fn expr_primary(p: &mut Parser<'_>, brace: Brace, range: Range, cx: &dyn ExprCx) -> Result<Kind> {
+fn expr_primary(
+    p: &mut Parser<'_>,
+    brace: Brace,
+    range: Range,
+    binary: Binary,
+    cx: &dyn ExprCx,
+) -> Result<Kind> {
     let c = p.checkpoint()?;
 
     let kind = match p.peek()? {
@@ -679,7 +681,7 @@ fn expr_primary(p: &mut Parser<'_>, brace: Brace, range: Range, cx: &dyn ExprCx)
             ExprLit
         }
         path_component!() => {
-            path(p, InExpr::Yes)?;
+            path(p, binary)?;
 
             match p.peek()? {
                 K!['{'] if matches!(brace, Brace::Yes) => {
@@ -842,7 +844,7 @@ fn kind_is_callable(kind: Kind) -> bool {
 }
 
 #[tracing::instrument(skip_all)]
-fn expr_chain(p: &mut Parser<'_>, c: &Checkpoint, mut kind: Kind) -> Result<Kind> {
+fn expr_chain(p: &mut Parser<'_>, c: &Checkpoint, binary: Binary, mut kind: Kind) -> Result<Kind> {
     let mut before = p.checkpoint()?;
     let mut has_chain = false;
 
@@ -876,7 +878,7 @@ fn expr_chain(p: &mut Parser<'_>, c: &Checkpoint, mut kind: Kind) -> Result<Kind
                     }
                     // <expr>.field
                     path_component!() => {
-                        path(p, InExpr::No)?;
+                        path(p, binary)?;
                         ExprField
                     }
                     // <expr>.<number>
@@ -1115,32 +1117,31 @@ fn condition(p: &mut Parser<'_>) -> Result<()> {
 }
 
 #[tracing::instrument(skip_all)]
-fn path(p: &mut Parser<'_>, in_expr: InExpr) -> Result<()> {
+fn path(p: &mut Parser<'_>, binary: Binary) -> Result<()> {
     let c = p.checkpoint()?;
 
-    p.bump()?;
+    while matches!(p.peek()?, path_component!()) {
+        // Parse a generic path if we are not in a binary expression, or if we
+        // just parsed the prefix `::` of the turbofish syntax.
+        let has_generics = matches!(binary, Binary::No) || matches!(p.peek()?, K![::]);
 
-    loop {
-        // We can't parse generics in expressions, since they would be ambiguous
-        // with expressions such as `self::FOO< 10`.
-        if matches!(in_expr, InExpr::No) && matches!(p.glued(0)?, K![<]) {
+        p.bump()?;
+
+        // We can't parse generics in binary expressions, since they would be
+        // ambiguous with expressions such as `self::FOO< 10`.
+        while has_generics && matches!(p.peek()?, K![<]) {
             let c = p.checkpoint()?;
             p.bump()?;
 
             while matches!(p.peek()?, path_component!()) {
-                path(p, InExpr::No)?;
+                // Inner paths are unambiguous.
+                path(p, Binary::No)?;
                 p.bump_while(K![,])?;
             }
 
             p.bump_if(K![>])?;
             p.close_at(&c, PathGenerics)?;
         }
-
-        if !matches!(p.peek()?, path_component!()) {
-            break;
-        }
-
-        p.bump()?;
     }
 
     p.close_at(&c, Path)?;
