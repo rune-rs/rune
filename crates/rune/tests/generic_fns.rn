@@ -1,0 +1,56 @@
+#[test]
+fn test_collect_vec() {
+    use std::slice::Iter;
+
+    let it = [4, 3, 2, 1].iter();
+    let values = it.collect::<Vec>();
+    assert_eq!(values, [4, 3, 2, 1]);
+
+    let it = [4, 3, 2, 1].iter();
+    let values = Iter::collect::<Vec>(it);
+    assert_eq!(values, [4, 3, 2, 1]);
+
+    let it = [4, 3, 2, 1].iter();
+    let c = Iter::collect::<Vec>;
+    let values = c(it);
+    assert_eq!(values, [4, 3, 2, 1]);
+}
+
+#[test]
+fn test_collect_object() {
+    use std::slice::Iter;
+
+    let it = [("a", 4), ("b", 3), ("c", 2), ("d", 1)].iter();
+    let values = it.collect::<Object>();
+
+    let expected = #{ "a": 4, "b": 3, "c": 2, "d": 1 };
+
+    assert_eq!(values, expected);
+
+    let it = [("a", 4), ("b", 3), ("c", 2), ("d", 1)].iter();
+    let values = Iter::collect::<Object>(it);
+    let expected = #{ "a": 4, "b": 3, "c": 2, "d": 1 };
+    assert_eq!(values, expected);
+
+    let it = [("a", 4), ("b", 3), ("c", 2), ("d", 1)].iter();
+    let c = Iter::collect::<Object>;
+    let values = c(it);
+    let expected = #{ "a": 4, "b": 3, "c": 2, "d": 1 };
+    assert_eq!(values, expected);
+}
+
+#[test]
+fn test_sort() {
+    let values = [4, 3, 2, 1];
+    values.sort();
+    assert_eq!(values, [1, 2, 3, 4]);
+
+    let values = [4, 3, 2, 1];
+    Vec::sort(values);
+    assert_eq!(values, [1, 2, 3, 4]);
+
+    let values = [4, 3, 2, 1];
+    let f = Vec::sort;
+    f(values);
+    assert_eq!(values, [1, 2, 3, 4]);
+}
