@@ -10,10 +10,11 @@ use crate::compile::meta;
 use crate::compile::{ItemId, ItemMeta};
 use crate::runtime::Call;
 
-use self::indexer::ast_to_visibility;
+use self::indexer::{ast_to_visibility, validate_call};
 pub(crate) use self::indexer::{IndexItem, Indexer};
 pub(crate) use self::items::Items;
-pub(crate) use self::scopes::{Layer, Scopes};
+use self::scopes::Layer;
+pub(crate) use self::scopes::Scopes;
 
 #[derive(Debug, TryClone)]
 pub(crate) struct Entry {

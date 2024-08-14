@@ -10,13 +10,14 @@ use crate::compile::attrs;
 use crate::compile::{
     self, Doc, DynLocation, ErrorKind, ItemId, ItemMeta, ModId, Visibility, WithSpan,
 };
-use crate::indexing::{Items, Scopes};
 use crate::macros::MacroCompiler;
 use crate::parse::{Parse, Parser, Resolve};
 use crate::query::{BuiltInFile, BuiltInFormat, BuiltInLine, BuiltInMacro, BuiltInTemplate, Query};
-use crate::runtime::format;
+use crate::runtime::{format, Call};
 use crate::worker::{LoadFileKind, Task};
 use crate::SourceId;
+
+use super::{Items, Layer, Scopes};
 
 /// Macros are only allowed to expand recursively into other macros 64 times.
 const MAX_MACRO_RECURSION: usize = 64;
@@ -65,10 +66,10 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
     ) -> compile::Result<ItemMeta> {
         self.q.insert_new_item(
             &self.items,
-            &DynLocation::new(self.source_id, span),
             self.item.module,
-            visibility,
             self.item.impl_item,
+            &DynLocation::new(self.source_id, span),
+            visibility,
             docs,
         )
     }
@@ -541,4 +542,38 @@ pub(super) fn ast_to_visibility(vis: &ast::Visibility) -> compile::Result<Visibi
     };
 
     Err(compile::Error::new(span, ErrorKind::UnsupportedVisibility))
+}
+
+/// Construct the calling convention based on the parameters.
+pub(super) fn validate_call(
+    const_token: Option<T![const]>,
+    async_token: Option<T![async]>,
+    layer: &Layer,
+) -> compile::Result<Option<Call>> {
+    for span in &layer.awaits {
+        if const_token.is_some() {
+            return Err(compile::Error::new(span, ErrorKind::AwaitInConst));
+        }
+
+        if async_token.is_none() {
+            return Err(compile::Error::new(span, ErrorKind::AwaitOutsideAsync));
+        }
+    }
+
+    for span in &layer.yields {
+        if const_token.is_some() {
+            return Err(compile::Error::new(span, ErrorKind::YieldInConst));
+        }
+    }
+
+    if const_token.is_some() {
+        return Ok(None);
+    }
+
+    Ok(match (!layer.yields.is_empty(), async_token) {
+        (true, None) => Some(Call::Generator),
+        (false, None) => Some(Call::Immediate),
+        (true, Some(..)) => Some(Call::Stream),
+        (false, Some(..)) => Some(Call::Async),
+    })
 }
