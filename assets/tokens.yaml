@@ -394,7 +394,7 @@
   variant: Whitespace
   doc: whitespace.
 # after this point comes high-level tokens used in grammar
-- {kind: "syntax", variant: "Root", doc: "the root node of a parse tree"}
+- {kind: "syntax", variant: "Root", doc: "a syntax root"}
 - {kind: "syntax", variant: "Local", doc: "a variable declaration"}
 - {kind: "syntax", variant: "Item", doc: "an item declaration"}
 - {kind: "syntax", variant: "ItemEnum", doc: "an enum declaration"}
@@ -464,6 +464,7 @@
 - {kind: "syntax", variant: "ClosureArguments", doc: "closure arguments"}
 - {kind: "syntax", variant: "AnonymousObjectKey", doc: "an `#{` anonymous object key"}
 - {kind: "syntax", variant: "Attribute", doc: "an attribute"}
+- {kind: "syntax", variant: "InnerAttribute", doc: "an inner attribute"}
 - {kind: "syntax", variant: "Modifiers", doc: "item modifiers, like `pub const`"}
 - {kind: "syntax", variant: "ModifierCrate", doc: "the `(crate)` modifier"}
 - {kind: "syntax", variant: "ModifierIn", doc: "the `(in <path>)` modifier"}

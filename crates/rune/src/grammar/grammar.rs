@@ -120,6 +120,8 @@ fn stmt(p: &mut Parser<'_>) -> Result<()> {
         }
     }
 
+    inner_attributes(p)?;
+
     let c = p.checkpoint()?;
     attributes(p)?;
     let m = modifiers(p)?;
@@ -187,12 +189,30 @@ fn item_const(p: &mut Parser<'_>) -> Result<()> {
 }
 
 #[tracing::instrument(skip_all)]
-fn attributes(p: &mut Parser<'_>) -> Result<()> {
-    while matches!((p.peek()?, p.glued(1)?), (K![#], K![!]) | (K![#], K!['['])) {
+fn inner_attributes(p: &mut Parser<'_>) -> Result<()> {
+    while matches!((p.peek()?, p.glued(1)?), (K![#], K![!])) {
         let c = p.checkpoint()?;
 
         p.bump()?;
         p.bump_if(K![!])?;
+
+        if p.bump_if(K!['['])? {
+            token_stream(p, brackets)?;
+            p.bump()?;
+        }
+
+        p.close_at(&c, InnerAttribute)?;
+    }
+
+    Ok(())
+}
+
+#[tracing::instrument(skip_all)]
+fn attributes(p: &mut Parser<'_>) -> Result<()> {
+    while matches!((p.peek()?, p.glued(1)?), (K![#], K!['['])) {
+        let c = p.checkpoint()?;
+
+        p.bump()?;
 
         if p.bump_if(K!['['])? {
             token_stream(p, brackets)?;

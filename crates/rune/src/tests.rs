@@ -27,7 +27,6 @@ pub(crate) mod prelude {
     };
     pub(crate) use futures_executor::block_on;
 
-    pub(crate) use ::rust_alloc::borrow::ToOwned;
     pub(crate) use ::rust_alloc::boxed::Box;
     pub(crate) use ::rust_alloc::string::{String, ToString};
     pub(crate) use ::rust_alloc::sync::Arc;
