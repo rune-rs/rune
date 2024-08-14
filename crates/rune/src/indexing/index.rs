@@ -1247,11 +1247,8 @@ fn expr_field_access(
 ) -> compile::Result<()> {
     expr(idx, &mut ast.expr)?;
 
-    match &mut ast.expr_field {
-        ast::ExprField::Path(p) => {
-            path(idx, p)?;
-        }
-        ast::ExprField::LitNumber(..) => {}
+    if let ast::ExprField::Path(p) = &mut ast.expr_field {
+        path(idx, p)?;
     }
 
     Ok(())
@@ -1292,12 +1289,9 @@ fn expr_call(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprCall) -> compile::Res
 
 #[instrument_ast(span = ast)]
 fn expr_object(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprObject) -> compile::Result<()> {
-    match &mut ast.ident {
-        ast::ObjectIdent::Named(p) => {
-            // Not a variable use: Name of the object.
-            path(idx, p)?;
-        }
-        ast::ObjectIdent::Anonymous(..) => (),
+    if let ast::ObjectIdent::Named(p) = &mut ast.ident {
+        // Not a variable use: Name of the object.
+        path(idx, p)?;
     }
 
     for (assign, _) in &mut ast.assignments {
