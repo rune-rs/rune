@@ -135,9 +135,76 @@ fn modifiers<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     Ok(())
 }
 
-fn stmt<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<(Kind, bool)> {
-    let mut needs_semi = false;
+fn item<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
+    let attrs = attributes(fmt, p)?;
 
+    p.pump()?.parse(|p| {
+        if attrs.skip {
+            p.write_remaining(fmt)?;
+            return Ok(());
+        }
+
+        match p.kind() {
+            ItemStruct => {
+                if attrs.skip {
+                    p.write_remaining(fmt)?;
+                } else {
+                    modifiers(fmt, p)?;
+                    item_struct(fmt, p)?;
+                }
+            }
+            ItemEnum => {
+                if attrs.skip {
+                    p.write_remaining(fmt)?;
+                } else {
+                    modifiers(fmt, p)?;
+                    item_enum(fmt, p)?;
+                }
+            }
+            ItemFn => {
+                if attrs.skip {
+                    p.write_remaining(fmt)?;
+                } else {
+                    modifiers(fmt, p)?;
+                    item_fn(fmt, p)?;
+                }
+            }
+            ItemUse => {
+                if attrs.skip {
+                    p.write_remaining(fmt)?;
+                } else {
+                    modifiers(fmt, p)?;
+                    item_use(fmt, p)?;
+                }
+            }
+            ItemImpl => {
+                if attrs.skip {
+                    p.write_remaining(fmt)?;
+                } else {
+                    modifiers(fmt, p)?;
+                    item_impl(fmt, p)?;
+                }
+            }
+            ItemMod | ItemFileMod => {
+                if attrs.skip {
+                    p.write_remaining(fmt)?;
+                } else {
+                    modifiers(fmt, p)?;
+                    item_mod(fmt, p)?;
+                }
+            }
+            ItemConst => {
+                modifiers(fmt, p)?;
+                item_const(fmt, p)?;
+            }
+            _ => return Err(p.unsupported("item")),
+        }
+
+        Ok(())
+    })
+}
+
+fn stmt<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     match p.kind() {
         Local => {
             if attributes(fmt, p)?.skip {
@@ -146,70 +213,16 @@ fn stmt<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<(Kind, bool)>
                 modifiers(fmt, p)?;
                 local(fmt, p)?;
             }
-
-            needs_semi = true;
         }
-        ItemStruct => {
-            if attributes(fmt, p)?.skip {
-                p.write_remaining(fmt)?;
-            } else {
-                modifiers(fmt, p)?;
-                needs_semi = item_struct(fmt, p)?;
-            }
-        }
-        ItemEnum => {
-            if attributes(fmt, p)?.skip {
-                p.write_remaining(fmt)?;
-            } else {
-                modifiers(fmt, p)?;
-                item_enum(fmt, p)?;
-            }
-        }
-        ItemFn => {
-            if attributes(fmt, p)?.skip {
-                p.write_remaining(fmt)?;
-            } else {
-                modifiers(fmt, p)?;
-                item_fn(fmt, p)?;
-            }
-        }
-        ItemUse => {
-            if attributes(fmt, p)?.skip {
-                p.write_remaining(fmt)?;
-            } else {
-                modifiers(fmt, p)?;
-                item_use(fmt, p)?;
-            }
-        }
-        ItemImpl => {
-            if attributes(fmt, p)?.skip {
-                p.write_remaining(fmt)?;
-            } else {
-                modifiers(fmt, p)?;
-                item_impl(fmt, p)?;
-            }
-        }
-        ItemMod => {
-            if attributes(fmt, p)?.skip {
-                p.write_remaining(fmt)?;
-            } else {
-                modifiers(fmt, p)?;
-                needs_semi = item_mod(fmt, p)?;
-            }
-        }
-        ItemConst => {
-            attributes(fmt, p)?;
-            modifiers(fmt, p)?;
-            item_const(fmt, p)?;
-            needs_semi = true;
+        Item => {
+            item(fmt, p)?;
         }
         _ => {
-            let kind = expr(fmt, p)?;
-            return Ok((kind, false));
+            expr(fmt, p)?;
         }
     }
 
-    Ok((p.kind(), needs_semi))
+    Ok(())
 }
 
 fn local<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
@@ -1268,7 +1281,7 @@ fn condition<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     Ok(())
 }
 
-fn item_struct<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<bool> {
+fn item_struct<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     p.expect(K![struct])?.fmt(fmt)?;
 
     if matches!(p.peek(), K![ident]) {
@@ -1278,23 +1291,21 @@ fn item_struct<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<bool> 
 
     let body = p.pump()?;
 
-    let needs_semi = match body.kind() {
+    match body.kind() {
         StructBody => {
             fmt.ws()?;
             body.parse(|p| struct_body(fmt, p))?;
-            false
         }
         TupleBody => {
             body.parse(|p| tuple_body(fmt, p))?;
-            true
         }
-        EmptyBody => true,
+        EmptyBody => {}
         _ => {
             return Err(body.unsupported("struct declaration"));
         }
     };
 
-    Ok(needs_semi)
+    Ok(())
 }
 
 fn item_enum<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
@@ -1521,7 +1532,7 @@ fn item_impl<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     Ok(())
 }
 
-fn item_mod<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<bool> {
+fn item_mod<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     p.expect(K![mod])?.fmt(fmt)?;
     fmt.ws()?;
     p.pump()?.fmt(fmt)?;
@@ -1529,10 +1540,9 @@ fn item_mod<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<bool> {
     if let Some(node) = p.try_pump(Block)? {
         fmt.ws()?;
         node.parse(|p| block(fmt, p))?;
-        Ok(false)
-    } else {
-        Ok(true)
     }
+
+    Ok(())
 }
 
 fn item_const<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
@@ -1626,7 +1636,7 @@ fn block_content<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> 
 
     while !p.is_eof() {
         let node = p.pump()?;
-        let kind = kind_to_stmt_kind(node.kind());
+        let (needs_semi, kind) = node_to_kind(&node);
 
         if !matches!(last_kind, StmtKind::None) {
             let n = match last_kind {
@@ -1641,8 +1651,7 @@ fn block_content<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> 
 
         fmt.comments(Line)?;
 
-        let (kind, needs_semi) = node.parse(|p| stmt(fmt, p))?;
-        let kind = kind_to_stmt_kind(kind);
+        node.parse(|p| stmt(fmt, p))?;
 
         let trailing_semi = p.remaining(fmt, K![;])?;
 
@@ -1657,21 +1666,40 @@ fn block_content<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> 
     Ok(())
 }
 
-fn kind_to_stmt_kind(kind: Kind) -> StmtKind {
-    match kind {
-        Local => StmtKind::Local,
-        ItemConst => StmtKind::Const,
-        ItemStruct => StmtKind::Item,
-        ItemEnum => StmtKind::Item,
-        ItemFn => StmtKind::Item,
-        ItemImpl => StmtKind::Item,
-        ItemMod => StmtKind::Item,
-        ExprIf => StmtKind::Item,
-        ExprFor => StmtKind::Item,
-        ExprWhile => StmtKind::Item,
-        ExprLoop => StmtKind::Item,
-        ExprMatch => StmtKind::Item,
-        ExprSelect => StmtKind::Item,
-        _ => StmtKind::Expr,
+fn node_to_kind(node: &Node<'_>) -> (bool, StmtKind) {
+    match node.kind() {
+        Local => return (true, StmtKind::Local),
+        Item => {
+            for child in node.children() {
+                match child.kind() {
+                    ItemConst => return (true, StmtKind::Const),
+                    ItemStruct => {
+                        let needs_semi = child
+                            .children()
+                            .any(|n| matches!(n.kind(), TupleBody | EmptyBody));
+                        return (needs_semi, StmtKind::Item);
+                    }
+                    ItemEnum => return (false, StmtKind::Item),
+                    ItemFn => return (false, StmtKind::Item),
+                    ItemImpl => return (false, StmtKind::Item),
+                    ItemMod => return (false, StmtKind::Item),
+                    ItemFileMod => return (true, StmtKind::Item),
+                    _ => {}
+                }
+            }
+        }
+        Expr => {
+            if node.last().map_or(false, |n| {
+                matches!(
+                    n.kind(),
+                    ExprIf | ExprFor | ExprWhile | ExprLoop | ExprMatch | ExprSelect
+                )
+            }) {
+                return (false, StmtKind::Item);
+            }
+        }
+        _ => {}
     }
+
+    (false, StmtKind::Expr)
 }

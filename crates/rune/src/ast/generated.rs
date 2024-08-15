@@ -5698,6 +5698,8 @@ pub enum Kind {
     ItemImpl,
     /// an module declaration
     ItemMod,
+    /// a file module declaration
+    ItemFileMod,
     /// a use import
     ItemUse,
     /// a nested use path
@@ -6152,6 +6154,7 @@ impl parse::IntoExpectation for Kind {
             Self::ItemFn => parse::Expectation::Syntax("a function declaration"),
             Self::ItemImpl => parse::Expectation::Syntax("an impl"),
             Self::ItemMod => parse::Expectation::Syntax("an module declaration"),
+            Self::ItemFileMod => parse::Expectation::Syntax("a file module declaration"),
             Self::ItemUse => parse::Expectation::Syntax("a use import"),
             Self::ItemUsePath => parse::Expectation::Syntax("a nested use path"),
             Self::ItemUseGroup => parse::Expectation::Syntax("a nested use group"),

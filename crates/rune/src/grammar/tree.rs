@@ -369,6 +369,16 @@ impl<'a> Node<'a> {
         Self { inner }
     }
 
+    /// Get the last node.
+    pub(crate) fn last(&self) -> Option<Node<'a>> {
+        self.inner.last().map(Node::new)
+    }
+
+    /// Iterate over the children of the node.
+    pub(crate) fn children(&self) -> impl Iterator<Item = Node<'a>> + '_ {
+        self.inner.children().map(Node::new)
+    }
+
     pub(crate) fn unsupported(&self, what: &'static str) -> Error {
         Error::new(
             self.span(),
