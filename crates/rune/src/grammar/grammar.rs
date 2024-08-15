@@ -124,6 +124,8 @@ fn stmt(p: &mut Parser<'_>) -> Result<()> {
 
     let c = p.checkpoint()?;
     attributes(p)?;
+
+    let inner_c = p.checkpoint()?;
     let m = modifiers(p)?;
 
     let cx = StmtCx;
@@ -135,31 +137,42 @@ fn stmt(p: &mut Parser<'_>) -> Result<()> {
         }
         K![use] => {
             item_use(p)?;
-            ItemUse
+            p.close_at(&inner_c, ItemUse)?;
+            Item
         }
         K![struct] => {
             item_struct(p)?;
-            ItemStruct
+            p.close_at(&inner_c, ItemStruct)?;
+            Item
         }
         K![enum] => {
             item_enum(p)?;
-            ItemEnum
+            p.close_at(&inner_c, ItemEnum)?;
+            Item
         }
         K![fn] => {
             item_fn(p)?;
-            ItemFn
+            p.close_at(&inner_c, ItemFn)?;
+            Item
         }
         K![impl] => {
             item_impl(p)?;
-            ItemImpl
+            p.close_at(&inner_c, ItemImpl)?;
+            Item
         }
         K![mod] => {
-            item_mod(p)?;
-            ItemMod
+            if item_mod(p)? {
+                p.close_at(&inner_c, ItemMod)?;
+            } else {
+                p.close_at(&inner_c, ItemFileMod)?;
+            }
+
+            Item
         }
         K![ident] if m.is_const => {
             item_const(p)?;
-            ItemConst
+            p.close_at(&inner_c, ItemConst)?;
+            Item
         }
         _ => {
             labels(p)?;
@@ -464,7 +477,7 @@ fn item_impl(p: &mut Parser<'_>) -> Result<()> {
 }
 
 #[tracing::instrument(skip_all)]
-fn item_mod(p: &mut Parser<'_>) -> Result<()> {
+fn item_mod(p: &mut Parser<'_>) -> Result<bool> {
     p.bump()?;
 
     if matches!(p.peek()?, K![ident]) {
@@ -473,9 +486,10 @@ fn item_mod(p: &mut Parser<'_>) -> Result<()> {
 
     if matches!(p.peek()?, K!['{']) {
         block(p)?;
+        Ok(true)
+    } else {
+        Ok(false)
     }
-
-    Ok(())
 }
 
 #[tracing::instrument(skip_all)]

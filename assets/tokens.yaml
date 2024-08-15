@@ -403,6 +403,7 @@
 - {kind: "syntax", variant: "ItemFn", doc: "a function declaration"}
 - {kind: "syntax", variant: "ItemImpl", doc: "an impl"}
 - {kind: "syntax", variant: "ItemMod", doc: "an module declaration"}
+- {kind: "syntax", variant: "ItemFileMod", doc: "a file module declaration"}
 - {kind: "syntax", variant: "ItemUse", doc: "a use import"}
 - {kind: "syntax", variant: "ItemUsePath", doc: "a nested use path"}
 - {kind: "syntax", variant: "ItemUseGroup", doc: "a nested use group"}
