@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1723597815164,
+  "lastUpdate": 1723684027802,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -27725,6 +27725,106 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 361,
             "range": "± 2",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "committer": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "id": "67446ee9d003fec4df7792e4c4a2fb1febf5fdac",
+          "message": "Update lexing and parsing",
+          "timestamp": "2024-08-14T11:56:40Z",
+          "url": "https://github.com/rune-rs/rune/commit/67446ee9d003fec4df7792e4c4a2fb1febf5fdac"
+        },
+        "date": 1723684026522,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "primes/rhai",
+            "value": 11295233,
+            "range": "± 70941",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "primes/rune",
+            "value": 4640539,
+            "range": "± 14286",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 182523,
+            "range": "± 21787",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 930896,
+            "range": "± 3762",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 242497789,
+            "range": "± 1673598",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 226985914,
+            "range": "± 679910",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 579689,
+            "range": "± 3437",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 6415175,
+            "range": "± 66568",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 37091518,
+            "range": "± 424460",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 5424009,
+            "range": "± 90953",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 223900,
+            "range": "± 4054",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 2538006,
+            "range": "± 9858",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 343,
+            "range": "± 5",
             "unit": "ns/iter"
           }
         ]
