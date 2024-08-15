@@ -232,7 +232,7 @@ fn local<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     fmt.ws()?;
     p.one(K![=])?.fmt(fmt)?;
     fmt.ws()?;
-    p.pump()?.parse(|p| expr(fmt, p))?;
+    p.expect(Expr)?.parse(|p| expr(fmt, p))?;
     Ok(())
 }
 
@@ -553,25 +553,26 @@ fn expr_discard<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
 }
 
 fn expr<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<Kind> {
+    let mut attrs = Attrs::default();
+
+    while let Some(attr) = p.try_pump(Attribute)? {
+        attrs.skip |= is_runefmt_skip(fmt, attr.clone());
+        attr.fmt(fmt)?;
+        fmt.ws()?;
+    }
+
+    if attrs.skip {
+        p.write_remaining(fmt)?;
+        Ok(Expr)
+    } else {
+        modifiers(fmt, p)?;
+        expr_labels(fmt, p)?;
+        p.pump()?.parse(|p| inner_expr(fmt, p))
+    }
+}
+
+fn inner_expr<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<Kind> {
     match p.kind() {
-        Expr => {
-            let mut attrs = Attrs::default();
-
-            while let Some(attr) = p.try_pump(Attribute)? {
-                attrs.skip |= is_runefmt_skip(fmt, attr.clone());
-                attr.fmt(fmt)?;
-                fmt.ws()?;
-            }
-
-            if attrs.skip {
-                p.write_remaining(fmt)?;
-                return Ok(Expr);
-            } else {
-                modifiers(fmt, p)?;
-                expr_labels(fmt, p)?;
-                return p.pump()?.parse(|p| expr(fmt, p));
-            }
-        }
         ExprMacroCall => {
             p.expect(Path)?.parse(|p| path(fmt, p))?;
             p.expect(K![!])?.fmt(fmt)?;
@@ -663,17 +664,17 @@ fn expr<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<Kind> {
             p.pump()?.fmt(fmt)?;
         }
         ExprRangeFrom => {
-            p.pump()?.parse(|p| expr(fmt, p))?;
+            p.pump()?.parse(|p| inner_expr(fmt, p))?;
             p.pump()?.fmt(fmt)?;
         }
         ExprRangeTo | ExprRangeToInclusive => {
             p.pump()?.fmt(fmt)?;
-            p.pump()?.parse(|p| expr(fmt, p))?;
+            p.pump()?.parse(|p| inner_expr(fmt, p))?;
         }
         ExprRange | ExprRangeInclusive => {
-            p.pump()?.parse(|p| expr(fmt, p))?;
+            p.pump()?.parse(|p| inner_expr(fmt, p))?;
             p.pump()?.fmt(fmt)?;
-            p.pump()?.parse(|p| expr(fmt, p))?;
+            p.pump()?.parse(|p| inner_expr(fmt, p))?;
         }
         ExprClosure => {
             expr_closure(fmt, p)?;
@@ -685,11 +686,11 @@ fn expr<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<Kind> {
             if fmt.options.error_recovery {
                 p.fmt_remaining_trimmed(fmt)?;
             } else {
-                return Err(p.unsupported("expression"));
+                return Err(p.unsupported("inner expression"));
             }
         }
         _ => {
-            return Err(p.unsupported("expression"));
+            return Err(p.unsupported("inner expression"));
         }
     }
 
@@ -782,11 +783,11 @@ fn compact_expr_macro_call<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> R
 }
 
 fn expr_assign<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
-    p.pump()?.parse(|p| expr(fmt, p))?;
+    p.pump()?.parse(|p| inner_expr(fmt, p))?;
     fmt.ws()?;
     p.expect(K![=])?.fmt(fmt)?;
     fmt.ws()?;
-    p.pump()?.parse(|p| expr(fmt, p))?;
+    p.expect(Expr)?.parse(|p| expr(fmt, p))?;
     Ok(())
 }
 
@@ -860,13 +861,13 @@ fn exprs_compact<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> 
 }
 
 fn expr_binary<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
-    p.pump()?.parse(|p| expr(fmt, p))?;
+    p.pump()?.parse(|p| inner_expr(fmt, p))?;
 
     while let Some(op) = p.try_pump(ExprOperator)? {
         fmt.ws()?;
         op.fmt(fmt)?;
         fmt.ws()?;
-        p.pump()?.parse(|p| expr(fmt, p))?;
+        p.pump()?.parse(|p| inner_expr(fmt, p))?;
     }
 
     Ok(())
@@ -874,7 +875,7 @@ fn expr_binary<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
 
 fn expr_unary<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     p.pump()?.fmt(fmt)?;
-    p.pump()?.parse(|p| expr(fmt, p))?;
+    p.pump()?.parse(|p| inner_expr(fmt, p))?;
     Ok(())
 }
 
@@ -1162,7 +1163,7 @@ fn expr_chain<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     // that need indentation in the chain, we can keep it all on one line.
     let head = p.pump()?.parse(|p| {
         let first = p.span();
-        expr(fmt, p)?;
+        inner_expr(fmt, p)?;
         Ok(first)
     })?;
 
@@ -1264,7 +1265,7 @@ fn condition_or_expr<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<
     if let Some(c) = p.try_pump(Condition)? {
         c.parse(|p| condition(fmt, p))?;
     } else {
-        p.pump()?.parse(|p| expr(fmt, p))?;
+        p.expect(Expr)?.parse(|p| expr(fmt, p))?;
     }
 
     Ok(())
@@ -1277,7 +1278,7 @@ fn condition<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     fmt.ws()?;
     p.expect(K![=])?.fmt(fmt)?;
     fmt.ws()?;
-    p.pump()?.parse(|p| expr(fmt, p))?;
+    p.expect(Expr)?.parse(|p| expr(fmt, p))?;
     Ok(())
 }
 

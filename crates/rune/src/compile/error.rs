@@ -1127,7 +1127,7 @@ impl fmt::Display for ErrorKind {
             }
             #[cfg(feature = "fmt")]
             ErrorKind::UnexpectedEndOfSyntax { inside } => {
-                write!(f, "Unexpected end of syntax while parsing {inside:?}")?;
+                write!(f, "Unexpected end of syntax while parsing {inside}")?;
             }
             #[cfg(feature = "fmt")]
             ErrorKind::ExpectedSyntaxEnd { inside, actual } => {
