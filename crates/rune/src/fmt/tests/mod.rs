@@ -309,8 +309,8 @@ fn patterns() {
         "let ::a::b::c = ::a::b::c;"
     );
     assert_format!(
-        "let ::a   ::b<::b, ::c    ::d>::c = 42;",
-        "let ::a::b<::b, ::c::d>::c = 42;"
+        "let ::a   ::b::<::b, ::c    ::d>::c = 42;",
+        "let ::a::b::<::b, ::c::d>::c = 42;"
     );
     assert_format!(
         "for _ in 121/10..=1*2-100{}",
@@ -583,6 +583,13 @@ fn expressions() {
         let _ = async {
             a + b
         };
+        "#
+    );
+
+    assert_format!(
+        r#"
+        if values - current_joltage < 4 {
+        }
         "#
     );
 }
