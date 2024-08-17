@@ -19,14 +19,33 @@ pub struct Abstract {
 }
 
 impl ast::Spanned for Abstract {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Abstract {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Abstract {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Abstract => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Abstract,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("abstract")
     }
 }
 
@@ -42,6 +61,7 @@ impl parse::Parse for Abstract {
 }
 
 impl parse::Peek for Abstract {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Abstract)
     }
@@ -70,14 +90,33 @@ pub struct AlignOf {
 }
 
 impl ast::Spanned for AlignOf {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for AlignOf {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for AlignOf {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::AlignOf => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::AlignOf,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("alignof")
     }
 }
 
@@ -93,6 +132,7 @@ impl parse::Parse for AlignOf {
 }
 
 impl parse::Peek for AlignOf {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::AlignOf)
     }
@@ -121,14 +161,33 @@ pub struct Amp {
 }
 
 impl ast::Spanned for Amp {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Amp {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Amp {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Amp => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Amp,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("&")
     }
 }
 
@@ -144,6 +203,7 @@ impl parse::Parse for Amp {
 }
 
 impl parse::Peek for Amp {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Amp)
     }
@@ -172,14 +232,33 @@ pub struct AmpAmp {
 }
 
 impl ast::Spanned for AmpAmp {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for AmpAmp {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for AmpAmp {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::AmpAmp => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::AmpAmp,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("&&")
     }
 }
 
@@ -195,6 +274,7 @@ impl parse::Parse for AmpAmp {
 }
 
 impl parse::Peek for AmpAmp {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::AmpAmp)
     }
@@ -223,14 +303,33 @@ pub struct AmpEq {
 }
 
 impl ast::Spanned for AmpEq {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for AmpEq {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for AmpEq {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::AmpEq => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::AmpEq,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("&=")
     }
 }
 
@@ -246,6 +345,7 @@ impl parse::Parse for AmpEq {
 }
 
 impl parse::Peek for AmpEq {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::AmpEq)
     }
@@ -274,14 +374,33 @@ pub struct Arrow {
 }
 
 impl ast::Spanned for Arrow {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Arrow {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Arrow {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Arrow => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Arrow,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("->")
     }
 }
 
@@ -297,6 +416,7 @@ impl parse::Parse for Arrow {
 }
 
 impl parse::Peek for Arrow {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Arrow)
     }
@@ -325,14 +445,33 @@ pub struct As {
 }
 
 impl ast::Spanned for As {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for As {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for As {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::As => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::As,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("as")
     }
 }
 
@@ -348,6 +487,7 @@ impl parse::Parse for As {
 }
 
 impl parse::Peek for As {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::As)
     }
@@ -376,14 +516,33 @@ pub struct Async {
 }
 
 impl ast::Spanned for Async {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Async {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Async {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Async => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Async,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("async")
     }
 }
 
@@ -399,6 +558,7 @@ impl parse::Parse for Async {
 }
 
 impl parse::Peek for Async {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Async)
     }
@@ -427,14 +587,33 @@ pub struct At {
 }
 
 impl ast::Spanned for At {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for At {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for At {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::At => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::At,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("@")
     }
 }
 
@@ -450,6 +629,7 @@ impl parse::Parse for At {
 }
 
 impl parse::Peek for At {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::At)
     }
@@ -478,14 +658,33 @@ pub struct Await {
 }
 
 impl ast::Spanned for Await {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Await {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Await {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Await => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Await,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("await")
     }
 }
 
@@ -501,6 +700,7 @@ impl parse::Parse for Await {
 }
 
 impl parse::Peek for Await {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Await)
     }
@@ -529,14 +729,33 @@ pub struct Bang {
 }
 
 impl ast::Spanned for Bang {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Bang {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Bang {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Bang => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Bang,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("!")
     }
 }
 
@@ -552,6 +771,7 @@ impl parse::Parse for Bang {
 }
 
 impl parse::Peek for Bang {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Bang)
     }
@@ -580,14 +800,33 @@ pub struct BangEq {
 }
 
 impl ast::Spanned for BangEq {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for BangEq {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for BangEq {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::BangEq => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::BangEq,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("!=")
     }
 }
 
@@ -603,6 +842,7 @@ impl parse::Parse for BangEq {
 }
 
 impl parse::Peek for BangEq {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::BangEq)
     }
@@ -631,14 +871,33 @@ pub struct Become {
 }
 
 impl ast::Spanned for Become {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Become {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Become {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Become => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Become,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("become")
     }
 }
 
@@ -654,6 +913,7 @@ impl parse::Parse for Become {
 }
 
 impl parse::Peek for Become {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Become)
     }
@@ -682,14 +942,33 @@ pub struct Break {
 }
 
 impl ast::Spanned for Break {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Break {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Break {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Break => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Break,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("break")
     }
 }
 
@@ -705,6 +984,7 @@ impl parse::Parse for Break {
 }
 
 impl parse::Peek for Break {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Break)
     }
@@ -733,14 +1013,33 @@ pub struct Caret {
 }
 
 impl ast::Spanned for Caret {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Caret {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Caret {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Caret => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Caret,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("^")
     }
 }
 
@@ -756,6 +1055,7 @@ impl parse::Parse for Caret {
 }
 
 impl parse::Peek for Caret {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Caret)
     }
@@ -784,14 +1084,33 @@ pub struct CaretEq {
 }
 
 impl ast::Spanned for CaretEq {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for CaretEq {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for CaretEq {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::CaretEq => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::CaretEq,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("^=")
     }
 }
 
@@ -807,6 +1126,7 @@ impl parse::Parse for CaretEq {
 }
 
 impl parse::Peek for CaretEq {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::CaretEq)
     }
@@ -835,14 +1155,33 @@ pub struct Colon {
 }
 
 impl ast::Spanned for Colon {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Colon {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Colon {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Colon => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Colon,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation(":")
     }
 }
 
@@ -858,6 +1197,7 @@ impl parse::Parse for Colon {
 }
 
 impl parse::Peek for Colon {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Colon)
     }
@@ -886,14 +1226,33 @@ pub struct ColonColon {
 }
 
 impl ast::Spanned for ColonColon {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for ColonColon {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for ColonColon {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::ColonColon => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::ColonColon,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("::")
     }
 }
 
@@ -909,6 +1268,7 @@ impl parse::Parse for ColonColon {
 }
 
 impl parse::Peek for ColonColon {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::ColonColon)
     }
@@ -937,14 +1297,33 @@ pub struct Comma {
 }
 
 impl ast::Spanned for Comma {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Comma {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Comma {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Comma => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Comma,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation(",")
     }
 }
 
@@ -960,6 +1339,7 @@ impl parse::Parse for Comma {
 }
 
 impl parse::Peek for Comma {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Comma)
     }
@@ -988,14 +1368,33 @@ pub struct Const {
 }
 
 impl ast::Spanned for Const {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Const {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Const {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Const => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Const,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("const")
     }
 }
 
@@ -1011,6 +1410,7 @@ impl parse::Parse for Const {
 }
 
 impl parse::Peek for Const {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Const)
     }
@@ -1039,14 +1439,33 @@ pub struct Continue {
 }
 
 impl ast::Spanned for Continue {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Continue {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Continue {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Continue => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Continue,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("continue")
     }
 }
 
@@ -1062,6 +1481,7 @@ impl parse::Parse for Continue {
 }
 
 impl parse::Peek for Continue {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Continue)
     }
@@ -1090,14 +1510,33 @@ pub struct Crate {
 }
 
 impl ast::Spanned for Crate {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Crate {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Crate {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Crate => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Crate,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("crate")
     }
 }
 
@@ -1113,6 +1552,7 @@ impl parse::Parse for Crate {
 }
 
 impl parse::Peek for Crate {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Crate)
     }
@@ -1141,14 +1581,33 @@ pub struct Dash {
 }
 
 impl ast::Spanned for Dash {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Dash {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Dash {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Dash => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Dash,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("-")
     }
 }
 
@@ -1164,6 +1623,7 @@ impl parse::Parse for Dash {
 }
 
 impl parse::Peek for Dash {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Dash)
     }
@@ -1192,14 +1652,33 @@ pub struct DashEq {
 }
 
 impl ast::Spanned for DashEq {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for DashEq {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for DashEq {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::DashEq => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::DashEq,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("-=")
     }
 }
 
@@ -1215,6 +1694,7 @@ impl parse::Parse for DashEq {
 }
 
 impl parse::Peek for DashEq {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::DashEq)
     }
@@ -1243,14 +1723,33 @@ pub struct Default {
 }
 
 impl ast::Spanned for Default {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Default {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Default {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Default => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Default,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("default")
     }
 }
 
@@ -1266,6 +1765,7 @@ impl parse::Parse for Default {
 }
 
 impl parse::Peek for Default {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Default)
     }
@@ -1294,14 +1794,33 @@ pub struct Div {
 }
 
 impl ast::Spanned for Div {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Div {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Div {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Div => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Div,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("/")
     }
 }
 
@@ -1317,6 +1836,7 @@ impl parse::Parse for Div {
 }
 
 impl parse::Peek for Div {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Div)
     }
@@ -1345,14 +1865,33 @@ pub struct Do {
 }
 
 impl ast::Spanned for Do {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Do {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Do {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Do => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Do,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("do")
     }
 }
 
@@ -1368,6 +1907,7 @@ impl parse::Parse for Do {
 }
 
 impl parse::Peek for Do {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Do)
     }
@@ -1396,14 +1936,33 @@ pub struct Dollar {
 }
 
 impl ast::Spanned for Dollar {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Dollar {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Dollar {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Dollar => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Dollar,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("$")
     }
 }
 
@@ -1419,6 +1978,7 @@ impl parse::Parse for Dollar {
 }
 
 impl parse::Peek for Dollar {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Dollar)
     }
@@ -1447,14 +2007,33 @@ pub struct Dot {
 }
 
 impl ast::Spanned for Dot {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Dot {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Dot {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Dot => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Dot,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation(".")
     }
 }
 
@@ -1470,6 +2049,7 @@ impl parse::Parse for Dot {
 }
 
 impl parse::Peek for Dot {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Dot)
     }
@@ -1498,14 +2078,33 @@ pub struct DotDot {
 }
 
 impl ast::Spanned for DotDot {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for DotDot {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for DotDot {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::DotDot => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::DotDot,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("..")
     }
 }
 
@@ -1521,6 +2120,7 @@ impl parse::Parse for DotDot {
 }
 
 impl parse::Peek for DotDot {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::DotDot)
     }
@@ -1549,14 +2149,33 @@ pub struct DotDotEq {
 }
 
 impl ast::Spanned for DotDotEq {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for DotDotEq {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for DotDotEq {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::DotDotEq => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::DotDotEq,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("..=")
     }
 }
 
@@ -1572,6 +2191,7 @@ impl parse::Parse for DotDotEq {
 }
 
 impl parse::Peek for DotDotEq {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::DotDotEq)
     }
@@ -1600,14 +2220,33 @@ pub struct Else {
 }
 
 impl ast::Spanned for Else {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Else {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Else {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Else => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Else,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("else")
     }
 }
 
@@ -1623,6 +2262,7 @@ impl parse::Parse for Else {
 }
 
 impl parse::Peek for Else {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Else)
     }
@@ -1651,14 +2291,33 @@ pub struct Enum {
 }
 
 impl ast::Spanned for Enum {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Enum {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Enum {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Enum => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Enum,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("enum")
     }
 }
 
@@ -1674,6 +2333,7 @@ impl parse::Parse for Enum {
 }
 
 impl parse::Peek for Enum {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Enum)
     }
@@ -1702,14 +2362,33 @@ pub struct Eq {
 }
 
 impl ast::Spanned for Eq {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Eq {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Eq {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Eq => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Eq,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("=")
     }
 }
 
@@ -1725,6 +2404,7 @@ impl parse::Parse for Eq {
 }
 
 impl parse::Peek for Eq {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Eq)
     }
@@ -1753,14 +2433,33 @@ pub struct EqEq {
 }
 
 impl ast::Spanned for EqEq {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for EqEq {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for EqEq {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::EqEq => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::EqEq,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("==")
     }
 }
 
@@ -1776,6 +2475,7 @@ impl parse::Parse for EqEq {
 }
 
 impl parse::Peek for EqEq {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::EqEq)
     }
@@ -1804,14 +2504,33 @@ pub struct Extern {
 }
 
 impl ast::Spanned for Extern {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Extern {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Extern {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Extern => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Extern,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("extern")
     }
 }
 
@@ -1827,6 +2546,7 @@ impl parse::Parse for Extern {
 }
 
 impl parse::Peek for Extern {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Extern)
     }
@@ -1855,14 +2575,33 @@ pub struct False {
 }
 
 impl ast::Spanned for False {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for False {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for False {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::False => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::False,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("false")
     }
 }
 
@@ -1878,6 +2617,7 @@ impl parse::Parse for False {
 }
 
 impl parse::Peek for False {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::False)
     }
@@ -1906,14 +2646,33 @@ pub struct Final {
 }
 
 impl ast::Spanned for Final {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Final {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Final {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Final => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Final,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("final")
     }
 }
 
@@ -1929,6 +2688,7 @@ impl parse::Parse for Final {
 }
 
 impl parse::Peek for Final {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Final)
     }
@@ -1957,14 +2717,33 @@ pub struct Fn {
 }
 
 impl ast::Spanned for Fn {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Fn {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Fn {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Fn => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Fn,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("fn")
     }
 }
 
@@ -1980,6 +2759,7 @@ impl parse::Parse for Fn {
 }
 
 impl parse::Peek for Fn {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Fn)
     }
@@ -2008,14 +2788,33 @@ pub struct For {
 }
 
 impl ast::Spanned for For {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for For {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for For {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::For => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::For,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("for")
     }
 }
 
@@ -2031,6 +2830,7 @@ impl parse::Parse for For {
 }
 
 impl parse::Peek for For {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::For)
     }
@@ -2059,14 +2859,33 @@ pub struct Gt {
 }
 
 impl ast::Spanned for Gt {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Gt {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Gt {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Gt => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Gt,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation(">")
     }
 }
 
@@ -2082,6 +2901,7 @@ impl parse::Parse for Gt {
 }
 
 impl parse::Peek for Gt {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Gt)
     }
@@ -2110,14 +2930,33 @@ pub struct GtEq {
 }
 
 impl ast::Spanned for GtEq {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for GtEq {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for GtEq {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::GtEq => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::GtEq,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation(">=")
     }
 }
 
@@ -2133,6 +2972,7 @@ impl parse::Parse for GtEq {
 }
 
 impl parse::Peek for GtEq {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::GtEq)
     }
@@ -2161,14 +3001,33 @@ pub struct GtGt {
 }
 
 impl ast::Spanned for GtGt {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for GtGt {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for GtGt {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::GtGt => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::GtGt,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation(">>")
     }
 }
 
@@ -2184,6 +3043,7 @@ impl parse::Parse for GtGt {
 }
 
 impl parse::Peek for GtGt {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::GtGt)
     }
@@ -2212,14 +3072,33 @@ pub struct GtGtEq {
 }
 
 impl ast::Spanned for GtGtEq {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for GtGtEq {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for GtGtEq {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::GtGtEq => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::GtGtEq,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation(">>=")
     }
 }
 
@@ -2235,6 +3114,7 @@ impl parse::Parse for GtGtEq {
 }
 
 impl parse::Peek for GtGtEq {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::GtGtEq)
     }
@@ -2263,14 +3143,33 @@ pub struct If {
 }
 
 impl ast::Spanned for If {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for If {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for If {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::If => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::If,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("if")
     }
 }
 
@@ -2286,6 +3185,7 @@ impl parse::Parse for If {
 }
 
 impl parse::Peek for If {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::If)
     }
@@ -2314,14 +3214,33 @@ pub struct Impl {
 }
 
 impl ast::Spanned for Impl {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Impl {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Impl {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Impl => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Impl,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("impl")
     }
 }
 
@@ -2337,6 +3256,7 @@ impl parse::Parse for Impl {
 }
 
 impl parse::Peek for Impl {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Impl)
     }
@@ -2365,14 +3285,33 @@ pub struct In {
 }
 
 impl ast::Spanned for In {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for In {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for In {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::In => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::In,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("in")
     }
 }
 
@@ -2388,6 +3327,7 @@ impl parse::Parse for In {
 }
 
 impl parse::Peek for In {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::In)
     }
@@ -2416,14 +3356,33 @@ pub struct Is {
 }
 
 impl ast::Spanned for Is {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Is {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Is {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Is => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Is,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("is")
     }
 }
 
@@ -2439,6 +3398,7 @@ impl parse::Parse for Is {
 }
 
 impl parse::Peek for Is {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Is)
     }
@@ -2467,14 +3427,33 @@ pub struct Let {
 }
 
 impl ast::Spanned for Let {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Let {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Let {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Let => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Let,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("let")
     }
 }
 
@@ -2490,6 +3469,7 @@ impl parse::Parse for Let {
 }
 
 impl parse::Peek for Let {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Let)
     }
@@ -2518,14 +3498,33 @@ pub struct Loop {
 }
 
 impl ast::Spanned for Loop {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Loop {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Loop {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Loop => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Loop,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("loop")
     }
 }
 
@@ -2541,6 +3540,7 @@ impl parse::Parse for Loop {
 }
 
 impl parse::Peek for Loop {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Loop)
     }
@@ -2569,14 +3569,33 @@ pub struct Lt {
 }
 
 impl ast::Spanned for Lt {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Lt {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Lt {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Lt => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Lt,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("<")
     }
 }
 
@@ -2592,6 +3611,7 @@ impl parse::Parse for Lt {
 }
 
 impl parse::Peek for Lt {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Lt)
     }
@@ -2620,14 +3640,33 @@ pub struct LtEq {
 }
 
 impl ast::Spanned for LtEq {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for LtEq {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for LtEq {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::LtEq => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::LtEq,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("<=")
     }
 }
 
@@ -2643,6 +3682,7 @@ impl parse::Parse for LtEq {
 }
 
 impl parse::Peek for LtEq {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::LtEq)
     }
@@ -2671,14 +3711,33 @@ pub struct LtLt {
 }
 
 impl ast::Spanned for LtLt {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for LtLt {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for LtLt {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::LtLt => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::LtLt,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("<<")
     }
 }
 
@@ -2694,6 +3753,7 @@ impl parse::Parse for LtLt {
 }
 
 impl parse::Peek for LtLt {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::LtLt)
     }
@@ -2722,14 +3782,33 @@ pub struct LtLtEq {
 }
 
 impl ast::Spanned for LtLtEq {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for LtLtEq {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for LtLtEq {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::LtLtEq => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::LtLtEq,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("<<=")
     }
 }
 
@@ -2745,6 +3824,7 @@ impl parse::Parse for LtLtEq {
 }
 
 impl parse::Peek for LtLtEq {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::LtLtEq)
     }
@@ -2773,14 +3853,33 @@ pub struct Macro {
 }
 
 impl ast::Spanned for Macro {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Macro {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Macro {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Macro => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Macro,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("macro")
     }
 }
 
@@ -2796,6 +3895,7 @@ impl parse::Parse for Macro {
 }
 
 impl parse::Peek for Macro {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Macro)
     }
@@ -2824,14 +3924,33 @@ pub struct Match {
 }
 
 impl ast::Spanned for Match {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Match {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Match {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Match => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Match,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("match")
     }
 }
 
@@ -2847,6 +3966,7 @@ impl parse::Parse for Match {
 }
 
 impl parse::Peek for Match {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Match)
     }
@@ -2875,14 +3995,33 @@ pub struct Mod {
 }
 
 impl ast::Spanned for Mod {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Mod {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Mod {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Mod => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Mod,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("mod")
     }
 }
 
@@ -2898,6 +4037,7 @@ impl parse::Parse for Mod {
 }
 
 impl parse::Peek for Mod {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Mod)
     }
@@ -2926,14 +4066,33 @@ pub struct Move {
 }
 
 impl ast::Spanned for Move {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Move {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Move {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Move => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Move,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("move")
     }
 }
 
@@ -2949,6 +4108,7 @@ impl parse::Parse for Move {
 }
 
 impl parse::Peek for Move {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Move)
     }
@@ -2977,14 +4137,33 @@ pub struct Mut {
 }
 
 impl ast::Spanned for Mut {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Mut {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Mut {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Mut => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Mut,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("mut")
     }
 }
 
@@ -3000,6 +4179,7 @@ impl parse::Parse for Mut {
 }
 
 impl parse::Peek for Mut {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Mut)
     }
@@ -3028,14 +4208,33 @@ pub struct Not {
 }
 
 impl ast::Spanned for Not {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Not {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Not {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Not => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Not,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("not")
     }
 }
 
@@ -3051,6 +4250,7 @@ impl parse::Parse for Not {
 }
 
 impl parse::Peek for Not {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Not)
     }
@@ -3079,14 +4279,33 @@ pub struct OffsetOf {
 }
 
 impl ast::Spanned for OffsetOf {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for OffsetOf {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for OffsetOf {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::OffsetOf => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::OffsetOf,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("offsetof")
     }
 }
 
@@ -3102,6 +4321,7 @@ impl parse::Parse for OffsetOf {
 }
 
 impl parse::Peek for OffsetOf {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::OffsetOf)
     }
@@ -3130,14 +4350,33 @@ pub struct Override {
 }
 
 impl ast::Spanned for Override {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Override {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Override {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Override => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Override,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("override")
     }
 }
 
@@ -3153,6 +4392,7 @@ impl parse::Parse for Override {
 }
 
 impl parse::Peek for Override {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Override)
     }
@@ -3181,14 +4421,33 @@ pub struct Perc {
 }
 
 impl ast::Spanned for Perc {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Perc {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Perc {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Perc => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Perc,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("%")
     }
 }
 
@@ -3204,6 +4463,7 @@ impl parse::Parse for Perc {
 }
 
 impl parse::Peek for Perc {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Perc)
     }
@@ -3232,14 +4492,33 @@ pub struct PercEq {
 }
 
 impl ast::Spanned for PercEq {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for PercEq {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for PercEq {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::PercEq => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::PercEq,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("%=")
     }
 }
 
@@ -3255,6 +4534,7 @@ impl parse::Parse for PercEq {
 }
 
 impl parse::Peek for PercEq {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::PercEq)
     }
@@ -3283,14 +4563,33 @@ pub struct Pipe {
 }
 
 impl ast::Spanned for Pipe {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Pipe {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Pipe {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Pipe => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Pipe,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("|")
     }
 }
 
@@ -3306,6 +4605,7 @@ impl parse::Parse for Pipe {
 }
 
 impl parse::Peek for Pipe {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Pipe)
     }
@@ -3334,14 +4634,33 @@ pub struct PipeEq {
 }
 
 impl ast::Spanned for PipeEq {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for PipeEq {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for PipeEq {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::PipeEq => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::PipeEq,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("|=")
     }
 }
 
@@ -3357,6 +4676,7 @@ impl parse::Parse for PipeEq {
 }
 
 impl parse::Peek for PipeEq {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::PipeEq)
     }
@@ -3385,14 +4705,33 @@ pub struct PipePipe {
 }
 
 impl ast::Spanned for PipePipe {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for PipePipe {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for PipePipe {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::PipePipe => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::PipePipe,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("||")
     }
 }
 
@@ -3408,6 +4747,7 @@ impl parse::Parse for PipePipe {
 }
 
 impl parse::Peek for PipePipe {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::PipePipe)
     }
@@ -3436,14 +4776,33 @@ pub struct Plus {
 }
 
 impl ast::Spanned for Plus {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Plus {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Plus {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Plus => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Plus,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("+")
     }
 }
 
@@ -3459,6 +4818,7 @@ impl parse::Parse for Plus {
 }
 
 impl parse::Peek for Plus {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Plus)
     }
@@ -3487,14 +4847,33 @@ pub struct PlusEq {
 }
 
 impl ast::Spanned for PlusEq {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for PlusEq {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for PlusEq {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::PlusEq => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::PlusEq,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("+=")
     }
 }
 
@@ -3510,6 +4889,7 @@ impl parse::Parse for PlusEq {
 }
 
 impl parse::Peek for PlusEq {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::PlusEq)
     }
@@ -3538,14 +4918,33 @@ pub struct Pound {
 }
 
 impl ast::Spanned for Pound {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Pound {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Pound {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Pound => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Pound,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("#")
     }
 }
 
@@ -3561,6 +4960,7 @@ impl parse::Parse for Pound {
 }
 
 impl parse::Peek for Pound {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Pound)
     }
@@ -3589,14 +4989,33 @@ pub struct Priv {
 }
 
 impl ast::Spanned for Priv {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Priv {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Priv {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Priv => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Priv,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("priv")
     }
 }
 
@@ -3612,6 +5031,7 @@ impl parse::Parse for Priv {
 }
 
 impl parse::Peek for Priv {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Priv)
     }
@@ -3640,14 +5060,33 @@ pub struct Proc {
 }
 
 impl ast::Spanned for Proc {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Proc {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Proc {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Proc => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Proc,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("proc")
     }
 }
 
@@ -3663,6 +5102,7 @@ impl parse::Parse for Proc {
 }
 
 impl parse::Peek for Proc {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Proc)
     }
@@ -3691,14 +5131,33 @@ pub struct Pub {
 }
 
 impl ast::Spanned for Pub {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Pub {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Pub {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Pub => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Pub,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("pub")
     }
 }
 
@@ -3714,6 +5173,7 @@ impl parse::Parse for Pub {
 }
 
 impl parse::Peek for Pub {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Pub)
     }
@@ -3742,14 +5202,33 @@ pub struct Pure {
 }
 
 impl ast::Spanned for Pure {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Pure {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Pure {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Pure => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Pure,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("pure")
     }
 }
 
@@ -3765,6 +5244,7 @@ impl parse::Parse for Pure {
 }
 
 impl parse::Peek for Pure {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Pure)
     }
@@ -3793,14 +5273,33 @@ pub struct QuestionMark {
 }
 
 impl ast::Spanned for QuestionMark {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for QuestionMark {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for QuestionMark {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::QuestionMark => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::QuestionMark,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("?")
     }
 }
 
@@ -3816,6 +5315,7 @@ impl parse::Parse for QuestionMark {
 }
 
 impl parse::Peek for QuestionMark {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::QuestionMark)
     }
@@ -3844,14 +5344,33 @@ pub struct Ref {
 }
 
 impl ast::Spanned for Ref {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Ref {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Ref {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Ref => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Ref,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("ref")
     }
 }
 
@@ -3867,6 +5386,7 @@ impl parse::Parse for Ref {
 }
 
 impl parse::Peek for Ref {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Ref)
     }
@@ -3895,14 +5415,33 @@ pub struct Return {
 }
 
 impl ast::Spanned for Return {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Return {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Return {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Return => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Return,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("return")
     }
 }
 
@@ -3918,6 +5457,7 @@ impl parse::Parse for Return {
 }
 
 impl parse::Peek for Return {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Return)
     }
@@ -3946,14 +5486,33 @@ pub struct Rocket {
 }
 
 impl ast::Spanned for Rocket {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Rocket {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Rocket {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Rocket => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Rocket,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("=>")
     }
 }
 
@@ -3969,6 +5528,7 @@ impl parse::Parse for Rocket {
 }
 
 impl parse::Peek for Rocket {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Rocket)
     }
@@ -3997,14 +5557,33 @@ pub struct Select {
 }
 
 impl ast::Spanned for Select {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Select {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Select {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Select => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Select,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("select")
     }
 }
 
@@ -4020,6 +5599,7 @@ impl parse::Parse for Select {
 }
 
 impl parse::Peek for Select {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Select)
     }
@@ -4048,14 +5628,33 @@ pub struct SelfType {
 }
 
 impl ast::Spanned for SelfType {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for SelfType {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for SelfType {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::SelfType => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::SelfType,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("Self")
     }
 }
 
@@ -4071,6 +5670,7 @@ impl parse::Parse for SelfType {
 }
 
 impl parse::Peek for SelfType {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::SelfType)
     }
@@ -4099,14 +5699,33 @@ pub struct SelfValue {
 }
 
 impl ast::Spanned for SelfValue {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for SelfValue {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for SelfValue {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::SelfValue => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::SelfValue,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("self")
     }
 }
 
@@ -4122,6 +5741,7 @@ impl parse::Parse for SelfValue {
 }
 
 impl parse::Peek for SelfValue {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::SelfValue)
     }
@@ -4150,14 +5770,33 @@ pub struct SemiColon {
 }
 
 impl ast::Spanned for SemiColon {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for SemiColon {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for SemiColon {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::SemiColon => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::SemiColon,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation(";")
     }
 }
 
@@ -4173,6 +5812,7 @@ impl parse::Parse for SemiColon {
 }
 
 impl parse::Peek for SemiColon {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::SemiColon)
     }
@@ -4201,14 +5841,33 @@ pub struct SizeOf {
 }
 
 impl ast::Spanned for SizeOf {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for SizeOf {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for SizeOf {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::SizeOf => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::SizeOf,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("sizeof")
     }
 }
 
@@ -4224,6 +5883,7 @@ impl parse::Parse for SizeOf {
 }
 
 impl parse::Peek for SizeOf {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::SizeOf)
     }
@@ -4252,14 +5912,33 @@ pub struct SlashEq {
 }
 
 impl ast::Spanned for SlashEq {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for SlashEq {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for SlashEq {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::SlashEq => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::SlashEq,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("/=")
     }
 }
 
@@ -4275,6 +5954,7 @@ impl parse::Parse for SlashEq {
 }
 
 impl parse::Peek for SlashEq {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::SlashEq)
     }
@@ -4303,14 +5983,33 @@ pub struct Star {
 }
 
 impl ast::Spanned for Star {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Star {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Star {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Star => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Star,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("*")
     }
 }
 
@@ -4326,6 +6025,7 @@ impl parse::Parse for Star {
 }
 
 impl parse::Peek for Star {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Star)
     }
@@ -4354,14 +6054,33 @@ pub struct StarEq {
 }
 
 impl ast::Spanned for StarEq {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for StarEq {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for StarEq {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::StarEq => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::StarEq,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("*=")
     }
 }
 
@@ -4377,6 +6096,7 @@ impl parse::Parse for StarEq {
 }
 
 impl parse::Peek for StarEq {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::StarEq)
     }
@@ -4405,14 +6125,33 @@ pub struct Static {
 }
 
 impl ast::Spanned for Static {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Static {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Static {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Static => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Static,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("static")
     }
 }
 
@@ -4428,6 +6167,7 @@ impl parse::Parse for Static {
 }
 
 impl parse::Peek for Static {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Static)
     }
@@ -4456,14 +6196,33 @@ pub struct Struct {
 }
 
 impl ast::Spanned for Struct {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Struct {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Struct {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Struct => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Struct,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("struct")
     }
 }
 
@@ -4479,6 +6238,7 @@ impl parse::Parse for Struct {
 }
 
 impl parse::Peek for Struct {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Struct)
     }
@@ -4507,14 +6267,33 @@ pub struct Super {
 }
 
 impl ast::Spanned for Super {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Super {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Super {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Super => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Super,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("super")
     }
 }
 
@@ -4530,6 +6309,7 @@ impl parse::Parse for Super {
 }
 
 impl parse::Peek for Super {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Super)
     }
@@ -4558,14 +6338,33 @@ pub struct Tilde {
 }
 
 impl ast::Spanned for Tilde {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Tilde {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Tilde {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Tilde => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Tilde,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("~")
     }
 }
 
@@ -4581,6 +6380,7 @@ impl parse::Parse for Tilde {
 }
 
 impl parse::Peek for Tilde {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Tilde)
     }
@@ -4609,14 +6409,33 @@ pub struct True {
 }
 
 impl ast::Spanned for True {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for True {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for True {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::True => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::True,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("true")
     }
 }
 
@@ -4632,6 +6451,7 @@ impl parse::Parse for True {
 }
 
 impl parse::Peek for True {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::True)
     }
@@ -4660,14 +6480,33 @@ pub struct TypeOf {
 }
 
 impl ast::Spanned for TypeOf {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for TypeOf {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for TypeOf {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::TypeOf => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::TypeOf,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("typeof")
     }
 }
 
@@ -4683,6 +6522,7 @@ impl parse::Parse for TypeOf {
 }
 
 impl parse::Peek for TypeOf {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::TypeOf)
     }
@@ -4711,14 +6551,33 @@ pub struct Underscore {
 }
 
 impl ast::Spanned for Underscore {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Underscore {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Underscore {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Underscore => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Underscore,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Punctuation("_")
     }
 }
 
@@ -4734,6 +6593,7 @@ impl parse::Parse for Underscore {
 }
 
 impl parse::Peek for Underscore {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Underscore)
     }
@@ -4762,14 +6622,33 @@ pub struct Unsafe {
 }
 
 impl ast::Spanned for Unsafe {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Unsafe {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Unsafe {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Unsafe => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Unsafe,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("unsafe")
     }
 }
 
@@ -4785,6 +6664,7 @@ impl parse::Parse for Unsafe {
 }
 
 impl parse::Peek for Unsafe {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Unsafe)
     }
@@ -4813,14 +6693,33 @@ pub struct Use {
 }
 
 impl ast::Spanned for Use {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Use {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Use {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Use => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Use,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("use")
     }
 }
 
@@ -4836,6 +6735,7 @@ impl parse::Parse for Use {
 }
 
 impl parse::Peek for Use {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Use)
     }
@@ -4864,14 +6764,33 @@ pub struct Virtual {
 }
 
 impl ast::Spanned for Virtual {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Virtual {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Virtual {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Virtual => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Virtual,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("virtual")
     }
 }
 
@@ -4887,6 +6806,7 @@ impl parse::Parse for Virtual {
 }
 
 impl parse::Peek for Virtual {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Virtual)
     }
@@ -4915,14 +6835,33 @@ pub struct While {
 }
 
 impl ast::Spanned for While {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for While {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for While {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::While => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::While,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("while")
     }
 }
 
@@ -4938,6 +6877,7 @@ impl parse::Parse for While {
 }
 
 impl parse::Peek for While {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::While)
     }
@@ -4966,14 +6906,33 @@ pub struct Yield {
 }
 
 impl ast::Spanned for Yield {
+    #[inline]
     fn span(&self) -> ast::Span {
         self.span
     }
 }
 
 impl ast::OptionSpanned for Yield {
+    #[inline]
     fn option_span(&self) -> Option<ast::Span> {
         Some(self.span)
+    }
+}
+
+impl ast::ToAst for Yield {
+    fn to_ast(span: ast::Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            ast::Kind::Yield => Ok(Self { span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                ast::Kind::Yield,
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> parse::Expectation {
+        parse::Expectation::Keyword("yield")
     }
 }
 
@@ -4989,6 +6948,7 @@ impl parse::Parse for Yield {
 }
 
 impl parse::Peek for Yield {
+    #[inline]
     fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Yield)
     }
@@ -5482,6 +7442,8 @@ pub enum Kind {
     Number(ast::NumberSource),
     /// A string literal, including escape sequences. Like `"hello\nworld"`.
     Str(ast::StrSource),
+    /// A path with an associated item.
+    IndexedPath(compile::ItemId),
     /// The `abstract` keyword.
     Abstract,
     /// The `alignof` keyword.
@@ -5752,9 +7714,9 @@ pub enum Kind {
     ExprMatch,
     /// a select expression
     ExprSelect,
-    /// a select expression
+    /// an `.await` expression
     ExprAwait,
-    /// a select expression
+    /// a field expression
     ExprField,
     /// the operator in an expression
     ExprOperator,
@@ -6041,17 +8003,18 @@ impl parse::IntoExpectation for Kind {
         match self {
             Self::Eof => parse::Expectation::Description("eof"),
             Self::Comment | Self::MultilineComment(..) => parse::Expectation::Comment,
-            Self::Error => parse::Expectation::Description("error"),
-            Self::Shebang { .. } => parse::Expectation::Description("shebang"),
-            Self::Ident(..) => parse::Expectation::Description("ident"),
-            Self::Label(..) => parse::Expectation::Description("label"),
-            Self::Byte { .. } => parse::Expectation::Description("byte literal"),
-            Self::ByteStr { .. } => parse::Expectation::Description("byte string"),
-            Self::Char { .. } => parse::Expectation::Description("char"),
-            Self::Number { .. } => parse::Expectation::Description("number"),
-            Self::Str { .. } => parse::Expectation::Description("string"),
+            Self::Error => parse::Expectation::Description("an error"),
+            Self::Shebang { .. } => parse::Expectation::Description("a shebang"),
+            Self::Ident(..) => parse::Expectation::Description("an identifier"),
+            Self::Label(..) => parse::Expectation::Description("a label"),
+            Self::Byte { .. } => parse::Expectation::Description("a byte literal"),
+            Self::ByteStr { .. } => parse::Expectation::Description("a byte string literal"),
+            Self::Char { .. } => parse::Expectation::Description("a character"),
+            Self::Number { .. } => parse::Expectation::Description("a number"),
+            Self::Str { .. } => parse::Expectation::Description("a string literal"),
             Self::Close(delimiter) => parse::Expectation::Delimiter(delimiter.close()),
             Self::Open(delimiter) => parse::Expectation::Delimiter(delimiter.open()),
+            Self::IndexedPath(..) => parse::Expectation::Syntax("an indexed path"),
             Self::Abstract => parse::Expectation::Keyword("abstract"),
             Self::AlignOf => parse::Expectation::Keyword("alignof"),
             Self::As => parse::Expectation::Keyword("as"),
@@ -6187,8 +8150,8 @@ impl parse::IntoExpectation for Kind {
             Self::ExprObject => parse::Expectation::Syntax("an anonymous object expression"),
             Self::ExprMatch => parse::Expectation::Syntax("a match expression"),
             Self::ExprSelect => parse::Expectation::Syntax("a select expression"),
-            Self::ExprAwait => parse::Expectation::Syntax("a select expression"),
-            Self::ExprField => parse::Expectation::Syntax("a select expression"),
+            Self::ExprAwait => parse::Expectation::Syntax("an `.await` expression"),
+            Self::ExprField => parse::Expectation::Syntax("a field expression"),
             Self::ExprOperator => parse::Expectation::Syntax("the operator in an expression"),
             Self::ExprIf => parse::Expectation::Syntax("an `if` expression"),
             Self::ExprElse => parse::Expectation::Syntax("the `else` part of an if-expression"),

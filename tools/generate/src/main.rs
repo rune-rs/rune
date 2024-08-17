@@ -113,32 +113,34 @@ fn main() -> Result<()> {
         ),
     )?;
 
+    let alloc = &rust::import("crate", "alloc");
+    let compile_error = &rust::import("crate::compile", "Error");
+    let compile_result = &rust::import("crate::compile", "Result");
     let copy_source = &rust::import("crate::ast", "CopySource");
     let delimiter = &rust::import("crate::ast", "Delimiter");
-    let into_expectation = &rust::import("crate::parse", "IntoExpectation");
-    let expectation = &rust::import("crate::parse", "Expectation");
     let display = &rust::import("core::fmt", "Display");
+    let expectation = &rust::import("crate::parse", "Expectation");
     let fmt_result = &rust::import("core::fmt", "Result");
     let formatter = &rust::import("core::fmt", "Formatter");
+    let into_expectation = &rust::import("crate::parse", "IntoExpectation");
+    let item_id = &rust::import("crate::compile", "ItemId");
     let kind = &rust::import("crate::ast", "Kind");
+    let lit_source = &rust::import("crate::ast", "LitSource");
     let lit_str_source = &rust::import("crate::ast", "StrSource");
     let macro_context = &rust::import("crate::macros", "MacroContext");
     let number_source = &rust::import("crate::ast", "NumberSource");
+    let option_spanned = &rust::import("crate::ast", "OptionSpanned");
+    let to_ast = &rust::import("crate::ast", "ToAst");
     let parse = &rust::import("crate::parse", "Parse");
-    let compile_error = &rust::import("crate::compile", "Error");
-    let compile_result = &rust::import("crate::compile", "Result");
     let parser = &rust::import("crate::parse", "Parser");
-    let peeker = &rust::import("crate::parse", "Peeker");
     let peek = &rust::import("crate::parse", "Peek");
+    let peeker = &rust::import("crate::parse", "Peeker");
     let span = &rust::import("crate::ast", "Span");
     let spanned = &rust::import("crate::ast", "Spanned");
-    let option_spanned = &rust::import("crate::ast", "OptionSpanned");
-    let lit_source = &rust::import("crate::ast", "LitSource");
     let to_tokens = &rust::import("crate::macros", "ToTokens");
     let token = &rust::import("crate::ast", "Token");
     let token_stream = &rust::import("crate::macros", "TokenStream");
     let try_clone = &rust::import("crate::alloc::clone", "TryClone");
-    let alloc = &rust::import("crate", "alloc");
 
     write_tokens(
         Path::new("crates/rune/src/ast/generated.rs"),
@@ -158,14 +160,34 @@ fn main() -> Result<()> {
                 }
 
                 impl $spanned for $(t.variant()) {
+                    #[inline]
                     fn span(&self) -> $span {
                         self.span
                     }
                 }
 
                 impl $option_spanned for $(t.variant()) {
+                    #[inline]
                     fn option_span(&self) -> Option<$span> {
                         Some(self.span)
+                    }
+                }
+
+                impl $to_ast for $(t.variant()) {
+                    fn to_ast(span: $span, kind: $kind) -> $compile_result<Self> {
+                        match kind {
+                            $kind::$(t.variant()) => Ok(Self { span }),
+                            _ => Err($compile_error::expected($token { span, kind }, $kind::$(t.variant()))),
+                        }
+                    }
+
+                    #[inline]
+                    fn into_expectation() -> $expectation {
+                        $(match t {
+                            Token::Keyword(k) => $expectation::Keyword($(quoted(&k.keyword))),
+                            Token::Punct(p) => $expectation::Punctuation($(quoted(&p.punct))),
+                            Token::Syntax(s) => $expectation::Syntax($(quoted(&s.doc))),
+                        })
                     }
                 }
 
@@ -181,6 +203,7 @@ fn main() -> Result<()> {
                 }
 
                 impl $peek for $(t.variant()) {
+                    #[inline]
                     fn peek(peeker: &mut $peeker<'_>) -> bool {
                         matches!(peeker.nth(0), $kind::$(t.variant()))
                     }
@@ -295,6 +318,8 @@ fn main() -> Result<()> {
                 Number($number_source),
                 $("/// A string literal, including escape sequences. Like `\"hello\\nworld\"`.")
                 Str($lit_str_source),
+                $("/// A path with an associated item.")
+                IndexedPath($item_id),
                 $(for t in &tokens join($['\r']) =>
                     $(format!("/// {}", t.doc()))
                     $(t.variant()),
@@ -348,17 +373,18 @@ fn main() -> Result<()> {
                     match self {
                         Self::Eof => $expectation::Description("eof"),
                         Self::Comment | Self::MultilineComment(..) => $expectation::Comment,
-                        Self::Error => $expectation::Description("error"),
-                        Self::Shebang { .. } => $expectation::Description("shebang"),
-                        Self::Ident(..) => $expectation::Description("ident"),
-                        Self::Label(..) => $expectation::Description("label"),
-                        Self::Byte { .. } => $expectation::Description("byte literal"),
-                        Self::ByteStr { .. } => $expectation::Description("byte string"),
-                        Self::Char { .. } => $expectation::Description("char"),
-                        Self::Number { .. } => $expectation::Description("number"),
-                        Self::Str { .. } => $expectation::Description("string"),
+                        Self::Error => $expectation::Description("an error"),
+                        Self::Shebang { .. } => $expectation::Description("a shebang"),
+                        Self::Ident(..) => $expectation::Description("an identifier"),
+                        Self::Label(..) => $expectation::Description("a label"),
+                        Self::Byte { .. } => $expectation::Description("a byte literal"),
+                        Self::ByteStr { .. } => $expectation::Description("a byte string literal"),
+                        Self::Char { .. } => $expectation::Description("a character"),
+                        Self::Number { .. } => $expectation::Description("a number"),
+                        Self::Str { .. } => $expectation::Description("a string literal"),
                         Self::Close(delimiter) => $expectation::Delimiter(delimiter.close()),
                         Self::Open(delimiter) => $expectation::Delimiter(delimiter.open()),
+                        Self::IndexedPath(..) => $expectation::Syntax("an indexed path"),
                         $(for k in &keywords join ($['\r']) => Self::$(&k.variant) => $expectation::Keyword($(quoted(&k.keyword))),)
                         $(for p in &punctuations join ($['\r']) => Self::$(&p.variant) => $expectation::Punctuation($(quoted(&p.punct))),)
                         $(for s in &syntax join ($['\r']) => Self::$(&s.variant) => $expectation::Syntax($(quoted(&s.doc))),)

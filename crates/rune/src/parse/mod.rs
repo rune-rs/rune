@@ -17,7 +17,7 @@ pub use self::parse::Parse;
 pub use self::parser::{Parser, Peeker};
 pub use self::peek::Peek;
 pub(crate) use self::resolve::{Resolve, ResolveContext};
-pub(crate) use self::traits::{Advance, Peekable};
+pub(crate) use self::traits::Advance;
 
 use crate::compile;
 use crate::SourceId;

@@ -13,20 +13,22 @@ use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::compile::context::ContextMeta;
 use crate::compile::ir;
-use crate::compile::meta::{self, FieldMeta};
+use crate::compile::meta;
 use crate::compile::{
     self, CompileVisitor, Doc, DynLocation, ErrorKind, ImportStep, ItemId, ItemMeta, Located,
     Location, MetaError, ModId, ModMeta, Names, Pool, Prelude, SourceLoader, SourceMeta,
     UnitBuilder, Visibility, WithSpan,
 };
+use crate::grammar::{Node, Stream};
 use crate::hir;
 use crate::indexing::{self, FunctionAst, Indexed, Items};
 use crate::item::ComponentRef;
 use crate::item::IntoComponent;
 use crate::macros::Storage;
-use crate::parse::{NonZeroId, Resolve, ResolveContext};
+use crate::parse::{NonZeroId, Resolve};
 use crate::query::{
-    Build, BuildEntry, BuiltInMacro, ConstFn, GenericsParameters, ItemImplEntry, Named, Used,
+    Build, BuildEntry, BuiltInMacro, ConstFn, GenericsParameters, ItemImplEntry, Named, Named2,
+    Named2Kind, Used,
 };
 #[cfg(feature = "doc")]
 use crate::runtime::Call;
@@ -683,13 +685,13 @@ impl<'a, 'arena> Query<'a, 'arena> {
     pub(crate) fn index_const_fn(
         &mut self,
         item_meta: ItemMeta,
-        item_fn: Box<ast::ItemFn>,
+        const_fn: indexing::ConstFn,
     ) -> compile::Result<()> {
         tracing::trace!(item = ?self.pool.item(item_meta.item));
 
         self.index(indexing::Entry {
             item_meta,
-            indexed: Indexed::ConstFn(indexing::ConstFn { item_fn }),
+            indexed: Indexed::ConstFn(const_fn),
         })?;
 
         Ok(())
@@ -713,13 +715,13 @@ impl<'a, 'arena> Query<'a, 'arena> {
     pub(crate) fn index_struct(
         &mut self,
         item_meta: ItemMeta,
-        ast: Box<ast::ItemStruct>,
+        st: indexing::Struct,
     ) -> compile::Result<()> {
         tracing::trace!(item = ?self.pool.item(item_meta.item));
 
         self.index(indexing::Entry {
             item_meta,
-            indexed: Indexed::Struct(indexing::Struct { ast }),
+            indexed: Indexed::Struct(st),
         })?;
 
         Ok(())
@@ -730,19 +732,13 @@ impl<'a, 'arena> Query<'a, 'arena> {
     pub(crate) fn index_variant(
         &mut self,
         item_meta: ItemMeta,
-        enum_id: ItemId,
-        ast: ast::ItemVariant,
-        index: usize,
+        variant: indexing::Variant,
     ) -> compile::Result<()> {
         tracing::trace!(item = ?self.pool.item(item_meta.item));
 
         self.index(indexing::Entry {
             item_meta,
-            indexed: Indexed::Variant(indexing::Variant {
-                enum_id,
-                ast,
-                index,
-            }),
+            indexed: Indexed::Variant(variant),
         })?;
 
         Ok(())
@@ -1032,6 +1028,234 @@ impl<'a, 'arena> Query<'a, 'arena> {
         })
     }
 
+    /// Perform a default path conversion.
+    pub(crate) fn convert_path2<'ast>(
+        &mut self,
+        p: &mut Stream<'ast>,
+    ) -> compile::Result<Named2<'ast>> {
+        self.convert_path2_with(p, false, Used::Used, Used::Used)
+    }
+
+    /// Perform a path conversion with custom configuration.
+    #[tracing::instrument(skip(self, p))]
+    pub(crate) fn convert_path2_with<'ast>(
+        &mut self,
+        p: &mut Stream<'ast>,
+        deny_self_type: bool,
+        import_used: Used,
+        used: Used,
+    ) -> compile::Result<Named2<'ast>> {
+        use ast::Kind::*;
+
+        let IndexedPath(id) = p.kind() else {
+            return Err(p.expected(Path));
+        };
+
+        tracing::trace!("converting path");
+
+        let Some(&ItemMeta {
+            module,
+            item,
+            impl_item,
+            ..
+        }) = self.inner.items.get(&id)
+        else {
+            return Err(compile::Error::msg(
+                &*p,
+                try_format!("missing query path for id {id}"),
+            ));
+        };
+
+        let mut trailing = 0;
+        let mut parameters = [None, None];
+
+        let node = p.pump()?;
+
+        let (item, kind) = 'out: {
+            match node.kind() {
+                PathFull => {}
+                PathIdent => {
+                    let ast = node.parse(|p| p.ast::<ast::Ident>())?;
+                    let item = self.convert_initial_path(module, item, &ast, used)?;
+                    let kind = Named2Kind::Ident(ast);
+                    break 'out (item, kind);
+                }
+                PathSelf => {
+                    let ast = node.parse(|p| p.ast::<ast::SelfValue>())?;
+                    let item = self.pool.module(module).item;
+                    let kind = Named2Kind::SelfValue(ast);
+                    break 'out (item, kind);
+                }
+                _ => return Err(node.expected(Path)),
+            }
+
+            let item = node.parse(|p| {
+                self.path_full(
+                    p,
+                    deny_self_type,
+                    used,
+                    module,
+                    item,
+                    impl_item,
+                    &mut trailing,
+                    &mut parameters,
+                )
+            })?;
+
+            (item, Named2Kind::Full)
+        };
+
+        let item = self
+            .import(&*p, module, item, import_used, used)?
+            .unwrap_or(item);
+
+        Ok(Named2 {
+            kind,
+            item,
+            trailing,
+            parameters,
+        })
+    }
+
+    /// Parse a full path.
+    fn path_full<'ast>(
+        &mut self,
+        p: &mut Stream<'ast>,
+        deny_self_type: bool,
+        used: Used,
+        module: ModId,
+        item: ItemId,
+        impl_item: Option<ItemId>,
+        trailing: &mut usize,
+        parameters: &mut [Option<Node<'ast>>],
+    ) -> compile::Result<ItemId> {
+        use ast::Kind::*;
+
+        let mut in_self_type = false;
+
+        let is_global = p.try_pump(K![::])?;
+        let first = p.pump()?;
+
+        let (item, mut supports_generics) = match (is_global, first.kind()) {
+            (Some(..), K![ident]) => {
+                let first = first.ast::<ast::Ident>()?;
+                let first = first.resolve(resolve_context!(self))?;
+                let item = self.pool.alloc_item(ItemBuf::with_crate(first)?)?;
+                (item, true)
+            }
+            (Some(span), _) => {
+                return Err(compile::Error::new(span, ErrorKind::UnsupportedGlobal));
+            }
+            (None, K![ident]) => {
+                let first = first.ast::<ast::Ident>()?;
+                let item = self.convert_initial_path(module, item, &first, used)?;
+                (item, true)
+            }
+            (None, K![super]) => {
+                let Some(item) = self
+                    .pool
+                    .try_map_alloc(self.pool.module(module).item, crate::Item::parent)?
+                else {
+                    return Err(compile::Error::new(first, ErrorKind::UnsupportedSuper));
+                };
+
+                (item, false)
+            }
+            (None, K![Self]) => {
+                let impl_item = match impl_item {
+                    Some(impl_item) if !deny_self_type => impl_item,
+                    _ => {
+                        return Err(compile::Error::new(first, ErrorKind::UnsupportedSelfType));
+                    }
+                };
+
+                let Some(impl_item) = self.inner.items.get(&impl_item) else {
+                    return Err(compile::Error::msg(
+                        first,
+                        "Can't use `Self` due to unexpanded impl item",
+                    ));
+                };
+
+                in_self_type = true;
+                (impl_item.item, false)
+            }
+            (None, K![self]) => {
+                let item = self.pool.module(module).item;
+                (item, false)
+            }
+            (None, K![crate]) => (ItemId::ROOT, false),
+            (_, PathGenerics) => {
+                return Err(compile::Error::new(first, ErrorKind::UnsupportedGenerics));
+            }
+            _ => {
+                return Err(first.expected(Path));
+            }
+        };
+
+        let mut item = self.pool.item(item).try_to_owned()?;
+        let mut it = parameters.iter_mut();
+
+        while !p.is_eof() {
+            p.expect(K![::])?;
+            let node = p.pump()?;
+
+            match node.kind() {
+                K![ident] => {
+                    let ident = node.ast::<ast::Ident>()?;
+                    item.push(ident.resolve(resolve_context!(self))?)?;
+                    supports_generics = true;
+                }
+                K![super] => {
+                    if in_self_type {
+                        return Err(compile::Error::new(
+                            node,
+                            ErrorKind::UnsupportedSuperInSelfType,
+                        ));
+                    }
+
+                    if item.pop()?.is_none() {
+                        return Err(compile::Error::new(node, ErrorKind::UnsupportedSuper));
+                    }
+                }
+                PathGenerics if supports_generics => {
+                    let Some(out) = it.next() else {
+                        return Err(compile::Error::new(node, ErrorKind::UnsupportedGenerics));
+                    };
+
+                    *trailing += 1;
+                    *out = Some(node);
+                    break;
+                }
+                _ => {
+                    return Err(compile::Error::new(
+                        node,
+                        ErrorKind::ExpectedLeadingPathSegment,
+                    ));
+                }
+            }
+        }
+
+        while !p.is_eof() {
+            p.expect(K![::])?;
+            let ident = p.pump()?.ast::<ast::Ident>()?;
+            item.push(ident.resolve(resolve_context!(self))?)?;
+            *trailing += 1;
+
+            let Some(node) = p.next() else {
+                break;
+            };
+
+            let Some(out) = it.next() else {
+                return Err(compile::Error::new(node, ErrorKind::UnsupportedGenerics));
+            };
+
+            *out = Some(p.expect(PathGenerics)?);
+        }
+
+        let item = self.pool.alloc_item(item)?;
+        Ok(item)
+    }
+
     /// Declare a new import.
     #[tracing::instrument(skip_all)]
     pub(crate) fn insert_import(
@@ -1302,27 +1526,6 @@ impl<'a, 'arena> Query<'a, 'arena> {
         entry: indexing::Entry,
         used: Used,
     ) -> compile::Result<meta::Meta> {
-        /// Convert AST fields into meta fields.
-        fn convert_fields(
-            cx: ResolveContext<'_>,
-            body: ast::Fields,
-        ) -> compile::Result<meta::Fields> {
-            Ok(match body {
-                ast::Fields::Empty => meta::Fields::Empty,
-                ast::Fields::Unnamed(tuple) => meta::Fields::Unnamed(tuple.len()),
-                ast::Fields::Named(st) => {
-                    let mut fields = HashMap::try_with_capacity(st.len())?;
-
-                    for (position, (ast::Field { name, .. }, _)) in st.iter().enumerate() {
-                        let name = name.resolve(cx)?;
-                        fields.try_insert(name.try_into()?, FieldMeta { position })?;
-                    }
-
-                    meta::Fields::Named(meta::FieldsNamed { fields })
-                }
-            })
-        }
-
         #[cfg(feature = "doc")]
         fn to_doc_names<'a>(
             sources: &Sources,
@@ -1376,12 +1579,12 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 meta::Kind::Variant {
                     enum_hash: enum_meta.hash,
                     index: variant.index,
-                    fields: convert_fields(resolve_context!(self), variant.ast.body)?,
+                    fields: variant.fields,
                     constructor: None,
                 }
             }
             Indexed::Struct(st) => meta::Kind::Struct {
-                fields: convert_fields(resolve_context!(self), Box::into_inner(st.ast).body)?,
+                fields: st.fields,
                 constructor: None,
                 parameters: Hash::EMPTY,
             },
@@ -1440,9 +1643,8 @@ impl<'a, 'arena> Query<'a, 'arena> {
             }
             Indexed::ConstExpr(c) => {
                 let ir = {
-                    let arena = crate::hir::Arena::new();
-                    let mut hir_ctx = crate::hir::lowering::Ctxt::with_const(
-                        &arena,
+                    let mut hir_ctx = crate::hir::Ctxt::with_const(
+                        self.const_arena,
                         self.borrow(),
                         item_meta.location.source_id,
                     )?;
@@ -1479,12 +1681,12 @@ impl<'a, 'arena> Query<'a, 'arena> {
             }
             Indexed::ConstBlock(c) => {
                 let ir = {
-                    let arena = crate::hir::Arena::new();
-                    let mut hir_ctx = crate::hir::lowering::Ctxt::with_const(
-                        &arena,
+                    let mut hir_ctx = crate::hir::Ctxt::with_const(
+                        self.const_arena,
                         self.borrow(),
                         item_meta.location.source_id,
                     )?;
+
                     let hir = crate::hir::lowering::block(&mut hir_ctx, None, &c.ast)?;
 
                     let mut cx = ir::Ctxt {
@@ -1518,13 +1720,21 @@ impl<'a, 'arena> Query<'a, 'arena> {
             }
             Indexed::ConstFn(c) => {
                 let (ir_fn, hir) = {
-                    // TODO: avoid this arena?
-                    let mut cx = crate::hir::lowering::Ctxt::with_const(
+                    let mut cx = crate::hir::Ctxt::with_const(
                         self.const_arena,
                         self.borrow(),
                         item_meta.location.source_id,
                     )?;
-                    let hir = crate::hir::lowering::item_fn(&mut cx, &c.item_fn)?;
+
+                    let hir = match &c {
+                        indexing::ConstFn::Ast(ast) => crate::hir::lowering::item_fn(&mut cx, ast)?,
+                        indexing::ConstFn::Node(node) => {
+                            return Err(compile::Error::msg(
+                                node,
+                                "lowering constant fns from nodes is not supported yet",
+                            ))
+                        }
+                    };
 
                     let mut cx = ir::Ctxt {
                         source_id: item_meta.location.source_id,

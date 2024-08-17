@@ -26,7 +26,7 @@ impl fmt::Display for ModId {
 #[derive(Default, Debug, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[try_clone(copy)]
 #[repr(transparent)]
-pub(crate) struct ItemId(u32);
+pub struct ItemId(u32);
 
 impl ItemId {
     /// The item corresponding to the root item.

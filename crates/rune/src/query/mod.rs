@@ -15,6 +15,7 @@ use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::compile::ir;
 use crate::compile::{ItemId, ItemMeta, Location, ModId};
+use crate::grammar::Node;
 use crate::hash::Hash;
 use crate::hir;
 use crate::indexing;
@@ -60,6 +61,33 @@ pub(crate) struct Named<'ast> {
 }
 
 impl fmt::Display for Named<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.item, f)
+    }
+}
+
+pub(crate) enum Named2Kind {
+    /// A full path.
+    Full,
+    /// An identifier.
+    Ident(ast::Ident),
+    /// Self value.
+    SelfValue(#[allow(unused)] ast::SelfValue),
+}
+
+/// The result of calling [Query::convert_path2].
+pub(crate) struct Named2<'a> {
+    /// The kind of named item.
+    pub(crate) kind: Named2Kind,
+    /// The path resolved to the given item.
+    pub(crate) item: ItemId,
+    /// Trailing parameters.
+    pub(crate) trailing: usize,
+    /// Type parameters if any.
+    pub(crate) parameters: [Option<Node<'a>>; 2],
+}
+
+impl fmt::Display for Named2<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.item, f)
     }

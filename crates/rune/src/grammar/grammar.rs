@@ -676,7 +676,8 @@ fn outer_expr_with(
     }
 
     if matches!(binary, Binary::Yes) {
-        let lookahead = ast::BinOp::from_peeker(p)?;
+        let slice = p.array::<2>()?;
+        let lookahead = ast::BinOp::from_slice(&slice);
 
         kind = if expr_binary(p, lookahead, 0, brace, cx)? {
             p.close_at(&c, ExprBinary)?;
@@ -1243,14 +1244,8 @@ fn expr_binary(
 
         has_any = true;
 
-        lookahead = ast::BinOp::from_peeker(p)?;
-
-        if matches!(
-            lookahead,
-            Some(ast::BinOp::DotDot(..) | ast::BinOp::DotDotEq(..))
-        ) {
-            break;
-        }
+        let slice = p.array::<2>()?;
+        lookahead = ast::BinOp::from_slice(&slice);
 
         while let Some(next) = lookahead {
             match (precedence, next.precedence()) {
@@ -1260,7 +1255,8 @@ fn expr_binary(
                         p.close_at(&c, ExprBinary)?;
                     }
 
-                    lookahead = ast::BinOp::from_peeker(p)?;
+                    let slice = p.array::<2>()?;
+                    lookahead = ast::BinOp::from_slice(&slice);
                     continue;
                 }
                 (lh, rh) if lh == rh => {

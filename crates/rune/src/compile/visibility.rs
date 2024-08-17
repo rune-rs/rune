@@ -3,7 +3,7 @@ use core::fmt;
 use crate::Item;
 
 /// Information on the visibility of an item.
-#[derive(Default, Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Visibility {
     /// Inherited, or private visibility.

@@ -1,26 +1,484 @@
-use core::mem::take;
-
-use tracing::instrument_ast;
+use core::mem::replace;
 
 use crate::alloc::prelude::*;
 use crate::alloc::{HashMap, VecDeque};
-use crate::ast::{self, OptionSpanned, Spanned};
-use crate::compile::{
-    self, attrs, meta, Doc, DynLocation, ErrorKind, ItemMeta, Location, Visibility, WithSpan,
-};
-use crate::indexing::{self, Indexed};
-use crate::parse::{Resolve, ResolveContext};
-use crate::query::ItemImplEntry;
-use crate::runtime::Call;
-use crate::worker::{Import, ImportKind};
+use crate::ast::{self, Kind, Span};
+use crate::compile::meta;
+use crate::compile::{Doc, DynLocation, Error, ErrorKind, ItemMeta, Result, Visibility, WithSpan};
+use crate::grammar::{Node, Stream};
+use crate::indexing;
+use crate::parse::Resolve;
 
-use super::{ast_to_visibility, validate_call, Indexer};
+use super::items::Guard;
+use super::{validate_call, IndexItem, Indexed, Indexer};
 
-/// Macros are only allowed to expand recursively into other macros 64 times.
-const MAX_MACRO_RECURSION: usize = 64;
+use Kind::*;
+
+struct Function<'a> {
+    node: Node<'a>,
+    attrs: Attrs,
+    mods: Mods,
+    nested_item: Option<Span>,
+    item_meta: ItemMeta,
+}
+
+fn is_instance(node: &Node<'_>) -> bool {
+    fn is_self(node: Node<'_>) -> bool {
+        let Some([path]) = node.array() else {
+            return false;
+        };
+
+        path.as_array([PathSelf]).is_some()
+    }
+
+    let Some(node) = node.find(FnArgs) else {
+        return false;
+    };
+
+    node.find(Pat).map_or(false, is_self)
+}
+
+/// Indexing event.
+enum Event<'a> {
+    Node(Node<'a>),
+    Pop(Guard, IndexItem),
+    PopFn(Guard, IndexItem),
+    PopImpl(Guard, IndexItem),
+}
 
 /// Index the contents of a module known by its AST as a "file".
-pub(crate) fn file(idx: &mut Indexer<'_, '_>, ast: &mut ast::File) -> compile::Result<()> {
+pub(crate) fn file(idx: &mut Indexer<'_, '_>, p: &mut Stream<'_>) -> Result<()> {
+    inner_attributes(idx, p)?;
+
+    let mut fns = Vec::new();
+    let mut queue = VecDeque::new();
+
+    while !p.is_eof() {
+        queue.try_push_back(Event::Node(p.pump()?)).with_span(&*p)?;
+    }
+
+    while let Some(event) = queue.pop_front() {
+        match event {
+            Event::Pop(guard, item) => {
+                idx.item = item;
+                idx.items.pop(guard).with_span(&*p)?;
+            }
+            Event::PopFn(guard, item) => {
+                let Some(f) = fns.pop() else {
+                    return Err(Error::msg(p.span(), "missing function being indexed"));
+                };
+
+                let Function {
+                    node,
+                    attrs,
+                    mods,
+                    nested_item,
+                    item_meta,
+                } = f;
+
+                let is_instance = is_instance(&node);
+                let item = replace(&mut idx.item, item);
+
+                idx.items.pop(guard).with_span(&*p)?;
+                idx.nested_item = nested_item;
+
+                let layer = idx.scopes.pop().with_span(&node)?;
+
+                if let (Some(const_token), Some(async_token)) = (mods.const_, mods.async_) {
+                    idx.error(Error::new(
+                        const_token.join(async_token),
+                        ErrorKind::FnConstAsyncConflict,
+                    ))?;
+                };
+
+                let call = validate_call(mods.const_.is_some(), mods.async_.is_some(), &layer)?;
+
+                let Some(call) = call else {
+                    idx.q.index_const_fn(
+                        item_meta,
+                        indexing::ConstFn::Node(node.node_at(idx.source_id, idx.tree.clone())),
+                    )?;
+                    return Ok(());
+                };
+
+                if let (Some(span), Some(_nested_span)) = (attrs.test, idx.nested_item) {
+                    idx.error(Error::new(
+                        span,
+                        ErrorKind::NestedTest {
+                            #[cfg(feature = "emit")]
+                            nested_span: _nested_span,
+                        },
+                    ))?;
+                }
+
+                if let (Some(span), Some(_nested_span)) = (attrs.bench, idx.nested_item) {
+                    idx.error(Error::new(
+                        span,
+                        ErrorKind::NestedBench {
+                            #[cfg(feature = "emit")]
+                            nested_span: _nested_span,
+                        },
+                    ))?;
+                }
+
+                let is_test = attrs.test.is_some();
+                let is_bench = attrs.bench.is_some();
+
+                if item.impl_item.is_some() {
+                    if is_test {
+                        idx.error(Error::msg(
+                            &node,
+                            "The #[test] attribute is not supported on functions receiving `self`",
+                        ))?;
+                    }
+
+                    if is_bench {
+                        idx.error(Error::msg(
+                            &node,
+                            "The #[bench] attribute is not supported on functions receiving `self`",
+                        ))?;
+                    }
+
+                    if idx.item.impl_item.is_none() {
+                        idx.error(Error::new(&node, ErrorKind::InstanceFunctionOutsideImpl))?;
+                    };
+                }
+
+                let entry = indexing::Entry {
+                    item_meta,
+                    indexed: Indexed::Function(indexing::Function {
+                        ast: indexing::FunctionAst::Node(
+                            node.node_at(idx.source_id, idx.tree.clone()),
+                        ),
+                        call,
+                        is_instance,
+                        is_test,
+                        is_bench,
+                        impl_item: idx.item.impl_item,
+                    }),
+                };
+
+                // It's only a public item in the sense of exporting it if it's not inside
+                // of a nested item. Instance functions are always eagerly exported since
+                // they need to be accessed dynamically through `self`.
+                let is_exported = is_instance
+                    || item_meta.is_public(idx.q.pool) && idx.nested_item.is_none()
+                    || is_test
+                    || is_bench;
+
+                if is_exported {
+                    idx.q.index_and_build(entry)?;
+                } else {
+                    idx.q.index(entry)?;
+                }
+            }
+            Event::PopImpl(guard, item) => {
+                idx.item = item;
+                idx.items.pop(guard).with_span(&*p)?;
+            }
+            Event::Node(node) => {
+                match node.kind() {
+                    Path => {
+                        node.replace(IndexedPath(idx.item.id));
+                    }
+                    Expr => {
+                        node.parse(|p| {
+                            let _ = attributes(idx, p)?;
+
+                            for node in p.rev() {
+                                let span = node.span();
+                                queue.try_push_front(Event::Node(node)).with_span(span)?;
+                            }
+
+                            Ok(())
+                        })?;
+
+                        continue;
+                    }
+                    Item => {
+                        node.parse(|p| item(idx, p, &mut queue, &mut fns))?;
+                        continue;
+                    }
+                    Block => {
+                        let guard = idx.items.push_id()?;
+                        let item_meta = idx.insert_new_item(&*p, Visibility::Inherited, &[])?;
+                        let item = idx.item.replace(item_meta.item);
+
+                        queue.try_push_front(Event::Pop(guard, item))?;
+                    }
+                    ExprSelect | ExprAwait => {
+                        let l = idx.scopes.mark().with_span(&node)?;
+                        l.awaits.try_push(node.span())?;
+                    }
+                    ExprYield => {
+                        let l = idx.scopes.mark().with_span(&node)?;
+                        l.yields.try_push(node.span())?;
+                    }
+                    _ => {}
+                }
+
+                for node in node.children().rev() {
+                    queue.try_push_front(Event::Node(node))?;
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn item<'a>(
+    idx: &mut Indexer<'_, '_>,
+    p: &mut Stream<'a>,
+    queue: &mut VecDeque<Event<'a>>,
+    fns: &mut Vec<Function<'a>>,
+) -> Result<()> {
+    let attrs = attributes(idx, p)?;
+
+    let t = p.token();
+
+    p.pump()?.parse(|p| {
+        let mods = match p.try_pump(Modifiers)? {
+            Some(mods) => mods.parse(|p| modifiers(idx, p))?,
+            None => Mods::default(),
+        };
+
+        match t.kind {
+            ItemFn => {
+                p.expect(K![fn])?;
+                let guard = push_name(idx, p)?;
+
+                let item_meta = idx.insert_new_item(&*p, mods.visibility, &attrs.docs)?;
+                let item = idx.item.replace(item_meta.item);
+
+                idx.scopes.push()?;
+
+                let nested_item = idx.nested_item.replace(t.span);
+
+                fns.try_push(Function {
+                    node: p.node(),
+                    attrs,
+                    mods,
+                    nested_item,
+                    item_meta,
+                })?;
+
+                queue.try_push_front(Event::PopFn(guard, item))?;
+            }
+            ItemImpl => {
+                p.expect(K![impl])?;
+                let guard = push_name(idx, p)?;
+
+                let item_meta = idx.insert_new_item(&*p, mods.visibility, &attrs.docs)?;
+                let item = idx.item.replace_impl(item_meta.item);
+
+                queue.try_push_front(Event::PopImpl(guard, item))?;
+            }
+            ItemStruct => {
+                p.expect(K![struct])?;
+                let guard = push_name(idx, p)?;
+
+                let item_meta = idx.insert_new_item(&*p, mods.visibility, &attrs.docs)?;
+
+                if let Some(fields) = p.pump()?.parse(|p| fields(idx, p))? {
+                    idx.q.index_struct(item_meta, indexing::Struct { fields })?;
+                }
+
+                idx.items.pop(guard).with_span(&*p)?;
+                return Ok(());
+            }
+            _ => {
+                idx.error(Error::expected(t, "item"))?;
+                return Ok(());
+            }
+        }
+
+        for node in p.rev() {
+            queue.try_push_front(Event::Node(node))?;
+        }
+
+        Ok(())
+    })?;
+
+    Ok(())
+}
+
+fn push_name(idx: &mut Indexer<'_, '_>, p: &mut Stream<'_>) -> Result<Guard> {
+    let guard = if matches!(p.peek(), K![ident]) {
+        let ident = p.ast::<ast::Ident>()?;
+        let name = ident.resolve(resolve_context!(idx.q))?;
+        idx.items.push_name(name.as_ref())?
+    } else {
+        idx.items.push_id()?
+    };
+
+    Ok(guard)
+}
+
+#[derive(Default)]
+struct Attrs {
+    test: Option<Span>,
+    bench: Option<Span>,
+    docs: Vec<Doc>,
+}
+
+fn attributes(idx: &mut Indexer<'_, '_>, p: &mut Stream<'_>) -> Result<Attrs> {
+    let mut attrs = Attrs::default();
+
+    while let Some(node) = p.try_pump(Attribute)? {
+        node.parse(|p| {
+            let span = p.span();
+
+            p.all([K![#], K!['[']])?;
+
+            p.expect(TokenStream)?.parse(|p| {
+                let ident = p.ast::<ast::Ident>()?;
+
+                match ident.resolve(resolve_context!(idx.q))? {
+                    "test" => {
+                        if attrs.bench.is_some() {
+                            idx.error(Error::msg(ident.span, "duplicate #[test] attribute"))?;
+                        } else {
+                            attrs.test = Some(ident.span);
+                        }
+                    }
+                    "bench" => {
+                        if attrs.bench.is_some() {
+                            idx.error(Error::msg(ident.span, "duplicate #[bench] attribute"))?;
+                        } else {
+                            attrs.bench = Some(ident.span);
+                        }
+                    }
+                    "doc" => {
+                        p.expect(K![=])?;
+                        let doc_string = p.ast::<ast::LitStr>()?;
+                        attrs
+                            .docs
+                            .try_push(Doc { span, doc_string })
+                            .with_span(&*p)?;
+                    }
+                    _ => {
+                        idx.error(Error::msg(ident, "unsupported attribute"))?;
+                    }
+                }
+
+                Ok(())
+            })?;
+
+            p.expect(K![']'])?;
+            Ok(())
+        })?;
+    }
+
+    Ok(attrs)
+}
+
+fn inner_attributes(idx: &mut Indexer<'_, '_>, p: &mut Stream<'_>) -> Result<()> {
+    while let Some(node) = p.try_pump(InnerAttribute)? {
+        node.parse(|p| {
+            p.all([K![#], K![!], K!['[']])?;
+
+            p.expect(TokenStream)?.parse(|p| {
+                let ident = p.ast::<ast::Ident>()?;
+
+                match ident.resolve(resolve_context!(idx.q))? {
+                    "doc" => {
+                        p.expect(K![=])?;
+
+                        let str = p.ast::<ast::LitStr>()?;
+                        let str = str.resolve(resolve_context!(idx.q))?;
+
+                        let loc = DynLocation::new(idx.source_id, &*p);
+
+                        let item = idx.q.pool.item(idx.item.id);
+                        let hash = idx.q.pool.item_type_hash(idx.item.id);
+
+                        idx.q
+                            .visitor
+                            .visit_doc_comment(&loc, item, hash, &str)
+                            .with_span(&*p)?;
+                    }
+                    _ => {
+                        idx.error(Error::msg(ident, "unsupported attribute"))?;
+                    }
+                }
+
+                Ok(())
+            })?;
+
+            p.expect(K![']'])?;
+            Ok(())
+        })?;
+    }
+
+    Ok(())
+}
+
+#[derive(Default)]
+struct Mods {
+    visibility: Visibility,
+    const_: Option<Span>,
+    async_: Option<Span>,
+}
+
+fn modifiers(_: &mut Indexer<'_, '_>, p: &mut Stream<'_>) -> Result<Mods> {
+    let mut mods = Mods::default();
+
+    for node in p {
+        match node.kind() {
+            K![pub] => {
+                mods.visibility = Visibility::Public;
+            }
+            ModifierCrate if mods.visibility == Visibility::Public => {
+                mods.visibility = Visibility::Crate;
+            }
+            _ => {}
+        }
+    }
+
+    Ok(mods)
+}
+
+fn fields(idx: &mut Indexer<'_, '_>, p: &mut Stream<'_>) -> Result<Option<meta::Fields>> {
+    match p.kind() {
+        StructBody => {
+            let mut fields = HashMap::new();
+
+            p.expect(K!['{'])?;
+
+            while let Some(node) = p.try_pump(Field)? {
+                let name = node.parse(|p| p.ast::<ast::Ident>())?;
+                let name = name.resolve(resolve_context!(idx.q))?;
+                let position = fields.len();
+                fields.try_insert(name.try_into()?, meta::FieldMeta { position })?;
+                p.remaining(idx, K![,])?.ignore(idx)?;
+            }
+
+            p.expect(K!['}'])?;
+            Ok(Some(meta::Fields::Named(meta::FieldsNamed { fields })))
+        }
+        TupleBody => {
+            p.expect(K!['('])?;
+
+            let mut count = 0;
+
+            while p.try_pump(Field)?.is_some() {
+                count += 1;
+                p.remaining(idx, K![,])?.ignore(idx)?;
+            }
+
+            p.expect(K![')'])?;
+            Ok(Some(meta::Fields::Unnamed(count)))
+        }
+        EmptyBody => Ok(Some(meta::Fields::Empty)),
+        _ => {
+            idx.error(p.expected("struct body"))?;
+            Ok(None)
+        }
+    }
+}
+
+/*
     let mut p = attrs::Parser::new(&ast.attributes)?;
 
     // This part catches comments interior to the module of the form `//!`.
@@ -41,7 +499,7 @@ pub(crate) fn file(idx: &mut Indexer<'_, '_>, ast: &mut ast::File) -> compile::R
     }
 
     if let Some(first) = p.remaining(&ast.attributes).next() {
-        return Err(compile::Error::msg(
+        return Err(Error::msg(
             first,
             "File attributes are not supported",
         ));
@@ -83,7 +541,7 @@ pub(crate) fn file(idx: &mut Indexer<'_, '_>, ast: &mut ast::File) -> compile::R
 
         while let Some((depth, mut item, mut skipped_attributes, semi)) = queue.pop_front() {
             if depth >= MAX_MACRO_RECURSION {
-                return Err(compile::Error::new(
+                return Err(Error::new(
                     &item,
                     ErrorKind::MaxMacroRecursion {
                         depth,
@@ -132,7 +590,7 @@ pub(crate) fn file(idx: &mut Indexer<'_, '_>, ast: &mut ast::File) -> compile::R
             }
 
             let ast::Item::MacroCall(mut macro_call) = item else {
-                return Err(compile::Error::msg(
+                return Err(Error::msg(
                     &item,
                     "Expected attributes on macro call",
                 ));
@@ -144,7 +602,7 @@ pub(crate) fn file(idx: &mut Indexer<'_, '_>, ast: &mut ast::File) -> compile::R
 
             if idx.try_expand_internal_macro(&mut p, &mut macro_call)? {
                 if let Some(attr) = p.remaining(&macro_call.attributes).next() {
-                    return Err(compile::Error::msg(
+                    return Err(Error::msg(
                         attr,
                         "Attributes on macros are not supported",
                     ));
@@ -155,7 +613,7 @@ pub(crate) fn file(idx: &mut Indexer<'_, '_>, ast: &mut ast::File) -> compile::R
                     .try_push((ast::Item::MacroCall(macro_call), semi))?;
             } else {
                 if let Some(attr) = p.remaining(&macro_call.attributes).next() {
-                    return Err(compile::Error::msg(
+                    return Err(Error::msg(
                         attr,
                         "Attributes on macros are not supported",
                     ));
@@ -227,153 +685,9 @@ pub(crate) fn empty_block_fn(
 }
 
 #[instrument_ast(span = ast)]
-pub(crate) fn item_fn(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemFn) -> compile::Result<()> {
-    let name = ast.name.resolve(resolve_context!(idx.q))?;
-
-    let visibility = ast_to_visibility(&ast.visibility)?;
-
-    let mut p = attrs::Parser::new(&ast.attributes)?;
-
-    let docs = Doc::collect_from(resolve_context!(idx.q), &mut p, &ast.attributes)?;
-
-    let guard = idx.items.push_name(name.as_ref())?;
-    let item_meta = idx.insert_new_item(&ast, visibility, &docs)?;
-    let idx_item = idx.item.replace(item_meta.item);
-
-    for (arg, _) in &mut ast.args {
-        if let ast::FnArg::Pat(p) = arg {
-            pat(idx, p)?;
-        }
-    }
-
-    idx.scopes.push()?;
-
-    // Take and restore item nesting.
-    let last = idx.nested_item.replace(ast.descriptive_span());
-    block(idx, &mut ast.body)?;
-    idx.nested_item = last;
-
-    idx.item = idx_item;
-    idx.items.pop(guard).with_span(&ast)?;
-
-    let layer = idx.scopes.pop().with_span(&ast)?;
-
-    if let (Some(const_token), Some(async_token)) = (ast.const_token, ast.async_token) {
-        return Err(compile::Error::new(
-            const_token.span().join(async_token.span()),
-            ErrorKind::FnConstAsyncConflict,
-        ));
-    };
-
-    let call = validate_call(ast.const_token.is_some(), ast.async_token.is_some(), &layer)?;
-
-    let Some(call) = call else {
-        idx.q
-            .index_const_fn(item_meta, indexing::ConstFn::Ast(Box::try_new(ast)?))?;
-        return Ok(());
-    };
-
-    let is_test = match p.try_parse::<attrs::Test>(resolve_context!(idx.q), &ast.attributes)? {
-        Some((attr, _)) => {
-            if let Some(_nested_span) = idx.nested_item {
-                return Err(compile::Error::new(
-                    attr,
-                    ErrorKind::NestedTest {
-                        #[cfg(feature = "emit")]
-                        nested_span: _nested_span,
-                    },
-                ));
-            }
-
-            true
-        }
-        _ => false,
-    };
-
-    let is_bench = match p.try_parse::<attrs::Bench>(resolve_context!(idx.q), &ast.attributes)? {
-        Some((attr, _)) => {
-            if let Some(_nested_span) = idx.nested_item {
-                let span = attr.span().join(ast.descriptive_span());
-
-                return Err(compile::Error::new(
-                    span,
-                    ErrorKind::NestedBench {
-                        #[cfg(feature = "emit")]
-                        nested_span: _nested_span,
-                    },
-                ));
-            }
-
-            true
-        }
-        _ => false,
-    };
-
-    if let Some(attrs) = p.remaining(&ast.attributes).next() {
-        return Err(compile::Error::msg(
-            attrs,
-            "Attributes on functions are not supported",
-        ));
-    }
-
-    let is_instance = ast.is_instance();
-
-    if is_instance {
-        if is_test {
-            return Err(compile::Error::msg(
-                &ast,
-                "The #[test] attribute is not supported on functions receiving `self`",
-            ));
-        }
-
-        if is_bench {
-            return Err(compile::Error::msg(
-                &ast,
-                "The #[bench] attribute is not supported on functions receiving `self`",
-            ));
-        }
-
-        if idx.item.impl_item.is_none() {
-            return Err(compile::Error::new(
-                &ast,
-                ErrorKind::InstanceFunctionOutsideImpl,
-            ));
-        };
-    }
-
-    let entry = indexing::Entry {
-        item_meta,
-        indexed: Indexed::Function(indexing::Function {
-            ast: indexing::FunctionAst::Item(Box::try_new(ast)?),
-            call,
-            is_instance,
-            is_test,
-            is_bench,
-            impl_item: idx.item.impl_item,
-        }),
-    };
-
-    // It's only a public item in the sense of exporting it if it's not inside
-    // of a nested item. Instance functions are always eagerly exported since
-    // they need to be accessed dynamically through `self`.
-    let is_exported = is_instance
-        || item_meta.is_public(idx.q.pool) && idx.nested_item.is_none()
-        || is_test
-        || is_bench;
-
-    if is_exported {
-        idx.q.index_and_build(entry)?;
-    } else {
-        idx.q.index(entry)?;
-    }
-
-    Ok(())
-}
-
-#[instrument_ast(span = ast)]
 fn expr_block(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprBlock) -> compile::Result<()> {
     if let Some(span) = ast.attributes.option_span() {
-        return Err(compile::Error::msg(
+        return Err(Error::msg(
             span,
             "Attributes on blocks are not supported",
         ));
@@ -381,7 +695,7 @@ fn expr_block(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprBlock) -> compile::R
 
     if ast.async_token.is_none() && ast.const_token.is_none() {
         if let Some(span) = ast.move_token.option_span() {
-            return Err(compile::Error::msg(
+            return Err(Error::msg(
                 span,
                 "The `move` modifier on blocks is not supported",
             ));
@@ -393,7 +707,7 @@ fn expr_block(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprBlock) -> compile::R
 
     if ast.const_token.is_some() {
         if let Some(async_token) = ast.async_token {
-            return Err(compile::Error::new(
+            return Err(Error::new(
                 async_token,
                 ErrorKind::BlockConstAsyncConflict,
             ));
@@ -407,10 +721,10 @@ fn expr_block(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprBlock) -> compile::R
         let item_meta = block(idx, &mut ast.block)?;
         let layer = idx.scopes.pop().with_span(&ast)?;
 
-        let call = validate_call(ast.const_token.is_some(), ast.async_token.is_some(), &layer)?;
+        let call = validate_call(ast.const_token, ast.async_token, &layer)?;
 
         let Some(call) = call else {
-            return Err(compile::Error::new(ast, ErrorKind::ClosureKind));
+            return Err(Error::new(ast, ErrorKind::ClosureKind));
         };
 
         ast.block.id = item_meta.item;
@@ -453,7 +767,7 @@ fn statements(idx: &mut Indexer<'_, '_>, ast: &mut Vec<ast::Stmt>) -> compile::R
 
     for stmt in &mut statements {
         if let Some(span) = must_be_last {
-            return Err(compile::Error::new(
+            return Err(Error::new(
                 span,
                 ErrorKind::ExpectedBlockSemiColon {
                     #[cfg(feature = "emit")]
@@ -483,7 +797,7 @@ fn statements(idx: &mut Indexer<'_, '_>, ast: &mut Vec<ast::Stmt>) -> compile::R
                 expr(idx, &mut semi.expr)?;
             }
             ast::Stmt::Item(i, ..) => {
-                return Err(compile::Error::msg(i, "Unexpected item in this stage"));
+                return Err(Error::msg(i, "Unexpected item in this stage"));
             }
         }
     }
@@ -508,14 +822,14 @@ fn block(idx: &mut Indexer<'_, '_>, ast: &mut ast::Block) -> compile::Result<Ite
 #[instrument_ast(span = ast)]
 fn local(idx: &mut Indexer<'_, '_>, ast: &mut ast::Local) -> compile::Result<()> {
     if let Some(span) = ast.attributes.option_span() {
-        return Err(compile::Error::msg(
+        return Err(Error::msg(
             span,
             "Attributes on local declarations are not supported",
         ));
     }
 
     if let Some(mut_token) = ast.mut_token {
-        return Err(compile::Error::new(mut_token, ErrorKind::UnsupportedMut));
+        return Err(Error::new(mut_token, ErrorKind::UnsupportedMut));
     }
 
     // We index the rhs expression first so that it doesn't see it's own
@@ -528,7 +842,7 @@ fn local(idx: &mut Indexer<'_, '_>, ast: &mut ast::Local) -> compile::Result<()>
 #[instrument_ast(span = ast)]
 fn expr_let(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprLet) -> compile::Result<()> {
     if let Some(mut_token) = ast.mut_token {
-        return Err(compile::Error::new(mut_token, ErrorKind::UnsupportedMut));
+        return Err(Error::new(mut_token, ErrorKind::UnsupportedMut));
     }
 
     pat(idx, &mut ast.pat)?;
@@ -732,7 +1046,7 @@ pub(crate) fn expr(idx: &mut Indexer<'_, '_>, ast: &mut ast::Expr) -> compile::R
                 let expanded = idx.try_expand_internal_macro(&mut p, macro_call)?;
 
                 if let Some(span) = p.remaining(&macro_call.attributes).next() {
-                    return Err(compile::Error::msg(span, "Unsupported macro attribute"));
+                    return Err(Error::msg(span, "Unsupported macro attribute"));
                 }
 
                 if !expanded {
@@ -750,7 +1064,7 @@ pub(crate) fn expr(idx: &mut Indexer<'_, '_>, ast: &mut ast::Expr) -> compile::R
     }
 
     if let [first, ..] = ast.attributes() {
-        return Err(compile::Error::msg(
+        return Err(Error::msg(
             first,
             "Attributes on expressions are not supported",
         ));
@@ -827,7 +1141,7 @@ fn item_enum(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemEnum) -> compile::Resu
     let docs = Doc::collect_from(resolve_context!(idx.q), &mut p, &ast.attributes)?;
 
     if let Some(first) = p.remaining(&ast.attributes).next() {
-        return Err(compile::Error::msg(
+        return Err(Error::msg(
             first,
             "Attributes on enums are not supported",
         ));
@@ -849,7 +1163,7 @@ fn item_enum(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemEnum) -> compile::Resu
         let docs = Doc::collect_from(resolve_context!(idx.q), &mut p, &variant.attributes)?;
 
         if let Some(first) = p.remaining(&variant.attributes).next() {
-            return Err(compile::Error::msg(
+            return Err(Error::msg(
                 first,
                 "Attributes on variants are not supported",
             ));
@@ -870,7 +1184,7 @@ fn item_enum(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemEnum) -> compile::Resu
             let docs = Doc::collect_from(cx, &mut p, &field.attributes)?;
 
             if let Some(first) = p.remaining(&field.attributes).next() {
-                return Err(compile::Error::msg(
+                return Err(Error::msg(
                     first,
                     "Attributes on variant fields are not supported",
                 ));
@@ -894,15 +1208,8 @@ fn item_enum(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemEnum) -> compile::Resu
 
         idx.item = idx_item;
         idx.items.pop(guard).with_span(&variant)?;
-
-        idx.q.index_variant(
-            item_meta,
-            indexing::Variant {
-                enum_id: enum_item.item,
-                index,
-                fields: convert_fields(resolve_context!(idx.q), variant.body)?,
-            },
-        )?;
+        idx.q
+            .index_variant(item_meta, enum_item.item, variant, index)?;
     }
 
     idx.item = idx_item;
@@ -917,7 +1224,7 @@ fn item_struct(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemStruct) -> compile::
     let docs = Doc::collect_from(resolve_context!(idx.q), &mut p, &ast.attributes)?;
 
     if let Some(first) = p.remaining(&ast.attributes).next() {
-        return Err(compile::Error::msg(
+        return Err(Error::msg(
             first,
             "Attributes on structs are not supported",
         ));
@@ -938,7 +1245,7 @@ fn item_struct(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemStruct) -> compile::
         let docs = Doc::collect_from(cx, &mut p, &field.attributes)?;
 
         if let Some(first) = p.remaining(&field.attributes).next() {
-            return Err(compile::Error::msg(
+            return Err(Error::msg(
                 first,
                 "Attributes on fields are not supported",
             ));
@@ -960,7 +1267,7 @@ fn item_struct(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemStruct) -> compile::
         }
 
         if !field.visibility.is_inherited() {
-            return Err(compile::Error::msg(
+            return Err(Error::msg(
                 field,
                 "Field visibility is not supported",
             ));
@@ -969,16 +1276,14 @@ fn item_struct(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemStruct) -> compile::
 
     idx.item = idx_item;
     idx.items.pop(guard).with_span(&ast)?;
-
-    let fields = convert_fields(resolve_context!(idx.q), ast.body)?;
-    idx.q.index_struct(item_meta, indexing::Struct { fields })?;
+    idx.q.index_struct(item_meta, Box::try_new(ast)?)?;
     Ok(())
 }
 
 #[instrument_ast(span = ast)]
 fn item_impl(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemImpl) -> compile::Result<()> {
     if let Some(first) = ast.attributes.first() {
-        return Err(compile::Error::msg(
+        return Err(Error::msg(
             first,
             "Attributes on impl blocks are not supported",
         ));
@@ -1007,7 +1312,7 @@ fn item_mod(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemMod) -> compile::Result
     let docs = Doc::collect_from(resolve_context!(idx.q), &mut p, &ast.attributes)?;
 
     if let Some(first) = p.remaining(&ast.attributes).next() {
-        return Err(compile::Error::msg(
+        return Err(Error::msg(
             first,
             "Attributes on modules are not supported",
         ));
@@ -1053,7 +1358,7 @@ fn item_const(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemConst) -> compile::Re
     let docs = Doc::collect_from(resolve_context!(idx.q), &mut p, &ast.attributes)?;
 
     if let Some(first) = p.remaining(&ast.attributes).next() {
-        return Err(compile::Error::msg(
+        return Err(Error::msg(
             first,
             "Attributes on constants are not supported",
         ));
@@ -1106,7 +1411,7 @@ fn item(idx: &mut Indexer<'_, '_>, ast: ast::Item) -> compile::Result<()> {
             // engine.
 
             let Some(id) = macro_call.id else {
-                return Err(compile::Error::msg(
+                return Err(Error::msg(
                     &macro_call,
                     "macro expansion id not set",
                 ));
@@ -1116,7 +1421,7 @@ fn item(idx: &mut Indexer<'_, '_>, ast: ast::Item) -> compile::Result<()> {
             idx.q.builtin_macro_for(id).with_span(&macro_call)?;
 
             if let Some(span) = macro_call.attributes.first() {
-                return Err(compile::Error::msg(
+                return Err(Error::msg(
                     span,
                     "attributes on macros are not supported",
                 ));
@@ -1125,14 +1430,14 @@ fn item(idx: &mut Indexer<'_, '_>, ast: ast::Item) -> compile::Result<()> {
         // NB: imports are ignored during indexing.
         ast::Item::Use(item_use) => {
             if let Some(span) = item_use.attributes.first() {
-                return Err(compile::Error::msg(
+                return Err(Error::msg(
                     span,
                     "Attributes on uses are not supported",
                 ));
             }
 
             let Some(queue) = idx.queue.as_mut() else {
-                return Err(compile::Error::msg(
+                return Err(Error::msg(
                     &item_use,
                     "Imports are not supported in this context",
                 ));
@@ -1218,7 +1523,7 @@ fn expr_closure(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprClosure) -> compil
     for (arg, _) in ast.args.as_slice_mut() {
         match arg {
             ast::FnArg::SelfValue(s) => {
-                return Err(compile::Error::new(s, ErrorKind::UnsupportedSelf));
+                return Err(Error::new(s, ErrorKind::UnsupportedSelf));
             }
             ast::FnArg::Pat(p) => {
                 pat(idx, p)?;
@@ -1230,10 +1535,10 @@ fn expr_closure(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprClosure) -> compil
 
     let layer = idx.scopes.pop().with_span(&*ast)?;
 
-    let call = validate_call(false, ast.async_token.is_some(), &layer)?;
+    let call = validate_call(None, ast.async_token, &layer)?;
 
     let Some(call) = call else {
-        return Err(compile::Error::new(&*ast, ErrorKind::ClosureKind));
+        return Err(Error::new(&*ast, ErrorKind::ClosureKind));
     };
 
     idx.q.index_meta(
@@ -1312,21 +1617,4 @@ fn expr_object(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprObject) -> compile:
 
     Ok(())
 }
-
-/// Convert AST fields into meta fields.
-fn convert_fields(cx: ResolveContext<'_>, body: ast::Fields) -> compile::Result<meta::Fields> {
-    Ok(match body {
-        ast::Fields::Empty => meta::Fields::Empty,
-        ast::Fields::Unnamed(tuple) => meta::Fields::Unnamed(tuple.len()),
-        ast::Fields::Named(st) => {
-            let mut fields = HashMap::try_with_capacity(st.len())?;
-
-            for (position, (ast::Field { name, .. }, _)) in st.iter().enumerate() {
-                let name = name.resolve(cx)?;
-                fields.try_insert(name.try_into()?, meta::FieldMeta { position })?;
-            }
-
-            meta::Fields::Named(meta::FieldsNamed { fields })
-        }
-    })
-}
+*/

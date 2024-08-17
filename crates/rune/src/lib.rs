@@ -247,7 +247,6 @@ pub mod modules;
 
 pub mod parse;
 
-#[cfg(feature = "fmt")]
 pub(crate) mod grammar;
 
 pub mod query;

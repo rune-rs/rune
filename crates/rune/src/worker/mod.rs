@@ -1,18 +1,20 @@
 //! Worker used by compiler.
 
+mod import;
+mod task;
+mod wildcard_import;
+
+use std::rc::Rc;
+
 use crate::alloc::prelude::*;
 use crate::alloc::{self, HashMap, Vec, VecDeque};
 use crate::ast::{self, Span};
 use crate::compile::{self, ModId};
-use crate::indexing::index;
 use crate::indexing::items::Items;
+use crate::indexing::{index, index2};
 use crate::indexing::{IndexItem, Indexer, Scopes};
 use crate::query::{GenericsParameters, Query, Used};
 use crate::SourceId;
-
-mod import;
-mod task;
-mod wildcard_import;
 
 pub(crate) use self::import::Import;
 pub(crate) use self::task::{LoadFileKind, Task};
@@ -81,7 +83,7 @@ impl<'a, 'arena> Worker<'a, 'arena> {
                             let items = Items::new(item)?;
 
                             macro_rules! indexer {
-                                () => {
+                                ($tree:expr) => {
                                     Indexer {
                                         q: self.q.borrow(),
                                         root,
@@ -93,6 +95,7 @@ impl<'a, 'arena> Worker<'a, 'arena> {
                                         macro_depth: 0,
                                         loaded: Some(&mut self.loaded),
                                         queue: Some(&mut self.queue),
+                                        tree: $tree,
                                     }
                                 };
                             }
@@ -105,19 +108,35 @@ impl<'a, 'arena> Worker<'a, 'arena> {
                                 )?;
 
                                 let span = Span::new(0, source.len());
-                                let mut idx = indexer!();
+                                let mut idx = indexer!(Rc::default());
 
                                 index::empty_block_fn(&mut idx, ast, &span)?;
                             } else {
-                                let mut ast = crate::parse::parse_all::<ast::File>(
-                                    source.as_str(),
-                                    source_id,
-                                    true,
-                                )?;
+                                if self.q.options.v2 {
+                                    let tree = crate::grammar::prepare_text(source.as_str())
+                                        .with_source_id(source_id)
+                                        .parse()?;
 
-                                let mut idx = indexer!();
+                                    let tree = Rc::new(tree);
 
-                                index::file(&mut idx, &mut ast)?;
+                                    if self.q.options.print_tree {
+                                        let o = std::io::stdout();
+                                        let mut o = o.lock();
+                                        tree.print_with_source(&mut o, source.as_str())?;
+                                    }
+
+                                    let mut idx = indexer!(tree.clone());
+                                    tree.parse_all(|p| index2::file(&mut idx, p))?;
+                                } else {
+                                    let mut ast = crate::parse::parse_all::<ast::File>(
+                                        source.as_str(),
+                                        source_id,
+                                        true,
+                                    )?;
+
+                                    let mut idx = indexer!(Rc::default());
+                                    index::file(&mut idx, &mut ast)?;
+                                }
                             }
 
                             Ok::<_, compile::Error>(())
@@ -218,6 +237,7 @@ impl<'a, 'arena> Worker<'a, 'arena> {
                         macro_depth: entry.macro_depth,
                         loaded: Some(&mut self.loaded),
                         queue: Some(&mut self.queue),
+                        tree: Rc::default(),
                     };
 
                     for f in entry.functions {

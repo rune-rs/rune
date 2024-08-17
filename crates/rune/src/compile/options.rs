@@ -73,6 +73,47 @@ impl Default for FmtOptions {
     }
 }
 
+/// Options specific to hir.
+#[derive(Debug, Clone)]
+pub(crate) struct HirOptions {
+    /// Print source tree.
+    pub(crate) print_tree: bool,
+}
+
+impl HirOptions {
+    /// The default format option.
+    pub(crate) const DEFAULT: Self = Self { print_tree: false };
+
+    /// Parse a rune-fmt option.
+    pub(crate) fn parse_option(&mut self, option: &str) -> Result<(), ParseOptionError> {
+        let (head, tail) = if let Some((head, tail)) = option.trim().split_once('=') {
+            (head.trim(), Some(tail.trim()))
+        } else {
+            (option.trim(), None)
+        };
+
+        match head {
+            "print-tree" => {
+                self.print_tree = tail.map_or(true, |s| s == "true");
+            }
+            _ => {
+                return Err(ParseOptionError {
+                    option: option.into(),
+                });
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl Default for HirOptions {
+    #[inline]
+    fn default() -> Self {
+        HirOptions::DEFAULT
+    }
+}
+
 /// Documentation for a single compiler option.
 #[non_exhaustive]
 pub struct OptionMeta {
@@ -114,8 +155,12 @@ pub struct Options {
     pub(crate) lowering: u8,
     /// Print source tree.
     pub(crate) print_tree: bool,
+    /// Use the v2 compiler.
+    pub(crate) v2: bool,
     /// Rune format options.
     pub(crate) fmt: FmtOptions,
+    /// Rune hir options.
+    pub(crate) hir: HirOptions,
 }
 
 impl Options {
@@ -130,7 +175,9 @@ impl Options {
         test_std: false,
         lowering: 0,
         print_tree: false,
+        v2: false,
         fmt: FmtOptions::DEFAULT,
+        hir: HirOptions::DEFAULT,
     };
 
     /// Get a list and documentation for all available compiler options.
@@ -234,6 +281,15 @@ impl Options {
                 options: BOOL,
             },
             OptionMeta {
+                key: "v2",
+                unstable: true,
+                doc: &docstring! {
+                    /// Use the v2 compiler.
+                },
+                default: "false",
+                options: BOOL,
+            },
+            OptionMeta {
                 key: "fmt.print-tree",
                 unstable: false,
                 doc: &docstring! {
@@ -264,6 +320,15 @@ impl Options {
                 default: "true",
                 options: BOOL,
             },
+            OptionMeta {
+                key: "hir.print-tree",
+                unstable: false,
+                doc: &docstring! {
+                    /// Print the source being lowered.
+                },
+                default: "false",
+                options: BOOL,
+            },
         ];
 
         VALUES
@@ -276,66 +341,76 @@ impl Options {
     /// It can be used to consistenly parse a collection of options by other
     /// programs as well.
     pub fn parse_option(&mut self, option: &str) -> Result<(), ParseOptionError> {
-        let (head, tail) = if let Some((head, tail)) = option.trim().split_once('=') {
-            (head.trim(), Some(tail.trim()))
-        } else {
-            (option.trim(), None)
-        };
+        for option in option.split(',') {
+            let option = option.trim();
 
-        match head {
-            "memoize-instance-fn" => {
-                self.memoize_instance_fn = tail.map_or(true, |s| s == "true");
-            }
-            "debug-info" => {
-                self.debug_info = tail.map_or(true, |s| s == "true");
-            }
-            "link-checks" => {
-                self.link_checks = tail.map_or(true, |s| s == "true");
-            }
-            "macros" => {
-                self.macros = tail.map_or(true, |s| s == "true");
-            }
-            "bytecode" => {
-                self.bytecode = tail.map_or(true, |s| s == "true");
-            }
-            "function-body" => {
-                self.function_body = tail.map_or(true, |s| s == "true");
-            }
-            "test-std" => {
-                self.test_std = tail.map_or(true, |s| s == "true");
-            }
-            "lowering" => {
-                self.lowering = match tail {
-                    Some("0") | None => 0,
-                    Some("1") => 1,
-                    _ => {
-                        return Err(ParseOptionError {
-                            option: option.into(),
-                        })
-                    }
-                };
-            }
-            "print-tree" => {
-                self.print_tree = tail.map_or(true, |s| s == "true");
-            }
-            other => {
-                let Some((head, tail)) = other.split_once('.') else {
-                    return Err(ParseOptionError {
-                        option: option.into(),
-                    });
-                };
+            let (head, tail) = if let Some((head, tail)) = option.trim().split_once('=') {
+                (head.trim(), Some(tail.trim()))
+            } else {
+                (option.trim(), None)
+            };
 
-                let head = head.trim();
-                let tail = tail.trim();
-
-                match head {
-                    "fmt" => {
-                        self.fmt.parse_option(tail)?;
-                    }
-                    _ => {
+            match head {
+                "memoize-instance-fn" => {
+                    self.memoize_instance_fn = tail.map_or(true, |s| s == "true");
+                }
+                "debug-info" => {
+                    self.debug_info = tail.map_or(true, |s| s == "true");
+                }
+                "link-checks" => {
+                    self.link_checks = tail.map_or(true, |s| s == "true");
+                }
+                "macros" => {
+                    self.macros = tail.map_or(true, |s| s == "true");
+                }
+                "bytecode" => {
+                    self.bytecode = tail.map_or(true, |s| s == "true");
+                }
+                "function-body" => {
+                    self.function_body = tail.map_or(true, |s| s == "true");
+                }
+                "test-std" => {
+                    self.test_std = tail.map_or(true, |s| s == "true");
+                }
+                "lowering" => {
+                    self.lowering = match tail {
+                        Some("0") | None => 0,
+                        Some("1") => 1,
+                        _ => {
+                            return Err(ParseOptionError {
+                                option: option.into(),
+                            })
+                        }
+                    };
+                }
+                "print-tree" => {
+                    self.print_tree = tail.map_or(true, |s| s == "true");
+                }
+                "v2" => {
+                    self.v2 = tail.map_or(true, |s| s == "true");
+                }
+                other => {
+                    let Some((head, tail)) = other.split_once('.') else {
                         return Err(ParseOptionError {
                             option: option.into(),
                         });
+                    };
+
+                    let head = head.trim();
+                    let tail = tail.trim();
+
+                    match head {
+                        "fmt" => {
+                            self.fmt.parse_option(tail)?;
+                        }
+                        "hir" => {
+                            self.hir.parse_option(tail)?;
+                        }
+                        _ => {
+                            return Err(ParseOptionError {
+                                option: option.into(),
+                            });
+                        }
                     }
                 }
             }

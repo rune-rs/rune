@@ -59,7 +59,8 @@ pub(crate) use self::meta::{Doc, ItemMeta};
 pub use self::meta::{MetaRef, SourceMeta};
 
 mod pool;
-pub(crate) use self::pool::{ItemId, ModId, ModMeta, Pool};
+pub use self::pool::ItemId;
+pub(crate) use self::pool::{ModId, ModMeta, Pool};
 
 mod named;
 pub use self::named::Named;

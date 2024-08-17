@@ -21,17 +21,27 @@ pub struct LitChar {
     pub source: ast::CopySource<char>,
 }
 
+impl ToAst for LitChar {
+    fn to_ast(span: Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            K![char(source)] => Ok(LitChar { span, source }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                Self::into_expectation(),
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> Expectation {
+        Expectation::Description("char")
+    }
+}
+
 impl Parse for LitChar {
     fn parse(parser: &mut Parser<'_>) -> Result<Self> {
         let t = parser.next()?;
-
-        match t.kind {
-            K![char(source)] => Ok(LitChar {
-                span: t.span,
-                source,
-            }),
-            _ => Err(compile::Error::expected(t, "char")),
-        }
+        Self::to_ast(t.span, t.kind)
     }
 }
 

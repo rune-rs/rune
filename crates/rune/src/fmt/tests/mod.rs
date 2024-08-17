@@ -595,6 +595,27 @@ fn expressions() {
 }
 
 #[test]
+fn paths() {
+    assert_format!("foo::bar::<self, baz>");
+    assert_format!("self");
+    assert_format!("bar");
+}
+
+#[test]
+fn superflous_commas() {
+    assert_format!(
+        r#"
+        fn foo(,,,a,,,) {
+        }
+        "#,
+        r#"
+        fn foo(a) {
+        }
+        "#
+    );
+}
+
+#[test]
 fn use_statements() {
     assert_format!(
         r#"
@@ -1066,8 +1087,7 @@ fn test_error_patterns() {
     assert_format_with!(
         { "error-recovery=true" },
         r#"
-        let var = +/-= // Hi Bob
-        ;
+        let var = +/-=; // Hi Bob
 
         struct Foo;
         "#

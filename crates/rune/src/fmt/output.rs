@@ -156,6 +156,7 @@ impl<'a> Formatter<'a> {
     /// Write the give node to output without comment or whitespace processing.
     pub(crate) fn write_raw(&mut self, node: Node<'a>) -> Result<()> {
         self.write_node(&node)?;
+        self.process_comments(node.walk_from())?;
         Ok(())
     }
 

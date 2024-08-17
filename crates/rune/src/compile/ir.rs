@@ -35,11 +35,9 @@ impl ast::Expr {
         let ir = {
             // TODO: avoid this arena?
             let arena = hir::Arena::new();
-            let mut hir_ctx = hir::lowering::Ctxt::with_const(
-                &arena,
-                cx.idx.q.borrow(),
-                cx.item_meta.location.source_id,
-            )?;
+
+            let mut hir_ctx =
+                hir::Ctxt::with_const(&arena, cx.idx.q.borrow(), cx.item_meta.location.source_id)?;
             let hir = hir::lowering::expr(&mut hir_ctx, &expr)?;
 
             let mut cx = Ctxt {

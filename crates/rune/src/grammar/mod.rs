@@ -3,13 +3,15 @@
 //! This produces a syntax tree that can be analysed using the provided methods.
 
 mod grammar;
-pub(crate) use self::grammar::{object_key, ws};
+#[cfg(feature = "fmt")]
+pub(crate) use self::grammar::object_key;
+pub(crate) use self::grammar::ws;
 
 mod parser;
 use self::parser::Checkpoint;
 
 mod tree;
-pub(crate) use self::tree::{Ignore, Node, Remaining, Stream, Tree};
+pub(crate) use self::tree::{Ignore, Node, NodeAt, Remaining, Stream, Tree};
 
 use crate::macros::TokenStream;
 use crate::parse::Lexer;
@@ -52,6 +54,7 @@ impl<'a> Prepare<'a> {
     }
 
     /// Disable input processing.
+    #[cfg(feature = "fmt")]
     pub(crate) fn without_processing(mut self) -> Self {
         self.without_processing = true;
         self

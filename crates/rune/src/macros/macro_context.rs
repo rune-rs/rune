@@ -1,5 +1,7 @@
 //! Context for a macro.
 
+use std::rc::Rc;
+
 use core::fmt;
 
 use crate::alloc;
@@ -94,6 +96,7 @@ cfg_std! {
             root: None,
             queue: None,
             loaded: None,
+            tree: Rc::default(),
         };
 
         let mut cx = MacroContext {

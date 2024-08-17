@@ -1,12 +1,16 @@
 use std::fmt;
 use std::io;
+use std::rc::Rc;
 
-use crate::ast::{Kind, Span, Spanned};
-use crate::compile::{Error, ErrorKind, Result};
+use crate::alloc::prelude::*;
+use crate::ast::{Kind, Span, Spanned, ToAst, Token};
+use crate::compile::{Error, ErrorKind, Result, WithSpan};
 #[cfg(feature = "fmt")]
 use crate::fmt::Formatter;
 use crate::grammar::ws;
 use crate::parse::{Expectation, IntoExpectation};
+use crate::shared::FixedVec;
+use crate::{SourceId, Sources};
 
 pub(crate) trait Ignore<'a> {
     fn ignore(&mut self, node: Node<'a>) -> Result<()>;
@@ -20,6 +24,11 @@ pub(crate) struct Tree {
 impl Tree {
     pub(super) fn new(inner: syntree::Tree<Kind, u32, usize>) -> Self {
         Self { inner }
+    }
+
+    /// Get a reference to a node.
+    pub(crate) fn get(&self, id: syntree::pointer::PointerUsize) -> Option<Node<'_>> {
+        self.inner.get(id).map(Node::new)
     }
 
     /// Iterate over all the children of the tree.
@@ -184,6 +193,15 @@ impl<'a> Stream<'a> {
         )
     }
 
+    /// Expect and discard all the given kinds.
+    pub(crate) fn all<const N: usize>(&mut self, expected: [Kind; N]) -> Result<()> {
+        for kind in expected {
+            self.expect(kind)?;
+        }
+
+        Ok(())
+    }
+
     /// Require that there is at least one more child node.
     pub(crate) fn expect(&mut self, expected: Kind) -> Result<Node<'a>> {
         let Some(node) = self.next_node() else {
@@ -222,6 +240,24 @@ impl<'a> Stream<'a> {
         };
 
         Ok(Node::new(node))
+    }
+
+    /// Helper to coerce the next node into an ast element.
+    pub(crate) fn ast<T>(&mut self) -> Result<T>
+    where
+        T: ToAst,
+    {
+        let Some(node) = self.next_node() else {
+            return Err(Error::new(
+                self.next_span(),
+                ErrorKind::UnexpectedEndOfSyntaxWith {
+                    inside: self.kind().into_expectation(),
+                    expected: T::into_expectation(),
+                },
+            ));
+        };
+
+        Node::new(node).ast()
     }
 
     /// Try to bump one node.
@@ -275,6 +311,7 @@ impl<'a> Stream<'a> {
         };
 
         Ok(Remaining {
+            inside: self.kind(),
             expected,
             span,
             node,
@@ -294,6 +331,7 @@ impl<'a> Stream<'a> {
         let count = Some(usize::from(node.is_some()));
 
         Ok(Remaining {
+            inside: self.kind(),
             expected,
             span,
             node,
@@ -321,6 +359,26 @@ impl<'a> Stream<'a> {
         }
 
         Ok(())
+    }
+
+    /// Peek the next token of the parser.
+    pub(crate) fn token(&mut self) -> Token {
+        if let Some(node) = self.peek_node() {
+            Token {
+                span: Span::new(node.span().start, node.span().end),
+                kind: node.value(),
+            }
+        } else {
+            Token {
+                span: Span::point(self.node.span().end),
+                kind: Kind::Eof,
+            }
+        }
+    }
+
+    /// Get the current parser as a node.
+    pub(crate) fn node(&self) -> Node<'a> {
+        Node::new(self.node)
     }
 
     /// Get the current span of the parser.
@@ -385,6 +443,80 @@ impl DoubleEndedIterator for Stream<'_> {
     }
 }
 
+/// A node associated with a tree.
+#[derive(Debug, TryClone)]
+#[try_clone(crate)]
+pub(crate) struct NodeAt {
+    tree: Rc<Tree>,
+    source_id: SourceId,
+    #[try_clone(copy)]
+    id: syntree::pointer::PointerUsize,
+}
+
+impl NodeAt {
+    /// Parse the node being referenced.
+    pub(crate) fn parse<P, O>(&self, parser: P) -> Result<O>
+    where
+        P: FnOnce(&mut Stream<'_>) -> Result<O>,
+    {
+        let Some(node) = self.tree.get(self.id) else {
+            return Err(Error::msg(
+                Span::empty(),
+                try_format!("missing node {}", self.id.get()),
+            ));
+        };
+
+        node.parse(parser)
+    }
+
+    /// Print the tree to the given writer.
+    pub(crate) fn print_with_sources(&self, sources: &Sources) -> Result<()> {
+        use std::io::Write;
+
+        let o = std::io::stdout();
+        let mut o = o.lock();
+
+        let Some(node) = self.tree.get(self.id) else {
+            return Err(Error::msg(
+                Span::empty(),
+                try_format!("missing node {}", self.id.get()),
+            ));
+        };
+
+        let source = sources.get(self.source_id);
+
+        for (depth, node) in node.inner.walk().with_depths() {
+            if depth < 0 {
+                break;
+            }
+
+            let n = (depth * 2) as usize;
+            let data = node.value();
+            let span = Span::new(node.span().start, node.span().end);
+
+            if node.has_children() {
+                writeln!(o, "{:n$}{:?}@{}", "", data, span).with_span(span)?;
+            } else if let Some(source) = source.and_then(|s| s.get(span.range())) {
+                writeln!(o, "{:n$}{:?}@{} {:?}", "", data, span, source).with_span(span)?;
+            } else {
+                writeln!(o, "{:n$}{:?}@{} +", "", data, span).with_span(span)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl Spanned for NodeAt {
+    fn span(&self) -> Span {
+        let Some(node) = self.tree.get(self.id) else {
+            return Span::empty();
+        };
+
+        node.span()
+    }
+}
+
 /// A node being parsed.
 #[derive(Clone)]
 pub(crate) struct Node<'a> {
@@ -396,15 +528,92 @@ impl<'a> Node<'a> {
         Self { inner }
     }
 
+    /// Coerce a node into a token.
+    pub(crate) fn into_token(self) -> Token {
+        Token {
+            span: self.span(),
+            kind: self.kind(),
+        }
+    }
+
+    /// Capture the node at the given position associated with its tree..
+    pub(crate) fn node_at(&self, source_id: SourceId, tree: Rc<Tree>) -> NodeAt {
+        NodeAt {
+            tree,
+            source_id,
+            id: self.inner.id(),
+        }
+    }
+
+    /// Replace the kind of the node.
+    pub(crate) fn replace(&self, kind: Kind) -> Kind {
+        self.inner.replace(kind)
+    }
+
     /// Get the last node.
     #[cfg(feature = "fmt")]
     pub(crate) fn last(&self) -> Option<Node<'a>> {
         self.inner.last().map(Node::new)
     }
 
+    /// Get the children as a fixed array ignoring whitespace.
+    pub(crate) fn fixed_vec<const N: usize, T>(
+        &self,
+        factory: fn(Node<'a>) -> T,
+    ) -> Option<FixedVec<T, N>> {
+        let mut vec = FixedVec::new();
+
+        for node in self
+            .inner
+            .children()
+            .filter(|n| !matches!(n.value(), ws!()))
+        {
+            if vec.try_push(factory(Node::new(node))).is_err() {
+                return None;
+            }
+        }
+
+        Some(vec)
+    }
+
+    /// Get the children as an array ignoring whitespace.
+    pub(crate) fn array<const N: usize>(&self) -> Option<[Node<'a>; N]> {
+        self.fixed_vec(|n| n)?.try_into_inner()
+    }
+
+    /// Get the children as an array ignoring whitespace.
+    pub(crate) fn as_array<const N: usize>(&self, expected: [Kind; N]) -> Option<[Node<'a>; N]> {
+        let mut vec = FixedVec::new();
+
+        for (node, expected) in self
+            .inner
+            .children()
+            .filter(|n| !matches!(n.value(), ws!()))
+            .zip(expected)
+        {
+            if node.value() != expected {
+                return None;
+            }
+
+            if vec.try_push(Node::new(node)).is_err() {
+                return None;
+            }
+        }
+
+        vec.try_into_inner()
+    }
+
     /// Iterate over the children of the node.
     pub(crate) fn children(&self) -> impl DoubleEndedIterator<Item = Node<'a>> + '_ {
         self.inner.children().map(Node::new)
+    }
+
+    /// Helper to coerce a node into an ast element.
+    pub(crate) fn ast<T>(self) -> Result<T>
+    where
+        T: ToAst,
+    {
+        T::to_ast(self.span(), self.kind())
     }
 
     /// Construct an unsupported error.
@@ -464,6 +673,25 @@ impl<'a> Node<'a> {
     pub(crate) fn has_children(&self) -> bool {
         self.inner.has_children()
     }
+
+    /// Find a node which matches the given kind.
+    pub(crate) fn find(&self, kind: Kind) -> Option<Node<'a>> {
+        self.inner
+            .children()
+            .find(|n| n.value() == kind)
+            .map(Node::new)
+    }
+
+    /// Report an unsupported error for the current node.
+    pub(crate) fn expected(self, expected: impl IntoExpectation) -> Error {
+        Error::new(
+            self.span(),
+            ErrorKind::ExpectedSyntax {
+                expected: expected.into_expectation(),
+                actual: self.kind().into_expectation(),
+            },
+        )
+    }
 }
 
 impl IntoExpectation for Node<'_> {
@@ -489,6 +717,7 @@ impl fmt::Debug for Node<'_> {
 
 #[must_use = "Remaining nodes must be consumed to capture all whitespace and comments"]
 pub(crate) struct Remaining<'a> {
+    inside: Kind,
     expected: Kind,
     span: Span,
     node: Option<Node<'a>>,
@@ -496,6 +725,51 @@ pub(crate) struct Remaining<'a> {
 }
 
 impl<'a> Remaining<'a> {
+    /// Ensure that there is exactly one node represented by this container.
+    ///
+    /// This only fires if the remaining set has been constructed from a stream.
+    pub(crate) fn exactly_one(self, o: &mut dyn Ignore<'a>) -> Result<()> {
+        if let Some(node) = self.node {
+            o.ignore(node)?;
+        }
+
+        if let Some(0) = self.count {
+            return Err(Error::new(
+                self.span,
+                ErrorKind::ExpectedOne {
+                    inside: self.inside.into_expectation(),
+                    expected: self.expected.into_expectation(),
+                },
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// Ensure that there are at most one node represented by this container.
+    ///
+    /// This only fires if the remaining set has been constructed from a stream.
+    pub(crate) fn at_most_one(self, o: &mut dyn Ignore<'a>) -> Result<()> {
+        if let Some(node) = self.node {
+            o.ignore(node)?;
+        }
+
+        if let Some(count) = self.count {
+            if count > 1 {
+                return Err(Error::new(
+                    self.span,
+                    ErrorKind::ExpectedAtMostOne {
+                        inside: self.inside.into_expectation(),
+                        expected: self.expected.into_expectation(),
+                        count,
+                    },
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
     /// Test if there is a remaining node present.
     #[inline]
     #[cfg(feature = "fmt")]
@@ -577,6 +851,7 @@ impl<'a> Remaining<'a> {
 impl<'a> Default for Remaining<'a> {
     fn default() -> Self {
         Self {
+            inside: Kind::Root,
             expected: Kind::Eof,
             span: Span::empty(),
             node: None,

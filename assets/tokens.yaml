@@ -430,8 +430,8 @@
 - {kind: "syntax", variant: "ExprObject", doc: "an anonymous object expression"}
 - {kind: "syntax", variant: "ExprMatch", doc: "a match expression"}
 - {kind: "syntax", variant: "ExprSelect", doc: "a select expression"}
-- {kind: "syntax", variant: "ExprAwait", doc: "a select expression"}
-- {kind: "syntax", variant: "ExprField", doc: "a select expression"}
+- {kind: "syntax", variant: "ExprAwait", doc: "an `.await` expression"}
+- {kind: "syntax", variant: "ExprField", doc: "a field expression"}
 - {kind: "syntax", variant: "ExprOperator", doc: "the operator in an expression"}
 - {kind: "syntax", variant: "ExprIf", doc: "an `if` expression"}
 - {kind: "syntax", variant: "ExprElse", doc: "the `else` part of an if-expression"}

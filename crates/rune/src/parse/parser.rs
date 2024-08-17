@@ -1,12 +1,14 @@
-use core::convert::Infallible;
 use core::fmt;
 use core::ops;
 
 use crate::alloc::VecDeque;
+use crate::ast::Spanned;
 use crate::ast::{Kind, OptionSpanned, Span, Token};
+use crate::compile::WithSpan;
 use crate::compile::{self, ErrorKind};
 use crate::macros::{TokenStream, TokenStreamIter};
-use crate::parse::{Advance, Lexer, Parse, Peek, Peekable};
+use crate::parse::{Advance, Lexer, Parse, Peek};
+use crate::shared::FixedVec;
 use crate::SourceId;
 
 /// Parser for the rune language.
@@ -252,26 +254,41 @@ impl<'a> Peeker<'a> {
         }
     }
 
-    /// Get the span at the given position.
-    pub(crate) fn tok_at(&mut self, n: usize) -> Token {
-        let kind = match self.at(n) {
-            Ok(t) => {
-                if let Some(t) = t {
-                    return t;
-                } else {
-                    Kind::Eof
-                }
-            }
-            Err(e) => {
-                self.error = Some(e);
-                Kind::Error
-            }
-        };
+    /// Peek an array.
+    pub(crate) fn array<const N: usize>(&mut self) -> FixedVec<Token, N> {
+        let mut vec = FixedVec::new();
 
-        Token {
-            kind,
-            span: self.last_span().tail(),
+        if N == 0 {
+            return vec;
         }
+
+        if let Err(error) = self.fill(N) {
+            self.error = Some(error);
+        }
+
+        let mut it = 0..N;
+
+        for (&tok, _) in self.buf.iter().zip(it.by_ref()) {
+            _ = vec.try_push(tok);
+        }
+
+        if let Some(error) = &self.error {
+            for _ in it {
+                _ = vec.try_push(Token {
+                    kind: Kind::Error,
+                    span: error.span(),
+                });
+            }
+        } else {
+            for _ in it {
+                _ = vec.try_push(Token {
+                    kind: Kind::Eof,
+                    span: self.last_span(),
+                });
+            }
+        }
+
+        vec
     }
 
     /// Test if we are at end of file.
@@ -289,9 +306,8 @@ impl<'a> Peeker<'a> {
     /// buffering).
     fn next(&mut self) -> compile::Result<Option<Token>> {
         loop {
-            let token = match self.source.next()? {
-                Some(token) => token,
-                None => return Ok(None),
+            let Some(token) = self.source.next()? else {
+                return Ok(None);
             };
 
             match token.kind {
@@ -318,21 +334,25 @@ impl<'a> Peeker<'a> {
     /// Make sure there are at least `n` items in the buffer, and return the
     /// item at that point.
     fn at(&mut self, n: usize) -> compile::Result<Option<Token>> {
+        self.fill(n)?;
+        Ok(self.buf.get(n).copied())
+    }
+
+    fn fill(&mut self, n: usize) -> compile::Result<()> {
         if let Some(error) = self.error.take() {
             return Err(error);
         }
 
         while self.buf.len() <= n {
-            let token = match self.next()? {
-                Some(token) => token,
-                None => break,
+            let Some(tok) = self.next()? else {
+                break;
             };
 
-            self.last = Some(token.span);
-            self.buf.try_push_back(token)?;
+            self.last = Some(tok.span);
+            self.buf.try_push_back(tok).with_span(tok.span)?;
         }
 
-        Ok(self.buf.get(n).copied())
+        Ok(())
     }
 
     /// The last known span in this parser.
@@ -386,14 +406,5 @@ impl<'a> Advance for Parser<'a> {
         }
 
         Ok(())
-    }
-}
-
-impl<'a> Peekable for Peeker<'a> {
-    type Error = Infallible;
-
-    #[inline]
-    fn nth(&mut self, n: usize) -> Result<Token, Self::Error> {
-        Ok(self.tok_at(n))
     }
 }

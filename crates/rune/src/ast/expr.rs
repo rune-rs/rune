@@ -343,7 +343,7 @@ impl Expr {
         callable: Callable,
     ) -> Result<Self> {
         let lhs = primary(p, attributes, EAGER_BRACE, callable)?;
-        let lookahead = ast::BinOp::from_peeker(p.peeker())?;
+        let lookahead = ast::BinOp::from_peeker(p.peeker());
         binary(p, lhs, lookahead, 0, EAGER_BRACE)
     }
 
@@ -359,7 +359,7 @@ impl Expr {
         let expr = primary(p, &mut attributes, eager_brace, callable)?;
 
         let expr = if *eager_binary {
-            let lookeahead = ast::BinOp::from_peeker(p.peeker())?;
+            let lookeahead = ast::BinOp::from_peeker(p.peeker());
             binary(p, expr, lookeahead, 0, eager_brace)?
         } else {
             expr
@@ -680,7 +680,7 @@ fn binary(
                     ast::ExprRangeLimits::HalfOpen(token),
                     eager_brace,
                 )?;
-                lookahead = ast::BinOp::from_peeker(p.peeker())?;
+                lookahead = ast::BinOp::from_peeker(p.peeker());
                 continue;
             }
             ast::BinOp::DotDotEq(token) => {
@@ -691,21 +691,21 @@ fn binary(
                     ast::ExprRangeLimits::Closed(token),
                     eager_brace,
                 )?;
-                lookahead = ast::BinOp::from_peeker(p.peeker())?;
+                lookahead = ast::BinOp::from_peeker(p.peeker());
                 continue;
             }
             _ => (),
         }
 
         let mut rhs = primary(p, &mut Vec::new(), eager_brace, CALLABLE)?;
-        lookahead = ast::BinOp::from_peeker(p.peeker())?;
+        lookahead = ast::BinOp::from_peeker(p.peeker());
 
         while let Some(next) = lookahead {
             match (precedence, next.precedence()) {
                 (lh, rh) if lh < rh => {
                     // Higher precedence elements require us to recurse.
                     rhs = binary(p, rhs, Some(next), lh + 1, eager_brace)?;
-                    lookahead = ast::BinOp::from_peeker(p.peeker())?;
+                    lookahead = ast::BinOp::from_peeker(p.peeker());
                     continue;
                 }
                 (lh, rh) if lh == rh => {

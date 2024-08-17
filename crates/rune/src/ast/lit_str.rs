@@ -117,17 +117,27 @@ impl LitStr {
     }
 }
 
+impl ToAst for LitStr {
+    fn to_ast(span: Span, kind: ast::Kind) -> Result<Self> {
+        match kind {
+            K![str(source)] => Ok(Self { span, source }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                Self::into_expectation(),
+            )),
+        }
+    }
+
+    #[inline]
+    fn into_expectation() -> Expectation {
+        Expectation::Description("a string literal")
+    }
+}
+
 impl Parse for LitStr {
     fn parse(parser: &mut Parser<'_>) -> Result<Self> {
         let t = parser.next()?;
-
-        match t.kind {
-            K![str(source)] => Ok(Self {
-                span: t.span,
-                source,
-            }),
-            _ => Err(compile::Error::expected(t, "string literal")),
-        }
+        LitStr::to_ast(t.span, t.kind)
     }
 }
 

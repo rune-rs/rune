@@ -9,7 +9,7 @@ use crate::hir;
 use crate::indexing::FunctionAst;
 use crate::macros::Storage;
 use crate::parse::Resolve;
-use crate::query::{Build, BuildEntry, GenericsParameters, Query, SecondaryBuild, Used};
+use crate::query::{Build, BuildEntry, Query, SecondaryBuild, Used};
 use crate::runtime::unit::UnitEncoder;
 use crate::shared::{Consts, Gen};
 use crate::worker::{LoadFileKind, Task, Worker};
@@ -186,30 +186,14 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                 // of the type it is associated with to perform the proper
                 // naming of the function.
                 let type_hash = if f.is_instance {
-                    let Some(impl_item) =
-                        f.impl_item.and_then(|item| self.q.inner.items.get(&item))
-                    else {
+                    let Some(item) = f.impl_item else {
                         return Err(compile::Error::msg(
                             &f.ast,
-                            "Impl item has not been expanded",
+                            "instance function outside of impl",
                         ));
                     };
 
-                    let meta = self.q.lookup_meta(
-                        &location,
-                        impl_item.item,
-                        GenericsParameters::default(),
-                    )?;
-
-                    let Some(type_hash) = meta.type_hash_of() else {
-                        return Err(compile::Error::expected_meta(
-                            &f.ast,
-                            meta.info(self.q.pool)?,
-                            "type for associated function",
-                        ));
-                    };
-
-                    Some(type_hash)
+                    Some(self.q.pool.item_type_hash(item))
                 } else {
                     None
                 };
@@ -225,12 +209,13 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                         (debug_args, ast)
                     }
                     FunctionAst::Empty(.., span) => (Box::default(), span),
+                    FunctionAst::Node(node) => (Box::default(), node),
                 };
 
                 let arena = hir::Arena::new();
                 let mut secondary_builds = Vec::new();
 
-                let mut cx = hir::lowering::Ctxt::with_query(
+                let mut cx = hir::Ctxt::with_query(
                     &arena,
                     self.q.borrow(),
                     item_meta.location.source_id,
@@ -240,6 +225,13 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                 let hir = match &f.ast {
                     FunctionAst::Item(ast) => hir::lowering::item_fn(&mut cx, ast)?,
                     FunctionAst::Empty(ast, span) => hir::lowering::empty_fn(&mut cx, ast, &span)?,
+                    FunctionAst::Node(node) => {
+                        if cx.q.options.hir.print_tree {
+                            node.print_with_sources(cx.q.sources)?;
+                        }
+
+                        node.parse(|p| hir::lowering2::item_fn(&mut cx, p, f.impl_item.is_some()))?
+                    }
                 };
 
                 let count = hir.args.len();

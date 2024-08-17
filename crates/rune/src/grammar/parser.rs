@@ -7,8 +7,8 @@ use crate::ast::{Kind, OptionSpanned, Span, Token};
 use crate::compile::{Error, ErrorKind, Result, WithSpan};
 use crate::grammar::ws;
 use crate::macros::TokenStreamIter;
-use crate::parse::{Advance, IntoExpectation, Lexer, Peekable};
-use crate::shared::rune_trace;
+use crate::parse::{Advance, IntoExpectation, Lexer};
+use crate::shared::{rune_trace, FixedVec};
 
 use super::Tree;
 
@@ -300,6 +300,38 @@ impl<'a> Parser<'a> {
         self.nth_token(n).map(|tok| tok.kind)
     }
 
+    /// Access an array.
+    pub(super) fn array<const N: usize>(&mut self) -> Result<FixedVec<Token, N>> {
+        let mut vec = FixedVec::new();
+
+        for index in 0.. {
+            if vec.len() == N {
+                break;
+            }
+
+            while self.buf.len() <= index {
+                let Some(tok) = self.lexer.next()? else {
+                    break;
+                };
+
+                self.buf.try_push_back(tok).with_span(tok.span)?;
+            }
+
+            if let Some(tok) = self.buf.get(index) {
+                if !matches!(tok.kind, ws!()) {
+                    vec.try_push(*tok).with_span(tok.span)?;
+                }
+
+                continue;
+            }
+
+            let span = self.lexer.span().unwrap_or_else(Span::empty);
+            vec.try_push(Token { span, kind: Eof }).with_span(span)?;
+        }
+
+        Ok(vec)
+    }
+
     fn nth_token(&mut self, n: usize) -> Result<Token> {
         let mut index = 0;
         let mut remaining = n;
@@ -315,7 +347,6 @@ impl<'a> Parser<'a> {
 
             let Some(tok) = self.buf.get(index) else {
                 let span = self.lexer.span().unwrap_or_else(Span::empty);
-
                 return Ok(Token { span, kind: Eof });
             };
 
@@ -388,15 +419,5 @@ impl<'a> Advance for Parser<'a> {
     fn advance(&mut self, n: usize) -> Result<()> {
         Parser::advance(self, n)?;
         Ok(())
-    }
-}
-
-impl<'a> Peekable for Parser<'a> {
-    type Error = Error;
-
-    #[inline]
-    fn nth(&mut self, n: usize) -> Result<Token> {
-        self.ws()?;
-        self.nth_token(n)
     }
 }

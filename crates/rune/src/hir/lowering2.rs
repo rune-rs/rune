@@ -1,28 +1,985 @@
 use core::mem::{replace, take};
-use core::ops::Neg;
 
 use num::ToPrimitive;
 use tracing::instrument_ast;
 
 use crate::alloc::prelude::*;
-use crate::alloc::try_format;
-use crate::alloc::{self, Box, HashMap, HashSet};
-use crate::ast::{self, Spanned};
-use crate::compile::meta;
-use crate::compile::{self, ErrorKind, WithSpan};
+use crate::ast::{self, Kind, Span, Spanned};
+use crate::compile::{meta, Error, ErrorKind, Result, WithSpan};
+use crate::grammar::{Node, Remaining, Stream};
 use crate::hash::ParametersBuilder;
 use crate::hir;
 use crate::parse::Resolve;
-use crate::query::AsyncBlock;
-use crate::query::Closure;
-use crate::query::SecondaryBuildEntry;
-use crate::query::{self, GenericsParameters, Named, SecondaryBuild};
-use crate::runtime::ConstValue;
-use crate::runtime::{Type, TypeCheck};
-use crate::{Hash, Item};
+use crate::query::{GenericsParameters, Named2, Named2Kind};
+use crate::runtime::{ConstValue, Type, TypeCheck};
+use crate::Hash;
 
 use super::{Ctxt, Needs};
 
+use Kind::*;
+
+/// Lower a function item.
+#[instrument_ast(span = p)]
+pub(crate) fn item_fn<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    p: &mut Stream<'_>,
+    is_instance: bool,
+) -> Result<hir::ItemFn<'hir>> {
+    alloc_with!(cx, p);
+
+    p.remaining(cx, Attribute)?.ignore(cx)?;
+    p.try_pump(Modifiers)?;
+    p.expect(K![fn])?;
+    p.ast::<ast::Ident>()?;
+
+    let mut args = Vec::new();
+
+    p.expect(FnArgs)?.parse(|p| {
+        p.expect(K!['('])?;
+
+        let mut comma = Remaining::default();
+
+        while let Some(pat) = p.try_pump(Pat)? {
+            comma.exactly_one(cx)?;
+            let pat = pat.parse(|p| pat_binding(cx, p, is_instance))?;
+            args.try_push(hir::FnArg::Pat(alloc!(pat)))?;
+            comma = p.one(K![,])?;
+        }
+
+        comma.at_most_one(cx)?;
+        p.expect(K![')'])?;
+        Ok(())
+    })?;
+
+    let body = p.expect(Block)?.parse(|p| block(cx, None, p))?;
+
+    Ok(hir::ItemFn {
+        span: p.span(),
+        args: iter!(args),
+        body,
+    })
+}
+
+#[instrument_ast(span = p)]
+fn block<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    label: Option<&ast::Label>,
+    p: &mut Stream<'_>,
+) -> Result<hir::Block<'hir>> {
+    p.expect(K!['{'])?;
+    let block = p.expect(BlockBody)?.parse(|p| statements(cx, label, p))?;
+    p.expect(K!['}'])?;
+    Ok(block)
+}
+
+#[instrument_ast(span = p)]
+fn statements<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    label: Option<&ast::Label>,
+    p: &mut Stream<'_>,
+) -> Result<hir::Block<'hir>> {
+    alloc_with!(cx, p);
+
+    let label = match label {
+        Some(label) => Some(alloc_str!(label.resolve(resolve_context!(cx.q))?)),
+        None => None,
+    };
+
+    cx.scopes.push(label)?;
+
+    let at = cx.statements.len();
+
+    let mut value = None;
+
+    while let Some(node) = p.next() {
+        let last = match node.kind() {
+            Local => {
+                let stmt = hir::Stmt::Local(alloc!(node.parse(|p| local(cx, p))?));
+                cx.statement_buffer.try_push(stmt)?;
+                value.take()
+            }
+            Expr => {
+                let expr = node.parse(|p| expr(cx, p))?;
+
+                if let Some(stmt) = value.replace(&*alloc!(expr)).map(hir::Stmt::Expr) {
+                    cx.statement_buffer.try_push(stmt)?;
+                }
+
+                None
+            }
+            Item => {
+                continue;
+            }
+            _ => {
+                return Err(node.expected("an expression or local"));
+            }
+        };
+
+        if let Some(last) = last {
+            cx.statements
+                .try_push(hir::Stmt::Expr(last))
+                .with_span(&*p)?;
+        }
+
+        for stmt in cx.statement_buffer.drain(..) {
+            cx.statements.try_push(stmt).with_span(&*p)?;
+        }
+
+        p.remaining(cx, K![;])?.ignore(cx)?;
+    }
+
+    let statements = iter!(cx.statements.drain(at..));
+
+    let layer = cx.scopes.pop().with_span(&*p)?;
+
+    Ok(hir::Block {
+        span: p.span(),
+        label,
+        statements,
+        value,
+        drop: iter!(layer.into_drop_order()),
+    })
+}
+
+/// Lower a local.
+#[instrument_ast(span = p)]
+pub(crate) fn local<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    p: &mut Stream<'_>,
+) -> Result<hir::Local<'hir>> {
+    // Note: expression needs to be assembled before pattern, otherwise the
+    // expression will see declarations in the pattern.
+
+    p.expect(K![let])?;
+    let pat = p.expect(Pat)?;
+    p.expect(K![=])?;
+    let expr = p.expect(Expr)?;
+
+    let expr = expr.parse(|p| self::expr(cx, p))?;
+    let pat = pat.parse(|p| pat_binding(cx, p, false))?;
+
+    Ok(hir::Local {
+        span: p.span(),
+        pat,
+        expr,
+    })
+}
+
+/// Lower an expression.
+#[instrument_ast(span = p)]
+pub(crate) fn expr<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    p: &mut Stream<'_>,
+) -> Result<hir::Expr<'hir>> {
+    alloc_with!(cx, ast);
+
+    let kind = p.pump()?.parse(|p| expr_inner(cx, p))?;
+
+    Ok(hir::Expr {
+        span: p.span(),
+        kind,
+    })
+}
+
+#[instrument_ast(span = p)]
+fn expr_inner<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    p: &mut Stream<'_>,
+) -> Result<hir::ExprKind<'hir>> {
+    let in_path = take(&mut cx.in_path);
+
+    match p.kind() {
+        ExprPath => {
+            let node = p.pump()?;
+            expr_path(cx, node, in_path)
+        }
+        ExprChain => expr_chain(cx, p),
+        ExprBinary => expr_binary(cx, p),
+        ExprLit => {
+            let lit = lit(cx, p)?;
+            Ok(hir::ExprKind::Lit(lit))
+        }
+        _ => Err(p.expected(Expr)),
+    }
+}
+
+/// Lower the given path.
+#[instrument_ast(span = node)]
+fn expr_path<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    node: Node<'_>,
+    in_path: bool,
+) -> Result<hir::ExprKind<'hir>> {
+    fn is_self(node: &Node<'_>) -> bool {
+        node.as_array([PathSelf]).is_some()
+    }
+
+    fn try_as_ident(node: &Node<'_>) -> Option<ast::Ident> {
+        let [path_ident] = node.as_array([PathIdent])?;
+        let [ident] = path_ident.array()?;
+        ident.ast().ok()
+    }
+
+    alloc_with!(cx, &node);
+
+    if is_self(&node) {
+        let Some((id, _)) = cx.scopes.get(hir::Name::SelfValue)? else {
+            return Err(Error::new(&node, ErrorKind::MissingSelf));
+        };
+
+        return Ok(hir::ExprKind::Variable(id));
+    }
+
+    if let Needs::Value = cx.needs {
+        if let Some(name) = try_as_ident(&node) {
+            let name = alloc_str!(name.resolve(resolve_context!(cx.q))?);
+
+            if let Some((name, _)) = cx.scopes.get(hir::Name::Str(name))? {
+                return Ok(hir::ExprKind::Variable(name));
+            }
+        }
+    }
+
+    // Caller has indicated that if they can't have a variable, they do indeed
+    // want to treat it as a path.
+    if in_path {
+        return Ok(hir::ExprKind::Path);
+    }
+
+    let named = node.clone().parse(|p| cx.q.convert_path2(p))?;
+    let parameters = generics_parameters(cx, &named)?;
+
+    if let Some(meta) = cx.try_lookup_meta(&node, named.item, &parameters)? {
+        return expr_path_meta(cx, &meta, &node);
+    }
+
+    if let (Needs::Value, Named2Kind::Ident(local)) = (cx.needs, named.kind) {
+        let local = local.resolve(resolve_context!(cx.q))?;
+
+        // light heuristics, treat it as a type error in case the first
+        // character is uppercase.
+        if !local.starts_with(char::is_uppercase) {
+            return Err(Error::new(
+                &node,
+                ErrorKind::MissingLocal {
+                    name: Box::<str>::try_from(local)?,
+                },
+            ));
+        }
+    }
+
+    let kind = if !parameters.parameters.is_empty() {
+        ErrorKind::MissingItemParameters {
+            item: cx.q.pool.item(named.item).try_to_owned()?,
+            parameters: parameters.parameters,
+        }
+    } else {
+        ErrorKind::MissingItem {
+            item: cx.q.pool.item(named.item).try_to_owned()?,
+        }
+    };
+
+    Err(Error::new(&node, kind))
+}
+
+#[instrument_ast(span = p)]
+fn expr_chain<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    p: &mut Stream<'_>,
+) -> Result<hir::ExprKind<'hir>> {
+    alloc_with!(cx, p);
+
+    let node = p.pump()?;
+
+    let in_path = replace(&mut cx.in_path, true);
+    let (mut kind, mut span) = node.clone().parse(|p| Ok((expr_inner(cx, p)?, p.span())))?;
+    let mut outer = Some(node);
+    cx.in_path = in_path;
+
+    for node in p.by_ref() {
+        let outer = outer.take();
+
+        match node.kind() {
+            ExprCall => {
+                let span = replace(&mut span, node.span());
+                kind = node.parse(|p| expr_call(cx, p, span, kind, outer))?;
+            }
+            ExprField => {
+                let span = replace(&mut span, node.span());
+                kind = node.parse(|p| expr_field(cx, p, span, kind))?;
+            }
+            _ => {
+                return Err(node.expected(ExprChain));
+            }
+        }
+    }
+
+    Ok(kind)
+}
+
+#[instrument_ast(span = p)]
+fn expr_binary<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    p: &mut Stream<'_>,
+) -> Result<hir::ExprKind<'hir>> {
+    alloc_with!(cx, p);
+
+    let (mut lhs, mut lhs_span) = p.pump()?.parse(|p| Ok((expr_inner(cx, p)?, p.span())))?;
+
+    while !p.is_eof() {
+        let node = p.expect(ExprOperator)?;
+
+        let Some(ops) = node.fixed_vec::<2, _>(Node::into_token) else {
+            return Err(node.expected(ExprOperator));
+        };
+
+        let Some(op) = ast::BinOp::from_slice(&ops) else {
+            return Err(node.expected(ExprOperator));
+        };
+
+        let rhs_needs = match op {
+            ast::BinOp::As(..) | ast::BinOp::Is(..) | ast::BinOp::IsNot(..) => Needs::Type,
+            _ => Needs::Value,
+        };
+
+        let needs = replace(&mut cx.needs, rhs_needs);
+        let (rhs, rhs_span) = p.pump()?.parse(|p| Ok((expr_inner(cx, p)?, p.span())))?;
+        cx.needs = needs;
+
+        let span = lhs_span.join(rhs_span);
+        let lhs_span = replace(&mut lhs_span, span);
+
+        lhs = hir::ExprKind::Binary(alloc!(hir::ExprBinary {
+            lhs: hir::Expr {
+                span: lhs_span,
+                kind: lhs
+            },
+            op,
+            rhs: hir::Expr {
+                span: rhs_span,
+                kind: rhs
+            },
+        }));
+    }
+
+    Ok(lhs)
+}
+
+#[instrument_ast(span = p)]
+fn expr_call<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    p: &mut Stream<'_>,
+    span: Span,
+    kind: hir::ExprKind<'hir>,
+    outer: Option<Node<'_>>,
+) -> Result<hir::ExprKind<'hir>> {
+    alloc_with!(cx, p);
+
+    p.expect(K!['('])?;
+
+    let mut comma = Remaining::default();
+    let mut args = Vec::new();
+
+    while let Some(node) = p.try_pump(Expr)? {
+        comma.exactly_one(cx)?;
+        let expr = node.parse(|p| expr(cx, p))?;
+        args.try_push(expr)?;
+        comma = p.one(K![,])?;
+    }
+
+    comma.at_most_one(cx)?;
+    p.expect(K![')'])?;
+
+    let call = 'ok: {
+        match kind {
+            hir::ExprKind::Variable(name) => hir::Call::Var { name },
+            hir::ExprKind::Path => {
+                let Some(outer) = outer else {
+                    return Err(Error::msg(span, "Expected path"));
+                };
+
+                let named = outer.clone().parse(|p| cx.q.convert_path2(p))?;
+                let parameters = generics_parameters(cx, &named)?;
+
+                let meta = cx.lookup_meta(&span, named.item, parameters)?;
+                debug_assert_eq!(meta.item_meta.item, named.item);
+
+                match &meta.kind {
+                    meta::Kind::Struct {
+                        fields: meta::Fields::Empty,
+                        ..
+                    }
+                    | meta::Kind::Variant {
+                        fields: meta::Fields::Empty,
+                        ..
+                    } => {
+                        if !args.is_empty() {
+                            return Err(Error::new(
+                                p,
+                                ErrorKind::UnsupportedArgumentCount {
+                                    expected: 0,
+                                    actual: args.len(),
+                                },
+                            ));
+                        }
+                    }
+                    meta::Kind::Struct {
+                        fields: meta::Fields::Unnamed(expected),
+                        ..
+                    }
+                    | meta::Kind::Variant {
+                        fields: meta::Fields::Unnamed(expected),
+                        ..
+                    } => {
+                        if *expected != args.len() {
+                            return Err(Error::new(
+                                p,
+                                ErrorKind::UnsupportedArgumentCount {
+                                    expected: *expected,
+                                    actual: args.len(),
+                                },
+                            ));
+                        }
+
+                        if *expected == 0 {
+                            cx.q.diagnostics.remove_tuple_call_parens(
+                                cx.source_id,
+                                p,
+                                &outer,
+                                None,
+                            )?;
+                        }
+                    }
+                    meta::Kind::Function { .. } => {
+                        if let Some(message) = cx.q.lookup_deprecation(meta.hash) {
+                            cx.q.diagnostics.used_deprecated(
+                                cx.source_id,
+                                &outer,
+                                None,
+                                message.try_into()?,
+                            )?;
+                        };
+                    }
+                    meta::Kind::ConstFn => {
+                        let from = cx.q.item_for(named.item).with_span(&outer)?;
+
+                        break 'ok hir::Call::ConstFn {
+                            from_module: from.module,
+                            from_item: from.item,
+                            id: meta.item_meta.item,
+                        };
+                    }
+                    _ => {
+                        return Err(Error::expected_meta(
+                            &outer,
+                            meta.info(cx.q.pool)?,
+                            "something that can be called as a function",
+                        ));
+                    }
+                };
+
+                hir::Call::Meta { hash: meta.hash }
+            }
+            hir::ExprKind::FieldAccess(&hir::ExprFieldAccess {
+                expr_field,
+                expr: target,
+            }) => {
+                let hash = match expr_field {
+                    hir::ExprField::Index(index) => Hash::index(index),
+                    hir::ExprField::Ident(ident) => {
+                        cx.q.unit.insert_debug_ident(ident)?;
+                        Hash::ident(ident)
+                    }
+                    hir::ExprField::IdentGenerics(ident, hash) => {
+                        cx.q.unit.insert_debug_ident(ident)?;
+                        Hash::ident(ident).with_function_parameters(hash)
+                    }
+                };
+
+                hir::Call::Associated {
+                    target: alloc!(target),
+                    hash,
+                }
+            }
+            _ => hir::Call::Expr {
+                expr: alloc!(hir::Expr { span, kind }),
+            },
+        }
+    };
+
+    let kind = hir::ExprKind::Call(alloc!(hir::ExprCall {
+        call,
+        args: iter!(args),
+    }));
+
+    Ok(kind)
+}
+
+#[instrument_ast(span = p)]
+fn expr_field<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    p: &mut Stream<'_>,
+    span: Span,
+    kind: hir::ExprKind<'hir>,
+) -> Result<hir::ExprKind<'hir>> {
+    alloc_with!(cx, p);
+
+    p.expect(K![.])?;
+
+    let expr_field = match p.peek() {
+        K![number] => {
+            let number = p.ast::<ast::LitNumber>()?;
+            let index = number.resolve(resolve_context!(cx.q))?;
+
+            let Some(index) = index.as_tuple_index() else {
+                return Err(Error::new(
+                    &number,
+                    ErrorKind::UnsupportedTupleIndex { number: index },
+                ));
+            };
+
+            hir::ExprField::Index(index)
+        }
+        IndexedPath(..) => p.pump()?.parse(|p| match p.peek() {
+            PathIdent => {
+                let base = p.pump()?.parse(|p| p.ast::<ast::Ident>())?;
+                let base = base.resolve(resolve_context!(cx.q))?;
+                let base = alloc_str!(base);
+                Ok(hir::ExprField::Ident(base))
+            }
+            PathFull => p.pump()?.parse(|p| {
+                let base = p.ast::<ast::Ident>()?;
+                let base = base.resolve(resolve_context!(cx.q))?;
+                let base = alloc_str!(base);
+
+                if p.try_pump(K![::])?.is_some() {
+                    let hash = p
+                        .expect(PathGenerics)?
+                        .parse(|p| generic_arguments(cx, p))?;
+                    Ok(hir::ExprField::IdentGenerics(base, hash))
+                } else {
+                    Ok(hir::ExprField::Ident(base))
+                }
+            }),
+            _ => {
+                return Err(p.expected(Path));
+            }
+        })?,
+        _ => {
+            return Err(p.expected(ExprField));
+        }
+    };
+
+    let kind = hir::ExprKind::FieldAccess(alloc!(hir::ExprFieldAccess {
+        expr: hir::Expr { span, kind },
+        expr_field,
+    }));
+
+    Ok(kind)
+}
+
+/// Compile an item.
+#[instrument_ast(span = span)]
+fn expr_path_meta<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    meta: &meta::Meta,
+    span: &dyn Spanned,
+) -> Result<hir::ExprKind<'hir>> {
+    alloc_with!(cx, span);
+
+    if let Needs::Value = cx.needs {
+        match &meta.kind {
+            meta::Kind::Struct {
+                fields: meta::Fields::Empty,
+                ..
+            }
+            | meta::Kind::Variant {
+                fields: meta::Fields::Empty,
+                ..
+            } => Ok(hir::ExprKind::Call(alloc!(hir::ExprCall {
+                call: hir::Call::Meta { hash: meta.hash },
+                args: &[],
+            }))),
+            meta::Kind::Variant {
+                fields: meta::Fields::Unnamed(0),
+                ..
+            }
+            | meta::Kind::Struct {
+                fields: meta::Fields::Unnamed(0),
+                ..
+            } => Ok(hir::ExprKind::Call(alloc!(hir::ExprCall {
+                call: hir::Call::Meta { hash: meta.hash },
+                args: &[],
+            }))),
+            meta::Kind::Struct {
+                fields: meta::Fields::Unnamed(..),
+                ..
+            } => Ok(hir::ExprKind::Fn(meta.hash)),
+            meta::Kind::Variant {
+                fields: meta::Fields::Unnamed(..),
+                ..
+            } => Ok(hir::ExprKind::Fn(meta.hash)),
+            meta::Kind::Function { .. } => Ok(hir::ExprKind::Fn(meta.hash)),
+            meta::Kind::Const { .. } => Ok(hir::ExprKind::Const(meta.hash)),
+            meta::Kind::Struct { .. } | meta::Kind::Type { .. } | meta::Kind::Enum { .. } => {
+                Ok(hir::ExprKind::Type(Type::new(meta.hash)))
+            }
+            _ => Err(Error::expected_meta(
+                span,
+                meta.info(cx.q.pool)?,
+                "something that can be used as a value",
+            )),
+        }
+    } else {
+        let Some(type_hash) = meta.type_hash_of() else {
+            return Err(Error::expected_meta(
+                span,
+                meta.info(cx.q.pool)?,
+                "something that has a type",
+            ));
+        };
+
+        Ok(hir::ExprKind::Type(Type::new(type_hash)))
+    }
+}
+
+fn pat_binding<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    p: &mut Stream<'_>,
+    self_value: bool,
+) -> Result<hir::PatBinding<'hir>> {
+    alloc_with!(cx, p);
+
+    let pat = pat(cx, p, self_value)?;
+    let names = iter!(cx.pattern_bindings.drain(..));
+
+    Ok(hir::PatBinding { pat, names })
+}
+
+fn pat<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    p: &mut Stream<'_>,
+    self_value: bool,
+) -> Result<hir::Pat<'hir>> {
+    alloc_with!(cx, p);
+
+    let n = p.pump()?;
+
+    let pat = match n.kind() {
+        K![_] => hir::Pat {
+            span: p.span(),
+            kind: hir::PatKind::Ignore,
+        },
+        IndexedPath(..) => pat_path(cx, n, self_value)?,
+        _ => {
+            return Err(p.expected(Pat));
+        }
+    };
+
+    Ok(pat)
+}
+
+fn pat_path<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    node: Node<'_>,
+    self_value: bool,
+) -> Result<hir::Pat<'hir>> {
+    alloc_with!(cx, &node);
+
+    let named = node.clone().parse(|p| cx.q.convert_path2(p))?;
+    let parameters = generics_parameters(cx, &named)?;
+
+    let path = 'path: {
+        if let Some(meta) = cx.try_lookup_meta(&node, named.item, &parameters)? {
+            match meta.kind {
+                meta::Kind::Const => {
+                    let Some(const_value) = cx.q.get_const_value(meta.hash) else {
+                        return Err(Error::msg(
+                            &node,
+                            try_format!("Missing constant for hash {}", meta.hash),
+                        ));
+                    };
+
+                    let const_value = const_value.try_clone().with_span(&node)?;
+                    return pat_const_value(cx, &const_value, &node);
+                }
+                _ => {
+                    if let Some((0, kind)) = tuple_match_for(cx, &meta) {
+                        break 'path hir::PatPathKind::Kind(alloc!(kind));
+                    }
+                }
+            }
+        };
+
+        match named.kind {
+            Named2Kind::SelfValue(ast) if self_value => {
+                let name = cx.scopes.define(hir::Name::SelfValue, &ast)?;
+                cx.pattern_bindings.try_push(name)?;
+                break 'path hir::PatPathKind::Ident(name);
+            }
+            Named2Kind::Ident(ident) => {
+                let name = alloc_str!(ident.resolve(resolve_context!(cx.q))?);
+                let name = cx.scopes.define(hir::Name::Str(name), &node)?;
+                cx.pattern_bindings.try_push(name)?;
+                break 'path hir::PatPathKind::Ident(name);
+            }
+            _ => {
+                return Err(Error::new(&node, ErrorKind::UnsupportedBinding));
+            }
+        }
+    };
+
+    let kind = hir::PatKind::Path(alloc!(path));
+
+    Ok(hir::Pat {
+        span: node.span(),
+        kind,
+    })
+}
+
+fn generics_parameters(
+    cx: &mut Ctxt<'_, '_, '_>,
+    named: &Named2<'_>,
+) -> Result<GenericsParameters> {
+    let mut parameters = GenericsParameters {
+        trailing: named.trailing,
+        parameters: [None, None],
+    };
+
+    for (value, o) in named
+        .parameters
+        .iter()
+        .zip(parameters.parameters.iter_mut())
+    {
+        if let Some(node) = value {
+            let hash = node.clone().parse(|p| generic_arguments(cx, p))?;
+            *o = Some(hash);
+        }
+    }
+
+    Ok(parameters)
+}
+
+fn generic_arguments(cx: &mut Ctxt<'_, '_, '_>, p: &mut Stream<'_>) -> Result<Hash> {
+    p.expect(K![<])?;
+
+    let mut comma = Remaining::default();
+    let mut builder = ParametersBuilder::new();
+
+    let needs = replace(&mut cx.needs, Needs::Type);
+
+    while matches!(p.peek(), IndexedPath(..)) {
+        comma.exactly_one(cx)?;
+
+        let node = p.pump()?;
+        let span = node.span();
+
+        let hir::ExprKind::Type(ty) = expr_path(cx, node, false)? else {
+            return Err(Error::new(span, ErrorKind::UnsupportedGenerics));
+        };
+
+        builder.add(ty.into_hash());
+        comma = p.one(K![,])?;
+    }
+
+    cx.needs = needs;
+
+    comma.at_most_one(cx)?;
+    p.expect(K![>])?;
+    Ok(builder.finish())
+}
+
+/// Construct a pattern from a constant value.
+#[instrument_ast(span = span)]
+fn pat_const_value<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    const_value: &ConstValue,
+    span: &dyn Spanned,
+) -> Result<hir::Pat<'hir>> {
+    alloc_with!(cx, span);
+
+    let kind = 'kind: {
+        let lit = match *const_value {
+            ConstValue::Bool(b) => hir::Lit::Bool(b),
+            ConstValue::Byte(b) => hir::Lit::Byte(b),
+            ConstValue::Char(ch) => hir::Lit::Char(ch),
+            ConstValue::String(ref string) => hir::Lit::Str(alloc_str!(string.as_ref())),
+            ConstValue::Bytes(ref bytes) => hir::Lit::ByteStr(alloc_bytes!(bytes.as_ref())),
+            ConstValue::Integer(integer) => hir::Lit::Integer(integer),
+            ConstValue::Vec(ref items) => {
+                let items = iter!(items.iter(), items.len(), |value| pat_const_value(
+                    cx, value, span
+                )?);
+
+                break 'kind hir::PatKind::Sequence(alloc!(hir::PatSequence {
+                    kind: hir::PatSequenceKind::Anonymous {
+                        type_check: TypeCheck::Vec,
+                        count: items.len(),
+                        is_open: false,
+                    },
+                    items,
+                }));
+            }
+            ConstValue::Unit => {
+                break 'kind hir::PatKind::Sequence(alloc!(hir::PatSequence {
+                    kind: hir::PatSequenceKind::Anonymous {
+                        type_check: TypeCheck::Unit,
+                        count: 0,
+                        is_open: false,
+                    },
+                    items: &[],
+                }));
+            }
+            ConstValue::Tuple(ref items) => {
+                let items = iter!(items.iter(), items.len(), |value| pat_const_value(
+                    cx, value, span
+                )?);
+
+                break 'kind hir::PatKind::Sequence(alloc!(hir::PatSequence {
+                    kind: hir::PatSequenceKind::Anonymous {
+                        type_check: TypeCheck::Vec,
+                        count: items.len(),
+                        is_open: false,
+                    },
+                    items,
+                }));
+            }
+            ConstValue::Object(ref fields) => {
+                let bindings = iter!(fields.iter(), fields.len(), |(key, value)| {
+                    let pat = alloc!(pat_const_value(cx, value, span)?);
+
+                    hir::Binding::Binding(span.span(), alloc_str!(key.as_ref()), pat)
+                });
+
+                break 'kind hir::PatKind::Object(alloc!(hir::PatObject {
+                    kind: hir::PatSequenceKind::Anonymous {
+                        type_check: TypeCheck::Object,
+                        count: bindings.len(),
+                        is_open: false,
+                    },
+                    bindings,
+                }));
+            }
+            _ => {
+                return Err(Error::msg(span, "Unsupported constant value in pattern"));
+            }
+        };
+
+        hir::PatKind::Lit(alloc!(hir::Expr {
+            span: span.span(),
+            kind: hir::ExprKind::Lit(lit),
+        }))
+    };
+
+    Ok(hir::Pat {
+        span: span.span(),
+        kind,
+    })
+}
+
+fn tuple_match_for(
+    cx: &Ctxt<'_, '_, '_>,
+    meta: &meta::Meta,
+) -> Option<(usize, hir::PatSequenceKind)> {
+    Some(match &meta.kind {
+        meta::Kind::Struct {
+            fields: meta::Fields::Empty,
+            ..
+        } => (0, hir::PatSequenceKind::Type { hash: meta.hash }),
+        meta::Kind::Struct {
+            fields: meta::Fields::Unnamed(args),
+            ..
+        } => (*args, hir::PatSequenceKind::Type { hash: meta.hash }),
+        meta::Kind::Variant {
+            enum_hash,
+            index,
+            fields,
+            ..
+        } => {
+            let args = match fields {
+                meta::Fields::Unnamed(args) => *args,
+                meta::Fields::Empty => 0,
+                _ => return None,
+            };
+
+            let kind = if let Some(type_check) = cx.q.context.type_check_for(meta.hash) {
+                hir::PatSequenceKind::BuiltInVariant { type_check }
+            } else {
+                hir::PatSequenceKind::Variant {
+                    variant_hash: meta.hash,
+                    enum_hash: *enum_hash,
+                    index: *index,
+                }
+            };
+
+            (args, kind)
+        }
+        _ => return None,
+    })
+}
+
+#[instrument_ast(span = p)]
+fn lit<'hir>(cx: &mut Ctxt<'hir, '_, '_>, p: &mut Stream<'_>) -> Result<hir::Lit<'hir>> {
+    alloc_with!(cx, p);
+
+    let node = p.pump()?;
+
+    match node.kind() {
+        K![true] => Ok(hir::Lit::Bool(true)),
+        K![false] => Ok(hir::Lit::Bool(false)),
+        K![number] => {
+            let lit = node.ast::<ast::LitNumber>()?;
+            let n = lit.resolve(resolve_context!(cx.q))?;
+
+            match (n.value, n.suffix) {
+                (ast::NumberValue::Float(n), _) => Ok(hir::Lit::Float(n)),
+                (ast::NumberValue::Integer(int), Some(ast::NumberSuffix::Byte(..))) => {
+                    let Some(n) = int.to_u8() else {
+                        return Err(Error::new(lit, ErrorKind::BadNumberOutOfBounds));
+                    };
+
+                    Ok(hir::Lit::Byte(n))
+                }
+                (ast::NumberValue::Integer(int), _) => {
+                    let Some(n) = int.to_i64() else {
+                        return Err(Error::new(lit, ErrorKind::BadNumberOutOfBounds));
+                    };
+
+                    Ok(hir::Lit::Integer(n))
+                }
+            }
+        }
+        K![byte] => {
+            let lit = node.ast::<ast::LitByte>()?;
+            let b = lit.resolve(resolve_context!(cx.q))?;
+            Ok(hir::Lit::Byte(b))
+        }
+        K![char] => {
+            let lit = node.ast::<ast::LitChar>()?;
+            let ch = lit.resolve(resolve_context!(cx.q))?;
+            Ok(hir::Lit::Char(ch))
+        }
+        K![str] => {
+            let lit = node.ast::<ast::LitStr>()?;
+
+            let string = if cx.in_template {
+                lit.resolve_template_string(resolve_context!(cx.q))?
+            } else {
+                lit.resolve_string(resolve_context!(cx.q))?
+            };
+
+            Ok(hir::Lit::Str(alloc_str!(string.as_ref())))
+        }
+        K![bytestr] => {
+            let lit = node.ast::<ast::LitByteStr>()?;
+            let bytes = lit.resolve(resolve_context!(cx.q))?;
+            Ok(hir::Lit::ByteStr(alloc_bytes!(bytes.as_ref())))
+        }
+        _ => Err(node.expected(ExprLit)),
+    }
+}
+
+/*
 /// Lower an empty function.
 #[instrument_ast(span = span)]
 pub(crate) fn empty_fn<'hir>(
@@ -37,21 +994,6 @@ pub(crate) fn empty_fn<'hir>(
     })
 }
 
-/// Lower a function item.
-#[instrument_ast(span = ast)]
-pub(crate) fn item_fn<'hir>(
-    cx: &mut Ctxt<'hir, '_, '_>,
-    ast: &ast::ItemFn,
-) -> compile::Result<hir::ItemFn<'hir>> {
-    alloc_with!(cx, ast);
-
-    Ok(hir::ItemFn {
-        span: ast.span(),
-        args: iter!(&ast.args, |(ast, _)| fn_arg(cx, ast)?),
-        body: block(cx, None, &ast.body)?,
-    })
-}
-
 /// Assemble a closure expression.
 #[instrument_ast(span = ast)]
 fn expr_call_closure<'hir>(
@@ -63,7 +1005,7 @@ fn expr_call_closure<'hir>(
     let item = cx.q.item_for(ast.id).with_span(ast)?;
 
     let Some(meta) = cx.q.query_meta(ast, item.item, Default::default())? else {
-        return Err(compile::Error::new(
+        return Err(Error::new(
             ast,
             ErrorKind::MissingItem {
                 item: cx.q.pool.item(item.item).try_to_owned()?,
@@ -72,7 +1014,7 @@ fn expr_call_closure<'hir>(
     };
 
     let meta::Kind::Closure { call, do_move, .. } = meta.kind else {
-        return Err(compile::Error::expected_meta(
+        return Err(Error::expected_meta(
             ast,
             meta.info(cx.q.pool)?,
             "a closure",
@@ -93,7 +1035,7 @@ fn expr_call_closure<'hir>(
     let captures = &*iter!(layer.captures().map(|(_, id)| id));
 
     let Some(queue) = cx.secondary_builds.as_mut() else {
-        return Err(compile::Error::new(ast, ErrorKind::ClosureInConst));
+        return Err(Error::new(ast, ErrorKind::ClosureInConst));
     };
 
     queue.try_push(SecondaryBuildEntry {
@@ -231,7 +1173,7 @@ fn expr_range<'hir>(
             start: expr(cx, start)?,
             end: expr(cx, end)?,
         }),
-        (Some(..) | None, None, ast::ExprRangeLimits::Closed(..)) => Err(compile::Error::msg(
+        (Some(..) | None, None, ast::ExprRangeLimits::Closed(..)) => Err(Error::msg(
             ast,
             "Unsupported range, you probably want `..` instead of `..=`",
         )),
@@ -252,7 +1194,7 @@ fn expr_object<'hir>(
         let key = object_key(cx, &ast.key)?;
 
         if let Some(_existing) = keys_dup.try_insert(key.1, key.0)? {
-            return Err(compile::Error::new(
+            return Err(Error::new(
                 key.0,
                 ErrorKind::DuplicateObjectKey {
                     #[cfg(feature = "emit")]
@@ -267,7 +1209,7 @@ fn expr_object<'hir>(
             Some((_, ast)) => expr(cx, ast)?,
             None => {
                 let Some((name, _)) = cx.scopes.get(hir::Name::Str(key.1))? else {
-                    return Err(compile::Error::new(
+                    return Err(Error::new(
                         key.0,
                         ErrorKind::MissingLocal {
                             name: key.1.try_to_string()?.try_into()?,
@@ -298,7 +1240,7 @@ fn expr_object<'hir>(
                     assign.position = Some(field_meta.position);
                 }
                 None => {
-                    return Err(compile::Error::new(
+                    return Err(Error::new(
                         assign.key.0,
                         ErrorKind::LitObjectNotField {
                             field: assign.key.1.try_into()?,
@@ -310,7 +1252,7 @@ fn expr_object<'hir>(
         }
 
         if let Some(field) = fields.into_keys().next() {
-            return Err(compile::Error::new(
+            return Err(Error::new(
                 span,
                 ErrorKind::LitObjectMissingField {
                     field,
@@ -360,7 +1302,7 @@ fn expr_object<'hir>(
                     hir::ExprObjectKind::StructVariant { hash: meta.hash }
                 }
                 _ => {
-                    return Err(compile::Error::new(
+                    return Err(Error::new(
                         span,
                         ErrorKind::UnsupportedLitObject {
                             meta: meta.info(cx.q.pool)?,
@@ -545,7 +1487,7 @@ pub(crate) fn expr<'hir>(
                     }
                     ast::ExprSelectBranch::Default(ast) => {
                         if default.is_some() {
-                            return Err(compile::Error::new(
+                            return Err(Error::new(
                                 ast,
                                 ErrorKind::SelectMultipleDefaults,
                             ));
@@ -575,7 +1517,7 @@ pub(crate) fn expr<'hir>(
         ast::Expr::Group(ast) => hir::ExprKind::Group(alloc!(expr(cx, &ast.expr)?)),
         ast::Expr::MacroCall(ast) => {
             let Some(id) = ast.id else {
-                return Err(compile::Error::msg(ast, "missing expanded macro id"));
+                return Err(Error::msg(ast, "missing expanded macro id"));
             };
 
             match cx.q.builtin_macro_for(id).with_span(ast)?.as_ref() {
@@ -611,97 +1553,6 @@ pub(crate) fn expr<'hir>(
 
     Ok(hir::Expr {
         span: ast.span(),
-        kind,
-    })
-}
-
-/// Construct a pattern from a constant value.
-#[instrument_ast(span = span)]
-fn pat_const_value<'hir>(
-    cx: &mut Ctxt<'hir, '_, '_>,
-    const_value: &ConstValue,
-    span: &dyn Spanned,
-) -> compile::Result<hir::Pat<'hir>> {
-    alloc_with!(cx, span);
-
-    let kind = 'kind: {
-        let lit = match *const_value {
-            ConstValue::Bool(b) => hir::Lit::Bool(b),
-            ConstValue::Byte(b) => hir::Lit::Byte(b),
-            ConstValue::Char(ch) => hir::Lit::Char(ch),
-            ConstValue::String(ref string) => hir::Lit::Str(alloc_str!(string.as_ref())),
-            ConstValue::Bytes(ref bytes) => hir::Lit::ByteStr(alloc_bytes!(bytes.as_ref())),
-            ConstValue::Integer(integer) => hir::Lit::Integer(integer),
-            ConstValue::Vec(ref items) => {
-                let items = iter!(items.iter(), items.len(), |value| pat_const_value(
-                    cx, value, span
-                )?);
-
-                break 'kind hir::PatKind::Sequence(alloc!(hir::PatSequence {
-                    kind: hir::PatSequenceKind::Anonymous {
-                        type_check: TypeCheck::Vec,
-                        count: items.len(),
-                        is_open: false,
-                    },
-                    items,
-                }));
-            }
-            ConstValue::Unit => {
-                break 'kind hir::PatKind::Sequence(alloc!(hir::PatSequence {
-                    kind: hir::PatSequenceKind::Anonymous {
-                        type_check: TypeCheck::Unit,
-                        count: 0,
-                        is_open: false,
-                    },
-                    items: &[],
-                }));
-            }
-            ConstValue::Tuple(ref items) => {
-                let items = iter!(items.iter(), items.len(), |value| pat_const_value(
-                    cx, value, span
-                )?);
-
-                break 'kind hir::PatKind::Sequence(alloc!(hir::PatSequence {
-                    kind: hir::PatSequenceKind::Anonymous {
-                        type_check: TypeCheck::Vec,
-                        count: items.len(),
-                        is_open: false,
-                    },
-                    items,
-                }));
-            }
-            ConstValue::Object(ref fields) => {
-                let bindings = iter!(fields.iter(), fields.len(), |(key, value)| {
-                    let pat = alloc!(pat_const_value(cx, value, span)?);
-
-                    hir::Binding::Binding(span.span(), alloc_str!(key.as_ref()), pat)
-                });
-
-                break 'kind hir::PatKind::Object(alloc!(hir::PatObject {
-                    kind: hir::PatSequenceKind::Anonymous {
-                        type_check: TypeCheck::Object,
-                        count: bindings.len(),
-                        is_open: false,
-                    },
-                    bindings,
-                }));
-            }
-            _ => {
-                return Err(compile::Error::msg(
-                    span,
-                    "Unsupported constant value in pattern",
-                ));
-            }
-        };
-
-        hir::PatKind::Lit(alloc!(hir::Expr {
-            span: span.span(),
-            kind: hir::ExprKind::Lit(lit),
-        }))
-    };
-
-    Ok(hir::Pat {
-        span: span.span(),
         kind,
     })
 }
@@ -755,57 +1606,6 @@ fn expr_if<'hir>(
 }
 
 #[instrument_ast(span = ast)]
-fn lit<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Lit) -> compile::Result<hir::Lit<'hir>> {
-    alloc_with!(cx, ast);
-
-    match ast {
-        ast::Lit::Bool(lit) => Ok(hir::Lit::Bool(lit.value)),
-        ast::Lit::Number(lit) => {
-            let n = lit.resolve(resolve_context!(cx.q))?;
-
-            match (n.value, n.suffix) {
-                (ast::NumberValue::Float(n), _) => Ok(hir::Lit::Float(n)),
-                (ast::NumberValue::Integer(int), Some(ast::NumberSuffix::Byte(..))) => {
-                    let Some(n) = int.to_u8() else {
-                        return Err(compile::Error::new(ast, ErrorKind::BadNumberOutOfBounds));
-                    };
-
-                    Ok(hir::Lit::Byte(n))
-                }
-                (ast::NumberValue::Integer(int), _) => {
-                    let Some(n) = int.to_i64() else {
-                        return Err(compile::Error::new(ast, ErrorKind::BadNumberOutOfBounds));
-                    };
-
-                    Ok(hir::Lit::Integer(n))
-                }
-            }
-        }
-        ast::Lit::Byte(lit) => {
-            let b = lit.resolve(resolve_context!(cx.q))?;
-            Ok(hir::Lit::Byte(b))
-        }
-        ast::Lit::Char(lit) => {
-            let ch = lit.resolve(resolve_context!(cx.q))?;
-            Ok(hir::Lit::Char(ch))
-        }
-        ast::Lit::Str(lit) => {
-            let string = if cx.in_template {
-                lit.resolve_template_string(resolve_context!(cx.q))?
-            } else {
-                lit.resolve_string(resolve_context!(cx.q))?
-            };
-
-            Ok(hir::Lit::Str(alloc_str!(string.as_ref())))
-        }
-        ast::Lit::ByteStr(lit) => {
-            let bytes = lit.resolve(resolve_context!(cx.q))?;
-            Ok(hir::Lit::ByteStr(alloc_bytes!(bytes.as_ref())))
-        }
-    }
-}
-
-#[instrument_ast(span = ast)]
 fn expr_unary<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::ExprUnary,
@@ -814,7 +1614,7 @@ fn expr_unary<'hir>(
 
     // NB: special unary expressions.
     if let ast::UnOp::BorrowRef { .. } = ast.op {
-        return Err(compile::Error::new(ast, ErrorKind::UnsupportedRef));
+        return Err(Error::new(ast, ErrorKind::UnsupportedRef));
     }
 
     let (
@@ -839,12 +1639,12 @@ fn expr_unary<'hir>(
         }
         (ast::NumberValue::Integer(int), Some(ast::NumberSuffix::Int(..)) | None) => {
             let Some(n) = int.neg().to_i64() else {
-                return Err(compile::Error::new(ast, ErrorKind::BadNumberOutOfBounds));
+                return Err(Error::new(ast, ErrorKind::BadNumberOutOfBounds));
             };
 
             Ok(hir::ExprKind::Lit(hir::Lit::Integer(n)))
         }
-        _ => Err(compile::Error::new(ast, ErrorKind::BadNumberOutOfBounds)),
+        _ => Err(Error::new(ast, ErrorKind::BadNumberOutOfBounds)),
     }
 }
 
@@ -884,14 +1684,14 @@ fn expr_block<'hir>(
         // only occurs during certain kinds of constant evaluation. So we limit
         // evaluation to only support constant blocks.
         let ExprBlockKind::Const = kind else {
-            return Err(compile::Error::msg(
+            return Err(Error::msg(
                 ast,
                 "Only constant blocks are supported in this context",
             ));
         };
 
         if let Some(label) = &ast.label {
-            return Err(compile::Error::msg(
+            return Err(Error::msg(
                 label,
                 "Constant blocks cannot be labelled",
             ));
@@ -908,7 +1708,7 @@ fn expr_block<'hir>(
             tracing::trace!("queuing async block build entry");
 
             if let Some(label) = &ast.label {
-                return Err(compile::Error::msg(
+                return Err(Error::msg(
                     label,
                     "Async blocks cannot be labelled",
                 ));
@@ -923,7 +1723,7 @@ fn expr_block<'hir>(
             let captures = &*iter!(layer.captures().map(|(_, id)| id));
 
             let Some(queue) = cx.secondary_builds.as_mut() else {
-                return Err(compile::Error::new(ast, ErrorKind::AsyncBlockInConst));
+                return Err(Error::new(ast, ErrorKind::AsyncBlockInConst));
             };
 
             queue.try_push(SecondaryBuildEntry {
@@ -941,7 +1741,7 @@ fn expr_block<'hir>(
             })))
         }
         (ExprBlockKind::Const, meta::Kind::Const { .. }) => Ok(hir::ExprKind::Const(meta.hash)),
-        _ => Err(compile::Error::expected_meta(
+        _ => Err(Error::expected_meta(
             ast,
             meta.info(cx.q.pool)?,
             "async or const block",
@@ -964,14 +1764,14 @@ fn expr_break<'hir>(
 
     let Some(drop) = cx.scopes.loop_drop(label)? else {
         if let Some(label) = label {
-            return Err(compile::Error::new(
+            return Err(Error::new(
                 ast,
                 ErrorKind::MissingLabel {
                     label: label.try_into()?,
                 },
             ));
         } else {
-            return Err(compile::Error::new(ast, ErrorKind::BreakUnsupported));
+            return Err(Error::new(ast, ErrorKind::BreakUnsupported));
         }
     };
 
@@ -1003,14 +1803,14 @@ fn expr_continue<'hir>(
 
     let Some(drop) = cx.scopes.loop_drop(label)? else {
         if let Some(label) = label {
-            return Err(compile::Error::new(
+            return Err(Error::new(
                 ast,
                 ErrorKind::MissingLabel {
                     label: label.try_into()?,
                 },
             ));
         } else {
-            return Err(compile::Error::new(ast, ErrorKind::ContinueUnsupported));
+            return Err(Error::new(ast, ErrorKind::ContinueUnsupported));
         }
     };
 
@@ -1036,20 +1836,6 @@ fn fn_arg<'hir>(
             hir::FnArg::SelfValue(ast.span(), id)
         }
         ast::FnArg::Pat(ast) => hir::FnArg::Pat(alloc!(pat_binding(cx, ast)?)),
-    })
-}
-
-/// Lower an assignment.
-fn local<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Local) -> compile::Result<hir::Local<'hir>> {
-    // Note: expression needs to be assembled before pattern, otherwise the
-    // expression will see declarations in the pattern.
-    let expr = expr(cx, &ast.expr)?;
-    let pat = pat_binding(cx, &ast.pat)?;
-
-    Ok(hir::Local {
-        span: ast.span(),
-        pat,
-        expr,
     })
 }
 
@@ -1112,18 +1898,6 @@ fn unpack_locals(cx: &mut Ctxt<'_, '_, '_>, p: &ast::Pat, e: &ast::Expr) -> comp
     Ok(false)
 }
 
-fn pat_binding<'hir>(
-    cx: &mut Ctxt<'hir, '_, '_>,
-    ast: &ast::Pat,
-) -> compile::Result<hir::PatBinding<'hir>> {
-    alloc_with!(cx, ast);
-
-    let pat = pat(cx, ast)?;
-    let names = iter!(cx.pattern_bindings.drain(..));
-
-    Ok(hir::PatBinding { pat, names })
-}
-
 fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir::Pat<'hir>> {
     fn filter((ast, _): &(ast::Pat, Option<ast::Comma>)) -> Option<&ast::Pat> {
         if matches!(ast, ast::Pat::Binding(..) | ast::Pat::Rest(..)) {
@@ -1147,7 +1921,7 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                         match meta.kind {
                             meta::Kind::Const => {
                                 let Some(const_value) = cx.q.get_const_value(meta.hash) else {
-                                    return Err(compile::Error::msg(
+                                    return Err(Error::msg(
                                         ast,
                                         try_format!("Missing constant for hash {}", meta.hash),
                                     ));
@@ -1171,7 +1945,7 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                         break 'path hir::PatPathKind::Ident(name);
                     }
 
-                    return Err(compile::Error::new(ast, ErrorKind::UnsupportedBinding));
+                    return Err(Error::new(ast, ErrorKind::UnsupportedBinding));
                 };
 
                 hir::PatKind::Path(alloc!(path))
@@ -1210,7 +1984,7 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                     // Treat the current meta as a tuple and get the number of arguments it
                     // should receive and the type check that applies to it.
                     let Some((args, kind)) = tuple_match_for(cx, &meta) else {
-                        return Err(compile::Error::expected_meta(
+                        return Err(Error::expected_meta(
                             path,
                             meta.info(cx.q.pool)?,
                             "type that can be used in a tuple pattern",
@@ -1218,7 +1992,7 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                     };
 
                     if !(args == count || count < args && is_open) {
-                        return Err(compile::Error::new(
+                        return Err(Error::new(
                             path,
                             ErrorKind::UnsupportedArgumentCount {
                                 expected: args,
@@ -1258,7 +2032,7 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                         }
                         ast::Pat::Path(path) => {
                             let Some(ident) = path.path.try_as_ident() else {
-                                return Err(compile::Error::new(
+                                return Err(Error::new(
                                     path,
                                     ErrorKind::UnsupportedPatternExpr,
                                 ));
@@ -1270,7 +2044,7 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                             (key, hir::Binding::Ident(path.span(), key, id))
                         }
                         _ => {
-                            return Err(compile::Error::new(
+                            return Err(Error::new(
                                 pat,
                                 ErrorKind::UnsupportedPatternExpr,
                             ));
@@ -1278,7 +2052,7 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                     };
 
                     if let Some(_existing) = keys_dup.try_insert(key, pat)? {
-                        return Err(compile::Error::new(
+                        return Err(Error::new(
                             pat,
                             ErrorKind::DuplicateObjectKey {
                                 #[cfg(feature = "emit")]
@@ -1301,7 +2075,7 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                         let Some((mut fields, kind)) =
                             struct_match_for(cx, &meta, is_open && count == 0)?
                         else {
-                            return Err(compile::Error::expected_meta(
+                            return Err(Error::expected_meta(
                                 path,
                                 meta.info(cx.q.pool)?,
                                 "type that can be used in a struct pattern",
@@ -1310,7 +2084,7 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
 
                         for binding in bindings.iter() {
                             if !fields.remove(binding.key()) {
-                                return Err(compile::Error::new(
+                                return Err(Error::new(
                                     ast,
                                     ErrorKind::LitObjectNotField {
                                         field: binding.key().try_into()?,
@@ -1325,7 +2099,7 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
 
                             fields.sort();
 
-                            return Err(compile::Error::new(
+                            return Err(Error::new(
                                 ast,
                                 ErrorKind::PatternMissingFields {
                                     item: cx.q.pool.item(meta.item_meta.item).try_to_owned()?,
@@ -1347,7 +2121,7 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                 hir::PatKind::Object(alloc!(hir::PatObject { kind, bindings }))
             }
             _ => {
-                return Err(compile::Error::new(ast, ErrorKind::UnsupportedPatternExpr));
+                return Err(Error::new(ast, ErrorKind::UnsupportedPatternExpr));
             }
         }
     };
@@ -1371,7 +2145,7 @@ fn object_key<'hir, 'ast>(
         }
         ast::ObjectKey::Path(ast) => {
             let Some(ident) = ast.try_as_ident() else {
-                return Err(compile::Error::expected(ast, "object key"));
+                return Err(Error::expected(ast, "object key"));
             };
 
             let string = ident.resolve(resolve_context!(cx.q))?;
@@ -1391,7 +2165,7 @@ fn expr_path<'hir>(
 
     if let Some(ast::PathKind::SelfValue) = ast.as_kind() {
         let Some((id, _)) = cx.scopes.get(hir::Name::SelfValue)? else {
-            return Err(compile::Error::new(ast, ErrorKind::MissingSelf));
+            return Err(Error::new(ast, ErrorKind::MissingSelf));
         };
 
         return Ok(hir::ExprKind::Variable(id));
@@ -1426,7 +2200,7 @@ fn expr_path<'hir>(
         // light heuristics, treat it as a type error in case the first
         // character is uppercase.
         if !local.starts_with(char::is_uppercase) {
-            return Err(compile::Error::new(
+            return Err(Error::new(
                 ast,
                 ErrorKind::MissingLocal {
                     name: Box::<str>::try_from(local)?,
@@ -1446,72 +2220,7 @@ fn expr_path<'hir>(
         }
     };
 
-    Err(compile::Error::new(ast, kind))
-}
-
-/// Compile an item.
-#[instrument_ast(span = span)]
-fn expr_path_meta<'hir>(
-    cx: &mut Ctxt<'hir, '_, '_>,
-    meta: &meta::Meta,
-    span: &dyn Spanned,
-) -> compile::Result<hir::ExprKind<'hir>> {
-    alloc_with!(cx, span);
-
-    if let Needs::Value = cx.needs {
-        match &meta.kind {
-            meta::Kind::Struct {
-                fields: meta::Fields::Empty,
-                ..
-            }
-            | meta::Kind::Variant {
-                fields: meta::Fields::Empty,
-                ..
-            } => Ok(hir::ExprKind::Call(alloc!(hir::ExprCall {
-                call: hir::Call::Meta { hash: meta.hash },
-                args: &[],
-            }))),
-            meta::Kind::Variant {
-                fields: meta::Fields::Unnamed(0),
-                ..
-            }
-            | meta::Kind::Struct {
-                fields: meta::Fields::Unnamed(0),
-                ..
-            } => Ok(hir::ExprKind::Call(alloc!(hir::ExprCall {
-                call: hir::Call::Meta { hash: meta.hash },
-                args: &[],
-            }))),
-            meta::Kind::Struct {
-                fields: meta::Fields::Unnamed(..),
-                ..
-            } => Ok(hir::ExprKind::Fn(meta.hash)),
-            meta::Kind::Variant {
-                fields: meta::Fields::Unnamed(..),
-                ..
-            } => Ok(hir::ExprKind::Fn(meta.hash)),
-            meta::Kind::Function { .. } => Ok(hir::ExprKind::Fn(meta.hash)),
-            meta::Kind::Const { .. } => Ok(hir::ExprKind::Const(meta.hash)),
-            meta::Kind::Struct { .. } | meta::Kind::Type { .. } | meta::Kind::Enum { .. } => {
-                Ok(hir::ExprKind::Type(Type::new(meta.hash)))
-            }
-            _ => Err(compile::Error::expected_meta(
-                span,
-                meta.info(cx.q.pool)?,
-                "something that can be used as a value",
-            )),
-        }
-    } else {
-        let Some(type_hash) = meta.type_hash_of() else {
-            return Err(compile::Error::expected_meta(
-                span,
-                meta.info(cx.q.pool)?,
-                "something that has a type",
-            ));
-        };
-
-        Ok(hir::ExprKind::Type(Type::new(type_hash)))
-    }
+    Err(Error::new(ast, kind))
 }
 
 fn condition<'hir>(
@@ -1542,7 +2251,7 @@ fn pat_items_count(items: &[(ast::Pat, Option<ast::Comma>)]) -> compile::Result<
 
     for (pat, _) in it {
         if let ast::Pat::Rest { .. } = pat {
-            return Err(compile::Error::new(pat, ErrorKind::UnsupportedPatternRest));
+            return Err(Error::new(pat, ErrorKind::UnsupportedPatternRest));
         }
 
         count += 1;
@@ -1602,79 +2311,6 @@ fn struct_match_for(
     Ok(Some((fields, kind)))
 }
 
-fn tuple_match_for(
-    cx: &Ctxt<'_, '_, '_>,
-    meta: &meta::Meta,
-) -> Option<(usize, hir::PatSequenceKind)> {
-    Some(match &meta.kind {
-        meta::Kind::Struct {
-            fields: meta::Fields::Empty,
-            ..
-        } => (0, hir::PatSequenceKind::Type { hash: meta.hash }),
-        meta::Kind::Struct {
-            fields: meta::Fields::Unnamed(args),
-            ..
-        } => (*args, hir::PatSequenceKind::Type { hash: meta.hash }),
-        meta::Kind::Variant {
-            enum_hash,
-            index,
-            fields,
-            ..
-        } => {
-            let args = match fields {
-                meta::Fields::Unnamed(args) => *args,
-                meta::Fields::Empty => 0,
-                _ => return None,
-            };
-
-            let kind = if let Some(type_check) = cx.q.context.type_check_for(meta.hash) {
-                hir::PatSequenceKind::BuiltInVariant { type_check }
-            } else {
-                hir::PatSequenceKind::Variant {
-                    variant_hash: meta.hash,
-                    enum_hash: *enum_hash,
-                    index: *index,
-                }
-            };
-
-            (args, kind)
-        }
-        _ => return None,
-    })
-}
-
-fn generics_parameters(
-    cx: &mut Ctxt<'_, '_, '_>,
-    named: &Named<'_>,
-) -> compile::Result<GenericsParameters> {
-    let mut parameters = GenericsParameters {
-        trailing: named.trailing,
-        parameters: [None, None],
-    };
-
-    for (value, o) in named
-        .parameters
-        .iter()
-        .zip(parameters.parameters.iter_mut())
-    {
-        if let &Some((_, generics)) = value {
-            let mut builder = ParametersBuilder::new();
-
-            for (s, _) in generics {
-                let hir::ExprKind::Type(ty) = expr(cx, &s.expr)?.kind else {
-                    return Err(compile::Error::new(s, ErrorKind::UnsupportedGenerics));
-                };
-
-                builder.add(ty.into_hash());
-            }
-
-            *o = Some(builder.finish());
-        }
-    }
-
-    Ok(parameters)
-}
-
 /// Convert into a call expression.
 #[instrument_ast(span = ast)]
 fn expr_call<'hir>(
@@ -1709,7 +2345,7 @@ fn expr_call<'hir>(
             }
             hir::ExprKind::Path => {
                 let Some(path) = find_path(&ast.expr) else {
-                    return Err(compile::Error::msg(&ast.expr, "Expected path"));
+                    return Err(Error::msg(&ast.expr, "Expected path"));
                 };
 
                 let named = cx.q.convert_path(path)?;
@@ -1728,7 +2364,7 @@ fn expr_call<'hir>(
                         ..
                     } => {
                         if !ast.args.is_empty() {
-                            return Err(compile::Error::new(
+                            return Err(Error::new(
                                 &ast.args,
                                 ErrorKind::UnsupportedArgumentCount {
                                     expected: 0,
@@ -1746,7 +2382,7 @@ fn expr_call<'hir>(
                         ..
                     } => {
                         if *args != ast.args.len() {
-                            return Err(compile::Error::new(
+                            return Err(Error::new(
                                 &ast.args,
                                 ErrorKind::UnsupportedArgumentCount {
                                     expected: *args,
@@ -1784,7 +2420,7 @@ fn expr_call<'hir>(
                         };
                     }
                     _ => {
-                        return Err(compile::Error::expected_meta(
+                        return Err(Error::expected_meta(
                             ast,
                             meta.info(cx.q.pool)?,
                             "something that can be called as a function",
@@ -1839,7 +2475,7 @@ fn expr_field_access<'hir>(
             let number = ast.resolve(resolve_context!(cx.q))?;
 
             let Some(index) = number.as_tuple_index() else {
-                return Err(compile::Error::new(
+                return Err(Error::new(
                     ast,
                     ErrorKind::UnsupportedTupleIndex { number },
                 ));
@@ -1849,7 +2485,7 @@ fn expr_field_access<'hir>(
         }
         ast::ExprField::Path(ast) => {
             let Some((ident, generics)) = ast.try_as_ident_generics() else {
-                return Err(compile::Error::new(ast, ErrorKind::BadFieldAccess));
+                return Err(Error::new(ast, ErrorKind::BadFieldAccess));
             };
 
             let ident = alloc_str!(ident.resolve(resolve_context!(cx.q))?);
@@ -1860,7 +2496,7 @@ fn expr_field_access<'hir>(
 
                     for (s, _) in generics {
                         let hir::ExprKind::Type(ty) = expr(cx, &s.expr)?.kind else {
-                            return Err(compile::Error::new(s, ErrorKind::UnsupportedGenerics));
+                            return Err(Error::new(s, ErrorKind::UnsupportedGenerics));
                         };
 
                         builder.add(ty.into_hash());
@@ -1878,3 +2514,4 @@ fn expr_field_access<'hir>(
         expr_field,
     })
 }
+*/
