@@ -1,3 +1,4 @@
+use core::cell::Cell;
 use core::fmt;
 
 use crate as rune;
@@ -11,7 +12,7 @@ use crate::parse::{Parse, Parser};
 use crate::{Hash, Item, ItemBuf};
 
 /// The identifier of a module.
-#[derive(Default, Debug, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Default, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[try_clone(copy)]
 #[repr(transparent)]
 pub(crate) struct ModId(u32);
@@ -22,11 +23,17 @@ impl fmt::Display for ModId {
     }
 }
 
+impl fmt::Debug for ModId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 /// The identifier of an item.
-#[derive(Default, Debug, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Default, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[try_clone(copy)]
 #[repr(transparent)]
-pub(crate) struct ItemId(u32);
+pub struct ItemId(u32);
 
 impl ItemId {
     /// The item corresponding to the root item.
@@ -37,6 +44,12 @@ impl Parse for ItemId {
     #[inline]
     fn parse(_: &mut Parser<'_>) -> compile::Result<Self> {
         Ok(ItemId::ROOT)
+    }
+}
+
+impl fmt::Debug for ItemId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
     }
 }
 
@@ -88,7 +101,11 @@ macro_rules! alloc_item {
             None => {
                 let id = ItemId(u32::try_from($self.items.len()).expect("ran out of item ids"));
                 let item = $item.try_to_owned()?;
-                $self.items.try_push(ItemStorage { hash, item })?;
+                $self.items.try_push(ItemStorage {
+                    hash,
+                    item,
+                    ids: Cell::new(0),
+                })?;
                 $self.hash_to_item.try_insert(hash, id)?;
                 id
             }
@@ -99,6 +116,8 @@ macro_rules! alloc_item {
 struct ItemStorage {
     hash: Hash,
     item: ItemBuf,
+    /// Anonymous ids allocated related to this item.
+    ids: Cell<usize>,
 }
 
 /// A pool of items.
@@ -118,10 +137,19 @@ impl Pool {
             items: try_vec![ItemStorage {
                 hash: root_hash,
                 item: ItemBuf::new(),
+                ids: Cell::new(0),
             }],
             item_to_mod: HashMap::new(),
             hash_to_item: HashMap::try_from_iter([(root_hash, ItemId(0))])?,
         })
+    }
+
+    /// Get the next anonymous identifier associated with the current item.
+    pub(crate) fn next_id(&self, id: ItemId) -> usize {
+        let storage = self.item_storage(id);
+        let id = storage.ids.get();
+        storage.ids.set(id + 1);
+        id
     }
 
     /// Lookup an item by the given identifier.

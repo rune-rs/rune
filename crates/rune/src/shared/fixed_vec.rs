@@ -1,22 +1,9 @@
-use core::fmt;
 use core::mem::{self, ManuallyDrop, MaybeUninit};
 use core::ops::{Deref, DerefMut};
 use core::ptr;
 use core::slice;
 
-/// An error raised when we are at capacity.
-#[derive(Debug)]
-#[non_exhaustive]
-pub(crate) struct CapacityError;
-
-impl fmt::Display for CapacityError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Out of capacity when constructing array")
-    }
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for CapacityError {}
+use crate::alloc;
 
 /// A fixed capacity vector allocated on the stack.
 pub(crate) struct FixedVec<T, const N: usize> {
@@ -56,9 +43,9 @@ impl<T, const N: usize> FixedVec<T, N> {
     }
 
     /// Try to push an element onto the fixed vector.
-    pub(crate) fn try_push(&mut self, element: T) -> Result<(), CapacityError> {
+    pub(crate) fn try_push(&mut self, element: T) -> alloc::Result<()> {
         if self.len >= N {
-            return Err(CapacityError);
+            return Err(alloc::Error::CapacityOverflow);
         }
 
         unsafe {
@@ -84,17 +71,27 @@ impl<T, const N: usize> FixedVec<T, N> {
         }
     }
 
+    /// Coerce into an array if the size of the array matches what's expected or panic.
     pub(crate) fn into_inner(self) -> [T; N] {
-        assert!(
-            self.len == N,
-            "into_inner: length mismatch, expected {N} but got {}",
-            self.len
-        );
+        let len = self.len;
+
+        let Some(array) = self.try_into_inner() else {
+            panic!("into_inner: length mismatch, expected {N} but got {len}");
+        };
+
+        array
+    }
+
+    /// Coerce into an array if the size of the array matches what's expected.
+    pub(crate) fn try_into_inner(self) -> Option<[T; N]> {
+        if self.len != N {
+            return None;
+        }
 
         // SAFETY: We've asserted that the length is initialized just above.
         unsafe {
             let this = ManuallyDrop::new(self);
-            ptr::read(this.data.as_ptr() as *const [T; N])
+            Some(ptr::read(this.data.as_ptr() as *const [T; N]))
         }
     }
 }

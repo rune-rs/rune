@@ -70,14 +70,12 @@ impl From<codespan_reporting::files::Error> for EmitError {
     }
 }
 
-cfg_std! {
-    impl std::error::Error for EmitError {
-        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-            match self {
-                EmitError::Io(error) => Some(error),
-                EmitError::Alloc(error) => Some(error),
-                EmitError::CodespanReporting(error) => Some(error),
-            }
+impl core::error::Error for EmitError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        match self {
+            EmitError::Io(error) => Some(error),
+            EmitError::Alloc(error) => Some(error),
+            EmitError::CodespanReporting(error) => Some(error),
         }
     }
 }
@@ -312,11 +310,7 @@ impl VmError {
                 out.set_color(&red)?;
                 write!(out, "{mid}")?;
                 out.reset()?;
-                writeln!(
-                    out,
-                    "{}",
-                    suffix.trim_end_matches(|c| matches!(c, '\n' | '\r'))
-                )?;
+                writeln!(out, "{}", suffix.trim_end_matches(['\n', '\r']))?;
             }
         }
 
@@ -855,6 +849,18 @@ where
                     "You can also make the pattern non-exhaustive by adding `..`"
                         .try_to_string()?
                         .into_std(),
+                );
+            }
+            ErrorKind::ConflictingLabels { existing, .. } => {
+                labels.push(
+                    d::Label::secondary(this.source_id(), existing.range())
+                        .with_message("Existing label here"),
+                );
+            }
+            ErrorKind::DuplicateSelectDefault { existing, .. } => {
+                labels.push(
+                    d::Label::secondary(this.source_id(), existing.range())
+                        .with_message("Existing branch here"),
                 );
             }
             _ => (),

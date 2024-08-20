@@ -76,12 +76,4 @@ impl fmt::Display for Error {
     }
 }
 
-#[cfg(feature = "std")]
-impl ::std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn ::std::error::Error + 'static)> {
-        match self {
-            Error::AllocError { error } => Some(error),
-            _ => None,
-        }
-    }
-}
+impl core::error::Error for Error {}

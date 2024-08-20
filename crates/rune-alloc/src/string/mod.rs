@@ -32,7 +32,7 @@
 //! let bytes = sparkle_heart.into_bytes();
 //!
 //! assert_eq!(bytes, [240, 159, 146, 150]);
-//! # Ok::<_, std::boxed::Box<dyn std::error::Error>>(())
+//! # Ok::<_, std::boxed::Box<dyn core::error::Error>>(())
 //! ```
 
 #[cfg(feature = "serde")]
@@ -116,7 +116,7 @@ use crate::vec::Vec;
 /// let sparkle_heart = String::from_utf8(sparkle_heart)?;
 ///
 /// assert_eq!("💖", sparkle_heart);
-/// # Ok::<_, Box<dyn std::error::Error>>(())
+/// # Ok::<_, Box<dyn core::error::Error>>(())
 /// ```
 ///
 /// [`from_utf8`]: String::from_utf8
@@ -664,7 +664,7 @@ impl<A: Allocator> String<A> {
     /// let sparkle_heart = String::from_utf8(sparkle_heart)?;
     ///
     /// assert_eq!("💖", sparkle_heart);
-    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// # Ok::<_, Box<dyn core::error::Error>>(())
     /// ```
     ///
     /// Incorrect bytes:
@@ -1770,8 +1770,7 @@ impl<A: Allocator> fmt::Display for FromUtf8Error<A> {
     }
 }
 
-#[cfg(feature = "std")]
-impl<A: Allocator> std::error::Error for FromUtf8Error<A> {}
+impl<A: Allocator> core::error::Error for FromUtf8Error<A> {}
 
 impl<A: Allocator + Clone> TryClone for String<A> {
     fn try_clone(&self) -> Result<Self, Error> {

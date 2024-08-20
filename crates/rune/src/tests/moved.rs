@@ -12,12 +12,12 @@ fn test_closure_moved() {
                 o.push(42);
                 o
             };
-        
+
             o.push(42);
             a()
         }
         "#,
-        span!(161, 162),
+        span!(153, 154),
         VariableMoved {
             moved_at: span!(69, 138)
         }

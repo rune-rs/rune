@@ -1,15 +1,18 @@
+use rust_alloc::rc::Rc;
+
 use core::mem::replace;
 use core::num::NonZeroUsize;
 
-use crate::alloc::path::PathBuf;
+use crate::alloc::path::Path;
 use crate::alloc::prelude::*;
-use crate::alloc::{HashMap, Vec, VecDeque};
+use crate::alloc::{self, HashMap, VecDeque};
 use crate::ast::spanned;
 use crate::ast::{self, Span, Spanned};
 use crate::compile::attrs;
 use crate::compile::{
-    self, Doc, DynLocation, ErrorKind, ItemId, ItemMeta, ModId, Visibility, WithSpan,
+    self, Doc, DynLocation, Error, ErrorKind, ItemId, ItemMeta, ModId, Visibility, WithSpan,
 };
+use crate::grammar::{Ignore, Node, Tree};
 use crate::macros::MacroCompiler;
 use crate::parse::{Parse, Parser, Resolve};
 use crate::query::{BuiltInFile, BuiltInFormat, BuiltInLine, BuiltInMacro, BuiltInTemplate, Query};
@@ -17,7 +20,7 @@ use crate::runtime::{format, Call};
 use crate::worker::{LoadFileKind, Task};
 use crate::SourceId;
 
-use super::{Items, Layer, Scopes};
+use super::{Guard, Items, Layer, Scopes};
 
 /// Macros are only allowed to expand recursively into other macros 64 times.
 const MAX_MACRO_RECURSION: usize = 64;
@@ -49,14 +52,33 @@ pub(crate) struct Indexer<'a, 'arena> {
     /// Depth of expression macro expansion that we're currently in.
     pub(crate) macro_depth: usize,
     /// The root URL that the indexed file originated from.
-    pub(crate) root: Option<PathBuf>,
+    pub(crate) root: Option<&'a Path>,
     /// Imports to process.
     pub(crate) queue: Option<&'a mut VecDeque<Task>>,
     /// Loaded modules.
     pub(crate) loaded: Option<&'a mut HashMap<ModId, (SourceId, Span)>>,
+    /// The current tree being processed.
+    pub(crate) tree: &'a Rc<Tree>,
+}
+
+impl<'a> Ignore<'a> for Indexer<'_, '_> {
+    /// Report an error.
+    fn error(&mut self, error: Error) -> alloc::Result<()> {
+        self.q.diagnostics.error(self.source_id, error)
+    }
+
+    fn ignore(&mut self, _: Node<'a>) -> compile::Result<()> {
+        Ok(())
+    }
 }
 
 impl<'a, 'arena> Indexer<'a, 'arena> {
+    /// Push an identifier item.
+    pub(super) fn push_id(&mut self) -> alloc::Result<Guard> {
+        let id = self.q.pool.next_id(self.item.id);
+        self.items.push_id(id)
+    }
+
     /// Insert a new item at the current indexed location.
     pub(crate) fn insert_new_item(
         &mut self,
@@ -384,7 +406,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
     {
         ast.path.id = self.item.id;
 
-        let item = self.q.item_for(self.item.id).with_span(&ast)?;
+        let item = self.q.item_for("macro", self.item.id).with_span(&ast)?;
 
         let mut compiler = MacroCompiler {
             item_meta: item,
@@ -405,7 +427,10 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
     {
         attr.path.id = self.item.id;
 
-        let containing = self.q.item_for(self.item.id).with_span(&*attr)?;
+        let containing = self
+            .q
+            .item_for("attribute macro", self.item.id)
+            .with_span(&*attr)?;
 
         let mut compiler = MacroCompiler {
             item_meta: containing,
@@ -472,7 +497,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
         if let Some(queue) = self.queue.as_mut() {
             queue.try_push_back(Task::LoadFile {
                 kind: LoadFileKind::Module {
-                    root: self.root.clone(),
+                    root: self.root.map(|p| p.try_to_owned()).transpose()?,
                 },
                 source_id,
                 mod_item,
@@ -484,7 +509,7 @@ impl<'a, 'arena> Indexer<'a, 'arena> {
     }
 }
 
-#[must_use]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct IndexItem {
     /// The current module being indexed.
     pub(crate) module: ModId,
@@ -512,7 +537,10 @@ impl IndexItem {
     }
 
     /// Replace item we're currently in.
+    #[tracing::instrument(skip(self), fields(self.module = ?self.module, self.id = ?self.id, self.impl_item = ?self.impl_item))]
     pub(super) fn replace(&mut self, id: ItemId) -> IndexItem {
+        tracing::debug!("replacing item");
+
         IndexItem {
             module: self.module,
             id: replace(&mut self.id, id),
@@ -546,34 +574,34 @@ pub(super) fn ast_to_visibility(vis: &ast::Visibility) -> compile::Result<Visibi
 
 /// Construct the calling convention based on the parameters.
 pub(super) fn validate_call(
-    const_token: Option<T![const]>,
-    async_token: Option<T![async]>,
+    is_const: bool,
+    is_async: bool,
     layer: &Layer,
 ) -> compile::Result<Option<Call>> {
     for span in &layer.awaits {
-        if const_token.is_some() {
+        if is_const {
             return Err(compile::Error::new(span, ErrorKind::AwaitInConst));
         }
 
-        if async_token.is_none() {
+        if !is_async {
             return Err(compile::Error::new(span, ErrorKind::AwaitOutsideAsync));
         }
     }
 
     for span in &layer.yields {
-        if const_token.is_some() {
+        if is_const {
             return Err(compile::Error::new(span, ErrorKind::YieldInConst));
         }
     }
 
-    if const_token.is_some() {
+    if is_const {
         return Ok(None);
     }
 
-    Ok(match (!layer.yields.is_empty(), async_token) {
-        (true, None) => Some(Call::Generator),
-        (false, None) => Some(Call::Immediate),
-        (true, Some(..)) => Some(Call::Stream),
-        (false, Some(..)) => Some(Call::Async),
+    Ok(match (!layer.yields.is_empty(), is_async) {
+        (true, false) => Some(Call::Generator),
+        (false, false) => Some(Call::Immediate),
+        (true, true) => Some(Call::Stream),
+        (false, true) => Some(Call::Async),
     })
 }

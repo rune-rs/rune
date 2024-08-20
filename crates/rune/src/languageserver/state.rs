@@ -8,14 +8,12 @@ use lsp::Url;
 use ropey::Rope;
 use tokio::sync::Notify;
 
-use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, HashMap, String, Vec};
 use crate::ast::{Span, Spanned};
 use crate::compile::meta;
 use crate::compile::{
-    self, CompileVisitor, FmtOptions, LinkerError, Located, Location, MetaError, MetaRef,
-    SourceMeta, WithSpan,
+    self, CompileVisitor, LinkerError, Located, Location, MetaError, MetaRef, SourceMeta, WithSpan,
 };
 use crate::diagnostics::{Diagnostic, FatalDiagnosticKind};
 use crate::doc::VisitorData;
@@ -23,6 +21,7 @@ use crate::item::ComponentRef;
 use crate::languageserver::connection::Output;
 use crate::languageserver::Language;
 use crate::workspace::{self, WorkspaceError};
+use crate::{self as rune, Diagnostics};
 use crate::{BuildError, Context, Item, Options, Source, SourceId, Sources, Unit};
 
 #[derive(Default)]
@@ -345,9 +344,14 @@ impl<'a> State<'a> {
 
         let source = s.content.try_to_string()?;
 
-        let options = FmtOptions::DEFAULT;
+        let mut diagnostics = Diagnostics::new();
 
-        let Ok(formatted) = crate::fmt::layout_source_with(&source, &options) else {
+        let Ok(formatted) = crate::fmt::layout_source_with(
+            &source,
+            SourceId::EMPTY,
+            &self.options,
+            &mut diagnostics,
+        ) else {
             return Ok(None);
         };
 
@@ -389,10 +393,14 @@ impl<'a> State<'a> {
 
         let source = source.try_to_string()?;
 
-        let mut options = FmtOptions::DEFAULT;
-        options.force_newline = false;
+        let mut options = self.options.clone();
+        options.fmt.force_newline = false;
 
-        let Ok(formatted) = crate::fmt::layout_source_with(&source, &options) else {
+        let mut diagnostics = Diagnostics::new();
+
+        let Ok(formatted) =
+            crate::fmt::layout_source_with(&source, SourceId::EMPTY, &options, &mut diagnostics)
+        else {
             return Ok(None);
         };
 
@@ -1178,7 +1186,7 @@ impl<'a> ScriptSourceLoader<'a> {
         };
 
         let mut a = base.clone();
-        a.push(&format!("{}.rn", last));
+        a.push(format!("{last}.rn"));
 
         let mut b = base;
         b.push(last);

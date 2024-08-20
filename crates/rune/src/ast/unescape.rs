@@ -41,9 +41,7 @@ impl fmt::Display for ErrorKind {
     }
 }
 
-cfg_std! {
-    impl std::error::Error for ErrorKind {}
-}
+impl core::error::Error for ErrorKind {}
 
 /// Indicates if we are parsing template escapes.
 #[derive(Debug, Clone, Copy)]

@@ -55,19 +55,7 @@ impl fmt::Display for AccessError {
     }
 }
 
-cfg_std! {
-    impl std::error::Error for AccessError {
-        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-            match &self.kind {
-                AccessErrorKind::NotAccessibleRef { error, .. } => Some(error),
-                AccessErrorKind::NotAccessibleMut { error, .. } => Some(error),
-                AccessErrorKind::NotAccessibleTake { error, .. } => Some(error),
-                AccessErrorKind::AnyObjError { error, .. } => Some(error),
-                _ => None,
-            }
-        }
-    }
-}
+impl core::error::Error for AccessError {}
 
 impl From<NotAccessibleRef> for AccessError {
     #[inline]
@@ -126,9 +114,7 @@ impl fmt::Display for NotAccessibleRef {
     }
 }
 
-cfg_std! {
-    impl std::error::Error for NotAccessibleRef {}
-}
+impl core::error::Error for NotAccessibleRef {}
 
 /// Error raised when tried to access for exclusive access but it was not
 /// accessible.
@@ -142,9 +128,7 @@ impl fmt::Display for NotAccessibleMut {
     }
 }
 
-cfg_std! {
-    impl std::error::Error for NotAccessibleMut {}
-}
+impl core::error::Error for NotAccessibleMut {}
 
 /// Error raised when tried to access the guarded data for taking.
 ///
@@ -160,9 +144,7 @@ impl fmt::Display for NotAccessibleTake {
     }
 }
 
-cfg_std! {
-    impl std::error::Error for NotAccessibleTake {}
-}
+impl core::error::Error for NotAccessibleTake {}
 
 /// Snapshot that can be used to indicate how the value was being accessed at
 /// the time of an error.

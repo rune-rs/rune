@@ -4,7 +4,7 @@ pub(crate) use crate as rune;
 pub(crate) use crate::alloc;
 pub(crate) use crate::alloc::prelude::*;
 pub(crate) use crate::ast;
-pub(crate) use crate::ast::{OptionSpanned, Span, Spanned};
+pub(crate) use crate::ast::{OptionSpanned, Span, Spanned, ToAst};
 pub(crate) use crate::compile::{self, ErrorKind, ItemId};
 pub(crate) use crate::macros::{MacroContext, SyntheticKind, ToTokens, TokenStream};
 pub(crate) use crate::parse::{

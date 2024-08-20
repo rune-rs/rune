@@ -7,13 +7,12 @@ mod gen;
 pub(crate) use self::assert_send::AssertSend;
 pub(crate) use self::caller::Caller;
 pub(crate) use self::consts::Consts;
-pub(crate) use self::fixed_vec::{CapacityError, FixedVec};
+pub(crate) use self::fixed_vec::FixedVec;
 pub(crate) use self::gen::Gen;
 
 /// Test whether current assertions model should panic.
 #[cfg(all(debug_assertions, feature = "std"))]
 mod r#impl {
-    #[cfg(feature = "fmt")]
     use core::fmt::{self, Write};
     use core::sync::atomic::{AtomicU8, Ordering};
 
@@ -69,14 +68,12 @@ mod r#impl {
         }
     }
 
-    #[cfg(feature = "fmt")]
     pub(crate) struct CaptureAt {
         at: &'static str,
         done: usize,
         string: rust_alloc::string::String,
     }
 
-    #[cfg(feature = "fmt")]
     impl CaptureAt {
         pub(crate) fn new(at: &'static str) -> Self {
             Self {
@@ -95,7 +92,6 @@ mod r#impl {
         }
     }
 
-    #[cfg(feature = "fmt")]
     impl Write for CaptureAt {
         #[inline]
         fn write_str(&mut self, mut s: &str) -> fmt::Result {
@@ -163,7 +159,6 @@ mod r#impl {
     ///
     /// Tracing is enabled if `RUNE_ASSERT=trace` is set.
     #[doc(inline)]
-    #[cfg(feature = "fmt")]
     pub(crate) use _rune_trace as rune_trace;
 }
 
@@ -214,7 +209,6 @@ mod r#impl {
     ///
     /// Tracing is enabled if `RUNE_ASSERT=trace` is set.
     #[doc(inline)]
-    #[cfg(feature = "fmt")]
     pub(crate) use _rune_trace as rune_trace;
 }
 

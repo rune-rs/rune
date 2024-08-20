@@ -44,9 +44,7 @@ impl fmt::Display for BuildError {
     }
 }
 
-cfg_std! {
-    impl std::error::Error for BuildError {}
-}
+impl core::error::Error for BuildError {}
 
 /// Prepare a workspace build.
 pub fn prepare(sources: &mut Sources) -> Build<'_> {

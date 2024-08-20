@@ -28,7 +28,7 @@ jobs:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
     - run: cargo run --bin rune -- fmt --verbose --check
-    - run: cargo run --bin rune -- fmt --recursive scripts
+    - run: cargo run --bin rune -- fmt --verbose --check --recursive scripts
 
   clippy:
     runs-on: ubuntu-latest
@@ -65,7 +65,7 @@ jobs:
     needs: basics
     steps:
     - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@1.79
+    - uses: dtolnay/rust-toolchain@1.81
     - uses: Swatinem/rust-cache@v2
     - run: cargo build
 

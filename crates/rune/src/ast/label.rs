@@ -33,17 +33,32 @@ pub struct Label {
     pub source: ast::LitSource,
 }
 
+impl ToAst for Label {
+    fn to_ast(span: Span, kind: ast::Kind) -> Result<Self> {
+        match kind {
+            K!['label(source)] => Ok(Self { span, source }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                Self::into_expectation(),
+            )),
+        }
+    }
+
+    #[inline]
+    fn matches(kind: &ast::Kind) -> bool {
+        matches!(kind, K!['label])
+    }
+
+    #[inline]
+    fn into_expectation() -> Expectation {
+        Expectation::Description("a label")
+    }
+}
+
 impl Parse for Label {
     fn parse(p: &mut Parser<'_>) -> Result<Self> {
         let t = p.next()?;
-
-        match t.kind {
-            K!['label(source)] => Ok(Self {
-                span: t.span,
-                source,
-            }),
-            _ => Err(compile::Error::expected(t, "label")),
-        }
+        Self::to_ast(t.span, t.kind)
     }
 }
 

@@ -4,12 +4,13 @@ use core::mem::take;
 
 use crate::alloc::{self, Vec};
 use crate::ast::{Span, Spanned};
-use crate::compile;
 #[cfg(feature = "std")]
 use crate::compile::FileSourceLoader as DefaultSourceLoader;
 #[cfg(not(feature = "std"))]
 use crate::compile::NoopSourceLoader as DefaultSourceLoader;
-use crate::compile::{CompileVisitor, Located, MetaError, Options, Pool, SourceLoader};
+use crate::compile::{
+    self, CompileVisitor, Located, MetaError, Options, ParseOptionError, Pool, SourceLoader,
+};
 use crate::runtime::unit::{DefaultStorage, UnitEncoder};
 use crate::runtime::Unit;
 use crate::{Context, Diagnostics, Item, SourceId, Sources};
@@ -21,6 +22,14 @@ use crate::{Context, Diagnostics, Item, SourceId, Sources};
 #[non_exhaustive]
 pub struct BuildError {
     kind: BuildErrorKind,
+}
+
+impl From<ParseOptionError> for BuildError {
+    fn from(error: ParseOptionError) -> Self {
+        Self {
+            kind: BuildErrorKind::ParseOptionError(error),
+        }
+    }
 }
 
 impl From<alloc::Error> for BuildError {
@@ -35,6 +44,7 @@ impl From<alloc::Error> for BuildError {
 enum BuildErrorKind {
     #[default]
     Default,
+    ParseOptionError(ParseOptionError),
     Alloc(alloc::Error),
 }
 
@@ -45,18 +55,17 @@ impl fmt::Display for BuildError {
                 f,
                 "Failed to build rune sources (see diagnostics for details)"
             ),
+            BuildErrorKind::ParseOptionError(error) => error.fmt(f),
             BuildErrorKind::Alloc(error) => error.fmt(f),
         }
     }
 }
 
-cfg_std! {
-    impl std::error::Error for BuildError {
-        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-            match &self.kind {
-                BuildErrorKind::Alloc(error) => Some(error),
-                _ => None,
-            }
+impl core::error::Error for BuildError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        match &self.kind {
+            BuildErrorKind::Alloc(error) => Some(error),
+            _ => None,
         }
     }
 }
@@ -285,7 +294,7 @@ impl<'a, S> Build<'a, S> {
 
         let mut default_diagnostics;
 
-        let diagnostics = match self.diagnostics.take() {
+        let diagnostics = match self.diagnostics {
             Some(diagnostics) => diagnostics,
             None => {
                 default_diagnostics = Diagnostics::new();
@@ -295,10 +304,10 @@ impl<'a, S> Build<'a, S> {
 
         let default_options;
 
-        let options = match self.options.take() {
+        let options = match self.options {
             Some(options) => options,
             None => {
-                default_options = Options::default();
+                default_options = Options::from_default_env()?;
                 &default_options
             }
         };

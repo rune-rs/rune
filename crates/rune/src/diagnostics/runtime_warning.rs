@@ -39,12 +39,10 @@ impl fmt::Display for RuntimeWarningDiagnostic {
     }
 }
 
-cfg_std! {
-    impl std::error::Error for RuntimeWarningDiagnostic {
-        #[inline]
-        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-            None
-        }
+impl core::error::Error for RuntimeWarningDiagnostic {
+    #[inline]
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        None
     }
 }
 

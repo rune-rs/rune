@@ -40,7 +40,6 @@ impl<'a> Lexer<'a> {
     }
 
     /// Disable docs synthesizing.
-    #[cfg(feature = "fmt")]
     pub(crate) fn without_processing(self) -> Self {
         Self {
             process: false,

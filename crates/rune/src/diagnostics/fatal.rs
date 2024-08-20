@@ -50,15 +50,13 @@ impl fmt::Display for FatalDiagnostic {
     }
 }
 
-cfg_std! {
-    impl std::error::Error for FatalDiagnostic {
-        #[inline]
-        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-            match &*self.kind {
-                FatalDiagnosticKind::CompileError(error) => Some(error),
-                FatalDiagnosticKind::LinkError(error) => Some(error),
-                _ => None,
-            }
+impl core::error::Error for FatalDiagnostic {
+    #[inline]
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        match &*self.kind {
+            FatalDiagnosticKind::CompileError(error) => Some(error),
+            FatalDiagnosticKind::LinkError(error) => Some(error),
+            _ => None,
         }
     }
 }

@@ -1,8 +1,6 @@
 use core::hash::{self, Hash};
 use core::str;
 
-use byteorder::{ByteOrder, NativeEndian};
-
 use crate::alloc::alloc::Allocator;
 use crate::alloc::{self, Vec};
 
@@ -30,7 +28,11 @@ pub(super) struct Tag(pub(super) u8);
 ///
 /// Panics if the byte is not available.
 pub(super) fn read_tag(content: &[u8]) -> (Tag, usize) {
-    let n = NativeEndian::read_u16(content);
+    let &[a, b] = content else {
+        panic!("expected two bytes");
+    };
+
+    let n = u16::from_ne_bytes([a, b]);
     let n = usize::from(n);
     (Tag((n & TYPE_MASK) as u8), n >> TYPE_BITS)
 }
@@ -46,14 +48,20 @@ pub(super) fn write_tag<A: Allocator>(
     n: usize,
 ) -> alloc::Result<()> {
     let tag = usize::from(tag);
+
     debug_assert!(tag <= TYPE_MASK);
-    assert!(
+
+    debug_assert!(
         n < MAX_DATA,
         "item data overflow, index or string size larger than MAX_DATA"
     );
+
+    if n >= MAX_DATA {
+        return Err(alloc::Error::CapacityOverflow);
+    }
+
     let n = u16::try_from(n << TYPE_BITS | tag).expect("tag out of bounds");
-    let mut buf = [0, 0];
-    NativeEndian::write_u16(&mut buf[..], n);
+    let buf = n.to_ne_bytes();
     output.try_extend_from_slice(&buf[..])?;
     Ok(())
 }

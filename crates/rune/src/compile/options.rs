@@ -5,24 +5,27 @@ use ::rust_alloc::boxed::Box;
 /// Error raised when trying to parse an invalid option.
 #[derive(Debug, Clone)]
 pub struct ParseOptionError {
+    env: Option<&'static str>,
     option: Box<str>,
 }
 
 impl fmt::Display for ParseOptionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Unsupported compile option `{}`", self.option)
+        write!(f, "Unsupported compile option `{}`", self.option)?;
+
+        if let Some(env) = self.env {
+            write!(f, " (environment `{env}`)")?;
+        }
+
+        Ok(())
     }
 }
 
-cfg_std! {
-    impl std::error::Error for ParseOptionError {}
-}
+impl core::error::Error for ParseOptionError {}
 
 /// Options specific to formatting.
 #[derive(Debug, Clone)]
 pub(crate) struct FmtOptions {
-    /// Print source tree.
-    pub(crate) print_tree: bool,
     /// Attempt to format even when faced with syntax errors.
     pub(crate) error_recovery: bool,
     /// Force newline at end of document.
@@ -32,13 +35,16 @@ pub(crate) struct FmtOptions {
 impl FmtOptions {
     /// The default format option.
     pub(crate) const DEFAULT: Self = Self {
-        print_tree: false,
         error_recovery: false,
         force_newline: true,
     };
 
-    /// Parse a rune-fmt option.
-    pub(crate) fn parse_option(&mut self, option: &str) -> Result<(), ParseOptionError> {
+    /// Parse an option with the extra diagnostics metadata.
+    fn parse_option_with(
+        &mut self,
+        option: &str,
+        env: Option<&'static str>,
+    ) -> Result<(), ParseOptionError> {
         let (head, tail) = if let Some((head, tail)) = option.trim().split_once('=') {
             (head.trim(), Some(tail.trim()))
         } else {
@@ -46,9 +52,6 @@ impl FmtOptions {
         };
 
         match head {
-            "print-tree" => {
-                self.print_tree = tail.map_or(true, |s| s == "true");
-            }
             "error-recovery" => {
                 self.error_recovery = tail.map_or(true, |s| s == "true");
             }
@@ -57,6 +60,7 @@ impl FmtOptions {
             }
             _ => {
                 return Err(ParseOptionError {
+                    env,
                     option: option.into(),
                 });
             }
@@ -114,13 +118,17 @@ pub struct Options {
     pub(crate) lowering: u8,
     /// Print source tree.
     pub(crate) print_tree: bool,
+    /// Use the v2 compiler.
+    pub(crate) v2: bool,
+    /// Maximum macro depth.
+    pub(crate) max_macro_depth: usize,
     /// Rune format options.
     pub(crate) fmt: FmtOptions,
 }
 
 impl Options {
     /// The default options.
-    pub(crate) const DEFAULT: Options = Options {
+    const DEFAULT: Options = Options {
         link_checks: true,
         memoize_instance_fn: true,
         debug_info: true,
@@ -130,8 +138,29 @@ impl Options {
         test_std: false,
         lowering: 0,
         print_tree: false,
+        v2: false,
+        max_macro_depth: 64,
         fmt: FmtOptions::DEFAULT,
     };
+
+    /// Construct lossy rune options from the `RUNEFLAGS` environment variable.
+    pub fn from_default_env() -> Result<Self, ParseOptionError> {
+        #[allow(unused_mut)]
+        let mut options = Self::DEFAULT;
+
+        #[cfg(feature = "std")]
+        {
+            /// The environment variable where runeflags are loaded from.
+            static ENV: &str = "RUNEFLAGS";
+
+            if let Some(value) = std::env::var_os(ENV) {
+                let value = value.to_string_lossy();
+                options.parse_option_with(&value, Some(ENV))?;
+            }
+        }
+
+        Ok(options)
+    }
 
     /// Get a list and documentation for all available compiler options.
     pub fn available() -> &'static [OptionMeta] {
@@ -229,19 +258,29 @@ impl Options {
                 doc: &docstring! {
                     /// Print the parsed source tree when formatting to
                     /// standard output.
+                    ///
+                    /// Only avialable when the `std` feature is enabled.
                 },
                 default: "false",
                 options: BOOL,
             },
             OptionMeta {
-                key: "fmt.print-tree",
-                unstable: false,
+                key: "v2",
+                unstable: true,
                 doc: &docstring! {
-                    /// Print the parsed source tree when formatting to
-                    /// standard output.
+                    /// Use the v2 compiler.
                 },
                 default: "false",
                 options: BOOL,
+            },
+            OptionMeta {
+                key: "max-macro-depth",
+                unstable: true,
+                doc: &docstring! {
+                    /// Maximum supported macro depth.
+                },
+                default: "64",
+                options: "<number>",
             },
             OptionMeta {
                 key: "fmt.error-recovery",
@@ -276,66 +315,94 @@ impl Options {
     /// It can be used to consistenly parse a collection of options by other
     /// programs as well.
     pub fn parse_option(&mut self, option: &str) -> Result<(), ParseOptionError> {
-        let (head, tail) = if let Some((head, tail)) = option.trim().split_once('=') {
-            (head.trim(), Some(tail.trim()))
-        } else {
-            (option.trim(), None)
-        };
+        self.parse_option_with(option, None)
+    }
 
-        match head {
-            "memoize-instance-fn" => {
-                self.memoize_instance_fn = tail.map_or(true, |s| s == "true");
-            }
-            "debug-info" => {
-                self.debug_info = tail.map_or(true, |s| s == "true");
-            }
-            "link-checks" => {
-                self.link_checks = tail.map_or(true, |s| s == "true");
-            }
-            "macros" => {
-                self.macros = tail.map_or(true, |s| s == "true");
-            }
-            "bytecode" => {
-                self.bytecode = tail.map_or(true, |s| s == "true");
-            }
-            "function-body" => {
-                self.function_body = tail.map_or(true, |s| s == "true");
-            }
-            "test-std" => {
-                self.test_std = tail.map_or(true, |s| s == "true");
-            }
-            "lowering" => {
-                self.lowering = match tail {
-                    Some("0") | None => 0,
-                    Some("1") => 1,
-                    _ => {
+    fn parse_option_with(
+        &mut self,
+        option: &str,
+        env: Option<&'static str>,
+    ) -> Result<(), ParseOptionError> {
+        for option in option.split(',') {
+            let option = option.trim();
+
+            let (head, tail) = if let Some((head, tail)) = option.trim().split_once('=') {
+                (head.trim(), Some(tail.trim()))
+            } else {
+                (option.trim(), None)
+            };
+
+            match head {
+                "memoize-instance-fn" => {
+                    self.memoize_instance_fn = tail.map_or(true, |s| s == "true");
+                }
+                "debug-info" => {
+                    self.debug_info = tail.map_or(true, |s| s == "true");
+                }
+                "link-checks" => {
+                    self.link_checks = tail.map_or(true, |s| s == "true");
+                }
+                "macros" => {
+                    self.macros = tail.map_or(true, |s| s == "true");
+                }
+                "bytecode" => {
+                    self.bytecode = tail.map_or(true, |s| s == "true");
+                }
+                "function-body" => {
+                    self.function_body = tail.map_or(true, |s| s == "true");
+                }
+                "test-std" => {
+                    self.test_std = tail.map_or(true, |s| s == "true");
+                }
+                "lowering" => {
+                    self.lowering = match tail {
+                        Some("0") | None => 0,
+                        Some("1") => 1,
+                        _ => {
+                            return Err(ParseOptionError {
+                                env,
+                                option: option.into(),
+                            })
+                        }
+                    };
+                }
+                "print-tree" if cfg!(feature = "std") => {
+                    self.print_tree = tail.map_or(true, |s| s == "true");
+                }
+                "v2" => {
+                    self.v2 = tail.map_or(true, |s| s == "true");
+                }
+                "max-macro-depth" => {
+                    let Some(Ok(number)) = tail.map(str::parse) else {
                         return Err(ParseOptionError {
-                            option: option.into(),
-                        })
-                    }
-                };
-            }
-            "print-tree" => {
-                self.print_tree = tail.map_or(true, |s| s == "true");
-            }
-            other => {
-                let Some((head, tail)) = other.split_once('.') else {
-                    return Err(ParseOptionError {
-                        option: option.into(),
-                    });
-                };
-
-                let head = head.trim();
-                let tail = tail.trim();
-
-                match head {
-                    "fmt" => {
-                        self.fmt.parse_option(tail)?;
-                    }
-                    _ => {
-                        return Err(ParseOptionError {
+                            env,
                             option: option.into(),
                         });
+                    };
+
+                    self.max_macro_depth = number;
+                }
+                other => {
+                    let Some((head, tail)) = other.split_once('.') else {
+                        return Err(ParseOptionError {
+                            env,
+                            option: option.into(),
+                        });
+                    };
+
+                    let head = head.trim();
+                    let tail = tail.trim();
+
+                    match head {
+                        "fmt" => {
+                            self.fmt.parse_option_with(tail, env)?;
+                        }
+                        _ => {
+                            return Err(ParseOptionError {
+                                env,
+                                option: option.into(),
+                            });
+                        }
                     }
                 }
             }
@@ -374,11 +441,5 @@ impl Options {
     /// Memoize the instance function in a loop. Defaults to `false`.
     pub fn memoize_instance_fn(&mut self, enabled: bool) {
         self.memoize_instance_fn = enabled;
-    }
-}
-
-impl Default for Options {
-    fn default() -> Self {
-        Options::DEFAULT
     }
 }

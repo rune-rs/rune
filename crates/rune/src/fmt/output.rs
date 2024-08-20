@@ -5,6 +5,7 @@ use crate::alloc::{self, VecDeque};
 use crate::ast::{Kind, Span};
 use crate::compile::{Error, ErrorKind, FmtOptions, Result, WithSpan};
 use crate::grammar::{Ignore, Node, Tree};
+use crate::{Diagnostics, SourceId};
 
 use super::{INDENT, NL, NL_CHAR, WS};
 
@@ -109,8 +110,10 @@ impl Buffer {
 pub(crate) struct Formatter<'a> {
     span: Span,
     pub(super) source: &'a Source,
+    source_id: SourceId,
     o: &'a mut Buffer,
     pub(super) options: &'a FmtOptions,
+    diagnostics: &'a mut Diagnostics,
     comments: VecDeque<Comment>,
     lines: usize,
     use_lines: bool,
@@ -123,14 +126,18 @@ impl<'a> Formatter<'a> {
     pub(super) fn new(
         span: Span,
         source: &'a str,
+        source_id: SourceId,
         o: &'a mut String,
         options: &'a FmtOptions,
+        diagnostics: &'a mut Diagnostics,
     ) -> Self {
         Self {
             span,
             source: Source::new(source),
+            source_id,
             o: Buffer::new(o),
             options,
+            diagnostics,
             comments: VecDeque::new(),
             lines: 0,
             use_lines: false,
@@ -156,6 +163,7 @@ impl<'a> Formatter<'a> {
     /// Write the give node to output without comment or whitespace processing.
     pub(crate) fn write_raw(&mut self, node: Node<'a>) -> Result<()> {
         self.write_node(&node)?;
+        self.process_comments(node.walk_from())?;
         Ok(())
     }
 
@@ -394,6 +402,10 @@ impl<'a> Formatter<'a> {
 }
 
 impl<'a> Ignore<'a> for Formatter<'a> {
+    fn error(&mut self, error: Error) -> alloc::Result<()> {
+        self.diagnostics.error(self.source_id, error)
+    }
+
     fn ignore(&mut self, node: Node<'a>) -> Result<()> {
         Formatter::ignore(self, node)
     }

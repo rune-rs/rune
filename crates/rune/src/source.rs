@@ -66,13 +66,12 @@ enum FromPathErrorKind {
     Io(std::io::Error),
 }
 
-cfg_std! {
-    impl std::error::Error for FromPathError {
-        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-            match &self.kind {
-                FromPathErrorKind::Alloc(error) => Some(error),
-                FromPathErrorKind::Io(error) => Some(error),
-            }
+impl core::error::Error for FromPathError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        match &self.kind {
+            FromPathErrorKind::Alloc(error) => Some(error),
+            #[cfg(feature = "std")]
+            FromPathErrorKind::Io(error) => Some(error),
         }
     }
 }

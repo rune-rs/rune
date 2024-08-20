@@ -12,99 +12,104 @@ use crate::parse::{Parse, Resolve};
 use crate::runtime::Value;
 use crate::{Source, SourceId};
 
-cfg_std! {
-    /// Construct an empty macro context which can be used for testing.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rune::ast;
-    /// use rune::macros;
-    ///
-    /// macros::test(|cx| {
-    ///     let lit = cx.lit("hello world")?;
-    ///     assert!(matches!(lit, ast::Lit::Str(..)));
-    ///     Ok(())
-    /// })?;
-    /// # Ok::<_, rune::support::Error>(())
-    /// ```
-    pub fn test<F, O>(f: F) -> crate::support::Result<O>
-    where
-        F: FnOnce(&mut MacroContext<'_, '_, '_>) -> crate::support::Result<O>,
-    {
-        use crate::support::Context as _;
-        use crate::compile::{NoopCompileVisitor, NoopSourceLoader, Pool, Prelude, UnitBuilder};
-        use crate::hir;
-        use crate::indexing::{IndexItem, Items, Scopes};
-        use crate::macros::Storage;
-        use crate::query::Query;
-        use crate::shared::{Consts, Gen};
-        use crate::{Context, Diagnostics, Options, Sources, Item};
+/// Construct an empty macro context which can be used for testing.
+///
+/// # Examples
+///
+/// ```
+/// use rune::ast;
+/// use rune::macros;
+///
+/// macros::test(|cx| {
+///     let lit = cx.lit("hello world")?;
+///     assert!(matches!(lit, ast::Lit::Str(..)));
+///     Ok(())
+/// })?;
+/// # Ok::<_, rune::support::Error>(())
+/// ```
+#[cfg(feature = "std")]
+#[cfg_attr(rune_docsrs, doc(cfg(feature = "std")))]
+pub fn test<F, O>(f: F) -> crate::support::Result<O>
+where
+    F: FnOnce(&mut MacroContext<'_, '_, '_>) -> crate::support::Result<O>,
+{
+    use rust_alloc::rc::Rc;
 
-        let mut unit = UnitBuilder::default();
-        let prelude = Prelude::default();
-        let gen = Gen::default();
-        let const_arena = hir::Arena::new();
-        let mut consts = Consts::default();
-        let mut storage = Storage::default();
-        let mut sources = Sources::default();
-        let mut pool = Pool::new().context("Failed to allocate pool")?;
-        let mut visitor = NoopCompileVisitor::new();
-        let mut diagnostics = Diagnostics::default();
-        let mut source_loader = NoopSourceLoader::default();
-        let options = Options::default();
-        let context = Context::default();
-        let mut inner = Default::default();
+    use crate::compile::{NoopCompileVisitor, NoopSourceLoader, Pool, Prelude, UnitBuilder};
+    use crate::hir;
+    use crate::indexing::{IndexItem, Items, Scopes};
+    use crate::macros::Storage;
+    use crate::query::Query;
+    use crate::shared::{Consts, Gen};
+    use crate::support::Context as _;
+    use crate::{Context, Diagnostics, Item, Options, Sources};
 
-        let mut query = Query::new(
-            &mut unit,
-            &prelude,
-            &const_arena,
-            &mut consts,
-            &mut storage,
-            &mut sources,
-            &mut pool,
-            &mut visitor,
-            &mut diagnostics,
-            &mut source_loader,
-            &options,
-            &gen,
-            &context,
-            &mut inner,
-        );
+    let mut unit = UnitBuilder::default();
+    let prelude = Prelude::default();
+    let gen = Gen::default();
+    let const_arena = hir::Arena::new();
+    let mut consts = Consts::default();
+    let mut storage = Storage::default();
+    let mut sources = Sources::default();
+    let mut pool = Pool::new().context("Failed to allocate pool")?;
+    let mut visitor = NoopCompileVisitor::new();
+    let mut diagnostics = Diagnostics::default();
+    let mut source_loader = NoopSourceLoader::default();
+    let options = Options::from_default_env()?;
+    let context = Context::default();
+    let mut inner = Default::default();
 
-        let source_id = SourceId::empty();
+    let mut query = Query::new(
+        &mut unit,
+        &prelude,
+        &const_arena,
+        &mut consts,
+        &mut storage,
+        &mut sources,
+        &mut pool,
+        &mut visitor,
+        &mut diagnostics,
+        &mut source_loader,
+        &options,
+        &gen,
+        &context,
+        &mut inner,
+    );
 
-        let (root_id, root_mod_id) = query
-            .insert_root_mod(source_id, Span::empty())
-            .context("Failed to inserted root module")?;
+    let source_id = SourceId::empty();
 
-        let item_meta = query
-            .item_for(root_id)
-            .context("Just inserted item meta does not exist")?;
+    let (root_id, root_mod_id) = query
+        .insert_root_mod(source_id, Span::empty())
+        .context("Failed to inserted root module")?;
 
-        let mut idx = Indexer {
-            q: query.borrow(),
-            source_id,
-            items: Items::new(Item::new()).context("Failed to construct items")?,
-            scopes: Scopes::new().context("Failed to build indexer scopes")?,
-            item: IndexItem::new(root_mod_id, root_id),
-            nested_item: None,
-            macro_depth: 0,
-            root: None,
-            queue: None,
-            loaded: None,
-        };
+    let item_meta = query
+        .item_for("root item", root_id)
+        .context("Just inserted item meta does not exist")?;
 
-        let mut cx = MacroContext {
-            macro_span: Span::empty(),
-            input_span: Span::empty(),
-            item_meta,
-            idx: &mut idx,
-        };
+    let tree = Rc::default();
 
-        f(&mut cx)
-    }
+    let mut idx = Indexer {
+        q: query.borrow(),
+        source_id,
+        items: Items::new(Item::new()).context("Failed to construct items")?,
+        scopes: Scopes::new().context("Failed to build indexer scopes")?,
+        item: IndexItem::new(root_mod_id, root_id),
+        nested_item: None,
+        macro_depth: 0,
+        root: None,
+        queue: None,
+        loaded: None,
+        tree: &tree,
+    };
+
+    let mut cx = MacroContext {
+        macro_span: Span::empty(),
+        input_span: Span::empty(),
+        item_meta,
+        idx: &mut idx,
+    };
+
+    f(&mut cx)
 }
 
 /// Context for a running macro.

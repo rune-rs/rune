@@ -1,4 +1,4 @@
-use crate::ast::{self, Kind};
+use crate::ast::{self, Delimiter, Kind};
 use crate::compile::{ErrorKind, Result};
 
 use super::{Checkpoint, Parser};
@@ -14,7 +14,7 @@ struct ErrorCx;
 
 impl ExprCx for ErrorCx {
     fn recover(&self, p: &mut Parser<'_>) -> Result<()> {
-        Err(p.unsupported(0, "expression")?)
+        Err(p.expected_at(0, Kind::Expr)?)
     }
 }
 
@@ -79,6 +79,35 @@ pub(super) fn root(p: &mut Parser<'_>) -> Result<()> {
         stmt(p)?;
     }
 
+    p.flush_ws()?;
+    p.close()?;
+    Ok(())
+}
+
+/// Parse comma-separated expressions.
+pub(super) fn exprs(p: &mut Parser<'_>, separator: Kind) -> Result<()> {
+    p.open(Root)?;
+
+    while !p.is_eof()? {
+        expr(p)?;
+        p.bump_while(separator)?;
+    }
+
+    p.flush_ws()?;
+    p.close()?;
+    Ok(())
+}
+
+/// Parse comma-separated expressions.
+pub(super) fn format(p: &mut Parser<'_>) -> Result<()> {
+    p.open(Root)?;
+    expr(p)?;
+
+    while !p.is_eof()? {
+        p.bump()?;
+    }
+
+    p.flush_ws()?;
     p.close()?;
     Ok(())
 }
@@ -256,6 +285,14 @@ fn modifiers(p: &mut Parser<'_>) -> Result<Modifiers> {
                     p.bump()?;
 
                     let kind = match p.peek()? {
+                        K![super] => {
+                            p.bump()?;
+                            ModifierSuper
+                        }
+                        K![self] => {
+                            p.bump()?;
+                            ModifierSelf
+                        }
                         K![crate] => {
                             p.bump()?;
                             ModifierCrate
@@ -278,6 +315,9 @@ fn modifiers(p: &mut Parser<'_>) -> Result<Modifiers> {
             }
             K![async] => {
                 mods.is_async = true;
+                p.bump()?;
+            }
+            K![move] => {
                 p.bump()?;
             }
             _ => {
@@ -350,6 +390,10 @@ fn item_use(p: &mut Parser<'_>) -> Result<()> {
                 p.bump_if(K!['}'])?;
                 p.close_at(&c, ItemUseGroup)?;
             }
+            K![as] => {
+                p.bump()?;
+                p.bump_if_matches(|k| matches!(k, K![ident]))?;
+            }
             _ => break,
         }
     }
@@ -383,8 +427,8 @@ fn item_enum(p: &mut Parser<'_>) -> Result<()> {
                 }
             }
 
-            p.bump_while(K![,])?;
             p.close_at(&variant, Variant)?;
+            p.bump_while(K![,])?;
         }
 
         p.bump_if(K!['}'])?;
@@ -448,6 +492,8 @@ fn item_fn(p: &mut Parser<'_>) -> Result<()> {
         let c = p.checkpoint()?;
         p.bump()?;
 
+        p.bump_while(K![,])?;
+
         while is_pat(p)? {
             pat(p)?;
             p.bump_while(K![,])?;
@@ -493,15 +539,14 @@ fn item_mod(p: &mut Parser<'_>) -> Result<bool> {
 }
 
 #[tracing::instrument(skip_all)]
-#[allow(unused)]
 fn is_pat(p: &mut Parser<'_>) -> Result<bool> {
     Ok(match p.peek()? {
         path_component!() => true,
         lit!() => true,
         K![_] => true,
-        K![..] => true,
         K!['('] => true,
         K!['['] => true,
+        K![-] => matches!(p.glued(1)?, K![number]),
         K![#] => matches!(p.glued(1)?, K!['{']),
         _ => false,
     })
@@ -516,17 +561,22 @@ fn pat(p: &mut Parser<'_>) -> Result<()> {
         lit!() => {
             let c = p.checkpoint()?;
             p.bump()?;
-            p.close_at(&c, PatLit)?;
+            p.close_at(&c, Lit)?;
+        }
+        K![-] => {
+            let c = p.checkpoint()?;
+            p.bump()?;
+
+            if matches!(p.peek()?, K![number]) {
+                p.bump()?;
+            }
+
+            p.close_at(&c, Lit)?;
         }
         K![_] => {
             let c = p.checkpoint()?;
             p.bump()?;
             p.close_at(&c, PatIgnore)?;
-        }
-        K![..] => {
-            let c = p.checkpoint()?;
-            p.bump()?;
-            p.close_at(&c, PatRest)?;
         }
         path_component!() => {
             let c = p.checkpoint()?;
@@ -538,7 +588,7 @@ fn pat(p: &mut Parser<'_>) -> Result<()> {
                     p.close_at(&c, PatObject)?;
                 }
                 K!['('] => {
-                    parenthesized(p, is_pat, pat, K![')'])?;
+                    pat_parens(p, K![')'])?;
                     p.close_at(&c, PatTuple)?;
                 }
                 _ => {}
@@ -546,12 +596,12 @@ fn pat(p: &mut Parser<'_>) -> Result<()> {
         }
         K!['['] => {
             let c = p.checkpoint()?;
-            parenthesized(p, is_pat, pat, K![']'])?;
+            pat_parens(p, K![']'])?;
             p.close_at(&c, PatArray)?;
         }
         K!['('] => {
             let c = p.checkpoint()?;
-            parenthesized(p, is_pat, pat, K![')'])?;
+            pat_parens(p, K![')'])?;
             p.close_at(&c, PatTuple)?;
         }
         K![#] if matches!(p.glued(1)?, K!['{']) => {
@@ -598,6 +648,7 @@ fn is_expr_with(p: &mut Parser<'_>, brace: Brace, range: Range) -> Result<bool> 
         K![&] => true,
         K![*] => true,
         K!['label] => matches!(p.glued(1)?, K![:]),
+        Kind::Open(Delimiter::Empty) => true,
         K!['('] => true,
         K!['['] => true,
         K!['{'] => matches!(brace, Brace::Yes),
@@ -666,6 +717,7 @@ fn outer_expr_with(
     kind = expr_chain(p, &c, kind)?;
 
     if p.peek()? == K![=] {
+        p.close_at(&c, Expr)?;
         p.bump()?;
         expr_with(p, brace, Range::Yes, Binary::Yes, cx)?;
         p.close_at(&c, ExprAssign)?;
@@ -673,7 +725,8 @@ fn outer_expr_with(
     }
 
     if matches!(binary, Binary::Yes) {
-        let lookahead = ast::BinOp::from_peeker(p)?;
+        let slice = p.array::<2>()?;
+        let lookahead = ast::BinOp::from_slice(&slice);
 
         kind = if expr_binary(p, lookahead, 0, brace, cx)? {
             p.close_at(&c, ExprBinary)?;
@@ -706,7 +759,7 @@ fn expr_primary(p: &mut Parser<'_>, brace: Brace, range: Range, cx: &dyn ExprCx)
     let kind = match p.peek()? {
         lit!() => {
             p.bump()?;
-            ExprLit
+            Lit
         }
         path_component!() => {
             path(p)?;
@@ -730,9 +783,10 @@ fn expr_primary(p: &mut Parser<'_>, brace: Brace, range: Range, cx: &dyn ExprCx)
                     p.bump()?;
                     ExprMacroCall
                 }
-                _ => ExprPath,
+                _ => return Ok(Path),
             }
         }
+        Kind::Open(Delimiter::Empty) => empty_group(p)?,
         K!['('] => expr_tuple_or_group(p)?,
         K!['['] => {
             parenthesized(p, is_expr, expr, K![']'])?;
@@ -758,6 +812,11 @@ fn expr_primary(p: &mut Parser<'_>, brace: Brace, range: Range, cx: &dyn ExprCx)
 
             expr_with(p, brace, range, Binary::Yes, cx)?;
             ExprClosure
+        }
+        K![-] if matches!(p.glued(1)?, K![number]) => {
+            p.bump()?;
+            p.bump()?;
+            Lit
         }
         K![!] | K![-] | K![&] | K![*] => {
             p.bump()?;
@@ -936,6 +995,14 @@ fn expr_chain(p: &mut Parser<'_>, c: &Checkpoint, mut kind: Kind) -> Result<Kind
 }
 
 #[tracing::instrument(skip_all)]
+fn empty_group(p: &mut Parser<'_>) -> Result<Kind> {
+    p.bump()?;
+    expr(p)?;
+    p.bump_if(Kind::Close(Delimiter::Empty))?;
+    Ok(ExprEmptyGroup)
+}
+
+#[tracing::instrument(skip_all)]
 fn expr_tuple_or_group(p: &mut Parser<'_>) -> Result<Kind> {
     p.bump()?;
 
@@ -978,6 +1045,9 @@ fn pat_object(p: &mut Parser<'_>) -> Result<()> {
 
     loop {
         match p.peek()? {
+            K![..] => {
+                p.bump()?;
+            }
             object_key!() => {
                 p.bump()?;
 
@@ -986,9 +1056,6 @@ fn pat_object(p: &mut Parser<'_>) -> Result<()> {
                 }
 
                 p.bump_while(K![,])?;
-            }
-            K![..] => {
-                p.bump()?;
             }
             _ => {
                 break;
@@ -1069,6 +1136,7 @@ fn expr_match(p: &mut Parser<'_>) -> Result<()> {
         p.bump()?;
 
         while is_pat(p)? {
+            let c = p.checkpoint()?;
             pat(p)?;
 
             if p.bump_if(K![if])? {
@@ -1079,6 +1147,7 @@ fn expr_match(p: &mut Parser<'_>) -> Result<()> {
                 expr(p)?;
             }
 
+            p.close_at(&c, ExprMatchArm)?;
             p.bump_while(K![,])?;
         }
 
@@ -1095,7 +1164,9 @@ fn expr_select(p: &mut Parser<'_>) -> Result<()> {
     if matches!(p.peek()?, K!['{']) {
         p.bump()?;
 
-        while is_pat(p)? || matches!(p.peek()?, K![default]) {
+        while is_pat(p)? || p.peek()? == K![default] {
+            let c = p.checkpoint()?;
+
             match p.peek()? {
                 K![default] => {
                     p.bump()?;
@@ -1113,6 +1184,7 @@ fn expr_select(p: &mut Parser<'_>) -> Result<()> {
                 expr(p)?;
             }
 
+            p.close_at(&c, ExprSelectArm)?;
             p.bump_while(K![,])?;
         }
 
@@ -1187,10 +1259,6 @@ fn expr_binary(
     let mut has_any = false;
 
     while let Some(op) = lookahead.take() {
-        if matches!(op, ast::BinOp::DotDot(..) | ast::BinOp::DotDotEq(..)) {
-            break;
-        }
-
         let precedence = op.precedence();
 
         if precedence < min_precedence {
@@ -1206,14 +1274,8 @@ fn expr_binary(
 
         has_any = true;
 
-        lookahead = ast::BinOp::from_peeker(p)?;
-
-        if matches!(
-            lookahead,
-            Some(ast::BinOp::DotDot(..) | ast::BinOp::DotDotEq(..))
-        ) {
-            break;
-        }
+        let slice = p.array::<2>()?;
+        lookahead = ast::BinOp::from_slice(&slice);
 
         while let Some(next) = lookahead {
             match (precedence, next.precedence()) {
@@ -1223,7 +1285,8 @@ fn expr_binary(
                         p.close_at(&c, ExprBinary)?;
                     }
 
-                    lookahead = ast::BinOp::from_peeker(p)?;
+                    let slice = p.array::<2>()?;
+                    lookahead = ast::BinOp::from_slice(&slice);
                     continue;
                 }
                 (lh, rh) if lh == rh => {
@@ -1295,6 +1358,27 @@ fn block_with(p: &mut Parser<'_>) -> Result<()> {
     }
 
     p.bump_if(K!['}'])?;
+    Ok(())
+}
+
+#[tracing::instrument(skip(p))]
+fn pat_parens(p: &mut Parser, end: Kind) -> Result<()> {
+    p.bump()?;
+
+    while is_pat(p)? || p.peek()? == K![..] {
+        match p.peek()? {
+            K![..] => {
+                p.bump()?;
+            }
+            _ => {
+                pat(p)?;
+            }
+        }
+
+        p.bump_while(K![,])?;
+    }
+
+    p.bump_if(end)?;
     Ok(())
 }
 

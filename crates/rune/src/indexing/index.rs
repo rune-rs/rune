@@ -3,16 +3,16 @@ use core::mem::take;
 use tracing::instrument_ast;
 
 use crate::alloc::prelude::*;
-use crate::alloc::{Box, Vec, VecDeque};
+use crate::alloc::{HashMap, VecDeque};
 use crate::ast::{self, OptionSpanned, Spanned};
 use crate::compile::{
     self, attrs, meta, Doc, DynLocation, ErrorKind, ItemMeta, Location, Visibility, WithSpan,
 };
 use crate::indexing::{self, Indexed};
-use crate::parse::Resolve;
-use crate::query::ItemImplEntry;
+use crate::parse::{Resolve, ResolveContext};
+use crate::query::{DeferEntry, ImplItem, ImplItemKind};
 use crate::runtime::Call;
-use crate::worker::{Import, ImportKind};
+use crate::worker::{Import, ImportKind, ImportState};
 
 use super::{ast_to_visibility, validate_call, Indexer};
 
@@ -220,6 +220,7 @@ pub(crate) fn empty_block_fn(
             is_test: false,
             is_bench: false,
             impl_item: None,
+            args: Vec::new(),
         }),
     })?;
 
@@ -265,10 +266,11 @@ pub(crate) fn item_fn(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemFn) -> compil
         ));
     };
 
-    let call = validate_call(ast.const_token, ast.async_token, &layer)?;
+    let call = validate_call(ast.const_token.is_some(), ast.async_token.is_some(), &layer)?;
 
     let Some(call) = call else {
-        idx.q.index_const_fn(item_meta, Box::try_new(ast)?)?;
+        idx.q
+            .index_const_fn(item_meta, indexing::ConstFn::Ast(Box::try_new(ast)?))?;
         return Ok(());
     };
 
@@ -340,15 +342,19 @@ pub(crate) fn item_fn(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemFn) -> compil
         };
     }
 
+    let name = ast.name;
+    let args = ast.args.iter().map(|(a, _)| a.span()).try_collect()?;
+
     let entry = indexing::Entry {
         item_meta,
         indexed: Indexed::Function(indexing::Function {
-            ast: indexing::FunctionAst::Item(Box::try_new(ast)?),
+            ast: indexing::FunctionAst::Item(Box::try_new(ast)?, name),
             call,
             is_instance,
             is_test,
             is_bench,
             impl_item: idx.item.impl_item,
+            args,
         }),
     };
 
@@ -400,13 +406,16 @@ fn expr_block(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprBlock) -> compile::R
 
         let item_meta = block(idx, &mut ast.block)?;
         ast.block.id = item_meta.item;
-        idx.q.index_const_block(item_meta, &ast.block)?;
+        idx.q.index_const_block(
+            item_meta,
+            indexing::ConstBlock::Ast(Box::try_new(ast.block.try_clone()?)?),
+        )?;
     } else {
         idx.scopes.push()?;
         let item_meta = block(idx, &mut ast.block)?;
         let layer = idx.scopes.pop().with_span(&ast)?;
 
-        let call = validate_call(ast.const_token, ast.async_token, &layer)?;
+        let call = validate_call(ast.const_token.is_some(), ast.async_token.is_some(), &layer)?;
 
         let Some(call) = call else {
             return Err(compile::Error::new(ast, ErrorKind::ClosureKind));
@@ -493,7 +502,7 @@ fn statements(idx: &mut Indexer<'_, '_>, ast: &mut Vec<ast::Stmt>) -> compile::R
 
 #[instrument_ast(span = ast)]
 fn block(idx: &mut Indexer<'_, '_>, ast: &mut ast::Block) -> compile::Result<ItemMeta> {
-    let guard = idx.items.push_id()?;
+    let guard = idx.push_id()?;
 
     let item_meta = idx.insert_new_item(&ast, Visibility::Inherited, &[])?;
     let idx_item = idx.item.replace(item_meta.item);
@@ -893,8 +902,15 @@ fn item_enum(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemEnum) -> compile::Resu
 
         idx.item = idx_item;
         idx.items.pop(guard).with_span(&variant)?;
-        idx.q
-            .index_variant(item_meta, enum_item.item, variant, index)?;
+
+        idx.q.index_variant(
+            item_meta,
+            indexing::Variant {
+                enum_id: enum_item.item,
+                index,
+                fields: convert_fields(resolve_context!(idx.q), variant.body)?,
+            },
+        )?;
     }
 
     idx.item = idx_item;
@@ -961,7 +977,9 @@ fn item_struct(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemStruct) -> compile::
 
     idx.item = idx_item;
     idx.items.pop(guard).with_span(&ast)?;
-    idx.q.index_struct(item_meta, Box::try_new(ast)?)?;
+
+    let fields = convert_fields(resolve_context!(idx.q), ast.body)?;
+    idx.q.index_struct(item_meta, indexing::Struct { fields })?;
     Ok(())
 }
 
@@ -978,14 +996,19 @@ fn item_impl(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemImpl) -> compile::Resu
 
     let location = Location::new(idx.source_id, ast.path.span());
 
-    idx.q.inner.impl_item_queue.try_push_back(ItemImplEntry {
-        path: Box::try_new(ast.path)?,
-        location,
-        root: idx.root.clone(),
-        nested_item: idx.nested_item,
-        macro_depth: idx.macro_depth,
-        functions: take(&mut ast.functions),
-    })?;
+    idx.q
+        .inner
+        .defer_queue
+        .try_push_back(DeferEntry::ImplItem(ImplItem {
+            kind: ImplItemKind::Ast {
+                path: Box::try_new(ast.path)?,
+                functions: take(&mut ast.functions),
+            },
+            location,
+            root: idx.root.map(TryToOwned::try_to_owned).transpose()?,
+            nested_item: idx.nested_item,
+            macro_depth: idx.macro_depth,
+        }))?;
 
     Ok(())
 }
@@ -1060,7 +1083,11 @@ fn item_const(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemConst) -> compile::Re
     let last = idx.nested_item.replace(ast.descriptive_span());
     expr(idx, &mut ast.expr)?;
     idx.nested_item = last;
-    idx.q.index_const_expr(item_meta, &ast.expr)?;
+
+    idx.q.index_const_expr(
+        item_meta,
+        indexing::ConstExpr::Ast(Box::try_new(ast.expr.try_clone()?)?),
+    )?;
 
     idx.item = idx_item;
     idx.items.pop(guard).with_span(&ast)?;
@@ -1131,12 +1158,12 @@ fn item(idx: &mut Indexer<'_, '_>, ast: ast::Item) -> compile::Result<()> {
             let visibility = ast_to_visibility(&item_use.visibility)?;
 
             let import = Import {
+                state: ImportState::Ast(Box::try_new(item_use)?),
                 kind: ImportKind::Global,
                 visibility,
                 module: idx.item.module,
                 item: idx.items.item().try_to_owned()?,
                 source_id: idx.source_id,
-                ast: Box::try_new(item_use)?,
             };
 
             import.process(&mut idx.q, &mut |task| {
@@ -1196,7 +1223,7 @@ fn expr_for(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprFor) -> compile::Resul
 
 #[instrument_ast(span = ast)]
 fn expr_closure(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprClosure) -> compile::Result<()> {
-    let guard = idx.items.push_id()?;
+    let guard = idx.push_id()?;
 
     idx.scopes.push()?;
 
@@ -1220,7 +1247,7 @@ fn expr_closure(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprClosure) -> compil
 
     let layer = idx.scopes.pop().with_span(&*ast)?;
 
-    let call = validate_call(None, ast.async_token, &layer)?;
+    let call = validate_call(false, ast.async_token.is_some(), &layer)?;
 
     let Some(call) = call else {
         return Err(compile::Error::new(&*ast, ErrorKind::ClosureKind));
@@ -1301,4 +1328,22 @@ fn expr_object(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprObject) -> compile:
     }
 
     Ok(())
+}
+
+/// Convert AST fields into meta fields.
+fn convert_fields(cx: ResolveContext<'_>, body: ast::Fields) -> compile::Result<meta::Fields> {
+    Ok(match body {
+        ast::Fields::Empty => meta::Fields::Empty,
+        ast::Fields::Unnamed(tuple) => meta::Fields::Unnamed(tuple.len()),
+        ast::Fields::Named(st) => {
+            let mut fields = HashMap::try_with_capacity(st.len())?;
+
+            for (position, (ast::Field { name, .. }, _)) in st.iter().enumerate() {
+                let name = name.resolve(cx)?;
+                fields.try_insert(name.try_into()?, meta::FieldMeta { position })?;
+            }
+
+            meta::Fields::Named(meta::FieldsNamed { fields })
+        }
+    })
 }

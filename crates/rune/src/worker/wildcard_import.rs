@@ -23,8 +23,8 @@ impl WildcardImport {
                     &self.location,
                     self.module,
                     self.visibility,
-                    self.from.try_clone()?,
-                    name,
+                    &self.from,
+                    &name,
                     None,
                     true,
                 )?;
@@ -51,8 +51,8 @@ impl WildcardImport {
                     &self.location,
                     self.module,
                     self.visibility,
-                    self.from.try_clone()?,
-                    name,
+                    &self.from,
+                    &name,
                     None,
                     true,
                 )?;

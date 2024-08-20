@@ -252,12 +252,10 @@ pub(crate) struct BuiltInTemplate<'hir> {
     pub(crate) exprs: &'hir [Expr<'hir>],
 }
 
-/// An internal format specification.
-#[derive(Debug, TryClone, Clone, Copy, Spanned)]
+/// The specification for a format spec.
+#[derive(Default, Debug, TryClone, Clone, Copy)]
 #[try_clone(copy)]
-pub(crate) struct BuiltInFormat<'hir> {
-    #[rune(span)]
-    pub(crate) span: Span,
+pub(crate) struct BuiltInFormatSpec {
     /// The fill character to use.
     pub(crate) fill: Option<char>,
     /// Alignment specification.
@@ -270,8 +268,17 @@ pub(crate) struct BuiltInFormat<'hir> {
     pub(crate) flags: Option<format::Flags>,
     /// The format specification type.
     pub(crate) format_type: Option<format::Type>,
+}
+
+/// An internal format specification.
+#[derive(Debug, TryClone, Clone, Copy, Spanned)]
+#[try_clone(copy)]
+pub(crate) struct BuiltInFormat<'hir> {
+    /// The format spec.
+    pub(crate) spec: BuiltInFormatSpec,
     /// The value being formatted.
-    pub(crate) value: Expr<'hir>,
+    #[rune(span)]
+    pub(crate) value: &'hir Expr<'hir>,
 }
 
 /// An assign expression `a = b`.
@@ -372,7 +379,7 @@ pub(crate) struct ConditionalBranch<'hir> {
 #[non_exhaustive]
 pub(crate) struct ExprMatch<'hir> {
     /// The expression who's result we match over.
-    pub(crate) expr: Expr<'hir>,
+    pub(crate) expr: &'hir Expr<'hir>,
     /// Branches.
     pub(crate) branches: &'hir [ExprMatchBranch<'hir>],
 }

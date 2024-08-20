@@ -1,0 +1,22 @@
+const fn foo(n) {
+    n + 1
+}
+
+const VALUE1 = foo(1);
+
+const VALUE2 = {
+    foo(2) + 4
+};
+
+const VALUE3 = {
+    foo(8) + 16
+};
+
+#[test]
+fn const_value() {
+    assert_eq!(VALUE1, 2);
+    assert_eq!(VALUE2, 7);
+    assert_eq!(VALUE3, 25);
+    assert_eq!(const { VALUE1 + VALUE2 + VALUE3 }, 34);
+    assert_eq!(format!(const { "{" + "}" }, 10), "10");
+}

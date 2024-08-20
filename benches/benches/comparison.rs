@@ -7,7 +7,8 @@ pub(crate) fn vm(
     sources: &mut Sources,
     diagnostics: &mut Diagnostics,
 ) -> Result<Vm, BuildError> {
-    let mut options = Options::default();
+    let mut options = Options::from_default_env().expect("failed to build options");
+
     options
         .parse_option("function-body=true")
         .expect("failed to parse option");

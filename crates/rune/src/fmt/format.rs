@@ -1,12 +1,10 @@
 use core::mem::take;
 
-use crate::ast::Kind;
+use crate::ast::{Delimiter, Kind};
 use crate::compile::Result;
-use crate::grammar::object_key;
+use crate::grammar::{classify, object_key, MaybeNode, NodeClass};
 
 use super::{Comments, Formatter, Node, Remaining, Stream, Tree};
-
-type ParserFn<'a> = fn(&mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()>;
 
 use Comments::*;
 use Kind::*;
@@ -64,7 +62,7 @@ fn expr_labels<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
 }
 
 fn inner_attributes<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
-    while let Some(attr) = p.try_pump(InnerAttribute)? {
+    while let MaybeNode::Some(attr) = p.eat(InnerAttribute) {
         attr.fmt(fmt)?;
         fmt.nl(1)?;
     }
@@ -75,7 +73,7 @@ fn inner_attributes<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<(
 fn attributes<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<Attrs> {
     let mut attrs = Attrs::default();
 
-    while let Some(attr) = p.try_pump(Attribute)? {
+    while let MaybeNode::Some(attr) = p.eat(Attribute) {
         attrs.skip |= is_runefmt_skip(fmt, attr.clone());
         attr.fmt(fmt)?;
         fmt.nl(1)?;
@@ -85,52 +83,52 @@ fn attributes<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<Attrs> 
 }
 
 fn modifiers<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
-    if let Some(mods) = p.try_pump(Modifiers)? {
-        mods.parse(|p| {
-            let mut any = false;
+    p.eat(Modifiers).parse(|p| {
+        let mut any = false;
 
-            for node in p.by_ref() {
-                match node.kind() {
-                    ModifierCrate => {
-                        node.parse(|p| {
-                            p.expect(K!['('])?.fmt(fmt)?;
-                            p.expect(K![crate])?.fmt(fmt)?;
-                            p.one(K![')'])?.fmt(fmt)?;
-                            Ok(())
-                        })?;
-                    }
-                    ModifierIn => {
-                        node.parse(|p| {
-                            p.expect(K!['('])?.fmt(fmt)?;
-                            p.expect(K![in])?.fmt(fmt)?;
-                            fmt.ws()?;
-                            p.expect(Path)?.parse(|p| path(fmt, p))?;
-                            p.one(K![')'])?.fmt(fmt)?;
-                            Ok(())
-                        })?;
-                    }
-                    Error => {
-                        return Err(p.unsupported("modifier"));
-                    }
-                    _ => {
-                        if any {
-                            fmt.ws()?;
-                        }
-
-                        node.fmt(fmt)?;
-                    }
+        for node in p.by_ref() {
+            match node.kind() {
+                ModifierSuper | ModifierSelf | ModifierCrate => {
+                    node.parse(|p| {
+                        p.expect(K!['('])?.fmt(fmt)?;
+                        fmt.comments(Infix)?;
+                        p.pump()?.fmt(fmt)?;
+                        fmt.comments(Infix)?;
+                        p.one(K![')']).fmt(fmt)?;
+                        Ok(())
+                    })?;
                 }
+                ModifierIn => {
+                    node.parse(|p| {
+                        p.expect(K!['('])?.fmt(fmt)?;
+                        p.expect(K![in])?.fmt(fmt)?;
+                        fmt.ws()?;
+                        p.expect(Path)?.parse(|p| path(fmt, p))?;
+                        p.one(K![')']).fmt(fmt)?;
+                        Ok(())
+                    })?;
+                }
+                Error => {
+                    return Err(p.expected("modifier"));
+                }
+                _ => {
+                    if any {
+                        fmt.ws()?;
+                    }
 
-                any = true;
+                    node.fmt(fmt)?;
+                }
             }
 
-            if any {
-                fmt.ws()?;
-            }
+            any = true;
+        }
 
-            Ok(())
-        })?;
-    }
+        if any {
+            fmt.ws()?;
+        }
+
+        Ok(())
+    })?;
 
     Ok(())
 }
@@ -197,7 +195,7 @@ fn item<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
                 modifiers(fmt, p)?;
                 item_const(fmt, p)?;
             }
-            _ => return Err(p.unsupported("item")),
+            _ => return Err(p.expected(Item)),
         }
 
         Ok(())
@@ -230,7 +228,7 @@ fn local<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     fmt.ws()?;
     p.expect(Pat)?.parse(|p| pat(fmt, p))?;
     fmt.ws()?;
-    p.one(K![=])?.fmt(fmt)?;
+    p.one(K![=]).fmt(fmt)?;
     fmt.ws()?;
     p.expect(Expr)?.parse(|p| expr(fmt, p))?;
     Ok(())
@@ -239,7 +237,7 @@ fn local<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
 fn pat<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     let mut attrs = Attrs::default();
 
-    while let Some(attr) = p.try_pump(Attribute)? {
+    while let MaybeNode::Some(attr) = p.eat(Attribute) {
         attrs.skip |= is_runefmt_skip(fmt, attr.clone());
         attr.fmt(fmt)?;
         fmt.ws()?;
@@ -247,13 +245,14 @@ fn pat<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
 
     p.pump()?.parse(|p| {
         match p.kind() {
-            PatLit => {
+            Lit => {
+                p.eat(K![-]).fmt(fmt)?;
                 p.pump()?.fmt(fmt)?;
             }
             PatIgnore => {
                 p.pump()?.fmt(fmt)?;
             }
-            PatRest => {
+            K![..] => {
                 p.pump()?.fmt(fmt)?;
             }
             Path => {
@@ -263,20 +262,14 @@ fn pat<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
                 pat_array(fmt, p)?;
             }
             PatTuple => {
-                let trailing = if let Some(node) = p.try_pump(Path)? {
-                    node.parse(|p| path(fmt, p))?;
-                    false
-                } else {
-                    true
-                };
-
-                tuple(fmt, p, Pat, pat, trailing)?;
+                let trailing = p.eat(Path).parse(|p| path(fmt, p))?.is_none();
+                pat_tuple(fmt, p, trailing)?;
             }
             PatObject => {
                 pat_object(fmt, p)?;
             }
             _ => {
-                return Err(p.unsupported("pattern"));
+                return Err(p.expected("pattern"));
             }
         }
 
@@ -302,84 +295,75 @@ fn path<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
 fn path_generics<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     p.expect(K![<])?.fmt(fmt)?;
 
-    let mut empty = true;
     let mut comma = Remaining::default();
 
-    while let Some(node) = p.try_pump(Path)? {
+    while let MaybeNode::Some(node) = p.eat(Path) {
         fmt.comments(Prefix)?;
 
-        if !empty {
-            comma.fmt(fmt)?;
+        if comma.fmt(fmt)? {
             fmt.ws()?;
         }
 
         node.parse(|p| path(fmt, p))?;
         comma = p.remaining(fmt, K![,])?;
-        empty = false;
         fmt.comments(Suffix)?;
     }
 
-    comma.ignore(fmt)?;
-
-    if empty {
+    if !comma.ignore(fmt)? {
         fmt.comments(Infix)?;
     }
 
-    p.one(K![>])?.fmt(fmt)?;
+    p.one(K![>]).fmt(fmt)?;
     Ok(())
 }
 
 fn pat_array<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     p.expect(K!['['])?.fmt(fmt)?;
 
-    let mut empty = true;
     let mut comma = Remaining::default();
 
-    while let Some(node) = p.try_pump(Pat)? {
+    while let MaybeNode::Some(node) = p.eat_matching(|k| matches!(k, Pat | K![..])) {
         fmt.comments(Prefix)?;
 
-        if !empty {
-            comma.fmt(fmt)?;
+        if comma.fmt(fmt)? {
             fmt.ws()?;
         }
 
-        node.parse(|p| pat(fmt, p))?;
+        match node.kind() {
+            K![..] => node.fmt(fmt)?,
+            _ => node.parse(|p| pat(fmt, p))?,
+        }
+
         comma = p.remaining(fmt, K![,])?;
-        empty = false;
         fmt.comments(Suffix)?;
     }
 
-    comma.ignore(fmt)?;
-
-    if empty {
+    if !comma.ignore(fmt)? {
         fmt.comments(Infix)?;
     }
 
-    p.one(K![']'])?.fmt(fmt)?;
+    p.one(K![']']).fmt(fmt)?;
     Ok(())
 }
 
-fn tuple<'a>(
-    fmt: &mut Formatter<'a>,
-    p: &mut Stream<'a>,
-    kind: Kind,
-    parser: ParserFn<'a>,
-    trailing: bool,
-) -> Result<()> {
+fn pat_tuple<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>, trailing: bool) -> Result<()> {
     p.expect(K!['('])?.fmt(fmt)?;
 
     let mut count = 0usize;
     let mut comma = Remaining::default();
 
-    while let Some(node) = p.try_pump(kind)? {
+    while let MaybeNode::Some(node) = p.eat_matching(|k| matches!(k, Pat | K![..])) {
         fmt.comments(Prefix)?;
 
-        if count > 0 {
-            comma.fmt(fmt)?;
+        if comma.fmt(fmt)? {
             fmt.ws()?;
         }
 
-        node.parse(|p| parser(fmt, p))?;
+        match node.kind() {
+            K![..] => node.fmt(fmt)?,
+            _ => node.parse(|p| pat(fmt, p))?,
+        };
+
         comma = p.remaining(fmt, K![,])?;
         count += 1;
         fmt.comments(Suffix)?;
@@ -395,7 +379,40 @@ fn tuple<'a>(
         }
     }
 
-    p.one(K![')'])?.fmt(fmt)?;
+    p.one(K![')']).fmt(fmt)?;
+    Ok(())
+}
+
+fn expr_tuple<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
+    p.expect(K!['('])?.fmt(fmt)?;
+
+    let mut count = 0usize;
+    let mut comma = Remaining::default();
+
+    while let MaybeNode::Some(node) = p.eat(Expr) {
+        fmt.comments(Prefix)?;
+
+        if comma.fmt(fmt)? {
+            fmt.ws()?;
+        }
+
+        node.parse(|p| expr_discard(fmt, p))?;
+        comma = p.remaining(fmt, K![,])?;
+        count += 1;
+        fmt.comments(Suffix)?;
+    }
+
+    if count == 1 {
+        comma.fmt(fmt)?;
+    } else {
+        comma.ignore(fmt)?;
+
+        if count == 0 {
+            fmt.comments(Infix)?;
+        }
+    }
+
+    p.one(K![')']).fmt(fmt)?;
     Ok(())
 }
 
@@ -439,11 +456,11 @@ fn expr_object_loose<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<
         fmt.comments(Line)?;
         p.pump()?.fmt(fmt)?;
 
-        if let Some(colon) = p.try_pump(K![:])? {
+        p.eat(K![:]).and_then(|colon| {
             colon.fmt(fmt)?;
             fmt.ws()?;
-            p.pump()?.parse(|p| expr(fmt, p))?;
-        }
+            p.pump()?.parse(|p| expr(fmt, p))
+        })?;
 
         p.remaining(fmt, K![,])?.fmt(fmt)?;
         fmt.nl(1)?;
@@ -459,34 +476,27 @@ fn expr_object_loose<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<
 fn expr_object_compact<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     p.expect(K!['{'])?.fmt(fmt)?;
 
-    let mut empty = true;
     let mut comma = Remaining::default();
 
     while matches!(p.peek(), object_key!()) {
-        if !empty {
-            comma.fmt(fmt)?;
-        }
-
+        comma.fmt(fmt)?;
         fmt.ws()?;
 
         p.pump()?.fmt(fmt)?;
 
-        if let Some(colon) = p.try_pump(K![:])? {
+        p.eat(K![:]).and_then(|colon| {
             colon.fmt(fmt)?;
             fmt.ws()?;
-            p.pump()?.parse(|p| expr(fmt, p))?;
-        }
+            p.pump()?.parse(|p| expr(fmt, p))
+        })?;
 
         comma = p.remaining(fmt, K![,])?;
-        empty = false;
     }
 
-    comma.ignore(fmt)?;
-
-    if empty {
-        fmt.comments(Infix)?;
-    } else {
+    if comma.ignore(fmt)? {
         fmt.ws()?;
+    } else {
+        fmt.comments(Infix)?;
     }
 
     p.remaining(fmt, K!['}'])?.fmt(fmt)?;
@@ -506,25 +516,21 @@ fn pat_object<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
 
     p.expect(K!['{'])?.fmt(fmt)?;
 
-    let mut empty = true;
     let mut comma = Remaining::default();
 
     while matches!(p.peek(), object_key!() | K![..]) {
-        if !empty {
-            comma.fmt(fmt)?;
-        }
-
+        comma.fmt(fmt)?;
         fmt.ws()?;
 
         match p.peek() {
             object_key!() => {
                 p.pump()?.fmt(fmt)?;
 
-                if let Some(colon) = p.try_pump(K![:])? {
+                p.eat(K![:]).and_then(|colon| {
                     colon.fmt(fmt)?;
                     fmt.ws()?;
-                    p.expect(Pat)?.parse(|p| pat(fmt, p))?;
-                }
+                    p.expect(Pat)?.parse(|p| pat(fmt, p))
+                })?;
             }
             _ => {
                 p.expect(K![..])?.fmt(fmt)?;
@@ -532,15 +538,12 @@ fn pat_object<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
         }
 
         comma = p.remaining(fmt, K![,])?;
-        empty = false;
     }
 
-    comma.ignore(fmt)?;
-
-    if empty {
-        fmt.comments(Infix)?;
-    } else {
+    if comma.ignore(fmt)? {
         fmt.ws()?;
+    } else {
+        fmt.comments(Infix)?;
     }
 
     p.remaining(fmt, K!['}'])?.fmt(fmt)?;
@@ -555,7 +558,7 @@ fn expr_discard<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
 fn expr<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<Kind> {
     let mut attrs = Attrs::default();
 
-    while let Some(attr) = p.try_pump(Attribute)? {
+    while let MaybeNode::Some(attr) = p.eat(Attribute) {
         attrs.skip |= is_runefmt_skip(fmt, attr.clone());
         attr.fmt(fmt)?;
         fmt.ws()?;
@@ -573,19 +576,14 @@ fn expr<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<Kind> {
 
 fn inner_expr<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<Kind> {
     match p.kind() {
-        ExprMacroCall => {
-            p.expect(Path)?.parse(|p| path(fmt, p))?;
-            p.expect(K![!])?.fmt(fmt)?;
-
-            match p.peek() {
-                K!['{'] => loose_expr_macro_call(fmt, p)?,
-                _ => compact_expr_macro_call(fmt, p)?,
-            }
+        Path => {
+            path(fmt, p)?;
         }
-        TemplateString => {
+        Lit => {
+            p.eat(K![-]).fmt(fmt)?;
             p.pump()?.fmt(fmt)?;
         }
-        ExprLit => {
+        TemplateString => {
             p.pump()?.fmt(fmt)?;
         }
         Block => {
@@ -594,14 +592,11 @@ fn inner_expr<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<Kind> {
         ExprAssign => {
             expr_assign(fmt, p)?;
         }
-        ExprPath => {
-            p.expect(Path)?.parse(|p| path(fmt, p))?;
-        }
         ExprArray => {
             exprs(fmt, p, K!['['], K![']'])?;
         }
         ExprTuple => {
-            tuple(fmt, p, Expr, expr_discard, true)?;
+            expr_tuple(fmt, p)?;
         }
         ExprObject => {
             expr_object(fmt, p)?;
@@ -613,22 +608,10 @@ fn inner_expr<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<Kind> {
             expr_unary(fmt, p)?;
         }
         ExprGroup => {
-            p.expect(K!['('])?.fmt(fmt)?;
-
-            let mut empty = true;
-
-            if let Some(node) = p.try_pump(Expr)? {
-                fmt.comments(Prefix)?;
-                node.parse(|p| expr(fmt, p))?;
-                fmt.comments(Suffix)?;
-                empty = false;
-            }
-
-            if empty {
-                fmt.comments(Infix)?;
-            }
-
-            p.one(K![')'])?.fmt(fmt)?;
+            expr_group(fmt, p)?;
+        }
+        ExprEmptyGroup => {
+            expr_empty_group(fmt, p)?;
         }
         ExprIf => {
             expr_if(fmt, p)?;
@@ -682,15 +665,24 @@ fn inner_expr<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<Kind> {
         ExprChain => {
             expr_chain(fmt, p)?;
         }
+        ExprMacroCall => {
+            p.expect(Path)?.parse(|p| path(fmt, p))?;
+            p.expect(K![!])?.fmt(fmt)?;
+
+            match p.peek() {
+                K!['{'] => loose_expr_macro_call(fmt, p)?,
+                _ => compact_expr_macro_call(fmt, p)?,
+            }
+        }
         Error => {
             if fmt.options.error_recovery {
                 p.fmt_remaining_trimmed(fmt)?;
             } else {
-                return Err(p.unsupported("inner expression"));
+                return Err(p.expected("inner expression"));
             }
         }
         _ => {
-            return Err(p.unsupported("inner expression"));
+            return Err(p.expected("inner expression"));
         }
     }
 
@@ -783,7 +775,7 @@ fn compact_expr_macro_call<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> R
 }
 
 fn expr_assign<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
-    p.pump()?.parse(|p| inner_expr(fmt, p))?;
+    p.expect(Expr)?.parse(|p| expr(fmt, p))?;
     fmt.ws()?;
     p.expect(K![=])?.fmt(fmt)?;
     fmt.ws()?;
@@ -804,7 +796,7 @@ fn exprs<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>, open: Kind, close: Kin
         expanded |= matches!(node.kind(), Kind::Comment) || count >= 6;
     }
 
-    p.expect(open)?.fmt(fmt)?;
+    p.one(open).fmt(fmt)?;
 
     if expanded {
         exprs_loose(fmt, p)?;
@@ -812,7 +804,7 @@ fn exprs<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>, open: Kind, close: Kin
         exprs_compact(fmt, p)?;
     }
 
-    p.one(close)?.fmt(fmt)?;
+    p.one(close).fmt(fmt)?;
     Ok(())
 }
 
@@ -820,7 +812,7 @@ fn exprs_loose<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     fmt.nl(1)?;
     fmt.indent(1)?;
 
-    while let Some(node) = p.try_pump(Expr)? {
+    while let MaybeNode::Some(node) = p.eat(Expr) {
         fmt.comments(Line)?;
         node.parse(|p| expr(fmt, p))?;
         p.remaining(fmt, K![,])?.fmt(fmt)?;
@@ -834,26 +826,21 @@ fn exprs_loose<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
 }
 
 fn exprs_compact<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
-    let mut empty = true;
     let mut comma = Remaining::default();
 
-    while let Some(node) = p.try_pump(Expr)? {
+    while let MaybeNode::Some(node) = p.eat(Expr) {
         fmt.comments(Prefix)?;
 
-        if !empty {
-            comma.fmt(fmt)?;
+        if comma.fmt(fmt)? {
             fmt.ws()?;
         }
 
         node.parse(|p| expr(fmt, p))?;
         comma = p.remaining(fmt, K![,])?;
-        empty = false;
         fmt.comments(Suffix)?;
     }
 
-    comma.ignore(fmt)?;
-
-    if empty {
+    if !comma.ignore(fmt)? {
         fmt.comments(Infix)?;
     }
 
@@ -863,7 +850,7 @@ fn exprs_compact<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> 
 fn expr_binary<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     p.pump()?.parse(|p| inner_expr(fmt, p))?;
 
-    while let Some(op) = p.try_pump(ExprOperator)? {
+    while let MaybeNode::Some(op) = p.eat(ExprOperator) {
         fmt.ws()?;
         op.fmt(fmt)?;
         fmt.ws()?;
@@ -879,15 +866,55 @@ fn expr_unary<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     Ok(())
 }
 
+fn expr_group<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
+    p.expect(K!['('])?.fmt(fmt)?;
+
+    let mut empty = true;
+
+    p.eat(Expr).parse(|p| {
+        fmt.comments(Prefix)?;
+        expr(fmt, p)?;
+        fmt.comments(Suffix)?;
+        empty = false;
+        Ok(())
+    })?;
+
+    if empty {
+        fmt.comments(Infix)?;
+    }
+
+    p.one(K![')']).fmt(fmt)?;
+    Ok(())
+}
+
+fn expr_empty_group<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
+    p.expect(Kind::Open(Delimiter::Empty))?.ignore(fmt)?;
+
+    let mut empty = true;
+
+    p.eat(Expr).parse(|p| {
+        fmt.comments(Prefix)?;
+        expr(fmt, p)?;
+        fmt.comments(Suffix)?;
+        empty = false;
+        Ok(())
+    })?;
+
+    if empty {
+        fmt.comments(Infix)?;
+    }
+
+    p.one(Kind::Open(Delimiter::Empty)).ignore(fmt)?;
+    Ok(())
+}
+
 fn expr_if<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     p.expect(If)?.fmt(fmt)?;
     fmt.ws()?;
     condition_or_expr(fmt, p)?;
     fmt.ws()?;
 
-    if let Some(op) = p.try_pump(Block)? {
-        op.parse(|p| block(fmt, p))?;
-    } else {
+    if p.eat(Block).parse(|p| block(fmt, p))?.is_none() {
         fmt.lit("{}")?;
     }
 
@@ -961,10 +988,10 @@ fn expr_break<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
         p.pump()?.fmt(fmt)?;
     }
 
-    if let Some(node) = p.try_pump(Expr)? {
+    p.eat(Expr).parse(|p| {
         fmt.ws()?;
-        node.parse(|p| expr(fmt, p))?;
-    }
+        expr(fmt, p)
+    })?;
 
     Ok(())
 }
@@ -983,10 +1010,10 @@ fn expr_continue<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> 
 fn expr_return<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     p.expect(K![return])?.fmt(fmt)?;
 
-    if let Some(node) = p.try_pump(Expr)? {
+    p.eat(Expr).parse(|p| {
         fmt.ws()?;
-        node.parse(|p| expr(fmt, p))?;
-    }
+        expr(fmt, p)
+    })?;
 
     Ok(())
 }
@@ -994,10 +1021,10 @@ fn expr_return<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
 fn expr_yield<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     p.expect(K![yield])?.fmt(fmt)?;
 
-    if let Some(node) = p.try_pump(Expr)? {
+    p.eat(Expr).parse(|p| {
         fmt.ws()?;
-        node.parse(|p| expr(fmt, p))?;
-    }
+        expr(fmt, p)
+    })?;
 
     Ok(())
 }
@@ -1006,7 +1033,7 @@ fn expr_select<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     p.expect(K![select])?.fmt(fmt)?;
     fmt.ws()?;
 
-    let Some(open) = p.try_pump(K!['{'])? else {
+    let MaybeNode::Some(open) = p.eat(K!['{']) else {
         fmt.lit("{}")?;
         return Ok(());
     };
@@ -1014,35 +1041,35 @@ fn expr_select<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     fmt.indent(1)?;
     open.fmt(fmt)?;
 
-    while matches!(p.peek(), K![default] | Pat) {
+    while let MaybeNode::Some(node) = p.eat(ExprSelectArm) {
         fmt.nl(1)?;
         fmt.comments(Line)?;
 
-        match p.peek() {
-            K![default] => {
-                p.expect(K![default])?.fmt(fmt)?;
+        let is_block = node.parse(|p| {
+            match p.peek() {
+                K![default] => {
+                    p.expect(K![default])?.fmt(fmt)?;
+                }
+                _ => {
+                    p.expect(Pat)?.parse(|p| pat(fmt, p))?;
+                }
             }
-            _ => {
-                p.expect(Pat)?.parse(|p| pat(fmt, p))?;
-            }
-        }
 
-        if let Some(eq) = p.try_pump(K![=])? {
+            p.eat(K![=]).and_then(|eq| {
+                fmt.ws()?;
+                eq.fmt(fmt)?;
+                fmt.ws()?;
+                p.pump()?.parse(|p| expr(fmt, p))
+            })?;
+
             fmt.ws()?;
-            eq.fmt(fmt)?;
+            p.one(K![=>]).fmt(fmt)?;
             fmt.ws()?;
-            p.pump()?.parse(|p| expr(fmt, p))?;
-        }
 
-        fmt.ws()?;
-
-        p.one(K![=>])?.fmt(fmt)?;
-
-        fmt.ws()?;
-
-        let is_block = p.pump()?.parse(|p| {
-            let kind = expr(fmt, p)?;
-            Ok(matches!(kind, Block))
+            p.pump()?.parse(|p| {
+                let kind = expr(fmt, p)?;
+                Ok(matches!(kind, Block))
+            })
         })?;
 
         p.remaining(fmt, K![,])?.write_only_if(fmt, !is_block)?;
@@ -1051,7 +1078,7 @@ fn expr_select<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     fmt.comments(Line)?;
     fmt.nl(1)?;
     fmt.indent(-1)?;
-    p.one(K!['}'])?.fmt(fmt)?;
+    p.one(K!['}']).fmt(fmt)?;
     Ok(())
 }
 
@@ -1061,84 +1088,84 @@ fn expr_match<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     p.pump()?.parse(|p| expr(fmt, p))?;
     fmt.ws()?;
 
-    let Some(open) = p.try_pump(K!['{'])? else {
-        fmt.lit("{}")?;
-        return Ok(());
-    };
+    p.one(K!['{']).fmt(fmt)?;
 
-    open.fmt(fmt)?;
-    fmt.indent(1)?;
+    let mut any = false;
 
-    while let Some(node) = p.try_pump(Pat)? {
-        fmt.nl(1)?;
-        fmt.comments(Line)?;
-
-        node.parse(|p| pat(fmt, p))?;
-
-        if let Some(node) = p.try_pump(K![if])? {
-            fmt.ws()?;
-            node.fmt(fmt)?;
-            fmt.ws()?;
-            p.pump()?.parse(|p| expr(fmt, p))?;
+    while let MaybeNode::Some(node) = p.eat(ExprMatchArm) {
+        if !any {
+            fmt.indent(1)?;
         }
 
-        fmt.ws()?;
-        p.one(K![=>])?.fmt(fmt)?;
-        fmt.ws()?;
+        any = true;
 
-        let is_block = p.pump()?.parse(|p| {
-            let kind = expr(fmt, p)?;
-            Ok(matches!(kind, Block))
+        let is_block = node.parse(|p| {
+            fmt.nl(1)?;
+            fmt.comments(Line)?;
+
+            p.expect(Pat)?.parse(|p| pat(fmt, p))?;
+
+            p.eat(K![if]).and_then(|node| {
+                fmt.ws()?;
+                node.fmt(fmt)?;
+                fmt.ws()?;
+                p.expect(Expr)?.parse(|p| expr(fmt, p))
+            })?;
+
+            fmt.ws()?;
+            p.one(K![=>]).fmt(fmt)?;
+            fmt.ws()?;
+
+            p.pump()?.parse(|p| {
+                let kind = expr(fmt, p)?;
+                Ok(matches!(kind, Block))
+            })
         })?;
 
         p.remaining(fmt, K![,])?.write_only_if(fmt, !is_block)?;
     }
 
-    fmt.comments(Line)?;
-    fmt.nl(1)?;
-    fmt.indent(-1)?;
-    p.one(K!['}'])?.fmt(fmt)?;
+    if any {
+        fmt.comments(Line)?;
+        fmt.nl(1)?;
+        fmt.indent(-1)?;
+    } else {
+        fmt.comments(Infix)?;
+    }
+
+    p.one(K!['}']).fmt(fmt)?;
     Ok(())
 }
 
 fn expr_closure<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
-    if let Some(node) = p.try_pump(ClosureArguments)? {
+    if let MaybeNode::Some(node) = p.eat(ClosureArguments) {
         node.parse(|p| {
-            if let Some(open) = p.try_pump(K![||])? {
+            if let MaybeNode::Some(open) = p.eat(K![||]) {
                 open.fmt(fmt)?;
-            } else {
-                p.expect(K![|])?.fmt(fmt)?;
-
-                let mut empty = true;
-                let mut comma = Remaining::default();
-
-                while let Some(node) = p.try_pump(Pat)? {
-                    fmt.comments(Prefix)?;
-
-                    if !empty {
-                        comma.fmt(fmt)?;
-                        fmt.ws()?;
-                    }
-
-                    node.parse(|p| pat(fmt, p))?;
-                    comma = p.remaining(fmt, K![,])?;
-                    empty = false;
-                    fmt.comments(Suffix)?;
-                }
-
-                comma.ignore(fmt)?;
-
-                if empty {
-                    fmt.comments(Infix)?;
-                }
-
-                if let Some(node) = p.try_pump(K![|])? {
-                    node.fmt(fmt)?;
-                } else {
-                    fmt.lit("|")?;
-                }
+                return Ok(());
             }
 
+            p.expect(K![|])?.fmt(fmt)?;
+
+            let mut comma = Remaining::default();
+
+            while let MaybeNode::Some(node) = p.eat(Pat) {
+                fmt.comments(Prefix)?;
+
+                if comma.fmt(fmt)? {
+                    fmt.ws()?;
+                }
+
+                node.parse(|p| pat(fmt, p))?;
+                comma = p.remaining(fmt, K![,])?;
+                fmt.comments(Suffix)?;
+            }
+
+            if !comma.ignore(fmt)? {
+                fmt.comments(Infix)?;
+            }
+
+            p.one(K![|]).fmt(fmt)?;
             Ok(())
         })?;
     } else {
@@ -1147,9 +1174,7 @@ fn expr_closure<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
 
     fmt.ws()?;
 
-    if let Some(node) = p.try_pump(Expr)? {
-        node.parse(|p| expr(fmt, p))?;
-    } else {
+    if p.eat(Expr).parse(|p| expr(fmt, p))?.is_none() {
         fmt.lit("{}")?;
     }
 
@@ -1217,14 +1242,14 @@ fn expr_chain<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
         node.parse(|p| {
             match p.kind() {
                 ExprTry => {
-                    p.one(K![?])?.fmt(fmt)?;
+                    p.one(K![?]).fmt(fmt)?;
                 }
                 ExprAwait => {
-                    p.one(K![.])?.fmt(fmt)?;
-                    p.one(K![await])?.fmt(fmt)?;
+                    p.one(K![.]).fmt(fmt)?;
+                    p.one(K![await]).fmt(fmt)?;
                 }
                 ExprField => {
-                    p.one(K![.])?.fmt(fmt)?;
+                    p.one(K![.]).fmt(fmt)?;
 
                     match p.peek() {
                         K![number] => {
@@ -1243,10 +1268,10 @@ fn expr_chain<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
                     fmt.comments(Prefix)?;
                     p.pump()?.parse(|p| expr(fmt, p))?;
                     fmt.comments(Suffix)?;
-                    p.one(K![']'])?.fmt(fmt)?;
+                    p.one(K![']']).fmt(fmt)?;
                 }
                 _ => {
-                    return Err(p.unsupported("expression chain"));
+                    return Err(p.expected(ExprChain));
                 }
             }
 
@@ -1262,9 +1287,7 @@ fn expr_chain<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
 }
 
 fn condition_or_expr<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
-    if let Some(c) = p.try_pump(Condition)? {
-        c.parse(|p| condition(fmt, p))?;
-    } else {
+    if p.eat(Condition).parse(|p| condition(fmt, p))?.is_none() {
         p.expect(Expr)?.parse(|p| expr(fmt, p))?;
     }
 
@@ -1319,7 +1342,7 @@ fn item_enum<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
 
     fmt.ws()?;
 
-    let Some(node) = p.try_pump(K!['{'])? else {
+    let MaybeNode::Some(node) = p.eat(K!['{']) else {
         fmt.lit("{}")?;
         return Ok(());
     };
@@ -1329,17 +1352,18 @@ fn item_enum<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
 
     let mut empty = true;
 
-    while let Some(node) = p.try_pump(Variant)? {
+    while let MaybeNode::Some(node) = p.eat(Variant) {
         fmt.nl(1)?;
         fmt.comments(Line)?;
         node.parse(|p| variant(fmt, p))?;
         empty = false;
+        p.remaining(fmt, K![,])?.fmt(fmt)?;
     }
 
     fmt.comments(Line)?;
     fmt.nl(usize::from(!empty))?;
     fmt.indent(-1)?;
-    p.one(K!['}'])?.fmt(fmt)?;
+    p.one(K!['}']).fmt(fmt)?;
     Ok(())
 }
 
@@ -1366,7 +1390,6 @@ fn variant<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
         }
     }
 
-    p.remaining(fmt, K![,])?.fmt(fmt)?;
     Ok(())
 }
 
@@ -1377,7 +1400,7 @@ fn struct_body<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
 
     let mut empty = true;
 
-    while let Some(field) = p.try_pump(Field)? {
+    while let MaybeNode::Some(field) = p.eat(Field) {
         fmt.nl(1)?;
         fmt.comments(Line)?;
         field.parse(|p| p.pump()?.fmt(fmt))?;
@@ -1388,37 +1411,32 @@ fn struct_body<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     fmt.comments(Line)?;
     fmt.nl(usize::from(!empty))?;
     fmt.indent(-1)?;
-    p.one(K!['}'])?.fmt(fmt)?;
+    p.one(K!['}']).fmt(fmt)?;
     Ok(())
 }
 
 fn tuple_body<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     p.expect(K!['('])?.fmt(fmt)?;
 
-    let mut empty = true;
     let mut comma = Remaining::default();
 
-    while let Some(node) = p.try_pump(Field)? {
+    while let MaybeNode::Some(node) = p.eat(Field) {
         fmt.comments(Prefix)?;
 
-        if !empty {
-            comma.fmt(fmt)?;
+        if comma.fmt(fmt)? {
             fmt.ws()?;
         }
 
         node.parse(|p| p.pump()?.fmt(fmt))?;
         comma = p.remaining(fmt, K![,])?;
-        empty = false;
         fmt.comments(Suffix)?;
     }
 
-    comma.ignore(fmt)?;
-
-    if empty {
+    if !comma.ignore(fmt)? {
         fmt.comments(Infix)?;
     }
 
-    p.one(K![')'])?.fmt(fmt)?;
+    p.one(K![')']).fmt(fmt)?;
     fmt.comments(Suffix)?;
     Ok(())
 }
@@ -1431,17 +1449,13 @@ fn item_fn<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
         p.pump()?.fmt(fmt)?;
     }
 
-    if let Some(node) = p.try_pump(FnArgs)? {
-        node.parse(|p| fn_args(fmt, p))?;
-    } else {
+    if p.eat(FnArgs).parse(|p| fn_args(fmt, p))?.is_none() {
         fmt.lit("()")?;
     }
 
-    if let Some(node) = p.try_pump(Block)? {
-        fmt.ws()?;
-        node.parse(|p| block(fmt, p))?;
-    } else {
-        fmt.ws()?;
+    fmt.ws()?;
+
+    if p.eat(Block).parse(|p| block(fmt, p))?.is_none() {
         fmt.lit("{")?;
         fmt.nl(1)?;
         fmt.lit("}")?;
@@ -1457,10 +1471,21 @@ fn item_use<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
 }
 
 fn item_use_path<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
-    for node in p.by_ref() {
+    while let Some(node) = p.next() {
         match node.kind() {
             ItemUseGroup => {
                 node.parse(|p: &mut Stream<'a>| item_use_group(fmt, p))?;
+            }
+            K![as] => {
+                fmt.ws()?;
+                node.fmt(fmt)?;
+
+                if let MaybeNode::Some(node) = p.eat_matching(|k| matches!(k, K![ident])) {
+                    fmt.ws()?;
+                    node.fmt(fmt)?;
+                }
+
+                break;
             }
             _ => {
                 node.fmt(fmt)?;
@@ -1490,30 +1515,25 @@ fn item_use_group<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()>
         open.fmt(fmt)?;
     }
 
-    let mut empty = true;
     let mut comma = Remaining::default();
 
-    while let Some(inner) = p.try_pump(ItemUsePath)? {
+    while let MaybeNode::Some(inner) = p.eat(ItemUsePath) {
         fmt.comments(Prefix)?;
 
-        if !empty {
-            comma.fmt(fmt)?;
+        if comma.fmt(fmt)? {
             fmt.ws()?;
         }
 
         inner.parse(|p| item_use_path(fmt, p))?;
         comma = p.remaining(fmt, K![,])?;
-        empty = false;
         fmt.comments(Suffix)?;
     }
 
-    if empty {
+    if !comma.ignore(fmt)? {
         fmt.comments(Infix)?;
     }
 
-    comma.ignore(fmt)?;
-
-    let close = p.one(K!['}'])?;
+    let close = p.one(K!['}']);
 
     if nested == 1 {
         close.ignore(fmt)?;
@@ -1538,10 +1558,10 @@ fn item_mod<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     fmt.ws()?;
     p.pump()?.fmt(fmt)?;
 
-    if let Some(node) = p.try_pump(Block)? {
+    p.eat(Block).parse(|p| {
         fmt.ws()?;
-        node.parse(|p| block(fmt, p))?;
-    }
+        block(fmt, p)
+    })?;
 
     Ok(())
 }
@@ -1549,7 +1569,7 @@ fn item_mod<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
 fn item_const<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     p.pump()?.fmt(fmt)?;
     fmt.ws()?;
-    p.one(K![=])?.fmt(fmt)?;
+    p.one(K![=]).fmt(fmt)?;
     fmt.ws()?;
     p.pump()?.parse(|p| expr(fmt, p))?;
     Ok(())
@@ -1557,30 +1577,27 @@ fn item_const<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
 
 fn fn_args<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     p.expect(K!['('])?.fmt(fmt)?;
+    p.remaining(fmt, K![,])?.ignore(fmt)?;
 
-    let mut empty = true;
     let mut comma = Remaining::default();
 
-    while let Some(node) = p.try_pump(Pat)? {
+    while let MaybeNode::Some(node) = p.eat(Pat) {
         fmt.comments(Prefix)?;
 
-        if !empty {
-            comma.fmt(fmt)?;
+        if comma.fmt(fmt)? {
             fmt.ws()?;
         }
 
         node.parse(|p| pat(fmt, p))?;
         comma = p.remaining(fmt, K![,])?;
-        empty = false;
         fmt.comments(Suffix)?;
     }
 
-    if empty {
+    if !comma.ignore(fmt)? {
         fmt.comments(Infix)?;
     }
 
-    comma.ignore(fmt)?;
-    p.one(K![')'])?.fmt(fmt)?;
+    p.one(K![')']).fmt(fmt)?;
     Ok(())
 }
 
@@ -1589,7 +1606,7 @@ fn block<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
 }
 
 fn block_with<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>, compact: bool) -> Result<()> {
-    p.one(K!['{'])?.fmt(fmt)?;
+    p.one(K!['{']).fmt(fmt)?;
 
     p.expect(BlockBody)?.parse(|p| {
         let expanded = !p.is_eof() || !compact;
@@ -1616,34 +1633,25 @@ fn block_with<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>, compact: bool) ->
         Ok(())
     })?;
 
-    p.one(K!['}'])?.fmt(fmt)?;
+    p.one(K!['}']).fmt(fmt)?;
     Ok(())
-}
-
-#[derive(Debug, Clone, Copy)]
-enum StmtKind {
-    None,
-    Const,
-    Local,
-    Item,
-    Expr,
 }
 
 /// The contents of a block.
 fn block_content<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     inner_attributes(fmt, p)?;
 
-    let mut last_kind = StmtKind::None;
+    let mut last_kind = None;
 
     while !p.is_eof() {
         let node = p.pump()?;
-        let (needs_semi, kind) = node_to_kind(&node);
+        let (needs_semi, class) = classify(&node);
 
-        if !matches!(last_kind, StmtKind::None) {
+        if let Some(last_kind) = last_kind {
             let n = match last_kind {
-                StmtKind::Item => 1,
-                StmtKind::Const => usize::from(!matches!(kind, StmtKind::Const)),
-                StmtKind::Local => usize::from(!matches!(kind, StmtKind::Local)),
+                NodeClass::Item => 1,
+                NodeClass::Const => usize::from(!matches!(class, NodeClass::Const)),
+                NodeClass::Local => usize::from(!matches!(class, NodeClass::Local)),
                 _ => 0,
             };
 
@@ -1661,46 +1669,8 @@ fn block_content<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> 
         }
 
         trailing_semi.write_if(fmt, needs_semi)?;
-        last_kind = kind;
+        last_kind = Some(class);
     }
 
     Ok(())
-}
-
-fn node_to_kind(node: &Node<'_>) -> (bool, StmtKind) {
-    match node.kind() {
-        Local => return (true, StmtKind::Local),
-        Item => {
-            for child in node.children() {
-                match child.kind() {
-                    ItemConst => return (true, StmtKind::Const),
-                    ItemStruct => {
-                        let needs_semi = child
-                            .children()
-                            .any(|n| matches!(n.kind(), TupleBody | EmptyBody));
-                        return (needs_semi, StmtKind::Item);
-                    }
-                    ItemEnum => return (false, StmtKind::Item),
-                    ItemFn => return (false, StmtKind::Item),
-                    ItemImpl => return (false, StmtKind::Item),
-                    ItemMod => return (false, StmtKind::Item),
-                    ItemFileMod => return (true, StmtKind::Item),
-                    _ => {}
-                }
-            }
-        }
-        Expr => {
-            if node.last().map_or(false, |n| {
-                matches!(
-                    n.kind(),
-                    ExprIf | ExprFor | ExprWhile | ExprLoop | ExprMatch | ExprSelect
-                )
-            }) {
-                return (false, StmtKind::Item);
-            }
-        }
-        _ => {}
-    }
-
-    (false, StmtKind::Expr)
 }

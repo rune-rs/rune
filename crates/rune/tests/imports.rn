@@ -1,0 +1,16 @@
+mod a {
+    pub struct Foo;
+}
+
+mod b {
+    use c::Foo;
+    use crate::a as c;
+    pub fn test() {
+        Foo is c::Foo
+    }
+}
+
+#[test]
+fn module_import() {
+    assert!(b::test());
+}

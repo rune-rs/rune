@@ -3,5 +3,84 @@ fn inline_assign() {
     let a = 10;
     let b = 20;
     let (a, b) = (b, a);
+
     assert_eq!(a + b, 30);
+}
+
+#[test]
+fn basic_assign() {
+    let a = 0;
+    a = 42;
+    let out = a;
+
+    assert_eq!(out, 42);
+}
+
+#[test]
+fn assign_underscore() {
+    let _a = 0;
+    _a = 42;
+    let out = _a;
+
+    assert_eq!(out, 42);
+}
+
+#[test]
+fn assign_underscores() {
+    let ___ = 0;
+    ___ = 42;
+    let out = ___;
+
+    assert_eq!(out, 42);
+}
+
+#[test]
+fn assign_anon_object() {
+    let a = #{};
+    a.foo = #{};
+    a.foo.bar = 42;
+    let out = a.foo.bar;
+
+    assert_eq!(out, 42);
+}
+
+#[test]
+fn assign_anon_tuple() {
+    let a = ((0,),);
+    (a.0).0 = 42;
+    let out = (a.0).0;
+
+    assert_eq!(out, 42);
+}
+
+#[test]
+fn assign_struct() {
+    struct Bar {
+        padding,
+        baz,
+    }
+    struct Foo {
+        bar,
+        padding,
+    }
+
+    let foo = Foo { bar: (), padding: () };
+    foo.bar = Bar { padding: (), baz: () };
+    foo.bar.baz = 42;
+    let out = foo.bar.baz;
+
+    assert_eq!(out, 42);
+}
+
+#[test]
+fn assign_tuple() {
+    struct Bar(baz, padding);
+    struct Foo(padding, bar);
+
+    let foo = Foo((), ());
+    foo.1 = Bar((), ());
+    (foo.1).0 = 42;
+    let out = (foo.1).0;
+
+    assert_eq!(out, 42);
 }

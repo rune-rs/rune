@@ -43,9 +43,7 @@ impl fmt::Display for AnyObjError {
     }
 }
 
-cfg_std! {
-    impl std::error::Error for AnyObjError {}
-}
+impl core::error::Error for AnyObjError {}
 
 /// Our own private dynamic Any implementation.
 ///

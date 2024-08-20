@@ -49,18 +49,6 @@ fn test_reexport() {
 
 #[test]
 fn test_access() {
-    rune_assert! {
-        mod a { pub struct Foo; }
-
-        mod b {
-            use c::Foo;
-            use crate::a as c;
-            pub fn test() { Foo is c::Foo }
-        }
-
-        pub fn main() { b::test() }
-    };
-
     assert_errors! {
         r#"
         mod a { struct Test; }

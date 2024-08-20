@@ -4,30 +4,34 @@
 mod query;
 
 use core::fmt;
+use core::mem::take;
 use core::num::NonZeroUsize;
 
-pub(crate) use self::query::{MissingId, Query, QueryInner};
+use rust_alloc::rc::Rc;
+
+pub(crate) use self::query::{Query, QueryInner, QuerySource};
 
 use crate as rune;
 use crate::alloc::path::PathBuf;
 use crate::alloc::prelude::*;
-use crate::ast;
-use crate::ast::{Span, Spanned};
-use crate::compile::ir;
-use crate::compile::{ItemId, ItemMeta, Location, ModId};
+use crate::ast::{self, OptionSpanned, Span, Spanned};
+use crate::compile::{ir, Doc, Error, ItemId, ItemMeta, Location, ModId, Result};
+use crate::grammar::{Ignore, Node, NodeAt, NodeId, Tree};
 use crate::hash::Hash;
 use crate::hir;
 use crate::indexing;
+use crate::parse::NonZeroId;
 use crate::runtime::format;
 use crate::runtime::Call;
 
 /// Indication whether a value is being evaluated because it's being used or not.
-#[derive(Debug, TryClone, Clone, Copy)]
+#[derive(Default, Debug, TryClone, Clone, Copy)]
 #[try_clone(copy)]
 pub(crate) enum Used {
     /// The value is not being used.
     Unused,
     /// The value is being used.
+    #[default]
     Used,
 }
 
@@ -35,12 +39,6 @@ impl Used {
     /// Test if this used indicates unuse.
     pub(crate) fn is_unused(self) -> bool {
         matches!(self, Self::Unused)
-    }
-}
-
-impl Default for Used {
-    fn default() -> Self {
-        Self::Used
     }
 }
 
@@ -65,6 +63,35 @@ impl fmt::Display for Named<'_> {
     }
 }
 
+pub(crate) enum Named2Kind {
+    /// A full path.
+    Full,
+    /// An identifier.
+    Ident(ast::Ident),
+    /// Self value.
+    SelfValue(#[allow(unused)] ast::SelfValue),
+}
+
+/// The result of calling [Query::convert_path2].
+pub(crate) struct Named2<'a> {
+    /// Module named item belongs to.
+    pub(crate) module: ModId,
+    /// The kind of named item.
+    pub(crate) kind: Named2Kind,
+    /// The path resolved to the given item.
+    pub(crate) item: ItemId,
+    /// Trailing parameters.
+    pub(crate) trailing: usize,
+    /// Type parameters if any.
+    pub(crate) parameters: [Option<Node<'a>>; 2],
+}
+
+impl fmt::Display for Named2<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.item, f)
+    }
+}
+
 /// An internally resolved macro.
 #[allow(clippy::large_enum_variant)]
 pub(crate) enum BuiltInMacro {
@@ -72,6 +99,13 @@ pub(crate) enum BuiltInMacro {
     Format(BuiltInFormat),
     File(BuiltInFile),
     Line(BuiltInLine),
+}
+
+pub(crate) enum BuiltInMacro2 {
+    File(ast::LitStr),
+    Line(usize),
+    Template(Rc<Tree>, BuiltInLiteral),
+    Format(Rc<Tree>),
 }
 
 /// An internally resolved template.
@@ -176,9 +210,62 @@ pub(crate) struct BuildEntry {
     pub(crate) build: Build,
 }
 
-pub(crate) struct ItemImplEntry {
-    /// Non-expanded ast of the path.
-    pub(crate) path: Box<ast::Path>,
+/// The kind of item being implemented.
+pub(crate) enum ImplItemKind {
+    Ast {
+        /// Non-expanded ast of the path.
+        path: Box<ast::Path>,
+        /// Functions in the impl block.
+        functions: Vec<ast::ItemFn>,
+    },
+    Node {
+        /// The path being implemented.
+        path: NodeAt,
+        /// Functions being added.
+        functions: Vec<(NodeId, Attrs)>,
+    },
+}
+
+#[must_use = "must be consumed"]
+#[derive(Default, Debug)]
+pub(crate) struct Attrs {
+    pub(crate) test: Option<Span>,
+    pub(crate) bench: Option<Span>,
+    pub(crate) docs: Vec<Doc>,
+    pub(crate) builtin: Option<(Span, BuiltInLiteral)>,
+}
+
+impl Attrs {
+    pub(crate) fn deny_non_docs(self, cx: &mut dyn Ignore<'_>) -> Result<()> {
+        if let Some(span) = self.test {
+            cx.error(Error::msg(span, "unsupported #[test] attribute"))?;
+        }
+
+        if let Some(span) = self.bench {
+            cx.error(Error::msg(span, "unsupported #[bench] attribute"))?;
+        }
+
+        if let Some((span, _)) = self.builtin {
+            cx.error(Error::msg(span, "unsupported #[builtin] attribute"))?;
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn deny_any(self, cx: &mut dyn Ignore<'_>) -> Result<()> {
+        if let Some(span) = self.docs.option_span() {
+            cx.error(Error::msg(span, "unsupported documentation"))?;
+        }
+
+        self.deny_non_docs(cx)?;
+        Ok(())
+    }
+}
+
+/// The implementation item.
+pub(crate) struct ImplItem {
+    /// The kind of item being implemented.
+    pub(crate) kind: ImplItemKind,
     /// Location where the item impl is defined and is being expanded.
     pub(crate) location: Location,
     ///See [Indexer][crate::indexing::Indexer].
@@ -187,8 +274,66 @@ pub(crate) struct ItemImplEntry {
     pub(crate) nested_item: Option<Span>,
     /// See [Indexer][crate::indexing::Indexer].
     pub(crate) macro_depth: usize,
-    /// Functions in the impl block.
-    pub(crate) functions: Vec<ast::ItemFn>,
+}
+
+/// Expand the given macro.
+#[must_use = "Must be used to report errors"]
+pub(crate) struct ExpandMacroBuiltin {
+    /// The identifier of the macro being expanded.
+    pub(crate) id: NonZeroId,
+    /// The macro being expanded.
+    pub(crate) node: NodeAt,
+    /// Location where the item impl is defined and is being expanded.
+    pub(crate) location: Location,
+    ///See [Indexer][crate::indexing::Indexer].
+    pub(crate) root: Option<PathBuf>,
+    /// See [Indexer][crate::indexing::Indexer].
+    pub(crate) macro_depth: usize,
+    /// Indexing item at macro expansion position.
+    pub(crate) item: indexing::IndexItem,
+    /// The literal option.
+    pub(crate) literal: BuiltInLiteral,
+}
+
+impl ExpandMacroBuiltin {
+    /// Deny any unused options.
+    pub(crate) fn finish(self) -> Result<NonZeroId> {
+        if let BuiltInLiteral::Yes(span) = self.literal {
+            return Err(Error::msg(
+                span,
+                "#[builtin(literal)] option is not allowed",
+            ));
+        }
+
+        Ok(self.id)
+    }
+}
+
+/// Whether the literal option is set.
+#[derive(Default, Debug)]
+pub(crate) enum BuiltInLiteral {
+    Yes(Span),
+    #[default]
+    No,
+}
+
+impl BuiltInLiteral {
+    /// Take the literal option.
+    pub(crate) fn take(&mut self) -> Self {
+        take(self)
+    }
+
+    /// Test if the literal option is set.
+    pub(crate) fn is_yes(&self) -> bool {
+        matches!(self, Self::Yes(_))
+    }
+}
+
+/// A deferred build entry.
+pub(crate) enum DeferEntry {
+    ImplItem(ImplItem),
+    ExpandMacroBuiltin(ExpandMacroBuiltin),
+    ExpandMacroCall(ExpandMacroBuiltin),
 }
 
 /// A compiled constant function.
@@ -202,6 +347,14 @@ pub(crate) struct ConstFn<'hir> {
     pub(crate) hir: hir::ItemFn<'hir>,
 }
 
+/// The data of a macro call.
+pub(crate) enum ExpandedMacro {
+    /// A built-in expanded macro.
+    Builtin(BuiltInMacro2),
+    /// The expanded body of a macro.
+    Tree(Rc<Tree>),
+}
+
 /// Generic parameters.
 #[derive(Default)]
 pub(crate) struct GenericsParameters {
@@ -212,6 +365,18 @@ pub(crate) struct GenericsParameters {
 impl GenericsParameters {
     pub(crate) fn is_empty(&self) -> bool {
         self.parameters.iter().all(|p| p.is_none())
+    }
+}
+
+impl fmt::Debug for GenericsParameters {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut f = f.debug_list();
+
+        for p in &self.parameters[2 - self.trailing..] {
+            f.entry(p);
+        }
+
+        f.finish()
     }
 }
 

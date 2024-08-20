@@ -1,5 +1,5 @@
 use crate::item::internal::MAX_DATA;
-use crate::item::{Component, ComponentRef, IntoComponent, ItemBuf};
+use crate::item::{ComponentRef, ItemBuf};
 use rune_alloc as alloc;
 
 #[test]
@@ -13,15 +13,38 @@ fn test_pop() -> alloc::Result<()> {
     item.push(ComponentRef::Id(3))?;
     item.push("end")?;
 
-    assert_eq!(item.pop()?, Some("end".into_component()?));
-    assert_eq!(item.pop()?, Some(Component::Id(3)));
-    assert_eq!(item.pop()?, Some("middle".into_component()?));
-    assert_eq!(item.pop()?, Some(Component::Id(2)));
-    assert_eq!(item.pop()?, Some(Component::Id(1)));
-    assert_eq!(item.pop()?, Some("start".into_component()?));
-    assert_eq!(item.pop()?, None);
+    assert!(item.pop());
+    assert!(item.pop());
+    assert!(item.pop());
+    assert!(item.pop());
+    assert!(item.pop());
+    assert!(item.pop());
+    assert!(!item.pop());
 
     assert!(item.is_empty());
+    Ok(())
+}
+
+#[test]
+fn test_back_iter() -> alloc::Result<()> {
+    let mut item = ItemBuf::new();
+
+    item.push("start")?;
+    item.push(ComponentRef::Id(1))?;
+    item.push(ComponentRef::Id(2))?;
+    item.push("middle")?;
+    item.push(ComponentRef::Id(3))?;
+    item.push("end")?;
+
+    let mut it = item.iter();
+
+    assert_eq!(it.next_back(), Some(ComponentRef::Str("end")));
+    assert_eq!(it.next_back(), Some(ComponentRef::Id(3)));
+    assert_eq!(it.next_back(), Some(ComponentRef::Str("middle")));
+    assert_eq!(it.next_back(), Some(ComponentRef::Id(2)));
+    assert_eq!(it.next_back(), Some(ComponentRef::Id(1)));
+    assert_eq!(it.next_back(), Some(ComponentRef::Str("start")));
+    assert_eq!(it.next_back(), None);
     Ok(())
 }
 

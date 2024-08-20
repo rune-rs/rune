@@ -22,6 +22,8 @@ impl fmt::Display for StackError {
     }
 }
 
+impl core::error::Error for StackError {}
+
 /// An error raised when accessing a slice on the stack.
 #[derive(Debug, PartialEq)]
 #[non_exhaustive]
@@ -44,10 +46,7 @@ impl fmt::Display for SliceError {
     }
 }
 
-cfg_std! {
-    impl std::error::Error for StackError {}
-    impl std::error::Error for SliceError {}
-}
+impl core::error::Error for SliceError {}
 
 pub(crate) enum Pair<'a> {
     Same(&'a mut Value),

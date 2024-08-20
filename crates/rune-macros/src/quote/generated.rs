@@ -1,7 +1,7 @@
 use crate::quote;
 
-/// This file has been generated from `assets/tokens.yaml`
-/// DO NOT modify by hand!
+// This file has been generated from `assets/tokens.yaml`
+// DO NOT modify by hand!
 
 pub(crate) fn kind_from_ident(ident: &str) -> Option<quote::Kind> {
     match ident {

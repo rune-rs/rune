@@ -31,19 +31,15 @@ impl MacroCompiler<'_, '_, '_> {
         }
 
         let named = self.idx.q.convert_path(&macro_call.path)?;
-
         let hash = self.idx.q.pool.item_type_hash(named.item);
 
-        let handler = match self.idx.q.context.lookup_macro(hash) {
-            Some(handler) => handler,
-            None => {
-                return Err(compile::Error::new(
-                    span,
-                    ErrorKind::MissingMacro {
-                        item: self.idx.q.pool.item(named.item).try_to_owned()?,
-                    },
-                ));
-            }
+        let Some(handler) = self.idx.q.context.lookup_macro(hash) else {
+            return Err(compile::Error::new(
+                span,
+                ErrorKind::MissingMacro {
+                    item: self.idx.q.pool.item(named.item).try_to_owned()?,
+                },
+            ));
         };
 
         let input_stream = &macro_call.input;

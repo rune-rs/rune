@@ -25,17 +25,32 @@ pub struct LitNumber {
     pub source: ast::NumberSource,
 }
 
+impl ToAst for LitNumber {
+    fn to_ast(span: Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            K![number(source)] => Ok(LitNumber { source, span }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                Self::into_expectation(),
+            )),
+        }
+    }
+
+    #[inline]
+    fn matches(kind: &ast::Kind) -> bool {
+        matches!(kind, K![number])
+    }
+
+    #[inline]
+    fn into_expectation() -> Expectation {
+        Expectation::Description("number")
+    }
+}
+
 impl Parse for LitNumber {
     fn parse(parser: &mut Parser<'_>) -> Result<Self> {
         let t = parser.next()?;
-
-        match t.kind {
-            K![number(source)] => Ok(LitNumber {
-                source,
-                span: t.span,
-            }),
-            _ => Err(compile::Error::expected(t, "number")),
-        }
+        Self::to_ast(t.span, t.kind)
     }
 }
 

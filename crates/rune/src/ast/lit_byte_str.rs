@@ -57,17 +57,32 @@ impl LitByteStr {
     }
 }
 
+impl ToAst for LitByteStr {
+    fn to_ast(span: Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            K![bytestr(source)] => Ok(Self { span, source }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                Self::into_expectation(),
+            )),
+        }
+    }
+
+    #[inline]
+    fn matches(kind: &ast::Kind) -> bool {
+        matches!(kind, K![bytestr])
+    }
+
+    #[inline]
+    fn into_expectation() -> Expectation {
+        Expectation::Description("byte string")
+    }
+}
+
 impl Parse for LitByteStr {
     fn parse(parser: &mut Parser<'_>) -> Result<Self> {
         let t = parser.next()?;
-
-        match t.kind {
-            K![bytestr(source)] => Ok(Self {
-                span: t.span,
-                source,
-            }),
-            _ => Err(compile::Error::expected(t, "byte string")),
-        }
+        Self::to_ast(t.span, t.kind)
     }
 }
 

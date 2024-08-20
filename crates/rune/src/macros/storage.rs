@@ -7,13 +7,20 @@ use crate::alloc::{HashMap, String, Vec};
 use crate::ast;
 
 /// A synthetic identifier which can be used to reference something in storage.
-#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[try_clone(copy)]
+#[repr(transparent)]
 pub struct SyntheticId(usize);
 
 impl fmt::Display for SyntheticId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:04x}", self.0)
+        self.0.fmt(f)
+    }
+}
+
+impl fmt::Debug for SyntheticId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
     }
 }
 

@@ -28,8 +28,7 @@ impl fmt::Display for AllocError {
     }
 }
 
-#[cfg(feature = "std")]
-impl ::std::error::Error for AllocError {}
+impl core::error::Error for AllocError {}
 
 pub(crate) trait SizedTypeProperties: Sized {
     const IS_ZST: bool = core::mem::size_of::<Self>() == 0;
