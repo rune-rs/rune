@@ -79,8 +79,8 @@ impl fmt::Display for TestError {
     }
 }
 
-impl std::error::Error for TestError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+impl core::error::Error for TestError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
             TestError::Error(error) => Some(error.as_ref()),
             TestError::VmError(error) => Some(error),
@@ -467,7 +467,6 @@ mod vm_function;
 mod vm_function_pointers;
 mod vm_general;
 mod vm_literals;
-mod vm_match;
 mod vm_not_used;
 mod vm_result;
 mod vm_test_from_value_derive;

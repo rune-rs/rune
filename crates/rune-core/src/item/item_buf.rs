@@ -11,7 +11,6 @@ use crate::alloc::clone::TryClone;
 use crate::alloc::iter::TryFromIteratorIn;
 use crate::alloc::{self, Vec};
 
-use crate::item::Component;
 use crate::item::{ComponentRef, IntoComponent, Item, Iter};
 
 /// The name of an item in the Rune Language.
@@ -107,15 +106,14 @@ impl<A: Allocator> ItemBuf<A> {
         Ok(())
     }
 
-    /// Push the given component to the current item.
-    pub fn pop(&mut self) -> alloc::Result<Option<Component>> {
+    /// Pop a the tail component, returning `true` if there was something to pop.
+    pub fn pop(&mut self) -> bool {
         let mut it = self.iter();
 
-        let Some(c) = it.next_back() else {
-            return Ok(None);
+        if it.next_back().is_none() {
+            return false;
         };
 
-        let c = c.to_owned()?;
         let new_len = it.len();
 
         // SAFETY: Advancing the back end of the iterator ensures that the new
@@ -126,7 +124,7 @@ impl<A: Allocator> ItemBuf<A> {
             self.content.set_len(new_len);
         }
 
-        Ok(Some(c))
+        true
     }
 
     /// Extend the current item with an iterator.
@@ -413,8 +411,7 @@ impl fmt::Display for FromStrError {
     }
 }
 
-#[cfg(feature = "std")]
-impl rust_std::error::Error for FromStrError {}
+impl core::error::Error for FromStrError {}
 
 impl<A: Allocator> FromStr for ItemBuf<A>
 where

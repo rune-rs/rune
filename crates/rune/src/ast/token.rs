@@ -10,7 +10,7 @@ use crate::parse::{Expectation, IntoExpectation, Parse, Parser, Peek};
 use crate::SourceId;
 
 /// A single token encountered during parsing.
-#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(TryClone, Clone, Copy, PartialEq, Eq, Hash)]
 #[try_clone(copy)]
 #[non_exhaustive]
 pub struct Token {
@@ -148,6 +148,12 @@ impl Token {
         fn bytes_escape_default(bytes: &[u8]) -> impl Iterator<Item = u8> + '_ {
             bytes.iter().copied().flat_map(ascii::escape_default)
         }
+    }
+}
+
+impl fmt::Debug for Token {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}@{:?}", self.kind, self.span)
     }
 }
 

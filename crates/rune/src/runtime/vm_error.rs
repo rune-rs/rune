@@ -98,9 +98,7 @@ impl fmt::Debug for VmError {
     }
 }
 
-cfg_std! {
-    impl std::error::Error for VmError {}
-}
+impl core::error::Error for VmError {}
 
 pub mod sealed {
     use crate::runtime::VmResult;
@@ -515,9 +513,7 @@ impl fmt::Display for RuntimeError {
     }
 }
 
-cfg_std! {
-    impl std::error::Error for RuntimeError {}
-}
+impl core::error::Error for RuntimeError {}
 
 /// The kind of error encountered.
 #[derive(Debug, PartialEq)]

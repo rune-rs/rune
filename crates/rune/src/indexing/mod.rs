@@ -1,4 +1,5 @@
 pub(crate) mod index;
+pub(crate) mod index2;
 mod indexer;
 pub(crate) mod items;
 mod scopes;
@@ -8,10 +9,12 @@ use crate::alloc::prelude::*;
 use crate::ast::{self, Span, Spanned};
 use crate::compile::meta;
 use crate::compile::{ItemId, ItemMeta};
+use crate::grammar::NodeAt;
 use crate::runtime::Call;
 
 use self::indexer::{ast_to_visibility, validate_call};
 pub(crate) use self::indexer::{IndexItem, Indexer};
+use self::items::Guard;
 pub(crate) use self::items::Items;
 use self::scopes::Layer;
 pub(crate) use self::scopes::Scopes;
@@ -60,23 +63,14 @@ pub(crate) enum Indexed {
 /// The ast of a function.
 #[derive(Debug, TryClone, Spanned)]
 pub(crate) enum FunctionAst {
+    /// The bare node being processed.
+    Bare(#[rune(span)] NodeAt),
+    /// The node being processed.
+    Node(#[rune(span)] NodeAt, Option<ast::Ident>),
     /// An empty function body.
     Empty(Box<ast::EmptyBlock>, #[rune(span)] Span),
     /// A regular item function body.
-    Item(Box<ast::ItemFn>),
-}
-
-impl FunctionAst {
-    /// Get the number of arguments for the function ast.
-    #[cfg(feature = "doc")]
-    pub(crate) fn args(&self) -> impl ExactSizeIterator<Item = &dyn Spanned> {
-        let args = match self {
-            FunctionAst::Item(ast) => ast.args.as_slice(),
-            FunctionAst::Empty(..) => &[],
-        };
-
-        args.iter().map(|(arg, _)| -> &dyn Spanned { arg })
-    }
+    Item(#[rune(span)] Box<ast::ItemFn>, ast::Ident),
 }
 
 #[derive(Debug, TryClone)]
@@ -93,6 +87,8 @@ pub(crate) struct Function {
     pub(crate) is_bench: bool,
     /// The impl item this function is registered in.
     pub(crate) impl_item: Option<ItemId>,
+    /// Spans of the arguments to the function for diagnostics.
+    pub(crate) args: Vec<Span>,
 }
 
 #[derive(Debug, TryClone, Clone, Copy)]
@@ -108,32 +104,40 @@ pub(crate) struct Import {
 
 #[derive(Debug, TryClone)]
 pub(crate) struct Struct {
-    /// The ast of the struct.
-    pub(crate) ast: Box<ast::ItemStruct>,
+    /// The fields of the struct.
+    pub(crate) fields: meta::Fields,
 }
 
 #[derive(Debug, TryClone)]
 pub(crate) struct Variant {
     /// Id of of the enum type.
     pub(crate) enum_id: ItemId,
-    /// Ast for declaration.
-    pub(crate) ast: ast::ItemVariant,
     /// The index of the variant in its source.
     pub(crate) index: usize,
+    /// The fields of the variant.
+    pub(crate) fields: meta::Fields,
 }
 
 #[derive(Debug, TryClone)]
-pub(crate) struct ConstExpr {
-    pub(crate) ast: Box<ast::Expr>,
+pub(crate) enum ConstExpr {
+    /// An ast-based constant expression.
+    Ast(Box<ast::Expr>),
+    /// A node constant expression.
+    Node(NodeAt),
 }
 
 #[derive(Debug, TryClone)]
-pub(crate) struct ConstBlock {
-    pub(crate) ast: Box<ast::Block>,
+pub(crate) enum ConstBlock {
+    /// An ast block.
+    Ast(Box<ast::Block>),
+    /// A node block.
+    Node(NodeAt),
 }
 
 #[derive(Debug, TryClone)]
-pub(crate) struct ConstFn {
+pub(crate) enum ConstFn {
+    /// The node of a constant function.
+    Node(NodeAt),
     /// The const fn ast.
-    pub(crate) item_fn: Box<ast::ItemFn>,
+    Ast(Box<ast::ItemFn>),
 }

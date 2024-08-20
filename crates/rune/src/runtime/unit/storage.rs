@@ -180,15 +180,13 @@ impl fmt::Display for EncodeError {
     }
 }
 
-cfg_std! {
-    impl std::error::Error for EncodeError {
-        #[inline]
-        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-            match &self.kind {
-                #[cfg(feature = "byte-code")]
-                EncodeErrorKind::StorageError { error } => Some(error),
-                EncodeErrorKind::AllocError { error } => Some(error),
-            }
+impl core::error::Error for EncodeError {
+    #[inline]
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        match &self.kind {
+            #[cfg(all(feature = "byte-code", feature = "std"))]
+            EncodeErrorKind::StorageError { error } => Some(error),
+            _ => None,
         }
     }
 }
@@ -219,9 +217,7 @@ impl fmt::Display for BadInstruction {
     }
 }
 
-cfg_std! {
-    impl std::error::Error for BadInstruction {}
-}
+impl core::error::Error for BadInstruction {}
 
 /// Error indicating that a bad instruction was located at the given instruction
 /// pointer.
@@ -237,6 +233,4 @@ impl fmt::Display for BadJump {
     }
 }
 
-cfg_std! {
-    impl std::error::Error for BadJump {}
-}
+impl core::error::Error for BadJump {}

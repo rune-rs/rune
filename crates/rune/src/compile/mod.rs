@@ -59,7 +59,8 @@ pub(crate) use self::meta::{Doc, ItemMeta};
 pub use self::meta::{MetaRef, SourceMeta};
 
 mod pool;
-pub(crate) use self::pool::{ItemId, ModId, ModMeta, Pool};
+pub use self::pool::ItemId;
+pub(crate) use self::pool::{ModId, ModMeta, Pool};
 
 mod named;
 pub use self::named::Named;
@@ -71,7 +72,7 @@ mod visibility;
 pub(crate) use self::visibility::Visibility;
 
 mod with_span;
-pub use self::with_span::{HasSpan, WithSpan};
+pub(crate) use self::with_span::{HasSpan, WithSpan};
 
 mod compile;
 pub(crate) use self::compile::compile;

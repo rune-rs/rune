@@ -41,13 +41,11 @@ impl fmt::Display for GlobError {
     }
 }
 
-cfg_std! {
-    impl std::error::Error for GlobError {
-        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-            match self {
-                GlobError::Io(error) => Some(error),
-                GlobError::Alloc(error) => Some(error),
-            }
+impl core::error::Error for GlobError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        match self {
+            GlobError::Io(error) => Some(error),
+            _ => None,
         }
     }
 }

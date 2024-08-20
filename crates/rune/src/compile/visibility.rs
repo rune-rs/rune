@@ -1,9 +1,10 @@
 use core::fmt;
+use core::mem::take;
 
 use crate::Item;
 
 /// Information on the visibility of an item.
-#[derive(Default, Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Visibility {
     /// Inherited, or private visibility.
@@ -20,6 +21,11 @@ pub enum Visibility {
 }
 
 impl Visibility {
+    /// Take the current visilibity.
+    pub(crate) fn take(&mut self) -> Self {
+        take(self)
+    }
+
     /// Test if visibility is public.
     pub(crate) fn is_public(self) -> bool {
         matches!(self, Self::Public)

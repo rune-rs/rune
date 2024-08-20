@@ -195,10 +195,7 @@ impl fmt::Display for Span {
 
 impl fmt::Debug for Span {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("Span")
-            .field(&self.start)
-            .field(&self.end)
-            .finish()
+        write!(f, "{}:{}", self.start, self.end)
     }
 }
 

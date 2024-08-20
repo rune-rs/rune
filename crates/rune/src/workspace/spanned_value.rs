@@ -572,7 +572,7 @@ impl<'de> de::Deserialize<'de> for DatetimeFromString {
 #[derive(Debug)]
 struct OptError<E: de::Error>(Option<E>);
 
-impl<E: de::Error> std::error::Error for OptError<E> {}
+impl<E: de::Error> core::error::Error for OptError<E> {}
 
 impl<E: de::Error> core::fmt::Display for OptError<E> {
     fn fmt(&self, _fmt: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {

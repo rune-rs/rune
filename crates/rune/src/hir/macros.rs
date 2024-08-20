@@ -6,9 +6,9 @@ macro_rules! alloc_with {
         macro_rules! alloc {
             ($value:expr) => {
                 $cx.arena.alloc($value).map_err(|e| {
-                    compile::Error::new(
-                        $span,
-                        ErrorKind::ArenaAllocError {
+                    $crate::compile::Error::new(
+                        &*$span,
+                        $crate::compile::ErrorKind::ArenaAllocError {
                             requested: e.requested,
                         },
                     )
@@ -54,9 +54,9 @@ macro_rules! alloc_with {
                 let mut writer = match $cx.arena.alloc_iter($len) {
                     Ok(writer) => writer,
                     Err(e) => {
-                        return Err(compile::Error::new(
-                            $span,
-                            ErrorKind::ArenaAllocError {
+                        return Err($crate::compile::Error::new(
+                            &*$span,
+                            $crate::compile::ErrorKind::ArenaAllocError {
                                 requested: e.requested,
                             },
                         ));
@@ -65,9 +65,9 @@ macro_rules! alloc_with {
         
                 while let Some($pat) = $it.next() {
                     if let Err(e) = writer.write($closure) {
-                        return Err(compile::Error::new(
-                            $span,
-                            ErrorKind::ArenaWriteSliceOutOfBounds { index: e.index },
+                        return Err($crate::compile::Error::new(
+                            &*$span,
+                            $crate::compile::ErrorKind::ArenaWriteSliceOutOfBounds { index: e.index },
                         ));
                     }
                 }
@@ -81,9 +81,9 @@ macro_rules! alloc_with {
             ($value:expr) => {
                 match $cx.arena.alloc_str($value) {
                     Ok(string) => string,
-                    Err(e) => return Err(compile::Error::new(
-                        $span,
-                        ErrorKind::ArenaAllocError {
+                    Err(e) => return Err($crate::compile::Error::new(
+                        &*$span,
+                        $crate::compile::ErrorKind::ArenaAllocError {
                             requested: e.requested,
                         },
                     )),
@@ -96,9 +96,9 @@ macro_rules! alloc_with {
             ($value:expr) => {
                 match $cx.arena.alloc_bytes($value) {
                     Ok(bytes) => bytes,
-                    Err(e) => return Err(compile::Error::new(
-                        $span,
-                        ErrorKind::ArenaAllocError {
+                    Err(e) => return Err($crate::compile::Error::new(
+                        &*$span,
+                        $crate::compile::ErrorKind::ArenaAllocError {
                             requested: e.requested,
                         },
                     )),

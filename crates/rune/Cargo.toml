@@ -3,7 +3,7 @@ name = "rune"
 version = "0.14.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
-rust-version = "1.79"
+rust-version = "1.81"
 description = "The Rune Language, an embeddable dynamic programming language for Rust."
 documentation = "https://docs.rs/rune"
 readme = "README.md"
@@ -28,8 +28,8 @@ languageserver = ["std", "lsp", "ropey", "percent-encoding", "url", "serde_json"
 byte-code = ["alloc", "musli/storage"]
 capture-io = ["alloc", "parking_lot"]
 disable-io = ["alloc"]
-fmt = ["alloc", "syntree"]
-std = ["alloc", "num/std", "serde/std", "rune-core/std", "rune-alloc/std", "musli/std", "musli/std", "once_cell/std", "anyhow/std"]
+fmt = ["alloc"]
+std = ["alloc", "num/std", "serde/std", "rune-core/std", "rune-alloc/std", "musli/std", "musli/std", "once_cell/std", "anyhow/std", "syntree/std"]
 alloc = ["anyhow", "rune-alloc/alloc", "rune-core/alloc", "once_cell/alloc", "serde/alloc"]
 
 [dependencies]
@@ -38,6 +38,7 @@ rune-core = { version = "=0.14.0", path = "../rune-core", features = ["musli"] }
 rune-alloc = { version = "0.14.0", path = "../rune-alloc", features = ["serde"], default-features = false }
 tracing = { package = "rune-tracing", version = "0.14.0", path = "../rune-tracing" }
 
+syntree = { version = "0.18.0", default-features = false, features = ["alloc"] }
 futures-core = { version = "0.3.28", default-features = false }
 futures-util = { version = "0.3.28", default-features = false, features = ["alloc"] }
 itoa = "1.0.6"
@@ -48,7 +49,6 @@ serde = { version = "1.0.163", default-features = false, features = ["derive", "
 musli = { version = "0.0.121", default-features = false, features = ["alloc"] }
 once_cell = { version = "1.18.0", default-features = false, features = ["critical-section"] }
 
-syntree = { version = "0.17.2", optional = true }
 anyhow = { version = "1.0.71", default-features = false, optional = true }
 bincode = { version = "1.3.3", optional = true }
 clap = { version = "4.2.7", features = ["derive"], optional = true }

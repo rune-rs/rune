@@ -131,9 +131,8 @@ pub(crate) mod no_std {
         Test(tests::TestError),
     }
 
-    #[cfg(feature = "std")]
-    impl std::error::Error for Error {
-        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+    impl core::error::Error for Error {
+        fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
             match &self.kind {
                 ErrorKind::Alloc(error) => Some(error),
                 ErrorKind::Context(error) => Some(error),

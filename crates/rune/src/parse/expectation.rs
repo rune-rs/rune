@@ -32,8 +32,8 @@ impl fmt::Display for Expectation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Expectation::Description(s) => s.fmt(f),
-            Expectation::Keyword(k) => k.fmt(f),
-            Expectation::Delimiter(d) => write!(f, "`{}`", d),
+            Expectation::Keyword(k) => write!(f, "`{k}` keyword"),
+            Expectation::Delimiter(d) => write!(f, "`{}` delimiter", d),
             Expectation::Punctuation(p) => write!(f, "`{}`", p),
             Expectation::OpenDelimiter => write!(f, "`(`, `[`, or `{{`"),
             Expectation::Boolean => write!(f, "true or false"),

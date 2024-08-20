@@ -1,0 +1,321 @@
+
+#[test]
+fn test_small_programs() {
+    let out = 42;
+    assert_eq!(out, 42);
+
+    let a = 1;
+    let b = 2;
+    let c = a + b;
+    let d = c * 2;
+    let e = d / 3;
+    let out = e;
+    assert_eq!(out, 2);
+}
+
+#[test]
+fn test_boolean_ops() {
+    let out = true && true;
+    assert_eq!(out, true);
+
+    let out = true && false;
+    assert_eq!(out, false);
+
+    let out = false && true;
+    assert_eq!(out, false);
+
+    let out = false && false;
+    assert_eq!(out, false);
+
+    let out = true || true;
+    assert_eq!(out, true);
+
+    let out = true || false;
+    assert_eq!(out, true);
+
+    let out = false || true;
+    assert_eq!(out, true);
+
+    let out = false || false;
+    assert_eq!(out, false);
+}
+
+#[test]
+fn test_if() {
+    let n = 2;
+
+    let out = if n > 5 {
+        10
+    } else {
+        0
+    };
+
+    assert_eq!(out, 0);
+
+    let n = 6;
+
+    let out = if n > 5 {
+        10
+    } else {
+        0
+    };
+    assert_eq!(out, 10);
+}
+
+#[test]
+fn test_block() {
+    let b = 10;
+
+    let n = {
+        let a = 10;
+        a + b
+    };
+
+    let out = n + 1;
+    assert_eq!(out, 21);
+}
+
+#[test]
+fn test_shadowing() {
+    let a = 10;
+    let a = a;
+    let out = a;
+    assert_eq!(out, 10);
+}
+
+#[test]
+fn test_vectors() {
+    let out = [1, 2, 3, 4, 5];
+}
+
+#[test]
+fn test_while() {
+    let a = 0;
+
+    while a < 10 {
+        a = a + 1;
+    }
+
+    let out = a;
+    assert_eq!(out, 10);
+
+    let a = 0;
+
+    let a = while a >= 0 {
+        if a >= 10 {
+            break a;
+        }
+
+        a = a + 1;
+    };
+
+    let out = a;
+    assert_eq!(out, 10);
+}
+
+#[test]
+fn test_loop() {
+    let a = 0;
+
+    let value = loop {
+        if a >= 10 {
+            break;
+        }
+
+        a = a + 1;
+    };
+
+    assert_eq!(a, 10);
+    assert!(value is Tuple);
+
+    let n = 0;
+
+    let n = loop {
+        if n >= 10 {
+            break n;
+        }
+
+        n = n + 1;
+    };
+
+    assert_eq!(n, 10);
+}
+
+#[test]
+fn test_is() {
+    let out = {} is Object;
+    assert!(!out);
+
+    let out = {} is Tuple;
+    assert!(out);
+
+    let out = #{} is Object;
+    assert!(out);
+
+    let out = () is Tuple;
+    assert!(out);
+
+    fn foo() {
+    }
+    let out = foo() is Tuple;
+    assert!(out);
+
+    let out = {} is Tuple;
+    assert!(out);
+
+    let out = true is bool;
+    assert!(out);
+
+    let out = 'a' is char;
+    assert!(out);
+
+    let out = 42u8 is u8;
+    assert!(out);
+
+    let out = 42 is i64;
+    assert!(out);
+
+    let out = 42.1 is f64;
+    assert!(out);
+
+    let out = "hello" is String;
+    assert!(out);
+
+    let out = #{ "hello": "world" } is Object;
+    assert!(out);
+
+    let out = ["hello", "world"] is Vec;
+    assert!(out);
+}
+
+#[test]
+fn test_destructuring() {
+    fn foo(n) {
+        [n, n + 1]
+    }
+
+    let [a, b] = foo(3);
+    let out = a + b;
+
+    assert_eq!(out, 7);
+}
+
+#[test]
+fn test_if_pattern() {
+    let out = if let [value] = [()] {
+        true
+    } else {
+        false
+    };
+
+    assert_eq!(out, true);
+
+    let out = if let [value] = [(), ()] {
+        true
+    } else {
+        false
+    };
+    assert_eq!(out, false);
+
+    let value = [(), (), 2];
+
+    let out = if let [(), ()] = value {
+        1
+    } else if let [(), (), c] = value {
+        c
+    } else {
+        3
+    };
+    assert_eq!(out, 2);
+}
+
+#[test]
+fn test_break_label() {
+    use std::iter::range;
+
+    let it = range(0, 1000);
+    let tail = 77;
+
+    'label: while true {
+        let value = 10;
+
+        for n in it {
+            loop {
+                let value2 = 20;
+                break 'label;
+            }
+
+            tail = tail + 1;
+        }
+
+        tail = tail + 1;
+    }
+
+    let out = tail;
+    assert_eq!(out, 77);
+}
+
+#[test]
+fn test_string_concat() {
+    let out = String::from("foo");
+    out += "/bar" + "/baz";
+    assert_eq!(out, "foo/bar/baz");
+}
+
+#[test]
+fn test_variants_as_functions() {
+    enum Foo {
+        A(a),
+        B(b, c),
+    }
+
+    fn construct_tuple(tuple) {
+        tuple(1, 2)
+    }
+
+    let foo = construct_tuple(Foo::B);
+
+    let out = match foo {
+        Foo::B(a, b) => a + b,
+        _ => 0,
+    };
+    assert_eq!(out, 3);
+}
+
+#[test]
+async fn test_async_fn() {
+    async fn foo(a, b) {
+        b / a
+    }
+
+    fn bar(a, b) {
+        b / a
+    }
+
+    let out = foo(2, 4).await + bar(2, 8);
+    assert_eq!(out, 6);
+}
+
+#[test]
+fn test_index_get() {
+    struct Named(a, b, c);
+    enum Enum {
+        Named(a, b, c),
+    }
+
+    fn a() {
+        [1, 2, 3]
+    }
+    fn b() {
+        (2, 3, 4)
+    }
+    fn c() {
+        Named(3, 4, 5)
+    }
+    fn d() {
+        Enum::Named(4, 5, 6)
+    }
+
+    let out = (a())[1] + (b())[1] + (c())[1] + (d())[1] + (a()).2 + (b()).2 + (c()).2 + (d()).2;
+    assert_eq!(out, 32);
+}

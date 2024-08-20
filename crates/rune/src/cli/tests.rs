@@ -1,5 +1,6 @@
 use std::fmt;
 use std::io::Write;
+use std::mem::take;
 use std::slice;
 use std::sync::Arc;
 use std::time::Instant;
@@ -205,43 +206,47 @@ where
 
         crate::doc::build("root", &mut artifacts, None, slice::from_ref(&doc_visitor))?;
 
+        if !c.filtered {
+            let cases = populate_doc_tests(
+                io,
+                artifacts,
+                shared,
+                flags,
+                &options,
+                &context,
+                &mut build_errors,
+                &mut filter,
+            )?;
+
+            batches.try_push(Batch {
+                kind: BatchKind::DocTests,
+                entry: Some(e),
+                cases,
+            })?;
+        }
+    }
+
+    let mut artifacts = crate::doc::Artifacts::without_assets();
+    crate::doc::build("root", &mut artifacts, Some(&context), &[])?;
+
+    if !c.filtered {
         let cases = populate_doc_tests(
             io,
             artifacts,
             shared,
             flags,
-            &options,
+            options,
             &context,
             &mut build_errors,
             &mut filter,
         )?;
 
         batches.try_push(Batch {
-            kind: BatchKind::DocTests,
-            entry: Some(e),
+            kind: BatchKind::ContextDocTests,
+            entry: None,
             cases,
         })?;
     }
-
-    let mut artifacts = crate::doc::Artifacts::without_assets();
-    crate::doc::build("root", &mut artifacts, Some(&context), &[])?;
-
-    let cases = populate_doc_tests(
-        io,
-        artifacts,
-        shared,
-        flags,
-        options,
-        &context,
-        &mut build_errors,
-        &mut filter,
-    )?;
-
-    batches.try_push(Batch {
-        kind: BatchKind::ContextDocTests,
-        entry: None,
-        cases,
-    })?;
 
     let runtime = Arc::new(context.runtime()?);
     let mut failed = Vec::new();
@@ -251,12 +256,12 @@ where
             continue;
         }
 
-        if !flags.quiet {
-            let all_ignored = batch
-                .cases
-                .iter()
-                .all(|case| case.filtered || case.params.no_run);
+        let all_ignored = batch
+            .cases
+            .iter()
+            .all(|case| case.filtered || case.params.no_run);
 
+        if shared.verbose {
             if all_ignored {
                 io.stdout.set_color(&colors.ignored)?;
                 write!(io.stdout, "{:>12}", "Ignoring")?;
@@ -266,7 +271,9 @@ where
                 write!(io.stdout, "{:>12}", "Running")?;
                 io.stdout.reset()?;
             }
+        }
 
+        if !flags.quiet && !all_ignored {
             write!(io.stdout, " {} {}", batch.cases.len(), batch.kind)?;
 
             if let Some(entry) = batch.entry {
@@ -277,8 +284,12 @@ where
         }
 
         for mut case in batch.cases {
-            if case.filtered || case.params.no_run {
+            if case.filtered {
                 skipped = skipped.wrapping_add(1);
+                continue;
+            }
+
+            if case.params.no_run {
                 continue;
             }
 
@@ -324,12 +335,41 @@ where
     write!(io.stdout, "{:>12}", "Executed")?;
     io.stdout.reset()?;
 
-    writeln!(
-        io.stdout,
-        " {executed} tests with {failures} failures \
-        ({skipped} skipped, {build_errors} build errors) in {:.3} seconds",
-        elapsed.as_secs_f64()
-    )?;
+    write!(io.stdout, " {executed} tests")?;
+
+    let any = failures > 0 || build_errors > 0 || skipped > 0;
+
+    if any {
+        write!(io.stdout, " with")?;
+
+        let mut first = true;
+
+        let mut emit = |color: &ColorSpec, count: usize, singular: &str, plural: &str| {
+            if count == 0 {
+                return Ok::<_, anyhow::Error>(());
+            }
+
+            if !take(&mut first) {
+                write!(io.stdout, ", ")?;
+            } else {
+                write!(io.stdout, " ")?;
+            }
+
+            let what = if count == 1 { singular } else { plural };
+
+            write!(io.stdout, "{count} ")?;
+            io.stdout.set_color(color)?;
+            write!(io.stdout, "{what}")?;
+            io.stdout.reset()?;
+            Ok::<_, anyhow::Error>(())
+        };
+
+        emit(&colors.error, failures, "failure", "failures")?;
+        emit(&colors.error, build_errors, "build error", "build errors")?;
+        emit(&colors.ignored, skipped, "ignored", "ignored")?;
+    }
+
+    writeln!(io.stdout, " in {:.3} seconds", elapsed.as_secs_f64())?;
 
     if build_errors == 0 && failures == 0 {
         Ok(ExitCode::Success)

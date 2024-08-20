@@ -82,7 +82,7 @@ impl Parser {
     pub(crate) fn remaining<'a>(
         &'a self,
         attributes: &'a [ast::Attribute],
-    ) -> impl Iterator<Item = &ast::Attribute> + 'a {
+    ) -> impl Iterator<Item = &'a ast::Attribute> + 'a {
         self.unused
             .iter()
             .chain(self.missed.iter())

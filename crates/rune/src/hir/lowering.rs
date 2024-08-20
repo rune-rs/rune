@@ -1,4 +1,4 @@
-use core::cell::Cell;
+use core::mem::{replace, take};
 use core::ops::Neg;
 
 use num::ToPrimitive;
@@ -9,122 +9,19 @@ use crate::alloc::try_format;
 use crate::alloc::{self, Box, HashMap, HashSet};
 use crate::ast::{self, Spanned};
 use crate::compile::meta;
-use crate::compile::{self, DynLocation, ErrorKind, ItemId, WithSpan};
+use crate::compile::{self, ErrorKind, WithSpan};
 use crate::hash::ParametersBuilder;
 use crate::hir;
 use crate::parse::Resolve;
 use crate::query::AsyncBlock;
 use crate::query::Closure;
 use crate::query::SecondaryBuildEntry;
-use crate::query::{self, GenericsParameters, Named, Query, SecondaryBuild};
+use crate::query::{self, GenericsParameters, Named, SecondaryBuild};
 use crate::runtime::ConstValue;
 use crate::runtime::{Type, TypeCheck};
-use crate::{Hash, Item, SourceId};
+use crate::{Hash, Item};
 
-#[derive(Default, Clone, Copy)]
-enum Needs {
-    #[default]
-    Value,
-    Type,
-}
-
-pub(crate) struct Ctxt<'hir, 'a, 'arena> {
-    /// Arena used for allocations.
-    arena: &'hir hir::arena::Arena,
-    q: Query<'a, 'arena>,
-    source_id: SourceId,
-    in_template: Cell<bool>,
-    in_path: Cell<bool>,
-    needs: Cell<Needs>,
-    scopes: hir::Scopes<'hir, 'a>,
-    const_eval: bool,
-    statement_buffer: Vec<hir::Stmt<'hir>>,
-    statements: Vec<hir::Stmt<'hir>>,
-    pattern_bindings: Vec<hir::Variable>,
-    secondary_builds: Option<&'a mut Vec<SecondaryBuildEntry<'hir>>>,
-}
-
-impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
-    #[inline(always)]
-    fn in_path<F, O>(&mut self, in_path: bool, f: F) -> O
-    where
-        F: FnOnce(&mut Self) -> O,
-    {
-        let in_path = self.in_path.replace(in_path);
-        let output = f(self);
-        self.in_path.set(in_path);
-        output
-    }
-
-    /// Construct a new context for used when constants are built separately
-    /// through the query system.
-    pub(crate) fn with_query(
-        arena: &'hir hir::arena::Arena,
-        q: Query<'a, 'arena>,
-        source_id: SourceId,
-        secondary_builds: &'a mut Vec<SecondaryBuildEntry<'hir>>,
-    ) -> alloc::Result<Self> {
-        Self::inner(arena, q, source_id, false, Some(secondary_builds))
-    }
-
-    /// Construct a new context used in a constant context where the resulting
-    /// expression is expected to be converted into a constant.
-    pub(crate) fn with_const(
-        arena: &'hir hir::arena::Arena,
-        q: Query<'a, 'arena>,
-        source_id: SourceId,
-    ) -> alloc::Result<Self> {
-        Self::inner(arena, q, source_id, true, None)
-    }
-
-    fn inner(
-        arena: &'hir hir::arena::Arena,
-        q: Query<'a, 'arena>,
-        source_id: SourceId,
-        const_eval: bool,
-        secondary_builds: Option<&'a mut Vec<SecondaryBuildEntry<'hir>>>,
-    ) -> alloc::Result<Self> {
-        let scopes = hir::Scopes::new(q.gen)?;
-
-        Ok(Self {
-            arena,
-            q,
-            source_id,
-            in_template: Cell::new(false),
-            in_path: Cell::new(false),
-            needs: Cell::new(Needs::default()),
-            scopes,
-            const_eval,
-            statement_buffer: Vec::new(),
-            statements: Vec::new(),
-            pattern_bindings: Vec::new(),
-            secondary_builds,
-        })
-    }
-
-    #[allow(unused)]
-    #[instrument_ast(span = ast)]
-    fn try_lookup_meta(
-        &mut self,
-        span: &dyn Spanned,
-        item: ItemId,
-        parameters: &GenericsParameters,
-    ) -> compile::Result<Option<meta::Meta>> {
-        self.q
-            .try_lookup_meta(&DynLocation::new(self.source_id, span), item, parameters)
-    }
-
-    #[instrument_ast(span = ast)]
-    fn lookup_meta(
-        &mut self,
-        span: &dyn Spanned,
-        item: ItemId,
-        parameters: impl AsRef<GenericsParameters>,
-    ) -> compile::Result<meta::Meta> {
-        self.q
-            .lookup_meta(&DynLocation::new(self.source_id, span), item, parameters)
-    }
-}
+use super::{Ctxt, Needs};
 
 /// Lower an empty function.
 #[instrument_ast(span = span)]
@@ -163,7 +60,9 @@ fn expr_call_closure<'hir>(
 ) -> compile::Result<hir::ExprKind<'hir>> {
     alloc_with!(cx, ast);
 
-    let item = cx.q.item_for(ast.id).with_span(ast)?;
+    let item =
+        cx.q.item_for("lowering closure call", ast.id)
+            .with_span(ast)?;
 
     let Some(meta) = cx.q.query_meta(ast, item.item, Default::default())? else {
         return Err(compile::Error::new(
@@ -489,7 +388,7 @@ pub(crate) fn expr<'hir>(
 ) -> compile::Result<hir::Expr<'hir>> {
     alloc_with!(cx, ast);
 
-    let in_path = cx.in_path.take();
+    let in_path = take(&mut cx.in_path);
 
     let kind = match ast {
         ast::Expr::Path(ast) => expr_path(cx, ast, in_path)?,
@@ -565,7 +464,7 @@ pub(crate) fn expr<'hir>(
         })),
         ast::Expr::If(ast) => hir::ExprKind::If(alloc!(expr_if(cx, ast)?)),
         ast::Expr::Match(ast) => hir::ExprKind::Match(alloc!(hir::ExprMatch {
-            expr: expr(cx, &ast.expr)?,
+            expr: alloc!(expr(cx, &ast.expr)?),
             branches: iter!(&ast.branches, |(ast, _)| {
                 cx.scopes.push(None)?;
 
@@ -590,7 +489,7 @@ pub(crate) fn expr<'hir>(
         }
         ast::Expr::Empty(ast) => {
             // NB: restore in_path setting.
-            cx.in_path.set(in_path);
+            cx.in_path = in_path;
             hir::ExprKind::Group(alloc!(expr(cx, &ast.expr)?))
         }
         ast::Expr::Binary(ast) => {
@@ -601,9 +500,9 @@ pub(crate) fn expr<'hir>(
 
             let lhs = expr(cx, &ast.lhs)?;
 
-            let needs = cx.needs.replace(rhs_needs);
+            let needs = replace(&mut cx.needs, rhs_needs);
             let rhs = expr(cx, &ast.rhs)?;
-            cx.needs.set(needs);
+            cx.needs = needs;
 
             hir::ExprKind::Binary(alloc!(hir::ExprBinary {
                 lhs,
@@ -683,7 +582,7 @@ pub(crate) fn expr<'hir>(
 
             match cx.q.builtin_macro_for(id).with_span(ast)?.as_ref() {
                 query::BuiltInMacro::Template(ast) => {
-                    let old = cx.in_template.replace(true);
+                    let old = replace(&mut cx.in_template, true);
 
                     let result = hir::ExprKind::Template(alloc!(hir::BuiltInTemplate {
                         span: ast.span,
@@ -691,19 +590,22 @@ pub(crate) fn expr<'hir>(
                         exprs: iter!(&ast.exprs, |ast| expr(cx, ast)?),
                     }));
 
-                    cx.in_template.set(old);
+                    cx.in_template = old;
                     result
                 }
                 query::BuiltInMacro::Format(ast) => {
-                    hir::ExprKind::Format(alloc!(hir::BuiltInFormat {
-                        span: ast.span,
+                    let spec = hir::BuiltInFormatSpec {
                         fill: ast.fill,
                         align: ast.align,
                         width: ast.width,
                         precision: ast.precision,
                         flags: ast.flags,
                         format_type: ast.format_type,
-                        value: expr(cx, &ast.value)?,
+                    };
+
+                    hir::ExprKind::Format(alloc!(hir::BuiltInFormat {
+                        spec,
+                        value: alloc!(expr(cx, &ast.value)?),
                     }))
                 }
                 query::BuiltInMacro::File(ast) => hir::ExprKind::Lit(lit(cx, &ast.value)?),
@@ -870,7 +772,7 @@ fn lit<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Lit) -> compile::Result<hir
                 (ast::NumberValue::Float(n), _) => Ok(hir::Lit::Float(n)),
                 (ast::NumberValue::Integer(int), Some(ast::NumberSuffix::Byte(..))) => {
                     let Some(n) = int.to_u8() else {
-                        return Err(compile::Error::new(ast, ErrorKind::BadNumberOutOfBounds));
+                        return Err(compile::Error::new(ast, ErrorKind::BadByteOutOfBounds));
                     };
 
                     Ok(hir::Lit::Byte(n))
@@ -893,7 +795,7 @@ fn lit<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Lit) -> compile::Result<hir
             Ok(hir::Lit::Char(ch))
         }
         ast::Lit::Str(lit) => {
-            let string = if cx.in_template.get() {
+            let string = if cx.in_template {
                 lit.resolve_template_string(resolve_context!(cx.q))?
             } else {
                 lit.resolve_string(resolve_context!(cx.q))?
@@ -1003,7 +905,9 @@ fn expr_block<'hir>(
         return Ok(hir::ExprKind::Block(alloc!(block(cx, None, &ast.block)?)));
     };
 
-    let item = cx.q.item_for(ast.block.id).with_span(&ast.block)?;
+    let item =
+        cx.q.item_for("lowering block", ast.block.id)
+            .with_span(&ast.block)?;
     let meta = cx.lookup_meta(ast, item.item, GenericsParameters::default())?;
 
     match (kind, &meta.kind) {
@@ -1500,7 +1404,7 @@ fn expr_path<'hir>(
         return Ok(hir::ExprKind::Variable(id));
     }
 
-    if let Needs::Value = cx.needs.get() {
+    if let Needs::Value = cx.needs {
         if let Some(name) = ast.try_as_ident() {
             let name = alloc_str!(name.resolve(resolve_context!(cx.q))?);
 
@@ -1523,7 +1427,7 @@ fn expr_path<'hir>(
         return expr_path_meta(cx, &meta, ast);
     }
 
-    if let (Needs::Value, Some(local)) = (cx.needs.get(), ast.try_as_ident()) {
+    if let (Needs::Value, Some(local)) = (cx.needs, ast.try_as_ident()) {
         let local = local.resolve(resolve_context!(cx.q))?;
 
         // light heuristics, treat it as a type error in case the first
@@ -1561,7 +1465,7 @@ fn expr_path_meta<'hir>(
 ) -> compile::Result<hir::ExprKind<'hir>> {
     alloc_with!(cx, span);
 
-    if let Needs::Value = cx.needs.get() {
+    if let Needs::Value = cx.needs {
         match &meta.kind {
             meta::Kind::Struct {
                 fields: meta::Fields::Empty,
@@ -1801,7 +1705,9 @@ fn expr_call<'hir>(
 
     alloc_with!(cx, ast);
 
-    let expr = cx.in_path(true, |cx| expr(cx, &ast.expr))?;
+    let in_path = replace(&mut cx.in_path, true);
+    let expr = expr(cx, &ast.expr)?;
+    cx.in_path = in_path;
 
     let call = 'ok: {
         match expr.kind {
@@ -1876,7 +1782,9 @@ fn expr_call<'hir>(
                         };
                     }
                     meta::Kind::ConstFn => {
-                        let from = cx.q.item_for(ast.id).with_span(ast)?;
+                        let from =
+                            cx.q.item_for("lowering constant function", ast.id)
+                                .with_span(ast)?;
 
                         break 'ok hir::Call::ConstFn {
                             from_module: from.module,

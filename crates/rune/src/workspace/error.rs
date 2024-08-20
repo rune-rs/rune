@@ -52,12 +52,10 @@ impl Spanned for WorkspaceError {
     }
 }
 
-cfg_std! {
-    impl std::error::Error for WorkspaceError {
-        #[inline]
-        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-            self.kind.source()
-        }
+impl core::error::Error for WorkspaceError {
+    #[inline]
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        self.kind.source()
     }
 }
 
@@ -126,24 +124,14 @@ pub(crate) enum WorkspaceErrorKind {
     },
 }
 
-cfg_std! {
-    impl std::error::Error for WorkspaceErrorKind {
-        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-            match self {
-                WorkspaceErrorKind::GlobError { error, .. } => {
-                    Some(error)
-                }
-                WorkspaceErrorKind::Source { error, .. } => {
-                    Some(error)
-                }
-                WorkspaceErrorKind::Toml { error, .. } => {
-                    Some(error)
-                }
-                WorkspaceErrorKind::Key { error, .. } => {
-                    Some(error)
-                }
-                _ => None,
-            }
+impl core::error::Error for WorkspaceErrorKind {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        match self {
+            WorkspaceErrorKind::GlobError { error, .. } => Some(error),
+            WorkspaceErrorKind::Source { error, .. } => Some(error),
+            WorkspaceErrorKind::Toml { error, .. } => Some(error),
+            WorkspaceErrorKind::Key { error, .. } => Some(error),
+            _ => None,
         }
     }
 }
@@ -166,7 +154,7 @@ impl fmt::Display for WorkspaceErrorKind {
                 write!(f, "Failed to deserialize manifest: {error}",)
             }
             WorkspaceErrorKind::Key { error } => {
-                write!(f, "Failed to deserialize: {error}", error = error)
+                write!(f, "Failed to deserialize: {error}")
             }
             WorkspaceErrorKind::MissingSourceId { source_id } => {
                 write!(f, "Missing source id `{source_id}`",)

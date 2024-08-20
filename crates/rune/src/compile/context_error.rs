@@ -361,5 +361,4 @@ impl fmt::Display for ContextError {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for ContextError {}
+impl core::error::Error for ContextError {}

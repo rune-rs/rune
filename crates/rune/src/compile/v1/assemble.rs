@@ -992,16 +992,16 @@ fn builtin_format<'a, 'hir>(
 ) -> compile::Result<Asm<'hir>> {
     use crate::runtime::format;
 
-    let fill = format.fill.unwrap_or(' ');
-    let align = format.align.unwrap_or_default();
-    let flags = format.flags.unwrap_or_default();
-    let width = format.width;
-    let precision = format.precision;
-    let format_type = format.format_type.unwrap_or_default();
+    let fill = format.spec.fill.unwrap_or(' ');
+    let align = format.spec.align.unwrap_or_default();
+    let flags = format.spec.flags.unwrap_or_default();
+    let width = format.spec.width;
+    let precision = format.spec.precision;
+    let format_type = format.spec.format_type.unwrap_or_default();
 
     let spec = format::FormatSpec::new(flags, fill, align, width, precision, format_type);
 
-    converge!(expr(cx, &format.value, needs)?);
+    converge!(expr(cx, format.value, needs)?);
 
     if let Some(addr) = needs.try_alloc_addr()? {
         cx.asm.push(
@@ -1835,7 +1835,7 @@ fn exprs_with<'a, 'hir, T>(
     cx: &mut Ctxt<'a, 'hir, '_>,
     span: &'hir dyn Spanned,
     args: &'hir [T],
-    map: fn(&'hir T) -> &'hir hir::Expr,
+    map: fn(&'hir T) -> &'hir hir::Expr<'hir>,
 ) -> compile::Result<Asm<'hir, Linear<'a, 'hir>>> {
     exprs_2_with(cx, span, args, &[], map)
 }
@@ -1856,7 +1856,7 @@ fn exprs_2_with<'a, 'hir, T>(
     span: &'hir dyn Spanned,
     a: &'hir [T],
     b: &'hir [T],
-    map: fn(&'hir T) -> &'hir hir::Expr,
+    map: fn(&'hir T) -> &'hir hir::Expr<'hir>,
 ) -> compile::Result<Asm<'hir, Linear<'a, 'hir>>> {
     let mut linear;
 
@@ -2367,7 +2367,7 @@ fn expr_match<'a, 'hir>(
     needs: &mut dyn Needs<'a, 'hir>,
 ) -> compile::Result<Asm<'hir>> {
     let mut value = cx.scopes.defer(span);
-    converge!(expr(cx, &hir.expr, &mut value)?, free(value));
+    converge!(expr(cx, hir.expr, &mut value)?, free(value));
     let value = value.into_addr()?;
 
     let end_label = cx.asm.new_label("match_end");

@@ -53,14 +53,12 @@ impl From<codespan_reporting::files::Error> for EmitError {
     }
 }
 
-cfg_std! {
-    impl std::error::Error for EmitError {
-        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-            match self {
-                EmitError::Io(error) => Some(error),
-                EmitError::Alloc(error) => Some(error),
-                EmitError::CodespanReporting(error) => Some(error),
-            }
+impl core::error::Error for EmitError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        match self {
+            EmitError::Io(error) => Some(error),
+            EmitError::CodespanReporting(error) => Some(error),
+            _ => None,
         }
     }
 }

@@ -3,7 +3,7 @@ name = "rune-core"
 version = "0.14.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
-rust-version = "1.79"
+rust-version = "1.81"
 description = "Core components for the Rune Language, an embeddable dynamic programming language for Rust."
 documentation = "https://docs.rs/rune"
 readme = "README.md"
@@ -27,7 +27,6 @@ rune-alloc = { version = "0.14.0", path = "../rune-alloc", default-features = fa
 
 twox-hash = { version = "1.6.3", default-features = false }
 serde = { version = "1.0.163", default-features = false, features = ["derive"] }
-byteorder = { version = "1.4.3", default-features = false }
 musli = { version = "0.0.121", default-features = false, optional = true }
 
 [dev-dependencies]

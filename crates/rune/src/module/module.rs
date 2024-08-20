@@ -856,7 +856,7 @@ impl Module {
     /// /// This is a pretty neat download function
     /// #[rune::function]
     /// async fn download(url: Ref<str>) -> rune::support::Result<String> {
-    ///     todo!()
+    ///     # todo!()
     /// }
     ///
     /// fn module() -> Result<Module, ContextError> {
@@ -892,7 +892,7 @@ impl Module {
     ///
     ///     #[rune::function(instance, path = Self::download)]
     ///     async fn download(this: Ref<Self>, url: Ref<str>) -> rune::support::Result<()> {
-    ///         todo!()
+    ///         # todo!()
     ///     }
     /// }
     ///

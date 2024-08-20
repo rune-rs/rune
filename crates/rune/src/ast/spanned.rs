@@ -35,6 +35,12 @@ pub trait Spanned {
     fn span(&self) -> Span;
 }
 
+impl Spanned for syntree::Span<u32> {
+    fn span(&self) -> Span {
+        Span::new(self.start, self.end)
+    }
+}
+
 impl<A, B> Spanned for (A, B)
 where
     A: Spanned,

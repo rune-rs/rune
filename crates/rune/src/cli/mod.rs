@@ -18,11 +18,12 @@ mod run;
 mod tests;
 mod visitor;
 
-use rust_alloc::string::String;
-use rust_alloc::vec::Vec;
 use std::fmt;
 use std::io::{self, IsTerminal, Write};
 use std::path::{Path, PathBuf};
+
+use rust_alloc::string::String;
+use rust_alloc::vec::Vec;
 
 use crate as rune;
 use crate::alloc;
@@ -307,7 +308,7 @@ where
 {
     /// Construct compiler options from arguments.
     fn options(&self) -> Result<Options, ParseOptionError> {
-        let mut options = Options::default();
+        let mut options = Options::from_default_env()?;
 
         // Command-specific override defaults.
         if self.command.is_debug() {
@@ -330,53 +331,42 @@ struct CommandSharedRef<'a> {
     command: &'a dyn CommandBase,
 }
 
-impl CommandSharedRef<'_> {
-    fn find_bins(&self, all_targets: bool) -> Option<WorkspaceFilter<'_>> {
-        if !all_targets && !self.command.is_workspace(AssetKind::Bin) {
+impl<'a> CommandSharedRef<'a> {
+    fn find(
+        &self,
+        all_targets: bool,
+        kind: AssetKind,
+        name: Option<&'a str>,
+    ) -> Option<WorkspaceFilter<'a>> {
+        if !all_targets && !self.command.is_workspace(kind) {
             return None;
         }
 
-        Some(if let Some(name) = &self.shared.bin {
-            WorkspaceFilter::Name(name)
-        } else {
-            WorkspaceFilter::All
-        })
+        if let Some(name) = name {
+            return Some(WorkspaceFilter::Name(name));
+        }
+
+        self.shared.is_unfiltered().then_some(WorkspaceFilter::All)
     }
 
-    fn find_tests(&self, all_targets: bool) -> Option<WorkspaceFilter<'_>> {
-        if !all_targets && !self.command.is_workspace(AssetKind::Test) {
-            return None;
-        }
-
-        Some(if let Some(name) = &self.shared.test {
-            WorkspaceFilter::Name(name)
-        } else {
-            WorkspaceFilter::All
-        })
+    #[inline]
+    fn find_bins(&self, all_targets: bool) -> Option<WorkspaceFilter<'a>> {
+        self.find(all_targets, AssetKind::Bin, self.shared.bin.as_deref())
     }
 
-    fn find_examples(&self, all_targets: bool) -> Option<WorkspaceFilter<'_>> {
-        if !all_targets && !self.command.is_workspace(AssetKind::Bin) {
-            return None;
-        }
-
-        Some(if let Some(name) = &self.shared.example {
-            WorkspaceFilter::Name(name)
-        } else {
-            WorkspaceFilter::All
-        })
+    #[inline]
+    fn find_tests(&self, all_targets: bool) -> Option<WorkspaceFilter<'a>> {
+        self.find(all_targets, AssetKind::Test, self.shared.test.as_deref())
     }
 
-    fn find_benches(&self, all_targets: bool) -> Option<WorkspaceFilter<'_>> {
-        if !all_targets && !self.command.is_workspace(AssetKind::Bench) {
-            return None;
-        }
+    #[inline]
+    fn find_examples(&self, all_targets: bool) -> Option<WorkspaceFilter<'a>> {
+        self.find(all_targets, AssetKind::Bin, self.shared.example.as_deref())
+    }
 
-        Some(if let Some(name) = &self.shared.bench {
-            WorkspaceFilter::Name(name)
-        } else {
-            WorkspaceFilter::All
-        })
+    #[inline]
+    fn find_benches(&self, all_targets: bool) -> Option<WorkspaceFilter<'a>> {
+        self.find(all_targets, AssetKind::Bench, self.shared.bench.as_deref())
     }
 }
 
@@ -503,8 +493,8 @@ enum BuildPath<'a> {
 
 #[derive(Default)]
 struct Config {
-    /// Loaded build manifest.
-    manifest: workspace::Manifest,
+    /// Whether the touput has been filtered at all.
+    filtered: bool,
     /// Whether or not the test module should be included.
     test: bool,
     /// Whether or not to use verbose output.
@@ -513,13 +503,23 @@ struct Config {
     all_targets: bool,
     /// Manifest root directory.
     manifest_root: Option<PathBuf>,
+}
+
+#[derive(Default)]
+struct Inputs {
+    /// Loaded build manifest.
+    manifest: workspace::Manifest,
     /// Immediate found paths.
     found_paths: alloc::Vec<(PathBuf, bool)>,
 }
 
-impl Config {
+impl Inputs {
     /// Construct build paths from configuration.
-    fn build_paths<'m>(&'m self, cmd: CommandSharedRef<'_>) -> Result<alloc::Vec<BuildPath<'m>>> {
+    fn build_paths<'m>(
+        &'m self,
+        cmd: CommandSharedRef<'_>,
+        c: &mut Config,
+    ) -> Result<alloc::Vec<BuildPath<'m>>> {
         let mut build_paths = alloc::Vec::new();
 
         if !self.found_paths.is_empty() {
@@ -530,26 +530,34 @@ impl Config {
             }
         }
 
-        if let Some(bin) = cmd.find_bins(self.all_targets) {
-            for p in self.manifest.find_bins(bin)? {
+        if let Some(filter) = cmd.find_bins(c.all_targets) {
+            c.filtered |= !matches!(filter, WorkspaceFilter::All);
+
+            for p in self.manifest.find_bins(filter)? {
                 build_paths.try_push(BuildPath::Package(p))?;
             }
         }
 
-        if let Some(test) = cmd.find_tests(self.all_targets) {
-            for p in self.manifest.find_tests(test)? {
+        if let Some(filter) = cmd.find_tests(c.all_targets) {
+            c.filtered |= !matches!(filter, WorkspaceFilter::All);
+
+            for p in self.manifest.find_tests(filter)? {
                 build_paths.try_push(BuildPath::Package(p))?;
             }
         }
 
-        if let Some(example) = cmd.find_examples(self.all_targets) {
-            for p in self.manifest.find_examples(example)? {
+        if let Some(filter) = cmd.find_examples(c.all_targets) {
+            c.filtered |= !matches!(filter, WorkspaceFilter::All);
+
+            for p in self.manifest.find_examples(filter)? {
                 build_paths.try_push(BuildPath::Package(p))?;
             }
         }
 
-        if let Some(bench) = cmd.find_benches(self.all_targets) {
-            for p in self.manifest.find_benches(bench)? {
+        if let Some(filter) = cmd.find_benches(c.all_targets) {
+            c.filtered |= !matches!(filter, WorkspaceFilter::All);
+
+            for p in self.manifest.find_benches(filter)? {
                 build_paths.try_push(BuildPath::Package(p))?;
             }
         }
@@ -682,6 +690,16 @@ struct SharedFlags {
     path: Vec<PathBuf>,
 }
 
+impl SharedFlags {
+    fn is_unfiltered(&self) -> bool {
+        self.bin.is_none()
+            && self.test.is_none()
+            && self.example.is_none()
+            && self.bench.is_none()
+            && self.path.is_empty()
+    }
+}
+
 const SPECIAL_FILES: &[&str] = &[
     "main.rn",
     "lib.rn",
@@ -732,16 +750,23 @@ fn find_manifest() -> Option<(PathBuf, PathBuf)> {
     }
 }
 
-fn populate_config(io: &mut Io<'_>, c: &mut Config, cmd: CommandSharedRef<'_>) -> Result<()> {
+fn populate_config(
+    io: &mut Io<'_>,
+    c: &mut Config,
+    inputs: &mut Inputs,
+    cmd: CommandSharedRef<'_>,
+) -> Result<()> {
     c.all_targets = cmd.shared.all_targets;
 
-    c.found_paths
+    inputs
+        .found_paths
         .try_extend(cmd.shared.path.iter().map(|p| (p.clone(), false)))?;
 
-    c.found_paths
+    inputs
+        .found_paths
         .try_extend(cmd.command.paths().iter().map(|p| (p.clone(), true)))?;
 
-    if !c.found_paths.is_empty() && !cmd.shared.workspace {
+    if !inputs.found_paths.is_empty() && !cmd.shared.workspace {
         return Ok(());
     }
 
@@ -750,7 +775,7 @@ fn populate_config(io: &mut Io<'_>, c: &mut Config, cmd: CommandSharedRef<'_>) -
             let path = Path::new(file);
 
             if path.is_file() {
-                c.found_paths.try_push((path.try_to_owned()?, false))?;
+                inputs.found_paths.try_push((path.try_to_owned()?, false))?;
                 return Ok(());
             }
         }
@@ -778,24 +803,22 @@ fn populate_config(io: &mut Io<'_>, c: &mut Config, cmd: CommandSharedRef<'_>) -
         .build();
 
     diagnostics.emit(io.stdout, &sources)?;
-    c.manifest = result?;
+    inputs.manifest = result?;
     Ok(())
 }
 
 async fn main_with_out(io: &mut Io<'_>, entry: &mut Entry<'_>, mut args: Args) -> Result<ExitCode> {
     let mut c = Config::default();
+    let mut inputs = Inputs::default();
 
     if let Some((shared, base)) = args.cmd.as_mut().and_then(|c| c.as_command_base_mut()) {
         base.propagate(&mut c, shared);
     }
 
-    let cmd = match &args.cmd {
-        Some(cmd) => cmd,
-        None => {
-            let commands: alloc::String = Command::ALL.into_iter().try_join(", ")?;
-            writeln!(io.stdout, "Expected a subcommand: {commands}")?;
-            return Ok(ExitCode::Failure);
-        }
+    let Some(cmd) = &args.cmd else {
+        let commands: alloc::String = Command::ALL.into_iter().try_join(", ")?;
+        writeln!(io.stdout, "Expected a subcommand: {commands}")?;
+        return Ok(ExitCode::Failure);
     };
 
     let mut entries = alloc::Vec::new();
@@ -808,7 +831,11 @@ async fn main_with_out(io: &mut Io<'_>, entry: &mut Entry<'_>, mut args: Args) -
             )?;
             writeln!(io.stdout)?;
 
-            for option in Options::available() {
+            for (i, option) in Options::available().iter().enumerate() {
+                if i > 0 {
+                    writeln!(io.stdout)?;
+                }
+
                 io.stdout
                     .set_color(ColorSpec::new().set_fg(Some(Color::Green)))?;
                 write!(io.stdout, "{}", option.key)?;
@@ -837,9 +864,9 @@ async fn main_with_out(io: &mut Io<'_>, entry: &mut Entry<'_>, mut args: Args) -
             return Ok(ExitCode::Success);
         }
 
-        populate_config(io, &mut c, cmd)?;
+        populate_config(io, &mut c, &mut inputs, cmd)?;
 
-        let build_paths = c.build_paths(cmd)?;
+        let build_paths = inputs.build_paths(cmd, &mut c)?;
 
         let what = cmd.command.describe();
         let verbose = c.verbose;

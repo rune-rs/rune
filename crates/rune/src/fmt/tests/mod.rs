@@ -2,6 +2,24 @@
 mod macros;
 
 #[test]
+fn format_literals() {
+    assert_format!(
+        r#"
+        -100;
+        100;
+        100.0;
+        -100.0;
+        100.0e10;
+        -100.0e10;
+        true;
+        false;
+        "hello world";
+        b"hello world";
+        "#
+    )
+}
+
+#[test]
 fn test_layout_string() {
     assert_format!(
         r#"
@@ -595,7 +613,36 @@ fn expressions() {
 }
 
 #[test]
+fn paths() {
+    assert_format!("foo::bar::<self, baz>");
+    assert_format!("self");
+    assert_format!("bar");
+}
+
+#[test]
+fn superflous_commas() {
+    assert_format!(
+        r#"
+        fn foo(,,,a,,,) {
+        }
+        "#,
+        r#"
+        fn foo(a) {
+        }
+        "#
+    );
+}
+
+#[test]
 fn use_statements() {
+    assert_format!(
+        r#"
+        use foo::bar::baz;
+        use foo as bar;
+        use foo::{bar as baz, biz as buz};
+        "#
+    );
+
     assert_format!(
         r#"
         use std::collections::{HashMap,,,,,,,, hash_map::*};
@@ -1052,10 +1099,10 @@ fn runefmt_skip() {
 // Test that we can format syntactically invalid sequences.
 #[test]
 fn test_error_patterns() {
-    assert_format_with!({ "error-recovery=true" }, "let var = +/-=;",);
+    assert_format_with!({ "fmt.error-recovery=true" }, "let var = +/-=;",);
 
     assert_format_with!(
-        { "error-recovery=true" },
+        { "fmt.error-recovery=true" },
         r#"
         let var = +/-=;
 
@@ -1064,10 +1111,9 @@ fn test_error_patterns() {
     );
 
     assert_format_with!(
-        { "error-recovery=true" },
+        { "fmt.error-recovery=true" },
         r#"
-        let var = +/-= // Hi Bob
-        ;
+        let var = +/-=; // Hi Bob
 
         struct Foo;
         "#
@@ -1126,7 +1172,22 @@ fn modifiers() {
         pub(crate) mod iter {
         }
 
+        pub(super) mod iter {
+        }
+
+        pub(self) mod iter {
+        }
+
         pub(in foo::bar) mod iter {
+        }
+
+        const mod iter {
+        }
+
+        move mod iter {
+        }
+
+        async mod iter {
         }
         "#
     );
@@ -1151,7 +1212,10 @@ fn associated_paths() {
 fn expressions_in_group() {
     assert_format!(
         r#"
+        (match value {});
+
         (match value {
+            _ => 2,
         });
 
         (if true {

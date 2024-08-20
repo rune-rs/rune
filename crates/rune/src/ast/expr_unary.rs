@@ -68,20 +68,35 @@ pub enum UnOp {
     Deref(ast::Star),
 }
 
-impl Parse for UnOp {
-    fn parse(p: &mut Parser<'_>) -> Result<Self> {
-        let token = p.next()?;
-
-        match token.kind {
-            K![!] => Ok(Self::Not(ast::Bang { span: token.span })),
-            K![-] => Ok(Self::Neg(ast::Dash { span: token.span })),
-            K![&] => Ok(Self::BorrowRef(ast::Amp { span: token.span })),
-            K![*] => Ok(Self::Deref(ast::Star { span: token.span })),
+impl ToAst for UnOp {
+    fn to_ast(span: Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            K![!] => Ok(Self::Not(ast::Bang { span })),
+            K![-] => Ok(Self::Neg(ast::Dash { span })),
+            K![&] => Ok(Self::BorrowRef(ast::Amp { span })),
+            K![*] => Ok(Self::Deref(ast::Star { span })),
             _ => Err(compile::Error::expected(
-                token,
+                ast::Token { span, kind },
                 "unary operator, like `!` or `-`",
             )),
         }
+    }
+
+    #[inline]
+    fn matches(kind: &ast::Kind) -> bool {
+        matches!(kind, K![!] | K![-] | K![&] | K![*])
+    }
+
+    #[inline]
+    fn into_expectation() -> Expectation {
+        Expectation::Description("a unary operation")
+    }
+}
+
+impl Parse for UnOp {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
+        let token = p.next()?;
+        Self::to_ast(token.span, token.kind)
     }
 }
 

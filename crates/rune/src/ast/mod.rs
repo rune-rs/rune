@@ -160,6 +160,7 @@ mod prelude;
 mod span;
 pub(crate) mod spanned;
 mod stmt;
+mod to_ast;
 mod token;
 pub(super) mod unescape;
 mod utils;
@@ -229,6 +230,7 @@ use self::prelude::*;
 pub use self::span::{ByteIndex, Span};
 pub use self::spanned::{OptionSpanned, Spanned};
 pub use self::stmt::{ItemOrExpr, Stmt, StmtSemi, StmtSortKey};
+pub(crate) use self::to_ast::ToAst;
 pub use self::token::{
     BuiltIn, CopySource, Delimiter, LitSource, Number, NumberBase, NumberSource, NumberSuffix,
     NumberText, NumberValue, StrSource, StrText, Token,

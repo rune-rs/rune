@@ -44,9 +44,7 @@ impl fmt::Display for LinkerError {
     }
 }
 
-cfg_std! {
-    impl std::error::Error for LinkerError {}
-}
+impl core::error::Error for LinkerError {}
 
 /// Instructions from a single source file.
 #[derive(Debug, Default)]

@@ -8,7 +8,7 @@ use crate::alloc::prelude::*;
 #[derive(TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[try_clone(copy)]
 #[repr(transparent)]
-pub(crate) struct NonZeroId(#[try_clone(copy)] NonZeroU32);
+pub struct NonZeroId(#[try_clone(copy)] NonZeroU32);
 
 impl fmt::Display for NonZeroId {
     #[inline]

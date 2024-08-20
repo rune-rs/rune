@@ -1,0 +1,82 @@
+mod recursive_import {
+    mod a {
+        pub mod c {
+            pub struct Baz;
+        }
+        pub mod b {
+            pub use super::c::Baz as Bar;
+        }
+        pub use self::b::Bar as Foo;
+    }
+
+    use self::a::Foo;
+
+    #[test]
+    fn test() {
+        assert!(Foo is a::c::Baz);
+    }
+}
+
+mod recursive_context_import {
+    mod a {
+        pub mod c {
+            pub use std::option::Option as Baz;
+        }
+
+        pub mod b {
+            pub use super::c::Baz as Bar;
+        }
+
+        pub use self::b::Bar as Foo;
+    }
+
+    use self::a::Foo;
+
+    #[test]
+    fn test() {
+        assert!(Foo::None is Option);
+    }
+}
+
+mod recusive_wildcard {
+    mod a {
+        pub mod c {
+            pub use std::option::Option as Baz;
+        }
+
+        pub mod b {
+            pub use super::c::Baz as Bar;
+        }
+
+        pub use self::b::{Bar as Foo, Bar as Foo2};
+    }
+
+    use self::a::*;
+
+    #[test]
+    fn test() {
+        assert!(Foo::None is Option);
+        assert!(Foo2::Some(2) is Option);
+    }
+}
+
+mod reexport_fn {
+    pub mod a {
+        pub mod b {
+            pub fn out(n) {
+                n + A
+            }
+
+            const A = 1;
+        }
+    }
+
+    mod b {
+        pub use crate::reexport_fn::{a::b::out, a};
+    }
+
+    #[test]
+    fn test() {
+        assert_eq!(b::out(2) + b::a::b::out(4), 8);
+    }
+}

@@ -131,11 +131,9 @@ impl Interpreter<'_, '_> {
                 }
             }
 
-            if base.is_empty() {
+            if !base.pop() {
                 break;
             }
-
-            base.pop()?;
         }
 
         Err(compile::Error::new(

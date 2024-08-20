@@ -1,24 +1,35 @@
-use core::mem::take;
+use core::mem::{replace, take};
 
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, VecDeque};
 use crate::ast;
 use crate::ast::Spanned;
-use crate::compile::{self, DynLocation, ErrorKind, Location, ModId, Visibility};
+use crate::compile::{DynLocation, Error, ErrorKind, Location, ModId, Result, Visibility};
+use crate::grammar::{Ignore, MaybeNode, NodeAt, Remaining, Stream, StreamBuf};
 use crate::parse::Resolve;
-use crate::query::Query;
+use crate::query::{Query, QuerySource};
 use crate::worker::{ImportKind, Task, WildcardImport};
 use crate::{ItemBuf, SourceId};
+
+use ast::Kind::*;
+
+/// The state of an import.
+#[derive(Debug)]
+pub(crate) enum ImportState {
+    Ast(Box<ast::ItemUse>),
+    Node(NodeAt),
+    Complete,
+}
 
 /// Import to process.
 #[derive(Debug)]
 pub(crate) struct Import {
+    pub(crate) state: ImportState,
     pub(crate) kind: ImportKind,
     pub(crate) module: ModId,
     pub(crate) visibility: Visibility,
     pub(crate) item: ItemBuf,
     pub(crate) source_id: SourceId,
-    pub(crate) ast: Box<ast::ItemUse>,
 }
 
 impl Import {
@@ -43,37 +54,63 @@ impl Import {
     pub(crate) fn process(
         mut self,
         q: &mut Query<'_, '_>,
-        add_task: &mut impl FnMut(Task) -> compile::Result<()>,
-    ) -> compile::Result<()> {
+        add_task: &mut dyn FnMut(Task) -> Result<()>,
+    ) -> Result<()> {
+        let mut q = q.with_source_id(self.source_id);
+
+        match replace(&mut self.state, ImportState::Complete) {
+            ImportState::Ast(ast) => {
+                self.process_ast(&mut q, add_task, Box::into_inner(ast))?;
+            }
+            ImportState::Node(node) => {
+                if !node.parse(|p| self.process_node(&mut q, p, add_task))? {
+                    self.kind = ImportKind::Local;
+                    self.state = ImportState::Node(node);
+
+                    if let Err(error) = add_task(Task::ExpandImport(self)) {
+                        q.error(error)?;
+                    }
+                }
+            }
+            ImportState::Complete => {}
+        }
+
+        Ok(())
+    }
+
+    fn process_ast(
+        mut self,
+        q: &mut Query<'_, '_>,
+        add_task: &mut dyn FnMut(Task) -> Result<()>,
+        ast: ast::ItemUse,
+    ) -> Result<()> {
         let (name, first, initial) = match self.kind {
             ImportKind::Global => {
-                match self.ast.path.global {
-                    Some(global) => match &self.ast.path.first {
+                match ast.path.global {
+                    Some(global) => match &ast.path.first {
                         ast::ItemUseSegment::PathSegment(ast::PathSegment::Ident(ident)) => {
                             let ident = ident.resolve(resolve_context!(q))?;
                             (ItemBuf::with_crate(ident)?, None, false)
                         }
                         _ => {
-                            return Err(compile::Error::new(
-                                global.span(),
-                                ErrorKind::UnsupportedGlobal,
-                            ));
+                            return Err(Error::new(global.span(), ErrorKind::UnsupportedGlobal));
                         }
                     },
                     // NB: defer non-local imports.
                     _ => {
                         self.kind = ImportKind::Local;
+                        self.state = ImportState::Ast(Box::try_new(ast)?);
                         add_task(Task::ExpandImport(self))?;
                         return Ok(());
                     }
                 }
             }
-            ImportKind::Local => (ItemBuf::new(), Some(&self.ast.path.first), true),
+            ImportKind::Local => (ItemBuf::new(), Some(&ast.path.first), true),
         };
 
         let mut queue = VecDeque::new();
 
-        queue.try_push_back((&self.ast.path, name, first, initial))?;
+        queue.try_push_back((&ast.path, name, first, initial))?;
 
         while let Some((path, mut name, first, mut initial)) = queue.pop_front() {
             tracing::trace!("process one");
@@ -105,14 +142,14 @@ impl Import {
                             name = self.lookup_local(q, ident)?;
                         }
                         ast::PathSegment::SelfType(self_type) => {
-                            return Err(compile::Error::new(
+                            return Err(Error::new(
                                 self_type.span(),
                                 ErrorKind::ExpectedLeadingPathSegment,
                             ));
                         }
                         ast::PathSegment::SelfValue(self_value) => {
                             if !initial {
-                                return Err(compile::Error::new(
+                                return Err(Error::new(
                                     self_value.span(),
                                     ErrorKind::ExpectedLeadingPathSegment,
                                 ));
@@ -122,7 +159,7 @@ impl Import {
                         }
                         ast::PathSegment::Crate(crate_token) => {
                             if !initial {
-                                return Err(compile::Error::new(
+                                return Err(Error::new(
                                     crate_token,
                                     ErrorKind::ExpectedLeadingPathSegment,
                                 ));
@@ -135,15 +172,12 @@ impl Import {
                                 name = q.pool.module_item(self.module).try_to_owned()?;
                             }
 
-                            name.pop()?.ok_or_else(|| {
-                                compile::Error::new(super_token, ErrorKind::UnsupportedSuper)
-                            })?;
+                            if !name.pop() {
+                                return Err(Error::new(super_token, ErrorKind::UnsupportedSuper));
+                            }
                         }
                         ast::PathSegment::Generics(arguments) => {
-                            return Err(compile::Error::new(
-                                arguments,
-                                ErrorKind::UnsupportedGenerics,
-                            ));
+                            return Err(Error::new(arguments, ErrorKind::UnsupportedGenerics));
                         }
                     },
                     ast::ItemUseSegment::Wildcard(star_token) => {
@@ -163,7 +197,7 @@ impl Import {
                     ast::ItemUseSegment::Group(group) => {
                         for (path, _) in group {
                             if let Some(global) = &path.global {
-                                return Err(compile::Error::new(
+                                return Err(Error::new(
                                     global.span(),
                                     ErrorKind::UnsupportedGlobal,
                                 ));
@@ -183,13 +217,13 @@ impl Import {
             };
 
             if let Some(segment) = it.next() {
-                return Err(compile::Error::new(segment, ErrorKind::IllegalUseSegment));
+                return Err(Error::new(segment, ErrorKind::IllegalUseSegment));
             }
 
             let alias = match &path.alias {
                 Some((_, ident)) => {
                     if let Some(span) = complete {
-                        return Err(compile::Error::new(
+                        return Err(Error::new(
                             span.join(ident.span()),
                             ErrorKind::UseAliasNotSupported,
                         ));
@@ -205,12 +239,234 @@ impl Import {
                     &DynLocation::new(self.source_id, path),
                     self.module,
                     self.visibility,
-                    self.item.try_clone()?,
-                    name,
+                    &self.item,
+                    &name,
                     alias,
                     false,
                 )?;
             }
+        }
+
+        Ok(())
+    }
+
+    fn process_node(
+        &self,
+        q: &mut QuerySource<'_, '_>,
+        p: &mut Stream<'_>,
+        add_task: &mut dyn FnMut(Task) -> Result<()>,
+    ) -> Result<bool> {
+        p.eat(Modifiers);
+        p.expect(K![use])?;
+
+        let global = p.eat(K![::]).span();
+
+        let (item, first, has_component) = match (&self.kind, global) {
+            (ImportKind::Global, Some(global)) => match p.peek() {
+                K![ident] => {
+                    let ident = p.ast::<ast::Ident>()?;
+                    let ident = ident.resolve(resolve_context!(q))?;
+                    (ItemBuf::with_crate(ident)?, false, true)
+                }
+                _ => {
+                    return Err(Error::new(global.span(), ErrorKind::UnsupportedGlobal));
+                }
+            },
+            (ImportKind::Global, None) => {
+                // Ignore remaining, since we will be processed in the global
+                // queue.
+                p.ignore();
+                return Ok(false);
+            }
+            _ => (ItemBuf::new(), true, false),
+        };
+
+        let mut queue = VecDeque::new();
+
+        queue.try_push_back((p.take_remaining(), item, first, has_component))?;
+
+        while let Some((p, item, first, has_component)) = queue.pop_front() {
+            tracing::trace!("process one");
+
+            let result = p.parse(|p| {
+                self.handle_import(
+                    q,
+                    p,
+                    item,
+                    first,
+                    has_component,
+                    add_task,
+                    &mut |p, name| queue.try_push_back((p, name, false, false)),
+                )
+            });
+
+            if let Err(error) = result {
+                q.diagnostics.error(self.source_id, error)?;
+            }
+        }
+
+        Ok(true)
+    }
+
+    fn handle_import<'a>(
+        &self,
+        q: &mut QuerySource<'_, '_>,
+        p: &mut Stream<'a>,
+        mut item: ItemBuf,
+        mut first: bool,
+        mut has_component: bool,
+        add_task: &mut dyn FnMut(Task) -> Result<()>,
+        enqueue: &mut dyn FnMut(StreamBuf<'a>, ItemBuf) -> alloc::Result<()>,
+    ) -> Result<()> {
+        let complete = loop {
+            if p.is_eof() {
+                break None;
+            }
+
+            // Only the first ever segment loaded counts as the initial
+            // segment.
+            let initial = take(&mut first);
+
+            if has_component {
+                if p.peek() == K![as] {
+                    break None;
+                }
+
+                p.expect(K![::])?;
+            }
+
+            match p.peek() {
+                K![ident] => {
+                    let ident = p.ast::<ast::Ident>()?;
+                    let ident = ident.resolve(resolve_context!(q))?;
+
+                    if !initial {
+                        item.push(ident)?;
+                    } else {
+                        item = self.lookup_local(q, ident)?;
+                    }
+                }
+                K![Self] => {
+                    let node = p.pump()?;
+
+                    return Err(Error::new(node, ErrorKind::ExpectedLeadingPathSegment));
+                }
+                K![self] => {
+                    let node = p.pump()?;
+
+                    if !initial {
+                        return Err(Error::new(node, ErrorKind::ExpectedLeadingPathSegment));
+                    }
+
+                    item = q.pool.module_item(self.module).try_to_owned()?;
+                }
+                K![crate] => {
+                    let node = p.pump()?;
+
+                    if !initial {
+                        return Err(Error::new(node, ErrorKind::ExpectedLeadingPathSegment));
+                    }
+
+                    item = ItemBuf::new();
+                }
+                K![super] => {
+                    let node = p.pump()?;
+
+                    if initial {
+                        item = q.pool.module_item(self.module).try_to_owned()?;
+                    }
+
+                    if !item.pop() {
+                        return Err(Error::new(node, ErrorKind::UnsupportedSuper));
+                    }
+                }
+                PathGenerics => {
+                    let node = p.pump()?;
+                    return Err(Error::new(node, ErrorKind::UnsupportedGenerics));
+                }
+                K![*] => {
+                    let node = p.pump()?;
+
+                    let mut wildcard_import = WildcardImport {
+                        visibility: self.visibility,
+                        from: self.item.try_clone()?,
+                        name: item.try_clone()?,
+                        location: Location::new(self.source_id, node.span()),
+                        module: self.module,
+                        found: false,
+                    };
+
+                    wildcard_import.process_global(q)?;
+
+                    if let Err(error) = add_task(Task::ExpandWildcardImport(wildcard_import)) {
+                        q.diagnostics.error(self.source_id, error)?;
+                    }
+
+                    break Some(node.span());
+                }
+                ItemUseGroup => {
+                    let node = p.pump()?;
+                    let group = Some(node.span());
+
+                    node.parse(|p| {
+                        p.expect(K!['{'])?;
+
+                        let mut comma = Remaining::default();
+
+                        while let MaybeNode::Some(node) = p.eat(ItemUsePath) {
+                            comma.exactly_one(q)?;
+
+                            node.parse(|p| {
+                                if let Some(global) = p.eat(K![::]).span() {
+                                    return Err(Error::new(global, ErrorKind::UnsupportedGlobal));
+                                }
+
+                                enqueue(p.take_remaining(), item.try_clone()?)?;
+                                Ok(())
+                            })?;
+
+                            comma = p.one(K![,]);
+                        }
+
+                        comma.at_most_one(q)?;
+                        p.expect(K!['}'])?;
+                        Ok(())
+                    })?;
+
+                    break group;
+                }
+                _ => {
+                    return Err(Error::new(p.peek_span(), ErrorKind::IllegalUseSegment));
+                }
+            }
+
+            has_component = true;
+        };
+
+        let alias = if let MaybeNode::Some(node) = p.eat(K![as]) {
+            if complete.is_some() {
+                return Err(Error::new(node, ErrorKind::UseAliasNotSupported));
+            }
+
+            Some(p.ast::<ast::Ident>()?)
+        } else {
+            None
+        };
+
+        if let Some(span) = p.remaining_span() {
+            return Err(Error::new(span, ErrorKind::IllegalUseSegment));
+        }
+
+        if complete.is_none() {
+            q.insert_import(
+                &DynLocation::new(self.source_id, p),
+                self.module,
+                self.visibility,
+                &self.item,
+                &item,
+                alias,
+                false,
+            )?;
         }
 
         Ok(())

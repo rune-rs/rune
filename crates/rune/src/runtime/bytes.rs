@@ -467,7 +467,7 @@ mod tests {
 
     #[test]
     #[allow(clippy::let_and_return)]
-    fn test_clone_issue() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_clone_issue() -> Result<(), Box<dyn core::error::Error>> {
         let shared = Value::try_from(Bytes::new())?;
 
         let _ = {

@@ -36,17 +36,33 @@ pub struct Ident {
     pub source: ast::LitSource,
 }
 
+impl ToAst for Ident {
+    fn to_ast(span: Span, kind: ast::Kind) -> Result<Self> {
+        match kind {
+            K![ident(source)] => Ok(Self { span, source }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                Self::into_expectation(),
+            )),
+        }
+    }
+
+    #[inline]
+    fn matches(kind: &ast::Kind) -> bool {
+        matches!(kind, K![ident])
+    }
+
+    #[inline]
+    fn into_expectation() -> Expectation {
+        Expectation::Description("an identifier")
+    }
+}
+
 impl Parse for Ident {
+    #[inline]
     fn parse(parser: &mut Parser<'_>) -> Result<Self> {
         let t = parser.next()?;
-
-        match t.kind {
-            ast::Kind::Ident(source) => Ok(Self {
-                span: t.span,
-                source,
-            }),
-            _ => Err(compile::Error::expected(t, "ident")),
-        }
+        Ident::to_ast(t.span, t.kind)
     }
 }
 

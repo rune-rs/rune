@@ -21,17 +21,32 @@ pub struct LitByte {
     pub source: ast::CopySource<u8>,
 }
 
+impl ToAst for LitByte {
+    fn to_ast(span: Span, kind: ast::Kind) -> compile::Result<Self> {
+        match kind {
+            K![byte(source)] => Ok(LitByte { span, source }),
+            _ => Err(compile::Error::expected(
+                ast::Token { span, kind },
+                Self::into_expectation(),
+            )),
+        }
+    }
+
+    #[inline]
+    fn matches(kind: &ast::Kind) -> bool {
+        matches!(kind, K![byte])
+    }
+
+    #[inline]
+    fn into_expectation() -> Expectation {
+        Expectation::Description("byte literal")
+    }
+}
+
 impl Parse for LitByte {
     fn parse(parser: &mut Parser<'_>) -> Result<Self> {
         let t = parser.next()?;
-
-        match t.kind {
-            K![byte(source)] => Ok(LitByte {
-                span: t.span,
-                source,
-            }),
-            _ => Err(compile::Error::expected(t, "byte literal")),
-        }
+        Self::to_ast(t.span, t.kind)
     }
 }
 
