@@ -14,7 +14,7 @@ struct ErrorCx;
 
 impl ExprCx for ErrorCx {
     fn recover(&self, p: &mut Parser<'_>) -> Result<()> {
-        Err(p.unsupported(0, "expression")?)
+        Err(p.expected_at(0, Kind::Expr)?)
     }
 }
 
@@ -79,6 +79,7 @@ pub(super) fn root(p: &mut Parser<'_>) -> Result<()> {
         stmt(p)?;
     }
 
+    p.flush_ws()?;
     p.close()?;
     Ok(())
 }
@@ -447,6 +448,8 @@ fn item_fn(p: &mut Parser<'_>) -> Result<()> {
     if p.peek()? == K!['('] {
         let c = p.checkpoint()?;
         p.bump()?;
+
+        p.bump_while(K![,])?;
 
         while is_pat(p)? {
             pat(p)?;
@@ -1146,14 +1149,41 @@ fn condition(p: &mut Parser<'_>) -> Result<()> {
 
 #[tracing::instrument(skip_all)]
 fn path(p: &mut Parser<'_>) -> Result<()> {
+    enum Kind {
+        Full,
+        SelfValue,
+        Ident,
+    }
+
     let c = p.checkpoint()?;
+
+    let mut kind = Kind::Full;
+    let mut count = 0;
 
     while matches!(p.peek()?, path_component!()) {
         // Parse a generic path if we are in a context supporting binary
         // expressions, or if we just parsed the prefix `::` of the turbofish
         // syntax.
         let has_generics = matches!(p.peek()?, K![::]);
-        p.bump()?;
+
+        let tok = p.bump()?;
+        count += 1;
+
+        match tok.kind {
+            K![ident] => {
+                kind = if count == 1 { Kind::Ident } else { Kind::Full };
+            }
+            K![self] => {
+                kind = if count == 1 {
+                    Kind::SelfValue
+                } else {
+                    Kind::Full
+                };
+            }
+            _ => {
+                kind = Kind::Full;
+            }
+        }
 
         // We can't parse generics in binary expressions, since they would be
         // ambiguous with expressions such as `self::FOO< 10`.
@@ -1172,6 +1202,13 @@ fn path(p: &mut Parser<'_>) -> Result<()> {
         }
     }
 
+    let kind = match kind {
+        Kind::Full => PathFull,
+        Kind::SelfValue => PathSelf,
+        Kind::Ident => PathIdent,
+    };
+
+    p.close_at(&c, kind)?;
     p.close_at(&c, Path)?;
     Ok(())
 }

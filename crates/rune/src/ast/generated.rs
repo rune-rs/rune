@@ -5812,6 +5812,12 @@ pub enum Kind {
     PatRest,
     /// a path
     Path,
+    /// an identifier only path
+    PathIdent,
+    /// a `self` path
+    PathSelf,
+    /// a path
+    PathFull,
     /// the generics of a path
     PathGenerics,
     /// the `let` condition of a loop
@@ -5824,7 +5830,7 @@ pub enum Kind {
     Attribute,
     /// an inner attribute
     InnerAttribute,
-    /// item modifiers, like `pub const`
+    /// modifiers
     Modifiers,
     /// the `(crate)` modifier
     ModifierCrate,
@@ -6215,13 +6221,16 @@ impl parse::IntoExpectation for Kind {
             Self::PatIgnore => parse::Expectation::Syntax("an ignore pattern"),
             Self::PatRest => parse::Expectation::Syntax("a rest pattern"),
             Self::Path => parse::Expectation::Syntax("a path"),
+            Self::PathIdent => parse::Expectation::Syntax("an identifier only path"),
+            Self::PathSelf => parse::Expectation::Syntax("a `self` path"),
+            Self::PathFull => parse::Expectation::Syntax("a path"),
             Self::PathGenerics => parse::Expectation::Syntax("the generics of a path"),
             Self::Condition => parse::Expectation::Syntax("the `let` condition of a loop"),
             Self::ClosureArguments => parse::Expectation::Syntax("closure arguments"),
             Self::AnonymousObjectKey => parse::Expectation::Syntax("an `#{` anonymous object key"),
             Self::Attribute => parse::Expectation::Syntax("an attribute"),
             Self::InnerAttribute => parse::Expectation::Syntax("an inner attribute"),
-            Self::Modifiers => parse::Expectation::Syntax("item modifiers, like `pub const`"),
+            Self::Modifiers => parse::Expectation::Syntax("modifiers"),
             Self::ModifierCrate => parse::Expectation::Syntax("the `(crate)` modifier"),
             Self::ModifierIn => parse::Expectation::Syntax("the `(in <path>)` modifier"),
             Self::TokenStream => parse::Expectation::Syntax("a raw token stream"),

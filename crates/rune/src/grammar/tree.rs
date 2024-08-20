@@ -12,7 +12,7 @@ pub(crate) trait Ignore<'a> {
     fn ignore(&mut self, node: Node<'a>) -> Result<()>;
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub(crate) struct Tree {
     inner: syntree::Tree<Kind, u32, usize>,
 }
@@ -41,6 +41,7 @@ impl Tree {
     }
 
     /// Walk the tree.
+    #[cfg(feature = "fmt")]
     pub(crate) fn walk(&self) -> impl Iterator<Item = Node<'_>> {
         self.inner.walk().map(Node::new)
     }
@@ -79,12 +80,13 @@ impl<'a> Stream<'a> {
     pub(crate) fn new(node: syntree::Node<'a, Kind, u32, usize>) -> Self {
         Self {
             node,
-            iter: Iter::new(node.first()),
+            iter: Iter::new(node.first(), node.last()),
             peek: None,
         }
     }
 
     /// Get a clone of the raw current state of children.
+    #[cfg(feature = "fmt")]
     pub(crate) fn children(&self) -> impl Iterator<Item = Node<'a>> + '_ {
         self.iter.clone().map(Node::new)
     }
@@ -172,11 +174,11 @@ impl<'a> Stream<'a> {
     }
 
     /// Report an unsupported error for the current tree parser.
-    pub(crate) fn unsupported(&mut self, what: &'static str) -> Error {
+    pub(crate) fn expected(&mut self, expected: impl IntoExpectation) -> Error {
         Error::new(
             self.next_span(),
-            ErrorKind::UnsupportedSyntax {
-                what,
+            ErrorKind::ExpectedSyntax {
+                expected: expected.into_expectation(),
                 actual: self.kind().into_expectation(),
             },
         )
@@ -187,8 +189,9 @@ impl<'a> Stream<'a> {
         let Some(node) = self.next_node() else {
             return Err(Error::new(
                 self.next_span(),
-                ErrorKind::UnexpectedEndOfSyntax {
+                ErrorKind::UnexpectedEndOfSyntaxWith {
                     inside: self.kind().into_expectation(),
+                    expected: expected.into_expectation(),
                 },
             ));
         };
@@ -196,7 +199,7 @@ impl<'a> Stream<'a> {
         if node.value() != expected {
             return Err(Error::new(
                 Span::new(node.span().start, node.span().end),
-                ErrorKind::ExpectedSyntax {
+                ErrorKind::ExpectedSyntaxIn {
                     inside: self.kind().into_expectation(),
                     expected: expected.into_expectation(),
                     actual: node.value().into_expectation(),
@@ -242,6 +245,7 @@ impl<'a> Stream<'a> {
     ) -> Result<Remaining<'a>> {
         let mut first = None;
         let mut out = None;
+        let mut count = 0;
 
         while let Some(node) = self.next_node() {
             if node.value() != expected {
@@ -259,6 +263,8 @@ impl<'a> Stream<'a> {
             if let Some(old) = out.replace(node) {
                 o.ignore(Node::new(old))?;
             }
+
+            count += 1;
         }
 
         let node = out.map(Node::new);
@@ -272,6 +278,7 @@ impl<'a> Stream<'a> {
             expected,
             span,
             node,
+            count: Some(count),
         })
     }
 
@@ -284,10 +291,13 @@ impl<'a> Stream<'a> {
             None => self.next_span(),
         };
 
+        let count = Some(usize::from(node.is_some()));
+
         Ok(Remaining {
             expected,
             span,
             node,
+            count,
         })
     }
 
@@ -327,6 +337,7 @@ impl<'a> Stream<'a> {
     }
 
     /// Get the next raw node, including whitespace.
+    #[cfg(feature = "fmt")]
     pub(crate) fn next_with_ws(&mut self) -> Option<Node<'a>> {
         if let Some(node) = self.peek.take() {
             return Some(Node::new(node));
@@ -343,9 +354,18 @@ impl<'a> Stream<'a> {
         // We walk over comments and whitespace separately when writing
         // nodes to ensure that formatting functions do not need to worry
         // about it here.
-        self.iter
-            .by_ref()
-            .find(|node| !matches!(node.value(), ws!()))
+        self.iter.find(|node| !matches!(node.value(), ws!()))
+    }
+
+    fn next_back_node(&mut self) -> Option<syntree::Node<'a, Kind, u32, usize>> {
+        // We walk over comments and whitespace separately when writing
+        // nodes to ensure that formatting functions do not need to worry
+        // about it here.
+        if let Some(node) = self.iter.rfind(|node| !matches!(node.value(), ws!())) {
+            return Some(node);
+        }
+
+        self.peek.take()
     }
 }
 
@@ -355,6 +375,13 @@ impl<'a> Iterator for Stream<'a> {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         self.next_node().map(Node::new)
+    }
+}
+
+impl DoubleEndedIterator for Stream<'_> {
+    #[inline]
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.next_back_node().map(Node::new)
     }
 }
 
@@ -370,20 +397,23 @@ impl<'a> Node<'a> {
     }
 
     /// Get the last node.
+    #[cfg(feature = "fmt")]
     pub(crate) fn last(&self) -> Option<Node<'a>> {
         self.inner.last().map(Node::new)
     }
 
     /// Iterate over the children of the node.
-    pub(crate) fn children(&self) -> impl Iterator<Item = Node<'a>> + '_ {
+    pub(crate) fn children(&self) -> impl DoubleEndedIterator<Item = Node<'a>> + '_ {
         self.inner.children().map(Node::new)
     }
 
-    pub(crate) fn unsupported(&self, what: &'static str) -> Error {
+    /// Construct an unsupported error.
+    #[cfg(feature = "fmt")]
+    pub(crate) fn unsupported(&self, expected: impl IntoExpectation) -> Error {
         Error::new(
             self.span(),
-            ErrorKind::UnsupportedSyntax {
-                what,
+            ErrorKind::ExpectedSyntax {
+                expected: expected.into_expectation(),
                 actual: self.kind().into_expectation(),
             },
         )
@@ -396,6 +426,7 @@ impl<'a> Node<'a> {
     }
 
     /// Walk from the current node.
+    #[cfg(feature = "fmt")]
     pub(crate) fn walk_from(&self) -> impl Iterator<Item = Node<'a>> + '_ {
         self.inner.walk_from().map(Node::new)
     }
@@ -423,13 +454,22 @@ impl<'a> Node<'a> {
     }
 
     /// Test if the current node is whitespace.
+    #[cfg(feature = "fmt")]
     pub(crate) fn is_whitespace(&self) -> bool {
         matches!(self.inner.value(), Kind::Whitespace)
     }
 
     /// Test if the node has children.
+    #[cfg(feature = "fmt")]
     pub(crate) fn has_children(&self) -> bool {
         self.inner.has_children()
+    }
+}
+
+impl IntoExpectation for Node<'_> {
+    #[inline]
+    fn into_expectation(self) -> Expectation {
+        self.inner.value().into_expectation()
     }
 }
 
@@ -452,32 +492,38 @@ pub(crate) struct Remaining<'a> {
     expected: Kind,
     span: Span,
     node: Option<Node<'a>>,
+    count: Option<usize>,
 }
 
 impl<'a> Remaining<'a> {
     /// Test if there is a remaining node present.
     #[inline]
+    #[cfg(feature = "fmt")]
     pub(crate) fn is_present(&self) -> bool {
         self.node.is_some()
     }
 
     /// Write the remaining token, or fallback to the given literal if unavailable.
     #[cfg(feature = "fmt")]
-    pub(crate) fn fmt(self, o: &mut Formatter<'a>) -> Result<()> {
+    pub(crate) fn fmt(self, o: &mut Formatter<'a>) -> Result<bool> {
         self.write_if(o, true)
     }
 
     /// Write the remaining token, or fallback to the given literal if
     /// unavailable and needed.
     #[cfg(feature = "fmt")]
-    pub(crate) fn write_if(mut self, o: &mut Formatter<'a>, needed: bool) -> Result<()> {
+    pub(crate) fn write_if(mut self, o: &mut Formatter<'a>, needed: bool) -> Result<bool> {
+        if self.count.is_none() {
+            return Ok(false);
+        }
+
         if let Some(node) = self.node.take() {
             o.write_owned(node)?;
         } else if needed {
             o.lit(self.lit()?)?;
         }
 
-        Ok(())
+        Ok(true)
     }
 
     /// Write the remaining token, or fallback to the given literal if
@@ -498,14 +544,19 @@ impl<'a> Remaining<'a> {
     }
 
     /// Ignore the remaining token.
-    pub(crate) fn ignore(self, o: &mut dyn Ignore<'a>) -> Result<()> {
+    pub(crate) fn ignore(self, o: &mut dyn Ignore<'a>) -> Result<bool> {
+        if self.count.is_none() {
+            return Ok(false);
+        }
+
         if let Some(node) = self.node {
             o.ignore(node)?;
         }
 
-        Ok(())
+        Ok(true)
     }
 
+    #[cfg(feature = "fmt")]
     fn lit(&self) -> Result<&'static str> {
         let lit = match self.expected.into_expectation() {
             Expectation::Keyword(lit) => lit,
@@ -529,18 +580,23 @@ impl<'a> Default for Remaining<'a> {
             expected: Kind::Eof,
             span: Span::empty(),
             node: None,
+            count: None,
         }
     }
 }
 
 #[derive(Clone)]
 struct Iter<'a> {
-    next: Option<syntree::Node<'a, Kind, u32, usize>>,
+    first: Option<syntree::Node<'a, Kind, u32, usize>>,
+    last: Option<syntree::Node<'a, Kind, u32, usize>>,
 }
 
 impl<'a> Iter<'a> {
-    fn new(next: Option<syntree::Node<'a, Kind, u32, usize>>) -> Self {
-        Self { next }
+    fn new(
+        first: Option<syntree::Node<'a, Kind, u32, usize>>,
+        last: Option<syntree::Node<'a, Kind, u32, usize>>,
+    ) -> Self {
+        Self { first, last }
     }
 }
 
@@ -548,8 +604,28 @@ impl<'a> Iterator for Iter<'a> {
     type Item = syntree::Node<'a, Kind, u32, usize>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let node = self.next.take()?;
-        self.next = node.next();
+        let node = self.first.take()?;
+
+        if Some(node.id()) == self.last.map(|n| n.id()) {
+            self.last = None;
+        } else {
+            self.first = node.next();
+        }
+
+        Some(node)
+    }
+}
+
+impl<'a> DoubleEndedIterator for Iter<'a> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        let node = self.last.take()?;
+
+        if Some(node.id()) == self.first.map(|n| n.id()) {
+            self.first = None;
+        } else {
+            self.last = node.prev();
+        }
+
         Some(node)
     }
 }

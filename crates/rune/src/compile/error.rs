@@ -235,13 +235,6 @@ pub(crate) enum ErrorKind {
     Custom {
         error: anyhow::Error,
     },
-    Expected {
-        actual: Expectation,
-        expected: Expectation,
-    },
-    Unsupported {
-        what: Expectation,
-    },
     AllocError {
         error: alloc::Error,
     },
@@ -267,6 +260,13 @@ pub(crate) enum ErrorKind {
     SourceError {
         path: PathBuf,
         error: source::FromPathError,
+    },
+    Expected {
+        actual: Expectation,
+        expected: Expectation,
+    },
+    Unsupported {
+        what: Expectation,
     },
     #[cfg(feature = "std")]
     ModNotFound {
@@ -546,13 +546,13 @@ pub(crate) enum ErrorKind {
         len: usize,
     },
     #[cfg(feature = "fmt")]
-    UnsupportedSyntax {
-        what: &'static str,
-        actual: Expectation,
-    },
-    #[cfg(feature = "fmt")]
     UnexpectedEndOfSyntax {
         inside: Expectation,
+    },
+    #[cfg(feature = "fmt")]
+    UnexpectedEndOfSyntaxWith {
+        inside: Expectation,
+        expected: Expectation,
     },
     #[cfg(feature = "fmt")]
     ExpectedSyntaxEnd {
@@ -566,6 +566,11 @@ pub(crate) enum ErrorKind {
     },
     #[cfg(feature = "fmt")]
     ExpectedSyntax {
+        expected: Expectation,
+        actual: Expectation,
+    },
+    #[cfg(feature = "fmt")]
+    ExpectedSyntaxIn {
         inside: Expectation,
         expected: Expectation,
         actual: Expectation,
@@ -613,12 +618,6 @@ impl fmt::Display for ErrorKind {
         match self {
             ErrorKind::Custom { error } => {
                 error.fmt(f)?;
-            }
-            ErrorKind::Expected { actual, expected } => {
-                write!(f, "Expected `{expected}`, but got `{actual}`",)?;
-            }
-            ErrorKind::Unsupported { what } => {
-                write!(f, "Unsupported `{what}`")?;
             }
             ErrorKind::AllocError { error } => {
                 error.fmt(f)?;
@@ -676,6 +675,12 @@ impl fmt::Display for ErrorKind {
                     "Failed to load source at `{path}`: {error}",
                     path = path.display(),
                 )?;
+            }
+            ErrorKind::Expected { actual, expected } => {
+                write!(f, "Expected {expected} but got {actual}",)?;
+            }
+            ErrorKind::Unsupported { what } => {
+                write!(f, "Unsupported {what}")?;
             }
             #[cfg(feature = "std")]
             ErrorKind::ModNotFound { path } => {
@@ -1122,12 +1127,15 @@ impl fmt::Display for ErrorKind {
                 write!(f, "Span is outside of source 0-{len}")?;
             }
             #[cfg(feature = "fmt")]
-            ErrorKind::UnsupportedSyntax { what, actual } => {
-                write!(f, "Unsupported {what}, got {actual}")?;
-            }
-            #[cfg(feature = "fmt")]
             ErrorKind::UnexpectedEndOfSyntax { inside } => {
                 write!(f, "Unexpected end of syntax while parsing {inside}")?;
+            }
+            #[cfg(feature = "fmt")]
+            ErrorKind::UnexpectedEndOfSyntaxWith { inside, expected } => {
+                write!(
+                    f,
+                    "Epxected {expected} but got end of syntax while parsing {inside}"
+                )?;
             }
             #[cfg(feature = "fmt")]
             ErrorKind::ExpectedSyntaxEnd { inside, actual } => {
@@ -1141,7 +1149,11 @@ impl fmt::Display for ErrorKind {
                 write!(f, "Got bad indent {level} with existing {indent}")?;
             }
             #[cfg(feature = "fmt")]
-            ErrorKind::ExpectedSyntax {
+            ErrorKind::ExpectedSyntax { expected, actual } => {
+                write!(f, "Expected {expected} but got {actual}")?;
+            }
+            #[cfg(feature = "fmt")]
+            ErrorKind::ExpectedSyntaxIn {
                 inside,
                 expected,
                 actual,

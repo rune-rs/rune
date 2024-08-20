@@ -460,13 +460,16 @@
 - {kind: "syntax", variant: "PatIgnore", doc: "an ignore pattern"}
 - {kind: "syntax", variant: "PatRest", doc: "a rest pattern"}
 - {kind: "syntax", variant: "Path", doc: "a path"}
+- {kind: "syntax", variant: "PathIdent", doc: "an identifier only path"}
+- {kind: "syntax", variant: "PathSelf", doc: "a `self` path"}
+- {kind: "syntax", variant: "PathFull", doc: "a path"}
 - {kind: "syntax", variant: "PathGenerics", doc: "the generics of a path"}
 - {kind: "syntax", variant: "Condition", doc: "the `let` condition of a loop"}
 - {kind: "syntax", variant: "ClosureArguments", doc: "closure arguments"}
 - {kind: "syntax", variant: "AnonymousObjectKey", doc: "an `#{` anonymous object key"}
 - {kind: "syntax", variant: "Attribute", doc: "an attribute"}
 - {kind: "syntax", variant: "InnerAttribute", doc: "an inner attribute"}
-- {kind: "syntax", variant: "Modifiers", doc: "item modifiers, like `pub const`"}
+- {kind: "syntax", variant: "Modifiers", doc: "modifiers"}
 - {kind: "syntax", variant: "ModifierCrate", doc: "the `(crate)` modifier"}
 - {kind: "syntax", variant: "ModifierIn", doc: "the `(in <path>)` modifier"}
 - {kind: "syntax", variant: "TokenStream", doc: "a raw token stream"}

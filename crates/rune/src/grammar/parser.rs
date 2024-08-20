@@ -1,4 +1,5 @@
 use core::fmt;
+use core::mem::take;
 
 use crate::alloc::VecDeque;
 
@@ -31,6 +32,8 @@ pub(super) struct Parser<'a> {
     lexer: Source<'a>,
     buf: VecDeque<Token>,
     tree: syntree::Builder<Kind, u32, usize>,
+    /// The current whitespace offset in use.
+    ws: usize,
 }
 
 impl<'a> Parser<'a> {
@@ -39,17 +42,23 @@ impl<'a> Parser<'a> {
             lexer: source,
             buf: VecDeque::new(),
             tree: syntree::Builder::new(),
+            ws: 0,
         }
     }
 
     /// Generate an error encompassing the current token.
-    pub(super) fn unsupported(&mut self, at: usize, what: &'static str) -> Result<Error> {
+    pub(super) fn expected_at(
+        &mut self,
+        at: usize,
+        expected: impl IntoExpectation,
+    ) -> Result<Error> {
+        self.ws()?;
         let tok = self.glued_token(at)?;
 
         Ok(Error::new(
             tok.span,
-            ErrorKind::UnsupportedSyntax {
-                what,
+            ErrorKind::ExpectedSyntax {
+                expected: expected.into_expectation(),
                 actual: tok.kind.into_expectation(),
             },
         ))
@@ -58,6 +67,7 @@ impl<'a> Parser<'a> {
     /// Generate an error encompassing the from span.
     #[tracing::instrument(skip_all)]
     pub(super) fn error(&mut self, from: Span, kind: ErrorKind) -> Result<Error> {
+        self.ws()?;
         let to = self.glued_token(0)?;
         let span = from.join(to.span);
         Ok(Error::new(span, kind))
@@ -66,7 +76,6 @@ impl<'a> Parser<'a> {
     /// Test if we are at EOF.
     #[tracing::instrument(skip_all)]
     pub(super) fn is_eof(&mut self) -> Result<bool> {
-        self.ws()?;
         Ok(self.glued(0)? == Eof)
     }
 
@@ -84,9 +93,10 @@ impl<'a> Parser<'a> {
     #[tracing::instrument(skip_all)]
     pub(super) fn checkpoint(&mut self) -> Result<Checkpoint> {
         let span = self.ws()?;
+        self.flush_ws()?;
 
         Ok(Checkpoint {
-            span,
+            span: span.tail(),
             inner: self.tree.checkpoint().with_span(span)?,
         })
     }
@@ -94,11 +104,8 @@ impl<'a> Parser<'a> {
     #[tracing::instrument(skip_all)]
     pub(super) fn bump(&mut self) -> Result<Token> {
         let tok = self.next()?;
-
         let span = syntree::Span::new(tok.span.start.0, tok.span.end.0);
-
         self.tree.token_with(tok.kind, span).with_span(tok.span)?;
-
         Ok(tok)
     }
 
@@ -143,11 +150,8 @@ impl<'a> Parser<'a> {
     pub(super) fn push(&mut self, kind: Kind) -> Result<()> {
         let tok = self.next()?;
         self.tree.open(kind).with_span(tok.span)?;
-
         let span = syntree::Span::new(tok.span.start.0, tok.span.end.0);
-
         self.tree.token_with(tok.kind, span).with_span(tok.span)?;
-
         self.tree.close().with_span(tok.span)?;
         Ok(())
     }
@@ -155,20 +159,18 @@ impl<'a> Parser<'a> {
     /// Bump an empty node.
     #[tracing::instrument(skip_all)]
     pub(super) fn empty(&mut self, kind: Kind) -> Result<()> {
+        self.flush_ws()?;
         let span = self.glued_token(0)?.span;
-        self.tree.token(kind, 0).with_span(span)?;
+        let s = span.head();
+        let s = syntree::Span::new(s.start.0, s.end.0);
+        self.tree.token_with(kind, s).with_span(span)?;
         Ok(())
     }
 
     /// Close a node at the given checkpoint.
     #[tracing::instrument(skip_all)]
     pub(super) fn close_at(&mut self, c: &Checkpoint, kind: Kind) -> Result<()> {
-        let span = self.glued_token(0)?.span;
-
-        self.tree
-            .close_at(&c.inner, kind)
-            .with_span(c.span.join(span))?;
-
+        self.tree.close_at(&c.inner, kind).with_span(c.span)?;
         Ok(())
     }
 
@@ -182,6 +184,7 @@ impl<'a> Parser<'a> {
 
     #[tracing::instrument(skip(self))]
     pub(super) fn glued(&mut self, n: usize) -> Result<Kind> {
+        self.ws()?;
         Ok(self.glued_token(n)?.kind)
     }
 
@@ -192,16 +195,20 @@ impl<'a> Parser<'a> {
 
         loop {
             let tok = 'tok: {
-                if let Some(tok) = self.buf.front() {
-                    break 'tok *tok;
+                if self.buf.len() <= self.ws {
+                    let Some(tok) = self.lexer.next()? else {
+                        return Ok(span.tail());
+                    };
+
+                    self.buf.try_push_back(tok).with_span(span)?;
+                    break 'tok tok;
                 }
 
-                let Some(tok) = self.lexer.next()? else {
-                    return Ok(span);
+                let Some(tok) = self.buf.get(self.ws) else {
+                    return Ok(span.tail());
                 };
 
-                self.buf.try_push_back(tok).with_span(span)?;
-                tok
+                *tok
             };
 
             span = tok.span;
@@ -210,23 +217,32 @@ impl<'a> Parser<'a> {
                 return Ok(tok.span);
             }
 
-            self.tree
-                .token(tok.kind, tok.span.range().len())
-                .with_span(tok.span)?;
-
-            self.buf.pop_front();
+            self.ws += 1;
         }
+    }
+
+    /// Flush whitespace.
+    pub(crate) fn flush_ws(&mut self) -> Result<()> {
+        self.ws()?;
+
+        for tok in self.buf.drain(..take(&mut self.ws)) {
+            let span = syntree::Span::new(tok.span.start.0, tok.span.end.0);
+            self.tree.token_with(tok.kind, span).with_span(tok.span)?;
+        }
+
+        Ok(())
     }
 
     #[tracing::instrument(skip_all)]
     fn next(&mut self) -> Result<Token> {
+        self.flush_ws()?;
+
         if let Some(tok) = self.buf.pop_front() {
             return Ok(tok);
         }
 
         let Some(tok) = self.lexer.next()? else {
-            let span = self.lexer.span().unwrap_or_else(Span::empty);
-
+            let span = self.lexer.span().unwrap_or_else(Span::empty).tail();
             return Ok(Token { span, kind: Eof });
         };
 
@@ -235,6 +251,7 @@ impl<'a> Parser<'a> {
     }
 
     fn glued_token(&mut self, n: usize) -> Result<Token> {
+        let n = self.ws + n;
         let mut span = self.lexer.span().unwrap_or_else(Span::empty);
 
         while self.buf.len() <= n {
