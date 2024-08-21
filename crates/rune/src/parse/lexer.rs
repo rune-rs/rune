@@ -1,6 +1,8 @@
 use core::fmt;
 use core::mem::take;
 
+use unicode_ident::{is_xid_continue, is_xid_start};
+
 use crate::alloc::{self, Vec, VecDeque};
 use crate::ast;
 use crate::ast::Span;
@@ -159,7 +161,7 @@ impl<'a> Lexer<'a> {
 
     fn next_ident(&mut self, start: usize) -> compile::Result<Option<ast::Token>> {
         while let Some(c) = self.iter.peek() {
-            if !matches!(c, 'a'..='z' | 'A'..='Z' | '_' | '0'..='9') {
+            if !is_xid_continue(c) {
                 break;
             }
 
@@ -842,7 +844,7 @@ impl<'a> Lexer<'a> {
                     '@' => ast::Kind::At,
                     '$' => ast::Kind::Dollar,
                     '~' => ast::Kind::Tilde,
-                    '_' | 'a'..='z' | 'A'..='Z' => {
+                    c if c == '_' || is_xid_start(c) => {
                         return self.next_ident(start);
                     }
                     '0'..='9' => {

@@ -1,0 +1,31 @@
+#[test]
+fn non_ascii_identifiers() {
+    // Creating a variable.
+    let 另一個世界 = "三體世界";
+
+    // Reference to the variable.
+    let 世界 = 另一個世界;
+
+    // In template interpolation.
+    let 高論 = `你好，${世界}。`;
+    assert_eq!(高論, "你好，三體世界。");
+
+    // In string formatting.
+    println!("我對{另一個世界}說話");
+}
+
+#[test]
+fn non_ascii_function_name_and_arguments() {
+    fn 口號(蟲子, 主) {
+        `消滅${蟲子}暴政，世界屬於${主}！`
+    }
+    assert_eq!("消滅人類暴政，世界屬於三體！", 口號("人類", "三體"));
+}
+
+#[test]
+fn alphanumeric_and_underscore() {
+    let aB_1 = ();
+    let Ab_2 = ();
+    let _ = ();
+    let __甲_乙_丙_丁__ = ();
+}
