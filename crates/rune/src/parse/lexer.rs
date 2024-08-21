@@ -1,29 +1,13 @@
 use core::fmt;
 use core::mem::take;
 
+use unicode_ident::{is_xid_continue, is_xid_start};
+
 use crate::alloc::{self, Vec, VecDeque};
 use crate::ast;
 use crate::ast::Span;
 use crate::compile::{self, ErrorKind};
 use crate::SourceId;
-
-#[cfg(feature = "non_ascii_idents")]
-use unicode_ident::{is_xid_continue as is_ident_continue, is_xid_start};
-
-#[cfg(feature = "non_ascii_idents")]
-fn is_ident_start(c: char) -> bool {
-    c == '_' || is_xid_start(c)
-}
-
-#[cfg(not(feature = "non_ascii_idents"))]
-fn is_ident_start(c: char) -> bool {
-    matches!(c, '_' | 'a'..='z' | 'A'..='Z')
-}
-
-#[cfg(not(feature = "non_ascii_idents"))]
-fn is_ident_continue(c: char) -> bool {
-    matches!(c, 'a'..='z' | 'A'..='Z' | '_' | '0'..='9')
-}
 
 /// Lexer for the rune language.
 #[derive(Debug)]
@@ -177,7 +161,7 @@ impl<'a> Lexer<'a> {
 
     fn next_ident(&mut self, start: usize) -> compile::Result<Option<ast::Token>> {
         while let Some(c) = self.iter.peek() {
-            if !is_ident_continue(c) {
+            if !is_xid_continue(c) {
                 break;
             }
 
@@ -860,7 +844,7 @@ impl<'a> Lexer<'a> {
                     '@' => ast::Kind::At,
                     '$' => ast::Kind::Dollar,
                     '~' => ast::Kind::Tilde,
-                    c if is_ident_start(c) => {
+                    c if c == '_' || is_xid_start(c) => {
                         return self.next_ident(start);
                     }
                     '0'..='9' => {
