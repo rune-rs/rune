@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1723770591939,
+  "lastUpdate": 1724289080699,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -27925,6 +27925,106 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 348,
             "range": "± 4",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "居戎氏",
+            "username": "lotem",
+            "email": "chen.sst@gmail.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "812da733d4844c1fd5b66ddc91d78feefb9f5e9e",
+          "message": "rune: support non-ASCII identifiers (#813)",
+          "timestamp": "2024-08-21T16:05:51Z",
+          "url": "https://github.com/rune-rs/rune/commit/812da733d4844c1fd5b66ddc91d78feefb9f5e9e"
+        },
+        "date": 1724289079899,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "primes/rhai",
+            "value": 10291243,
+            "range": "± 562199",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "primes/rune",
+            "value": 4817413,
+            "range": "± 75458",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 183601,
+            "range": "± 12634",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 952313,
+            "range": "± 7509",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 250767961,
+            "range": "± 3363947",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 230239084,
+            "range": "± 848826",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 638466,
+            "range": "± 4091",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 6708597,
+            "range": "± 48901",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 38190354,
+            "range": "± 670382",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 5753184,
+            "range": "± 40874",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 224177,
+            "range": "± 1674",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 2516304,
+            "range": "± 15938",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 355,
+            "range": "± 2",
             "unit": "ns/iter"
           }
         ]
