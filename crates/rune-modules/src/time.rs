@@ -29,13 +29,9 @@
 //! }
 //! ```
 
-use rune::{Any, ContextError, Module};
+use rune::{docstring, runtime::Mut, Any, ContextError, Module};
 
 const NANOS_PER_SEC: u32 = 1_000_000_000;
-const NANOS_PER_MILLI: u32 = 1_000_000;
-const NANOS_PER_MICRO: u32 = 1_000;
-const MILLIS_PER_SEC: u64 = 1_000;
-const MICROS_PER_SEC: u64 = 1_000_000;
 
 /// Construct the `time` module.
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
@@ -45,86 +41,324 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module_internal(&mut module)?;
     module_instant(&mut module)?;
 
-    module.function_meta(sleep)?;
-    module.function_meta(interval)?;
-    // module.function_meta(timeout)?;
+    module.function_meta(sleep)?.docs(docstring! {
+        /// Waits until duration has elapsed.
+        ///
+        /// # Examples
+        ///
+        /// ```rune,no_run
+        /// use time::Duration;
+        ///
+        /// let d = Duration::from_secs(10);
+        /// time::sleep(d).await;
+        /// println!("Surprise!");
+        /// ```
+    })?;
+
+    module.function_meta(interval)?.docs(docstring! {
+        /// Creates new [`Interval`] that yields with interval of `period`. The first
+        /// tick completes immediately.
+        ///
+        /// An interval will tick indefinitely. At any time, the [`Interval`] value can
+        /// be dropped. This cancels the interval.
+        ///
+        /// # Examples
+        ///
+        /// ```rune,no_run
+        /// use time::Duration;
+        ///
+        /// let duration = Duration::from_millis(10);
+        /// let interval = time::interval(duration);
+        ///
+        /// interval.tick().await; // ticks immediately
+        /// interval.tick().await; // ticks after 10ms
+        /// interval.tick().await; // ticks after 10ms
+        ///
+        /// println!("approximately 20ms have elapsed...");
+        /// ```
+    })?;
+
+    module.function_meta(interval_at)?.docs(docstring! {
+        /// Creates new [`Interval`] that yields with interval of `period` with the
+        /// first tick completing at `start`.
+        ///
+        /// An interval will tick indefinitely. At any time, the [`Interval`] value can
+        /// be dropped. This cancels the interval.
+        ///
+        /// # Vm Panics
+        ///
+        /// This function panics if `period` is zero.
+        ///
+        /// # Examples
+        ///
+        /// ```
+        /// use time::{Duration, Instant};
+        ///
+        /// let start = Instant::now() + Duration::from_millis(50);
+        /// let mut interval = time::interval_at(start, Duration::from_millis(10));
+        ///
+        /// interval.tick().await; // ticks after 50ms
+        /// interval.tick().await; // ticks after 10ms
+        /// interval.tick().await; // ticks after 10ms
+        ///
+        /// println!("approximately 70ms have elapsed...");
+        /// ```
+    })?;
 
     Ok(module)
 }
 
-/// Sleep for the given [`Duration`].
-///
-/// # Examples
-///
-/// ```rune,no_run
-/// use time::Duration;
-///
-/// let d = Duration::from_secs(10);
-/// time::sleep(d).await;
-/// println!("Surprise!");
-/// ```
 #[rune::function]
 async fn sleep(duration: Duration) {
     tokio::time::sleep(duration.inner).await;
 }
 
 #[rune::function]
-async fn interval(duration: Duration) -> Interval {
+async fn interval(period: Duration) -> Interval {
     Interval {
-        inner: tokio::time::interval(duration.inner),
+        inner: tokio::time::interval(period.inner),
     }
 }
 
-// #[rune::function]
-// async fn timeout(duration: Duration, future: F) -> Timeout<F>
-// where
-//     F: Future + rune::compile::Named + CoreTypeOf + MaybeTypeOf + 'static,
-// {
-//     Timeout {
-//         inner: tokio::time::timeout(duration.inner, future).await,
-//     }
-// }
+#[rune::function]
+async fn interval_at(start: Instant, period: Duration) -> Interval {
+    Interval {
+        inner: tokio::time::interval_at(start.inner, period.inner),
+    }
+}
 
 fn module_duration(module: &mut Module) -> Result<(), ContextError> {
-    module.ty::<Duration>()?;
+    module.ty::<Duration>()?.docs(docstring! {
+        /// A `Duration` type to represent a span of time, typically used for system
+        /// timeouts.
+        ///
+        /// Each `Duration` is composed of a whole number of seconds and a fractional part
+        /// represented in nanoseconds. If the underlying system does not support
+        /// nanosecond-level precision, APIs binding a system timeout will typically round up
+        /// the number of nanoseconds.
+        ///
+        /// # Examples
+        ///
+        /// ```
+        /// use time::Duration;
+        ///
+        /// let five_seconds = Duration::new(5, 0);
+        /// let five_seconds_and_five_nanos = five_seconds + Duration::new(0, 5);
+        ///
+        /// assert_eq!(five_seconds_and_five_nanos.as_secs(), 5);
+        /// assert_eq!(five_seconds_and_five_nanos.subsec_nanos(), 5);
+        ///
+        /// let ten_millis = Duration::from_millis(10);
+        /// ```
+    })?;
 
-    module.function_meta(Duration::new__meta)?;
-    module.function_meta(Duration::from_secs__meta)?;
-    module.function_meta(Duration::from_millis__meta)?;
-    module.function_meta(Duration::from_micros__meta)?;
-    module.function_meta(Duration::from_nanos__meta)?;
-    module.function_meta(Duration::as_secs_f64__meta)?;
-    module.function_meta(Duration::from_secs_f64__meta)?;
+    module
+        .function_meta(Duration::new__meta)?
+        .docs(docstring! {
+            /// Creates a new `Duration` from the specified number of whole seconds and
+            /// additional nanoseconds.
+            ///
+            /// If the number of nanoseconds is greater than 1 billion (the number of
+            /// nanoseconds in a second), then it will carry over into the seconds provided.
+            ///
+            /// # Vm Panics
+            ///
+            /// This constructor will panic if the carry from the nanoseconds overflows
+            /// the seconds counter.
+            ///
+            /// # Examples
+            ///
+            /// ```rune
+            /// use time::Duration;
+            ///
+            /// let five_seconds = Duration::new(5, 0);
+            /// ```
+        })?;
+
+    module
+        .function_meta(Duration::from_secs__meta)?
+        .docs(docstring! {
+            /// Creates a new `Duration` from the specified number of whole seconds.
+            ///
+            /// # Examples
+            ///
+            /// ```rune
+            /// use time::Duration;
+            ///
+            /// let duration = Duration::from_secs(5);
+            /// ```
+        })?;
+
+    module
+        .function_meta(Duration::from_millis__meta)?
+        .docs(docstring! {
+            /// Creates a new `Duration` from the specified number of milliseconds.
+            ///
+            /// # Examples
+            ///
+            /// ```rune
+            /// use time::Duration;
+            ///
+            /// let duration = Duration::from_millis(2569);
+            /// ```
+        })?;
+
+    module
+        .function_meta(Duration::from_micros__meta)?
+        .docs(docstring! {
+            /// Creates a new `Duration` from the specified number of microseconds.
+            ///
+            /// # Examples
+            ///
+            /// ```rune
+            /// use time::Duration;
+            ///
+            /// let duration = Duration::from_micros(1_000_002);
+            /// ```
+        })?;
+
+    module
+        .function_meta(Duration::from_nanos__meta)?
+        .docs(docstring! {
+            /// Creates a new `Duration` from the specified number of nanoseconds.
+            ///
+            /// Note: Using this on the return value of `as_nanos()` might cause unexpected behavior:
+            /// `as_nanos()` returns a u128, and can return values that do not fit in u64, e.g. 585 years.
+            /// Instead, consider using the pattern `Duration::new(d.as_secs(), d.subsec_nanos())`
+            /// if you cannot copy/clone the Duration directly.
+            ///
+            /// # Examples
+            ///
+            /// ```rune
+            /// use time::Duration;
+            ///
+            /// let duration = Duration::from_nanos(1_000_000_123);
+            /// ```
+        })?;
+
+    module
+        .function_meta(Duration::as_secs_f64__meta)?
+        .docs(docstring! {
+            /// Returns the number of seconds contained by this `Duration` as `f64`.
+            ///
+            /// The returned value does include the fractional (nanosecond) part of the duration.
+            ///
+            /// # Examples
+            ///
+            /// ```rune
+            /// use time::Duration;
+            ///
+            /// let d = Duration::from_secs(60).as_secs_f64();
+            /// ```
+        })?;
+
+    module
+        .function_meta(Duration::from_secs_f64__meta)?
+        .docs(docstring! {
+            /// Creates a new `Duration` from the specified number of seconds represented
+            /// as `f64`.
+            ///
+            /// # Vm Panics
+            /// This constructor will panic if `secs` is negative, overflows `Duration` or not finite.
+            ///
+            /// # Examples
+            ///
+            /// ```rune
+            /// use time::Duration;
+            ///
+            /// let res = Duration::from_secs_f64(0.0);
+            /// ```
+        })?;
 
     module
         .constant("SECOND", Duration::from_secs(1))
         .build_associated::<Duration>()?
-        .docs(["The duration of one second."])?;
+        .docs(docstring! {
+            /// The duration of one second.
+            ///
+            /// # Examples
+            ///
+            /// ```rune
+            /// use time::Duration;
+            ///
+            /// let duration = Duration::SECOND;
+            /// ```
+        })?;
 
     module
         .constant("MILLISECOND", Duration::from_millis(1))
         .build_associated::<Duration>()?
-        .docs(["The duration of one millisecond."])?;
+        .docs(docstring! {
+            /// The duration of one millisecond.
+            ///
+            /// # Examples
+            ///
+            /// ```rune
+            /// use time::Duration;
+            ///
+            /// let duration = Duration::MILLISECOND;
+            /// ```
+        })?;
 
     module
         .constant("MICROSECOND", Duration::from_micros(1))
         .build_associated::<Duration>()?
-        .docs(["The duration of one microsecond."])?;
+        .docs(docstring! {
+            /// The duration of one microsecond.
+            ///
+            /// # Examples
+            ///
+            /// ```rune
+            /// use time::Duration;
+            ///
+            /// let duration = Duration::MICROSECOND;
+            /// ```
+        })?;
 
     module
         .constant("NANOSECOND", Duration::from_nanos(1))
         .build_associated::<Duration>()?
-        .docs(["The duration of one nanosecond."])?;
+        .docs(docstring! {
+            /// The duration of one nanosecond.
+            ///
+            /// # Examples
+            ///
+            /// ```rune
+            /// use time::Duration;
+            ///
+            /// let duration = Duration::NANOSECOND;
+            /// ```
+        })?;
 
     module
         .constant("ZERO", Duration::from_nanos(0))
         .build_associated::<Duration>()?
-        .docs(["A duration of zero time."])?;
+        .docs(docstring! {
+            /// A duration of zero time.
+            ///
+            /// # Examples
+            ///
+            /// ```rune
+            /// use time::Duration;
+            ///
+            /// let duration = Duration::ZERO;
+            /// ```
+        })?;
 
     module
         .constant("MAX", Duration::new(u64::MAX, NANOS_PER_SEC - 1))
         .build_associated::<Duration>()?
-        .docs(["A duration of zero time."])?;
+        .docs(docstring! {
+            /// The maximum duration.
+            ///
+            /// # Examples
+            ///
+            /// ```rune
+            /// use time::Duration;
+            ///
+            /// let duration = Duration::MAX;
+            /// ```
+        })?;
 
     Ok(())
 }
@@ -136,40 +370,13 @@ pub struct Duration {
 }
 
 impl Duration {
-    /// Creates a new `Duration` from the specified number of whole seconds and
-    /// additional nanoseconds.
-    ///
-    /// If the number of nanoseconds is greater than 1 billion (the number of
-    /// nanoseconds in a second), then it will carry over into the seconds provided.
-    ///
-    /// # Panics
-    ///
-    /// This constructor will panic if the carry from the nanoseconds overflows
-    /// the seconds counter.
-    ///
-    /// # Examples
-    ///
-    /// ```rune
-    /// use time::Duration;
-    ///
-    /// let five_seconds = Duration::new(5, 0);
-    /// ```
-    #[rune::function(keep, path = Self::new)]
+    #[rune::function(keep, vm_result, path = Self::new)]
     pub fn new(secs: u64, nanos: u32) -> Self {
         Self {
             inner: tokio::time::Duration::new(secs, nanos),
         }
     }
 
-    /// Creates a new `Duration` from the specified number of whole seconds.
-    ///
-    /// # Examples
-    ///
-    /// ```rune
-    /// use time::Duration;
-    ///
-    /// let duration = Duration::from_secs(5);
-    /// ```
     #[rune::function(keep, path = Self::from_secs)]
     pub fn from_secs(secs: u64) -> Self {
         Self {
@@ -177,15 +384,6 @@ impl Duration {
         }
     }
 
-    /// Creates a new `Duration` from the specified number of milliseconds.
-    ///
-    /// # Examples
-    ///
-    /// ```rune
-    /// use time::Duration;
-    ///
-    /// let duration = Duration::from_millis(2569);
-    /// ```
     #[rune::function(keep, path = Self::from_millis)]
     pub fn from_millis(millis: u64) -> Self {
         Self {
@@ -193,15 +391,6 @@ impl Duration {
         }
     }
 
-    /// Creates a new `Duration` from the specified number of microseconds.
-    ///
-    /// # Examples
-    ///
-    /// ```rune
-    /// use time::Duration;
-    ///
-    /// let duration = Duration::from_micros(1_000_002);
-    /// ```
     #[rune::function(keep, path = Self::from_micros)]
     pub fn from_micros(micros: u64) -> Self {
         Self {
@@ -209,20 +398,6 @@ impl Duration {
         }
     }
 
-    /// Creates a new `Duration` from the specified number of nanoseconds.
-    ///
-    /// Note: Using this on the return value of `as_nanos()` might cause unexpected behavior:
-    /// `as_nanos()` returns a u128, and can return values that do not fit in u64, e.g. 585 years.
-    /// Instead, consider using the pattern `Duration::new(d.as_secs(), d.subsec_nanos())`
-    /// if you cannot copy/clone the Duration directly.
-    ///
-    /// # Examples
-    ///
-    /// ```rune
-    /// use time::Duration;
-    ///
-    /// let duration = Duration::from_nanos(1_000_000_123);
-    /// ```
     #[rune::function(keep, path = Self::from_nanos)]
     pub fn from_nanos(nanos: u64) -> Self {
         Self {
@@ -230,36 +405,12 @@ impl Duration {
         }
     }
 
-    /// Returns the number of seconds contained by this `Duration` as `f64`.
-    ///
-    /// The returned value does include the fractional (nanosecond) part of the duration.
-    ///
-    /// # Examples
-    ///
-    /// ```rune
-    /// use time::Duration;
-    ///
-    /// let d = Duration::from_secs(60).as_secs_f64();
-    /// ```
     #[rune::function(keep, path = Self::as_secs_f64)]
     pub fn as_secs_f64(&self) -> f64 {
         self.inner.as_secs_f64()
     }
 
-    /// Creates a new `Duration` from the specified number of seconds represented
-    /// as `f64`.
-    ///
-    /// # Panics
-    /// This constructor will panic if `secs` is negative, overflows `Duration` or not finite.
-    ///
-    /// # Examples
-    ///
-    /// ```rune
-    /// use time::Duration;
-    ///
-    /// let res = Duration::from_secs_f64(0.0);
-    /// ```
-    #[rune::function(keep, path = Self::from_secs_f64)]
+    #[rune::function(keep, vm_result, path = Self::from_secs_f64)]
     pub fn from_secs_f64(secs: f64) -> Self {
         Self {
             inner: tokio::time::Duration::from_secs_f64(secs),
@@ -268,17 +419,140 @@ impl Duration {
 }
 
 fn module_internal(module: &mut Module) -> Result<(), ContextError> {
-    module.ty::<Interval>()?;
+    module.ty::<Interval>()?.docs(docstring! {
+        /// Interval returned by [`interval`] and [`interval_at`].
+        ///
+        /// This type allows you to wait on a sequence of instants with a certain
+        /// duration between each instant. Unlike calling [`sleep`] in a loop, this lets
+        /// you count the time spent between the calls to [`sleep`] as well.
+    })?;
 
-    // ERROR: convert trait
     module
         .function("tick", Interval::tick)
-        .build_associated::<Interval>()?;
+        .build_associated::<Interval>()?
+        .docs(docstring! {
+            /// Completes when the next instant in the interval has been reached.
+            ///
+            /// # Cancel safety
+            ///
+            /// This method is cancellation safe. If `tick` is used as the branch in a `select` and
+            /// another branch completes first, then no tick has been consumed.
+            ///
+            /// # Examples
+            ///
+            /// ```
+            /// use time::Duration;
+            ///
+            /// let  interval = time::interval(Duration::from_millis(10));
+            ///
+            /// interval.tick().await;
+            /// println!("approximately 0ms have elapsed. The first tick completes immediately.");
+            /// interval.tick().await;
+            /// interval.tick().await;
+            ///
+            /// println!("approximately 20ms have elapsed...");
+            /// ```
+        })?;
 
-    module.function_meta(Interval::reset__meta)?;
-    module.function_meta(Interval::reset_immediately__meta)?;
-    module.function_meta(Interval::reset_after__meta)?;
-    module.function_meta(Interval::reset_at__meta)?;
+    module
+        .function_meta(Interval::reset__meta)?
+        .docs(docstring! {
+            /// Resets the interval to complete one period after the current time.
+            ///
+            /// This is equivalent to calling `reset_at(Instant::now() + period)`.
+            ///
+            /// # Examples
+            ///
+            /// ```
+            /// use time::Duration;
+            ///
+            /// let interval = time::interval(Duration::from_millis(100));
+            /// interval.tick().await;
+            ///
+            /// time::sleep(Duration::from_millis(50)).await;
+            /// interval.reset();
+            ///
+            /// interval.tick().await;
+            /// interval.tick().await;
+            ///
+            /// println!("approximately 250ms have elapsed...");
+            /// ```
+        })?;
+
+    module
+        .function_meta(Interval::reset_immediately__meta)?
+        .docs(docstring! {
+            /// Resets the interval immediately.
+            ///
+            /// This is equivalent to calling `reset_at(Instant::now())`.
+            ///
+            /// # Examples
+            ///
+            /// ```
+            /// use time::Duration;
+            ///
+            /// let interval = time::interval(Duration::from_millis(100));
+            /// interval.tick().await;
+            ///
+            /// time::sleep(Duration::from_millis(50)).await;
+            /// interval.reset_immediately();
+            ///
+            /// interval.tick().await;
+            /// interval.tick().await;
+            ///
+            /// println!("approximately 150ms have elapsed...");
+            /// ```
+        })?;
+
+    module
+        .function_meta(Interval::reset_after__meta)?
+        .docs(docstring! {
+            /// Resets the interval to complete one period after the current time.
+            ///
+            /// This is equivalent to calling `reset_at(Instant::now() + period)`.
+            ///
+            /// # Examples
+            ///
+            /// ```
+            /// use time::Duration;
+            ///
+            /// let interval = time::interval(Duration::from_millis(100));
+            /// interval.tick().await;
+            ///
+            /// time::sleep(Duration::from_millis(50)).await;
+            /// interval.reset();
+            ///
+            /// interval.tick().await;
+            /// interval.tick().await;
+            ///
+            /// println!("approximately 250ms have elapsed...");
+            /// ```
+        })?;
+
+    module
+        .function_meta(Interval::reset_at__meta)?
+        .docs(docstring! {
+            /// Resets the interval to complete one period after the current time.
+            ///
+            /// This is equivalent to calling `reset_at(Instant::now() + period)`.
+            ///
+            /// # Examples
+            ///
+            /// ```
+            /// use time::Duration;
+            ///
+            /// let interval = time::interval(Duration::from_millis(100));
+            /// interval.tick().await;
+            ///
+            /// time::sleep(Duration::from_millis(50)).await;
+            /// interval.reset();
+            ///
+            /// interval.tick().await;
+            /// interval.tick().await;
+            ///
+            /// println!("approximately 250ms have elapsed...");
+            /// ```
+        })?;
 
     Ok(())
 }
@@ -290,8 +564,8 @@ pub struct Interval {
 }
 
 impl Interval {
-    pub async fn tick(&mut self) {
-        self.inner.tick().await;
+    pub async fn tick(mut internal: Mut<Interval>) {
+        internal.inner.tick().await;
     }
 
     #[rune::function(instance, keep)]
@@ -316,11 +590,81 @@ impl Interval {
 }
 
 fn module_instant(module: &mut Module) -> Result<(), ContextError> {
-    module.ty::<Instant>()?;
+    module.ty::<Instant>()?.docs(docstring! {
+        /// A measurement of a monotonically nondecreasing clock.
+        /// Opaque and useful only with `Duration`.
+        ///
+        /// Instants are always guaranteed to be no less than any previously measured
+        /// instant when created, and are often useful for tasks such as measuring
+        /// benchmarks or timing how long an operation takes.
+        ///
+        /// Note, however, that instants are not guaranteed to be **steady**. In other
+        /// words, each tick of the underlying clock may not be the same length (e.g.
+        /// some seconds may be longer than others). An instant may jump forwards or
+        /// experience time dilation (slow down or speed up), but it will never go
+        /// backwards.
+        ///
+        /// Instants are opaque types that can only be compared to one another. There is
+        /// no method to get "the number of seconds" from an instant. Instead, it only
+        /// allows measuring the duration between two instants (or comparing two
+        /// instants).
+        ///
+        /// The size of an `Instant` struct may vary depending on the target operating
+        /// system.
+    })?;
 
-    module.function_meta(Instant::now__meta)?;
-    module.function_meta(Instant::duration_since__meta)?;
-    module.function_meta(Instant::elapsed__meta)?;
+    module.function_meta(Instant::now__meta)?.docs(docstring! {
+        /// Returns an instant corresponding to `now`.
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use time::{Duration, Instant};
+        ///
+        /// let instant = Instant::now();
+        /// ```
+    })?;
+
+    module
+        .function_meta(Instant::duration_since__meta)?
+        .docs(docstring! {
+            /// Returns the amount of time elapsed from another instant to this one, or
+            /// zero duration if that instant is later than this one.
+            ///
+            /// # Examples
+            ///
+            /// ```rune
+            /// use time::{Instant, Duration};
+            ///
+            /// let instant = Instant::now();
+            ///
+            /// let three_secs = Duration::from_secs(3);
+            /// sleep(three_secs).await;
+            ///
+            /// let new_instant = Instant::now();
+            /// let duration_since = new_instant.duration_since(instant);
+            /// ```
+        })?;
+
+    module
+        .function_meta(Instant::elapsed__meta)?
+        .docs(docstring! {
+            /// Returns the amount of time elapsed since this instant was created,
+            /// or zero duration if that this instant is in the future.
+            ///
+            /// # Examples
+            ///
+            /// ```rune
+            /// use time::{Duration, Instant};
+            ///
+            /// let instant = Instant::now();
+            ///
+            /// let three_secs = Duration::from_secs(3);
+            /// sleep(three_secs).await;
+            ///
+            /// let elapsed = instant.elapsed();
+            /// ```
+        })?;
 
     Ok(())
 }
@@ -353,12 +697,3 @@ impl Instant {
         }
     }
 }
-
-// #[derive(Debug, Any)]
-// #[rune(item = ::time)]
-// pub struct Timeout<T>
-// where
-//     T: Future + rune::compile::Named + CoreTypeOf + MaybeTypeOf + 'static,
-// {
-//     inner: tokio::time::Timeout<T>,
-// }
