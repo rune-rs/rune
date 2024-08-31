@@ -285,7 +285,7 @@ impl Duration {
     #[rune::function(keep, path = Self::new)]
     pub fn new(secs: u64, nanos: u32) -> VmResult<Self> {
         if nanos >= NANOS_PER_SEC {
-            if let None = secs.checked_add((nanos / NANOS_PER_SEC) as u64) {
+            if secs.checked_add((nanos / NANOS_PER_SEC) as u64).is_none() {
                 vm_panic!("overflow in Duration::new");
             }
         }
