@@ -31,8 +31,8 @@
 
 use rune::{
     docstring,
-    runtime::{Mut, VmError, VmResult},
-    vm_panic, vm_try, Any, ContextError, Module,
+    runtime::{Mut, VmResult},
+    vm_panic, ContextError, Module,
 };
 
 const NANOS_PER_SEC: u32 = 1_000_000_000;
