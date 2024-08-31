@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1724289080699,
+  "lastUpdate": 1725066727609,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -28025,6 +28025,106 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 355,
             "range": "± 2",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]",
+            "email": "49699333+dependabot[bot]@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "id": "bfb57ce123f1c71580e38916b5a889583d686ce1",
+          "message": "build(deps-dev): bump micromatch from 4.0.5 to 4.0.8 in /editors/code\n\nBumps [micromatch](https://github.com/micromatch/micromatch) from 4.0.5 to 4.0.8.\n- [Release notes](https://github.com/micromatch/micromatch/releases)\n- [Changelog](https://github.com/micromatch/micromatch/blob/master/CHANGELOG.md)\n- [Commits](https://github.com/micromatch/micromatch/compare/4.0.5...4.0.8)\n\n---\nupdated-dependencies:\n- dependency-name: micromatch\n  dependency-type: indirect\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>",
+          "timestamp": "2024-08-30T22:47:45Z",
+          "url": "https://github.com/rune-rs/rune/commit/bfb57ce123f1c71580e38916b5a889583d686ce1"
+        },
+        "date": 1725066726965,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "primes/rhai",
+            "value": 11217656,
+            "range": "± 151290",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "primes/rune",
+            "value": 4810429,
+            "range": "± 201058",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 197070,
+            "range": "± 602",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1029361,
+            "range": "± 24027",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 242939789,
+            "range": "± 3985250",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 222125035,
+            "range": "± 744437",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 622252,
+            "range": "± 5655",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 6642252,
+            "range": "± 355729",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 37745747,
+            "range": "± 175038",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 5611972,
+            "range": "± 45611",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 226970,
+            "range": "± 1390",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 2519077,
+            "range": "± 15067",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 357,
+            "range": "± 1",
             "unit": "ns/iter"
           }
         ]
