@@ -61,7 +61,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune
+            /// ```rune,no_run
             /// use time::Duration;
             ///
             /// let duration = Duration::SECOND;
@@ -76,7 +76,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune
+            /// ```rune,no_run
             /// use time::Duration;
             ///
             /// let duration = Duration::MILLISECOND;
@@ -91,7 +91,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune
+            /// ```rune,no_run
             /// use time::Duration;
             ///
             /// let duration = Duration::MICROSECOND;
@@ -106,7 +106,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune
+            /// ```rune,no_run
             /// use time::Duration;
             ///
             /// let duration = Duration::NANOSECOND;
@@ -121,7 +121,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune
+            /// ```rune,no_run
             /// use time::Duration;
             ///
             /// let duration = Duration::ZERO;
@@ -136,7 +136,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune
+            /// ```rune,no_run
             /// use time::Duration;
             ///
             /// let duration = Duration::MAX;
@@ -169,7 +169,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
 /// ```rune,no_run
 /// use time::Duration;
 ///
-/// let d = Duration::from_secs(10);
+/// let duration = Duration::from_secs(10);
 /// time::sleep(d).await;
 /// println!("Surprise!");
 /// ```
@@ -217,11 +217,11 @@ async fn interval(period: Duration) -> Interval {
 ///
 /// # Examples
 ///
-/// ```
+/// ```rune,no_run
 /// use time::{Duration, Instant};
 ///
 /// let start = Instant::now() + Duration::from_millis(50);
-/// let mut interval = time::interval_at(start, Duration::from_millis(10));
+/// let interval = time::interval_at(start, Duration::from_millis(10));
 ///
 /// interval.tick().await; // ticks after 50ms
 /// interval.tick().await; // ticks after 10ms
@@ -246,7 +246,7 @@ async fn interval_at(start: Instant, period: Duration) -> Interval {
 ///
 /// # Examples
 ///
-/// ```
+/// ```rune,no_run
 /// use time::Duration;
 ///
 /// let five_seconds = Duration::new(5, 0);
@@ -277,7 +277,7 @@ impl Duration {
     ///
     /// # Examples
     ///
-    /// ```rune
+    /// ```rune,no_run
     /// use time::Duration;
     ///
     /// let five_seconds = Duration::new(5, 0);
@@ -299,7 +299,7 @@ impl Duration {
     ///
     /// # Examples
     ///
-    /// ```rune
+    /// ```rune,no_run
     /// use time::Duration;
     ///
     /// let duration = Duration::from_secs(5);
@@ -315,7 +315,7 @@ impl Duration {
     ///
     /// # Examples
     ///
-    /// ```rune
+    /// ```rune,no_run
     /// use time::Duration;
     ///
     /// let duration = Duration::from_millis(2569);
@@ -331,7 +331,7 @@ impl Duration {
     ///
     /// # Examples
     ///
-    /// ```rune
+    /// ```rune,no_run
     /// use time::Duration;
     ///
     /// let duration = Duration::from_micros(1_000_002);
@@ -352,7 +352,7 @@ impl Duration {
     ///
     /// # Examples
     ///
-    /// ```rune
+    /// ```rune,no_run
     /// use time::Duration;
     ///
     /// let duration = Duration::from_nanos(1_000_000_123);
@@ -370,10 +370,10 @@ impl Duration {
     ///
     /// # Examples
     ///
-    /// ```rune
+    /// ```rune,no_run
     /// use time::Duration;
     ///
-    /// let d = Duration::from_secs(60).as_secs_f64();
+    /// let duration = Duration::from_secs(60).as_secs_f64();
     /// ```
     #[rune::function(keep, path = Self::as_secs_f64)]
     pub fn as_secs_f64(&self) -> f64 {
@@ -385,10 +385,10 @@ impl Duration {
     ///
     /// # Examples
     ///
-    /// ```rune
+    /// ```rune,no_run
     /// use time::Duration;
     ///
-    /// let res = Duration::from_secs_f64(0.0);
+    /// let duration = Duration::from_secs_f64(0.0);
     /// ```
     #[rune::function(keep, path = Self::from_secs_f64)]
     pub fn from_secs_f64(secs: f64) -> VmResult<Self> {
@@ -420,7 +420,7 @@ impl Interval {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```rune,no_run
     /// use time::Duration;
     ///
     /// let  interval = time::interval(Duration::from_millis(10));
@@ -442,7 +442,7 @@ impl Interval {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```rune,no_run
     /// use time::Duration;
     ///
     /// let interval = time::interval(Duration::from_millis(100));
@@ -467,7 +467,7 @@ impl Interval {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```rune,no_run
     /// use time::Duration;
     ///
     /// let interval = time::interval(Duration::from_millis(100));
@@ -492,7 +492,7 @@ impl Interval {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```rune,no_run
     /// use time::Duration;
     ///
     /// let interval = time::interval(Duration::from_millis(100));
@@ -517,7 +517,7 @@ impl Interval {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```rune,no_run
     /// use time::Duration;
     ///
     /// let interval = time::interval(Duration::from_millis(100));
@@ -568,7 +568,7 @@ impl Instant {
     ///
     /// # Examples
     ///
-    /// ```rune
+    /// ```rune,no_run
     /// use time::{Duration, Instant};
     ///
     /// let instant = Instant::now();
@@ -585,7 +585,7 @@ impl Instant {
     ///
     /// # Examples
     ///
-    /// ```rune
+    /// ```rune,no_run
     /// use time::{Instant, Duration};
     ///
     /// let instant = Instant::now();
@@ -593,8 +593,8 @@ impl Instant {
     /// let three_secs = Duration::from_secs(3);
     /// sleep(three_secs).await;
     ///
-    /// let new_instant = Instant::now();
-    /// let duration_since = new_instant.duration_since(instant);
+    /// let now = Instant::now();
+    /// let duration_since = now.duration_since(instant);
     /// ```
     #[rune::function(instance, keep)]
     pub fn duration_since(&self, earlier: Instant) -> Duration {
@@ -608,7 +608,7 @@ impl Instant {
     ///
     /// # Examples
     ///
-    /// ```rune
+    /// ```rune,no_run
     /// use time::{Duration, Instant};
     ///
     /// let instant = Instant::now();
