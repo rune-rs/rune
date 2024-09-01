@@ -284,6 +284,25 @@ impl RequestBuilder {
             request: self.request.body(bytes.into_std()),
         }
     }
+
+    /// Modify a header in the request.
+    ///
+    /// ```rune,no_run
+    /// let client = http::Client::new();
+    ///
+    /// let response = client.get("http://example.com")
+    ///     .header("Accept", "text/html")
+    ///     .send()
+    ///     .await?;
+    ///
+    /// let response = response.text().await?;
+    /// ```
+    #[rune::function]
+    fn timeout(self, timeout: Duration) -> Self {
+        Self {
+            request: self.request.timeout(timeout),
+        }
+    }
 }
 
 impl Client {
@@ -329,7 +348,7 @@ impl Client {
     /// let client = http::Client::new();
     ///
     /// let response = client.post("https://postman-echo.com/post")
-    ///     .body_bytes(b"Hello World")
+    ///     .body_bytes(b"Post data...")
     ///     .send()
     ///     .await?;
     ///
@@ -338,6 +357,86 @@ impl Client {
     #[rune::function]
     fn post(&self, url: &str) -> RequestBuilder {
         let request = self.client.post(url);
+        RequestBuilder { request }
+    }
+
+    /// Construct a builder to PUT to the given `url`.
+    ///
+    /// # Examples
+    ///
+    /// ```rune,no_run
+    /// let client = http::Client::new();
+    ///
+    /// let response = client.put("https://postman-echo.com/put")
+    ///     .body_bytes(b"Put data...")
+    ///     .send()
+    ///     .await?;
+    ///
+    /// let response = response.json().await?;
+    /// ```
+    #[rune::function]
+    fn put(&self, url: &str) -> RequestBuilder {
+        let request = self.client.put(url);
+        RequestBuilder { request }
+    }
+
+    /// Construct a builder to PATCH to the given `url`.
+    ///
+    /// # Examples
+    ///
+    /// ```rune,no_run
+    /// let client = http::Client::new();
+    ///
+    /// let response = client.patch("https://postman-echo.com/patch")
+    ///     .body_bytes(b"Patch data...")
+    ///     .send()
+    ///     .await?;
+    ///
+    /// let response = response.json().await?;
+    /// ```
+    #[rune::function]
+    fn patch(&self, url: &str) -> RequestBuilder {
+        let request = self.client.patch(url);
+        RequestBuilder { request }
+    }
+
+    /// Construct a builder to DELETE to the given `url`.
+    ///
+    /// # Examples
+    ///
+    /// ```rune,no_run
+    /// let client = http::Client::new();
+    ///
+    /// let response = client.delete("https://postman-echo.com/delete")
+    ///     .body_bytes(b"Delete data...")
+    ///     .send()
+    ///     .await?;
+    ///
+    /// let response = response.json().await?;
+    /// ```
+    #[rune::function]
+    fn delete(&self, url: &str) -> RequestBuilder {
+        let request = self.client.delete(url);
+        RequestBuilder { request }
+    }
+
+    /// Construct a builder to HEAD to the given `url`.
+    ///
+    /// # Examples
+    ///
+    /// ```rune,no_run
+    /// let client = http::Client::new();
+    ///
+    /// let response = client.head("https://postman-echo.com/head")
+    ///     .body_bytes(b"Head data...")
+    ///     .send()
+    ///     .await?;
+    ///
+    /// let response = response.json().await?;
+    /// ```
+    #[rune::function]
+    fn head(&self, url: &str) -> RequestBuilder {
+        let request = self.client.head(url);
         RequestBuilder { request }
     }
 }
