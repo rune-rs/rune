@@ -50,7 +50,7 @@
 
 use rune::alloc::fmt::TryWrite;
 use rune::runtime::{Bytes, Formatter, Ref, VmResult};
-use rune::{Any, ContextError, Module, Value};
+use rune::{docstring, Any, ContextError, Module, Value};
 
 /// A simple HTTP module for Rune.
 ///
@@ -69,26 +69,56 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.ty::<Response>()?;
     module.ty::<RequestBuilder>()?;
     module.ty::<StatusCode>()?;
+    module.ty::<Version>()?;
     module.ty::<Error>()?;
 
-    module.function_meta(Client::new)?;
     module.function_meta(get)?;
 
+    module.function_meta(Client::new)?;
     module.function_meta(Client::get)?;
     module.function_meta(Client::post)?;
+    module.function_meta(Client::put)?;
+    module.function_meta(Client::delete)?;
+    module.function_meta(Client::head)?;
 
     module.function_meta(Response::text)?;
     module.function_meta(Response::json)?;
     module.function_meta(Response::bytes)?;
     module.function_meta(Response::status)?;
+    module.function_meta(Response::version)?;
+    module.function_meta(Response::content_length)?;
 
     module.function_meta(RequestBuilder::send)?;
     module.function_meta(RequestBuilder::header)?;
-    module.function_meta(RequestBuilder::body_bytes)?;
+    module.function_meta(RequestBuilder::basic_auth)?;
+    module.function_meta(RequestBuilder::bearer_auth)?;
     module.function_meta(RequestBuilder::fetch_mode_no_cors)?;
+    module.function_meta(RequestBuilder::body_bytes)?;
+
+    module.function_meta(StatusCode::string_display)?;
+    module.function_meta(StatusCode::as_u16)?;
+    module.function_meta(StatusCode::as_str)?;
+    module.function_meta(StatusCode::canonical_reason)?;
+    module.function_meta(StatusCode::is_informational)?;
+    module.function_meta(StatusCode::is_success)?;
+    module.function_meta(StatusCode::is_redirection)?;
+    module.function_meta(StatusCode::is_client_error)?;
+    module.function_meta(StatusCode::is_server_error)?;
+
+    module.implement_trait::<StatusCode>(rune::item!(::std::cmp::PartialEq))?;
+    module.implement_trait::<StatusCode>(rune::item!(::std::cmp::Eq))?;
+    module.implement_trait::<StatusCode>(rune::item!(::std::cmp::PartialOrd))?;
+    module.implement_trait::<StatusCode>(rune::item!(::std::cmp::Ord))?;
+
+    module.function_meta(Version::string_display)?;
+
+    module.implement_trait::<Version>(rune::item!(::std::cmp::PartialEq))?;
+    module.implement_trait::<Version>(rune::item!(::std::cmp::Eq))?;
+    module.implement_trait::<Version>(rune::item!(::std::cmp::PartialOrd))?;
+    module.implement_trait::<Version>(rune::item!(::std::cmp::Ord))?;
 
     module.function_meta(Error::string_display)?;
-    module.function_meta(StatusCode::string_display)?;
+
     Ok(module)
 }
 
@@ -147,6 +177,16 @@ impl Response {
     }
 
     /// Get the response as a Rune value decoded from JSON.
+    ///
+    /// ```rune,no_run
+    /// let client = http::Client::new();
+    ///
+    /// let response = client.get("http://example.com")
+    ///     .send()
+    ///     .await?;
+    ///
+    /// let response = response.json().await?;
+    /// ```
     #[rune::function]
     async fn json(self) -> Result<Value, Error> {
         let text = self.response.json().await?;
@@ -172,15 +212,34 @@ impl Response {
     }
 
     /// Get the status code of the response.
-    #[rune::function]
+    #[rune::function(instance)]
     fn status(&self) -> StatusCode {
         let inner = self.response.status();
         StatusCode { inner }
     }
+
+    /// Get the version of the response.
+    #[rune::function(instance)]
+    fn version(&self) -> Version {
+        let inner = self.response.version();
+        Version { inner }
+    }
+
+    /// Get the content-length of this response, if known.
+    ///
+    /// Reasons it may not be known:
+    ///
+    /// - The server didn't send a `content-length` header.
+    /// - The response is compressed and automatically decoded (thus changing
+    ///   the actual decoded length).
+    #[rune::function(instance)]
+    fn content_length(&self) -> Option<u64> {
+        self.response.content_length()
+    }
 }
 
 /// An HTTP status code.
-#[derive(Debug, Any)]
+#[derive(Debug, Any, PartialEq, Eq, PartialOrd, Ord)]
 #[rune(item = ::http)]
 pub struct StatusCode {
     inner: reqwest::StatusCode,
@@ -190,6 +249,77 @@ impl StatusCode {
     #[rune::function(instance, protocol = STRING_DISPLAY)]
     fn string_display(&self, f: &mut Formatter) -> VmResult<()> {
         rune::vm_write!(f, "{}", self.inner);
+        VmResult::Ok(())
+    }
+
+    /// Returns the `Integer` corresponding to this `StatusCode`.
+    #[rune::function(instance)]
+    #[inline]
+    fn as_u16(&self) -> u16 {
+        self.inner.as_u16()
+    }
+
+    /// Returns a String representation of the `StatusCode`.
+    #[rune::function(instance)]
+    #[inline]
+    fn as_str(&self) -> String {
+        self.inner.as_str().to_owned()
+    }
+
+    /// Get the standardised `reason-phrase` for this status code.
+    #[inline]
+    #[rune::function(instance)]
+    fn canonical_reason(&self) -> Option<&'static str> {
+        self.inner.canonical_reason()
+    }
+
+    /// Check if status is within 100-199.
+    #[inline]
+    #[rune::function(instance)]
+    fn is_informational(&self) -> bool {
+        self.inner.is_informational()
+    }
+
+    /// Check if status is within 200-299.
+    #[inline]
+    #[rune::function(instance)]
+    fn is_success(&self) -> bool {
+        self.inner.is_success()
+    }
+
+    /// Check if status is within 300-399.
+    #[inline]
+    #[rune::function(instance)]
+    fn is_redirection(&self) -> bool {
+        self.inner.is_redirection()
+    }
+
+    /// Check if status is within 400-499.
+    #[inline]
+    #[rune::function(instance)]
+    fn is_client_error(&self) -> bool {
+        self.inner.is_client_error()
+    }
+
+    /// Check if status is within 500-599.
+    #[inline]
+    #[rune::function(instance)]
+    fn is_server_error(&self) -> bool {
+        self.inner.is_server_error()
+    }
+}
+
+/// Represents a version of the HTTP spec.
+#[derive(Debug, Any, PartialEq, Eq, PartialOrd, Ord)]
+#[rune(item = ::http)]
+pub struct Version {
+    inner: reqwest::Version,
+}
+
+impl Version {
+    #[rune::function(instance, protocol = STRING_DISPLAY)]
+    fn string_display(&self, f: &mut Formatter) -> VmResult<()> {
+        rune::vm_write!(f, "{:?}", self.inner);
         VmResult::Ok(())
     }
 }
@@ -238,6 +368,63 @@ impl RequestBuilder {
     fn header(self, key: &str, value: &str) -> Self {
         Self {
             request: self.request.header(key, value),
+        }
+    }
+
+    /// Enable basic authentication in the request.
+    ///
+    /// ```rune,no_run
+    /// let client = http::Client::new();
+    ///
+    /// let response = client.get("http://example.com")
+    ///     .basic_auth("admin", Some("good password"))
+    ///     .send()
+    ///     .await?;
+    ///
+    /// let response = response.text().await?;
+    /// ```
+    #[rune::function]
+    fn basic_auth(self, username: &str, password: Option<Ref<str>>) -> Self {
+        Self {
+            request: self.request.basic_auth(username, password.as_deref()),
+        }
+    }
+
+    /// Enable bearer authentication in the request.
+    ///
+    /// ```rune,no_run
+    /// let client = http::Client::new();
+    ///
+    /// let response = client.get("http://example.com")
+    ///     .bearer_auth("A1B2C3D4E5")
+    ///     .send()
+    ///     .await?;
+    ///
+    /// let response = response.text().await?;
+    /// ```
+    #[rune::function]
+    fn bearer_auth(self, token: &str) -> Self {
+        Self {
+            request: self.request.bearer_auth(token),
+        }
+    }
+
+    /// Set version in the request.
+    ///
+    /// ```rune,no_run
+    /// let client = http::Client::new();
+    ///
+    /// let response = client.get("http://example.com")
+    ///     .version(Version::HTTP_2)
+    ///     .send()
+    ///     .await?;
+    ///
+    /// let response = response.text().await?;
+    /// ```
+    #[rune::function]
+    fn version(self, version: Version) -> Self {
+        Self {
+            request: self.request.version(version.inner),
         }
     }
 
@@ -314,7 +501,7 @@ impl Client {
     ///
     /// let response = response.text().await?;
     /// ```
-    #[rune::function]
+    #[rune::function(instance)]
     fn get(&self, url: &str) -> RequestBuilder {
         RequestBuilder {
             request: self.client.get(url),
@@ -329,15 +516,95 @@ impl Client {
     /// let client = http::Client::new();
     ///
     /// let response = client.post("https://postman-echo.com/post")
-    ///     .body_bytes(b"Hello World")
+    ///     .body_bytes(b"My post data...")
     ///     .send()
     ///     .await?;
     ///
     /// let response = response.json().await?;
     /// ```
-    #[rune::function]
+    #[rune::function(instance)]
     fn post(&self, url: &str) -> RequestBuilder {
         let request = self.client.post(url);
+        RequestBuilder { request }
+    }
+
+    /// Construct a builder to PUT to the given `url`.
+    ///
+    /// # Examples
+    ///
+    /// ```rune,no_run
+    /// let client = http::Client::new();
+    ///
+    /// let response = client.put("https://postman-echo.com/put")
+    ///     .body_bytes(b"My put data...")
+    ///     .send()
+    ///     .await?;
+    ///
+    /// let response = response.json().await?;
+    /// ```
+    #[rune::function(instance)]
+    fn put(&self, url: &str) -> RequestBuilder {
+        let request = self.client.put(url);
+        RequestBuilder { request }
+    }
+
+    /// Construct a builder to PATCH to the given `url`.
+    ///
+    /// # Examples
+    ///
+    /// ```rune,no_run
+    /// let client = http::Client::new();
+    ///
+    /// let response = client.patch("https://postman-echo.com/patch")
+    ///     .body_bytes(b"My patch data...")
+    ///     .send()
+    ///     .await?;
+    ///
+    /// let response = response.json().await?;
+    /// ```
+    #[rune::function(instance)]
+    fn patch(&self, url: &str) -> RequestBuilder {
+        let request = self.client.patch(url);
+        RequestBuilder { request }
+    }
+
+    /// Construct a builder to DELETE to the given `url`.
+    ///
+    /// # Examples
+    ///
+    /// ```rune,no_run
+    /// let client = http::Client::new();
+    ///
+    /// let response = client.delete("https://postman-echo.com/delete")
+    ///     .body_bytes(b"My delete data...")
+    ///     .send()
+    ///     .await?;
+    ///
+    /// let response = response.json().await?;
+    /// ```
+    #[rune::function(instance)]
+    fn delete(&self, url: &str) -> RequestBuilder {
+        let request = self.client.delete(url);
+        RequestBuilder { request }
+    }
+
+    /// Construct a builder to HEAD to the given `url`.
+    ///
+    /// # Examples
+    ///
+    /// ```rune,no_run
+    /// let client = http::Client::new();
+    ///
+    /// let response = client.head("https://postman-echo.com/head")
+    ///     .body_bytes(b"My head data...")
+    ///     .send()
+    ///     .await?;
+    ///
+    /// let response = response.json().await?;
+    /// ```
+    #[rune::function(instance)]
+    fn head(&self, url: &str) -> RequestBuilder {
+        let request = self.client.head(url);
         RequestBuilder { request }
     }
 }
