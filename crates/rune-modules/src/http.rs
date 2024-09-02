@@ -49,6 +49,7 @@
 //! ```
 
 use rune::alloc::{fmt::TryWrite, HashMap};
+use rune::modules::net::SocketAddr;
 use rune::runtime::{Bytes, Formatter, Ref, VmResult};
 use rune::{docstring, Any, ContextError, Module, Value};
 
@@ -87,6 +88,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.function_meta(Response::status)?;
     module.function_meta(Response::version)?;
     module.function_meta(Response::content_length)?;
+    module.function_meta(Response::remote_addr)?;
 
     module.function_meta(RequestBuilder::send)?;
     module.function_meta(RequestBuilder::header)?;
@@ -1467,6 +1469,16 @@ impl Response {
     }
 
     /// Get the response as a Rune value decoded from JSON.
+    ///
+    /// ```rune,no_run
+    /// let client = http::Client::new();
+    ///
+    /// let response = client.get("http://example.com")
+    ///     .send()
+    ///     .await?;
+    ///
+    /// let response = response.json().await?;
+    /// ```
     #[rune::function]
     async fn json(self) -> Result<Value, Error> {
         let text = self.response.json().await?;
@@ -1492,14 +1504,14 @@ impl Response {
     }
 
     /// Get the status code of the response.
-    #[rune::function]
+    #[rune::function(instance)]
     fn status(&self) -> StatusCode {
         let inner = self.response.status();
         StatusCode { inner }
     }
 
     /// Get the version of the response.
-    #[rune::function]
+    #[rune::function(instance)]
     fn version(&self) -> Version {
         let inner = self.response.version();
         Version { inner }
@@ -1514,9 +1526,17 @@ impl Response {
     /// - The server didn't send a `content-length` header.
     /// - The response is compressed and automatically decoded (thus changing
     ///   the actual decoded length).
-    #[rune::function]
+    #[rune::function(instance)]
     fn content_length(&self) -> Option<u64> {
         self.response.content_length()
+    }
+
+    /// Get the remote address of the response.
+    #[rune::function(instance)]
+    fn remote_addr(&self) -> Option<SocketAddr> {
+        self.response
+            .remote_addr()
+            .map(|addr| SocketAddr::from_std(addr))
     }
 }
 
@@ -1813,7 +1833,7 @@ impl Client {
     ///
     /// let response = response.text().await?;
     /// ```
-    #[rune::function]
+    #[rune::function(instance)]
     fn get(&self, url: &str) -> RequestBuilder {
         RequestBuilder {
             request: self.client.get(url),
@@ -1834,7 +1854,7 @@ impl Client {
     ///
     /// let response = response.json().await?;
     /// ```
-    #[rune::function]
+    #[rune::function(instance)]
     fn post(&self, url: &str) -> RequestBuilder {
         let request = self.client.post(url);
         RequestBuilder { request }
@@ -1854,7 +1874,7 @@ impl Client {
     ///
     /// let response = response.json().await?;
     /// ```
-    #[rune::function]
+    #[rune::function(instance)]
     fn put(&self, url: &str) -> RequestBuilder {
         let request = self.client.put(url);
         RequestBuilder { request }
@@ -1874,7 +1894,7 @@ impl Client {
     ///
     /// let response = response.json().await?;
     /// ```
-    #[rune::function]
+    #[rune::function(instance)]
     fn patch(&self, url: &str) -> RequestBuilder {
         let request = self.client.patch(url);
         RequestBuilder { request }
@@ -1894,7 +1914,7 @@ impl Client {
     ///
     /// let response = response.json().await?;
     /// ```
-    #[rune::function]
+    #[rune::function(instance)]
     fn delete(&self, url: &str) -> RequestBuilder {
         let request = self.client.delete(url);
         RequestBuilder { request }
@@ -1914,7 +1934,7 @@ impl Client {
     ///
     /// let response = response.json().await?;
     /// ```
-    #[rune::function]
+    #[rune::function(instance)]
     fn head(&self, url: &str) -> RequestBuilder {
         let request = self.client.head(url);
         RequestBuilder { request }
