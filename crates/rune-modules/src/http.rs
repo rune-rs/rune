@@ -1505,11 +1505,7 @@ impl Response {
         Version { inner }
     }
 
-    // /// Get the headers of the response.
-    // #[inline]
-    // fn headers(&self) ->  {
-    //     self.response.headers()
-    // }
+    // TODO: response headers
 
     /// Get the content-length of this response, if known.
     ///
@@ -1649,6 +1645,18 @@ impl RequestBuilder {
         }
     }
 
+    /// Enable basic authentication in the request.
+    ///
+    /// ```rune,no_run
+    /// let client = http::Client::new();
+    ///
+    /// let response = client.get("http://example.com")
+    ///     .basic_auth("admin", Some("good password"))
+    ///     .send()
+    ///     .await?;
+    ///
+    /// let response = response.text().await?;
+    /// ```
     #[rune::function]
     fn basic_auth(self, username: &str, password: Option<Ref<str>>) -> Self {
         Self {
@@ -1656,6 +1664,18 @@ impl RequestBuilder {
         }
     }
 
+    /// Enable bearer authentication in the request.
+    ///
+    /// ```rune,no_run
+    /// let client = http::Client::new();
+    ///
+    /// let response = client.get("http://example.com")
+    ///     .bearer_auth("A1B2C3D4E5")
+    ///     .send()
+    ///     .await?;
+    ///
+    /// let response = response.text().await?;
+    /// ```
     #[rune::function]
     fn bearer_auth(self, token: &str) -> Self {
         Self {
@@ -1663,6 +1683,18 @@ impl RequestBuilder {
         }
     }
 
+    /// Set version in the request.
+    ///
+    /// ```rune,no_run
+    /// let client = http::Client::new();
+    ///
+    /// let response = client.get("http://example.com")
+    ///     .version(Version::HTTP_2)
+    ///     .send()
+    ///     .await?;
+    ///
+    /// let response = response.text().await?;
+    /// ```
     #[rune::function]
     fn version(self, version: Version) -> Self {
         Self {
@@ -1714,6 +1746,18 @@ impl RequestBuilder {
         }
     }
 
+    /// Set the request body from bytes.
+    ///
+    /// ```rune,no_run
+    /// let client = http::Client::new();
+    ///
+    /// let response = client.get("http://example.com")
+    ///     .body_bytes(b"Hello World")
+    ///     .send()
+    ///     .await?;
+    ///
+    /// let response = response.text().await?;
+    /// ```
     #[rune::function]
     fn form(self, params: HashMap<String, String>) -> Self {
         Self {
@@ -1721,13 +1765,13 @@ impl RequestBuilder {
         }
     }
 
-    /// Modify a header in the request.
+    /// Set the request timeout.
     ///
     /// ```rune,no_run
     /// let client = http::Client::new();
     ///
     /// let response = client.get("http://example.com")
-    ///     .header("Accept", "text/html")
+    ///     .timeout(Duration::from_secs(3))
     ///     .send()
     ///     .await?;
     ///
@@ -1784,7 +1828,7 @@ impl Client {
     /// let client = http::Client::new();
     ///
     /// let response = client.post("https://postman-echo.com/post")
-    ///     .body_bytes(b"Post data...")
+    ///     .body_bytes(b"My post data...")
     ///     .send()
     ///     .await?;
     ///
@@ -1804,7 +1848,7 @@ impl Client {
     /// let client = http::Client::new();
     ///
     /// let response = client.put("https://postman-echo.com/put")
-    ///     .body_bytes(b"Put data...")
+    ///     .body_bytes(b"My put data...")
     ///     .send()
     ///     .await?;
     ///
@@ -1824,7 +1868,7 @@ impl Client {
     /// let client = http::Client::new();
     ///
     /// let response = client.patch("https://postman-echo.com/patch")
-    ///     .body_bytes(b"Patch data...")
+    ///     .body_bytes(b"My patch data...")
     ///     .send()
     ///     .await?;
     ///
@@ -1844,7 +1888,7 @@ impl Client {
     /// let client = http::Client::new();
     ///
     /// let response = client.delete("https://postman-echo.com/delete")
-    ///     .body_bytes(b"Delete data...")
+    ///     .body_bytes(b"My delete data...")
     ///     .send()
     ///     .await?;
     ///
@@ -1864,7 +1908,7 @@ impl Client {
     /// let client = http::Client::new();
     ///
     /// let response = client.head("https://postman-echo.com/head")
-    ///     .body_bytes(b"Head data...")
+    ///     .body_bytes(b"My head data...")
     ///     .send()
     ///     .await?;
     ///
