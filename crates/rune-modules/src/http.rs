@@ -1541,8 +1541,8 @@ impl StatusCode {
     /// Returns the `Integer` corresponding to this `StatusCode`.
     #[rune::function(instance)]
     #[inline]
-    fn as_integer(&self) -> i64 {
-        self.inner.as_u16().into()
+    fn as_u16(&self) -> u16 {
+        self.inner.as_u16()
     }
 
     /// Returns a String representation of the `StatusCode`.
