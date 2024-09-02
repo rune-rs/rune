@@ -50,7 +50,7 @@
 
 use rune::alloc::{fmt::TryWrite, HashMap};
 use rune::runtime::{Bytes, Formatter, Ref, VmResult};
-use rune::{Any, ContextError, Module, Value};
+use rune::{docstring, Any, ContextError, Module, Value};
 
 /// A simple HTTP module for Rune.
 ///
@@ -69,6 +69,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.ty::<Response>()?;
     module.ty::<RequestBuilder>()?;
     module.ty::<StatusCode>()?;
+    module.ty::<Version>()?;
     module.ty::<Error>()?;
 
     module.function_meta(get)?;
@@ -84,6 +85,8 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.function_meta(Response::json)?;
     module.function_meta(Response::bytes)?;
     module.function_meta(Response::status)?;
+    module.function_meta(Response::version)?;
+    module.function_meta(Response::content_length)?;
 
     module.function_meta(RequestBuilder::send)?;
     module.function_meta(RequestBuilder::header)?;
@@ -94,8 +97,1018 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.function_meta(RequestBuilder::form)?;
     module.function_meta(RequestBuilder::timeout)?;
 
-    module.function_meta(Error::string_display)?;
+    module
+        .constant("CONTINUE", 100)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Continue
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::CONTINUE;
+            /// ```
+        })?;
+
+    module
+        .constant("SWITCHING_PROTOCOLS", 101)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Switching Protocols
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::SWITCHING_PROTOCOLS;
+            /// ```
+        })?;
+
+    module
+        .constant("PROCESSING", 102)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Processing
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::PROCESSING;
+            /// ```
+        })?;
+
+    module
+        .constant("OK", 200)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: OK
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::OK;
+            /// ```
+        })?;
+
+    module
+        .constant("CREATED", 201)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Created
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::CREATED;
+            /// ```
+        })?;
+
+    module
+        .constant("ACCEPTED", 202)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Accepted
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::ACCEPTED;
+            /// ```
+        })?;
+
+    module
+        .constant("NON_AUTHORITATIVE_INFORMATION", 203)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Non Authoritative Information
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::NON_AUTHORITATIVE_INFORMATION;
+            /// ```
+        })?;
+
+    module
+        .constant("NO_CONTENT", 204)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: No Content
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::NO_CONTENT;
+            /// ```
+        })?;
+
+    module
+        .constant("RESET_CONTENT", 205)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Reset Content
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::RESET_CONTENT;
+            /// ```
+        })?;
+
+    module
+        .constant("PARTIAL_CONTENT", 206)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Partial Content
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::PARTIAL_CONTENT;
+            /// ```
+        })?;
+
+    module
+        .constant("MULTI_STATUS", 207)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Multi-Status
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::MULTI_STATUS;
+            /// ```
+        })?;
+
+    module
+        .constant("ALREADY_REPORTED", 208)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Already Reported
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::ALREADY_REPORTED;
+            /// ```
+        })?;
+
+    module
+        .constant("IM_USED", 226)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: IM Used
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::IM_USED;
+            /// ```
+        })?;
+
+    module
+        .constant("MULTIPLE_CHOICES", 300)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Multiple Choices
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::MULTIPLE_CHOICES;
+            /// ```
+        })?;
+
+    module
+        .constant("MOVED_PERMANENTLY", 301)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Moved Permanently
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::MOVED_PERMANENTLY;
+            /// ```
+        })?;
+
+    module
+        .constant("FOUND", 302)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Found
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::FOUND;
+            /// ```
+        })?;
+
+    module
+        .constant("SEE_OTHER", 303)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: See Other
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::SEE_OTHER;
+            /// ```
+        })?;
+
+    module
+        .constant("NOT_MODIFIED", 304)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Not Modified
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::NOT_MODIFIED;
+            /// ```
+        })?;
+
+    module
+        .constant("USE_PROXY", 305)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Use Proxy
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::USE_PROXY;
+            /// ```
+        })?;
+
+    module
+        .constant("TEMPORARY_REDIRECT", 307)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Temporary Redirect
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::TEMPORARY_REDIRECT;
+            /// ```
+        })?;
+
+    module
+        .constant("PERMANENT_REDIRECT", 308)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Permanent Redirect
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::PERMANENT_REDIRECT;
+            /// ```
+        })?;
+
+    module
+        .constant("BAD_REQUEST", 400)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Bad Request
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::BAD_REQUEST;
+            /// ```
+        })?;
+
+    module
+        .constant("UNAUTHORIZED", 401)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Unauthorized
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::UNAUTHORIZED;
+            /// ```
+        })?;
+
+    module
+        .constant("PAYMENT_REQUIRED", 402)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Payment Required
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::PAYMENT_REQUIRED;
+            /// ```
+        })?;
+
+    module
+        .constant("FORBIDDEN", 403)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Forbidden
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::FORBIDDEN;
+            /// ```
+        })?;
+
+    module
+        .constant("NOT_FOUND", 404)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Not Found
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::NOT_FOUND;
+            /// ```
+        })?;
+
+    module
+        .constant("METHOD_NOT_ALLOWED", 405)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Method Not Allowed
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::METHOD_NOT_ALLOWED;
+            /// ```
+        })?;
+
+    module
+        .constant("NOT_ACCEPTABLE", 406)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Not Acceptable
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::NOT_ACCEPTABLE;
+            /// ```
+        })?;
+
+    module
+        .constant("PROXY_AUTHENTICATION_REQUIRED", 407)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Proxy Authentication Required
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::PROXY_AUTHENTICATION_REQUIRED;
+            /// ```
+        })?;
+
+    module
+        .constant("REQUEST_TIMEOUT", 408)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Request Timeout
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::REQUEST_TIMEOUT;
+            /// ```
+        })?;
+
+    module
+        .constant("CONFLICT", 409)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Conflict
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::CONFLICT;
+            /// ```
+        })?;
+
+    module
+        .constant("GONE", 410)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Gone
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::GONE;
+            /// ```
+        })?;
+
+    module
+        .constant("LENGTH_REQUIRED", 411)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Length Required
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::LENGTH_REQUIRED;
+            /// ```
+        })?;
+
+    module
+        .constant("PRECONDITION_FAILED", 412)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Precondition Failed
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::PRECONDITION_FAILED;
+            /// ```
+        })?;
+
+    module
+        .constant("PAYLOAD_TOO_LARGE", 413)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Payload Too Large
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::PAYLOAD_TOO_LARGE;
+            /// ```
+        })?;
+
+    module
+        .constant("URI_TOO_LONG", 414)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: URI Too Long
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::URI_TOO_LONG;
+            /// ```
+        })?;
+
+    module
+        .constant("UNSUPPORTED_MEDIA_TYPE", 415)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Unsupported Media Type
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::UNSUPPORTED_MEDIA_TYPE;
+            /// ```
+        })?;
+
+    module
+        .constant("RANGE_NOT_SATISFIABLE", 416)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Range Not Satisfiable
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::RANGE_NOT_SATISFIABLE;
+            /// ```
+        })?;
+
+    module
+        .constant("EXPECTATION_FAILED", 417)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Expectation Failed
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::EXPECTATION_FAILED;
+            /// ```
+        })?;
+
+    module
+        .constant("IM_A_TEAPOT", 418)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: I'm a teapot
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::IM_A_TEAPOT;
+            /// ```
+        })?;
+
+    module
+        .constant("MISDIRECTED_REQUEST", 421)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Misdirected Request
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::MISDIRECTED_REQUEST;
+            /// ```
+        })?;
+
+    module
+        .constant("UNPROCESSABLE_ENTITY", 422)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Unprocessable Entity
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::UNPROCESSABLE_ENTITY;
+            /// ```
+        })?;
+
+    module
+        .constant("LOCKED", 423)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Locked
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::LOCKED;
+            /// ```
+        })?;
+
+    module
+        .constant("FAILED_DEPENDENCY", 424)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Failed Dependency
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::FAILED_DEPENDENCY;
+            /// ```
+        })?;
+
+    module
+        .constant("UPGRADE_REQUIRED", 426)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Upgrade Required
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::UPGRADE_REQUIRED;
+            /// ```
+        })?;
+
+    module
+        .constant("PRECONDITION_REQUIRED", 428)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Precondition Required
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::PRECONDITION_REQUIRED;
+            /// ```
+        })?;
+
+    module
+        .constant("TOO_MANY_REQUESTS", 429)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Too Many Requests
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::TOO_MANY_REQUESTS;
+            /// ```
+        })?;
+
+    module
+        .constant("REQUEST_HEADER_FIELDS_TOO_LARGE", 431)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Request Header Fields Too Large
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE;
+            /// ```
+        })?;
+
+    module
+        .constant("UNAVAILABLE_FOR_LEGAL_REASONS", 451)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Unavailable For Legal Reasons
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS;
+            /// ```
+        })?;
+
+    module
+        .constant("INTERNAL_SERVER_ERROR", 500)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Internal Server Error
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::INTERNAL_SERVER_ERROR;
+            /// ```
+        })?;
+
+    module
+        .constant("NOT_IMPLEMENTED", 501)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Not Implemented
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::NOT_IMPLEMENTED;
+            /// ```
+        })?;
+
+    module
+        .constant("BAD_GATEWAY", 502)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Bad Gateway
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::BAD_GATEWAY;
+            /// ```
+        })?;
+
+    module
+        .constant("SERVICE_UNAVAILABLE", 503)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Service Unavailable
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::SERVICE_UNAVAILABLE;
+            /// ```
+        })?;
+
+    module
+        .constant("GATEWAY_TIMEOUT", 504)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Gateway Timeout
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::GATEWAY_TIMEOUT;
+            /// ```
+        })?;
+
+    module
+        .constant("HTTP_VERSION_NOT_SUPPORTED", 505)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: HTTP Version Not Supported
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::HTTP_VERSION_NOT_SUPPORTED;
+            /// ```
+        })?;
+
+    module
+        .constant("VARIANT_ALSO_NEGOTIATES", 506)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Variant Also Negotiates
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::VARIANT_ALSO_NEGOTIATES;
+            /// ```
+        })?;
+
+    module
+        .constant("INSUFFICIENT_STORAGE", 507)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Insufficient Storage
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::INSUFFICIENT_STORAGE;
+            /// ```
+        })?;
+
+    module
+        .constant("LOOP_DETECTED", 508)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Loop Detected
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::LOOP_DETECTED;
+            /// ```
+        })?;
+
+    module
+        .constant("NOT_EXTENDED", 510)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Not Extended
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::NOT_EXTENDED;
+            /// ```
+        })?;
+
+    module
+        .constant("NETWORK_AUTHENTICATION_REQUIRED", 511)
+        .build_associated::<StatusCode>()?
+        .docs(docstring! {
+            /// Status Code: Network Authentication Required
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::StatusCode;
+            ///
+            /// let status_code = StatusCode::NETWORK_AUTHENTICATION_REQUIRED;
+            /// ```
+        })?;
+
     module.function_meta(StatusCode::string_display)?;
+    module.function_meta(StatusCode::as_integer)?;
+    module.function_meta(StatusCode::as_str)?;
+    module.function_meta(StatusCode::canonical_reason)?;
+    module.function_meta(StatusCode::is_informational)?;
+    module.function_meta(StatusCode::is_success)?;
+    module.function_meta(StatusCode::is_redirection)?;
+    module.function_meta(StatusCode::is_client_error)?;
+    module.function_meta(StatusCode::is_server_error)?;
+
+    module
+        .constant(
+            "HTTP_09",
+            Version {
+                inner: reqwest::Version::HTTP_09,
+            },
+        )
+        .build_associated::<Version>()?
+        .docs(docstring! {
+            /// The `HTTP/0.9` version.
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::Version;
+            ///
+            /// let version = Version::HTTP_09;
+            /// ```
+        })?;
+
+    module
+        .constant(
+            "HTTP_10",
+            Version {
+                inner: reqwest::Version::HTTP_10,
+            },
+        )
+        .build_associated::<Version>()?
+        .docs(docstring! {
+            /// The `HTTP/1.0` version.
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::Version;
+            ///
+            /// let version = Version::HTTP_10;
+            /// ```
+        })?;
+
+    module
+        .constant(
+            "HTTP_11",
+            Version {
+                inner: reqwest::Version::HTTP_11,
+            },
+        )
+        .build_associated::<Version>()?
+        .docs(docstring! {
+            /// The `HTTP/1.1` version.
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::Version;
+            ///
+            /// let version = Version::HTTP_11;
+            /// ```
+        })?;
+
+    module
+        .constant(
+            "HTTP_2",
+            Version {
+                inner: reqwest::Version::HTTP_2,
+            },
+        )
+        .build_associated::<Version>()?
+        .docs(docstring! {
+            /// The `HTTP/2.0` version.
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::Version;
+            ///
+            /// let version = Version::HTTP_2;
+            /// ```
+        })?;
+
+    module
+        .constant(
+            "HTTP_3",
+            Version {
+                inner: reqwest::Version::HTTP_3,
+            },
+        )
+        .build_associated::<Version>()?
+        .docs(docstring! {
+            /// The `HTTP/3.0` version.
+            ///
+            /// # Examples
+            ///
+            /// ```rune,no_run
+            /// use http::Version;
+            ///
+            /// let version = Version::HTTP_3;
+            /// ```
+        })?;
+
+    module.function_meta(Error::string_display)?;
+
     Ok(module)
 }
 
@@ -184,6 +1197,37 @@ impl Response {
         let inner = self.response.status();
         StatusCode { inner }
     }
+
+    /// Get the version of the response.
+    #[rune::function]
+    fn version(&self) -> Version {
+        let inner = self.response.version();
+        Version { inner }
+    }
+
+    // /// Get the headers of the response.
+    // #[inline]
+    // fn headers(&self) ->  {
+    //     self.response.headers()
+    // }
+
+    /// Get the content-length of this response, if known.
+    ///
+    /// Reasons it may not be known:
+    ///
+    /// - The server didn't send a `content-length` header.
+    /// - The response is compressed and automatically decoded (thus changing
+    ///   the actual decoded length).
+    #[rune::function]
+    fn content_length(&self) -> Option<u64> {
+        self.response.content_length()
+    }
+
+    #[rune::function]
+    // TODO: create socket addr/ip addr into rune core
+    fn remote_addr(&self) -> Option<SocketAddr> {
+        self.response.remote_addr()
+    }
 }
 
 /// An HTTP status code.
@@ -199,6 +1243,69 @@ impl StatusCode {
         rune::vm_write!(f, "{}", self.inner);
         VmResult::Ok(())
     }
+
+    /// Returns the `Integer` corresponding to this `StatusCode`.
+    #[rune::function(instance)]
+    #[inline]
+    fn as_integer(&self) -> i64 {
+        self.inner.as_u16().into()
+    }
+
+    /// Returns a String representation of the `StatusCode`.
+    #[rune::function(instance)]
+    #[inline]
+    fn as_str(&self) -> String {
+        self.inner.as_str().to_owned()
+    }
+
+    /// Get the standardised `reason-phrase` for this status code.
+    #[inline]
+    #[rune::function(instance)]
+    fn canonical_reason(&self) -> Option<&'static str> {
+        self.inner.canonical_reason()
+    }
+
+    /// Check if status is within 100-199.
+    #[inline]
+    #[rune::function(instance)]
+    fn is_informational(&self) -> bool {
+        self.inner.is_informational()
+    }
+
+    /// Check if status is within 200-299.
+    #[inline]
+    #[rune::function(instance)]
+    fn is_success(&self) -> bool {
+        self.inner.is_success()
+    }
+
+    /// Check if status is within 300-399.
+    #[inline]
+    #[rune::function(instance)]
+    fn is_redirection(&self) -> bool {
+        self.inner.is_redirection()
+    }
+
+    /// Check if status is within 400-499.
+    #[inline]
+    #[rune::function(instance)]
+    fn is_client_error(&self) -> bool {
+        self.inner.is_client_error()
+    }
+
+    /// Check if status is within 500-599.
+    #[inline]
+    #[rune::function(instance)]
+    fn is_server_error(&self) -> bool {
+        self.inner.is_server_error()
+    }
+}
+
+/// Represents a version of the HTTP spec.
+#[derive(Debug, Any)]
+#[rune(item = ::http)]
+pub struct Version {
+    inner: reqwest::Version,
 }
 
 /// A builder to construct the properties of a Request.
@@ -259,6 +1366,13 @@ impl RequestBuilder {
     fn bearer_auth(self, token: &str) -> Self {
         Self {
             request: self.request.bearer_auth(token),
+        }
+    }
+
+    #[rune::function]
+    fn version(self, version: Version) -> Self {
+        Self {
+            request: self.request.version(version.inner),
         }
     }
 
