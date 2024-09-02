@@ -1298,7 +1298,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module.function_meta(StatusCode::string_display)?;
-    module.function_meta(StatusCode::as_integer)?;
+    module.function_meta(StatusCode::as_u16)?;
     module.function_meta(StatusCode::as_str)?;
     module.function_meta(StatusCode::canonical_reason)?;
     module.function_meta(StatusCode::is_informational)?;
