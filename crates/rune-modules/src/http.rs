@@ -110,7 +110,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::CONTINUE;
@@ -130,7 +130,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::SWITCHING_PROTOCOLS;
@@ -150,7 +150,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::PROCESSING;
@@ -170,7 +170,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::OK;
@@ -190,7 +190,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::CREATED;
@@ -210,7 +210,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::ACCEPTED;
@@ -230,7 +230,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::NON_AUTHORITATIVE_INFORMATION;
@@ -250,7 +250,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::NO_CONTENT;
@@ -270,7 +270,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::RESET_CONTENT;
@@ -290,7 +290,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::PARTIAL_CONTENT;
@@ -310,7 +310,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::MULTI_STATUS;
@@ -330,7 +330,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::ALREADY_REPORTED;
@@ -350,7 +350,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::IM_USED;
@@ -370,7 +370,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::MULTIPLE_CHOICES;
@@ -390,7 +390,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::MOVED_PERMANENTLY;
@@ -410,7 +410,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::FOUND;
@@ -430,7 +430,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::SEE_OTHER;
@@ -450,7 +450,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::NOT_MODIFIED;
@@ -470,7 +470,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::USE_PROXY;
@@ -490,7 +490,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::TEMPORARY_REDIRECT;
@@ -510,7 +510,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::PERMANENT_REDIRECT;
@@ -530,7 +530,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::BAD_REQUEST;
@@ -550,7 +550,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::UNAUTHORIZED;
@@ -570,7 +570,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::PAYMENT_REQUIRED;
@@ -590,7 +590,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::FORBIDDEN;
@@ -610,7 +610,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::NOT_FOUND;
@@ -630,7 +630,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::METHOD_NOT_ALLOWED;
@@ -650,7 +650,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::NOT_ACCEPTABLE;
@@ -670,7 +670,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::PROXY_AUTHENTICATION_REQUIRED;
@@ -690,7 +690,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::REQUEST_TIMEOUT;
@@ -710,7 +710,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::CONFLICT;
@@ -730,7 +730,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::GONE;
@@ -750,7 +750,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::LENGTH_REQUIRED;
@@ -770,7 +770,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::PRECONDITION_FAILED;
@@ -790,7 +790,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::PAYLOAD_TOO_LARGE;
@@ -810,7 +810,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::URI_TOO_LONG;
@@ -830,7 +830,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::UNSUPPORTED_MEDIA_TYPE;
@@ -850,7 +850,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::RANGE_NOT_SATISFIABLE;
@@ -870,7 +870,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::EXPECTATION_FAILED;
@@ -890,7 +890,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::IM_A_TEAPOT;
@@ -910,7 +910,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::MISDIRECTED_REQUEST;
@@ -930,7 +930,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::UNPROCESSABLE_ENTITY;
@@ -950,7 +950,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::LOCKED;
@@ -970,7 +970,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::FAILED_DEPENDENCY;
@@ -990,7 +990,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::UPGRADE_REQUIRED;
@@ -1010,7 +1010,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::PRECONDITION_REQUIRED;
@@ -1030,7 +1030,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::TOO_MANY_REQUESTS;
@@ -1050,7 +1050,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE;
@@ -1070,7 +1070,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS;
@@ -1090,7 +1090,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::INTERNAL_SERVER_ERROR;
@@ -1110,7 +1110,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::NOT_IMPLEMENTED;
@@ -1130,7 +1130,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::BAD_GATEWAY;
@@ -1150,7 +1150,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::SERVICE_UNAVAILABLE;
@@ -1170,7 +1170,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::GATEWAY_TIMEOUT;
@@ -1190,7 +1190,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::HTTP_VERSION_NOT_SUPPORTED;
@@ -1210,7 +1210,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::VARIANT_ALSO_NEGOTIATES;
@@ -1230,7 +1230,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::INSUFFICIENT_STORAGE;
@@ -1250,7 +1250,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::LOOP_DETECTED;
@@ -1270,7 +1270,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::NOT_EXTENDED;
@@ -1290,7 +1290,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             ///
             /// # Examples
             ///
-            /// ```rune,no_run
+            /// ```rune
             /// use http::StatusCode;
             ///
             /// let status_code = StatusCode::NETWORK_AUTHENTICATION_REQUIRED;
