@@ -1522,12 +1522,6 @@ impl Response {
     fn content_length(&self) -> Option<u64> {
         self.response.content_length()
     }
-
-    #[rune::function]
-    // TODO: create socket addr/ip addr into rune core
-    fn remote_addr(&self) -> Option<SocketAddr> {
-        self.response.remote_addr()
-    }
 }
 
 /// An HTTP status code.
