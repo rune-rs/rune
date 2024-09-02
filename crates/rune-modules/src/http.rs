@@ -48,7 +48,7 @@
 //! }
 //! ```
 
-use rune::alloc::fmt::TryWrite;
+use rune::alloc::{fmt::TryWrite, HashMap};
 use rune::runtime::{Bytes, Formatter, Ref, VmResult};
 use rune::{Any, ContextError, Module, Value};
 
@@ -71,11 +71,14 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.ty::<StatusCode>()?;
     module.ty::<Error>()?;
 
-    module.function_meta(Client::new)?;
     module.function_meta(get)?;
 
+    module.function_meta(Client::new)?;
     module.function_meta(Client::get)?;
     module.function_meta(Client::post)?;
+    module.function_meta(Client::put)?;
+    module.function_meta(Client::delete)?;
+    module.function_meta(Client::head)?;
 
     module.function_meta(Response::text)?;
     module.function_meta(Response::json)?;
@@ -84,8 +87,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
 
     module.function_meta(RequestBuilder::send)?;
     module.function_meta(RequestBuilder::header)?;
-    module.function_meta(RequestBuilder::body_bytes)?;
+    module.function_meta(RequestBuilder::basic_auth)?;
+    module.function_meta(RequestBuilder::bearer_auth)?;
     module.function_meta(RequestBuilder::fetch_mode_no_cors)?;
+    module.function_meta(RequestBuilder::body_bytes)?;
+    module.function_meta(RequestBuilder::form)?;
+    module.function_meta(RequestBuilder::timeout)?;
 
     module.function_meta(Error::string_display)?;
     module.function_meta(StatusCode::string_display)?;
@@ -241,6 +248,20 @@ impl RequestBuilder {
         }
     }
 
+    #[rune::function]
+    fn basic_auth(self, username: String, password: Option<String>) -> Self {
+        Self {
+            request: self.request.basic_auth(username, password),
+        }
+    }
+
+    #[rune::function]
+    fn bearer_auth(self, token: &str) -> Self {
+        Self {
+            request: self.request.bearer_auth(token),
+        }
+    }
+
     /// Disable CORS on fetching the request.
     ///
     /// This option is only effective with WebAssembly target.
@@ -285,6 +306,13 @@ impl RequestBuilder {
         }
     }
 
+    #[rune::function]
+    fn form(self, params: HashMap<String, String>) -> Self {
+        Self {
+            request: self.request.form(&params),
+        }
+    }
+
     /// Modify a header in the request.
     ///
     /// ```rune,no_run
@@ -298,9 +326,9 @@ impl RequestBuilder {
     /// let response = response.text().await?;
     /// ```
     #[rune::function]
-    fn timeout(self, timeout: Duration) -> Self {
+    fn timeout(self, timeout: crate::time::Duration) -> Self {
         Self {
-            request: self.request.timeout(timeout),
+            request: self.request.timeout(timeout.into_std()),
         }
     }
 }
