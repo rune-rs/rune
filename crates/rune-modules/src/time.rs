@@ -399,6 +399,66 @@ impl Duration {
     }
 }
 
+impl Duration {
+    /// Converts [`Duration`] into a [`std::time::Duration`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use time::Duration;
+    ///
+    /// let duration = Duration::from_secs(5);
+    /// let std_duration = duration.into_std();
+    /// ```
+    pub fn into_std(self) -> std::time::Duration {
+        std::time::Duration::new(self.inner.as_secs(), self.inner.subsec_nanos())
+    }
+
+    /// Creates a [`Duration`] from a [`std::time::Duration`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use time::Duration;
+    ///
+    /// let std_duration = std::time::Duration::from_secs(5);
+    /// let duration = Duration::from_std(std_duration);
+    /// ```
+    pub fn from_std(duration: std::time::Duration) -> Self {
+        Self {
+            inner: tokio::time::Duration::new(duration.as_secs(), duration.subsec_nanos()),
+        }
+    }
+
+    /// Converts [`Duration`] into a [`tokio::time::Duration`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use time::Duration;
+    ///
+    /// let duration = Duration::from_secs(5);
+    /// let tokio_duration = duration.into_tokio();
+    /// ```
+    pub fn into_tokio(self) -> tokio::time::Duration {
+        self.inner
+    }
+
+    /// Creates a [`Duration`] from a [`tokio::time::Duration`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use time::Duration;
+    ///
+    /// let tokio_duration = tokio::time::Duration::from_secs(5);
+    /// let duration = Duration::from_tokio(tokio_duration);
+    /// ```
+    pub fn from_tokio(duration: tokio::time::Duration) -> Self {
+        Self { inner: duration }
+    }
+}
+
 /// Interval returned by [`interval`] and [`interval_at`].
 ///
 /// This type allows you to wait on a sequence of instants with a certain
