@@ -32,6 +32,7 @@ pub mod io;
 pub mod iter;
 pub mod macros;
 pub mod mem;
+pub mod net;
 pub mod num;
 pub mod object;
 pub mod ops;
