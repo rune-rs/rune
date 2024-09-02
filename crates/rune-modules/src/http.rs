@@ -98,7 +98,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.function_meta(RequestBuilder::timeout)?;
 
     module
-        .constant("CONTINUE", 100)
+        .constant(
+            "CONTINUE",
+            StatusCode {
+                inner: reqwest::StatusCode::CONTINUE,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Continue
@@ -113,7 +118,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("SWITCHING_PROTOCOLS", 101)
+        .constant(
+            "SWITCHING_PROTOCOLS",
+            StatusCode {
+                inner: reqwest::StatusCode::SWITCHING_PROTOCOLS,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Switching Protocols
@@ -128,7 +138,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("PROCESSING", 102)
+        .constant(
+            "PROCESSING",
+            StatusCode {
+                inner: reqwest::StatusCode::PROCESSING,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Processing
@@ -143,7 +158,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("OK", 200)
+        .constant(
+            "OK",
+            StatusCode {
+                inner: reqwest::StatusCode::OK,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: OK
@@ -158,7 +178,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("CREATED", 201)
+        .constant(
+            "CREATED",
+            StatusCode {
+                inner: reqwest::StatusCode::CREATED,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Created
@@ -173,7 +198,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("ACCEPTED", 202)
+        .constant(
+            "ACCEPTED",
+            StatusCode {
+                inner: reqwest::StatusCode::ACCEPTED,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Accepted
@@ -188,7 +218,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("NON_AUTHORITATIVE_INFORMATION", 203)
+        .constant(
+            "NON_AUTHORITATIVE_INFORMATION",
+            StatusCode {
+                inner: reqwest::StatusCode::NON_AUTHORITATIVE_INFORMATION,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Non Authoritative Information
@@ -203,7 +238,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("NO_CONTENT", 204)
+        .constant(
+            "NO_CONTENT",
+            StatusCode {
+                inner: reqwest::StatusCode::NO_CONTENT,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: No Content
@@ -218,7 +258,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("RESET_CONTENT", 205)
+        .constant(
+            "RESET_CONTENT",
+            StatusCode {
+                inner: reqwest::StatusCode::RESET_CONTENT,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Reset Content
@@ -233,7 +278,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("PARTIAL_CONTENT", 206)
+        .constant(
+            "PARTIAL_CONTENT",
+            StatusCode {
+                inner: reqwest::StatusCode::PARTIAL_CONTENT,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Partial Content
@@ -248,7 +298,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("MULTI_STATUS", 207)
+        .constant(
+            "MULTI_STATUS",
+            StatusCode {
+                inner: reqwest::StatusCode::MULTI_STATUS,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Multi-Status
@@ -263,7 +318,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("ALREADY_REPORTED", 208)
+        .constant(
+            "ALREADY_REPORTED",
+            StatusCode {
+                inner: reqwest::StatusCode::ALREADY_REPORTED,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Already Reported
@@ -278,7 +338,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("IM_USED", 226)
+        .constant(
+            "IM_USED",
+            StatusCode {
+                inner: reqwest::StatusCode::IM_USED,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: IM Used
@@ -293,7 +358,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("MULTIPLE_CHOICES", 300)
+        .constant(
+            "MULTIPLE_CHOICES",
+            StatusCode {
+                inner: reqwest::StatusCode::MULTIPLE_CHOICES,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Multiple Choices
@@ -308,7 +378,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("MOVED_PERMANENTLY", 301)
+        .constant(
+            "MOVED_PERMANENTLY",
+            StatusCode {
+                inner: reqwest::StatusCode::MOVED_PERMANENTLY,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Moved Permanently
@@ -323,7 +398,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("FOUND", 302)
+        .constant(
+            "FOUND",
+            StatusCode {
+                inner: reqwest::StatusCode::FOUND,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Found
@@ -338,7 +418,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("SEE_OTHER", 303)
+        .constant(
+            "SEE_OTHER",
+            StatusCode {
+                inner: reqwest::StatusCode::SEE_OTHER,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: See Other
@@ -353,7 +438,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("NOT_MODIFIED", 304)
+        .constant(
+            "NOT_MODIFIED",
+            StatusCode {
+                inner: reqwest::StatusCode::NOT_MODIFIED,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Not Modified
@@ -368,7 +458,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("USE_PROXY", 305)
+        .constant(
+            "USE_PROXY",
+            StatusCode {
+                inner: reqwest::StatusCode::USE_PROXY,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Use Proxy
@@ -383,7 +478,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("TEMPORARY_REDIRECT", 307)
+        .constant(
+            "TEMPORARY_REDIRECT",
+            StatusCode {
+                inner: reqwest::StatusCode::TEMPORARY_REDIRECT,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Temporary Redirect
@@ -398,7 +498,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("PERMANENT_REDIRECT", 308)
+        .constant(
+            "PERMANENT_REDIRECT",
+            StatusCode {
+                inner: reqwest::StatusCode::PERMANENT_REDIRECT,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Permanent Redirect
@@ -413,7 +518,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("BAD_REQUEST", 400)
+        .constant(
+            "BAD_REQUEST",
+            StatusCode {
+                inner: reqwest::StatusCode::BAD_REQUEST,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Bad Request
@@ -428,7 +538,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("UNAUTHORIZED", 401)
+        .constant(
+            "UNAUTHORIZED",
+            StatusCode {
+                inner: reqwest::StatusCode::UNAUTHORIZED,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Unauthorized
@@ -443,7 +558,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("PAYMENT_REQUIRED", 402)
+        .constant(
+            "PAYMENT_REQUIRED",
+            StatusCode {
+                inner: reqwest::StatusCode::PAYMENT_REQUIRED,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Payment Required
@@ -458,7 +578,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("FORBIDDEN", 403)
+        .constant(
+            "FORBIDDEN",
+            StatusCode {
+                inner: reqwest::StatusCode::FORBIDDEN,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Forbidden
@@ -473,7 +598,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("NOT_FOUND", 404)
+        .constant(
+            "NOT_FOUND",
+            StatusCode {
+                inner: reqwest::StatusCode::NOT_FOUND,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Not Found
@@ -488,7 +618,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("METHOD_NOT_ALLOWED", 405)
+        .constant(
+            "METHOD_NOT_ALLOWED",
+            StatusCode {
+                inner: reqwest::StatusCode::METHOD_NOT_ALLOWED,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Method Not Allowed
@@ -503,7 +638,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("NOT_ACCEPTABLE", 406)
+        .constant(
+            "NOT_ACCEPTABLE",
+            StatusCode {
+                inner: reqwest::StatusCode::NOT_ACCEPTABLE,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Not Acceptable
@@ -518,7 +658,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("PROXY_AUTHENTICATION_REQUIRED", 407)
+        .constant(
+            "PROXY_AUTHENTICATION_REQUIRED",
+            StatusCode {
+                inner: reqwest::StatusCode::PROXY_AUTHENTICATION_REQUIRED,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Proxy Authentication Required
@@ -533,7 +678,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("REQUEST_TIMEOUT", 408)
+        .constant(
+            "REQUEST_TIMEOUT",
+            StatusCode {
+                inner: reqwest::StatusCode::REQUEST_TIMEOUT,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Request Timeout
@@ -548,7 +698,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("CONFLICT", 409)
+        .constant(
+            "CONFLICT",
+            StatusCode {
+                inner: reqwest::StatusCode::CONFLICT,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Conflict
@@ -563,7 +718,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("GONE", 410)
+        .constant(
+            "GONE",
+            StatusCode {
+                inner: reqwest::StatusCode::GONE,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Gone
@@ -578,7 +738,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("LENGTH_REQUIRED", 411)
+        .constant(
+            "LENGTH_REQUIRED",
+            StatusCode {
+                inner: reqwest::StatusCode::LENGTH_REQUIRED,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Length Required
@@ -593,7 +758,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("PRECONDITION_FAILED", 412)
+        .constant(
+            "PRECONDITION_FAILED",
+            StatusCode {
+                inner: reqwest::StatusCode::PRECONDITION_FAILED,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Precondition Failed
@@ -608,7 +778,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("PAYLOAD_TOO_LARGE", 413)
+        .constant(
+            "PAYLOAD_TOO_LARGE",
+            StatusCode {
+                inner: reqwest::StatusCode::PAYLOAD_TOO_LARGE,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Payload Too Large
@@ -623,7 +798,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("URI_TOO_LONG", 414)
+        .constant(
+            "URI_TOO_LONG",
+            StatusCode {
+                inner: reqwest::StatusCode::URI_TOO_LONG,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: URI Too Long
@@ -638,7 +818,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("UNSUPPORTED_MEDIA_TYPE", 415)
+        .constant(
+            "UNSUPPORTED_MEDIA_TYPE",
+            StatusCode {
+                inner: reqwest::StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Unsupported Media Type
@@ -653,7 +838,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("RANGE_NOT_SATISFIABLE", 416)
+        .constant(
+            "RANGE_NOT_SATISFIABLE",
+            StatusCode {
+                inner: reqwest::StatusCode::RANGE_NOT_SATISFIABLE,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Range Not Satisfiable
@@ -668,7 +858,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("EXPECTATION_FAILED", 417)
+        .constant(
+            "EXPECTATION_FAILED",
+            StatusCode {
+                inner: reqwest::StatusCode::EXPECTATION_FAILED,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Expectation Failed
@@ -683,7 +878,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("IM_A_TEAPOT", 418)
+        .constant(
+            "IM_A_TEAPOT",
+            StatusCode {
+                inner: reqwest::StatusCode::IM_A_TEAPOT,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: I'm a teapot
@@ -698,7 +898,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("MISDIRECTED_REQUEST", 421)
+        .constant(
+            "MISDIRECTED_REQUEST",
+            StatusCode {
+                inner: reqwest::StatusCode::MISDIRECTED_REQUEST,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Misdirected Request
@@ -713,7 +918,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("UNPROCESSABLE_ENTITY", 422)
+        .constant(
+            "UNPROCESSABLE_ENTITY",
+            StatusCode {
+                inner: reqwest::StatusCode::UNPROCESSABLE_ENTITY,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Unprocessable Entity
@@ -728,7 +938,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("LOCKED", 423)
+        .constant(
+            "LOCKED",
+            StatusCode {
+                inner: reqwest::StatusCode::LOCKED,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Locked
@@ -743,7 +958,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("FAILED_DEPENDENCY", 424)
+        .constant(
+            "FAILED_DEPENDENCY",
+            StatusCode {
+                inner: reqwest::StatusCode::FAILED_DEPENDENCY,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Failed Dependency
@@ -758,7 +978,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("UPGRADE_REQUIRED", 426)
+        .constant(
+            "UPGRADE_REQUIRED",
+            StatusCode {
+                inner: reqwest::StatusCode::UPGRADE_REQUIRED,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Upgrade Required
@@ -773,7 +998,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("PRECONDITION_REQUIRED", 428)
+        .constant(
+            "PRECONDITION_REQUIRED",
+            StatusCode {
+                inner: reqwest::StatusCode::PRECONDITION_REQUIRED,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Precondition Required
@@ -788,7 +1018,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("TOO_MANY_REQUESTS", 429)
+        .constant(
+            "TOO_MANY_REQUESTS",
+            StatusCode {
+                inner: reqwest::StatusCode::TOO_MANY_REQUESTS,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Too Many Requests
@@ -803,7 +1038,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("REQUEST_HEADER_FIELDS_TOO_LARGE", 431)
+        .constant(
+            "REQUEST_HEADER_FIELDS_TOO_LARGE",
+            StatusCode {
+                inner: reqwest::StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Request Header Fields Too Large
@@ -818,7 +1058,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("UNAVAILABLE_FOR_LEGAL_REASONS", 451)
+        .constant(
+            "UNAVAILABLE_FOR_LEGAL_REASONS",
+            StatusCode {
+                inner: reqwest::StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Unavailable For Legal Reasons
@@ -833,7 +1078,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("INTERNAL_SERVER_ERROR", 500)
+        .constant(
+            "INTERNAL_SERVER_ERROR",
+            StatusCode {
+                inner: reqwest::StatusCode::INTERNAL_SERVER_ERROR,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Internal Server Error
@@ -848,7 +1098,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("NOT_IMPLEMENTED", 501)
+        .constant(
+            "NOT_IMPLEMENTED",
+            StatusCode {
+                inner: reqwest::StatusCode::NOT_IMPLEMENTED,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Not Implemented
@@ -863,7 +1118,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("BAD_GATEWAY", 502)
+        .constant(
+            "BAD_GATEWAY",
+            StatusCode {
+                inner: reqwest::StatusCode::BAD_GATEWAY,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Bad Gateway
@@ -878,7 +1138,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("SERVICE_UNAVAILABLE", 503)
+        .constant(
+            "SERVICE_UNAVAILABLE",
+            StatusCode {
+                inner: reqwest::StatusCode::SERVICE_UNAVAILABLE,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Service Unavailable
@@ -893,7 +1158,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("GATEWAY_TIMEOUT", 504)
+        .constant(
+            "GATEWAY_TIMEOUT",
+            StatusCode {
+                inner: reqwest::StatusCode::GATEWAY_TIMEOUT,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Gateway Timeout
@@ -908,7 +1178,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("HTTP_VERSION_NOT_SUPPORTED", 505)
+        .constant(
+            "HTTP_VERSION_NOT_SUPPORTED",
+            StatusCode {
+                inner: reqwest::StatusCode::HTTP_VERSION_NOT_SUPPORTED,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: HTTP Version Not Supported
@@ -923,7 +1198,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("VARIANT_ALSO_NEGOTIATES", 506)
+        .constant(
+            "VARIANT_ALSO_NEGOTIATES",
+            StatusCode {
+                inner: reqwest::StatusCode::VARIANT_ALSO_NEGOTIATES,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Variant Also Negotiates
@@ -938,7 +1218,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("INSUFFICIENT_STORAGE", 507)
+        .constant(
+            "INSUFFICIENT_STORAGE",
+            StatusCode {
+                inner: reqwest::StatusCode::INSUFFICIENT_STORAGE,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Insufficient Storage
@@ -953,7 +1238,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("LOOP_DETECTED", 508)
+        .constant(
+            "LOOP_DETECTED",
+            StatusCode {
+                inner: reqwest::StatusCode::LOOP_DETECTED,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Loop Detected
@@ -968,7 +1258,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("NOT_EXTENDED", 510)
+        .constant(
+            "NOT_EXTENDED",
+            StatusCode {
+                inner: reqwest::StatusCode::NOT_EXTENDED,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Not Extended
@@ -983,7 +1278,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module
-        .constant("NETWORK_AUTHENTICATION_REQUIRED", 511)
+        .constant(
+            "NETWORK_AUTHENTICATION_REQUIRED",
+            StatusCode {
+                inner: reqwest::StatusCode::NETWORK_AUTHENTICATION_REQUIRED,
+            },
+        )
         .build_associated::<StatusCode>()?
         .docs(docstring! {
             /// Status Code: Network Authentication Required
@@ -1356,9 +1656,9 @@ impl RequestBuilder {
     }
 
     #[rune::function]
-    fn basic_auth(self, username: String, password: Option<String>) -> Self {
+    fn basic_auth(self, username: &str, password: Option<Ref<str>>) -> Self {
         Self {
-            request: self.request.basic_auth(username, password),
+            request: self.request.basic_auth(username, password.as_deref()),
         }
     }
 
