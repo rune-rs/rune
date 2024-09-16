@@ -21,6 +21,7 @@ full = [
     "json",
     "toml",
     "fs",
+    "net",
     "process",
     "signal",
     "rand",
@@ -32,6 +33,7 @@ time = ["tokio", "tokio?/time"]
 fs = ["tokio", "tokio?/fs"]
 http = ["reqwest"]
 json = ["serde_json"]
+net = []
 process = ["tokio/process", "rune/std"]
 signal = ["tokio/signal"]
 rand = ["nanorand"]

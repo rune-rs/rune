@@ -1,13 +1,35 @@
-//! The networking module.
+//! The native `net` module for the [Rune Language].
+//!
+//! [Rune Language]: https://rune-rs.github.io
+//!
+//! ## Usage
+//!
+//! Add the following to your `Cargo.toml`:
+//!
+//! ```toml
+//! rune-modules = { version = "0.14.0", features = ["net"] }
+//! ```
+//!
+//! Install it into your context:
+//!
+//! ```rust
+//! let mut context = rune::Context::with_default_modules()?;
+//! context.install(rune_modules::net::module(true)?)?;
+//! # Ok::<_, rune::support::Error>(())
+//! ```
+//!
+//! Use it in Rune:
+//!
+//! ```rust,ignore
+//! ```
 
 use std::net;
 
-use crate as rune;
-use crate::{Any, ContextError, Module};
+use rune::{Any, ContextError, Module};
 
-/// The networking module.
+/// Construct the `net` module.
 #[rune::module(::std::net)]
-pub fn module() -> Result<Module, ContextError> {
+pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     let mut module = Module::from_meta(self::module_meta)?;
 
     module.ty::<SocketAddr>()?;
@@ -33,7 +55,7 @@ pub fn module() -> Result<Module, ContextError> {
 
 /// An internet socket address, either IPv4 or IPv6.
 #[derive(Debug, Any)]
-#[rune(item = ::std::net)]
+#[rune(item = ::net)]
 pub struct SocketAddr {
     inner: net::SocketAddr,
 }
