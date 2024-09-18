@@ -8,7 +8,7 @@ use std::sync::Arc;
 use anyhow::{Context as _, Result};
 use rune::{Context, Vm};
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     let root =
         PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").context("missing CARGO_MANIFEST_DIR")?);
