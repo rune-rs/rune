@@ -46,7 +46,7 @@ fn panic(message: &str) -> VmResult<()> {
 
 /// Test if the given `value` is readable.
 ///
-/// A value is writable if can be acquired for shared access, such as producing
+/// A value is readable if can be acquired for shared access, such as producing
 /// an immutable reference.
 ///
 /// A value that is moved is no longer considered readable.
