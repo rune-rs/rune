@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1726190064579,
+  "lastUpdate": 1726794913130,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -28225,6 +28225,106 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 365,
             "range": "± 2",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "AngelicosPhosphoros",
+            "username": "AngelicosPhosphoros",
+            "email": "angelicos.phosphoros@protonmail.com"
+          },
+          "committer": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "id": "0c3e5b1565d5a152438b436882ac6ae2a6ac9bef",
+          "message": "Fixed tokio error in hot reload example\n\n`#[tokio::main]` macro refused to compile because it uses multithreaded runtime by default but the example disabled multithreading.",
+          "timestamp": "2024-09-18T23:11:23Z",
+          "url": "https://github.com/rune-rs/rune/commit/0c3e5b1565d5a152438b436882ac6ae2a6ac9bef"
+        },
+        "date": 1726794912543,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "primes/rhai",
+            "value": 11298515,
+            "range": "± 193002",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "primes/rune",
+            "value": 5034225,
+            "range": "± 94123",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 185485,
+            "range": "± 9686",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1018098,
+            "range": "± 28138",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 279521124,
+            "range": "± 2759406",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 261209455,
+            "range": "± 2257259",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 689876,
+            "range": "± 10637",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 7609619,
+            "range": "± 107792",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 41508967,
+            "range": "± 436995",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 6308940,
+            "range": "± 103652",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 230064,
+            "range": "± 3123",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 2550470,
+            "range": "± 25434",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 373,
+            "range": "± 4",
             "unit": "ns/iter"
           }
         ]
