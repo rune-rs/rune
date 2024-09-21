@@ -513,8 +513,8 @@ impl VecDeque {
 
     /// Build a [`VecDeque`] from an iterator.
     ///
-    /// The hashmap can be converted from anything that implements the
-    /// [`INTO_ITER`] protocol, and each item produces should be a tuple pair.
+    /// The vecdeque can be converted from anything that implements the
+    /// [`INTO_ITER`] protocol.
     ///
     /// # Examples
     ///
