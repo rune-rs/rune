@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1726794913130,
+  "lastUpdate": 1726968103377,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -28325,6 +28325,106 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 373,
             "range": "± 4",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "AngelicosPhosphoros",
+            "username": "AngelicosPhosphoros",
+            "email": "angelicos.phosphoros@protonmail.com"
+          },
+          "committer": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "id": "5c7d32a7ec0a367609fcdf96d5960de4e58d1553",
+          "message": "Remove copypaste from docs of `VecDeque` and `HashSet`\n\nSeems that docs were copied from `HashMap`, I made it more appropriate to the actual types.",
+          "timestamp": "2024-09-21T01:49:25Z",
+          "url": "https://github.com/rune-rs/rune/commit/5c7d32a7ec0a367609fcdf96d5960de4e58d1553"
+        },
+        "date": 1726968102811,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "primes/rhai",
+            "value": 10290540,
+            "range": "± 58381",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "primes/rune",
+            "value": 5500902,
+            "range": "± 72127",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 190604,
+            "range": "± 3566",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1020815,
+            "range": "± 27761",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 296494200,
+            "range": "± 3013865",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 262705203,
+            "range": "± 2272339",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 798291,
+            "range": "± 6365",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 8596872,
+            "range": "± 84912",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 47536246,
+            "range": "± 446534",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 7358500,
+            "range": "± 55761",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 226934,
+            "range": "± 1040",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 2515798,
+            "range": "± 15655",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 415,
+            "range": "± 1",
             "unit": "ns/iter"
           }
         ]
