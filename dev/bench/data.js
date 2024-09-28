@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1726968103377,
+  "lastUpdate": 1727486198871,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -28425,6 +28425,106 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 415,
             "range": "± 1",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]",
+            "email": "49699333+dependabot[bot]@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "id": "e1246fbcb5982caec4df09fdf8ce128850607d50",
+          "message": "build(deps-dev): bump rollup from 3.21.6 to 3.29.5 in /crates/rune-wasm\n\nBumps [rollup](https://github.com/rollup/rollup) from 3.21.6 to 3.29.5.\n- [Release notes](https://github.com/rollup/rollup/releases)\n- [Changelog](https://github.com/rollup/rollup/blob/master/CHANGELOG.md)\n- [Commits](https://github.com/rollup/rollup/compare/v3.21.6...v3.29.5)\n\n---\nupdated-dependencies:\n- dependency-name: rollup\n  dependency-type: direct:development\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>",
+          "timestamp": "2024-09-26T14:51:22Z",
+          "url": "https://github.com/rune-rs/rune/commit/e1246fbcb5982caec4df09fdf8ce128850607d50"
+        },
+        "date": 1727486197728,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "primes/rhai",
+            "value": 10426205,
+            "range": "± 76757",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "primes/rune",
+            "value": 4936767,
+            "range": "± 61095",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 187173,
+            "range": "± 3884",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1082709,
+            "range": "± 12920",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 275500834,
+            "range": "± 1941825",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 259768271,
+            "range": "± 1376106",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 674062,
+            "range": "± 2878",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 7196663,
+            "range": "± 39204",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 41496796,
+            "range": "± 370175",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 6151635,
+            "range": "± 59786",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 243383,
+            "range": "± 1197",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 2716169,
+            "range": "± 11444",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 399,
+            "range": "± 5",
             "unit": "ns/iter"
           }
         ]
