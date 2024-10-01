@@ -9,9 +9,9 @@ use crate::alloc::{self, Box, Vec};
 use crate::function;
 use crate::runtime::vm::Isolated;
 use crate::runtime::{
-    Args, Call, ConstValue, FromValue, FunctionHandler, InstAddress, Mutable, Output, OwnedTuple,
-    Rtti, RuntimeContext, Stack, Unit, Value, ValueRef, VariantRtti, Vm, VmCall, VmErrorKind,
-    VmHalt, VmResult,
+    Args, Call, ConstValue, FromValue, FunctionHandler, GuardedArgs, InstAddress, Mutable, Output,
+    OwnedTuple, Rtti, RuntimeContext, Stack, Unit, Value, ValueRef, VariantRtti, Vm, VmCall,
+    VmErrorKind, VmHalt, VmResult,
 };
 use crate::shared::AssertSend;
 use crate::Any;
