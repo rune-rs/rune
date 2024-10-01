@@ -105,3 +105,103 @@ impl GuardedArgs for ::rust_alloc::vec::Vec<Value> {
         (self as &dyn Args).count()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::GuardedArgs;
+    use crate::Value;
+
+    #[derive(Default)]
+    struct MyAny {}
+
+    crate::__internal_impl_any!(self, MyAny);
+
+    fn get_guarded_arg_value() -> impl GuardedArgs {
+        (Value::unit(),)
+    }
+
+    fn get_guarded_arg_reference(value: &MyAny) -> impl GuardedArgs {
+        let (by_reference, _) = unsafe { Value::from_ref(value) }.unwrap();
+        (by_reference,)
+    }
+
+    fn get_guarded_arg_rune_vec() -> impl GuardedArgs {
+        let by_value = Value::unit();
+
+        let mine = MyAny::default();
+        let (by_reference, _) = unsafe { Value::from_ref(&mine) }.unwrap();
+
+        let mut values = crate::alloc::Vec::new();
+        values.try_push(by_value).unwrap();
+        values.try_push(by_reference).unwrap();
+        values
+    }
+
+    #[test]
+    fn assert_references_are_not_readable() {
+        let (value_result, _) = unsafe { get_guarded_arg_value().unsafe_into_vec() }.unwrap();
+        assert_eq!(value_result.len(), 1);
+        assert!(value_result[0].is_readable());
+
+        let mine = MyAny::default();
+        let (reference_result, _) =
+            unsafe { get_guarded_arg_reference(&mine).unsafe_into_vec() }.unwrap();
+        assert_eq!(value_result.len(), 1);
+        assert!(!reference_result[0].is_readable());
+
+        let rune_vec = get_guarded_arg_rune_vec();
+        let (rune_vec_result, _) = unsafe { rune_vec.unsafe_into_vec() }.unwrap();
+        assert_eq!(rune_vec_result.len(), 2);
+        assert!(rune_vec_result[0].is_readable());
+        assert!(!rune_vec_result[1].is_readable());
+    }
+
+    #[test]
+    fn assert_references_are_not_writable() {
+        let (value_result, _) = unsafe { get_guarded_arg_value().unsafe_into_vec() }.unwrap();
+        assert_eq!(value_result.len(), 1);
+        assert!(value_result[0].is_writable());
+
+        let mine = MyAny::default();
+        let (reference_result, _) =
+            unsafe { get_guarded_arg_reference(&mine).unsafe_into_vec() }.unwrap();
+        assert_eq!(value_result.len(), 1);
+        assert!(!reference_result[0].is_writable());
+
+        let rune_vec = get_guarded_arg_rune_vec();
+        let (rune_vec_result, _) = unsafe { rune_vec.unsafe_into_vec() }.unwrap();
+        assert_eq!(rune_vec_result.len(), 2);
+        assert!(rune_vec_result[0].is_writable());
+        assert!(!rune_vec_result[1].is_writable());
+    }
+
+    #[cfg(feature = "std")]
+    fn get_guarded_arg_std_vec() -> impl GuardedArgs {
+        let by_value = Value::unit();
+
+        let mine = MyAny::default();
+        let (by_reference, _) = unsafe { Value::from_ref(&mine) }.unwrap();
+
+        vec![by_value, by_reference]
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn assert_references_are_not_readable_std() {
+        let std_vec = get_guarded_arg_std_vec();
+        let (std_vec_result, _) = unsafe { std_vec.unsafe_into_vec() }.unwrap();
+        assert_eq!(std_vec_result.len(), 2);
+        assert!(std_vec_result[0].is_readable());
+        assert!(!std_vec_result[1].is_readable());
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn assert_references_are_not_writable_std() {
+        let std_vec = get_guarded_arg_std_vec();
+        let (std_vec_result, _) = unsafe { std_vec.unsafe_into_vec() }.unwrap();
+        assert_eq!(std_vec_result.len(), 2);
+        assert!(std_vec_result[0].is_writable());
+        assert!(!std_vec_result[1].is_writable());
+    }
+}
