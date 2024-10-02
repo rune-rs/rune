@@ -526,6 +526,7 @@ where
             raw_str,
             ref_,
             static_type_mod,
+            to_value,
             type_info,
             type_of,
             unsafe_to_mut,
@@ -695,6 +696,14 @@ where
                         let (shared, guard) = #vm_try!(#value::from_ref(self));
                         #vm_result::Ok((shared, guard))
                     }
+
+                    fn is_to_value(&self) -> bool {
+                        false
+                    }
+
+                    fn try_into_to_value(self) -> Option<impl #to_value> {
+                        Option::<&str>::None
+                    }
                 }
 
                 #[automatically_derived]
@@ -704,6 +713,14 @@ where
                     unsafe fn unsafe_to_value(self) -> #vm_result<(#value, Self::Guard)> {
                         let (shared, guard) = #vm_try!(#value::from_mut(self));
                         #vm_result::Ok((shared, guard))
+                    }
+
+                    fn is_to_value(&self) -> bool {
+                        false
+                    }
+
+                    fn try_into_to_value(self) -> Option<impl #to_value> {
+                        Option::<&str>::None
                     }
                 }
             })

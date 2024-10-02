@@ -740,6 +740,7 @@ pub(crate) enum VmErrorKind {
     },
     MissingCallFrame,
     IllegalFormat,
+    InvalidTupleCall,
 }
 
 impl fmt::Display for VmErrorKind {
@@ -948,6 +949,12 @@ impl fmt::Display for VmErrorKind {
             }
             VmErrorKind::IllegalFormat => {
                 write!(f, "Value cannot be formatted")
+            }
+            VmErrorKind::InvalidTupleCall => {
+                write!(
+                    f,
+                    "Tuple struct/variant constructors cannot be called with references"
+                )
             }
         }
     }
