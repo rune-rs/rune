@@ -45,8 +45,6 @@ macro_rules! impl_into_args {
             }
 
             fn try_into_args(self) -> Option<impl Args> {
-                let ($($value,)*) = &self;
-                $(if !$value.is_to_value() { return None })*
                 let ($($value,)*) = self;
                 Some(($($value.try_into_to_value()?,)*))
             }

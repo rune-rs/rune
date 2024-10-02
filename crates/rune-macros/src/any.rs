@@ -697,10 +697,6 @@ where
                         #vm_result::Ok((shared, guard))
                     }
 
-                    fn is_to_value(&self) -> bool {
-                        false
-                    }
-
                     fn try_into_to_value(self) -> Option<impl #to_value> {
                         Option::<&str>::None
                     }
@@ -713,10 +709,6 @@ where
                     unsafe fn unsafe_to_value(self) -> #vm_result<(#value, Self::Guard)> {
                         let (shared, guard) = #vm_try!(#value::from_mut(self));
                         #vm_result::Ok((shared, guard))
-                    }
-
-                    fn is_to_value(&self) -> bool {
-                        false
                     }
 
                     fn try_into_to_value(self) -> Option<impl #to_value> {
