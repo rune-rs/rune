@@ -1,0 +1,38 @@
+// This tests an issue where the temporary value inside of the `&&` operator
+// overwrites the left hand side slot.
+// https://github.com/rune-rs/rune/issues/830
+
+#[test]
+fn if_stmt() {
+    let value = true;
+
+    if value && false {
+        panic!("should not be reached");
+    }
+
+    assert!(value);
+}
+
+#[test]
+fn else_if_stmt() {
+    let value = true;
+
+    if false {
+        panic!("should not be reached");
+    } else if value && false {
+        panic!("should not be reached");
+    }
+
+    assert!(value);
+}
+
+#[test]
+fn while_stmt() {
+    let value = true;
+
+    while value && false {
+        panic!("should not be reached");
+    }
+
+    assert!(value);
+}
