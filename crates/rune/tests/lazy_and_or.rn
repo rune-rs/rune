@@ -1,5 +1,5 @@
 #[test]
-fn test_lazy_and_or() {
+fn lazy_and_or() {
     let result = (|| true || return false)();
     assert_eq!(result, true);
 
