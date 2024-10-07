@@ -640,10 +640,10 @@ fn condition<'a, 'hir>(
     match *hir {
         hir::Condition::Expr(hir) => {
             let scope = cx.scopes.child(hir)?;
-            let mut addr = cx.scopes.defer(hir);
+            let mut addr = cx.scopes.alloc(hir)?;
 
             let asm = if expr(cx, hir, &mut addr)?.converging() {
-                cx.asm.jump_if(addr.addr()?.addr(), then_label, hir)?;
+                cx.asm.jump_if(addr.addr(), then_label, hir)?;
                 Asm::new(hir, (scope, Pattern::Irrefutable))
             } else {
                 cx.scopes.pop(hir, scope)?;
@@ -1502,8 +1502,9 @@ fn compile_conditional_binop<'a, 'hir>(
     span: &'hir dyn Spanned,
     needs: &mut dyn Needs<'a, 'hir>,
 ) -> compile::Result<Asm<'hir>> {
-    let end_label = cx.asm.new_label("conditional_end");
     converge!(expr(cx, lhs, needs)?);
+
+    let end_label = cx.asm.new_label("conditional_end");
     let addr = needs.addr()?;
 
     match bin_op {
@@ -1521,7 +1522,8 @@ fn compile_conditional_binop<'a, 'hir>(
         }
     }
 
-    // rhs needs to be ignored since it might be jumped over.
+    // rhs needs to be ignored since its value isn't used directly, but rather
+    // only affects control flow.
     expr(cx, rhs, needs)?.ignore();
     cx.asm.label(&end_label)?;
     Ok(Asm::new(span, ()))
