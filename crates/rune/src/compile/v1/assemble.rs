@@ -640,17 +640,18 @@ fn condition<'a, 'hir>(
     match *hir {
         hir::Condition::Expr(hir) => {
             let scope = cx.scopes.child(hir)?;
-            let mut addr = cx.scopes.alloc(hir)?;
+            let mut addr = cx.scopes.alloc(hir)?.with_name("expression condition");
 
             let asm = if expr(cx, hir, &mut addr)?.converging() {
                 cx.asm.jump_if(addr.addr(), then_label, hir)?;
+                addr.free()?;
                 Asm::new(hir, (scope, Pattern::Irrefutable))
             } else {
+                addr.free()?;
                 cx.scopes.pop(hir, scope)?;
                 Asm::diverge(hir)
             };
 
-            addr.free()?;
             Ok(asm)
         }
         hir::Condition::ExprLet(hir) => {
@@ -2412,15 +2413,12 @@ fn expr_match<'a, 'hir>(
             let mut converges = true;
 
             if let Some(condition) = branch.condition {
-                let span = condition;
-                let mut cond = cx.scopes.defer(condition);
-
-                let scope = cx.scopes.child(span)?;
+                let scope = cx.scopes.child(condition)?;
+                let mut cond = cx.scopes.alloc(condition)?.with_name("match condition");
 
                 if expr(cx, condition, &mut cond)?.converging() {
-                    cx.asm
-                        .jump_if_not(cond.addr()?.addr(), &match_false, span)?;
-                    cx.asm.jump(&branch_label, span)?;
+                    cx.asm.jump_if_not(cond.addr(), &match_false, condition)?;
+                    cx.asm.jump(&branch_label, condition)?;
                 } else {
                     converges = false;
                 }

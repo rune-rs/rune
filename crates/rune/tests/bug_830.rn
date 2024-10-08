@@ -36,3 +36,17 @@ fn while_stmt() {
 
     assert!(value);
 }
+
+#[test]
+fn match_stmt() {
+    let value = true;
+
+    let value2 = match true {
+        false => false,
+        _ if value && false => panic!("should not be reached"),
+        true => true,
+    };
+
+    assert!(value);
+    assert!(value2);
+}
