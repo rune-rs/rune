@@ -1,0 +1,36 @@
+#[test]
+fn diverging_if() {
+    fn inner() {
+        if return true {
+        }
+
+        false
+    }
+
+    assert!(inner());
+}
+
+#[test]
+fn diverging_condition_while() {
+    fn inner() {
+        while return true {
+        }
+
+        false
+    }
+
+    assert!(inner());
+}
+
+#[test]
+fn diverging_condition_match() {
+    fn inner() {
+        match true {
+            false => false,
+            _ if return true => false,
+            true => false,
+        }
+    }
+
+    assert!(inner());
+}
