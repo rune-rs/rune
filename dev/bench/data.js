@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1728350229950,
+  "lastUpdate": 1728436622472,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -28625,6 +28625,106 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 372,
             "range": "± 3",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "committer": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "id": "9c525d75f21551abf8b112f796ec51edaa1fc9b7",
+          "message": "rune: Fix freed address with diverging conditions",
+          "timestamp": "2024-10-08T09:10:18Z",
+          "url": "https://github.com/rune-rs/rune/commit/9c525d75f21551abf8b112f796ec51edaa1fc9b7"
+        },
+        "date": 1728436621107,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "primes/rhai",
+            "value": 11872688,
+            "range": "± 239121",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "primes/rune",
+            "value": 4867145,
+            "range": "± 248295",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 191313,
+            "range": "± 1859",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1054920,
+            "range": "± 65335",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 271745857,
+            "range": "± 1719165",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 261054842,
+            "range": "± 1359580",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 665674,
+            "range": "± 3482",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 7221276,
+            "range": "± 55380",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 41702160,
+            "range": "± 1602605",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 6031164,
+            "range": "± 140515",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 234225,
+            "range": "± 1031",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 2587226,
+            "range": "± 23638",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 378,
+            "range": "± 46",
             "unit": "ns/iter"
           }
         ]
