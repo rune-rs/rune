@@ -77,7 +77,7 @@ jobs:
       matrix:
         include:
           - crate: rune
-            target: "runtime:: hir::arena:: --skip runtime::vm:: --skip runtime::vm_execution:: --skip runtime::function::"
+            target: "runtime:: hir::arena:: --skip runtime::vm:: --skip runtime::vm_execution::"
           - crate: rune-alloc
     steps:
     - uses: actions/checkout@v4
