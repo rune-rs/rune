@@ -9,9 +9,9 @@ use crate::alloc::{self, Box, Vec};
 use crate::function;
 use crate::runtime::vm::Isolated;
 use crate::runtime::{
-    Args, Call, ConstValue, FromValue, FunctionHandler, InstAddress, Mutable, Output, OwnedTuple,
-    Rtti, RuntimeContext, Stack, Unit, Value, ValueRef, VariantRtti, Vm, VmCall, VmErrorKind,
-    VmHalt, VmResult,
+    Args, Call, ConstValue, FromValue, FunctionHandler, GuardedArgs, InstAddress, Mutable, Output,
+    OwnedTuple, Rtti, RuntimeContext, Stack, Unit, Value, ValueRef, VariantRtti, Vm, VmCall,
+    VmErrorKind, VmHalt, VmResult,
 };
 use crate::shared::AssertSend;
 use crate::Any;
@@ -146,7 +146,7 @@ impl Function {
     /// [Send].
     pub async fn async_send_call<A, T>(&self, args: A) -> VmResult<T>
     where
-        A: Send + Args,
+        A: Send + GuardedArgs,
         T: Send + FromValue,
     {
         self.0.async_send_call(args).await
@@ -179,7 +179,7 @@ impl Function {
     /// assert_eq!(value.call::<u32>((1, 2)).into_result()?, 3);
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn call<T>(&self, args: impl Args) -> VmResult<T>
+    pub fn call<T>(&self, args: impl GuardedArgs) -> VmResult<T>
     where
         T: FromValue,
     {
@@ -403,7 +403,7 @@ impl SyncFunction {
     /// # })?;
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub async fn async_send_call<T>(&self, args: impl Args + Send) -> VmResult<T>
+    pub async fn async_send_call<T>(&self, args: impl GuardedArgs + Send) -> VmResult<T>
     where
         T: Send + FromValue,
     {
@@ -437,7 +437,7 @@ impl SyncFunction {
     /// assert_eq!(add.call::<u32>((1, 2)).into_result()?, 3);
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn call<T>(&self, args: impl Args) -> VmResult<T>
+    pub fn call<T>(&self, args: impl GuardedArgs) -> VmResult<T>
     where
         T: FromValue,
     {
@@ -506,7 +506,7 @@ where
     OwnedTuple: TryFrom<Box<[V]>>,
     VmErrorKind: From<<OwnedTuple as TryFrom<Box<[V]>>>::Error>,
 {
-    fn call<T>(&self, args: impl Args) -> VmResult<T>
+    fn call<T>(&self, args: impl GuardedArgs) -> VmResult<T>
     where
         T: FromValue,
     {
@@ -516,7 +516,7 @@ where
                 let size = count.max(1);
                 // Ensure we have space for the return value.
                 let mut stack = vm_try!(Stack::with_capacity(size));
-                vm_try!(args.into_stack(&mut stack));
+                let _guard = vm_try!(unsafe { args.unsafe_into_stack(&mut stack) });
                 vm_try!(stack.resize(size));
                 vm_try!((handler.handler)(
                     &mut stack,
@@ -540,6 +540,9 @@ where
             }
             Inner::FnTupleStruct(tuple) => {
                 vm_try!(check_args(args.count(), tuple.args));
+                let Some(args) = args.try_into_args() else {
+                    return VmResult::err(VmErrorKind::InvalidTupleCall);
+                };
                 vm_try!(Value::tuple_struct(
                     tuple.rtti.clone(),
                     vm_try!(args.try_into_vec())
@@ -551,6 +554,9 @@ where
             }
             Inner::FnTupleVariant(tuple) => {
                 vm_try!(check_args(args.count(), tuple.args));
+                let Some(args) = args.try_into_args() else {
+                    return VmResult::err(VmErrorKind::InvalidTupleCall);
+                };
                 vm_try!(Value::tuple_variant(
                     tuple.rtti.clone(),
                     vm_try!(args.try_into_vec())
@@ -563,7 +569,7 @@ where
 
     fn async_send_call<'a, A, T>(&'a self, args: A) -> impl Future<Output = VmResult<T>> + Send + 'a
     where
-        A: 'a + Send + Args,
+        A: 'a + Send + GuardedArgs,
         T: 'a + Send + FromValue,
     {
         let future = async move {
@@ -902,7 +908,7 @@ struct FnOffset {
 impl FnOffset {
     /// Perform a call into the specified offset and return the produced value.
     #[tracing::instrument(skip_all, fields(args = args.count(), extra = extra.count(), ?self.offset, ?self.call, ?self.args, ?self.hash))]
-    fn call(&self, args: impl Args, extra: impl Args) -> VmResult<Value> {
+    fn call(&self, args: impl GuardedArgs, extra: impl Args) -> VmResult<Value> {
         vm_try!(check_args(
             args.count().wrapping_add(extra.count()),
             self.args
@@ -911,7 +917,7 @@ impl FnOffset {
         let mut vm = Vm::new(self.context.clone(), self.unit.clone());
 
         vm.set_ip(self.offset);
-        vm_try!(args.into_stack(vm.stack_mut()));
+        let _guard = vm_try!(unsafe { args.unsafe_into_stack(vm.stack_mut()) });
         vm_try!(extra.into_stack(vm.stack_mut()));
 
         self.call.call_with_vm(vm)

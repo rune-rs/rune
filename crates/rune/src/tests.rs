@@ -439,6 +439,7 @@ mod external_constructor;
 mod external_generic;
 mod external_match;
 mod external_ops;
+mod function_guardedargs;
 mod getter_setter;
 mod iterator;
 mod macros;
