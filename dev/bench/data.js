@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1728436622472,
+  "lastUpdate": 1728609425993,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -28725,6 +28725,106 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 378,
             "range": "± 46",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Dan Stoza",
+            "username": "dstoza",
+            "email": "dstoza@gmail.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "3726f5fd3b3bcaec7adb25056ce3c99576093359",
+          "message": "Convert Function::call to take GuardedArgs (#715)",
+          "timestamp": "2024-10-11T00:24:10Z",
+          "url": "https://github.com/rune-rs/rune/commit/3726f5fd3b3bcaec7adb25056ce3c99576093359"
+        },
+        "date": 1728609425219,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "primes/rhai",
+            "value": 10795861,
+            "range": "± 259184",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "primes/rune",
+            "value": 4892119,
+            "range": "± 34493",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 190878,
+            "range": "± 6053",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 980391,
+            "range": "± 9501",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 294743327,
+            "range": "± 3547958",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 260347556,
+            "range": "± 3077759",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 747619,
+            "range": "± 5513",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 8315478,
+            "range": "± 40510",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 46047376,
+            "range": "± 227264",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 7017117,
+            "range": "± 33875",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 227064,
+            "range": "± 1992",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 2509875,
+            "range": "± 17226",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 378,
+            "range": "± 17",
             "unit": "ns/iter"
           }
         ]
