@@ -1,16 +1,21 @@
 use core::fmt;
 use core::future;
 use core::pin::Pin;
+use core::ptr::NonNull;
 use core::task::{Context, Poll};
 
+use crate::alloc::alloc::Global;
 use crate::alloc::{self, Box};
 use crate::runtime::{ToValue, Value, VmErrorKind, VmResult};
 use crate::Any;
 
 use pin_project::pin_project;
 
-/// dyn future alias.
-type DynFuture = dyn future::Future<Output = VmResult<Value>> + 'static;
+/// A virtual table for a type-erased future.
+struct Vtable {
+    poll: unsafe fn(*mut (), cx: &mut Context<'_>) -> Poll<VmResult<Value>>,
+    drop: unsafe fn(*mut ()),
+}
 
 /// A type-erased future that can only be unsafely polled in combination with
 /// the virtual machine that created it.
@@ -19,7 +24,8 @@ type DynFuture = dyn future::Future<Output = VmResult<Value>> + 'static;
 #[rune(builtin, static_type = FUTURE)]
 #[rune(from_value = Value::into_future)]
 pub struct Future {
-    future: Option<Pin<Box<DynFuture>>>,
+    future: Option<NonNull<()>>,
+    vtable: &'static Vtable,
 }
 
 impl Future {
@@ -29,27 +35,25 @@ impl Future {
         T: 'static + future::Future<Output = VmResult<O>>,
         O: ToValue,
     {
-        // First construct a normal box, then coerce unsized.
-        let b = Box::try_new(async move {
-            let value = vm_try!(future.await);
-            value.to_value()
-        })?;
+        let (future, Global) = Box::into_raw_with_allocator(Box::try_new(future)?);
 
-        // SAFETY: We know that the allocator the boxed used is `Global`, which
-        // is compatible with the allocator used by the `std` box.
-        unsafe {
-            let (ptr, alloc) = Box::into_raw_with_allocator(b);
-            // Our janky coerce unsized.
-            let b: ::rust_alloc::boxed::Box<DynFuture> = ::rust_alloc::boxed::Box::from_raw(ptr);
-            let b = ::rust_alloc::boxed::Box::into_raw(b);
-            let b = Box::from_raw_in(b, alloc);
+        let future = unsafe { NonNull::new_unchecked(future).cast() };
 
-            // Second convert into one of our boxes, which ensures that memory is
-            // being accounted for.
-            Ok(Self {
-                future: Some(Box::into_pin(b)),
-            })
-        }
+        Ok(Self {
+            future: Some(future),
+            vtable: &Vtable {
+                poll: |future, cx| unsafe {
+                    match Pin::new_unchecked(&mut *future.cast::<T>()).poll(cx) {
+                        Poll::Pending => Poll::Pending,
+                        Poll::Ready(VmResult::Ok(result)) => Poll::Ready(result.to_value()),
+                        Poll::Ready(VmResult::Err(err)) => Poll::Ready(VmResult::Err(err)),
+                    }
+                },
+                drop: |future| unsafe {
+                    _ = Box::from_raw_in(future.cast::<T>(), Global);
+                },
+            },
+        })
     }
 
     /// Check if future is completed.
@@ -64,21 +68,31 @@ impl future::Future for Future {
     type Output = VmResult<Value>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<VmResult<Value>> {
-        let this = self.get_mut();
+        unsafe {
+            let this = self.get_unchecked_mut();
 
-        let future = match &mut this.future {
-            Some(future) => future,
-            None => {
+            let Some(future) = this.future else {
                 return Poll::Ready(VmResult::err(VmErrorKind::FutureCompleted));
-            }
-        };
+            };
 
-        match future.as_mut().poll(cx) {
-            Poll::Ready(result) => {
-                this.future = None;
-                Poll::Ready(result)
+            match (this.vtable.poll)(future.as_ptr(), cx) {
+                Poll::Ready(result) => {
+                    this.future = None;
+                    (this.vtable.drop)(future.as_ptr());
+                    Poll::Ready(result)
+                }
+                Poll::Pending => Poll::Pending,
             }
-            Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+impl Drop for Future {
+    fn drop(&mut self) {
+        unsafe {
+            if let Some(future) = self.future.take() {
+                (self.vtable.drop)(future.as_ptr());
+            }
         }
     }
 }

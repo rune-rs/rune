@@ -1,8 +1,24 @@
+use core::future::Future as _;
+use core::pin::pin;
+use core::task::{Context, Poll};
+
+use std::sync::Arc;
+use std::task::Wake;
+
 use crate as rune;
-use crate::runtime::{AnyObj, Shared, Value};
+
+use crate::runtime::{AnyObj, Shared, Value, VmResult};
 use crate::Any;
 
 use crate::support::Result;
+
+struct NoopWaker;
+
+impl Wake for NoopWaker {
+    fn wake(self: Arc<Self>) {
+        // nothing
+    }
+}
 
 #[derive(Any, Debug, PartialEq, Eq)]
 struct Foo(isize);
@@ -222,5 +238,48 @@ fn shared_is_writable() -> crate::support::Result<()> {
     }
 
     assert!(shared.is_writable());
+    Ok(())
+}
+
+#[test]
+fn ensure_future_dropped_poll() -> crate::support::Result<()> {
+    use crate::runtime::Future;
+
+    let mut future = pin!(Future::new(async { VmResult::Ok(10) })?);
+
+    let waker = Arc::new(NoopWaker).into();
+    let mut cx = Context::from_waker(&waker);
+
+    assert!(!future.is_completed());
+
+    // NB: By polling the future to completion we are causing it to be dropped when polling is completed.
+    let Poll::Ready(ok) = future.as_mut().poll(&mut cx) else {
+        panic!("expected ready");
+    };
+
+    assert_eq!(ok.unwrap().as_integer().unwrap(), 10);
+    assert!(future.is_completed());
+    Ok(())
+}
+
+#[test]
+fn ensure_future_dropped_explicitly() -> crate::support::Result<()> {
+    use crate::runtime::Future;
+
+    let mut future = pin!(Future::new(async { VmResult::Ok(10) })?);
+    // NB: We cause the future to be dropped explicitly through it's Drop destructor here by replacing it.
+    future.set(Future::new(async { VmResult::Ok(0) })?);
+
+    let waker = Arc::new(NoopWaker).into();
+    let mut cx = Context::from_waker(&waker);
+
+    assert!(!future.is_completed());
+
+    let Poll::Ready(ok) = future.as_mut().poll(&mut cx) else {
+        panic!("expected ready");
+    };
+
+    assert_eq!(ok.unwrap().as_integer().unwrap(), 0);
+    assert!(future.is_completed());
     Ok(())
 }
