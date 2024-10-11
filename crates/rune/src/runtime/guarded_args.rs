@@ -1,4 +1,6 @@
-use crate::runtime::{Stack, UnsafeToValue, VmResult};
+use crate::alloc::Vec;
+use crate::runtime::Args;
+use crate::runtime::{Stack, UnsafeToValue, Value, VmResult};
 
 /// Trait for converting arguments onto the stack.
 ///
@@ -17,6 +19,10 @@ pub trait GuardedArgs {
     /// The returned guard must be dropped before any used references are
     /// invalidated.
     unsafe fn unsafe_into_stack(self, stack: &mut Stack) -> VmResult<Self::Guard>;
+
+    /// Attempts to convert this type into Args, which will only succeed as long
+    /// as it doesn't contain any references to Any types.
+    fn try_into_args(self) -> Option<impl Args>;
 
     /// The number of arguments.
     fn count(&self) -> usize;
@@ -38,6 +44,11 @@ macro_rules! impl_into_args {
                 VmResult::Ok(($($value.1,)*))
             }
 
+            fn try_into_args(self) -> Option<impl Args> {
+                let ($($value,)*) = self;
+                Some(($($value.try_into_to_value()?,)*))
+            }
+
             fn count(&self) -> usize {
                 $count
             }
@@ -46,3 +57,40 @@ macro_rules! impl_into_args {
 }
 
 repeat_macro!(impl_into_args);
+
+impl GuardedArgs for Vec<Value> {
+    type Guard = ();
+
+    #[inline]
+    unsafe fn unsafe_into_stack(self, stack: &mut Stack) -> VmResult<Self::Guard> {
+        self.into_stack(stack)
+    }
+
+    fn try_into_args(self) -> Option<impl Args> {
+        Some(self)
+    }
+
+    #[inline]
+    fn count(&self) -> usize {
+        (self as &dyn Args).count()
+    }
+}
+
+#[cfg(feature = "alloc")]
+impl GuardedArgs for ::rust_alloc::vec::Vec<Value> {
+    type Guard = ();
+
+    #[inline]
+    unsafe fn unsafe_into_stack(self, stack: &mut Stack) -> VmResult<Self::Guard> {
+        self.into_stack(stack)
+    }
+
+    fn try_into_args(self) -> Option<impl Args> {
+        Some(self)
+    }
+
+    #[inline]
+    fn count(&self) -> usize {
+        (self as &dyn Args).count()
+    }
+}
