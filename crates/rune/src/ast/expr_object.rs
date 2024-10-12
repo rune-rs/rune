@@ -2,6 +2,7 @@ use crate::alloc::borrow::Cow;
 use crate::ast::prelude::*;
 
 #[test]
+#[cfg(not(miri))]
 fn ast_parse() {
     rt::<ast::ExprObject>("Foo {\"foo\": 42}");
     rt::<ast::ExprObject>("#{\"foo\": 42}");

@@ -684,7 +684,7 @@ impl fmt::Display for ErrorKind {
                 )?;
             }
             ErrorKind::Expected { actual, expected } => {
-                write!(f, "Expected {expected} but got {actual}",)?;
+                write!(f, "Expected {expected} but got {actual}")?;
             }
             ErrorKind::Unsupported { what } => {
                 write!(f, "Unsupported {what}")?;
@@ -753,10 +753,10 @@ impl fmt::Display for ErrorKind {
                 write!(f, "Item `{meta}` is not an object")?;
             }
             ErrorKind::LitObjectMissingField { field, item } => {
-                write!(f, "Missing field `{field}` in declaration of `{item}`",)?;
+                write!(f, "Missing field `{field}` in declaration of `{item}`")?;
             }
             ErrorKind::LitObjectNotField { field, item } => {
-                write!(f, "Field `{field}` is not a field in `{item}`",)?;
+                write!(f, "Field `{field}` is not a field in `{item}`")?;
             }
             ErrorKind::UnsupportedAssignExpr => {
                 write!(f, "Cannot assign to expression")?;
@@ -867,7 +867,7 @@ impl fmt::Display for ErrorKind {
                 )?;
             }
             ErrorKind::FunctionReExportConflict { hash } => {
-                write!(f, "Conflicting function hash already exists `{hash}`",)?;
+                write!(f, "Conflicting function hash already exists `{hash}`")?;
             }
             ErrorKind::ConstantConflict { hash } => {
                 write!(f, "Conflicting constant for hash `{hash}`")?;
@@ -929,7 +929,7 @@ impl fmt::Display for ErrorKind {
                 write!(f, "Visibility modifier not supported")?;
             }
             ErrorKind::ExpectedMeta { expected, meta } => {
-                write!(f, "Expected {expected} but got `{meta}`",)?;
+                write!(f, "Expected {expected} but got `{meta}`")?;
             }
             ErrorKind::NoSuchBuiltInMacro { name } => {
                 write!(f, "No such built-in macro `{name}`")?;
@@ -977,13 +977,13 @@ impl fmt::Display for ErrorKind {
                 write!(f, "Expression `.await` outside of async function or block")?;
             }
             ErrorKind::ExpectedEof { actual } => {
-                write!(f, "Expected end of file, but got {actual}",)?;
+                write!(f, "Expected end of file, but got {actual}")?;
             }
             ErrorKind::UnexpectedEof => {
                 write!(f, "Unexpected end of file")?;
             }
             ErrorKind::BadLexerMode { actual, expected } => {
-                write!(f, "Bad lexer mode `{actual}`, expected `{expected}`",)?;
+                write!(f, "Bad lexer mode `{actual}`, expected `{expected}`")?;
             }
             ErrorKind::ExpectedEscape => {
                 write!(f, "Expected escape sequence")?;
@@ -1031,10 +1031,10 @@ impl fmt::Display for ErrorKind {
                 write!(f, "Unsupported field access")?;
             }
             ErrorKind::ExpectedMacroCloseDelimiter { expected, actual } => {
-                write!(f, "Expected close delimiter {expected}, but got {actual}",)?;
+                write!(f, "Expected close delimiter {expected}, but got {actual}")?;
             }
             ErrorKind::MultipleMatchingAttributes { name } => {
-                write!(f, "Can only specify one attribute named `{name}`",)?;
+                write!(f, "Can only specify one attribute named `{name}`")?;
             }
             ErrorKind::MissingSourceId { source_id } => {
                 write!(f, "Missing source id `{source_id}`")?;
@@ -1115,7 +1115,7 @@ impl fmt::Display for ErrorKind {
                 )?;
             }
             ErrorKind::ArenaAllocError { requested } => {
-                write!(f, "Allocation error for {requested} bytes",)?;
+                write!(f, "Allocation error for {requested} bytes")?;
             }
             ErrorKind::UnsupportedPatternRest => {
                 write!(f, "Pattern `..` is not supported in this location")?;
@@ -1399,10 +1399,10 @@ impl fmt::Display for IrErrorKind {
                 write!(f, "Evaluation budget exceeded")?;
             }
             IrErrorKind::MissingIndex { index } => {
-                write!(f, "Missing index {index}",)?;
+                write!(f, "Missing index {index}")?;
             }
             IrErrorKind::MissingField { field } => {
-                write!(f, "Missing field `{field}`",)?;
+                write!(f, "Missing field `{field}`")?;
             }
             IrErrorKind::BreakOutsideOfLoop => {
                 write!(f, "Break outside of supported loop")?;

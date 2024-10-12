@@ -13,7 +13,7 @@ use crate::runtime::{
     AccessError, AccessErrorKind, BoxedPanic, CallFrame, DynArgsUsed, ExecutionState, MaybeTypeOf,
     Panic, Protocol, SliceError, StackError, TypeInfo, TypeOf, Unit, Vm, VmHaltInfo,
 };
-use crate::{Hash, ItemBuf};
+use crate::{Any, Hash, ItemBuf};
 
 /// A virtual machine error which includes tracing information.
 pub struct VmError {
@@ -475,8 +475,19 @@ impl RuntimeError {
         })
     }
 
+    /// Construct an expected error from any.
+    pub(crate) fn expected_any<T>(actual: TypeInfo) -> Self
+    where
+        T: Any,
+    {
+        Self::new(VmErrorKind::Expected {
+            expected: TypeInfo::any::<T>(),
+            actual,
+        })
+    }
+
     /// Construct an expected any error.
-    pub(crate) fn expected_any(actual: TypeInfo) -> Self {
+    pub(crate) fn expected_any_obj(actual: TypeInfo) -> Self {
         Self::new(VmErrorKind::ExpectedAny { actual })
     }
 }

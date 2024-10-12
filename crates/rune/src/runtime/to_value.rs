@@ -132,8 +132,9 @@ impl<T> ToValue for T
 where
     T: Any,
 {
+    #[inline]
     fn to_value(self) -> VmResult<Value> {
-        VmResult::Ok(vm_try!(Value::try_from(vm_try!(AnyObj::new(self)))))
+        VmResult::Ok(Value::from(vm_try!(AnyObj::new(self))))
     }
 }
 

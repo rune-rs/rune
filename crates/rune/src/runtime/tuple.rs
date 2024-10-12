@@ -6,7 +6,7 @@ use crate as rune;
 use crate::alloc::clone::TryClone;
 use crate::alloc::{self, Box};
 use crate::runtime::{
-    ConstValue, FromValue, Mut, Mutable, OwnedValue, RawMut, RawRef, Ref, ToValue, UnsafeToMut,
+    ConstValue, FromValue, Mut, Mutable, OwnedValue, RawAnyGuard, Ref, ToValue, UnsafeToMut,
     UnsafeToRef, Value, ValueShared, VmErrorKind, VmResult,
 };
 #[cfg(feature = "alloc")]
@@ -289,6 +289,7 @@ impl FromValue for OwnedTuple {
                 Mutable::Tuple(tuple) => VmResult::Ok(tuple),
                 actual => VmResult::expected::<Self>(actual.type_info()),
             },
+            OwnedValue::Any(value) => VmResult::expected::<Self>(value.type_info()),
         }
     }
 }
@@ -369,6 +370,7 @@ impl FromValue for Ref<Tuple> {
                     Err(actual) => Err(actual.type_info()),
                 }
             }
+            ValueShared::Any(value) => Err(value.type_info()),
         };
 
         match result {
@@ -398,6 +400,7 @@ impl FromValue for Mut<Tuple> {
                     Err(actual) => Err(actual.type_info()),
                 }
             }
+            ValueShared::Any(value) => Err(value.type_info()),
         };
 
         match result {
@@ -408,7 +411,7 @@ impl FromValue for Mut<Tuple> {
 }
 
 impl UnsafeToRef for Tuple {
-    type Guard = RawRef;
+    type Guard = RawAnyGuard;
 
     unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
         let (value, guard) = Ref::into_raw(vm_try!(Ref::from_value(value)));
@@ -417,7 +420,7 @@ impl UnsafeToRef for Tuple {
 }
 
 impl UnsafeToMut for Tuple {
-    type Guard = RawMut;
+    type Guard = RawAnyGuard;
 
     unsafe fn unsafe_to_mut<'a>(value: Value) -> VmResult<(&'a mut Self, Self::Guard)> {
         let (mut value, guard) = Mut::into_raw(vm_try!(Mut::from_value(value)));

@@ -518,12 +518,9 @@ where
             mut_,
             named,
             non_null,
-            pointer_guard,
-            raw_into_mut,
-            raw_into_ref,
-            raw_mut,
-            raw_ref,
+            raw_any_guard,
             raw_str,
+            raw_value_guard,
             ref_,
             static_type_mod,
             to_value,
@@ -532,6 +529,8 @@ where
             unsafe_to_mut,
             unsafe_to_ref,
             unsafe_to_value,
+            value_mut_guard,
+            value_ref_guard,
             value,
             vm_result,
             vm_try,
@@ -668,29 +667,27 @@ where
 
                 #[automatically_derived]
                 impl #impl_generics #unsafe_to_ref for #ident #type_generics #where_clause {
-                    type Guard = #raw_into_ref;
+                    type Guard = #raw_value_guard;
 
                     unsafe fn unsafe_to_ref<'a>(value: #value) -> #vm_result<(&'a Self, Self::Guard)> {
-                        let value = #vm_try!(#value::into_any_ref(value));
-                        let (value, guard) = #ref_::into_raw(value);
+                        let (value, guard) = #vm_try!(#value::into_any_ref_ptr(value));
                         #vm_result::Ok((#non_null::as_ref(&value), guard))
                     }
                 }
 
                 #[automatically_derived]
                 impl #impl_generics #unsafe_to_mut for #ident #type_generics #where_clause {
-                    type Guard = #raw_into_mut;
+                    type Guard = #raw_value_guard;
 
                     unsafe fn unsafe_to_mut<'a>(value: #value) -> #vm_result<(&'a mut Self, Self::Guard)> {
-                        let value = #vm_try!(#value::into_any_mut(value));
-                        let (mut value, guard) = #mut_::into_raw(value);
+                        let (mut value, guard) = #vm_try!(#value::into_any_mut_ptr(value));
                         #vm_result::Ok((#non_null::as_mut(&mut value), guard))
                     }
                 }
 
                 #[automatically_derived]
                 impl #impl_generics #unsafe_to_value for &#ident #type_generics #where_clause {
-                    type Guard = #pointer_guard;
+                    type Guard = #value_ref_guard;
 
                     unsafe fn unsafe_to_value(self) -> #vm_result<(#value, Self::Guard)> {
                         let (shared, guard) = #vm_try!(#value::from_ref(self));
@@ -704,7 +701,7 @@ where
 
                 #[automatically_derived]
                 impl #impl_generics #unsafe_to_value for &mut #ident #type_generics #where_clause {
-                    type Guard = #pointer_guard;
+                    type Guard = #value_mut_guard;
 
                     unsafe fn unsafe_to_value(self) -> #vm_result<(#value, Self::Guard)> {
                         let (shared, guard) = #vm_try!(#value::from_mut(self));
@@ -751,7 +748,7 @@ where
 
                 Some(quote! {
                     impl #unsafe_to_ref for #ty {
-                        type Guard = #raw_ref;
+                        type Guard = #raw_any_guard;
 
                         unsafe fn unsafe_to_ref<'a>(value: #value) -> #vm_result<(&'a Self, Self::Guard)> {
                             let value = #vm_try!(#path(value));
@@ -782,7 +779,7 @@ where
 
                 Some(quote! {
                     impl #unsafe_to_mut for #ty {
-                        type Guard = #raw_mut;
+                        type Guard = #raw_any_guard;
 
                         unsafe fn unsafe_to_mut<'a>(value: #value) -> #vm_result<(&'a mut Self, Self::Guard)> {
                             let value = #vm_try!(#path(value));

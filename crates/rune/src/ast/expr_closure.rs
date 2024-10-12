@@ -1,6 +1,7 @@
 use crate::ast::prelude::*;
 
 #[test]
+#[cfg(not(miri))]
 fn ast_parse() {
     rt::<ast::ExprClosure>("async || 42");
     rt::<ast::ExprClosure>("|| 42");

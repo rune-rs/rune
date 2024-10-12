@@ -4,6 +4,7 @@ use core::ops;
 use crate::ast::prelude::*;
 
 #[test]
+#[cfg(not(miri))]
 fn ast_parse() {
     rt::<ast::Expr>("()");
     rt::<ast::Expr>("foo[\"foo\"]");
@@ -43,25 +44,16 @@ fn ast_parse() {
     rt::<ast::Expr>("Disco {\"never_died\": true }");
     rt::<ast::Expr>("(false, 1, 'n')");
     rt::<ast::Expr>("[false, 1, 'b']");
-}
 
-#[test]
-fn expr_if() {
     let expr = rt::<ast::Expr>(r#"if true {} else {}"#);
     assert!(matches!(expr, ast::Expr::If(..)));
 
     let expr = rt::<ast::Expr>("if 1 { } else { if 2 { } else { } }");
     assert!(matches!(expr, ast::Expr::If(..)));
-}
 
-#[test]
-fn expr_while() {
     let expr = rt::<ast::Expr>(r#"while true {}"#);
     assert!(matches!(expr, ast::Expr::While(..)));
-}
 
-#[test]
-fn test_macro_call_chain() {
     rt::<ast::Expr>("format!(\"{}\", a).bar()");
 }
 

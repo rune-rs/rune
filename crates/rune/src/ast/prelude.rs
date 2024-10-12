@@ -13,5 +13,5 @@ pub(crate) use crate::parse::{
 
 pub(crate) type Result<T, E = compile::Error> = core::result::Result<T, E>;
 
-#[cfg(test)]
+#[cfg(all(test, not(miri)))]
 pub(crate) use crate::ast::testing::{rt, rt_with};

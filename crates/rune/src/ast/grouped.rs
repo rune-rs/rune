@@ -4,6 +4,7 @@ use crate::alloc::vec;
 use crate::ast::prelude::*;
 
 #[test]
+#[cfg(not(miri))]
 fn ast_parse() {
     rt::<ast::Parenthesized<ast::Expr, T![,]>>("(1, \"two\")");
     rt::<ast::Parenthesized<ast::Expr, T![,]>>("(1, 2,)");

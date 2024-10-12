@@ -1,6 +1,7 @@
 use crate::ast::prelude::*;
 
 #[test]
+#[cfg(not(miri))]
 fn ast_parse() {
     rt::<ast::ExprLit>("42");
     rt::<ast::ExprLit>("\"test\"");

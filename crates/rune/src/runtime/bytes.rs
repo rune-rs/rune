@@ -12,7 +12,9 @@ use serde::ser;
 use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, Vec};
-use crate::runtime::{Mutable, RawRef, Ref, UnsafeToRef, Value, ValueRepr, VmErrorKind, VmResult};
+use crate::runtime::{
+    Mutable, RawAnyGuard, Ref, UnsafeToRef, Value, ValueRepr, VmErrorKind, VmResult,
+};
 use crate::Any;
 
 /// A vector of bytes.
@@ -356,13 +358,16 @@ impl AsRef<[u8]> for Bytes {
 from_value2!(Bytes, into_bytes_ref, into_bytes_mut, into_bytes);
 
 impl UnsafeToRef for [u8] {
-    type Guard = RawRef;
+    type Guard = RawAnyGuard;
 
     unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
         let value = match vm_try!(value.into_repr()) {
+            ValueRepr::Inline(value) => {
+                return VmResult::expected::<Bytes>(value.type_info());
+            }
             ValueRepr::Mutable(value) => vm_try!(value.into_ref()),
-            ValueRepr::Inline(actual) => {
-                return VmResult::expected::<Bytes>(actual.type_info());
+            ValueRepr::Any(value) => {
+                return VmResult::expected::<Bytes>(value.type_info());
             }
         };
 
@@ -457,25 +462,5 @@ impl<'de> de::Deserialize<'de> for Bytes {
         }
 
         deserializer.deserialize_bytes(Visitor)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::runtime::{Bytes, Value};
-    use crate::tests::prelude::*;
-
-    #[test]
-    #[allow(clippy::let_and_return)]
-    fn test_clone_issue() -> Result<(), Box<dyn core::error::Error>> {
-        let shared = Value::try_from(Bytes::new())?;
-
-        let _ = {
-            let shared = shared.into_bytes_ref()?;
-            let out = shared.try_clone()?;
-            out
-        };
-
-        Ok(())
     }
 }

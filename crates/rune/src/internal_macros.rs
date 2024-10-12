@@ -95,7 +95,7 @@ macro_rules! cfg_std {
 macro_rules! from_value_ref {
     ($ty:ty, $into_ref:ident, $into_mut:ident, $into:ident) => {
         impl $crate::runtime::UnsafeToRef for $ty {
-            type Guard = $crate::runtime::RawRef;
+            type Guard = $crate::runtime::RawAnyGuard;
 
             unsafe fn unsafe_to_ref<'a>(
                 value: $crate::runtime::Value,
@@ -107,7 +107,7 @@ macro_rules! from_value_ref {
         }
 
         impl $crate::runtime::UnsafeToMut for $ty {
-            type Guard = $crate::runtime::RawMut;
+            type Guard = $crate::runtime::RawAnyGuard;
 
             unsafe fn unsafe_to_mut<'a>(
                 value: $crate::runtime::Value,

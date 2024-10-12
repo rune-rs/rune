@@ -16,6 +16,7 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(Snapshot::display)?;
     m.function_meta(Snapshot::debug)?;
     m.function_meta(Snapshot::shared)?;
+    m.function_meta(Snapshot::is_exclusive)?;
 
     Ok(m)
 }
@@ -52,6 +53,35 @@ impl Snapshot {
     #[rune::function]
     fn shared(&self) -> usize {
         self.inner.shared()
+    }
+
+    /// Test if the snapshot indicates that the value is exclusively held.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// use std::mem::snapshot;
+    ///
+    /// let v = [1, 2, 3];
+    ///
+    /// let s = snapshot(v)?;
+    /// assert_eq!(s.shared(), 0);
+    /// assert!(!s.is_exclusive());
+    ///
+    /// // Assign to a separate variable since the compiler will notice that `v` is moved.
+    /// let u = v;
+    ///
+    /// // Move the value into a closure, causing the original reference to become exclusively held.
+    /// let closure = move || {
+    ///    v
+    /// };
+    ///
+    /// let s = snapshot(u)?;
+    /// assert!(s.is_exclusive());
+    /// ```
+    #[rune::function]
+    fn is_exclusive(&self) -> bool {
+        self.inner.is_exclusive()
     }
 
     #[rune::function(protocol = STRING_DISPLAY)]
@@ -95,12 +125,16 @@ fn drop(value: Value) -> VmResult<()> {
 /// ```rune
 /// use std::mem::snapshot;
 ///
-/// let v = [1, 2, 3];
+/// let v1 = [1, 2, 3];
+/// let a = snapshot(v1)?;
+/// let v2 = [v1];
+/// let b = snapshot(v1)?;
 ///
-/// let s = snapshot(v)?;
+/// assert_eq!(a.shared(), 0);
+/// assert_eq!(b.shared(), 0);
 ///
-/// assert_eq!(s.shared(), 0);
-/// dbg!(s);
+/// dbg!(a);
+/// dbg!(b);
 /// ```
 #[rune::function]
 fn snapshot(value: Value) -> Option<Snapshot> {

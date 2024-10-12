@@ -1,6 +1,7 @@
 use crate::ast::prelude::*;
 
 #[test]
+#[cfg(not(miri))]
 fn ast_parse() {
     assert!(matches! {
         rt::<ast::Visibility>("pub"),

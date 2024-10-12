@@ -6,7 +6,7 @@ use crate::alloc::hashbrown::raw::RawIter;
 use crate::alloc::prelude::*;
 use crate::hashbrown::{IterRef, Table};
 use crate::runtime::{
-    EnvProtocolCaller, Formatter, Iterator, ProtocolCaller, RawRef, Ref, Value, VmResult,
+    EnvProtocolCaller, Formatter, Iterator, ProtocolCaller, RawAnyGuard, Ref, Value, VmResult,
 };
 use crate::{Any, ContextError, Module};
 
@@ -636,7 +636,7 @@ struct Union {
     this: ptr::NonNull<Table<()>>,
     this_iter: RawIter<(Value, ())>,
     other_iter: RawIter<(Value, ())>,
-    _guards: (RawRef, RawRef),
+    _guards: (RawAnyGuard, RawAnyGuard),
 }
 
 impl Union {

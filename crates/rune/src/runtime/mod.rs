@@ -10,11 +10,19 @@ mod steps_between;
 use self::steps_between::StepsBetween;
 
 mod access;
-pub(crate) use self::access::{Access, AccessErrorKind, RawAccessGuard};
-pub use self::access::{AccessError, BorrowMut, BorrowRef, Snapshot};
+pub(crate) use self::access::{
+    Access, AccessError, AccessErrorKind, AccessGuard, RawAccessGuard, Snapshot,
+};
+
+mod borrow_mut;
+pub use self::borrow_mut::BorrowMut;
+
+mod borrow_ref;
+pub use self::borrow_ref::BorrowRef;
 
 mod any_obj;
-pub use self::any_obj::{AnyObj, AnyObjError, AnyObjVtable};
+pub use self::any_obj::AnyObj;
+pub(crate) use self::any_obj::{AnyObjDrop, AnyObjError, RawAnyObjGuard};
 
 mod args;
 pub use self::args::{Args, FixedArgs};
@@ -119,9 +127,12 @@ pub use self::runtime_context::RuntimeContext;
 mod select;
 pub(crate) use self::select::Select;
 
+mod r#ref;
+use self::r#ref::RefVtable;
+pub use self::r#ref::{Mut, RawAnyGuard, Ref};
+
 mod shared;
 pub(crate) use self::shared::Shared;
-pub use self::shared::{Mut, RawMut, RawRef, Ref, SharedPointerGuard};
 
 mod stack;
 pub(crate) use self::stack::Pair;
@@ -153,7 +164,10 @@ pub(crate) use self::unit::UnitFn;
 pub use self::unit::{Unit, UnitStorage};
 
 mod value;
-pub use self::value::{EmptyStruct, Rtti, Struct, TupleStruct, TypeValue, Value, VariantRtti};
+pub use self::value::{
+    EmptyStruct, RawValueGuard, Rtti, Struct, TupleStruct, TypeValue, Value, ValueMutGuard,
+    ValueRefGuard, VariantRtti,
+};
 pub(crate) use self::value::{
     Inline, Mutable, OwnedValue, ValueBorrowRef, ValueMut, ValueRef, ValueRepr, ValueShared,
 };

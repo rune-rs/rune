@@ -16,7 +16,7 @@ pub(crate) mod prelude {
     pub(crate) use crate::parse;
     pub(crate) use crate::runtime::{
         self, AnyTypeInfo, Bytes, CoreTypeOf, Formatter, Function, InstAddress, MaybeTypeOf, Mut,
-        Mutable, Object, Output, OwnedTuple, OwnedValue, Protocol, RawRef, RawStr, Ref, Stack,
+        Mutable, Object, Output, OwnedTuple, OwnedValue, Protocol, RawAnyGuard, RawStr, Ref, Stack,
         Tuple, TypeInfo, TypeOf, UnsafeToRef, VecTuple, VmErrorKind, VmResult,
     };
     pub(crate) use crate::support::Result;
@@ -27,7 +27,6 @@ pub(crate) mod prelude {
     };
     pub(crate) use futures_executor::block_on;
 
-    pub(crate) use ::rust_alloc::boxed::Box;
     pub(crate) use ::rust_alloc::string::{String, ToString};
     pub(crate) use ::rust_alloc::sync::Arc;
     pub(crate) use ::rust_alloc::vec::Vec;
