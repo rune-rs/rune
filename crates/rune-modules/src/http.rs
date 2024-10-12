@@ -116,7 +116,7 @@ impl Error {
 /// An asynchronous Client to make Requests with.
 #[derive(Debug, Any)]
 #[rune(item = ::http)]
-struct Client {
+pub struct Client {
     client: reqwest::Client,
 }
 
